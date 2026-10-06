@@ -1515,7 +1515,11 @@ and reattaches the system PLL's second output as the Coleco card flow does.
 nextpnr pass 2 runs with `--fes-cart-region slotN` and that socket's
 `--fes-cram-region`; the producer requires the three shell clocks and no CRAM
 change outside the socket, then publishes a two-member archive whose
-manifest carries `slot_index`. `expansion/cmd/fes-slot-link` composes any set
+manifest carries `slot_index`. The probe card's `$Cn00` ROM is a synchronous
+M10K. Address and IOSEL stay held for the 6502 cycle and the motherboard
+samples the slot response at cycle 16, so one clock of ROM latency is inside
+that window. The card producer rejects async M10K reads on `cart.json` and
+`cart-routed.json`. `expansion/cmd/fes-slot-link` composes any set
 of such archives, optionally with the firmware ROM map, onto the shell.
 
 ## FES ZX Spectrum

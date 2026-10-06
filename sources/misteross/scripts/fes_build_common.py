@@ -475,7 +475,8 @@ def reject_async_m10k_reads(design: dict, *, allow: frozenset[str] = frozenset()
     netlist. ``allow`` is an exact cell-name set; no described producer
     passes a nonempty set, so the gate has no exceptions. SMS, SG-1000,
     ZX81 and Coleco megacart still emit the mode from RTL and are not yet
-    wired through this check. The Apple II probe card is outside the shell.
+    wired through this check. The Apple II shell and its probe-card
+    producer are both checked with an empty allowlist.
     """
     modules = design.get("modules")
     if not isinstance(modules, dict):

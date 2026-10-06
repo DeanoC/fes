@@ -94,11 +94,13 @@ registers and a `$C800` RAM write/read-back, so the late-bound firmware alone
 can inspect a linked card on hardware. The machine simulation links the card
 into sockets 4 and 7 and checks both commands.
 
-The card's ROM is an explicit M10K and its RAM a plain inferred memory, which
+The card's `$Cn00` ROM is an explicit synchronous M10K (`CFG_ASYNC_READ=0`,
+live `CLK1`, `B1EN` held high). Its RAM is a plain inferred memory, which
 synthesis maps to a dual-clock M10K. The toolchain's cart merge drives every
 cart clock pin from the socket clock and rejects undriven cart inputs (FES
 #250; nextpnr before that left the RAM read clock floating and reads returned
-zero on hardware).
+zero on hardware). The card producer rejects any remaining async M10K in
+`cart.json` and `cart-routed.json`.
 
 ```sh
 python3 scripts/build_apple2_slot_card.py --shell build/fes-apple2-oss \
