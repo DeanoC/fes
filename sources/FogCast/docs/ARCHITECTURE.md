@@ -499,6 +499,11 @@ proven pre-mutation failure reconstructs the same logical lease; failure to
 pause or reconstruct it is a recovery failure and leaves input gated. Startup
 adopts every still-valid publication through the same opened trusted root,
 selecting only the package that exactly matches the active runtime status.
+A validated explicit `reboot_required` load reply with a retained active owner
+also retains the attempted package, linked ROM and initial disk sources until
+a confirmed clean Stop. An identity mismatch remains ambiguous and cannot
+justify deleting those sources; it does not permit adoption or a successful
+activation. Failed Stop preserves the retained publications.
 After an attempted activation failure, the target publishes idle only when the
 runtime confirms exact operational idle and retains the structured failure in
 that status. The host returns the original failure only when the observed idle

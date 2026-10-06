@@ -579,6 +579,17 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 				apiErr.Phase = "recovery"
 			}
 		}
+		if !response.OK && response.State == "reboot_required" && response.ActivePackage != nil && validProtocol2Response(response) {
+			// A validated recovery reply keeps a physical owner. Retain this
+			// attempted load's sources until confirmed Stop, including a mismatched
+			// identity that cannot prove these bytes unused. Restart adoption still
+			// requires the exact package, descriptor and ROM/composition identities.
+			r.retainRetired(staged)
+			cleanupStaged = false
+			attempted = true
+			preserveInput = false
+			apiErr.Phase = "recovery"
+		}
 		return CoreActivation{}, attempted, apiErr
 	}
 	if response.State != "running_development" || response.Execution != "development" ||
