@@ -31,7 +31,7 @@ from scripts.export_core_package import (
 from scripts.fes_build_common import (
     BuildError, _authenticate_tools, _cell_counts, _i2c_evidence, _prepare_output,
     _read_json, _regular_input, _require_gpu_backend, _run_tool, _sha256, _write_atomic,
-    validate_timing_resources,
+    reject_async_m10k_reads, validate_timing_resources,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
@@ -366,6 +366,7 @@ def validate_firmware_ports(cells: dict) -> None:
 def validate_synth_evidence(output: Path, *, cpu: str = "nmos") -> dict:
     _output, _sys_mhz, pll_count = _cpu_parameters(cpu)
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
+    reject_async_m10k_reads(synthesis)
     _i2c_evidence(synthesis, "synthesized")
     counts = _cell_counts(synthesis)
     for name, expected in (REQUIRED_RESOURCES | {"altera_pll": pll_count}).items():
@@ -391,6 +392,7 @@ def validate_build_evidence(output: Path, *, cpu: str = "nmos") -> dict:
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
     synth = validate_synth_evidence(output, cpu=cpu)
+    reject_async_m10k_reads(routed)
     _i2c_evidence(routed, "routed")
     sockets = validate_routed_shell(routed)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")

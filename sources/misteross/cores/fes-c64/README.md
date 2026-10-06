@@ -91,7 +91,14 @@ artifact or kit acceptance implied.
 
 `build-fes-c64` authenticates `toolchains/c64.lock` (the Apple II tool
 commits: Yosys `e2d425de`, Mistral `7ed06e21`, nextpnr `0259c6dc`).
-Before routing, its producer connects the unused write clocks of the two
-inferred read-only M10Ks (VIC font and IEC track lookup) to their live read
-clocks. It checks their names and disabled write ports so a changed synthesis
-shape fails closed.
+The sixteen firmware lanes are synchronous 1024x10 M10Ks on the system
+clock, with reads enabled and active-low writes disabled. The bank selector
+is registered with the M10K address; a combinational lane mux and the final
+data register keep the two-cycle latency the 6510 samples at cycle 16 of
+phi2. The ROM map requires `CFG_ASYNC_READ=0`. After synthesis, and again
+on the routed netlist, any `MISTRAL_M10K` or `MISTRAL_M10K_TDP` with
+`CFG_ASYNC_READ=1` fails the build. Color RAM stays a combinational logic
+read. Before routing, the producer connects the unused write clocks of the
+two inferred read-only M10Ks (VIC font and IEC track lookup) to their live
+read clocks. It checks their names and disabled write ports so a changed
+synthesis shape fails closed.

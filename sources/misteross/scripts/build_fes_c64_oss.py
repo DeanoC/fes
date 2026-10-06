@@ -34,7 +34,7 @@ from scripts.export_core_package import (
 from scripts.fes_build_common import (
     BuildError, _authenticate_tools, _cell_counts, _i2c_evidence, _prepare_output,
     _read_json, _regular_input, _require_gpu_backend, _run_tool, _sha256, _write_atomic,
-    validate_timing_resources,
+    reject_async_m10k_reads, validate_timing_resources,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
@@ -145,6 +145,7 @@ def _authenticate_c64_tools(root: Path, cache_root: Path | None = None):
 def clock_read_only_memories(path: Path) -> None:
     """Give inferred read-only M10Ks a live, otherwise unused port-A clock."""
     design = _read_json(path, "C64 synthesized design")
+    reject_async_m10k_reads(design)
     cells = design["modules"][TOP]["cells"]
     expected = ("machine.iec.file_track_", "machine.vic.code_q_")
     found = set()
@@ -155,6 +156,18 @@ def clock_read_only_memories(path: Path) -> None:
         if pins.get("CLK1") != ["x"]:
             continue
         match = next((prefix for prefix in expected if name.startswith(prefix)), None)
+        # Autoname runs after ABC and can name either read-only ROM from a
+        # connected net instead of its RTL prefix. The VIC glyph ROM has been
+        # named from a main_ram address net; the IEC track ROM can lose
+        # machine.iec.file_track_ the same way. A disconnected read-only M10K
+        # is accepted as whichever of those two roles no other disconnected
+        # cell still claims by name.
+        if match is None:
+            match = next((prefix for prefix in expected
+                          if prefix not in found and not any(
+                              n.startswith(prefix) and c["type"] == "MISTRAL_M10K"
+                              and c["connections"].get("CLK1") == ["x"]
+                              for n, c in cells.items())), None)
         if (match is None or match in found or pins.get("A1EN") != ["0"]
                 or pins.get("B1EN") != ["1"] or len(pins.get("CLK2", [])) != 1
                 or not isinstance(pins["CLK2"][0], int)):
@@ -312,8 +325,28 @@ def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, floa
     return name, constraint, achieved
 
 
+def validate_firmware_ports(cells: dict) -> None:
+    """Require a shared live read clock, enabled reads and disabled ROM writes."""
+    clocks = set()
+    for lane in range(len(FIRMWARE_LANE_ROWS)):
+        name = f"machine.rom.lane{lane}"
+        pins = cells.get(name, {}).get("connections", {})
+        clock = pins.get("CLK1")
+        if (not isinstance(clock, list) or len(clock) != 1 or type(clock[0]) is not int or
+                pins.get("A1EN") != ["1"] or pins.get("B1EN") != ["1"] or
+                pins.get("ACLR0") != ["0"] or pins.get("ACLR1") != ["0"] or
+                pins.get("A1BE") or pins.get("CLK2")):
+            raise BuildError(f"firmware lane {name} must have one live clock, enabled reads, "
+                             "disabled writes, inactive clears and no optional ports")
+        clocks.add(clock[0])
+    if len(clocks) != 1:
+        raise BuildError("firmware lanes must share the system read clock")
+
+
 def validate_synth_evidence(output: Path) -> dict:
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
+    reject_async_m10k_reads(synthesis)
+    validate_firmware_ports(synthesis["modules"][TOP]["cells"])
     _i2c_evidence(synthesis, "synthesized")
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
@@ -333,6 +366,7 @@ def validate_build_evidence(output: Path) -> dict:
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
     synth = validate_synth_evidence(output)
+    reject_async_m10k_reads(routed)
     _i2c_evidence(routed, "routed")
     sockets = validate_routed_shell(routed)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
@@ -456,7 +490,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         mapping, map_evidence = rom_map.build_rom_map(
             database, (output / "core.rbf").read_bytes(),
             routed=_read_json(output / "routed.json", "routed firmware design"),
-            lane_rows=FIRMWARE_LANE_ROWS,
+            lane_rows=FIRMWARE_LANE_ROWS, expected_async_read=0,
         )
         check_firmware_outside_sockets(mapping)
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(",", ":")) + "\n").encode()

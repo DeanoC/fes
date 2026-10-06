@@ -1495,7 +1495,10 @@ outside all four socket CRAM rectangles. It searches seeds 5, 4, 2, 1, 3,
 system, 74.25 MHz pixel and 12.288 MHz audio timing. An inferred read-only
 memory maps to an M10K without a clock in this toolchain, so the font M10K
 is instantiated explicitly (`rtl/apple2_video.v`) and the audio mix is
-pipelined. The package declares `fes.expansion.apple2-bus` 1.0 optional.
+pipelined. The sixteen firmware lanes and that font still use
+`CFG_ASYNC_READ=1`. The shared netlist check allowlists exactly
+`machine.rom.lane0`–`lane15` and `video.font_rom`; any other async M10K
+fails the Apple II seal. Converting those seventeen cells is #539. The package declares `fes.expansion.apple2-bus` 1.0 optional.
 
 `scripts/build_apple2_slot_card.py` builds one card for one physical slot
 against the exact sealed shell and its frozen `routed.json`: the scaffold
@@ -1592,6 +1595,12 @@ TOD, serial shifting and timer port outputs remain outside this slice.
 `make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this
 pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
 `c64-firmware`, 16,384 bytes, on the blank column-5 lanes at rows 32–47.
+Those lanes use synchronous M10K reads (`CFG_ASYNC_READ=0`) with the bank
+selector delayed one clock so the CPU-facing byte is still two system clocks
+behind the registered address. `c64_machine` samples that byte at
+`cycle_clock == 16`, sixteen 52.224 MHz clocks after the phi2 address
+capture. The ROM-map producer requires `CFG_ASYNC_READ=0`, and the shared
+netlist check rejects every other async M10K. Color RAM remains logic.
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
 frozen shell. No Commodore ROM is in the tree, and the core is not in the
 factory image.

@@ -119,6 +119,18 @@ class BuildFesApple2Tests(unittest.TestCase):
             self.assertIn(f'(* keep, BEL = "MISTRAL_M10K.5.{row}.0" *)', rtl)
             self.assertIn(f") lane{index} (", rtl)
 
+    def test_async_m10k_allowlist_is_the_firmware_and_font_only(self) -> None:
+        from scripts.fes_build_common import reject_async_m10k_reads
+        self.assertEqual(producer.APPLE2_ASYNC_M10K, frozenset(
+            [f"machine.rom.lane{index}" for index in range(16)] + ["video.font_rom"]))
+        cells = {name: {"type": "MISTRAL_M10K", "parameters": {"CFG_ASYNC_READ": "1"}}
+                 for name in producer.APPLE2_ASYNC_M10K}
+        design = {"modules": {"top": {"cells": cells}}}
+        reject_async_m10k_reads(design, allow=producer.APPLE2_ASYNC_M10K)
+        cells["video.extra"] = {"type": "MISTRAL_M10K", "parameters": {"CFG_ASYNC_READ": "1"}}
+        with self.assertRaisesRegex(BuildError, "video.extra"):
+            reject_async_m10k_reads(design, allow=producer.APPLE2_ASYNC_M10K)
+
 
 if __name__ == "__main__":
     unittest.main()
