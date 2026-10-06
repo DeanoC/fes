@@ -345,6 +345,15 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("in the factory image", readme.lower())
         self.assertNotIn("not in the factory image", readme.lower())
         self.assertNotIn("remain later jobs", readme.lower())
+        sms_architecture = architecture[
+            architecture.index("## FES Master System"):architecture.index("## Standalone Pong")
+        ]
+        for text in (readme, sms_architecture):
+            self.assertIn("CFG_ASYNC_READ=0", text)
+            self.assertIn("two system clocks", text)
+            self.assertIn("expected_async_read=0", text)
+            self.assertIn("asynchronous M10K", text)
+        self.assertIn("reject_async_m10k_reads", readme)
 
     def test_diagnostic_is_reproducible_and_enters_at_reset(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
