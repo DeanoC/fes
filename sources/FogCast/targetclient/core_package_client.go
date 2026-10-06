@@ -119,7 +119,7 @@ func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, li
 	}
 	// A physical load can finish after lease expiry has scheduled target cleanup.
 	// Its valid active reply is not authority to publish a new host play.
-	if c.kitLease != nil && c.kitLease.CurrentToken() != request.Header.Get(KitLeaseHeader) {
+	if c.kitLease != nil && !c.kitLease.ownsCurrentGrant(request.Header.Get(KitLeaseHeader)) {
 		return protocol.Status{}, errors.Join(ErrKitLeaseLost, &protocol.APIError{
 			Code: protocol.CodeKitLeaseDenied, Message: "kit lease lost during core activation", Phase: "recovery"})
 	}

@@ -475,6 +475,15 @@ before ownership handoff. The caller owns the returned directory lifetime and
 must release it with `Staged.Cleanup`, which reopens and verifies the retained
 root and publication identities before removing the sealed directory.
 
+Format-3 ROM staging reads one owned envelope buffer bounded by its declared
+size. Package payload and map bytes borrow that immutable buffer during the
+operation; receipt decoding and map validation honor the admission context.
+One parsed, sealed map is reused for receipt verification and independent ROM
+linking within that operation. Final private publication is revalidated, and
+all framing, digest and initial-media binding checks remain required. Published
+files own independent bytes after return. Restart adoption independently
+validates and relinks the retained source bytes.
+
 The target package lifecycle uses runtime protocol 2. A read-only
 `inspect_package` exchange negotiates the exact ABI registry and programming
 profiles before mutation. Protocol 1 is rejected without mutation; there is
@@ -500,7 +509,9 @@ pause or reconstruct it is a recovery failure and leaves input gated. Startup
 adopts every still-valid publication through the same opened trusted root,
 selecting only the package that exactly matches the active runtime status.
 The host accepts a successful core-load reply only while it still holds the
-same kit grant used for dispatch. A reply received after local lease loss is a
+same kit grant used for dispatch. The token match and unexpired local monotonic
+deadline are checked together under the lease mutex; a retained token alone
+does not authorize success. A reply received after local lease loss is a
 recovery failure, even if a subsequent read observes the new active package.
 The host does not replay the load or claim another grant; target expiry cleanup
 still waits for the admitted operation to finish before normal Stop. A clean
@@ -2770,13 +2781,6 @@ cartridge-only, video-only and combined parts, with either an empty drive or an
 initial disk. The validated launch source selects this budget; earlier caller
 deadlines and cancellation still apply. Other cores retain their configured
 upload budget. Existing live insertion/ejection keeps the running machine intact.
-The target reads the declared ROM envelope into one owned buffer and borrows
-its sealed payload/map during validation and independent linking. The parsed
-map belongs to that operation and is reused there; receipt validation observes
-the admission context. Canonical framing, hashes and link evidence remain
-checked, and private publications own independent bytes after staging. Restart
-adoption independently validates and relinks the retained sources.
-
 Launch confirmation checks both ROM/parts identities and the ready persistent
 disk's game/base binding; an initial disk is a startup input, not an immutable
 identity imposed on later live media changes.
