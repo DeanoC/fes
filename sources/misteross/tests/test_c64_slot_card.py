@@ -170,6 +170,28 @@ class C64SlotCardTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             card.validate_cart_clocks(design, allow_combinational=True)
 
+    def test_response_drivers_preserve_constants_aliases_and_truth_table(self) -> None:
+        inputs = ["0", "1", 3, 3] * 7
+        pads = list(range(10, 38))
+        cells = {f"ob_{i}": {"type": "MISTRAL_OB", "connections": {"I": [value], "PAD": [pads[i]]}}
+                 for i, value in enumerate(inputs)}
+        source = {"modules": {"cart": {"ports": {"plug_rdata": {"bits": pads},
+                                                 "plug_addr": {"bits": [3]}}, "cells": cells}}}
+        result = json.loads(card.materialize_response_drivers(json.dumps(source).encode()))
+        cells = result["modules"]["cart"]["cells"]
+        outputs = set()
+        for i, value in enumerate(inputs):
+            lut = cells[f"fes_response_driver_{i}"]
+            self.assertEqual(lut["connections"]["A"], [value])
+            self.assertEqual(lut["connections"]["Q"], cells[f"ob_{i}"]["connections"]["I"])
+            outputs.update(lut["connections"]["Q"])
+            for bit in (0, 1):
+                self.assertEqual((int(lut["parameters"]["LUT"], 2) >> bit) & 1, bit)
+        self.assertEqual(len(outputs), 28)
+        source["modules"]["cart"]["cells"].pop("ob_0")
+        with self.assertRaises(ValueError):
+            card.materialize_response_drivers(json.dumps(source).encode())
+
 
 if __name__ == "__main__":
     unittest.main()

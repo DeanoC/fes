@@ -221,6 +221,38 @@ def card_synthesis_script(card: str, slot: int, output: Path) -> str:
             f"synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}")
 
 
+def materialize_response_drivers(source: bytes) -> bytes:
+    """Give each socket response an independent physical driver.
+
+    The pinned cart merger skips constant OB inputs and maps an aliased OB
+    input onto only its last sink. Identity LUTs preserve constants and fanout
+    without changing the card's truth table or rewriting the frozen shell.
+    """
+    design = json.loads(source)
+    top = design["modules"]["cart"]
+    pads = top["ports"]["plug_rdata"]["bits"]
+    if len(pads) != 28 or any(type(bit) is not int for bit in pads):
+        raise ValueError("card response port must expose 28 physical outputs")
+    cells = top["cells"]
+    signals = [bit for cell in cells.values() for bits in cell["connections"].values()
+               for bit in bits if type(bit) is int]
+    signals += [bit for port in top["ports"].values() for bit in port["bits"] if type(bit) is int]
+    next_bit = max(signals) + 1
+    for index, pad in enumerate(pads):
+        outputs = [cell for cell in cells.values() if cell["type"] == "MISTRAL_OB"
+                   and cell["connections"].get("PAD") == [pad]]
+        name = f"fes_response_driver_{index}"
+        if len(outputs) != 1 or name in cells or len(outputs[0]["connections"].get("I", [])) != 1:
+            raise ValueError("card response output buffer contract changed")
+        cell = outputs[0]
+        cells[name] = {"type": "MISTRAL_ALUT1", "parameters": {"LUT": "10"}, "attributes": {},
+                       "port_directions": {"A": "input", "Q": "output"},
+                       "connections": {"A": cell["connections"]["I"], "Q": [next_bit]}}
+        cell["connections"]["I"] = [next_bit]
+        next_bit += 1
+    return (json.dumps(design, separators=(",", ":")) + "\n").encode()
+
+
 def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu: int, *,
           cache_root: Path | None = None) -> Path:
     root, shell = root.resolve(), shell.resolve()
@@ -285,6 +317,10 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
             path = output / artifact
             if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
                 raise ValueError(f"{name} did not produce nonempty {artifact}")
+        if name == "synthesis":
+            mapped = output / "cart.json"
+            (output / "cart-synthesized.json").write_bytes(mapped.read_bytes())
+            mapped.write_bytes(materialize_response_drivers(mapped.read_bytes()))
     achieved = validate_cart_timing(json.loads((output / "timing.json").read_text()))
     validate_cart_clocks(json.loads((output / "cart-routed.json").read_text()),
                          allow_combinational=card == "probe" and slot == 1)
