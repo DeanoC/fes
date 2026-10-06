@@ -174,6 +174,23 @@ class BuildFesC64Tests(unittest.TestCase):
         with self.assertRaises(BuildError):
             async_m10k_parameter("nope")
 
+    def test_color_ram_must_be_one_synchronous_dual_clock_m10k(self) -> None:
+        name = "machine.vic.color_ram.ram.0.0"
+        cell = {"type": "MISTRAL_M10K_TDP", "connections": {
+            "CLK1": [7], "CLK2": [8], "A1EN": ["1"], "B1EN": ["1"],
+            "A1WE": [9], "B1WE": ["0"],
+        }}
+        producer.validate_color_ram({name: cell})
+        for field, value in (("CLK2", [7]), ("A1WE", ["0"]), ("B1WE", [10])):
+            changed = json.loads(json.dumps(cell))
+            changed["connections"][field] = value
+            with self.assertRaises(BuildError):
+                producer.validate_color_ram({name: changed})
+        with self.assertRaises(BuildError):
+            producer.validate_color_ram({name: {**cell, "type": "MISTRAL_M10K"}})
+        with self.assertRaises(BuildError):
+            producer.validate_color_ram({name: cell, name + ".1": cell})
+
     def test_autonamed_read_only_roms_still_get_clocks(self) -> None:
         """Post-ABC autoname may replace either ROM prefix; both roles still patch."""
         import tempfile
@@ -268,7 +285,7 @@ class C64YosysM10kTests(unittest.TestCase):
         lanes = sorted(line.removeprefix("top/") for line in sections["LANES"] if line.startswith("top/"))
         self.assertEqual(async_cells, [])
         self.assertEqual(objects("SDP"), "18 objects.")
-        self.assertEqual(objects("TDP"), "235 objects.")
+        self.assertEqual(objects("TDP"), "236 objects.")
         self.assertEqual(lanes, sorted(f"machine.rom.lane{index}" for index in range(16)))
 
     def test_full_synth_patches_autonamed_read_only_clocks(self) -> None:

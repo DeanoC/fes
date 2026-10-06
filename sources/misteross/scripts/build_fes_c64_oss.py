@@ -89,6 +89,7 @@ RTL_SOURCES = (
     "cores/fes-common/rtl/fes_audio_i2s.v",
     "cores/fes-c64/rtl/c64_machine.sv",
     "cores/fes-c64/rtl/c64_ram.v",
+    "cores/fes-c64/rtl/c64_color_ram.v",
     "cores/fes-c64/rtl/c64_rom.v",
     "cores/fes-c64/rtl/c64_vic.v",
     "cores/fes-c64/rtl/c64_sid.v",
@@ -343,18 +344,41 @@ def validate_firmware_ports(cells: dict) -> None:
         raise BuildError("firmware lanes must share the system read clock")
 
 
+def validate_color_ram(cells: dict) -> None:
+    """Require the C64 color store to remain one synchronous dual-clock M10K."""
+    name = "machine.vic.color_ram.ram.0.0"
+    memories = sorted(cell_name for cell_name, cell in cells.items()
+                      if cell_name.startswith("machine.vic.color_ram.ram.")
+                      and cell.get("type") in {"MISTRAL_M10K", "MISTRAL_M10K_TDP"})
+    if memories != [name]:
+        raise BuildError(f"color RAM must map to exactly one M10K_TDP, got {memories}")
+    cell = cells[name]
+    if cell.get("type") != "MISTRAL_M10K_TDP":
+        raise BuildError("color RAM must map to MISTRAL_M10K_TDP")
+    pins = cell.get("connections", {})
+    clocks = (pins.get("CLK1"), pins.get("CLK2"))
+    if (any(not isinstance(clock, list) or len(clock) != 1 or type(clock[0]) is not int
+            for clock in clocks) or clocks[0] == clocks[1] or
+            pins.get("A1EN") != ["1"] or pins.get("B1EN") != ["1"] or
+            pins.get("B1WE") != ["0"] or not isinstance(pins.get("A1WE"), list) or
+            len(pins["A1WE"]) != 1 or type(pins["A1WE"][0]) is not int):
+        raise BuildError("color RAM must have live independent clocks, enabled reads, "
+                         "one live system write port and a disabled video write port")
+
+
 def validate_synth_evidence(output: Path) -> dict:
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
     reject_async_m10k_reads(synthesis)
-    validate_firmware_ports(synthesis["modules"][TOP]["cells"])
+    cells = synthesis["modules"][TOP]["cells"]
+    validate_firmware_ports(cells)
+    validate_color_ram(cells)
     _i2c_evidence(synthesis, "synthesized")
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
         if counts.get(name, 0) != expected:
             raise BuildError(f"synthesis must contain exactly {expected} {name}, got {counts.get(name, 0)}")
-    # Firmware lanes are sixteen explicit M10Ks. RAM, the D64 store and the
-    # font are also memories, but their cell totals are whatever synthesis
-    # reports; they are not guessed ahead of a seal.
+    # Firmware lanes are sixteen explicit M10Ks and color RAM is one checked
+    # M10K_TDP. Other memories retain synthesis-selected totals.
     for name in FORBIDDEN_RESOURCES:
         if counts.get(name, 0):
             raise BuildError(f"forbidden synthesis cell {name} is in use")
