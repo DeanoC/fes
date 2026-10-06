@@ -10,6 +10,7 @@ ZX81 bus cart. It is not the old pre-decoded 14-bit RAM window.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 
@@ -88,3 +89,86 @@ def prepare_shell_netlist(path: Path) -> None:
 
 def shell_qsf(base: str) -> str:
     return base.rstrip() + f'\nset_global_assignment -name FES_RESERVED_RECT "{SOCKET_RECT}"\n'
+
+
+def plug_addr_fabric_exit(bit: int) -> str:
+    """The one column-24 GIN a request flip-flop can drive.
+
+    Each socket FF has a single output mux. A cart route leaves that mux as
+    FFOUT into GIN.24.{row}.{(bit % 20) * 2}. Another net on that GIN makes
+    the request bit unroutable.
+    """
+    if bit not in range(REQUEST_BITS):
+        raise ValueError(f"ZX81 plug_addr bit {bit} is outside 0..{REQUEST_BITS - 1}")
+    row, index = divmod(bit, 20)
+    return f"GIN.24.{row + 1}.{index * 2}"
+
+
+def _net_routing(net: object) -> str:
+    if not isinstance(net, dict):
+        return ""
+    attributes = net.get("attributes")
+    if not isinstance(attributes, dict):
+        return ""
+    routing = attributes.get("ROUTING")
+    return routing if isinstance(routing, str) else ""
+
+
+def _routing_uses(routing: str, wire: str) -> bool:
+    # A pip token is src.dest. The next name starts with a letter, so a
+    # longer index such as GIN.24.2.380 does not match GIN.24.2.38.
+    return re.search(re.escape(wire) + r"(?=$|;|\.[A-Za-z])", routing) is not None
+
+
+def blocked_plug_addr_exits(design: object) -> list[tuple[int, str]]:
+    """Request bits whose only fabric exit is already owned by another net.
+
+    Missing netnames are an empty shell for this check. A net named
+    plug_addr[bit] may use its own exit; a cart extends that net.
+    """
+    modules = design.get("modules") if isinstance(design, dict) else None
+    top = modules.get("top") if isinstance(modules, dict) else None
+    netnames = top.get("netnames") if isinstance(top, dict) else None
+    if not isinstance(netnames, dict):
+        return []
+    blocked: list[tuple[int, str]] = []
+    for bit in range(REQUEST_BITS):
+        wire = plug_addr_fabric_exit(bit)
+        owner = f"plug_addr[{bit}]"
+        for name, net in netnames.items():
+            if name == owner or not isinstance(name, str):
+                continue
+            if _routing_uses(_net_routing(net), wire):
+                blocked.append((bit, name))
+                break
+    return blocked
+
+
+def blocked_plug_addr_message(blocked: list[tuple[int, str]]) -> str:
+    shown = blocked[:4]
+    details = "; ".join(f"plug_addr[{bit}] exit used by {net}" for bit, net in shown)
+    extra = len(blocked) - len(shown)
+    if extra:
+        details += f"; and {extra} more"
+    return f"socket boundary leaves plug_addr unroutable: {details}"
+
+
+def socket_route_reason(routed: Path) -> str | None:
+    if not routed.is_file():
+        return "routed design is missing"
+    try:
+        design = json.loads(routed.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        return f"routed design is unreadable: {exc}"
+    blocked = blocked_plug_addr_exits(design)
+    if not blocked:
+        return None
+    return blocked_plug_addr_message(blocked)
+
+
+def accept_socket_route(candidate: object) -> str | None:
+    """QoR accept hook: reject a timing-passing shell that blocks plug_addr."""
+    run_dir = getattr(candidate, "run_dir", "") or ""
+    if not run_dir:
+        return "routed design is missing"
+    return socket_route_reason(Path(run_dir) / "routed.json")

@@ -32,7 +32,9 @@ CART_SOURCES = {"ram16k": SOURCES, "zonx": ("cores/fes-zx81/expansions/zonx.v", 
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json", "scaffold.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log", "clocks.sdc")
 PLACER_SEED = 2
-REQUIRED_CLOCKS_MHZ = {"clk_sys": 52.224, "pixel_clk": 74.25, "audio_clk": 12.288}
+# nextpnr names a clock after its net and ignores create_clock -name.
+# Session display keeps the 74.25 MHz pixel clock as display.control.clk.
+REQUIRED_CLOCKS_MHZ = {"clk_sys": 52.224, "display.control.clk": 74.25, "audio_clk": 12.288}
 CRAM_REGION = (1769, 32, 2806, 7024)  # fes.zx81-bus.socket/2, half-open
 
 def digest(data: bytes) -> str:

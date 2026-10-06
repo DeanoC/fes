@@ -1214,7 +1214,9 @@ reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
 The independent ZX81 cart producer reloads an already routed shell with
 `--no-pack`, so it writes a separate generated SDC that explicitly constrains
-`clk_sys` to 52.224 MHz, `pixel_clk` to 74.25 MHz and `audio_clk` to 12.288 MHz.
+`clk_sys` to 52.224 MHz, `display.control.clk` to 74.25 MHz and `audio_clk`
+to 12.288 MHz. Nextpnr names each clock after its net, and the session display
+keeps that 74.25 MHz pixel clock as `display.control.clk`.
 Its recipe records those requirements and the SDC digest. Publication requires all three clocks to meet
 their nominal and reported constraints, with only the existing picosecond
 quantization tolerance when identifying the reported frequencies. This does
@@ -1289,7 +1291,10 @@ LAB snapshot is reloaded. A user-BEL socket flip-flop on a fresh route gets
 LUT pin reassignment and a data route-through. A scaffold reload locks that
 LAB and leaves the restored pin map in place. For each seed it tries heap
 timing weights 300 then 1000, then sweeps the same seeds at weights 2000, 100
-and 10 if needed (at most 70 attempts, stopping at the first passing route).
+and 10 if needed (at most 70 attempts). It stops at the first route that meets
+timing and leaves every plug_addr request flip-flop's fabric exit free. A
+timing-passing route is rejected when another net occupies that column-24 GIN,
+and the search continues.
 The build record seals
 the effective weight order and budget. This fallback handles placement-sensitive
 netlists without changing the clock requirements. The recipe uses
