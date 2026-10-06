@@ -37,9 +37,12 @@ from scripts import bundle, module_sources
 from scripts.recipes import recipe_for
 repo=Path(sys.argv[1]); revision=__import__('subprocess').check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True).strip()
 work=repo/'out/work'; work.mkdir(parents=True,exist_ok=True)
+# Producers inherit stdout; send their output to stderr so stdout is only the result.
+import os; sys.stdout.flush(); result_fd=os.dup(1); os.dup2(2,1)
 with tempfile.TemporaryDirectory(prefix='nightly-core-',dir=work) as temporary:
  source=module_sources.materialize(repo,'misteross',revision,Path(temporary)/'snapshot')
  result=bundle.resolve_core_package(source,revision,sys.argv[3],force=sys.argv[4]=='1',recipe=recipe_for(sys.argv[2]))
+ sys.stdout.flush(); os.dup2(result_fd,1)
  print(json.dumps({'sha256':result['inputs']['core_rbf_sha256'],
   'key':result['inputs']['source_selection']['functional_inputs_sha256']}))
 '''
