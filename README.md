@@ -74,8 +74,10 @@ The default `native-integration-dev` selects component revisions through the
 FES commit, retains the locked idle RBF, and installs the ordered,
 closed package set `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
 `fes.sg1000`, `fes.spectrum`, `fes.ramtest`. SMS, SG-1000 and Spectrum are
-sealed and included. C64 remains registered while its HIP seal is unresolved,
-so it stays out. The 128 MiB rootfs from #347 holds this set.
+sealed and included. C64 has a timing-passing frozen HIP seal and a
+[functional package diagnostic](docs/validation/2026-10-06-c64-functional-closure.md),
+but remains package-only without factory-image acceptance. The 128 MiB rootfs
+from #347 holds the selected set.
 Menu (`fes.menu`) is the idle display, not a playable library entry. Each selected
 package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
