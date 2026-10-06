@@ -27,6 +27,8 @@ void tick(Vzx81_machine &dut) {
 uint8_t peek(Vzx81_machine &dut, uint16_t addr) {
     dut.peek_addr = addr;
     dut.eval();
+    // Port B q_b is registered, so the byte is valid after this edge.
+    tick(dut);
     return uint8_t(dut.peek_data);
 }
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 import json
 import os
+import shutil
 import tempfile
 import tomllib
 import unittest
@@ -235,7 +236,11 @@ class BuildFesZx81OssTests(unittest.TestCase):
             (output/'synth.json').write_text(json.dumps(design))
 
         def route(**kwargs):
-            (output/'routed.json').write_text(json.dumps(routed_rom()))
+            design = routed_rom()
+            for cell in design['modules']['top']['cells'].values():
+                if cell.get('type') == 'MISTRAL_M10K':
+                    cell['parameters']['CFG_ASYNC_READ'] = '0'
+            (output/'routed.json').write_text(json.dumps(design))
             (output/'core.rbf').write_bytes(b'compiler fixture RBF')
             return SimpleNamespace(seed=10, weight=1000)
 
@@ -426,7 +431,8 @@ class BuildFesZx81OssTests(unittest.TestCase):
         dpram = (ROOT / "cores/fes-zx81/rtl/zx81_dpram.v").read_text(encoding="utf-8")
         self.assertNotIn("FES_ZX81_OSS", dpram)
         self.assertIn('ramstyle = "M10K"', dpram)
-        self.assertIn("assign q_a = ram[address_a]", dpram)
+        self.assertIn("q_a_r <= wren_a ? data_a : ram[address_a]", dpram)
+        self.assertNotIn("assign q_a = ram[address_a]", dpram)
         sys_pll = (ROOT / "cores/fes-zx81/rtl/sys_pll.v").read_text(encoding="utf-8")
         self.assertIn('.output_clock_frequency0("52.224 MHz")', sys_pll)
         self.assertNotIn('.output_clock_frequency0("50.0 MHz")', sys_pll)
@@ -497,6 +503,92 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertNotIn("fes.expansion.zx81-ram", interfaces)
         for name in ('fes.memory.hps-ddr', 'fes.video.session-display'):
             self.assertTrue(next(item['required'] for item in fields['interfaces'] if item['id'] == name))
+
+
+class Zx81SyncM10kTests(unittest.TestCase):
+    def test_rom_lanes_and_cart_tdps_are_synchronous(self) -> None:
+        root = build_fes_zx81_oss.ROOT
+        rtl = (root / "cores/fes-zx81/rtl/zx81_rom_link.v").read_text()
+        machine = (root / "cores/fes-zx81/rtl/zx81_machine.sv").read_text()
+        self.assertEqual(rtl.count(".CFG_ASYNC_READ(0)"), 8)
+        self.assertNotIn("CFG_ASYNC_READ(1)", rtl)
+        self.assertEqual(rtl.count(".B1EN(1'b1)"), 8)
+        self.assertIn("bank_d <= address[12:10]", rtl)
+        self.assertIn(".clk(clk_sys)", machine)
+        producer = (root / "scripts/build_fes_zx81_oss.py").read_text()
+        self.assertIn("expected_async_read=0", producer)
+        self.assertIn("reject_async_m10k_reads", producer)
+        pack = (root / "cores/fes-zx81/rtl/zx81_ram_pack.v").read_text()
+        chars = (root / "cores/fes-zx81/expansions/qs_chrs.v").read_text()
+        self.assertNotIn("CFG_ASYNC_READ(1)", pack)
+        self.assertNotIn("CFG_ASYNC_READ(1)", chars)
+        self.assertIn("read_bank_q", pack)
+        self.assertIn("peek_bank_q", pack)
+        self.assertIn("romcs_q", chars)
+        self.assertIn("dsel_q", chars)
+        contract = "describe the same request"
+        bus = (root / "cores/fes-zx81/rtl/zx81_bus_pack.vh").read_text()
+        socket = (root / "cores/fes-zx81/rtl/zx81_expansion_socket.v").read_text()
+        self.assertIn(contract, bus)
+        self.assertIn(contract, socket)
+        self.assertIn("at most 6 clk_sys", bus)
+        self.assertIn("at most 6 clk_sys", socket)
+        for name in ("scripts/build_zx81_bus_validation_cart.py", "scripts/hip_zx81_bus_carts.py"):
+            text = (root / name).read_text()
+            self.assertIn("reject_async_m10k_reads", text)
+            self.assertIn("cart.json", text)
+            self.assertIn("cart-routed.json", text)
+
+
+def _yosys_binary() -> str | None:
+    named = os.environ.get("YOSYS")
+    if named and Path(named).is_file() and os.access(named, os.X_OK):
+        return named
+    return shutil.which("yosys")
+
+
+@unittest.skipUnless(_yosys_binary(), "Yosys is required to check the ZX81 M10K netlist")
+class Zx81YosysM10kTests(unittest.TestCase):
+    def test_mapped_shell_has_no_async_m10k(self) -> None:
+        yosys = _yosys_binary()
+        assert yosys is not None
+        sources = " ".join(build_fes_zx81_oss.RTL_SOURCES)
+        program = (
+            f"read_verilog -lib {build_fes_zx81_oss.DDR_ATOM}; "
+            "read_verilog -sv -DTV80_REFRESH=1 -DFES_ZX81_ROM_LINK=1 "
+            "-I cores/fes-zx81/generated -I cores/fes-common/generated -I cores/fes-zx81/rtl "
+            f"{sources}; "
+            "chparam -set BUILD_ID 128'h" + "0" * 32 + " top; "
+            "chparam -set EXPANSION_SOCKET 1 top; "
+            "synth_intel_alm -nolutram -nodsp -top top -run :map_luts; "
+            "autoname; select -module top; "
+            "log ---SDP---; select -count t:MISTRAL_M10K; "
+            "log ---TDP---; select -count t:MISTRAL_M10K_TDP; "
+            "log ---ASYNC---; "
+            "select -list t:MISTRAL_M10K r:CFG_ASYNC_READ=1 %i; "
+            "select -list t:MISTRAL_M10K_TDP r:CFG_ASYNC_READ=1 %i; "
+            "log ---LANES---; select -list t:MISTRAL_M10K r:CFG_ASYNC_READ=0 %i; "
+            "log ---END---"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            log_path = Path(directory) / "yosys.log"
+            result = subprocess.run([yosys, "-l", str(log_path), "-p", program],
+                                    cwd=build_fes_zx81_oss.ROOT,
+                                    text=True, capture_output=True, check=False)
+            log = log_path.read_text(encoding="utf-8", errors="replace")
+        self.assertEqual(result.returncode, 0, (result.stderr or log)[-4000:])
+        sections: dict[str, list[str]] = {}
+        current = None
+        for line in log.splitlines():
+            if line.startswith("---") and line.endswith("---") and line.strip("-"):
+                current = line.strip("-")
+                sections[current] = []
+            elif current is not None and line.strip():
+                sections[current].append(line.strip())
+        async_cells = [line for line in sections["ASYNC"] if line.startswith("top/")]
+        lanes = sorted(line.removeprefix("top/") for line in sections["LANES"] if "machine.rom.lane" in line)
+        self.assertEqual(async_cells, [])
+        self.assertEqual(lanes, sorted(f"machine.rom.lane{index}" for index in range(8)))
 
 
 def setUpModule():

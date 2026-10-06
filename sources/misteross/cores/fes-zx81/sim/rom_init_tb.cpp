@@ -55,6 +55,7 @@ int main(int argc, char **argv) {
     for (unsigned addr = 0; addr < kBasicBytes; ++addr) {
         window.addr = addr;
         window.eval();
+        tick(window);  // zx81_dpram q_a is registered
         if (window.data != image[addr]) {
             std::cerr << "ROM[" << std::hex << addr << "] expected "
                       << static_cast<unsigned>(image[addr]) << " got "
