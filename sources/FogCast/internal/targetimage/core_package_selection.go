@@ -39,6 +39,8 @@ func packageCoreName(coreID string) (string, error) {
 		return "ramtest", nil
 	case "fes.spectrum":
 		return "spectrum", nil
+	case "fes.atari-st":
+		return "atari-st", nil
 	default:
 		return "", fmt.Errorf("unsupported package core %q", coreID)
 	}

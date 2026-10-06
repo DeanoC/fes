@@ -75,7 +75,8 @@ FES commit, retains the locked idle RBF, and installs the ordered,
 closed package set `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
 `fes.sg1000`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st`. SMS, SG-1000, Spectrum and Atari ST are
 sealed and included. ST firmware remains separately selected by the user; no ROM
-is bundled in the image. C64 remains registered while its HIP seal is unresolved,
+is bundled in the image. Coleco and ST each include independently sealed Direct
+and Scanlines video parts. C64 remains registered while its HIP seal is unresolved,
 so it stays out. The 128 MiB rootfs from #347 holds this set.
 Menu (`fes.menu`) is the idle display, not a playable library entry. Each selected
 package is independently resolved, cached, installed and recorded; this is the

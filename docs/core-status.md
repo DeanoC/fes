@@ -26,8 +26,8 @@ selection are [core packages](core-packages.md).
 The current [default profile](../profiles/native-integration-dev.toml) installs
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
 `fes.spectrum`, `fes.ramtest`, `fes.atari-st` in that order: nine packages. `fes.coleco` is
-built as the native-pixel video shell, and the image keeps its sealed Direct and
-Scanlines parts in a separate video-part inventory. Menu (`fes.menu`) supplies
+built as the native-pixel video shell. Coleco and ST each retain their sealed
+Direct and Scanlines parts in the separate video-part inventory. Menu (`fes.menu`) supplies
 the idle display and is not a library core. Factory standing records image inclusion;
 playability and hardware acceptance depend on the exact-artifact kit evidence below.
 

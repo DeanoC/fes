@@ -17,7 +17,11 @@ func packageSelectionFixture(t *testing.T) (string, string, CorePackageSelection
 
 func packageSelectionFixtureForCore(t *testing.T, coreID string) (string, string, CorePackageSelection) {
 	t.Helper()
-	return packageSelectionFixtureWithFormat(t, coreID, 2)
+	format := 2
+	if coreID == "fes.atari-st" {
+		format = 3
+	}
+	return packageSelectionFixtureWithFormat(t, coreID, format)
 }
 
 func packageSelectionFixtureWithFormat(t *testing.T, coreID string, format int) (string, string, CorePackageSelection) {
@@ -88,13 +92,15 @@ func corePackageSelectionRecordNameForTest(coreID string) string {
 		return "fes-ramtest.package-selection.toml"
 	case "fes.spectrum":
 		return "fes-spectrum.package-selection.toml"
+	case "fes.atari-st":
+		return "fes-atari-st.package-selection.toml"
 	default:
 		panic("unsupported test core ID")
 	}
 }
 
 func TestCorePackageSelectionSupportsSelectedFESPackageCores(t *testing.T) {
-	for _, coreID := range []string{"fes.menu", "fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.c64", "fes.spectrum", "fes.ramtest"} {
+	for _, coreID := range []string{"fes.menu", "fes.pong", "fes.zx81", "fes.coleco", "fes.sms", "fes.sg1000", "fes.c64", "fes.spectrum", "fes.ramtest", "fes.atari-st"} {
 		t.Run(coreID, func(t *testing.T) {
 			directory, record, selection := packageSelectionFixtureForCore(t, coreID)
 			cache := t.TempDir()
@@ -108,6 +114,16 @@ func TestCorePackageSelectionSupportsSelectedFESPackageCores(t *testing.T) {
 			}
 			published := filepath.Join(cache, "core-packages", selection.PackageID)
 			t.Cleanup(func() { _ = os.Chmod(published, 0o755) })
+			if coreID == "fes.atari-st" {
+				before, err := os.ReadFile(filepath.Join(directory, "rom-map.json"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				after, err := os.ReadFile(filepath.Join(published, "rom-map.json"))
+				if err != nil || string(before) != string(after) {
+					t.Fatal("ST sealed ROM map changed during publication")
+				}
+			}
 			if err := VerifyCorePackageSelectionForCore(published, output, coreID); err != nil {
 				t.Fatal(err)
 			}

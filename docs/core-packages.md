@@ -16,7 +16,8 @@ The recipe registry supports the described `fes.pong`, `fes.zx81`,
 producers. The default target-image selector installs the ordered closed
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
 `fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set.
-SMS, SG-1000, Spectrum and Atari ST passed timing and are in that image. The 128 MiB
+SMS, SG-1000, Spectrum and Atari ST passed timing and are in that image.
+Coleco and ST include their independently sealed Direct and Scanlines video parts. The 128 MiB
 rootfs from #347 holds them. `fes.apple2`,
 `fes.catch` and `fes.riscv` remain package-only. `fes.c64` is registered, but has no
 current timing-passing HIP seal, so it stays out.

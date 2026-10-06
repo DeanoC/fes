@@ -129,14 +129,19 @@ import hashlib, io, json, subprocess, sys, tarfile
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 from scripts import build_fes_coleco_socket_v2 as shell_producer, build_video_part as producer, video_parts, native_video_parts, native_video_clock
+from scripts import build_fes_atari_st_oss, build_atari_st_video_part, atari_st_video_parts
 from scripts.export_core_package import build_identity, source_input_closure, POLICY
 from scripts.functional_execution import source_roots_for_inputs
 from scripts.core_package import read_package, package_identity
 from scripts.cyclonev_rbf import SX120F, LoadedRbf, header_nbytes, cram_set, rbf_save, rbf_load, CramRect, classify_cram_diff, overlay_cram
 root, output=Path(sys.argv[1]), Path(sys.argv[2])
 native=len(sys.argv)>3 and sys.argv[3]=='native'
-layout=native_video_parts if native else video_parts
-options={'native_video':True} if native else {'video_socket':True}
+st=len(sys.argv)>3 and sys.argv[3]=='st'
+if st: shell_producer, producer=build_fes_atari_st_oss, build_atari_st_video_part
+layout=atari_st_video_parts if st else (native_video_parts if native else video_parts)
+strict=native or st
+clock_producer=producer.slot_recipe if st else producer.sgm
+options={} if st else ({'native_video':True} if native else {'video_socket':True})
 inputs=producer.NATIVE_INPUTS if native else producer.INPUTS
 def enc(value): return json.dumps(value,sort_keys=True,separators=(',',':')).encode()
 def sha(value): return hashlib.sha256(value).hexdigest()
@@ -144,16 +149,23 @@ revision=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=
 current={'inputs':source_input_closure(root,source_roots_for_inputs(inputs),policy=POLICY),
          'source_roots':source_roots_for_inputs(inputs),'source_closure_policy':POLICY,
          'tools':{'yosys':'synthetic validated fixture'},'execution':{'version':1,'gpu_device':0},'revision':revision,'map':layout.MAP}
-record=shell_producer.create_build_record(root,'https://github.com/DeanoC/fes.git',revision,current['tools'],current['execution'],**options)
+record=(shell_producer.create_build_record(root,'https://github.com/DeanoC/fes.git',revision,current['tools'],execution=current['execution']) if st else shell_producer.create_build_record(root,'https://github.com/DeanoC/fes.git',revision,current['tools'],current['execution'],**options))
 base=LoadedRbf(die=SX120F,header=bytes(header_nbytes(SX120F)),cram=bytearray((SX120F.cram_sx*SX120F.cram_sy+7)//8),compressed=True)
 base_bytes=rbf_save(base,compressed=True)
 evidence={'build_id':build_identity(record),'rbf':{'sha256':sha(base_bytes),'size':len(base_bytes)}}
-manifest=shell_producer.manifest(record,evidence,'https://github.com/DeanoC/fes.git',revision,current['tools'],**options)
-package_id=package_identity(manifest,base_bytes)
+if st:
+    mapping={'format':1,'device':'5CSEBA6U23I7','encoding':'m10k-1024x10-v1','base_sha256':sha(base_bytes),'source_size':1024,'blocks':[{'bel':'fixture','source_offset':0,'word_bits':[[32*7605+w*40+i for i in range(40)] for w in range(256)]}]}
+    rom_map=enc(mapping)+b'\n'
+    evidence['rom']={'id':'fes.atari-st.firmware','role':'firmware','source_size':1024,'file':'rom-map.json','size':len(rom_map),'sha256':sha(rom_map)}
+manifest=(shell_producer._manifest(record,evidence,'https://github.com/DeanoC/fes.git',revision,current['tools']) if st else shell_producer.manifest(record,evidence,'https://github.com/DeanoC/fes.git',revision,current['tools'],**options))
+package_id=package_identity(manifest,base_bytes,rom_map if st else None)
 package=output/package_id; package.mkdir()
 for name,value in [('manifest.toml',manifest),('core.rbf',base_bytes)]: (package/name).write_bytes(value)
 shell=output/'shell'; shell.mkdir()
 for name,value in [('manifest.toml',manifest),('core.rbf',base_bytes),('routed.json',b'{}'),('socket.qsf',b'fixture constraints'),('build-inputs.json',record)]: (shell/name).write_bytes(value)
+if st:
+    (package/'rom-map.json').write_bytes(rom_map)
+    (shell/'rom-map.json').write_bytes(rom_map)
 cases={}
 variants=('direct','scanlines') if len(sys.argv)>4 and sys.argv[4]=='archives' else ('direct','scanlines','outside','header','inside-legacy-column','outside-legacy-column')
 frames={}
@@ -161,14 +173,15 @@ for case in variants:
     profile='scanlines' if case=='scanlines' else 'direct'
     directory=output/case; directory.mkdir()
     placed=LoadedRbf(die=SX120F,header=base.header,cram=bytearray(base.cram),compressed=True)
-    cram_set(placed.cram,SX120F,3488 if 'legacy-column' in case else 1800,1799 if case.startswith('outside') else 1801,1)
+    cram_set(placed.cram,SX120F,3488 if 'legacy-column' in case else 1800,(3441 if st else 1799) if case.startswith('outside') else (3443 if st else 1801),1)
     if case=='header': placed.header=bytes([1])+placed.header[1:]
-    coordinate=(3488 if 'legacy-column' in case else 1800,1799 if case.startswith('outside') else 1801,case=='header')
+    coordinate=(3488 if 'legacy-column' in case else 1800,(3441 if st else 1799) if case.startswith('outside') else (3443 if st else 1801),case=='header')
     if coordinate not in frames:
         frames[coordinate]=rbf_save(placed,compressed=True)
     cart=frames[coordinate]
     recipe={k:current[k] for k in ('inputs','source_roots','source_closure_policy','tools','execution')}
-    recipe.update(shell={name:sha((shell/name).read_bytes()) for name in ('manifest.toml','core.rbf','routed.json','socket.qsf')},variant=profile,slot_clock=layout.CLOCK,map=layout.MAP,cram_region=list(layout.CRAM),required_clocks_mhz=producer.sgm.REQUIRED_CLOCKS_MHZ,clock_constraints_sha256=sha(producer.sgm.cart_clock_constraints(root)))
+    recipe.update(shell={name:sha((shell/name).read_bytes()) for name in ('manifest.toml','core.rbf','routed.json','socket.qsf')+(('rom-map.json',) if st else ())},variant=profile,slot_clock=layout.CLOCK,map=layout.MAP,cram_region=list(layout.CRAM),required_clocks_mhz=clock_producer.REQUIRED_CLOCKS_MHZ,clock_constraints_sha256=sha(clock_producer.cart_clock_constraints(root)))
+    if st: recipe['placer_seed']=producer.PLACER_SEED
     part_manifest={'cart_sha256':sha(cart),'cart_size':len(cart),'device':'5CSEBA6U23I7','format':1,'map':layout.MAP,'recipe_sha256':sha(enc(recipe)),'revision':revision,'shell_build_id':build_identity(record),'shell_package_id':package_id,'shell_sha256':sha(base_bytes),'slot':layout.INTERFACE,'slot_major':1,'slot_minor':0}
     encoded=enc(part_manifest); part_id=sha(b'fes-expansion-v1\0'+encoded)
     archive=directory/'part.tar'
@@ -184,16 +197,16 @@ for case in variants:
     if native:
         (directory/'cart-synth.json').write_bytes(enc(synth))
         clock_boundary=native_video_clock.prepare_native_clock(directory/'cart.json')
-    counts=producer._cell_counts(synth)
+    counts=build_fes_atari_st_oss._cell_counts(synth) if st else producer._cell_counts(synth)
     routed={'modules':{'top':{'netnames':{layout.CLOCK:{'bits':[42]}},'cells':{}}}}
     for name,cell in cells.items():
         if cell['type'] in ('MISTRAL_FF','MISTRAL_M10K'):
             routed['modules']['top']['cells']['fes_cart$'+name]={'type':cell['type'],'connections':{pin:[42] for pin in cell['connections']}}
     checked_clocks=producer.validate_clocks(routed,layout=layout)
-    timing={'fmax':{name:{'constraint':freq,'achieved':freq+10} for name,freq in producer.sgm.REQUIRED_CLOCKS_MHZ.items()},'utilization':{'MISTRAL_FF':{'used':counts.get('MISTRAL_FF',0),'available':167640}}}
+    timing={'fmax':{name:{'constraint':freq,'achieved':freq+10} for name,freq in clock_producer.REQUIRED_CLOCKS_MHZ.items()},'utilization':{'MISTRAL_FF':{'used':counts.get('MISTRAL_FF',0),'available':167640}}}
     if native: timing['utilization']['MISTRAL_M10K']={'used':48,'available':397}
-    changes=classify_cram_diff(base,placed,CramRect(*layout.CRAM),include_outside_coordinates=True,ignore_ecc_columns=not native)
-    summary={'recipe':recipe,'part_id':part_id,'manifest':part_manifest,'cram_diff':changes,'checked_clock_pins':checked_clocks,'timing':{name:[name,freq,freq+10] for name,freq in producer.sgm.REQUIRED_CLOCKS_MHZ.items()},'resources':timing['utilization'],'synthesis_cells':counts,'route':{'complete':True,'gpu_backend':'hip'},'cram_policy':'strict-rectangle-v1' if native else 'legacy-columns-v1','preview_matches_routed_cram':overlay_cram(base,placed,CramRect(*layout.CRAM)).cram==placed.cram}
+    changes=classify_cram_diff(base,placed,CramRect(*layout.CRAM),include_outside_coordinates=True,ignore_ecc_columns=not strict)
+    summary={'recipe':recipe,'part_id':part_id,'manifest':part_manifest,'cram_diff':changes,'checked_clock_pins':checked_clocks,'timing':{name:(freq+10 if st else [name,freq,freq+10]) for name,freq in clock_producer.REQUIRED_CLOCKS_MHZ.items()},'resources':timing['utilization'],'synthesis_cells':counts,'route':{'complete':True,'gpu_backend':'hip'},'cram_policy':'strict-rectangle-v1' if strict else 'legacy-columns-v1','preview_matches_routed_cram':overlay_cram(base,placed,CramRect(*layout.CRAM)).cram==placed.cram}
     if native: summary['native_clock_boundary']=clock_boundary
     report={'archive_published':True,'cart_sha256':sha(cart),'cram_diff':changes,'cram_region':list(layout.CRAM),'map':layout.MAP,'part_id':part_id,'route_contract':'passed'}
     for name,value in [('cart-routed.json',routed),('timing.json',timing),('build-summary.json',summary),('cram-diff.json',report)]: (directory/name).write_bytes(enc(value))
@@ -213,7 +226,7 @@ class RealProducerEvidenceTests(unittest.TestCase):
         cls.source = Path(__file__).resolve().parents[1] / "sources/misteross"
         subprocess.run([sys.executable, "-I", "-B", "-c", _FIXTURE, str(cls.source), str(cls.root), cls.lane], check=True)
         cls.cases = json.loads((cls.root / "cases.json").read_bytes())
-        cls.recipe = video.recipes.recipe_for("fes.coleco")
+        cls.recipe = video.recipes.recipe_for("fes.atari-st" if cls.lane == "st" else "fes.coleco")
 
     @classmethod
     def tearDownClass(cls):
@@ -310,6 +323,49 @@ class NativeProducerEvidenceTests(RealProducerEvidenceTests):
             self.inspect("direct", current=current)
 
 
+class STProducerEvidenceTests(RealProducerEvidenceTests):
+    lane = "st"
+
+    def test_legacy_companion_column_policy_is_not_widened(self):
+        with self.assertRaisesRegex(ValueError, "outside its CRAM"):
+            self.inspect("outside-legacy-column")
+
+    def test_raster_part_cannot_allocate_ram(self):
+        directory = Path(self.cases["direct"]["directory"])
+        prepared = directory / "cart.json"
+        before = prepared.read_bytes()
+        try:
+            changed = json.loads(before)
+            changed["modules"]["cart"]["cells"]["ram"] = {"type": "MISTRAL_M10K"}
+            prepared.write_bytes(video.canonical(changed))
+            with self.assertRaisesRegex(ValueError, "must not allocate RAM"):
+                self.inspect("direct")
+        finally:
+            prepared.write_bytes(before)
+
+    def test_firmware_map_and_seed_are_bound_to_exact_recipe(self):
+        shell = Path(self.cases["direct"]["shell"])
+        mapping = shell / "rom-map.json"
+        before = mapping.read_bytes()
+        try:
+            mapping.write_bytes(before + b" ")
+            with self.assertRaisesRegex(ValueError, "firmware map"):
+                self.inspect("direct")
+        finally:
+            mapping.write_bytes(before)
+        directory = Path(self.cases["direct"]["directory"])
+        summary = directory / "build-summary.json"
+        before = summary.read_bytes()
+        try:
+            changed = json.loads(before)
+            changed["recipe"]["placer_seed"] = 5
+            summary.write_bytes(video.canonical(changed))
+            with self.assertRaisesRegex(ValueError, "producer summary"):
+                self.inspect("direct")
+        finally:
+            summary.write_bytes(before)
+
+
 class VideoShellAdmissionTests(unittest.TestCase):
     def descriptor(self, interface):
         return {"format": 2, "core": {"id": "fes.coleco"},
@@ -345,7 +401,24 @@ class VideoShellAdmissionTests(unittest.TestCase):
                 video.video_shell_profile(original | changed)
 
 
+    def test_st_requires_firmware_computer_and_raster_marker(self):
+        descriptor = self.descriptor("fes.fabric.video.raster-rgb888")
+        descriptor.update(format=3, core={"id": "fes.atari-st"},
+                          abi={"id": "fes.computer", "major": 1, "minor": 0},
+                          rom={"role": "firmware"})
+        descriptor["interfaces"].append({"id": "fes.expansion.atari-st-bus", "major": 1,
+                                         "minor": 0, "required": False})
+        self.assertEqual(video.video_shell_profile(descriptor), video.ST_MAP)
+        for change in ({"format": 2}, {"rom": []}, {"rom": {"role": "cartridge"}},
+                       {"abi": {"id": "fes.application", "major": 1, "minor": 0}},
+                       {"interfaces": self.descriptor("fes.fabric.video.native-pixels")["interfaces"]},
+                       {"interfaces": descriptor["interfaces"][:1]}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                video.video_shell_profile(descriptor | change)
+
+
 class ResolverTransactionTests(unittest.TestCase):
+    core_id = "fes.coleco"
     """Check cache/publication orchestration; real producer readers run above."""
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -385,7 +458,7 @@ class ResolverTransactionTests(unittest.TestCase):
     def shell(self):
         shell = self.source / video.VIDEO_OUTPUTS[self.current["map"]]
         shell.mkdir(parents=True)
-        for name in video.SHELL_MEMBERS:
+        for name in (video.ST_SHELL_MEMBERS if self.core_id == "fes.atari-st" else video.SHELL_MEMBERS):
             (shell / name).write_bytes(b"fixture evidence")
 
     def build_part(self, source, shell, package, profile, recipe, env):
@@ -401,7 +474,7 @@ class ResolverTransactionTests(unittest.TestCase):
 
     def resolve(self, destination=None):
         return video.resolve_video_parts(self.source, self.resolved, destination or self.destination,
-                                         cache_root=self.cache, env={})
+                                         cache_root=self.cache, env={}, recipe=video.recipes.recipe_for(self.core_id))
 
     def test_missing_shell_is_explicit_and_does_not_build_or_publish(self):
         with self.assertRaises(video.MissingVideoShell):
@@ -481,6 +554,33 @@ class ResolverTransactionTests(unittest.TestCase):
         self.assertFalse(self.destination.exists())
         self.assertEqual(len(list(self.cache.glob("*/direct/archive.tar"))), 1)
         self.assertEqual(len(list(self.cache.glob("*/scanlines"))), 0)
+
+
+class STResolverTransactionTests(ResolverTransactionTests):
+    core_id = "fes.atari-st"
+
+    def setUp(self):
+        super().setUp()
+        self.current["map"] = video.ST_MAP
+
+    def test_sealed_companion_and_parts_are_reused_without_producer_invocation(self):
+        self.shell()
+        first = self.resolve()
+        second = self.resolve(self.root / "second")
+        self.assertEqual(self.builder.call_count, 2)
+        self.assertEqual(first["inputs"], second["inputs"])
+        self.assertEqual(len(list(self.cache.parent.glob("core-video-shells/*/rom-map.json"))), 1)
+
+    def test_missing_sealed_native_synthesis_evidence_is_not_rebuilt(self):
+        self.shell()
+        self.resolve()
+        evidence = next(self.cache.parent.glob("core-video-shells/*/rom-map.json"))
+        evidence.parent.chmod(0o755)
+        evidence.unlink()
+        evidence.parent.chmod(0o555)
+        with self.assertRaisesRegex(ValueError, "unexpected members"):
+            self.resolve(self.root / "second")
+        self.assertEqual(self.builder.call_count, 2)
 
 
 if __name__ == "__main__":
