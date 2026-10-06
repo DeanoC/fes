@@ -305,6 +305,22 @@ class HilPlanTest(unittest.TestCase):
             with self.subTest(package=package):
                 result = run('classify', '--paths-file', self.path_file(f'sources/FogCast/{package}/x.go'), '--json')
                 self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
+        # Every overlay command that compiles a package must be in that package's plan.
+        component = {'fogcast-api': 'host:fogcast-api', 'fogcast': 'host:fogcast'}
+        kit_go = {'mister-agent', 'fogcast-kit', 'fogcast-tenfoot', 'host:fogcast-api', 'host:fogcast'}
+        paths = sorted(overlay)
+        for package in paths:
+            with self.subTest(package=package, check='consumers'):
+                data = json.loads(run('classify', '--paths-file',
+                                      self.path_file(f'sources/FogCast/{package}/x.go'), '--json').stdout)
+                if data['decision'] == 'FULL_IMAGE':
+                    continue
+                planned = set(data['components'])
+                if 'kit-go+host' in planned:
+                    planned |= kit_go
+                consumers = {component.get(command, command) for command, deps in used.items()
+                             if command in mapped and package in deps}
+                self.assertLessEqual(consumers, planned)
 
     def test_shared_core_rtl_expands_to_every_consuming_producer(self):
         result = run('classify', '--paths-file',

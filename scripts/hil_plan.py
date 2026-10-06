@@ -46,7 +46,8 @@ RULES = [
     ('sources/FogCast/cmd/fogcast-api/**', 'overlay', 'host:fogcast-api'),
     ('sources/FogCast/cmd/fogcast/**', 'overlay', 'host:fogcast'),
     ('sources/FogCast/cmd/*/**', 'full', 'fogcast-unmapped-command'),
-    ('sources/FogCast/ui/**', 'overlay', 'host:fogcast-api'),
+    # ui/** is compiled into fogcast-kit, fogcast-tenfoot and fogcast-api, so it
+    # falls through to kit-go+host below.
     # Imported only by cmd/target-image-lock, which no overlay artifact runs.
     ('sources/FogCast/internal/targetimage/**', 'full', 'image-selector'),
     ('sources/FogCast/**', 'overlay', 'kit-go+host'),
