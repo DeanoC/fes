@@ -669,6 +669,7 @@ void PushFesGpResponse(mister_test::FakeMmio* mmio, bool toggle,
 	mmio->PushRead(kSpiGpiAddress, completed ^ FesGpAckMask);
 	mmio->PushRead(kSpiGpiAddress, completed);
 	mmio->PushRead(kSpiGpiAddress, completed);
+	mmio->PushRead(kSpiGpiAddress, completed);
 }
 
 std::vector<std::uint16_t> FesGpIdentityWords()

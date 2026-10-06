@@ -143,6 +143,7 @@ void PushCompleted(mister_test::FakeMmio* mmio, bool toggle,
 	mmio->PushRead(kSpiGpiAddress, stale);
 	mmio->PushRead(kSpiGpiAddress, final);
 	mmio->PushRead(kSpiGpiAddress, final);
+	mmio->PushRead(kSpiGpiAddress, final);
 }
 
 mister::native::CoreDescriptor Descriptor(const std::string& build_id)
@@ -211,6 +212,7 @@ void TestReplaysSharedGoldenExchangeSequence()
 		mmio.PushRead(kSpiGpiAddress, stale);
 		mmio.PushRead(kSpiGpiAddress, exchange.gpi);
 		mmio.PushRead(kSpiGpiAddress, exchange.gpi);
+		mmio.PushRead(kSpiGpiAddress, exchange.gpi);
 		const std::uint8_t opcode = static_cast<std::uint8_t>(
 			(exchange.toggled & FesGpOpcodeMask) >> 24);
 		const std::uint8_t index = static_cast<std::uint8_t>(
@@ -272,6 +274,7 @@ void TestApplicationReplaysSharedWireFixturesThroughDriver()
 			const bool toggle = (exchange.gpi & FesGpAckMask) != 0;
 			mmio.PushRead(kSpiGpiAddress, (exchange.gpi & ~FesGpAckMask) |
 				(toggle ? 0u : FesGpAckMask));
+			mmio.PushRead(kSpiGpiAddress, exchange.gpi);
 			mmio.PushRead(kSpiGpiAddress, exchange.gpi);
 			mmio.PushRead(kSpiGpiAddress, exchange.gpi);
 		}
@@ -356,6 +359,135 @@ void TestExchangeRejectsMalformedAndUnstableResponsesWithoutRetry()
 		assert(gp.Exchange(FesGpOpcodeIdentity, 0, 0, 1000, &response).ok());
 		assert(response == 0x4546u);
 		assert(mmio.writes.size() == 4);
+	}
+}
+
+void TestAcknowledgedResponseSettlesWithoutCommandReplay()
+{
+	// Snapshot reads advance their ordinal and mouse requests consume motion:
+	// neither may be issued again while a response settles.
+	for (const std::uint8_t opcode : {FesComputerOpcodeMediaSnapshotData,
+		FesComputerOpcodeMouseRelative, FesComputerOpcodeMediaBegin}) {
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		const std::uint32_t prefix = FesGpSignature | FesGpAckMask;
+		for (std::uint16_t data : {0x0000, 0x0011, 0xa511, 0xa55a, 0xa55a})
+			mmio.PushRead(kSpiGpiAddress, prefix | data);
+		std::uint16_t response = 0;
+		assert(gp.Exchange(opcode, 0, 0, 1000, &response).ok());
+		assert(response == 0xa55a && !gp.Poisoned());
+		assert(mmio.writes.size() == 2 && mmio.reads.size() == 5);
+		assert((mmio.writes[0].value ^ mmio.writes[1].value) == FesGpRequestMask);
+	}
+	{
+		// Only the complete settled word determines command rejection.
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		const std::uint32_t prefix = FesGpSignature | FesGpAckMask;
+		mmio.PushRead(kSpiGpiAddress, prefix);
+		mmio.PushRead(kSpiGpiAddress, prefix | FesGpErrorMask);
+		mmio.PushRead(kSpiGpiAddress, prefix | FesGpErrorMask | 4);
+		mmio.PushRead(kSpiGpiAddress, prefix | FesGpErrorMask | 4);
+		std::uint16_t response = 0;
+		const auto error = gp.Exchange(FesComputerOpcodeMediaBegin, 0, 0, 1000, &response);
+		assert(error.message == "FES GP command rejected with response 4");
+		assert(response == 4 && !gp.Poisoned() && mmio.writes.size() == 2);
+	}
+}
+
+void TestResponseSettlingRemainsFailClosed()
+{
+	const std::uint32_t prefix = FesGpSignature | FesGpAckMask;
+	for (const std::uint32_t invalid : {FesGpSignature, prefix ^ 0x01000000u,
+		prefix | 0x00010000u}) {
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		mmio.PushRead(kSpiGpiAddress, prefix);
+		mmio.PushRead(kSpiGpiAddress, invalid);
+		mmio.PushRead(kSpiGpiAddress, prefix);
+		std::uint16_t response = 0xdead;
+		assert(!gp.Exchange(FesComputerOpcodeMouseRelative, 0, 0, 1000, &response).ok());
+		assert(gp.Poisoned() && response == 0xdead && mmio.reads.size() == 2);
+		assert(!gp.Exchange(FesComputerOpcodeMouseRelative, 0, 0, 1000, &response).ok());
+		assert(mmio.writes.size() == 2);
+	}
+	{
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		for (unsigned i = 0; i < 200; ++i)
+			mmio.PushRead(kSpiGpiAddress, prefix | (i & 1));
+		std::uint16_t response = 0xdead;
+		const auto error = gp.Exchange(FesComputerOpcodeMediaSnapshotData, 0, 0, 25, &response);
+		assert(error.message == "FES GP response stability deadline exceeded");
+		assert(gp.Poisoned() && response == 0xdead && mmio.writes.size() == 2);
+		assert(mmio.reads.size() > 3 && !mmio.scripted_reads[kSpiGpiAddress].empty());
+	}
+	{
+		// A runtime clock that stops cannot extend unstable sampling forever.
+		class AlternatingMmio final : public mister::native::Mmio {
+		public:
+			mister::Error Read32(std::uint32_t, std::uint32_t* output) override
+			{
+				*output = FesGpSignature | FesGpAckMask | (++reads & 1u);
+				return {};
+			}
+			mister::Error Write32(std::uint32_t, std::uint32_t) override
+			{
+				++writes;
+				return {};
+			}
+			unsigned reads = 0, writes = 0;
+		} mmio;
+		ScriptClock clock({0});
+		mister::native::FesGp gp(mmio, clock);
+		std::uint16_t response = 0xdead;
+		const auto error = gp.Exchange(FesComputerOpcodeMediaSnapshotData, 0, 0, 1, &response);
+		assert(error.message == "FES GP response stability deadline exceeded");
+		assert(gp.Poisoned() && response == 0xdead && mmio.writes == 2 && mmio.reads > 3);
+	}
+	{
+		// The deadline at the second equal read still forbids accepting it.
+		mister_test::FakeMmio mmio;
+		ScriptClock clock({0, 0, 0, 0, 0, 0, 10});
+		mister::native::FesGp gp(mmio, clock);
+		mmio.values[kSpiGpiAddress] = prefix | 0x1234;
+		std::uint16_t response = 0xdead;
+		const auto error = gp.Exchange(FesComputerOpcodeMediaSnapshotData, 0, 0, 10, &response);
+		assert(error.message == "FES GP response stability deadline exceeded");
+		assert(gp.Poisoned() && response == 0xdead && mmio.reads.size() == 3);
+		assert(mmio.writes.size() == 2);
+	}
+	{
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		mmio.PushRead(kSpiGpiAddress, prefix);
+		mmio.PushReadError(kSpiGpiAddress, {});
+		mmio.PushReadError(kSpiGpiAddress, {mister::ErrorCode::io_failed, "injected MMIO failure"});
+		std::uint16_t response = 0xdead;
+		const auto error = gp.Exchange(FesComputerOpcodeMediaSnapshotData, 0, 0, 1000, &response);
+		assert(error.message == "injected MMIO failure");
+		assert(gp.Poisoned() && response == 0xdead && mmio.writes.size() == 2);
+	}
+	{
+		// Re-alignment uses the same sampler and performs no writes.
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		mmio.values[kSpiGpiAddress] = 0;
+		std::uint16_t response = 0;
+		assert(!gp.Exchange(FesGpOpcodeIdentity, 0, 0, 1000, &response).ok());
+		for (std::uint32_t data : {1, 2, 3, 3})
+			mmio.PushRead(kSpiGpiAddress, prefix | data);
+		assert(gp.Realign(1000).ok() && !gp.Poisoned());
+		assert(mmio.writes.size() == 2);
+		PushCompleted(&mmio, false, 0x4546);
+		assert(gp.Exchange(FesGpOpcodeIdentity, 0, 0, 1000, &response).ok());
+		assert(response == 0x4546 && mmio.writes.size() == 4);
 	}
 }
 
@@ -1624,6 +1756,7 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 		assert(f.gp.Poisoned());
 		f.mmio.PushRead(kSpiGpiAddress, FesGpSignature);
 		f.mmio.PushRead(kSpiGpiAddress, FesGpSignature);
+		f.mmio.PushRead(kSpiGpiAddress, FesGpSignature);
 		ScriptIdentity(&f.mmio, f.words);
 		PushCompleted(&f.mmio, true, 0);
 		const auto recovered = f.driver.ClearMedia(100000);
@@ -2654,6 +2787,8 @@ int main()
 	TestPersistenceIdentityInfoAndPartialRestoreRejection();
 	TestReplaysSharedGoldenExchangeSequence();
 	TestExchangeRejectsMalformedAndUnstableResponsesWithoutRetry();
+	TestAcknowledgedResponseSettlesWithoutCommandReplay();
+	TestResponseSettlingRemainsFailClosed();
 	TestExchangeAndIdentityUseExactDeadlineBoundaries();
 	TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch();
 	TestIdentifyAcceptsSimpleComputerTagAndCapabilities();
@@ -2667,6 +2802,6 @@ int main()
 	TestComputerIdentityCapabilitiesAndDiscovery();
 	TestComputerInputValidationAndPartialRows();
 	TestComputerMediaFailuresEjectOnceAndStayReleased();
-	puts("fes_gp_test: 23 groups passed");
+	puts("fes_gp_test: all groups passed");
 	return 0;
 }

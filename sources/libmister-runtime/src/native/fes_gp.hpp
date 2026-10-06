@@ -44,6 +44,9 @@ public:
 		bool* safe_to_quiesce = nullptr, std::uint16_t* observed_capabilities = nullptr);
 
 private:
+	// Caller holds mutex_. Read only; never reissues the outstanding request.
+	Error ReadSettledResponse(bool acknowledged, std::uint64_t deadline,
+		std::uint32_t* response);
 	Mmio& mmio_;
 	Clock& clock_;
 	std::mutex mutex_;

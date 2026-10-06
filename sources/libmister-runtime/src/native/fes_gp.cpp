@@ -41,12 +41,17 @@ constexpr std::uint32_t kResponseVariableMask =
 	FesGpAckMask | FesGpErrorMask | FesGpResponseMask;
 constexpr std::uint32_t kResponseFixedMask = ~kResponseVariableMask;
 
-std::uint64_t MonotonicWallMs()
+std::uint64_t MonotonicWallNs()
 {
 	struct timespec stamp = {};
 	if (clock_gettime(CLOCK_MONOTONIC, &stamp) != 0) std::abort();
-	return static_cast<std::uint64_t>(stamp.tv_sec) * 1000u +
-		static_cast<std::uint64_t>(stamp.tv_nsec) / 1000000u;
+	return static_cast<std::uint64_t>(stamp.tv_sec) * 1000000000u +
+		static_cast<std::uint64_t>(stamp.tv_nsec);
+}
+
+std::uint64_t MonotonicWallMs()
+{
+	return MonotonicWallNs() / 1000000u;
 }
 
 void SleepOneMillisecond()
@@ -248,15 +253,47 @@ Error FesGp::Realign(std::uint64_t deadline)
 	if (!error.ok()) return error;
 	if ((observed & kResponseFixedMask) != FesGpSignature)
 		return Io("invalid FES GP response signature or reserved bits");
-	if (clock_.NowMs() >= deadline)
-		return Io("FES GP response stability deadline exceeded");
 	std::uint32_t confirmed = 0;
-	error = mmio_.Read32(generated::kSpiGpiAddress, &confirmed);
+	error = ReadSettledResponse((observed & FesGpAckMask) != 0, deadline, &confirmed);
 	if (!error.ok()) return error;
-	if (confirmed != observed) return Io("unstable FES GP response");
 	request_toggle_ = (confirmed & FesGpAckMask) != 0;
 	poisoned_ = false;
 	return {};
+}
+
+Error FesGp::ReadSettledResponse(bool acknowledged, std::uint64_t deadline,
+	std::uint32_t* response)
+{
+	const std::uint64_t now = clock_.NowMs();
+	if (now >= deadline) return Io("FES GP response stability deadline exceeded");
+	// HPS observes the FPGA response asynchronously. Keep the original GPO
+	// held, allow one microsecond after observing ACK, then require two equal
+	// complete samples. This is response sampling, never command replay.
+	constexpr std::uint64_t kSettlingGuardNs = 1000u;
+	const std::uint64_t started = MonotonicWallNs();
+	const std::uint64_t wall_bound = std::min(deadline - now, kExchangeTimeoutMs) * 1000000u;
+	while (MonotonicWallNs() - started < kSettlingGuardNs) {}
+	std::uint32_t previous = 0;
+	bool have_previous = false;
+	for (;;) {
+		if (clock_.NowMs() >= deadline || MonotonicWallNs() - started >= wall_bound)
+			return Io("FES GP response stability deadline exceeded");
+		std::uint32_t observed = 0;
+		Error error = mmio_.Read32(generated::kSpiGpiAddress, &observed);
+		if (!error.ok()) return error;
+		if ((observed & kResponseFixedMask) != FesGpSignature)
+			return Io("invalid FES GP response signature or reserved bits");
+		if (((observed & FesGpAckMask) != 0) != acknowledged)
+			return Io("unstable FES GP response: acknowledgement reverted");
+		if (clock_.NowMs() >= deadline || MonotonicWallNs() - started >= wall_bound)
+			return Io("FES GP response stability deadline exceeded");
+		if (have_previous && observed == previous) {
+			*response = observed;
+			return {};
+		}
+		previous = observed;
+		have_previous = true;
+	}
 }
 
 std::uint64_t FesGp::NowMs() const
@@ -352,15 +389,11 @@ Error FesGp::Exchange(std::uint8_t opcode, std::uint8_t index,
 		response_seen = true;
 		last_ack = acknowledged;
 		if (acknowledged != next_toggle) continue;
-		if (clock_.NowMs() >= exchange_deadline) {
-			poisoned_ = true;
-			return Io("FES GP response stability deadline exceeded");
-		}
 		std::uint32_t confirmed = 0;
-		error = mmio_.Read32(generated::kSpiGpiAddress, &confirmed);
-		if (!error.ok() || confirmed != observed) {
+		error = ReadSettledResponse(next_toggle, exchange_deadline, &confirmed);
+		if (!error.ok()) {
 			poisoned_ = true;
-			return error.ok() ? Io("unstable FES GP response") : error;
+			return error;
 		}
 		*response = static_cast<std::uint16_t>(confirmed & FesGpResponseMask);
 		if ((confirmed & FesGpErrorMask) != 0)

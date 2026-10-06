@@ -12,6 +12,16 @@ the FES Commodore 64 and the FES Atari 520ST.
 Existing `fes.simple-game`, `fes.simple-computer` and `fes.application`
 packages keep their requirements, wire identities and startup behavior.
 
+The common GP transport samples responses without reissuing requests. Once
+ACK matches the outstanding request, it holds GPO, allows a one-microsecond
+settling guard and requires two identical complete valid GPI reads. Changes
+in the response/error payload may settle within the original exchange
+deadline, capped at 100 ms. ACK reversion, malformed signature/reserved bits,
+MMIO error or instability beyond that bound fails and poisons the link; no
+partial response is returned. Re-alignment applies the same read-only check.
+Host coverage of this policy is separate from physical diagnostic results
+and exact-artifact acceptance.
+
 ## Admission
 
 A package declares `fes.computer` major 1 with `fes-gp-v1`. Minor versions

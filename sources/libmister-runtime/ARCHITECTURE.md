@@ -55,6 +55,18 @@ program. See FES [soft-restart Path B](../../docs/soft-restart-path-b.md).
 Identity precedes video, input enablement and gameplay release. FES media
 interfaces control reset-held startup and release after a successful commit;
 `fes.computer` media units are the exception and never gate release.
+
+The shared GP response sampler holds the original request after observing its
+ACK, waits one microsecond using the monotonic wall clock, then requires two
+identical complete GPI samples. A changing response/error payload may settle
+within the original exchange deadline (at most 100 ms); sampling never writes
+GPO again. Invalid signature/reserved bits, ACK reversion, MMIO failure or
+continued instability past the bound poison the exchange. Re-alignment uses
+the same read-only sampler and drops poison only on success. A separate wall
+bound prevents a stalled runtime clock from extending response sampling.
+This software sampling policy does not establish the cause of a physical
+failure or qualify a package, runtime image or appliance.
+
 `fes.simple-computer` also accepts mid-session `replace_live_media` /
 `clear_media` on an active generation without holding execution reset. Tape
 loader busy is GP error 4 (invalid state) and rejects with retryable busy.
