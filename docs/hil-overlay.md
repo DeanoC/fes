@@ -16,8 +16,9 @@ python3 scripts/hil_plan.py manifest --head "$PR_HEAD" --out /tmp/hil-manifest.j
 
 Every binary must embed the head. FogCast Go binaries need the full revision
 from the Makefile's `-X internal/version.Revision=$(REVISION)`, and
-`mister-runtime` needs the clean `git-<12 hex>` version (a `-dirty` build is
-refused). Evidence re-reads each local artifact, so generate it on the machine
+`mister-runtime` needs `git-<40 hex>` (image recipe) or `git-<12 hex>`, with or
+without `-dirty` (component Makefile, whose dirty probe currently always
+appends `-dirty`). Evidence re-reads each local artifact, so generate it on the machine
 where the manifest was built. For each `core:*` archive, the planner reads the local archive and derives its
 package ID and core ID. The archive must identify the requested core, and its
 embedded `build.revision` must equal the full PR head. A changed file under

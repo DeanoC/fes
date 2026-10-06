@@ -258,10 +258,13 @@ def revision_error(component, data, head):
     """Check that a binary embeds the head revision; return a refusal or None."""
     head = head.lower()
     if component == 'mister-runtime':
-        # libmister-runtime/Makefile: MISTER_RUNTIME_VERSION = git-<12 hex>[-dirty]
-        if re.search(rb'git-' + head[:12].encode() + rb'(?![-0-9a-f])', data):
+        # Image recipe (mister-runtime.mk): git-$(FOGCAST_MISTER_RUNTIME_COMMIT), the
+        # full 40-hex HEAD. Component Makefile: git-<12 hex>$(VERSION_DIRTY), where
+        # VERSION_DIRTY currently always prints -dirty, so accept it with or without.
+        version = rb'git-(?:' + head.encode() + rb'|' + head[:12].encode() + rb'(?:-dirty)?)(?![0-9a-f])'
+        if re.search(version, data):
             return None
-        return f'{component} does not embed clean version git-{head[:12]}'
+        return f'{component} does not embed version git-{head} or git-{head[:12]}[-dirty]'
     if component in GO_COMPONENTS:
         # FogCast Makefile: -X internal/version.Revision=$(git rev-parse HEAD)
         if head.encode() in data:

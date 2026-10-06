@@ -362,10 +362,13 @@ class HilPlanTest(unittest.TestCase):
         cases = [
             ('mister-agent', 'kit:/usr/sbin/mister-agent', b'go' + ('b' * 40).encode(), 'does not embed revision'),
             ('host:fogcast-api', 'host:/tmp/api', b'go', 'does not embed revision'),
-            ('mister-runtime', 'kit:/usr/sbin/mister-runtime', b'git-' + head[:12].encode() + b'-dirty',
-             'does not embed clean version'),
             ('mister-runtime', 'kit:/usr/sbin/mister-runtime', b'git-' + ('b' * 12).encode(),
-             'does not embed clean version'),
+             'does not embed version'),
+            # The first 12 hex of the head followed by a different commit's tail.
+            ('mister-runtime', 'kit:/usr/sbin/mister-runtime',
+             b'git-' + head[:12].encode() + ('b' * 28).encode(), 'does not embed version'),
+            ('mister-runtime', 'kit:/usr/sbin/mister-runtime', b'git-' + ('b' * 40).encode(),
+             'does not embed version'),
             ('host:other', 'host:/tmp/other', head.encode(), 'no head revision check'),
         ]
         for component, destination, content, reason in cases:
@@ -374,8 +377,39 @@ class HilPlanTest(unittest.TestCase):
                 result = run(*args, f'{component}={binary}={destination}')
                 self.assertEqual(result.returncode, 2)
                 self.assertIn(reason, result.stderr)
-        runtime = self.write_artifact('rt', b'git-' + head[:12].encode() + b'\0', stamp=False)
-        self.assertEqual(run(*args, f'mister-runtime={runtime}=kit:/usr/sbin/mister-runtime').returncode, 0)
+        for version in (b'git-' + head.encode(), b'git-' + head[:12].encode(),
+                        b'git-' + head[:12].encode() + b'-dirty'):
+            with self.subTest(version=version):
+                runtime = self.write_artifact('rt', b'\0' + version + b'\0', stamp=False)
+                result = run(*args, f'mister-runtime={runtime}=kit:/usr/sbin/mister-runtime')
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_runtime_versions_from_the_real_build_recipes_are_accepted(self):
+        head = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
+        args = ['manifest', '--head', head, '--out', self.work / 'm.json']
+        # Image recipe: MISTER_RUNTIME_VERSION="git-$(FOGCAST_MISTER_RUNTIME_COMMIT)",
+        # where target-image-container.sh sets the commit with rev-parse --verify HEAD.
+        recipe = (ROOT / 'image/buildroot/package/mister-runtime/mister-runtime.mk').read_text()
+        self.assertIn('MISTER_RUNTIME_VERSION="git-$(FOGCAST_MISTER_RUNTIME_COMMIT)"', recipe)
+        container = (ROOT / 'image/scripts/target-image-container.sh').read_text()
+        self.assertIn('native_runtime_commit=$(git -C "$native_runtime_source" rev-parse --verify HEAD)', container)
+        versions = [b'git-' + head.encode()]
+        # Component Makefile: evaluate MISTER_RUNTIME_VERSION with the real Makefile.
+        probe = self.work / 'print-version.mk'
+        probe.write_text('hil-print-version:\n\t@echo $(MISTER_RUNTIME_VERSION)\n')
+        made = subprocess.run(['make', '-s', '-C', str(ROOT / 'sources/libmister-runtime'),
+                               '-f', 'Makefile', '-f', str(probe), 'hil-print-version'],
+                              text=True, capture_output=True)
+        if made.returncode == 0:
+            version = made.stdout.strip()
+            self.assertRegex(version, r'^git-' + head[:12] + r'(-dirty)?$')
+            versions.append(version.encode())
+        for version in versions:
+            with self.subTest(version=version):
+                runtime = self.write_artifact('rt', b'\0' + version + b'\0', stamp=False)
+                result = run(*args, f'mister-runtime={runtime}=kit:/usr/sbin/mister-runtime')
+                self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(versions), 2, made.stderr)
 
     def test_evidence_rechecks_local_binary_and_revision(self):
         self.git_repo(['sources/FogCast/cmd/mister-agent/change.go'])
