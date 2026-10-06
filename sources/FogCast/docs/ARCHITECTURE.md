@@ -734,8 +734,13 @@ Save has an empty body. CLI `insert-library-disk GAME_ID BASE_MEDIA_ID` restores
 that explicit library disk into the running ST, and `save-disk` publishes a
 checkpoint. `eject-disk`, Stop and replacement automatically save a bound disk.
 Failure keeps the disk/session binding available for recovery; a lost mutation
-reply is never replayed. There is no durable binding inferred from filenames or
-raw development loads. Close files before a checkpoint/Stop: sector-atomic
+reply is never replayed. One explicit Save may retry a retained `SAVE_FAILED`
+in phase `save` only for the same active package/generation/target, with no
+recovery state and the same ready, writable persistent ST game/base binding.
+A confirmed successful checkpoint publishes a valid revision digest and clears
+that retained error. Other errors and insert/eject/input retain their strict admission guards;
+there is no automatic Save replay. There is no durable binding inferred from
+filenames or raw development loads. Close files before a checkpoint/Stop: sector-atomic
 writes do not make an application's multi-sector FAT update atomic.
 
 Save-backed Eject/Stop own 135-second target operation budgets and 150-second

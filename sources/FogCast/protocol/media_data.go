@@ -42,6 +42,32 @@ func MediaDataBound(p *CorePackageStatus) bool {
 	return false
 }
 
+// MatchesForSave admits only a ready durable ST disk in the same active
+// generation. A retained save failure permits one explicit Save; other media
+// and input operations continue to use the error-free Matches predicate.
+func (b MediaUnitBinding) MatchesForSave(s Status) bool {
+	if s.LastError != nil && (s.LastError.Code != CodeSaveFailed || s.LastError.Phase != "save") {
+		return false
+	}
+	s.LastError = nil // Identity validation uses a copy, never clears published status.
+	if !b.Matches(s) || b.Unit != AtariStFloppyUnit || !MediaWriteCapable(s.CorePackage) || s.CorePackage.PersistenceMode != "persistent" {
+		return false
+	}
+	u, ok := MediaUnit(s.CorePackage, b.Unit)
+	return ok && u.State == MediaUnitReady && u.Persistence != nil && u.Persistence.Valid()
+}
+
+// MatchesSaveResult requires a confirmed, error-free checkpoint for the same
+// durable game/base binding. Only its valid revision may change.
+func (b MediaUnitBinding) MatchesSaveResult(before, after Status) bool {
+	if !b.MatchesForSave(before) || after.LastError != nil || !b.MatchesForSave(after) {
+		return false
+	}
+	old, _ := MediaUnit(before.CorePackage, b.Unit)
+	current, _ := MediaUnit(after.CorePackage, b.Unit)
+	return ValidateDigest(current.Persistence.Revision) == nil && old.Persistence.GameID == current.Persistence.GameID && old.Persistence.BaseMediaID == current.Persistence.BaseMediaID
+}
+
 // LibraryMediaBinding names an immutable base and a stable library entry.
 // Development InsertMedia deliberately carries no durable binding.
 type LibraryMediaBinding struct {

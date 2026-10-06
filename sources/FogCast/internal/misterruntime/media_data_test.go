@@ -98,6 +98,8 @@ func TestLibraryDiskStagedOnceBindingAndSave(t *testing.T) {
 			t.Fatal(err, units)
 		}
 		c.statuses = []Protocol2Response{after}
+		c.response = writableSTResponse(t, true)
+		c.response.Capabilities.MediaUnits[0].Persistence.Revision = strings.Repeat("c", 64)
 		if _, err := r.SaveMedia(context.Background(), b.MediaUnitBinding); err != nil || c.saveCalls != 1 {
 			t.Fatal(err, c.saveCalls)
 		}

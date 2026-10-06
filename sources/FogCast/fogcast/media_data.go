@@ -74,7 +74,7 @@ func (s *Service) SaveMedia(parent context.Context, b protocol.MediaUnitBinding)
 	if err != nil {
 		return prior, preserveCorePackageError(err)
 	}
-	if !b.Matches(prior) {
+	if !b.MatchesForSave(prior) {
 		return prior, protocol.MediaUnitIdentityError()
 	}
 	unit, ok := protocol.MediaUnit(prior.CorePackage, b.Unit)
@@ -88,6 +88,9 @@ func (s *Service) SaveMedia(parent context.Context, b protocol.MediaUnitBinding)
 	status, err := saver.SaveMedia(ctx, b)
 	if err != nil {
 		return status, preserveCorePackageError(err)
+	}
+	if !b.MatchesSaveResult(prior, status) {
+		return status, protocol.MediaUnitIdentityError()
 	}
 	return s.retainMediaUnitSessionIdentity(status, b), nil
 }

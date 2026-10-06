@@ -44,7 +44,8 @@ func (c *Coordinator) SaveMedia(parent context.Context, b protocol.MediaUnitBind
 	if !b.Valid() {
 		return c.Status(), protocol.MediaUnitRequestError()
 	}
-	if !b.Matches(c.Status()) {
+	prior := c.Status()
+	if !b.MatchesForSave(prior) {
 		return c.Status(), protocol.MediaUnitIdentityError()
 	}
 	runtime, ok := c.runtime.(mediaDataRuntime)
@@ -58,6 +59,27 @@ func (c *Coordinator) SaveMedia(parent context.Context, b protocol.MediaUnitBind
 		c.refreshMediaUnits(runtime, b, err)
 		return c.Status(), err
 	}
-	c.setMediaUnits(b, units)
+	if !c.publishMediaSave(b, prior, units) {
+		return c.Status(), protocol.MediaUnitIdentityError()
+	}
 	return c.Status(), nil
+}
+
+// publishMediaSave clears a retained save error only after a successful runtime
+// call confirms the same durable disk. Status publication and its identity
+// check share the lock so a later fault cannot be overwritten.
+func (c *Coordinator) publishMediaSave(b protocol.MediaUnitBinding, prior protocol.Status, units []protocol.MediaUnitStatus) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !b.MatchesForSave(c.status) {
+		return false
+	}
+	after := cloneStatus(c.status)
+	after.CorePackage.MediaUnits = protocol.CloneMediaUnits(units)
+	after.LastError = nil
+	if !b.MatchesSaveResult(prior, after) || !b.MatchesSaveResult(c.status, after) {
+		return false
+	}
+	c.status = after
+	return true
 }
