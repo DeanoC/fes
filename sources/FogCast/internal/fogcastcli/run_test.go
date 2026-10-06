@@ -543,6 +543,7 @@ func TestRunReturnsConciseTypedErrorsWithoutPrivateDetailsAndStillCloses(t *test
 		wantJSON  string
 	}{
 		{name: "typed", err: typed, wantHuman: "SOURCE_UNAVAILABLE: game source is unavailable\n", wantJSON: "{\"error\":{\"code\":\"SOURCE_UNAVAILABLE\",\"message\":\"game source is unavailable\"}}\n"},
+		{name: "save failed", err: &protocol.APIError{Code: protocol.CodeSaveFailed, Message: private, Phase: "save"}, wantHuman: "SAVE_FAILED[save]: core data could not be durably written; inspect status before retrying\n", wantJSON: "{\"error\":{\"code\":\"SAVE_FAILED\",\"message\":\"core data could not be durably written; inspect status before retrying\",\"phase\":\"save\"}}\n"},
 		{name: "hostile code", err: &protocol.APIError{Code: protocol.ErrorCode(private), Message: private}, wantHuman: "INTERNAL: FogCast operation failed internally\n", wantJSON: "{\"error\":{\"code\":\"INTERNAL\",\"message\":\"FogCast operation failed internally\"}}\n"},
 		{name: "unknown", err: errors.New(private), wantHuman: "INTERNAL: FogCast operation failed internally\n", wantJSON: "{\"error\":{\"code\":\"INTERNAL\",\"message\":\"FogCast operation failed internally\"}}\n"},
 		{name: "canceled", err: context.Canceled, wantHuman: "CANCELED: FogCast operation was canceled\n", wantJSON: "{\"error\":{\"code\":\"CANCELED\",\"message\":\"FogCast operation was canceled\"}}\n"},
