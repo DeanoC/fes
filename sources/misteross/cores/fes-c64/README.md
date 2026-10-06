@@ -18,7 +18,8 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Bytes 8192..16383 are the KERNAL window `$E000–$FFFF`. The OSS package leaves
   sixteen 1024×10 M10K lanes (column 5, rows 32–47) blank. The character
   generator is in the core, not in the firmware image.
-- VIC-II text: 40×25, color RAM, and the registers the diagnostic writes.
+- VIC-II text: 40×25, synchronous dual-port M10K color RAM, and the registers
+  the diagnostic writes.
   Raster timing is not locked to HDMI. No sprites, bitmap or badlines.
 - Reduced SID: three voices, pulse, saw, triangle and noise, a crude envelope
   and volume. No filter.
@@ -97,8 +98,10 @@ is registered with the M10K address; a combinational lane mux and the final
 data register keep the two-cycle latency the 6510 samples at cycle 16 of
 phi2. The ROM map requires `CFG_ASYNC_READ=0`. After synthesis, and again
 on the routed netlist, any `MISTRAL_M10K` or `MISTRAL_M10K_TDP` with
-`CFG_ASYNC_READ=1` fails the build. Color RAM stays a combinational logic
-read. Before routing, the producer connects the unused write clocks of the
+`CFG_ASYNC_READ=1` fails the build. Color RAM uses one synchronous dual-port
+M10K: the system-clock port returns CPU reads before the cycle-16 sample and
+the pixel-clock port follows the same two-stage scan pipeline as main RAM.
+Before routing, the producer connects the unused write clocks of the
 two inferred read-only M10Ks (VIC font and IEC track lookup) to their live
 read clocks. It checks their names and disabled write ports so a changed
 synthesis shape fails closed.

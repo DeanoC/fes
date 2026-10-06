@@ -1023,13 +1023,14 @@ C64_VERILATOR_FLAGS := -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAN
 	-Wno-CASEINCOMPLETE -Wno-CASEOVERLAP -Wno-SYNCASYNCNET -Wno-UNOPTFLAT \
 	-Icores/fes-c64/rtl -Icores/fes-c64/expansions -Icores/fes-common/generated
 C64_RTL := cores/fes-c64/rtl/c64_machine.sv cores/fes-c64/rtl/c64_ram.v \
+	cores/fes-c64/rtl/c64_color_ram.v \
 	cores/fes-c64/rtl/c64_rom.v cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_sid.v \
 	cores/fes-c64/rtl/c64_cia.v cores/fes-c64/rtl/c64_iec.sv cores/fes-c64/rtl/c64_disk_store.v \
 	cores/fes-c64/rtl/c64_keyboard.v cores/fes-c64/rtl/c64_slot_sockets.v \
 	cores/fes-c64/expansions/probe.v \
 	cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v
 
-.PHONY: c64-diagnostic sim-fes-c64 sim-fes-c64-cia
+.PHONY: c64-diagnostic sim-fes-c64 sim-fes-c64-cia sim-fes-c64-color-ram
 c64-diagnostic:
 	@mkdir -p $(C64_DIAGNOSTIC)
 	$(PYTHON) cores/fes-c64/diagnostic/font.py --verilog $(C64_DIAGNOSTIC)/font.vh
@@ -1047,7 +1048,16 @@ sim-fes-c64-cia:
 		cores/fes-c64/rtl/c64_cia.v "$(CURDIR)/cores/fes-c64/sim/cia_tb.cpp"
 	@build/sim/fes-c64-cia/Vc64_cia
 
-sim-fes-c64: c64-diagnostic sim-fes-c64-cia
+sim-fes-c64-color-ram:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-color-ram
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_color_ram $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-color-ram" \
+		cores/fes-c64/rtl/c64_color_ram.v \
+		"$(CURDIR)/cores/fes-c64/sim/color_ram_tb.cpp"
+	@build/sim/fes-c64-color-ram/Vc64_color_ram
+
+sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \

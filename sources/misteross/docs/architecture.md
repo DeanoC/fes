@@ -1610,7 +1610,9 @@ selector delayed one clock so the CPU-facing byte is still two system clocks
 behind the registered address. `c64_machine` samples that byte at
 `cycle_clock == 16`, sixteen 52.224 MHz clocks after the phi2 address
 capture. The ROM-map producer requires `CFG_ASYNC_READ=0`, and the shared
-netlist check rejects every other async M10K. Color RAM remains logic.
+netlist check rejects every other async M10K. Color RAM is a synchronous
+dual-port M10K, with independent system and pixel clocks; the CPU samples its
+registered read at cycle 16 and the VIC aligns its result with main RAM.
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
 frozen shell. No Commodore ROM is in the tree, and the core is not in the
 factory image.

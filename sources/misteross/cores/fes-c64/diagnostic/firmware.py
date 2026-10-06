@@ -76,6 +76,13 @@ paint:
         inx
         cpx #$07
         bne paint
+        lda $d800
+        and #$0f
+        cmp #$01
+        beq color_ok
+        lda #$03
+        jmp fail
+color_ok:
         lda #$33
         sta $01
         lda $d000
