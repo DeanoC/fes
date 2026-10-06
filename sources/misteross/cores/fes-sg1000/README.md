@@ -84,9 +84,11 @@ limits](../fes-common/rtl/z80/README.md) apply here. Version 1.3.0 requires a
 fresh seal with passing 52.224 MHz system, 74.25 MHz pixel and 12.288 MHz audio
 timing, followed by its own exact-artifact kit checks.
 
-The linked cartridge keeps its authenticated asynchronous M10K lanes and ROM
-map encoding. An eight-bit register after the bank multiplexer adds one system
-clock of read latency and splits the ROM path for timing closure. The producer
+The linked cartridge uses synchronous M10K lanes (`CFG_ASYNC_READ=0`) and
+keeps its ROM map encoding. Each lane registers its address on the system
+clock, the bank select is registered on that same edge, and an output
+register supplies the second stage. CPU-facing latency is two system clocks.
+The producer
 tries a bounded, sequential placement search on each exact BUILD_ID netlist:
 seeds `2,3,4,1,5,6,7,8,9,10` at HeAP timing weight 2000, then 1000, stopping at
 the first candidate that passes all three clocks. Its functional build record
