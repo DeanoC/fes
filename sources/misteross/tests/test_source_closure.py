@@ -50,6 +50,17 @@ class ManifestTests(unittest.TestCase):
         with patch.dict(os.environ, {'FES_SOURCE_CLOSURE_BROAD': '1'}):
             self.assertEqual(source_roots_for_producer('build_fes_pong', pins), source_roots_for_inputs(pins))
 
+    def test_declared_inputs_stay_in_audited_roots(self):
+        from scripts.build_fes_coleco_socket_v2 import VIDEO_INPUTS, NATIVE_VIDEO_INPUTS
+        for inputs in (VIDEO_INPUTS, NATIVE_VIDEO_INPUTS):
+            roots = source_roots_for_producer('build_fes_coleco_socket_v2', inputs)
+            self.assertIsInstance(roots, AuditedRoots)
+            for path in inputs:
+                self.assertTrue(any(path == r or path.startswith(r + '/') for r in roots), path)
+        roots = source_roots_for_producer('build_fes_coleco_socket_v2', VIDEO_INPUTS)
+        self.assertIn('cores/fes-common/generated/fes_video_part.vh', roots)
+        self.assertEqual(roots, sorted(roots))
+
     def test_minimize_and_derive(self):
         files = {'scripts/a.py', 'scripts/b.py', 'scripts/other/c.py'}
         self.assertEqual(minimize({'scripts/a.py'}, set(), files), ['scripts/a.py'])

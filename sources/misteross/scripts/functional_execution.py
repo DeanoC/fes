@@ -148,4 +148,12 @@ def source_roots_for_producer(module_name, pinned_inputs, root=None):
     if root is not None and Path(root).resolve() != ROOT.resolve():
         return source_roots_for_inputs(pinned_inputs)
     roots = load_manifest().get(module_name.removeprefix('scripts.'))
-    return AuditedRoots(roots) if roots is not None else source_roots_for_inputs(pinned_inputs)
+    if roots is None:
+        return source_roots_for_inputs(pinned_inputs)
+    # Declared inputs always stay in the key, even for producer variants
+    # (e.g. video_socket) whose extra inputs the audit did not exercise.
+    merged = list(roots)
+    for path in pinned_inputs:
+        if not any(path == item or path.startswith(item.rstrip('/') + '/') for item in merged):
+            merged.append(path)
+    return AuditedRoots(sorted(merged))
