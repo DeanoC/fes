@@ -89,12 +89,30 @@ class BuildFesC64Tests(unittest.TestCase):
         cells = {}
         for socket in c64_slots.SOCKETS:
             for name, bel in c64_slots.boundary_bels(socket).items():
-                cells[socket.instance + name] = {"type": "MISTRAL_FF",
-                                                 "attributes": {"NEXTPNR_BEL": bel}}
+                i = len(cells)
+                cells[socket.instance + name] = {
+                    "type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": bel},
+                    "connections": {"CLK": [1], "DATAIN": [1000 + i], "Q": [2000 + i]},
+                    "port_directions": {"CLK": "input", "DATAIN": "input", "Q": "output"}}
+        count = len(cells)
         cells["machine.cpu.state"] = {"type": "MISTRAL_FF",
                                       "attributes": {"NEXTPNR_BEL": "MISTRAL_FF.10.10.2"}}
         cells.update(extra or {})
-        return {"modules": {"top": {"cells": cells}}}
+        return {"modules": {"top": {"cells": cells, "ports": {"source": {
+            "direction": "input", "bits": list(range(1000, 1000 + count))}}}}}
+
+    @staticmethod
+    def _add_route_through(design: dict, name: str, bel: str, half: int, bit: int) -> None:
+        cells = design["modules"]["top"]["cells"]
+        data = cells[name]["connections"]["DATAIN"]
+        cells[name]["connections"]["DATAIN"] = [bit]
+        cells[name + "$ROUTETHRU"] = {
+            "type": "MISTRAL_BUF", "parameters": {},
+            "attributes": {"NEXTPNR_BEL": bel, "FES_PINMAP_V1": json.dumps({
+                "count": 2, "pins": {"A": [0, "C" if half == 0 else "D"],
+                                     "Q": [0, "COMBOUT"]}}).encode().hex()},
+            "port_directions": {"A": "input", "Q": "output"},
+            "connections": {"A": data, "Q": [bit]}}
 
     def test_routed_shell_keeps_sockets_vacant(self) -> None:
         evidence = producer.validate_routed_shell(self._routed())
@@ -110,6 +128,49 @@ class BuildFesC64Tests(unittest.TestCase):
             "MISTRAL_FF.24.42.2"
         with self.assertRaises(BuildError):
             producer.validate_routed_shell(moved)
+
+    def test_routed_shell_admits_only_paired_route_through_buffers(self) -> None:
+        design = self._routed()
+        self.assertEqual(producer.validate_routed_shell(design)["boundary_route_through_cells"], 0)
+        # 1656e473 places a route-through on the FF's own combinational half.
+        anchor, anchor_bel = "slot1.clock_coverage_ff_0", "MISTRAL_COMB.24.4.54"
+        self._add_route_through(design, anchor, anchor_bel, 0, 4000)
+        evidence = producer.validate_routed_shell(design)
+        self.assertEqual(evidence["boundary_route_through_cells"], 1)
+        self.assertIn("scripts/coleco_expansion.py", producer.PINNED_INPUTS)
+        buffer = anchor + "$ROUTETHRU"
+        for mutate in (
+                lambda c: c[buffer].update(type="MISTRAL_ALUT2"),
+                lambda c: c[buffer]["attributes"].update(NEXTPNR_BEL="MISTRAL_COMB.24.4.55"),
+                lambda c: c[buffer]["attributes"].update(NEXTPNR_BEL="MISTRAL_COMB.24.5.54"),
+                lambda c: c[buffer]["attributes"].update(FES_PINMAP_V1="bad"),
+                lambda c: c.update(extra={"type": "MISTRAL_BUF", "connections": {"A": [4000]},
+                                          "port_directions": {"A": "input"}}),
+                lambda c: c.update(extra={"type": "MISTRAL_BUF", "connections": {
+                    "A": c[anchor]["connections"]["Q"]}, "port_directions": {"A": "input"}}),
+                lambda c: c[buffer]["connections"].update(A=[99999]),
+                lambda c: c.update({"shell$ROUTETHRU": {"type": "MISTRAL_BUF", "connections": {},
+                                    "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.25.10.0"}}})):
+            bad = json.loads(json.dumps(design))
+            mutate(bad["modules"]["top"]["cells"])
+            with self.assertRaises(BuildError):
+                producer.validate_routed_shell(bad)
+
+    def test_route_log_must_prove_the_1656e473_system_pll(self) -> None:
+        log = ("Info: PLL 'system_clock.pll': fractional-N requested 52224000.000000 Hz (output 0), "
+               "achieved 52224000.000569507 Hz, error 1.09050546e-05 ppm.\n"
+               "Info: PLL 'system_clock.pll': fractional-N requested 12288000.000000 Hz (output 1), "
+               "achieved 12288000.000134002 Hz, error 1.09050546e-05 ppm.\n"
+               "Info: PLL 'system_clock.pll': 50.000000 MHz -> VCO 417.792000 MHz, fractional-N, "
+               "M=8 N=1 K=1528321163, counters C6,7, bel altera_pll.0.14.0\n")
+        import re
+        self.assertRegex(log, producer.SYSTEM_PLL_ROUTE_RE)
+        self.assertRegex(log, producer.SYSTEM_PLL_OUTPUT_RE)
+        self.assertRegex(log, producer.AUDIO_PLL_OUTPUT_RE)
+        old = ("Info: PLL 'system_clock.pll': second output 12.288 MHz, C7=34.\n"
+               "Info: PLL 'system_clock.pll': 50 MHz -> 52.224 MHz, direct, M=8 N=1 C6=8, bel altera_pll.0.31.0\n")
+        self.assertIsNone(re.search(producer.SYSTEM_PLL_ROUTE_RE, old))
+        self.assertIsNone(re.search(producer.AUDIO_PLL_OUTPUT_RE, old))
 
     def test_firmware_lanes_must_stay_out_of_sockets(self) -> None:
         inside = {"blocks": [{"bel": "M10K.026.030", "word_bits": [[500 * 7605 + 2000]]}]}

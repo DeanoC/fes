@@ -92,8 +92,12 @@ pages 348–349. `sim-fes-c64` includes the directed CIA regression and the
 firmware's CPU interrupt checks. These are host simulations, with no sealed
 artifact or kit acceptance implied.
 
-`build-fes-c64` authenticates `toolchains/c64.lock` (the Apple II tool
-commits: Yosys `e2d425de`, Mistral `7ed06e21`, nextpnr `0259c6dc`).
+`build-fes-c64` authenticates `toolchains/c64.lock` (Yosys `5391eeb1`,
+Mistral `8fcc4cb4`, nextpnr `0c5ed400`). The socket check admits a compiler-inserted route-through
+buffer only at a pinned boundary flip-flop's paired combinational half, with
+the exact physical pin map and a dedicated connection to that flip-flop;
+clock-coverage outputs stay unused and every other shell cell inside a socket
+is rejected.
 The sixteen firmware lanes are synchronous 1024x10 M10Ks on the system
 clock, with reads enabled and active-low writes disabled. The bank selector
 is registered with the M10K address; a combinational lane mux and the final
