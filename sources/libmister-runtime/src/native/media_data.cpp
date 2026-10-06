@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cerrno>
 #include <cstring>
+#include <dirent.h>
 #include <fcntl.h>
 #include <sys/file.h>
 #include <sys/stat.h>
@@ -61,6 +62,73 @@ private:
 	int fd_;
 	bool ok_;
 };
+bool Decimal(const std::string& text, std::size_t begin, std::size_t end)
+{
+	if (begin >= end || end > text.size())
+		return false;
+	for (std::size_t at = begin; at < end; ++at)
+		if (text[at] < '0' || text[at] > '9')
+			return false;
+	return true;
+}
+bool StaleMediaTemporary(const std::string& name)
+{
+	static const char* prefixes[] = {".record-", ".probe-"};
+	for (const char* prefix : prefixes) {
+		const std::size_t length = std::strlen(prefix);
+		if (name.compare(0, length, prefix) != 0)
+			continue;
+		const std::size_t hyphen = name.find('-', length);
+		return hyphen != std::string::npos && Decimal(name, length, hyphen) &&
+			Decimal(name, hyphen + 1, name.size());
+	}
+	return false;
+}
+Error SweepStaleMediaTemps(int directory)
+{
+	Lock lock(directory, LOCK_EX);
+	if (!lock.ok())
+		return Io("cannot lock media-data namespace");
+	const int copy = openat(directory, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+	if (copy < 0)
+		return Io("cannot scan media-data namespace");
+	DIR* dir = fdopendir(copy);
+	if (!dir) {
+		close(copy);
+		return Io("cannot scan media-data namespace");
+	}
+	std::vector<std::string> stale;
+	while (true) {
+		errno = 0;
+		const dirent* entry = readdir(dir);
+		if (!entry) {
+			if (errno != 0) {
+				closedir(dir);
+				return Io("cannot scan media-data namespace");
+			}
+			break;
+		}
+		const std::string name(entry->d_name);
+		if (StaleMediaTemporary(name))
+			stale.push_back(name);
+	}
+	if (closedir(dir) != 0)
+		return Io("cannot scan media-data namespace");
+	bool removed = false;
+	Error error;
+	for (const std::string& name : stale) {
+		if (unlinkat(directory, name.c_str(), 0) != 0) {
+			if (errno == ENOENT)
+				continue;
+			error = Io("cannot remove stale media-data temporary");
+			break;
+		}
+		removed = true;
+	}
+	if (removed && fsync(directory) != 0 && error.ok())
+		error = Io("cannot sync media-data namespace after removing temporaries");
+	return error;
+}
  } // namespace
 bool ValidMediaDataIdentity(const MediaDataIdentity& id) {
     if (id.unit!=0 || id.core_id.empty() || id.core_id.size()>96 ||
@@ -156,6 +224,9 @@ Error MediaDataFile::Open(
 	FD opened(directory);
 	if (fsync(parent.value) != 0)
 		return Io("cannot sync media-data namespace parent");
+	Error swept = SweepStaleMediaTemps(opened.value);
+	if (!swept.ok())
+		return swept;
 	output->reset(new MediaDataFile(opened.value, id));
 	opened.value = -1;
 	return {};

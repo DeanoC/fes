@@ -1693,6 +1693,16 @@ archives bound to the exact shell; an empty socket uses built-in Direct with
 the same latency. Underflow blacks a whole affected line and later
 lines recover; stale fills cannot cross a frame configuration change.
 
+`scripts/build_atari_st_video_part.py` compares the frozen shell directory with
+the sealed package for `manifest.toml`, `core.rbf` and `rom-map.json`.
+`routed.json` and `socket.qsf` are producer outputs, not package members; a
+package directory that contained them would be rejected. Their SHA-256 values
+are part of the video-part recipe digest, so a different netlist or constraint
+file is a different part. The part still has to preserve the shell
+configuration header and change no CRAM bit outside the video rectangle,
+including companion columns. That containment check is the proof against the
+sealed bitstream.
+
 `make sim-fes-atari-st` runs the original CPU firmware and focused device,
 SDRAM-command, dual-clock-video and complete-media tests. Optional EmuTOS
 boot tests use a pinned official 1.4 192 KiB US image, supplied separately

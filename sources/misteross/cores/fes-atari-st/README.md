@@ -161,9 +161,11 @@ CPU expansion and linked firmware. The socket owns 93 pinned boundary/clock
 FFs with paired route-through buffers in LAB24..28 rows41..58. Its strict
 half-open CRAM rectangle is (1769,3442)–(2806,5162). Full M10K configuration
 footprints remain outside both CPU/video fences; RAM guards include rows40/59.
-The part producer checks all three shell clocks, pixel-only part state and
-every outside CRAM bit, including companion columns. Rebuild parts after any
-shell identity change. HOLD blacks pixels while
+The part producer requires the frozen shell's manifest, RBF and ROM map to
+match the sealed package. `routed.json` and `socket.qsf` are not package
+members; the part recipe digest covers their bytes. It checks all three shell
+clocks, pixel-only part state and every outside CRAM bit, including companion
+columns. Rebuild parts after any shell identity change. HOLD blacks pixels while
 timing continues. Native raster tricks and aspect-ratio correction are absent.
 
 ## Validation
