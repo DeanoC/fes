@@ -515,13 +515,13 @@ public:
 		HardwareResult result = hardware_.LoadCore(std::move(package), generation);
 		if (!result.error.ok() && replacing && !result.mutation_attempted)
 			result.mutation_attempted = true;
-		if (!result.error.ok())
+		if (!result.error.ok() && !result.bound_media_may_have_run)
 			return FinishLaunchFailure("load_core", info.system,
 				result.observed_core.empty() ? info.declared_core : result.observed_core,
 				result,&previous_status);
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
-			status_.state = State::running_development;
+			status_.state = result.error.ok() ? State::running_development : State::starting;
 			status_.execution = Execution::development;
 			status_.core = result.observed_core;
 			status_.declared_core = info.declared_core;
@@ -555,8 +555,12 @@ public:
 					}), interfaces.end());
 			}
 			status_.error = {};
-			busy_ = false;
+			busy_ = !result.error.ok();
 		}
+		if (!result.error.ok())
+			return FinishLaunchFailure("load_core", info.system,
+				result.observed_core.empty() ? info.declared_core : result.observed_core,
+				result, &previous_status);
 		condition_.notify_all();
 		Log("load_core", info.system, result.observed_core, "running");
 		return {};
@@ -1279,6 +1283,12 @@ public:
 		const HardwareResult& result,const Status* previous_status=nullptr)
 	{
 		const Error primary = result.error;
+		Status retained;
+		if (result.bound_media_may_have_run) {
+			std::lock_guard<std::mutex> lock(mutex_);
+			retained = status_;
+		}
+
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			active_generation_ = 0;
@@ -1295,6 +1305,26 @@ public:
 			return primary;
 		}
 		Log(operation, system, core, "cleanup");
+		if (result.bound_media_may_have_run) {
+			// The release command is never replayed. Recover the mailbox through
+			// the existing fault-save path, freeze and save before retiring its FPGA.
+			const Error saved = hardware_.FlushFaultSave();
+			if (!saved.ok()) {
+				const Error recovery = IdleFailure(saved);
+				{
+					std::lock_guard<std::mutex> lock(mutex_);
+					status_ = std::move(retained);
+					status_.state = State::reboot_required;
+					status_.capabilities.media_units = hardware_.capabilities().media_units;
+					status_.error = recovery;
+					busy_ = false;
+				}
+				condition_.notify_all();
+				Log(operation, system, core, "recovery", recovery);
+				EmitFence(kDiagnosticKindFenceRecovery, "error", operation.c_str(), false);
+				return recovery;
+			}
+		}
 		const HardwareResult cleanup = hardware_.LoadIdle();
 		if (cleanup.error.ok()) {
 			{

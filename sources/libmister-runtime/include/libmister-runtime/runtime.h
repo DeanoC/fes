@@ -359,6 +359,9 @@ struct HardwareResult {
 	Error error;
 	bool mutation_attempted = false;
 	std::string observed_core;
+	// A failed execution release may have run the newly bound library disk.
+	// Failure cleanup must save it or retain that owner without idle programming.
+	bool bound_media_may_have_run = false;
 };
 
 struct HardwareFault {

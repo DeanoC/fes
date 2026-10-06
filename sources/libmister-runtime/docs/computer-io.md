@@ -278,6 +278,12 @@ A failed upload never releases execution or replays its ambiguous command;
 existing launch recovery owns cleanup. A failed outgoing save retains the
 previous disk and generation.
 
+If execution release fails ambiguously after binding the disk, failed-launch
+cleanup first performs the existing fault-save capture and durable publication.
+The release command is never resent. Successful save allows idle replacement;
+failed save retains the newly selected package/generation and persistent disk
+in recovery, blocking generic idle programming and replacement.
+
 Omitting this object preserves an empty volatile drive at launch: diskless
 boot to GEM remains supported even when the package requires both floppy
 interfaces. Those requirements describe hardware capabilities, not inserted

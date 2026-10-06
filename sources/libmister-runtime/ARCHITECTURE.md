@@ -336,7 +336,14 @@ Computer controller ports use `fes.gamepad.ports`, not the legacy
 `fes.gamepad` input worker. Computer admission rejects required `fes.gamepad`,
 so its fallible `input_.Start` path cannot run after ST execution release.
 Failed upload never calls Start or replays the ambiguous media command; normal
-launch failure cleanup applies. Successful status reports the ready persistent
+launch failure cleanup applies. A failed Start with a bound disk is ambiguous:
+the guest may already have run. Native hardware marks that result for fault-save
+before idle cleanup. Runtime retains the selected package, ROM, generation and
+persistent media projection while saving. Existing mailbox realignment and
+identity checks precede a frozen full-disk capture; the release is never replayed.
+Successful save permits idle cleanup and returns the original launch error.
+Failed capture or publication leaves the FPGA and binding owned in recovery,
+with Stop, replacement and generic idle recovery unable to discard them. Successful status reports the ready persistent
 unit and active persistent mode. Tests compare the entire restored image and
 cover preflight failures, same-namespace refresh, failed outgoing save and
 failed upload. These are host software checks, with physical acceptance pending.

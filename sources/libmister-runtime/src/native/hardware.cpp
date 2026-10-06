@@ -1389,7 +1389,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		CoreDriverResult started = admitted->driver_->Start(admitted->context_,
 			Deadline(clock_, timeouts_.core_io_ms));
 		if (!started.error.ok()) return {WithPhase(std::move(started.error),
-			"transport"), true, identified.observed_core};
+			"transport"), true, identified.observed_core, media_data_file_ != nullptr};
   if(menu) {
    error=menu_display_->Enable(Deadline(clock_,timeouts_.core_io_ms));
    MenuDisplayInfo info;if(error.ok())error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);

@@ -48,6 +48,9 @@ confirmation precede the first execution release. Tests cover retained source
 bytes, same-namespace outgoing save refresh, malformed/corrupt preflight,
 failed-save ownership and failed upload without release. Host regressions also
 verify that ST never starts the legacy gamepad worker and rejects a required
-legacy `fes.gamepad` declaration before programming. The diagnostic verifies
+legacy `fes.gamepad` declaration before programming. The ambiguous-Start
+follow-up has host fault-injection coverage for accepted release with unavailable
+acknowledgement, save-before-idle, and retained ownership after capture or durable
+publication failure; it does not relabel the earlier hardware artifacts. The diagnostic verifies
 fresh and saved-disk AUTO execution with full payload comparisons in one daemon
 lifetime. Assembled appliance acceptance remains pending.

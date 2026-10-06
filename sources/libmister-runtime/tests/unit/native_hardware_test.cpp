@@ -3110,6 +3110,111 @@ void TestInitialSTDiskBeforeExecution()
     assert(rmdir((storage.path + "/" + MediaDataNamespace(identity)).c_str()) == 0);
 }
 
+void TestInitialSTDiskAmbiguousReleaseSavesOrRetainsOwner()
+{
+    for (unsigned failure = 0; failure < 3; ++failure) {
+        using namespace mister::native;
+        using namespace mister::native::generated;
+        mister_test::ComputerEndpoint endpoint(15 | FesComputerCapabilityMediaAtariStFloppy |
+            FesComputerCapabilityMediaAtariStFloppyWrite, {{0, {737280, 737280}}},
+            "0123456789abcdef0123456789abcdef");
+        FixedClock clock(100);
+        FesGp gp(endpoint, clock);
+        FesGpCoreDriver driver(gp);
+        IntegratedFixture fixture(&driver);
+        fixture.Start();
+        bool saved_before_idle = false;
+        fixture.native.fpga.on_program = [&] {
+            if (fixture.native.fpga.calls > 2) saved_before_idle = endpoint.saved;
+            endpoint.Reset();
+        };
+        TempDirectory package, media, storage;
+        auto manifest = ComputerManifest();
+        ReplaceAll(&manifest, "format = 2", "format = 3");
+        ReplaceAll(&manifest, "fes.pong", "fes.atari-st");
+        ReplaceAll(&manifest, "fes.media.apple2-floppy", "fes.media.atari-st-floppy");
+        ReplaceAll(&manifest, "fes.expansion.apple2-bus", "fes.expansion.atari-st-bus");
+        const std::string map = "{}\n";
+        Sha256 map_hash; map_hash.Update(map.data(), map.size());
+        manifest += "\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-write\"\nmajor = 1\nminor = 0\nrequired = true\n"
+            "\n[rom]\nid = \"bios.main\"\nrole = \"firmware\"\nsource_size = 8192\n"
+            "file = \"rom-map.json\"\nsize = 3\nsha256 = \"" + Sha256Hex(map_hash.Final()) + "\"\n";
+        package.File("manifest.toml", manifest);
+        const auto programmed = package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+        package.File("rom-map.json", map);
+        OpenedCorePackage opened;
+        assert(OpenCorePackage(package.path, "", &opened).ok());
+        mister::CoreROMLink link;
+        link.rom_id = opened.descriptor.rom.id;
+        link.map_sha256 = opened.descriptor.rom.sha256;
+        link.source_sha256 = std::string(64, 'a');
+        link.source_size = opened.descriptor.rom.source_size;
+        link.programmed_sha256 = opened.descriptor.payload.sha256;
+        link.programmed_size = opened.descriptor.payload.size;
+        const auto original = ComputerDisk(737280);
+        mister::InitialComputerMedia initial;
+        initial.path = media.File("disk.st", original);
+        initial.size = 737280;
+        initial.data_root = storage.path;
+        Sha256 source; source.Update(original.data(), original.size());
+        initial.binding = {"st-initial", Sha256Hex(source.Final()), 0};
+        MediaDataIdentity identity{"fes.atari-st", initial.binding.game_id, initial.binding.base_media_id, 0};
+        const auto ns = storage.path + "/" + MediaDataNamespace(identity);
+        std::unique_ptr<MediaDataFile> record;
+        // Preflight creates this namespace; verify the actual record after activation.
+        unsigned release_requests = 0;
+        bool snapshot_failed = false;
+        std::vector<std::uint8_t> changed;
+        endpoint.fail_after_request = [&](const mister_test::ComputerEndpoint::Request& request) {
+            if (request.opcode == FesComputerOpcodeExecution && request.argument == FesComputerExecutionRelease) {
+                ++release_requests;
+                assert(!endpoint.held && endpoint.unit(0).state == FesComputerMediaStateReady);
+                endpoint.unit(0).data[4096] ^= 0x91;
+                endpoint.dirty = true;
+                changed = endpoint.unit(0).data;
+                // An unlinked open namespace permits Read(absent), but durable
+                // publication cannot create its temporary record through that fd.
+                if (failure == 2) assert(rmdir(ns.c_str()) == 0);
+                return true; // command accepted; its acknowledgement is unavailable
+            }
+            if (failure == 1 && !snapshot_failed && request.opcode == FesComputerOpcodeMediaSnapshotData) {
+                snapshot_failed = true;
+                return true;
+            }
+            return false;
+        };
+        const auto programs_before = fixture.native.fpga.calls;
+        const auto result = fixture.runtime.LoadROMCore(package.path, opened.package_id, programmed, link, &initial);
+        assert(!result.ok() && release_requests == 1); // no replay or second launch
+        const auto state = fixture.runtime.status();
+        if (failure == 0) {
+            assert(state.state == mister::State::idle && result.phase == "transport");
+            assert(saved_before_idle && fixture.native.fpga.calls == programs_before + 2);
+            assert(MediaDataFile::Open(storage.path, identity, &record).ok());
+            MediaDiskRecord saved; assert(record->Read(&saved).ok() && saved.bytes == changed);
+            assert(saved.revision != "absent" && endpoint.unit(0).state == FesComputerMediaStateEmpty);
+            record.reset();
+            assert(unlink((ns + "/record.bin").c_str()) == 0);
+        } else {
+            assert(state.state == mister::State::reboot_required && result.phase == "recovery");
+            assert(fixture.native.fpga.calls == programs_before + 1 && endpoint.unit(0).data == changed);
+            assert(state.generation != 0 && state.package_id == opened.package_id);
+            assert(state.active_package.rom_link.source_sha256 == link.source_sha256);
+            assert(state.core_data.mode == "persistent" && state.capabilities.media_units.size() == 1);
+            assert(state.capabilities.media_units[0].game_id == initial.binding.game_id);
+            assert(state.capabilities.media_units[0].base_media_id == initial.binding.base_media_id);
+            assert(state.capabilities.media_units[0].revision == "absent");
+            assert(!fixture.runtime.Stop().ok());
+            assert(fixture.runtime.RecoverIdle().code == mister::ErrorCode::save_failed);
+            assert(!fixture.runtime.LoadROMCore(package.path, opened.package_id, programmed, link, &initial).ok());
+            assert(fixture.native.fpga.calls == programs_before + 1 && endpoint.unit(0).data == changed);
+            assert(snapshot_failed == (failure == 1));
+        }
+        assert(ReadText(initial.path) == original);
+        if (failure != 2) assert(rmdir(ns.c_str()) == 0);
+    }
+}
+
 void TestDiskBindingRetiresAfterProgramming()
 {
 	using namespace mister::native;
@@ -3472,6 +3577,7 @@ int main()
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();
 	TestInitialSTDiskBeforeExecution();
+	TestInitialSTDiskAmbiguousReleaseSavesOrRetainsOwner();
 	TestDiskBindingRetiresAfterProgramming();
 	TestWritableLibraryDiskCaptureRestoreAndFailedSave();
 	TestWritableDiskInputFaultSavesBeforeIdleOrRetainsRAM();
