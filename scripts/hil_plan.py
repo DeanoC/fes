@@ -265,19 +265,20 @@ def kit_boot_id(text):
     return match.group(1) if match else ''
 
 
-def validate_lease(path, owner):
+def validate_lease(path, owner, reacquired_owner=None):
     records = [json.loads(line) for line in Path(path).read_text().splitlines() if line]
     steps = ['claimed', 'released-for-restart', 'reacquired', 'released']
     if len(records) != 4 or [record.get('step') for record in records] != steps:
         return None, 'lease log has missing, extra, or out-of-order steps'
-    checks = [('held', owner), ('free', None), ('held', owner), (('free', 'revoking'), None)]
+    checks = [('held', owner), ('free', None), ('held', reacquired_owner or owner),
+              (('free', 'revoking'), None)]
     for record, (states, expected_owner) in zip(records, checks):
         status = record.get('status', {})
         allowed = states if isinstance(states, tuple) else (states,)
         if status.get('state') not in allowed:
             return None, 'lease log state mismatch'
         if expected_owner and status.get('owner') != expected_owner:
-            return None, 'lease log owner mismatch'
+            return None, f"lease log {record['step']} owner mismatch"
     return records, None
 
 
@@ -287,7 +288,7 @@ def validate_core_lease(path, owner):
         return None, 'core-only lease log must contain claimed then released'
     claimed, released = (record.get('status', {}) for record in records)
     if claimed.get('state') != 'held' or claimed.get('owner') != owner:
-        return None, 'core-only lease claim must be held by lease owner'
+        return None, 'core-only lease claim must be held by host lease owner'
     if released.get('state') not in ('free', 'revoking'):
         return None, 'core-only lease release must be free or revoking'
     return records, None
@@ -387,14 +388,35 @@ def evidence(args):
             return refuse('kit update is corrupt or trial')
         if kit_entries and (not boot_id or boot_id != kit_boot_id(Path(args.kit_sha256).read_text())):
             return refuse('kit update boot_id is missing or does not match kit hash output')
+    if core_entries and not args.kit_update_after_json:
+        return refuse('core entries require --kit-update-after-json')
+    if args.kit_update_after_json:
+        after = json.loads(Path(args.kit_update_after_json).read_text())
+        if (not isinstance(after, dict) or 'error' in after or 'code' in after or
+                not {'boot_id', 'good', 'image_sha256', 'corrupt', 'trial'} <= after.keys()):
+            return refuse('kit update after response is an error body or lacks required fields')
+        if (after.get('image_sha256', '').lower() != base_image or
+                after.get('good', '').lower() != base_image):
+            return refuse('kit update after image identity does not match base image sha256')
+        if after.get('corrupt') is not False or after.get('trial', False) is True:
+            return refuse('kit update after is corrupt or trial')
+        if not boot_id or after.get('boot_id') != boot_id:
+            return refuse('kit update boot_id changed between captures')
     version = str(release.get('version', ''))
 
     lease = []
     if kit_involved:
-        if not args.lease_log or not args.lease_owner:
-            return refuse('kit or core entries require --lease-log and --lease-owner')
-        lease, error = (validate_lease(args.lease_log, args.lease_owner) if kit_entries
-                        else validate_core_lease(args.lease_log, args.lease_owner))
+        if not args.lease_log:
+            return refuse('kit or core entries require --lease-log')
+        if kit_entries and not args.lease_owner:
+            return refuse('kit entries require --lease-owner')
+        if core_entries and not args.host_lease_owner:
+            return refuse('core entries require --host-lease-owner')
+        if kit_entries:
+            lease, error = validate_lease(args.lease_log, args.lease_owner,
+                                          args.host_lease_owner if core_entries else None)
+        else:
+            lease, error = validate_core_lease(args.lease_log, args.host_lease_owner)
         if error:
             return refuse(error)
     if kit_entries:
@@ -580,9 +602,12 @@ def parser():
     evidence_parser.add_argument('--host-sha256')
     evidence_parser.add_argument('--base-release-json', required=True)
     evidence_parser.add_argument('--kit-update-json')
+    evidence_parser.add_argument('--kit-update-after-json')
     evidence_parser.add_argument('--lease-log')
     evidence_parser.add_argument('--lease-owner',
-                                 help='kit.py owner for binary overlays; host lease owner for core loads')
+                                 help='kit.py session owner for binary overlays')
+    evidence_parser.add_argument('--host-lease-owner',
+                                 help='host core-load lease owner, required for core entries')
     evidence_parser.add_argument('--core-status', action='append', default=[])
     evidence_parser.add_argument('--out')
     return root

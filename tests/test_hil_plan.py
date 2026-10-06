@@ -165,7 +165,9 @@ class HilPlanTest(unittest.TestCase):
         return path
 
     def evidence(self, manifest, entries, *, update=True, lease=True, release=None,
-                 output=None, extra=(), host_exe_value=None):
+                 output=None, extra=(), host_exe_value=None, host_owner='host-owner',
+                 include_host_owner=True, lease_owner_override=None,
+                 reacquired_owner=None):
         manifest_entries = json.loads(Path(manifest).read_text())['entries']
         entries = [(component, side, target,
                     Path(next(row['local'] for row in manifest_entries
@@ -187,9 +189,23 @@ class HilPlanTest(unittest.TestCase):
             args += ['--host-sha256', host_file]
         if update:
             args += ['--kit-update-json', self.update_file()]
+            if any(row[0].startswith('core:') for row in entries):
+                args += ['--kit-update-after-json', self.update_file().with_name('update-after.json')]
+                Path(args[-1]).write_text(Path(args[-3]).read_text())
         if lease and (kit_file or any(row[0].startswith('core:') for row in entries)):
-            steps = None if kit_file else [('claimed', 'held', 'owner'), ('released', 'free', None)]
+            has_core = any(row[0].startswith('core:') for row in entries)
+            if kit_file and has_core:
+                steps = [('claimed', 'held', 'owner'), ('released-for-restart', 'free', None),
+                         ('reacquired', 'held', reacquired_owner or host_owner), ('released', 'free', None)]
+            elif kit_file:
+                steps = None
+            else:
+                steps = [('claimed', 'held', host_owner), ('released', 'free', None)]
+            if lease_owner_override is not None and not (kit_file and has_core):
+                steps = [('claimed', 'held', lease_owner_override), ('released', 'free', None)]
             args += ['--lease-log', self.lease_file(steps), '--lease-owner', 'owner']
+            if has_core and include_host_owner:
+                args += ['--host-lease-owner', host_owner]
         for component, side, target, content in entries:
             if component.startswith('core:'):
                 status = self.work / f'{component.replace(":", "_")}.status.json'
@@ -505,14 +521,15 @@ class HilPlanTest(unittest.TestCase):
         core_package_id = json.loads(manifest.read_text())['entries'][0]['package_id']
         status.write_text(json.dumps({'state': 'active', 'development': True, 'core_package': {
             'package_id': core_package_id, 'build_id': 'build-test'}}))
-        log = self.lease_file([('claimed', 'held', 'owner'), ('released', 'free', None)])
+        log = self.lease_file([('claimed', 'held', 'host-owner'), ('released', 'free', None)])
         archive_bytes = Path(json.loads(manifest.read_text())['entries'][0]['local']).read_bytes()
         host_hashes = self.host_output([('core:ramtest', 'host', '/tmp/ramtest.fcore', archive_bytes)])
         args = ['evidence', '--repo', self.repo, '--base-image-commit', self.base,
                 '--head', self.head, '--base-image-sha256', BASE_SHA, '--manifest', manifest,
                 '--base-release-json', self.release_file(), '--kit-update-json', self.update_file(),
+                '--kit-update-after-json', self.update_file(),
                 '--host-sha256', host_hashes,
-                '--lease-log', log, '--lease-owner', 'owner', '--core-status', f'core:ramtest={status}']
+                '--lease-log', log, '--host-lease-owner', 'host-owner', '--core-status', f'core:ramtest={status}']
         missing_status_args = args[:-2]
         output = self.work / 'missing-status.md'
         self.assert_refused_without_evidence(run(*missing_status_args, '--out', output), output)
@@ -520,6 +537,18 @@ class HilPlanTest(unittest.TestCase):
         result = run(*args, '--out', output)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('| Core component | Package ID | Build ID | Archive sha256 |', output.read_text())
+        missing_after = args.copy()
+        after_index = missing_after.index('--kit-update-after-json')
+        del missing_after[after_index:after_index + 2]
+        output.unlink(missing_ok=True)
+        self.assert_refused_without_evidence(run(*missing_after, '--out', output), output)
+        changed = self.work / 'changed-after.json'
+        changed.write_text(json.dumps({'boot_id': 'different-boot', 'good': BASE_SHA,
+                                       'image_sha256': BASE_SHA, 'corrupt': False, 'trial': False}))
+        mismatch = args.copy()
+        mismatch[mismatch.index('--kit-update-after-json') + 1] = changed
+        output.unlink(missing_ok=True)
+        self.assert_refused_without_evidence(run(*mismatch, '--out', output), output)
         output = self.work / 'four-step.md'
         result = run(*args[:-4], '--lease-log', self.lease_file(), '--lease-owner', 'owner',
                      '--core-status', f'core:ramtest={status}', '--out', output)
@@ -527,7 +556,7 @@ class HilPlanTest(unittest.TestCase):
 
         # lease_file() above rewrote the shared lease log with four steps; restore two.
         args[args.index('--lease-log') + 1] = self.lease_file(
-            [('claimed', 'held', 'owner'), ('released', 'free', None)])
+            [('claimed', 'held', 'host-owner'), ('released', 'free', None)])
         for payload, reason in (
                 ({'state': 'active', 'development': True, 'core_package': {'package_id': 'd' * 64}}, 'package_id mismatch'),
                 ({'state': 'idle', 'development': True, 'core_package': {'package_id': core_package_id}}, 'not an active development core'),
@@ -548,10 +577,34 @@ class HilPlanTest(unittest.TestCase):
             self.assertIn('error body or lacks required fields', result.stderr)
         output = self.work / 'unplanned-status.md'
         args[args.index('--lease-log') + 1] = self.lease_file(
-            [('claimed', 'held', 'owner'), ('released', 'free', None)])
+            [('claimed', 'held', 'host-owner'), ('released', 'free', None)])
         result = run(*args[:-2], '--core-status', f'core:other={status}', '--out', output)
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertFalse(output.exists())
+
+    def test_mixed_plan_uses_host_lease_after_restart(self):
+        self.git_repo(['sources/libmister-runtime/change.cpp',
+                       'sources/misteross/cores/fes-atari-st/change.v'])
+        entries = [('mister-runtime', 'kit', '/usr/sbin/mister-runtime', b'rt'),
+                   ('core:atari-st', 'host', '/tmp/atari-st.fcore', b'core')]
+        manifest = self.make_manifest(entries)
+        output = self.work / 'mixed.md'
+        accepted = self.evidence(manifest, entries, output=output)
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        output.unlink(missing_ok=True)
+        bad_owner = self.evidence(manifest, entries, reacquired_owner='owner', output=output)
+        self.assert_refused_without_evidence(bad_owner, output)
+        output.unlink(missing_ok=True)
+        missing_owner = self.evidence(manifest, entries, include_host_owner=False, output=output)
+        self.assert_refused_without_evidence(missing_owner, output)
+
+    def test_core_only_rejects_claim_by_wrong_host_owner(self):
+        self.git_repo(['sources/misteross/cores/ramtest/change.v'])
+        entries = [('core:ramtest', 'host', '/tmp/ramtest.fcore', b'core')]
+        manifest = self.make_manifest(entries)
+        output = self.work / 'wrong-owner.md'
+        result = self.evidence(manifest, entries, lease_owner_override='owner', output=output)
+        self.assert_refused_without_evidence(result, output)
 
     def test_core_manifest_derives_identity_and_rejects_wrong_core(self):
         core = self.write_artifact('core', core_archive('fes.pong'))

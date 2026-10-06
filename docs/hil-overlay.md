@@ -19,67 +19,79 @@ package ID and core ID. The archive must identify the requested core. Host-serve
 changes require the binary from the exact-head build to be started as `fogcast-api`
 before the host attestation command is run.
 
-5. Claim the lease from `sources/misteross` and keep the session open in its own terminal (it renews every 20 s). From a second terminal, save the public lease status (`kit.py status` prints only public fields, never the credential) and record it as `claimed`. Then send `stop` to the session so the kit is idle:
+5. **Binary-only and mixed plans:** claim the lease from `sources/misteross`
+   with a `kit.py session` and keep it open (it renews every 20 s). Save public
+   `kit.py status` and record `claimed`, then send `stop` to idle the kit. For
+   core-only plans, skip the `kit.py session`; the host must claim the lease.
 
-```sh
-python3 scripts/kit.py --config CFG session --owner O --purpose P      # terminal 1, keep open
-python3 scripts/kit.py --config CFG status > /tmp/lease-claimed.json   # terminal 2
-python3 ../../scripts/hil_plan.py lease-record --log /tmp/lease.jsonl --step claimed \
-  --status-json /tmp/lease-claimed.json --owner O
-```
+   ```sh
+   python3 scripts/kit.py --config CFG session --owner KIT_OWNER --purpose P
+   python3 scripts/kit.py --config CFG status > /tmp/lease-claimed.json
+   python3 ../../scripts/hil_plan.py lease-record --log /tmp/lease.jsonl --step claimed \
+     --status-json /tmp/lease-claimed.json --owner KIT_OWNER
+   ```
 
-6. An agent restart invalidates any held lease, so release before deploying: send `release` to the session, save `kit.py status` again, confirm `"state": "free"`, and record it as `released-for-restart`. Stage the kit files in tmpfs under `/run/hil-<head8>` (with `SHA256SUMS` from `--sha256sums`), then run the generated deploy script with `on`:
+6. **Binary-only and mixed plans:** release before deployment because restart
+   invalidates a held lease. Save status, confirm `"state": "free"`, and record
+   `released-for-restart`. Stage files in tmpfs and run the generated deploy
+   script with `on` (as described above).
 
-```sh
-python3 scripts/hil_plan.py kit-deploy-script --manifest /tmp/hil-manifest.json --stage-dir /run/hil-pr \
-  > /tmp/hil-deploy.sh
-python3 scripts/hil_plan.py kit-deploy-script --manifest /tmp/hil-manifest.json --stage-dir /run/hil-pr \
-  --sha256sums > /tmp/SHA256SUMS
-KH=$(mktemp); SSH="sshpass -p 1 ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$KH -o PubkeyAuthentication=no root@192.168.10.84"
-$SSH 'mkdir -p /run/hil-pr'   # then copy each binary and SHA256SUMS to /run/hil-pr over the same $SSH (cat > file)
-$SSH 'sh -s on' < /tmp/hil-deploy.sh; rm -f "$KH"
-```
+7. **Mixed kit binary and core sequence:** after deploy and restart, run
+   `fogcast core-load` using the core archive from the exact-head build.
+   `core-load` takes its own host lease through `fogcast-api`. Save `kit.py
+   status` as `reacquired` (held by `HOST_OWNER`), capture update, status, then
+   update again (commands below), and run the HIL test. Explicitly stop the host
+   session with `POST /api/v1/session/stop`; save status (free or revoking) and
+   record `released`.
 
-The deploy script checks every staged binary against the sha256 embedded in it, refuses if `/usr/sbin` already has mounts, stops S60, S50, S40, bind-mounts the exact staged binaries over `/usr/sbin`, starts S40, S50, S60 only when no `mister-supervise` is left running, and fails unless exactly one supervisor each runs for runtime, agent and kit.
+8. **Core-only sequence:** confirm `kit.py status` is free and run
+   `fogcast core-load` from the exact-head build. The host command takes its own
+   lease through `fogcast-api`. While the core runs, save status (held by
+   `HOST_OWNER`) and record `claimed`. Capture update, status, then update again;
+   run the HIL test. Explicitly stop the host session, save status (free or
+   revoking), and record `released`.
 
-7. For a core-only overlay, the host `fogcast core-load` command claims its own
-   lease through `fogcast-api` before calling `/v1/development/core`. Do not open
-   a `kit.py` session: that would make the host's lease claim fail as busy.
-   Confirm `kit.py status` is free, then load the core from the exact-head build:
+   **Binary-only sequence:** reacquire with a new `kit.py session`, record
+   `reacquired`, capture `/v1/update`, then run the `kit-command` output on the
+   kit and `host-command` output on the host. For `host:fogcast-api`, run the
+   command as the user running that server after starting the exact-head binary.
+   It scans `/proc/*/exe`, including deleted mappings. Run the HIL test under the
+   lease, then release and record `released`.
+
+   Capture commands for plans with core entries:
 
    ```sh
    fogcast --json --api http://127.0.0.1:8787 core-load /abs/path/core.fcore
    curl --fail -sS -H "Authorization: Bearer $FOGCAST_TOKEN" \
+     http://192.168.10.84:8182/v1/update > /tmp/kit-update.json
+   curl --fail -sS -H "Authorization: Bearer $FOGCAST_TOKEN" \
      http://192.168.10.84:8182/v1/status > /tmp/core-status.json
    curl --fail -sS -H "Authorization: Bearer $FOGCAST_TOKEN" \
-     http://192.168.10.84:8182/v1/update > /tmp/kit-update.json
+     http://192.168.10.84:8182/v1/update > /tmp/kit-update-after.json
    ```
 
-   While the core runs, save `kit.py status` (held by the host's owner label) and
-   record `claimed`; save `/v1/status` and `/v1/update`, then run the HIL test.
-   Stop the host session with `POST /api/v1/session/stop` (an explicit stop
-   releases the lease), save `kit.py status` (free or revoking), and record
-   `released`. Set `--lease-owner` to the host's owner label. Core evidence
-   requires an active development core with the matching package ID and kit
-   image identity. It does not require a reboot or the four-step binary restart.
-8. For kit binary overlays, reacquire the lease with a new `kit.py session`
-   (terminal 1), save `kit.py status` and record it as `reacquired`. Save the
-   authenticated `GET /v1/update` as `/tmp/kit-update.json`. Run the
-   `kit-command` output on the kit (`$SSH sh -s < kit-cmd.sh > /tmp/kit.sha256`,
-   with a fresh throwaway known_hosts) and the `host-command` output on the host
-   (`> /tmp/host.sha256`). For `host:fogcast-api`, run `host-command` as the
-   user running `fogcast-api`, after starting that server from the exact-head
-   binary. It records file hashes and scans `/proc/*/exe`, including deleted
-   executable mappings, so an old server still running a replaced binary fails
-   attestation. `host:fogcast` is a one-shot CLI exec'd per invocation, so it
-   needs only the file hash. Run the HIL test under the lease. Then send
-   `release`, save `kit.py status`, and record it as `released`.
-9. Generate evidence with the base build's `release.json`, kit update JSON,
-   kit and host hash outputs, lease log, and one `--core-status
-   core:NAME=/tmp/core-status.json` for every core entry. Evidence checks
-   per-component coverage, file and running executable hashes, core package
-   identity and running state, image identity, boot identity, supervisor counts
-   and lease order.
+9. Generate evidence with the base build's `release.json`, the update captured
+   before status and (for core plans) the update captured after status, hash
+   outputs, lease log, and one `--core-status core:NAME=FILE` per core. Pass
+   `--host-lease-owner HOST_OWNER` whenever cores are present. In mixed plans,
+   pass `--lease-owner KIT_OWNER` too. The two update captures must pass the same
+   image checks and have identical boot IDs; with kit entries that ID must also
+   match the kit command. Evidence checks component coverage, file and running
+   executable hashes, core package identity and state, image identity, boot
+   identity, supervisor counts, and exact lease order.
+
+10. Finally run `kit-deploy-script ...` with `off` under the same
+    release/reacquire lease discipline to restore installed binaries.
+
+```sh
+python3 scripts/hil_plan.py evidence --repo . --base-image-commit "$BASE_IMAGE_COMMIT" \
+  --head "$PR_HEAD" --base-image-sha256 "$BASE_LINUX_IMG_SHA256" \
+  --base-release-json /path/to/release.json --kit-update-json /tmp/kit-update.json \
+  --kit-update-after-json /tmp/kit-update-after.json \
+  --manifest /tmp/hil-manifest.json --kit-sha256 /tmp/kit.sha256 \
+  --host-sha256 /tmp/host.sha256 --lease-log /tmp/lease.jsonl --lease-owner KIT_OWNER \
+  --host-lease-owner HOST_OWNER --out /tmp/hil-evidence.md
+```
 
 All target API reads use the bearer token from the private FogCast config's
 target `agent` token. Set it in `FOGCAST_TOKEN` without printing it; never print
