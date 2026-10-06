@@ -37,6 +37,14 @@ def core_archive(core_id, revision='1' * 40):
     return member('manifest.toml', manifest) + member('core.rbf', payload) + b'\0' * 1024
 
 
+def hil_module():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('hil_plan_under_test', SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def run(*args, cwd=None):
     return subprocess.run([sys.executable, str(SCRIPT), *map(str, args)],
                           cwd=cwd, text=True, capture_output=True)
@@ -323,11 +331,21 @@ class HilPlanTest(unittest.TestCase):
                 self.assertLessEqual(consumers, planned)
 
     def test_shared_core_rtl_expands_to_every_consuming_producer(self):
+        plan = hil_module()
+        texts = plan.script_texts()
+        pll = 'sources/misteross/cores/fes-pong/rtl/pixel_pll.v'
+        consumers = {row['component'] for row in plan.core_consumers(pll, texts)}
+        # build_fes_catch reads it only through `from scripts import build_fes_demo`.
+        for component in ('core:pong', 'core:demo', 'core:ramtest', 'core:riscv', 'core:catch'):
+            self.assertIn(component, consumers)
+        # build_fes_splash imports build_fes_pong, whose names reach this file, so
+        # the boot /idle.rbf may change: the splash rule forces a full image.
+        result = run('classify', '--paths-file', self.path_file(pll), '--json')
+        self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
+        # The splash pins fes_application.vh through fes_de10nano_evidence.HPS_DDR_HEADER.
         result = run('classify', '--paths-file',
-                     self.path_file('sources/misteross/cores/fes-pong/rtl/pixel_pll.v'), '--json')
-        components = json.loads(result.stdout)['components']
-        for component in ('core:pong', 'core:demo', 'core:ramtest', 'core:riscv'):
-            self.assertIn(component, components)
+                     self.path_file('sources/misteross/cores/fes-common/generated/fes_application.vh'), '--json')
+        self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
 
         self.git_repo([])
         scripts = self.repo / 'sources/misteross/scripts'
@@ -355,6 +373,93 @@ class HilPlanTest(unittest.TestCase):
                              '--head', head, '--json')
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(json.loads(result.stdout)['components'], components)
+
+    def test_producer_imports_at_head_pass_their_inputs_on(self):
+        plan = hil_module()
+        texts = plan.script_texts()
+        modules = plan.script_modules(texts)
+        self.assertEqual([item for module in modules.values() for item in module.unresolved], [])
+        imports = [('build_fes_catch', 'build_fes_demo'),
+                   ('build_fes_menu_package', 'build_fes_menu'),
+                   ('build_fes_coleco_socket_dev', 'build_fes_coleco_oss'),
+                   ('build_fes_coleco_socket_v2', 'build_fes_coleco_oss'),
+                   ('build_fes_coleco_socket_v2', 'video_parts'),
+                   ('build_fes_coleco_socket_v2', 'native_video_parts'),
+                   ('build_fes_coleco_megacart', 'build_fes_coleco_oss'),
+                   ('build_fes_coleco_megacart', 'build_fes_coleco_socket_v2'),
+                   ('build_fes_splash', 'build_fes_pong'),
+                   ('build_fes_splash', 'fes_de10nano_evidence')]
+        for importer, imported in imports:
+            with self.subTest(importer=importer, imported=imported):
+                own = set().union(*(literals for literals, _ in modules[importer].defs.values()))
+                inherited = sorted(literal for literal in plan.script_reads(modules, imported)
+                                   if literal.startswith('cores/') and literal not in own)
+                self.assertTrue(inherited, 'expected inputs named only by ' + imported)
+                path = 'sources/misteross/' + inherited[0]
+                rows = plan.core_consumers(path, texts)
+                self.assertIn('sources/misteross/scripts/' + importer + '.py', {row['path'] for row in rows})
+                if importer == 'build_fes_splash':
+                    self.assertEqual(plan.plan([path], texts)['decision'], 'FULL_IMAGE')
+
+    def test_core_consumers_follow_script_imports(self):
+        plan = hil_module()
+        target = 'sources/misteross/cores/fes-beta/rtl/shared.v'
+        base = {'scripts/inputs.py': 'SHARED = "cores/fes-beta/rtl/shared.v"\nOTHER = "cores/fes-x/y.v"\n'
+                                     'def unrelated():\n    return OTHER\n'}
+        cases = {
+            'module attribute': ('from scripts import inputs as board\nPINNED = (*board.SHARED,)\n', True),
+            'from import constant': ('from scripts.inputs import SHARED\n', True),
+            'relative import': ('from .inputs import SHARED\n', True),
+            'import scripts.module': ('import scripts.inputs\nX = scripts.inputs.OTHER\n', True),
+            'function default': ('from scripts import inputs\ndef f(x=inputs.SHARED):\n    return x\n', True),
+            'bare module alias': ('from scripts import inputs as board\nX = getattr(board, "S" + "HARED")\n', True),
+            'unrelated name only': ('from scripts import inputs\nX = inputs.unrelated()\n', False),
+            'no import': ('X = "cores/fes-x/y.v"\n', False),
+        }
+        for name, (text, consumes) in cases.items():
+            with self.subTest(case=name):
+                texts = dict(base, **{'scripts/build_fes_alpha.py': text})
+                components = {row['component'] for row in plan.core_consumers(target, texts)}
+                self.assertEqual('core:alpha' in components, consumes)
+                self.assertEqual('core:alpha' in plan.plan([target], texts)['components'], consumes)
+        # Transitive: alpha -> middle -> inputs, and a re-exported module alias.
+        chains = {
+            'scripts/middle.py': 'from scripts import inputs\nPINNED = (inputs.SHARED,)\n',
+            'scripts/build_fes_alpha.py': 'from scripts import middle\nX = middle.PINNED\n',
+            'scripts/build_fes_gamma.py': 'from scripts import middle\nY = middle.inputs.OTHER\n',
+        }
+        components = {row['component'] for row in plan.core_consumers(target, dict(base, **chains))}
+        self.assertIn('core:alpha', components)
+        self.assertIn('core:gamma', components)
+        # A full-image producer that imports the input forces FULL_IMAGE.
+        texts = dict(base, **{'scripts/build_fes_splash.py': 'from scripts import inputs\nX = inputs.SHARED\n'})
+        self.assertEqual(plan.plan([target], texts)['decision'], 'FULL_IMAGE')
+
+    def test_unresolved_script_imports_fail_closed(self):
+        plan = hil_module()
+        target = 'sources/misteross/cores/fes-beta/rtl/shared.v'
+        cases = {
+            'missing scripts module': 'from scripts import missing\n',
+            'missing from-module': 'from scripts.missing import X\n',
+            'nested scripts module': 'import scripts.sub.mod\n',
+            'parent relative import': 'from ..other import X\n',
+            'computed dynamic import': 'import importlib\nM = importlib.import_module("scripts." + "x")\n',
+            'computed __import__': 'N = "x"\nM = __import__(N)\n',
+            'syntax error': 'def broken(:\n',
+        }
+        for name, text in cases.items():
+            with self.subTest(case=name):
+                texts = {'scripts/helper.py': text, 'scripts/build_fes_beta.py': 'X = 1\n'}
+                result = plan.plan([target], texts)
+                self.assertEqual(result['decision'], 'FULL_IMAGE')
+                self.assertEqual(result['rows'][0]['component'], 'unresolved-script-import')
+        # Outside modules and literal imports of real scripts are fine.
+        texts = {'scripts/helper.py': 'import json\nimport importlib\nM = importlib.import_module("json")\n',
+                 'scripts/build_fes_beta.py': 'from scripts import helper\n'}
+        self.assertEqual(plan.plan([target], texts)['decision'], 'OVERLAY core:beta')
+        # sim_* scripts never deploy, so their imports do not matter.
+        texts = {'scripts/sim_beta.py': 'from scripts import missing\n', 'scripts/build_fes_beta.py': 'X = 1\n'}
+        self.assertEqual(plan.plan([target], texts)['decision'], 'OVERLAY core:beta')
 
     def test_binaries_must_embed_the_head_revision(self):
         head = 'a' * 40

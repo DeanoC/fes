@@ -23,12 +23,20 @@ where the manifest was built. For each `core:*` archive, the planner reads the l
 package ID and core ID. The archive must identify the requested core, and its
 embedded `build.revision` must equal the full PR head. A changed file under
 `cores/<name>/` also requires every `build_fes_*` producer that names the file
-or one of its directories. If a shared helper names it, the plan requires
+or one of its directories, either in its own text or through a misteross script
+it imports, transitively (for example `build_fes_catch` imports
+`build_fes_demo`, and the splash pins `fes_application.vh` through
+`fes_de10nano_evidence.HPS_DDR_HEADER`). The planner walks each script's AST and
+follows the imported names it uses, including constants and default arguments.
+Any import it cannot resolve to a misteross script (a missing or nested module,
+a `..` relative import, a computed dynamic import, unparsable source) forces
+`FULL_IMAGE`. If a shared helper names it, the plan requires
 `core:ALL`. Some changes cannot be
 overlaid and force `FULL_IMAGE`. These are the splash, which becomes the boot
 `/idle.rbf` (`cores/fes-splash/**`, `build_fes_splash*`, `sealed/**`), the video
 part producers (`scripts/*video_part*`) and any core file they or the splash
-producer name, and Go packages that only image-build
+producer read, directly or through imports (so `fes-pong` files that
+`build_fes_pong` names also force it, because the splash imports that module), and Go packages that only image-build
 commands use (`internal/targetimage`). Host-server
 changes require the binary from the exact-head build to be started as `fogcast-api`
 before the host attestation command is run.

@@ -2,6 +2,7 @@
 """Classify HIL changes and produce overlay artifact evidence."""
 
 import argparse
+import ast
 import datetime
 import hashlib
 import json
@@ -139,18 +140,211 @@ def script_texts(repo=None, head=None):
             for path in sorted((root / SCRIPTS_DIR).glob('*.py'))}
 
 
+class ScriptModule:
+    """Top-level names of one misteross script and what each one reads.
+
+    Every top-level definition (constant, function, class) records the string
+    literals inside it and the names it uses: local top-level names, and names
+    from other repo scripts. Statements that are not definitions run at import
+    time, so they belong to the module's own reads (MODULE)."""
+
+    MODULE = '<module>'
+
+    def __init__(self, name, text, modules):
+        self.name = name
+        self.unresolved = []
+        self.aliases = {}
+        self.defs = {self.MODULE: (set(), set())}
+        self.dynamic = set()
+        try:
+            tree = ast.parse(text)
+        except SyntaxError as error:
+            self.unresolved.append(f'{name}: cannot parse ({error.msg})')
+            return
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                self._import(node, modules)
+            elif isinstance(node, ast.Call) and self._dynamic_import(node):
+                argument = node.args[0] if node.args else None
+                if not (isinstance(argument, ast.Constant) and isinstance(argument.value, str)):
+                    self.unresolved.append(f'{name}: dynamic import with a computed name')
+                else:
+                    module = self._module_name(argument.value, modules, 'dynamic import')
+                    if module is not None:
+                        self.dynamic.add(module)
+        for statement in tree.body:
+            names = self._defined(statement)
+            for target in names or (self.MODULE,):
+                literals, uses = self.defs.setdefault(target, (set(), set()))
+                self._collect(statement, literals, uses)
+        self.defs[self.MODULE][1].update(('module', module) for module in self.dynamic)
+
+    @staticmethod
+    def _dynamic_import(node):
+        function = node.func
+        if isinstance(function, ast.Name):
+            return function.id in ('__import__', 'import_module')
+        return isinstance(function, ast.Attribute) and function.attr == 'import_module'
+
+    @staticmethod
+    def _defined(statement):
+        if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            return [statement.name]
+        if isinstance(statement, ast.Assign) and all(isinstance(target, ast.Name) for target in statement.targets):
+            return [target.id for target in statement.targets]
+        if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
+            return [statement.target.id]
+        return []
+
+    def _module_name(self, dotted, modules, kind):
+        """Map an import to a repo script module, None for an outside module."""
+        parts = dotted.split('.')
+        if parts[0] == 'scripts':
+            if len(parts) == 2 and parts[1] in modules:
+                return parts[1]
+            self.unresolved.append(f'{self.name}: {kind} {dotted} is not a misteross script module')
+            return None
+        if parts[0] in modules:
+            if len(parts) == 1:
+                return parts[0]
+            self.unresolved.append(f'{self.name}: {kind} {dotted} is not a misteross script module')
+        return None
+
+    def _import(self, node, modules):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                module = self._module_name(alias.name, modules, 'import')
+                if module is None:
+                    continue
+                if alias.asname:
+                    self.aliases[alias.asname] = ('module', module)
+                elif alias.name == module:
+                    self.aliases[module] = ('module', module)
+                else:
+                    # import scripts.X binds "scripts"; scripts.X.NAME reads all of X.
+                    self.aliases.setdefault('scripts', ('package', set()))[1].add(module)
+            return
+        if node.level > 1:
+            self.unresolved.append(f'{self.name}: relative import from {"." * node.level}{node.module or ""}')
+            return
+        # The scripts run as the "scripts" package, so ".X" is scripts.X.
+        dotted = ('scripts.' + node.module if node.module else 'scripts') if node.level else node.module
+        if dotted == 'scripts':
+            for alias in node.names:
+                module = self._module_name('scripts.' + alias.name, modules, 'import')
+                if module is not None:
+                    self.aliases[alias.asname or alias.name] = ('module', module)
+            return
+        module = self._module_name(dotted, modules, 'import from')
+        if module is None:
+            return
+        for alias in node.names:
+            if alias.name == '*':
+                self.defs[self.MODULE][1].add(('module', module))
+            else:
+                self.aliases[alias.asname or alias.name] = ('name', module, alias.name)
+
+    def _collect(self, statement, literals, uses):
+        attribute_bases = set()
+        for node in ast.walk(statement):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
+                # Importing runs the module's top-level statements and binds names
+                # even when nothing else here uses them.
+                for alias in node.names:
+                    bound = self.aliases.get(alias.asname or alias.name.split('.')[0])
+                    if bound is None:
+                        continue
+                    if bound[0] == 'name':
+                        uses.add(bound)
+                    elif bound[0] == 'module':
+                        uses.add(('name', bound[1], self.MODULE))
+                    else:
+                        uses.update(('name', module, self.MODULE) for module in bound[1])
+            elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+                literals.add(node.value)
+            elif isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
+                alias = self.aliases.get(node.value.id)
+                if alias and alias[0] == 'module':
+                    uses.add(('name', alias[1], node.attr))
+                    attribute_bases.add(id(node.value))
+        for node in ast.walk(statement):
+            if not isinstance(node, ast.Name) or id(node) in attribute_bases:
+                continue
+            alias = self.aliases.get(node.id)
+            if alias is None:
+                uses.add(('local', node.id))
+            elif alias[0] == 'package':
+                uses.update(('module', module) for module in alias[1])
+            else:
+                # A bare module alias (passed around, getattr) may read any of its names.
+                uses.add(alias)
+
+
+def script_modules(texts):
+    names = {Path(script).stem: script for script in texts}
+    return {stem: ScriptModule(stem, texts[script], names) for stem, script in names.items()}
+
+
+def script_reads(modules, stem):
+    """Every literal a script can read through its own text and the repo scripts it imports."""
+    literals = set()
+    seen = set()
+    pending = [('module', stem)]
+    while pending:
+        item = pending.pop()
+        if item in seen:
+            continue
+        seen.add(item)
+        module = modules.get(item[1])
+        if module is None:
+            continue
+        if item[0] == 'module':
+            names = list(module.defs)
+        else:
+            names = [ScriptModule.MODULE]
+            if item[2] in module.defs:
+                names.append(item[2])
+            elif item[2] in module.aliases:
+                # Re-exported import, e.g. demo.board.NAME.
+                pending.append(module.aliases[item[2]])
+            else:
+                # Unknown name (e.g. set by a module-level loop): read the whole module.
+                names = list(module.defs)
+        for name in names:
+            text_literals, uses = module.defs[name]
+            literals |= text_literals
+            for use in uses:
+                if use[0] == 'local':
+                    if use[1] in module.defs:
+                        pending.append(('name', module.name, use[1]))
+                    elif use[1] in module.aliases:
+                        pending.append(module.aliases[use[1]])
+                else:
+                    pending.append(use)
+    return literals
+
+
 def core_consumers(path, texts):
-    """Classify every script that names this core file or one of its directories."""
+    """Classify every script that reads this core file or one of its directories.
+
+    A script reads a path when the path is a string literal in its own text or in
+    any repo script name it uses through an import, transitively. An import that
+    cannot be resolved to a misteross script fails closed as a full image."""
     relative = path.removeprefix(MISTEROSS)
     parts = relative.split('/')
-    candidates = ['/'.join(parts[:index]) for index in range(3, len(parts) + 1)]
-    pattern = re.compile(r'["\'](?:' + '|'.join(map(re.escape, candidates)) + r')/?["\']')
+    candidates = {'/'.join(parts[:index]) for index in range(3, len(parts) + 1)}
+    modules = script_modules(texts)
     found = []
-    for script, text in sorted(texts.items()):
-        if pattern.search(text):
-            row = classify_path(SCRIPTS_DIR + Path(script).name)
-            if row['class'] != 'none':
-                found.append(row)
+    for stem, module in sorted(modules.items()):
+        row = classify_path(SCRIPTS_DIR + stem + '.py')
+        if row['class'] == 'none':
+            continue
+        if module.unresolved:
+            found.append({'path': SCRIPTS_DIR + stem + '.py', 'class': 'full',
+                          'component': 'unresolved-script-import', 'rule': module.unresolved[0]})
+            continue
+        if any(literal.rstrip('/') in candidates for literal in script_reads(modules, stem)):
+            found.append(row)
     return found
 
 
