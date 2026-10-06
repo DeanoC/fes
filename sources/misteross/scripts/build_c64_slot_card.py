@@ -70,9 +70,10 @@ def card_inputs(card: str) -> tuple[str, ...]:
 def prepare_scaffold(source: bytes, slot: int) -> bytes:
     """Frozen shell netlist with the chosen socket exposed as the cart plugs.
 
-    The routed JSON omits the system PLL's second output connection while
-    keeping its physical pin map and routed net: reattach that net to the
-    physical `outclk[1]` pin and drop the obsolete `outclk[0]` alias. Every
+    Legacy routed JSON omits the PLL's second output connection: reattach
+    its authenticated audio net and drop the obsolete `outclk[0]` alias.
+    Current routed JSON already exposes physical C6/C7 outputs; validate
+    and preserve those connections and their pin map without rewriting. Every
     socket's boundary must still be at its pinned BEL. The chosen socket's
     request/response flip-flops are renamed plug_addr_ff_N / plug_rdata_ff_N
     and its clock-coverage flip-flops are removed (their routed clock
@@ -83,11 +84,19 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
     top = design["modules"]["top"]
     cells = top["cells"]
     pll = cells["system_clock.pll"]
-    if pll["type"] != "altera_pll" or set(pll["connections"]) != {"outclk", "refclk", "locked"}:
+    ports = {"outclk", "refclk", "locked"}
+    physical_outputs = set(pll["connections"]) == ports | {"outclk[1]"}
+    if pll["type"] != "altera_pll" or set(pll["connections"]) not in (ports, ports | {"outclk[1]"}):
         raise ValueError("Commodore 64 system PLL connection contract changed")
     mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]).decode())
     aliases = {f"outclk[{bit}]": [0, f"outclk[{bit}]"] for bit in range(2)}
-    if mapping.get("count") != 6 or any(mapping["pins"].get(k) != v for k, v in aliases.items()):
+    physical_pins = {"locked": [0, "locked"], "outclk": [0, "C6"],
+                     "outclk[1]": [0, "C7"], "refclk": [0, "refclk"], "rst": [0, "rst"]}
+    if physical_outputs:
+        if mapping != {"count": 5, "pins": physical_pins} or pll["port_directions"] != {
+                "outclk": "output", "outclk[1]": "output", "refclk": "input", "locked": "output"}:
+            raise ValueError("Commodore 64 system PLL physical pin map changed")
+    elif mapping.get("count") != 6 or any(mapping["pins"].get(k) != v for k, v in aliases.items()):
         raise ValueError("Commodore 64 system PLL frozen pin map changed")
     output1 = top["netnames"].get("system_clock.pll_outclk_1", {}).get("bits")
     clock1 = top["netnames"].get("system_clock.clocks[1]", {}).get("bits")
@@ -96,11 +105,15 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
     if not isinstance(output1, list) or len(output1) != 1 or len(buffers) != 1 or \
             buffers[0]["connections"].get("A") != output1:
         raise ValueError("Commodore 64 frozen audio PLL net changed")
-    pll["connections"]["outclk[1]"] = output1
-    pll["port_directions"]["outclk[1]"] = "output"
-    del mapping["pins"]["outclk[0]"]
-    mapping["count"] = len(mapping["pins"])
-    pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping, sort_keys=True).encode().hex()
+    if physical_outputs:
+        if pll["connections"]["outclk[1]"] != output1:
+            raise ValueError("Commodore 64 frozen audio PLL connection changed")
+    else:
+        pll["connections"]["outclk[1]"] = output1
+        pll["port_directions"]["outclk[1]"] = "output"
+        del mapping["pins"]["outclk[0]"]
+        mapping["count"] = len(mapping["pins"])
+        pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping, sort_keys=True).encode().hex()
 
     if any(name.startswith(("plug_addr_ff_", "plug_rdata_ff_")) for name in cells):
         raise ValueError("frozen shell already exposes canonical plug cells")
@@ -180,6 +193,15 @@ def card_manifest(package, slot: int, cart: bytes, recipe_sha: str, revision: st
     return json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
 
 
+def card_synthesis_script(card: str, slot: int, output: Path) -> str:
+    socket_for(slot)
+    card_inputs(card)
+    sources = " ".join(CARDS[card])
+    return (f"read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-c64/expansions {sources}; "
+            f"chparam -set MODE {slot - 1} cart; "
+            f"synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}")
+
+
 def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu: int, *,
           cache_root: Path | None = None) -> Path:
     root, shell = root.resolve(), shell.resolve()
@@ -202,7 +224,7 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     clocks = cart_clock_constraints(root)
     recipe = {"inputs": closure, "tools": identities, "card": card, "slot": slot,
               "region": socket.region, "cram_region": list(socket.cram), "map": c64_slots.LAYOUT,
-              "slot_clock": SLOT_CLOCK, "placer_seed": PLACER_SEED,
+              "slot_clock": SLOT_CLOCK, "probe_mode": slot - 1, "placer_seed": PLACER_SEED,
               "required_clocks_mhz": REQUIRED_CLOCKS_MHZ, "clock_constraints_sha256": digest(clocks)}
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/c64-cards" / recipe_sha
@@ -216,11 +238,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     scaffold = prepare_scaffold((shell / "routed.json").read_bytes(), slot)
     (output / "scaffold.json").write_bytes(scaffold)
     env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
-    sources = " ".join(CARDS[card])
     commands = [
-        [str(tools["yosys"].path), "-p",
-         f"read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-c64/expansions {sources}; "
-         f"synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
+        [str(tools["yosys"].path), "-p", card_synthesis_script(card, slot, output)],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"),
          "--device", "5CSEBA6U23I7", "--qsf", str(output / "cart.qsf"), "--sdc", str(output / "clocks.sdc"),
          "--freq", "52.224", "--fes-scaffold", "--fes-cart", str(output / "cart.json"),

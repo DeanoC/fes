@@ -33,6 +33,56 @@ def frozen_shell() -> dict:
 
 
 class C64SlotCardTests(unittest.TestCase):
+    @staticmethod
+    def physical_shell() -> dict:
+        design = frozen_shell()
+        pll = design["modules"]["top"]["cells"]["system_clock.pll"]
+        pll["connections"]["outclk[1]"] = [20]
+        pll["port_directions"]["outclk[1]"] = "output"
+        mapping = {"count": 5, "pins": {"locked": [0, "locked"], "outclk": [0, "C6"],
+                    "outclk[1]": [0, "C7"], "refclk": [0, "refclk"], "rst": [0, "rst"]}}
+        pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping).encode().hex()
+        return design
+
+    def test_scaffold_preserves_physical_pll_outputs(self) -> None:
+        source = self.physical_shell()
+        result = json.loads(card.prepare_scaffold(json.dumps(source).encode(), 2))
+        self.assertEqual(result["modules"]["top"]["cells"]["system_clock.pll"],
+                         source["modules"]["top"]["cells"]["system_clock.pll"])
+        self.assertIn("slot1.plug_request_ff_0", result["modules"]["top"]["cells"])
+
+    def test_physical_pll_contract_fails_closed(self) -> None:
+        for mutation in ("audio_net", "pin", "count", "extra_pin", "direction", "extra_port"):
+            with self.subTest(mutation=mutation):
+                source = self.physical_shell()
+                pll = source["modules"]["top"]["cells"]["system_clock.pll"]
+                mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]))
+                if mutation == "audio_net":
+                    pll["connections"]["outclk[1]"] = [99]
+                elif mutation == "pin":
+                    mapping["pins"]["outclk[1]"] = [0, "C6"]
+                elif mutation == "count":
+                    mapping["count"] = 6
+                elif mutation == "extra_pin":
+                    mapping["pins"]["outclk[0]"] = [0, "C6"]
+                elif mutation == "direction":
+                    pll["port_directions"]["outclk[1]"] = "input"
+                else:
+                    pll["connections"]["outclk[2]"] = [99]
+                pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping).encode().hex()
+                with self.assertRaises(ValueError):
+                    card.prepare_scaffold(json.dumps(source).encode(), 1)
+
+    def test_probe_mode_follows_the_physical_socket(self) -> None:
+        for slot, mode in ((1, 0), (2, 1)):
+            command = card.card_synthesis_script("probe", slot, Path("build/card"))
+            self.assertIn(f"chparam -set MODE {mode} cart;", command)
+            self.assertIn("write_json build/card/cart.json", command)
+        with self.assertRaises(ValueError):
+            card.card_synthesis_script("probe", 3, Path("build/card"))
+        with self.assertRaises(ValueError):
+            card.card_synthesis_script("unknown", 1, Path("build/card"))
+
     def test_scaffold_exposes_only_the_chosen_slot(self) -> None:
         design = json.loads(card.prepare_scaffold(json.dumps(frozen_shell()).encode(), 1))
         cells = design["modules"]["top"]["cells"]

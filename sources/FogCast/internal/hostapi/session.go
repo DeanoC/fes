@@ -1715,6 +1715,21 @@ func (s *sessionCoordinator) attachInput(ctx context.Context) (sessionResult, er
 	if core == "" {
 		return sessionResult{}, remoteInputError()
 	}
+	// Launch and status reconciliation can already own this exact stream.
+	// Repeated explicit attachment must neither rotate it nor accept a stream
+	// belonging to another package generation or capability binding.
+	input := s.remoteInput.Status()
+	if input.State == host.RemoteInputAttached {
+		s.mu.Lock()
+		binding := s.inputBinding
+		s.mu.Unlock()
+		if !input.Ready || binding != inputBindingForStatus(st) {
+			return sessionResult{}, remoteInputError()
+		}
+		result := s.publicSession(st, nil)
+		s.record("session.input.attach", result, nil)
+		return result, nil
+	}
 	if err := s.attachInputForStatus(ctx, st); err != nil {
 		return sessionResult{}, remoteInputError()
 	}
