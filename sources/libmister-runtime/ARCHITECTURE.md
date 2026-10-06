@@ -337,6 +337,16 @@ binding, while ready retains it. Ambiguous failed replacement also compares a
 frozen capture with the saved old image before resuming its namespace; different
 or unresolved bytes require recovery.
 
+Successful FPGA programming retires the former disk binding, captured bytes
+and durable revision from memory. This includes Stop to the configured menu
+or splash, core replacement and contained programming. The published record
+stays intact. A new ST core reports an empty volatile drive until an explicit
+library insertion binds and restores that record. Failed capture/publication
+continues to retain the current disk and generation. Successful-transition
+retirement follows programming, rather than the transition request. Partial
+programming failures keep the existing invalidation of unsafe active-core
+metadata.
+
 Bound-disk input faults revoke asynchronous input and capture/publish before
 idle programming. A failed capture or publication retains RAM, package,
 generation and binding in reboot-required recovery; it cannot program idle or

@@ -239,3 +239,10 @@ transfers against it, including the synthetic 1..1030-byte unit, CRC, lost and
 rejected requests and failed cleanup. Admission, protocol, runtime binding,
 multi-slot composition and a runtime lifecycle over native hardware are
 covered. No hardware support is claimed.
+
+Stop and core replacement save before programming. Successful programming
+retires the previous disk's in-memory binding, including when Stop returns to
+the configured menu or splash. The next ST load is empty and volatile until
+`insert_library_media` explicitly restores its record. A failed save retains
+the current binding and generation for recovery. Host regressions cover both
+idle paths and replacement without restarting the runtime daemon.

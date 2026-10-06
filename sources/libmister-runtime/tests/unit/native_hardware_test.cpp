@@ -2949,6 +2949,126 @@ void TestWritableLibraryDiskCaptureRestoreAndFailedSave()
     const std::string ns=storage.path+"/"+MediaDataNamespace(identity);record.reset();assert(unlink((ns+"/record.bin").c_str())==0);assert(rmdir(ns.c_str())==0);
 }
 
+void TestDiskBindingRetiresAfterProgramming()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	for (bool menu_idle : {false, true}) {
+		mister_test::ComputerEndpoint computer(15 | FesComputerCapabilityMediaAtariStFloppy |
+			FesComputerCapabilityMediaAtariStFloppyWrite, {{0, {737280, 737280}}},
+			"0123456789abcdef0123456789abcdef");
+		mister_test::FakeMmio menu;
+		class SelectedMmio final : public Mmio {
+		public:
+			SelectedMmio(Mmio& computer, Mmio& menu) : computer_(computer), menu_(menu) {}
+			mister::Error Read32(std::uint32_t address, std::uint32_t* value) override
+			{ return (menu_active ? menu_ : computer_).Read32(address, value); }
+			mister::Error Write32(std::uint32_t address, std::uint32_t value) override
+			{ return (menu_active ? menu_ : computer_).Write32(address, value); }
+			bool menu_active = false;
+		private:
+			Mmio& computer_;
+			Mmio& menu_;
+		} mmio(computer, menu);
+		FixedClock clock(100);
+		FesGp gp(mmio, clock);
+		FesGpCoreDriver driver(gp);
+		MenuDisplayDriver display(gp, clock);
+		MenuOperations operations;
+		MenuMemory memory(operations);
+		std::vector<std::string> events;
+		RecordingOpener opener(events);
+		RecordingFpga fpga(events);
+		RecordingI2c i2c(events);
+		RecordingVideo idle_video(events);
+		LedgerLog log(events);
+		FixedVideoBringup video(i2c, clock, log, Menu720p60Recipe());
+		RecordingInput input(events, clock);
+		TempDirectory splash, package, menu_package, media, storage;
+		const auto idle = splash.File("idle.rbf", "idle");
+		NativeHardware hardware(opener, fpga, idle_video, video, input, {"test", 0, 0, 0, 0},
+			clock, log, idle, {30000, 10000, 10000}, &driver, {"/tmp"}, SplashIdle(), &display, &memory);
+		mister::Runtime runtime(hardware, log);
+		assert(runtime.Start().ok());
+		bool next_menu = false;
+		fpga.on_program = [&] { computer.Reset(); mmio.menu_active = next_menu; };
+		MenuGpScript script{&menu};
+		if (menu_idle) {
+			OpenedCorePackage opened_menu;
+			PopulateHpsDdrApplication(&menu_package, true, &opened_menu);
+			auto manifest = ReadText(menu_package.path + "/manifest.toml");
+			ReplaceAll(&manifest, "fes.pong", "fes.menu");
+			manifest += "\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+			{ std::ofstream output(menu_package.path + "/manifest.toml"); output << manifest; assert(output.good()); }
+			assert(OpenCorePackage(menu_package.path, "", &opened_menu).ok());
+			next_menu = true;
+			script.BringUp();
+			assert(runtime.ConfigureMenuPackage(menu_package.path, opened_menu.package_id).ok());
+		}
+		auto manifest = ComputerManifest();
+		ReplaceAll(&manifest, "fes.pong", "fes.atari-st");
+		ReplaceAll(&manifest, "fes.media.apple2-floppy", "fes.media.atari-st-floppy");
+		ReplaceAll(&manifest, "fes.expansion.apple2-bus", "fes.expansion.atari-st-bus");
+		manifest += "\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-write\"\nmajor = 1\nminor = 0\nrequired = true\n";
+		package.File("manifest.toml", manifest);
+		package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+		OpenedCorePackage opened;
+		assert(OpenCorePackage(package.path, "", &opened).ok());
+		const auto original = ComputerDisk(737280);
+		const auto path = media.File("disk.st", original);
+		Sha256 hash;
+		hash.Update(original.data(), original.size());
+		mister::MediaDataBinding binding;
+		binding.game_id = "st-relaunch";
+		binding.base_media_id = Sha256Hex(hash.Final());
+		MediaDataIdentity identity{"fes.atari-st", binding.game_id, binding.base_media_id, 0};
+		std::unique_ptr<MediaDataFile> record;
+		assert(MediaDataFile::Open(storage.path, identity, &record).ok());
+		auto load_fresh = [&] {
+			if (mmio.menu_active) script.QuiesceRunningMenu();
+			next_menu = false;
+			assert(runtime.LoadCore(package.path, opened.package_id).ok());
+			const auto status = runtime.status();
+			assert(status.core_data.mode == "volatile" && status.capabilities.media_units.size() == 1);
+			for (const auto& unit : hardware.capabilities().media_units) {
+				assert(unit.state == mister::MediaUnitState::empty && unit.persistence_mode == "volatile");
+				assert(unit.game_id.empty() && unit.base_media_id.empty() && unit.revision == "absent");
+			}
+			assert(status.capabilities.media_units[0].persistence_mode == "volatile");
+			return status.generation;
+		};
+		auto stop = [&] {
+			next_menu = menu_idle;
+			if (menu_idle) script.BringUp();
+			assert(runtime.Stop().ok());
+			assert(runtime.status().capabilities.media_units.empty());
+			assert(runtime.status().menu_display.available == menu_idle);
+		};
+		auto generation = load_fresh();
+		assert(runtime.InsertLibraryMedia(path, opened.package_id, generation, 0, 737280, storage.path, binding).ok());
+		computer.unit(0).data[4096] ^= 0x91;
+		const auto changed = computer.unit(0).data;
+		stop();
+		MediaDiskRecord saved;
+		assert(record->Read(&saved).ok() && saved.bytes == changed);
+		// A normal Stop/relaunch in the same daemon starts with no binding;
+		// only explicit insertion may restore the retained record.
+		generation = load_fresh();
+		assert(runtime.InsertLibraryMedia(path, opened.package_id, generation, 0, 737280, storage.path, binding).ok());
+		assert(computer.unit(0).data == changed);
+		// Replacement also retires the old binding after its successful save.
+		generation = load_fresh();
+		assert(runtime.InsertLibraryMedia(path, opened.package_id, generation, 0, 737280, storage.path, binding).ok());
+		assert(computer.unit(0).data == changed);
+		stop();
+		assert(record->Read(&saved).ok() && saved.bytes == changed && ReadText(path) == original);
+		record.reset();
+		const auto directory = storage.path + "/" + MediaDataNamespace(identity);
+		assert(unlink((directory + "/record.bin").c_str()) == 0);
+		assert(rmdir(directory.c_str()) == 0);
+	}
+}
+
 void TestWritableDiskInputFaultSavesBeforeIdleOrRetainsRAM()
 {
     using namespace mister::native;using namespace mister::native::generated;
@@ -3190,6 +3310,7 @@ int main()
  TestNativeMenuActivationAndCompletion();
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();
+	TestDiskBindingRetiresAfterProgramming();
 	TestWritableLibraryDiskCaptureRestoreAndFailedSave();
 	TestWritableDiskInputFaultSavesBeforeIdleOrRetainsRAM();
 	TestComputerSlotCompositionActivatesLinkedPayload();

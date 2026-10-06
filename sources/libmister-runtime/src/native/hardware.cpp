@@ -1214,7 +1214,10 @@ HardwareResult NativeHardware::LoadCoreInternal(
 			WithPhase(stopped, "input"),
 			quiesced.mutation_attempted || programmed.mutation_attempted, ""};
 	}
- menu_unsafe_=false;
+	// Programming retired the former core's disk ownership. Its record remains,
+	// but only explicit insertion may bind the new core to that namespace.
+	ForgetMediaData();
+	menu_unsafe_=false;
 	admitted->driver_->BeginSession();
 	admitted->context_.generation = generation;
 	active_driver_ = admitted->driver_;
@@ -1442,6 +1445,7 @@ HardwareResult NativeHardware::LoadSplashIdle()
 		return {input_error.ok() ? error : input_error,
 			quiesce_mutation || programmed.mutation_attempted, ""};
 	}
+ ForgetMediaData();
  menu_unsafe_=false;session_display_focused_=false;
  if(menu_status_.session)menu_status_={};else menu_status_.available=false;
 	const VideoResult video = idle_video_.BringUp(idle_recipe_,
@@ -1550,6 +1554,7 @@ HardwareResult NativeHardware::LoadContainedDevelopmentRBF(const std::string& rb
 			programmed.mutation_attempted, ""};
 	}
 
+	ForgetMediaData();
 	CoreDriver* driver = ResolveDriver(profile);
 	if (driver == nullptr)
 		return {{ErrorCode::unsupported_abi,
