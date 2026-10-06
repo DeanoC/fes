@@ -1646,7 +1646,11 @@ dual-port M10K, with independent system and pixel clocks; the CPU samples its
 registered read at cycle 16 and the VIC aligns its result with main RAM.
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
 frozen shell. No Commodore ROM is in the tree, and the core is not in the
-factory image.
+factory image. The shell uses Yosys `5391eeb1`, Mistral `8fcc4cb4` and nextpnr
+`0c5ed400`; its
+socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`
+companion of a pinned boundary flip-flop, using the shared
+`coleco_expansion` check described for the Spectrum sockets.
 
 ## FES Atari 520ST
 

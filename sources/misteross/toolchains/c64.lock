@@ -1,20 +1,20 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "e2d425dee148cc60c50f4e9b354a10d90eab15f4"
+commit = "5391eeb1e91b38a3d0e96d04f24cf921743c9c78"
 order = 10
-rationale = "Registered ramstyle=M10K stays synchronous (merged PR #14 e2d425de), the Yosys pin shared with toolchains/apple2.lock. The Commodore 64 shell uses the same pin for the registered dual-clock video RAM port and the D64 store. Pair with nextpnr 0259c6dc and Mistral 7ed06e21."
+rationale = "Same Yosys pin as toolchain.lock (5391eeb1, DeanoC/yosys main: squash merge of #20, tri-state top-level pads to MISTRAL_IO). It descends from e2d425de (merged PR #14), so registered ramstyle=M10K stays synchronous for the Commodore 64 dual-clock video RAM port and the D64 store. Pair with nextpnr 0c5ed400 and Mistral 8fcc4cb4. Previous pin e2d425de."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
-commit = "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
+commit = "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f"
 order = 20
-rationale = "Indexed-node Mistral master required by nextpnr 0259c6dc, carrying the M10K/PLL surface and physical routing-mux CRAM footprints the frozen-socket CRAM fence and ROM map rely on."
+rationale = "Same Mistral pin as toolchain.lock (8fcc4cb4, DeanoC/mistral master: squash merge of #11, multi-bit booleans set every bit). One commit on 7ed06e21; keeps the indexed-node routing API, the M10K/PLL surface and the physical routing-mux CRAM footprints the frozen-socket CRAM fence and ROM map rely on. Required by nextpnr 0c5ed400. Previous pin 7ed06e21."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "0259c6dc1c46dd46fe79f3923a17ad36d2513421"
+commit = "0c5ed400f003fbd0d8c4cc71491b68e4323e1a13"
 order = 30
-rationale = "Same nextpnr pin as toolchains/apple2.lock (0259c6dc): GPU router, frozen-scaffold cart merge, and multi-region FES_RESERVED_RECT support for the two Commodore 64 cartridge sockets. Pair with Mistral 7ed06e21 (required). This core is not sealed."
+rationale = "DeanoC/nextpnr main head 0c5ed400, the same pin as toolchain.lock (squash merge of #158: explicit per-endpoint setup_checked/hold_checked status and setup/hold slack in detailed net timings, plus ramtest-io SDRAM coverage tooling; no placement or routing change; also #159 docs). It includes 5063215e (squash merge of #157: cooperative five-minute Mistral analogue repair budget, --gpu-opt analogueTimeBudget=SECONDS, best measured routing kept or restored and re-timed through the final analogue setup/hold gate) and f8ccc448 (merge of #153: external IO timing, STA/placer/router criticality changes, fallback route minima fix), on 1656e473 (the #136 general Cyclone V PLL solver/packer). It descends from 0259c6dc, so the GPU router, frozen-scaffold cart merge and multi-region FES_RESERVED_RECT support for the two Commodore 64 cartridge sockets are kept. On 0259c6dc the C64 shell overran the per-seed budget in placement and its GPU router did not converge (DeanoC/nextpnr#150, #151); 1656e473 and later place and route the same netlist. Its PLL route-log format is the #136 VCO/counter form, and boundary FFs may gain a paired $ROUTETHRU buffer (validated as in #534). Pair with Yosys 5391eeb1 and Mistral 8fcc4cb4 (required). This core is not sealed. Previous pin 0259c6dc."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"
