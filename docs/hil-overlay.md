@@ -1,38 +1,51 @@
 # Overlay HIL planner
 
-An overlay is allowed when `hil_plan.py classify` returns `OVERLAY` and no
-changed path requires a full image. The image-side contract is unchanged: any
-change under `image/`, Buildroot configuration, image locks, boot media inputs,
-profiles or platform boot code requires a full image. Unknown paths fail safe
-to `FULL_IMAGE`.
+Use this procedure only on the designated kit A (`192.168.10.84`), under the dedicated fixture rules in `sources/FogCast/docs/DEVELOPMENT.md`. Never deploy to an unknown device. The planner compares base image commit to the full PR head with `--no-renames`; `FULL_IMAGE` means stop and build a full image.
 
-Use the commit that produced the kit's base image as the diff base. The planner
-compares that commit directly with the full PR head, so main-branch drift since
-the image was made is included. Build from a clean worktree at the PR head.
-HIL must run code identical to that PR head.
+1. Authorize the designated kit and prepare a clean worktree at the exact full PR head. Build the affected binaries and cores from that head.
+2. For every SSH/SCP call create a throwaway known_hosts file and use `StrictHostKeyChecking=accept-new` (never `/dev/null`, the real known_hosts, or `StrictHostKeyChecking=no`).
+3. Classify against the commit that built the running image. Stop if the decision is `FULL_IMAGE`.
+4. Create a component-scoped manifest. Kit binary destinations must be `/usr/sbin/{mister-runtime,mister-agent,fogcast-kit,fogcast-tenfoot}`; host/core development artifacts use absolute host paths.
 
 ```sh
-python3 scripts/hil_plan.py classify --repo . \
-  --base-image-commit "$BASE_IMAGE_COMMIT" --head "$PR_HEAD"
-# Stop and build a full image if the decision is FULL_IMAGE.
-# From a clean worktree checked out at PR_HEAD, build the selected component
-# binaries/core packages using their normal component build commands.
 python3 scripts/hil_plan.py manifest --head "$PR_HEAD" --out /tmp/hil-manifest.json \
-  /path/to/mister-agent=/usr/bin/mister-agent \
-  /path/to/core.package=/media/fat/games/fes/core.package
-# Deploy exactly the listed files to the kit, then run this command on the kit
-# over SSH and save its output on Powerboat.
-python3 scripts/hil_plan.py kit-command --manifest /tmp/hil-manifest.json
-python3 scripts/hil_plan.py evidence --repo . \
-  --base-image-commit "$BASE_IMAGE_COMMIT" --head "$PR_HEAD" \
-  --base-image-sha256 "$BASE_LINUX_IMG_SHA256" \
-  --manifest /tmp/hil-manifest.json --kit-sha256 /tmp/kit-sha256.txt \
-  --out /tmp/hil-evidence.md
+  mister-runtime=/build/mister-runtime=kit:/usr/sbin/mister-runtime \
+  mister-agent=/build/mister-agent=kit:/usr/sbin/mister-agent \
+  host:fogcast-api=/build/fogcast-api=host:/home/deano/tmp/hil/fogcast-api
 ```
 
-Evidence records the full head SHA, base image commit and `linux.img` hash,
-classifier result and changed-path table. Every deployed file's SHA-256 is
-computed on Powerboat and re-read on the kit after deployment; all must match.
-Any `FULL_IMAGE` decision requires building a full image. `NO_DEPLOY_CHANGE`
-does not call for deployment and can reuse prior HIL only when the tested code
-is identical.
+5. Claim the lease from `sources/misteross` and keep the session open in its own terminal (it renews every 20 s). From a second terminal, save the public lease status (`kit.py status` prints only public fields, never the credential) and record it as `claimed`. Then send `stop` to the session so the kit is idle:
+
+```sh
+python3 scripts/kit.py --config CFG session --owner O --purpose P      # terminal 1, keep open
+python3 scripts/kit.py --config CFG status > /tmp/lease-claimed.json   # terminal 2
+python3 ../../scripts/hil_plan.py lease-record --log /tmp/lease.jsonl --step claimed \
+  --status-json /tmp/lease-claimed.json --owner O
+```
+
+6. An agent restart invalidates any held lease, so release before deploying: send `release` to the session, save `kit.py status` again, confirm `"state": "free"`, and record it as `released-for-restart`. Stage the kit files in tmpfs under `/run/hil-<head8>` (with `SHA256SUMS` from `--sha256sums`), then run the generated deploy script with `on`:
+
+```sh
+python3 scripts/hil_plan.py kit-deploy-script --manifest /tmp/hil-manifest.json --stage-dir /run/hil-pr \
+  > /tmp/hil-deploy.sh
+python3 scripts/hil_plan.py kit-deploy-script --manifest /tmp/hil-manifest.json --stage-dir /run/hil-pr \
+  --sha256sums > /tmp/SHA256SUMS
+KH=$(mktemp); SSH="sshpass -p 1 ssh -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=$KH -o PubkeyAuthentication=no root@192.168.10.84"
+$SSH 'mkdir -p /run/hil-pr'   # then copy each binary and SHA256SUMS to /run/hil-pr over the same $SSH (cat > file)
+$SSH 'sh -s on' < /tmp/hil-deploy.sh; rm -f "$KH"
+```
+
+The deploy script checks every staged binary against the sha256 embedded in it, refuses if `/usr/sbin` already has mounts, stops S60, S50, S40, bind-mounts the exact staged binaries over `/usr/sbin`, starts S40, S50, S60 only when no `mister-supervise` is left running, and fails unless exactly one supervisor each runs for runtime, agent and kit.
+
+7. Reacquire the lease with a new `kit.py session` (terminal 1), save `kit.py status` and record it as `reacquired`. Save `GET http://192.168.10.84:8182/v1/update` as `/tmp/kit-update.json`. Run the `kit-command` output on the kit (`$SSH sh -s < kit-cmd.sh > /tmp/kit.sha256`, with a fresh throwaway known_hosts) and the `host-command` output on the host (`> /tmp/host.sha256`). Run the HIL test under this lease. Then send `release`, save `kit.py status`, and record it as `released`.
+8. Generate evidence with the base build's `release.json`, kit update JSON, kit and host hash outputs, and lease log. Evidence checks per-component coverage, file and running executable hashes, image identity, boot identity, supervisor counts and lease order.
+9. Finally run `kit-deploy-script ...` with `off` under the same release/reacquire lease discipline to restore installed binaries.
+
+```sh
+python3 scripts/hil_plan.py evidence --repo . --base-image-commit "$BASE_IMAGE_COMMIT" \
+  --head "$PR_HEAD" --base-image-sha256 "$BASE_LINUX_IMG_SHA256" \
+  --base-release-json /path/to/release.json --kit-update-json /tmp/kit-update.json \
+  --manifest /tmp/hil-manifest.json --kit-sha256 /tmp/kit.sha256 \
+  --host-sha256 /tmp/host.sha256 --lease-log /tmp/lease.jsonl --lease-owner O \
+  --out /tmp/hil-evidence.md
+```

@@ -2,6 +2,7 @@
 """Classify HIL changes and produce overlay artifact evidence."""
 
 import argparse
+import datetime
 import hashlib
 import json
 from pathlib import Path
@@ -9,27 +10,24 @@ import re
 import shlex
 import subprocess
 import sys
+import tomllib
 
 
 RULES = [
-    ('image/**', 'full', 'image'),
-    ('boot-media.lock.toml', 'full', 'boot-media'),
-    ('containers/**', 'full', 'boot-media'),
-    ('profiles/**', 'full', 'profile'),
-    ('config/**', 'full', 'config'),
-    ('Makefile', 'full', 'build-system'),
+    ('image/**', 'full', 'image'), ('boot-media.lock.toml', 'full', 'boot-media'),
+    ('containers/**', 'full', 'boot-media'), ('profiles/**', 'full', 'profile'),
+    ('config/**', 'full', 'config'), ('Makefile', 'full', 'build-system'),
     ('scripts/build.py', 'full', 'build-system'),
     ('scripts/environment.py', 'full', 'build-system'),
-    ('scripts/media*.py', 'full', 'boot-media'),
-    ('platform/**', 'full', 'platform'),
+    ('scripts/media*.py', 'full', 'boot-media'), ('platform/**', 'full', 'platform'),
     ('sources/FogCast/build/**', 'full', 'image'),
     ('sources/FogCast/Makefile', 'full', 'build-system'),
-    ('docs/**', 'none', None), ('**/docs/**', 'none', None),
-    ('**/*.md', 'none', None), ('tests/**', 'none', None),
-    ('sources/*/tests/**', 'none', None), ('**/*_test.go', 'none', None),
-    ('**/testdata/**', 'none', None), ('examples/**', 'none', None),
-    ('AGENTS.md', 'none', None), ('.github/**', 'none', None),
-    ('.superpowers/**', 'none', None), ('**/.superpowers/**', 'none', None),
+    ('docs/**', 'none', None), ('**/docs/**', 'none', None), ('**/*.md', 'none', None),
+    ('tests/**', 'none', None), ('sources/*/tests/**', 'none', None),
+    ('**/*_test.go', 'none', None), ('**/testdata/**', 'none', None),
+    ('examples/**', 'none', None), ('AGENTS.md', 'none', None),
+    ('.github/**', 'none', None), ('.superpowers/**', 'none', None),
+    ('**/.superpowers/**', 'none', None),
     ('sources/misteross/cores/*/sim/**', 'none', None),
     ('sources/libmister-runtime/tests/**', 'none', None),
     ('sources/misteross/scripts/sim_*', 'none', None),
@@ -56,34 +54,38 @@ RULES = [
 RANK = {'none': 0, 'overlay': 1, 'full': 2}
 SHA40 = re.compile(r'^[0-9a-fA-F]{40}$')
 SHA64 = re.compile(r'^[0-9a-fA-F]{64}$')
+BINS = ('mister-runtime', 'mister-agent', 'fogcast-kit', 'fogcast-tenfoot')
+EXES = {'mister-runtime': 'mister-runtime', 'mister-agent': 'mister-agent',
+        'fogcast-tenfoot': 'fogcast-kit-child'}
 
 
-def glob_matches(path, glob):
+def glob_matches(path, pattern):
+    """Match the small glob syntax used by the classifier rules."""
     pieces = []
     index = 0
-    while index < len(glob):
-        if glob.startswith('**/', index):
+    while index < len(pattern):
+        if pattern.startswith('**/', index):
             pieces.append('(?:.*/)?')
             index += 3
-        elif glob.startswith('**', index):
+        elif pattern.startswith('**', index):
             pieces.append('.*')
             index += 2
-        elif glob[index] == '*':
+        elif pattern[index] == '*':
             pieces.append('[^/]*')
             index += 1
-        elif glob[index] == '?':
+        elif pattern[index] == '?':
             pieces.append('[^/]')
             index += 1
         else:
-            pieces.append(re.escape(glob[index]))
+            pieces.append(re.escape(pattern[index]))
             index += 1
     return re.fullmatch(''.join(pieces), path) is not None
 
 
 def classify_path(path):
     path = path.replace('\\', '/')
-    for glob, category, component in RULES:
-        if glob_matches(path, glob):
+    for pattern, category, component in RULES:
+        if glob_matches(path, pattern):
             if component and '{' in component:
                 if component == 'core:{lock}':
                     name = Path(path).stem
@@ -91,11 +93,10 @@ def classify_path(path):
                     name = path.split('/')[3].removeprefix('fes-')
                 else:
                     name = Path(path).stem.removeprefix('build_').removeprefix('fes_')
-                    name = re.sub(r'_video_part.*$', '', name)
-                    name = name.replace('_', '-')
+                    name = re.sub(r'_video_part.*$', '', name).replace('_', '-')
                 component = 'core:' + name
             return {'path': path, 'class': category, 'component': component,
-                    'rule': glob}
+                    'rule': pattern}
     return {'path': path, 'class': 'full', 'component': 'UNRECOGNISED',
             'rule': '(no rule; fail-safe)'}
 
@@ -134,8 +135,6 @@ def git_commit(repo, sha):
 def repo_paths(repo, base, head):
     base = git_commit(repo, base)
     head = git_commit(repo, head)
-    # --no-renames: a moved file must report both its old and new path, so a
-    # file moved out of image/ still forces a full image.
     result = subprocess.run(['git', '-C', str(repo), 'diff', '--name-only',
                              '--no-renames', base, head],
                             text=True, capture_output=True, check=True)
@@ -144,34 +143,116 @@ def repo_paths(repo, base, head):
 
 def show(plan_data, as_json=False):
     if as_json:
-        print(json.dumps({**plan_data, 'decision': plan_data['decision']}, indent=2))
+        print(json.dumps(plan_data, indent=2))
         return
     for row in plan_data['rows']:
-        print(f"{row['class']:7} {row['component'] or '-':22} {row['path']} [{row['rule']}]")
+        print(f"{row['class']:7} {row['component'] or '-':22} "
+              f"{row['path']} [{row['rule']}]")
     print('DECISION: ' + plan_data['decision'])
 
 
-def manifest(head, output, pairs):
-    head = full_sha(head, 'head')
+def validate_entry(entry):
+    """Validate an entry, including all destination rules used for manifests."""
+    component = entry.get('component')
+    side = entry.get('side')
+    target = entry.get('target')
+    digest = entry.get('sha256')
+    if not isinstance(component, str) or not component:
+        raise ValueError(f'invalid manifest component: {component!r}')
+    if side not in ('kit', 'host'):
+        raise ValueError(f'invalid manifest side: {side!r}')
+    if not isinstance(target, str) or not Path(target).is_absolute():
+        raise ValueError(f'manifest target must be absolute: {target!r}')
+    if not isinstance(digest, str) or not SHA64.fullmatch(digest):
+        raise ValueError(f'invalid manifest sha256 for {target}')
+    basename = Path(target).name
+    if basename in BINS and (side != 'kit' or target != f'/usr/sbin/{basename}'):
+        raise ValueError(f'kit binary {basename} must target /usr/sbin/{basename}')
+    if component.startswith(('host:', 'core:')) and side != 'host':
+        raise ValueError(f'{component} must be side host')
+    if component in BINS and side != 'kit':
+        raise ValueError(f'{component} must be side kit')
+    if side == 'kit' and target not in {f'/usr/sbin/{name}' for name in BINS}:
+        raise ValueError('kit targets are restricted to the four /usr/sbin kit binaries')
+
+
+def manifest(head, output, specs):
     entries = []
-    for pair in pairs:
-        if '=' not in pair:
-            raise ValueError(f'artifact must be LOCAL_PATH=KIT_PATH: {pair}')
-        local, kit_path = pair.split('=', 1)
+    seen = set()
+    for spec in specs:
+        try:
+            component, local, destination = spec.split('=', 2)
+            side, target = destination.split(':', 1)
+        except ValueError as error:
+            raise ValueError(f'artifact must be COMPONENT=LOCAL_PATH=SIDE:TARGET_PATH: {spec}') from error
         data = Path(local).read_bytes()
-        entries.append({'local': local, 'kit_path': kit_path,
-                        'sha256': hashlib.sha256(data).hexdigest(), 'size': len(data)})
-    Path(output).write_text(json.dumps({'head': head, 'entries': entries}, indent=2) + '\n')
+        entry = {'component': component, 'side': side, 'target': target,
+                 'local': local, 'sha256': hashlib.sha256(data).hexdigest(),
+                 'size': len(data)}
+        validate_entry(entry)
+        key = (side, target)
+        if key in seen:
+            raise ValueError(f'duplicate {side} target: {target}')
+        seen.add(key)
+        entries.append(entry)
+    Path(output).write_text(json.dumps({'head': full_sha(head, 'head'),
+                                        'entries': entries}, indent=2) + '\n')
 
 
-def parse_kit_hashes(path):
-    hashes = {}
+def read_hashes(path):
+    """Read sha256sum output, rejecting duplicate file records."""
+    result = {}
     for line in Path(path).read_text().splitlines():
         match = re.fullmatch(r'([0-9a-fA-F]{64})\s+[* ](.+)', line)
-        if not match:
-            continue
-        hashes[match.group(2)] = match.group(1).lower()
-    return hashes
+        if match:
+            name = match.group(2)
+            if name in result:
+                raise ValueError(f'duplicate hash output target: {name}')
+            result[name] = match.group(1).lower()
+    return result
+
+
+def expected_components(classified, repo, head):
+    required = set(classified['components'])
+    if 'kit-go+host' in required:
+        required.remove('kit-go+host')
+        required.update(('mister-agent', 'fogcast-kit', 'fogcast-tenfoot',
+                         'host:fogcast-api', 'host:fogcast'))
+    if 'core:ALL' in required:
+        required.remove('core:ALL')
+        raw = subprocess.run(['git', '-C', str(repo), 'show',
+                              f'{head}:profiles/native-integration-dev.toml'],
+                             text=True, capture_output=True, check=True).stdout
+        profile = tomllib.loads(raw)
+        required.update('core:' + core['core_id'].removeprefix('fes.')
+                        for core in profile.get('fpga_packages', []))
+    return required
+
+
+def refuse(message):
+    print(message, file=sys.stderr)
+    return 1
+
+
+def kit_boot_id(text):
+    match = re.search(r'^boot_id ([0-9a-fA-F-]+)$', text, re.M)
+    return match.group(1) if match else ''
+
+
+def validate_lease(path, owner):
+    records = [json.loads(line) for line in Path(path).read_text().splitlines() if line]
+    steps = ['claimed', 'released-for-restart', 'reacquired', 'released']
+    if len(records) != 4 or [record.get('step') for record in records] != steps:
+        return None, 'lease log has missing, extra, or out-of-order steps'
+    checks = [('held', owner), ('free', None), ('held', owner), (('free', 'revoking'), None)]
+    for record, (states, expected_owner) in zip(records, checks):
+        status = record.get('status', {})
+        allowed = states if isinstance(states, tuple) else (states,)
+        if status.get('state') not in allowed:
+            return None, 'lease log state mismatch'
+        if expected_owner and status.get('owner') != expected_owner:
+            return None, 'lease log owner mismatch'
+    return records, None
 
 
 def evidence(args):
@@ -181,75 +262,249 @@ def evidence(args):
         raise ValueError('base image sha256 must be 64 hex characters')
     classified = plan(repo_paths(args.repo, base, head))
     if classified['class'] == 'full':
-        print('plan requires a full image; overlay evidence refused', file=sys.stderr)
-        return 1
-    manifest_data = json.loads(Path(args.manifest).read_text())
-    if manifest_data.get('head', '').lower() != head.lower():
+        return refuse('plan requires a full image; overlay evidence refused')
+    data = json.loads(Path(args.manifest).read_text())
+    if data.get('head', '').lower() != head:
         raise ValueError('manifest head does not match --head')
-    entries = manifest_data.get('entries', [])
+    entries = data.get('entries', [])
     if not entries:
-        print('manifest lists no deployed files; overlay evidence refused', file=sys.stderr)
-        return 1
-    expected = {}
+        return refuse('manifest lists no deployed files; overlay evidence refused')
+    required = expected_components(classified, args.repo, head)
+    present = {entry.get('component') for entry in entries}
+    missing_components = sorted(required - present)
+    extra_components = sorted(present - required)
+    if missing_components:
+        return refuse('uncovered components: ' + ', '.join(missing_components))
+    if extra_components:
+        return refuse('unplanned component: ' + ', '.join(map(str, extra_components)))
+    seen = set()
     for entry in entries:
-        kit_path = entry['kit_path']
-        if not kit_path.startswith('/') or not SHA64.fullmatch(entry['sha256']):
-            raise ValueError(f'invalid manifest entry: {entry}')
-        if kit_path in expected:
-            raise ValueError(f'duplicate kit path in manifest: {kit_path}')
-        expected[kit_path] = entry
-    hashes = parse_kit_hashes(args.kit_sha256)
-    missing = sorted(set(expected) - hashes.keys())
-    extra = sorted(hashes.keys() - set(expected))
-    mismatched = sorted(path for path in expected.keys() & hashes.keys()
-                        if expected[path]['sha256'].lower() != hashes[path])
-    if missing or extra or mismatched:
-        print(f'kit hash mismatch: missing={missing}, extra={extra}, mismatched={mismatched}',
-              file=sys.stderr)
-        return 1
+        validate_entry(entry)
+        key = (entry['side'], entry['target'])
+        if key in seen:
+            raise ValueError(f'duplicate {entry["side"]} target: {entry["target"]}')
+        seen.add(key)
+    kit_entries = [entry for entry in entries if entry['side'] == 'kit']
+    host_entries = [entry for entry in entries if entry['side'] == 'host']
+    if kit_entries and not args.kit_sha256:
+        return refuse('kit entries require --kit-sha256')
+    if host_entries and not args.host_sha256:
+        return refuse('host entries require --host-sha256')
+    observed = {}
+    for side, subset, filename in (('kit', kit_entries, args.kit_sha256),
+                                    ('host', host_entries, args.host_sha256)):
+        if not subset:
+            continue
+        actual = read_hashes(filename)
+        expected = {entry['target']: entry['sha256'].lower() for entry in subset}
+        missing = sorted(expected.keys() - actual.keys())
+        extra = sorted(actual.keys() - expected.keys())
+        mismatched = sorted(name for name in expected.keys() & actual.keys()
+                            if expected[name] != actual[name])
+        if missing or extra or mismatched:
+            return refuse(f'{side} hash mismatch: missing={missing}, extra={extra}, mismatched={mismatched}')
+        observed[side] = actual
+
+    release = json.loads(Path(args.base_release_json).read_text())
+    if release.get('fes_revision', '').lower() != base:
+        return refuse('release fes_revision does not match base image commit')
+    base_image = args.base_image_sha256.lower()
+    if release.get('image_sha256', '').lower() != base_image:
+        return refuse('release image_sha256 does not match base image sha256')
+    boot_id = good = version = ''
+    if kit_entries and not args.kit_update_json:
+        return refuse('kit entries require --kit-update-json')
+    if args.kit_update_json:
+        update = json.loads(Path(args.kit_update_json).read_text())
+        boot_id = update.get('boot_id', '')
+        good = update.get('good', '')
+        if update.get('image_sha256', '').lower() != base_image:
+            return refuse('kit update image_sha256 does not match base image sha256')
+        if good.lower() != base_image:
+            return refuse('kit update good does not match base image sha256')
+        if update.get('corrupt') is not False or update.get('trial', False) is True:
+            return refuse('kit update is corrupt or trial')
+        if kit_entries and (not boot_id or boot_id != kit_boot_id(Path(args.kit_sha256).read_text())):
+            return refuse('kit update boot_id is missing or does not match kit hash output')
+    version = str(release.get('version', ''))
+
+    lease = []
+    if kit_entries:
+        if not args.lease_log or not args.lease_owner:
+            return refuse('kit entries require --lease-log and --lease-owner')
+        lease, error = validate_lease(args.lease_log, args.lease_owner)
+        if error:
+            return refuse(error)
+        kit_text = Path(args.kit_sha256).read_text()
+        if not re.search(r'^SUPERVISORS runtime=1 agent=1 kit=1$', kit_text, re.M):
+            return refuse('supervisor counts are not runtime=1 agent=1 kit=1')
+        for entry in kit_entries:
+            executable = EXES.get(Path(entry['target']).name)
+            if executable:
+                pattern = r'^exe ' + re.escape(executable) + r' (.+)$'
+                match = re.search(pattern, kit_text, re.M)
+                if not match or match.group(1).strip() == 'MISSING':
+                    return refuse(f'running exe is MISSING for {executable}')
+                if not SHA64.fullmatch(match.group(1)) or match.group(1).lower() != entry['sha256'].lower():
+                    return refuse(f'running exe hash mismatch for {executable}')
+
     lines = ['<!-- FES HIL evidence -->', '', f'- Head: `{head}`',
-             f'- Base image commit: `{base}`',
-             f'- Base linux.img sha256: `{args.base_image_sha256.lower()}`',
-             f'- Decision: `{classified["decision"]}`', '',
-             '| Class | Component | Path | Rule |', '| --- | --- | --- | --- |']
-    for row in classified['rows']:
-        lines.append(f"| {row['class']} | {row['component'] or '-'} | `{row['path']}` | `{row['rule']}` |")
-    lines += ['', '| Kit path | Powerboat sha256 | Kit sha256 | Result |',
-              '| --- | --- | --- | --- |']
-    for entry in entries:
-        lines.append(f"| `{entry['kit_path']}` | `{entry['sha256']}` | `{hashes[entry['kit_path']]}` | MATCH |")
-    text = '\n'.join(lines) + '\n'
+             f'- Base image commit: `{base}`', f'- Base linux.img sha256: `{base_image}`',
+             f'- Decision: `{classified["decision"]}`']
+    if args.kit_update_json:
+        lines.extend((f'- Boot ID: `{boot_id}`', f'- Good image: `{good}`',
+                      f'- Release version: `{version}`'))
+    if lease:
+        lines.append('- Lease: ' + ', '.join(
+            f"{record['step']} generation `{record['status'].get('generation', '')}` "
+            f"at `{record.get('recorded_at', '')}`" for record in lease))
+    lines.extend(('', '| Class | Component | Path | Rule |', '| --- | --- | --- | --- |'))
+    lines.extend(f"| {row['class']} | {row['component'] or '-'} | `{row['path']}` | `{row['rule']}` |"
+                 for row in classified['rows'])
+    lines.extend(('', '| Component | Side | Target | Powerboat sha256 | Re-read sha256 | Result |',
+                  '| --- | --- | --- | --- | --- | --- |'))
+    lines.extend(f"| {entry['component']} | {entry['side']} | `{entry['target']}` | "
+                 f"`{entry['sha256']}` | `{observed[entry['side']][entry['target']]}` | MATCH |"
+                 for entry in entries)
+    output = '\n'.join(lines) + '\n'
     if args.out:
-        Path(args.out).write_text(text)
+        Path(args.out).write_text(output)
     else:
-        print(text, end='')
+        print(output, end='')
     return 0
+
+
+def deploy_script(entries, stage):
+    """Generate the POSIX shell overlay installer and remover."""
+    kit_entries = [entry for entry in entries if entry['side'] == 'kit']
+    if not kit_entries:
+        raise ValueError('manifest has no kit entries')
+    names = [Path(entry['target']).name for entry in kit_entries]
+    expected = {Path(entry['target']).name: entry['sha256'] for entry in kit_entries}
+    lines = ['#!/bin/sh', 'set -u', f'D={shlex.quote(stage)}',
+             f'BINS={shlex.quote(" ".join(names))}']
+    lines.extend(f'EXPECTED_{name.replace("-", "_")}={digest}'
+                 for name, digest in expected.items())
+    lines.extend([
+        'sup() {',
+        '    echo "SUPERVISORS runtime=$(ps w | grep -c \"[m]ister-supervise mister-runtime\") agent=$(ps w | grep -c \"[m]ister-supervise mister-agent\") kit=$(ps w | grep -c \"[m]ister-supervise fogcast-kit\")"',
+        '}',
+        'stopall() {',
+        '    /etc/init.d/S60fogcast-kit stop',
+        '    /etc/init.d/S50mister-agent stop',
+        '    /etc/init.d/S40mister-runtime stop',
+        '    sleep 1',
+        '}',
+        'startall() {',
+        '    n=$(ps w | grep -c "[m]ister-supervise")',
+        '    [ "$n" = 0 ] || { echo "REFUSE_START: $n supervisors still running"; return 1; }',
+        '    /etc/init.d/S40mister-runtime start',
+        '    sleep 2',
+        '    /etc/init.d/S50mister-agent start',
+        '    sleep 2',
+        '    /etc/init.d/S60fogcast-kit start',
+        '    sleep 3',
+        '    counts=$(sup)',
+        '    echo "$counts"',
+        '    [ "$counts" = "SUPERVISORS runtime=1 agent=1 kit=1" ]',
+        '}',
+        'check_staged() {',
+        '    (cd "$D" && sha256sum -c SHA256SUMS) || return 1',
+    ])
+    for name, digest in expected.items():
+        variable = 'EXPECTED_' + name.replace('-', '_')
+        lines.append(f'    [ "$(sha256sum "$D/{name}" | cut -d\' \' -f1)" = "${variable}" ] || return 1')
+    lines.extend([
+        '}',
+        'case "${1:-}" in',
+        'on)',
+        '    [ "$(grep -c " /usr/sbin/" /proc/mounts)" = 0 ] || { echo "REFUSE: /usr/sbin already has mounts"; exit 1; }',
+        '    check_staged || { echo "REFUSE: staged sha mismatch"; exit 1; }',
+        '    stopall',
+        '    for b in $BINS; do',
+        '        chmod 0755 "$D/$b"',
+        '        mount --bind "$D/$b" "/usr/sbin/$b" || { echo "MOUNT_FAIL $b"; exit 1; }',
+        '    done',
+        '    startall || exit 1',
+        '    ;;',
+        'off)',
+        '    stopall',
+        '    for b in $BINS; do umount "/usr/sbin/$b" || exit 1; done',
+        '    startall || exit 1',
+        '    ;;',
+        '*) echo "usage: sh script on|off" >&2; exit 2 ;;',
+        'esac',
+        'sleep 2',
+        'counts=$(sup)',
+        'echo "$counts"',
+        '[ "$counts" = "SUPERVISORS runtime=1 agent=1 kit=1" ] || exit 1',
+        ''])
+    return '\n'.join(lines)
 
 
 def parser():
     root = argparse.ArgumentParser(description=__doc__)
     sub = root.add_subparsers(dest='command', required=True)
-    classify_parser = sub.add_parser('classify')
-    classify_parser.add_argument('--repo')
-    classify_parser.add_argument('--base-image-commit')
-    classify_parser.add_argument('--head')
-    classify_parser.add_argument('--paths-file')
-    classify_parser.add_argument('--json', action='store_true')
+    classify = sub.add_parser('classify')
+    classify.add_argument('--repo')
+    classify.add_argument('--base-image-commit')
+    classify.add_argument('--head')
+    classify.add_argument('--paths-file')
+    classify.add_argument('--json', action='store_true')
     manifest_parser = sub.add_parser('manifest')
     manifest_parser.add_argument('--head', required=True)
     manifest_parser.add_argument('--out', required=True)
     manifest_parser.add_argument('artifacts', nargs='+')
-    command_parser = sub.add_parser('kit-command')
-    command_parser.add_argument('--manifest', required=True)
+    for command in ('kit-command', 'host-command'):
+        sub.add_parser(command).add_argument('--manifest', required=True)
+    deploy = sub.add_parser('kit-deploy-script')
+    deploy.add_argument('--manifest', required=True)
+    deploy.add_argument('--stage-dir', required=True)
+    deploy.add_argument('--sha256sums', action='store_true')
+    lease = sub.add_parser('lease-record')
+    lease.add_argument('--log', required=True)
+    lease.add_argument('--step', required=True,
+                       choices=('claimed', 'released-for-restart', 'reacquired', 'released'))
+    lease.add_argument('--status-json', required=True)
+    lease.add_argument('--owner')
     evidence_parser = sub.add_parser('evidence')
     evidence_parser.add_argument('--repo', required=True)
     evidence_parser.add_argument('--base-image-commit', required=True)
     evidence_parser.add_argument('--head', required=True)
     evidence_parser.add_argument('--base-image-sha256', required=True)
     evidence_parser.add_argument('--manifest', required=True)
-    evidence_parser.add_argument('--kit-sha256', required=True)
+    evidence_parser.add_argument('--kit-sha256')
+    evidence_parser.add_argument('--host-sha256')
+    evidence_parser.add_argument('--base-release-json', required=True)
+    evidence_parser.add_argument('--kit-update-json')
+    evidence_parser.add_argument('--lease-log')
+    evidence_parser.add_argument('--lease-owner')
     evidence_parser.add_argument('--out')
     return root
+
+
+def kit_command(entries):
+    """Print kit measurements in the order consumed by evidence."""
+    paths = [entry['target'] for entry in entries if entry['side'] == 'kit']
+    print('echo boot_id $(cat /proc/sys/kernel/random/boot_id)')
+    for path in paths:
+        print('sha256sum ' + shlex.quote(path))
+    print("echo SUPERVISORS runtime=$(ps w | grep -c '[m]ister-supervise mister-runtime') "
+          "agent=$(ps w | grep -c '[m]ister-supervise mister-agent') "
+          "kit=$(ps w | grep -c '[m]ister-supervise fogcast-kit')")
+    for name, pidfile in (('mister-runtime', 'mister-runtime'),
+                          ('mister-agent', 'mister-agent'),
+                          ('fogcast-kit-child', 'fogcast-kit')):
+        print(f'if [ -r /run/{pidfile}.pid ]; then')
+        print(f'    pid=$(cat /run/{pidfile}.pid)')
+        print(f'    if [ -e "/proc/$pid/exe" ]; then')
+        print(f'        echo "exe {name} $(sha256sum "/proc/$pid/exe" | cut -d\' \' -f1)"')
+        print('    else')
+        print(f'        echo "exe {name} MISSING"')
+        print('    fi')
+        print('else')
+        print(f'    echo "exe {name} MISSING"')
+        print('fi')
 
 
 def main(argv=None):
@@ -267,17 +522,36 @@ def main(argv=None):
         if args.command == 'manifest':
             manifest(args.head, args.out, args.artifacts)
             return 0
-        if args.command == 'kit-command':
-            data = json.loads(Path(args.manifest).read_text())
-            paths = [entry['kit_path'] for entry in data.get('entries', [])]
-            print('sha256sum ' + ' '.join(shlex.quote(path) for path in paths))
+        if args.command in ('kit-command', 'host-command'):
+            entries = json.loads(Path(args.manifest).read_text()).get('entries', [])
+            if args.command == 'kit-command':
+                kit_command(entries)
+            else:
+                targets = [entry['target'] for entry in entries if entry['side'] == 'host']
+                print('sha256sum ' + ' '.join(shlex.quote(target) for target in targets))
+            return 0
+        if args.command == 'lease-record':
+            status = json.loads(Path(args.status_json).read_text())
+            if args.owner and status.get('owner') != args.owner:
+                raise ValueError('lease status owner does not match --owner')
+            record = {'step': args.step, 'status': status,
+                      'recorded_at': datetime.datetime.now(datetime.timezone.utc).isoformat()}
+            with Path(args.log).open('a') as output:
+                output.write(json.dumps(record) + '\n')
+            return 0
+        if args.command == 'kit-deploy-script':
+            entries = json.loads(Path(args.manifest).read_text()).get('entries', [])
+            kit_entries = [entry for entry in entries if entry['side'] == 'kit']
+            if args.sha256sums:
+                for entry in kit_entries:
+                    print(f"{entry['sha256']}  {Path(entry['target']).name}")
+            else:
+                print(deploy_script(entries, args.stage_dir), end='')
             return 0
         if args.command == 'evidence':
-            if not SHA64.fullmatch(args.base_image_sha256):
-                raise ValueError('base image sha256 must be 64 hex characters')
             return evidence(args)
-    except (ValueError, OSError, KeyError, json.JSONDecodeError,
-            subprocess.CalledProcessError) as error:
+    except (ValueError, OSError, KeyError, TypeError, json.JSONDecodeError,
+            subprocess.CalledProcessError, tomllib.TOMLDecodeError) as error:
         print(str(error), file=sys.stderr)
         return 2
     return 2
