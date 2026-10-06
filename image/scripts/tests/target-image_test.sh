@@ -172,6 +172,9 @@ with open(source, 'rb') as original, open(copy, 'rb') as padded:
         assert not any(chunk)
 PY
 done
+# Only image pass 1 and make dev may use the shared ccache; kernel builds after the passes must not.
+grep -Fq 'export CCACHE_DISABLE=1' "$repo/scripts/build-target-kernel.sh"
+grep -Fq 'export CCACHE_DISABLE=1' "$repo/scripts/qemu-smoke-target-image.sh"
 ! grep -Fq 'FES_IMAGE_WORK = ' "$repo/Makefile"
 cat > "$fixture/fake-container-runtime" <<'RUNTIME'
 #!/bin/sh
