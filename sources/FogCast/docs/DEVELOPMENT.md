@@ -97,22 +97,24 @@ chips or persistent saves.
 
 ### FES format-2/3 image package set
 
-The image selector supports nine core IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
-`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`, using sealed
+The image selector supports ten core IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
+`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`,
+`fes.atari-st`, using sealed
 format-2 or format-3 packages. `fes.menu` is idle display firmware, not a playable
 catalog entry. The current [FES default profile](../../../profiles/native-integration-dev.toml)
-selects menu, Pong, ZX81, Coleco, SMS, SG-1000, Spectrum and the OSS 100 MHz RAM Tester.
+selects menu, Pong, ZX81, Coleco, SMS, SG-1000, Spectrum, the OSS 100 MHz RAM Tester
+and Atari ST. ST firmware is separately selected; the image bundles no ROM.
 C64 has no current timing-passing HIP seal and stays out.
 See [core status](../../../docs/core-status.md) for exact-artifact evidence.
 
-The following is the complete nine-ID input example for the selector interface;
+The following is the complete ten-ID input example for the selector interface;
 it requires sealed packages and sufficient image capacity before use. It does
 not describe the current default image. The ordered, comma-separated package
 set and each selected core's trusted absolute inputs reach image fetch, build
 and verification:
 
 ```sh
-export FES_PACKAGE_IDS=fes.menu,fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.c64,fes.spectrum,fes.ramtest
+export FES_PACKAGE_IDS=fes.menu,fes.pong,fes.zx81,fes.coleco,fes.sms,fes.sg1000,fes.c64,fes.spectrum,fes.ramtest,fes.atari-st
 export FES_MENU_PACKAGE_DIR='/absolute/path/to/<menu-package-id>'
 export FES_MENU_PACKAGE_SELECTION=/absolute/path/to/fes-menu.package-selection.toml
 export FES_PONG_PACKAGE_DIR='/absolute/path/to/<pong-package-id>'
@@ -131,6 +133,8 @@ export FES_SPECTRUM_PACKAGE_DIR='/absolute/path/to/<spectrum-package-id>'
 export FES_SPECTRUM_PACKAGE_SELECTION=/absolute/path/to/fes-spectrum.package-selection.toml
 export FES_RAMTEST_PACKAGE_DIR='/absolute/path/to/<ramtest-package-id>'
 export FES_RAMTEST_PACKAGE_SELECTION=/absolute/path/to/fes-ramtest.package-selection.toml
+export FES_ATARI_ST_PACKAGE_DIR='/absolute/path/to/<atari-st-package-id>'
+export FES_ATARI_ST_PACKAGE_SELECTION=/absolute/path/to/fes-atari-st.package-selection.toml
 ```
 
 Each selected core requires its pair; unselected cores must not supply package
@@ -157,6 +161,7 @@ The canonical per-core names and build-input prefixes are:
 | `fes.c64` | `fes-c64.package-selection.toml` | `fes-c64.package.toml` | `fes_c64` |
 | `fes.spectrum` | `fes-spectrum.package-selection.toml` | `fes-spectrum.package.toml` | `fes_spectrum` |
 | `fes.ramtest` | `fes-ramtest.package-selection.toml` | `fes-ramtest.package.toml` | `fes_ramtest` |
+| `fes.atari-st` | `fes-atari-st.package-selection.toml` | `fes-atari-st.package.toml` | `fes_atari_st` |
 
 For every selected core, `--print-inputs` emits
 `<input-prefix>_package_selection_sha256`, `<input-prefix>_package_id`,

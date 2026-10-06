@@ -252,7 +252,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   with optional sealed Pong, SNES and NES RBFs. FES integration can also add a
   selected set of validated format-2/3 packages (`fes.menu`, `fes.pong`,
   `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`, and
-  `fes.ramtest`) through the closed package selection described in [the
+  `fes.ramtest`, `fes.atari-st`) through the closed package selection described in [the
   development guide](docs/DEVELOPMENT.md).
   Source-built Mega Drive selection is the native image default; use the
   explicit upstream selection for fallback. Its idle path and one-player Mega

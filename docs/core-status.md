@@ -34,7 +34,7 @@ playability and hardware acceptance depend on the exact-artifact kit evidence be
 The image selector supports ten IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st`.
 `fes.riscv` is registered for `make core-dev` only.
-SMS, SG-1000, Spectrum and Atari ST are sealed and included. The 128 MiB rootfs from #347
+SMS, SG-1000, Spectrum and Atari ST are sealed and included. The 160 MiB rootfs
 holds them. C64 is registered but has no current timing-passing HIP seal, so it
 stays out. The factory packages, Apple II and Catch seal with
 HIP/nextpnr. Quartus is an oracle where the recipe says so. It is not the product
@@ -182,7 +182,8 @@ normal Stop and cold Play, without restarting the runtime or agent. The later
 [automatic-boot record](validation/2026-10-06-atari-st-auto-boot.md) verifies initial
 disk upload before CPU release, with AUTO execution on both fresh and saved disks
 and zero differing payload bytes. The [startup budget follow-up](validation/2026-10-06-atari-st-startup-budget.md) verifies diskless GEM and fresh/saved AUTO boot on the revised software at the configured 60-second upload timeout. No appliance
-hardware acceptance is claimed; factory selection is unchanged.
+hardware acceptance is claimed by that software diagnostic. The current factory
+selection includes Atari ST; exact-image acceptance is recorded separately.
 
 ## Not implemented, or not this package
 
