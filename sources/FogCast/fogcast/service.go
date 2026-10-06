@@ -1896,6 +1896,15 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	if err != nil {
 		return protocol.Status{}, corePackageRequestFailure(err)
 	}
+	if selected.activationBudget > 0 {
+		// ROM-linked ST programming needs the same bounded activation budget
+		// with an empty drive, selected parts, or an atomic initial disk.
+		// Derive from the caller, not the shorter package-upload context;
+		// caller cancellation and an earlier caller deadline still win.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(parent, max(s.uploadTimeout, selected.activationBudget))
+		defer cancel()
+	}
 	s.executionMu.Lock()
 	kitTarget, kitPlay := s.selectedKitPlayLocked()
 	pendingRejection := kitPlay.packageRejection != nil
@@ -2152,6 +2161,14 @@ func (s *Service) reconcileLostCoreLoad(parent context.Context, client serviceCl
 		if err != nil {
 			return protocol.Status{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "core package activation outcome is unavailable", Phase: "recovery"}
 		}
+		if errors.Is(loadErr, targetclient.ErrKitLeaseLost) {
+			// Expiry cleanup can follow a completed load. Observing that load
+			// does not restore authority or justify another activation.
+			if validRecoveredDevelopmentStatus(status) && status.CorePackage == nil {
+				return status, loadErr
+			}
+			return protocol.Status{}, loadErr
+		}
 		if validServiceCorePackageStatus(status) && !reflect.DeepEqual(status, prior) {
 			return status, nil
 		}
@@ -2180,6 +2197,9 @@ func (s *Service) reconcileLostCoreLoad(parent context.Context, client serviceCl
 }
 
 func confirmedIdleCorePackageFailure(status protocol.Status, loadErr error) bool {
+	if errors.Is(loadErr, targetclient.ErrKitLeaseLost) {
+		return validRecoveredDevelopmentStatus(status) && status.CorePackage == nil
+	}
 	if ambiguousTargetMutationError(loadErr) {
 		return false
 	}

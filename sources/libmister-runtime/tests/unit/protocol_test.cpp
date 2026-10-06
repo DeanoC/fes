@@ -564,6 +564,24 @@ void TestROMLoadProtocol()
 		Request request;
 		assert(Parse(input, &request).ok());
 		assert(request.rom_link.source_size == 8192);
+		assert(!request.has_initial_media);
+		const std::string initial = "{\"path\":\"/disk.st\",\"size\":737280,\"unit\":0,\"data_root\":\"/media-data\","
+			"\"game_id\":\"st-game\",\"base_media_id\":\"" + digest + "\"}";
+		const auto with_disk = input.substr(0, input.size() - 1) + ",\"initial_media\":" + initial + "}";
+		assert(Parse(with_disk, &request).ok() && request.has_initial_media);
+		assert(request.initial_media.path == "/disk.st" && request.initial_media.size == 737280);
+		assert(request.initial_media.data_root == "/media-data" && request.initial_media.binding.unit == 0);
+		assert(request.initial_media.binding.game_id == "st-game" && request.initial_media.binding.base_media_id == digest);
+		for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
+			{"737280", "737279"}, {"737280", "737280.0"}, {"\"unit\":0", "\"unit\":1"},
+			{"/disk.st", "disk.st"}, {"/media-data", "media-data"}, {"st-game", "st--game"},
+			{"st-game", "-game"}, {"st-game", "game-"}, {"base_media_id", "unknown"}}) {
+			auto bad = with_disk;
+			bad.replace(bad.find(replacement.first), replacement.first.size(), replacement.second);
+			assert(!Parse(bad, &request).ok());
+		}
+		assert(!Parse(input.substr(0, input.size() - 1) + ",\"initial_media\":null}", &request).ok());
+		assert(!Parse(input.substr(0, input.size() - 1) + ",\"initial_media\":{}}", &request).ok());
 		for (const auto& replacement : std::vector<std::pair<std::string, std::string>>{
 			{"8192", "-1"}, {"40408", "1.5"}, {"bios.main", ""},
 			{"source_sha256", "unknown"}, {"8192", "0"}}) {
@@ -586,6 +604,8 @@ void TestTwoSourceROMLoadProtocol()
 	Request request;
 	assert(Parse(input, &request).ok());
 	assert(request.rom_links.sources.size() == 2);
+	assert(!Parse(input.substr(0, input.size() - 1) + ",\"initial_media\":{\"path\":\"/disk.st\",\"size\":737280,"
+		"\"unit\":0,\"data_root\":\"/media-data\",\"game_id\":\"st-game\",\"base_media_id\":\"" + digest + "\"}}", &request).ok());
 	for (const auto& changed : {"131072", "source_sha256", "cartridge"}) {
 		auto bad = input;
 		const auto at = bad.find(changed);
@@ -803,6 +823,11 @@ void TestSlotCompositionProtocol()
 	assert(Parse(rom, &request).ok());
 	assert(request.operation == Operation::load_rom_composed_core);
 	assert(request.composition_request.expansions.size() == 2 && request.rom_link.source_size == 16384);
+	const auto with_disk = rom.substr(0, rom.size() - 1) + ",\"initial_media\":{\"path\":\"/disk.st\",\"size\":737280,"
+		"\"unit\":0,\"data_root\":\"/media-data\",\"game_id\":\"st-game\",\"base_media_id\":\"" + id + "\"}}";
+	assert(Parse(with_disk, &request).ok() && request.has_initial_media);
+	assert(request.operation == Operation::load_rom_composed_core && request.composition_request.expansions.size() == 2);
+
 	const std::string initialized = "{\"protocol\":2,\"operation\":\"load_initialized_composed_core\","
 		"\"package_path\":\"/base\",\"package_id\":\"" + id + "\",\"expansions\":" + paths +
 		",\"payload_path\":\"/composition/linked.rbf\",\"composition\":" + SlotTuple(id, slots) +

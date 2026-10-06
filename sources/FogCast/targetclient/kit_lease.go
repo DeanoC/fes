@@ -366,6 +366,17 @@ func (c *Client) ReleaseKitGrant(ctx context.Context) (notHeld bool, err error) 
 	return c.kitLease.ReleaseGrant(ctx)
 }
 
+// ownsCurrentGrant confirms dispatch authority at reply processing without
+// renewing or claiming. A stale token may remain before the renewal loop runs.
+func (l *KitLease) ownsCurrentGrant(token string) bool {
+	if l == nil {
+		return false
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return token != "" && !l.closed && !l.lost && l.grant.Token == token && time.Now().Before(l.localExpiry)
+}
+
 func (l *KitLease) CurrentToken() string {
 	if l == nil {
 		return ""

@@ -475,6 +475,15 @@ before ownership handoff. The caller owns the returned directory lifetime and
 must release it with `Staged.Cleanup`, which reopens and verifies the retained
 root and publication identities before removing the sealed directory.
 
+Format-3 ROM staging reads one owned envelope buffer bounded by its declared
+size. Package payload and map bytes borrow that immutable buffer during the
+operation; receipt decoding and map validation honor the admission context.
+One parsed, sealed map is reused for receipt verification and independent ROM
+linking within that operation. Final private publication is revalidated, and
+all framing, digest and initial-media binding checks remain required. Published
+files own independent bytes after return. Restart adoption independently
+validates and relinks the retained source bytes.
+
 The target package lifecycle uses runtime protocol 2. A read-only
 `inspect_package` exchange negotiates the exact ABI registry and programming
 profiles before mutation. Protocol 1 is rejected without mutation; there is
@@ -499,6 +508,20 @@ proven pre-mutation failure reconstructs the same logical lease; failure to
 pause or reconstruct it is a recovery failure and leaves input gated. Startup
 adopts every still-valid publication through the same opened trusted root,
 selecting only the package that exactly matches the active runtime status.
+The host accepts a successful core-load reply only while it still holds the
+same kit grant used for dispatch. The token match and unexpired local monotonic
+deadline are checked together under the lease mutex; a retained token alone
+does not authorize success. A reply received after local lease loss is a
+recovery failure, even if a subsequent read observes the new active package.
+The host does not replay the load or claim another grant; target expiry cleanup
+still waits for the admitted operation to finish before normal Stop. A clean
+idle observation confirms cleanup and retires the previous play while retaining
+the launch failure. Lease renewal timing and expiry remain unchanged.
+A validated explicit `reboot_required` load reply with a retained active owner
+also retains the attempted package, linked ROM and initial disk sources until
+a confirmed clean Stop. An identity mismatch remains ambiguous and cannot
+justify deleting those sources; it does not permit adoption or a successful
+activation. Failed Stop preserves the retained publications.
 After an attempted activation failure, the target publishes idle only when the
 runtime confirms exact operational idle and retains the structured failure in
 that status. The host returns the original failure only when the observed idle
@@ -2739,6 +2762,28 @@ its exact generation and can restore host input; unsafe persistence recovery
 retains package/generation attribution in failed status and blocks input.
 Existing post-activation HostOnly cleanup recovery remains unchanged.
 
+
+## Initial Atari ST library disk
+
+A writable format-3 ST library launch may omit the disk and boot to GEM with
+an empty drive A. Required floppy interfaces declare hardware support, not a
+requirement to insert media. When a disk is selected, the launch includes its 720 KiB
+source and explicit game/base-media binding in the closed ROM envelope. The
+host snapshots and hashes those immutable bytes before target mutation. The
+agent rejects initial disks on development routes, stages them privately and
+passes the fixed durable-media root to the runtime with the linked ROM load.
+The runtime validates the source and saved record before replacement, refreshes
+the record after outgoing save, uploads the chosen base or saved bytes while
+execution remains held, binds the ready drive and then releases the CPU. A disk
+failure cannot report a successful running launch. Every format-3 ROM-linked ST
+library activation uses `max(UploadTimeout, 300s)`, including plain firmware,
+cartridge-only, video-only and combined parts, with either an empty drive or an
+initial disk. The validated launch source selects this budget; earlier caller
+deadlines and cancellation still apply. Other cores retain their configured
+upload budget. Existing live insertion/ejection keeps the running machine intact.
+Launch confirmation checks both ROM/parts identities and the ready persistent
+disk's game/base binding; an initial disk is a startup input, not an immutable
+identity imposed on later live media changes.
 
 ## ROM-bearing package inspection
 

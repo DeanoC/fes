@@ -76,6 +76,12 @@ func (client *Client) LoadSlotComposedCore(ctx context.Context, path, packageID 
 
 // LoadROMSlotComposedCore programs the ROM-patched multi-slot composition.
 func (client *Client) LoadROMSlotComposedCore(ctx context.Context, path, packageID string, expansions []SlotExpansionPath, payloadPath string, composition expansion.SlotComposition, programmedPath string, identity corepackage.ROMLinkIdentity) (Protocol2Response, error) {
+	return client.LoadROMSlotComposedCoreWithInitialMedia(ctx, path, packageID, expansions, payloadPath, composition, programmedPath, identity, nil)
+}
+func (client *Client) LoadROMSlotComposedCoreWithInitialMedia(ctx context.Context, path, packageID string, expansions []SlotExpansionPath, payloadPath string, composition expansion.SlotComposition, programmedPath string, identity corepackage.ROMLinkIdentity, initial *InitialMediaRequest) (Protocol2Response, error) {
+	if !validInitialMediaRequest(initial) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
 	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !validSlotLoad(packageID, expansions, payloadPath, composition) ||
 		!protocol2Identifier.MatchString(identity.ROMID) ||
 		!identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
@@ -89,6 +95,7 @@ func (client *Client) LoadROMSlotComposedCore(ctx context.Context, path, package
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: false}
 	}
 	line, attempted, err := client.callRawTracked(ctx, struct {
+		InitialMedia   *InitialMediaRequest        `json:"initial_media,omitempty"`
 		Protocol       int                         `json:"protocol"`
 		Operation      string                      `json:"operation"`
 		PackagePath    string                      `json:"package_path"`
@@ -98,11 +105,15 @@ func (client *Client) LoadROMSlotComposedCore(ctx context.Context, path, package
 		Composition    expansion.SlotComposition   `json:"composition"`
 		ProgrammedPath string                      `json:"programmed_path"`
 		ROMLink        corepackage.ROMLinkIdentity `json:"rom_link"`
-	}{2, "load_rom_composed_core", path, packageID, expansions, payloadPath, composition, programmedPath, identity})
+	}{initial, 2, "load_rom_composed_core", path, packageID, expansions, payloadPath, composition, programmedPath, identity})
 	if err != nil {
 		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
 	}
-	return slotLoadResponse(line, packageID, composition, &identity)
+	response, err := slotLoadResponse(line, packageID, composition, &identity)
+	if err == nil && response.OK && !initialRequestMatches(response, initial) {
+		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
+	}
+	return response, err
 }
 
 // LoadInitializedSlotComposedCore programs an initialized multi-slot image

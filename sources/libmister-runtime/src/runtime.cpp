@@ -353,7 +353,7 @@ public:
 	Error LoadCore(const std::string& directory, const std::string& expected_package_id,
 		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr,
 		const std::string& programmed_path = "", const std::string& programmed_sha256 = "", const CoreROMLink* rom_link = nullptr,
-		const CoreROMLinks* rom_links = nullptr)
+		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr)
 	{
 		LogRecord rejection;
 		bool rejected = false;
@@ -441,6 +441,16 @@ public:
 				return attached;
 			}
 		}
+		if (initial_media) {
+			const Error prepared = rom_link ? hardware_.PrepareInitialComputerMedia(package.get(), *initial_media) :
+				Error{ErrorCode::invalid_request, "initial disk requires a single ROM activation", "admission"};
+			if (!prepared.ok()) {
+				std::lock_guard<std::mutex> lock(mutex_);
+				busy_ = false;
+				condition_.notify_all();
+				return prepared;
+			}
+		}
 		const Error rechecked = hardware_.RecheckProgrammedBitstream(package.get());
 		if (!rechecked.ok()) {
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -479,6 +489,17 @@ public:
 			}
 		}
 
+		if (initial_media) {
+			const Error refreshed = hardware_.RefreshInitialComputerMedia(package.get());
+			if (!refreshed.ok()) {
+				if (replacing) return RestoreAfterSaveFailure("load_core", info.system,
+					info.declared_core, retired_generation, refreshed);
+				std::lock_guard<std::mutex> lock(mutex_);
+				busy_ = false;
+				condition_.notify_all();
+				return refreshed;
+			}
+		}
 		std::uint64_t generation = 0;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -494,47 +515,57 @@ public:
 		HardwareResult result = hardware_.LoadCore(std::move(package), generation);
 		if (!result.error.ok() && replacing && !result.mutation_attempted)
 			result.mutation_attempted = true;
-		if (!result.error.ok())
+		if (!result.error.ok() && !result.bound_media_may_have_run)
 			return FinishLaunchFailure("load_core", info.system,
 				result.observed_core.empty() ? info.declared_core : result.observed_core,
 				result,&previous_status);
+		Status retained_owner;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
-			status_.state = State::running_development;
-			status_.execution = Execution::development;
-			status_.core = result.observed_core;
-			status_.declared_core = info.declared_core;
-			status_.package_id = info.package_id;
-			status_.generation = generation;
-			status_.core_data = data;
-			status_.active_package.package_id = info.package_id;
-			status_.active_package.descriptor = info.descriptor;
-			status_.active_package.composition = admitted_composition;
-			if (rom_link) status_.active_package.rom_link = *rom_link;
-			if (rom_links) status_.active_package.rom_links = *rom_links;
+			// Keep the public starting projection empty while a failed release is saved.
+			// Only failed-save recovery publishes the complete retained owner.
+			if (!result.error.ok()) retained_owner = status_;
+			Status& activated = result.error.ok() ? status_ : retained_owner;
+			activated.state = State::running_development;
+			activated.execution = Execution::development;
+			activated.core = result.observed_core;
+			activated.declared_core = info.declared_core;
+			activated.package_id = info.package_id;
+			activated.generation = generation;
+			activated.core_data = data;
+			activated.active_package.package_id = info.package_id;
+			activated.active_package.descriptor = info.descriptor;
+			activated.active_package.composition = admitted_composition;
+			if (rom_link) activated.active_package.rom_link = *rom_link;
+			if (rom_links) activated.active_package.rom_links = *rom_links;
 			if (info.descriptor.abi.id == "fes.simple-game" ||
 				info.descriptor.abi.id == "fes.simple-computer" ||
 				info.descriptor.abi.id == "fes.application" ||
 				info.descriptor.abi.id == native::generated::FesComputerABIID) {
-				status_.active_package.observed.abi = info.descriptor.abi;
-				status_.active_package.observed.build_id = info.descriptor.build.id;
+				activated.active_package.observed.abi = info.descriptor.abi;
+				activated.active_package.observed.build_id = info.descriptor.build.id;
 			}
-			status_.capabilities.active_interfaces = ActiveInterfaces(
-				info.descriptor, status_.capabilities);
+			activated.capabilities.active_interfaces = ActiveInterfaces(
+				info.descriptor, activated.capabilities);
 			const Capabilities observed = hardware_.capabilities();
-			status_.capabilities.media_stream = observed.media_stream;
-			status_.capabilities.media_units = observed.media_units;
-   status_.menu_display=hardware_.menu_display();
-			if (status_.capabilities.media_stream.interface.id.empty()) {
-				auto& interfaces = status_.capabilities.active_interfaces;
+			activated.capabilities.media_stream = observed.media_stream;
+			activated.capabilities.media_units = observed.media_units;
+			if (initial_media) activated.core_data.mode = "persistent";
+   activated.menu_display=hardware_.menu_display();
+			if (activated.capabilities.media_stream.interface.id.empty()) {
+				auto& interfaces = activated.capabilities.active_interfaces;
 				interfaces.erase(std::remove_if(interfaces.begin(), interfaces.end(),
 					[](const SupportedInterface& item) {
 						return item.id == native::generated::FesSimpleComputerInterfaceMediaBlobStreamID;
 					}), interfaces.end());
 			}
-			status_.error = {};
-			busy_ = false;
+			activated.error = {};
+			busy_ = !result.error.ok();
 		}
+		if (!result.error.ok())
+			return FinishLaunchFailure("load_core", info.system,
+				result.observed_core.empty() ? info.declared_core : result.observed_core,
+				result, &previous_status, &retained_owner);
 		condition_.notify_all();
 		Log("load_core", info.system, result.observed_core, "running");
 		return {};
@@ -1254,9 +1285,16 @@ public:
 
 	Error FinishLaunchFailure(const std::string& operation,
 		const std::string& system, const std::string& core,
-		const HardwareResult& result,const Status* previous_status=nullptr)
+		const HardwareResult& result,const Status* previous_status=nullptr,
+		const Status* retained_owner=nullptr)
 	{
 		const Error primary = result.error;
+		Status retained;
+		if (result.bound_media_may_have_run) {
+			std::lock_guard<std::mutex> lock(mutex_);
+			retained = retained_owner ? *retained_owner : status_;
+		}
+
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			active_generation_ = 0;
@@ -1273,6 +1311,26 @@ public:
 			return primary;
 		}
 		Log(operation, system, core, "cleanup");
+		if (result.bound_media_may_have_run) {
+			// The release command is never replayed. Recover the mailbox through
+			// the existing fault-save path, freeze and save before retiring its FPGA.
+			const Error saved = hardware_.FlushFaultSave();
+			if (!saved.ok()) {
+				const Error recovery = IdleFailure(saved);
+				{
+					std::lock_guard<std::mutex> lock(mutex_);
+					status_ = std::move(retained);
+					status_.state = State::reboot_required;
+					status_.capabilities.media_units = hardware_.capabilities().media_units;
+					status_.error = recovery;
+					busy_ = false;
+				}
+				condition_.notify_all();
+				Log(operation, system, core, "recovery", recovery);
+				EmitFence(kDiagnosticKindFenceRecovery, "error", operation.c_str(), false);
+				return recovery;
+			}
+		}
 		const HardwareResult cleanup = hardware_.LoadIdle();
 		if (cleanup.error.ok()) {
 			{
@@ -1435,17 +1493,17 @@ Error Runtime::LoadLibraryPartsCore(const std::string& directory, const std::str
 	return impl_->LoadCore(directory, id, root, &request);
 }
 Error Runtime::LoadROMCore(const std::string& directory, const std::string& id,
-	const std::string& path, const CoreROMLink& link)
-{ return impl_->LoadCore(directory, id, "", nullptr, path, "", &link); }
+	const std::string& path, const CoreROMLink& link, const InitialComputerMedia* initial_media)
+{ return impl_->LoadCore(directory, id, "", nullptr, path, "", &link, nullptr, initial_media); }
 Error Runtime::LoadROMLibraryCore(const std::string& directory, const std::string& id,
-	const std::string& root, const std::string& path, const CoreROMLink& link)
+	const std::string& root, const std::string& path, const CoreROMLink& link, const InitialComputerMedia* initial_media)
 {
 	if (!ValidAbsolutePath(root)) return Invalid("invalid core-data root");
-	return impl_->LoadCore(directory, id, root, nullptr, path, "", &link);
+	return impl_->LoadCore(directory, id, root, nullptr, path, "", &link, nullptr, initial_media);
 }
 Error Runtime::LoadROMComposedCore(const std::string& directory, const std::string& id,
-	const CoreCompositionRequest& request, const std::string& path, const CoreROMLink& link)
-{ return impl_->LoadCore(directory, id, "", &request, path, "", &link); }
+	const CoreCompositionRequest& request, const std::string& path, const CoreROMLink& link, const InitialComputerMedia* initial_media)
+{ return impl_->LoadCore(directory, id, "", &request, path, "", &link, nullptr, initial_media); }
 
 Error Runtime::LoadROMsCore(const std::string& directory, const std::string& id,
 	const std::string& path, const CoreROMLinks& links)

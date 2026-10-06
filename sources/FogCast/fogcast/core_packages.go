@@ -386,7 +386,16 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 					return coreLoadSource{}, err
 				}
 			}
-			source, err := s.romLaunchSource(ctx, entry, inspection.Descriptor, data)
+			var initial *corepackage.InitialMedia
+			if media != nil && initialSTDisk(inspection.Descriptor, media) {
+				initial, err = snapshotInitialSTDisk(entry, media)
+				closeErr := media.Close()
+				media = nil
+				if err = errors.Join(err, closeErr); err != nil {
+					return coreLoadSource{}, err
+				}
+			}
+			source, err := s.romLaunchSource(ctx, entry, inspection.Descriptor, data, initial)
 			if err != nil {
 				return coreLoadSource{}, err
 			}
@@ -473,8 +482,8 @@ func (s *Service) launchCoreEntry(parent context.Context, gameID string, snap la
 		return response, nil
 	}
 	if media.unit != nil {
-		// A home computer starts with its drives empty; the selected disk is
-		// inserted into its unit after Start without holding reset.
+		// Other removable-media contracts insert after Start. Writable format-3
+		// ST disks have already traveled with ROM activation before CPU release.
 		dev := s.libraryDevelopmentMediaBinding(*status.CorePackage)
 		unitBinding := protocol.MediaUnitBinding{PackageID: dev.PackageID, Generation: dev.Generation, Unit: *media.unit, Target: dev.Target, TargetID: dev.TargetID}
 		mediaBudget := 150 * time.Second
@@ -603,6 +612,9 @@ func (s *Service) libraryDevelopmentMediaBinding(packageStatus protocol.CorePack
 }
 
 type coreLoadSource struct {
+	// activationBudget is a minimum target-load budget chosen from validated sources.
+	activationBudget time.Duration
+	initialMedia     *corepackage.InitialMedia
 	biosID           string
 	biosMediaID      string
 	biosSourceSize   int64

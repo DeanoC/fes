@@ -131,6 +131,10 @@ public:
 	{
 		return hardware_.RefreshCoreData(package, output);
 	}
+	Error PrepareInitialComputerMedia(AdmittedCorePackage* package, const InitialComputerMedia& media) override
+	{ return hardware_.PrepareInitialComputerMedia(package, media); }
+	Error RefreshInitialComputerMedia(AdmittedCorePackage* package) override
+	{ return hardware_.RefreshInitialComputerMedia(package); }
 	Error AttachProgrammedBitstream(AdmittedCorePackage* package,
 		const std::string& path, const std::string& sha256) override
 	{

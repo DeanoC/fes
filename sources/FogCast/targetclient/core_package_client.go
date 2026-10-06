@@ -117,6 +117,12 @@ func (c *Client) loadCore(ctx context.Context, size int64, content io.Reader, li
 	if !validCorePackageStatus(status) || (parts && (status.CorePackage.PartsComposition == nil || status.CorePackage.ROMLink != nil)) || (!parts && status.CorePackage.PartsComposition != nil && status.CorePackage.ROMLink == nil) || (composed && singleComposed == slotComposed) || (!composed && !parts && (singleComposed || slotComposed) && status.CorePackage.ROMLink == nil) || (libraryID != "" && (status.CorePackage.PackageID != libraryID || (status.CorePackage.PersistenceMode != "persistent" && status.CorePackage.PersistenceMode != "volatile"))) {
 		return protocol.Status{}, fmt.Errorf("development core response does not match requested load")
 	}
+	// A physical load can finish after lease expiry has scheduled target cleanup.
+	// Its valid active reply is not authority to publish a new host play.
+	if c.kitLease != nil && !c.kitLease.ownsCurrentGrant(request.Header.Get(KitLeaseHeader)) {
+		return protocol.Status{}, errors.Join(ErrKitLeaseLost, &protocol.APIError{
+			Code: protocol.CodeKitLeaseDenied, Message: "kit lease lost during core activation", Phase: "recovery"})
+	}
 	return status, nil
 }
 

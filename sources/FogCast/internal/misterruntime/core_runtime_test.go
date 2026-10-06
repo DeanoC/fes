@@ -546,12 +546,27 @@ func TestCorePackageLostReplyIsReconciledWithoutReplay(t *testing.T) {
 		control := &packageControl{lostReply: true, preserveOnLost: true}
 		recovery := misterruntime.Protocol2Response{Protocol: 2, OK: false, State: "reboot_required", Execution: "none", Version: "test",
 			Error: &misterruntime.Protocol2Error{Code: "idle_failed", Message: "reboot", Phase: "recovery"}}
-		control.beforeReply = func(string) { control.status2 = &recovery }
+		root := t.TempDir()
+		var dispatchedPath string
+		control.beforeReply = func(path string) { dispatchedPath = path; control.status2 = &recovery }
 		runtime := misterruntime.NewRuntime(control, "", time.Millisecond, 20*time.Millisecond,
-			misterruntime.WithCorePackageRoot(t.TempDir()))
+			misterruntime.WithCorePackageRoot(root))
+		t.Cleanup(func() { _, _ = runtime.Stop(context.Background()) })
 		_, attempted, apiErr := runtime.LoadCoreOwned(context.Background(), context.Background(), context.Background(), int64(len(archive)), bytes.NewReader(archive))
 		if apiErr == nil || !attempted || apiErr.Phase != "recovery" {
 			t.Fatalf("attempted=%t error=%#v", attempted, apiErr)
+		}
+		if _, err := os.Stat(dispatchedPath); err != nil {
+			t.Fatalf("recovery removed potentially active publication: %v", err)
+		}
+		if control.loadCalls != 1 {
+			t.Fatal("recovery replayed load")
+		}
+		if _, failure := runtime.Stop(context.Background()); failure != nil {
+			t.Fatal(failure)
+		}
+		if entries, err := os.ReadDir(root); err != nil || len(entries) != 0 {
+			t.Fatalf("confirmed Stop retained recovery publication: %v %v", entries, err)
 		}
 	})
 

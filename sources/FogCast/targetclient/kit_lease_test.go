@@ -2,13 +2,18 @@ package targetclient
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/DeanoC/FogCast/protocol"
 )
 
 func TestKitMutationMatchesAMeshPrefixOnly(t *testing.T) {
@@ -471,5 +476,63 @@ func TestKitLeaseFailedReleaseKeepsGrantForRetry(t *testing.T) {
 	}
 	if releases != 2 {
 		t.Fatalf("releases=%d", releases)
+	}
+}
+
+// Expiry can pass while a suspended host retains its token and before the
+// renewal goroutine runs. A completed physical load must not revive that grant.
+func TestCoreLoadRejectsExpiredGrantBeforeRenewalRuns(t *testing.T) {
+	for _, expired := range []bool{false, true} {
+		name := "held"
+		if expired {
+			name = "expired token retained"
+		}
+		t.Run(name, func(t *testing.T) {
+			var lease *KitLease
+			var claims, loads atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/v1/kit/claim":
+					claims.Add(1)
+					fmt.Fprint(w, `{"status":{"state":"held","generation":"one","expires_in_ms":60000},"token":"owned"}`)
+				case "/v1/development/core":
+					loads.Add(1)
+					if expired {
+						lease.mu.Lock()
+						lease.localExpiry = time.Now().Add(-time.Second)
+						lease.mu.Unlock()
+					}
+					json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateActive, Development: true,
+						CorePackage: &protocol.CorePackageStatus{PackageID: strings.Repeat("a", 64), Generation: 1,
+							ABI: protocol.RuntimeContract{ID: "fes.application", Major: 1}, BuildID: strings.Repeat("b", 32), PersistenceMode: "volatile"}})
+				default:
+					t.Errorf("unexpected request or replay: %s", r.URL.Path)
+					http.Error(w, "unexpected", http.StatusInternalServerError)
+				}
+			}))
+			defer server.Close()
+			base, _ := url.Parse(server.URL)
+			lease = NewKitLease(base, "secret", server.Client(), "host", "launch")
+			client := NewClient(base, "secret", server.Client()).WithKitLease(lease)
+			defer client.InvalidateKitSession()
+			status, err := client.LoadCore(context.Background(), 1, strings.NewReader("x"))
+			if expired {
+				var api *protocol.APIError
+				if !errors.Is(err, ErrKitLeaseLost) || !errors.As(err, &api) || api.Phase != "recovery" || status.State == protocol.StateActive || status.CorePackage != nil {
+					t.Fatalf("expired grant admitted late active reply: status=%+v err=%v", status, err)
+				}
+				lease.mu.Lock()
+				token, lost := lease.grant.Token, lease.lost
+				lease.mu.Unlock()
+				if token != "owned" || lost {
+					t.Fatal("fixture required a retained token without renewal invalidation")
+				}
+			} else if err != nil || status.State != protocol.StateActive {
+				t.Fatalf("fresh grant rejected: %+v %v", status, err)
+			}
+			if claims.Load() != 1 || loads.Load() != 1 {
+				t.Fatalf("claims=%d loads=%d", claims.Load(), loads.Load())
+			}
+		})
 	}
 }

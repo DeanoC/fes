@@ -264,11 +264,16 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	var staged corepackage.Staged
 	var err error
 	var romInit *corepackage.RomInit
-	body, err := io.ReadAll(io.LimitReader(&contextReader{ctx: admission, reader: content}, size+1))
-	if err != nil || int64(len(body)) != size {
+	if admission.Err() != nil {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
+	}
+	body := make([]byte, int(size)+1)
+	n, err := io.ReadFull(&contextReader{ctx: admission, reader: content}, body)
+	if (err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF)) || int64(n) != size {
 		return CoreActivation{}, false, &protocol.APIError{
 			Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
 	}
+	body = body[:n]
 	romLinkedV2 := corepackage.IsROMInputV2(body)
 	romLinked := romLinkedV2 || corepackage.IsROMInput(body)
 	if parts && (romLinked || corepackage.IsRomInit(body)) {
@@ -324,7 +329,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		if romLinkedV2 {
 			staged, err = corepackage.StageROMInputV2(admission, r.corePackageRoot, size, content)
 		} else {
-			staged, err = corepackage.StageROMInput(admission, r.corePackageRoot, size, content)
+			staged, err = corepackage.StageROMInputBytes(admission, r.corePackageRoot, body)
 		}
 		composed = staged.Composition != nil || staged.SlotComposition != nil || staged.PartsComposition != nil
 	} else if composed {
@@ -355,6 +360,14 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 			}
 		}
 	}()
+	if staged.InitialMedia != nil {
+		if libraryID == "" || staged.ROMLink == nil {
+			return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "initial disk requires an explicit library ROM launch", Phase: "admission"}
+		}
+		if !r.supportsInitialROMCore(staged) {
+			return CoreActivation{}, false, unsupportedOperationError()
+		}
+	}
 	if staged.PartsComposition != nil && staged.ROMLink != nil {
 		if _, ok := r.control.(protocol2ROMPartsCompositionControl); !ok {
 			return CoreActivation{}, false, unsupportedOperationError()
@@ -407,6 +420,9 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		}
 		expectedMode = data.CoreData.Mode
 	}
+	if staged.InitialMedia != nil {
+		expectedMode = "persistent"
+	}
 	var before *Protocol2Response
 	statusControl, hasStatus := r.control.(protocol2StatusControl)
 	if hasStatus {
@@ -450,7 +466,9 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 
 	var response Protocol2Response
 	var callErr error
-	if staged.PartsComposition != nil && staged.ROMLink != nil {
+	if staged.InitialMedia != nil {
+		response, callErr = r.loadInitialROMCore(operationOwner, staged)
+	} else if staged.PartsComposition != nil && staged.ROMLink != nil {
 		response, callErr = r.control.(protocol2ROMPartsCompositionControl).LoadROMPartsComposedCore(operationOwner, staged.Directory, staged.PackageID, partPaths(staged), staged.PayloadPath, *staged.PartsComposition, staged.ProgrammedPath, *staged.ROMLink)
 		r.noteDispatch("load_rom_composed_core", callErr == nil)
 	} else if staged.PartsComposition != nil {
@@ -534,6 +552,8 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 					preserveInput = true
 					return CoreActivation{}, false, unavailableError()
 				case coreLoadRecovery:
+					r.retainRetired(staged)
+					cleanupStaged = false
 					apiErr := unavailableError()
 					apiErr.Phase = "recovery"
 					return CoreActivation{}, true, apiErr
@@ -564,6 +584,17 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 				apiErr.Phase = "recovery"
 			}
 		}
+		if !response.OK && response.State == "reboot_required" && response.ActivePackage != nil && validProtocol2Response(response) {
+			// A validated recovery reply keeps a physical owner. Retain this
+			// attempted load's sources until confirmed Stop, including a mismatched
+			// identity that cannot prove these bytes unused. Restart adoption still
+			// requires the exact package, descriptor and ROM/composition identities.
+			r.retainRetired(staged)
+			cleanupStaged = false
+			attempted = true
+			preserveInput = false
+			apiErr.Phase = "recovery"
+		}
 		return CoreActivation{}, attempted, apiErr
 	}
 	if response.State != "running_development" || response.Execution != "development" ||
@@ -573,7 +604,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		!reflect.DeepEqual(response.ActivePackage.PartsComposition, staged.PartsComposition) ||
 		!reflect.DeepEqual(response.ActivePackage.ROMLink, staged.ROMLink) ||
 		!reflect.DeepEqual(response.ActivePackage.ROMLinks, staged.ROMLinks) ||
-		response.Generation == nil || *response.Generation == 0 {
+		response.Generation == nil || *response.Generation == 0 || (!initialMediaMatches(response, staged.InitialMedia) || !initialMediaGenerationMatches(response, before, staged.InitialMedia)) {
 		r.retainRetired(staged)
 		cleanupStaged = false
 		return CoreActivation{}, true, unavailableError()
@@ -665,7 +696,7 @@ func (r *Runtime) observeLostCoreLoad(ctx context.Context, control protocol2Stat
 		}
 		if response.State == "running_development" && response.ActivePackage != nil &&
 			response.ActivePackage.PackageID == staged.PackageID && reflect.DeepEqual(response.ActivePackage.Composition, staged.Composition) && reflect.DeepEqual(response.ActivePackage.SlotComposition, staged.SlotComposition) && reflect.DeepEqual(response.ActivePackage.PartsComposition, staged.PartsComposition) && reflect.DeepEqual(response.ActivePackage.ROMLink, staged.ROMLink) && reflect.DeepEqual(response.ActivePackage.ROMLinks, staged.ROMLinks) && response.Generation != nil &&
-			!sameGeneration(before.Generation, response.Generation) {
+			!sameGeneration(before.Generation, response.Generation) && initialMediaMatches(response, staged.InitialMedia) && initialMediaGenerationMatches(response, &before, staged.InitialMedia) {
 			return activationFromProtocol2(staged.PackageID, staged.Descriptor, response), coreLoadConfirmed
 		}
 		return CoreActivation{}, coreLoadRecovery

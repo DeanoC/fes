@@ -40,3 +40,17 @@ remains historical evidence for its old runtime/image, not acceptance of this
 package-only integration. Acceptance requires one designated-kit lease and
 exact runtime/package/image identity for startup, launch/media/input,
 replacement, Stop/relaunch, persistence and contained recovery.
+
+Initial ST library floppy on format-3 ROM activation has host software coverage
+and an [exact-package Kit A automatic-boot diagnostic](../../../docs/validation/2026-10-06-atari-st-auto-boot.md). Optional `initial_media` admission validates exact disk identity, writable
+contract and durable record before mutation; upload/restore and ready
+confirmation precede the first execution release. Tests cover retained source
+bytes, same-namespace outgoing save refresh, malformed/corrupt preflight,
+failed-save ownership and failed upload without release. Host regressions also
+verify that ST never starts the legacy gamepad worker and rejects a required
+legacy `fes.gamepad` declaration before programming. The ambiguous-Start
+follow-up has host fault-injection coverage for accepted release with unavailable
+acknowledgement, save-before-idle, and retained ownership after capture or durable
+publication failure; it does not relabel the earlier hardware artifacts. The diagnostic verifies
+fresh and saved-disk AUTO execution with full payload comparisons in one daemon
+lifetime. Assembled appliance acceptance remains pending.

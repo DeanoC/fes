@@ -175,6 +175,13 @@ struct MediaDataBinding {
     std::uint8_t unit = 0;
 };
 
+// Explicit library disk delivered while a ROM-linked ST is still reset-held.
+struct InitialComputerMedia {
+    std::string path, data_root;
+    std::uint32_t size = 0;
+    MediaDataBinding binding;
+};
+
 // One removable-media unit of an active fes.computer generation. Limits and
 // state come from the unit's live MediaInfo, not from its declaration.
 struct MediaUnitCapability {
@@ -352,6 +359,9 @@ struct HardwareResult {
 	Error error;
 	bool mutation_attempted = false;
 	std::string observed_core;
+	// A failed execution release may have run the newly bound library disk.
+	// Failure cleanup must save it or retain that owner without idle programming.
+	bool bound_media_may_have_run = false;
 };
 
 struct HardwareFault {
@@ -433,6 +443,10 @@ public:
 	{
 		return {};
 	}
+	virtual Error PrepareInitialComputerMedia(AdmittedCorePackage*, const InitialComputerMedia&)
+	{ return {ErrorCode::unsupported_interface, "initial computer media unavailable", "admission"}; }
+	virtual Error RefreshInitialComputerMedia(AdmittedCorePackage*)
+	{ return {ErrorCode::unsupported_interface, "initial computer media unavailable", "admission"}; }
 	virtual Error AttachProgrammedBitstream(AdmittedCorePackage*, const std::string&,
 		const std::string&)
 	{
@@ -546,9 +560,9 @@ public:
 		const std::string&, const std::string&);
 	Error LoadInitializedComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&,
 		const std::string&, const std::string&);
-	Error LoadROMCore(const std::string&, const std::string&, const std::string&, const CoreROMLink&);
-	Error LoadROMLibraryCore(const std::string&, const std::string&, const std::string&, const std::string&, const CoreROMLink&);
-	Error LoadROMComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&, const std::string&, const CoreROMLink&);
+	Error LoadROMCore(const std::string&, const std::string&, const std::string&, const CoreROMLink&, const InitialComputerMedia* = nullptr);
+	Error LoadROMLibraryCore(const std::string&, const std::string&, const std::string&, const std::string&, const CoreROMLink&, const InitialComputerMedia* = nullptr);
+	Error LoadROMComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&, const std::string&, const CoreROMLink&, const InitialComputerMedia* = nullptr);
 	Error LoadROMsCore(const std::string&, const std::string&, const std::string&, const CoreROMLinks&);
 	Error LoadROMsLibraryCore(const std::string&, const std::string&, const std::string&, const std::string&, const CoreROMLinks&);
 	Error LoadROMsComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&, const std::string&, const CoreROMLinks&);

@@ -183,6 +183,13 @@ InputRecipe FesGpInputRecipe()
 	return recipe;
 }
 
+struct PreparedInitialMedia {
+	ComputerMediaSnapshot base;
+	std::unique_ptr<ComputerMediaSnapshot> restored;
+	std::unique_ptr<MediaDataFile> file;
+	MediaDiskRecord record;
+};
+
 class NativeAdmittedCore final : public AdmittedCorePackage {
 public:
 	NativeAdmittedCore(OpenedCorePackage opened, ProgrammingProfile profile,
@@ -203,6 +210,7 @@ public:
 	bool has_programmed_ = false;
 	CoreROMLink rom_link_;
 	CoreROMLinks rom_links_;
+	std::unique_ptr<PreparedInitialMedia> initial_media_;
 	CoreComposition composition() const override { return composition_ ? composition_->info : CoreComposition{}; }
 };
 
@@ -1032,6 +1040,68 @@ Error NativeHardware::InsertLibraryComputerMedia(std::uint8_t unit,const std::st
     return {};
 }
 
+Error NativeHardware::PrepareInitialComputerMedia(AdmittedCorePackage* package,
+	const InitialComputerMedia& request)
+{
+	auto* admitted = dynamic_cast<NativeAdmittedCore*>(package);
+	if (!admitted) return {ErrorCode::invalid_request, "invalid admitted package", "admission"};
+	const auto& descriptor = admitted->opened_.descriptor;
+	bool floppy = false, writable = false;
+	for (const auto& interface : descriptor.interfaces) {
+		if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
+		if (interface.id == generated::FesComputerInterfaceMediaAtariStFloppyID) floppy = true;
+		if (interface.id == generated::FesComputerInterfaceMediaAtariStFloppyWriteID) writable = true;
+	}
+	if (descriptor.format != 3 || descriptor.rom.role != "firmware" ||
+		descriptor.core.id != "fes.atari-st" || descriptor.abi.id != generated::FesComputerABIID ||
+		!floppy || !writable)
+		return {ErrorCode::unsupported_interface, "initial disk requires ROM-linked writable Atari ST", "admission"};
+	MediaDataIdentity identity{descriptor.core.id, request.binding.game_id, request.binding.base_media_id,
+		request.binding.unit};
+	if (request.size != kAtariStDiskBytes || request.binding.unit != 0 || !ValidMediaDataIdentity(identity))
+		return {ErrorCode::invalid_request, "invalid initial disk identity or geometry", "admission"};
+	std::unique_ptr<PreparedInitialMedia> prepared(new PreparedInitialMedia);
+	const auto deadline = Deadline(clock_, timeouts_.media_io_ms);
+	Error error = prepared->base.Prepare(request.path, request.size, request.size, clock_, deadline);
+	Sha256 hash;
+	std::array<std::uint8_t, 512> bytes{};
+	for (std::uint32_t offset = 0; offset < request.size && error.ok(); offset += bytes.size()) {
+		error = prepared->base.Read(offset, bytes.data(), bytes.size(), clock_, deadline);
+		if (error.ok()) hash.Update(bytes.data(), bytes.size());
+	}
+	if (!error.ok()) return WithPhase(error, "admission");
+	if (Sha256Hex(hash.Final()) != request.binding.base_media_id)
+		return {ErrorCode::invalid_request, "initial disk source digest mismatch", "admission"};
+	error = MediaDataFile::Open(request.data_root, identity, &prepared->file);
+	if (error.ok()) error = prepared->file->Read(&prepared->record);
+	if (error.ok()) error = prepared->file->CheckWritable();
+	if (error.ok() && !prepared->record.bytes.empty()) {
+		prepared->restored.reset(new ComputerMediaSnapshot);
+		error = prepared->restored->PrepareBytes(prepared->record.bytes, clock_, deadline);
+	}
+	if (!error.ok()) return WithPhase(error, "admission");
+	admitted->initial_media_ = std::move(prepared);
+	return {};
+}
+
+Error NativeHardware::RefreshInitialComputerMedia(AdmittedCorePackage* package)
+{
+	auto* admitted = dynamic_cast<NativeAdmittedCore*>(package);
+	if (!admitted || !admitted->initial_media_)
+		return {ErrorCode::invalid_request, "initial disk is not prepared", "admission"};
+	auto& prepared = *admitted->initial_media_;
+	Error error = prepared.file->Read(&prepared.record);
+	if (error.ok()) {
+		std::unique_ptr<ComputerMediaSnapshot> restored;
+		if (!prepared.record.bytes.empty()) {
+			restored.reset(new ComputerMediaSnapshot);
+			error = restored->PrepareBytes(prepared.record.bytes, clock_, Deadline(clock_, timeouts_.media_io_ms));
+		}
+		if (error.ok()) prepared.restored = std::move(restored);
+	}
+	return WithPhase(error, "admission");
+}
+
 Error NativeHardware::AttachProgrammedBitstream(AdmittedCorePackage* package,
 	const std::string& path, const std::string& sha256)
 {
@@ -1267,6 +1337,22 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		if (!error.ok())
 			return {WithPhase(error, "core_data"), true, identified.observed_core};
 	}
+	if (admitted->initial_media_) {
+		auto* driver = dynamic_cast<FesGpCoreDriver*>(admitted->driver_);
+		if (!driver || !driver->MediaWriteCapable(0))
+			return {{ErrorCode::unsupported_interface, "initial disk live write contract is unavailable", "input"},
+				true, identified.observed_core};
+		auto& prepared = *admitted->initial_media_;
+		error = driver->InsertMedia(0, prepared.restored ? *prepared.restored : prepared.base,
+			clock_, Deadline(clock_, timeouts_.media_io_ms), timeouts_.core_io_ms);
+		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+			identified.observed_core, "initial_media", error});
+		if (!error.ok()) return {WithPhase(error, "input"), true, identified.observed_core};
+		// InsertMedia confirmed ready; execution is still held until Start below.
+		media_data_file_ = std::move(prepared.file);
+		durable_media_ = std::move(prepared.record);
+		admitted->initial_media_.reset();
+	}
 	if (fes_gp) {
 		if (identity_verified)
 			identity_verified->store(true);
@@ -1303,7 +1389,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		CoreDriverResult started = admitted->driver_->Start(admitted->context_,
 			Deadline(clock_, timeouts_.core_io_ms));
 		if (!started.error.ok()) return {WithPhase(std::move(started.error),
-			"transport"), true, identified.observed_core};
+			"transport"), true, identified.observed_core, media_data_file_ != nullptr};
   if(menu) {
    error=menu_display_->Enable(Deadline(clock_,timeouts_.core_io_ms));
    MenuDisplayInfo info;if(error.ok())error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);

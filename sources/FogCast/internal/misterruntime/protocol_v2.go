@@ -183,6 +183,12 @@ func (client *Client) loadInitialized(ctx context.Context, path, packageID, root
 	return response, nil
 }
 func (client *Client) LoadROMLinkedCore(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath string, identity corepackage.ROMLinkIdentity) (Protocol2Response, error) {
+	return client.LoadROMLinkedCoreWithInitialMedia(ctx, path, packageID, root, expansionPath, payloadPath, composition, programmedPath, identity, nil)
+}
+func (client *Client) LoadROMLinkedCoreWithInitialMedia(ctx context.Context, path, packageID, root, expansionPath, payloadPath string, composition *expansion.Composition, programmedPath string, identity corepackage.ROMLinkIdentity, initial *InitialMediaRequest) (Protocol2Response, error) {
+	if !validInitialMediaRequest(initial) {
+		return Protocol2Response{}, errInvalidRuntimeRequest
+	}
 	if !validRuntimePath(path) || !validRuntimePath(programmedPath) || !protocol2Hex64.MatchString(packageID) || !protocol2Identifier.MatchString(identity.ROMID) || !identity.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: identity.ROMID, SHA256: identity.MapSHA256, SourceSize: identity.SourceSize}}) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
@@ -210,6 +216,7 @@ func (client *Client) LoadROMLinkedCore(ctx context.Context, path, packageID, ro
 		operation = "load_rom_composed_core"
 	}
 	line, attempted, err := client.callRawTracked(ctx, struct {
+		InitialMedia   *InitialMediaRequest        `json:"initial_media,omitempty"`
 		Protocol       int                         `json:"protocol"`
 		Operation      string                      `json:"operation"`
 		PackagePath    string                      `json:"package_path"`
@@ -220,7 +227,7 @@ func (client *Client) LoadROMLinkedCore(ctx context.Context, path, packageID, ro
 		Composition    *expansion.Composition      `json:"composition,omitempty"`
 		ProgrammedPath string                      `json:"programmed_path"`
 		ROMLink        corepackage.ROMLinkIdentity `json:"rom_link"`
-	}{Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition, ProgrammedPath: programmedPath, ROMLink: identity})
+	}{InitialMedia: initial, Protocol: 2, Operation: operation, PackagePath: path, PackageID: packageID, DataRoot: root, ExpansionPath: expansionPath, PayloadPath: payloadPath, Composition: composition, ProgrammedPath: programmedPath, ROMLink: identity})
 	if err != nil {
 		return Protocol2Response{}, protocol2MutationError{error: err, attempted: attempted}
 	}
@@ -233,7 +240,7 @@ func (client *Client) LoadROMLinkedCore(ctx context.Context, path, packageID, ro
 	}
 	if response.OK && (response.State != "running_development" ||
 		response.Execution != "development" || response.ActivePackage == nil ||
-		response.ActivePackage.PackageID != packageID || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition) || !reflect.DeepEqual(response.ActivePackage.ROMLink, &identity)) {
+		response.ActivePackage.PackageID != packageID || response.ActivePackage.SlotComposition != nil || !reflect.DeepEqual(response.ActivePackage.Composition, composition) || !reflect.DeepEqual(response.ActivePackage.ROMLink, &identity) || !initialRequestMatches(response, initial)) {
 		return Protocol2Response{}, protocol2MutationError{error: errInvalidRuntimeResponse, attempted: true}
 	}
 	return response, nil

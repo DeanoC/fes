@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
@@ -117,7 +118,7 @@ func (s *Service) readCoreEntryROM(ctx context.Context, entry catalog.CoreEntry,
 	}
 	return selected, data, nil
 }
-func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, descriptor corepackage.Descriptor, base []byte) (coreLoadSource, error) {
+func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, descriptor corepackage.Descriptor, base []byte, initial *corepackage.InitialMedia) (coreLoadSource, error) {
 	if descriptor.Format == 4 && (descriptor.Core.ID != "fes.coleco" || len(descriptor.ROMs) != 2 || descriptor.ROMs[0].SourceSize != 8192 || descriptor.ROMs[1].SourceSize != 131072) {
 		return coreLoadSource{}, romAdmissionError()
 	}
@@ -172,6 +173,7 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 	} else {
 		var transport corepackage.ROMTransport
 		input := corepackage.ROMInput{Package: base, ROM: rom, Expansion: asset, SlotExpansions: slotCards}
+		input.InitialMedia = initial
 		if videoParts != nil {
 			input.Parts = videoParts.Assets
 		}
@@ -185,6 +187,10 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 		return coreLoadSource{}, romAdmissionError()
 	}
 	source := coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry, romID: selected.ROMID, romMediaID: selected.MediaID, slotComposition: slotComposition, partsComposition: partsComposition}
+	source.initialMedia = initial
+	if descriptor.Format == 3 && descriptor.Core.ID == "fes.atari-st" {
+		source.activationBudget = 300 * time.Second
+	}
 	if descriptor.Format == 4 {
 		source.biosID = descriptor.ROMs[0].ID
 		source.biosMediaID = biosMediaID
@@ -231,6 +237,12 @@ func (s *Service) readTwoROMFirmware(ctx context.Context, descriptor corepackage
 // The target computes linked and composed identities. The host binds the
 // returned receipt to its selected source identities, not a host-built image.
 func (s coreLoadSource) matchesLoadedIdentity(status *protocol.CorePackageStatus) bool {
+	if s.initialMedia != nil {
+		u, ok := protocol.MediaUnit(status, s.initialMedia.Unit)
+		if !ok || u.State != protocol.MediaUnitReady || status.PersistenceMode != "persistent" || u.Persistence == nil || u.Persistence.Mode != "persistent" || u.Persistence.GameID != s.initialMedia.GameID || u.Persistence.BaseMediaID != s.initialMedia.BaseMediaID {
+			return false
+		}
+	}
 	if !reflect.DeepEqual(status.PartsComposition, s.partsComposition) {
 		return false
 	}
