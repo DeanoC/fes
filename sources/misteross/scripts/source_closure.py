@@ -16,6 +16,9 @@ if __package__ in (None, ''):
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = Path(__file__).with_name('source_closures.json')
 EXCLUDED_PARTS = {'sim', 'testbench', 'tests'}
+# toolchain_cache._recipe_paths() defaults; listed here rather than imported so
+# toolchain_cache.py (whose bytes key every toolchain slot) stays unchanged.
+TOOLCHAIN_RECIPE_FILES = ('scripts/bootstrap.sh', 'scripts/lockfile.py', 'scripts/toolchain_cache.py')
 
 
 def covered(path, roots):
@@ -90,8 +93,7 @@ def required(name, root=ROOT):
     result = inputs | imports(name, root)
     if 'scripts/toolchain_cache.py' in result:
         # Tool authentication hashes the toolchain recipe into the cache key.
-        from scripts.toolchain_cache import RECIPE_FILES
-        result.update(RECIPE_FILES)
+        result.update(TOOLCHAIN_RECIPE_FILES)
     return result
 
 

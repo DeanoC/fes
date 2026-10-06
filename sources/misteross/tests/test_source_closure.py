@@ -52,8 +52,10 @@ class ManifestTests(unittest.TestCase):
 
     def test_toolchain_recipe_files_are_in_every_closure(self):
         # Tool authentication hashes these into the toolchain cache key under the guard.
-        from scripts.source_closure import required
-        from scripts.toolchain_cache import RECIPE_FILES
+        from scripts.source_closure import TOOLCHAIN_RECIPE_FILES as RECIPE_FILES, required
+        from scripts import toolchain_cache
+        request = type('Request', (), {'recipe_paths': (), 'root': ROOT})()
+        self.assertEqual(toolchain_cache._recipe_paths(request), tuple(ROOT / path for path in RECIPE_FILES))
         manifest = load_manifest()
         for name, roots in manifest.items():
             self.assertTrue(set(RECIPE_FILES) <= required(name), name)
