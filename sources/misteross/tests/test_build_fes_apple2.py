@@ -210,8 +210,8 @@ class Apple2YosysM10kTests(unittest.TestCase):
         )
         self.assertEqual(async_cells, [])
         self.assertEqual(lanes, expected)
-        self.assertIn("objects.", objects("SDP"))
-        self.assertIn("objects.", objects("TDP"))
+        self.assertEqual(objects("SDP"), "17 objects.")
+        self.assertEqual(objects("TDP"), "204 objects.")
 
 
 if __name__ == "__main__":
