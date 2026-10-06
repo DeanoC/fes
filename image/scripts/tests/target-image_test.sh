@@ -7,6 +7,9 @@ container_script=$repo/scripts/target-image-container.sh
 verify_script=$repo/scripts/verify-target-image.sh
 fixture=$(mktemp -d "${TMPDIR:-/tmp}/fogcast-target-image.XXXXXX")
 trap 'rm -rf "$fixture"' EXIT INT TERM
+# The single-pass cases model a local scratch build, so clear the CI markers
+# here; the CI refusal is asserted explicitly below.
+unset CI GITHUB_ACTIONS
 
 for script in "$build_script" "$container_script" "$verify_script"; do
   test -x "$script"
@@ -93,6 +96,14 @@ if FES_IMAGE_PASSES=3 sh "$fixture/recipe/scripts/build-target-image.sh" native-
   echo 'invalid IMAGE_PASSES accepted' >&2; exit 1
 fi
 grep -Fq 'must be 1 or 2' "$fixture/invalid-passes.log"
+for marker in CI GITHUB_ACTIONS; do
+  if env "$marker=true" FES_IMAGE_PASSES=1 sh "$fixture/recipe/scripts/build-target-image.sh" native-dev \
+      >"$fixture/ci-refusal.log" 2>&1; then
+    echo "single-pass image accepted with $marker=true" >&2; exit 1
+  fi
+  grep -Fq 'single-pass images are disabled in CI' "$fixture/ci-refusal.log"
+done
+env CI=true sh "$fixture/recipe/scripts/build-target-image.sh" native-dev >/dev/null
 if FES_IMAGE_PASSES=1 FES_IMAGE_WORK=/target-image-output/work-2-native-dev \
     sh "$fixture/recipe/scripts/build-target-image.sh" native-dev >"$fixture/mismatched-work.log" 2>&1; then
   echo 'mismatched image work directory was accepted' >&2; exit 1
