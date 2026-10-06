@@ -30,7 +30,9 @@ def shared_cache_root():
 
 CACHE_ROOT = shared_cache_root()
 TOOLCHAIN_CACHE_ROOT = CACHE_ROOT / "misteross-toolchains"
-ARTIFACT_CACHE_ROOT = CACHE_ROOT / "core-packages"
+ARTIFACT_CACHE_ROOT = Path(os.environ.get("FES_ARTIFACT_CACHE_ROOT", str(CACHE_ROOT / "core-packages")))
+if not ARTIFACT_CACHE_ROOT.is_absolute():
+    raise ValueError("FES_ARTIFACT_CACHE_ROOT must be absolute")
 HIP_ROUTER = "HIP"
 HIP_ARCHITECTURES = "gfx1100;gfx1201"
 

@@ -131,6 +131,9 @@ def main():
         root = Path(__file__).resolve().parents[1]
         validate(root)
         result = check(root)
+        import sys
+        subprocess.run([sys.executable, str(root / 'sources/misteross/scripts/source_closure.py'), 'check'],
+                       cwd=root / 'sources/misteross', check=True, stdout=subprocess.DEVNULL)
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
         raise SystemExit(f'consistency: {error}') from error
     print(f"consistency: package YAML valid; {result['generated_files']} generated consumers, {result['fixture_copies']} fixture copies and {result['source_pin_copies']} copied source pins match")

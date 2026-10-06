@@ -133,3 +133,19 @@ def source_roots_for_inputs(pinned_inputs):
         parts = Path(path).parts
         roots.add("/".join(parts[:2]) if parts[0] == "cores" else parts[0])
     return sorted(roots)
+
+
+class AuditedRoots(list):
+    """Roots whose reads must be checked against the committed manifest."""
+
+
+def source_roots_for_producer(module_name, pinned_inputs, root=None):
+    """Use an audited closure when registered; preserve the old fallback exactly."""
+    from scripts.source_closure import ROOT, load_manifest
+    if (os.environ.get('FES_SOURCE_CLOSURE_BROAD') == '1' or
+            os.environ.get('FES_SOURCE_CLOSURE_RECORD_ONLY') == '1'):
+        return source_roots_for_inputs(pinned_inputs)
+    if root is not None and Path(root).resolve() != ROOT.resolve():
+        return source_roots_for_inputs(pinned_inputs)
+    roots = load_manifest().get(module_name.removeprefix('scripts.'))
+    return AuditedRoots(roots) if roots is not None else source_roots_for_inputs(pinned_inputs)
