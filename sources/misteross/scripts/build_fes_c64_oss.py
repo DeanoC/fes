@@ -156,6 +156,14 @@ def clock_read_only_memories(path: Path) -> None:
         if pins.get("CLK1") != ["x"]:
             continue
         match = next((prefix for prefix in expected if name.startswith(prefix)), None)
+        # HIL experiment (not upstream): autoname can name the VIC glyph ROM after
+        # a main_ram address net; accept the remaining structural read-only ROM.
+        if match is None and not any(name.startswith(p) for p in expected):
+            match = next((prefix for prefix in expected
+                          if prefix not in found and not any(
+                              n.startswith(prefix) and c["type"] == "MISTRAL_M10K"
+                              and c["connections"].get("CLK1") == ["x"]
+                              for n, c in cells.items())), None)
         if (match is None or match in found or pins.get("A1EN") != ["0"]
                 or pins.get("B1EN") != ["1"] or len(pins.get("CLK2", [])) != 1
                 or not isinstance(pins["CLK2"][0], int)):
