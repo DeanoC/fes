@@ -46,7 +46,7 @@ int main() {
     tick_a();
     top.we_a = 0;
     tick_a();
-    if (top.q_a != 10) return fail("last valid address");
+    if (top.q_a != 10) return fail("last matrix cell");
 
     top.addr_a = 0;
     top.eval();
@@ -58,21 +58,48 @@ int main() {
     tick_b();
     if (top.q_b != 10) return fail("independent video-port read");
 
+    // $D800 + 1000 = $DBE8, the first nybble past the 40x25 matrix.
     top.addr_a = 1000;
     top.wdata_a = 15;
     top.we_a = 1;
     tick_a();
     top.we_a = 0;
     tick_a();
-    if (top.q_a != 0) return fail("invalid system address did not read zero");
+    if (top.q_a != 15) return fail("scratch address $DBE8");
 
     top.addr_b = 1000;
     tick_b();
-    if (top.q_b != 0) return fail("invalid video address did not read zero");
+    if (top.q_b != 0) return fail("video port read the unscanned scratch nybble");
+
+    top.addr_a = 1023;
+    top.eval();
+    if (top.q_a != 15) return fail("scratch read changed before clock");
+    top.wdata_a = 7;
+    top.we_a = 1;
+    tick_a();
+    top.we_a = 0;
+    tick_a();
+    if (top.q_a != 7) return fail("scratch address $DBFF");
+
+    top.addr_b = 1023;
+    tick_b();
+    if (top.q_b != 0) return fail("video port read the last unscanned nybble");
+
+    top.addr_b = 999;
+    tick_b();
+    if (top.q_b != 10) return fail("video port lost the last matrix cell");
+
+    top.addr_a = 1000;
+    tick_a();
+    if (top.q_a != 15) return fail("video read cleared scratch storage");
 
     top.addr_a = 0;
     tick_a();
-    if (top.q_a != 5) return fail("invalid write aliased valid storage");
+    if (top.q_a != 5) return fail("scratch write aliased the first cell");
+
+    top.addr_a = 999;
+    tick_a();
+    if (top.q_a != 10) return fail("scratch write aliased the last matrix cell");
 
     std::puts("c64 color RAM passed");
     return 0;
