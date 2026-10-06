@@ -2740,6 +2740,22 @@ retains package/generation attribution in failed status and blocks input.
 Existing post-activation HostOnly cleanup recovery remains unchanged.
 
 
+## Initial Atari ST library disk
+
+A writable format-3 ST library launch includes the selected 720 KiB drive-A
+source and explicit game/base-media binding in the closed ROM envelope. The
+host snapshots and hashes those immutable bytes before target mutation. The
+agent rejects initial disks on development routes, stages them privately and
+passes the fixed durable-media root to the runtime with the linked ROM load.
+The runtime validates the source and saved record before replacement, refreshes
+the record after outgoing save, uploads the chosen base or saved bytes while
+execution remains held, binds the ready drive and then releases the CPU. A disk
+failure cannot report a successful running launch. Diskless launches release
+normally. Existing live insertion/ejection keeps the running machine intact.
+Launch confirmation checks both ROM/parts identities and the ready persistent
+disk's game/base binding; an initial disk is a startup input, not an immutable
+identity imposed on later live media changes.
+
 ## ROM-bearing package inspection
 
 `corepackage` accepts closed format-2 and format-3 packages during the ROM

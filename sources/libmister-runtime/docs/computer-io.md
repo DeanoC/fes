@@ -42,8 +42,9 @@ Format 2 and format 3 with a `firmware` ROM are admitted. Format 3 with a
 after identity and has no media gate that could hold a linked cartridge.
 Firmware ROM packages activate through `load_rom_core`,
 `load_rom_library_core` or `load_rom_composed_core` with the existing
-`rom_link` receipt. The ABI has no persistence interface, so library loads
-record volatile core data.
+`rom_link` receipt. The ABI has no core-scoped persistence interface; an
+explicit initial library disk or later library insertion supplies disk
+persistence and changes the active persistence mode.
 
 Native capabilities advertise the ABI with every recognized interface:
 
@@ -70,9 +71,10 @@ each insertion; a changed limit is rejected before MediaBegin and follows
 the same failure-eject behavior as other live transfer failures.
 
 After verified identity the ADV7513 audio packets follow the audio
-declaration exactly as for applications. Execution is released immediately:
+declaration exactly as for applications. An explicit initial library disk is
+uploaded and confirmed ready before Start; otherwise the drive stays empty.
 Start sends only Execution release, with no media gate and no neutral writes,
-because programming starts held with neutral input and empty units. No evdev
+because programming starts held with neutral input. No evdev
 input worker is opened. Stop and replacement send Execution hold before
 reprogramming. Hold neutralizes every key row and both ports in the core, so no
 neutral writes follow it; the runtime treats its own input state as neutral.
@@ -242,7 +244,40 @@ covered. No hardware support is claimed.
 
 Stop and core replacement save before programming. Successful programming
 retires the previous disk's in-memory binding, including when Stop returns to
-the configured menu or splash. The next ST load is empty and volatile until
-`insert_library_media` explicitly restores its record. A failed save retains
+the configured menu or splash. Without explicit initial library media, the
+next ST load is empty and volatile until `insert_library_media` restores its
+record. A failed save retains
 the current binding and generation for recovery. Host regressions cover both
 idle paths and replacement without restarting the runtime daemon.
+
+## Initial library disk during ROM activation
+
+`load_rom_core`, `load_rom_library_core` and `load_rom_composed_core` accept an
+optional `initial_media` object. It has exactly these fields:
+
+```json
+{"path":"/media/fat/fogcast/staging/disk.st","size":737280,"unit":0,"data_root":"/media/fat/fogcast/core-data/media","game_id":"st-game","base_media_id":"<lowercase SHA-256 of the immutable base disk>"}
+```
+
+This explicitly requests a library disk for a format-3 `fes.atari-st` firmware
+package declaring both ST floppy and writable-floppy 1.0. Other cores, formats,
+ROM roles, units and disk sizes reject it before programming. The local agent
+supplies its trusted media-data root and rejects initial media on development
+requests. The object's media-data root is separate from the optional core-data
+root of `load_rom_library_core`.
+
+Admission snapshots and hashes the complete source, validates the durable
+record and checks namespace writability before retiring the previous session.
+After outgoing save, it refreshes the incoming record; the same namespace
+therefore restores the just-published bytes. Programming and identity discovery
+precede disk upload. Every upload chunk, commit and ready confirmation occurs
+while the fresh ST remains in reset. Binding metadata is published only after
+ready; Start then releases execution. Load status reports a ready persistent
+unit with the requested game/base identities and the selected record revision.
+A failed upload never releases execution or replays its ambiguous command;
+existing launch recovery owns cleanup. A failed outgoing save retains the
+previous disk and generation.
+
+Omitting this object preserves an empty volatile drive at launch and ordinary
+live insertion. Two-source ROM loads reject initial media. This startup path
+has host software coverage only.

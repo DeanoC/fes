@@ -92,6 +92,8 @@ public:
 		CorePackageInspection*) override;
 	Error PrepareCoreData(AdmittedCorePackage*, const std::string&, CoreData*) override;
 	Error RefreshCoreData(AdmittedCorePackage*, CoreData*) override;
+	Error PrepareInitialComputerMedia(AdmittedCorePackage*, const InitialComputerMedia&) override;
+	Error RefreshInitialComputerMedia(AdmittedCorePackage*) override;
 	Error InspectCoreData(
 		const std::string&, const std::string&, const std::string&, CoreData*) override;
 	Error UpdateCoreSettings(const std::string&, const std::string&, const std::string&,

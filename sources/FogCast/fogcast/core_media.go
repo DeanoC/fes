@@ -102,7 +102,8 @@ type coreEntryMedia struct {
 	size   int64
 	stream bool
 	// unit names the fes.computer media unit a removable disk is inserted
-	// into after Start; nil keeps the launch-time load_media delivery.
+	// into; selected writable ST disks are included in ROM activation before
+	// CPU release. Nil keeps the launch-time load_media delivery.
 	unit *uint8
 }
 

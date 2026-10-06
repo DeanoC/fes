@@ -117,6 +117,7 @@ type Build struct {
 }
 
 type Staged struct {
+	InitialMedia       *StagedInitialMedia         `json:"-"`
 	PartsComposition   *expansion.PartsComposition `json:"parts_composition,omitempty"`
 	PartDirectories    []PartDirectory             `json:"parts,omitempty"`
 	ROMLink            *ROMLinkIdentity            `json:"rom_link,omitempty"`

@@ -94,7 +94,9 @@ define this milestone's boundaries and verification.
 
 Packages with `fes.media.atari-st-floppy-write` 1.0 can persist drive A's exact
 720 KiB `.st` image. Ordinary library Play explicitly binds the stable game ID,
-core ID, drive unit and immutable imported disk hash. A developer insert stays
+core ID, drive unit and immutable imported disk hash. Writable format-3 ST
+launches carry that disk with the selected ROM; the runtime restores and commits
+drive A before releasing the CPU. A developer insert stays
 volatile. Saved data lives under `/media/fat/fogcast/core-data/media/` in a
 hashed namespace, separate from per-core Pong settings and immutable sources.
 Package, firmware and video selection do not change that namespace. Opening

@@ -40,3 +40,11 @@ remains historical evidence for its old runtime/image, not acceptance of this
 package-only integration. Acceptance requires one designated-kit lease and
 exact runtime/package/image identity for startup, launch/media/input,
 replacement, Stop/relaunch, persistence and contained recovery.
+
+Initial ST library floppy on format-3 ROM activation has host software coverage
+only. Optional `initial_media` admission validates exact disk identity, writable
+contract and durable record before mutation; upload/restore and ready
+confirmation precede the first execution release. Tests cover retained source
+bytes, same-namespace outgoing save refresh, malformed/corrupt preflight,
+failed-save ownership and failed upload without release. No new hardware
+acceptance is claimed.

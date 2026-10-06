@@ -1560,8 +1560,8 @@ CoreDriverResult FesGpCoreDriver::Start(const CoreDriverContext&,
 {
 	if (stream_pending_) return {Io("incomplete media stream cannot start"), false, ""};
 	if (home_computer_) {
-		// No media gate: a home computer starts with empty drives and is released
-		// right after identity. The first HID snapshot then writes every row.
+		// Native activation may insert an initial library disk before Start.
+		// Release preserves that disk; the first HID snapshot writes every row.
 		hid_rows_known_ = false;
 		CoreDriverResult result = Gameplay(
 			static_cast<std::uint16_t>(FesComputerExecutionRelease), deadline);

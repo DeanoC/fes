@@ -17,15 +17,16 @@ import (
 )
 
 // MaxROMInputSize bounds the package, source ROM, one optional single-socket
-// expansion or up to MaxSlotCards slot cards, and framing.
-const MaxROMInputSize = MaxArchiveSize + MaxSlotCards*expansion.MaxArchiveBytes + (256 << 10) + 16384
+// expansion or up to MaxSlotCards slot cards, one initial ST disk, and framing.
+const MaxROMInputSize = MaxArchiveSize + MaxSlotCards*expansion.MaxArchiveBytes + (256 << 10) + 16384 + InitialMediaBytes + 512
 
 // ROMInput transports source bytes only. The target derives all programmed bytes
 // using the map sealed inside Package; callers cannot supply a map or bitstream.
 type ROMInput struct {
-	Package   []byte
-	ROM       []byte
-	Expansion *expansion.Asset
+	InitialMedia *InitialMedia
+	Package      []byte
+	ROM          []byte
+	Expansion    *expansion.Asset
 	// SlotExpansions are cards for a multi-socket shell, at most one per
 	// physical slot. They exclude the single-socket Expansion.
 	SlotExpansions []expansion.Asset
@@ -55,6 +56,7 @@ func (r ROMLinkIdentity) ValidFor(d Descriptor) bool {
 // carries the sender's link evidence: the v2 composition tuple and the
 // programmed digest, which the receiver compares after relinking.
 type romInputReceipt struct {
+	InitialMedia     *initialMediaReceipt        `json:"initial_media,omitempty"`
 	Format           int                         `json:"format"`
 	PackageID        string                      `json:"package_id"`
 	ROMID            string                      `json:"rom_id"`
@@ -86,6 +88,10 @@ func inspectROMInput(in ROMInput) (Inspection, []byte, []byte, romInputReceipt, 
 	}
 	inspection := Inspection{PackageID: packageIdentity(manifest, payload, mapping), Descriptor: d}
 	receipt := romInputReceipt{Format: 1, PackageID: inspection.PackageID, ROMID: d.ROM.ID, MapSHA256: d.ROM.SHA256, SourceSHA256: romDigest(in.ROM), SourceSize: int64(len(in.ROM))}
+	receipt.InitialMedia, err = inspectInitialMedia(d, in.InitialMedia)
+	if err != nil {
+		return Inspection{}, nil, nil, romInputReceipt{}, err
+	}
 	if (in.Expansion != nil && len(in.SlotExpansions) != 0) || (len(in.Parts) != 0 && (in.Expansion != nil || len(in.SlotExpansions) != 0)) {
 		return Inspection{}, nil, nil, romInputReceipt{}, errors.New("ROM input carries either one expansion or slot cards")
 	}
@@ -190,6 +196,9 @@ func writeROMInputReceipt(in ROMInput, receipt romInputReceipt) ([]byte, error) 
 		return nil, err
 	}
 	members := []canonicalMember{{"rom-link.json", encoded}, {"package.tar", in.Package}, {"rom.bin", in.ROM}}
+	if in.InitialMedia != nil {
+		members = append(members, canonicalMember{"initial-media.st", in.InitialMedia.Bytes})
+	}
 	if in.Expansion != nil {
 		var asset bytes.Buffer
 		if err = in.Expansion.Write(&asset); err != nil {
@@ -235,6 +244,24 @@ func readROMInput(data []byte) (ROMInput, romInputReceipt, error) {
 		return ROMInput{}, romInputReceipt{}, err
 	}
 	in := ROMInput{Package: pkg, ROM: rom}
+	var sent romInputReceipt
+	decoder := json.NewDecoder(bytes.NewReader(receiptBytes))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&sent); err != nil {
+		return ROMInput{}, romInputReceipt{}, errors.New("ROM input receipt is invalid")
+	}
+	if reader.peek() == "initial-media.st" {
+		disk, err := reader.read("initial-media.st", InitialMediaBytes)
+		if err != nil {
+			return ROMInput{}, romInputReceipt{}, err
+		}
+		if sent.InitialMedia == nil || sent.InitialMedia.Size != InitialMediaBytes {
+			return ROMInput{}, romInputReceipt{}, errors.New("initial disk member requires its exact receipt")
+		}
+		in.InitialMedia = &InitialMedia{GameID: sent.InitialMedia.GameID, BaseMediaID: sent.InitialMedia.BaseMediaID, Unit: sent.InitialMedia.Unit, Bytes: disk}
+	} else if sent.InitialMedia != nil {
+		return ROMInput{}, romInputReceipt{}, errors.New("initial disk receipt requires its source member")
+	}
 	if reader.peek() == "expansion.tar" {
 		encoded, err := reader.read("expansion.tar", expansion.MaxArchiveBytes)
 		if err != nil {
@@ -274,12 +301,6 @@ func readROMInput(data []byte) (ROMInput, romInputReceipt, error) {
 		return ROMInput{}, romInputReceipt{}, err
 	}
 	if len(in.SlotExpansions) != 0 || len(in.Parts) != 0 {
-		var sent romInputReceipt
-		decoder := json.NewDecoder(bytes.NewReader(receiptBytes))
-		decoder.DisallowUnknownFields()
-		if err := decoder.Decode(&sent); err != nil {
-			return ROMInput{}, romInputReceipt{}, errors.New("ROM input receipt is invalid")
-		}
 		if ((len(in.Parts) == 0 && sent.Composition == nil) || (len(in.Parts) != 0 && sent.PartsComposition == nil)) || sent.ProgrammedSHA256 == "" || sent.ProgrammedSize < 1 {
 			return ROMInput{}, romInputReceipt{}, errors.New("slot ROM input requires link evidence")
 		}
@@ -452,7 +473,11 @@ func StageROMInput(ctx context.Context, root string, size int64, reader io.Reade
 	if err != nil {
 		return Staged{}, err
 	}
-	for file, content := range map[string][]byte{"input.tar": data, "programmed.rbf": programmed, "identity.json": encoded} {
+	files := map[string][]byte{"input.tar": data, "programmed.rbf": programmed, "identity.json": encoded}
+	if in.InitialMedia != nil {
+		files["initial-media.st"] = in.InitialMedia.Bytes
+	}
+	for file, content := range files {
 		if err = ctx.Err(); err != nil {
 			return Staged{}, err
 		}
@@ -466,6 +491,7 @@ func StageROMInput(ctx context.Context, root string, size int64, reader io.Reade
 	if err = ctx.Err(); err != nil {
 		return Staged{}, err
 	}
+	staged.InitialMedia = stagedInitialMedia(in.InitialMedia, filepath.Join(root, name, "initial-media.st"))
 	staged.ROMLink = &identity
 	staged.ProgrammedPath = filepath.Join(root, name, "programmed.rbf")
 	success = true
@@ -499,10 +525,10 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 	}
 	entries, err := directory.ReadDir(-1)
 	directory.Close()
-	if err != nil || len(entries) != 3 {
+	if err != nil || (len(entries) != 3 && len(entries) != 4) {
 		return errors.New("invalid ROM publication members")
 	}
-	expected := map[string]int64{"input.tar": MaxROMInputSize, "identity.json": 4096, "programmed.rbf": MaxPayloadSize}
+	expected := map[string]int64{"input.tar": MaxROMInputSize, "identity.json": 4096, "programmed.rbf": MaxPayloadSize, "initial-media.st": InitialMediaBytes}
 	files := map[string][]byte{}
 	for _, entry := range entries {
 		limit, ok := expected[entry.Name()]
@@ -524,6 +550,7 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 	var slots *SlotCompositionBundle
 	var parts *PartsBundle
 	var identity any
+	var initial *InitialMedia
 	if IsROMInputV2(files["input.tar"]) {
 		prepared, readErr := readPreparedROMInputV2(files["input.tar"])
 		if readErr != nil {
@@ -538,6 +565,7 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 		if readErr != nil {
 			return readErr
 		}
+		initial = in.InitialMedia
 		linked, linkErr := linkROMInput(context.Background(), in, sent)
 		if linkErr != nil {
 			return linkErr
@@ -549,6 +577,10 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 	}
 	if err != nil {
 		return err
+	}
+	disk, diskPresent := files["initial-media.st"]
+	if (initial != nil) != diskPresent || (initial != nil && !bytes.Equal(initial.Bytes, disk)) {
+		return errors.New("retained initial disk differs from ROM input")
 	}
 	if inspection.PackageID != staged.PackageID {
 		return errors.New("retained ROM package differs from publication")
@@ -579,6 +611,7 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 		return errors.New("ROM publication changed while adopting")
 	}
 	staged.companions = append(staged.companions, Staged{root: staged.root, rootInfo: staged.rootInfo, publication: name, publicationInfo: info})
+	staged.InitialMedia = stagedInitialMedia(initial, filepath.Join(staged.root, name, "initial-media.st"))
 	staged.ProgrammedPath = filepath.Join(staged.root, name, "programmed.rbf")
 	return nil
 }

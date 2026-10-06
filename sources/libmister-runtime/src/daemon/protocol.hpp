@@ -76,6 +76,8 @@ struct Request {
 	std::string programmed_sha256;
 	CoreROMLink rom_link;
 	CoreROMLinks rom_links;
+	bool has_initial_media = false;
+	InitialComputerMedia initial_media;
 };
 
 struct MenuFrameReply {

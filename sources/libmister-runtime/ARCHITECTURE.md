@@ -54,7 +54,9 @@ program. See FES [soft-restart Path B](../../docs/soft-restart-path-b.md).
 
 Identity precedes video, input enablement and gameplay release. FES media
 interfaces control reset-held startup and release after a successful commit;
-`fes.computer` media units are the exception and never gate release.
+`fes.computer` media units permit empty-drive startup unless a writable ST
+ROM load explicitly requests initial library media; its complete prepared disk
+transfer and ready confirmation then precede the first release.
 
 The shared GP response sampler holds the original request after observing its
 ACK, waits one microsecond using the monotonic wall clock, then requires two
@@ -278,7 +280,8 @@ Identity requires registered live capability bits 0 through 7 to equal the decla
 then discovery reads MediaInfo for each declared unit, which must be present
 and empty. Audio packets follow the declaration as for applications. Start
 only releases execution: there is no media gate, no neutral write and no evdev
-worker. Stop holds execution first; the hold neutralizes keys and ports in the
+worker. A ROM-linked writable ST may explicitly request an initial library
+floppy; native activation inserts and confirms that disk before Start. Stop holds execution first; the hold neutralizes keys and ports in the
 core. `set_keyboard_hid` sends a complete nine-row USB HID snapshot and the
 driver writes only changed rows, all nine after Start. `set_controller` uses
 opcode 4 with a zero keypad. `insert_media` transfers into one declared unit
@@ -312,6 +315,29 @@ reports `persistence:{mode,game_id,base_media_id,revision}` on the live unit.
 Raw `insert_media` remains volatile. A saved record cannot silently downgrade
 to a shell lacking the write contract.
 
+ROM operations accept an optional closed `initial_media` object with `path`,
+`size`, `unit`, `data_root`, `game_id` and `base_media_id`. It requires a format-3
+firmware package for `fes.atari-st`, the writable ST floppy contract, unit 0
+and exactly 737,280 bytes. This object explicitly supplies library intent;
+FogCast rejects it on developer requests. Its media root is independent of
+any core-scoped data root. Absence preserves the existing empty-drive launch.
+
+`PrepareInitialComputerMedia` snapshots and hashes the immutable source and
+opens/checks its no-follow durable namespace and record during admission,
+before outgoing save, quiescence or programming. After outgoing `FlushSave`,
+`RefreshInitialComputerMedia` rereads the record and prepares its restore
+snapshot, so replacement of the same namespace uses newly saved bytes.
+Refresh failure restores the outgoing ownership through the existing save
+failure path. The production hardware facade forwards both methods.
+After programming and identity discovery, activation uploads retained bytes
+and confirms the complete disk ready while execution is still held. Only then
+is durable media metadata bound, and only the later Start releases execution.
+Failed upload never calls Start or replays the ambiguous media command; normal
+launch failure cleanup applies. Successful status reports the ready persistent
+unit and active persistent mode. Tests compare the entire restored image and
+cover preflight failures, same-namespace refresh, failed outgoing save and
+failed upload. These are host software checks, with physical acceptance pending.
+
 `native/media_data` retains a no-follow namespace below the fixed agent root
 `/media/fat/fogcast/core-data/media`. The namespace combines core ID, game ID,
 unit and base-image digest; firmware/video package revisions do not rename it.
@@ -344,8 +370,8 @@ or unresolved bytes require recovery.
 Successful FPGA programming retires the former disk binding, captured bytes
 and durable revision from memory. This includes Stop to the configured menu
 or splash, core replacement and contained programming. The published record
-stays intact. A new ST core reports an empty volatile drive until an explicit
-library insertion binds and restores that record. Failed capture/publication
+stays intact. Without explicit initial library media, a new ST core reports
+an empty volatile drive until library insertion binds and restores that record. Failed capture/publication
 continues to retain the current disk and generation. Successful-transition
 retirement follows programming, rather than the transition request. Partial
 programming failures keep the existing invalidation of unsafe active-core

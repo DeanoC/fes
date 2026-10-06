@@ -864,14 +864,42 @@ Error ParseRequest(const std::string& line, Request* request)
 			const bool two_sources = Find(root, "rom_links") != nullptr;
 			const bool slots = Find(root, "expansions") != nullptr;
 			const bool parts = Find(root, "parts") != nullptr;
-			const char* plain[] = {"protocol","operation","package_path","package_id","programmed_path",two_sources ? "rom_links" : "rom_link"};
-			const char* with_root[] = {"protocol","operation","package_path","package_id","data_root","programmed_path",two_sources ? "rom_links" : "rom_link"};
-			const char* with_cart[] = {"protocol","operation","package_path","package_id",parts ? "parts" : slots ? "expansions" : "expansion_path","payload_path","composition","programmed_path",two_sources ? "rom_links" : "rom_link"};
+			const char* plain[] = {"protocol","operation","package_path","package_id","programmed_path",two_sources ? "rom_links" : "rom_link", "initial_media"};
+			const char* with_root[] = {"protocol","operation","package_path","package_id","data_root","programmed_path",two_sources ? "rom_links" : "rom_link", "initial_media"};
+			const char* with_cart[] = {"protocol","operation","package_path","package_id",parts ? "parts" : slots ? "expansions" : "expansion_path","payload_path","composition","programmed_path",two_sources ? "rom_links" : "rom_link", "initial_media"};
 			const char* const* fields = plain;
-			unsigned count = 6;
-			if (library) { fields = with_root; count = 7; }
-			if (composed) { fields = with_cart; count = 9; }
+			unsigned count = 7;
+			if (library) { fields = with_root; count = 8; }
+			if (composed) { fields = with_cart; count = 10; }
 			if (!HasOnly(root, fields, count, &error)) return error;
+			if (const auto* initial = Find(root, "initial_media")) {
+				if (two_sources || initial->type != json::Type::object)
+					return Invalid("initial_media requires a single-ROM load and object");
+				const char* keys[] = {"path", "size", "unit", "data_root", "game_id", "base_media_id"};
+				if (!HasOnly(*initial, keys, 6, &error)) return error;
+				const std::string *path = nullptr, *data_root = nullptr, *game = nullptr, *base = nullptr;
+				if (!StringMember(*initial, "path", &path, &error) ||
+					!StringMember(*initial, "data_root", &data_root, &error) ||
+					!StringMember(*initial, "game_id", &game, &error) ||
+					!StringMember(*initial, "base_media_id", &base, &error)) return error;
+				if (!Path(*path) || !Path(*data_root) || !PackageID(*base) || game->empty() || game->size() > 256 ||
+					!BoundedInteger(Find(*initial, "unit"), 0, 0) ||
+					!BoundedInteger(Find(*initial, "size"), native::generated::FesComputerAtariStFloppyBytes,
+						native::generated::FesComputerAtariStFloppyBytes))
+					return Invalid("invalid initial disk paths, identity or geometry");
+				bool hyphen = true;
+				for (char c : *game) {
+					if (!((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-') || (c == '-' && hyphen))
+						return Invalid("invalid initial disk game identity");
+					hyphen = c == '-';
+				}
+				if (hyphen) return Invalid("invalid initial disk game identity");
+				parsed.has_initial_media = true;
+				parsed.initial_media.path = *path;
+				parsed.initial_media.data_root = *data_root;
+				parsed.initial_media.size = native::generated::FesComputerAtariStFloppyBytes;
+				parsed.initial_media.binding = {*game, *base, 0};
+			}
 			const std::string *path=nullptr,*id=nullptr,*programmed=nullptr;
 			if (!StringMember(root,"package_path",&path,&error) || !StringMember(root,"package_id",&id,&error) ||
 				!StringMember(root,"programmed_path",&programmed,&error)) return error;

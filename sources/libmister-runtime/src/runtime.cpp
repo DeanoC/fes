@@ -353,7 +353,7 @@ public:
 	Error LoadCore(const std::string& directory, const std::string& expected_package_id,
 		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr,
 		const std::string& programmed_path = "", const std::string& programmed_sha256 = "", const CoreROMLink* rom_link = nullptr,
-		const CoreROMLinks* rom_links = nullptr)
+		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr)
 	{
 		LogRecord rejection;
 		bool rejected = false;
@@ -441,6 +441,16 @@ public:
 				return attached;
 			}
 		}
+		if (initial_media) {
+			const Error prepared = rom_link ? hardware_.PrepareInitialComputerMedia(package.get(), *initial_media) :
+				Error{ErrorCode::invalid_request, "initial disk requires a single ROM activation", "admission"};
+			if (!prepared.ok()) {
+				std::lock_guard<std::mutex> lock(mutex_);
+				busy_ = false;
+				condition_.notify_all();
+				return prepared;
+			}
+		}
 		const Error rechecked = hardware_.RecheckProgrammedBitstream(package.get());
 		if (!rechecked.ok()) {
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -479,6 +489,17 @@ public:
 			}
 		}
 
+		if (initial_media) {
+			const Error refreshed = hardware_.RefreshInitialComputerMedia(package.get());
+			if (!refreshed.ok()) {
+				if (replacing) return RestoreAfterSaveFailure("load_core", info.system,
+					info.declared_core, retired_generation, refreshed);
+				std::lock_guard<std::mutex> lock(mutex_);
+				busy_ = false;
+				condition_.notify_all();
+				return refreshed;
+			}
+		}
 		std::uint64_t generation = 0;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -524,6 +545,7 @@ public:
 			const Capabilities observed = hardware_.capabilities();
 			status_.capabilities.media_stream = observed.media_stream;
 			status_.capabilities.media_units = observed.media_units;
+			if (initial_media) status_.core_data.mode = "persistent";
    status_.menu_display=hardware_.menu_display();
 			if (status_.capabilities.media_stream.interface.id.empty()) {
 				auto& interfaces = status_.capabilities.active_interfaces;
@@ -1435,17 +1457,17 @@ Error Runtime::LoadLibraryPartsCore(const std::string& directory, const std::str
 	return impl_->LoadCore(directory, id, root, &request);
 }
 Error Runtime::LoadROMCore(const std::string& directory, const std::string& id,
-	const std::string& path, const CoreROMLink& link)
-{ return impl_->LoadCore(directory, id, "", nullptr, path, "", &link); }
+	const std::string& path, const CoreROMLink& link, const InitialComputerMedia* initial_media)
+{ return impl_->LoadCore(directory, id, "", nullptr, path, "", &link, nullptr, initial_media); }
 Error Runtime::LoadROMLibraryCore(const std::string& directory, const std::string& id,
-	const std::string& root, const std::string& path, const CoreROMLink& link)
+	const std::string& root, const std::string& path, const CoreROMLink& link, const InitialComputerMedia* initial_media)
 {
 	if (!ValidAbsolutePath(root)) return Invalid("invalid core-data root");
-	return impl_->LoadCore(directory, id, root, nullptr, path, "", &link);
+	return impl_->LoadCore(directory, id, root, nullptr, path, "", &link, nullptr, initial_media);
 }
 Error Runtime::LoadROMComposedCore(const std::string& directory, const std::string& id,
-	const CoreCompositionRequest& request, const std::string& path, const CoreROMLink& link)
-{ return impl_->LoadCore(directory, id, "", &request, path, "", &link); }
+	const CoreCompositionRequest& request, const std::string& path, const CoreROMLink& link, const InitialComputerMedia* initial_media)
+{ return impl_->LoadCore(directory, id, "", &request, path, "", &link, nullptr, initial_media); }
 
 Error Runtime::LoadROMsCore(const std::string& directory, const std::string& id,
 	const std::string& path, const CoreROMLinks& links)
