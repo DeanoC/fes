@@ -254,7 +254,9 @@ class HilPlanTest(unittest.TestCase):
     def test_full_image_unrecognised_and_docs_only(self):
         for path in ('image/buildroot/board/x/etc/init.d/S42x', 'unknown/file.bin',
                      'sources/FogCast/cmd/fes-update/main.go',
-                     'sources/FogCast/cmd/mister-bridge/x.go'):
+                     'sources/FogCast/cmd/mister-bridge/x.go',
+                     'sources/misteross/sealed/fes-splash.rbf',
+                     'sources/misteross/sealed/fes-splash.build-summary.json'):
             result = run('classify', '--paths-file', self.path_file(path), '--json')
             self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
         for path in ('sources/FogCast/internal/example.go', 'sources/FogCast/catalog/example.go'):

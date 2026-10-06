@@ -56,7 +56,8 @@ RULES = [
     ('sources/misteross/scripts/build_*video_part*', 'overlay', 'core:{script}'),
     ('sources/misteross/scripts/**', 'overlay', 'core:ALL'),
     ('sources/misteross/boards/**', 'overlay', 'core:ALL'),
-    ('sources/misteross/sealed/**', 'overlay', 'core:ALL'),
+    # The sealed splash is the boot /idle.rbf, owned by the image, not a core package.
+    ('sources/misteross/sealed/**', 'full', 'image-splash'),
     ('sources/misteross/Makefile', 'overlay', 'core:ALL'),
 ]
 RANK = {'none': 0, 'overlay': 1, 'full': 2}
