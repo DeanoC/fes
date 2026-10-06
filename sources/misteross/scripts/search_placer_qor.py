@@ -31,7 +31,8 @@ Staged search (default) is not a full grid:
 ``--budget``). ``--mode first-pass`` tries every seed at one weight before
 the next weight. ``--mode first-pass-paired`` tries the first two weights for
 each seed, then sweeps the remaining weights. Both stop at the first candidate
-that meets every constraint.
+that meets every constraint. An accept callback may still reject that
+candidate; the search records it as failing and continues.
 
 GPU: ``--gpu-devices 0,1`` runs staged/grid candidates as separate nextpnr
 processes, one HIP device each (7900 XTX + R9700). First-pass stays
@@ -48,7 +49,7 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 import contextvars
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from queue import Queue
 from typing import Callable, Mapping, Sequence
@@ -318,6 +319,47 @@ def evaluate_pairs(
         return [future.result() for future in futures]
 
 
+REJECTED_ROUTE_PREFIX = "search_placer_qor: rejected passing route: "
+
+
+def _reject_passing(
+    candidate: Candidate,
+    accept: Callable[[Candidate], str | None] | None,
+) -> Candidate:
+    if accept is None or not candidate.passing:
+        return candidate
+    reason = accept(candidate)
+    if not reason:
+        return candidate
+    log_path = Path(candidate.log) if candidate.log else None
+    if log_path is not None and log_path.is_file():
+        with log_path.open("a", encoding="utf-8") as handle:
+            handle.write(f"\n{REJECTED_ROUTE_PREFIX}{reason}\n")
+    return replace(candidate, passing=False)
+
+
+def _reject_all(
+    candidates: list[Candidate],
+    accept: Callable[[Candidate], str | None] | None,
+) -> list[Candidate]:
+    if accept is None:
+        return candidates
+    return [_reject_passing(item, accept) for item in candidates]
+
+
+def _rejection_note(winner: Candidate) -> str:
+    if not winner.log:
+        return ""
+    log_path = Path(winner.log)
+    if not log_path.is_file():
+        return ""
+    text = log_path.read_text(encoding="utf-8", errors="replace")
+    for line in reversed(text.splitlines()):
+        if line.startswith(REJECTED_ROUTE_PREFIX):
+            return "; " + line[len(REJECTED_ROUTE_PREFIX):]
+    return ""
+
+
 def extend_seed_sweep(
     planned: list[tuple[int, int]],
     seeds: Sequence[int],
@@ -355,6 +397,7 @@ def search(
     run_one=None,
     env=None,
     audit_source_root=None,
+    accept: Callable[[Candidate], str | None] | None = None,
 ) -> list[Candidate]:
     gpu_pool: Queue[int | None] = Queue()
     assigned = list(gpu_devices) if gpu_devices else [None]
@@ -394,7 +437,8 @@ def search(
     results: list[Candidate] = []
     if mode == "grid":
         pairs = [(seed, weight) for weight in weights for seed in seeds][:budget]
-        return sorted(evaluate_pairs(pairs, run, workers), key=lambda item: item.key(), reverse=True)
+        ranked = _reject_all(evaluate_pairs(pairs, run, workers), accept)
+        return sorted(ranked, key=lambda item: item.key(), reverse=True)
     if mode in ("first-pass", "first-pass-paired"):
         if mode == "first-pass":
             pairs = ((seed, weight) for weight in weights for seed in seeds)
@@ -405,17 +449,17 @@ def search(
         for seed, weight in pairs:
             if len(results) >= budget:
                 return sorted(results, key=lambda item: item.key(), reverse=True)
-            candidate = run(seed, weight)
+            candidate = _reject_passing(run(seed, weight), accept)
             results.append(candidate)
             if candidate.passing:
                 return sorted(results, key=lambda item: item.key(), reverse=True)
         return sorted(results, key=lambda item: item.key(), reverse=True)
 
     pairs = plan_staged(seeds, weights, budget)
-    results = evaluate_pairs(pairs, run, workers)
+    results = _reject_all(evaluate_pairs(pairs, run, workers), accept)
     best_weight = sorted(results, key=lambda item: item.key(), reverse=True)[0].weight
     extra_pairs = extend_seed_sweep(list(pairs), seeds, best_weight, budget)[len(pairs) :]
-    results.extend(evaluate_pairs(extra_pairs, run, workers))
+    results.extend(_reject_all(evaluate_pairs(extra_pairs, run, workers), accept))
     return sorted(results, key=lambda item: item.key(), reverse=True)
 
 
@@ -486,6 +530,7 @@ def route_after_synth(
     run_one=None,
     env=None,
     audit_source_root=None,
+    accept: Callable[[Candidate], str | None] | None = None,
 ) -> Candidate:
     """Place-and-route candidates after synth.json exists; promote the winner."""
     search_dir = dest / "qor-search"
@@ -512,6 +557,7 @@ def route_after_synth(
         run_one=run_one,
         env=env,
         audit_source_root=audit_source_root,
+        accept=accept,
     )
     (dest / "qor-ranking.json").write_text(
         json.dumps(
@@ -534,7 +580,7 @@ def route_after_synth(
     if not winner.passing:
         raise SearchError(
             f"no placement met timing (best seed={winner.seed} weight={winner.weight} "
-            f"worst_ratio={winner.worst_ratio:.4f})"
+            f"worst_ratio={winner.worst_ratio:.4f}){_rejection_note(winner)}"
         )
     promote_candidate(winner, dest)
     return winner

@@ -304,6 +304,9 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
         raise BuildError('route log does not prove a complete routed design')
     if has_failed_route_arc(route_text):
         raise BuildError('route log contains a failed arc')
+    blocked = zx81_expansion.blocked_plug_addr_exits(routed)
+    if blocked:
+        raise BuildError(zx81_expansion.blocked_plug_addr_message(blocked))
     gpu_backend = _require_gpu_backend(route_text)
     if '50 MHz -> 52.224 MHz' not in route_text:
         raise BuildError('route log does not contain the 50-to-52.224 MHz system PLL')
@@ -367,7 +370,7 @@ def build(root: Path=ROOT, package_store: Path | None=None, *, cache_root: Path 
             raise BuildError('Yosys did not produce synthesis evidence')
         zx81_expansion.prepare_shell_netlist(output / 'synth.json')
         try:
-            winner = route_after_synth(nextpnr=authenticated['nextpnr-mistral'].path, fixture=output / 'synth.json', dest=output, device=TARGET, qsf=output / 'socket.qsf', sdc=root / SDC, freq='74.25', seeds=PLACER_SEEDS, weights=qor_weights, critexp=PLACER_CRITICALITY_EXPONENT, budget=qor_budget, mode=qor_mode, extra=('--router', 'gpu'), required=PLACER_QOR_CLOCKS, gpu_devices=gpu_devices, **{'env': invocation.env, 'audit_source_root': root})
+            winner = route_after_synth(nextpnr=authenticated['nextpnr-mistral'].path, fixture=output / 'synth.json', dest=output, device=TARGET, qsf=output / 'socket.qsf', sdc=root / SDC, freq='74.25', seeds=PLACER_SEEDS, weights=qor_weights, critexp=PLACER_CRITICALITY_EXPONENT, budget=qor_budget, mode=qor_mode, extra=('--router', 'gpu'), required=PLACER_QOR_CLOCKS, gpu_devices=gpu_devices, accept=zx81_expansion.accept_socket_route, **{'env': invocation.env, 'audit_source_root': root})
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
         evidence = validate_build_evidence(output, root)
