@@ -72,6 +72,12 @@ class ToolchainCacheTest(unittest.TestCase):
         self.assertIn(f'BR2_TOOLCHAIN_EXTERNAL_PATH="{cache.EXTERNAL_PATH}"', external.read_text())
         self.assertIn("BR2_TOOLCHAIN_EXTERNAL_GCC_9=y", external.read_text())
         self.assertIn("BR2_TOOLCHAIN_EXTERNAL_HEADERS_5_10=y", external.read_text())
+        # glibc 2.32 (Buildroot 2021.02) has no SunRPC; the custom default would fail.
+        self.assertIn("# BR2_TOOLCHAIN_EXTERNAL_INET_RPC is not set", external.read_text().splitlines())
+        cache.validate_config("external", external)
+        external.write_text(external.read_text().replace("# BR2_TOOLCHAIN_EXTERNAL_INET_RPC is not set", "BR2_TOOLCHAIN_EXTERNAL_INET_RPC=y"))
+        with self.assertRaisesRegex(ValueError, "INET_RPC"):
+            cache.validate_config("external", external)
         with (self.image / cache.FRAGMENT).open("a") as stream:
             stream.write("BR2_GCC_VERSION_10_X=y\n")
         with self.assertRaisesRegex(ValueError, "drifted"):

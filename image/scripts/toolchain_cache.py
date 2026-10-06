@@ -108,6 +108,9 @@ def extract(directory, expected_key, destination):
     return archive_sha
 
 
+NO_INET_RPC = "# BR2_TOOLCHAIN_EXTERNAL_INET_RPC is not set"
+
+
 def config(image, kind, destination):
     image = Path(image)
     shared = (image / FRAGMENT).read_text()
@@ -133,7 +136,10 @@ def config(image, kind, destination):
                    "BR2_TOOLCHAIN_EXTERNAL_GCC_9=y\n"
                    "BR2_TOOLCHAIN_EXTERNAL_HEADERS_5_10=y\n"
                    "BR2_TOOLCHAIN_EXTERNAL_CUSTOM_GLIBC=y\n"
-                   "BR2_TOOLCHAIN_EXTERNAL_CXX=y\n")
+                   "BR2_TOOLCHAIN_EXTERNAL_CXX=y\n"
+                   # Buildroot 2021.02 builds glibc 2.32, which no longer ships SunRPC;
+                   # the custom-glibc default (y) fails Buildroot's external check.
+                   f"{NO_INET_RPC}\n")
     elif kind not in ("toolchain", "internal"):
         raise ValueError("unknown configuration kind")
     Path(destination).write_text(base_text + "\n" + shared)
@@ -149,7 +155,7 @@ def validate_config(kind, path):
                 f'BR2_TOOLCHAIN_EXTERNAL_PATH="{EXTERNAL_PATH}"',
                 f'BR2_TOOLCHAIN_EXTERNAL_CUSTOM_PREFIX="{PREFIX}"',
                 "BR2_TOOLCHAIN_EXTERNAL_GCC_9=y", "BR2_TOOLCHAIN_EXTERNAL_HEADERS_5_10=y",
-                "BR2_TOOLCHAIN_EXTERNAL_CUSTOM_GLIBC=y", "BR2_TOOLCHAIN_EXTERNAL_CXX=y"}
+                "BR2_TOOLCHAIN_EXTERNAL_CUSTOM_GLIBC=y", "BR2_TOOLCHAIN_EXTERNAL_CXX=y", NO_INET_RPC}
     required = common | (external if kind == "external" else internal)
     missing = required - selected
     if missing:
