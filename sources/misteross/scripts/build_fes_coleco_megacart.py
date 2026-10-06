@@ -19,7 +19,10 @@ from scripts import coleco_expansion, rom_map
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
-from scripts.fes_build_common import BuildError, _prepare_output, _require_clean_source, _run_tool, _sha256, _write_atomic
+from scripts.fes_build_common import (
+    BuildError, _prepare_output, _require_clean_source, _run_tool, _sha256, _write_atomic,
+    reject_async_m10k_reads,
+)
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
 from scripts.search_placer_qor import SearchError, route_after_synth
 
@@ -139,6 +142,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
             name: tools[name].path for name in ("yosys", "nextpnr-mistral")})
         _run_tool(commands[0], root, output / "yosys.log", env=env,
                   audit_source_root=root, output_relative=OUTPUT_RELATIVE)
+        reject_async_m10k_reads(json.loads((output / "synth.json").read_text()))
         coleco_expansion.prepare_shell_netlist(output / "synth.json", version=2)
         try:
             winner = route_after_synth(
@@ -152,11 +156,13 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
         coleco_expansion.validate_routed_shell(output / "routed.json", version=2)
+        reject_async_m10k_reads(json.loads((output / "routed.json").read_text()))
         evidence = factory.validate_build_evidence(output, root)
         mapping, map_evidence = rom_map.build_rom_map(
             database, (output / "core.rbf").read_bytes(),
             routed=json.loads((output / "routed.json").read_text()),
-            lane_rows=ROM_LANES, reserved_rect=(1769, 32, 2806, 1800))
+            lane_rows=ROM_LANES, reserved_rect=(1769, 32, 2806, 1800),
+            expected_async_read=0)
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(",", ":")) + "\n").encode()
         _write_atomic(output / "rom-map.json", map_bytes)
         evidence["rom_map"] = {"file": "rom-map.json", "size": len(map_bytes),
