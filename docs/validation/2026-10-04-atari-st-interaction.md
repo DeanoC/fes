@@ -1,5 +1,9 @@
 # Atari ST mouse, writable disks and video parts, 2026-10-04
 
+This is the historical selection. The [October 6 bring-up](2026-10-06-atari-st-bringup.md)
+records passing physical memory on the corrected shared-pin shell; nextpnr #125
+is closed following FES #514. The results below retain their original artifacts.
+
 The writable ST shell and both video companions are sealed, and the
 software and guest simulations described below pass. The new sealed shell
 still fails physical upper-byte preservation with RED03. The cause remains
