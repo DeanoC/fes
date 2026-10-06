@@ -18,6 +18,8 @@ class NativeDevTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
             (output / 'qemu-smoke.log').write_bytes(b'qemu passed\n')
+            (output / 'reproducibility.txt').write_text(
+                f"toolchain_key={'a' * 64}\ntoolchain_sha256={'b' * 64}\n")
             image_sha256 = hashlib.sha256(b'cold').hexdigest()
             record = build.verification_record(output, image_sha256, None)
             self.assertEqual(record['image_sha256'], image_sha256)

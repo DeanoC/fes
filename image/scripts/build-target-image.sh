@@ -3,6 +3,7 @@ set -eu
 
 repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 epoch=1751459412
+test "$epoch" = "$(python3 "$repo/scripts/toolchain_cache.py" epoch)"
 native_mode=${NATIVE_RUNTIME_MODE:-package-only}
 case "$native_mode" in
   package-only) : ;;
@@ -35,7 +36,7 @@ selected_package_cores() {
 }
 
 usage() {
-  printf 'usage: build-target-image.sh native-dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-fetch VARIANT OUTPUT EPOCH|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
+  printf 'usage: build-target-image.sh native-dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-toolchain EPOCH|--inside-fetch VARIANT OUTPUT EPOCH|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
   exit 2
 }
 
@@ -59,12 +60,6 @@ validate_variant() {
   case "$1" in
     native-dev) : ;;
     *) usage ;;
-  esac
-}
-
-defconfig_for() {
-  case "$1" in
-    native-dev) printf '%s\n' fogcast_target_native_dev_defconfig ;;
   esac
 }
 
@@ -162,14 +157,30 @@ inside_build() {
       /work/build/cache/target-image/native/splash.rbf
   fi
 
-	cleanup_inside_output "$inside_output"
+  cleanup_inside_output "$inside_output"
   export SOURCE_DATE_EPOCH=$inside_epoch
   export E2FSPROGS_FAKE_TIME=$inside_epoch
+  config=$inside_output/fogcast.generated.defconfig
+  /bin/mkdir -p "$inside_output"
+  if [ "$inside_mode" = fetch ]; then
+    /work/scripts/toolchain_cache.py config internal "$config"
+  else
+    /work/scripts/toolchain_cache.py config external "$config"
+    external_host=$(/work/scripts/toolchain_cache.py path)
+    /work/scripts/toolchain_cache.py extract "$(dirname "$external_host")"
+    test -x "$external_host/relocate-sdk.sh" || {
+      printf '%s\n' 'build-target-image: SDK relocation script is missing' >&2; exit 1;
+    }
+    "$external_host/relocate-sdk.sh"
+  fi
   make -C /work/build/cache/target-image/buildroot \
     O="$inside_output" \
     BR2_EXTERNAL=/work/buildroot \
     BR2_DL_DIR=/work/build/cache/target-image/dl \
-    "$(defconfig_for "$inside_variant")"
+    BR2_DEFCONFIG="$config" defconfig
+  /work/scripts/toolchain_cache.py validate-config \
+    "$(if [ "$inside_mode" = fetch ]; then printf internal; else printf external; fi)" \
+    "$inside_output/.config"
 
   if [ "$inside_mode" = fetch ]; then
     make -C /work/build/cache/target-image/buildroot \
@@ -187,6 +198,30 @@ inside_build() {
   test -f "$inside_output/images/rootfs.ext4"
   /bin/mkdir -p "$(dirname "$inside_export")"
   /bin/cp "$inside_output/images/rootfs.ext4" "$inside_export"
+}
+
+inside_toolchain() {
+  test "$1" = "$epoch"
+  test "$(/usr/bin/id -u)" -ne 0
+  /work/scripts/verify-target-image-source-cache.sh \
+    /work/build/target-image.sources.lock.toml /work/build/cache/target-image
+  /work/bin/target-image-lock-linux-amd64 verify-inputs \
+    --lock /work/build/target-image.sources.lock.toml --cache /work/build/cache/target-image
+  output=/target-image-output/toolchain-build
+  cleanup_inside_output "$output"
+  /bin/mkdir -p "$output"
+  config=$output/fogcast.generated.defconfig
+  /work/scripts/toolchain_cache.py config toolchain "$config"
+  export SOURCE_DATE_EPOCH=$epoch E2FSPROGS_FAKE_TIME=$epoch
+  make -C /work/build/cache/target-image/buildroot O="$output" \
+    BR2_EXTERNAL=/work/buildroot BR2_DL_DIR=/work/build/cache/target-image/dl \
+    BR2_DEFCONFIG="$config" defconfig
+  /work/scripts/toolchain_cache.py validate-config toolchain "$output/.config"
+  make -C /work/build/cache/target-image/buildroot O="$output" \
+    BR2_EXTERNAL=/work/buildroot BR2_DL_DIR=/work/build/cache/target-image/dl toolchain
+  make -C /work/build/cache/target-image/buildroot O="$output" \
+    BR2_EXTERNAL=/work/buildroot BR2_DL_DIR=/work/build/cache/target-image/dl sdk
+  /work/scripts/toolchain_cache.py package "$output/host"
 }
 
 promote_existing=0
@@ -221,6 +256,11 @@ case "${1:-}" in
   --inside-fetch)
     [ "$#" -eq 4 ] || usage
     inside_build "$2" "$3" "$4" fetch
+    exit
+    ;;
+  --inside-toolchain)
+    [ "$#" -eq 2 ] || usage
+    inside_toolchain "$2"
     exit
     ;;
   --fetch)
@@ -270,6 +310,21 @@ if [ -n "${TARGET_IMAGE_BUILD_ONCE:-}" ] && [ "${TARGET_IMAGE_TEST_MODE:-0}" != 
   exit 2
 fi
 if [ "$promote_existing" -ne 1 ]; then
+  toolchain_sha=$(python3 "$repo/scripts/toolchain_cache.py" status) || toolchain_sha=
+  if [ "${TOOLCHAIN_REBUILD:-0}" = 1 ] || [ -z "$toolchain_sha" ]; then
+    if [ -n "${TARGET_IMAGE_BUILD_ONCE:-}" ]; then
+      [ -n "${TARGET_IMAGE_TOOLCHAIN_BUILD_ONCE:-}" ] || {
+        printf '%s\n' 'build-target-image: fake toolchain builder is required' >&2; exit 2;
+      }
+      "$TARGET_IMAGE_TOOLCHAIN_BUILD_ONCE" "$repo"
+    else
+      run_target_container "$variant" run \
+        /work/scripts/build-target-image.sh --inside-toolchain "$epoch"
+    fi
+    toolchain_sha=$(python3 "$repo/scripts/toolchain_cache.py" status) || {
+      printf '%s\n' 'build-target-image: toolchain cache failed validation' >&2; exit 1;
+    }
+  fi
   for run in 1 2; do
     work=$output_root/work-$run-$variant
     case "$work" in
@@ -278,7 +333,8 @@ if [ "$promote_existing" -ne 1 ]; then
     esac
     /bin/rm -rf "$work"
     if [ -n "${TARGET_IMAGE_BUILD_ONCE:-}" ]; then
-      "$TARGET_IMAGE_BUILD_ONCE" "$variant" "$work" "$epoch"
+      TARGET_IMAGE_TOOLCHAIN_PATH=$(python3 "$repo/scripts/toolchain_cache.py" path) \
+        "$TARGET_IMAGE_BUILD_ONCE" "$variant" "$work" "$epoch"
     else
       run_target_container "$variant" run \
         /work/scripts/build-target-image.sh --inside "$variant" "/target-image-output/work-$run-$variant" "$epoch" "/work/build/output/target-image/work-$run-$variant/images/rootfs.ext4"
@@ -293,6 +349,10 @@ if [ "$promote_existing" -ne 1 ]; then
     fi
   done
 fi
+toolchain_key=$(python3 "$repo/scripts/toolchain_cache.py" key)
+toolchain_sha=$(python3 "$repo/scripts/toolchain_cache.py" status) || {
+  printf '%s\n' 'build-target-image: toolchain cache failed validation' >&2; exit 1;
+}
 
 first=$output_root/work-1-$variant/images/rootfs.ext4
 second=$output_root/work-2-$variant/images/rootfs.ext4
@@ -335,8 +395,8 @@ image_tmp=$final_dir/linux.img.new.$$
 evidence_tmp=$final_dir/reproducibility.txt.new.$$
 trap '/bin/rm -f "$image_tmp" "$evidence_tmp"' EXIT INT TERM
 /bin/cp "$second" "$image_tmp"
-printf 'source_date_epoch=%s\nrun_1_sha256=%s\nrun_2_sha256=%s\n' \
-  "$epoch" "$first_sha" "$second_sha" > "$evidence_tmp"
+printf 'source_date_epoch=%s\nrun_1_sha256=%s\nrun_2_sha256=%s\ntoolchain_key=%s\ntoolchain_sha256=%s\n' \
+  "$epoch" "$first_sha" "$second_sha" "$toolchain_key" "$toolchain_sha" > "$evidence_tmp"
 if [ "$variant" = native-dev ]; then
   "$repo/scripts/native-extra-cores.sh" copy-records "$output_root/work-2-$variant" "$final_dir"
 fi
