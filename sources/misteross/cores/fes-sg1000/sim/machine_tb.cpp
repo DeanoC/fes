@@ -82,11 +82,12 @@ int main(int argc, char **argv) {
         const bool machine_reset = dut.rootp->sg1000_machine__DOT__machine_reset;
         dut.clk_sys = 1; dut.eval();
         check_captured_enables(dut, raw_p, raw_n, machine_reset);
-        // The linked ROM is a two-clock pipeline, so the byte matches the
-        // address sampled two ticks earlier. The first two ticks fill it.
+        // cartridge_address is read before the rising edge, so it is the
+        // address the ROM captures on that edge. The byte after the edge
+        // belongs to the previous tick. The first two ticks fill the pipe.
         if (rom_primed >= 2) {
             require(dut.rootp->sg1000_machine__DOT__cartridge_read ==
-                        expected[rom_address[0]],
+                        expected[rom_address[1]],
                     "linked cartridge byte must follow the sampled ROM address");
         }
         rom_address[0] = rom_address[1];
