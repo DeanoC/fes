@@ -41,6 +41,10 @@ shared_container_path=/target-image-shared-cache
 if [ -n "${FES_TARGET_IMAGE_SHARED_CACHE:-}" ]; then
   shared_cache=$(python3 "$repo_root/scripts/toolchain_cache.py" shared-root) || exit 2
   mkdir -p "$shared_cache/dl" "$shared_cache/toolchains" "$shared_cache/ccache"
+  # Create the nested mount point as the invoking user. Otherwise the container
+  # runtime creates it as root in a fresh worktree, and the builder can no longer
+  # write build/cache/target-image (e.g. the Buildroot checkout).
+  mkdir -p "$repo_root/build/cache/target-image/dl"
 fi
 
 if ! command -v "$runtime" >/dev/null 2>&1; then
