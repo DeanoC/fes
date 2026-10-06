@@ -3177,6 +3177,12 @@ void TestInitialSTDiskAmbiguousReleaseSavesOrRetainsOwner()
                 if (failure == 2) assert(rmdir(ns.c_str()) == 0);
                 return true; // command accepted; its acknowledgement is unavailable
             }
+            if (request.opcode == FesComputerOpcodeMediaSnapshotControl &&
+                request.argument == FesComputerMediaSnapshotFreeze) {
+                const auto saving = fixture.runtime.status();
+                assert(saving.state == mister::State::starting && saving.generation == 0);
+                assert(saving.active_package.package_id.empty() && saving.capabilities.media_units.empty());
+            }
             if (failure == 1 && !snapshot_failed && request.opcode == FesComputerOpcodeMediaSnapshotData) {
                 snapshot_failed = true;
                 return true;

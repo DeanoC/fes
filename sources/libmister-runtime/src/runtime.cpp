@@ -519,48 +519,53 @@ public:
 			return FinishLaunchFailure("load_core", info.system,
 				result.observed_core.empty() ? info.declared_core : result.observed_core,
 				result,&previous_status);
+		Status retained_owner;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
-			status_.state = result.error.ok() ? State::running_development : State::starting;
-			status_.execution = Execution::development;
-			status_.core = result.observed_core;
-			status_.declared_core = info.declared_core;
-			status_.package_id = info.package_id;
-			status_.generation = generation;
-			status_.core_data = data;
-			status_.active_package.package_id = info.package_id;
-			status_.active_package.descriptor = info.descriptor;
-			status_.active_package.composition = admitted_composition;
-			if (rom_link) status_.active_package.rom_link = *rom_link;
-			if (rom_links) status_.active_package.rom_links = *rom_links;
+			// Keep the public starting projection empty while a failed release is saved.
+			// Only failed-save recovery publishes the complete retained owner.
+			if (!result.error.ok()) retained_owner = status_;
+			Status& activated = result.error.ok() ? status_ : retained_owner;
+			activated.state = State::running_development;
+			activated.execution = Execution::development;
+			activated.core = result.observed_core;
+			activated.declared_core = info.declared_core;
+			activated.package_id = info.package_id;
+			activated.generation = generation;
+			activated.core_data = data;
+			activated.active_package.package_id = info.package_id;
+			activated.active_package.descriptor = info.descriptor;
+			activated.active_package.composition = admitted_composition;
+			if (rom_link) activated.active_package.rom_link = *rom_link;
+			if (rom_links) activated.active_package.rom_links = *rom_links;
 			if (info.descriptor.abi.id == "fes.simple-game" ||
 				info.descriptor.abi.id == "fes.simple-computer" ||
 				info.descriptor.abi.id == "fes.application" ||
 				info.descriptor.abi.id == native::generated::FesComputerABIID) {
-				status_.active_package.observed.abi = info.descriptor.abi;
-				status_.active_package.observed.build_id = info.descriptor.build.id;
+				activated.active_package.observed.abi = info.descriptor.abi;
+				activated.active_package.observed.build_id = info.descriptor.build.id;
 			}
-			status_.capabilities.active_interfaces = ActiveInterfaces(
-				info.descriptor, status_.capabilities);
+			activated.capabilities.active_interfaces = ActiveInterfaces(
+				info.descriptor, activated.capabilities);
 			const Capabilities observed = hardware_.capabilities();
-			status_.capabilities.media_stream = observed.media_stream;
-			status_.capabilities.media_units = observed.media_units;
-			if (initial_media) status_.core_data.mode = "persistent";
-   status_.menu_display=hardware_.menu_display();
-			if (status_.capabilities.media_stream.interface.id.empty()) {
-				auto& interfaces = status_.capabilities.active_interfaces;
+			activated.capabilities.media_stream = observed.media_stream;
+			activated.capabilities.media_units = observed.media_units;
+			if (initial_media) activated.core_data.mode = "persistent";
+   activated.menu_display=hardware_.menu_display();
+			if (activated.capabilities.media_stream.interface.id.empty()) {
+				auto& interfaces = activated.capabilities.active_interfaces;
 				interfaces.erase(std::remove_if(interfaces.begin(), interfaces.end(),
 					[](const SupportedInterface& item) {
 						return item.id == native::generated::FesSimpleComputerInterfaceMediaBlobStreamID;
 					}), interfaces.end());
 			}
-			status_.error = {};
+			activated.error = {};
 			busy_ = !result.error.ok();
 		}
 		if (!result.error.ok())
 			return FinishLaunchFailure("load_core", info.system,
 				result.observed_core.empty() ? info.declared_core : result.observed_core,
-				result, &previous_status);
+				result, &previous_status, &retained_owner);
 		condition_.notify_all();
 		Log("load_core", info.system, result.observed_core, "running");
 		return {};
@@ -1280,13 +1285,14 @@ public:
 
 	Error FinishLaunchFailure(const std::string& operation,
 		const std::string& system, const std::string& core,
-		const HardwareResult& result,const Status* previous_status=nullptr)
+		const HardwareResult& result,const Status* previous_status=nullptr,
+		const Status* retained_owner=nullptr)
 	{
 		const Error primary = result.error;
 		Status retained;
 		if (result.bound_media_may_have_run) {
 			std::lock_guard<std::mutex> lock(mutex_);
-			retained = status_;
+			retained = retained_owner ? *retained_owner : status_;
 		}
 
 		{

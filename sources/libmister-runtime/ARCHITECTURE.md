@@ -339,7 +339,9 @@ Failed upload never calls Start or replays the ambiguous media command; normal
 launch failure cleanup applies. A failed Start with a bound disk is ambiguous:
 the guest may already have run. Native hardware marks that result for fault-save
 before idle cleanup. Runtime retains the selected package, ROM, generation and
-persistent media projection while saving. Existing mailbox realignment and
+persistent media projection privately while saving; public status keeps the
+ordinary empty starting projection until either idle or retained recovery is
+confirmed. Existing mailbox realignment and
 identity checks precede a frozen full-disk capture; the release is never replayed.
 Successful save permits idle cleanup and returns the original launch error.
 Failed capture or publication leaves the FPGA and binding owned in recovery,
