@@ -97,6 +97,7 @@ case "${1:-}" in
     # The smoke kernel uses the native image compiler so the native build
     # is independently sufficient for packaging smoke.
     selected_work=${FES_IMAGE_WORK:-/target-image-output/work-2-native-dev}
+    export CCACHE_DISABLE=1  # only image pass 1 and make dev use the shared ccache
     toolchain_root=$selected_work/host
     toolchain=$selected_work/host/bin/arm-buildroot-linux-gnueabihf-
     test -x "${toolchain}gcc" || {
