@@ -2742,7 +2742,9 @@ Existing post-activation HostOnly cleanup recovery remains unchanged.
 
 ## Initial Atari ST library disk
 
-A writable format-3 ST library launch includes the selected 720 KiB drive-A
+A writable format-3 ST library launch may omit the disk and boot to GEM with
+an empty drive A. Required floppy interfaces declare hardware support, not a
+requirement to insert media. When a disk is selected, the launch includes its 720 KiB
 source and explicit game/base-media binding in the closed ROM envelope. The
 host snapshots and hashes those immutable bytes before target mutation. The
 agent rejects initial disks on development routes, stages them privately and

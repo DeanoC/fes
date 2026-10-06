@@ -278,6 +278,9 @@ A failed upload never releases execution or replays its ambiguous command;
 existing launch recovery owns cleanup. A failed outgoing save retains the
 previous disk and generation.
 
-Omitting this object preserves an empty volatile drive at launch and ordinary
-live insertion. Two-source ROM loads reject initial media. This startup path
-has host software coverage only.
+Omitting this object preserves an empty volatile drive at launch: diskless
+boot to GEM remains supported even when the package requires both floppy
+interfaces. Those requirements describe hardware capabilities, not inserted
+media. Ordinary live insertion remains available. Two-source ROM loads reject
+initial media. This startup path has host coverage and the
+[exact-package automatic-boot diagnostic](../../../docs/validation/2026-10-06-atari-st-auto-boot.md); assembled appliance acceptance remains pending.

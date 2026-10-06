@@ -26,9 +26,9 @@ func TestSTVideoNormalPlayCarriesFirmwareVideoAndCartridge(t *testing.T) {
 func testSTVideoNormalPlay(t *testing.T, initialDisk bool) {
 	ctx := context.Background()
 	pkg, firmware := apple2LibraryPackageFixture(t, true, func(text string) string {
-		if initialDisk {
-			text += "\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-write\"\nmajor = 1\nminor = 0\nrequired = true\n"
-		}
+		// Required interfaces describe implemented hardware, not inserted media.
+		// Both cases use the writable ST package; drive A may start empty.
+		text += "\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-write\"\nmajor = 1\nminor = 0\nrequired = true\n"
 		return strings.ReplaceAll(text, "apple2", "atari-st") + "\n[[interfaces]]\nid = \"fes.fabric.video.raster-rgb888\"\nmajor = 1\nminor = 0\nrequired = false\n"
 	})
 	s, client, entry, inspection := newCoreEntryLaunchFixture(t, pkg, "ST video", time.Minute)
@@ -119,9 +119,11 @@ func testSTVideoNormalPlay(t *testing.T, initialDisk bool) {
 		status := coreEntryActiveStatus(inspection, 3, true)
 		status.CorePackage.ROMLink = staged.ROMLink
 		status.CorePackage.PartsComposition = staged.PartsComposition
+		status.CorePackage.PersistenceMode = "volatile"
+		status.CorePackage.ActiveInterfaces = append(status.CorePackage.ActiveInterfaces, protocol.RuntimeInterface{ID: protocol.AtariStFloppyInterface().ID, Major: 1}, protocol.RuntimeInterface{ID: protocol.AtariStFloppyWriteInterface().ID, Major: 1})
+		status.CorePackage.MediaUnits = []protocol.MediaUnitStatus{{Unit: 0, Interface: protocol.AtariStFloppyInterface(), MinBytes: uint32(protocol.AtariStFloppyBytes), MaxBytes: uint32(protocol.AtariStFloppyBytes), ChunkBytes: 512, State: protocol.MediaUnitEmpty}}
 		if initialDisk {
 			status.CorePackage.PersistenceMode = "persistent"
-			status.CorePackage.ActiveInterfaces = append(status.CorePackage.ActiveInterfaces, protocol.RuntimeInterface{ID: protocol.AtariStFloppyInterface().ID, Major: 1}, protocol.RuntimeInterface{ID: protocol.AtariStFloppyWriteInterface().ID, Major: 1})
 			status.CorePackage.MediaUnits = []protocol.MediaUnitStatus{{Unit: 0, Interface: protocol.AtariStFloppyInterface(), MinBytes: uint32(protocol.AtariStFloppyBytes), MaxBytes: uint32(protocol.AtariStFloppyBytes), ChunkBytes: 512, State: protocol.MediaUnitReady, Persistence: &protocol.MediaDataStatus{Mode: "persistent", GameID: entry.GameID, BaseMediaID: diskID, Revision: "absent"}}}
 		}
 		client.statusResult = status
@@ -130,6 +132,12 @@ func testSTVideoNormalPlay(t *testing.T, initialDisk bool) {
 	response, err := s.Launch(ctx, entry.GameID, nil)
 	if err != nil || client.coreCalls != 1 {
 		t.Fatalf("Play %+v %v calls%d", response, err, client.coreCalls)
+	}
+	if !initialDisk {
+		unit, ok := protocol.MediaUnit(response.Status.CorePackage, 0)
+		if !ok || unit.State != protocol.MediaUnitEmpty || unit.Persistence != nil || response.Status.CorePackage.PersistenceMode != "volatile" {
+			t.Fatal("diskless writable ST must launch with empty volatile drive A", response.Status.CorePackage)
+		}
 	}
 	want, err := corepackage.ComposePartsArchive(ctx, pkg, selected)
 	if err != nil {
