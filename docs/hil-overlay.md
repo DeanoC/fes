@@ -15,7 +15,12 @@ python3 scripts/hil_plan.py manifest --head "$PR_HEAD" --out /tmp/hil-manifest.j
 ```
 
 For each `core:*` archive, the planner reads the local archive and derives its
-package ID and core ID. The archive must identify the requested core. Host-server
+package ID and core ID. The archive must identify the requested core, and its
+embedded `build.revision` must equal the full PR head. Some changes cannot be
+overlaid and force `FULL_IMAGE`. These are the splash, which becomes the boot
+`/idle.rbf` (`cores/fes-splash/**`, `build_fes_splash*`, `sealed/**`), the video
+part producers (`scripts/*video_part*`), and Go packages that only image-build
+commands use (`internal/targetimage`). Host-server
 changes require the binary from the exact-head build to be started as `fogcast-api`
 before the host attestation command is run.
 

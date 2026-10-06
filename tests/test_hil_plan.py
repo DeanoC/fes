@@ -20,10 +20,11 @@ sys.path.insert(0, str(ROOT / 'sources/misteross'))
 from scripts.core_package import read_package
 
 
-def core_archive(core_id):
+def core_archive(core_id, revision='1' * 40):
     import tarfile
     manifest = (CORE_FIXTURES / 'manifests/valid-basic.toml').read_text()
-    manifest = manifest.replace('id = "fes.pong"', f'id = "{core_id}"', 1).encode()
+    manifest = manifest.replace('id = "fes.pong"', f'id = "{core_id}"', 1)
+    manifest = manifest.replace('revision = "' + '1' * 40 + '"', f'revision = "{revision}"', 1).encode()
     payload = (CORE_FIXTURES / 'payloads/fes-fixture.rbf').read_bytes()
     def member(name, data):
         info = tarfile.TarInfo(name)
@@ -92,7 +93,7 @@ class HilPlanTest(unittest.TestCase):
                             'size': len(content)}
             if component.startswith('core:'):
                 core_id = component.removeprefix('core:')
-                content = core_archive(core_id)
+                content = core_archive(core_id, head or self.head)
                 local.write_bytes(content)
                 row.update(local=str(local.resolve()), sha256=digest(content), size=len(content),
                            package_id=None, core_id=core_id)
@@ -240,8 +241,10 @@ class HilPlanTest(unittest.TestCase):
 
     def test_real_pr_fixtures(self):
         expected = {'pr569.files': ('mister-runtime', 'kit-go+host'),
-                    'pr567.files': ('mister-runtime', 'core:atari-st'),
                     'pr565.files': ('core:ramtest',)}
+        # #567 rebuilt the Atari ST video part archive, which the overlay cannot attest.
+        result = run('classify', '--paths-file', FIXTURES / 'pr567.files', '--json')
+        self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
         for filename, components in expected.items():
             with self.subTest(filename=filename):
                 result = run('classify', '--paths-file', FIXTURES / filename, '--json')
@@ -251,12 +254,58 @@ class HilPlanTest(unittest.TestCase):
                 for component in components:
                     self.assertIn(component, data['components'])
 
+    def test_evidence_refuses_core_archive_from_other_revision(self):
+        self.git_repo(['sources/misteross/cores/ramtest/change.v'])
+        entries = [('core:ramtest', 'host', '/tmp/ramtest.fcore', b'ignored')]
+        manifest = self.make_manifest(entries, head=self.head)
+        data = json.loads(manifest.read_text())
+        row = data['entries'][0]
+        stale = core_archive('ramtest', self.base)
+        Path(row['local']).write_bytes(stale)
+        row.update(sha256=digest(stale), size=len(stale),
+                   package_id=read_package(Path(row['local'])).package_id)
+        manifest.write_text(json.dumps(data))
+        output = self.work / 'stale.md'
+        result = self.evidence(manifest, entries, output=output)
+        self.assert_refused_without_evidence(result, output)
+        self.assertIn('was not built from head', result.stderr)
+
+    @unittest.skipUnless(shutil.which('go'), 'go toolchain not installed')
+    def test_go_packages_used_only_by_unmapped_commands_force_full(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('hil_plan_rules', SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        mapped = {pattern.split('/')[3] for pattern, kind, _ in module.RULES
+                  if pattern.startswith('sources/FogCast/cmd/') and kind == 'overlay'}
+        prefix = 'github.com/DeanoC/FogCast/'
+        listing = subprocess.run(['go', 'list', '-f', '{{.ImportPath}} {{join .Deps " "}}', './cmd/...'],
+                                 cwd=ROOT / 'sources/FogCast', text=True, capture_output=True)
+        if listing.returncode:
+            self.skipTest('go list failed: ' + listing.stderr[:200])
+        used = {}
+        for line in listing.stdout.splitlines():
+            command, *deps = line.split()
+            used[command.rsplit('/', 1)[1]] = {dep[len(prefix):] for dep in deps if dep.startswith(prefix)}
+        overlay = set().union(*(deps for command, deps in used.items() if command in mapped))
+        other = set().union(*(deps for command, deps in used.items() if command not in mapped))
+        for package in sorted(other - overlay):
+            with self.subTest(package=package):
+                result = run('classify', '--paths-file', self.path_file(f'sources/FogCast/{package}/x.go'), '--json')
+                self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
+
     def test_full_image_unrecognised_and_docs_only(self):
         for path in ('image/buildroot/board/x/etc/init.d/S42x', 'unknown/file.bin',
                      'sources/FogCast/cmd/fes-update/main.go',
                      'sources/FogCast/cmd/mister-bridge/x.go',
                      'sources/misteross/sealed/fes-splash.rbf',
-                     'sources/misteross/sealed/fes-splash.build-summary.json'):
+                     'sources/misteross/sealed/fes-splash.build-summary.json',
+                     'sources/misteross/cores/fes-splash/rtl/top.v',
+                     'sources/misteross/scripts/build_fes_splash.py',
+                     'sources/misteross/scripts/build_atari_st_video_part.py',
+                     'sources/misteross/scripts/build_video_part.py',
+                     'sources/misteross/scripts/video_parts.py',
+                     'sources/FogCast/internal/targetimage/lock.go'):
             result = run('classify', '--paths-file', self.path_file(path), '--json')
             self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
         for path in ('sources/FogCast/internal/example.go', 'sources/FogCast/catalog/example.go'):
@@ -721,8 +770,12 @@ class HilPlanTest(unittest.TestCase):
         self.assert_refused_without_evidence(result, output)
 
     def test_core_manifest_derives_identity_and_rejects_wrong_core(self):
-        core = self.write_artifact('core', core_archive('fes.pong'))
+        stale = self.write_artifact('stale', core_archive('fes.pong'))
         args = ['manifest', '--head', 'a' * 40, '--out', self.work / 'manifest.json']
+        old = run(*args, f'core:pong={stale}=host:/tmp/pong.fcore')
+        self.assertEqual(old.returncode, 2)
+        self.assertIn('built from revision 1111111111111111111111111111111111111111', old.stderr)
+        core = self.write_artifact('core', core_archive('fes.pong', 'a' * 40))
         accepted = run(*args, f'core:pong={core}=host:/tmp/pong.fcore')
         self.assertEqual(accepted.returncode, 0, accepted.stderr)
         entry = json.loads((self.work / 'manifest.json').read_text())['entries'][0]

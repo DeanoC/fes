@@ -47,13 +47,19 @@ RULES = [
     ('sources/FogCast/cmd/fogcast/**', 'overlay', 'host:fogcast'),
     ('sources/FogCast/cmd/*/**', 'full', 'fogcast-unmapped-command'),
     ('sources/FogCast/ui/**', 'overlay', 'host:fogcast-api'),
+    # Imported only by cmd/target-image-lock, which no overlay artifact runs.
+    ('sources/FogCast/internal/targetimage/**', 'full', 'image-selector'),
     ('sources/FogCast/**', 'overlay', 'kit-go+host'),
     ('sources/misteross/toolchain.lock', 'overlay', 'core:ALL'),
     ('sources/misteross/toolchains/*.lock', 'overlay', 'core:{lock}'),
     ('sources/misteross/cores/fes-common/**', 'overlay', 'core:ALL'),
+    # The splash produces the boot /idle.rbf, not a .fcore.
+    ('sources/misteross/cores/fes-splash/**', 'full', 'image-splash'),
+    ('sources/misteross/scripts/build_fes_splash*', 'full', 'image-splash'),
+    # Video parts ship as separate part archives the overlay cannot attest.
+    ('sources/misteross/scripts/*video_part*', 'full', 'video-part'),
     ('sources/misteross/cores/*/**', 'overlay', 'core:{core}'),
     ('sources/misteross/scripts/build_fes_*', 'overlay', 'core:{script}'),
-    ('sources/misteross/scripts/build_*video_part*', 'overlay', 'core:{script}'),
     ('sources/misteross/scripts/**', 'overlay', 'core:ALL'),
     ('sources/misteross/boards/**', 'overlay', 'core:ALL'),
     # The sealed splash is the boot /idle.rbf, owned by the image, not a core package.
@@ -218,6 +224,9 @@ def manifest(head, output, specs):
             name = component.removeprefix('core:')
             if core_id not in {name, 'fes.' + name}:
                 raise ValueError(f'archive is core {core_id}, not {component}')
+            revision = str(package.fields.get('build', {}).get('revision', '')).lower()
+            if revision != head.lower():
+                raise ValueError(f'archive for {component} was built from revision {revision or "?"}, not head {head}')
             entry['package_id'] = package.package_id
             entry['core_id'] = core_id
         validate_entry(entry)
@@ -430,6 +439,8 @@ def evidence(args):
             if (archive_sha != entry['sha256'] or package.package_id != entry['package_id'] or
                     package.fields['core']['id'] != entry['core_id']):
                 return refuse(f"local core archive sha256/package_id/core_id changed for {entry['component']}")
+            if str(package.fields.get('build', {}).get('revision', '')).lower() != head:
+                return refuse(f"core archive for {entry['component']} was not built from head {head}")
         key = (entry['side'], entry['target'])
         if key in seen:
             raise ValueError(f'duplicate {entry["side"]} target: {entry["target"]}')
