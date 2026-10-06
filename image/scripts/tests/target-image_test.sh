@@ -114,6 +114,35 @@ fi
 grep -Fq 'FES_IMAGE_WORK must be /target-image-output/work-1-native-dev' "$fixture/mismatched-work.log"
 grep -Fq 'selected_work=${FES_IMAGE_WORK:-/target-image-output/work-2-native-dev}' "$repo/scripts/build-target-kernel.sh"
 grep -Fq 'selected_work=${FES_IMAGE_WORK:-/target-image-output/work-2-native-dev}' "$repo/scripts/qemu-smoke-target-image.sh"
+# A 160 MiB rootfs must boot through QEMU's power-of-two SD device without
+# resizing the release image or changing any filesystem byte.
+smoke_script=$repo/scripts/qemu-smoke-target-image.sh
+for mib in 128 160; do
+  python3 - "$fixture/smoke-source" "$mib" <<'PY'
+import sys
+size = int(sys.argv[2]) * 1024 * 1024
+with open(sys.argv[1], 'wb') as image:
+    image.write(b'original filesystem prefix')
+    image.seek(size - 25)
+    image.write(b'original filesystem tail!')
+PY
+  source_sha=$(/usr/bin/shasum -a 256 "$fixture/smoke-source" | awk '{print $1}')
+  : > "$fixture/smoke-copy"
+  TARGET_IMAGE_TEST_MODE=1 sh "$smoke_script" --prepare-sd-copy "$fixture/smoke-source" "$fixture/smoke-copy"
+  test "$(/usr/bin/shasum -a 256 "$fixture/smoke-source" | awk '{print $1}')" = "$source_sha"
+  python3 - "$fixture/smoke-source" "$fixture/smoke-copy" "$mib" <<'PY'
+import os, sys
+source, copy = sys.argv[1:3]
+size = int(sys.argv[3]) * 1024 * 1024
+assert os.stat(source).st_size == size
+assert os.stat(copy).st_size == (128 if size == 128 * 1024 * 1024 else 256) * 1024 * 1024
+with open(source, 'rb') as original, open(copy, 'rb') as padded:
+    while chunk := original.read(1024 * 1024):
+        assert padded.read(len(chunk)) == chunk
+    while chunk := padded.read(1024 * 1024):
+        assert not any(chunk)
+PY
+done
 ! grep -Fq 'FES_IMAGE_WORK = ' "$repo/Makefile"
 cat > "$fixture/fake-container-runtime" <<'RUNTIME'
 #!/bin/sh
