@@ -2961,6 +2961,10 @@ void TestInitialSTDiskBeforeExecution()
     FesGpCoreDriver driver(gp);
     IntegratedFixture fixture(&driver);
     fixture.Start();
+    // Computer controller ports do not use the legacy gamepad input worker.
+    // A poisoned worker startup must therefore not affect any ST launch.
+    fixture.native.input.start_error = {mister::ErrorCode::io_failed, "legacy input start must not run"};
+
     fixture.native.fpga.on_program = [&] { endpoint.Reset(); };
     TempDirectory package, media, storage;
     auto manifest = ComputerManifest();
@@ -3017,6 +3021,7 @@ void TestInitialSTDiskBeforeExecution()
     fixture.native.fpga.on_program = [&] { endpoint.Reset(); assert(unlink(initial.path.c_str()) == 0); };
     assert(load().ok());
     assert(releases == 1 && held_transfers > 737280 / 2);
+    assert(fixture.native.input.start_calls == 0 && fixture.native.input.open_calls == 0);
     assert(fixture.runtime.status().core_data.mode == "persistent");
     auto unit = fixture.runtime.status().capabilities.media_units[0];
     assert(unit.state == mister::MediaUnitState::ready && unit.persistence_mode == "persistent");
@@ -3061,6 +3066,20 @@ void TestInitialSTDiskBeforeExecution()
     OpenedCorePackage read_only; assert(OpenCorePackage(readonly.path, "", &read_only).ok());
     assert(!fixture.runtime.LoadROMCore(readonly.path, read_only.package_id, programmed, link, &initial).ok());
     assert(fixture.native.fpga.calls == programs && fixture.runtime.status().generation == generation);
+    // Requiring the legacy interface cannot make input_.Start reachable on ST:
+    // computer admission rejects it before programming or disk ownership changes.
+    TempDirectory legacy_gamepad;
+    legacy_gamepad.File("manifest.toml", manifest +
+        "\n[[interfaces]]\nid = \"fes.gamepad\"\nmajor = 1\nminor = 0\nrequired = true\n");
+    legacy_gamepad.File("core.rbf", ReadText(programmed));
+    legacy_gamepad.File("rom-map.json", map);
+    OpenedCorePackage legacy_package;
+    assert(OpenCorePackage(legacy_gamepad.path, "", &legacy_package).ok());
+    const auto legacy_rejected = fixture.runtime.LoadROMCore(legacy_gamepad.path,
+        legacy_package.package_id, programmed, link, &initial);
+    assert(legacy_rejected.code == mister::ErrorCode::unsupported_interface);
+    assert(fixture.native.fpga.calls == programs && fixture.runtime.status().generation == generation);
+    assert(endpoint.unit(0).data == expected && fixture.native.input.start_calls == 0);
     // Failure during outgoing capture preserves its ownership and forbids programming.
     bool capture_failed = false;
     endpoint.fail_after_request = [&](const mister_test::ComputerEndpoint::Request& request) {

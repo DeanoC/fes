@@ -332,6 +332,9 @@ failure path. The production hardware facade forwards both methods.
 After programming and identity discovery, activation uploads retained bytes
 and confirms the complete disk ready while execution is still held. Only then
 is durable media metadata bound, and only the later Start releases execution.
+Computer controller ports use `fes.gamepad.ports`, not the legacy
+`fes.gamepad` input worker. Computer admission rejects required `fes.gamepad`,
+so its fallible `input_.Start` path cannot run after ST execution release.
 Failed upload never calls Start or replays the ambiguous media command; normal
 launch failure cleanup applies. Successful status reports the ready persistent
 unit and active persistent mode. Tests compare the entire restored image and

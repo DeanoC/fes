@@ -46,6 +46,8 @@ and an [exact-package Kit A automatic-boot diagnostic](../../../docs/validation/
 contract and durable record before mutation; upload/restore and ready
 confirmation precede the first execution release. Tests cover retained source
 bytes, same-namespace outgoing save refresh, malformed/corrupt preflight,
-failed-save ownership and failed upload without release. The diagnostic verifies
+failed-save ownership and failed upload without release. Host regressions also
+verify that ST never starts the legacy gamepad worker and rejects a required
+legacy `fes.gamepad` declaration before programming. The diagnostic verifies
 fresh and saved-disk AUTO execution with full payload comparisons in one daemon
 lifetime. Assembled appliance acceptance remains pending.
