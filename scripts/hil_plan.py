@@ -57,6 +57,7 @@ SHA64 = re.compile(r'^[0-9a-fA-F]{64}$')
 BINS = ('mister-runtime', 'mister-agent', 'fogcast-kit', 'fogcast-tenfoot')
 EXES = {'mister-runtime': 'mister-runtime', 'mister-agent': 'mister-agent',
         'fogcast-tenfoot': 'fogcast-kit-child'}
+HOST_SERVERS = {'host:fogcast-api'}
 
 
 def glob_matches(path, pattern):
@@ -166,6 +167,8 @@ def validate_entry(entry):
     if not isinstance(digest, str) or not SHA64.fullmatch(digest):
         raise ValueError(f'invalid manifest sha256 for {target}')
     basename = Path(target).name
+    if basename in BINS and component != basename:
+        raise ValueError(f'kit component {component} must match target basename {basename}')
     if basename in BINS and (side != 'kit' or target != f'/usr/sbin/{basename}'):
         raise ValueError(f'kit binary {basename} must target /usr/sbin/{basename}')
     if component.startswith(('host:', 'core:')) and side != 'host':
@@ -174,9 +177,25 @@ def validate_entry(entry):
         raise ValueError(f'{component} must be side kit')
     if side == 'kit' and target not in {f'/usr/sbin/{name}' for name in BINS}:
         raise ValueError('kit targets are restricted to the four /usr/sbin kit binaries')
+    if component.startswith('core:'):
+        if not isinstance(entry.get('package_id'), str) or not SHA64.fullmatch(entry['package_id']):
+            raise ValueError(f'{component} requires a 64-hex package_id')
+    elif 'package_id' in entry:
+        raise ValueError(f'package_id is only valid for core components: {component}')
 
 
-def manifest(head, output, specs):
+def manifest(head, output, specs, package_ids=()):
+    package_map = {}
+    for spec in package_ids:
+        try:
+            component, package_id = spec.split('=', 1)
+        except ValueError as error:
+            raise ValueError(f'package id must be COMPONENT=<64-hex>: {spec}') from error
+        if component in package_map:
+            raise ValueError(f'duplicate package id for {component}')
+        if not SHA64.fullmatch(package_id):
+            raise ValueError(f'invalid package id for {component}')
+        package_map[component] = package_id.lower()
     entries = []
     seen = set()
     for spec in specs:
@@ -189,12 +208,22 @@ def manifest(head, output, specs):
         entry = {'component': component, 'side': side, 'target': target,
                  'local': local, 'sha256': hashlib.sha256(data).hexdigest(),
                  'size': len(data)}
+        if component.startswith('core:') and component in package_map:
+            entry['package_id'] = package_map[component]
         validate_entry(entry)
         key = (side, target)
         if key in seen:
             raise ValueError(f'duplicate {side} target: {target}')
         seen.add(key)
         entries.append(entry)
+    invalid_ids = sorted(set(package_map) - {entry['component'] for entry in entries
+                                             if entry['component'].startswith('core:')})
+    if invalid_ids:
+        raise ValueError('package_id supplied for non-core or absent component: ' + ', '.join(invalid_ids))
+    missing_ids = sorted(entry['component'] for entry in entries
+                         if entry['component'].startswith('core:') and entry['component'] not in package_map)
+    if missing_ids:
+        raise ValueError('core components require --package-id: ' + ', '.join(missing_ids))
     Path(output).write_text(json.dumps({'head': full_sha(head, 'head'),
                                         'entries': entries}, indent=2) + '\n')
 
@@ -203,6 +232,8 @@ def read_hashes(path):
     """Read sha256sum output, rejecting duplicate file records."""
     result = {}
     for line in Path(path).read_text().splitlines():
+        if line.startswith('exe '):
+            continue
         match = re.fullmatch(r'([0-9a-fA-F]{64})\s+[* ](.+)', line)
         if match:
             name = match.group(2)
@@ -255,6 +286,18 @@ def validate_lease(path, owner):
     return records, None
 
 
+def validate_core_lease(path, owner):
+    records = [json.loads(line) for line in Path(path).read_text().splitlines() if line]
+    if len(records) != 2 or [record.get('step') for record in records] != ['claimed', 'released']:
+        return None, 'core-only lease log must contain claimed then released'
+    claimed, released = (record.get('status', {}) for record in records)
+    if claimed.get('state') != 'held' or claimed.get('owner') != owner:
+        return None, 'core-only lease claim must be held by lease owner'
+    if released.get('state') not in ('free', 'revoking'):
+        return None, 'core-only lease release must be free or revoking'
+    return records, None
+
+
 def evidence(args):
     base = git_commit(args.repo, args.base_image_commit)
     head = git_commit(args.repo, args.head)
@@ -286,16 +329,24 @@ def evidence(args):
         seen.add(key)
     kit_entries = [entry for entry in entries if entry['side'] == 'kit']
     host_entries = [entry for entry in entries if entry['side'] == 'host']
+    core_entries = [entry for entry in entries if entry['component'].startswith('core:')]
+    kit_involved = bool(kit_entries or core_entries)
     if kit_entries and not args.kit_sha256:
         return refuse('kit entries require --kit-sha256')
     if host_entries and not args.host_sha256:
         return refuse('host entries require --host-sha256')
     observed = {}
+    exe_lines = {}
     for side, subset, filename in (('kit', kit_entries, args.kit_sha256),
                                     ('host', host_entries, args.host_sha256)):
         if not subset:
             continue
         actual = read_hashes(filename)
+        if side == 'host':
+            for line in Path(filename).read_text().splitlines():
+                match = re.fullmatch(r'exe (\S+) (MISSING|[0-9a-fA-F]{64})(?: pid=(\d+))?', line)
+                if match:
+                    exe_lines.setdefault(match.group(1), []).append((match.group(2), match.group(3)))
         expected = {entry['target']: entry['sha256'].lower() for entry in subset}
         missing = sorted(expected.keys() - actual.keys())
         extra = sorted(actual.keys() - expected.keys())
@@ -312,8 +363,8 @@ def evidence(args):
     if release.get('image_sha256', '').lower() != base_image:
         return refuse('release image_sha256 does not match base image sha256')
     boot_id = good = version = ''
-    if kit_entries and not args.kit_update_json:
-        return refuse('kit entries require --kit-update-json')
+    if kit_involved and not args.kit_update_json:
+        return refuse('kit or core entries require --kit-update-json')
     if args.kit_update_json:
         update = json.loads(Path(args.kit_update_json).read_text())
         boot_id = update.get('boot_id', '')
@@ -329,12 +380,14 @@ def evidence(args):
     version = str(release.get('version', ''))
 
     lease = []
-    if kit_entries:
+    if kit_involved:
         if not args.lease_log or not args.lease_owner:
-            return refuse('kit entries require --lease-log and --lease-owner')
-        lease, error = validate_lease(args.lease_log, args.lease_owner)
+            return refuse('kit or core entries require --lease-log and --lease-owner')
+        lease, error = (validate_lease(args.lease_log, args.lease_owner) if kit_entries
+                        else validate_core_lease(args.lease_log, args.lease_owner))
         if error:
             return refuse(error)
+    if kit_entries:
         kit_text = Path(args.kit_sha256).read_text()
         if not re.search(r'^SUPERVISORS runtime=1 agent=1 kit=1$', kit_text, re.M):
             return refuse('supervisor counts are not runtime=1 agent=1 kit=1')
@@ -347,6 +400,37 @@ def evidence(args):
                     return refuse(f'running exe is MISSING for {executable}')
                 if not SHA64.fullmatch(match.group(1)) or match.group(1).lower() != entry['sha256'].lower():
                     return refuse(f'running exe hash mismatch for {executable}')
+
+    for entry in host_entries:
+        if entry['component'] not in HOST_SERVERS:
+            continue
+        records = exe_lines.get(entry['component'], [])
+        if not records or any(value == 'MISSING' for value, _ in records):
+            return refuse(f'running exe is MISSING for {entry["component"]}')
+        if any(value.lower() != entry['sha256'].lower() for value, _ in records):
+            return refuse(f'running exe hash mismatch for {entry["component"]}')
+
+    core_status = {}
+    for spec in args.core_status:
+        try:
+            component, filename = spec.split('=', 1)
+        except ValueError as error:
+            raise ValueError(f'core status must be COMPONENT=FILE: {spec}') from error
+        if component not in {entry['component'] for entry in core_entries}:
+            raise ValueError(f'core status supplied for unplanned component: {component}')
+        if component in core_status:
+            raise ValueError(f'duplicate core status for {component}')
+        core_status[component] = json.loads(Path(filename).read_text())
+    for entry in core_entries:
+        status = core_status.get(entry['component'])
+        if not status:
+            return refuse(f'missing --core-status for {entry["component"]}')
+        package = status.get('core_package') or {}
+        if package.get('package_id') != entry['package_id']:
+            return refuse(f'core package_id mismatch for {entry["component"]}')
+        state = status.get('state')
+        if not isinstance(state, str) or not state or state in ('idle', 'error'):
+            return refuse(f'core is not running for {entry["component"]}')
 
     lines = ['<!-- FES HIL evidence -->', '', f'- Head: `{head}`',
              f'- Base image commit: `{base}`', f'- Base linux.img sha256: `{base_image}`',
@@ -366,6 +450,12 @@ def evidence(args):
     lines.extend(f"| {entry['component']} | {entry['side']} | `{entry['target']}` | "
                  f"`{entry['sha256']}` | `{observed[entry['side']][entry['target']]}` | MATCH |"
                  for entry in entries)
+    if core_entries:
+        lines.extend(('', '| Core component | Package ID | Build ID | Archive sha256 |',
+                      '| --- | --- | --- | --- |'))
+        lines.extend(f"| {entry['component']} | `{entry['package_id']}` | "
+                     f"`{core_status[entry['component']]['core_package'].get('build_id', '')}` | "
+                     f"`{entry['sha256']}` |" for entry in core_entries)
     output = '\n'.join(lines) + '\n'
     if args.out:
         Path(args.out).write_text(output)
@@ -454,6 +544,7 @@ def parser():
     manifest_parser = sub.add_parser('manifest')
     manifest_parser.add_argument('--head', required=True)
     manifest_parser.add_argument('--out', required=True)
+    manifest_parser.add_argument('--package-id', action='append', default=[])
     manifest_parser.add_argument('artifacts', nargs='+')
     for command in ('kit-command', 'host-command'):
         sub.add_parser(command).add_argument('--manifest', required=True)
@@ -479,6 +570,7 @@ def parser():
     evidence_parser.add_argument('--kit-update-json')
     evidence_parser.add_argument('--lease-log')
     evidence_parser.add_argument('--lease-owner')
+    evidence_parser.add_argument('--core-status', action='append', default=[])
     evidence_parser.add_argument('--out')
     return root
 
@@ -520,7 +612,7 @@ def main(argv=None):
             show(plan(paths), args.json)
             return 0
         if args.command == 'manifest':
-            manifest(args.head, args.out, args.artifacts)
+            manifest(args.head, args.out, args.artifacts, args.package_id)
             return 0
         if args.command in ('kit-command', 'host-command'):
             entries = json.loads(Path(args.manifest).read_text()).get('entries', [])
@@ -529,6 +621,15 @@ def main(argv=None):
             else:
                 targets = [entry['target'] for entry in entries if entry['side'] == 'host']
                 print('sha256sum ' + ' '.join(shlex.quote(target) for target in targets))
+                for entry in entries:
+                    if entry.get('component') in HOST_SERVERS and entry.get('side') == 'host':
+                        target = shlex.quote(entry['target'])
+                        component = shlex.quote(entry['component'])
+                        print('matched=0')
+                        print(f"for p in /proc/[0-9]*; do [ -e \"$p/exe\" ] || continue; ")
+                        print(f"x=$(readlink \"$p/exe\" 2>/dev/null) || continue; case \"$x\" in {target}|{target}\\ \\(deleted\\)) ")
+                        print(f"h=$(sha256sum \"$p/exe\" 2>/dev/null | cut -d' ' -f1); if [ -n \"$h\" ]; then echo \"exe {component} $h pid=${{p##*/}}\"; matched=1; fi ;; esac; done")
+                        print(f"[ \"$matched\" = 1 ] || echo \"exe {component} MISSING\"")
             return 0
         if args.command == 'lease-record':
             status = json.loads(Path(args.status_json).read_text())

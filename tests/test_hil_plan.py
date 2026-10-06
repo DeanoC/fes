@@ -68,9 +68,12 @@ class HilPlanTest(unittest.TestCase):
         payload = []
         for component, side, target, content in entries:
             local = self.write_artifact(component.replace(':', '_'), content)
-            payload.append({'component': component, 'side': side, 'target': target,
+            row = {'component': component, 'side': side, 'target': target,
                             'local': str(local), 'sha256': digest(content),
-                            'size': len(content)})
+                            'size': len(content)}
+            if component.startswith('core:'):
+                row['package_id'] = 'c' * 64
+            payload.append(row)
         result.write_text(json.dumps({'head': head or self.head, 'entries': payload}, indent=2))
         return result
 
@@ -128,14 +131,20 @@ class HilPlanTest(unittest.TestCase):
         for component, side, target, content in entries:
             if side == 'host':
                 lines.append(f'{(override or {}).get(target, digest(content))}  {target}')
+                if component == 'host:fogcast-api':
+                    lines.append(f'exe {component} {(override or {}).get(target, digest(content))} pid=42')
         path = self.work / 'host.sha256'
         path.write_text('\n'.join(lines) + ('\n' if lines else ''))
         return path
 
     def evidence(self, manifest, entries, *, update=True, lease=True, release=None,
-                 output=None, extra=()):
+                 output=None, extra=(), host_exe_value=None):
         kit_file = self.kit_output(entries) if any(row[1] == 'kit' for row in entries) else None
         host_file = self.host_output(entries) if any(row[1] == 'host' for row in entries) else None
+        if host_file and host_exe_value is not None:
+            host_file.write_text(host_file.read_text().replace(
+                f'exe host:fogcast-api {digest(b"api")}',
+                f'exe host:fogcast-api {host_exe_value}'))
         args = ['evidence', '--repo', self.repo, '--base-image-commit', self.base,
                 '--head', self.head, '--base-image-sha256', BASE_SHA,
                 '--manifest', manifest, '--base-release-json', release or self.release_file()]
@@ -145,8 +154,15 @@ class HilPlanTest(unittest.TestCase):
             args += ['--host-sha256', host_file]
         if update:
             args += ['--kit-update-json', self.update_file()]
-        if lease and kit_file:
-            args += ['--lease-log', self.lease_file(), '--lease-owner', 'owner']
+        if lease and (kit_file or any(row[0].startswith('core:') for row in entries)):
+            steps = None if kit_file else [('claimed', 'held', 'owner'), ('released', 'free', None)]
+            args += ['--lease-log', self.lease_file(steps), '--lease-owner', 'owner']
+        for component, side, target, content in entries:
+            if component.startswith('core:'):
+                status = self.work / f'{component.replace(":", "_")}.status.json'
+                status.write_text(json.dumps({'state': 'running', 'core_package': {
+                    'package_id': 'c' * 64, 'build_id': 'build-test'}}))
+                args += ['--core-status', f'{component}={status}']
         if output:
             args += ['--out', output]
         args.extend(extra)
@@ -187,6 +203,9 @@ class HilPlanTest(unittest.TestCase):
             self.assertIn('/usr/sbin/mister-agent', result.stderr)
         result = run('manifest', '--head', 'a' * 40, '--out', self.work / 'm',
                      f'host:fogcast-api={binary}=kit:/home/api')
+        self.assertEqual(result.returncode, 2)
+        result = run('manifest', '--head', 'a' * 40, '--out', self.work / 'm',
+                     f'mister-agent={binary}=kit:/usr/sbin/fogcast-kit')
         self.assertEqual(result.returncode, 2)
 
     def test_deploy_script_syntax_and_order(self):
@@ -391,6 +410,106 @@ class HilPlanTest(unittest.TestCase):
         manifest = self.make_manifest(entries)
         result = self.evidence(manifest, entries, update=True)
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_host_server_executable_attestation_and_one_shot_cli(self):
+        self.git_repo(['sources/FogCast/cmd/fogcast-api/change.go'])
+        entries = [('host:fogcast-api', 'host', '/home/test/api', b'api')]
+        manifest = self.make_manifest(entries)
+        for value in ('0' * 64, 'MISSING'):
+            output = self.work / 'refused.md'
+            result = self.evidence(manifest, entries, output=output, host_exe_value=value)
+            self.assert_refused_without_evidence(result, output)
+        host = self.host_output(entries)
+        output = self.work / 'accepted.md'
+        result = self.evidence(manifest, entries, output=output, extra=('--host-sha256', host))
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        self.git_repo(['sources/FogCast/cmd/fogcast/change.go'])
+        cli_entries = [('host:fogcast', 'host', '/home/test/fogcast', b'cli')]
+        cli_manifest = self.make_manifest(cli_entries)
+        command = run('host-command', '--manifest', cli_manifest)
+        self.assertEqual(command.returncode, 0, command.stderr)
+        self.assertNotIn('exe ', command.stdout)
+        cli_result = self.evidence(cli_manifest, cli_entries)
+        self.assertEqual(cli_result.returncode, 0, cli_result.stderr)
+
+    def test_host_command_scans_proc_for_api_server(self):
+        binary = self.write_artifact('api', b'api')
+        manifest = self.work / 'manifest.json'
+        run('manifest', '--head', 'a' * 40, '--out', manifest,
+            f'host:fogcast-api={binary}=host:/home/test/fogcast-api')
+        command = run('host-command', '--manifest', manifest).stdout
+        self.assertIn('sha256sum /home/test/fogcast-api', command)
+        self.assertIn('/proc/[0-9]*', command)
+        self.assertIn('pid=', command)
+        self.assertIn('MISSING', command)
+        generated = self.work / 'host-command.sh'
+        generated.write_text(command)
+        self.assertEqual(subprocess.run(['sh', '-n', generated]).returncode, 0)
+
+    def test_core_only_requires_update_lease_and_status(self):
+        self.git_repo(['sources/misteross/cores/ramtest/change.v'])
+        entries = [('core:ramtest', 'host', '/tmp/ramtest.fcore', b'core')]
+        manifest = self.make_manifest(entries)
+        output = self.work / 'missing-update.md'
+        result = self.evidence(manifest, entries, update=False, output=output)
+        self.assert_refused_without_evidence(result, output)
+        self.assertIn('--kit-update-json', result.stderr)
+        output = self.work / 'missing-lease.md'
+        result = self.evidence(manifest, entries, lease=False, output=output)
+        self.assert_refused_without_evidence(result, output)
+        self.assertIn('--lease-log', result.stderr)
+
+        status = self.work / 'running.json'
+        status.write_text(json.dumps({'state': 'running', 'core_package': {
+            'package_id': 'c' * 64, 'build_id': 'build-test'}}))
+        log = self.lease_file([('claimed', 'held', 'owner'), ('released', 'free', None)])
+        args = ['evidence', '--repo', self.repo, '--base-image-commit', self.base,
+                '--head', self.head, '--base-image-sha256', BASE_SHA, '--manifest', manifest,
+                '--base-release-json', self.release_file(), '--kit-update-json', self.update_file(),
+                '--host-sha256', self.host_output(entries),
+                '--lease-log', log, '--lease-owner', 'owner', '--core-status', f'core:ramtest={status}']
+        missing_status_args = args[:-2]
+        output = self.work / 'missing-status.md'
+        self.assert_refused_without_evidence(run(*missing_status_args, '--out', output), output)
+        output = self.work / 'accepted.md'
+        result = run(*args, '--out', output)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('| Core component | Package ID | Build ID | Archive sha256 |', output.read_text())
+        output = self.work / 'four-step.md'
+        result = run(*args[:-4], '--lease-log', self.lease_file(), '--lease-owner', 'owner',
+                     '--core-status', f'core:ramtest={status}', '--out', output)
+        self.assert_refused_without_evidence(result, output)
+
+        # lease_file() above rewrote the shared lease log with four steps; restore two.
+        args[args.index('--lease-log') + 1] = self.lease_file(
+            [('claimed', 'held', 'owner'), ('released', 'free', None)])
+        for payload, reason in (
+                ({'state': 'running', 'core_package': {'package_id': 'd' * 64}}, 'package_id mismatch'),
+                ({'state': 'idle', 'core_package': {'package_id': 'c' * 64}}, 'not running'),
+                ({'state': 'error', 'core_package': {'package_id': 'c' * 64}}, 'not running'),
+                ({'state': 'running'}, 'package_id mismatch')):
+            status.write_text(json.dumps(payload))
+            output = self.work / 'bad-status.md'
+            result = run(*args, '--out', output)
+            self.assert_refused_without_evidence(result, output)
+            self.assertIn(reason, result.stderr)
+        output = self.work / 'unplanned-status.md'
+        args[args.index('--lease-log') + 1] = self.lease_file(
+            [('claimed', 'held', 'owner'), ('released', 'free', None)])
+        result = run(*args[:-2], '--core-status', f'core:other={status}', '--out', output)
+        self.assertEqual(result.returncode, 2, result.stderr)
+        self.assertFalse(output.exists())
+
+    def test_core_manifest_requires_package_id_and_rejects_non_core_id(self):
+        core = self.write_artifact('core', b'core')
+        args = ['manifest', '--head', 'a' * 40, '--out', self.work / 'manifest.json']
+        missing = run(*args, f'core:one={core}=host:/tmp/one.fcore')
+        self.assertEqual(missing.returncode, 2)
+        self.assertFalse((self.work / 'manifest.json').exists())
+        noncore = run(*args, '--package-id', 'host:fogcast-api=' + 'c' * 64,
+                      f'host:fogcast-api={core}=host:/tmp/api')
+        self.assertEqual(noncore.returncode, 2)
 
     def test_lease_order_owner_and_missing_step_refuse(self):
         self.git_repo(['sources/libmister-runtime/change.cpp'])
