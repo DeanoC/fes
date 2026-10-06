@@ -49,6 +49,13 @@ preserves the prior record. A directory-sync failure after rename may leave
 the new canonical bytes visible and still reports save failure; the retained
 capture permits reconciliation with the authoritative current revision.
 
+Opening the namespace takes that same exclusive lock before any read. It then
+deletes leftover files named `.record-<pid>-<sequence>` or
+`.probe-<pid>-<sequence>`. Those are the private save temporary and the write
+probe. A crash, or a cleanup that does not finish, can leave them behind. A
+save still holding the lock keeps its file. `record.bin` and every other name
+stay.
+
 Sector writes stage a complete 512-byte sector before changing the emulated
 disk. Once publication to SDRAM starts it drains through warm reset or force
 interrupt before capture proceeds. This prevents a torn sector in a captured

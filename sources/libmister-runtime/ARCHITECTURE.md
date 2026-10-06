@@ -316,8 +316,12 @@ to a shell lacking the write contract.
 `/media/fat/fogcast/core-data/media`. The namespace combines core ID, game ID,
 unit and base-image digest; firmware/video package revisions do not rename it.
 The versioned record contains identity hashes, exact layout and payload,
-checksum and full-record revision. Publication uses the existing lock, private
-file, file sync, atomic rename and directory sync policy. Corrupt, incompatible
+checksum and full-record revision. Opening the namespace takes the same
+exclusive lock and removes leftover `.record-<pid>-<sequence>` and
+`.probe-<pid>-<sequence>` files before the record is read. A live save holds
+that lock for the whole temporary, so only a crash or a failed cleanup leaves
+a file to remove. Publication uses the existing lock, private file, file sync,
+atomic rename and directory sync policy. Corrupt, incompatible
 or concurrently changed records block replacement rather than resetting data.
 If directory sync fails after rename, an exact visible copy of the captured
 image retains its own revision for an explicit retry; the failure still reports

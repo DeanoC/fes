@@ -20,7 +20,9 @@ std::string MediaDataNamespace(const MediaDataIdentity&);
 Error EncodeMediaData(const MediaDiskRecord&, std::vector<unsigned char>*);
 Error DecodeMediaData(const std::vector<unsigned char>&, const MediaDataIdentity&, MediaDiskRecord*);
 // Separate immutable-source disk namespace; neither package versions nor
-// video/firmware selection name it. Read reopens the complete canonical file.
+// video/firmware selection name it. Open takes the namespace lock and
+// removes leftover private save and probe files. Read reopens the complete
+// canonical file.
 class MediaDataFile {
 public:
     ~MediaDataFile();

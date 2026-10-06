@@ -125,6 +125,10 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
     layout = package_profile(package)
     inputs, sources = INPUTS, SOURCES
     _, revision = _require_clean_source(root, pinned_inputs=inputs, identity_version=2)
+    # The sealed package stores manifest.toml, core.rbf and rom-map.json only.
+    # routed.json and socket.qsf remain frozen producer outputs. Their hashes
+    # in the recipe below are the seal for those two inputs. CRAM containment
+    # later proves the part against the sealed bitstream.
     members = ("manifest.toml", "core.rbf", "routed.json", "socket.qsf", "rom-map.json")
     if (shell / members[0]).read_bytes() != package.manifest_bytes or \
             (shell / members[1]).read_bytes() != package.payload_bytes or \

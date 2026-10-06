@@ -223,6 +223,9 @@ class FullProducer(unittest.TestCase):
             summary=json.loads((archive.parent/'build-summary.json').read_bytes())
             self.assertEqual(summary['recipe']['placer_seed'],5)
             self.assertEqual(summary['recipe']['inputs'],f.closure(f.root,[]))
+            self.assertEqual(summary['recipe']['shell'], {
+                name: hashlib.sha256((f.shell / name).read_bytes()).hexdigest()
+                for name in ('manifest.toml', 'core.rbf', 'routed.json', 'socket.qsf', 'rom-map.json')})
             self.assertEqual(summary['cram_diff']['bits_inside_slot'],1)
             self.assertEqual(summary['cram_diff']['bits_outside_slot'],0)
             self.assertEqual(summary['checked_clock_pins'],1)
@@ -235,6 +238,26 @@ class FullProducer(unittest.TestCase):
                 manifest=json.load(packed.extractfile('manifest.json'))
                 self.assertEqual(manifest['shell_package_id'],f.package.package_id)
                 self.assertEqual(manifest['map'],layout.MAP)
+    def test_routed_netlist_and_socket_constraints_change_the_part_recipe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f=CompilerFixture(Path(tmp))
+            first=f.build(seed=5)
+            first_shell=json.loads((first.parent/'build-summary.json').read_bytes())['recipe']['shell']
+            routed=json.loads((f.shell/'routed.json').read_bytes())
+            routed['unused']=1
+            (f.shell/'routed.json').write_bytes(json.dumps(routed).encode())
+            second=f.build(seed=5)
+            second_shell=json.loads((second.parent/'build-summary.json').read_bytes())['recipe']['shell']
+            self.assertNotEqual(first.parent, second.parent)
+            self.assertNotEqual(first_shell['routed.json'], second_shell['routed.json'])
+            self.assertEqual(first_shell['socket.qsf'], second_shell['socket.qsf'])
+            self.assertEqual(first_shell['core.rbf'], second_shell['core.rbf'])
+            (f.shell/'socket.qsf').write_bytes((f.shell/'socket.qsf').read_bytes()+b'\n')
+            third=f.build(seed=5)
+            third_shell=json.loads((third.parent/'build-summary.json').read_bytes())['recipe']['shell']
+            self.assertNotEqual(second.parent, third.parent)
+            self.assertNotEqual(second_shell['socket.qsf'], third_shell['socket.qsf'])
+            self.assertEqual(second_shell['routed.json'], third_shell['routed.json'])
     def test_failures_never_publish_a_part(self):
         for name in ('pixel timing','system timing','audio timing','wrong clock','RAM','header','outside strict column','source mutation','generated mutation','map mismatch'):
             with self.subTest(name=name),tempfile.TemporaryDirectory() as tmp:

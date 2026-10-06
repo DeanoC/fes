@@ -91,11 +91,29 @@ int main()
 #endif
     const auto second=decoded.revision;
     assert(file->Persist(record,second,&decoded).ok());
-    // Reopen from another descriptor and reject corruption rather than
-    // publishing defaults or overwriting it during a later save.
+    // A crash can leave the save temporary or write probe behind. Reopening
+    // the namespace removes only those names, including a symlink, and keeps
+    // the published record.
+    const std::string ns=std::string(root)+"/"+MediaDataNamespace(id);
+    const std::string record_path=ns+"/record.bin";
+    {
+        std::ofstream orphan(ns+"/.record-42-7",std::ios::binary); assert(orphan.put('x'));
+        std::ofstream probe(ns+"/.probe-99-3",std::ios::binary); assert(probe.put('y'));
+        std::ofstream note(ns+"/.record-note",std::ios::binary); assert(note.put('k'));
+        std::ofstream extra(ns+"/.record-1-2-3",std::ios::binary); assert(extra.put('k'));
+    }
+    assert(symlink("record.bin",(ns+"/.record-5-1").c_str())==0);
     std::unique_ptr<MediaDataFile> reopened;
     assert(MediaDataFile::Open(root,id,&reopened).ok());
+    assert(access((ns+"/.record-42-7").c_str(),F_OK)!=0);
+    assert(access((ns+"/.probe-99-3").c_str(),F_OK)!=0);
+    assert(access((ns+"/.record-5-1").c_str(),F_OK)!=0);
+    assert(access((ns+"/.record-note").c_str(),F_OK)==0);
+    assert(access((ns+"/.record-1-2-3").c_str(),F_OK)==0);
+    assert(unlink((ns+"/.record-note").c_str())==0);
+    assert(unlink((ns+"/.record-1-2-3").c_str())==0);
     assert(reopened->Read(&decoded).ok() && decoded.bytes==record.bytes);
+    assert(access(record_path.c_str(),F_OK)==0);
     const std::string path=std::string(root)+"/"+MediaDataNamespace(id)+"/record.bin";
     { std::ofstream corrupt(path,std::ios::binary|std::ios::trunc); corrupt << "bad"; }
     assert(reopened->Read(&decoded).code==ErrorCode::corrupt_data);
@@ -105,6 +123,10 @@ int main()
     assert(!reopened->Read(&decoded).ok());
     assert(!reopened->Persist(record,"absent",nullptr).ok());
     assert(unlink(path.c_str())==0);
+    assert(mkdir((ns+"/.probe-7-1").c_str(),0700)==0);
+    std::unique_ptr<MediaDataFile> blocked;
+    assert(MediaDataFile::Open(root,id,&blocked).code==ErrorCode::save_failed);
+    assert(rmdir((ns+"/.probe-7-1").c_str())==0);
     file.reset(); reopened.reset();
     assert(rmdir((std::string(root)+"/"+MediaDataNamespace(id)).c_str())==0);
     assert(rmdir(root)==0);

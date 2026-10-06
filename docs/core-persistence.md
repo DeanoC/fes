@@ -97,7 +97,9 @@ Packages with `fes.media.atari-st-floppy-write` 1.0 can persist drive A's exact
 core ID, drive unit and immutable imported disk hash. A developer insert stays
 volatile. Saved data lives under `/media/fat/fogcast/core-data/media/` in a
 hashed namespace, separate from per-core Pong settings and immutable sources.
-Package, firmware and video selection do not change that namespace.
+Package, firmware and video selection do not change that namespace. Opening
+the namespace removes leftover private save and probe files before the record
+is read.
 
 The runtime freezes new disk writes, drains any accepted sector and captures
 the full image before save, Stop, eject or replacement. It publishes a synced,
