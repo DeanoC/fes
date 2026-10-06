@@ -702,7 +702,7 @@ Commands, cart-authoring rules and kit probes live in
 [OSS place-and-route testing](oss-pnr.md#freeze-scaffold-cartridges).
 `scripts/build_fes_slot.py` is the compose entry point; it fails
 closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
-The locked nextpnr `32bc2353` provides those flags after `make toolchain-fes`.
+The locked nextpnr `a20f34c5` provides those flags after `make toolchain-fes`.
 It also corrects pass-through LUT masks for `MISTRAL_BUF` routing cells:
 the earlier `d672fade` emitter could write all-ones masks despite successful
 simulation and timing. The selected PR #73 revision has an emitted-bitstream
@@ -831,7 +831,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `32bc2353` with Mistral `8fcc4cb4`. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
+| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `a20f34c5` with Mistral `8fcc4cb4`. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -1625,6 +1625,11 @@ the same `fes.computer` 1.0 mailbox as Apple II. The machine contract is
 [its README](../cores/fes-c64/README.md). `make sim-fes-c64` boots the open
 diagnostic: RAM, firmware signature, VIC text, both cartridge sockets,
 joystick, keyboard, a SID sample and a read-only D64 LOAD of `BOOT`.
+The diagnostic waits at stages 7/8 for joystick Up and HID A. A hardware
+runner confirms the live disk is ready before sending those inputs; it uses
+launch's existing ready input stream instead of attaching twice. This is an
+operator-gated diagnostic, not pre-release initial-disk mounting or write-back
+support. Atari ST's startup and durable writable-disk contract remains separate.
 Both CIA timers expose their live counters, load stopped counters on high-byte
 writes, treat force-load as a strobe, and implement continuous/one-shot counting.
 Timer B can count Phi2 or timer A underflows. CIA1 asserts IRQ and CIA2 asserts
@@ -1645,7 +1650,13 @@ netlist check rejects every other async M10K. Color RAM is a synchronous
 dual-port M10K, with independent system and pixel clocks; the CPU samples its
 registered read at cycle 16 and the VIC aligns its result with main RAM.
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
-frozen shell. No Commodore ROM is in the tree, and the core is not in the
+frozen shell. The producer chooses probe mode from the socket and validates
+both legacy and physical PLL output maps. Frozen clocks are constrained by
+net; admission requires final analogue setup and hold on all three clocks
+independently of routing legality and CRAM containment. Each response output
+has a separate identity ALUT2 so the pinned merger cannot discard constant
+outputs or collapse aliased response sinks. The probe drives only read cycles.
+No Commodore ROM is in the tree, and the core is not in the
 factory image. The shell uses Yosys `5391eeb1`, Mistral `8fcc4cb4` and nextpnr
 `0c5ed400`; its
 socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`

@@ -104,7 +104,7 @@ format-2 or format-3 packages. `fes.menu` is idle display firmware, not a playab
 catalog entry. The current [FES default profile](../../../profiles/native-integration-dev.toml)
 selects menu, Pong, ZX81, Coleco, SMS, SG-1000, Spectrum, the OSS 100 MHz RAM Tester
 and Atari ST. ST firmware is separately selected; the image bundles no ROM.
-C64 has no current timing-passing HIP seal and stays out.
+C64 remains package-only without factory-image acceptance.
 See [core status](../../../docs/core-status.md) for exact-artifact evidence.
 
 The following is the complete ten-ID input example for the selector interface;

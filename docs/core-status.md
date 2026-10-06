@@ -35,8 +35,10 @@ The image selector supports ten IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st`.
 `fes.riscv` is registered for `make core-dev` only.
 SMS, SG-1000, Spectrum and Atari ST are sealed and included. The 160 MiB rootfs
-holds them. C64 is registered but has no current timing-passing HIP seal, so it
-stays out. The factory packages, Apple II and Catch seal with
+holds them. C64 remains registered and package-only: its frozen HIP seal and
+original firmware/probe [functional diagnostic](validation/2026-10-06-c64-functional-closure.md)
+pass, but there is no factory-image acceptance or promotion. The factory packages,
+Apple II and Catch seal with
 HIP/nextpnr. Quartus is an oracle where the recipe says so. It is not the product
 path and not a fallback.
 

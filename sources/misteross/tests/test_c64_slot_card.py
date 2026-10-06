@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -33,6 +34,69 @@ def frozen_shell() -> dict:
 
 
 class C64SlotCardTests(unittest.TestCase):
+    def test_original_synthesis_snapshot_cannot_follow_a_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            relative = Path("build/cards/test")
+            output = root / relative
+            output.mkdir(parents=True)
+            target = root / "unrelated.json"
+            target.write_text("preserve me")
+            (output / "cart-synthesized.json").symlink_to(target)
+            with self.assertRaises(card.shell_recipe.BuildError):
+                card._prepare_output(root, relative=relative, build_outputs=card.BUILD_OUTPUTS)
+            self.assertEqual(target.read_text(), "preserve me")
+
+    @staticmethod
+    def physical_shell() -> dict:
+        design = frozen_shell()
+        pll = design["modules"]["top"]["cells"]["system_clock.pll"]
+        pll["connections"]["outclk[1]"] = [20]
+        pll["port_directions"]["outclk[1]"] = "output"
+        mapping = {"count": 5, "pins": {"locked": [0, "locked"], "outclk": [0, "C6"],
+                    "outclk[1]": [0, "C7"], "refclk": [0, "refclk"], "rst": [0, "rst"]}}
+        pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping).encode().hex()
+        return design
+
+    def test_scaffold_preserves_physical_pll_outputs(self) -> None:
+        source = self.physical_shell()
+        result = json.loads(card.prepare_scaffold(json.dumps(source).encode(), 2))
+        self.assertEqual(result["modules"]["top"]["cells"]["system_clock.pll"],
+                         source["modules"]["top"]["cells"]["system_clock.pll"])
+        self.assertIn("slot1.plug_request_ff_0", result["modules"]["top"]["cells"])
+
+    def test_physical_pll_contract_fails_closed(self) -> None:
+        for mutation in ("audio_net", "pin", "count", "extra_pin", "direction", "extra_port"):
+            with self.subTest(mutation=mutation):
+                source = self.physical_shell()
+                pll = source["modules"]["top"]["cells"]["system_clock.pll"]
+                mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]))
+                if mutation == "audio_net":
+                    pll["connections"]["outclk[1]"] = [99]
+                elif mutation == "pin":
+                    mapping["pins"]["outclk[1]"] = [0, "C6"]
+                elif mutation == "count":
+                    mapping["count"] = 6
+                elif mutation == "extra_pin":
+                    mapping["pins"]["outclk[0]"] = [0, "C6"]
+                elif mutation == "direction":
+                    pll["port_directions"]["outclk[1]"] = "input"
+                else:
+                    pll["connections"]["outclk[2]"] = [99]
+                pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping).encode().hex()
+                with self.assertRaises(ValueError):
+                    card.prepare_scaffold(json.dumps(source).encode(), 1)
+
+    def test_probe_mode_follows_the_physical_socket(self) -> None:
+        for slot, mode in ((1, 0), (2, 1)):
+            command = card.card_synthesis_script("probe", slot, Path("build/card"))
+            self.assertIn(f"chparam -set MODE {mode} cart;", command)
+            self.assertIn("write_json build/card/cart.json", command)
+        with self.assertRaises(ValueError):
+            card.card_synthesis_script("probe", 3, Path("build/card"))
+        with self.assertRaises(ValueError):
+            card.card_synthesis_script("unknown", 1, Path("build/card"))
+
     def test_scaffold_exposes_only_the_chosen_slot(self) -> None:
         design = json.loads(card.prepare_scaffold(json.dumps(frozen_shell()).encode(), 1))
         cells = design["modules"]["top"]["cells"]
@@ -70,15 +134,30 @@ class C64SlotCardTests(unittest.TestCase):
 
     def test_clock_constraints_and_timing_gate(self) -> None:
         text = card.cart_clock_constraints(ROOT).decode()
+        self.assertIn("[get_nets {FPGA_CLK1_50}]", text)
+        self.assertNotIn("get_ports", text)
         for name in card.REQUIRED_CLOCKS_MHZ:
             self.assertIn(f"[get_nets {{{name}}}]", text)
         good = {"fmax": {name: {"constraint": mhz, "achieved": mhz + 1}
                          for name, mhz in card.REQUIRED_CLOCKS_MHZ.items()}}
+        good["timing_summary"] = {"final_analogue_model": True, "clocks": {
+            name: {"setup_wns_ns": 0.0, "hold_wns_ns": 0.1} for name in card.REQUIRED_CLOCKS_MHZ}}
         self.assertEqual(set(card.validate_cart_timing(good)), set(card.REQUIRED_CLOCKS_MHZ))
         slow = json.loads(json.dumps(good))
         slow["fmax"]["system_clock.clocks[0]"]["achieved"] = 50.0
         with self.assertRaises(Exception):
             card.validate_cart_timing(slow)
+        for bad_value in (-0.001, float("nan"), float("inf"), True, None):
+            for key in ("setup_wns_ns", "hold_wns_ns"):
+                bad = json.loads(json.dumps(good))
+                bad["timing_summary"]["clocks"][card.SLOT_CLOCK][key] = bad_value
+                with self.assertRaises(ValueError):
+                    card.validate_cart_timing(bad)
+        for summary in ({}, {"final_analogue_model": False, "clocks": {}}, [],
+                        {"final_analogue_model": True, "clocks": {}}):
+            bad = dict(good, timing_summary=summary)
+            with self.assertRaises(ValueError):
+                card.validate_cart_timing(bad)
 
     def test_clock_guard_rejects_card_pins_off_the_socket_clock(self) -> None:
         def routed(clk2):
@@ -92,6 +171,42 @@ class C64SlotCardTests(unittest.TestCase):
         self.assertEqual(card.validate_cart_clocks(routed([])), 2)
         with self.assertRaisesRegex(ValueError, "fes_cart\\$ram pin CLK2"):
             card.validate_cart_clocks(routed([117]))
+        with self.assertRaises(ValueError):
+            card.validate_cart_clocks(routed([117]), allow_combinational=True)
+
+    def test_combinational_rom_probe_requires_actual_card_logic(self) -> None:
+        design = {"modules": {"top": {"netnames": {card.SLOT_CLOCK: {"bits": [5]}},
+                                      "cells": {"fes_cart$rom": {"type": "MISTRAL_ALUT2", "connections": {}}}}}}
+        self.assertEqual(card.validate_cart_clocks(design, allow_combinational=True), 0)
+        with self.assertRaises(ValueError):
+            card.validate_cart_clocks(design)
+        design["modules"]["top"]["cells"] = {}
+        with self.assertRaises(ValueError):
+            card.validate_cart_clocks(design, allow_combinational=True)
+
+    def test_response_drivers_preserve_constants_aliases_and_truth_table(self) -> None:
+        inputs = ["0", "1", 3, 3] * 7
+        pads = list(range(10, 38))
+        cells = {f"ob_{i}": {"type": "MISTRAL_OB", "connections": {"I": [value], "PAD": [pads[i]]}}
+                 for i, value in enumerate(inputs)}
+        source = {"modules": {"cart": {"ports": {"plug_rdata": {"bits": pads},
+                                                 "plug_addr": {"bits": [3]}}, "cells": cells}}}
+        result = json.loads(card.materialize_response_drivers(json.dumps(source).encode()))
+        cells = result["modules"]["cart"]["cells"]
+        outputs = set()
+        for i, value in enumerate(inputs):
+            lut = cells[f"fes_response_driver_{i}"]
+            self.assertEqual(lut["connections"]["A"], [value])
+            self.assertEqual(lut["type"], "MISTRAL_ALUT2")
+            self.assertEqual(lut["connections"]["B"], ["0"])
+            self.assertEqual(lut["connections"]["Q"], cells[f"ob_{i}"]["connections"]["I"])
+            outputs.update(lut["connections"]["Q"])
+            for bit in range(4):
+                self.assertEqual((int(lut["parameters"]["LUT"], 2) >> bit) & 1, bit & 1)
+        self.assertEqual(len(outputs), 28)
+        source["modules"]["cart"]["cells"].pop("ob_0")
+        with self.assertRaises(ValueError):
+            card.materialize_response_drivers(json.dumps(source).encode())
 
 
 if __name__ == "__main__":
