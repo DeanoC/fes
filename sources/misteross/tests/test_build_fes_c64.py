@@ -174,6 +174,35 @@ class BuildFesC64Tests(unittest.TestCase):
         with self.assertRaises(BuildError):
             async_m10k_parameter("nope")
 
+    def test_autonamed_read_only_roms_still_get_clocks(self) -> None:
+        """Post-ABC autoname may replace either ROM prefix; both roles still patch."""
+        import tempfile
+        vic = "machine.main_ram.ram.0.61_B1Q_3_MISTRAL_M10K_B1ADDR"
+        iec = "machine.iec.file_track_rom"
+        renamed_iec = "machine.iec.disk_addr_track_base"
+
+        def rom(name: str) -> tuple[str, dict]:
+            return name, {"type": "MISTRAL_M10K", "parameters": {"CFG_ASYNC_READ": "0"},
+                          "connections": {"CLK1": ["x"], "CLK2": [41], "A1EN": ["0"], "B1EN": ["1"]}}
+
+        def patch(names: list[str]) -> dict:
+            with tempfile.TemporaryDirectory() as directory:
+                path = Path(directory) / "synth.json"
+                cells = dict(rom(name) for name in names)
+                path.write_text(json.dumps({"modules": {"top": {"cells": cells}}}))
+                producer.clock_read_only_memories(path)
+                return json.loads(path.read_text())["modules"]["top"]["cells"]
+
+        for names in ([vic, iec], [renamed_iec, "machine.vic.code_q_rom"], [vic, renamed_iec]):
+            fixed = patch(names)
+            self.assertTrue(all(cell["connections"]["CLK1"] == [41] for cell in fixed.values()), names)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "synth.json"
+            cells = dict(rom(name) for name in (vic, iec, "machine.extra_rom"))
+            path.write_text(json.dumps({"modules": {"top": {"cells": cells}}}))
+            with self.assertRaisesRegex(BuildError, "unexpected disconnected C64 M10K clock"):
+                producer.clock_read_only_memories(path)
+
     def test_read_only_clock_patch_rejects_async_m10k(self) -> None:
         import tempfile
         with tempfile.TemporaryDirectory() as directory:
@@ -241,6 +270,47 @@ class C64YosysM10kTests(unittest.TestCase):
         self.assertEqual(objects("SDP"), "18 objects.")
         self.assertEqual(objects("TDP"), "235 objects.")
         self.assertEqual(lanes, sorted(f"machine.rom.lane{index}" for index in range(16)))
+
+    def test_full_synth_patches_autonamed_read_only_clocks(self) -> None:
+        """The producer clock patch must accept the names left by ABC and autoname."""
+        yosys = _yosys_binary()
+        assert yosys is not None
+        abc = Path(yosys).with_name("yosys-abc")
+        if not abc.is_file():
+            self.skipTest("yosys-abc is required for the post-ABC C64 clock patch")
+        sources = " ".join(producer.RTL_SOURCES)
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            synth = Path(directory) / "synth.json"
+            log_path = Path(directory) / "yosys.log"
+            program = (
+                "read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-common/generated "
+                f"{sources}; "
+                "chparam -set BUILD_ID 128'h" + "0" * 32 + " top; "
+                "synth_intel_alm -nolutram -nodsp -top top; "
+                f"write_json {synth}"
+            )
+            result = subprocess.run([yosys, "-l", str(log_path), "-p", program], cwd=ROOT,
+                                    text=True, capture_output=True, check=False)
+            log = log_path.read_text(encoding="utf-8", errors="replace")
+            self.assertEqual(result.returncode, 0, (result.stderr or log)[-4000:])
+            design = json.loads(synth.read_text())
+            cells = design["modules"]["top"]["cells"]
+            open_clocks = sorted(
+                name for name, cell in cells.items()
+                if cell.get("type") == "MISTRAL_M10K" and cell.get("connections", {}).get("CLK1") == ["x"]
+            )
+            self.assertEqual(len(open_clocks), 2, open_clocks)
+            producer.clock_read_only_memories(synth)
+            patched = json.loads(synth.read_text())["modules"]["top"]["cells"]
+            for name in open_clocks:
+                pins = patched[name]["connections"]
+                self.assertEqual(pins["CLK1"], pins["CLK2"], name)
+            still_open = [
+                name for name, cell in patched.items()
+                if cell.get("type") == "MISTRAL_M10K" and cell.get("connections", {}).get("CLK1") == ["x"]
+            ]
+            self.assertEqual(still_open, [])
 
 
 if __name__ == "__main__":

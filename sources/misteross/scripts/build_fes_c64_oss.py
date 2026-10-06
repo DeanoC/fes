@@ -156,9 +156,13 @@ def clock_read_only_memories(path: Path) -> None:
         if pins.get("CLK1") != ["x"]:
             continue
         match = next((prefix for prefix in expected if name.startswith(prefix)), None)
-        # HIL experiment (not upstream): autoname can name the VIC glyph ROM after
-        # a main_ram address net; accept the remaining structural read-only ROM.
-        if match is None and not any(name.startswith(p) for p in expected):
+        # Autoname runs after ABC and can name either read-only ROM from a
+        # connected net instead of its RTL prefix. The VIC glyph ROM has been
+        # named from a main_ram address net; the IEC track ROM can lose
+        # machine.iec.file_track_ the same way. A disconnected read-only M10K
+        # is accepted as whichever of those two roles no other disconnected
+        # cell still claims by name.
+        if match is None:
             match = next((prefix for prefix in expected
                           if prefix not in found and not any(
                               n.startswith(prefix) and c["type"] == "MISTRAL_M10K"
