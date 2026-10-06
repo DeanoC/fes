@@ -85,6 +85,7 @@ package_words=$(printf '%s' "$package_ids" | tr ',' ' ')
 package_count=$(printf '%s' "$package_ids" | awk -F, '{print NF}')
 package_id_for() {
   case "$1" in
+    fes.atari-st) package_id=5555555555555555555555555555555555555555555555555555555555555555 ;;
     fes.ramtest) package_id=4444444444444444444444444444444444444444444444444444444444444444 ;;
     fes.menu) package_id=eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee ;;
     fes.pong) package_id=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ;;
@@ -116,8 +117,8 @@ revision = '1111111111111111111111111111111111111111'
 EOF
   fi
   chmod 0444 "$package/manifest.toml" "$package/core.rbf"
-  if [ "$core_id" = fes.zx81 ]; then
-    printf 'sealed map fixture\n' >"$package/rom-map.json"
+  if [ "$core_id" = fes.zx81 ] || [ "$core_id" = fes.atari-st ]; then
+    printf '%s sealed map fixture\n' "$core_id" >"$package/rom-map.json"
     chmod 0444 "$package/rom-map.json"
   fi
   chmod 0555 "$package"
@@ -130,6 +131,8 @@ package_id = '$package_id'
 EOF
   chmod 0444 "$selection"
   case "$core_id" in
+    fes.atari-st)
+      export FES_ATARI_ST_PACKAGE_DIR=$package FES_ATARI_ST_PACKAGE_SELECTION=$selection ;;
     fes.ramtest)
       export FES_RAMTEST_PACKAGE_DIR=$package FES_RAMTEST_PACKAGE_SELECTION=$selection ;;
     fes.menu)
@@ -182,8 +185,12 @@ for core_id in $package_words; do
   test "$(stat -c %a "$installed")" = 555
   test "$(stat -c %a "$installed/manifest.toml")" = 444
   test "$(stat -c %a "$installed/core.rbf")" = 444
-  if [ "$core_id" = fes.zx81 ]; then
-    cmp "$FES_ZX81_PACKAGE_DIR/rom-map.json" "$installed/rom-map.json"
+  if [ "$core_id" = fes.zx81 ] || [ "$core_id" = fes.atari-st ]; then
+    case "$core_id" in
+      fes.zx81) source_map=$FES_ZX81_PACKAGE_DIR/rom-map.json ;;
+      fes.atari-st) source_map=$FES_ATARI_ST_PACKAGE_DIR/rom-map.json ;;
+    esac
+    cmp "$source_map" "$installed/rom-map.json"
     test "$(stat -c %a "$installed/rom-map.json")" = 444
   fi
   test "$(stat -c %a "$target/usr/share/mister-runtime/selections/fes-$core.package.toml")" = 444
@@ -304,8 +311,8 @@ for core_id in $package_words; do
   core=${core_id#fes.}
   grep -Fqx -- "$fixture/$core-package:/fes-$core-package:ro" "$CONTAINER_LOG"
   grep -Fqx -- "$fixture/$core.package-selection.toml:/fes-$core-package-selection.toml:ro" "$CONTAINER_LOG"
-  grep -Fqx -- "FES_$(printf '%s' "$core" | tr '[:lower:]' '[:upper:]')_PACKAGE_DIR=/fes-$core-package" "$CONTAINER_LOG"
-  grep -Fqx -- "FES_$(printf '%s' "$core" | tr '[:lower:]' '[:upper:]')_PACKAGE_SELECTION=/fes-$core-package-selection.toml" "$CONTAINER_LOG"
+  grep -Fqx -- "FES_$(printf '%s' "$core" | tr '[:lower:]-' '[:upper:]_')_PACKAGE_DIR=/fes-$core-package" "$CONTAINER_LOG"
+  grep -Fqx -- "FES_$(printf '%s' "$core" | tr '[:lower:]-' '[:upper:]_')_PACKAGE_SELECTION=/fes-$core-package-selection.toml" "$CONTAINER_LOG"
   package_line=$(grep -nF -- "$fixture/$core-package:/fes-$core-package:ro" "$CONTAINER_LOG" | cut -d: -f1)
   test "$package_line" -gt "$previous_line"
   previous_line=$package_line
@@ -320,6 +327,7 @@ for variable in FES_MENU_PACKAGE_DIR FES_MENU_PACKAGE_SELECTION \
   FES_SG1000_PACKAGE_DIR FES_SG1000_PACKAGE_SELECTION \
   FES_C64_PACKAGE_DIR FES_C64_PACKAGE_SELECTION \
   FES_RAMTEST_PACKAGE_DIR FES_RAMTEST_PACKAGE_SELECTION \
+  FES_ATARI_ST_PACKAGE_DIR FES_ATARI_ST_PACKAGE_SELECTION \
   FES_SPECTRUM_PACKAGE_DIR FES_SPECTRUM_PACKAGE_SELECTION; do
   grep -Fq "$variable" "$repo/Makefile"
 done
