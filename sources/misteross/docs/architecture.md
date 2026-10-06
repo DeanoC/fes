@@ -955,9 +955,16 @@ on ports `0x7E`/`0x7F`, FPGA→ADV7513 I2S, and the
 line budget; optimizing that renderer is separate work. This timing model
 covers logical frame pacing only, not composite sync, half-lines, PAL timing or
 cycle-perfect raster effects. The OSS package uses 32 fixed blank M10K
-cartridge lanes, authenticated by its format-3 ROM map; the target links an
-exact 32 KiB `cartridge-rom` before download. Shorter fixed-map ROMs must be
-explicitly padded with `0xff`. The Quartus oracle and default mailbox
+cartridge lanes. Each lane is a synchronous read (`CFG_ASYNC_READ=0`, live
+`CLK1`, `A1EN` and `B1EN` held high): the address and bank select
+`address[14:10]` register on the system clock, the lane mux is combinational,
+and the output register is the second stage. The CPU sees the byte
+two system clocks after the address. `T80pa` samples `DI` at T3,
+several half-cycles later, so that byte is stable. Synthesis and the routed netlist
+reject every asynchronous M10K, and the ROM map requires
+`expected_async_read=0`. The format-3 ROM map authenticates those lanes; the
+target links an exact 32 KiB `cartridge-rom` before download. Shorter
+fixed-map ROMs must be explicitly padded with `0xff`. The Quartus oracle and default mailbox
 simulation remain format-2 media-transport diagnostics. There is no BIOS shim. Mode 4 implements
 16 KiB VRAM, 32-entry six-bit CRAM, tile attributes and scrolling, 8×8/8×16
 zoomable sprites with collision/eight-sprite overflow, line interrupts and

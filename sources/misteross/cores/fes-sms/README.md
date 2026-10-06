@@ -72,7 +72,7 @@ here. An older parent pin or launch/Stop record does not accept it.
 
 | Address or port | Function |
 | --- | --- |
-| `0x0000–0x7fff` | 32 KiB fixed cartridge ROM linked at download time in the OSS package |
+| `0x0000–0x7fff` | 32 KiB fixed cartridge ROM, two-clock synchronous M10K read, linked at download time in the OSS package |
 | `0x8000–0xbfff` | unmapped; reads `ff` |
 | `0xc000–0xdfff` | 8 KiB CPU RAM |
 | `0xe000–0xffff` | mirror of the 8 KiB CPU RAM |
@@ -81,6 +81,16 @@ here. An older parent pin or launch/Stop record does not accept it.
 | I/O `0xbf` | VDP control/status |
 | I/O `0xdc`/`0xde` | joystick port A (P1 plus P2 left half) |
 | I/O `0xdd`/`0xdf` | joystick port B (P2 right/fire; unused bits 1) |
+
+Cartridge lanes are synchronous M10K reads (`CFG_ASYNC_READ=0`, live `CLK1`,
+`A1EN` and `B1EN` held high). Each lane registers its address on the system
+clock, the bank select `address[14:10]` registers on that same edge, the lane
+mux is combinational, and the output register is the second stage. The CPU
+sees the byte two system clocks after the address. `T80pa` samples `DI` on
+`CEN_n` at T3. Half-cycles are about seven 52.224 MHz clocks apart, and the
+address is driven at the start of T1 and held through that sample, so the
+two-clock byte is stable then. The Verilator CPU path uses the same two
+stages. The OSS recipe rejects every asynchronous M10K.
 
 The production package declares keyboard, fixed video and required PCM audio through
 `fes.simple-computer` 1.0. Its `cartridge-rom` is required at library launch,
@@ -187,7 +197,11 @@ program hardware.
 
 `make build-fes-sms` is the format-3 OSS recipe (`scripts/build_fes_sms_oss.py`).
 It authenticates the selected Mistral ROM database, verifies all 32 routed
-blank M10K lanes and seals `rom-map.json` with `core.rbf`. The kit uses the Go
+blank M10K lanes and seals `rom-map.json` with `core.rbf`. Those lanes are the
+two-clock synchronous read above (`CFG_ASYNC_READ=0`). Synthesis and the
+routed netlist call `reject_async_m10k_reads` with an empty allowlist, so any
+asynchronous M10K fails the seal, and the ROM map requires
+`expected_async_read=0`. The kit uses the Go
 linker; Python is needed only on the build machine.
 It copies Coleco `clocks-oss.sdc`, selects
 `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys
