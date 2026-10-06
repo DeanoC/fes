@@ -10,7 +10,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.source_repository import canonical_repository
-from scripts.fes_build_common import BuildError, FES_GPU_ARCHITECTURES, FES_GPU_BACKEND, _authenticate_tools as _authenticate_oss_tools, _cell_counts, _git, _i2c_evidence, _read_json, _require_gpu_backend, _run_tool, _sha256, _write_atomic, validate_timing_resources
+from scripts.fes_build_common import BuildError, FES_GPU_ARCHITECTURES, FES_GPU_BACKEND, _authenticate_tools as _authenticate_oss_tools, _cell_counts, _git, _i2c_evidence, _read_json, _require_gpu_backend, _run_tool, _sha256, _write_atomic, reject_async_m10k_reads, validate_timing_resources
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
@@ -277,6 +277,8 @@ def _session_display_evidence(design: dict, label: str, source_root: Path) -> di
 def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
     synthesis = _read_json(output / 'synth.json', 'synthesis evidence')
     routed = _read_json(output / 'routed.json', 'routed design')
+    reject_async_m10k_reads(synthesis)
+    reject_async_m10k_reads(routed)
     if not isinstance(routed.get('modules'), dict) or not isinstance(routed['modules'].get(TOP), dict):
         raise BuildError('routed design does not contain the top module')
     _i2c_evidence(synthesis, 'synthesized')
@@ -370,7 +372,8 @@ def build(root: Path=ROOT, package_store: Path | None=None, *, cache_root: Path 
             raise BuildError(str(exc)) from exc
         evidence = validate_build_evidence(output, root)
         mapping, map_evidence = rom_map.build_rom_map(database, (output / 'core.rbf').read_bytes(),
-                                                     routed=_read_json(output / 'routed.json', 'routed ROM design'))
+                                                     routed=_read_json(output / 'routed.json', 'routed ROM design'),
+                                                     expected_async_read=0)
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(',', ':')) + '\n').encode()
         _write_atomic(output / 'rom-map.json', map_bytes)
         evidence['rom'] = dict(id='machine-rom', role='firmware', source_size=8192,
