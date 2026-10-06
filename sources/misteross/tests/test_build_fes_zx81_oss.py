@@ -506,7 +506,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
 
 
 class Zx81SyncM10kTests(unittest.TestCase):
-    def test_rom_lanes_are_synchronous_and_cart_tdp_is_unchanged(self) -> None:
+    def test_rom_lanes_and_cart_tdps_are_synchronous(self) -> None:
         root = build_fes_zx81_oss.ROOT
         rtl = (root / "cores/fes-zx81/rtl/zx81_rom_link.v").read_text()
         machine = (root / "cores/fes-zx81/rtl/zx81_machine.sv").read_text()
@@ -518,11 +518,26 @@ class Zx81SyncM10kTests(unittest.TestCase):
         producer = (root / "scripts/build_fes_zx81_oss.py").read_text()
         self.assertIn("expected_async_read=0", producer)
         self.assertIn("reject_async_m10k_reads", producer)
-        # Writable expansion TDPs stay async until their socket latency is decided.
         pack = (root / "cores/fes-zx81/rtl/zx81_ram_pack.v").read_text()
         chars = (root / "cores/fes-zx81/expansions/qs_chrs.v").read_text()
-        self.assertIn(".CFG_ASYNC_READ(1)", pack)
-        self.assertIn(".CFG_ASYNC_READ(1)", chars)
+        self.assertNotIn("CFG_ASYNC_READ(1)", pack)
+        self.assertNotIn("CFG_ASYNC_READ(1)", chars)
+        self.assertIn("read_bank_q", pack)
+        self.assertIn("peek_bank_q", pack)
+        self.assertIn("romcs_q", chars)
+        self.assertIn("dsel_q", chars)
+        contract = "describe the same request"
+        bus = (root / "cores/fes-zx81/rtl/zx81_bus_pack.vh").read_text()
+        socket = (root / "cores/fes-zx81/rtl/zx81_expansion_socket.v").read_text()
+        self.assertIn(contract, bus)
+        self.assertIn(contract, socket)
+        self.assertIn("at most 6 clk_sys", bus)
+        self.assertIn("at most 6 clk_sys", socket)
+        for name in ("scripts/build_zx81_bus_validation_cart.py", "scripts/hip_zx81_bus_carts.py"):
+            text = (root / name).read_text()
+            self.assertIn("reject_async_m10k_reads", text)
+            self.assertIn("cart.json", text)
+            self.assertIn("cart-routed.json", text)
 
 
 def _yosys_binary() -> str | None:

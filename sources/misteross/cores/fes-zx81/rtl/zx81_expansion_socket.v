@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // ZX81 expansion edge: registered Z80-like plugs. Internal 1 KiB stays in
 // the machine when RAM_PRESENT is 0. Peek is an FPGA diagnostic port, not
-// an edge pin. Two boundary FFs settle inside one 16-clock CPU phase.
+// an edge pin. All bits in one response word (DRD, PEEK_D, DSEL, ROMCS,
+// WAIT) must describe the same request. A cart may add internal pipeline
+// stages as long as it delays all of them together. End-to-end
+// request-to-response latency at the machine must stay at most 6 clk_sys.
 `include "zx81_bus_pack.vh"
 module zx81_expansion_socket (
     input wire clock,

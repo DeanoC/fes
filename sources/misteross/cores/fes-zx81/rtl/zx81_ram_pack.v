@@ -13,12 +13,21 @@ module zx81_ram_pack (
 `ifdef SYNTHESIS
     // Native TDP read muxes require live clocks on both ports. Generic
     // inference drops read-only CLK2, so retain the physical clock contract.
+    // CFG_ASYNC_READ=0 registers each bank address. The bank select is
+    // delayed on that same edge so the mux does not pair a new bank with
+    // the previous address.
     wire [7:0] bank_read [0:15];
     wire [7:0] bank_peek [0:15];
+    reg [3:0] read_bank_q;
+    reg [3:0] peek_bank_q;
+    always @(posedge clock) begin
+        read_bank_q <= address[13:10];
+        peek_bank_q <= peek_address[13:10];
+    end
     genvar bank;
     generate for (bank=0; bank<16; bank=bank+1) begin : banks
         wire [9:0] read_a, read_b;
-        MISTRAL_M10K_TDP #(.CFG_ABITS(10), .CFG_DBITS(10), .CFG_ASYNC_READ(1)) memory (
+        MISTRAL_M10K_TDP #(.CFG_ABITS(10), .CFG_DBITS(10), .CFG_ASYNC_READ(0)) memory (
             .CLK1(clock), .CLK2(clock),
             .A1ADDR(address[9:0]), .B1ADDR(peek_address[9:0]),
             .A1DATA({2'b0,write_data}), .B1DATA(10'b0),
@@ -30,8 +39,8 @@ module zx81_ram_pack (
         assign bank_read[bank] = read_a[7:0];
         assign bank_peek[bank] = read_b[7:0];
     end endgenerate
-    assign read_data = bank_read[address[13:10]];
-    assign peek_data = bank_peek[peek_address[13:10]];
+    assign read_data = bank_read[read_bank_q];
+    assign peek_data = bank_peek[peek_bank_q];
 `else
     zx81_dpram #(.ADDRWIDTH(14), .NUMWORDS(16384)) memory (
         .clock(clock), .address_a(address), .data_a(write_data),

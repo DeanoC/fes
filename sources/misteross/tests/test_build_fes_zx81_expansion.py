@@ -253,7 +253,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
             for old in ("cart.rbf", "cart-routed.json", "timing.json", "linked.rbf", "build-summary.json"):
                 self.assertFalse((self.output / old).exists(), old)
             if self.mode != "missing_synthesis":
-                netlist.write_text("{}")
+                netlist.write_text('{"modules": {}}')
         elif self.mode != "missing_route":
             self.assertEqual(command[command.index("--fes-cram-region") + 1], "1769,32,2806,7024")
             sdc = Path(command[command.index("--sdc") + 1])
@@ -264,7 +264,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
             self.assertIn("-period 13.468013468013 [get_nets {pixel_clk}]", sdc.read_text())
             self.assertIn("-period 81.380208333333 [get_nets {audio_clk}]", sdc.read_text())
             (self.output / "cart.rbf").write_bytes(b"fresh cart")
-            (self.output / "cart-routed.json").write_text("{}")
+            (self.output / "cart-routed.json").write_text('{"modules": {}}')
             (self.output / "timing.json").write_text(json.dumps(self.timing))
             if self.mode == 'scaffold_mutation':
                 (self.output / 'scaffold.json').write_bytes(b'changed')
