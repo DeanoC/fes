@@ -58,7 +58,10 @@ That fixture is not a claim of full decoder equivalence. In paired tenfoot
 mode, launch and kit mutations require a known, non-foreign scoped kit lease;
 an unavailable status is shown as `Can't tell if this machine is free.` while room browsing
 continues. Launch, stop,
-and input attach/detach stay on their existing endpoints. The host resolves installed package entries and explicitly binds library
+and input attach/detach stay on their existing endpoints. Explicit input attach
+returns the existing stream when it is attached, ready, and bound to the same
+observed package, generation, core and input capabilities. It does not rotate
+that stream or accept an old binding after a package change. The host resolves installed package entries and explicitly binds library
 persistence. The runtime validates the package and declared interfaces before
 programming. Bare legacy game records remain browseable but unlaunchable.
 Installed FPGA `core_package` rows, and any row on the `fpga` catalog

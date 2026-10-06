@@ -56,11 +56,33 @@ and slot 4 rows. `scripts/c64_slots.py` generates
 1 is scratch at `$DE00` and id `$C6` at `$DE01`. The machine simulation links
 both. A sealed shell leaves the sockets vacant; `scripts/build_c64_slot_card.py`
 builds one card into one socket of a frozen shell.
+The producer selects probe mode 0 for socket 1 and mode 1 for socket 2;
+it authenticates both the legacy PLL output aliases and current physical
+C6/C7 pin layout, preserving an already-correct physical layout.
+Each synthesized response is lowered to an independent identity ALUT2 before
+the frozen merge: constants and aliased output signals must not be lost by the
+pinned cart merger. Clock-pin checks, final analogue setup/hold on all required
+clocks and exact CRAM containment are separate admission checks.
 
 ## Diagnostic
 
 `diagnostic/firmware.py` assembles the open 16 KiB image. Success stores `$FF`
 at `$C000`. A failure stores a stage at `$C000` and `1` at `$C001`:
+
+Stages 7 and 8 with `$C001 = 0` mean waiting, not failure. Mount the
+synthetic D64 and confirm media unit 0 is ready before pressing joystick Up,
+then keyboard A. This gates LOAD on operator readiness rather than a fixed
+sleep: C64 media is currently mounted after CPU release. The SID pulse uses
+50% duty cycle so audio acceptance can require an AC tone rather than DC.
+Success also turns the border green. `--without-cartridges` skips only stages
+5 and 6 for a vacant sealed shell; it is not expansion acceptance.
+The simulation covers both initially-ready input/media and delayed mount,
+joystick and keyboard delivery.
+
+C64's D64/IEC path remains read-only. Atari ST's initial-disk-before-release
+and writable-disk save/restore path is a useful ordering reference, but its
+sector commit and game/base-media persistence contract is not implemented by
+C64 and is not implied by a successful C64 LOAD.
 
 | Stage | Check |
 | --- | --- |

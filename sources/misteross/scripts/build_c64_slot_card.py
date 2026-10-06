@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import io
 import json
+import math
 import os
 import re
 import subprocess
@@ -41,7 +42,7 @@ TOOL_INPUTS = (
     "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/fes_build_common.py",
     shell_recipe.C64_TOOLCHAIN_LOCK, shell_recipe.SDC,
 )
-BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json", "linked.rbf",
+BUILD_OUTPUTS = ("cart.json", "cart-synthesized.json", "cart.rbf", "cart-routed.json", "timing.json", "linked.rbf",
                  "build-summary.json", "synthesis.log", "route.log", "clocks.sdc",
                  "scaffold.json", "cart.qsf", "cram-diff.json")
 PLACER_SEED = 3
@@ -70,9 +71,10 @@ def card_inputs(card: str) -> tuple[str, ...]:
 def prepare_scaffold(source: bytes, slot: int) -> bytes:
     """Frozen shell netlist with the chosen socket exposed as the cart plugs.
 
-    The routed JSON omits the system PLL's second output connection while
-    keeping its physical pin map and routed net: reattach that net to the
-    physical `outclk[1]` pin and drop the obsolete `outclk[0]` alias. Every
+    Legacy routed JSON omits the PLL's second output connection: reattach
+    its authenticated audio net and drop the obsolete `outclk[0]` alias.
+    Current routed JSON already exposes physical C6/C7 outputs; validate
+    and preserve those connections and their pin map without rewriting. Every
     socket's boundary must still be at its pinned BEL. The chosen socket's
     request/response flip-flops are renamed plug_addr_ff_N / plug_rdata_ff_N
     and its clock-coverage flip-flops are removed (their routed clock
@@ -83,11 +85,19 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
     top = design["modules"]["top"]
     cells = top["cells"]
     pll = cells["system_clock.pll"]
-    if pll["type"] != "altera_pll" or set(pll["connections"]) != {"outclk", "refclk", "locked"}:
+    ports = {"outclk", "refclk", "locked"}
+    physical_outputs = set(pll["connections"]) == ports | {"outclk[1]"}
+    if pll["type"] != "altera_pll" or set(pll["connections"]) not in (ports, ports | {"outclk[1]"}):
         raise ValueError("Commodore 64 system PLL connection contract changed")
     mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]).decode())
     aliases = {f"outclk[{bit}]": [0, f"outclk[{bit}]"] for bit in range(2)}
-    if mapping.get("count") != 6 or any(mapping["pins"].get(k) != v for k, v in aliases.items()):
+    physical_pins = {"locked": [0, "locked"], "outclk": [0, "C6"],
+                     "outclk[1]": [0, "C7"], "refclk": [0, "refclk"], "rst": [0, "rst"]}
+    if physical_outputs:
+        if mapping != {"count": 5, "pins": physical_pins} or pll["port_directions"] != {
+                "outclk": "output", "outclk[1]": "output", "refclk": "input", "locked": "output"}:
+            raise ValueError("Commodore 64 system PLL physical pin map changed")
+    elif mapping.get("count") != 6 or any(mapping["pins"].get(k) != v for k, v in aliases.items()):
         raise ValueError("Commodore 64 system PLL frozen pin map changed")
     output1 = top["netnames"].get("system_clock.pll_outclk_1", {}).get("bits")
     clock1 = top["netnames"].get("system_clock.clocks[1]", {}).get("bits")
@@ -96,11 +106,15 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
     if not isinstance(output1, list) or len(output1) != 1 or len(buffers) != 1 or \
             buffers[0]["connections"].get("A") != output1:
         raise ValueError("Commodore 64 frozen audio PLL net changed")
-    pll["connections"]["outclk[1]"] = output1
-    pll["port_directions"]["outclk[1]"] = "output"
-    del mapping["pins"]["outclk[0]"]
-    mapping["count"] = len(mapping["pins"])
-    pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping, sort_keys=True).encode().hex()
+    if physical_outputs:
+        if pll["connections"]["outclk[1]"] != output1:
+            raise ValueError("Commodore 64 frozen audio PLL connection changed")
+    else:
+        pll["connections"]["outclk[1]"] = output1
+        pll["port_directions"]["outclk[1]"] = "output"
+        del mapping["pins"]["outclk[0]"]
+        mapping["count"] = len(mapping["pins"])
+        pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping, sort_keys=True).encode().hex()
 
     if any(name.startswith(("plug_addr_ff_", "plug_rdata_ff_")) for name in cells):
         raise ValueError("frozen shell already exposes canonical plug cells")
@@ -123,7 +137,11 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
 def cart_clock_constraints(root: Path) -> bytes:
     # --no-pack restores routed nets but does not derive PLL constraints. These
     # are the declared shell frequencies, never its achieved Fmax.
-    text = (root / shell_recipe.SDC).read_text() + "\n# Frozen Commodore 64 shell clocks.\n"
+    # --no-pack imports routed nets, not top-level ports in the SDC context.
+    # Constrain the same physical input net rather than an empty port query.
+    text = (root / shell_recipe.SDC).read_text().replace(
+        "[get_ports {FPGA_CLK1_50}]", "[get_nets {FPGA_CLK1_50}]")
+    text += "\n# Frozen Commodore 64 shell clocks.\n"
     for name, frequency in REQUIRED_CLOCKS_MHZ.items():
         text += f"create_clock -name {{{name}}} -period {1000 / frequency:.12f} [get_nets {{{name}}}]\n"
     return text.encode()
@@ -137,6 +155,17 @@ def validate_cart_timing(timing: dict) -> dict:
     for name, expected in REQUIRED_CLOCKS_MHZ.items():
         _, _, achieved = shell_recipe._frequency_row({name: fmax[name]}, expected, name)
         result[name] = achieved
+    summary = timing.get("timing_summary", {})
+    clocks = summary.get("clocks") if isinstance(summary, dict) else None
+    if not isinstance(summary, dict) or summary.get("final_analogue_model") is not True or not isinstance(clocks, dict) or \
+            set(clocks) != set(REQUIRED_CLOCKS_MHZ):
+        raise ValueError("cart requires final analogue timing on every required clock")
+    for name, fields in clocks.items():
+        for key in ("setup_wns_ns", "hold_wns_ns"):
+            value = fields.get(key) if isinstance(fields, dict) else None
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or \
+                    not math.isfinite(value) or value < 0:
+                raise ValueError(f"cart {name} requires non-negative finite {key}")
     return result
 
 
@@ -144,7 +173,7 @@ CARD_CLOCK_PORTS = {"MISTRAL_FF": ("CLK",), "MISTRAL_M10K": ("CLK1", "CLK2"),
                     "MISTRAL_M10K_TDP": ("CLK1", "CLK2")}
 
 
-def validate_cart_clocks(routed: dict) -> int:
+def validate_cart_clocks(routed: dict, *, allow_combinational: bool = False) -> int:
     """Every connected clock pin of a merged card cell must be the shell socket clock.
 
     The cart merge drops the card's clock buffer and reconnects the pins it
@@ -164,7 +193,10 @@ def validate_cart_clocks(routed: dict) -> int:
             if any(bit not in clock_bits for bit in bits):
                 raise ValueError(f"card cell {name} pin {port} is not on the socket clock {SLOT_CLOCK}")
             checked += 1
-    if not checked:
+    # The ROM probe is deliberately combinational after MODE specialization.
+    # Require actual card logic even when no clock pins remain to validate.
+    if not checked and not (allow_combinational and any(
+            name.startswith("fes_cart$") for name in top["cells"])):
         raise ValueError("routed card has no clocked cells on the socket clock")
     return checked
 
@@ -178,6 +210,48 @@ def card_manifest(package, slot: int, cart: bytes, recipe_sha: str, revision: st
         "slot_index": slot, "slot_major": 1, "slot_minor": 0,
     }
     return json.dumps(manifest, sort_keys=True, separators=(",", ":")).encode()
+
+
+def card_synthesis_script(card: str, slot: int, output: Path) -> str:
+    socket_for(slot)
+    card_inputs(card)
+    sources = " ".join(CARDS[card])
+    return (f"read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-c64/expansions {sources}; "
+            f"chparam -set MODE {slot - 1} cart; "
+            f"synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}")
+
+
+def materialize_response_drivers(source: bytes) -> bytes:
+    """Give each socket response an independent physical driver.
+
+    The pinned cart merger skips constant OB inputs and maps an aliased OB
+    input onto only its last sink. Identity LUTs preserve constants and fanout
+    without changing the card's truth table or rewriting the frozen shell.
+    """
+    design = json.loads(source)
+    top = design["modules"]["cart"]
+    pads = top["ports"]["plug_rdata"]["bits"]
+    if len(pads) != 28 or any(type(bit) is not int for bit in pads):
+        raise ValueError("card response port must expose 28 physical outputs")
+    cells = top["cells"]
+    signals = [bit for cell in cells.values() for bits in cell["connections"].values()
+               for bit in bits if type(bit) is int]
+    signals += [bit for port in top["ports"].values() for bit in port["bits"] if type(bit) is int]
+    next_bit = max(signals) + 1
+    for index, pad in enumerate(pads):
+        outputs = [cell for cell in cells.values() if cell["type"] == "MISTRAL_OB"
+                   and cell["connections"].get("PAD") == [pad]]
+        name = f"fes_response_driver_{index}"
+        if len(outputs) != 1 or name in cells or len(outputs[0]["connections"].get("I", [])) != 1:
+            raise ValueError("card response output buffer contract changed")
+        cell = outputs[0]
+        # ALUT2 is the smallest routable primitive in the pinned architecture.
+        cells[name] = {"type": "MISTRAL_ALUT2", "parameters": {"LUT": "1010"}, "attributes": {},
+                       "port_directions": {"A": "input", "B": "input", "Q": "output"},
+                       "connections": {"A": cell["connections"]["I"], "B": ["0"], "Q": [next_bit]}}
+        cell["connections"]["I"] = [next_bit]
+        next_bit += 1
+    return (json.dumps(design, separators=(",", ":")) + "\n").encode()
 
 
 def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu: int, *,
@@ -202,7 +276,7 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     clocks = cart_clock_constraints(root)
     recipe = {"inputs": closure, "tools": identities, "card": card, "slot": slot,
               "region": socket.region, "cram_region": list(socket.cram), "map": c64_slots.LAYOUT,
-              "slot_clock": SLOT_CLOCK, "placer_seed": PLACER_SEED,
+              "slot_clock": SLOT_CLOCK, "probe_mode": slot - 1, "placer_seed": PLACER_SEED,
               "required_clocks_mhz": REQUIRED_CLOCKS_MHZ, "clock_constraints_sha256": digest(clocks)}
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/c64-cards" / recipe_sha
@@ -216,11 +290,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     scaffold = prepare_scaffold((shell / "routed.json").read_bytes(), slot)
     (output / "scaffold.json").write_bytes(scaffold)
     env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
-    sources = " ".join(CARDS[card])
     commands = [
-        [str(tools["yosys"].path), "-p",
-         f"read_verilog -sv -I cores/fes-c64/rtl -I cores/fes-c64/expansions {sources}; "
-         f"synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
+        [str(tools["yosys"].path), "-p", card_synthesis_script(card, slot, output)],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"),
          "--device", "5CSEBA6U23I7", "--qsf", str(output / "cart.qsf"), "--sdc", str(output / "clocks.sdc"),
          "--freq", "52.224", "--fes-scaffold", "--fes-cart", str(output / "cart.json"),
@@ -247,8 +318,13 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
             path = output / artifact
             if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
                 raise ValueError(f"{name} did not produce nonempty {artifact}")
+        if name == "synthesis":
+            mapped = output / "cart.json"
+            (output / "cart-synthesized.json").write_bytes(mapped.read_bytes())
+            mapped.write_bytes(materialize_response_drivers(mapped.read_bytes()))
     achieved = validate_cart_timing(json.loads((output / "timing.json").read_text()))
-    validate_cart_clocks(json.loads((output / "cart-routed.json").read_text()))
+    validate_cart_clocks(json.loads((output / "cart-routed.json").read_text()),
+                         allow_combinational=card == "probe" and slot == 1)
     if (output / "scaffold.json").read_bytes() != scaffold or (output / "cart.qsf").read_bytes() != qsf:
         raise ValueError("card scaffold or placement constraints changed during build")
     cart = (output / "cart.rbf").read_bytes()

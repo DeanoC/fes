@@ -55,6 +55,9 @@ Use these when the start-here page names the job and you need the steps.
 ## Not current instructions
 
 [validation/](validation/) records what a named artifact did on a named day.
+The [C64 functional diagnostic](validation/2026-10-06-c64-functional-closure.md)
+records both cartridge probes, input, SID, read-only D64 LOAD and CIA checks;
+it does not promote C64 into a factory image or add disk writes.
 [superpowers/](superpowers/) holds old design and task plans. Do not treat
 either as the way to build or accept the tree you have open.
 

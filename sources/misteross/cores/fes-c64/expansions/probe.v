@@ -43,7 +43,9 @@ module cart #(
 
     wire rom_mode = MODE == 0;
     wire io_mode = MODE == 1;
-    wire drive = rom_mode ? roml : io_mode && io1;
+    // Never drive a write cycle. Keep the response a decoded read, not a
+    // direct request-to-response alias through the physical socket buffers.
+    wire drive = bus_read && (rom_mode ? roml : io_mode && io1);
     wire [7:0] data = rom_mode ? rom_byte(addr[7:0]) :
                       addr[7:0] == 8'h00 ? scratch :
                       addr[7:0] == 8'h01 ? 8'hC6 : 8'hFF;
