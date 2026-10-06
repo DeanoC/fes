@@ -183,10 +183,12 @@ class C64SlotCardTests(unittest.TestCase):
         for i, value in enumerate(inputs):
             lut = cells[f"fes_response_driver_{i}"]
             self.assertEqual(lut["connections"]["A"], [value])
+            self.assertEqual(lut["type"], "MISTRAL_ALUT2")
+            self.assertEqual(lut["connections"]["B"], ["0"])
             self.assertEqual(lut["connections"]["Q"], cells[f"ob_{i}"]["connections"]["I"])
             outputs.update(lut["connections"]["Q"])
-            for bit in (0, 1):
-                self.assertEqual((int(lut["parameters"]["LUT"], 2) >> bit) & 1, bit)
+            for bit in range(4):
+                self.assertEqual((int(lut["parameters"]["LUT"], 2) >> bit) & 1, bit & 1)
         self.assertEqual(len(outputs), 28)
         source["modules"]["cart"]["cells"].pop("ob_0")
         with self.assertRaises(ValueError):

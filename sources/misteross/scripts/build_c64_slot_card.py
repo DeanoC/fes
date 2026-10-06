@@ -245,9 +245,10 @@ def materialize_response_drivers(source: bytes) -> bytes:
         if len(outputs) != 1 or name in cells or len(outputs[0]["connections"].get("I", [])) != 1:
             raise ValueError("card response output buffer contract changed")
         cell = outputs[0]
-        cells[name] = {"type": "MISTRAL_ALUT1", "parameters": {"LUT": "10"}, "attributes": {},
-                       "port_directions": {"A": "input", "Q": "output"},
-                       "connections": {"A": cell["connections"]["I"], "Q": [next_bit]}}
+        # ALUT2 is the smallest routable primitive in the pinned architecture.
+        cells[name] = {"type": "MISTRAL_ALUT2", "parameters": {"LUT": "1010"}, "attributes": {},
+                       "port_directions": {"A": "input", "B": "input", "Q": "output"},
+                       "connections": {"A": cell["connections"]["I"], "B": ["0"], "Q": [next_bit]}}
         cell["connections"]["I"] = [next_bit]
         next_bit += 1
     return (json.dumps(design, separators=(",", ":")) + "\n").encode()
