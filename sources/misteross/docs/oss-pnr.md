@@ -180,8 +180,9 @@ Replace `--cart 905_zx81_ram16` with `906_zx81_zonx` or `907_zx81_qs_chrs`.
 
 `scripts/build_fes_slot.py` synthesizes the cart, merges it into the routed
 shell with `--fes-scaffold --fes-cart`, and runs
-`scripts/link_static_rbf.py overlay`. Locked nextpnr `30ac6f47` provides those
-flags (it inherits the earlier freeze-scaffold support from `d672fade`).
+`scripts/link_static_rbf.py overlay`. The nextpnr pinned in `toolchain.lock`
+(currently `a20f34c5`, built by `make toolchain-fes`) provides those flags
+(it inherits the earlier freeze-scaffold support from `d672fade`).
 `NEXTPNR_MISTRAL` still overrides the binary. A nextpnr without the flags
 fails closed. The linker writes a `.receipt.json` beside the output.
 

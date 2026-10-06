@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_COMMITS = {
     "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "0c5ed400f003fbd0d8c4cc71491b68e4323e1a13",
+    "nextpnr": "a20f34c5f2dbeb99b5f6510213274ca8a6fd19b7",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
     "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
 }
@@ -107,7 +107,7 @@ class LockfileTests(unittest.TestCase):
         lock = lockfile.load_lock(ROOT / "toolchain.lock")
         self.assertEqual(
             lock["nextpnr"].commit,
-            "0c5ed400f003fbd0d8c4cc71491b68e4323e1a13",
+            "a20f34c5f2dbeb99b5f6510213274ca8a6fd19b7",
         )
         self.assertIn("merge of #115", lock["nextpnr"].rationale)
         self.assertIn("#98 plateau fix", lock["nextpnr"].rationale)
@@ -121,7 +121,7 @@ class LockfileTests(unittest.TestCase):
             capture_output=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "0c5ed400f003fbd0d8c4cc71491b68e4323e1a13\n")
+        self.assertEqual(result.stdout, "a20f34c5f2dbeb99b5f6510213274ca8a6fd19b7\n")
         self.assertEqual(result.stderr, "")
 
     def test_cli_invalid_arguments_exit_two_without_traceback(self):

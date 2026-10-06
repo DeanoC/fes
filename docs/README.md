@@ -11,6 +11,7 @@ a dated record. A dated record is not the schedule.
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
 | Change code: worktree, builds, handoff | [Development](development.md), then [agent workflow](agent-workflow.md) |
 | Coordinate cross-vendor tasks and milestone acceptance | [Agent workflow](agent-workflow.md#github-delivery-coordination) |
+| Plan PR hardware-test overlays and record hashes | [Overlay HIL](hil-overlay.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
 | Build, provision or verify a flashable disk | [Bootable media](bootable-media.md) |
 | Publish a versioned appliance image | [Appliance releases](appliance-releases.md) |
