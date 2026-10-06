@@ -8,7 +8,8 @@ from unittest.mock import patch
 
 from scripts.compiler_read_audit import ReadAuditError, python_source_guard, verify_traces
 from scripts.functional_execution import AuditedRoots, source_roots_for_inputs, source_roots_for_producer
-from scripts.source_closure import ROOT, check, derive, imports, load_manifest, minimize, static, main
+from scripts.source_closure import ROOT, imports, load_manifest, minimize
+from scripts.closure_tools.manifest import check, derive, static, main
 from scripts import export_core_package as exporter
 from tests import test_export_core_package as fixtures
 
@@ -36,7 +37,7 @@ class ManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp, patch('sys.argv', [
             'source_closure.py', 'record', '--producer', 'build_fes_pong',
             '--record', str(Path(temp)/'reads.jsonl'), '--record-only'
-        ]), patch('scripts.source_closure.subprocess.run') as launched:
+        ]), patch('scripts.closure_tools.manifest.subprocess.run') as launched:
             main()
             environment = launched.call_args.kwargs['env']
             self.assertEqual(environment['FES_SOURCE_CLOSURE_RECORD_ONLY'], '1')
@@ -57,7 +58,8 @@ class ManifestTests(unittest.TestCase):
 
     def test_toolchain_recipe_files_are_in_every_closure(self):
         # Tool authentication hashes these into the toolchain cache key under the guard.
-        from scripts.source_closure import TOOLCHAIN_RECIPE_FILES as RECIPE_FILES, required
+        from scripts.source_closure import TOOLCHAIN_RECIPE_FILES as RECIPE_FILES
+        from scripts.closure_tools.manifest import required
         from scripts import toolchain_cache
         request = type('Request', (), {'recipe_paths': (), 'root': ROOT})()
         self.assertEqual(toolchain_cache._recipe_paths(request), tuple(ROOT / path for path in RECIPE_FILES))

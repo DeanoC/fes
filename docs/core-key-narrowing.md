@@ -30,14 +30,21 @@ functional key on selection.
 
 ## Refresh a closure after a failure
 
+The maintenance CLI lives in `scripts/closure_tools/` rather than beside the
+producers because it loads producers by computed name. Producers only reach
+the runtime half, `scripts/source_closure.py` (manifest loading), which has no
+computed imports, so the HIL planner can still resolve every producer's
+imports. A top-level script that imported `closure_tools` would be reported as
+an unresolved import and force a full image.
+
 On the Linux GPU builder, run the producer with an explicit read log. For
 example, for Pong:
 
 ```sh
 cd sources/misteross
-python3 scripts/source_closure.py record --producer build_fes_pong \
+python3 scripts/closure_tools/manifest.py record --producer build_fes_pong \
   --record /tmp/pong-reads.jsonl --record-only
-python3 scripts/source_closure.py derive --producer build_fes_pong \
+python3 scripts/closure_tools/manifest.py derive --producer build_fes_pong \
   --record /tmp/pong-reads.jsonl
 ```
 
@@ -45,7 +52,7 @@ python3 scripts/source_closure.py derive --producer build_fes_pong \
 so a diagnostic artifact cannot populate the narrowed cache key. Normal
 builds enforce the closure even when `FES_SOURCE_READ_RECORD` is set. Put the
 printed roots into `source_closures.json`, inspect each new read, and run
-`python3 scripts/source_closure.py check`. `static --producer NAME` bootstraps
+`python3 scripts/closure_tools/manifest.py check`. `static --producer NAME` bootstraps
 an import and pinned-input closure without a GPU. It can be too narrow; a
 recorded build identifies omitted dynamic reads. `derive` collapses files to a
 directory only if all tracked files below that directory were read or listed.

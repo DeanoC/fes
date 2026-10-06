@@ -132,7 +132,7 @@ def main():
         validate(root)
         result = check(root)
         import sys
-        subprocess.run([sys.executable, str(root / 'sources/misteross/scripts/source_closure.py'), 'check'],
+        subprocess.run([sys.executable, str(root / 'sources/misteross/scripts/closure_tools/manifest.py'), 'check'],
                        cwd=root / 'sources/misteross', check=True, stdout=subprocess.DEVNULL)
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
         raise SystemExit(f'consistency: {error}') from error
