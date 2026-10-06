@@ -472,11 +472,11 @@ def reject_async_m10k_reads(design: dict, *, allow: frozenset[str] = frozenset()
     """Fail the build when any M10K uses Cyclone V's illegal async-read mode.
 
     The default is every ``MISTRAL_M10K`` and ``MISTRAL_M10K_TDP`` in the
-    netlist. ``allow`` is an exact cell-name set for a core that still
-    instantiates the mode and has a documented follow-up; a new async cell
-    outside that set still fails. Apple II is the only described core on
-    this allowlist (#539). SMS, SG-1000, ZX81 and Coleco megacart still emit
-    the mode from RTL and are not yet wired through this check.
+    netlist. ``allow`` is an exact cell-name set; no described producer
+    passes a nonempty set, so the gate has no exceptions. SMS, SG-1000,
+    ZX81 and Coleco megacart still emit the mode from RTL and are not yet
+    wired through this check. The Apple II shell and its probe-card
+    producer are both checked with an empty allowlist.
     """
     modules = design.get("modules")
     if not isinstance(modules, dict):

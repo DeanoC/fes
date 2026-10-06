@@ -1,8 +1,14 @@
-"""FES Apple II OSS producer contract checks (no compiler run)."""
+"""FES Apple II OSS producer contract checks.
+
+The Yosys netlist check runs when a `yosys` binary is on `PATH` or `YOSYS`
+names one. It stops before ABC, which is enough to see mapped M10K parameters.
+"""
 
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import tomllib
 import unittest
@@ -118,18 +124,94 @@ class BuildFesApple2Tests(unittest.TestCase):
         for index, row in enumerate(producer.FIRMWARE_LANE_ROWS):
             self.assertIn(f'(* keep, BEL = "MISTRAL_M10K.5.{row}.0" *)', rtl)
             self.assertIn(f") lane{index} (", rtl)
+        self.assertEqual(rtl.count(".CFG_ASYNC_READ(0)"), 16)
+        self.assertNotIn("CFG_ASYNC_READ(1)", rtl)
+        self.assertIn("subbank_d", rtl)
+        self.assertIn("group_d2", rtl)
+        self.assertIn(".B1EN(1'b1)", rtl)
+        self.assertIn(".CLK1(clk)", rtl)
+        self.assertNotIn(".CLK1(1'b0)", rtl)
+        video = (ROOT / "cores/fes-apple2/rtl/apple2_video.v").read_text()
+        self.assertIn(".CFG_ASYNC_READ(0)", video)
+        self.assertNotIn("CFG_ASYNC_READ(1)", video)
+        self.assertIn(".CLK1(pixel_clk)", video)
+        self.assertIn(".B1EN(1'b1)", video)
+        self.assertIn("font_stage", video)
+        recipe = (ROOT / "scripts/build_fes_apple2_oss.py").read_text()
+        self.assertIn("expected_async_read=0", recipe)
+        self.assertNotIn("APPLE2_ASYNC_M10K", recipe)
+        self.assertNotIn("allow=", recipe)
 
-    def test_async_m10k_allowlist_is_the_firmware_and_font_only(self) -> None:
+    def test_shell_rejects_every_async_m10k(self) -> None:
         from scripts.fes_build_common import reject_async_m10k_reads
-        self.assertEqual(producer.APPLE2_ASYNC_M10K, frozenset(
-            [f"machine.rom.lane{index}" for index in range(16)] + ["video.font_rom"]))
-        cells = {name: {"type": "MISTRAL_M10K", "parameters": {"CFG_ASYNC_READ": "1"}}
-                 for name in producer.APPLE2_ASYNC_M10K}
+        cells = {
+            name: {"type": "MISTRAL_M10K", "parameters": {"CFG_ASYNC_READ": "0"}}
+            for name in [f"machine.rom.lane{index}" for index in range(16)] + ["video.font_rom"]
+        }
         design = {"modules": {"top": {"cells": cells}}}
-        reject_async_m10k_reads(design, allow=producer.APPLE2_ASYNC_M10K)
-        cells["video.extra"] = {"type": "MISTRAL_M10K", "parameters": {"CFG_ASYNC_READ": "1"}}
-        with self.assertRaisesRegex(BuildError, "video.extra"):
-            reject_async_m10k_reads(design, allow=producer.APPLE2_ASYNC_M10K)
+        reject_async_m10k_reads(design)
+        cells["video.font_rom"]["parameters"]["CFG_ASYNC_READ"] = "1"
+        with self.assertRaisesRegex(BuildError, "video.font_rom"):
+            reject_async_m10k_reads(design)
+
+
+def _yosys_binary() -> str | None:
+    named = os.environ.get("YOSYS")
+    if named and Path(named).is_file() and os.access(named, os.X_OK):
+        return named
+    return shutil.which("yosys")
+
+
+@unittest.skipUnless(_yosys_binary(), "Yosys is required to check the Apple II M10K netlist")
+class Apple2YosysM10kTests(unittest.TestCase):
+    def test_mapped_netlist_has_no_async_m10k(self) -> None:
+        yosys = _yosys_binary()
+        assert yosys is not None
+        sources = " ".join(producer.RTL_SOURCES)
+        program = (
+            "read_verilog -sv -I cores/fes-apple2/rtl -I cores/fes-common/generated "
+            f"{sources}; "
+            "chparam -set BUILD_ID 128'h" + "0" * 32 + " top; "
+            "synth_intel_alm -nolutram -nodsp -top top -run :map_luts; "
+            "autoname; select -module top; "
+            "log ---SDP---; select -count t:MISTRAL_M10K; "
+            "log ---TDP---; select -count t:MISTRAL_M10K_TDP; "
+            "log ---ASYNC---; "
+            "select -list t:MISTRAL_M10K r:CFG_ASYNC_READ=1 %i; "
+            "select -list t:MISTRAL_M10K_TDP r:CFG_ASYNC_READ=1 %i; "
+            "log ---LANES---; select -list t:MISTRAL_M10K r:CFG_ASYNC_READ=0 %i; "
+            "log ---END---"
+        )
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            log_path = Path(directory) / "yosys.log"
+            result = subprocess.run([yosys, "-l", str(log_path), "-p", program], cwd=ROOT,
+                                    text=True, capture_output=True, check=False)
+            log = log_path.read_text(encoding="utf-8", errors="replace")
+        self.assertEqual(result.returncode, 0, (result.stderr or log)[-4000:])
+        sections: dict[str, list[str]] = {}
+        current = None
+        for line in log.splitlines():
+            if line.startswith("---") and line.endswith("---") and line.strip("-"):
+                current = line.strip("-")
+                sections[current] = []
+            elif current is not None and line.strip():
+                sections[current].append(line.strip())
+
+        def objects(name: str) -> str:
+            rows = [line for line in sections[name] if line.endswith(" objects.")]
+            self.assertEqual(len(rows), 1, sections[name])
+            return rows[0]
+
+        async_cells = [line for line in sections["ASYNC"] if line.startswith("top/")]
+        lanes = sorted(line.removeprefix("top/") for line in sections["LANES"] if line.startswith("top/"))
+        expected = sorted(
+            [f"machine.rom.lane{index}" for index in range(16)] + ["video.font_rom"]
+        )
+        self.assertEqual(async_cells, [])
+        self.assertEqual(lanes, expected)
+        self.assertEqual(objects("SDP"), "17 objects.")
+        self.assertEqual(objects("TDP"), "204 objects.")
 
 
 if __name__ == "__main__":

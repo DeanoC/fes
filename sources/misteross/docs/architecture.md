@@ -1495,10 +1495,16 @@ outside all four socket CRAM rectangles. It searches seeds 5, 4, 2, 1, 3,
 system, 74.25 MHz pixel and 12.288 MHz audio timing. An inferred read-only
 memory maps to an M10K without a clock in this toolchain, so the font M10K
 is instantiated explicitly (`rtl/apple2_video.v`) and the audio mix is
-pipelined. The sixteen firmware lanes and that font still use
-`CFG_ASYNC_READ=1`. The shared netlist check allowlists exactly
-`machine.rom.lane0`–`lane15` and `video.font_rom`; any other async M10K
-fails the Apple II seal. Converting those seventeen cells is #539. The package declares `fes.expansion.apple2-bus` 1.0 optional.
+pipelined. The sixteen firmware lanes and that font use synchronous M10K
+reads (`CFG_ASYNC_READ=0`). Each firmware lane registers its address; the
+sub-bank and group selects are delayed so the CPU-facing byte is still two
+system clocks behind the address that `apple2_machine` captures on `cpu_ce`.
+That byte is sampled at `cycle_clock == 16`. The font lane registers its
+address on the 74.25 MHz pixel clock and `font_q` is the second stage. The
+column sequencer writes `font_addr` at `csub == 4` and loads `next_glyph`
+from `font_q` at `csub == 8`, which is still after the glyph is valid. The
+ROM-map producer requires `CFG_ASYNC_READ=0`, and the shared netlist check
+rejects every async M10K in the shell. The package declares `fes.expansion.apple2-bus` 1.0 optional.
 
 `scripts/build_apple2_slot_card.py` builds one card for one physical slot
 against the exact sealed shell and its frozen `routed.json`: the scaffold
@@ -1509,7 +1515,11 @@ and reattaches the system PLL's second output as the Coleco card flow does.
 nextpnr pass 2 runs with `--fes-cart-region slotN` and that socket's
 `--fes-cram-region`; the producer requires the three shell clocks and no CRAM
 change outside the socket, then publishes a two-member archive whose
-manifest carries `slot_index`. `expansion/cmd/fes-slot-link` composes any set
+manifest carries `slot_index`. The probe card's `$Cn00` ROM is a synchronous
+M10K. Address and IOSEL stay held for the 6502 cycle and the motherboard
+samples the slot response at cycle 16, so one clock of ROM latency is inside
+that window. The card producer rejects async M10K reads on `cart.json` and
+`cart-routed.json`. `expansion/cmd/fes-slot-link` composes any set
 of such archives, optionally with the firmware ROM map, onto the shell.
 
 ## FES ZX Spectrum

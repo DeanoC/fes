@@ -24,9 +24,12 @@ The core lane is [docs/cores.md](../../docs/cores.md).
   `$0600`). The OSS package leaves the sixteen 1024×10 M10K lanes (column 5,
   rows 32–47) blank; FogCast links a selected 16,384-byte image at download
   time. No Apple ROM bytes are in this repository or the package. Those
-  sixteen lanes, and the explicit text-font M10K, still use asynchronous
-  reads. The seal allowlists only `machine.rom.lane0`–`lane15` and
-  `video.font_rom`; any other async M10K fails the build.
+  sixteen lanes, and the explicit text-font M10K, use synchronous reads
+  (`CFG_ASYNC_READ=0`, live read clock, `B1EN` held high). The firmware
+  sub-bank and group selects are delayed so the 6502 still sees the byte
+  two system clocks after the address. The font glyph is the second pixel
+  clock of that read and is loaded at column subcycle 8. The seal rejects
+  every async M10K in the shell.
 - Keyboard latch `$C000`/`$C010`, speaker `$C030`, cassette output `$C020`,
   soft switches `$C050-$C057`, annunciators `$C058-$C05F`, push buttons and
   paddle timers `$C061-$C067`, paddle trigger `$C070`. Unclaimed I/O and slot
@@ -91,11 +94,13 @@ registers and a `$C800` RAM write/read-back, so the late-bound firmware alone
 can inspect a linked card on hardware. The machine simulation links the card
 into sockets 4 and 7 and checks both commands.
 
-The card's ROM is an explicit M10K and its RAM a plain inferred memory, which
+The card's `$Cn00` ROM is an explicit synchronous M10K (`CFG_ASYNC_READ=0`,
+live `CLK1`, `B1EN` held high). Its RAM is a plain inferred memory, which
 synthesis maps to a dual-clock M10K. The toolchain's cart merge drives every
 cart clock pin from the socket clock and rejects undriven cart inputs (FES
 #250; nextpnr before that left the RAM read clock floating and reads returned
-zero on hardware).
+zero on hardware). The card producer rejects any remaining async M10K in
+`cart.json` and `cart-routed.json`.
 
 ```sh
 python3 scripts/build_apple2_slot_card.py --shell build/fes-apple2-oss \
