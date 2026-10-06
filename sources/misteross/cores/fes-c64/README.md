@@ -18,8 +18,10 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Bytes 8192..16383 are the KERNAL window `$E000–$FFFF`. The OSS package leaves
   sixteen 1024×10 M10K lanes (column 5, rows 32–47) blank. The character
   generator is in the core, not in the firmware image.
-- VIC-II text: 40×25, synchronous dual-port M10K color RAM, and the registers
-  the diagnostic writes.
+- VIC-II text: 40×25 and the registers the diagnostic writes. Color RAM is
+  one synchronous dual-port M10K, 1024×4 at `$D800–$DBFF`. The 6510 can use
+  `$DBE8–$DBFF` as scratch. The VIC scan returns zero outside the 1000-cell
+  matrix.
   Raster timing is not locked to HDMI. No sprites, bitmap or badlines.
 - Reduced SID: three voices, pulse, saw, triangle and noise, a crude envelope
   and volume. No filter.
