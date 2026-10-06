@@ -12,6 +12,10 @@ import subprocess
 import sys
 import tomllib
 
+MISTEROSS_SCRIPTS = Path(__file__).resolve().parents[1] / 'sources/misteross'
+sys.path.insert(0, str(MISTEROSS_SCRIPTS))
+from scripts.core_package import PackageError, read_package
+
 
 RULES = [
     ('image/**', 'full', 'image'), ('boot-media.lock.toml', 'full', 'boot-media'),
@@ -38,6 +42,7 @@ RULES = [
     ('sources/FogCast/cmd/fogcast-tenfoot/**', 'overlay', 'fogcast-tenfoot'),
     ('sources/FogCast/cmd/fogcast-api/**', 'overlay', 'host:fogcast-api'),
     ('sources/FogCast/cmd/fogcast/**', 'overlay', 'host:fogcast'),
+    ('sources/FogCast/cmd/*/**', 'full', 'fogcast-unmapped-command'),
     ('sources/FogCast/ui/**', 'overlay', 'host:fogcast-api'),
     ('sources/FogCast/**', 'overlay', 'kit-go+host'),
     ('sources/misteross/toolchain.lock', 'overlay', 'core:ALL'),
@@ -180,22 +185,13 @@ def validate_entry(entry):
     if component.startswith('core:'):
         if not isinstance(entry.get('package_id'), str) or not SHA64.fullmatch(entry['package_id']):
             raise ValueError(f'{component} requires a 64-hex package_id')
+        if not isinstance(entry.get('core_id'), str) or not entry['core_id']:
+            raise ValueError(f'{component} requires a core_id')
     elif 'package_id' in entry:
         raise ValueError(f'package_id is only valid for core components: {component}')
 
 
-def manifest(head, output, specs, package_ids=()):
-    package_map = {}
-    for spec in package_ids:
-        try:
-            component, package_id = spec.split('=', 1)
-        except ValueError as error:
-            raise ValueError(f'package id must be COMPONENT=<64-hex>: {spec}') from error
-        if component in package_map:
-            raise ValueError(f'duplicate package id for {component}')
-        if not SHA64.fullmatch(package_id):
-            raise ValueError(f'invalid package id for {component}')
-        package_map[component] = package_id.lower()
+def manifest(head, output, specs):
     entries = []
     seen = set()
     for spec in specs:
@@ -204,26 +200,25 @@ def manifest(head, output, specs, package_ids=()):
             side, target = destination.split(':', 1)
         except ValueError as error:
             raise ValueError(f'artifact must be COMPONENT=LOCAL_PATH=SIDE:TARGET_PATH: {spec}') from error
-        data = Path(local).read_bytes()
+        local_path = Path(local)
+        data = local_path.read_bytes()
         entry = {'component': component, 'side': side, 'target': target,
-                 'local': local, 'sha256': hashlib.sha256(data).hexdigest(),
+                 'local': str(local_path.resolve()), 'sha256': hashlib.sha256(data).hexdigest(),
                  'size': len(data)}
-        if component.startswith('core:') and component in package_map:
-            entry['package_id'] = package_map[component]
+        if component.startswith('core:'):
+            package = read_package(local_path)
+            core_id = package.fields['core']['id']
+            name = component.removeprefix('core:')
+            if core_id not in {name, 'fes.' + name}:
+                raise ValueError(f'archive is core {core_id}, not {component}')
+            entry['package_id'] = package.package_id
+            entry['core_id'] = core_id
         validate_entry(entry)
         key = (side, target)
         if key in seen:
             raise ValueError(f'duplicate {side} target: {target}')
         seen.add(key)
         entries.append(entry)
-    invalid_ids = sorted(set(package_map) - {entry['component'] for entry in entries
-                                             if entry['component'].startswith('core:')})
-    if invalid_ids:
-        raise ValueError('package_id supplied for non-core or absent component: ' + ', '.join(invalid_ids))
-    missing_ids = sorted(entry['component'] for entry in entries
-                         if entry['component'].startswith('core:') and entry['component'] not in package_map)
-    if missing_ids:
-        raise ValueError('core components require --package-id: ' + ', '.join(missing_ids))
     Path(output).write_text(json.dumps({'head': full_sha(head, 'head'),
                                         'entries': entries}, indent=2) + '\n')
 
@@ -323,6 +318,18 @@ def evidence(args):
     seen = set()
     for entry in entries:
         validate_entry(entry)
+        if entry['component'].startswith('core:'):
+            if not entry.get('local') or not Path(entry['local']).is_file():
+                return refuse(f"local core archive for {entry['component']} is missing; "
+                              "generate evidence where the manifest was built")
+            try:
+                package = read_package(Path(entry['local']))
+            except PackageError as error:
+                raise ValueError(f"invalid local core archive for {entry['component']}: {error}") from error
+            archive_sha = hashlib.sha256(Path(entry['local']).read_bytes()).hexdigest()
+            if (archive_sha != entry['sha256'] or package.package_id != entry['package_id'] or
+                    package.fields['core']['id'] != entry['core_id']):
+                return refuse(f"local core archive sha256/package_id/core_id changed for {entry['component']}")
         key = (entry['side'], entry['target'])
         if key in seen:
             raise ValueError(f'duplicate {entry["side"]} target: {entry["target"]}')
@@ -367,6 +374,9 @@ def evidence(args):
         return refuse('kit or core entries require --kit-update-json')
     if args.kit_update_json:
         update = json.loads(Path(args.kit_update_json).read_text())
+        if (not isinstance(update, dict) or 'error' in update or 'code' in update or
+                not {'boot_id', 'good', 'image_sha256', 'corrupt', 'trial'} <= update.keys()):
+            return refuse('kit update response is an error body or lacks required fields')
         boot_id = update.get('boot_id', '')
         good = update.get('good', '')
         if update.get('image_sha256', '').lower() != base_image:
@@ -425,12 +435,14 @@ def evidence(args):
         status = core_status.get(entry['component'])
         if not status:
             return refuse(f'missing --core-status for {entry["component"]}')
+        if not isinstance(status, dict) or 'error' in status or 'code' in status or not {
+                'state', 'development', 'core_package'} <= status.keys():
+            return refuse(f'core status response is an error body or lacks required fields for {entry["component"]}')
         package = status.get('core_package') or {}
-        if package.get('package_id') != entry['package_id']:
+        if not isinstance(package, dict) or package.get('package_id') != entry['package_id']:
             return refuse(f'core package_id mismatch for {entry["component"]}')
-        state = status.get('state')
-        if not isinstance(state, str) or not state or state in ('idle', 'error'):
-            return refuse(f'core is not running for {entry["component"]}')
+        if status.get('state') != 'active' or status.get('development') is not True:
+            return refuse(f'core is not an active development core for {entry["component"]}')
 
     lines = ['<!-- FES HIL evidence -->', '', f'- Head: `{head}`',
              f'- Base image commit: `{base}`', f'- Base linux.img sha256: `{base_image}`',
@@ -541,10 +553,10 @@ def parser():
     classify.add_argument('--head')
     classify.add_argument('--paths-file')
     classify.add_argument('--json', action='store_true')
-    manifest_parser = sub.add_parser('manifest')
+    manifest_parser = sub.add_parser('manifest',
+                                     help='derive core identity from each local archive')
     manifest_parser.add_argument('--head', required=True)
     manifest_parser.add_argument('--out', required=True)
-    manifest_parser.add_argument('--package-id', action='append', default=[])
     manifest_parser.add_argument('artifacts', nargs='+')
     for command in ('kit-command', 'host-command'):
         sub.add_parser(command).add_argument('--manifest', required=True)
@@ -569,7 +581,8 @@ def parser():
     evidence_parser.add_argument('--base-release-json', required=True)
     evidence_parser.add_argument('--kit-update-json')
     evidence_parser.add_argument('--lease-log')
-    evidence_parser.add_argument('--lease-owner')
+    evidence_parser.add_argument('--lease-owner',
+                                 help='kit.py owner for binary overlays; host lease owner for core loads')
     evidence_parser.add_argument('--core-status', action='append', default=[])
     evidence_parser.add_argument('--out')
     return root
@@ -612,7 +625,7 @@ def main(argv=None):
             show(plan(paths), args.json)
             return 0
         if args.command == 'manifest':
-            manifest(args.head, args.out, args.artifacts, args.package_id)
+            manifest(args.head, args.out, args.artifacts)
             return 0
         if args.command in ('kit-command', 'host-command'):
             entries = json.loads(Path(args.manifest).read_text()).get('entries', [])

@@ -15,6 +15,25 @@ SCRIPT = ROOT / 'scripts/hil_plan.py'
 FIXTURES = ROOT / 'tests/fixtures/hil_plan'
 BASE_SHA = 'a' * 64
 BOOT_ID = '12345678-1234-5678-1234-123456789012'
+CORE_FIXTURES = ROOT / 'sources/misteross/tests/fixtures/core-bundle-v2'
+sys.path.insert(0, str(ROOT / 'sources/misteross'))
+from scripts.core_package import read_package
+
+
+def core_archive(core_id):
+    import tarfile
+    manifest = (CORE_FIXTURES / 'manifests/valid-basic.toml').read_text()
+    manifest = manifest.replace('id = "fes.pong"', f'id = "{core_id}"', 1).encode()
+    payload = (CORE_FIXTURES / 'payloads/fes-fixture.rbf').read_bytes()
+    def member(name, data):
+        info = tarfile.TarInfo(name)
+        info.mode = 0o644
+        info.uid = info.gid = info.mtime = 0
+        info.size = len(data)
+        info.uname = info.gname = ''
+        return (info.tobuf(format=tarfile.USTAR_FORMAT, encoding='ascii') + data +
+                b'\0' * ((-len(data)) % 512))
+    return member('manifest.toml', manifest) + member('core.rbf', payload) + b'\0' * 1024
 
 
 def run(*args, cwd=None):
@@ -72,7 +91,15 @@ class HilPlanTest(unittest.TestCase):
                             'local': str(local), 'sha256': digest(content),
                             'size': len(content)}
             if component.startswith('core:'):
-                row['package_id'] = 'c' * 64
+                core_id = component.removeprefix('core:')
+                content = core_archive(core_id)
+                local.write_bytes(content)
+                row.update(local=str(local.resolve()), sha256=digest(content), size=len(content),
+                           package_id=None, core_id=core_id)
+                # Derive immutable identity with the production reader.
+                package = read_package(local)
+                row['package_id'] = package.package_id
+                row['core_id'] = package.fields['core']['id']
             payload.append(row)
         result.write_text(json.dumps({'head': head or self.head, 'entries': payload}, indent=2))
         return result
@@ -139,6 +166,12 @@ class HilPlanTest(unittest.TestCase):
 
     def evidence(self, manifest, entries, *, update=True, lease=True, release=None,
                  output=None, extra=(), host_exe_value=None):
+        manifest_entries = json.loads(Path(manifest).read_text())['entries']
+        entries = [(component, side, target,
+                    Path(next(row['local'] for row in manifest_entries
+                              if row['component'] == component)).read_bytes()
+                    if component.startswith('core:') else content)
+                   for component, side, target, content in entries]
         kit_file = self.kit_output(entries) if any(row[1] == 'kit' for row in entries) else None
         host_file = self.host_output(entries) if any(row[1] == 'host' for row in entries) else None
         if host_file and host_exe_value is not None:
@@ -160,8 +193,9 @@ class HilPlanTest(unittest.TestCase):
         for component, side, target, content in entries:
             if component.startswith('core:'):
                 status = self.work / f'{component.replace(":", "_")}.status.json'
-                status.write_text(json.dumps({'state': 'running', 'core_package': {
-                    'package_id': 'c' * 64, 'build_id': 'build-test'}}))
+                row = next(row for row in manifest_entries if row['component'] == component)
+                status.write_text(json.dumps({'state': 'active', 'development': True, 'core_package': {
+                    'package_id': row['package_id'], 'build_id': 'build-test'}}))
                 args += ['--core-status', f'{component}={status}']
         if output:
             args += ['--out', output]
@@ -186,9 +220,14 @@ class HilPlanTest(unittest.TestCase):
                     self.assertIn(component, data['components'])
 
     def test_full_image_unrecognised_and_docs_only(self):
-        for path in ('image/buildroot/board/x/etc/init.d/S42x', 'unknown/file.bin'):
+        for path in ('image/buildroot/board/x/etc/init.d/S42x', 'unknown/file.bin',
+                     'sources/FogCast/cmd/fes-update/main.go',
+                     'sources/FogCast/cmd/mister-bridge/x.go'):
             result = run('classify', '--paths-file', self.path_file(path), '--json')
             self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
+        for path in ('sources/FogCast/internal/example.go', 'sources/FogCast/catalog/example.go'):
+            result = run('classify', '--paths-file', self.path_file(path), '--json')
+            self.assertEqual(json.loads(result.stdout)['decision'], 'OVERLAY kit-go+host')
         result = run('classify', '--paths-file', self.path_file('docs/guide.md'), '--json')
         self.assertEqual(json.loads(result.stdout)['decision'], 'NO_DEPLOY_CHANGE')
 
@@ -388,6 +427,8 @@ class HilPlanTest(unittest.TestCase):
             ({}, {'good': 'b' * 64}),
             ({}, {'boot_id': 'wrong'}),
             ({}, {'trial': True}),
+            ({}, {'error': 'unauthorized'}),
+            ({}, {'code': 'unauthorized'}),
         ]
         for index, (release_changes, update_changes) in enumerate(cases):
             release = self.work / f'release-{index}.json'
@@ -461,13 +502,16 @@ class HilPlanTest(unittest.TestCase):
         self.assertIn('--lease-log', result.stderr)
 
         status = self.work / 'running.json'
-        status.write_text(json.dumps({'state': 'running', 'core_package': {
-            'package_id': 'c' * 64, 'build_id': 'build-test'}}))
+        core_package_id = json.loads(manifest.read_text())['entries'][0]['package_id']
+        status.write_text(json.dumps({'state': 'active', 'development': True, 'core_package': {
+            'package_id': core_package_id, 'build_id': 'build-test'}}))
         log = self.lease_file([('claimed', 'held', 'owner'), ('released', 'free', None)])
+        archive_bytes = Path(json.loads(manifest.read_text())['entries'][0]['local']).read_bytes()
+        host_hashes = self.host_output([('core:ramtest', 'host', '/tmp/ramtest.fcore', archive_bytes)])
         args = ['evidence', '--repo', self.repo, '--base-image-commit', self.base,
                 '--head', self.head, '--base-image-sha256', BASE_SHA, '--manifest', manifest,
                 '--base-release-json', self.release_file(), '--kit-update-json', self.update_file(),
-                '--host-sha256', self.host_output(entries),
+                '--host-sha256', host_hashes,
                 '--lease-log', log, '--lease-owner', 'owner', '--core-status', f'core:ramtest={status}']
         missing_status_args = args[:-2]
         output = self.work / 'missing-status.md'
@@ -485,15 +529,23 @@ class HilPlanTest(unittest.TestCase):
         args[args.index('--lease-log') + 1] = self.lease_file(
             [('claimed', 'held', 'owner'), ('released', 'free', None)])
         for payload, reason in (
-                ({'state': 'running', 'core_package': {'package_id': 'd' * 64}}, 'package_id mismatch'),
-                ({'state': 'idle', 'core_package': {'package_id': 'c' * 64}}, 'not running'),
-                ({'state': 'error', 'core_package': {'package_id': 'c' * 64}}, 'not running'),
-                ({'state': 'running'}, 'package_id mismatch')):
+                ({'state': 'active', 'development': True, 'core_package': {'package_id': 'd' * 64}}, 'package_id mismatch'),
+                ({'state': 'idle', 'development': True, 'core_package': {'package_id': core_package_id}}, 'not an active development core'),
+                ({'state': 'error', 'development': True, 'core_package': {'package_id': core_package_id}}, 'not an active development core'),
+                ({'state': 'active', 'core_package': {'package_id': core_package_id}}, 'lacks required fields'),
+                ({'state': 'active', 'development': False, 'core_package': {'package_id': core_package_id}}, 'not an active development core'),
+                *[({'state': state, 'development': True, 'core_package': {'package_id': core_package_id}},
+                   'not an active development core') for state in ('launching', 'stopping', 'failed', 'local')]):
             status.write_text(json.dumps(payload))
             output = self.work / 'bad-status.md'
             result = run(*args, '--out', output)
             self.assert_refused_without_evidence(result, output)
             self.assertIn(reason, result.stderr)
+        for payload in ({'error': 'unauthorized'}, {'code': 'unauthorized'}, {'state': 'active'}):
+            status.write_text(json.dumps(payload))
+            result = run(*args, '--out', output)
+            self.assert_refused_without_evidence(result, output)
+            self.assertIn('error body or lacks required fields', result.stderr)
         output = self.work / 'unplanned-status.md'
         args[args.index('--lease-log') + 1] = self.lease_file(
             [('claimed', 'held', 'owner'), ('released', 'free', None)])
@@ -501,15 +553,29 @@ class HilPlanTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stderr)
         self.assertFalse(output.exists())
 
-    def test_core_manifest_requires_package_id_and_rejects_non_core_id(self):
-        core = self.write_artifact('core', b'core')
+    def test_core_manifest_derives_identity_and_rejects_wrong_core(self):
+        core = self.write_artifact('core', core_archive('fes.pong'))
         args = ['manifest', '--head', 'a' * 40, '--out', self.work / 'manifest.json']
-        missing = run(*args, f'core:one={core}=host:/tmp/one.fcore')
-        self.assertEqual(missing.returncode, 2)
-        self.assertFalse((self.work / 'manifest.json').exists())
-        noncore = run(*args, '--package-id', 'host:fogcast-api=' + 'c' * 64,
-                      f'host:fogcast-api={core}=host:/tmp/api')
-        self.assertEqual(noncore.returncode, 2)
+        accepted = run(*args, f'core:pong={core}=host:/tmp/pong.fcore')
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        entry = json.loads((self.work / 'manifest.json').read_text())['entries'][0]
+        self.assertEqual(entry['core_id'], 'fes.pong')
+        self.assertEqual(entry['package_id'], read_package(core).package_id)
+        wrong = run(*args, f'core:ramtest={core}=host:/tmp/ramtest.fcore')
+        self.assertEqual(wrong.returncode, 2)
+        self.assertIn('archive is core fes.pong, not core:ramtest', wrong.stderr)
+
+    def test_evidence_rechecks_core_archive_bytes(self):
+        self.git_repo(['sources/misteross/cores/ramtest/change.v'])
+        entries = [('core:ramtest', 'host', '/tmp/ramtest.fcore', b'ignored')]
+        manifest = self.make_manifest(entries)
+        row = json.loads(manifest.read_text())['entries'][0]
+        Path(row['local']).write_bytes(core_archive('fes.ramtest'))
+        output = self.work / 'evidence.md'
+        result = self.evidence(manifest, entries, output=output)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertFalse(output.exists())
+        self.assertIn('local core archive', result.stderr)
 
     def test_lease_order_owner_and_missing_step_refuse(self):
         self.git_repo(['sources/libmister-runtime/change.cpp'])

@@ -14,10 +14,10 @@ python3 scripts/hil_plan.py manifest --head "$PR_HEAD" --out /tmp/hil-manifest.j
   host:fogcast-api=/build/fogcast-api=host:/home/deano/tmp/hil/fogcast-api
 ```
 
-For each `core:*` archive, provide its sealed 64-hex package ID with a
-repeatable `--package-id COMPONENT=ID` option. Host-server changes require the
-binary from the exact-head build to be started as `fogcast-api` before the
-host attestation command is run.
+For each `core:*` archive, the planner reads the local archive and derives its
+package ID and core ID. The archive must identify the requested core. Host-server
+changes require the binary from the exact-head build to be started as `fogcast-api`
+before the host attestation command is run.
 
 5. Claim the lease from `sources/misteross` and keep the session open in its own terminal (it renews every 20 s). From a second terminal, save the public lease status (`kit.py status` prints only public fields, never the credential) and record it as `claimed`. Then send `stop` to the session so the kit is idle:
 
@@ -42,23 +42,29 @@ $SSH 'sh -s on' < /tmp/hil-deploy.sh; rm -f "$KH"
 
 The deploy script checks every staged binary against the sha256 embedded in it, refuses if `/usr/sbin` already has mounts, stops S60, S50, S40, bind-mounts the exact staged binaries over `/usr/sbin`, starts S40, S50, S60 only when no `mister-supervise` is left running, and fails unless exactly one supervisor each runs for runtime, agent and kit.
 
-7. For a core-only overlay, claim the lease and keep it held while loading the
-   core from the exact-head build on the host:
+7. For a core-only overlay, the host `fogcast core-load` command claims its own
+   lease through `fogcast-api` before calling `/v1/development/core`. Do not open
+   a `kit.py` session: that would make the host's lease claim fail as busy.
+   Confirm `kit.py status` is free, then load the core from the exact-head build:
 
    ```sh
    fogcast --json --api http://127.0.0.1:8787 core-load /abs/path/core.fcore
-   curl http://192.168.10.84:8182/v1/status > /tmp/core-status.json
-   curl http://192.168.10.84:8182/v1/update > /tmp/kit-update.json
+   curl --fail -sS -H "Authorization: Bearer $FOGCAST_TOKEN" \
+     http://192.168.10.84:8182/v1/status > /tmp/core-status.json
+   curl --fail -sS -H "Authorization: Bearer $FOGCAST_TOKEN" \
+     http://192.168.10.84:8182/v1/update > /tmp/kit-update.json
    ```
 
-   Save status while that core is running, then stop the core and release the
-   lease. Record exactly `claimed` (held by the owner) followed by `released`
-   (free or revoking). Core evidence checks status package ID and active state,
-   plus kit image identity. It does not require a reboot or the four-step binary
-   restart sequence.
+   While the core runs, save `kit.py status` (held by the host's owner label) and
+   record `claimed`; save `/v1/status` and `/v1/update`, then run the HIL test.
+   Stop the host session with `POST /api/v1/session/stop` (an explicit stop
+   releases the lease), save `kit.py status` (free or revoking), and record
+   `released`. Set `--lease-owner` to the host's owner label. Core evidence
+   requires an active development core with the matching package ID and kit
+   image identity. It does not require a reboot or the four-step binary restart.
 8. For kit binary overlays, reacquire the lease with a new `kit.py session`
-   (terminal 1), save `kit.py status` and record it as `reacquired`. Save
-   `GET http://192.168.10.84:8182/v1/update` as `/tmp/kit-update.json`. Run the
+   (terminal 1), save `kit.py status` and record it as `reacquired`. Save the
+   authenticated `GET /v1/update` as `/tmp/kit-update.json`. Run the
    `kit-command` output on the kit (`$SSH sh -s < kit-cmd.sh > /tmp/kit.sha256`,
    with a fresh throwaway known_hosts) and the `host-command` output on the host
    (`> /tmp/host.sha256`). For `host:fogcast-api`, run `host-command` as the
@@ -74,6 +80,15 @@ The deploy script checks every staged binary against the sha256 embedded in it, 
    per-component coverage, file and running executable hashes, core package
    identity and running state, image identity, boot identity, supervisor counts
    and lease order.
+
+All target API reads use the bearer token from the private FogCast config's
+target `agent` token. Set it in `FOGCAST_TOKEN` without printing it; never print
+or commit the token. Every curl uses the authenticated, failing form:
+
+```sh
+curl --fail -sS -H "Authorization: Bearer $FOGCAST_TOKEN" \
+  http://192.168.10.84:8182/v1/update > /tmp/kit-update.json
+```
 10. Finally run `kit-deploy-script ...` with `off` under the same
     release/reacquire lease discipline to restore installed binaries.
 
