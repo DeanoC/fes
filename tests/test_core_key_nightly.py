@@ -20,14 +20,18 @@ class NightlyDecisionTests(unittest.TestCase):
             self.assertNotIn(temp, output[1])
 
     def test_same_payload_and_covered_reads_pass(self):
-        self.assertTrue(decide({'sha256':'a'}, {'sha256':'a'},
+        self.assertTrue(decide({'sha256':'a', 'key':'k'}, {'sha256':'a', 'key':'k'},
                                [{'event':'read','path':'scripts/a.py'}], ['scripts/a.py'])['pass'])
 
     def test_different_payload_fails(self):
-        self.assertFalse(decide({'sha256':'a'}, {'sha256':'b'}, [], ['scripts/a.py'])['pass'])
+        self.assertFalse(decide({'sha256':'a', 'key':'k'}, {'sha256':'b', 'key':'k'}, [], ['scripts/a.py'])['pass'])
+
+    def test_different_key_fails(self):
+        result = decide({'sha256':'a', 'key':'k'}, {'sha256':'a', 'key':'other'}, [], ['scripts/a.py'])
+        self.assertEqual(result['reasons'], ['functional key differs'])
 
     def test_uncovered_read_fails(self):
-        result = decide({'sha256':'a'}, {'sha256':'a'},
+        result = decide({'sha256':'a', 'key':'k'}, {'sha256':'a', 'key':'k'},
                         [{'event':'read','path':'scripts/b.py'}], ['scripts/a.py'])
         self.assertFalse(result['pass'])
         self.assertEqual(result['uncovered_paths'], ['scripts/b.py'])
@@ -36,14 +40,19 @@ class NightlyDecisionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp) / 'repo'
             subprocess.run(['git', 'init', '-q', str(repo)], check=True)
-            for broad_sha, read_path, expected in (
+            for rebuild_sha, read_path, expected in (
                 ('a', 'scripts/a.py', True), ('b', 'scripts/a.py', False),
                 ('a', 'scripts/other.py', False)):
                 def fake(_repo, _core, _selection, env, force):
                     if force:
+                        # The rebuild keeps the narrowed key and only records reads.
+                        self.assertEqual(env['FES_SOURCE_CLOSURE_AUDIT'], '1')
+                        self.assertNotIn('FES_SOURCE_CLOSURE_BROAD', env)
+                        self.assertNotIn('FES_SOURCE_CLOSURE_RECORD_ONLY', env)
+                        self.assertNotEqual(env['FES_ARTIFACT_CACHE_ROOT'], os.environ.get('FES_ARTIFACT_CACHE_ROOT'))
                         Path(env['FES_SOURCE_READ_RECORD']).write_text(
                             json.dumps({'event':'read', 'path':read_path}) + '\n')
-                    return {'sha256': broad_sha if force else 'a', 'key': 'broad' if force else 'narrow'}
+                    return {'sha256': rebuild_sha if force else 'a', 'key': 'narrow'}
                 report = run(repo, Path(temp) / 'reports', [('fes.pong', 'build_fes_pong')],
                              resolver=fake, manifest={'build_fes_pong':['scripts/a.py']})
                 self.assertEqual(report['pass'], expected)

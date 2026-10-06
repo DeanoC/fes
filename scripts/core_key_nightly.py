@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare cached narrowed core packages with private broad-key rebuilds."""
+"""Compare cached narrowed core packages with private recorded rebuilds of the same key."""
 import argparse
 import hashlib
 import json
@@ -14,16 +14,18 @@ import tomllib
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def decide(narrow, broad, reads, closure):
+def decide(narrow, rebuild, reads, closure):
     from pathlib import PurePosixPath
     def covered(path):
         return any(path == root or path.startswith(root + '/') for root in closure)
     uncovered = sorted({entry['path'] for entry in reads if not covered(entry['path'])})
     reasons = []
-    if narrow['sha256'] != broad['sha256']:
+    if narrow['key'] != rebuild['key']:
+        reasons.append('functional key differs')
+    if narrow['sha256'] != rebuild['sha256']:
         reasons.append('payload/RBF SHA256 differs')
     if uncovered:
-        reasons.append('broad rebuild read outside narrowed closure')
+        reasons.append('rebuild read outside narrowed closure')
     return {'pass': not reasons, 'reasons': reasons, 'uncovered_paths': uncovered}
 
 
@@ -56,7 +58,7 @@ with tempfile.TemporaryDirectory(prefix='nightly-core-',dir=work) as temporary:
 
 def _read_log(path):
     if not path.exists():
-        raise ValueError('broad rebuild produced no source read log')
+        raise ValueError('recorded rebuild produced no source read log')
     return [json.loads(line) for line in path.read_text().splitlines()]
 
 
@@ -79,17 +81,20 @@ def run(repo, out, cores, resolver=_resolve, manifest=None):
                 start = time.monotonic()
                 narrow = resolver(repo, core, scratch / 'narrow.selection.toml', os.environ.copy(), False)
                 narrow_seconds = time.monotonic() - start
-                broad_env = dict(os.environ, FES_ARTIFACT_CACHE_ROOT=str(scratch / 'cache'),
-                                 FES_SOURCE_CLOSURE_BROAD='1',
-                                 FES_SOURCE_CLOSURE_RECORD_ONLY='1',
-                                 FES_SOURCE_READ_RECORD=str(scratch / 'reads.jsonl'))
+                # Producers embed build_identity(record) in the bitstream, so only a
+                # rebuild with the same (narrowed) record can reproduce the payload.
+                # Audit mode keeps the narrowed roots but records reads instead of
+                # enforcing them, in a private snapshot and artifact cache.
+                rebuild_env = dict(os.environ, FES_ARTIFACT_CACHE_ROOT=str(scratch / 'cache'),
+                                   FES_SOURCE_CLOSURE_AUDIT='1',
+                                   FES_SOURCE_READ_RECORD=str(scratch / 'reads.jsonl'))
                 start = time.monotonic()
-                broad = resolver(repo, core, scratch / 'broad.selection.toml', broad_env, True)
-                broad_seconds = time.monotonic() - start
+                rebuild = resolver(repo, core, scratch / 'rebuild.selection.toml', rebuild_env, True)
+                rebuild_seconds = time.monotonic() - start
                 reads = _read_log(scratch / 'reads.jsonl')
-                decision = decide(narrow, broad, reads, manifest[module])
-                row = {'core': core, 'producer': module, 'narrow': narrow, 'broad': broad,
-                       'narrow_seconds': narrow_seconds, 'broad_seconds': broad_seconds, **decision}
+                decision = decide(narrow, rebuild, reads, manifest[module])
+                row = {'core': core, 'producer': module, 'narrow': narrow, 'rebuild': rebuild,
+                       'narrow_seconds': narrow_seconds, 'rebuild_seconds': rebuild_seconds, **decision}
         except (OSError, ValueError, subprocess.CalledProcessError) as error:
             row = {'core': core, 'producer': module, 'pass': False,
                    'reasons': [str(error)], 'uncovered_paths': []}

@@ -55,10 +55,14 @@ inclusion.
 ## Nightly comparison
 
 On a clean Powerboat checkout, run the parent comparison under the existing
-FPGA lock. It resolves each narrowed package, then force-builds a broad-key
-package with read recording in a separate snapshot and private artifact cache.
-It fails if either the RBF/payload SHA256 differs or the broad rebuild reads
-outside the narrowed roots. The JSON report records keys, hashes, durations
+FPGA lock. It resolves each narrowed package, then force-rebuilds the same
+narrowed key with `FES_SOURCE_CLOSURE_AUDIT=1` in a separate snapshot and
+private artifact cache. Audit mode keeps the narrowed roots, so the record and
+the build ID every producer embeds in its bitstream are unchanged, but it
+records reads instead of enforcing them. (A broad-key rebuild cannot be
+compared: its record, and so its embedded build ID, always differs.) The check
+fails if the functional key or the RBF/payload SHA256 differs, or the rebuild
+reads outside the narrowed roots. The JSON report records keys, hashes, durations
 and uncovered paths. A plan can be printed without a GPU:
 
 ```sh

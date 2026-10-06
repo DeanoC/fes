@@ -49,6 +49,11 @@ class ManifestTests(unittest.TestCase):
         self.assertIsInstance(source_roots_for_producer('build_fes_pong', pins), AuditedRoots)
         with patch.dict(os.environ, {'FES_SOURCE_CLOSURE_BROAD': '1'}):
             self.assertEqual(source_roots_for_producer('build_fes_pong', pins), source_roots_for_inputs(pins))
+        with patch.dict(os.environ, {'FES_SOURCE_CLOSURE_AUDIT': '1'}):
+            # Audit mode keeps the narrowed roots (same record, same build ID).
+            self.assertEqual(source_roots_for_producer('build_fes_pong', pins),
+                             source_roots_for_producer('build_fes_pong', pins))
+            self.assertIsInstance(source_roots_for_producer('build_fes_pong', pins), AuditedRoots)
 
     def test_toolchain_recipe_files_are_in_every_closure(self):
         # Tool authentication hashes these into the toolchain cache key under the guard.
@@ -132,6 +137,18 @@ class GuardTests(unittest.TestCase):
                     (root/'out/__pycache__/b.cpython-314.pyc').read_bytes()
                 (root/'build/output').write_text('x')
                 self.assertEqual((root/'build/output').read_text(), 'x')
+
+    def test_audit_mode_records_instead_of_enforcing(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); (root/'in').mkdir(); (root/'out').mkdir()
+            (root/'in/a.v').write_text('a'); (root/'out/b.v').write_text('b')
+            log = root/'reads.jsonl'
+            with patch.dict(os.environ, {'FES_SOURCE_CLOSURE_AUDIT': '1', 'FES_SOURCE_READ_RECORD': str(log)}):
+                with python_source_guard(root, AuditedRoots(['in'])):
+                    self.assertEqual((root/'out/b.v').read_text(), 'b')
+            self.assertIn({'event': 'read', 'path': 'out/b.v'}, [json.loads(l) for l in log.read_text().splitlines()])
+            with python_source_guard(root, AuditedRoots(['in'])):
+                with self.assertRaises(ReadAuditError): (root/'out/b.v').read_text()
 
     def test_dir_fd_relative_opens_are_not_source_reads(self):
         # shutil.rmtree opens children with os.open(name, dir_fd=...); the audit

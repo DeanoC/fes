@@ -59,7 +59,10 @@ def _record(event, relative):
 
 def _enforce_closure(relative, roots, event):
     _record(event, relative)
-    if roots is not None and os.environ.get('FES_SOURCE_CLOSURE_RECORD_ONLY') != '1' and not _covered(relative, roots):
+    # FES_SOURCE_CLOSURE_AUDIT keeps the narrowed roots (and so the narrowed
+    # record and embedded build ID) but only records reads, for the nightly check.
+    if (roots is not None and os.environ.get('FES_SOURCE_CLOSURE_RECORD_ONLY') != '1'
+            and os.environ.get('FES_SOURCE_CLOSURE_AUDIT') != '1' and not _covered(relative, roots)):
         raise ReadAuditError(f'source {event} outside audited closure: {relative}')
 
 
