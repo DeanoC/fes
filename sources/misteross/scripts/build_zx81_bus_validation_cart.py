@@ -22,7 +22,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import build_fes_zx81_oss as shell_recipe
 from scripts.core_package import read_package
-from scripts.fes_build_common import _authenticate_tools, _prepare_output, _require_clean_source
+from scripts.fes_build_common import _authenticate_tools, _prepare_output, _require_clean_source, reject_async_m10k_reads
 from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram_diff, CramRect
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -155,6 +155,8 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
             path = output / artifact
             if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
                 raise ValueError(f"{name} did not produce nonempty {artifact}")
+        netlist_name = "cart.json" if name == "synthesis" else "cart-routed.json"
+        reject_async_m10k_reads(json.loads((output / netlist_name).read_text()))
     timing = json.loads((output / "timing.json").read_text())
     validate_cart_timing(timing)
     if (output / "clocks.sdc").read_bytes() != clock_constraints:

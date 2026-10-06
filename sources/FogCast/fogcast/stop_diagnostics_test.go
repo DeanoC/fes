@@ -53,7 +53,7 @@ func TestStopStagesSeparateAdmissionFromDispatchWithoutReplay(t *testing.T) {
 			defer peer.Close()
 			base, _ := url.Parse(peer.URL)
 			s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, Address: peer.URL, Agent: "secret", TargetID: id}}, SelectedTarget: "kit", RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, targetclient.NewClient(base, "secret", peer.Client()))
-			s.activeExecution, s.activeTarget = ExecutionFPGADevelopment, "kit"
+			s.plays["kit"] = targetPlay{execution: ExecutionFPGADevelopment}
 			_, err := s.Stop(context.Background())
 			if StopStage(err) != fail {
 				t.Fatalf("stage=%q error=%v", StopStage(err), err)
@@ -62,8 +62,8 @@ func TestStopStagesSeparateAdmissionFromDispatchWithoutReplay(t *testing.T) {
 			if fail == "target_stop" {
 				want = 1
 			}
-			if stops.Load() != want || s.activeExecution != ExecutionFPGADevelopment {
-				t.Fatalf("stops=%d execution=%s", stops.Load(), s.activeExecution)
+			if stops.Load() != want || s.plays["kit"].execution != ExecutionFPGADevelopment {
+				t.Fatalf("stops=%d kit=%+v", stops.Load(), s.plays["kit"])
 			}
 			if fail != "target_stop" {
 				_, err = s.refreshTargetAdmission(context.Background())
@@ -123,7 +123,9 @@ func TestExplicitStopFreshAdmissionDuringLookupBackoff(t *testing.T) {
 			s.activeExecution, s.activeTarget = ExecutionFPGADevelopment, "kit"
 			s.resolveTarget = func(context.Context, string) ([]string, error) { return nil, nil }
 			if tc.pending {
-				s.packageRejection = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Phase: "recovery"}
+				play := s.plays["kit"]
+				play.packageRejection = &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Phase: "recovery"}
+				s.plays["kit"] = play
 			}
 			// Same state produced by a failed background connection observation.
 			_, _ = s.connectionFailed(TargetConnection{TargetID: id, Address: peer.URL}, context.Canceled)
@@ -151,7 +153,7 @@ func TestExplicitStopFreshAdmissionDuringLookupBackoff(t *testing.T) {
 				if tc.pending {
 					wantStatuses = 2
 				}
-				if err != nil || status.State != protocol.StateIdle || ownerships.Load() != 1 || statuses.Load() != wantStatuses || stops.Load() != 1 || s.packageRejection != nil {
+				if err != nil || status.State != protocol.StateIdle || ownerships.Load() != 1 || statuses.Load() != wantStatuses || stops.Load() != 1 || s.plays["kit"].packageRejection != nil {
 					t.Fatalf("Stop=%+v err=%v ownership=%d status=%d stops=%d", status, err, ownerships.Load(), statuses.Load(), stops.Load())
 				}
 			} else {

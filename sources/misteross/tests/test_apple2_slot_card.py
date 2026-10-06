@@ -33,6 +33,18 @@ def frozen_shell() -> dict:
 
 
 class Apple2SlotCardTests(unittest.TestCase):
+    def test_probe_rom_is_synchronous_and_the_producer_rejects_async_m10k(self) -> None:
+        probe = (ROOT / "cores/fes-apple2/expansions/probe.v").read_text()
+        self.assertIn(".CFG_ASYNC_READ(0)", probe)
+        self.assertNotIn("CFG_ASYNC_READ(1)", probe)
+        self.assertIn(".B1EN(1'b1)", probe)
+        self.assertIn(".CLK1(clk)", probe)
+        self.assertIn("rom_q", probe)
+        producer = (ROOT / "scripts/build_apple2_slot_card.py").read_text()
+        self.assertIn("reject_async_m10k_reads", producer)
+        self.assertIn("cart.json", producer)
+        self.assertIn("cart-routed.json", producer)
+
     def test_scaffold_exposes_only_the_chosen_slot(self) -> None:
         design = json.loads(card.prepare_scaffold(json.dumps(frozen_shell()).encode(), 5))
         cells = design["modules"]["top"]["cells"]

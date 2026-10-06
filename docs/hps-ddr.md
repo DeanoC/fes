@@ -71,7 +71,7 @@ firmware or programming another core.
    because the controller cannot recover a burst stopped midway.
 3. Set `ENABLE_HPS_DDR(1)` on `fes_application_gp`, and declare
    `fes.memory.hps-ddr` 1.0 `required = true` in the package manifest.
-4. OSS builds need the Yosys in `sources/misteross/toolchains/ramtest.lock` or
+4. OSS builds need the Yosys in `sources/misteross/toolchain.lock` or
    later, whose blackbox declares every fpga2sdram port. Check the netlist
    with `hps_ddr_layout_evidence` in `scripts/fes_de10nano_evidence.py`, as
    the RAM tester and splash recipes do.

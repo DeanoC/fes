@@ -72,6 +72,11 @@ Run the commands below from `sources/misteross/`. Preparing one registered
 package without an image rebuild is the FES
 [core developer workflow](../../docs/core-development.md).
 
+The original RV32I CPU in `cores/fes-common/rtl/riscv` is the first-party
+RISC-V lane; `make sim-fes-riscv` checks it against an independent model and
+runs the [fes.riscv](cores/fes-riscv/README.md) system and board shell.
+`make build-fes-riscv` seals that package through the shared HIP lane.
+
 The original shared Z80 CPU has NMOS and documented fast variants. Run
 `make sim-fes-z80` for standalone instruction, flag and pin timing checks; see
 [the CPU contract](cores/fes-common/rtl/z80/README.md) for interfaces and the
@@ -106,6 +111,7 @@ the HIP tools from `make toolchain-fes`, not the GPU-off build.
 | `fes.spectrum` | `make sim-fes-spectrum` | `make build-fes-spectrum` | none | factory image |
 | `fes.catch` | `make sim-fes-demo` | `python3 scripts/build_fes_catch.py` | no oracle | registered, not in the factory image |
 | `fes.ramtest` | `make sim-fes-ramtest` | `make build-fes-ramtest-100` | `make build-fes-ramtest-quartus` | factory utility, OSS 100 MHz |
+| `fes.riscv` | `make sim-fes-riscv` | `make build-fes-riscv` | none | registered, not in the factory image |
 | splash / idle | `make sim-fes-splash` | `make build-fes-splash` | none | `sealed/fes-splash.rbf`, not a play package |
 
 `fes.sms` and `fes.sg1000` use the `fes.simple-computer` ABI with sealed, linked
@@ -124,6 +130,7 @@ build/fes-coleco-socket-v2/core.rbf
 build/fes-sms-oss/core.rbf
 build/fes-sg1000-oss/core.rbf
 build/fes-catch/core.rbf
+build/fes-riscv/core.rbf
 build/packages/<package-id>/manifest.toml
 build/packages/<package-id>/core.rbf
 build/fes-splash/core.rbf
@@ -150,8 +157,10 @@ make toolchain
 ```
 
 `make toolchain` is the generic OSS lane (GPU router off), including splash.
-`make toolchain-fes` is the HIP lane for FES Pong and for freeze-scaffold
-pass 2. Coleco uses `make toolchain-fes-coleco` against
+`make toolchain-fes` is the shared HIP lane for FES Pong, menu, RAM Tester and
+freeze-scaffold pass 2. `fes.menu` and both OSS `fes.ramtest` rates use the same
+`toolchain.lock` HIP compiler slot (also provisioned by
+`make toolchain-fes-ramtest`). Coleco uses `make toolchain-fes-coleco` against
 `toolchains/coleco-sgm.lock`. SG-1000 uses `make toolchain-fes-sg1000`
 against `toolchains/registered-memory.lock`. SMS uses
 `make toolchain-fes-sms` against `toolchains/fes-sms.lock`. ZX81 uses
@@ -178,7 +187,7 @@ python3 scripts/build_fes_slot.py \
   --output build/oss/composed_901_plus_900.rbf
 ```
 
-`NEXTPNR_MISTRAL` overrides the binary. Locked nextpnr `a93fe013` provides
+`NEXTPNR_MISTRAL` overrides the binary. Locked nextpnr `1656e473` provides
 `--fes-scaffold` and `--fes-cart`. A binary without those flags fails closed.
 This path does not seal `fes.zx81`.
 
@@ -191,7 +200,7 @@ This path does not seal `fes.zx81`.
 | `cores/fes-common/` | RTL shared by more than one core |
 | `scripts/experiment_policy.py` | Closed experiment list and checks |
 | `scripts/build_fes_*.py` | Core producers |
-| `toolchain.lock` | Generic OSS tools and the Pong HIP slot |
+| `toolchain.lock` | Generic OSS tools and the shared FES HIP slot |
 | `toolchains/` | ZX81 and registered-memory locks |
 | `boards/de10nano/` | Shared device and pin constraints |
 | `sealed/` | Tracked splash/idle RBF |

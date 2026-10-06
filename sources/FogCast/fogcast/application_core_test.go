@@ -62,7 +62,7 @@ func TestApplicationLibraryLaunchRequiresMediaBeforeMutation(t *testing.T) {
 	ctx := context.Background()
 	s, client, entry, _ := newCoreEntryLaunchFixture(t, applicationLibraryFixture(t, true), "Palette application")
 	rejection := &protocol.APIError{Code: protocol.CodeUnrecognizedCore, Phase: "identity"}
-	s.packageRejection = rejection
+	s.plays[s.selectedTarget] = targetPlay{packageRejection: rejection}
 	client.coreLoad = func(context.Context, int64, io.Reader) (protocol.Status, error) {
 		t.Fatal("missing media changed the active FPGA")
 		return protocol.Status{}, nil
@@ -75,7 +75,7 @@ func TestApplicationLibraryLaunchRequiresMediaBeforeMutation(t *testing.T) {
 	if client.stopCalls != 0 || client.mediaCalls != 0 {
 		t.Fatal("missing-media launch mutated target")
 	}
-	if s.packageRejection != rejection {
+	if s.plays[s.selectedTarget].packageRejection != rejection {
 		t.Fatal("invalid next launch cleared pending recovery")
 	}
 }

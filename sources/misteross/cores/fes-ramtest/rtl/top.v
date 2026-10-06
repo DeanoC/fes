@@ -336,7 +336,19 @@ module top #(
         .shown_expect(sdram_expect), .shown_got(sdram_got)
     );
 
-    sdram_addon_port #(.BYTE_MASK_ENABLED(1)) sdram (
+`ifdef RAM_OSS_HIGH_SPEED
+`define RAM_SDRAM_IO_REGISTERS
+`endif
+`ifdef RAM_SDRAM_IO_REGISTERS
+    // Native builds put the command and address registers in the pads
+    // (constraints.qsf FAST_OUTPUT_REGISTER); see DeanoC/nextpnr#135. The
+    // simulation also defines RAM_SDRAM_IO_REGISTERS to cover this timing.
+    localparam SDRAM_IO_OUTPUT_REGISTERS = 1;
+`else
+    localparam SDRAM_IO_OUTPUT_REGISTERS = 0;
+`endif
+    sdram_addon_port #(.BYTE_MASK_ENABLED(1),
+                       .IO_OUTPUT_REGISTERS(SDRAM_IO_OUTPUT_REGISTERS)) sdram (
         .clk(mem_clk),
         .clk_pin(sdram_pin_clk),
         .rate(rate),

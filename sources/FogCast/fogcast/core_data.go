@@ -53,7 +53,8 @@ func (s *Service) entryCoreData(parent context.Context, gameID string, u *protoc
 	}
 	if u != nil {
 		s.executionMu.Lock()
-		pending := s.packageRejection != nil
+		_, play := s.selectedKitPlayLocked()
+		pending := play.packageRejection != nil
 		s.executionMu.Unlock()
 		if pending {
 			return CoreDataResult{}, canonicalError(protocol.CodeBusy, nil)

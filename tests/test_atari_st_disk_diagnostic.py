@@ -20,8 +20,8 @@ class Machine:
     and clobbers volatile registers. This is not an EmuTOS filesystem emulator.
     """
 
-    def __init__(self, failure=None, base=0x4000):
-        prg = diagnostic.build_prg()
+    def __init__(self, failure=None, base=0x4000, *, restore_proof=False, files=None):
+        prg = diagnostic.build_prg(restore_proof=restore_proof)
         header = struct.unpack_from(">H6IH", prg)
         assert header == (0x601a, len(prg) - 28, 0, 0, 0, 0, 0, 1)
         self.memory = bytearray(0x80000)
@@ -32,7 +32,8 @@ class Machine:
         self.base, self.stack_end = base, base + header[1]
         self.pc = base
         self.z = self.n = False
-        self.files = {"A:\\PASS.TXT": b"stale pass", "A:\\FAIL.TXT": b"stale fail"}
+        self.files = (dict(files) if files is not None else
+                      {"A:\\PASS.TXT": b"stale pass", "A:\\FAIL.TXT": b"stale fail"})
         self.handles, self.calls, self.console = {}, [], []
         self.exit = None
         self.failure = failure
@@ -239,25 +240,32 @@ def independent_read(image, filename, directory=None):
     return None
 
 
-def capture_with_marker(image, name=b"PASS    TXT", data=diagnostic.PASS_TEXT):
+def capture_with_marker(image, name=b"PASS    TXT", data=diagnostic.PASS_TEXT, *, slot=2, cluster=714):
     image = bytearray(image)
     # Place result in the last valid, originally free cluster; write both FATs.
-    cluster = 714
     for base in (512, 2048):
         offset = base + cluster * 3 // 2
         pair = image[offset] | (image[offset + 1] << 8)
-        pair = (pair & 0xf000) | 0xfff
+        pair = (pair & 0x000f) | 0xfff0 if cluster & 1 else (pair & 0xf000) | 0xfff
         image[offset:offset + 2] = struct.pack("<H", pair)
     entry = bytearray(32)
     entry[:11], entry[11] = name, 0x20
     struct.pack_into("<HI", entry, 26, cluster, len(data))
-    image[7 * 512 + 64:7 * 512 + 96] = entry
+    image[7 * 512 + slot * 32:7 * 512 + (slot + 1) * 32] = entry
     start = 14 * 512 + (cluster - 2) * 1024
     image[start:start + len(data)] = data
     return bytes(image)
 
 
 class DiagnosticTests(unittest.TestCase):
+    def test_default_v1_generated_bytes_are_unchanged(self):
+        for actual, expected in (
+            (diagnostic.build_prg(), "6717e05a3e12a57db58f1f084fdd2a8608b5de1b0b63eae7d3819bdfc1d54e4d"),
+            (diagnostic.build_disk(), "1f9d57eff0280f489839632fd81ba2a879af0d3a6d96500178caa6674def262a"),
+            (diagnostic.build_disk(auto=True), "36e692da3daa2f130bb58a555f65f799b32c21f4e80a213cd0fa351eedcad6e9"),
+        ):
+            self.assertEqual(hashlib.sha256(actual).hexdigest(), expected)
+
     def test_real_emitted_instructions_run_position_independently(self):
         for base in (0x1000, 0x4000, 0x20000):
             with self.subTest(base=base):
@@ -332,6 +340,101 @@ class DiagnosticTests(unittest.TestCase):
             image.write_bytes(capture_with_marker(image.read_bytes()))
             with contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(diagnostic.main(["--inspect", str(image)]), 0)
+
+    def test_restore_proof_first_boot_runs_full_test_and_second_reads_before_writes(self):
+        for base in (0x1000, 0x4000, 0x20000):
+            with self.subTest(base=base):
+                first = Machine(base=base, restore_proof=True, files={}).run()
+                self.assertEqual(first.exit, 0)
+                self.assertEqual(first.files, {"A:\\PASS.TXT": diagnostic.PASS_TEXT,
+                                               "A:\\RESTSEED.TXT": diagnostic.RESTORE_SEED})
+                self.assertEqual(first.console, [diagnostic.FIRST_BOOT_TEXT.decode(), diagnostic.PASS_TEXT.decode()])
+                self.assertEqual(sum(fn == 0x56 for fn, _ in first.calls), 1)
+                self.assertEqual(sum(fn == 0x3f for fn, _ in first.calls), 4)
+                pass_close = first.calls.index((0x3e, "A:\\PASS.TXT"))
+                seed_create = first.calls.index((0x3c, "A:\\RESTSEED.TXT"))
+                self.assertLess(pass_close, seed_create)
+                second = Machine(base=base, restore_proof=True, files=first.files).run()
+                self.assertEqual(second.exit, 0)
+                self.assertEqual(second.console, [diagnostic.RESTORED_TEXT.decode()])
+                self.assertEqual(second.files, first.files | {"A:\\RESTORED.TXT": diagnostic.RESTORED_TEXT})
+                writes = [call for call in second.calls if call[0] in (0x3c, 0x40, 0x41, 0x56)]
+                self.assertEqual(writes, [(0x3c, "A:\\RESTORED.TXT"), (0x40, "A:\\RESTORED.TXT")])
+                first_write = second.calls.index(writes[0])
+                self.assertEqual(second.calls[1:first_write], [
+                    (0x3d, "A:\\RESTSEED.TXT"), (0x3f, "A:\\RESTSEED.TXT"),
+                    (0x3f, "A:\\RESTSEED.TXT"), (0x3e, "A:\\RESTSEED.TXT"),
+                    (0x3d, "A:\\PASS.TXT"), (0x3f, "A:\\PASS.TXT"),
+                    (0x3f, "A:\\PASS.TXT"), (0x3e, "A:\\PASS.TXT"),
+                ])
+                self.assertFalse(second.handles)
+
+    def test_restore_proof_rejects_incomplete_corrupt_or_failed_saved_reads(self):
+        saved = {"A:\\RESTSEED.TXT": diagnostic.RESTORE_SEED, "A:\\PASS.TXT": diagnostic.PASS_TEXT}
+        cases = [(saved | {path: corrupt}, None)
+                 for path, text in saved.items()
+                 for corrupt in (text[:-1], text + b"!", bytes([text[0] ^ 1]) + text[1:])]
+        cases.append(({"A:\\RESTSEED.TXT": diagnostic.RESTORE_SEED}, None))
+        cases.extend((saved, (function, path)) for path in saved for function in (0x3d, 0x3f, 0x3e))
+        cases.extend((saved, (function, "A:\\RESTORED.TXT")) for function in (0x3c, 0x40, 0x3e))
+        for files, failure in cases:
+            with self.subTest(files=files, failure=failure):
+                machine = Machine(failure, restore_proof=True, files=files).run()
+                self.assertEqual(machine.exit, 1)
+                self.assertNotIn("A:\\RESTORED.TXT", machine.files)
+                self.assertNotIn("A:\\PASS.TXT", machine.files)
+                self.assertEqual(machine.files["A:\\FAIL.TXT"], diagnostic.FAIL_TEXT)
+                self.assertEqual(machine.files["A:\\RESTSEED.TXT"], files["A:\\RESTSEED.TXT"])
+                self.assertTrue(machine.console[0].startswith("FAIL GEMDOS restore "))
+                self.assertFalse(any(fn == 0x56 or name == "A:\\FESDATA.TMP" for fn, name in machine.calls))
+
+    def test_restore_proof_capture_oracle_distinguishes_fresh_seeded_restored_and_invalid(self):
+        for auto in (False, True):
+            with self.subTest(auto=auto):
+                image = diagnostic.build_disk(auto=auto, restore_proof=True)
+                fresh = diagnostic.inspect_capture(image, restore_proof=True)
+                self.assertEqual(fresh["restore_proof_stage"], "fresh")
+                self.assertFalse(fresh["marker_pass"])
+                self.assertFalse(fresh["marker_restored"])
+                self.assertEqual(independent_read(image, b"README  TXT"), diagnostic.RESTORE_README)
+                seed = capture_with_marker(capture_with_marker(image), b"RESTSEEDTXT", diagnostic.RESTORE_SEED,
+                                           slot=3, cluster=713)
+                seeded = diagnostic.inspect_capture(seed, restore_proof=True)
+                self.assertEqual(seeded["restore_proof_stage"], "seeded")
+                self.assertTrue(seeded["marker_pass"])
+                self.assertFalse(seeded["marker_restored"])
+                restored = capture_with_marker(seed, b"RESTOREDTXT", diagnostic.RESTORED_TEXT,
+                                               slot=4, cluster=712)
+                result = diagnostic.inspect_capture(restored, restore_proof=True)
+                self.assertEqual(result["restore_proof_stage"], "restored")
+                self.assertTrue(result["marker_pass"])
+                self.assertTrue(result["marker_restored"])
+                self.assertFalse(result["hardware_acceptance"])
+                for name, data in ((b"RESTOREDTXT", b"RESTORED"), (b"FAIL    TXT", diagnostic.FAIL_TEXT)):
+                    bad = capture_with_marker(seed, name, data, slot=4, cluster=712)
+                    result = diagnostic.inspect_capture(bad, restore_proof=True)
+                    self.assertEqual(result["restore_proof_stage"], "invalid")
+                    self.assertFalse(result["marker_pass"])
+                    self.assertFalse(result["marker_restored"])
+                with self.assertRaisesRegex(ValueError, "exact diagnostic"):
+                    diagnostic.inspect_capture(restored)
+
+    def test_restore_proof_cli_requires_explicit_mode_when_inspecting(self):
+        with tempfile.TemporaryDirectory() as temp:
+            image, prg = Path(temp) / "restore.st", Path(temp) / "DISKTEST.PRG"
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(diagnostic.main(["--output", str(image), "--prg", str(prg), "--auto", "--restore-proof"]), 0)
+            record = json.loads(output.getvalue())
+            self.assertEqual(record["restore_proof_stage"], "fresh")
+            self.assertEqual(prg.read_bytes(), diagnostic.build_prg(restore_proof=True))
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(diagnostic.main(["--inspect", str(image), "--restore-proof"]), 1)
+            saved = capture_with_marker(capture_with_marker(image.read_bytes()), b"RESTSEEDTXT", diagnostic.RESTORE_SEED,
+                                        slot=3, cluster=713)
+            image.write_bytes(capture_with_marker(saved, b"RESTOREDTXT", diagnostic.RESTORED_TEXT, slot=4, cluster=712))
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(diagnostic.main(["--inspect", str(image), "--restore-proof"]), 0)
+            self.assertTrue(json.loads(output.getvalue())["marker_restored"])
 
 
 if __name__ == "__main__":

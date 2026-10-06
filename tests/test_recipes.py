@@ -29,6 +29,17 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(recipe.authenticate, "_authenticate_tools")
         self.assertEqual(recipe.identity_version, 2)
 
+    def test_riscv_is_registered_on_the_shared_lane_as_package_only(self):
+        recipe = recipes.recipe_for("fes.riscv")
+        self.assertEqual(recipe.producer_module, "scripts.build_fes_riscv")
+        self.assertEqual(recipe.producer_script, "scripts/build_fes_riscv.py")
+        self.assertEqual(recipe.authenticate, "_authenticate_tools")
+        self.assertEqual(recipe.lock_path, "toolchain.lock")
+        self.assertEqual(recipe.selection_filename, "fes-riscv.package-selection.toml")
+        self.assertEqual(recipe.package_dir_env, "FES_RISCV_PACKAGE_DIR")
+        self.assertNotIn("fes.riscv", build.selected_packages(
+            {"fpga_packages": [{"core_id": "fes.pong"}]}, "native-integration-dev"))
+
     def test_atari_st_registered_producer_has_bounded_selection(self):
         recipe = recipes.recipe_for("fes.atari-st")
         self.assertEqual(recipe.producer_module, "scripts.build_fes_atari_st_oss")
@@ -40,9 +51,11 @@ class RecipeRegistryTest(unittest.TestCase):
             {"fpga_packages": [{"core_id": "fes.atari-st"}]}, "native-integration-dev"),
             ("fes.atari-st",))
 
-    def test_atari_st_lock_is_independent_from_ramtest_and_menu(self):
-        self.assertEqual(recipes.recipe_for("fes.ramtest").lock_path, "toolchains/ramtest.lock")
-        self.assertEqual(recipes.recipe_for("fes.menu").lock_path, "toolchains/ramtest.lock")
+    def test_ramtest_and_menu_share_the_current_fes_toolchain(self):
+        # fes.ramtest returns to the shared lock with SDRAM command/address IO
+        # registers (DeanoC/nextpnr#135).
+        self.assertEqual(recipes.recipe_for("fes.ramtest").lock_path, "toolchain.lock")
+        self.assertEqual(recipes.recipe_for("fes.menu").lock_path, "toolchain.lock")
 
     def assert_existing_descriptors(self):
         self.assertTrue(
@@ -515,3 +528,18 @@ class CacheLocationTest(unittest.TestCase):
         from unittest.mock import patch
         with patch.dict(os.environ, {'FES_CACHE_ROOT': '/shared/fes-cache'}), patch.object(recipes.subprocess, 'run', side_effect=AssertionError):
             self.assertEqual(recipes.shared_cache_root(), Path('/shared/fes-cache'))
+
+
+class RamtestToolchainTargetTest(unittest.TestCase):
+    def test_toolchain_fes_ramtest_pins_shared_lock_against_env_overrides(self):
+        misteross = Path(__file__).resolve().parents[1] / 'sources/misteross'
+        env = dict(os.environ, FES_TOOLCHAIN_LOCKFILE='/elsewhere.lock',
+                   FES_TOOLCHAIN_ROOT='/elsewhere-root')
+        # Exercise the private-root path; shared-cache mode intentionally omits FES_TOOLCHAIN_ROOT.
+        for key in ('MAKEFLAGS', 'FES_TOOLCHAIN_CACHE_ROOT', 'CACHE_ROOT'):
+            env.pop(key, None)
+        out = subprocess.run(['make', '-n', '-s', 'toolchain-fes-ramtest'], cwd=misteross,
+                             env=env, check=True, capture_output=True, text=True).stdout
+        self.assertIn(f'FES_TOOLCHAIN_LOCKFILE="{misteross}/toolchain.lock"', out)
+        self.assertIn(f'FES_TOOLCHAIN_ROOT="{misteross}/build/toolchain"', out)
+        self.assertNotIn('elsewhere', out)

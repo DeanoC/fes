@@ -226,10 +226,7 @@ func ejectRetryable(err error) bool {
 
 func (s *Service) prepareLiveMediaClient(ctx context.Context, b protocol.DevelopmentMediaBinding) error {
 	s.executionMu.Lock()
-	blocked := s.activeExecution == ExecutionHostOnly || s.packageRejection != nil
-	if play, ok := s.plays[b.Target]; ok && b.Target != s.activeTarget {
-		blocked = play.execution == ExecutionHostOnly || play.packageRejection != nil
-	}
+	blocked := s.plays[b.Target].packageRejection != nil || (s.hostCastClaimsKitDisplay && s.activeExecution == ExecutionHostOnly)
 	s.executionMu.Unlock()
 	if blocked {
 		return protocol.LiveMediaIdentityError()
@@ -262,13 +259,9 @@ func (s *Service) prepareLiveMediaClient(ctx context.Context, b protocol.Develop
 func (s *Service) retainLiveSessionIdentity(status protocol.Status, b protocol.DevelopmentMediaBinding) protocol.Status {
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
-	if play, ok := s.plays[b.Target]; ok && b.Target != s.activeTarget &&
-		play.packageID == b.PackageID && play.packageGeneration == b.Generation && play.gameID != "" {
+	if play := s.plays[b.Target]; play.packageID == b.PackageID && play.packageGeneration == b.Generation && play.gameID != "" {
 		status.GameID = stringPtr(play.gameID)
 		status.System = systemPtr(play.system)
-	} else if (s.activeTarget == "" || s.activeTarget == b.Target) && s.activePackageID == b.PackageID && s.activePackageGeneration == b.Generation && s.activeGameID != "" {
-		status.GameID = stringPtr(s.activeGameID)
-		status.System = systemPtr(s.activeSystem)
 	}
 	return status
 }

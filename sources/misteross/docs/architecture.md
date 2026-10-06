@@ -192,8 +192,8 @@ The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
 OSS rates sample the bidirectional DQ pads with phase-shifted fabric registers
 because the pinned OSS packer cannot put DDR input registers on those pads.
 `make build-fes-ramtest-100` and `make build-fes-ramtest-130` seal packages into
-`build/fes-ramtest-100/` and `build/fes-ramtest-130/` with
-`toolchains/ramtest.lock`, whose Yosys declares every fpga2sdram port. Their
+`build/fes-ramtest-100/` and `build/fes-ramtest-130/` with the shared
+`toolchain.lock` HIP compiler slot, whose Yosys declares every fpga2sdram port. Their
 timing gate covers the memory, capture and video domains, and the recipe checks
 the synthesized fpga2sdram layout constants. `make build-fes-ramtest-quartus`
 compiles the same RTL with Quartus 17.0.2 at 130 MHz; `RAMTEST_MHZ=100` selects
@@ -702,7 +702,7 @@ Commands, cart-authoring rules and kit probes live in
 [OSS place-and-route testing](oss-pnr.md#freeze-scaffold-cartridges).
 `scripts/build_fes_slot.py` is the compose entry point; it fails
 closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
-The locked nextpnr `a93fe013` provides those flags after `make toolchain-fes`.
+The locked nextpnr `1656e473` provides those flags after `make toolchain-fes`.
 It also corrects pass-through LUT masks for `MISTRAL_BUF` routing cells:
 the earlier `d672fade` emitter could write all-ones masks despite successful
 simulation and timing. The selected PR #73 revision has an emitted-bitstream
@@ -831,7 +831,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock remains on current mainline Yosys/nextpnr. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
+| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `1656e473` with Mistral `8fcc4cb4`. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -1500,7 +1500,16 @@ outside all four socket CRAM rectangles. It searches seeds 5, 4, 2, 1, 3,
 system, 74.25 MHz pixel and 12.288 MHz audio timing. An inferred read-only
 memory maps to an M10K without a clock in this toolchain, so the font M10K
 is instantiated explicitly (`rtl/apple2_video.v`) and the audio mix is
-pipelined. The package declares `fes.expansion.apple2-bus` 1.0 optional.
+pipelined. The sixteen firmware lanes and that font use synchronous M10K
+reads (`CFG_ASYNC_READ=0`). Each firmware lane registers its address; the
+sub-bank and group selects are delayed so the CPU-facing byte is still two
+system clocks behind the address that `apple2_machine` captures on `cpu_ce`.
+That byte is sampled at `cycle_clock == 16`. The font lane registers its
+address on the 74.25 MHz pixel clock and `font_q` is the second stage. The
+column sequencer writes `font_addr` at `csub == 4` and loads `next_glyph`
+from `font_q` at `csub == 8`, which is still after the glyph is valid. The
+ROM-map producer requires `CFG_ASYNC_READ=0`, and the shared netlist check
+rejects every async M10K in the shell. The package declares `fes.expansion.apple2-bus` 1.0 optional.
 
 `scripts/build_apple2_slot_card.py` builds one card for one physical slot
 against the exact sealed shell and its frozen `routed.json`: the scaffold
@@ -1511,10 +1520,27 @@ and reattaches the system PLL's second output as the Coleco card flow does.
 nextpnr pass 2 runs with `--fes-cart-region slotN` and that socket's
 `--fes-cram-region`; the producer requires the three shell clocks and no CRAM
 change outside the socket, then publishes a two-member archive whose
-manifest carries `slot_index`. `expansion/cmd/fes-slot-link` composes any set
+manifest carries `slot_index`. The probe card's `$Cn00` ROM is a synchronous
+M10K. Address and IOSEL stay held for the 6502 cycle and the motherboard
+samples the slot response at cycle 16, so one clock of ROM latency is inside
+that window. The card producer rejects async M10K reads on `cart.json` and
+`cart-routed.json`. `expansion/cmd/fes-slot-link` composes any set
 of such archives, optionally with the firmware ROM map, onto the shell.
 
 ## FES ZX Spectrum
+
+Spectrum's sixteen blank firmware lanes use synchronous 1024x10 M10K reads
+on the live system clock, with reads enabled and active-low writes disabled.
+The bank selector is registered with the M10K read address; a combinational
+bank mux and the existing final data register preserve two-stage latency.
+The ROM-map producer explicitly requires `CFG_ASYNC_READ=0`. Synthesized
+control ports are checked separately: every lane must share
+a live `CLK1`, hold `B1EN` high and active-low `A1EN` high, and keep clears
+inactive without secondary-clock or byte-enable connections. Lane BELs and
+INIT encoding are unchanged, but each newly built RBF needs its own map/base
+hash. The optional `sim-fes-spectrum-rom` target exercises the production
+branch with the selected Yosys `mem_sim.v` and nonzero linked-image contents;
+the normal Verilator branch alone does not test primitive wiring.
 
 `cores/fes-spectrum` is `fes.spectrum` 0.2.0, a 48K ZX Spectrum on the same
 `fes.computer` 1.0 mailbox as the Apple II. The machine, ULA port `$FE`,
@@ -1547,6 +1573,16 @@ partial tails and live eject/replacement.
 seal. Its ROM is `spectrum-firmware`, 16,384 bytes, on the same blank column-5
 lanes at rows 32–47. The shell reserves the four `FES_RESERVED_RECT` regions
 from `scripts/spectrum_slots.py` (`fes.spectrum-bus.sockets/1`, sockets 1–4).
+Socket validation admits a compiler-inserted `MISTRAL_BUF` only as the
+verified `$ROUTETHRU` companion of an already pinned boundary flip-flop.
+The shared `coleco_expansion` check requires the paired COMB/MCOMB half,
+exact physical pin map and ports, and a dedicated buffer output connected
+only to that flip-flop's data input. Clock-coverage outputs must remain
+unused, and each effective boundary data input must have exactly one driver
+or a direct defined constant. Older clock-only anchors may have disconnected
+data inputs. Every other shell cell inside a socket is rejected. The helper
+is a pinned functional source input; socket placement and CRAM fences retain
+their existing identities.
 Simulation is `make sim-fes-spectrum`; its turbo regression measures register,
 RAM and expansion-I/O workloads and tests WAIT, ROMCS, pending NMI and native
 frame timing in both modes. Every clock must close before either shell seals.
@@ -1574,6 +1610,12 @@ TOD, serial shifting and timer port outputs remain outside this slice.
 `make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this
 pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
 `c64-firmware`, 16,384 bytes, on the blank column-5 lanes at rows 32–47.
+Those lanes use synchronous M10K reads (`CFG_ASYNC_READ=0`) with the bank
+selector delayed one clock so the CPU-facing byte is still two system clocks
+behind the registered address. `c64_machine` samples that byte at
+`cycle_clock == 16`, sixteen 52.224 MHz clocks after the phi2 address
+capture. The ROM-map producer requires `CFG_ASYNC_READ=0`, and the shared
+netlist check rejects every other async M10K. Color RAM remains logic.
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
 frozen shell. No Commodore ROM is in the tree, and the core is not in the
 factory image.
@@ -1638,6 +1680,35 @@ The board producer must qualify the locked Slang/Yosys frontend, HIP route,
 all clocks and sealed ROM/socket maps. Host simulation does not confer kit
 or appliance hardware acceptance. See [the core README](../cores/fes-atari-st/README.md)
 for maps, commands and the remaining original-ST timing/device limits.
+
+## FES RISC-V
+
+`cores/fes-riscv` places the original first-party RV32I CPU
+(`cores/fes-common/rtl/riscv`: `fes_rv32_cpu`, `fes_rv32_csr`, `fes_rv32_alu`)
+on the shared `fes.application` 1.0 shell with `fes.gamepad` 1.0 and the
+fixed 720p raster. `fes_riscv_system.sv` owns the bus: 32 KiB of byte-lane
+M10K RAM at 0 initialised from the checked-in firmware lane images, a
+160x120 RGB332 framebuffer at `0x1000_0000` read by the raster through the
+lanes' second port, and the I/O block at `0x2000_0000` (buttons, frame
+counter, 64-bit `mtime`/`mtimecmp` timer interrupt, vertical-blank flag with
+an optional external interrupt, identification and software interrupt).
+Other addresses fault. The CPU, memories, raster and I/O share the 74.25 MHz
+pixel clock; there is no second clock domain and no DDR.
+
+The firmware is hand-written RV32I assembled by `cores/fes-riscv/firmware/assemble.py`
+into `firmware.hex` and four lane images. Source, assembler and images are
+pinned producer inputs, and `scripts/build_fes_riscv.py` re-assembles the
+source and refuses images that differ. The producer authenticates
+`toolchain.lock`, synthesises with M10K enabled (MLAB, DSP and the HPS SDRAM
+bridge forbidden), runs a bounded first-pass HeAP seed search that stops at
+the first placement meeting 74.25 MHz, validates the shared board, PLL and
+I2C evidence and exports a format-2 package (`fes.riscv` 0.1.0, profile
+`fes-gp-v1`). Output is `build/fes-riscv/`. `make sim-fes-riscv` covers the
+CPU against an independent model, the firmware images, the system through
+its HDMI pixel stream and the board shell through the mailbox. The CPU
+contract is [its README](../cores/fes-common/rtl/riscv/README.md); the
+machine contract is [the core README](../cores/fes-riscv/README.md). FES
+registers the recipe as package-only; the factory image does not select it.
 
 ## Shared native kit client
 
@@ -1826,7 +1897,7 @@ Both are diagnostics, without a GP menu identity or a described launch package.
 
 `build-fes-menu-pattern` and `build-fes-menu-ddr` use the authenticated HIP
 producer with GPU 0, closed functional inputs and separate output directories.
-The DDR mode uses the qualified `toolchains/ramtest.lock`; its artifact gates
+The DDR mode uses the shared `toolchain.lock` HIP compiler slot; its artifact gates
 check layout constants in both netlists, fixed pixel timing and inactive
 writes/unused ports. Neither producer programs hardware or changes image inputs.
 The runtime presenter and exact DDR scanout acceptance remain later work.
@@ -1835,7 +1906,7 @@ The runtime presenter and exact DDR scanout acceptance remain later work.
 
 `build-fes-menu-package` produces separate format-2 `fes.menu` 1.0.0 firmware
 with required fixed video, HPS DDR and `fes.video.menu-display` 1.0, no playable
-system identity. FES now selects it as the native image's idle display. It selects `toolchains/ramtest.lock`
+system identity. FES now selects it as the native image's idle display. It selects `toolchain.lock`
 and authenticates the congestion-fixed nextpnr pin. The producer uses shared
 board/electrical/provenance helpers; GP is required explicitly for this package
 while diagnostics retain their no-GP gate. DDR layout and inactive write/port

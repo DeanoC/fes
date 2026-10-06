@@ -68,19 +68,9 @@ func TestPairedStatusEnrichesOnlyMatchingObservedCore(t *testing.T) {
 				s := &Service{requestTimeout: time.Second,
 					pairedTargetConfigs: []TargetConfig{{Name: "kit-a", TargetID: "a", Enabled: true}},
 					pairedTargetClients: map[string]serviceClient{"kit-a": client},
-					activeTarget:        "kit-b", activeExecution: ExecutionFPGANative, activeGameID: "kit-b-game",
-					activeSystem: catalog.CorePlatform, activePackageID: strings.Repeat("b", 64), activePackageGeneration: 4,
-					plays: map[string]targetPlay{"kit-a": play}}
+					plays:               map[string]targetPlay{"kit-a": play}}
 				if foreground {
-					s.activeTarget, s.activeGameID, s.activeSystem = "kit-a", play.gameID, play.system
-					s.activePackageID, s.activePackageGeneration = play.packageID, play.packageGeneration
-					// A stale retained entry cannot override the current fields,
-					// even when it describes the newly observed replacement.
-					stale := targetPlay{gameID: "stale-game", system: protocol.SystemNES}
-					if status.CorePackage != nil {
-						stale.packageID, stale.packageGeneration = status.CorePackage.PackageID, status.CorePackage.Generation
-					}
-					s.plays["kit-a"] = stale
+					s.activeExecution, s.activeTarget, s.activeGameID = ExecutionHostOnly, "host", "host-game"
 				}
 				got, err := s.Status(WithPairedTarget(context.Background(), "a"))
 				if err != nil {
@@ -93,8 +83,8 @@ func TestPairedStatusEnrichesOnlyMatchingObservedCore(t *testing.T) {
 				} else if got.GameID != nil || got.System != nil {
 					t.Fatalf("stale identity attached to changed core: %+v", got)
 				}
-				if !foreground && (s.activeTarget != "kit-b" || s.activeGameID != "kit-b-game") {
-					t.Fatal("paired read changed another kit's foreground identity")
+				if foreground && (s.activeExecution != ExecutionHostOnly || s.activeTarget != "host" || s.activeGameID != "host-game") {
+					t.Fatal("paired read changed host identity")
 				}
 			})
 		}

@@ -28,8 +28,10 @@ masks for reads. The MiSTer addon shares chip DQML/DQMH with A11/A12:
 the controller preserves all row bits during ACTIVATE, then drives the masks
 on A11/A12 during the RCD setup, column command and write hold. Separate
 SDRAM_DQML/DQMH top-level signals are logical mirrors; they do not reach the
-chip masks on this addon. The shared pins stay in fabric registers in both
-native and Quartus diagnostic builds. See the
+chip masks on this addon. RAMTEST enables an additional command/address
+register stage, packed into output cells in native and Quartus builds. Atari
+ST leaves `IO_OUTPUT_REGISTERS` disabled and retains the direct controller
+outputs and their existing timing. See the
 [addon schematic](https://github.com/MiSTer-devel/Hardware_MiSTer/blob/master/releases/sdram_xsds_3.0.pdf)
 and [reference controller](https://github.com/MiSTer-devel/GBA_MiSTer/blob/master/rtl/sdram.sv).
 
@@ -149,7 +151,7 @@ make build-fes-ramtest-100
 make build-fes-ramtest-130
 ```
 
-Both OSS rates use `toolchains/ramtest.lock`. Its Yosys declares every
+Both OSS rates use the shared `toolchain.lock` HIP compiler slot. Its Yosys declares every
 fpga2sdram port, so all three ports reach the netlist; the pinned blackbox
 before it listed only command port 2 and data port 3. The OSS recipe checks
 that the synthesized fpga2sdram cell carries the generated layout constants.

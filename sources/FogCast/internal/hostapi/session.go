@@ -597,7 +597,7 @@ func (s *sessionCoordinator) launch(ctx context.Context, id, target string, stam
 			}
 		}
 	}
-	if err := s.stopPackageOwnedForReplacement(ctx, target); err != nil {
+	if err := s.stopPackageOwnedForReplacement(ctx, target, execution); err != nil {
 		return sessionResult{}, err
 	}
 
@@ -1078,7 +1078,13 @@ func packageReplacementApplies(requestedTarget, packageOwnerTarget string) bool 
 	return requestedTarget == packageOwnerTarget
 }
 
-func (s *sessionCoordinator) stopPackageOwnedForReplacement(ctx context.Context, requestedTarget string) error {
+func (s *sessionCoordinator) stopPackageOwnedForReplacement(ctx context.Context, requestedTarget, replacementExecution string) error {
+	// Root host-only launches own only the local RetroArch execution. The
+	// service may also expose a kit package play, but replacing host media must
+	// never stop that independently owned kit session.
+	if s.target == "" && replacementExecution == fogcast.ExecutionHostOnly {
+		return nil
+	}
 	s.mu.Lock()
 	packageOwned := s.packageOwned
 	previousExecution := s.execution
@@ -1370,7 +1376,7 @@ func (s *sessionCoordinator) stop(ctx context.Context, stamp clientStamp, retain
 	// including one whose client was dropped when idle settings changed
 	// selected_target. Sofa Soft-stop (retain_lease) keeps those grants.
 	// A stop that does not reach idle, including reboot_required, never releases.
-	if st.State == protocol.StateIdle && !retainLease {
+	if st.State == protocol.StateIdle && !retainLease && execution != fogcast.ExecutionHostOnly {
 		if err := s.releaseKitLeaseNow(); err != nil {
 			return sessionResult{}, err
 		}
@@ -1485,7 +1491,13 @@ func (s *sessionCoordinator) developmentActive(ctx context.Context) (bool, error
 		return false, err
 	}
 	packageOwned := false
-	if owner, ok := s.service.(sessionPackageOwnerService); ok {
+	if s.target != "" {
+		if owner, ok := s.service.(interface{ ActivePackageOwnedForTarget(string) bool }); ok {
+			packageOwned = owner.ActivePackageOwnedForTarget(s.target)
+		} else if owner, ok := s.service.(sessionPackageOwnerService); ok {
+			packageOwned = owner.ActivePackageOwned()
+		}
+	} else if owner, ok := s.service.(sessionPackageOwnerService); ok {
 		packageOwned = owner.ActivePackageOwned()
 	}
 	s.mu.Lock()

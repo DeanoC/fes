@@ -26,6 +26,7 @@ from scripts.fes_build_common import (
     _run_tool,
     _sha256,
     _write_atomic,
+    reject_async_m10k_reads,
     validate_timing_resources,
 )
 from scripts.compiler_read_audit import guard_functional_source
@@ -363,6 +364,7 @@ def _audio_timing(fmax: object) -> tuple[str, float, float]:
 
 def validate_synth_evidence(output: Path) -> dict:
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
+    reject_async_m10k_reads(synthesis)
     _i2c_evidence(synthesis, "synthesized")
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
@@ -384,6 +386,7 @@ def validate_synth_evidence(output: Path) -> dict:
 
 def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     routed = _read_json(output / "routed.json", "routed design")
+    reject_async_m10k_reads(routed)
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
     synth_evidence = validate_synth_evidence(output)
@@ -529,7 +532,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         mapping, map_evidence = rom_map.build_rom_map(
             database, (output / "core.rbf").read_bytes(),
             routed=_read_json(output / "routed.json", "routed ROM design"),
-            lane_rows=rom_map.SMS_LANE_ROWS,
+            lane_rows=rom_map.SMS_LANE_ROWS, expected_async_read=0,
         )
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(",", ":")) + "\n").encode()
         _write_atomic(output / "rom-map.json", map_bytes)

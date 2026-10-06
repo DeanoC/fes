@@ -25,7 +25,7 @@ A producer in this module does not put a package on that image.
 
 | Package | Tree | Mailbox | Lock | OSS seal | In factory image |
 | --- | --- | --- | --- | --- | --- |
-| `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchains/ramtest.lock` | `make build-fes-menu-package` | yes; idle display, not playable |
+| `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchain.lock` (shared FES HIP lane) | `make build-fes-menu-package` | yes; idle display, not playable |
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
 | `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` with session display and HPS DDR | `toolchains/zx81-expansion.lock` | `make build-fes-zx81` | yes |
 | `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchains/coleco-sgm.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | yes; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
@@ -36,8 +36,9 @@ A producer in this module does not put a package on that image.
 | `fes.c64` | `cores/fes-c64` | `fes.computer` | `toolchains/c64.lock` | `make build-fes-c64` | no; package-only recipe; cartridge cards via `scripts/build_c64_slot_card.py` |
 | `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchains/spectrum.lock` | `make build-fes-spectrum` | yes; four edge sockets |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
-| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `toolchains/ramtest.lock` (100 and 130 MHz) | `make build-fes-ramtest-100` (factory), `make build-fes-ramtest-130` (explicit) | yes; OSS 100 MHz utility |
+| `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `toolchain.lock` (shared FES HIP lane; 100 and 130 MHz) | `make build-fes-ramtest-100` (factory), `make build-fes-ramtest-130` (explicit) | yes; OSS 100 MHz utility |
 | `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `toolchains/atari-st.lock` | `make build-fes-atari-st` | no; native Atari 520ST producer |
+| `fes.riscv` | `cores/fes-riscv` | `fes.application` with `fes.gamepad` | `toolchain.lock` | `make build-fes-riscv` | no; package-only recipe; original RV32I CPU from `cores/fes-common/rtl/riscv` |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
 
 `cores/pong` is the standalone Pong game module (`make sim-pong`). It is not
@@ -153,6 +154,17 @@ A new `BUILD_ID` changes placement. An older sealed package, parent pin, or
 kit note does not accept the bitstream you just built. Record new evidence
 for the new bytes.
 
+## Original RV32I
+
+`make sim-fes-riscv` validates the original machine-mode RV32I CPU in
+`cores/fes-common/rtl/riscv` against an independent instruction-level model,
+then the `fes.riscv` system and board shell with the checked-in firmware.
+The [CPU contract](../cores/fes-common/rtl/riscv/README.md) lists the bus,
+CSRs, exceptions and tests; the [core README](../cores/fes-riscv/README.md)
+lists the memory map, firmware and seal. Firmware is assembled by
+`cores/fes-riscv/firmware/assemble.py`; regenerate the lane images after
+editing `firmware.S`, because the producer rejects stale images.
+
 ## Original Z80
 
 `make sim-fes-z80` validates original NMOS and documented fast CPU variants in
@@ -197,7 +209,7 @@ and `build-fes-sg1000`. Ambient `FES_TOOLCHAIN_CACHE_ROOT` is not how you
 select that cache. If both variables are set they must be the same absolute
 path.
 
-Pong authenticates `toolchain.lock`. ZX81 authenticates
+Pong, Catch, the demos, the menu and RISC-V authenticate `toolchain.lock`. ZX81 authenticates
 `toolchains/zx81-expansion.lock`. Coleco uses `toolchains/coleco-sgm.lock`.
 SG-1000 uses `toolchains/registered-memory.lock`. SMS uses
 `toolchains/fes-sms.lock`. They do not alias another lock's slot.
@@ -236,7 +248,9 @@ second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
 
 The Atari ST producer now pins DeanoC/nextpnr head `3d4a5b35` in its own
-`toolchains/atari-st.lock`; RAM test and menu retain `toolchains/ramtest.lock`.
+`toolchains/atari-st.lock`; RAM test and menu use the shared `toolchain.lock`
+and its HIP compiler slot. `toolchains/ramtest-timing.lock` remains a separate
+opt-in experimental stack for the 130 MHz timing comparison.
 Requalification is recorded in the [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md).
 
 The [Atari 520ST](../cores/fes-atari-st/README.md) is the first 16-bit core.

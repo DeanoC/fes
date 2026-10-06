@@ -25,9 +25,9 @@ HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
 EXPECTED_TOOL_COMMITS = {
-    "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "a93fe013af841214ecb4f7be3af0de65f3de3a0f",
-    "yosys": "fb879d81e0352f558297bdcc61bc7a4a922fa7b0",
+    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
+    "nextpnr": "1656e473e1442f9b734ff5f4cdfddfd013846b9e",
+    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
 }
 
 
@@ -445,6 +445,60 @@ def validate_timing_resources(utilization: object, known: set[str] | frozenset[s
     if unknown_used:
         raise BuildError("timing report contains unknown resources in use: " + ", ".join(unknown_used))
     return resources
+
+
+def async_m10k_parameter(value: object) -> int:
+    """Return 1 when a Yosys or nextpnr JSON parameter requests an async M10K read.
+
+    A missing parameter is synchronous. Yosys writes the bit as an integer or
+    as a binary string whose least-significant character is the value.
+    """
+    if isinstance(value, bool) or value is None:
+        return 0
+    if isinstance(value, int):
+        return value & 1
+    if isinstance(value, str):
+        text = value.strip().lower().replace("_", "")
+        if text.startswith("0x"):
+            return int(text, 16) & 1
+        if text and set(text) <= set("01xz"):
+            return 1 if text[-1] == "1" else 0
+        if text.isdigit():
+            return int(text, 10) & 1
+    raise BuildError(f"unreadable M10K CFG_ASYNC_READ parameter: {value!r}")
+
+
+def reject_async_m10k_reads(design: dict, *, allow: frozenset[str] = frozenset()) -> None:
+    """Fail the build when any M10K uses Cyclone V's illegal async-read mode.
+
+    The default is every ``MISTRAL_M10K`` and ``MISTRAL_M10K_TDP`` in the
+    netlist. ``allow`` is an exact cell-name set; no described producer
+    passes a nonempty set, so the gate has no exceptions. Producers that
+    call this gate pass an empty allowlist; any async M10K read in synth
+    or routed output fails the build.
+    """
+    modules = design.get("modules")
+    if not isinstance(modules, dict):
+        raise BuildError("netlist has no modules")
+    offenders: list[str] = []
+    for module in modules.values():
+        cells = module.get("cells", {}) if isinstance(module, dict) else {}
+        if not isinstance(cells, dict):
+            continue
+        for name, cell in cells.items():
+            if not isinstance(name, str) or not isinstance(cell, dict):
+                continue
+            if cell.get("type") not in {"MISTRAL_M10K", "MISTRAL_M10K_TDP"} or name in allow:
+                continue
+            parameters = cell.get("parameters") or {}
+            if not isinstance(parameters, dict):
+                raise BuildError(f"M10K {name} parameters are not an object")
+            if async_m10k_parameter(parameters.get("CFG_ASYNC_READ")):
+                offenders.append(name)
+    if offenders:
+        shown = ", ".join(sorted(offenders)[:8])
+        extra = "" if len(offenders) <= 8 else f" (+{len(offenders) - 8} more)"
+        raise BuildError(f"synchronous M10K reads required; CFG_ASYNC_READ=1 on {shown}{extra}")
 
 
 def _cell_counts(synthesis: dict) -> dict[str, int]:

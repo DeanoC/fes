@@ -614,7 +614,10 @@ func (s *Service) bindCapturedLocked(snap launchSnapshot) error {
 	s.executionMu.Unlock()
 	cfg := targetByName(s.targets, name)
 	if s.targetOrigin != nil && snap.explicit && name != snap.selectedName {
-		s.targetOrigin(cfg, kitLeaseOf(s.targetClients[name]))
+		hook, lease := s.targetOrigin, kitLeaseOf(s.targetClients[name])
+		s.targetMu.Unlock()
+		hook(cfg, lease)
+		s.targetMu.Lock()
 	}
 	if launchPinnedTargetBoundHook != nil {
 		launchPinnedTargetBoundHook(name)

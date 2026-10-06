@@ -26,7 +26,7 @@ type mediaUnitClient interface {
 // session's target. Caller holds lifecycle admission.
 func (s *Service) prepareMediaUnitClient(ctx context.Context, b protocol.MediaUnitBinding) error {
 	s.executionMu.Lock()
-	blocked := s.activeExecution == ExecutionHostOnly || s.packageRejection != nil
+	blocked := s.plays[b.Target].packageRejection != nil || (s.hostCastClaimsKitDisplay && s.activeExecution == ExecutionHostOnly)
 	s.executionMu.Unlock()
 	if blocked {
 		return protocol.MediaUnitIdentityError()
@@ -162,9 +162,9 @@ func (s *Service) ejectMediaUnitLocked(ctx context.Context, b protocol.MediaUnit
 func (s *Service) retainMediaUnitSessionIdentity(status protocol.Status, b protocol.MediaUnitBinding) protocol.Status {
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
-	if s.activePackageID == b.PackageID && s.activePackageGeneration == b.Generation && s.activeGameID != "" {
-		status.GameID = stringPtr(s.activeGameID)
-		status.System = systemPtr(s.activeSystem)
+	if play := s.plays[b.Target]; play.packageID == b.PackageID && play.packageGeneration == b.Generation && play.gameID != "" {
+		status.GameID = stringPtr(play.gameID)
+		status.System = systemPtr(play.system)
 	}
 	return status
 }

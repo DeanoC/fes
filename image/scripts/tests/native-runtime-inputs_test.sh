@@ -356,10 +356,10 @@ import sys, tomllib
 policy = tomllib.load(open(sys.argv[1], 'rb'))
 expected = {
     'repository': 'sources/misteross',
-    'commit': '808bd7c275e1a9934cbca15f9177c553e8c406c7',
+    'commit': '22749b1c67cd0ac4a24d0ad110a0a2f9a736fac3',
     'path': 'sealed/fes-splash.rbf',
-    'sha256': '43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6',
-    'size': 1963100,
+    'sha256': '64f1f16daedba4ed19179bd5d7c6f3eb3058a688d15441c8c8d89e113060f182',
+    'size': 1963321,
 }
 for section in ('splash_rbf', 'idle_rbf'):
     for key, value in expected.items():

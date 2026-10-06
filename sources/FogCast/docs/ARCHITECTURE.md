@@ -178,8 +178,14 @@ Generation takeover stays on the kit lease API. Launch and Ensure
 then use the new bind. The rebind stores that kit's name, address,
 TargetID, and client on the launch snapshot and notifies the
 selected-target origin hook with that kit's lease, so bind and media
-routing stay on that kit when `selectedTarget` later moves. Media
-cast keeps the same lease, so CastStart still sends the kit-lease
+routing stay on that kit when `selectedTarget` later moves.
+Target session invalidation and origin changes call local input and bridge
+hooks after releasing the target registry lock. Remote input attach may read
+the kit lease while holding its own input lock; this lock order keeps monitor
+reconciliation and input attach able to finish concurrently. A fresh grant
+claimed by this host remains its session even when its generation differs
+from the last monitor snapshot. Media cast keeps the same lease, so
+CastStart still sends the kit-lease
 header, and an adopted endpoint is the cast address. The host verifies
 that kit's identity before the claim. A stale configured address is
 adopted from discovery when that TargetID has one endpoint, and a
@@ -1424,6 +1430,16 @@ session that needs the mesh contract fails closed on that major. A random servic
 cloned identities on the same link; the persistent TXT identity remains stable
 across reboots.
 
+The host's selected-target monitor probes authenticated health, adopts the
+advertised endpoint, reads kit lease ownership, then reads status before it
+publishes `ready`. A kernel `boot_id` alone cannot identify a restarted agent
+process. If a previously observed or locally held lease disappears or changes
+generation, the host drops that target's cached play record and reconciles
+against the returned status. This also covers a launch after an idle monitor
+snapshot, followed by an agent restart before the next probe. A fresh host
+follows the same bounded admission path without assuming
+the agent's old process state.
+
 Host-side content identity lives in `internal/meshcontent`.
 `fogcast.ProjectMeshLibrary` projects the host library already stored
 into that catalog shape: described package id and ABI, the household
@@ -1490,8 +1506,17 @@ report `MISTER_UNAVAILABLE` while kit state cannot be observed. Before replacing
 media for another host-only launch, FogCast checks the local executor; an active
 RetroArch process returns `BUSY` and retains its current media session.
 M1 software-runner input uses a controller attached to the runner through
-RetroArch's local joypad/udev input. FogCast does not route remote controller
-input to `host_only`; that remains a #363 gap.
+RetroArch's local joypad/udev input. Remote controller input to `host_only` is
+outside M1. The #363 integration matrix
+([`docs/mesh-m1-integration.md`](../../../docs/mesh-m1-integration.md)) records this non-goal.
+In cast mode, host-only playback uses the managed RTP sender and target cast,
+so the kit display has one owner: a host-only launch replaces that kit's package
+play, and a kit core/package launch stops host-only playback. In non-cast mode
+(media disabled, local MJPEG preview, or local ffplay playback), host-only and
+kit FPGA plays are independent in both launch directions; kit-scoped Stop and
+host Stop remain independent. `TestTwoNodeHostFirstThenKitKeepsBoth`,
+`TestTwoNodeCastModeKitLaunchStopsHostOnly`, and
+`TestTwoNodeHostMediaOnSameKitReplacesKitPlay` cover these rules.
 
 `Service.MeshBackendLibrary` reads the existing local catalog and projects
 package titles through the same helper as placement; raw games use the
@@ -2847,11 +2872,23 @@ Older packages keep prelaunch controls and the separate host renderer keeps its
 live routes. The shared wire layout is in
 [mister-packages session display](../../mister-packages/docs/session-display.md).
 
+The session service records every kit's game, development load, package
+rejection, and recovery state in `plays[target]`. That per-kit record is the
+authority for kit status and lifecycle admission. Root `activeExecution` owns
+only the local `host_only` RetroArch game; kit loads and failures do not stop or
+replace it in non-cast mode, and kit-local cores execute directly on the kit.
+Scoped Stop and status use the corresponding kit record. Library firmware and
+media bindings, including post-Start delivery, use the selected kit's play
+context so an independent local host game cannot redirect them to another target.
+
 The configured host capture sender is one physical pipeline with one RTP
-destination and sender token. Host-only playback claims that pipeline for its
+destination and sender token. Only its managed sender plus target cast path
+places host-only playback on a kit display; MJPEG preview and ffplay playback
+remain local. Cast mode has one display owner and replaces the other play in
+both directions. Non-cast mode leaves host-only and kit FPGA plays independent
+in both directions. Host-only playback claims the sender pipeline for its
 target until its media handle stops. A host-only start on another target fails
 with `MEDIA_BUSY_OTHER_KIT` (HTTP 409), and the target cast started for that
-launch is rolled back. FPGA-native plays do not use the host capture sender and
-remain independent. Configuration does not bind the RTP destination to a named
-target address, so the host cannot validate destination-to-kit correspondence;
-operators must configure the destination for the intended kit.
+launch is rolled back. Configuration does not bind the RTP destination to a
+named target address, so the host cannot validate destination-to-kit
+correspondence; operators must configure the destination for the intended kit.

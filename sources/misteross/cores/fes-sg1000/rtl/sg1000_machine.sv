@@ -230,18 +230,13 @@ module sg1000_machine (
 
 `ifdef FES_SG1000_ROM_LINK
     always @* media_addr = 14'd0;
-    wire [7:0] cartridge_link_read;
-    reg [7:0] cartridge_link_q;
+    // The ROM registers its own address and output byte. Two clocks fit in
+    // the same half-cycle budget that previously absorbed one outer register.
     sg1000_rom_link rom (
-        .address(cpu_addr[13:0]), .data(cartridge_link_read),
+        .clk(clk_sys),
+        .address(cpu_addr[13:0]), .data(cartridge_read),
         .peek_address(peek_addr[13:0]), .peek_data(cartridge_peek)
     );
-    // Keep the authenticated asynchronous M10K lanes and bank map unchanged.
-    // Register the selected byte to split the CPU-address/ROM/data critical
-    // path. Native half-cycles provide at least seven system clocks before
-    // the CPU samples an opcode or operand, so one clock of latency fits.
-    always @(posedge clk_sys) cartridge_link_q <= cartridge_link_read;
-    assign cartridge_read = cartridge_link_q;
 `else
 `ifdef FES_SG1000_REGISTERED_MEDIA
     wire media_load_write = !media_loaded && media_ready && media_data_valid;

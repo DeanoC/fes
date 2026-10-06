@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import copy
 import json
+import os
+import shutil
 import tomllib
 import subprocess
 import sys
@@ -166,8 +168,8 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertEqual(pins["yosys"].commit, SG1000_TOOL_COMMITS["yosys"])
         self.assertEqual(pins["nextpnr"].commit, SG1000_TOOL_COMMITS["nextpnr"])
         global_pins = load_lock(ROOT / "toolchain.lock")
-        self.assertEqual(global_pins["yosys"].commit, "fb879d81e0352f558297bdcc61bc7a4a922fa7b0")
-        self.assertEqual(global_pins["nextpnr"].commit, "a93fe013af841214ecb4f7be3af0de65f3de3a0f")
+        self.assertEqual(global_pins["yosys"].commit, "5391eeb1e91b38a3d0e96d04f24cf921743c9c78")
+        self.assertEqual(global_pins["nextpnr"].commit, "1656e473e1442f9b734ff5f4cdfddfd013846b9e")
         record = create_build_record(
             ROOT,
             "https://example.invalid/misteross.git",
@@ -453,6 +455,78 @@ class BuildFesSg1000Tests(unittest.TestCase):
             self.assertIn(bytes.fromhex("3ee4d3403ef4d340"), data)
             self.assertIn(bytes.fromhex("3e9fd340"), data)
             self.assertIn(b"\x32\x00\xc0", data)
+
+
+class Sg1000SyncM10kTests(unittest.TestCase):
+    def test_rom_lanes_are_synchronous(self) -> None:
+        rtl = (build_fes_sg1000_oss.ROOT / "cores/fes-sg1000/rtl/sg1000_rom_link.v").read_text()
+        machine = (build_fes_sg1000_oss.ROOT / "cores/fes-sg1000/rtl/sg1000_machine.sv").read_text()
+        self.assertEqual(rtl.count(".CFG_ASYNC_READ(0)"), 16)
+        self.assertNotIn("CFG_ASYNC_READ(1)", rtl)
+        self.assertEqual(rtl.count(".B1EN(1'b1)"), 16)
+        self.assertIn("bank_d <= address[13:10]", rtl)
+        self.assertIn("sim_stage <= memory[address]", rtl)
+        self.assertIn("assign peek_data = memory[peek_address]", rtl)
+        self.assertIn(".clk(clk_sys)", machine)
+        self.assertNotIn("cartridge_link_q", machine)
+        producer = (build_fes_sg1000_oss.ROOT / "scripts/build_fes_sg1000_oss.py").read_text()
+        self.assertIn("expected_async_read=0", producer)
+        self.assertIn("reject_async_m10k_reads", producer)
+
+
+def _yosys_binary() -> str | None:
+    named = os.environ.get("YOSYS")
+    if named and Path(named).is_file() and os.access(named, os.X_OK):
+        return named
+    return shutil.which("yosys")
+
+
+@unittest.skipUnless(_yosys_binary(), "Yosys is required to check the SG-1000 M10K netlist")
+class Sg1000YosysM10kTests(unittest.TestCase):
+    def test_mapped_netlist_has_no_async_m10k(self) -> None:
+        yosys = _yosys_binary()
+        assert yosys is not None
+        sources = " ".join(build_fes_sg1000_oss.RTL_SOURCES)
+        program = (
+            "read_verilog -sv -DFES_SG1000_OSS=1 -DFES_SG1000_ROM_LINK=1 -DFES_COLECO_OSS=1 "
+            "-I cores/fes-sg1000/generated "
+            f"{sources}; "
+            "chparam -set BUILD_ID 128'h" + "0" * 32 + " top; "
+            "synth_intel_alm -nolutram -nodsp -top top -run :map_luts; "
+            "autoname; select -module top; "
+            "log ---SDP---; select -count t:MISTRAL_M10K; "
+            "log ---TDP---; select -count t:MISTRAL_M10K_TDP; "
+            "log ---ASYNC---; "
+            "select -list t:MISTRAL_M10K r:CFG_ASYNC_READ=1 %i; "
+            "select -list t:MISTRAL_M10K_TDP r:CFG_ASYNC_READ=1 %i; "
+            "log ---LANES---; select -list t:MISTRAL_M10K r:CFG_ASYNC_READ=0 %i; "
+            "log ---END---"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            log_path = Path(directory) / "yosys.log"
+            result = subprocess.run([yosys, "-l", str(log_path), "-p", program], cwd=build_fes_sg1000_oss.ROOT,
+                                    text=True, capture_output=True, check=False)
+            log = log_path.read_text(encoding="utf-8", errors="replace")
+        self.assertEqual(result.returncode, 0, (result.stderr or log)[-4000:])
+        sections: dict[str, list[str]] = {}
+        current = None
+        for line in log.splitlines():
+            if line.startswith("---") and line.endswith("---") and line.strip("-"):
+                current = line.strip("-")
+                sections[current] = []
+            elif current is not None and line.strip():
+                sections[current].append(line.strip())
+        def objects(name: str) -> str:
+            rows = [line for line in sections[name] if line.endswith(" objects.")]
+            self.assertEqual(len(rows), 1, sections.get(name))
+            return rows[0]
+        async_cells = [line for line in sections["ASYNC"] if line.startswith("top/")]
+        lanes = sorted(line.removeprefix("top/") for line in sections["LANES"] if "machine.rom.lane" in line)
+        self.assertEqual(async_cells, [])
+        self.assertEqual(lanes, sorted(f"machine.rom.lane{index}" for index in range(16)))
+        # Counts are recorded for the PR evidence; the assertion is zero async lanes.
+        self.assertIn("objects.", objects("SDP"))
+        self.assertIn("objects.", objects("TDP"))
 
 
 if __name__ == "__main__":

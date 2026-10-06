@@ -125,19 +125,29 @@ module apple2_video (
     end
 
     // Character generator: 64 glyphs x 8 rows, bit 0 = leftmost dot.
+    // The font M10K registers its address on pixel_clk. font_q is the second
+    // stage, so the glyph is valid two pixel clocks after font_addr changes.
+    // The column sequencer writes font_addr at csub == 4 and loads
+    // next_glyph from font_q at csub == 8. With a synchronous read, font_q
+    // holds the new glyph from the end of csub == 6, so the csub == 8 load
+    // still sees it (stable through csub 7 and 8). There is one lane and no
+    // bank mux. The Verilator model uses the same two stages.
 `include "apple2_font.vh"
-    // The OSS lane instantiates the M10K explicitly: an inferred read-only
-    // memory maps to an M10K without a clock in this toolchain.
     reg [8:0] font_addr = 9'd0;
     reg [7:0] font_q = 8'd0;
 `ifdef VERILATOR
-    always @(posedge pixel_clk)
-        font_q <= APPLE2_FONT[{font_addr, 3'b000} +: 8];
+    reg [7:0] font_stage = 8'd0;
+    always @(posedge pixel_clk) begin
+        font_stage <= APPLE2_FONT[{font_addr, 3'b000} +: 8];
+        font_q <= font_stage;
+    end
 `else
     wire [9:0] font_lane;
-    MISTRAL_M10K #(.CFG_ABITS(10), .CFG_DBITS(10), .CFG_ASYNC_READ(1), .INIT(APPLE2_FONT_INIT)) font_rom (
-        .CLK1(1'b0), .A1ADDR(10'd0), .A1DATA(10'd0), .A1EN(1'b1),
-        .B1ADDR({1'b0, font_addr}), .B1DATA(font_lane), .ACLR0(1'b0), .ACLR1(1'b0)
+    // Legacy 10-bit M10K write enable is active low: A1EN=1 disables writes.
+    MISTRAL_M10K #(.CFG_ABITS(10), .CFG_DBITS(10), .CFG_ASYNC_READ(0), .INIT(APPLE2_FONT_INIT)) font_rom (
+        .CLK1(pixel_clk), .A1ADDR(10'd0), .A1DATA(10'd0), .A1EN(1'b1),
+        .B1EN(1'b1), .B1ADDR({1'b0, font_addr}), .B1DATA(font_lane),
+        .ACLR0(1'b0), .ACLR1(1'b0)
     );
     always @(posedge pixel_clk)
         font_q <= font_lane[7:0];

@@ -49,17 +49,13 @@ def inputs_for(mode):
     if mode == 'test-pattern':
         return INPUTS
     return tuple(p for p in INPUTS if p not in (CONTRACT, 'toolchain.lock')) + (
-        'cores/fes-menu/ddr-contract.toml', 'toolchains/ramtest.lock', DDR_GENERATED, *DDR_SOURCES)
+        'cores/fes-menu/ddr-contract.toml', 'toolchain.lock', DDR_GENERATED, *DDR_SOURCES)
 
 
 def authenticate(root, cache_root, mode):
     if mode == 'test-pattern':
         return board._authenticate_tools(root, cache_root=cache_root)
-    return board._authenticate_tools(root, cache_root=cache_root,
-        lock_path=root/'toolchains/ramtest.lock', toolchain_root=Path('build/toolchain-ramtest'),
-        expected_commits={**board.EXPECTED_TOOL_COMMITS,
-            'yosys':'886afa63953e97407153e9f4aae25fcedb639696',
-            'nextpnr':'655f38334b8a1ba798cc05cf3744b6a897119b5d'})
+    return board._authenticate_tools(root, cache_root=cache_root)
 
 
 def seed_for(mode, seed):
@@ -125,11 +121,7 @@ def validate_build_evidence(output, root, *, mode='test-pattern', menu_gp=False)
     for filename in ('synth.json', 'routed.json'):
         graph = board._read_json(Path(output)/filename, filename)
         counts = board._cell_counts(graph)
-        for module in graph.get('modules', {}).values():
-            for cell in module.get('cells', {}).values():
-                if cell.get('type') == 'MISTRAL_M10K' and int(
-                        str(cell.get('parameters', {}).get('CFG_ASYNC_READ', '0')), 2):
-                    raise board.BuildError('menu FIFO requires synchronous M10K reads')
+        board.reject_async_m10k_reads(graph)
         for name in (('cyclonev_hps_interface_fpga2sdram',) if mode == 'test-pattern' else ()) + (
                      ('cyclonev_hps_interface_mpu_general_purpose',) if not menu_gp else ()):
             if counts.get(name, 0):

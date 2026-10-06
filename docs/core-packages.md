@@ -12,13 +12,13 @@ The locked idle core is the in-tree misteross seal
 bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
-`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum`, `fes.catch` and `fes.ramtest` HIP/nextpnr
+`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum`, `fes.catch`, `fes.riscv` and `fes.ramtest` HIP/nextpnr
 producers. The default target-image selector installs the ordered closed
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
 `fes.spectrum`, `fes.ramtest` package set.
 SMS, SG-1000 and Spectrum passed timing and are in that image. The 128 MiB
-rootfs from #347 holds them. `fes.apple2`
-and `fes.catch` remain package-only. `fes.c64` is registered, but has no
+rootfs from #347 holds them. `fes.apple2`,
+`fes.catch` and `fes.riscv` remain package-only. `fes.c64` is registered, but has no
 current timing-passing HIP seal, so it stays out.
 Package IDs and payload digests are recorded in generated per-core selection
 files, including `fes-sms.package-selection.toml`,

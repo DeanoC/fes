@@ -60,7 +60,7 @@ help:
 		"  build-fes-ramtest-100  Seal the OSS 100 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
 		"  build-fes-ramtest-130  Seal the OSS 130 MHz SDRAM and HPS DDR tester with HIP nextpnr" \
 		"  diagnose-fes-ramtest-timing  Measure the 130 MHz RAM tester with the opt-in compiler stack" \
-		"  toolchain-fes-ramtest  Provision the RAM tester OSS toolchain (toolchains/ramtest.lock)" \
+		"  toolchain-fes-ramtest  Provision the shared FES HIP toolchain (toolchain.lock)" \
 		"  toolchain-fes-atari-st  Provision the Atari ST OSS toolchain (toolchains/atari-st.lock)" \
 		"  toolchain-fes-ramtest-timing  Provision the opt-in RAM tester timing toolchain" \
 		"  build-fes-ramtest-quartus  Quartus 17.0.2 SDRAM and HPS DDR tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
@@ -80,6 +80,8 @@ help:
 		"  sim-fes-coleco-native  Test actual registered Coleco VDP native pixels and inline board path" \
 		"  synth-fes-native-video  Diagnostic locked synthesis, requires CACHE_ROOT; no route/seal" \
 		"  sim-fes-z80  Test original NMOS and documented fast Z80 RTL" \
+		"  sim-fes-riscv  Test the original RV32I CPU, the fes.riscv system and its board shell" \
+		"  build-fes-riscv  Seal FES RISC-V with HIP nextpnr/Mistral (CACHE_ROOT= for shared cache)" \
 		"  sim-fes-tms9918-timing  Check the shared ~60 Hz NTSC raster enable across Coleco clock rates" \
 		"  sim-fes-coleco-oss  Test the OSS-conditional ColecoVision RAM and shell paths" \
 		"  sim-fes-coleco-sgm-integrated  Test the v2 SGM module and shell RAM through CPU/socket cycles" \
@@ -165,7 +167,7 @@ FES_SHARED_MAKE_ENV = $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),MAKEFL
 # ROM generation) can write output; the recipe guard above also covers an
 # indirect invocation through a future aggregate target.
 ifneq ($(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),)
-_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80 sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-% sim-fes-atari-st sim-fes-atari-st-%,$(MAKECMDGOALS))
+_SHARED_LEGACY_SIM_GOALS := $(filter sim sim-pong sim-fes-riscv sim-fes-pong sim-fes-zx81 sim-fes-zx81-session sim-fes-zx81-rom sim-fes-zx81-bus sim-fes-zx81-expansion sim-fes-coleco sim-fes-coleco-% sim-fes-tms9918-timing sim-fes-sg1000 sim-fes-sg1000-oss sim-fes-sg1000-rom-link sim-fes-sg1000-quartus sim-fes-sms sim-fes-sms-oss sim-fes-sms-rom-link-mailbox sim-fes-sms-quartus sim-fes-splash sim-fes-ramtest sim-fes-apple2 sim-fes-apple2-% sim-fes-c64 sim-fes-c64-% sim-fes-z80 sim-fes-z80-timing sim-fes-spectrum sim-fes-spectrum-% sim-fes-atari-st sim-fes-atari-st-%,$(MAKECMDGOALS))
 ifneq ($(strip $(_SHARED_LEGACY_SIM_GOALS)),)
 $(error misteross: shared toolchain cache is unsupported for Make simulation targets; unset FES_TOOLCHAIN_CACHE_ROOT for the local simulation lane)
 endif
@@ -975,7 +977,11 @@ spectrum-diagnostic:
 
 sim-fes-spectrum: sim-fes-spectrum-machine sim-fes-spectrum-board sim-fes-spectrum-tape sim-fes-spectrum-turbo
 
-.PHONY: sim-fes-spectrum-turbo
+.PHONY: sim-fes-spectrum-turbo sim-fes-spectrum-rom
+sim-fes-spectrum-rom:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_spectrum_rom.py --verilator "$(VERILATOR)" --mem-sim "$(ROM_MEM_SIM)"
+
 sim-fes-spectrum-turbo:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_spectrum_turbo.py --verilator "$(VERILATOR)"
@@ -1324,7 +1330,7 @@ toolchain-fes-atari-st:
 
 .PHONY: toolchain-fes-ramtest
 toolchain-fes-ramtest:
-	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchains/ramtest.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain-ramtest") \
+	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
 
@@ -1481,6 +1487,15 @@ sim-fes-z80-pin-trace:
 sim-fes-z80: sim-fes-z80-pin-trace
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_fes_z80.py --verilator "$(VERILATOR)"
+
+# Original RV32I CPU lane and the fes.riscv package built on it.
+.PHONY: sim-fes-riscv build-fes-riscv
+sim-fes-riscv:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_riscv.py --verilator "$(VERILATOR)"
+
+build-fes-riscv:
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_fes_riscv.py --root "$(CURDIR)"$(if $(strip $(CACHE_ROOT)), --cache-root "$(CACHE_ROOT)",)
 
 # Atari 520ST motherboard, shared memory and optional stock-firmware boot.
 ST_CORE := cores/fes-atari-st

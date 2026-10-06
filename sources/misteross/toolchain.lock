@@ -1,20 +1,20 @@
 [tool.yosys]
 repo = "https://github.com/DeanoC/yosys.git"
-commit = "fb879d81e0352f558297bdcc61bc7a4a922fa7b0"
+commit = "5391eeb1e91b38a3d0e96d04f24cf921743c9c78"
 order = 10
-rationale = "CMake build adds native Cyclone V M10K flow-through inference (merged PR #13 ec34fcf3: simple-dual 1024x10/512x20/256x40 and two-write/two-read TDP with CFG_ASYNC_READ). Feature fb879d81 adds the cyclonev_hps_interface_fpga2sdram blackbox on that pin. Preserves asynchronous clear, dual-clock, byte-enable, mixed-width TDP and earlier ALM support. Pair with nextpnr a93fe013 (and Mistral 7ed06e21); published feature revision, not a merged upstream release."
+rationale = "DeanoC/yosys main head 5391eeb1 (squash merge of #20: intel_alm maps inferred tri-state top-level pads to MISTRAL_IO, splitting shared tri-state drivers per pad); its CMake build retains native Cyclone V M10K support, the fpga2sdram blackbox and the #21 Cyclone V control block atom blackboxes. Paired with current DeanoC/nextpnr 1656e473 and Mistral 8fcc4cb4. Previous pin 10ce0a10 (merge of #21)."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
-commit = "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039"
+commit = "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f"
 order = 20
-rationale = "DeanoC fork master with the indexed-node routing API (rnode_coords/pnode_coords/xycoords labels, rnode_index handles) plus the fixes nextpnr a93fe013 needs on it: implemented rnode_unlink (PR #9, MISTRAL_RNODE_UNLINK), timing target-position mask and restored hashed pnode/rnode lookups (PR #10). Carries the physical routing-mux, inverter and block-mux CRAM footprints (18db2489, af2ade0a) the FES shell/cart CRAM fence uses, and everything from b28e30a3. Fixed commit, not a moving branch; pair with nextpnr a93fe013, which no longer builds against the rnode_t API revisions."
+rationale = "DeanoC fork master 8fcc4cb4 (squash merge of #11: cyclonev sets every bit of known redundant multi-bit booleans such as GPIO slew_rate_slow, advertised as MISTRAL_MULTIBIT_BOOL_SET, which nextpnr #118 needs for slow slew; distinct per-bit fields such as HIP.VC_ENABLE are left alone). Keeps the indexed-node routing API (rnode_coords/pnode_coords/xycoords labels, rnode_index handles) plus the fixes current DeanoC nextpnr needs on it: implemented rnode_unlink (PR #9, MISTRAL_RNODE_UNLINK), timing target-position mask and restored hashed pnode/rnode lookups (PR #10). Carries the physical routing-mux, inverter and block-mux CRAM footprints (18db2489, af2ade0a) the FES shell/cart CRAM fence uses, and everything from b28e30a3. Fixed commit, not a moving branch; pair with nextpnr 1656e473. Previous pin 7ed06e21."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "a93fe013af841214ecb4f7be3af0de65f3de3a0f"
+commit = "1656e473e1442f9b734ff5f4cdfddfd013846b9e"
 order = 30
-rationale = "DeanoC nextpnr main a93fe013, the merge of PR #86: Mistral placement prediction calibrated against routed delays (LAB exit cost, row change, dedicated carry and same-half LUT/FF paths). RAM130 closes 130 MHz on seed 2 and 30 of 32 seeds (DeanoC/fes#236); SMS and ZX81 improve, Coleco is neutral and SG-1000 passes fewer seeds at 16. Pair with Mistral 7ed06e21 (required). Previous pin 469b6670: DeanoC nextpnr main 469b6670, the merge of PR #84. A negotiation that stays at four or fewer overused wires for 30 iterations tries one soft-reservation escape and, if the wires remain, timing repair restores the legal pre-repair route (DeanoC/fes#232). Previous pin f65075bb after mistral-stable was merged into it and retired (docs/mistral-fork.md). Adds to 49ab82f5: analogue-scored candidate selection and robust analogue repair rounds for the GPU router (PR #81: ZX81 clk_sys signoff 45.4 -> 51.3-52.7 MHz, ColecoVision passes at the first analogue check, no more one-wire negotiation stalls), the exact-search repair check and calibration results (PR #82), the port to Mistral's indexed-node API (PR #83, fixes DeanoC/fes#229), the FES slot-region groups and cart fixes merged on mistral-stable since 49ab82f5. Inherits freeze-scaffold d672fade, the PR #73 MISTRAL_BUF fix and the fpga2sdram BEL. Published feature revision, not a merged upstream release. Pair with Yosys fb879d81 and Mistral 7ed06e21 (required)."
+rationale = "DeanoC/nextpnr main head 1656e473 (squash merge of #136: general Cyclone V PLL solver/packer, plus reject undefined/x/z and >64-bit PLL parameters), the shared FES HIP pin for menu, pong, catch, demo, ramtest and the sealed splash. Since fdac4c7c it adds #136, #123 (DDR input on bidir pads), #126 (SDC clock groups / false paths / multicycles), #122 (pack GPIO input, output and OE registers with controls), #118 (Quartus I/O electrical and delay-chain assignments), #120/#144 seed racing, #124 secondary ALM registers (--mistral-ff4) and second LAB clock (--mistral-clkb) and #142. Still includes #121 control block atoms and QSF device options, the merge of #115, #97-#111 Mistral placement/remap/router work, the #98 plateau fix and the #108 placer timeout fix. Inherits the freeze-scaffold/cart flags (--fes-scaffold, --fes-cart), the PR #73 MISTRAL_BUF fix and the fpga2sdram BEL. Pair with Yosys 5391eeb1 and Mistral 8fcc4cb4 (required). Previous pin 585ef608 (merge of #123)."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

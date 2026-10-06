@@ -175,9 +175,27 @@ func (c *Coordinator) Health(version string) protocol.Health {
 		health.Ready = false
 	}
 	status := c.Status()
-	_, nativeIdle := c.runtime.(idleConfirmingRuntime)
-	if status.State == protocol.StateFailed && (nativeIdle || (status.LastError != nil && status.LastError.Code == protocol.CodeMiSTerUnavailable)) {
-		health.Ready = false
+	if status.State == protocol.StateFailed {
+		if runtime, ok := c.runtime.(idleConfirmingRuntime); ok {
+			// Startup reconciliation can race a temporarily unavailable local
+			// runtime socket. A later health probe must be allowed to recover,
+			// but only after independently confirming physical idle.
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			idle := runtime.ConfirmIdle(ctx)
+			cancel()
+			if idle {
+				c.mu.Lock()
+				if c.status.State == protocol.StateFailed {
+					c.status = protocol.Status{State: protocol.StateIdle}
+				}
+				health.Ready = !c.updateBlocked
+				c.mu.Unlock()
+			} else {
+				health.Ready = false
+			}
+		} else if status.LastError != nil && status.LastError.Code == protocol.CodeMiSTerUnavailable {
+			health.Ready = false
+		}
 	}
 	return health
 }

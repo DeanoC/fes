@@ -10,9 +10,9 @@ from scripts import lockfile
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_COMMITS = {
-    "yosys": "fb879d81e0352f558297bdcc61bc7a4a922fa7b0",
-    "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "a93fe013af841214ecb4f7be3af0de65f3de3a0f",
+    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
+    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
+    "nextpnr": "1656e473e1442f9b734ff5f4cdfddfd013846b9e",
     "verilator": "5e4151e3e0c8ecf11d9845a93495f37a31b2f667",
     "openfpgaloader": "0c5ebaab1fa63c9d9c684abc0b8e68546ea8ea86",
 }
@@ -94,7 +94,7 @@ class LockfileTests(unittest.TestCase):
         lock = lockfile.load_lock(ROOT / "toolchain.lock")
         self.assertEqual(
             lock["mistral"].commit,
-            "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+            "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
         )
         self.assertIn("nextpnr", lock["mistral"].rationale)
 
@@ -103,15 +103,15 @@ class LockfileTests(unittest.TestCase):
         self.assertIn("rnode_index", lock["mistral"].rationale)
         self.assertIn("rnode_unlink", lock["mistral"].rationale)
 
-    def test_nextpnr_pin_documents_the_merged_main_and_mistral_pair(self):
+    def test_nextpnr_pin_documents_the_current_deanoc_main_and_mistral_pair(self):
         lock = lockfile.load_lock(ROOT / "toolchain.lock")
         self.assertEqual(
             lock["nextpnr"].commit,
-            "a93fe013af841214ecb4f7be3af0de65f3de3a0f",
+            "1656e473e1442f9b734ff5f4cdfddfd013846b9e",
         )
-        self.assertIn("PR #83", lock["nextpnr"].rationale)
-        self.assertIn("PR #84", lock["nextpnr"].rationale)
-        self.assertIn("Mistral 7ed06e21", lock["nextpnr"].rationale)
+        self.assertIn("merge of #115", lock["nextpnr"].rationale)
+        self.assertIn("#98 plateau fix", lock["nextpnr"].rationale)
+        self.assertIn("Mistral 8fcc4cb4", lock["nextpnr"].rationale)
 
     def test_get_prints_only_requested_commit(self):
         result = subprocess.run(
@@ -121,7 +121,7 @@ class LockfileTests(unittest.TestCase):
             capture_output=True,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout, "a93fe013af841214ecb4f7be3af0de65f3de3a0f\n")
+        self.assertEqual(result.stdout, "1656e473e1442f9b734ff5f4cdfddfd013846b9e\n")
         self.assertEqual(result.stderr, "")
 
     def test_cli_invalid_arguments_exit_two_without_traceback(self):

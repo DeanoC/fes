@@ -247,31 +247,30 @@ type Service struct {
 	// claim. The key is the target client. A failed launch releases the
 	// grant only when it is the last in-flight holder and the session did
 	// not already hold it. Execution start moves that hold to the session.
-	placementHoldMu         sync.Mutex
-	placementHolds          map[serviceClient]*placementClaimRecord
-	closeKitLeases          func(context.Context) error
-	coreCatalogPath         string
-	coreLibrarySourceID     string
-	corePackages            *corepackage.Store
-	activePackageID         string
-	activePackageGeneration uint64
-	packageRejection        *protocol.APIError
-	catalog                 serviceCatalog
-	scanner                 serviceScanner
-	preparer                servicePreparer
-	roots                   []catalog.Root
-	rootsByID               map[string]catalog.Root
-	configPath              string
-	configWriteMu           sync.Mutex
-	targets                 []TargetConfig
-	selectedTarget          string
-	targetClients           map[string]serviceClient
-	targetClientFactory     func(TargetConfig) (serviceClient, error)
+	placementHoldMu     sync.Mutex
+	placementHolds      map[serviceClient]*placementClaimRecord
+	closeKitLeases      func(context.Context) error
+	coreCatalogPath     string
+	coreLibrarySourceID string
+	corePackages        *corepackage.Store
+	catalog             serviceCatalog
+	scanner             serviceScanner
+	preparer            servicePreparer
+	roots               []catalog.Root
+	rootsByID           map[string]catalog.Root
+	configPath          string
+	configWriteMu       sync.Mutex
+	targets             []TargetConfig
+	selectedTarget      string
+	targetClients       map[string]serviceClient
+	targetClientFactory func(TargetConfig) (serviceClient, error)
 	// targetOrigin rebinds input/media to the selected target. The lease is
-	// the kit grant already held for that target, and may be nil. The hook
-	// must not call back into Service (same rule as targetReset).
-	targetOrigin func(TargetConfig, *targetclient.KitLease)
-	targetMu     sync.RWMutex
+	// the kit grant already held for that target, and may be nil. Invoke hooks
+	// only after dropping targetMu: bridge Dial reads this service under its
+	// own locks, so targetMu -> bridge/input locks would invert that order.
+	targetOrigin       func(TargetConfig, *targetclient.KitLease)
+	targetMu           sync.RWMutex
+	settingsTargetHook func() // guarded by targetMu; called after settings release it
 	// pairedTargetMu protects the independent paired-target lookup snapshot and
 	// lazy client cache. Lock order is targetMu then pairedTargetMu when both
 	// are needed; paired reads take only pairedTargetMu and release it before
@@ -286,6 +285,7 @@ type Service struct {
 	uploadReadDelay          time.Duration
 	executionResolver        ExecutionResolver
 	hostExecutor             hostexec.Adapter
+	hostCastClaimsKitDisplay bool
 	users                    *libraryuser.Store
 	media                    *librarymedia.Index
 	libraryOverlayPath       string
@@ -314,6 +314,7 @@ type Service struct {
 	closing                 bool
 	catalogCloseWait        time.Duration
 	activeExecution         string
+	boundKitTarget          string
 	activeTarget            string
 	activeGameID            string
 	activeSystem            protocol.System
@@ -541,6 +542,9 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 		requestTimeout:      config.RequestTimeout, uploadTimeout: config.UploadTimeout,
 		coreLoadReconcileTimeout: coreLoadReconcileTimeout,
 		executionResolver:        defaultExecutionResolver{},
+		// cmd/fogcast-api composes a kit cast only for the managed sender path;
+		// its mjpeg preview and ffplay receiver are host-local (ARCHITECTURE.md).
+		hostCastClaimsKitDisplay: hostCastClaimsKitDisplay(config),
 		attractIdle:              config.Library.AttractIdleSeconds,
 		preferredRegions:         append([]string(nil), config.Library.PreferredRegions...),
 		videoProfile:             defaultVideoProfile(config.Library.VideoProfile),
@@ -570,6 +574,12 @@ func newService(config Config, paths Paths, store serviceCatalog, scanner servic
 	service.selectedTargetReconciled = !targetByName(service.targets, service.selectedTarget).Enabled
 	service.applyPersistedLibraryOverlay()
 	return service
+}
+
+// hostCastClaimsKitDisplay mirrors cmd/fogcast-api composition: only the
+// managed sender with a target cast places host-only playback on a kit display.
+func hostCastClaimsKitDisplay(config Config) bool {
+	return config.Media.Enabled && config.Media.Decoder != "mjpeg" && config.Media.Decoder != "ffplay"
 }
 
 func (s *Service) selectedClientSnapshot() (serviceClient, bool) {
@@ -626,6 +636,9 @@ func (s *Service) SessionTargetName() string {
 func (s *Service) ForegroundSessionTargetName() string {
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
+	if s.activeExecution == ExecutionHostOnly {
+		return ""
+	}
 	return s.activeTarget
 }
 
@@ -643,11 +656,15 @@ func (s *Service) sessionTargetNameLocked() string {
 	s.executionMu.Lock()
 	active := s.activeTarget
 	execution := s.activeExecution
+	bound := s.boundKitTarget
 	s.executionMu.Unlock()
+	if s.configuredTargetLocked(bound) {
+		return bound
+	}
 	if active == "" {
 		return name
 	}
-	if execution != ExecutionHostOnly || s.configuredTargetLocked(active) {
+	if execution != ExecutionHostOnly && s.configuredTargetLocked(active) {
 		return active
 	}
 	return name
@@ -664,8 +681,13 @@ func (s *Service) configuredTargetLocked(name string) bool {
 func (s *Service) kitBindToKeepLocked() string {
 	s.executionMu.Lock()
 	active := s.activeTarget
+	execution := s.activeExecution
+	bound := s.boundKitTarget
 	s.executionMu.Unlock()
-	if s.configuredTargetLocked(active) {
+	if s.configuredTargetLocked(bound) {
+		return bound
+	}
+	if execution != ExecutionHostOnly && s.configuredTargetLocked(active) {
 		return active
 	}
 	return ""
@@ -678,8 +700,6 @@ type targetPlay struct {
 	packageID         string
 	packageGeneration uint64
 	packageRejection  *protocol.APIError
-	reconciled        bool
-	repairAllowed     bool
 }
 
 type PlaySession struct {
@@ -690,47 +710,36 @@ type PlaySession struct {
 	System    protocol.System
 }
 
-func (s *Service) retainSessionTargetLocked() {
-	if s.activeTarget == "" {
-		s.activeTarget = s.selectedTarget
+// selectedKitPlayLocked returns the authoritative lifecycle record for the
+// kit bound to the current operation. Root activeExecution is host-only.
+func (s *Service) selectedKitPlayLocked() (string, targetPlay) {
+	name := s.selectedTarget
+	if s.boundKitTarget != "" {
+		name = s.boundKitTarget
+	} else if s.activeExecution != ExecutionHostOnly && s.activeTarget != "" {
+		name = s.activeTarget
 	}
-	if s.activeExecution != ExecutionFPGANative && s.activeExecution != ExecutionFPGADevelopment && s.packageRejection == nil {
+	return name, s.plays[name]
+}
+
+func (s *Service) clearNonHostForegroundLocked() {
+	if s.activeExecution == ExecutionHostOnly {
 		return
 	}
-	if s.plays == nil {
-		s.plays = make(map[string]targetPlay)
-	}
-	play := targetPlay{execution: s.activeExecution, gameID: s.activeGameID, system: s.activeSystem,
-		packageID: s.activePackageID, packageGeneration: s.activePackageGeneration,
-		reconciled: s.selectedTargetReconciled, repairAllowed: s.selectedTargetRepairAllowed}
-	play.packageRejection = s.packageRejection
-	s.plays[s.activeTarget] = play
+	s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
 }
 
 // bindPlayTargetLocked saves the current kit play and restores the requested
 // kit's record. Caller holds executionMu and targetMu.
 func (s *Service) bindPlayTargetLocked(name string) {
+	s.boundKitTarget = name
 	if s.activeTarget == name {
 		return
 	}
-	// Host-only execution has no target-owned PlaySession. Keep its ownership
-	// marker until the normal replacement path has stopped the host process.
-	// The target name still records where a subsequent kit load is bound.
 	if s.activeExecution == ExecutionHostOnly {
-		s.activeTarget = name
 		return
 	}
-	s.retainSessionTargetLocked()
 	s.activeTarget = name
-	s.activeExecution, s.activeGameID, s.activeSystem = "", "", ""
-	s.activePackageID, s.activePackageGeneration, s.packageRejection = "", 0, nil
-	s.selectedTargetReconciled, s.selectedTargetRepairAllowed = false, false
-	if play, ok := s.plays[name]; ok {
-		s.activeExecution, s.activeGameID, s.activeSystem = play.execution, play.gameID, play.system
-		s.activePackageID, s.activePackageGeneration = play.packageID, play.packageGeneration
-		s.packageRejection = play.packageRejection
-		s.selectedTargetReconciled, s.selectedTargetRepairAllowed = play.reconciled, play.repairAllowed
-	}
 }
 
 // notePlayDisplaySink records the last play DisplaySink once a library
@@ -745,7 +754,8 @@ func (s *Service) notePlayDisplaySink() {
 	defer s.targetMu.RUnlock()
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
-	if s.activeExecution != ExecutionFPGANative {
+	_, play := s.selectedKitPlayLocked()
+	if play.execution != ExecutionFPGANative {
 		return
 	}
 	s.notePlayDisplaySinkLocked()
@@ -760,7 +770,10 @@ func (s *Service) notePlayDisplaySinkLocked() {
 	if s.displayMemory == nil {
 		return
 	}
-	name := s.activeTarget
+	name := s.boundKitTarget
+	if name == "" {
+		name = s.activeTarget
+	}
 	if name == "" {
 		name = s.selectedTarget
 	}
@@ -786,42 +799,6 @@ func (s *Service) PlaceOptions() meshplace.Options {
 	return s.displayMemory.PlaceOptions()
 }
 
-func (s *Service) clearForegroundPlayLocked() {
-	if s.activeTarget != "" {
-		delete(s.plays, s.activeTarget)
-	}
-	s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
-	s.packageRejection = nil
-	s.activePackageID, s.activePackageGeneration = "", 0
-	s.selectedTargetReconciled, s.selectedTargetRepairAllowed = false, false
-	s.promotePlayLocked(s.selectedTarget)
-}
-
-func (s *Service) promotePlayLocked(preferred string) {
-	name := ""
-	if _, ok := s.plays[preferred]; ok {
-		name = preferred
-	} else {
-		names := make([]string, 0, len(s.plays))
-		for candidate := range s.plays {
-			names = append(names, candidate)
-		}
-		sort.Strings(names)
-		if len(names) != 0 {
-			name = names[0]
-		}
-	}
-	if name == "" {
-		return
-	}
-	play := s.plays[name]
-	s.activeTarget = name
-	s.activeExecution, s.activeGameID, s.activeSystem = play.execution, play.gameID, play.system
-	s.activePackageID, s.activePackageGeneration = play.packageID, play.packageGeneration
-	s.packageRejection = play.packageRejection
-	s.selectedTargetReconciled, s.selectedTargetRepairAllowed = play.reconciled, play.repairAllowed
-}
-
 func (s *Service) PlaySessions() []PlaySession {
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
@@ -829,6 +806,9 @@ func (s *Service) PlaySessions() []PlaySession {
 	defer s.executionMu.Unlock()
 	out := make([]PlaySession, 0, len(s.plays))
 	for name, play := range s.plays {
+		if play.execution == "" || play.packageRejection != nil {
+			continue
+		}
 		out = append(out, PlaySession{
 			Target:    name,
 			TargetID:  targetByName(s.targets, name).TargetID,
@@ -844,18 +824,19 @@ func (s *Service) PlaySessions() []PlaySession {
 func (s *Service) clearUnstartedSessionTarget() {
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
-	if s.activeExecution == "" {
+	if s.activeExecution == ExecutionHostOnly {
+		// Keep root host play unbound; a single kit's independent play remains in its map.
+		if _, ok := s.plays[s.boundKitTarget]; !ok {
+			s.boundKitTarget = ""
+		}
+		return
+	}
+	if _, ok := s.plays[s.activeTarget]; !ok {
 		s.activeTarget = ""
-		s.selectedTargetReconciled, s.selectedTargetRepairAllowed = false, false
-		s.promotePlayLocked(s.selectedTarget)
-		return
 	}
-	if _, ok := s.plays[s.activeTarget]; ok {
-		return
+	if _, ok := s.plays[s.boundKitTarget]; !ok {
+		s.boundKitTarget = ""
 	}
-	s.activeTarget = ""
-	s.selectedTargetReconciled, s.selectedTargetRepairAllowed = false, false
-	s.promotePlayLocked(s.selectedTarget)
 }
 
 // launchPinnedTargetBoundHook observes the name bind stored. Tests move
@@ -902,7 +883,10 @@ func (s *Service) bindLiveLaunchTarget(target string) error {
 	s.bindPlayTargetLocked(name)
 	s.executionMu.Unlock()
 	if s.targetOrigin != nil && explicit && name != s.selectedTarget {
-		s.targetOrigin(cfg, kitLeaseOf(s.targetClients[name]))
+		hook, lease := s.targetOrigin, kitLeaseOf(s.targetClients[name])
+		s.targetMu.Unlock()
+		hook(cfg, lease)
+		s.targetMu.Lock()
 	}
 	if launchPinnedTargetBoundHook != nil {
 		launchPinnedTargetBoundHook(name)
@@ -958,14 +942,31 @@ func (s *Service) DevelopmentActive(ctx context.Context) (bool, error) {
 func (s *Service) ActivePackageOwned() bool {
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
-	return s.activePackageID != ""
+	_, play := s.selectedKitPlayLocked()
+	return play.packageID != ""
+}
+
+func (s *Service) ActivePackageOwnedForTarget(target string) bool {
+	s.executionMu.Lock()
+	defer s.executionMu.Unlock()
+	return s.plays[target].packageID != ""
 }
 
 // DevelopmentSessionState returns both development admission and execution
 // ownership reconstructed by the same authoritative target observation.
 func (s *Service) DevelopmentSessionState(ctx context.Context) (bool, string, error) {
+	scopedTarget := SessionTargetFromContext(ctx)
 	s.executionMu.Lock()
 	execution := s.activeExecution
+	if scopedTarget != "" {
+		execution = s.plays[scopedTarget].execution
+		if execution == "" && s.activeExecution == ExecutionHostOnly {
+			execution = ExecutionHostOnly
+		}
+	} else if execution != ExecutionHostOnly {
+		_, play := s.selectedKitPlayLocked()
+		execution = play.execution
+	}
 	s.executionMu.Unlock()
 	if execution == ExecutionFPGADevelopment {
 		return true, execution, nil
@@ -977,7 +978,17 @@ func (s *Service) DevelopmentSessionState(ctx context.Context) (bool, string, er
 		return false, "", err
 	}
 	s.executionMu.Lock()
-	execution = s.activeExecution
+	if scopedTarget != "" {
+		execution = s.plays[scopedTarget].execution
+		if execution == "" && s.activeExecution == ExecutionHostOnly {
+			execution = ExecutionHostOnly
+		}
+	} else if s.activeExecution == ExecutionHostOnly {
+		execution = ExecutionHostOnly
+	} else {
+		_, play := s.selectedKitPlayLocked()
+		execution = play.execution
+	}
 	s.executionMu.Unlock()
 	return execution == ExecutionFPGADevelopment, execution, nil
 }
@@ -1180,8 +1191,13 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 		}
 	}
 
-	if err := s.stopPackageOwnedForCatalogLaunch(ctx, snap.name); err != nil {
-		return protocol.CachedLaunchResponse{}, err
+	// A managed host cast places host-only playback on the requested kit's display,
+	// so preserve package replacement there; without it RetroArch is runner-local
+	// and does not claim a kit display (ARCHITECTURE.md, host capture sender).
+	if execution != ExecutionHostOnly || s.hostCastClaimsKitDisplay {
+		if err := s.stopPackageOwnedForCatalogLaunch(ctx, snap.name); err != nil {
+			return protocol.CachedLaunchResponse{}, err
+		}
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
@@ -1206,12 +1222,14 @@ func (s *Service) LaunchOn(ctx context.Context, gameID, target string, progress 
 			if err == nil && response.Status.State == protocol.StateActive {
 				s.executionMu.Lock()
 				if s.activeExecution != ExecutionHostOnly {
-					s.activeExecution = ExecutionFPGANative
-					s.activeGameID, s.activeSystem = game.ID, game.System
-					s.retainSessionTargetLocked()
-					s.notePlayDisplaySinkLocked()
-					s.packageRejection = nil
-					s.activePackageID, s.activePackageGeneration = "", 0
+					name := snap.name
+					if name == "" {
+						name = s.selectedTarget
+					}
+					s.plays[name] = targetPlay{execution: ExecutionFPGANative, gameID: game.ID, system: game.System}
+					if s.displayMemory != nil {
+						s.displayMemory.NotePlayStarted(targetByName(s.targets, name).NodeID())
+					}
 					s.settlePlacementClaim(snap)
 				}
 				s.executionMu.Unlock()
@@ -1786,6 +1804,14 @@ func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content
 		return protocol.Status{}, err
 	}
 	defer releaseLifecycle()
+	s.executionMu.Lock()
+	kitTarget, kitPlay := s.selectedKitPlayLocked()
+	s.executionMu.Unlock()
+	if kitPlay.packageRejection != nil {
+		if status, err := s.stopRejectedKitCore(ctx, kitTarget); err != nil {
+			return status, err
+		}
+	}
 	if s.protocolAdmissionEnabled() {
 		if _, err := s.refreshTargetAdmission(ctx); err != nil {
 			return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
@@ -1795,8 +1821,12 @@ func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content
 		return protocol.Status{}, err
 	}
 
-	if err := s.stopHostOnlyIfActive(ctx); err != nil {
-		return protocol.Status{}, err
+	// A development RBF replaces the kit display. It only replaces host-only
+	// playback when the configured host pipeline casts onto that display.
+	if s.hostCastClaimsKitDisplay {
+		if err := s.stopHostOnlyIfActive(ctx); err != nil {
+			return protocol.Status{}, err
+		}
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
@@ -1823,14 +1853,15 @@ func (s *Service) LoadDevelopmentRBF(parent context.Context, size int64, content
 	if !validServiceDevelopmentStatus(status) {
 		return protocol.Status{}, canonicalError(protocol.CodeInternal, nil)
 	}
+	playTarget := s.sessionTargetNameLocked()
 	s.executionMu.Lock()
-	s.activeExecution = ExecutionFPGADevelopment
-	s.retainSessionTargetLocked()
-	s.activeGameID, s.activeSystem = "", ""
-	s.activePackageID, s.activePackageGeneration = "", 0
-	s.packageRejection = nil
-	s.selectedTargetReconciled = false
-	s.selectedTargetRepairAllowed = false
+	if s.configuredTargetLocked(playTarget) {
+		s.plays[playTarget] = targetPlay{execution: ExecutionFPGADevelopment}
+	}
+	s.clearNonHostForegroundLocked()
+	if s.activeExecution != ExecutionHostOnly {
+		s.activeTarget = playTarget
+	}
 	s.executionMu.Unlock()
 	return status, nil
 }
@@ -1858,7 +1889,7 @@ func (s *Service) loadCore(parent context.Context, source func(context.Context) 
 }
 
 // Caller holds lifecycle admission through package and optional media delivery.
-func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(context.Context) (coreLoadSource, error)) (protocol.Status, error) {
+func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(context.Context) (coreLoadSource, error)) (result protocol.Status, resultErr error) {
 	// Resolve and validate the requested immutable package/media before even a
 	// recovery Stop: an invalid next launch must preserve the retained owner.
 	selected, err := source(ctx)
@@ -1866,11 +1897,17 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		return protocol.Status{}, corePackageRequestFailure(err)
 	}
 	s.executionMu.Lock()
-	pendingRejection := s.packageRejection != nil
+	kitTarget, kitPlay := s.selectedKitPlayLocked()
+	pendingRejection := kitPlay.packageRejection != nil
 	s.executionMu.Unlock()
 	if pendingRejection {
-		if status, err := s.stopRejectedCore(ctx); err != nil {
+		if status, err := s.stopRejectedKitCore(ctx, kitTarget); err != nil {
 			return status, err
+		}
+		if s.hostCastClaimsKitDisplay {
+			if err := s.stopHostOnlyIfActive(ctx); err != nil {
+				return protocol.Status{}, &protocol.APIError{Code: protocol.CodeInternal, Message: "host cleanup failed after core package rejection", Phase: "recovery"}
+			}
 		}
 	}
 	size, content := selected.size, selected.body
@@ -1892,6 +1929,15 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	if !ok {
 		return protocol.Status{}, corePackageRequestFailure(canonicalError(protocol.CodeUnsupportedOperation, nil))
 	}
+	// Core mutations may claim the kit lease inside the target client. If
+	// this operation created that grant and then failed (including a target
+	// UPDATE_CONFLICT), release only that newly acquired grant. A grant that
+	// existed before this launch may back another live play and must survive.
+	lease := kitLeaseOf(client)
+	leaseWasHeld := lease != nil && lease.Held()
+	defer func() {
+		resultErr = releaseFailedLaunchLease(resultErr, leaseWasHeld, lease, s.kitLeaseBacksPlayLocked(lease))
+	}()
 	prior, err := client.Status(ctx)
 	if err != nil {
 		return protocol.Status{}, corePackageRequestFailure(canonicalRemoteError(err, protocol.CodeMiSTerUnavailable))
@@ -1963,18 +2009,18 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		}
 
 		keepTarget := s.kitBindToKeepLocked()
-		hostCleanupErr := s.stopHostOnlyIfActive(ctx)
+		if keepTarget == "" {
+			keepTarget = s.selectedTarget
+		}
+		var hostCleanupErr error
+		if s.hostCastClaimsKitDisplay {
+			hostCleanupErr = s.stopHostOnlyIfActive(ctx)
+		}
 		s.executionMu.Lock()
-		if keepTarget != "" {
+		s.plays[keepTarget] = targetPlay{execution: ExecutionFPGADevelopment, packageRejection: rejection}
+		if s.activeExecution != ExecutionHostOnly {
 			s.activeTarget = keepTarget
 		}
-		if hostCleanupErr == nil {
-			s.activeExecution = ExecutionFPGADevelopment
-			s.retainSessionTargetLocked()
-			s.activeGameID, s.activeSystem = "", ""
-			s.activePackageID, s.activePackageGeneration = "", 0
-		}
-		s.packageRejection = rejection
 		s.executionMu.Unlock()
 		status.LastError = rejection
 		if hostCleanupErr != nil {
@@ -1985,62 +2031,80 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	// Keep the previous host owner until its executor is confirmed stopped.
 	// A successful target activation can still require recovery of both owners.
 	keepTarget := s.kitBindToKeepLocked()
-	if hostCleanupErr := s.stopHostOnlyIfActive(ctx); hostCleanupErr != nil {
+	if keepTarget == "" {
+		keepTarget = s.selectedTarget
+	}
+	var hostCleanupErr error
+	if s.hostCastClaimsKitDisplay {
+		hostCleanupErr = s.stopHostOnlyIfActive(ctx)
+	}
+	if hostCleanupErr != nil {
 		cleanupErr := &protocol.APIError{Code: protocol.CodeInternal, Message: "host cleanup failed after core package activation", Phase: "recovery"}
 		s.executionMu.Lock()
-		s.packageRejection = cleanupErr
+		play := targetPlay{execution: ExecutionFPGADevelopment, packageRejection: cleanupErr}
+		if selected.entry != nil && recognizedPlayContract(status.CorePackage.ABI) {
+			play.execution = ExecutionFPGANative
+			play.gameID, play.system = selected.entry.GameID, catalog.CorePlatform
+			play.packageID, play.packageGeneration = selected.entry.PackageID, status.CorePackage.Generation
+		}
+		s.plays[keepTarget] = play
+		if s.activeExecution != ExecutionHostOnly {
+			s.activeTarget = keepTarget
+		}
 		s.executionMu.Unlock()
 		status.GameID, status.System = nil, nil
 		status.LastError = cleanupErr
 		return status, cleanupErr
 	}
 	s.executionMu.Lock()
-	if keepTarget != "" {
+	// Kit ownership is always per target; root activeExecution is host-only.
+	play := targetPlay{execution: ExecutionFPGADevelopment}
+	if selected.entry != nil && recognizedPlayContract(status.CorePackage.ABI) {
+		play.execution = ExecutionFPGANative
+		play.gameID, play.system = selected.entry.GameID, catalog.CorePlatform
+		play.packageID, play.packageGeneration = selected.entry.PackageID, status.CorePackage.Generation
+	}
+	s.plays[keepTarget] = play
+	s.clearNonHostForegroundLocked()
+	if s.activeExecution != ExecutionHostOnly {
 		s.activeTarget = keepTarget
 	}
-	s.activeExecution = ExecutionFPGADevelopment
-	if selected.entry != nil && recognizedPlayContract(status.CorePackage.ABI) {
-		s.activeExecution = ExecutionFPGANative
-	}
-	s.retainSessionTargetLocked()
-	s.activeGameID, s.activeSystem = "", ""
-	s.activePackageID, s.activePackageGeneration = "", 0
-	s.packageRejection = nil
 	if selected.entry != nil && status.CorePackage.PackageID == selected.entry.PackageID {
-		s.activeGameID, s.activeSystem = selected.entry.GameID, catalog.CorePlatform
-		s.activePackageID, s.activePackageGeneration = selected.entry.PackageID, status.CorePackage.Generation
-		status.GameID = stringPtr(s.activeGameID)
-		status.System = systemPtr(s.activeSystem)
+		status.GameID = stringPtr(selected.entry.GameID)
+		status.System = systemPtr(catalog.CorePlatform)
 	}
-
-	s.selectedTargetReconciled = false
-	s.selectedTargetRepairAllowed = false
 	s.executionMu.Unlock()
 	return status, nil
 }
 
+type failedLaunchLease interface {
+	Held() bool
+	Release(context.Context) error
+}
+
+func releaseFailedLaunchLease(launchErr error, wasHeld bool, lease failedLaunchLease, backsLivePlay bool) error {
+	if launchErr == nil || wasHeld || lease == nil || !lease.Held() || backsLivePlay {
+		return launchErr
+	}
+	releaseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return errors.Join(launchErr, lease.Release(releaseCtx))
+}
+
 func (s *Service) retireExecutionAfterConfirmedIdleCorePackageFailure(ctx context.Context, status protocol.Status, loadErr error) (protocol.Status, error) {
 	s.executionMu.Lock()
-	previousHostOnly := s.activeExecution == ExecutionHostOnly
-	s.selectedTargetReconciled = true
-	s.selectedTargetRepairAllowed = false
-	if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
-		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
-		s.packageRejection = nil
-		s.activePackageID, s.activePackageGeneration = "", 0
+	kitTarget, _ := s.selectedKitPlayLocked()
+	delete(s.plays, kitTarget)
+	s.clearNonHostForegroundLocked()
+	if s.activeExecution != ExecutionHostOnly && s.activeTarget == kitTarget {
+		s.activeTarget = ""
 	}
-	s.executionMu.Unlock()
-	if !previousHostOnly {
-		return status, loadErr
+	if s.boundKitTarget == kitTarget {
+		s.boundKitTarget = ""
 	}
-	if s.hostExecutor == nil || s.hostExecutor.Stop(ctx) != nil {
-		return status, &protocol.APIError{Code: protocol.CodeInternal, Message: "host cleanup failed after core package rejection", Phase: "recovery"}
-	}
-	s.executionMu.Lock()
-	if s.activeExecution == ExecutionHostOnly {
-		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
-		s.packageRejection = nil
-		s.activePackageID, s.activePackageGeneration = "", 0
+	if kitTarget == s.selectedTarget {
+		s.selectedTargetReconciled = true
+		s.selectedTargetRepairAllowed = false
 	}
 	s.executionMu.Unlock()
 	return status, loadErr
@@ -2151,9 +2215,13 @@ func packageReplacementApplies(requestedTarget, packageOwnerTarget string) bool 
 // Caller holds lifecycle admission and must not hold targetMu.
 func (s *Service) stopPackageOwnedForCatalogLaunch(ctx context.Context, requestedTarget string) error {
 	s.executionMu.Lock()
-	development := s.activeExecution == ExecutionFPGADevelopment
-	packageOwned := s.activePackageID != ""
-	boundTarget := s.activeTarget
+	boundTarget := requestedTarget
+	if boundTarget == "" {
+		boundTarget = s.selectedTarget
+	}
+	play := s.plays[boundTarget]
+	development := play.execution == ExecutionFPGADevelopment && play.packageRejection == nil
+	packageOwned := play.packageID != ""
 	s.executionMu.Unlock()
 	if development {
 		return canonicalError(protocol.CodeBusy, nil)
@@ -2164,7 +2232,7 @@ func (s *Service) stopPackageOwnedForCatalogLaunch(ctx context.Context, requeste
 	timeout := s.uploadTimeout
 	stopCtx, cancel := serviceTimeout(ctx, timeout)
 	defer cancel()
-	stopped, err := s.stopLocked(stopCtx, ctx, timeout, "")
+	stopped, err := s.stopLocked(stopCtx, ctx, timeout, boundTarget)
 	if err != nil {
 		return err
 	}
@@ -2172,75 +2240,6 @@ func (s *Service) stopPackageOwnedForCatalogLaunch(ctx context.Context, requeste
 		return canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
 	return nil
-}
-
-func (s *Service) adoptObservedForeground(status *protocol.Status) {
-	s.executionMu.Lock()
-	defer s.executionMu.Unlock()
-	if status.Development && status.State != protocol.StateIdle {
-		s.selectedTargetReconciled = false
-		s.selectedTargetRepairAllowed = false
-		confirmedPackage := status.State == protocol.StateActive || status.State == protocol.StateStopping
-		if s.activeExecution == "" {
-			if confirmedPackage && status.CorePackage != nil && recognizedPlayContract(status.CorePackage.ABI) {
-				s.activeExecution = ExecutionFPGANative
-			} else {
-				s.activeExecution = ExecutionFPGADevelopment
-			}
-			s.retainSessionTargetLocked()
-			s.activeGameID, s.activeSystem = "", ""
-			if confirmedPackage && status.CorePackage != nil {
-				s.activePackageID, s.activePackageGeneration = status.CorePackage.PackageID, status.CorePackage.Generation
-			} else {
-				s.activePackageID, s.activePackageGeneration = "", 0
-			}
-		}
-		if confirmedPackage {
-			if status.CorePackage != nil && s.activePackageID != "" && s.activePackageID == status.CorePackage.PackageID && s.activePackageGeneration == status.CorePackage.Generation {
-				if s.activeGameID != "" {
-					status.GameID = stringPtr(s.activeGameID)
-					status.System = systemPtr(s.activeSystem)
-				}
-			} else {
-				s.activePackageID, s.activePackageGeneration = "", 0
-				if s.activeExecution != ExecutionHostOnly {
-					s.activeGameID, s.activeSystem = "", ""
-				}
-			}
-		}
-		if s.packageRejection != nil {
-			rejection := *s.packageRejection
-			status.LastError = &rejection
-			status.GameID = nil
-			status.System = nil
-		}
-		return
-	}
-	if status.State == protocol.StateActive {
-		s.selectedTargetReconciled = false
-		s.selectedTargetRepairAllowed = false
-		if s.activeExecution == "" {
-			s.activeExecution = ExecutionFPGANative
-			s.retainSessionTargetLocked()
-			if status.GameID != nil {
-				s.activeGameID = *status.GameID
-			}
-			if status.System != nil {
-				s.activeSystem = *status.System
-			}
-		}
-		return
-	}
-	if status.State == protocol.StateIdle {
-		s.selectedTargetReconciled = true
-		s.selectedTargetRepairAllowed = false
-		if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
-			s.clearForegroundPlayLocked()
-		}
-		return
-	}
-	s.selectedTargetReconciled = false
-	s.selectedTargetRepairAllowed = false
 }
 
 func (s *Service) Status(parent context.Context) (protocol.Status, error) {
@@ -2270,14 +2269,6 @@ func (s *Service) statusPairedTarget(parent context.Context, targetID string) (p
 	}
 	s.executionMu.Lock()
 	play, hasPlay := s.plays[name]
-	if s.activeTarget == name && (s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment) {
-		// Launch publishes these fields before another public status read
-		// refreshes plays. Paired reads must see that same current identity.
-		play = targetPlay{gameID: s.activeGameID, system: s.activeSystem,
-			packageID: s.activePackageID, packageGeneration: s.activePackageGeneration,
-			packageRejection: s.packageRejection}
-		hasPlay = true
-	}
 	matchingPackage := status.CorePackage == nil && play.packageID == "" && play.packageGeneration == 0
 	if status.CorePackage != nil {
 		matchingPackage = status.CorePackage.PackageID != "" && status.CorePackage.Generation != 0 &&
@@ -2295,6 +2286,7 @@ func (s *Service) statusPairedTarget(parent context.Context, targetID string) (p
 		}
 	}
 	s.executionMu.Unlock()
+	s.adoptObservedKit(name, status)
 	return status, nil
 }
 
@@ -2337,8 +2329,6 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 		return protocol.Status{}, err
 	}
 	defer releaseLifecycle()
-	previousTarget := ""
-	previousExecution := ""
 	if target != "" {
 		s.targetMu.RLock()
 		cfg := targetByName(s.targets, target)
@@ -2346,31 +2336,11 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 		if cfg.Name == "" || !cfg.Enabled {
 			return protocol.Status{}, canonicalError(protocol.CodeBadRequest, nil)
 		}
-		s.executionMu.Lock()
-		previousTarget = s.activeTarget
-		previousExecution = s.activeExecution
-		s.bindPlayTargetLocked(target)
-		s.executionMu.Unlock()
-		defer func() {
-			s.executionMu.Lock()
-			if previousExecution == ExecutionHostOnly {
-				// Explicit target observation must not turn a root-owned host
-				// execution into a kit-bound foreground session.
-				if s.activeExecution == ExecutionHostOnly {
-					s.activeTarget = previousTarget
-				}
-			} else {
-				s.retainSessionTargetLocked()
-				if previousTarget != "" && previousTarget != target {
-					s.bindPlayTargetLocked(previousTarget)
-				}
-			}
-			s.executionMu.Unlock()
-		}()
 	}
 	s.executionMu.Lock()
-	localExecution := target == "" && s.activeExecution == ExecutionHostOnly && s.packageRejection == nil
-	knownFPGA := target != "" || s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment || s.activeTarget != ""
+	localExecution := target == "" && s.activeExecution == ExecutionHostOnly
+	_, selectedPlay := s.selectedKitPlayLocked()
+	knownFPGA := target != "" || selectedPlay.execution != "" || selectedPlay.packageRejection != nil
 	s.executionMu.Unlock()
 	if !localExecution && s.discoveryEnabled() {
 		if _, err := s.refreshTargetConnection(ctx); err != nil {
@@ -2383,7 +2353,7 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
 	s.executionMu.Lock()
-	hostOnly := target == "" && s.activeExecution == ExecutionHostOnly && s.packageRejection == nil
+	hostOnly := target == "" && s.activeExecution == ExecutionHostOnly
 	gameID, system := s.activeGameID, s.activeSystem
 	s.executionMu.Unlock()
 	if hostOnly {
@@ -2397,18 +2367,24 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 		if status.State == hostexec.Idle {
 			s.executionMu.Lock()
 			s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
-			s.packageRejection = nil
-			s.activePackageID, s.activePackageGeneration = "", 0
 			s.executionMu.Unlock()
 			return protocol.Status{State: protocol.StateIdle}, nil
 		}
 		return protocol.Status{State: protocol.StateActive, GameID: stringPtr(gameID), System: systemPtr(system)}, nil
 	}
-	client, ok := s.selectedClientLocked()
+	var client serviceClient
+	var ok bool
+	if target != "" {
+		client, ok = s.targetClients[target]
+		ok = client != nil
+	} else {
+		client, ok = s.selectedClientLocked()
+	}
 	if !ok {
 		s.executionMu.Lock()
-		knownFPGA := target != "" || s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment || s.activeTarget != ""
-		localExecution := target == "" && s.activeExecution == ExecutionHostOnly && s.packageRejection == nil
+		_, selectedPlay := s.selectedKitPlayLocked()
+		knownFPGA := target != "" || selectedPlay.execution != "" || selectedPlay.packageRejection != nil
+		localExecution := target == "" && s.activeExecution == ExecutionHostOnly
 		s.executionMu.Unlock()
 		if target == "" && s.hostEmulator.Binary != "" && (localExecution || !knownFPGA) {
 			return protocol.Status{State: protocol.StateIdle}, nil
@@ -2424,16 +2400,121 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 		s.allowSelectedTargetRepair(parent)
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
 	}
-	s.adoptObservedForeground(&status)
+	{
+		// A non-cast kit play can coexist with the root host foreground, so
+		// project its catalog identity from the target-owned record directly.
+		s.executionMu.Lock()
+		kitTarget := target
+		if kitTarget == "" {
+			kitTarget, _ = s.selectedKitPlayLocked()
+		}
+		play, hasPlay := s.plays[kitTarget]
+		matchingPackage := status.CorePackage == nil && play.packageID == "" && play.packageGeneration == 0
+		if status.CorePackage != nil {
+			matchingPackage = status.CorePackage.PackageID != "" && status.CorePackage.Generation != 0 &&
+				status.CorePackage.PackageID == play.packageID && status.CorePackage.Generation == play.packageGeneration
+		}
+		if hasPlay && matchingPackage && (status.State == protocol.StateActive || status.State == protocol.StateStopping) {
+			if status.GameID == nil && play.gameID != "" {
+				status.GameID = stringPtr(play.gameID)
+			}
+			if status.System == nil && play.system != "" {
+				status.System = systemPtr(play.system)
+			}
+			if status.LastError == nil {
+				status.LastError = play.packageRejection
+			}
+		}
+		s.executionMu.Unlock()
+	}
+	kitStatusTarget := target
+	if kitStatusTarget == "" {
+		s.executionMu.Lock()
+		kitStatusTarget, _ = s.selectedKitPlayLocked()
+		s.executionMu.Unlock()
+	}
+	s.adoptObservedKit(kitStatusTarget, status)
 	s.executionMu.Lock()
-	if s.packageRejection != nil {
-		rejection := *s.packageRejection
-		status.LastError = &rejection
+	if target == "" && status.State != protocol.StateIdle && s.activeExecution != ExecutionHostOnly {
+		s.activeTarget = kitStatusTarget
+	}
+	if rejection := s.plays[kitStatusTarget].packageRejection; rejection != nil {
+		status.LastError = rejection
 		status.GameID = nil
 		status.System = nil
 	}
 	s.executionMu.Unlock()
 	return status, nil
+}
+
+func (s *Service) adoptObservedKit(target string, status protocol.Status) {
+	s.executionMu.Lock()
+	defer s.executionMu.Unlock()
+	play := s.plays[target]
+	if status.State == protocol.StateIdle {
+		if target == s.selectedTarget {
+			s.selectedTargetReconciled = true
+			s.selectedTargetRepairAllowed = false
+		}
+		if play.packageRejection != nil {
+			s.plays[target] = targetPlay{packageRejection: play.packageRejection}
+		} else {
+			delete(s.plays, target)
+			if s.activeExecution != ExecutionHostOnly && s.activeTarget == target {
+				s.activeTarget = ""
+			}
+			if s.boundKitTarget == target {
+				s.boundKitTarget = ""
+			}
+		}
+		return
+	}
+	if status.State == protocol.StateFailed && !status.Development {
+		if play.packageRejection != nil {
+			s.plays[target] = targetPlay{packageRejection: play.packageRejection}
+		} else {
+			delete(s.plays, target)
+			if s.activeExecution != ExecutionHostOnly && s.activeTarget == target {
+				s.activeTarget = ""
+			}
+			if s.boundKitTarget == target {
+				s.boundKitTarget = ""
+			}
+		}
+		if target == s.selectedTarget {
+			s.selectedTargetReconciled = false
+			s.selectedTargetRepairAllowed = false
+		}
+		return
+	}
+	if target == s.selectedTarget {
+		s.selectedTargetReconciled = false
+		s.selectedTargetRepairAllowed = false
+	}
+	if status.Development {
+		play.execution = ExecutionFPGADevelopment
+		if status.CorePackage != nil {
+			if play.packageID != status.CorePackage.PackageID || play.packageGeneration != status.CorePackage.Generation {
+				play.gameID, play.system = "", ""
+			}
+			play.packageID = status.CorePackage.PackageID
+			play.packageGeneration = status.CorePackage.Generation
+			if recognizedPlayContract(status.CorePackage.ABI) {
+				play.execution = ExecutionFPGANative
+			}
+		} else {
+			play.packageID, play.packageGeneration = "", 0
+		}
+	} else if status.State == protocol.StateActive {
+		play.execution = ExecutionFPGANative
+	}
+	if status.GameID != nil {
+		play.gameID = *status.GameID
+	}
+	if status.System != nil {
+		play.system = *status.System
+	}
+	s.plays[target] = play
 }
 
 func (s *Service) allowSelectedTargetRepair(parent context.Context) {
@@ -2507,10 +2588,15 @@ func (s *Service) StopExpectedWithPreparation(parent context.Context, expected S
 func (s *Service) stopExpected(parent context.Context, expected *SessionStopBinding, prepare func(context.Context), target string) (protocol.Status, error) {
 	s.executionMu.Lock()
 	activeExecution := s.activeExecution
-	pendingRejection := s.packageRejection != nil
+	kitTarget := target
+	if kitTarget == "" {
+		kitTarget, _ = s.selectedKitPlayLocked()
+	}
+	kitPlay := s.plays[kitTarget]
+	pendingRejection := !(target == "" && activeExecution == ExecutionHostOnly) && kitPlay.packageRejection != nil
 	s.executionMu.Unlock()
 	timeout := s.requestTimeout
-	if activeExecution == ExecutionFPGANative || activeExecution == ExecutionFPGADevelopment || pendingRejection {
+	if activeExecution == ExecutionFPGANative || activeExecution == ExecutionFPGADevelopment || kitPlay.execution == ExecutionFPGANative || kitPlay.execution == ExecutionFPGADevelopment || pendingRejection {
 		timeout = s.uploadTimeout
 	}
 	ctx, cancel := serviceTimeout(parent, timeout)
@@ -2527,25 +2613,6 @@ func (s *Service) stopExpected(parent context.Context, expected *SessionStopBind
 		if !valid {
 			return protocol.Status{}, canonicalError(protocol.CodeBadRequest, nil)
 		}
-		s.executionMu.Lock()
-		previousTarget := s.activeTarget
-		previousExecution := s.activeExecution
-		s.bindPlayTargetLocked(target)
-		s.executionMu.Unlock()
-		defer func() {
-			s.executionMu.Lock()
-			if previousExecution == ExecutionHostOnly {
-				if s.activeExecution == ExecutionHostOnly {
-					s.activeTarget = previousTarget
-				}
-			} else {
-				s.retainSessionTargetLocked()
-				if previousTarget != target {
-					s.bindPlayTargetLocked(previousTarget)
-				}
-			}
-			s.executionMu.Unlock()
-		}()
 	}
 	if expected != nil && !s.matchesStopBinding(*expected) {
 		return protocol.Status{}, ErrSessionChanged
@@ -2562,30 +2629,62 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 	defer func() { resultErr = WithStopStage(resultErr, stage) }()
 	s.executionMu.Lock()
 	activeExecution := s.activeExecution
-	pendingRejection := s.packageRejection != nil
-	describedPackage := s.activePackageID != ""
+	kitTarget := scopedTarget
+	if kitTarget == "" {
+		kitTarget, _ = s.selectedKitPlayLocked()
+	}
+	kitPlay := s.plays[kitTarget]
+	hostOnly := activeExecution == ExecutionHostOnly && scopedTarget == ""
+	pendingRejection := !hostOnly && kitPlay.packageRejection != nil
+	describedPackage := kitPlay.packageID != ""
 	s.executionMu.Unlock()
 	if pendingRejection {
 		stage = "development_recovery"
-		return s.stopRejectedCoreWithAdmission(ctx, true)
+		status, err := s.stopRejectedKitCoreWithAdmission(ctx, true, kitTarget)
+		if err == nil {
+			s.executionMu.Lock()
+			if s.activeExecution != ExecutionHostOnly && s.activeTarget == kitTarget {
+				s.activeTarget = ""
+			}
+			if s.boundKitTarget == kitTarget {
+				s.boundKitTarget = ""
+			}
+			s.executionMu.Unlock()
+		}
+		return status, err
 	}
-	if activeExecution == "" && s.hostEmulator.Binary != "" {
+	if scopedTarget == "" && activeExecution == "" && s.hostEmulator.Binary != "" {
 		s.executionMu.Lock()
-		noBoundPlay := s.activeTarget == ""
+		_, selectedPlay := s.selectedKitPlayLocked()
+		noBoundPlay := s.activeTarget == "" && selectedPlay.execution == "" && selectedPlay.packageRejection == nil
 		s.executionMu.Unlock()
 		if noBoundPlay {
 			return protocol.Status{State: protocol.StateIdle}, nil
 		}
 	}
 
-	discoveryAdmission := activeExecution != ExecutionHostOnly && s.discoveryEnabled()
-	if activeExecution != ExecutionHostOnly && s.protocolAdmissionEnabled() {
-		if _, err := s.refreshStopAdmission(ctx); err != nil {
+	// Only foreground discovery admission supplies this target's cached Status.
+	// A scoped sibling is admitted through its own client instead.
+	scopedOtherKit := scopedTarget != "" && scopedTarget != s.SessionTargetName()
+	discoveryAdmission := !hostOnly && !scopedOtherKit && s.discoveryEnabled()
+	protocolClient := s.protocolAdmissionEnabled()
+	if scopedTarget != "" {
+		s.targetMu.RLock()
+		_, protocolClient = s.targetClients[scopedTarget].(*targetclient.Client)
+		s.targetMu.RUnlock()
+	}
+	if !hostOnly && protocolClient {
+		admit := s.refreshStopAdmission
+		admitCtx := ctx
+		if scopedOtherKit {
+			admit = s.refreshTargetAdmission
+			admitCtx = WithSessionTarget(ctx, scopedTarget)
+		}
+		if _, err := admit(admitCtx); err != nil {
 			return protocol.Status{}, stopAdmissionError(err)
 		}
 	}
 
-	hostOnly := activeExecution == ExecutionHostOnly && scopedTarget == ""
 	if hostOnly {
 		stage = "host_stop"
 		if err := s.stopHostOnlyIfActive(ctx); err != nil {
@@ -2595,7 +2694,14 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
-	client, ok := s.selectedClientLocked()
+	var client serviceClient
+	var ok bool
+	if scopedTarget != "" {
+		client, ok = s.targetClients[scopedTarget]
+		ok = client != nil
+	} else {
+		client, ok = s.selectedClientLocked()
+	}
 	if !ok {
 		return protocol.Status{}, canonicalError(protocol.CodeMiSTerUnavailable, nil)
 	}
@@ -2612,7 +2718,7 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 			if s.stoppedKitLeaseTargets == nil {
 				s.stoppedKitLeaseTargets = make(map[*targetclient.KitLease]string)
 			}
-			s.stoppedKitLeaseTargets[lease] = s.activeTarget
+			s.stoppedKitLeaseTargets[lease] = kitTarget
 		}
 	}
 	s.executionMu.Unlock()
@@ -2688,27 +2794,44 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		if validRecoveredDevelopmentStatus(recovered) {
 			status = recovered
 		} else {
+			s.targetMu.RUnlock()
 			status, err = waitForDevelopmentRecovery(ctx, client, health.BootID, s.developmentRecoveryHealth(client, health.BootID))
+			s.targetMu.RLock()
 			if err != nil {
 				return protocol.Status{}, err
 			}
 		}
 	}
 	s.executionMu.Lock()
-	if s.activeExecution == ExecutionFPGANative || s.activeExecution == ExecutionFPGADevelopment {
-		s.clearForegroundPlayLocked()
+	if status.State == protocol.StateIdle {
+		stoppedTarget := kitTarget
+		if stoppedTarget != "" {
+			delete(s.plays, stoppedTarget)
+		}
+		s.clearNonHostForegroundLocked()
+		if s.activeTarget == stoppedTarget && s.activeExecution != ExecutionHostOnly {
+			s.activeTarget = ""
+		}
+		if s.boundKitTarget == stoppedTarget {
+			s.boundKitTarget = ""
+		}
 	}
-	s.selectedTargetReconciled = status.State == protocol.StateIdle
-	s.selectedTargetRepairAllowed = false
+	if kitTarget == s.selectedTarget {
+		s.selectedTargetReconciled = status.State == protocol.StateIdle
+		s.selectedTargetRepairAllowed = false
+	}
 	s.executionMu.Unlock()
 	if s.targetOrigin != nil {
 		s.executionMu.Lock()
-		stoppedTarget := s.activeTarget
+		stoppedTarget := scopedTarget
 		s.executionMu.Unlock()
 		if stoppedTarget == "" {
 			stoppedTarget = s.selectedTarget
 		}
-		s.targetOrigin(targetByName(s.targets, stoppedTarget), kitLeaseOf(s.targetClients[stoppedTarget]))
+		hook, cfg, lease := s.targetOrigin, targetByName(s.targets, stoppedTarget), kitLeaseOf(s.targetClients[stoppedTarget])
+		s.targetMu.RUnlock()
+		hook(cfg, lease)
+		s.targetMu.RLock()
 	}
 	return status, nil
 }
@@ -2849,9 +2972,8 @@ func (s *Service) launchHostOnly(ctx context.Context, game catalog.Game, root ca
 	s.executionMu.Lock()
 	s.activeExecution = ExecutionHostOnly
 	s.activeTarget = ""
+	s.boundKitTarget = ""
 	s.activeGameID, s.activeSystem = game.ID, game.System
-	s.packageRejection = nil
-	s.activePackageID, s.activePackageGeneration = "", 0
 	s.executionMu.Unlock()
 	if err := prepared.Remove(); err != nil {
 		return protocol.CachedLaunchResponse{}, false, canonicalError(protocol.CodeInternal, romsource.ErrCleanupRetained)
@@ -2930,9 +3052,8 @@ func (s *Service) launchHostPath(ctx context.Context, game catalog.Game, root ca
 	s.executionMu.Lock()
 	s.activeExecution = ExecutionHostOnly
 	s.activeTarget = ""
+	s.boundKitTarget = ""
 	s.activeGameID, s.activeSystem = game.ID, game.System
-	s.packageRejection = nil
-	s.activePackageID, s.activePackageGeneration = "", 0
 	s.executionMu.Unlock()
 	gameID, system := game.ID, game.System
 	return protocol.CachedLaunchResponse{Status: protocol.Status{State: protocol.StateActive, GameID: &gameID, System: &system}}, false, nil
@@ -3033,8 +3154,6 @@ func (s *Service) stopHostOnlyIfActive(ctx context.Context) error {
 	s.executionMu.Lock()
 	if s.activeExecution == ExecutionHostOnly {
 		s.activeExecution, s.activeTarget, s.activeGameID, s.activeSystem = "", "", "", ""
-		s.packageRejection = nil
-		s.activePackageID, s.activePackageGeneration = "", 0
 	}
 	s.executionMu.Unlock()
 	return nil
@@ -3474,6 +3593,15 @@ func (s *Service) kitLeaseBacksPlay(lease *targetclient.KitLease) bool {
 	}
 	s.targetMu.RLock()
 	defer s.targetMu.RUnlock()
+	return s.kitLeaseBacksPlayLocked(lease)
+}
+
+// kitLeaseBacksPlayLocked uses the target binding already held by the caller.
+// Caller holds targetMu and must not hold executionMu.
+func (s *Service) kitLeaseBacksPlayLocked(lease *targetclient.KitLease) bool {
+	if lease == nil {
+		return false
+	}
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
 	for name := range s.plays {

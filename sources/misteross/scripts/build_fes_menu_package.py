@@ -18,7 +18,7 @@ from scripts.search_placer_qor import SearchError, route_after_synth
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = Path('build/oss/fes-menu-package')
 RECIPE = 'scripts/build_fes_menu_package.py'
-MENU_TOOLCHAIN_LOCK = 'toolchains/ramtest.lock'
+MENU_TOOLCHAIN_LOCK = 'toolchain.lock'
 CONTRACT = 'cores/fes-common/generated/fes_application.vh'
 SOURCES = tuple(p for p in menu.SOURCES if not p.endswith('/top.v')) + menu.DDR_SOURCES + (
     'cores/fes-common/rtl/fes_application_gp.v', 'cores/fes-menu/rtl/fes_menu_control.v',

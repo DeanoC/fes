@@ -14,6 +14,15 @@ marker from an earlier execution cannot establish a new execution's result.
 --auto places the PRG under AUTO; otherwise double-click DISKTEST.PRG in GEM.
 There is no executable boot sector, AES dependency, external program or ROM.
 
+Opt in to --restore-proof for a two-boot durable-media diagnostic. The first
+boot performs the complete original file test and closes RESTSEED.TXT afterward.
+The next boot reads and byte-compares that seed and PASS.TXT, including EOF,
+before cleanup or any write. Only then does it close RESTORED.TXT and display
+RESTORED. Save, Stop and relaunch the same library entry and immutable base image
+between boots. A new execution of the original test cannot recreate RESTORED.
+Use --restore-proof with --inspect as well. Default v1 PRG and disk bytes remain
+unchanged; these markers alone do not establish physical hardware acceptance.
+
 This script is the original, complete program source: the bounded emitter uses
 only 68000 instructions and PC-relative data addresses (no relocation table).
 GEMDOS trap #1 numbers/word-long argument ordering and the PRG header were
@@ -44,6 +53,10 @@ PAYLOAD = bytes((i * 29 + (i >> 8) * 71 + 0x53) & 255 for i in range(1537))
 PASS_TEXT = b"FES ST GEMDOS disk diagnostic v1\r\nPASS create/write/close/reopen/read/rename/delete 1537 bytes\r\n"
 FAIL_TEXT = b"FAIL FES ST GEMDOS disk diagnostic v1; see screen for stage\r\n"
 README = b"FES original GPL-2.0-or-later GEMDOS disk diagnostic v1\r\nRun DISKTEST.PRG (in AUTO if selected). Drive A must be writable.\r\nPASS.TXT means create/write/close/reopen/read/rename/delete passed.\r\nFAIL.TXT or no PASS.TXT means failure or incomplete execution.\r\nUse a freshly generated disk for each test; retain the captured image.\r\nThis tests guest file operations, not durable host storage by itself.\r\n"
+RESTORE_SEED = b"FES ST durable disk restore proof v1\r\nSEED complete GEMDOS file test passed; boot 1\r\n"
+RESTORED_TEXT = b"FES ST durable disk restore proof v1\r\nRESTORED saved seed and PASS validated before writes; boot 2\r\n"
+FIRST_BOOT_TEXT = b"FES ST durable disk restore proof v1\r\nFIRST BOOT seed closed; save, Stop and relaunch this library entry\r\n"
+RESTORE_README = README + b"Restore-proof mode: first boot closes RESTSEED.TXT after PASS.TXT.\r\nSave and Stop; relaunch the same entry and base image.\r\nRESTORED.TXT proves the guest read and compared both saved markers\r\nbefore cleanup or new writes. A fresh base cannot produce RESTORED.\r\n"
 
 
 class _M68k:
@@ -111,7 +124,7 @@ class _M68k:
         return bytes(self.code)
 
 
-def build_prg() -> bytes:
+def build_prg(*, restore_proof=False) -> bytes:
     a = _M68k()
     a.word(0x7cff)  # MOVEQ #-1,D6: no open handle
     # GEMDOS places the process basepage at 4(SP). Move off the original stack
@@ -127,6 +140,81 @@ def build_prg() -> bytes:
     a.push_word(0)
     a.call(0x4a, 10)  # Mshrink(0,basepage,size)
     a.expect(0)
+    if restore_proof:
+        # The only write-free branch selector is a guest Fopen of the saved
+        # seed. EFILNF enters the original full test; all other errors fail.
+        a.stage("stage_restore_open")
+        a.push_word(0)
+        a.push_pointer("seed_path")
+        a.call(0x3d, 6)
+        a.word(0x0c80)  # CMPI.L #-33,D0
+        a.long(-33)
+        a.branch(7, "restore_first_boot")
+        a.word(0x4a80)
+        a.branch(11, "failure")
+        a.word(0x2c00)
+
+        def compare_saved_marker(pattern, count, suffix):
+            a.stage("stage_restore_read")
+            a.push_pointer("read_buffer")
+            a.push_long(count)
+            a.word(0x3f06)
+            a.call(0x3f, 10)
+            a.expect(count)
+            a.stage("stage_restore_compare")
+            a.lea(pattern)
+            a.lea("read_buffer", 1)
+            a.word(0x3e3c)
+            a.word(count - 1)
+            a.label("restore_compare_" + suffix)
+            a.word(0xb308)
+            a.branch(6, "failure")
+            a.relative(0x51cf, "restore_compare_" + suffix)
+            a.stage("stage_restore_eof")
+            a.push_pointer("read_buffer")
+            a.push_long(1)
+            a.word(0x3f06)
+            a.call(0x3f, 10)
+            a.expect(0)
+            a.stage("stage_restore_close")
+            a.word(0x3f06)
+            a.call(0x3e, 2)
+            a.expect(0)
+            a.word(0x7cff)
+
+        compare_saved_marker("seed_text", len(RESTORE_SEED), "seed")
+        a.stage("stage_restore_open")
+        a.push_word(0)
+        a.push_pointer("pass_path")
+        a.call(0x3d, 6)
+        a.word(0x4a80)
+        a.branch(11, "failure")
+        a.word(0x2c00)
+        compare_saved_marker("pass_text", len(PASS_TEXT), "pass")
+        # Both previously saved files have been validated and closed. The
+        # distinct marker is the first guest mutation on this boot.
+        a.stage("stage_restore_marker")
+        a.push_word(0)
+        a.push_pointer("restored_path")
+        a.call(0x3c, 6)
+        a.word(0x4a80)
+        a.branch(11, "failure")
+        a.word(0x2c00)
+        a.push_pointer("restored_text")
+        a.push_long(len(RESTORED_TEXT))
+        a.word(0x3f06)
+        a.call(0x40, 10)
+        a.expect(len(RESTORED_TEXT))
+        a.word(0x3f06)
+        a.call(0x3e, 2)
+        a.expect(0)
+        a.word(0x7cff)
+        a.push_pointer("restored_text")
+        a.call(0x09, 4)
+        a.push_word(0)
+        a.push_word(0x4c)
+        a.word(0x4e41)
+        a.label("restore_first_boot")
     for label in ("pass_path", "fail_path", "tmp_path", "new_path"):
         a.stage("stage_cleanup")
         a.push_pointer(label)
@@ -196,6 +284,12 @@ def build_prg() -> bytes:
     open_file("pass_path", True, "stage_marker")
     io(0x40, "pass_text", len(PASS_TEXT), "stage_marker")
     close_file("stage_marker")
+    if restore_proof:
+        open_file("seed_path", True, "stage_restore_marker")
+        io(0x40, "seed_text", len(RESTORE_SEED), "stage_restore_marker")
+        close_file("stage_restore_marker")
+        a.push_pointer("first_boot_text")
+        a.call(0x09, 4)
     a.push_pointer("pass_text")
     a.call(0x09, 4)  # Cconws
     a.push_word(0)
@@ -208,6 +302,9 @@ def build_prg() -> bytes:
     a.word(0x3f06)
     a.call(0x3e, 2)  # best effort close before deleting a partial PASS
     a.label("failure_no_handle")
+    if restore_proof:
+        a.push_pointer("restored_path")
+        a.call(0x41, 4)
     a.push_pointer("pass_path")
     a.call(0x41, 4)
     a.push_word(0)
@@ -237,6 +334,16 @@ def build_prg() -> bytes:
     for stage in ("memory", "cleanup", "create", "write", "close", "open", "read", "compare", "eof", "rename", "delete", "marker"):
         a.label("stage_" + stage)
         a.code.extend(("FAIL GEMDOS " + stage + "\r\n\0").encode())
+    if restore_proof:
+        for name, data in (("seed_path", b"A:\\RESTSEED.TXT"),
+                           ("restored_path", b"A:\\RESTORED.TXT"),
+                           ("seed_text", RESTORE_SEED), ("restored_text", RESTORED_TEXT),
+                           ("first_boot_text", FIRST_BOOT_TEXT)):
+            a.label(name)
+            a.code.extend(data + b"\0")
+        for stage in ("open", "read", "compare", "eof", "close", "marker"):
+            a.label("stage_restore_" + stage)
+            a.code.extend(("FAIL GEMDOS restore " + stage + "\r\n\0").encode())
     a.label("pattern")
     a.code.extend(PAYLOAD)
     a.label("read_buffer")
@@ -268,7 +375,7 @@ def _entry(name: bytes, cluster: int, size: int, attribute=0x20) -> bytes:
     return bytes(result)
 
 
-def build_disk(*, auto=False) -> bytes:
+def build_disk(*, auto=False, restore_proof=False) -> bytes:
     image = bytearray(DISK_BYTES)
     image[:11] = b"\x60\x1cFESST \x12\x34\x56"  # ST branch/OEM/24-bit serial
     struct.pack_into("<HBHBHHBHHHH", image, 11, 512, 2, 1, 2, 112, 1440, 0xf9, 3, 9, 2, 0)
@@ -291,7 +398,7 @@ def build_disk(*, auto=False) -> bytes:
         return first
 
     root = bytearray(7 * SECTOR)
-    program = build_prg()
+    program = build_prg(restore_proof=restore_proof)
     if auto:
         directory_cluster = allocate(bytes(CLUSTER_BYTES))
         program_cluster = allocate(program)
@@ -303,7 +410,8 @@ def build_disk(*, auto=False) -> bytes:
         root[:32] = _entry(b"AUTO       ", directory_cluster, 0, 0x10)
     else:
         root[:32] = _entry(b"DISKTESTPRG", allocate(program), len(program))
-    root[32:64] = _entry(b"README  TXT", allocate(README), len(README))
+    readme = RESTORE_README if restore_proof else README
+    root[32:64] = _entry(b"README  TXT", allocate(readme), len(readme))
     image[ROOT_SECTOR * SECTOR:DATA_SECTOR * SECTOR] = root
     image[SECTOR:4 * SECTOR] = fat
     image[4 * SECTOR:7 * SECTOR] = fat
@@ -356,19 +464,31 @@ class Fat12Disk:
         return None
 
 
-def inspect_capture(image: bytes) -> dict:
+def inspect_capture(image: bytes, *, restore_proof=False) -> dict:
     disk = Fat12Disk(image)
     program = disk.read(b"DISKTESTPRG")
     if program is None:
         directory = disk.read(b"AUTO       ")
         program = disk.read(b"DISKTESTPRG", directory) if directory is not None else None
-    if program != build_prg():
+    if program != build_prg(restore_proof=restore_proof):
         raise ValueError("capture does not contain this exact diagnostic PRG")
     passed = (disk.read(b"PASS    TXT") == PASS_TEXT and disk.read(b"FAIL    TXT") is None and
               disk.read(b"FESDATA TMP") is None and disk.read(b"FESDATA NEW") is None)
-    return {"schema": 1, "marker_pass": passed, "image_sha256": hashlib.sha256(image).hexdigest(),
-            "prg_sha256": hashlib.sha256(program).hexdigest(), "image_bytes": len(image),
-            "hardware_acceptance": False}
+    record = {"schema": 1, "marker_pass": passed, "image_sha256": hashlib.sha256(image).hexdigest(),
+              "prg_sha256": hashlib.sha256(program).hexdigest(), "image_bytes": len(image),
+              "hardware_acceptance": False}
+    if restore_proof:
+        seed, restored = disk.read(b"RESTSEEDTXT"), disk.read(b"RESTOREDTXT")
+        seed_valid = seed == RESTORE_SEED
+        restored_valid = restored == RESTORED_TEXT
+        passed = passed and seed_valid and (restored is None or restored_valid)
+        stage = "restored" if passed and restored_valid else "seeded" if passed else "invalid"
+        if all(disk.read(name) is None for name in
+               (b"PASS    TXT", b"FAIL    TXT", b"RESTSEEDTXT", b"RESTOREDTXT", b"FESDATA TMP", b"FESDATA NEW")):
+            stage = "fresh"
+        record.update(marker_pass=passed, marker_restored=passed and restored_valid,
+                      restore_proof_stage=stage)
+    return record
 
 
 def main(argv=None) -> int:
@@ -378,19 +498,20 @@ def main(argv=None) -> int:
     choice.add_argument("--inspect", type=Path, help="inspect a captured post-execution .st image")
     parser.add_argument("--auto", action="store_true", help="place DISKTEST.PRG in AUTO")
     parser.add_argument("--prg", type=Path, help="also save standalone DISKTEST.PRG")
+    parser.add_argument("--restore-proof", action="store_true", help="two-boot saved-marker proof; also required when inspecting its capture")
     args = parser.parse_args(argv)
     if args.inspect:
         if args.auto or args.prg:
             parser.error("--auto/--prg apply only to generation")
-        record = inspect_capture(args.inspect.read_bytes())
+        record = inspect_capture(args.inspect.read_bytes(), restore_proof=args.restore_proof)
     else:
-        image = build_disk(auto=args.auto)
+        image = build_disk(auto=args.auto, restore_proof=args.restore_proof)
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_bytes(image)
         if args.prg:
             args.prg.parent.mkdir(parents=True, exist_ok=True)
-            args.prg.write_bytes(build_prg())
-        record = inspect_capture(image) | {"autorun": args.auto, "generated": True}
+            args.prg.write_bytes(build_prg(restore_proof=args.restore_proof))
+        record = inspect_capture(image, restore_proof=args.restore_proof) | {"autorun": args.auto, "generated": True}
     print(json.dumps(record, sort_keys=True))
     return 0 if args.output or record["marker_pass"] else 1
 

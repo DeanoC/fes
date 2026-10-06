@@ -174,6 +174,7 @@ module zx81_machine #(
     wire [7:0] rom_out;
 `ifdef FES_ZX81_ROM_LINK
     zx81_rom_link rom (
+        .clk(clk_sys),
         .address(rom_a),
         .data(rom_out)
     );
