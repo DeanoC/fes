@@ -217,6 +217,7 @@ grep -Fq 'ccache_pass_2=0' "$fixture/output/native-dev/reproducibility.txt"
 env -u FES_PACKAGE_IDS TARGET_IMAGE_TEST_CONTAINER=1 TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/fake-container-runtime" \
   CONTAINER_ARGS="$fixture/container-args" sh "$container_script" run true
 grep -Fq "$shared/dl:/work/build/cache/target-image/dl" "$fixture/container-args"
+test -d "$repo/build/cache/target-image/dl" && test -O "$repo/build/cache/target-image"
 grep -Fq "$shared:/target-image-shared-cache" "$fixture/container-args"
 grep -Fq 'FES_TARGET_IMAGE_SHARED_CACHE=/target-image-shared-cache' "$fixture/container-args"
 env -u FES_PACKAGE_IDS CCACHE_DISABLE=1 TARGET_IMAGE_TEST_CONTAINER=1 TARGET_IMAGE_CONTAINER_RUNTIME="$fixture/fake-container-runtime" \
