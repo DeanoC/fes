@@ -162,6 +162,12 @@ sh "$fixture/recipe/scripts/build-target-image.sh" native-dev
 test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq 2
 TOOLCHAIN_REBUILD=1 sh "$fixture/recipe/scripts/build-target-image.sh" native-dev
 test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq 3
+ensured=$(sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-toolchain native-dev)
+test "$ensured" = "$(python3 "$fixture/recipe/scripts/toolchain_cache.py" status)"
+test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq 3
+printf corrupt >> "$fixture/recipe/build/cache/target-image/toolchains/$(python3 "$fixture/recipe/scripts/toolchain_cache.py" key)/host.tar"
+sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-toolchain native-dev >/dev/null
+test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq 4
 test "$(cat "$fixture/output/native-dev/fes-core-video-parts.json")" = exact-factory-index
 if FES_VIDEO_PARTS_DIR="$fixture" DIFFER_VIDEO_INDEX=1 sh "$fixture/recipe/scripts/build-target-image.sh" native-dev >"$fixture/video-differ.log" 2>&1; then
   echo 'native image accepted differing factory video indexes' >&2; exit 1

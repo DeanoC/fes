@@ -147,6 +147,11 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
                      *selection_args], env=env)
     env.update(dict(argument.split('=', 1) for argument in selection_args))
     env['LIBMISTER_RUNTIME_DIR'] = str(runtime)
+    # The shared toolchain options live only in fogcast_toolchain.fragment, so the
+    # incremental build uses the same generated external config and cached SDK as
+    # the clean build (and as the seeded base it continues from).
+    run_stage(diagnostics, 'target toolchain subprocess',
+              [image / 'scripts/build-target-image.sh', '--ensure-toolchain', 'native-dev'], env=env)
     # Read the authoritative epoch; do not invent another image configuration.
     recipe = (image / 'scripts/build-target-image.sh').read_text()
     epoch_match = re.search(r'^epoch=([0-9]+)$', recipe, re.MULTILINE)
@@ -173,7 +178,13 @@ rm -rf /target-image-output/seed-in-progress
 export SOURCE_DATE_EPOCH={epoch} E2FSPROGS_FAKE_TIME={epoch}
 /work/scripts/verify-target-image-source-cache.sh /work/build/target-image.sources.lock.toml /work/build/cache/target-image
 /work/bin/target-image-lock-linux-amd64 verify-inputs --lock /work/build/target-image.sources.lock.toml --cache /work/build/cache/target-image
-{make} fogcast_target_native_dev_defconfig
+mkdir -p "$WORK"
+/work/scripts/toolchain_cache.py config external "$WORK/fogcast.generated.defconfig"
+TOOLCHAIN_HOST=$(/work/scripts/toolchain_cache.py path)
+/work/scripts/toolchain_cache.py extract "$(dirname "$TOOLCHAIN_HOST")"
+"$TOOLCHAIN_HOST/relocate-sdk.sh"
+{make} BR2_DEFCONFIG="$WORK/fogcast.generated.defconfig" defconfig
+/work/scripts/toolchain_cache.py validate-config external "$WORK/.config"
 if [ "$(cat "$WORK"/.fes-runtime-commit 2>/dev/null || true)" != {runtime_revision} ]; then
     rm -f "$WORK"/.fes-runtime-commit
     {make} mister-runtime-dirclean

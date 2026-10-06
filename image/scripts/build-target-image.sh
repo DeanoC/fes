@@ -51,7 +51,7 @@ selected_package_cores() {
 }
 
 usage() {
-  printf 'usage: build-target-image.sh native-dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-toolchain EPOCH|--inside-fetch VARIANT OUTPUT EPOCH|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
+  printf 'usage: build-target-image.sh native-dev|--promote-existing VARIANT|--fetch VARIANT|--inside VARIANT OUTPUT EPOCH EXPORT|--inside-toolchain EPOCH|--ensure-toolchain VARIANT|--inside-fetch VARIANT OUTPUT EPOCH|--validate-inside-path VARIANT OUTPUT EXPORT\n' >&2
   exit 2
 }
 
@@ -239,7 +239,26 @@ inside_toolchain() {
   /work/scripts/toolchain_cache.py package "$output/host"
 }
 
+ensure_toolchain() {
+  toolchain_sha=$(python3 "$repo/scripts/toolchain_cache.py" status) || toolchain_sha=
+  if [ "${TOOLCHAIN_REBUILD:-0}" = 1 ] || [ -z "$toolchain_sha" ]; then
+    if [ -n "${TARGET_IMAGE_BUILD_ONCE:-}" ]; then
+      [ -n "${TARGET_IMAGE_TOOLCHAIN_BUILD_ONCE:-}" ] || {
+        printf '%s\n' 'build-target-image: fake toolchain builder is required' >&2; exit 2;
+      }
+      "$TARGET_IMAGE_TOOLCHAIN_BUILD_ONCE" "$repo"
+    else
+      run_target_container "$variant" run \
+        /work/scripts/build-target-image.sh --inside-toolchain "$epoch"
+    fi
+    toolchain_sha=$(python3 "$repo/scripts/toolchain_cache.py" status) || {
+      printf '%s\n' 'build-target-image: toolchain cache failed validation' >&2; exit 1;
+    }
+  fi
+}
+
 promote_existing=0
+ensure_only=0
 case "${1:-}" in
   --cleanup-inside-output)
     [ "$#" -eq 2 ] || usage
@@ -287,6 +306,13 @@ case "${1:-}" in
       /work/scripts/build-target-image.sh --inside-fetch "$variant" "$output" "$epoch"
     exit
     ;;
+  --ensure-toolchain)
+    # Used by the incremental `make dev` path so it reuses the same cached SDK.
+    [ "$#" -eq 2 ] || usage
+    variant=$2
+    validate_variant "$variant"
+    ensure_only=1
+    ;;
   native-dev)
     [ "$#" -eq 1 ] || usage
     variant=$1
@@ -324,22 +350,13 @@ if [ -n "${TARGET_IMAGE_BUILD_ONCE:-}" ] && [ "${TARGET_IMAGE_TEST_MODE:-0}" != 
   printf '%s\n' 'build-target-image: test mode is required for TARGET_IMAGE_BUILD_ONCE' >&2
   exit 2
 fi
+if [ "$ensure_only" = 1 ]; then
+  ensure_toolchain
+  printf '%s\n' "$toolchain_sha"
+  exit
+fi
 if [ "$promote_existing" -ne 1 ]; then
-  toolchain_sha=$(python3 "$repo/scripts/toolchain_cache.py" status) || toolchain_sha=
-  if [ "${TOOLCHAIN_REBUILD:-0}" = 1 ] || [ -z "$toolchain_sha" ]; then
-    if [ -n "${TARGET_IMAGE_BUILD_ONCE:-}" ]; then
-      [ -n "${TARGET_IMAGE_TOOLCHAIN_BUILD_ONCE:-}" ] || {
-        printf '%s\n' 'build-target-image: fake toolchain builder is required' >&2; exit 2;
-      }
-      "$TARGET_IMAGE_TOOLCHAIN_BUILD_ONCE" "$repo"
-    else
-      run_target_container "$variant" run \
-        /work/scripts/build-target-image.sh --inside-toolchain "$epoch"
-    fi
-    toolchain_sha=$(python3 "$repo/scripts/toolchain_cache.py" status) || {
-      printf '%s\n' 'build-target-image: toolchain cache failed validation' >&2; exit 1;
-    }
-  fi
+  ensure_toolchain
   if [ "$image_passes" = 1 ]; then
     /bin/rm -rf "$output_root/work-2-$variant"
   fi
