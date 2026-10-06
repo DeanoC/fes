@@ -11,21 +11,30 @@ import (
 
 type Range struct{ Min, Max int32 }
 type Mapper struct {
-	fixture    bool
-	keyboard   bool
-	axes       map[uint16]Range
-	suppressed map[uint16]bool
+	fixture                bool
+	keyboard               bool
+	mouse                  bool
+	mouseButtons           uint8
+	mouseX, mouseY         int32
+	mouseDirty, mouseFault bool
+	axes                   map[uint16]Range
+	suppressed             map[uint16]bool
 }
 
 func NewMapper(vendor, product uint16, axes map[uint16]Range) *Mapper {
 	return &Mapper{fixture: vendor == 0x081f && product == 0xe401, axes: axes, suppressed: map[uint16]bool{}}
 }
 
+func NewMouseMapper() *Mapper { return &Mapper{mouse: true, suppressed: map[uint16]bool{}} }
+
 func NewKeyboardMapper() *Mapper {
 	return &Mapper{keyboard: true, suppressed: map[uint16]bool{}}
 }
 func (m *Mapper) Suppress(code uint16) { m.suppressed[code] = true }
 func (m *Mapper) Map(typ, code uint16, value int32) (remoteinput.Event, bool) {
+	if m != nil && m.mouse {
+		return m.mapMouse(typ, code, value)
+	}
 	if m != nil && m.keyboard {
 		if typ == 1 && m.suppressed[code] {
 			if value == 0 {
@@ -109,6 +118,9 @@ func mapKeyboard(typ, code uint16, value int32) (remoteinput.Event, bool) {
 }
 
 func (m *Mapper) mapWith(remap *inputmap.Remapper, typ, code uint16, value int32) (remoteinput.Event, bool) {
+	if m != nil && m.mouse {
+		return m.mapMouse(typ, code, value)
+	}
 	if m != nil && m.keyboard {
 		return mapKeyboard(typ, code, value)
 	}
@@ -167,3 +179,46 @@ func (c *Chord) Ready(now time.Time) bool {
 	c.fired = true
 	return true
 }
+
+// Report motion in raw device counts, independent of HDMI/UI coordinates.
+// A report outside the signed16 transport range faults and reconnects instead
+// of silently wrapping counts. Wheel and extra buttons are not in this ABI.
+func (m *Mapper) mapMouse(typ, code uint16, value int32) (remoteinput.Event, bool) {
+	if typ == 2 && (code == 0 || code == 1) {
+		if value < -32768 || value > 32767 {
+			m.mouseFault = true
+			return remoteinput.Event{}, false
+		}
+		if code == 0 {
+			m.mouseX += value
+		} else {
+			m.mouseY += value
+		}
+		if m.mouseX < -32768 || m.mouseX > 32767 || m.mouseY < -32768 || m.mouseY > 32767 {
+			m.mouseFault = true
+		}
+		m.mouseDirty = true
+	} else if typ == 1 && (code == 272 || code == 273) && (value == 0 || value == 1) {
+		if m.suppressed[code] {
+			if value == 0 {
+				delete(m.suppressed, code)
+			}
+			return remoteinput.Event{}, false
+		}
+		mask := uint8(1 << (code - 272))
+		if value == 1 {
+			m.mouseButtons |= mask
+		} else {
+			m.mouseButtons &^= mask
+		}
+		m.mouseDirty = true
+	} else if typ == 0 && code == 0 && m.mouseDirty && !m.mouseFault {
+		event := remoteinput.MouseEvent(int16(m.mouseX), int16(m.mouseY), m.mouseButtons)
+		m.mouseX, m.mouseY, m.mouseDirty = 0, 0, false
+		return event, true
+	}
+	return remoteinput.Event{}, false
+}
+
+// MouseFault reports lost relative counts; reconnect instead of silently wrapping.
+func (m *Mapper) MouseFault() bool { return m != nil && m.mouseFault }

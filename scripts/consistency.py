@@ -35,6 +35,7 @@ COPIED_TREES = (
     ('testdata/core-bundle-v4', 'libmister-runtime', 'tests/fixtures/core-bundle-v4'),
     ('testdata/core-bundle-v4', 'misteross', 'tests/fixtures/core-bundle-v4'),
     ('testdata/core-persistence-v1', 'libmister-runtime', 'tests/fixtures/core-persistence-v1'),
+    ('testdata/media-data-v1', 'libmister-runtime', 'tests/fixtures/media-data-v1'),
 )
 COPIED_FILES = (
     ('testdata/menu-display-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/menu-display-v1/exchanges.json'),

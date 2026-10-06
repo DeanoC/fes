@@ -12,6 +12,16 @@ the FES Commodore 64 and the FES Atari 520ST.
 Existing `fes.simple-game`, `fes.simple-computer` and `fes.application`
 packages keep their requirements, wire identities and startup behavior.
 
+The common GP transport samples responses without reissuing requests. Once
+ACK matches the outstanding request, it holds GPO, allows a one-microsecond
+settling guard and requires two identical complete valid GPI reads. Changes
+in the response/error payload may settle within the original exchange
+deadline, capped at 100 ms. ACK reversion, malformed signature/reserved bits,
+MMIO error or instability beyond that bound fails and poisons the link; no
+partial response is returned. Re-alignment applies the same read-only check.
+Host coverage of this policy is separate from physical diagnostic results
+and exact-artifact acceptance.
+
 ## Admission
 
 A package declares `fes.computer` major 1 with `fes-gp-v1`. Minor versions
@@ -119,8 +129,11 @@ The transfer never holds execution reset: MediaInfo fields 0..5 (state must
 not be absent, 512-byte chunks, `size` within the live limits), MediaBegin
 words 0..3 (total, CRC32), then for each 512-byte chunk MediaChunk words 0..2
 and ceil(length/2) MediaData words, MediaCommit, and finally MediaInfo state
-must be ready. Any failure after the first exchange, including a rejected
-request, a CRC mismatch or an ambiguous handshake, ejects that unit once
+must be ready. A failed preflight or completed rejection of the first Begin
+word preserves the current disk. ST insert/eject rejects while the guest writer
+is busy, including collection and sector commit. Once Begin word 0 is accepted
+or ambiguously issued, a transfer failure, including a rejected later request,
+a CRC mismatch or an ambiguous handshake, ejects that unit once
 (MediaEject) and reports the original error; an ambiguous mailbox is first
 realigned from the live ACK and re-identified, and the ambiguous request is
 never repeated. If that eject also fails the message gains
@@ -226,3 +239,10 @@ transfers against it, including the synthetic 1..1030-byte unit, CRC, lost and
 rejected requests and failed cleanup. Admission, protocol, runtime binding,
 multi-slot composition and a runtime lifecycle over native hardware are
 covered. No hardware support is claimed.
+
+Stop and core replacement save before programming. Successful programming
+retires the previous disk's in-memory binding, including when Stop returns to
+the configured menu or splash. The next ST load is empty and volatile until
+`insert_library_media` explicitly restores its record. A failed save retains
+the current binding and generation for recovery. Host regressions cover both
+idle paths and replacement without restarting the runtime daemon.

@@ -55,6 +55,10 @@ const (
 	// operator's five-minute transport timeout by a bounded margin while the
 	// header timeout still limits slow request setup.
 	applianceRequestTimeout = 6 * time.Minute
+	// This budget includes immutable package/ROM staging before the physical
+	// load is dispatched. Large closed ROM maps can exceed a minute on the kit.
+	defaultCoreLoadTimeout = 180 * time.Second
+	maxCoreLoadTimeout     = 10 * time.Minute
 )
 
 var errCastShutdown = errors.New("cast controller could not be stopped")
@@ -78,14 +82,23 @@ type runDependencies struct {
 	// localControlSocket is the root-only kit-local HTTP socket.
 	// Empty leaves it off. Tests stay empty; production main passes the flag.
 	localControlSocket string
+	coreLoadTimeout    time.Duration
 }
 
 func run(ctx context.Context, configPath string, logger *slog.Logger, localControlSocket string) error {
+	return runWithCoreLoadTimeout(ctx, configPath, logger, localControlSocket, defaultCoreLoadTimeout)
+}
+
+func runWithCoreLoadTimeout(ctx context.Context, configPath string, logger *slog.Logger, localControlSocket string, timeout time.Duration) error {
+	if err := validateCoreLoadTimeout(timeout); err != nil {
+		return err
+	}
 	dependencies, err := productionRunDependencies()
 	if err != nil {
 		return err
 	}
 	dependencies.localControlSocket = localControlSocket
+	dependencies.coreLoadTimeout = timeout
 	return runWithDependencies(ctx, configPath, logger, dependencies)
 }
 
@@ -164,6 +177,16 @@ func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, 
 				return nativeRuntime.SetController(ctx, misterruntime.ControllerRequest{PackageID: packageID, Generation: generation, Port: port, Buttons: buttons, Keypad: keypad})
 			})
 		}
+		if mouse, ok := controller.(interface{ SetMousePoster(input.MousePoster) }); ok {
+			mouse.SetMousePoster(func(ctx context.Context, packageID string, generation uint64, dx, dy int16, buttons uint8) error {
+				if ctx == nil {
+					ctx = context.Background()
+				}
+				ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				defer cancel()
+				return nativeRuntime.SendMouseRelative(ctx, packageID, generation, dx, dy, buttons)
+			})
+		}
 		if hid, ok := controller.(interface {
 			SetKeyboardHIDPoster(input.KeyboardHIDPoster)
 		}); ok {
@@ -224,7 +247,7 @@ func observeRuntimeInput(ctx context.Context, runtime *misterruntime.Runtime) (i
 	if err != nil {
 		return input.CoreObservation{}, err
 	}
-	var ports, keypad, keyboard, keyboardHID bool
+	var ports, keypad, keyboard, keyboardHID, mouse bool
 	for _, contract := range status.Capabilities.ActiveInterfaces {
 		if contract.Major != 1 || contract.Minor != 0 {
 			continue
@@ -236,6 +259,8 @@ func observeRuntimeInput(ctx context.Context, runtime *misterruntime.Runtime) (i
 			keypad = true
 		case "fes.keyboard":
 			keyboard = true
+		case "fes.mouse.relative":
+			mouse = true
 		case "fes.keyboard.hid":
 			keyboardHID = true
 		}
@@ -248,6 +273,9 @@ func observeRuntimeInput(ctx context.Context, runtime *misterruntime.Runtime) (i
 	}
 	if active && keyboardHID && protocol.ComputerABI(status.ActivePackage.Descriptor.ABI.ID, status.ActivePackage.Descriptor.ABI.Major, status.ActivePackage.Descriptor.ABI.Minor) {
 		observation.KeyboardHID = &input.KeyboardHIDBinding{PackageID: status.ActivePackage.PackageID, Generation: *status.Generation}
+	}
+	if active && mouse && protocol.ComputerABI(status.ActivePackage.Descriptor.ABI.ID, status.ActivePackage.Descriptor.ABI.Major, status.ActivePackage.Descriptor.ABI.Minor) {
+		observation.Mouse = &input.MouseBinding{PackageID: status.ActivePackage.PackageID, Generation: *status.Generation}
 	}
 	if !ports {
 		return observation, nil
@@ -268,13 +296,27 @@ func newNativeRuntime(control misterruntime.Control, rebootPath string) *misterr
 	// The fixed target data root outlives package staging and image updates.
 	// The runtime validates storage access and refuses launch/update if this failed.
 	_ = os.MkdirAll(misterruntime.CoreDataRoot, 0o700)
+	_ = os.MkdirAll(misterruntime.MediaDataRoot, 0o700)
 	return misterruntime.NewRuntime(control, bootIDFile, 25*time.Millisecond, 250*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(developmentRBFPath),
 		misterruntime.WithCorePackageRoot(developmentCoreRoot),
 		misterruntime.WithRebootCommand(rebootPath))
 }
 
+func validateCoreLoadTimeout(timeout time.Duration) error {
+	if timeout <= 0 || timeout > maxCoreLoadTimeout {
+		return errors.New("core-load timeout must be positive and at most 10m")
+	}
+	return nil
+}
+
 func runWithDependencies(ctx context.Context, configPath string, logger *slog.Logger, dependencies runDependencies) (resultErr error) {
+	if dependencies.coreLoadTimeout == 0 {
+		dependencies.coreLoadTimeout = defaultCoreLoadTimeout
+	}
+	if err := validateCoreLoadTimeout(dependencies.coreLoadTimeout); err != nil {
+		return err
+	}
 	cfg, err := agentconfig.Load(configPath)
 	if err != nil {
 		if _, retired := agentconfig.RetiredSettingsMessage(err); retired {
@@ -333,7 +375,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}()
 	}
 	coordinator := agent.New(runtime, 10*time.Second, 5*time.Second,
-		agent.WithCoreLoadTimeout(60*time.Second),
+		agent.WithCoreLoadTimeout(dependencies.coreLoadTimeout),
 		agent.WithOperationContext(ctx), agent.WithEventSink(diagnostics),
 		agent.WithArtifacts(buildinputs.Snapshot(buildinputs.Paths{}, version.Revision)))
 	content := agent.NewContentController(coordinator, cache)
@@ -543,16 +585,20 @@ func discoveryListener(address string) (int, bool) {
 func main() {
 	configPath := flag.String("config", "/media/fat/fogcast/agent.toml", "target configuration path")
 	localControl := flag.String("local-control", localcores.DefaultSocket, "root-only kit-local control socket; empty disables")
+	coreLoadTimeout := flag.Duration("core-load-timeout", defaultCoreLoadTimeout, "package/ROM staging and core-load observation budget; positive, at most 10m")
 	flag.Parse()
 	if flag.NArg() != 0 {
-		_, _ = fmt.Fprintln(os.Stderr, "usage: mister-agent [--config path] [--local-control path]")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: mister-agent [--config path] [--local-control path] [--core-load-timeout duration]")
 		os.Exit(2)
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := run(ctx, *configPath, logger, *localControl); err != nil {
+	if err := runWithCoreLoadTimeout(ctx, *configPath, logger, *localControl, *coreLoadTimeout); err != nil {
 		message := "startup failed"
+		if validateCoreLoadTimeout(*coreLoadTimeout) != nil {
+			message = "core-load timeout must be positive and at most 10m"
+		}
 		if migration, ok := agentconfig.RetiredSettingsMessage(err); ok {
 			message = migration
 		}

@@ -44,6 +44,7 @@ public:
 	ComputerMediaSnapshot& operator=(const ComputerMediaSnapshot&) = delete;
 	Error Prepare(const std::string& path, std::uint32_t minimum,
 		std::uint32_t maximum, Clock&, std::uint64_t deadline);
+    Error PrepareBytes(const std::vector<unsigned char>& bytes, Clock&, std::uint64_t deadline);
 	Error Read(std::uint32_t offset, std::uint8_t* data, std::size_t length,
 		Clock&, std::uint64_t deadline) const;
 	std::uint32_t size() const { return size_; }

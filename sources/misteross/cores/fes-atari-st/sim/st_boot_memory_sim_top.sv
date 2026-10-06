@@ -34,14 +34,17 @@ module st_boot_memory_sim_top (
     input wire [15:0] dq_sample
 );
     wire [15:0] cpu_rdata, video_rdata;
-    wire media_req, media_valid, dma_req, dma_ready;
+    wire media_req, media_valid, dma_req, dma_ready, dma_write;
+    wire [15:0] dma_rdata;
     wire [19:0] media_addr;
     wire [7:0] media_data;
     wire [23:0] dma_addr;
     wire [15:0] dma_wdata;
     wire [1:0] dma_byte_enable;
     st_system system (
-        .clk_sys(clk_sys), .reset(reset_sys),
+        .clk_sys(clk_sys), .reset(reset_sys), .cold_reset(cold_reset),
+        .media_frozen(1'b0), .media_write_req(), .media_write_addr(), .media_write_data(),
+        .media_write_ready(1'b0), .media_write_busy(), .media_changed(),
         .rom_req(rom_req), .rom_addr(rom_addr), .rom_rdata(rom_rdata), .rom_ready(rom_ready),
         .ram_req(cpu_req), .ram_addr(cpu_addr), .ram_wdata(cpu_wdata),
         .ram_byte_enable(cpu_byte_enable), .ram_write(cpu_write),
@@ -55,7 +58,7 @@ module st_boot_memory_sim_top (
         .mouse_ready(), .audio_pcm(), .audio_valid(), .media_ready(1'b0),
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data), .media_valid(media_valid),
         .dma_req(dma_req), .dma_addr(dma_addr), .dma_wdata(dma_wdata),
-        .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready),
+        .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .dma_write(dma_write), .dma_rdata(dma_rdata),
         .screen_base(screen_base), .resolution(resolution), .palette(palette), .sync_mode(),
         .debug_addr(debug_addr), .debug_bus_error(debug_bus_error), .debug_overlay(),
         .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank)
@@ -65,8 +68,8 @@ module st_boot_memory_sim_top (
         .cpu_req(cpu_req), .cpu_addr(cpu_addr), .cpu_write(cpu_write), .cpu_wdata(cpu_wdata),
         .cpu_byte_enable(cpu_byte_enable), .cpu_ready(cpu_ready), .cpu_rdata(cpu_rdata),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
-        .dma_req(dma_req), .dma_addr(dma_addr), .dma_write(1'b1), .dma_wdata(dma_wdata),
-        .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .dma_rdata(),
+        .dma_req(dma_req), .dma_addr(dma_addr), .dma_write(dma_write), .dma_wdata(dma_wdata),
+        .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .dma_rdata(dma_rdata),
         .media_write_req(1'b0), .media_write_addr(19'd0), .media_write_wdata(16'd0),
         .media_write_byte_enable(2'd0), .media_write_ready(),
         .media_read_req(media_req), .media_read_addr(media_addr),

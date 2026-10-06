@@ -933,6 +933,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID;
 			const bool known = interface.id == FesComputerInterfaceVideoFixed720p60ID ||
 				interface.id == FesComputerInterfaceKeyboardHidID ||
+				interface.id == FesComputerInterfaceMouseRelativeID ||
+				interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID ||
 				interface.id == FesComputerInterfaceGamepadPortsID ||
 				interface.id == FesComputerInterfaceAudioPcmS16Stereo48kID ||
 				media;
@@ -954,6 +956,12 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.id == FesComputerInterfaceVideoFixed720p60ID) video = true;
 			if (media) media_units++;
 		}
+		bool writable = false, st_medium = false;
+		for (const auto& interface : descriptor.interfaces) {
+			writable |= interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID && interface.required && interface.major == 1 && interface.minor == 0;
+			st_medium |= interface.id == FesComputerInterfaceMediaAtariStFloppyID && interface.required && interface.major == 1 && interface.minor == 0;
+		}
+		if (writable && !st_medium) return CompatibilityError(ErrorCode::unsupported_interface, "writable Atari ST media requires the base floppy interface");
 		if (media_units > 1 || buses > 1)
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"computer declares more than one unit-0 medium or expansion bus");

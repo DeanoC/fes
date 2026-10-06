@@ -5,6 +5,7 @@ Hardware-supported package paths: 0.
 | Capability | Software coverage | Hardware acceptance |
 | --- | --- | --- |
 | FES described package admission and GP activation | covered | pending for exact current artifacts |
+| GP acknowledged-response settling guard, bounded full-word sampling, fail-closed ACK/signature/MMIO handling and no command replay | covered by host fault-injection tests | none |
 | Simple-game, simple-computer, application ABI | covered | pending |
 | `fes.simple-computer` required audio declaration, exact live bit 4, and ADV7513 packet policy | covered by host tests | SG-1000 exact-artifact audio pending |
 | Menu-display GP, immutable staging, idle lifecycle, reserved-memory presentation, selected startup, frame/mutation admission, lifecycle wait during present, and bounded underflow reactivation | covered by host tests and real local descriptor exchange | [menu presentation diagnostic](../../../docs/validation/2026-09-28-native-menu-kit-presentation.md) and [kit 2 launch/Stop diagnostic](../../../docs/validation/2026-09-28-menu-frame-mutation-kit2.md); exact product image acceptance pending |
@@ -24,6 +25,7 @@ Hardware-supported package paths: 0.
 | `fes.computer` HID keyboard rows and controller ports | covered | none |
 | `fes.computer` live media units (insert/eject without reset hold) | covered | none |
 | Atari ST exact 720 KiB `.st` unit-0 disks, live insertion/ejection and single socket bus composition | covered by host tests | none |
+| Atari ST sector writes, frozen snapshot and explicit library disk records across Stop/eject/replacement, with binding retirement after successful menu/splash programming and same-daemon relaunch | covered by simulations and host tests, including save-failure ownership retention | none |
 | Multi-slot Apple II slot-bus composition (socket set provisional) | covered | none |
 | Multi-slot Spectrum edge-bus composition and `.tap` unit | covered | [48K BASIC ROM-link diagnostic](../../../docs/validation/2026-09-28-spectrum-basic-kit.md); keyboard, tape and cards pending |
 | Initialized machine-ROM bitstream | covered | pending |

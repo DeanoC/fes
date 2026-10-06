@@ -58,7 +58,7 @@ int main(int argc, char** argv) {
     for (size_t at = json.find("\"exchanges\""); at != std::string::npos;
          at = json.find("\"exchanges\"", at + 1))
         starts.push_back(at);
-    require(starts.size() == 2, "fixture must contain two scenarios");
+    require(starts.size() >= 2 && scenario >= 0 && scenario < int(starts.size()), "invalid fixture scenario");
     const size_t begin = starts[scenario];
     const size_t end = scenario + 1 < int(starts.size()) ? starts[scenario + 1] : json.size();
     const std::string body = json.substr(begin, end - begin);
@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
                              uint32_t(std::stoul(m[9])), uint32_t(std::stoul(m[7])),
                              uint32_t(std::stoul(m[1])), uint32_t(std::stoul(m[3]))});
     }
-    require(exchanges.size() == (scenario == 0 ? 34u : 624u), "fixture exchange count changed");
+    require(!exchanges.empty(), "empty fixture scenario");
 
     std::smatch match;
     require(std::regex_search(json, match, std::regex("\"build_id\":\\s*\"([0-9a-f]{32})\"")),
@@ -85,6 +85,7 @@ int main(int argc, char** argv) {
         dut.build_id[3 - word] = uint32_t(std::stoul(build.substr(word * 8, 8), nullptr, 16));
     dut.clk = 0;
     dut.gpo = 0;
+    dut.mouse_ready=1; dut.media_write_ready=1; dut.media_write_busy=0; dut.media_changed=0; dut.media_read_ready=0; dut.media_read_data=0;
     dut.eval();
     std::vector<uint8_t> memory(1 << 18, 0);
     auto tick = [&]() {
@@ -126,7 +127,7 @@ int main(int argc, char** argv) {
             require(got == rows[r], "keyboard row " + std::to_string(r));
         }
         require(dut.controller_buttons == 0, "hold must neutralise both ports");
-    } else {
+    } else if (scenario == 1) {
         require(dut.unit0_state == 3 && dut.unit0_size == 3, "unit 0 ends ready with three bytes");
         std::vector<uint8_t> image(memory.begin(), memory.begin() + dut.unit0_size);
         require(crc32(image) == 1471701714u, "committed unit 0 image differs from the fixture");

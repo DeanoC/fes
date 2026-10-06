@@ -38,7 +38,7 @@ Use these when the start-here page names the job and you need the steps.
 | Install and select a described package | [Core packages](core-packages.md) |
 | Prepare one core without an image rebuild | [Core developer workflow](core-development.md) |
 | Run an isolated package lifecycle check | [Package acceptance](package-acceptance.md) |
-| Pong settings and best rally | [Core persistence](core-persistence.md) |
+| Core settings, progress and writable ST disks | [Core persistence](core-persistence.md) |
 | Blob versus blob-stream capacity | [Media capacity](core-media-evolution.md) |
 | Use or test the SoC DDR3 from a core | [HPS DDR](hps-ddr.md) |
 | ZX81 package, expansion cart, tape design | [FES ZX81](fes-zx81.md), [expansion bus](zx81-expansion-bus.md), [tape media](zx81-tape-media.md) |
@@ -66,6 +66,10 @@ records exact-image acceptance of normal library Direct/Scanlines launches,
 optional SGM, saved preferences and captured video/audio for the named open ROMs.
 Current build and selection behavior remains documented by the component
 guides and [core status](core-status.md).
+
+The [Atari ST interaction record](validation/2026-10-04-atari-st-interaction.md)
+binds mouse and writable-disk software checks, the original GEMDOS guest
+diagnostic, sealed video parts, and the unresolved physical byte-write failure.
 
 Ownership that has already landed is [component boundaries](component-boundaries.md)
 and the [project map](project-map.md). [Structure](fes-structure.md) only

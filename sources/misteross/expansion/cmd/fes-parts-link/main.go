@@ -1,4 +1,4 @@
-// fes-parts-link is the host-only Coleco video-part composition diagnostic.
+// fes-parts-link is the host-only video-part composition diagnostic.
 // It selects prebuilt exact-shell assets; it neither compiles nor loads hardware.
 package main
 
@@ -89,9 +89,9 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 	shellPath := flags.String("shell", "", "exact frozen developer shell core.rbf")
 	packageID := flags.String("package-id", "", "sealed shell package ID")
 	buildID := flags.String("build-id", "", "sealed shell BUILD_ID")
-	layout := flags.String("layout", expansion.ColecoVideoLayout, "closed parts layout (raster or native Coleco video)")
+	layout := flags.String("layout", expansion.ColecoVideoLayout, "closed parts layout (Coleco or ST video)")
 	videoPath := flags.String("video", "", "video part archive or two-member directory")
-	expansionPath := flags.String("expansion", "", "optional Coleco v2 CPU expansion archive or directory")
+	expansionPath := flags.String("expansion", "", "optional matching CPU expansion archive or directory")
 	mapPath := flags.String("map", "", "trusted sealed producer ROM map JSON (optional)")
 	romPath := flags.String("rom", "", "exact binary ROM bytes (with -map)")
 	outPath := flags.String("output", "", "output RBF, replaced only after successful composition")
@@ -121,8 +121,8 @@ func run(ctx context.Context, args []string, stdout io.Writer) error {
 		if err != nil {
 			return fmt.Errorf("expansion: %w", err)
 		}
-		if card.Manifest.Slot != expansion.ColecoSlot {
-			return errors.New("-expansion requires a Coleco CPU expansion")
+		if card.Manifest.Slot != expansion.ColecoSlot && card.Manifest.Slot != expansion.AtariStSlot {
+			return errors.New("-expansion requires a matching CPU expansion")
 		}
 		assets = append(assets, card)
 	}

@@ -68,6 +68,7 @@ type Client struct {
 	httpClient  *http.Client
 	launchHTTP  *http.Client
 	stopHTTP    *http.Client
+	stopSession *stopSessionObservation
 	videoHTTP   *http.Client
 	previewHTTP *http.Client
 }
@@ -101,6 +102,7 @@ func NewClient(baseURL string, httpClient *http.Client) *Client {
 		httpClient:  httpClient,
 		launchHTTP:  &launchHTTP,
 		stopHTTP:    &stopHTTP,
+		stopSession: &stopSessionObservation{},
 		videoHTTP:   &videoHTTP,
 		previewHTTP: &previewHTTP,
 	}

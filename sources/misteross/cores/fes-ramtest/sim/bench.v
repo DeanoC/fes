@@ -4,7 +4,13 @@
 // the test reads its violation flag, open bursts and one 64-bit lane.
 module bench (
     input wire FPGA_CLK1_50,
-    output wire HDMI_TX_DE,
+    input wire [2:0] mask_fault,
+    output wire [106:0] byte_status,
+    output wire [11:0] byte_coverage,
+    output wire [1:0] byte_high_rows,
+    output wire [31:0] masked_writes, no_writes, refresh_masked_writes,
+
+    output wire HDMI_TX_DE, HDMI_TX_VS,
     output wire [23:0] HDMI_TX_D,
     input wire [11:0] peek_slot,
     output wire [63:0] peek_data,
@@ -13,6 +19,12 @@ module bench (
     output wire ddr_finishing,
     output wire ddr_draining_reads
 );
+    assign byte_status = dut.byte_status;
+    assign byte_coverage = {chip.banks_seen, chip.low_columns_seen, chip.rows_seen, chip.high_columns_seen};
+    assign byte_high_rows = chip.high_rows_seen;
+    assign masked_writes = chip.masked_writes;
+    assign no_writes = chip.no_writes;
+    assign refresh_masked_writes = chip.refresh_masked_writes;
     // A guard finishing a write burst, or hiding reads issued before a hold.
     assign ddr_finishing = dut.hps_ddr.port0.finishing | dut.hps_ddr.port1.finishing |
         dut.hps_ddr.port2.finishing;
@@ -29,7 +41,7 @@ module bench (
     wire [1:0] sdram_ba;
     wire [12:0] sdram_a;
     wire [15:0] sdram_dq;
-    wire hdmi_clk, hdmi_hs, hdmi_vs;
+    wire hdmi_clk, hdmi_hs;
     wire hdmi_scl, hdmi_sda;
 
     top dut (
@@ -38,7 +50,7 @@ module bench (
         .HDMI_TX_DE(HDMI_TX_DE),
         .HDMI_TX_D(HDMI_TX_D),
         .HDMI_TX_HS(hdmi_hs),
-        .HDMI_TX_VS(hdmi_vs),
+        .HDMI_TX_VS(HDMI_TX_VS),
         .HDMI_I2C_SCL(hdmi_scl),
         .HDMI_I2C_SDA(hdmi_sda),
         .SDRAM_CLK(sdram_clk),
@@ -55,6 +67,7 @@ module bench (
     );
 
     sdram_model chip (
+        .mask_fault(mask_fault),
         .clk(sdram_clk),
         .cke(sdram_cke),
         .ncs(sdram_ncs),
@@ -63,8 +76,9 @@ module bench (
         .nwe(sdram_nwe),
         .ba(sdram_ba),
         .a(sdram_a),
-        .dqml(sdram_dqml),
-        .dqmh(sdram_dqmh),
+        // MiSTer addon wiring: DQM shares the two high row-address pins.
+        .dqml(sdram_a[11]),
+        .dqmh(sdram_a[12]),
         .dq(sdram_dq)
     );
 endmodule

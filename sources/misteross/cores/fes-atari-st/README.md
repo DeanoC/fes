@@ -2,7 +2,7 @@
 
 `fes.atari-st` is FES's first 16-bit computer. The functional motherboard
 uses a full 8 MHz 68000, 512 KiB RAM, a pluggable 192 KiB ROM, MFP timers and
-interrupts, keyboard ACIA/IKBD, YM2149 audio and a read-only floppy/DMA path.
+interrupts, keyboard and relative mouse ACIA/IKBD, YM2149 audio and a writable floppy/DMA path.
 An unmodified EmuTOS 1.4 image boots in host simulation. Board synthesis,
 routing and hardware acceptance are separate qualifications.
 
@@ -22,6 +22,10 @@ peripherals through the same exported reset signal as host Hold.
 
 `st_memory.sv` shares the existing addon-SDRAM controller among CPU, scanout,
 floppy DMA, upload and media reads. Round-robin arbitration bounds contention.
+The MiSTer addon wires chip DQML/DQMH to A11/A12. The shared controller keeps
+the full row during ACTIVATE, then places byte masks on those shared pins
+before the column command and clears them for reads. The separate logical
+DQM outputs alone cannot mask writes on this board.
 Initialization completes before CPU release. SDRAM refresh continues while
 idle and while the CPU is held. An abandoned request drains its physical
 command and suppresses its old completion. Warm Hold preserves RAM and media.
@@ -81,8 +85,10 @@ eight address banks, preserving atomic enqueue and simultaneous receive.
 Complete HID rows settle for 1 ms before use so
 keys and separately delivered modifiers form one snapshot. Controller port 0
 maps to ST joystick 1 and controller port 1 to ST joystick 0. Mouse and
-joystick commands select ownership of the shared ST port 0. Relative mouse input is an explicit internal RTL port;
-FES has no host mouse transport in this ABI. Physical UART/MIDI pins,
+joystick commands select ownership of the shared ST port 0. Relative mouse input uses the optional `fes.mouse.relative` mailbox extension;
+local USB/SDL/evdev and host browser input deliver packets through the same
+IKBD/ACIA path. Button state survives source merging; movement is never
+replayed after disconnection or an uncertain acknowledgement. Physical UART/MIDI pins,
 HD6301 program loading, monitor sampling and accelerated cursor modes are
 absent; unsupported command modes consume their parameters safely.
 
@@ -93,11 +99,19 @@ it does not reproduce analog filtering. Board transport uses the existing
 signed stereo PCM/I2S path, duplicating the mono chip into both channels.
 
 `st_floppy.sv` implements original WD1772 Type I positioning, Type II sector
-reads, force interrupts and ST DMA. Drive A accepts exactly 737,280 bytes:
+reads and writes, force interrupts and ST DMA. Drive A accepts exactly 737,280 bytes:
 80 tracks × 2 sides × 9 sectors × 512 bytes, in raw `.st` order. Drive B is
 absent. Requests stay stable under storage/DMA stalls; DMA stays inside RAM.
-The drive reports write protect, and no writes return to the host. Motor/index
-behavior is functional; flux, CRC/deleted-sector metadata, formatting,
+The writable extension clears write protect. A complete sector is staged from
+RAM before publication to the disk buffer; once publication starts it drains
+through warm reset or force interrupt. Begin and Eject reject while collection
+or an accepted sector commit is busy, including volatile disks; an explicit
+later replacement cannot overlap the old image's writes. Freeze fences new writers and drains
+accepted work before whole-image capture. Raw development loads stay volatile;
+library loads explicitly bind durable data to the game and immutable base disk.
+The runtime publishes a checksummed full image through a synced atomic rename,
+then authorizes eject/replacement. A save failure retains the same frozen owner.
+Motor/index behavior is functional; flux, CRC/deleted-sector metadata, formatting,
 read-address/track, PIO streams and ACSI are absent.
 
 ## Pluggable ROM, expansion and video
@@ -130,26 +144,47 @@ activates it only at frame boundaries. Two owned line caches cross the
 pixel domain displays the current one. Missing lines display black, then
 recover. It rejects out-of-range addresses and stale fills from old frames.
 Native row/repetition counters and fixed per-mode fetch windows avoid division
-and mode-dependent coordinate arithmetic in the pixel domain. Synchronous
+and mode-dependent coordinate arithmetic in the pixel domain. Cached plane
+capture selects constant mode windows after their comparisons, preserving
+each capture, staging and commit edge without a mode-dependent carry chain.
+Synchronous
 per-bank reads permit dual-clock M10K inference; ownership tags and cache
 words arrive at the original plane-capture edges.
 
 Video uses the existing [RGB888 part contract](../../../mister-packages/docs/video-parts.md)
 and shared direct/scanline implementations through two registered boundaries.
-The board selects the output part at build time; this does not declare a
-separately qualified frozen video-part archive. HOLD blacks pixels while
+`st_video_socket.sv` provides the optional frozen raster socket
+`fes.atari-st-video.socket/1`, with layout `fes.atari-st-video.parts/1`.
+An empty socket uses the built-in Direct output; independently sealed Direct
+and Scanlines archives bind the exact shell package and may coexist with the
+CPU expansion and linked firmware. The socket owns 93 pinned boundary/clock
+FFs with paired route-through buffers in LAB24..28 rows41..58. Its strict
+half-open CRAM rectangle is (1769,3442)–(2806,5162). Full M10K configuration
+footprints remain outside both CPU/video fences; RAM guards include rows40/59.
+The part producer checks all three shell clocks, pixel-only part state and
+every outside CRAM bit, including companion columns. Rebuild parts after any
+shell identity change. HOLD blacks pixels while
 timing continues. Native raster tricks and aspect-ratio correction are absent.
 
 ## Validation
 
 ```sh
 make -C sources/misteross sim-fes-atari-st
+make -C sources/misteross sim-fes-atari-st-media-lifecycle
 make -C sources/misteross fetch-fes-atari-st-emutos
 make -C sources/misteross sim-fes-atari-st-emutos \
   EMUTOS_ROM=build/roms/emutos-1.4/etos192us.img
 make -C sources/misteross sim-fes-atari-st-emutos-memory \
   EMUTOS_ROM=build/roms/emutos-1.4/etos192us.img
+python3 scripts/sim_atari_st_disk_diagnostic.py \
+  --rom sources/misteross/build/roms/emutos-1.4/etos192us.img \
+  --output out/validation/atari-st/disk-guest --seconds 8
 make -C sources/misteross build-fes-atari-st CACHE_ROOT=/absolute/toolchain-cache
+make -C sources/misteross sim-fes-atari-st-video-parts
+make -C sources/misteross build-fes-atari-st-video-part \
+  ST_SHELL=/absolute/frozen/build/fes-atari-st-oss \
+  ST_PACKAGE=/absolute/sealed/package ST_VIDEO_PART=direct \
+  CACHE_ROOT=/absolute/toolchain-cache
 make -C sources/misteross build-fes-atari-st-card \
   ST_SHELL=/absolute/frozen/build/fes-atari-st-oss \
   ST_PACKAGE=/absolute/sealed/package CACHE_ROOT=/absolute/toolchain-cache
@@ -157,10 +192,13 @@ make -C sources/misteross build-fes-atari-st-card \
 
 The aggregate uses original diagnostic firmware and focused CPU, video,
 MFP, keyboard/audio, floppy, physical SDRAM, dual-clock cache and real GP
-upload tests. The CPU diagnostic covers ROM replacement, supervisor
+upload, writable sector/snapshot, mouse handshake and media arbitration tests. The CPU diagnostic covers ROM replacement, supervisor
 protection, MMU aliases, big-endian byte/word/long access, TAS, exceptions,
 expansion waits/errors and CPU-written pixels. The memory test checks real
 SDRAM commands, CAS-2 capture, refresh, byte masks, fairness and warm reset.
+Write masks are asserted during row setup two fabric clocks before WRITE; the
+model checks zero, one and two clocks of added DQM delay and its two-clock read
+latency.
 The media test uploads a complete disk with odd chunk boundaries and checks
 CRC, execution-independent insert/eject and completion before acknowledgement.
 

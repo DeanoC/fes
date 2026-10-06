@@ -69,6 +69,9 @@ module top #(
         .clk(clk_sys), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
         .exec_reset(exec_reset), .keyboard_rows(keyboard_rows),
         .controller_buttons(controller_buttons),
+        .mouse_valid(), .mouse_dx(), .mouse_dy(), .mouse_buttons(), .mouse_ready(1'b0),
+        .media_write_busy(1'b0), .media_changed(1'b0), .media_frozen(),
+        .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
         .media_write_enable(media_write_enable), .media_write_ready(1'b1), .unit0_state(unit0_state),
         .unit0_size()

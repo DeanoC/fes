@@ -131,6 +131,10 @@ func (c *Client) doJSON(ctx context.Context, method, path string, requestBody an
 }
 
 func (c *Client) doJSONQuery(ctx context.Context, method, path string, query url.Values, requestBody any, responseBody any) error {
+	return c.doJSONQueryWithClient(ctx, method, path, query, requestBody, responseBody, c.httpClient)
+}
+
+func (c *Client) doJSONQueryWithClient(ctx context.Context, method, path string, query url.Values, requestBody any, responseBody any, client *http.Client) error {
 	var body io.Reader
 	if requestBody != nil {
 		encoded, err := json.Marshal(requestBody)
@@ -150,7 +154,7 @@ func (c *Client) doJSONQuery(ctx context.Context, method, path string, query url
 	if err := c.authorizeMutation(request); err != nil {
 		return err
 	}
-	response, err := c.httpClient.Do(request)
+	response, err := client.Do(request)
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
 	}

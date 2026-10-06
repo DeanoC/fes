@@ -1059,6 +1059,10 @@
     if (input !== undefined) result.input = input;
     if (flightID !== undefined) result.flight_id = flightID;
     if (keyboardHID) result.keyboard_hid = true;
+    if (active && sessionHasMouse(payload.core_package)) {
+      result.mouse_relative = true;
+      result.mouse_binding = payload.core_package.package_id + ':' + payload.core_package.generation;
+    }
     return Object.freeze(result);
   }
 
@@ -1070,6 +1074,17 @@
     if (!abi || abi.id !== 'fes.computer' || abi.major !== 1 || abi.minor !== 0) return false;
     return Array.isArray(core.active_interfaces) && core.active_interfaces.some(contract =>
       contract && contract.id === 'fes.keyboard.hid' && contract.major === 1 && contract.minor === 0);
+  }
+
+  function sessionHasMouse(core) {
+    return Boolean(core && core.abi && core.abi.id === 'fes.computer' && core.abi.major === 1 && core.abi.minor === 0 &&
+      /^[a-f0-9]{64}$/.test(core.package_id) && Number.isSafeInteger(core.generation) && core.generation > 0 &&
+      Array.isArray(core.active_interfaces) && core.active_interfaces.some(c => c && c.id === 'fes.mouse.relative' && c.major === 1 && c.minor === 0));
+  }
+
+  function mouseEventRequest(dx, dy, buttons) {
+    return { path: '/api/v1/session/input/event', options: { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({event: {Player: 0, Device: 2, Kind: 4, Action: 3, Code: buttons, Value: (dx & 65535) | ((dy & 65535) << 16)}}) }};
   }
 
   function sessionViewState(session) {
@@ -2398,6 +2413,27 @@
         state.session.input && state.session.input.state === 'attached' && state.session.input.ready);
     }
 
+    function mouseAllowed() {
+      return Boolean(state.sessionAuthority === 'authoritative' && state.session && state.session.state === 'active' &&
+        state.session.mouse_relative && state.session.input && state.session.input.state === 'attached' && state.session.input.ready);
+    }
+    let mouseQueue = Promise.resolve();
+    let mousePending = 0;
+    function sendMouseRelative(dx, dy, buttons) {
+      if (![dx,dy,buttons].every(Number.isInteger) || dx < -32768 || dx > 32767 || dy < -32768 || dy > 32767 || buttons < 0 || buttons > 3 || !mouseAllowed()) return Promise.resolve(false);
+      if (mousePending >= 64 && (dx || dy || buttons)) return Promise.resolve(false);
+      const binding = state.session.mouse_binding;
+      mousePending += 1;
+      const task = mouseQueue.then(async () => {
+        if (!mouseAllowed() || state.session.mouse_binding !== binding) return false;
+        const spec = mouseEventRequest(dx,dy,buttons);
+        try { await request(fetchImpl,spec.path,spec.options); return true; }
+        catch (_) { return false; } // Unconfirmed motion is never retried.
+      }).finally(() => { mousePending -= 1; });
+      mouseQueue = task.catch(() => false);
+      return task;
+    }
+
     // HID events are delivered one at a time in event order, so a quick tap's
     // release cannot overtake its press. A release the host did not confirm
     // stays pending and is retried before the next event and on a short,
@@ -3463,6 +3499,8 @@
       attachInput,
       detachInput,
       keyboardHIDAllowed,
+      mouseAllowed,
+      sendMouseRelative,
       sendKeyboardHID,
       flushKeyboardHID,
       observeVisibleCovers,
@@ -3496,6 +3534,7 @@
     detachInputRequest,
     hidUsageForCode,
     keyboardHIDEventRequest,
+    mouseEventRequest,
     parseSession,
     sessionViewState,
     launchStatus,
@@ -3997,10 +4036,19 @@
   let attachInputButton;
   let detachInputButton;
   let captureKeyboardButton;
+  let captureMouseButton;
+  let capturedMouseButtons = 0;
   let sessionActionReason;
   // Keyboard capture forwards every physical key, including Escape and
   // Backspace, to a fes.keyboard.hid session. Stop stays on the Stop button.
   const keyboardCapture = { active: false, held: new Set() };
+
+  function releaseCapturedMouse() {
+    capturedMouseButtons = 0;
+    void controller.sendMouseRelative(0,0,0);
+    if (document.pointerLockElement === nodes.sessionPanel) document.exitPointerLock?.();
+  }
+  function mouseCaptured() { return controller.mouseAllowed() && document.pointerLockElement === nodes.sessionPanel; }
 
   function releaseCapturedKeys() {
     for (const usage of keyboardCapture.held) void controller.sendKeyboardHID(usage, false);
@@ -4162,6 +4210,18 @@
       captureKeyboardButton.addEventListener('click', toggleKeyboardCapture);
       nodes.sessionActions.appendChild(captureKeyboardButton);
     }
+    if (!captureMouseButton) {
+      captureMouseButton = element('button','button secondary','Capture mouse');
+      captureMouseButton.id = 'capture-session-mouse';
+      captureMouseButton.type = 'button';
+      captureMouseButton.addEventListener('click', () => {
+        if (mouseCaptured()) releaseCapturedMouse();
+        else if (controller.mouseAllowed()) {
+          try { Promise.resolve(nodes.sessionPanel.requestPointerLock?.()).catch(() => {}); } catch (_) {}
+        }
+      });
+      nodes.sessionActions.appendChild(captureMouseButton);
+    }
     if (!sessionActionReason) {
       sessionActionReason = element('p', 'launch-reason');
       sessionActionReason.id = 'session-action-reason';
@@ -4218,6 +4278,10 @@
     attachInputButton.disabled = Boolean(conflictReason) || !canAttach;
     detachInputButton.hidden = !canDetach && state.activeMutation !== 'detach';
     detachInputButton.disabled = Boolean(conflictReason) || !canDetach;
+    captureMouseButton.hidden = !controller.mouseAllowed();
+    captureMouseButton.textContent = mouseCaptured() ? 'Release mouse' : 'Capture mouse';
+    captureMouseButton.setAttribute('aria-pressed',String(mouseCaptured()));
+    if (!controller.mouseAllowed() && capturedMouseButtons) releaseCapturedMouse();
     captureKeyboardButton.hidden = !canCapture;
     captureKeyboardButton.textContent = keyboardCapture.active ? 'Release keyboard' : 'Capture keyboard';
     captureKeyboardButton.setAttribute('aria-pressed', String(keyboardCapture.active));
@@ -6340,12 +6404,28 @@
   if (nodes.settingsPreferredRegions) nodes.settingsPreferredRegions.addEventListener('input', () => touchSettings('regions'));
   if (nodes.settingsVideoProfile) nodes.settingsVideoProfile.addEventListener('change', () => touchSettings('video'));
   if (typeof document.addEventListener === 'function') {
+    document.addEventListener('pointerlockchange', () => { if (!mouseCaptured()) { capturedMouseButtons=0; void controller.sendMouseRelative(0,0,0); } renderSession(); });
+    document.addEventListener('mousemove', event => {
+      if (!mouseCaptured()) return;
+      const dx=Math.max(-32768,Math.min(32767,Math.trunc(event.movementX || 0)));
+      const dy=Math.max(-32768,Math.min(32767,Math.trunc(event.movementY || 0)));
+      if (dx || dy) void controller.sendMouseRelative(dx,dy,capturedMouseButtons);
+    });
+    for (const type of ['mousedown','mouseup']) document.addEventListener(type,event => {
+      if (!mouseCaptured()) return;
+      event.preventDefault?.(); event.stopPropagation?.();
+      if (event.button !== 0 && event.button !== 2) return;
+      const bit=event.button===0 ? 1 : 2;
+      if (type==='mousedown') capturedMouseButtons |= bit; else capturedMouseButtons &= ~bit;
+      void controller.sendMouseRelative(0,0,capturedMouseButtons);
+    });
+    document.addEventListener('contextmenu',event => { if(mouseCaptured()) event.preventDefault?.(); });
     document.addEventListener('keyup', event => {
       if (keyboardCapture.active) forwardCapturedKey(event, false);
     });
     if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       // Key releases are lost while the page is unfocused; release held keys.
-      window.addEventListener('blur', releaseCapturedKeys);
+      window.addEventListener('blur', () => { releaseCapturedKeys(); releaseCapturedMouse(); });
     }
     document.addEventListener('keydown', event => {
       if (keyboardCapture.active) {

@@ -90,8 +90,10 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to SDRAM_*
 # Native (RAM_OSS_HIGH_SPEED) builds register the SDRAM command and address
 # pins in the IO cells, as Quartus does, so placement can't move their launch
 # point (DeanoC/nextpnr#135). The RTL adds one plain register per pin for this.
-# DQML/DQMH are constant in the RAM tester (full-word writes), so they have no
-# register. DQ is bidirectional; the pinned nextpnr can't pack its registers.
+# The byte preflight drives DQM through the shared A11/A12 pads, which take
+# the same extra output stage as other address pins. Separate DQML/DQMH pads
+# are logical mirrors and stay in fabric registers. DQ is bidirectional;
+# the pinned nextpnr cannot pack its registers.
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_A[0]
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_A[1]
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_A[2]
@@ -112,3 +114,5 @@ set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_nCS
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_nRAS
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_nCAS
 set_instance_assignment -name FAST_OUTPUT_REGISTER ON -to SDRAM_nWE
+set_instance_assignment -name FAST_OUTPUT_REGISTER OFF -to SDRAM_DQML
+set_instance_assignment -name FAST_OUTPUT_REGISTER OFF -to SDRAM_DQMH

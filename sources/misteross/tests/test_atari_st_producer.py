@@ -1,5 +1,6 @@
 """ST compiler boundary, physical connector and synchronous firmware checks."""
 import hashlib
+import copy
 import json
 from pathlib import Path
 import re
@@ -11,7 +12,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from scripts import atari_st_slot, build_fes_atari_st_oss as st, rom_map
+from scripts import atari_st_slot, atari_st_video_parts, build_fes_atari_st_oss as st, rom_map
 from scripts.fes_build_common import BuildError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +46,32 @@ def pinned_cache_cells(*, routed=True):
             for name, bel in st.CACHE_BELS.items()}
 
 
+def sector_memory_cells(*, packed=False):
+    name = 'machine.system.io.floppy.writer.sector.0.0.0'
+    zero = 900 if packed else '0'
+    pins = {'A1ADDR': list(range(10, 18)) + [zero],
+            'B1ADDR': list(range(20, 28)) + [zero],
+            'A1DATA': list(range(30, 46)) + [zero] * 4,
+            'B1DATA': list(range(50, 70)), 'A1EN': [71],
+            'B1EN': [72], 'A1BE': [71, 71], 'CLK1': [73], 'CLK2': [73]}
+    cells = {name: {'type': 'MISTRAL_M10K', 'connections': pins,
+                    'port_directions': {port: 'output' if port == 'B1DATA' else 'input'
+                                        for port in pins},
+                    'parameters': {'CFG_ABITS': f'{9:032b}', 'CFG_DBITS': f'{20:032b}',
+                                   'CFG_BYTE_ENABLE': f'{1:032b}', 'CFG_DUAL_CLOCK': f'{1:032b}'}},
+             'machine.rom.lane0': {'connections': {'CLK1': [73]},
+                                   'port_directions': {'CLK1': 'input'}}}
+    live_inputs = {bit for port, bits in pins.items() if port != 'B1DATA'
+                   for bit in bits if type(bit) is int and bit != 900}
+    for bit in live_inputs:
+        cells[f'driver{bit}'] = {'type': 'MISTRAL_CLKBUF' if bit == 73 else 'MISTRAL_FF',
+                               'connections': {'Q': [bit]}, 'port_directions': {'Q': 'output'}}
+    if packed:
+        cells['$PACKER_GND_DRV'] = {'type': 'MISTRAL_CONST', 'parameters': {'LUT': '0' * 32},
+                                  'connections': {'Q': [900]}, 'port_directions': {'Q': 'output'}}
+    return cells
+
+
 class AtariSTProducerTests(unittest.TestCase):
     def test_vendor_cpu_adapter_preserves_all_functional_bytes(self):
         original = (ROOT / st.CPU_VENDOR / 'fx68k.sv').read_bytes()
@@ -75,9 +102,15 @@ class AtariSTProducerTests(unittest.TestCase):
         tools = {'yosys': Path('/authenticated/install/bin/yosys'),
                  'nextpnr-mistral': Path('/authenticated/install/bin/nextpnr-mistral')}
         command, route = st.build_commands(ROOT, ROOT / st.OUTPUT_RELATIVE, '0' * 32,
-                                           tools, video_output='scanlines')
+                                           tools, video_output='direct')
         self.assertIn('--single-unit', command[-1])
-        self.assertIn('-set VIDEO_SCANLINES 1', command[-1])
+        self.assertIn('-DFES_ST_SLANG_IMPORT=1', command[-1])
+        self.assertIn('-G ENABLE_FLOPPY_WRITE=1', command[-1])
+        self.assertIn('st_video_socket.sv', command[-1].split('read_slang')[0])
+        self.assertIn('st_media_port.sv', command[-1].split('read_slang')[0])
+        self.assertIn('-set VIDEO_SCANLINES 0', command[-1])
+        with self.assertRaisesRegex(BuildError, 'sealed video part'):
+            st.build_commands(ROOT, ROOT / st.OUTPUT_RELATIVE, '0' * 32, tools, video_output='scanlines')
         self.assertIn('fx68k-slang.sv', command[-1])
         self.assertNotIn('--ignore-initial', command[-1])
         self.assertIn('-nolutram -nodsp', command[-1])
@@ -86,6 +119,9 @@ class AtariSTProducerTests(unittest.TestCase):
         qsf = st.socket_qsf('# physical board pins\n')
         self.assertEqual(qsf.count(f'FES_RESERVED_RECT "{atari_st_slot.SOCKETS[0].placement}"'), 1)
         self.assertEqual(qsf.count('FES_RESERVED_RECT "ram_guard 26 19 26 19"'), 1)
+        for rectangle in st.VIDEO_RAM_GUARD_RESERVATIONS:
+            self.assertEqual(qsf.count(f'FES_RESERVED_RECT "{rectangle}"'), 1)
+        self.assertEqual(qsf.count(f'FES_RESERVED_RECT "{atari_st_video_parts.PLACEMENT}"'), 1)
         self.assertIn('--router', route)
         self.assertEqual(route[route.index('--router') + 1], 'gpu')
         self.assertEqual(route[route.index('--seed') + 1], '4')
@@ -171,6 +207,20 @@ class AtariSTProducerTests(unittest.TestCase):
         with self.assertRaisesRegex(BuildError, 'boundary cell'):
             st.validate_routed_shell(routed)
 
+    def test_ram_bel_outside_video_still_rejects_overlapping_configuration(self):
+        database = ram_database()
+        for row in (40, 41, 58, 59):
+            routed = {'modules': {'top': {'cells': {'sector': {
+                'type': 'MISTRAL_M10K', 'attributes': {'NEXTPNR_BEL': f'MISTRAL_M10K.26.{row}.0'}}}}}}
+            with self.subTest(row=row), patch.object(st, 'ROM_DATABASE_SHA256', database_pins(database)), \
+                 self.assertRaisesRegex(BuildError, 'overlaps video CRAM'):
+                st.validate_m10k_configurations(routed, database)
+        for row in (22, 39, 60):
+            routed = {'modules': {'top': {'cells': {'sector': {
+                'type': 'MISTRAL_M10K', 'attributes': {'NEXTPNR_BEL': f'MISTRAL_M10K.26.{row}.0'}}}}}}
+            with patch.object(st, 'ROM_DATABASE_SHA256', database_pins(database)):
+                self.assertEqual(st.validate_m10k_configurations(routed, database)['status'], 'pass')
+
     def test_failed_or_ambiguous_clock_never_qualifies(self):
         fmax = {'clk': {'constraint': 52.224, 'achieved': 52.3}}
         st._frequency_row(fmax, 52.224, 'system')
@@ -194,6 +244,98 @@ class AtariSTProducerTests(unittest.TestCase):
                 cells['video.cache0.0.0.0']['type'] = 'MISTRAL_FF'
                 with self.assertRaisesRegex(BuildError, 'exactly the two'):
                     st.validate_cache_placements(cells, routed=routed)
+
+    def test_sector_stage_rejects_flip_flops_and_invalid_memory_ports(self):
+        name = 'machine.system.io.floppy.writer.sector.0.0.0'
+        cells = sector_memory_cells()
+        cells[name + '_B1ADDR_MISTRAL_ALUT2_Q'] = {'type': 'MISTRAL_ALUT2'}
+        self.assertEqual(st.validate_sector_memory(cells)['words'], 256)
+        mutations = [('type', 'MISTRAL_FF'), ('CLK2', [74]), ('B1EN', ['1']),
+                     ('A1BE', [71, '1']), ('A1ADDR', list(range(10, 19))),
+                     ('A1DATA', list(range(30, 50))), ('B1DATA', ['x'] * 20),
+                     ('CFG_DBITS', f'{16:032b}')]
+        for key, value in mutations:
+            with self.subTest(key=key):
+                changed = copy.deepcopy(cells)
+                target = (changed[name] if key == 'type' else
+                          changed[name]['parameters'] if key.startswith('CFG_') else
+                          changed[name]['connections'])
+                target[key] = value
+                with self.assertRaises(BuildError):
+                    st.validate_sector_memory(changed)
+        for changed in ({}, cells | {name + '_MISTRAL_FF_Q': {'type': 'MISTRAL_FF'}}):
+            with self.assertRaisesRegex(BuildError, 'exactly one M10K'):
+                st.validate_sector_memory(changed)
+
+    def test_sector_stage_accepts_literal_and_proven_packed_zero_padding(self):
+        for packed in (False, True):
+            with self.subTest(packed=packed):
+                self.assertEqual(st.validate_sector_memory(sector_memory_cells(packed=packed)),
+                                 {'status': 'pass', 'cell': 'machine.system.io.floppy.writer.sector.0.0.0',
+                                  'words': 256, 'bits_per_word': 16})
+
+    def test_sector_stage_rejects_unproven_packed_padding(self):
+        name = 'machine.system.io.floppy.writer.sector.0.0.0'
+        for mutation in ('undriven', 'high', 'unknown_lut', 'wide_lut', 'integer_lut',
+                         'multiple_zero', 'contradictory', 'multiple_ordinary', 'ordinary_driver', 'unknown_direction',
+                         'inout', 'wide_output', 'unknown_literal', 'boolean'):
+            with self.subTest(mutation=mutation):
+                cells = sector_memory_cells(packed=True)
+                ground = cells['$PACKER_GND_DRV']
+                if mutation == 'undriven': del cells['$PACKER_GND_DRV']
+                elif mutation == 'high': ground['parameters']['LUT'] = f'{1:032b}'
+                elif mutation == 'unknown_lut': ground['parameters']['LUT'] = 'x' * 32
+                elif mutation == 'wide_lut': ground['parameters']['LUT'] = f'{2:032b}'
+                elif mutation == 'integer_lut': ground['parameters']['LUT'] = 0
+                elif mutation in ('multiple_zero', 'contradictory', 'multiple_ordinary'):
+                    cells['extra'] = copy.deepcopy(ground)
+                    if mutation == 'contradictory': cells['extra']['parameters']['LUT'] = f'{1:032b}'
+                    elif mutation == 'multiple_ordinary': cells['extra']['type'] = 'MISTRAL_FF'
+                elif mutation == 'ordinary_driver': ground['type'] = 'MISTRAL_FF'
+                elif mutation == 'unknown_direction': del ground['port_directions']['Q']
+                elif mutation == 'inout': ground['port_directions']['Q'] = 'inout'
+                elif mutation == 'wide_output': ground['connections']['Q'].append(901)
+                elif mutation == 'unknown_literal': cells[name]['connections']['A1ADDR'][8] = 'x'
+                elif mutation == 'boolean': cells[name]['connections']['B1ADDR'][8] = False
+                with self.assertRaises(BuildError):
+                    st.validate_sector_memory(cells)
+
+    def test_sector_stage_rejects_constant_undriven_and_multiple_live_signals(self):
+        name = 'machine.system.io.floppy.writer.sector.0.0.0'
+        for port in ('A1ADDR', 'B1ADDR', 'A1DATA', 'B1DATA', 'A1EN', 'B1EN', 'CLK1'):
+            for mutation in ('zero', 'one', 'undriven', 'multiple', 'unknown_direction', 'inout'):
+                with self.subTest(port=port, mutation=mutation):
+                    cells = sector_memory_cells(packed=True)
+                    pins = cells[name]['connections']
+                    bit = pins[port][0]
+                    if mutation in ('zero', 'one'):
+                        # Replace input drivers with a constant. A constant on
+                        # read data conflicts with the RAM's own output driver.
+                        if port == 'B1DATA':
+                            pins[port][0] = 901
+                            bit = 901
+                        else:
+                            del cells[f'driver{bit}']
+                        cells['live_constant'] = {'type': 'MISTRAL_CONST',
+                            'connections': {'Q': [bit]}, 'port_directions': {'Q': 'output'},
+                            'parameters': {'LUT': f'{int(mutation == "one"):032b}'}}
+                    elif mutation == 'undriven':
+                        if port == 'B1DATA':
+                            # A read-data port with unresolved direction cannot
+                            # establish a live output merely from its net ID.
+                            del cells[name]['port_directions'][port]
+                        else:
+                            del cells[f'driver{bit}']
+                    elif mutation == 'multiple':
+                        cells['extra'] = {'type': 'MISTRAL_FF', 'connections': {'Q': [bit]},
+                                          'port_directions': {'Q': 'output'}}
+                    else:
+                        source = cells[name] if port == 'B1DATA' else cells[f'driver{bit}']
+                        output = port if port == 'B1DATA' else 'Q'
+                        if mutation == 'unknown_direction': del source['port_directions'][output]
+                        else: source['port_directions'][output] = 'inout'
+                    with self.assertRaises(BuildError):
+                        st.validate_sector_memory(cells)
 
     def test_all_ram_configuration_guard_catches_ram_outside_lab_reservation(self):
         database = ram_database()

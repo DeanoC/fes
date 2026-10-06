@@ -23,6 +23,10 @@ func Eligible(bus uint16, name string, buttons bool) bool { return eligible(bus,
 func eligibleKeyboard(bus uint16, name string, keys bool) bool {
 	return bus != 6 && name != "FogCast Virtual Gamepad" && keys
 }
+func eligibleMouse(bus uint16, name string, relative, buttons bool) bool {
+	return bus != 0 && bus != 6 && name != "" && name != "FogCast Virtual Gamepad" && relative && buttons
+}
+
 func decode(b []byte) (uint16, uint16, int32, error) {
 	if len(b) != 16 && len(b) != 24 {
 		return 0, 0, 0, errors.New("invalid input record")
@@ -31,3 +35,8 @@ func decode(b []byte) (uint16, uint16, int32, error) {
 	return binary.LittleEndian.Uint16(p), binary.LittleEndian.Uint16(p[2:]), int32(binary.LittleEndian.Uint32(p[4:])), nil
 }
 func cstring(b []byte) string { return strings.TrimRight(string(b), "\x00") }
+
+// EligibleMouse shares the physical relative-device classifier with tenfoot.
+func EligibleMouse(bus uint16, name string, relative, buttons bool) bool {
+	return eligibleMouse(bus, name, relative, buttons)
+}

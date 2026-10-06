@@ -30,10 +30,12 @@ CAP_KEYBOARD = 1 << 1
 CAP_PORTS = 1 << 2
 CAP_AUDIO = 1 << 3
 CAP_APPLE2_FLOPPY = 1 << 4
+CAP_MOUSE = 1 << 8
 MEDIA_CAPS = CAP_APPLE2_FLOPPY
 
 OP_IDENTITY, OP_EXECUTION, OP_KEYBOARD, OP_CONTROLLER = 1, 2, 3, 4
 OP_INFO, OP_BEGIN, OP_CHUNK, OP_DATA, OP_COMMIT, OP_EJECT = 5, 6, 7, 8, 9, 10
+OP_MOUSE = 11
 E_OPCODE, E_INDEX, E_ARGUMENT, E_STATE = 1, 2, 3, 4
 ABSENT, EMPTY, LOADING, READY = 0, 1, 2, 3
 UNITS = 8
@@ -57,6 +59,8 @@ class Endpoint:
         self.held = True
         self.rows = [0] * 9
         self.ports = [0, 0]
+        self.mouse_buttons = 0
+        self.mouse_motion = [0, 0]
         self.begin_unit: int | None = None
         self.begin_words: list[int] = []
         self.active: int | None = None
@@ -103,6 +107,19 @@ class Endpoint:
             if self.held:
                 self.rows = [0] * 9
                 self.ports = [0, 0]
+                self.mouse_buttons = 0
+            return 0, 0
+        if op == OP_MOUSE:
+            if not self.capabilities & CAP_MOUSE:
+                return E_OPCODE, 0
+            if index > 3:
+                return E_INDEX, 0
+            if self.held:
+                return E_STATE, 0
+            dx, dy = arg & 255, arg >> 8
+            self.mouse_motion[0] += dx if dx < 128 else dx - 256
+            self.mouse_motion[1] += dy if dy < 128 else dy - 256
+            self.mouse_buttons = index
             return 0, 0
         if op == OP_KEYBOARD:
             if not self.capabilities & CAP_KEYBOARD:
@@ -268,6 +285,8 @@ class Session:
                 "held": e.held,
                 "keyboard_rows": e.rows,
                 "controller_ports": e.ports,
+                "mouse_buttons": e.mouse_buttons,
+                "mouse_motion": e.mouse_motion,
                 "unit_states": {str(u): v.state for u, v in sorted(e.units.items())},
                 "unit_sha_crc32": {str(u): zlib.crc32(bytes(v.data)) for u, v in sorted(e.units.items())},
             },
@@ -420,13 +439,29 @@ def media_session() -> Session:
     return s
 
 
+def mouse_session() -> Session:
+    s = Session("relative-mouse", Endpoint(CAP_VIDEO | CAP_MOUSE, {}),
+                "Atomic signed relative motion and left/right state; held input rejected.")
+    s.identify()
+    s.send("held-motion-rejected", OP_MOUSE, 1, 0x017f)
+    s.send("reserved-buttons-rejected", OP_MOUSE, 4, 0)
+    s.send("release", OP_EXECUTION, 0, 1)
+    s.send("signed-extrema", OP_MOUSE, 3, 0x807f)
+    s.send("opposite-extrema", OP_MOUSE, 1, 0x7f80)
+    s.send("release-buttons", OP_MOUSE, 0, 0)
+    s.send("reserved-bit-rejected", OP_MOUSE, 128, 0xffff)
+    s.send("hold-neutralises-buttons", OP_EXECUTION, 0, 0)
+    s.send("held-button-rejected", OP_MOUSE, 2, 0)
+    return s
+
+
 def document() -> dict:
     return {
         "description": "Synthetic fes.computer 1.0 wire fixtures; never deploy.",
         "abi": {"id": "fes.computer", "tag": 4, "major": 1, "minor": 0},
         "crc_vectors": [{"hex": "010203", "crc32": zlib.crc32(bytes([1, 2, 3]))},
                         {"hex": "313233343536373839", "crc32": zlib.crc32(b"123456789")}],
-        "scenarios": [input_session().document(), media_session().document()],
+        "scenarios": [input_session().document(), media_session().document(), mouse_session().document()],
     }
 
 

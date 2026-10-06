@@ -179,9 +179,14 @@ This demonstrates composition without a new emulated-machine implementation
 or an application-name branch in host software.
 
 `fes.ramtest` is a separate utility on the same mailbox with fixed 720p, the
-gamepad and `fes.memory.hps-ddr` 1.0. After execution release it pattern-tests
-the SDRAM addon and all three HPS DDR ports at the memory clock, 100 or
-130 MHz. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
+gamepad and `fes.memory.hps-ddr` 1.0. Its SDRAM channel first runs a bounded
+byte-preservation preflight with retained BE/payload/readback failures; only
+a passing preflight releases the six full-span patterns. The addon shares chip
+DQML/DQMH with row-address pins A11/A12; the controller keeps the full row for
+ACTIVATE and drives masks on those pins during column setup and WRITE.
+Simulations use that physical wiring, including high rows. After execution
+release it tests the SDRAM addon and all three HPS DDR ports at the memory clock,
+100 or 130 MHz. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
 together with seven patterns and report errors, failing bits and MB/s per port.
 The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
 OSS rates sample the bidirectional DQ pads with phase-shifted fabric registers
@@ -1660,12 +1665,21 @@ confines its CRAM writes to the shared rectangle.
 `st_memory.sv` fairly arbitrates CPU, video, floppy DMA and both media paths
 over the existing addon SDRAM controller at 52.224 MHz. That controller now
 supports optional byte masks, initialization status and idle refresh while
-preserving the RAM tester's default behavior. Warm CPU Hold leaves memory and
-uploads running. Withdrawn requests drain without stale acknowledgements.
+preserving full-word behavior for callers that disable masks. Chip DQM shares
+A11/A12 on the MiSTer addon, so the controller preserves row bits for ACTIVATE
+and establishes masks on those shared pins two fabric clocks before WRITE.
+Reads clear both masks. Warm CPU Hold
+leaves memory and uploads running. Withdrawn requests drain without stale
+acknowledgements.
 The exact 720 KiB disk buffer is disjoint from the 512 KiB RAM, and the
 big-endian media adapter handles arbitrary odd chunk boundaries before the
 mailbox acknowledges a write. `fes.media.atari-st-floppy` 1.0 adds capability
 bit 7 to the existing computer ABI, without changing its framing/opcodes.
+The writable mailbox rejects Begin and Eject during sector collection or an
+accepted commit, even for volatile disks. The sector writer drains before an
+explicit later replacement can upload through the shared media arbiter.
+`make sim-fes-atari-st-media-lifecycle` exercises these actual components with
+delayed RAM and media completions, including rejected mutations and later retry.
 
 `st_video_adapter.sv` uses held-bundle handshakes for frame configuration and
 owned double line caches between system and 74.25 MHz pixel clocks. Low,
@@ -1673,9 +1687,10 @@ medium and monochrome rows advance through native row/repetition counters.
 Fixed per-mode fetch windows select coordinates after constant arithmetic.
 Synchronous cache reads and ownership tags are captured together; a second
 pixel register selects the validated bank at the original plane-capture edges.
-Displays feed the shared RGB888 direct/scanline output
-parts through two registered boundaries. The board selects its concrete
-video part at build time. Underflow blacks a whole affected line and later
+Displays feed shared RGB888 output through two registered boundaries. The
+optional frozen raster socket admits independently sealed Direct/Scanlines
+archives bound to the exact shell; an empty socket uses built-in Direct with
+the same latency. Underflow blacks a whole affected line and later
 lines recover; stale fills cannot cross a frame configuration change.
 
 `make sim-fes-atari-st` runs the original CPU firmware and focused device,

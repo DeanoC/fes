@@ -17,6 +17,7 @@ test:
 	$(PYTHON) -m unittest discover -s tests -p 'test_core_bundle*fixtures.py' -v
 	$(PYTHON) -m unittest discover -s tests -p 'test_core_persistence_fixtures.py' -v
 	$(PYTHON) scripts/core_persistence_fixtures.py --check
+	$(PYTHON) scripts/media_data_fixtures.py --check
 	$(PYTHON) scripts/fes_computer_fixtures.py --check
 	$(PYTHON) scripts/menu_display_fixtures.py --check
 	$(GO) test ./...
@@ -54,6 +55,7 @@ fixtures:
 	$(PYTHON) scripts/core_bundle_v3_fixtures.py
 	$(PYTHON) scripts/core_bundle_v4_fixtures.py
 	$(PYTHON) scripts/core_persistence_fixtures.py
+	$(PYTHON) scripts/media_data_fixtures.py
 
 check-fixtures:
 	$(PYTHON) scripts/core_bundle_fixtures.py --check
@@ -62,3 +64,4 @@ check-fixtures:
 	$(PYTHON) scripts/core_bundle_v3_fixtures.py --check
 	$(PYTHON) scripts/core_bundle_v4_fixtures.py --check
 	$(PYTHON) scripts/core_persistence_fixtures.py --check
+	$(PYTHON) scripts/media_data_fixtures.py --check

@@ -54,7 +54,12 @@ module st_boot_sim_top (
     output wire [31:0] debug_pc,
     output wire vblank, hblank
 );
-    st_system system (.*);
+    st_system system (
+        .cold_reset(reset), .media_frozen(1'b0),
+        .media_write_req(), .media_write_addr(), .media_write_data(),
+        .media_write_ready(1'b0), .media_write_busy(), .media_changed(),
+        .dma_write(), .dma_rdata(16'd0), .*
+    );
     // Simulation-only observability; no upstream CPU bytes are changed.
     assign debug_pc = {system.machine.cpu.cpu.excUnit.PcH,
                        system.machine.cpu.cpu.excUnit.PcL};

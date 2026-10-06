@@ -47,6 +47,9 @@ type TargetConnection struct {
 	leaseSeen       bool
 	leaseOwned      bool
 	leaseGeneration string
+	// mediaDataBound comes from this connection admission's existing Status
+	// observation and selects only the Stop deadline.
+	mediaDataBound bool
 }
 
 func (s *Service) TargetConnection() TargetConnection {
@@ -594,6 +597,7 @@ func connectionFromStatus(health protocol.Health, status protocol.Status, owners
 	connection := TargetConnection{
 		State: "ready", Address: address, TargetID: id, BootID: health.BootID,
 		leaseSeen: true, leaseOwned: ownership.Owned, leaseGeneration: ownership.Generation,
+		mediaDataBound: protocol.MediaDataBound(status.CorePackage),
 	}
 	if err := protocol.CheckAPIVersion(health.APIVersion); err != nil {
 		connection.State = "version_mismatch"

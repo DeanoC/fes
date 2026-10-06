@@ -351,6 +351,12 @@ records and old raw-core profiles are rejected before stopping an active package
 Contained raw-RBF loads remain an explicit diagnostic with no media/input ABI.
 Their generation and state are reconciled without replay; Stop restores idle.
 
+The target HTTP request logger records successful GET/HEAD reads at debug level.
+Default logs retain mutations and failed reads, including their route, status and
+duration. This keeps routine health, status and lease polling from filling the
+appliance's RAM-backed log filesystem; query strings, credentials and bodies
+remain excluded from request logs.
+
 A `fes.simple-computer`
 package with `fes.keyboard` attaches remote input without `fes.gamepad`.
 Host keyboard events map through the agent onto the runtime 40-bit ZX81
@@ -700,6 +706,57 @@ reply. The runtime never holds reset for these transfers and ejects the unit
 once on failure; the agent then republishes the live unit state from a fresh
 status read instead of replacing the session. Keyboard posts do not wait
 behind a disk transfer.
+
+A shell pairing `fes.media.atari-st-floppy-write` 1.0 with the Atari ST base
+interface supports writable disk RAM and versioned snapshots. Library launch
+uses explicit game/base-image identity through target
+`POST /v1/library/media/insert`; development `insert-media` and `change-disk`
+remain volatile. Imported catalog blobs remain immutable. Durable records live
+under the runtime's `/media/fat/fogcast/core-data/media` root, within the existing
+appliance data bind. This storage survives firmware/video package changes and
+is isolated by core ID, game ID, unit and immutable base digest.
+
+The target library insert route has the existing package/generation/target/unit
+headers plus `X-FogCast-Media-Game` and `X-FogCast-Media-Base`; it requires one
+exact 737,280-byte octet stream. `POST /v1/library/media/save` has the unit
+binding and an empty body. Both retain the existing kit lease and update
+exclusion. The agent chooses the storage root; callers never send target paths.
+Live status exposes optional unit `persistence` with `mode:"persistent"`,
+`game_id`, `base_media_id`, and `revision` (`absent` before the first publication
+or the full-record SHA-256). Whole-package persistence mode is persistent only
+while such a binding exists. ST parts/ROM composition does not change this
+identity or weaken composition validation.
+
+The host routes `POST /api/v1/session/disk/insert` and `…/disk/save` retain the
+captured session ID and package/generation/target/unit binding. Insert takes
+JSON `{game_id,base_media_id}` and verifies the selected library entry and base;
+Save has an empty body. CLI `insert-library-disk GAME_ID BASE_MEDIA_ID` restores
+that explicit library disk into the running ST, and `save-disk` publishes a
+checkpoint. `eject-disk`, Stop and replacement automatically save a bound disk.
+Failure keeps the disk/session binding available for recovery; a lost mutation
+reply is never replayed. One explicit Save may retry a retained `SAVE_FAILED`
+in phase `save` only for the same active package/generation/target, with no
+recovery state and the same ready, writable persistent ST game/base binding.
+A confirmed successful checkpoint publishes a valid revision digest and clears
+that retained error. Other errors and insert/eject/input retain their strict admission guards;
+there is no automatic Save replay. There is no durable binding inferred from
+filenames or raw development loads. Close files before a checkpoint/Stop: sector-atomic
+writes do not make an application's multi-sector FAT update atomic.
+
+Save-backed Eject/Stop own 135-second target operation budgets and 150-second
+HTTP envelopes. Explicit Stop selects its HTTP save deadline from completed
+session responses without a preflight poll; discovery Stop reuses its admission
+Status observation. Replacing an already bound disk allows 405 seconds locally and
+450 seconds on the host, including a possible third capture that confirms an
+ambiguous failure retained the original image. Ordinary unbound operation
+budgets remain in force. These calls never replay a destructive command.
+A confirmed input Busy rejection retains only the latest absolute mouse button
+state for zero-motion reconciliation, bounded to 450 seconds and the same
+generation. Unbind, source closure or an ambiguous transport failure cancels
+it; relative motion is discarded.
+A bound-disk input fault captures and publishes before idle retirement; if that
+fails, the runtime retains RAM and ownership in recovery instead of replacing
+it with idle firmware.
 
 ## Other modes
 
@@ -2700,6 +2757,16 @@ and source size through `expansion.ParseROMMap`. It does not trust a map
 supplied separately by a media upload. Expansion composition retains the whole
 sealed shell package, including the map, and its package identity.
 
+ROM-map inspection streams closed objects and fixed 40-destination words rather
+than retaining JSON copies of the whole map and every block. It bounds maps to
+32 MiB, blocks and words per block to 256, and unconsumed decoder input to 4 KiB
+so oversized JSON values cannot grow the decoder buffer. Private staging reads
+the declared upload into one bounded allocation, clones its small manifest and
+borrows payload/map slices until publishing independent sealed files; other
+archive readers retain independent member ownership.
+Staging cancellation reaches map decoding and is checked between words as well
+as during decoder reads, before any publication or hardware transition.
+
 Format-3 library entries select one exact-size binary through the named ROM
 selection API. The host sends a source-only `rom-link.json` envelope containing
 the sealed package, ROM bytes and optional expansion asset. It does not run
@@ -2831,7 +2898,9 @@ rejection, and recovery state in `plays[target]`. That per-kit record is the
 authority for kit status and lifecycle admission. Root `activeExecution` owns
 only the local `host_only` RetroArch game; kit loads and failures do not stop or
 replace it in non-cast mode, and kit-local cores execute directly on the kit.
-Scoped Stop and status use the corresponding kit record.
+Scoped Stop and status use the corresponding kit record. Library firmware and
+media bindings, including post-Start delivery, use the selected kit's play
+context so an independent local host game cannot redirect them to another target.
 
 The configured host capture sender is one physical pipeline with one RTP
 destination and sender token. Only its managed sender plus target cast path

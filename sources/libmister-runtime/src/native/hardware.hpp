@@ -6,6 +6,7 @@
 #include "libmister-runtime/runtime.h"
 #include "native/core_driver.hpp"
 #include "native/idle_recipe.hpp"
+#include "native/media_data.hpp"
 
 #include <atomic>
 #include <cstdint>
@@ -79,6 +80,7 @@ public:
  Error SetSessionDisplay(bool visible) override;
  Error PresentMenuFrame(const MenuFrame&,MenuDisplayInfo*) override;
 	Error FlushSave() override;
+	Error FlushFaultSave() override;
 	Error RestoreInput(std::uint64_t generation) override;
 	Error AdmitCorePackage(const std::string&, const std::string&,
 		std::unique_ptr<AdmittedCorePackage>*) override;
@@ -110,9 +112,12 @@ public:
 	Error ClearComputerMedia() override;
 	Error LoadComputerFirmware(const std::string& path) override;
 	Error LoadComputerMediaStream(const std::string& path, std::uint32_t size) override;
+	Error SendMouseRelative(std::int16_t dx, std::int16_t dy, std::uint8_t buttons) override;
 	Error SetKeyboardHid(const KeyboardHidRows& rows) override;
 	Error InsertComputerMedia(std::uint8_t unit, const std::string& path,
 		std::uint32_t size) override;
+    Error InsertLibraryComputerMedia(std::uint8_t, const std::string&, std::uint32_t,
+        const std::string&, const MediaDataBinding&) override;
 	Error EjectComputerMedia(std::uint8_t unit) override;
 
 private:
@@ -168,6 +173,13 @@ private:
 	CoreData durable_data_;
 	std::vector<std::uint16_t> core_snapshot_;
 	bool core_data_flushed_ = false;
+    Error FlushMediaSave();
+    void ForgetMediaData();
+    std::unique_ptr<MediaDataFile> media_data_file_;
+    MediaDiskRecord durable_media_;
+    std::vector<unsigned char> media_snapshot_;
+    bool media_data_flushed_ = false;
+    bool media_image_uncertain_ = false;
 };
 
 } // namespace native

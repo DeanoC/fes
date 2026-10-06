@@ -81,6 +81,56 @@ constants:
     value: 9
   - name: FesComputerOpcodeMediaEject
     value: 10
+  - name: FesComputerOpcodeMouseRelative
+    value: 11
+  - name: FesComputerOpcodeMediaSnapshotInfo
+    value: 12
+  - name: FesComputerOpcodeMediaSnapshotControl
+    value: 13
+  - name: FesComputerOpcodeMediaSnapshotChunk
+    value: 14
+  - name: FesComputerOpcodeMediaSnapshotData
+    value: 15
+  - name: FesComputerMouseButtonMask
+    value: 3
+  - name: FesComputerMediaSnapshotInfoStride
+    value: 8
+  - name: FesComputerMediaSnapshotFlagsField
+    value: 0
+  - name: FesComputerMediaSnapshotLayoutTagField
+    value: 1
+  - name: FesComputerMediaSnapshotLayoutMajorField
+    value: 2
+  - name: FesComputerMediaSnapshotLayoutMinorField
+    value: 3
+  - name: FesComputerMediaSnapshotSizeLoField
+    value: 4
+  - name: FesComputerMediaSnapshotSizeHiField
+    value: 5
+  - name: FesComputerMediaSnapshotChunkMaxField
+    value: 6
+  - name: FesComputerMediaSnapshotEpochField
+    value: 7
+  - name: FesComputerMediaSnapshotReadyMask
+    value: 1
+  - name: FesComputerMediaSnapshotDirtyMask
+    value: 2
+  - name: FesComputerMediaSnapshotFrozenMask
+    value: 4
+  - name: FesComputerMediaSnapshotBusyMask
+    value: 8
+  - name: FesComputerMediaSnapshotFreeze
+    value: 0
+  - name: FesComputerMediaSnapshotResume
+    value: 1
+  - name: FesComputerMediaSnapshotSaved
+    value: 2
+  - name: FesComputerAtariStFloppyLayoutTag
+    value: 1
+  - name: FesComputerAtariStFloppyLayoutMajor
+    value: 1
+  - name: FesComputerAtariStFloppyLayoutMinor
+    value: 0
   - name: FesComputerControlIndex
     value: 0
   - name: FesComputerExecutionHoldReset
@@ -229,3 +279,11 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 7
+  - id: fes.mouse.relative
+    major: 1
+    minor: 0
+    capability_bit: 8
+  - id: fes.media.atari-st-floppy-write
+    major: 1
+    minor: 0
+    capability_bit: 9

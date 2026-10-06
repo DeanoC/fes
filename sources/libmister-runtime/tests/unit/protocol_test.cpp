@@ -695,6 +695,16 @@ void TestFormat3InspectionSerialization()
 		RomPackageResponseFixtures());
 }
 
+void TestMouseRelativeRequests()
+{
+	Request r;
+	const std::string prefix = R"({"protocol":2,"operation":"send_mouse_relative","package_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","expected_generation":7,)";
+	assert(Parse(prefix + R"("dx":-32768,"dy":32767,"buttons":3})", &r).ok());
+	assert(r.operation==Operation::send_mouse_relative && r.mouse_dx==-32768 && r.mouse_dy==32767 && r.mouse_buttons==3);
+	for(const auto& fields : {R"("dx":32768,"dy":0,"buttons":0})",R"("dx":0,"dy":-32769,"buttons":0})",R"("dx":true,"dy":0,"buttons":0})",R"("dx":0,"dy":0,"buttons":4})",R"("dx":0,"buttons":0})",R"("dx":0,"dy":0,"buttons":0,"extra":0})"})
+		assert(!Parse(prefix+fields,&r).ok());
+}
+
 void TestComputerOperationRequests()
 {
 	const std::string id(64, 'a');
@@ -1064,6 +1074,19 @@ std::vector<std::string> PartsResponseFixtures() {
  return output;
 }
 
+void TestLibraryDiskProtocol()
+{
+ const std::string a(64,'a'),b(64,'b');Request parsed;
+ const std::string prefix="{\"protocol\":2,\"operation\":\"insert_library_media\",\"path\":\"/disk.st\",\"expected_package_id\":\""+a+"\",\"expected_generation\":7,\"unit\":0,\"size\":737280,\"data_root\":\"/data\",\"game_id\":\"atari-st-desktop\",\"base_media_id\":\""+b+"\"}";
+ assert(Parse(prefix,&parsed).ok()&&parsed.operation==Operation::insert_library_media&&parsed.media_binding.game_id=="atari-st-desktop");
+ for(const auto& pair:std::vector<std::pair<std::string,std::string>>{{"737280","737279"},{"atari-st-desktop","../escape"},{"/data","relative"},{b,std::string(64,'B')}}){auto bad=prefix;bad.replace(bad.find(pair.first),pair.first.size(),pair.second);assert(!Parse(bad,&parsed).ok());}
+ const std::string save="{\"protocol\":2,\"operation\":\"save_media\",\"expected_package_id\":\""+a+"\",\"expected_generation\":7,\"unit\":0}";
+ assert(Parse(save,&parsed).ok()&&parsed.operation==Operation::save_media);
+ auto extra=save;extra.insert(extra.size()-1,",\"path\":\"/unused\"");assert(!Parse(extra,&parsed).ok());
+ Status status;status.generation=7;status.active_package.package_id=a;status.active_package.descriptor.abi={"fes.computer",1,0};status.capabilities.media_units.resize(1);auto& u=status.capabilities.media_units[0];u.persistence_mode="persistent";u.game_id="atari-st-desktop";u.base_media_id=b;u.revision=a;
+ const auto encoded=mister::daemon::EncodeResponse(2,true,status,"test");assert(encoded.find("\"persistence\":{\"mode\":\"persistent\"")!=std::string::npos);
+}
+
 void TestDeveloperPartsProtocol() {
  const std::string a(64,'a'),b(64,'b'),c(64,'c');
  const std::string tuple="{\"composition_id\":\""+a+"\",\"package_id\":\""+a+
@@ -1074,6 +1097,12 @@ void TestDeveloperPartsProtocol() {
    "\",\"parts\":[{\"role\":\"video\",\"path\":\"/tmp/v\"}],\"payload_path\":\"/tmp/l/linked.rbf\",\"composition\":"+tuple+"}";
  };
  Request parsed;assert(Parse(request("load_parts_core"),&parsed).ok());
+ std::string st=request("load_rom_composed_core");const std::string old="fes.coleco-video.parts/1";st.replace(st.find(old),old.size(),"fes.atari-st-video.parts/1");
+ st.insert(st.size()-1,",\"programmed_path\":\"/tmp/rom/programmed.rbf\",\"rom_link\":{\"rom_id\":\"atari-st-firmware\",\"map_sha256\":\""+a+"\",\"source_sha256\":\""+b+"\",\"source_size\":196608,\"programmed_sha256\":\""+c+"\",\"programmed_size\":50000}");
+ assert(Parse(st,&parsed).ok()&&parsed.operation==Operation::load_rom_composed_core&&parsed.composition_request.parts.size()==1&&parsed.composition_request.composition.layout=="fes.atari-st-video.parts/1"&&parsed.rom_link.source_size==196608);
+ assert(!Parse(request("load_rom_composed_core"),&parsed).ok());auto invalidst=st;invalidst.insert(invalidst.size()-1,",\"expansions\":[]");assert(!Parse(invalidst,&parsed).ok());invalidst=st;invalidst.replace(invalidst.find("fes.atari-st-video.parts/1"),25,"fes.atari-st-video.parts/2");assert(!Parse(invalidst,&parsed).ok());
+ assert(Parse(request("load_parts_core"),&parsed).ok());
+
  assert(parsed.operation==mister::daemon::Operation::load_parts_core&&parsed.data_root.empty()&&parsed.composition_request.parts.size()==1);
  assert(Parse(request("inspect_parts_core"),&parsed).ok());
  assert(parsed.operation==mister::daemon::Operation::inspect_parts_core);
@@ -1111,6 +1140,7 @@ void TestDeveloperPartsProtocol() {
 int main(int argc, char** argv)
 {
  TestDeveloperPartsProtocol();
+ TestLibraryDiskProtocol();
  TestSessionDisplayRequestAndBoundStatus();
  TestRetiredProtocolRejected();
  TestMenuProtocolRequestsAndStatus();
@@ -1137,6 +1167,7 @@ int main(int argc, char** argv)
 	}
 	assert(argc == 1);
 	assert(ReadLines("tests/fixtures/protocol-v2-parts-responses.jsonl")==PartsResponseFixtures());
+	TestMouseRelativeRequests();
 	TestComputerOperationRequests();
 	TestSlotCompositionProtocol();
 	TestComputerResponseFixtures();
@@ -1162,5 +1193,5 @@ int main(int argc, char** argv)
 	TestSyntaxAndShapeFailures();
 	TestErrorCodeNames();
 	TestStatusErrorIsIndependentOfResponseOk();
-	std::cout << "protocol_test: 26 tests passed\n";
+	std::cout << "protocol_test: 27 tests passed\n";
 }

@@ -15,6 +15,7 @@ type sessionLiveMediaLoader interface {
 }
 
 func registerLiveMediaSessionRoutes(mux *http.ServeMux, s *sessionCoordinator) {
+	registerMediaDataSessionRoutes(mux, s)
 	mux.HandleFunc("POST /api/v1/session/live-media", func(w http.ResponseWriter, r *http.Request) {
 		b, valid := protocol.DevelopmentMediaHeaders(r.Header)
 		ids := r.Header.Values(protocol.HostSessionIDHeader)

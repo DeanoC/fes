@@ -34,7 +34,7 @@ func validCoreVideoAsset(asset expansion.Asset) error {
 		return fmt.Errorf("%w: %w", ErrInvalidCoreVideoPart, err)
 	}
 	m := asset.Manifest
-	videoSocket := (m.Slot == expansion.VideoSlot && m.Map == expansion.ColecoVideoMap) ||
+	videoSocket := (m.Slot == expansion.VideoSlot && (m.Map == expansion.ColecoVideoMap || m.Map == expansion.AtariStVideoMap)) ||
 		(m.Slot == expansion.NativeVideoSlot && m.Map == expansion.ColecoNativeVideoMap)
 	if !videoSocket ||
 		m.SlotMajor != 1 || m.SlotMinor != 0 || m.SlotIndex != 0 || m.BoundaryPatch != nil {

@@ -1,0 +1,102 @@
+{
+  "actual_seed": 5,
+  "artifacts": {
+    "a53d635f7d0bda3ebc0994a901f40df7d06f9638b1eaecd56a41ef1d2d73a3b4.tar": {
+      "bytes": 2887680,
+      "sha256": "ee0df85fd6d4a5f609d62d046e4658eaf115265055039810aa2fa7a1a08a8449"
+    },
+    "build-summary.json": {
+      "bytes": 4665,
+      "sha256": "e3ae36792d667d81b04d730f5c33f1af9fb7c55b5672756f2a823c2dd96c81ef"
+    },
+    "cart-routed.json": {
+      "bytes": 62967303,
+      "sha256": "be3e28969dd90c133e6ef3f2a37f0dc5cf38f15ae6dc7565c3139c0c45d36967"
+    },
+    "cart.qsf": {
+      "bytes": 5246,
+      "sha256": "461004549976f546503868b5a3e2d8968de9ed36638f75d2c6b93d53cd4a514c"
+    },
+    "cart.rbf": {
+      "bytes": 2883468,
+      "sha256": "306b7e12b62d6ca78c22242f7f6f8b6c5953794047467ddc119e57de67c5c70b"
+    },
+    "clocks.sdc": {
+      "bytes": 531,
+      "sha256": "6f09dade2abb7b2982d268786b8aa93bab0c1ce1c2aa650c70e39606e033f5cb"
+    },
+    "cram-diff.json": {
+      "bytes": 750,
+      "sha256": "e62b1fbd65cd8e6d0d08485c2cfc3111da0a7fce483d9ebf3b6714f762f919f0"
+    },
+    "linked.rbf": {
+      "bytes": 2883468,
+      "sha256": "306b7e12b62d6ca78c22242f7f6f8b6c5953794047467ddc119e57de67c5c70b"
+    },
+    "scaffold.json": {
+      "bytes": 52470035,
+      "sha256": "5fd394055da1a125eab6a7f04a1254e6b96f9e1f9da02dcabc24d63dc579df33"
+    },
+    "timing.json": {
+      "bytes": 88407,
+      "sha256": "770f05bf9b98d58cb95694458384013ce344577c176d2da91d07af9753232955"
+    }
+  },
+  "bits_inside_socket": 9130,
+  "bits_outside_socket": 0,
+  "checked": [
+    "canonical_two_regular_member_USTAR_archive",
+    "canonical_manifest_asset_id",
+    "recipe_digest_and_actual_selected_seed",
+    "exact_selected_Git_source_bytes",
+    "all_five_frozen_shell_member_hashes",
+    "authenticated_tool_identity",
+    "exact_physical_scaffold",
+    "frozen_QSF_including_RAM_guards",
+    "exact_SDC",
+    "all_decoded_CRAM_bits_scanned_without_legacy_column_exclusion",
+    "zero_changes_outside_exact_socket_rectangle",
+    "ORAM_PRAM_header_preserved",
+    "compression_preserved",
+    "whole_preview_equals_routed_cart",
+    "all_connected_part_clock_pins_on_socket_clock",
+    "all_three_clock_gates",
+    "normal_complete_HIP_route",
+    "native_tracked_source_clean_before_and_after"
+  ],
+  "checked_clock_pins": 58,
+  "classification": {
+    "gpu_use": false,
+    "hardware_actions": false,
+    "native_build": false,
+    "physical_acceptance": false,
+    "read_only_host_review": true,
+    "source_edits": false
+  },
+  "clock": "system_clock.clocks[0]",
+  "frozen_shell_members": 5,
+  "identity": {
+    "build_id": "bd83f737c1a8e2252fe0f9b8a10c2cf6",
+    "shell_package_id": "d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5",
+    "shell_rbf_sha256": "c7f5f61e0cba8c519e185f15ce0ace3cb96ee2ba2d49ae59a14ac2f0a2356320",
+    "source_commit": "517a285c089153dc3701fd02dd366c0286a3efd2"
+  },
+  "kind": "fes.independent-native-artifact-review/1",
+  "limits": [
+    "No physical CPU-card transaction or host composition execution performed by this reviewer."
+  ],
+  "original_private_receipt_sha256": "bacfa5c51de7ad50d038fd5bfd19f97b5dfa6c050a8773f836121d2b91ce215f",
+  "part_id": "a53d635f7d0bda3ebc0994a901f40df7d06f9638b1eaecd56a41ef1d2d73a3b4",
+  "recipe_id": "05fcc30238021871dbd62b723276efe23721dec056306cacfb4f4e30942a306e",
+  "result": "PASS",
+  "review_date": "2026-10-04",
+  "reviewer": "st_video",
+  "schema": 1,
+  "selected_source_inputs": 15,
+  "timing_mhz": {
+    "pixel_clk": 79.80846405029297,
+    "system_clock.clocks[0]": 53.30206298828125,
+    "system_clock.clocks[1]": 202.9220733642578
+  },
+  "variant": "cpu-probe"
+}

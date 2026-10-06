@@ -19,6 +19,7 @@
 #include "native/menu_underflow.hpp"
 #include "native/linux/menu_memory.hpp"
 #include "native/core_data.hpp"
+#include "native/media_data.hpp"
 #include "native/input.hpp"
 #include "native/linux/fpga_manager.hpp"
 #include "native/linux/i2c.hpp"
@@ -45,6 +46,21 @@
 #include <thread>
 #include <utility>
 #include <vector>
+#if defined(__linux__)
+#include <sys/syscall.h>
+#include <atomic>
+#include <cerrno>
+static std::atomic<bool> fail_media_directory_sync{false};
+extern "C" int fsync(int descriptor)
+{
+    struct stat state {};
+    if (fail_media_directory_sync.load() && fstat(descriptor,&state)==0 &&
+        S_ISDIR(state.st_mode) && fail_media_directory_sync.exchange(false)) {
+        errno=EIO;return -1;
+    }
+    return static_cast<int>(syscall(SYS_fsync,descriptor));
+}
+#endif
 
 namespace {
 
@@ -651,6 +667,7 @@ void PushFesGpResponse(mister_test::FakeMmio* mmio, bool toggle,
 	const std::uint32_t completed = FesGpSignature |
 		(toggle ? FesGpAckMask : 0u) | (failed ? FesGpErrorMask : 0u) | response;
 	mmio->PushRead(kSpiGpiAddress, completed ^ FesGpAckMask);
+	mmio->PushRead(kSpiGpiAddress, completed);
 	mmio->PushRead(kSpiGpiAddress, completed);
 	mmio->PushRead(kSpiGpiAddress, completed);
 }
@@ -1289,8 +1306,8 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	assert(computer_interfaces == std::vector<std::string>({"fes.audio.pcm-s16-stereo-48k",
 		"fes.expansion.apple2-bus", "fes.expansion.atari-st-bus", "fes.expansion.c64-bus", "fes.expansion.spectrum-bus",
 		"fes.gamepad.ports", "fes.keyboard.hid", "fes.media.apple2-floppy",
-		"fes.media.atari-st-floppy", "fes.media.c64-disk", "fes.media.spectrum-tape",
-		"fes.video.fixed-720p60"}));
+		"fes.media.atari-st-floppy", "fes.media.atari-st-floppy-write", "fes.media.c64-disk", "fes.media.spectrum-tape",
+		"fes.mouse.relative", "fes.video.fixed-720p60"}));
 	assert(capabilities.abis[2].id == "fes.simple-computer");
 	assert(capabilities.abis[2].interfaces[0].id == "fes.audio.pcm-s16-stereo-48k");
 	assert(capabilities.abis[3].id == "fes.simple-game");
@@ -2758,6 +2775,349 @@ std::string ComputerDisk(std::size_t size)
 	return bytes;
 }
 
+void TestWritableLibraryDiskCaptureRestoreAndFailedSave()
+{
+    using namespace mister::native;using namespace mister::native::generated;
+    mister_test::ComputerEndpoint endpoint(31-16+FesComputerCapabilityMediaAtariStFloppy+FesComputerCapabilityMediaAtariStFloppyWrite,
+        {{0,{737280,737280}}},"0123456789abcdef0123456789abcdef");
+    FixedClock clock(100);FesGp transport(endpoint,clock);FesGpCoreDriver driver(transport);
+    IntegratedFixture fixture(&driver);fixture.Start();fixture.native.fpga.on_program=[&]{endpoint.Reset();};
+    TempDirectory package,media,storage;
+    std::string manifest=ComputerManifest();ReplaceAll(&manifest,"fes.pong","fes.atari-st");ReplaceAll(&manifest,"fes.media.apple2-floppy","fes.media.atari-st-floppy");ReplaceAll(&manifest,"fes.expansion.apple2-bus","fes.expansion.atari-st-bus");
+    manifest+="\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-write\"\nmajor = 1\nminor = 0\nrequired = true\n";
+    package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+    OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
+    const std::string original=ComputerDisk(737280),path=media.File("disk.st",original);Sha256 hash;hash.Update(original.data(),original.size());
+    mister::MediaDataBinding binding;binding.game_id="atari-st-desktop";binding.base_media_id=Sha256Hex(hash.Final());binding.unit=0;
+    MediaDataIdentity identity{"fes.atari-st",binding.game_id,binding.base_media_id,0};
+    std::unique_ptr<MediaDataFile> record;assert(MediaDataFile::Open(storage.path,identity,&record).ok());
+    assert(fixture.runtime.LoadCore(package.path,opened.package_id).ok());auto gen=fixture.runtime.status().generation;
+    // Busy replacement is a completed rejection. The guest may finish its
+    // write before any cleanup could run; never eject the unchanged raw disk.
+    assert(fixture.runtime.InsertMedia(path,opened.package_id,gen,0,737280).ok());
+    const auto old_bytes=endpoint.unit(0).data;
+    auto replacement=original;replacement[1234]^=0x5a;
+    const auto replacement_path=media.File("replacement.st",replacement);
+    endpoint.write_busy=true;bool rejected_begin=false;
+    endpoint.fail_after_request=[&](const mister_test::ComputerEndpoint::Request& request){
+        if(request.opcode==FesComputerOpcodeMediaBegin&&request.index==0){
+            rejected_begin=true;endpoint.write_busy=false;
+        }
+        return false;
+    };
+    const auto rejected_at=endpoint.requests.size();
+    const auto rejected_insert=fixture.runtime.InsertMedia(replacement_path,opened.package_id,gen,0,737280);
+    assert(rejected_insert.message=="FES GP command rejected with response 4");
+    endpoint.fail_after_request={};
+    assert(rejected_begin&&endpoint.requests.size()==rejected_at+6+1);
+    assert(endpoint.requests.back().opcode==FesComputerOpcodeMediaBegin);
+    assert(endpoint.unit(0).state==3&&endpoint.unit(0).data==old_bytes&&!endpoint.held);
+    auto unchanged=fixture.runtime.status();
+    assert(unchanged.generation==gen&&unchanged.active_package.package_id==opened.package_id);
+    assert(unchanged.capabilities.media_units[0].state==mister::MediaUnitState::ready);
+    assert(unchanged.capabilities.media_units[0].persistence_mode=="volatile");
+    endpoint.write_busy=true;const auto eject_at=endpoint.requests.size();
+    assert(fixture.runtime.EjectMedia(opened.package_id,gen,0).message=="FES GP command rejected with response 4");
+    assert(endpoint.requests.size()==eject_at+1&&endpoint.unit(0).data==old_bytes&&endpoint.unit(0).state==3);
+    assert(fixture.runtime.status().generation==gen&&fixture.runtime.status().capabilities.media_units[0].state==mister::MediaUnitState::ready);
+    endpoint.write_busy=false;
+    assert(fixture.runtime.InsertMedia(replacement_path,opened.package_id,gen,0,737280).ok());
+    assert(std::string(endpoint.unit(0).data.begin(),endpoint.unit(0).data.end())==replacement);
+    auto invalid=binding;invalid.base_media_id=std::string(64,'a');const auto before=endpoint.requests.size();
+    assert(!fixture.runtime.InsertLibraryMedia(path,opened.package_id,gen,0,737280,storage.path,invalid).ok());assert(endpoint.requests.size()==before);
+    assert(fixture.runtime.InsertLibraryMedia(path,opened.package_id,gen,0,737280,storage.path,binding).ok());
+    assert(fixture.runtime.status().capabilities.media_units[0].persistence_mode=="persistent");
+    // A clean first insertion is still frozen and captured before destruction.
+    auto changed=endpoint.unit(0).data;changed[512]^=0x5a;changed[737279]^=0xe3;endpoint.unit(0).data=changed;endpoint.dirty=false;
+    const auto capture_start=endpoint.requests.size();assert(fixture.runtime.SaveMedia(opened.package_id,gen,0).ok());
+    assert(endpoint.requests[capture_start].opcode==FesComputerOpcodeMediaSnapshotControl&&endpoint.requests[capture_start].argument==FesComputerMediaSnapshotFreeze);
+    assert(!endpoint.frozen&&!endpoint.held&&endpoint.unit(0).data==changed);
+    MediaDiskRecord saved;assert(record->Read(&saved).ok()&&saved.bytes==changed&&saved.revision!="absent");
+    const auto frozen_end=endpoint.requests.size();assert(fixture.runtime.EjectMedia(opened.package_id,gen,0).ok());
+    assert(endpoint.unit(0).state==1&&fixture.runtime.status().core_data.mode=="volatile");
+    for(std::size_t at=frozen_end;at<endpoint.requests.size();++at)
+        assert(!(endpoint.requests[at].opcode==FesComputerOpcodeMediaSnapshotControl&&endpoint.requests[at].argument==FesComputerMediaSnapshotResume));
+    assert(fixture.runtime.InsertLibraryMedia(path,opened.package_id,gen,0,737280,storage.path,binding).ok());assert(endpoint.unit(0).data==changed);
+
+    // A completed Eject rejection changes no image. Resume and observe the
+    // same bound disk; a response-lost accepted Eject instead retires it.
+    bool rejected=false;
+    endpoint.lose_request=[&](const mister_test::ComputerEndpoint::Request& request){
+        if(request.opcode==FesComputerOpcodeMediaEject&&!rejected){endpoint.saved=false;rejected=true;}
+        return false;
+    };
+    assert(fixture.runtime.EjectMedia(opened.package_id,gen,0).code==mister::ErrorCode::save_failed);
+    endpoint.lose_request={};assert(rejected&&!endpoint.frozen&&endpoint.unit(0).data==changed);
+    assert(fixture.runtime.status().core_data.mode=="persistent"&&fixture.runtime.status().generation==gen);
+    bool lost=false;endpoint.fail_after_request=[&](const mister_test::ComputerEndpoint::Request& request){
+        if(request.opcode==FesComputerOpcodeMediaEject&&!lost){lost=true;return true;}return false;
+    };
+    assert(fixture.runtime.EjectMedia(opened.package_id,gen,0).code==mister::ErrorCode::save_failed);
+    endpoint.fail_after_request={};assert(lost&&endpoint.unit(0).state==1);
+    assert(fixture.runtime.status().core_data.mode=="volatile"&&fixture.runtime.status().capabilities.media_units[0].persistence_mode=="volatile");
+    assert(fixture.runtime.InsertLibraryMedia(path,opened.package_id,gen,0,737280,storage.path,binding).ok());
+
+    // A lost read response before Begin never changed the image. Neither raw
+    // nor library replacement may eject it or drop its binding; recovery
+    // realigns the mailbox and resumes that same owned disk.
+    for(bool library:{false,true}) {
+        bool failed=false,unexpected_eject=false;
+        endpoint.fail_after_request=[&](const mister_test::ComputerEndpoint::Request& request){
+            if(request.opcode==FesComputerOpcodeMediaInfo&&!failed){failed=true;return true;}return false;
+        };
+        endpoint.lose_request=[&](const mister_test::ComputerEndpoint::Request& request){
+            if(request.opcode==FesComputerOpcodeMediaEject){unexpected_eject=true;}
+            return false;
+        };
+        const auto error=library?fixture.runtime.InsertLibraryMedia(path,opened.package_id,gen,0,737280,storage.path,binding):fixture.runtime.InsertMedia(path,opened.package_id,gen,0,737280);
+        endpoint.fail_after_request={};endpoint.lose_request={};
+        assert(error.code==mister::ErrorCode::save_failed&&failed&&!unexpected_eject);
+        assert(fixture.runtime.status().state==mister::State::running_development&&fixture.runtime.status().generation==gen);
+        assert(fixture.runtime.status().capabilities.media_units[0].game_id==binding.game_id&&!endpoint.frozen&&endpoint.unit(0).data==changed);
+    }
+
+    // Directory sync can fail after a complete rename. Retain the visible
+    // revision without claiming durability, then admit new guest writes on
+    // an explicit retry rather than calling our own revision concurrent.
+#if defined(__linux__)
+    endpoint.unit(0).data[3000]^=0x21;
+    bool armed=false;endpoint.lose_request=[&](const mister_test::ComputerEndpoint::Request& request){
+        if(request.opcode==FesComputerOpcodeMediaSnapshotControl&&request.argument==FesComputerMediaSnapshotFreeze&&!armed){fail_media_directory_sync=true;armed=true;}
+        return false;
+    };
+    assert(fixture.runtime.SaveMedia(opened.package_id,gen,0).code==mister::ErrorCode::save_failed);
+    endpoint.lose_request={};assert(armed&&!fail_media_directory_sync.load()&&!endpoint.frozen);
+    assert(record->Read(&saved).ok()&&saved.bytes==endpoint.unit(0).data);
+    assert(fixture.runtime.status().capabilities.media_units[0].revision==saved.revision);
+    endpoint.unit(0).data[3001]^=0x42;
+    assert(fixture.runtime.SaveMedia(opened.package_id,gen,0).ok());
+    changed=endpoint.unit(0).data;assert(record->Read(&saved).ok()&&saved.bytes==changed);
+#endif
+
+    // A healthy incoming record can change after preflight while the outgoing
+    // disk is captured. Failure before Begin must resume the old owned disk.
+    auto other_id=identity;other_id.game_id="st-other";auto other_binding=binding;other_binding.game_id=other_id.game_id;
+    std::unique_ptr<MediaDataFile> other_file;assert(MediaDataFile::Open(storage.path,other_id,&other_file).ok());
+    MediaDiskRecord other;other.identity=other_id;other.bytes=changed;assert(other_file->Persist(other,"absent",&other).ok());
+    const std::string other_ns=storage.path+"/"+MediaDataNamespace(other_id);
+    bool corrupted=false;endpoint.lose_request=[&](const mister_test::ComputerEndpoint::Request& request){
+        if(request.opcode==FesComputerOpcodeMediaSnapshotControl&&request.argument==FesComputerMediaSnapshotSaved&&!corrupted){
+            std::ofstream bad(other_ns+"/record.bin",std::ios::binary|std::ios::trunc);bad<<"corrupt";bad.close();corrupted=true;
+        }
+        return false;
+    };
+    assert(fixture.runtime.InsertLibraryMedia(path,opened.package_id,gen,0,737280,storage.path,other_binding).code==mister::ErrorCode::save_failed);
+    endpoint.lose_request={};assert(corrupted&&!endpoint.frozen&&!endpoint.held&&endpoint.unit(0).data==changed);
+    assert(fixture.runtime.status().generation==gen&&fixture.runtime.status().capabilities.media_units[0].game_id==binding.game_id);
+    other_file.reset();assert(unlink((other_ns+"/record.bin").c_str())==0);assert(rmdir(other_ns.c_str())==0);
+    // Another writer changes the durable revision. Capture must refuse to
+    // overwrite it, preserve the current image and keep this generation.
+    auto concurrent=saved;concurrent.bytes[1024]^=0x2e;assert(record->Persist(concurrent,saved.revision,&concurrent).ok());
+    endpoint.unit(0).data[2048]^=0x87;const auto retained=endpoint.unit(0).data;
+    assert(fixture.runtime.Stop().code==mister::ErrorCode::save_failed);
+    assert(fixture.runtime.status().generation==gen&&fixture.runtime.status().state==mister::State::running_development);
+    assert(endpoint.unit(0).data==retained&&!endpoint.frozen&&!endpoint.held);
+    assert(fixture.runtime.status().capabilities.media_units[0].game_id==binding.game_id);
+    // Restore the expected durable record, then Stop publishes the retained
+    // machine image before ExecutionHold and FPGA programming.
+    assert(record->Persist(saved,concurrent.revision,&saved).ok());
+    assert(fixture.runtime.Stop().ok());assert(record->Read(&saved).ok()&&saved.bytes==retained);
+    assert(ReadText(path)==original);
+    assert(fixture.runtime.LoadCore(package.path,opened.package_id).ok());gen=fixture.runtime.status().generation;
+    assert(fixture.runtime.InsertLibraryMedia(path,opened.package_id,gen,0,737280,storage.path,binding).ok());assert(endpoint.unit(0).data==retained);
+    // Raw replacement is explicitly volatile after the outgoing disk saves.
+    assert(fixture.runtime.InsertMedia(path,opened.package_id,gen,0,737280).ok());assert(fixture.runtime.status().capabilities.media_units[0].persistence_mode=="volatile");
+    assert(fixture.runtime.Stop().ok());
+    // If a replacement Commit actually succeeded but both its response and
+    // cleanup failed, Ready can describe the new image. Never attach the old
+    // durable namespace to those different bytes: retain ownership in recovery.
+    assert(fixture.runtime.LoadCore(package.path,opened.package_id).ok());gen=fixture.runtime.status().generation;
+    assert(fixture.runtime.InsertLibraryMedia(path,opened.package_id,gen,0,737280,storage.path,binding).ok());
+    bool commit_lost=false,cleanup_failed=false;
+    endpoint.fail_after_request=[&](const mister_test::ComputerEndpoint::Request& request){
+        if(request.opcode==FesComputerOpcodeMediaCommit&&!commit_lost){commit_lost=true;return true;}return false;
+    };
+    endpoint.lose_request=[&](const mister_test::ComputerEndpoint::Request& request){
+        if(request.opcode==FesComputerOpcodeMediaEject&&!cleanup_failed){endpoint.frozen=true;endpoint.saved=false;cleanup_failed=true;}
+        return false;
+    };
+    assert(!fixture.runtime.InsertMedia(path,opened.package_id,gen,0,737280).ok());
+    endpoint.fail_after_request={};endpoint.lose_request={};
+    assert(commit_lost&&cleanup_failed&&fixture.runtime.status().state==mister::State::reboot_required);
+    assert(fixture.runtime.status().generation==gen&&fixture.runtime.status().capabilities.media_units[0].game_id==binding.game_id);
+    assert(endpoint.frozen&&record->Read(&saved).ok()&&saved.bytes==retained);
+    const std::string ns=storage.path+"/"+MediaDataNamespace(identity);record.reset();assert(unlink((ns+"/record.bin").c_str())==0);assert(rmdir(ns.c_str())==0);
+}
+
+void TestDiskBindingRetiresAfterProgramming()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	for (bool menu_idle : {false, true}) {
+		mister_test::ComputerEndpoint computer(15 | FesComputerCapabilityMediaAtariStFloppy |
+			FesComputerCapabilityMediaAtariStFloppyWrite, {{0, {737280, 737280}}},
+			"0123456789abcdef0123456789abcdef");
+		mister_test::FakeMmio menu;
+		class SelectedMmio final : public Mmio {
+		public:
+			SelectedMmio(Mmio& computer, Mmio& menu) : computer_(computer), menu_(menu) {}
+			mister::Error Read32(std::uint32_t address, std::uint32_t* value) override
+			{ return (menu_active ? menu_ : computer_).Read32(address, value); }
+			mister::Error Write32(std::uint32_t address, std::uint32_t value) override
+			{ return (menu_active ? menu_ : computer_).Write32(address, value); }
+			bool menu_active = false;
+		private:
+			Mmio& computer_;
+			Mmio& menu_;
+		} mmio(computer, menu);
+		FixedClock clock(100);
+		FesGp gp(mmio, clock);
+		FesGpCoreDriver driver(gp);
+		MenuDisplayDriver display(gp, clock);
+		MenuOperations operations;
+		MenuMemory memory(operations);
+		std::vector<std::string> events;
+		RecordingOpener opener(events);
+		RecordingFpga fpga(events);
+		RecordingI2c i2c(events);
+		RecordingVideo idle_video(events);
+		LedgerLog log(events);
+		FixedVideoBringup video(i2c, clock, log, Menu720p60Recipe());
+		RecordingInput input(events, clock);
+		TempDirectory splash, package, menu_package, media, storage;
+		const auto idle = splash.File("idle.rbf", "idle");
+		NativeHardware hardware(opener, fpga, idle_video, video, input, {"test", 0, 0, 0, 0},
+			clock, log, idle, {30000, 10000, 10000}, &driver, {"/tmp"}, SplashIdle(), &display, &memory);
+		mister::Runtime runtime(hardware, log);
+		assert(runtime.Start().ok());
+		bool next_menu = false;
+		fpga.on_program = [&] { computer.Reset(); mmio.menu_active = next_menu; };
+		MenuGpScript script{&menu};
+		if (menu_idle) {
+			OpenedCorePackage opened_menu;
+			PopulateHpsDdrApplication(&menu_package, true, &opened_menu);
+			auto manifest = ReadText(menu_package.path + "/manifest.toml");
+			ReplaceAll(&manifest, "fes.pong", "fes.menu");
+			manifest += "\n[[interfaces]]\nid = \"fes.video.menu-display\"\nmajor = 1\nminor = 0\nrequired = true\n";
+			{ std::ofstream output(menu_package.path + "/manifest.toml"); output << manifest; assert(output.good()); }
+			assert(OpenCorePackage(menu_package.path, "", &opened_menu).ok());
+			next_menu = true;
+			script.BringUp();
+			assert(runtime.ConfigureMenuPackage(menu_package.path, opened_menu.package_id).ok());
+		}
+		auto manifest = ComputerManifest();
+		ReplaceAll(&manifest, "fes.pong", "fes.atari-st");
+		ReplaceAll(&manifest, "fes.media.apple2-floppy", "fes.media.atari-st-floppy");
+		ReplaceAll(&manifest, "fes.expansion.apple2-bus", "fes.expansion.atari-st-bus");
+		manifest += "\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-write\"\nmajor = 1\nminor = 0\nrequired = true\n";
+		package.File("manifest.toml", manifest);
+		package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+		OpenedCorePackage opened;
+		assert(OpenCorePackage(package.path, "", &opened).ok());
+		const auto original = ComputerDisk(737280);
+		const auto path = media.File("disk.st", original);
+		Sha256 hash;
+		hash.Update(original.data(), original.size());
+		mister::MediaDataBinding binding;
+		binding.game_id = "st-relaunch";
+		binding.base_media_id = Sha256Hex(hash.Final());
+		MediaDataIdentity identity{"fes.atari-st", binding.game_id, binding.base_media_id, 0};
+		std::unique_ptr<MediaDataFile> record;
+		assert(MediaDataFile::Open(storage.path, identity, &record).ok());
+		auto load_fresh = [&] {
+			if (mmio.menu_active) script.QuiesceRunningMenu();
+			next_menu = false;
+			assert(runtime.LoadCore(package.path, opened.package_id).ok());
+			const auto status = runtime.status();
+			assert(status.core_data.mode == "volatile" && status.capabilities.media_units.size() == 1);
+			for (const auto& unit : hardware.capabilities().media_units) {
+				assert(unit.state == mister::MediaUnitState::empty && unit.persistence_mode == "volatile");
+				assert(unit.game_id.empty() && unit.base_media_id.empty() && unit.revision == "absent");
+			}
+			assert(status.capabilities.media_units[0].persistence_mode == "volatile");
+			return status.generation;
+		};
+		auto stop = [&] {
+			next_menu = menu_idle;
+			if (menu_idle) script.BringUp();
+			assert(runtime.Stop().ok());
+			assert(runtime.status().capabilities.media_units.empty());
+			assert(runtime.status().menu_display.available == menu_idle);
+		};
+		auto generation = load_fresh();
+		assert(runtime.InsertLibraryMedia(path, opened.package_id, generation, 0, 737280, storage.path, binding).ok());
+		computer.unit(0).data[4096] ^= 0x91;
+		const auto changed = computer.unit(0).data;
+		stop();
+		MediaDiskRecord saved;
+		assert(record->Read(&saved).ok() && saved.bytes == changed);
+		// A normal Stop/relaunch in the same daemon starts with no binding;
+		// only explicit insertion may restore the retained record.
+		generation = load_fresh();
+		assert(runtime.InsertLibraryMedia(path, opened.package_id, generation, 0, 737280, storage.path, binding).ok());
+		assert(computer.unit(0).data == changed);
+		// Replacement also retires the old binding after its successful save.
+		generation = load_fresh();
+		assert(runtime.InsertLibraryMedia(path, opened.package_id, generation, 0, 737280, storage.path, binding).ok());
+		assert(computer.unit(0).data == changed);
+		stop();
+		assert(record->Read(&saved).ok() && saved.bytes == changed && ReadText(path) == original);
+		record.reset();
+		const auto directory = storage.path + "/" + MediaDataNamespace(identity);
+		assert(unlink((directory + "/record.bin").c_str()) == 0);
+		assert(rmdir(directory.c_str()) == 0);
+	}
+}
+
+void TestWritableDiskInputFaultSavesBeforeIdleOrRetainsRAM()
+{
+    using namespace mister::native;using namespace mister::native::generated;
+    for(bool capture_fails:{false,true}) {
+        mister_test::ComputerEndpoint endpoint(15+FesComputerCapabilityMediaAtariStFloppy+FesComputerCapabilityMediaAtariStFloppyWrite,
+            {{0,{737280,737280}}},"0123456789abcdef0123456789abcdef");
+        FixedClock clock(100);FesGp transport(endpoint,clock);FesGpCoreDriver driver(transport);
+        IntegratedFixture fixture(&driver);fixture.Start();fixture.native.fpga.on_program=[&]{endpoint.Reset();};
+        TempDirectory package,media,storage;
+        std::string manifest=ComputerManifest();ReplaceAll(&manifest,"fes.pong","fes.atari-st");ReplaceAll(&manifest,"fes.media.apple2-floppy","fes.media.atari-st-floppy");ReplaceAll(&manifest,"fes.expansion.apple2-bus","fes.expansion.atari-st-bus");
+        manifest+="\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-write\"\nmajor = 1\nminor = 0\nrequired = true\n";
+        package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+        OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
+        const std::string original=ComputerDisk(737280),path=media.File("disk.st",original);Sha256 hash;hash.Update(original.data(),original.size());
+        mister::MediaDataBinding binding;binding.game_id="st-fault";binding.base_media_id=Sha256Hex(hash.Final());binding.unit=0;
+        MediaDataIdentity identity{"fes.atari-st",binding.game_id,binding.base_media_id,0};
+        std::unique_ptr<MediaDataFile> record;assert(MediaDataFile::Open(storage.path,identity,&record).ok());
+        assert(fixture.runtime.LoadCore(package.path,opened.package_id).ok());const auto gen=fixture.runtime.status().generation;
+        assert(fixture.runtime.InsertLibraryMedia(path,opened.package_id,gen,0,737280,storage.path,binding).ok());
+        endpoint.unit(0).data[4096]^=0x91;endpoint.dirty=true;const auto changed=endpoint.unit(0).data;
+        const auto programs=fixture.native.fpga.calls;
+        bool input_failed=false,snapshot_failed=false;
+        endpoint.fail_after_request=[&](const mister_test::ComputerEndpoint::Request& request){
+            if(request.opcode==FesComputerOpcodeKeyboardHid&&!input_failed){input_failed=true;return true;}
+            if(capture_fails&&request.opcode==FesComputerOpcodeMediaSnapshotControl&&request.argument==FesComputerMediaSnapshotFreeze&&!snapshot_failed){snapshot_failed=true;return true;}
+            return false;
+        };
+        assert(!fixture.runtime.SetKeyboardHid(opened.package_id,gen,mister::KeyboardHidRows{}).ok());
+        assert(WaitForState(fixture.runtime,capture_fails?mister::State::reboot_required:mister::State::idle));
+        assert(!fixture.native.input.HasActiveCallback());
+        endpoint.fail_after_request={};assert(input_failed);
+        MediaDiskRecord saved;assert(record->Read(&saved).ok());
+        if(capture_fails) {
+            assert(snapshot_failed&&fixture.native.fpga.calls==programs&&endpoint.unit(0).data==changed);
+            assert(fixture.runtime.status().generation==gen&&fixture.runtime.status().capabilities.media_units[0].game_id==binding.game_id);
+            assert(saved.revision=="absent"&&saved.bytes.empty());
+            assert(!fixture.runtime.Stop().ok()&&fixture.native.fpga.calls==programs);
+            assert(fixture.runtime.RecoverIdle().code==mister::ErrorCode::save_failed);
+            assert(fixture.native.fpga.calls==programs&&endpoint.unit(0).data==changed);
+        } else {
+            assert(fixture.native.fpga.calls==programs+1&&saved.bytes==changed&&endpoint.unit(0).state==1);
+        }
+        assert(ReadText(path)==original);
+        const std::string ns=storage.path+"/"+MediaDataNamespace(identity);record.reset();
+        if(!capture_fails)assert(unlink((ns+"/record.bin").c_str())==0);
+        assert(rmdir(ns.c_str())==0);
+    }
+}
+
 void TestComputerLiveMediaLifecycleThroughRuntime()
 {
 	using namespace mister::native;
@@ -2950,6 +3310,9 @@ int main()
  TestNativeMenuActivationAndCompletion();
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();
+	TestDiskBindingRetiresAfterProgramming();
+	TestWritableLibraryDiskCaptureRestoreAndFailedSave();
+	TestWritableDiskInputFaultSavesBeforeIdleOrRetainsRAM();
 	TestComputerSlotCompositionActivatesLinkedPayload();
 	TestFormat4TwoSourceAdmissionBeforeMutation();
 	TestFormat3InspectionAndLoadGateBeforeMutation();
@@ -2982,6 +3345,6 @@ int main()
 	TestInspectionReportsActualDriverCompatibilityWithoutMutation();
 	TestCompositionProgramsRetainedLinkedArtifactAndRechecksBeforeMutation();
 	TestActivationRechecksRetainedPayloadIdentityBeforeMutation();
-	puts("native_hardware_test: 30 passed");
+	puts("native_hardware_test: 32 passed");
 	return 0;
 }

@@ -3,9 +3,10 @@
 // clocks are independent of the HDMI scanout clock. Timing is functional,
 // rather than a cycle-exact GLUE model. Unclaimed addresses go to the socket.
 module st_io #(
-    parameter integer SYSTEM_CLOCK_HZ = 52_224_000
+    parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
+    parameter integer ENABLE_FLOPPY_WRITE = 0
 ) (
-    input wire clk, reset,
+    input wire clk, reset, cold_reset,
     input wire req,
     input wire [23:1] addr,
     input wire write,
@@ -31,16 +32,22 @@ module st_io #(
     output wire mouse_ready,
     output wire signed [15:0] audio_pcm,
     output wire audio_valid,
-    input wire media_ready,
+    input wire media_ready, media_frozen,
+    output wire media_write_req,
+    output wire [19:1] media_write_addr,
+    output wire [15:0] media_write_data,
+    input wire media_write_ready,
+    output wire media_write_busy, media_changed,
     output wire media_req,
     output wire [19:0] media_addr,
     input wire [7:0] media_data,
     input wire media_valid,
-    output wire dma_req,
+    output wire dma_req, dma_write,
     output wire [23:0] dma_addr,
     output wire [15:0] dma_wdata,
     output wire [1:0] dma_byte_enable,
     input wire dma_ready,
+    input wire [15:0] dma_rdata,
     output wire vblank, hblank
 );
     wire [23:0] address = {addr, 1'b0};
@@ -168,13 +175,17 @@ module st_io #(
         .bus_rdata(psg_data), .bus_ack(psg_ack), .pcm_signed(audio_pcm),
         .sample_valid(audio_valid), .port_a(port_a)
     );
-    st_floppy floppy (
+    st_floppy #(.ENABLE_WRITE(ENABLE_FLOPPY_WRITE)) floppy (
         .clk(clk), .reset(reset), .mmio_req(req && fdc_select), .mmio_addr({addr[3:1], 1'b0}),
         .mmio_write(write), .mmio_wdata(wdata), .mmio_byte_enable(byte_enable),
         .mmio_rdata(fdc_data), .mmio_ack(fdc_ack), .drive_select(port_a[2:1]), .side(port_a[0]),
+        .cold_reset(cold_reset), .media_frozen(media_frozen),
+        .media_write_req(media_write_req), .media_write_addr(media_write_addr),
+        .media_write_data(media_write_data), .media_write_ready(media_write_ready),
+        .media_write_busy(media_write_busy), .media_changed(media_changed),
         .media_ready(media_ready), .media_req(media_req), .media_addr(media_addr),
         .media_data(media_data), .media_valid(media_valid), .dma_req(dma_req),
         .dma_addr(dma_addr), .dma_wdata(dma_wdata), .dma_byte_enable(dma_byte_enable),
-        .dma_ready(dma_ready), .irq(fdc_irq)
+        .dma_ready(dma_ready), .dma_write(dma_write), .dma_rdata(dma_rdata), .irq(fdc_irq)
     );
 endmodule

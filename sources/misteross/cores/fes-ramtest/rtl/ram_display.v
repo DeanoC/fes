@@ -8,6 +8,7 @@
 // fault phase[2:0], failing bits[127:0], done, nack, stopped,
 // write MB/s digits[15:0], read MB/s digits[15:0].
 module ram_display (
+    input wire [106:0] byte_status,
     input wire pixel_clk,
     input wire [9:0] x,
     input wire [9:0] y,
@@ -37,6 +38,7 @@ module ram_display (
     output reg [7:0] green,
     output reg [7:0] blue
 );
+    reg [106:0] byte_sync0 = 107'd0, byte_sync1 = 107'd0;
     reg [769:0] sync0 = 770'd0;
     reg [769:0] sync1 = 770'd0;
     reg [297:0] ddr0_sync0 = 298'd0, ddr0_sync1 = 298'd0;
@@ -445,7 +447,7 @@ module ram_display (
     localparam [4:0] DDR_FAULTS = 5'd11;
     localparam [4:0] DDR_BITS = 5'd14;
     localparam [4:0] DDR_RATES = 5'd17;
-    localparam [4:0] BUTTON_ROW = 5'd19;
+    localparam [4:0] BUTTON_ROW = 5'd27;
     localparam [4:0] TABLE_HEAD = 5'd20;
     localparam [4:0] TABLE_FIRST = 5'd21;
 
@@ -557,6 +559,39 @@ module ram_display (
         end
     endfunction
 
+    function [7:0] byte_char;
+        input [4:0] line;
+        input [5:0] column;
+        begin
+            if (line == 5'd6) begin
+                if (column >= 6'd5 && column < 6'd9)
+                    byte_char = byte4_at(byte_sync1[103] ? "NACK" :
+                        status_name(byte_sync1[104], byte_sync1[106], byte_sync1[105]), column, 6'd5);
+                else if (column >= 6'd15 && column < 6'd19)
+                    byte_char = hex_digit(hex16({8'd0, byte_sync1[102:95]}, column, 6'd15));
+                else if (column >= 6'd28 && column < 6'd32)
+                    byte_char = hex_digit(hex16(byte_sync1[94:79], column, 6'd28));
+                else byte_char = text_at("BYTE      CASE     /0080 RD     /0200   ", column);
+            end else if (line == 5'd18) begin
+                if (column >= 6'd8 && column < 6'd16)
+                    byte_char = hex_digit(hex_nibble({6'd0, byte_sync1[78:53]}, column, 6'd8));
+                else if (column == 6'd22)
+                    byte_char = hex_digit({1'b0, byte_sync1[52:50]});
+                else if (column == 6'd27 || column == 6'd28)
+                    byte_char = (column == 6'd27 ? byte_sync1[49] : byte_sync1[48]) ? "1" : "0";
+                else byte_char = text_at("BYTE AT          STEP   BE              ", column);
+            end else begin
+                if (column >= 6'd5 && column < 6'd9)
+                    byte_char = hex_digit(hex16(byte_sync1[47:32], column, 6'd5));
+                else if (column >= 6'd14 && column < 6'd18)
+                    byte_char = hex_digit(hex16(byte_sync1[31:16], column, 6'd14));
+                else if (column >= 6'd23 && column < 6'd27)
+                    byte_char = hex_digit(hex16(byte_sync1[15:0], column, 6'd23));
+                else byte_char = text_at("DATA      EXP      GOT                  ", column);
+            end
+        end
+    endfunction
+
     function [7:0] table_char;
         input [4:0] line;
         input [5:0] column;
@@ -596,6 +631,7 @@ module ram_display (
     reg active_s = 1'b0;
     reg [7:0] sdram_ch_t = 8'h00;
     reg [7:0] ddr_ch_t = 8'h00;
+    reg [7:0] byte_ch_t = 8'h00;
     reg [7:0] table_ch_t = 8'h00;
     reg [2:0] glyph_row_t = 3'd0;
     reg [2:0] glyph_col_t = 3'd0;
@@ -624,10 +660,10 @@ module ram_display (
     wire [1:0] port_now = ddr_port_of(row_q);
     wire [4:0] table_now = row_q - TABLE_FIRST;
     wire ddr_status_row = row_s >= DDR_SUMMARY && row_s < DDR_FAULTS;
-    wire status_now = row_s == 5'd5 || ddr_status_row;
-    wire failed_now = ddr_status_row ? (q_nack || q_errors != 32'd0) : s_fail;
-    wire passed_now = ddr_status_row ? q_done : s_pass;
-    wire halted_now = ddr_status_row ? q_stopped : s_stopped;
+    wire status_now = row_s == 5'd5 || row_s == 5'd6 || ddr_status_row;
+    wire failed_now = ddr_status_row ? (q_nack || q_errors != 32'd0) : (row_s == 5'd6 ? byte_sync1[105] : s_fail);
+    wire passed_now = ddr_status_row ? q_done : (row_s == 5'd6 ? byte_sync1[106] : s_pass);
+    wire halted_now = ddr_status_row ? q_stopped : (row_s == 5'd6 ? byte_sync1[104] : s_stopped);
 
     ram_font font (
         .ch(ch_q),
@@ -640,6 +676,8 @@ module ram_display (
     wire [7:0] ink_blue = halted_p ? 8'hE8 : (failed_p ? 8'h28 : (passed_p ? 8'h40 : 8'h20));
 
     always @(posedge pixel_clk) begin
+        byte_sync0 <= byte_status;
+        byte_sync1 <= byte_sync0;
         sync0 <= snap;
         sync1 <= sync0;
         ddr0_sync0 <= ddr0;
@@ -689,6 +727,7 @@ module ram_display (
         sdram_ch_t <= row_s < 5'd6 ? line_char(row_s, col_s, "SDRAM", s_phase, s_reading, s_addr,
             s_errors, s_fault, s_last, s_was, s_expect, s_got, s_mhz, s_stopped, s_pass, s_fail) : 8'h00;
         ddr_ch_t <= row_s >= DDR_HEAD && row_s <= DDR_RATES ? ddr_char(row_s, col_s) : 8'h00;
+        byte_ch_t <= row_s == 5'd6 || row_s == 5'd18 || row_s == 5'd19 ? byte_char(row_s, col_s) : 8'h00;
         table_ch_t <= table_char(row_s, col_s);
         glyph_row_t <= glyph_row_s;
         glyph_col_t <= glyph_col_s;
@@ -698,7 +737,7 @@ module ram_display (
         passed_t <= passed_now;
         halted_t <= halted_now;
         // At most one section decodes a character on any row.
-        ch_q <= sdram_ch_t | ddr_ch_t | table_ch_t;
+        ch_q <= sdram_ch_t | ddr_ch_t | table_ch_t | byte_ch_t;
         glyph_row_q <= glyph_row_t;
         glyph_col_q <= glyph_col_t;
         active_c <= active_t;

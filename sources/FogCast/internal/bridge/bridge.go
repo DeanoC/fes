@@ -273,7 +273,12 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 			}
 			continue
 		}
-		accepted, gap := tracker.Observe(f.Seq)
+		var accepted, gap bool
+		if f.Device == 2 {
+			accepted, gap = tracker.ObserveTransient(f.Seq)
+		} else {
+			accepted, gap = tracker.Observe(f.Seq)
+		}
 		if gap {
 			s.metrics.SequenceGaps.Add(1)
 		}

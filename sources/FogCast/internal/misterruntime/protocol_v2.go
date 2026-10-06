@@ -471,12 +471,21 @@ func validateProtocol2Shape(line []byte) error {
 			return err
 		}
 		if err := eachRaw(raw, func(item json.RawMessage) error {
-			unit, err := exactRawObject(item, []string{"unit", "interface", "min_bytes", "max_bytes", "chunk_bytes", "state"}, nil)
+			unit, err := exactRawObject(item, []string{"unit", "interface", "min_bytes", "max_bytes", "chunk_bytes", "state"}, []string{"persistence"})
 			if err != nil {
 				return err
 			}
 			if err := requireRawKinds(unit, map[string]rawKind{"unit": rawUnsigned, "interface": rawObject, "min_bytes": rawUnsigned, "max_bytes": rawUnsigned, "chunk_bytes": rawUnsigned, "state": rawString}); err != nil {
 				return err
+			}
+			if raw, ok := unit["persistence"]; ok {
+				binding, err := exactRawObject(raw, []string{"mode", "game_id", "base_media_id", "revision"}, nil)
+				if err != nil {
+					return err
+				}
+				if err = requireRawKinds(binding, map[string]rawKind{"mode": rawString, "game_id": rawString, "base_media_id": rawString, "revision": rawString}); err != nil {
+					return err
+				}
 			}
 			return validateSupportedInterfaceShape(unit["interface"])
 		}); err != nil {
@@ -1127,6 +1136,7 @@ func validMediaUnits(response Protocol2Response) bool {
 		!protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
 		return false
 	}
+	bound := false
 	for index, unit := range response.Capabilities.MediaUnits {
 		if !unit.Valid() || (index > 0 && response.Capabilities.MediaUnits[index-1].Unit >= unit.Unit) {
 			return false
@@ -1140,6 +1150,16 @@ func validMediaUnits(response Protocol2Response) bool {
 		if !found {
 			return false
 		}
+		if unit.Persistence != nil {
+			bound = true
+		}
+	}
+	p := computerMediaStatus(response).CorePackage
+	if bound && (!protocol.MediaWriteCapable(p) || active.PersistenceMode != "persistent") {
+		return false
+	}
+	if active.PersistenceMode == "persistent" && !bound {
+		return false
 	}
 	return true
 }
@@ -1150,7 +1170,7 @@ func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePac
 	id, err := expansion.SlotCompositionID(c.PackageID, c.Expansions, c.PayloadSHA256)
 	if err != nil || id != c.ID || c.PackageID != active.PackageID || !protocol2Hex64.MatchString(c.ShellSHA256) ||
 		c.ShellSHA256 != active.Descriptor.Payload.SHA256 || c.PayloadSize < 40408 || c.PayloadSize > corepackage.MaxPayloadSize ||
-		active.PersistenceMode == "persistent" || !protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
+		(active.PersistenceMode == "persistent" && !descriptorMediaWrite(active.Descriptor)) || !protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) {
 		return false
 	}
 	var bus string
@@ -1182,13 +1202,24 @@ func validSlotComposition(c expansion.SlotComposition, active Protocol2ActivePac
 }
 
 func validActivePackage(active Protocol2ActivePackage, capabilities Protocol2Capabilities) bool {
+	if protocol.ComputerABI(active.Descriptor.ABI.ID, active.Descriptor.ABI.Major, active.Descriptor.ABI.Minor) && active.PersistenceMode == "persistent" {
+		bound := false
+		for _, u := range capabilities.MediaUnits {
+			if u.Persistence != nil && u.Valid() {
+				bound = true
+			}
+		}
+		if !bound || !descriptorMediaWrite(active.Descriptor) {
+			return false
+		}
+	}
 	for _, i := range active.Descriptor.Interfaces {
 		if i.ID == expansion.NativeVideoSlot && active.PartsComposition == nil {
 			return false
 		}
 	}
 	if c := active.PartsComposition; c != nil {
-		if active.Composition != nil || active.SlotComposition != nil || active.PersistenceMode != "volatile" || !validPartsComposition(*c, active.PackageID) || c.ShellSHA256 != active.Descriptor.Payload.SHA256 {
+		if active.Composition != nil || active.SlotComposition != nil || (active.PersistenceMode != "volatile" && !descriptorMediaWrite(active.Descriptor)) || !validPartsComposition(*c, active.PackageID) || c.ShellSHA256 != active.Descriptor.Payload.SHA256 {
 			return false
 		}
 		if shell, err := corepackage.PartsShell(corepackage.Inspection{PackageID: active.PackageID, Descriptor: active.Descriptor}, nil); err != nil || shell.Layout != c.Layout {
@@ -1440,3 +1471,16 @@ const (
 	identityCore
 	identityInvalid
 )
+
+func descriptorMediaWrite(d corepackage.Descriptor) bool {
+	base, write := false, false
+	for _, i := range d.Interfaces {
+		if i.ID == protocol.AtariStFloppyInterface().ID && i.Major == 1 && i.Minor == 0 {
+			base = true
+		}
+		if i.ID == protocol.AtariStFloppyWriteInterface().ID && i.Major == 1 && i.Minor == 0 {
+			write = true
+		}
+	}
+	return protocol.ComputerABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) && base && write
+}
