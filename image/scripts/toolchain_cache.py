@@ -16,6 +16,9 @@ EPOCH = 1751459412
 FRAGMENT = "buildroot/configs/fogcast_toolchain.fragment"
 PREFIX = "arm-buildroot-linux-gnueabihf"
 EXTERNAL_PATH = "/target-image-output/external-toolchain/host"
+SHARED_CONTAINER_PATH = "/target-image-shared-cache"
+CCACHE_OPTIONS = ("BR2_CCACHE=y", f'BR2_CCACHE_DIR="{SHARED_CONTAINER_PATH}/ccache"',
+                  "BR2_CCACHE_USE_BASEDIR=y", 'BR2_CCACHE_INITIAL_SETUP="--max-size=20G"')
 
 
 def sha(data):
@@ -38,7 +41,23 @@ def key(image=IMAGE, epoch=EPOCH):
 
 def cache_dir(image=IMAGE):
     image = Path(image)
-    return image / "build/cache/target-image/toolchains" / key(image)
+    shared = shared_root(image)
+    return (shared / "toolchains" if shared else image / "build/cache/target-image/toolchains") / key(image)
+
+
+def shared_root(image=IMAGE):
+    value = os.environ.get("FES_TARGET_IMAGE_SHARED_CACHE", "")
+    if not value:
+        return None
+    path = Path(value)
+    if not path.is_absolute():
+        raise ValueError("FES_TARGET_IMAGE_SHARED_CACHE must be an absolute path")
+    path = path.resolve()
+    worktree = Path(image).resolve().parent
+    container_mount = Path(image).resolve() == Path("/work") and path == Path(SHARED_CONTAINER_PATH)
+    if not container_mount and (path == worktree or worktree in path.parents):
+        raise ValueError("FES_TARGET_IMAGE_SHARED_CACHE must be outside the worktree")
+    return path
 
 
 def validated_sha(directory, expected_key):
@@ -142,7 +161,9 @@ def config(image, kind, destination):
                    f"{NO_INET_RPC}\n")
     elif kind not in ("toolchain", "internal"):
         raise ValueError("unknown configuration kind")
-    Path(destination).write_text(base_text + "\n" + shared)
+    options = "" if kind != "external" or shared_root(image) is None else "".join(
+        option + "\n" for option in CCACHE_OPTIONS)
+    Path(destination).write_text(base_text + "\n" + shared + options)
 
 
 def validate_config(kind, path):
@@ -158,6 +179,10 @@ def validate_config(kind, path):
                 "BR2_TOOLCHAIN_EXTERNAL_CUSTOM_GLIBC=y", "BR2_TOOLCHAIN_EXTERNAL_CXX=y", NO_INET_RPC}
     required = common | (external if kind == "external" else internal)
     missing = required - selected
+    if kind == "external" and shared_root() is not None:
+        missing |= set(CCACHE_OPTIONS) - selected
+    if kind in ("toolchain", "internal") and "BR2_CCACHE=y" in selected:
+        raise ValueError("source and toolchain configurations must not enable ccache")
     if missing:
         raise ValueError("Buildroot rejected toolchain configuration: " + ", ".join(sorted(missing)))
 
@@ -170,6 +195,10 @@ def main(argv):
         print(EPOCH)
     elif command == "path":
         print(EXTERNAL_PATH)
+    elif command == "shared-root":
+        value = shared_root()
+        if value is not None:
+            print(value)
     elif command == "status":
         value = validated_sha(cache_dir(), key())
         if value is None:

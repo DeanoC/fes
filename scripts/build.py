@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tomllib
 import tempfile
-from image_toolchain import toolchain_key
+from image_toolchain import toolchain_key, shared_root
 
 from inputs import git, validate, selected_runtime_lock
 import module_sources
@@ -249,12 +249,26 @@ def fingerprint(revisions, profile, toolchain):
 
 def verification_record(output, image_sha256, baseline_match, image_passes=2):
     evidence = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
+    validate_shared_cache_evidence(evidence)
     result = {"image_sha256": image_sha256, "historical_baseline_match": baseline_match,
             "toolchain_key": evidence["toolchain_key"], "toolchain_sha256": evidence["toolchain_sha256"],
             "two_pass_reproducibility": "pass" if image_passes == 2 else "not-run-single-pass",
             "structural": "pass", "qemu_packaging": "pass",
             "qemu_log_sha256": digest(output / "qemu-smoke.log")}
+    if evidence.get("shared_cache") == "1":
+        result.update(shared_cache=1, ccache_pass_1=1, ccache_pass_2=0)
     return result
+
+
+def validate_shared_cache_evidence(evidence, verification=None):
+    names = ("shared_cache", "ccache_pass_1", "ccache_pass_2")
+    present = any(name in evidence for name in names)
+    if present and tuple(evidence.get(name) for name in names) != ("1", "1", "0"):
+        raise ValueError("image ccache evidence is invalid: pass 2 must disable ccache")
+    if verification is not None:
+        recorded = tuple(verification.get(name) for name in names)
+        if recorded != ((1, 1, 0) if present else (None, None, None)):
+            raise ValueError("image ccache verification differs from build evidence")
 
 
 def publish_host_inputs(output, fingerprint, metadata):
@@ -341,6 +355,7 @@ def load_verified_image(output, fingerprint, *, allow_single_pass=False):
         qemu_log_sha256 = digest(output / "qemu-smoke.log")
         evidence = dict(line.split("=", 1) for line in
                         (output / "reproducibility.txt").read_text().splitlines())
+        validate_shared_cache_evidence(evidence, verification)
         single = evidence.get("image_passes") == "1"
         verification_ok = (verification.get("two_pass_reproducibility") == "pass"
                            and verification.get("image_passes", 2) == 2
@@ -1627,6 +1642,8 @@ def main():
         if not shutil.which(tool):
             raise ValueError(f"required executable is missing: {tool}")
     env = build_environment()
+    if env.get("FES_TARGET_IMAGE_SHARED_CACHE"):
+        shared_root(IMAGE)
     with tempfile.TemporaryDirectory(prefix="fes-go-version-") as temporary:
         (Path(temporary) / "go.mod").write_text(git(ROOT / "sources/FogCast", "show",
             revisions["FogCast"] + ":go.mod") + "\n")
@@ -1714,6 +1731,10 @@ def main():
                 except (OSError, ValueError):
                     image_hit, image_reason = False, "image pass evidence is missing"
             if image_hit:
+                prior = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
+                if (prior.get("shared_cache") == "1") != bool(env.get("FES_TARGET_IMAGE_SHARED_CACHE")):
+                    image_hit, image_reason = False, "shared cache mode changed"
+            if image_hit:
                 diagnostics.cache("image", "hit", image_reason)
                 print("Image: reusing verified output", flush=True)
                 verify_package_only_outputs(output, packages)
@@ -1785,6 +1806,7 @@ def main():
             shutil.copy2(IMAGE / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")
             actual = digest(output / "linux.img")
             evidence = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
+            validate_shared_cache_evidence(evidence)
             passes = int(evidence.get("image_passes", "2"))
             if evidence.get("run_1_sha256") != actual or (passes == 2 and evidence.get("run_2_sha256") != actual):
                 raise ValueError("image does not match recorded build passes")

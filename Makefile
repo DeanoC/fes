@@ -3,6 +3,9 @@ PROFILE ?= native-integration-dev
 PYTHON ?= python3
 RELEASE_VERSION ?= 0.2.0-dev.1
 IMAGE_PASSES ?= 2
+ifneq ($(origin FES_TARGET_IMAGE_SHARED_CACHE),undefined)
+export FES_TARGET_IMAGE_SHARED_CACHE
+endif
 
 ifneq ($(strip $(AGENT_CONFIG)),)
 ifneq ($(strip $(filter-out media,$(MAKECMDGOALS))),)
