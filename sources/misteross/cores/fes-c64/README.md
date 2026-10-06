@@ -59,6 +59,10 @@ builds one card into one socket of a frozen shell.
 The producer selects probe mode 0 for socket 1 and mode 1 for socket 2;
 it authenticates both the legacy PLL output aliases and current physical
 C6/C7 pin layout, preserving an already-correct physical layout.
+Each synthesized response is lowered to an independent identity ALUT2 before
+the frozen merge: constants and aliased output signals must not be lost by the
+pinned cart merger. Clock-pin checks, final analogue setup/hold on all required
+clocks and exact CRAM containment are separate admission checks.
 
 ## Diagnostic
 

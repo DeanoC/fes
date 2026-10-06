@@ -1625,6 +1625,11 @@ the same `fes.computer` 1.0 mailbox as Apple II. The machine contract is
 [its README](../cores/fes-c64/README.md). `make sim-fes-c64` boots the open
 diagnostic: RAM, firmware signature, VIC text, both cartridge sockets,
 joystick, keyboard, a SID sample and a read-only D64 LOAD of `BOOT`.
+The diagnostic waits at stages 7/8 for joystick Up and HID A. A hardware
+runner confirms the live disk is ready before sending those inputs; it uses
+launch's existing ready input stream instead of attaching twice. This is an
+operator-gated diagnostic, not pre-release initial-disk mounting or write-back
+support. Atari ST's startup and durable writable-disk contract remains separate.
 Both CIA timers expose their live counters, load stopped counters on high-byte
 writes, treat force-load as a strobe, and implement continuous/one-shot counting.
 Timer B can count Phi2 or timer A underflows. CIA1 asserts IRQ and CIA2 asserts
@@ -1645,7 +1650,13 @@ netlist check rejects every other async M10K. Color RAM is a synchronous
 dual-port M10K, with independent system and pixel clocks; the CPU samples its
 registered read at cycle 16 and the VIC aligns its result with main RAM.
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
-frozen shell. No Commodore ROM is in the tree, and the core is not in the
+frozen shell. The producer chooses probe mode from the socket and validates
+both legacy and physical PLL output maps. Frozen clocks are constrained by
+net; admission requires final analogue setup and hold on all three clocks
+independently of routing legality and CRAM containment. Each response output
+has a separate identity ALUT2 so the pinned merger cannot discard constant
+outputs or collapse aliased response sinks. The probe drives only read cycles.
+No Commodore ROM is in the tree, and the core is not in the
 factory image. The shell uses Yosys `5391eeb1`, Mistral `8fcc4cb4` and nextpnr
 `0c5ed400`; its
 socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -33,6 +34,19 @@ def frozen_shell() -> dict:
 
 
 class C64SlotCardTests(unittest.TestCase):
+    def test_original_synthesis_snapshot_cannot_follow_a_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            relative = Path("build/cards/test")
+            output = root / relative
+            output.mkdir(parents=True)
+            target = root / "unrelated.json"
+            target.write_text("preserve me")
+            (output / "cart-synthesized.json").symlink_to(target)
+            with self.assertRaises(card.shell_recipe.BuildError):
+                card._prepare_output(root, relative=relative, build_outputs=card.BUILD_OUTPUTS)
+            self.assertEqual(target.read_text(), "preserve me")
+
     @staticmethod
     def physical_shell() -> dict:
         design = frozen_shell()

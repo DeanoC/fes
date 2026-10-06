@@ -42,7 +42,7 @@ TOOL_INPUTS = (
     "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/fes_build_common.py",
     shell_recipe.C64_TOOLCHAIN_LOCK, shell_recipe.SDC,
 )
-BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json", "linked.rbf",
+BUILD_OUTPUTS = ("cart.json", "cart-synthesized.json", "cart.rbf", "cart-routed.json", "timing.json", "linked.rbf",
                  "build-summary.json", "synthesis.log", "route.log", "clocks.sdc",
                  "scaffold.json", "cart.qsf", "cram-diff.json")
 PLACER_SEED = 3
