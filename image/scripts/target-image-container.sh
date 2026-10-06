@@ -65,6 +65,7 @@ if [ -n "${FES_VIDEO_PARTS_DIR:-}" ] || [ -n "${FES_PACKAGE_IDS:-}" ] ||
   [ -n "${FES_SG1000_PACKAGE_DIR:-}" ] || [ -n "${FES_SG1000_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_C64_PACKAGE_DIR:-}" ] || [ -n "${FES_C64_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_RAMTEST_PACKAGE_DIR:-}" ] || [ -n "${FES_RAMTEST_PACKAGE_SELECTION:-}" ] ||
+  [ -n "${FES_ATARI_ST_PACKAGE_DIR:-}" ] || [ -n "${FES_ATARI_ST_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_SPECTRUM_PACKAGE_DIR:-}" ] || [ -n "${FES_SPECTRUM_PACKAGE_SELECTION:-}" ]; then
   "$repo_root/scripts/native-extra-cores.sh" validate
 fi
@@ -86,6 +87,7 @@ load_package_mount_order() {
       fes.c64) package_core=c64 ;;
       fes.spectrum) package_core=spectrum ;;
       fes.ramtest) package_core=ramtest ;;
+    fes.atari-st) package_core=atari-st ;;
       *) exit 2 ;;
     esac
     package_ids_reverse="$package_core $package_ids_reverse"
@@ -195,6 +197,12 @@ docker_run() {
         package_selection=$FES_RAMTEST_PACKAGE_SELECTION
         package_dir_env=FES_RAMTEST_PACKAGE_DIR
         package_selection_env=FES_RAMTEST_PACKAGE_SELECTION
+        ;;
+      atari-st)
+        package_dir=$FES_ATARI_ST_PACKAGE_DIR
+        package_selection=$FES_ATARI_ST_PACKAGE_SELECTION
+        package_dir_env=FES_ATARI_ST_PACKAGE_DIR
+        package_selection_env=FES_ATARI_ST_PACKAGE_SELECTION
         ;;
       *) exit 2 ;;
     esac

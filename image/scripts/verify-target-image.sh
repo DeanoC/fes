@@ -100,6 +100,7 @@ inspection_package_id() {
 				fes.c64) package_selection_path=${FES_C64_PACKAGE_SELECTION:-} ;;
 				fes.spectrum) package_selection_path=${FES_SPECTRUM_PACKAGE_SELECTION:-} ;;
 				fes.ramtest) package_selection_path=${FES_RAMTEST_PACKAGE_SELECTION:-} ;;
+				fes.atari-st) package_selection_path=${FES_ATARI_ST_PACKAGE_SELECTION:-} ;;
 				*) return 1 ;;
 			esac
 			[ -f "$package_selection_path" ] && [ ! -L "$package_selection_path" ] || return 1

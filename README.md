@@ -73,8 +73,9 @@ make verify
 The default `native-integration-dev` selects component revisions through the
 FES commit, retains the locked idle RBF, and installs the ordered,
 closed package set `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
-`fes.sg1000`, `fes.spectrum`, `fes.ramtest`. SMS, SG-1000 and Spectrum are
-sealed and included. C64 remains registered while its HIP seal is unresolved,
+`fes.sg1000`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st`. SMS, SG-1000, Spectrum and Atari ST are
+sealed and included. ST firmware remains separately selected by the user; no ROM
+is bundled in the image. C64 remains registered while its HIP seal is unresolved,
 so it stays out. The 128 MiB rootfs from #347 holds this set.
 Menu (`fes.menu`) is the idle display, not a playable library entry. Each selected
 package is independently resolved, cached, installed and recorded; this is the
@@ -132,7 +133,7 @@ out/native-integration-dev/fogcast-api --config /absolute/path/config.toml --lis
 ```
 
 The native image installs the ordered playable package set: Pong, Sinclair ZX81, ColecoVision, Sega Master System,
-Sega SG-1000, ZX Spectrum 48K and RAM Tester (OSS 100 MHz). Menu supplies the idle display and is not
+Sega SG-1000, ZX Spectrum 48K, RAM Tester (OSS 100 MHz) and Atari ST. Menu supplies the idle display and is not
 a playable library entry. These packages use the package/library lifecycle. The image
 does not promise generalized/custom RBF ABIs or useful video/input from arbitrary development cores. The SDL tenfoot client
 remains a component build, not a parent output. `linux.img` is the target root
@@ -167,7 +168,7 @@ artifacts they name.
 
 | Profile | Selected source combination |
 | --- | --- |
-| `native-integration-dev` (default) | Current FES commit, locked idle RBF and the ordered eight-package FES set (menu, Pong, ZX81, Coleco, SMS, SG-1000, Spectrum, RAM Tester) |
+| `native-integration-dev` (default) | Current FES commit, locked idle RBF and the ordered nine-package FES set (menu, Pong, ZX81, Coleco, SMS, SG-1000, Spectrum, RAM Tester, Atari ST) |
 
 The parent exposes one FES integration profile. Systems whose nextpnr route is
 not implemented yet are checked explicitly with Quartus when their recipe
