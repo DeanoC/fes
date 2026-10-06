@@ -120,17 +120,9 @@ def classify_path(path):
             'rule': '(no rule; fail-safe)'}
 
 
-CORE_RULE = 'sources/misteross/cores/*/**'
+CORE_RULES = ('sources/misteross/cores/*/**', 'sources/misteross/cores/fes-common/**')
 MISTEROSS = 'sources/misteross/'
 SCRIPTS_DIR = MISTEROSS + 'scripts/'
-
-
-def producer_component(script):
-    """Component for a build_fes_* producer, or None for a shared helper."""
-    name = Path(script).name
-    if not name.startswith('build_fes_'):
-        return None
-    return classify_path(SCRIPTS_DIR + name)['component']
 
 
 def script_texts(repo=None, head=None):
@@ -147,27 +139,34 @@ def script_texts(repo=None, head=None):
 
 
 def core_consumers(path, texts):
-    """Components whose producers name this core file or one of its directories."""
+    """Classify every script that names this core file or one of its directories."""
     relative = path.removeprefix(MISTEROSS)
     parts = relative.split('/')
     candidates = ['/'.join(parts[:index]) for index in range(3, len(parts) + 1)]
     pattern = re.compile(r'["\'](?:' + '|'.join(map(re.escape, candidates)) + r')/?["\']')
-    found = set()
-    for script, text in texts.items():
-        name = Path(script).name
-        if name.startswith('sim_') or not pattern.search(text):
-            continue
-        found.add(producer_component(script) or 'core:ALL')
+    found = []
+    for script, text in sorted(texts.items()):
+        if pattern.search(text):
+            row = classify_path(SCRIPTS_DIR + Path(script).name)
+            if row['class'] != 'none':
+                found.append(row)
     return found
 
 
 def plan(paths, texts=None):
     rows = [classify_path(path) for path in paths if path.strip()]
     for row in rows:
-        if row['class'] == 'overlay' and row['rule'] == CORE_RULE:
+        if row['class'] == 'overlay' and row['rule'] in CORE_RULES:
             if texts is None:
                 texts = script_texts()
-            row['consumers'] = sorted(core_consumers(row['path'], texts) - {row['component']})
+            consumers = core_consumers(row['path'], texts)
+            full = [item for item in consumers if item['class'] == 'full']
+            if full:
+                # A full-image producer (splash, video part) consumes this file.
+                row.update({'class': 'full', 'component': full[0]['component'],
+                            'rule': row['rule'] + ' <- ' + full[0]['path']})
+            elif row['component'] != 'core:ALL':
+                row['consumers'] = sorted({item['component'] for item in consumers} - {row['component']})
     worst = max((row['class'] for row in rows), key=lambda item: RANK[item], default='none')
     components = sorted({component for row in rows
                          if row['class'] == 'overlay' and row['component']
@@ -251,6 +250,25 @@ def validate_entry(entry):
         raise ValueError(f'package_id is only valid for core components: {component}')
 
 
+GO_COMPONENTS = {'mister-agent', 'fogcast-kit', 'fogcast-tenfoot', 'host:fogcast-api', 'host:fogcast'}
+
+
+def revision_error(component, data, head):
+    """Check that a binary embeds the head revision; return a refusal or None."""
+    head = head.lower()
+    if component == 'mister-runtime':
+        # libmister-runtime/Makefile: MISTER_RUNTIME_VERSION = git-<12 hex>[-dirty]
+        if re.search(rb'git-' + head[:12].encode() + rb'(?![-0-9a-f])', data):
+            return None
+        return f'{component} does not embed clean version git-{head[:12]}'
+    if component in GO_COMPONENTS:
+        # FogCast Makefile: -X internal/version.Revision=$(git rev-parse HEAD)
+        if head.encode() in data:
+            return None
+        return f'{component} does not embed revision {head}'
+    return f'no head revision check is defined for {component}'
+
+
 def manifest(head, output, specs):
     entries = []
     seen = set()
@@ -276,6 +294,10 @@ def manifest(head, output, specs):
                 raise ValueError(f'archive for {component} was built from revision {revision or "?"}, not head {head}')
             entry['package_id'] = package.package_id
             entry['core_id'] = core_id
+        else:
+            error = revision_error(component, data, head)
+            if error:
+                raise ValueError(error + '; build it from a clean worktree at the head')
         validate_entry(entry)
         key = (side, target)
         if key in seen:
@@ -488,6 +510,16 @@ def evidence(args):
                 return refuse(f"local core archive sha256/package_id/core_id changed for {entry['component']}")
             if str(package.fields.get('build', {}).get('revision', '')).lower() != head:
                 return refuse(f"core archive for {entry['component']} was not built from head {head}")
+        else:
+            if not entry.get('local') or not Path(entry['local']).is_file():
+                return refuse(f"local artifact for {entry['component']} is missing; "
+                              "generate evidence where the manifest was built")
+            artifact = Path(entry['local']).read_bytes()
+            if hashlib.sha256(artifact).hexdigest() != str(entry['sha256']).lower():
+                return refuse(f"local artifact sha256 changed for {entry['component']}")
+            error = revision_error(entry['component'], artifact, head)
+            if error:
+                return refuse(error)
         key = (entry['side'], entry['target'])
         if key in seen:
             raise ValueError(f'duplicate {entry["side"]} target: {entry["target"]}')

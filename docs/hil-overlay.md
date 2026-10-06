@@ -14,7 +14,11 @@ python3 scripts/hil_plan.py manifest --head "$PR_HEAD" --out /tmp/hil-manifest.j
   host:fogcast-api=/build/fogcast-api=host:/home/deano/tmp/hil/fogcast-api
 ```
 
-For each `core:*` archive, the planner reads the local archive and derives its
+Every binary must embed the head. FogCast Go binaries need the full revision
+from the Makefile's `-X internal/version.Revision=$(REVISION)`, and
+`mister-runtime` needs the clean `git-<12 hex>` version (a `-dirty` build is
+refused). Evidence re-reads each local artifact, so generate it on the machine
+where the manifest was built. For each `core:*` archive, the planner reads the local archive and derives its
 package ID and core ID. The archive must identify the requested core, and its
 embedded `build.revision` must equal the full PR head. A changed file under
 `cores/<name>/` also requires every `build_fes_*` producer that names the file
@@ -22,7 +26,8 @@ or one of its directories. If a shared helper names it, the plan requires
 `core:ALL`. Some changes cannot be
 overlaid and force `FULL_IMAGE`. These are the splash, which becomes the boot
 `/idle.rbf` (`cores/fes-splash/**`, `build_fes_splash*`, `sealed/**`), the video
-part producers (`scripts/*video_part*`), and Go packages that only image-build
+part producers (`scripts/*video_part*`) and any core file they or the splash
+producer name, and Go packages that only image-build
 commands use (`internal/targetimage`). Host-server
 changes require the binary from the exact-head build to be started as `fogcast-api`
 before the host attestation command is run.

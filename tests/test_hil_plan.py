@@ -51,6 +51,7 @@ class HilPlanTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.work = Path(self.temp.name)
+        self.artifact_bytes = {}
 
     def git(self, *args):
         return subprocess.check_output(['git', '-C', str(self.repo), *args], text=True).strip()
@@ -78,7 +79,10 @@ class HilPlanTest(unittest.TestCase):
         self.head = self.git('rev-parse', 'HEAD')
         return self.base, self.head
 
-    def write_artifact(self, name, content=b'artifact'):
+    def write_artifact(self, name, content=b'artifact', head='a' * 40, stamp=True):
+        # Binaries embed the head: Go via version.Revision, runtime via git-<12 hex>.
+        if stamp:
+            content = content + b'\0' + head.encode() + b'\0git-' + head[:12].encode() + b'\0'
         path = self.work / name
         path.write_bytes(content)
         return path
@@ -87,7 +91,9 @@ class HilPlanTest(unittest.TestCase):
         result = self.work / 'manifest.json'
         payload = []
         for component, side, target, content in entries:
-            local = self.write_artifact(component.replace(':', '_'), content)
+            local = self.write_artifact(component.replace(':', '_'), content, head or self.head)
+            content = local.read_bytes()
+            self.artifact_bytes[component] = content
             row = {'component': component, 'side': side, 'target': target,
                             'local': str(local), 'sha256': digest(content),
                             'size': len(content)}
@@ -95,6 +101,7 @@ class HilPlanTest(unittest.TestCase):
                 core_id = component.removeprefix('core:')
                 content = core_archive(core_id, head or self.head)
                 local.write_bytes(content)
+                self.artifact_bytes[component] = content
                 row.update(local=str(local.resolve()), sha256=digest(content), size=len(content),
                            package_id=None, core_id=core_id)
                 # Derive immutable identity with the production reader.
@@ -146,6 +153,8 @@ class HilPlanTest(unittest.TestCase):
     def kit_output(self, entries, supervisor='SUPERVISORS runtime=1 agent=1 kit=1',
                    exe_overrides=None, missing_exe=(), kit_ui='tenfoot'):
         exe_overrides = exe_overrides or {}
+        entries = [(component, side, target, self.artifact_bytes.get(component, content))
+                   for component, side, target, content in entries]
         lines = [f'boot_id {BOOT_ID}']
         for component, side, target, content in entries:
             if side == 'kit':
@@ -173,6 +182,8 @@ class HilPlanTest(unittest.TestCase):
         return path
 
     def host_output(self, entries, override=None):
+        entries = [(component, side, target, self.artifact_bytes.get(component, content))
+                   for component, side, target, content in entries]
         lines = []
         for component, side, target, content in entries:
             if side == 'host':
@@ -188,16 +199,17 @@ class HilPlanTest(unittest.TestCase):
                  include_host_owner=True, lease_owner_override=None,
                  reacquired_owner=None):
         manifest_entries = json.loads(Path(manifest).read_text())['entries']
+        locals_ = {row['component']: Path(row['local']) for row in manifest_entries}
         entries = [(component, side, target,
-                    Path(next(row['local'] for row in manifest_entries
-                              if row['component'] == component)).read_bytes()
-                    if component.startswith('core:') else content)
+                    locals_[component].read_bytes()
+                    if component in locals_ and locals_[component].exists()
+                    else self.artifact_bytes.get(component, content))
                    for component, side, target, content in entries]
         kit_file = self.kit_output(entries) if any(row[1] == 'kit' for row in entries) else None
         host_file = self.host_output(entries) if any(row[1] == 'host' for row in entries) else None
         if host_file and host_exe_value is not None:
             host_file.write_text(host_file.read_text().replace(
-                f'exe host:fogcast-api {digest(b"api")}',
+                f'exe host:fogcast-api {digest(self.artifact_bytes.get("host:fogcast-api", b"api"))}',
                 f'exe host:fogcast-api {host_exe_value}'))
         args = ['evidence', '--repo', self.repo, '--base-image-commit', self.base,
                 '--head', self.head, '--base-image-sha256', BASE_SHA,
@@ -328,6 +340,82 @@ class HilPlanTest(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(json.loads(result.stdout)['components'], components)
 
+    def test_binaries_must_embed_the_head_revision(self):
+        head = 'a' * 40
+        args = ['manifest', '--head', head, '--out', self.work / 'm.json']
+        cases = [
+            ('mister-agent', 'kit:/usr/sbin/mister-agent', b'go' + ('b' * 40).encode(), 'does not embed revision'),
+            ('host:fogcast-api', 'host:/tmp/api', b'go', 'does not embed revision'),
+            ('mister-runtime', 'kit:/usr/sbin/mister-runtime', b'git-' + head[:12].encode() + b'-dirty',
+             'does not embed clean version'),
+            ('mister-runtime', 'kit:/usr/sbin/mister-runtime', b'git-' + ('b' * 12).encode(),
+             'does not embed clean version'),
+            ('host:other', 'host:/tmp/other', head.encode(), 'no head revision check'),
+        ]
+        for component, destination, content, reason in cases:
+            with self.subTest(component=component, reason=reason):
+                binary = self.write_artifact('bin', content, stamp=False)
+                result = run(*args, f'{component}={binary}={destination}')
+                self.assertEqual(result.returncode, 2)
+                self.assertIn(reason, result.stderr)
+        runtime = self.write_artifact('rt', b'git-' + head[:12].encode() + b'\0', stamp=False)
+        self.assertEqual(run(*args, f'mister-runtime={runtime}=kit:/usr/sbin/mister-runtime').returncode, 0)
+
+    def test_evidence_rechecks_local_binary_and_revision(self):
+        self.git_repo(['sources/FogCast/cmd/mister-agent/change.go'])
+        entries = [('mister-agent', 'kit', '/usr/sbin/mister-agent', b'agent')]
+        manifest = self.make_manifest(entries)
+        data = json.loads(manifest.read_text())
+        local = Path(data['entries'][0]['local'])
+        stale = b'agent built at another commit'
+        for mutate, reason in ((lambda: local.unlink(), 'local artifact for mister-agent is missing'),
+                               (lambda: local.write_bytes(stale), 'sha256 changed')):
+            with self.subTest(reason=reason):
+                self.make_manifest(entries)
+                mutate()
+                output = self.work / 'stale.md'
+                result = self.evidence(manifest, entries, output=output)
+                self.assert_refused_without_evidence(result, output)
+                self.assertIn(reason, result.stderr)
+        # A hand-edited manifest that re-hashes a stale binary still fails the revision check.
+        self.make_manifest(entries)
+        data = json.loads(manifest.read_text())
+        local.write_bytes(stale)
+        data['entries'][0].update(sha256=digest(stale), size=len(stale))
+        manifest.write_text(json.dumps(data))
+        self.artifact_bytes['mister-agent'] = stale
+        output = self.work / 'stale.md'
+        result = self.evidence(manifest, entries, output=output)
+        self.assert_refused_without_evidence(result, output)
+        self.assertIn('does not embed revision', result.stderr)
+
+    def test_video_part_inputs_force_full_image(self):
+        result = run('classify', '--paths-file',
+                     self.path_file('sources/misteross/cores/fes-common/rtl/fes_video_part_direct.v'), '--json')
+        self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
+        self.git_repo([])
+        scripts = self.repo / 'sources/misteross/scripts'
+        scripts.mkdir(parents=True)
+        (scripts / 'build_x_video_part.py').write_text('RTL = "cores/fes-common/rtl/part.v"\n')
+        (scripts / 'build_fes_splash.py').write_text('RTL = "cores/fes-beta/rtl/logo.v"\n')
+        for name in ('fes-common/rtl/part.v', 'fes-common/rtl/other.v', 'fes-beta/rtl/logo.v'):
+            path = self.repo / 'sources/misteross/cores' / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('base\n')
+        self.git('add', '.')
+        self.git('commit', '-m', 'scripts')
+        base = self.git('rev-parse', 'HEAD')
+        for name, decision in (('fes-common/rtl/part.v', 'FULL_IMAGE'), ('fes-beta/rtl/logo.v', 'FULL_IMAGE'),
+                               ('fes-common/rtl/other.v', 'OVERLAY core:ALL')):
+            with self.subTest(name=name):
+                self.git('checkout', '-q', base)
+                (self.repo / 'sources/misteross/cores' / name).write_text('change\n')
+                self.git('commit', '-qam', 'change ' + name)
+                head = self.git('rev-parse', 'HEAD')
+                result = run('classify', '--repo', self.repo, '--base-image-commit', base,
+                             '--head', head, '--json')
+                self.assertEqual(json.loads(result.stdout)['decision'], decision)
+
     def test_full_image_unrecognised_and_docs_only(self):
         for path in ('image/buildroot/board/x/etc/init.d/S42x', 'unknown/file.bin',
                      'sources/FogCast/cmd/fes-update/main.go',
@@ -381,7 +469,7 @@ class HilPlanTest(unittest.TestCase):
         for token in ('S60fogcast-kit stop', 'S50mister-agent stop', 'S40mister-runtime stop',
                       'sleep 1', 'mount --bind', 'REFUSE_START', 'sleep 2',
                       'sleep 3', 'SUPERVISORS runtime=1 agent=1 kit=1',
-                      digest(b'agent'), '[ "$(sha256sum'):
+                      digest(binary.read_bytes()), '[ "$(sha256sum'):
             self.assertIn(token, script.stdout)
         self.assertLess(script.stdout.index('S60fogcast-kit start'),
                         script.stdout.index('startall || exit 1'))
@@ -393,7 +481,7 @@ class HilPlanTest(unittest.TestCase):
         run('manifest', '--head', 'a' * 40, '--out', manifest,
             f'mister-agent={binary}=kit:/usr/sbin/mister-agent')
         result = run('kit-deploy-script', '--manifest', manifest, '--stage-dir', '/run/hil', '--sha256sums')
-        self.assertEqual(result.stdout, f'{digest(b"agent")}  mister-agent\n')
+        self.assertEqual(result.stdout, f'{digest(binary.read_bytes())}  mister-agent\n')
 
     def test_kit_command_handles_missing_pid_files(self):
         binary = self.write_artifact('binary', b'agent')
@@ -804,12 +892,12 @@ class HilPlanTest(unittest.TestCase):
         self.assert_refused_without_evidence(result, output)
 
     def test_core_manifest_derives_identity_and_rejects_wrong_core(self):
-        stale = self.write_artifact('stale', core_archive('fes.pong'))
+        stale = self.write_artifact('stale', core_archive('fes.pong'), stamp=False)
         args = ['manifest', '--head', 'a' * 40, '--out', self.work / 'manifest.json']
         old = run(*args, f'core:pong={stale}=host:/tmp/pong.fcore')
         self.assertEqual(old.returncode, 2)
         self.assertIn('built from revision 1111111111111111111111111111111111111111', old.stderr)
-        core = self.write_artifact('core', core_archive('fes.pong', 'a' * 40))
+        core = self.write_artifact('core', core_archive('fes.pong', 'a' * 40), stamp=False)
         accepted = run(*args, f'core:pong={core}=host:/tmp/pong.fcore')
         self.assertEqual(accepted.returncode, 0, accepted.stderr)
         entry = json.loads((self.work / 'manifest.json').read_text())['entries'][0]
