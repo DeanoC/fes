@@ -30,8 +30,10 @@ it imports, transitively (for example `build_fes_catch` imports
 follows the imported names it uses, including constants and default arguments.
 Any import it cannot resolve to a misteross script (a missing or nested module,
 a `..` relative import, a computed dynamic import, unparsable source) forces
-`FULL_IMAGE`. If a shared helper names it, the plan requires
-`core:ALL`. Some changes cannot be
+`FULL_IMAGE`. A changed misteross script likewise requires every producer that
+imports it, directly or transitively (so `build_fes_pong.py` or
+`fes_de10nano_evidence.py` forces `FULL_IMAGE` through the splash). If a shared
+helper names it, the plan requires `core:ALL`. Some changes cannot be
 overlaid and force `FULL_IMAGE`. These are the splash, which becomes the boot
 `/idle.rbf` (`cores/fes-splash/**`, `build_fes_splash*`, `sealed/**`), the video
 part producers (`scripts/*video_part*`) and any core file they or the splash

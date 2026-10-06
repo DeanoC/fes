@@ -435,6 +435,45 @@ class HilPlanTest(unittest.TestCase):
         texts = dict(base, **{'scripts/build_fes_splash.py': 'from scripts import inputs\nX = inputs.SHARED\n'})
         self.assertEqual(plan.plan([target], texts)['decision'], 'FULL_IMAGE')
 
+    def test_changed_script_expands_to_importing_producers(self):
+        plan = hil_module()
+        texts = plan.script_texts()
+        scripts = 'sources/misteross/scripts/'
+        # The splash imports build_fes_pong and fes_de10nano_evidence; a video-part
+        # producer imports build_fes_coleco_oss.
+        for name in ('build_fes_pong.py', 'fes_de10nano_evidence.py', 'build_fes_coleco_oss.py'):
+            with self.subTest(script=name):
+                self.assertEqual(plan.plan([scripts + name], texts)['decision'], 'FULL_IMAGE')
+        result = plan.plan([scripts + 'build_fes_menu.py'], texts)
+        self.assertIn('core:menu-package', result['components'])
+        result = plan.plan([scripts + 'build_fes_demo.py'], texts)
+        self.assertIn('core:catch', result['components'])
+
+        base = {'scripts/helper.py': 'X = 1\n',
+                'scripts/build_fes_beta.py': 'Y = 2\n',
+                'scripts/sim_beta.py': 'from scripts import build_fes_beta\n'}
+        cases = {
+            'direct import': ({'scripts/build_fes_alpha.py': 'from scripts import build_fes_beta\n'},
+                              'OVERLAY core:alpha core:beta'),
+            'transitive import': ({'scripts/middle.py': 'from scripts.build_fes_beta import Y\n',
+                                   'scripts/build_fes_alpha.py': 'from scripts import middle\n'},
+                                  'OVERLAY core:ALL core:alpha core:beta'),
+            'relative import': ({'scripts/build_fes_alpha.py': 'from .build_fes_beta import Y\n'},
+                                'OVERLAY core:alpha core:beta'),
+            'full importer': ({'scripts/build_fes_splash.py': 'import scripts.build_fes_beta\n'}, 'FULL_IMAGE'),
+            'no importer': ({'scripts/build_fes_alpha.py': 'from scripts import helper\n'}, 'OVERLAY core:beta'),
+            'unresolved elsewhere': ({'scripts/build_fes_alpha.py': 'from scripts import missing\n'}, 'FULL_IMAGE'),
+        }
+        for name, (extra, decision) in cases.items():
+            with self.subTest(case=name):
+                result = plan.plan([scripts + 'build_fes_beta.py'], dict(base, **extra))
+                self.assertEqual(result['decision'], decision)
+        # A sim_* change stays out of the plan unless a deploying script imports it.
+        texts = dict(base, **{'scripts/sim_gamma.py': 'X = 1\n'})
+        self.assertEqual(plan.plan([scripts + 'sim_gamma.py'], texts)['decision'], 'NO_DEPLOY_CHANGE')
+        texts['scripts/build_fes_alpha.py'] = 'from scripts import sim_gamma\n'
+        self.assertEqual(plan.plan([scripts + 'sim_gamma.py'], texts)['decision'], 'OVERLAY core:alpha')
+
     def test_unresolved_script_imports_fail_closed(self):
         plan = hil_module()
         target = 'sources/misteross/cores/fes-beta/rtl/shared.v'

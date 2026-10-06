@@ -179,6 +179,18 @@ class ScriptModule:
                 self._collect(statement, literals, uses)
         self.defs[self.MODULE][1].update(('module', module) for module in self.dynamic)
 
+    def imported(self):
+        """Every misteross script module this one imports, by any form."""
+        result = set(self.dynamic)
+        for alias in self.aliases.values():
+            if alias[0] == 'package':
+                result |= alias[1]
+            else:
+                result.add(alias[1])
+        for _, uses in self.defs.values():
+            result.update(use[1] for use in uses if use[0] != 'local')
+        return result
+
     @staticmethod
     def _dynamic_import(node):
         function = node.func
@@ -340,12 +352,62 @@ def core_consumers(path, texts):
         if row['class'] == 'none':
             continue
         if module.unresolved:
-            found.append({'path': SCRIPTS_DIR + stem + '.py', 'class': 'full',
-                          'component': 'unresolved-script-import', 'rule': module.unresolved[0]})
+            found.append(unresolved_row(stem, module))
             continue
         if any(literal.rstrip('/') in candidates for literal in script_reads(modules, stem)):
             found.append(row)
     return found
+
+
+def unresolved_row(stem, module):
+    return {'path': SCRIPTS_DIR + stem + '.py', 'class': 'full',
+            'component': 'unresolved-script-import', 'rule': module.unresolved[0]}
+
+
+def script_importers(path, texts):
+    """Classify every script that imports this script module, directly or transitively.
+
+    Any change to a module can change what its importers produce, so this works on
+    whole modules. An unresolvable import anywhere fails closed as a full image."""
+    changed = Path(path).stem
+    modules = script_modules(texts)
+    found = []
+    for stem, module in sorted(modules.items()):
+        row = classify_path(SCRIPTS_DIR + stem + '.py')
+        if stem == changed or row['class'] == 'none':
+            continue
+        if module.unresolved:
+            found.append(unresolved_row(stem, module))
+            continue
+        seen, pending = set(), list(module.imported())
+        while pending:
+            current = pending.pop()
+            if current not in seen and current in modules:
+                seen.add(current)
+                pending.extend(modules[current].imported())
+        if changed in seen:
+            found.append(row)
+    return found
+
+
+def is_script_module(path):
+    name = path.removeprefix(SCRIPTS_DIR)
+    return path.startswith(SCRIPTS_DIR) and '/' not in name and name.endswith('.py')
+
+
+def expand(row, consumers):
+    """Fold the scripts that consume a changed file into its plan row."""
+    full = [item for item in consumers if item['class'] == 'full']
+    if full:
+        # A full-image producer (splash, video part) or an unresolved import.
+        row.update({'class': 'full', 'component': full[0]['component'],
+                    'rule': row['rule'] + ' <- ' + full[0]['path']})
+        return
+    if row['class'] == 'none' and consumers:
+        row.update({'class': 'overlay', 'component': consumers[0]['component'],
+                    'rule': row['rule'] + ' <- ' + consumers[0]['path']})
+    if row['class'] == 'overlay' and row['component'] != 'core:ALL':
+        row['consumers'] = sorted({item['component'] for item in consumers} - {row['component']})
 
 
 def plan(paths, texts=None):
@@ -354,14 +416,12 @@ def plan(paths, texts=None):
         if row['class'] == 'overlay' and row['rule'] in CORE_RULES:
             if texts is None:
                 texts = script_texts()
-            consumers = core_consumers(row['path'], texts)
-            full = [item for item in consumers if item['class'] == 'full']
-            if full:
-                # A full-image producer (splash, video part) consumes this file.
-                row.update({'class': 'full', 'component': full[0]['component'],
-                            'rule': row['rule'] + ' <- ' + full[0]['path']})
-            elif row['component'] != 'core:ALL':
-                row['consumers'] = sorted({item['component'] for item in consumers} - {row['component']})
+            expand(row, core_consumers(row['path'], texts))
+        elif row['class'] != 'full' and is_script_module(row['path']):
+            # A changed script also changes every producer that imports it.
+            if texts is None:
+                texts = script_texts()
+            expand(row, script_importers(row['path'], texts))
     worst = max((row['class'] for row in rows), key=lambda item: RANK[item], default='none')
     components = sorted({component for row in rows
                          if row['class'] == 'overlay' and row['component']
