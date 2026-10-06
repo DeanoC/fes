@@ -120,11 +120,58 @@ def classify_path(path):
             'rule': '(no rule; fail-safe)'}
 
 
-def plan(paths):
+CORE_RULE = 'sources/misteross/cores/*/**'
+MISTEROSS = 'sources/misteross/'
+SCRIPTS_DIR = MISTEROSS + 'scripts/'
+
+
+def producer_component(script):
+    """Component for a build_fes_* producer, or None for a shared helper."""
+    name = Path(script).name
+    if not name.startswith('build_fes_'):
+        return None
+    return classify_path(SCRIPTS_DIR + name)['component']
+
+
+def script_texts(repo=None, head=None):
+    """Read misteross scripts at head (or this checkout) for consumer lookup."""
+    if repo and head:
+        names = subprocess.run(['git', '-C', str(repo), 'ls-tree', '--name-only', head, '--', SCRIPTS_DIR],
+                               text=True, capture_output=True, check=True).stdout.split()
+        return {name: subprocess.run(['git', '-C', str(repo), 'show', f'{head}:{name}'],
+                                     text=True, capture_output=True, check=True).stdout
+                for name in names if name.endswith('.py')}
+    root = Path(__file__).resolve().parents[1]
+    return {path.relative_to(root).as_posix(): path.read_text()
+            for path in sorted((root / SCRIPTS_DIR).glob('*.py'))}
+
+
+def core_consumers(path, texts):
+    """Components whose producers name this core file or one of its directories."""
+    relative = path.removeprefix(MISTEROSS)
+    parts = relative.split('/')
+    candidates = ['/'.join(parts[:index]) for index in range(3, len(parts) + 1)]
+    pattern = re.compile(r'["\'](?:' + '|'.join(map(re.escape, candidates)) + r')/?["\']')
+    found = set()
+    for script, text in texts.items():
+        name = Path(script).name
+        if name.startswith('sim_') or not pattern.search(text):
+            continue
+        found.add(producer_component(script) or 'core:ALL')
+    return found
+
+
+def plan(paths, texts=None):
     rows = [classify_path(path) for path in paths if path.strip()]
+    for row in rows:
+        if row['class'] == 'overlay' and row['rule'] == CORE_RULE:
+            if texts is None:
+                texts = script_texts()
+            row['consumers'] = sorted(core_consumers(row['path'], texts) - {row['component']})
     worst = max((row['class'] for row in rows), key=lambda item: RANK[item], default='none')
-    components = sorted({row['component'] for row in rows
-                         if row['class'] == 'overlay' and row['component']})
+    components = sorted({component for row in rows
+                         if row['class'] == 'overlay' and row['component']
+                         for component in (row['component'], *row.get('consumers', ()))})
     if worst == 'full':
         decision = 'FULL_IMAGE'
     elif worst == 'overlay':
@@ -407,7 +454,7 @@ def evidence(args):
     head = git_commit(args.repo, args.head)
     if not SHA64.fullmatch(args.base_image_sha256):
         raise ValueError('base image sha256 must be 64 hex characters')
-    classified = plan(repo_paths(args.repo, base, head))
+    classified = plan(repo_paths(args.repo, base, head), script_texts(args.repo, head))
     if classified['class'] == 'full':
         return refuse('plan requires a full image; overlay evidence refused')
     data = json.loads(Path(args.manifest).read_text())
@@ -748,13 +795,15 @@ def main(argv=None):
     args = parser().parse_args(argv)
     try:
         if args.command == 'classify':
+            texts = None
             if args.paths_file:
                 paths = Path(args.paths_file).read_text().splitlines()
             elif args.repo and args.base_image_commit and args.head:
                 paths = repo_paths(args.repo, args.base_image_commit, args.head)
+                texts = script_texts(args.repo, git_commit(args.repo, args.head))
             else:
                 raise ValueError('provide --paths-file or all of --repo, --base-image-commit, --head')
-            show(plan(paths), args.json)
+            show(plan(paths, texts), args.json)
             return 0
         if args.command == 'manifest':
             manifest(args.head, args.out, args.artifacts)

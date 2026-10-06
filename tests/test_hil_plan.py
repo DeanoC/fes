@@ -294,6 +294,40 @@ class HilPlanTest(unittest.TestCase):
                 result = run('classify', '--paths-file', self.path_file(f'sources/FogCast/{package}/x.go'), '--json')
                 self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
 
+    def test_shared_core_rtl_expands_to_every_consuming_producer(self):
+        result = run('classify', '--paths-file',
+                     self.path_file('sources/misteross/cores/fes-pong/rtl/pixel_pll.v'), '--json')
+        components = json.loads(result.stdout)['components']
+        for component in ('core:pong', 'core:demo', 'core:ramtest', 'core:riscv'):
+            self.assertIn(component, components)
+
+        self.git_repo([])
+        scripts = self.repo / 'sources/misteross/scripts'
+        scripts.mkdir(parents=True)
+        (scripts / 'build_fes_alpha.py').write_text('INPUTS = ("cores/fes-beta/rtl/shared.v",)\n')
+        (scripts / 'helper.py').write_text('ROOTS = ["cores/fes-gamma/rtl"]\n')
+        (scripts / 'sim_beta.py').write_text('X = "cores/fes-delta/rtl/only.v"\n')
+        for name in ('fes-beta/rtl/shared.v', 'fes-gamma/rtl/x.v', 'fes-delta/rtl/only.v'):
+            path = self.repo / 'sources/misteross/cores' / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('base\n')
+        self.git('add', '.')
+        self.git('commit', '-m', 'scripts')
+        base = self.git('rev-parse', 'HEAD')
+        expected = {'fes-beta/rtl/shared.v': ['core:alpha', 'core:beta'],
+                    'fes-gamma/rtl/x.v': ['core:ALL', 'core:gamma'],
+                    'fes-delta/rtl/only.v': ['core:delta']}
+        for name, components in expected.items():
+            with self.subTest(name=name):
+                self.git('checkout', '-q', base)
+                (self.repo / 'sources/misteross/cores' / name).write_text('change\n')
+                self.git('commit', '-qam', 'change ' + name)
+                head = self.git('rev-parse', 'HEAD')
+                result = run('classify', '--repo', self.repo, '--base-image-commit', base,
+                             '--head', head, '--json')
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(json.loads(result.stdout)['components'], components)
+
     def test_full_image_unrecognised_and_docs_only(self):
         for path in ('image/buildroot/board/x/etc/init.d/S42x', 'unknown/file.bin',
                      'sources/FogCast/cmd/fes-update/main.go',
