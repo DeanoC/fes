@@ -2161,6 +2161,14 @@ func (s *Service) reconcileLostCoreLoad(parent context.Context, client serviceCl
 		if err != nil {
 			return protocol.Status{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "core package activation outcome is unavailable", Phase: "recovery"}
 		}
+		if errors.Is(loadErr, targetclient.ErrKitLeaseLost) {
+			// Expiry cleanup can follow a completed load. Observing that load
+			// does not restore authority or justify another activation.
+			if validRecoveredDevelopmentStatus(status) && status.CorePackage == nil {
+				return status, loadErr
+			}
+			return protocol.Status{}, loadErr
+		}
 		if validServiceCorePackageStatus(status) && !reflect.DeepEqual(status, prior) {
 			return status, nil
 		}
@@ -2189,6 +2197,9 @@ func (s *Service) reconcileLostCoreLoad(parent context.Context, client serviceCl
 }
 
 func confirmedIdleCorePackageFailure(status protocol.Status, loadErr error) bool {
+	if errors.Is(loadErr, targetclient.ErrKitLeaseLost) {
+		return validRecoveredDevelopmentStatus(status) && status.CorePackage == nil
+	}
 	if ambiguousTargetMutationError(loadErr) {
 		return false
 	}

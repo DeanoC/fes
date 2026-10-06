@@ -499,6 +499,13 @@ proven pre-mutation failure reconstructs the same logical lease; failure to
 pause or reconstruct it is a recovery failure and leaves input gated. Startup
 adopts every still-valid publication through the same opened trusted root,
 selecting only the package that exactly matches the active runtime status.
+The host accepts a successful core-load reply only while it still holds the
+same kit grant used for dispatch. A reply received after local lease loss is a
+recovery failure, even if a subsequent read observes the new active package.
+The host does not replay the load or claim another grant; target expiry cleanup
+still waits for the admitted operation to finish before normal Stop. A clean
+idle observation confirms cleanup and retires the previous play while retaining
+the launch failure. Lease renewal timing and expiry remain unchanged.
 A validated explicit `reboot_required` load reply with a retained active owner
 also retains the attempted package, linked ROM and initial disk sources until
 a confirmed clean Stop. An identity mismatch remains ambiguous and cannot
@@ -2763,6 +2770,13 @@ cartridge-only, video-only and combined parts, with either an empty drive or an
 initial disk. The validated launch source selects this budget; earlier caller
 deadlines and cancellation still apply. Other cores retain their configured
 upload budget. Existing live insertion/ejection keeps the running machine intact.
+The target reads the declared ROM envelope into one owned buffer and borrows
+its sealed payload/map during validation and independent linking. The parsed
+map belongs to that operation and is reused there; receipt validation observes
+the admission context. Canonical framing, hashes and link evidence remain
+checked, and private publications own independent bytes after staging. Restart
+adoption independently validates and relinks the retained sources.
+
 Launch confirmation checks both ROM/parts identities and the ready persistent
 disk's game/base binding; an initial disk is a startup input, not an immutable
 identity imposed on later live media changes.

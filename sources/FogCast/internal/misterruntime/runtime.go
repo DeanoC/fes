@@ -264,11 +264,16 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 	var staged corepackage.Staged
 	var err error
 	var romInit *corepackage.RomInit
-	body, err := io.ReadAll(io.LimitReader(&contextReader{ctx: admission, reader: content}, size+1))
-	if err != nil || int64(len(body)) != size {
+	if admission.Err() != nil {
+		return CoreActivation{}, false, &protocol.APIError{Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
+	}
+	body := make([]byte, int(size)+1)
+	n, err := io.ReadFull(&contextReader{ctx: admission, reader: content}, body)
+	if (err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF)) || int64(n) != size {
 		return CoreActivation{}, false, &protocol.APIError{
 			Code: protocol.CodeInvalidArchive, Message: "core package is invalid", Phase: "admission"}
 	}
+	body = body[:n]
 	romLinkedV2 := corepackage.IsROMInputV2(body)
 	romLinked := romLinkedV2 || corepackage.IsROMInput(body)
 	if parts && (romLinked || corepackage.IsRomInit(body)) {
@@ -324,7 +329,7 @@ func (r *Runtime) loadCoreOwnedMode(admission, observation, operationOwner conte
 		if romLinkedV2 {
 			staged, err = corepackage.StageROMInputV2(admission, r.corePackageRoot, size, content)
 		} else {
-			staged, err = corepackage.StageROMInput(admission, r.corePackageRoot, size, content)
+			staged, err = corepackage.StageROMInputBytes(admission, r.corePackageRoot, body)
 		}
 		composed = staged.Composition != nil || staged.SlotComposition != nil || staged.PartsComposition != nil
 	} else if composed {

@@ -68,7 +68,7 @@ func TestInitialSTMediaRoundTripStageAdopt(t *testing.T) {
 				t.Fatal("initial disk changed linked ROM", err)
 			}
 			root := t.TempDir()
-			staged, err := StageROMInput(context.Background(), root, int64(len(prepared.Data)), bytes.NewReader(prepared.Data))
+			staged, err := StageROMInputBytes(context.Background(), root, prepared.Data)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -85,6 +85,8 @@ func TestInitialSTMediaRoundTripStageAdopt(t *testing.T) {
 					t.Fatal("unsealed initial source", path, err)
 				}
 			}
+			// The borrowing entry point must leave independent source publications.
+			clear(prepared.Data)
 			adopted, err := Adopt(root)
 			if err != nil || len(adopted) != 1 || !reflect.DeepEqual(adopted[0].InitialMedia, staged.InitialMedia) {
 				t.Fatal("initial source not independently adopted", err)
