@@ -57,7 +57,9 @@ The SDRAM scan writes the whole addon and reads it back for six patterns:
 the inverse. The HDMI text shows the pattern, the live address, and the live
 expect/got values. The full error count stays on screen, with the first
 mismatch address and the data that was read there, and the most recent
-mismatch address. The table below it keeps the six pattern counts.
+mismatch address. The table below it keeps the six pattern counts from
+each finished rate. That column's sum matches the error count from the
+scan that produced it, including a mismatch on the last word.
 
 The SDRAM clock pin uses a DDR output and rises on the fabric falling edge.
 Quartus selects the frequency directly from the PLL, packs SDRAM
@@ -228,10 +230,13 @@ paths, including the fpga2sdram ports, but does not constrain external SDRAM
 I/O timing, so the full-memory hardware scan is the acceptance evidence for
 these rates.
 
-`make sim-fes-ramtest` runs short spans of the same patterns against
-behavioral SDRAM and fpga2sdram models. The DDR model refuses commands at
-random and while 14 reads are pending, returns read data late, and flags a
-command outside the window or a burst left incomplete. The test checks
+`make sim-fes-ramtest` checks that the pattern table matches the total,
+including a mismatch on the final word, then the byte-lane bench above,
+then short spans of the same patterns against behavioral SDRAM and
+fpga2sdram models. The DDR model
+refuses commands at random and while 14 reads are pending, returns read
+data late, and flags a command outside the window or a burst left
+incomplete. The test checks
 identity and the video, gamepad and HPS DDR capability bits, execution
 release, a green status glyph, the `ADDR` signature at three addresses per
 port, holds that land inside a write burst and during reads, and a button
