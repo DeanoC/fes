@@ -158,7 +158,7 @@ class ExpansionBusTests(unittest.TestCase):
         self.assertNotIn("Synth-only: `make sim EXP=900_expansion_bus`", readme)
         self.assertNotIn("lacks `--fes-scaffold`", readme)
         lock = (ROOT / "toolchain.lock").read_text(encoding="utf-8")
-        self.assertIn("6cb41766af801f0b1998a61b3df8c6443e0ccc75", lock)
+        self.assertIn("d869795b6fe6f7f412b0bf73ba4b06688ab1adeb", lock)
         self.assertIn("freeze-scaffold", lock)
         for relative in (
             "experiments/900_expansion_bus/expected.md",
