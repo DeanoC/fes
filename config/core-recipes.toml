@@ -175,6 +175,7 @@ quartus_role = "bring-up/check oracle"
 [[recipes]]
 core_id = "fes.atari-st"
 identity_version = 2
+video_profiles = ["direct", "scanlines"]
 producer_script = "scripts/build_fes_atari_st_oss.py"
 producer_module = "scripts.build_fes_atari_st_oss"
 authenticate = "_authenticate_atari_st_tools"

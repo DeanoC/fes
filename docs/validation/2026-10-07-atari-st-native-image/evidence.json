@@ -1,0 +1,897 @@
+{
+  "atari_st": {
+    "archive_sha256": "ea8dce54815e7c26a386c725cadaef8de56d42cdcda14d68d88fc39143aa3404",
+    "build_id": "356a0401737f24f0513103714148c944",
+    "manifest_sha256": "d075c60629c84fe51e598ae7dcc3ed57c8a032463e02a73691deae28d01e8952",
+    "package_id": "eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d",
+    "payload_sha256": "781d29ec5de7f9069ef76988d5eb4bf6601cb7fabbb1e8a946ed031ec0212333",
+    "rom_map_sha256": "e49128b61df9cbcc5116aabb9811f6cd1a1b8618ac7700c62c2a1aef0d052e7d",
+    "selected_mister_packages_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc",
+    "selected_source_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc",
+    "selection_sha256": "14e8996204f1c712e7bae7e43c3a0898db1347fe5d27e89bd9e8f7933b2a521e",
+    "source_revision": "a97433c1ef280683f6095a38cf785371404414e9",
+    "video_parts": {
+      "direct": {
+        "archive_sha256": "6d80401c8876fae89f0af2b88f459ed79d19a4d24be82f3aaa2dab7d75f1503f",
+        "archive_size": 2877440,
+        "part_id": "305000b8bc66aef0328832e8cff141756e1466f499ee359382116aba4f194c38",
+        "profile": "direct"
+      },
+      "scanlines": {
+        "archive_sha256": "4d114676235c1681139215f54754f9cbdfce15bc91da1b2832a70636b4b9d259",
+        "archive_size": 2877440,
+        "part_id": "0c4f1342b9ca1670c741b26c57120f5ab99b9ae276172f8ecdd1a6a5a1af61d1",
+        "profile": "scanlines"
+      }
+    }
+  },
+  "build_verification": {
+    "historical_baseline_match": null,
+    "image_sha256": "efe04797f2682c5c76372999a0628dc4f62742905e253dfc557311c0e0453075",
+    "qemu_log_sha256": "29de229f79164d1ad4d5760e6b30a48cee7c340b51f0f7889e907d5910befd6d",
+    "qemu_packaging": "pass",
+    "structural": "pass",
+    "two_pass_reproducibility": "pass"
+  },
+  "captures": {
+    "diskless-GEM.png": {
+      "bytes": 11220,
+      "sha256": "e674fcb4944d506b5e57d4a85cedfb3263c4173f0e4620cef3d55942633db878"
+    },
+    "final-populated-menu.png": {
+      "bytes": 81593,
+      "sha256": "34719784de71737359bf0bac0e9fefe803f813071573afd2fb33413f6711f0f4"
+    },
+    "restore-automatic-boot.png": {
+      "bytes": 11999,
+      "sha256": "218731aa5d58ceeb71b497cf63d32ebb405cc8dc5071ccf929768d4589449f75"
+    },
+    "seed-automatic-boot.png": {
+      "bytes": 11999,
+      "sha256": "218731aa5d58ceeb71b497cf63d32ebb405cc8dc5071ccf929768d4589449f75"
+    }
+  },
+  "cold_host_restore": {
+    "distinct_host_start": true,
+    "same_config_bytes_and_inode": true,
+    "same_container_and_home": true,
+    "saved_scanlines_read_without_setter": true
+  },
+  "daemon_lifetimes": {
+    "observations": [
+      "before-diskless",
+      "after-diskless",
+      "before-seed",
+      "after-seed",
+      "before-restore",
+      "after-restore"
+    ],
+    "unchanged": true
+  },
+  "date": "2026-10-07",
+  "final_restoration": {
+    "normal_host_active": "active",
+    "normal_host_enabled": "enabled",
+    "normal_library_count": 4253,
+    "owner_configuration_unchanged": true,
+    "pass": true,
+    "predeployment_library_count": 4253,
+    "restored_image_sha256": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a"
+  },
+  "hardware_classification": "exact verified native image on designated Kit A",
+  "host": {
+    "cli_sha256": "cccb8564ea6a2b94ce8dd906f2bb59297d037a443772046016351915802cd69b",
+    "cli_source_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc",
+    "host_binary_sha256": "c694d5d957c2f456e380636bc648cb524efcdb543ffc756dadabaf42ede8a5b3",
+    "host_receipt_sha256": "a280f1dd17efe45461ac5914a93f74b7245d453100fdf45bfe76c921bd22f1d0",
+    "private_upload_timeout_seconds": 60,
+    "source_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc"
+  },
+  "image": {
+    "closed_inventory": true,
+    "executable_sha256": {
+      "fogcast-kit": "7c7aac127b1d1c92349047444b9b50d454f2bd1206ef32d9ab5fc429363a5132",
+      "fogcast-tenfoot": "0c942e19de99df635b6e20bed522137aebc7bcf3ecd068816870bfbe908c5362",
+      "mister-agent": "90a5f8a75d565cd1c2512305c4a1c0b143b7a4e1bc8c6fa21e8ddc134aa96504",
+      "mister-runtime": "8370fe174d31be2295f37bf3da6429d9da99581b57ba243dff8cee18fe225676"
+    },
+    "installed_files": {
+      "/media/fat/fogcast/releases/images/efe04797f2682c5c76372999a0628dc4f62742905e253dfc557311c0e0453075.img": {
+        "sha256": "efe04797f2682c5c76372999a0628dc4f62742905e253dfc557311c0e0453075",
+        "size": 167772160
+      },
+      "/usr/sbin/fogcast-kit": {
+        "sha256": "7c7aac127b1d1c92349047444b9b50d454f2bd1206ef32d9ab5fc429363a5132",
+        "size": 17891490
+      },
+      "/usr/sbin/fogcast-tenfoot": {
+        "sha256": "0c942e19de99df635b6e20bed522137aebc7bcf3ecd068816870bfbe908c5362",
+        "size": 21364898
+      },
+      "/usr/sbin/mister-agent": {
+        "sha256": "90a5f8a75d565cd1c2512305c4a1c0b143b7a4e1bc8c6fa21e8ddc134aa96504",
+        "size": 9896098
+      },
+      "/usr/sbin/mister-runtime": {
+        "sha256": "8370fe174d31be2295f37bf3da6429d9da99581b57ba243dff8cee18fe225676",
+        "size": 1185992
+      },
+      "/usr/share/mister-runtime/core-packages/99fe0fb02642597b77af6f99850c9247d18f985cbae747382b4a99eab5dc2fad/core.rbf": {
+        "sha256": "2b29b812ff31d0e62016fd39adc43c834c80a1a2cdabbb648f226ba8f5a579a8",
+        "size": 1974961
+      },
+      "/usr/share/mister-runtime/core-packages/99fe0fb02642597b77af6f99850c9247d18f985cbae747382b4a99eab5dc2fad/manifest.toml": {
+        "sha256": "87926361998d77b1587b52a98192ecda408c272a906aec7cfcca128aa86a24ae",
+        "size": 1413
+      },
+      "/usr/share/mister-runtime/core-packages/9b9fa502f2ed0636d03713b78673ab977f6acf38590910596b28c4d1c93b91d5/core.rbf": {
+        "sha256": "3037ab00b0dd21e50a1ffa884742480fbe265f99d25ab0d45d077c9feb76ad73",
+        "size": 2665116
+      },
+      "/usr/share/mister-runtime/core-packages/9b9fa502f2ed0636d03713b78673ab977f6acf38590910596b28c4d1c93b91d5/manifest.toml": {
+        "sha256": "ba984d5902038f2b306a9c78fcc1ec618fe857e51fb65bd56638ce6b420ecf89",
+        "size": 1847
+      },
+      "/usr/share/mister-runtime/core-packages/b299abfabe1636b79b2991069491fe4fc2da53b0c85741ad52daee0a0995bcf0/core.rbf": {
+        "sha256": "ab47473332697a17cfd6240fdd91ba49c26d58332b7fa3b89eb605b2b52831c6",
+        "size": 2647572
+      },
+      "/usr/share/mister-runtime/core-packages/b299abfabe1636b79b2991069491fe4fc2da53b0c85741ad52daee0a0995bcf0/manifest.toml": {
+        "sha256": "920571ba18542136b2c6903c15e685500f8ea7eebb77692020d8a4f03e8eb684",
+        "size": 1536
+      },
+      "/usr/share/mister-runtime/core-packages/b299abfabe1636b79b2991069491fe4fc2da53b0c85741ad52daee0a0995bcf0/rom-map.json": {
+        "sha256": "9e284d828c53aa5f55311787d63eabed90e1ec1b7194ede9dc66f26e94bb6b03",
+        "size": 2967557
+      },
+      "/usr/share/mister-runtime/core-packages/d3486f61887cbc487663d29b34225fe3d1ed427ac53981882d24edb68fc2de17/core.rbf": {
+        "sha256": "70c78ecaf587c2951e3040f3c5eb3851bde7b49f62a64a6456827e41e00870b0",
+        "size": 2625270
+      },
+      "/usr/share/mister-runtime/core-packages/d3486f61887cbc487663d29b34225fe3d1ed427ac53981882d24edb68fc2de17/manifest.toml": {
+        "sha256": "2b6007495312463d083734b0224375e8614c24a7a9bac38dfc43dc37b876fbcd",
+        "size": 1825
+      },
+      "/usr/share/mister-runtime/core-packages/d3486f61887cbc487663d29b34225fe3d1ed427ac53981882d24edb68fc2de17/rom-map.json": {
+        "sha256": "075fd51f4fabfcc4e75827b09130e8f8b4a0d4edbb90e5fc176f8c1165ea0ad1",
+        "size": 1483861
+      },
+      "/usr/share/mister-runtime/core-packages/d8c574dadf9928a65fb538128851f7c56191c7cc2ad478feddc1dbabd1e7d2da/core.rbf": {
+        "sha256": "180d890284b4d761d878482d4eaf57207665ca511fd28d29d546911dc53037a2",
+        "size": 2610738
+      },
+      "/usr/share/mister-runtime/core-packages/d8c574dadf9928a65fb538128851f7c56191c7cc2ad478feddc1dbabd1e7d2da/manifest.toml": {
+        "sha256": "e8c09960bcf07de63f190eac40bb7a3c44d6e4f4e6b45a175d2fc97690879e89",
+        "size": 1850
+      },
+      "/usr/share/mister-runtime/core-packages/d8c574dadf9928a65fb538128851f7c56191c7cc2ad478feddc1dbabd1e7d2da/rom-map.json": {
+        "sha256": "be7b8b318d8b15d49e9c429f945c6e29ae1028b60847eacc1a8143c5f0f1e414",
+        "size": 742014
+      },
+      "/usr/share/mister-runtime/core-packages/e99984f41ce7330edb54527613dc0253bb944a16e0dc442033b90177a6ec4d0d/core.rbf": {
+        "sha256": "1bd6ec39ae8078f4c69215b64b7a2bd549bac33e87b93be2aa8d65e224afbe18",
+        "size": 2523456
+      },
+      "/usr/share/mister-runtime/core-packages/e99984f41ce7330edb54527613dc0253bb944a16e0dc442033b90177a6ec4d0d/manifest.toml": {
+        "sha256": "6b716a765d71aa9211443a9cfd55ad2a84a946cd5e327a9018d06111c519887d",
+        "size": 1527
+      },
+      "/usr/share/mister-runtime/core-packages/e99984f41ce7330edb54527613dc0253bb944a16e0dc442033b90177a6ec4d0d/rom-map.json": {
+        "sha256": "3bacc541f7c6051d74cb9afaa89bcf133759896902ff64496838d3dc056642d9",
+        "size": 1483861
+      },
+      "/usr/share/mister-runtime/core-packages/eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d/core.rbf": {
+        "sha256": "781d29ec5de7f9069ef76988d5eb4bf6601cb7fabbb1e8a946ed031ec0212333",
+        "size": 2865177
+      },
+      "/usr/share/mister-runtime/core-packages/eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d/manifest.toml": {
+        "sha256": "d075c60629c84fe51e598ae7dcc3ed57c8a032463e02a73691deae28d01e8952",
+        "size": 2122
+      },
+      "/usr/share/mister-runtime/core-packages/eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d/rom-map.json": {
+        "sha256": "e49128b61df9cbcc5116aabb9811f6cd1a1b8618ac7700c62c2a1aef0d052e7d",
+        "size": 17357124
+      },
+      "/usr/share/mister-runtime/core-packages/fe3926a004efcd3c9564a778640083d89e0e2883ce3c08fb3587f03703cdd803/core.rbf": {
+        "sha256": "ae67d1b3643c633ebf688a7a27a95e93cb320da7a90706ec19a187d7e67e1b22",
+        "size": 2013758
+      },
+      "/usr/share/mister-runtime/core-packages/fe3926a004efcd3c9564a778640083d89e0e2883ce3c08fb3587f03703cdd803/manifest.toml": {
+        "sha256": "075f3ead5018bd65fb8745e5a9b2b94b849fbfb5dae3e02b8b6b64ae36bd810e",
+        "size": 1335
+      },
+      "/usr/share/mister-runtime/core-packages/fecdbd6f13c5da0b1134897532800a2f72ab37f825bb33c8a9b7615f882bb9e2/core.rbf": {
+        "sha256": "8d46bd049e359e0a3f4feb5817388a72e723b1cf9c7b4966829f946d48346e6e",
+        "size": 2182546
+      },
+      "/usr/share/mister-runtime/core-packages/fecdbd6f13c5da0b1134897532800a2f72ab37f825bb33c8a9b7615f882bb9e2/manifest.toml": {
+        "sha256": "531c31a2113ab3dce01479b40bac7bf9c1131faccae0888efb8e0c5f59b41114",
+        "size": 1371
+      },
+      "/usr/share/mister-runtime/core-video-parts/9b9fa502f2ed0636d03713b78673ab977f6acf38590910596b28c4d1c93b91d5/4d88bc00d3041cd53247a5271c0bb323c132184f4909ec4fcf062921b69cd7dd.tar": {
+        "sha256": "8b2f4de8e578513e964bd0a823748784378b16b82bd035b6d3777f9ccfc763cb",
+        "size": 2795520
+      },
+      "/usr/share/mister-runtime/core-video-parts/9b9fa502f2ed0636d03713b78673ab977f6acf38590910596b28c4d1c93b91d5/d205addeee903980555bbcbc4c4b43c82f8c719e9a700f3f6f855ef1a1eaf038.tar": {
+        "sha256": "63972993f5f4d30876bb84ca3f9020e8922cc54a3c93a3175c8d2ccbc0ccff79",
+        "size": 2795520
+      },
+      "/usr/share/mister-runtime/core-video-parts/eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d/0c4f1342b9ca1670c741b26c57120f5ab99b9ae276172f8ecdd1a6a5a1af61d1.tar": {
+        "sha256": "4d114676235c1681139215f54754f9cbdfce15bc91da1b2832a70636b4b9d259",
+        "size": 2877440
+      },
+      "/usr/share/mister-runtime/core-video-parts/eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d/305000b8bc66aef0328832e8cff141756e1466f499ee359382116aba4f194c38.tar": {
+        "sha256": "6d80401c8876fae89f0af2b88f459ed79d19a4d24be82f3aaa2dab7d75f1503f",
+        "size": 2877440
+      },
+      "/usr/share/mister-runtime/core-video-parts/index.json": {
+        "sha256": "5fd0df83a01079bb6f50396925dd80567e1556d99943102989d94e0260b71967",
+        "size": 1641
+      },
+      "/usr/share/mister-runtime/selections/fes-atari-st.package.toml": {
+        "sha256": "14e8996204f1c712e7bae7e43c3a0898db1347fe5d27e89bd9e8f7933b2a521e",
+        "size": 478
+      },
+      "/usr/share/mister-runtime/selections/fes-coleco.package.toml": {
+        "sha256": "38c559047025f4f3de7a165781a8193ffb67b566a30c3f00a73f65582873333b",
+        "size": 476
+      },
+      "/usr/share/mister-runtime/selections/fes-core-video-parts.json": {
+        "sha256": "5fd0df83a01079bb6f50396925dd80567e1556d99943102989d94e0260b71967",
+        "size": 1641
+      },
+      "/usr/share/mister-runtime/selections/fes-menu.package.toml": {
+        "sha256": "cd891e0371f1d9a3ef211b629af29fb15dd2601c77d3f92e397ddbae1ff01fa0",
+        "size": 474
+      },
+      "/usr/share/mister-runtime/selections/fes-pong.package.toml": {
+        "sha256": "85c6f6d5ce847e86688e19b0999402c97fb82cd301881a9ff2f561b970d33072",
+        "size": 474
+      },
+      "/usr/share/mister-runtime/selections/fes-ramtest.package.toml": {
+        "sha256": "30979a2bdf67c67370663d061f3d76ca5e77b92e86aeed416ea339ebf25a4309",
+        "size": 477
+      },
+      "/usr/share/mister-runtime/selections/fes-sg1000.package.toml": {
+        "sha256": "24f9d7b2c15628dc9fe523e0611f8f40525483e9480ccc110241168cb6d1d152",
+        "size": 476
+      },
+      "/usr/share/mister-runtime/selections/fes-sms.package.toml": {
+        "sha256": "5411e3580d550a02127a758125b48d6b2aba4d9a7f844eee4c01bdd8326249f0",
+        "size": 473
+      },
+      "/usr/share/mister-runtime/selections/fes-spectrum.package.toml": {
+        "sha256": "41b35d282636f3ca91b5e4be9ef53bbafb7da0b8aa047d3b5fbc9525d1de25a8",
+        "size": 478
+      },
+      "/usr/share/mister-runtime/selections/fes-zx81.package.toml": {
+        "sha256": "d153633e96c27e4ddd8cd2592d2b540dfeab0939bd47f92093691749acb4439e",
+        "size": 474
+      }
+    },
+    "packages": [
+      {
+        "core_id": "fes.atari-st",
+        "functional_inputs_sha256": "356a0401737f24f0513103714148c944266967dd1a9987c11f17359800cc7727",
+        "original_revision": "a97433c1ef280683f6095a38cf785371404414e9",
+        "package_id": "eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d",
+        "payload_sha256": "781d29ec5de7f9069ef76988d5eb4bf6601cb7fabbb1e8a946ed031ec0212333"
+      },
+      {
+        "core_id": "fes.coleco",
+        "functional_inputs_sha256": "fa5bca33062992d94460d32bb9c972d2d9f9c7dae07131645b3ccafe8a92b7fb",
+        "original_revision": "a97433c1ef280683f6095a38cf785371404414e9",
+        "package_id": "9b9fa502f2ed0636d03713b78673ab977f6acf38590910596b28c4d1c93b91d5",
+        "payload_sha256": "3037ab00b0dd21e50a1ffa884742480fbe265f99d25ab0d45d077c9feb76ad73"
+      },
+      {
+        "core_id": "fes.menu",
+        "functional_inputs_sha256": "dac61c8011fce37a8159af5c6a370c91fc801b0d9d231a9d504e30c6e16eaed8",
+        "original_revision": "a97433c1ef280683f6095a38cf785371404414e9",
+        "package_id": "fe3926a004efcd3c9564a778640083d89e0e2883ce3c08fb3587f03703cdd803",
+        "payload_sha256": "ae67d1b3643c633ebf688a7a27a95e93cb320da7a90706ec19a187d7e67e1b22"
+      },
+      {
+        "core_id": "fes.pong",
+        "functional_inputs_sha256": "9eceee170a6c8d6b03fab82a2a4a9b356566fe467bf586242956b545a47c8673",
+        "original_revision": "a97433c1ef280683f6095a38cf785371404414e9",
+        "package_id": "99fe0fb02642597b77af6f99850c9247d18f985cbae747382b4a99eab5dc2fad",
+        "payload_sha256": "2b29b812ff31d0e62016fd39adc43c834c80a1a2cdabbb648f226ba8f5a579a8"
+      },
+      {
+        "core_id": "fes.ramtest",
+        "functional_inputs_sha256": "08296ff864c23b194b2005a4fa3d264b8e5c93f80acd2e9ced917aa5081a0443",
+        "original_revision": "a97433c1ef280683f6095a38cf785371404414e9",
+        "package_id": "fecdbd6f13c5da0b1134897532800a2f72ab37f825bb33c8a9b7615f882bb9e2",
+        "payload_sha256": "8d46bd049e359e0a3f4feb5817388a72e723b1cf9c7b4966829f946d48346e6e"
+      },
+      {
+        "core_id": "fes.sg1000",
+        "functional_inputs_sha256": "442c7b7d2fee80cdf3803a7fc17d6089268fd9d4f179883d97b51cf016340d2d",
+        "original_revision": "a97433c1ef280683f6095a38cf785371404414e9",
+        "package_id": "e99984f41ce7330edb54527613dc0253bb944a16e0dc442033b90177a6ec4d0d",
+        "payload_sha256": "1bd6ec39ae8078f4c69215b64b7a2bd549bac33e87b93be2aa8d65e224afbe18"
+      },
+      {
+        "core_id": "fes.sms",
+        "functional_inputs_sha256": "d1880b306576efc34ce02f0bf282d616716dd7d7338d3a06f701c4ed77dddce6",
+        "original_revision": "a97433c1ef280683f6095a38cf785371404414e9",
+        "package_id": "b299abfabe1636b79b2991069491fe4fc2da53b0c85741ad52daee0a0995bcf0",
+        "payload_sha256": "ab47473332697a17cfd6240fdd91ba49c26d58332b7fa3b89eb605b2b52831c6"
+      },
+      {
+        "core_id": "fes.spectrum",
+        "functional_inputs_sha256": "070ea51e81bf08dce3a8bc3c61de73fc251b99f956b955d65a67be1c052446b6",
+        "original_revision": "a97433c1ef280683f6095a38cf785371404414e9",
+        "package_id": "d3486f61887cbc487663d29b34225fe3d1ed427ac53981882d24edb68fc2de17",
+        "payload_sha256": "70c78ecaf587c2951e3040f3c5eb3851bde7b49f62a64a6456827e41e00870b0"
+      },
+      {
+        "core_id": "fes.zx81",
+        "functional_inputs_sha256": "842d01de5a87750bc65f727c2072370fd8b6e319f860355221d7c9d08c255d75",
+        "original_revision": "a97433c1ef280683f6095a38cf785371404414e9",
+        "package_id": "d8c574dadf9928a65fb538128851f7c56191c7cc2ad478feddc1dbabd1e7d2da",
+        "payload_sha256": "180d890284b4d761d878482d4eaf57207665ca511fd28d29d546911dc53037a2"
+      }
+    ],
+    "read_only_ext4_loopback_verified": true,
+    "release_manifest_sha256": "749ad1ee327cd0d2581efd3ec8061dfd29ba5928a078fabaf28302f431f2b105",
+    "rootfs_headroom": {
+      "block_count": 163840,
+      "block_size": 1024,
+      "free_blocks": 34439,
+      "image_bytes": 167772160,
+      "image_sha256": "efe04797f2682c5c76372999a0628dc4f62742905e253dfc557311c0e0453075",
+      "pass": true,
+      "populated_bytes": 132506624,
+      "populated_limit_bytes": 142606336,
+      "populated_percent": 78.9801025390625,
+      "required_free_percent": 15
+    },
+    "sha256": "efe04797f2682c5c76372999a0628dc4f62742905e253dfc557311c0e0453075",
+    "video_inventory": {
+      "packages": [
+        {
+          "package_id": "9b9fa502f2ed0636d03713b78673ab977f6acf38590910596b28c4d1c93b91d5",
+          "parts": [
+            {
+              "archive_path": "9b9fa502f2ed0636d03713b78673ab977f6acf38590910596b28c4d1c93b91d5/4d88bc00d3041cd53247a5271c0bb323c132184f4909ec4fcf062921b69cd7dd.tar",
+              "archive_sha256": "8b2f4de8e578513e964bd0a823748784378b16b82bd035b6d3777f9ccfc763cb",
+              "archive_size": 2795520,
+              "part_id": "4d88bc00d3041cd53247a5271c0bb323c132184f4909ec4fcf062921b69cd7dd",
+              "profile": "direct"
+            },
+            {
+              "archive_path": "9b9fa502f2ed0636d03713b78673ab977f6acf38590910596b28c4d1c93b91d5/d205addeee903980555bbcbc4c4b43c82f8c719e9a700f3f6f855ef1a1eaf038.tar",
+              "archive_sha256": "63972993f5f4d30876bb84ca3f9020e8922cc54a3c93a3175c8d2ccbc0ccff79",
+              "archive_size": 2795520,
+              "part_id": "d205addeee903980555bbcbc4c4b43c82f8c719e9a700f3f6f855ef1a1eaf038",
+              "profile": "scanlines"
+            }
+          ]
+        },
+        {
+          "package_id": "eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d",
+          "parts": [
+            {
+              "archive_path": "eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d/305000b8bc66aef0328832e8cff141756e1466f499ee359382116aba4f194c38.tar",
+              "archive_sha256": "6d80401c8876fae89f0af2b88f459ed79d19a4d24be82f3aaa2dab7d75f1503f",
+              "archive_size": 2877440,
+              "part_id": "305000b8bc66aef0328832e8cff141756e1466f499ee359382116aba4f194c38",
+              "profile": "direct"
+            },
+            {
+              "archive_path": "eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d/0c4f1342b9ca1670c741b26c57120f5ab99b9ae276172f8ecdd1a6a5a1af61d1.tar",
+              "archive_sha256": "4d114676235c1681139215f54754f9cbdfce15bc91da1b2832a70636b4b9d259",
+              "archive_size": 2877440,
+              "part_id": "0c4f1342b9ca1670c741b26c57120f5ab99b9ae276172f8ecdd1a6a5a1af61d1",
+              "profile": "scanlines"
+            }
+          ]
+        }
+      ],
+      "version": 1
+    }
+  },
+  "operator_observations": {
+    "diskless_GEM": true,
+    "final_populated_menu": true,
+    "no_guest_input": true,
+    "restore_automatic_boot": true,
+    "seed_automatic_boot": true
+  },
+  "phases": {
+    "diskless": {
+      "cli_sha256": "cccb8564ea6a2b94ce8dd906f2bb59297d037a443772046016351915802cd69b",
+      "configured_upload_timeout_seconds": 60,
+      "firmware_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+      "generator_sha256": "a1d6765274a6327f30807ce28a0f3f744a77b8a1685de7480c1aba9ab2e18d9a",
+      "launch_seconds": 54.26858559763059,
+      "package_archive_sha256": "ea8dce54815e7c26a386c725cadaef8de56d42cdcda14d68d88fc39143aa3404",
+      "package_id": "eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d",
+      "pass": true,
+      "phase": "diskless",
+      "source_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc",
+      "status": "diskless-GEM-and-Stop-verified",
+      "video_profile": "direct"
+    },
+    "restore": {
+      "byte_comparison": {
+        "against_original": {
+          "actual_guest_changed_non_timestamp_bytes": 1684,
+          "change_offset_sets_match": true,
+          "expected_guest_changed_non_timestamp_bytes": 1684,
+          "untouched_non_timestamp_bytes_checked": 735584
+        },
+        "all_bytes_compared": 737280,
+        "allowed_timestamp_fields": [
+          {
+            "entry_offset": 3648,
+            "field": "last_modified_time",
+            "offset": 3670,
+            "path": "PASS    TXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3648,
+            "field": "last_modified_date",
+            "offset": 3672,
+            "path": "PASS    TXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3680,
+            "field": "last_modified_time",
+            "offset": 3702,
+            "path": "RESTSEEDTXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3680,
+            "field": "last_modified_date",
+            "offset": 3704,
+            "path": "RESTSEEDTXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3712,
+            "field": "last_modified_time",
+            "offset": 3734,
+            "path": "RESTOREDTXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3712,
+            "field": "last_modified_date",
+            "offset": 3736,
+            "path": "RESTOREDTXT",
+            "width": 2
+          }
+        ],
+        "baseline_comparisons": {
+          "original": {
+            "image_sha256": "ecf5c24d56236cb2d688ab09a618c0fb1703f0a63ea09dd7317dc2fff2fa65aa",
+            "raw_differing_bytes": 1693
+          },
+          "restore": {
+            "image_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+            "raw_differing_bytes": 0
+          },
+          "seed": {
+            "image_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+            "raw_differing_bytes": 121
+          }
+        },
+        "capture_oracle": {
+          "hardware_acceptance": false,
+          "image_bytes": 737280,
+          "image_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+          "marker_pass": true,
+          "marker_restored": true,
+          "prg_sha256": "5751778793d56cc58ea582b5322b0b47672ab3ea3b93701fe745a751aa9d35ac",
+          "restore_proof_stage": "restored",
+          "schema": 1
+        },
+        "capture_oracle_error": null,
+        "classification": "offline physical-capture byte comparison; does not perform hardware operations",
+        "expected_payload_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+        "generator_sha256": "a1d6765274a6327f30807ce28a0f3f744a77b8a1685de7480c1aba9ab2e18d9a",
+        "geometry": {
+          "cluster_bytes": 1024,
+          "data_clusters": 713,
+          "data_offset": 7168,
+          "fat_count": 2,
+          "fat_sectors": 3,
+          "reserved_sectors": 1,
+          "root_entries": 112,
+          "root_offset": 3584,
+          "sector_bytes": 512
+        },
+        "helper_sha256": "c8321fe54fe2e4d2a31b26eb8178f386b85752ac7edd0ded35f813d01c06106c",
+        "invalid_timestamp_fields": [],
+        "non_timestamp_bytes_compared": 737268,
+        "pass": true,
+        "payload_bytes": 737280,
+        "payload_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+        "permitted_timestamp_byte_offsets": [
+          3670,
+          3671,
+          3672,
+          3673,
+          3702,
+          3703,
+          3704,
+          3705,
+          3734,
+          3735,
+          3736,
+          3737
+        ],
+        "permitted_timestamp_differing_bytes": 0,
+        "phase": "restore",
+        "raw_differing_bytes": 0,
+        "schema": 1,
+        "source_revision": "f4551a4d58dc1deadb8a979c77609b37bdd720cf",
+        "timestamp_normalized_payload_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+        "unexpected_differing_bytes": 0,
+        "unexpected_examples": [],
+        "valid_timestamp_field_variations": []
+      },
+      "cli_sha256": "cccb8564ea6a2b94ce8dd906f2bb59297d037a443772046016351915802cd69b",
+      "configured_upload_timeout_seconds": 60,
+      "firmware_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+      "generator_sha256": "a1d6765274a6327f30807ce28a0f3f744a77b8a1685de7480c1aba9ab2e18d9a",
+      "launch_seconds": 61.22478194301948,
+      "package_archive_sha256": "ea8dce54815e7c26a386c725cadaef8de56d42cdcda14d68d88fc39143aa3404",
+      "package_id": "eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d",
+      "pass": true,
+      "phase": "restore",
+      "saved_record": {
+        "capture": {
+          "hardware_acceptance": false,
+          "image_bytes": 737280,
+          "image_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+          "marker_pass": true,
+          "marker_restored": true,
+          "prg_sha256": "5751778793d56cc58ea582b5322b0b47672ab3ea3b93701fe745a751aa9d35ac",
+          "restore_proof_stage": "restored",
+          "schema": 1
+        },
+        "payload_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+        "record_bytes": 737453,
+        "record_sha256": "2a9a49791486d1ef2b1fe3ba8cc135475f65627899d249e6b539ba0aa6e422ca"
+      },
+      "source_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc",
+      "status": "stopped-record-verified",
+      "video_profile": "scanlines"
+    },
+    "seed": {
+      "byte_comparison": {
+        "against_original": {
+          "actual_guest_changed_non_timestamp_bytes": 1566,
+          "change_offset_sets_match": true,
+          "expected_guest_changed_non_timestamp_bytes": 1566,
+          "untouched_non_timestamp_bytes_checked": 735706
+        },
+        "all_bytes_compared": 737280,
+        "allowed_timestamp_fields": [
+          {
+            "entry_offset": 3648,
+            "field": "last_modified_time",
+            "offset": 3670,
+            "path": "PASS    TXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3648,
+            "field": "last_modified_date",
+            "offset": 3672,
+            "path": "PASS    TXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3680,
+            "field": "last_modified_time",
+            "offset": 3702,
+            "path": "RESTSEEDTXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3680,
+            "field": "last_modified_date",
+            "offset": 3704,
+            "path": "RESTSEEDTXT",
+            "width": 2
+          }
+        ],
+        "baseline_comparisons": {
+          "original": {
+            "image_sha256": "ecf5c24d56236cb2d688ab09a618c0fb1703f0a63ea09dd7317dc2fff2fa65aa",
+            "raw_differing_bytes": 1572
+          },
+          "restore": {
+            "image_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+            "raw_differing_bytes": 121
+          },
+          "seed": {
+            "image_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+            "raw_differing_bytes": 0
+          }
+        },
+        "capture_oracle": {
+          "hardware_acceptance": false,
+          "image_bytes": 737280,
+          "image_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+          "marker_pass": true,
+          "marker_restored": false,
+          "prg_sha256": "5751778793d56cc58ea582b5322b0b47672ab3ea3b93701fe745a751aa9d35ac",
+          "restore_proof_stage": "seeded",
+          "schema": 1
+        },
+        "capture_oracle_error": null,
+        "classification": "offline physical-capture byte comparison; does not perform hardware operations",
+        "expected_payload_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+        "generator_sha256": "a1d6765274a6327f30807ce28a0f3f744a77b8a1685de7480c1aba9ab2e18d9a",
+        "geometry": {
+          "cluster_bytes": 1024,
+          "data_clusters": 713,
+          "data_offset": 7168,
+          "fat_count": 2,
+          "fat_sectors": 3,
+          "reserved_sectors": 1,
+          "root_entries": 112,
+          "root_offset": 3584,
+          "sector_bytes": 512
+        },
+        "helper_sha256": "c8321fe54fe2e4d2a31b26eb8178f386b85752ac7edd0ded35f813d01c06106c",
+        "invalid_timestamp_fields": [],
+        "non_timestamp_bytes_compared": 737272,
+        "pass": true,
+        "payload_bytes": 737280,
+        "payload_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+        "permitted_timestamp_byte_offsets": [
+          3670,
+          3671,
+          3672,
+          3673,
+          3702,
+          3703,
+          3704,
+          3705
+        ],
+        "permitted_timestamp_differing_bytes": 0,
+        "phase": "seed",
+        "raw_differing_bytes": 0,
+        "schema": 1,
+        "source_revision": "f4551a4d58dc1deadb8a979c77609b37bdd720cf",
+        "timestamp_normalized_payload_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+        "unexpected_differing_bytes": 0,
+        "unexpected_examples": [],
+        "valid_timestamp_field_variations": []
+      },
+      "cli_sha256": "cccb8564ea6a2b94ce8dd906f2bb59297d037a443772046016351915802cd69b",
+      "configured_upload_timeout_seconds": 60,
+      "firmware_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+      "generator_sha256": "a1d6765274a6327f30807ce28a0f3f744a77b8a1685de7480c1aba9ab2e18d9a",
+      "launch_seconds": 60.7276080311276,
+      "package_archive_sha256": "ea8dce54815e7c26a386c725cadaef8de56d42cdcda14d68d88fc39143aa3404",
+      "package_id": "eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d",
+      "pass": true,
+      "phase": "seed",
+      "saved_record": {
+        "capture": {
+          "hardware_acceptance": false,
+          "image_bytes": 737280,
+          "image_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+          "marker_pass": true,
+          "marker_restored": false,
+          "prg_sha256": "5751778793d56cc58ea582b5322b0b47672ab3ea3b93701fe745a751aa9d35ac",
+          "restore_proof_stage": "seeded",
+          "schema": 1
+        },
+        "payload_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+        "record_bytes": 737453,
+        "record_sha256": "6ad48214088124b8928d8bebd91c0fea0a0eb4b109c05dea974ca2d0c06903a5"
+      },
+      "source_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc",
+      "status": "stopped-record-verified",
+      "video_profile": "scanlines"
+    }
+  },
+  "producer": {
+    "build_id": "356a0401737f24f0513103714148c944",
+    "cpu_rom_clock_repairs": [
+      "machine.system.machine.cpu.cpu.nanoRom.nRam.0.0.0",
+      "machine.system.machine.cpu.cpu.nanoRom.nRam.1.0.0",
+      "machine.system.machine.cpu.cpu.nanoRom.nRam.1.0.0_B1ADDR_MISTRAL_ALUT2_Q_A_MISTRAL_M10K_B1DATA",
+      "machine.system.machine.cpu.cpu.nanoRom.nRam.2.0.0",
+      "machine.system.machine.cpu.cpu.nanoRom.nRam.3.0.0",
+      "machine.system.machine.cpu.cpu.uRom.uRam.0.0.0",
+      "machine.system.machine.cpu.cpu.uRom.uRam.1.0.0"
+    ],
+    "device": "5CSEBA6U23I7",
+    "floppy_sector_memory": {
+      "bits_per_word": 16,
+      "cell": "machine.system.io.floppy.writer.sector.0.0.0",
+      "status": "pass",
+      "words": 256
+    },
+    "producer_summary_sha256": "bf9a08c2623d845824fe10a1258f454758ac25721f29d25543aa4d69e752cf3e",
+    "ram_socket_configuration": {
+      "checked_cells": 202,
+      "configuration_bounds_offsets": [
+        0,
+        0,
+        259,
+        86
+      ],
+      "init_bits_per_cell": 10240,
+      "mode_control_bits_per_cell": 126,
+      "policy": "m10k-bmux-configuration-bounds-v1",
+      "routing_coverage": "RAM-local BM_CRAM only; routing PIPs use the frozen shell/card containment contract",
+      "status": "pass"
+    },
+    "rbf": {
+      "sha256": "781d29ec5de7f9069ef76988d5eb4bf6601cb7fabbb1e8a946ed031ec0212333",
+      "size": 2865177
+    },
+    "resources": {
+      "MISTRAL_BUF": {
+        "available": 0,
+        "used": 2632
+      },
+      "MISTRAL_CLKENA": {
+        "available": 8,
+        "used": 3
+      },
+      "MISTRAL_COMB": {
+        "available": 83820,
+        "used": 14229
+      },
+      "MISTRAL_FF": {
+        "available": 167640,
+        "used": 6487
+      },
+      "MISTRAL_IO": {
+        "available": 472,
+        "used": 74
+      },
+      "MISTRAL_M10K": {
+        "available": 553,
+        "used": 202
+      },
+      "MISTRAL_MUL18X18": {
+        "available": 112,
+        "used": 0
+      },
+      "MISTRAL_MUL18X19": {
+        "available": 112,
+        "used": 0
+      },
+      "MISTRAL_MUL18X19_COMBINED": {
+        "available": 112,
+        "used": 0
+      },
+      "MISTRAL_MUL27X27": {
+        "available": 112,
+        "used": 0
+      },
+      "MISTRAL_MUL9X9": {
+        "available": 336,
+        "used": 0
+      },
+      "altera_pll": {
+        "available": 6,
+        "used": 2
+      },
+      "cyclonev_hps_interface_fpga2sdram": {
+        "available": 1,
+        "used": 0
+      },
+      "cyclonev_hps_interface_mpu_general_purpose": {
+        "available": 1,
+        "used": 1
+      },
+      "cyclonev_hps_interface_peripheral_i2c": {
+        "available": 4,
+        "used": 1
+      },
+      "cyclonev_oscillator": {
+        "available": 1,
+        "used": 0
+      }
+    },
+    "rom": {
+      "file": "rom-map.json",
+      "id": "atari-st-firmware",
+      "role": "firmware",
+      "sha256": "e49128b61df9cbcc5116aabb9811f6cd1a1b8618ac7700c62c2a1aef0d052e7d",
+      "size": 17357124,
+      "source_size": 196608
+    },
+    "route": {
+      "gpu_backend": "hip",
+      "placer_heap_timingweight": 2000,
+      "placer_qor_mode": "first-pass",
+      "placer_seed": 2,
+      "status": "pass",
+      "unrouted": false
+    },
+    "sockets": {
+      "layout": "fes.atari-st-bus.socket/1",
+      "pinned_boundary_cells": 119,
+      "pinned_boundary_route_buffers": 119,
+      "sockets": [
+        1
+      ]
+    },
+    "status": "pass",
+    "timing": {
+      "audio": {
+        "achieved_mhz": 213.81227111816406,
+        "clock": "system_clock.clocks[1]",
+        "constraint_mhz": 12.288031578063965,
+        "status": "pass"
+      },
+      "pixel": {
+        "achieved_mhz": 80.07687377929688,
+        "clock": "pixel_clk",
+        "constraint_mhz": 74.25006866455078,
+        "status": "pass"
+      },
+      "status": "pass",
+      "system": {
+        "achieved_mhz": 58.43852615356445,
+        "clock": "system_clock.clocks[0]",
+        "constraint_mhz": 52.22477340698242,
+        "status": "pass"
+      }
+    },
+    "tools": {
+      "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=2ca1c6a996b9df3e12b3af6b266a672d80ecce1be1b370806e3679974addf23b",
+      "nextpnr-mistral": "commit=3d4a5b352b4edb478b744b82cc61333353751a80; sha256=436928bb79574752919332165e17ca4810aa7f63c6b6182718bb855cf534e665; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+      "yosys": "commit=886afa63953e97407153e9f4aae25fcedb639696; sha256=906d6c74af8500a8d2ee1dc8703f6a8e242606d01e314e66d908a6fbd9378337"
+    },
+    "video_cache_placements": {
+      "video.cache0.0.0.0": "MISTRAL_M10K.26.20.0",
+      "video.cache1.0.0.0": "MISTRAL_M10K.26.21.0"
+    },
+    "video_socket": {
+      "cram": [
+        1769,
+        3442,
+        2806,
+        5162
+      ],
+      "layout": "fes.atari-st-video.parts/1",
+      "map": "fes.atari-st-video.socket/1",
+      "pinned_boundary_cells": 93,
+      "status": "pass"
+    }
+  },
+  "release_manifest": {
+    "board": "de10-nano",
+    "boot_abi": "fes-bootstrap-v1",
+    "fes_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc",
+    "fogcast_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc",
+    "format": 1,
+    "image_sha256": "efe04797f2682c5c76372999a0628dc4f62742905e253dfc557311c0e0453075",
+    "image_size": 167772160,
+    "kernel_sha256": "a6c7b1be0da9ba24a91bc1816737915d6a6cfba27c6c3025caded95167dc8dae",
+    "runtime_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc",
+    "version": "0.2.0-st.1"
+  },
+  "reproducibility": {
+    "run_1_sha256": "efe04797f2682c5c76372999a0628dc4f62742905e253dfc557311c0e0453075",
+    "run_2_sha256": "efe04797f2682c5c76372999a0628dc4f62742905e253dfc557311c0e0453075",
+    "source_date_epoch": "1751459412"
+  },
+  "schema": 1,
+  "source_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc",
+  "update_client": {
+    "binary_sha256": "579d2ef4495131d14b90c0a3ac30ac9e62ea4966ea126fa624d3ef5f09d62af5",
+    "build_log_sha256": "fb0c16a944f6ab836736e22906b75d9e9bc048294f39167fa482a04156fe0c69",
+    "go_build_metadata_sha256": "5648f4c881ba67fda6469eef29933fecdbc640ea2ee8aadb0809c9ad85699df0",
+    "source_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc"
+  }
+}

@@ -22,13 +22,16 @@ grep -Fq 'runtime_root=$package_root/usr/share/mister-runtime' "$verify_script"
 grep -Fq 'verify_rootfs_headroom "$image"' "$verify_script"
 grep -Fq 'check-rootfs-headroom.sh' "$verify_script"
 grep -Fq 'maximum is 85%' "$repo/scripts/check-rootfs-headroom.sh"
-grep -Fq 'BR2_TARGET_ROOTFS_EXT2_SIZE="128M"' "$repo/buildroot/configs/fogcast_target_native_dev_defconfig"
+grep -Fq 'BR2_TARGET_ROOTFS_EXT2_SIZE="160M"' "$repo/buildroot/configs/fogcast_target_native_dev_defconfig"
 headroom_script=$repo/scripts/check-rootfs-headroom.sh
-if sh "$headroom_script" 32768 3276 4096 134217728 2>"$fixture/headroom.log"; then
+if sh "$headroom_script" 40960 4096 4096 167772160 2>"$fixture/headroom.log"; then
   echo 'rootfs headroom accepted occupancy above 85%' >&2; exit 1
 fi
 grep -Fq 'populated rootfs uses' "$fixture/headroom.log"
-sh "$headroom_script" 32768 9831 4096 134217728
+grep -Fq 'configured 167772160 bytes (142606336 bytes)' "$fixture/headroom.log"
+sh "$headroom_script" 40960 12288 4096 167772160
+# The observed nine-package ST population fits with the unchanged 85% guard.
+sh "$headroom_script" 40960 8897 4096 167772160
 grep -Fq 'for stale_dir in "$runtime_root/cores"; do' "$verify_script"
 ! grep -Fq '"$runtime_root/selections"' "$verify_script"
 grep -Fq 'fes.pong' "$container_script"
@@ -111,6 +114,35 @@ fi
 grep -Fq 'FES_IMAGE_WORK must be /target-image-output/work-1-native-dev' "$fixture/mismatched-work.log"
 grep -Fq 'selected_work=${FES_IMAGE_WORK:-/target-image-output/work-2-native-dev}' "$repo/scripts/build-target-kernel.sh"
 grep -Fq 'selected_work=${FES_IMAGE_WORK:-/target-image-output/work-2-native-dev}' "$repo/scripts/qemu-smoke-target-image.sh"
+# A 160 MiB rootfs must boot through QEMU's power-of-two SD device without
+# resizing the release image or changing any filesystem byte.
+smoke_script=$repo/scripts/qemu-smoke-target-image.sh
+for mib in 128 160; do
+  python3 - "$fixture/smoke-source" "$mib" <<'PY'
+import sys
+size = int(sys.argv[2]) * 1024 * 1024
+with open(sys.argv[1], 'wb') as image:
+    image.write(b'original filesystem prefix')
+    image.seek(size - 25)
+    image.write(b'original filesystem tail!')
+PY
+  source_sha=$(/usr/bin/shasum -a 256 "$fixture/smoke-source" | awk '{print $1}')
+  : > "$fixture/smoke-copy"
+  TARGET_IMAGE_TEST_MODE=1 sh "$smoke_script" --prepare-sd-copy "$fixture/smoke-source" "$fixture/smoke-copy"
+  test "$(/usr/bin/shasum -a 256 "$fixture/smoke-source" | awk '{print $1}')" = "$source_sha"
+  python3 - "$fixture/smoke-source" "$fixture/smoke-copy" "$mib" <<'PY'
+import os, sys
+source, copy = sys.argv[1:3]
+size = int(sys.argv[3]) * 1024 * 1024
+assert os.stat(source).st_size == size
+assert os.stat(copy).st_size == (128 if size == 128 * 1024 * 1024 else 256) * 1024 * 1024
+with open(source, 'rb') as original, open(copy, 'rb') as padded:
+    while chunk := original.read(1024 * 1024):
+        assert padded.read(len(chunk)) == chunk
+    while chunk := padded.read(1024 * 1024):
+        assert not any(chunk)
+PY
+done
 ! grep -Fq 'FES_IMAGE_WORK = ' "$repo/Makefile"
 cat > "$fixture/fake-container-runtime" <<'RUNTIME'
 #!/bin/sh

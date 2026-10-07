@@ -100,7 +100,7 @@ class ImageAssemblyTest(unittest.TestCase):
         self.assertEqual(
             [entry['core_id'] for entry in profile['fpga_packages']],
             ['fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sms',
-             'fes.sg1000', 'fes.spectrum', 'fes.ramtest'])
+             'fes.sg1000', 'fes.spectrum', 'fes.ramtest', 'fes.atari-st'])
 
     def test_build_and_verify_core_mappings_cover_default_profile(self):
         profile = tomllib.loads((ROOT / 'profiles/native-integration-dev.toml').read_text())
@@ -109,7 +109,7 @@ class ImageAssemblyTest(unittest.TestCase):
         verify = (IMAGE / 'scripts/verify-target-image.sh').read_text()
         for core_id in core_ids:
             recipe_id = core_id.removeprefix('fes.')
-            selection = recipe_id.upper() + '_PACKAGE_SELECTION'
+            selection = recipe_id.upper().replace('-', '_') + '_PACKAGE_SELECTION'
             self.assertRegex(build, rf'{core_id}\) printf \'%s\\n\' {recipe_id} ;;')
             self.assertIn(f'{core_id}) package_selection_path=${{FES_{selection}:-}} ;;', verify)
 

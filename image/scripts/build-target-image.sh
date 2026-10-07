@@ -43,6 +43,7 @@ selected_package_cores() {
       fes.c64) printf '%s\n' c64 ;;
       fes.spectrum) printf '%s\n' spectrum ;;
       fes.ramtest) printf '%s\n' ramtest ;;
+      fes.atari-st) printf '%s\n' atari-st ;;
       *) exit 2 ;;
     esac
     [ -n "$remaining" ] || break

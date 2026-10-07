@@ -208,10 +208,12 @@ complete twice with matching final RBF hashes after the `53e1ad42` fix is
 backported onto `0259c6dc`. The retained fixture passes all three clock gates;
 the reconstructed fixture routes legally but still misses the system target.
 These are compiler replay results, not new sealed packages or kit diagnostics.
-The maintained packer still rejects the existing `CFG_ASYNC_READ=1` ROM lanes,
-and the compatible backport remains a local qualification commit. The producer
-retains its qualified `0259c6dc` pin; adopting the fix requires a published
-compatible compiler revision or a separately qualified ROM migration.
+The historical fixtures used `CFG_ASYNC_READ=1` ROM lanes rejected by the
+maintained packer; the current producer uses registered ROM reads. The compatible
+backport remains a local qualification commit, and the producer retains its
+qualified `0259c6dc` pin. [FES issue 603](https://github.com/DeanoC/fes/issues/603)
+tracks bounded-search timeout evidence and qualification of a maintained
+compiler pin; the current pin still produces a fully gated sealed package.
 
 ## Not implemented
 

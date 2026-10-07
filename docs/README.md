@@ -71,6 +71,8 @@ optional SGM, saved preferences and captured video/audio for the named open ROMs
 Current build and selection behavior remains documented by the component
 guides and [core status](core-status.md).
 
+The [Atari ST native image record](validation/2026-10-07-atari-st-native-image.md) binds the verified nine-package/four-part image, diskless GEM, cold-host saved-disk restore, full payload comparisons and final populated-menu restoration.
+
 The [Atari ST interaction record](validation/2026-10-04-atari-st-interaction.md)
 binds mouse and writable-disk software checks, the original GEMDOS guest
 diagnostic, sealed video parts, and the unresolved physical byte-write failure.

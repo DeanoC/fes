@@ -1,4 +1,4 @@
-"""Resolve independently sealed Coleco video parts for the factory package set.
+"""Resolve independently sealed factory video parts for the factory package set.
 
 Compiler work remains in the selected misteross producer. This module keeps its
 original evidence in the host cache and exports only a closed archive inventory.
@@ -33,6 +33,9 @@ PART_MEMBERS = ("build-summary.json", "timing.json", "cart.json",
                 "cart-routed.json", "route.log", "cram-diff.json")
 VIDEO_OUTPUTS = {"fes.coleco-video.socket/1": "build/fes-coleco-video",
                  "fes.coleco-native-video.socket/1": "build/fes-coleco-native-video"}
+ST_MAP = "fes.atari-st-video.socket/1"
+VIDEO_OUTPUTS[ST_MAP] = "build/fes-atari-st-oss"
+ST_SHELL_MEMBERS = (*SHELL_MEMBERS, "rom-map.json")
 NATIVE_MAP = "fes.coleco-native-video.socket/1"
 VIDEO_INTERFACES = {"fes.fabric.video.raster-rgb888": "fes.coleco-video.socket/1",
                     "fes.fabric.video.native-pixels": NATIVE_MAP}
@@ -52,17 +55,24 @@ def video_shell_profile(fields):
     if not markers:
         return None
     core, abi = fields.get("core"), fields.get("abi")
-    if (len(markers) != 1 or type(fields.get("format")) is not int or fields["format"] != 2
-            or not isinstance(core, dict) or core.get("id") != "fes.coleco"
-            or abi != {"id": "fes.application", "major": 1, "minor": 0}
-            or type(abi.get("major")) is not int or type(abi.get("minor")) is not int):
-        raise ValueError("factory video requires one format-2 Coleco application shell profile")
+    st = isinstance(core, dict) and core.get("id") == "fes.atari-st"
+    expected_format, expected_abi = (3, "fes.computer") if st else (2, "fes.application")
+    if (len(markers) != 1 or type(fields.get("format")) is not int or fields["format"] != expected_format
+            or not isinstance(core, dict) or core.get("id") not in ("fes.coleco", "fes.atari-st")
+            or abi != {"id": expected_abi, "major": 1, "minor": 0}
+            or type(abi.get("major")) is not int or type(abi.get("minor")) is not int
+            or (st and (markers[0]["id"] != "fes.fabric.video.raster-rgb888"
+                or not isinstance(fields.get("rom"), dict)
+                or fields["rom"].get("role") != "firmware"
+                or {"id": "fes.expansion.atari-st-bus", "major": 1, "minor": 0,
+                    "required": False} not in interfaces))):
+        raise ValueError("factory video requires an exact Coleco application or ST firmware shell profile")
     marker = markers[0]
     if (marker != {"id": marker["id"], "major": 1, "minor": 0, "required": False}
             or type(marker.get("major")) is not int or type(marker.get("minor")) is not int
             or marker.get("required") is not False):
         raise ValueError("factory video requires an exact optional version-1.0 profile marker")
-    return VIDEO_INTERFACES[marker["id"]]
+    return ST_MAP if st else VIDEO_INTERFACES[marker["id"]]
 
 
 def canonical(value):
@@ -238,6 +248,7 @@ from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 from scripts import build_video_part as producer, build_fes_coleco_socket_v2 as shell_producer
 from scripts import native_video_parts, native_video_clock, coleco_expansion
+from scripts import build_atari_st_video_part, build_fes_atari_st_oss, rom_map
 from scripts.core_package import read_package
 from scripts.export_core_package import source_input_closure, POLICY, verify_record_source_at_revision, build_identity
 from scripts.functional_execution import execution_environment, execution_inputs, source_roots_for_inputs
@@ -258,14 +269,20 @@ def bounded(path, maximum=128<<20):
         require(sha(data)==args['evidence_sha256'][path.name], 'video evidence changed after snapshot: '+path.name)
     return data
 package = read_package(Path(args['package']))
+st = package.fields['core']['id']=='fes.atari-st'
+if st: producer, shell_producer = build_atari_st_video_part, build_fes_atari_st_oss
 layout = producer.package_profile(package)
 native = layout is native_video_parts
-require(package.fields['core']['id']=='fes.coleco', 'factory video requires an exact format-2 Coleco video shell')
-options = {'native_video':True} if native else {'video_socket':True}
+strict = native or st
+options = {} if st else ({'native_video':True} if native else {'video_socket':True})
+clock_producer = producer.slot_recipe if st else producer.sgm
+factory = shell_producer if st else shell_producer.factory
+shell_members = ('manifest.toml','core.rbf','routed.json','socket.qsf') + (('rom-map.json',) if st else ())
 if mode == 'canonical':
     require(args['producer_options']==options, 'resolved video profile differs from selected factory recipe')
     _, revision = shell_producer._require_clean_source(root, **options)
-    tools = shell_producer.authenticate_tools(root, Path(args['toolchain_cache']))
+    authenticate = shell_producer._authenticate_atari_st_tools if st else shell_producer.authenticate_tools
+    tools = authenticate(root, Path(args['toolchain_cache']))
     roots = source_roots_for_inputs(producer.NATIVE_INPUTS if native else producer.INPUTS)
     with tempfile.TemporaryDirectory(prefix='fes-video-canonical-') as home:
         paths = {name:tool.path for name,tool in tools.items()}
@@ -278,21 +295,38 @@ else:
     shell = Path(args['shell'])
     current = args['current']
     require(current['map']==layout.MAP, 'video inputs target a different shell profile')
+    require(not st or bounded(shell/'rom-map.json')==package.rom_map_bytes, 'frozen firmware map differs from resolved package')
     require(bounded(shell/'manifest.toml')==package.manifest_bytes and bounded(shell/'core.rbf',32<<20)==package.payload_bytes, 'frozen video shell differs from resolved package')
     if mode == 'shell':
         record = bounded(shell/'build-inputs.json'); fields = verify_record_source_at_revision(root, record)
         require(functional(record)==args['functional_inputs_sha256'], 'frozen shell functional inputs differ from selected package')
-        expected = shell_producer.create_build_record(root, fields['repository'], fields['revision'], current['tools'], current['execution'], **options)
+        expected = (shell_producer.create_build_record(root, fields['repository'], fields['revision'], current['tools'], execution=current['execution']) if st else
+                    shell_producer.create_build_record(root, fields['repository'], fields['revision'], current['tools'], current['execution'], **options))
         require(functional(record)==functional(expected), 'frozen video shell differs from current recipe')
-        coleco_expansion.validate_routed_shell(shell/'routed.json',version=2)
-        layout.validate_boundary(json.loads(bounded(shell/'routed.json'))['modules']['top'],routed=True)
-        require(bounded(shell/'socket.qsf') == layout.shell_qsf(coleco_expansion.shell_qsf((root/shell_producer.factory.QSF).read_text(),version=2)).encode(), 'frozen shell constraints differ from current recipe')
-        evidence = shell_producer.factory.validate_build_evidence(shell,root)
         summary = json.loads(bounded(shell/'build-summary.json'))
+        if st:
+            tools = shell_producer._authenticate_atari_st_tools(root, Path(args['toolchain_cache']))
+            database = rom_map.read_database(tools['mistral'].path.parents[2]/'src/mistral', shell_producer.ROM_DATABASE_SHA256)
+            evidence = shell_producer.validate_build_evidence(shell, ram_database=database)
+            mapping, map_evidence = rom_map.build_rom_map(database, package.payload_bytes,
+                routed=json.loads(bounded(shell/'routed.json')), lane_rows=shell_producer.FIRMWARE_LANE_ROWS, expected_async_read=0)
+            shell_producer.check_firmware_outside_sockets(mapping)
+            require((encode(mapping)+b'\n')==package.rom_map_bytes and summary['rom_map']==map_evidence, 'frozen firmware map differs from producer evidence')
+            require(bounded(shell/'socket.qsf') == shell_producer.socket_qsf((root/shell_producer.QSF).read_text()).encode(), 'frozen shell constraints differ from current recipe')
+            for key,value in evidence.items():
+                require(summary[key]==value if key!='route' else all(summary[key].get(k)==v for k,v in value.items()), 'frozen shell '+key+' evidence differs')
+            require(summary['rom']==package.fields['rom'], 'frozen shell firmware receipt differs')
+            manifest = shell_producer._manifest(record,summary,fields['repository'],fields['revision'],fields['tools'])
+        else:
+            coleco_expansion.validate_routed_shell(shell/'routed.json',version=2)
+            layout.validate_boundary(json.loads(bounded(shell/'routed.json'))['modules']['top'],routed=True)
+            require(bounded(shell/'socket.qsf') == layout.shell_qsf(coleco_expansion.shell_qsf((root/shell_producer.factory.QSF).read_text(),version=2)).encode(), 'frozen shell constraints differ from current recipe')
+            evidence = shell_producer.factory.validate_build_evidence(shell,root)
+            for key in ('status','timing','resources','synthesis_cells','rbf'):
+                require(summary[key]==evidence[key], 'frozen shell '+key+' evidence differs')
+            manifest = shell_producer.manifest(record,summary,fields['repository'],fields['revision'],fields['tools'],**options)
         require(summary['build_id']==build_identity(record) and summary['tools']==current['tools'] and summary['execution']==current['execution'], 'frozen shell summary differs from authenticated inputs')
-        for key in ('status','timing','resources','synthesis_cells','rbf'):
-            require(summary[key]==evidence[key], 'frozen shell '+key+' evidence differs')
-        require(shell_producer.manifest(record,summary,fields['repository'],fields['revision'],fields['tools'],**options)==package.manifest_bytes, 'frozen shell manifest differs from producer evidence')
+        require(manifest==package.manifest_bytes, 'frozen shell manifest differs from producer evidence')
         result={'package_id':package.package_id,'build_record_sha256':sha(record)}
     elif mode == 'part':
         directory=Path(args['directory']); variant=args['profile']; archive=Path(args['archive'])
@@ -311,25 +345,25 @@ else:
         require(manifest['cart_size']==len(cart) and manifest['cart_sha256']==sha(cart), 'video cart digest or size differs')
         require(manifest['shell_package_id']==package.package_id and manifest['shell_build_id']==package.fields['build']['id'] and manifest['shell_sha256']==sha(package.payload_bytes), 'video part targets a different shell')
         roots=current['source_roots']
-        clocks=producer.sgm.cart_clock_constraints(root)
+        clocks=clock_producer.cart_clock_constraints(root)
         recipe={key:current[key] for key in ('inputs','source_roots','source_closure_policy','tools','execution')}
-        recipe.update(shell={name:sha(bounded(shell/name)) for name in ('manifest.toml','core.rbf','routed.json','socket.qsf')},variant=variant,slot_clock=layout.CLOCK,map=layout.MAP,cram_region=list(layout.CRAM),required_clocks_mhz=producer.sgm.REQUIRED_CLOCKS_MHZ,clock_constraints_sha256=sha(clocks))
+        recipe.update(shell={name:sha(bounded(shell/name)) for name in shell_members},variant=variant,slot_clock=layout.CLOCK,map=layout.MAP,cram_region=list(layout.CRAM),required_clocks_mhz=clock_producer.REQUIRED_CLOCKS_MHZ,clock_constraints_sha256=sha(clocks))
+        if st: recipe['placer_seed']=producer.PLACER_SEED
         recipe_sha=sha(encode(recipe)); part_id=sha(b'fes-expansion-v1\0'+encoded)
         require(manifest['recipe_sha256']==recipe_sha, 'video part differs from current build recipe')
         # Authenticate original source provenance without rewriting its revision.
         shell_fields=json.loads(bounded(shell/'build-inputs.json'))
         history=dict(shell_fields,revision=manifest['revision'],source_roots=roots,source_inputs=current['inputs'])
-        history['recipe']='scripts/build_video_part.py'; history['recipe_sha256']=current['inputs'][history['recipe']]
+        history['recipe']='scripts/build_atari_st_video_part.py' if st else 'scripts/build_video_part.py'; history['recipe_sha256']=current['inputs'][history['recipe']]
         verify_record_source_at_revision(root,encode(history)+b'\n')
         summary=json.loads(bounded(directory/'build-summary.json'))
         require(summary['recipe']==recipe and summary['part_id']==part_id and summary['manifest']==manifest, 'video producer summary differs from sealed part')
         log=bounded(directory/'route.log').decode()
         require('Info: Program finished normally.' in log and 'unrouted' not in log.lower() and not re.search(r'^\s*(?:ERROR|FATAL)\b',log,re.M|re.I), 'video route did not complete')
-        backend=shell_producer.factory._require_gpu_backend(log)
-        timing=json.loads(bounded(directory/'timing.json')); producer.sgm.validate_cart_timing(timing)
-        factory=shell_producer.factory
+        backend=factory._require_gpu_backend(log)
+        timing=json.loads(bounded(directory/'timing.json')); measured=clock_producer.validate_cart_timing(timing)
         resources=validate_timing_resources(timing.get('utilization'),factory.ORDINARY_RESOURCES|set(factory.REQUIRED_RESOURCES)|factory.FORBIDDEN_RESOURCES|factory.REQUIRED_ZERO_RESOURCES)
-        measured={name:factory._frequency_row(timing['fmax'],freq,name,name) for name,freq in producer.sgm.REQUIRED_CLOCKS_MHZ.items()}
+        if not st: measured={name:factory._frequency_row(timing['fmax'],freq,name,name) for name,freq in clock_producer.REQUIRED_CLOCKS_MHZ.items()}
         prepared=bounded(directory/'cart.json',32<<20)
         if native:
             synthesized=bounded(directory/'cart-synth.json',32<<20)
@@ -341,16 +375,17 @@ else:
         counts=_cell_counts(json.loads(prepared))
         require(not any(counts.get(name,0) for name in factory.FORBIDDEN_RESOURCES|set(factory.REQUIRED_RESOURCES)), 'video part owns a forbidden resource')
         require(not native or sum(counts.get(name,0) for name in ('MISTRAL_M10K','MISTRAL_M10K_TDP'))==48, 'native part must own exactly 48 M10K frame-buffer blocks')
+        require(not st or not any(counts.get(name,0) for name in ('MISTRAL_M10K','MISTRAL_M10K_TDP')), 'ST raster part must not allocate RAM')
         pins=producer.validate_clocks(json.loads(bounded(directory/'cart-routed.json')),layout=layout)
         require(not (native or variant=='scanlines') or pins>0, 'video state did not survive synthesis')
         require(summary['checked_clock_pins']==pins and summary['resources']==resources and summary['synthesis_cells']==counts and summary['timing']==json.loads(json.dumps(measured)) and summary['route']=={'complete':True,'gpu_backend':backend}, 'video timing, resource or clock evidence differs')
         base,placed=rbf_load(package.payload_bytes),rbf_load(cart)
         require(base.header==placed.header, 'video part changes configuration header')
-        changes=classify_cram_diff(base,placed,CramRect(*layout.CRAM),include_outside_coordinates=True,ignore_ecc_columns=not native)
+        changes=classify_cram_diff(base,placed,CramRect(*layout.CRAM),include_outside_coordinates=True,ignore_ecc_columns=not strict)
         require(changes['bits_outside_slot']==0 and summary['cram_diff']==changes, 'video part changes outside its CRAM region or containment evidence differs')
-        require(summary.get('cram_policy')==('strict-rectangle-v1' if native else 'legacy-columns-v1'), 'video containment policy differs')
+        require(summary.get('cram_policy')==('strict-rectangle-v1' if strict else 'legacy-columns-v1'), 'video containment policy differs')
         preview_matches=overlay_cram(base,placed,CramRect(*layout.CRAM)).cram==placed.cram
-        require(summary.get('preview_matches_routed_cram') is preview_matches and (not native or preview_matches), 'video preview differs from routed CRAM')
+        require(summary.get('preview_matches_routed_cram') is preview_matches and (not strict or preview_matches), 'video preview differs from routed CRAM')
         report=json.loads(bounded(directory/'cram-diff.json'))
         require(report=={'archive_published':True,'cart_sha256':sha(cart),'cram_diff':changes,'cram_region':list(layout.CRAM),'map':layout.MAP,'part_id':part_id,'route_contract':'passed'}, 'video containment publication evidence differs')
         result={'profile':variant,'part_id':part_id,'recipe_sha256':recipe_sha,'revision':manifest['revision'],'archive_sha256':sha(raw),'archive_size':len(raw),'build_summary_sha256':sha(bounded(directory/'build-summary.json')),'cram_report_sha256':sha(bounded(directory/'cram-diff.json'))}
@@ -372,14 +407,14 @@ def _inspect(source, mode, arguments, recipe, env):
 
 
 def _build_part(source, shell, package, profile, recipe, env):
-    result = subprocess.run([sys.executable, "scripts/build_video_part.py", "--root", str(source),
+    result = subprocess.run([sys.executable, ("scripts/build_atari_st_video_part.py" if recipe.core_id == "fes.atari-st" else "scripts/build_video_part.py"), "--root", str(source),
                              "--shell", str(shell), "--package", str(package),
                              "--variant", profile, "--cache-root", str(recipe.cache_root), "--gpu", "0"],
                             cwd=source, env=recipes.producer_environment(env, recipe=recipe),
                             stdout=subprocess.PIPE, check=True, text=True)
     path = Path(result.stdout.strip().splitlines()[-1])
     _plain(path)
-    if not path.is_relative_to(source / "build/video-parts" / profile):
+    if not path.is_relative_to(source / ("build/atari-st-video-parts" if recipe.core_id == "fes.atari-st" else "build/video-parts") / profile):
         raise ValueError("video producer returned an unexpected archive path")
     return path
 
@@ -392,8 +427,8 @@ def resolve_video_parts(source, resolved_package, destination, *, recipe=None,
     fresh staging destination, then includes the returned tree in its generation.
     """
     recipe = recipes.recipe_for("fes.coleco") if recipe is None else recipe
-    if recipe.core_id != "fes.coleco":
-        raise ValueError("factory video parts currently support only fes.coleco")
+    if recipe.core_id not in ("fes.coleco", "fes.atari-st"):
+        raise ValueError("factory video parts support only fes.coleco and fes.atari-st")
     source = _plain(source, directory=True)
     package = _plain(resolved_package["directory"], directory=True)
     package_id = resolved_package["inputs"]["selection"]["package_id"]
@@ -409,24 +444,25 @@ def resolve_video_parts(source, resolved_package, destination, *, recipe=None,
     current = _inspect(source, "canonical", canonical_arguments, recipe, env)
     if current["map"] not in VIDEO_OUTPUTS:
         raise ValueError("unsupported factory video profile")
+    shell_members = ST_SHELL_MEMBERS if current["map"] == ST_MAP else SHELL_MEMBERS
     part_members = (*PART_MEMBERS, "cart-synth.json") if current["map"] == NATIVE_MAP else PART_MEMBERS
     companion = shells / package_id
     arguments = {"package": str(package), "shell": str(companion), "current": current,
-                 "functional_inputs_sha256": functional_key}
+                 "functional_inputs_sha256": functional_key, "toolchain_cache": str(recipe.cache_root)}
     with _locked(shells):
         if companion.exists() or companion.is_symlink():
-            _closed(companion, SHELL_MEMBERS, sealed=True)
+            _closed(companion, shell_members, sealed=True)
             shell_evidence = _inspect(source, "shell", arguments, recipe, env)
         else:
             producer_output = source / VIDEO_OUTPUTS[current["map"]]
-            if not producer_output.is_dir() or any(not (producer_output / name).is_file() for name in SHELL_MEMBERS):
-                raise MissingVideoShell("resolved Coleco video package has no frozen companion; force-resolve its shell and retry")
+            if not producer_output.is_dir() or any(not (producer_output / name).is_file() for name in shell_members):
+                raise MissingVideoShell("resolved video package has no frozen companion; force-resolve its shell and retry")
             try:
                 initial = dict(arguments, shell=str(producer_output))
                 shell_evidence = _inspect(source, "shell", initial, recipe, env)
             except ValueError as error:
-                raise MissingVideoShell("current frozen Coleco output differs from resolved package; force-resolve its shell and retry") from error
-            files = {name: _read(producer_output / name) for name in SHELL_MEMBERS}
+                raise MissingVideoShell("current frozen video output differs from resolved package; force-resolve its shell and retry") from error
+            files = {name: _read(producer_output / name) for name in shell_members}
             _publish(companion, files)
             shell_evidence = _inspect(source, "shell", arguments, recipe, env)
     entries, evidence, files = [], [], {}

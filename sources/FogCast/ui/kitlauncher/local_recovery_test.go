@@ -353,10 +353,13 @@ func TestRunStartupStatusErrorDoesNotArmLocalStop(t *testing.T) {
 func TestRunAdoptsExternallyStartedLocalRunAndStopsIt(t *testing.T) {
 	f := &recoveryCore{statuses: []localcores.RunStatus{{Phase: "idle"}, {Phase: "running", Running: true}}}
 	client, hostStops := recoveryTestClient(t, f)
-	pad := &recoveryStatusPad{scriptPad: recoveryChordPad(), core: f, reads: 2}
+	pad := recoveryChordPad()
 	var paused, resumed atomic.Bool
 	client.SetMenuDisplayHandoff(func(context.Context) error {
 		paused.Store(true)
+		// Arm after adoption pauses the menu, so the asynchronous status read
+		// cannot emit the one-shot chord while the session is still idle.
+		pad.arm.Store(true)
 		return nil
 	}, func() { resumed.Store(true) })
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
