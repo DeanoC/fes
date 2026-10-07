@@ -153,10 +153,12 @@ acceptance covers the named open diagnostics, not general cartridge compatibilit
 The first 16-bit machine is [the `fes.atari-st` core](../sources/misteross/cores/fes-atari-st/README.md).
 It now assembles the real 8 MHz 68000, original ST MMU bank aliases, 512 KiB
 SDRAM, MFP vectored timers, native HBL/VBL interrupts, keyboard ACIA/IKBD,
-YM2149 audio and writable drive-A floppy/DMA. A separate 720 KiB media
-buffer shares the SDRAM arbiter; upload remains valid while execution is
-held or running. `fes.media.atari-st-floppy` 1.0 uses unit 0 and capability
-bit 7; the writable extension adds bit 9 and relative mouse adds bit 8.
+YM2149 audio and writable drive-A floppy/DMA. A separate buffer up to
+839,680 bytes shares the SDRAM arbiter; upload remains valid while execution
+is held or running. `fes.media.atari-st-floppy` 1.0 uses unit 0 and capability
+bit 7; the writable extension adds bit 9, relative mouse adds bit 8, and the
+required geometry extension adds bit 10. Without that explicit extension the
+legacy floppy interface still admits exactly 737,280 bytes.
 Durable disk data requires an explicit library binding and uses the complete
 image layout in [core persistence](core-persistence.md). The optional expansion connector
 is `fes.expansion.atari-st-bus` 1.0 with one registered physical socket.
@@ -196,7 +198,14 @@ BIG and TCB Cuddly demo disks use ten-sector geometry. The current source
 opts into the geometry extension for their original 80×1×10 and 82×2×10
 images. All twelve supported shapes have host sector read/write coverage;
 loader and border/raster effects require separate qualification. Historical
-0.1.0 hardware evidence does not qualify the revised 0.2.0 shell.
+0.1.0 hardware evidence does not qualify the revised 0.2.0 shell. The
+[geometry diagnostic](validation/2026-10-07-atari-st-floppy-geometry.md) now
+binds the sealed 0.2.0 shell, diskless GEM, complete original BIG/Cuddly
+upload/snapshot comparisons and maximum-size cold restore using built-in
+Direct on a private derived image. Neither original demo reaches its effects
+with the tested EmuTOS. Separate video-part composition is blocked by
+[nextpnr #165](https://github.com/DeanoC/nextpnr/issues/165); full factory image
+acceptance and border/raster compatibility remain open.
 
 ## Not implemented, or not this package
 

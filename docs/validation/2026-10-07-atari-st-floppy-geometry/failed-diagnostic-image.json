@@ -1,0 +1,16 @@
+{
+  "classification": "derived-image hardware diagnostic only",
+  "base_image_sha256": "efe04797f2682c5c76372999a0628dc4f62742905e253dfc557311c0e0453075",
+  "base_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc",
+  "source_revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+  "image_sha256": "3e4927feb72a25118e245539698dc6b6dfcb0f1b3e8224d2a8ca3a20dc82cae6",
+  "replaced_files": {
+    "mister-runtime": "967d40dce2cc9ccd37b278b18bfcc56b48ac97062279714da21645382e856f34",
+    "mister-agent": "b847aabcd54e2dbf3bf6156967dd2a14de0b5c95eeb7aa4ecf2cedbfd3455c96"
+  },
+  "build_inputs_sha256": "63dab21d16d3701e572f3031bf797827c2fc3d69eb0b925b18adcd176f9673d1",
+  "factory_packages_preserved": true,
+  "two_pass_reproducibility": false,
+  "verified_base_unchanged": true,
+  "runtime_build": "pinned GNU Arm10.2 static self-contained ELF32/EABI5, stripped"
+}
