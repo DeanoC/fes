@@ -1720,6 +1720,19 @@ archives bound to the exact shell; an empty socket uses built-in Direct with
 the same latency. Underflow blacks a whole affected line and later
 lines recover; stale fills cannot cross a frame configuration change.
 
+The `fes.atari-st-video.parts/2` physical layout retains the 93 original
+boundary/clock FFs and adds 32 permanent request-egress LUT loads at
+`MISTRAL_COMB.25.44.*` and `MISTRAL_COMB.25.45.*`. These two LABs remain shell
+owned inside the existing `video 24 41 28 58` reservation. Each load consumes
+one request FF's Q, so pass one must route every request output before freezing
+the scaffold. The loads and their input routes remain in the scaffold; part
+routing can extend those frozen branches inside the original CRAM fence.
+The producer checks all load sites, source bits, identity LUT masks and routed
+request branches. The request/response word mapping, boundary FF BELs, clock
+anchors and CRAM rectangle remain the existing socket contract. Separate
+Direct/Scanlines routes must still pass timing and whole-bitstream containment;
+retained egress alone does not qualify a video part.
+
 `scripts/build_atari_st_video_part.py` compares the frozen shell directory with
 the sealed package for `manifest.toml`, `core.rbf` and `rom-map.json`.
 `routed.json` and `socket.qsf` are producer outputs, not package members; a
