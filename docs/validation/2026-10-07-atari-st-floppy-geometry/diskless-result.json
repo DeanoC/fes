@@ -1,0 +1,141 @@
+{
+  "name": "diskless",
+  "game_id": "fpga-st-geometry-diagnostic-diskless-geometry-2026100-841d889c5200",
+  "base_media_id": null,
+  "media_bytes": 0,
+  "video": {
+    "game_id": "fpga-st-geometry-diagnostic-diskless-geometry-2026100-841d889c5200",
+    "package_id": "2b7039a2ce0fe4e16a8a317a8c7c0f5c2d803f9941b38936e915f491c4d0d81d",
+    "preferred_profile": "direct",
+    "effective_profile": "direct",
+    "builtin": true,
+    "choices": [
+      {
+        "profile": "direct",
+        "label": "Direct",
+        "available": true
+      },
+      {
+        "profile": "scanlines",
+        "label": "Scanlines",
+        "available": false,
+        "reason": "No matching part is installed for this exact core package."
+      }
+    ]
+  },
+  "initial_session": {
+    "id": "34ea22c8-b933-4fed-9443-5268bd2d7737",
+    "target": "dev",
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+    "connection": {
+      "state": "active",
+      "address": "http://fes-kit-a:8182",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "boot_id": "e08f6346-81a0-4705-bdd1-284be84fab4a"
+    },
+    "state": "active",
+    "game_id": "fpga-st-geometry-diagnostic-diskless-geometry-2026100-841d889c5200",
+    "system": "fpga",
+    "execution": "fpga_native",
+    "input": {
+      "session_id": "a659daa26e52a1e7",
+      "state": "attached",
+      "ready": true,
+      "metrics": {
+        "frames_sent": 0,
+        "state_resyncs": 0,
+        "sequence_gaps": 0,
+        "releases": 0,
+        "capture_to_bridge_p95_ms": 0,
+        "bridge_to_uinput_p95_ms": 0,
+        "rtt_ms": 0,
+        "bridge_to_uinput_measurable": false
+      }
+    },
+    "core_package": {
+      "rom_link": {
+        "rom_id": "atari-st-firmware",
+        "map_sha256": "4edc63be5f2357de57fab82b7ac7030e3d07eaf0837ad53811c2010a7ce3a53a",
+        "source_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+        "source_size": 196608,
+        "programmed_sha256": "e871e7e916fe56325c6ddd59397fbb8d97a12f2c5bbaa04e03d5a65a9833fe80",
+        "programmed_size": 2814362
+      },
+      "media_units": [
+        {
+          "unit": 0,
+          "interface": {
+            "id": "fes.media.atari-st-floppy",
+            "major": 1,
+            "minor": 0
+          },
+          "min_bytes": 368640,
+          "max_bytes": 839680,
+          "chunk_bytes": 512,
+          "state": "empty"
+        }
+      ],
+      "persistence_mode": "volatile",
+      "package_id": "2b7039a2ce0fe4e16a8a317a8c7c0f5c2d803f9941b38936e915f491c4d0d81d",
+      "generation": 1,
+      "abi": {
+        "id": "fes.computer",
+        "major": 1,
+        "minor": 0
+      },
+      "build_id": "32b1d68a19c0bf2bb2cadafc00b2976e",
+      "active_interfaces": [
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.expansion.atari-st-bus",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.gamepad.ports",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.keyboard.hid",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.atari-st-floppy",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.atari-st-floppy-geometry",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.atari-st-floppy-write",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.mouse.relative",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "gamepad": true
+    },
+    "flight_id": "975696d3-6ab9-468f-9517-38a9348e68dd"
+  },
+  "capture": "diskless-boot.png",
+  "demo_compatibility_asserted": false,
+  "stop_idle_lease_free": true
+}

@@ -1,0 +1,140 @@
+{
+  "source_revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+  "package_id": "2b7039a2ce0fe4e16a8a317a8c7c0f5c2d803f9941b38936e915f491c4d0d81d",
+  "build_id": "32b1d68a19c0bf2bb2cadafc00b2976e",
+  "classification": "derived hardware diagnostic, built-in Direct; no demo/raster or factory acceptance",
+  "demo_compatibility_asserted": false,
+  "fixtures": [],
+  "pass": true,
+  "phase": "cold-restore",
+  "seed_receipt": "/home/deano/.codex/worktrees/f91e/fes/out/dev/atari-st-floppy-geometry/hardware/geometry-20261007T083554/receipt.json",
+  "game_id": "fpga-st-geometry-diagnostic-cuddly-geometry-20261007t-a6a82dd41182",
+  "expected_saved_revision": "db05bc9e490b488b43a923ed33e0509f52c75dbd033a601f98c631e27ae60d53",
+  "restored_session": {
+    "id": "4f11bfa9-896e-4aa6-996e-17ec6611e367",
+    "target": "dev",
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+    "connection": {
+      "state": "active",
+      "address": "http://fes-kit-a:8182",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "boot_id": "e08f6346-81a0-4705-bdd1-284be84fab4a"
+    },
+    "state": "active",
+    "game_id": "fpga-st-geometry-diagnostic-cuddly-geometry-20261007t-a6a82dd41182",
+    "system": "fpga",
+    "execution": "fpga_native",
+    "input": {
+      "session_id": "a7e5b6389912fbcd",
+      "state": "attached",
+      "ready": true,
+      "metrics": {
+        "frames_sent": 0,
+        "state_resyncs": 0,
+        "sequence_gaps": 0,
+        "releases": 0,
+        "capture_to_bridge_p95_ms": 0,
+        "bridge_to_uinput_p95_ms": 0,
+        "rtt_ms": 0,
+        "bridge_to_uinput_measurable": false
+      }
+    },
+    "core_package": {
+      "rom_link": {
+        "rom_id": "atari-st-firmware",
+        "map_sha256": "4edc63be5f2357de57fab82b7ac7030e3d07eaf0837ad53811c2010a7ce3a53a",
+        "source_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+        "source_size": 196608,
+        "programmed_sha256": "e871e7e916fe56325c6ddd59397fbb8d97a12f2c5bbaa04e03d5a65a9833fe80",
+        "programmed_size": 2814362
+      },
+      "media_units": [
+        {
+          "unit": 0,
+          "interface": {
+            "id": "fes.media.atari-st-floppy",
+            "major": 1,
+            "minor": 0
+          },
+          "min_bytes": 368640,
+          "max_bytes": 839680,
+          "chunk_bytes": 512,
+          "state": "ready",
+          "persistence": {
+            "mode": "persistent",
+            "game_id": "fpga-st-geometry-diagnostic-cuddly-geometry-20261007t-a6a82dd41182",
+            "base_media_id": "2069570bdba57ebc5a5c760234b9133496c2f70f9f2d862bc207cbb56579a039",
+            "revision": "db05bc9e490b488b43a923ed33e0509f52c75dbd033a601f98c631e27ae60d53"
+          }
+        }
+      ],
+      "persistence_mode": "persistent",
+      "package_id": "2b7039a2ce0fe4e16a8a317a8c7c0f5c2d803f9941b38936e915f491c4d0d81d",
+      "generation": 4,
+      "abi": {
+        "id": "fes.computer",
+        "major": 1,
+        "minor": 0
+      },
+      "build_id": "32b1d68a19c0bf2bb2cadafc00b2976e",
+      "active_interfaces": [
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.expansion.atari-st-bus",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.gamepad.ports",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.keyboard.hid",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.atari-st-floppy",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.atari-st-floppy-geometry",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.atari-st-floppy-write",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.mouse.relative",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "gamepad": true
+    },
+    "flight_id": "1d4fced7-1db7-46d7-b82d-927267f4b2d2"
+  },
+  "snapshot": {
+    "namespace": "d11416f71691a59808dbdfc8ca7b0c82a28c9aa4ec96d01ae8f35816478adedc",
+    "record_sha256": "db05bc9e490b488b43a923ed33e0509f52c75dbd033a601f98c631e27ae60d53",
+    "layout_major": 1,
+    "layout_minor": 1,
+    "payload_bytes": 839680,
+    "payload_sha256": "2069570bdba57ebc5a5c760234b9133496c2f70f9f2d862bc207cbb56579a039",
+    "all_bytes_equal_immutable_base": true
+  }
+}
