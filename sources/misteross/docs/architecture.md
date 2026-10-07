@@ -1722,7 +1722,7 @@ lines recover; stale fills cannot cross a frame configuration change.
 
 The `fes.atari-st-video.parts/2` physical layout retains the 93 original
 boundary/clock FFs and adds 32 permanent request-egress LUT loads at
-`MISTRAL_COMB.25.44.*` and `MISTRAL_COMB.25.45.*`. These two LABs remain shell
+`MISTRAL_MCOMB.25.44.*` and `MISTRAL_MCOMB.25.45.*`. These two LABs remain shell
 owned inside the existing `video 24 41 28 58` reservation. Each load consumes
 one request FF's Q, so pass one must route every request output before freezing
 the scaffold. The loads and their input routes remain in the scaffold; part
