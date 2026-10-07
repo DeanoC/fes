@@ -9,7 +9,7 @@ import (
 )
 
 func (c *Client) InsertLibraryMedia(ctx context.Context, size int64, body io.Reader, b protocol.LibraryMediaBinding) (protocol.Status, error) {
-	if !b.Valid() || size != protocol.AtariStFloppyBytes || body == nil {
+	if !b.Valid() || !protocol.AdmitAtariStFloppySize(size) || body == nil {
 		return protocol.Status{}, protocol.MediaUnitRequestError()
 	}
 	s, err := c.mediaUnitRequestBudget(ctx, "/v1/library/media/insert", size, readOnlyReader{body}, b.MediaUnitBinding, &b, 450*time.Second)

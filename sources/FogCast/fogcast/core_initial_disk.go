@@ -26,7 +26,7 @@ func initialSTDisk(d corepackage.Descriptor, media *coreEntryMedia) bool {
 // envelope carries explicit library context; the runtime restores saved bytes
 // and commits drive A before releasing execution.
 func snapshotInitialSTDisk(entry catalog.CoreEntry, media *coreEntryMedia) (*corepackage.InitialMedia, error) {
-	if media.size != protocol.AtariStFloppyBytes {
+	if !protocol.AdmitAtariStFloppySize(media.size) {
 		return nil, protocol.DiskMediaRequestError()
 	}
 	data, err := io.ReadAll(io.LimitReader(media, media.size+1))

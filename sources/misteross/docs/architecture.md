@@ -1691,10 +1691,17 @@ and establishes masks on those shared pins two fabric clocks before WRITE.
 Reads clear both masks. Warm CPU Hold
 leaves memory and uploads running. Withdrawn requests drain without stale
 acknowledgements.
-The exact 720 KiB disk buffer is disjoint from the 512 KiB RAM, and the
+The bounded disk buffer (up to 820 KiB) is disjoint from the 512 KiB RAM, and the
 big-endian media adapter handles arbitrary odd chunk boundaries before the
 mailbox acknowledges a write. `fes.media.atari-st-floppy` 1.0 adds capability
 bit 7 to the existing computer ABI, without changing its framing/opcodes.
+The shell requires `fes.media.atari-st-floppy-geometry` 1.0 (capability bit 10)
+to admit twelve unique image lengths for 80–82 tracks, one/two heads and
+nine/ten 512-byte sectors. Legacy packages keep exact 720 KiB bounds. The
+controller derives CHS from committed length rather than mutable BPB bytes;
+its last-track/side/sector bounds and multi-sector termination use that shape.
+Snapshots retain layout 1.0 for 720 KiB, and use layout 1.1 for other sizes.
+The new shell and matching video parts require fresh artifact qualification.
 The writable mailbox rejects Begin and Eject during sector collection or an
 accepted commit, even for volatile disks. The sector writer drains before an
 explicit later replacement can upload through the shared media arbiter.

@@ -15,12 +15,8 @@ func DiskBinding(prior SessionResult) (protocol.MediaUnitBinding, error) {
 		return protocol.MediaUnitBinding{}, protocol.MediaUnitIdentityError()
 	}
 	b := protocol.MediaUnitBinding{PackageID: prior.CorePackage.PackageID, Generation: prior.CorePackage.Generation, Unit: protocol.AtariStFloppyUnit, Target: prior.Target, TargetID: prior.TargetID}
-	known := false
-	for _, u := range prior.CorePackage.MediaUnits {
-		if u.Unit == b.Unit && u.Interface == protocol.AtariStFloppyInterface() && u.Valid() {
-			known = true
-		}
-	}
+	u, known := protocol.MediaUnit(diskPackage(prior.CorePackage), b.Unit)
+	known = known && u.Interface == protocol.AtariStFloppyInterface()
 	if !b.Valid() || !known {
 		return b, protocol.MediaUnitIdentityError()
 	}

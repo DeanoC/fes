@@ -56,7 +56,7 @@ module st_io_guest_sim_top (
     output wire vblank, hblank
 );
     st_system system (
-        .cold_reset(reset), .media_frozen(1'b0),
+        .cold_reset(reset), .media_size(32'd737280), .media_frozen(1'b0),
         .media_write_req(), .media_write_addr(), .media_write_data(),
         .media_write_ready(1'b0), .media_write_busy(), .media_changed(),
         .dma_write(), .dma_rdata(16'd0), .*

@@ -246,6 +246,26 @@ constants:
     value: 0
   - name: FesComputerAtariStFloppyBytes
     value: 737280
+  - name: FesComputerAtariStFloppyGeometryMinBytes
+    value: 368640
+  - name: FesComputerAtariStFloppyGeometryMaxBytes
+    value: 839680
+  - name: FesComputerAtariStFloppyGeometryMinTracks
+    value: 80
+  - name: FesComputerAtariStFloppyGeometryMaxTracks
+    value: 82
+  - name: FesComputerAtariStFloppyGeometryMinHeads
+    value: 1
+  - name: FesComputerAtariStFloppyGeometryMaxHeads
+    value: 2
+  - name: FesComputerAtariStFloppyGeometryMinSectors
+    value: 9
+  - name: FesComputerAtariStFloppyGeometryMaxSectors
+    value: 10
+  - name: FesComputerAtariStFloppySectorBytes
+    value: 512
+  - name: FesComputerAtariStFloppyGeometryLayoutMinor
+    value: 1
 interfaces:
   - id: fes.video.fixed-720p60
     major: 1
@@ -287,3 +307,7 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 9
+  - id: fes.media.atari-st-floppy-geometry
+    major: 1
+    minor: 0
+    capability_bit: 10

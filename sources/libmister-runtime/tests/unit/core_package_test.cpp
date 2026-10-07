@@ -806,6 +806,18 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	atari.interfaces[4].id = "fes.media.atari-st-floppy";
 	atari.interfaces[5].id = "fes.expansion.atari-st-bus";
 	assert(check(atari).ok());
+    auto extended = atari;
+    extended.interfaces.push_back({"fes.media.atari-st-floppy-geometry", 1, 0, true});
+    assert(check(extended).ok());
+    for(unsigned bad=0;bad<4;++bad) {
+        auto malformed=extended;
+        if(bad==0) malformed.interfaces.back().required=false;
+        if(bad==1) malformed.interfaces.back().minor=1;
+        if(bad==2) malformed.interfaces.back().major=2;
+        if(bad==3) malformed.interfaces.erase(malformed.interfaces.begin()+4);
+        assert(check(malformed).code==mister::ErrorCode::unsupported_interface);
+    }
+
 	for (const char* medium : {"fes.media.apple2-floppy", "fes.media.c64-disk", "fes.media.spectrum-tape"}) {
 		auto mixed = atari;
 		mixed.interfaces.push_back({medium, 1, 0, true});

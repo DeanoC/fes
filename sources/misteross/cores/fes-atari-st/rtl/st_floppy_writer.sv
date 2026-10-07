@@ -69,7 +69,7 @@ module st_floppy_writer (
                     abandoned <= 0;
                     job_error <= 0;
                     if (job_ram_addr[0] || job_ram_addr < 24'd8 ||
-                        job_ram_addr > 24'h07fe00 || job_media_addr > 19'd368384) begin
+                        job_ram_addr > 24'h07fe00 || job_media_addr > 19'd419584) begin
                         job_error <= 1;
                         job_ready <= 1;
                         state <= DONE;

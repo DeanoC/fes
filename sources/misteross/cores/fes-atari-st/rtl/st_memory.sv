@@ -2,8 +2,8 @@
 // One 52.224 MHz SDRAM port shared fairly by CPU, video, DMA and media.
 // Requests/data must remain stable until ready. Each held request completes
 // once, with a one-clock ready pulse, and rearms only after req is low.
-// Physical words 00000-3ffff hold 512 KiB ST RAM; 40000-99fff hold the
-// separate 720 KiB floppy image. The controller's packed row/bank/column
+// Physical words 00000-3ffff hold 512 KiB ST RAM; 40000-a67ff hold the
+// separate floppy image (up to 820 KiB). The controller's packed row/bank/column
 // address mapping is preserved: these are physical halfword offsets.
 // cold_reset restarts SDRAM initialization. Warm reset drains any physical
 // transaction, suppresses its completion, and keeps refresh/memory intact.
@@ -132,11 +132,11 @@ module st_memory (
                 selected_write = 1'b1;
                 selected_wdata = media_write_wdata;
                 selected_byte_enable = media_write_byte_enable;
-                selected_valid = media_write_addr < 19'd368640;
+                selected_valid = media_write_addr < 19'd419840;
             end
             MEDIA_READ: begin
                 selected_addr = 26'h040000 + {7'd0, media_read_addr[19:1]};
-                selected_valid = media_read_addr < 20'd737280;
+                selected_valid = media_read_addr < 20'd839680;
             end
             default: selected_valid = 1'b0;
         endcase

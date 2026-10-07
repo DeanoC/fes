@@ -18,7 +18,7 @@ import (
 
 // MaxROMInputSize bounds the package, source ROM, one optional single-socket
 // expansion or up to MaxSlotCards slot cards, one initial ST disk, and framing.
-const MaxROMInputSize = MaxArchiveSize + MaxSlotCards*expansion.MaxArchiveBytes + (256 << 10) + 16384 + InitialMediaBytes + 512
+const MaxROMInputSize = MaxArchiveSize + MaxSlotCards*expansion.MaxArchiveBytes + (256 << 10) + 16384 + AtariStGeometryMaxBytes + 512
 
 // ROMInput transports source bytes only. The target derives all programmed bytes
 // using the map sealed inside Package; callers cannot supply a map or bitstream.
@@ -278,11 +278,11 @@ func readPreparedROMInput(ctx context.Context, data []byte) (preparedROMInput, e
 		return preparedROMInput{}, errors.New("ROM input receipt is invalid")
 	}
 	if reader.peek() == "initial-media.st" {
-		disk, err := reader.read("initial-media.st", InitialMediaBytes)
+		disk, err := reader.read("initial-media.st", AtariStGeometryMaxBytes)
 		if err != nil {
 			return preparedROMInput{}, err
 		}
-		if sent.InitialMedia == nil || sent.InitialMedia.Size != InitialMediaBytes {
+		if sent.InitialMedia == nil || sent.InitialMedia.Size != int64(len(disk)) {
 			return preparedROMInput{}, errors.New("initial disk member requires its exact receipt")
 		}
 		in.InitialMedia = &InitialMedia{GameID: sent.InitialMedia.GameID, BaseMediaID: sent.InitialMedia.BaseMediaID, Unit: sent.InitialMedia.Unit, Bytes: disk}
@@ -578,7 +578,7 @@ func adoptROMInput(handle *os.Root, staged *Staged) error {
 	if err != nil || (len(entries) != 3 && len(entries) != 4) {
 		return errors.New("invalid ROM publication members")
 	}
-	expected := map[string]int64{"input.tar": MaxROMInputSize, "identity.json": 4096, "programmed.rbf": MaxPayloadSize, "initial-media.st": InitialMediaBytes}
+	expected := map[string]int64{"input.tar": MaxROMInputSize, "identity.json": 4096, "programmed.rbf": MaxPayloadSize, "initial-media.st": AtariStGeometryMaxBytes}
 	files := map[string][]byte{}
 	for _, entry := range entries {
 		limit, ok := expected[entry.Name()]

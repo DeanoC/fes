@@ -18,11 +18,14 @@ func (c *Coordinator) InsertLibraryMedia(parent context.Context, size int64, bod
 		return c.Status(), &protocol.APIError{Code: protocol.CodeBusy, Message: "another target transition is running"}
 	}
 	defer c.end()
-	if !b.Valid() || body == nil || size != protocol.AtariStFloppyBytes {
+	if !b.Valid() || body == nil || !protocol.AdmitAtariStFloppySize(size) {
 		return c.Status(), protocol.MediaUnitRequestError()
 	}
 	if !b.MediaUnitBinding.Matches(c.Status()) {
 		return c.Status(), protocol.MediaUnitIdentityError()
+	}
+	if !b.AcceptsSize(c.Status(), size) {
+		return c.Status(), protocol.MediaUnitRequestError()
 	}
 	runtime, ok := c.runtime.(mediaDataRuntime)
 	if !ok {

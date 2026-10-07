@@ -1306,7 +1306,7 @@ void TestInspectionReportsActualDriverCompatibilityWithoutMutation()
 	assert(computer_interfaces == std::vector<std::string>({"fes.audio.pcm-s16-stereo-48k",
 		"fes.expansion.apple2-bus", "fes.expansion.atari-st-bus", "fes.expansion.c64-bus", "fes.expansion.spectrum-bus",
 		"fes.gamepad.ports", "fes.keyboard.hid", "fes.media.apple2-floppy",
-		"fes.media.atari-st-floppy", "fes.media.atari-st-floppy-write", "fes.media.c64-disk", "fes.media.spectrum-tape",
+		"fes.media.atari-st-floppy", "fes.media.atari-st-floppy-geometry", "fes.media.atari-st-floppy-write", "fes.media.c64-disk", "fes.media.spectrum-tape",
 		"fes.mouse.relative", "fes.video.fixed-720p60"}));
 	assert(capabilities.abis[2].id == "fes.simple-computer");
 	assert(capabilities.abis[2].interfaces[0].id == "fes.audio.pcm-s16-stereo-48k");
@@ -2775,6 +2775,55 @@ std::string ComputerDisk(std::size_t size)
 	return bytes;
 }
 
+void TestGeometryDiskBaseAdmissionAndRestoredLength()
+{
+    using namespace mister::native;using namespace mister::native::generated;
+    for(bool extension:{false,true}) {
+        const auto caps=31-16+FesComputerCapabilityMediaAtariStFloppy+FesComputerCapabilityMediaAtariStFloppyWrite+(extension?FesComputerCapabilityMediaAtariStFloppyGeometry:0);
+        mister_test::ComputerEndpoint endpoint(caps,{{0,{extension?368640u:737280u,extension?839680u:737280u}}},"0123456789abcdef0123456789abcdef");
+        FixedClock clock(100);FesGp transport(endpoint,clock);FesGpCoreDriver driver(transport);
+        IntegratedFixture fixture(&driver);fixture.Start();fixture.native.fpga.on_program=[&]{endpoint.Reset();};
+        TempDirectory package,media,storage;
+        auto manifest=ComputerManifest();ReplaceAll(&manifest,"fes.pong","fes.atari-st");ReplaceAll(&manifest,"fes.media.apple2-floppy","fes.media.atari-st-floppy");ReplaceAll(&manifest,"fes.expansion.apple2-bus","fes.expansion.atari-st-bus");
+        manifest+="\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-write\"\nmajor = 1\nminor = 0\nrequired = true\n";
+        if(extension) manifest+="\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-geometry\"\nmajor = 1\nminor = 0\nrequired = true\n";
+        package.File("manifest.toml",manifest);package.File("core.rbf",ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+        OpenedCorePackage opened;assert(OpenCorePackage(package.path,"",&opened).ok());
+        assert(fixture.runtime.LoadCore(package.path,opened.package_id).ok());const auto generation=fixture.runtime.status().generation;
+        auto bytes=ComputerDisk(409600);
+        const auto word=[&](unsigned at,unsigned value){bytes[at]=value;bytes[at+1]=value>>8;};
+        word(11,512);word(19,800);word(24,10);word(26,1);
+        const auto path=media.File("disk.st",bytes);
+        Sha256 hash;hash.Update(bytes.data(),bytes.size());
+        mister::MediaDataBinding binding{"atari-st-demo",Sha256Hex(hash.Final()),0};
+        MediaDataIdentity identity{"fes.atari-st",binding.game_id,binding.base_media_id,0};
+        const auto before=endpoint.requests.size();
+        auto error=fixture.runtime.InsertLibraryMedia(path,opened.package_id,generation,0,409600,storage.path,binding);
+        assert(error.ok()==extension);
+        if(!extension) {for(std::size_t i=before;i<endpoint.requests.size();++i) assert(endpoint.requests[i].opcode!=FesComputerOpcodeMediaBegin);continue;}
+        assert(endpoint.unit(0).data.size()==409600);
+        // Invalid immutable boot BPB fails without replacing/saving the guest disk.
+        auto bad=bytes;bad[24]=9;const auto badpath=media.File("bad.st",bad);
+        const auto stable=endpoint.requests.size();
+        assert(!fixture.runtime.InsertMedia(badpath,opened.package_id,generation,0,409600).ok());
+        assert(endpoint.requests.size()==stable);
+        // Persist a changed BPB: physical geometry remains determined by byte length.
+        endpoint.unit(0).data[24]=0;endpoint.dirty=true;
+        assert(fixture.runtime.SaveMedia(opened.package_id,generation,0).ok());
+        assert(fixture.runtime.InsertLibraryMedia(path,opened.package_id,generation,0,409600,storage.path,binding).ok());
+        assert(endpoint.unit(0).data[24]==0);
+        assert(fixture.runtime.EjectMedia(opened.package_id,generation,0).ok());
+        std::unique_ptr<MediaDataFile> file;assert(MediaDataFile::Open(storage.path,identity,&file).ok());
+        MediaDiskRecord record;assert(file->Read(&record).ok());record.bytes.resize(839680);
+        assert(file->Persist(record,record.revision,nullptr).ok());
+        const auto untouched=endpoint.requests.size();
+        assert(fixture.runtime.InsertLibraryMedia(path,opened.package_id,generation,0,409600,storage.path,binding).code==mister::ErrorCode::incompatible_data);
+        assert(endpoint.requests.size()==untouched);
+        file.reset();const auto ns=storage.path+"/"+MediaDataNamespace(identity);
+        assert(unlink((ns+"/record.bin").c_str())==0);assert(rmdir(ns.c_str())==0);
+    }
+}
+
 void TestWritableLibraryDiskCaptureRestoreAndFailedSave()
 {
     using namespace mister::native;using namespace mister::native::generated;
@@ -2949,12 +2998,13 @@ void TestWritableLibraryDiskCaptureRestoreAndFailedSave()
     const std::string ns=storage.path+"/"+MediaDataNamespace(identity);record.reset();assert(unlink((ns+"/record.bin").c_str())==0);assert(rmdir(ns.c_str())==0);
 }
 
-void TestInitialSTDiskBeforeExecution()
+void TestInitialSTDiskBeforeExecution(unsigned size = 737280)
 {
     using namespace mister::native;
     using namespace mister::native::generated;
     mister_test::ComputerEndpoint endpoint(15 | FesComputerCapabilityMediaAtariStFloppy |
-        FesComputerCapabilityMediaAtariStFloppyWrite, {{0, {737280, 737280}}},
+        FesComputerCapabilityMediaAtariStFloppyWrite | (size == 737280 ? 0 : FesComputerCapabilityMediaAtariStFloppyGeometry),
+        {{0, {size == 737280 ? 737280u : 368640u, size == 737280 ? 737280u : 839680u}}},
         "0123456789abcdef0123456789abcdef");
     FixedClock clock(100);
     FesGp gp(endpoint, clock);
@@ -2977,6 +3027,7 @@ void TestInitialSTDiskBeforeExecution()
     manifest += "\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-write\"\nmajor = 1\nminor = 0\nrequired = true\n"
         "\n[rom]\nid = \"bios.main\"\nrole = \"firmware\"\nsource_size = 8192\n"
         "file = \"rom-map.json\"\nsize = 3\nsha256 = \"" + Sha256Hex(map_hash.Final()) + "\"\n";
+    if (size != 737280) manifest += "\n[[interfaces]]\nid = \"fes.media.atari-st-floppy-geometry\"\nmajor = 1\nminor = 0\nrequired = true\n";
     package.File("manifest.toml", manifest);
     const auto programmed = package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
     package.File("rom-map.json", map);
@@ -2989,10 +3040,15 @@ void TestInitialSTDiskBeforeExecution()
     link.source_size = opened.descriptor.rom.source_size;
     link.programmed_sha256 = opened.descriptor.payload.sha256;
     link.programmed_size = opened.descriptor.payload.size;
-    const auto original = ComputerDisk(737280);
+    auto original = ComputerDisk(size);
+    if (size != 737280) {
+        AtariStGeometry geometry; assert(InferAtariStGeometry(size, &geometry));
+        const auto word = [&](unsigned at, unsigned value) { original[at]=value;original[at+1]=value>>8; };
+        word(11,512);word(19,size/512);word(24,geometry.sectors);word(26,geometry.heads);
+    }
     mister::InitialComputerMedia initial;
     initial.path = media.File("disk.st", original);
-    initial.size = 737280;
+    initial.size = size;
     initial.data_root = storage.path;
     Sha256 source; source.Update(original.data(), original.size());
     initial.binding = {"st-initial", Sha256Hex(source.Final()), 0};
@@ -3020,7 +3076,7 @@ void TestInitialSTDiskBeforeExecution()
     // The source path can be removed after preflight: activation uses retained bytes.
     fixture.native.fpga.on_program = [&] { endpoint.Reset(); assert(unlink(initial.path.c_str()) == 0); };
     assert(load().ok());
-    assert(releases == 1 && held_transfers > 737280 / 2);
+    assert(releases == 1 && held_transfers > size / 2);
     assert(fixture.native.input.start_calls == 0 && fixture.native.input.open_calls == 0);
     assert(fixture.runtime.status().core_data.mode == "persistent");
     auto unit = fixture.runtime.status().capabilities.media_units[0];
@@ -3583,9 +3639,12 @@ int main()
  TestMenuUnderflowPolicyReactivatesThenSplashes();
 	TestComputerLiveMediaLifecycleThroughRuntime();
 	TestInitialSTDiskBeforeExecution();
+    TestInitialSTDiskBeforeExecution(409600);
+    TestInitialSTDiskBeforeExecution(839680);
 	TestInitialSTDiskAmbiguousReleaseSavesOrRetainsOwner();
 	TestDiskBindingRetiresAfterProgramming();
 	TestWritableLibraryDiskCaptureRestoreAndFailedSave();
+    TestGeometryDiskBaseAdmissionAndRestoredLength();
 	TestWritableDiskInputFaultSavesBeforeIdleOrRetainsRAM();
 	TestComputerSlotCompositionActivatesLinkedPayload();
 	TestFormat4TwoSourceAdmissionBeforeMutation();

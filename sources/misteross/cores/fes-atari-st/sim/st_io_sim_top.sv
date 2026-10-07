@@ -55,7 +55,7 @@ module st_io_sim_top (
         .keyboard(keyboard), .controller_buttons(controller_buttons),
         .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
         .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready),
-        .audio_pcm(audio_pcm), .audio_valid(audio_valid), .media_ready(media_ready),
+        .audio_pcm(audio_pcm), .audio_valid(audio_valid), .media_size(32'd737280), .media_ready(media_ready),
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data),
         .media_valid(media_valid), .dma_req(dma_req), .dma_addr(dma_addr),
         .dma_wdata(dma_wdata), .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready),

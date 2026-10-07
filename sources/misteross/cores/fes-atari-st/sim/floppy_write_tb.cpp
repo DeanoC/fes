@@ -49,6 +49,33 @@ static void test_write_and_readback(Rig &r)
     }
     r.dut.side = 1; r.restore(); r.fdc_read(0);
 }
+static void test_geometry_writes(Rig &r)
+{
+    for (unsigned tracks : {80u, 81u, 82u}) for (unsigned heads : {1u, 2u})
+    for (unsigned sectors : {9u, 10u}) {
+        r.media.assign(tracks * heads * sectors * 512, 0xa5);
+        r.dut.media_size = r.media.size(); r.dut.side = 1;
+        r.restore(); r.fdc_read(0); r.seek(tracks - 1); r.fdc_read(0);
+        r.dut.side = heads == 1;
+        const unsigned offset = r.media.size() - 512;
+        for (unsigned n = 0; n < 512; ++n) r.ram[0x1000 + n] = uint8_t(n * 19 + tracks);
+        const auto writes = r.disk_writes;
+        setup_write(r, 0x1000); write_sector(r, sectors); r.wait_irq();
+        const auto status = r.fdc_read(0);
+        if ((status & 0x10) || r.disk_writes != writes + 256)
+            std::fprintf(stderr, "geometry %u/%u/%u status=%02x writes=%llu\n", tracks, heads, sectors, status, (unsigned long long)(r.disk_writes - writes));
+        check(!(status & 0x10) && r.disk_writes == writes + 256, "last geometry sector write failed");
+        r.compare(0x1000, offset, 512);
+        check(std::all_of(r.media.begin(), r.media.begin() + offset, [](uint8_t b) { return b == 0xa5; }),
+              "geometry write altered another sector");
+        setup_write(r, 0x1000); write_sector(r, sectors + 1); r.wait_irq();
+        check((r.fdc_read(0) & 0x10) && r.disk_writes == writes + 256, "invalid sector changed disk");
+        if (heads == 1) {
+            r.dut.side = 0; setup_write(r, 0x1000); write_sector(r, 1); r.wait_irq();
+            check((r.fdc_read(0) & 0x10) && r.disk_writes == writes + 256, "absent head changed disk");
+        }
+    }
+}
 static void test_cancel_and_freeze(Rig &r)
 {
     // Interrupted collection never changes a sector, including a warm reset.
@@ -112,7 +139,7 @@ int main(int argc, char **argv)
 {
     Verilated::commandArgs(argc, argv);
     try {
-        Rig r; test_write_and_readback(r); test_cancel_and_freeze(r); test_errors_and_multiple(r);
+        Rig r; test_write_and_readback(r); test_cancel_and_freeze(r); test_errors_and_multiple(r); test_geometry_writes(r);
         std::printf("PASS st_floppy writable: geometry/readback, atomic sector commits, reset/eject/force drain, freeze, DMA bounds/direction and multiple writes\n");
         return 0;
     } catch (const std::exception &e) { std::fprintf(stderr, "FAIL writable floppy: %s\n", e.what()); return 1; }

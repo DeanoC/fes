@@ -716,7 +716,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
     required = [
         "fes.video.fixed-720p60", "fes.keyboard.hid", "fes.gamepad.ports",
         "fes.audio.pcm-s16-stereo-48k", "fes.media.atari-st-floppy",
-        "fes.mouse.relative", "fes.media.atari-st-floppy-write",
+        "fes.mouse.relative", "fes.media.atari-st-floppy-write", "fes.media.atari-st-floppy-geometry",
     ]
     fields = {
         "format": 3,
@@ -724,8 +724,8 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
             "id": "fes.atari-st",
             "name": "FES Atari 520ST",
             "description": "Atari 520ST with linked 192 KiB firmware, 512 KiB SDRAM, "
-                           "a writable 720 KiB floppy, relative mouse, and ST expansion/video sockets",
-            "version": "0.1.0",
+                           "a writable variable-geometry floppy, relative mouse, and ST expansion/video sockets",
+            "version": "0.2.0",
         },
         "target": {"platform": "de10_nano", "device": TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},

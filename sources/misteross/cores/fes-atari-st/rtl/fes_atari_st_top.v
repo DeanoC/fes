@@ -70,9 +70,9 @@ module top #(
     wire [7:0] snapshot_data;
     fes_computer_mailbox #(
         .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1), .ENABLE_MOUSE(1),
-        .ENABLE_ATARI_ST_FLOPPY(1), .ENABLE_ATARI_ST_FLOPPY_WRITE(1), .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(20),
-        .UNIT0_MIN(`FES_COMPUTER_ATARI_ST_FLOPPY_BYTES),
-        .UNIT0_MAX(`FES_COMPUTER_ATARI_ST_FLOPPY_BYTES)
+        .ENABLE_ATARI_ST_FLOPPY(1), .ENABLE_ATARI_ST_FLOPPY_WRITE(1), .ENABLE_ATARI_ST_FLOPPY_GEOMETRY(1), .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(20),
+        .UNIT0_MIN(`FES_COMPUTER_ATARI_ST_FLOPPY_GEOMETRY_MIN_BYTES),
+        .UNIT0_MAX(`FES_COMPUTER_ATARI_ST_FLOPPY_GEOMETRY_MAX_BYTES)
     ) gp_mailbox (
         .clk(clk_sys), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
         .exec_reset(exec_reset), .keyboard_rows(keyboard), .controller_buttons(controller_buttons),
@@ -145,7 +145,7 @@ module top #(
             .irq_ack(irq_ack), .irq_level(irq_level), .keyboard(keyboard), .controller_buttons(controller_buttons),
             .monochrome(1'b0), .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
             .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready), .audio_pcm(audio_pcm), .audio_valid(audio_valid),
-            .media_ready(unit0_state == 2'(`FES_COMPUTER_MEDIA_STATE_READY)),
+            .media_ready(unit0_state == 2'(`FES_COMPUTER_MEDIA_STATE_READY)), .media_size(unit0_size),
             .media_req(media_req), .media_addr(media_addr), .media_data(media_data), .media_valid(media_valid),
             .media_frozen(media_frozen), .media_write_req(floppy_write_req), .media_write_addr(floppy_write_addr),
             .media_write_data(floppy_write_data), .media_write_ready(floppy_write_ready),
