@@ -72,6 +72,13 @@
     "private_host_and_credentials_removed": true,
     "ready_idle_lease_free": true
   },
+  "routing_diagnosis": {
+    "classification": "host-only diagnosis; no compiler, RTL, recipe or artifact identity changed",
+    "normal_menu_unchanged": true,
+    "record": "routing-diagnosis.json",
+    "same_arc_as_gpu": true,
+    "strict_cpu_router_exit": 125
+  },
   "schema": 1,
   "separate_video_parts_qualified": false,
   "software_checks": [

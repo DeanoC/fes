@@ -56,8 +56,9 @@ reports the same source with sink `GOUT.25.43.33`. Both exit 125. The part has
 28 COMBs in a 36-LAB slot, clock/import checks pass, and read-only inspection
 found no occupied frozen endpoint. [nextpnr #165](https://github.com/DeanoC/nextpnr/issues/165)
 records the exact compiler pins, input hashes and RAM Tester fixture proposal.
-This is a possible constrained placement/routing defect; GPU-specific fault
-or malformed legal placement has not been established. Containment and timing
+A host-only CPU `router2` comparison with the same seed-4 inputs and strict
+fence also exits 125 at the identical source and sink. This is a shared
+constrained-routing failure; a GPU-specific fault has not been established. Containment and timing
 checks were retained. The shell's built-in Direct is an independent route;
 these results do not qualify the new separate Direct or Scanlines parts.
 
@@ -65,6 +66,45 @@ The full default-seed compiler inputs and logs are retained as
 `out/dev/atari-st-floppy-geometry/nextpnr-165-seed4-reproducer.tar.gz`, SHA-256
 `4be16ffc6c2a85c5f332421184807b05f0668972dbff2e768c57b88353986272`.
 The same selected snapshot retains both failed route directories.
+
+
+The [routing diagnosis](2026-10-07-atari-st-floppy-geometry/routing-diagnosis.json)
+uses the pinned Mistral physical mux graph and original scaffold wire ownership.
+FF output 22 feeds `GIN.24.41.22`. Without occupancy, an in-fence path exists;
+with frozen occupied wires excluded, only 46 physical nodes are reachable and
+the destination is unreachable. Removing the physical fence in this graph
+allows a path through row 37, changing mux bits below its lower Y bound 3442.
+Several immediate exits are held by unrelated shell nets; the short in-fence
+path's `V4.24.42.3` is held by `video_request[24]`. Releasing just that one net
+in the graph makes the destination reachable. This does not authorize changing
+its route or any frozen bits.
+
+The supplied graph probes, ownership exporter and complete diagnostic outputs
+are reproducible against the retained scaffold and pinned library. They model
+physical mux connectivity and occupied wires, not every nextpnr legality or
+timing constraint. A full CPU route without the fence was interrupted after
+this diagnosis; it supplies no successful-route evidence. The next compiler
+regression should preserve the occupied exits and verify boundary egress when
+building the shell, rather than testing an unconstrained standalone RAM design.
+Any remedy still needs strict timing, identical boundary placements and zero
+outside-rectangle CRAM changes. This follow-up made no hardware transition.
+
+
+To rerun the graph diagnostic, use a scratch directory, the retained seed-4
+`scaffold.json`, and the include/library directories from the pinned compiler
+slot. Copy `connectivity-occupied.cpp.txt` to `connectivity.cpp`, then run:
+
+```sh
+python3 "$record/export-occupied.py.txt" "$fixture/scaffold.json"
+c++ -std=c++17 -O2 -I"$compiler_prefix/include" connectivity.cpp \
+  "$compiler_prefix/lib/libmistral.a" -llzma -o connectivity
+./connectivity
+```
+
+The ownership exporter rejects a scaffold with a different SHA-256. The
+unoccupied and single-net-release probes compile the same way. The strict CPU
+comparison changes only `--router gpu` to `--router router2` in the issue's
+seed-4 invocation and uses fresh output paths.
 
 ## Original demo loader captures
 
