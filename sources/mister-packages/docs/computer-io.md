@@ -280,17 +280,23 @@ revisions before integration or exact-artifact hardware acceptance.
 ## Writable ST image capture
 
 `fes.media.atari-st-floppy-write` 1.0 occupies unit 0 and extends the base
-80-track, two-side, nine-sector, 512-byte `.st` geometry (737280 bytes).
-Without the extension the drive remains read-only. The machine owns normal
-sector writes; this interface captures the whole raw image for durable storage.
-It does not describe flux, formatting, deleted sectors or a FAT transaction.
+floppy interface. Without the write extension the drive remains read-only.
+The machine owns normal sector writes; this interface captures the whole raw
+image for durable storage. It does not describe flux, formatting, deleted
+sectors or a FAT transaction. Capture length is the committed image size:
+legacy endpoints remain exactly 80-track, two-side, nine-sector, 512-byte
+`.st` (737280 bytes, layout 1.0). With `fes.media.atari-st-floppy-geometry`
+1.0, a nonlegacy admitted length uses layout 1.1 and must match its bound
+immutable-base size; 737280-byte records stay layout 1.0.
 
 SnapshotInfo (12) requires unit 0 and argument 0. Fields 0..7 are flags,
-layout tag (1), layout major (1), minor (0), current byte size low/high,
-maximum chunk bytes (512), and a wrapping 16-bit change epoch. Flags bits
-0..3 mean ready, dirty, frozen, writer busy; other bits are zero. The epoch
-advances when a complete accepted sector commits. Dirty clears on replacement,
-eject or Saved. Reading Info cannot establish a consistent image by itself.
+layout tag (1), layout major (1), layout minor, current byte size low/high,
+maximum chunk bytes (512), and a wrapping 16-bit change epoch. Layout minor
+is 0 for a 737280-byte image and 1 for any other admitted geometry length.
+Flags bits 0..3 mean ready, dirty, frozen, writer busy; other bits are zero.
+The epoch advances when a complete accepted sector commits. Dirty clears on
+replacement, eject or Saved. Reading Info cannot establish a consistent image
+by itself.
 
 SnapshotControl (13) requires index 0 and argument 0..2. Freeze requires a
 ready image, fences new writers, and waits until the machine has observed the
@@ -308,7 +314,9 @@ must equal the bytes already captured and the length must be even, 2..512,
 and fit the remaining image. SnapshotData (15) requires argument 0 and the
 next ordinal. ACK waits for both physical byte reads and returns the first
 byte low, second high. A low-request rearm edge separates reads. Ordinals
-restart at zero for each chunk; capture continues through all 737280 bytes.
+restart at zero for each chunk; capture continues through the committed
+image length (737280 bytes for layout 1.0, or the exact bound-base length
+for layout 1.1).
 
 While frozen, ordinary Begin/Eject reject unless Saved authorized destruction
 and the writer is idle. A failed save retains the frozen captured generation

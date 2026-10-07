@@ -12,7 +12,7 @@ from scripts import fes_build_common as board
 from scripts.compiler_read_audit import python_source_guard
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
-from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.search_placer_qor import SearchError, route_after_synth
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -95,7 +95,7 @@ def _authenticate_tools(root, *, cache_root=None):
 def create_build_record(root, repository, revision, identities, *, identity_version=2, execution=None, seed=5):
     if identity_version != 2:
         raise board.BuildError('unsupported menu package identity version')
-    with python_source_guard(root, source_roots_for_inputs(INPUTS)):
+    with python_source_guard(root, source_roots_for_producer(__name__, INPUTS, root)):
         fields = {'format':1,'repository':repository,'revision':revision,'recipe':RECIPE,
             'recipe_sha256':board._sha256(board._regular_input(root,RECIPE)),
             'abi_definition':CONTRACT,'abi_definition_sha256':board._sha256(board._regular_input(root,CONTRACT)),
@@ -106,11 +106,11 @@ def create_build_record(root, repository, revision, identities, *, identity_vers
                 'pixel_clock_hz':74250000,'reference_clock_hz':50000000,
                 'format2_package':True,'menu_display':True,'ddr':True,'diagnostic_enable':False}}
         return encode_build_record(functional_record_fields(root,fields,
-            source_roots_for_inputs(INPUTS),execution,pinned_inputs=INPUTS))
+            source_roots_for_producer(__name__, INPUTS, root),execution,pinned_inputs=INPUTS))
 
 
 def build(root=ROOT, *, cache_root=None, package_output=None, seed=5, identity_version=2):
-    with python_source_guard(root, source_roots_for_inputs(INPUTS)):
+    with python_source_guard(root, source_roots_for_producer(__name__, INPUTS, root)):
         return _build(Path(root).resolve(),cache_root=cache_root,package_output=package_output,
             seed=seed,identity_version=identity_version)
 

@@ -27,7 +27,9 @@ contract is the
   in this repository or the package.
   Each M10K uses a registered read address on the system clock. The bank
   selector is registered alongside that read, and the final data register
-  preserves the same two-stage latency as the behavioral simulation. Legacy
+  preserves the same two-stage latency as the behavioral simulation.
+  A binary indexed lane vector selects the registered bank. This avoids
+  a decoded sixteen-way case mux while retaining the same read pipeline. Legacy
   10-bit M10K write enable is active low; tying A1EN high protects linked ROM
   contents. The sealed map requires registered read mode and retains the
   existing lane names, BELs and INIT bit layout.

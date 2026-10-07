@@ -30,7 +30,29 @@ def shared_cache_root():
 
 CACHE_ROOT = shared_cache_root()
 TOOLCHAIN_CACHE_ROOT = CACHE_ROOT / "misteross-toolchains"
-ARTIFACT_CACHE_ROOT = CACHE_ROOT / "core-packages"
+ARTIFACT_CACHE_ROOT = Path(os.environ.get("FES_ARTIFACT_CACHE_ROOT", str(CACHE_ROOT / "core-packages")))
+if not ARTIFACT_CACHE_ROOT.is_absolute():
+    raise ValueError("FES_ARTIFACT_CACHE_ROOT must be absolute")
+# FES_SOURCE_CLOSURE_AUDIT=1 makes producers record reads instead of enforcing
+# the narrowed source closure. Packages built that way must never reach the
+# shared artifact cache, so the bypass is honoured only when the effective
+# artifact cache is a private one created by scripts/core_key_nightly.py.
+AUDIT_PRIVATE_CACHE_MARKER = ".fes-closure-audit-private-cache"
+
+
+def require_private_audit_cache(env=None):
+    """Refuse closure audit mode unless packages go to a marked private cache."""
+    env = os.environ if env is None else env
+    if env.get("FES_SOURCE_CLOSURE_AUDIT") != "1":
+        return
+    root = ARTIFACT_CACHE_ROOT.resolve()
+    if root == (CACHE_ROOT / "core-packages").resolve() or not (root / AUDIT_PRIVATE_CACHE_MARKER).is_file():
+        raise ValueError(
+            "FES_SOURCE_CLOSURE_AUDIT=1 is only allowed with the nightly's private artifact "
+            f"cache (FES_ARTIFACT_CACHE_ROOT containing {AUDIT_PRIVATE_CACHE_MARKER}); "
+            "unset it for normal builds")
+
+
 HIP_ROUTER = "HIP"
 HIP_ARCHITECTURES = "gfx1100;gfx1201"
 
@@ -181,6 +203,7 @@ def producer_environment(env=None, recipe=None):
     """Scrub caller overrides and apply HIP identity without selecting cache mode."""
     recipe = recipe_for("fes.pong") if recipe is None else recipe
     mapped = os.environ.copy() if env is None else dict(env)
+    require_private_audit_cache(mapped)
     for name in tuple(mapped):
         if name in _HIP_IDENTITY_NAMES:
             continue

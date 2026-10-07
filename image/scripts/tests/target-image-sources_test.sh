@@ -9,7 +9,7 @@ grep -Fq 'TARGET_IMAGE_LOCK' "$repo/scripts/fetch-target-image-sources.sh"
 grep -Fq 'TARGET_IMAGE_CONTAINER_RUNTIME' "$repo/scripts/target-image-container.sh"
 grep -Fqx 'name: FOGCAST_TARGET' "$repo/buildroot/external.desc"
 ! grep -Fq 'fogcast_target_dev_defconfig' "$repo/scripts/build-target-image.sh"
-grep -Fq 'fogcast_target_native_dev_defconfig' "$repo/scripts/build-target-image.sh"
+grep -Fq 'fogcast_target_native_dev_defconfig' "$repo/scripts/toolchain_cache.py"
 grep -Fq '/work/scripts/verify-native-runtime-inputs.sh' "$repo/scripts/build-target-image.sh"
 grep -Fq '/work/build/cache/target-image/native/splash.rbf' "$repo/scripts/build-target-image.sh"
 

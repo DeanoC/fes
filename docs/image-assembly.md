@@ -40,6 +40,7 @@ them is an image-recipe change:
 - `image/scripts/fetch-target-image-sources.sh`
 - `image/scripts/fetch-native-runtime-inputs.sh`
 - `image/scripts/build-target-image.sh`
+- `image/scripts/toolchain_cache.py`
 - `image/scripts/verify-target-image.sh`
 - `image/scripts/verify-target-image-source-cache.sh`
 - `image/scripts/qemu-smoke-target-image.sh`
@@ -78,6 +79,50 @@ concrete generated lock explicitly through `NATIVE_RUNTIME_INPUT_LOCK`.
 
 
 ## Source and cache boundaries
+
+### Buildroot cross toolchain
+
+The cold image path builds the pinned Buildroot cross toolchain once in the
+target-image container, exports its relocatable SDK with `make sdk`, and stores
+a deterministic `host.tar` under
+`image/build/cache/target-image/toolchains/<key>/`. The key hashes the pinned
+Buildroot commit, the shared toolchain fragment bytes, the target-image
+container package-lock SHA-256, and `SOURCE_DATE_EPOCH`. The cache receipt
+records the archive SHA-256; both are checked before reuse. A missing or changed
+archive triggers a cold toolchain build. `TOOLCHAIN_REBUILD=1 make build` forces
+that rebuild and also bypasses the parent image receipt reuse.
+
+Both image passes extract the checked archive into a fresh
+`/target-image-output/external-toolchain/host`, run the SDK relocation script,
+and select it as a custom external glibc/C++ toolchain. The path is the same in
+each separate pass. Buildroot copies the cross compiler into each pass's own
+`host/bin/arm-buildroot-linux-gnueabihf-*`, preserving the kernel, QEMU and
+media tools' existing paths. The shared fragment pins ARM Cortex-A9 hard-float,
+GCC 9.x, Linux 5.10 headers, glibc and C++; generated Buildroot `.config`
+files are checked against those selections. `reproducibility.txt` and
+`verification.json` bind the image to the toolchain key and archive digest.
+
+This should save about 5.6 minutes on pass two, and about 5.6 minutes per pass
+on a cache hit. A real cold image build must confirm the SDK's external-toolchain
+validation and rootfs byte equality before claiming the saving or a release.
+
+Set `FES_TARGET_IMAGE_SHARED_CACHE=/absolute/host/path` to share Buildroot caches
+across FES worktrees. The directory must be outside the worktree. It contains
+`dl/` for locked downloads, `toolchains/<key>/` for the checked SDK archive and
+receipt, and `ccache/` for compiled target and host objects. The container mounts
+`dl/` at Buildroot's existing download path, so source lock verification still
+runs before every use. The toolchain-only build leaves ccache disabled, preserving
+its key and SDK bytes. Image passes and `make dev` enable a 20 GiB ccache.
+
+For cold two-pass builds, pass 1 may use ccache and pass 2 sets
+`CCACHE_DISABLE=1`. The second rootfs is therefore compiled independently; a
+bad cached result must fail the existing hash comparison. Shared-cache evidence
+records this policy in `reproducibility.txt` and `verification.json`. A
+single-pass scratch image may use ccache and remains diagnostic only. With the
+variable unset, configs, container arguments and evidence retain their original
+form. To clear the cache, stop image builds using it, then remove the specific
+`dl/`, `toolchains/` or `ccache/` directory under the configured root; the next
+build repopulates it.
 
 Parent builds materialize real committed FES snapshots under ignored `out/work`;
 module paths and subtree identities accompany the root commit. They do not invent

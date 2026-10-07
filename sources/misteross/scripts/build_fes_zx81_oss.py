@@ -13,7 +13,7 @@ from scripts.source_repository import canonical_repository
 from scripts.fes_build_common import BuildError, FES_GPU_ARCHITECTURES, FES_GPU_BACKEND, _authenticate_tools as _authenticate_oss_tools, _cell_counts, _git, _i2c_evidence, _read_json, _require_gpu_backend, _run_tool, _sha256, _write_atomic, reject_async_m10k_reads, validate_timing_resources
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
-from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 from scripts.search_placer_qor import SearchError, _parse_ints, has_failed_route_arc, route_after_synth
 from scripts import zx81_expansion, rom_map
@@ -106,7 +106,7 @@ def create_build_record(root: Path, repository: str, revision: str, tool_identit
                                 rom_database_sha256=json.dumps(ROM_DATABASE_SHA256, sort_keys=True, separators=(',', ':')))
     if identity_version != 2:
         raise BuildError('unsupported build identity version')
-    fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS)
+    fields = functional_record_fields(root, fields, source_roots_for_producer(__name__, PINNED_INPUTS, root), execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
 
 def build_commands(root: Path, output: Path, build_id: str, tools: Mapping[str, Path], seed: int=PLACER_SEEDS[0]) -> tuple[tuple[str, ...], tuple[str, ...]]:

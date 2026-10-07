@@ -30,12 +30,14 @@ registered recipes still emit their current formats.
 
 Record 2 keeps repository/revision and `source_path` as original build provenance, but derives
 its embedded 128-bit ID from a domain-separated functional projection excluding
-those provenance fields. It includes every tracked regular file under `scripts/` and the owning core/board
+those provenance fields. For producers without an audited manifest entry, it
+includes every tracked regular file under `scripts/` and the owning core/board
 modules of each declared input, including shared RTL, root or core compiler locks,
 the recipe/ABI digests, authenticated
 tool identities, routing options and controlled execution identity. This is a
 conservative module closure: unrelated root documentation does not invalidate
-it, but another producer helper under `scripts/` does. New records set `parameters.source_closure_policy = "compiler-markdown-v1"`.
+it, but another producer helper under `scripts/` does in the broad fallback.
+New records set `parameters.source_closure_policy = "compiler-markdown-v1"`.
 This policy excludes tracked non-executable `.md`/`.markdown` files, including
 new documentation, while retaining executable Markdown and every other file
 regardless of a `docs/` directory name. Recipe, ABI and explicit producer inputs
@@ -43,6 +45,15 @@ must remain in the closure; declaring an excluded Markdown input fails closed.
 Both working-tree and historical Git-object validation apply the recorded
 policy. Existing format-1 and format-2 records without that parameter retain
 their original semantics, including documentation in declared roots.
+
+The eight factory producers now select committed per-producer roots from
+`scripts/source_closures.json`, setting `parameters.source_closure_mode` to
+`audited-v1`. Their source key covers the declared import, HDL, recipe, ABI and
+toolchain-lock closure rather than the entire scripts and shared-core trees.
+Python and traced compiler reads and directory listings enforce these roots;
+an uncovered source access fails the build. Other producers retain the broad
+roots. The operator workflow and nightly broad-rebuild comparison are in the
+FES [core-key guide](../../../docs/core-key-narrowing.md).
 
 The functional producers trace synthesis and each route attempt with
 `/usr/bin/strace --kill-on-exit -ff -yy`. The tracer and its libraries enter
@@ -702,7 +713,7 @@ Commands, cart-authoring rules and kit probes live in
 [OSS place-and-route testing](oss-pnr.md#freeze-scaffold-cartridges).
 `scripts/build_fes_slot.py` is the compose entry point; it fails
 closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
-The locked nextpnr `a20f34c5` provides those flags after `make toolchain-fes`.
+The locked nextpnr `9128800f` provides those flags after `make toolchain-fes`.
 It also corrects pass-through LUT masks for `MISTRAL_BUF` routing cells:
 the earlier `d672fade` emitter could write all-ones masks despite successful
 simulation and timing. The selected PR #73 revision has an emitted-bitstream
@@ -831,7 +842,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `a20f34c5` with Mistral `8fcc4cb4`. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
+| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `9128800f` with Mistral `8fcc4cb4`. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |

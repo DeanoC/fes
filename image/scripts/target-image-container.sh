@@ -36,6 +36,17 @@ case "$output_volume" in
     ;;
 esac
 
+shared_cache=
+shared_container_path=/target-image-shared-cache
+if [ -n "${FES_TARGET_IMAGE_SHARED_CACHE:-}" ]; then
+  shared_cache=$(python3 "$repo_root/scripts/toolchain_cache.py" shared-root) || exit 2
+  mkdir -p "$shared_cache/dl" "$shared_cache/toolchains" "$shared_cache/ccache"
+  # Create the nested mount point as the invoking user. Otherwise the container
+  # runtime creates it as root in a fresh worktree, and the builder can no longer
+  # write build/cache/target-image (e.g. the Buildroot checkout).
+  mkdir -p "$repo_root/build/cache/target-image/dl"
+fi
+
 if ! command -v "$runtime" >/dev/null 2>&1; then
   printf 'target-image-container: container runtime is not executable: %s\n' "$runtime" >&2
   exit 2
@@ -127,6 +138,14 @@ if [ -n "${FOGCAST_DIR:-}" ]; then
   fi
 fi
 docker_run() {
+  if [ -n "$shared_cache" ]; then
+    set -- --volume "$shared_cache:$shared_container_path" \
+      --volume "$shared_cache/dl:/work/build/cache/target-image/dl" \
+      --env "FES_TARGET_IMAGE_SHARED_CACHE=$shared_container_path" "$@"
+    if [ "${CCACHE_DISABLE:-}" = 1 ]; then
+      set -- --env CCACHE_DISABLE=1 "$@"
+    fi
+  fi
   if [ "$mode" = fetch ]; then
     if [ -n "${GITHUB_TOKEN:-}" ]; then
       set -- --env "GITHUB_TOKEN=$GITHUB_TOKEN" "$@"
