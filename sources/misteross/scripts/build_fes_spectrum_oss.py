@@ -403,7 +403,7 @@ def validate_build_evidence(output: Path, *, cpu: str = "nmos") -> dict:
 def _area_budget(counts: Mapping[str, int], maximum: int | None) -> dict:
     if maximum is not None and (type(maximum) is not int or maximum <= 0):
         raise BuildError("max ALUTs must be a positive integer")
-    used = sum(count for name, count in counts.items() if name.startswith("MISTRAL_ALUT"))
+    used = sum(count for name, count in counts.items() if name.startswith("MISTRAL_ALUT") or name == "MISTRAL_COMB")
     evidence = {"used": used, "maximum": maximum, "status": "pass"}
     if maximum is not None and used > maximum:
         raise BuildError(f"area budget exceeded: {used} ALUTs > {maximum}")

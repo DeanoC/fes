@@ -93,6 +93,9 @@ class BuildFesSpectrumTests(unittest.TestCase):
         counts = {"MISTRAL_ALUT2": 100, "MISTRAL_ALUT3": 200,
                   "MISTRAL_ALUT6": 300, "MISTRAL_FF": 9999}
         self.assertEqual(producer._area_budget(counts, 600)["used"], 600)
+        self.assertEqual(producer._area_budget({"MISTRAL_COMB": 600}, 600)["used"], 600)
+        with self.assertRaisesRegex(BuildError, "601 ALUTs > 600"):
+            producer._area_budget({"MISTRAL_COMB": 601}, 600)
         with self.assertRaisesRegex(BuildError, "600 ALUTs > 599"):
             producer._area_budget(counts, 599)
         for bad in (0, -1, True, 2.5):
