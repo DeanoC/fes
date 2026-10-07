@@ -20,7 +20,7 @@ from pathlib import Path, PurePosixPath
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.compiler_read_audit import POLICY, excluded_markdown
+from scripts.compiler_read_audit import POLICY, excluded_markdown, read_execution_data
 from scripts.source_repository import canonical_repository
 from scripts.core_package import (
     MAX_MANIFEST_SIZE,
@@ -339,7 +339,9 @@ def source_input_closure(root: Path, roots: list[str], *, policy=None) -> dict[s
             actual_mode = "100755" if checked.stat().st_mode & 0o111 else "100644"
             if policy == POLICY and excluded_markdown(path, actual_mode):
                 continue
-            result[path] = hashlib.sha256(checked.read_bytes()).hexdigest()
+            # These bytes are the record itself, not producer behavior. Avoid
+            # adding broad-key enumeration to a functional read log.
+            result[path] = hashlib.sha256(read_execution_data(checked)).hexdigest()
         if not members:
             raise PackageExportError(f"source root has no tracked inputs: {prefix}")
     return dict(sorted(result.items()))
@@ -347,7 +349,7 @@ def source_input_closure(root: Path, roots: list[str], *, policy=None) -> dict[s
 
 def functional_record_fields(root: Path, fields: dict, roots: list[str], execution: dict, *, pinned_inputs) -> dict:
     """Add the shared v2 envelope to a producer's existing parameters."""
-    from scripts.functional_execution import execution_digest
+    from scripts.functional_execution import AuditedRoots, execution_digest
     if execution is None:
         raise PackageExportError("functional identity requires controlled execution inputs")
     git_root = Path(_git(root, "rev-parse", "--show-toplevel")).resolve()
@@ -358,6 +360,8 @@ def functional_record_fields(root: Path, fields: dict, roots: list[str], executi
             raise PackageExportError("explicit input excluded from source closure: " + path)
     result["parameters"] = dict(fields["parameters"], execution_sha256=execution_digest(execution),
                                 gpu_device=execution["gpu_device"], source_closure_policy=POLICY)
+    if isinstance(roots, AuditedRoots):
+        result["parameters"]["source_closure_mode"] = "audited-v1"
     return result
 
 

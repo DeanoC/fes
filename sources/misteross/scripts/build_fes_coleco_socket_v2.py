@@ -24,7 +24,7 @@ from scripts.fes_build_common import (
     _require_clean_source as require_clean_source,
     _run_tool, _sha256, _write_atomic,
 )
-from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.search_placer_qor import SearchError, route_after_synth
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -162,7 +162,7 @@ def create_build_record(root: Path, repository: str, revision: str,
         fields["parameters"].update(native_width=256, native_height=192,
                                      native_encoding="Index4Tms9918", native_frame_banks=2)
     fields = functional_record_fields(
-        root, fields, source_roots_for_inputs(inputs), execution,
+        root, fields, source_roots_for_producer(__name__, inputs, root), execution,
         pinned_inputs=inputs,
     )
     return encode_build_record(fields)

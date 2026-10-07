@@ -34,7 +34,7 @@ from scripts.fes_build_common import (
     reject_async_m10k_reads, validate_timing_resources,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
-from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.search_placer_qor import SearchError, route_after_synth
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -222,7 +222,7 @@ def create_build_record(
             "expansion_sockets": ",".join(s.placement for s in spectrum_slots.SOCKETS),
         },
     }
-    fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS),
+    fields = functional_record_fields(root, fields, source_roots_for_producer(__name__, PINNED_INPUTS, root),
                                       execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
 

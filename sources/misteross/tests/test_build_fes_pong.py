@@ -281,7 +281,7 @@ class BuildFesPongTests(unittest.TestCase):
         self.assertEqual(fields["abi_definition"], "cores/fes-pong/generated/fes_gp.vh")
         self.assertEqual(fields["tools"], identities)
         self.assertEqual(
-            {k: v for k, v in fields["parameters"].items() if k not in ("execution_sha256", "gpu_device", "source_closure_policy")},
+            {k: v for k, v in fields["parameters"].items() if k not in ("execution_sha256", "gpu_device", "source_closure_policy", "source_closure_mode")},
             {
                 "device": "5CSEBA6U23I7",
                 "gpu_architectures": "gfx1100;gfx1201",
