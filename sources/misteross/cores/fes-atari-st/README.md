@@ -181,6 +181,10 @@ make -C sources/misteross sim-fes-atari-st-emutos-memory \
 python3 scripts/sim_atari_st_disk_diagnostic.py \
   --rom sources/misteross/build/roms/emutos-1.4/etos192us.img \
   --output out/validation/atari-st/disk-guest --seconds 8
+python3 scripts/atari_st_io_diagnostic.py --output out/validation/atari-st/io-media
+python3 scripts/sim_atari_st_io_diagnostic.py \
+  --rom sources/misteross/build/roms/emutos-1.4/etos192us.img \
+  --output out/validation/atari-st/io-guest --seconds 10 --audio-phase-ticks 20
 make -C sources/misteross build-fes-atari-st CACHE_ROOT=/absolute/toolchain-cache
 make -C sources/misteross sim-fes-atari-st-video-parts
 make -C sources/misteross build-fes-atari-st-video-part \
@@ -191,6 +195,32 @@ make -C sources/misteross build-fes-atari-st-card \
   ST_SHELL=/absolute/frozen/build/fes-atari-st-oss \
   ST_PACKAGE=/absolute/sealed/package CACHE_ROOT=/absolute/toolchain-cache
 ```
+
+The original `AUTO/IOTEST.PRG` diagnostic checks exact keyboard make/break,
+modifier aliases and both joystick ports through the guest ACIA, then repeats
+three-second YM channel A/B/C tone, noise, envelope and silence phases. Its
+generated `schedule.json` contains the normal host input events and expected
+guest bytes. On hardware, wait for each visible WAIT banner before sending its
+group through the attached session input API; require PASS before continuing.
+Launch the generated `io-auto.st` using normal library Play and Stop normally
+after measurement. This tests host-delivered input; it does not qualify a
+physical USB keyboard or controller. The host simulation executes stock
+EmuTOS and the real CPU/peripheral RTL with bounded RAM/disk callbacks. Its
+optional shorter audio holds have separately identified PRG/disk hashes; they
+are not the hardware fixture, physical SDRAM or HDMI acceptance.
+
+Before importing a demo, inspect an independently acquired classic MSA image:
+
+```sh
+python3 scripts/atari_st_demo_media.py /absolute/demo.msa
+```
+
+This offline tool checks every compressed track and reports original geometry
+and the decoded raw-image hash. It does not change the media contract or pad
+an unsupported disk. Original BIG and Cuddly demo disks use ten sectors per
+track; the current nine-sector drive cannot admit them. MSA conversion alone
+does not resolve that geometry difference, and raster/border compatibility
+cannot be inferred from an admission failure.
 
 The aggregate uses original diagnostic firmware and focused CPU, video,
 MFP, keyboard/audio, floppy, physical SDRAM, dual-clock cache and real GP
