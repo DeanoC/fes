@@ -1,0 +1,1225 @@
+{
+  "audio_capture": {
+    "active": {
+      "channels": 2,
+      "duration_seconds": 24.9991875,
+      "left_right_difference_rms": 1663.118654882735,
+      "left_rms": 6218.548105731299,
+      "right_rms": 6218.540173927874,
+      "sample_bits": 16,
+      "sample_rate": 48000,
+      "samples_per_channel": 1199961,
+      "sha256": "5d1ca5d4caa408573086af4edf26ba90e118c3db795fdaa2217ca756a9726261",
+      "windows": [
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 0.0
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 0.25
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 0.5
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 0.75
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 1.0
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 1.25
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 1.5
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 1.75
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 2.0
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 2.25
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 2.5
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 2.75
+        },
+        {
+          "dominant_hz": 440.19146374572676,
+          "mean": 5432.03125,
+          "peak_power_share": 0.8101113203810059,
+          "rms": 7687.684957124609,
+          "second": 3.0
+        },
+        {
+          "dominant_hz": 440.19444408916,
+          "mean": 5434.6875,
+          "peak_power_share": 0.810090602838568,
+          "rms": 7689.564356971076,
+          "second": 3.25
+        },
+        {
+          "dominant_hz": 440.1961964768015,
+          "mean": 5436.015625,
+          "peak_power_share": 0.8100956356949703,
+          "rms": 7690.5038846619145,
+          "second": 3.5
+        },
+        {
+          "dominant_hz": 440.19519185312583,
+          "mean": 5433.359375,
+          "peak_power_share": 0.8100880213936785,
+          "rms": 7688.624714472673,
+          "second": 3.75
+        },
+        {
+          "dominant_hz": 440.19162220668113,
+          "mean": 5429.375,
+          "peak_power_share": 0.8101104630516596,
+          "rms": 7685.805097710974,
+          "second": 4.0
+        },
+        {
+          "dominant_hz": 440.1936707789736,
+          "mean": 5428.046875,
+          "peak_power_share": 0.8100943964416844,
+          "rms": 7684.86499556108,
+          "second": 4.25
+        },
+        {
+          "dominant_hz": 440.1961484090686,
+          "mean": 5429.375,
+          "peak_power_share": 0.8100939269164693,
+          "rms": 7685.805097710974,
+          "second": 4.5
+        },
+        {
+          "dominant_hz": 440.1956869433225,
+          "mean": 5436.015625,
+          "peak_power_share": 0.8100889808416092,
+          "rms": 7690.5038846619145,
+          "second": 4.75
+        },
+        {
+          "dominant_hz": 440.1919922836853,
+          "mean": 5442.65625,
+          "peak_power_share": 0.81010708919872,
+          "rms": 7695.199802474267,
+          "second": 5.0
+        },
+        {
+          "dominant_hz": 440.1928844325349,
+          "mean": 5446.640625,
+          "peak_power_share": 0.8100989350083136,
+          "rms": 7698.015978159568,
+          "second": 5.25
+        },
+        {
+          "dominant_hz": 440.19607064385735,
+          "mean": 5447.96875,
+          "peak_power_share": 0.810092152011829,
+          "rms": 7698.954474472492,
+          "second": 5.5
+        },
+        {
+          "dominant_hz": 440.1959919516437,
+          "mean": 5447.96875,
+          "peak_power_share": 0.8100911922879195,
+          "rms": 7698.954474472492,
+          "second": 5.75
+        },
+        {
+          "dominant_hz": 661.3173472420743,
+          "mean": 5459.921875,
+          "peak_power_share": 0.8100147835471129,
+          "rms": 7707.395798841526,
+          "second": 6.0
+        },
+        {
+          "dominant_hz": 661.3196566031613,
+          "mean": 5446.640625,
+          "peak_power_share": 0.8100296105616437,
+          "rms": 7698.015978159568,
+          "second": 6.25
+        },
+        {
+          "dominant_hz": 661.3204226698574,
+          "mean": 5434.6875,
+          "peak_power_share": 0.8100368848794067,
+          "rms": 7689.564356971076,
+          "second": 6.5
+        },
+        {
+          "dominant_hz": 661.3170226695705,
+          "mean": 5440.0,
+          "peak_power_share": 0.810012902856463,
+          "rms": 7693.321779309637,
+          "second": 6.75
+        },
+        {
+          "dominant_hz": 661.3202196234922,
+          "mean": 5446.640625,
+          "peak_power_share": 0.8100348481820991,
+          "rms": 7698.015978159568,
+          "second": 7.0
+        },
+        {
+          "dominant_hz": 661.3199649348194,
+          "mean": 5433.359375,
+          "peak_power_share": 0.8100323656376469,
+          "rms": 7688.624714472673,
+          "second": 7.25
+        },
+        {
+          "dominant_hz": 661.3171335115527,
+          "mean": 5441.328125,
+          "peak_power_share": 0.8100135532777089,
+          "rms": 7694.260848190683,
+          "second": 7.5
+        },
+        {
+          "dominant_hz": 661.3205773237077,
+          "mean": 5445.3125,
+          "peak_power_share": 0.8100384003075748,
+          "rms": 7697.077367416804,
+          "second": 7.75
+        },
+        {
+          "dominant_hz": 661.3192994082908,
+          "mean": 5433.359375,
+          "peak_power_share": 0.8100267511601653,
+          "rms": 7688.624714472673,
+          "second": 8.0
+        },
+        {
+          "dominant_hz": 661.3176489463848,
+          "mean": 5445.3125,
+          "peak_power_share": 0.8100164853550785,
+          "rms": 7697.077367416804,
+          "second": 8.25
+        },
+        {
+          "dominant_hz": 661.3207518995471,
+          "mean": 5446.640625,
+          "peak_power_share": 0.8100400100026582,
+          "rms": 7698.015978159568,
+          "second": 8.5
+        },
+        {
+          "dominant_hz": 661.3184912456604,
+          "mean": 5433.359375,
+          "peak_power_share": 0.8100212924562935,
+          "rms": 7688.624714472673,
+          "second": 8.75
+        },
+        {
+          "dominant_hz": 880.3364214803285,
+          "mean": 5430.703125,
+          "peak_power_share": 0.7696219055509783,
+          "rms": 7686.745084884759,
+          "second": 9.0
+        },
+        {
+          "dominant_hz": 880.3701629449566,
+          "mean": 5451.953125,
+          "peak_power_share": 0.8083703511678502,
+          "rms": 7701.76927725052,
+          "second": 9.25
+        },
+        {
+          "dominant_hz": 880.3707456885288,
+          "mean": 5447.96875,
+          "peak_power_share": 0.8083486597584759,
+          "rms": 7698.954474472492,
+          "second": 9.5
+        },
+        {
+          "dominant_hz": 880.3699882428916,
+          "mean": 5446.640625,
+          "peak_power_share": 0.8083766432412172,
+          "rms": 7698.015978159568,
+          "second": 9.75
+        },
+        {
+          "dominant_hz": 880.3709112538388,
+          "mean": 5450.625,
+          "peak_power_share": 0.8083422840193251,
+          "rms": 7700.831123976165,
+          "second": 10.0
+        },
+        {
+          "dominant_hz": 880.3698401301392,
+          "mean": 5442.65625,
+          "peak_power_share": 0.8083816871683761,
+          "rms": 7695.199802474267,
+          "second": 10.25
+        },
+        {
+          "dominant_hz": 880.3710468953686,
+          "mean": 5437.34375,
+          "peak_power_share": 0.8083373054386305,
+          "rms": 7691.443297587261,
+          "second": 10.5
+        },
+        {
+          "dominant_hz": 880.3697289381624,
+          "mean": 5434.6875,
+          "peak_power_share": 0.8083852201633244,
+          "rms": 7689.564356971076,
+          "second": 10.75
+        },
+        {
+          "dominant_hz": 880.3711379255759,
+          "mean": 5430.703125,
+          "peak_power_share": 0.8083340784393389,
+          "rms": 7686.745084884759,
+          "second": 11.0
+        },
+        {
+          "dominant_hz": 880.3696675544236,
+          "mean": 5430.703125,
+          "peak_power_share": 0.8083871564862648,
+          "rms": 7686.745084884759,
+          "second": 11.25
+        },
+        {
+          "dominant_hz": 880.3711757942306,
+          "mean": 5433.359375,
+          "peak_power_share": 0.8083327867268677,
+          "rms": 7688.624714472673,
+          "second": 11.5
+        },
+        {
+          "dominant_hz": 880.369658994599,
+          "mean": 5430.703125,
+          "peak_power_share": 0.8083874384346423,
+          "rms": 7686.745084884759,
+          "second": 11.75
+        },
+        {
+          "dominant_hz": 881.9762142089907,
+          "mean": 5451.953125,
+          "peak_power_share": 0.21411670166887023,
+          "rms": 7701.76927725052,
+          "second": 12.0
+        },
+        {
+          "dominant_hz": 1905.8157071111343,
+          "mean": 5534.296875,
+          "peak_power_share": 0.014260888543307416,
+          "rms": 7759.713267898499,
+          "second": 12.25
+        },
+        {
+          "dominant_hz": 269.8307143371873,
+          "mean": 5722.890625,
+          "peak_power_share": 0.013529664976419498,
+          "rms": 7890.820616387119,
+          "second": 12.5
+        },
+        {
+          "dominant_hz": 1846.7179027305815,
+          "mean": 5386.875,
+          "peak_power_share": 0.014023754074497895,
+          "rms": 7655.664569454438,
+          "second": 12.75
+        },
+        {
+          "dominant_hz": 1928.3920674908888,
+          "mean": 5616.640625,
+          "peak_power_share": 0.02082477709316966,
+          "rms": 7817.227769484525,
+          "second": 13.0
+        },
+        {
+          "dominant_hz": 736.4132806867079,
+          "mean": 5550.234375,
+          "peak_power_share": 0.01573717562567959,
+          "rms": 7770.87832873479,
+          "second": 13.25
+        },
+        {
+          "dominant_hz": 207.04853223716802,
+          "mean": 5474.53125,
+          "peak_power_share": 0.01802034127337866,
+          "rms": 7717.700434714993,
+          "second": 13.5
+        },
+        {
+          "dominant_hz": 1903.8955899745304,
+          "mean": 5441.328125,
+          "peak_power_share": 0.021075813044169885,
+          "rms": 7694.260848190683,
+          "second": 13.75
+        },
+        {
+          "dominant_hz": 1020.8666206196827,
+          "mean": 5555.546875,
+          "peak_power_share": 0.016228296888746094,
+          "rms": 7774.596452549804,
+          "second": 14.0
+        },
+        {
+          "dominant_hz": 1302.0339064824486,
+          "mean": 5503.75,
+          "peak_power_share": 0.014510972907542264,
+          "rms": 7738.268540183909,
+          "second": 14.25
+        },
+        {
+          "dominant_hz": 602.4695166575918,
+          "mean": 5413.4375,
+          "peak_power_share": 0.01747233961802948,
+          "rms": 7674.516271401084,
+          "second": 14.5
+        },
+        {
+          "dominant_hz": 348.32419222289303,
+          "mean": 5327.109375,
+          "peak_power_share": 0.01801254303882746,
+          "rms": 7613.0775642968465,
+          "second": 14.75
+        },
+        {
+          "dominant_hz": 22.47027819267611,
+          "mean": 3879.453125,
+          "peak_power_share": 0.02305860424770064,
+          "rms": 6496.803059967264,
+          "second": 15.0
+        },
+        {
+          "dominant_hz": 440.22618437645383,
+          "mean": 82.984375,
+          "peak_power_share": 0.7588156164036151,
+          "rms": 124.36237373096414,
+          "second": 15.25
+        },
+        {
+          "dominant_hz": 440.1800876006582,
+          "mean": 322.71875,
+          "peak_power_share": 0.8048895072338211,
+          "rms": 473.9029436498575,
+          "second": 15.5
+        },
+        {
+          "dominant_hz": 440.1840300218776,
+          "mean": 1273.046875,
+          "peak_power_share": 0.8048751033583819,
+          "rms": 1864.9166201200524,
+          "second": 15.75
+        },
+        {
+          "dominant_hz": 440.18356095868677,
+          "mean": 4564.75,
+          "peak_power_share": 0.8042425956216982,
+          "rms": 6554.895575064487,
+          "second": 16.0
+        },
+        {
+          "dominant_hz": 440.18749086983803,
+          "mean": 1861.8125,
+          "peak_power_share": 0.8042327382020789,
+          "rms": 2737.28770866345,
+          "second": 16.25
+        },
+        {
+          "dominant_hz": 440.16775675396093,
+          "mean": 471.765625,
+          "peak_power_share": 0.7989435610448046,
+          "rms": 695.239527069628,
+          "second": 16.5
+        },
+        {
+          "dominant_hz": 440.1533726841823,
+          "mean": 118.921875,
+          "peak_power_share": 0.7917666066801825,
+          "rms": 178.46568297574746,
+          "second": 16.75
+        },
+        {
+          "dominant_hz": 29.76226058953455,
+          "mean": 21.46875,
+          "peak_power_share": 0.19663722665463543,
+          "rms": 52.421369688324624,
+          "second": 17.0
+        },
+        {
+          "dominant_hz": 440.26013902173116,
+          "mean": 82.671875,
+          "peak_power_share": 0.7599953864552882,
+          "rms": 124.04031602668546,
+          "second": 17.25
+        },
+        {
+          "dominant_hz": 440.2001024564508,
+          "mean": 321.046875,
+          "peak_power_share": 0.8056658747431809,
+          "rms": 471.8283586220735,
+          "second": 17.5
+        },
+        {
+          "dominant_hz": 440.1977564497319,
+          "mean": 1267.25,
+          "peak_power_share": 0.8057433199382383,
+          "rms": 1857.7319505246176,
+          "second": 17.75
+        },
+        {
+          "dominant_hz": 440.19417413502356,
+          "mean": 4298.5,
+          "peak_power_share": 0.8037342294440136,
+          "rms": 6366.82526853062,
+          "second": 18.0
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 18.25
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 18.5
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 18.75
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 19.0
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 19.25
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 19.5
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 19.75
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 20.0
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 20.25
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 20.5
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 20.75
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 21.0
+        },
+        {
+          "dominant_hz": 440.1961964768015,
+          "mean": 5443.984375,
+          "peak_power_share": 0.8100956356949703,
+          "rms": 7696.138642202335,
+          "second": 21.25
+        },
+        {
+          "dominant_hz": 440.19519185312583,
+          "mean": 5446.640625,
+          "peak_power_share": 0.8100880213936785,
+          "rms": 7698.015978159568,
+          "second": 21.5
+        },
+        {
+          "dominant_hz": 440.19162220668113,
+          "mean": 5450.625,
+          "peak_power_share": 0.8101104630516596,
+          "rms": 7700.831123976165,
+          "second": 21.75
+        },
+        {
+          "dominant_hz": 440.1936707789736,
+          "mean": 5451.953125,
+          "peak_power_share": 0.8100943964416844,
+          "rms": 7701.76927725052,
+          "second": 22.0
+        },
+        {
+          "dominant_hz": 440.1961484090686,
+          "mean": 5450.625,
+          "peak_power_share": 0.8100939269164693,
+          "rms": 7700.831123976165,
+          "second": 22.25
+        },
+        {
+          "dominant_hz": 440.1956869433225,
+          "mean": 5443.984375,
+          "peak_power_share": 0.8100889808416092,
+          "rms": 7696.138642202335,
+          "second": 22.5
+        },
+        {
+          "dominant_hz": 440.1919922836853,
+          "mean": 5437.34375,
+          "peak_power_share": 0.81010708919872,
+          "rms": 7691.443297587261,
+          "second": 22.75
+        },
+        {
+          "dominant_hz": 440.1928844325349,
+          "mean": 5433.359375,
+          "peak_power_share": 0.8100989350083136,
+          "rms": 7688.624714472673,
+          "second": 23.0
+        },
+        {
+          "dominant_hz": 440.19607064385735,
+          "mean": 5432.03125,
+          "peak_power_share": 0.810092152011829,
+          "rms": 7687.684957124609,
+          "second": 23.25
+        },
+        {
+          "dominant_hz": 440.1959919516437,
+          "mean": 5432.03125,
+          "peak_power_share": 0.8100911922879195,
+          "rms": 7687.684957124609,
+          "second": 23.5
+        },
+        {
+          "dominant_hz": 440.1925395282088,
+          "mean": 5432.03125,
+          "peak_power_share": 0.8101016398567474,
+          "rms": 7687.684957124609,
+          "second": 23.75
+        },
+        {
+          "dominant_hz": 440.192242337005,
+          "mean": 5429.375,
+          "peak_power_share": 0.8101044716990582,
+          "rms": 7685.805097710974,
+          "second": 24.0
+        },
+        {
+          "dominant_hz": 661.3187678989268,
+          "mean": 5445.3125,
+          "peak_power_share": 0.8100230335506234,
+          "rms": 7697.077367416804,
+          "second": 24.25
+        }
+      ]
+    },
+    "after_stop": {
+      "channels": 2,
+      "duration_seconds": 2.9995833333333333,
+      "left_right_difference_rms": 49.66362752991848,
+      "left_rms": 188.02345924158018,
+      "right_rms": 185.82427880130913,
+      "sample_bits": 16,
+      "sample_rate": 48000,
+      "samples_per_channel": 143980,
+      "sha256": "839395b1b913aed39ec56c0859138951d386ec4370a1a9bd3947a6ac9a6c8c21",
+      "windows": [
+        {
+          "dominant_hz": 32.32877634595573,
+          "mean": 57.109375,
+          "peak_power_share": 0.013892095978075078,
+          "rms": 788.2575721171348,
+          "second": 0.0
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 0.25
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 0.5
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 0.75
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 1.0
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 1.25
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 1.5
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 1.75
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 2.0
+        },
+        {
+          "dominant_hz": 11.71875,
+          "mean": 0.0,
+          "peak_power_share": 0,
+          "rms": 0.0,
+          "second": 2.25
+        }
+      ]
+    },
+    "verdict": {
+      "capture_channel_aligned_difference_rms": 0.0,
+      "capture_right_channel_delay_samples": 1,
+      "channel_delay_origin": "Unqualified: wire-level HDMI/serializer versus capture-device attribution requires separate measurement.",
+      "envelope_rms_range": [
+        52.421369688324624,
+        6554.895575064487
+      ],
+      "noise_nonzero_broadband": true,
+      "pass": true,
+      "settled_silence_windows": 24,
+      "stop_settle_discard_seconds": 0.1,
+      "stop_settled_all_zero": true,
+      "stop_settled_samples_per_channel": 139180,
+      "tones": {
+        "A": {
+          "expected_hz": 440.14084507042253,
+          "measured_median_hz": 440.1948179711429,
+          "pass": true,
+          "stable_windows": 24
+        },
+        "B": {
+          "expected_hz": 661.3756613756614,
+          "measured_median_hz": 661.3192994082908,
+          "pass": true,
+          "stable_windows": 13
+        },
+        "C": {
+          "expected_hz": 880.2816901408451,
+          "measured_median_hz": 880.3700755939242,
+          "pass": true,
+          "stable_windows": 12
+        }
+      }
+    }
+  },
+  "base_revision": "c3481d7f0dd11776488805382415803169edcba0",
+  "classification": "exact reused verified image: host-delivered input and HDMI audio diagnostic; not demo compatibility or physical USB acceptance",
+  "closed_installed_inventory_verified": true,
+  "demo_media_inspection": {
+    "big-original.msa": {
+      "current_fes_geometry_supported": false,
+      "current_fes_requires": {
+        "bytes": 737280,
+        "format": "raw-st",
+        "sectors_per_track": 9,
+        "sides": 2,
+        "tracks": 80
+      },
+      "format": "msa",
+      "raw_bytes": 409600,
+      "raw_sha256": "608c4beff1780552e8ae6ee5a1efff27198fb6a3ca6274597f1cb528c3970edb",
+      "sector_bytes": 512,
+      "sectors_per_track": 10,
+      "sides": 1,
+      "source_bytes": 406198,
+      "source_sha256": "d21599ec51dcb849c026bf62124d0aacf79938155f83341e0041f7ef9651e120",
+      "tracks": 80
+    },
+    "big_100.msa": {
+      "current_fes_geometry_supported": false,
+      "current_fes_requires": {
+        "bytes": 737280,
+        "format": "raw-st",
+        "sectors_per_track": 9,
+        "sides": 2,
+        "tracks": 80
+      },
+      "format": "msa",
+      "raw_bytes": 409600,
+      "raw_sha256": "096e1d0684ddcbf7f56e9edbe153ce32b65800a0662cd823d4a78c22e49dc5c7",
+      "sector_bytes": 512,
+      "sectors_per_track": 10,
+      "sides": 1,
+      "source_bytes": 406198,
+      "source_sha256": "fe1a3d0b8e9f9b817ee915f63b295d79b29022abf017ddf43fa71eebbee9c6dd",
+      "tracks": 80
+    },
+    "cuddly.msa": {
+      "current_fes_geometry_supported": false,
+      "current_fes_requires": {
+        "bytes": 737280,
+        "format": "raw-st",
+        "sectors_per_track": 9,
+        "sides": 2,
+        "tracks": 80
+      },
+      "format": "msa",
+      "raw_bytes": 839680,
+      "raw_sha256": "2069570bdba57ebc5a5c760234b9133496c2f70f9f2d862bc207cbb56579a039",
+      "sector_bytes": 512,
+      "sectors_per_track": 10,
+      "sides": 2,
+      "source_bytes": 838092,
+      "source_sha256": "1513806400721151a1c2b9c6aa313dd280d67ed7145771630e8903fe40a5d5b8",
+      "tracks": 82
+    },
+    "cuddlyss.msa": {
+      "current_fes_geometry_supported": false,
+      "current_fes_requires": {
+        "bytes": 737280,
+        "format": "raw-st",
+        "sectors_per_track": 9,
+        "sides": 2,
+        "tracks": 80
+      },
+      "format": "msa",
+      "raw_bytes": 839680,
+      "raw_sha256": "d4a183d3582d86377c8adf79457a35311c46bb10604fd5e42a799ac6bfffae74",
+      "sector_bytes": 512,
+      "sectors_per_track": 10,
+      "sides": 2,
+      "source_bytes": 838160,
+      "source_sha256": "2b83b0f47bf328135601d32fa6655334a8f76c6cb339c4f16c344442914c3f58",
+      "tracks": 82
+    }
+  },
+  "firmware_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+  "guest_simulation": {
+    "audio_phase_ticks": 20,
+    "disk_unchanged_by_guest": true,
+    "frozen_inputs_unchanged": true,
+    "generated_model_unchanged": true,
+    "git_compiled_inputs": {
+      "sources/misteross/cores/fes-atari-st/rtl/st_acia.sv": "c2cd7123a452cdbfa7adc0963adbe1abe0d35a55de97a6e841beefd89a8f1758",
+      "sources/misteross/cores/fes-atari-st/rtl/st_cpu.sv": "62217d8b01eed459050e55132b56ebd6a7d171d3bd2c9db72fb630db21d7dfbc",
+      "sources/misteross/cores/fes-atari-st/rtl/st_floppy.sv": "240cc27f8852a2ba81218f02b414c7c7d351a4c2bd4c0edbe9b6911e31f4c4f0",
+      "sources/misteross/cores/fes-atari-st/rtl/st_floppy_writer.sv": "3b41e7250fda66500682c56dc90adc7e2080b7de9d1d678f8cfb42321c49042c",
+      "sources/misteross/cores/fes-atari-st/rtl/st_ikbd.sv": "310ac098380364b2bfcfed5c686366c309708d52f0b50da46c7466f3cd812e83",
+      "sources/misteross/cores/fes-atari-st/rtl/st_io.sv": "52575c0b3267f57d150db866a016cfe284754f9a48bb6480869833277a5590a5",
+      "sources/misteross/cores/fes-atari-st/rtl/st_machine.sv": "d68741a4070aa439560af384341828fdbf080dadfb79900d98df6e2bd7b5be6e",
+      "sources/misteross/cores/fes-atari-st/rtl/st_mfp.sv": "99be49fddf8abee2881a0dc7bb686f9c54b50b752b98c81e963e9d09a2205c81",
+      "sources/misteross/cores/fes-atari-st/rtl/st_system.sv": "6a224f89e6787dcc5c3ac0064db369787eff29925e8a7afc209fe11aa9ad2557",
+      "sources/misteross/cores/fes-atari-st/rtl/st_ym2149.sv": "fa81ad3c51fd523a7daed244a5bf604976ee2deeee0867ba75117b614c40c3f0",
+      "sources/misteross/cores/fes-common/generated/fes_video_part.vh": "322cf3e10fb5465deadfc68de2af1e54768eef9b7b53c6be04c9d7a3532c99ab",
+      "sources/misteross/cores/fes-common/rtl/fx68k/fx68k.sv": "a718bb869a8a969dbdda89facd76f8621f655f8a84e7afa9551b2785eee5656a",
+      "sources/misteross/cores/fes-common/rtl/fx68k/fx68kAlu.sv": "3f22006cbdb8cb661e5f54cc779f79bb697b587c86d586103478703fca38bcce",
+      "sources/misteross/cores/fes-common/rtl/fx68k/microrom.mem": "9d13082be0cf4b04bff887e6da23de84f9f2ee4321f3a2576b4f9540615dece6",
+      "sources/misteross/cores/fes-common/rtl/fx68k/nanorom.mem": "b3998009fb10605e8468cddf22fdd799a9792ba86f449de2e30615cfcefbeece",
+      "sources/misteross/cores/fes-common/rtl/fx68k/uaddrPla.sv": "07ceb3b1fbbd74f255c2a909151fe5efd38a575ba4f6aa47c6208050d2e27326",
+      "sources/misteross/cores/fes-zx81/expansions/zonx_ay.v": "7e5e3044628cb372c4dccea780c3bf046cef68032b52bcdea736a0bfe04b91de"
+    },
+    "guest_metrics": {
+      "audio_phase_mask": 63,
+      "dma_words": 5120,
+      "input_events": 48,
+      "media_exchanges": 10240,
+      "mfp": 1415,
+      "pcm_samples": 300475,
+      "physical_sdram": false,
+      "program_base": 58874,
+      "program_fetches": 1137107,
+      "schema": 1,
+      "system_cycles": 326917955,
+      "trap_fetches": 26,
+      "vbl": 372
+    },
+    "hardware_audio_phase_ticks": 600,
+    "original_disk_sha256": "bfa1023422d3cb841a285b9202b11e41e94200c9878877cee5e6567e79041c8c",
+    "pass": true,
+    "pcm_oracle": {
+      "pass": true,
+      "phases": [
+        {
+          "ac_rms": 5439.4882875727935,
+          "expected_hz": 440.14084507042253,
+          "maximum": 10880,
+          "minimum": 0,
+          "passed": true,
+          "phase": 0,
+          "rising_edge_hz": 440.0785854616896,
+          "samples": 3208,
+          "unique_levels": 2
+        },
+        {
+          "ac_rms": 5439.997712029521,
+          "expected_hz": 661.3756613756614,
+          "maximum": 10880,
+          "minimum": 0,
+          "passed": true,
+          "phase": 1,
+          "rising_edge_hz": 661.4469151268399,
+          "samples": 3271,
+          "unique_levels": 2
+        },
+        {
+          "ac_rms": 5439.974840251786,
+          "expected_hz": 880.2816901408451,
+          "maximum": 10880,
+          "minimum": 0,
+          "passed": true,
+          "phase": 2,
+          "rising_edge_hz": 880.1955990220049,
+          "samples": 3288,
+          "unique_levels": 2
+        },
+        {
+          "ac_rms": 5437.228809781968,
+          "maximum": 10880,
+          "minimum": 0,
+          "passed": true,
+          "phase": 3,
+          "rising_edge_hz": 1985.7142857142858,
+          "samples": 3384,
+          "unique_levels": 2
+        },
+        {
+          "ac_rms": 57.8271792089118,
+          "maximum": 128,
+          "minimum": 0,
+          "passed": true,
+          "phase": 4,
+          "rising_edge_hz": 440.11461318051573,
+          "samples": 3244,
+          "unique_levels": 2
+        },
+        {
+          "ac_rms": 0.0,
+          "maximum": 0,
+          "minimum": 0,
+          "passed": true,
+          "phase": 5,
+          "rising_edge_hz": null,
+          "samples": 400,
+          "unique_levels": 1
+        }
+      ],
+      "sample_rate_hz": 48000,
+      "schema": 1,
+      "trim_each_edge_samples": 1000
+    },
+    "prg_sha256": "a13b506a4d2fc2109592dfcb216562456126594e2ecb028491271b0834d852e4",
+    "private_guest_harness_inputs": {
+      "scripts/atari_st_disk_diagnostic.py": "a1d6765274a6327f30807ce28a0f3f744a77b8a1685de7480c1aba9ab2e18d9a",
+      "scripts/atari_st_io_diagnostic.py": "6c590966fdeb240de1fc2de47b18a20a5ae1efb300f02c235340e7592e93f825",
+      "scripts/sim_atari_st_io_diagnostic.py": "4541b3bfdcc687857b31e2a132588e2a305efc717dbf2fb0d7e987429faedac9",
+      "sources/misteross/cores/fes-atari-st/tests/io_guest_sim_top.sv": "59ab0cba8edd3251d7a9da47c977484a913778dddbb558d9e7e101c7af79453c",
+      "sources/misteross/cores/fes-atari-st/tests/io_guest_tb.cpp": "590df9eadc8f24b0a3be4fd825e7486e17e76b019978b4c2785ac12b898f37cc"
+    },
+    "source_revision": "c3481d7f0dd11776488805382415803169edcba0",
+    "working_inputs_unchanged": true
+  },
+  "hardware_fixture": {
+    "disk_sha256": "853c9d8ed5effd652d73f0c6d10096885afbe2fdfe6516518757c64d5168821f",
+    "event_count": 48,
+    "held_input_stop_relaunch_acceptance": false,
+    "input_groups": [
+      {
+        "event_count": 4,
+        "expected_acia_bytes": [
+          42,
+          30,
+          158,
+          170
+        ],
+        "frames_after": 198,
+        "frames_before": 190,
+        "guest_pass_visible": true,
+        "name": "SHIFT+A"
+      },
+      {
+        "event_count": 4,
+        "expected_acia_bytes": [
+          29,
+          157
+        ],
+        "frames_after": 273,
+        "frames_before": 266,
+        "guest_pass_visible": true,
+        "name": "CTRL ALIASES"
+      },
+      {
+        "event_count": 4,
+        "expected_acia_bytes": [
+          56,
+          184
+        ],
+        "frames_after": 381,
+        "frames_before": 374,
+        "guest_pass_visible": true,
+        "name": "ALT ALIASES"
+      },
+      {
+        "event_count": 4,
+        "expected_acia_bytes": [
+          54,
+          48,
+          176,
+          182
+        ],
+        "frames_after": 567,
+        "frames_before": 560,
+        "guest_pass_visible": true,
+        "name": "RIGHT SHIFT"
+      },
+      {
+        "event_count": 4,
+        "expected_acia_bytes": [
+          1,
+          129,
+          14,
+          142
+        ],
+        "frames_after": 641,
+        "frames_before": 634,
+        "guest_pass_visible": true,
+        "name": "ESC+BACKSPACE"
+      },
+      {
+        "event_count": 12,
+        "expected_acia_bytes": [
+          255,
+          1,
+          255,
+          0,
+          255,
+          2,
+          255,
+          0,
+          255,
+          4,
+          255,
+          0,
+          255,
+          8,
+          255,
+          0,
+          255,
+          128,
+          255,
+          0,
+          255,
+          128,
+          255,
+          0
+        ],
+        "frames_after": 745,
+        "frames_before": 725,
+        "guest_pass_visible": true,
+        "name": "PAD1 UDLR A/B"
+      },
+      {
+        "event_count": 12,
+        "expected_acia_bytes": [
+          254,
+          1,
+          254,
+          0,
+          254,
+          2,
+          254,
+          0,
+          254,
+          4,
+          254,
+          0,
+          254,
+          8,
+          254,
+          0,
+          254,
+          128,
+          254,
+          0,
+          254,
+          128,
+          254,
+          0
+        ],
+        "frames_after": 882,
+        "frames_before": 862,
+        "guest_pass_visible": true,
+        "name": "PAD2 UDLR A/B"
+      },
+      {
+        "event_count": 4,
+        "expected_acia_bytes": [
+          255,
+          1,
+          254,
+          8,
+          255,
+          0,
+          254,
+          0
+        ],
+        "frames_after": 1005,
+        "frames_before": 997,
+        "guest_pass_visible": true,
+        "name": "TWO PADS"
+      }
+    ],
+    "launch_seconds": 55.380029052030295,
+    "physical_usb_acceptance": false,
+    "prg_sha256": "651061b0a8a6e01c6167f3d852f2cb3a8b4295332557276e4706c736ff7a4160",
+    "schedule_sha256": "c7e2f41d0425a92c54bc0f45396db78b6ad9c573700782208914b46062690e9b",
+    "upload_timeout_seconds": 60
+  },
+  "hardware_video_recording_sha256": "535073aa504d4e1729c33b1d3a64941b644d21fc2cf361d99bda9fb63ea797ce",
+  "image_sha256": "efe04797f2682c5c76372999a0628dc4f62742905e253dfc557311c0e0453075",
+  "package": {
+    "archive_sha256": "ea8dce54815e7c26a386c725cadaef8de56d42cdcda14d68d88fc39143aa3404",
+    "build_id": "356a0401737f24f0513103714148c944",
+    "package_id": "eba89c8b44c1650ca2ef77985ecf34f46ac27fce3e3cc33e84059b2a7bfb4e0d",
+    "payload_sha256": "781d29ec5de7f9069ef76988d5eb4bf6601cb7fabbb1e8a946ed031ec0212333",
+    "rom_map_sha256": "e49128b61df9cbcc5116aabb9811f6cd1a1b8618ac7700c62c2a1aef0d052e7d",
+    "source_revision": "a97433c1ef280683f6095a38cf785371404414e9"
+  },
+  "pass": true,
+  "production_artifact_source": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc",
+  "production_subtrees_identical_at_base": true,
+  "public_artifacts": {
+    "final-populated-menu.png": "2c2b3e121bfb57e33c90179129226efcb170a979977ef41ae142341d00e362d2",
+    "group-1.png": "1116bb8fedcab82fa6ba78b497ea860673249a7538f43e43811b203ea2c3f9dd",
+    "group-2.png": "6a28c0efb2c0a885d1794505ac7839c2efb5eadcd46241e2aefaefa4527db701",
+    "group-3.png": "c89a912835d2ddc2685ae71dc59087e0d011ed81113ba6451bc5b396bf84a10f",
+    "group-4.png": "016019fd7ec0994f33e81583290915071782b94150afce0d9d53791f5aa3245c",
+    "group-5.png": "862c32af5fca2471f2208accb607a470e9f75b70bfabdb1003be9dd42a3f38a2",
+    "group-6.png": "7c71f51940b739be604cca99207bea2b91cf3ce3351b688120fd9028653f8e76",
+    "group-7.png": "461a88e29f30b88c914cf77168c0edb84c4f829a7c6a8e9f50b2a7017b65519f",
+    "group-8.png": "3174ecf04fbcd3c5026fab476a1d26f6e3c2e15c6a9f3a77255280af579a90ee",
+    "hdmi-audio.flac": "1d058067cd0cdb31c762abe89bf268f52c395caa71ac8bd4579a00efce9e1ca7",
+    "io-pass.png": "3cb7b15bc1db30d34b9e4c688c374a9e60b4c3da68ec03cb6f6a6b50b2285718",
+    "ready.png": "e59f8702b88a93c9dc8e33b394718610dcb099e439cabcb1326dc7610d418990",
+    "schedule.json": "c7e2f41d0425a92c54bc0f45396db78b6ad9c573700782208914b46062690e9b",
+    "stop-silence.flac": "c0f9cf0796ca1c1f5861dc806d1186e2995953832bbfbcff8f202a01a1d1434c"
+  },
+  "restoration": {
+    "lease_free": true,
+    "normal_host_active": "active",
+    "normal_host_enabled": "enabled",
+    "normal_library_count": 4253,
+    "owner_configuration_unchanged": true,
+    "pass": true,
+    "private_credential_copy_removed": true,
+    "private_host_removed": true,
+    "restored_image_sha256": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+    "target_idle": true
+  },
+  "schema": 1
+}
