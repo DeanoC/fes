@@ -167,6 +167,7 @@ def create_build_record(
     identity_version: int = 2,
     execution: dict | None = None,
     cpu: str = "nmos",
+    max_aluts: int | None = None,
 ) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
@@ -222,6 +223,9 @@ def create_build_record(
             "expansion_sockets": ",".join(s.placement for s in spectrum_slots.SOCKETS),
         },
     }
+    if max_aluts is not None:
+        _area_budget({}, max_aluts)
+        fields["parameters"]["max_aluts"] = max_aluts
     fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS),
                                       execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
@@ -396,6 +400,16 @@ def validate_build_evidence(output: Path, *, cpu: str = "nmos") -> dict:
     }
 
 
+def _area_budget(counts: Mapping[str, int], maximum: int | None) -> dict:
+    if maximum is not None and (type(maximum) is not int or maximum <= 0):
+        raise BuildError("max ALUTs must be a positive integer")
+    used = sum(count for name, count in counts.items() if name.startswith("MISTRAL_ALUT"))
+    evidence = {"used": used, "maximum": maximum, "status": "pass"}
+    if maximum is not None and used > maximum:
+        raise BuildError(f"area budget exceeded: {used} ALUTs > {maximum}")
+    return evidence
+
+
 def check_firmware_outside_sockets(mapping: dict) -> None:
     width = 7605
     for block in mapping["blocks"]:
@@ -448,7 +462,9 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
 
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None,
-          identity_version: int = 2, gpu_device: int = 0, cpu: str = "nmos") -> Path:
+          identity_version: int = 2, gpu_device: int = 0, cpu: str = "nmos",
+          max_aluts: int | None = None) -> Path:
+    _area_budget({}, max_aluts)
     output_relative, sys_mhz, _pll_count = _cpu_parameters(cpu)
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
@@ -461,7 +477,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
     invocation = FunctionalInvocation(authenticated, gpu_device)
     record = create_build_record(root, repository, revision, identities,
-                                 identity_version=identity_version, execution=invocation.inputs, cpu=cpu)
+                                 identity_version=identity_version, execution=invocation.inputs, cpu=cpu,
+                                 max_aluts=max_aluts)
     output = _prepare_output(root, relative=output_relative, build_outputs=BUILD_OUTPUTS)
     _write_atomic(output / "build-inputs.json", record)
     _write_atomic(output / "socket.qsf", socket_qsf((root / QSF).read_text()).encode())
@@ -473,6 +490,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                   audit_source_root=root, output_relative=output_relative)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
+        synth_evidence = validate_synth_evidence(output, cpu=cpu)
+        area = _area_budget(synth_evidence["synthesis_cells"], max_aluts)
         try:
             winner = route_after_synth(
                 nextpnr=authenticated["nextpnr-mistral"].path,
@@ -488,6 +507,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
         evidence = validate_build_evidence(output, cpu=cpu)
+        evidence["area_budget"] = {"synthesis": area, "routed": _area_budget(
+            {name: values["used"] for name, values in evidence["resources"].items()}, max_aluts)}
         evidence["route"].update(placer_seed=winner.seed, placer_heap_timingweight=winner.weight,
                                  placer_qor_mode="first-pass")
         mapping, map_evidence = rom_map.build_rom_map(
@@ -520,7 +541,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
             raise BuildError("ROM database changed during build")
         if create_build_record(root, repository, revision, identities,
-                               identity_version=identity_version, execution=invocation.inputs, cpu=cpu) != record:
+                               identity_version=identity_version, execution=invocation.inputs, cpu=cpu,
+                               max_aluts=max_aluts) != record:
             raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store,
                               rom_map=output / "rom-map.json")
@@ -564,18 +586,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--gpu-device", type=int, default=0)
     parser.add_argument("--cpu", choices=("nmos", "fast"), default="nmos",
                         help="native NMOS default or documented-only 56 MHz development variant")
+    parser.add_argument("--max-aluts", type=int, help="production area cap; reject before routing and sealing")
     parser.add_argument("--synth-only", action="store_true",
                         help="run Yosys only; skip the clean-tree seal and nextpnr")
     arguments = parser.parse_args(argv)
     try:
         if arguments.synth_only:
+            if arguments.max_aluts is not None:
+                raise BuildError("--max-aluts requires the full production build")
             cells = synth(arguments.root, cache_root=arguments.cache_root, cpu=arguments.cpu)["synthesis_cells"]
             print(f"synth-only MISTRAL_M10K={cells.get('MISTRAL_M10K', 0)} "
                   f"MISTRAL_M10K_TDP={cells.get('MISTRAL_M10K_TDP', 0)} "
                   f"MISTRAL_FF={cells.get('MISTRAL_FF', 0)}")
             return 0
         print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
-                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device, cpu=arguments.cpu))
+                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device, cpu=arguments.cpu,
+                    max_aluts=arguments.max_aluts))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-spectrum-oss: {exc}", file=sys.stderr)
         return 1
