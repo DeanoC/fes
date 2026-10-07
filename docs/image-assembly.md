@@ -106,6 +106,24 @@ This should save about 5.6 minutes on pass two, and about 5.6 minutes per pass
 on a cache hit. A real cold image build must confirm the SDK's external-toolchain
 validation and rootfs byte equality before claiming the saving or a release.
 
+Set `FES_TARGET_IMAGE_SHARED_CACHE=/absolute/host/path` to share Buildroot caches
+across FES worktrees. The directory must be outside the worktree. It contains
+`dl/` for locked downloads, `toolchains/<key>/` for the checked SDK archive and
+receipt, and `ccache/` for compiled target and host objects. The container mounts
+`dl/` at Buildroot's existing download path, so source lock verification still
+runs before every use. The toolchain-only build leaves ccache disabled, preserving
+its key and SDK bytes. Image passes and `make dev` enable a 20 GiB ccache.
+
+For cold two-pass builds, pass 1 may use ccache and pass 2 sets
+`CCACHE_DISABLE=1`. The second rootfs is therefore compiled independently; a
+bad cached result must fail the existing hash comparison. Shared-cache evidence
+records this policy in `reproducibility.txt` and `verification.json`. A
+single-pass scratch image may use ccache and remains diagnostic only. With the
+variable unset, configs, container arguments and evidence retain their original
+form. To clear the cache, stop image builds using it, then remove the specific
+`dl/`, `toolchains/` or `ccache/` directory under the configured root; the next
+build repopulates it.
+
 Parent builds materialize real committed FES snapshots under ignored `out/work`;
 module paths and subtree identities accompany the root commit. They do not invent
 child commits or consume uncommitted task changes. The generated runtime lock is

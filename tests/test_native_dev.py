@@ -195,6 +195,7 @@ class NativeDevTest(unittest.TestCase):
             profile = {'native_image_mode': 'package-only'}
             shared_env = None
             native_boundary_envs = []
+            shared_cache_envs = []
 
             def record_run(args, **kwargs):
                 nonlocal shared_env
@@ -209,6 +210,8 @@ class NativeDevTest(unittest.TestCase):
                     native_boundary_envs.append(
                         (kwargs['env'] is not shared_env,
                          kwargs['env'].get('NATIVE_RUNTIME_MODE')))
+                if is_native_container or '--ensure-toolchain' in arg_text:
+                    shared_cache_envs.append(kwargs['env'].get('FES_TARGET_IMAGE_SHARED_CACHE'))
 
             with patch.object(native_dev, 'base_key', return_value='base'), \
                  patch.object(native_dev, 'seed_base'), \
@@ -219,12 +222,14 @@ class NativeDevTest(unittest.TestCase):
                 native_dev.build_development(
                     root, image, fogcast, root / 'runtime', 'native-integration-dev',
                     profile, {}, 'candidate',
-                    {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'}, ['make'], ['make'],
+                    {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker',
+                     'FES_TARGET_IMAGE_SHARED_CACHE': '/external/shared-cache'}, ['make'], ['make'],
                     package)
 
             calls = [call.args[0] for call in run.call_args_list]
             self.assertEqual(native_boundary_envs,
                              [(True, 'package-only'), (True, 'package-only')])
+            self.assertEqual(shared_cache_envs, ['/external/shared-cache', '/external/shared-cache'])
             self.assertTrue(any('target-image-native-fetch' in call for call in calls))
             self.assertTrue(any('NATIVE_RUNTIME_MODE=package-only' in call for call in calls))
             self.assertTrue(any('FES_PONG_PACKAGE_DIR=' + str(package_source) in call

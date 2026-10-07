@@ -219,6 +219,34 @@ class ReceiptTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "run make verify"):
                 build.load_verified_image(output, "cold-fingerprint")
 
+    def test_shared_cache_evidence_requires_uncached_second_pass(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            image_sha, _ = self.make_verified_output(build, output)
+            evidence = output / "reproducibility.txt"
+            original = evidence.read_text()
+            evidence.write_text(original + "shared_cache=1\nccache_pass_1=1\nccache_pass_2=0\n")
+            record = build.verification_record(output, image_sha, None)
+            verification = json.loads((output / "verification.json").read_text())
+            verification.update(record)
+            (output / "verification.json").write_text(json.dumps(verification))
+            build.write_receipt(output, "image", "cold-fingerprint", ["linux.img", "reproducibility.txt"])
+            self.assertEqual(build.load_verified_image(output, "cold-fingerprint")["rootfs_sha256"], image_sha)
+            verification["ccache_pass_2"] = 1
+            (output / "verification.json").write_text(json.dumps(verification))
+            with self.assertRaisesRegex(ValueError, "run make verify"):
+                build.load_verified_image(output, "cold-fingerprint")
+            verification["ccache_pass_2"] = 0
+            (output / "verification.json").write_text(json.dumps(verification))
+            evidence.write_text(original + "shared_cache=1\nccache_pass_1=1\nccache_pass_2=1\n")
+            build.write_receipt(output, "image", "cold-fingerprint", ["linux.img", "reproducibility.txt"])
+            with self.assertRaisesRegex(ValueError, "run make verify"):
+                build.load_verified_image(output, "cold-fingerprint")
+            with self.assertRaisesRegex(ValueError, "pass 2"):
+                build.verification_record(output, image_sha, None)
+
     def test_verified_image_rejects_mismatched_qemu_log_digest(self):
         sys.path.insert(0, str(SCRIPTS))
         import build
