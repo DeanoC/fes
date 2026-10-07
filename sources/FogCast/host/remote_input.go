@@ -143,6 +143,7 @@ type RemoteInput struct {
 	keyboard         bool
 	controllerPorts  bool
 	keypadPorts      bool
+	mouse            bool
 	colecoOutput     map[remoteinput.Code]bool
 	source           string
 	sourceGeneration uint64
@@ -202,21 +203,25 @@ func (r *RemoteInput) Status() RemoteInputStatus {
 }
 
 func (r *RemoteInput) Attach(ctx context.Context, core string) error {
-	return r.attach(ctx, core, false, false, false)
+	return r.attach(ctx, core, false, false, false, false)
 }
 
 // AttachWithCapabilities attaches one session with the exact capabilities
 // established by the host session coordinator. keyboard is true only for the
 // fes.keyboard 1.0 interface.
 func (r *RemoteInput) AttachWithCapabilities(ctx context.Context, core string, keyboard bool) error {
-	return r.attach(ctx, core, keyboard, false, false)
+	return r.attach(ctx, core, keyboard, false, false, false)
 }
 
 func (r *RemoteInput) AttachWithControllerPorts(ctx context.Context, core string, keyboard, ports, keypad bool) error {
-	return r.attach(ctx, core, keyboard, ports, keypad)
+	return r.attach(ctx, core, keyboard, ports, keypad, false)
 }
 
-func (r *RemoteInput) attach(ctx context.Context, core string, keyboard, ports, keypad bool) error {
+func (r *RemoteInput) AttachWithMouse(ctx context.Context, core string, keyboard, ports, keypad, mouse bool) error {
+	return r.attach(ctx, core, keyboard, ports, keypad, mouse)
+}
+
+func (r *RemoteInput) attach(ctx context.Context, core string, keyboard, ports, keypad, mouse bool) error {
 	if err := validateBridgeCore(core); err != nil {
 		return ErrRemoteInputInvalid
 	}
@@ -250,6 +255,7 @@ func (r *RemoteInput) attach(ctx context.Context, core string, keyboard, ports, 
 	r.keyboard = keyboard
 	r.controllerPorts = ports
 	r.keypadPorts = keypad
+	r.mouse = mouse
 
 	bridge, err := r.starter.Start(ctx, BridgeSpec{Session: session, Token: append([]byte(nil), token...), Core: core})
 	if err != nil || bridge == nil {
@@ -334,6 +340,11 @@ func (r *RemoteInput) SendEvent(ctx context.Context, event remoteinput.Event, ca
 }
 
 func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Event, capturedAt time.Time) error {
+	if event.Device == remoteinput.DeviceMouse {
+		if _, _, _, ok := remoteinput.MouseVector(event); !ok || !r.mouse {
+			return ErrRemoteInputInvalid
+		}
+	}
 	if event.Player > 1 || (event.Player != 0 && !r.controllerPorts) ||
 		(event.Code >= remoteinput.Keypad0 && event.Code <= remoteinput.KeypadHash && !r.keypadPorts) {
 		return ErrRemoteInputInvalid
@@ -375,6 +386,11 @@ func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Eve
 	if err := r.reconnectLocked(ctx); err != nil {
 		r.failLocked("reconnect_timeout")
 		return streamUnavailable(err)
+	}
+	if event.Device == remoteinput.DeviceMouse {
+		// The original write may have applied. Reconnect only restored buttons;
+		// report its uncertainty without repeating motion.
+		return streamUnavailable(sendErr)
 	}
 	return nil
 }
@@ -613,6 +629,12 @@ func (r *RemoteInput) replayStateLocked(ctx context.Context) error {
 	}
 	for player := uint8(0); player < 2; player++ {
 		snapshot := r.inputState.SnapshotForPlayer(player)
+		if snapshot.Mouse && r.mouse {
+			event := remoteinput.MouseEvent(0, 0, snapshot.MouseButtons)
+			if err := r.writeFrameLocked(ctx, r.frameForEventLocked(event, r.now()), r.now()); err != nil {
+				return err
+			}
+		}
 		pressed := append([]remoteinput.Code(nil), snapshot.Pressed...)
 		sort.Slice(pressed, func(i, j int) bool { return pressed[i] < pressed[j] })
 		for _, code := range pressed {

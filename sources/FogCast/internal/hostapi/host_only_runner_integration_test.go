@@ -211,7 +211,7 @@ core = %q
 	}
 	resp, explicit = request(http.MethodPost, "/api/v1/session/stop", `{"target":"kit"}`)
 	stopError, _ := explicit["error"].(map[string]any)
-	if resp.StatusCode == http.StatusOK || stopError["stop_stage"] != "target_stop" {
+	if resp.StatusCode == http.StatusOK || stopError["code"] != string(protocol.CodeMiSTerUnavailable) || stopError["stop_stage"] != "admission" {
 		t.Fatalf("explicit target Stop=%d %+v, want offline kit error", resp.StatusCode, explicit)
 	}
 	if status, stillActive := get(); status != 200 || stillActive["id"] != id || stillActive["execution"] != fogcast.ExecutionHostOnly {

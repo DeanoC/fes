@@ -170,6 +170,17 @@ struct MediaStreamCapability {
 };
 
 enum class MediaUnitState { empty, loading, ready };
+struct MediaDataBinding {
+    std::string game_id, base_media_id;
+    std::uint8_t unit = 0;
+};
+
+// Explicit library disk delivered while a ROM-linked ST is still reset-held.
+struct InitialComputerMedia {
+    std::string path, data_root;
+    std::uint32_t size = 0;
+    MediaDataBinding binding;
+};
 
 // One removable-media unit of an active fes.computer generation. Limits and
 // state come from the unit's live MediaInfo, not from its declaration.
@@ -180,6 +191,8 @@ struct MediaUnitCapability {
 	std::uint32_t max_bytes = 0;
 	std::uint32_t chunk_bytes = 0;
 	MediaUnitState state = MediaUnitState::empty;
+    // Explicit library binding only; ordinary development insertion omits it.
+    std::string persistence_mode = "volatile", game_id, base_media_id, revision = "absent";
 };
 
 struct Capabilities {
@@ -346,6 +359,9 @@ struct HardwareResult {
 	Error error;
 	bool mutation_attempted = false;
 	std::string observed_core;
+	// A failed execution release may have run the newly bound library disk.
+	// Failure cleanup must save it or retain that owner without idle programming.
+	bool bound_media_may_have_run = false;
 };
 
 struct HardwareFault {
@@ -396,6 +412,8 @@ public:
   return {ErrorCode::unsupported_interface,"menu display unavailable"};
  }
 	virtual Error FlushSave() { return {}; }
+	// Fault retirement revokes asynchronous input before capturing bound media.
+	virtual Error FlushFaultSave() { return FlushSave(); }
 	// FlushSave may stop input before a persistence failure. RestoreInput
 	// re-establishes the still-active generation after that proven pre-mutation
 	// failure.
@@ -425,6 +443,10 @@ public:
 	{
 		return {};
 	}
+	virtual Error PrepareInitialComputerMedia(AdmittedCorePackage*, const InitialComputerMedia&)
+	{ return {ErrorCode::unsupported_interface, "initial computer media unavailable", "admission"}; }
+	virtual Error RefreshInitialComputerMedia(AdmittedCorePackage*)
+	{ return {ErrorCode::unsupported_interface, "initial computer media unavailable", "admission"}; }
 	virtual Error AttachProgrammedBitstream(AdmittedCorePackage*, const std::string&,
 		const std::string&)
 	{
@@ -492,6 +514,10 @@ public:
 	{
 		return {ErrorCode::unsupported_interface, "computer media stream is unavailable", "request"};
 	}
+	virtual Error SendMouseRelative(std::int16_t, std::int16_t, std::uint8_t)
+	{
+		return {ErrorCode::unsupported_interface, "relative mouse is unavailable", "input"};
+	}
 	virtual Error SetKeyboardHid(const KeyboardHidRows&)
 	{
 		return {ErrorCode::unsupported_interface, "keyboard HID is unavailable", "input"};
@@ -500,6 +526,10 @@ public:
 	{
 		return {ErrorCode::unsupported_interface, "computer media units are unavailable", "request"};
 	}
+    virtual Error InsertLibraryComputerMedia(std::uint8_t, const std::string&, std::uint32_t,
+        const std::string&, const MediaDataBinding&) {
+        return {ErrorCode::unsupported_interface, "library media persistence is unavailable"};
+    }
 	virtual Error EjectComputerMedia(std::uint8_t)
 	{
 		return {ErrorCode::unsupported_interface, "computer media units are unavailable", "request"};
@@ -530,9 +560,9 @@ public:
 		const std::string&, const std::string&);
 	Error LoadInitializedComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&,
 		const std::string&, const std::string&);
-	Error LoadROMCore(const std::string&, const std::string&, const std::string&, const CoreROMLink&);
-	Error LoadROMLibraryCore(const std::string&, const std::string&, const std::string&, const std::string&, const CoreROMLink&);
-	Error LoadROMComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&, const std::string&, const CoreROMLink&);
+	Error LoadROMCore(const std::string&, const std::string&, const std::string&, const CoreROMLink&, const InitialComputerMedia* = nullptr);
+	Error LoadROMLibraryCore(const std::string&, const std::string&, const std::string&, const std::string&, const CoreROMLink&, const InitialComputerMedia* = nullptr);
+	Error LoadROMComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&, const std::string&, const CoreROMLink&, const InitialComputerMedia* = nullptr);
 	Error LoadROMsCore(const std::string&, const std::string&, const std::string&, const CoreROMLinks&);
 	Error LoadROMsLibraryCore(const std::string&, const std::string&, const std::string&, const std::string&, const CoreROMLinks&);
 	Error LoadROMsComposedCore(const std::string&, const std::string&, const CoreCompositionRequest&, const std::string&, const CoreROMLinks&);
@@ -559,12 +589,19 @@ public:
 		const std::string& expected_package_id, std::uint64_t expected_generation,
 		std::uint32_t size);
 	// fes.computer: complete HID snapshot; the driver writes only changed rows.
+	// Relative motion is transient; an unconfirmed delivery must not be retried.
+	Error SendMouseRelative(const std::string& package_id, std::uint64_t generation,
+		std::int16_t dx, std::int16_t dy, std::uint8_t buttons);
 	Error SetKeyboardHid(const std::string& package_id, std::uint64_t generation,
 		const KeyboardHidRows& rows);
 	// fes.computer: live transfer into one declared media unit without holding
 	// execution reset. A failed transfer ejects that unit once.
 	Error InsertMedia(const std::string& path, const std::string& expected_package_id,
 		std::uint64_t expected_generation, std::uint8_t unit, std::uint32_t size);
+    Error SaveMedia(const std::string& expected_package_id, std::uint64_t expected_generation, std::uint8_t unit);
+    Error InsertLibraryMedia(const std::string& path, const std::string& expected_package_id,
+        std::uint64_t expected_generation, std::uint8_t unit, std::uint32_t size,
+        const std::string& data_root, const MediaDataBinding&);
 	Error EjectMedia(const std::string& expected_package_id,
 		std::uint64_t expected_generation, std::uint8_t unit);
 	Error Stop();

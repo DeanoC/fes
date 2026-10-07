@@ -110,7 +110,9 @@ The cart producer records and uses placement seed 2 explicitly; retries use
 the same deterministic recipe. It rejects logged compiler errors even when
 the process exits zero, and clears old outputs before each attempt.
 It checks timing and rejects any non-CRC change outside the
-fixed socket. The host and target use the Go linker rather than trusting a
+fixed socket. The timing check names the pixel clock `display.control.clk`,
+the net nextpnr reports. The shell search rejects a seed when another net
+occupies a plug_addr request flip-flop's only fabric exit. The host and target use the Go linker rather than trusting a
 producer-generated replacement RBF. Compiler and Python are build tools only.
 
 ## Library API

@@ -230,6 +230,9 @@ func (ins *nativeInputs) openPath(app *App, path string) error {
 		return nil
 	}
 	in := &nativeInput{fd: fd, path: path, kind: kind}
+	if kind == InputMouse {
+		in.mapper = controller.NewMouseMapper()
+	}
 	if ins.kindOf == nil && kind == InputGamepad {
 		in.mapper = nativeGamepadMapper(fd)
 	}
@@ -319,6 +322,20 @@ devices:
 						continue devices
 					}
 					return false, fmt.Errorf("%s input: evdev dropped events; restart to resynchronise", ins.label)
+				}
+				if in.kind == InputMouse && in.mapper != nil {
+					if event, ok := in.mapper.Map(typ, code, value); ok {
+						x, y, buttons, _ := remoteinput.MouseVector(event)
+						app.HandlePlayMouseReport(in.fd, x, y, buttons)
+					}
+					if in.mapper.MouseFault() {
+						if ins.automatic {
+							ins.drop(app, in)
+							continue devices
+						}
+						return false, fmt.Errorf("%s input: mouse report exceeds signed16 range", ins.label)
+					}
+					continue
 				}
 				if typ == 1 {
 					if in.mapper != nil && code != 316 {
@@ -704,7 +721,15 @@ func nativeDeviceKind(fd int) InputKind {
 	if idErr != 0 {
 		return InputNone
 	}
-	return nativeKindWithIdentity(keys[:], binary.LittleEndian.Uint16(id[:2]), nativeDeviceName(fd), binary.LittleEndian.Uint16(id[2:4]), binary.LittleEndian.Uint16(id[4:6]))
+	var relative [8]byte
+	const relativeRequest = uintptr(0x80000000 | (8 << 16) | ('E' << 8) | 0x22)
+	_, _, relErr := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), relativeRequest, uintptr(unsafe.Pointer(&relative[0])))
+	bus := binary.LittleEndian.Uint16(id[:2])
+	name := nativeDeviceName(fd)
+	if relErr == 0 && controller.EligibleMouse(bus, name, relative[0]&3 == 3, nativeHasKey(keys[:], 272) || nativeHasKey(keys[:], 273)) {
+		return InputMouse
+	}
+	return nativeKindWithIdentity(keys[:], bus, name, binary.LittleEndian.Uint16(id[2:4]), binary.LittleEndian.Uint16(id[4:6]))
 }
 func nativeKindWithIdentity(keys []byte, bus uint16, name string, vendor, product uint16) InputKind {
 	fixture := vendor == 0x081f && product == 0xe401
@@ -786,6 +811,9 @@ func (ins *nativeInputs) seed(app *App) {
 	app.FinishInputSeed()
 }
 func (ins *nativeInputs) drop(app *App, lost *nativeInput) {
+	if lost.kind == InputMouse {
+		app.ReleasePlayMouse(lost.fd)
+	}
 	unix.Close(lost.fd)
 	for i, in := range ins.devices {
 		if in == lost {

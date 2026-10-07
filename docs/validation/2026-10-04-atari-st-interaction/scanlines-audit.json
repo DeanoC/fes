@@ -1,0 +1,105 @@
+{
+  "actual_seed": 4,
+  "artifacts": {
+    "4fa1ae46b0ec742c312b9812f1215b02c2755ed69d329ccb7fefd278bd93623c.tar": {
+      "bytes": 2887680,
+      "sha256": "163f06d1395efaeb58af24e1849c2f3179b7a23ba4bb2df6def9fddca080eb59"
+    },
+    "build-summary.json": {
+      "bytes": 168694,
+      "sha256": "2f7ed9c11993f498c7c6130633effd04b072421c992284b410856721b2dd104e"
+    },
+    "cart-routed.json": {
+      "bytes": 62806155,
+      "sha256": "8f757d543c2170ceb1d03eb48fb6a9143d986cab98ba5d9869d77a3ad7df3aa8"
+    },
+    "cart.qsf": {
+      "bytes": 5246,
+      "sha256": "461004549976f546503868b5a3e2d8968de9ed36638f75d2c6b93d53cd4a514c"
+    },
+    "cart.rbf": {
+      "bytes": 2882738,
+      "sha256": "b08615d2cbd3603cf92525441d8c9cad3ea4c052aeec03ac6c6a446d4f47c305"
+    },
+    "clocks.sdc": {
+      "bytes": 531,
+      "sha256": "6f09dade2abb7b2982d268786b8aa93bab0c1ce1c2aa650c70e39606e033f5cb"
+    },
+    "cram-diff.json": {
+      "bytes": 840,
+      "sha256": "7ffb51eb0ded1c567cc9bc27d298b520b518f9e975bd24ec8307d9df8b4c9087"
+    },
+    "linked.rbf": {
+      "bytes": 2882738,
+      "sha256": "b08615d2cbd3603cf92525441d8c9cad3ea4c052aeec03ac6c6a446d4f47c305"
+    },
+    "scaffold.json": {
+      "bytes": 52526568,
+      "sha256": "d33d14a2b40a3309932e293653884176d5fe3e0d88fb384e094d0a911b6ce031"
+    },
+    "timing.json": {
+      "bytes": 88279,
+      "sha256": "44a5556ca0b9347f8c5d94778b36cdda9c2960c8c007e419e1842692e124cc80"
+    }
+  },
+  "authenticated_execution_files": 608,
+  "bits_inside_socket": 3654,
+  "bits_outside_socket": 0,
+  "checked": [
+    "canonical_two_regular_member_USTAR_archive",
+    "canonical_manifest_asset_id",
+    "recipe_digest_and_actual_selected_seed",
+    "exact_selected_Git_source_bytes",
+    "all_five_frozen_shell_member_hashes",
+    "authenticated_tool_identity",
+    "exact_physical_scaffold",
+    "frozen_QSF_including_RAM_guards",
+    "exact_SDC",
+    "all_decoded_CRAM_bits_scanned_without_legacy_column_exclusion",
+    "zero_changes_outside_exact_socket_rectangle",
+    "ORAM_PRAM_header_preserved",
+    "compression_preserved",
+    "whole_preview_equals_routed_cart",
+    "all_connected_part_clock_pins_on_socket_clock",
+    "all_three_clock_gates",
+    "normal_complete_HIP_route",
+    "native_tracked_source_clean_before_and_after",
+    "no_added_RAM_PLL_DSP_HPS",
+    "shared_execution_inputs_match_and_individually_hashed"
+  ],
+  "checked_clock_pins": 1,
+  "classification": {
+    "gpu_use": false,
+    "hardware_actions": false,
+    "native_build": false,
+    "physical_acceptance": false,
+    "read_only_host_review": true,
+    "source_edits": false
+  },
+  "clock": "pixel_clk",
+  "identity": {
+    "build_id": "bd83f737c1a8e2252fe0f9b8a10c2cf6",
+    "shell_package_id": "d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5",
+    "shell_rbf_sha256": "c7f5f61e0cba8c519e185f15ce0ace3cb96ee2ba2d49ae59a14ac2f0a2356320",
+    "source_commit": "517a285c089153dc3701fd02dd366c0286a3efd2"
+  },
+  "kind": "fes.independent-native-artifact-review/1",
+  "limits": [
+    "No physical presentation or normal Play execution performed by this reviewer.",
+    "Preserved compiler/backend database interpretation does not establish external SDRAM electrical timing."
+  ],
+  "original_private_receipt_sha256": "35864d42fc223fdd228595a98a49a0c89ed165407815aaa9b9e061ece4784d95",
+  "part_id": "4fa1ae46b0ec742c312b9812f1215b02c2755ed69d329ccb7fefd278bd93623c",
+  "recipe_id": "9c6bef2813561f1d865d852c92449b243ed338f1f2c332d6ae8284a6ffb5756a",
+  "result": "PASS",
+  "review_date": "2026-10-04",
+  "reviewer": "st_video",
+  "schema": 1,
+  "source_inputs": 234,
+  "timing_mhz": {
+    "pixel_clk": 79.80846405029297,
+    "system_clock.clocks[0]": 53.30206298828125,
+    "system_clock.clocks[1]": 202.9220733642578
+  },
+  "variant": "scanlines"
+}

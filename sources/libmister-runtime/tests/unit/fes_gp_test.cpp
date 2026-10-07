@@ -143,6 +143,7 @@ void PushCompleted(mister_test::FakeMmio* mmio, bool toggle,
 	mmio->PushRead(kSpiGpiAddress, stale);
 	mmio->PushRead(kSpiGpiAddress, final);
 	mmio->PushRead(kSpiGpiAddress, final);
+	mmio->PushRead(kSpiGpiAddress, final);
 }
 
 mister::native::CoreDescriptor Descriptor(const std::string& build_id)
@@ -211,6 +212,7 @@ void TestReplaysSharedGoldenExchangeSequence()
 		mmio.PushRead(kSpiGpiAddress, stale);
 		mmio.PushRead(kSpiGpiAddress, exchange.gpi);
 		mmio.PushRead(kSpiGpiAddress, exchange.gpi);
+		mmio.PushRead(kSpiGpiAddress, exchange.gpi);
 		const std::uint8_t opcode = static_cast<std::uint8_t>(
 			(exchange.toggled & FesGpOpcodeMask) >> 24);
 		const std::uint8_t index = static_cast<std::uint8_t>(
@@ -272,6 +274,7 @@ void TestApplicationReplaysSharedWireFixturesThroughDriver()
 			const bool toggle = (exchange.gpi & FesGpAckMask) != 0;
 			mmio.PushRead(kSpiGpiAddress, (exchange.gpi & ~FesGpAckMask) |
 				(toggle ? 0u : FesGpAckMask));
+			mmio.PushRead(kSpiGpiAddress, exchange.gpi);
 			mmio.PushRead(kSpiGpiAddress, exchange.gpi);
 			mmio.PushRead(kSpiGpiAddress, exchange.gpi);
 		}
@@ -356,6 +359,135 @@ void TestExchangeRejectsMalformedAndUnstableResponsesWithoutRetry()
 		assert(gp.Exchange(FesGpOpcodeIdentity, 0, 0, 1000, &response).ok());
 		assert(response == 0x4546u);
 		assert(mmio.writes.size() == 4);
+	}
+}
+
+void TestAcknowledgedResponseSettlesWithoutCommandReplay()
+{
+	// Snapshot reads advance their ordinal and mouse requests consume motion:
+	// neither may be issued again while a response settles.
+	for (const std::uint8_t opcode : {FesComputerOpcodeMediaSnapshotData,
+		FesComputerOpcodeMouseRelative, FesComputerOpcodeMediaBegin}) {
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		const std::uint32_t prefix = FesGpSignature | FesGpAckMask;
+		for (std::uint16_t data : {0x0000, 0x0011, 0xa511, 0xa55a, 0xa55a})
+			mmio.PushRead(kSpiGpiAddress, prefix | data);
+		std::uint16_t response = 0;
+		assert(gp.Exchange(opcode, 0, 0, 1000, &response).ok());
+		assert(response == 0xa55a && !gp.Poisoned());
+		assert(mmio.writes.size() == 2 && mmio.reads.size() == 5);
+		assert((mmio.writes[0].value ^ mmio.writes[1].value) == FesGpRequestMask);
+	}
+	{
+		// Only the complete settled word determines command rejection.
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		const std::uint32_t prefix = FesGpSignature | FesGpAckMask;
+		mmio.PushRead(kSpiGpiAddress, prefix);
+		mmio.PushRead(kSpiGpiAddress, prefix | FesGpErrorMask);
+		mmio.PushRead(kSpiGpiAddress, prefix | FesGpErrorMask | 4);
+		mmio.PushRead(kSpiGpiAddress, prefix | FesGpErrorMask | 4);
+		std::uint16_t response = 0;
+		const auto error = gp.Exchange(FesComputerOpcodeMediaBegin, 0, 0, 1000, &response);
+		assert(error.message == "FES GP command rejected with response 4");
+		assert(response == 4 && !gp.Poisoned() && mmio.writes.size() == 2);
+	}
+}
+
+void TestResponseSettlingRemainsFailClosed()
+{
+	const std::uint32_t prefix = FesGpSignature | FesGpAckMask;
+	for (const std::uint32_t invalid : {FesGpSignature, prefix ^ 0x01000000u,
+		prefix | 0x00010000u}) {
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		mmio.PushRead(kSpiGpiAddress, prefix);
+		mmio.PushRead(kSpiGpiAddress, invalid);
+		mmio.PushRead(kSpiGpiAddress, prefix);
+		std::uint16_t response = 0xdead;
+		assert(!gp.Exchange(FesComputerOpcodeMouseRelative, 0, 0, 1000, &response).ok());
+		assert(gp.Poisoned() && response == 0xdead && mmio.reads.size() == 2);
+		assert(!gp.Exchange(FesComputerOpcodeMouseRelative, 0, 0, 1000, &response).ok());
+		assert(mmio.writes.size() == 2);
+	}
+	{
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		for (unsigned i = 0; i < 200; ++i)
+			mmio.PushRead(kSpiGpiAddress, prefix | (i & 1));
+		std::uint16_t response = 0xdead;
+		const auto error = gp.Exchange(FesComputerOpcodeMediaSnapshotData, 0, 0, 25, &response);
+		assert(error.message == "FES GP response stability deadline exceeded");
+		assert(gp.Poisoned() && response == 0xdead && mmio.writes.size() == 2);
+		assert(mmio.reads.size() > 3 && !mmio.scripted_reads[kSpiGpiAddress].empty());
+	}
+	{
+		// A runtime clock that stops cannot extend unstable sampling forever.
+		class AlternatingMmio final : public mister::native::Mmio {
+		public:
+			mister::Error Read32(std::uint32_t, std::uint32_t* output) override
+			{
+				*output = FesGpSignature | FesGpAckMask | (++reads & 1u);
+				return {};
+			}
+			mister::Error Write32(std::uint32_t, std::uint32_t) override
+			{
+				++writes;
+				return {};
+			}
+			unsigned reads = 0, writes = 0;
+		} mmio;
+		ScriptClock clock({0});
+		mister::native::FesGp gp(mmio, clock);
+		std::uint16_t response = 0xdead;
+		const auto error = gp.Exchange(FesComputerOpcodeMediaSnapshotData, 0, 0, 1, &response);
+		assert(error.message == "FES GP response stability deadline exceeded");
+		assert(gp.Poisoned() && response == 0xdead && mmio.writes == 2 && mmio.reads > 3);
+	}
+	{
+		// The deadline at the second equal read still forbids accepting it.
+		mister_test::FakeMmio mmio;
+		ScriptClock clock({0, 0, 0, 0, 0, 0, 10});
+		mister::native::FesGp gp(mmio, clock);
+		mmio.values[kSpiGpiAddress] = prefix | 0x1234;
+		std::uint16_t response = 0xdead;
+		const auto error = gp.Exchange(FesComputerOpcodeMediaSnapshotData, 0, 0, 10, &response);
+		assert(error.message == "FES GP response stability deadline exceeded");
+		assert(gp.Poisoned() && response == 0xdead && mmio.reads.size() == 3);
+		assert(mmio.writes.size() == 2);
+	}
+	{
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		mmio.PushRead(kSpiGpiAddress, prefix);
+		mmio.PushReadError(kSpiGpiAddress, {});
+		mmio.PushReadError(kSpiGpiAddress, {mister::ErrorCode::io_failed, "injected MMIO failure"});
+		std::uint16_t response = 0xdead;
+		const auto error = gp.Exchange(FesComputerOpcodeMediaSnapshotData, 0, 0, 1000, &response);
+		assert(error.message == "injected MMIO failure");
+		assert(gp.Poisoned() && response == 0xdead && mmio.writes.size() == 2);
+	}
+	{
+		// Re-alignment uses the same sampler and performs no writes.
+		mister_test::FakeMmio mmio;
+		TickClock clock;
+		mister::native::FesGp gp(mmio, clock);
+		mmio.values[kSpiGpiAddress] = 0;
+		std::uint16_t response = 0;
+		assert(!gp.Exchange(FesGpOpcodeIdentity, 0, 0, 1000, &response).ok());
+		for (std::uint32_t data : {1, 2, 3, 3})
+			mmio.PushRead(kSpiGpiAddress, prefix | data);
+		assert(gp.Realign(1000).ok() && !gp.Poisoned());
+		assert(mmio.writes.size() == 2);
+		PushCompleted(&mmio, false, 0x4546);
+		assert(gp.Exchange(FesGpOpcodeIdentity, 0, 0, 1000, &response).ok());
+		assert(response == 0x4546 && mmio.writes.size() == 4);
 	}
 }
 
@@ -1624,6 +1756,7 @@ void TestClearMediaDistinguishesBusyFromUnavailable()
 		assert(f.gp.Poisoned());
 		f.mmio.PushRead(kSpiGpiAddress, FesGpSignature);
 		f.mmio.PushRead(kSpiGpiAddress, FesGpSignature);
+		f.mmio.PushRead(kSpiGpiAddress, FesGpSignature);
 		ScriptIdentity(&f.mmio, f.words);
 		PushCompleted(&f.mmio, true, 0);
 		const auto recovered = f.driver.ClearMedia(100000);
@@ -1834,6 +1967,8 @@ struct ComputerScenario {
 	std::map<unsigned, std::pair<std::uint32_t, std::uint32_t>> units;
 	std::vector<ComputerExchange> exchanges;
 	bool final_held = true;
+ unsigned final_mouse_buttons = 0;
+ std::int32_t final_mouse_x = 0, final_mouse_y = 0;
 	std::vector<std::uint16_t> final_rows, final_ports;
 	std::map<unsigned, std::pair<unsigned, std::uint32_t>> final_units;
 	const ComputerExchange& Named(const std::string& name) const
@@ -1869,7 +2004,7 @@ std::vector<ComputerScenario> ReadComputerScenarios()
 	for (auto at = source.find("{\"build_id\":"); at != std::string::npos;
 		at = source.find("{\"build_id\":", at + 1))
 		starts.push_back(at);
-	assert(starts.size() == 2);
+	assert(starts.size() == 3);
 	starts.push_back(source.size());
 	const std::regex row("\\{\"argument\":([0-9]+),\"data\":([0-9]+),\"error\":([0-9]+),"
 		"\"gpi\":([0-9]+),\"gpo\":\\[([0-9]+),([0-9]+)\\],\"index\":([0-9]+),"
@@ -1877,6 +2012,7 @@ std::vector<ComputerScenario> ReadComputerScenarios()
 	const std::regex unit("\\{\"max\":([0-9]+),\"min\":([0-9]+),\"unit\":([0-9]+)\\}");
 	const std::regex final_state("\"final\":\\{\"controller_ports\":\\[([0-9,]+)\\],"
 		"\"held\":([a-z]+),\"keyboard_rows\":\\[([0-9,]+)\\],"
+		"\"mouse_buttons\":[0-9]+,\"mouse_motion\":\\[-?[0-9]+,-?[0-9]+\\],"
 		"\"unit_sha_crc32\":\\{([^}]*)\\},\"unit_states\":\\{([^}]*)\\}\\}");
 	const std::regex keyed("\"([0-9]+)\":([0-9]+)");
 	std::vector<ComputerScenario> result;
@@ -1912,7 +2048,11 @@ std::vector<ComputerScenario> ReadComputerScenarios()
 		for (std::sregex_iterator it(crcs.begin(), crcs.end(), keyed), end; it != end; ++it)
 			scenario.final_units[static_cast<unsigned>(std::stoul((*it)[1]))].second =
 				static_cast<std::uint32_t>(std::stoul((*it)[2]));
-		result.push_back(std::move(scenario));
+		assert(std::regex_search(text, match, std::regex("\"mouse_buttons\":([0-9]+),\"mouse_motion\":\\[(-?[0-9]+),(-?[0-9]+)\\]")));
+        scenario.final_mouse_buttons = std::stoul(match[1]);
+        scenario.final_mouse_x = std::stol(match[2]);
+        scenario.final_mouse_y = std::stol(match[3]);
+        result.push_back(std::move(scenario));
 	}
 	assert(result[0].exchanges.size() == 34 && result[1].exchanges.size() == 624);
 	assert(result[0].capabilities == 15 && result[1].capabilities == 17);
@@ -2009,6 +2149,8 @@ void ExpectFinalState(const mister_test::ComputerEndpoint& endpoint,
 	assert(endpoint.held == scenario.final_held);
 	assert(endpoint.rows == scenario.final_rows);
 	assert(endpoint.ports == scenario.final_ports);
+ assert(endpoint.mouse_buttons == scenario.final_mouse_buttons);
+ assert(endpoint.mouse_x == scenario.final_mouse_x && endpoint.mouse_y == scenario.final_mouse_y);
 	for (const auto& unit : scenario.final_units) {
 		assert(endpoint.unit(unit.first).state == unit.second.first);
 		assert(endpoint.UnitCrc(unit.first) == unit.second.second);
@@ -2441,7 +2583,7 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 		assert(f.Insert(ComputerPayload(1030)).ok());
 		assert(f.endpoint.unit(0).state == 3);
 	}
-	// A header left from an earlier failure rejects Begin; eject clears it.
+	// A header left from an earlier failure rejects Begin; explicit eject clears it.
 	{
 		ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
 		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
@@ -2452,9 +2594,34 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 		const auto error = f.Insert(ComputerPayload(3));
 		assert(error.message == "FES GP command rejected with response 2");
 		const auto sent = f.Since(start);
-		assert(sent.size() == 6 + 1 + 1 && sent.back().opcode == FesComputerOpcodeMediaEject);
-		assert(f.endpoint.unit(0).state == 1);
+		assert(sent.size() == 6 + 1 && sent.back().opcode == FesComputerOpcodeMediaBegin);
+		assert(f.endpoint.unit(0).state == 2);
+		assert(f.driver.EjectMedia(0, kComputerDeadline).ok());
 		assert(f.Insert(ComputerPayload(3)).ok());
+	}
+	// An ambiguous first Begin still needs cleanup, whether it was applied or lost.
+	for (bool applied : {false, true}) {
+		ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
+		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+		assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+		assert(f.Insert(ComputerPayload(3)).ok());
+		unsigned begins = 0;
+		auto fail_begin = [&](const mister_test::ComputerEndpoint::Request& request) {
+			if (request.opcode != FesComputerOpcodeMediaBegin || request.index != 0) return false;
+			++begins;
+			return true;
+		};
+		if (applied) f.endpoint.fail_after_request = fail_begin;
+		else f.endpoint.lose_request = fail_begin;
+		const auto start = f.endpoint.requests.size();
+		assert(f.Insert(ComputerPayload(1030)).code == mister::ErrorCode::io_failed);
+		assert(begins == 1);
+		const auto sent = f.Since(start);
+		unsigned ejected = 0;
+		for (const auto& request : sent) ejected += request.opcode == FesComputerOpcodeMediaEject;
+		assert(ejected == 1 && sent.back().opcode == FesComputerOpcodeMediaEject);
+		assert(!f.gp.Poisoned() && f.endpoint.unit(0).state == 1);
+		assert(f.driver.media_units()[0].state == mister::MediaUnitState::empty);
 	}
 	// A lost request is ambiguous: realign, re-identify, eject once. Nothing is replayed.
 	{
@@ -2507,7 +2674,7 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 		assert(f.endpoint.unit(0).state == 1);
 		assert(f.driver.media_units()[0].state == mister::MediaUnitState::empty);
 	}
-	// Live limits are checked again; any failure after the first exchange ejects.
+	// A failed live-limit preflight leaves the current disk unchanged.
 	{
 		ComputerFixture f(17, {{0, {1, 1030}}}, descriptor);
 		assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
@@ -2517,8 +2684,9 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 		const auto error = f.Insert(ComputerPayload(1031), 0, 2000);
 		assert(error.code == mister::ErrorCode::invalid_request);
 		const auto sent = f.Since(start);
-		assert(sent.size() == 7 && sent.back().opcode == FesComputerOpcodeMediaEject);
-		assert(f.endpoint.unit(0).state == 1);
+		assert(sent.size() == 6 && sent.back().opcode == FesComputerOpcodeMediaInfo);
+		assert(f.endpoint.unit(0).state == 3);
+		assert(std::string(f.endpoint.unit(0).data.begin(), f.endpoint.unit(0).data.end()) == ComputerPayload(3));
 		// Undeclared units never reach the mailbox.
 		const auto before = f.endpoint.requests.size();
 		assert(f.Insert(ComputerPayload(3), 1).code == mister::ErrorCode::unsupported_interface);
@@ -2527,10 +2695,77 @@ void TestComputerMediaFailuresEjectOnceAndStayReleased()
 	}
 }
 
+void TestMediaSnapshotFrozenCaptureAndRecovery()
+{
+ const auto descriptor=ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,FesComputerInterfaceMediaAtariStFloppyID,FesComputerInterfaceMediaAtariStFloppyWriteID});
+ ComputerFixture f(FesComputerCapabilityVideoFixed720p60|FesComputerCapabilityMediaAtariStFloppy|FesComputerCapabilityMediaAtariStFloppyWrite,{{0,{737280,737280}}},descriptor);
+ assert(f.driver.Identify(f.context,kComputerDeadline).error.ok());
+ assert(f.driver.Start(f.context,kComputerDeadline).error.ok());
+ auto& u=f.endpoint.unit(0);u.state=3;u.data.resize(737280);for(unsigned i=0;i<u.data.size();++i)u.data[i]=static_cast<unsigned char>(i*7+(i>>8));
+ f.endpoint.dirty=true;f.endpoint.epoch=19;
+ std::vector<unsigned char> captured;
+ assert(f.driver.CaptureMedia(0,f.clock,kComputerDeadline,&captured).ok());
+ assert(captured==u.data&&f.endpoint.frozen&&!f.endpoint.held&&f.endpoint.dirty);
+ for(const auto&r:f.endpoint.requests)assert(r.opcode!=FesComputerOpcodeExecution||r.argument==1);
+ assert(!f.driver.EjectMedia(0,kComputerDeadline).ok());
+ assert(f.driver.MarkMediaSaved(0,kComputerDeadline).ok());assert(f.endpoint.frozen&&!f.endpoint.dirty);
+ assert(f.driver.EjectMedia(0,kComputerDeadline).ok());assert(!f.endpoint.frozen&&u.state==1);
+ assert(f.driver.ResumeMedia(0,kComputerDeadline).ok());assert(f.driver.ResumeMedia(0,kComputerDeadline).ok());
+ u.state=3;unsigned attempts=0;f.endpoint.lose_request=[&](const mister_test::ComputerEndpoint::Request&r){if(r.opcode==FesComputerOpcodeMediaSnapshotData){++attempts;return true;}return false;};
+ assert(!f.driver.CaptureMedia(0,f.clock,f.clock.NowMs()+100,&captured).ok());assert(captured.empty()&&f.endpoint.frozen&&attempts==1);
+ f.endpoint.lose_request={};assert(f.driver.ResumeMedia(0,kComputerDeadline).ok());assert(!f.endpoint.frozen);
+ unsigned saved_attempts=0;f.endpoint.frozen=true;
+ f.endpoint.fail_after_request=[&](const mister_test::ComputerEndpoint::Request&r){if(r.opcode==FesComputerOpcodeMediaSnapshotControl&&r.argument==FesComputerMediaSnapshotSaved){++saved_attempts;return true;}return false;};
+ assert(!f.driver.MarkMediaSaved(0,kComputerDeadline).ok());
+ assert(saved_attempts==1&&f.endpoint.frozen&&f.endpoint.saved);
+ f.endpoint.fail_after_request={};assert(f.driver.ResumeMedia(0,kComputerDeadline).ok());assert(!f.endpoint.frozen&&!f.endpoint.saved);
+}
+
+void TestMouseRelativeSplittingAndUncertainDelivery()
+{
+	const auto descriptor = ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID, FesComputerInterfaceMouseRelativeID});
+	ComputerFixture f(FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityMouseRelative, {}, descriptor);
+	assert(f.driver.Identify(f.context, kComputerDeadline).error.ok());
+	assert(f.driver.Start(f.context, kComputerDeadline).error.ok());
+	const auto before = f.endpoint.requests.size();
+	assert(f.driver.SendMouseRelative(32767, -32768, 3, kComputerDeadline).ok());
+	assert(f.endpoint.requests.size() - before == 259);
+	assert(f.endpoint.mouse_x == 32767 && f.endpoint.mouse_y == -32768 && f.endpoint.mouse_buttons == 3);
+	assert(f.driver.SendMouseRelative(0, 0, 0, kComputerDeadline).ok());
+	assert(f.endpoint.mouse_buttons == 0);
+	const auto valid = f.endpoint.requests.size();
+	assert(f.driver.SendMouseRelative(1, 1, 4, kComputerDeadline).code == mister::ErrorCode::invalid_request);
+	assert(f.endpoint.requests.size() == valid);
+	unsigned attempts = 0;
+	f.endpoint.lose_request = [&](const mister_test::ComputerEndpoint::Request& r) {
+		if (r.opcode == FesComputerOpcodeMouseRelative) { ++attempts; return true; }
+		return false;
+	};
+	assert(!f.driver.SendMouseRelative(300, 200, 1, f.clock.NowMs() + 10).ok());
+	assert(attempts == 1);
+    ComputerFixture applied(FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityMouseRelative, {}, descriptor);
+    assert(applied.driver.Identify(applied.context,kComputerDeadline).error.ok());
+    assert(applied.driver.Start(applied.context,kComputerDeadline).error.ok());
+    unsigned accepted = 0;
+    applied.endpoint.fail_after_request = [&](const mister_test::ComputerEndpoint::Request& r) {
+        if (r.opcode == FesComputerOpcodeMouseRelative) { ++accepted; return true; }
+        return false;
+    };
+    assert(!applied.driver.SendMouseRelative(300,200,1,kComputerDeadline).ok());
+    assert(accepted == 1 && applied.endpoint.mouse_x == 127 && applied.endpoint.mouse_y == 127);
+	ComputerFixture legacy(FesComputerCapabilityVideoFixed720p60, {}, ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID}));
+	assert(legacy.driver.Identify(legacy.context, kComputerDeadline).error.ok());
+	const auto untouched = legacy.endpoint.requests.size();
+	assert(legacy.driver.SendMouseRelative(1,1,0,kComputerDeadline).code == mister::ErrorCode::unsupported_interface);
+	assert(legacy.endpoint.requests.size() == untouched);
+}
+
 } // namespace
 
 int main()
 {
+ TestMediaSnapshotFrozenCaptureAndRecovery();
+ TestMouseRelativeSplittingAndUncertainDelivery();
  TestAtariStFloppyDiscoveryAndLiveInsert();
  TestSimpleComputerDisplayRequiresExactLiveCapability();
 	TestControllerPortsValidateAndNeutralize();
@@ -2552,6 +2787,8 @@ int main()
 	TestPersistenceIdentityInfoAndPartialRestoreRejection();
 	TestReplaysSharedGoldenExchangeSequence();
 	TestExchangeRejectsMalformedAndUnstableResponsesWithoutRetry();
+	TestAcknowledgedResponseSettlesWithoutCommandReplay();
+	TestResponseSettlingRemainsFailClosed();
 	TestExchangeAndIdentityUseExactDeadlineBoundaries();
 	TestIdentifyReadsAllWordsThenRejectsEveryIdentityOrBuildMismatch();
 	TestIdentifyAcceptsSimpleComputerTagAndCapabilities();
@@ -2565,6 +2802,6 @@ int main()
 	TestComputerIdentityCapabilitiesAndDiscovery();
 	TestComputerInputValidationAndPartialRows();
 	TestComputerMediaFailuresEjectOnceAndStayReleased();
-	puts("fes_gp_test: 23 groups passed");
+	puts("fes_gp_test: all groups passed");
 	return 0;
 }

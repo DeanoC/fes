@@ -56,21 +56,33 @@ module top #(
     wire exec_reset;
     wire [143:0] keyboard;
     wire [15:0] controller_buttons;
+    wire mouse_valid, mouse_ready;
+    wire signed [15:0] mouse_dx, mouse_dy;
+    wire [1:0] mouse_buttons;
     wire [19:0] media_write_addr;
     wire [15:0] media_write_data;
     wire [1:0] media_write_enable, unit0_state;
     wire [31:0] unit0_size;
     wire media_source_ready;
+    wire media_frozen, floppy_write_busy, floppy_changed;
+    wire snapshot_req, snapshot_ready;
+    wire [19:0] snapshot_addr;
+    wire [7:0] snapshot_data;
     fes_computer_mailbox #(
-        .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1),
-        .ENABLE_ATARI_ST_FLOPPY(1), .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(20),
+        .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1), .ENABLE_MOUSE(1),
+        .ENABLE_ATARI_ST_FLOPPY(1), .ENABLE_ATARI_ST_FLOPPY_WRITE(1), .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(20),
         .UNIT0_MIN(`FES_COMPUTER_ATARI_ST_FLOPPY_BYTES),
         .UNIT0_MAX(`FES_COMPUTER_ATARI_ST_FLOPPY_BYTES)
     ) gp_mailbox (
         .clk(clk_sys), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
         .exec_reset(exec_reset), .keyboard_rows(keyboard), .controller_buttons(controller_buttons),
+        .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
+        .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
         .media_write_enable(media_write_enable), .media_write_ready(media_source_ready),
+        .media_write_busy(floppy_write_busy), .media_changed(floppy_changed), .media_frozen(media_frozen),
+        .media_read_req(snapshot_req), .media_read_addr(snapshot_addr),
+        .media_read_ready(snapshot_ready), .media_read_data(snapshot_data),
         .unit0_state(unit0_state), .unit0_size(unit0_size)
     );
 
@@ -98,7 +110,11 @@ module top #(
     wire audio_valid, media_req, media_valid;
     wire [19:0] media_addr;
     wire [7:0] media_data;
-    wire dma_req, dma_ready;
+    wire dma_req, dma_ready, dma_write;
+    wire [15:0] dma_rdata;
+    wire floppy_write_req, floppy_write_ready;
+    wire [19:1] floppy_write_addr;
+    wire [15:0] floppy_write_data;
     wire [23:0] dma_addr;
     wire [15:0] dma_wdata;
     wire [1:0] dma_byte_enable;
@@ -107,12 +123,18 @@ module top #(
     wire [143:0] palette;
     wire [7:0] sync_mode;
     wire [23:0] debug_addr;
-    wire debug_bus_error, debug_overlay, debug_halted, vblank, hblank, mouse_ready;
+    wire debug_bus_error, debug_overlay, debug_halted, vblank, hblank;
     generate begin : machine
         st_rom rom (.clk(clk_sys), .reset(machine_reset), .req(rom_req), .address(rom_addr),
                     .rdata(rom_rdata), .ready(rom_ready));
+        // Slang imports this root already specialized with writable media.
+        // Its RTLIL module is no longer parametric; other readers elaborate it.
+`ifdef FES_ST_SLANG_IMPORT
         st_system system (
-            .clk_sys(clk_sys), .reset(machine_reset),
+`else
+        st_system #(.ENABLE_FLOPPY_WRITE(1)) system (
+`endif
+            .clk_sys(clk_sys), .reset(machine_reset), .cold_reset(cold_reset),
             .rom_req(rom_req), .rom_addr(rom_addr), .rom_rdata(rom_rdata), .rom_ready(rom_ready),
             .ram_req(ram_req), .ram_addr(ram_addr), .ram_wdata(ram_wdata),
             .ram_byte_enable(ram_byte_enable), .ram_write(ram_write), .ram_rdata(ram_rdata), .ram_ready(ram_ready),
@@ -121,11 +143,14 @@ module top #(
             .exp_present(expansion_response[21]), .exp_ack(expansion_response[16]),
             .exp_berr(expansion_response[17]), .exp_rdata(expansion_response[15:0]), .exp_irq(expansion_response[20:18]),
             .irq_ack(irq_ack), .irq_level(irq_level), .keyboard(keyboard), .controller_buttons(controller_buttons),
-            .monochrome(1'b0), .mouse_valid(1'b0), .mouse_dx(16'sd0), .mouse_dy(16'sd0),
-            .mouse_buttons(2'd0), .mouse_ready(mouse_ready), .audio_pcm(audio_pcm), .audio_valid(audio_valid),
+            .monochrome(1'b0), .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
+            .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready), .audio_pcm(audio_pcm), .audio_valid(audio_valid),
             .media_ready(unit0_state == 2'(`FES_COMPUTER_MEDIA_STATE_READY)),
             .media_req(media_req), .media_addr(media_addr), .media_data(media_data), .media_valid(media_valid),
-            .dma_req(dma_req), .dma_addr(dma_addr), .dma_wdata(dma_wdata), .dma_byte_enable(dma_byte_enable),
+            .media_frozen(media_frozen), .media_write_req(floppy_write_req), .media_write_addr(floppy_write_addr),
+            .media_write_data(floppy_write_data), .media_write_ready(floppy_write_ready),
+            .media_write_busy(floppy_write_busy), .media_changed(floppy_changed),
+            .dma_req(dma_req), .dma_write(dma_write), .dma_rdata(dma_rdata), .dma_addr(dma_addr), .dma_wdata(dma_wdata), .dma_byte_enable(dma_byte_enable),
             .dma_ready(dma_ready), .screen_base(screen_base), .resolution(resolution), .palette(palette),
             .sync_mode(sync_mode), .debug_addr(debug_addr), .debug_bus_error(debug_bus_error),
             .debug_overlay(debug_overlay), .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank)
@@ -135,7 +160,8 @@ module top #(
     wire video_req, video_ready;
     wire [18:1] video_addr;
     wire [15:0] video_rdata;
-    wire [31:0] video_request, debug_underruns, debug_frame;
+    (* keep *) wire [31:0] video_request;
+    wire [31:0] debug_underruns, debug_frame;
     st_video_adapter video (
         .clk_sys(clk_sys), .clk_pixel(pixel_clk), .reset_sys(cold_reset), .reset_pixel(pixel_reset),
         .hold(machine_reset), .screen_base(screen_base), .resolution(resolution), .palette(palette),
@@ -144,6 +170,13 @@ module top #(
     );
     reg [31:0] video_request_q = 0;
     reg [27:0] video_response_q = 0;
+    (* keep *) wire [31:0] video_plug_request;
+    (* keep *) wire [27:0] video_response;
+    st_video_socket video_socket (
+        .clock(pixel_clk), .request(video_request), .response(video_response),
+        .plug_request(video_plug_request), .plug_response(28'd0)
+    );
+    wire [27:0] selected_video_response = video_response[27] ? video_response : video_response_q;
     wire [27:0] video_result;
     generate if (VIDEO_SCANLINES != 0) begin : scanlines
         fes_video_part_scanlines part (.clock(pixel_clk), .video_request(video_request_q), .video_response(video_result));
@@ -151,10 +184,10 @@ module top #(
         fes_video_part_direct part (.video_request(video_request_q), .video_response(video_result));
     end endgenerate
     always @(posedge pixel_clk) begin video_request_q <= video_request; video_response_q <= video_result; end
-    assign HDMI_TX_D = video_response_q[23:0];
-    assign HDMI_TX_DE = video_response_q[24];
-    assign HDMI_TX_HS = video_response_q[25];
-    assign HDMI_TX_VS = video_response_q[26];
+    assign HDMI_TX_D = selected_video_response[23:0];
+    assign HDMI_TX_DE = selected_video_response[24];
+    assign HDMI_TX_HS = selected_video_response[25];
+    assign HDMI_TX_VS = selected_video_response[26];
     assign HDMI_TX_CLK = pixel_clk;
     fes_audio_output audio (
         .source_clk(clk_sys), .audio_clk(audio_clk), .locked(system_locked), .hold(machine_reset),
@@ -173,6 +206,34 @@ module top #(
         .memory_req(media_write_req), .memory_addr(media_memory_addr), .memory_wdata(media_memory_wdata),
         .memory_byte_enable(media_memory_enable), .memory_ready(media_memory_ready)
     );
+    wire shared_write_req, shared_write_ready, shared_read_req, shared_read_ready;
+    wire [18:0] shared_write_addr;
+    wire [19:0] shared_read_addr;
+    wire [15:0] shared_write_data;
+    wire [1:0] shared_write_enable, write_ready, read_ready;
+    wire [7:0] shared_read_data;
+    st_media_port #(.ADDR_BITS(19)) media_writes (
+        .clk(clk_sys), .cold_reset(cold_reset), .source_req({floppy_write_req,media_write_req}),
+        .source_addr0(media_memory_addr), .source_addr1(floppy_write_addr),
+        .source_data0(media_memory_wdata), .source_data1(floppy_write_data),
+        .source_enable0(media_memory_enable), .source_enable1(2'b11), .source_ready(write_ready),
+        .memory_req(shared_write_req), .memory_addr(shared_write_addr), .memory_data(shared_write_data),
+        .memory_enable(shared_write_enable), .memory_ready(shared_write_ready)
+    );
+    assign media_memory_ready = write_ready[0];
+    assign floppy_write_ready = write_ready[1];
+    st_media_port #(.ADDR_BITS(20)) media_reads (
+        .clk(clk_sys), .cold_reset(cold_reset), .source_req({snapshot_req,media_req}),
+        .source_addr0(media_addr), .source_addr1(snapshot_addr),
+        .source_data0(16'd0), .source_data1(16'd0),
+        .source_enable0(2'd0), .source_enable1(2'd0), .source_ready(read_ready),
+        .memory_req(shared_read_req), .memory_addr(shared_read_addr), .memory_data(), .memory_enable(),
+        .memory_ready(shared_read_ready)
+    );
+    assign media_valid = read_ready[0];
+    assign snapshot_ready = read_ready[1];
+    assign media_data = shared_read_data;
+    assign snapshot_data = shared_read_data;
     wire [15:0] dq_out, dq_rise, dq_fall;
     wire dq_oe;
     st_memory memory (
@@ -180,11 +241,11 @@ module top #(
         .cpu_req(ram_req), .cpu_addr(ram_addr), .cpu_write(ram_write), .cpu_wdata(ram_wdata),
         .cpu_byte_enable(ram_byte_enable), .cpu_ready(ram_ready), .cpu_rdata(ram_rdata),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
-        .dma_req(dma_req), .dma_addr(dma_addr), .dma_write(1'b1), .dma_wdata(dma_wdata),
-        .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .dma_rdata(),
-        .media_write_req(media_write_req), .media_write_addr(media_memory_addr), .media_write_wdata(media_memory_wdata),
-        .media_write_byte_enable(media_memory_enable), .media_write_ready(media_memory_ready),
-        .media_read_req(media_req), .media_read_addr(media_addr), .media_read_ready(media_valid), .media_read_rdata(media_data),
+        .dma_req(dma_req), .dma_addr(dma_addr), .dma_write(dma_write), .dma_wdata(dma_wdata),
+        .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .dma_rdata(dma_rdata),
+        .media_write_req(shared_write_req), .media_write_addr(shared_write_addr), .media_write_wdata(shared_write_data),
+        .media_write_byte_enable(shared_write_enable), .media_write_ready(shared_write_ready),
+        .media_read_req(shared_read_req), .media_read_addr(shared_read_addr), .media_read_ready(shared_read_ready), .media_read_rdata(shared_read_data),
         .sdram_clk(SDRAM_CLK), .sdram_cke(SDRAM_CKE), .sdram_ncs(SDRAM_nCS), .sdram_nras(SDRAM_nRAS),
         .sdram_ncas(SDRAM_nCAS), .sdram_nwe(SDRAM_nWE), .sdram_ba(SDRAM_BA), .sdram_a(SDRAM_A),
         .sdram_dqml(SDRAM_DQML), .sdram_dqmh(SDRAM_DQMH), .dq_out(dq_out), .dq_oe(dq_oe),
@@ -204,6 +265,6 @@ module top #(
         assign dq_fall[bit_index] = dq_sample;
     end endgenerate
     wire unused_diagnostics = ^{unit0_size, audio_valid, sync_mode, debug_addr, debug_bus_error,
-        debug_overlay, debug_halted, vblank, hblank, mouse_ready, debug_underruns, debug_frame,
-        expansion_plug_request, expansion_response[31:22], video_response_q[27]};
+        debug_overlay, debug_halted, vblank, hblank, debug_underruns, debug_frame,
+        expansion_plug_request, expansion_response[31:22], video_response_q[27], video_plug_request};
 endmodule

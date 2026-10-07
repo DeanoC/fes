@@ -179,9 +179,14 @@ This demonstrates composition without a new emulated-machine implementation
 or an application-name branch in host software.
 
 `fes.ramtest` is a separate utility on the same mailbox with fixed 720p, the
-gamepad and `fes.memory.hps-ddr` 1.0. After execution release it pattern-tests
-the SDRAM addon and all three HPS DDR ports at the memory clock, 100 or
-130 MHz. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
+gamepad and `fes.memory.hps-ddr` 1.0. Its SDRAM channel first runs a bounded
+byte-preservation preflight with retained BE/payload/readback failures; only
+a passing preflight releases the six full-span patterns. The addon shares chip
+DQML/DQMH with row-address pins A11/A12; the controller keeps the full row for
+ACTIVATE and drives masks on those pins during column setup and WRITE.
+Simulations use that physical wiring, including high rows. After execution
+release it tests the SDRAM addon and all three HPS DDR ports at the memory clock,
+100 or 130 MHz. The DDR ports scan the whole core window `0x30000000-0x3fffffff`
 together with seven patterns and report errors, failing bits and MB/s per port.
 The SDRAM clock pin is the inverted DDR output used by MiSTer controllers. Both
 OSS rates sample the bidirectional DQ pads with phase-shifted fabric registers
@@ -697,7 +702,7 @@ Commands, cart-authoring rules and kit probes live in
 [OSS place-and-route testing](oss-pnr.md#freeze-scaffold-cartridges).
 `scripts/build_fes_slot.py` is the compose entry point; it fails
 closed unless `nextpnr --help` advertises `--fes-scaffold` and `--fes-cart`.
-The locked nextpnr `1656e473` provides those flags after `make toolchain-fes`.
+The locked nextpnr `a20f34c5` provides those flags after `make toolchain-fes`.
 It also corrects pass-through LUT masks for `MISTRAL_BUF` routing cells:
 the earlier `d672fade` emitter could write all-ones masks despite successful
 simulation and timing. The selected PR #73 revision has an emitted-bitstream
@@ -826,7 +831,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `1656e473` with Mistral `8fcc4cb4`. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
+| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `a20f34c5` with Mistral `8fcc4cb4`. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -955,9 +960,16 @@ on ports `0x7E`/`0x7F`, FPGA→ADV7513 I2S, and the
 line budget; optimizing that renderer is separate work. This timing model
 covers logical frame pacing only, not composite sync, half-lines, PAL timing or
 cycle-perfect raster effects. The OSS package uses 32 fixed blank M10K
-cartridge lanes, authenticated by its format-3 ROM map; the target links an
-exact 32 KiB `cartridge-rom` before download. Shorter fixed-map ROMs must be
-explicitly padded with `0xff`. The Quartus oracle and default mailbox
+cartridge lanes. Each lane is a synchronous read (`CFG_ASYNC_READ=0`, live
+`CLK1`, `A1EN` and `B1EN` held high): the address and bank select
+`address[14:10]` register on the system clock, the lane mux is combinational,
+and the output register is the second stage. The CPU sees the byte
+two system clocks after the address. `T80pa` samples `DI` at T3,
+several half-cycles later, so that byte is stable. Synthesis and the routed netlist
+reject every asynchronous M10K, and the ROM map requires
+`expected_async_read=0`. The format-3 ROM map authenticates those lanes; the
+target links an exact 32 KiB `cartridge-rom` before download. Shorter
+fixed-map ROMs must be explicitly padded with `0xff`. The Quartus oracle and default mailbox
 simulation remain format-2 media-transport diagnostics. There is no BIOS shim. Mode 4 implements
 16 KiB VRAM, 32-entry six-bit CRAM, tile attributes and scrolling, 8×8/8×16
 zoomable sprites with collision/eight-sprite overflow, line interrupts and
@@ -1147,9 +1159,12 @@ of Pong's `MISTRAL_IO`). The Z80 is VHDL T80pa from ZX81_MiSTer Release
 20260603; Verilator keeps TV80.
 
 The compile defines `QUARTUS=1`. ROM, 16 KB RAM and the 16 KB media blob
-instantiate `altsyncram` bidirectional dual-port M10K with unregistered
-outputs; ROM init is `zx8x.mif`. Simulation keeps inferred combo-read RAM
-and `zx8x.hex`. The 720p capture buffer is a one-dimensional M10K array
+instantiate `zx81_dpram`. Its Quartus branch is `altsyncram` bidirectional
+dual-port M10K: the address is registered, the output is unregistered, and
+a same-port write returns `NEW_DATA_NO_NBE_READ`, which is one clock of
+read latency. ROM init is `zx8x.mif`. Simulation registers `q_a` and `q_b`
+on that clock and uses `zx8x.hex`, with the same one-cycle read. The 720p
+capture buffer is a one-dimensional M10K array
 written on `clk_sys` and registered on `pixel_clk`.
 
 The recipe requires `QUARTUS_ROOTDIR`, version 17.0.2, a clean checkout and
@@ -1176,11 +1191,21 @@ diagnostic cleanup.
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
 M10K allowed and DSP/MLAB forbidden. The machine ROM is `zx81_rom_link`:
 eight empty BEL-locked 1024×10 lanes at `MISTRAL_M10K.5.73.0` through
-`MISTRAL_M10K.5.80.0`. `zx8x.hex` is not a package input; launch splices
-the low 8 KiB with `link_static_rbf.py init --machine`. RAM and media stay
-inferred asynchronous-read M10K tables; the two-write media path uses native
-asynchronous TDP M10K. The 720p capture buffer is a dual-clock M10K SDP. The
-Z80 is Verilog T80pa/TV80.
+`MISTRAL_M10K.5.80.0`, each with a synchronous read (`CFG_ASYNC_READ=0`,
+live `CLK1`, `B1EN` held high). The bank select is registered on that same
+edge, the lane mux is combinational, and the output register is the second
+stage, so the CPU-facing byte is two system clocks behind the address.
+`zx8x.hex` is not a package input; launch splices the low 8 KiB with
+`link_static_rbf.py init --machine`, and the ROM map requires
+`expected_async_read=0`. The 1 KiB shell RAM and the 16 KB media blob use
+`zx81_dpram`'s registered one-cycle read, which Yosys maps to synchronous
+M10K. The 16 KB pack and the QS character board instantiate synchronous TDP
+M10K (`CFG_ASYNC_READ=0`) and delay the bank select, or ROMCS and DSEL, with
+that read so one response word describes one request. The shell producer
+rejects every async M10K in `synth.json` and `routed.json`. The
+validation-cart and QS producers reject every async M10K in `cart.json` and
+`cart-routed.json`. The 720p capture buffer is a dual-clock M10K SDP with
+its read registered on `pixel_clk`. The Z80 is Verilog T80pa/TV80.
 HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 (`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.
 
@@ -1214,7 +1239,9 @@ reference and nextpnr derives the PLL outputs. The Quartus files keep
 `HPS_LOCATION`, `derive_pll_clocks` and asynchronous clock groups.
 The independent ZX81 cart producer reloads an already routed shell with
 `--no-pack`, so it writes a separate generated SDC that explicitly constrains
-`clk_sys` to 52.224 MHz, `pixel_clk` to 74.25 MHz and `audio_clk` to 12.288 MHz.
+`clk_sys` to 52.224 MHz, `display.control.clk` to 74.25 MHz and `audio_clk`
+to 12.288 MHz. Nextpnr names each clock after its net, and the session display
+keeps that 74.25 MHz pixel clock as `display.control.clk`.
 Its recipe records those requirements and the SDC digest. Publication requires all three clocks to meet
 their nominal and reported constraints, with only the existing picosecond
 quantization tolerance when identifying the reported frequencies. This does
@@ -1289,7 +1316,10 @@ LAB snapshot is reloaded. A user-BEL socket flip-flop on a fresh route gets
 LUT pin reassignment and a data route-through. A scaffold reload locks that
 LAB and leaves the restored pin map in place. For each seed it tries heap
 timing weights 300 then 1000, then sweeps the same seeds at weights 2000, 100
-and 10 if needed (at most 70 attempts, stopping at the first passing route).
+and 10 if needed (at most 70 attempts). It stops at the first route that meets
+timing and leaves every plug_addr request flip-flop's fabric exit free. A
+timing-passing route is rejected when another net occupies that column-24 GIN,
+and the search continues.
 The build record seals
 the effective weight order and budget. This fallback handles placement-sensitive
 netlists without changing the clock requirements. The recipe uses
@@ -1300,8 +1330,8 @@ produces the same routing a GPU would). `--timing-allow-fail` permits an early
 estimate to miss while the recipe checks final signoff and records the first
 passing seed. `make build-fes-zx81 BEST_FMAX=1 GPU_DEVICES=1` keeps that synthesis and
 searches weights 10/100/300/1000/2000 plus remaining seeds for the best
-Fmax; the selected seed and weight go into route evidence. This keeps native
-async-M10K address paths within the 52.224 MHz system constraint. The recipe
+Fmax; the selected seed and weight go into route evidence. This keeps
+synchronous M10K address paths within the 52.224 MHz system constraint. The recipe
 requires two `altera_pll` cells (combined system/audio and 74.25 MHz pixel).
 Also required: the HPS GP mailbox, the I2C bridge, and at least one M10K.
 It seals the format-3 package with its ROM map only when system, pixel and
@@ -1321,8 +1351,9 @@ and does not inherit the Quartus bring-up result (the diagnostic used TV80
 and the former registered-M10K workaround). A GPU-routed package of that
 same registered-M10K recipe base (nextpnr 9c751533, misteross 9ad19189)
 also booted to the ZX81 editor on the kit on 2026-09-12 and answered
-`PRINT` + NEWLINE with `0/0` through the host keyboard route. The current
-native async-M10K recipe initially failed to boot on the kit: its historical sealed packages
+`PRINT` + NEWLINE with `0/0` through the host keyboard route. The native
+async-M10K recipe that followed, since replaced by synchronous reads, failed
+to boot on the kit: its sealed packages
 `74ef917a` (`--router gpu`, seed 2) and `247e2af4` (unchanged `router1`
 control, seed 6, same toolchain) both load, pass signoff and show only a
 black 720p frame for 40 s, while the older package re-loaded afterwards
@@ -1339,7 +1370,7 @@ matching workaround rather than keep both.
 
 | Gap | Observed failure | Current ZX81 workaround |
 | --- | --- | --- |
-| Combo-read block RAM | `assign q = ram[addr]` with `synth_intel_alm -nolutram` previously became LUT RAM. ABC ran 25+ minutes on an 8 MB XAIG / 23 MB symbol file and did not finish. | Native Yosys async M10K inference maps 10/20/40-bit SDP and two-write/two-read TDP shapes; the OSS recipe uses `ramstyle="M10K"` and nextpnr routes flow-through reads. Quartus keeps `altsyncram`. |
+| Combo-read block RAM | `assign q = ram[addr]` with `synth_intel_alm -nolutram` previously became LUT RAM. ABC ran 25+ minutes on an 8 MB XAIG / 23 MB symbol file and did not finish. Yosys maps that combinational read to an illegal `CFG_ASYNC_READ=1` M10K. | `zx81_dpram` registers the read (`ramstyle="M10K"`, one clock of latency). ROM lanes, the 16 KB pack and the QS character cell instantiate synchronous M10K (`CFG_ASYNC_READ=0`). Shell and cart producers reject every async M10K. Quartus `altsyncram` registers the address and leaves the output unregistered. |
 | SDC subset | `ERROR: Unsupported SDC command 'get_clocks'` on the Quartus `set_clock_groups` / `derive_pll_clocks` file. | `clocks-oss.sdc` is only `create_clock` on `FPGA_CLK1_50`. nextpnr derives PLL outputs. |
 | QSF `HPS_LOCATION` | Internal HPS I2C previously ignored the Quartus instance assignment. | nextpnr now converts `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111` to `cyclonev_hps_interface_peripheral_i2c.52.60.0`. ZX81 OSS still also sets the RTL `BEL`. |
 
@@ -1495,7 +1526,16 @@ outside all four socket CRAM rectangles. It searches seeds 5, 4, 2, 1, 3,
 system, 74.25 MHz pixel and 12.288 MHz audio timing. An inferred read-only
 memory maps to an M10K without a clock in this toolchain, so the font M10K
 is instantiated explicitly (`rtl/apple2_video.v`) and the audio mix is
-pipelined. The package declares `fes.expansion.apple2-bus` 1.0 optional.
+pipelined. The sixteen firmware lanes and that font use synchronous M10K
+reads (`CFG_ASYNC_READ=0`). Each firmware lane registers its address; the
+sub-bank and group selects are delayed so the CPU-facing byte is still two
+system clocks behind the address that `apple2_machine` captures on `cpu_ce`.
+That byte is sampled at `cycle_clock == 16`. The font lane registers its
+address on the 74.25 MHz pixel clock and `font_q` is the second stage. The
+column sequencer writes `font_addr` at `csub == 4` and loads `next_glyph`
+from `font_q` at `csub == 8`, which is still after the glyph is valid. The
+ROM-map producer requires `CFG_ASYNC_READ=0`, and the shared netlist check
+rejects every async M10K in the shell. The package declares `fes.expansion.apple2-bus` 1.0 optional.
 
 `scripts/build_apple2_slot_card.py` builds one card for one physical slot
 against the exact sealed shell and its frozen `routed.json`: the scaffold
@@ -1506,7 +1546,11 @@ and reattaches the system PLL's second output as the Coleco card flow does.
 nextpnr pass 2 runs with `--fes-cart-region slotN` and that socket's
 `--fes-cram-region`; the producer requires the three shell clocks and no CRAM
 change outside the socket, then publishes a two-member archive whose
-manifest carries `slot_index`. `expansion/cmd/fes-slot-link` composes any set
+manifest carries `slot_index`. The probe card's `$Cn00` ROM is a synchronous
+M10K. Address and IOSEL stay held for the 6502 cycle and the motherboard
+samples the slot response at cycle 16, so one clock of ROM latency is inside
+that window. The card producer rejects async M10K reads on `cart.json` and
+`cart-routed.json`. `expansion/cmd/fes-slot-link` composes any set
 of such archives, optionally with the firmware ROM map, onto the shell.
 
 ## FES ZX Spectrum
@@ -1555,6 +1599,16 @@ partial tails and live eject/replacement.
 seal. Its ROM is `spectrum-firmware`, 16,384 bytes, on the same blank column-5
 lanes at rows 32–47. The shell reserves the four `FES_RESERVED_RECT` regions
 from `scripts/spectrum_slots.py` (`fes.spectrum-bus.sockets/1`, sockets 1–4).
+Socket validation admits a compiler-inserted `MISTRAL_BUF` only as the
+verified `$ROUTETHRU` companion of an already pinned boundary flip-flop.
+The shared `coleco_expansion` check requires the paired COMB/MCOMB half,
+exact physical pin map and ports, and a dedicated buffer output connected
+only to that flip-flop's data input. Clock-coverage outputs must remain
+unused, and each effective boundary data input must have exactly one driver
+or a direct defined constant. Older clock-only anchors may have disconnected
+data inputs. Every other shell cell inside a socket is rejected. The helper
+is a pinned functional source input; socket placement and CRAM fences retain
+their existing identities.
 Simulation is `make sim-fes-spectrum`; its turbo regression measures register,
 RAM and expansion-I/O workloads and tests WAIT, ROMCS, pending NMI and native
 frame timing in both modes. Every clock must close before either shell seals.
@@ -1571,6 +1625,11 @@ the same `fes.computer` 1.0 mailbox as Apple II. The machine contract is
 [its README](../cores/fes-c64/README.md). `make sim-fes-c64` boots the open
 diagnostic: RAM, firmware signature, VIC text, both cartridge sockets,
 joystick, keyboard, a SID sample and a read-only D64 LOAD of `BOOT`.
+The diagnostic waits at stages 7/8 for joystick Up and HID A. A hardware
+runner confirms the live disk is ready before sending those inputs; it uses
+launch's existing ready input stream instead of attaching twice. This is an
+operator-gated diagnostic, not pre-release initial-disk mounting or write-back
+support. Atari ST's startup and durable writable-disk contract remains separate.
 Both CIA timers expose their live counters, load stopped counters on high-byte
 writes, treat force-load as a strobe, and implement continuous/one-shot counting.
 Timer B can count Phi2 or timer A underflows. CIA1 asserts IRQ and CIA2 asserts
@@ -1582,9 +1641,27 @@ TOD, serial shifting and timer port outputs remain outside this slice.
 `make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this
 pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
 `c64-firmware`, 16,384 bytes, on the blank column-5 lanes at rows 32–47.
+Those lanes use synchronous M10K reads (`CFG_ASYNC_READ=0`) with the bank
+selector delayed one clock so the CPU-facing byte is still two system clocks
+behind the registered address. `c64_machine` samples that byte at
+`cycle_clock == 16`, sixteen 52.224 MHz clocks after the phi2 address
+capture. The ROM-map producer requires `CFG_ASYNC_READ=0`, and the shared
+netlist check rejects every other async M10K. Color RAM is a synchronous
+dual-port M10K, with independent system and pixel clocks; the CPU samples its
+registered read at cycle 16 and the VIC aligns its result with main RAM.
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
-frozen shell. No Commodore ROM is in the tree, and the core is not in the
-factory image.
+frozen shell. The producer chooses probe mode from the socket and validates
+both legacy and physical PLL output maps. Frozen clocks are constrained by
+net; admission requires final analogue setup and hold on all three clocks
+independently of routing legality and CRAM containment. Each response output
+has a separate identity ALUT2 so the pinned merger cannot discard constant
+outputs or collapse aliased response sinks. The probe drives only read cycles.
+No Commodore ROM is in the tree, and the core is not in the
+factory image. The shell uses Yosys `5391eeb1`, Mistral `8fcc4cb4` and nextpnr
+`0c5ed400`; its
+socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`
+companion of a pinned boundary flip-flop, using the shared
+`coleco_expansion` check described for the Spectrum sockets.
 
 ## FES Atari 520ST
 
@@ -1608,12 +1685,21 @@ confines its CRAM writes to the shared rectangle.
 `st_memory.sv` fairly arbitrates CPU, video, floppy DMA and both media paths
 over the existing addon SDRAM controller at 52.224 MHz. That controller now
 supports optional byte masks, initialization status and idle refresh while
-preserving the RAM tester's default behavior. Warm CPU Hold leaves memory and
-uploads running. Withdrawn requests drain without stale acknowledgements.
+preserving full-word behavior for callers that disable masks. Chip DQM shares
+A11/A12 on the MiSTer addon, so the controller preserves row bits for ACTIVATE
+and establishes masks on those shared pins two fabric clocks before WRITE.
+Reads clear both masks. Warm CPU Hold
+leaves memory and uploads running. Withdrawn requests drain without stale
+acknowledgements.
 The exact 720 KiB disk buffer is disjoint from the 512 KiB RAM, and the
 big-endian media adapter handles arbitrary odd chunk boundaries before the
 mailbox acknowledges a write. `fes.media.atari-st-floppy` 1.0 adds capability
 bit 7 to the existing computer ABI, without changing its framing/opcodes.
+The writable mailbox rejects Begin and Eject during sector collection or an
+accepted commit, even for volatile disks. The sector writer drains before an
+explicit later replacement can upload through the shared media arbiter.
+`make sim-fes-atari-st-media-lifecycle` exercises these actual components with
+delayed RAM and media completions, including rejected mutations and later retry.
 
 `st_video_adapter.sv` uses held-bundle handshakes for frame configuration and
 owned double line caches between system and 74.25 MHz pixel clocks. Low,
@@ -1621,10 +1707,21 @@ medium and monochrome rows advance through native row/repetition counters.
 Fixed per-mode fetch windows select coordinates after constant arithmetic.
 Synchronous cache reads and ownership tags are captured together; a second
 pixel register selects the validated bank at the original plane-capture edges.
-Displays feed the shared RGB888 direct/scanline output
-parts through two registered boundaries. The board selects its concrete
-video part at build time. Underflow blacks a whole affected line and later
+Displays feed shared RGB888 output through two registered boundaries. The
+optional frozen raster socket admits independently sealed Direct/Scanlines
+archives bound to the exact shell; an empty socket uses built-in Direct with
+the same latency. Underflow blacks a whole affected line and later
 lines recover; stale fills cannot cross a frame configuration change.
+
+`scripts/build_atari_st_video_part.py` compares the frozen shell directory with
+the sealed package for `manifest.toml`, `core.rbf` and `rom-map.json`.
+`routed.json` and `socket.qsf` are producer outputs, not package members; a
+package directory that contained them would be rejected. Their SHA-256 values
+are part of the video-part recipe digest, so a different netlist or constraint
+file is a different part. The part still has to preserve the shell
+configuration header and change no CRAM bit outside the video rectangle,
+including companion columns. That containment check is the proof against the
+sealed bitstream.
 
 `make sim-fes-atari-st` runs the original CPU firmware and focused device,
 SDRAM-command, dual-clock-video and complete-media tests. Optional EmuTOS

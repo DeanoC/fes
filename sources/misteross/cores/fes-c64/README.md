@@ -18,7 +18,10 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Bytes 8192..16383 are the KERNAL window `$E000–$FFFF`. The OSS package leaves
   sixteen 1024×10 M10K lanes (column 5, rows 32–47) blank. The character
   generator is in the core, not in the firmware image.
-- VIC-II text: 40×25, color RAM, and the registers the diagnostic writes.
+- VIC-II text: 40×25 and the registers the diagnostic writes. Color RAM is
+  one synchronous dual-port M10K, 1024×4 at `$D800–$DBFF`. The 6510 can use
+  `$DBE8–$DBFF` as scratch. The VIC scan returns zero outside the 1000-cell
+  matrix.
   Raster timing is not locked to HDMI. No sprites, bitmap or badlines.
 - Reduced SID: three voices, pulse, saw, triangle and noise, a crude envelope
   and volume. No filter.
@@ -53,11 +56,33 @@ and slot 4 rows. `scripts/c64_slots.py` generates
 1 is scratch at `$DE00` and id `$C6` at `$DE01`. The machine simulation links
 both. A sealed shell leaves the sockets vacant; `scripts/build_c64_slot_card.py`
 builds one card into one socket of a frozen shell.
+The producer selects probe mode 0 for socket 1 and mode 1 for socket 2;
+it authenticates both the legacy PLL output aliases and current physical
+C6/C7 pin layout, preserving an already-correct physical layout.
+Each synthesized response is lowered to an independent identity ALUT2 before
+the frozen merge: constants and aliased output signals must not be lost by the
+pinned cart merger. Clock-pin checks, final analogue setup/hold on all required
+clocks and exact CRAM containment are separate admission checks.
 
 ## Diagnostic
 
 `diagnostic/firmware.py` assembles the open 16 KiB image. Success stores `$FF`
 at `$C000`. A failure stores a stage at `$C000` and `1` at `$C001`:
+
+Stages 7 and 8 with `$C001 = 0` mean waiting, not failure. Mount the
+synthetic D64 and confirm media unit 0 is ready before pressing joystick Up,
+then keyboard A. This gates LOAD on operator readiness rather than a fixed
+sleep: C64 media is currently mounted after CPU release. The SID pulse uses
+50% duty cycle so audio acceptance can require an AC tone rather than DC.
+Success also turns the border green. `--without-cartridges` skips only stages
+5 and 6 for a vacant sealed shell; it is not expansion acceptance.
+The simulation covers both initially-ready input/media and delayed mount,
+joystick and keyboard delivery.
+
+C64's D64/IEC path remains read-only. Atari ST's initial-disk-before-release
+and writable-disk save/restore path is a useful ordering reference, but its
+sector commit and game/base-media persistence contract is not implemented by
+C64 and is not implied by a successful C64 LOAD.
 
 | Stage | Check |
 | --- | --- |
@@ -89,9 +114,22 @@ pages 348–349. `sim-fes-c64` includes the directed CIA regression and the
 firmware's CPU interrupt checks. These are host simulations, with no sealed
 artifact or kit acceptance implied.
 
-`build-fes-c64` authenticates `toolchains/c64.lock` (the Apple II tool
-commits: Yosys `e2d425de`, Mistral `7ed06e21`, nextpnr `0259c6dc`).
-Before routing, its producer connects the unused write clocks of the two
-inferred read-only M10Ks (VIC font and IEC track lookup) to their live read
-clocks. It checks their names and disabled write ports so a changed synthesis
-shape fails closed.
+`build-fes-c64` authenticates `toolchains/c64.lock` (Yosys `5391eeb1`,
+Mistral `8fcc4cb4`, nextpnr `0c5ed400`). The socket check admits a compiler-inserted route-through
+buffer only at a pinned boundary flip-flop's paired combinational half, with
+the exact physical pin map and a dedicated connection to that flip-flop;
+clock-coverage outputs stay unused and every other shell cell inside a socket
+is rejected.
+The sixteen firmware lanes are synchronous 1024x10 M10Ks on the system
+clock, with reads enabled and active-low writes disabled. The bank selector
+is registered with the M10K address; a combinational lane mux and the final
+data register keep the two-cycle latency the 6510 samples at cycle 16 of
+phi2. The ROM map requires `CFG_ASYNC_READ=0`. After synthesis, and again
+on the routed netlist, any `MISTRAL_M10K` or `MISTRAL_M10K_TDP` with
+`CFG_ASYNC_READ=1` fails the build. Color RAM uses one synchronous dual-port
+M10K: the system-clock port returns CPU reads before the cycle-16 sample and
+the pixel-clock port follows the same two-stage scan pipeline as main RAM.
+Before routing, the producer connects the unused write clocks of the
+two inferred read-only M10Ks (VIC font and IEC track lookup) to their live
+read clocks. It checks their names and disabled write ports so a changed
+synthesis shape fails closed.

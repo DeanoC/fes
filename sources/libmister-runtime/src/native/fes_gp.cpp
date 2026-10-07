@@ -41,12 +41,17 @@ constexpr std::uint32_t kResponseVariableMask =
 	FesGpAckMask | FesGpErrorMask | FesGpResponseMask;
 constexpr std::uint32_t kResponseFixedMask = ~kResponseVariableMask;
 
-std::uint64_t MonotonicWallMs()
+std::uint64_t MonotonicWallNs()
 {
 	struct timespec stamp = {};
 	if (clock_gettime(CLOCK_MONOTONIC, &stamp) != 0) std::abort();
-	return static_cast<std::uint64_t>(stamp.tv_sec) * 1000u +
-		static_cast<std::uint64_t>(stamp.tv_nsec) / 1000000u;
+	return static_cast<std::uint64_t>(stamp.tv_sec) * 1000000000u +
+		static_cast<std::uint64_t>(stamp.tv_nsec);
+}
+
+std::uint64_t MonotonicWallMs()
+{
+	return MonotonicWallNs() / 1000000u;
 }
 
 void SleepOneMillisecond()
@@ -129,7 +134,8 @@ constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 	FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
 	FesComputerCapabilityGamepadPorts | FesComputerCapabilityAudioPcmS16Stereo48k |
 	FesComputerCapabilityMediaApple2Floppy | FesComputerCapabilityMediaSpectrumTape |
-	FesComputerCapabilityMediaC64Disk | FesComputerCapabilityMediaAtariStFloppy);
+	FesComputerCapabilityMediaC64Disk | FesComputerCapabilityMediaAtariStFloppy |
+	FesComputerCapabilityMouseRelative | FesComputerCapabilityMediaAtariStFloppyWrite);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -247,15 +253,47 @@ Error FesGp::Realign(std::uint64_t deadline)
 	if (!error.ok()) return error;
 	if ((observed & kResponseFixedMask) != FesGpSignature)
 		return Io("invalid FES GP response signature or reserved bits");
-	if (clock_.NowMs() >= deadline)
-		return Io("FES GP response stability deadline exceeded");
 	std::uint32_t confirmed = 0;
-	error = mmio_.Read32(generated::kSpiGpiAddress, &confirmed);
+	error = ReadSettledResponse((observed & FesGpAckMask) != 0, deadline, &confirmed);
 	if (!error.ok()) return error;
-	if (confirmed != observed) return Io("unstable FES GP response");
 	request_toggle_ = (confirmed & FesGpAckMask) != 0;
 	poisoned_ = false;
 	return {};
+}
+
+Error FesGp::ReadSettledResponse(bool acknowledged, std::uint64_t deadline,
+	std::uint32_t* response)
+{
+	const std::uint64_t now = clock_.NowMs();
+	if (now >= deadline) return Io("FES GP response stability deadline exceeded");
+	// HPS observes the FPGA response asynchronously. Keep the original GPO
+	// held, allow one microsecond after observing ACK, then require two equal
+	// complete samples. This is response sampling, never command replay.
+	constexpr std::uint64_t kSettlingGuardNs = 1000u;
+	const std::uint64_t started = MonotonicWallNs();
+	const std::uint64_t wall_bound = std::min(deadline - now, kExchangeTimeoutMs) * 1000000u;
+	while (MonotonicWallNs() - started < kSettlingGuardNs) {}
+	std::uint32_t previous = 0;
+	bool have_previous = false;
+	for (;;) {
+		if (clock_.NowMs() >= deadline || MonotonicWallNs() - started >= wall_bound)
+			return Io("FES GP response stability deadline exceeded");
+		std::uint32_t observed = 0;
+		Error error = mmio_.Read32(generated::kSpiGpiAddress, &observed);
+		if (!error.ok()) return error;
+		if ((observed & kResponseFixedMask) != FesGpSignature)
+			return Io("invalid FES GP response signature or reserved bits");
+		if (((observed & FesGpAckMask) != 0) != acknowledged)
+			return Io("unstable FES GP response: acknowledgement reverted");
+		if (clock_.NowMs() >= deadline || MonotonicWallNs() - started >= wall_bound)
+			return Io("FES GP response stability deadline exceeded");
+		if (have_previous && observed == previous) {
+			*response = observed;
+			return {};
+		}
+		previous = observed;
+		have_previous = true;
+	}
 }
 
 std::uint64_t FesGp::NowMs() const
@@ -351,15 +389,11 @@ Error FesGp::Exchange(std::uint8_t opcode, std::uint8_t index,
 		response_seen = true;
 		last_ack = acknowledged;
 		if (acknowledged != next_toggle) continue;
-		if (clock_.NowMs() >= exchange_deadline) {
-			poisoned_ = true;
-			return Io("FES GP response stability deadline exceeded");
-		}
 		std::uint32_t confirmed = 0;
-		error = mmio_.Read32(generated::kSpiGpiAddress, &confirmed);
-		if (!error.ok() || confirmed != observed) {
+		error = ReadSettledResponse(next_toggle, exchange_deadline, &confirmed);
+		if (!error.ok()) {
 			poisoned_ = true;
-			return error.ok() ? Io("unstable FES GP response") : error;
+			return error;
 		}
 		*response = static_cast<std::uint16_t>(confirmed & FesGpResponseMask);
 		if ((confirmed & FesGpErrorMask) != 0)
@@ -412,6 +446,10 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesComputerCapabilityVideoFixed720p60;
 			else if (interface.id == FesComputerInterfaceKeyboardHidID)
 				capabilities |= FesComputerCapabilityKeyboardHid;
+			else if (interface.id == FesComputerInterfaceMouseRelativeID)
+				capabilities |= FesComputerCapabilityMouseRelative;
+			else if (interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID)
+				capabilities |= FesComputerCapabilityMediaAtariStFloppyWrite;
 			else if (interface.id == FesComputerInterfaceGamepadPortsID)
 				capabilities |= FesComputerCapabilityGamepadPorts;
 			else if (interface.id == FesComputerInterfaceAudioPcmS16Stereo48kID)
@@ -556,6 +594,8 @@ void FesGpCoreDriver::BeginSession()
 	stream_pending_ = false;
 	home_computer_ = false;
 	keyboard_hid_ = false;
+	mouse_relative_ = false;
+	floppy_write_ = false;
 	hid_rows_ = {};
 	hid_rows_known_ = false;
 	media_units_.clear();
@@ -633,6 +673,8 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 	}
 	home_computer_ = error.ok() && context.descriptor->abi.id == FesComputerABIID;
 	keyboard_hid_ = false;
+	mouse_relative_ = false;
+	floppy_write_ = false;
 	hid_rows_ = {};
 	hid_rows_known_ = false;
 	media_units_.clear();
@@ -642,6 +684,8 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 		for (const auto& interface : context.descriptor->interfaces) {
 			if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
 			if (interface.id == FesComputerInterfaceKeyboardHidID) keyboard_hid_ = true;
+			if (interface.id == FesComputerInterfaceMouseRelativeID) mouse_relative_ = true;
+			if (interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID) floppy_write_ = true;
 			if (interface.id == FesComputerInterfaceGamepadPortsID) controller_ports_ = true;
 			if (interface.id == FesComputerInterfaceMediaApple2FloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
@@ -693,6 +737,8 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 		}
 		if (!error.ok()) {
 			keyboard_hid_ = false;
+			mouse_relative_ = false;
+			floppy_write_ = false;
 			media_units_.clear();
 		}
 	}
@@ -1190,6 +1236,119 @@ Error FesGpCoreDriver::LoadMediaStream(const ComputerMediaSnapshot& media,
 	return WithPhase(error, "input");
 }
 
+bool FesGpCoreDriver::MediaWriteCapable(std::uint8_t unit) const
+{
+	if (!home_computer_ || !floppy_write_ || unit != 0) return false;
+	for (const auto& info : media_units_)
+		if (info.unit == unit && info.interface.id == FesComputerInterfaceMediaAtariStFloppyID) return true;
+	return false;
+}
+
+Error FesGpCoreDriver::ResumeMedia(std::uint8_t unit, std::uint64_t deadline)
+{
+	if (!MediaWriteCapable(unit)) return {ErrorCode::unsupported_interface, "writable medium is inactive", "input"};
+	Error error = RecoverComputerMailbox(deadline);
+	if (!error.ok()) return error;
+	return ComputerCommand(FesComputerOpcodeMediaSnapshotControl, unit, FesComputerMediaSnapshotResume, deadline);
+}
+
+Error FesGpCoreDriver::MarkMediaSaved(std::uint8_t unit, std::uint64_t deadline)
+{
+	if (!MediaWriteCapable(unit)) return {ErrorCode::unsupported_interface, "writable medium is inactive", "input"};
+	return ComputerCommand(FesComputerOpcodeMediaSnapshotControl, unit, FesComputerMediaSnapshotSaved, deadline);
+}
+
+Error FesGpCoreDriver::RefreshMediaState(std::uint8_t unit, std::uint64_t deadline)
+{
+	MediaUnitCapability* target = FindMediaUnit(unit);
+	if (!target) return {ErrorCode::unsupported_interface, "media unit is inactive", "input"};
+	Error error = RecoverComputerMailbox(deadline);
+	if (!error.ok()) return error;
+	std::uint16_t state = 0;
+	error = ReadMediaState(unit, deadline, &state);
+	if (!error.ok()) return error;
+	if (state != FesComputerMediaStateEmpty && state != FesComputerMediaStateLoading &&
+		state != FesComputerMediaStateReady) return Io("invalid observed media unit state");
+	target->state = state == FesComputerMediaStateReady ? MediaUnitState::ready :
+		state == FesComputerMediaStateLoading ? MediaUnitState::loading : MediaUnitState::empty;
+	return {};
+}
+
+Error FesGpCoreDriver::CaptureMedia(std::uint8_t unit, Clock& clock, std::uint64_t deadline,
+	std::vector<unsigned char>* output)
+{
+	if (!output) return {ErrorCode::invalid_request, "missing media capture destination", "input"};
+	output->clear();
+	if (!MediaWriteCapable(unit)) return {ErrorCode::unsupported_interface, "writable medium is inactive", "input"};
+	Error error = RecoverComputerMailbox(deadline);
+	if (!error.ok()) return error;
+	error = ComputerCommand(FesComputerOpcodeMediaSnapshotControl, unit, FesComputerMediaSnapshotFreeze, deadline);
+	if (!error.ok()) return error;
+	std::uint16_t info[FesComputerMediaSnapshotInfoStride] = {};
+	for (unsigned field = 0; field < FesComputerMediaSnapshotInfoStride; ++field) {
+		error = gp_.Exchange(FesComputerOpcodeMediaSnapshotInfo, static_cast<std::uint8_t>(unit * FesComputerMediaSnapshotInfoStride + field), 0, deadline, &info[field]);
+		if (!error.ok()) return WithPhase(error, "input");
+	}
+	const std::uint32_t size = info[FesComputerMediaSnapshotSizeLoField] | (static_cast<std::uint32_t>(info[FesComputerMediaSnapshotSizeHiField]) << 16);
+	if ((info[FesComputerMediaSnapshotFlagsField] & ~(FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotDirtyMask | FesComputerMediaSnapshotFrozenMask | FesComputerMediaSnapshotBusyMask)) != 0 ||
+		(info[FesComputerMediaSnapshotFlagsField] & (FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotFrozenMask | FesComputerMediaSnapshotBusyMask)) != (FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotFrozenMask) ||
+		info[FesComputerMediaSnapshotLayoutTagField] != FesComputerAtariStFloppyLayoutTag ||
+		info[FesComputerMediaSnapshotLayoutMajorField] != FesComputerAtariStFloppyLayoutMajor ||
+		info[FesComputerMediaSnapshotLayoutMinorField] != FesComputerAtariStFloppyLayoutMinor ||
+		size != FesComputerAtariStFloppyBytes || info[FesComputerMediaSnapshotChunkMaxField] != FesComputerMediaChunkMaxBytes)
+		return Io("invalid frozen Atari ST media snapshot identity");
+	std::vector<unsigned char> bytes;
+	bytes.reserve(size);
+	for (std::uint32_t offset = 0; offset < size; offset += FesComputerMediaChunkMaxBytes) {
+		if (clock.NowMs() >= deadline) return Io("media snapshot deadline expired");
+		const std::uint16_t header[3] = {static_cast<std::uint16_t>(offset), static_cast<std::uint16_t>(offset >> 16), FesComputerMediaChunkMaxBytes};
+		for (unsigned word = 0; word < 3; ++word) {
+			error = ComputerCommand(FesComputerOpcodeMediaSnapshotChunk, static_cast<std::uint8_t>(unit * FesComputerMediaHeaderStride + word), header[word], deadline);
+			if (!error.ok()) return error;
+		}
+		for (unsigned ordinal = 0; ordinal < FesComputerMediaChunkMaxBytes / 2; ++ordinal) {
+			std::uint16_t data = 0;
+			error = gp_.Exchange(FesComputerOpcodeMediaSnapshotData, static_cast<std::uint8_t>(ordinal), 0, deadline, &data);
+			if (!error.ok()) return WithPhase(error, "input");
+			bytes.push_back(static_cast<unsigned char>(data)); bytes.push_back(static_cast<unsigned char>(data >> 8));
+		}
+	}
+	std::uint16_t epoch = 0, flags = 0;
+	error = gp_.Exchange(FesComputerOpcodeMediaSnapshotInfo, static_cast<std::uint8_t>(unit * FesComputerMediaSnapshotInfoStride + FesComputerMediaSnapshotEpochField), 0, deadline, &epoch);
+	if (error.ok()) error = gp_.Exchange(FesComputerOpcodeMediaSnapshotInfo, static_cast<std::uint8_t>(unit * FesComputerMediaSnapshotInfoStride), 0, deadline, &flags);
+	if (!error.ok()) return WithPhase(error, "input");
+	if (epoch != info[FesComputerMediaSnapshotEpochField] || flags != info[FesComputerMediaSnapshotFlagsField]) return Io("frozen media changed during capture");
+	*output = std::move(bytes);
+	return {};
+}
+
+Error FesGpCoreDriver::SendMouseRelative(std::int16_t dx, std::int16_t dy,
+	std::uint8_t buttons, std::uint64_t deadline)
+{
+	if (!home_computer_ || !mouse_relative_)
+		return {ErrorCode::unsupported_interface, "relative mouse is inactive", "input"};
+	if (buttons > FesComputerMouseButtonMask)
+		return {ErrorCode::invalid_request, "invalid mouse buttons", "input"};
+	std::int32_t x = dx, y = dy;
+	// Consume both axes together; signed16 extrema require at most259 packets.
+	// Exchange never retries an uncertain request. A partial delivery faults
+	// the generation through Runtime's existing one-shot input cleanup.
+	do {
+		const auto step_x = std::max(-128, std::min(127, x));
+		const auto step_y = std::max(-128, std::min(127, y));
+		const std::uint16_t argument = static_cast<std::uint8_t>(step_x) |
+			(static_cast<std::uint16_t>(static_cast<std::uint8_t>(step_y)) << 8);
+		std::uint16_t response = 0;
+		Error error = gp_.Exchange(FesComputerOpcodeMouseRelative, buttons, argument, deadline, &response);
+		if (error.ok() && response != 0)
+			error = {ErrorCode::io_failed, "invalid mouse acknowledgement", "input"};
+		if (!error.ok()) return WithPhase(error, "input");
+		x -= step_x;
+		y -= step_y;
+	} while (x != 0 || y != 0);
+	return {};
+}
+
 Error FesGpCoreDriver::SetKeyboardHid(const KeyboardHidRows& rows, std::uint64_t deadline)
 {
 	if (!home_computer_ || !keyboard_hid_)
@@ -1224,10 +1383,11 @@ MediaUnitCapability* FesGpCoreDriver::FindMediaUnit(std::uint8_t unit)
 }
 
 Error FesGpCoreDriver::ComputerCommand(std::uint8_t opcode, std::uint8_t index,
-	std::uint16_t argument, std::uint64_t deadline)
+	std::uint16_t argument, std::uint64_t deadline, bool* mutation_started)
 {
 	std::uint16_t response = 0;
 	Error error = gp_.Exchange(opcode, index, argument, deadline, &response);
+	if (mutation_started != nullptr) *mutation_started = error.ok() || gp_.Poisoned();
 	if (error.ok() && response != 0) error = Io("invalid FES computer media acknowledgement");
 	return WithPhase(error, "input");
 }
@@ -1271,8 +1431,10 @@ Error FesGpCoreDriver::RecoverComputerMailbox(std::uint64_t deadline)
 }
 
 Error FesGpCoreDriver::TransferMediaUnit(MediaUnitCapability& unit,
-	const ComputerMediaSnapshot& media, Clock& clock, std::uint64_t deadline)
+	const ComputerMediaSnapshot& media, Clock& clock, std::uint64_t deadline,
+	bool* mutation_started)
 {
+	*mutation_started = false;
 	LiveMediaInfo info;
 	Error error = ReadMediaInfo(unit.unit, deadline, &info);
 	if (!error.ok()) return error;
@@ -1301,9 +1463,11 @@ Error FesGpCoreDriver::TransferMediaUnit(MediaUnitCapability& unit,
 	for (std::uint8_t word = 0; word < 4 && error.ok(); ++word) {
 		error = ComputerCommand(FesComputerOpcodeMediaBegin,
 			static_cast<std::uint8_t>(unit.unit * FesComputerMediaHeaderStride + word),
-			header[word], deadline);
-		// Word 0 makes the unit loading at once: the machine sees an empty drive.
-		if (word == FesComputerMediaBeginTotalLoWord) unit.state = MediaUnitState::loading;
+			header[word], deadline,
+			word == FesComputerMediaBeginTotalLoWord ? mutation_started : nullptr);
+		// A rejected first header leaves the current disk untouched. Accepted
+		// or ambiguous word 0 makes it loading: the machine sees an empty drive.
+		if (*mutation_started) unit.state = MediaUnitState::loading;
 	}
 	std::array<std::uint8_t, FesComputerMediaChunkMaxBytes> bytes = {};
 	for (std::uint32_t offset = 0; offset < media.size() && error.ok();) {
@@ -1353,8 +1517,12 @@ Error FesGpCoreDriver::InsertMedia(std::uint8_t unit, const ComputerMediaSnapsho
 	if (media.size() < FesComputerMediaMinBytes || media.size() > FesComputerMediaMaxBytes)
 		return {ErrorCode::invalid_request, "media size exceeds the computer media limit", "request"};
 	Error error = RecoverComputerMailbox(deadline);
-	if (error.ok()) error = TransferMediaUnit(*target, media, clock, deadline);
+	bool mutation_started = false;
+	if (error.ok()) error = TransferMediaUnit(*target, media, clock, deadline, &mutation_started);
 	if (error.ok()) return {};
+	// Discovery or a completed first-Begin rejection did not replace the disk.
+	// Ejecting here could destroy it as soon as a busy guest writer drains.
+	if (!mutation_started) return error;
 	// Never repeat an ambiguous mutation: eject this unit once, report the
 	// failure and leave execution released.
 	const Error ejected = AbandonMediaUnit(*target, AddDeadline(gp_.NowMs(), cleanup_ms));
@@ -1392,8 +1560,8 @@ CoreDriverResult FesGpCoreDriver::Start(const CoreDriverContext&,
 {
 	if (stream_pending_) return {Io("incomplete media stream cannot start"), false, ""};
 	if (home_computer_) {
-		// No media gate: a home computer starts with empty drives and is released
-		// right after identity. The first HID snapshot then writes every row.
+		// Native activation may insert an initial library disk before Start.
+		// Release preserves that disk; the first HID snapshot writes every row.
 		hid_rows_known_ = false;
 		CoreDriverResult result = Gameplay(
 			static_cast<std::uint16_t>(FesComputerExecutionRelease), deadline);

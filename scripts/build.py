@@ -22,6 +22,7 @@ import bundle as core_bundle
 from build_diagnostics import BuildDiagnostics
 from environment import build_environment
 from recipes import FORMAT2_RECIPES, REGISTRY_PATH, recipe_for
+from image_passes import validate_image_passes
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = ROOT / "image"
@@ -244,10 +245,12 @@ def fingerprint(revisions, profile, toolchain):
     return build_fingerprint(revisions, profile, toolchain)
 
 
-def verification_record(output, image_sha256, baseline_match):
-    return {"image_sha256": image_sha256, "historical_baseline_match": baseline_match,
-            "two_pass_reproducibility": "pass", "structural": "pass", "qemu_packaging": "pass",
+def verification_record(output, image_sha256, baseline_match, image_passes=2):
+    result = {"image_sha256": image_sha256, "historical_baseline_match": baseline_match,
+            "two_pass_reproducibility": "pass" if image_passes == 2 else "not-run-single-pass",
+            "structural": "pass", "qemu_packaging": "pass",
             "qemu_log_sha256": digest(output / "qemu-smoke.log")}
+    return result
 
 
 def publish_host_inputs(output, fingerprint, metadata):
@@ -315,7 +318,7 @@ def load_verified_host(output, fingerprint, os_name='linux', arch='amd64'):
         raise ValueError('cold host receipt is missing, changed, or stale; run make build and make verify') from None
 
 
-def load_verified_image(output, fingerprint):
+def load_verified_image(output, fingerprint, *, allow_single_pass=False):
     selected_fingerprint = fingerprint
     if not reusable(output, "image", selected_fingerprint):
         try:
@@ -334,14 +337,24 @@ def load_verified_image(output, fingerprint):
         qemu_log_sha256 = digest(output / "qemu-smoke.log")
         evidence = dict(line.split("=", 1) for line in
                         (output / "reproducibility.txt").read_text().splitlines())
+        single = evidence.get("image_passes") == "1"
+        verification_ok = (verification.get("two_pass_reproducibility") == "pass"
+                           and verification.get("image_passes", 2) == 2
+                           and evidence.get("run_2_sha256") == actual)
+        if allow_single_pass and single:
+            marker = dict(line.split("=", 1) for line in (output / "SINGLE-PASS-SCRATCH.txt").read_text().splitlines())
+            verification_ok = (verification.get("two_pass_reproducibility") == "not-run-single-pass"
+                               and evidence.get("single_pass_scratch") == "1"
+                               and marker.get("linux_img_sha256") == actual
+                               and marker.get("head_sha") == receipt_revision(receipt))
         required = (receipt["files"]["linux.img"] == actual
                     and verification.get("image_sha256") == actual
                     and verification.get("structural") == "pass"
                     and verification.get("qemu_packaging") == "pass"
                     and verification.get("qemu_log_sha256") == qemu_log_sha256
-                    and verification.get("two_pass_reproducibility") == "pass"
+                    and verification_ok
                     and evidence.get("run_1_sha256") == actual
-                    and evidence.get("run_2_sha256") == actual)
+                    and (single or evidence.get("run_2_sha256") == actual))
         if required:
             return {"fes_revision": receipt_revision(receipt), "rootfs_sha256": actual,
                     "image_receipt_sha256": digest(output / "image.json"),
@@ -1589,6 +1602,7 @@ def main():
     parser.add_argument("--profile", default="native-integration-dev",
                         choices=["native-integration-dev"])
     args = parser.parse_args()
+    image_passes = validate_image_passes()
     profile = tomllib.loads((ROOT / "profiles" / (args.profile + ".toml")).read_text())
     if args.action in ('host', 'dev', 'doctor'):
         revisions = validate(ROOT, profile, allow_development=True)
@@ -1645,6 +1659,7 @@ def main():
         env["TARGET_IMAGE_CONTAINER_RUNTIME"] = container
         env["TARGET_IMAGE_OUTPUT_VOLUME"] = output_volume(ROOT, args.profile)
         env["FOGCAST_DIR"] = str(fogcast)
+        env["FES_IMAGE_PASSES"] = str(image_passes)
         # The host has a small /tmp tmpfs; Go temporary files belong in out/.
         temp = ROOT / "out/tmp"
         temp.mkdir(exist_ok=True)
@@ -1652,7 +1667,8 @@ def main():
         fogcast_make = ["make", "-C", fogcast, "CONTAINER_RUNTIME=" + container, "VERSION=" + profile["version"]]
         image_make = ["make", "-C", IMAGE, "FOGCAST_DIR=" + str(fogcast),
                       "CONTAINER_RUNTIME=" + container,
-                      "NATIVE_RUNTIME_MODE=" + mode]
+                      "NATIVE_RUNTIME_MODE=" + mode,
+                      "IMAGE_PASSES=" + str(image_passes)]
         if args.action == "dev":
             from native_dev import build_development
             runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
@@ -1682,6 +1698,13 @@ def main():
         if args.action in ("build", "image", "rebuild"):
             image_hit, image_reason = (False, "forced rebuild") if args.action == "rebuild" else reuse_status(
                 output, "image", image_fp)
+            if image_hit and os.environ.get("IMAGE_PASSES", "2") == "2":
+                try:
+                    prior = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
+                    if prior.get("image_passes", "2") != "2":
+                        image_hit, image_reason = False, "single-pass output cannot satisfy a two-pass request"
+                except (OSError, ValueError):
+                    image_hit, image_reason = False, "image pass evidence is missing"
             if image_hit:
                 diagnostics.cache("image", "hit", image_reason)
                 print("Image: reusing verified output", flush=True)
@@ -1712,6 +1735,11 @@ def main():
                     env=verify_env)
                 built = IMAGE / "build/output/target-image/native-dev"
                 names = ["linux.img", "reproducibility.txt", "manifest.tsv", "library-report.tsv"]
+                marker = built / "SINGLE-PASS-SCRATCH.txt"
+                if marker.is_file():
+                    names.append(marker.name)
+                else:
+                    (output / marker.name).unlink(missing_ok=True)
                 for name in names:
                     publish_file(built / name, output / name)
                 built_selections = {
@@ -1749,13 +1777,14 @@ def main():
             shutil.copy2(IMAGE / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")
             actual = digest(output / "linux.img")
             evidence = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
-            if evidence.get("run_1_sha256") != actual or evidence.get("run_2_sha256") != actual:
-                raise ValueError("image does not match both recorded build passes")
+            passes = int(evidence.get("image_passes", "2"))
+            if evidence.get("run_1_sha256") != actual or (passes == 2 and evidence.get("run_2_sha256") != actual):
+                raise ValueError("image does not match recorded build passes")
             baseline = profile.get("baseline_image_sha256")
             matches = None if baseline is None else actual == baseline
-            result = verification_record(output, actual, matches)
+            result = verification_record(output, actual, matches, passes)
             (output / "verification.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-            print("Two-pass reproducibility, structural and QEMU packaging checks passed.", flush=True)
+            print(f"Image passes={passes}; structural and QEMU packaging checks passed.", flush=True)
             print(f"Baseline image hash match: {matches} (see README provenance note)", flush=True)
 if __name__ == "__main__":
     try:

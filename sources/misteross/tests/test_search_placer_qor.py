@@ -413,6 +413,92 @@ print("Info: Program finished normally.")
             self.assertFalse(candidate.passing)
             self.assertEqual(candidate.worst_ratio, 0.0)
 
+    def _search(self, **overrides):
+        arguments = dict(
+            nextpnr=Path("nextpnr"), fixture=Path("synth.json"), output=Path("/tmp"),
+            device="5CSEBA6U23I7", qsf=Path("x.qsf"), sdc=None, freq=None,
+            seeds=(4, 1, 2), weights=(10,), critexp=5, budget=8, mode="first-pass",
+            extra=(), timeout=1,
+        )
+        arguments.update(overrides)
+        return search(**arguments)
+
+    def test_first_pass_continues_after_a_rejected_passing_route(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            calls: list[tuple[int, int]] = []
+
+            def run(seed: int, weight: int) -> Candidate:
+                calls.append((seed, weight))
+                log = root / f"s{seed}.log"
+                log.write_text("Info: Program finished normally.\n")
+                base = _candidate(seed, weight, 56.0 if seed != 2 else 40.0)
+                return Candidate(**{**base.__dict__, "log": str(log)})
+
+            def accept(candidate: Candidate) -> str | None:
+                if candidate.seed == 4:
+                    return "plug_addr[39] exit used by video.vsync"
+                return None
+
+            ranked = self._search(run_one=run, accept=accept)
+            self.assertEqual(calls, [(4, 10), (1, 10)])
+            self.assertEqual(ranked[0].seed, 1)
+            self.assertTrue(ranked[0].passing)
+            rejected = next(item for item in ranked if item.seed == 4)
+            self.assertFalse(rejected.passing)
+            self.assertIn(
+                "search_placer_qor: rejected passing route: plug_addr[39] exit used by video.vsync",
+                (root / "s4.log").read_text(),
+            )
+            self.assertNotIn("rejected passing route", (root / "s1.log").read_text())
+
+    def test_staged_and_grid_search_demote_a_rejected_passing_route(self) -> None:
+        def run(seed: int, weight: int) -> Candidate:
+            return _candidate(seed, weight, 60.0 if seed == 4 else 55.0)
+
+        def accept(candidate: Candidate) -> str | None:
+            return "blocked" if candidate.seed == 4 else None
+
+        for mode in ("staged", "grid"):
+            with self.subTest(mode=mode):
+                ranked = self._search(
+                    seeds=(4, 1), weights=(300,), budget=4, mode=mode,
+                    run_one=run, accept=accept,
+                )
+                self.assertEqual(ranked[0].seed, 1)
+                self.assertTrue(ranked[0].passing)
+                self.assertFalse(next(item for item in ranked if item.seed == 4).passing)
+
+    def test_route_after_synth_names_a_rejected_passing_route(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            dest = Path(directory)
+
+            def run(seed: int, weight: int) -> Candidate:
+                run_dir = dest / "qor-search" / f"s{seed}-w{weight}-c5"
+                run_dir.mkdir(parents=True, exist_ok=True)
+                log = run_dir / "route.log"
+                log.write_text("Info: Program finished normally.\n")
+                for name in ("timing.json", "routed.json", "core.rbf"):
+                    (run_dir / name).write_text("x")
+                base = _candidate(seed, weight, 56.0)
+                return Candidate(**{**base.__dict__, "log": str(log), "run_dir": str(run_dir)})
+
+            def accept(candidate: Candidate) -> str | None:
+                return "plug_addr[39] exit used by video.vsync"
+
+            with self.assertRaisesRegex(
+                SearchError,
+                r"no placement met timing \(best seed=4 weight=10 .*"
+                r"plug_addr\[39\] exit used by video.vsync",
+            ):
+                route_after_synth(
+                    nextpnr=Path("nextpnr"), fixture=dest / "synth.json", dest=dest,
+                    device="5CSEBA6U23I7", qsf=Path("x.qsf"), sdc=None, freq=None,
+                    seeds=(4,), weights=(10,), critexp=5, budget=1, mode="first-pass",
+                    extra=(), run_one=run, accept=accept,
+                )
+            self.assertFalse((dest / "core.rbf").exists())
+
     def test_route_after_synth_errors_when_nothing_closes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             dest = Path(directory)
@@ -425,7 +511,10 @@ print("Info: Program finished normally.")
                 base = _candidate(seed, weight, 40.0)
                 return Candidate(**{**base.__dict__, "run_dir": str(run_dir)})
 
-            with self.assertRaises(SearchError):
+            with self.assertRaisesRegex(
+                SearchError,
+                r"^no placement met timing \(best seed=4 weight=10 worst_ratio=0\.7692\)$",
+            ):
                 route_after_synth(
                     nextpnr=Path("nextpnr"),
                     fixture=dest / "synth.json",

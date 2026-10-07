@@ -40,7 +40,9 @@ func fixtureInputsLayout(t *testing.T, archive bool, layout string) ([]string, e
 		Layout: layout, Payload: payload}
 	digest := fmt.Sprintf("%x", sha256.Sum256(payload))
 	slot, mapping := expansion.VideoSlot, expansion.ColecoVideoMap
-	if layout == expansion.ColecoNativeVideoLayout {
+	if layout == expansion.AtariStVideoLayout {
+		mapping = expansion.AtariStVideoMap
+	} else if layout == expansion.ColecoNativeVideoLayout {
 		slot, mapping = expansion.NativeVideoSlot, expansion.ColecoNativeVideoMap
 	}
 	asset, err := expansion.NewAsset(expansion.Manifest{CartSHA256: digest, CartSize: int64(len(payload)),
@@ -179,5 +181,83 @@ func TestRunRejectsMissingOrUnpairedArguments(t *testing.T) {
 		if err := run(context.Background(), args, io.Discard); err == nil {
 			t.Fatalf("accepted arguments %v", args)
 		}
+	}
+}
+
+func TestRunAtariStROMVideoAndCartridgeMatchesAPI(t *testing.T) {
+	args, shell, video := fixtureInputsLayout(t, true, expansion.AtariStVideoLayout)
+	readGzip := func(name string) []byte {
+		f, err := os.Open("../../testdata/rom/" + name + ".gz")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer f.Close()
+		z, err := gzip.NewReader(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer z.Close()
+		data, err := io.ReadAll(z)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	rawMap, rom := readGzip("map.json"), readGzip("ramp.rom")
+	dir := filepath.Dir(args[9])
+	mapPath, romPath, cardPath := filepath.Join(dir, "map.json"), filepath.Join(dir, "rom.bin"), filepath.Join(dir, "card.tar")
+	for name, data := range map[string][]byte{mapPath: rawMap, romPath: rom} {
+		if err := os.WriteFile(name, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	manifest := video.Manifest
+	manifest.Map, manifest.Slot, manifest.SlotIndex = expansion.AtariStMap, expansion.AtariStSlot, 1
+	cpu, err := expansion.NewAsset(manifest, shell.Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var encoded bytes.Buffer
+	if err := cpu.Write(&encoded); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cardPath, encoded.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	args = append(args, "-layout", expansion.AtariStVideoLayout, "-expansion", cardPath, "-map", mapPath, "-rom", romPath)
+	var stdout bytes.Buffer
+	if err := run(context.Background(), args, &stdout); err != nil {
+		t.Fatal(err)
+	}
+	mapping, err := expansion.ParseROMMap(context.Background(), rawMap, video.Manifest.ShellSHA256, len(rom))
+	if err != nil {
+		t.Fatal(err)
+	}
+	receipt, _, expected, err := expansion.ComposePartsROM(context.Background(), shell, []expansion.Asset{video, cpu}, mapping, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(args[9])
+	if err != nil || !bytes.Equal(got, expected) || !bytes.Contains(stdout.Bytes(), []byte(receipt.ID)) {
+		t.Fatal("ST ROM CLI differs from shared API", err)
+	}
+	manifest.Map, manifest.Slot, manifest.SlotIndex, manifest.SlotMajor = expansion.ColecoMapV2, expansion.ColecoSlot, 0, 2
+	foreign, err := expansion.NewAsset(manifest, shell.Payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded.Reset()
+	if err := foreign.Write(&encoded); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cardPath, encoded.Bytes(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := run(context.Background(), args, io.Discard); err == nil {
+		t.Fatal("accepted Coleco card in ST CLI layout")
+	}
+	after, err := os.ReadFile(args[9])
+	if err != nil || !bytes.Equal(after, got) {
+		t.Fatal("rejected ST composition replaced output")
 	}
 }

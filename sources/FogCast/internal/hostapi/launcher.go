@@ -673,6 +673,10 @@ func (a *applicationHandler) launcherInput(w http.ResponseWriter, r *http.Reques
 }
 
 func launcherPlayHIDEvent(e remoteinput.Event) bool {
+	if e.Device == remoteinput.DeviceMouse {
+		_, _, _, ok := remoteinput.MouseVector(e)
+		return ok
+	}
 	if e.Player > 1 || (e.Player != 0 && e.Device != remoteinput.DeviceGamepad) {
 		return false
 	}

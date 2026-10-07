@@ -19,8 +19,9 @@ they were written. They are not the schedule for this tree.
 Parent recipe rows live in FES `config/core-recipes.toml`. The factory image
 installs the idle display `fes.menu`, playable `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000` and `fes.spectrum`, and the OSS 100 MHz
-`fes.ramtest` utility: eight packages. `fes.coleco` is the video-socket
-shell, and the image also carries its sealed Direct and Scanlines video parts.
+`fes.ramtest` utility and `fes.atari-st`: nine packages. `fes.coleco` and
+`fes.atari-st` are video-socket shells; the image also carries sealed Direct and
+Scanlines parts for each exact shell. ST firmware remains a separate user input.
 A producer in this module does not put a package on that image.
 
 | Package | Tree | Mailbox | Lock | OSS seal | In factory image |
@@ -37,7 +38,7 @@ A producer in this module does not put a package on that image.
 | `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchains/spectrum.lock` | `make build-fes-spectrum` | yes; four edge sockets |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
 | `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `toolchain.lock` (shared FES HIP lane; 100 and 130 MHz) | `make build-fes-ramtest-100` (factory), `make build-fes-ramtest-130` (explicit) | yes; OSS 100 MHz utility |
-| `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `toolchains/atari-st.lock` | `make build-fes-atari-st` | no; native Atari 520ST producer |
+| `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `toolchains/atari-st.lock` | `make build-fes-atari-st` | yes; Atari 520ST firmware shell and Direct/Scanlines parts |
 | `fes.riscv` | `cores/fes-riscv` | `fes.application` with `fes.gamepad` | `toolchain.lock` | `make build-fes-riscv` | no; package-only recipe; original RV32I CPU from `cores/fes-common/rtl/riscv` |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
 
@@ -264,7 +265,8 @@ physical SDRAM commands, dual-clock video and complete disk upload.
 `sim-fes-atari-st-emutos` accepts an external 192 KiB EmuTOS image; the
 fetch target pins the official free ROM. Native producer qualification and
 hardware acceptance remain distinct from these host checks. The factory
-image does not select this core yet.
+image selects the firmware shell and its Direct/Scanlines parts without bundling
+EmuTOS or Atari ROMs.
 
 1. Pick an existing ABI unless the task includes a new one. A new mailbox or
    transport is mister-packages plus libmister-runtime, then RTL. A producer

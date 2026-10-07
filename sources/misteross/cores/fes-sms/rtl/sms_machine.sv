@@ -243,6 +243,7 @@ module sms_machine (
 `ifdef FES_SMS_ROM_LINK
     always @* media_addr = 15'd0;
     sms_rom_link rom (
+        .clk(clk_sys),
         .address(cpu_addr[14:0]), .data(cartridge_read),
         .peek_address(peek_addr[14:0]), .peek_data(cartridge_peek)
     );

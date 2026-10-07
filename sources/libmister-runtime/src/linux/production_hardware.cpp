@@ -101,6 +101,7 @@ public:
  Error SetSessionDisplay(bool visible) override {return hardware_.SetSessionDisplay(visible);}
  Error PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* info) override {return hardware_.PresentMenuFrame(frame,info);}
 	Error FlushSave() override { return hardware_.FlushSave(); }
+	Error FlushFaultSave() override { return hardware_.FlushFaultSave(); }
 	Error RestoreInput(std::uint64_t generation) override
 	{
 		return hardware_.RestoreInput(generation);
@@ -130,6 +131,10 @@ public:
 	{
 		return hardware_.RefreshCoreData(package, output);
 	}
+	Error PrepareInitialComputerMedia(AdmittedCorePackage* package, const InitialComputerMedia& media) override
+	{ return hardware_.PrepareInitialComputerMedia(package, media); }
+	Error RefreshInitialComputerMedia(AdmittedCorePackage* package) override
+	{ return hardware_.RefreshInitialComputerMedia(package); }
 	Error AttachProgrammedBitstream(AdmittedCorePackage* package,
 		const std::string& path, const std::string& sha256) override
 	{
@@ -194,6 +199,10 @@ public:
 	{
 		return hardware_.LoadComputerMediaStream(path, size);
 	}
+	Error SendMouseRelative(std::int16_t dx, std::int16_t dy, std::uint8_t buttons) override
+	{
+		return hardware_.SendMouseRelative(dx, dy, buttons);
+	}
 	Error SetKeyboardHid(const KeyboardHidRows& rows) override
 	{
 		return hardware_.SetKeyboardHid(rows);
@@ -203,6 +212,10 @@ public:
 	{
 		return hardware_.InsertComputerMedia(unit, path, size);
 	}
+    Error InsertLibraryComputerMedia(std::uint8_t unit, const std::string& path,
+        std::uint32_t size, const std::string& root, const MediaDataBinding& binding) override {
+        return hardware_.InsertLibraryComputerMedia(unit,path,size,root,binding);
+    }
 	Error EjectComputerMedia(std::uint8_t unit) override
 	{
 		return hardware_.EjectComputerMedia(unit);

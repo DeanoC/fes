@@ -19,6 +19,14 @@ module cart (
     wire wr_n = plug_addr[`ZX81_BUS_WR_N];
     wire sel = (cpu_a[15:10] == 6'h21) && !mreq_n;
     wire [7:0] read_data;
+    // The glyph byte is a registered M10K read. ROMCS and DSEL use that
+    // same edge so the response word describes one request. WAIT stays 0;
+    // a cart that drives it has to register that bit on this stage too.
+    reg romcs_q, dsel_q;
+    always @(posedge FPGA_CLK1_50) begin
+        romcs_q <= sel;
+        dsel_q <= sel && !rd_n;
+    end
 `ifdef SYNTHESIS
     // Same TDP write-enable overlay as the 16K pack. Mixed-width A1EN/A1BE
     // decoded the window but did not hold CPU writes (PEEK 8400 stayed 0
@@ -27,7 +35,7 @@ module cart (
     wire [9:0] read_q;
     (* keep, BEL = "MISTRAL_M10K.26.1.0" *)
     MISTRAL_M10K_TDP #(
-        .CFG_ABITS(10), .CFG_DBITS(10), .CFG_ASYNC_READ(1),
+        .CFG_ABITS(10), .CFG_DBITS(10), .CFG_ASYNC_READ(0),
         .INIT(QS_CHRS_INIT)
     ) slot_cell (
         .CLK1(FPGA_CLK1_50), .CLK2(FPGA_CLK1_50),
@@ -62,7 +70,7 @@ module cart (
     );
 `endif
     assign plug_rdata = {
-        1'b0, 1'b0, sel, sel && !rd_n,
+        1'b0, 1'b0, romcs_q, dsel_q,
         8'b0, read_data
     };
 endmodule

@@ -50,7 +50,6 @@ module st_video #(
     wire low_resolution = resolution == 2'd0;
     wire high_resolution = resolution == 2'd2;
     wire mode_valid = resolution != 2'd3;
-    wire [2:0] planes = low_resolution ? 3'd4 : high_resolution ? 3'd1 : 3'd2;
     // Low 4x3 and medium 2x3 fill 1280x600; high 2x1 fills 1280x400.
     // This first slice uses nearest-neighbor integer scaling, not aspect correction.
     wire [9:0] image_top = high_resolution ? 10'd160 : 10'd60;
@@ -60,18 +59,10 @@ module st_video #(
                       vertical < image_top + image_height && mode_valid;
     wire [3:0] bit_index = 4'd15 - (low_resolution ? horizontal[5:2] : horizontal[4:1]);
 
-    // Fetch every plane immediately before its 16-pixel group. Group zero is
-    // fetched during the preceding line's blanking, including at frame wrap.
-    // Staging words keep the preceding group's final pixels unchanged.
-    wire [11:0] ahead = {1'b0, horizontal} + {9'd0, planes};
-    wire wrap_line = ahead >= {1'b0, H_TOTAL};
-    wire [10:0] fetch_x = wrap_line ? ahead[10:0] - H_TOTAL : ahead[10:0];
-    wire [9:0] fetch_y = wrap_line ?
-        (vertical == V_TOTAL - 1'b1 ? 10'd0 : vertical + 1'b1) : vertical;
-    wire [5:0] group_phase = low_resolution ? fetch_x[5:0] : {1'b0, fetch_x[4:0]};
-    wire fetching = mode_valid && fetch_x < H_ACTIVE &&
-        fetch_y >= image_top && fetch_y < image_top + image_height &&
-        group_phase < {3'd0, planes};
+    // Capture each plane immediately before its 16-pixel group. Group zero
+    // uses the preceding line's blanking; staging preserves its final pixels.
+    wire capture_enable, capture_commit;
+    wire [1:0] capture_stage;
     wire address_valid;
     generate
         if (CACHED_WORD_PORT) begin : cached_coordinates
@@ -81,6 +72,27 @@ module st_video #(
             wire mono_line = vertical >= 10'd160 && vertical < 10'd560;
             wire next_color_line = next_vertical >= 10'd60 && next_vertical < 10'd660;
             wire next_mono_line = next_vertical >= 10'd160 && next_vertical < 10'd560;
+            // These are the original h+planes capture cycles, expressed before
+            // addition/wrap comparisons. Select the mode after each constant
+            // window; cache lookup still occurs exactly two clocks earlier.
+            wire low_capture =
+                (color_line && horizontal < 11'd1276 && horizontal[5:0] >= 6'd60) ||
+                (next_color_line && horizontal >= 11'd1646);
+            wire medium_capture =
+                (color_line && horizontal < 11'd1278 && horizontal[4:0] >= 5'd30) ||
+                (next_color_line && horizontal >= 11'd1648);
+            wire mono_capture =
+                (mono_line && horizontal < 11'd1279 && horizontal[4:0] == 5'd31) ||
+                (next_mono_line && horizontal == 11'd1649);
+            assign capture_enable = low_resolution ? low_capture :
+                high_resolution ? mono_capture : resolution == 2'd1 && medium_capture;
+            // Low group zero starts at h=1646, two phases after h[1:0].
+            // Medium uses two phases and mono always captures plane zero.
+            assign capture_stage = low_resolution ?
+                (horizontal >= 11'd1646 ? horizontal[1:0] ^ 2'd2 : horizontal[1:0]) :
+                high_resolution ? 2'd0 : {1'b0, horizontal[0]};
+            assign capture_commit = horizontal == 11'd1649 ||
+                (low_resolution ? &horizontal[5:0] : &horizontal[4:0]);
             wire cached_next_image_line = mode_valid &&
                 (high_resolution ? next_mono_line : next_color_line);
             wire before_image = high_resolution ? vertical < 10'd160 : vertical < 10'd60;
@@ -139,6 +151,21 @@ module st_video #(
             assign fetch_column = low_resolution ? {low_x[10:6], low_x[1:0]} :
                 high_resolution ? {1'b0, mono_x[10:5]} : {medium_x[10:5], medium_x[0]};
         end else begin : physical_coordinates
+            // Retain the combinational physical word-port address and capture
+            // arithmetic, including its invalid-address behavior.
+            wire [2:0] planes = low_resolution ? 3'd4 : high_resolution ? 3'd1 : 3'd2;
+            wire [11:0] ahead = {1'b0, horizontal} + {9'd0, planes};
+            wire wrap_line = ahead >= {1'b0, H_TOTAL};
+            wire [10:0] fetch_x = wrap_line ? ahead[10:0] - H_TOTAL : ahead[10:0];
+            wire [9:0] fetch_y = wrap_line ?
+                (vertical == V_TOTAL - 1'b1 ? 10'd0 : vertical + 1'b1) : vertical;
+            wire [5:0] group_phase = low_resolution ? fetch_x[5:0] : {1'b0, fetch_x[4:0]};
+            wire fetching = mode_valid && fetch_x < H_ACTIVE &&
+                fetch_y >= image_top && fetch_y < image_top + image_height &&
+                group_phase < {3'd0, planes};
+            assign capture_enable = fetching;
+            assign capture_stage = group_phase[1:0];
+            assign capture_commit = group_phase == {3'd0, planes} - 6'd1;
             wire image_line = mode_valid && vertical >= image_top && vertical < image_top + image_height;
             wire next_image_line = mode_valid && next_vertical >= image_top &&
                                    next_vertical < image_top + image_height;
@@ -187,14 +214,14 @@ module st_video #(
             end else begin
                 horizontal <= horizontal + 1'b1;
             end
-            if (fetching) begin
-                case (group_phase[1:0])
+            if (capture_enable) begin
+                case (capture_stage)
                     2'd0: staging0 <= fetched_word;
                     2'd1: staging1 <= fetched_word;
                     2'd2: staging2 <= fetched_word;
                     default: begin end
                 endcase
-                if (group_phase == {3'd0, planes} - 6'd1) begin
+                if (capture_commit) begin
                     plane0 <= high_resolution ? fetched_word : staging0;
                     plane1 <= low_resolution ? staging1 : high_resolution ? 16'd0 : fetched_word;
                     plane2 <= low_resolution ? staging2 : 16'd0;

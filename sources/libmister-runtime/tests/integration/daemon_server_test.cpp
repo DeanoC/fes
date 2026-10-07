@@ -1343,9 +1343,11 @@ void TestMenuMultipleAndTruncatedDescriptorsClose()
 {
  using namespace mister::daemon;
  TempDirectory temporary;Fixture fixture;fixture.Start();assert(fixture.runtime.ConfigureMenuPackage("/menu",kPackageId).ok());
- RunningServer server(fixture.runtime,temporary.Entry("runtime.sock"));
  for(unsigned size:{2u,32u}){
-  const auto baseline=OpenDescriptors();const int socket=Connect(temporary.Entry("runtime.sock"));
+  const auto baseline=OpenDescriptors();
+  {
+  RunningServer server(fixture.runtime,temporary.Entry("runtime.sock"));
+  const int socket=Connect(temporary.Entry("runtime.sock"));
   const auto generation=fixture.runtime.status().menu_display.generation;
   const auto begin=std::string("{\"protocol\":2,\"operation\":\"menu_frame_begin\",\"expected_generation\":")+std::to_string(generation)+",\"byte_count\":3686400}";
   const auto deadline=std::chrono::steady_clock::now()+std::chrono::seconds(2);
@@ -1359,6 +1361,9 @@ void TestMenuMultipleAndTruncatedDescriptorsClose()
   memcpy(CMSG_DATA(header),descriptors.data(),size*sizeof(int));assert(sendmsg(socket,&message,0)==static_cast<ssize_t>(commit.size()));
   ReceivedFrame response;assert(ReceiveFrame(socket,deadline,&response).ok());Contains(response.line,"\"ok\":false");
   assert(response.fds.empty());(void)ReadRejectedFrameResponse(socket);close(socket);frame=ReceivedFrame{};
+  }
+  // EOF can arrive between the worker's shutdown and close. Destruction
+  // joins Serve and all connections before this exact descriptor census.
   assert(OpenDescriptors()==baseline);
  }
  assert(fixture.hardware.menu_present_calls==0);

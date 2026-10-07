@@ -19,6 +19,13 @@ From the FES root:
 | Flashable disk | `make media` after verify |
 | Versioned appliance | `make release` / `make appliance-media` |
 
+For a local scratch/HIL image, run `IMAGE_PASSES=1 make image`. The output
+records the single pass and includes `SINGLE-PASS-SCRATCH.txt` with checkout
+head and image SHA-256. A HIL-named release appends `-1p`, records
+`image_passes: 1`, and includes the marker. CI and cold/production receipts
+require two passes. The out-of-repo `~/bin/fes-docker-1pass` shim is retired
+once this merges.
+
 Those commands build FogCast agent, kit and selector/verifier binaries, then run
 `make -C image FOGCAST_DIR=<snapshot>/sources/FogCast`. Do not run FogCast
 `make target-image-native` as the parent integration path.

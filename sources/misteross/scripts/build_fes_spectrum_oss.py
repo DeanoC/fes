@@ -5,7 +5,7 @@ The package is format 3: the sixteen blank 1024x10 firmware lanes (column 5,
 rows 32-47) are described by a sealed ROM map for the 16,384-byte
 `spectrum-firmware` image that FogCast links at download time. The shell
 reserves the four named socket rectangles of `fes.spectrum-bus.sockets/1`
-and pins each socket's boundary flip-flops; no other shell cell may sit in a
+and pins each socket's boundary flip-flops and their verified route-throughs; no other shell cell may sit in a
 socket and no firmware destination may fall in a socket's CRAM rectangle.
 """
 
@@ -22,7 +22,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import spectrum_slots, rom_map
+from scripts import spectrum_slots, rom_map, coleco_expansion
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import (
@@ -31,7 +31,7 @@ from scripts.export_core_package import (
 from scripts.fes_build_common import (
     BuildError, _authenticate_tools, _cell_counts, _i2c_evidence, _prepare_output,
     _read_json, _regular_input, _require_gpu_backend, _run_tool, _sha256, _write_atomic,
-    validate_timing_resources,
+    reject_async_m10k_reads, validate_timing_resources,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
@@ -102,7 +102,7 @@ RTL_SOURCES = (
     "cores/fes-common/rtl/z80/fes_z80_fast.sv",
 )
 PINNED_INPUTS = (
-    RECIPE, "scripts/spectrum_slots.py", "scripts/compiler_read_audit.py",
+    RECIPE, "scripts/spectrum_slots.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
     ABI_DEFINITION, SPECTRUM_TOOLCHAIN_LOCK, QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
@@ -272,8 +272,9 @@ def build_commands(root: Path, output: Path, build_id: str,
 
 
 def validate_routed_shell(routed: dict) -> dict:
-    """Every socket holds only its pinned boundary flip-flops."""
-    cells = routed.get("modules", {}).get(TOP, {}).get("cells", {})
+    """Every socket holds only pinned boundary FFs and verified paired buffers."""
+    top = routed.get("modules", {}).get(TOP, {})
+    cells = top.get("cells", {})
     expected = {}
     for socket in spectrum_slots.SOCKETS:
         for name, bel in spectrum_slots.boundary_bels(socket).items():
@@ -283,17 +284,47 @@ def validate_routed_shell(routed: dict) -> dict:
         if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_FF" or \
                 cell.get("attributes", {}).get("NEXTPNR_BEL") != bel:
             raise BuildError(f"slot boundary cell {name} is not at {bel}")
+    try:
+        route_through = coleco_expansion.boundary_route_through_cells(top, expected)
+        coleco_expansion.validate_clock_anchors(top, {
+            name: bel for name, bel in expected.items() if ".clock_coverage_ff_" in name})
+    except ValueError as exc:
+        raise BuildError(str(exc)) from exc
+    drivers = {}
+    for cell in cells.values():
+        for port, bits in cell.get("connections", {}).items():
+            if cell.get("port_directions", {}).get(port) == "output":
+                for bit in bits:
+                    if type(bit) is int:
+                        drivers[bit] = drivers.get(bit, 0) + 1
+    for port in top.get("ports", {}).values():
+        if port.get("direction") == "input":
+            for bit in port.get("bits", []):
+                if type(bit) is int:
+                    drivers[bit] = drivers.get(bit, 0) + 1
+    for name in expected:
+        companion = name + "$ROUTETHRU"
+        data = (cells[companion]["connections"]["A"] if companion in route_through else
+                cells[name].get("connections", {}).get("DATAIN"))
+        # Older snapshots can disconnect an unused clock-only data input.
+        if data == [] and ".clock_coverage_ff_" in name:
+            continue
+        if not isinstance(data, list) or len(data) != 1 or not (
+                (type(data[0]) is int and drivers.get(data[0]) == 1) or
+                (type(data[0]) is str and data[0] in ("0", "1"))):
+            raise BuildError(f"slot boundary data input has no unique driver: {name}")
+    allowed = set(expected) | route_through
     for name, cell in cells.items():
         bel = cell.get("attributes", {}).get("NEXTPNR_BEL", "") if isinstance(cell, dict) else ""
         match = BEL_RE.match(bel)
-        if not match or name in expected:
+        if not match or name in allowed:
             continue
         x, y = int(match.group(1)), int(match.group(2))
         for socket in spectrum_slots.SOCKETS:
             if spectrum_slots.COLUMN <= x <= spectrum_slots.COLUMN + 4 and socket.first_row <= y <= socket.last_row:
                 raise BuildError(f"shell cell {name} is inside the slot {socket.slot} socket")
     return {"layout": spectrum_slots.LAYOUT, "sockets": [s.slot for s in spectrum_slots.SOCKETS],
-            "pinned_boundary_cells": len(expected)}
+            "pinned_boundary_cells": len(expected), "boundary_route_through_cells": len(route_through)}
 
 
 def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, float, float]:
@@ -339,6 +370,7 @@ def validate_firmware_ports(cells: dict) -> None:
 def validate_synth_evidence(output: Path, *, cpu: str = "nmos") -> dict:
     _output, _sys_mhz, pll_count = _cpu_parameters(cpu)
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
+    reject_async_m10k_reads(synthesis)
     _i2c_evidence(synthesis, "synthesized")
     counts = _cell_counts(synthesis)
     for name, expected in (REQUIRED_RESOURCES | {"altera_pll": pll_count}).items():
@@ -364,6 +396,7 @@ def validate_build_evidence(output: Path, *, cpu: str = "nmos") -> dict:
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
     synth = validate_synth_evidence(output, cpu=cpu)
+    reject_async_m10k_reads(routed)
     _i2c_evidence(routed, "routed")
     sockets = validate_routed_shell(routed)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")

@@ -111,7 +111,7 @@ The default and only FES integration profile is `native-integration-dev`.
 Build and verify do not deploy. The profile authenticates the pinned open-source
 misteross HIP/nextpnr tools before selecting the ordered
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
-`fes.spectrum`, `fes.ramtest` package set in
+`fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set in
 [the default profile](../profiles/native-integration-dev.toml). The image selector
 also supports `fes.c64`. C64 remains package-only while its HIP seal is unresolved.
 See [described FPGA core
@@ -131,6 +131,13 @@ two-pass reproducibility checks for stabilized integration; full rebuilds
 are also required when image configuration, packaging or locked inputs
 change. One parent build runs per checkout, enforced by its existing lock.
 Coordinate shared expensive runs rather than starting one per agent.
+
+For local scratch/HIL iteration, `IMAGE_PASSES=1 make image` runs once and
+records single-pass diagnostic status plus a `SINGLE-PASS-SCRATCH.txt` binding
+the checkout head and image digest. A HIL-named `make release` appends `-1p`,
+records `image_passes: 1`, and carries the marker into release outputs. CI and
+cold media/appliance paths keep two passes. The out-of-repo
+`~/bin/fes-docker-1pass` shim is retired once this merges.
 
 CI simulations use Verilator 5.032 at source commit
 `8ff77e9d47351b0a59114929880687839a51840b`, selected by

@@ -101,7 +101,7 @@ func DecodeInputFrame(r io.Reader, max uint32) (InputFrame, error) {
 
 func validInputFrame(f InputFrame) bool {
 	if (f.Header.Type != InputTypeInput && f.Header.Type != InputTypePing && f.Header.Type != InputTypePong) ||
-		f.Header.Session == 0 || f.Header.Flags != 0 || f.Player > 3 || f.Device > 1 || f.Kind > 2 || f.Action > 2 || f.Reserved != 0 {
+		f.Header.Session == 0 || f.Header.Flags != 0 || f.Player > 3 || f.Reserved != 0 {
 		return false
 	}
 	if f.Header.Type != InputTypeInput {
@@ -113,12 +113,23 @@ func validInputFrame(f InputFrame) bool {
 		}
 		return f.ServerMonoNS != 0
 	}
-	return true
+	if f.Device == 2 {
+		return f.Player == 0 && f.Kind == 4 && f.Action == 3 && f.Code <= 3
+	}
+	return f.Device <= 1 && f.Kind <= 2 && f.Action <= 2
 }
 
 type SequenceTracker struct {
 	last uint32
 	seen bool
+}
+
+// ObserveTransient rejects equal sequences because relative motion is additive.
+func (s *SequenceTracker) ObserveTransient(seq uint32) (bool, bool) {
+	if s.seen && seq <= s.last {
+		return false, false
+	}
+	return s.Observe(seq)
 }
 
 func (s *SequenceTracker) Accept(seq uint32) bool {

@@ -482,6 +482,11 @@
      0,
      0
     ],
+    "mouse_buttons": 0,
+    "mouse_motion": [
+     0,
+     0
+    ],
     "unit_sha_crc32": {},
     "unit_states": {}
    },
@@ -8624,6 +8629,11 @@
      0,
      0
     ],
+    "mouse_buttons": 0,
+    "mouse_motion": [
+     0,
+     0
+    ],
     "unit_sha_crc32": {
      "0": 1471701714
     },
@@ -8640,6 +8650,366 @@
      "unit": 0
     }
    ]
+  },
+  {
+   "build_id": "00112233445566778899aabbccddeeff",
+   "capabilities": 257,
+   "description": "Atomic signed relative motion and left/right state; held input rejected.",
+   "exchanges": [
+    {
+     "argument": 0,
+     "data": 17734,
+     "error": 0,
+     "gpi": 4118824262,
+     "gpo": [
+      16777216,
+      2164260864
+     ],
+     "index": 0,
+     "name": "identity-00",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 12627,
+     "error": 0,
+     "gpi": 4110430547,
+     "gpo": [
+      2164326400,
+      16842752
+     ],
+     "index": 1,
+     "name": "identity-01",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4118806529,
+     "gpo": [
+      16908288,
+      2164391936
+     ],
+     "index": 2,
+     "name": "identity-02",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2164457472,
+      16973824
+     ],
+     "index": 3,
+     "name": "identity-03",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 0,
+     "gpi": 4118806532,
+     "gpo": [
+      17039360,
+      2164523008
+     ],
+     "index": 4,
+     "name": "identity-04",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 1,
+     "error": 0,
+     "gpi": 4110417921,
+     "gpo": [
+      2164588544,
+      17104896
+     ],
+     "index": 5,
+     "name": "identity-05",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      17170432,
+      2164654080
+     ],
+     "index": 6,
+     "name": "identity-06",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 257,
+     "error": 0,
+     "gpi": 4110418177,
+     "gpo": [
+      2164719616,
+      17235968
+     ],
+     "index": 7,
+     "name": "identity-07",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 4352,
+     "error": 0,
+     "gpi": 4118810880,
+     "gpo": [
+      17301504,
+      2164785152
+     ],
+     "index": 8,
+     "name": "identity-08",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 13090,
+     "error": 0,
+     "gpi": 4110431010,
+     "gpo": [
+      2164850688,
+      17367040
+     ],
+     "index": 9,
+     "name": "identity-09",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 21828,
+     "error": 0,
+     "gpi": 4118828356,
+     "gpo": [
+      17432576,
+      2164916224
+     ],
+     "index": 10,
+     "name": "identity-10",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 30566,
+     "error": 0,
+     "gpi": 4110448486,
+     "gpo": [
+      2164981760,
+      17498112
+     ],
+     "index": 11,
+     "name": "identity-11",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 39304,
+     "error": 0,
+     "gpi": 4118845832,
+     "gpo": [
+      17563648,
+      2165047296
+     ],
+     "index": 12,
+     "name": "identity-12",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 48042,
+     "error": 0,
+     "gpi": 4110465962,
+     "gpo": [
+      2165112832,
+      17629184
+     ],
+     "index": 13,
+     "name": "identity-13",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 56780,
+     "error": 0,
+     "gpi": 4118863308,
+     "gpo": [
+      17694720,
+      2165178368
+     ],
+     "index": 14,
+     "name": "identity-14",
+     "opcode": 1
+    },
+    {
+     "argument": 0,
+     "data": 65518,
+     "error": 0,
+     "gpi": 4110483438,
+     "gpo": [
+      2165243904,
+      17760256
+     ],
+     "index": 15,
+     "name": "identity-15",
+     "opcode": 1
+    },
+    {
+     "argument": 383,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      184615295,
+      2332098943
+     ],
+     "index": 1,
+     "name": "held-motion-rejected",
+     "opcode": 11
+    },
+    {
+     "argument": 0,
+     "data": 2,
+     "error": 2,
+     "gpi": 4114612226,
+     "gpo": [
+      2332295168,
+      184811520
+     ],
+     "index": 4,
+     "name": "reserved-buttons-rejected",
+     "opcode": 11
+    },
+    {
+     "argument": 1,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      33554433,
+      2181038081
+     ],
+     "index": 0,
+     "name": "release",
+     "opcode": 2
+    },
+    {
+     "argument": 32895,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2332262527,
+      184778879
+     ],
+     "index": 3,
+     "name": "signed-extrema",
+     "opcode": 11
+    },
+    {
+     "argument": 32640,
+     "data": 0,
+     "error": 0,
+     "gpi": 4118806528,
+     "gpo": [
+      184647552,
+      2332131200
+     ],
+     "index": 1,
+     "name": "opposite-extrema",
+     "opcode": 11
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2332033024,
+      184549376
+     ],
+     "index": 0,
+     "name": "release-buttons",
+     "opcode": 11
+    },
+    {
+     "argument": 65535,
+     "data": 2,
+     "error": 2,
+     "gpi": 4123000834,
+     "gpo": [
+      193003519,
+      2340487167
+     ],
+     "index": 128,
+     "name": "reserved-bit-rejected",
+     "opcode": 11
+    },
+    {
+     "argument": 0,
+     "data": 0,
+     "error": 0,
+     "gpi": 4110417920,
+     "gpo": [
+      2181038080,
+      33554432
+     ],
+     "index": 0,
+     "name": "hold-neutralises-buttons",
+     "opcode": 2
+    },
+    {
+     "argument": 0,
+     "data": 4,
+     "error": 4,
+     "gpi": 4123000836,
+     "gpo": [
+      184680448,
+      2332164096
+     ],
+     "index": 2,
+     "name": "held-button-rejected",
+     "opcode": 11
+    }
+   ],
+   "final": {
+    "controller_ports": [
+     0,
+     0
+    ],
+    "held": true,
+    "keyboard_rows": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "mouse_buttons": 0,
+    "mouse_motion": [
+     -1,
+     -1
+    ],
+    "unit_sha_crc32": {},
+    "unit_states": {}
+   },
+   "initial_request_toggle": false,
+   "name": "relative-mouse",
+   "units": []
   }
  ]
 }

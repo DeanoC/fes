@@ -1023,13 +1023,14 @@ C64_VERILATOR_FLAGS := -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAN
 	-Wno-CASEINCOMPLETE -Wno-CASEOVERLAP -Wno-SYNCASYNCNET -Wno-UNOPTFLAT \
 	-Icores/fes-c64/rtl -Icores/fes-c64/expansions -Icores/fes-common/generated
 C64_RTL := cores/fes-c64/rtl/c64_machine.sv cores/fes-c64/rtl/c64_ram.v \
+	cores/fes-c64/rtl/c64_color_ram.v \
 	cores/fes-c64/rtl/c64_rom.v cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_sid.v \
 	cores/fes-c64/rtl/c64_cia.v cores/fes-c64/rtl/c64_iec.sv cores/fes-c64/rtl/c64_disk_store.v \
 	cores/fes-c64/rtl/c64_keyboard.v cores/fes-c64/rtl/c64_slot_sockets.v \
 	cores/fes-c64/expansions/probe.v \
 	cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v
 
-.PHONY: c64-diagnostic sim-fes-c64 sim-fes-c64-cia
+.PHONY: c64-diagnostic sim-fes-c64 sim-fes-c64-cia sim-fes-c64-color-ram
 c64-diagnostic:
 	@mkdir -p $(C64_DIAGNOSTIC)
 	$(PYTHON) cores/fes-c64/diagnostic/font.py --verilog $(C64_DIAGNOSTIC)/font.vh
@@ -1047,7 +1048,16 @@ sim-fes-c64-cia:
 		cores/fes-c64/rtl/c64_cia.v "$(CURDIR)/cores/fes-c64/sim/cia_tb.cpp"
 	@build/sim/fes-c64-cia/Vc64_cia
 
-sim-fes-c64: c64-diagnostic sim-fes-c64-cia
+sim-fes-c64-color-ram:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-color-ram
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_color_ram $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-color-ram" \
+		cores/fes-c64/rtl/c64_color_ram.v \
+		"$(CURDIR)/cores/fes-c64/sim/color_ram_tb.cpp"
+	@build/sim/fes-c64-color-ram/Vc64_color_ram
+
+sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
@@ -1512,7 +1522,7 @@ ST_CPU_FLAGS := -Wno-WIDTH -Wno-TIMESCALEMOD -Wno-MULTIDRIVEN -Wno-INITIALDLY \
 	-Wno-ALWCOMBORDER -Wno-UNOPTFLAT -Wno-BLKANDNBLK -Wno-CASEINCOMPLETE -Wno-CASEOVERLAP
 ST_IO_RTL := $(ST_CORE)/rtl/st_io.sv $(ST_CORE)/rtl/st_mfp.sv \
 	$(ST_CORE)/rtl/st_acia.sv $(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_ym2149.sv \
-	$(ST_CORE)/rtl/st_floppy.sv cores/fes-zx81/expansions/zonx_ay.v
+	$(ST_CORE)/rtl/st_floppy.sv $(ST_CORE)/rtl/st_floppy_writer.sv cores/fes-zx81/expansions/zonx_ay.v
 
 .PHONY: atari-st-sources atari-st-diagnostic sim-fes-atari-st sim-fes-atari-st-machine sim-fes-atari-st-video
 atari-st-sources:
@@ -1521,7 +1531,7 @@ atari-st-sources:
 atari-st-diagnostic: atari-st-sources
 	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
 
-sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-media
+sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-media
 
 sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
@@ -1563,8 +1573,42 @@ sim-fes-atari-st-floppy:
 	$(require_local_sim)
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_floppy -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-floppy" \
-		$(ST_CORE)/rtl/st_floppy.sv "$(CURDIR)/$(ST_CORE)/sim/floppy_tb.cpp" -CFLAGS '-std=c++17'
+		$(ST_CORE)/rtl/st_floppy.sv $(ST_CORE)/rtl/st_floppy_writer.sv "$(CURDIR)/$(ST_CORE)/sim/floppy_tb.cpp" -CFLAGS '-std=c++17'
 	@build/sim/fes-atari-st-floppy/Vst_floppy
+
+.PHONY: sim-fes-atari-st-floppy-write sim-fes-computer-interaction sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle
+sim-fes-atari-st-floppy-write:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_floppy -Wall "-GENABLE_WRITE=1'b1" \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-floppy-write" \
+		$(ST_CORE)/rtl/st_floppy.sv $(ST_CORE)/rtl/st_floppy_writer.sv \
+		"$(CURDIR)/$(ST_CORE)/sim/floppy_write_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-floppy-write/Vst_floppy
+
+sim-fes-computer-interaction:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build --top-module computer_interaction_sim_top -Wall -Wno-DECLFILENAME \
+		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/computer-interaction" \
+		cores/fes-common/sim/computer_interaction_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox.v \
+		$(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_acia.sv \
+		"$(CURDIR)/cores/fes-common/sim/computer_interaction_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/computer-interaction/Vcomputer_interaction_sim_top
+
+sim-fes-atari-st-media-port:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build --top-module st_media_port -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-media-port" \
+		$(ST_CORE)/rtl/st_media_port.sv "$(CURDIR)/$(ST_CORE)/sim/media_port_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-media-port/Vst_media_port
+
+sim-fes-atari-st-media-lifecycle:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build --top-module st_media_lifecycle_sim_top -Wall \
+		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media-lifecycle" \
+		$(ST_CORE)/sim/st_media_lifecycle_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox.v \
+		$(ST_CORE)/rtl/st_floppy_writer.sv $(ST_CORE)/rtl/st_media_writer.sv $(ST_CORE)/rtl/st_media_port.sv \
+		"$(CURDIR)/$(ST_CORE)/sim/media_lifecycle_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-media-lifecycle/Vst_media_lifecycle_sim_top
 
 sim-fes-atari-st-emutos: atari-st-sources
 	$(require_local_sim)
@@ -1644,3 +1688,16 @@ build-fes-atari-st-card:
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_atari_st_slot_card.py --root "$(CURDIR)" \
 		--shell "$(ST_SHELL)" --package "$(ST_PACKAGE)" --slot 1 --card probe \
 		$(if $(strip $(CACHE_ROOT)),--cache-root "$(CACHE_ROOT)",) $(if $(GPU_DEVICE),--gpu "$(GPU_DEVICE)",)
+
+.PHONY: build-fes-atari-st-video-part sim-fes-atari-st-video-parts
+ST_VIDEO_PART ?= direct
+ST_VIDEO_PART_SEED ?= 4
+build-fes-atari-st-video-part:
+	@test -n "$(ST_PACKAGE)" || (echo 'Set ST_PACKAGE to the exact sealed ST shell package'; exit 1)
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/build_atari_st_video_part.py --shell "$(ST_SHELL)" --package "$(ST_PACKAGE)" \
+		--variant "$(ST_VIDEO_PART)" --seed "$(ST_VIDEO_PART_SEED)" \
+		$(if $(strip $(CACHE_ROOT)),--cache-root "$(CACHE_ROOT)",) $(if $(GPU_DEVICE),--gpu "$(GPU_DEVICE)",)
+
+sim-fes-atari-st-video-parts:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_atari_st_video_parts.py

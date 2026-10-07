@@ -10,14 +10,52 @@ CORE = ROOT / "cores" / "fes-ramtest"
 COMMON = ROOT / "cores" / "fes-common"
 
 
+def pattern_counts() -> None:
+    """The pattern table includes a mismatch on the final word."""
+    output = ROOT / "build" / "fes-ramtest-pattern-count"
+    output.mkdir(parents=True, exist_ok=True)
+    sources = [
+        CORE / "rtl" / "mem_channel.v",
+        CORE / "rtl" / "pattern_latch.v",
+        CORE / "sim" / "pattern_count_bench.v",
+        CORE / "sim" / "pattern_count_tb.cpp",
+    ]
+    subprocess.run(
+        [
+            "verilator", "--cc", "--exe", "--build", "--top-module", "pattern_count_bench",
+            "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY",
+            "-Wno-UNUSEDSIGNAL", "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ",
+            "-Mdir", str(output),
+            "-o", "sim",
+            *map(str, sources),
+        ],
+        check=True,
+    )
+    subprocess.run([str(output / "sim")], check=True)
+
+
 def main() -> None:
     if os.environ.get("FES_TOOLCHAIN_CACHE_ROOT"):
         raise SystemExit("simulation refuses a shared toolchain cache")
+    pattern_counts()
     output = ROOT / "build" / "fes-ramtest-sim"
     output.mkdir(parents=True, exist_ok=True)
+    byte_output = output / "byte"
+    byte_output.mkdir(exist_ok=True)
+    subprocess.run([
+        "verilator", "--cc", "--exe", "--build", "--top-module", "byte_bench",
+        "-Wall", "-Wno-DECLFILENAME", "-Wno-PINCONNECTEMPTY", "-Wno-UNUSEDSIGNAL",
+        "-Wno-UNUSEDPARAM", "-Wno-BLKSEQ", "-Mdir", str(byte_output), "-o", "sim",
+        *map(str, [CORE / "rtl" / "sdram_byte_lane.v", CORE / "rtl" / "sdram_addon_port.v",
+                   CORE / "sim" / "sdram_model.v", CORE / "sim" / "board_models.v",
+                   CORE / "sim" / "byte_bench.v", CORE / "sim" / "byte_tb.cpp"]),
+    ], check=True)
+    subprocess.run([str(byte_output / "sim")], check=True)
     sources = [
         CORE / "rtl" / "top.v",
         CORE / "rtl" / "mem_channel.v",
+        CORE / "rtl" / "sdram_byte_lane.v",
+        CORE / "rtl" / "pattern_latch.v",
         CORE / "rtl" / "ram_font.v",
         CORE / "rtl" / "ram_display.v",
         CORE / "rtl" / "sdram_addon_port.v",

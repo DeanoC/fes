@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Dual-port RAM. Simulation infers unregistered reads; Quartus uses altsyncram.
+// Dual-port RAM. Quartus altsyncram registers the address and leaves the
+// output unregistered, which is one clock of read latency. The simulation
+// and Yosys model do the same. A combinational read is what Yosys maps to
+// an illegal CFG_ASYNC_READ=1 M10K.
 
 module zx81_dpram #(
     parameter DATAWIDTH = 8,
@@ -80,14 +83,20 @@ module zx81_dpram #(
             $readmemh(MEM_INIT_FILE, ram);
     end
 
+    reg [DATAWIDTH-1:0] q_a_r;
+    reg [DATAWIDTH-1:0] q_b_r;
+
     always @(posedge clock) begin
         if (wren_a)
             ram[address_a] <= data_a;
         if (wren_b)
             ram[address_b] <= data_b;
+        // Same-port new-data matches the Quartus NEW_DATA_NO_NBE_READ mode.
+        q_a_r <= wren_a ? data_a : ram[address_a];
+        q_b_r <= wren_b ? data_b : ram[address_b];
     end
 
-    assign q_a = ram[address_a];
-    assign q_b = ram[address_b];
+    assign q_a = q_a_r;
+    assign q_b = q_b_r;
 `endif
 endmodule

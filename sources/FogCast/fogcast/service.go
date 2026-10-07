@@ -1896,6 +1896,15 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 	if err != nil {
 		return protocol.Status{}, corePackageRequestFailure(err)
 	}
+	if selected.activationBudget > 0 {
+		// ROM-linked ST programming needs the same bounded activation budget
+		// with an empty drive, selected parts, or an atomic initial disk.
+		// Derive from the caller, not the shorter package-upload context;
+		// caller cancellation and an earlier caller deadline still win.
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(parent, max(s.uploadTimeout, selected.activationBudget))
+		defer cancel()
+	}
 	s.executionMu.Lock()
 	kitTarget, kitPlay := s.selectedKitPlayLocked()
 	pendingRejection := kitPlay.packageRejection != nil
@@ -1957,7 +1966,7 @@ func (s *Service) loadCoreLocked(ctx, parent context.Context, source func(contex
 		if err != nil {
 			return protocol.Status{}, err
 		}
-		if selected.partsComposition != nil {
+		if selected.partsComposition != nil && selected.romID == "" {
 			parts, ok := client.(interface {
 				LoadLibraryPartsCore(context.Context, int64, io.Reader, string) (protocol.Status, error)
 			})
@@ -2152,6 +2161,14 @@ func (s *Service) reconcileLostCoreLoad(parent context.Context, client serviceCl
 		if err != nil {
 			return protocol.Status{}, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "core package activation outcome is unavailable", Phase: "recovery"}
 		}
+		if errors.Is(loadErr, targetclient.ErrKitLeaseLost) {
+			// Expiry cleanup can follow a completed load. Observing that load
+			// does not restore authority or justify another activation.
+			if validRecoveredDevelopmentStatus(status) && status.CorePackage == nil {
+				return status, loadErr
+			}
+			return protocol.Status{}, loadErr
+		}
 		if validServiceCorePackageStatus(status) && !reflect.DeepEqual(status, prior) {
 			return status, nil
 		}
@@ -2180,6 +2197,9 @@ func (s *Service) reconcileLostCoreLoad(parent context.Context, client serviceCl
 }
 
 func confirmedIdleCorePackageFailure(status protocol.Status, loadErr error) bool {
+	if errors.Is(loadErr, targetclient.ErrKitLeaseLost) {
+		return validRecoveredDevelopmentStatus(status) && status.CorePackage == nil
+	}
 	if ambiguousTargetMutationError(loadErr) {
 		return false
 	}
@@ -2633,7 +2653,10 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 	if kitTarget == "" {
 		kitTarget, _ = s.selectedKitPlayLocked()
 	}
-	pendingRejection := !(scopedTarget == "" && activeExecution == ExecutionHostOnly) && s.plays[kitTarget].packageRejection != nil
+	kitPlay := s.plays[kitTarget]
+	hostOnly := activeExecution == ExecutionHostOnly && scopedTarget == ""
+	pendingRejection := !hostOnly && kitPlay.packageRejection != nil
+	describedPackage := kitPlay.packageID != ""
 	s.executionMu.Unlock()
 	if pendingRejection {
 		stage = "development_recovery"
@@ -2650,7 +2673,7 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		}
 		return status, err
 	}
-	if activeExecution == "" && s.hostEmulator.Binary != "" {
+	if scopedTarget == "" && activeExecution == "" && s.hostEmulator.Binary != "" {
 		s.executionMu.Lock()
 		_, selectedPlay := s.selectedKitPlayLocked()
 		noBoundPlay := s.activeTarget == "" && selectedPlay.execution == "" && selectedPlay.packageRejection == nil
@@ -2660,16 +2683,20 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		}
 	}
 
+	// Only foreground discovery admission supplies this target's cached Status.
+	// A scoped sibling is admitted through its own client instead.
+	scopedOtherKit := scopedTarget != "" && scopedTarget != s.SessionTargetName()
+	discoveryAdmission := !hostOnly && !scopedOtherKit && s.discoveryEnabled()
 	protocolClient := s.protocolAdmissionEnabled()
 	if scopedTarget != "" {
 		s.targetMu.RLock()
 		_, protocolClient = s.targetClients[scopedTarget].(*targetclient.Client)
 		s.targetMu.RUnlock()
 	}
-	if activeExecution != ExecutionHostOnly && protocolClient {
+	if !hostOnly && protocolClient {
 		admit := s.refreshStopAdmission
 		admitCtx := ctx
-		if scopedTarget != "" && scopedTarget != s.SessionTargetName() {
+		if scopedOtherKit {
 			admit = s.refreshTargetAdmission
 			admitCtx = WithSessionTarget(ctx, scopedTarget)
 		}
@@ -2678,7 +2705,6 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		}
 	}
 
-	hostOnly := activeExecution == ExecutionHostOnly && scopedTarget == ""
 	if hostOnly {
 		stage = "host_stop"
 		if err := s.stopHostOnlyIfActive(ctx); err != nil {
@@ -2730,7 +2756,30 @@ func (s *Service) stopLocked(ctx, parent context.Context, timeout time.Duration,
 		}
 	}
 	if !idleWithoutLease {
-		status, err = client.Stop(ctx)
+		// Reuse discovery admission's existing Status. Legacy address-only
+		// Stop never acquires a new status dependency; a remembered package
+		// may be observed directly while lifecycle admission is held.
+		boundDisk := discoveryAdmission && s.TargetConnection().mediaDataBound
+		saving, canSave := client.(interface {
+			StopWithMediaSave(context.Context) (protocol.Status, error)
+		})
+		if describedPackage && !discoveryAdmission {
+			observed, observeErr := client.Status(ctx)
+			boundDisk = observeErr == nil && protocol.MediaDataBound(observed.CorePackage)
+		}
+		if boundDisk {
+			if timeout < 150*time.Second {
+				timeout = 150 * time.Second
+			}
+			var cancel context.CancelFunc
+			ctx, cancel = serviceTimeout(parent, timeout)
+			defer cancel()
+		}
+		if canSave && boundDisk {
+			status, err = saving.StopWithMediaSave(ctx)
+		} else {
+			status, err = client.Stop(ctx)
+		}
 	}
 	if err != nil {
 		targetDeadlineExpired := errors.Is(ctx.Err(), context.DeadlineExceeded) && parent.Err() == nil

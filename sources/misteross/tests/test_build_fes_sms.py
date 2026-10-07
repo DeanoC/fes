@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 import copy
+import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -200,7 +202,7 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertNotIn("HDMI_I2S0", coleco_pins)
         global_pins = load_lock(ROOT / "toolchain.lock")
         self.assertEqual(global_pins["yosys"].commit, "5391eeb1e91b38a3d0e96d04f24cf921743c9c78")
-        self.assertEqual(global_pins["nextpnr"].commit, "1656e473e1442f9b734ff5f4cdfddfd013846b9e")
+        self.assertEqual(global_pins["nextpnr"].commit, "a20f34c5f2dbeb99b5f6510213274ca8a6fd19b7")
         record = create_build_record(
             ROOT,
             "https://example.invalid/misteross.git",
@@ -343,6 +345,15 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("in the factory image", readme.lower())
         self.assertNotIn("not in the factory image", readme.lower())
         self.assertNotIn("remain later jobs", readme.lower())
+        sms_architecture = architecture[
+            architecture.index("## FES Master System"):architecture.index("## Standalone Pong")
+        ]
+        for text in (readme, sms_architecture):
+            self.assertIn("CFG_ASYNC_READ=0", text)
+            self.assertIn("two system clocks", text)
+            self.assertIn("expected_async_read=0", text)
+            self.assertIn("asynchronous M10K", text)
+        self.assertIn("reject_async_m10k_reads", readme)
 
     def test_diagnostic_is_reproducible_and_enters_at_reset(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -511,6 +522,71 @@ class BuildFesSmsTests(unittest.TestCase):
         for fmax in ({}, {"system_clock.clocks[1]": {"constraint": 12.288, "achieved": 12.287}}):
             with self.assertRaises(sms_oss.BuildError):
                 sms_oss._audio_timing(fmax)
+
+
+class SmsSyncM10kTests(unittest.TestCase):
+    def test_rom_lanes_are_synchronous(self) -> None:
+        rtl = (sms_oss.ROOT / "cores/fes-sms/rtl/sms_rom_link.v").read_text()
+        machine = (sms_oss.ROOT / "cores/fes-sms/rtl/sms_machine.sv").read_text()
+        self.assertEqual(rtl.count(".CFG_ASYNC_READ(0)"), 32)
+        self.assertNotIn("CFG_ASYNC_READ(1)", rtl)
+        self.assertEqual(rtl.count(".B1EN(1'b1)"), 32)
+        self.assertIn(".CLK1(clk)", rtl)
+        self.assertIn("bank_d <= address[14:10]", rtl)
+        self.assertIn("sim_stage <= memory[address]", rtl)
+        self.assertIn("assign peek_data = memory[peek_address]", rtl)
+        self.assertIn(".clk(clk_sys)", machine)
+        producer = (sms_oss.ROOT / "scripts/build_fes_sms_oss.py").read_text()
+        self.assertIn("expected_async_read=0", producer)
+        self.assertIn("reject_async_m10k_reads", producer)
+
+
+def _yosys_binary() -> str | None:
+    named = os.environ.get("YOSYS")
+    if named and Path(named).is_file() and os.access(named, os.X_OK):
+        return named
+    return shutil.which("yosys")
+
+
+@unittest.skipUnless(_yosys_binary(), "Yosys is required to check the SMS M10K netlist")
+class SmsYosysM10kTests(unittest.TestCase):
+    def test_mapped_netlist_has_no_async_m10k(self) -> None:
+        yosys = _yosys_binary()
+        assert yosys is not None
+        sources = " ".join(sms_oss.RTL_SOURCES)
+        program = (
+            "read_verilog -sv -DTV80_REFRESH=1 -DFES_SMS_OSS=1 -DFES_SMS_ROM_LINK=1 -DFES_COLECO_OSS=1 "
+            "-I cores/fes-sms/generated "
+            f"{sources}; "
+            "chparam -set BUILD_ID 128'h" + "0" * 32 + " top; "
+            "synth_intel_alm -nolutram -nodsp -top top -run :map_luts; "
+            "autoname; select -module top; "
+            "log ---SDP---; select -count t:MISTRAL_M10K; "
+            "log ---TDP---; select -count t:MISTRAL_M10K_TDP; "
+            "log ---ASYNC---; "
+            "select -list t:MISTRAL_M10K r:CFG_ASYNC_READ=1 %i; "
+            "select -list t:MISTRAL_M10K_TDP r:CFG_ASYNC_READ=1 %i; "
+            "log ---LANES---; select -list t:MISTRAL_M10K r:CFG_ASYNC_READ=0 %i; "
+            "log ---END---"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            log_path = Path(directory) / "yosys.log"
+            result = subprocess.run([yosys, "-l", str(log_path), "-p", program], cwd=sms_oss.ROOT,
+                                    text=True, capture_output=True, check=False)
+            log = log_path.read_text(encoding="utf-8", errors="replace")
+        self.assertEqual(result.returncode, 0, (result.stderr or log)[-4000:])
+        sections: dict[str, list[str]] = {}
+        current = None
+        for line in log.splitlines():
+            if line.startswith("---") and line.endswith("---") and line.strip("-"):
+                current = line.strip("-")
+                sections[current] = []
+            elif current is not None and line.strip():
+                sections[current].append(line.strip())
+        async_cells = [line for line in sections["ASYNC"] if line.startswith("top/")]
+        lanes = sorted(line.removeprefix("top/") for line in sections["LANES"] if "machine.rom.lane" in line)
+        self.assertEqual(async_cells, [])
+        self.assertEqual(lanes, sorted(f"machine.rom.lane{index}" for index in range(32)))
 
 
 if __name__ == "__main__":

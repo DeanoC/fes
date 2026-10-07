@@ -86,3 +86,21 @@ ROM operations reject format 2. Native capabilities advertise `rom_linking: 1`.
 Active status retains the receipt until retirement; library ROM loads preserve
 core-scoped persistence. This path has host software coverage only and adds no
 hardware acceptance claim.
+
+Atari ST may additionally require `fes.mouse.relative` and
+`fes.media.atari-st-floppy-write` 1.0. Mouse packets split signed host movement
+without replay after an uncertain ACK. Library disk inserts bind explicit game,
+unit and immutable base-image identities; the runtime freezes/captures the
+complete disk and publishes the [shared record](../mister-packages/docs/media-data.md)
+under the existing durable core-data tree. Raw inserts remain volatile. A busy
+guest writer rejects insert/eject; a rejected first insert header preserves the
+current disk without a cleanup eject. ST
+raster video parts may coexist with the format-3 firmware and CPU expansion,
+with separate composition and final ROM-link receipts.
+
+A format-3 writable Atari ST ROM load may carry an explicit initial library
+disk. The runtime validates and retains its source and saved record before
+programming, restores it while execution is held, and releases only after the
+complete disk reports ready. Developer requests cannot supply this library
+binding; ordinary ROM loads retain their empty-drive startup. This path has
+host software coverage; physical acceptance remains pending.

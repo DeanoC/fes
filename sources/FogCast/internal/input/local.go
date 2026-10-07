@@ -157,6 +157,7 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 		}
 	}()
 	reader := bufio.NewReaderSize(conn, bridge.MaxFrameBytes)
+	tracker := protocol.SequenceTracker{}
 	for {
 		if ctx.Err() != nil {
 			return
@@ -186,6 +187,13 @@ func (c *TargetController) readLocal(ctx context.Context, conn net.Conn) {
 		}
 		if frame.Header.Type != protocol.InputTypeInput {
 			continue
+		}
+		if frame.Device == 2 {
+			if accepted, _ := tracker.ObserveTransient(frame.Seq); !accepted {
+				continue
+			}
+		} else {
+			tracker.Observe(frame.Seq)
 		}
 		_ = c.deliverLocal(ctx, frame)
 		c.warnLocalDrops()

@@ -20,7 +20,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import atari_st_slot, rom_map
+from scripts import atari_st_slot, atari_st_video_parts, rom_map
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import (
@@ -29,7 +29,7 @@ from scripts.export_core_package import (
 from scripts.fes_build_common import (
     BuildError, _authenticate_tools, _cell_counts, _i2c_evidence, _prepare_output,
     _read_json, _regular_input, _require_gpu_backend, _run_tool, _sha256, _write_atomic,
-    validate_timing_resources,
+    reject_async_m10k_reads, validate_timing_resources,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
@@ -79,6 +79,7 @@ FIRMWARE_BYTES = 196608
 CACHE_BELS = {"video.cache0.0.0.0": "MISTRAL_M10K.26.20.0",
               "video.cache1.0.0.0": "MISTRAL_M10K.26.21.0"}
 RAM_GUARD_RESERVATION = "ram_guard 26 19 26 19"
+VIDEO_RAM_GUARD_RESERVATIONS = ("video_ram_low 26 40 26 40", "video_ram_high 26 59 26 59")
 RAM_CONFIG_POLICY = "m10k-bmux-configuration-bounds-v1"
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 QSF = "cores/fes-atari-st/constraints/constraints-oss.qsf"
@@ -100,11 +101,11 @@ RTL_SOURCES = (
     *(f"cores/fes-atari-st/rtl/{name}" for name in (
         "st_cpu.sv", "st_machine.sv", "st_system.sv", "st_io.sv", "st_memory.sv",
         "st_rom.v", "st_video.sv", "st_video_adapter.sv", "st_media_writer.sv", "st_mfp.sv",
-        "st_floppy.sv", "st_acia.sv", "st_ikbd.sv", "st_ym2149.sv", "st_expansion_socket.sv")),
+        "st_floppy.sv", "st_floppy_writer.sv", "st_media_port.sv", "st_video_socket.sv", "st_acia.sv", "st_ikbd.sv", "st_ym2149.sv", "st_expansion_socket.sv")),
     "cores/fes-zx81/expansions/zonx_ay.v", "cores/fes-ramtest/rtl/sdram_addon_port.v",
 )
 PINNED_INPUTS = (
-    RECIPE, "scripts/atari_st_slot.py", "scripts/compiler_read_audit.py",
+    RECIPE, "scripts/atari_st_slot.py", "scripts/atari_st_video_parts.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
     ABI_DEFINITION, ST_TOOLCHAIN_LOCK, QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
@@ -180,6 +181,7 @@ def prepare_cpu_inputs(root: Path, output: Path) -> None:
 def clock_read_only_memories(path: Path) -> list[str]:
     """Supply the unused write clock only for proven read-only CPU ROMs."""
     design = _read_json(path, "ST synthesized design")
+    reject_async_m10k_reads(design)
     repaired = []
     prefixes = ("machine.system.machine.cpu.cpu.nanoRom.nRam.",
                 "machine.system.machine.cpu.cpu.uRom.uRam.")
@@ -220,8 +222,8 @@ def create_build_record(
 ) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
-    if video_output not in ("direct", "scanlines"):
-        raise BuildError("video output must be direct or scanlines")
+    if video_output != "direct":
+        raise BuildError("ST shell uses built-in Direct; select Scanlines through a sealed video part")
     fields = {
         "format": 1,
         "repository": repository,
@@ -257,12 +259,16 @@ def create_build_record(
             "rom_encoding": "m10k-1024x10-v1",
             "rom_database_sha256": json.dumps(ROM_DATABASE_SHA256, sort_keys=True, separators=(",", ":")),
             "video_output": video_output,
+            "video_layout": atari_st_video_parts.LAYOUT,
+            "video_map": atari_st_video_parts.MAP,
+            "video_socket": atari_st_video_parts.PLACEMENT,
             "rom_async_read": 0,
             "cpu_adapter_policy": CPU_ADAPTER_POLICY,
             "cpu_adapter_sha256": hashlib.sha256(adapted_cpu_source(root)).hexdigest(),
             "cpu_rom_clock_policy": "disabled-write-port-clock-v1",
             "video_cache_bels": json.dumps(CACHE_BELS, sort_keys=True, separators=(",", ":")),
             "ram_guard_reservation": RAM_GUARD_RESERVATION,
+            "video_ram_guard_reservations": ",".join(VIDEO_RAM_GUARD_RESERVATIONS),
             "ram_socket_configuration_policy": RAM_CONFIG_POLICY,
             "expansion_layout": atari_st_slot.LAYOUT,
             "expansion_sockets": ",".join(s.placement for s in atari_st_slot.SOCKETS),
@@ -280,7 +286,9 @@ def socket_qsf(base: str) -> str:
     for socket in atari_st_slot.SOCKETS:
         lines.append(f'set_global_assignment -name FES_RESERVED_RECT "{socket.placement}"')
     lines.append(f'set_global_assignment -name FES_RESERVED_RECT "{RAM_GUARD_RESERVATION}"')
-    return "\n".join(lines) + "\n"
+    for rectangle in VIDEO_RAM_GUARD_RESERVATIONS:
+        lines.append(f'set_global_assignment -name FES_RESERVED_RECT "{rectangle}"')
+    return atari_st_video_parts.shell_qsf("\n".join(lines) + "\n")
 
 
 def build_commands(root: Path, output: Path, build_id: str,
@@ -290,8 +298,8 @@ def build_commands(root: Path, output: Path, build_id: str,
         raise BuildError("Atari ST output must be the selected private build directory")
     if HEX32_RE.fullmatch(build_id) is None:
         raise BuildError("build ID must be 32 lowercase hexadecimal characters")
-    if video_output not in ("direct", "scanlines"):
-        raise BuildError("video output must be direct or scanlines")
+    if video_output != "direct":
+        raise BuildError("ST shell uses built-in Direct; select Scanlines through a sealed video part")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
         raise BuildError("build commands require authenticated Yosys and nextpnr-mistral paths")
     # Slang reads the unchanged vendor declarations in one unit. The private
@@ -304,6 +312,7 @@ def build_commands(root: Path, output: Path, build_id: str,
         "cores/fes-common/rtl/fes_video_part_direct.v",
         "cores/fes-common/rtl/fes_video_part_scanlines.v",
         "cores/fes-atari-st/rtl/st_rom.v", "cores/fes-atari-st/rtl/st_expansion_socket.sv",
+        "cores/fes-atari-st/rtl/st_video_socket.sv", "cores/fes-atari-st/rtl/st_media_port.sv",
     }
     legacy = " ".join(f"../../{name}" for name in RTL_SOURCES if name in verilog_sources)
     sources = " ".join("fx68k-slang.sv" if name == f"{CPU_VENDOR}/fx68k.sv"
@@ -312,9 +321,9 @@ def build_commands(root: Path, output: Path, build_id: str,
     cache_constraints = " ".join(f'setattr -set BEL "{bel}" {TOP}/{name};'
                                   for name, bel in CACHE_BELS.items())
     program = (
-        f"read_verilog -sv -I ../../cores/fes-common/generated {legacy}; "
+        f"read_verilog -sv -DFES_ST_SLANG_IMPORT=1 -I ../../cores/fes-common/generated {legacy}; "
         "read_slang --single-unit --ignore-timing --empty-blackboxes "
-        "-I ../../cores/fes-common/generated --top st_system --top st_memory "
+        "-I ../../cores/fes-common/generated --top st_system -G ENABLE_FLOPPY_WRITE=1 --top st_memory "
         f"--top st_video_adapter --top st_media_writer {megafunctions} {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} -set VIDEO_SCANLINES {int(video_output == 'scanlines')} {TOP}; "
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; {cache_constraints} stat; write_json synth.json"
@@ -412,6 +421,7 @@ def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, floa
 
 def validate_synth_evidence(output: Path) -> dict:
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
+    reject_async_m10k_reads(synthesis)
     _i2c_evidence(synthesis, "synthesized")
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
@@ -425,6 +435,8 @@ def validate_synth_evidence(output: Path) -> dict:
     rom_map.validate_routed_rom(placement, FIRMWARE_LANE_ROWS, expected_async_read=0)
     validate_firmware_ports(synthesis["modules"][TOP]["cells"])
     validate_cache_placements(synthesis["modules"][TOP]["cells"], routed=False)
+    validate_sector_memory(synthesis["modules"][TOP]["cells"])
+    atari_st_video_parts.validate_boundary(synthesis["modules"][TOP], routed=False)
     # Microcode and video-cache memories are counted from real synthesis.
     for name in FORBIDDEN_RESOURCES:
         if counts.get(name, 0):
@@ -459,6 +471,99 @@ def validate_cache_placements(cells: dict, *, routed: bool) -> dict:
         if caches[name].get("type") != "MISTRAL_M10K" or caches[name].get("attributes", {}).get(attribute) != bel:
             raise BuildError(f"ST video cache {name} must occupy {bel}")
     return dict(CACHE_BELS)
+
+
+def validate_sector_memory(cells: dict) -> dict:
+    """The writable sector stage must be one synchronous RAM on the system clock."""
+    name = "machine.system.io.floppy.writer.sector.0.0.0"
+    prefix = "machine.system.io.floppy.writer.sector"
+    memories = {key: cell for key, cell in cells.items()
+                if key.startswith(prefix) and cell.get("type") in ("MISTRAL_M10K", "MISTRAL_M10K_TDP")}
+    array_flops = any(key.startswith(prefix) and cell.get("type") == "MISTRAL_FF"
+                      for key, cell in cells.items())
+    if set(memories) != {name} or memories[name].get("type") != "MISTRAL_M10K" or array_flops:
+        raise BuildError("ST writable sector stage must infer exactly one M10K, with no array flip-flops")
+    cell = memories[name]
+    pins, parameters = cell.get("connections", {}), cell.get("parameters", {})
+    for key, expected in (("CFG_ABITS", 9), ("CFG_DBITS", 20),
+                          ("CFG_BYTE_ENABLE", 1), ("CFG_DUAL_CLOCK", 1)):
+        value = parameters.get(key)
+        if isinstance(value, str) and re.fullmatch("[01]+", value):
+            value = int(value, 2)
+        if type(value) is not int or value != expected:
+            raise BuildError(f"ST sector RAM has incorrect {key}")
+    clock = cells.get("machine.rom.lane0", {}).get("connections", {}).get("CLK1")
+    if (not isinstance(clock, list) or len(clock) != 1 or type(clock[0]) is not int or
+            pins.get("CLK1") != clock or pins.get("CLK2") != clock):
+        raise BuildError("ST sector RAM read and write must share the live firmware system clock")
+    for port in ("A1ADDR", "B1ADDR"):
+        value = pins.get(port, [])
+        if not isinstance(value, list) or len(value) != 9:
+            raise BuildError("ST sector RAM must address exactly 256 words")
+    for port in ("A1DATA", "B1DATA"):
+        value = pins.get(port, [])
+        if not isinstance(value, list) or len(value) != 20:
+            raise BuildError("ST sector RAM must have a live 16-bit data path")
+    for port in ("A1EN", "B1EN"):
+        value = pins.get(port, [])
+        if not isinstance(value, list) or len(value) != 1:
+            raise BuildError("ST sector RAM needs live synchronous read and write enables")
+    if pins.get("A1BE") != pins["A1EN"] * 2:
+        raise BuildError("ST sector RAM byte enables must follow its write enable")
+
+    # Packing replaces literal zero ties with a shared MISTRAL_CONST output.
+    # Resolve only that primitive, with a complete, unique driver census. An
+    # integer net ID alone proves neither a zero tie nor a live RAM input.
+    checked_ports = ("A1ADDR", "B1ADDR", "A1DATA", "B1DATA", "A1EN", "B1EN", "CLK1", "CLK2")
+    relevant = {bit for port in checked_ports for bit in pins[port] if type(bit) is int}
+    drivers = {bit: [] for bit in relevant}
+    for source_name, source in cells.items():
+        for port, bits in source.get("connections", {}).items():
+            direction = source.get("port_directions", {}).get(port)
+            for bit in bits:
+                if type(bit) is int and bit in relevant:
+                    if direction == "output":
+                        drivers[bit].append((source_name, port))
+                    elif direction != "input":
+                        raise BuildError("ST sector RAM net has an unknown port direction")
+
+    def constant_value(bit):
+        if type(bit) is not int:
+            if bit in ("0", "1"):
+                return int(bit)
+            raise BuildError("ST sector RAM net has an unknown value")
+        sources = drivers[bit]
+        if len(sources) != 1:
+            raise BuildError("ST sector RAM net must have exactly one driver")
+        source_name, port = sources[0]
+        source = cells[source_name]
+        if source.get("type") != "MISTRAL_CONST":
+            return None
+        lut = source.get("parameters", {}).get("LUT")
+        if (port != "Q" or source.get("connections", {}).get("Q") != [bit] or
+                source.get("port_directions", {}).get("Q") != "output" or
+                not isinstance(lut, str) or not re.fullmatch("[01]{32}", lut) or
+                int(lut, 2) not in (0, 1)):
+            raise BuildError("ST sector RAM constant driver is not a proven zero or one")
+        return int(lut, 2)
+
+    def require_live(bits, message):
+        for bit in bits:
+            if type(bit) is not int or constant_value(bit) is not None:
+                raise BuildError(message)
+
+    require_live(clock, "ST sector RAM read and write must share the live firmware system clock")
+    for port in ("A1ADDR", "B1ADDR"):
+        require_live(pins[port][:8], "ST sector RAM must have eight live address bits")
+        if constant_value(pins[port][8]) != 0:
+            raise BuildError("ST sector RAM must address exactly 256 words")
+    for port in ("A1DATA", "B1DATA"):
+        require_live(pins[port][:16], "ST sector RAM must have a live 16-bit data path")
+    if any(constant_value(bit) != 0 for bit in pins["A1DATA"][16:]):
+        raise BuildError("ST sector RAM unused write data must be zero")
+    for port in ("A1EN", "B1EN"):
+        require_live(pins[port], "ST sector RAM needs live synchronous read and write enables")
+    return {"status": "pass", "cell": name, "words": 256, "bits_per_word": 16}
 
 
 def m10k_configuration_bounds(database: Mapping[str, bytes]) -> tuple[int, int, int, int]:
@@ -530,6 +635,9 @@ def validate_m10k_configurations(routed: dict, database: Mapping[str, bytes]) ->
             sx0, sy0, sx1, sy1 = socket.cram
             if bounds[0] < sx1 and sx0 < bounds[2] and bounds[1] < sy1 and sy0 < bounds[3]:
                 raise BuildError(f"M10K configuration footprint {name} at {bel} overlaps slot {socket.slot} CRAM")
+        vx0, vy0, vx1, vy1 = atari_st_video_parts.CRAM
+        if bounds[0] < vx1 and vx0 < bounds[2] and bounds[1] < vy1 and vy0 < bounds[3]:
+            raise BuildError(f"M10K configuration footprint {name} at {bel} overlaps video CRAM")
         checked[name] = {"bel": bel, "configuration_bounds": list(bounds)}
     if not checked:
         raise BuildError("routed ST design has no M10K configuration evidence")
@@ -544,10 +652,13 @@ def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes]) 
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
     synth = validate_synth_evidence(output)
+    reject_async_m10k_reads(routed)
     _i2c_evidence(routed, "routed")
     sockets = validate_routed_shell(routed)
     cache_placements = validate_cache_placements(routed["modules"][TOP]["cells"], routed=True)
     ram_configuration = validate_m10k_configurations(routed, ram_database)
+    sector_memory = validate_sector_memory(routed["modules"][TOP]["cells"])
+    atari_st_video_parts.validate_boundary(routed["modules"][TOP], routed=True)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
@@ -571,7 +682,11 @@ def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes]) 
                            "status": "pass"} for label, row in rows.items()} | {"status": "pass"},
         "resources": resources,
         "sockets": sockets,
+        "video_socket": {"status": "pass", "layout": atari_st_video_parts.LAYOUT,
+                         "map": atari_st_video_parts.MAP, "cram": list(atari_st_video_parts.CRAM),
+                         "pinned_boundary_cells": len(atari_st_video_parts.boundary_bels())},
         "video_cache_placements": cache_placements,
+        "floppy_sector_memory": sector_memory,
         "ram_socket_configuration": ram_configuration,
         "synthesis_cells": synth["synthesis_cells"],
         "rbf": {"sha256": _sha256(rbf), "size": rbf.stat().st_size},
@@ -588,6 +703,9 @@ def check_firmware_outside_sockets(mapping: dict) -> None:
                     x0, y0, x1, y1 = socket.cram
                     if x0 <= x < x1 and y0 <= y < y1:
                         raise BuildError(f"firmware lane {block['bel']} writes CRAM in slot {socket.slot}")
+                vx0, vy0, vx1, vy1 = atari_st_video_parts.CRAM
+                if vx0 <= x < vx1 and vy0 <= y < vy1:
+                    raise BuildError(f"firmware lane {block['bel']} writes video CRAM")
 
 
 def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
@@ -598,6 +716,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
     required = [
         "fes.video.fixed-720p60", "fes.keyboard.hid", "fes.gamepad.ports",
         "fes.audio.pcm-s16-stereo-48k", "fes.media.atari-st-floppy",
+        "fes.mouse.relative", "fes.media.atari-st-floppy-write",
     ]
     fields = {
         "format": 3,
@@ -605,14 +724,15 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
             "id": "fes.atari-st",
             "name": "FES Atari 520ST",
             "description": "Atari 520ST with linked 192 KiB firmware, 512 KiB SDRAM, "
-                           "a read-only 720 KiB floppy and an ST expansion socket",
+                           "a writable 720 KiB floppy, relative mouse, and ST expansion/video sockets",
             "version": "0.1.0",
         },
         "target": {"platform": "de10_nano", "device": TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
         "abi": {"id": "fes.computer", "major": 1, "minor": 0},
         "interfaces": [{"id": interface, "major": 1, "minor": 0, "required": True} for interface in required] +
-                      [{"id": atari_st_slot.INTERFACE, "major": 1, "minor": 0, "required": False}],
+                      [{"id": interface, "major": 1, "minor": 0, "required": False}
+                       for interface in (atari_st_slot.INTERFACE, atari_st_video_parts.INTERFACE)],
         "build": {
             "id": evidence["build_id"],
             "repository": repository,
@@ -738,6 +858,9 @@ def synth(root: Path = ROOT, *, cache_root: Path | None = None,
         evidence = validate_synth_evidence(output)
         evidence["cpu_rom_clock_repairs"] = repaired
         evidence.update({"build_id": "0" * 32, "sealed": False, "video_output": video_output,
+            "video_layout": atari_st_video_parts.LAYOUT,
+            "video_map": atari_st_video_parts.MAP,
+            "video_socket": atari_st_video_parts.PLACEMENT,
                          "tools": {name: tool.identity for name, tool in authenticated.items()}})
         invocation.verify()
         _write_atomic(output / "build-summary.json",

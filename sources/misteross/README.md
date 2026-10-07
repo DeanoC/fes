@@ -56,7 +56,7 @@ builds the video variant. The shared RTL contract is owned by
 [mister-packages](../mister-packages/docs/video-parts.md).
 
 The factory image installs `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
-`fes.sg1000`, `fes.spectrum` and `fes.ramtest`. Another
+`fes.sg1000`, `fes.spectrum`, `fes.ramtest` and `fes.atari-st`. Another
 package is not added to that set merely because its producer exists.
 
 The first 16-bit machine is the [Atari 520ST](cores/fes-atari-st/README.md):
@@ -64,7 +64,9 @@ real 68000, physical SDRAM arbitration, pluggable 192 KiB firmware and
 expansion, peripherals, and all three ST video modes through shared
 direct/scanline parts. Stock EmuTOS reaches GEM in host simulation through
 the SDRAM and video paths. Run `make sim-fes-atari-st`; the registered HIP
-producer is `make build-fes-atari-st`. It is not selected in the factory image.
+producer is `make build-fes-atari-st`. The factory image selects its firmware
+shell and sealed Direct/Scanlines companions. Firmware remains a separate user
+input; the image does not bundle EmuTOS or Atari ROMs.
 
 ## What builds now
 
@@ -187,7 +189,7 @@ python3 scripts/build_fes_slot.py \
   --output build/oss/composed_901_plus_900.rbf
 ```
 
-`NEXTPNR_MISTRAL` overrides the binary. Locked nextpnr `1656e473` provides
+`NEXTPNR_MISTRAL` overrides the binary. Locked nextpnr `a20f34c5` provides
 `--fes-scaffold` and `--fes-cart`. A binary without those flags fails closed.
 This path does not seal `fes.zx81`.
 

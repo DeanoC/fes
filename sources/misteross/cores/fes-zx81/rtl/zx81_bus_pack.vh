@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Freeze-scaffold packing for the ZX81 expansion edge. Vacant rdata FFs
 // hold 0, so cart-to-CPU controls are active-high (ROMCS/WAIT/DSEL/PRESENT).
+// All bits in one response word (DRD, PEEK_D, DSEL, ROMCS, WAIT) must
+// describe the same request. A cart may add internal pipeline stages as
+// long as it delays all of them together. End-to-end request-to-response
+// latency at the machine must stay at most 6 clk_sys.
 `define ZX81_BUS_REQ 46
 `define ZX81_BUS_RSP 20
 `define ZX81_BUS_A 15:0

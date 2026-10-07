@@ -1,0 +1,270 @@
+{
+  "actual_words_upper_lower": [
+    [
+      "5AA5",
+      "5AA5"
+    ],
+    [
+      "C3C3",
+      "3C3C"
+    ],
+    [
+      "C3C3",
+      "3C3C"
+    ],
+    [
+      "C3C3",
+      "3C3C"
+    ]
+  ],
+  "artifacts": [
+    {
+      "bytes": 196608,
+      "path": "memory-byte-observation/firmware.bin",
+      "sha256": "7b4fd4cf2fbb3394469007de94cf4ebac2c58a7466cfd68d0c8cafcce81d39cb"
+    },
+    {
+      "bytes": 5782,
+      "path": "memory-byte-observation/generate.py",
+      "sha256": "a4363205d2380d9e907a29894a04bad019fb0f09617bdffeb41bd68b250e7c0b"
+    },
+    {
+      "bytes": 8325,
+      "path": "memory-byte-observation/public-generate.py",
+      "sha256": "f853126673ccad0b6be7c6d274cccf30693a1d3f880e34df8cff8f75867198d2"
+    },
+    {
+      "bytes": 4107,
+      "path": "memory-byte-observation/generated.json",
+      "sha256": "c4518c2696a760408a05cbf1b9a1c739e2e4ed22f82c99a8dfe63c91afbfd71e"
+    },
+    {
+      "bytes": 10079,
+      "path": "memory-byte-observation/bridge.json",
+      "sha256": "232ffdf83be779add1eb37c92aee69c124beefa7ae933a5e74f14ded90899519"
+    },
+    {
+      "bytes": 11138,
+      "path": "memory-byte-observation/validation.json",
+      "sha256": "e3c9a98a02f6a6dcd0668c6b3ae30db1a6446ba29cc4013d339c17af623892aa"
+    },
+    {
+      "bytes": 2764816,
+      "path": "memory-byte-observation/both-unmasked.ppm",
+      "sha256": "9129ea088bbdaad7606f9c65121c4a7023b44f5926d859d080a80d06a0207077"
+    },
+    {
+      "bytes": 10953,
+      "path": "hardware-517a285c0/byte-observation-720.png",
+      "sha256": "13ec7591a326619388f3a8ced0005279bd4398022c22f2b141bc8e0fe8544fcb"
+    },
+    {
+      "bytes": 3375949,
+      "path": "hardware-517a285c0/byte-observation-720.mkv",
+      "sha256": "8b3acedee70ecb6613749078184c4a56e13152341ed032a1452c68ce40ca9795"
+    },
+    {
+      "bytes": 1726,
+      "path": "hardware-517a285c0/byte-observation-launch.json",
+      "sha256": "3826c5eb884e81665a7cc4a5e04ec5fc2a78d8718f3b01234b48c079749c23b8"
+    },
+    {
+      "bytes": 295,
+      "path": "hardware-517a285c0/byte-observation-rom.json",
+      "sha256": "d705ea7c374814e19334388581c9b1ae06d86526125ac8e5ffd9d8fa053a8318"
+    },
+    {
+      "bytes": 94,
+      "path": "hardware-517a285c0/byte-rom-import.json",
+      "sha256": "ae1dd094353c07a7a289f19ca042994c7a9b73fa424249c5d6ca601ab53bbac0"
+    },
+    {
+      "bytes": 215,
+      "path": "hardware-517a285c0/byte-observation-entry.json",
+      "sha256": "b2ddbf179f97865a358c1efb55fea87e1449ca75a9f1cb49aa7f2e0645bc12f1"
+    },
+    {
+      "bytes": 443,
+      "path": "hardware-517a285c0/byte-observation-stop.json",
+      "sha256": "241aecfefa2dfb35be8826d8d6f6ab4e843c7e03d3848f57409febc8efe53356"
+    },
+    {
+      "bytes": 443,
+      "path": "hardware-517a285c0/byte-finally-stop.json",
+      "sha256": "241aecfefa2dfb35be8826d8d6f6ab4e843c7e03d3848f57409febc8efe53356"
+    },
+    {
+      "bytes": 385,
+      "path": "hardware-517a285c0/after-byte-observation.json",
+      "sha256": "0755ddbfe2da625842a4e440f25cecca5033dd47807064501cc92a4bd9d8f63c"
+    },
+    {
+      "bytes": 2110,
+      "path": "hardware-517a285c0/current-core-install.json",
+      "sha256": "e64ec7676c4104346ec4855c90a882ff87ec0dc8c46a54cd8bf88ba32617e0e4"
+    },
+    {
+      "bytes": 180,
+      "path": "hardware-517a285c0/byte-observation-operator.log",
+      "sha256": "ec226ea3bff4862794f4dbfa942134de8220e5b8d89fcf8853c031a64cbd533f"
+    },
+    {
+      "bytes": 3815,
+      "path": "hardware-517a285c0/byte-observation-probe.py",
+      "sha256": "8eb70a39cf881baa44723d1aafa5771e6ad6c999773f0d90b7e4ae4d2b11c74a"
+    },
+    {
+      "bytes": 20243968,
+      "path": "native-fes/sources/misteross/build/packages/d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5.fcore",
+      "sha256": "a441f8efc5a6c5b703826f19227cfbfcb59ae104c337beb8688191c24d1a332f"
+    },
+    {
+      "bytes": 2118,
+      "path": "native-fes/sources/misteross/build/packages/d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5/manifest.toml",
+      "sha256": "5e1f4e83cbf4758e8a9b577a9bdb02540cfd64e64e6455c515ca268c3d4ae4bb"
+    },
+    {
+      "bytes": 2881106,
+      "path": "native-fes/sources/misteross/build/packages/d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5/core.rbf",
+      "sha256": "c7f5f61e0cba8c519e185f15ce0ace3cb96ee2ba2d49ae59a14ac2f0a2356320"
+    },
+    {
+      "bytes": 17357124,
+      "path": "native-fes/sources/misteross/build/packages/d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5/rom-map.json",
+      "sha256": "469eb1eb93f1de33b53564d3c230f3eea449440ae91a4900c73bcb6020ee824a"
+    },
+    {
+      "bytes": 36788,
+      "path": "native-fes/sources/misteross/build/packages/d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5.build-inputs.json",
+      "sha256": "cd5d160f44e4db6d54fe08bf3a8907eb44ff83ad7aedf8c067b8059764f03ef2"
+    }
+  ],
+  "binding": {
+    "base_rbf_bytes": 2881106,
+    "base_rbf_sha256": "c7f5f61e0cba8c519e185f15ce0ace3cb96ee2ba2d49ae59a14ac2f0a2356320",
+    "build_id": "bd83f737c1a8e2252fe0f9b8a10c2cf6",
+    "flight_id": "a172ee28-8644-4f0c-ba3e-61b001bdd59e",
+    "generation": 2,
+    "package_id": "d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5",
+    "programmed_rbf_bytes_reported_by_completed_launch": 2571586,
+    "programmed_rbf_local_bytes_recomputed": false,
+    "programmed_rbf_sha256_reported_by_completed_launch": "6cb76306b590b07c824d78b086ccbf6cb3344187bc2a24a868785d0ad92ea6fb",
+    "rom_bytes": 196608,
+    "rom_id": "atari-st-firmware",
+    "rom_map_sha256": "469eb1eb93f1de33b53564d3c230f3eea449440ae91a4900c73bcb6020ee824a",
+    "rom_sha256": "7b4fd4cf2fbb3394469007de94cf4ebac2c58a7466cfd68d0c8cafcce81d39cb",
+    "session_id": "d8665161-ddae-47ce-93f3-c56991ef6a28",
+    "source_package_manifest_and_local_base_rom_map_hashes_checked": true,
+    "source_revision": "517a285c089153dc3701fd02dd366c0286a3efd2"
+  },
+  "classification": "Both bytes are overwritten by each replicated-byte store, matching ignored-byte-mask digital control; ordinary lane-preserving behavior, swapped masks and inhibited stores are excluded for these probes. Root cause remains unconfirmed.",
+  "cleanup": {
+    "input_detached": true,
+    "kit_lease_free": true,
+    "normal_host_service_active": true,
+    "normal_stop_and_finally_stop_idle_same_session": true,
+    "note": "After-byte-observation JSON proves idle/free and normalhostserviceactive. No separate post-byte menu HDMI file was supplied; earlier menu captures are not attributed to thisrun.",
+    "post_byte_menu_hdmi_capture_reviewed": false,
+    "target_last_error": null,
+    "target_status_idle": true
+  },
+  "ffmpeg_version": "ffmpeg version 7.1.5-0+deb13u1 Copyright (c) 2000-2026 the FFmpeg developers",
+  "hardware_memory_acceptance": false,
+  "kind": "fes.atari-st.byte-observation-physical-review/1",
+  "limitations": [
+    "The movie begins with53 black frames and one background-only frame; all 126 subsequent frames show the classified words. The prefix cause is not diagnosed by thisreview.",
+    "The screen is an observation and demonstrates failing lane preservation, not overall hardware acceptance.",
+    "The matched digitalcontrol does not prove a nextpnr/compiler defect; pinmapping,IOconfiguration,timing and controller behavior need further investigation.",
+    "Native package/source binding is independently checked from retained manifest and localbase/mapbytes; programmedRBF identity is reported by completed normalPlay and not recomputed from targetreadback."
+  ],
+  "movie": {
+    "all_stable_full_frame_binary_masks_equal_to_ignored_mask_oracle": true,
+    "codec": "ffv1",
+    "decode_fps_mode": "passthrough; no artificial frame duplication",
+    "decoded_frames": 180,
+    "duration_s": "3.067000",
+    "first_timestamp_s": "0.000000",
+    "glyph_decoded_words_identical_in_all_stable_frames": true,
+    "height": 720,
+    "last_timestamp_s": "3.050000",
+    "pix_fmt": "yuv422p",
+    "pixels_compared_per_frame": 921600,
+    "png_decoded_rgb_sha256": "fa14bfd9d2472329106950d88c67f68add014b56022de0597e7cb6d1d8410fb6",
+    "png_equal_to_movie_frame119_decoded_rgb": true,
+    "prefix_background_only_frames": 1,
+    "prefix_black_frames": 53,
+    "sampled_frame_records": [
+      {
+        "classification": "black_prefix",
+        "full_frame_mask_sha256": "0b150fd32588b1daca5569992ebe559c0102c837306b1af4c44d35128ec58366",
+        "index": 0,
+        "rgb_sha256": "822e3a311bc34185394aeb709bb83310f1243089b95cdadc218eee179b1d6f78",
+        "timestamp_s": "0.000000"
+      },
+      {
+        "classification": "black_prefix",
+        "full_frame_mask_sha256": "0b150fd32588b1daca5569992ebe559c0102c837306b1af4c44d35128ec58366",
+        "index": 52,
+        "rgb_sha256": "822e3a311bc34185394aeb709bb83310f1243089b95cdadc218eee179b1d6f78",
+        "timestamp_s": "0.933000"
+      },
+      {
+        "classification": "background_only_prefix",
+        "full_frame_mask_sha256": "0b150fd32588b1daca5569992ebe559c0102c837306b1af4c44d35128ec58366",
+        "index": 53,
+        "rgb_sha256": "8b22094c796fa0616d9127bf8be58c39e7dc6be60622809f6851328492087ca4",
+        "timestamp_s": "0.950000"
+      },
+      {
+        "classification": "stable_ignored_mask_words",
+        "full_frame_mask_sha256": "f766dff7159eefe9a3291892c881c4549d64ef81269dc6690153688c4c6a891c",
+        "index": 54,
+        "rgb_sha256": "fa14bfd9d2472329106950d88c67f68add014b56022de0597e7cb6d1d8410fb6",
+        "timestamp_s": "0.967000"
+      },
+      {
+        "classification": "stable_ignored_mask_words",
+        "full_frame_mask_sha256": "f766dff7159eefe9a3291892c881c4549d64ef81269dc6690153688c4c6a891c",
+        "index": 119,
+        "rgb_sha256": "fa14bfd9d2472329106950d88c67f68add014b56022de0597e7cb6d1d8410fb6",
+        "timestamp_s": "2.050000"
+      },
+      {
+        "classification": "stable_ignored_mask_words",
+        "full_frame_mask_sha256": "f766dff7159eefe9a3291892c881c4549d64ef81269dc6690153688c4c6a891c",
+        "index": 179,
+        "rgb_sha256": "fa14bfd9d2472329106950d88c67f68add014b56022de0597e7cb6d1d8410fb6",
+        "timestamp_s": "3.050000"
+      }
+    ],
+    "stable_first_index": 54,
+    "stable_first_timestamp_s": "0.967000",
+    "stable_last_index": 179,
+    "stable_last_timestamp_s": "3.050000",
+    "stable_word_frames": 126,
+    "threshold": "Decoded RGB red channel >=128; separates white segments from bluebackground and tolerates captureYUV conversion.",
+    "total_thresholded_pixels_compared": 116121600,
+    "unique_binary_mask_sha256": [
+      "0b150fd32588b1daca5569992ebe559c0102c837306b1af4c44d35128ec58366",
+      "f766dff7159eefe9a3291892c881c4549d64ef81269dc6690153688c4c6a891c"
+    ],
+    "unique_decoded_rgb_sha256": [
+      "822e3a311bc34185394aeb709bb83310f1243089b95cdadc218eee179b1d6f78",
+      "8b22094c796fa0616d9127bf8be58c39e7dc6be60622809f6851328492087ca4",
+      "fa14bfd9d2472329106950d88c67f68add014b56022de0597e7cb6d1d8410fb6"
+    ],
+    "width": 1280
+  },
+  "original_private_receipt_sha256": "ca69690f8370cebd64eb11a99644e3502abc95dd40a0fda63868eef7a76b3d4f",
+  "review_pass": true,
+  "review_script_sha256": "2f7036ef5e45345ae3a9c7b2f941a9ea066620379150ddd6a557fb7985cae2d8",
+  "reviewed_utc": "2026-10-04T10:03:31.220620+00:00",
+  "row_meanings": [
+    "full-word baseline2000/2002",
+    "immediate singleupper/even andlower/odd writes",
+    "32-NOP-gapped singlewrites",
+    "eight32-NOP-gapped repeats2008/200A, otherphysicalbank"
+  ],
+  "schema": 1,
+  "scope": "Independent read-only review of operator-retained capture, source/package binding and final cleanup records. No reviewer target request, hardware transition, build or source edit."
+}

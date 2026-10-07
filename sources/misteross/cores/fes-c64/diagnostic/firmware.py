@@ -76,6 +76,13 @@ paint:
         inx
         cpx #$07
         bne paint
+        lda $d800
+        and #$0f
+        cmp #$01
+        beq color_ok
+        lda #$03
+        jmp fail
+color_ok:
         lda #$33
         sta $01
         lda $d000
@@ -113,24 +120,29 @@ io_bad:
         jmp fail
 io_ok:
         lda #$00
+        sta $c001
         sta $dc02
         sta $dc03
+        lda #$07
+        sta $c000
+        jsr show_stage
+wait_joy:
         lda $dc00
         and #$1f
         cmp #$1e
-        beq joy_ok
-        lda #$07
-        jmp fail
+        bne wait_joy
 joy_ok:
         lda #$ff
         sta $dc02
         lda #$fb
         sta $dc00
+        lda #$08
+        sta $c000
+        jsr show_stage
+wait_key:
         lda $dc01
         and #$02
-        beq key_ok
-        lda #$08
-        jmp fail
+        bne wait_key
 key_ok:
         lda #$00
         sta $d400
@@ -138,6 +150,7 @@ key_ok:
         sta $d401
         lda #$00
         sta $d402
+        lda #$08
         sta $d403
         lda #$80
         sta $d406
@@ -171,6 +184,8 @@ disk_bad:
         jmp fail
 disk_ok:
         jsr check_interrupts
+        lda #$05
+        sta $d020
         lda #$ff
         sta $c000
         lda #$00
@@ -178,9 +193,19 @@ disk_ok:
 hang:   jmp hang
 fail:
         sta $c000
+        jsr show_stage
         lda #$01
         sta $c001
         jmp hang
+
+show_stage:
+        lda $c000
+        clc
+        adc #$30
+        sta $0408
+        lda #$01
+        sta $d808
+        rts
 
 check_interrupts:
         lda #$00
@@ -478,8 +503,14 @@ msg:
 """
 
 
-def build() -> bytes:
-    kernal = assemble(KERNAL, 0xE000, 8192)
+def build(*, without_cartridges: bool = False) -> bytes:
+    source = KERNAL
+    if without_cartridges:
+        # Keep every other check identical when qualifying a vacant shell.
+        start = source.index("char_ok:\n") + len("char_ok:\n")
+        end = source.index("io_ok:\n", start)
+        source = source[:start] + source[end:]
+    kernal = assemble(source, 0xE000, 8192)
     if len(BASIC) != 8192 or len(kernal) != 8192:
         raise RuntimeError("firmware windows must be 8 KiB")
     if kernal[0x1FFC] != 0x00 or kernal[0x1FFD] != 0xE0:
@@ -490,8 +521,10 @@ def build() -> bytes:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--without-cartridges", action="store_true",
+                        help="skip only cartridge checks for a vacant sealed shell")
     args = parser.parse_args()
-    image = build()
+    image = build(without_cartridges=args.without_cartridges)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "firmware.bin").write_bytes(image)
     (args.output_dir / "firmware.hex").write_text("".join(f"{byte:02X}\n" for byte in image))

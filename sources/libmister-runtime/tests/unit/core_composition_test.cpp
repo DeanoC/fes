@@ -356,15 +356,22 @@ void RejectSlotCompositionVariants() {
 	assert(!OpenCoreComposition({zx81.root},zx81.base,slots,&out).ok());
 	assert(zx81.Open(&out).ok()); // single-socket ZX81 admission is unchanged
 }
-void DeveloperVideoPartsAdmission(bool native=false) {
+void DeveloperVideoPartsAdmission(bool native=false,bool st=false) {
  Fixture f(true,2);
- f.base.descriptor.format=2;f.base.descriptor.core.id="fes.coleco";
+ f.base.descriptor.format=st ? 3 : 2;f.base.descriptor.core.id=st ? "fes.atari-st" : "fes.coleco";
+ if(st) { f.base.descriptor.abi.id="fes.computer"; f.base.descriptor.interfaces[0]={"fes.expansion.atari-st-bus",1,0,false}; }
  const std::string video_slot=native ? "fes.fabric.video.native-pixels" : "fes.fabric.video.raster-rgb888";
- const std::string video_map=native ? "fes.coleco-native-video.socket/1" : "fes.coleco-video.socket/1";
- const std::string layout=native ? "fes.coleco-native-video.parts/1" : "fes.coleco-video.parts/1";
+ const std::string video_map=st ? "fes.atari-st-video.socket/1" : native ? "fes.coleco-native-video.socket/1" : "fes.coleco-video.socket/1";
+ const std::string layout=st ? "fes.atari-st-video.parts/1" : native ? "fes.coleco-native-video.parts/1" : "fes.coleco-video.parts/1";
  f.base.descriptor.interfaces.push_back({video_slot,1,0,false});
  const std::string old_map="fes.coleco-bus.socket/2",old_slot="fes.expansion.coleco-bus";
- const std::string cpu_manifest=f.manifest;
+ std::string cpu_manifest=f.manifest;
+ if(st) {
+  cpu_manifest.replace(cpu_manifest.find(old_map),old_map.size(),"fes.atari-st-bus.socket/1");
+  cpu_manifest.replace(cpu_manifest.find(old_slot),old_slot.size(),"fes.expansion.atari-st-bus");
+  cpu_manifest.replace(cpu_manifest.find("\"slot_major\":2"),14,"\"slot_major\":1");
+  cpu_manifest.insert(cpu_manifest.find("\"slot_major\""),"\"slot_index\":1,");
+ }
  f.manifest.replace(f.manifest.find(old_map),old_map.size(),video_map);
  f.manifest.replace(f.manifest.find(old_slot),old_slot.size(),video_slot);
  f.manifest.replace(f.manifest.find("\"slot_major\":2"),14,"\"slot_major\":1");
@@ -388,7 +395,7 @@ void DeveloperVideoPartsAdmission(bool native=false) {
  f.base.descriptor.interfaces.push_back({native ? "fes.fabric.video.raster-rgb888" : "fes.fabric.video.native-pixels",1,0,false});
  assert(!f.Open(&out).ok());f.base.descriptor.interfaces.pop_back();
  f.base.descriptor.interfaces.push_back(f.base.descriptor.interfaces.back());assert(!f.Open(&out).ok());f.base.descriptor.interfaces.pop_back();
- f.base.descriptor.format=3;assert(!f.Open(&out).ok());f.base.descriptor.format=2;
+ f.base.descriptor.format=st ? 2 : 3;assert(!f.Open(&out).ok());f.base.descriptor.format=st ? 3 : 2;
  f.request.composition.layout=native ? "fes.coleco-video.parts/1" : "fes.coleco-native-video.parts/1";
  seal();assert(!f.Open(&out).ok());f.request.composition.layout=layout;seal();
  const std::string crossed_map=native ? "fes.coleco-video.socket/1" : "fes.coleco-native-video.socket/1";
@@ -401,8 +408,8 @@ void DeveloperVideoPartsAdmission(bool native=false) {
  f.request.composition.id[0]='0';assert(!f.Open(&out).ok());seal();
  f.manifest.insert(1,"\"unknown\":0,");seal();assert(!f.Open(&out).ok());
  f.manifest.erase(1,12);seal();assert(f.Open(&out).ok());
- // The native video layout can retain the existing, independently bound bus-2
- // CPU part. Roles, manifests and IDs stay distinct in the composition.
+ // Each video layout retains its independently bound CPU part.
+ // Roles, manifests and IDs stay distinct in the composition.
  const std::string cpu_path=f.root+"/cpu";
  assert(mkdir(cpu_path.c_str(),0700)==0);
  Write(cpu_path+"/manifest.json",cpu_manifest);Write(cpu_path+"/cart.rbf",f.cart);
@@ -413,6 +420,23 @@ void DeveloperVideoPartsAdmission(bool native=false) {
  for (const auto& part:c.parts) canonical+=part.role+":"+part.part_id+std::string(1,'\0');
  c.id=Hash(canonical+c.payload_sha256);
  assert(f.Open(&out).ok()&&out.info.parts.size()==2&&RecheckCoreComposition(out).ok());
+ if (st) {
+  const auto cpu_seal = [&](const std::string& manifest) {
+   Write(cpu_path+"/manifest.json",manifest);
+   c.parts[0].part_id=Hash(std::string("fes-expansion-v1\0",17)+manifest);
+   std::string material="fes-parts-composition-v1"+std::string(1,'\0')+c.package_id+std::string(1,'\0')+c.layout+std::string(1,'\0');
+   for (const auto& part:c.parts) material+=part.role+":"+part.part_id+std::string(1,'\0');
+   c.id=Hash(material+c.payload_sha256);
+  };
+  std::string nonexistent=cpu_manifest;
+  nonexistent.replace(nonexistent.find("\"slot_index\":1"),14,"\"slot_index\":2");
+  cpu_seal(nonexistent);assert(!f.Open(&out).ok());
+  std::string foreign=cpu_manifest;
+  const std::string st_map="fes.atari-st-bus.socket/1";
+  foreign.replace(foreign.find(st_map),st_map.size(),"fes.coleco-bus.socket/2");
+  cpu_seal(foreign);assert(!f.Open(&out).ok());
+  cpu_seal(cpu_manifest);assert(f.Open(&out).ok());
+ }
  assert(unlink((cpu_path+"/manifest.json").c_str())==0);
  assert(unlink((cpu_path+"/cart.rbf").c_str())==0);
  assert(rmdir(cpu_path.c_str())==0);
@@ -420,6 +444,6 @@ void DeveloperVideoPartsAdmission(bool native=false) {
 }
 
 }
-int main() {DeveloperVideoPartsAdmission();DeveloperVideoPartsAdmission(true);NativeVideoRejectsCpuOnlyComposition();SharedGoIdentityVector();ValidAndRetained();ColecoBusAdmission();ColecoV2BusAdmission();ZX81V2BusAdmission();ColecoBoundaryPatchAdmission();RejectColecoBoundaryPatchVariants();RejectBindings();RejectBytesAndPaths();
+int main() {DeveloperVideoPartsAdmission();DeveloperVideoPartsAdmission(true);DeveloperVideoPartsAdmission(false,true);NativeVideoRejectsCpuOnlyComposition();SharedGoIdentityVector();ValidAndRetained();ColecoBusAdmission();ColecoV2BusAdmission();ZX81V2BusAdmission();ColecoBoundaryPatchAdmission();RejectColecoBoundaryPatchVariants();RejectBindings();RejectBytesAndPaths();
 	SlotIdentityVector();SlotCompositionAdmission();RejectSlotCompositionVariants();
 	puts("core_composition_test: single-socket and multi-slot admission passed");}

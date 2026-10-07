@@ -21,8 +21,10 @@ type padSource interface {
 // Hotplug rescan runs on an interval from Poll so the kit 16ms loop stays
 // the caller; discovery itself is a bounded glob-and-open.
 type padHold struct {
-	pressed map[remoteinput.Code]bool
-	axes    map[remoteinput.Code]int32
+	mouse        bool
+	mouseButtons uint8
+	pressed      map[remoteinput.Code]bool
+	axes         map[remoteinput.Code]int32
 }
 
 type Hub struct {
@@ -74,9 +76,13 @@ func (h *Hub) Poll() ([]remoteinput.Event, error) {
 	}
 	sourced, live := h.mux.Merge(sources)
 	keyboards := make(map[string]bool, len(h.pads))
+	mice := make(map[string]bool, len(h.pads))
 	for _, p := range h.pads {
 		id, _ := p.Info()
 		keyboards[id] = p.IsKeyboard()
+		if mouse, ok := p.(interface{ IsMouse() bool }); ok {
+			mice[id] = mouse.IsMouse()
+		}
 	}
 	liveIDs := make(map[string]struct{}, len(live))
 	for _, src := range live {
@@ -91,7 +97,7 @@ func (h *Hub) Poll() ([]remoteinput.Event, error) {
 			continue
 		}
 		released = append(released, h.release(id)...)
-		if port, assigned := h.ports[id]; assigned && !p.IsKeyboard() {
+		if port, assigned := h.ports[id]; assigned && !p.IsKeyboard() && !mice[id] {
 			released = append(released, remoteinput.LocalPlayerDeparture(port))
 		}
 		_ = p.Close()
@@ -100,7 +106,7 @@ func (h *Hub) Poll() ([]remoteinput.Event, error) {
 	h.pads = next
 	// Assign only free slots, in stable device order. Surviving pads never move.
 	for _, src := range live {
-		if keyboards[src.ID] {
+		if keyboards[src.ID] || mice[src.ID] {
 			continue
 		}
 		if _, ok := h.ports[src.ID]; ok {
@@ -122,11 +128,15 @@ func (h *Hub) Poll() ([]remoteinput.Event, error) {
 	out := released
 	for _, source := range sourced {
 		port, ok := h.ports[source.DeviceID]
-		if !ok && !keyboards[source.DeviceID] {
+		if !ok && !keyboards[source.DeviceID] && !mice[source.DeviceID] {
 			continue
 		}
 		source.Event.Player = port
 		h.remember(source.DeviceID, source.Event)
+		if source.Event.Device == remoteinput.DeviceMouse {
+			dx, dy, _, _ := remoteinput.MouseVector(source.Event)
+			source.Event = remoteinput.MouseEvent(dx, dy, h.mouseButtons())
+		}
 		out = append(out, source.Event)
 	}
 	if len(h.pads) == 0 {
@@ -204,6 +214,12 @@ func (h *Hub) remember(id string, e remoteinput.Event) {
 		st = &padHold{pressed: map[remoteinput.Code]bool{}, axes: map[remoteinput.Code]int32{}}
 		h.holds[id] = st
 	}
+	if e.Device == remoteinput.DeviceMouse {
+		_, _, buttons, _ := remoteinput.MouseVector(e)
+		st.mouse = true
+		st.mouseButtons = buttons
+		return
+	}
 	switch e.Kind {
 	case remoteinput.KindButton, remoteinput.KindKey:
 		if e.Action == remoteinput.ActionPress {
@@ -222,6 +238,9 @@ func (h *Hub) release(id string) []remoteinput.Event {
 		return nil
 	}
 	delete(h.holds, id)
+	if st.mouse {
+		return []remoteinput.Event{remoteinput.MouseEvent(0, 0, h.mouseButtons())}
+	}
 	var codes []remoteinput.Code
 	for c := range st.pressed {
 		codes = append(codes, c)
@@ -263,4 +282,12 @@ func (h *Hub) add(p padSource) {
 		d.remap = h.remap
 	}
 	h.pads = append(h.pads, p)
+}
+
+func (h *Hub) mouseButtons() uint8 {
+	var buttons uint8
+	for _, st := range h.holds {
+		buttons |= st.mouseButtons
+	}
+	return buttons
 }

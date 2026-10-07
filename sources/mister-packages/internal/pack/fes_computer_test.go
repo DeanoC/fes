@@ -31,6 +31,9 @@ func TestFesComputerContract(t *testing.T) {
 		"FesComputerOpcodeMediaInfo": 5, "FesComputerOpcodeMediaBegin": 6,
 		"FesComputerOpcodeMediaChunk": 7, "FesComputerOpcodeMediaData": 8,
 		"FesComputerOpcodeMediaCommit": 9, "FesComputerOpcodeMediaEject": 10,
+		"FesComputerOpcodeMouseRelative": 11, "FesComputerMouseButtonMask": 3,
+		"FesComputerOpcodeMediaSnapshotInfo": 12, "FesComputerOpcodeMediaSnapshotControl": 13,
+		"FesComputerOpcodeMediaSnapshotChunk": 14, "FesComputerOpcodeMediaSnapshotData": 15,
 		"FesComputerKeyboardRowCount": 9, "FesComputerKeyboardModifierRow": 8,
 		"FesComputerMediaUnitCount": 8, "FesComputerMediaInfoStride": 8,
 		"FesComputerMediaHeaderStride": 4, "FesComputerMediaChunkMaxBytes": 512,
@@ -38,7 +41,7 @@ func TestFesComputerContract(t *testing.T) {
 		"FesComputerApple2FloppyUnit": 0, "FesComputerApple2FloppyBytes": 143360,
 		"FesComputerSpectrumTapeUnit": 0, "FesComputerSpectrumTapeMinBytes": 1,
 		"FesComputerSpectrumTapeMaxBytes": 65536,
-		"FesComputerC64DiskUnit": 0, "FesComputerC64DiskBytes": 174848,
+		"FesComputerC64DiskUnit":          0, "FesComputerC64DiskBytes": 174848,
 		"FesComputerAtariStFloppyUnit": 0, "FesComputerAtariStFloppyBytes": 737280,
 	} {
 		got, ok := abi.Constant(name)
@@ -54,6 +57,7 @@ func TestFesComputerContract(t *testing.T) {
 		{"fes.audio.pcm-s16-stereo-48k", 3}, {"fes.media.apple2-floppy", 4},
 		{"fes.media.spectrum-tape", 5}, {"fes.media.c64-disk", 6},
 		{"fes.media.atari-st-floppy", 7},
+		{"fes.mouse.relative", 8}, {"fes.media.atari-st-floppy-write", 9},
 	}
 	if len(abi.Interfaces) != len(want) {
 		t.Fatalf("interfaces = %+v", abi.Interfaces)
@@ -68,24 +72,26 @@ func TestFesComputerContract(t *testing.T) {
 
 // computerModel is an independent replay of docs/computer-io.md.
 type computerModel struct {
-	caps       uint16
-	units      map[uint32][2]uint32
-	state      map[uint32]uint16
-	data       map[uint32][]byte
-	held       bool
-	rows       [9]uint16
-	ports      [2]uint16
-	beginUnit  int
-	beginWords []uint32
-	active     int
-	total      uint32
-	wantCRC    uint32
-	received   uint32
-	crc        uint32
-	chunkWords []uint32
-	chunkLen   uint32
-	chunkRecv  uint32
-	ordinal    uint32
+	caps         uint16
+	units        map[uint32][2]uint32
+	state        map[uint32]uint16
+	data         map[uint32][]byte
+	held         bool
+	rows         [9]uint16
+	ports        [2]uint16
+	mouseButtons uint16
+	mouseMotion  [2]int
+	beginUnit    int
+	beginWords   []uint32
+	active       int
+	total        uint32
+	wantCRC      uint32
+	received     uint32
+	crc          uint32
+	chunkWords   []uint32
+	chunkLen     uint32
+	chunkRecv    uint32
+	ordinal      uint32
 }
 
 func (m *computerModel) cancel() {
@@ -113,6 +119,7 @@ func (m *computerModel) step(op, index, arg uint32, words []uint16) (code, data 
 		m.held = arg == 0
 		if m.held {
 			m.rows, m.ports = [9]uint16{}, [2]uint16{}
+			m.mouseButtons = 0
 		}
 		return 0, 0
 	case op == 3:
@@ -134,6 +141,18 @@ func (m *computerModel) step(op, index, arg uint32, words []uint16) (code, data 
 			return 3, 0
 		}
 		m.ports[index] = uint16(arg)
+		return 0, 0
+	case op == 11:
+		if m.caps&(1<<8) == 0 {
+			return 1, 0
+		} else if index > 3 {
+			return 2, 0
+		} else if m.held {
+			return 4, 0
+		}
+		m.mouseButtons = uint16(index)
+		m.mouseMotion[0] += int(int8(arg & 255))
+		m.mouseMotion[1] += int(int8(arg >> 8))
 		return 0, 0
 	case op >= 5 && op <= 10 && m.caps&hasMedia == 0:
 		return 1, 0
@@ -280,6 +299,8 @@ func TestFesComputerGoldenExchanges(t *testing.T) {
 				Held            bool
 				KeyboardRows    [9]uint16         `json:"keyboard_rows"`
 				ControllerPorts [2]uint16         `json:"controller_ports"`
+				MouseButtons    uint16            `json:"mouse_buttons"`
+				MouseMotion     [2]int            `json:"mouse_motion"`
 				UnitStates      map[string]uint16 `json:"unit_states"`
 				UnitCRC32       map[string]uint32 `json:"unit_sha_crc32"`
 			}
@@ -288,7 +309,7 @@ func TestFesComputerGoldenExchanges(t *testing.T) {
 	if err := json.Unmarshal(data, &fixture); err != nil {
 		t.Fatal(err)
 	}
-	if fixture.ABI.ID != "fes.computer" || fixture.ABI.Tag != 4 || len(fixture.Scenarios) != 2 {
+	if fixture.ABI.ID != "fes.computer" || fixture.ABI.Tag != 4 || len(fixture.Scenarios) != 3 {
 		t.Fatalf("fixture identity %+v", fixture.ABI)
 	}
 	for _, v := range fixture.CRCVectors {
@@ -346,6 +367,9 @@ func TestFesComputerGoldenExchanges(t *testing.T) {
 			}
 			if m.held != s.Final.Held || m.rows != s.Final.KeyboardRows || m.ports != s.Final.ControllerPorts {
 				t.Fatalf("final input state %+v", s.Final)
+			}
+			if m.mouseButtons != s.Final.MouseButtons || m.mouseMotion != s.Final.MouseMotion {
+				t.Fatalf("final mouse state %+v", s.Final)
 			}
 			for unit, state := range m.state {
 				key := fmt.Sprint(unit)

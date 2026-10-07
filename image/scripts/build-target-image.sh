@@ -3,6 +3,21 @@ set -eu
 
 repo=$(CDPATH='' cd -- "$(dirname "$0")/.." && pwd)
 epoch=1751459412
+image_passes=${FES_IMAGE_PASSES:-2}
+case "$image_passes" in
+  1|2) : ;;
+  *) printf '%s\n' 'build-target-image: FES_IMAGE_PASSES must be 1 or 2' >&2; exit 2 ;;
+esac
+expected_work=/target-image-output/work-$image_passes-native-dev
+image_work=${FES_IMAGE_WORK:-$expected_work}
+if [ "$image_work" != "$expected_work" ]; then
+  printf 'build-target-image: FES_IMAGE_WORK must be %s when FES_IMAGE_PASSES=%s\n' "$expected_work" "$image_passes" >&2
+  exit 2
+fi
+if [ "$image_passes" = 1 ] && { [ "${CI:-}" = true ] || [ "${GITHUB_ACTIONS:-}" = true ]; }; then
+  printf '%s\n' 'build-target-image: single-pass images are disabled in CI' >&2
+  exit 2
+fi
 native_mode=${NATIVE_RUNTIME_MODE:-package-only}
 case "$native_mode" in
   package-only) : ;;
@@ -28,6 +43,7 @@ selected_package_cores() {
       fes.c64) printf '%s\n' c64 ;;
       fes.spectrum) printf '%s\n' spectrum ;;
       fes.ramtest) printf '%s\n' ramtest ;;
+      fes.atari-st) printf '%s\n' atari-st ;;
       *) exit 2 ;;
     esac
     [ -n "$remaining" ] || break
@@ -270,7 +286,10 @@ if [ -n "${TARGET_IMAGE_BUILD_ONCE:-}" ] && [ "${TARGET_IMAGE_TEST_MODE:-0}" != 
   exit 2
 fi
 if [ "$promote_existing" -ne 1 ]; then
-  for run in 1 2; do
+  if [ "$image_passes" = 1 ]; then
+    /bin/rm -rf "$output_root/work-2-$variant"
+  fi
+  for run in $(if [ "$image_passes" = 1 ]; then printf 1; else printf '1 2'; fi); do
     work=$output_root/work-$run-$variant
     case "$work" in
       "$output_root"/work-[12]-"$variant") : ;;
@@ -297,29 +316,45 @@ fi
 first=$output_root/work-1-$variant/images/rootfs.ext4
 second=$output_root/work-2-$variant/images/rootfs.ext4
 first_sha=$(/usr/bin/shasum -a 256 "$first" | /usr/bin/awk '{print $1}')
-second_sha=$(/usr/bin/shasum -a 256 "$second" | /usr/bin/awk '{print $1}')
-if [ "$first_sha" != "$second_sha" ]; then
-  printf 'build-target-image: %s is not reproducible: %s != %s\n' "$variant" "$first_sha" "$second_sha" >&2
-  exit 1
+if [ "$image_passes" = 2 ]; then
+  second_sha=$(/usr/bin/shasum -a 256 "$second" | /usr/bin/awk '{print $1}')
+  if [ "$first_sha" != "$second_sha" ]; then
+    printf 'build-target-image: %s is not reproducible: %s != %s\n' "$variant" "$first_sha" "$second_sha" >&2
+    exit 1
+  fi
+  selected_work=$output_root/work-2-$variant
+  selected_image=$second
+  selected_sha=$second_sha
+else
+  second_sha=
+  selected_work=$output_root/work-1-$variant
+  selected_image=$first
+  selected_sha=$first_sha
 fi
 
 if [ "$variant" = native-dev ]; then
   package_cores=$(selected_package_cores)
   for package_core in $package_cores; do
-    cmp "$output_root/work-1-$variant/fes-$package_core.package-selection.toml" \
-      "$output_root/work-2-$variant/fes-$package_core.package-selection.toml" || {
-      printf 'build-target-image: FES %s package selection differs between reproducible outputs\n' "$package_core" >&2
+    if [ "$image_passes" = 2 ]; then
+      cmp "$output_root/work-1-$variant/fes-$package_core.package-selection.toml" \
+        "$output_root/work-2-$variant/fes-$package_core.package-selection.toml" || {
+        printf 'build-target-image: FES %s package selection differs between outputs\n' "$package_core" >&2
+        exit 1
+      }
+    fi
+    [ -f "$output_root/work-1-$variant/fes-$package_core.package-selection.toml" ] || {
+      printf 'build-target-image: missing FES %s package selection\n' "$package_core" >&2
       exit 1
     }
   done
   if [ -n "${FES_VIDEO_PARTS_DIR:-}" ]; then
-    cmp "$output_root/work-1-$variant/fes-core-video-parts.json" \
+    if [ "$image_passes" = 2 ]; then cmp "$output_root/work-1-$variant/fes-core-video-parts.json" \
       "$output_root/work-2-$variant/fes-core-video-parts.json" || {
       echo 'build-target-image: factory video index differs between reproducible outputs' >&2
       exit 1
-    }
+    }; fi
   fi
-  for work in "$output_root/work-1-$variant" "$output_root/work-2-$variant"; do
+  for work in "$output_root/work-1-$variant" $(if [ "$image_passes" = 2 ]; then printf '%s' "$output_root/work-2-$variant"; fi); do
     for stale in "$work"/*.rbf "$work"/*-rbf.toml "$work"/*.selection.toml; do
       [ ! -e "$stale" ] && [ ! -L "$stale" ] || {
         printf 'build-target-image: package-only output retains stale artifact: %s\n' "$stale" >&2
@@ -334,13 +369,25 @@ final_dir=$output_root/$variant
 image_tmp=$final_dir/linux.img.new.$$
 evidence_tmp=$final_dir/reproducibility.txt.new.$$
 trap '/bin/rm -f "$image_tmp" "$evidence_tmp"' EXIT INT TERM
-/bin/cp "$second" "$image_tmp"
-printf 'source_date_epoch=%s\nrun_1_sha256=%s\nrun_2_sha256=%s\n' \
-  "$epoch" "$first_sha" "$second_sha" > "$evidence_tmp"
+/bin/cp "$selected_image" "$image_tmp"
+if [ "$image_passes" = 1 ]; then
+  printf 'source_date_epoch=%s\nimage_passes=1\nsingle_pass_scratch=1\nrun_1_sha256=%s\n' \
+    "$epoch" "$first_sha" > "$evidence_tmp"
+else
+  printf 'source_date_epoch=%s\nrun_1_sha256=%s\nrun_2_sha256=%s\n' \
+    "$epoch" "$first_sha" "$second_sha" > "$evidence_tmp"
+fi
 if [ "$variant" = native-dev ]; then
-  "$repo/scripts/native-extra-cores.sh" copy-records "$output_root/work-2-$variant" "$final_dir"
+  "$repo/scripts/native-extra-cores.sh" copy-records "$selected_work" "$final_dir"
 fi
 /bin/mv "$evidence_tmp" "$final_dir/reproducibility.txt"
 /bin/mv "$image_tmp" "$final_dir/linux.img"
+if [ "$image_passes" = 1 ]; then
+  head_sha=$(git -C "$repo" rev-parse HEAD 2>/dev/null || printf unknown)
+  image_sha=$(/usr/bin/shasum -a 256 "$final_dir/linux.img" | /usr/bin/awk '{print $1}')
+  printf 'head_sha=%s\nlinux_img_sha256=%s\n' "$head_sha" "$image_sha" > "$final_dir/SINGLE-PASS-SCRATCH.txt"
+else
+  /bin/rm -f "$final_dir/SINGLE-PASS-SCRATCH.txt"
+fi
 trap - EXIT INT TERM
-printf 'target image %s image: %s\n' "$variant" "$second_sha"
+printf 'target image %s image: %s\n' "$variant" "$selected_sha"

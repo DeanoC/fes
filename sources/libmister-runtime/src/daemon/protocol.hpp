@@ -36,7 +36,10 @@ enum class Operation {
 	load_firmware,
 	load_media_stream,
 	set_keyboard_hid,
+	send_mouse_relative,
 	insert_media,
+	insert_library_media,
+	save_media,
 	eject_media,
 	load_development_rbf,
 	stop,
@@ -64,12 +67,17 @@ struct Request {
  std::uint32_t byte_count=0;
  bool visible=false;
 	std::uint8_t media_unit = 0;
+	MediaDataBinding media_binding;
 	KeyboardHidRows keyboard_rows{};
+	std::int16_t mouse_dx = 0, mouse_dy = 0;
+	std::uint8_t mouse_buttons = 0;
 	CoreCompositionRequest composition_request;
 	std::string programmed_path;
 	std::string programmed_sha256;
 	CoreROMLink rom_link;
 	CoreROMLinks rom_links;
+	bool has_initial_media = false;
+	InitialComputerMedia initial_media;
 };
 
 struct MenuFrameReply {

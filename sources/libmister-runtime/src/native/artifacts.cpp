@@ -148,6 +148,35 @@ Error ComputerMediaSnapshot::Prepare(const std::string& path,
 	return {};
 }
 
+Error ComputerMediaSnapshot::PrepareBytes(const std::vector<unsigned char>& bytes,
+    Clock& clock, std::uint64_t deadline)
+{
+    if (fd_ >= 0 || bytes.empty() || bytes.size() > generated::FesSimpleComputerMediaStreamMaxBytes)
+        return {ErrorCode::invalid_request, "invalid media snapshot payload", "request"};
+    char name[]="/tmp/mister-runtime-media-XXXXXX";
+    int snapshot=mkstemp(name);
+    if(snapshot<0) return IoError("create media snapshot failed", "");
+    auto fail=[&](Error cause) { close(snapshot); return cause; };
+    if(unlink(name)!=0) return fail(IoError("unlink media snapshot failed", ""));
+    if(fcntl(snapshot,F_SETFD,FD_CLOEXEC)<0) return fail(IoError("set media snapshot close-on-exec failed", ""));
+    std::uint32_t crc=generated::FesSimpleComputerMediaStreamCRC32Initial;
+    std::size_t written=0;
+    while(written<bytes.size()) {
+        if(clock.NowMs()>=deadline) return fail({ErrorCode::io_failed,"media snapshot deadline exceeded","request"});
+        const auto amount=std::min<std::size_t>(512,bytes.size()-written);
+        const ssize_t n=write(snapshot,bytes.data()+written,amount);
+        if(n<0&&errno==EINTR) continue;
+        if(n<=0) return fail(IoError("write media snapshot failed", ""));
+        for(ssize_t at=0;at<n;++at) {
+            crc^=bytes[written+static_cast<std::size_t>(at)];
+            for(unsigned bit=0;bit<8;++bit) crc=(crc>>1)^((crc&1u)?generated::FesSimpleComputerMediaStreamCRC32Polynomial:0u);
+        }
+        written+=static_cast<std::size_t>(n);
+    }
+    fd_=snapshot; size_=static_cast<std::uint32_t>(bytes.size());
+    crc32_=crc^generated::FesSimpleComputerMediaStreamCRC32FinalXor; return {};
+}
+
 Error ComputerMediaSnapshot::Read(std::uint32_t offset, std::uint8_t* data,
 	std::size_t length, Clock& clock, std::uint64_t deadline) const
 {

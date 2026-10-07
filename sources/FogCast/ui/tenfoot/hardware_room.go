@@ -138,6 +138,17 @@ type playHIDKey struct {
 }
 
 func (a *App) rememberPlayHIDLocked(event remoteinput.Event) {
+	if event.Device == remoteinput.DeviceMouse {
+		key := playHIDKey{device: remoteinput.DeviceMouse}
+		delete(a.playHIDHeld, key)
+		if event.Code != 0 {
+			if a.playHIDHeld == nil {
+				a.playHIDHeld = map[playHIDKey]remoteinput.Event{}
+			}
+			a.playHIDHeld[key] = remoteinput.MouseEvent(0, 0, uint8(event.Code))
+		}
+		return
+	}
 	key := playHIDKey{event.Player, event.Device, event.Kind, event.Code}
 	if event.Action == remoteinput.ActionRelease || event.Kind == remoteinput.KindAxis && event.Value == 0 {
 		delete(a.playHIDHeld, key)
@@ -211,6 +222,7 @@ func samePlayHIDSession(a, b hostclient.SessionResult) bool {
 }
 
 func (a *App) cancelPlayHIDLocked() {
+	a.playMice = nil
 	if a.playHIDCancel != nil {
 		a.playHIDCancel()
 	}
@@ -221,12 +233,17 @@ func (a *App) cancelPlayHIDLocked() {
 }
 
 func (a *App) releasePlayHIDLocked() {
+	a.playMice = nil
 	if a.playHIDFailClosedLocked() {
 		a.playHIDHeld = nil
 		return
 	}
 	events := make([]remoteinput.Event, 0, len(a.playHIDHeld))
 	for _, event := range a.playHIDHeld {
+		if event.Device == remoteinput.DeviceMouse {
+			events = append(events, remoteinput.MouseEvent(0, 0, 0))
+			continue
+		}
 		event.Action = remoteinput.ActionRelease
 		event.Value = 0
 		if event.Kind == remoteinput.KindAxis {

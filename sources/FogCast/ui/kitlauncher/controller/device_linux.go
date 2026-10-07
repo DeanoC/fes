@@ -61,11 +61,15 @@ func openDevice(path string) (*Device, error) {
 	fixture := vendor == 0x081f && product == 0xe401
 	isPad := bit(keys, 304) || (fixture && bit(keys, 288))
 	isKey := !isPad && bit(keys, 30)
-	if !eligible(bus, cstring(name), isPad) && !eligibleKeyboard(bus, cstring(name), isKey) {
+	rel := make([]byte, 8)
+	isMouse := !isPad && !isKey && ioctl(fd, 0x22, rel) == nil && bit(rel, 0) && bit(rel, 1) && (bit(keys, 272) || bit(keys, 273))
+	if !eligible(bus, cstring(name), isPad) && !eligibleKeyboard(bus, cstring(name), isKey) && !eligibleMouse(bus, cstring(name), isMouse, isMouse) {
 		return nil, errors.New("not a physical gamepad")
 	}
 	var mapper *Mapper
-	if isKey && !isPad {
+	if isMouse {
+		mapper = NewMouseMapper()
+	} else if isKey && !isPad {
 		mapper = NewKeyboardMapper()
 	} else {
 		axes := map[uint16]Range{}
@@ -140,9 +144,14 @@ func (d *Device) Poll() ([]remoteinput.Event, error) {
 			if e, ok := d.mapEvent(typ, code, value); ok {
 				out = append(out, e)
 			}
+			if d.mapper.mouseFault {
+				return nil, errors.New("mouse report exceeds relative input range")
+			}
 		}
 	}
 	return out, nil
 }
+
+func (d *Device) IsMouse() bool { return d != nil && d.mapper != nil && d.mapper.mouse }
 
 func (d *Device) IsKeyboard() bool { return d != nil && d.mapper != nil && d.mapper.keyboard }

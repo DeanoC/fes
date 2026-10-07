@@ -199,9 +199,13 @@ func diskLaunchFixture(t *testing.T, iface protocol.RuntimeContract, size int64)
 
 type mediaUnitLaunchClient struct {
 	*defaultMediaPackageClient
-	inserts  int
-	inserted []byte
-	fail     bool
+	inserts        int
+	libraryCalls   int
+	libraryBinding protocol.LibraryMediaBinding
+	saveCalls      int
+	saveErr        error
+	inserted       []byte
+	fail           bool
 }
 
 func (c *mediaUnitLaunchClient) InsertMedia(_ context.Context, size int64, body io.Reader, b protocol.MediaUnitBinding) (protocol.Status, error) {
@@ -217,6 +221,22 @@ func (c *mediaUnitLaunchClient) InsertMedia(_ context.Context, size int64, body 
 	status.CorePackage = &pkg
 	c.statusResult = status
 	return status, nil
+}
+
+func (c *mediaUnitLaunchClient) InsertLibraryMedia(ctx context.Context, size int64, body io.Reader, b protocol.LibraryMediaBinding) (protocol.Status, error) {
+	if !b.Valid() {
+		return protocol.Status{}, protocol.MediaUnitRequestError()
+	}
+	c.libraryCalls++
+	c.libraryBinding = b
+	return c.InsertMedia(ctx, size, body, b.MediaUnitBinding)
+}
+func (c *mediaUnitLaunchClient) SaveMedia(context.Context, protocol.MediaUnitBinding) (protocol.Status, error) {
+	c.saveCalls++
+	if c.saveErr != nil {
+		return c.statusResult, c.saveErr
+	}
+	return c.statusResult, nil
 }
 
 func (c *mediaUnitLaunchClient) EjectMedia(context.Context, protocol.MediaUnitBinding) (protocol.Status, error) {
@@ -257,6 +277,13 @@ func testLibraryDiskIsSelectedExactlyAndInsertedAfterStart(t *testing.T, iface p
 	if err != nil || client.inserts != 1 || client.mediaCalls != 0 || !bytes.Equal(client.inserted, disk) {
 		t.Fatalf("launch err=%v inserts=%d legacy=%d", err, client.inserts, client.mediaCalls)
 	}
+	if iface == protocol.AtariStFloppyInterface() {
+		if client.libraryCalls != 1 || client.libraryBinding.GameID != entry.GameID || client.libraryBinding.BaseMediaID != image.MediaID {
+			t.Fatal("ST library binding not explicit", client.libraryBinding)
+		}
+	} else if client.libraryCalls != 0 {
+		t.Fatal("other disks entered ST persistence")
+	}
 	if unit, ok := protocol.MediaUnit(response.Status.CorePackage, 0); !ok || unit.State != "ready" ||
 		response.Status.GameID == nil || *response.Status.GameID != entry.GameID {
 		t.Fatalf("session %+v", response.Status)
@@ -277,5 +304,54 @@ func TestLibraryDiskInsertFailureStopsTheLaunch(t *testing.T) {
 	client.stopResult = protocol.Status{State: protocol.StateIdle}
 	if _, err := s.Launch(ctx, entry.GameID, nil); err == nil || client.inserts != 1 || client.stopCalls == 0 {
 		t.Fatalf("failed insert err=%v inserts=%d stops=%d", err, client.inserts, client.stopCalls)
+	}
+}
+
+func TestLibraryDiskLiveInsertAndSaveKeepIdentityAndImmutableBase(t *testing.T) {
+	ctx := context.Background()
+	s, client, entry, disk := diskLaunchFixture(t, protocol.AtariStFloppyInterface(), protocol.AtariStFloppyBytes)
+	base, _, err := s.ImportCoreMedia(ctx, int64(len(disk)), bytes.NewReader(disk))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.SelectCoreEntryMedia(ctx, entry.GameID, entry.PackageID, "", protocol.DiskRole, base.MediaID); err != nil {
+		t.Fatal(err)
+	}
+	response, err := s.Launch(ctx, entry.GameID, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dev := s.libraryDevelopmentMediaBinding(*response.Status.CorePackage)
+	b := protocol.LibraryMediaBinding{MediaUnitBinding: protocol.MediaUnitBinding{PackageID: dev.PackageID, Generation: dev.Generation, Unit: 0, Target: dev.Target, TargetID: dev.TargetID}, GameID: entry.GameID, BaseMediaID: base.MediaID}
+	if _, err = s.InsertLibraryDisk(ctx, b); err != nil || client.libraryCalls != 2 {
+		t.Fatal(err, client.libraryCalls)
+	}
+	wrong := b
+	wrong.BaseMediaID = strings.Repeat("a", 64)
+	if _, err = s.InsertLibraryDisk(ctx, wrong); err == nil || client.libraryCalls != 2 {
+		t.Fatal("wrong selected base dispatched")
+	}
+	client.statusResult.CorePackage.ActiveInterfaces = append(client.statusResult.CorePackage.ActiveInterfaces, protocol.RuntimeInterface{ID: protocol.AtariStFloppyWriteInterface().ID, Major: 1})
+	client.statusResult.CorePackage.PersistenceMode = "persistent"
+	client.statusResult.CorePackage.MediaUnits[0].Persistence = &protocol.MediaDataStatus{Mode: "persistent", GameID: b.GameID, BaseMediaID: b.BaseMediaID, Revision: strings.Repeat("c", 64)}
+	if got, err := s.SaveMedia(ctx, b.MediaUnitBinding); err != nil || client.saveCalls != 1 || got.GameID == nil || *got.GameID != entry.GameID {
+		t.Fatal(err, got)
+	}
+	client.saveErr = &protocol.APIError{Code: protocol.CodeSaveFailed, Message: "publication failed", Phase: "save"}
+	if _, err = s.SaveMedia(ctx, b.MediaUnitBinding); err == nil {
+		t.Fatal("save failure accepted")
+	}
+	if client.statusResult.CorePackage.MediaUnits[0].Persistence.GameID != entry.GameID {
+		t.Fatal("save failure lost binding")
+	}
+	store := s.catalog.(coreMediaCatalog)
+	_, reader, err := store.OpenCoreMedia(ctx, base.MediaID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	actual, _ := io.ReadAll(reader)
+	if !bytes.Equal(actual, disk) {
+		t.Fatal("catalog base changed")
 	}
 }

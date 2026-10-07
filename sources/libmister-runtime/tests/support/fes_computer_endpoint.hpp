@@ -69,7 +69,17 @@ public:
 			if (held) {
 				rows = std::vector<std::uint16_t>(9, 0);
 				ports = {0, 0};
+				mouse_buttons = 0;
 			}
+			return {0, 0};
+		}
+		if (op == FesComputerOpcodeMouseRelative) {
+			if (!(capabilities_ & FesComputerCapabilityMouseRelative)) return {opcode_error, 0};
+			if (index > 3) return {index_error, 0};
+			if (held) return {state_error, 0};
+			mouse_x += static_cast<std::int8_t>(arg & 255);
+			mouse_y += static_cast<std::int8_t>((arg >> 8) & 255);
+			mouse_buttons = static_cast<std::uint8_t>(index);
 			return {0, 0};
 		}
 		if (op == FesComputerOpcodeKeyboardHid) {
@@ -85,6 +95,55 @@ public:
 			if (arg > 0xff) return {argument_error, 0};
 			ports[index] = static_cast<std::uint16_t>(arg);
 			return {0, 0};
+		}
+		if (op >= FesComputerOpcodeMediaSnapshotInfo && op <= FesComputerOpcodeMediaSnapshotData) {
+			if (!(capabilities_ & FesComputerCapabilityMediaAtariStFloppyWrite)) return {opcode_error, 0};
+			Unit& u = units_.at(0);
+			if (op == FesComputerOpcodeMediaSnapshotInfo) {
+				if (index > 7) return {index_error, 0};
+				if (arg) return {argument_error, 0};
+				const std::uint16_t info[8] = {
+					static_cast<std::uint16_t>((u.state == 3 ? 1 : 0) | (dirty ? 2 : 0) | (frozen ? 4 : 0) | (write_busy ? 8 : 0)),
+					1, 1, 0, static_cast<std::uint16_t>(u.data.size()),
+					static_cast<std::uint16_t>(u.data.size() >> 16), 512, epoch};
+				return {0, info[index]};
+			}
+			if (op == FesComputerOpcodeMediaSnapshotControl) {
+				if (index) return {index_error, 0};
+				if (arg > 2) return {argument_error, 0};
+				if (arg == 0) {
+					if (u.state != 3) return {state_error, 0};
+					frozen = true; saved = false;
+					snapshot_words.clear(); snapshot_at = 0;
+					snapshot_remaining = 0; snapshot_ordinal = 0;
+				} else if (arg == 1) {
+					frozen = false; saved = false; snapshot_remaining = 0;
+				} else {
+					if (!frozen) return {state_error, 0};
+					dirty = false; saved = true;
+				}
+				return {0, 0};
+			}
+			if (!frozen || u.state != 3) return {state_error, 0};
+			if (op == FesComputerOpcodeMediaSnapshotChunk) {
+				if (snapshot_remaining) return {state_error, 0};
+				if (index != snapshot_words.size() || index > 2) return {index_error, 0};
+				if (index == 2) {
+					const unsigned offset = snapshot_words[0] | (snapshot_words[1] << 16);
+					if (offset != snapshot_at || !arg || (arg & 1) || arg > 512 || arg > u.data.size() - snapshot_at)
+						return {argument_error, 0};
+					snapshot_words.clear(); snapshot_remaining = arg; snapshot_ordinal = 0;
+				} else {
+					snapshot_words.push_back(arg);
+				}
+				return {0, 0};
+			}
+			if (!snapshot_remaining) return {state_error, 0};
+			if (index != snapshot_ordinal) return {index_error, 0};
+			if (arg) return {argument_error, 0};
+			const unsigned pair = u.data.at(snapshot_at) | (u.data.at(snapshot_at + 1) << 8);
+			snapshot_at += 2; snapshot_remaining -= 2; ++snapshot_ordinal;
+			return {0, static_cast<std::uint16_t>(pair)};
 		}
 		const bool media_opcode = op >= FesComputerOpcodeMediaInfo && op <= FesComputerOpcodeMediaEject;
 		const unsigned media_bits = FesComputerCapabilityMediaApple2Floppy |
@@ -107,7 +166,7 @@ public:
 		if (op == FesComputerOpcodeMediaBegin) {
 			const unsigned unit = index >> 2, word = index & 3;
 			if (!units_.count(unit)) return {index_error, 0};
-			if (active_ >= 0) return {state_error, 0};
+			if (active_ >= 0 || write_busy || (frozen && !saved)) return {state_error, 0};
 			if (begin_unit_ < 0) {
 				if (word != 0) return {index_error, 0};
 			} else if (static_cast<int>(unit) != begin_unit_ || word != begin_words_.size()) {
@@ -128,6 +187,7 @@ public:
 				return {0, 0};
 			}
 			if (word == 0) {
+                frozen=false;saved=false;dirty=false;
 				begin_unit_ = static_cast<int>(unit);
 				units_[unit].state = 2;
 			}
@@ -188,11 +248,13 @@ public:
 			return {0, 0};
 		}
 		if (op == FesComputerOpcodeMediaEject) {
+            if(write_busy || (frozen&&!saved))return {state_error,0};
 			if (index >= 8 || !units_.count(index)) return {index_error, 0};
 			if (arg) return {argument_error, 0};
 			if (active_ == static_cast<int>(index) || begin_unit_ == static_cast<int>(index))
 				ClearTransfer();
 			units_[index].state = 1;
+            frozen=false;saved=false;dirty=false;
 			return {0, 0};
 		}
 		return {opcode_error, 0};
@@ -213,6 +275,8 @@ public:
 		const auto result = Handle(request.opcode, request.index, request.argument);
 		error_ = result.first != 0;
 		response_ = error_ ? static_cast<std::uint16_t>(result.first) : result.second;
+        if (fail_after_request && fail_after_request(request))
+            return {mister::ErrorCode::io_failed, "request accepted but response unavailable"};
 		return {};
 	}
 
@@ -228,6 +292,10 @@ public:
 	// FPGA programming: held, neutral input, empty units, toggle and ACK zero.
 	void Reset()
 	{
+        mouse_x = 0; mouse_y = 0; mouse_buttons = 0;
+        frozen = false; saved = false; dirty = false; write_busy = false; epoch = 0;
+        snapshot_at = 0; snapshot_remaining = 0; snapshot_ordinal = 0;
+        snapshot_words.clear();
 		held = true;
 		rows = std::vector<std::uint16_t>(9, 0);
 		ports = {0, 0};
@@ -254,12 +322,19 @@ public:
 		return crc ^ 0xffffffffu;
 	}
 
+	std::int32_t mouse_x = 0, mouse_y = 0;
+	std::uint8_t mouse_buttons = 0;
 	bool held = true;
 	std::vector<std::uint16_t> rows = std::vector<std::uint16_t>(9, 0);
 	std::vector<std::uint16_t> ports = {0, 0};
 	bool corrupt_next_data = false;
+    bool frozen=false,saved=false,dirty=false,write_busy=false;
+    std::uint16_t epoch=0;
+    unsigned snapshot_at=0,snapshot_remaining=0,snapshot_ordinal=0;
+    std::vector<unsigned> snapshot_words;
 	// Returning true drops that request before the endpoint sees it: no ACK.
 	std::function<bool(const Request&)> lose_request;
+    std::function<bool(const Request&)> fail_after_request;
 	std::vector<std::uint32_t> writes;
 	std::vector<Request> requests;
 

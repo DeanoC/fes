@@ -54,7 +54,21 @@ program. See FES [soft-restart Path B](../../docs/soft-restart-path-b.md).
 
 Identity precedes video, input enablement and gameplay release. FES media
 interfaces control reset-held startup and release after a successful commit;
-`fes.computer` media units are the exception and never gate release.
+`fes.computer` media units permit empty-drive startup unless a writable ST
+ROM load explicitly requests initial library media; its complete prepared disk
+transfer and ready confirmation then precede the first release.
+
+The shared GP response sampler holds the original request after observing its
+ACK, waits one microsecond using the monotonic wall clock, then requires two
+identical complete GPI samples. A changing response/error payload may settle
+within the original exchange deadline (at most 100 ms); sampling never writes
+GPO again. Invalid signature/reserved bits, ACK reversion, MMIO failure or
+continued instability past the bound poison the exchange. Re-alignment uses
+the same read-only sampler and drops poison only on success. A separate wall
+bound prevents a stalled runtime clock from extending response sampling.
+This software sampling policy does not establish the cause of a physical
+failure or qualify a package, runtime image or appliance.
+
 `fes.simple-computer` also accepts mid-session `replace_live_media` /
 `clear_media` on an active generation without holding execution reset. Tape
 loader busy is GP error 4 (invalid state) and rejects with retryable busy.
@@ -266,7 +280,8 @@ Identity requires registered live capability bits 0 through 7 to equal the decla
 then discovery reads MediaInfo for each declared unit, which must be present
 and empty. Audio packets follow the declaration as for applications. Start
 only releases execution: there is no media gate, no neutral write and no evdev
-worker. Stop holds execution first; the hold neutralizes keys and ports in the
+worker. A ROM-linked writable ST may explicitly request an initial library
+floppy; native activation inserts and confirms that disk before Start. Stop holds execution first; the hold neutralizes keys and ports in the
 core. `set_keyboard_hid` sends a complete nine-row USB HID snapshot and the
 driver writes only changed rows, all nine after Start. `set_controller` uses
 opcode 4 with a zero keypad. `insert_media` transfers into one declared unit
@@ -284,6 +299,103 @@ and every insertion require live minimum and maximum sizes of 737,280 bytes,
 with 512-byte chunks. A changed limit is rejected before MediaBegin. The same
 transfer, ready confirmation and failure-eject path handles the full disk
 while the machine runs.
+
+The additive `fes.media.atari-st-floppy-write` 1.0 contract (capability 9)
+requires the base floppy contract. WD1772 Write Sector gathers one aligned
+512-byte DMA sector into staging before committing it to disk RAM. A cancelled
+gather changes no disk bytes; a started commit drains through reset, drive
+removal and force interrupt. DMA cursor/count changes only after the complete
+sector commits. Deleted-data writes and format/write-track remain unsupported.
+This gives sector atomicity, not a transaction across FAT/directory sectors.
+
+`insert_library_media` explicitly binds unit 0 to a game ID and the SHA-256
+of the immutable 737,280-byte base image. The runtime validates that source
+before altering the unit, restores an existing compatible disk record, and
+reports `persistence:{mode,game_id,base_media_id,revision}` on the live unit.
+Raw `insert_media` remains volatile. A saved record cannot silently downgrade
+to a shell lacking the write contract.
+
+ROM operations accept an optional closed `initial_media` object with `path`,
+`size`, `unit`, `data_root`, `game_id` and `base_media_id`. It requires a format-3
+firmware package for `fes.atari-st`, the writable ST floppy contract, unit 0
+and exactly 737,280 bytes. This object explicitly supplies library intent;
+FogCast rejects it on developer requests. Its media root is independent of
+any core-scoped data root. Absence preserves the existing empty-drive launch.
+
+`PrepareInitialComputerMedia` snapshots and hashes the immutable source and
+opens/checks its no-follow durable namespace and record during admission,
+before outgoing save, quiescence or programming. After outgoing `FlushSave`,
+`RefreshInitialComputerMedia` rereads the record and prepares its restore
+snapshot, so replacement of the same namespace uses newly saved bytes.
+Refresh failure restores the outgoing ownership through the existing save
+failure path. The production hardware facade forwards both methods.
+After programming and identity discovery, activation uploads retained bytes
+and confirms the complete disk ready while execution is still held. Only then
+is durable media metadata bound, and only the later Start releases execution.
+Computer controller ports use `fes.gamepad.ports`, not the legacy
+`fes.gamepad` input worker. Computer admission rejects required `fes.gamepad`,
+so its fallible `input_.Start` path cannot run after ST execution release.
+Failed upload never calls Start or replays the ambiguous media command; normal
+launch failure cleanup applies. A failed Start with a bound disk is ambiguous:
+the guest may already have run. Native hardware marks that result for fault-save
+before idle cleanup. Runtime retains the selected package, ROM, generation and
+persistent media projection privately while saving; public status keeps the
+ordinary empty starting projection until either idle or retained recovery is
+confirmed. Existing mailbox realignment and
+identity checks precede a frozen full-disk capture; the release is never replayed.
+Successful save permits idle cleanup and returns the original launch error.
+Failed capture or publication leaves the FPGA and binding owned in recovery,
+with Stop, replacement and generic idle recovery unable to discard them. Successful status reports the ready persistent
+unit and active persistent mode. Tests compare the entire restored image and
+cover preflight failures, same-namespace refresh, failed outgoing save and
+failed upload. These are host software checks, with physical acceptance pending.
+
+`native/media_data` retains a no-follow namespace below the fixed agent root
+`/media/fat/fogcast/core-data/media`. The namespace combines core ID, game ID,
+unit and base-image digest; firmware/video package revisions do not rename it.
+The versioned record contains identity hashes, exact layout and payload,
+checksum and full-record revision. Opening the namespace takes the same
+exclusive lock and removes leftover `.record-<pid>-<sequence>` and
+`.probe-<pid>-<sequence>` files before the record is read. A live save holds
+that lock for the whole temporary, so only a crash or a failed cleanup leaves
+a file to remove. Publication uses the existing lock, private file, file sync,
+atomic rename and directory sync policy. Corrupt, incompatible
+or concurrently changed records block replacement rather than resetting data.
+If directory sync fails after rename, an exact visible copy of the captured
+image retains its own revision for an explicit retry; the failure still reports
+uncertain durability and does not authorize removal.
+The shared `media-data-v1` fixture checks independent header, checksum,
+revision and namespace bytes.
+
+Stop, eject and replacement always Freeze/drain before capture, including when
+initial dirty flags are clear. Ordered snapshot chunks read committed disk RAM
+while CPU/video keep running. Publication precedes Saved; Saved authorizes the
+next destructive Begin/Eject while still frozen. There is no Resume gap before
+removal. `save_media` publishes a checkpoint and explicitly resumes. A save
+failure resumes the existing disk with its binding and generation; an
+unconfirmed Resume retains that ownership in reboot-required recovery. Failed
+ejects reobserve the live unit without replay: confirmed empty retires the
+binding, while ready retains it. Ambiguous failed replacement also compares a
+frozen capture with the saved old image before resuming its namespace; different
+or unresolved bytes require recovery.
+
+Successful FPGA programming retires the former disk binding, captured bytes
+and durable revision from memory. This includes Stop to the configured menu
+or splash, core replacement and contained programming. The published record
+stays intact. Without explicit initial library media, a new ST core reports
+an empty volatile drive until library insertion binds and restores that record. Failed capture/publication
+continues to retain the current disk and generation. Successful-transition
+retirement follows programming, rather than the transition request. Partial
+programming failures keep the existing invalidation of unsafe active-core
+metadata.
+
+Bound-disk input faults revoke asynchronous input and capture/publish before
+idle programming. A failed capture or publication retains RAM, package,
+generation and binding in reboot-required recovery; it cannot program idle or
+replay the fault. `recover_idle` also refuses to destroy retained bound disk
+RAM. Startup and volatile fault cleanup do not publish a disk.
+These paths have host test coverage;
+physical acceptance remains separate.
 
 ## Described-core persistence
 

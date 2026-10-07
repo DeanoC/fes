@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "core_id": "fes.atari-st",
+  "game_id": "atari-st-desktop",
+  "base_media_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "unit": 0,
+  "layout_id": "fes.atari-st-floppy.image",
+  "layout_major": 1,
+  "layout_minor": 0,
+  "payload_size": 737280,
+  "payload_pattern": "(offset * 17 + (offset >> 9)) & 255",
+  "payload_sha256": "c31f48b6fc7f641248d8f9f37838dac37f589f93c6d827f5b63778c2c2f53343",
+  "header_hex": "4645534449534b3120ee5434e77531d073b45496a6adb8a7f743947532b86960aed05dd83b89b9fcb27e470ecc28733c0377703c89ae6f5b1433584e6bf28836ab244fefedfae468aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa000001000000190000400b006665732e61746172692d73742d666c6f7070792e696d616765",
+  "checksum_hex": "345a1695630c81aa87d42eaae97443afb6ca1475be4b31c4e7fa160ff9a0ad5f",
+  "record_size": 737453,
+  "revision": "42165943d3525b72a89f363dc5e2ee7fb504c3c22f86d741827b0d27cced558a",
+  "namespace": "f53e61c71966575febad778c9a505017e27f436ad8d42b08801d5e719089aced"
+}

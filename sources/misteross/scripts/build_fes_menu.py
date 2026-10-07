@@ -121,11 +121,7 @@ def validate_build_evidence(output, root, *, mode='test-pattern', menu_gp=False)
     for filename in ('synth.json', 'routed.json'):
         graph = board._read_json(Path(output)/filename, filename)
         counts = board._cell_counts(graph)
-        for module in graph.get('modules', {}).values():
-            for cell in module.get('cells', {}).values():
-                if cell.get('type') == 'MISTRAL_M10K' and int(
-                        str(cell.get('parameters', {}).get('CFG_ASYNC_READ', '0')), 2):
-                    raise board.BuildError('menu FIFO requires synchronous M10K reads')
+        board.reject_async_m10k_reads(graph)
         for name in (('cyclonev_hps_interface_fpga2sdram',) if mode == 'test-pattern' else ()) + (
                      ('cyclonev_hps_interface_mpu_general_purpose',) if not menu_gp else ()):
             if counts.get(name, 0):

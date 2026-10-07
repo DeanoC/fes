@@ -84,7 +84,7 @@ func NewNativeTargetControllerWithConfig(listenAddress, uinputPath string) (*Tar
 	}
 	keys := NewKeyboardSink()
 	merged := newPadMerge(pads)
-	ports := &controllerPortsSink{fallback: muxSink{keys: keys, pads: merged}, keys: keys, hid: &keyboardHIDSink{}, pads: merged}
+	ports := &controllerPortsSink{fallback: muxSink{keys: keys, pads: merged}, keys: keys, hid: &keyboardHIDSink{}, mouse: &mouseSink{}, pads: merged}
 	controller := newTargetControllerWithSink(listenAddress, ports)
 	controller.ports = ports
 	controller.keyboard = keys
@@ -116,6 +116,15 @@ func (c *TargetController) SetKeyboardHIDPoster(poster KeyboardHIDPoster) {
 		return
 	}
 	c.ports.hid.setPoster(poster)
+}
+
+func (c *TargetController) SetMousePoster(poster MousePoster) {
+	if c == nil || c.ports == nil || c.ports.mouse == nil {
+		return
+	}
+	c.ports.mouse.mu.Lock()
+	defer c.ports.mouse.mu.Unlock()
+	c.ports.mouse.poster = poster
 }
 
 func (c *TargetController) SetKeyboardPoster(poster func(context.Context, uint64) error) {
