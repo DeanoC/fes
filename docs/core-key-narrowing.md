@@ -72,6 +72,8 @@ fails if the functional key or the RBF/payload SHA256 differs, or the rebuild
 reads outside the narrowed roots. The JSON report records keys, hashes, durations
 and uncovered paths. A plan can be printed without a GPU:
 
+Audit mode is only for that private rebuild. `scripts/recipes.py` refuses `FES_SOURCE_CLOSURE_AUDIT=1`, both when launching producers and when resolving or publishing a package, unless `FES_ARTIFACT_CACHE_ROOT` is a private cache that contains the `.fes-closure-audit-private-cache` marker the nightly creates. A normal build that inherits the variable fails fast instead of publishing an unenforced package to the shared cache.
+
 ```sh
 python3 scripts/core_key_nightly.py --out /path/to/reports --dry-run
 ~/bin/fes-lock fpga -- nice -n 19 python3 scripts/core_key_nightly.py \

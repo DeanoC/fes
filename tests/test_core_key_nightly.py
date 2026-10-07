@@ -1,5 +1,5 @@
 import unittest
-from scripts.core_key_nightly import decide, run
+from scripts.core_key_nightly import AUDIT_PRIVATE_CACHE_MARKER, decide, run
 from pathlib import Path
 import json
 import subprocess
@@ -18,6 +18,11 @@ class NightlyDecisionTests(unittest.TestCase):
                 env=environment, text=True).splitlines()
             self.assertEqual(output[0], str(Path(temp)/'artifacts'))
             self.assertNotIn(temp, output[1])
+
+    def test_private_cache_marker_matches_the_resolver_gate(self):
+        output = subprocess.check_output([sys.executable, '-c',
+            'from scripts.recipes import AUDIT_PRIVATE_CACHE_MARKER; print(AUDIT_PRIVATE_CACHE_MARKER)'], text=True)
+        self.assertEqual(output.strip(), AUDIT_PRIVATE_CACHE_MARKER)
 
     def test_same_payload_and_covered_reads_pass(self):
         self.assertTrue(decide({'sha256':'a', 'key':'k'}, {'sha256':'a', 'key':'k'},
@@ -50,6 +55,7 @@ class NightlyDecisionTests(unittest.TestCase):
                         self.assertNotIn('FES_SOURCE_CLOSURE_BROAD', env)
                         self.assertNotIn('FES_SOURCE_CLOSURE_RECORD_ONLY', env)
                         self.assertNotEqual(env['FES_ARTIFACT_CACHE_ROOT'], os.environ.get('FES_ARTIFACT_CACHE_ROOT'))
+                        self.assertTrue((Path(env['FES_ARTIFACT_CACHE_ROOT']) / AUDIT_PRIVATE_CACHE_MARKER).is_file())
                         Path(env['FES_SOURCE_READ_RECORD']).write_text(
                             json.dumps({'event':'read', 'path':read_path}) + '\n')
                     return {'sha256': rebuild_sha if force else 'a', 'key': 'narrow'}
