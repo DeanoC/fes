@@ -63,7 +63,7 @@ class ToolchainCacheTest(unittest.TestCase):
     def test_shared_paths_and_ccache_configuration(self):
         shared_temp = tempfile.TemporaryDirectory()
         self.addCleanup(shared_temp.cleanup)
-        shared = Path(shared_temp.name)
+        shared = Path(shared_temp.name).resolve()  # e.g. macOS /var -> /private/var
         with mock.patch.dict("os.environ", {"FES_TARGET_IMAGE_SHARED_CACHE": str(shared)}):
             self.assertEqual(cache.cache_dir(self.image), shared / "toolchains" / cache.key(self.image))
             with mock.patch.dict("os.environ", {"FES_TARGET_IMAGE_SHARED_CACHE": cache.SHARED_CONTAINER_PATH}):

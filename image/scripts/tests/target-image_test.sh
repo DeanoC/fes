@@ -221,6 +221,7 @@ fi
 grep -Fq 'not reproducible' "$fixture/differ.log"
 test "$(cat "$fixture/output/native-dev/linux.img")" = native-image
 shared=$(mktemp -d "${TMPDIR:-/tmp}/fogcast-shared-cache.XXXXXX")
+shared=$(CDPATH= cd -- "$shared" && pwd -P)  # the cache root is resolved (macOS /var symlink)
 trap 'rm -rf "$fixture" "$shared"' EXIT INT TERM
 export FES_TARGET_IMAGE_SHARED_CACHE=$shared
 if FES_TARGET_IMAGE_SHARED_CACHE=relative python3 "$fixture/recipe/scripts/toolchain_cache.py" status >/dev/null 2>&1; then
