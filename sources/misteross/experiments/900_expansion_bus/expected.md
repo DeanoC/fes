@@ -6,7 +6,7 @@ the 901 empty socket. Signature stays in the shell.
 
 Synth-only (`make oss EXP=900_expansion_bus`). Verilator:
 `make sim EXP=900_expansion_bus`. Compose onto the 901 shell with the nextpnr
-pinned in `toolchain.lock` (currently `6cb41766`; inherits freeze-scaffold
+pinned in `toolchain.lock` (currently `9128800f`; inherits freeze-scaffold
 `d672fade`; `make toolchain-fes`):
 
 ```
