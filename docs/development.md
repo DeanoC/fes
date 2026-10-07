@@ -338,6 +338,12 @@ owned by FES `image/`; see [image assembly](image-assembly.md).
 
 ## Contract generation and shared build caches
 
+Cold two-pass native images cache the pinned Buildroot SDK under
+`image/build/cache/target-image/toolchains/`. Each image pass uses a fresh
+extraction of the same checked archive. Set `TOOLCHAIN_REBUILD=1` on `make build`
+to force a new SDK and bypass image receipt reuse; see
+[image assembly](image-assembly.md#buildroot-cross-toolchain).
+
 `make check-generated` verifies generated consumers and copied conformance data.
 `make generate` regenerates these outputs in the FES working tree, including the
 known copied external-core pins. Its legacy-layout guard refuses to rewrite

@@ -15,16 +15,20 @@ class ReceiptTest(unittest.TestCase):
         qemu_log = b"qemu passed\n"
         image_sha256 = hashlib.sha256(image).hexdigest()
         qemu_log_sha256 = hashlib.sha256(qemu_log).hexdigest()
+        toolchain_key = build.toolchain_key(build.IMAGE)
         (output / "linux.img").write_bytes(image)
         (output / "qemu-smoke.log").write_bytes(qemu_log)
         (output / "reproducibility.txt").write_text(
-            f"run_1_sha256={image_sha256}\nrun_2_sha256={image_sha256}\n")
+            f"run_1_sha256={image_sha256}\nrun_2_sha256={image_sha256}\n"
+            f"toolchain_key={toolchain_key}\ntoolchain_sha256={'b' * 64}\n")
         (output / "verification.json").write_text(json.dumps({
             "image_sha256": image_sha256,
             "qemu_log_sha256": qemu_log_sha256,
             "qemu_packaging": "pass",
             "structural": "pass",
             "two_pass_reproducibility": "pass",
+            "toolchain_key": toolchain_key,
+            "toolchain_sha256": "b" * 64,
         }))
         build.write_receipt(output, "image", "cold-fingerprint",
                             ["linux.img", "reproducibility.txt"])
@@ -203,6 +207,18 @@ class ReceiptTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "run make verify"):
                 build.load_verified_image(output, "cold-fingerprint")
 
+    def test_verified_image_rejects_changed_toolchain_evidence(self):
+        sys.path.insert(0, str(SCRIPTS))
+        import build
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            self.make_verified_output(build, output)
+            record = json.loads((output / "verification.json").read_text())
+            record["toolchain_sha256"] = "c" * 64
+            (output / "verification.json").write_text(json.dumps(record))
+            with self.assertRaisesRegex(ValueError, "run make verify"):
+                build.load_verified_image(output, "cold-fingerprint")
+
     def test_verified_image_rejects_mismatched_qemu_log_digest(self):
         sys.path.insert(0, str(SCRIPTS))
         import build
@@ -254,9 +270,11 @@ class ReceiptTest(unittest.TestCase):
             image = b'scratch image'; sha = hashlib.sha256(image).hexdigest()
             qemu = b'qemu passed\n'; qsha = hashlib.sha256(qemu).hexdigest()
             (output/'linux.img').write_bytes(image); (output/'qemu-smoke.log').write_bytes(qemu)
-            (output/'reproducibility.txt').write_text(f'image_passes=1\nsingle_pass_scratch=1\nrun_1_sha256={sha}\n')
+            toolchain = {'toolchain_key': build.toolchain_key(build.IMAGE), 'toolchain_sha256': 'b' * 64}
+            (output/'reproducibility.txt').write_text(f'image_passes=1\nsingle_pass_scratch=1\nrun_1_sha256={sha}\n'
+                + ''.join(f'{name}={value}\n' for name, value in toolchain.items()))
             (output/'SINGLE-PASS-SCRATCH.txt').write_text(f'head_sha={build.git(build.ROOT,"rev-parse","HEAD")}\nlinux_img_sha256={sha}\n')
-            verification = {'image_sha256':sha,'qemu_log_sha256':qsha,'qemu_packaging':'pass','structural':'pass','two_pass_reproducibility':'not-run-single-pass'}
+            verification = {'image_sha256':sha,'qemu_log_sha256':qsha,'qemu_packaging':'pass','structural':'pass','two_pass_reproducibility':'not-run-single-pass', **toolchain}
             (output/'verification.json').write_text(json.dumps(verification))
             self.assertNotIn('image_passes', build.verification_record(output, sha, None, 1))
             build.write_receipt(output,'image','cold-fingerprint',['linux.img','reproducibility.txt'])

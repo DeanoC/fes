@@ -102,7 +102,9 @@ class MediaTests(unittest.TestCase):
         (self.output / 'manifest.tsv').write_text('verified child manifest')
         (self.output / 'qemu-smoke.log').write_text('smoke')
         sha = cold_build.digest(self.output / 'linux.img')
-        (self.output / 'reproducibility.txt').write_text(f'run_1_sha256={sha}\nrun_2_sha256={sha}\n')
+        (self.output / 'reproducibility.txt').write_text(
+            f"run_1_sha256={sha}\nrun_2_sha256={sha}\n"
+            f"toolchain_key={cold_build.toolchain_key(cold_build.IMAGE)}\ntoolchain_sha256={'b' * 64}\n")
         (self.output / 'verification.json').write_text(json.dumps(cold_build.verification_record(self.output, sha, False)))
         self.packages = {}
         profile = tomllib.loads((self.root / 'profiles/native-integration-dev.toml').read_text())

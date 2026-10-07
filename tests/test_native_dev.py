@@ -18,6 +18,8 @@ class NativeDevTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
             (output / 'qemu-smoke.log').write_bytes(b'qemu passed\n')
+            (output / 'reproducibility.txt').write_text(
+                f"toolchain_key={'a' * 64}\ntoolchain_sha256={'b' * 64}\n")
             image_sha256 = hashlib.sha256(b'cold').hexdigest()
             record = build.verification_record(output, image_sha256, None)
             self.assertEqual(record['image_sha256'], image_sha256)
@@ -227,6 +229,20 @@ class NativeDevTest(unittest.TestCase):
             self.assertTrue(any('NATIVE_RUNTIME_MODE=package-only' in call for call in calls))
             self.assertTrue(any('FES_PONG_PACKAGE_DIR=' + str(package_source) in call
                                 for call in calls))
+            # make dev must use the generated external config and the cached SDK, never
+            # the bare defconfig (the toolchain options live only in the shared fragment).
+            ensure = [index for index, call in enumerate(calls)
+                      if [str(part) for part in call[1:]] == ['--ensure-toolchain', 'native-dev']]
+            container = [index for index, call in enumerate(calls)
+                         if str(call[0]).endswith('target-image-container.sh') and call[1] == 'run']
+            self.assertEqual(len(ensure), 1)
+            self.assertLess(ensure[0], container[0])
+            script = calls[container[0]][-1]
+            self.assertNotIn('fogcast_target_native_dev_defconfig', script)
+            self.assertIn('toolchain_cache.py config external "$WORK/fogcast.generated.defconfig"', script)
+            self.assertIn('BR2_DEFCONFIG="$WORK/fogcast.generated.defconfig" defconfig', script)
+            self.assertIn('toolchain_cache.py validate-config external "$WORK/.config"', script)
+            self.assertLess(script.index('relocate-sdk.sh'), script.index('defconfig\n'))
             self.assertTrue(any('FES_PONG_PACKAGE_SELECTION=' + str(package_selection) in call
                                 for call in calls))
             output = root / 'out/native-integration-dev/development'

@@ -59,6 +59,23 @@ done
 # Exercise native two-pass publication with a deterministic package-record helper.
 mkdir -p "$fixture/recipe/scripts"
 cp "$build_script" "$fixture/recipe/scripts/build-target-image.sh"
+cp "$repo/scripts/toolchain_cache.py" "$fixture/recipe/scripts/toolchain_cache.py"
+mkdir -p "$fixture/recipe/buildroot/configs" "$fixture/recipe/build"
+cp "$repo/buildroot/configs/fogcast_toolchain.fragment" "$fixture/recipe/buildroot/configs/"
+cp "$repo/buildroot/configs/fogcast_toolchain_only_defconfig" "$fixture/recipe/buildroot/configs/"
+cp "$repo/buildroot/configs/fogcast_target_native_dev_defconfig" "$fixture/recipe/buildroot/configs/"
+cp "$repo/build/target-image.sources.lock.toml" "$fixture/recipe/build/"
+cp "$repo/build/target-image-container-packages.sha256" "$fixture/recipe/build/"
+cat > "$fixture/fake-toolchain" <<'TOOLCHAIN'
+#!/bin/sh
+set -eu
+repo=$1
+mkdir -p "$repo/fake-host/bin"
+printf 'fake-gcc\n' > "$repo/fake-host/bin/arm-buildroot-linux-gnueabihf-gcc"
+printf 'built\n' >> "$repo/toolchain-builds.log"
+python3 "$repo/scripts/toolchain_cache.py" package "$repo/fake-host" >/dev/null
+TOOLCHAIN
+chmod +x "$fixture/fake-toolchain"
 cat > "$fixture/recipe/scripts/native-extra-cores.sh" <<'HELPER'
 #!/bin/sh
 set -eu
@@ -77,13 +94,21 @@ set -eu
 printf '%s\n' "$2" >> "$BUILD_LOG"
 mkdir -p "$2/images"
 printf 'native-image\n' > "$2/images/rootfs.ext4"
+printf '%s\n' "$TARGET_IMAGE_TOOLCHAIN_PATH" >> "${TARGET_IMAGE_TOOLCHAIN_PATH_LOG:?}"
 case "$2:${DIFFER:-0}" in *work-2-native-dev:1) printf changed >> "$2/images/rootfs.ext4" ;; esac
 BUILD
 chmod +x "$fixture/fake-build"
 export TARGET_IMAGE_TEST_MODE=1 TARGET_IMAGE_BUILD_ONCE="$fixture/fake-build" BUILD_LOG="$fixture/build.log"
+export TARGET_IMAGE_TOOLCHAIN_BUILD_ONCE="$fixture/fake-toolchain"
 export TARGET_IMAGE_OUTPUT_ROOT="$fixture/output" FES_PACKAGE_IDS=fes.pong
+export TARGET_IMAGE_TOOLCHAIN_PATH_LOG="$fixture/toolchain-paths.log"
 sh "$fixture/recipe/scripts/build-target-image.sh" native-dev
 test "$(cat "$fixture/output/native-dev/linux.img")" = native-image
+test "$(head -n 1 "$fixture/toolchain-paths.log")" = /target-image-output/external-toolchain/host
+test "$(sed -n '2p' "$fixture/toolchain-paths.log")" = /target-image-output/external-toolchain/host
+test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq 1
+grep -Eq '^toolchain_key=[0-9a-f]{64}$' "$fixture/output/native-dev/reproducibility.txt"
+grep -Eq '^toolchain_sha256=[0-9a-f]{64}$' "$fixture/output/native-dev/reproducibility.txt"
 mkdir -p "$fixture/output/work-2-native-dev"
 printf stale > "$fixture/output/work-2-native-dev/stale"
 : > "$fixture/build.log"
@@ -163,6 +188,18 @@ if env -u FES_PACKAGE_IDS TARGET_IMAGE_TEST_CONTAINER=1 TARGET_IMAGE_CONTAINER_R
   echo 'invalid selected image passes accepted by container wrapper' >&2; exit 1
 fi
 FES_VIDEO_PARTS_DIR="$fixture" sh "$fixture/recipe/scripts/build-target-image.sh" native-dev
+test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq 1
+printf corrupt >> "$fixture/recipe/build/cache/target-image/toolchains/$(python3 "$fixture/recipe/scripts/toolchain_cache.py" key)/host.tar"
+sh "$fixture/recipe/scripts/build-target-image.sh" native-dev
+test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq 2
+TOOLCHAIN_REBUILD=1 sh "$fixture/recipe/scripts/build-target-image.sh" native-dev
+test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq 3
+ensured=$(sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-toolchain native-dev)
+test "$ensured" = "$(python3 "$fixture/recipe/scripts/toolchain_cache.py" status)"
+test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq 3
+printf corrupt >> "$fixture/recipe/build/cache/target-image/toolchains/$(python3 "$fixture/recipe/scripts/toolchain_cache.py" key)/host.tar"
+sh "$fixture/recipe/scripts/build-target-image.sh" --ensure-toolchain native-dev >/dev/null
+test "$(wc -l < "$fixture/recipe/toolchain-builds.log")" -eq 4
 test "$(cat "$fixture/output/native-dev/fes-core-video-parts.json")" = exact-factory-index
 if FES_VIDEO_PARTS_DIR="$fixture" DIFFER_VIDEO_INDEX=1 sh "$fixture/recipe/scripts/build-target-image.sh" native-dev >"$fixture/video-differ.log" 2>&1; then
   echo 'native image accepted differing factory video indexes' >&2; exit 1
@@ -175,7 +212,7 @@ if DIFFER=1 sh "$fixture/recipe/scripts/build-target-image.sh" native-dev >"$fix
 fi
 grep -Fq 'not reproducible' "$fixture/differ.log"
 test "$(cat "$fixture/output/native-dev/linux.img")" = native-image
-unset TARGET_IMAGE_BUILD_ONCE TARGET_IMAGE_OUTPUT_ROOT FES_PACKAGE_IDS
+unset TARGET_IMAGE_BUILD_ONCE TARGET_IMAGE_TOOLCHAIN_BUILD_ONCE TARGET_IMAGE_OUTPUT_ROOT FES_PACKAGE_IDS TARGET_IMAGE_TOOLCHAIN_PATH_LOG
 
 make_log=$fixture/make.log
 make -s -C "$repo" -n \
