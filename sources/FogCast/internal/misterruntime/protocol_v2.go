@@ -1157,6 +1157,11 @@ func validMediaUnits(response Protocol2Response) bool {
 		if !found {
 			return false
 		}
+		if unit.Interface == protocol.AtariStFloppyInterface() && int64(unit.MaxBytes) != protocol.AtariStFloppyBytes {
+			if !corepackage.DeclaresAtariStGeometry(active.Descriptor) || !protocol.AtariStFloppyGeometryCapable(computerMediaStatus(response).CorePackage) {
+				return false
+			}
+		}
 		if unit.Persistence != nil {
 			bound = true
 		}

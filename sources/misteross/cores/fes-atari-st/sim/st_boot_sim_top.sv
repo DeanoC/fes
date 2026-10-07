@@ -36,6 +36,7 @@ module st_boot_sim_top (
     output wire signed [15:0] audio_pcm,
     output wire audio_valid,
     input wire media_ready,
+    input wire [31:0] media_size,
     output wire media_req,
     output wire [19:0] media_addr,
     input wire [7:0] media_data,
@@ -52,6 +53,7 @@ module st_boot_sim_top (
     output wire [23:0] debug_addr,
     output wire debug_bus_error, debug_overlay, debug_halted,
     output wire [31:0] debug_pc,
+    output wire [7:0] debug_fdc_status, debug_fdc_track, debug_fdc_sector, debug_fdc_head,
     output wire vblank, hblank
 );
     st_system system (
@@ -60,6 +62,10 @@ module st_boot_sim_top (
         .media_write_ready(1'b0), .media_write_busy(), .media_changed(),
         .dma_write(), .dma_rdata(16'd0), .*
     );
+    assign debug_fdc_status = system.io.floppy.fdc_status;
+    assign debug_fdc_track = system.io.floppy.track_reg;
+    assign debug_fdc_sector = system.io.floppy.sector_reg;
+    assign debug_fdc_head = system.io.floppy.head_track;
     // Simulation-only observability; no upstream CPU bytes are changed.
     assign debug_pc = {system.machine.cpu.cpu.excUnit.PcH,
                        system.machine.cpu.cpu.excUnit.PcL};

@@ -20,7 +20,7 @@ type InitialMediaRequest struct {
 }
 
 func validInitialMediaRequest(media *InitialMediaRequest) bool {
-	return media == nil || (validRuntimePath(media.Path) && media.Size == uint32(protocol.AtariStFloppyBytes) && media.Unit == protocol.AtariStFloppyUnit && media.DataRoot == MediaDataRoot && protocol.ValidMediaGameID(media.GameID) && protocol.ValidateDigest(media.BaseMediaID) == nil)
+	return media == nil || (validRuntimePath(media.Path) && protocol.AdmitAtariStFloppySize(int64(media.Size)) && media.Unit == protocol.AtariStFloppyUnit && media.DataRoot == MediaDataRoot && protocol.ValidMediaGameID(media.GameID) && protocol.ValidateDigest(media.BaseMediaID) == nil)
 }
 
 type protocol2InitialROMControl interface {
@@ -47,7 +47,7 @@ func (r *Runtime) supportsInitialROMCore(staged corepackage.Staged) bool {
 }
 func (r *Runtime) loadInitialROMCore(ctx context.Context, staged corepackage.Staged) (Protocol2Response, error) {
 	media := staged.InitialMedia
-	initial := &InitialMediaRequest{Path: media.Path, Size: uint32(protocol.AtariStFloppyBytes), Unit: media.Unit, DataRoot: MediaDataRoot, GameID: media.GameID, BaseMediaID: media.BaseMediaID}
+	initial := &InitialMediaRequest{Path: media.Path, Size: uint32(media.Size), Unit: media.Unit, DataRoot: MediaDataRoot, GameID: media.GameID, BaseMediaID: media.BaseMediaID}
 	var response Protocol2Response
 	var err error
 	operation := "load_rom_core"
@@ -83,13 +83,13 @@ func initialMediaMatches(response Protocol2Response, initial *corepackage.Staged
 		return false
 	}
 	unit, ok := protocol.MediaUnit(p, initial.Unit)
-	return ok && unit.State == protocol.MediaUnitReady && unit.Persistence != nil && unit.Persistence.Valid() && unit.Persistence.GameID == initial.GameID && unit.Persistence.BaseMediaID == initial.BaseMediaID
+	return ok && (initial.Size == 0 || (initial.Size >= int64(unit.MinBytes) && initial.Size <= int64(unit.MaxBytes))) && unit.State == protocol.MediaUnitReady && unit.Persistence != nil && unit.Persistence.Valid() && unit.Persistence.GameID == initial.GameID && unit.Persistence.BaseMediaID == initial.BaseMediaID
 }
 func initialRequestMatches(response Protocol2Response, initial *InitialMediaRequest) bool {
 	if initial == nil {
 		return true
 	}
-	return initialMediaMatches(response, &corepackage.StagedInitialMedia{GameID: initial.GameID, BaseMediaID: initial.BaseMediaID, Unit: initial.Unit})
+	return initialMediaMatches(response, &corepackage.StagedInitialMedia{GameID: initial.GameID, BaseMediaID: initial.BaseMediaID, Unit: initial.Unit, Size: int64(initial.Size)})
 }
 
 // initialMediaGenerationMatches fences only this atomic launch. The mutable

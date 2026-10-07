@@ -29,8 +29,8 @@ DQM outputs alone cannot mask writes on this board.
 Initialization completes before CPU release. SDRAM refresh continues while
 idle and while the CPU is held. An abandoned request drains its physical
 command and suppresses its old completion. Warm Hold preserves RAM and media.
-Physical halfword offsets `$00000–$3FFFF` contain RAM; `$40000–$99FFF` contain
-the separate 720 KiB disk buffer. RAM masks select the even high byte or odd
+Physical halfword offsets `$00000–$3FFFF` contain RAM; `$40000–$A67FF` contain
+the separate disk buffer (up to 820 KiB). RAM masks select the even high byte or odd
 low byte. The controller preserves its established row/bank/column wiring
 and uses its established rate-0 rising-edge sample plus its fabric capture stage.
 
@@ -99,9 +99,12 @@ it does not reproduce analog filtering. Board transport uses the existing
 signed stereo PCM/I2S path, duplicating the mono chip into both channels.
 
 `st_floppy.sv` implements original WD1772 Type I positioning, Type II sector
-reads and writes, force interrupts and ST DMA. Drive A accepts exactly 737,280 bytes:
-80 tracks × 2 sides × 9 sectors × 512 bytes, in raw `.st` order. Drive B is
-absent. Requests stay stable under storage/DMA stalls; DMA stays inside RAM.
+reads and writes, force interrupts and ST DMA. Drive A accepts raw `.st`
+images with 80–82 tracks, one or two sides, and nine or ten 512-byte sectors
+per track. The required `fes.media.atari-st-floppy-geometry` 1.0 extension
+opts into these twelve uniquely sized shapes; the base interface retains its
+exact 737,280-byte contract for older packages. Committed upload length fixes
+physical geometry even if the guest changes its boot BPB. Drive B is absent. Requests stay stable under storage/DMA stalls; DMA stays inside RAM.
 The writable extension clears write protect. A complete sector is staged from
 RAM before publication to the disk buffer; once publication starts it drains
 through warm reset or force interrupt. Begin and Eject reject while collection
@@ -212,15 +215,14 @@ are not the hardware fixture, physical SDRAM or HDMI acceptance.
 Before importing a demo, inspect an independently acquired classic MSA image:
 
 ```sh
-python3 scripts/atari_st_demo_media.py /absolute/demo.msa
+python3 scripts/atari_st_demo_media.py /absolute/demo.msa --raw-output /absolute/demo.st
 ```
 
 This offline tool checks every compressed track and reports original geometry
-and the decoded raw-image hash. It does not change the media contract or pad
-an unsupported disk. Original BIG and Cuddly demo disks use ten sectors per
-track; the current nine-sector drive cannot admit them. MSA conversion alone
-does not resolve that geometry difference, and raster/border compatibility
-cannot be inferred from an admission failure.
+and the decoded raw-image hash. Explicit raw output preserves every decoded
+byte without padding. Original BIG (80×1×10) and Cuddly (82×2×10) disks fit
+the geometry extension. Admission and sector correctness do not qualify their
+loaders or raster/border effects.
 
 The aggregate uses original diagnostic firmware and focused CPU, video,
 MFP, keyboard/audio, floppy, physical SDRAM, dual-clock cache and real GP

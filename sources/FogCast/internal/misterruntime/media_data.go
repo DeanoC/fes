@@ -14,7 +14,7 @@ type protocol2LibraryMediaControl interface {
 }
 
 func (c *Client) InsertLibraryMedia(ctx context.Context, path, root string, b protocol.LibraryMediaBinding, size uint32) (Protocol2Response, error) {
-	if !validRuntimePath(path) || !validRuntimePath(root) || !b.Valid() || size != uint32(protocol.AtariStFloppyBytes) {
+	if !validRuntimePath(path) || !validRuntimePath(root) || !b.Valid() || !protocol.AdmitAtariStFloppySize(int64(size)) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	line, _, err := c.callRawTracked(ctx, struct {
@@ -51,7 +51,7 @@ func (c *Client) SaveMedia(ctx context.Context, b protocol.MediaUnitBinding) (Pr
 	return decodeComputerMediaResponse(line, b.PackageID, b.Generation)
 }
 func (r *Runtime) InsertLibraryMedia(ctx, owner context.Context, size int64, body io.Reader, b protocol.LibraryMediaBinding) ([]protocol.MediaUnitStatus, *protocol.APIError) {
-	if !b.Valid() || size != protocol.AtariStFloppyBytes {
+	if !b.Valid() || !protocol.AdmitAtariStFloppySize(size) {
 		return nil, protocol.MediaUnitRequestError()
 	}
 	if _, ok := r.control.(protocol2LibraryMediaControl); !ok {

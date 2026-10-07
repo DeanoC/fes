@@ -43,6 +43,11 @@ func TestFesComputerContract(t *testing.T) {
 		"FesComputerSpectrumTapeMaxBytes": 65536,
 		"FesComputerC64DiskUnit":          0, "FesComputerC64DiskBytes": 174848,
 		"FesComputerAtariStFloppyUnit": 0, "FesComputerAtariStFloppyBytes": 737280,
+		"FesComputerAtariStFloppyGeometryMinBytes": 368640, "FesComputerAtariStFloppyGeometryMaxBytes": 839680,
+		"FesComputerAtariStFloppyGeometryMinTracks": 80, "FesComputerAtariStFloppyGeometryMaxTracks": 82,
+		"FesComputerAtariStFloppyGeometryMinHeads": 1, "FesComputerAtariStFloppyGeometryMaxHeads": 2,
+		"FesComputerAtariStFloppyGeometryMinSectors": 9, "FesComputerAtariStFloppyGeometryMaxSectors": 10,
+		"FesComputerAtariStFloppySectorBytes": 512, "FesComputerAtariStFloppyGeometryLayoutMinor": 1,
 	} {
 		got, ok := abi.Constant(name)
 		if !ok || got != want {
@@ -58,6 +63,7 @@ func TestFesComputerContract(t *testing.T) {
 		{"fes.media.spectrum-tape", 5}, {"fes.media.c64-disk", 6},
 		{"fes.media.atari-st-floppy", 7},
 		{"fes.mouse.relative", 8}, {"fes.media.atari-st-floppy-write", 9},
+		{"fes.media.atari-st-floppy-geometry", 10},
 	}
 	if len(abi.Interfaces) != len(want) {
 		t.Fatalf("interfaces = %+v", abi.Interfaces)

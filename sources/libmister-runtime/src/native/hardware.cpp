@@ -739,7 +739,8 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesComputerInterfaceMediaAtariStFloppyID,
 				generated::FesComputerInterfaceMediaAtariStFloppyMajor,
 				generated::FesComputerInterfaceMediaAtariStFloppyMinor},
-			{generated::FesComputerInterfaceMediaAtariStFloppyWriteID,
+			{generated::FesComputerInterfaceMediaAtariStFloppyGeometryID, 1, 0},
+            {generated::FesComputerInterfaceMediaAtariStFloppyWriteID,
                 generated::FesComputerInterfaceMediaAtariStFloppyWriteMajor,
                 generated::FesComputerInterfaceMediaAtariStFloppyWriteMinor},
 			{generated::FesComputerInterfaceMediaSpectrumTapeID,
@@ -912,6 +913,13 @@ Error NativeHardware::InsertComputerMedia(std::uint8_t unit, const std::string& 
 	if (!error.ok()) return WithPhase(error, "request");
 	if (snapshot.size() != size)
 		return {ErrorCode::invalid_request, "media size does not match request", "request"};
+	if (info->interface.id == generated::FesComputerInterfaceMediaAtariStFloppyID) {
+        std::array<unsigned char, 512> boot{};
+        error = snapshot.Read(0, boot.data(), boot.size(), clock_, deadline);
+        if (!error.ok()) return WithPhase(error, "request");
+        if (!AtariStBaseBpbValid(boot.data(), boot.size(), size))
+            return {ErrorCode::invalid_request, "Atari ST base BPB disagrees with geometry", "request"};
+    }
 	error = FlushMediaSave();
     if (!error.ok()) return error;
     const Error inserted = driver->InsertMedia(unit,snapshot,clock_,
@@ -946,7 +954,7 @@ Error NativeHardware::EjectComputerMedia(std::uint8_t unit)
 
 void NativeHardware::ForgetMediaData()
 {
-    media_data_file_.reset(); media_snapshot_.clear(); durable_media_={}; media_data_flushed_=false;
+    media_data_file_.reset(); media_snapshot_.clear(); durable_media_={}; media_base_size_=0; media_data_flushed_=false;
     media_image_uncertain_=false;
 }
 Error NativeHardware::FlushMediaSave()
@@ -957,7 +965,7 @@ Error NativeHardware::FlushMediaSave()
     const auto deadline=Deadline(clock_,timeouts_.media_io_ms);
     Error error;
     if(media_snapshot_.empty()) error=driver->CaptureMedia(durable_media_.identity.unit,clock_,deadline,&media_snapshot_);
-    if(error.ok() && media_snapshot_.size()!=kAtariStDiskBytes)
+    if(error.ok() && media_snapshot_.size()!=media_base_size_)
         error={ErrorCode::save_failed,"incomplete media snapshot","media_data"};
     if(error.ok()) {
         MediaDiskRecord current; error=media_data_file_->Read(&current);
@@ -985,7 +993,7 @@ Error NativeHardware::InsertLibraryComputerMedia(std::uint8_t unit,const std::st
     std::uint32_t size,const std::string& root,const MediaDataBinding& binding)
 {
     auto* driver=active_driver_==fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
-    if(!driver || !active_context_.descriptor || unit!=0 || binding.unit!=unit || size!=kAtariStDiskBytes)
+    if(!driver || !active_context_.descriptor || unit!=0 || binding.unit!=unit || !AtariStSizeAdmitted(size,driver && driver->MediaGeometryCapable(unit)))
         return {ErrorCode::unsupported_interface,"library disk unit is unavailable","request"};
     MediaDataIdentity identity{active_context_.descriptor->core.id,binding.game_id,binding.base_media_id,unit};
     if(!ValidMediaDataIdentity(identity)) return {ErrorCode::invalid_request,"invalid library disk binding","request"};
@@ -995,6 +1003,8 @@ Error NativeHardware::InsertLibraryComputerMedia(std::uint8_t unit,const std::st
     Sha256 source; std::array<std::uint8_t,512> bytes{};
     for(std::uint32_t offset=0;offset<size && error.ok();offset+=bytes.size()) {
         error=base.Read(offset,bytes.data(),bytes.size(),clock_,deadline);
+        if(error.ok() && offset==0 && !AtariStBaseBpbValid(bytes.data(),bytes.size(),size))
+            return {ErrorCode::invalid_request,"Atari ST base BPB disagrees with geometry","request"};
         if(error.ok()) source.Update(bytes.data(),bytes.size());
     }
     if(!error.ok()) return WithPhase(error,"request");
@@ -1005,6 +1015,8 @@ Error NativeHardware::InsertLibraryComputerMedia(std::uint8_t unit,const std::st
     MediaDiskRecord record;
     if(error.ok()) error=incoming->Read(&record);
     if(!error.ok()) return WithPhase(error,"request");
+    if(!record.bytes.empty() && record.bytes.size()!=size)
+        return {ErrorCode::incompatible_data,"saved disk geometry differs from immutable base","request"};
     if(!driver->MediaWriteCapable(unit)) {
         if(record.revision!="absent") return {ErrorCode::incompatible_data,"library disk requires writable media contract","media_data"};
         return InsertComputerMedia(unit,path,size);
@@ -1020,6 +1032,8 @@ Error NativeHardware::InsertLibraryComputerMedia(std::uint8_t unit,const std::st
     // image stays Frozen/Saved until the next Begin actually changes it.
     const auto insert_deadline=Deadline(clock_,timeouts_.media_io_ms);
     ComputerMediaSnapshot restored;
+    if(error.ok() && !record.bytes.empty() && record.bytes.size()!=size)
+        error={ErrorCode::incompatible_data,"saved disk geometry differs from immutable base","request"};
     if(error.ok() && !record.bytes.empty()) error=restored.PrepareBytes(record.bytes,clock_,insert_deadline);
     if(!error.ok()) {
         if(media_data_file_) { error.code=ErrorCode::save_failed;return WithPhase(error,"media_data"); }
@@ -1035,7 +1049,7 @@ Error NativeHardware::InsertLibraryComputerMedia(std::uint8_t unit,const std::st
         }
         return error;
     }
-    media_data_file_=std::move(incoming); durable_media_=std::move(record);
+    media_data_file_=std::move(incoming); durable_media_=std::move(record); media_base_size_=size;
     media_snapshot_.clear(); media_data_flushed_=false; media_image_uncertain_=false;
     return {};
 }
@@ -1046,11 +1060,12 @@ Error NativeHardware::PrepareInitialComputerMedia(AdmittedCorePackage* package,
 	auto* admitted = dynamic_cast<NativeAdmittedCore*>(package);
 	if (!admitted) return {ErrorCode::invalid_request, "invalid admitted package", "admission"};
 	const auto& descriptor = admitted->opened_.descriptor;
-	bool floppy = false, writable = false;
+	bool floppy = false, writable = false, geometry = false;
 	for (const auto& interface : descriptor.interfaces) {
 		if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
 		if (interface.id == generated::FesComputerInterfaceMediaAtariStFloppyID) floppy = true;
 		if (interface.id == generated::FesComputerInterfaceMediaAtariStFloppyWriteID) writable = true;
+        if (interface.id == generated::FesComputerInterfaceMediaAtariStFloppyGeometryID) geometry = true;
 	}
 	if (descriptor.format != 3 || descriptor.rom.role != "firmware" ||
 		descriptor.core.id != "fes.atari-st" || descriptor.abi.id != generated::FesComputerABIID ||
@@ -1058,7 +1073,7 @@ Error NativeHardware::PrepareInitialComputerMedia(AdmittedCorePackage* package,
 		return {ErrorCode::unsupported_interface, "initial disk requires ROM-linked writable Atari ST", "admission"};
 	MediaDataIdentity identity{descriptor.core.id, request.binding.game_id, request.binding.base_media_id,
 		request.binding.unit};
-	if (request.size != kAtariStDiskBytes || request.binding.unit != 0 || !ValidMediaDataIdentity(identity))
+	if (!AtariStSizeAdmitted(request.size, geometry) || request.binding.unit != 0 || !ValidMediaDataIdentity(identity))
 		return {ErrorCode::invalid_request, "invalid initial disk identity or geometry", "admission"};
 	std::unique_ptr<PreparedInitialMedia> prepared(new PreparedInitialMedia);
 	const auto deadline = Deadline(clock_, timeouts_.media_io_ms);
@@ -1067,13 +1082,17 @@ Error NativeHardware::PrepareInitialComputerMedia(AdmittedCorePackage* package,
 	std::array<std::uint8_t, 512> bytes{};
 	for (std::uint32_t offset = 0; offset < request.size && error.ok(); offset += bytes.size()) {
 		error = prepared->base.Read(offset, bytes.data(), bytes.size(), clock_, deadline);
-		if (error.ok()) hash.Update(bytes.data(), bytes.size());
+		if (error.ok() && offset == 0 && !AtariStBaseBpbValid(bytes.data(), bytes.size(), request.size))
+            return {ErrorCode::invalid_request, "Atari ST base BPB disagrees with geometry", "admission"};
+        if (error.ok()) hash.Update(bytes.data(), bytes.size());
 	}
 	if (!error.ok()) return WithPhase(error, "admission");
 	if (Sha256Hex(hash.Final()) != request.binding.base_media_id)
 		return {ErrorCode::invalid_request, "initial disk source digest mismatch", "admission"};
 	error = MediaDataFile::Open(request.data_root, identity, &prepared->file);
 	if (error.ok()) error = prepared->file->Read(&prepared->record);
+	if (error.ok() && !prepared->record.bytes.empty() && prepared->record.bytes.size() != request.size)
+        error = {ErrorCode::incompatible_data, "saved disk geometry differs from immutable base", "admission"};
 	if (error.ok()) error = prepared->file->CheckWritable();
 	if (error.ok() && !prepared->record.bytes.empty()) {
 		prepared->restored.reset(new ComputerMediaSnapshot);
@@ -1091,6 +1110,8 @@ Error NativeHardware::RefreshInitialComputerMedia(AdmittedCorePackage* package)
 		return {ErrorCode::invalid_request, "initial disk is not prepared", "admission"};
 	auto& prepared = *admitted->initial_media_;
 	Error error = prepared.file->Read(&prepared.record);
+	if (error.ok() && !prepared.record.bytes.empty() && prepared.record.bytes.size() != prepared.base.size())
+        error = {ErrorCode::incompatible_data, "saved disk geometry differs from immutable base", "admission"};
 	if (error.ok()) {
 		std::unique_ptr<ComputerMediaSnapshot> restored;
 		if (!prepared.record.bytes.empty()) {
@@ -1351,6 +1372,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		// InsertMedia confirmed ready; execution is still held until Start below.
 		media_data_file_ = std::move(prepared.file);
 		durable_media_ = std::move(prepared.record);
+        media_base_size_ = prepared.base.size();
 		admitted->initial_media_.reset();
 	}
 	if (fes_gp) {

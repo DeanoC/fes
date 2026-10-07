@@ -151,14 +151,14 @@ std::string MediaDataNamespace(const MediaDataIdentity& id) {
 }
 Error EncodeMediaData(const MediaDiskRecord& record,std::vector<unsigned char>* output) {
     if(!output||!ValidMediaDataIdentity(record.identity)) return Bad("invalid media-data identity");
-    if(record.bytes.size()!=kAtariStDiskBytes) return Bad("invalid media-data payload size");
+    if(record.bytes.size()>generated::FesComputerAtariStFloppyGeometryMaxBytes || !InferAtariStGeometry(record.bytes.size())) return Bad("invalid media-data payload size");
     std::vector<unsigned char> bytes={'F','E','S','D','I','S','K','1'};
     for(const auto& digest:{Hash(record.identity.core_id),Hash(record.identity.game_id)})
         bytes.insert(bytes.end(),digest.begin(),digest.end());
     const auto base=DigestBytes(record.identity.base_media_id);
     bytes.insert(bytes.end(),base.begin(),base.end());
-    Word(&bytes,record.identity.unit); Word(&bytes,1); Word(&bytes,0); Word(&bytes,kLayout.size());
-    Word(&bytes,kAtariStDiskBytes); Word(&bytes,kAtariStDiskBytes>>16);
+    Word(&bytes,record.identity.unit); Word(&bytes,1); Word(&bytes,record.bytes.size()==kAtariStDiskBytes ? 0 : 1); Word(&bytes,kLayout.size());
+    Word(&bytes,record.bytes.size()); Word(&bytes,record.bytes.size()>>16);
     bytes.insert(bytes.end(),kLayout.begin(),kLayout.end());
     bytes.insert(bytes.end(),record.bytes.begin(),record.bytes.end());
     const auto sum=Hash(bytes.data(),bytes.size()); bytes.insert(bytes.end(),sum.begin(),sum.end());
@@ -166,7 +166,7 @@ Error EncodeMediaData(const MediaDiskRecord& record,std::vector<unsigned char>* 
 }
 Error DecodeMediaData(const std::vector<unsigned char>& bytes,const MediaDataIdentity& id,MediaDiskRecord* output) {
     if(!output||!ValidMediaDataIdentity(id)) return Bad("invalid media-data identity");
-    if(bytes.size()!=148+kLayout.size()+kAtariStDiskBytes || std::memcmp(bytes.data(),"FESDISK1",8))
+    if(bytes.size()<148+kLayout.size() || bytes.size()>kMaximumMediaDataBytes || std::memcmp(bytes.data(),"FESDISK1",8))
         return Bad("invalid media-data envelope or size");
     const auto sum=Hash(bytes.data(),bytes.size()-32);
     if(!std::equal(sum.begin(),sum.end(),bytes.end()-32)) return Bad("media-data checksum mismatch");
@@ -174,8 +174,10 @@ Error DecodeMediaData(const std::vector<unsigned char>& bytes,const MediaDataIde
     if(!std::equal(core.begin(),core.end(),bytes.begin()+8)||!std::equal(game.begin(),game.end(),bytes.begin()+40)||
        !std::equal(base.begin(),base.end(),bytes.begin()+72)||Word(bytes,104)!=id.unit)
         return Incompatible("media-data identity mismatch");
-    if(Word(bytes,106)!=1||Word(bytes,108)!=0||Word(bytes,110)!=kLayout.size()||
-       (Word(bytes,112)|(Word(bytes,114)<<16))!=kAtariStDiskBytes ||
+    const auto size=Word(bytes,112)|(Word(bytes,114)<<16);
+    const auto minor=size==kAtariStDiskBytes ? 0u : 1u;
+    if(Word(bytes,106)!=1||Word(bytes,108)!=minor||Word(bytes,110)!=kLayout.size()||
+       !InferAtariStGeometry(size) || bytes.size()!=148+kLayout.size()+size ||
        !std::equal(kLayout.begin(),kLayout.end(),bytes.begin()+116)) return Incompatible("media-data layout mismatch");
     MediaDiskRecord record; record.identity=id;
     record.bytes.assign(bytes.begin()+116+kLayout.size(),bytes.end()-32);

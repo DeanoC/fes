@@ -1531,7 +1531,7 @@ atari-st-sources:
 atari-st-diagnostic: atari-st-sources
 	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
 
-sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-media
+sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 
 sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
@@ -1572,6 +1572,7 @@ sim-fes-atari-st-input-audio:
 
 sim-fes-atari-st-floppy:
 	$(require_local_sim)
+	@mkdir -p build/sim/fes-atari-st-floppy
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_floppy -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-floppy" \
 		$(ST_CORE)/rtl/st_floppy.sv $(ST_CORE)/rtl/st_floppy_writer.sv "$(CURDIR)/$(ST_CORE)/sim/floppy_tb.cpp" -CFLAGS '-std=c++17'
@@ -1580,6 +1581,7 @@ sim-fes-atari-st-floppy:
 .PHONY: sim-fes-atari-st-floppy-write sim-fes-computer-interaction sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle
 sim-fes-atari-st-floppy-write:
 	$(require_local_sim)
+	@mkdir -p build/sim/fes-atari-st-floppy-write
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_floppy -Wall "-GENABLE_WRITE=1'b1" \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-floppy-write" \
 		$(ST_CORE)/rtl/st_floppy.sv $(ST_CORE)/rtl/st_floppy_writer.sv \
@@ -1623,7 +1625,7 @@ sim-fes-atari-st-emutos: atari-st-sources
 		"$(CURDIR)/$(ST_CORE)/sim/boot_tb.cpp" -CFLAGS '-O3 -std=c++17'
 	@cd build/sim/fes-atari-st-emutos && ./Vst_boot_sim_top "$(abspath $(EMUTOS_ROM))"
 
-.PHONY: sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-media
+.PHONY: sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 sim-fes-atari-st-memory:
 	$(require_local_sim)
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
@@ -1647,6 +1649,15 @@ sim-fes-atari-st-media:
 		$(ST_CORE)/sim/st_media_sim_top.sv $(ST_CORE)/rtl/st_media_writer.sv \
 		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-media/Vst_media_sim_top
+
+sim-fes-atari-st-media-geometry:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-atari-st-media-geometry
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_media_sim_top -Wall "-GGEOMETRY=1'b1" \
+		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media-geometry" \
+		$(ST_CORE)/sim/st_media_sim_top.sv $(ST_CORE)/rtl/st_media_writer.sv \
+		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-media-geometry/Vst_media_sim_top geometry
 
 .PHONY: fetch-fes-atari-st-emutos sim-fes-atari-st-io sim-fes-atari-st-emutos-memory build-fes-atari-st
 fetch-fes-atari-st-emutos:

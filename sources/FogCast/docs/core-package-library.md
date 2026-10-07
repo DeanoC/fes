@@ -523,10 +523,11 @@ Swap or eject the running cassette with `fogcast change-cassette` and
 
 Atari ST packages use role `disk`, format `atari-st-floppy`, and required
 `fes.media.atari-st-floppy` 1.0: exactly 737,280 bytes (720 KiB), `.st`, unit
-0, read only. Offline library selection rejects any other size. Launch
-inserts the selected disk after Start; `fogcast change-disk` and
+0. Without the geometry extension, offline selection rejects every other size.
+Writable packages carry selected initial disks with the linked ROM and insert
+them before CPU release; diskless GEM launch is valid. `fogcast change-disk` and
 `fogcast eject-disk` replace or empty the drive while execution continues.
-The CLI accepts an exact `.st` file or a stored media ID, naming the latter
+The CLI accepts a `.st` file with the active package's admitted geometry or a stored media ID, naming the latter
 `disk.st` from the active unit. Optional `fes.expansion.atari-st-bus` 1.0
 uses the existing slot-card selection with map `fes.atari-st-bus.socket/1`
 and socket 1 only. These paths have host tests; hardware acceptance is pending.
@@ -670,6 +671,11 @@ that has already completed.
 ### Writable Atari ST library disks
 
 The base `fes.media.atari-st-floppy` 1.0 image remains exactly 737,280 bytes.
+A package additionally requiring `fes.media.atari-st-floppy-geometry` 1.0 admits
+80..82 tracks, 1..2 heads and 9..10 sectors of 512 bytes. Non-720 KiB immutable
+bases require matching boot BPB geometry; raw image length uniquely identifies
+the shape. Compressed MSA streams require offline conversion. Durable records
+retain the admitted length even if guest writes change the BPB.
 Its additive `fes.media.atari-st-floppy-write` 1.0 extension permits ordinary
 WD1772 Write Sector operations. Format/write-track and deleted-data writes are
 unsupported. Library Play explicitly binds the selected entry and imported

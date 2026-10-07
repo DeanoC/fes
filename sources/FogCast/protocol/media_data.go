@@ -35,7 +35,7 @@ func MediaDataBound(p *CorePackageStatus) bool {
 		return false
 	}
 	for _, u := range p.MediaUnits {
-		if u.Persistence != nil && u.Valid() {
+		if _, ok := MediaUnit(p, u.Unit); ok && u.Persistence != nil {
 			return true
 		}
 	}
@@ -65,7 +65,7 @@ func (b MediaUnitBinding) MatchesSaveResult(before, after Status) bool {
 	}
 	old, _ := MediaUnit(before.CorePackage, b.Unit)
 	current, _ := MediaUnit(after.CorePackage, b.Unit)
-	return ValidateDigest(current.Persistence.Revision) == nil && old.Persistence.GameID == current.Persistence.GameID && old.Persistence.BaseMediaID == current.Persistence.BaseMediaID
+	return old.Interface == current.Interface && old.MinBytes == current.MinBytes && old.MaxBytes == current.MaxBytes && ValidateDigest(current.Persistence.Revision) == nil && old.Persistence.GameID == current.Persistence.GameID && old.Persistence.BaseMediaID == current.Persistence.BaseMediaID
 }
 
 // LibraryMediaBinding names an immutable base and a stable library entry.

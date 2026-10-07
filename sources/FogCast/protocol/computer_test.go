@@ -165,3 +165,32 @@ func TestMediaUnitBindingRequiresTheObservedUnit(t *testing.T) {
 		}
 	}
 }
+
+func TestAtariStGeometryRequiresDeclaredAndActiveOptIn(t *testing.T) {
+	d := apple2Descriptor(corepackage.Interface{ID: AtariStFloppyInterface().ID, Major: 1, Required: true})
+	extension := corepackage.Interface{ID: AtariStFloppyGeometryInterface().ID, Major: 1, Required: true}
+	d.Interfaces = append(d.Interfaces, extension)
+	projected := DeclaredCoreMediaCapabilities(d)
+	if len(projected) != 1 || projected[0].MinBytes != AtariStFloppyGeometryMinBytes || projected[0].MaxBytes != AtariStFloppyGeometryMaxBytes {
+		t.Fatal(projected)
+	}
+	for _, change := range []func(*corepackage.Interface){func(i *corepackage.Interface) { i.Required = false }, func(i *corepackage.Interface) { i.Minor = 1 }, func(i *corepackage.Interface) { i.Major = 2 }} {
+		bad := d
+		bad.Interfaces = append([]corepackage.Interface(nil), d.Interfaces...)
+		change(&bad.Interfaces[len(bad.Interfaces)-1])
+		if DeclaredCoreMediaCapabilities(bad)[0].MaxBytes != AtariStFloppyBytes {
+			t.Fatal("inexact/optional extension widened declaration")
+		}
+	}
+	u := MediaUnitStatus{Interface: AtariStFloppyInterface(), MinBytes: uint32(AtariStFloppyGeometryMinBytes), MaxBytes: uint32(AtariStFloppyGeometryMaxBytes), ChunkBytes: 512, State: MediaUnitReady}
+	s := computerStatus(u)
+	s.CorePackage.ActiveInterfaces = []RuntimeInterface{{ID: AtariStFloppyInterface().ID, Major: 1}}
+	b := MediaUnitBinding{PackageID: s.CorePackage.PackageID, Generation: 3}
+	if b.Matches(s) || b.AcceptsSize(s, 409600) {
+		t.Fatal("widened unit admitted without active extension")
+	}
+	s.CorePackage.ActiveInterfaces = append(s.CorePackage.ActiveInterfaces, RuntimeInterface{ID: AtariStFloppyGeometryInterface().ID, Major: 1})
+	if !b.AcceptsSize(s, 409600) || !b.AcceptsSize(s, 839680) || b.AcceptsSize(s, 400000) || b.AcceptsSize(s, 839681) {
+		t.Fatal("discrete live geometry admission")
+	}
+}

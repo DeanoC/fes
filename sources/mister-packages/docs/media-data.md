@@ -61,3 +61,13 @@ disk. Once publication to SDRAM starts it drains through warm reset or force
 interrupt before capture proceeds. This prevents a torn sector in a captured
 image. It makes no claim that several guest filesystem writes form one atomic
 transaction or that unflushed guest changes survive physical power loss.
+
+Layout `fes.atari-st-floppy.image` 1.1 retains the 1.0 envelope and namespace,
+using minor 1 for the eleven nonlegacy lengths in [computer I/O](computer-io.md).
+Record length is exactly payload length plus 173 bytes; maximum payload is
+839680. 737280-byte records always use minor 0 with byte-identical encoding.
+Decoders reject unknown minors, invalid lengths, mismatched minor/length,
+identity or checksum. Endpoint admission still requires the extension and
+restores reject saved/base length mismatch before hardware transfer. Saved BPB
+edits do not change physical geometry. `atari-st-geometry.json` independently
+fixes the 839680-byte patterned header, checksum, revision and namespace.

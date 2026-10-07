@@ -104,7 +104,7 @@ public:
 				if (arg) return {argument_error, 0};
 				const std::uint16_t info[8] = {
 					static_cast<std::uint16_t>((u.state == 3 ? 1 : 0) | (dirty ? 2 : 0) | (frozen ? 4 : 0) | (write_busy ? 8 : 0)),
-					1, 1, 0, static_cast<std::uint16_t>(u.data.size()),
+					1, 1, static_cast<std::uint16_t>(u.data.size() == FesComputerAtariStFloppyBytes ? 0 : 1), static_cast<std::uint16_t>(u.data.size()),
 					static_cast<std::uint16_t>(u.data.size() >> 16), 512, epoch};
 				return {0, info[index]};
 			}

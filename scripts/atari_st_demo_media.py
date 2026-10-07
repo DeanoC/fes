@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
-"""Inspect classic MSA demo disks without changing their sector layout.
+"""Inspect or convert classic MSA demo disks without changing sector layout.
 
 This is an offline compatibility diagnostic, not a runtime media importer.
 The MSA layout is documented by Hatari in src/floppies/msa.c:
 https://github.com/hatari/hatari/blob/main/src/floppies/msa.c
 Only complete disks starting at track zero are accepted. No ROMs or demos
 are distributed. Unsupported geometry is reported, never padded or truncated.
+--raw-output writes the complete raw-ST image atomically after validation.
 """
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
 import struct
+import tempfile
 
 MAX_BYTES = 8 * 1024 * 1024
 SUPPORTED = (80, 2, 9)
@@ -64,6 +67,10 @@ def decode_msa(data):
 
 def inspect(data):
     raw, geometry = decode_msa(data)
+    return _report(data, raw, geometry)
+
+
+def _report(data, raw, geometry):
     tracks, sides, sectors = geometry
     return {"format": "msa", "source_bytes": len(data),
             "source_sha256": hashlib.sha256(data).hexdigest(),
@@ -71,20 +78,53 @@ def inspect(data):
             "sector_bytes": 512, "raw_bytes": len(raw),
             "raw_sha256": hashlib.sha256(raw).hexdigest(),
             "current_fes_geometry_supported": geometry == SUPPORTED,
+            "geometry_extension_supported": (80 <= tracks <= 82 and
+                                             1 <= sides <= 2 and
+                                             9 <= sectors <= 10),
             "current_fes_requires": {"format": "raw-st", "tracks": 80,
                                      "sides": 2, "sectors_per_track": 9,
                                      "bytes": 737280}}
 
 
+def convert_msa(source, destination):
+    """Decode a bounded input and publish exact raw bytes without partial output."""
+    source, destination = Path(source), Path(destination)
+    if source.resolve() == destination.resolve() or (
+            destination.exists() and os.path.samefile(source, destination)):
+        raise ValueError("raw output must not overwrite the MSA input")
+    with source.open("rb") as stream:
+        data = stream.read(MAX_BYTES + 1)
+    raw, geometry = decode_msa(data)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="wb", dir=destination.parent,
+                                         prefix="." + destination.name + ".",
+                                         delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(raw)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, destination)
+        temporary = None
+    finally:
+        if temporary is not None:
+            temporary.unlink()
+    return _report(data, raw, geometry)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("msa", type=Path)
+    parser.add_argument("--raw-output", type=Path,
+                        help="write an exact raw-ST image after full MSA validation")
     args = parser.parse_args()
-    with args.msa.open("rb") as stream:
-        data = stream.read(MAX_BYTES + 1)
     try:
-        report = inspect(data)
-    except ValueError as exc:
+        if args.raw_output is not None:
+            report = convert_msa(args.msa, args.raw_output)
+        else:
+            with args.msa.open("rb") as stream:
+                report = inspect(stream.read(MAX_BYTES + 1))
+    except (OSError, ValueError) as exc:
         parser.error(str(exc))
     print(json.dumps(report, indent=2))
 

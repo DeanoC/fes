@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -180,6 +181,8 @@ func (r *Runtime) insertMedia(ctx, owner context.Context, size int64, body io.Re
 	r.computerMu.Lock()
 	defer r.computerMu.Unlock()
 	bound := false
+	geometry := false
+	stFloppy := false
 	admit := func() *protocol.APIError {
 		before, err := control.Protocol2Status(ctx)
 		if err != nil {
@@ -188,7 +191,11 @@ func (r *Runtime) insertMedia(ctx, owner context.Context, size int64, body io.Re
 		if _, ok := computerMediaUnitState(before, b); !ok {
 			return protocol.MediaUnitIdentityError()
 		}
-		bound = protocol.MediaDataBound(computerMediaStatus(before).CorePackage)
+		packageStatus := computerMediaStatus(before).CorePackage
+		mediaUnit, _ := protocol.MediaUnit(packageStatus, b.Unit)
+		stFloppy = mediaUnit.Interface == protocol.AtariStFloppyInterface()
+		geometry = protocol.AtariStFloppyGeometryCapable(packageStatus)
+		bound = protocol.MediaDataBound(packageStatus)
 		if !b.AcceptsSize(computerMediaStatus(before), size) {
 			return protocol.MediaUnitRequestError()
 		}
@@ -224,6 +231,12 @@ func (r *Runtime) insertMedia(ctx, owner context.Context, size int64, body io.Re
 	closeErr := file.Close()
 	if writeErr != nil || closeErr != nil || ctx.Err() != nil {
 		return nil, &protocol.APIError{Code: protocol.CodeTransferFailed, Message: "media unit staging failed", Phase: "admission", Cause: errors.Join(writeErr, closeErr, ctx.Err())}
+	}
+	if stFloppy && size != protocol.AtariStFloppyBytes {
+		data, err := os.ReadFile(path)
+		if err != nil || !corepackage.ValidAtariStBase(data, geometry) {
+			return nil, protocol.MediaUnitRequestError()
+		}
 	}
 	// Recheck after staging, immediately before the one local mutation.
 	if err := admit(); err != nil {
