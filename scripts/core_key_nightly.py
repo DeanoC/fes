@@ -11,6 +11,9 @@ import tempfile
 import time
 import tomllib
 
+# Must match scripts/recipes.py (checked by tests/test_core_key_nightly.py).
+AUDIT_PRIVATE_CACHE_MARKER = '.fes-closure-audit-private-cache'
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -85,7 +88,12 @@ def run(repo, out, cores, resolver=_resolve, manifest=None):
                 # rebuild with the same (narrowed) record can reproduce the payload.
                 # Audit mode keeps the narrowed roots but records reads instead of
                 # enforcing them, in a private snapshot and artifact cache.
-                rebuild_env = dict(os.environ, FES_ARTIFACT_CACHE_ROOT=str(scratch / 'cache'),
+                private_cache = scratch / 'cache'
+                private_cache.mkdir()
+                # Marks this cache as private; recipes.require_private_audit_cache refuses
+                # FES_SOURCE_CLOSURE_AUDIT=1 for any other (e.g. the shared) artifact cache.
+                (private_cache / AUDIT_PRIVATE_CACHE_MARKER).write_text('core_key_nightly\n')
+                rebuild_env = dict(os.environ, FES_ARTIFACT_CACHE_ROOT=str(private_cache),
                                    FES_SOURCE_CLOSURE_AUDIT='1',
                                    FES_SOURCE_READ_RECORD=str(scratch / 'reads.jsonl'))
                 start = time.monotonic()
