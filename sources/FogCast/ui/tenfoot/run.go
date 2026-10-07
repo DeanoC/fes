@@ -305,18 +305,49 @@ func configuredApp(opts Options) (*App, error) {
 	app.ConfigureAttract(opts.NoAttract, opts.attractForced())
 	// menu-display is the kit_ui=tenfoot entry. Host SDL, software, and
 	// linuxfb leave the local-control client unset. A resolved catalog
-	// config replaces the remote API with the loopback catalog. A failed
-	// boot keeps the configured host.
+	// config replaces the remote API with the loopback catalog only when
+	// the kit has its own playable shelf (see useLocalCatalog). Otherwise,
+	// and on a failed boot, the launcher.json host library stays in place.
 	if backend, err := gfx.ParseBackend(opts.GFX); err == nil && backend == gfx.BackendMenuDisplay {
 		app.EnableKitLocal()
 		if served := serveCatalog(opts.CatalogConfig); served != nil {
-			app.client = NewClient(served.Base, launcherHTTPClient("", "")).withAPIHost("")
-			app.localCatalogClose = served.Close
-			app.localContent = served.ContentPath
+			if useLocalCatalog(opts.CatalogConfig, served.Notice) {
+				app.client = NewClient(served.Base, launcherHTTPClient("", "")).withAPIHost("")
+				app.localCatalogClose = served.Close
+				app.localContent = served.ContentPath
+			} else {
+				_ = served.Close()
+			}
 		}
 	}
 
 	return app, nil
+}
+
+// useLocalCatalog reports whether the booted kit-local catalog should
+// replace the launcher.json host library (#616). The local shelf wins only
+// when it has playable local files (an empty notice) and the catalog config
+// does not declare targets that are all disabled. An empty, missing or
+// offline shelf, or a config whose targets are all disabled (the image
+// default), keeps the host. A config without targets keeps the #385
+// hostless browse behaviour when it has local games.
+func useLocalCatalog(configPath, notice string) bool {
+	if strings.TrimSpace(notice) != "" {
+		return false
+	}
+	cfg, err := fogcast.LoadConfig(configPath)
+	if err != nil {
+		return true
+	}
+	if len(cfg.Targets) == 0 {
+		return true
+	}
+	for _, target := range cfg.Targets {
+		if target.Enabled {
+			return true
+		}
+	}
+	return false
 }
 
 // serveCatalog boots the local catalog when configPath names a real file.
