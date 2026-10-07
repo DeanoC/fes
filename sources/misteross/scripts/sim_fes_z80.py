@@ -52,7 +52,7 @@ def main():
         output = ROOT / 'build/sim/fes-z80' / case
         output.mkdir(parents=True, exist_ok=True)
         command = [args.verilator, '--cc', '--exe', '--build', '-j', str(args.jobs),
-                   '--top-module', top, '-Wall', '--Mdir', str(output),
+                   '--top-module', top, '-Wall', '-Wno-UNUSEDSIGNAL', '--Mdir', str(output),
                    '-CFLAGS', flags, *options, *(str(RTL / name) for name in files), str(SIM / tb)]
         log = output / 'build.log'
         with log.open('w') as stream:

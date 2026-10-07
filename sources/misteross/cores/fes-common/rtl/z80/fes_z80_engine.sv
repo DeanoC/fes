@@ -101,12 +101,14 @@ module fes_z80_engine #(
     // encodings trap before writeback. Specializing these helpers removes the
     // IX/IY byte mux from the fast datapath while preserving the NMOS paths.
     function automatic logic [7:0] reg8(input logic [2:0] sel, input logic real_hl);
-        case(sel)
-            0: reg8=b_reg; 1: reg8=c_reg; 2: reg8=d_reg; 3: reg8=e_reg;
-            4: reg8=(!NMOS || real_hl) ? h_reg : index_hl[15:8];
-            5: reg8=(!NMOS || real_hl) ? l_reg : index_hl[7:0];
-            7: reg8=a_reg; default: reg8=0;
-        endcase
+        // Every selector, including the original zero-valued memory slot, is defined.
+        reg8 = sel[2]
+            ? (sel[1]
+                ? (sel[0] ? a_reg : 8'd0)
+                : (sel[0] ? ((!NMOS || real_hl) ? l_reg : index_hl[7:0])
+                          : ((!NMOS || real_hl) ? h_reg : index_hl[15:8])))
+            : (sel[1] ? (sel[0] ? e_reg : d_reg)
+                      : (sel[0] ? c_reg : b_reg));
     endfunction
     function automatic logic [15:0] pair16(input logic [1:0] sel, input logic af);
         case(sel)
@@ -115,12 +117,14 @@ module fes_z80_engine #(
         endcase
     endfunction
     function automatic logic condition(input logic [2:0] sel);
-        case(sel)
-            0: condition=~f_reg[6]; 1: condition=f_reg[6];
-            2: condition=~f_reg[0]; 3: condition=f_reg[0];
-            4: condition=~f_reg[2]; 5: condition=f_reg[2];
-            6: condition=~f_reg[7]; 7: condition=f_reg[7];
+        logic selected_flag;
+        case(sel[2:1])
+            0: selected_flag=f_reg[6];
+            1: selected_flag=f_reg[0];
+            2: selected_flag=f_reg[2];
+            3: selected_flag=f_reg[7];
         endcase
+        condition=selected_flag ^ ~sel[0];
     endfunction
     task automatic set_reg8(input logic [2:0] sel, input logic [7:0] value,
                             input logic real_hl);
@@ -158,38 +162,64 @@ module fes_z80_engine #(
             iff1<=0; iff2<=0; halted<=0; state<=IRQ_ACK;
         end
     endtask
-    // Combinational ALU decoding is shared between the opcode-fetch completion
-    // and memory/immediate completion. No extra execute cycle for register ops.
-    always_comb begin
-        alu_op=0; alu_a=a_reg; alu_b=0; alu_xy=0; alu_bit=current_op[5:3];
-        if((state_matches(state,FETCH) || state_matches(state,IRQ_ACK)) && group_sel==0) begin
-            alu_b=reg8(x_z,0);
-            if(current_op[7:6]==2) alu_op={2'b00,x_y};
-            else if(current_op[7:6]==0 && (x_z==4 || x_z==5)) begin
-                alu_op=x_z==4 ? 5'd8 : 5'd9; alu_a=reg8(x_y,0);
-            end else if(current_op[7:6]==0 && x_z==7) begin
-                case(x_y)
-                    0: alu_op=21; 1: alu_op=22; 2: alu_op=23; 3: alu_op=24;
-                    4: alu_op=10; 5: alu_op=25; 6: alu_op=26; 7: alu_op=27;
-                endcase
-            end
-        end else if(((state_matches(state,FETCH) || state_matches(state,IRQ_ACK)) && group_sel==1) || (state_matches(state,READ8) && action==CB8)) begin
-            alu_a=(state_matches(state,FETCH) || state_matches(state,IRQ_ACK)) ? reg8(x_z,1) : bus_rdata;
-            alu_xy=(indexed_cb || x_z==6) ? wz[15:8] : alu_a;
-            if(current_op[7:6]==1) alu_op=19;
-            else case(x_y)
-                0: alu_op=11; 1: alu_op=12; 2: alu_op=13; 3: alu_op=14;
-                4: alu_op=15; 5: alu_op=16; 6: alu_op=17; 7: alu_op=18;
+    // Decode raw opcode sources before selecting the active ALU operation.
+    function automatic logic [4:0] base_alu_decode(input logic [7:0] op);
+        base_alu_decode=0;
+        if(op[7:6]==2) base_alu_decode={2'b00,op[5:3]};
+        else if(op[7:6]==0 && (op[2:0]==4 || op[2:0]==5))
+            base_alu_decode=op[2:0]==4 ? 5'd8 : 5'd9;
+        else if(op[7:6]==0 && op[2:0]==7) begin
+            case(op[5:3])
+                0: base_alu_decode=21; 1: base_alu_decode=22;
+                2: base_alu_decode=23; 3: base_alu_decode=24;
+                4: base_alu_decode=10; 5: base_alu_decode=25;
+                6: base_alu_decode=26; 7: base_alu_decode=27;
             endcase
-        end else if(state_matches(state,FETCH) && group_sel==2) begin
-            alu_op=20;
-        end else case(action)
-            ALU8: begin alu_op={2'b00,opcode[5:3]}; alu_b=bus_rdata; end
-            INC8: begin alu_op=8; alu_a=bus_rdata; end
-            DEC8: begin alu_op=9; alu_a=bus_rdata; end
-            BLOCK_CP: begin alu_op=7; alu_b=state_matches(state,BLOCK_COMPARE_TAIL) ? tmp8 : bus_rdata; end
-            default: ;
+        end
+    endfunction
+    function automatic logic [4:0] cb_alu_decode(input logic [7:0] op);
+        if(op[7:6]==1) cb_alu_decode=19;
+        else case(op[5:3])
+            0: cb_alu_decode=11; 1: cb_alu_decode=12;
+            2: cb_alu_decode=13; 3: cb_alu_decode=14;
+            4: cb_alu_decode=15; 5: cb_alu_decode=16;
+            6: cb_alu_decode=17; 7: cb_alu_decode=18;
         endcase
+    endfunction
+    wire alu_fetch_source = state_matches(state,FETCH) || state_matches(state,IRQ_ACK);
+    wire [4:0] bus_base_alu_op = base_alu_decode(bus_rdata);
+    wire [4:0] bus_cb_alu_op = cb_alu_decode(bus_rdata);
+    wire [4:0] saved_cb_alu_op = cb_alu_decode(opcode);
+    wire alu_select_base = alu_fetch_source && group_sel==0;
+    wire alu_select_cb = !alu_select_base &&
+        ((alu_fetch_source && group_sel==1) || (state_matches(state,READ8) && action==CB8));
+    wire alu_select_ed = !alu_select_base && !alu_select_cb &&
+        state_matches(state,FETCH) && group_sel==2;
+    wire alu_select_action = !(alu_select_base || alu_select_cb || alu_select_ed);
+    wire [4:0] action_alu_op =
+        ({5{action==ALU8}} & {2'b00,opcode[5:3]}) |
+        ({5{action==INC8}} & 5'd8) |
+        ({5{action==DEC8}} & 5'd9) |
+        ({5{action==BLOCK_CP}} & 5'd7);
+    always_comb begin
+        alu_op=({5{alu_select_base}} & bus_base_alu_op) |
+               ({5{alu_select_cb && alu_fetch_source}} & bus_cb_alu_op) |
+               ({5{alu_select_cb && !alu_fetch_source}} & saved_cb_alu_op) |
+               ({5{alu_select_ed}} & 5'd20) |
+               ({5{alu_select_action}} & action_alu_op);
+        alu_b=({8{alu_select_base}} & reg8(bus_rdata[2:0],0)) |
+              ({8{alu_select_action && action==ALU8}} & bus_rdata) |
+              ({8{alu_select_action && action==BLOCK_CP}} &
+               (state_matches(state,BLOCK_COMPARE_TAIL) ? tmp8 : bus_rdata));
+        alu_a=a_reg; alu_xy=0; alu_bit=current_op[5:3];
+        if(alu_select_base) begin
+            if(bus_rdata[7:6]==0 && (bus_rdata[2:0]==4 || bus_rdata[2:0]==5))
+                alu_a=reg8(bus_rdata[5:3],0);
+        end else if(alu_select_cb) begin
+            alu_a=alu_fetch_source ? reg8(bus_rdata[2:0],1) : bus_rdata;
+            alu_xy=(indexed_cb || (alu_fetch_source ? bus_rdata[2:0]==6 : opcode[2:0]==6)) ? wz[15:8] : alu_a;
+        end else if(alu_select_action && (action==INC8 || action==DEC8))
+            alu_a=bus_rdata;
     end
     fes_z80_alu #(.NMOS(NMOS)) alu (
         .op(alu_op), .a(alu_a), .b(alu_b), .flags_in(f_reg),
@@ -293,8 +323,9 @@ module fes_z80_engine #(
         logic [16:0] sum;
         logic [7:0] fs;
         begin
-            if(subtract) sum={1'b0,lhs}-{1'b0,rhs}-17'(with_carry && f_reg[0]);
-            else sum={1'b0,lhs}+{1'b0,rhs}+17'(with_carry && f_reg[0]);
+            sum={1'b0,lhs}+{1'b0,(rhs ^ {16{subtract}})}+
+                17'(subtract ^ (with_carry && f_reg[0]));
+            sum[16]=sum[16]^subtract;
             fs=f_reg;
             fs[5]=NMOS && sum[13]; fs[3]=NMOS && sum[11];
             fs[4]=lhs[12]^rhs[12]^sum[12]; fs[1]=subtract; fs[0]=sum[16];
@@ -443,7 +474,7 @@ module fes_z80_engine #(
                                 bc_alt<=bc; de_alt<=de; hl_alt<=hl;
                                 {b_reg,c_reg}<=bc_alt; {d_reg,e_reg}<=de_alt; {h_reg,l_reg}<=hl_alt; finish(0);
                             end
-                            2: begin pc<=index_hl; finish(0); end
+                            2: begin if(NMOS) pc<=index_hl; finish(0); end
                             3: begin sp<=index_hl; finish(0); end
                        endcase
                     2: begin action<=JUMP; branch_taken<=condition(y); state<=IMM_LO; end
@@ -489,16 +520,17 @@ module fes_z80_engine #(
                     {d_reg,e_reg}<=de+(dec_dir ? 16'hffff : 16'd1);
                     {b_reg,c_reg}<=next_bc; sum8=a_reg+value;
                     fs[5]=NMOS && sum8[1]; fs[3]=NMOS && sum8[3];
-                    fs[4]=0; fs[2]=next_bc!=0; fs[1]=0;
-                    again=next_bc!=0;
+                    fs[4]=0; fs[2]=bc!=16'd1; fs[1]=0;
+                    again=bc!=16'd1;
                     delay_count<=5;
                 end
                 BLOCK_CP: begin
                     {b_reg,c_reg}<=next_bc; adjusted=alu_result-8'(alu_flags[4]);
-                    fs=alu_flags; fs[0]=f_reg[0]; fs[2]=next_bc!=0;
+                    fs=alu_flags; fs[0]=f_reg[0]; fs[2]=bc!=16'd1;
                     fs[5]=NMOS && adjusted[1]; fs[3]=NMOS && adjusted[3];
                     wz<=wz+(dec_dir ? 16'hffff : 16'd1);
-                    again=next_bc!=0 && !alu_flags[6];
+                    again=bc!=16'd1 && (NMOS ? !alu_flags[6] :
+                        a_reg!=(state_matches(state,BLOCK_COMPARE_TAIL) ? tmp8 : bus_rdata));
                     delay_count<=5;
                 end
                 BLOCK_INPUT, BLOCK_OUTPUT: begin
@@ -522,7 +554,7 @@ module fes_z80_engine #(
             unused_block_bits = &{sum8,adjusted};
             f_reg<=fs; q<=1;
             if(opcode[4] && again) begin
-                pc<=pc-16'd2; wz<=pc-16'd1;
+                if(NMOS) pc<=pc-16'd2; wz<=pc-16'd1;
                 if(NMOS) begin
                     fs[5]=((pc-16'd2) & 16'h2000)!=0;
                     fs[3]=((pc-16'd2) & 16'h0800)!=0;
@@ -545,6 +577,46 @@ module fes_z80_engine #(
         end
     endtask
 
+    // AlphaMister: isolate the fast PC's same-cycle control from other writebacks.
+    // NMOS retains its original reverse-case priority for every binary state.
+    generate if (!NMOS) begin : am_pc_fast
+        wire am_repeat = opcode[4] && (
+            (action==BLOCK_LD && bc!=16'd1) ||
+            (action==BLOCK_CP && bc!=16'd1 &&
+                a_reg!=(state_matches(state,BLOCK_COMPARE_TAIL) ? tmp8 : bus_rdata)) ||
+            ((action==BLOCK_INPUT || action==BLOCK_OUTPUT) && b_reg!=8'd1));
+        always_ff @(posedge clk) begin
+            if(reset) pc<=0;
+            else if(enable && !illegal && bus_ready &&
+                    !(bus_resume && state_matches(state,FETCH) && group_sel==0 && index_sel==0)) begin
+                case(state)
+                    FETCH: if(!halted) begin
+                        if(group_sel==0 && bus_rdata==8'he9) pc<=index_hl;
+                        else pc<=pc+16'd1;
+                    end
+                    DISP, INDEX_CB, IMM_LO: pc<=pc+16'd1;
+                    IMM8: begin
+                        if((action==JR && branch_taken) || (action==DJNZ && b_reg!=1))
+                            pc<=pc+16'd1+{{8{bus_rdata[7]}},bus_rdata};
+                        else pc<=pc+16'd1;
+                    end
+                    IMM_HI: begin
+                        if(action==JUMP && branch_taken) pc<={bus_rdata,tmp8};
+                        else pc<=pc+16'd1;
+                    end
+                    POP_HI: if(action==RETURN) pc<={bus_rdata,tmp8};
+                    PUSH_LO: if(action==CALL || action==INT_PUSH) pc<=jump_target;
+                    IRQ_ACK: if(im==0 && bus_rdata==8'he9) pc<=index_hl;
+                    VECTOR_HI: pc<={bus_rdata,tmp8};
+                    WRITE8: if(action==BLOCK_INPUT && am_repeat) pc<=pc-16'd2;
+                    BLOCK_READ: if(action==BLOCK_CP && am_repeat) pc<=pc-16'd2;
+                    BLOCK_COMPARE_TAIL, BLOCK_WRITE, BLOCK_OUT: if(am_repeat) pc<=pc-16'd2;
+                    default: ;
+                endcase
+            end
+        end
+    end endgenerate
+
     always_ff @(posedge clk) begin
         retired<=0;
         nmi_prev<=nmi_n;
@@ -562,7 +634,7 @@ module fes_z80_engine #(
                 a_reg<=0; f_reg<=0; b_reg<=0; c_reg<=0; d_reg<=0; e_reg<=0; h_reg<=0; l_reg<=0;
                 af_alt<=0; bc_alt<=0; de_alt<=0; hl_alt<=0; ix<=0; iy<=0; sp<=16'hffff;
             end
-            pc<=0; wz<=0;
+            if(NMOS) pc<=0; wz<=0;
             i_reg<=0; r_reg<=0; opcode<=0; tmp8<=0; tmp16<=0; ea<=0; idle_addr<=0; write_data<=0;
             push_value<=0; jump_target<=0; instruction_pc<=0;
             index_sel<=0; group_sel<=0; im<=0; dest<=0; pair_sel<=0;
@@ -586,7 +658,7 @@ module fes_z80_engine #(
                         else if(!interrupt_blocked && !recognition_int_n && iff1 && !ei_delay) begin iff1<=0; iff2<=0; halted<=0; state<=IRQ_ACK; end
                     end else begin
                         if(index_sel==0 && group_sel==0) instruction_pc<=pc;
-                        pc<=pc+16'd1; opcode<=bus_rdata;
+                        if(NMOS) pc<=pc+16'd1; opcode<=bus_rdata;
                         case(group_sel)
                             0: decode_base(bus_rdata);
                             1: decode_cb(bus_rdata);
@@ -596,7 +668,7 @@ module fes_z80_engine #(
                     end
                 end
                 (NMOS ? STATE_WIDTH'(state_matches(state,DISP)) : DISP): begin
-                    pc<=pc+16'd1; idle_addr<=pc; ea<=index_hl+{{8{bus_rdata[7]}},bus_rdata};
+                    if(NMOS) pc<=pc+16'd1; idle_addr<=pc; ea<=index_hl+{{8{bus_rdata[7]}},bus_rdata};
                     wz<=index_hl+{{8{bus_rdata[7]}},bus_rdata};
                     if(indexed_cb) state<=INDEX_CB;
                     else if(action==LD8 && opcode[7:6]==0 && opcode[2:0]==6) state<=IMM8;
@@ -605,18 +677,18 @@ module fes_z80_engine #(
                     end else state<=action==LD8 && dest==6 ? WRITE8 : READ8;
                 end
                 (NMOS ? STATE_WIDTH'(state_matches(state,INDEX_CB)) : INDEX_CB): begin
-                    pc<=pc+16'd1; opcode<=bus_rdata;
+                    if(NMOS) pc<=pc+16'd1; opcode<=bus_rdata;
                     if(!NMOS && (bus_rdata[2:0]!=6 || (bus_rdata[7:6]==0 && bus_rdata[5:3]==6))) fault();
                     else state<=READ8;
                 end
                 (NMOS ? STATE_WIDTH'(state_matches(state,IMM8)) : IMM8): begin
-                    pc<=pc+16'd1;
+                    if(NMOS) pc<=pc+16'd1;
                     case(action)
                         LD8: if(dest==6) begin write_data<=bus_rdata; state<=WRITE8; end
                              else begin set_reg8(dest,bus_rdata,0); finish(0); end
                         ALU8: begin if(opcode[5:3]!=7) a_reg<=alu_result; f_reg<=alu_flags; finish(1); end
                         JR: if(branch_taken) begin
-                                pc<=pc+16'd1+{{8{bus_rdata[7]}},bus_rdata};
+                                if(NMOS) pc<=pc+16'd1+{{8{bus_rdata[7]}},bus_rdata};
                                 wz<=pc+16'd1+{{8{bus_rdata[7]}},bus_rdata};
                                 if(NMOS) begin idle_addr<=pc; q<=0; delay_count<=5; after_delay<=FETCH; state<=DELAY; end
                                 else finish(0);
@@ -624,7 +696,7 @@ module fes_z80_engine #(
                         DJNZ: begin
                             b_reg<=b_reg-8'd1; q<=0;
                             if(b_reg!=1) begin
-                                pc<=pc+16'd1+{{8{bus_rdata[7]}},bus_rdata};
+                                if(NMOS) pc<=pc+16'd1+{{8{bus_rdata[7]}},bus_rdata};
                                 wz<=pc+16'd1+{{8{bus_rdata[7]}},bus_rdata};
                                 if(NMOS) begin idle_addr<=pc; delay_count<=5; after_delay<=FETCH; state<=DELAY; end
                                 else finish(0);
@@ -639,16 +711,16 @@ module fes_z80_engine #(
                         default: fault();
                     endcase
                 end
-                (NMOS ? STATE_WIDTH'(state_matches(state,IMM_LO)) : IMM_LO): begin tmp8<=bus_rdata; pc<=pc+16'd1; state<=IMM_HI; end
+                (NMOS ? STATE_WIDTH'(state_matches(state,IMM_LO)) : IMM_LO): begin tmp8<=bus_rdata; if(NMOS) pc<=pc+16'd1; state<=IMM_HI; end
                 (NMOS ? STATE_WIDTH'(state_matches(state,IMM_HI)) : IMM_HI): begin
-                    tmp16<={bus_rdata,tmp8}; ea<={bus_rdata,tmp8}; pc<=pc+16'd1;
+                    tmp16<={bus_rdata,tmp8}; ea<={bus_rdata,tmp8}; if(NMOS) pc<=pc+16'd1;
                     case(action)
                         LD16_IMM: begin set_pair16(pair_sel,{bus_rdata,tmp8},0); finish(0); end
                         LD16_MEM: begin wz<={bus_rdata,tmp8}+16'd1; state<=READ_LO; end
                         STORE16: begin tmp16<=pair16(pair_sel,0); write_data<=8'(pair16(pair_sel,0)); wz<={bus_rdata,tmp8}+16'd1; state<=WRITE_LO; end
                         LOAD_A: begin wz<={bus_rdata,tmp8}+16'd1; state<=READ8; end
                         STORE_A: begin wz<={a_reg,tmp8+8'd1}; write_data<=a_reg; state<=WRITE8; end
-                        JUMP: begin wz<={bus_rdata,tmp8}; if(branch_taken) pc<={bus_rdata,tmp8}; finish(0); end
+                        JUMP: begin wz<={bus_rdata,tmp8}; if(branch_taken) if(NMOS) pc<={bus_rdata,tmp8}; finish(0); end
                         CALL: begin
                             wz<={bus_rdata,tmp8};
                             if(branch_taken) begin push_value<=pc+16'd1; jump_target<={bus_rdata,tmp8}; q<=0; state<=PUSH_HI; end
@@ -695,14 +767,14 @@ module fes_z80_engine #(
                 (NMOS ? STATE_WIDTH'(state_matches(state,POP_LO)) : POP_LO): begin tmp8<=bus_rdata; sp<=sp+16'd1; state<=POP_HI; end
                 (NMOS ? STATE_WIDTH'(state_matches(state,POP_HI)) : POP_HI): begin
                     sp<=sp+16'd1;
-                    if(action==RETURN) begin pc<={bus_rdata,tmp8}; wz<={bus_rdata,tmp8}; end
+                    if(action==RETURN) begin if(NMOS) pc<={bus_rdata,tmp8}; wz<={bus_rdata,tmp8}; end
                     else set_pair16(pair_sel,{bus_rdata,tmp8},1);
                     finish(0);
                 end
                 (NMOS ? STATE_WIDTH'(state_matches(state,PUSH_HI)) : PUSH_HI): begin sp<=sp-16'd1; state<=PUSH_LO; end
                 (NMOS ? STATE_WIDTH'(state_matches(state,PUSH_LO)) : PUSH_LO): begin
                     sp<=sp-16'd1;
-                    if(action==CALL || action==INT_PUSH) pc<=jump_target;
+                    if(action==CALL || action==INT_PUSH) if(NMOS) pc<=jump_target;
                     if(action==INT_PUSH && im==2 && group_sel==3) state<=VECTOR_LO;
                     else finish(0);
                 end
@@ -736,7 +808,7 @@ module fes_z80_engine #(
                     action<=INT_PUSH; push_value<=pc; jump_target<=16'h0066; wz<=16'h0066; state<=PUSH_HI;
                 end
                 (NMOS ? STATE_WIDTH'(state_matches(state,VECTOR_LO)) : VECTOR_LO): begin tmp8<=bus_rdata; state<=VECTOR_HI; end
-                (NMOS ? STATE_WIDTH'(state_matches(state,VECTOR_HI)) : VECTOR_HI): begin pc<={bus_rdata,tmp8}; wz<={bus_rdata,tmp8}; finish(0); end
+                (NMOS ? STATE_WIDTH'(state_matches(state,VECTOR_HI)) : VECTOR_HI): begin if(NMOS) pc<={bus_rdata,tmp8}; wz<={bus_rdata,tmp8}; finish(0); end
                 (NMOS ? STATE_WIDTH'(state_matches(state,EX_READ_LO)) : EX_READ_LO): begin tmp8<=bus_rdata; state<=EX_READ_HI; end
                 (NMOS ? STATE_WIDTH'(state_matches(state,EX_READ_HI)) : EX_READ_HI): begin tmp16<={bus_rdata,tmp8}; q<=0; state<=EX_WRITE_HI; end
                 (NMOS ? STATE_WIDTH'(state_matches(state,EX_WRITE_HI)) : EX_WRITE_HI): state<=EX_WRITE_LO;

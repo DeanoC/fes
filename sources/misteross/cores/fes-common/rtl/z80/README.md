@@ -267,3 +267,21 @@ from the design work:
 Each source file carries its SPDX license. The instruction engine/ALU/fast
 entry point are original MIT-licensed RTL; the NMOS bus/wrapper are original
 GPL-2.0-or-later RTL. Existing third-party CPU notices are untouched.
+
+## Optimizer-selected engine
+
+The shared engine uses the exact AlphaMister handoff with SHA-256
+`53187e407acee070bc6a48f43acb3cae05599dd912fe2d2a456ce4ce103fe5ee`.
+It restructures fast program-counter control, register selection, ALU decoding,
+16-bit arithmetic and block-repeat predicates without changing the public ports
+or named state. A fresh Yosys next-state proof against FES commit `8f5c5b598`
+passes for both `NMOS=0` and `NMOS=1`, including invalid binary state encodings.
+
+The optimizer's frozen fast Spectrum qualification passed both 56 MHz system
+and 74.25 MHz pixel clocks on 10 of 16 fresh routes, at 5689 ALUTs under the
+5831 ALUT budget. Its zero-build-ID diagnostic passed bounded CPU, video,
+keyboard, audio and Stop/reload hardware checks. These measurements describe
+that frozen consumer and compiler, not a newly sealed package or NMOS timing.
+The normal package producer must synthesize and route again with its real build
+identity. AlphaMister's reproducible evidence and scope are recorded in
+[the qualified hardware milestone](https://github.com/DeanoC/alphamister/blob/8bd623209575634695afe937803aa31173002c1e/results/cpu-qualified-hardware-diagnostic.json).
