@@ -203,9 +203,11 @@ loader and border/raster effects require separate qualification. Historical
 binds the sealed 0.2.0 shell, diskless GEM, complete original BIG/Cuddly
 upload/snapshot comparisons and maximum-size cold restore using built-in
 Direct on a private derived image. Neither original demo reaches its effects
-with the tested EmuTOS. Separate video-part composition is blocked by
-[nextpnr #165](https://github.com/DeanoC/nextpnr/issues/165); full factory image
-acceptance and border/raster compatibility remain open.
+with the tested EmuTOS. The geometry diagnostic still records its original
+[nextpnr #165](https://github.com/DeanoC/nextpnr/issues/165) routing failure;
+that composition defect is resolved. Published egress anchors and the exact
+prepared Direct/Scanlines pair pass. Full factory image acceptance and
+border/raster compatibility remain open.
 
 ## Not implemented, or not this package
 
