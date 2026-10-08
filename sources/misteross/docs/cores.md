@@ -325,3 +325,9 @@ framebuffer `0x002f`. Idle handling must not send those commands.
 Parent validation for a named package id is under FES `docs/validation/`.
 Read the artifact ids in that record before treating it as evidence for the
 tree you have open.
+
+Compiler source-read auditing retains bounded traces: 64 MiB per process and
+256 MiB per invocation, including child compilers. The larger allowance covers
+RAM-heavy Atari ST synthesis and its ABC partitions. Overflow cancels the
+private compiler process group; excluded-source and completion checks remain
+required before package qualification.

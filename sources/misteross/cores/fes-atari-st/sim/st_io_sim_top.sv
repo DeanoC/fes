@@ -40,6 +40,8 @@ module st_io_sim_top (
     // Observe the physical timer-B pin, crystal enable and floppy selects
     // to check their connection to MMIO, without substituting peripherals.
     output wire timer_b_level, timer_ce_level,
+    output wire [8:0] display_line,
+    output wire [31:0] display_phase,
     output wire [7:0] floppy_port_a
 );
     wire [38:0] unused_write;
@@ -59,9 +61,9 @@ module st_io_sim_top (
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data),
         .media_valid(media_valid), .dma_req(dma_req), .dma_addr(dma_addr),
         .dma_wdata(dma_wdata), .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready),
-        .vblank(vblank), .hblank(hblank)
+        .vblank(vblank), .hblank(hblank), .native_display(timer_b_level), .native_line(display_line)
     );
-    assign timer_b_level = io.native_display;
     assign timer_ce_level = io.timer_ce;
+    assign display_phase = io.horizontal_phase;
     assign floppy_port_a = io.port_a;
 endmodule

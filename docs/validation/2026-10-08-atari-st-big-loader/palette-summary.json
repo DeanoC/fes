@@ -1,0 +1,79 @@
+{
+  "source_base": "582d3c608eb7bd0a89ca7940b9cbb6fce2c7eb39",
+  "classification": "simulation-only observation of the reduced ST timing model; no production raster fix or compatibility acceptance",
+  "input_event": {
+    "hid_usage": 5,
+    "hold_milliseconds": 150,
+    "press_second": 8
+  },
+  "metrics": {
+    "bus_address": 53626,
+    "bus_faults": 0,
+    "cycle": 626688000,
+    "dma_words": 159488,
+    "fdc_head_track": 62,
+    "fdc_sector": 3,
+    "fdc_status": 0,
+    "fdc_track": 62,
+    "halted": false,
+    "hbl_acks": 0,
+    "hz200": 1319,
+    "max_completed_native_frame_palette_changes": 190,
+    "media_bytes": 318976,
+    "memvalid": 1965038067,
+    "mfp_acks": 7459,
+    "palette_changed_entries_after_six_seconds": 33424,
+    "pc": 53626,
+    "phystop": 524288,
+    "ram_writes": 2599427,
+    "resolution": 0,
+    "screen_base": 458752,
+    "sync_mode": 2,
+    "vbl_acks": 341
+  },
+  "windows": {
+    "menu": {
+      "seconds": [
+        7,
+        8
+      ],
+      "completed_frame_records": 51,
+      "median_changed_entries": 119,
+      "max_changed_entries": 190,
+      "sampled_native_lines": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        10,
+        65,
+        66,
+        67,
+        74,
+        75
+      ]
+    },
+    "scroller": {
+      "seconds": [
+        9,
+        12
+      ],
+      "completed_frame_records": 150,
+      "median_changed_entries": 128.0,
+      "max_changed_entries": 128,
+      "sampled_native_lines": [
+        1,
+        68
+      ]
+    }
+  },
+  "trace_validation": "monotonic cycles, sample cap eight per native frame, bounded line/phase/index/value fields",
+  "horizontal_phase_units": "st_io accumulator; wraps at 52224000, adds 15650 each system clock in 50 Hz mode; not a native pixel coordinate",
+  "capture_integrity": "all frozen/working source hashes, ROM, original disk, generated model, microcode and executable match",
+  "scroller_observation": "static RAM image at second 9 shows stone-letter scroller after B press; static reconstruction omits scanline palette changes",
+  "parent_consistency": "make check PASS (18 generated consumers, 34 fixture copies)"
+}
