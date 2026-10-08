@@ -3,6 +3,7 @@
 import argparse
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -22,6 +23,11 @@ def main():
         parser.error('--jobs must be between 1 and 32')
     if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
         parser.error('simulation does not use the shared compiler cache')
+    selected = shutil.which(args.verilator)
+    if selected is None:
+        sys.stderr.write(f'selected Verilator not found: {args.verilator}\n')
+        return 1
+    args.verilator = selected
     for case in args.case or CASES:
         options, run_args = [], []
         flags = '-std=c++17 -O2'
@@ -62,6 +68,14 @@ def main():
             return result.returncode
         print(f'{case}:', flush=True)
         result = subprocess.run([str(output / ('V' + top)), *run_args], cwd=ROOT)
+        if result.returncode:
+            return result.returncode
+    if not args.case:
+        env = os.environ.copy()
+        env['VERILATOR'] = args.verilator
+        result = subprocess.run(
+            [sys.executable, '-m', 'unittest', 'tests.test_z80_route_c_semantics', '-v'],
+            cwd=ROOT, env=env)
         if result.returncode:
             return result.returncode
     print('Z80 RTL checks passed (host simulation only).')
