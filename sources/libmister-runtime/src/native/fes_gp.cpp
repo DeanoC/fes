@@ -1,6 +1,8 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "native/atari_st_geometry.hpp"
+
 #include "native/fes_gp.hpp"
 #include "native/artifacts.hpp"
 
@@ -135,7 +137,8 @@ constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 	FesComputerCapabilityGamepadPorts | FesComputerCapabilityAudioPcmS16Stereo48k |
 	FesComputerCapabilityMediaApple2Floppy | FesComputerCapabilityMediaSpectrumTape |
 	FesComputerCapabilityMediaC64Disk | FesComputerCapabilityMediaAtariStFloppy |
-	FesComputerCapabilityMouseRelative | FesComputerCapabilityMediaAtariStFloppyWrite);
+	FesComputerCapabilityMouseRelative | FesComputerCapabilityMediaAtariStFloppyWrite |
+    FesComputerCapabilityMediaAtariStFloppyGeometry);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -450,6 +453,8 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesComputerCapabilityMouseRelative;
 			else if (interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID)
 				capabilities |= FesComputerCapabilityMediaAtariStFloppyWrite;
+            else if (interface.id == FesComputerInterfaceMediaAtariStFloppyGeometryID)
+                capabilities |= FesComputerCapabilityMediaAtariStFloppyGeometry;
 			else if (interface.id == FesComputerInterfaceGamepadPortsID)
 				capabilities |= FesComputerCapabilityGamepadPorts;
 			else if (interface.id == FesComputerInterfaceAudioPcmS16Stereo48kID)
@@ -725,9 +730,10 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 						" chunk=" + std::to_string(info.chunk_bytes) + " minimum=" +
 						std::to_string(info.minimum) + " maximum=" + std::to_string(info.maximum));
 			if (error.ok() && unit.interface.id == FesComputerInterfaceMediaAtariStFloppyID &&
-				(info.minimum != FesComputerAtariStFloppyBytes || info.maximum != FesComputerAtariStFloppyBytes))
+				(info.minimum != (MediaGeometryCapable(unit.unit) ? FesComputerAtariStFloppyGeometryMinBytes : FesComputerAtariStFloppyBytes) ||
+                 info.maximum != (MediaGeometryCapable(unit.unit) ? FesComputerAtariStFloppyGeometryMaxBytes : FesComputerAtariStFloppyBytes)))
 				error = Mismatch("Atari ST floppy live limits differ from its contract",
-					"minimum=737280 maximum=737280", "minimum=" + std::to_string(info.minimum) +
+					"limits matching the declared Atari ST geometry contract", "minimum=" + std::to_string(info.minimum) +
 					" maximum=" + std::to_string(info.maximum));
 			if (!error.ok()) break;
 			unit.min_bytes = info.minimum;
@@ -1236,6 +1242,12 @@ Error FesGpCoreDriver::LoadMediaStream(const ComputerMediaSnapshot& media,
 	return WithPhase(error, "input");
 }
 
+bool FesGpCoreDriver::MediaGeometryCapable(std::uint8_t unit) const
+{
+    return home_computer_ && unit == 0 &&
+        (observed_capabilities_ & FesComputerCapabilityMediaAtariStFloppyGeometry) != 0;
+}
+
 bool FesGpCoreDriver::MediaWriteCapable(std::uint8_t unit) const
 {
 	if (!home_computer_ || !floppy_write_ || unit != 0) return false;
@@ -1294,8 +1306,8 @@ Error FesGpCoreDriver::CaptureMedia(std::uint8_t unit, Clock& clock, std::uint64
 		(info[FesComputerMediaSnapshotFlagsField] & (FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotFrozenMask | FesComputerMediaSnapshotBusyMask)) != (FesComputerMediaSnapshotReadyMask | FesComputerMediaSnapshotFrozenMask) ||
 		info[FesComputerMediaSnapshotLayoutTagField] != FesComputerAtariStFloppyLayoutTag ||
 		info[FesComputerMediaSnapshotLayoutMajorField] != FesComputerAtariStFloppyLayoutMajor ||
-		info[FesComputerMediaSnapshotLayoutMinorField] != FesComputerAtariStFloppyLayoutMinor ||
-		size != FesComputerAtariStFloppyBytes || info[FesComputerMediaSnapshotChunkMaxField] != FesComputerMediaChunkMaxBytes)
+		info[FesComputerMediaSnapshotLayoutMinorField] != (size == FesComputerAtariStFloppyBytes ? FesComputerAtariStFloppyLayoutMinor : FesComputerAtariStFloppyGeometryLayoutMinor) ||
+        !AtariStSizeAdmitted(size, MediaGeometryCapable(unit)) || info[FesComputerMediaSnapshotChunkMaxField] != FesComputerMediaChunkMaxBytes)
 		return Io("invalid frozen Atari ST media snapshot identity");
 	std::vector<unsigned char> bytes;
 	bytes.reserve(size);
@@ -1447,13 +1459,17 @@ Error FesGpCoreDriver::TransferMediaUnit(MediaUnitCapability& unit,
 		info.maximum > FesComputerMediaMaxBytes)
 		return Io("invalid live FES computer media unit limits");
 	if (unit.interface.id == FesComputerInterfaceMediaAtariStFloppyID &&
-		(info.minimum != FesComputerAtariStFloppyBytes || info.maximum != FesComputerAtariStFloppyBytes))
+		(info.minimum != (MediaGeometryCapable(unit.unit) ? FesComputerAtariStFloppyGeometryMinBytes : FesComputerAtariStFloppyBytes) ||
+                 info.maximum != (MediaGeometryCapable(unit.unit) ? FesComputerAtariStFloppyGeometryMaxBytes : FesComputerAtariStFloppyBytes)))
 		return Mismatch("Atari ST floppy live limits differ from its contract",
-			"minimum=737280 maximum=737280", "minimum=" + std::to_string(info.minimum) +
+			"limits matching the declared Atari ST geometry contract", "minimum=" + std::to_string(info.minimum) +
 			" maximum=" + std::to_string(info.maximum));
 	unit.min_bytes = info.minimum;
 	unit.max_bytes = info.maximum;
 	unit.chunk_bytes = info.chunk_bytes;
+	if (unit.interface.id == FesComputerInterfaceMediaAtariStFloppyID &&
+        !AtariStSizeAdmitted(media.size(), MediaGeometryCapable(unit.unit)))
+        return {ErrorCode::invalid_request, "unsupported Atari ST image geometry", "request"};
 	if (media.size() < info.minimum || media.size() > info.maximum)
 		return {ErrorCode::invalid_request, "media size is outside the live unit limits", "request"};
 	const std::uint16_t header[] = {static_cast<std::uint16_t>(media.size()),

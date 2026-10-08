@@ -295,7 +295,7 @@ against an independent reference endpoint. See
 path has host software coverage only.
 
 `fes.media.atari-st-floppy` 1.0 uses capability bit 7 and unit 0. Discovery
-and every insertion require live minimum and maximum sizes of 737,280 bytes,
+and every insertion without the geometry extension require live minimum and maximum sizes of 737,280 bytes,
 with 512-byte chunks. A changed limit is rejected before MediaBegin. The same
 transfer, ready confirmation and failure-eject path handles the full disk
 while the machine runs.
@@ -309,7 +309,7 @@ sector commits. Deleted-data writes and format/write-track remain unsupported.
 This gives sector atomicity, not a transaction across FAT/directory sectors.
 
 `insert_library_media` explicitly binds unit 0 to a game ID and the SHA-256
-of the immutable 737,280-byte base image. The runtime validates that source
+of the immutable admitted raw ST base image. The runtime validates that source
 before altering the unit, restores an existing compatible disk record, and
 reports `persistence:{mode,game_id,base_media_id,revision}` on the live unit.
 Raw `insert_media` remains volatile. A saved record cannot silently downgrade
@@ -574,3 +574,11 @@ Compatibility rejects that combination before mutation; firmware ROM packages
 retain normal later cartridge/tape/disk delivery semantics. A format-3
 `fes.simple-computer` cartridge may omit `fes.media.blob` when it has no later
 media mailbox; format-2 and firmware-ROM computer packages still require it.
+
+Required `fes.media.atari-st-floppy-geometry` 1.0 permits the 12 uniquely sized
+raw ST layouts with 80–82 tracks, one/two heads, nine/ten sectors and 512-byte
+sectors (368640–839680 bytes). Discovery proves capability bit 10 and exact
+extended live limits. Nonlegacy immutable bases require matching BPBs; saved
+records use minor 1, retain guest BPB edits, and must match the base length
+before restore. Legacy 737280-byte behavior and minor-0 bytes are unchanged.
+This extension has software coverage; no new hardware acceptance is claimed.

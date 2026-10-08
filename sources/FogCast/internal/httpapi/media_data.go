@@ -15,7 +15,7 @@ type mediaDataController interface {
 func registerMediaDataRoutes(mux *http.ServeMux, token string, controller DevelopmentController) {
 	mux.Handle("/v1/library/media/insert", authenticate(token, exactMethod(http.MethodPost, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		b, valid := protocol.LibraryMediaHeaders(r.Header)
-		if !valid || !exactContentType(r, "application/octet-stream") || len(r.TransferEncoding) != 0 || r.ContentLength != protocol.AtariStFloppyBytes {
+		if !valid || !exactContentType(r, "application/octet-stream") || len(r.TransferEncoding) != 0 || !protocol.AdmitAtariStFloppySize(r.ContentLength) {
 			writeBadRequest(w, r, protocol.MediaUnitRequestError().Message)
 			return
 		}

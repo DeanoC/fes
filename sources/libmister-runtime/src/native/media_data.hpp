@@ -3,9 +3,10 @@
 #pragma once
 #include "libmister-runtime/runtime.h"
 #include <memory>
+#include "native/atari_st_geometry.hpp"
 namespace mister { namespace native {
 constexpr std::size_t kAtariStDiskBytes = 737280;
-constexpr std::size_t kMaximumMediaDataBytes = kAtariStDiskBytes + 256;
+constexpr std::size_t kMaximumMediaDataBytes = generated::FesComputerAtariStFloppyGeometryMaxBytes + 256;
 struct MediaDataIdentity {
     std::string core_id, game_id, base_media_id;
     std::uint8_t unit = 0;

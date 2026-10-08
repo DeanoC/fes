@@ -52,7 +52,7 @@ public:
         dut.clk = 0; dut.reset = 1; dut.cold_reset = 1; dut.media_frozen = 0; dut.mmio_req = 0;
         dut.mmio_addr = 0; dut.mmio_write = 0; dut.mmio_wdata = 0;
         dut.mmio_byte_enable = 3; dut.drive_select = 2; dut.side = 1;
-        dut.media_ready = 1; dut.media_valid = 0; dut.media_data = 0;
+        dut.media_size = 737280; dut.media_ready = 1; dut.media_valid = 0; dut.media_data = 0;
         dut.dma_ready = 0; dut.dma_rdata = 0; dut.media_write_ready = 0;
         stall_media = false; stall_dma = false; stall_disk_write = false;
         media_seen = dma_seen = disk_seen = false;
@@ -386,6 +386,48 @@ static void test_force_index_and_motor(Rig &r)
     check(false, "idle motor did not stop after nine virtual revolutions");
 }
 
+static void test_supported_geometries(Rig &r)
+{
+    for (unsigned tracks : {80u, 81u, 82u}) for (unsigned heads : {1u, 2u})
+    for (unsigned sectors : {9u, 10u}) {
+        r.media.resize(tracks * heads * sectors * 512);
+        for (unsigned n = 0; n < r.media.size(); ++n) r.media[n] = uint8_t(n * 17 + (n >> 9));
+        r.dut.media_size = r.media.size();
+        // Deliberately invalid BPB: guest data cannot redefine physical CHS.
+        std::fill(r.media.begin(), r.media.begin() + 512, 0xff);
+        r.dut.side = 1; r.restore(); r.fdc_read(0);
+        for (unsigned track : {0u, tracks - 1}) for (unsigned head = 0; head < heads; ++head) {
+            r.dut.side = head == 0; r.seek(track);
+            check(!(r.fdc_read(0) & 0x10), "last supported track failed verify");
+            for (unsigned sector : {1u, sectors}) {
+                const unsigned offset = ((track * heads + head) * sectors + sector - 1) * 512;
+                r.setup(0x1000); r.read_sector(sector); r.wait_irq();
+                check(!(r.fdc_read(0) & 0x10), "valid geometry sector rejected");
+                r.compare(0x1000, offset, 512);
+            }
+            r.setup(0x1000); r.read_sector(sectors + 1); r.wait_irq();
+            check(r.fdc_read(0) & 0x10, "sector beyond geometry accepted");
+            const auto bytes = r.media_transfers;
+            r.setup(0x1000, 2); r.read_sector(sectors, 0x90); r.wait_irq();
+            check((r.fdc_read(0) & 0x10) && r.media_transfers == bytes + 512,
+                  "multi-sector command crossed track end");
+        }
+        r.dut.side = 1; r.seek(tracks);
+        check(r.fdc_read(0) & 0x10, "track beyond geometry verified");
+        r.restore(); r.fdc_read(0);
+        if (heads == 1) {
+            r.dut.side = 0; const auto bytes = r.media_transfers;
+            r.setup(0x1000); r.read_sector(1); r.wait_irq();
+            check((r.fdc_read(0) & 0x10) && r.media_transfers == bytes,
+                  "absent second side issued disk reads");
+        }
+    }
+    r.dut.side = 1; r.dut.media_size = 839679; r.restore(); r.fdc_read(0);
+    const auto bytes = r.media_transfers;
+    r.setup(0x1000); r.read_sector(1); r.wait_irq();
+    check((r.fdc_read(0) & 0x10) && r.media_transfers == bytes, "unknown size produced geometry");
+}
+
 int main(int argc, char **argv)
 {
     Verilated::commandArgs(argc, argv);
@@ -395,8 +437,8 @@ int main(int argc, char **argv)
         test_multi_and_write_protect(r); test_backpressure_and_cancel(r);
         test_removal_during_stalled_dma(r);
         test_absence_and_dma_bounds(r);
-        test_force_index_and_motor(r);
-        std::printf("PASS st_floppy: EmuTOS register setup, 720KiB geometry, exact DMA, "
+        test_force_index_and_motor(r); test_supported_geometries(r);
+        std::printf("PASS st_floppy: EmuTOS register setup, all twelve geometries, exact DMA, "
                     "waits/cancellation, multiple reads, read-only media, and RAM bounds "
                     "(%llu cycles, %llu media bytes, %llu RAM words)\n",
                     (unsigned long long)r.cycles, (unsigned long long)r.media_transfers,

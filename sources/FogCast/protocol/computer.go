@@ -42,6 +42,9 @@ const (
 	C64DiskUnit uint8 = uint8(generated.FesComputerC64DiskUnit)
 	// AtariStFloppyBytes is an 80-track, two-sided, nine-sector raw ST image.
 	AtariStFloppyBytes int64 = int64(generated.FesComputerAtariStFloppyBytes)
+	// AtariStFloppyGeometryMinBytes and MaxBytes bound the opt-in layouts.
+	AtariStFloppyGeometryMinBytes int64 = int64(generated.FesComputerAtariStFloppyGeometryMinBytes)
+	AtariStFloppyGeometryMaxBytes int64 = int64(generated.FesComputerAtariStFloppyGeometryMaxBytes)
 	// AtariStFloppyUnit is the media unit fes.media.atari-st-floppy occupies.
 	AtariStFloppyUnit uint8 = uint8(generated.FesComputerAtariStFloppyUnit)
 	// ComputerMediaTransport names the fes.computer media-unit delivery.
@@ -80,6 +83,17 @@ func C64DiskInterface() RuntimeContract {
 // AtariStFloppyInterface is the unit-0 Atari ST raw floppy contract.
 func AtariStFloppyInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtariStFloppyID, Major: generated.FesComputerInterfaceMediaAtariStFloppyMajor, Minor: generated.FesComputerInterfaceMediaAtariStFloppyMinor}
+}
+
+func AtariStFloppyGeometryInterface() RuntimeContract {
+	return RuntimeContract{ID: generated.FesComputerInterfaceMediaAtariStFloppyGeometryID, Major: generated.FesComputerInterfaceMediaAtariStFloppyGeometryMajor, Minor: generated.FesComputerInterfaceMediaAtariStFloppyGeometryMinor}
+}
+func AtariStFloppyGeometryCapable(p *CorePackageStatus) bool {
+	return activeComputer(p) && activeInterface(p, AtariStFloppyInterface()) && activeInterface(p, AtariStFloppyGeometryInterface())
+}
+func AdmitAtariStFloppySize(size int64) bool {
+	_, ok := corepackage.AtariStGeometryForSize(size)
+	return ok
 }
 
 // ComputerABI reports the exact fes.computer 1.0 contract.
@@ -155,7 +169,8 @@ func (u MediaUnitStatus) Valid() bool {
 			int64(u.MinBytes) == C64DiskBytes && int64(u.MaxBytes) == C64DiskBytes
 	case AtariStFloppyInterface().ID:
 		return u.Interface == AtariStFloppyInterface() && u.Unit == AtariStFloppyUnit &&
-			int64(u.MinBytes) == AtariStFloppyBytes && int64(u.MaxBytes) == AtariStFloppyBytes
+			((int64(u.MinBytes) == AtariStFloppyBytes && int64(u.MaxBytes) == AtariStFloppyBytes) ||
+				(int64(u.MinBytes) == AtariStFloppyGeometryMinBytes && int64(u.MaxBytes) == AtariStFloppyGeometryMaxBytes))
 	}
 	if u.Interface.ID == SpectrumTapeInterface().ID {
 		return u.Interface == SpectrumTapeInterface() && u.Unit == SpectrumTapeUnit &&
@@ -172,6 +187,9 @@ func MediaUnit(p *CorePackageStatus, unit uint8) (MediaUnitStatus, bool) {
 	}
 	for _, u := range p.MediaUnits {
 		if u.Unit == unit && u.Valid() && activeInterface(p, u.Interface) {
+			if u.Interface == AtariStFloppyInterface() && int64(u.MaxBytes) != AtariStFloppyBytes && !AtariStFloppyGeometryCapable(p) {
+				continue
+			}
 			return u, true
 		}
 	}
@@ -203,8 +221,12 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".d64"}})
 		case contract.ID == stFloppy.ID && contract.Major == int64(stFloppy.Major) && contract.Minor == int64(stFloppy.Minor):
 			unit := AtariStFloppyUnit
+			minBytes, maxBytes := AtariStFloppyBytes, AtariStFloppyBytes
+			if corepackage.DeclaresAtariStGeometry(descriptor) {
+				minBytes, maxBytes = AtariStFloppyGeometryMinBytes, AtariStFloppyGeometryMaxBytes
+			}
 			result = append(result, CoreMediaCapability{Role: DiskRole, Format: "atari-st-floppy",
-				MinBytes: AtariStFloppyBytes, MaxBytes: AtariStFloppyBytes, Interface: stFloppy,
+				MinBytes: minBytes, MaxBytes: maxBytes, Interface: stFloppy,
 				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".st"}})
 		}
 		if contract.ID == tape.ID && contract.Major == int64(tape.Major) && contract.Minor == int64(tape.Minor) {
@@ -324,7 +346,8 @@ func (b MediaUnitBinding) AcceptsSize(s Status, size int64) bool {
 		return false
 	}
 	unit, _ := MediaUnit(s.CorePackage, b.Unit)
-	return size >= int64(unit.MinBytes) && size <= int64(unit.MaxBytes)
+	return size >= int64(unit.MinBytes) && size <= int64(unit.MaxBytes) &&
+		(unit.Interface != AtariStFloppyInterface() || AdmitAtariStFloppySize(size))
 }
 
 func (b MediaUnitBinding) SetHeaders(h http.Header) {
@@ -354,7 +377,7 @@ func MediaUnitIdentityError() *APIError {
 
 // DiskMediaRequestError is the live-media refusal for home-computer disks.
 func DiskMediaRequestError() *APIError {
-	return &APIError{Code: CodeBadRequest, Message: "live disk media requires .dsk/.do (143360 bytes), .d64 (174848 bytes), or .st (737280 bytes)", Phase: "request"}
+	return &APIError{Code: CodeBadRequest, Message: "live disk media requires .dsk/.do (143360 bytes), .d64 (174848 bytes), or raw .st (720 KiB, or a declared 80..82-track, 1..2-head, 9..10-sector layout)", Phase: "request"}
 }
 
 // CassetteMediaRequestError is the live-media refusal for Spectrum .tap images.

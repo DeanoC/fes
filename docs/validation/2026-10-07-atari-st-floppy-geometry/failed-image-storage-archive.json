@@ -1,0 +1,19 @@
+{
+  "classification": "reversible archive of unreferenced release",
+  "image_sha256": "3e4927feb72a25118e245539698dc6b6dfcb0f1b3e8224d2a8ca3a20dc82cae6",
+  "local_path": "/home/deano/.codex/worktrees/f91e/fes/out/dev/atari-st-floppy-geometry/hardware/archived-releases/3e4927feb72a25118e245539698dc6b6dfcb0f1b3e8224d2a8ca3a20dc82cae6.img",
+  "size": 167772160,
+  "factory": "7999fde2a5ab7944882f7de341948d9bc78a46dfd351ed23ef0b2198dfef3bdf",
+  "update_before": {
+    "good": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+    "previous": "efe04797f2682c5c76372999a0628dc4f62742905e253dfc557311c0e0453075",
+    "corrupt": false,
+    "boot_id": "d47250f6-ed91-4ac5-8886-eefe7772f824",
+    "image_sha256": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+    "trial": false,
+    "raw_idle_ready": true
+  },
+  "loop_backing_files": "/media/fat/fogcast/releases/images/5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a.img\n/root2/linux/linux.img\n",
+  "original_manifest_retained_on_kit": true,
+  "pass": true
+}

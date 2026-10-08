@@ -33,6 +33,7 @@ module st_io #(
     output wire signed [15:0] audio_pcm,
     output wire audio_valid,
     input wire media_ready, media_frozen,
+    input wire [31:0] media_size,
     output wire media_write_req,
     output wire [19:1] media_write_addr,
     output wire [15:0] media_write_data,
@@ -183,7 +184,7 @@ module st_io #(
         .media_write_req(media_write_req), .media_write_addr(media_write_addr),
         .media_write_data(media_write_data), .media_write_ready(media_write_ready),
         .media_write_busy(media_write_busy), .media_changed(media_changed),
-        .media_ready(media_ready), .media_req(media_req), .media_addr(media_addr),
+        .media_ready(media_ready), .media_size(media_size), .media_req(media_req), .media_addr(media_addr),
         .media_data(media_data), .media_valid(media_valid), .dma_req(dma_req),
         .dma_addr(dma_addr), .dma_wdata(dma_wdata), .dma_byte_enable(dma_byte_enable),
         .dma_ready(dma_ready), .dma_write(dma_write), .dma_rdata(dma_rdata), .irq(fdc_irq)

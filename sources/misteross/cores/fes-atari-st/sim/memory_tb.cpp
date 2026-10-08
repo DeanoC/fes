@@ -26,7 +26,7 @@ public:
     explicit Sdram(unsigned delay = 0) : mask_delay(delay) {
         require(delay <= 2, "DQM delay must be zero, one or two clocks", 0);
     }
-    std::vector<uint16_t> words = std::vector<uint16_t>(0xa0000, 0);
+    std::vector<uint16_t> words = std::vector<uint16_t>(0xa6800, 0);
     uint64_t cycle = 0, reads = 0, writes = 0, refreshes = 0, mode_sets = 0;
     uint64_t last_refresh = 0, read_due = 0;
     uint16_t pending_read = 0;
@@ -133,7 +133,7 @@ public:
     explicit Simulation(unsigned delay = 0) : memory(delay) {}
     Vst_memory_sim_top dut;
     Sdram memory;
-    std::vector<uint16_t> reference = std::vector<uint16_t>(0xa0000, 0);
+    std::vector<uint16_t> reference = std::vector<uint16_t>(0xa6800, 0);
     uint64_t cycles = 0, completed = 0;
     unsigned max_latency = 0;
 
@@ -187,8 +187,8 @@ public:
     }
 
     void check(unsigned client, const Request &r) {
-        const bool valid = client != 2 ? client == 3 ? r.address < 368640 :
-                           client == 4 ? r.address < 737280 : true :
+        const bool valid = client != 2 ? client == 3 ? r.address < 419840 :
+                           client == 4 ? r.address < 839680 : true :
                            r.address >= 8 && r.address < 0x80000;
         const unsigned address = client == 2 ? r.address / 2 :
                                  client == 3 ? 0x40000 + r.address :
@@ -270,9 +270,9 @@ public:
         transaction(3, {0, 0x00ab, 1, true});
         transaction(4, {0});
         transaction(4, {1});
-        transaction(3, {368639, 0x9876, 3, true});
-        transaction(4, {737278});
-        transaction(4, {737279});
+        transaction(3, {419839, 0x9876, 3, true});
+        transaction(4, {839678});
+        transaction(4, {839679});
         transaction(0, {0}); // RAM zero does not alias media zero.
         transaction(0, {0x3ffff});
 
@@ -280,8 +280,8 @@ public:
         transaction(2, {0});
         transaction(2, {6, 0xffff, 3, true});
         transaction(2, {0x80000, 0xffff, 3, true});
-        transaction(3, {368640, 0xffff, 3, true});
-        transaction(4, {737280});
+        transaction(3, {419840, 0xffff, 3, true});
+        transaction(4, {839680});
         transaction(4, {1048575});
         require(memory.reads + memory.writes == physical, "invalid memory access reached SDRAM", cycles);
 
@@ -289,7 +289,7 @@ public:
         idle(5000);
         require(memory.refreshes >= refreshed + 10, "idle SDRAM is not refreshed", cycles);
         transaction(0, {4});
-        transaction(4, {737279});
+        transaction(4, {839679});
 
         // Reset after a physical ACTIVATE, before its WRITE. SDRAM must drain
         // and commit the command, while the invalidated client gets no ready.
@@ -309,7 +309,7 @@ public:
         require(memory.writes == writes_before + 1, "warm reset did not drain pending physical WRITE", cycles);
         reference[drained.address] = drained.data;
         transaction(0, {drained.address});
-        transaction(4, {737279});
+        transaction(4, {839679});
 
         // A short CPU Hold withdraws only the CPU request. A newly issued
         // request must not consume the old physical read's completion.
@@ -350,7 +350,7 @@ public:
                     r.address = i == 0 ? 0x100 + (next() % 0x200) :
                                 i == 1 ? 0x100 + (next() % 0x200) :
                                 i == 2 ? 8 + (next() % 0x20000) * 2 :
-                                i == 3 ? next() % 368640 : next() % 737280;
+                                i == 3 ? next() % 419840 : next() % 839680;
                     request(i, r);
                     active[i] = true;
                     age[i] = 0;

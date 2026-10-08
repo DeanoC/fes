@@ -290,3 +290,11 @@ interfaces. Those requirements describe hardware capabilities, not inserted
 media. Ordinary live insertion remains available. Two-source ROM loads reject
 initial media. This startup path has host coverage and the
 [exact-package automatic-boot diagnostic](../../../docs/validation/2026-10-06-atari-st-auto-boot.md); assembled appliance acceptance remains pending.
+
+Required `fes.media.atari-st-floppy-geometry` 1.0 permits the 12 uniquely sized
+raw ST layouts with 80–82 tracks, one/two heads, nine/ten sectors and 512-byte
+sectors (368640–839680 bytes). Discovery proves capability bit 10 and exact
+extended live limits. Nonlegacy immutable bases require matching BPBs; saved
+records use minor 1, retain guest BPB edits, and must match the base length
+before restore. Legacy 737280-byte behavior and minor-0 bytes are unchanged.
+This extension has software coverage; no new hardware acceptance is claimed.

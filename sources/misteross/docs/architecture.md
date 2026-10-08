@@ -1702,10 +1702,17 @@ and establishes masks on those shared pins two fabric clocks before WRITE.
 Reads clear both masks. Warm CPU Hold
 leaves memory and uploads running. Withdrawn requests drain without stale
 acknowledgements.
-The exact 720 KiB disk buffer is disjoint from the 512 KiB RAM, and the
+The bounded disk buffer (up to 820 KiB) is disjoint from the 512 KiB RAM, and the
 big-endian media adapter handles arbitrary odd chunk boundaries before the
 mailbox acknowledges a write. `fes.media.atari-st-floppy` 1.0 adds capability
 bit 7 to the existing computer ABI, without changing its framing/opcodes.
+The shell requires `fes.media.atari-st-floppy-geometry` 1.0 (capability bit 10)
+to admit twelve unique image lengths for 80–82 tracks, one/two heads and
+nine/ten 512-byte sectors. Legacy packages keep exact 720 KiB bounds. The
+controller derives CHS from committed length rather than mutable BPB bytes;
+its last-track/side/sector bounds and multi-sector termination use that shape.
+Snapshots retain layout 1.0 for 720 KiB, and use layout 1.1 for other sizes.
+The new shell and matching video parts require fresh artifact qualification.
 The writable mailbox rejects Begin and Eject during sector collection or an
 accepted commit, even for volatile disks. The sector writer drains before an
 explicit later replacement can upload through the shared media arbiter.
@@ -1723,6 +1730,19 @@ optional frozen raster socket admits independently sealed Direct/Scanlines
 archives bound to the exact shell; an empty socket uses built-in Direct with
 the same latency. Underflow blacks a whole affected line and later
 lines recover; stale fills cannot cross a frame configuration change.
+
+The `fes.atari-st-video.parts/2` physical layout retains the 93 original
+boundary/clock FFs and adds 32 permanent request-egress LUT loads at
+`MISTRAL_MCOMB.25.44.*` and `MISTRAL_MCOMB.25.45.*`. These two LABs remain shell
+owned inside the existing `video 24 41 28 58` reservation. Each load consumes
+one request FF's Q, so pass one must route every request output before freezing
+the scaffold. The loads and their input routes remain in the scaffold; part
+routing can extend those frozen branches inside the original CRAM fence.
+The producer checks all load sites, source bits, identity LUT masks and routed
+request branches. The request/response word mapping, boundary FF BELs, clock
+anchors and CRAM rectangle remain the existing socket contract. Separate
+Direct/Scanlines routes must still pass timing and whole-bitstream containment;
+retained egress alone does not qualify a video part.
 
 `scripts/build_atari_st_video_part.py` compares the frozen shell directory with
 the sealed package for `manifest.toml`, `core.rbf` and `rom-map.json`.

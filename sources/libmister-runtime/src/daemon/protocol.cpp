@@ -1,6 +1,8 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "native/atari_st_geometry.hpp"
+
 #include "daemon/protocol.hpp"
 
 #include <cstring>
@@ -884,8 +886,9 @@ Error ParseRequest(const std::string& line, Request* request)
 					!StringMember(*initial, "base_media_id", &base, &error)) return error;
 				if (!Path(*path) || !Path(*data_root) || !PackageID(*base) || game->empty() || game->size() > 256 ||
 					!BoundedInteger(Find(*initial, "unit"), 0, 0) ||
-					!BoundedInteger(Find(*initial, "size"), native::generated::FesComputerAtariStFloppyBytes,
-						native::generated::FesComputerAtariStFloppyBytes))
+					!BoundedInteger(Find(*initial, "size"), native::generated::FesComputerAtariStFloppyGeometryMinBytes,
+						native::generated::FesComputerAtariStFloppyGeometryMaxBytes) ||
+                    !native::InferAtariStGeometry(static_cast<std::uint32_t>(Find(*initial, "size")->integer_value)))
 					return Invalid("invalid initial disk paths, identity or geometry");
 				bool hyphen = true;
 				for (char c : *game) {
@@ -897,7 +900,7 @@ Error ParseRequest(const std::string& line, Request* request)
 				parsed.has_initial_media = true;
 				parsed.initial_media.path = *path;
 				parsed.initial_media.data_root = *data_root;
-				parsed.initial_media.size = native::generated::FesComputerAtariStFloppyBytes;
+				parsed.initial_media.size = static_cast<std::uint32_t>(Find(*initial, "size")->integer_value);
 				parsed.initial_media.binding = {*game, *base, 0};
 			}
 			const std::string *path=nullptr,*id=nullptr,*programmed=nullptr;
@@ -1222,7 +1225,7 @@ Error ParseRequest(const std::string& line, Request* request)
                         return Invalid("invalid library game identity");
                     hyphen=c=='-';
                 }
-                if(hyphen||unit->integer_value!=0||parsed.media_size!=FesComputerAtariStFloppyBytes)
+                if(hyphen||unit->integer_value!=0||!native::InferAtariStGeometry(parsed.media_size))
                     return Invalid("invalid library disk geometry or identity");
                 parsed.data_root=*root_path;parsed.media_binding.game_id=*game;parsed.media_binding.base_media_id=*base;
                 parsed.media_binding.unit=static_cast<std::uint8_t>(unit->integer_value);

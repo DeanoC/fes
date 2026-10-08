@@ -697,14 +697,15 @@ A `fes.computer` package projects media role `disk`
 `apple2-dos-order`, exactly 143,360 bytes, names `.dsk`/`.do`.
 `fes.media.c64-disk` 1.0 is format `c64-d64`, exactly 174,848 bytes, name
 `.d64`. `fes.media.atari-st-floppy` 1.0 is format `atari-st-floppy`, exactly
-737,280 bytes, name `.st`. `fes.media.spectrum-tape` 1.0 is role `cassette`, format
+737,280 bytes, name `.st`; the required geometry extension admits the bounded
+layouts described under [raw floppy geometry](#atari-st-raw-floppy-geometry). `fes.media.spectrum-tape` 1.0 is role `cassette`, format
 `spectrum-tap`, 1..65,536 bytes, name `.tap`, on the same unit 0. A shell
 declares one unit-0 medium. Library selection
 (`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
-13) validates the exact size offline. A home computer starts with its drive
-empty: launch programs the package first and then inserts the selected disk
-into unit 0; a failed insert is a failed launch and follows the existing
-library-slot Stop/recovery. The same session accepts later swaps:
+13) validates the size and source offline. Writable ST initial disks are
+restored and inserted before CPU release; other home computers program the
+package and then insert their selected medium into unit 0. A failed insertion
+is a failed launch and follows existing library-slot Stop/recovery. The same session accepts later swaps:
 `POST /api/v1/session/live-media` with a `.dsk`/`.do`, `.d64` or `.st` name inserts a
 household disk, and `…/live-media/clear` ejects the unit-0 medium the active
 generation declares (Apple II floppy, C64 disk, Atari ST floppy, or Spectrum tape). `.p` names
@@ -713,7 +714,7 @@ The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
 `fogcast eject-disk` for a disk, and `fogcast change-cassette` and
 `fogcast eject-cassette` for a Spectrum `.tap`. A stored
 media ID is named `disk.dsk`, `disk.d64` or `disk.st` from the active unit,
-so the host checks 143,360, 174,848 or 737,280 bytes against that generation. A path is imported
+so the host checks the declared disk size or discrete ST geometry against that generation. A path is imported
 through `POST /api/v1/core-media` and keeps its basename.
 
 `fogcast/media_units.go` binds each request to the package, generation, target
@@ -735,7 +736,7 @@ behind a disk transfer.
 
 A shell pairing `fes.media.atari-st-floppy-write` 1.0 with the Atari ST base
 interface supports writable disk RAM and versioned snapshots. Library launch
-uses explicit game/base-image identity through target
+uses explicit game/base-image identity in the initial ROM envelope or target
 `POST /v1/library/media/insert`; development `insert-media` and `change-disk`
 remain volatile. Imported catalog blobs remain immutable. Durable records live
 under the runtime's `/media/fat/fogcast/core-data/media` root, within the existing
@@ -744,7 +745,8 @@ is isolated by core ID, game ID, unit and immutable base digest.
 
 The target library insert route has the existing package/generation/target/unit
 headers plus `X-FogCast-Media-Game` and `X-FogCast-Media-Base`; it requires one
-exact 737,280-byte octet stream. `POST /v1/library/media/save` has the unit
+exact admitted raw-ST octet stream, with non-720 KiB geometry requiring the
+active extension and a matching immutable-source BPB. `POST /v1/library/media/save` has the unit
 binding and an empty body. Both retain the existing kit lease and update
 exclusion. The agent chooses the storage root; callers never send target paths.
 Live status exposes optional unit `persistence` with `mode:"persistent"`,
@@ -2128,7 +2130,9 @@ format 3 with one `firmware` ROM linked at download. The optional
 physical slots 2, 4, 5 and 7), not a capability bit.
 
 Atari ST (`fes.atari-st`) uses the same home-computer launch and media paths
-with required `fes.media.atari-st-floppy` 1.0 and an exact 720 KiB raw disk.
+with required `fes.media.atari-st-floppy` 1.0 and optional selected raw disk.
+The base disk is exactly 720 KiB; the required geometry extension admits
+80..82-track, 1..2-head, 9..10-sector layouts.
 Optional `fes.expansion.atari-st-bus` 1.0 uses shared map
 `fes.atari-st-bus.socket/1`, with one card in socket 1 through the same
 slot-composition transport and independently checked shared linker. `.msa`,
@@ -2771,8 +2775,8 @@ Existing post-activation HostOnly cleanup recovery remains unchanged.
 
 A writable format-3 ST library launch may omit the disk and boot to GEM with
 an empty drive A. Required floppy interfaces declare hardware support, not a
-requirement to insert media. When a disk is selected, the launch includes its 720 KiB
-source and explicit game/base-media binding in the closed ROM envelope. The
+requirement to insert media. When a disk is selected, the launch includes its
+exact admitted raw-ST source and explicit game/base-media binding in the closed ROM envelope. The
 host snapshots and hashes those immutable bytes before target mutation. The
 agent rejects initial disks on development routes, stages them privately and
 passes the fixed durable-media root to the runtime with the linked ROM load.
@@ -2962,3 +2966,24 @@ with `MEDIA_BUSY_OTHER_KIT` (HTTP 409), and the target cast started for that
 launch is rolled back. Configuration does not bind the RTP destination to a
 named target address, so the host cannot validate destination-to-kit
 correspondence; operators must configure the destination for the intended kit.
+
+### Atari ST raw floppy geometry
+
+The original `fes.media.atari-st-floppy` and writable extension keep their
+737,280-byte raw ST admission. A package must require
+`fes.media.atari-st-floppy-geometry` 1.0 to admit the twelve layouts formed by
+80..82 tracks, 1..2 heads and 9..10 sectors of 512 bytes. Length uniquely
+identifies geometry; other sizes and compressed MSA/STX streams are refused.
+Non-720 KiB immutable sources require little-endian boot BPB fields matching
+their sector size, total sector count, sectors per track and heads. Legacy
+720 KiB sources still permit arbitrary boot sectors. The target independently
+stages and checks immutable sources before runtime insertion. Durable mutable
+snapshots retain their admitted length even if guest writes alter the BPB.
+
+The existing initial-ROM envelope carries the exact disk length through its
+receipt and immutable publication. No disk remains a valid GEM launch. Live
+unit 0 retains the base floppy interface and advertises 368,640..839,680 bytes
+only when the required geometry extension is also active; admission checks
+the discrete supported lengths rather than accepting every value in that
+range. Disk replacement, save and restore use the existing library binding
+and package-generation checks.
