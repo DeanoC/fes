@@ -123,11 +123,13 @@ module st_io #(
     wire [8:0] display_top = frame_resolution == 2'd2 ? 9'd34 : frame_pal ? 9'd63 : 9'd34;
     wire [8:0] display_start = line_resolution == 2'd2 ? 9'd4 : line_pal ? 9'd56 : 9'd52;
     wire [8:0] display_end = line_resolution == 2'd2 ? 9'd164 : line_pal ? 9'd376 : 9'd372;
-    // Hatari video.h defines 47 PAL / 26 NTSC extra DE lines.
-    wire [8:0] display_height = frame_resolution == 2'd2 ? 9'd400 :
-        bottom_open ? (frame_pal ? 9'd247 : 9'd226) : 9'd200;
-    assign native_display = !reset && native_line >= display_top &&
-        native_line < display_top + display_height &&
+    // Constant bounds avoid a mode-dependent addition on the DE/RGB path.
+    // Hatari video.h defines 47 PAL / 26 NTSC extra color DE lines.
+    wire active_line = frame_resolution == 2'd2 ?
+        (native_line >= 9'd34 && native_line < 9'd434) : frame_pal ?
+        (native_line >= 9'd63 && (bottom_open ? native_line < 9'd310 : native_line < 9'd263)) :
+        (native_line >= 9'd34 && (bottom_open ? native_line < 9'd260 : native_line < 9'd234));
+    assign native_display = !reset && active_line &&
         horizontal_cycle >= display_start && horizontal_cycle < display_end;
     always @(posedge clk) begin
         if (reset) begin
@@ -169,7 +171,7 @@ module st_io #(
             end else if (hblank) begin
                 if (native_line == display_top - 9'd1)
                     video_counter <= {screen_base[23:8], 8'd0};
-                else if (native_line >= display_top && native_line < display_top + display_height)
+                else if (active_line)
                     video_counter <= video_counter + (line_resolution == 2'd2 ? 24'd80 : 24'd160);
                 if (native_line != 9'h1ff) native_line <= native_line + 1'b1;
             end
