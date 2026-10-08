@@ -1,0 +1,33 @@
+Implementation source: e88ac743670ca05589993404e5fa235df512a431
+Command: make -C sources/misteross sim-fes-atari-st
+fes.atari-st machine: firmware 1 passed after 39357 cycles (memory waits 0/0, expansion waits 434)
+fes.atari-st machine: CPU-written four-plane pixels passed through direct video part
+fes.atari-st machine: CPU-written four-plane pixels passed through scanline video part
+fes.atari-st machine: firmware 2 passed after 48287 cycles (memory waits 12054/2583, expansion waits 689)
+ST video mode 0, base 0x2012f, mono invert 0: full frame passed
+ST video mode 1, base 0x30000, mono invert 0: full frame passed
+ST video mode 2, base 0x40000, mono invert 0: full frame passed
+ST video mode 2, base 0x40000, mono invert 1: full frame passed
+ST video mode 0, base 0x7ff00, mono invert 0: full frame passed
+ST video mode 1, base 0xffff00, mono invert 0: full frame passed
+ST video mode 3, base 0x20000, mono invert 0: full frame passed
+ST video: 8662509 cycles passed
+st_mfp: 524255 assertions passed over 528605 cycles
+ST input/audio: ACIA timing/errors/IRQ, IKBD key priority/aliases, FIFO packets/all tails/wrap/pop-push/reset and shared YM2149 sound passed
+ST I/O: nominal 50 Hz, 200 Timer B events/frame
+ST I/O: nominal 60 Hz, 200 Timer B events/frame
+ST I/O: nominal 71 Hz, 400 Timer B events/frame
+ST I/O: 6528377 assertions, 79286606 cycles; byte lanes, reset, interrupt wiring and timer rates passed
+PASS st_floppy: EmuTOS register setup, all twelve geometries, exact DMA, waits/cancellation, multiple reads, read-only media, and RAM bounds (94547468 cycles, 58386 media bytes, 29185 RAM words)
+PASS st_floppy writable: geometry/readback, atomic sector commits, reset/eject/force drain, freeze, DMA bounds/direction and multiple writes
+PASS ST media port: contention, stable held payload, one ACK, cancellation, rearm gap and cold reset
+PASS ST media lifecycle: actual writer/mailbox/arbiter busy Begin/Eject rejection, old-sector drain, explicit replacement and eject
+computer interaction: mouse GP/IKBD/ACIA and snapshot freeze/read/save PASS
+st_memory: DQM delay 0: 3036 requests passed, 132 refreshes, 32 masked writes after refresh, max latency 102 clocks over 63424 cycles
+st_memory: DQM delay 1: 3036 requests passed, 132 refreshes, 32 masked writes after refresh, max latency 102 clocks over 63424 cycles
+st_memory: DQM delay 2: 3036 requests passed, 132 refreshes, 32 masked writes after refresh, max latency 102 clocks over 63424 cycles
+ST video adapter: 11137617 independent pixel clocks, 7833682 system clocks, 93120 stable reads; 22 forced black lines, 258 recovered lines; crossing-frame 97 black/409 recovered lines passed
+ST registered cache: 215669 word/tag comparisons; ready edges 1643/1644/1645 around first lookup 1644 passed
+Native ST RGB: 178966052 checks, 11 captures, 6 repeated output frames, 203 black native lines; live palette, ownership, Hold and mode recovery passed
+Atari ST media PASS: 737280 bytes, 527286 physical writes, 18983924 clocks
+Atari ST media PASS: 839680 bytes, 600490 physical writes, 21620361 clocks

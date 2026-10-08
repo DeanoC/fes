@@ -1,0 +1,3 @@
+Implementation source: e88ac743670ca05589993404e5fa235df512a431
+python3 scripts/consistency.py
+consistency: package YAML valid; 18 generated consumers, 34 fixture copies and 0 copied source pins match

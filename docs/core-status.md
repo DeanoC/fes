@@ -228,6 +228,14 @@ and the model alternates its source raster palette sequence. Original GLUE
 latch timing, opened borders, accurate audio and full image integration remain
 open; this diagnostic does not establish full BIG compatibility.
 
+The [raster timing follow-up](validation/2026-10-09-atari-st-raster-timing.md)
+uses coherent native CPU/line/frame cycles, a bounded bottom-stop sample and
+24-cycle delayed Timer B display edges. The original BIG model has sixteen
+identical static-logo crops and menu VBL acknowledgements on line zero.
+Focused I/O, the full ST suite, diskless stock EmuTOS SDRAM/HDMI and parent
+consistency pass. Fresh FPGA and physical qualification remain pending;
+RGB output still crops the opened bottom region to ordinary 320×200.
+
 ## Not implemented, or not this package
 
 - ZX81 mid-session tape replace and eject use the same `fes.media.blob`

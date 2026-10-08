@@ -1,0 +1,108 @@
+{
+  "schema": "fes.atari-st-raster-timing-evidence/1",
+  "base_revision": "0805d2b7e08f66127524353c4cbaf15d9daf180e",
+  "implementation_revision": "e88ac743670ca05589993404e5fa235df512a431",
+  "hardware_execution": false,
+  "demo_compatibility_asserted": false,
+  "shared_contract_changes": false,
+  "validation_pending": [
+    "fresh FPGA package",
+    "bounded leased kit diagnostic"
+  ],
+  "digital_tests": {
+    "st_aggregate": "pass",
+    "focused_io_assertions": 6528377,
+    "focused_io_system_clocks": 79286606,
+    "parent_consistency": "pass",
+    "generated_consumers": 18,
+    "fixture_copies": 34,
+    "helper_tests": 12,
+    "planner_tests": 30,
+    "source_revision": "e88ac743670ca05589993404e5fa235df512a431"
+  },
+  "diskless_emutos": {
+    "pass": true,
+    "system_clocks": 417792000,
+    "pixel_clocks": 594018699,
+    "complete_output_frames": 479,
+    "native_underruns": 0,
+    "indexed_underruns": 0,
+    "maximum_cpu_latency_system_clocks": 63,
+    "maximum_video_latency_system_clocks": 64,
+    "hardware_execution": false,
+    "source_revision": "e88ac743670ca05589993404e5fa235df512a431"
+  },
+  "original_big": {
+    "capture_completed": true,
+    "source_revision": "e88ac743670ca05589993404e5fa235df512a431",
+    "captured_inputs_match_revision": true,
+    "captured_input_count": 21,
+    "metrics": {
+      "bus_address": 370622,
+      "bus_faults": 0,
+      "cycle": 626688000,
+      "dma_words": 159488,
+      "fdc_head_track": 62,
+      "fdc_sector": 3,
+      "fdc_status": 0,
+      "fdc_track": 62,
+      "halted": false,
+      "hbl_acks": 0,
+      "hz200": 1343,
+      "max_completed_native_frame_palette_changes": 271,
+      "media_bytes": 318976,
+      "memvalid": 1965038067,
+      "mfp_acks": 7754,
+      "native_rgb_frames": 598,
+      "native_rgb_underruns": 0,
+      "palette_changed_entries_after_six_seconds": 44527,
+      "pc": 53704,
+      "phystop": 524288,
+      "ram_writes": 2624312,
+      "resolution": 0,
+      "screen_base": 458752,
+      "sync_mode": 2,
+      "vbl_acks": 338
+    },
+    "hardware_execution": false,
+    "demo_compatibility_asserted": false
+  },
+  "evidence_files": {
+    "baseline-hardware-logo.json": "0f87e5f9710d8a8a71c99e60385f280edaf1935af0b5e0c07e49704b9b78ee3b",
+    "bottom-only-model.json": "0a0228c9151b65691c0bf7c60c8b0531b47333b28e5f1c98589f3790731cdb22",
+    "bottom-only-raster-excerpt.jsonl": "ca7f8a1c935a532f2baabe05013555424bbdc890891feb9c5518888de40e6f00",
+    "delayed-raster-excerpt.jsonl": "31f25d5203c6220fa12076d6a00acbe5af51160f3daa9f24b7edc199fcd615d2",
+    "demo-metrics.json": "2a7134e0c861f93a92502779beb3b1f0dd1f5e9cb323648612c892314ace1fb1",
+    "demo-proof.json": "ef17b4c76b96eacc537323a6397037e0c7fe45717c9fa517eafdfbf2fd862293",
+    "emutos-memory.log": "c591a5a9d9f500263ea9954238d29290ecb7b7bf5e283dc7b678edd6bea22bdf",
+    "hatari-bottom-excerpt.log": "af98f41e2ac0fbff58206e190e4a662f076050efa965bf8fb8e473b566ea5c2c",
+    "hatari-reference.json": "b70fe829fb5b319fcdbb067c9f342ed3ec07f82ac7f28cd58daf5c4746f2635b",
+    "helper-tests.log": "5baa63a49ce215eb3033531284020a63f07ccef52c4f0ee06e31415146019bc6",
+    "io-test.log": "f188b49529fab701474e120eb1683f2b003b19e05f82fa75424120dc59225231",
+    "menu-comparison.json": "ac1c98a9ff7c0f427ebe33d265bec369e2d38db936e39a878a88101b12b77af8",
+    "model-menu.png": "60437a32d8783b765a2ffbbce13516754bc9ed3e3da43ac07b33907d484b41d3",
+    "model-scroller.png": "2e56511f616904354b64f297e989364378e6aa723939749027a573c0a8edbd51",
+    "parent-check.log": "55e4e75659635a1f1ae9d10585bf9d7e3044b3141486e9c9353c8953bf74300f",
+    "planner-tests.log": "9bfbef7e9c54bebdc23bf8b1a7767c24244bf66abe5517c8bf62e468d1b19248",
+    "seed4-timing.log": "f5972778e17a544d7e994a3f41b0e50a03e4ebf725c10405534a4a8c7deaa6f4",
+    "source-identity.json": "e06762deb01fe77083f0516216c556586869e04c873fd9953753eaf229127154",
+    "st-aggregate.log": "5f589725fdf639265019d9b847f64e008cb1c0dc567acd2ea855427bcc4019d4"
+  },
+  "fpga_attempts": [
+    {
+      "seed": 4,
+      "status": "final timing failure",
+      "pixel_mhz": 66.48,
+      "system_mhz": 51.58,
+      "audio_mhz": 177.49,
+      "full_route_log_sha256": "2c81119a24eec6b6a92c643fffe8f132165d93c5ada2f44ad5f73e1c1b9b5d80",
+      "source_revision": "e00c6347c77cc02da29040498dbe9e2974c3e554"
+    }
+  ],
+  "ci": {
+    "source_revision": "e00c6347c77cc02da29040498dbe9e2974c3e554",
+    "checks_passed": 47,
+    "checks_pending": 0,
+    "checks_failed": 0
+  }
+}
