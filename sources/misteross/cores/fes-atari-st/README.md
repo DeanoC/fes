@@ -176,6 +176,8 @@ coherent configuration bundle, activated at output frame boundaries. Their
 palette remains fixed for that output frame. Synchronous cache reads and
 ownership tags meet the original plane-capture edges. A held, fair arbiter
 shares the existing video-memory port between the two renderers.
+The indexed renderer compares constant current/next-line windows before mode
+selection, preserving its pixel and lookup cycles while shortening timing paths.
 
 The reduced native timing uses ordinary PAL lines 63–262 with DE cycles
 56–375, and NTSC lines 34–233 with DE cycles 52–371, following the ordinary

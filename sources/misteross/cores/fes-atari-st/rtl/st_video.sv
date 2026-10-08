@@ -55,8 +55,12 @@ module st_video #(
     wire [9:0] image_top = high_resolution ? 10'd160 : 10'd60;
     wire [9:0] image_height = high_resolution ? 10'd400 : 10'd600;
     wire [9:0] next_vertical = vertical == V_TOTAL - 1'b1 ? 10'd0 : vertical + 10'd1;
-    wire in_picture = horizontal < H_ACTIVE && vertical >= image_top &&
-                      vertical < image_top + image_height && mode_valid;
+    // Select complete constant windows after comparison; avoid putting the
+    // mode-dependent top/height arithmetic on the RGB output path.
+    wire picture_line = high_resolution ?
+        (vertical >= 10'd160 && vertical < 10'd560) :
+        (vertical >= 10'd60 && vertical < 10'd660);
+    wire in_picture = horizontal < H_ACTIVE && picture_line && mode_valid;
     wire [3:0] bit_index = 4'd15 - (low_resolution ? horizontal[5:2] : horizontal[4:1]);
 
     // Capture each plane immediately before its 16-pixel group. Group zero
@@ -70,8 +74,10 @@ module st_video #(
             reg [1:0] row_repeat;
             wire color_line = vertical >= 10'd60 && vertical < 10'd660;
             wire mono_line = vertical >= 10'd160 && vertical < 10'd560;
-            wire next_color_line = next_vertical >= 10'd60 && next_vertical < 10'd660;
-            wire next_mono_line = next_vertical >= 10'd160 && next_vertical < 10'd560;
+            // The next-line windows are the same bounds shifted back one.
+            // Frame/10-bit wrap both produce zero, outside either window.
+            wire next_color_line = vertical >= 10'd59 && vertical < 10'd659;
+            wire next_mono_line = vertical >= 10'd159 && vertical < 10'd559;
             // These are the original h+planes capture cycles, expressed before
             // addition/wrap comparisons. Select the mode after each constant
             // window; cache lookup still occurs exactly two clocks earlier.

@@ -1756,6 +1756,8 @@ Fixed per-mode fetch windows, synchronous cache reads and ownership tags
 retain their original plane-capture edges. All modes feed the same shared
 RGB888 socket through two registered boundaries; Direct/Scanlines archives
 remain independently sealed against the exact shell.
+Current-line RGB and cached next-line lookup bounds use constant comparisons
+before mode selection, avoiding a next-line carry chain in the lookup predicate.
 
 `st_io.sv` remains a reduced native timing model, independent of fixed HDMI.
 The CPU phase-2 enable advances one horizontal counter, with line counts
