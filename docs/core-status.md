@@ -216,6 +216,8 @@ with temporary qualified geometry software. Captures show incorrect raster
 palette colours; audio is present but fidelity is unqualified. The original
 image and populated menu were restored. Demo borders, later sections, accurate
 audio and full current-image integration remain open.
+The [native palette record](validation/2026-10-08-atari-st-native-palette.md)
+binds the completed simulations and pending FPGA qualification.
 Current source adds ordinary low-resolution native RGB capture with live
 per-pixel palette selection and three owned complete-frame banks. Medium and
 monochrome retain their indexed renderer. This source change requires a new
