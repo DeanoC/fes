@@ -1717,7 +1717,10 @@ nine/ten 512-byte sectors. Legacy packages keep exact 720 KiB bounds. The
 controller derives CHS from committed length rather than mutable BPB bytes;
 its last-track/side/sector bounds and multi-sector termination use that shape.
 Snapshots retain layout 1.0 for 720 KiB, and use layout 1.1 for other sizes.
-The new shell and matching video parts require fresh artifact qualification.
+Changed shells and matching video parts require fresh artifact qualification.
+The [native palette record](../../../docs/validation/2026-10-08-atari-st-native-palette.md)
+binds the sealed pair and bounded Direct hardware diagnostic; menu timing,
+opened borders, audio fidelity and full appliance acceptance remain open.
 The writable mailbox rejects Begin and Eject during sector collection or an
 accepted commit, even for volatile disks. The sector writer drains before an
 explicit later replacement can upload through the shared media arbiter.

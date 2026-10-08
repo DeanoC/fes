@@ -1,0 +1,31 @@
+{
+  "archive": {
+    "path": "core.fcore",
+    "sha256": "abe826b9b64054cb2d6a76c6f11fb45c69b3e9d7494f6e21ad825f2f5fbab6d5",
+    "size": 20948992
+  },
+  "core_id": "fes.atari-st",
+  "format": 2,
+  "package_id": "582545af9ff0c933389c565fbb709f89dd29bd0f13ba33729bc08460c78ae975",
+  "selection": {
+    "manifest_sha256": "950942b6d7d7959f969cb0ca72d60c95495736e96a45fb4fe85d72bd9af28163",
+    "path": "fes-atari-st.package-selection.toml",
+    "payload_sha256": "0a277e7a62f7c3216c085d34e988f90ca3e2cb236a335e94b8e81c1171f836eb",
+    "sha256": "e62fa98eb3b898ef8815439e4c3b7f3f43579a5cc0160d5f4e8334afda8044f5"
+  },
+  "source_selection": {
+    "path": "fes-atari-st.package-selection.provenance.json",
+    "sha256": "86785333062ed4d4f245d9e6891f342a5c2d296dcc211bc41147ee8ab86b2623"
+  },
+  "sources": {
+    "FogCast": "5a0174d559f45e9b9b01219b44e199478213bb1b",
+    "libmister-runtime": "5a0174d559f45e9b9b01219b44e199478213bb1b",
+    "mister-packages": "5a0174d559f45e9b9b01219b44e199478213bb1b",
+    "misteross": "5a0174d559f45e9b9b01219b44e199478213bb1b"
+  },
+  "video_parts": {
+    "path": "fes-core-video-parts.json",
+    "sha256": "410e843dc7931247f6df164940b46d614ef39db8dc1d5d7937b0eb5a374550c7",
+    "size": 834
+  }
+}

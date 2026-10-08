@@ -1,0 +1,102 @@
+Critical path report for clock 'pixel_clk' (posedge -> posedge):
+Info:       type curr  total name
+Info:   clk-to-q  0.73  0.73 Source video.renderer.vertical_MISTRAL_FF_Q_1.Q
+Info:    routing  0.60  1.33 Net video.renderer.vertical[4] (30,47) -> (30,47)
+Info:                          Sink video.renderer.next_vertical_MISTRAL_ALUT_ARITH_SO_1.B
+Info:      logic  1.06  2.40 Source video.renderer.next_vertical_MISTRAL_ALUT_ARITH_SO_1.CO
+Info:    routing  0.00  2.40 Net video.renderer.next_vertical_MISTRAL_ALUT_ARITH_SO_1_CO (30,47) -> (30,47)
+Info:                          Sink video.renderer.next_vertical_MISTRAL_ALUT2_Q_2_A_MISTRAL_ALUT_ARITH_SO.CI
+Info:                          Defined in:
+Info:                               ../../cores/fes-atari-st/rtl/st_video.sv:213.66-213.81
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/arith_alm_map.v:58.7-63.6
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/alm_sim.v:189.112-189.114
+Info:      logic  0.37  2.76 Source video.renderer.next_vertical_MISTRAL_ALUT2_Q_2_A_MISTRAL_ALUT_ARITH_SO.SO
+Info:    routing  1.06  3.82 Net video.renderer.next_vertical_MISTRAL_ALUT2_Q_2_A[0] (30,47) -> (29,49)
+Info:                          Sink video.renderer.next_vertical_MISTRAL_ALUT2_Q_2.A
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.40  4.22 Source video.renderer.next_vertical_MISTRAL_ALUT2_Q_2.Q
+Info:    routing  0.60  4.83 Net video.renderer.next_vertical[5] (29,49) -> (30,49)
+Info:                          Sink video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO.A
+Info:      logic  1.08  5.91 Source video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO.CO
+Info:    routing  0.00  5.91 Net video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI (30,49) -> (30,49)
+Info:                          Sink video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO.CI
+Info:                          Defined in:
+Info:                               ../../cores/fes-atari-st/rtl/st_video.sv:73.36-73.59
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/arith_alm_map.v:58.7-63.6
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/alm_sim.v:189.112-189.114
+Info:      logic  0.04  5.94 Source video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO.CO
+Info:    routing  0.00  5.94 Net video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO_CI (30,49) -> (30,49)
+Info:                          Sink video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO.CI
+Info:                          Defined in:
+Info:                               ../../cores/fes-atari-st/rtl/st_video.sv:73.36-73.59
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/arith_alm_map.v:58.7-63.6
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/alm_sim.v:189.112-189.114
+Info:      logic  0.04  5.98 Source video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1_CI_MISTRAL_ALUT_ARITH_CO_CI_MISTRAL_ALUT_ARITH_CO.CO
+Info:    routing  0.00  5.98 Net video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1_CI_MISTRAL_ALUT_ARITH_CO_CI (30,49) -> (30,49)
+Info:                          Sink video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1_CI_MISTRAL_ALUT_ARITH_CO.CI
+Info:                          Defined in:
+Info:                               ../../cores/fes-atari-st/rtl/st_video.sv:73.36-73.59
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/arith_alm_map.v:58.7-63.6
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/alm_sim.v:189.112-189.114
+Info:      logic  0.04  6.01 Source video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1_CI_MISTRAL_ALUT_ARITH_CO.CO
+Info:    routing  0.00  6.01 Net video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1_CI (30,49) -> (30,49)
+Info:                          Sink video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1.CI
+Info:                          Defined in:
+Info:                               ../../cores/fes-atari-st/rtl/st_video.sv:73.36-73.59
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/arith_alm_map.v:58.7-63.6
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/alm_sim.v:189.112-189.114
+Info:      logic  0.37  6.38 Source video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B_MISTRAL_ALUT_ARITH_SO_1.SO
+Info:    routing  1.29  7.67 Net video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q_B[1] (30,49) -> (31,49)
+Info:                          Sink video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q.B
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.10  7.77 Source video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_E_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_Q.Q
+Info:    routing  1.14  8.91 Net video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q_MISTRAL_ALUT5_A_D_MISTRAL_ALUT5_Q_1_E_MISTRAL_ALUT3_Q_B[4] (31,49) -> (29,42)
+Info:                          Sink video.next_row_MISTRAL_ALUT2_Q_3_A_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT4_Q.C
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.40  9.31 Source video.next_row_MISTRAL_ALUT2_Q_3_A_MISTRAL_ALUT_ARITH_SO_CI_MISTRAL_ALUT_ARITH_CO_SO_MISTRAL_ALUT4_Q.Q
+Info:    routing  0.83  10.15 Net video.next_row_MISTRAL_ALUT2_Q_1_A[1] (29,42) -> (23,43)
+Info:                          Sink video.next_row_MISTRAL_ALUT2_Q.B
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.10  10.24 Source video.next_row_MISTRAL_ALUT2_Q.Q
+Info:    routing  1.24  11.48 Net video.cache_valid_MISTRAL_FF_Q_1_DATAIN_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT2_B_Q[3] (23,43) -> (23,43)
+Info:                          Sink video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_B.C
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.10  11.58 Source video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_B.Q
+Info:    routing  0.79  12.37 Net video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT3_Q_B_MISTRAL_ALUT3_B_Q[1] (23,43) -> (22,42)
+Info:                          Sink video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT_ARITH_B_SO_MISTRAL_ALUT_ARITH_SO_8_B_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT5_Q.E
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.10  12.46 Source video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT_ARITH_B_SO_MISTRAL_ALUT_ARITH_SO_8_B_MISTRAL_ALUT6_Q_E_MISTRAL_ALUT2_A_Q_MISTRAL_ALUT5_Q.Q
+Info:    routing  0.12  12.59 Net video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT_ARITH_B_SO_MISTRAL_ALUT_ARITH_SO_2_B_MISTRAL_ALUT5_Q_C[4] (22,42) -> (22,42)
+Info:                          Sink video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT_ARITH_B_SO_MISTRAL_ALUT_ARITH_SO_2_B_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT5_C.E
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.10  12.69 Source video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT_ARITH_B_SO_MISTRAL_ALUT_ARITH_SO_2_B_MISTRAL_ALUT5_Q_C_MISTRAL_ALUT5_C.Q
+Info:    routing  0.55  13.24 Net video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A[5] (22,42) -> (23,42)
+Info:                          Sink video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT_ARITH_B_SO_MISTRAL_ALUT_ARITH_SO_8_B_MISTRAL_ALUT6_Q.F
+Info:                          Defined in:
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/alm_map.v:7.19-7.20
+Info:      logic  0.10  13.34 Source video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT_ARITH_B_SO_MISTRAL_ALUT_ARITH_SO_8_B_MISTRAL_ALUT6_Q.Q
+Info:    routing  1.02  14.35 Net video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT_ARITH_B_SO_MISTRAL_ALUT_ARITH_SO_8_B (23,42) -> (23,45)
+Info:                          Sink video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT_ARITH_B_SO_MISTRAL_ALUT_ARITH_SO_8.B
+Info:      logic  1.32  15.68 Source video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT_ARITH_B_SO_MISTRAL_ALUT_ARITH_SO_8.SO
+Info:    routing  0.88  16.55 Net video.renderer.active_display_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT6_D_C_MISTRAL_ALUT4_B_Q_MISTRAL_ALUT_ARITH_SO_A_MISTRAL_ALUT6_A_Q_MISTRAL_ALUT_ARITH_B_SO[15] (23,45) -> (31,45)
+Info:                          Sink video.native_capture.capture.output_address_MISTRAL_FF_Q_1$ROUTETHRU.A
+Info:                          Defined in:
+Info:                               ../../cores/fes-atari-st/rtl/st_video_adapter.sv:333.9-333.44
+Info:                               /home/deano/fes/out/cache/misteross-toolchains/slots/5fcbceee7870559e604038ad8a2b2b3987aecd271854b7fe4ff832e95416bbdb/install/bin/../share/yosys/intel_alm/common/arith_alm_map.v:20.25-20.26
+Info:      logic  0.10  16.65 Source video.native_capture.capture.output_address_MISTRAL_FF_Q_1$ROUTETHRU.Q
+Info:    routing  0.02  16.67 Net video.native_capture.capture.output_address_MISTRAL_FF_Q_1$ROUTETHRU$conn$Q (31,45) -> (31,45)
+Info:                          Sink video.native_capture.capture.output_address_MISTRAL_FF_Q_1.DATAIN
+Info:      setup -0.20  16.48 Source video.native_capture.capture.output_address_MISTRAL_FF_Q_1.DATAIN
+Info: 6.32 ns logic, 10.15 ns routing
+
+Info: 
+Info: Analogue signoff check: worst clock slack -2.567 ns (pixel_clk 62.36 MHz, system_clock.clocks[0] 52.48 MHz, system_clock.clocks[1] 173.22 MHz) in 5.70s
+Info: Analogue signoff repair round 1: worst clock slack -2.567 ns (pixel_clk 62.36 MHz, system_clock.clocks[0] 52.48 MHz, system_clock.clocks[1] 173.22 MHz) in 6.61s
+Info: Analogue signoff repair round 2: worst clock slack -2.567 ns (pixel_clk 62.36 MHz, system_clock.clocks[0] 52.48 MHz, system_clock.clocks[1] 173.22 MHz) in 7.11s

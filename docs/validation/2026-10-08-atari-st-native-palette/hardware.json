@@ -1,0 +1,127 @@
+{
+  "archive": {
+    "path": "core.fcore",
+    "sha256": "abe826b9b64054cb2d6a76c6f11fb45c69b3e9d7494f6e21ad825f2f5fbab6d5",
+    "size": 20948992
+  },
+  "audio": {
+    "channels": 2,
+    "fidelity_asserted": false,
+    "frames": 480076,
+    "maximum": 29440,
+    "minimum": 0,
+    "rms": 13784.336486879081,
+    "sample_rate": 48000,
+    "saturated_samples": 0
+  },
+  "b_scroller_captured": true,
+  "baseline_image_sha256": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+  "classification": "bounded exact-artifact native RGB/Direct hardware diagnostic with previously qualified geometry host/runtime; not full BIG or appliance acceptance",
+  "diagnostic_image_sha256": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+  "disk_sha256": "608c4beff1780552e8ae6ee5a1efff27198fb6a3ca6274597f1cb528c3970edb",
+  "full_demo_compatibility_asserted": false,
+  "hardware_video_profile": "direct",
+  "host_revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+  "lifecycle_script_sha256": "59d4121bee1c60f79304d95be3e7d63b961a7fc2e8f7500429c5980c305f6f22",
+  "menu_captured": true,
+  "menu_flashing_resolved": false,
+  "menu_static_region": {
+    "crop_xywh": [
+      260,
+      65,
+      300,
+      220
+    ],
+    "excluded_capture_start_frames": 1,
+    "frames": 222,
+    "mean_luma_max": 154.861,
+    "mean_luma_min": 142.483,
+    "video_sha256": "f0f7ea259e03c59bd98d732b85977e169b4262111dc3e14987efaf759bca2163"
+  },
+  "package_id": "582545af9ff0c933389c565fbb709f89dd29bd0f13ba33729bc08460c78ae975",
+  "probe_script_sha256": "1f835c267fdaf3ef8dddc00134cfa390dc2a313ace6089cf7c7faa168ab323ff",
+  "rainbow_bands_observed": true,
+  "restoration": {
+    "autostart": "enabled",
+    "boot_id": "e863f202-8f70-42b1-9ccb-30acf34cb076",
+    "host_active": "active",
+    "image_sha256": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+    "lease": "free",
+    "lease_free_visible_on_hdmi": true,
+    "normal_catalog_entries_returned": 100,
+    "normal_menu_visible_titles": 29,
+    "owner_config_unchanged": true,
+    "private_container_removed": true,
+    "private_credential_copy_removed": true,
+    "status": "idle",
+    "target_ready": true
+  },
+  "rom_link": {
+    "map_sha256": "0db9bf69da78a7bf848c426e066225dd92a8b2aad4409922666b508357517312",
+    "programmed_sha256": "70b058291351b810eef6597d0fa2409ef758ecee95472f3d4bb399920ef6064e",
+    "programmed_size": 3523643,
+    "rom_id": "atari-st-firmware",
+    "source_sha256": "5771f9fd1391d3ae0b513ab3fd67aec30fb1843753e7e0345f92615e72c36797",
+    "source_size": 196608
+  },
+  "runtime_revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+  "scanlines_hardware_launch": false,
+  "source_revision": "5a0174d559f45e9b9b01219b44e199478213bb1b",
+  "steps": [
+    "private-host-ready",
+    "package-import",
+    "video-part-direct",
+    "video-part-scanlines",
+    "compatibility",
+    "rom-import",
+    "disk-import",
+    "entry",
+    "rom-binding",
+    "video-resolution",
+    "launch",
+    "active",
+    "settled-active",
+    "menu-captured",
+    "audio-captured",
+    "input",
+    "key-B-press",
+    "key-B-release",
+    "scroller-captured",
+    "stop-owned"
+  ],
+  "target": "Kit A",
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "video_composition": {
+    "composition_id": "70915b639862f16ebd9877092c97a2d9e09d26efe56bdb7b56d0f81b9a9f7bb6",
+    "layout": "fes.atari-st-video.parts/1",
+    "package_id": "582545af9ff0c933389c565fbb709f89dd29bd0f13ba33729bc08460c78ae975",
+    "parts": [
+      {
+        "part_id": "1bc2322c3020b359fb3218b30ab1f5cfd8a9a5c772367004eeaae2be1c5030ce",
+        "role": "video"
+      }
+    ],
+    "payload_sha256": "189b90496deaeaebea84d7ea52e6c2af32eb8903d33a41faff91ecd08f4e8a09",
+    "payload_size": 3587320,
+    "shell_sha256": "0a277e7a62f7c3216c085d34e988f90ca3e2cb236a335e94b8e81c1171f836eb"
+  },
+  "video_parts": {
+    "index_sha256": "410e843dc7931247f6df164940b46d614ef39db8dc1d5d7937b0eb5a374550c7",
+    "parts": [
+      {
+        "archive_path": "582545af9ff0c933389c565fbb709f89dd29bd0f13ba33729bc08460c78ae975/1bc2322c3020b359fb3218b30ab1f5cfd8a9a5c772367004eeaae2be1c5030ce.tar",
+        "archive_sha256": "191fec7a54b008c57d6b9fb734153dc10782e54273141280c5c7085b605e1166",
+        "archive_size": 3594240,
+        "part_id": "1bc2322c3020b359fb3218b30ab1f5cfd8a9a5c772367004eeaae2be1c5030ce",
+        "profile": "direct"
+      },
+      {
+        "archive_path": "582545af9ff0c933389c565fbb709f89dd29bd0f13ba33729bc08460c78ae975/2ebf804c65dd6d57f384b0b9af230d4b3582d83005a1b18a6897ca687cedaac8.tar",
+        "archive_sha256": "a7e7d3678d1cb47a67d7acd0cac825956e3636b34bea06b6e25e90d8da8df403",
+        "archive_size": 3594240,
+        "part_id": "2ebf804c65dd6d57f384b0b9af230d4b3582d83005a1b18a6897ca687cedaac8",
+        "profile": "scanlines"
+      }
+    ]
+  }
+}

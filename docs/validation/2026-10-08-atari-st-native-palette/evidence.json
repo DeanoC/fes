@@ -9,18 +9,32 @@
     "capture-helper-test.log": "9b41c49f57f1bc20530f80a46a76246965b24cf6d69c2eb3951d9525cd8a2874",
     "compiler-audit-test.log": "1c9d099d8f0a05d301e0c20484ce98093b198c74628273b5263dcbe6ad19e0de",
     "demo-helper-test.log": "1393ebb7eebf7e2622afc9e4e459701f4bbc92ac47f6c4b5e6911c4e0137e7c1",
+    "hardware-menu.png": "b6e871225a5514a1235bcbebc80ef01da4c9248bdffe0ccc0e5203912307621c",
+    "hardware-scroller.png": "4720ae0100637b7f39ab5356477e3d18d1f14965586ffccb12b7e79a60ef1f51",
+    "hardware.json": "f107e1a98d60c81fa79cda34dd802a4ea37b1d2f171161f90bd67e77e371476c",
+    "hatari-menu-2000.png": "268548a835624f3380cf8c1da8d68ecd00d1406c19df4944f47c2e56c5ac3076",
+    "hatari-menu-2001.png": "268548a835624f3380cf8c1da8d68ecd00d1406c19df4944f47c2e56c5ac3076",
+    "hatari-menu-invocation.json": "13a0a8949ca3351f1b5c9c0d0cf4bd66d2e2de0c8b303ab8ab8c64d7acb9ec00",
+    "hatari-static-logo-comparison.json": "2fe20f84240a9c2f79e7f5e1a6a1388575a60fa25c2dc6c7cce3a6d3452b8f80",
     "initial-route-timing.log": "8e1f6a80f047ba7c2caa4ae462df19a4f089e7cfb5e8fa8d0fb0ffa94960bc5f",
     "io-mode-latch-test.log": "f082e2812825c118277679d35476fef5b8fbd3308af8da28391a3c618db1dfcd",
     "legacy-video-test.log": "690344b6da44321cf46b76ece8a3681bd0cb4fc69af2945a55210ca2eb4c4ab9",
     "memory-helper-test.log": "9802a7716d563858671349e47e297a14fd396215b692fbb42a1c62ce5443b8eb",
-    "native-emutos-current.log": "7fa875d477e040b0b4ebca11e9fb29cc36b7ad65caf87342814d7649cf3782ed",
-    "native-video-test.log": "93b9c22b66cb9421a05a7f0b2155e536f4c0d75363a80e060013c09898adad0d",
+    "menu-palette-excerpt.jsonl": "b535b3c6c3f5e6c6b3accabdaea471d47f2aefbf0db38394f7478ededad6b85e",
+    "native-emutos-current.log": "54140950be4ac4f311d606a76aa1d66b65b0dfbb230916132ab34ff963c20aef",
+    "native-video-test.log": "a0760431bc02a025e745ec3e24a02117501d5f34ad26422626abfe590edc7636",
     "parent-current-check.log": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158",
+    "prepared.json": "753c4a7178ff06b891c4c7de76148b7cc8acbe6117c09801c676a545892adf25",
     "producer-test.log": "caeab5ffc817abb0e738d52be54fd2519e593f9983dab7ca9bceed78db3e5aab",
-    "st-aggregate-current.log": "2de2f7c5737bbe74ddaf0ae9f68e037c800c5cf08706263c37ab1d96b8afcd73"
+    "qualified-core-timing.log": "40694f800f3a8a5174140eb6fe10b9734034f1535343edb48bd7d5652edab766",
+    "restored-menu.png": "8bda6e46233d483d791b8464884c55bbdc8459c38e567b9e5e513ee67c3c89ed",
+    "row-address-route-diagnostic.json": "248866c7621cc020d829467b4d38e8c9f0cab9e6071f3922f0d35110e1fdad05",
+    "row-address-route-diagnostic.log": "a6338d536bf2874f662cfe42cb00a36cc137695e1feb377f8907afb10aaab168",
+    "st-aggregate-current.log": "7c96ed5d7ca598cd95588efe641b205f50afeed57a7ca810ea633d7c0529baac",
+    "video-parts-index.json": "410e843dc7931247f6df164940b46d614ef39db8dc1d5d7937b0eb5a374550c7"
   },
   "base_revision": "582d3c608eb7bd0a89ca7940b9cbb6fce2c7eb39",
-  "classification": "digital native-capture/SDRAM diagnostics; registered-RAM FPGA qualification pending",
+  "classification": "completed digital diagnostics, sealed FPGA/Direct/Scanlines and bounded native RGB/Direct hardware test; menu timing/borders/audio/full-image acceptance open",
   "colour_counts": {
     "12-native": 39,
     "12-screen": 9,
@@ -82,9 +96,184 @@
     "sync_mode": 2,
     "vbl_acks": 338
   },
-  "fpga_qualification": null,
-  "hardware_diagnostic": null,
-  "hardware_execution": false,
+  "demo_source_revision": "22e3994166ac18b1aa0b898785bc949dbe980ad5",
+  "fpga_qualification": {
+    "archive": {
+      "path": "core.fcore",
+      "sha256": "abe826b9b64054cb2d6a76c6f11fb45c69b3e9d7494f6e21ad825f2f5fbab6d5",
+      "size": 20948992
+    },
+    "final_fmax_mhz": {
+      "audio": 255.62,
+      "pixel": 74.34,
+      "system": 53.15
+    },
+    "package_id": "582545af9ff0c933389c565fbb709f89dd29bd0f13ba33729bc08460c78ae975",
+    "payload_sha256": "0a277e7a62f7c3216c085d34e988f90ca3e2cb236a335e94b8e81c1171f836eb",
+    "required_fmax_mhz": {
+      "audio": 12.288,
+      "pixel": 74.25,
+      "system": 52.224
+    },
+    "rgb_bank_m10ks": 216,
+    "route_log_sha256": "a7c6df34386207e15f6db89ad992a7d12ca5cde99cc032b87e9f4ce513eaf2c5",
+    "seed": 4,
+    "source_revision": "5a0174d559f45e9b9b01219b44e199478213bb1b",
+    "total_m10ks": 418,
+    "video_parts": {
+      "packages": [
+        {
+          "package_id": "582545af9ff0c933389c565fbb709f89dd29bd0f13ba33729bc08460c78ae975",
+          "parts": [
+            {
+              "archive_path": "582545af9ff0c933389c565fbb709f89dd29bd0f13ba33729bc08460c78ae975/1bc2322c3020b359fb3218b30ab1f5cfd8a9a5c772367004eeaae2be1c5030ce.tar",
+              "archive_sha256": "191fec7a54b008c57d6b9fb734153dc10782e54273141280c5c7085b605e1166",
+              "archive_size": 3594240,
+              "part_id": "1bc2322c3020b359fb3218b30ab1f5cfd8a9a5c772367004eeaae2be1c5030ce",
+              "profile": "direct"
+            },
+            {
+              "archive_path": "582545af9ff0c933389c565fbb709f89dd29bd0f13ba33729bc08460c78ae975/2ebf804c65dd6d57f384b0b9af230d4b3582d83005a1b18a6897ca687cedaac8.tar",
+              "archive_sha256": "a7e7d3678d1cb47a67d7acd0cac825956e3636b34bea06b6e25e90d8da8df403",
+              "archive_size": 3594240,
+              "part_id": "2ebf804c65dd6d57f384b0b9af230d4b3582d83005a1b18a6897ca687cedaac8",
+              "profile": "scanlines"
+            }
+          ]
+        }
+      ],
+      "version": 1
+    },
+    "video_parts_index_sha256": "410e843dc7931247f6df164940b46d614ef39db8dc1d5d7937b0eb5a374550c7"
+  },
+  "hardware_diagnostic": {
+    "archive": {
+      "path": "core.fcore",
+      "sha256": "abe826b9b64054cb2d6a76c6f11fb45c69b3e9d7494f6e21ad825f2f5fbab6d5",
+      "size": 20948992
+    },
+    "audio": {
+      "channels": 2,
+      "fidelity_asserted": false,
+      "frames": 480076,
+      "maximum": 29440,
+      "minimum": 0,
+      "rms": 13784.336486879081,
+      "sample_rate": 48000,
+      "saturated_samples": 0
+    },
+    "b_scroller_captured": true,
+    "baseline_image_sha256": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+    "classification": "bounded exact-artifact native RGB/Direct hardware diagnostic with previously qualified geometry host/runtime; not full BIG or appliance acceptance",
+    "diagnostic_image_sha256": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+    "disk_sha256": "608c4beff1780552e8ae6ee5a1efff27198fb6a3ca6274597f1cb528c3970edb",
+    "full_demo_compatibility_asserted": false,
+    "hardware_video_profile": "direct",
+    "host_revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+    "lifecycle_script_sha256": "59d4121bee1c60f79304d95be3e7d63b961a7fc2e8f7500429c5980c305f6f22",
+    "menu_captured": true,
+    "menu_flashing_resolved": false,
+    "menu_static_region": {
+      "crop_xywh": [
+        260,
+        65,
+        300,
+        220
+      ],
+      "excluded_capture_start_frames": 1,
+      "frames": 222,
+      "mean_luma_max": 154.861,
+      "mean_luma_min": 142.483,
+      "video_sha256": "f0f7ea259e03c59bd98d732b85977e169b4262111dc3e14987efaf759bca2163"
+    },
+    "package_id": "582545af9ff0c933389c565fbb709f89dd29bd0f13ba33729bc08460c78ae975",
+    "probe_script_sha256": "1f835c267fdaf3ef8dddc00134cfa390dc2a313ace6089cf7c7faa168ab323ff",
+    "rainbow_bands_observed": true,
+    "restoration": {
+      "autostart": "enabled",
+      "boot_id": "e863f202-8f70-42b1-9ccb-30acf34cb076",
+      "host_active": "active",
+      "image_sha256": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+      "lease": "free",
+      "lease_free_visible_on_hdmi": true,
+      "normal_catalog_entries_returned": 100,
+      "normal_menu_visible_titles": 29,
+      "owner_config_unchanged": true,
+      "private_container_removed": true,
+      "private_credential_copy_removed": true,
+      "status": "idle",
+      "target_ready": true
+    },
+    "rom_link": {
+      "map_sha256": "0db9bf69da78a7bf848c426e066225dd92a8b2aad4409922666b508357517312",
+      "programmed_sha256": "70b058291351b810eef6597d0fa2409ef758ecee95472f3d4bb399920ef6064e",
+      "programmed_size": 3523643,
+      "rom_id": "atari-st-firmware",
+      "source_sha256": "5771f9fd1391d3ae0b513ab3fd67aec30fb1843753e7e0345f92615e72c36797",
+      "source_size": 196608
+    },
+    "runtime_revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+    "scanlines_hardware_launch": false,
+    "source_revision": "5a0174d559f45e9b9b01219b44e199478213bb1b",
+    "steps": [
+      "private-host-ready",
+      "package-import",
+      "video-part-direct",
+      "video-part-scanlines",
+      "compatibility",
+      "rom-import",
+      "disk-import",
+      "entry",
+      "rom-binding",
+      "video-resolution",
+      "launch",
+      "active",
+      "settled-active",
+      "menu-captured",
+      "audio-captured",
+      "input",
+      "key-B-press",
+      "key-B-release",
+      "scroller-captured",
+      "stop-owned"
+    ],
+    "target": "Kit A",
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+    "video_composition": {
+      "composition_id": "70915b639862f16ebd9877092c97a2d9e09d26efe56bdb7b56d0f81b9a9f7bb6",
+      "layout": "fes.atari-st-video.parts/1",
+      "package_id": "582545af9ff0c933389c565fbb709f89dd29bd0f13ba33729bc08460c78ae975",
+      "parts": [
+        {
+          "part_id": "1bc2322c3020b359fb3218b30ab1f5cfd8a9a5c772367004eeaae2be1c5030ce",
+          "role": "video"
+        }
+      ],
+      "payload_sha256": "189b90496deaeaebea84d7ea52e6c2af32eb8903d33a41faff91ecd08f4e8a09",
+      "payload_size": 3587320,
+      "shell_sha256": "0a277e7a62f7c3216c085d34e988f90ca3e2cb236a335e94b8e81c1171f836eb"
+    },
+    "video_parts": {
+      "index_sha256": "410e843dc7931247f6df164940b46d614ef39db8dc1d5d7937b0eb5a374550c7",
+      "parts": [
+        {
+          "archive_path": "582545af9ff0c933389c565fbb709f89dd29bd0f13ba33729bc08460c78ae975/1bc2322c3020b359fb3218b30ab1f5cfd8a9a5c772367004eeaae2be1c5030ce.tar",
+          "archive_sha256": "191fec7a54b008c57d6b9fb734153dc10782e54273141280c5c7085b605e1166",
+          "archive_size": 3594240,
+          "part_id": "1bc2322c3020b359fb3218b30ab1f5cfd8a9a5c772367004eeaae2be1c5030ce",
+          "profile": "direct"
+        },
+        {
+          "archive_path": "582545af9ff0c933389c565fbb709f89dd29bd0f13ba33729bc08460c78ae975/2ebf804c65dd6d57f384b0b9af230d4b3582d83005a1b18a6897ca687cedaac8.tar",
+          "archive_sha256": "a7e7d3678d1cb47a67d7acd0cac825956e3636b34bea06b6e25e90d8da8df403",
+          "archive_size": 3594240,
+          "part_id": "2ebf804c65dd6d57f384b0b9af230d4b3582d83005a1b18a6897ca687cedaac8",
+          "profile": "scanlines"
+        }
+      ]
+    }
+  },
+  "hardware_execution": true,
   "initial_fpga_diagnostic": {
     "classification": "unsealed route diagnostic, interrupted after timing misses and retry",
     "intermediate_fmax_mhz": {
@@ -117,8 +306,17 @@
     "seed": 4,
     "source_revision": "8f2ce25590f81425a4499b8db37267a12b761328"
   },
+  "row_address_route_diagnostic": {
+    "classification": "interrupted unsealed diagnostic, not final timing or acceptance",
+    "deployed": false,
+    "limiting_pixel_path": "renderer vertical/next-row arithmetic into RGB read address register",
+    "next_change": "blanking-time repeated-line counter with row base in 64-pixel units",
+    "route_log_sha256": "bf73d877c45f78853807b43c82b1f922ea90b680d4045f4eb31fe4e62886c611",
+    "selected_seed": 4,
+    "source_revision": "22e3994166ac18b1aa0b898785bc949dbe980ad5"
+  },
   "schema": 1,
-  "source_revision": "22e3994166ac18b1aa0b898785bc949dbe980ad5",
+  "source_revision": "5a0174d559f45e9b9b01219b44e199478213bb1b",
   "tests": {
     "aggregate": "PASS",
     "assembled_emutos": {

@@ -35,8 +35,8 @@ g++    boot_memory_tb.o verilated.o verilated_threads.o Vst_boot_memory_sim_top_
 rm Vst_boot_memory_sim_top__ALL.verilator_deplist.tmp
 make[1]: Leaving directory '/home/deano/.codex/worktrees/f91e/fes/out/dev/atari-st-raster-palette/fes/sources/misteross/build/sim/fes-atari-st-boot-memory'
 - V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
-- Verilator: Built from 2.830 MB sources in 44 modules, into 5.254 MB in 16 C++ files needing 0.002 MB
-- Verilator: Walltime 27.033 s (elab=0.061, cvt=0.418, bld=26.466); cpu 0.558 s on 1 threads; alloced 89.523 MB
+- Verilator: Built from 2.836 MB sources in 44 modules, into 5.255 MB in 16 C++ files needing 0.002 MB
+- Verilator: Walltime 23.874 s (elab=0.036, cvt=0.296, bld=23.464); cpu 0.408 s on 1 threads; alloced 89.547 MB
 physical SDRAM initialized after 13153 clocks
 assembled seconds=1 pc=fc62cc bus=fc62cc phystop=80000 screen=78000 memvalid=752019f3 hz200=174 frclock=56 CPU R/W=165146/51518 video R=944000 refreshes=133568 faults=4 MFP/VBL=342/56 native frames/skipped/underruns=59/0/0 indexed underruns=0
 assembled seconds=2 pc=fcd044 bus=fcd040 phystop=80000 screen=78000 memvalid=752019f3 hz200=374 frclock=116 CPU R/W=304191/137280 video R=1904000 refreshes=267133 faults=4 MFP/VBL=563/116 native frames/skipped/underruns=119/0/0 indexed underruns=0
@@ -47,5 +47,5 @@ assembled seconds=6 pc=fc050e bus=7bda phystop=80000 screen=78000 memvalid=75201
 assembled seconds=7 pc=fc050e bus=7bda phystop=80000 screen=78000 memvalid=752019f3 hz200=1374 frclock=416 CPU R/W=809734/608044 video R=6704000 refreshes=934959 faults=4 MFP/VBL=1563/416 native frames/skipped/underruns=419/0/0 indexed underruns=0
 assembled seconds=8 pc=fc050e bus=7bdc phystop=80000 screen=78000 memvalid=752019f3 hz200=1574 frclock=476 CPU R/W=927177/708069 video R=7664000 refreshes=1068525 faults=4 MFP/VBL=1763/476 native frames/skipped/underruns=479/0/0 indexed underruns=0
 assembled seconds=8 pc=fc050e bus=7bdc phystop=80000 screen=78000 memvalid=752019f3 hz200=1574 frclock=476 CPU R/W=927177/708069 video R=7664000 refreshes=1068525 faults=4 MFP/VBL=1763/476 native frames/skipped/underruns=479/0/0 indexed underruns=0
-Stock EmuTOS assembled SDRAM/video boot PASS: 417792000 system clocks, 594018699 independent pixel clocks, 479 complete frames, 3 RGB colors; max CPU/video latency 63/64 clocks; output /home/deano/.codex/worktrees/f91e/fes/out/dev/atari-st-raster-palette/native-emutos-order.ppm
+Stock EmuTOS assembled SDRAM/video boot PASS: 417792000 system clocks, 594018699 independent pixel clocks, 479 complete frames, 3 RGB colors; max CPU/video latency 63/64 clocks; output /home/deano/.codex/worktrees/f91e/fes/out/dev/atari-st-raster-palette/native-emutos-row-counter.ppm
 make: Leaving directory '/home/deano/.codex/worktrees/f91e/fes/out/dev/atari-st-raster-palette/fes/sources/misteross'

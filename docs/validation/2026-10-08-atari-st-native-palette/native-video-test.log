@@ -14,7 +14,7 @@ g++    native_video_tb.o verilated.o verilated_threads.o Vst_native_video_sim_to
 rm Vst_native_video_sim_top__ALL.verilator_deplist.tmp
 make[1]: Leaving directory '/home/deano/.codex/worktrees/f91e/fes/out/dev/atari-st-raster-palette/fes/sources/misteross/build/sim/fes-atari-st-native-video'
 - V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
-- Verilator: Built from 0.249 MB sources in 7 modules, into 0.382 MB in 7 C++ files needing 0.000 MB
-- Verilator: Walltime 3.268 s (elab=0.003, cvt=0.016, bld=3.238); cpu 0.030 s on 1 threads; alloced 11.895 MB
+- Verilator: Built from 0.251 MB sources in 7 modules, into 0.384 MB in 7 C++ files needing 0.000 MB
+- Verilator: Walltime 3.367 s (elab=0.003, cvt=0.016, bld=3.340); cpu 0.028 s on 1 threads; alloced 12.031 MB
 Native ST RGB: 178966052 checks, 11 captures, 6 repeated output frames, 203 black native lines; live palette, ownership, Hold and mode recovery passed
 make: Leaving directory '/home/deano/.codex/worktrees/f91e/fes/out/dev/atari-st-raster-palette/fes/sources/misteross'

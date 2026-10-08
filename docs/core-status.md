@@ -217,13 +217,16 @@ palette colours; audio is present but fidelity is unqualified. The original
 image and populated menu were restored. Demo borders, later sections, accurate
 audio and full current-image integration remain open.
 The [native palette record](validation/2026-10-08-atari-st-native-palette.md)
-binds the completed simulations and pending FPGA qualification.
-Current source adds ordinary low-resolution native RGB capture with live
-per-pixel palette selection and three owned complete-frame banks. Medium and
-monochrome retain their indexed renderer. This source change requires a new
-sealed shell and exact-shell video parts; the earlier kit captures do not
-qualify it. Original GLUE latch timing, opened borders and accurate audio
-remain separate work.
+binds ordinary low-resolution live RGB capture, complete-frame ownership,
+completed simulations, a sealed shell and matching Direct/Scanlines parts.
+Its final pixel/system/audio clocks pass at 74.34/53.15/255.62 MHz. A bounded
+Kit A test with qualified geometry software shows rainbow bands in the B
+scroller through the prepared Direct part. The normal populated menu, original
+image and host autostart are restored; the lease is free. Medium/monochrome
+retain their indexed renderer. Menu flashing still appears in the capture,
+and the model alternates its source raster palette sequence. Original GLUE
+latch timing, opened borders, accurate audio and full image integration remain
+open; this diagnostic does not establish full BIG compatibility.
 
 ## Not implemented, or not this package
 

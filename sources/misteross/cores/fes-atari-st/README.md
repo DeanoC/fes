@@ -162,6 +162,12 @@ numbers order the bounded pending bank set across wrap and consumer pauses.
 A missing RAM row displays black for its whole line; HOLD aborts an unfinished
 capture, and an invalid base never wraps into populated RAM.
 
+The [native palette qualification record](../../../../docs/validation/2026-10-08-atari-st-native-palette.md)
+binds the sealed shell/Direct/Scanlines pair and bounded Kit A test. The B
+scroller shows rainbow bands through the prepared Direct part; menu flashing
+and exact native timing remain open. The original image and populated menu
+are restored after the diagnostic.
+
 Medium and monochrome retain the indexed double-line-cache renderer and its
 coherent configuration bundle, activated at output frame boundaries. Their
 palette remains fixed for that output frame. Synchronous cache reads and
