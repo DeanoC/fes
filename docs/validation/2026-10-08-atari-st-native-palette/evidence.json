@@ -16,7 +16,7 @@
     "hatari-menu-2001.png": "268548a835624f3380cf8c1da8d68ecd00d1406c19df4944f47c2e56c5ac3076",
     "hatari-menu-invocation.json": "13a0a8949ca3351f1b5c9c0d0cf4bd66d2e2de0c8b303ab8ab8c64d7acb9ec00",
     "hatari-static-logo-comparison.json": "2fe20f84240a9c2f79e7f5e1a6a1388575a60fa25c2dc6c7cce3a6d3452b8f80",
-    "initial-route-timing.log": "8e1f6a80f047ba7c2caa4ae462df19a4f089e7cfb5e8fa8d0fb0ffa94960bc5f",
+    "initial-route-timing.log": "18fdc22ffc3f3d70ae83860ba1f01e7c3d57748996200b07e97f538b7ae8339d",
     "io-mode-latch-test.log": "f082e2812825c118277679d35476fef5b8fbd3308af8da28391a3c618db1dfcd",
     "legacy-video-test.log": "690344b6da44321cf46b76ece8a3681bd0cb4fc69af2945a55210ca2eb4c4ab9",
     "memory-helper-test.log": "9802a7716d563858671349e47e297a14fd396215b692fbb42a1c62ce5443b8eb",
@@ -29,7 +29,7 @@
     "qualified-core-timing.log": "40694f800f3a8a5174140eb6fe10b9734034f1535343edb48bd7d5652edab766",
     "restored-menu.png": "8bda6e46233d483d791b8464884c55bbdc8459c38e567b9e5e513ee67c3c89ed",
     "row-address-route-diagnostic.json": "248866c7621cc020d829467b4d38e8c9f0cab9e6071f3922f0d35110e1fdad05",
-    "row-address-route-diagnostic.log": "a6338d536bf2874f662cfe42cb00a36cc137695e1feb377f8907afb10aaab168",
+    "row-address-route-diagnostic.log": "32c2f201fd5a8e577392c343dd69658b5ae92dc0d840f427cdb69f65023c5572",
     "st-aggregate-current.log": "7c96ed5d7ca598cd95588efe641b205f50afeed57a7ca810ea633d7c0529baac",
     "video-parts-index.json": "410e843dc7931247f6df164940b46d614ef39db8dc1d5d7937b0eb5a374550c7"
   },
@@ -306,6 +306,7 @@
     "seed": 4,
     "source_revision": "8f2ce25590f81425a4499b8db37267a12b761328"
   },
+  "published_log_normalization": "trailing whitespace and excess final blank lines removed; test output content preserved",
   "row_address_route_diagnostic": {
     "classification": "interrupted unsealed diagnostic, not final timing or acceptance",
     "deployed": false,

@@ -96,7 +96,7 @@ Info:                          Sink video.native_capture.capture.output_address_
 Info:      setup -0.20  16.48 Source video.native_capture.capture.output_address_MISTRAL_FF_Q_1.DATAIN
 Info: 6.32 ns logic, 10.15 ns routing
 
-Info: 
+Info:
 Info: Analogue signoff check: worst clock slack -2.567 ns (pixel_clk 62.36 MHz, system_clock.clocks[0] 52.48 MHz, system_clock.clocks[1] 173.22 MHz) in 5.70s
 Info: Analogue signoff repair round 1: worst clock slack -2.567 ns (pixel_clk 62.36 MHz, system_clock.clocks[0] 52.48 MHz, system_clock.clocks[1] 173.22 MHz) in 6.61s
 Info: Analogue signoff repair round 2: worst clock slack -2.567 ns (pixel_clk 62.36 MHz, system_clock.clocks[0] 52.48 MHz, system_clock.clocks[1] 173.22 MHz) in 7.11s
