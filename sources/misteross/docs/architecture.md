@@ -57,7 +57,9 @@ FES [core-key guide](../../../docs/core-key-narrowing.md).
 
 The functional producers trace synthesis and each route attempt with
 `/usr/bin/strace --kill-on-exit -ff -yy`. The tracer and its libraries enter
-execution identity. Successful source Markdown opens for reading (including
+execution identity. Traces are bounded to 64 MiB per process and 256 MiB
+per invocation, including child compilers; exceeding either bound cancels the
+private process group. Successful source Markdown opens for reading (including
 O_PATH) fail before sealing; output-only writes are distinguished. Trace size,
 completion, pathname decoding and unsupported open mechanisms fail closed.
 A forbidden read is fatal across placement search. A timed-out compiler group
