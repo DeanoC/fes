@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "hardware_execution": false,
+  "demo_compatibility_asserted": false,
+  "comparison": "static low-resolution planar framebuffer contents, not video output timing",
+  "fes_capture_cycle": 156672000,
+  "hatari_capture_vbl": 700,
+  "screen_base": 458752,
+  "screen_bytes": 32000,
+  "framebuffer_sha256": "87ad658b65f3628c812a1c71ad298ad42983f730dbbea1e6de3b870bc6045e42",
+  "contents_equal": true,
+  "fes_ram_sha256": "ddc1da4bba15aea0f022cb35b86fdea8ef0af36eeff558f47a6282f8afcb3598",
+  "hatari_ram_sha256": "e1a9d7ebb75e9c62d90b5f345e573f0820ec003242c0ce6ca3085dd78a85845a",
+  "fes_ppm_sha256": "e39ae9c117a30e4561fb2fa9edf7c88adf3c58b196c77eacc224c744650b8a31"
+}

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Run an unchanged raw-ST demo disk on actual FX68K/stock EmuTOS/chipset RTL.
+"""Run an unchanged raw-ST demo disk on actual FX68K/pinned ROM/chipset RTL.
 
 This is a bounded loader diagnostic with model ROM/RAM/disk storage, not a
 physical SDRAM, mailbox, HDMI, or raster-effects test. No demo success oracle is
 implied. Per-second RAM/PPM snapshots, CPU/FDC trace and disk accesses aid diagnosis.
-Requires Verilator/C++17 and independently supplied stock EmuTOS192US1.4.
+Requires Verilator/C++17 and an independently supplied 192 KiB ROM. The default
+ROM pin selects stock EmuTOS192US1.4; --rom-sha256 selects another exact image.
 
 Default compilation requires source bytes to match --revision. --working-tree
 explicitly captures current diagnostic edits and records every deviation from
@@ -67,8 +68,8 @@ def disk_geometry(data):
 def run(args):
     revision = subprocess.check_output(["git", "rev-parse", args.revision + "^{commit}"], cwd=ROOT, text=True).strip()
     rom = args.rom.read_bytes()
-    if len(rom) != 196608 or sha(rom) != ROM_SHA256:
-        raise ValueError("ROM is not verified stock EmuTOS 192US 1.4")
+    if len(rom) != 196608 or sha(rom) != args.rom_sha256:
+        raise ValueError("ROM must be 192 KiB and match --rom-sha256")
     with args.disk.open("rb") as stream:
         disk = stream.read(839681)
     geometry = disk_geometry(disk)
@@ -110,12 +111,12 @@ def run(args):
     command += [str(source / HELPERS[1]), "-CFLAGS", "-O3 -std=c++17"]
     record = {"schema": 1, "source_revision": revision, "source_mode": "working-tree diagnostic" if args.working_tree else "selected revision",
               "selected_revision_inputs": selected, "captured_inputs": identities, "working_tree_differences": differences,
-              "rom_sha256": sha(rom), "original_disk_sha256": sha(disk), "disk_geometry": geometry,
+              "rom_sha256": sha(rom), "expected_rom_sha256": args.rom_sha256, "original_disk_sha256": sha(disk), "disk_geometry": geometry,
               "source_archive_sha256": sha((output / "frozen-source.zip").read_bytes()),
               "build_command": command, "verilator_version": subprocess.check_output([verilator, "--version"], text=True).strip(),
               "seconds_requested": args.seconds, "hardware_execution": False, "native_fpga_build": False,
               "demo_compatibility_asserted": False, "framebuffer_capture": "static RAM/palette reconstruction; no raster or border proof",
-              "media_fixture": "read-only bounded disk callbacks; real FX68K/EmuTOS/floppy/DMA RTL",
+              "media_fixture": "read-only bounded disk callbacks; real FX68K/pinned ROM/floppy/DMA RTL",
               "capture_completed": False}
     write_json(output / "source-identity.json", record)
     print(f"Compiling frozen loader diagnostic at {revision}; dirty inputs={len(differences)}", flush=True)
@@ -168,6 +169,8 @@ def run(args):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--rom", type=Path, required=True)
+    parser.add_argument("--rom-sha256", default=ROM_SHA256,
+                        help="independently pinned 192 KiB ROM digest; defaults to stock EmuTOS 192US 1.4")
     parser.add_argument("--disk", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True, help="new ignored output directory")
     parser.add_argument("--revision", default="HEAD")
@@ -175,6 +178,8 @@ def main(argv=None):
     parser.add_argument("--seconds", type=int, default=15)
     parser.add_argument("--verilator", default="verilator")
     args = parser.parse_args(argv)
+    if len(args.rom_sha256) != 64 or any(c not in "0123456789abcdef" for c in args.rom_sha256):
+        parser.error("--rom-sha256 must be a lowercase SHA-256 digest")
     if not 1 <= args.seconds <= 30:
         parser.error("--seconds must be 1..30")
     try:

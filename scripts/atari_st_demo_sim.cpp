@@ -25,7 +25,7 @@ struct Demo {
     uint32_t last_media=UINT32_MAX,last_fdc=UINT32_MAX;
     bool last_fault=false,last_ack=false;
     std::string prefix;
-    std::ofstream sectors,trace,fdc;
+    std::ofstream sectors,trace,fdc,fault_trace;
     static std::vector<uint8_t> read(const char *path) {
         std::ifstream input(path,std::ios::binary);check(input.good(),"input unavailable");
         return {std::istreambuf_iterator<char>(input),{}};
@@ -41,7 +41,8 @@ struct Demo {
         dut.dma_ready=0;dut.mouse_valid=0;dut.mouse_dx=0;dut.mouse_dy=0;dut.mouse_buttons=0;dut.controller_buttons=0;
         for(unsigned i=0;i<5;++i)dut.keyboard[i]=0;
         sectors.open(prefix+"-disk-access.jsonl");trace.open(prefix+"-trace.jsonl");fdc.open(prefix+"-fdc.jsonl");
-        check(sectors.good()&&trace.good()&&fdc.good(),"trace output unavailable");dut.eval();
+        fault_trace.open(prefix+"-faults.jsonl");
+        check(sectors.good()&&trace.good()&&fdc.good()&&fault_trace.good(),"trace output unavailable");dut.eval();
     }
     void storage() {
         if(dut.reset){rp={};mp={};dp={};dut.rom_ready=0;dut.ram_ready=0;dut.media_valid=0;dut.dma_ready=0;return;}
@@ -79,7 +80,21 @@ struct Demo {
     }
     void tick() {
         storage();dut.eval();dut.clk_sys=1;dut.eval();
-        if(dut.debug_bus_error&&!last_fault)++faults;last_fault=dut.debug_bus_error;
+        if(dut.debug_bus_error&&!last_fault){
+            ++faults;
+            if(faults<=64){
+                fault_trace<<"{\"fault\":"<<faults<<",\"cycle\":"<<cycles
+                           <<",\"pc\":"<<dut.debug_pc<<",\"address\":"<<dut.debug_fault_address
+                           <<",\"function_code\":"<<unsigned(dut.debug_fault_fc)
+                           <<",\"write\":"<<(dut.debug_fault_write?"true":"false")<<"}\n";
+                fault_trace.flush();
+            }
+            if(faults<=8){
+                std::ofstream memory(prefix+"-fault-"+std::to_string(faults)+"-ram.bin",std::ios::binary);
+                memory.write(reinterpret_cast<const char*>(ram.data()),ram.size());
+            }
+        }
+        last_fault=dut.debug_bus_error;
         if(dut.irq_ack&&!last_ack){if(dut.irq_level==6)++mfp;if(dut.irq_level==4)++vbl;if(dut.irq_level==2)++hbl;}last_ack=dut.irq_ack;
         const uint32_t state=uint32_t(dut.debug_fdc_status)|(uint32_t(dut.debug_fdc_track)<<8)|(uint32_t(dut.debug_fdc_sector)<<16)|(uint32_t(dut.debug_fdc_head)<<24);
         if(state!=last_fdc){fdc<<"{\"cycle\":"<<cycles<<",\"status\":"<<unsigned(dut.debug_fdc_status)<<",\"track\":"<<unsigned(dut.debug_fdc_track)<<",\"sector\":"<<unsigned(dut.debug_fdc_sector)<<",\"head_track\":"<<unsigned(dut.debug_fdc_head)<<",\"pc\":"<<dut.debug_pc<<"}\n";last_fdc=state;}

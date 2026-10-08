@@ -1,0 +1,1 @@
+{"cycle":783360000,"pc":48128,"bus_address":48128,"halted":false,"screen_base":458752,"fdc_status":0,"fdc_track":62,"fdc_sector":3,"fdc_head_track":62,"resolution":0,"sync_mode":0,"memvalid":1965038067,"phystop":524288,"hz200":1834,"ram_writes":3304904,"bus_faults":0,"mfp_acks":4835,"vbl_acks":498,"hbl_acks":0,"dma_words":159488,"media_bytes":318976}

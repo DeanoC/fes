@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "task": "https://github.com/DeanoC/fes/issues/621",
+  "base_revision": "10472724c17fa31d43849d81eb56e661e968ddc6",
+  "classification": "Host-only memory-response regression and original-loader diagnosis; no hardware deployment or BIG compatibility acceptance",
+  "demo_compatibility_asserted": false,
+  "physical_st_ram_bytes": 524288,
+  "rom_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+  "disk_sha256": "608c4beff1780552e8ae6ee5a1efff27198fb6a3ca6274597f1cb528c3970edb",
+  "before_first_extra_bus_fault": {
+    "cycle": 243145893,
+    "pc_exported": 4214,
+    "address": 4194302,
+    "write": true,
+    "function_code": 5
+  },
+  "after_bus_faults": 4,
+  "startup_probe_addresses": [
+    16744454,
+    16745998,
+    16776224,
+    16747068
+  ],
+  "after_ram_000026_word": "4879",
+  "hatari_failure": {
+    "instruction_pc": "000010d8",
+    "A0": "00fc06a2",
+    "D0": "00004879",
+    "word_read_address": "00fc4f21",
+    "exception": 3
+  },
+  "checks": {
+    "sim-fes-atari-st-machine": "PASS (both original CPU firmware variants and memory delays)",
+    "sim-fes-atari-st": "PASS (complete aggregate)",
+    "old_decoder_mutation": "new guest fails at stage 8 with original decoder",
+    "stock_emutos_15_seconds": "PASS (512 KiB, screen $78000, timer C and VBL running, CPU not halted)",
+    "media_helpers": "9 tests PASS",
+    "atari_st_producer": "19 tests PASS",
+    "parent_consistency": "make check PASS (18 generated consumers, 34 fixture copies, zero copied source pins)",
+    "rom_pin_rejection": "PASS: supplied TOS rejected under default EmuTOS pin before output creation",
+    "tos100_original_big_15_seconds": "PASS bounded capture integrity and continued execution; main menu reached, no full demo/audio/raster oracle"
+  },
+  "hardware": "No hardware commands or transitions; the normal menu was left untouched",
+  "shared_contracts": "No manifest, capability, generated consumer or wire-layout change",
+  "limits": [
+    "Empty-memory reads retain the existing all-ones approximation rather than STF floating-bus data",
+    "No patched ROM or demo input",
+    "No retired-instruction or complete CPU exception-frame equivalence assertion",
+    "New selected shell/parts/image still require synthesis, timing and exact-artifact hardware qualification"
+  ],
+  "files": {
+    "after-faults.jsonl": "faed4503654dca39a437b91227acc134c0f60571c6b9207d060b760d9de223de",
+    "after-metrics.json": "71c68c2b47b0619f3297349e1531488efc59e744fa20ce41d11628e216f559b7",
+    "after-proof.json": "4b4d21a070303171edf13bec9d4843f3d5e21b76e2aeba3f86240a719f44b76a",
+    "before-faults.jsonl": "7ef2785a368d6086d8ce291c8cc0b3e93838e402050fdb9340788376f4554d3b",
+    "before-metrics.json": "74fd8b58bafa788b5c24b7cc3722d7a95dd60b0bf557d6d5b25698706c8367fa",
+    "before-proof.json": "67d70c0ac1859f5beff7f6e2b0634ec554a6d2c9b90d44ba032d5983fc0beb77",
+    "hatari-boundary-boundary.ini.txt": "15c83529a2f92b713f2a276169265318bc6cc03b8b4992eb7748f23101820dc1",
+    "hatari-boundary-start.ini.txt": "c5f8ace95cd2c5e4e666e52ecb127a4c44a39d69ba715bf7a83d98f84b2586df",
+    "hatari-boundary.log": "17d9a4e4b256a04b3b5ee8149e0305b91a619748cf8f718ad42ed732230aadb8",
+    "hatari-full-finish.ini.txt": "dacf8b0dc10c12e90599c5fbe08ecb40aefb2a9559505a6caea4fed08acab676",
+    "hatari-full-start.ini.txt": "0b651d6a768cf0ffce2a55c0747f8586e16f59f55152da4109ed3b30d544d11e",
+    "hatari-full.log": "ba58442193b6a58e3d6dc693b259ec64e8a274f2d6ff2ac280c3e028c852535f",
+    "hatari-proof.json": "c8e54b6c2ea87af92fb0ee2684c1efebf56cf9fa20eb527b85919499564d394c",
+    "hatari-tos1.00-proof.json": "af9885958f544cec714512c57a7dae294446c4e1d38d6fdf3092d785de2da476",
+    "hatari-tos1.02-proof.json": "438eff21b0e7bc9bffd8ae4865719239d16315ecc48f0a0da318be92cf840277",
+    "hatari-tos100-long-proof.json": "2db387d922a485c08847ca32cb3995adf8d07209ccec3f31afd90df44f651231",
+    "hatari-unexpected-exceptions.log": "7bcddb917f38563cc3e61b072e22fe96df275c867060c70263813025c01d2877",
+    "old-decoder-regression.json": "01bbc2908f371702d3309cc90349f740440bd986e358f515a68457c2762cb541",
+    "tos100-faults.jsonl": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "tos100-framebuffer-comparison.json": "294015612b7a6b8c5625f5f9104c014297d250e3fa0a251f4ecbf81227b58e5c",
+    "tos100-metrics.json": "428e3480bcb4bdf4d44eb77a04d466bb36ce67aa135ad8b02fdff7477036dfa9",
+    "tos100-proof.json": "f6c11fa3a2b0b40fc379e1ef3a65182f1c6e4cb7554947d69d51c5d6d5ef9b7d"
+  },
+  "original_tos_comparison": {
+    "tos_1_00_sha256": "5771f9fd1391d3ae0b513ab3fd67aec30fb1843753e7e0345f92615e72c36797",
+    "tos_1_02_sha256": "ee16750d11299b3e5cf747e6f3c8f9f923aa8ee52c57cc1632d98241500b55f5",
+    "hatari": "Both display introductory instructions at VBL 700, without input injection",
+    "fes": "TOS 1.00 displays introductory instructions by three seconds and main menu by seven; introductory planar framebuffer contents equal Hatari",
+    "full_fes_capture": "Completed fifteen simulated seconds, unchanged captured inputs/model/executable/ROM/disk; CPU not halted; zero external bus faults",
+    "hatari_long": "TOS 1.00 main menu at VBL 2000, without input injection"
+  }
+}

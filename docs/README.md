@@ -74,6 +74,7 @@ guides and [core status](core-status.md).
 
 The [Atari ST native image record](validation/2026-10-07-atari-st-native-image.md) binds the verified nine-package/four-part image, diskless GEM, cold-host saved-disk restore, full payload comparisons and final populated-menu restoration.
 The [extended floppy geometry record](validation/2026-10-07-atari-st-floppy-geometry.md) binds all twelve supported shapes, original BIG/Cuddly loader captures, complete physical snapshots and cold restore, the separate nextpnr routing blocker, and final menu restoration. It is a derived-image diagnostic rather than factory or demo acceptance.
+The [BIG loader diagnosis](validation/2026-10-08-atari-st-big-loader.md) records the corrected empty-memory acknowledgement, a CPU regression that rejects the old decoder, and the same-ROM/same-disk Hatari failure. It is host-only evidence, with BIG display/audio acceptance still outstanding.
 
 
 The [Atari ST interaction record](validation/2026-10-04-atari-st-interaction.md)

@@ -1,0 +1,7 @@
+cpu exception 3 currpc 10da buspc 10d8 newpc 2a2a2a2a fault_e3 fc4f21 op_e3 3070 addr_e3 10da SR 2700
+cpu exception 2 currpc 2a3ffffe buspc 2a3ffffa newpc 2a2a2a2a fault_e3 2a400000 op_e3 0 addr_e3 2a400000 SR 2700
+cpu exception 2 currpc 2a3ffffe buspc 2a3ffffa newpc 2a2a2a2a fault_e3 2a400000 op_e3 0 addr_e3 2a400000 SR 2700
+cpu exception 2 currpc 2a3ffffe buspc 2a3ffffa newpc 2a2a2a2a fault_e3 2a400000 op_e3 0 addr_e3 2a400000 SR 2700
+cpu exception 2 currpc 2a3ffffe buspc 2a3ffffa newpc 2a2a2a2a fault_e3 2a400000 op_e3 0 addr_e3 2a400000 SR 2700
+cpu exception 2 currpc 2a3ffffe buspc 2a3ffffa newpc 2a2a2a2a fault_e3 2a400000 op_e3 0 addr_e3 2a400000 SR 2700
+cpu exception 2 currpc 2a3ffffe buspc 2a3ffffa newpc 2a2a2a2a fault_e3 2a400000 op_e3 0 addr_e3 2a400000 SR 2700
