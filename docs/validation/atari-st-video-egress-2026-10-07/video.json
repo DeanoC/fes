@@ -1,0 +1,60 @@
+{
+  "direct": {
+    "composition": {
+      "composition_id": "2958c3c498a7796defdd6eaa43d0b8f7831bee6bff152095ec8d81157f167d76",
+      "package_id": "2edf5b3ea70a354147ce8b86941a4fcfc9f82aef5ba94033e6a24c3f11967128",
+      "layout": "fes.atari-st-video.parts/1",
+      "parts": [
+        {
+          "role": "video",
+          "part_id": "75e153be59308b643ae51987ec41e2e856aa3e8f92af20b76cf34198cf666acc"
+        }
+      ],
+      "shell_sha256": "3b94077c7c7b82e44931844788dfde1604b35e2220eee4ad28365572b66518ff",
+      "payload_sha256": "cf161c1b72704cabaf6d9f7a5bf30cef466707142ce444733a111a2db55feec2",
+      "payload_size": 2878695
+    },
+    "captures": {
+      "12": {
+        "sha256": "3f73d20cee995f6349756a71383ffede13be367c7650368291a9606d928b2efa",
+        "blank_header_row_mean_min": 234,
+        "blank_header_row_mean_max": 234
+      },
+      "32": {
+        "sha256": "3f73d20cee995f6349756a71383ffede13be367c7650368291a9606d928b2efa",
+        "blank_header_row_mean_min": 234,
+        "blank_header_row_mean_max": 234
+      }
+    },
+    "visual_result": "EmuTOS desktop visible with clear text and desktop icons"
+  },
+  "scanlines": {
+    "composition": {
+      "composition_id": "f9a8f12b59bc97bec0672471594f35fd12c3673bf3db786d0974584e86bff586",
+      "package_id": "2edf5b3ea70a354147ce8b86941a4fcfc9f82aef5ba94033e6a24c3f11967128",
+      "layout": "fes.atari-st-video.parts/1",
+      "parts": [
+        {
+          "role": "video",
+          "part_id": "f7f0239a4fb78ae200776ec370ae7653b1d2b1365c1e64d92d97b7b61a64fb21"
+        }
+      ],
+      "shell_sha256": "3b94077c7c7b82e44931844788dfde1604b35e2220eee4ad28365572b66518ff",
+      "payload_sha256": "faae7cec8e9e136cf9ca6675142d95862b0e5d603cdc69c4f4638aad8cc35827",
+      "payload_size": 2879290
+    },
+    "captures": {
+      "12": {
+        "sha256": "05b2e482d9f2b3fabacd91bf61b728f582288425d4cf83c4067ed270187ec2f5",
+        "blank_header_row_mean_min": 123,
+        "blank_header_row_mean_max": 200
+      },
+      "32": {
+        "sha256": "05b2e482d9f2b3fabacd91bf61b728f582288425d4cf83c4067ed270187ec2f5",
+        "blank_header_row_mean_min": 123,
+        "blank_header_row_mean_max": 200
+      }
+    },
+    "visual_result": "EmuTOS desktop visible; expected horizontal dark rows present"
+  }
+}

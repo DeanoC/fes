@@ -157,7 +157,9 @@ words arrive at the original plane-capture edges.
 Video uses the existing [RGB888 part contract](../../../mister-packages/docs/video-parts.md)
 and shared direct/scanline implementations through two registered boundaries.
 `st_video_socket.sv` provides the optional frozen raster socket
-`fes.atari-st-video.socket/1`, with layout `fes.atari-st-video.parts/1`.
+`fes.atari-st-video.socket/1`. The physical producer layout is
+`fes.atari-st-video.parts/2`; the public Go/C++ composition layout remains
+`fes.atari-st-video.parts/1`.
 An empty socket uses the built-in Direct output; independently sealed Direct
 and Scanlines archives bind the exact shell package and may coexist with the
 CPU expansion and linked firmware. The socket owns 93 pinned boundary/clock
