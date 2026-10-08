@@ -17,7 +17,17 @@ import struct
 import tempfile
 
 MAX_BYTES = 8 * 1024 * 1024
-SUPPORTED = (80, 2, 9)
+LEGACY = (80, 2, 9)
+SUPPORTED_TRACKS = range(80, 83)
+SUPPORTED_SIDES = range(1, 3)
+SUPPORTED_SECTORS = range(9, 11)
+
+
+def current_fes_geometry(geometry):
+    tracks, sides, sectors = geometry
+    return (tracks in SUPPORTED_TRACKS and
+            sides in SUPPORTED_SIDES and
+            sectors in SUPPORTED_SECTORS)
 
 
 def decode_msa(data):
@@ -77,13 +87,18 @@ def _report(data, raw, geometry):
             "tracks": tracks, "sides": sides, "sectors_per_track": sectors,
             "sector_bytes": 512, "raw_bytes": len(raw),
             "raw_sha256": hashlib.sha256(raw).hexdigest(),
-            "current_fes_geometry_supported": geometry == SUPPORTED,
-            "geometry_extension_supported": (80 <= tracks <= 82 and
-                                             1 <= sides <= 2 and
-                                             9 <= sectors <= 10),
-            "current_fes_requires": {"format": "raw-st", "tracks": 80,
-                                     "sides": 2, "sectors_per_track": 9,
-                                     "bytes": 737280}}
+            "current_fes_geometry_supported": current_fes_geometry(geometry),
+            "current_fes_legacy_80x2x9": geometry == LEGACY,
+            "geometry_extension_supported": current_fes_geometry(geometry),
+            "current_fes_requires": {"format": "raw-st",
+                                     "tracks": [80, 81, 82],
+                                     "sides": [1, 2],
+                                     "sectors_per_track": [9, 10],
+                                     "min_bytes": 80 * 1 * 9 * 512,
+                                     "max_bytes": 82 * 2 * 10 * 512,
+                                     "legacy": {"tracks": 80, "sides": 2,
+                                                "sectors_per_track": 9,
+                                                "bytes": 737280}}}
 
 
 def convert_msa(source, destination):

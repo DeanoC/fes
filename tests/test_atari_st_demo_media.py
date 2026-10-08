@@ -116,19 +116,35 @@ class DemoMediaTests(unittest.TestCase):
             data = struct.pack(">5H", 0xE0F, 10, sides-1, 0, tracks-1)
             data += (struct.pack(">H", len(track)) + track) * tracks * sides
             report = media.inspect(data)
-            self.assertFalse(report["current_fes_geometry_supported"])
+            self.assertTrue(report["current_fes_geometry_supported"])
+            self.assertFalse(report["current_fes_legacy_80x2x9"])
             self.assertTrue(report["geometry_extension_supported"])
             self.assertEqual(report["raw_bytes"], tracks * sides * 5120)
 
     def test_report_distinguishes_legacy_extension_and_offline_geometry(self):
-        for geometry in ((80, 2, 9), (80, 1, 9), (81, 2, 10), (82, 1, 10),
-                         (79, 2, 10), (83, 2, 9), (80, 2, 11), (2, 2, 1)):
+        layouts = [(tracks, sides, sectors)
+                   for tracks in (80, 81, 82)
+                   for sides in (1, 2)
+                   for sectors in (9, 10)]
+        self.assertEqual(len(layouts), 12)
+        for geometry in layouts + [(79, 2, 10), (83, 2, 9), (80, 2, 11), (2, 2, 1)]:
             with self.subTest(geometry=geometry):
                 report = media.inspect(self.sample(*geometry)[0])
-                self.assertEqual(report["current_fes_geometry_supported"], geometry == (80, 2, 9))
                 tracks, sides, sectors = geometry
-                self.assertEqual(report["geometry_extension_supported"],
-                                 80 <= tracks <= 82 and 1 <= sides <= 2 and 9 <= sectors <= 10)
+                supported = 80 <= tracks <= 82 and 1 <= sides <= 2 and 9 <= sectors <= 10
+                self.assertEqual(report["current_fes_geometry_supported"], supported)
+                self.assertEqual(report["current_fes_legacy_80x2x9"], geometry == (80, 2, 9))
+                self.assertEqual(report["geometry_extension_supported"], supported)
+                self.assertEqual(report["current_fes_requires"], {
+                    "format": "raw-st",
+                    "tracks": [80, 81, 82],
+                    "sides": [1, 2],
+                    "sectors_per_track": [9, 10],
+                    "min_bytes": 80 * 1 * 9 * 512,
+                    "max_bytes": 82 * 2 * 10 * 512,
+                    "legacy": {"tracks": 80, "sides": 2, "sectors_per_track": 9,
+                               "bytes": 737280},
+                })
 
     def test_invalid_external_data_is_rejected(self):
         header = struct.pack(">5H", 0xE0F, 1, 0, 0, 0)
