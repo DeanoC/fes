@@ -193,8 +193,7 @@ module top #(
     assign HDMI_TX_VS = selected_video_response[26];
     assign HDMI_TX_CLK = pixel_clk;
     fes_audio_output audio (
-        .source_clk(clk_sys), .audio_clk(audio_clk), .locked(system_locked), .native_vblank(vblank), .native_display(native_display), .native_line(native_line), .sync_mode(sync_mode),
-        .hold(machine_reset),
+        .source_clk(clk_sys), .audio_clk(audio_clk), .locked(system_locked), .hold(machine_reset),
         .left_sample(audio_pcm), .right_sample(audio_pcm),
         .sclk(HDMI_SCLK), .lrclk(HDMI_LRCLK), .sdata(HDMI_I2S)
     );
