@@ -38,14 +38,19 @@ The original ST MMU configures two logical banks. This machine has one
 physical 512 KiB bank and an empty second bank. `$FF8001` changes logical bank
 sizes and the CPU's multiplexed address mapping, including the row/column
 aliases ROMs use to discover RAM. Empty-bank reads acknowledge `$FFFF` and
-writes have no effect. This follows the original ST wiring, rather than the
-later STe mapping. In the normal `$04` configuration:
+writes have no effect. The remainder of the original ST RAM decode window
+below `$400000` also acknowledges accesses and discards writes, even beyond
+the configured logical bank sizes. Empty-memory reads use the existing all-ones
+model; the original STF floating data-bus value is not reproduced. Addresses
+from `$400000` upward remain unmapped until a separately decoded cartridge,
+ROM or peripheral window. The populated bank follows the original ST wiring,
+rather than the later STe mapping. In the normal `$04` configuration:
 
 | Address | Behavior |
 | --- | --- |
 | `$000000–$000007` | Supervisor ROM-vector alias; writes fault |
 | `$000008–$07FFFF` | RAM; user access below `$800` faults |
-| `$080000–$09FFFF` | Configured but physically empty bank 1 |
+| `$080000–$3FFFFF` | Unpopulated RAM: reads acknowledge `$FFFF`, writes discarded |
 | `$FA0000–$FBFFFF` | Read-only cartridge connector; empty reads acknowledge `$FFFF` |
 | `$FC0000–$FEFFFF` | Exact 196,608-byte firmware image; writes fault |
 | `$FF8001` | Logical bank configuration |
@@ -225,6 +230,19 @@ and the decoded raw-image hash. Explicit raw output preserves every decoded
 byte without padding. Original BIG (80×1×10) and Cuddly (82×2×10) disks fit
 the geometry extension. Admission and sector correctness do not qualify their
 loaders or raster/border effects.
+
+
+`scripts/sim_atari_st_demo.py` runs an original raw disk with independently
+pinned 192 KiB firmware on the actual FX68K/chipset model. Its default ROM
+digest selects stock EmuTOS; an explicit `--rom-sha256` admits an independently
+identified original TOS image without changing its bytes. It freezes source,
+ROM, disk and generated-model identities before execution. Its bounded fault
+log records the first 64 bus errors with the latched address, direction and
+function code; the first eight faults also capture RAM. The exported CPU PC
+is diagnostic prefetch/exception state, not an instruction-retirement trace.
+Per-second static framebuffer images do not prove video timing or border
+behavior. Neither successful capture completion nor removal of one loader
+fault establishes demo compatibility.
 
 The aggregate uses original diagnostic firmware and focused CPU, video,
 MFP, keyboard/audio, floppy, physical SDRAM, dual-clock cache and real GP

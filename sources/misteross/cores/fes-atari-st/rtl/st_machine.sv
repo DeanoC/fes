@@ -127,7 +127,6 @@ module st_machine #(
         endcase
     endfunction
     wire [23:0] bank0_size = bank_size(memory_config[3:2]);
-    wire [23:0] configured_size = bank0_size + bank_size(memory_config[1:0]);
     wire supervisor = cpu_fc[2];
     wire live_palette = live_address >= 24'hff8240 && live_address <= 24'hff825e;
     wire live_io = live_palette || live_address == 24'hff8000 ||
@@ -202,7 +201,11 @@ module st_machine #(
                             target <= ROM;
                         else if (live_address < bank0_size)
                             target <= RAM;
-                        else if (live_address < configured_size)
+                        // The MMU acknowledges the whole original-ST 4 MiB
+                        // RAM window, including unpopulated/unselected DRAM.
+                        // Keep the existing all-ones empty-bank read model;
+                        // writes have no physical DRAM destination.
+                        else if (live_address < 24'h400000)
                             target <= EMPTY_BANK;
                         else if (live_address >= 24'hfc0000 && live_address < 24'hff0000)
                             target <= cpu_rw ? ROM : FAULT;

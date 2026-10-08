@@ -1,0 +1,4 @@
+cpureg
+savebin final-ram.bin $0 $80000
+screenshot final-screen.png
+quit

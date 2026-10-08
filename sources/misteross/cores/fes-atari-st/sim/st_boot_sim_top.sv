@@ -53,6 +53,9 @@ module st_boot_sim_top (
     output wire [23:0] debug_addr,
     output wire debug_bus_error, debug_overlay, debug_halted,
     output wire [31:0] debug_pc,
+    output wire [23:0] debug_fault_address,
+    output wire [2:0] debug_fault_fc,
+    output wire debug_fault_write,
     output wire [7:0] debug_fdc_status, debug_fdc_track, debug_fdc_sector, debug_fdc_head,
     output wire vblank, hblank
 );
@@ -66,6 +69,9 @@ module st_boot_sim_top (
     assign debug_fdc_track = system.io.floppy.track_reg;
     assign debug_fdc_sector = system.io.floppy.sector_reg;
     assign debug_fdc_head = system.io.floppy.head_track;
+    assign debug_fault_address = system.machine.address;
+    assign debug_fault_fc = system.machine.function_code;
+    assign debug_fault_write = system.machine.writing;
     // Simulation-only observability; no upstream CPU bytes are changed.
     assign debug_pc = {system.machine.cpu.cpu.excUnit.PcH,
                        system.machine.cpu.cpu.excUnit.PcL};

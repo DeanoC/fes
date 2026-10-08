@@ -127,7 +127,7 @@ Capture completion is explicitly distinct from demo compatibility.
 
 EmuTOS detects 524,288 bytes of RAM, sets screen base `$078000` and runs the
 CPU. BIG reads one 512-byte boot sector, then leaves a black framebuffer and
-records one additional bus fault beyond the four startup RAM-discovery faults.
+records one additional bus fault beyond the four startup hardware-probe faults.
 Cuddly reads two boot sectors and displays an illegal-instruction panic at
 `PC=$00007000`, within physical ST RAM. The cause is not established by this
 capture; no RAM-capacity requirement is inferred.
