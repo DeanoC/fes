@@ -295,7 +295,9 @@ class Boot {
                   << " frclock=" << longword(0x466) << " CPU R/W=" << cpu_reads << '/' << cpu_writes
                   << " video R=" << video_reads << " refreshes=" << sdram.refreshes
                   << " faults=" << faults << " MFP/VBL=" << mfp << '/' << vbl
-                  << " underruns=" << dut.debug_underruns << '\n' << std::flush;
+                  << " native frames/skipped/underruns=" << dut.native_frames << '/'
+                  << dut.native_skipped << '/' << dut.native_underruns
+                  << " indexed underruns=" << dut.debug_underruns << '\n' << std::flush;
     }
 
 public:
@@ -336,6 +338,8 @@ public:
             }
         }
         status();
+        require(dut.native_frames > 100 && dut.native_underruns == 0,
+                "native low-resolution capture missed frames/rows under SDRAM contention", system_cycles);
         require(longword(0x420) == 0x752019f3, "EmuTOS did not validate physical RAM", system_cycles);
         require(longword(0x42e) == 0x80000, "EmuTOS did not size physical RAM at 512 KiB", system_cycles);
         require(longword(0x44e) == 0x78000 && dut.screen_base == 0x78000,

@@ -20,7 +20,9 @@ struct Demo {
     Vst_boot_sim_top dut;
     std::vector<uint8_t> rom,disk;
     std::array<uint8_t,524288> ram{};
-    Pending rp,mp,dp;
+    Pending rp,mp,dp,cp;
+    std::vector<unsigned char> native_picture = std::vector<unsigned char>(320*200*3);
+    std::vector<unsigned char> completed_native_picture;
     uint64_t cycles=0,writes=0,faults=0,vbl=0,hbl=0,mfp=0,dma=0,media=0;
     uint32_t last_media=UINT32_MAX,last_fdc=UINT32_MAX;
     bool last_fault=false,last_ack=false;
@@ -42,6 +44,7 @@ struct Demo {
         dut.exp_ack=0;dut.exp_berr=0;dut.exp_rdata=0xffff;dut.exp_irq=0;dut.exp_present=0;
         dut.rom_ready=0;dut.ram_ready=0;dut.media_ready=1;dut.media_size=disk.size();dut.media_valid=0;
         dut.dma_ready=0;dut.mouse_valid=0;dut.mouse_dx=0;dut.mouse_dy=0;dut.mouse_buttons=0;dut.controller_buttons=0;
+        dut.capture_ready=0;dut.capture_data=0;
         for(unsigned i=0;i<5;++i)dut.keyboard[i]=0;
         sectors.open(prefix+"-disk-access.jsonl");trace.open(prefix+"-trace.jsonl");fdc.open(prefix+"-fdc.jsonl");
         fault_trace.open(prefix+"-faults.jsonl");
@@ -49,7 +52,14 @@ struct Demo {
         check(sectors.good()&&trace.good()&&fdc.good()&&fault_trace.good()&&palette_trace.good(),"trace output unavailable");dut.eval();
     }
     void storage() {
-        if(dut.reset){rp={};mp={};dp={};dut.rom_ready=0;dut.ram_ready=0;dut.media_valid=0;dut.dma_ready=0;return;}
+        if(dut.reset){rp={};mp={};dp={};cp={};dut.rom_ready=0;dut.ram_ready=0;dut.media_valid=0;dut.dma_ready=0;dut.capture_ready=0;return;}
+        if(!dut.capture_req){cp={};dut.capture_ready=0;}
+        else {
+            unsigned a=dut.capture_addr*2;check(a+1<ram.size(),"native capture RAM bounds");
+            if(!cp.seen){cp.seen=true;cp.addr=a;cp.wait=12+(a%7);}
+            check(cp.addr==a,"native read changed before ACK");
+            dut.capture_data=word(a);dut.capture_ready=cp.wait==0;if(cp.wait)--cp.wait;
+        }
         if(!dut.rom_req){rp={};dut.rom_ready=0;}
         else {
             unsigned a=dut.rom_addr*2;check(a+1<rom.size(),"ROM bounds");
@@ -88,7 +98,19 @@ struct Demo {
         const bool native_vblank=!dut.reset&&dut.vblank;
         const unsigned native_line=dut.debug_native_line;
         const uint32_t horizontal_phase=dut.debug_horizontal_phase;
+        const bool native_pixel=dut.capture_pixel;
+        const unsigned native_x=dut.capture_x,native_y=dut.capture_y,native_rgb=dut.capture_rgb;
+        const unsigned completed_before=dut.capture_frames;
         dut.clk_sys=1;dut.eval();
+        if(native_pixel){
+            check(native_x<320&&native_y<200,"native capture coordinates");
+            auto expand=[](unsigned c){return (c<<5)|(c<<2)|(c>>1);};
+            const unsigned offset=(native_y*320+native_x)*3;
+            native_picture[offset]=expand((native_rgb>>6)&7);
+            native_picture[offset+1]=expand((native_rgb>>3)&7);
+            native_picture[offset+2]=expand(native_rgb&7);
+        }
+        if(dut.capture_frames!=completed_before)completed_native_picture=native_picture;
         if(native_vblank){
             if(cycles>=6*Hz){
                 palette_trace<<"{\"kind\":\"frame\",\"cycle\":"<<cycles<<",\"frame\":"<<native_frames
@@ -138,6 +160,11 @@ struct Demo {
         return (packed>>bit)&511;
     }
     void snapshot(const std::string &suffix) {
+        if(!completed_native_picture.empty()){
+            std::ofstream native(prefix+suffix+"-native.ppm",std::ios::binary);
+            native<<"P6\n320 200\n255\n";
+            native.write(reinterpret_cast<const char*>(completed_native_picture.data()),completed_native_picture.size());
+        }
         std::ofstream memory(prefix+suffix+"-ram.bin",std::ios::binary);
         memory.write(reinterpret_cast<const char*>(ram.data()),ram.size());
         const unsigned mode=dut.resolution,planes=mode==0?4:mode==1?2:1;
@@ -164,7 +191,8 @@ struct Demo {
            <<",\"mfp_acks\":"<<mfp<<",\"vbl_acks\":"<<vbl<<",\"hbl_acks\":"<<hbl
            <<",\"dma_words\":"<<dma<<",\"media_bytes\":"<<media
            <<",\"palette_changed_entries_after_six_seconds\":"<<palette_changes
-           <<",\"max_completed_native_frame_palette_changes\":"<<max_palette_frame_changes<<"}";
+           <<",\"max_completed_native_frame_palette_changes\":"<<max_palette_frame_changes
+           <<",\"native_rgb_frames\":"<<dut.capture_frames<<",\"native_rgb_underruns\":"<<dut.capture_underruns<<"}";
     }
     void run(unsigned seconds,unsigned key_b_at=0) {
         for(unsigned i=0;i<64;++i)tick();dut.reset=0;

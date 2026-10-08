@@ -8,18 +8,21 @@
 // Pixel lookup tags and cache data each cross one registered boundary before
 // the renderer's original plane-capture edge. Memory inference and HDMI timing
 // require separate native compilation/qualification.
-module st_video_adapter (
+module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     input wire clk_sys, clk_pixel,
     input wire reset_sys, reset_pixel,
     input wire hold,
+    input wire native_vblank, native_display,
+    input wire [8:0] native_line,
+    input wire [7:0] sync_mode,
     // The original ST base has no writable low byte.
     /* verilator lint_off UNUSEDSIGNAL */
     input wire [23:0] screen_base,
     /* verilator lint_on UNUSEDSIGNAL */
     input wire [1:0] resolution,
     input wire [143:0] palette,
-    output reg video_req,
-    output reg [18:1] video_addr,
+    output wire video_req,
+    output wire [18:1] video_addr,
     input wire video_ready,
     input wire [15:0] video_rdata,
     output wire [`FES_VIDEO_PART_REQUEST_BITS-1:0] video_request,
@@ -67,6 +70,9 @@ module st_video_adapter (
     wire [6:0] selected_words = job_high[selected_bank] ? 7'd40 : 7'd80;
     wire selected_valid = selected_start + 24'(selected_words) <= 24'h040000;
 
+    reg legacy_req;
+    reg [18:1] legacy_addr;
+    wire legacy_ready;
     always @(posedge clk_sys) begin
         if (reset_sys) begin
             config_req_meta <= 1'b0;
@@ -83,8 +89,8 @@ module st_video_adapter (
             memory_token <= 1'b0;
             memory_index <= 7'd0;
             memory_words <= 7'd0;
-            video_req <= 1'b0;
-            video_addr <= 18'd0;
+            legacy_req <= 1'b0;
+            legacy_addr <= 18'd0;
         end else begin
             config_req_meta <= config_request;
             config_req_sync <= config_req_meta;
@@ -102,8 +108,8 @@ module st_video_adapter (
                     memory_words <= selected_words;
                     next_bank <= !selected_bank;
                     if (selected_valid) begin
-                        video_addr <= selected_start[17:0];
-                        video_req <= 1'b1;
+                        legacy_addr <= selected_start[17:0];
+                        legacy_req <= 1'b1;
                         memory_state <= MEMORY_READ;
                     end else begin
                         // Reject the entire line, never truncate a bad base into RAM.
@@ -111,10 +117,10 @@ module st_video_adapter (
                         job_done[selected_bank] <= job_req_sync[selected_bank];
                     end
                 end
-                MEMORY_READ: if (video_ready) begin
+                MEMORY_READ: if (legacy_ready) begin
                     if (memory_bank) cache1[memory_index] <= video_rdata;
                     else cache0[memory_index] <= video_rdata;
-                    video_req <= 1'b0;
+                    legacy_req <= 1'b0;
                     memory_state <= MEMORY_GAP;
                 end
                 MEMORY_GAP: begin
@@ -125,13 +131,13 @@ module st_video_adapter (
                         memory_state <= MEMORY_IDLE;
                     end else begin
                         memory_index <= memory_index + 7'd1;
-                        video_addr <= video_addr + 18'd1;
-                        video_req <= 1'b1;
+                        legacy_addr <= legacy_addr + 18'd1;
+                        legacy_req <= 1'b1;
                         memory_state <= MEMORY_READ;
                     end
                 end
                 default: begin
-                    video_req <= 1'b0;
+                    legacy_req <= 1'b0;
                     memory_state <= MEMORY_IDLE;
                 end
             endcase
@@ -155,7 +161,7 @@ module st_video_adapter (
     wire [8:0] current_row, next_row;
     wire color_scheduling = vertical >= 10'd52 && vertical < 10'd660;
     wire mono_scheduling = vertical >= 10'd152 && vertical < 10'd560;
-    wire scheduling = configured && mode_valid &&
+    wire scheduling = configured && mode_valid && (!NATIVE_LOW_CAPTURE || active_resolution != 2'd0) &&
         (high_resolution ? mono_scheduling : color_scheduling);
     wire [8:0] desired_row0 = current_row[0] ? current_row + 9'd1 : current_row;
     wire [8:0] desired_row1 = current_row[0] ? current_row : current_row + 9'd1;
@@ -243,7 +249,8 @@ module st_video_adapter (
             // A completion later in this line cannot expose a partial picture.
             if (first_lookup) begin
                 line_available <= next_image_line && next_row_ready;
-                if (configured && next_image_line && !next_row_ready)
+                if (configured && next_image_line && !next_row_ready &&
+                    (!NATIVE_LOW_CAPTURE || active_resolution != 2'd0))
                     debug_underruns <= debug_underruns + 32'd1;
             end
             if (horizontal == H_TOTAL - 11'd1) begin
@@ -269,7 +276,10 @@ module st_video_adapter (
     wire [8:0] renderer_row;
     wire [6:0] renderer_column;
     reg lookup_valid, lookup_bank;
+    // Retained by the focused simulation's registered-word/tag inspection.
+    /* verilator lint_off UNUSEDSIGNAL */
     reg [6:0] lookup_column;
+    /* verilator lint_on UNUSEDSIGNAL */
     reg [15:0] renderer_data;
     // Unreset, unconditional per-bank read registers allow each pixel read
     // clock to be absorbed into its own synchronous RAM port.
@@ -310,7 +320,64 @@ module st_video_adapter (
         .fetch_row(renderer_row), .fetch_column(renderer_column),
         .raster_row(current_row), .raster_next_row(next_row), .video_request(source_request)
     );
-    wire mute = hold_sync || !configured || (image_line && horizontal < 11'd1280 && !line_available);
+    wire native_req, native_ready, native_valid;
+    wire [18:1] native_addr;
+    wire [8:0] native_rgb, native_border;
+    // Forecast the coordinates after this pixel edge for synchronous RGB RAM.
+    wire [8:0] rgb_row = horizontal == H_TOTAL - 11'd1 ? next_row : current_row;
+    wire rgb_line = horizontal == H_TOTAL - 11'd1 ? next_image_line : image_line;
+    wire [8:0] rgb_x = horizontal < 11'd1279 ? 9'((horizontal + 11'd1) >> 2) : 9'd0;
+    wire [15:0] rgb_address = rgb_line && rgb_row < 9'd200 ?
+        16'(rgb_row) * 16'd320 + 16'(rgb_x) : 16'd0;
+    generate if (NATIVE_LOW_CAPTURE) begin : native_capture
+        /* verilator lint_off PINCONNECTEMPTY */
+        st_native_low_video capture (
+            .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
+            .hold(hold), .native_vblank(native_vblank), .native_display(native_display),
+            .native_line(native_line), .sync_mode(sync_mode), .screen_base(screen_base),
+            .resolution(resolution), .palette(palette),
+            .memory_req(native_req), .memory_addr(native_addr), .memory_ready(native_ready), .memory_data(video_rdata),
+            .output_sof(horizontal == H_TOTAL - 11'd1 && vertical == V_TOTAL - 10'd1),
+            .output_address(rgb_address), .output_rgb(native_rgb), .output_border(native_border),
+            .output_valid(native_valid), .debug_frames(), .debug_skipped(), .debug_underruns()
+        );
+        /* verilator lint_on PINCONNECTEMPTY */
+        reg bus_active, bus_native, bus_gap, prefer_native;
+        wire select_native = native_req && (!legacy_req || prefer_native);
+        assign video_req = bus_active && (bus_native ? native_req : legacy_req);
+        assign video_addr = bus_native ? native_addr : legacy_addr;
+        assign native_ready = bus_active && bus_native && video_ready;
+        assign legacy_ready = bus_active && !bus_native && video_ready;
+        always @(posedge clk_sys) begin
+            if (reset_sys) begin
+                bus_active <= 1'b0; bus_native <= 1'b0;
+                bus_gap <= 1'b0; prefer_native <= 1'b1;
+            end else if (bus_gap) bus_gap <= 1'b0;
+            else if (!bus_active && (native_req || legacy_req)) begin
+                bus_native <= select_native; bus_active <= 1'b1;
+            end else if (bus_active && video_ready) begin
+                bus_active <= 1'b0; bus_gap <= 1'b1; prefer_native <= !bus_native;
+            end
+        end
+    end else begin : cached_renderer_test
+        // The focused cache/renderer test isolates the retained indexed path.
+        wire unused_native_inputs = ^{native_vblank, native_display, native_line, sync_mode,
+                                      rgb_address, native_req, native_ready, native_addr};
+        assign video_req = legacy_req;
+        assign video_addr = legacy_addr;
+        assign legacy_ready = video_ready;
+        assign native_req = 1'b0; assign native_addr = 18'd0; assign native_ready = 1'b0;
+        assign native_rgb = 9'd0; assign native_border = 9'd0; assign native_valid = 1'b0;
+    end endgenerate
+    function automatic [23:0] expand_rgb(input [8:0] c);
+        expand_rgb = {c[8:6], c[8:6], c[8:7], c[5:3], c[5:3], c[5:4], c[2:0], c[2:0], c[2:1]};
+    endfunction
+    wire native_low = NATIVE_LOW_CAPTURE && active_resolution == 2'd0;
+    wire [23:0] captured_rgb = !source_request[`FES_VIDEO_PART_REQUEST_DE_BIT] ? 24'd0 :
+        expand_rgb(image_line ? native_rgb : native_border);
+    wire [31:0] selected_request = native_low ? {source_request[31:24], captured_rgb} : source_request;
+    wire mute = hold_sync || !configured || (native_low ? !native_valid :
+        image_line && horizontal < 11'd1280 && !line_available);
     assign video_request = mute ?
-        ((source_request & 32'hff000000) | (32'd1 << `FES_VIDEO_PART_REQUEST_HOLD_BIT)) : source_request;
+        ((selected_request & 32'hff000000) | (32'd1 << `FES_VIDEO_PART_REQUEST_HOLD_BIT)) : selected_request;
 endmodule

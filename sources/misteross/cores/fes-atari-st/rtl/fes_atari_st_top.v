@@ -124,6 +124,8 @@ module top #(
     wire [7:0] sync_mode;
     wire [23:0] debug_addr;
     wire debug_bus_error, debug_overlay, debug_halted, vblank, hblank;
+    wire native_display;
+    wire [8:0] native_line;
     generate begin : machine
         st_rom rom (.clk(clk_sys), .reset(machine_reset), .req(rom_req), .address(rom_addr),
                     .rdata(rom_rdata), .ready(rom_ready));
@@ -153,7 +155,7 @@ module top #(
             .dma_req(dma_req), .dma_write(dma_write), .dma_rdata(dma_rdata), .dma_addr(dma_addr), .dma_wdata(dma_wdata), .dma_byte_enable(dma_byte_enable),
             .dma_ready(dma_ready), .screen_base(screen_base), .resolution(resolution), .palette(palette),
             .sync_mode(sync_mode), .debug_addr(debug_addr), .debug_bus_error(debug_bus_error),
-            .debug_overlay(debug_overlay), .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank)
+            .debug_overlay(debug_overlay), .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_line(native_line)
         );
     end endgenerate
 
@@ -164,6 +166,7 @@ module top #(
     wire [31:0] debug_underruns, debug_frame;
     st_video_adapter video (
         .clk_sys(clk_sys), .clk_pixel(pixel_clk), .reset_sys(cold_reset), .reset_pixel(pixel_reset),
+        .native_vblank(vblank), .native_display(native_display), .native_line(native_line), .sync_mode(sync_mode),
         .hold(machine_reset), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
         .video_request(video_request), .debug_underruns(debug_underruns), .debug_frame(debug_frame)
@@ -190,7 +193,8 @@ module top #(
     assign HDMI_TX_VS = selected_video_response[26];
     assign HDMI_TX_CLK = pixel_clk;
     fes_audio_output audio (
-        .source_clk(clk_sys), .audio_clk(audio_clk), .locked(system_locked), .hold(machine_reset),
+        .source_clk(clk_sys), .audio_clk(audio_clk), .locked(system_locked), .native_vblank(vblank), .native_display(native_display), .native_line(native_line), .sync_mode(sync_mode),
+        .hold(machine_reset),
         .left_sample(audio_pcm), .right_sample(audio_pcm),
         .sclk(HDMI_SCLK), .lrclk(HDMI_LRCLK), .sdata(HDMI_I2S)
     );

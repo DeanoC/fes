@@ -1722,21 +1722,33 @@ explicit later replacement can upload through the shared media arbiter.
 `make sim-fes-atari-st-media-lifecycle` exercises these actual components with
 delayed RAM and media completions, including rejected mutations and later retry.
 
-`st_video_adapter.sv` uses held-bundle handshakes for frame configuration and
-owned double line caches between system and 74.25 MHz pixel clocks. The palette
-is part of that frame configuration, so native per-line palette changes are
-not reproduced. Native interrupt/display timing in `st_io.sv` is reduced and
-independent of the fixed 60 Hz output; current caches refetch live framebuffer
-lines rather than preserve a completed native raster. Low,
-medium and monochrome rows advance through native row/repetition counters.
-Fixed per-mode fetch windows select coordinates after constant arithmetic.
-Synchronous cache reads and ownership tags are captured together; a second
-pixel register selects the validated bank at the original plane-capture edges.
-Displays feed shared RGB888 output through two registered boundaries. The
-optional frozen raster socket admits independently sealed Direct/Scanlines
-archives bound to the exact shell; an empty socket uses built-in Direct with
-the same latency. Underflow blacks a whole affected line and later
-lines recover; stale fills cannot cross a frame configuration change.
+`st_video_adapter.sv` captures ordinary low-resolution native pixels through
+`st_native_low_video.sv`. Its system-domain row prefetch uses the existing
+video RAM port, selecting the live RGB333 palette at each nominal 8 MHz pixel.
+Three complete 320×200 RGB333 banks have explicit publish/release ownership
+across the system and pixel domains. Only completed captures are published;
+the fixed 60 Hz reader selects the newest completed bank at SOF and pins it
+until a later SOF. A slow or stopped reader makes the producer skip frames
+rather than overwrite the displayed bank. Missing rows become whole black
+lines; incomplete or held captures are discarded. RAM address validation
+rejects an entire row before any truncation.
+
+Medium and monochrome retain held-bundle configuration and indexed double
+line caches, including a palette held for each output frame. A fair, held
+request arbiter shares the video-memory port between legacy and native paths.
+Fixed per-mode fetch windows, synchronous cache reads and ownership tags
+retain their original plane-capture edges. All modes feed the same shared
+RGB888 socket through two registered boundaries; Direct/Scanlines archives
+remain independently sealed against the exact shell.
+
+`st_io.sv` remains a reduced native timing model, independent of fixed HDMI.
+Ordinary PAL DE spans lines 63–262 and cycles 56–375; NTSC spans lines
+34–233 and cycles 52–371. Line/frame modes are sampled at their boundaries.
+Brief sync/resolution writes therefore do not add Timer B events mid-line.
+This does not reproduce original GLUE sample positions or opened borders.
+Native capture prefetch is also not a cycle-exact MMU/shifter implementation.
+Monochrome timing retains its existing reduced 400-line model. No shared ABI,
+video socket layout, physical fence or generated contract changes here.
 
 The `fes.atari-st-video.parts/2` physical layout retains the 93 original
 boundary/clock FFs and adds 32 permanent request-egress LUT loads at

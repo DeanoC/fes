@@ -32,7 +32,7 @@ FLAGS = ["-Wno-" + name for name in (
     "BLKANDNBLK", "CASEINCOMPLETE", "CASEOVERLAP")]
 RTL = [CORE + "rtl/" + name + ".sv" for name in (
     "st_system", "st_cpu", "st_machine", "st_io", "st_mfp", "st_acia", "st_ikbd",
-    "st_ym2149", "st_floppy", "st_floppy_writer")]
+    "st_ym2149", "st_floppy", "st_floppy_writer", "st_native_low_video")]
 RTL += ["cores/fes-zx81/expansions/zonx_ay.v"]
 RTL += [CPU + name for name in ("fx68k.sv", "fx68kAlu.sv", "uaddrPla.sv")]
 DATA = [CPU + "microrom.mem", CPU + "nanorom.mem", "cores/fes-common/generated/fes_video_part.vh"]
@@ -82,13 +82,16 @@ def run(args):
     source.mkdir(); build.mkdir()
     identities, selected, differences = {}, {}, {}
     for relative in [PREFIX + name for name in RTL + DATA] + [WRAPPER]:
-        committed = subprocess.check_output(["git", "show", revision + ":" + relative], cwd=ROOT)
+        result = subprocess.run(["git", "show", revision + ":" + relative], cwd=ROOT, capture_output=True)
+        if result.returncode and not args.working_tree:
+            raise ValueError(f"selected revision lacks compiled input: {relative}")
+        committed = None if result.returncode else result.stdout
         working = (ROOT / relative).read_bytes()
-        selected[relative] = sha(committed)
+        selected[relative] = None if committed is None else sha(committed)
         if working != committed:
             if not args.working_tree:
                 raise ValueError(f"working compiled input differs from selected revision: {relative}")
-            differences[relative] = {"revision_sha256": sha(committed), "captured_sha256": sha(working)}
+            differences[relative] = {"revision_sha256": selected[relative], "captured_sha256": sha(working)}
         data = working if args.working_tree else committed
         identities[relative] = sha(data)
         destination = source / relative
@@ -116,6 +119,7 @@ def run(args):
               "build_command": command, "verilator_version": subprocess.check_output([verilator, "--version"], text=True).strip(),
               "seconds_requested": args.seconds, "hardware_execution": False, "native_fpga_build": False,
               "demo_compatibility_asserted": False, "framebuffer_capture": "static RAM/palette reconstruction; no raster or border proof",
+              "native_rgb_capture": "production low-resolution capture observed with model RAM/system-clock consumer; no physical SDRAM, HDMI or original GLUE/border oracle",
               "media_fixture": "read-only bounded disk callbacks; real FX68K/pinned ROM/floppy/DMA RTL",
               "capture_completed": False}
     write_json(output / "source-identity.json", record)

@@ -216,6 +216,12 @@ with temporary qualified geometry software. Captures show incorrect raster
 palette colours; audio is present but fidelity is unqualified. The original
 image and populated menu were restored. Demo borders, later sections, accurate
 audio and full current-image integration remain open.
+Current source adds ordinary low-resolution native RGB capture with live
+per-pixel palette selection and three owned complete-frame banks. Medium and
+monochrome retain their indexed renderer. This source change requires a new
+sealed shell and exact-shell video parts; the earlier kit captures do not
+qualify it. Original GLUE latch timing, opened borders and accurate audio
+remain separate work.
 
 ## Not implemented, or not this package
 
