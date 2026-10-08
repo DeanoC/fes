@@ -31,6 +31,11 @@ module st_native_low_video (
     reg [2:0] published, released, seen;
     (* async_reg = "true" *) reg [2:0] pub_meta, pub_sync, release_meta, release_sync;
     reg [31:0] sequence_number [0:2];
+    // At most three unseen publications can exist, and a selection consumes
+    // every pending publication. Their publication numbers differ by at most
+    // two, so signed modulo-8 ordering is unambiguous even across wrap/pauses.
+    reg [2:0] publication_number [0:2];
+    reg [2:0] publication_counter;
     reg [8:0] border [0:2];
     reg [31:0] front_sequence;
     reg [8:0] front_border;
@@ -46,17 +51,24 @@ module st_native_low_video (
     integer candidate;
     reg choose_valid;
     reg [1:0] choose_bank;
-    reg [31:0] choose_sequence;
+    reg [2:0] choose_sequence;
+    function automatic newer_publication(input [2:0] latest, earlier);
+        reg [2:0] distance;
+        begin
+            distance = latest - earlier;
+            newer_publication = distance != 3'd0 && !distance[2];
+        end
+    endfunction
     always @* begin
         choose_valid = 1'b0;
         choose_bank = 2'd0;
-        choose_sequence = 32'd0;
+        choose_sequence = 3'd0;
         for (integer i = 0; i < 3; i = i + 1) begin
             if (pub_sync[i] != seen[i] &&
-                (!choose_valid || $signed(sequence_number[i] - choose_sequence) > 0)) begin
+                (!choose_valid || newer_publication(publication_number[i], choose_sequence))) begin
                 choose_valid = 1'b1;
                 choose_bank = 2'(i);
-                choose_sequence = sequence_number[i];
+                choose_sequence = publication_number[i];
             end
         end
     end
@@ -76,7 +88,7 @@ module st_native_low_video (
                     seen[candidate] <= pub_sync[candidate];
                 end
                 front_bank <= choose_bank;
-                front_sequence <= choose_sequence;
+                front_sequence <= sequence_number[choose_bank];
                 front_border <= border[choose_bank];
                 output_valid <= 1'b1;
             end
@@ -118,30 +130,32 @@ module st_native_low_video (
     wire [15:0] plane2 = row[0] ? cache1[group_word + 7'd2] : cache0[group_word + 7'd2];
     wire [15:0] plane3 = row[0] ? cache1[group_word + 7'd3] : cache0[group_word + 7'd3];
     wire [3:0] color_index = {plane3[bit_index], plane2[bit_index], plane1[bit_index], plane0[bit_index]};
-    wire [8:0] sample_rgb = sample_valid ? palette[color_index * 9 +: 9] : 9'd0;
+    wire [8:0] pixel_rgb = palette[color_index * 9 +: 9];
+    wire [8:0] sample_rgb = sample_valid ? pixel_rgb : 9'd0;
     // Sample RGB at the native event, then register the wide RAM input fanout.
     // The final pixel drains before DE falls; publication follows that fall.
-    reg frame_write;
+    reg frame_write, frame_write_black;
     reg [1:0] frame_write_bank;
     reg [15:0] frame_write_address;
     reg [8:0] frame_write_rgb;
     always @(posedge clk_sys) begin
         if (reset_sys) begin
-            frame_write <= 1'b0;
+            frame_write <= 1'b0; frame_write_black <= 1'b1;
             frame_write_bank <= 2'd0; frame_write_address <= 16'd0; frame_write_rgb <= 9'd0;
         end else begin
             frame_write <= write_pixel;
             frame_write_bank <= write_bank;
             frame_write_address <= write_address;
-            frame_write_rgb <= sample_rgb;
+            frame_write_rgb <= pixel_rgb;
+            frame_write_black <= !sample_valid;
         end
     end
     always @(posedge clk_sys) begin
         if (frame_write && !reset_sys && !hold) begin
             case (frame_write_bank)
-                2'd0: frame0[frame_write_address] <= frame_write_rgb;
-                2'd1: frame1[frame_write_address] <= frame_write_rgb;
-                2'd2: frame2[frame_write_address] <= frame_write_rgb;
+                2'd0: frame0[frame_write_address] <= frame_write_black ? 9'd0 : frame_write_rgb;
+                2'd1: frame1[frame_write_address] <= frame_write_black ? 9'd0 : frame_write_rgb;
+                2'd2: frame2[frame_write_address] <= frame_write_black ? 9'd0 : frame_write_rgb;
                 default: ;
             endcase
         end
@@ -165,6 +179,7 @@ module st_native_low_video (
     always @(posedge clk_sys) begin
         if (reset_sys) begin
             release_meta <= 3'd0; release_sync <= 3'd0; published <= 3'd0;
+            publication_counter <= 3'd0;
             owned <= 1'b0; enabled <= 1'b0; base_valid <= 1'b0;
             good_frame <= 1'b0; previous_display <= 1'b0; line_valid <= 1'b0;
             write_bank <= 2'd0; frame_top <= 9'd63; expected_row <= 9'd0;
@@ -175,7 +190,7 @@ module st_native_low_video (
             memory_req <= 1'b0; memory_addr <= 18'd0;
             debug_frames <= 32'd0; debug_skipped <= 32'd0; debug_underruns <= 32'd0;
             for (b = 0; b < 3; b = b + 1) begin
-                sequence_number[b] <= 32'd0; border[b] <= 9'd0;
+                sequence_number[b] <= 32'd0; publication_number[b] <= 3'd0; border[b] <= 9'd0;
             end
             for (b = 0; b < 2; b = b + 1) begin
                 cache_row[b] <= 9'd0; cache_epoch[b] <= 32'd0;
@@ -216,6 +231,8 @@ module st_native_low_video (
                         owned <= 1'b0;
                         if (good_frame && expected_row == 9'd199 && pixel_x == 9'd320 && pixels == 17'd64000) begin
                             sequence_number[write_bank] <= epoch;
+                            publication_number[write_bank] <= publication_counter;
+                            publication_counter <= publication_counter + 3'd1;
                             published[write_bank] <= !published[write_bank];
                             debug_frames <= debug_frames + 32'd1;
                         end
@@ -255,5 +272,5 @@ module st_native_low_video (
         end
     end
     // Retained only for simulation inspection of the selected publication.
-    wire unused_input_bits = ^{front_sequence, sync_mode[7:2], sync_mode[0], screen_base[7:0]};
+    wire unused_input_bits = ^{front_sequence, sample_rgb, sync_mode[7:2], sync_mode[0], screen_base[7:0]};
 endmodule

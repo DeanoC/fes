@@ -155,6 +155,8 @@ reader pins one bank until output SOF and selects the newest available frame.
 This repeats or drops complete source frames when native and output rates differ.
 Registered RAM write data and a two-pixel address lookahead keep native RGB
 sampling and scaled output aligned while shortening paths into the buffers.
+RGB and black-line validity have separate write registers. Three-bit publication
+numbers order the bounded pending bank set across wrap and consumer pauses.
 A missing RAM row displays black for its whole line; HOLD aborts an unfinished
 capture, and an invalid base never wraps into populated RAM.
 

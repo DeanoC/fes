@@ -1737,6 +1737,11 @@ rejects an entire row before any truncation. Native RGB is sampled at the
 pixel event into a registered RAM write bundle; a two-pixel forecast feeds a
 registered read address before the synchronous pixel read. These register
 stages shorten RAM paths while preserving palette sample and output positions.
+The write boundary registers RGB and black-line validity separately. Bank
+selection compares three-bit publication numbers: at most three unseen
+publications exist, so their distance is at most two and modulo-eight order
+remains unambiguous across counter wrap and consumer pauses. Native epochs
+remain available for simulation inspection.
 
 Medium and monochrome retain held-bundle configuration and indexed double
 line caches, including a palette held for each output frame. A fair, held
