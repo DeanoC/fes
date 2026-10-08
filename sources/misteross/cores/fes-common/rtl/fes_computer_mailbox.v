@@ -20,6 +20,7 @@ module fes_computer_mailbox #(
     parameter bit ENABLE_SPECTRUM_TAPE = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_WRITE = 0,
+    parameter bit ENABLE_ATARI_ST_FLOPPY_GEOMETRY = 0,
     parameter bit ENABLE_MEDIA_BACKPRESSURE = 0,
     parameter integer MEDIA_AW = 18,
     parameter [31:0] UNIT0_MIN = `FES_COMPUTER_APPLE2_FLOPPY_BYTES,
@@ -54,6 +55,7 @@ module fes_computer_mailbox #(
     // Unit 0 is one drive. A shell enables one of the three media parameters.
     localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_C64_DISK | ENABLE_SPECTRUM_TAPE | ENABLE_ATARI_ST_FLOPPY;
     localparam bit WRITABLE = ENABLE_ATARI_ST_FLOPPY_WRITE && ENABLE_ATARI_ST_FLOPPY;
+    localparam bit GEOMETRY = ENABLE_ATARI_ST_FLOPPY && ENABLE_ATARI_ST_FLOPPY_GEOMETRY;
     localparam [15:0] CAPABILITIES =
         16'(`FES_COMPUTER_INTERFACE_VIDEO_FIXED_720P60_CAPABILITY_MASK) |
         (ENABLE_KEYBOARD ? 16'(`FES_COMPUTER_INTERFACE_KEYBOARD_HID_CAPABILITY_MASK) : 16'd0) |
@@ -64,6 +66,7 @@ module fes_computer_mailbox #(
         (ENABLE_C64_DISK ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_C64_DISK_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_SPECTRUM_TAPE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_SPECTRUM_TAPE_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_ATARI_ST_FLOPPY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_CAPABILITY_MASK) : 16'd0) |
+        (GEOMETRY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_GEOMETRY_CAPABILITY_MASK) : 16'd0) |
         (WRITABLE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_WRITE_CAPABILITY_MASK) : 16'd0);
     localparam [15:0] E_OPCODE = 16'(`FES_COMPUTER_ERROR_INVALID_OPCODE);
     localparam [15:0] E_INDEX = 16'(`FES_COMPUTER_ERROR_INVALID_INDEX);
@@ -334,7 +337,19 @@ module fes_computer_mailbox #(
                     else if (active) reject(E_STATE);
                     else if (!begin_staged ? word != 2'd0 : word != begin_next) reject(E_INDEX);
                     else if (word == 2'd3) begin
-                        if (begin_total < UNIT0_MIN || begin_total > UNIT0_MAX) reject(E_ARGUMENT);
+                        if (begin_total < UNIT0_MIN || begin_total > UNIT0_MAX ||
+                            (GEOMETRY && begin_total != 32'd368640 &&
+                            begin_total != 32'd409600 &&
+                            begin_total != 32'd737280 &&
+                            begin_total != 32'd819200 &&
+                            begin_total != 32'd373248 &&
+                            begin_total != 32'd414720 &&
+                            begin_total != 32'd746496 &&
+                            begin_total != 32'd829440 &&
+                            begin_total != 32'd377856 &&
+                            begin_total != 32'd419840 &&
+                            begin_total != 32'd755712 &&
+                            begin_total != 32'd839680)) reject(E_ARGUMENT);
                         else begin
                             active <= 1'b1;
                             total <= begin_total;
@@ -446,7 +461,7 @@ module fes_computer_mailbox #(
                     else case (field)
                         3'd0: response_data <= snapshot_flags;
                         3'd1, 3'd2: response_data <= 16'd1;
-                        3'd3: response_data <= 16'd0;
+                        3'd3: response_data <= GEOMETRY && unit0_size != 32'd737280 ? 16'd1 : 16'd0;
                         3'd4: response_data <= unit0_size[15:0];
                         3'd5: response_data <= unit0_size[31:16];
                         3'd6: response_data <= 16'd512;

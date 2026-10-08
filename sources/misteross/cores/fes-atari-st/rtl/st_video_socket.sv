@@ -13,6 +13,73 @@ module st_video_socket (
     assign plug_request = request_q;
     assign response = response_q;
 `else
+    // Permanent in-slot loads give every request FF a routed egress before
+    // freezing the shell. Cart routes can extend the retained input branches.
+    (* keep *) wire [31:0] request_egress_unused;
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.0" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_0 (
+        .A(plug_request[0]), .B(1'b0), .Q(request_egress_unused[0]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.1" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_1 (
+        .A(plug_request[1]), .B(1'b0), .Q(request_egress_unused[1]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.6" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_2 (
+        .A(plug_request[2]), .B(1'b0), .Q(request_egress_unused[2]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.7" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_3 (
+        .A(plug_request[3]), .B(1'b0), .Q(request_egress_unused[3]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.12" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_4 (
+        .A(plug_request[4]), .B(1'b0), .Q(request_egress_unused[4]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.13" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_5 (
+        .A(plug_request[5]), .B(1'b0), .Q(request_egress_unused[5]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.18" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_6 (
+        .A(plug_request[6]), .B(1'b0), .Q(request_egress_unused[6]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.19" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_7 (
+        .A(plug_request[7]), .B(1'b0), .Q(request_egress_unused[7]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.24" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_8 (
+        .A(plug_request[8]), .B(1'b0), .Q(request_egress_unused[8]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.25" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_9 (
+        .A(plug_request[9]), .B(1'b0), .Q(request_egress_unused[9]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.30" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_10 (
+        .A(plug_request[10]), .B(1'b0), .Q(request_egress_unused[10]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.31" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_11 (
+        .A(plug_request[11]), .B(1'b0), .Q(request_egress_unused[11]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.36" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_12 (
+        .A(plug_request[12]), .B(1'b0), .Q(request_egress_unused[12]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.37" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_13 (
+        .A(plug_request[13]), .B(1'b0), .Q(request_egress_unused[13]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.42" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_14 (
+        .A(plug_request[14]), .B(1'b0), .Q(request_egress_unused[14]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.43" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_15 (
+        .A(plug_request[15]), .B(1'b0), .Q(request_egress_unused[15]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.48" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_16 (
+        .A(plug_request[16]), .B(1'b0), .Q(request_egress_unused[16]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.49" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_17 (
+        .A(plug_request[17]), .B(1'b0), .Q(request_egress_unused[17]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.54" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_18 (
+        .A(plug_request[18]), .B(1'b0), .Q(request_egress_unused[18]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.44.55" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_19 (
+        .A(plug_request[19]), .B(1'b0), .Q(request_egress_unused[19]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.45.0" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_20 (
+        .A(plug_request[20]), .B(1'b0), .Q(request_egress_unused[20]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.45.1" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_21 (
+        .A(plug_request[21]), .B(1'b0), .Q(request_egress_unused[21]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.45.6" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_22 (
+        .A(plug_request[22]), .B(1'b0), .Q(request_egress_unused[22]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.45.7" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_23 (
+        .A(plug_request[23]), .B(1'b0), .Q(request_egress_unused[23]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.45.12" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_24 (
+        .A(plug_request[24]), .B(1'b0), .Q(request_egress_unused[24]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.45.13" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_25 (
+        .A(plug_request[25]), .B(1'b0), .Q(request_egress_unused[25]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.45.18" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_26 (
+        .A(plug_request[26]), .B(1'b0), .Q(request_egress_unused[26]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.45.19" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_27 (
+        .A(plug_request[27]), .B(1'b0), .Q(request_egress_unused[27]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.45.24" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_28 (
+        .A(plug_request[28]), .B(1'b0), .Q(request_egress_unused[28]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.45.25" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_29 (
+        .A(plug_request[29]), .B(1'b0), .Q(request_egress_unused[29]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.45.30" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_30 (
+        .A(plug_request[30]), .B(1'b0), .Q(request_egress_unused[30]));
+    (* keep, BEL = "MISTRAL_MCOMB.25.45.31" *) MISTRAL_ALUT2 #(.LUT(4'hA)) request_egress_anchor_31 (
+        .A(plug_request[31]), .B(1'b0), .Q(request_egress_unused[31]));
     (* keep *) wire [32:0] clock_coverage_unused;
     (* keep, BEL = "MISTRAL_FF.24.41.2" *) MISTRAL_FF plug_request_ff_0 (
         .CLK(clock), .DATAIN(request[0]), .Q(plug_request[0]),

@@ -1,7 +1,9 @@
 package fogcast
 
 import (
+	"bytes"
 	"context"
+	"github.com/DeanoC/FogCast/corepackage"
 	"io"
 	"time"
 
@@ -86,6 +88,14 @@ func (s *Service) insertBoundMediaUnitLocked(ctx context.Context, size int64, bo
 	}
 	if !b.AcceptsSize(prior, size) {
 		return prior, protocol.MediaUnitRequestError()
+	}
+	unit, _ := protocol.MediaUnit(prior.CorePackage, b.Unit)
+	if unit.Interface == protocol.AtariStFloppyInterface() && size != protocol.AtariStFloppyBytes {
+		data, err := io.ReadAll(io.LimitReader(body, size+1))
+		if err != nil || int64(len(data)) != size || !corepackage.ValidAtariStBase(data, protocol.AtariStFloppyGeometryCapable(prior.CorePackage)) {
+			return prior, protocol.DiskMediaRequestError()
+		}
+		body = bytes.NewReader(data)
 	}
 	if protocol.MediaDataBound(prior.CorePackage) {
 		owner := ctx
@@ -218,7 +228,7 @@ func (s *Service) replaceLiveDisk(parent context.Context, mediaID, name string, 
 	if err != nil {
 		return protocol.Status{}, mapCoreMediaError(err)
 	}
-	if info.Size != size {
+	if info.Size != size && !(protocol.AdmitAtariStFloppyName(name) && protocol.AdmitAtariStFloppySize(info.Size)) {
 		return protocol.Status{}, protocol.DiskMediaRequestError()
 	}
 	opened, reader, err := store.OpenCoreMedia(ctx, mediaID)

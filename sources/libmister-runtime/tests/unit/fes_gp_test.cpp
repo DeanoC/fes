@@ -2493,6 +2493,34 @@ void TestAtariStFloppyDiscoveryAndLiveInsert()
 	assert(f.driver.media_units()[0].state == mister::MediaUnitState::empty);
 }
 
+void TestAtariStGeometryOptInTransferAndCapture()
+{
+    const auto descriptor=ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,FesComputerInterfaceMediaAtariStFloppyID,FesComputerInterfaceMediaAtariStFloppyWriteID,FesComputerInterfaceMediaAtariStFloppyGeometryID});
+    const auto caps=FesComputerCapabilityVideoFixed720p60|FesComputerCapabilityMediaAtariStFloppy|FesComputerCapabilityMediaAtariStFloppyWrite|FesComputerCapabilityMediaAtariStFloppyGeometry;
+    for(const auto& limits:{std::make_pair(368640u,839680u),std::make_pair(737280u,737280u)}) {
+        ComputerFixture probe(caps,{{0,limits}},descriptor);
+        assert(probe.driver.Identify(probe.context,kComputerDeadline).error.ok()==(limits.first==368640));
+    }
+    ComputerFixture f(caps,{{0,{368640,839680}}},descriptor);
+    assert(f.driver.Identify(f.context,kComputerDeadline).error.ok());
+    assert(f.driver.Start(f.context,kComputerDeadline).error.ok());
+    for(unsigned size:{368640u,409600u,839680u,737280u}) {
+        const std::string image(size,'x');
+        assert(f.Insert(image,0,size,10000000).ok());
+        std::vector<unsigned char> captured;
+        assert(f.driver.CaptureMedia(0,f.clock,kComputerDeadline,&captured).ok());
+        assert(std::string(captured.begin(),captured.end())==image);
+        assert(f.driver.MarkMediaSaved(0,kComputerDeadline).ok());
+        assert(f.driver.ResumeMedia(0,kComputerDeadline).ok());
+    }
+    const auto before=f.endpoint.requests.size();
+    assert(f.Insert(std::string(400000,'x'),0,400000,10000000).code==mister::ErrorCode::invalid_request);
+    for(const auto& request:f.Since(before)) assert(request.opcode!=FesComputerOpcodeMediaBegin);
+    // A geometry declaration and capability must both be present.
+    ComputerFixture old(caps&~FesComputerCapabilityMediaAtariStFloppyGeometry,{{0,{368640,839680}}},descriptor);
+    assert(!old.driver.Identify(old.context,kComputerDeadline).error.ok());
+}
+
 void TestComputerInputValidationAndPartialRows()
 {
 	ComputerFixture f(7, {}, ComputerDescriptor({FesComputerInterfaceVideoFixed720p60ID,
@@ -2767,6 +2795,7 @@ int main()
  TestMediaSnapshotFrozenCaptureAndRecovery();
  TestMouseRelativeSplittingAndUncertainDelivery();
  TestAtariStFloppyDiscoveryAndLiveInsert();
+ TestAtariStGeometryOptInTransferAndCapture();
  TestSimpleComputerDisplayRequiresExactLiveCapability();
 	TestControllerPortsValidateAndNeutralize();
 	TestControllerPartialDeliveryNeverRetries();

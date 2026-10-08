@@ -1,0 +1,9 @@
+source=GIN.024.041.0022 index=255051 destination=938693
+allow_one_shell_net=video.renderer.fetched_word[14] reached=82 destination_reachable=0
+allow_one_shell_net=machine.system.io.ikbd.fifo[63][5] reached=1523 destination_reachable=1
+allow_one_shell_net=video_request_MISTRAL_ALUT4_Q_D_MISTRAL_ALUT5_E_D_MISTRAL_ALUT3_C_Q_MISTRAL_ALUT4_D_Q_MISTRAL_ALUT5_C_Q_MISTRAL_ALUT4_C_Q_MISTRAL_ALUT4_C_Q_MISTRAL_ALUT5_E_Q_MISTRAL_ALUT4_Q_C[2] reached=105 destination_reachable=0
+allow_one_shell_net=video.renderer.fetched_word[6] reached=25343 destination_reachable=1
+allow_one_shell_net=machine.rom.q170[6] reached=12368 destination_reachable=1
+allow_one_shell_net=machine.system.io.ikbd.args[19] reached=8095 destination_reachable=1
+allow_one_shell_net=video.current_row[2] reached=135 destination_reachable=0
+allow_one_shell_net=video_request[24] reached=481 destination_reachable=1

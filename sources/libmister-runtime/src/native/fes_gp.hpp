@@ -102,6 +102,7 @@ public:
 	Error RefreshMediaState(std::uint8_t unit, std::uint64_t deadline);
 	Error MarkMediaSaved(std::uint8_t unit, std::uint64_t deadline);
 	bool MediaWriteCapable(std::uint8_t unit) const;
+    bool MediaGeometryCapable(std::uint8_t unit) const;
 	bool home_computer() const { return home_computer_; }
 	// Units of declared media interfaces with their last live MediaInfo state.
 	const std::vector<MediaUnitCapability>& media_units() const { return media_units_; }

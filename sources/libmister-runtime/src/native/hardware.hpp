@@ -180,6 +180,7 @@ private:
     std::unique_ptr<MediaDataFile> media_data_file_;
     MediaDiskRecord durable_media_;
     std::vector<unsigned char> media_snapshot_;
+    std::uint32_t media_base_size_ = 0;
     bool media_data_flushed_ = false;
     bool media_image_uncertain_ = false;
 };

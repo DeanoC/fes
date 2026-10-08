@@ -1,6 +1,8 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "native/atari_st_geometry.hpp"
+
 #include "libmister-runtime/runtime.h"
 #include "native/diagnostic.hpp"
 #include "native/generated/fes_simple_computer.hpp"
@@ -964,7 +966,7 @@ public:
 	{
 		if (!ValidAbsolutePath(path) || !ValidAbsolutePath(root) || !ValidPackageId(package_id) ||
 			!ValidPackageId(binding.base_media_id) || generation == 0 || unit != 0 || binding.unit != unit ||
-			size != native::generated::FesComputerAtariStFloppyBytes ||
+			!native::InferAtariStGeometry(size) ||
 			!ValidLibraryGameId(binding.game_id))
 			return Invalid("invalid library media request");
 		std::string system, core;

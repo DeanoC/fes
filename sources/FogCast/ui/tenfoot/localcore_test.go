@@ -670,7 +670,14 @@ func TestKitCoreInUseAndBlockedCopy(t *testing.T) {
 	blocked := &fakeLocalCores{}
 	app := startCoreRoom(t, blocked, nil, coreRoomScript(tenfootPongID, "ColecoVision", false, "Needs a cartridge"), true)
 	waitFor(t, app, "blocked tile", func(s Snapshot) bool {
-		return s.Room.Destination.Kind == rooms.KindCore && !s.Room.Destination.CoreLaunchable
+		return s.Room.Open && !s.RoomPicker.Open && !s.Loading &&
+			s.Room.ID == "cores" &&
+			s.Room.Destination.Kind == rooms.KindCore &&
+			s.Room.Destination.Label == "ColecoVision" &&
+			!s.Room.Destination.CoreLaunchable &&
+			s.Room.Destination.Status == "Needs a cartridge" &&
+			s.Room.Destination.Action == "Needs a cartridge" &&
+			s.Room.Destination.Confirm() == rooms.ConfirmExplain
 	})
 	app.HandleCommand(CmdSelect, time.Unix(10, 0))
 	snap := app.Snapshot()

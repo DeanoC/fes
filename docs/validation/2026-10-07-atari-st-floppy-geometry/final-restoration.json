@@ -1,0 +1,51 @@
+{
+  "pass": true,
+  "health": {
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+    "api_version": "v1",
+    "agent_version": "0.1.0",
+    "ready": true,
+    "boot_id": "acd9603e-9881-444d-8d98-6b6dee554ed4",
+    "artifacts": {
+      "record_sha256": "2081b2fe38571b3f8120e295f4981973f7bee1d99ca033a3705547131c612796",
+      "runtime_commit": "5a58053229b5e1772defe5f9bdc34c72f659db71",
+      "agent_sha256": "dd91591c8eb6a9728bb1036cbeaba4025e52de5c747402c2c980bdb046986754",
+      "agent_revision": "5a58053229b5e1772defe5f9bdc34c72f659db71",
+      "kit_sha256": "586b18a5bcaf338c99a55974d9062c65aaaf107bbb44fb2abeeea9a14c4e95b2",
+      "image_sha256": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+      "idle_sha256": "43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6",
+      "package_id": "519ac44a9d801267eb8a07d7f9258cf2df59fbeb389f3a630d1d5c8f02dfb798"
+    }
+  },
+  "status": {
+    "state": "idle",
+    "game_id": null,
+    "system": null,
+    "expected_core": null,
+    "observed_core": null,
+    "last_error": null
+  },
+  "lease": {
+    "expires_in_ms": 0,
+    "state": "free",
+    "generation": "348f182b123ff5cecc8754c865d1968fb9e9ee0ef020b4d7868b4d2bcdfd3c3b",
+    "expires_at": "0001-01-01T00:00:00Z"
+  },
+  "update": {
+    "confirmed_boot_id": "acd9603e-9881-444d-8d98-6b6dee554ed4",
+    "confirmed_image": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+    "good": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+    "previous": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+    "corrupt": false,
+    "boot_id": "acd9603e-9881-444d-8d98-6b6dee554ed4",
+    "image_sha256": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+    "trial": false,
+    "raw_idle_ready": true
+  },
+  "normal_host_active": "active",
+  "normal_host_enabled": "enabled",
+  "normal_library_count": 4253,
+  "predeployment_library_count": 4253,
+  "owner_configuration_unchanged": true,
+  "restored_image_sha256": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a"
+}

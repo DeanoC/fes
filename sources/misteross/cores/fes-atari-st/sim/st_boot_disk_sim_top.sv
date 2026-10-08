@@ -61,7 +61,7 @@ module st_boot_disk_sim_top (
         .irq_ack(irq_ack), .irq_level(irq_level),
         .keyboard(144'd0), .controller_buttons(16'd0), .monochrome(1'b0),
         .mouse_valid(1'b0), .mouse_dx(16'sd0), .mouse_dy(16'sd0), .mouse_buttons(2'd0),
-        .mouse_ready(), .audio_pcm(), .audio_valid(), .media_ready(1'b1),
+        .mouse_ready(), .audio_pcm(), .audio_valid(), .media_size(32'd737280), .media_ready(1'b1),
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data), .media_valid(media_valid),
         .dma_req(dma_req), .dma_addr(dma_addr), .dma_wdata(dma_wdata),
         .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .dma_write(dma_write), .dma_rdata(dma_rdata),

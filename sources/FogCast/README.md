@@ -43,9 +43,13 @@ and content selection; the MiSTer is a small, directly controlled target.
   launch links the ROM and cards on the host, the target relinks them
   independently and calls the runtime's multi-slot load. See
   [Apple II slot cards](docs/core-package-library.md#apple-ii-slot-cards).
-  The entry's selected medium is inserted into media unit 0 after Start:
+  The entry's selected medium is delivered to media unit 0; writable ST
+  library disks are restored and inserted before CPU release, and other media
+  is inserted after Start:
   Apple II is an exact 143,360-byte `.dsk`/`.do` image, Commodore 64 is an
-  exact 174,848-byte `.d64`, Atari ST is an exact 737,280-byte `.st`, and
+  exact 174,848-byte `.d64`, Atari ST uses raw `.st` disks (legacy 737,280 bytes;
+  packages requiring `fes.media.atari-st-floppy-geometry` also admit
+  80..82 tracks, 1..2 heads and 9..10 sectors of 512 bytes), and
   ZX Spectrum 48K is a 1..65,536-byte `.tap`.
   `POST /api/v1/session/live-media` swaps or ejects that unit while the
   machine runs. Apple II, Commodore 64 and Atari ST use `fogcast change-disk` and

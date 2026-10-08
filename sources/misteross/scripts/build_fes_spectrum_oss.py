@@ -433,9 +433,13 @@ def validate_build_evidence(output: Path, *, cpu: str = "nmos") -> dict:
     }
 
 
-def _area_budget(counts: Mapping[str, int], maximum: int | None) -> dict:
+def _area_budget(counts: Mapping[str, int], maximum: int | None, *, require_comb: bool = False) -> dict:
     if maximum is not None and (type(maximum) is not int or maximum <= 0):
         raise BuildError("max ALUTs must be a positive integer")
+    if require_comb and maximum is not None:
+        comb = counts.get("MISTRAL_COMB")
+        if type(comb) is not int or comb < 0:
+            raise BuildError("routed utilization missing valid MISTRAL_COMB evidence")
     used = sum(count for name, count in counts.items() if name.startswith("MISTRAL_ALUT") or name == "MISTRAL_COMB")
     evidence = {"used": used, "maximum": maximum, "status": "pass"}
     if maximum is not None and used > maximum:
@@ -541,7 +545,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             raise BuildError(str(exc)) from exc
         evidence = validate_build_evidence(output, cpu=cpu)
         evidence["area_budget"] = {"synthesis": area, "routed": _area_budget(
-            {name: values["used"] for name, values in evidence["resources"].items()}, max_aluts)}
+            {name: values["used"] for name, values in evidence["resources"].items()}, max_aluts,
+            require_comb=True)}
         evidence["route"].update(placer_seed=winner.seed, placer_heap_timingweight=winner.weight,
                                  placer_qor_mode="first-pass")
         mapping, map_evidence = rom_map.build_rom_map(

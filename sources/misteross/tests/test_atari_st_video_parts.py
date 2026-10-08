@@ -33,6 +33,17 @@ def fixture(routed=False):
                     cell["connections"][port]=[bit+100000 if type(bit)==int and bit>=1000 else bit for bit in bits]
             top["cells"][name]=cell
         top["netnames"].update({name:value for name,value in cpu["netnames"].items() if name!="pixel_clk"})
+    key = "NEXTPNR_BEL" if routed else "BEL"
+    for bit, (name, bel) in enumerate(layout.request_egress_bels().items()):
+        source = top["cells"][layout.PREFIX + f"plug_request_ff_{bit}"]["connections"]["Q"]
+        top["cells"][layout.PREFIX + name] = {
+            "type": "MISTRAL_ALUT2", "attributes": {key: bel},
+            "parameters": {"LUT": "1010"},
+            "connections": {"A": source, "B": [] if routed else ["0"], "Q": [80000 + bit]},
+        }
+        if routed:
+            top["netnames"][f"request-egress-{bit}"] = {
+                "bits": source, "attributes": {"ROUTING": f"retained route {bit}"}}
     return top
 
 
@@ -108,6 +119,31 @@ class Boundary(unittest.TestCase):
         self.assertLess(atari_st_slot.SOCKETS[0].cram[3],layout.CRAM[1])
         for bad in ('',base+base,combined):
             with self.assertRaises(ValueError):layout.shell_qsf(bad)
+    def test_each_request_has_a_pinned_retained_egress_load(self):
+        text = (ROOT / layout.RTL).read_text()
+        actual = {name: bel for bel, name in re.findall(
+            r"BEL = \"([^\"]+)\" \*\) MISTRAL_ALUT2 #\(.LUT\(4'hA\)\) ([a-z0-9_]+)", text)}
+        self.assertEqual(actual, layout.request_egress_bels())
+        for bit, name in enumerate(layout.request_egress_bels()):
+            for routed in (False, True):
+                top = fixture(routed)
+                layout.validate_boundary(top, routed=routed)
+                cell = top["cells"][layout.PREFIX + name]
+                for mutate in (
+                    lambda: cell["connections"].update(A=[999999]),
+                    lambda: cell["parameters"].update(LUT="0110"),
+                    lambda: cell["attributes"].update({"NEXTPNR_BEL" if routed else "BEL": "MISTRAL_COMB.25.46.0"}),
+                ):
+                    saved = copy.deepcopy(cell)
+                    mutate()
+                    with self.assertRaises(ValueError):
+                        layout.validate_boundary(top, routed=routed)
+                    cell.clear(); cell.update(saved)
+                if routed:
+                    del top["netnames"][f"request-egress-{bit}"]
+                    with self.assertRaisesRegex(ValueError, "egress route is missing"):
+                        layout.validate_boundary(top, routed=True)
+
     def test_scaffold_keeps_cpu_all_anchors_routes_and_pairs(self):
         top=fixture(True)
         layout.validate_boundary(top,routed=True)

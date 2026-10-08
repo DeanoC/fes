@@ -5,7 +5,7 @@ import (
 	"regexp"
 )
 
-// InitialMediaBytes is the exact source size of the ST drive-A image.
+// InitialMediaBytes is the legacy ST drive-A image size.
 const InitialMediaBytes = 737280
 
 var initialMediaGameID = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -27,6 +27,7 @@ type StagedInitialMedia struct {
 	BaseMediaID string
 	Unit        uint8
 	Path        string
+	Size        int64
 }
 
 type initialMediaReceipt struct {
@@ -40,7 +41,7 @@ func inspectInitialMedia(d Descriptor, media *InitialMedia) (*initialMediaReceip
 	if media == nil {
 		return nil, nil
 	}
-	if len(media.GameID) > 256 || !initialMediaGameID.MatchString(media.GameID) || media.Unit != 0 || !hex64RE.MatchString(media.BaseMediaID) || len(media.Bytes) != InitialMediaBytes || romDigest(media.Bytes) != media.BaseMediaID {
+	if len(media.GameID) > 256 || !initialMediaGameID.MatchString(media.GameID) || media.Unit != 0 || !hex64RE.MatchString(media.BaseMediaID) || !ValidAtariStBase(media.Bytes, DeclaresAtariStGeometry(d)) || romDigest(media.Bytes) != media.BaseMediaID {
 		return nil, errors.New("initial disk requires exact immutable ST base bytes and library identity")
 	}
 	if d.Format != 3 || d.ROM == nil || d.ROM.Role != "firmware" || d.Core.ID != "fes.atari-st" || d.ABI != (Contract{ID: "fes.computer", Major: 1}) {
@@ -60,12 +61,12 @@ func inspectInitialMedia(d Descriptor, media *InitialMedia) (*initialMediaReceip
 	if !base || !write {
 		return nil, errors.New("initial library disk requires the writable ST floppy contract")
 	}
-	return &initialMediaReceipt{GameID: media.GameID, BaseMediaID: media.BaseMediaID, Unit: media.Unit, Size: InitialMediaBytes}, nil
+	return &initialMediaReceipt{GameID: media.GameID, BaseMediaID: media.BaseMediaID, Unit: media.Unit, Size: int64(len(media.Bytes))}, nil
 }
 
 func stagedInitialMedia(media *InitialMedia, path string) *StagedInitialMedia {
 	if media == nil {
 		return nil
 	}
-	return &StagedInitialMedia{GameID: media.GameID, BaseMediaID: media.BaseMediaID, Unit: media.Unit, Path: path}
+	return &StagedInitialMedia{GameID: media.GameID, BaseMediaID: media.BaseMediaID, Unit: media.Unit, Path: path, Size: int64(len(media.Bytes))}
 }

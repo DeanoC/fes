@@ -20,7 +20,9 @@ runtime contains no Main launcher, conventional game profiles, MiSTer SPI
 driver, or general framebuffer service.
 
 The Atari ST home-computer contract uses required `fes.media.atari-st-floppy`
-1.0 for exact 737,280-byte `.st` disks on media unit 0. Insert and eject keep
+1.0 for exact 737,280-byte `.st` disks on media unit 0 by default. Required
+`fes.media.atari-st-floppy-geometry` 1.0 opts into the bounded raw disk layouts
+described below. Insert and eject keep
 execution running. Optional `fes.expansion.atari-st-bus` 1.0 composes one card
 in physical socket 1 through the existing slot-composition path. These paths
 have host test coverage; Atari ST hardware acceptance is pending.
@@ -104,3 +106,11 @@ programming, restores it while execution is held, and releases only after the
 complete disk reports ready. Developer requests cannot supply this library
 binding; ordinary ROM loads retain their empty-drive startup. This path has
 host software coverage; physical acceptance remains pending.
+
+Required `fes.media.atari-st-floppy-geometry` 1.0 permits the 12 uniquely sized
+raw ST layouts with 80–82 tracks, one/two heads, nine/ten sectors and 512-byte
+sectors (368640–839680 bytes). Discovery proves capability bit 10 and exact
+extended live limits. Nonlegacy immutable bases require matching BPBs; saved
+records use minor 1, retain guest BPB edits, and must match the base length
+before restore. Legacy 737280-byte behavior and minor-0 bytes are unchanged.
+This extension has software coverage; no new hardware acceptance is claimed.

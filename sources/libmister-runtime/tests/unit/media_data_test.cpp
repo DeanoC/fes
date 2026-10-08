@@ -69,6 +69,43 @@ int main()
     auto bad=encoded; bad.push_back(0); assert(!DecodeMediaData(bad,id,&decoded).ok());
     bad.pop_back(); bad.pop_back(); assert(!DecodeMediaData(bad,id,&decoded).ok());
     auto short_record=record; short_record.bytes.pop_back(); assert(!EncodeMediaData(short_record,&bad).ok());
+    unsigned geometries=0;
+    for(unsigned tracks=80;tracks<=82;++tracks) for(unsigned heads=1;heads<=2;++heads) for(unsigned sectors=9;sectors<=10;++sectors) {
+        const unsigned size=tracks*heads*sectors*512;
+        AtariStGeometry inferred;
+        assert(InferAtariStGeometry(size,&inferred));
+        assert(inferred.tracks==tracks&&inferred.heads==heads&&inferred.sectors==sectors);
+        assert(AtariStSizeAdmitted(size,true));
+        assert(AtariStSizeAdmitted(size,false)==(size==737280));
+        std::vector<unsigned char> boot(512);
+        const auto word=[&](unsigned at,unsigned value){boot[at]=value;boot[at+1]=value>>8;};
+        word(11,512);word(19,size/512);word(24,sectors);word(26,heads);
+        assert(AtariStBaseBpbValid(boot.data(),boot.size(),size));
+        word(26,3);
+        assert(AtariStBaseBpbValid(boot.data(),boot.size(),size)==(size==737280));
+        auto variable=record;variable.bytes.resize(size);
+        std::vector<unsigned char> wire;assert(EncodeMediaData(variable,&wire).ok());
+        assert(wire[108]==(size==737280?0:1));
+        MediaDiskRecord result;assert(DecodeMediaData(wire,id,&result).ok()&&result.bytes==variable.bytes);
+        // The checksum alone never authorizes a mismatched minor or length.
+        wire[108]^=1;Sha256 hash;hash.Update(wire.data(),wire.size()-32);const auto checksum=hash.Final();std::copy(checksum.begin(),checksum.end(),wire.end()-32);
+        assert(DecodeMediaData(wire,id,&result).code==ErrorCode::incompatible_data);
+        ++geometries;
+    }
+    // Cross-check the extended record against the independent shared vector.
+    std::ifstream geometry_fixture("tests/fixtures/media-data-v1/atari-st-geometry.json");assert(geometry_fixture.good());
+    const std::string geometry_text((std::istreambuf_iterator<char>(geometry_fixture)),std::istreambuf_iterator<char>());
+    daemon::json::Value geometry_vector;assert(daemon::json::ParseResponse(geometry_text,&geometry_vector,&message));
+    std::map<std::string,daemon::json::Value> extended;for(const auto& pair:geometry_vector.object)extended[pair.first]=pair.second;
+    auto largest=record;largest.bytes.resize(839680);
+    for(unsigned at=0;at<largest.bytes.size();++at)largest.bytes[at]=static_cast<unsigned char>(at*17+(at>>9));
+    std::vector<unsigned char> largest_wire;assert(EncodeMediaData(largest,&largest_wire).ok());
+    assert(extended["header_hex"].string_value==hex(largest_wire.data(),141));
+    assert(extended["checksum_hex"].string_value==hex(largest_wire.data()+largest_wire.size()-32,32));
+    assert(extended["revision"].string_value==digest(largest_wire));
+    assert(extended["namespace"].string_value==MediaDataNamespace(id));
+    assert(geometries==12);
+    for(unsigned size:{0u,368639u,368641u,737279u,839681u,UINT32_MAX}) assert(!InferAtariStGeometry(size));
     char tmp[]="/tmp/runtime-media-data-XXXXXX";
     const char* root=mkdtemp(tmp); assert(root);
     std::unique_ptr<MediaDataFile> file;

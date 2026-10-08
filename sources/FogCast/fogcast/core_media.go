@@ -1,6 +1,7 @@
 package fogcast
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -147,7 +148,7 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 	if err != nil {
 		return nil, mapCoreMediaError(err)
 	}
-	if media.Size < capability.MinBytes || media.Size > capability.MaxBytes {
+	if media.Size < capability.MinBytes || media.Size > capability.MaxBytes || (capability.Interface == protocol.AtariStFloppyInterface() && !protocol.AdmitAtariStFloppySize(media.Size)) {
 		return nil, &protocol.APIError{Code: protocol.CodeBadRequest, Phase: "request",
 			Message: fmt.Sprintf("selected %s media is %d bytes; package contract accepts %d..%d bytes", role, media.Size, capability.MinBytes, capability.MaxBytes)}
 	}
@@ -158,6 +159,14 @@ func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage
 	if opened != media {
 		closeErr := (&coreEntryMedia{ReadCloser: reader}).Close()
 		return nil, errors.Join(canonicalError(protocol.CodeInternal, nil), closeErr)
+	}
+	if capability.Interface == protocol.AtariStFloppyInterface() && media.Size != protocol.AtariStFloppyBytes {
+		data, readErr := io.ReadAll(io.LimitReader(reader, media.Size+1))
+		closeErr := reader.Close()
+		if readErr != nil || closeErr != nil || int64(len(data)) != media.Size || !corepackage.ValidAtariStBase(data, corepackage.DeclaresAtariStGeometry(descriptor)) {
+			return nil, protocol.DiskMediaRequestError()
+		}
+		reader = io.NopCloser(bytes.NewReader(data))
 	}
 	// OpenCoreMedia returns a verified private snapshot, not a live SQL cursor.
 	return &coreEntryMedia{ReadCloser: reader, size: media.Size, stream: capability.Interface == protocol.MediaStreamInterface(), unit: capability.Unit}, nil

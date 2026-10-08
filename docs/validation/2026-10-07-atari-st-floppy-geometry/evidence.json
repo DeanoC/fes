@@ -1,0 +1,121 @@
+{
+  "artifacts": {
+    "big-hardware.png": "bffcf8904261859612e57f7350da1abc4878ae4b7803fe3c818aee38e81855e6",
+    "big-simulation-proof.json": "7183fb15315426b7e82715893c69a14c6762c5ccc1f2797030c77d97630bcc4e",
+    "big-simulation.png": "a441412a434778fda1e4e914b372b5cdb4b52dc0cbdb6d25a414b770a1244620",
+    "cold-restore-result.json": "6482ea44b4b77be837bd6174aacc350f9a4685801f05d339d9bf01baa38d3d9f",
+    "cold_restore_probe.py.txt": "179ad7dd9f769ba8f266f07f98462164d28d7fcd13042fc1289829b6f93d667a",
+    "cuddly-cold-restored.png": "64ec644aa89b67460ace74d3eaeb578ae5545f09c73ba6a74ccbc696bd119d49",
+    "cuddly-hardware.png": "64ec644aa89b67460ace74d3eaeb578ae5545f09c73ba6a74ccbc696bd119d49",
+    "cuddly-simulation-proof.json": "1b06c67935e8effb8f446e7e59737166831382b19dcc18976bf43a07ab22e64f",
+    "cuddly-simulation.png": "76f31882fdaefb01c19d7977d3f89dcca943477caf71318ae0c3044ec9096cde",
+    "diagnostic-image.json": "1bc076296ee5399a52ae530d156058c603e1a7d3ac2e12b909811efb6c51bd33",
+    "diskless-GEM.png": "e674fcb4944d506b5e57d4a85cedfb3263c4173f0e4620cef3d55942633db878",
+    "diskless-result.json": "349b6daee78bf282ab0cafde20fb340099b13430fec25c0eba6b6791b0c1a3d5",
+    "failed-diagnostic-image.json": "7e80d59abd20ac1f73a786636db99fe69dbe2158c95d01385ac802f433e0c803",
+    "failed-image-storage-archive.json": "81d967aa87950bc57ac5b90d4c6e3be52b1a7cd4d91d9fe28d179772c88dfc66",
+    "final-populated-menu.png": "9ccada5d7d4f4250bd2d7ea35bca8bc2d742841c1f4264e44b37432b091bcb82",
+    "final-restoration.json": "d73d1154e053b5bd52cfd3df3d2782b3d71c6f623898146c749ed169293cbea3",
+    "geometry_probe.py.txt": "b798f68a7e867f1faedfb438522d03aefc34b925739e6433c6bad096c745fa19",
+    "original-disk-results.json": "55372c66994cd4d19594e71d8a91a3ff32471715cbe7d574e6eb8b2ea47a4c91",
+    "storage-archive.json": "563f01e29a8b9e04c5e049afaed7ce6ff770589aa923dacf678917c9996e0d01"
+  },
+  "base_revision": "779c86d8ee877932d2810fea1bc701fa29c0895b",
+  "build_id": "32b1d68a19c0bf2bb2cadafc00b2976e",
+  "compiler_issue": "https://github.com/DeanoC/nextpnr/issues/165",
+  "core_dev_prepare_complete": false,
+  "demo_compatibility_asserted": false,
+  "diagnostic_image": {
+    "base_image_sha256": "efe04797f2682c5c76372999a0628dc4f62742905e253dfc557311c0e0453075",
+    "base_revision": "0cee5866db0e5d2d5ec426d5f3034a28b230a1bc",
+    "build_inputs_sha256": "63dab21d16d3701e572f3031bf797827c2fc3d69eb0b925b18adcd176f9673d1",
+    "classification": "derived-image hardware diagnostic only",
+    "factory_packages_preserved": true,
+    "image_sha256": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+    "replaced_files": {
+      "mister-agent": "b847aabcd54e2dbf3bf6156967dd2a14de0b5c95eeb7aa4ecf2cedbfd3455c96",
+      "mister-runtime": "91e4f34b2bf91dff6caf68c00b8065eb5ef5748321577b2984f5445f2979ad5c"
+    },
+    "runtime_build": "pinned GNU Arm10.2 static ELF32/EABI5 with whole-archive pthread, stripped; isolated target thread probe passed",
+    "source_revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+    "two_pass_reproducibility": false,
+    "verified_base_unchanged": true
+  },
+  "hardware_classification": "derived-image Kit A diagnostic; built-in Direct; no factory or demo/border acceptance",
+  "hardware_summary": {
+    "BIG_409600_byte_upload_and_layout_1_1_snapshot": "pass, every byte equal original",
+    "BIG_loader": "black screen; demo screens not reached",
+    "Cuddly_839680_byte_upload_and_layout_1_1_snapshot": "pass, every byte equal original",
+    "Cuddly_cold_host_saved_revision_restore_and_resnapshot": "pass, exact revision and every byte unchanged",
+    "Cuddly_loader": "illegal instruction PC=$00007000; demo screens not reached",
+    "diskless_GEM": "pass"
+  },
+  "host_binary_sha256": "786863b86ef65a62ed855ccaed1b01ef5f8d0dde90d7b055e7d63b185fad4820",
+  "host_cli_sha256": "82615c46ea68c9820375cce6bf597ab53136529602efd6472e7df356d2858f02",
+  "operator_source_hashes": {
+    "cold_restore_probe.py": "179ad7dd9f769ba8f266f07f98462164d28d7fcd13042fc1289829b6f93d667a",
+    "final_cleanup.py": "b03c2c22fdd563a5179a7362cd2d342ece18a874610571d5c237eabc2f5f78af",
+    "geometry_probe.py": "b798f68a7e867f1faedfb438522d03aefc34b925739e6433c6bad096c745fa19",
+    "operator_common.py": "0ec0f4e4ccb3ff90503a18746264953fb59bb06c50ad7f35448ecd73bd59466b"
+  },
+  "package_id": "2b7039a2ce0fe4e16a8a317a8c7c0f5c2d803f9941b38936e915f491c4d0d81d",
+  "payload_sha256": "b8fc3119ee602e10cdd4ae03147d9f85c5a620bbd4f6bbc89185d8a36567a4ff",
+  "pr": "https://github.com/DeanoC/fes/pull/609",
+  "producer_revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+  "restoration": {
+    "active": "active",
+    "boot_id": "acd9603e-9881-444d-8d98-6b6dee554ed4",
+    "enabled": "enabled",
+    "image_sha256": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+    "library_count": 4253,
+    "owner_config_unchanged": true,
+    "private_host_and_credentials_removed": true,
+    "ready_idle_lease_free": true
+  },
+  "routing_diagnosis": {
+    "classification": "host-only diagnosis; no compiler, RTL, recipe or artifact identity changed",
+    "normal_menu_unchanged": true,
+    "record": "routing-diagnosis.json",
+    "same_arc_as_gpu": true,
+    "strict_cpu_router_exit": 125
+  },
+  "schema": 1,
+  "separate_video_parts_qualified": false,
+  "software_checks": [
+    {
+      "check": "sim-fes-atari-st complete RTL suite, all twelve shapes and maximum upload/write bounds",
+      "result": "pass"
+    },
+    {
+      "check": "shared schema/generation/fixtures and focused runtime/host packages",
+      "result": "pass"
+    },
+    {
+      "check": "producer Python tests",
+      "count": 44,
+      "result": "pass"
+    },
+    {
+      "check": "root Atari helper Python tests",
+      "count": 25,
+      "result": "pass"
+    },
+    {
+      "check": "committed parent make check and check-generated",
+      "result": "pass"
+    },
+    {
+      "check": "two frozen original-demo 15-emulated-second captures",
+      "result": "capture completed, compatibility false"
+    },
+    {
+      "check": "native shell synthesis/routing/analog clock signoff",
+      "result": "pass"
+    },
+    {
+      "check": "separate Direct part default seed 4 and seed 2",
+      "result": "fail, no-path exit 125"
+    }
+  ],
+  "source_archive_sha256": "af247d7c601af1465926b8b348673ca64982301b01c927fd1fbc1fc3200dacf4"
+}

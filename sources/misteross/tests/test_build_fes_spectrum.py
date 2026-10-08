@@ -140,6 +140,101 @@ class BuildFesSpectrumTests(unittest.TestCase):
             for name in ("core.rbf", "manifest.toml", "build-summary.json", "rom-map.json"):
                 self.assertFalse((output / name).exists(), name)
 
+    def _producer_path_stack(self, stack, output, *, synth_cells, routed_resources=None):
+        # Shared producer-path harness for area-gate regressions. The original
+        # ALUT2 helper and pre-route test stay unchanged; this only wires the
+        # extra mocks the routed COMB gate needs after synthesis.
+        auth = {name: SimpleNamespace(identity="tool", path=Path("/cache/install/bin/tool"))
+                for name in ("yosys", "nextpnr-mistral", "mistral")}
+        invocation = Mock(inputs={}, env={})
+        mocks = {}
+        values = {
+            "_require_clean_source": ("https://example.invalid/fes", "a" * 40),
+            "_authenticate_spectrum_tools": auth, "FunctionalInvocation": invocation,
+            "create_build_record": b"record", "_prepare_output": output,
+            "build_identity": "1" * 32, "build_commands": (("yosys",), ()),
+            "_run_tool": None,
+            "validate_synth_evidence": {"synthesis_cells": synth_cells},
+            "route_after_synth": SimpleNamespace(seed=1, weight=1),
+            "export_package": Path("/exported"),
+            "_sha256": "a" * 64,
+            "_manifest": b"manifest",
+        }
+        if routed_resources is not None:
+            values["validate_build_evidence"] = {
+                "resources": routed_resources, "route": {},
+            }
+            values["route_after_synth"] = SimpleNamespace(seed=1, weight=1)
+        else:
+            values["route_after_synth"] = None
+            values["export_package"] = None
+        for name, value in values.items():
+            mocks[name] = stack.enter_context(patch.object(producer, name, return_value=value))
+        stack.enter_context(patch.object(producer.rom_map, "read_database", return_value={}))
+        if routed_resources is not None:
+            stack.enter_context(patch.object(
+                producer.rom_map, "build_rom_map", return_value=({"blocks": []}, {})))
+            stack.enter_context(patch.object(producer, "_read_json", return_value={}))
+            stack.enter_context(patch.object(producer, "check_firmware_outside_sockets"))
+        return mocks, invocation
+
+    def test_over_budget_synthesis_comb_never_routes_or_exports(self):
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            output = Path(directory)
+            (output / "synth.json").write_text("{}")
+            for name in ("core.rbf", "manifest.toml", "build-summary.json", "rom-map.json"):
+                (output / name).write_text("stale product")
+            mocks, invocation = self._producer_path_stack(
+                stack, output, synth_cells={"MISTRAL_COMB": 5853})
+            with self.assertRaisesRegex(BuildError, "5853 ALUTs > 5831"):
+                producer.build(ROOT, cpu="fast", max_aluts=5831)
+            mocks["_run_tool"].assert_called_once()
+            mocks["route_after_synth"].assert_not_called()
+            mocks["export_package"].assert_not_called()
+            invocation.close.assert_called_once()
+            self.assertTrue((output / "synth.json").exists())
+            for name in ("core.rbf", "manifest.toml", "build-summary.json", "rom-map.json"):
+                self.assertFalse((output / name).exists(), name)
+
+    def test_routed_comb_over_budget_never_exports(self):
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            output = Path(directory)
+            (output / "synth.json").write_text("{}")
+            for name in ("core.rbf", "manifest.toml", "build-summary.json", "rom-map.json"):
+                (output / name).write_text("stale product")
+            mocks, invocation = self._producer_path_stack(
+                stack, output, synth_cells={"MISTRAL_COMB": 5831},
+                routed_resources={"MISTRAL_COMB": {"used": 5841, "available": 100000},
+                                  "MISTRAL_FF": {"used": 10, "available": 100}})
+            with self.assertRaisesRegex(BuildError, "5841 ALUTs > 5831"):
+                producer.build(ROOT, cpu="fast", max_aluts=5831)
+            mocks["_run_tool"].assert_called_once()
+            mocks["route_after_synth"].assert_called_once()
+            mocks["export_package"].assert_not_called()
+            invocation.close.assert_called_once()
+            self.assertTrue((output / "synth.json").exists())
+            for name in ("core.rbf", "manifest.toml", "build-summary.json", "rom-map.json"):
+                self.assertFalse((output / name).exists(), name)
+
+    def test_routed_area_gate_rejects_missing_comb_evidence(self):
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            output = Path(directory)
+            (output / "synth.json").write_text("{}")
+            for name in ("core.rbf", "manifest.toml", "build-summary.json", "rom-map.json"):
+                (output / name).write_text("stale product")
+            mocks, invocation = self._producer_path_stack(
+                stack, output, synth_cells={"MISTRAL_ALUT2": 5800},
+                routed_resources={"MISTRAL_FF": {"used": 10, "available": 100}})
+            with self.assertRaisesRegex(BuildError, "MISTRAL_COMB"):
+                producer.build(ROOT, cpu="fast", max_aluts=5831)
+            mocks["_run_tool"].assert_called_once()
+            mocks["route_after_synth"].assert_called_once()
+            mocks["export_package"].assert_not_called()
+            invocation.close.assert_called_once()
+            self.assertTrue((output / "synth.json").exists())
+            for name in ("core.rbf", "manifest.toml", "build-summary.json", "rom-map.json"):
+                self.assertFalse((output / name).exists(), name)
+
     def test_synthesis_rejects_wrong_pll_count(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)

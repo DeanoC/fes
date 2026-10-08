@@ -8,7 +8,7 @@ from scripts import coleco_expansion, atari_st_slot
 
 INTERFACE = "fes.fabric.video.raster-rgb888"
 MAP = "fes.atari-st-video.socket/1"
-LAYOUT = "fes.atari-st-video.parts/1"
+LAYOUT = "fes.atari-st-video.parts/2"
 REGION = "video"
 PLACEMENT = "video 24 41 28 58"
 CRAM = (1769, 3442, 2806, 5162)
@@ -34,6 +34,41 @@ def boundary_bels() -> dict[str, str]:
                [f"MISTRAL_FF.28.{row}.56" for row in range(41, 59)])
     result.update({f"clock_coverage_ff_{i}": bel for i, bel in enumerate(anchors)})
     return result
+
+
+def request_egress_bels() -> dict[str, str]:
+    """Permanent request loads in two LABs inside the existing video fence."""
+    return {f"request_egress_anchor_{bit}":
+            f"MISTRAL_MCOMB.25.{44 + bit // 20}.{(bit % 20 // 2) * 6 + bit % 2}"
+            for bit in range(REQUEST_BITS)}
+
+
+def validate_request_egress(top: dict, *, routed: bool) -> None:
+    cells = top["cells"]
+    key = "NEXTPNR_BEL" if routed else "BEL"
+    outputs = set()
+    for bit, (name, bel) in enumerate(request_egress_bels().items()):
+        cell = _object(cells.get(PREFIX + name), f"required request egress cell: {name}")
+        attributes = _object(cell.get("attributes"), f"request egress attributes: {name}")
+        connections = _object(cell.get("connections"), f"request egress connections: {name}")
+        source = cells[PREFIX + f"plug_request_ff_{bit}"]["connections"]["Q"]
+        output = _bits(connections.get("Q"), 1, f"request egress Q: {name}", wires=True)
+        if cell.get("type") != "MISTRAL_ALUT2" or attributes.get(key) != bel or \
+                connections.get("A") != source or connections.get("B") != ([] if routed else ["0"]) or \
+                output[0] in outputs:
+            raise ValueError(f"request egress placement/wiring changed: {name}")
+        parameters = _object(cell.get("parameters"), f"request egress parameters: {name}")
+        mask = parameters.get("LUT")
+        if not isinstance(mask, str) or not mask or set(mask) - {"0", "1"} or int(mask, 2) != 10:
+            raise ValueError(f"request egress LUT changed: {name}")
+        outputs.add(output[0])
+        if routed:
+            # The real route must be retained, not just the kept FF and LUT.
+            aliases = [entry for entry in top["netnames"].values()
+                       if entry.get("bits") == source]
+            if not any(isinstance(entry.get("attributes", {}).get("ROUTING"), str) and
+                       entry["attributes"]["ROUTING"].strip() for entry in aliases):
+                raise ValueError(f"request egress route is missing: {name}")
 
 
 def shell_qsf(base: str) -> str:
@@ -106,9 +141,11 @@ def validate_boundary(top: dict, *, routed: bool) -> None:
                 raise ValueError("video response boundary changed")
             if not routed and datain != ["0"]:
                 raise ValueError("vacant video response input changed")
+    validate_request_egress(top, routed=routed)
     if routed:
         boundary = {PREFIX + name: bel for name, bel in boundary_bels().items()}
-        allowed = set(boundary) | coleco_expansion.boundary_route_through_cells(top, boundary)
+        allowed = (set(boundary) | {PREFIX + name for name in request_egress_bels()} |
+                   coleco_expansion.boundary_route_through_cells(top, boundary))
         coleco_expansion.validate_clock_anchors(top, {
             name: bel for name, bel in boundary.items() if name.startswith(PREFIX + "clock_coverage_ff_")})
         for name, cell in cells.items():

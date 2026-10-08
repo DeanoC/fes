@@ -1,0 +1,428 @@
+{
+  "source_revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+  "package_id": "2b7039a2ce0fe4e16a8a317a8c7c0f5c2d803f9941b38936e915f491c4d0d81d",
+  "build_id": "32b1d68a19c0bf2bb2cadafc00b2976e",
+  "classification": "derived hardware diagnostic, built-in Direct; no demo/raster or factory acceptance",
+  "demo_compatibility_asserted": false,
+  "fixtures": [
+    {
+      "name": "big",
+      "game_id": "fpga-st-geometry-diagnostic-big-geometry-20261007t083-7bea4a96ef3e",
+      "base_media_id": "608c4beff1780552e8ae6ee5a1efff27198fb6a3ca6274597f1cb528c3970edb",
+      "media_bytes": 409600,
+      "video": {
+        "game_id": "fpga-st-geometry-diagnostic-big-geometry-20261007t083-7bea4a96ef3e",
+        "package_id": "2b7039a2ce0fe4e16a8a317a8c7c0f5c2d803f9941b38936e915f491c4d0d81d",
+        "preferred_profile": "direct",
+        "effective_profile": "direct",
+        "builtin": true,
+        "choices": [
+          {
+            "profile": "direct",
+            "label": "Direct",
+            "available": true
+          },
+          {
+            "profile": "scanlines",
+            "label": "Scanlines",
+            "available": false,
+            "reason": "No matching part is installed for this exact core package."
+          }
+        ]
+      },
+      "initial_session": {
+        "id": "679e2279-c185-419f-aa39-d0ccc6504868",
+        "target": "dev",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "connection": {
+          "state": "active",
+          "address": "http://fes-kit-a:8182",
+          "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+          "boot_id": "e08f6346-81a0-4705-bdd1-284be84fab4a"
+        },
+        "state": "active",
+        "game_id": "fpga-st-geometry-diagnostic-big-geometry-20261007t083-7bea4a96ef3e",
+        "system": "fpga",
+        "execution": "fpga_native",
+        "input": {
+          "session_id": "369fa2f83d01f8b4",
+          "state": "attached",
+          "ready": true,
+          "metrics": {
+            "frames_sent": 0,
+            "state_resyncs": 0,
+            "sequence_gaps": 0,
+            "releases": 0,
+            "capture_to_bridge_p95_ms": 0,
+            "bridge_to_uinput_p95_ms": 0,
+            "rtt_ms": 0,
+            "bridge_to_uinput_measurable": false
+          }
+        },
+        "core_package": {
+          "rom_link": {
+            "rom_id": "atari-st-firmware",
+            "map_sha256": "4edc63be5f2357de57fab82b7ac7030e3d07eaf0837ad53811c2010a7ce3a53a",
+            "source_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+            "source_size": 196608,
+            "programmed_sha256": "e871e7e916fe56325c6ddd59397fbb8d97a12f2c5bbaa04e03d5a65a9833fe80",
+            "programmed_size": 2814362
+          },
+          "media_units": [
+            {
+              "unit": 0,
+              "interface": {
+                "id": "fes.media.atari-st-floppy",
+                "major": 1,
+                "minor": 0
+              },
+              "min_bytes": 368640,
+              "max_bytes": 839680,
+              "chunk_bytes": 512,
+              "state": "ready",
+              "persistence": {
+                "mode": "persistent",
+                "game_id": "fpga-st-geometry-diagnostic-big-geometry-20261007t083-7bea4a96ef3e",
+                "base_media_id": "608c4beff1780552e8ae6ee5a1efff27198fb6a3ca6274597f1cb528c3970edb",
+                "revision": "absent"
+              }
+            }
+          ],
+          "persistence_mode": "persistent",
+          "package_id": "2b7039a2ce0fe4e16a8a317a8c7c0f5c2d803f9941b38936e915f491c4d0d81d",
+          "generation": 2,
+          "abi": {
+            "id": "fes.computer",
+            "major": 1,
+            "minor": 0
+          },
+          "build_id": "32b1d68a19c0bf2bb2cadafc00b2976e",
+          "active_interfaces": [
+            {
+              "id": "fes.audio.pcm-s16-stereo-48k",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.expansion.atari-st-bus",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.gamepad.ports",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.keyboard.hid",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.media.atari-st-floppy",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.media.atari-st-floppy-geometry",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.media.atari-st-floppy-write",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.mouse.relative",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.video.fixed-720p60",
+              "major": 1,
+              "minor": 0
+            }
+          ],
+          "gamepad": true
+        },
+        "flight_id": "352deb64-beff-41b0-83dc-86fac41cea29"
+      },
+      "capture": "big-boot.png",
+      "demo_compatibility_asserted": false,
+      "snapshot": {
+        "namespace": "494983274e143057630d626abd9545a352556896726f898577ee664a2bf7222b",
+        "record_sha256": "fc6a6731cf7df3176147d240363a409bee7303e44120225e02fef2b0fdf1d72c",
+        "layout_major": 1,
+        "layout_minor": 1,
+        "payload_bytes": 409600,
+        "payload_sha256": "608c4beff1780552e8ae6ee5a1efff27198fb6a3ca6274597f1cb528c3970edb",
+        "all_bytes_equal_immutable_base": true
+      },
+      "saved_revision": "fc6a6731cf7df3176147d240363a409bee7303e44120225e02fef2b0fdf1d72c",
+      "stop_idle_lease_free": true
+    },
+    {
+      "name": "cuddly",
+      "game_id": "fpga-st-geometry-diagnostic-cuddly-geometry-20261007t-a6a82dd41182",
+      "base_media_id": "2069570bdba57ebc5a5c760234b9133496c2f70f9f2d862bc207cbb56579a039",
+      "media_bytes": 839680,
+      "video": {
+        "game_id": "fpga-st-geometry-diagnostic-cuddly-geometry-20261007t-a6a82dd41182",
+        "package_id": "2b7039a2ce0fe4e16a8a317a8c7c0f5c2d803f9941b38936e915f491c4d0d81d",
+        "preferred_profile": "direct",
+        "effective_profile": "direct",
+        "builtin": true,
+        "choices": [
+          {
+            "profile": "direct",
+            "label": "Direct",
+            "available": true
+          },
+          {
+            "profile": "scanlines",
+            "label": "Scanlines",
+            "available": false,
+            "reason": "No matching part is installed for this exact core package."
+          }
+        ]
+      },
+      "initial_session": {
+        "id": "679e2279-c185-419f-aa39-d0ccc6504868",
+        "target": "dev",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "connection": {
+          "state": "active",
+          "address": "http://fes-kit-a:8182",
+          "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+          "boot_id": "e08f6346-81a0-4705-bdd1-284be84fab4a"
+        },
+        "state": "active",
+        "game_id": "fpga-st-geometry-diagnostic-cuddly-geometry-20261007t-a6a82dd41182",
+        "system": "fpga",
+        "execution": "fpga_native",
+        "input": {
+          "session_id": "2cf06224c8169588",
+          "state": "attached",
+          "ready": true,
+          "metrics": {
+            "frames_sent": 0,
+            "state_resyncs": 0,
+            "sequence_gaps": 0,
+            "releases": 0,
+            "capture_to_bridge_p95_ms": 0,
+            "bridge_to_uinput_p95_ms": 0,
+            "rtt_ms": 0,
+            "bridge_to_uinput_measurable": false
+          }
+        },
+        "core_package": {
+          "rom_link": {
+            "rom_id": "atari-st-firmware",
+            "map_sha256": "4edc63be5f2357de57fab82b7ac7030e3d07eaf0837ad53811c2010a7ce3a53a",
+            "source_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+            "source_size": 196608,
+            "programmed_sha256": "e871e7e916fe56325c6ddd59397fbb8d97a12f2c5bbaa04e03d5a65a9833fe80",
+            "programmed_size": 2814362
+          },
+          "media_units": [
+            {
+              "unit": 0,
+              "interface": {
+                "id": "fes.media.atari-st-floppy",
+                "major": 1,
+                "minor": 0
+              },
+              "min_bytes": 368640,
+              "max_bytes": 839680,
+              "chunk_bytes": 512,
+              "state": "ready",
+              "persistence": {
+                "mode": "persistent",
+                "game_id": "fpga-st-geometry-diagnostic-cuddly-geometry-20261007t-a6a82dd41182",
+                "base_media_id": "2069570bdba57ebc5a5c760234b9133496c2f70f9f2d862bc207cbb56579a039",
+                "revision": "absent"
+              }
+            }
+          ],
+          "persistence_mode": "persistent",
+          "package_id": "2b7039a2ce0fe4e16a8a317a8c7c0f5c2d803f9941b38936e915f491c4d0d81d",
+          "generation": 3,
+          "abi": {
+            "id": "fes.computer",
+            "major": 1,
+            "minor": 0
+          },
+          "build_id": "32b1d68a19c0bf2bb2cadafc00b2976e",
+          "active_interfaces": [
+            {
+              "id": "fes.audio.pcm-s16-stereo-48k",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.expansion.atari-st-bus",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.gamepad.ports",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.keyboard.hid",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.media.atari-st-floppy",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.media.atari-st-floppy-geometry",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.media.atari-st-floppy-write",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.mouse.relative",
+              "major": 1,
+              "minor": 0
+            },
+            {
+              "id": "fes.video.fixed-720p60",
+              "major": 1,
+              "minor": 0
+            }
+          ],
+          "gamepad": true
+        },
+        "flight_id": "31e45075-44c4-44b9-8785-08f4368e9c86"
+      },
+      "capture": "cuddly-boot.png",
+      "demo_compatibility_asserted": false,
+      "snapshot": {
+        "namespace": "d11416f71691a59808dbdfc8ca7b0c82a28c9aa4ec96d01ae8f35816478adedc",
+        "record_sha256": "db05bc9e490b488b43a923ed33e0509f52c75dbd033a601f98c631e27ae60d53",
+        "layout_major": 1,
+        "layout_minor": 1,
+        "payload_bytes": 839680,
+        "payload_sha256": "2069570bdba57ebc5a5c760234b9133496c2f70f9f2d862bc207cbb56579a039",
+        "all_bytes_equal_immutable_base": true
+      },
+      "saved_revision": "db05bc9e490b488b43a923ed33e0509f52c75dbd033a601f98c631e27ae60d53",
+      "stop_idle_lease_free": true
+    }
+  ],
+  "pass": true,
+  "package_import": {
+    "package_id": "2b7039a2ce0fe4e16a8a317a8c7c0f5c2d803f9941b38936e915f491c4d0d81d",
+    "descriptor": {
+      "rom": {
+        "id": "atari-st-firmware",
+        "role": "firmware",
+        "source_size": 196608,
+        "file": "rom-map.json",
+        "size": 17357124,
+        "sha256": "4edc63be5f2357de57fab82b7ac7030e3d07eaf0837ad53811c2010a7ce3a53a"
+      },
+      "format": 3,
+      "core": {
+        "id": "fes.atari-st",
+        "name": "FES Atari 520ST",
+        "description": "Atari 520ST with linked 192 KiB firmware, 512 KiB SDRAM, a writable variable-geometry floppy, relative mouse, and ST expansion/video sockets",
+        "version": "0.2.0"
+      },
+      "target": {
+        "platform": "de10_nano",
+        "device": "5CSEBA6U23I7",
+        "programming_profile": "fes-gp-v1"
+      },
+      "payload": {
+        "file": "core.rbf",
+        "size": 2875893,
+        "sha256": "b8fc3119ee602e10cdd4ae03147d9f85c5a620bbd4f6bbc89185d8a36567a4ff"
+      },
+      "abi": {
+        "id": "fes.computer",
+        "major": 1,
+        "minor": 0
+      },
+      "interfaces": [
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.keyboard.hid",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.gamepad.ports",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.media.atari-st-floppy",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.mouse.relative",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.media.atari-st-floppy-write",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.media.atari-st-floppy-geometry",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.expansion.atari-st-bus",
+          "major": 1,
+          "minor": 0,
+          "required": false
+        },
+        {
+          "id": "fes.fabric.video.raster-rgb888",
+          "major": 1,
+          "minor": 0,
+          "required": false
+        }
+      ],
+      "build": {
+        "id": "32b1d68a19c0bf2bb2cadafc00b2976e",
+        "repository": "https://github.com/DeanoC/fes.git",
+        "revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+        "recipe_sha256": "2c7f079aaa20ac89882d29de30cafec873fbad7d40cfd099fd1ec91028069c7a",
+        "toolchain": "mistral commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=2ca1c6a996b9df3e12b3af6b266a672d80ecce1be1b370806e3679974addf23b; nextpnr-mistral commit=3d4a5b352b4edb478b744b82cc61333353751a80; sha256=436928bb79574752919332165e17ca4810aa7f63c6b6182718bb855cf534e665; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=886afa63953e97407153e9f4aae25fcedb639696; sha256=906d6c74af8500a8d2ee1dc8703f6a8e242606d01e314e66d908a6fbd9378337"
+      }
+    }
+  }
+}

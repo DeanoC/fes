@@ -448,6 +448,9 @@ func resolveDiskArgument(ctx context.Context, origin, arg string, active *protoc
 		limit = protocol.C64DiskBytes
 	case protocol.AdmitAtariStFloppyName(base):
 		limit = protocol.AtariStFloppyBytes
+		if protocol.AtariStFloppyGeometryCapable(active) && err == nil && protocol.AdmitAtariStFloppySize(before.Size()) {
+			limit = before.Size()
+		}
 	}
 	if err != nil || !before.Mode().IsRegular() || limit == 0 || before.Size() != limit {
 		return "", "", protocol.DiskMediaRequestError()

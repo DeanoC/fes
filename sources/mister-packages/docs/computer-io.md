@@ -28,6 +28,7 @@ removable media by unit.
 | fes.media.atari-st-floppy | 7 | Media unit 0: one read-only 720 KiB raw ST disk image |
 | fes.mouse.relative | 8 | Relative signed movement and two mouse buttons |
 | fes.media.atari-st-floppy-write | 9 | Writable extension to the ST disk interface, with frozen image capture |
+| fes.media.atari-st-floppy-geometry | 10 | Required opt-in for bounded alternate raw ST disk geometries |
 
 Admission requires video. Every other interface is independently composable.
 The writable extension requires the base ST floppy interface; it changes its
@@ -240,13 +241,14 @@ to the host. G64, D71 and D81 images are different formats. Capability bit 6
 
 ### fes.media.atari-st-floppy 1.0
 
-Unit 0. The unit accepts exactly 737,280 bytes (Info minimum = maximum =
+Unit 0. Without the geometry extension, the unit accepts exactly 737,280 bytes (Info minimum = maximum =
 737,280): 80 cylinders, two sides, nine sectors per track and 512 bytes per
 sector, with the plain `.st` sector layout. Byte offset is
 `((cylinder * 2 + side) * 9 + sector - 1) * 512`; cylinders are 0..79,
 sides 0..1, and sectors 1..9. Drive A is read only and reports write protect;
 version 1.0 does not return machine writes to the host. Drive B is absent.
-MSA/STX flux images, alternate geometry and hard disks are different formats.
+MSA compressed files, STX flux images and hard disks are different formats.
+Alternate raw geometry requires the separate extension documented below.
 Capability bit 7 (`0x80`) identifies this interface. It shares unit 0 with
 Apple II, Spectrum and C64 media, so a shell declares exactly one such medium.
 
@@ -278,17 +280,23 @@ revisions before integration or exact-artifact hardware acceptance.
 ## Writable ST image capture
 
 `fes.media.atari-st-floppy-write` 1.0 occupies unit 0 and extends the base
-80-track, two-side, nine-sector, 512-byte `.st` geometry (737280 bytes).
-Without the extension the drive remains read-only. The machine owns normal
-sector writes; this interface captures the whole raw image for durable storage.
-It does not describe flux, formatting, deleted sectors or a FAT transaction.
+floppy interface. Without the write extension the drive remains read-only.
+The machine owns normal sector writes; this interface captures the whole raw
+image for durable storage. It does not describe flux, formatting, deleted
+sectors or a FAT transaction. Capture length is the committed image size:
+legacy endpoints remain exactly 80-track, two-side, nine-sector, 512-byte
+`.st` (737280 bytes, layout 1.0). With `fes.media.atari-st-floppy-geometry`
+1.0, a nonlegacy admitted length uses layout 1.1 and must match its bound
+immutable-base size; 737280-byte records stay layout 1.0.
 
 SnapshotInfo (12) requires unit 0 and argument 0. Fields 0..7 are flags,
-layout tag (1), layout major (1), minor (0), current byte size low/high,
-maximum chunk bytes (512), and a wrapping 16-bit change epoch. Flags bits
-0..3 mean ready, dirty, frozen, writer busy; other bits are zero. The epoch
-advances when a complete accepted sector commits. Dirty clears on replacement,
-eject or Saved. Reading Info cannot establish a consistent image by itself.
+layout tag (1), layout major (1), layout minor, current byte size low/high,
+maximum chunk bytes (512), and a wrapping 16-bit change epoch. Layout minor
+is 0 for a 737280-byte image and 1 for any other admitted geometry length.
+Flags bits 0..3 mean ready, dirty, frozen, writer busy; other bits are zero.
+The epoch advances when a complete accepted sector commits. Dirty clears on
+replacement, eject or Saved. Reading Info cannot establish a consistent image
+by itself.
 
 SnapshotControl (13) requires index 0 and argument 0..2. Freeze requires a
 ready image, fences new writers, and waits until the machine has observed the
@@ -306,7 +314,9 @@ must equal the bytes already captured and the length must be even, 2..512,
 and fit the remaining image. SnapshotData (15) requires argument 0 and the
 next ordinal. ACK waits for both physical byte reads and returns the first
 byte low, second high. A low-request rearm edge separates reads. Ordinals
-restart at zero for each chunk; capture continues through all 737280 bytes.
+restart at zero for each chunk; capture continues through the committed
+image length (737280 bytes for layout 1.0, or the exact bound-base length
+for layout 1.1).
 
 While frozen, ordinary Begin/Eject reject unless Saved authorized destruction
 and the writer is idle. A failed save retains the frozen captured generation
@@ -315,3 +325,34 @@ an unconfirmed Resume does not authorize stopping, replacing or reprogramming.
 Raw development inserts remain volatile. Library inserts explicitly bind core,
 game, unit and immutable base-media identity to the durable record defined in
 [media data](media-data.md); a display name or package path grants no binding.
+
+### fes.media.atari-st-floppy-geometry 1.0
+
+This required operational extension adds capability bit 10 (`0x400`) and
+requires the base floppy 1.0 interface. Legacy endpoints retain exact
+737280-byte arbitrary-byte admission. Unit 0 advertises exact minimum 368640
+and maximum 839680 bytes, but only these twelve lengths are admitted:
+
+| Tracks | Heads | Sectors/track | Bytes |
+| --- | --- | --- | --- |
+| 80 | 1 | 9 | 368640 |
+| 80 | 1 | 10 | 409600 |
+| 80 | 2 | 9 | 737280 |
+| 80 | 2 | 10 | 819200 |
+| 81 | 1 | 9 | 373248 |
+| 81 | 1 | 10 | 414720 |
+| 81 | 2 | 9 | 746496 |
+| 81 | 2 | 10 | 829440 |
+| 82 | 1 | 9 | 377856 |
+| 82 | 1 | 10 | 419840 |
+| 82 | 2 | 9 | 755712 |
+| 82 | 2 | 10 | 839680 |
+
+Size uniquely determines physical geometry; CHS sectors are contiguous in
+cylinder/head/sector order. Compressed MSA bytes are never sent to the core.
+Nonlegacy immutable inputs require little-endian BPB sector bytes (offset 11)
+equal 512, total sectors (19) equal size/512, and sectors per track (24) and
+heads (26) equal the inferred geometry. Guest-modified saved BPBs are retained;
+restored bytes keep the exact immutable-base length as physical geometry.
+Snapshot tag and major remain 1: 737280 bytes uses minor 0 and other admitted
+sizes use minor 1. Existing chunks, freeze, CRC, and epochs are unchanged.

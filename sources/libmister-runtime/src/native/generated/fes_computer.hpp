@@ -127,6 +127,16 @@ constexpr std::uint32_t FesComputerC64DiskUnit = 0x0u;
 constexpr std::uint32_t FesComputerC64DiskBytes = 0x2ab00u;
 constexpr std::uint32_t FesComputerAtariStFloppyUnit = 0x0u;
 constexpr std::uint32_t FesComputerAtariStFloppyBytes = 0xb4000u;
+constexpr std::uint32_t FesComputerAtariStFloppyGeometryMinBytes = 0x5a000u;
+constexpr std::uint32_t FesComputerAtariStFloppyGeometryMaxBytes = 0xcd000u;
+constexpr std::uint32_t FesComputerAtariStFloppyGeometryMinTracks = 0x50u;
+constexpr std::uint32_t FesComputerAtariStFloppyGeometryMaxTracks = 0x52u;
+constexpr std::uint32_t FesComputerAtariStFloppyGeometryMinHeads = 0x1u;
+constexpr std::uint32_t FesComputerAtariStFloppyGeometryMaxHeads = 0x2u;
+constexpr std::uint32_t FesComputerAtariStFloppyGeometryMinSectors = 0x9u;
+constexpr std::uint32_t FesComputerAtariStFloppyGeometryMaxSectors = 0xau;
+constexpr std::uint32_t FesComputerAtariStFloppySectorBytes = 0x200u;
+constexpr std::uint32_t FesComputerAtariStFloppyGeometryLayoutMinor = 0x1u;
 constexpr const char* FesComputerInterfaceVideoFixed720p60ID = "fes.video.fixed-720p60";
 constexpr std::uint16_t FesComputerInterfaceVideoFixed720p60Major = 1u;
 constexpr std::uint16_t FesComputerInterfaceVideoFixed720p60Minor = 0u;
@@ -167,6 +177,10 @@ constexpr const char* FesComputerInterfaceMediaAtariStFloppyWriteID = "fes.media
 constexpr std::uint16_t FesComputerInterfaceMediaAtariStFloppyWriteMajor = 1u;
 constexpr std::uint16_t FesComputerInterfaceMediaAtariStFloppyWriteMinor = 0u;
 constexpr std::uint32_t FesComputerCapabilityMediaAtariStFloppyWrite = 0x200u;
+constexpr const char* FesComputerInterfaceMediaAtariStFloppyGeometryID = "fes.media.atari-st-floppy-geometry";
+constexpr std::uint16_t FesComputerInterfaceMediaAtariStFloppyGeometryMajor = 1u;
+constexpr std::uint16_t FesComputerInterfaceMediaAtariStFloppyGeometryMinor = 0u;
+constexpr std::uint32_t FesComputerCapabilityMediaAtariStFloppyGeometry = 0x400u;
 
 } // namespace generated
 } // namespace native
