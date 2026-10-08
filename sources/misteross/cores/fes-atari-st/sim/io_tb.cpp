@@ -243,7 +243,8 @@ static void bottom_border(Test &t,bool pal,bool cross_sample) {
     while(t.dut.display_phase<(cross_sample?504u:500u)) t.tick();
     t.dut.sync_mode=pal?2:0;
     while(t.frames<1) t.tick();
-    const unsigned active=cross_sample?(pal?247:229):200;
+    // VIDEO_HEIGHT_BOTTOM_50HZ=47 and VIDEO_HEIGHT_BOTTOM_60HZ=26.
+    const unsigned active=200+(cross_sample?(pal?47:26):0);
     t.require(t.display_ends==active,"bottom opening requires the opposite mode at the stop sample");
     t.require(t.mread(0x21)==255-active,"Timer B sees bottom-border DE lines");
     const unsigned prior=t.display_ends;

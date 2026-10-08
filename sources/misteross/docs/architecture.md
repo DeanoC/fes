@@ -1769,7 +1769,7 @@ Both DE edges reach the MFP Timer B input 24 CPU cycles later, following
 Hatari v2.5.0 `TIMERB_VIDEO_CYCLE_OFFSET`; pixel capture uses undelayed DE.
 Brief sync/resolution writes therefore do not add Timer B events mid-line.
 The STF WS1 bottom-stop sample at cycle 502 uses live sync: opposite mode on
-the last ordinary color line extends DE to PAL line 309 or NTSC line 262,
+the last ordinary color line extends DE to PAL line 309 or NTSC line 259,
 then clears at frame rollover. Timer B and the reduced video counter see
 these extra lines. RGB capture still crops to the ordinary 320×200 area;
 horizontal/top borders and the other exact GLUE sampling positions are absent.

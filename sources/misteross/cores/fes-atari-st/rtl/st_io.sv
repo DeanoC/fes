@@ -123,8 +123,9 @@ module st_io #(
     wire [8:0] display_top = frame_resolution == 2'd2 ? 9'd34 : frame_pal ? 9'd63 : 9'd34;
     wire [8:0] display_start = line_resolution == 2'd2 ? 9'd4 : line_pal ? 9'd56 : 9'd52;
     wire [8:0] display_end = line_resolution == 2'd2 ? 9'd164 : line_pal ? 9'd376 : 9'd372;
+    // Hatari video.h defines 47 PAL / 26 NTSC extra DE lines.
     wire [8:0] display_height = frame_resolution == 2'd2 ? 9'd400 :
-        bottom_open ? (frame_pal ? 9'd247 : 9'd229) : 9'd200;
+        bottom_open ? (frame_pal ? 9'd247 : 9'd226) : 9'd200;
     assign native_display = !reset && native_line >= display_top &&
         native_line < display_top + display_height &&
         horizontal_cycle >= display_start && horizontal_cycle < display_end;

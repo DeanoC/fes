@@ -186,7 +186,7 @@ Mode settings are sampled at line/frame boundaries so brief writes do not
 create extra display-enable edges. The vertical bottom-stop condition also
 samples live sync at cycle 502 on the last ordinary color line, using the
 STF WS1 timing table. Opposite sync extends PAL DE through line 309, or NTSC
-DE through line 262, and clears at the next frame. This lets Timer B handlers
+DE through line 259, and clears at the next frame. This lets Timer B handlers
 continue through the opened bottom region. The current native RGB buffer
 still presents only the ordinary 320×200 area; it does not display those
 extra lines. The remaining mode samples are approximate, and prefetching
