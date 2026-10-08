@@ -45,17 +45,24 @@ module fes_z80_alu #(
     logic       shift_left_fill, shift_right_fill;
     logic [7:0] daa_correction;
     logic       daa_carry;
+    logic       daa_low_gt9;
+    logic       daa_high_gt99;
     logic [1:0] carry_xy;
     logic       unused_inputs;
+
+    // Magnitude compares a[3:0]>9 and a>8'h99 are identical to these bit
+    // tests; sharing the low-nibble term avoids a byte-wide comparator.
+    assign daa_low_gt9 = a[3] && (a[2] || a[1]);
+    assign daa_high_gt99 = a[7] && (a[6] || a[5] || (a[4] && daa_low_gt9));
 
     // NMOS DAA also compares invalid BCD digits after subtraction. The
     // documented variant needs only C/H in the subtraction case. Both
     // implement all rows of Zilog's table for valid BCD arithmetic.
     always_comb begin
         daa_correction = 8'h00;
-        if (flags_in[4] || ((NMOS || !flags_in[1]) && a[3:0] > 4'd9))
+        if (flags_in[4] || ((NMOS || !flags_in[1]) && daa_low_gt9))
             daa_correction[3:0] = 4'h6;
-        daa_carry = flags_in[0] || ((NMOS || !flags_in[1]) && a > 8'h99);
+        daa_carry = flags_in[0] || ((NMOS || !flags_in[1]) && daa_high_gt99);
         if (daa_carry)
             daa_correction[7:4] = 4'h6;
     end
