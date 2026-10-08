@@ -7,6 +7,7 @@ module st_io #(
     parameter integer ENABLE_FLOPPY_WRITE = 0
 ) (
     input wire clk, reset, cold_reset,
+    input wire cpu_cycle_ce,
     input wire req,
     input wire [23:1] addr,
     input wire write,
@@ -93,59 +94,73 @@ module st_io #(
                    kbd_select ? {kbd_data, 8'hff} :
                    midi_select ? {midi_data, 8'hff} : fdc_data;
 
-    reg [31:0] timer_phase, vertical_phase, horizontal_phase;
+    reg [31:0] timer_phase;
+    reg [8:0] horizontal_cycle;
     reg [1:0] frame_resolution, line_resolution;
     reg frame_pal, line_pal;
+    reg bottom_open;
     wire [32:0] timer_sum = {1'b0, timer_phase} + 33'd2457600;
-    wire [32:0] vertical_sum = {1'b0, vertical_phase} +
-        (frame_resolution == 2'd2 ? 33'd71 : frame_pal ? 33'd50 : 33'd60);
-    wire [32:0] horizontal_sum = {1'b0, horizontal_phase} +
-        (line_resolution == 2'd2 ? 33'd35500 : line_pal ? 33'd15650 : 33'd15750);
     wire timer_ce = timer_sum >= 33'(SYSTEM_CLOCK_HZ);
-    assign vblank = vertical_sum >= 33'(SYSTEM_CLOCK_HZ) && !reset;
-    assign hblank = horizontal_sum >= 33'(SYSTEM_CLOCK_HZ) && !reset;
+    // Ordinary STF raster lengths in 68000 cycles (Hatari 2.5.0).
+    // The CPU, HBL, VBL and DE share one enable; independent rounded rates
+    // shortened PAL frames by 256 CPU cycles and made raster handlers drift.
+    wire [8:0] line_last = line_resolution == 2'd2 ? 9'd223 :
+                          line_pal ? 9'd511 : 9'd507;
+    wire [8:0] frame_last = frame_resolution == 2'd2 ? 9'd500 :
+                           frame_pal ? 9'd312 : 9'd262;
+    assign hblank = cpu_cycle_ce && horizontal_cycle == line_last && !reset;
+    assign vblank = hblank && native_line == frame_last;
     reg vbl_pending, hbl_pending;
     // Timer B is driven by native display enable, rather than every HBL.
     // Ordinary color display porches: PAL lines 63..262 and cycles 56..375;
     // NTSC lines 34..233 and cycles 52..371. See Hatari v2.5.0 video.h /
-    // Video_InitTimings. Border-opening and cycle-exact GLUE latches are absent.
+    // Video_InitTimings. Only the vertical bottom-stop sample is modelled.
     // The reduced ordinary-raster model samples line/frame modes at their
     // boundaries. Brief register writes cannot create extra DE edges or turn
     // a 50 Hz line into a new frame midway through display. Exact GLUE sample
-    // positions and border-opening effects remain a separate implementation.
-    wire [8:0] display_top = frame_pal ? 9'd63 : 9'd34;
-    wire [31:0] display_start = line_pal ?
-        32'((64'(SYSTEM_CLOCK_HZ) * 56) / 512) : 32'((64'(SYSTEM_CLOCK_HZ) * 52) / 508);
-    wire [31:0] display_end = line_pal ?
-        32'((64'(SYSTEM_CLOCK_HZ) * 376) / 512) : 32'((64'(SYSTEM_CLOCK_HZ) * 372) / 508);
-    assign native_display = line_resolution == 2'd2 ?
-        native_line < 9'd400 && horizontal_phase < 32'((64'(SYSTEM_CLOCK_HZ) * 71) / 100) :
-        native_line >= display_top && native_line < display_top + 9'd200 &&
-        horizontal_phase >= display_start && horizontal_phase < display_end;
+    // positions and horizontal/top border effects remain unimplemented.
+    wire [8:0] display_top = frame_resolution == 2'd2 ? 9'd34 : frame_pal ? 9'd63 : 9'd34;
+    wire [8:0] display_start = line_resolution == 2'd2 ? 9'd4 : line_pal ? 9'd56 : 9'd52;
+    wire [8:0] display_end = line_resolution == 2'd2 ? 9'd164 : line_pal ? 9'd376 : 9'd372;
+    wire [8:0] display_height = frame_resolution == 2'd2 ? 9'd400 :
+        bottom_open ? (frame_pal ? 9'd247 : 9'd229) : 9'd200;
+    assign native_display = !reset && native_line >= display_top &&
+        native_line < display_top + display_height &&
+        horizontal_cycle >= display_start && horizontal_cycle < display_end;
     always @(posedge clk) begin
         if (reset) begin
-            timer_phase <= 0; vertical_phase <= 0; horizontal_phase <= 0;
+            timer_phase <= 0; horizontal_cycle <= 0; bottom_open <= 0;
             frame_resolution <= resolution; line_resolution <= resolution;
             frame_pal <= sync_mode[1]; line_pal <= sync_mode[1];
             vbl_pending <= 0; hbl_pending <= 0; native_line <= 0;
             video_counter <= 0;
         end else begin
             timer_phase <= timer_ce ? 32'(timer_sum - 33'(SYSTEM_CLOCK_HZ)) : timer_sum[31:0];
-            vertical_phase <= vblank ? 32'(vertical_sum - 33'(SYSTEM_CLOCK_HZ)) : vertical_sum[31:0];
-            horizontal_phase <= hblank ? 32'(horizontal_sum - 33'(SYSTEM_CLOCK_HZ)) : horizontal_sum[31:0];
+            if (cpu_cycle_ce)
+                horizontal_cycle <= hblank ? 9'd0 : horizontal_cycle + 1'b1;
             if (vblank) vbl_pending <= 1;
             if (hblank) hbl_pending <= 1;
             if (irq_ack && irq_level == 4) vbl_pending <= 0;
             if (irq_ack && irq_level == 2) hbl_pending <= 0;
+            // STF WS1 samples the bottom-stop condition at cycle 502 of
+            // the last ordinary display line. The opposite sync mode at
+            // this point suppresses the stop until the vertical-sync porch.
+            // Only vertical bottom opening is modelled here; horizontal
+            // border tricks and the other GLUE sample positions are absent.
+            if (cpu_cycle_ce && horizontal_cycle == 9'd502 &&
+                frame_resolution != 2'd2 &&
+                native_line == (frame_pal ? 9'd262 : 9'd233) &&
+                sync_mode[1] != frame_pal)
+                bottom_open <= 1'b1;
             if (vblank) begin
+                bottom_open <= 1'b0;
                 frame_resolution <= resolution; frame_pal <= sync_mode[1];
                 video_counter <= {screen_base[23:8], 8'd0};
                 native_line <= 0;
             end else if (hblank) begin
-                if (line_resolution != 2'd2 && native_line == display_top - 9'd1)
+                if (native_line == display_top - 9'd1)
                     video_counter <= {screen_base[23:8], 8'd0};
-                else if (line_resolution == 2'd2 ? native_line < 9'd400 :
-                         native_line >= display_top && native_line < display_top + 9'd200)
+                else if (native_line >= display_top && native_line < display_top + display_height)
                     video_counter <= video_counter + (line_resolution == 2'd2 ? 24'd80 : 24'd160);
                 if (native_line != 9'h1ff) native_line <= native_line + 1'b1;
             end
