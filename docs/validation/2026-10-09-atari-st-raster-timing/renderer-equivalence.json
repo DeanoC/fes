@@ -1,0 +1,23 @@
+{
+  "gold_revision": "27b85008ffa2d6887d05c24c5de66cb87b7c541b",
+  "gate_revision": "cbfdfcf8334709d371540339f7b032ec593d0b8c",
+  "source_path": "sources/misteross/cores/fes-atari-st/rtl/st_video.sv",
+  "gold_sha256": "8a8244fe806594bcebe6dbf340c0b0965550da96711c882d1bf934320f501811",
+  "gate_sha256": "732484f716705b0b29f4fb7291623749f2e8a1177f82e4299455c765c42ac7f8",
+  "combined_formal_input_sha256": "a7b793ec0193c39c5e3527d8ae505a74ecc732f0552a505e253d7493102963fe",
+  "configurations": [
+    {
+      "CACHED_WORD_PORT": 0,
+      "proven_points": 493,
+      "unproven_points": 0
+    },
+    {
+      "CACHED_WORD_PORT": 1,
+      "proven_points": 438,
+      "unproven_points": 0
+    }
+  ],
+  "scope": "whole st_video state and outputs, same clock/reset/hold/input sequences; unchanged pixel and lookup cycles",
+  "hardware_execution": false,
+  "yosys_binary_sha256": "2a2eabbc27be64fc5b1ed73f021356f5402555966627f18410c13203aeb0b0c9"
+}

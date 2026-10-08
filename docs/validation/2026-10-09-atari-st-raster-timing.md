@@ -3,7 +3,7 @@
 Follow-up to [task #621](https://github.com/DeanoC/fes/issues/621) and
 [PR #633](https://github.com/DeanoC/fes/pull/633), based on merged main
 `0805d2b7e08f66127524353c4cbaf15d9daf180e`. Implementation source is
-`e88ac743670ca05589993404e5fa235df512a431`; the
+`27b85008ffa2d6887d05c24c5de66cb87b7c541b`; the
 [evidence record](2026-10-09-atari-st-raster-timing/evidence.json) records
 validation and its remaining work. Earlier FPGA/hardware records qualify
 only their exact earlier packages.
@@ -68,8 +68,7 @@ model result, not physical FPGA acceptance or a synchronized whole-screen match.
 The NTSC bottom extension uses the actual `VIDEO_HEIGHT_BOTTOM_60HZ=26`
 definition in Hatari's header: 226 total DE lines through line 259. The timing
 initializer's trailing comment says 263, which disagrees with its expression.
-The current source and tests use the actual 26-line definition; the
-qualifications below select that corrected commit.
+The source and tests use the actual 26-line definition.
 
 ## Digital checks
 
@@ -92,7 +91,8 @@ clocks; this remains a digital memory model.
 
 The twelve-second [original BIG diagnostic](2026-10-09-atari-st-raster-timing/demo-proof.json)
 selects B at eight seconds through HID/IKBD. All twenty-one captured inputs
-match the committed implementation. Frozen source, executable, generated model,
+match `e88ac743670ca05589993404e5fa235df512a431`. The subsequent constant-bound rewrites change `st_io.sv` and `st_video.sv`
+among these inputs; each is formally equivalent as described below. Frozen source, executable, generated model,
 microcode, ROM and disk remain unchanged throughout the run. It finishes with
 598 complete native captures, zero underruns, no external bus faults and no
 CPU halt. The menu has 32 RGB colors and the final B scroller has 39, including
@@ -101,6 +101,34 @@ consumer; it does not exercise the physical SDRAM arbiter or independent HDMI
 clock crossing. Those paths are tested separately above.
 
 ![Native B scroller](2026-10-09-atari-st-raster-timing/model-scroller.png)
+
+## FPGA timing refinement
+
+Preparation of the renderer-refined source is still pending. The preceding
+`e88ac743` route's intermediate analogue signoff misses the system target:
+46.60 MHz against 52.224 MHz. The critical path starts at `bottom_open`,
+passes through the dynamic `display_top + display_height` addition and line
+comparison, then reaches native RGB selection. The implementation now uses
+constant endpoint comparisons for ordinary/opened PAL, NTSC and monochrome.
+
+The [formal proof](2026-10-09-atari-st-raster-timing/qor-equivalence.json)
+compares the exact previous and current `st_io` sources. Yosys proves all
+768 state/output equivalence points with no unproven points for each of
+`ENABLE_FLOPPY_WRITE=0` and `1`. Unchanged peripheral cells retain identical
+connections; neither CPU nor renderer is rewritten. The archived
+[Verilog input](2026-10-09-atari-st-raster-timing/qor-equivalence.sv) and
+[scripts](2026-10-09-atari-st-raster-timing/qor-equivalence.ys) allow rerunning
+that proof with the recorded Yosys binary. This proof preserves the previous
+BIG/EmuTOS behavioral evidence; fresh physical qualification remains separate.
+
+Four routes of the I/O-only refinement still fail final pixel and/or system
+signoff. The pixel path includes a next-line addition followed by display
+bounds and cache lookup selection. The renderer refinement replaces those
+predicates and current-line RGB bounds with constant comparisons before mode
+selection. The [renderer proof](2026-10-09-atari-st-raster-timing/renderer-equivalence.json)
+proves all 493 physical-port and 438 cached-port state/output points, with
+none unproven, between `27b85008` and `cbfdfcf83`. Pixel and lookup cycles are
+unchanged, and the two proofs preserve the captured behavioral evidence.
 
 FPGA qualification and any physical diagnostic remain pending in the evidence
 record. The kit has not been changed during these builds; its normal menu

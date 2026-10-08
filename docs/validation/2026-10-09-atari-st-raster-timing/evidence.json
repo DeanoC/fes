@@ -1,7 +1,7 @@
 {
   "schema": "fes.atari-st-raster-timing-evidence/1",
   "base_revision": "0805d2b7e08f66127524353c4cbaf15d9daf180e",
-  "implementation_revision": "e88ac743670ca05589993404e5fa235df512a431",
+  "implementation_revision": "cbfdfcf8334709d371540339f7b032ec593d0b8c",
   "hardware_execution": false,
   "demo_compatibility_asserted": false,
   "shared_contract_changes": false,
@@ -18,7 +18,7 @@
     "fixture_copies": 34,
     "helper_tests": 12,
     "planner_tests": 30,
-    "source_revision": "e88ac743670ca05589993404e5fa235df512a431"
+    "source_revision": "cbfdfcf8334709d371540339f7b032ec593d0b8c"
   },
   "diskless_emutos": {
     "pass": true,
@@ -78,15 +78,31 @@
     "hatari-bottom-excerpt.log": "af98f41e2ac0fbff58206e190e4a662f076050efa965bf8fb8e473b566ea5c2c",
     "hatari-reference.json": "b70fe829fb5b319fcdbb067c9f342ed3ec07f82ac7f28cd58daf5c4746f2635b",
     "helper-tests.log": "5baa63a49ce215eb3033531284020a63f07ccef52c4f0ee06e31415146019bc6",
-    "io-test.log": "f188b49529fab701474e120eb1683f2b003b19e05f82fa75424120dc59225231",
+    "io-test.log": "756ca9662ddf2b5e9426c4c156ae0cdd96893d5c8ead07102d2c66743c75f42c",
     "menu-comparison.json": "ac1c98a9ff7c0f427ebe33d265bec369e2d38db936e39a878a88101b12b77af8",
     "model-menu.png": "60437a32d8783b765a2ffbbce13516754bc9ed3e3da43ac07b33907d484b41d3",
     "model-scroller.png": "2e56511f616904354b64f297e989364378e6aa723939749027a573c0a8edbd51",
-    "parent-check.log": "55e4e75659635a1f1ae9d10585bf9d7e3044b3141486e9c9353c8953bf74300f",
+    "optimized-seed1-timing.log": "c06cd223ad757f23143a17f9c4e4a47b69321859fc2bd73ea5069af0da895f6a",
+    "optimized-seed2-timing.log": "07ac7a92e80b175b6cdd4b17034ffa65508fbdfd374d5b7c7c9fc4885dea135e",
+    "optimized-seed4-timing.log": "7b07dece24064b9113b00816aaf376515a3816f98e76f21efb22052f94727619",
+    "optimized-seed5-timing.log": "99c68c46248ac21c5a13595c6220d0ee1af8c18fc0043646b2b06b6ef9f6c53d",
+    "parent-check.log": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158",
     "planner-tests.log": "9bfbef7e9c54bebdc23bf8b1a7767c24244bf66abe5517c8bf62e468d1b19248",
+    "qor-equivalence-write.log": "a891e80c4fab4169dc51e51318ed5da607b35f05e6d6c128e8505e6fe973f9e8",
+    "qor-equivalence-write.ys": "0bfd7979071669bf00a0cf7b3888f9280ea864fe16fcd9eec13c918577f03cf8",
+    "qor-equivalence.json": "c3e7d1e89ca266fe74cb14f49909b5f8be8dc9b58511c34942d09c67fc5b5a85",
+    "qor-equivalence.log": "a891e80c4fab4169dc51e51318ed5da607b35f05e6d6c128e8505e6fe973f9e8",
+    "qor-equivalence.sv": "e7bfaacf83687f75e464461d636eee19993a4c44fa12f9a8d02babcf7722faf8",
+    "qor-equivalence.ys": "a1704f0aefa807fbffdcba9e9ae864ea4a2da1415ebae23a32120491a49d9909",
+    "renderer-equivalence-0.log": "9332b2e6b8263158a140136e738dd9f15a4f163a78b7c197a778b461b3febcd1",
+    "renderer-equivalence-0.ys": "6b207dd071fb004580dca002416ad3516241b879949b81d7e685d00833c35ba1",
+    "renderer-equivalence-1.log": "357925f018a3e9f4053bef5387a566523feecc99c307eec940af8404dee469b4",
+    "renderer-equivalence-1.ys": "6c05bba90a4cb7539d9e70dc3149d3fce24dd20c7c33e3438e609e60344111f4",
+    "renderer-equivalence.json": "d6f7f5f2b18b58ac3c0a894616ea802f7d9da7dbc07d6db99189a266961edd3a",
+    "renderer-equivalence.sv": "a7b793ec0193c39c5e3527d8ae505a74ecc732f0552a505e253d7493102963fe",
     "seed4-timing.log": "f5972778e17a544d7e994a3f41b0e50a03e4ebf725c10405534a4a8c7deaa6f4",
     "source-identity.json": "e06762deb01fe77083f0516216c556586869e04c873fd9953753eaf229127154",
-    "st-aggregate.log": "5f589725fdf639265019d9b847f64e008cb1c0dc567acd2ea855427bcc4019d4"
+    "st-aggregate.log": "b2bfe39c3d85b94c6fa495381194f33279af85f26b0c084eaaad35b6e17b3b3f"
   },
   "fpga_attempts": [
     {
@@ -97,12 +113,92 @@
       "audio_mhz": 177.49,
       "full_route_log_sha256": "2c81119a24eec6b6a92c643fffe8f132165d93c5ada2f44ad5f73e1c1b9b5d80",
       "source_revision": "e00c6347c77cc02da29040498dbe9e2974c3e554"
+    },
+    {
+      "source_revision": "27b85008ffa2d6887d05c24c5de66cb87b7c541b",
+      "seed": 4,
+      "status": "final pixel timing failure; system/audio pass",
+      "pixel_mhz": 71.14,
+      "system_mhz": 53.05,
+      "audio_mhz": 227.01,
+      "full_route_log_sha256": "85d59810cc8a5f5e2ad3399023c09cf1ab6930d301d93b50a99b780e737135bc"
+    },
+    {
+      "source_revision": "27b85008ffa2d6887d05c24c5de66cb87b7c541b",
+      "seed": 5,
+      "status": "final pixel timing failure; system/audio pass",
+      "pixel_mhz": 73.17,
+      "system_mhz": 53.0,
+      "audio_mhz": 163.59,
+      "full_route_log_sha256": "1582e1dbd428d1ac2925748bb380c04f714deaab3401ca3807ab6bca260f1052"
+    },
+    {
+      "source_revision": "27b85008ffa2d6887d05c24c5de66cb87b7c541b",
+      "seed": 2,
+      "status": "final pixel timing failure; system/audio pass",
+      "pixel_mhz": 73.79,
+      "system_mhz": 52.25,
+      "audio_mhz": 198.61,
+      "full_route_log_sha256": "0ac14f20dcc25002c06452f4774bc421e208be6682869e524619c2b5cdd5676a"
+    },
+    {
+      "source_revision": "27b85008ffa2d6887d05c24c5de66cb87b7c541b",
+      "seed": 1,
+      "status": "final pixel/system timing failure; audio pass",
+      "pixel_mhz": 72.19,
+      "system_mhz": 51.17,
+      "audio_mhz": 189.97,
+      "full_route_log_sha256": "2bf75b3b6dcab54b402342e41d8f5ea055eef2a40b77499243d927a1e2b47c67"
     }
   ],
   "ci": {
-    "source_revision": "e00c6347c77cc02da29040498dbe9e2974c3e554",
+    "source_revision": "27b85008ffa2d6887d05c24c5de66cb87b7c541b",
     "checks_passed": 47,
     "checks_pending": 0,
     "checks_failed": 0
+  },
+  "qor_equivalence": {
+    "gold_revision": "e88ac743670ca05589993404e5fa235df512a431",
+    "gate_revision": "27b85008ffa2d6887d05c24c5de66cb87b7c541b",
+    "source_path": "sources/misteross/cores/fes-atari-st/rtl/st_io.sv",
+    "gold_sha256": "e694303961daaa0b67e42737e876f18ff97c4a18f97f4512973c00c9cf2c3be0",
+    "gate_sha256": "611236fab3e72bf975e2d92f50398fab6da0d1afadfa117e5b3561ce1a451175",
+    "combined_formal_input_sha256": "e7bfaacf83687f75e464461d636eee19993a4c44fa12f9a8d02babcf7722faf8",
+    "yosys_binary_sha256": "2a2eabbc27be64fc5b1ed73f021356f5402555966627f18410c13203aeb0b0c9",
+    "proven_equivalence_points_per_configuration": 768,
+    "unproven_points": 0,
+    "floppy_write_configurations": [
+      0,
+      1
+    ],
+    "scope": "st_io state/output logic; unchanged peripheral cells matched with identical connections; no renderer or CPU rewrite",
+    "capture_source_revision": "e88ac743670ca05589993404e5fa235df512a431",
+    "capture_inputs_unchanged_except": [
+      "sources/misteross/cores/fes-atari-st/rtl/st_io.sv"
+    ],
+    "hardware_execution": false
+  },
+  "renderer_equivalence": {
+    "gold_revision": "27b85008ffa2d6887d05c24c5de66cb87b7c541b",
+    "gate_revision": "cbfdfcf8334709d371540339f7b032ec593d0b8c",
+    "source_path": "sources/misteross/cores/fes-atari-st/rtl/st_video.sv",
+    "gold_sha256": "8a8244fe806594bcebe6dbf340c0b0965550da96711c882d1bf934320f501811",
+    "gate_sha256": "732484f716705b0b29f4fb7291623749f2e8a1177f82e4299455c765c42ac7f8",
+    "combined_formal_input_sha256": "a7b793ec0193c39c5e3527d8ae505a74ecc732f0552a505e253d7493102963fe",
+    "configurations": [
+      {
+        "CACHED_WORD_PORT": 0,
+        "proven_points": 493,
+        "unproven_points": 0
+      },
+      {
+        "CACHED_WORD_PORT": 1,
+        "proven_points": 438,
+        "unproven_points": 0
+      }
+    ],
+    "scope": "whole st_video state and outputs, same clock/reset/hold/input sequences; unchanged pixel and lookup cycles",
+    "hardware_execution": false,
+    "yosys_binary_sha256": "2a2eabbc27be64fc5b1ed73f021356f5402555966627f18410c13203aeb0b0c9"
   }
 }

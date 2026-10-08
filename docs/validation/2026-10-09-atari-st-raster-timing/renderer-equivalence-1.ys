@@ -1,0 +1,8 @@
+read_verilog -sv -I ../../../sources/misteross/cores/fes-common/generated renderer-equivalence.sv
+chparam -set CACHED_WORD_PORT 1 st_video_gold st_video_gate
+proc
+memory
+equiv_make st_video_gold st_video_gate st_video_equiv
+hierarchy -top st_video_equiv
+equiv_simple
+equiv_status -assert
