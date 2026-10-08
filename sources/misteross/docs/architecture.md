@@ -1735,7 +1735,10 @@ rather than overwrite the displayed bank. Missing rows become whole black
 lines; incomplete or held captures are discarded. RAM address validation
 rejects an entire row before any truncation. Native RGB is sampled at the
 pixel event into a registered RAM write bundle; a two-pixel forecast feeds a
-registered read address before the synchronous pixel read. These register
+registered read address before the synchronous pixel read. A blanking-time
+line counter advances the low-resolution row base by five 64-pixel units after
+each three output lines; address addition uses only the upper ten bits.
+These register
 stages shorten RAM paths while preserving palette sample and output positions.
 The write boundary registers RGB and black-line validity separately. Bank
 selection compares three-bit publication numbers: at most three unseen
