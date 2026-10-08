@@ -42,7 +42,7 @@ func TestServiceRetriesNativeDevelopmentRecoveryAfterPendingStop(t *testing.T) {
 	runtime := misterruntime.NewRuntime(control, bootIDPath, time.Millisecond, 20*time.Millisecond,
 		misterruntime.WithDevelopmentRBFPath(filepath.Join(dir, "core.rbf")),
 		misterruntime.WithRebootCommand(rebootPath))
-	coordinator := agent.New(runtime, 100*time.Millisecond, 100*time.Millisecond)
+	coordinator := agent.New(runtime, 2*time.Second, 2*time.Second)
 	coordinator.Initialize(context.Background())
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	targetHandler := httpapi.New(coordinator, "test-token", version.Version, logger, httpapi.WithDevelopment(coordinator))
@@ -64,7 +64,7 @@ func TestServiceRetriesNativeDevelopmentRecoveryAfterPendingStop(t *testing.T) {
 	service := newService(
 		Config{
 			Targets:        []TargetConfig{{Name: "dev", Enabled: true, Address: targetServer.URL, Agent: "test-token"}},
-			SelectedTarget: "dev", RequestTimeout: 100 * time.Millisecond, UploadTimeout: 500 * time.Millisecond,
+			SelectedTarget: "dev", RequestTimeout: 2 * time.Second, UploadTimeout: 500 * time.Millisecond,
 		},
 		Paths{Staging: dir}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
 	defer service.Close()

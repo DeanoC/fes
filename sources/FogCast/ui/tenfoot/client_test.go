@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestClientSessionPreservesKitFields(t *testing.T) {
@@ -52,6 +53,9 @@ func TestLauncherAuthTransportAddsKitIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
+	if client.HTTPClient().Timeout != 15*time.Second {
+		t.Fatalf("launcher client timeout = %s, want 15s", client.HTTPClient().Timeout)
+	}
 }
 
 func TestClientLaunchRejectsOversizeSessionResponse(t *testing.T) {

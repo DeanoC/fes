@@ -63,10 +63,13 @@ before the host attestation command is run.
 7. **Mixed kit binary and core sequence:** after deploy and restart, run
    `fogcast core-load` using the core archive from the exact-head build.
    `core-load` takes its own host lease through `fogcast-api`. Save `kit.py
-   status` as `reacquired` (held by `HOST_OWNER`), run `core-capture` (below)
-   and the HIL test. Explicitly stop the host
-   session with `POST /api/v1/session/stop`; save status (free or revoking) and
-   record `released`.
+   status` as `reacquired` (held by `HOST_OWNER`). While that lease is held,
+   run the generated `kit-command` on the kit and `host-command` on the host
+   and keep those captures for `--kit-sha256` and `--host-sha256`. A mixed
+   manifest always has both sides, so evidence refuses without fresh hashes
+   from this lease. Then run `core-capture` (below) and the HIL test.
+   Explicitly stop the host session with `POST /api/v1/session/stop`; save
+   status (free or revoking) and record `released`.
 
 8. **Core-only sequence:** confirm `kit.py status` is free and run
    `fogcast core-load` from the exact-head build. The host command takes its own

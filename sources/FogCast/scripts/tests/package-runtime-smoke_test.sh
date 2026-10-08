@@ -163,6 +163,21 @@ grep -Fxq 'package runtime smoke passed: Pong, ZX81, Coleco' "$fixture/three-arg
 test "$(grep -Fc -- 'api/v1/session/launch' "$fixture/curl-three-args.log")" -eq 3
 test "$(grep -Fc -- 'api/v1/session/stop' "$fixture/curl-three-args.log")" -eq 3
 
+# An explicit empty fourth argument must not fall back to skipping RAM Tester.
+if FOGCAST_CURL_LOG=$fixture/curl-empty-ram.log \
+  FOGCAST_ACTIVE_GAME=$fixture/active-game \
+  FOGCAST_HOST_API=http://host.test \
+  FES_RAMTEST_PACKAGE_SELECTION=$fixture/ramtest.selection \
+  FOGCAST_POLL_ATTEMPTS=2 FOGCAST_POLL_INTERVAL=0 PATH="$fake_bin:$PATH" \
+  sh "$smoke" "$fixture/pong.selection" "$fixture/zx81.selection" \
+    "$fixture/coleco.selection" "" >"$fixture/empty-ram.out" 2>"$fixture/empty-ram.err"
+then
+  echo 'empty RAM Tester selection was accepted' >&2
+  exit 1
+fi
+grep -Fq 'RAM Tester selection must not be empty' "$fixture/empty-ram.err"
+test ! -s "$fixture/curl-empty-ram.log"
+
 FOGCAST_CURL_LOG=$fixture/curl-env.log \
 FOGCAST_ACTIVE_GAME=$fixture/active-game \
 FOGCAST_HOST_API=http://host.test \

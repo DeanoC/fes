@@ -730,6 +730,11 @@ def core_capture(args):
 
 
 def evidence(args):
+    # A refused run must not leave an earlier success sitting at --out.
+    if args.out:
+        stale = Path(args.out)
+        if stale.is_file():
+            stale.unlink()
     base = git_commit(args.repo, args.base_image_commit)
     head = git_commit(args.repo, args.head)
     if not SHA64.fullmatch(args.base_image_sha256):
@@ -1104,7 +1109,8 @@ def main(argv=None):
                 kit_command(entries)
             else:
                 targets = [entry['target'] for entry in entries if entry['side'] == 'host']
-                print('sha256sum ' + ' '.join(shlex.quote(target) for target in targets))
+                if targets:
+                    print('sha256sum ' + ' '.join(shlex.quote(target) for target in targets))
                 for entry in entries:
                     if entry.get('component') in HOST_SERVERS and entry.get('side') == 'host':
                         target = shlex.quote(entry['target'])

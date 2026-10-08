@@ -14,10 +14,18 @@ usage() {
 }
 
 [ "$#" -le 4 ] || usage
+ramtest_argument_set=0
+if [ "$#" -ge 4 ]; then
+  ramtest_argument_set=1
+fi
 pong_selection=${1:-${FES_PONG_PACKAGE_SELECTION:-}}
 zx81_selection=${2:-${FES_ZX81_PACKAGE_SELECTION:-}}
 coleco_selection=${3:-${FES_COLECO_PACKAGE_SELECTION:-}}
-ramtest_selection=${4:-${FES_RAMTEST_PACKAGE_SELECTION:-}}
+if [ "$ramtest_argument_set" -eq 1 ]; then
+  ramtest_selection=$4
+else
+  ramtest_selection=${FES_RAMTEST_PACKAGE_SELECTION:-}
+fi
 ramtest_expected=
 case ",${FES_PACKAGE_EXPECTED_IDS:-}," in
   *,fes.ramtest=*,*) ramtest_expected=1 ;;
@@ -31,6 +39,10 @@ fail() {
   printf 'package-runtime-smoke: %s\n' "$1" >&2
   exit 1
 }
+
+if [ "$ramtest_argument_set" -eq 1 ] && [ -z "$ramtest_selection" ]; then
+  fail 'RAM Tester selection must not be empty'
+fi
 
 for required_command in curl mktemp python3 sleep; do
   command -v "$required_command" >/dev/null 2>&1 ||
