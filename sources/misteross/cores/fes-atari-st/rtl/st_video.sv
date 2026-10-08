@@ -52,9 +52,6 @@ module st_video #(
     wire mode_valid = resolution != 2'd3;
     // Low 4x3 and medium 2x3 fill 1280x600; high 2x1 fills 1280x400.
     // This first slice uses nearest-neighbor integer scaling, not aspect correction.
-    wire [9:0] image_top = high_resolution ? 10'd160 : 10'd60;
-    wire [9:0] image_height = high_resolution ? 10'd400 : 10'd600;
-    wire [9:0] next_vertical = vertical == V_TOTAL - 1'b1 ? 10'd0 : vertical + 10'd1;
     // Select complete constant windows after comparison; avoid putting the
     // mode-dependent top/height arithmetic on the RGB output path.
     wire picture_line = high_resolution ?
@@ -159,6 +156,9 @@ module st_video #(
         end else begin : physical_coordinates
             // Retain the combinational physical word-port address and capture
             // arithmetic, including its invalid-address behavior.
+            wire [9:0] image_top = high_resolution ? 10'd160 : 10'd60;
+            wire [9:0] image_height = high_resolution ? 10'd400 : 10'd600;
+            wire [9:0] next_vertical = vertical == V_TOTAL - 1'b1 ? 10'd0 : vertical + 10'd1;
             wire [2:0] planes = low_resolution ? 3'd4 : high_resolution ? 3'd1 : 3'd2;
             wire [11:0] ahead = {1'b0, horizontal} + {9'd0, planes};
             wire wrap_line = ahead >= {1'b0, H_TOTAL};
