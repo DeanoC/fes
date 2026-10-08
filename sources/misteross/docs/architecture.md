@@ -1682,8 +1682,11 @@ run an average 8 MHz CPU in the 52.224 MHz system domain. `st_machine.sv`
 latches big-endian bus transactions, applies supervisor protection and the
 ROM-vector alias, rearms between TAS strobes, and implements the original
 MMU's RAM-sizing address aliases. One physical 512 KiB bank is populated;
-configured bank 1 reads all ones. A disconnected cartridge is acknowledged,
-while unclaimed MMIO has a bounded bus-error timeout.
+unpopulated RAM throughout the original 4 MiB decode window acknowledges
+accesses and discards writes, independently of the configured bank sizes.
+Empty-memory reads retain the all-ones approximation rather than modeling
+the STF floating data bus. The populated bank retains its MMU aliases. A
+disconnected cartridge is acknowledged, while unclaimed MMIO has a bounded bus-error timeout.
 
 `st_io.sv` connects MFP IRQ6 vectors and timers, functional native VBL/HBL
 autovectors, keyboard/MIDI ACIAs, original IKBD protocol logic, shared YM2149

@@ -1,0 +1,61 @@
+fdc enable drive=0 on
+fdc enable drive=1 off
+fdc set nbr heads drive=0 2
+fdc set nbr heads drive=1 2
+INFO : Hatari v2.5.0, compiled on:  Dec 29 2024, 22:59:40
+INFO : Inserted disk '<private-task-artifacts>/downloads/big-original.st' to drive A:.
+INFO : NVRAM not found at '/home/deano/hatari.nvram'
+Reading debugger commands from '<private-task-artifacts>/hatari-loader-boundary/start.ini'...
+Changed to input file dir '<private-task-artifacts>/hatari-loader-boundary'.
+> b pc = $10d8 :once :file boundary.ini
+CPU condition breakpoint 1 with 1 condition(s) added:
+	pc = $10d8
+-> Break only once, and delete breakpoint afterwards.
+-> Execute debugger commands from 'boundary.ini' file on hit.
+Changed back to '<private-task-artifacts>/hatari-loader-boundary' dir.
+INFO : OS clock ticks / second: 100
+1. CPU breakpoint condition(s) matched 1 times.
+	pc = $10d8 :once :file boundary.ini
+Reading debugger commands from 'boundary.ini'...
+> cpureg
+  D0 00004879   D1 2A2A4E71   D2 2A2A2A2A   D3 2A2A2A2A
+  D4 2A202042   D5 4947202D   D6 2044454D   D7 4F20202A
+  A0 00FC06A2   A1 0000A100   A2 00000008   A3 31415926
+  A4 0000A100   A5 000011A8   A6 00000FFC   A7 00001182
+USP  00000000 ISP  00001182
+SR=2700 T=00 S=1 M=0 X=0 N=0 Z=0 V=0 C=0 IM=7 STP=0
+Prefetch 3070 (MOVEA) 0006 (OR) Chip latch 00000000
+000010D8 3070 0006                movea.w (a0,d0.w,$06),a0
+Next PC: 000010dc
+> disasm $10c0-$10e8
+000010C0 207B 00E6                movea.l (pc,d0.w,$e6=$000010a8),a0
+000010C4 4238 FA1D                clr.b $FFFFFA1D.w
+000010C8 3598 0814                move.w (a0)+,(a2,d0.l,$14)
+000010CC 3010                     move.w (a0),d0
+000010CE D1C0                     adda.l d0,a0
+000010D0 31D8 0026                move.w (a0)+,$00000026.w
+000010D4 3038 0026                move.w $00000026.w,d0
+(PC)
+000010D8 3070 0006                movea.w (a0,d0.w,$06),a0
+000010DC 5740                     subq.w #$03,d0
+000010DE 3F40 0006                move.w d0,(a7,$0006)
+000010E2 2050                     movea.l (a0),a0
+000010E4 9BCD                     suba.l a5,a5
+000010E6 4E90                     jsr (a0)
+> memdump w $fc06a0-$fc06c0
+00FC06A0: 4879 0000 001c 487a 003c 4879 0000 2560   Hy....Hz.<Hy..%`
+00FC06B0: 4eb9 00fc ccb6 4fef 000c 7000 13c0 0000   N.....O...p.....
+> savebin loader-ram.bin $0 $80000
+  Wrote 0x80000 bytes.
+> quit
+Removed CPU breakpoint 1:
+	pc = $10d8 :once :file boundary.ini
+
+----------------------------------------------------------------------
+You have entered debug mode. Type c to continue emulation, h for help.
+
+CPU=$10d8, VBL=483, FrameCycles=34360, HBL=67, LineCycles=324, DSP=N/A
+000010D8 3070 0006                movea.w (a0,d0.w,$06),a0
+> WARN : Address Error reading at address $fc4f21, PC=$10da addr_e3=10da op_e3=3070
+INFO : Floppy A: has been removed from drive.
+WARN : Storing NVRAM to '/home/deano/hatari.nvram' failed

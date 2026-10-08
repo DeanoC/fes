@@ -207,7 +207,13 @@ with the tested EmuTOS. The geometry diagnostic still records its original
 [nextpnr #165](https://github.com/DeanoC/nextpnr/issues/165) routing failure;
 that composition defect is resolved. Published egress anchors and the exact
 prepared Direct/Scanlines pair pass. Full factory image acceptance and
-border/raster compatibility remain open.
+border/raster compatibility remain open. The subsequent
+[BIG loader diagnosis](validation/2026-10-08-atari-st-big-loader.md) corrects
+unpopulated-memory acknowledgement below 4 MiB. With original TOS 1.00, BIG
+reaches its introductory instructions and main menu in the CPU/chipset model;
+the introductory planar framebuffer matches Hatari exactly. This host result
+requires new selected-artifact qualification and does not accept demo borders,
+later sections or audio.
 
 ## Not implemented, or not this package
 
