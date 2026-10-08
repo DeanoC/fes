@@ -1731,7 +1731,10 @@ the fixed 60 Hz reader selects the newest completed bank at SOF and pins it
 until a later SOF. A slow or stopped reader makes the producer skip frames
 rather than overwrite the displayed bank. Missing rows become whole black
 lines; incomplete or held captures are discarded. RAM address validation
-rejects an entire row before any truncation.
+rejects an entire row before any truncation. Native RGB is sampled at the
+pixel event into a registered RAM write bundle; a two-pixel forecast feeds a
+registered read address before the synchronous pixel read. These register
+stages shorten RAM paths while preserving palette sample and output positions.
 
 Medium and monochrome retain held-bundle configuration and indexed double
 line caches, including a palette held for each output frame. A fair, held

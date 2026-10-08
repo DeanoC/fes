@@ -323,12 +323,19 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     wire native_req, native_ready, native_valid;
     wire [18:1] native_addr;
     wire [8:0] native_rgb, native_border;
-    // Forecast the coordinates after this pixel edge for synchronous RGB RAM.
-    wire [8:0] rgb_row = horizontal == H_TOTAL - 11'd1 ? next_row : current_row;
-    wire rgb_line = horizontal == H_TOTAL - 11'd1 ? next_image_line : image_line;
-    wire [8:0] rgb_x = horizontal < 11'd1279 ? 9'((horizontal + 11'd1) >> 2) : 9'd0;
+    // Forecast two pixels ahead: address register, then synchronous RGB read.
+    // Near EOL the second lookahead belongs to the following output line.
+    wire rgb_next_line = horizontal >= H_TOTAL - 11'd2;
+    wire [8:0] rgb_row = rgb_next_line ? next_row : current_row;
+    wire rgb_line = rgb_next_line ? next_image_line : image_line;
+    wire [8:0] rgb_x = horizontal < 11'd1278 ? 9'((horizontal + 11'd2) >> 2) : 9'd0;
     wire [15:0] rgb_address = rgb_line && rgb_row < 9'd200 ?
         16'(rgb_row) * 16'd320 + 16'(rgb_x) : 16'd0;
+    reg [15:0] rgb_ram_address;
+    always @(posedge clk_pixel) begin
+        if (reset_pixel) rgb_ram_address <= 16'd0;
+        else rgb_ram_address <= rgb_address;
+    end
     generate if (NATIVE_LOW_CAPTURE) begin : native_capture
         /* verilator lint_off PINCONNECTEMPTY */
         st_native_low_video capture (
@@ -338,7 +345,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
             .resolution(resolution), .palette(palette),
             .memory_req(native_req), .memory_addr(native_addr), .memory_ready(native_ready), .memory_data(video_rdata),
             .output_sof(horizontal == H_TOTAL - 11'd1 && vertical == V_TOTAL - 10'd1),
-            .output_address(rgb_address), .output_rgb(native_rgb), .output_border(native_border),
+            .output_address(rgb_ram_address), .output_rgb(native_rgb), .output_border(native_border),
             .output_valid(native_valid), .debug_frames(), .debug_skipped(), .debug_underruns()
         );
         /* verilator lint_on PINCONNECTEMPTY */
@@ -362,7 +369,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     end else begin : cached_renderer_test
         // The focused cache/renderer test isolates the retained indexed path.
         wire unused_native_inputs = ^{native_vblank, native_display, native_line, sync_mode,
-                                      rgb_address, native_req, native_ready, native_addr};
+                                      rgb_ram_address, native_req, native_ready, native_addr};
         assign video_req = legacy_req;
         assign video_addr = legacy_addr;
         assign legacy_ready = video_ready;

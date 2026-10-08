@@ -153,6 +153,8 @@ Three 320×200 RGB333 banks cross to the 74.25 MHz pixel domain through
 publish/release toggles. Only complete native frames are published; the HDMI
 reader pins one bank until output SOF and selects the newest available frame.
 This repeats or drops complete source frames when native and output rates differ.
+Registered RAM write data and a two-pixel address lookahead keep native RGB
+sampling and scaled output aligned while shortening paths into the buffers.
 A missing RAM row displays black for its whole line; HOLD aborts an unfinished
 capture, and an invalid base never wraps into populated RAM.
 

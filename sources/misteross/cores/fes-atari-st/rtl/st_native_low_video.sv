@@ -119,12 +119,29 @@ module st_native_low_video (
     wire [15:0] plane3 = row[0] ? cache1[group_word + 7'd3] : cache0[group_word + 7'd3];
     wire [3:0] color_index = {plane3[bit_index], plane2[bit_index], plane1[bit_index], plane0[bit_index]};
     wire [8:0] sample_rgb = sample_valid ? palette[color_index * 9 +: 9] : 9'd0;
+    // Sample RGB at the native event, then register the wide RAM input fanout.
+    // The final pixel drains before DE falls; publication follows that fall.
+    reg frame_write;
+    reg [1:0] frame_write_bank;
+    reg [15:0] frame_write_address;
+    reg [8:0] frame_write_rgb;
     always @(posedge clk_sys) begin
-        if (write_pixel) begin
-            case (write_bank)
-                2'd0: frame0[write_address] <= sample_rgb;
-                2'd1: frame1[write_address] <= sample_rgb;
-                2'd2: frame2[write_address] <= sample_rgb;
+        if (reset_sys) begin
+            frame_write <= 1'b0;
+            frame_write_bank <= 2'd0; frame_write_address <= 16'd0; frame_write_rgb <= 9'd0;
+        end else begin
+            frame_write <= write_pixel;
+            frame_write_bank <= write_bank;
+            frame_write_address <= write_address;
+            frame_write_rgb <= sample_rgb;
+        end
+    end
+    always @(posedge clk_sys) begin
+        if (frame_write && !reset_sys && !hold) begin
+            case (frame_write_bank)
+                2'd0: frame0[frame_write_address] <= frame_write_rgb;
+                2'd1: frame1[frame_write_address] <= frame_write_rgb;
+                2'd2: frame2[frame_write_address] <= frame_write_rgb;
                 default: ;
             endcase
         end
