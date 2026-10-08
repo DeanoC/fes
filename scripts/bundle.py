@@ -12,7 +12,8 @@ import sys
 _SCRIPTS = Path(__file__).resolve().parent
 if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
-from recipes import FORMAT2_RECIPES, TOOLCHAIN_CACHE_ROOT, ARTIFACT_CACHE_ROOT, producer_environment, recipe_for
+from recipes import (FORMAT2_RECIPES, TOOLCHAIN_CACHE_ROOT, ARTIFACT_CACHE_ROOT, producer_environment,
+                     recipe_for, require_private_audit_cache)
 import artifact_cache
 from module_sources import normalize_known_origin
 
@@ -296,6 +297,8 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
         raise ValueError("mister-packages revision must be a full lowercase commit")
     source = Path(source).absolute()
     _plain_directory(source, "source checkout")
+    # Checked before any producer runs or anything is published to ARTIFACT_CACHE_ROOT.
+    require_private_audit_cache(os.environ if env is None else env)
     produce = {} if env is None else {"env": env}
     record = canonical_package_record(source, recipe=recipe, **produce)
     if force:
@@ -374,6 +377,7 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
         "package_id": package_id,
         "core_rbf_sha256": core_rbf_sha256,
     }
+    require_private_audit_cache(os.environ if env is None else env)
     artifact_cache.publish(ARTIFACT_CACHE_ROOT, original_record_path, package)
     receipt = json.dumps(inputs["source_selection"], sort_keys=True, indent=2).encode() + b"\n"
     _publish_selection(Path(selection_path).with_suffix(".provenance.json"), receipt)

@@ -40,28 +40,9 @@ module spectrum_rom #(
     // The M10K registers its read address on clk. Delay the bank selector
     // alongside it, then let the existing output register supply stage two.
     reg [3:0] bank_d;
-    reg [7:0] selected;
+    wire [127:0] lane_data = {q15[7:0], q14[7:0], q13[7:0], q12[7:0], q11[7:0], q10[7:0], q9[7:0], q8[7:0], q7[7:0], q6[7:0], q5[7:0], q4[7:0], q3[7:0], q2[7:0], q1[7:0], q0[7:0]};
+    wire [7:0] selected = lane_data[bank_d * 8 +: 8];
     always @(posedge clk) bank_d <= address[13:10];
-    always @* begin
-        case (bank_d)
-            4'd0: selected = q0[7:0];
-            4'd1: selected = q1[7:0];
-            4'd2: selected = q2[7:0];
-            4'd3: selected = q3[7:0];
-            4'd4: selected = q4[7:0];
-            4'd5: selected = q5[7:0];
-            4'd6: selected = q6[7:0];
-            4'd7: selected = q7[7:0];
-            4'd8: selected = q8[7:0];
-            4'd9: selected = q9[7:0];
-            4'd10: selected = q10[7:0];
-            4'd11: selected = q11[7:0];
-            4'd12: selected = q12[7:0];
-            4'd13: selected = q13[7:0];
-            4'd14: selected = q14[7:0];
-            default: selected = q15[7:0];
-        endcase
-    end
     assign source_data = selected;
     // Legacy 10-bit M10K write enable is active low: A1EN=1 disables writes.
     (* keep, BEL = "MISTRAL_M10K.5.32.0" *)

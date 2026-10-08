@@ -18,6 +18,8 @@ class NativeDevTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp)
             (output / 'qemu-smoke.log').write_bytes(b'qemu passed\n')
+            (output / 'reproducibility.txt').write_text(
+                f"toolchain_key={'a' * 64}\ntoolchain_sha256={'b' * 64}\n")
             image_sha256 = hashlib.sha256(b'cold').hexdigest()
             record = build.verification_record(output, image_sha256, None)
             self.assertEqual(record['image_sha256'], image_sha256)
@@ -193,6 +195,7 @@ class NativeDevTest(unittest.TestCase):
             profile = {'native_image_mode': 'package-only'}
             shared_env = None
             native_boundary_envs = []
+            shared_cache_envs = []
 
             def record_run(args, **kwargs):
                 nonlocal shared_env
@@ -207,6 +210,8 @@ class NativeDevTest(unittest.TestCase):
                     native_boundary_envs.append(
                         (kwargs['env'] is not shared_env,
                          kwargs['env'].get('NATIVE_RUNTIME_MODE')))
+                if is_native_container or '--ensure-toolchain' in arg_text:
+                    shared_cache_envs.append(kwargs['env'].get('FES_TARGET_IMAGE_SHARED_CACHE'))
 
             with patch.object(native_dev, 'base_key', return_value='base'), \
                  patch.object(native_dev, 'seed_base'), \
@@ -217,16 +222,32 @@ class NativeDevTest(unittest.TestCase):
                 native_dev.build_development(
                     root, image, fogcast, root / 'runtime', 'native-integration-dev',
                     profile, {}, 'candidate',
-                    {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker'}, ['make'], ['make'],
+                    {'TARGET_IMAGE_CONTAINER_RUNTIME': 'docker',
+                     'FES_TARGET_IMAGE_SHARED_CACHE': '/external/shared-cache'}, ['make'], ['make'],
                     package)
 
             calls = [call.args[0] for call in run.call_args_list]
             self.assertEqual(native_boundary_envs,
                              [(True, 'package-only'), (True, 'package-only')])
+            self.assertEqual(shared_cache_envs, ['/external/shared-cache', '/external/shared-cache'])
             self.assertTrue(any('target-image-native-fetch' in call for call in calls))
             self.assertTrue(any('NATIVE_RUNTIME_MODE=package-only' in call for call in calls))
             self.assertTrue(any('FES_PONG_PACKAGE_DIR=' + str(package_source) in call
                                 for call in calls))
+            # make dev must use the generated external config and the cached SDK, never
+            # the bare defconfig (the toolchain options live only in the shared fragment).
+            ensure = [index for index, call in enumerate(calls)
+                      if [str(part) for part in call[1:]] == ['--ensure-toolchain', 'native-dev']]
+            container = [index for index, call in enumerate(calls)
+                         if str(call[0]).endswith('target-image-container.sh') and call[1] == 'run']
+            self.assertEqual(len(ensure), 1)
+            self.assertLess(ensure[0], container[0])
+            script = calls[container[0]][-1]
+            self.assertNotIn('fogcast_target_native_dev_defconfig', script)
+            self.assertIn('toolchain_cache.py config external "$WORK/fogcast.generated.defconfig"', script)
+            self.assertIn('BR2_DEFCONFIG="$WORK/fogcast.generated.defconfig" defconfig', script)
+            self.assertIn('toolchain_cache.py validate-config external "$WORK/.config"', script)
+            self.assertLess(script.index('relocate-sdk.sh'), script.index('defconfig\n'))
             self.assertTrue(any('FES_PONG_PACKAGE_SELECTION=' + str(package_selection) in call
                                 for call in calls))
             output = root / 'out/native-integration-dev/development'

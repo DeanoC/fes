@@ -89,9 +89,10 @@ module fes_z80_engine #(
     wire [15:0] bc = {b_reg,c_reg};
     wire [15:0] de = {d_reg,e_reg};
     wire [15:0] hl = {h_reg,l_reg};
-    wire [15:0] index_hl = index_sel == 1 ? ix : index_sel == 2 ? iy : hl;
+    wire [15:0] index_hl = ({16{index_sel==1}} & ix)
+                         | ({16{index_sel==2}} & iy)
+                         | ({16{index_sel!=1 && index_sel!=2}} & hl);
     wire [7:0] current_op = (state_matches(state,FETCH) || state_matches(state,IRQ_ACK)) ? bus_rdata : opcode;
-    wire [2:0] x_y = current_op[5:3];
     wire [2:0] x_z = current_op[2:0];
     logic [4:0] alu_op;
     logic [7:0] alu_a, alu_b, alu_xy, alu_result, alu_flags;
@@ -101,14 +102,18 @@ module fes_z80_engine #(
     // encodings trap before writeback. Specializing these helpers removes the
     // IX/IY byte mux from the fast datapath while preserving the NMOS paths.
     function automatic logic [7:0] reg8(input logic [2:0] sel, input logic real_hl);
-        // Every selector, including the original zero-valued memory slot, is defined.
-        reg8 = sel[2]
-            ? (sel[1]
-                ? (sel[0] ? a_reg : 8'd0)
-                : (sel[0] ? ((!NMOS || real_hl) ? l_reg : index_hl[7:0])
-                          : ((!NMOS || real_hl) ? h_reg : index_hl[15:8])))
-            : (sel[1] ? (sel[0] ? e_reg : d_reg)
-                      : (sel[0] ? c_reg : b_reg));
+        // Parallel byte selection retains the zero-valued memory slot.
+        reg8 = ({8{sel==3'd0}} & b_reg)
+             | ({8{sel==3'd1}} & c_reg)
+             | ({8{sel==3'd2}} & d_reg)
+             | ({8{sel==3'd3}} & e_reg)
+             | ({8{sel==3'd4 && (!NMOS || real_hl || (index_sel!=1 && index_sel!=2))}} & h_reg)
+             | ({8{sel==3'd5 && (!NMOS || real_hl || (index_sel!=1 && index_sel!=2))}} & l_reg)
+             | ({8{sel==3'd4 && NMOS && !real_hl && index_sel==1}} & ix[15:8])
+             | ({8{sel==3'd5 && NMOS && !real_hl && index_sel==1}} & ix[7:0])
+             | ({8{sel==3'd4 && NMOS && !real_hl && index_sel==2}} & iy[15:8])
+             | ({8{sel==3'd5 && NMOS && !real_hl && index_sel==2}} & iy[7:0])
+             | ({8{sel==3'd7}} & a_reg);
     endfunction
     function automatic logic [15:0] pair16(input logic [1:0] sel, input logic af);
         case(sel)
@@ -117,14 +122,12 @@ module fes_z80_engine #(
         endcase
     endfunction
     function automatic logic condition(input logic [2:0] sel);
-        logic selected_flag;
-        case(sel[2:1])
-            0: selected_flag=f_reg[6];
-            1: selected_flag=f_reg[0];
-            2: selected_flag=f_reg[2];
-            3: selected_flag=f_reg[7];
+        case(sel)
+            0: condition=~f_reg[6]; 1: condition=f_reg[6];
+            2: condition=~f_reg[0]; 3: condition=f_reg[0];
+            4: condition=~f_reg[2]; 5: condition=f_reg[2];
+            6: condition=~f_reg[7]; 7: condition=f_reg[7];
         endcase
-        condition=selected_flag ^ ~sel[0];
     endfunction
     task automatic set_reg8(input logic [2:0] sel, input logic [7:0] value,
                             input logic real_hl);
@@ -162,65 +165,83 @@ module fes_z80_engine #(
             iff1<=0; iff2<=0; halted<=0; state<=IRQ_ACK;
         end
     endtask
-    // Decode raw opcode sources before selecting the active ALU operation.
-    function automatic logic [4:0] base_alu_decode(input logic [7:0] op);
-        base_alu_decode=0;
-        if(op[7:6]==2) base_alu_decode={2'b00,op[5:3]};
-        else if(op[7:6]==0 && (op[2:0]==4 || op[2:0]==5))
-            base_alu_decode=op[2:0]==4 ? 5'd8 : 5'd9;
-        else if(op[7:6]==0 && op[2:0]==7) begin
-            case(op[5:3])
-                0: base_alu_decode=21; 1: base_alu_decode=22;
-                2: base_alu_decode=23; 3: base_alu_decode=24;
-                4: base_alu_decode=10; 5: base_alu_decode=25;
-                6: base_alu_decode=26; 7: base_alu_decode=27;
-            endcase
-        end
-    endfunction
-    function automatic logic [4:0] cb_alu_decode(input logic [7:0] op);
-        if(op[7:6]==1) cb_alu_decode=19;
+    // Decode operation candidates independently, then select with the original
+    // priority, including arbitrary combinations of NMOS state bits.
+    wire am_alu_fetch = state_matches(state,FETCH) || state_matches(state,IRQ_ACK);
+    wire am_alu_base = am_alu_fetch && group_sel==0;
+    wire am_alu_cb = !am_alu_base && ((am_alu_fetch && group_sel==1) ||
+                                     (state_matches(state,READ8) && action==CB8));
+    wire am_alu_ed = state_matches(state,FETCH) && group_sel==2 &&
+                     !(state_matches(state,READ8) && action==CB8);
+    wire am_alu_action = !((am_alu_fetch && (group_sel==0 || group_sel==1)) ||
+                          (state_matches(state,READ8) && action==CB8) ||
+                          (state_matches(state,FETCH) && group_sel==2));
+    logic [4:0] am_base_op, am_cb_op, am_action_op;
+
+    function automatic logic [4:0] am_decode_cb_op(input logic [7:3] op);
+        if(op[7:6]==1) am_decode_cb_op=5'd19;
         else case(op[5:3])
-            0: cb_alu_decode=11; 1: cb_alu_decode=12;
-            2: cb_alu_decode=13; 3: cb_alu_decode=14;
-            4: cb_alu_decode=15; 5: cb_alu_decode=16;
-            6: cb_alu_decode=17; 7: cb_alu_decode=18;
+            0: am_decode_cb_op=5'd11;
+            1: am_decode_cb_op=5'd12;
+            2: am_decode_cb_op=5'd13;
+            3: am_decode_cb_op=5'd14;
+            4: am_decode_cb_op=5'd15;
+            5: am_decode_cb_op=5'd16;
+            6: am_decode_cb_op=5'd17;
+            7: am_decode_cb_op=5'd18;
         endcase
     endfunction
-    wire alu_fetch_source = state_matches(state,FETCH) || state_matches(state,IRQ_ACK);
-    wire [4:0] bus_base_alu_op = base_alu_decode(bus_rdata);
-    wire [4:0] bus_cb_alu_op = cb_alu_decode(bus_rdata);
-    wire [4:0] saved_cb_alu_op = cb_alu_decode(opcode);
-    wire alu_select_base = alu_fetch_source && group_sel==0;
-    wire alu_select_cb = !alu_select_base &&
-        ((alu_fetch_source && group_sel==1) || (state_matches(state,READ8) && action==CB8));
-    wire alu_select_ed = !alu_select_base && !alu_select_cb &&
-        state_matches(state,FETCH) && group_sel==2;
-    wire alu_select_action = !(alu_select_base || alu_select_cb || alu_select_ed);
-    wire [4:0] action_alu_op =
-        ({5{action==ALU8}} & {2'b00,opcode[5:3]}) |
-        ({5{action==INC8}} & 5'd8) |
-        ({5{action==DEC8}} & 5'd9) |
-        ({5{action==BLOCK_CP}} & 5'd7);
+
     always_comb begin
-        alu_op=({5{alu_select_base}} & bus_base_alu_op) |
-               ({5{alu_select_cb && alu_fetch_source}} & bus_cb_alu_op) |
-               ({5{alu_select_cb && !alu_fetch_source}} & saved_cb_alu_op) |
-               ({5{alu_select_ed}} & 5'd20) |
-               ({5{alu_select_action}} & action_alu_op);
-        alu_b=({8{alu_select_base}} & reg8(bus_rdata[2:0],0)) |
-              ({8{alu_select_action && action==ALU8}} & bus_rdata) |
-              ({8{alu_select_action && action==BLOCK_CP}} &
-               (state_matches(state,BLOCK_COMPARE_TAIL) ? tmp8 : bus_rdata));
-        alu_a=a_reg; alu_xy=0; alu_bit=current_op[5:3];
-        if(alu_select_base) begin
-            if(bus_rdata[7:6]==0 && (bus_rdata[2:0]==4 || bus_rdata[2:0]==5))
-                alu_a=reg8(bus_rdata[5:3],0);
-        end else if(alu_select_cb) begin
-            alu_a=alu_fetch_source ? reg8(bus_rdata[2:0],1) : bus_rdata;
-            alu_xy=(indexed_cb || (alu_fetch_source ? bus_rdata[2:0]==6 : opcode[2:0]==6)) ? wz[15:8] : alu_a;
-        end else if(alu_select_action && (action==INC8 || action==DEC8))
-            alu_a=bus_rdata;
+        am_base_op=0;
+        // The base selector guarantees that current_op is bus_rdata.
+        if(bus_rdata[7:6]==2) am_base_op={2'b00,bus_rdata[5:3]};
+        else if(bus_rdata[7:6]==0 && (bus_rdata[2:0]==4 || bus_rdata[2:0]==5))
+            am_base_op=bus_rdata[2:0]==4 ? 5'd8 : 5'd9;
+        else if(bus_rdata[7:6]==0 && bus_rdata[2:0]==7) begin
+            case(bus_rdata[5:3])
+                0: am_base_op=21; 1: am_base_op=22; 2: am_base_op=23; 3: am_base_op=24;
+                4: am_base_op=10; 5: am_base_op=25; 6: am_base_op=26; 7: am_base_op=27;
+            endcase
+        end
+
+        am_cb_op=am_alu_fetch ? am_decode_cb_op(bus_rdata[7:3])
+                             : am_decode_cb_op(opcode[7:3]);
+
+        am_action_op=0;
+        case(action)
+            ALU8: am_action_op={2'b00,opcode[5:3]};
+            INC8: am_action_op=8;
+            DEC8: am_action_op=9;
+            BLOCK_CP: am_action_op=7;
+            default: ;
+        endcase
     end
+    assign alu_op = ({5{am_alu_base}} & am_base_op)
+                  | ({5{am_alu_cb}} & am_cb_op)
+                  | ({5{am_alu_ed}} & 5'd20)
+                  | ({5{am_alu_action}} & am_action_op);
+
+    wire am_a_base_reg = am_alu_base && bus_rdata[7:6]==0 &&
+                         (bus_rdata[2:0]==4 || bus_rdata[2:0]==5);
+    wire am_a_cb_reg = am_alu_cb && am_alu_fetch;
+    wire am_a_bus = (am_alu_cb && !am_alu_fetch) ||
+                    (am_alu_action && (action==INC8 || action==DEC8));
+    wire am_a_acc = !(am_a_base_reg || am_a_cb_reg || am_a_bus);
+    wire am_b_tmp = am_alu_action && action==BLOCK_CP &&
+                    state_matches(state,BLOCK_COMPARE_TAIL);
+    wire am_b_bus = am_alu_action &&
+                    (action==ALU8 || (action==BLOCK_CP && !state_matches(state,BLOCK_COMPARE_TAIL)));
+
+    assign alu_a = ({8{am_a_acc}} & a_reg)
+                 | ({8{am_a_base_reg}} & reg8(bus_rdata[5:3],0))
+                 | ({8{am_a_cb_reg}} & reg8(bus_rdata[2:0],1))
+                 | ({8{am_a_bus}} & bus_rdata);
+    assign alu_b = ({8{am_alu_base}} & reg8(bus_rdata[2:0],0))
+                 | ({8{am_b_bus}} & bus_rdata)
+                 | ({8{am_b_tmp}} & tmp8);
+    assign alu_xy = {8{am_alu_cb}} & ((indexed_cb || x_z==6) ? wz[15:8] : alu_a);
+    assign alu_bit = current_op[5:3];
     fes_z80_alu #(.NMOS(NMOS)) alu (
         .op(alu_op), .a(alu_a), .b(alu_b), .flags_in(f_reg),
         .xy_source(alu_xy), .bit_index(alu_bit), .q(q),
@@ -323,9 +344,8 @@ module fes_z80_engine #(
         logic [16:0] sum;
         logic [7:0] fs;
         begin
-            sum={1'b0,lhs}+{1'b0,(rhs ^ {16{subtract}})}+
-                17'(subtract ^ (with_carry && f_reg[0]));
-            sum[16]=sum[16]^subtract;
+            if(subtract) sum={1'b0,lhs}-{1'b0,rhs}-17'(with_carry && f_reg[0]);
+            else sum={1'b0,lhs}+{1'b0,rhs}+17'(with_carry && f_reg[0]);
             fs=f_reg;
             fs[5]=NMOS && sum[13]; fs[3]=NMOS && sum[11];
             fs[4]=lhs[12]^rhs[12]^sum[12]; fs[1]=subtract; fs[0]=sum[16];
@@ -520,17 +540,16 @@ module fes_z80_engine #(
                     {d_reg,e_reg}<=de+(dec_dir ? 16'hffff : 16'd1);
                     {b_reg,c_reg}<=next_bc; sum8=a_reg+value;
                     fs[5]=NMOS && sum8[1]; fs[3]=NMOS && sum8[3];
-                    fs[4]=0; fs[2]=bc!=16'd1; fs[1]=0;
-                    again=bc!=16'd1;
+                    fs[4]=0; fs[2]=next_bc!=0; fs[1]=0;
+                    again=next_bc!=0;
                     delay_count<=5;
                 end
                 BLOCK_CP: begin
                     {b_reg,c_reg}<=next_bc; adjusted=alu_result-8'(alu_flags[4]);
-                    fs=alu_flags; fs[0]=f_reg[0]; fs[2]=bc!=16'd1;
+                    fs=alu_flags; fs[0]=f_reg[0]; fs[2]=next_bc!=0;
                     fs[5]=NMOS && adjusted[1]; fs[3]=NMOS && adjusted[3];
                     wz<=wz+(dec_dir ? 16'hffff : 16'd1);
-                    again=bc!=16'd1 && (NMOS ? !alu_flags[6] :
-                        a_reg!=(state_matches(state,BLOCK_COMPARE_TAIL) ? tmp8 : bus_rdata));
+                    again=next_bc!=0 && !alu_flags[6];
                     delay_count<=5;
                 end
                 BLOCK_INPUT, BLOCK_OUTPUT: begin
@@ -583,7 +602,7 @@ module fes_z80_engine #(
         wire am_repeat = opcode[4] && (
             (action==BLOCK_LD && bc!=16'd1) ||
             (action==BLOCK_CP && bc!=16'd1 &&
-                a_reg!=(state_matches(state,BLOCK_COMPARE_TAIL) ? tmp8 : bus_rdata)) ||
+             a_reg!=(state_matches(state,BLOCK_COMPARE_TAIL) ? tmp8 : bus_rdata)) ||
             ((action==BLOCK_INPUT || action==BLOCK_OUTPUT) && b_reg!=8'd1));
         always_ff @(posedge clk) begin
             if(reset) pc<=0;

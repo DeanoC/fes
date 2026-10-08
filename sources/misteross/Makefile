@@ -1562,6 +1562,7 @@ sim-fes-atari-st-mfp:
 
 sim-fes-atari-st-input-audio:
 	$(require_local_sim)
+	@mkdir -p build/sim/fes-atari-st-input-audio
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_input_audio_sim_top -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-input-audio" \
 		$(ST_CORE)/sim/st_input_audio_sim_top.sv $(ST_CORE)/rtl/st_acia.sv \

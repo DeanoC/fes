@@ -1,0 +1,621 @@
+{
+  "schema": 1,
+  "ready_banner": "FES ST IO READY",
+  "event_interval_ms": 100,
+  "group_barrier": "Wait for prior group PASS / current WAIT banner before sending the next group.",
+  "groups": [
+    {
+      "name": "SHIFT+A",
+      "events": [
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 1,
+          "Code": 4321,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 1,
+          "Code": 4100,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 0,
+          "Code": 4100,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 0,
+          "Code": 4321,
+          "Value": 0
+        }
+      ],
+      "expected_acia_bytes": [
+        42,
+        30,
+        158,
+        170
+      ]
+    },
+    {
+      "name": "CTRL ALIASES",
+      "events": [
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 1,
+          "Code": 4320,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 1,
+          "Code": 4324,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 0,
+          "Code": 4320,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 0,
+          "Code": 4324,
+          "Value": 0
+        }
+      ],
+      "expected_acia_bytes": [
+        29,
+        157
+      ]
+    },
+    {
+      "name": "ALT ALIASES",
+      "events": [
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 1,
+          "Code": 4322,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 1,
+          "Code": 4326,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 0,
+          "Code": 4322,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 0,
+          "Code": 4326,
+          "Value": 0
+        }
+      ],
+      "expected_acia_bytes": [
+        56,
+        184
+      ]
+    },
+    {
+      "name": "RIGHT SHIFT",
+      "events": [
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 1,
+          "Code": 4325,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 1,
+          "Code": 4101,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 0,
+          "Code": 4101,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 0,
+          "Code": 4325,
+          "Value": 0
+        }
+      ],
+      "expected_acia_bytes": [
+        54,
+        48,
+        176,
+        182
+      ]
+    },
+    {
+      "name": "ESC+BACKSPACE",
+      "events": [
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 1,
+          "Code": 4137,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 0,
+          "Code": 4137,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 1,
+          "Code": 4138,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 0,
+          "Kind": 0,
+          "Action": 0,
+          "Code": 4138,
+          "Value": 0
+        }
+      ],
+      "expected_acia_bytes": [
+        1,
+        129,
+        14,
+        142
+      ]
+    },
+    {
+      "name": "PAD1 UDLR A/B",
+      "events": [
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 100,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 100,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 101,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 101,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 102,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 102,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 103,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 103,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 104,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 104,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 105,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 105,
+          "Value": 0
+        }
+      ],
+      "expected_acia_bytes": [
+        255,
+        1,
+        255,
+        0,
+        255,
+        2,
+        255,
+        0,
+        255,
+        4,
+        255,
+        0,
+        255,
+        8,
+        255,
+        0,
+        255,
+        128,
+        255,
+        0,
+        255,
+        128,
+        255,
+        0
+      ]
+    },
+    {
+      "name": "PAD2 UDLR A/B",
+      "events": [
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 100,
+          "Value": 0
+        },
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 100,
+          "Value": 0
+        },
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 101,
+          "Value": 0
+        },
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 101,
+          "Value": 0
+        },
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 102,
+          "Value": 0
+        },
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 102,
+          "Value": 0
+        },
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 103,
+          "Value": 0
+        },
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 103,
+          "Value": 0
+        },
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 104,
+          "Value": 0
+        },
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 104,
+          "Value": 0
+        },
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 105,
+          "Value": 0
+        },
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 105,
+          "Value": 0
+        }
+      ],
+      "expected_acia_bytes": [
+        254,
+        1,
+        254,
+        0,
+        254,
+        2,
+        254,
+        0,
+        254,
+        4,
+        254,
+        0,
+        254,
+        8,
+        254,
+        0,
+        254,
+        128,
+        254,
+        0,
+        254,
+        128,
+        254,
+        0
+      ]
+    },
+    {
+      "name": "TWO PADS",
+      "events": [
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 100,
+          "Value": 0
+        },
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 1,
+          "Code": 103,
+          "Value": 0
+        },
+        {
+          "Player": 0,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 100,
+          "Value": 0
+        },
+        {
+          "Player": 1,
+          "Device": 1,
+          "Kind": 1,
+          "Action": 0,
+          "Code": 103,
+          "Value": 0
+        }
+      ],
+      "expected_acia_bytes": [
+        255,
+        1,
+        254,
+        8,
+        255,
+        0,
+        254,
+        0
+      ]
+    }
+  ],
+  "audio_phase_seconds": 3,
+  "audio_phases": [
+    {
+      "name": "A 440",
+      "tone_hz": 440.14084507042253,
+      "channel": "A",
+      "period": 284
+    },
+    {
+      "name": "B 661",
+      "tone_hz": 661.3756613756614,
+      "channel": "B",
+      "period": 189
+    },
+    {
+      "name": "C 880",
+      "tone_hz": 880.2816901408451,
+      "channel": "C",
+      "period": 142
+    },
+    {
+      "name": "NOISE",
+      "noise_period": 16
+    },
+    {
+      "name": "ENVELOPE",
+      "tone_hz": 440.14084507042253,
+      "envelope_period": 7812,
+      "shape": 14
+    },
+    {
+      "name": "SILENCE",
+      "all_volumes_zero": true
+    }
+  ],
+  "audio_measurement": "Repeat 18-second cycle after IO PASS; discard phase edges, compare L/R, measure tones and noise/envelope/silence. Stop must silence HDMI.",
+  "physical_usb_acceptance": false,
+  "prg_sha256": "651061b0a8a6e01c6167f3d852f2cb3a8b4295332557276e4706c736ff7a4160",
+  "disk_sha256": "853c9d8ed5effd652d73f0c6d10096885afbe2fdfe6516518757c64d5168821f",
+  "symbols": {
+    "drain": 102,
+    "drained": 124,
+    "tx_ready": 124,
+    "receive_0": 204,
+    "receive_1": 284,
+    "receive_2": 364,
+    "receive_3": 444,
+    "receive_4": 524,
+    "receive_5": 604,
+    "receive_6": 684,
+    "receive_7": 764,
+    "audio_loop": 856,
+    "audio_wait_0": 1024,
+    "audio_wait_1": 1210,
+    "audio_wait_2": 1396,
+    "audio_wait_3": 1566,
+    "audio_wait_4": 1800,
+    "audio_wait_5": 1918,
+    "byte_failure": 1940,
+    "failure": 2110,
+    "halt": 2136,
+    "ready": 2140,
+    "io_pass": 2161,
+    "fail_byte": 2199,
+    "expected_text": 2214,
+    "newline": 2225,
+    "fail": 2228,
+    "hex": 2263,
+    "wait_0": 2280,
+    "pass_0": 2297,
+    "wait_1": 2314,
+    "pass_1": 2336,
+    "wait_2": 2358,
+    "pass_2": 2379,
+    "wait_3": 2400,
+    "pass_3": 2421,
+    "wait_4": 2442,
+    "pass_4": 2465,
+    "wait_5": 2488,
+    "pass_5": 2511,
+    "wait_6": 2534,
+    "pass_6": 2557,
+    "wait_7": 2580,
+    "pass_7": 2598,
+    "audio_0": 2616,
+    "audio_1": 2632,
+    "audio_2": 2648,
+    "audio_3": 2664,
+    "audio_4": 2680,
+    "audio_5": 2699,
+    "expected_0": 2717,
+    "expected_1": 2721,
+    "expected_2": 2723,
+    "expected_3": 2725,
+    "expected_4": 2729,
+    "expected_5": 2733,
+    "expected_6": 2757,
+    "expected_7": 2781,
+    "marker": 2790,
+    "stack_end": 4842
+  }
+}

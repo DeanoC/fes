@@ -14,6 +14,41 @@ import build
 from tests.test_bundle import BundleTest
 
 
+class ClosureAuditPrivateCacheTest(unittest.TestCase):
+    """#611: the closure-audit bypass must never feed the shared artifact cache."""
+
+    def test_audit_mode_refused_with_the_shared_artifact_cache(self):
+        shared = recipes.CACHE_ROOT / "core-packages"
+        with patch.object(recipes, "ARTIFACT_CACHE_ROOT", shared):
+            with self.assertRaisesRegex(ValueError, "FES_SOURCE_CLOSURE_AUDIT=1 is only allowed"):
+                recipes.producer_environment({"FES_SOURCE_CLOSURE_AUDIT": "1"})
+            # Without the bypass nothing changes.
+            recipes.producer_environment({"FES_SOURCE_CLOSURE_AUDIT": "0"})
+            recipes.producer_environment({})
+
+    def test_audit_mode_needs_the_nightly_marker(self):
+        with tempfile.TemporaryDirectory() as temp:
+            private = Path(temp) / "cache"
+            private.mkdir()
+            with patch.object(recipes, "ARTIFACT_CACHE_ROOT", private):
+                with self.assertRaisesRegex(ValueError, "private artifact cache"):
+                    recipes.producer_environment({"FES_SOURCE_CLOSURE_AUDIT": "1"})
+                (private / recipes.AUDIT_PRIVATE_CACHE_MARKER).write_text("core_key_nightly\n")
+                env = recipes.producer_environment({"FES_SOURCE_CLOSURE_AUDIT": "1"})
+                self.assertEqual(env["FES_SOURCE_CLOSURE_AUDIT"], "1")
+
+    def test_resolver_refuses_before_building_or_publishing(self):
+        import bundle
+        shared = recipes.CACHE_ROOT / "core-packages"
+        with tempfile.TemporaryDirectory() as temp, \
+                patch.object(recipes, "ARTIFACT_CACHE_ROOT", shared), \
+                patch.object(bundle, "canonical_package_record", side_effect=AssertionError("producer ran")), \
+                patch.object(bundle.artifact_cache, "publish", side_effect=AssertionError("published")):
+            with self.assertRaisesRegex(ValueError, "FES_SOURCE_CLOSURE_AUDIT=1 is only allowed"):
+                bundle.resolve_core_package(Path(temp), "a" * 40, Path(temp) / "selection.toml",
+                                            env={"FES_SOURCE_CLOSURE_AUDIT": "1"})
+
+
 class RecipeRegistryTest(unittest.TestCase):
     def test_registry_preserves_existing_hip_descriptors(self):
         self.assert_existing_descriptors()

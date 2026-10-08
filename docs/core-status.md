@@ -187,6 +187,15 @@ and zero differing payload bytes. The [startup budget follow-up](validation/2026
 hardware acceptance is claimed by that software diagnostic. The current factory
 selection includes Atari ST. The [native image acceptance](validation/2026-10-07-atari-st-native-image.md) binds its exact two-pass image, Direct diskless GEM, Scanlines AUTO/save/cold restore and complete disk-byte comparisons. It also records confirmed rollback and restoration of the populated normal menu.
 
+The [input/audio diagnostic](validation/2026-10-07-atari-st-input-audio.md)
+adds guest-visible keyboard/modifier and both joystick-port checks through
+normal host input, measured YM tones/noise/envelope and settled HDMI Stop mute
+on that exact reused image. Physical USB attachment, held-input Stop/relaunch
+and the observed one-sample capture-channel lag remain unqualified. Original
+BIG and TCB Cuddly demo disks use ten-sector geometry; the current fixed
+80-track, two-sided, nine-sector drive cannot admit them. Their loader and
+border/raster effects have not been qualified.
+
 ## Not implemented, or not this package
 
 - ZX81 mid-session tape replace and eject use the same `fes.media.blob`
