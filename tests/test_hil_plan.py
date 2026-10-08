@@ -273,6 +273,20 @@ class HilPlanTest(unittest.TestCase):
                 self.assertEqual(data['class'], 'overlay')
                 for component in components:
                     self.assertIn(component, data['components'])
+                if filename == 'pr565.files':
+                    self.assertNotIn('core:ramtest-quartus', data['components'])
+
+    def test_producer_script_suffixes_map_to_canonical_cores(self):
+        path = self.work / 'producers.files'
+        path.write_text('\n'.join((
+            'sources/misteross/scripts/build_fes_sg1000_oss.py',
+            'sources/misteross/scripts/build_fes_ramtest_quartus.py',
+        )) + '\n')
+        result = run('classify', '--paths-file', path, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        components = set(json.loads(result.stdout)['components'])
+        self.assertTrue({'core:sg1000', 'core:ramtest'} <= components, components)
+        self.assertTrue({'core:sg1000-oss', 'core:ramtest-quartus'}.isdisjoint(components), components)
 
     def test_evidence_refuses_core_archive_from_other_revision(self):
         self.git_repo(['sources/misteross/cores/ramtest/change.v'])

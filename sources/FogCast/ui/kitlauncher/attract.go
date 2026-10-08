@@ -132,8 +132,71 @@ func (m *Model) resetAttractPreview() {
 	m.attractPreviewAt = time.Time{}
 }
 
+func (m *Model) localAttractReady() bool {
+	if m.Connected || !m.LocalPlayEnabled || len(m.attractItems) == 0 {
+		return false
+	}
+	for _, item := range m.attractItems {
+		game, ok := m.attractGame(item.GameID)
+		if ok && game.LocalCatalogPlayable() {
+			return true
+		}
+	}
+	return false
+}
+
+func localAttractItems(games []hostclient.Game) []hostclient.AttractItem {
+	items := make([]hostclient.AttractItem, 0, len(games))
+	for _, game := range games {
+		if !game.LocalCatalogPlayable() {
+			continue
+		}
+		items = append(items, hostclient.AttractItem{
+			GameID: game.ID, Title: game.Title, Platform: game.System,
+		})
+	}
+	return items
+}
+
+func sameAttractIDs(left, right []hostclient.AttractItem) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i].GameID != right[i].GameID {
+			return false
+		}
+	}
+	return true
+}
+
+// setLocalAttract keeps a hostless playlist of playable kit-local rows.
+// Those rows have no stills, so they bypass the host still filter.
+func (m *Model) setLocalAttract(games []hostclient.Game) {
+	items := localAttractItems(games)
+	if m.attractIdle <= 0 {
+		m.attractIdle = defaultAttractIdle
+	}
+	m.attractIdleReady = true
+	if sameAttractIDs(m.attractItems, items) {
+		return
+	}
+	m.attractItems = items
+	if !m.AttractActive {
+		return
+	}
+	if len(items) == 0 {
+		m.attractIndex = 0
+		return
+	}
+	m.attractIndex = m.attractIndex % len(items)
+}
+
 func (m *Model) attractBlocked() bool {
-	if m.Busy || !m.Connected || !m.TargetReady || m.DetailOpen || m.SearchOpen {
+	if m.Busy || m.DetailOpen || m.SearchOpen {
+		return true
+	}
+	if !m.localAttractReady() && (!m.Connected || !m.TargetReady) {
 		return true
 	}
 	switch m.Session.State {

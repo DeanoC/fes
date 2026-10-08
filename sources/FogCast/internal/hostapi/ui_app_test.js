@@ -954,6 +954,11 @@ test('canonical title id stays a choice until the household picks a backend', ()
   assert.equal(playChoiceFor(fpga, [title], {}, games).needsChoice, true);
   assert.equal(playChoiceFor(fpga, [title], { [dataStormFPGA]: dataStormEmu }, games).needsChoice, undefined);
   assert.equal(playChoiceFor(fpga, [title], { 'data storm': dataStormEmu }, games).needsChoice, undefined);
+  const mario = dataStormPlayRow(dataStormFPGA, 'fpga_native', { title: 'Super Mario Bros.' });
+  const spaced = dataStormPlayRow(dataStormFPGA, 'fpga_native', { title: 'Super   Mario\tBros.' });
+  assert.equal(playChoiceFor(mario, [title], { 'super mario bros': dataStormEmu }, [mario, emu]).needsChoice, undefined);
+  assert.equal(playChoiceFor(spaced, [title], { 'super mario bros': dataStormEmu }, [spaced, emu]).needsChoice, undefined);
+  assert.equal(playChoiceFor(mario, [title], { 'super mario bros.': dataStormEmu }, [mario, emu]).needsChoice, true);
   assert.equal(playChoiceFor(fpga, [dataStormTitle(false)], {}, games).needsChoice, true);
   const leased = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'lease_held' });
   const skewed = dataStormPlayRow(dataStormFPGA, 'fpga_native', { ready_here: false, ready_block: 'version_skew' });
@@ -1001,6 +1006,45 @@ test('opening the canonical source row does not launch until a backend is chosen
   const posts = launchPosts(calls);
   assert.equal(posts.length, 1);
   assert.equal(JSON.parse(posts[0].options.body).game_id, emu.id);
+});
+
+test('reversing a backend choice drops the superseded source id', async () => {
+  const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  let saved = '';
+  const { fetchImpl } = routedFetch({
+    '/api/v1/games': [jsonResponse({ games: [fpga, emu] })],
+    [`/api/v1/games/${fpga.id}`]: [jsonResponse(fpga), jsonResponse(fpga), jsonResponse(fpga)],
+    [`/api/v1/games/${emu.id}`]: [jsonResponse(emu), jsonResponse(emu)],
+    '/api/v1/library/titles': [
+      jsonResponse({ titles: [dataStormTitle()] }),
+      jsonResponse({ titles: [dataStormTitle()] }),
+      jsonResponse({ titles: [dataStormTitle()] }),
+    ],
+    '/api/v1/library/edition-preferences': [
+      jsonResponse({ preferences: [] }),
+      () => jsonResponse({ preferences: [{ query: 'data storm', platform: 'sms', game_id: saved }] }),
+    ],
+  });
+  const remembering = async (requestPath, options) => {
+    if (String(requestPath).split('?')[0] === '/api/v1/library/edition-preferences' && options && options.method === 'PUT') {
+      saved = JSON.parse(options.body).game_id;
+      return jsonResponse({ query: 'Data Storm', platform: 'sms', game_id: saved });
+    }
+    return fetchImpl(requestPath, options);
+  };
+  const controller = createAppController({ fetchImpl: remembering, metadataAdapter: FogCastMetadata });
+  await controller.loadCatalog('');
+  await controller.selectGame(fpga.id);
+  await controller.chooseBackend(emu.id);
+  await controller.chooseBackend(fpga.id);
+  await new Promise(resolve => setImmediate(resolve));
+  await controller.ensurePlayContext();
+  const picks = controller.getState().playPicks;
+  assert.equal(picks[dataStormEmu], undefined);
+  assert.equal(picks['data storm'], fpga.id);
+  const poisoned = { ...dataStormTitle(), title_id: dataStormEmu };
+  assert.equal(playChoiceFor(fpga, [poisoned], picks, [fpga, emu]).needsChoice, undefined);
 });
 
 test('a household backend pick wins when the title id equals a source id', async () => {

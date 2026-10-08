@@ -664,7 +664,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						localPending = true
 						m.Busy = false
 						o.message = ""
-					} else if o.localAction == "stop" && (o.localErr == nil || errors.Is(o.localErr, localcores.ErrInUse)) || o.localAction == "local-launch" && o.localErr != nil {
+					} else if o.localAction == "stop" && errors.Is(o.localErr, localcores.ErrInUse) {
+						o.message = localCoreMessage(o.localErr)
+					} else if (o.localAction == "stop" && o.localErr == nil) || (o.localAction == "local-launch" && o.localErr != nil) {
 						elapsed := launcherNow().Sub(m.LoadStarted)
 						localTimedOut = false
 						localRunning = false
@@ -714,6 +716,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.SetCatalog(merged)
 					localApplied = true
 					catalogLoaded = true
+				}
+				if m.LocalPlayEnabled {
+					m.setLocalAttract(localGames)
 				}
 				if o.session.State != "" && !localRunning && !localPending {
 					m.Session = applyObservedSession(m.Session, o.session)

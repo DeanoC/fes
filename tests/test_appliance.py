@@ -63,6 +63,14 @@ class ReleaseTests(unittest.TestCase):
         result=appliance.export_release(self.root/'release-1p',self.rootfs,self.kernel,version='hil-smoke-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
         self.assertEqual(appliance.load_manifest(result.manifest)['image_passes'],1)
         self.assertEqual((result.directory/'SINGLE-PASS-SCRATCH.txt').read_bytes(),marker.read_bytes())
+        again=appliance.export_release(result.directory,self.rootfs,self.kernel,version='hil-smoke-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
+        self.assertEqual(again,result)
+        sealed = result.directory/'SINGLE-PASS-SCRATCH.txt'
+        sealed.chmod(0o644)
+        sealed.write_text(marker.read_text().replace('head_sha=','head_sha=b',1))
+        sealed.chmod(0o444)
+        with self.assertRaisesRegex(ValueError,'immutable release destination differs'):
+            appliance.export_release(result.directory,self.rootfs,self.kernel,version='hil-smoke-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
         with self.assertRaisesRegex(ValueError,'HIL'):
             appliance.export_release(self.root/'bad-single',self.rootfs,self.kernel,version='v1-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
 

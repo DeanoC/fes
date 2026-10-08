@@ -94,6 +94,34 @@ class Format2Recipe:
 
 REGISTRY_PATH = Path(__file__).resolve().parents[1] / "config/core-recipes.toml"
 _OPTIONAL_RECIPE_FIELDS = frozenset({"producer_arguments", "producer_options", "video_profiles"})
+_VIDEO_ARGUMENT = {
+    "--native-video-socket": ("native_video", True),
+    "--video-socket": ("video_socket", True),
+}
+_VIDEO_OPTION = {key: flag for flag, (key, _) in _VIDEO_ARGUMENT.items()}
+
+
+def align_video_producer_choice(arguments, options):
+    """Keep the CLI flag and the module option as one video-socket choice."""
+    arguments = list(arguments)
+    options = dict(options)
+    flags = [item for item in arguments if item in _VIDEO_ARGUMENT]
+    option_keys = [key for key in ("native_video", "video_socket") if options.get(key) is True]
+    if len(flags) > 1 or len(option_keys) > 1:
+        raise ValueError("video socket choice is encoded more than once")
+    if flags and option_keys:
+        key, value = _VIDEO_ARGUMENT[flags[0]]
+        if option_keys != [key] or options.get(key) is not value:
+            raise ValueError("producer arguments and options disagree on the video socket")
+        return arguments, options
+    if flags:
+        key, value = _VIDEO_ARGUMENT[flags[0]]
+        options[key] = value
+        return arguments, options
+    if option_keys:
+        arguments.append(_VIDEO_OPTION[option_keys[0]])
+        return arguments, options
+    return arguments, options
 _RECIPE_FIELDS = frozenset(Format2Recipe.__dataclass_fields__) - {"cache_root"} - _OPTIONAL_RECIPE_FIELDS
 _IDENTIFIER = r"[A-Za-z_][A-Za-z0-9_]*"
 
@@ -146,6 +174,7 @@ def load_recipes(path=REGISTRY_PATH):
             raise ValueError("invalid producer options")
         if profiles not in ([], ["direct", "scanlines"]):
             raise ValueError("video profiles must select direct and scanlines in order")
+        arguments, options = align_video_producer_choice(arguments, options)
         entry.update(producer_arguments=tuple(arguments), producer_options=tuple(sorted(options.items())),
                      video_profiles=tuple(profiles))
         core_id = entry["core_id"]

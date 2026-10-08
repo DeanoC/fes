@@ -299,6 +299,12 @@ class RecipeDataTest(unittest.TestCase):
         recipe = recipes.recipe_for("fes.coleco")
         self.assertEqual(recipe.producer_arguments, ("--native-video-socket",))
         self.assertEqual(dict(recipe.producer_options), {"native_video": True})
+        document = self.document()
+        coleco = next(entry for entry in document["recipes"] if entry["core_id"] == "fes.coleco")
+        self.assertNotIn("producer_arguments", coleco)
+        coleco["producer_arguments"] = ["--video-socket"]
+        with self.assertRaisesRegex(ValueError, "disagree"):
+            self.load_document(document)
         self.assertEqual(recipe.video_profiles, ("direct", "scanlines"))
         for field, value in (("producer_options", {"execution": "override"}),
                              ("producer_options", {"video_socket": []}),

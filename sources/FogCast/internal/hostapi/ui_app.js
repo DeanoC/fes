@@ -628,13 +628,29 @@
     return option.execution || option.source_game_id;
   }
 
+  function canonicalEditionQuery(value) {
+    const text = String(value || '').trim().toLowerCase();
+    let out = '';
+    let spaced = false;
+    for (const ch of text) {
+      if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+        out += ch;
+        spaced = false;
+      } else if ((ch === ' ' || ch === '\t') && out && !spaced) {
+        out += ' ';
+        spaced = true;
+      }
+    }
+    return out.trim();
+  }
+
   function savedSourceGameID(title, game, picks, options) {
     if (!title || !picks || !Array.isArray(options)) return '';
     const known = id => typeof id === 'string' && options.some(option => option.source_game_id === id);
     // Household pick against the canonical title first, then the title query.
     // A catalog id that happens to equal a source id is not a choice.
     if (known(picks[title.title_id])) return picks[title.title_id];
-    const query = game && typeof game.title === 'string' ? game.title.trim().toLowerCase() : '';
+    const query = canonicalEditionQuery(game && game.title);
     if (query && known(picks[query])) return picks[query];
     return '';
   }
@@ -1613,6 +1629,7 @@
     let playContextGeneration = 0;
     let confirmedPicks = {};
     let localPlayPicks = {};
+    const titleChoiceKeys = new Map();
     let playPickRevision = 0;
     const confirmedLocalKeys = new Set();
     const pendingPickRevisions = new Map();
@@ -2174,7 +2191,7 @@
         prefsPayload.preferences.forEach(pref => {
           if (!pref || typeof pref.game_id !== 'string' || !pref.game_id.trim()) return;
           const gameID = pref.game_id.trim();
-          const key = typeof pref.query === 'string' ? pref.query.trim().toLowerCase() : '';
+          const key = canonicalEditionQuery(pref.query);
           if (key) fetched[key] = gameID;
           fetched[gameID] = gameID;
         });
@@ -2244,10 +2261,19 @@
       if (!query) return;
       const localPick = { [game.id]: game.id };
       if (title && title.title_id) localPick[title.title_id] = game.id;
-      localPick[String(query).trim().toLowerCase()] = game.id;
+      const canonicalQuery = canonicalEditionQuery(query);
+      if (canonicalQuery) localPick[canonicalQuery] = game.id;
       const titleKey = title.title_id;
       const revision = ++playPickRevision;
       pendingPickRevisions.set(titleKey, revision);
+      const nextKeys = Object.keys(localPick);
+      for (const key of titleChoiceKeys.get(titleKey) || []) {
+        if (nextKeys.includes(key)) continue;
+        delete localPlayPicks[key];
+        delete confirmedPicks[key];
+        confirmedLocalKeys.delete(key);
+      }
+      titleChoiceKeys.set(titleKey, nextKeys);
       localPlayPicks = { ...localPlayPicks, ...localPick };
       publishPlayPicks();
       // Keep writes for one title in user order. A later pending choice remains
@@ -2258,15 +2284,16 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, platform, game_id: game.id }),
       })).then(() => {
+        if (pendingPickRevisions.get(titleKey) !== revision) return;
         confirmedPicks = { ...confirmedPicks, ...localPick };
         Object.keys(localPick).forEach(key => confirmedLocalKeys.add(key));
-        if (pendingPickRevisions.get(titleKey) !== revision) return;
         for (const key of Object.keys(localPick)) delete localPlayPicks[key];
         pendingPickRevisions.delete(titleKey);
         publishPlayPicks();
       }, () => {
         if (pendingPickRevisions.get(titleKey) !== revision) return;
         for (const key of Object.keys(localPick)) delete localPlayPicks[key];
+        titleChoiceKeys.delete(titleKey);
         pendingPickRevisions.delete(titleKey);
         publishPlayPicks();
         const currentTitle = titleForGame(state.libraryTitles, state.selectedLiveGame);
