@@ -45,6 +45,7 @@ module st_io_sim_top (
     output wire [7:0] floppy_port_a
 );
     wire [38:0] unused_write;
+    wire unused_native_display;
     st_io #(.SYSTEM_CLOCK_HZ(52_224_000)) io (
         .clk(clk), .reset(reset), .cold_reset(reset), .cpu_cycle_ce(cpu_cycle_ce), .req(req), .addr(addr), .write(write),
         .media_frozen(1'b0), .media_write_req(unused_write[0]), .media_write_addr(unused_write[19:1]), .media_write_data(unused_write[35:20]),
@@ -61,8 +62,9 @@ module st_io_sim_top (
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data),
         .media_valid(media_valid), .dma_req(dma_req), .dma_addr(dma_addr),
         .dma_wdata(dma_wdata), .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready),
-        .vblank(vblank), .hblank(hblank), .native_display(timer_b_level), .native_line(display_line)
+        .vblank(vblank), .hblank(hblank), .native_display(unused_native_display), .native_line(display_line)
     );
+    assign timer_b_level = io.timer_b_display_delay[23];
     assign timer_ce_level = io.timer_ce;
     assign display_phase = {23'd0, io.horizontal_cycle};
     assign floppy_port_a = io.port_a;

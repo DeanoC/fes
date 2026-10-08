@@ -180,7 +180,7 @@ static void display_enable(Test &t,unsigned resolution,unsigned sync,unsigned fp
         // Ordinary ST timing positions from the primary video timing table.
         t.require(t.first_display_line==(fps==50?63u:34u),"Timer B begins after the native vertical porch");
         const unsigned phase=t.first_display_phase;
-        t.require(phase>=(fps==50?56u:52u)&&phase<(fps==50?58u:54u),"Timer B begins after the native horizontal porch");
+        t.require(phase>=(fps==50?80u:76u)&&phase<(fps==50?82u:78u),"Timer B follows the display porch by 24 CPU cycles");
     }
     if (active==200) t.require(t.mread(0x21)==55,"Timer B receives the 200 active color lines through its event pin");
     unsigned previous_ends=t.display_ends;
@@ -223,6 +223,18 @@ static void brief_mode_writes(Test &t) {
               "brief mode writes retain the ordinary PAL frame period");
 }
 
+static void timer_b_polarity(Test &t,bool rising) {
+    t.reset();
+    t.mwrite(3,rising?8:0); t.mwrite(0x21,255); t.mwrite(0x1b,8);
+    // Primary ST timing: rising at 56+24, falling at 376+24.
+    // Inspect the real MFP count on both sides, not just the wrapper pin.
+    const unsigned edge=rising?80:400;
+    while(t.dut.display_line<63 || t.dut.display_phase<edge-4) t.tick();
+    t.require(t.mread(0x21)==255,"Timer B does not count the undelayed video edge");
+    while(t.dut.display_phase<edge+4) t.tick();
+    t.require(t.mread(0x21)==254,"AER selects the delayed start or end of display");
+}
+
 static void bottom_border(Test &t,bool pal,bool cross_sample) {
     t.reset(0,pal?2:0);
     t.mwrite(0x21,255); t.mwrite(0x1b,8);
@@ -245,6 +257,7 @@ int main(int argc,char **argv) {
     lanes_and_reset(test); interrupt_connection(test); timer_c_rate(test);
     display_enable(test,0,2,50,200); display_enable(test,1,0,60,200);
     display_enable(test,2,2,71,400); brief_mode_writes(test);
+    timer_b_polarity(test,false); timer_b_polarity(test,true);
     bottom_border(test,true,false); bottom_border(test,true,true);
     bottom_border(test,false,false); bottom_border(test,false,true);
     std::cout<<"ST I/O: "<<test.assertions<<" assertions, "<<test.cycles

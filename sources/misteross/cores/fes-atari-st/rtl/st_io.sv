@@ -99,6 +99,7 @@ module st_io #(
     reg [1:0] frame_resolution, line_resolution;
     reg frame_pal, line_pal;
     reg bottom_open;
+    reg [23:0] timer_b_display_delay;
     wire [32:0] timer_sum = {1'b0, timer_phase} + 33'd2457600;
     wire timer_ce = timer_sum >= 33'(SYSTEM_CLOCK_HZ);
     // Ordinary STF raster lengths in 68000 cycles (Hatari 2.5.0).
@@ -130,14 +131,21 @@ module st_io #(
     always @(posedge clk) begin
         if (reset) begin
             timer_phase <= 0; horizontal_cycle <= 0; bottom_open <= 0;
+            timer_b_display_delay <= 0;
             frame_resolution <= resolution; line_resolution <= resolution;
             frame_pal <= sync_mode[1]; line_pal <= sync_mode[1];
             vbl_pending <= 0; hbl_pending <= 0; native_line <= 0;
             video_counter <= 0;
         end else begin
             timer_phase <= timer_ce ? 32'(timer_sum - 33'(SYSTEM_CLOCK_HZ)) : timer_sum[31:0];
-            if (cpu_cycle_ce)
+            if (cpu_cycle_ce) begin
                 horizontal_cycle <= hblank ? 9'd0 : horizontal_cycle + 1'b1;
+                // The ST's MFP receives DE 24 CPU cycles after the video
+                // edge (Hatari v2.5.0 TIMERB_VIDEO_CYCLE_OFFSET). Delay both
+                // edges so AER selects the proper start/end event while
+                // native pixel capture retains the ordinary video porch.
+                timer_b_display_delay <= {timer_b_display_delay[22:0], native_display};
+            end
             if (vblank) vbl_pending <= 1;
             if (hblank) hbl_pending <= 1;
             if (irq_ack && irq_level == 4) vbl_pending <= 0;
@@ -176,7 +184,7 @@ module st_io #(
         .req(req && mfp_select && byte_enable[0]), .addr({addr[5:1], 1'b1}),
         .write(write), .wdata(wdata[7:0]), .rdata(mfp_data), .ack(mfp_ack),
         .gpip({!monochrome, 1'b1, !fdc_irq, !(kbd_irq || midi_irq), 4'b1111}),
-        .timer_a(1'b0), .timer_b(native_display), .irq(mfp_irq),
+        .timer_a(1'b0), .timer_b(timer_b_display_delay[23]), .irq(mfp_irq),
         .irq_vector(irq_vector), .iack(irq_ack && irq_level == 3'd6)
     );
     wire kbd_tx_valid, kbd_tx_ready, kbd_rx_valid, kbd_rx_ready;

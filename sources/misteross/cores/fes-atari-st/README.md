@@ -180,6 +180,8 @@ shares the existing video-memory port between the two renderers.
 The reduced native timing uses ordinary PAL lines 63–262 with DE cycles
 56–375, and NTSC lines 34–233 with DE cycles 52–371, following the ordinary
 [Hatari 2.5.0 timing table](https://github.com/hatari/hatari/blob/v2.5.0/src/video.c).
+The MFP's Timer B input follows both DE edges by 24 CPU cycles, using
+[Hatari's Timer B offset](https://github.com/hatari/hatari/blob/v2.5.0/src/includes/video.h).
 Mode settings are sampled at line/frame boundaries so brief writes do not
 create extra display-enable edges. The vertical bottom-stop condition also
 samples live sync at cycle 502 on the last ordinary color line, using the
