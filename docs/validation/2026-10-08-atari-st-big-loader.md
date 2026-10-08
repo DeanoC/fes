@@ -1,6 +1,6 @@
 # Atari ST BIG loader: empty-memory acknowledgement and ROM comparison
 
-This host-only follow-up to [task #621](https://github.com/DeanoC/fes/issues/621)
+This follow-up to [task #621](https://github.com/DeanoC/fes/issues/621)
 starts at main `10472724c17fa31d43849d81eb56e661e968ddc6`. Main already includes
 the request-egress fix and separate Direct/Scanlines qualification from the
 work associated with closed PR #620. That routing dependency is resolved;
@@ -8,9 +8,10 @@ it is separate from BIG's CPU/firmware behavior.
 
 The [evidence record](2026-10-08-atari-st-big-loader/evidence.json) binds the
 frozen input/model identities, before/after traces and independent Hatari run.
-No kit commands, programming, deployment or service changes were made. The
-normal populated menu was left untouched. This is neither a new FPGA/image
-qualification nor acceptance of BIG's display, border effects or audio.
+The initial loader comparison was host-only. The hardware follow-up below
+binds a fresh source-selected FPGA package to a temporary qualified geometry
+diagnostic image, then restores the original installed image and populated
+menu. It does not accept BIG's border effects or audio fidelity.
 
 ## The early FES fault
 
@@ -129,9 +130,119 @@ captured RTL/helper hashes match this change. The record still sets
 
 The FES harness accepts such firmware only through an explicit
 `--rom-sha256`; the default still requires stock EmuTOS. Mismatched ROMs are
-rejected before output creation. Continue comparing the unchanged original TOS
-loader through the CPU/chipset model before investigating raster borders and
-audio. No demo or firmware patches were applied. New shell, parts and
-appliance acceptance must use their own selected-source artifacts after this
-RTL change; historical hardware evidence does not qualify it. The shared
+rejected before output creation. The hardware follow-up now reaches the menu and selects the scroller.
+No demo or firmware patches were applied. The fresh package below qualifies
+this bounded observation; full current appliance-image acceptance remains
+outstanding. The shared
 manifest, capabilities, generated consumers and wire contracts are unchanged.
+
+
+## Fresh-package hardware follow-up
+
+After source commit `7a072353a4f42fa7e2a00569d7234cc008c4683b`,
+`make core-dev CORE_DEV_ARGS='prepare --core fes.atari-st --output out/core-dev/st-big-tos100-001'`
+produced package `61d24aac299033283dc4168d041d573ef01cdbd0c10527b8f27a15ae458a571f`,
+including sealed shell, ROM map and separately linked Direct/Scanlines parts.
+The [hardware receipt](2026-10-08-atari-st-big-loader/hardware-proof.json)
+binds the archive, selected sources, composition, firmware, original disk,
+programmed artifact and capture hashes. Final seed-2 shell timing passes:
+pixel 76.34 MHz against 74.25, system 52.80 against 52.224, audio 218.91
+against 12.288. Seed 4 missed pixel timing; seed 5 passed an intermediate
+report but missed system timing in its final report. Those artifacts were
+not loaded. These misses do not establish a compiler defect.
+
+The normal installed image and host predate the floppy-geometry interface.
+Their compatibility checks correctly reject this package. Under the existing
+exclusive Kit A lease, the managed appliance client temporarily selected the
+previously qualified geometry image `0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f`
+and an isolated matching host from revision `4ab1d84b4967394d6f4edf4580e2f7dcb29cf096`.
+The relevant runtime sources are identical to the new package's selected
+revision; FogCast differs only in the tenfoot local-catalog fallback. This is a
+bounded diagnostic of the fresh FPGA package with older qualified software,
+not acceptance of a new complete appliance image. Early operator attempts
+with insufficient host readiness or an unmatched old host ended before any
+guest load; each temporary image transition was rolled back.
+
+Normal library Play bound unchanged TOS 1.00 and the original 80×1×10 BIG
+disk. The active receipt confirms both media identities and ROM composition.
+After settling, HDMI shows BIG's main menu. A normal HID B press/release,
+held 150 ms, selects the scroller; the second capture shows its rotating
+stone-letter display. The menu has horizontal colour artifacts, and the
+scroller has mostly a single letter colour where Hatari shows rainbow bands.
+Different animation positions and output dimensions prevent a pixel-equivalence
+claim. These images demonstrate loading and input progression, and expose
+missing raster palette behaviour.
+
+| FES hardware | Independent Hatari 2.5.0 |
+| --- | --- |
+| ![BIG menu on FES](2026-10-08-atari-st-big-loader/hardware-menu.png) | ![BIG menu in Hatari](2026-10-08-atari-st-big-loader/hatari-menu.png) |
+| ![BIG scroller on FES](2026-10-08-atari-st-big-loader/hardware-scroller.png) | ![BIG scroller in Hatari](2026-10-08-atari-st-big-loader/hatari-scroller.png) |
+
+The [independent scroller receipt](2026-10-08-atari-st-big-loader/hatari-scroller-proof.json)
+records identical read-only inputs, a menu snapshot at VBL 2000, documented
+`hatari-event keypress b`, a scroller snapshot at VBL 2400, and clean exit 0.
+Its sound is disabled. A separate completed Hatari A/V run supplies the
+reference audio amplitude statistics; an earlier timed-out scroller A/V run
+is excluded from completed evidence.
+
+The ten-second HDMI audio capture is stereo 48 kHz, with peak 29440, RMS
+13784.73, nonzero samples and no saturated 16-bit samples. The
+[audio record](2026-10-08-atari-st-big-loader/audio-analysis.json) also retains
+the separate Hatari reference identity and statistics. The captures are not
+aligned, and amplitude statistics do not establish tune, tempo, noise or
+waveform accuracy. Hardware channel means are about 11513.79 versus 3.09 in
+the Hatari run: a substantial DC component is present in this capture. The
+current PSG adapter emits nonnegative sample values; accurate analogue-output
+filtering is separate from this raster investigation. Audio fidelity remains open.
+
+The code explains why scanline colours cannot survive this path:
+`st_video_adapter.sv` snapshots the entire palette with base/resolution once
+per output frame and activates it only at SOF. It refetches live framebuffer
+lines against a 720p60 clock, while native HBL/VBL/Timer-B timing runs separately
+in `st_io.sv`. The native display phase itself is reduced. Simply forwarding
+live palette bits would still mismatch native 50 Hz drawing and 60 Hz output,
+and would introduce an incoherent clock crossing. A correct follow-up needs
+native timing and coherent raster capture before fixed-output scaling. The
+menu flashing reported by the user is consistent with this limitation; its
+exclusive cause has not yet been established.
+
+After Stop and isolated-host shutdown, the managed client restored original
+installed image `8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877`,
+confirmed good with no pending trial. The original normal host is active and
+enabled; HDMI shows Ready and 29 eligible titles in the populated menu.
+The older installed launcher needs a volatile supervised invocation using its
+configured remote catalog rather than its empty local catalog. No persistent
+launcher or owner configuration was changed. The menu supervisor is running,
+the target is idle and the kit lease is free. The owned stopped diagnostic
+container and private credential copy were removed. Current-image integration
+must include the already merged local-catalog fallback fix for reboot durability.
+
+
+## Native palette diagnostic after merged #629
+
+The follow-up starts from merged main `582d3c608eb7bd0a89ca7940b9cbb6fce2c7eb39`.
+Simulation-only outputs observe `st_io`'s native line and horizontal accumulator.
+The unchanged CPU/chipset/ROM/disk run for twelve seconds, with a normal HID B
+press at eight seconds held for 150 ms. The static nine-second RAM image shows
+the stone-letter scroller. This does not change production video, timing or
+shared contracts.
+
+The [summary](2026-10-08-atari-st-big-loader/palette-summary.json),
+[frozen capture proof](2026-10-08-atari-st-big-loader/palette-proof.json) and
+[bounded trace](2026-10-08-atari-st-big-loader/palette-trace.jsonl) retain native
+frame counts, the first eight changed palette bundles per frame after six
+seconds, their line/phase and full counts of changed entries. Menu frames in
+the seven-to-eight-second window have a median of 119 changed entries and a
+maximum of 190. Scroller frames in the nine-to-twelve-second window have 128
+changed entries per frame. Sampled changes occur on different lines within a
+frame in both windows. These palette changes cannot be preserved by the
+current output-frame palette snapshot. Native frame/line and horizontal phase
+refer to the reduced functional model, not verified original GLUE timing.
+
+The completed capture has zero external bus faults and no CPU halt; frozen
+and working sources, model, executable, microcode, ROM and disk are unchanged.
+Trace validation checks monotonic cycles, the eight-bundle sample cap, and
+bounded line/phase/palette fields. Invalid keypress times reject before inputs
+are read; Python compilation and parent `make check` pass. The hardware
+capture above predates this observer-only follow-up and binds source `7a072353`.
+No further kit transition was needed for this diagnostic.

@@ -240,8 +240,12 @@ ROM, disk and generated-model identities before execution. Its bounded fault
 log records the first 64 bus errors with the latched address, direction and
 function code; the first eight faults also capture RAM. The exported CPU PC
 is diagnostic prefetch/exception state, not an instruction-retirement trace.
-Per-second static framebuffer images do not prove video timing or border
-behavior. Neither successful capture completion nor removal of one loader
+The diagnostic also records changed palette entries by native frame/line
+after six simulated seconds (first eight changed bundles per frame and full
+per-frame counts). `--key-b-at SECOND` selects the scroller through the normal
+HID/IKBD path with a 150 ms B press. These are observations of the reduced
+native timing model, not original GLUE/shifter timing equivalence. Per-second
+static framebuffer images do not prove video timing or border behavior. Neither successful capture completion nor removal of one loader
 fault establishes demo compatibility.
 
 The aggregate uses original diagnostic firmware and focused CPU, video,

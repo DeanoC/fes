@@ -1723,7 +1723,11 @@ explicit later replacement can upload through the shared media arbiter.
 delayed RAM and media completions, including rejected mutations and later retry.
 
 `st_video_adapter.sv` uses held-bundle handshakes for frame configuration and
-owned double line caches between system and 74.25 MHz pixel clocks. Low,
+owned double line caches between system and 74.25 MHz pixel clocks. The palette
+is part of that frame configuration, so native per-line palette changes are
+not reproduced. Native interrupt/display timing in `st_io.sv` is reduced and
+independent of the fixed 60 Hz output; current caches refetch live framebuffer
+lines rather than preserve a completed native raster. Low,
 medium and monochrome rows advance through native row/repetition counters.
 Fixed per-mode fetch windows select coordinates after constant arithmetic.
 Synchronous cache reads and ownership tags are captured together; a second

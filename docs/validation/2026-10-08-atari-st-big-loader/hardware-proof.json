@@ -1,0 +1,270 @@
+{
+  "schema": 1,
+  "source_revision": "7a072353a4f42fa7e2a00569d7234cc008c4683b",
+  "classification": "bounded hardware diagnostic; no full BIG raster/audio or appliance acceptance",
+  "demo_compatibility_asserted": false,
+  "prepared": {
+    "archive": {
+      "path": "core.fcore",
+      "sha256": "e31f8a4307fde7ab4402a7f543c85aedf9db5ea1caf7846feade106909b04ec7",
+      "size": 20245504
+    },
+    "core_id": "fes.atari-st",
+    "format": 2,
+    "package_id": "61d24aac299033283dc4168d041d573ef01cdbd0c10527b8f27a15ae458a571f",
+    "selection": {
+      "manifest_sha256": "177935a0747c484336a92634030c83822200957e91852ab5dccd328b1bf2b378",
+      "path": "fes-atari-st.package-selection.toml",
+      "payload_sha256": "95ba5a96c32d5a244522f6ed428f8436b2357e1078692a8023fb74a5f92db3dc",
+      "sha256": "b9b168b318e245ea0576dba9e4d56425da0f35352eaa62f358db50352472d04b"
+    },
+    "source_selection": {
+      "path": "fes-atari-st.package-selection.provenance.json",
+      "sha256": "8fa07c9666b24c2be4c2748c45dc7d67b0812757a03db1e33d00c2d5141850b2"
+    },
+    "sources": {
+      "FogCast": "7a072353a4f42fa7e2a00569d7234cc008c4683b",
+      "libmister-runtime": "7a072353a4f42fa7e2a00569d7234cc008c4683b",
+      "mister-packages": "7a072353a4f42fa7e2a00569d7234cc008c4683b",
+      "misteross": "7a072353a4f42fa7e2a00569d7234cc008c4683b"
+    },
+    "video_parts": {
+      "path": "fes-core-video-parts.json",
+      "sha256": "f5ac0fbc7c494337f0c200a9f6649ff908882ebc2f9631371c2cb96a37650677",
+      "size": 834
+    }
+  },
+  "shell_final_timing_mhz": {
+    "pixel_clk": {
+      "achieved": 76.34170532226562,
+      "constraint": 74.25006866455078
+    },
+    "system_clock.clocks[0]": {
+      "achieved": 52.798309326171875,
+      "constraint": 52.22477340698242
+    },
+    "system_clock.clocks[1]": {
+      "achieved": 218.91419982910156,
+      "constraint": 12.288031578063965
+    }
+  },
+  "timing_report_sha256": "49570e8c1e69e88365ed1ab3cc085256b1d2146e118f2830cc1e8d86f629d5a7",
+  "diagnostic_host": {
+    "host_revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+    "host_sha256": "786863b86ef65a62ed855ccaed1b01ef5f8d0dde90d7b055e7d63b185fad4820",
+    "container_image": "sha256:ab62ac5ca21cff3313f41a3f62ece2d42b76627045ff47d1384139969012c4f5"
+  },
+  "compatible": true,
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "launch": {
+    "state": "active",
+    "execution": "fpga_native",
+    "core_package": {
+      "rom_link": {
+        "rom_id": "atari-st-firmware",
+        "map_sha256": "cd3faf63e95d74777815cc447c8a3f8a05c78434a18445b61c24c1c90881de9d",
+        "source_sha256": "5771f9fd1391d3ae0b513ab3fd67aec30fb1843753e7e0345f92615e72c36797",
+        "source_size": 196608,
+        "programmed_sha256": "67ddfa4e283b1e8d1647de574594658da95327f05d4699cb88c8ed11f7cbea1e",
+        "programmed_size": 2813150
+      },
+      "media_units": [
+        {
+          "unit": 0,
+          "interface": {
+            "id": "fes.media.atari-st-floppy",
+            "major": 1,
+            "minor": 0
+          },
+          "min_bytes": 368640,
+          "max_bytes": 839680,
+          "chunk_bytes": 512,
+          "state": "ready",
+          "persistence": {
+            "mode": "persistent",
+            "game_id": "fpga-big-tos-1-00-hardware-diagnostic-20261008t182836-b6f489c69205",
+            "base_media_id": "608c4beff1780552e8ae6ee5a1efff27198fb6a3ca6274597f1cb528c3970edb",
+            "revision": "absent"
+          }
+        }
+      ],
+      "persistence_mode": "persistent",
+      "package_id": "61d24aac299033283dc4168d041d573ef01cdbd0c10527b8f27a15ae458a571f",
+      "generation": 1,
+      "abi": {
+        "id": "fes.computer",
+        "major": 1,
+        "minor": 0
+      },
+      "build_id": "2086d95f87d6da25de21589ef31862f5",
+      "active_interfaces": [
+        {
+          "id": "fes.audio.pcm-s16-stereo-48k",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.expansion.atari-st-bus",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.gamepad.ports",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.keyboard.hid",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.atari-st-floppy",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.atari-st-floppy-geometry",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.media.atari-st-floppy-write",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.mouse.relative",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "gamepad": true
+    }
+  },
+  "input": {
+    "event": "HID B press/release",
+    "hold_milliseconds": 150,
+    "result": "scroller visible in capture"
+  },
+  "lifecycle": {
+    "baseline_image_sha256": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+    "diagnostic_image_sha256": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+    "update_client_sha256": "fc8ad6dc95c9f8e632e095ad90cd5fa05cef6e99be1ce3d16936381fef833c16",
+    "classification": "temporary qualified geometry software plus fresh FPGA package, bounded diagnostic",
+    "before-update": {
+      "boot_id": "f69a464e-2c36-441e-a491-a41e4174d5fd",
+      "image_sha256": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+      "trial": false,
+      "raw_idle_ready": true,
+      "good": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+      "previous": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+      "pending": "",
+      "trial_boot_id": "",
+      "trial_image": "",
+      "corrupt": false
+    },
+    "activate-geometry-diagnostic": {
+      "boot_id": "aa0a7aa5-57c3-4dd9-9bfe-58d80aaa7f70",
+      "image_sha256": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+      "trial": false,
+      "raw_idle_ready": true,
+      "good": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+      "previous": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+      "pending": "",
+      "trial_boot_id": "",
+      "trial_image": "",
+      "corrupt": false
+    },
+    "probe_completed": true,
+    "before-restoration": {
+      "boot_id": "aa0a7aa5-57c3-4dd9-9bfe-58d80aaa7f70",
+      "image_sha256": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+      "trial": false,
+      "raw_idle_ready": true,
+      "good": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+      "previous": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+      "pending": "",
+      "trial_boot_id": "",
+      "trial_image": "",
+      "corrupt": false
+    },
+    "restore-original-image": {
+      "boot_id": "decf45d6-8baa-43e6-a36e-90c95d39c246",
+      "image_sha256": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+      "trial": false,
+      "raw_idle_ready": true,
+      "good": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+      "previous": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+      "pending": "",
+      "trial_boot_id": "",
+      "trial_image": "",
+      "corrupt": false
+    }
+  },
+  "final_restoration": {
+    "health": {
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+      "api_version": "v1",
+      "agent_version": "0.1.0",
+      "ready": true,
+      "boot_id": "decf45d6-8baa-43e6-a36e-90c95d39c246",
+      "artifacts": {
+        "record_sha256": "05eaa56f3bad33841aa012c6177e18956fe2a1d90e703d684206f6d5bb475c5e",
+        "runtime_commit": "d7273fb6ac926300b0594b8666cfc8d39bdf0c11",
+        "agent_sha256": "a0d206fd82c283c8ab385224e8d2ba1b9e60ba12d74e404ca4f1691ca3d06b4d",
+        "agent_revision": "d7273fb6ac926300b0594b8666cfc8d39bdf0c11",
+        "kit_sha256": "dbd3138e7382d2e108bb6d366957699c4f7a6b2701af403c186430f0cf615c24",
+        "image_sha256": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+        "idle_sha256": "64f1f16daedba4ed19179bd5d7c6f3eb3058a688d15441c8c8d89e113060f182",
+        "package_id": "fc24ef5944c6280e1585f2269ef991f453e85921738ab67e13040ec1ec8fb916"
+      }
+    },
+    "status": {
+      "state": "idle",
+      "game_id": null,
+      "system": null,
+      "expected_core": null,
+      "observed_core": null,
+      "last_error": null
+    },
+    "lease": {
+      "expires_in_ms": 0,
+      "state": "free",
+      "generation": "1c5f6fffe2337a2f7e6dd17742e789ec6340533308f5856fddd6df9b9b3f04c0",
+      "expires_at": "0001-01-01T00:00:00Z"
+    },
+    "host_active": "active",
+    "autostart": "enabled",
+    "normal_library_populated": true
+  },
+  "private_cleanup": {
+    "owned_stopped_container_removed": "st-big-tos100-matched-4ab1d84b",
+    "private_credential_copy_removed": true,
+    "owner_configuration_unchanged": true
+  },
+  "captures": {
+    "big-menu.mkv": "f85a3bbca96b5da4aa20a73245a740ca9abdb19350901f0f4a2296196a94b12d",
+    "big-menu.png": "735ee51a10770f1efa997e5bebc861a536b16c746ec74ff33c657ed244cead52",
+    "big-scroller.mkv": "0ba2d8d54ff49f9098eb6aab32764018804593b9249758ee0cb4198c27b2b3a5",
+    "big-scroller.png": "1b06893b52cc26c9613f5cb9c7e8e5639c2134e3381217273805f8c6450c43ba",
+    "big-menu-audio.wav": "ffdf87aa261c19d61a78f950b539547bdf59861f773b663ab9f2b5aa6c4642c4",
+    "original-image-menu.mkv": "4bc95df1f551469bd6c543c4a124e8fd961337dc6be7c9bb4f3abee6bc55c6a5",
+    "original-image-menu.png": "c5ebe4e83badd387094cad63e872db4435a06d6a3e78550c9c1275b3fa9253c8"
+  },
+  "observations": [
+    "BIG menu visible, with horizontal colour artifacts",
+    "B scroller visible; rainbow bands absent in FES capture, present in independent Hatari screenshot",
+    "audio amplitude statistics demonstrate output presence only"
+  ],
+  "remaining": [
+    "Native palette timing and border opening",
+    "Audio fidelity and subsequent demo sections",
+    "Current native image/host integration; older installed baseline cannot admit geometry package"
+  ]
+}

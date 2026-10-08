@@ -57,6 +57,8 @@ module st_boot_sim_top (
     output wire [2:0] debug_fault_fc,
     output wire debug_fault_write,
     output wire [7:0] debug_fdc_status, debug_fdc_track, debug_fdc_sector, debug_fdc_head,
+    output wire [8:0] debug_native_line,
+    output wire [31:0] debug_horizontal_phase,
     output wire vblank, hblank
 );
     st_system system (
@@ -72,6 +74,8 @@ module st_boot_sim_top (
     assign debug_fault_address = system.machine.address;
     assign debug_fault_fc = system.machine.function_code;
     assign debug_fault_write = system.machine.writing;
+    assign debug_native_line = system.io.native_line;
+    assign debug_horizontal_phase = system.io.horizontal_phase;
     // Simulation-only observability; no upstream CPU bytes are changed.
     assign debug_pc = {system.machine.cpu.cpu.excUnit.PcH,
                        system.machine.cpu.cpu.excUnit.PcL};

@@ -133,6 +133,12 @@ def run(args):
     record["generated_model_inputs"] = model_hashes
     invocation = [str(executable), str(output / "etos192us.img"), str(output / "original.st"),
                   str(args.seconds), str(output / "demo")]
+    if args.key_b_at is not None:
+        invocation.append(str(args.key_b_at))
+    record["input_event"] = (None if args.key_b_at is None else
+                             {"hid_usage": 5, "press_second": args.key_b_at,
+                              "hold_milliseconds": 150})
+    record["palette_trace"] = "changes after six seconds; first eight changed bundles per native frame, plus complete per-frame counts; model timing only"
     record["run_command"] = invocation
     process = subprocess.Popen(invocation, cwd=build, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     timer = threading.Timer(1800, process.kill); timer.start()
@@ -176,12 +182,16 @@ def main(argv=None):
     parser.add_argument("--revision", default="HEAD")
     parser.add_argument("--working-tree", action="store_true", help="explicitly freeze current diagnostic edits")
     parser.add_argument("--seconds", type=int, default=15)
+    parser.add_argument("--key-b-at", type=int,
+                        help="press HID B at this simulated second for 150 ms (optional scroller selection)")
     parser.add_argument("--verilator", default="verilator")
     args = parser.parse_args(argv)
     if len(args.rom_sha256) != 64 or any(c not in "0123456789abcdef" for c in args.rom_sha256):
         parser.error("--rom-sha256 must be a lowercase SHA-256 digest")
     if not 1 <= args.seconds <= 30:
         parser.error("--seconds must be 1..30")
+    if args.key_b_at is not None and not 1 <= args.key_b_at < args.seconds:
+        parser.error("--key-b-at must be at least one and less than --seconds")
     try:
         return 0 if run(args)["capture_completed"] else 1
     except (OSError, ValueError, subprocess.SubprocessError) as error:
