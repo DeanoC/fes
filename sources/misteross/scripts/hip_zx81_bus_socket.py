@@ -105,6 +105,10 @@ def validate_overlay_timing(timing: dict) -> None:
     _, _, sys_hz = shell._frequency_row(fmax, 52.0, "system clock", "clk_sys")
     pixel_key = "display.control.clk" if "display.control.clk" in names else "pixel_clk"
     _, _, pix_hz = shell._frequency_row(fmax, 74.25, "pixel clock", pixel_key)
+    if names == current:
+        _, _, audio_hz = shell._frequency_row(fmax, 12.288, "audio clock", "audio_clk")
+        if audio_hz < 12.288:
+            raise ValueError("overlay audio clock below required 12.288 MHz")
     if sys_hz < 52.0 or pix_hz < 74.25:
         raise ValueError("overlay clocks below required 52/74.25 MHz")
 

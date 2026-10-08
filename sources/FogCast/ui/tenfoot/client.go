@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -42,7 +43,11 @@ func launcherHTTPClient(token, targetID string) *http.Client {
 	if token == "" && targetID == "" {
 		return nil
 	}
-	return &http.Client{Transport: launcherAuthTransport{base: http.DefaultTransport, token: token, targetID: targetID}, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+	return &http.Client{
+		Timeout:       15 * time.Second,
+		Transport:     launcherAuthTransport{base: http.DefaultTransport, token: token, targetID: targetID},
+		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+	}
 }
 
 const (

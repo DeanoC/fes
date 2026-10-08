@@ -77,7 +77,7 @@ case "$action" in
     remove_tree "$installed"
     remove_record "$installed_record"
     if [ -n "$source" ]; then
-      cp -R "$tree" "$installed"
+      cp -R --preserve=mode "$tree" "$installed"
       install -D -m 0444 "$record" "$installed_record"
     fi
     verify_image
