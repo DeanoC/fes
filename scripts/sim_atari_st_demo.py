@@ -116,6 +116,7 @@ def run(args):
         shutil.copyfile(source / PREFIX / CPU / name, build / name)
     archive(output / "frozen-source.zip", source, identities)
     command = [verilator, "--cc", "--exe", "--build", "-O2", "-j", "2", "--top-module", top]
+    command += [f"-GMFP_WAIT_STATES={args.mfp_wait_states}"]
     command += FLAGS + ["-I" + str(source / PREFIX / "cores/fes-common/generated"), "--Mdir", str(build)]
     command += [str(source / wrapper)] + [str(source / PREFIX / name) for name in rtl]
     command += [str(source / helpers[1]), "-CFLAGS", "-O3 -std=c++17"]
@@ -168,6 +169,7 @@ def run(args):
     if args.shared_memory:
         record["storage_model"] = {"shared_arbitration": True, "cpu_video_dma_media": "production st_memory.sv and addon controller",
                                    "sdram": "digital command/timing model with CAS2, DDIO capture and byte masks; no electrical equivalence"}
+    record["storage_model"]["mfp_wait_states"] = args.mfp_wait_states
     record["horizontal_phase_units"] = "68000 cycles within the native line"
     record["palette_trace"] = "changes after six seconds; first eight changed bundles per native frame, plus complete per-frame counts; model timing only"
     record["run_command"] = invocation
@@ -218,6 +220,7 @@ def main(argv=None):
     parser.add_argument("--trace-start", type=int, help="inclusive simulated second for complete raster/logo tracing")
     parser.add_argument("--trace-end", type=int, help="exclusive simulated second for complete raster/logo tracing")
     parser.add_argument("--ram-extra-wait", type=int, default=0, help="add 0..64 system clocks to each model CPU RAM access; not physical arbitration")
+    parser.add_argument("--mfp-wait-states", type=int, default=0, help="optional 0..8 native CPU wait-state experiment; delays MFP access and data sampling")
     parser.add_argument("--shared-memory", action="store_true", help="use the existing shared SDRAM/independent pixel-clock boot fixture; disk preloaded before reset release")
     parser.add_argument("--verilator", default="verilator")
     args = parser.parse_args(argv)
@@ -231,6 +234,8 @@ def main(argv=None):
         parser.error("trace window must satisfy 0 <= start < end <= seconds")
     if not 0 <= args.ram_extra_wait <= 64:
         parser.error("--ram-extra-wait must be 0..64")
+    if not 0 <= args.mfp_wait_states <= 8:
+        parser.error("--mfp-wait-states must be 0..8")
     if args.key_b_at is not None and not 1 <= args.key_b_at < args.seconds:
         parser.error("--key-b-at must be at least one and less than --seconds")
     if args.shared_memory and (args.seconds < 6 or args.key_b_at is not None or args.ram_extra_wait):

@@ -2,7 +2,7 @@
 // Stock-firmware boot through the real shared SDRAM controller and DDIO
 // simulation path, concurrently with the independent-clock line-cache video.
 // The physical command model is external; no C++ RAM callback serves the CPU.
-module st_boot_memory_sim_top (
+module st_boot_memory_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     input wire clk_sys, clk_pixel, cold_reset, reset_sys, reset_pixel,
     output wire initialized,
     input wire media_ready,
@@ -55,7 +55,7 @@ module st_boot_memory_sim_top (
     wire [23:0] dma_addr;
     wire [15:0] dma_wdata;
     wire [1:0] dma_byte_enable;
-    st_system system (
+    st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES)) system (
         .clk_sys(clk_sys), .reset(reset_sys), .cold_reset(cold_reset),
         .media_frozen(1'b0), .media_write_req(), .media_write_addr(), .media_write_data(),
         .media_write_ready(1'b0), .media_write_busy(), .media_changed(),

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Reusable 520ST system: storage and video/audio sockets remain external.
-module st_system #(parameter integer ENABLE_FLOPPY_WRITE = 0) (
+module st_system #(
+    parameter integer ENABLE_FLOPPY_WRITE = 0,
+    parameter integer MFP_WAIT_STATES = 0
+) (
     input wire clk_sys, reset, cold_reset,
     output wire rom_req,
     output wire [17:1] rom_addr,
@@ -89,7 +92,7 @@ module st_system #(parameter integer ENABLE_FLOPPY_WRITE = 0) (
         .palette(palette), .sync_mode(sync_mode), .debug_addr(debug_addr),
         .debug_bus_error(debug_bus_error), .debug_overlay(debug_overlay), .debug_halted(debug_halted)
     );
-    st_io #(.ENABLE_FLOPPY_WRITE(ENABLE_FLOPPY_WRITE)) io (
+    st_io #(.ENABLE_FLOPPY_WRITE(ENABLE_FLOPPY_WRITE), .MFP_WAIT_STATES(MFP_WAIT_STATES)) io (
         .clk(clk_sys), .reset(exp_reset), .cold_reset(cold_reset), .cpu_cycle_ce(exp_phi2), .req(bus_req), .addr(exp_addr),
         .write(exp_write), .wdata(exp_wdata), .byte_enable(exp_byte_enable),
         .selected(io_selected), .ack(io_ack), .rdata(io_rdata),

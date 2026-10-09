@@ -1765,6 +1765,13 @@ driving VBL: 313×512 PAL, 263×508 NTSC, and 501×224 monochrome CPU cycles.
 The retained nominal 8 MHz CPU therefore gives approximately
 49.920/59.878/71.286 Hz rather than rounded integer frame rates. MFP crystal
 timing remains independent at 2.4576 MHz.
+An optional `MFP_WAIT_STATES` probe delays the MFP request and data sampling
+in native CPU cycles; its default zero preserves the selected production
+timing. `sim-fes-atari-st-mfp-bus` calibrates four states with original 68000
+firmware, including read/write instruction intervals across fractional phases,
+and checks a Timer B edge during the delayed read. The original-disk diagnostic
+records the optional probe value with `--mfp-wait-states`; it is independent
+of the callback RAM-delay probe and does not assert demo compatibility.
 Ordinary PAL DE spans lines 63–262 and cycles 56–375; NTSC spans lines
 34–233 and cycles 52–371. DE line/frame modes are sampled at their boundaries.
 Horizontal DE bounds use constant comparisons before mode selection to avoid

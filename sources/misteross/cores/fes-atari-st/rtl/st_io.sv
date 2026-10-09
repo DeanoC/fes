@@ -4,7 +4,8 @@
 // rather than a cycle-exact GLUE model. Unclaimed addresses go to the socket.
 module st_io #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
-    parameter integer ENABLE_FLOPPY_WRITE = 0
+    parameter integer ENABLE_FLOPPY_WRITE = 0,
+    parameter integer MFP_WAIT_STATES = 0
 ) (
     input wire clk, reset, cold_reset,
     input wire cpu_cycle_ce,
@@ -82,9 +83,21 @@ module st_io #(
                       address == 24'hff860c;
     assign selected = mfp_select || psg_select || kbd_select || midi_select || fdc_select;
     wire mfp_ack, psg_ack, kbd_ack, midi_ack, fdc_ack;
+    // Optional access-timing probe. Default zero retains the selected core.
+    // Delay the peripheral transaction itself so timer reads sample late,
+    // rather than returning an old value behind a delayed acknowledgement.
+    localparam integer MFP_WAIT_BITS = $clog2(MFP_WAIT_STATES + 2);
+    reg [MFP_WAIT_BITS-1:0] mfp_bus_age;
+    wire mfp_bus_req = req && mfp_select;
+    wire mfp_bus_ready = MFP_WAIT_STATES == 0 ||
+        mfp_bus_age >= MFP_WAIT_BITS'(MFP_WAIT_STATES + (write ? 0 : 1));
+    always @(posedge clk) begin
+        if (reset || !mfp_bus_req) mfp_bus_age <= 0;
+        else if (cpu_cycle_ce && !mfp_bus_ready) mfp_bus_age <= mfp_bus_age + 1'b1;
+    end
     wire [7:0] mfp_data, psg_data, kbd_data, midi_data;
     wire [15:0] fdc_data;
-    assign ack = req && (mfp_select ? (byte_enable[0] ? mfp_ack : 1'b1) :
+    assign ack = req && (mfp_select ? (mfp_bus_ready && (byte_enable[0] ? mfp_ack : 1'b1)) :
                          psg_select ? (byte_enable[1] ? psg_ack : 1'b1) :
                          kbd_select ? (byte_enable[1] ? kbd_ack : 1'b1) :
                          midi_select ? (byte_enable[1] ? midi_ack : 1'b1) :
@@ -195,7 +208,7 @@ module st_io #(
     assign irq_vectored = mfp_irq;
     st_mfp mfp (
         .clk(clk), .reset(reset), .timer_ce(timer_ce),
-        .req(req && mfp_select && byte_enable[0]), .addr({addr[5:1], 1'b1}),
+        .req(mfp_bus_req && mfp_bus_ready && byte_enable[0]), .addr({addr[5:1], 1'b1}),
         .write(write), .wdata(wdata[7:0]), .rdata(mfp_data), .ack(mfp_ack),
         .gpip({!monochrome, 1'b1, !fdc_irq, !(kbd_irq || midi_irq), 4'b1111}),
         .timer_a(1'b0), .timer_b(timer_b_display_delay[23]), .irq(mfp_irq),
