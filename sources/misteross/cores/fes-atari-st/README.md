@@ -26,6 +26,16 @@ The MiSTer addon wires chip DQML/DQMH to A11/A12. The shared controller keeps
 the full row during ACTIVATE, then places byte masks on those shared pins
 before the column command and clears them for reads. The separate logical
 DQM outputs alone cannot mask writes on this board.
+The ST selects a four-count runtime refresh recovery instead of the shared
+controller's sixteen-count default. Including state transitions, this leaves
+six chip clocks (114.9 ns at 52.224 MHz) before the next command, exceeding
+the ISSI IS42S16320D's 60 ns refresh command period. Initialization keeps its
+conservative timing. The memory regression compares both settings across
+refresh arrival phases and all three DQM delay fixtures: isolated CPU reads
+span 13–26 clocks instead of 13–50, and writes 10–23 instead of 10–47.
+This reduces refresh stalls; ordinary RAM access latency and round-robin
+contention remain. It is not acceptance of BIG raster timing or a new FPGA.
+
 Initialization completes before CPU release. SDRAM refresh continues while
 idle and while the CPU is held. An abandoned request drains its physical
 command and suppresses its old completion. Warm Hold preserves RAM and media.

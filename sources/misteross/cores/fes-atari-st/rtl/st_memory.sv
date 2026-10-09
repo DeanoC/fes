@@ -7,7 +7,12 @@
 // address mapping is preserved: these are physical halfword offsets.
 // cold_reset restarts SDRAM initialization. Warm reset drains any physical
 // transaction, suppresses its completion, and keeps refresh/memory intact.
-module st_memory (
+module st_memory #(
+    // At 52.224 MHz the controller's four-count wait leaves six chip clocks
+    // (114.9 ns) between runtime refresh and the next command. The ISSI
+    // IS42S16320D requires 60 ns; pad/route acceptance remains separate.
+    parameter [13:0] REFRESH_WAIT_CYCLES = 14'd4
+) (
     input wire clk,
     input wire clk_pin,
     input wire cold_reset,
@@ -82,7 +87,8 @@ module st_memory (
         dq_fall_q <= dq_fall;
     end
 
-    sdram_addon_port #(.BYTE_MASK_ENABLED(1)) controller (
+    sdram_addon_port #(.BYTE_MASK_ENABLED(1),
+                       .REFRESH_WAIT_CYCLES(REFRESH_WAIT_CYCLES)) controller (
         .clk(clk), .clk_pin(clk_pin), .rate(2'd0), .reset(cold_reset),
         .start(state == BUSY), .write(held_write), .addr(held_addr),
         .wdata(held_wdata), .write_byte_enable(held_byte_enable),
