@@ -28,7 +28,7 @@ static void require(bool value, const char *what, uint64_t cycle = 0) {
 // https://www.issi.com/WW/pdf/42-45R-S_86400D-16320D-32160D.pdf
 class Sdram {
 public:
-    std::vector<uint16_t> words = std::vector<uint16_t>(0xa0000, 0);
+    std::vector<uint16_t> words = std::vector<uint16_t>(0xa6800, 0);
     uint64_t cycle = 0, reads = 0, writes = 0, refreshes = 0, mode_sets = 0;
     uint64_t last_refresh = 0, read_due = 0;
     uint16_t pending_read = 0;
@@ -134,6 +134,15 @@ class Boot {
     bool last_fault = false, last_ack = false, picture_started = false;
     uint32_t previous_request = 0;
     unsigned position = 0, previous_position = 0;
+    bool demo_mode = false;
+    unsigned trace_start = 6, trace_end = 7;
+    uint64_t native_epoch = 0, palette_writes = 0, frame_palette_writes = 0;
+    unsigned observed_frames = 0, frame_cpu_max = 0, frame_video_max = 0;
+    uint64_t frame_video_reads = 0;
+    std::vector<uint8_t> native_picture = std::vector<uint8_t>(320*200*3);
+    std::ofstream raster_trace, logo_trace;
+    bool tracing() const { return system_cycles >= boot_start + trace_start*SystemHz &&
+                                 system_cycles < boot_start + trace_end*SystemHz; }
 
     uint16_t word(unsigned address) const {
         require(!(address & 1) && address < 524288, "RAM observation outside 512 KiB", system_cycles);
@@ -195,6 +204,25 @@ class Boot {
         track_before(video_transfer, dut.video_req, dut.video_addr, 0, 3, false,
                      "video SDRAM request changed before completion");
         dut.dq_sample = sdram.tick(dut);
+        dut.eval();
+        const unsigned line = dut.debug_native_line, phase = dut.debug_horizontal_phase;
+        const bool native_vblank = !dut.reset_sys && dut.vblank;
+        const bool palette_write = !dut.reset_sys && dut.debug_palette_write;
+        if (demo_mode && palette_write) {
+            ++palette_writes; ++frame_palette_writes;
+            if (tracing()) raster_trace << "{\"kind\":\"palette_write\",\"cycle\":" << system_cycles
+                << ",\"frame\":" << native_epoch << ",\"line\":" << line << ",\"horizontal_phase\":" << phase
+                << ",\"address\":" << dut.debug_palette_address << ",\"data\":" << dut.debug_palette_data
+                << ",\"lanes\":" << unsigned(dut.debug_palette_lanes) << "}\n";
+        }
+        if (demo_mode && dut.capture_pixel) {
+            require(dut.capture_x < 320 && dut.capture_y < 200, "native capture coordinate bounds", system_cycles);
+            const unsigned offset = (dut.capture_y*320 + dut.capture_x)*3, rgb = dut.capture_rgb;
+            for (unsigned c=0;c<3;++c) {
+                const unsigned v=(rgb >> (6-c*3)) & 7;
+                native_picture[offset+c]=(v<<5)|(v<<2)|(v>>1);
+            }
+        }
         dut.clk_sys = 1;
         dut.eval();
         ++system_cycles;
@@ -203,19 +231,48 @@ class Boot {
                     "CPU SDRAM completion duplicated or unrequested", system_cycles);
             cpu_transfer.complete = true;
             if (cpu_transfer.write) ++cpu_writes; else ++cpu_reads;
+            if (cpu_transfer.wait > frame_cpu_max) frame_cpu_max = cpu_transfer.wait;
             if (cpu_transfer.wait > max_cpu_latency) max_cpu_latency = cpu_transfer.wait;
         }
         if (dut.video_ready) {
             require(video_transfer.active && !video_transfer.complete,
                     "video SDRAM completion duplicated or unrequested", system_cycles);
             video_transfer.complete = true;
-            ++video_reads;
+            ++video_reads; ++frame_video_reads;
+            if (video_transfer.wait > frame_video_max) frame_video_max = video_transfer.wait;
             if (video_transfer.wait > max_video_latency) max_video_latency = video_transfer.wait;
         }
+        if (demo_mode && dut.native_frames != observed_frames) {
+            observed_frames = dut.native_frames;
+            if (tracing()) {
+                uint64_t hash=UINT64_C(14695981039346656037);
+                std::array<uint64_t,64> row_hashes;
+                for (unsigned y=0;y<64;++y) {
+                    row_hashes[y]=UINT64_C(14695981039346656037);
+                    for (unsigned x=65;x<245;++x) for (unsigned c=0;c<3;++c) {
+                        const auto value=native_picture[(y*320+x)*3+c];
+                        hash^=value; hash*=UINT64_C(1099511628211);
+                        row_hashes[y]^=value; row_hashes[y]*=UINT64_C(1099511628211);
+                    }
+                }
+                logo_trace << "{\"cycle\":" << system_cycles << ",\"frame\":" << native_epoch
+                    << ",\"capture\":" << observed_frames << ",\"logo_fnv1a64\":\"" << std::hex << hash << std::dec
+                    << "\",\"palette_writes_so_far\":" << frame_palette_writes << ",\"fetches\":" << frame_video_reads
+                    << ",\"max_fetch_wait\":" << frame_video_max << ",\"max_cpu_ram_wait\":" << frame_cpu_max
+                    << ",\"underruns\":" << dut.native_underruns << ",\"row_fnv1a64\":[";
+                for (unsigned y=0;y<64;++y) { if(y) logo_trace << ','; logo_trace << '"' << std::hex << row_hashes[y] << std::dec << '"'; }
+                logo_trace << "]}\n";
+            }
+        }
+        if (native_vblank) { ++native_epoch; frame_palette_writes=0; frame_cpu_max=frame_video_max=0; frame_video_reads=0; }
         concurrent_cycles += dut.cpu_req && dut.video_req;
         if (!dut.reset_sys) {
             if (dut.debug_bus_error && !last_fault) ++faults;
             if (dut.irq_ack && !last_ack) {
+                if (demo_mode && tracing()) raster_trace << "{\"cycle\":" << system_cycles
+                    << ",\"frame\":" << native_epoch << ",\"line\":" << line << ",\"horizontal_phase\":" << phase
+                    << ",\"iack\":" << unsigned(dut.irq_level) << ",\"mfp_vector\":"
+                    << (dut.irq_level==6 ? unsigned(dut.debug_irq_vector) : 0) << "}\n";
                 if (dut.irq_level == 6) ++mfp;
                 if (dut.irq_level == 4) ++vbl;
             }
@@ -301,11 +358,20 @@ class Boot {
     }
 
 public:
-    explicit Boot(const char *path) {
+    explicit Boot(const char *path, const char *disk_path = nullptr) {
         std::ifstream input(path, std::ios::binary);
         require(input.good(), "stock ROM unavailable");
         rom.assign(std::istreambuf_iterator<char>(input), {});
         require(rom.size() == 196608, "stock ROM must be exactly 192 KiB");
+        dut.media_ready=0; dut.media_size=737280;
+        if (disk_path) {
+            std::ifstream disk_input(disk_path, std::ios::binary);
+            require(disk_input.good(), "demo disk unavailable");
+            std::vector<uint8_t> disk{std::istreambuf_iterator<char>(disk_input), {}};
+            require(disk.size() >= 368640 && disk.size() <= 839680 && !(disk.size()&1), "demo disk bounds");
+            for (unsigned i=0;i<disk.size();i+=2) sdram.words[0x40000+i/2]=(uint16_t(disk[i])<<8)|disk[i+1];
+            dut.media_size=disk.size(); dut.media_ready=1; demo_mode=true;
+        }
         dut.clk_sys = dut.clk_pixel = 0;
         dut.reset_sys = dut.reset_pixel = dut.cold_reset = 1;
         dut.rom_ready = 0;
@@ -327,7 +393,13 @@ public:
         std::cout << "physical SDRAM initialized after " << system_cycles << " clocks\n" << std::flush;
     }
 
-    void run(unsigned seconds, const char *prefix) {
+    void run(unsigned seconds, const char *prefix, unsigned start=6, unsigned end=7) {
+        trace_start=start; trace_end=end;
+        if (demo_mode) {
+            raster_trace.open(std::string(prefix)+"-raster.jsonl");
+            logo_trace.open(std::string(prefix)+"-logo.jsonl");
+            require(raster_trace.good() && logo_trace.good(), "demo trace output unavailable");
+        }
         uint64_t next_status = boot_start + SystemHz;
         const uint64_t limit = boot_start + SystemHz * seconds;
         while (system_cycles < limit) {
@@ -340,12 +412,14 @@ public:
         status();
         require(dut.native_frames > 100 && dut.native_underruns == 0,
                 "native low-resolution capture missed frames/rows under SDRAM contention", system_cycles);
+        if (!demo_mode) {
         require(longword(0x420) == 0x752019f3, "EmuTOS did not validate physical RAM", system_cycles);
         require(longword(0x42e) == 0x80000, "EmuTOS did not size physical RAM at 512 KiB", system_cycles);
         require(longword(0x44e) == 0x78000 && dut.screen_base == 0x78000,
                 "EmuTOS framebuffer base is incorrect", system_cycles);
         require(longword(0x4ba) > 1000 && mfp > 1000, "200 Hz timer did not continue during contention", system_cycles);
         require(longword(0x466) > 100 && vbl > 100, "VBL processing stopped during contention", system_cycles);
+        }
         require(cpu_writes > 100000 && video_reads > 100000 && concurrent_cycles > 100000,
                 "CPU and video did not exercise simultaneous shared SDRAM traffic", system_cycles);
         require(complete_frames > 100 && complete_picture.size() == 1280 * 720 * 3,
@@ -365,7 +439,18 @@ public:
             raw.put(sdram.words[i] >> 8);
             raw.put(sdram.words[i]);
         }
-        std::cout << "Stock EmuTOS assembled SDRAM/video boot PASS: " << system_cycles - boot_start
+        if (demo_mode) {
+            std::ofstream metrics(std::string(prefix)+"-metrics.json");
+            metrics << "{\"cycle\":" << system_cycles-boot_start << ",\"bus_faults\":" << faults
+                << ",\"halted\":false,\"native_rgb_frames\":" << dut.native_frames
+                << ",\"native_rgb_underruns\":" << dut.native_underruns << ",\"indexed_underruns\":" << dut.debug_underruns
+                << ",\"committed_palette_writes\":" << palette_writes
+                << ",\"cpu_reads\":" << cpu_reads << ",\"cpu_writes\":" << cpu_writes
+                << ",\"video_reads\":" << video_reads << ",\"max_cpu_latency\":" << max_cpu_latency
+                << ",\"max_video_latency\":" << max_video_latency << ",\"sdram_refreshes\":" << sdram.refreshes << "}\n";
+            require(metrics.good(), "demo metrics output unavailable");
+        }
+        std::cout << (demo_mode ? "Demo diagnostic" : "Stock EmuTOS") << " assembled SDRAM/video boot PASS: " << system_cycles - boot_start
                   << " system clocks, " << pixel_cycles << " independent pixel clocks, "
                   << complete_frames << " complete frames, " << colors.size() << " RGB colors; max CPU/video latency "
                   << max_cpu_latency << '/' << max_video_latency << " clocks; output " << prefix << ".ppm\n";
@@ -375,10 +460,11 @@ public:
 
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
-    require(argc >= 2 && argc <= 4, "usage: boot_memory_tb STOCK_192K_ROM [SECONDS=8] [OUTPUT_PREFIX=emutos-sdram]");
+    require((argc >= 2 && argc <= 4) || argc==7, "usage: boot_memory_tb STOCK_192K_ROM [SECONDS=8] [OUTPUT_PREFIX=emutos-sdram]");
     const unsigned seconds = argc >= 3 ? unsigned(std::strtoul(argv[2], nullptr, 10)) : 8;
     require(seconds >= 6 && seconds <= 30, "boot duration must be 6..30 emulated seconds");
-    Boot boot(argv[1]);
-    boot.run(seconds, argc >= 4 ? argv[3] : "emutos-sdram");
+    Boot boot(argv[1], argc==7 ? argv[4] : nullptr);
+    boot.run(seconds, argc >= 4 ? argv[3] : "emutos-sdram", argc==7 ? unsigned(std::strtoul(argv[5],nullptr,10)) : 6,
+             argc==7 ? unsigned(std::strtoul(argv[6],nullptr,10)) : 7);
     return 0;
 }

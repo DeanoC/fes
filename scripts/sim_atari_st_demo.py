@@ -3,7 +3,9 @@
 """Run an unchanged raw-ST demo disk on actual FX68K/pinned ROM/chipset RTL.
 
 This is a bounded loader diagnostic with model ROM/RAM/disk storage, not a
-physical SDRAM, mailbox, HDMI, or raster-effects test. No demo success oracle is
+physical SDRAM, mailbox, HDMI, or raster-effects test by default.
+--shared-memory selects the existing digital SDRAM/independent pixel-clock
+fixture with a preloaded disk; it does not establish electrical equivalence. No demo success oracle is
 implied. Per-second RAM/PPM snapshots, CPU/FDC trace and disk accesses aid diagnosis.
 Requires Verilator/C++17 and an independently supplied 192 KiB ROM. The default
 ROM pin selects stock EmuTOS192US1.4; --rom-sha256 selects another exact image.
@@ -66,6 +68,17 @@ def disk_geometry(data):
 
 
 def run(args):
+    rtl = list(RTL)
+    wrapper = WRAPPER
+    helpers = list(HELPERS)
+    top = "st_boot_sim_top"
+    if args.shared_memory:
+        top = "st_boot_memory_sim_top"
+        wrapper = PREFIX + CORE + "sim/" + top + ".sv"
+        helpers[1] = PREFIX + CORE + "sim/boot_memory_tb.cpp"
+        rtl += [CORE + "sim/st_memory_sim_top.sv", CORE + "rtl/st_memory.sv",
+                CORE + "rtl/st_video.sv", CORE + "rtl/st_video_adapter.sv",
+                "cores/fes-ramtest/rtl/sdram_addon_port.v", "cores/fes-common/rtl/fes_video_part_direct.v"]
     revision = subprocess.check_output(["git", "rev-parse", args.revision + "^{commit}"], cwd=ROOT, text=True).strip()
     rom = args.rom.read_bytes()
     if len(rom) != 196608 or sha(rom) != args.rom_sha256:
@@ -81,7 +94,7 @@ def run(args):
     source, build = output / "source", output / "build"
     source.mkdir(); build.mkdir()
     identities, selected, differences = {}, {}, {}
-    for relative in [PREFIX + name for name in RTL + DATA] + [WRAPPER]:
+    for relative in [PREFIX + name for name in rtl + DATA] + [wrapper]:
         result = subprocess.run(["git", "show", revision + ":" + relative], cwd=ROOT, capture_output=True)
         if result.returncode and not args.working_tree:
             raise ValueError(f"selected revision lacks compiled input: {relative}")
@@ -97,7 +110,7 @@ def run(args):
         destination = source / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(data)
-    for relative in HELPERS:
+    for relative in helpers:
         data = (ROOT / relative).read_bytes()
         identities[relative] = sha(data)
         destination = source / relative
@@ -108,10 +121,10 @@ def run(args):
     for name in ("microrom.mem", "nanorom.mem"):
         shutil.copyfile(source / PREFIX / CPU / name, build / name)
     archive(output / "frozen-source.zip", source, identities)
-    command = [verilator, "--cc", "--exe", "--build", "-O2", "-j", "2", "--top-module", "st_boot_sim_top"]
+    command = [verilator, "--cc", "--exe", "--build", "-O2", "-j", "2", "--top-module", top]
     command += FLAGS + ["-I" + str(source / PREFIX / "cores/fes-common/generated"), "--Mdir", str(build)]
-    command += [str(source / WRAPPER)] + [str(source / PREFIX / name) for name in RTL]
-    command += [str(source / HELPERS[1]), "-CFLAGS", "-O3 -std=c++17"]
+    command += [str(source / wrapper)] + [str(source / PREFIX / name) for name in rtl]
+    command += [str(source / helpers[1]), "-CFLAGS", "-O3 -std=c++17"]
     record = {"schema": 1, "source_revision": revision, "source_mode": "working-tree diagnostic" if args.working_tree else "selected revision",
               "selected_revision_inputs": selected, "captured_inputs": identities, "working_tree_differences": differences,
               "rom_sha256": sha(rom), "expected_rom_sha256": args.rom_sha256, "original_disk_sha256": sha(disk), "disk_geometry": geometry,
@@ -126,7 +139,7 @@ def run(args):
     print(f"Compiling frozen loader diagnostic at {revision}; dirty inputs={len(differences)}", flush=True)
     with (output / "build.log").open("w") as log:
         subprocess.run(command, cwd=source / PREFIX, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=300)
-    executable = build / "Vst_boot_sim_top"
+    executable = build / ("V" + top)
     record["executable_sha256_before"] = sha(executable.read_bytes())
     microcode_hashes = {name: sha((build / name).read_bytes()) for name in ("microrom.mem", "nanorom.mem")}
     record["runtime_microcode_inputs"] = microcode_hashes
@@ -138,17 +151,28 @@ def run(args):
     invocation = [str(executable), str(output / "etos192us.img"), str(output / "original.st"),
                   str(args.seconds), str(output / "demo"), str(args.key_b_at or 0),
                   str(args.trace_start), str(args.trace_end), str(args.ram_extra_wait)]
+    if args.shared_memory:
+        invocation = [str(executable), str(output / "etos192us.img"), str(args.seconds),
+                      str(output / "demo"), str(output / "original.st"), str(args.trace_start), str(args.trace_end)]
+        record["framebuffer_capture"] = "fixed 720p60 output after Direct part boundaries"
+        record["native_rgb_capture"] = "production capture under shared SDRAM commands and independent 74.25 MHz pixel clock; no analog/electrical or original GLUE equivalence"
+        record["media_fixture"] = "original disk preloaded into separate SDRAM disk buffer; production floppy/DMA/memory RTL; upload/mailbox not exercised"
     record["input_event"] = (None if args.key_b_at is None else
                              {"hid_usage": 5, "press_second": args.key_b_at,
                               "hold_milliseconds": 150})
-    record["consecutive_native_frames"] = "first sixteen complete captures after 6.5 seconds; production capture with model RAM, no original GLUE/border oracle"
+    record["consecutive_native_frames"] = None if args.shared_memory else "first sixteen complete captures after 6.5 seconds; production capture with model RAM, no original GLUE/border oracle"
     record["raster_trace"] = {"start_second": args.trace_start, "end_second": args.trace_end,
                               "events": "IACK/peripheral request starts, sync changes and every committed palette write (including unchanged values)",
                               "pc": "diagnostic prefetch state, not instruction retirement"}
+    if args.shared_memory:
+        record["raster_trace"]["events"] = "IACK (including MFP vector) and every committed palette write (including unchanged values)"
     record["logo_trace"] = "every completed native capture in trace window; FNV-1a-64 RGB crop xywh 65,0,180,64; equality diagnostic, not cryptographic identity"
     record["storage_model"] = {"cpu_ram_wait": "8+(byte_address%7)+ram_extra_wait system clocks",
                                "ram_extra_wait": args.ram_extra_wait, "capture_wait": "12+(byte_address%7)",
                                "shared_arbitration": False}
+    if args.shared_memory:
+        record["storage_model"] = {"shared_arbitration": True, "cpu_video_dma_media": "production st_memory.sv and addon controller",
+                                   "sdram": "digital command/timing model with CAS2, DDIO capture and byte masks; no electrical equivalence"}
     record["horizontal_phase_units"] = "68000 cycles within the native line"
     record["palette_trace"] = "changes after six seconds; first eight changed bundles per native frame, plus complete per-frame counts; model timing only"
     record["run_command"] = invocation
@@ -199,6 +223,7 @@ def main(argv=None):
     parser.add_argument("--trace-start", type=int, help="inclusive simulated second for complete raster/logo tracing")
     parser.add_argument("--trace-end", type=int, help="exclusive simulated second for complete raster/logo tracing")
     parser.add_argument("--ram-extra-wait", type=int, default=0, help="add 0..64 system clocks to each model CPU RAM access; not physical arbitration")
+    parser.add_argument("--shared-memory", action="store_true", help="use the existing shared SDRAM/independent pixel-clock boot fixture; disk preloaded before reset release")
     parser.add_argument("--verilator", default="verilator")
     args = parser.parse_args(argv)
     if len(args.rom_sha256) != 64 or any(c not in "0123456789abcdef" for c in args.rom_sha256):
@@ -213,6 +238,8 @@ def main(argv=None):
         parser.error("--ram-extra-wait must be 0..64")
     if args.key_b_at is not None and not 1 <= args.key_b_at < args.seconds:
         parser.error("--key-b-at must be at least one and less than --seconds")
+    if args.shared_memory and (args.seconds < 6 or args.key_b_at is not None or args.ram_extra_wait):
+        parser.error("--shared-memory requires at least 6 seconds, no key event and no callback RAM delay")
     try:
         return 0 if run(args)["capture_completed"] else 1
     except (OSError, ValueError, subprocess.SubprocessError) as error:

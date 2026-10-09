@@ -295,7 +295,14 @@ Per-capture counters report video-prefetch and CPU RAM latency. Optional
 this probes sensitivity and does not model shared SDRAM arbitration. Run
 `python3 scripts/analyse_atari_st_raster_trace.py OUTPUT --output SUMMARY.json`
 from the FES root after completion to check artifact digests and summarize
-logo equality, connected-bit palette repeats and interrupt positions. A changing
+logo equality, connected-bit palette repeats and interrupt positions. `--shared-memory` instead uses the existing `st_boot_memory_sim_top` fixture:
+the original disk is preloaded into the separate SDRAM buffer before CPU release,
+and the real memory arbiter, addon controller, DDIO digital model, floppy DMA,
+native capture and independent-clock 720p renderer execute together. It does not
+exercise mailbox upload, electrical pad timing or a physical FPGA. This mode
+requires at least six seconds and currently supports menu diagnosis without
+HID selection; callback RAM delays are rejected. The original diskless EmuTOS
+invocation keeps its boot assertions and supplies no media. A changing
 logo is reported as noncanonical, without automatically declaring a visual fault. `--key-b-at SECOND` selects the scroller through the normal
 HID/IKBD path with a 150 ms B press. These are observations of the reduced
 native timing model, not original GLUE/shifter timing equivalence. Per-second

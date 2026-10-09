@@ -5,6 +5,16 @@
 module st_boot_memory_sim_top (
     input wire clk_sys, clk_pixel, cold_reset, reset_sys, reset_pixel,
     output wire initialized,
+    input wire media_ready,
+    input wire [31:0] media_size,
+    output wire debug_palette_write,
+    output wire [23:0] debug_palette_address,
+    output wire [15:0] debug_palette_data,
+    output wire [1:0] debug_palette_lanes,
+    output wire [7:0] debug_irq_vector,
+    output wire [8:0] debug_native_line, debug_horizontal_phase,
+    output wire capture_pixel,
+    output wire [8:0] capture_x, capture_y, capture_rgb,
     output wire rom_req,
     output wire [17:1] rom_addr,
     input wire [15:0] rom_rdata,
@@ -59,7 +69,7 @@ module st_boot_memory_sim_top (
         .irq_ack(irq_ack), .irq_level(irq_level),
         .keyboard(144'd0), .controller_buttons(16'd0), .monochrome(1'b0),
         .mouse_valid(1'b0), .mouse_dx(16'sd0), .mouse_dy(16'sd0), .mouse_buttons(2'd0),
-        .mouse_ready(), .audio_pcm(), .audio_valid(), .media_size(32'd737280), .media_ready(1'b0),
+        .mouse_ready(), .audio_pcm(), .audio_valid(), .media_size(media_size), .media_ready(media_ready),
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data), .media_valid(media_valid),
         .dma_req(dma_req), .dma_addr(dma_addr), .dma_wdata(dma_wdata),
         .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .dma_write(dma_write), .dma_rdata(dma_rdata),
@@ -105,6 +115,20 @@ module st_boot_memory_sim_top (
             video_response <= direct_result;
         end
     end
+    assign debug_palette_write = !reset_sys && system.machine.state == 2'd1 &&
+        system.machine.target == 3'd2 && system.machine.writing &&
+        system.machine.palette_access && !system.machine.cpu_as_n &&
+        system.machine.timeout_halves != 8'd128;
+    assign debug_palette_address = system.machine.address;
+    assign debug_palette_data = system.machine.write_data;
+    assign debug_palette_lanes = system.machine.lanes;
+    assign debug_irq_vector = system.irq_vector;
+    assign debug_native_line = native_line;
+    assign debug_horizontal_phase = system.io.horizontal_cycle;
+    assign capture_pixel = video.native_capture.capture.write_pixel;
+    assign capture_x = video.native_capture.capture.sample_x;
+    assign capture_y = video.native_capture.capture.row;
+    assign capture_rgb = video.native_capture.capture.sample_rgb;
     // Observability does not modify the pinned CPU or supply execution data.
     assign debug_pc = {system.machine.cpu.cpu.excUnit.PcH, system.machine.cpu.cpu.excUnit.PcL};
 endmodule

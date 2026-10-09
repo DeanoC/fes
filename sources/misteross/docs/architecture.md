@@ -1809,7 +1809,12 @@ sealed bitstream.
 `make sim-fes-atari-st` runs the original CPU firmware and focused device,
 SDRAM-command, dual-clock-video and complete-media tests. Optional EmuTOS
 boot tests use a pinned official 1.4 192 KiB US image, supplied separately
-from the blank firmware socket. FX68K source bytes remain immutable; a
+from the blank firmware socket. The FES `scripts/sim_atari_st_demo.py`
+diagnostic optionally reuses that assembled SDRAM/independent-clock fixture
+with an original disk preloaded into the separate media buffer. Simulation-only
+palette-write, MFP-vector and per-native-frame logo traces correlate guest
+raster activity with CPU/video memory latency. Neither the digital SDRAM
+model nor injected callback waits establish electrical FPGA behavior. FX68K source bytes remain immutable; a
 compiler compatibility input may normalize its two simulation-only legacy
 translate-off/on comments without changing RTL assignments or microcode.
 The board producer must qualify the locked Slang/Yosys frontend, HIP route,
