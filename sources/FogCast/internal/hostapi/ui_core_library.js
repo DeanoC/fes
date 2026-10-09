@@ -143,6 +143,7 @@
             typeof c.source_id === 'string' && typeof c.core_id === 'string' && typeof c.label === 'string' &&
             typeof c.library_source_id === 'string' && c.library_source_id && ['supported','demo','experimental'].includes(c.standing) &&
             ['unproduced','available','installed','unavailable'].includes(c.artifact_state) &&
+            (c.video_inventory_error == null || (typeof c.video_inventory_error === 'string' && c.video_inventory_error.trim())) &&
             (!c.package_id || digest(c.package_id)))) throw new Error('Invalid systems catalog.');
         if (requestEpoch === epoch) { state.cores = value.cores; state.catalogOnline = true; state.catalogMessage = ''; }
       } catch (_) {
@@ -267,6 +268,7 @@
       installCore() {
         return mutate(async () => {
           const row = requireCore();
+          if (typeof row.video_inventory_error === 'string' && row.video_inventory_error.trim()) throw new Error(row.video_inventory_error);
           if (row.artifact_state !== 'available' || !digest(row.package_id)) throw new Error('This core has no available package to install.');
           const ref = {source_id:row.source_id,core_id:row.core_id,package_id:row.package_id};
           const value = await request('/api/v1/core-catalog/install', {method:'POST', ...json(ref)});
@@ -442,8 +444,9 @@
         selectOptions(systems, [['','Choose a system'], ...state.cores.map(c => [JSON.stringify([c.source_id,c.core_id]), c.label + ' — ' + c.standing + ' — ' + c.artifact_state + ' (' + c.source_id + ')'])], selected);
         systems.disabled = state.busy || state.loading;
         const row = state.coreRef && state.cores.find(c => c.source_id === state.coreRef.source_id && c.core_id === state.coreRef.core_id);
-        byId('core-system-status').textContent = state.catalogMessage || (row ? row.label + ': ' + row.artifact_state + '. ' + (row.standing === 'experimental' ? 'Experimental; appliance acceptance pending.' : '') : 'Choose a system to install or set up.');
-        byId('core-system-install').disabled = state.busy || state.loading || !state.catalogOnline || !row || row.artifact_state !== 'available';
+        const inventoryError = row && typeof row.video_inventory_error === 'string' ? row.video_inventory_error.trim() : '';
+        byId('core-system-status').textContent = state.catalogMessage || (row ? row.label + ': ' + row.artifact_state + '. ' + (inventoryError ? inventoryError + ' ' : '') + (row.standing === 'experimental' ? 'Experimental; appliance acceptance pending.' : '') : 'Choose a system to install or set up.');
+        byId('core-system-install').disabled = state.busy || state.loading || !state.catalogOnline || !row || row.artifact_state !== 'available' || Boolean(inventoryError);
         byId('core-setup-create').disabled = state.busy || state.loading || !state.catalogOnline || !state.setup;
         const fields = [];
         for (const r of (state.setup ? state.setup.roms : [])) {

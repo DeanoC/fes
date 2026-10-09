@@ -481,7 +481,14 @@ bar; missing logos keep the existing bold/regular text labels. The visible page 
 and a cheap next window prefetch those
 handles asynchronously; missing metadata still uses the placeholder. After the host attract `idle_seconds` with no pad input, the
 kit shows an attract stage (title chrome plus backdrop/cover artwork)
-and returns to the same shelf and focus on any input. When the staged title has
+and returns to the same shelf and focus on any input. When the host is
+unreachable and local play is enabled, that stage is built from playable
+kit-local SMS rows instead: a present browse-only cartridge that is not
+host-eligible. Those rows have no stills, so the stage shows the title
+after the default 60 second idle, and South launches it through the
+local-control socket. A disconnected host playlist with no such row does
+not arm attract. When the host returns, its attract playlist replaces the
+local one. When the staged title has
 a distinct `marquee_id` or attract `marquee` handle, a banner strip paints
 under the header alongside the still or motion preview; a marquee-only row
 keeps today's still fallback and hides the duplicate strip. When the staged title has

@@ -104,6 +104,48 @@ func TestCoreLibraryInstallAndOfflineBrowse(t *testing.T) {
 	}
 }
 
+func TestCoreLibraryVideoInventoryErrorBlocksInstall(t *testing.T) {
+	posts := 0
+	pid := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/v1/core-catalog":
+			json.NewEncoder(w).Encode(map[string]any{"cores": []any{map[string]any{
+				"source_id": "pub", "library_source_id": "library", "core_id": "fes.coleco",
+				"package_id": pid, "label": "Coleco", "standing": "supported", "artifact_state": "available",
+				"video_inventory_error": "video part inventory is unavailable",
+			}}})
+		case "/api/v1/core-catalog/install":
+			posts++
+			http.Error(w, "inventory", 500)
+		default:
+			http.Error(w, "unexpected", 500)
+		}
+	}))
+	defer server.Close()
+	a := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	a.ctx = context.Background()
+	a.mu.Lock()
+	a.openCoreLibraryLocked()
+	a.mu.Unlock()
+	waitCoreLibrary(t, a)
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if len(a.coreLibrary.Cores) != 1 || a.coreLibrary.Cores[0].VideoInventoryError == "" {
+		t.Fatalf("inventory error dropped: %+v", a.coreLibrary.Cores)
+	}
+	rows := a.coreLibraryRowsLocked()
+	if len(rows) < 2 || !strings.Contains(rows[1].Name, "video part inventory is unavailable") {
+		t.Fatalf("row label %q", rows[1].Name)
+	}
+	a.coreLibrary.Index = 1
+	a.handleCoreLibraryLocked(CmdSelect)
+	if a.coreLibrary.Ref != nil || posts != 0 || a.coreLibrary.Status != "video part inventory is unavailable" {
+		t.Fatalf("install offered ref=%v posts=%d status=%q", a.coreLibrary.Ref, posts, a.coreLibrary.Status)
+	}
+}
+
 func TestCoreLibraryROMCreationKeepsSourceAndDoesNotLaunch(t *testing.T) {
 	const pid = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	const mid = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"

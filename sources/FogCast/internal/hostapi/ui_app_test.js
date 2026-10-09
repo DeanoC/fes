@@ -1047,6 +1047,46 @@ test('reversing a backend choice drops the superseded source id', async () => {
   assert.equal(playChoiceFor(fpga, [poisoned], picks, [fpga, emu]).needsChoice, undefined);
 });
 
+test('replacing a persisted backend drops its source id', async () => {
+  const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  let saved = emu.id;
+  const fetchImpl = async (requestPath, options) => {
+    const pathOnly = String(requestPath || '').split('?')[0];
+    if (pathOnly === '/api/v1/games') return jsonResponse({ games: [fpga, emu] });
+    if (pathOnly === `/api/v1/games/${fpga.id}`) return jsonResponse(fpga);
+    if (pathOnly === `/api/v1/games/${emu.id}`) return jsonResponse(emu);
+    if (pathOnly === '/api/v1/library/titles') return jsonResponse({ titles: [dataStormTitle()] });
+    if (pathOnly === '/api/v1/library/edition-preferences' && options && options.method === 'PUT') {
+      saved = JSON.parse(options.body).game_id;
+      return jsonResponse({ query: 'Data Storm', platform: 'sms', game_id: saved });
+    }
+    if (pathOnly === '/api/v1/library/edition-preferences') {
+      return jsonResponse({ preferences: [{ query: 'Data Storm', platform: 'sms', game_id: saved }] });
+    }
+    return jsonResponse({});
+  };
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadCatalog('');
+  await controller.selectGame(fpga.id);
+  await controller.chooseBackend(fpga.id);
+  await new Promise(resolve => setImmediate(resolve));
+  await controller.ensurePlayContext();
+  const picks = controller.getState().playPicks;
+  assert.equal(picks[dataStormEmu], undefined);
+  assert.equal(picks['data storm'], fpga.id);
+  const other = dataStormPlayRow('other-game', 'fpga_native', { title: 'Other Game' });
+  const poisoned = {
+    title_id: dataStormEmu,
+    system: 'sms',
+    options: [
+      { source_game_id: dataStormEmu, execution: 'native_emu', available: true, host_local: true },
+      { source_game_id: 'other-game', execution: 'fpga_native', available: true, host_local: false },
+    ],
+  };
+  assert.equal(playChoiceFor(other, [poisoned], picks, [other, emu]).needsChoice, true);
+});
+
 test('a household backend pick wins when the title id equals a source id', async () => {
   const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
   const emu = dataStormPlayRow(dataStormEmu, 'native_emu');

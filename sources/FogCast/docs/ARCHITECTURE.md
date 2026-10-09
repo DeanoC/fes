@@ -2043,7 +2043,12 @@ stays a cheap nearest blit. Missing or still-loading art paints a theme-tinted
 placeholder (lettermark when missing; a distinct panel while loading) instead
 of a flat system fill. After host `idle_seconds` from
 `GET /api/v1/library/attract` with no pad input, the kit paints attract through
-`DecodeStill` and `fbgrid.PaintAttract`. Video-only rows stay dropped because
+`DecodeStill` and `fbgrid.PaintAttract`. When that host is unreachable and
+local play is enabled, attract uses playable kit-local SMS rows (a present
+browse-only cartridge that is not host-eligible) after the default 60 second
+idle. Those rows have no stills. South launches the current row through the
+local-control socket. A disconnected host playlist with no such row does not
+arm attract, and a later host playlist replaces the local one. Video-only rows stay dropped because
 the CGO-free kit binary does not decode H.264. A distinct attract `marquee` or
 presentation `marquee_id` paints a banner strip under the header alongside the
 still, motion preview, or 2×2 wall; a marquee-only row keeps the still

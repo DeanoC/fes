@@ -18,10 +18,11 @@ type CoreReference struct {
 }
 type AvailableCore struct {
 	CoreReference
-	Label         string `json:"label"`
-	System        string `json:"system"`
-	Standing      string `json:"standing"`
-	ArtifactState string `json:"artifact_state"`
+	Label               string `json:"label"`
+	System              string `json:"system"`
+	Standing            string `json:"standing"`
+	ArtifactState       string `json:"artifact_state"`
+	VideoInventoryError string `json:"video_inventory_error,omitempty"`
 }
 type SetupROM struct {
 	ID         string `json:"id"`

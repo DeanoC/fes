@@ -611,6 +611,17 @@
     });
   }
 
+  function titleForPreference(titles, gameID) {
+    if (!gameID || !Array.isArray(titles)) return null;
+    for (const title of titles) {
+      if (!title) continue;
+      if (title.title_id === gameID) return title;
+      const options = Array.isArray(title.options) ? title.options : [];
+      if (options.some(option => option && option.source_game_id === gameID)) return title;
+    }
+    return null;
+  }
+
   function titleForGame(titles, game) {
     if (!game || !Array.isArray(titles)) return null;
     for (const title of titles) {
@@ -2195,6 +2206,15 @@
           const key = canonicalEditionQuery(pref.query);
           if (key) fetched[key] = gameID;
           fetched[gameID] = gameID;
+          const ownedTitle = titleForPreference(state.libraryTitles, gameID);
+          if (ownedTitle && typeof ownedTitle.title_id === 'string' && ownedTitle.title_id
+              && !pendingPickRevisions.has(ownedTitle.title_id)
+              && !titleChoiceKeys.has(ownedTitle.title_id)) {
+            const owned = [];
+            if (key) owned.push(key);
+            if (!owned.includes(gameID)) owned.push(gameID);
+            titleChoiceKeys.set(ownedTitle.title_id, owned);
+          }
         });
         confirmedPicks = Object.fromEntries(Object.entries(confirmedPicks)
           .filter(([key]) => confirmedLocalKeys.has(key)));
