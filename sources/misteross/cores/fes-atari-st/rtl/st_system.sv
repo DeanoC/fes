@@ -90,7 +90,7 @@ module st_system #(parameter integer ENABLE_FLOPPY_WRITE = 0) (
         .debug_bus_error(debug_bus_error), .debug_overlay(debug_overlay), .debug_halted(debug_halted)
     );
     st_io #(.ENABLE_FLOPPY_WRITE(ENABLE_FLOPPY_WRITE)) io (
-        .clk(clk_sys), .reset(exp_reset), .cold_reset(cold_reset), .req(bus_req), .addr(exp_addr),
+        .clk(clk_sys), .reset(exp_reset), .cold_reset(cold_reset), .cpu_cycle_ce(exp_phi2), .req(bus_req), .addr(exp_addr),
         .write(exp_write), .wdata(exp_wdata), .byte_enable(exp_byte_enable),
         .selected(io_selected), .ack(io_ack), .rdata(io_rdata),
         .irq(io_irq), .irq_vectored(io_vectored), .irq_vector(irq_vector),

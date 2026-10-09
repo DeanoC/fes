@@ -1756,14 +1756,31 @@ Fixed per-mode fetch windows, synchronous cache reads and ownership tags
 retain their original plane-capture edges. All modes feed the same shared
 RGB888 socket through two registered boundaries; Direct/Scanlines archives
 remain independently sealed against the exact shell.
+Current-line RGB and cached next-line lookup bounds use constant comparisons
+before mode selection, avoiding a next-line carry chain in the lookup predicate.
 
 `st_io.sv` remains a reduced native timing model, independent of fixed HDMI.
+The CPU phase-2 enable advances one horizontal counter, with line counts
+driving VBL: 313×512 PAL, 263×508 NTSC, and 501×224 monochrome CPU cycles.
+The retained nominal 8 MHz CPU therefore gives approximately
+49.920/59.878/71.286 Hz rather than rounded integer frame rates. MFP crystal
+timing remains independent at 2.4576 MHz.
 Ordinary PAL DE spans lines 63–262 and cycles 56–375; NTSC spans lines
-34–233 and cycles 52–371. Line/frame modes are sampled at their boundaries.
+34–233 and cycles 52–371. DE line/frame modes are sampled at their boundaries.
+Horizontal DE bounds use constant comparisons before mode selection to avoid
+a mode-dependent carry chain into native pixel capture.
+Color line length samples sync separately at STF WS1 cycle 54, so a bottom
+pulse restored early on the following line preserves the native frame period.
+Both DE edges reach the MFP Timer B input 24 CPU cycles later, following
+Hatari v2.5.0 `TIMERB_VIDEO_CYCLE_OFFSET`; pixel capture uses undelayed DE.
 Brief sync/resolution writes therefore do not add Timer B events mid-line.
-This does not reproduce original GLUE sample positions or opened borders.
+The STF WS1 bottom-stop sample at cycle 502 uses live sync: opposite mode on
+the last ordinary color line extends DE to PAL line 309 or NTSC line 259,
+then clears at frame rollover. Timer B and the reduced video counter see
+these extra lines. RGB capture still crops to the ordinary 320×200 area;
+horizontal/top borders and the other exact GLUE sampling positions are absent.
 Native capture prefetch is also not a cycle-exact MMU/shifter implementation.
-Monochrome timing retains its existing reduced 400-line model. No shared ABI,
+Monochrome DE spans lines 34–433 and cycles 4–163. No shared ABI,
 video socket layout, physical fence or generated contract changes here.
 
 The `fes.atari-st-video.parts/2` physical layout retains the 93 original

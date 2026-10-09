@@ -1,0 +1,91 @@
+{
+  "source_revision": "dbf3fc1c8886e84487089673fb935e291c2e458b",
+  "classification": "exact FPGA and prepared Direct-part bounded BIG diagnostic with previously qualified geometry host/runtime; not full current-image acceptance",
+  "hardware_execution": true,
+  "demo_compatibility_asserted": false,
+  "host_runtime_source_revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+  "diagnostic_image_sha256": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+  "package_id": "87cada90f8da6093ba287d10bfd2d372e0f2071882064a28f713d52094e153a6",
+  "archive": {
+    "path": "core.fcore",
+    "sha256": "250aef9a70c44f38df1274f2b2a4e661e1caab38707f9e37591758c57cf66ce4",
+    "size": 20946944
+  },
+  "video_parts": {
+    "index_sha256": "00428968c784a3445a13f29532af9f5424362985cebc04cfaa524b87465abd14",
+    "parts": [
+      {
+        "archive_path": "87cada90f8da6093ba287d10bfd2d372e0f2071882064a28f713d52094e153a6/fa29033bdb3b45e33bbd3d51efe2ed51c1a120475fe348e968ed44bf3b7a531e.tar",
+        "archive_sha256": "74a31c8f033a9d85490705cc9d3f8ae69914ff848b8ac73cc6c0be43671e39ec",
+        "archive_size": 3594240,
+        "part_id": "fa29033bdb3b45e33bbd3d51efe2ed51c1a120475fe348e968ed44bf3b7a531e",
+        "profile": "direct"
+      },
+      {
+        "archive_path": "87cada90f8da6093ba287d10bfd2d372e0f2071882064a28f713d52094e153a6/006b392928b7a6dbf8c3683352fd4339b0c54124a4a6841ff2f75d44be7338de.tar",
+        "archive_sha256": "487601a2a0ca673d3ac9f1ec3c19d45b52470c0b6066915b7ee78f25badf2eb1",
+        "archive_size": 3594240,
+        "part_id": "006b392928b7a6dbf8c3683352fd4339b0c54124a4a6841ff2f75d44be7338de",
+        "profile": "scanlines"
+      }
+    ]
+  },
+  "active_composition": {
+    "composition_id": "dc6f8c8ca5629dd193f987f9d201c8feab3e725abf38cef82b79d94732a8db97",
+    "package_id": "87cada90f8da6093ba287d10bfd2d372e0f2071882064a28f713d52094e153a6",
+    "layout": "fes.atari-st-video.parts/1",
+    "parts": [
+      {
+        "role": "video",
+        "part_id": "fa29033bdb3b45e33bbd3d51efe2ed51c1a120475fe348e968ed44bf3b7a531e"
+      }
+    ],
+    "shell_sha256": "3347c96492bcac5302c21ad62e9a992b951ed81556d0c5babb51efe76b991a81",
+    "payload_sha256": "aa887043fd0879798fb248ba63657d991ba33db690589e64bfbc757f4c3ebb84",
+    "payload_size": 3585302
+  },
+  "unchanged_rom_sha256": "5771f9fd1391d3ae0b513ab3fd67aec30fb1843753e7e0345f92615e72c36797",
+  "unchanged_original_disk_sha256": "608c4beff1780552e8ae6ee5a1efff27198fb6a3ca6274597f1cb528c3970edb",
+  "menu_capture_seconds": 12,
+  "menu_capture_sha256": "9f559f87ff80ec52f5901b56d3c4e98929543e1fad5944aa0ecd6ef27388bc81",
+  "menu_nonblack_frames": 717,
+  "canonical_logo_hash": "565682dc6e180d169fc61974e28bce983777928aec96e308cd300dfbd67b0b61",
+  "canonical_logo_frames": 711,
+  "noncanonical_input_frame_indices": [
+    151,
+    152,
+    153,
+    461,
+    462,
+    463
+  ],
+  "scroller_capture_sha256": "29d32e225ee085f30c8145519fd1e371353b8142005ec3452da89e8e0bcb15c2",
+  "rainbow_scroller_visually_verified": true,
+  "audio": {
+    "sample_rate": 48000,
+    "channels": 2,
+    "frames": 479997,
+    "peak_abs": 29440,
+    "rms": 11235.189746217193,
+    "saturated_samples": 0,
+    "sha256": "97b3a2b89efae1d8d32469f06698ae9325af312b1cc54768e630ddd65f49527a",
+    "fidelity_asserted": false
+  },
+  "restoration": {
+    "image_sha256": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+    "target_ready": true,
+    "target_state": "idle",
+    "lease_state": "free",
+    "normal_host_active": "active",
+    "normal_autostart": "enabled",
+    "normal_library_populated": true,
+    "menu_titles_visually_verified": 29,
+    "owner_config_unchanged": true,
+    "private_container_removed": true,
+    "private_credential_removed": true
+  },
+  "remaining": [
+    "rare palette anomaly appears in two three-frame bursts",
+    "opened-border rendering, later demo sections, audio fidelity and full current-image acceptance"
+  ]
+}

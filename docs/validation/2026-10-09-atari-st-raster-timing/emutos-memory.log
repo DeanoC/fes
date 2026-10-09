@@ -1,0 +1,13 @@
+Implementation source: e88ac743670ca05589993404e5fa235df512a431
+Stock diskless EmuTOS 192US 1.4 SHA-256: 8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc
+physical SDRAM initialized after 13153 clocks
+assembled seconds=1 pc=fc0508 bus=fc0508 phystop=80000 screen=78000 memvalid=752019f3 hz200=174 frclock=56 CPU R/W=165086/51520 video R=943772 refreshes=133568 faults=4 MFP/VBL=342/56 native frames/skipped/underruns=58/0/0 indexed underruns=0
+assembled seconds=2 pc=fcc400 bus=f0e phystop=80000 screen=78000 memvalid=752019f3 hz200=374 frclock=116 CPU R/W=304177/137263 video R=1901218 refreshes=267133 faults=4 MFP/VBL=563/116 native frames/skipped/underruns=118/0/0 indexed underruns=0
+assembled seconds=3 pc=fcc400 bus=f0c phystop=80000 screen=78000 memvalid=752019f3 hz200=574 frclock=176 CPU R/W=317045/146035 video R=2858661 refreshes=400699 faults=4 MFP/VBL=763/176 native frames/skipped/underruns=178/0/0 indexed underruns=0
+assembled seconds=4 pc=fc0506 bus=f12 phystop=80000 screen=78000 memvalid=752019f3 hz200=774 frclock=236 CPU R/W=329867/154774 video R=3816106 refreshes=534264 faults=4 MFP/VBL=963/236 native frames/skipped/underruns=238/0/0 indexed underruns=0
+assembled seconds=5 pc=fc0506 bus=fd3c14 phystop=80000 screen=78000 memvalid=752019f3 hz200=974 frclock=296 CPU R/W=422913/258622 video R=4773552 refreshes=667829 faults=4 MFP/VBL=1163/296 native frames/skipped/underruns=298/0/0 indexed underruns=0
+assembled seconds=6 pc=fc0506 bus=7bc6 phystop=80000 screen=78000 memvalid=752019f3 hz200=1174 frclock=356 CPU R/W=692165/507919 video R=5730998 refreshes=801394 faults=4 MFP/VBL=1363/356 native frames/skipped/underruns=358/0/0 indexed underruns=0
+assembled seconds=7 pc=fd3c18 bus=fd3c18 phystop=80000 screen=78000 memvalid=752019f3 hz200=1374 frclock=416 CPU R/W=812509/610457 video R=6688444 refreshes=934959 faults=4 MFP/VBL=1563/416 native frames/skipped/underruns=418/0/0 indexed underruns=0
+assembled seconds=8 pc=fd3c18 bus=fd3c1c phystop=80000 screen=78000 memvalid=752019f3 hz200=1574 frclock=476 CPU R/W=931412/711765 video R=7648000 refreshes=1068525 faults=4 MFP/VBL=1763/476 native frames/skipped/underruns=478/0/0 indexed underruns=0
+assembled seconds=8 pc=fd3c18 bus=fd3c1c phystop=80000 screen=78000 memvalid=752019f3 hz200=1574 frclock=476 CPU R/W=931412/711765 video R=7648000 refreshes=1068525 faults=4 MFP/VBL=1763/476 native frames/skipped/underruns=478/0/0 indexed underruns=0
+Stock EmuTOS assembled SDRAM/video boot PASS: 417792000 system clocks, 594018699 independent pixel clocks, 479 complete frames, 3 RGB colors; max CPU/video latency 63/64 clocks; output /home/deano/.codex/worktrees/f91e/fes/out/dev/atari-st-raster-timing/emutos-corrected.ppm

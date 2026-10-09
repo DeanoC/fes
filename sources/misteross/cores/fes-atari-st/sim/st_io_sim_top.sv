@@ -2,7 +2,7 @@
 // Focused motherboard-I/O shell. Its clock remains above the real 2.4576 MHz
 // MFP crystal enable; scaling the system clock does not change timer rates.
 module st_io_sim_top (
-    input wire clk, reset, req, write,
+    input wire clk, reset, req, write, cpu_cycle_ce,
     input wire [23:1] addr,
     input wire [15:0] wdata,
     input wire [1:0] byte_enable,
@@ -45,8 +45,9 @@ module st_io_sim_top (
     output wire [7:0] floppy_port_a
 );
     wire [38:0] unused_write;
-    st_io #(.SYSTEM_CLOCK_HZ(5_222_400)) io (
-        .clk(clk), .reset(reset), .cold_reset(reset), .req(req), .addr(addr), .write(write),
+    wire unused_native_display;
+    st_io #(.SYSTEM_CLOCK_HZ(52_224_000)) io (
+        .clk(clk), .reset(reset), .cold_reset(reset), .cpu_cycle_ce(cpu_cycle_ce), .req(req), .addr(addr), .write(write),
         .media_frozen(1'b0), .media_write_req(unused_write[0]), .media_write_addr(unused_write[19:1]), .media_write_data(unused_write[35:20]),
         .media_write_ready(1'b0), .media_write_busy(unused_write[36]), .media_changed(unused_write[37]), .dma_write(unused_write[38]), .dma_rdata(16'd0),
         .wdata(wdata), .byte_enable(byte_enable), .selected(selected),
@@ -61,9 +62,10 @@ module st_io_sim_top (
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data),
         .media_valid(media_valid), .dma_req(dma_req), .dma_addr(dma_addr),
         .dma_wdata(dma_wdata), .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready),
-        .vblank(vblank), .hblank(hblank), .native_display(timer_b_level), .native_line(display_line)
+        .vblank(vblank), .hblank(hblank), .native_display(unused_native_display), .native_line(display_line)
     );
+    assign timer_b_level = io.timer_b_display_delay[23];
     assign timer_ce_level = io.timer_ce;
-    assign display_phase = io.horizontal_phase;
+    assign display_phase = {23'd0, io.horizontal_cycle};
     assign floppy_port_a = io.port_a;
 endmodule

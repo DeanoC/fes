@@ -1,0 +1,23 @@
+{
+  "hatari_executable_sha256": "f69ad74331ec28b8121c94538231148fc150b0c7945340aa0ff1dca8c7793e0f",
+  "trace_sha256": "824758727cc4df7f492b1713da9db7ec7355900b3023dda4b7d0b24f08f49f1d",
+  "rom_sha256": "5771f9fd1391d3ae0b513ab3fd67aec30fb1843753e7e0345f92615e72c36797",
+  "disk_sha256": "608c4beff1780552e8ae6ee5a1efff27198fb6a3ca6274597f1cb528c3970edb",
+  "frame_cycles": 160256,
+  "bottom_removal_frames": 3,
+  "settings": {
+    "machine": "ST",
+    "ram_kib": 512,
+    "cpu_mhz": 8,
+    "cpu_exact": true,
+    "rom_patches": false,
+    "disk_readonly": true,
+    "fast_boot": false,
+    "fast_fdc": false,
+    "blitter": false
+  },
+  "reference_sources": [
+    "https://github.com/hatari/hatari/blob/v2.5.0/src/video.c",
+    "https://github.com/hatari/hatari/blob/v2.5.0/src/includes/video.h"
+  ]
+}

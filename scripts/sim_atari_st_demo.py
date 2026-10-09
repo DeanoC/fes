@@ -142,6 +142,9 @@ def run(args):
     record["input_event"] = (None if args.key_b_at is None else
                              {"hid_usage": 5, "press_second": args.key_b_at,
                               "hold_milliseconds": 150})
+    record["consecutive_native_frames"] = "first sixteen complete captures after 6.5 seconds; production capture with model RAM, no original GLUE/border oracle"
+    record["raster_trace"] = "IACK and MMIO request starts / sync changes between six and seven seconds; bounded native coordinates, diagnostic prefetch PC"
+    record["horizontal_phase_units"] = "68000 cycles within the native line"
     record["palette_trace"] = "changes after six seconds; first eight changed bundles per native frame, plus complete per-frame counts; model timing only"
     record["run_command"] = invocation
     process = subprocess.Popen(invocation, cwd=build, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)

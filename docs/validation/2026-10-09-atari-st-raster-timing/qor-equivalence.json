@@ -1,0 +1,21 @@
+{
+  "gold_revision": "e88ac743670ca05589993404e5fa235df512a431",
+  "gate_revision": "27b85008ffa2d6887d05c24c5de66cb87b7c541b",
+  "source_path": "sources/misteross/cores/fes-atari-st/rtl/st_io.sv",
+  "gold_sha256": "e694303961daaa0b67e42737e876f18ff97c4a18f97f4512973c00c9cf2c3be0",
+  "gate_sha256": "611236fab3e72bf975e2d92f50398fab6da0d1afadfa117e5b3561ce1a451175",
+  "combined_formal_input_sha256": "e7bfaacf83687f75e464461d636eee19993a4c44fa12f9a8d02babcf7722faf8",
+  "yosys_binary_sha256": "2a2eabbc27be64fc5b1ed73f021356f5402555966627f18410c13203aeb0b0c9",
+  "proven_equivalence_points_per_configuration": 768,
+  "unproven_points": 0,
+  "floppy_write_configurations": [
+    0,
+    1
+  ],
+  "scope": "st_io state/output logic; unchanged peripheral cells matched with identical connections; no renderer or CPU rewrite",
+  "capture_source_revision": "e88ac743670ca05589993404e5fa235df512a431",
+  "capture_inputs_unchanged_except": [
+    "sources/misteross/cores/fes-atari-st/rtl/st_io.sv"
+  ],
+  "hardware_execution": false
+}

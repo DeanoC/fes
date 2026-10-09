@@ -1,0 +1,19 @@
+Hatari v2.5.0; independently run ST/512K/8MHz, exact CPU, original TOS 1.00/BIG; VBL 2000..2003
+sync=0x00 video_cyc_w=134272 line_cyc_w=128 @ nHBL=262/video_hbl_w=262 pc=bbf4 instr_cyc=20
+detect remove bottom
+sync=0x02 video_cyc_w=134672 line_cyc_w=16 @ nHBL=263/video_hbl_w=263 pc=bc0c instr_cyc=20
+HBL 310 cyc=68 detect vsync=on (force vblank=on)
+VBL 2001 video_cyc=64 pending_cyc=0 vbl_cycles=160256
+VBL=2001 clock=320587000 e_clock_jitter=0
+sync=0x00 video_cyc_w=134276 line_cyc_w=132 @ nHBL=262/video_hbl_w=262 pc=bbf4 instr_cyc=20
+detect remove bottom
+sync=0x02 video_cyc_w=134676 line_cyc_w=20 @ nHBL=263/video_hbl_w=263 pc=bc0c instr_cyc=20
+HBL 310 cyc=56 detect vsync=on (force vblank=on)
+VBL 2002 video_cyc=64 pending_cyc=0 vbl_cycles=160256
+VBL=2002 clock=320747256 e_clock_jitter=4
+sync=0x00 video_cyc_w=134272 line_cyc_w=128 @ nHBL=262/video_hbl_w=262 pc=bbf4 instr_cyc=20
+detect remove bottom
+sync=0x02 video_cyc_w=134672 line_cyc_w=16 @ nHBL=263/video_hbl_w=263 pc=bc0c instr_cyc=20
+HBL 310 cyc=60 detect vsync=on (force vblank=on)
+VBL 2003 video_cyc=64 pending_cyc=0 vbl_cycles=160256
+VBL=2003 clock=320907512 e_clock_jitter=8

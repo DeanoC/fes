@@ -25,12 +25,13 @@ struct Demo {
     std::vector<unsigned char> completed_native_picture;
     uint64_t cycles=0,writes=0,faults=0,vbl=0,hbl=0,mfp=0,dma=0,media=0;
     uint32_t last_media=UINT32_MAX,last_fdc=UINT32_MAX;
-    bool last_fault=false,last_ack=false;
+    bool last_fault=false,last_ack=false,last_io=false;
+    unsigned consecutive_captures=0, last_sync=0;
     std::array<unsigned,16> last_palette{};
     uint64_t native_frames=0,palette_changes=0,palette_frame_changes=0,max_palette_frame_changes=0;
     unsigned palette_frame_samples=0;
     std::string prefix;
-    std::ofstream sectors,trace,fdc,fault_trace,palette_trace;
+    std::ofstream sectors,trace,fdc,fault_trace,palette_trace,raster_trace;
     static std::vector<uint8_t> read(const char *path) {
         std::ifstream input(path,std::ios::binary);check(input.good(),"input unavailable");
         return {std::istreambuf_iterator<char>(input),{}};
@@ -49,7 +50,8 @@ struct Demo {
         sectors.open(prefix+"-disk-access.jsonl");trace.open(prefix+"-trace.jsonl");fdc.open(prefix+"-fdc.jsonl");
         fault_trace.open(prefix+"-faults.jsonl");
         palette_trace.open(prefix+"-palette.jsonl");
-        check(sectors.good()&&trace.good()&&fdc.good()&&fault_trace.good()&&palette_trace.good(),"trace output unavailable");dut.eval();
+        raster_trace.open(prefix+"-raster.jsonl");
+        check(sectors.good()&&trace.good()&&fdc.good()&&fault_trace.good()&&palette_trace.good()&&raster_trace.good(),"trace output unavailable");dut.eval();
     }
     void storage() {
         if(dut.reset){rp={};mp={};dp={};cp={};dut.rom_ready=0;dut.ram_ready=0;dut.media_valid=0;dut.dma_ready=0;dut.capture_ready=0;return;}
@@ -110,7 +112,26 @@ struct Demo {
             native_picture[offset+1]=expand((native_rgb>>3)&7);
             native_picture[offset+2]=expand(native_rgb&7);
         }
-        if(dut.capture_frames!=completed_before)completed_native_picture=native_picture;
+        if(dut.capture_frames!=completed_before){
+            completed_native_picture=native_picture;
+            if(cycles>=13*Hz/2 && consecutive_captures<16){
+                std::ofstream image(prefix+"-consecutive-"+std::to_string(consecutive_captures++)+"-native.ppm",std::ios::binary);
+                image<<"P6\n320 200\n255\n";
+                image.write(reinterpret_cast<const char*>(native_picture.data()),native_picture.size());
+            }
+        }
+        // A bounded bus trace locates timer programming and mode writes in
+        // native coordinates. It records each request start, never repeated
+        // held requests; the PC remains diagnostic prefetch state.
+        if(cycles>=6*Hz && cycles<7*Hz){
+            const bool ack=dut.irq_ack&&!last_ack;
+            const bool io=dut.debug_io_req&&!last_io&&dut.exp_write;
+            if(ack||io||dut.sync_mode!=last_sync) raster_trace<<"{\"cycle\":"<<cycles<<",\"frame\":"<<native_frames
+                <<",\"line\":"<<native_line<<",\"horizontal_phase\":"<<horizontal_phase
+                <<",\"pc\":"<<dut.debug_pc<<",\"iack\":"<<(ack?unsigned(dut.irq_level):0)
+                <<",\"sync_mode\":"<<unsigned(dut.sync_mode)<<",\"write_address\":"<<(io?dut.exp_addr*2:0)<<",\"write_data\":"<<(io?dut.exp_wdata:0)<<"}\n";
+        }
+        last_io=dut.debug_io_req; last_sync=dut.sync_mode;
         if(native_vblank){
             if(cycles>=6*Hz){
                 palette_trace<<"{\"kind\":\"frame\",\"cycle\":"<<cycles<<",\"frame\":"<<native_frames
