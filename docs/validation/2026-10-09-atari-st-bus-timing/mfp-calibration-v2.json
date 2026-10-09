@@ -1,0 +1,500 @@
+{
+  "source_base": "9b424997b5c06cb4f333b84ac65f9e9606f02450",
+  "captured_input_sha256": {
+    "scripts/atari_st_demo_sim.cpp": "2c1c5d93421507cffc1a493180564cb16b7e58f9094899d86622e840e09e2a4d",
+    "scripts/calibrate_mfp.cpp": "941f48b61e206989f87a10ec08d8d287a2bd1f8d08ad492f3fa9c9700faca936",
+    "sources/misteross/cores/fes-zx81/expansions/zonx_ay.v": "7e5e3044628cb372c4dccea780c3bf046cef68032b52bcdea736a0bfe04b91de",
+    "sources/misteross/cores/fes-common/generated/fes_video_part.vh": "322cf3e10fb5465deadfc68de2af1e54768eef9b7b53c6be04c9d7a3532c99ab",
+    "sources/misteross/cores/fes-common/rtl/fx68k/uaddrPla.sv": "07ceb3b1fbbd74f255c2a909151fe5efd38a575ba4f6aa47c6208050d2e27326",
+    "sources/misteross/cores/fes-common/rtl/fx68k/fx68kAlu.sv": "3f22006cbdb8cb661e5f54cc779f79bb697b587c86d586103478703fca38bcce",
+    "sources/misteross/cores/fes-common/rtl/fx68k/microrom.mem": "9d13082be0cf4b04bff887e6da23de84f9f2ee4321f3a2576b4f9540615dece6",
+    "sources/misteross/cores/fes-common/rtl/fx68k/nanorom.mem": "b3998009fb10605e8468cddf22fdd799a9792ba86f449de2e30615cfcefbeece",
+    "sources/misteross/cores/fes-common/rtl/fx68k/fx68k.sv": "a718bb869a8a969dbdda89facd76f8621f655f8a84e7afa9551b2785eee5656a",
+    "sources/misteross/cores/fes-atari-st/rtl/st_native_low_video.sv": "51b8e4d4910d073b80857f5beb8142d13c298e96abbc8e98056365a6fb86dd9c",
+    "sources/misteross/cores/fes-atari-st/rtl/st_acia.sv": "c2cd7123a452cdbfa7adc0963adbe1abe0d35a55de97a6e841beefd89a8f1758",
+    "sources/misteross/cores/fes-atari-st/rtl/st_floppy.sv": "cc9982f03e9a9b0e0497d25f5d26b4aa9c5da74ec7d2e3740fd33d58eace864b",
+    "sources/misteross/cores/fes-atari-st/rtl/st_mfp.sv": "99be49fddf8abee2881a0dc7bb686f9c54b50b752b98c81e963e9d09a2205c81",
+    "sources/misteross/cores/fes-atari-st/rtl/st_io.sv": "c6eb6069ac2468a7f54911b41cad99f92e5afc868bd8834524d3e84f3eccaa46",
+    "sources/misteross/cores/fes-atari-st/rtl/st_ym2149.sv": "fa81ad3c51fd523a7daed244a5bf604976ee2deeee0867ba75117b614c40c3f0",
+    "sources/misteross/cores/fes-atari-st/rtl/st_machine.sv": "22b1dc800867cbfb98ba08e7fa626c3a6f86c655d797423a52b62c784a2e2f60",
+    "sources/misteross/cores/fes-atari-st/rtl/st_ikbd.sv": "310ac098380364b2bfcfed5c686366c309708d52f0b50da46c7466f3cd812e83",
+    "sources/misteross/cores/fes-atari-st/rtl/st_cpu.sv": "62217d8b01eed459050e55132b56ebd6a7d171d3bd2c9db72fb630db21d7dfbc",
+    "sources/misteross/cores/fes-atari-st/rtl/st_floppy_writer.sv": "a3b85a83e26b8e9dc55ca2c6179fed593cacd876a4b0c925785003eeafab48d4",
+    "sources/misteross/cores/fes-atari-st/rtl/st_system.sv": "cc6e242a57224b37a66330001a47e7f796e51b15ca8d47379e2cac9a26bb336a",
+    "sources/misteross/cores/fes-atari-st/sim/st_boot_sim_top.sv": "76b74a1d8c3addef167dafe03f72e8faa84e1359669069f57c02ca4144f8858d"
+  },
+  "open_rom_sha256": "71ce08138a9bc6b7711bbf5cf01da4932712063d53ed1725f9ad1ba66d4a027b",
+  "source_unchanged": true,
+  "hardware_execution": false,
+  "results": [
+    {
+      "wait_states": 0,
+      "bus_starts": [
+        {
+          "cpu_tick": 71,
+          "system_clock": 532,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 87,
+          "system_clock": 637,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 103,
+          "system_clock": 741,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 119,
+          "system_clock": 846,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 135,
+          "system_clock": 950,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 151,
+          "system_clock": 1054,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 167,
+          "system_clock": 1159,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 183,
+          "system_clock": 1263,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 199,
+          "system_clock": 1368,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 215,
+          "system_clock": 1472,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 231,
+          "system_clock": 1577,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 247,
+          "system_clock": 1681,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 263,
+          "system_clock": 1786,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 279,
+          "system_clock": 1890,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 295,
+          "system_clock": 1995,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 311,
+          "system_clock": 2099,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 328,
+          "system_clock": 2210,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 345,
+          "system_clock": 2321,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 362,
+          "system_clock": 2432,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 379,
+          "system_clock": 2543,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 396,
+          "system_clock": 2654,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 413,
+          "system_clock": 2765,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 430,
+          "system_clock": 2876,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 447,
+          "system_clock": 2987,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 464,
+          "system_clock": 3098,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 481,
+          "system_clock": 3209,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 498,
+          "system_clock": 3320,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 515,
+          "system_clock": 3431,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 532,
+          "system_clock": 3542,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 549,
+          "system_clock": 3653,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 566,
+          "system_clock": 3764,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 583,
+          "system_clock": 3875,
+          "write": true,
+          "address": 16775682
+        }
+      ],
+      "same_instruction_intervals_cpu_ticks": {
+        "read": [
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16,
+          16
+        ],
+        "write": [
+          17,
+          17,
+          17,
+          17,
+          17,
+          17,
+          17,
+          17,
+          17,
+          17,
+          17,
+          17,
+          17,
+          17,
+          17
+        ]
+      },
+      "executable_sha256": "69e29f53ffcb2a87b62a995ea8a1536b879a50f61e96b2ea98843f3091cb5e31"
+    },
+    {
+      "wait_states": 4,
+      "bus_starts": [
+        {
+          "cpu_tick": 71,
+          "system_clock": 532,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 91,
+          "system_clock": 663,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 111,
+          "system_clock": 793,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 131,
+          "system_clock": 924,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 151,
+          "system_clock": 1054,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 171,
+          "system_clock": 1185,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 191,
+          "system_clock": 1316,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 211,
+          "system_clock": 1446,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 231,
+          "system_clock": 1577,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 251,
+          "system_clock": 1707,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 271,
+          "system_clock": 1838,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 291,
+          "system_clock": 1968,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 311,
+          "system_clock": 2099,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 331,
+          "system_clock": 2230,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 351,
+          "system_clock": 2360,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 371,
+          "system_clock": 2491,
+          "write": false,
+          "address": 16775680
+        },
+        {
+          "cpu_tick": 392,
+          "system_clock": 2628,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 412,
+          "system_clock": 2758,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 432,
+          "system_clock": 2889,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 452,
+          "system_clock": 3019,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 472,
+          "system_clock": 3150,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 492,
+          "system_clock": 3281,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 512,
+          "system_clock": 3411,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 532,
+          "system_clock": 3542,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 552,
+          "system_clock": 3672,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 572,
+          "system_clock": 3803,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 592,
+          "system_clock": 3933,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 612,
+          "system_clock": 4064,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 632,
+          "system_clock": 4194,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 652,
+          "system_clock": 4325,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 672,
+          "system_clock": 4456,
+          "write": true,
+          "address": 16775682
+        },
+        {
+          "cpu_tick": 692,
+          "system_clock": 4586,
+          "write": true,
+          "address": 16775682
+        }
+      ],
+      "same_instruction_intervals_cpu_ticks": {
+        "read": [
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20
+        ],
+        "write": [
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20
+        ]
+      },
+      "executable_sha256": "84259a238a4c659ca41d4080cf78af61efd91c5cc64ffd19f25de9e066332eda"
+    }
+  ],
+  "original_calibration_driver": "local frozen original C++ driver, copied alongside this record for review"
+}
