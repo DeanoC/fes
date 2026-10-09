@@ -6,7 +6,9 @@
   "demo_compatibility_asserted": false,
   "shared_contract_changes": false,
   "validation_pending": [
-    "rare hardware palette outlier diagnosis"
+    "rare hardware palette outlier diagnosis",
+    "fresh FPGA timing and sealed package for review follow-up f65021a58",
+    "fresh original BIG model and hardware validation for review follow-up f65021a58"
   ],
   "digital_tests": {
     "st_aggregate": "pass",
@@ -114,7 +116,10 @@
     "seed4-timing.log": "f5972778e17a544d7e994a3f41b0e50a03e4ebf725c10405534a4a8c7deaa6f4",
     "source-identity.json": "e06762deb01fe77083f0516216c556586869e04c873fd9953753eaf229127154",
     "st-aggregate.log": "b2bfe39c3d85b94c6fa495381194f33279af85f26b0c084eaaad35b6e17b3b3f",
-    "video-parts.json": "5d7d552417c0f52fcef16b8d5f9730009eec47cc5752c6eb7161a955305c2ab8"
+    "video-parts.json": "5d7d552417c0f52fcef16b8d5f9730009eec47cc5752c6eb7161a955305c2ab8",
+    "review-bottom-regression-before.log": "73661c9f2aa404fca15248d5637b232fb7f6b8cffbf0fb594844441866a8c485",
+    "review-bottom-aggregate.log": "fd765ae3bfb528938be6fd726cf51762513452e5e9ed109898cd6dfe6bd650f3",
+    "review-bottom-parent.log": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158"
   },
   "fpga_attempts": [
     {
@@ -629,5 +634,20 @@
     "hardware_outlier_reproduced": false,
     "exclusive_cause_established": false,
     "hardware_execution": false
+  },
+  "review_followup": {
+    "review_url": "https://github.com/DeanoC/fes/pull/633#discussion_r4226605030",
+    "source_revision": "f65021a586588b023ddf9b3fcf129b8013d69d09",
+    "reviewed_revision": "9e5eaa48b1d4e5a5acb557496bcb511f99cabca7",
+    "line_length_sync_sample_cpu_cycle": 54,
+    "regression_fails_on_reviewed_revision": true,
+    "st_aggregate": "pass",
+    "focused_io_assertions": 6528419,
+    "focused_io_system_clocks": 83123247,
+    "parent_consistency": "pass",
+    "hardware_execution": false,
+    "earlier_model_formal_fpga_hardware_evidence_qualifies_followup": false,
+    "shared_contract_changes": false,
+    "kit_touched": false
   }
 }

@@ -21,7 +21,12 @@ Color line length now samples sync separately at STF WS1 cycle 54
 at HBL. Regressions hold the opposite sync through HBL and restore at cycle 20
 of the following line for PAL and NTSC; they check exact 160256/133604-cycle
 frames, HBL counts, 247/226 Timer B events and ordinary timing after rollover.
-The new regression fails against reviewed revision `9e5eaa48b1`.
+The new regression [fails against reviewed revision `9e5eaa48b1`](2026-10-09-atari-st-raster-timing/review-bottom-regression-before.log).
+Follow-up implementation `f65021a586588b023ddf9b3fcf129b8013d69d09` passes
+the [full ST suite](2026-10-09-atari-st-raster-timing/review-bottom-aggregate.log),
+including 6,528,419 I/O assertions over 83,123,247 system clocks, and
+[parent consistency](2026-10-09-atari-st-raster-timing/review-bottom-parent.log)
+(18 generated consumers, 34 fixture copies, no copied source pins).
 
 This follow-up changes RTL behavior. All model captures, equivalence proofs,
 FPGA timing/sealed packages and hardware captures below qualify their stated
