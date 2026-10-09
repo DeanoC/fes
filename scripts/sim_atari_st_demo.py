@@ -136,14 +136,19 @@ def run(args):
     model_hashes = {name: sha((build / name).read_bytes()) for name in models}
     record["generated_model_inputs"] = model_hashes
     invocation = [str(executable), str(output / "etos192us.img"), str(output / "original.st"),
-                  str(args.seconds), str(output / "demo")]
-    if args.key_b_at is not None:
-        invocation.append(str(args.key_b_at))
+                  str(args.seconds), str(output / "demo"), str(args.key_b_at or 0),
+                  str(args.trace_start), str(args.trace_end), str(args.ram_extra_wait)]
     record["input_event"] = (None if args.key_b_at is None else
                              {"hid_usage": 5, "press_second": args.key_b_at,
                               "hold_milliseconds": 150})
     record["consecutive_native_frames"] = "first sixteen complete captures after 6.5 seconds; production capture with model RAM, no original GLUE/border oracle"
-    record["raster_trace"] = "IACK and MMIO request starts / sync changes between six and seven seconds; bounded native coordinates, diagnostic prefetch PC"
+    record["raster_trace"] = {"start_second": args.trace_start, "end_second": args.trace_end,
+                              "events": "IACK/peripheral request starts, sync changes and every committed palette write (including unchanged values)",
+                              "pc": "diagnostic prefetch state, not instruction retirement"}
+    record["logo_trace"] = "every completed native capture in trace window; FNV-1a-64 RGB crop xywh 65,0,180,64; equality diagnostic, not cryptographic identity"
+    record["storage_model"] = {"cpu_ram_wait": "8+(byte_address%7)+ram_extra_wait system clocks",
+                               "ram_extra_wait": args.ram_extra_wait, "capture_wait": "12+(byte_address%7)",
+                               "shared_arbitration": False}
     record["horizontal_phase_units"] = "68000 cycles within the native line"
     record["palette_trace"] = "changes after six seconds; first eight changed bundles per native frame, plus complete per-frame counts; model timing only"
     record["run_command"] = invocation
@@ -191,12 +196,21 @@ def main(argv=None):
     parser.add_argument("--seconds", type=int, default=15)
     parser.add_argument("--key-b-at", type=int,
                         help="press HID B at this simulated second for 150 ms (optional scroller selection)")
+    parser.add_argument("--trace-start", type=int, help="inclusive simulated second for complete raster/logo tracing")
+    parser.add_argument("--trace-end", type=int, help="exclusive simulated second for complete raster/logo tracing")
+    parser.add_argument("--ram-extra-wait", type=int, default=0, help="add 0..64 system clocks to each model CPU RAM access; not physical arbitration")
     parser.add_argument("--verilator", default="verilator")
     args = parser.parse_args(argv)
     if len(args.rom_sha256) != 64 or any(c not in "0123456789abcdef" for c in args.rom_sha256):
         parser.error("--rom-sha256 must be a lowercase SHA-256 digest")
     if not 1 <= args.seconds <= 30:
         parser.error("--seconds must be 1..30")
+    args.trace_start = min(6, args.seconds-1) if args.trace_start is None else args.trace_start
+    args.trace_end = min(7, args.seconds) if args.trace_end is None else args.trace_end
+    if not 0 <= args.trace_start < args.trace_end <= args.seconds:
+        parser.error("trace window must satisfy 0 <= start < end <= seconds")
+    if not 0 <= args.ram_extra_wait <= 64:
+        parser.error("--ram-extra-wait must be 0..64")
     if args.key_b_at is not None and not 1 <= args.key_b_at < args.seconds:
         parser.error("--key-b-at must be at least one and less than --seconds")
     try:

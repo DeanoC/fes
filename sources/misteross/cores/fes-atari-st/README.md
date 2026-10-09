@@ -285,7 +285,18 @@ per-frame counts). Horizontal positions are CPU cycles within the native line.
 It saves the first sixteen complete native RGB captures after 6.5 seconds,
 and records IACK/MMIO request starts and sync changes between six and seven seconds.
 These bounded traces locate guest handlers without an instruction-retirement
-claim. `--key-b-at SECOND` selects the scroller through the normal
+claim. `--trace-start` / `--trace-end` select a bounded interval within the run;
+that interval records every committed palette write, including writes of the
+same value, and every completed native capture's static-logo crop and row
+hashes. The logo crop is native x=65..244, y=0..63. FNV-1a-64 hashes compare
+expanded RGB bytes for equality; they are not cryptographic artifact identities.
+Per-capture counters report video-prefetch and CPU RAM latency. Optional
+`--ram-extra-wait 0..64` adds system-clock delay to each CPU RAM callback;
+this probes sensitivity and does not model shared SDRAM arbitration. Run
+`python3 scripts/analyse_atari_st_raster_trace.py OUTPUT --output SUMMARY.json`
+from the FES root after completion to check artifact digests and summarize
+logo equality, connected-bit palette repeats and interrupt positions. A changing
+logo is reported as noncanonical, without automatically declaring a visual fault. `--key-b-at SECOND` selects the scroller through the normal
 HID/IKBD path with a 150 ms B press. These are observations of the reduced
 native timing model, not original GLUE/shifter timing equivalence. Per-second
 static framebuffer images do not prove video timing or border behavior. Neither successful capture completion nor removal of one loader
