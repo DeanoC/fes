@@ -241,9 +241,11 @@ match, with one rare grayscale palette anomaly still needing diagnosis.
 The original image and populated free menu are restored. Full current-image
 acceptance remains separate; opened-region RGB still crops to ordinary 320×200.
 The review follow-up samples color line length at cycle 54, preserving frame
-length for bottom pulses restored after HBL. Its new cross-HBL regressions
-are host checks; the earlier package/hardware evidence does not qualify
-this RTL follow-up, which still needs fresh FPGA and hardware validation.
+length for bottom pulses restored after HBL. Its cross-HBL regressions, fresh
+BIG model and diskless EmuTOS checks pass. Constant horizontal DE bounds
+remove a carry chain; whole-I/O equivalence preserves those new captures.
+Fresh FPGA/hardware validation is pending for this optimized RTL; the earlier
+package/hardware evidence qualifies only its recorded source.
 
 ## Not implemented, or not this package
 

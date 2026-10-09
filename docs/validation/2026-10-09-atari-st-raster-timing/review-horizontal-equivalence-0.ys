@@ -1,0 +1,7 @@
+read_verilog -sv docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv
+proc
+memory
+equiv_make st_io_gold st_io_gate st_io_equiv
+hierarchy -top st_io_equiv
+equiv_simple
+equiv_status -assert

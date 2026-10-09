@@ -30,9 +30,35 @@ including 6,528,419 I/O assertions over 83,123,247 system clocks, and
 
 This follow-up changes RTL behavior. All model captures, equivalence proofs,
 FPGA timing/sealed packages and hardware captures below qualify their stated
-earlier revisions; they do not qualify this follow-up. Fresh FPGA timing and
-hardware validation remain pending. The follow-up uses host-only validation
+earlier revisions; they do not qualify this follow-up. A fresh [original BIG run](2026-10-09-atari-st-raster-timing/review-big-proof.json)
+binds all 21 captured inputs to `f7f83c3f9`: twelve seconds, 598 native frames,
+no halt/bus fault/capture underrun, sixteen identical logo crops, 49 menu VBL
+acknowledgements on line zero, and 39 colors in the settled B scroller.
+Fresh [diskless EmuTOS SDRAM/HDMI](2026-10-09-atari-st-raster-timing/review-emutos-sdram.log)
+also passes at that source: eight seconds, 479 complete frames, zero native or
+indexed underruns, maximum CPU/video latency 63/64 system clocks.
+Fresh FPGA timing and hardware validation remain pending. The follow-up uses host-only validation
 and leaves the restored normal menu and kit untouched.
+
+### Horizontal-window implementation
+
+The first fresh FPGA attempt at `f7f83c3f9` fails final timing on seed 4
+(pixel 70.20 MHz, system 51.64 MHz, audio 155.62 MHz); seed 5 is interrupted
+after repeated unsuccessful repair rounds, not recorded as final sign-off.
+Neither attempt is sealed or programmed. Its system-clock critical path
+includes a mode-dependent horizontal DE comparison feeding native capture.
+
+`dbf3fc1c8886e84487089673fb935e291c2e458b` compares constant horizontal
+bounds before selecting the mode, removing that carry chain. The
+[whole-I/O equivalence proof](2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.json)
+proves 752 points with zero unproven for each floppy-write configuration
+against `f7f83c3f9`; deleted intermediate bound wires reduce the matched-point
+count. That is the only changed compiled input in the fresh BIG model and
+EmuTOS captures, so the proof preserves their behavior. The
+[full ST suite](2026-10-09-atari-st-raster-timing/review-horizontal-aggregate.log)
+and [parent consistency](2026-10-09-atari-st-raster-timing/review-horizontal-parent.log)
+pass on the committed optimized source. Fresh final FPGA/hardware qualification
+is still pending.
 
 ## Timing change
 

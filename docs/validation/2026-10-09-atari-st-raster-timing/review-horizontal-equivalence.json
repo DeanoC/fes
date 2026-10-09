@@ -1,0 +1,15 @@
+{
+  "gold_revision": "f7f83c3f90480e53f94562a8810bc2f3f9ed9171",
+  "gate_revision": "dbf3fc1c8886e84487089673fb935e291c2e458b",
+  "gold_sha256": "bfdc7219155e9178055eaa5a59a925f244371962de4bc1cbdf566edccaaae821",
+  "gate_sha256": "5ee31977b38a459fa906e039c53b03299ed3593edcf6f397cafb45c510ffb1db",
+  "whole_io_proven_points_each": 752,
+  "unproven_points": 0,
+  "floppy_write_configurations": [
+    0,
+    1
+  ],
+  "scope": "whole st_io state/output logic, unchanged peripheral cells with identical connections; removed intermediate display bounds reduce matched-point count",
+  "capture_source_revision": "f7f83c3f90480e53f94562a8810bc2f3f9ed9171",
+  "hardware_execution": false
+}

@@ -8,7 +8,7 @@
   "validation_pending": [
     "rare hardware palette outlier diagnosis",
     "fresh FPGA timing and sealed package for review follow-up f65021a58",
-    "fresh original BIG model and hardware validation for review follow-up f65021a58"
+    "fresh hardware validation for review follow-up f65021a58"
   ],
   "digital_tests": {
     "st_aggregate": "pass",
@@ -119,7 +119,19 @@
     "video-parts.json": "5d7d552417c0f52fcef16b8d5f9730009eec47cc5752c6eb7161a955305c2ab8",
     "review-bottom-regression-before.log": "73661c9f2aa404fca15248d5637b232fb7f6b8cffbf0fb594844441866a8c485",
     "review-bottom-aggregate.log": "fd765ae3bfb528938be6fd726cf51762513452e5e9ed109898cd6dfe6bd650f3",
-    "review-bottom-parent.log": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158"
+    "review-bottom-parent.log": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158",
+    "review-big-proof.json": "ce7b933f59c6bc560645460f3d44cd752cd6899158832bed9468b3e0e04ec419",
+    "review-model-menu.png": "c13b89553500f45d890dd502fe9c8c45b88fa20c080412ea9e3fa64d36fe7cd0",
+    "review-model-scroller.png": "2e56511f616904354b64f297e989364378e6aa723939749027a573c0a8edbd51",
+    "review-emutos-sdram.log": "8eeeb4243f7424fc12d79a1913c92ddcc1ae765774aa66612e2f7c5180dde679",
+    "review-horizontal-equivalence.sv": "cea3a09f45d129210a2289dc58098868cb797c1c3f9fbd3430d3714ea81ff601",
+    "review-horizontal-equivalence-0.ys": "20694858e47d3c23aa04f136d59a2e0567ac76fc08924fe668ed8a3841b14a55",
+    "review-horizontal-equivalence-1.ys": "83c522357a747eec6bee44bc166b502417030c93002a247e58211ece4e3bf01e",
+    "review-horizontal-equivalence-0.log": "820a804b532a0af62ec591f0fb148b5b34be965a5b69f4bd5ecbea907895ba38",
+    "review-horizontal-equivalence-1.log": "4e6551ba734c25bb3f6d9812b200762324ca5b1c0e70736db7161595b410dfd8",
+    "review-horizontal-equivalence.json": "089d0e501111c96c6548d9ebddf7798d335d766fd440486b8fdb66d14d183102",
+    "review-horizontal-aggregate.log": "64d3ea31aa22313106308b0b99fff9412154bc23688992d181341bd50d59ead1",
+    "review-horizontal-parent.log": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158"
   },
   "fpga_attempts": [
     {
@@ -648,6 +660,45 @@
     "hardware_execution": false,
     "earlier_model_formal_fpga_hardware_evidence_qualifies_followup": false,
     "shared_contract_changes": false,
-    "kit_touched": false
+    "kit_touched": false,
+    "original_big": {
+      "proof": "review-big-proof.json",
+      "source_revision": "f7f83c3f90480e53f94562a8810bc2f3f9ed9171",
+      "frames": 598,
+      "native_underruns": 0,
+      "bus_faults": 0,
+      "halted": false,
+      "static_logo_unique_hashes": 1,
+      "menu_vbl_acks": 49,
+      "menu_vbl_ack_lines": [
+        0
+      ],
+      "scroller_rgb_colors": 39
+    },
+    "diskless_emutos": {
+      "source_revision": "f7f83c3f90480e53f94562a8810bc2f3f9ed9171",
+      "pass": true,
+      "system_clocks": 417792000,
+      "pixel_clocks": 594018699,
+      "complete_output_frames": 479,
+      "native_underruns": 0,
+      "indexed_underruns": 0,
+      "maximum_cpu_latency_system_clocks": 63,
+      "maximum_video_latency_system_clocks": 64,
+      "hardware_execution": false
+    },
+    "optimized_source_revision": "dbf3fc1c8886e84487089673fb935e291c2e458b",
+    "horizontal_bounds_equivalence": {
+      "record": "review-horizontal-equivalence.json",
+      "whole_io_proven_points_per_configuration": 752,
+      "unproven_points": 0,
+      "floppy_write_configurations": [
+        0,
+        1
+      ],
+      "source_revision": "dbf3fc1c8886e84487089673fb935e291c2e458b"
+    },
+    "optimized_aggregate": "pass",
+    "optimized_parent_consistency": "pass"
   }
 }
