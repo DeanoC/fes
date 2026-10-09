@@ -285,7 +285,26 @@ per-frame counts). Horizontal positions are CPU cycles within the native line.
 It saves the first sixteen complete native RGB captures after 6.5 seconds,
 and records IACK/MMIO request starts and sync changes between six and seven seconds.
 These bounded traces locate guest handlers without an instruction-retirement
-claim. `--key-b-at SECOND` selects the scroller through the normal
+claim. `--trace-start` / `--trace-end` select a bounded interval within the run;
+that interval records every committed palette write, including writes of the
+same value, and every completed native capture's static-logo crop and row
+hashes. The first eight distinct crop hashes also save their complete native
+RGB images, so a rare outlier can be inspected after the run. The logo crop is native x=65..244, y=0..63. FNV-1a-64 hashes compare
+expanded RGB bytes for equality; they are not cryptographic artifact identities.
+Per-capture counters report video-prefetch and CPU RAM latency. Optional
+`--ram-extra-wait 0..64` adds system-clock delay to each CPU RAM callback;
+this probes sensitivity and does not model shared SDRAM arbitration. Run
+`python3 scripts/analyse_atari_st_raster_trace.py OUTPUT --output SUMMARY.json`
+from the FES root after completion to check artifact digests and summarize
+logo equality, connected-bit palette repeats and interrupt positions. `--shared-memory` instead uses the existing `st_boot_memory_sim_top` fixture:
+the original disk is preloaded into the separate SDRAM buffer before CPU release,
+and the real memory arbiter, addon controller, DDIO digital model, floppy DMA,
+native capture and independent-clock 720p renderer execute together. It does not
+exercise mailbox upload, electrical pad timing or a physical FPGA. This mode
+requires at least six seconds and currently supports menu diagnosis without
+HID selection; callback RAM delays are rejected. The original diskless EmuTOS
+invocation keeps its boot assertions and supplies no media. A changing
+logo is reported as noncanonical, without automatically declaring a visual fault. `--key-b-at SECOND` selects the scroller through the normal
 HID/IKBD path with a 150 ms B press. These are observations of the reduced
 native timing model, not original GLUE/shifter timing equivalence. Per-second
 static framebuffer images do not prove video timing or border behavior. Neither successful capture completion nor removal of one loader

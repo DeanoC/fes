@@ -58,6 +58,11 @@ module st_boot_sim_top (
     output wire debug_fault_write,
     output wire [7:0] debug_fdc_status, debug_fdc_track, debug_fdc_sector, debug_fdc_head,
     output wire debug_io_req,
+    output wire [7:0] debug_irq_vector,
+    output wire debug_palette_write,
+    output wire [23:0] debug_palette_address,
+    output wire [15:0] debug_palette_data,
+    output wire [1:0] debug_palette_lanes,
     output wire [8:0] debug_native_line,
     output wire [31:0] debug_horizontal_phase,
     output wire native_display,
@@ -102,6 +107,16 @@ module st_boot_sim_top (
     assign debug_fault_address = system.machine.address;
     assign debug_fault_fc = system.machine.function_code;
     assign debug_fault_write = system.machine.writing;
+    // Observe the internal IO completion edge, including unchanged palette
+    // writes. These ports exist only on this simulation wrapper.
+    assign debug_palette_write = !reset && system.machine.state == 2'd1 &&
+        system.machine.target == 3'd2 && system.machine.writing &&
+        system.machine.palette_access && !system.machine.cpu_as_n &&
+        system.machine.timeout_halves != 8'd128;
+    assign debug_palette_address = system.machine.address;
+    assign debug_palette_data = system.machine.write_data;
+    assign debug_palette_lanes = system.machine.lanes;
+    assign debug_irq_vector = system.irq_vector;
     assign debug_io_req = system.bus_req;
     assign debug_native_line = system.io.native_line;
     assign debug_horizontal_phase = {23'd0, system.io.horizontal_cycle};

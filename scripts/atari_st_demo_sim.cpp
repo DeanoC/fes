@@ -10,6 +10,7 @@
 #include <iostream>
 #include <iterator>
 #include <stdexcept>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -27,6 +28,13 @@ struct Demo {
     uint32_t last_media=UINT32_MAX,last_fdc=UINT32_MAX;
     bool last_fault=false,last_ack=false,last_io=false;
     unsigned consecutive_captures=0, last_sync=0;
+    unsigned trace_start=6,trace_end=7,ram_extra_wait=0;
+    uint64_t fetch_started=0,frame_fetches=0,frame_fetch_max=0,frame_ram_max=0,ram_started=0;
+    uint64_t palette_writes=0,frame_palette_writes=0;
+    bool last_capture_ready=false,last_ram_ready=false;
+    std::ofstream logo_trace;
+    std::set<uint64_t> saved_logo_hashes;
+    bool tracing() const { return cycles>=trace_start*Hz && cycles<trace_end*Hz; }
     std::array<unsigned,16> last_palette{};
     uint64_t native_frames=0,palette_changes=0,palette_frame_changes=0,max_palette_frame_changes=0;
     unsigned palette_frame_samples=0;
@@ -51,14 +59,15 @@ struct Demo {
         fault_trace.open(prefix+"-faults.jsonl");
         palette_trace.open(prefix+"-palette.jsonl");
         raster_trace.open(prefix+"-raster.jsonl");
-        check(sectors.good()&&trace.good()&&fdc.good()&&fault_trace.good()&&palette_trace.good()&&raster_trace.good(),"trace output unavailable");dut.eval();
+        logo_trace.open(prefix+"-logo.jsonl");
+        check(sectors.good()&&trace.good()&&fdc.good()&&fault_trace.good()&&palette_trace.good()&&raster_trace.good()&&logo_trace.good(),"trace output unavailable");dut.eval();
     }
     void storage() {
         if(dut.reset){rp={};mp={};dp={};cp={};dut.rom_ready=0;dut.ram_ready=0;dut.media_valid=0;dut.dma_ready=0;dut.capture_ready=0;return;}
         if(!dut.capture_req){cp={};dut.capture_ready=0;}
         else {
             unsigned a=dut.capture_addr*2;check(a+1<ram.size(),"native capture RAM bounds");
-            if(!cp.seen){cp.seen=true;cp.addr=a;cp.wait=12+(a%7);}
+            if(!cp.seen){cp.seen=true;cp.addr=a;cp.wait=12+(a%7);fetch_started=cycles;}
             check(cp.addr==a,"native read changed before ACK");
             dut.capture_data=word(a);dut.capture_ready=cp.wait==0;if(cp.wait)--cp.wait;
         }
@@ -72,7 +81,7 @@ struct Demo {
         if(!dut.ram_req){mp={};dut.ram_ready=0;}
         else {
             unsigned a=dut.ram_addr*2;check(a+1<ram.size(),"RAM bounds");
-            if(!mp.seen){mp.seen=true;mp.addr=a;mp.data=dut.ram_wdata;mp.lanes=dut.ram_byte_enable;mp.write=dut.ram_write;mp.wait=8+(a%7);}
+            if(!mp.seen){mp.seen=true;mp.addr=a;mp.data=dut.ram_wdata;mp.lanes=dut.ram_byte_enable;mp.write=dut.ram_write;mp.wait=8+(a%7)+ram_extra_wait;ram_started=cycles;}
             check(mp.addr==a&&mp.data==dut.ram_wdata&&mp.lanes==dut.ram_byte_enable&&mp.write==bool(dut.ram_write),"RAM changed before ACK");
             dut.ram_ready=mp.wait==0;
             if(mp.wait)--mp.wait;
@@ -103,6 +112,19 @@ struct Demo {
         const bool native_pixel=dut.capture_pixel;
         const unsigned native_x=dut.capture_x,native_y=dut.capture_y,native_rgb=dut.capture_rgb;
         const unsigned completed_before=dut.capture_frames;
+        const bool palette_write=!dut.reset&&dut.debug_palette_write;
+        const unsigned palette_address=dut.debug_palette_address,palette_data=dut.debug_palette_data,palette_lanes=dut.debug_palette_lanes;
+        if(dut.capture_req&&dut.capture_ready&&!last_capture_ready){
+            ++frame_fetches;
+            if(cycles-fetch_started>frame_fetch_max)frame_fetch_max=cycles-fetch_started;
+        }
+        if(dut.ram_req&&dut.ram_ready&&!last_ram_ready&&cycles-ram_started>frame_ram_max)frame_ram_max=cycles-ram_started;
+        last_capture_ready=dut.capture_req&&dut.capture_ready;
+        last_ram_ready=dut.ram_req&&dut.ram_ready;
+        if(palette_write){++palette_writes;++frame_palette_writes;}
+        if(tracing()&&palette_write)raster_trace<<"{\"kind\":\"palette_write\",\"cycle\":"<<cycles
+            <<",\"frame\":"<<native_frames<<",\"line\":"<<native_line<<",\"horizontal_phase\":"<<horizontal_phase
+            <<",\"address\":"<<palette_address<<",\"data\":"<<palette_data<<",\"lanes\":"<<palette_lanes<<"}\n";
         dut.clk_sys=1;dut.eval();
         if(native_pixel){
             check(native_x<320&&native_y<200,"native capture coordinates");
@@ -114,6 +136,30 @@ struct Demo {
         }
         if(dut.capture_frames!=completed_before){
             completed_native_picture=native_picture;
+            if(tracing()){
+                uint64_t hash=UINT64_C(14695981039346656037);
+                std::array<uint64_t,64> row_hashes;
+                for(unsigned y=0;y<64;++y){
+                    row_hashes[y]=UINT64_C(14695981039346656037);
+                    for(unsigned x=65;x<245;++x)for(unsigned c=0;c<3;++c){
+                        const auto value=native_picture[(y*320+x)*3+c];
+                        hash^=value;hash*=UINT64_C(1099511628211);
+                        row_hashes[y]^=value;row_hashes[y]*=UINT64_C(1099511628211);
+                    }
+                }
+                logo_trace<<"{\"cycle\":"<<cycles<<",\"frame\":"<<native_frames<<",\"capture\":"<<dut.capture_frames
+                    <<",\"logo_fnv1a64\":\""<<std::hex<<hash<<std::dec<<"\",\"palette_writes_so_far\":"<<frame_palette_writes
+                    <<",\"fetches\":"<<frame_fetches<<",\"max_fetch_wait\":"<<frame_fetch_max
+                    <<",\"max_cpu_ram_wait\":"<<frame_ram_max<<",\"underruns\":"<<dut.capture_underruns<<",\"row_fnv1a64\":[";
+                for(unsigned y=0;y<64;++y){if(y)logo_trace<<',';logo_trace<<'"'<<std::hex<<row_hashes[y]<<std::dec<<'"';}
+                logo_trace<<"]}\n";
+                if(saved_logo_hashes.size()<8 && saved_logo_hashes.insert(hash).second){
+                    std::ofstream image(prefix+"-trace-logo-"+std::to_string(native_frames)+"-native.ppm",std::ios::binary);
+                    check(image.good(),"trace logo image unavailable");
+                    image<<"P6\n320 200\n255\n";
+                    image.write(reinterpret_cast<const char*>(native_picture.data()),native_picture.size());
+                }
+            }
             if(cycles>=13*Hz/2 && consecutive_captures<16){
                 std::ofstream image(prefix+"-consecutive-"+std::to_string(consecutive_captures++)+"-native.ppm",std::ios::binary);
                 image<<"P6\n320 200\n255\n";
@@ -123,12 +169,13 @@ struct Demo {
         // A bounded bus trace locates timer programming and mode writes in
         // native coordinates. It records each request start, never repeated
         // held requests; the PC remains diagnostic prefetch state.
-        if(cycles>=6*Hz && cycles<7*Hz){
+        if(tracing()){
             const bool ack=dut.irq_ack&&!last_ack;
             const bool io=dut.debug_io_req&&!last_io&&dut.exp_write;
             if(ack||io||dut.sync_mode!=last_sync) raster_trace<<"{\"cycle\":"<<cycles<<",\"frame\":"<<native_frames
                 <<",\"line\":"<<native_line<<",\"horizontal_phase\":"<<horizontal_phase
                 <<",\"pc\":"<<dut.debug_pc<<",\"iack\":"<<(ack?unsigned(dut.irq_level):0)
+                <<",\"mfp_vector\":"<<(ack&&dut.irq_level==6?unsigned(dut.debug_irq_vector):0)
                 <<",\"sync_mode\":"<<unsigned(dut.sync_mode)<<",\"write_address\":"<<(io?dut.exp_addr*2:0)<<",\"write_data\":"<<(io?dut.exp_wdata:0)<<"}\n";
         }
         last_io=dut.debug_io_req; last_sync=dut.sync_mode;
@@ -139,8 +186,10 @@ struct Demo {
                 if(palette_frame_changes>max_palette_frame_changes)max_palette_frame_changes=palette_frame_changes;
             }
             ++native_frames;palette_frame_changes=0;palette_frame_samples=0;
+            frame_fetches=0;frame_fetch_max=0;frame_ram_max=0;frame_palette_writes=0;
         }
         unsigned changes=0;
+        if(palette_write||dut.reset){
         for(unsigned i=0;i<16;++i)changes+=color(i)!=last_palette[i];
         const bool sample=cycles>=6*Hz&&changes&&palette_frame_samples<8;
         if(sample)palette_trace<<"{\"kind\":\"palette\",\"cycle\":"<<cycles<<",\"frame\":"<<native_frames
@@ -155,6 +204,7 @@ struct Demo {
         }
         if(sample){palette_trace<<"]}\n";++palette_frame_samples;}
         if(cycles>=6*Hz){palette_changes+=changes;palette_frame_changes+=changes;}
+        }
         if(dut.debug_bus_error&&!last_fault){
             ++faults;
             if(faults<=64){
@@ -213,6 +263,7 @@ struct Demo {
            <<",\"dma_words\":"<<dma<<",\"media_bytes\":"<<media
            <<",\"palette_changed_entries_after_six_seconds\":"<<palette_changes
            <<",\"max_completed_native_frame_palette_changes\":"<<max_palette_frame_changes
+           <<",\"committed_palette_writes\":"<<palette_writes
            <<",\"native_rgb_frames\":"<<dut.capture_frames<<",\"native_rgb_underruns\":"<<dut.capture_underruns<<"}";
     }
     void run(unsigned seconds,unsigned key_b_at=0) {
@@ -232,6 +283,9 @@ struct Demo {
 };
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
-    try {check(argc==5||argc==6,"ROM DISK SECONDS PREFIX [KEY_B_AT] required");Demo demo(argv[1],argv[2],argv[4]);demo.run(std::strtoul(argv[3],nullptr,10),argc==6?std::strtoul(argv[5],nullptr,10):0);}
+    try {check(argc==5||argc==6||argc==9,"ROM DISK SECONDS PREFIX [KEY_B_AT [TRACE_START TRACE_END RAM_EXTRA_WAIT]] required");
+        Demo demo(argv[1],argv[2],argv[4]);
+        if(argc==9){demo.trace_start=std::strtoul(argv[6],nullptr,10);demo.trace_end=std::strtoul(argv[7],nullptr,10);demo.ram_extra_wait=std::strtoul(argv[8],nullptr,10);}
+        demo.run(std::strtoul(argv[3],nullptr,10),argc>=6?std::strtoul(argv[5],nullptr,10):0);}
     catch(const std::exception &error){std::cerr<<"FAIL "<<error.what()<<'\n';return 1;}
 }

@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+import hashlib
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from scripts.analyse_atari_st_raster_trace import analyse
+
+
+class RasterTraceTests(unittest.TestCase):
+    def fixture(self, root):
+        # Partial-byte writes, then repeated writes including disconnected bits.
+        events = [
+            {'frame': 10, 'cycle': 100, 'line': 0, 'horizontal_phase': 0, 'sync_mode': 2},
+            {'frame': 11, 'cycle': 200, 'line': 263, 'horizontal_phase': 148, 'sync_mode': 0},
+            {'frame': 12, 'cycle': 300, 'line': 35, 'horizontal_phase': 28, 'sync_mode': 2},
+            {'kind': 'palette_write', 'frame': 10, 'address': 0xff8240, 'lanes': 2, 'data': 0x700},
+            {'kind': 'palette_write', 'frame': 10, 'address': 0xff8240, 'lanes': 1, 'data': 0x77},
+            {'kind': 'palette_write', 'frame': 11, 'address': 0xff8240, 'lanes': 3, 'data': 0xf777},
+            {'kind': 'palette_write', 'frame': 11, 'address': 0xff8240, 'lanes': 2, 'data': 0x600},
+            {'kind': 'palette_write', 'frame': 12, 'address': 0xff8240, 'lanes': 1, 'data': 0x877},
+            {'frame': 11, 'iack': 4, 'line': 1, 'horizontal_phase': 20},
+        ]
+        logos = [{'frame': f, 'logo_fnv1a64': 'a' if f != 11 else 'b',
+                  'max_fetch_wait': 18, 'max_cpu_ram_wait': 54,
+                  'row_fnv1a64': ['row0', 'different' if f == 11 else 'row1']} for f in (10, 11, 12)]
+        for name, rows in [('demo-raster.jsonl', events), ('demo-logo.jsonl', logos)]:
+            (root / name).write_text(''.join(json.dumps(r)+'\n' for r in rows))
+        proof = {'capture_completed': True, 'source_revision': 'test', 'source_mode': 'selected revision',
+                 'rom_sha256': 'test-rom', 'original_disk_sha256': 'test-disk', 'storage_model': {},
+                 'raster_trace': {}, 'metrics': {},
+                 'artifacts': {name: hashlib.sha256((root/name).read_bytes()).hexdigest()
+                               for name in ('demo-raster.jsonl', 'demo-logo.jsonl')}}
+        (root / 'demo-proof.json').write_text(json.dumps(proof))
+
+    def test_lane_aware_repeats_and_noncanonical_neighbours(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            self.fixture(root)
+            result = analyse(root)
+            self.assertEqual(result['known_unchanged_palette_writes_in_window'], 2)
+            self.assertEqual(result['committed_palette_writes_in_window'], 5)
+            self.assertEqual(result['noncanonical_frames'], [11])
+            self.assertEqual(result['noncanonical_logo_rows'], {'11': [1]})
+            self.assertEqual(result['noncanonical_neighbour_events']['11']['iack_lines']['4'], [[1, 20]])
+            self.assertEqual(result['iack_line_counts']['4'], {1: 1})
+            self.assertEqual(result['max_cpu_ram_wait_system_clocks'], 54)
+            pulse = result['cross_frame_pal_pulses'][0]
+            self.assertEqual(pulse['opposite_sync']['line'], 263)
+            self.assertEqual(pulse['restored_pal']['frame'], 12)
+            self.assertEqual(len(result['noncanonical_neighbour_events']['11']['sync_changes']), 1)
+
+    def test_changed_trace_is_rejected(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            self.fixture(root)
+            with (root/'demo-raster.jsonl').open('a') as stream:
+                stream.write('{}\n')
+            with self.assertRaisesRegex(ValueError, 'digest mismatch'):
+                analyse(root)
+
+    def test_incomplete_capture_is_rejected(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            (root/'demo-proof.json').write_text('{"capture_completed":false}')
+            with self.assertRaisesRegex(ValueError, 'did not complete'):
+                analyse(root)
+
+class FrozenHelperTests(unittest.TestCase):
+    def test_selected_revision_rejects_a_changed_compiled_driver(self):
+        # The C++ driver is compiled source too. It must not be silently taken
+        # from current working bytes while reporting a selected-revision run.
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from subprocess import CompletedProcess
+        from scripts import sim_atari_st_demo as demo
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            for relative in [demo.PREFIX+n for n in demo.RTL+demo.DATA] + [demo.WRAPPER] + demo.HELPERS:
+                file = root/relative
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_bytes(b'')
+            (root/demo.HELPERS[1]).write_bytes(b'changed driver')
+            rom = root/'rom.img'; rom.write_bytes(bytes(196608))
+            disk = root/'disk.st'; disk.write_bytes(bytes(409600))
+            args = SimpleNamespace(shared_memory=False, revision='test', rom=rom,
+                                   rom_sha256=hashlib.sha256(rom.read_bytes()).hexdigest(), disk=disk,
+                                   verilator='verilator', output=root/'output', working_tree=False)
+            with patch.object(demo, 'ROOT', root), patch.object(demo.shutil, 'which', return_value='/test/verilator'), \
+                 patch.object(demo.subprocess, 'check_output', return_value='test\n'), \
+                 patch.object(demo.subprocess, 'run', return_value=CompletedProcess([], 0, stdout=b'')):
+                with self.assertRaisesRegex(ValueError, 'working compiled input differs.*atari_st_demo_sim.cpp'):
+                    demo.run(args)
