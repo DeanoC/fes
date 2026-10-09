@@ -305,6 +305,11 @@ expanded RGB bytes for equality; they are not cryptographic artifact identities.
 Per-capture counters report video-prefetch and CPU RAM latency. Optional
 `--ram-extra-wait 0..64` adds system-clock delay to each CPU RAM callback;
 this probes sensitivity and does not model shared SDRAM arbitration.
+`--ram-fixed-wait 0..64` instead replaces the variable CPU RAM callback delay
+with a fixed system-clock delay, before any extra wait. Zero provides an
+ideal-storage timing comparison; it does not change the physical controller
+or establish that real SDRAM can meet that timing. Shared-memory mode rejects
+callback overrides, so its reported timing always comes from the actual arbiter.
 `--mfp-wait-states 0..8` selects a separate native-cycle MFP access probe;
 its selected value is recorded in the source-bound result. Run
 `python3 scripts/analyse_atari_st_raster_trace.py OUTPUT --output SUMMARY.json`

@@ -1772,6 +1772,9 @@ firmware, including read/write instruction intervals across fractional phases,
 and checks a Timer B edge during the delayed read. The original-disk diagnostic
 records the optional probe value with `--mfp-wait-states`; it is independent
 of the callback RAM-delay probe and does not assert demo compatibility.
+The callback diagnostic can additionally replace its variable CPU RAM wait
+with `--ram-fixed-wait`; zero is an ideal-storage comparison, not a change to
+the physical SDRAM controller. Shared-memory mode rejects this override.
 Ordinary PAL DE spans lines 63–262 and cycles 56–375; NTSC spans lines
 34–233 and cycles 52–371. DE line/frame modes are sampled at their boundaries.
 Horizontal DE bounds use constant comparisons before mode selection to avoid

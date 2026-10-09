@@ -145,7 +145,8 @@ def run(args):
     record["generated_model_inputs"] = model_hashes
     invocation = [str(executable), str(output / "etos192us.img"), str(output / "original.st"),
                   str(args.seconds), str(output / "demo"), str(args.key_b_at or 0),
-                  str(args.trace_start), str(args.trace_end), str(args.ram_extra_wait)]
+                  str(args.trace_start), str(args.trace_end), str(args.ram_extra_wait),
+                  str(-1 if args.ram_fixed_wait is None else args.ram_fixed_wait)]
     if args.shared_memory:
         invocation = [str(executable), str(output / "etos192us.img"), str(args.seconds),
                       str(output / "demo"), str(output / "original.st"), str(args.trace_start), str(args.trace_end)]
@@ -166,6 +167,9 @@ def run(args):
     record["storage_model"] = {"cpu_ram_wait": "8+(byte_address%7)+ram_extra_wait system clocks",
                                "ram_extra_wait": args.ram_extra_wait, "capture_wait": "12+(byte_address%7)",
                                "shared_arbitration": False}
+    if args.ram_fixed_wait is not None:
+        record["storage_model"]["cpu_ram_wait"] = f"{args.ram_fixed_wait}+ram_extra_wait system clocks"
+    record["storage_model"]["ram_fixed_wait"] = args.ram_fixed_wait
     if args.shared_memory:
         record["storage_model"] = {"shared_arbitration": True, "cpu_video_dma_media": "production st_memory.sv and addon controller",
                                    "sdram": "digital command/timing model with CAS2, DDIO capture and byte masks; no electrical equivalence"}
@@ -220,6 +224,7 @@ def main(argv=None):
     parser.add_argument("--trace-start", type=int, help="inclusive simulated second for complete raster/logo tracing")
     parser.add_argument("--trace-end", type=int, help="exclusive simulated second for complete raster/logo tracing")
     parser.add_argument("--ram-extra-wait", type=int, default=0, help="add 0..64 system clocks to each model CPU RAM access; not physical arbitration")
+    parser.add_argument("--ram-fixed-wait", type=int, help="replace variable CPU RAM callback waits with a fixed 0..64 system-clock delay; an ideal-storage probe, not physical SDRAM")
     parser.add_argument("--mfp-wait-states", type=int, default=0, help="optional 0..8 native CPU wait-state experiment; delays MFP access and data sampling")
     parser.add_argument("--shared-memory", action="store_true", help="use the existing shared SDRAM/independent pixel-clock boot fixture; disk preloaded before reset release")
     parser.add_argument("--verilator", default="verilator")
@@ -234,12 +239,14 @@ def main(argv=None):
         parser.error("trace window must satisfy 0 <= start < end <= seconds")
     if not 0 <= args.ram_extra_wait <= 64:
         parser.error("--ram-extra-wait must be 0..64")
+    if args.ram_fixed_wait is not None and not 0 <= args.ram_fixed_wait <= 64:
+        parser.error("--ram-fixed-wait must be 0..64")
     if not 0 <= args.mfp_wait_states <= 8:
         parser.error("--mfp-wait-states must be 0..8")
     if args.key_b_at is not None and not 1 <= args.key_b_at < args.seconds:
         parser.error("--key-b-at must be at least one and less than --seconds")
-    if args.shared_memory and (args.seconds < 6 or args.key_b_at is not None or args.ram_extra_wait):
-        parser.error("--shared-memory requires at least 6 seconds, no key event and no callback RAM delay")
+    if args.shared_memory and (args.seconds < 6 or args.key_b_at is not None or args.ram_extra_wait or args.ram_fixed_wait is not None):
+        parser.error("--shared-memory requires at least 6 seconds, no key event and no callback RAM delay or override")
     try:
         return 0 if run(args)["capture_completed"] else 1
     except (OSError, ValueError, subprocess.SubprocessError) as error:
