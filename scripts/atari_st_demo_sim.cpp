@@ -167,6 +167,7 @@ struct Demo {
             if(ack||io||dut.sync_mode!=last_sync) raster_trace<<"{\"cycle\":"<<cycles<<",\"frame\":"<<native_frames
                 <<",\"line\":"<<native_line<<",\"horizontal_phase\":"<<horizontal_phase
                 <<",\"pc\":"<<dut.debug_pc<<",\"iack\":"<<(ack?unsigned(dut.irq_level):0)
+                <<",\"mfp_vector\":"<<(ack&&dut.irq_level==6?unsigned(dut.debug_irq_vector):0)
                 <<",\"sync_mode\":"<<unsigned(dut.sync_mode)<<",\"write_address\":"<<(io?dut.exp_addr*2:0)<<",\"write_data\":"<<(io?dut.exp_wdata:0)<<"}\n";
         }
         last_io=dut.debug_io_req; last_sync=dut.sync_mode;

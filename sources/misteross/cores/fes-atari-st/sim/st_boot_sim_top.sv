@@ -58,6 +58,7 @@ module st_boot_sim_top (
     output wire debug_fault_write,
     output wire [7:0] debug_fdc_status, debug_fdc_track, debug_fdc_sector, debug_fdc_head,
     output wire debug_io_req,
+    output wire [7:0] debug_irq_vector,
     output wire debug_palette_write,
     output wire [23:0] debug_palette_address,
     output wire [15:0] debug_palette_data,
@@ -115,6 +116,7 @@ module st_boot_sim_top (
     assign debug_palette_address = system.machine.address;
     assign debug_palette_data = system.machine.write_data;
     assign debug_palette_lanes = system.machine.lanes;
+    assign debug_irq_vector = system.irq_vector;
     assign debug_io_req = system.bus_req;
     assign debug_native_line = system.io.native_line;
     assign debug_horizontal_phase = {23'd0, system.io.horizontal_cycle};

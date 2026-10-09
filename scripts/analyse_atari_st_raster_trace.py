@@ -47,6 +47,7 @@ def analyse(directory):
     nearby = {frame + offset for frame in differing for offset in (-1, 0, 1)}
     per_frame = defaultdict(lambda: {'palette_writes': 0, 'iack_lines': defaultdict(list)})
     iack_lines = defaultdict(Counter)
+    mfp_vectors = Counter()
     palette_words = {}
     repeats = 0
     writes = 0
@@ -68,6 +69,8 @@ def analyse(directory):
         elif event.get('iack'):
             level = str(event['iack'])
             iack_lines[level][event['line']] += 1
+            if event['iack'] == 6 and 'mfp_vector' in event:
+                mfp_vectors[event['mfp_vector']] += 1
             if event['frame'] in nearby:
                 frame['iack_lines'][level].append([event['line'], event['horizontal_phase']])
     return {
@@ -87,6 +90,7 @@ def analyse(directory):
         'noncanonical_logo_rows': differing_rows,
         'committed_palette_writes_in_window': writes,
         'known_unchanged_palette_writes_in_window': repeats,
+        'mfp_vector_counts': dict(mfp_vectors),
         'iack_line_counts': {level: dict(count) for level, count in iack_lines.items()},
         'noncanonical_neighbour_events': {str(frame): dict(per_frame[frame]) for frame in sorted(nearby) if frame in per_frame},
         'max_capture_wait_system_clocks': max(row['max_fetch_wait'] for row in logos),
