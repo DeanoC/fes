@@ -2,8 +2,9 @@
 
 Follow-up to [task #621](https://github.com/DeanoC/fes/issues/621) and
 [PR #633](https://github.com/DeanoC/fes/pull/633), based on merged main
-`0805d2b7e08f66127524353c4cbaf15d9daf180e`. The FPGA/hardware-qualified implementation source is
-`cbfdfcf8334709d371540339f7b032ec593d0b8c`; the
+`0805d2b7e08f66127524353c4cbaf15d9daf180e`. The current FPGA/hardware-qualified implementation source is
+`dbf3fc1c8886e84487089673fb935e291c2e458b`; earlier qualification binds
+`cbfdfcf8334709d371540339f7b032ec593d0b8c`. The
 [evidence record](2026-10-09-atari-st-raster-timing/evidence.json) records
 validation and its remaining work. Earlier FPGA/hardware records qualify
 only their exact earlier packages.
@@ -37,8 +38,8 @@ acknowledgements on line zero, and 39 colors in the settled B scroller.
 Fresh [diskless EmuTOS SDRAM/HDMI](2026-10-09-atari-st-raster-timing/review-emutos-sdram.log)
 also passes at that source: eight seconds, 479 complete frames, zero native or
 indexed underruns, maximum CPU/video latency 63/64 system clocks.
-Fresh FPGA timing and hardware validation remain pending. The follow-up uses host-only validation
-and leaves the restored normal menu and kit untouched.
+The initial follow-up was host-tested; the optimized source is now qualified
+by the fresh FPGA and bounded hardware results below.
 
 ### Horizontal-window implementation
 
@@ -58,7 +59,45 @@ EmuTOS captures, so the proof preserves their behavior. The
 [full ST suite](2026-10-09-atari-st-raster-timing/review-horizontal-aggregate.log)
 and [parent consistency](2026-10-09-atari-st-raster-timing/review-horizontal-parent.log)
 pass on the committed optimized source. Fresh final FPGA/hardware qualification
-is still pending.
+is recorded below.
+
+### Fresh FPGA and hardware qualification
+
+The optimized seed 4 misses the system target at 51.98 MHz, despite passing
+pixel/audio timing. Seed 5 passes final sign-off at **79.72 MHz pixel,
+52.44 MHz system and 163.93 MHz audio**. Both linked video parts also pass
+final clocks. The [FPGA proof](2026-10-09-atari-st-raster-timing/review-fpga-proof.json)
+and [prepared record](2026-10-09-atari-st-raster-timing/review-prepared.json)
+bind exact package `87cada90f8da6093ba287d10bfd2d372e0f2071882064a28f713d52094e153a6`,
+archive SHA-256 `250aef9a70c44f38df1274f2b2a4e661e1caab38707f9e37591758c57cf66ce4`.
+
+Normal library Play launches that package's prepared Direct part with unchanged
+TOS 1.00 and the original BIG disk. The fresh
+[hardware proof](2026-10-09-atari-st-raster-timing/review-hardware-proof.json)
+verifies the active composition. The twelve-second menu capture decodes 718
+input frames with timestamp resampling disabled; one startup black frame is
+excluded. **711 of 717 nonblack logo crops match** the prior canonical hash.
+Six outliers occur in two three-frame bursts (input frames 151–153 and
+461–463), so the rare palette anomaly is still present. See the
+[full crop analysis](2026-10-09-atari-st-raster-timing/review-hardware-logo.json)
+and [outlier frame](2026-10-09-atari-st-raster-timing/review-hardware-outlier.png).
+Normal HID B retains the
+[rainbow scroller](2026-10-09-atari-st-raster-timing/review-hardware-scroller.png).
+Audio is nonzero without saturated samples; fidelity is not asserted.
+
+This is exact-FPGA diagnostic execution with previously qualified geometry
+host/runtime software, not full current-image acceptance. Scanlines is sealed
+and timing-checked but not separately launched. The updated host capture also
+visually verifies [diskless GEM](2026-10-09-atari-st-raster-timing/review-emutos-gem.png).
+The hardware probe restores the original image, active/enabled normal host and
+[populated 29-title menu](2026-10-09-atari-st-raster-timing/review-hardware-restored-menu.png),
+with target ready/idle and lease free. The private container and credential copy
+are removed; the owner configuration is unchanged. Final
+[parent consistency](2026-10-09-atari-st-raster-timing/review-hardware-parent.log)
+and all 47 CI checks pass on source/evidence head `5d18e2c73` (same production
+bytes); the final qualification commit adds evidence only. #621 remains open for
+palette-anomaly tracing, opened borders, later sections, accurate audio and
+full current-image acceptance.
 
 ## Timing change
 

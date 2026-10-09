@@ -1,0 +1,28 @@
+Source: dbf3fc1c8886e84487089673fb935e291c2e458b
+Seed: 4
+Full route log SHA-256: 5229660fc4a4164dc3d4444c57baf5820904dd1d849b09310912c5540668b982
+Info: Max frequency for clock              'pixel_clk': 61.89 MHz (FAIL at 74.25 MHz)
+Info: Max frequency for clock 'system_clock.clocks[0]': 44.45 MHz (FAIL at 52.22 MHz)
+Info: Max frequency for clock 'system_clock.clocks[1]': 183.86 MHz (PASS at 12.29 MHz)
+Info: Max frequency for clock              'pixel_clk': 80.28 MHz (PASS at 74.25 MHz)
+Info: Max frequency for clock 'system_clock.clocks[0]': 52.17 MHz (FAIL at 52.22 MHz)
+Info: Max frequency for clock 'system_clock.clocks[1]': 215.10 MHz (PASS at 12.29 MHz)
+Info: Analogue signoff repair round 1: worst clock slack -0.177 ns (pixel_clk 76.95 MHz, system_clock.clocks[0] 51.75 MHz, system_clock.clocks[1] 183.42 MHz) in 6.35s
+Info: Analogue signoff repair round 2: worst clock slack -0.114 ns (pixel_clk 76.95 MHz, system_clock.clocks[0] 51.92 MHz, system_clock.clocks[1] 183.42 MHz) in 7.09s
+Info: Max frequency for clock              'pixel_clk': 76.95 MHz (PASS at 74.25 MHz)
+Info: Max frequency for clock 'system_clock.clocks[0]': 51.71 MHz (FAIL at 52.22 MHz)
+Info: Max frequency for clock 'system_clock.clocks[1]': 183.42 MHz (PASS at 12.29 MHz)
+Info: Analogue signoff repair round 3: worst clock slack -0.091 ns (pixel_clk 76.95 MHz, system_clock.clocks[0] 51.98 MHz, system_clock.clocks[1] 183.42 MHz) in 6.80s
+Info: Analogue signoff repair round 4: worst clock slack -0.091 ns (pixel_clk 76.82 MHz, system_clock.clocks[0] 51.98 MHz, system_clock.clocks[1] 183.42 MHz) in 7.02s
+Info: Max frequency for clock              'pixel_clk': 76.82 MHz (PASS at 74.25 MHz)
+Info: Max frequency for clock 'system_clock.clocks[0]': 51.12 MHz (FAIL at 52.22 MHz)
+Info: Max frequency for clock 'system_clock.clocks[1]': 183.42 MHz (PASS at 12.29 MHz)
+Info: Analogue signoff repair round 5: worst clock slack -0.091 ns (pixel_clk 76.82 MHz, system_clock.clocks[0] 51.98 MHz, system_clock.clocks[1] 183.42 MHz) in 8.31s
+Info: Max frequency for clock              'pixel_clk': 76.82 MHz (PASS at 74.25 MHz)
+Info: Max frequency for clock 'system_clock.clocks[0]': 51.12 MHz (FAIL at 52.22 MHz)
+Info: Max frequency for clock 'system_clock.clocks[1]': 183.42 MHz (PASS at 12.29 MHz)
+Info: Analogue signoff repair round 6: worst clock slack -0.091 ns (pixel_clk 76.82 MHz, system_clock.clocks[0] 51.98 MHz, system_clock.clocks[1] 183.42 MHz) in 7.38s
+Info: Max frequency for clock              'pixel_clk': 76.82 MHz (PASS at 74.25 MHz)
+Warning: Max frequency for clock 'system_clock.clocks[0]': 51.98 MHz (FAIL at 52.22 MHz)
+Info: Max frequency for clock 'system_clock.clocks[1]': 183.42 MHz (PASS at 12.29 MHz)
+Info: Program finished normally.

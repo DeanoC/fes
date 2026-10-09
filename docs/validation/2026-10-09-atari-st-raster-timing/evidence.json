@@ -1,14 +1,12 @@
 {
   "schema": "fes.atari-st-raster-timing-evidence/1",
   "base_revision": "0805d2b7e08f66127524353c4cbaf15d9daf180e",
-  "implementation_revision": "cbfdfcf8334709d371540339f7b032ec593d0b8c",
+  "implementation_revision": "dbf3fc1c8886e84487089673fb935e291c2e458b",
   "hardware_execution": true,
   "demo_compatibility_asserted": false,
   "shared_contract_changes": false,
   "validation_pending": [
-    "rare hardware palette outlier diagnosis",
-    "fresh FPGA timing and sealed package for review follow-up f65021a58",
-    "fresh hardware validation for review follow-up f65021a58"
+    "rare hardware palette outlier diagnosis"
   ],
   "digital_tests": {
     "st_aggregate": "pass",
@@ -131,7 +129,19 @@
     "review-horizontal-equivalence-1.log": "4e6551ba734c25bb3f6d9812b200762324ca5b1c0e70736db7161595b410dfd8",
     "review-horizontal-equivalence.json": "089d0e501111c96c6548d9ebddf7798d335d766fd440486b8fdb66d14d183102",
     "review-horizontal-aggregate.log": "64d3ea31aa22313106308b0b99fff9412154bc23688992d181341bd50d59ead1",
-    "review-horizontal-parent.log": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158"
+    "review-horizontal-parent.log": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158",
+    "review-seed5-timing.log": "c4350102b547d7b8605dcf3c69148d58526d71b7cc26dffccf358a0377ce96c6",
+    "review-prepared.json": "4b04b825416c0c100f8364c6017c2bd74958f3469313ea8957e975434bfc7ce6",
+    "review-hardware-restored-menu.png": "1c38ce785d457d16834e1335a75797a464915a8b4935fe6c9247ab8324a7a66b",
+    "review-fpga-proof.json": "de6a6875edee36e59cecba5688448abbba011d8589db0c11e83bad7ef2a583ab",
+    "review-emutos-gem.png": "dcf7a6bdff78b69606e733a91e98c829862bc61bb4240968b67a1d137ac7a4e0",
+    "review-seed4-timing.log": "65d5d259842aec99abb9b90bac9c858cf2515174b51d546bfbb52bc12620fd0f",
+    "review-hardware-menu.png": "62fbb763ad084f655fd47b678efca2809f18363bd95d1a55a2e2d8526c529055",
+    "review-hardware-outlier.png": "79d755ba06aefef2a5327a58a2e0c921edfc2e17259b997761ba17341c8c5671",
+    "review-hardware-logo.json": "582795162d520fd828099742e3c39da8f25fefc5e92929c1f6b480e81f2b2d9f",
+    "review-hardware-proof.json": "ba85aec6501f1f85c92e6ac4afc1446e41023a67047a5d02f6700bda6b5a64e4",
+    "review-hardware-scroller.png": "a95f0b25c754783f11af1a9cb1c1fbc175739fdc5a59ea821a3d6b677d31229e",
+    "review-hardware-parent.log": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158"
   },
   "fpga_attempts": [
     {
@@ -657,7 +667,7 @@
     "focused_io_assertions": 6528419,
     "focused_io_system_clocks": 83123247,
     "parent_consistency": "pass",
-    "hardware_execution": false,
+    "hardware_execution": true,
     "earlier_model_formal_fpga_hardware_evidence_qualifies_followup": false,
     "shared_contract_changes": false,
     "kit_touched": false,
@@ -699,6 +709,26 @@
       "source_revision": "dbf3fc1c8886e84487089673fb935e291c2e458b"
     },
     "optimized_aggregate": "pass",
-    "optimized_parent_consistency": "pass"
-  }
+    "optimized_parent_consistency": "pass",
+    "fpga": {
+      "record": "review-fpga-proof.json",
+      "source_revision": "dbf3fc1c8886e84487089673fb935e291c2e458b",
+      "package_id": "87cada90f8da6093ba287d10bfd2d372e0f2071882064a28f713d52094e153a6",
+      "final_timing_pass": true
+    },
+    "hardware": {
+      "record": "review-hardware-proof.json",
+      "source_revision": "dbf3fc1c8886e84487089673fb935e291c2e458b",
+      "canonical_logo_frames": 711,
+      "nonblack_logo_frames": 717,
+      "rainbow_scroller_verified": true,
+      "original_image_menu_and_private_host_cleanup_verified": true
+    },
+    "source_ci": {
+      "head": "5d18e2c73a36d87fda1fff1f83f4f7dc71ca387d",
+      "successful_checks": 47,
+      "failed_checks": 0
+    }
+  },
+  "earlier_implementation_revision": "cbfdfcf8334709d371540339f7b032ec593d0b8c"
 }

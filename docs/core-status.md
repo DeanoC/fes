@@ -229,23 +229,20 @@ latch timing, opened borders, accurate audio and full image integration remain
 open; this diagnostic does not establish full BIG compatibility.
 
 The [raster timing follow-up](validation/2026-10-09-atari-st-raster-timing.md)
-uses coherent native CPU/line/frame cycles, a bounded bottom-stop sample and
-24-cycle delayed Timer B display edges. The original BIG model has sixteen
-identical static-logo crops and menu VBL acknowledgements on line zero.
-Focused I/O, the full ST suite, diskless stock EmuTOS SDRAM/HDMI and parent
-consistency pass at the recorded revisions. The `cbfdfcf83` package passes
-74.67/52.84/193.54 MHz final timing
-and seals Direct/Scanlines parts. A bounded original-TOS/BIG hardware probe
-using prepared Direct retains the rainbow; 235 of 236 nonblack logo crops
-match, with one rare grayscale palette anomaly still needing diagnosis.
-The original image and populated free menu are restored. Full current-image
-acceptance remains separate; opened-region RGB still crops to ordinary 320×200.
-The review follow-up samples color line length at cycle 54, preserving frame
-length for bottom pulses restored after HBL. Its cross-HBL regressions, fresh
-BIG model and diskless EmuTOS checks pass. Constant horizontal DE bounds
-remove a carry chain; whole-I/O equivalence preserves those new captures.
-Fresh FPGA/hardware validation is pending for this optimized RTL; the earlier
-package/hardware evidence qualifies only its recorded source.
+uses coherent CPU/line/frame cycles, a bottom-stop sample and 24-cycle delayed
+Timer B display edges. Color line length samples sync at cycle 54, preserving
+frames when BIG restores its bottom pulse after HBL. Constant DE bounds close
+the native capture carry paths; whole-I/O equivalence preserves fresh BIG and
+stock EmuTOS captures. Full ST and parent checks pass. Diskless EmuTOS reaches
+GEM; the original BIG model has sixteen identical logo crops, menu VBL
+acknowledgements on line zero and the rainbow B scroller.
+The `dbf3fc1c8` package passes final timing at 79.72/52.44/163.93 MHz and seals
+Direct/Scanlines parts. Its bounded prepared-Direct hardware probe retains the
+rainbow. In twelve seconds, 711 of 717 nonblack logo crops match; six outliers
+in two bursts keep the rare palette anomaly open. The original image and
+populated free menu are restored, and the private host/credential copy removed.
+Full current-image acceptance remains separate; opened-region RGB still crops
+to ordinary 320×200, and later demo sections/audio fidelity remain unqualified.
 
 ## Not implemented, or not this package
 
