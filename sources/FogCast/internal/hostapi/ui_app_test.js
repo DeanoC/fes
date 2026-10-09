@@ -1097,6 +1097,8 @@ test('a refreshed preference replaces the owned source id', async () => {
     { source_game_id: intermediateID, execution: 'native_emu', available: true, host_local: true },
   ]);
   let preferenceID = emu.id;
+  let releaseSave = () => {};
+  const saveGate = new Promise(resolve => { releaseSave = resolve; });
   const fetchImpl = async (requestPath, options) => {
     const pathOnly = String(requestPath || '').split('?')[0];
     if (pathOnly === '/api/v1/games') return jsonResponse({ games: [fpga, emu, intermediate] });
@@ -1105,6 +1107,7 @@ test('a refreshed preference replaces the owned source id', async () => {
     if (pathOnly === `/api/v1/games/${intermediateID}`) return jsonResponse(intermediate);
     if (pathOnly === '/api/v1/library/titles') return jsonResponse({ titles: [title] });
     if (pathOnly === '/api/v1/library/edition-preferences' && options && options.method === 'PUT') {
+      await saveGate;
       preferenceID = JSON.parse(options.body).game_id;
       return jsonResponse({ query: 'Data Storm', platform: 'sms', game_id: preferenceID });
     }
@@ -1118,7 +1121,9 @@ test('a refreshed preference replaces the owned source id', async () => {
   await controller.selectGame(fpga.id);
   preferenceID = intermediateID;
   await controller.ensurePlayContext();
-  await controller.chooseBackend(fpga.id);
+  const chosen = controller.chooseBackend(fpga.id);
+  await chosen;
+  releaseSave();
   await new Promise(resolve => setImmediate(resolve));
   const picks = controller.getState().playPicks;
   assert.equal(picks[intermediateID], undefined);
