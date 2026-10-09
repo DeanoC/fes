@@ -94,7 +94,7 @@ def run(args):
     source, build = output / "source", output / "build"
     source.mkdir(); build.mkdir()
     identities, selected, differences = {}, {}, {}
-    for relative in [PREFIX + name for name in rtl + DATA] + [wrapper]:
+    for relative in [PREFIX + name for name in rtl + DATA] + [wrapper] + helpers:
         result = subprocess.run(["git", "show", revision + ":" + relative], cwd=ROOT, capture_output=True)
         if result.returncode and not args.working_tree:
             raise ValueError(f"selected revision lacks compiled input: {relative}")
@@ -106,12 +106,6 @@ def run(args):
                 raise ValueError(f"working compiled input differs from selected revision: {relative}")
             differences[relative] = {"revision_sha256": selected[relative], "captured_sha256": sha(working)}
         data = working if args.working_tree else committed
-        identities[relative] = sha(data)
-        destination = source / relative
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(data)
-    for relative in helpers:
-        data = (ROOT / relative).read_bytes()
         identities[relative] = sha(data)
         destination = source / relative
         destination.parent.mkdir(parents=True, exist_ok=True)

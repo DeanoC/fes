@@ -58,3 +58,29 @@ class RasterTraceTests(unittest.TestCase):
             (root/'demo-proof.json').write_text('{"capture_completed":false}')
             with self.assertRaisesRegex(ValueError, 'did not complete'):
                 analyse(root)
+
+class FrozenHelperTests(unittest.TestCase):
+    def test_selected_revision_rejects_a_changed_compiled_driver(self):
+        # The C++ driver is compiled source too. It must not be silently taken
+        # from current working bytes while reporting a selected-revision run.
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from subprocess import CompletedProcess
+        from scripts import sim_atari_st_demo as demo
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            for relative in [demo.PREFIX+n for n in demo.RTL+demo.DATA] + [demo.WRAPPER] + demo.HELPERS:
+                file = root/relative
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_bytes(b'')
+            (root/demo.HELPERS[1]).write_bytes(b'changed driver')
+            rom = root/'rom.img'; rom.write_bytes(bytes(196608))
+            disk = root/'disk.st'; disk.write_bytes(bytes(409600))
+            args = SimpleNamespace(shared_memory=False, revision='test', rom=rom,
+                                   rom_sha256=hashlib.sha256(rom.read_bytes()).hexdigest(), disk=disk,
+                                   verilator='verilator', output=root/'output', working_tree=False)
+            with patch.object(demo, 'ROOT', root), patch.object(demo.shutil, 'which', return_value='/test/verilator'), \
+                 patch.object(demo.subprocess, 'check_output', return_value='test\n'), \
+                 patch.object(demo.subprocess, 'run', return_value=CompletedProcess([], 0, stdout=b'')):
+                with self.assertRaisesRegex(ValueError, 'working compiled input differs.*atari_st_demo_sim.cpp'):
+                    demo.run(args)
