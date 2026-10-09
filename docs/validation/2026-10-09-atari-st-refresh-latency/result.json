@@ -1,0 +1,276 @@
+{
+  "base": "2d576208eb20214d1ebd77c58d9cb3480cfce615",
+  "checks": {
+    "diff_check": "pass",
+    "diskless_boot": "pass, eight seconds, no disk, assembled SDRAM and independent video clocks",
+    "parent_consistency": "pass, 18 generated consumers, 34 fixtures, zero copied source pins",
+    "physical_memory": "pass, both profiles and all three DQM delays",
+    "ram_tester": "pass, default and IO output-register variants plus byte-mask fault cases"
+  },
+  "clock_hz": 52224000,
+  "datasheet": {
+    "device": "IS42S16320D",
+    "manufacturer": "ISSI",
+    "page": 19,
+    "refresh_command_period_ns_max_across_speed_grades": 60,
+    "revision": "B, 2015-05-12",
+    "url": "https://media.digikey.com/pdf/Data%20Sheets/ISSI%20PDFs/IS42_45R_S_86400D_16320D_32160D.pdf"
+  },
+  "diskless_boot": {
+    "capture": {
+      "conversion": "Lossless PPM to PNG; RGB pixel equality verified",
+      "png_sha256": "2c6a4d309716b43a8f039b9ae3fd66b075e7aa1aefe6a3e28a82a04ad34932d8",
+      "ppm_sha256": "f7c7d235f7aa4699928dace7f1b4be54b29eb7f170708b45b4e5119a4d3ee7d6"
+    },
+    "completion": "Stock EmuTOS assembled SDRAM/video boot PASS: 417792000 system clocks, 594018699 independent pixel clocks, 479 complete frames, 3 RGB colors; max CPU/video latency 39/40 clocks",
+    "final_status": "assembled seconds=8 pc=fd3770 bus=fd3772 phystop=80000 screen=78000 memvalid=752019f3 hz200=1574 frclock=476 CPU R/W=938151/716362 video R=7648000 refreshes=1068525 faults=4 MFP/VBL=1763/476 native frames/skipped/underruns=478/0/0 indexed underruns=0",
+    "log_sha256": "7d212775da5ed2db21c13b2fa44e5e0b9c3f8d609ccae2cf270fb9a633417099",
+    "pass": true,
+    "source_and_model_unchanged": true,
+    "source_binding": {
+      "boot_executable_sha256": "41c98588cc0d760bb5730349be669c765507a56ad3cd74e04a2c35722b06a068",
+      "compiled_scope_inputs": {
+        "sources/misteross/Makefile": "ca1cd89bc71f62e8e080dadbc4bf87b0e487ef2af6dd487f942d9f1e4f0e8043",
+        "sources/misteross/cores/fes-atari-st/README.md": "f8c53dc2c4a6ff1511fb85c26e8cfd0abb4a1016251b4f2d4bab30a7ace76ee5",
+        "sources/misteross/cores/fes-atari-st/constraints/clocks-oss.sdc": "a0f6cf1636d4bf91643477d923761872edddeb64f70b9432298b1cc4c88f14bc",
+        "sources/misteross/cores/fes-atari-st/constraints/constraints-oss.qsf": "3179d716ce053c2f435e097e21d5191cd78c51e1aea1af37b21beefbd36daed5",
+        "sources/misteross/cores/fes-atari-st/diagnostic/firmware.py": "a529d811cd54dc93c932470014a2d9cfe8b01f3ffbaee5f6ccf04cae147e265c",
+        "sources/misteross/cores/fes-atari-st/expansions/probe_cart.sv": "e40c47cc5594958e210e81c57cc1bfbd3c62c07dd3475f45cdbd493d57e4582c",
+        "sources/misteross/cores/fes-atari-st/expansions/st_probe.sv": "828372d75168d6fb520f41da23b78448aafba604d651b94da7511e8a8a69abfa",
+        "sources/misteross/cores/fes-atari-st/rtl/fes_atari_st_top.v": "526b5ac07824eb809df647670c397196983cb8a0ee15e8c862bc57b1f8b7d861",
+        "sources/misteross/cores/fes-atari-st/rtl/st_acia.sv": "c2cd7123a452cdbfa7adc0963adbe1abe0d35a55de97a6e841beefd89a8f1758",
+        "sources/misteross/cores/fes-atari-st/rtl/st_cpu.sv": "62217d8b01eed459050e55132b56ebd6a7d171d3bd2c9db72fb630db21d7dfbc",
+        "sources/misteross/cores/fes-atari-st/rtl/st_expansion_socket.sv": "77d97bec4faa91d5a7f7c74f95eb5fc6b6ae8b8527fe726b033cc53608b5d592",
+        "sources/misteross/cores/fes-atari-st/rtl/st_floppy.sv": "cc9982f03e9a9b0e0497d25f5d26b4aa9c5da74ec7d2e3740fd33d58eace864b",
+        "sources/misteross/cores/fes-atari-st/rtl/st_floppy_writer.sv": "a3b85a83e26b8e9dc55ca2c6179fed593cacd876a4b0c925785003eeafab48d4",
+        "sources/misteross/cores/fes-atari-st/rtl/st_ikbd.sv": "310ac098380364b2bfcfed5c686366c309708d52f0b50da46c7466f3cd812e83",
+        "sources/misteross/cores/fes-atari-st/rtl/st_io.sv": "c6eb6069ac2468a7f54911b41cad99f92e5afc868bd8834524d3e84f3eccaa46",
+        "sources/misteross/cores/fes-atari-st/rtl/st_machine.sv": "22b1dc800867cbfb98ba08e7fa626c3a6f86c655d797423a52b62c784a2e2f60",
+        "sources/misteross/cores/fes-atari-st/rtl/st_media_port.sv": "f293010e56600fd248c9a4586ef841a1bde9645bdfbf4765294b465d57fa8868",
+        "sources/misteross/cores/fes-atari-st/rtl/st_media_writer.sv": "5200aef56545c07ecd9c7a4ee139717bd3f6221abe7b574f315865299f01fcae",
+        "sources/misteross/cores/fes-atari-st/rtl/st_memory.sv": "41b591bbe96798f2f39169aafd9aa4b560ae063c144b0912613eae48441c559c",
+        "sources/misteross/cores/fes-atari-st/rtl/st_mfp.sv": "99be49fddf8abee2881a0dc7bb686f9c54b50b752b98c81e963e9d09a2205c81",
+        "sources/misteross/cores/fes-atari-st/rtl/st_native_low_video.sv": "51b8e4d4910d073b80857f5beb8142d13c298e96abbc8e98056365a6fb86dd9c",
+        "sources/misteross/cores/fes-atari-st/rtl/st_rom.v": "629b280a63a29c99b0ceac032155bc2c486ce532afe07b3cbf8cdbec5290c8c9",
+        "sources/misteross/cores/fes-atari-st/rtl/st_system.sv": "cc6e242a57224b37a66330001a47e7f796e51b15ca8d47379e2cac9a26bb336a",
+        "sources/misteross/cores/fes-atari-st/rtl/st_video.sv": "732484f716705b0b29f4fb7291623749f2e8a1177f82e4299455c765c42ac7f8",
+        "sources/misteross/cores/fes-atari-st/rtl/st_video_adapter.sv": "88562ba5980d02f2407bcc34253e0fbc930e17d02e622af28ce7c5752af55d02",
+        "sources/misteross/cores/fes-atari-st/rtl/st_video_socket.sv": "12a5706245d1ebb0c7b03fe1cfc0a430ed1286af4d42407f0f30b18ce77c6505",
+        "sources/misteross/cores/fes-atari-st/rtl/st_ym2149.sv": "fa81ad3c51fd523a7daed244a5bf604976ee2deeee0867ba75117b614c40c3f0",
+        "sources/misteross/cores/fes-atari-st/sim/boot_disk_tb.cpp": "82471cb2a5d7f9cb54ec89a5ebb898cd727838921a272726333ab842062b2e4f",
+        "sources/misteross/cores/fes-atari-st/sim/boot_memory_tb.cpp": "6321ae0afaf9a04bed584bd3fcc8d226af7c42b1677b4a0b711bce94b9dee5d1",
+        "sources/misteross/cores/fes-atari-st/sim/boot_tb.cpp": "671d6a3c457e6ae6ad3b25f613f84cb08413108281ea1179a437456b06c609f5",
+        "sources/misteross/cores/fes-atari-st/sim/check_sources.py": "b3547c9f699d12b1632424c922822e88ece6c37bf2736cd27e5de14b6080c4f4",
+        "sources/misteross/cores/fes-atari-st/sim/floppy_tb.cpp": "3d1041bd79ccdedbd2f0891a4842ba37dc0889fd859b9f473c5f7e531993382e",
+        "sources/misteross/cores/fes-atari-st/sim/floppy_write_tb.cpp": "24e2e70e4fafe5d62ce0c309059135b3bf7b6b49187f33131e4b0d621c0775ec",
+        "sources/misteross/cores/fes-atari-st/sim/input_audio_tb.cpp": "827eee2c5c624b7760e9077f751b54f0b6c6fabdc2914bdd743ea77f8960b29c",
+        "sources/misteross/cores/fes-atari-st/sim/io_tb.cpp": "ae06bf14ca73bfaf69b860580fc6716eb90477655bd65182148c634b3818d854",
+        "sources/misteross/cores/fes-atari-st/sim/machine_tb.cpp": "4856fdf0e6e41aab02a347d7878eaa7f5430d88ea64a7252e3523f08527391bd",
+        "sources/misteross/cores/fes-atari-st/sim/media_lifecycle_tb.cpp": "6445a02cca9d06bc847c0d2a519b4a8754b327c7b6f1966a56a6286470a007af",
+        "sources/misteross/cores/fes-atari-st/sim/media_port_tb.cpp": "d1e947321f7145bf4157fc4dcfdeb007238099a36ab4783bc682f5f71748dc89",
+        "sources/misteross/cores/fes-atari-st/sim/media_tb.cpp": "8e4bc687c87bd2c2c4aea0af82c9fa91027a4b673fb8af015f0835c847ae6b94",
+        "sources/misteross/cores/fes-atari-st/sim/memory_tb.cpp": "22d32635173402d80538da79b9062ff0d87800579c726b77e934bcc19eef5e4e",
+        "sources/misteross/cores/fes-atari-st/sim/mfp_bus_tb.cpp": "a96218621bb7fd70e464aa261fb9c6a640c5c900197c6fa2785b3a86e0a1fb03",
+        "sources/misteross/cores/fes-atari-st/sim/mfp_tb.cpp": "aac7fa44c87a8b756bfdfd48934d844b43d7bd97b0e9e6baad6ae152c09a28f8",
+        "sources/misteross/cores/fes-atari-st/sim/mfp_wait_tb.cpp": "48b2e1ca1b5d0ae3ce53a041d6dbdf68e32a458ab0e4f8ad23eecd01086463d6",
+        "sources/misteross/cores/fes-atari-st/sim/native_video_tb.cpp": "d40ff7cdc873f325ce2fe1dd57657fe627c9b3563014fa1822b6ce3e2fbc0b5b",
+        "sources/misteross/cores/fes-atari-st/sim/st_boot_disk_sim_top.sv": "80cf0f456d710907c16d01bea9e392b31a6b04d0097e1608047a481e82d3e468",
+        "sources/misteross/cores/fes-atari-st/sim/st_boot_memory_sim_top.sv": "54d8b8baa4b30ca3f0fe5b0db79ac69902ee8c5e74ae5abf0b65ead99d4b694f",
+        "sources/misteross/cores/fes-atari-st/sim/st_boot_sim_top.sv": "76b74a1d8c3addef167dafe03f72e8faa84e1359669069f57c02ca4144f8858d",
+        "sources/misteross/cores/fes-atari-st/sim/st_input_audio_sim_top.sv": "60163d5b9c01ec2e5c7b54d656e38395b40a444bbfd47b86d770e1ab78e62cfe",
+        "sources/misteross/cores/fes-atari-st/sim/st_io_sim_top.sv": "02798fe400c7eaf2285c614a56e531665ee311cb8445092e18c8d928b28b291f",
+        "sources/misteross/cores/fes-atari-st/sim/st_media_lifecycle_sim_top.sv": "914655b57dc3da29d78460cc7af2b91b25e45df7cda0822a93a9a0a3c3ab30f3",
+        "sources/misteross/cores/fes-atari-st/sim/st_media_sim_top.sv": "81f3ec5b370753f00be6f6f5c310d1351854e9ebd91c28eb1d8e0c4fd8061283",
+        "sources/misteross/cores/fes-atari-st/sim/st_memory_sim_top.sv": "1f730593be80e7b4a14527d7d60d359ee2065a1c790ddbb5471aa5136cdfdeaf",
+        "sources/misteross/cores/fes-atari-st/sim/st_native_video_sim_top.sv": "ab9d5c8652092cfa0faa1b5c6226fb5402fb50a587d455683de226509c3fae8b",
+        "sources/misteross/cores/fes-atari-st/sim/st_sim_top.sv": "a8dfdd6ad380d3e0a1a5e806640a85e005e515dbaf4d7595c36ad6b82d0c1921",
+        "sources/misteross/cores/fes-atari-st/sim/st_video_adapter_sim_top.sv": "69820a5d4dd054da990cacac276a51b140745a80a4863d9423192825cc906d28",
+        "sources/misteross/cores/fes-atari-st/sim/st_video_sim_top.sv": "b94abe491e7a5be485dc2f6728b3d70192c1e36742f29035254a10eb377d1c13",
+        "sources/misteross/cores/fes-atari-st/sim/video_adapter_tb.cpp": "1307508b477e5f0a7f6bf1778a62c462eb5c188041eda437c405601de67387c4",
+        "sources/misteross/cores/fes-atari-st/sim/video_part_top.v": "c905a2ed6cfbb20b6ed5f2230ea1bd09c1da9f55dde027b35f23e28a302504d0",
+        "sources/misteross/cores/fes-atari-st/sim/video_tb.cpp": "5e3471bb42678c423c6128e712eca017fa6ce12d60ec4073c2ae2b7a454225b0",
+        "sources/misteross/cores/fes-atari-st/tests/io_guest_sim_top.sv": "4085510a16b3c41e757c040d5d175c2914c4189f65fa90fa50189c892c207bb4",
+        "sources/misteross/cores/fes-atari-st/tests/io_guest_tb.cpp": "590df9eadc8f24b0a3be4fd825e7486e17e76b019978b4c2785ac12b898f37cc",
+        "sources/misteross/cores/fes-common/generated/computer-exchanges.json": "aa20b11d67296ea34f7c1520ac8fb47f45a24bbae60f7f38022d808a43d52c0c",
+        "sources/misteross/cores/fes-common/generated/controller-exchanges.json": "dceeba1b07ae4e0a98f105a631c943962e54cc719c24bfaeeb3e03c483f42c8e",
+        "sources/misteross/cores/fes-common/generated/exchanges.json": "792124e466d2762521c4cfa073f1b11e5b417489ea3cac75a4a7e95187d56c46",
+        "sources/misteross/cores/fes-common/generated/fes_application.vh": "3c62b421fe14b23599a7ee3f91ab1107cdce7a05bfc34dc7890da64289447d9f",
+        "sources/misteross/cores/fes-common/generated/fes_atari_st_bus.vh": "7cad50aee07f355d0c67b0cee16463a5b26ddd9abb992df18ca2a9c103e3f2c0",
+        "sources/misteross/cores/fes-common/generated/fes_computer.vh": "360b4e2cabb9ae9282603a4fa38ed76d2c40e74a64de574cf2d260063f3bdc62",
+        "sources/misteross/cores/fes-common/generated/fes_native_video.vh": "85347b413ec92a100b1d105cc02caae1179f63c2992af9d0de1d60fd5b7d94ce",
+        "sources/misteross/cores/fes-common/generated/fes_video_part.vh": "322cf3e10fb5465deadfc68de2af1e54768eef9b7b53c6be04c9d7a3532c99ab",
+        "sources/misteross/cores/fes-common/generated/menu-exchanges.json": "f1ea02a1907688b84d3a4c4a54c28ccfd10a0bc8f1db849f2e8e898b5a71c31f",
+        "sources/misteross/cores/fes-common/generated/stream-exchanges.json": "3b186ea15c6cbed8c682f09c7a17824a03afaefae12d264ae17282461d8e854f",
+        "sources/misteross/cores/fes-common/rtl/fx68k/.gitattributes": "9295abbbd96ec283da5e70dfcac4b69d70c04d5a457743e6527770c029d31e29",
+        "sources/misteross/cores/fes-common/rtl/fx68k/LICENSE": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+        "sources/misteross/cores/fes-common/rtl/fx68k/README.md": "a566a9813f60c47de5aaebc34dbeca2dbef7709e5c209744a9708d99c5f066ea",
+        "sources/misteross/cores/fes-common/rtl/fx68k/fx68k.sv": "a718bb869a8a969dbdda89facd76f8621f655f8a84e7afa9551b2785eee5656a",
+        "sources/misteross/cores/fes-common/rtl/fx68k/fx68k.txt": "2a7d451e8f7ae8683e4ec4f40a9b3adf91fb5c8b5d569c0f4cdb2b5de090811d",
+        "sources/misteross/cores/fes-common/rtl/fx68k/fx68kAlu.sv": "3f22006cbdb8cb661e5f54cc779f79bb697b587c86d586103478703fca38bcce",
+        "sources/misteross/cores/fes-common/rtl/fx68k/microrom.mem": "9d13082be0cf4b04bff887e6da23de84f9f2ee4321f3a2576b4f9540615dece6",
+        "sources/misteross/cores/fes-common/rtl/fx68k/nanorom.mem": "b3998009fb10605e8468cddf22fdd799a9792ba86f449de2e30615cfcefbeece",
+        "sources/misteross/cores/fes-common/rtl/fx68k/source.json": "46318e9a46977d8dd917d896f0911ed13a34c707e289b9458fa8e4dad9f42f97",
+        "sources/misteross/cores/fes-common/rtl/fx68k/uaddrPla.sv": "07ceb3b1fbbd74f255c2a909151fe5efd38a575ba4f6aa47c6208050d2e27326",
+        "sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v": "a67378378e6935655506ee7f302460fdc7e2e46e78d2f0561380085f38b762d6"
+      },
+      "disk_inserted": false,
+      "fpga_artifact_acceptance": false,
+      "generated_model_inputs_sha256": {
+        "Vst_boot_memory_sim_top.cpp": "61f81e5133b761a4a3201a41e41983ccfe5e59c11cf44bb2d159d5b5860d319e",
+        "Vst_boot_memory_sim_top.h": "7e7179cf4613f5d15d29a3a95115914317d56946641f6ac08e7064e3f0160d60",
+        "Vst_boot_memory_sim_top.mk": "9fe322bf15d80d2194083f69ab2a7e8afac3ac65a70d6efec4bc6e35204699fa",
+        "Vst_boot_memory_sim_top__ConstPool_0.cpp": "078dad4198f57b090ac663037b91086802b34ed4ffb6cb7335e6517b8c5b66a9",
+        "Vst_boot_memory_sim_top__Syms.cpp": "6611b79bf58dd58a0f21eaae3fe4941d57bd6cbe25a22f031f48927090656438",
+        "Vst_boot_memory_sim_top__Syms.h": "1cd3cd0aa5364a4b541be0a280fd1553c65bc678b2970a29a85bb5c5b26add52",
+        "Vst_boot_memory_sim_top___024root.h": "19684c7c9e2bc25841d659e76dcdd6529f7da046f87994306282c1a1e854adda",
+        "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__0.cpp": "344e3fc73990cba25bef8be2217b60cfb38263e7697200dbef0310a9d24c8bc9",
+        "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__0__Slow.cpp": "8dca0a904db4765be43f3efc269ccc76209d8ebfbe024079b24d32d203fd6794",
+        "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__1.cpp": "fd759b6ea26efe1011474c7ec49cf7930e63e49dfd198d2425c3b434a34642ea",
+        "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__1__Slow.cpp": "0c49bd8c346cd893e70d34dcd55a317d61f75bcf79c2b470653458b565e9ff6b",
+        "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__2.cpp": "1164a46bcb1cd350177accc6b2e0517b917beed4c0868d4d2e637e08c9e769d1",
+        "Vst_boot_memory_sim_top___024root__DepSet_h680f5d4a__2__Slow.cpp": "77a7418076364b5359cdf9b54986ea5a33e93798d7bd3c49147cb03c24fd35f8",
+        "Vst_boot_memory_sim_top___024root__DepSet_h99b8b367__0.cpp": "d1b25d2d28fe01f21371e6626109cf3f6659f0a4988aab9fd98dd2b6338b5985",
+        "Vst_boot_memory_sim_top___024root__DepSet_h99b8b367__0__Slow.cpp": "e495096f497d722d335787a087c944e787c0d8405206f6f0cb049c35e926b606",
+        "Vst_boot_memory_sim_top___024root__Slow.cpp": "b874c042e65bb6f6fa33a4001a30fb53072ea462933a383f60c7b2f12b5e6d39",
+        "Vst_boot_memory_sim_top___024unit.h": "8a1eb3837c1103b2bfdc364a9adbe82d52b9cd676c0d99174457c2cd3eb5e14c",
+        "Vst_boot_memory_sim_top___024unit__DepSet_hef7166fe__0.cpp": "15f289ef299437ae3957d087b421210f9d0a87463e47c5b45326d0822251914f",
+        "Vst_boot_memory_sim_top___024unit__DepSet_hef7166fe__0__Slow.cpp": "a0bbe18daed3a00c563f64e4ade1ad3c4a120e7bf2b4ca66d5717740f491e687",
+        "Vst_boot_memory_sim_top___024unit__Slow.cpp": "21992b703785cfa2e89c1bc34b52952ea188d86968f923c405d6c8bcb989606f",
+        "Vst_boot_memory_sim_top__pch.h": "78a2bd44e5c53c90617d4ce4091be9f20881e9419d6dfd41c01685e605a0c3d1",
+        "Vst_boot_memory_sim_top_classes.mk": "1d431a6c239ab6ec6889f6cc93ec7f27ab451786df98b932904985dabd588ac8",
+        "microrom.mem": "9d13082be0cf4b04bff887e6da23de84f9f2ee4321f3a2576b4f9540615dece6",
+        "nanorom.mem": "b3998009fb10605e8468cddf22fdd799a9792ba86f449de2e30615cfcefbeece"
+      },
+      "hardware_execution": false,
+      "rom_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+      "seconds": 8,
+      "source_revision": "5a0174de05657e95a7a894cf8fd5ff291e76cd35"
+    }
+  },
+  "focused_profiles": [
+    {
+      "completed_requests": 11228,
+      "cpu_read_min_max": [
+        13,
+        26
+      ],
+      "cpu_write_min_max": [
+        10,
+        23
+      ],
+      "dqm_delay_clocks": 0,
+      "max_contention_latency": 78,
+      "profile": "ST",
+      "refreshes_chip_zero": 475,
+      "system_clocks": 197785,
+      "wait_counts": 4
+    },
+    {
+      "completed_requests": 11228,
+      "cpu_read_min_max": [
+        13,
+        26
+      ],
+      "cpu_write_min_max": [
+        10,
+        23
+      ],
+      "dqm_delay_clocks": 1,
+      "max_contention_latency": 78,
+      "profile": "ST",
+      "refreshes_chip_zero": 475,
+      "system_clocks": 197785,
+      "wait_counts": 4
+    },
+    {
+      "completed_requests": 11228,
+      "cpu_read_min_max": [
+        13,
+        26
+      ],
+      "cpu_write_min_max": [
+        10,
+        23
+      ],
+      "dqm_delay_clocks": 2,
+      "max_contention_latency": 78,
+      "profile": "ST",
+      "refreshes_chip_zero": 475,
+      "system_clocks": 197785,
+      "wait_counts": 4
+    },
+    {
+      "completed_requests": 11228,
+      "cpu_read_min_max": [
+        13,
+        50
+      ],
+      "cpu_write_min_max": [
+        10,
+        47
+      ],
+      "dqm_delay_clocks": 0,
+      "max_contention_latency": 102,
+      "profile": "legacy",
+      "refreshes_chip_zero": 506,
+      "system_clocks": 209962,
+      "wait_counts": 16
+    },
+    {
+      "completed_requests": 11228,
+      "cpu_read_min_max": [
+        13,
+        50
+      ],
+      "cpu_write_min_max": [
+        10,
+        47
+      ],
+      "dqm_delay_clocks": 1,
+      "max_contention_latency": 102,
+      "profile": "legacy",
+      "refreshes_chip_zero": 506,
+      "system_clocks": 209962,
+      "wait_counts": 16
+    },
+    {
+      "completed_requests": 11228,
+      "cpu_read_min_max": [
+        13,
+        50
+      ],
+      "cpu_write_min_max": [
+        10,
+        47
+      ],
+      "dqm_delay_clocks": 2,
+      "max_contention_latency": 102,
+      "profile": "legacy",
+      "refreshes_chip_zero": 506,
+      "system_clocks": 209962,
+      "wait_counts": 16
+    }
+  ],
+  "fpga_artifact_acceptance": false,
+  "hardware_execution": false,
+  "legacy_refresh_wait_counts": 16,
+  "local_log_sha256": {
+    "memory-tests-final.log": "208ad286ba44e3a674ad8889636dcdbe6f8d43e87fc8ccbf4ca176a348510899",
+    "parent-check.log": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158",
+    "ramtest-tests.log": "e2a7e6e81dbe3cc4e71a4195d6063f3541062a970a76e1eeff5fc85a9e57a9cc"
+  },
+  "minimum_command_gap_clocks": {
+    "legacy": 18,
+    "st": 6
+  },
+  "minimum_st_command_gap_ns": 114.88970588235294,
+  "schema": "fes.atari-st.refresh-latency-diagnostic/1",
+  "source_revision": "5a0174de05657e95a7a894cf8fd5ff291e76cd35",
+  "st_refresh_wait_counts": 4,
+  "test_executable_sha256": {
+    "build/fes-ramtest-sim-io-registers/sim": "5d000a31eb4f29a45ef516146f421185802832a33a231d78c16f5c0961d29631",
+    "build/fes-ramtest-sim/sim": "2431e1d2bc7c1fcecb291f37991f0951f0429d4cb922cf111ac608bdcb0f47bc",
+    "build/sim/fes-atari-st-memory-legacy-refresh/Vst_memory_sim_top": "74d34f7bb29e4c5e159fe115088012ccd49d89403923a935cec21f0e7ec9cff5",
+    "build/sim/fes-atari-st-memory/Vst_memory_sim_top": "2221c2b8292f9b3573662c1e8b67c8f86e0de2b2e38ca637657bce25bc0d6c16"
+  }
+}
