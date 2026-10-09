@@ -1630,6 +1630,7 @@
     let confirmedPicks = {};
     let localPlayPicks = {};
     const titleChoiceKeys = new Map();
+    const lastSuccessfulPick = new Map();
     let playPickRevision = 0;
     const confirmedLocalKeys = new Set();
     const pendingPickRevisions = new Map();
@@ -2267,12 +2268,10 @@
       const revision = ++playPickRevision;
       pendingPickRevisions.set(titleKey, revision);
       const nextKeys = Object.keys(localPick);
-      for (const key of titleChoiceKeys.get(titleKey) || []) {
-        if (nextKeys.includes(key)) continue;
-        delete localPlayPicks[key];
-        delete confirmedPicks[key];
-        confirmedLocalKeys.delete(key);
-      }
+      const previousKeys = titleChoiceKeys.get(titleKey) || [];
+      // Remember this choice's keys immediately, but keep the previous source
+      // id until this save settles. A failed later choice must still be able
+      // to fall back to the earlier one.
       titleChoiceKeys.set(titleKey, nextKeys);
       localPlayPicks = { ...localPlayPicks, ...localPick };
       publishPlayPicks();
@@ -2284,16 +2283,37 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, platform, game_id: game.id }),
       })).then(() => {
-        if (pendingPickRevisions.get(titleKey) !== revision) return;
+        if (pendingPickRevisions.get(titleKey) !== revision) {
+          // A newer choice is still in flight. Keep this success only as the
+          // fallback if that newer save fails.
+          if (pendingPickRevisions.has(titleKey)) lastSuccessfulPick.set(titleKey, localPick);
+          return;
+        }
+        const fallback = lastSuccessfulPick.get(titleKey) || {};
+        for (const key of [...previousKeys, ...Object.keys(fallback)]) {
+          if (Object.prototype.hasOwnProperty.call(localPick, key)) continue;
+          delete localPlayPicks[key];
+          delete confirmedPicks[key];
+          confirmedLocalKeys.delete(key);
+        }
+        lastSuccessfulPick.delete(titleKey);
         confirmedPicks = { ...confirmedPicks, ...localPick };
         Object.keys(localPick).forEach(key => confirmedLocalKeys.add(key));
         for (const key of Object.keys(localPick)) delete localPlayPicks[key];
+        titleChoiceKeys.set(titleKey, Object.keys(localPick));
         pendingPickRevisions.delete(titleKey);
         publishPlayPicks();
       }, () => {
         if (pendingPickRevisions.get(titleKey) !== revision) return;
         for (const key of Object.keys(localPick)) delete localPlayPicks[key];
-        titleChoiceKeys.delete(titleKey);
+        const fallback = lastSuccessfulPick.get(titleKey);
+        if (fallback) {
+          localPlayPicks = { ...localPlayPicks, ...fallback };
+          titleChoiceKeys.set(titleKey, Object.keys(fallback));
+          lastSuccessfulPick.delete(titleKey);
+        } else {
+          titleChoiceKeys.set(titleKey, previousKeys);
+        }
         pendingPickRevisions.delete(titleKey);
         publishPlayPicks();
         const currentTitle = titleForGame(state.libraryTitles, state.selectedLiveGame);

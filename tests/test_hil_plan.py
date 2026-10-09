@@ -459,7 +459,10 @@ class HilPlanTest(unittest.TestCase):
             with self.subTest(script=name):
                 self.assertEqual(plan.plan([scripts + name], texts)['decision'], 'FULL_IMAGE')
         result = plan.plan([scripts + 'build_fes_menu.py'], texts)
-        self.assertIn('core:menu-package', result['components'])
+        # The package producer imports this script. Both names canonicalize to
+        # core:menu, so the overlay does not invent a second component.
+        self.assertIn('core:menu', result['components'])
+        self.assertNotIn('core:menu-package', result['components'])
         result = plan.plan([scripts + 'build_fes_demo.py'], texts)
         self.assertIn('core:catch', result['components'])
 
