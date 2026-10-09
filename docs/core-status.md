@@ -233,12 +233,17 @@ uses coherent native CPU/line/frame cycles, a bounded bottom-stop sample and
 24-cycle delayed Timer B display edges. The original BIG model has sixteen
 identical static-logo crops and menu VBL acknowledgements on line zero.
 Focused I/O, the full ST suite, diskless stock EmuTOS SDRAM/HDMI and parent
-consistency pass. The fresh package passes 74.67/52.84/193.54 MHz final timing
+consistency pass at the recorded revisions. The `cbfdfcf83` package passes
+74.67/52.84/193.54 MHz final timing
 and seals Direct/Scanlines parts. A bounded original-TOS/BIG hardware probe
 using prepared Direct retains the rainbow; 235 of 236 nonblack logo crops
 match, with one rare grayscale palette anomaly still needing diagnosis.
 The original image and populated free menu are restored. Full current-image
 acceptance remains separate; opened-region RGB still crops to ordinary 320×200.
+The review follow-up samples color line length at cycle 54, preserving frame
+length for bottom pulses restored after HBL. Its new cross-HBL regressions
+are host checks; the earlier package/hardware evidence does not qualify
+this RTL follow-up, which still needs fresh FPGA and hardware validation.
 
 ## Not implemented, or not this package
 

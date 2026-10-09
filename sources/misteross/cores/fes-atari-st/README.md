@@ -184,8 +184,10 @@ The reduced native timing uses ordinary PAL lines 63–262 with DE cycles
 [Hatari 2.5.0 timing table](https://github.com/hatari/hatari/blob/v2.5.0/src/video.c).
 The MFP's Timer B input follows both DE edges by 24 CPU cycles, using
 [Hatari's Timer B offset](https://github.com/hatari/hatari/blob/v2.5.0/src/includes/video.h).
-Mode settings are sampled at line/frame boundaries so brief writes do not
-create extra display-enable edges. The vertical bottom-stop condition also
+DE mode settings are sampled at line/frame boundaries so brief writes do not
+create extra display-enable edges. Color line length samples sync separately
+at STF WS1 cycle 54: a bottom-stop pulse restored early on the following
+line preserves the ordinary HBL and frame period. The vertical bottom-stop condition also
 samples live sync at cycle 502 on the last ordinary color line, using the
 STF WS1 timing table. Opposite sync extends PAL DE through line 309, or NTSC
 DE through line 259, and clears at the next frame. This lets Timer B handlers

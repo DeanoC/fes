@@ -2,11 +2,32 @@
 
 Follow-up to [task #621](https://github.com/DeanoC/fes/issues/621) and
 [PR #633](https://github.com/DeanoC/fes/pull/633), based on merged main
-`0805d2b7e08f66127524353c4cbaf15d9daf180e`. Implementation source is
+`0805d2b7e08f66127524353c4cbaf15d9daf180e`. The FPGA/hardware-qualified implementation source is
 `cbfdfcf8334709d371540339f7b032ec593d0b8c`; the
 [evidence record](2026-10-09-atari-st-raster-timing/evidence.json) records
 validation and its remaining work. Earlier FPGA/hardware records qualify
 only their exact earlier packages.
+
+## Review follow-up: bottom pulse across HBL
+
+Codex's [P2 review](https://github.com/DeanoC/fes/pull/633#discussion_r4226605030)
+identified that the DE mode latch at HBL also selected the next line's length.
+BIG restores sync on the following line, so its PAL pulse incorrectly shortened
+that line to 508 CPU cycles, producing a 160252-cycle frame. The inverse NTSC
+pulse added four cycles. The original test restored sync before HBL and missed it.
+
+Color line length now samples sync separately at STF WS1 cycle 54
+(`Line_Set_Pal` in Hatari 2.5.0 `Video_InitTimings`). DE porch sampling remains
+at HBL. Regressions hold the opposite sync through HBL and restore at cycle 20
+of the following line for PAL and NTSC; they check exact 160256/133604-cycle
+frames, HBL counts, 247/226 Timer B events and ordinary timing after rollover.
+The new regression fails against reviewed revision `9e5eaa48b1`.
+
+This follow-up changes RTL behavior. All model captures, equivalence proofs,
+FPGA timing/sealed packages and hardware captures below qualify their stated
+earlier revisions; they do not qualify this follow-up. Fresh FPGA timing and
+hardware validation remain pending. The follow-up uses host-only validation
+and leaves the restored normal menu and kit untouched.
 
 ## Timing change
 

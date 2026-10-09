@@ -1766,7 +1766,9 @@ The retained nominal 8 MHz CPU therefore gives approximately
 49.920/59.878/71.286 Hz rather than rounded integer frame rates. MFP crystal
 timing remains independent at 2.4576 MHz.
 Ordinary PAL DE spans lines 63–262 and cycles 56–375; NTSC spans lines
-34–233 and cycles 52–371. Line/frame modes are sampled at their boundaries.
+34–233 and cycles 52–371. DE line/frame modes are sampled at their boundaries.
+Color line length samples sync separately at STF WS1 cycle 54, so a bottom
+pulse restored early on the following line preserves the native frame period.
 Both DE edges reach the MFP Timer B input 24 CPU cycles later, following
 Hatari v2.5.0 `TIMERB_VIDEO_CYCLE_OFFSET`; pixel capture uses undelayed DE.
 Brief sync/resolution writes therefore do not add Timer B events mid-line.

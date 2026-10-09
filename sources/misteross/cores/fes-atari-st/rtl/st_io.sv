@@ -97,7 +97,7 @@ module st_io #(
     reg [31:0] timer_phase;
     reg [8:0] horizontal_cycle;
     reg [1:0] frame_resolution, line_resolution;
-    reg frame_pal, line_pal;
+    reg frame_pal, line_pal, line_timing_pal;
     reg bottom_open;
     reg [23:0] timer_b_display_delay;
     wire [32:0] timer_sum = {1'b0, timer_phase} + 33'd2457600;
@@ -106,7 +106,7 @@ module st_io #(
     // The CPU, HBL, VBL and DE share one enable; independent rounded rates
     // shortened PAL frames by 256 CPU cycles and made raster handlers drift.
     wire [8:0] line_last = line_resolution == 2'd2 ? 9'd223 :
-                          line_pal ? 9'd511 : 9'd507;
+                          line_timing_pal ? 9'd511 : 9'd507;
     wire [8:0] frame_last = frame_resolution == 2'd2 ? 9'd500 :
                            frame_pal ? 9'd312 : 9'd262;
     assign hblank = cpu_cycle_ce && horizontal_cycle == line_last && !reset;
@@ -115,10 +115,11 @@ module st_io #(
     // Timer B is driven by native display enable, rather than every HBL.
     // Ordinary color display porches: PAL lines 63..262 and cycles 56..375;
     // NTSC lines 34..233 and cycles 52..371. See Hatari v2.5.0 video.h /
-    // Video_InitTimings. Only the vertical bottom-stop sample is modelled.
-    // The reduced ordinary-raster model samples line/frame modes at their
-    // boundaries. Brief register writes cannot create extra DE edges or turn
-    // a 50 Hz line into a new frame midway through display. Exact GLUE sample
+    // Video_InitTimings. The bottom-stop and color line-length samples are modelled.
+    // The reduced ordinary-raster model samples DE line/frame modes at their
+    // boundaries; color line length separately samples sync at cycle 54.
+    // Brief register writes cannot create extra DE edges or turn a 50 Hz line
+    // into a new frame midway through display. Other exact GLUE sample
     // positions and horizontal/top border effects remain unimplemented.
     wire [8:0] display_top = frame_resolution == 2'd2 ? 9'd34 : frame_pal ? 9'd63 : 9'd34;
     wire [8:0] display_start = line_resolution == 2'd2 ? 9'd4 : line_pal ? 9'd56 : 9'd52;
@@ -137,12 +138,20 @@ module st_io #(
             timer_b_display_delay <= 0;
             frame_resolution <= resolution; line_resolution <= resolution;
             frame_pal <= sync_mode[1]; line_pal <= sync_mode[1];
+            line_timing_pal <= sync_mode[1];
             vbl_pending <= 0; hbl_pending <= 0; native_line <= 0;
             video_counter <= 0;
         end else begin
             timer_phase <= timer_ce ? 32'(timer_sum - 33'(SYSTEM_CLOCK_HZ)) : timer_sum[31:0];
             if (cpu_cycle_ce) begin
                 horizontal_cycle <= hblank ? 9'd0 : horizontal_cycle + 1'b1;
+                // STF WS1 Line_Set_Pal is cycle 54 (Hatari 2.5.0).
+                // A bottom-stop pulse can straddle HBL and return early in
+                // the next line without changing that line's HBL position.
+                // Keep the DE porch latch separate: resampling its mode here
+                // could manufacture an extra edge near display start.
+                if (horizontal_cycle == 9'd54)
+                    line_timing_pal <= sync_mode[1];
                 // The ST's MFP receives DE 24 CPU cycles after the video
                 // edge (Hatari v2.5.0 TIMERB_VIDEO_CYCLE_OFFSET). Delay both
                 // edges so AER selects the proper start/end event while

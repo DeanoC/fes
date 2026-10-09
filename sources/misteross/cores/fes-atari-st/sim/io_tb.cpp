@@ -235,21 +235,33 @@ static void timer_b_polarity(Test &t,bool rising) {
     t.require(t.mread(0x21)==254,"AER selects the delayed start or end of display");
 }
 
-static void bottom_border(Test &t,bool pal,bool cross_sample) {
+static void bottom_border(Test &t,bool pal,bool cross_sample,bool next_line=false) {
     t.reset(0,pal?2:0);
+    const uint64_t frame_start=t.cpu_ticks;
     t.mwrite(0x21,255); t.mwrite(0x1b,8);
     while(t.dut.display_line!=(pal?262u:233u) || t.dut.display_phase<490) t.tick();
     t.dut.sync_mode=pal?0:2;
-    while(t.dut.display_phase<(cross_sample?504u:500u)) t.tick();
+    if(next_line) {
+        // BIG restores on the following line at cycle 16/20, not before HBL.
+        while(t.dut.display_line!=(pal?263u:234u) || t.dut.display_phase<20) t.tick();
+    } else {
+        while(t.dut.display_phase<(cross_sample?504u:500u)) t.tick();
+    }
     t.dut.sync_mode=pal?2:0;
     while(t.frames<1) t.tick();
+    t.require(t.cpu_ticks-frame_start==(pal?160256u:133604u),
+              "bottom sync pulse preserves the exact native frame length");
+    t.require(t.lines==(pal?313u:263u),"bottom sync pulse retains every native HBL");
     // VIDEO_HEIGHT_BOTTOM_50HZ=47 and VIDEO_HEIGHT_BOTTOM_60HZ=26.
     const unsigned active=200+(cross_sample?(pal?47:26):0);
     t.require(t.display_ends==active,"bottom opening requires the opposite mode at the stop sample");
     t.require(t.mread(0x21)==255-active,"Timer B sees bottom-border DE lines");
     const unsigned prior=t.display_ends;
+    const uint64_t next_frame=t.cpu_ticks;
     while(t.frames<2) t.tick();
     t.require(t.display_ends-prior==200,"bottom opening clears at the next frame");
+    t.require(t.cpu_ticks-next_frame==(pal?160256u:133604u),
+              "frame after bottom opening retains its exact native period");
 }
 
 int main(int argc,char **argv) {
@@ -261,6 +273,7 @@ int main(int argc,char **argv) {
     timer_b_polarity(test,false); timer_b_polarity(test,true);
     bottom_border(test,true,false); bottom_border(test,true,true);
     bottom_border(test,false,false); bottom_border(test,false,true);
+    bottom_border(test,true,true,true); bottom_border(test,false,true,true);
     std::cout<<"ST I/O: "<<test.assertions<<" assertions, "<<test.cycles
              <<" cycles; byte lanes, reset, interrupt wiring and timer rates passed\n";
 }
