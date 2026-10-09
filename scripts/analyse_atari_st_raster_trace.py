@@ -45,14 +45,30 @@ def analyse(directory):
     differing_rows = {str(row['frame']): [y for y, (a, b) in enumerate(zip(canonical_rows, row['row_fnv1a64'])) if a != b]
                       for row in logos if row['frame'] in differing and canonical_rows and row.get('row_fnv1a64')}
     nearby = {frame + offset for frame in differing for offset in (-1, 0, 1)}
-    per_frame = defaultdict(lambda: {'palette_writes': 0, 'iack_lines': defaultdict(list)})
+    per_frame = defaultdict(lambda: {'palette_writes': 0, 'iack_lines': defaultdict(list), 'sync_changes': []})
     iack_lines = defaultdict(Counter)
     mfp_vectors = Counter()
     palette_words = {}
     repeats = 0
     writes = 0
+    last_sync = None
+    pulse = None
+    crossing_pulses = []
     for event in rows(directory / 'demo-raster.jsonl'):
         frame = per_frame[event['frame']]
+        if 'sync_mode' in event:
+            mode = event['sync_mode']
+            if last_sync is not None and mode != last_sync:
+                position = {key: event[key] for key in ('cycle', 'frame', 'line', 'horizontal_phase', 'sync_mode')}
+                if event['frame'] in nearby:
+                    frame['sync_changes'].append(position)
+                if last_sync & 2 and not mode & 2:
+                    pulse = position
+                elif mode & 2 and pulse is not None:
+                    if event['frame'] != pulse['frame']:
+                        crossing_pulses.append({'opposite_sync': pulse, 'restored_pal': position})
+                    pulse = None
+            last_sync = mode
         if event.get('kind') == 'palette_write':
             writes += 1
             frame['palette_writes'] += 1
@@ -74,6 +90,8 @@ def analyse(directory):
             if event['frame'] in nearby:
                 frame['iack_lines'][level].append([event['line'], event['horizontal_phase']])
     return {
+        'analysis_script_sha256': sha256(Path(__file__)),
+        'cross_frame_pal_pulses': crossing_pulses,
         'source_revision': proof['source_revision'],
         'source_mode': proof['source_mode'],
         'rom_sha256': proof['rom_sha256'],

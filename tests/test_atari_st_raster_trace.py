@@ -11,6 +11,9 @@ class RasterTraceTests(unittest.TestCase):
     def fixture(self, root):
         # Partial-byte writes, then repeated writes including disconnected bits.
         events = [
+            {'frame': 10, 'cycle': 100, 'line': 0, 'horizontal_phase': 0, 'sync_mode': 2},
+            {'frame': 11, 'cycle': 200, 'line': 263, 'horizontal_phase': 148, 'sync_mode': 0},
+            {'frame': 12, 'cycle': 300, 'line': 35, 'horizontal_phase': 28, 'sync_mode': 2},
             {'kind': 'palette_write', 'frame': 10, 'address': 0xff8240, 'lanes': 2, 'data': 0x700},
             {'kind': 'palette_write', 'frame': 10, 'address': 0xff8240, 'lanes': 1, 'data': 0x77},
             {'kind': 'palette_write', 'frame': 11, 'address': 0xff8240, 'lanes': 3, 'data': 0xf777},
@@ -42,6 +45,10 @@ class RasterTraceTests(unittest.TestCase):
             self.assertEqual(result['noncanonical_neighbour_events']['11']['iack_lines']['4'], [[1, 20]])
             self.assertEqual(result['iack_line_counts']['4'], {1: 1})
             self.assertEqual(result['max_cpu_ram_wait_system_clocks'], 54)
+            pulse = result['cross_frame_pal_pulses'][0]
+            self.assertEqual(pulse['opposite_sync']['line'], 263)
+            self.assertEqual(pulse['restored_pal']['frame'], 12)
+            self.assertEqual(len(result['noncanonical_neighbour_events']['11']['sync_changes']), 1)
 
     def test_changed_trace_is_rejected(self):
         with tempfile.TemporaryDirectory() as name:
