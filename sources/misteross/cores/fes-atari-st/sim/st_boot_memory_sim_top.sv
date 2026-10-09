@@ -28,6 +28,7 @@ module st_boot_memory_sim_top (
     output wire [23:0] screen_base,
     output wire [1:0] resolution,
     output wire [143:0] palette,
+    output wire [7:0] sync_mode,
     output wire [23:0] debug_addr,
     output wire debug_bus_error, debug_halted,
     output wire [31:0] debug_pc,
@@ -44,7 +45,6 @@ module st_boot_memory_sim_top (
     output wire [15:0] dq_out,
     input wire [15:0] dq_sample
 );
-    wire [7:0] sync_mode;
     wire native_display;
     wire [8:0] native_line;
     wire [15:0] cpu_rdata, video_rdata;

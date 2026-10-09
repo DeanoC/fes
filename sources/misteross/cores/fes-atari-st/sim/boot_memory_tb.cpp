@@ -137,7 +137,7 @@ class Boot {
     bool demo_mode = false;
     unsigned trace_start = 6, trace_end = 7;
     uint64_t native_epoch = 0, palette_writes = 0, frame_palette_writes = 0;
-    unsigned observed_frames = 0, frame_cpu_max = 0, frame_video_max = 0;
+    unsigned observed_frames = 0, frame_cpu_max = 0, frame_video_max = 0, last_sync = 0;
     uint64_t frame_video_reads = 0;
     std::vector<uint8_t> native_picture = std::vector<uint8_t>(320*200*3);
     std::ofstream raster_trace, logo_trace;
@@ -228,6 +228,12 @@ class Boot {
         dut.clk_sys = 1;
         dut.eval();
         ++system_cycles;
+        if (demo_mode && tracing() && dut.sync_mode != last_sync) {
+            raster_trace << "{\"kind\":\"sync\",\"cycle\":" << system_cycles-1
+                << ",\"frame\":" << native_epoch << ",\"line\":" << line << ",\"horizontal_phase\":" << phase
+                << ",\"sync_mode\":" << unsigned(dut.sync_mode) << "}\n";
+        }
+        last_sync=dut.sync_mode;
         if (dut.cpu_ready) {
             require(cpu_transfer.active && !cpu_transfer.complete,
                     "CPU SDRAM completion duplicated or unrequested", system_cycles);
