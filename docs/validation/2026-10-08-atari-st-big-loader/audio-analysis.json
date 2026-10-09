@@ -1,0 +1,45 @@
+{
+  "method": "16-bit PCM amplitude statistics only; asynchronous reference, no fidelity acceptance",
+  "results": {
+    "hardware": {
+      "sha256": "ffdf87aa261c19d61a78f950b539547bdf59861f773b663ab9f2b5aa6c4642c4",
+      "channels": 2,
+      "sample_rate": 48000,
+      "frames": 480055,
+      "seconds": 10.001145833333334,
+      "peak": 29440,
+      "rms": 13784.734705910181,
+      "nonzero_samples": 812718,
+      "clipped_samples": 0,
+      "stereo_equal": false,
+      "channel_means": [
+        11513.784178896169,
+        11513.796177521326
+      ],
+      "channel_ac_rms": [
+        7579.685165013395,
+        7579.674537090672
+      ]
+    },
+    "hatari": {
+      "sha256": "9f6bbb8df3a727452a1a9c330c68105dc34be0f2142a7759a2cdbc19df1e088f",
+      "channels": 2,
+      "sample_rate": 48000,
+      "frames": 1905963,
+      "seconds": 39.7075625,
+      "peak": 24562,
+      "rms": 4834.417975250206,
+      "nonzero_samples": 1770054,
+      "clipped_samples": 0,
+      "stereo_equal": true,
+      "channel_means": [
+        3.0882949983813957,
+        3.0882949983813957
+      ],
+      "channel_ac_rms": [
+        4834.416988826709,
+        4834.416988826709
+      ]
+    }
+  }
+}

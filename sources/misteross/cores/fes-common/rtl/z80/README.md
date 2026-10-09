@@ -275,3 +275,21 @@ from the design work:
 Each source file carries its SPDX license. The instruction engine/ALU/fast
 entry point are original MIT-licensed RTL; the NMOS bus/wrapper are original
 GPL-2.0-or-later RTL. Existing third-party CPU notices are untouched.
+
+## Production engine and historical optimizer handoff
+
+The shared engine currently follows current-main (#533) datapath structure:
+parallel `reg8` / ALU candidate decode and `next_bc!=0` block-repeat flags,
+with a single ALU driver set. That is the production consumer for Spectrum and
+SG-1000. A revised engine is not accepted from the historical AlphaMister
+handoff SHA-256
+`53187e407acee070bc6a48f43acb3cae05599dd912fe2d2a456ce4ce103fe5ee`; that hash
+is frozen evidence against an older consumer, not authority to discard main.
+
+Host named-state programs (`tests/test_z80_route_c_semantics.py`) check public
+`debug_*` ports for NMOS and fast. They are not a Yosys next-state proof.
+Acceptance still requires a fresh named-state/next-state proof against the
+current production consumer plus production synthesis/area (`--max-aluts 5831`)
+and timing with the real build identity. The optimizer's frozen 10/16 routes
+and 5689-ALUT diagnostic do not substitute. 5841 ALUTs remains a failed
+production qualification.

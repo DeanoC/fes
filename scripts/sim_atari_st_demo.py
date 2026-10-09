@@ -32,7 +32,7 @@ FLAGS = ["-Wno-" + name for name in (
     "BLKANDNBLK", "CASEINCOMPLETE", "CASEOVERLAP")]
 RTL = [CORE + "rtl/" + name + ".sv" for name in (
     "st_system", "st_cpu", "st_machine", "st_io", "st_mfp", "st_acia", "st_ikbd",
-    "st_ym2149", "st_floppy", "st_floppy_writer")]
+    "st_ym2149", "st_floppy", "st_floppy_writer", "st_native_low_video")]
 RTL += ["cores/fes-zx81/expansions/zonx_ay.v"]
 RTL += [CPU + name for name in ("fx68k.sv", "fx68kAlu.sv", "uaddrPla.sv")]
 DATA = [CPU + "microrom.mem", CPU + "nanorom.mem", "cores/fes-common/generated/fes_video_part.vh"]
@@ -82,13 +82,16 @@ def run(args):
     source.mkdir(); build.mkdir()
     identities, selected, differences = {}, {}, {}
     for relative in [PREFIX + name for name in RTL + DATA] + [WRAPPER]:
-        committed = subprocess.check_output(["git", "show", revision + ":" + relative], cwd=ROOT)
+        result = subprocess.run(["git", "show", revision + ":" + relative], cwd=ROOT, capture_output=True)
+        if result.returncode and not args.working_tree:
+            raise ValueError(f"selected revision lacks compiled input: {relative}")
+        committed = None if result.returncode else result.stdout
         working = (ROOT / relative).read_bytes()
-        selected[relative] = sha(committed)
+        selected[relative] = None if committed is None else sha(committed)
         if working != committed:
             if not args.working_tree:
                 raise ValueError(f"working compiled input differs from selected revision: {relative}")
-            differences[relative] = {"revision_sha256": sha(committed), "captured_sha256": sha(working)}
+            differences[relative] = {"revision_sha256": selected[relative], "captured_sha256": sha(working)}
         data = working if args.working_tree else committed
         identities[relative] = sha(data)
         destination = source / relative
@@ -116,6 +119,7 @@ def run(args):
               "build_command": command, "verilator_version": subprocess.check_output([verilator, "--version"], text=True).strip(),
               "seconds_requested": args.seconds, "hardware_execution": False, "native_fpga_build": False,
               "demo_compatibility_asserted": False, "framebuffer_capture": "static RAM/palette reconstruction; no raster or border proof",
+              "native_rgb_capture": "production low-resolution capture observed with model RAM/system-clock consumer; no physical SDRAM, HDMI or original GLUE/border oracle",
               "media_fixture": "read-only bounded disk callbacks; real FX68K/pinned ROM/floppy/DMA RTL",
               "capture_completed": False}
     write_json(output / "source-identity.json", record)
@@ -133,6 +137,15 @@ def run(args):
     record["generated_model_inputs"] = model_hashes
     invocation = [str(executable), str(output / "etos192us.img"), str(output / "original.st"),
                   str(args.seconds), str(output / "demo")]
+    if args.key_b_at is not None:
+        invocation.append(str(args.key_b_at))
+    record["input_event"] = (None if args.key_b_at is None else
+                             {"hid_usage": 5, "press_second": args.key_b_at,
+                              "hold_milliseconds": 150})
+    record["consecutive_native_frames"] = "first sixteen complete captures after 6.5 seconds; production capture with model RAM, no original GLUE/border oracle"
+    record["raster_trace"] = "IACK and MMIO request starts / sync changes between six and seven seconds; bounded native coordinates, diagnostic prefetch PC"
+    record["horizontal_phase_units"] = "68000 cycles within the native line"
+    record["palette_trace"] = "changes after six seconds; first eight changed bundles per native frame, plus complete per-frame counts; model timing only"
     record["run_command"] = invocation
     process = subprocess.Popen(invocation, cwd=build, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     timer = threading.Timer(1800, process.kill); timer.start()
@@ -176,12 +189,16 @@ def main(argv=None):
     parser.add_argument("--revision", default="HEAD")
     parser.add_argument("--working-tree", action="store_true", help="explicitly freeze current diagnostic edits")
     parser.add_argument("--seconds", type=int, default=15)
+    parser.add_argument("--key-b-at", type=int,
+                        help="press HID B at this simulated second for 150 ms (optional scroller selection)")
     parser.add_argument("--verilator", default="verilator")
     args = parser.parse_args(argv)
     if len(args.rom_sha256) != 64 or any(c not in "0123456789abcdef" for c in args.rom_sha256):
         parser.error("--rom-sha256 must be a lowercase SHA-256 digest")
     if not 1 <= args.seconds <= 30:
         parser.error("--seconds must be 1..30")
+    if args.key_b_at is not None and not 1 <= args.key_b_at < args.seconds:
+        parser.error("--key-b-at must be at least one and less than --seconds")
     try:
         return 0 if run(args)["capture_completed"] else 1
     except (OSError, ValueError, subprocess.SubprocessError) as error:

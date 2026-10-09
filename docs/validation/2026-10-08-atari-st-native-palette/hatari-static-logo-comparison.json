@@ -1,0 +1,34 @@
+{
+  "frame_range": [
+    2000,
+    2015
+  ],
+  "frames": 16,
+  "crop_xywh": [
+    270,
+    65,
+    200,
+    140
+  ],
+  "distinct_static_logo_region_hashes": 1,
+  "region_hashes": {
+    "frame-2000.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2001.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2002.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2003.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2004.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2005.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2006.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2007.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2008.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2009.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2010.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2011.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2012.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2013.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2014.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0",
+    "frame-2015.png": "3cecf8a900700c9d985eeea66e2965e043aee17805f651bb9ccd232dd7d62cd0"
+  },
+  "hardware_execution": false,
+  "pixel_exact_fes_comparison": false
+}

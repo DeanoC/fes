@@ -301,7 +301,7 @@ func TestRunLaunchingReturnsToMenuOnlyAtIdle(t *testing.T) {
 
 func TestRunAdoptsFailedLocalLaunchAfterStatus(t *testing.T) {
 	probe, err := net.Listen("unix", filepath.Join(t.TempDir(), "probe.sock"))
-	if errors.Is(err, syscall.EPERM) {
+	if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EINVAL) {
 		t.Skip("sandbox denies local catalog socket binding")
 	}
 	if err != nil {

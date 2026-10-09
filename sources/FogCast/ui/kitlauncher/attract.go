@@ -134,16 +134,16 @@ func (m *Model) resetAttractPreview() {
 }
 
 func (m *Model) localAttractReady() bool {
-	if m.Connected || !m.LocalPlayEnabled || len(m.attractItems) == 0 {
+	if m.Connected || !m.localAttract || !m.LocalPlayEnabled || len(m.attractItems) == 0 {
 		return false
 	}
 	for _, item := range m.attractItems {
 		game, ok := m.attractGame(item.GameID)
-		if ok && game.LocalCatalogPlayable() {
-			return true
+		if !ok || !game.LocalCatalogPlayable() {
+			return false
 		}
 	}
-	return false
+	return true
 }
 
 func localAttractItems(games []hostclient.Game) []hostclient.AttractItem {

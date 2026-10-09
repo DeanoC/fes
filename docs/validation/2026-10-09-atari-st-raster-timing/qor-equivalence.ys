@@ -1,0 +1,7 @@
+read_verilog -sv qor-equivalence.sv
+proc
+memory
+equiv_make st_io_gold st_io_gate st_io_equiv
+hierarchy -top st_io_equiv
+equiv_simple
+equiv_status -assert

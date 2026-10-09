@@ -1,0 +1,7 @@
+{"cycle": 337392998, "frame": 323, "line": 0, "horizontal_phase": 20, "pc": 16523222, "iack": 4, "sync_mode": 2, "write_address": 0, "write_data": 0}
+{"cycle": 338271844, "frame": 323, "line": 262, "horizontal_phase": 503, "pc": 48148, "iack": 0, "sync_mode": 2, "write_address": 0, "write_data": 0}
+{"cycle": 338439253, "frame": 324, "line": 0, "horizontal_phase": 36, "pc": 16523218, "iack": 4, "sync_mode": 2, "write_address": 0, "write_data": 0}
+{"cycle": 339317989, "frame": 324, "line": 262, "horizontal_phase": 502, "pc": 48148, "iack": 0, "sync_mode": 2, "write_address": 0, "write_data": 0}
+{"cycle": 339723128, "frame": 325, "line": 71, "horizontal_phase": 100, "pc": 16523222, "iack": 4, "sync_mode": 2, "write_address": 0, "write_data": 0}
+{"cycle": 340531523, "frame": 326, "line": 0, "horizontal_phase": 31, "pc": 16523242, "iack": 4, "sync_mode": 2, "write_address": 0, "write_data": 0}
+{"cycle": 341410337, "frame": 326, "line": 262, "horizontal_phase": 509, "pc": 48148, "iack": 0, "sync_mode": 2, "write_address": 0, "write_data": 0}

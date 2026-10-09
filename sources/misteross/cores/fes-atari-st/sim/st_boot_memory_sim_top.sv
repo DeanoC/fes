@@ -25,6 +25,7 @@ module st_boot_memory_sim_top (
     output wire [2:0] irq_level,
     output wire vblank, hblank,
     output wire [31:0] video_request, debug_underruns, debug_frame,
+    output wire [31:0] native_frames, native_underruns, native_skipped,
     output reg [27:0] video_response = 28'd0,
     output wire sdram_clk, sdram_cke, sdram_ncs, sdram_nras, sdram_ncas, sdram_nwe,
     output wire [1:0] sdram_ba,
@@ -33,6 +34,9 @@ module st_boot_memory_sim_top (
     output wire [15:0] dq_out,
     input wire [15:0] dq_sample
 );
+    wire [7:0] sync_mode;
+    wire native_display;
+    wire [8:0] native_line;
     wire [15:0] cpu_rdata, video_rdata;
     wire media_req, media_valid, dma_req, dma_ready, dma_write;
     wire [15:0] dma_rdata;
@@ -59,9 +63,9 @@ module st_boot_memory_sim_top (
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data), .media_valid(media_valid),
         .dma_req(dma_req), .dma_addr(dma_addr), .dma_wdata(dma_wdata),
         .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .dma_write(dma_write), .dma_rdata(dma_rdata),
-        .screen_base(screen_base), .resolution(resolution), .palette(palette), .sync_mode(),
+        .screen_base(screen_base), .resolution(resolution), .palette(palette), .sync_mode(sync_mode),
         .debug_addr(debug_addr), .debug_bus_error(debug_bus_error), .debug_overlay(),
-        .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank)
+        .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_line(native_line)
     );
     st_memory_sim_top memory (
         .clk(clk_sys), .cold_reset(cold_reset), .reset(reset_sys), .initialized(initialized),
@@ -81,10 +85,14 @@ module st_boot_memory_sim_top (
     );
     st_video_adapter video (
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
+        .native_vblank(vblank), .native_display(native_display), .native_line(native_line), .sync_mode(sync_mode),
         .hold(reset_sys), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
         .video_request(video_request), .debug_underruns(debug_underruns), .debug_frame(debug_frame)
     );
+    assign native_frames = video.native_capture.capture.debug_frames;
+    assign native_underruns = video.native_capture.capture.debug_underruns;
+    assign native_skipped = video.native_capture.capture.debug_skipped;
     reg [31:0] video_request_q = 32'd0;
     wire [27:0] direct_result;
     fes_video_part_direct direct (.video_request(video_request_q), .video_response(direct_result));

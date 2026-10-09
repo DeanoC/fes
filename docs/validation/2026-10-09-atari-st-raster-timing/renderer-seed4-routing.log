@@ -1,0 +1,6 @@
+Info:     iter=83 wires=392061 overused=1 overuse=1 tmgfail=0 nets=2 batches=2 archfail=NA
+Info:     iter=84 wires=392061 overused=1 overuse=1 tmgfail=0 nets=2 batches=2 archfail=NA
+Info:     iter=85 wires=392061 overused=1 overuse=1 tmgfail=0 nets=2 batches=2 archfail=NA
+Info:     iter=86 wires=392061 overused=1 overuse=1 tmgfail=0 nets=2 batches=2 archfail=NA
+Info:     iter=87 wires=392061 overused=1 overuse=1 tmgfail=0 nets=2 batches=2 archfail=NA
+search_placer_qor: selected route timed out after 1800 seconds; no final signoff

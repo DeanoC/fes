@@ -211,9 +211,38 @@ border/raster compatibility remain open. The subsequent
 [BIG loader diagnosis](validation/2026-10-08-atari-st-big-loader.md) corrects
 unpopulated-memory acknowledgement below 4 MiB. With original TOS 1.00, BIG
 reaches its introductory instructions and main menu in the CPU/chipset model;
-the introductory planar framebuffer matches Hatari exactly. This host result
-requires new selected-artifact qualification and does not accept demo borders,
-later sections or audio.
+the introductory planar framebuffer matches Hatari exactly. A fresh selected package also reaches the menu and B scroller on the kit
+with temporary qualified geometry software. Captures show incorrect raster
+palette colours; audio is present but fidelity is unqualified. The original
+image and populated menu were restored. Demo borders, later sections, accurate
+audio and full current-image integration remain open.
+The [native palette record](validation/2026-10-08-atari-st-native-palette.md)
+binds ordinary low-resolution live RGB capture, complete-frame ownership,
+completed simulations, a sealed shell and matching Direct/Scanlines parts.
+Its final pixel/system/audio clocks pass at 74.34/53.15/255.62 MHz. A bounded
+Kit A test with qualified geometry software shows rainbow bands in the B
+scroller through the prepared Direct part. The normal populated menu, original
+image and host autostart are restored; the lease is free. Medium/monochrome
+retain their indexed renderer. Menu flashing still appears in the capture,
+and the model alternates its source raster palette sequence. Original GLUE
+latch timing, opened borders, accurate audio and full image integration remain
+open; this diagnostic does not establish full BIG compatibility.
+
+The [raster timing follow-up](validation/2026-10-09-atari-st-raster-timing.md)
+uses coherent CPU/line/frame cycles, a bottom-stop sample and 24-cycle delayed
+Timer B display edges. Color line length samples sync at cycle 54, preserving
+frames when BIG restores its bottom pulse after HBL. Constant DE bounds close
+the native capture carry paths; whole-I/O equivalence preserves fresh BIG and
+stock EmuTOS captures. Full ST and parent checks pass. Diskless EmuTOS reaches
+GEM; the original BIG model has sixteen identical logo crops, menu VBL
+acknowledgements on line zero and the rainbow B scroller.
+The `dbf3fc1c8` package passes final timing at 79.72/52.44/163.93 MHz and seals
+Direct/Scanlines parts. Its bounded prepared-Direct hardware probe retains the
+rainbow. In twelve seconds, 711 of 717 nonblack logo crops match; six outliers
+in two bursts keep the rare palette anomaly open. The original image and
+populated free menu are restored, and the private host/credential copy removed.
+Full current-image acceptance remains separate; opened-region RGB still crops
+to ordinary 320×200, and later demo sections/audio fidelity remain unqualified.
 
 ## Not implemented, or not this package
 

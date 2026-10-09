@@ -2046,8 +2046,12 @@ of a flat system fill. After host `idle_seconds` from
 `DecodeStill` and `fbgrid.PaintAttract`. When that host is unreachable and
 local play is enabled, attract uses playable kit-local SMS rows (a present
 browse-only cartridge that is not host-eligible) after the default 60 second
-idle. Those rows have no stills. South launches the current row through the
-local-control socket. A disconnected host playlist with no such row does not
+idle. A session that succeeds and a later poll step that fails, including
+Health, is the same disconnect: the host playlist is replaced by that tagged
+local list. Attract arms only when the list is tagged and every row is one of
+those cartridges. Those rows have no stills. South launches the current row through the
+local-control socket. A disconnected host playlist with no such row, or an
+untagged mixed host playlist, does not
 arm attract. When the host returns, that local list is dropped immediately and the host playlist is fetched again. Video-only rows stay dropped because
 the CGO-free kit binary does not decode H.264. A distinct attract `marquee` or
 presentation `marquee_id` paints a banner strip under the header alongside the

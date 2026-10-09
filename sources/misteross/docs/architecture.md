@@ -57,7 +57,9 @@ FES [core-key guide](../../../docs/core-key-narrowing.md).
 
 The functional producers trace synthesis and each route attempt with
 `/usr/bin/strace --kill-on-exit -ff -yy`. The tracer and its libraries enter
-execution identity. Successful source Markdown opens for reading (including
+execution identity. Traces are bounded to 64 MiB per process and 256 MiB
+per invocation, including child compilers; exceeding either bound cancels the
+private process group. Successful source Markdown opens for reading (including
 O_PATH) fail before sealing; output-only writes are distinguished. Trace size,
 completion, pathname decoding and unsupported open mechanisms fail closed.
 A forbidden read is fatal across placement search. A timed-out compiler group
@@ -1715,24 +1717,71 @@ nine/ten 512-byte sectors. Legacy packages keep exact 720 KiB bounds. The
 controller derives CHS from committed length rather than mutable BPB bytes;
 its last-track/side/sector bounds and multi-sector termination use that shape.
 Snapshots retain layout 1.0 for 720 KiB, and use layout 1.1 for other sizes.
-The new shell and matching video parts require fresh artifact qualification.
+Changed shells and matching video parts require fresh artifact qualification.
+The [native palette record](../../../docs/validation/2026-10-08-atari-st-native-palette.md)
+binds the sealed pair and bounded Direct hardware diagnostic; menu timing,
+opened borders, audio fidelity and full appliance acceptance remain open.
 The writable mailbox rejects Begin and Eject during sector collection or an
 accepted commit, even for volatile disks. The sector writer drains before an
 explicit later replacement can upload through the shared media arbiter.
 `make sim-fes-atari-st-media-lifecycle` exercises these actual components with
 delayed RAM and media completions, including rejected mutations and later retry.
 
-`st_video_adapter.sv` uses held-bundle handshakes for frame configuration and
-owned double line caches between system and 74.25 MHz pixel clocks. Low,
-medium and monochrome rows advance through native row/repetition counters.
-Fixed per-mode fetch windows select coordinates after constant arithmetic.
-Synchronous cache reads and ownership tags are captured together; a second
-pixel register selects the validated bank at the original plane-capture edges.
-Displays feed shared RGB888 output through two registered boundaries. The
-optional frozen raster socket admits independently sealed Direct/Scanlines
-archives bound to the exact shell; an empty socket uses built-in Direct with
-the same latency. Underflow blacks a whole affected line and later
-lines recover; stale fills cannot cross a frame configuration change.
+`st_video_adapter.sv` captures ordinary low-resolution native pixels through
+`st_native_low_video.sv`. Its system-domain row prefetch uses the existing
+video RAM port, selecting the live RGB333 palette at each nominal 8 MHz pixel.
+Three complete 320×200 RGB333 banks have explicit publish/release ownership
+across the system and pixel domains. Only completed captures are published;
+the fixed 60 Hz reader selects the newest completed bank at SOF and pins it
+until a later SOF. A slow or stopped reader makes the producer skip frames
+rather than overwrite the displayed bank. Missing rows become whole black
+lines; incomplete or held captures are discarded. RAM address validation
+rejects an entire row before any truncation. Native RGB is sampled at the
+pixel event into a registered RAM write bundle; a two-pixel forecast feeds a
+registered read address before the synchronous pixel read. A blanking-time
+line counter advances the low-resolution row base by five 64-pixel units after
+each three output lines; address addition uses only the upper ten bits.
+These register
+stages shorten RAM paths while preserving palette sample and output positions.
+The write boundary registers RGB and black-line validity separately. Bank
+selection compares three-bit publication numbers: at most three unseen
+publications exist, so their distance is at most two and modulo-eight order
+remains unambiguous across counter wrap and consumer pauses. Native epochs
+remain available for simulation inspection.
+
+Medium and monochrome retain held-bundle configuration and indexed double
+line caches, including a palette held for each output frame. A fair, held
+request arbiter shares the video-memory port between legacy and native paths.
+Fixed per-mode fetch windows, synchronous cache reads and ownership tags
+retain their original plane-capture edges. All modes feed the same shared
+RGB888 socket through two registered boundaries; Direct/Scanlines archives
+remain independently sealed against the exact shell.
+Current-line RGB and cached next-line lookup bounds use constant comparisons
+before mode selection, avoiding a next-line carry chain in the lookup predicate.
+
+`st_io.sv` remains a reduced native timing model, independent of fixed HDMI.
+The CPU phase-2 enable advances one horizontal counter, with line counts
+driving VBL: 313×512 PAL, 263×508 NTSC, and 501×224 monochrome CPU cycles.
+The retained nominal 8 MHz CPU therefore gives approximately
+49.920/59.878/71.286 Hz rather than rounded integer frame rates. MFP crystal
+timing remains independent at 2.4576 MHz.
+Ordinary PAL DE spans lines 63–262 and cycles 56–375; NTSC spans lines
+34–233 and cycles 52–371. DE line/frame modes are sampled at their boundaries.
+Horizontal DE bounds use constant comparisons before mode selection to avoid
+a mode-dependent carry chain into native pixel capture.
+Color line length samples sync separately at STF WS1 cycle 54, so a bottom
+pulse restored early on the following line preserves the native frame period.
+Both DE edges reach the MFP Timer B input 24 CPU cycles later, following
+Hatari v2.5.0 `TIMERB_VIDEO_CYCLE_OFFSET`; pixel capture uses undelayed DE.
+Brief sync/resolution writes therefore do not add Timer B events mid-line.
+The STF WS1 bottom-stop sample at cycle 502 uses live sync: opposite mode on
+the last ordinary color line extends DE to PAL line 309 or NTSC line 259,
+then clears at frame rollover. Timer B and the reduced video counter see
+these extra lines. RGB capture still crops to the ordinary 320×200 area;
+horizontal/top borders and the other exact GLUE sampling positions are absent.
+Native capture prefetch is also not a cycle-exact MMU/shifter implementation.
+Monochrome DE spans lines 34–433 and cycles 4–163. No shared ABI,
+video socket layout, physical fence or generated contract changes here.
 
 The `fes.atari-st-video.parts/2` physical layout retains the 93 original
 boundary/clock FFs and adds 32 permanent request-egress LUT loads at

@@ -232,7 +232,7 @@ def main():
         identities = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                       for path in source_files}
         build = output / 'model'
-        command = [args.verilator, '--cc', '--exe', '--build', '--top-module', 'fes_z80_nmos', '-Wall',
+        command = [args.verilator, '--cc', '--exe', '--build', '--top-module', 'fes_z80_nmos', '-Wall', '-Wno-UNUSEDSIGNAL',
                    '-j', str(args.jobs), '--Mdir', str(build), '-CFLAGS', '-std=c++17 -O2',
                    *(str(path) for path in files), str(SIM / 'pin_trace_tb.cpp')]
         with (output / 'build.log').open('w') as stream:

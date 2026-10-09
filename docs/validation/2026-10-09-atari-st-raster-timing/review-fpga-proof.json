@@ -1,0 +1,61 @@
+{
+  "source_revision": "dbf3fc1c8886e84487089673fb935e291c2e458b",
+  "passing_seed": 5,
+  "fmax": {
+    "pixel_clk": {
+      "achieved": 79.71939086914062,
+      "constraint": 74.25006866455078
+    },
+    "system_clock.clocks[0]": {
+      "achieved": 52.438385009765625,
+      "constraint": 52.22477340698242
+    },
+    "system_clock.clocks[1]": {
+      "achieved": 163.93443298339844,
+      "constraint": 12.288031578063965
+    }
+  },
+  "sealed_package_id": "87cada90f8da6093ba287d10bfd2d372e0f2071882064a28f713d52094e153a6",
+  "hardware_execution": true,
+  "both_video_parts_final_timing_verified": true,
+  "attempts": [
+    {
+      "seed": 4,
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 76.81671905517578,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 51.977752685546875,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 183.41893005371094,
+          "constraint": 12.288031578063965
+        }
+      },
+      "outcome": "final_timing_rejected",
+      "full_route_log_sha256": "5229660fc4a4164dc3d4444c57baf5820904dd1d849b09310912c5540668b982"
+    },
+    {
+      "seed": 5,
+      "fmax": {
+        "pixel_clk": {
+          "achieved": 79.71939086914062,
+          "constraint": 74.25006866455078
+        },
+        "system_clock.clocks[0]": {
+          "achieved": 52.438385009765625,
+          "constraint": 52.22477340698242
+        },
+        "system_clock.clocks[1]": {
+          "achieved": 163.93443298339844,
+          "constraint": 12.288031578063965
+        }
+      },
+      "outcome": "pass",
+      "full_route_log_sha256": "9229df7f37e376919ab534b2cec4c32a8787597954ef0da15581d99bca5abe44"
+    }
+  ]
+}

@@ -1512,7 +1512,7 @@ ST_CORE := cores/fes-atari-st
 ST_CPU := cores/fes-common/rtl/fx68k
 ST_DIAGNOSTIC := $(CURDIR)/build/diagnostics/fes-atari-st
 ST_CPU_RTL := $(ST_CPU)/fx68k.sv $(ST_CPU)/fx68kAlu.sv $(ST_CPU)/uaddrPla.sv
-ST_VIDEO_RTL := $(ST_CORE)/rtl/st_video.sv cores/fes-common/rtl/fes_video_part_direct.v \
+ST_VIDEO_RTL := $(ST_CORE)/rtl/st_native_low_video.sv $(ST_CORE)/rtl/st_video.sv cores/fes-common/rtl/fes_video_part_direct.v \
 	cores/fes-common/rtl/fes_video_part_scanlines.v
 ST_MACHINE_RTL := $(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv \
 	$(ST_CORE)/expansions/st_probe.sv $(ST_VIDEO_RTL) $(ST_CPU_RTL)
@@ -1531,7 +1531,7 @@ atari-st-sources:
 atari-st-diagnostic: atari-st-sources
 	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
 
-sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-media sim-fes-atari-st-media-geometry
+sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 
 sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
@@ -1625,7 +1625,7 @@ sim-fes-atari-st-emutos: atari-st-sources
 		"$(CURDIR)/$(ST_CORE)/sim/boot_tb.cpp" -CFLAGS '-O3 -std=c++17'
 	@cd build/sim/fes-atari-st-emutos && ./Vst_boot_sim_top "$(abspath $(EMUTOS_ROM))"
 
-.PHONY: sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-media sim-fes-atari-st-media-geometry
+.PHONY: sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 sim-fes-atari-st-memory:
 	$(require_local_sim)
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
@@ -1641,6 +1641,15 @@ sim-fes-atari-st-video-adapter:
 		$(ST_CORE)/sim/st_video_adapter_sim_top.sv $(ST_CORE)/rtl/st_video_adapter.sv $(ST_VIDEO_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/video_adapter_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-video-adapter/Vst_video_adapter_sim_top
+
+sim-fes-atari-st-native-video:
+	$(require_local_sim)
+	@mkdir -p "$(CURDIR)/build/sim/fes-atari-st-native-video"
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_native_video_sim_top -Wall \
+		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-native-video" \
+		$(ST_CORE)/sim/st_native_video_sim_top.sv $(ST_CORE)/rtl/st_video_adapter.sv $(ST_VIDEO_RTL) \
+		"$(CURDIR)/$(ST_CORE)/sim/native_video_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-native-video/Vst_native_video_sim_top
 
 sim-fes-atari-st-media:
 	$(require_local_sim)

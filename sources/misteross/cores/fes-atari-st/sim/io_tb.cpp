@@ -9,12 +9,14 @@
 #include <iostream>
 #include <string>
 
-static constexpr unsigned system_hz = 5'222'400;
+static constexpr unsigned system_hz = 52'224'000;
 static constexpr unsigned mfp_base = 0xfffa00;
 struct Test {
     Vst_io_sim_top dut;
     uint64_t cycles=0, assertions=0, crystal_ticks=0;
-    unsigned frames=0, lines=0, display_ends=0;
+    unsigned frames=0, lines=0, display_ends=0, cpu_phase=0;
+    uint64_t cpu_ticks=0;
+    unsigned first_display_line=UINT32_MAX, first_display_phase=0;
     bool previous_display=false;
     void require(bool good,const std::string &message) {
         ++assertions;
@@ -24,11 +26,17 @@ struct Test {
         }
     }
     void tick() {
+        dut.cpu_cycle_ce=!dut.reset && cpu_phase+8'000'000>=system_hz;
+        cpu_phase=dut.reset?0:(cpu_phase+8'000'000)%system_hz;
+        cpu_ticks+=dut.cpu_cycle_ce;
         dut.clk=0; dut.eval();
         if (!dut.reset) {
             frames+=dut.vblank; lines+=dut.hblank;
             crystal_ticks+=dut.timer_ce_level;
             display_ends+=previous_display && !dut.timer_b_level;
+            if(!previous_display&&dut.timer_b_level&&first_display_line==UINT32_MAX){
+                first_display_line=dut.display_line;first_display_phase=dut.display_phase;
+            }
         }
         previous_display=dut.timer_b_level;
         dut.clk=1; dut.eval(); ++cycles;
@@ -44,6 +52,7 @@ struct Test {
         dut.media_valid=0; dut.dma_ready=0;
         dut.reset=1; tick(); tick(); dut.reset=0; tick();
         frames=lines=display_ends=0; crystal_ticks=0;
+        first_display_line=UINT32_MAX;first_display_phase=0;
     }
     uint16_t bus(bool write,unsigned address,unsigned data=0,unsigned lanes=3,unsigned hold=1) {
         dut.req=1; dut.write=write; dut.addr=address>>1;
@@ -100,7 +109,7 @@ static void lanes_and_reset(Test &t) {
     t.bus(true,0xff8604,0x0037,1);
     t.require(t.bus(false,0xff8604)==0xff00,"FDC indirect register ignores byte-only write");
     t.bus(true,0xff8604,0x0037); t.require(t.bus(false,0xff8604)==0xff37,"FDC indirect word write");
-    t.ymwrite(8,15); t.run(200);
+    t.ymwrite(8,15); t.run(2000);
     t.require(t.dut.audio_pcm!=0,"PSG reaches the motherboard audio output");
     // A CPU execution hold resets peripherals independently of external media.
     t.dut.media_ready=1; t.dut.reset=1; t.tick(); t.tick();
@@ -122,7 +131,7 @@ static void interrupt_connection(Test &t) {
     t.mwrite(0x07,0x80); t.mwrite(0x13,0x80); // GPIP7: monitor input, channel 15.
     t.mwrite(0x09,0x20); t.mwrite(0x15,0x20); // Timer C: channel 5.
     t.mwrite(0x23,192); t.mwrite(0x1d,0x50); // 2.4576 MHz /64 /192 = 200 Hz.
-    for (unsigned n=0;t.dut.irq!=6;++n) { t.require(n<27000,"Timer C interrupt timeout"); t.tick(); }
+    for (unsigned n=0;t.dut.irq!=6;++n) { t.require(n<270000,"Timer C interrupt timeout"); t.tick(); }
     t.require(t.dut.irq_vectored && t.dut.irq_vector==0x45,"Timer C vectored level-6 connection");
     t.dut.monochrome=1; t.run(3);
     t.require(t.dut.irq_vector==0x4f,"monitor GPIP7 takes priority above Timer C");
@@ -152,7 +161,7 @@ static void timer_c_rate(Test &t) {
     t.mwrite(0x23,192); t.mwrite(0x1d,0x50);
     uint64_t previous=0;
     for (unsigned event=0;event<24;++event) {
-        for (unsigned n=0;t.dut.irq!=6;++n) { t.require(n<27000,"periodic Timer C timeout"); t.tick(); }
+        for (unsigned n=0;t.dut.irq!=6;++n) { t.require(n<270000,"periodic Timer C timeout"); t.tick(); }
         if (previous) t.require(t.cycles-previous==system_hz/200,"Timer C keeps the stock 200 Hz OS tick");
         previous=t.cycles; t.iack(6);
     }
@@ -164,23 +173,95 @@ static void display_enable(Test &t,unsigned resolution,unsigned sync,unsigned fp
     // scanline. Count 255 has no reload during a 200-line color frame.
     t.mwrite(0x21,255); t.mwrite(0x1b,8);
     while (t.frames<1) t.tick();
-    uint64_t previous_frame=t.cycles;
+    uint64_t previous_frame=t.cpu_ticks;
+    unsigned previous_lines=t.lines;
     t.require(t.display_ends==active,"one timer-B event per active native line");
+    if(resolution!=2){
+        // Ordinary ST timing positions from the primary video timing table.
+        t.require(t.first_display_line==(fps==50?63u:34u),"Timer B begins after the native vertical porch");
+        const unsigned phase=t.first_display_phase;
+        t.require(phase>=(fps==50?80u:76u)&&phase<(fps==50?82u:78u),"Timer B follows the display porch by 24 CPU cycles");
+    }
     if (active==200) t.require(t.mread(0x21)==55,"Timer B receives the 200 active color lines through its event pin");
     unsigned previous_ends=t.display_ends;
     for (unsigned frame=0;frame<3;++frame) {
         const unsigned target=t.frames+1;
         while (t.frames<target) t.tick();
         t.require(t.display_ends-previous_ends==active,"blank lines never create Timer B events");
-        const uint64_t clocks=t.cycles-previous_frame;
-        t.require(clocks==system_hz/fps || clocks==(system_hz+fps-1)/fps,"native VBL frequency follows mode/sync");
+        const uint64_t clocks=t.cpu_ticks-previous_frame;
+        const unsigned frame_lines=resolution==2?501:fps==50?313:263;
+        const unsigned line_cycles=resolution==2?224:fps==50?512:508;
+        t.require(clocks==uint64_t(frame_lines)*line_cycles,"native frame has exact CPU cycle count");
+        t.require(t.lines-previous_lines==frame_lines,"VBL occurs at the last complete native line");
+        previous_lines=t.lines;
         t.require(t.dut.video_counter==0x10200,"VBL reloads the aligned shifter counter");
-        previous_ends=t.display_ends; previous_frame=t.cycles;
+        previous_ends=t.display_ends; previous_frame=t.cpu_ticks;
     }
     t.mwrite(0x1b,0);
     const unsigned expected=255-(4*active)%255;
     t.require(t.mread(0x21)==expected,"Timer B counts all active display-enable edges, including reload");
-    std::cout<<"ST I/O: "<<fps<<" Hz, "<<active<<" Timer B events/frame\n";
+    std::cout<<"ST I/O: nominal "<<fps<<" Hz, "<<active<<" Timer B events/frame\n";
+}
+
+static void brief_mode_writes(Test &t) {
+    t.reset();
+    const uint64_t start=t.cpu_ticks;
+    t.mwrite(0x21,255); t.mwrite(0x1b,8);
+    while(t.frames<1) {
+        // Pulse both video settings inside every ordinary active line, away
+        // from HBL/VBL. A register write must not generate a second DE edge.
+        if(t.dut.timer_b_level && t.dut.display_phase>=170 && t.dut.display_phase<180) {
+            t.dut.sync_mode=0; t.dut.resolution=2;
+            t.run(3);
+            t.dut.sync_mode=2; t.dut.resolution=0;
+        }
+        t.tick();
+    }
+    t.require(t.display_ends==200,"brief mid-line mode writes retain 200 display edges");
+    t.require(t.mread(0x21)==55,"brief mode writes do not add Timer B events");
+    t.require(t.cpu_ticks-start>=160256-2 && t.cpu_ticks-start<160256+20,
+              "brief mode writes retain the ordinary PAL frame period");
+}
+
+static void timer_b_polarity(Test &t,bool rising) {
+    t.reset();
+    t.mwrite(3,rising?8:0); t.mwrite(0x21,255); t.mwrite(0x1b,8);
+    // Primary ST timing: rising at 56+24, falling at 376+24.
+    // Inspect the real MFP count on both sides, not just the wrapper pin.
+    const unsigned edge=rising?80:400;
+    while(t.dut.display_line<63 || t.dut.display_phase<edge-4) t.tick();
+    t.require(t.mread(0x21)==255,"Timer B does not count the undelayed video edge");
+    while(t.dut.display_phase<edge+4) t.tick();
+    t.require(t.mread(0x21)==254,"AER selects the delayed start or end of display");
+}
+
+static void bottom_border(Test &t,bool pal,bool cross_sample,bool next_line=false) {
+    t.reset(0,pal?2:0);
+    const uint64_t frame_start=t.cpu_ticks;
+    t.mwrite(0x21,255); t.mwrite(0x1b,8);
+    while(t.dut.display_line!=(pal?262u:233u) || t.dut.display_phase<490) t.tick();
+    t.dut.sync_mode=pal?0:2;
+    if(next_line) {
+        // BIG restores on the following line at cycle 16/20, not before HBL.
+        while(t.dut.display_line!=(pal?263u:234u) || t.dut.display_phase<20) t.tick();
+    } else {
+        while(t.dut.display_phase<(cross_sample?504u:500u)) t.tick();
+    }
+    t.dut.sync_mode=pal?2:0;
+    while(t.frames<1) t.tick();
+    t.require(t.cpu_ticks-frame_start==(pal?160256u:133604u),
+              "bottom sync pulse preserves the exact native frame length");
+    t.require(t.lines==(pal?313u:263u),"bottom sync pulse retains every native HBL");
+    // VIDEO_HEIGHT_BOTTOM_50HZ=47 and VIDEO_HEIGHT_BOTTOM_60HZ=26.
+    const unsigned active=200+(cross_sample?(pal?47:26):0);
+    t.require(t.display_ends==active,"bottom opening requires the opposite mode at the stop sample");
+    t.require(t.mread(0x21)==255-active,"Timer B sees bottom-border DE lines");
+    const unsigned prior=t.display_ends;
+    const uint64_t next_frame=t.cpu_ticks;
+    while(t.frames<2) t.tick();
+    t.require(t.display_ends-prior==200,"bottom opening clears at the next frame");
+    t.require(t.cpu_ticks-next_frame==(pal?160256u:133604u),
+              "frame after bottom opening retains its exact native period");
 }
 
 int main(int argc,char **argv) {
@@ -188,7 +269,11 @@ int main(int argc,char **argv) {
     Test test;
     lanes_and_reset(test); interrupt_connection(test); timer_c_rate(test);
     display_enable(test,0,2,50,200); display_enable(test,1,0,60,200);
-    display_enable(test,2,2,71,400);
+    display_enable(test,2,2,71,400); brief_mode_writes(test);
+    timer_b_polarity(test,false); timer_b_polarity(test,true);
+    bottom_border(test,true,false); bottom_border(test,true,true);
+    bottom_border(test,false,false); bottom_border(test,false,true);
+    bottom_border(test,true,true,true); bottom_border(test,false,true,true);
     std::cout<<"ST I/O: "<<test.assertions<<" assertions, "<<test.cycles
              <<" cycles; byte lanes, reset, interrupt wiring and timer rates passed\n";
 }

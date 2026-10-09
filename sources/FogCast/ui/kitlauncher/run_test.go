@@ -821,6 +821,16 @@ func attractItemNamed(m Model, title string) bool {
 	return false
 }
 
+func localRowsFromAttract(m Model) []hostclient.Game {
+	rows := make([]hostclient.Game, 0, len(m.attractItems))
+	for _, item := range m.attractItems {
+		if game, ok := m.attractGame(item.GameID); ok {
+			rows = append(rows, game)
+		}
+	}
+	return rows
+}
+
 func TestRunRefetchesAttractAfterLocalPlaylist(t *testing.T) {
 	var hostUp atomic.Bool
 	hostUp.Store(true)
@@ -899,6 +909,120 @@ func TestRunRefetchesAttractAfterLocalPlaylist(t *testing.T) {
 	}
 	if !sawHost.Load() {
 		t.Fatalf("host attract was not fetched again after reconnect phase=%d hits=%d", phase.Load(), attractHits.Load())
+	}
+}
+
+// A session that succeeds and a later poll step that fails is not hostAbsent.
+// That branch must still replace a mixed host playlist with the tagged local
+// list, and every remaining row must be an eligible local cartridge.
+func TestRunHealthFailureReplacesMixedHostPlaylistWithLocalRows(t *testing.T) {
+	var healthFails atomic.Bool
+	var sessionHits atomic.Int64
+	var healthHits atomic.Int64
+	handle := strings.Repeat("b", 64)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			sessionHits.Add(1)
+			_, _ = w.Write([]byte(`{"state":"idle"}`))
+		case "/api/v1/health":
+			healthHits.Add(1)
+			if healthFails.Load() {
+				http.Error(w, "health down", http.StatusBadGateway)
+				return
+			}
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"snes","game_count":1},{"id":"sms","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"mario","title":"Mario","system":"snes","state":"available","root_online":true,"launchable":true},{"id":"host-sms","title":"Host SMS","system":"sms","state":"available","root_online":true}]}`))
+		case "/api/v1/library/attract":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"idle_seconds": 60,
+				"items": []map[string]any{
+					{"game_id": "mario", "title": "Mario", "platform": "snes", "backdrop": handle, "launchable": true},
+					{"game_id": "host-sms", "title": "Host SMS", "platform": "sms", "backdrop": handle, "launchable": false},
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	dir := t.TempDir()
+	root := filepath.Join(dir, "sms")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "Data Storm 1.00.sms"), []byte("local-storm-fixture"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	catalog := filepath.Join(dir, "config.toml")
+	body := "base_url = \"http://127.0.0.1:1\"\ntoken = \"synthetic-token\"\nrequest_timeout_seconds = 1\nupload_timeout_seconds = 2\n\n[[libraries]]\nid = \"sms-main\"\nsystem = \"sms\"\nroot = \"" + root + "\"\n"
+	if err := os.WriteFile(catalog, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
+	client.SetCatalogConfig(catalog)
+	client.SetLocalCores(idleLocalCore{})
+	client.SetLocalInput("", func(context.Context) (bool, error) { return false, nil })
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	var phase atomic.Int32
+	var sawLocal atomic.Bool
+	err := Run(ctx, client, func(m Model) {
+		switch phase.Load() {
+		case 0:
+			if !m.Connected || m.localAttract || !attractItemNamed(m, "mario") || !attractItemNamed(m, "host-sms") {
+				return
+			}
+			if sessionHits.Load() == 0 || healthHits.Load() == 0 {
+				return
+			}
+			phase.Store(1)
+			healthFails.Store(true)
+		case 1:
+			if m.Connected || !m.localAttract {
+				return
+			}
+			if len(m.attractItems) == 0 || attractItemNamed(m, "mario") || attractItemNamed(m, "host-sms") {
+				t.Errorf("health failure left mixed host rows flag=%v items=%+v", m.localAttract, m.attractItems)
+				cancel()
+				return
+			}
+			if !attractItemNamed(m, "Data Storm") {
+				return
+			}
+			for _, item := range m.attractItems {
+				game, ok := m.attractGame(item.GameID)
+				if !ok || !game.LocalCatalogPlayable() {
+					t.Errorf("untagged or ineligible attract row %q", item.GameID)
+					cancel()
+					return
+				}
+			}
+			// present receives a copy. Rebuild the same tagged rows and arm that model.
+			check := Model{Catalog: append([]hostclient.Game(nil), m.Catalog...), Games: append([]hostclient.Game(nil), m.Games...), LocalPlayEnabled: m.LocalPlayEnabled}
+			check.setLocalAttract(localRowsFromAttract(m))
+			check.SetAttractIdle(time.Millisecond)
+			now := time.Unix(0, 0)
+			check.Tick(now)
+			check.Tick(now.Add(time.Second))
+			if !check.AttractActive {
+				t.Error("tagged local playlist did not arm")
+			}
+			if action := check.Input(pressA(), now.Add(2*time.Second)); action != "local-launch" {
+				t.Errorf("local row launch %q message %q", action, check.Message)
+			}
+			sawLocal.Store(true)
+			cancel()
+		}
+	}, func() (Pad, error) { return &silentPad{}, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sawLocal.Load() {
+		t.Fatalf("health failure did not replace the mixed host playlist phase=%d session=%d health=%d", phase.Load(), sessionHits.Load(), healthHits.Load())
 	}
 }
 

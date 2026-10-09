@@ -1,0 +1,216 @@
+make: Entering directory '/work/fes/sources/misteross'
+python3 cores/fes-atari-st/sim/check_sources.py
+FX68K 0602ee4627b10f301298f2673d826cdd6baa9327: 7 source digests verified
+python3 cores/fes-atari-st/diagnostic/firmware.py --out /work/fes/sources/misteross/build/diagnostics/fes-atari-st
+FES Atari ST: wrote two original 196608-byte firmware images to /work/fes/sources/misteross/build/diagnostics/fes-atari-st
+verilator --cc --exe --build -O2 --top-module st_sim_top -Wno-WIDTH -Wno-TIMESCALEMOD -Wno-MULTIDRIVEN -Wno-INITIALDLY -Wno-ALWCOMBORDER -Wno-UNOPTFLAT -Wno-BLKANDNBLK -Wno-CASEINCOMPLETE -Wno-CASEOVERLAP \
+	-Icores/fes-common/generated --Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-machine" \
+	cores/fes-atari-st/sim/st_sim_top.sv cores/fes-atari-st/rtl/st_cpu.sv cores/fes-atari-st/rtl/st_machine.sv cores/fes-atari-st/expansions/st_probe.sv cores/fes-atari-st/rtl/st_native_low_video.sv cores/fes-atari-st/rtl/st_video.sv cores/fes-common/rtl/fes_video_part_direct.v cores/fes-common/rtl/fes_video_part_scanlines.v cores/fes-common/rtl/fx68k/fx68k.sv cores/fes-common/rtl/fx68k/fx68kAlu.sv cores/fes-common/rtl/fx68k/uaddrPla.sv \
+	"/work/fes/sources/misteross/cores/fes-atari-st/sim/machine_tb.cpp" -CFLAGS '-O2'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-machine'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-machine'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.019 s (elab=0.000, cvt=0.000, bld=0.018); cpu 0.002 s on 1 threads; alloced 8.305 MB
+fes.atari-st machine: firmware 1 passed after 39357 cycles (memory waits 0/0, expansion waits 434)
+fes.atari-st machine: CPU-written four-plane pixels passed through direct video part
+fes.atari-st machine: CPU-written four-plane pixels passed through scanline video part
+fes.atari-st machine: firmware 2 passed after 48287 cycles (memory waits 12054/2583, expansion waits 689)
+fes.atari-st machine: vacant expansion timed out through CPU exception
+verilator --cc --exe --build -O2 --top-module st_video_sim_top -Wall \
+	-Icores/fes-common/generated --Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-video" \
+	cores/fes-atari-st/sim/st_video_sim_top.sv cores/fes-atari-st/rtl/st_native_low_video.sv cores/fes-atari-st/rtl/st_video.sv cores/fes-common/rtl/fes_video_part_direct.v cores/fes-common/rtl/fes_video_part_scanlines.v \
+	"/work/fes/sources/misteross/cores/fes-atari-st/sim/video_tb.cpp" -CFLAGS '-O2'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-video'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-video'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.014 s (elab=0.000, cvt=0.000, bld=0.013); cpu 0.001 s on 1 threads; alloced 8.305 MB
+ST video mode 0, base 0x2012f, mono invert 0: full frame passed
+ST video mode 1, base 0x30000, mono invert 0: full frame passed
+ST video mode 2, base 0x40000, mono invert 0: full frame passed
+ST video mode 2, base 0x40000, mono invert 1: full frame passed
+ST video mode 0, base 0x7ff00, mono invert 0: full frame passed
+ST video mode 1, base 0xffff00, mono invert 0: full frame passed
+ST video mode 3, base 0x20000, mono invert 0: full frame passed
+ST video: 8662509 cycles passed
+verilator --cc --exe --build -O2 --top-module st_mfp -Wall \
+	--Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-mfp" \
+	cores/fes-atari-st/rtl/st_mfp.sv "/work/fes/sources/misteross/cores/fes-atari-st/sim/mfp_tb.cpp" -CFLAGS '-std=c++17'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-mfp'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-mfp'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.007 s (elab=0.000, cvt=0.000, bld=0.006); cpu 0.001 s on 1 threads; alloced 8.305 MB
+st_mfp: 524255 assertions passed over 528605 cycles
+verilator --cc --exe --build -O2 --top-module st_input_audio_sim_top -Wall \
+	--Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-input-audio" \
+	cores/fes-atari-st/sim/st_input_audio_sim_top.sv cores/fes-atari-st/rtl/st_acia.sv \
+	cores/fes-atari-st/rtl/st_ikbd.sv cores/fes-atari-st/rtl/st_ym2149.sv cores/fes-zx81/expansions/zonx_ay.v \
+	"/work/fes/sources/misteross/cores/fes-atari-st/sim/input_audio_tb.cpp" -CFLAGS '-std=c++17'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-input-audio'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-input-audio'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.017 s (elab=0.000, cvt=0.000, bld=0.013); cpu 0.001 s on 1 threads; alloced 8.305 MB
+ST input/audio: ACIA timing/errors/IRQ, IKBD key priority/aliases, FIFO packets/all tails/wrap/pop-push/reset and shared YM2149 sound passed
+verilator --cc --exe --build -O2 --top-module st_io_sim_top -Wall \
+	--Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-io" \
+	cores/fes-atari-st/sim/st_io_sim_top.sv cores/fes-atari-st/rtl/st_io.sv cores/fes-atari-st/rtl/st_mfp.sv cores/fes-atari-st/rtl/st_acia.sv cores/fes-atari-st/rtl/st_ikbd.sv cores/fes-atari-st/rtl/st_ym2149.sv cores/fes-atari-st/rtl/st_floppy.sv cores/fes-atari-st/rtl/st_floppy_writer.sv cores/fes-zx81/expansions/zonx_ay.v \
+	"/work/fes/sources/misteross/cores/fes-atari-st/sim/io_tb.cpp" -CFLAGS '-O2 -std=c++17'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-io'
+g++  -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -Os  -c -o io_tb.o /work/fes/sources/misteross/cores/fes-atari-st/sim/io_tb.cpp
+g++ -Os  -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -c -o verilated.o /usr/share/verilator/include/verilated.cpp
+g++ -Os  -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -c -o verilated_threads.o /usr/share/verilator/include/verilated_threads.cpp
+g++ -Os  -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -x c++-header Vst_io_sim_top__pch.h -o Vst_io_sim_top__pch.h.fast.gch
+g++ -Os  -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -include Vst_io_sim_top__pch.h.fast -c -o Vst_io_sim_top.o Vst_io_sim_top.cpp
+g++ -Os  -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -include Vst_io_sim_top__pch.h.fast -c -o Vst_io_sim_top___024root__DepSet_h0730150f__0.o Vst_io_sim_top___024root__DepSet_h0730150f__0.cpp
+g++ -Os  -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -include Vst_io_sim_top__pch.h.fast -c -o Vst_io_sim_top___024root__DepSet_hf5dc1d4b__0.o Vst_io_sim_top___024root__DepSet_hf5dc1d4b__0.cpp
+g++ -Os  -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -include Vst_io_sim_top__pch.h.fast -c -o Vst_io_sim_top___024root__DepSet_hf5dc1d4b__1.o Vst_io_sim_top___024root__DepSet_hf5dc1d4b__1.cpp
+g++   -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -x c++-header Vst_io_sim_top__pch.h -o Vst_io_sim_top__pch.h.slow.gch
+g++   -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -include Vst_io_sim_top__pch.h.slow -c -o Vst_io_sim_top__ConstPool_0.o Vst_io_sim_top__ConstPool_0.cpp
+g++   -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -include Vst_io_sim_top__pch.h.slow -c -o Vst_io_sim_top___024root__Slow.o Vst_io_sim_top___024root__Slow.cpp
+g++   -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -include Vst_io_sim_top__pch.h.slow -c -o Vst_io_sim_top___024root__DepSet_h0730150f__0__Slow.o Vst_io_sim_top___024root__DepSet_h0730150f__0__Slow.cpp
+g++   -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -include Vst_io_sim_top__pch.h.slow -c -o Vst_io_sim_top___024root__DepSet_hf5dc1d4b__0__Slow.o Vst_io_sim_top___024root__DepSet_hf5dc1d4b__0__Slow.cpp
+g++   -I.  -MMD -I/usr/share/verilator/include -I/usr/share/verilator/include/vltstd -DVM_COVERAGE=0 -DVM_SC=0 -DVM_TIMING=0 -DVM_TRACE=0 -DVM_TRACE_FST=0 -DVM_TRACE_VCD=0 -faligned-new -fcf-protection=none -Wno-bool-operation -Wno-shadow -Wno-sign-compare -Wno-tautological-compare -Wno-uninitialized -Wno-unused-but-set-parameter -Wno-unused-but-set-variable -Wno-unused-parameter -Wno-unused-variable    -O2 -std=c++17   -include Vst_io_sim_top__pch.h.slow -c -o Vst_io_sim_top__Syms.o Vst_io_sim_top__Syms.cpp
+echo "" > Vst_io_sim_top__ALL.verilator_deplist.tmp
+g++    io_tb.o verilated.o verilated_threads.o Vst_io_sim_top__ALL.a    -pthread -lpthread -latomic   -o Vst_io_sim_top
+rm Vst_io_sim_top__ALL.verilator_deplist.tmp
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-io'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.517 MB sources in 10 modules, into 1.958 MB in 9 C++ files needing 0.001 MB
+- Verilator: Walltime 7.253 s (elab=0.013, cvt=0.080, bld=7.131); cpu 0.118 s on 1 threads; alloced 25.535 MB
+ST I/O: nominal 50 Hz, 200 Timer B events/frame
+ST I/O: nominal 60 Hz, 200 Timer B events/frame
+ST I/O: nominal 71 Hz, 400 Timer B events/frame
+ST I/O: 6528419 assertions, 83123247 cycles; byte lanes, reset, interrupt wiring and timer rates passed
+verilator --cc --exe --build -O2 --top-module st_floppy -Wall \
+	--Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-floppy" \
+	cores/fes-atari-st/rtl/st_floppy.sv cores/fes-atari-st/rtl/st_floppy_writer.sv "/work/fes/sources/misteross/cores/fes-atari-st/sim/floppy_tb.cpp" -CFLAGS '-std=c++17'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-floppy'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-floppy'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.012 s (elab=0.000, cvt=0.000, bld=0.011); cpu 0.001 s on 1 threads; alloced 8.305 MB
+PASS st_floppy: EmuTOS register setup, all twelve geometries, exact DMA, waits/cancellation, multiple reads, read-only media, and RAM bounds (94547468 cycles, 58386 media bytes, 29185 RAM words)
+verilator --cc --exe --build -O2 --top-module st_floppy -Wall "-GENABLE_WRITE=1'b1" \
+	--Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-floppy-write" \
+	cores/fes-atari-st/rtl/st_floppy.sv cores/fes-atari-st/rtl/st_floppy_writer.sv \
+	"/work/fes/sources/misteross/cores/fes-atari-st/sim/floppy_write_tb.cpp" -CFLAGS '-O2 -std=c++17'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-floppy-write'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-floppy-write'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.016 s (elab=0.000, cvt=0.000, bld=0.012); cpu 0.001 s on 1 threads; alloced 8.305 MB
+PASS st_floppy writable: geometry/readback, atomic sector commits, reset/eject/force drain, freeze, DMA bounds/direction and multiple writes
+verilator --cc --exe --build --top-module st_media_port -Wall \
+	--Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-media-port" \
+	cores/fes-atari-st/rtl/st_media_port.sv "/work/fes/sources/misteross/cores/fes-atari-st/sim/media_port_tb.cpp" -CFLAGS '-O2 -std=c++17'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-media-port'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-media-port'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.009 s (elab=0.000, cvt=0.000, bld=0.007); cpu 0.001 s on 1 threads; alloced 8.305 MB
+PASS ST media port: contention, stable held payload, one ACK, cancellation, rearm gap and cold reset
+verilator --cc --exe --build --top-module st_media_lifecycle_sim_top -Wall \
+	-Icores/fes-common/generated --Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-media-lifecycle" \
+	cores/fes-atari-st/sim/st_media_lifecycle_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox.v \
+	cores/fes-atari-st/rtl/st_floppy_writer.sv cores/fes-atari-st/rtl/st_media_writer.sv cores/fes-atari-st/rtl/st_media_port.sv \
+	"/work/fes/sources/misteross/cores/fes-atari-st/sim/media_lifecycle_tb.cpp" -CFLAGS '-O2 -std=c++17'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-media-lifecycle'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-media-lifecycle'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.013 s (elab=0.000, cvt=0.000, bld=0.010); cpu 0.001 s on 1 threads; alloced 8.305 MB
+PASS ST media lifecycle: actual writer/mailbox/arbiter busy Begin/Eject rejection, old-sector drain, explicit replacement and eject
+verilator --cc --exe --build --top-module computer_interaction_sim_top -Wall -Wno-DECLFILENAME \
+	-Icores/fes-common/generated --Mdir "/work/fes/sources/misteross/build/sim/computer-interaction" \
+	cores/fes-common/sim/computer_interaction_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox.v \
+	cores/fes-atari-st/rtl/st_ikbd.sv cores/fes-atari-st/rtl/st_acia.sv \
+	"/work/fes/sources/misteross/cores/fes-common/sim/computer_interaction_tb.cpp" -CFLAGS '-O2 -std=c++17'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/computer-interaction'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/computer-interaction'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.013 s (elab=0.000, cvt=0.000, bld=0.011); cpu 0.001 s on 1 threads; alloced 8.305 MB
+computer interaction: mouse GP/IKBD/ACIA and snapshot freeze/read/save PASS
+verilator --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
+	--Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-memory" \
+	cores/fes-atari-st/sim/st_memory_sim_top.sv cores/fes-atari-st/rtl/st_memory.sv \
+	cores/fes-ramtest/rtl/sdram_addon_port.v "/work/fes/sources/misteross/cores/fes-atari-st/sim/memory_tb.cpp" -CFLAGS '-O2 -std=c++17'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-memory'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-memory'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.013 s (elab=0.000, cvt=0.000, bld=0.010); cpu 0.001 s on 1 threads; alloced 8.305 MB
+st_memory: DQM delay 0: 3036 requests passed, 132 refreshes, 32 masked writes after refresh, max latency 102 clocks over 63424 cycles
+st_memory: DQM delay 1: 3036 requests passed, 132 refreshes, 32 masked writes after refresh, max latency 102 clocks over 63424 cycles
+st_memory: DQM delay 2: 3036 requests passed, 132 refreshes, 32 masked writes after refresh, max latency 102 clocks over 63424 cycles
+verilator --cc --exe --build -O2 --top-module st_video_adapter_sim_top -Wall \
+	-Icores/fes-common/generated --Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-video-adapter" \
+	cores/fes-atari-st/sim/st_video_adapter_sim_top.sv cores/fes-atari-st/rtl/st_video_adapter.sv cores/fes-atari-st/rtl/st_native_low_video.sv cores/fes-atari-st/rtl/st_video.sv cores/fes-common/rtl/fes_video_part_direct.v cores/fes-common/rtl/fes_video_part_scanlines.v \
+	"/work/fes/sources/misteross/cores/fes-atari-st/sim/video_adapter_tb.cpp" -CFLAGS '-O2 -std=c++17'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-video-adapter'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-video-adapter'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.015 s (elab=0.000, cvt=0.000, bld=0.013); cpu 0.000 s on 1 threads; alloced 8.305 MB
+ST video adapter: frame 1 completed, underruns 0
+ST video adapter: frame 2 completed, underruns 0
+ST video adapter: frame 3 completed, underruns 0
+ST video adapter: frame 4 completed, underruns 0
+ST video adapter: frame 5 completed, underruns 22
+ST video adapter: frame 6 completed, underruns 119
+ST video adapter: frame 7 completed, underruns 716
+ST video adapter: frame 8 completed, underruns 716
+ST cache deadline row 50: ready at 1643, first lookup 1644
+ST cache deadline row 51: ready at 1644, first lookup 1644
+ST cache deadline row 60: ready at 1645, first lookup 1644
+ST video adapter: frame 9 completed, underruns 718
+ST video adapter: 11137617 independent pixel clocks, 7833682 system clocks, 93120 stable reads; 22 forced black lines, 258 recovered lines; crossing-frame 97 black/409 recovered lines passed
+ST registered cache: 215669 word/tag comparisons; ready edges 1643/1644/1645 around first lookup 1644 passed
+verilator --cc --exe --build -O2 --top-module st_native_video_sim_top -Wall \
+	-Icores/fes-common/generated --Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-native-video" \
+	cores/fes-atari-st/sim/st_native_video_sim_top.sv cores/fes-atari-st/rtl/st_video_adapter.sv cores/fes-atari-st/rtl/st_native_low_video.sv cores/fes-atari-st/rtl/st_video.sv cores/fes-common/rtl/fes_video_part_direct.v cores/fes-common/rtl/fes_video_part_scanlines.v \
+	"/work/fes/sources/misteross/cores/fes-atari-st/sim/native_video_tb.cpp" -CFLAGS '-O2 -std=c++17'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-native-video'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-native-video'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.008 s (elab=0.000, cvt=0.000, bld=0.004); cpu 0.001 s on 1 threads; alloced 8.305 MB
+Native ST RGB: 178966052 checks, 11 captures, 6 repeated output frames, 203 black native lines; live palette, ownership, Hold and mode recovery passed
+verilator --cc --exe --build -O2 --top-module st_media_sim_top -Wall \
+	-Icores/fes-common/generated --Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-media" \
+	cores/fes-atari-st/sim/st_media_sim_top.sv cores/fes-atari-st/rtl/st_media_writer.sv \
+	cores/fes-common/rtl/fes_computer_mailbox.v "/work/fes/sources/misteross/cores/fes-atari-st/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-media'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-media'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.046 s (elab=0.000, cvt=0.000, bld=0.044); cpu 0.002 s on 1 threads; alloced 8.305 MB
+Atari ST media PASS: 737280 bytes, 527286 physical writes, 18983924 clocks
+verilator --cc --exe --build -O2 --top-module st_media_sim_top -Wall "-GGEOMETRY=1'b1" \
+	-Icores/fes-common/generated --Mdir "/work/fes/sources/misteross/build/sim/fes-atari-st-media-geometry" \
+	cores/fes-atari-st/sim/st_media_sim_top.sv cores/fes-atari-st/rtl/st_media_writer.sv \
+	cores/fes-common/rtl/fes_computer_mailbox.v "/work/fes/sources/misteross/cores/fes-atari-st/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
+make[1]: Entering directory '/work/fes/sources/misteross/build/sim/fes-atari-st-media-geometry'
+make[1]: Nothing to be done for 'default'.
+make[1]: Leaving directory '/work/fes/sources/misteross/build/sim/fes-atari-st-media-geometry'
+- V e r i l a t i o n   R e p o r t: Verilator 5.032 2025-01-01 rev (Debian 5.032-1+b2)
+- Verilator: Built from 0.000 MB sources in 0 modules, into 0.000 MB in 0 C++ files needing 0.000 MB
+- Verilator: Walltime 0.013 s (elab=0.000, cvt=0.000, bld=0.012); cpu 0.001 s on 1 threads; alloced 8.305 MB
+Atari ST media PASS: 839680 bytes, 600490 physical writes, 21620361 clocks
+make: Leaving directory '/work/fes/sources/misteross'

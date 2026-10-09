@@ -76,10 +76,13 @@ Bus-master arbitration and cycle-exact GLUE/MMU contention are outside this impl
 pending, in-service, mask and vector registers, authentic priority and
 software/automatic EOI, and timers A/B/C/D. MFP IRQ6 uses a supplied vector;
 other IRQ levels use the CPU's VPA autovectors. Its independent 2.4576 MHz
-clock enable gives EmuTOS's timer C `/64 × 192` exactly 200 Hz. Functional
-native VBL/HBL clocks use 50/60 Hz color and 71 Hz monochrome modes,
-independently of HDMI. Timer B receives active display enable, so blank lines
-do not contribute events. Border phases and the live video counter are reduced.
+clock enable gives EmuTOS's timer C `/64 × 192` exactly 200 Hz. Native
+VBL/HBL and display enable share the CPU's phase-2 enable, independently of
+HDMI. PAL uses 313 × 512 CPU cycles, NTSC 263 × 508, and monochrome
+501 × 224. At the retained nominal 8 MHz these are approximately
+49.920/59.878/71.286 Hz; the original PAL/NTSC crystal frequencies are not
+reproduced. Timer B receives active display enable, including opened bottom
+lines, so blank lines do not contribute events. The live video counter is reduced.
 The MFP UART has disconnected RX and timed TX status, without a physical serial port.
 
 `st_acia.sv` models MC6850 registers, timed byte transport, IRQs and receive
@@ -146,18 +149,53 @@ socket CRAM rectangle before publishing an exact-shell expansion archive.
 640×200 two-plane medium and 640×400 monochrome. The fixed 720p60 output uses
 integer nearest-neighbor scaling: color 4×3 or 2×3, monochrome 2×1. High mode
 supports palette-bit inversion; color borders use palette entry 0.
-`st_video_adapter.sv` transfers a held configuration bundle coherently and
-activates it only at frame boundaries. Two owned line caches cross the
-52.224/74.25 MHz domains; the system fills the next native line while the
-pixel domain displays the current one. Missing lines display black, then
-recover. It rejects out-of-range addresses and stale fills from old frames.
-Native row/repetition counters and fixed per-mode fetch windows avoid division
-and mode-dependent coordinate arithmetic in the pixel domain. Cached plane
-capture selects constant mode windows after their comparisons, preserving
-each capture, staging and commit edge without a mode-dependent carry chain.
-Synchronous
-per-bank reads permit dual-clock M10K inference; ownership tags and cache
-words arrive at the original plane-capture edges.
+`st_video_adapter.sv` defaults to native low-resolution capture. In the
+52.224 MHz system domain, `st_native_low_video.sv` prefetches alternating
+80-word RAM rows and selects the live palette at each nominal 8 MHz pixel.
+Three 320×200 RGB333 banks cross to the 74.25 MHz pixel domain through
+publish/release toggles. Only complete native frames are published; the HDMI
+reader pins one bank until output SOF and selects the newest available frame.
+This repeats or drops complete source frames when native and output rates differ.
+Registered RAM write data and a two-pixel address lookahead keep native RGB
+sampling and scaled output aligned while shortening paths into the buffers.
+A blanking-time line counter advances the low row base every three output
+lines, avoiding a vertical-coordinate multiply on the RAM read path.
+RGB and black-line validity have separate write registers. Three-bit publication
+numbers order the bounded pending bank set across wrap and consumer pauses.
+A missing RAM row displays black for its whole line; HOLD aborts an unfinished
+capture, and an invalid base never wraps into populated RAM.
+
+The [native palette qualification record](../../../../docs/validation/2026-10-08-atari-st-native-palette.md)
+binds the sealed shell/Direct/Scanlines pair and bounded Kit A test. The B
+scroller shows rainbow bands through the prepared Direct part; menu flashing
+and exact native timing remain open. The original image and populated menu
+are restored after the diagnostic.
+
+Medium and monochrome retain the indexed double-line-cache renderer and its
+coherent configuration bundle, activated at output frame boundaries. Their
+palette remains fixed for that output frame. Synchronous cache reads and
+ownership tags meet the original plane-capture edges. A held, fair arbiter
+shares the existing video-memory port between the two renderers.
+The indexed renderer compares constant current/next-line windows before mode
+selection, preserving its pixel and lookup cycles while shortening timing paths.
+
+The reduced native timing uses ordinary PAL lines 63–262 with DE cycles
+56–375, and NTSC lines 34–233 with DE cycles 52–371, following the ordinary
+[Hatari 2.5.0 timing table](https://github.com/hatari/hatari/blob/v2.5.0/src/video.c).
+The MFP's Timer B input follows both DE edges by 24 CPU cycles, using
+[Hatari's Timer B offset](https://github.com/hatari/hatari/blob/v2.5.0/src/includes/video.h).
+DE mode settings are sampled at line/frame boundaries so brief writes do not
+create extra display-enable edges. Color line length samples sync separately
+at STF WS1 cycle 54: a bottom-stop pulse restored early on the following
+line preserves the ordinary HBL and frame period. The vertical bottom-stop condition also
+samples live sync at cycle 502 on the last ordinary color line, using the
+STF WS1 timing table. Opposite sync extends PAL DE through line 309, or NTSC
+DE through line 259, and clears at the next frame. This lets Timer B handlers
+continue through the opened bottom region. The current native RGB buffer
+still presents only the ordinary 320×200 area; it does not display those
+extra lines. The remaining mode samples are approximate, and prefetching
+does not reproduce exact MMU/shifter arbitration, mid-line base writes,
+horizontal or top-border opening.
 
 Video uses the existing [RGB888 part contract](../../../mister-packages/docs/video-parts.md)
 and shared direct/scanline implementations through two registered boundaries.
@@ -176,7 +214,8 @@ match the sealed package. `routed.json` and `socket.qsf` are not package
 members; the part recipe digest covers their bytes. It checks all three shell
 clocks, pixel-only part state and every outside CRAM bit, including companion
 columns. Rebuild parts after any shell identity change. HOLD blacks pixels while
-timing continues. Native raster tricks and aspect-ratio correction are absent.
+timing continues. Rendering opened borders, cycle-exact raster timing and aspect-ratio
+correction remain absent.
 
 ## Validation
 
@@ -240,8 +279,16 @@ ROM, disk and generated-model identities before execution. Its bounded fault
 log records the first 64 bus errors with the latched address, direction and
 function code; the first eight faults also capture RAM. The exported CPU PC
 is diagnostic prefetch/exception state, not an instruction-retirement trace.
-Per-second static framebuffer images do not prove video timing or border
-behavior. Neither successful capture completion nor removal of one loader
+The diagnostic also records changed palette entries by native frame/line
+after six simulated seconds (first eight changed bundles per frame and full
+per-frame counts). Horizontal positions are CPU cycles within the native line.
+It saves the first sixteen complete native RGB captures after 6.5 seconds,
+and records IACK/MMIO request starts and sync changes between six and seven seconds.
+These bounded traces locate guest handlers without an instruction-retirement
+claim. `--key-b-at SECOND` selects the scroller through the normal
+HID/IKBD path with a 150 ms B press. These are observations of the reduced
+native timing model, not original GLUE/shifter timing equivalence. Per-second
+static framebuffer images do not prove video timing or border behavior. Neither successful capture completion nor removal of one loader
 fault establishes demo compatibility.
 
 The aggregate uses original diagnostic firmware and focused CPU, video,

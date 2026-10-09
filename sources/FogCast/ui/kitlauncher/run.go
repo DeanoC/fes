@@ -701,6 +701,16 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if o.err != nil {
 				m.Connected = false
 				m.ClearCoreStatuses(true)
+				if !localApplied && len(localGames) > 0 {
+					var merged []hostclient.Game
+					merged, kitRows = mergeKitRows(m.Catalog, localGames)
+					m.SetCatalog(merged)
+					localApplied = true
+					catalogLoaded = true
+				}
+				if m.LocalPlayEnabled {
+					m.setLocalAttract(localGames)
+				}
 				if !m.Busy {
 					m.Message = OfflineMessage
 				}

@@ -20,12 +20,18 @@ struct Demo {
     Vst_boot_sim_top dut;
     std::vector<uint8_t> rom,disk;
     std::array<uint8_t,524288> ram{};
-    Pending rp,mp,dp;
+    Pending rp,mp,dp,cp;
+    std::vector<unsigned char> native_picture = std::vector<unsigned char>(320*200*3);
+    std::vector<unsigned char> completed_native_picture;
     uint64_t cycles=0,writes=0,faults=0,vbl=0,hbl=0,mfp=0,dma=0,media=0;
     uint32_t last_media=UINT32_MAX,last_fdc=UINT32_MAX;
-    bool last_fault=false,last_ack=false;
+    bool last_fault=false,last_ack=false,last_io=false;
+    unsigned consecutive_captures=0, last_sync=0;
+    std::array<unsigned,16> last_palette{};
+    uint64_t native_frames=0,palette_changes=0,palette_frame_changes=0,max_palette_frame_changes=0;
+    unsigned palette_frame_samples=0;
     std::string prefix;
-    std::ofstream sectors,trace,fdc,fault_trace;
+    std::ofstream sectors,trace,fdc,fault_trace,palette_trace,raster_trace;
     static std::vector<uint8_t> read(const char *path) {
         std::ifstream input(path,std::ios::binary);check(input.good(),"input unavailable");
         return {std::istreambuf_iterator<char>(input),{}};
@@ -39,13 +45,23 @@ struct Demo {
         dut.exp_ack=0;dut.exp_berr=0;dut.exp_rdata=0xffff;dut.exp_irq=0;dut.exp_present=0;
         dut.rom_ready=0;dut.ram_ready=0;dut.media_ready=1;dut.media_size=disk.size();dut.media_valid=0;
         dut.dma_ready=0;dut.mouse_valid=0;dut.mouse_dx=0;dut.mouse_dy=0;dut.mouse_buttons=0;dut.controller_buttons=0;
+        dut.capture_ready=0;dut.capture_data=0;
         for(unsigned i=0;i<5;++i)dut.keyboard[i]=0;
         sectors.open(prefix+"-disk-access.jsonl");trace.open(prefix+"-trace.jsonl");fdc.open(prefix+"-fdc.jsonl");
         fault_trace.open(prefix+"-faults.jsonl");
-        check(sectors.good()&&trace.good()&&fdc.good()&&fault_trace.good(),"trace output unavailable");dut.eval();
+        palette_trace.open(prefix+"-palette.jsonl");
+        raster_trace.open(prefix+"-raster.jsonl");
+        check(sectors.good()&&trace.good()&&fdc.good()&&fault_trace.good()&&palette_trace.good()&&raster_trace.good(),"trace output unavailable");dut.eval();
     }
     void storage() {
-        if(dut.reset){rp={};mp={};dp={};dut.rom_ready=0;dut.ram_ready=0;dut.media_valid=0;dut.dma_ready=0;return;}
+        if(dut.reset){rp={};mp={};dp={};cp={};dut.rom_ready=0;dut.ram_ready=0;dut.media_valid=0;dut.dma_ready=0;dut.capture_ready=0;return;}
+        if(!dut.capture_req){cp={};dut.capture_ready=0;}
+        else {
+            unsigned a=dut.capture_addr*2;check(a+1<ram.size(),"native capture RAM bounds");
+            if(!cp.seen){cp.seen=true;cp.addr=a;cp.wait=12+(a%7);}
+            check(cp.addr==a,"native read changed before ACK");
+            dut.capture_data=word(a);dut.capture_ready=cp.wait==0;if(cp.wait)--cp.wait;
+        }
         if(!dut.rom_req){rp={};dut.rom_ready=0;}
         else {
             unsigned a=dut.rom_addr*2;check(a+1<rom.size(),"ROM bounds");
@@ -79,7 +95,66 @@ struct Demo {
         }
     }
     void tick() {
-        storage();dut.eval();dut.clk_sys=1;dut.eval();
+        storage();dut.eval();
+        // Observe the event consumed on this edge, before the accumulators advance.
+        const bool native_vblank=!dut.reset&&dut.vblank;
+        const unsigned native_line=dut.debug_native_line;
+        const uint32_t horizontal_phase=dut.debug_horizontal_phase;
+        const bool native_pixel=dut.capture_pixel;
+        const unsigned native_x=dut.capture_x,native_y=dut.capture_y,native_rgb=dut.capture_rgb;
+        const unsigned completed_before=dut.capture_frames;
+        dut.clk_sys=1;dut.eval();
+        if(native_pixel){
+            check(native_x<320&&native_y<200,"native capture coordinates");
+            auto expand=[](unsigned c){return (c<<5)|(c<<2)|(c>>1);};
+            const unsigned offset=(native_y*320+native_x)*3;
+            native_picture[offset]=expand((native_rgb>>6)&7);
+            native_picture[offset+1]=expand((native_rgb>>3)&7);
+            native_picture[offset+2]=expand(native_rgb&7);
+        }
+        if(dut.capture_frames!=completed_before){
+            completed_native_picture=native_picture;
+            if(cycles>=13*Hz/2 && consecutive_captures<16){
+                std::ofstream image(prefix+"-consecutive-"+std::to_string(consecutive_captures++)+"-native.ppm",std::ios::binary);
+                image<<"P6\n320 200\n255\n";
+                image.write(reinterpret_cast<const char*>(native_picture.data()),native_picture.size());
+            }
+        }
+        // A bounded bus trace locates timer programming and mode writes in
+        // native coordinates. It records each request start, never repeated
+        // held requests; the PC remains diagnostic prefetch state.
+        if(cycles>=6*Hz && cycles<7*Hz){
+            const bool ack=dut.irq_ack&&!last_ack;
+            const bool io=dut.debug_io_req&&!last_io&&dut.exp_write;
+            if(ack||io||dut.sync_mode!=last_sync) raster_trace<<"{\"cycle\":"<<cycles<<",\"frame\":"<<native_frames
+                <<",\"line\":"<<native_line<<",\"horizontal_phase\":"<<horizontal_phase
+                <<",\"pc\":"<<dut.debug_pc<<",\"iack\":"<<(ack?unsigned(dut.irq_level):0)
+                <<",\"sync_mode\":"<<unsigned(dut.sync_mode)<<",\"write_address\":"<<(io?dut.exp_addr*2:0)<<",\"write_data\":"<<(io?dut.exp_wdata:0)<<"}\n";
+        }
+        last_io=dut.debug_io_req; last_sync=dut.sync_mode;
+        if(native_vblank){
+            if(cycles>=6*Hz){
+                palette_trace<<"{\"kind\":\"frame\",\"cycle\":"<<cycles<<",\"frame\":"<<native_frames
+                             <<",\"changed_entries\":"<<palette_frame_changes<<"}\n";
+                if(palette_frame_changes>max_palette_frame_changes)max_palette_frame_changes=palette_frame_changes;
+            }
+            ++native_frames;palette_frame_changes=0;palette_frame_samples=0;
+        }
+        unsigned changes=0;
+        for(unsigned i=0;i<16;++i)changes+=color(i)!=last_palette[i];
+        const bool sample=cycles>=6*Hz&&changes&&palette_frame_samples<8;
+        if(sample)palette_trace<<"{\"kind\":\"palette\",\"cycle\":"<<cycles<<",\"frame\":"<<native_frames
+                               <<",\"line\":"<<native_line<<",\"horizontal_phase\":"<<horizontal_phase<<",\"entries\":[";
+        unsigned emitted=0;
+        for(unsigned i=0;i<16;++i){
+            const unsigned value=color(i);
+            if(value!=last_palette[i]){
+                if(sample){if(emitted++)palette_trace<<',';palette_trace<<'['<<i<<','<<value<<']';}
+                last_palette[i]=value;
+            }
+        }
+        if(sample){palette_trace<<"]}\n";++palette_frame_samples;}
+        if(cycles>=6*Hz){palette_changes+=changes;palette_frame_changes+=changes;}
         if(dut.debug_bus_error&&!last_fault){
             ++faults;
             if(faults<=64){
@@ -106,6 +181,11 @@ struct Demo {
         return (packed>>bit)&511;
     }
     void snapshot(const std::string &suffix) {
+        if(!completed_native_picture.empty()){
+            std::ofstream native(prefix+suffix+"-native.ppm",std::ios::binary);
+            native<<"P6\n320 200\n255\n";
+            native.write(reinterpret_cast<const char*>(completed_native_picture.data()),completed_native_picture.size());
+        }
         std::ofstream memory(prefix+suffix+"-ram.bin",std::ios::binary);
         memory.write(reinterpret_cast<const char*>(ram.data()),ram.size());
         const unsigned mode=dut.resolution,planes=mode==0?4:mode==1?2:1;
@@ -130,11 +210,17 @@ struct Demo {
            <<",\"memvalid\":"<<longword(0x420)<<",\"phystop\":"<<longword(0x42e)
            <<",\"hz200\":"<<longword(0x4ba)<<",\"ram_writes\":"<<writes<<",\"bus_faults\":"<<faults
            <<",\"mfp_acks\":"<<mfp<<",\"vbl_acks\":"<<vbl<<",\"hbl_acks\":"<<hbl
-           <<",\"dma_words\":"<<dma<<",\"media_bytes\":"<<media<<"}";
+           <<",\"dma_words\":"<<dma<<",\"media_bytes\":"<<media
+           <<",\"palette_changed_entries_after_six_seconds\":"<<palette_changes
+           <<",\"max_completed_native_frame_palette_changes\":"<<max_palette_frame_changes
+           <<",\"native_rgb_frames\":"<<dut.capture_frames<<",\"native_rgb_underruns\":"<<dut.capture_underruns<<"}";
     }
-    void run(unsigned seconds) {
+    void run(unsigned seconds,unsigned key_b_at=0) {
         for(unsigned i=0;i<64;++i)tick();dut.reset=0;
         while(cycles<Hz*seconds){
+            // HID usage 5 is B. Exercise the existing keyboard/IKBD path;
+            // the original disk and firmware are never modified.
+            dut.keyboard[0]=key_b_at&&cycles>=Hz*key_b_at&&cycles<Hz*key_b_at+Hz*150/1000 ? 1u<<5 : 0;
             tick();
             if(cycles%(Hz/10)==0){status(trace);trace<<'\n';}
             if(cycles%Hz==0){status(std::cout);std::cout<<'\n'<<std::flush;snapshot("-second-"+std::to_string(cycles/Hz));}
@@ -146,6 +232,6 @@ struct Demo {
 };
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
-    try {check(argc==5,"ROM DISK SECONDS PREFIX required");Demo demo(argv[1],argv[2],argv[4]);demo.run(std::strtoul(argv[3],nullptr,10));}
+    try {check(argc==5||argc==6,"ROM DISK SECONDS PREFIX [KEY_B_AT] required");Demo demo(argv[1],argv[2],argv[4]);demo.run(std::strtoul(argv[3],nullptr,10),argc==6?std::strtoul(argv[5],nullptr,10):0);}
     catch(const std::exception &error){std::cerr<<"FAIL "<<error.what()<<'\n';return 1;}
 }
