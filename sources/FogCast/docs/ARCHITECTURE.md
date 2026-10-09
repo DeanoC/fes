@@ -2048,7 +2048,7 @@ local play is enabled, attract uses playable kit-local SMS rows (a present
 browse-only cartridge that is not host-eligible) after the default 60 second
 idle. Those rows have no stills. South launches the current row through the
 local-control socket. A disconnected host playlist with no such row does not
-arm attract, and a later host playlist replaces the local one. Video-only rows stay dropped because
+arm attract. When the host returns, that local list is dropped immediately and the host playlist is fetched again. Video-only rows stay dropped because
 the CGO-free kit binary does not decode H.264. A distinct attract `marquee` or
 presentation `marquee_id` paints a banner strip under the header alongside the
 still, motion preview, or 2×2 wall; a marquee-only row keeps the still

@@ -816,6 +816,17 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				if o.haveCache || c.Cache != nil {
 					m.Cache = mergeCacheStatus(c.Cache, o.cache, o.haveCache)
 				}
+				// A hostless playlist must not survive reconnect. When this poll
+				// did not fetch the host list, drop the local rows and fetch
+				// on the next pass. A failed fetch leaves the list empty. A
+				// playlist already on this observation replaces the local rows.
+				if m.localAttract && !o.haveAttract {
+					m.clearLocalAttract()
+					if !o.hydrateAttract {
+						attractLoaded = false
+						lastAttract = time.Time{}
+					}
+				}
 				if o.haveAttract {
 					m.SetAttractPlaylist(o.attract)
 					attractLoaded = true

@@ -487,8 +487,8 @@ kit-local SMS rows instead: a present browse-only cartridge that is not
 host-eligible. Those rows have no stills, so the stage shows the title
 after the default 60 second idle, and South launches it through the
 local-control socket. A disconnected host playlist with no such row does
-not arm attract. When the host returns, its attract playlist replaces the
-local one. When the staged title has
+not arm attract. When the host returns, that local list is dropped
+immediately and the host playlist is fetched again. When the staged title has
 a distinct `marquee_id` or attract `marquee` handle, a banner strip paints
 under the header alongside the still or motion preview; a marquee-only row
 keeps today's still fallback and hides the duplicate strip. When the staged title has

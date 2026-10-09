@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"net/http"
@@ -799,6 +800,105 @@ func attractTestHandler(handle string) http.HandlerFunc {
 		default:
 			http.NotFound(w, r)
 		}
+	}
+}
+
+type idleLocalCore struct{}
+
+func (idleLocalCore) List(context.Context) ([]localcores.Core, error) { return nil, nil }
+func (idleLocalCore) LaunchROM(context.Context, string, string) error { return nil }
+func (idleLocalCore) Status(context.Context) (localcores.RunStatus, error) {
+	return localcores.RunStatus{Phase: "idle"}, nil
+}
+func (idleLocalCore) Stop(context.Context) error { return nil }
+
+func attractItemNamed(m Model, title string) bool {
+	for _, item := range m.attractItems {
+		if strings.Contains(item.Title, title) || item.GameID == title {
+			return true
+		}
+	}
+	return false
+}
+
+func TestRunRefetchesAttractAfterLocalPlaylist(t *testing.T) {
+	var hostUp atomic.Bool
+	hostUp.Store(true)
+	var attractHits atomic.Int64
+	handle := strings.Repeat("a", 64)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !hostUp.Load() {
+			http.Error(w, "down", http.StatusBadGateway)
+			return
+		}
+		if r.URL.Path == "/api/v1/library/attract" {
+			attractHits.Add(1)
+		}
+		attractTestHandler(handle)(w, r)
+	}))
+	defer server.Close()
+	dir := t.TempDir()
+	root := filepath.Join(dir, "sms")
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "Data Storm 1.00.sms"), []byte("data-storm-fixture"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	catalog := filepath.Join(dir, "config.toml")
+	body := "base_url = \"http://127.0.0.1:1\"\ntoken = \"synthetic-token\"\nrequest_timeout_seconds = 1\nupload_timeout_seconds = 2\n\n[[libraries]]\nid = \"sms-main\"\nsystem = \"sms\"\nroot = \"" + root + "\"\n"
+	if err := os.WriteFile(catalog, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
+	client.SetCatalogConfig(catalog)
+	client.SetLocalCores(idleLocalCore{})
+	client.SetLocalInput("", func(context.Context) (bool, error) { return false, nil })
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	var phase atomic.Int32
+	var downHits atomic.Int64
+	var sawLocal, sawHost atomic.Bool
+	err := Run(ctx, client, func(m Model) {
+		switch phase.Load() {
+		case 0:
+			if m.Connected && !m.localAttract && attractItemNamed(m, "mario") {
+				phase.Store(1)
+				hostUp.Store(false)
+			}
+		case 1:
+			if m.localAttract && attractItemNamed(m, "Data Storm") {
+				downHits.Store(attractHits.Load())
+				sawLocal.Store(true)
+				phase.Store(2)
+				hostUp.Store(true)
+			}
+		case 2:
+			if !m.Connected || m.localAttract || attractHits.Load() <= downHits.Load() {
+				return
+			}
+			if attractItemNamed(m, "Data Storm") || !attractItemNamed(m, "mario") {
+				return
+			}
+			for _, item := range m.attractItems {
+				if item.GameID != "mario" && m.attractLaunchEligible(item) {
+					t.Errorf("reconnect attract still launches %s", item.GameID)
+					cancel()
+					return
+				}
+			}
+			sawHost.Store(true)
+			cancel()
+		}
+	}, func() (Pad, error) { return &silentPad{}, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sawLocal.Load() {
+		t.Fatalf("local attract did not replace the host playlist phase=%d", phase.Load())
+	}
+	if !sawHost.Load() {
+		t.Fatalf("host attract was not fetched again after reconnect phase=%d hits=%d", phase.Load(), attractHits.Load())
 	}
 }
 

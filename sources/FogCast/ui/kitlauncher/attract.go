@@ -74,6 +74,7 @@ func (m *Model) SetAttractPlaylist(p hostclient.AttractPlaylist) {
 		m.attractIdle = time.Duration(p.IdleSeconds) * time.Second
 	}
 	m.attractIdleReady = true
+	m.localAttract = false
 	items := playableStillItems(p.Items)
 	m.attractItems = items
 	if !m.AttractActive {
@@ -172,12 +173,15 @@ func sameAttractIDs(left, right []hostclient.AttractItem) bool {
 
 // setLocalAttract keeps a hostless playlist of playable kit-local rows.
 // Those rows have no stills, so they bypass the host still filter.
+// localAttract stays set, including when the rows are unchanged, until a
+// host playlist replaces them or reconnect drops the list.
 func (m *Model) setLocalAttract(games []hostclient.Game) {
 	items := localAttractItems(games)
 	if m.attractIdle <= 0 {
 		m.attractIdle = defaultAttractIdle
 	}
 	m.attractIdleReady = true
+	m.localAttract = true
 	if sameAttractIDs(m.attractItems, items) {
 		return
 	}
@@ -190,6 +194,20 @@ func (m *Model) setLocalAttract(games []hostclient.Game) {
 		return
 	}
 	m.attractIndex = m.attractIndex % len(items)
+}
+
+// clearLocalAttract drops a hostless playlist so reconnect cannot keep
+// launching those rows while the host playlist is still outstanding.
+func (m *Model) clearLocalAttract() {
+	if !m.localAttract {
+		return
+	}
+	m.localAttract = false
+	m.attractItems = nil
+	m.attractIndex = 0
+	if m.AttractActive {
+		m.hideAttract()
+	}
 }
 
 func (m *Model) attractBlocked() bool {

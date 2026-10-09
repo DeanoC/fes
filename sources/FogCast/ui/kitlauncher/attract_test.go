@@ -20,6 +20,31 @@ func stillItem(id, title, handle string) hostclient.AttractItem {
 func handleAA() string { return "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
 func handleBB() string { return "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
 
+func TestLocalAttractYieldsToTheHostPlaylist(t *testing.T) {
+	row := smsRow()
+	m := Model{Games: []hostclient.Game{row}, Catalog: []hostclient.Game{row}, LocalPlayEnabled: true, Connected: true, TargetReady: true}
+	m.setLocalAttract([]hostclient.Game{row})
+	m.setLocalAttract([]hostclient.Game{row})
+	if !m.localAttract || len(m.attractItems) != 1 || m.attractItems[0].GameID != row.ID {
+		t.Fatalf("local attract flag=%v items=%+v", m.localAttract, m.attractItems)
+	}
+	m.AttractActive = true
+	item, ok := m.currentAttractItem()
+	if !ok || !m.attractLaunchEligible(item) {
+		t.Fatal("connected local row was not launchable before the host playlist returned")
+	}
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	if m.localAttract || len(m.attractItems) != 1 || m.attractItems[0].GameID != "mario" {
+		t.Fatalf("host playlist left local rows flag=%v items=%+v", m.localAttract, m.attractItems)
+	}
+	m.setLocalAttract([]hostclient.Game{row})
+	m.AttractActive = true
+	m.clearLocalAttract()
+	if m.localAttract || m.AttractActive || len(m.attractItems) != 0 {
+		t.Fatalf("clear left flag=%v active=%v items=%d", m.localAttract, m.AttractActive, len(m.attractItems))
+	}
+}
+
 func TestAttractArmsAfterIdle(t *testing.T) {
 	m := Model{Connected: true, TargetReady: true}
 	m.SetCatalog(mixedCatalog())

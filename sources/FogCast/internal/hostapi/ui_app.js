@@ -2207,9 +2207,10 @@
           if (key) fetched[key] = gameID;
           fetched[gameID] = gameID;
           const ownedTitle = titleForPreference(state.libraryTitles, gameID);
+          // Replace owned keys when a later GET changes the saved source id.
+          // A pending local save keeps the keys it captured when it started.
           if (ownedTitle && typeof ownedTitle.title_id === 'string' && ownedTitle.title_id
-              && !pendingPickRevisions.has(ownedTitle.title_id)
-              && !titleChoiceKeys.has(ownedTitle.title_id)) {
+              && !pendingPickRevisions.has(ownedTitle.title_id)) {
             const owned = [];
             if (key) owned.push(key);
             if (!owned.includes(gameID)) owned.push(gameID);
