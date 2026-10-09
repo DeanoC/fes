@@ -141,6 +141,8 @@ class Boot {
     uint64_t frame_video_reads = 0;
     std::vector<uint8_t> native_picture = std::vector<uint8_t>(320*200*3);
     std::ofstream raster_trace, logo_trace;
+    std::set<uint64_t> saved_logo_hashes;
+    std::string trace_prefix;
     bool tracing() const { return system_cycles >= boot_start + trace_start*SystemHz &&
                                  system_cycles < boot_start + trace_end*SystemHz; }
 
@@ -262,6 +264,12 @@ class Boot {
                     << ",\"underruns\":" << dut.native_underruns << ",\"row_fnv1a64\":[";
                 for (unsigned y=0;y<64;++y) { if(y) logo_trace << ','; logo_trace << '"' << std::hex << row_hashes[y] << std::dec << '"'; }
                 logo_trace << "]}\n";
+                if (saved_logo_hashes.size()<8 && saved_logo_hashes.insert(hash).second) {
+                    std::ofstream image(trace_prefix+"-trace-logo-"+std::to_string(native_epoch)+"-native.ppm", std::ios::binary);
+                    require(image.good(),"trace logo image unavailable");
+                    image << "P6\n320 200\n255\n";
+                    image.write(reinterpret_cast<const char*>(native_picture.data()),native_picture.size());
+                }
             }
         }
         if (native_vblank) { ++native_epoch; frame_palette_writes=0; frame_cpu_max=frame_video_max=0; frame_video_reads=0; }
@@ -396,6 +404,7 @@ public:
     void run(unsigned seconds, const char *prefix, unsigned start=6, unsigned end=7) {
         trace_start=start; trace_end=end;
         if (demo_mode) {
+            trace_prefix=prefix;
             raster_trace.open(std::string(prefix)+"-raster.jsonl");
             logo_trace.open(std::string(prefix)+"-logo.jsonl");
             require(raster_trace.good() && logo_trace.good(), "demo trace output unavailable");

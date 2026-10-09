@@ -288,7 +288,8 @@ These bounded traces locate guest handlers without an instruction-retirement
 claim. `--trace-start` / `--trace-end` select a bounded interval within the run;
 that interval records every committed palette write, including writes of the
 same value, and every completed native capture's static-logo crop and row
-hashes. The logo crop is native x=65..244, y=0..63. FNV-1a-64 hashes compare
+hashes. The first eight distinct crop hashes also save their complete native
+RGB images, so a rare outlier can be inspected after the run. The logo crop is native x=65..244, y=0..63. FNV-1a-64 hashes compare
 expanded RGB bytes for equality; they are not cryptographic artifact identities.
 Per-capture counters report video-prefetch and CPU RAM latency. Optional
 `--ram-extra-wait 0..64` adds system-clock delay to each CPU RAM callback;

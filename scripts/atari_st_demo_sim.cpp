@@ -10,6 +10,7 @@
 #include <iostream>
 #include <iterator>
 #include <stdexcept>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -32,6 +33,7 @@ struct Demo {
     uint64_t palette_writes=0,frame_palette_writes=0;
     bool last_capture_ready=false,last_ram_ready=false;
     std::ofstream logo_trace;
+    std::set<uint64_t> saved_logo_hashes;
     bool tracing() const { return cycles>=trace_start*Hz && cycles<trace_end*Hz; }
     std::array<unsigned,16> last_palette{};
     uint64_t native_frames=0,palette_changes=0,palette_frame_changes=0,max_palette_frame_changes=0;
@@ -151,6 +153,12 @@ struct Demo {
                     <<",\"max_cpu_ram_wait\":"<<frame_ram_max<<",\"underruns\":"<<dut.capture_underruns<<",\"row_fnv1a64\":[";
                 for(unsigned y=0;y<64;++y){if(y)logo_trace<<',';logo_trace<<'"'<<std::hex<<row_hashes[y]<<std::dec<<'"';}
                 logo_trace<<"]}\n";
+                if(saved_logo_hashes.size()<8 && saved_logo_hashes.insert(hash).second){
+                    std::ofstream image(prefix+"-trace-logo-"+std::to_string(native_frames)+"-native.ppm",std::ios::binary);
+                    check(image.good(),"trace logo image unavailable");
+                    image<<"P6\n320 200\n255\n";
+                    image.write(reinterpret_cast<const char*>(native_picture.data()),native_picture.size());
+                }
             }
             if(cycles>=13*Hz/2 && consecutive_captures<16){
                 std::ofstream image(prefix+"-consecutive-"+std::to_string(consecutive_captures++)+"-native.ppm",std::ios::binary);

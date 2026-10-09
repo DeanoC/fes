@@ -160,6 +160,7 @@ def run(args):
                               "pc": "diagnostic prefetch state, not instruction retirement"}
     if args.shared_memory:
         record["raster_trace"]["events"] = "IACK (including MFP vector) and every committed palette write (including unchanged values)"
+    record["distinct_logo_captures"] = "save first eight distinct crop hashes as complete native PPMs in trace window"
     record["logo_trace"] = "every completed native capture in trace window; FNV-1a-64 RGB crop xywh 65,0,180,64; equality diagnostic, not cryptographic identity"
     record["storage_model"] = {"cpu_ram_wait": "8+(byte_address%7)+ram_extra_wait system clocks",
                                "ram_extra_wait": args.ram_extra_wait, "capture_wait": "12+(byte_address%7)",
