@@ -46,6 +46,13 @@ class TestChangedTest(unittest.TestCase):
         self.assertEqual({lane for lane, enabled in result["impact"]["lanes"].items() if enabled},
                          {"parent", "fpga"})
 
+    def test_default_z80_runner_selects_route_c_named_state_tests(self):
+        source = (Path(__file__).resolve().parents[1] /
+                  "sources/misteross/scripts/sim_fes_z80.py").read_text()
+        self.assertIn("tests.test_z80_route_c_semantics", source)
+        self.assertIn("sys.executable", source)
+        self.assertIn("shutil.which", source)
+
     def test_shared_menu_scanout_selects_idle_and_session_simulations(self):
         self.change("sources/misteross/cores/fes-menu/rtl/fes_menu_video.v")
         result = self.plan()
