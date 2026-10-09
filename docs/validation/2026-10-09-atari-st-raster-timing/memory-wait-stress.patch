@@ -1,0 +1,20 @@
+--- a/scripts/atari_st_demo_sim.cpp
++++ b/scripts/atari_st_demo_sim.cpp
+@@ -72,7 +72,7 @@
+         if(!dut.ram_req){mp={};dut.ram_ready=0;}
+         else {
+             unsigned a=dut.ram_addr*2;check(a+1<ram.size(),"RAM bounds");
+-            if(!mp.seen){mp.seen=true;mp.addr=a;mp.data=dut.ram_wdata;mp.lanes=dut.ram_byte_enable;mp.write=dut.ram_write;mp.wait=8+(a%7);}
++            if(!mp.seen){mp.seen=true;mp.addr=a;mp.data=dut.ram_wdata;mp.lanes=dut.ram_byte_enable;mp.write=dut.ram_write;mp.wait=8+(a%7)+((cycles>=6*Hz && (cycles/64)%31==0)?40:0);}
+             check(mp.addr==a&&mp.data==dut.ram_wdata&&mp.lanes==dut.ram_byte_enable&&mp.write==bool(dut.ram_write),"RAM changed before ACK");
+             dut.ram_ready=mp.wait==0;
+             if(mp.wait)--mp.wait;
+@@ -114,7 +114,7 @@
+         }
+         if(dut.capture_frames!=completed_before){
+             completed_native_picture=native_picture;
+-            if(cycles>=13*Hz/2 && consecutive_captures<16){
++            if(cycles>=13*Hz/2 && consecutive_captures<64){
+                 std::ofstream image(prefix+"-consecutive-"+std::to_string(consecutive_captures++)+"-native.ppm",std::ios::binary);
+                 image<<"P6\n320 200\n255\n";
+                 image.write(reinterpret_cast<const char*>(native_picture.data()),native_picture.size());

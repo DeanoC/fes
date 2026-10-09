@@ -3,7 +3,7 @@
 Follow-up to [task #621](https://github.com/DeanoC/fes/issues/621) and
 [PR #633](https://github.com/DeanoC/fes/pull/633), based on merged main
 `0805d2b7e08f66127524353c4cbaf15d9daf180e`. Implementation source is
-`27b85008ffa2d6887d05c24c5de66cb87b7c541b`; the
+`cbfdfcf8334709d371540339f7b032ec593d0b8c`; the
 [evidence record](2026-10-09-atari-st-raster-timing/evidence.json) records
 validation and its remaining work. Earlier FPGA/hardware records qualify
 only their exact earlier packages.
@@ -91,8 +91,11 @@ clocks; this remains a digital memory model.
 
 The twelve-second [original BIG diagnostic](2026-10-09-atari-st-raster-timing/demo-proof.json)
 selects B at eight seconds through HID/IKBD. All twenty-one captured inputs
-match `e88ac743670ca05589993404e5fa235df512a431`. The subsequent constant-bound rewrites change `st_io.sv` and `st_video.sv`
-among these inputs; each is formally equivalent as described below. Frozen source, executable, generated model,
+match `e88ac743670ca05589993404e5fa235df512a431`.
+Only `st_io.sv` changes among those captured BIG inputs after that revision;
+its constant-bound rewrite is formally equivalent as described below.
+The separate SDRAM/HDMI EmuTOS model also uses `st_video.sv`; the renderer
+rewrite is covered by its own proof below. Frozen source, executable, generated model,
 microcode, ROM and disk remain unchanged throughout the run. It finishes with
 598 complete native captures, zero underruns, no external bus faults and no
 CPU halt. The menu has 32 RGB colors and the final B scroller has 39, including
@@ -104,7 +107,7 @@ clock crossing. Those paths are tested separately above.
 
 ## FPGA timing refinement
 
-Preparation of the renderer-refined source is still pending. The preceding
+The preceding
 `e88ac743` route's intermediate analogue signoff misses the system target:
 46.60 MHz against 52.224 MHz. The critical path starts at `bottom_open`,
 passes through the dynamic `display_top + display_height` addition and line
@@ -130,6 +133,85 @@ proves all 493 physical-port and 438 cached-port state/output points, with
 none unproven, between `27b85008` and `cbfdfcf83`. Pixel and lookup cycles are
 unchanged, and the two proofs preserve the captured behavioral evidence.
 
-FPGA qualification and any physical diagnostic remain pending in the evidence
-record. The kit has not been changed during these builds; its normal menu
-remains available.
+The renderer-refined seed 4 route times out after 1,800 seconds while resolving
+its final conflict; it has no final signoff result. Seed 5 passes final analogue
+signoff at **74.67/52.84/193.54 MHz** against the pixel/system/audio constraints.
+The [prepared receipt](2026-10-09-atari-st-raster-timing/prepared.json) binds all
+selected modules to `cbfdfcf83`; archive, selection, provenance and video-index
+hashes were rechecked before the kit load. Package
+`63d21bcc703f00b3ebcb61de9a98869abccb091e7fe9d625060ae4dff18e280e`
+and both exact-shell Direct/Scanlines parts are sealed. All 47 CI checks pass
+on the subsequent evidence-only commit `c8467c818`.
+
+## Bounded hardware diagnostic
+
+The [hardware proof](2026-10-09-atari-st-raster-timing/hardware-proof.json)
+records normal library Play on designated Kit A with unchanged TOS 1.00,
+the original 409,600-byte 80×1×10 disk, and the prepared Direct part
+`2a9c64d3070da8746c19681e7f6de5a9ac257cb55b5aa0e878fe912c867258c5`.
+The active ROM link, shell, selected part and composition identities are checked.
+Normal HID B selects the scroller; its rainbow bands remain visible. Scanlines
+is sealed but is not separately launched.
+
+![Hardware B scroller](2026-10-09-atari-st-raster-timing/hardware-scroller.png)
+
+Both four-second menu recordings use the same HDMI logo crop: x=260, y=60,
+w=720, h=192, corresponding to native x=65, y=0, w=180, h=64. The
+[comparison](2026-10-09-atari-st-raster-timing/hardware-logo-comparison.json)
+uses decoded input frames with timestamp resampling disabled. Only initial
+black frames are excluded; the rare new outlier is retained.
+
+| Decoded logo evidence | Previous #630 package | Current package |
+| --- | ---: | ---: |
+| Nonblack input frames | 221 | 236 |
+| Canonical logo frames | 111 | 235 |
+| Noncanonical frames | 110 | 1 |
+| Distinct crop hashes | 6 | 2 |
+
+The canonical RGB crop hash is identical across both packages. Input frame 91
+in the new recording changes grayscale bands in native rows 1, 5, 6 and 10–15.
+**Menu flashing is substantially reduced, not completely eliminated.** The
+[saved outlier](2026-10-09-atari-st-raster-timing/hardware-menu-outlier.png)
+and [decoder](2026-10-09-atari-st-raster-timing/analyse_logo.py) keep that
+observation reproducible. Earlier counts used FFmpeg's default timestamp
+resampling; the revised baseline record now counts actual decoded inputs.
+
+![Hardware menu](2026-10-09-atari-st-raster-timing/hardware-menu.png)
+
+This uses temporary, previously qualified geometry host/runtime software:
+image `0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f`
+and host source `4ab1d84b4967394d6f4edf4580e2f7dcb29cf096`. It is a bounded
+exact-FPGA diagnostic, not full current appliance-image acceptance. Ten seconds
+of stereo 48 kHz audio is nonzero without saturated samples; audio fidelity is
+not asserted. Opened-border rendering, later sections and accurate audio remain
+acceptance work on #621.
+
+## Restoration
+
+The original installed image
+`8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877`
+is rolled back and confirmed good. The normal populated 29-title menu is
+visible with a free lease, target ready/idle, and normal host active/autostart
+enabled. Owner configuration is unchanged. The stopped diagnostic container
+and private credential copy are removed. As with the preceding diagnostic,
+the older launcher uses a volatile remote-catalog invocation; no persistent
+launcher configuration is changed.
+
+![Restored free menu](2026-10-09-atari-st-raster-timing/hardware-restored-menu.png)
+
+The remaining rare palette anomaly needs memory/interrupt timing diagnosis.
+The original BIG callback model normally returns CPU RAM requests after 8–14
+system clocks, while the separate SDRAM/HDMI diagnostic observed up to 63.
+That discrepancy is a hypothesis to test, not an established exclusive cause.
+
+
+The private [wait-stress run](2026-10-09-atari-st-raster-timing/memory-wait-stress.json)
+adds 40 system clocks to occasional CPU RAM requests after six seconds,
+keeping display/DMA callbacks unchanged. It reuses the preserved `e88ac743`
+model and records unchanged linked-object hashes; its helper changes are in
+[this patch](2026-10-09-atari-st-raster-timing/memory-wait-stress.patch).
+Eight seconds finish without faults, halt or capture underruns, and all
+64 consecutive menu-logo crops match. This simple variable-latency model does
+**not** reproduce the physical outlier. The next diagnostic must trace actual
+shared-memory and interrupt/palette sequencing; no compiler defect or exclusive
+memory cause is established by these recordings.

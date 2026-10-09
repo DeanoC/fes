@@ -1,4 +1,5 @@
 {
+  "frame_indexing": "decoded input frames; timestamp resampling disabled",
   "capture_file": "big-menu.mkv",
   "capture_sha256": "f0f7ea259e03c59bd98d732b85977e169b4262111dc3e14987efaf759bca2163",
   "crop_xywh": [
@@ -13,20 +14,23 @@
     180,
     64
   ],
-  "frame_count": 240,
+  "frame_count": 222,
   "excluded_black_frames": 1,
-  "settled_frame_count": 239,
+  "settled_frame_count": 221,
   "unique_settled_sha256": 6,
   "mean_rgb_range": [
     148.8486545138889,
     159.26312934027777
   ],
   "hash_counts": {
-    "00b3718fe5e4ec2e9bec961483c54baafc568b6ea3109f9236bf6b446345e718": 66,
-    "565682dc6e180d169fc61974e28bce983777928aec96e308cd300dfbd67b0b61": 119,
-    "7bd6f0896d1f206d96ab4ccc5918beff2d079d2572673465137d4413f800679d": 49,
+    "00b3718fe5e4ec2e9bec961483c54baafc568b6ea3109f9236bf6b446345e718": 59,
+    "565682dc6e180d169fc61974e28bce983777928aec96e308cd300dfbd67b0b61": 111,
+    "7bd6f0896d1f206d96ab4ccc5918beff2d079d2572673465137d4413f800679d": 46,
     "79f0ff8b6196542648b3daf82568c494e0ddc258175426ed5e282cb90fe27636": 1,
     "629f1c5687cd0526a68d52622928b0706ec47d9b4284d34e8d85256c0e59adb8": 3,
     "fd69a3c7908a048580ce19e720b10af2f4f249ada758cc925d6bcc5cfb3a542e": 1
-  }
+  },
+  "canonical_logo_sha256": "565682dc6e180d169fc61974e28bce983777928aec96e308cd300dfbd67b0b61",
+  "canonical_frames": 111,
+  "noncanonical_frames": 110
 }

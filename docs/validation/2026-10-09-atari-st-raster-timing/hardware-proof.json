@@ -1,0 +1,65 @@
+{
+  "source_revision": "cbfdfcf8334709d371540339f7b032ec593d0b8c",
+  "classification": "bounded bottom-border Timer B/menu timing and prepared Direct-part hardware diagnostic; no full BIG border/audio or appliance acceptance",
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "diagnostic_image_sha256": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+  "host_source_revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+  "host_binary_sha256": "786863b86ef65a62ed855ccaed1b01ef5f8d0dde90d7b055e7d63b185fad4820",
+  "package_id": "63d21bcc703f00b3ebcb61de9a98869abccb091e7fe9d625060ae4dff18e280e",
+  "composition": {
+    "composition_id": "bbd09690ca88e7016b3b4b1d3a080b47649d07b80237e6d5cf0ea5487a3fd941",
+    "package_id": "63d21bcc703f00b3ebcb61de9a98869abccb091e7fe9d625060ae4dff18e280e",
+    "layout": "fes.atari-st-video.parts/1",
+    "parts": [
+      {
+        "role": "video",
+        "part_id": "2a9c64d3070da8746c19681e7f6de5a9ac257cb55b5aa0e878fe912c867258c5"
+      }
+    ],
+    "shell_sha256": "9f765125b1be776fbb012697778ea3052ab0e26ed9008fde538f2e9f22edd654",
+    "payload_sha256": "fecf8856bdb74af35345a91013867f0721e48d63a8a55a02550fb91304052975",
+    "payload_size": 3602720
+  },
+  "original_rom_sha256": "5771f9fd1391d3ae0b513ab3fd67aec30fb1843753e7e0345f92615e72c36797",
+  "original_disk_sha256": "608c4beff1780552e8ae6ee5a1efff27198fb6a3ca6274597f1cb528c3970edb",
+  "disk_geometry": {
+    "tracks": 80,
+    "heads": 1,
+    "sectors_per_track": 10,
+    "bytes": 409600
+  },
+  "direct_part_launched": true,
+  "scanlines_sealed_but_not_launched": true,
+  "normal_hid_b_selected_scroller": true,
+  "visible_rainbow_bands": true,
+  "menu_nonblack_frames": 236,
+  "canonical_logo_frames": 235,
+  "noncanonical_logo_frames": 1,
+  "menu_fully_stable": false,
+  "demo_compatibility_asserted": false,
+  "audio": {
+    "sha256": "296f7ef41210613dccf2cc6be56999410cd7c8eedfb240ddaacc948e16edffc7",
+    "sample_rate": 48000,
+    "channels": 2,
+    "samples": 960034,
+    "nonzero_samples": 813072,
+    "saturated_samples": 0,
+    "fidelity_asserted": false
+  },
+  "restoration": {
+    "image_sha256": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+    "confirmed_good": true,
+    "target_ready": true,
+    "state": "idle",
+    "lease_state": "free",
+    "host_active": "active",
+    "autostart": "enabled",
+    "normal_library_populated": true,
+    "visible_title_count": 29,
+    "final_menu_capture_sha256": "46583ed5d60f87163ab2c569b1a81a5708db0dfd3e715edc187e04548f5f48a9",
+    "container_removed": true,
+    "private_credential_copy_removed": true,
+    "owner_config_unchanged": true,
+    "owner_config_sha256": "31fd0201d5725e53103bb16733008b48160cb036c85cf3d2fb1a9dc8bf42a8c8"
+  }
+}

@@ -2,12 +2,11 @@
   "schema": "fes.atari-st-raster-timing-evidence/1",
   "base_revision": "0805d2b7e08f66127524353c4cbaf15d9daf180e",
   "implementation_revision": "cbfdfcf8334709d371540339f7b032ec593d0b8c",
-  "hardware_execution": false,
+  "hardware_execution": true,
   "demo_compatibility_asserted": false,
   "shared_contract_changes": false,
   "validation_pending": [
-    "fresh FPGA package",
-    "bounded leased kit diagnostic"
+    "rare hardware palette outlier diagnosis"
   ],
   "digital_tests": {
     "st_aggregate": "pass",
@@ -68,17 +67,26 @@
     "demo_compatibility_asserted": false
   },
   "evidence_files": {
-    "baseline-hardware-logo.json": "0f87e5f9710d8a8a71c99e60385f280edaf1935af0b5e0c07e49704b9b78ee3b",
+    "analyse_logo.py": "25652368d03884c96a0bf39469582a64f9535ea960c7a4f230cc921be036c3f3",
+    "baseline-hardware-logo.json": "57608dad72466f64b045b38a5c3ef02b40e5fddaa7a0bd32957a88217bda95e6",
     "bottom-only-model.json": "0a0228c9151b65691c0bf7c60c8b0531b47333b28e5f1c98589f3790731cdb22",
     "bottom-only-raster-excerpt.jsonl": "ca7f8a1c935a532f2baabe05013555424bbdc890891feb9c5518888de40e6f00",
     "delayed-raster-excerpt.jsonl": "31f25d5203c6220fa12076d6a00acbe5af51160f3daa9f24b7edc199fcd615d2",
     "demo-metrics.json": "2a7134e0c861f93a92502779beb3b1f0dd1f5e9cb323648612c892314ace1fb1",
     "demo-proof.json": "ef17b4c76b96eacc537323a6397037e0c7fe45717c9fa517eafdfbf2fd862293",
     "emutos-memory.log": "c591a5a9d9f500263ea9954238d29290ecb7b7bf5e283dc7b678edd6bea22bdf",
+    "hardware-logo-comparison.json": "5345834992c85564944579ac2bdeda552924a3028feda074219774839ae50661",
+    "hardware-menu-outlier.png": "a547491c9b29b9096a9cc24346cfb86e78fd2eba8ecc64f8115fecf13116ea82",
+    "hardware-menu.png": "c631307b383e6bfb3a8231918dac01c9e5592d5164548c1a614980c5dc6f4bd8",
+    "hardware-proof.json": "ed2a2ebeae8709a1be844aabdab5aee76eee8b5adf51e9b03f5a2a1e2d79a321",
+    "hardware-restored-menu.png": "46583ed5d60f87163ab2c569b1a81a5708db0dfd3e715edc187e04548f5f48a9",
+    "hardware-scroller.png": "e2fb77aeb08e795bc97c875d523d78a26d20b8049fdab2c299c6d202b767d573",
     "hatari-bottom-excerpt.log": "af98f41e2ac0fbff58206e190e4a662f076050efa965bf8fb8e473b566ea5c2c",
     "hatari-reference.json": "b70fe829fb5b319fcdbb067c9f342ed3ec07f82ac7f28cd58daf5c4746f2635b",
     "helper-tests.log": "5baa63a49ce215eb3033531284020a63f07ccef52c4f0ee06e31415146019bc6",
     "io-test.log": "756ca9662ddf2b5e9426c4c156ae0cdd96893d5c8ead07102d2c66743c75f42c",
+    "memory-wait-stress.json": "a6b7dec655e2b4d1bc63791fdb45c209a05f8d0e25a1b88c28f25534d4582f5f",
+    "memory-wait-stress.patch": "ef4fd439e726bbfb4985e547a13c3d079b409cb0ae48e3a6bb1feb88a51a18fa",
     "menu-comparison.json": "ac1c98a9ff7c0f427ebe33d265bec369e2d38db936e39a878a88101b12b77af8",
     "model-menu.png": "60437a32d8783b765a2ffbbce13516754bc9ed3e3da43ac07b33907d484b41d3",
     "model-scroller.png": "2e56511f616904354b64f297e989364378e6aa723939749027a573c0a8edbd51",
@@ -88,6 +96,7 @@
     "optimized-seed5-timing.log": "99c68c46248ac21c5a13595c6220d0ee1af8c18fc0043646b2b06b6ef9f6c53d",
     "parent-check.log": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158",
     "planner-tests.log": "9bfbef7e9c54bebdc23bf8b1a7767c24244bf66abe5517c8bf62e468d1b19248",
+    "prepared.json": "69404391b329942ec48cccbe50450eaa74127cc587382be3e669f470a017d424",
     "qor-equivalence-write.log": "a891e80c4fab4169dc51e51318ed5da607b35f05e6d6c128e8505e6fe973f9e8",
     "qor-equivalence-write.ys": "0bfd7979071669bf00a0cf7b3888f9280ea864fe16fcd9eec13c918577f03cf8",
     "qor-equivalence.json": "c3e7d1e89ca266fe74cb14f49909b5f8be8dc9b58511c34942d09c67fc5b5a85",
@@ -100,9 +109,12 @@
     "renderer-equivalence-1.ys": "6c05bba90a4cb7539d9e70dc3149d3fce24dd20c7c33e3438e609e60344111f4",
     "renderer-equivalence.json": "d6f7f5f2b18b58ac3c0a894616ea802f7d9da7dbc07d6db99189a266961edd3a",
     "renderer-equivalence.sv": "a7b793ec0193c39c5e3527d8ae505a74ecc732f0552a505e253d7493102963fe",
+    "renderer-seed4-routing.log": "c8fa742ebd2170539f2dfd2fe12eac2aa073f61804a0caad3d83fa3632e33a71",
+    "renderer-seed5-timing.log": "ab9f04d249cd9fe5f5b82957f2148f25a0a2b7d442b14a3e75b9d65ace42be24",
     "seed4-timing.log": "f5972778e17a544d7e994a3f41b0e50a03e4ebf725c10405534a4a8c7deaa6f4",
     "source-identity.json": "e06762deb01fe77083f0516216c556586869e04c873fd9953753eaf229127154",
-    "st-aggregate.log": "b2bfe39c3d85b94c6fa495381194f33279af85f26b0c084eaaad35b6e17b3b3f"
+    "st-aggregate.log": "b2bfe39c3d85b94c6fa495381194f33279af85f26b0c084eaaad35b6e17b3b3f",
+    "video-parts.json": "5d7d552417c0f52fcef16b8d5f9730009eec47cc5752c6eb7161a955305c2ab8"
   },
   "fpga_attempts": [
     {
@@ -149,10 +161,29 @@
       "system_mhz": 51.17,
       "audio_mhz": 189.97,
       "full_route_log_sha256": "2bf75b3b6dcab54b402342e41d8f5ea055eef2a40b77499243d927a1e2b47c67"
+    },
+    {
+      "source_revision": "cbfdfcf8334709d371540339f7b032ec593d0b8c",
+      "seed": 4,
+      "status": "routing timeout; no final signoff",
+      "timeout_seconds": 1800,
+      "last_iteration": 87,
+      "last_overused_wires": 1,
+      "full_route_log_sha256": "76b2922969ba349e894959c1eba02e8144b8f449dfd8c8eda283de32f508cba3"
+    },
+    {
+      "source_revision": "cbfdfcf8334709d371540339f7b032ec593d0b8c",
+      "seed": 5,
+      "status": "final all-clock signoff pass; package and both video parts sealed",
+      "pixel_mhz": 74.67,
+      "system_mhz": 52.84,
+      "audio_mhz": 193.54,
+      "full_route_log_sha256": "facd1a92d7789994e0fd3b64af234d86f557789fb54d27107a4e4bf8035b866d"
     }
   ],
   "ci": {
-    "source_revision": "27b85008ffa2d6887d05c24c5de66cb87b7c541b",
+    "source_revision": "c8467c818d9d5b4063237b1c226ea1ff8229cdf8",
+    "implementation_revision": "cbfdfcf8334709d371540339f7b032ec593d0b8c",
     "checks_passed": 47,
     "checks_pending": 0,
     "checks_failed": 0
@@ -200,5 +231,403 @@
     "scope": "whole st_video state and outputs, same clock/reset/hold/input sequences; unchanged pixel and lookup cycles",
     "hardware_execution": false,
     "yosys_binary_sha256": "2a2eabbc27be64fc5b1ed73f021356f5402555966627f18410c13203aeb0b0c9"
+  },
+  "fpga_package": {
+    "prepared_receipt": "prepared.json",
+    "video_inventory": "video-parts.json",
+    "package_id": "63d21bcc703f00b3ebcb61de9a98869abccb091e7fe9d625060ae4dff18e280e",
+    "source_revision": "cbfdfcf8334709d371540339f7b032ec593d0b8c",
+    "selected_seed": 5,
+    "sealed_profiles": [
+      "direct",
+      "scanlines"
+    ],
+    "fmax": {
+      "pixel_clk": {
+        "achieved": 74.6658706665039,
+        "constraint": 74.25006866455078
+      },
+      "system_clock.clocks[0]": {
+        "achieved": 52.84016036987305,
+        "constraint": 52.22477340698242
+      },
+      "system_clock.clocks[1]": {
+        "achieved": 193.53590393066406,
+        "constraint": 12.288031578063965
+      }
+    },
+    "status": "prepared and all hashes revalidated"
+  },
+  "hardware_original_big": {
+    "source_revision": "cbfdfcf8334709d371540339f7b032ec593d0b8c",
+    "classification": "bounded bottom-border Timer B/menu timing and prepared Direct-part hardware diagnostic; no full BIG border/audio or appliance acceptance",
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+    "diagnostic_image_sha256": "0beed5b5a6ef41e2967b8d2a500ebea602d205b40562cafcd39e6f5d99448d9f",
+    "host_source_revision": "4ab1d84b4967394d6f4edf4580e2f7dcb29cf096",
+    "host_binary_sha256": "786863b86ef65a62ed855ccaed1b01ef5f8d0dde90d7b055e7d63b185fad4820",
+    "package_id": "63d21bcc703f00b3ebcb61de9a98869abccb091e7fe9d625060ae4dff18e280e",
+    "composition": {
+      "composition_id": "bbd09690ca88e7016b3b4b1d3a080b47649d07b80237e6d5cf0ea5487a3fd941",
+      "package_id": "63d21bcc703f00b3ebcb61de9a98869abccb091e7fe9d625060ae4dff18e280e",
+      "layout": "fes.atari-st-video.parts/1",
+      "parts": [
+        {
+          "role": "video",
+          "part_id": "2a9c64d3070da8746c19681e7f6de5a9ac257cb55b5aa0e878fe912c867258c5"
+        }
+      ],
+      "shell_sha256": "9f765125b1be776fbb012697778ea3052ab0e26ed9008fde538f2e9f22edd654",
+      "payload_sha256": "fecf8856bdb74af35345a91013867f0721e48d63a8a55a02550fb91304052975",
+      "payload_size": 3602720
+    },
+    "original_rom_sha256": "5771f9fd1391d3ae0b513ab3fd67aec30fb1843753e7e0345f92615e72c36797",
+    "original_disk_sha256": "608c4beff1780552e8ae6ee5a1efff27198fb6a3ca6274597f1cb528c3970edb",
+    "disk_geometry": {
+      "tracks": 80,
+      "heads": 1,
+      "sectors_per_track": 10,
+      "bytes": 409600
+    },
+    "direct_part_launched": true,
+    "scanlines_sealed_but_not_launched": true,
+    "normal_hid_b_selected_scroller": true,
+    "visible_rainbow_bands": true,
+    "menu_nonblack_frames": 236,
+    "canonical_logo_frames": 235,
+    "noncanonical_logo_frames": 1,
+    "menu_fully_stable": false,
+    "demo_compatibility_asserted": false,
+    "audio": {
+      "sha256": "296f7ef41210613dccf2cc6be56999410cd7c8eedfb240ddaacc948e16edffc7",
+      "sample_rate": 48000,
+      "channels": 2,
+      "samples": 960034,
+      "nonzero_samples": 813072,
+      "saturated_samples": 0,
+      "fidelity_asserted": false
+    },
+    "restoration": {
+      "image_sha256": "8f148240b3d31736a09c97f3be99bde1c4bd51bd51aa23a88e9e5fa4a7f01877",
+      "confirmed_good": true,
+      "target_ready": true,
+      "state": "idle",
+      "lease_state": "free",
+      "host_active": "active",
+      "autostart": "enabled",
+      "normal_library_populated": true,
+      "visible_title_count": 29,
+      "final_menu_capture_sha256": "46583ed5d60f87163ab2c569b1a81a5708db0dfd3e715edc187e04548f5f48a9",
+      "container_removed": true,
+      "private_credential_copy_removed": true,
+      "owner_config_unchanged": true,
+      "owner_config_sha256": "31fd0201d5725e53103bb16733008b48160cb036c85cf3d2fb1a9dc8bf42a8c8"
+    }
+  },
+  "remaining_compatibility_work": [
+    "render opened borders",
+    "later BIG/TCB sections",
+    "audio fidelity",
+    "full current appliance image"
+  ],
+  "memory_wait_stress": {
+    "scope": "private CPU-RAM wait stress; same frozen e88 RTL model, formally equivalent st_io timing; no physical SDRAM controller model or hardware execution",
+    "wait_system_clocks": "8+(address%7), with 40 extra after six seconds when (cycle/64)%31==0; independent display/DMA callbacks unchanged",
+    "model_source_revision": "e88ac743670ca05589993404e5fa235df512a431",
+    "baseline_helper_sha256": "410f989447e0843fde84fcf04199e4ba74dc4df524bb3b9e874de7e62268f269",
+    "stress_helper_sha256": "bfde0101f100ed4e666691ca92d30a08b9447916cff59c44d7f3144f819bd705",
+    "linked_model_inputs": {
+      "Vst_boot_sim_top__ALL.a": "02b9a942e744114608a84aca22b7c97374ef0514d84777efd05633f0ab3a3ddc",
+      "verilated.o": "8bcc9079270467a5adf392d1a593d3d8f45150823a26119683f2d2b5d0240a54",
+      "verilated_threads.o": "baef81a67311483c78f2797e047c8868c0d76278f82e8c668e28544a73f39b4a"
+    },
+    "metrics": {
+      "cycle": 417792000,
+      "pc": 48160,
+      "bus_address": 48160,
+      "halted": false,
+      "screen_base": 458752,
+      "fdc_status": 0,
+      "fdc_track": 62,
+      "fdc_sector": 3,
+      "fdc_head_track": 62,
+      "resolution": 0,
+      "sync_mode": 2,
+      "memvalid": 1965038067,
+      "phystop": 524288,
+      "hz200": 543,
+      "ram_writes": 1801638,
+      "bus_faults": 0,
+      "mfp_acks": 1451,
+      "vbl_acks": 138,
+      "hbl_acks": 0,
+      "dma_words": 159488,
+      "media_bytes": 318976,
+      "palette_changed_entries_after_six_seconds": 23040,
+      "max_completed_native_frame_palette_changes": 271,
+      "native_rgb_frames": 399,
+      "native_rgb_underruns": 0
+    },
+    "logo_samples": [
+      {
+        "frame": 0,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 1,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 2,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 3,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 4,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 5,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 6,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 7,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 8,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 9,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 10,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 11,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 12,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 13,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 14,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 15,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 16,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 17,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 18,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 19,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 20,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 21,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 22,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 23,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 24,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 25,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 26,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 27,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 28,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 29,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 30,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 31,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 32,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 33,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 34,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 35,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 36,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 37,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 38,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 39,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 40,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 41,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 42,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 43,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 44,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 45,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 46,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 47,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 48,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 49,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 50,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 51,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 52,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 53,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 54,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 55,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 56,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 57,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 58,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 59,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 60,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 61,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 62,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      },
+      {
+        "frame": 63,
+        "crop_sha256": "94778d597fb11da07219d7cc44d8dc3d25f5a87afc62ad578599fc50f68b0189"
+      }
+    ],
+    "unique_logo_crops": 1,
+    "hardware_outlier_reproduced": false,
+    "exclusive_cause_established": false,
+    "hardware_execution": false
   }
 }
