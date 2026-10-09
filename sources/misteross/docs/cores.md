@@ -176,6 +176,11 @@ diagnostic. SG-1000 and the default Spectrum producer select the NMOS CPU.
 `make build-fes-spectrum-fast` selects the documented-only 56 MHz development
 shell, with separate native peripheral timing. Each full shell must pass its
 clock constraints before sealing; CPU-only timing does not establish that.
+Optimizer handoffs can pass `--max-aluts` to `scripts/build_fes_spectrum_oss.py`
+with a per-design area budget. The cap is recorded in the functional build
+identity and checked on the production synthesis before any route, then on
+routed utilization before export. This option requires a full production build;
+zero-build-ID synthesis does not qualify a handoff.
 
 ## Update an existing core
 
