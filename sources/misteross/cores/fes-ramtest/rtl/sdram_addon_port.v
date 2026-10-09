@@ -13,7 +13,11 @@ module sdram_addon_port #(
     // reset or other Q consumer, so the native flow packs it into the pad
     // (FAST_OUTPUT_REGISTER). Write data and DQ OE get the same extra cycle in
     // the fabric, and the read capture waits one cycle longer.
-    parameter IO_OUTPUT_REGISTERS = 0
+    parameter IO_OUTPUT_REGISTERS = 0,
+    // Runtime refresh recovery only. Keep the established tester timing by
+    // default; slower fixed-clock clients may select a qualified cycle count.
+    // Initialization retains its conservative sixteen-clock recovery.
+    parameter [13:0] REFRESH_WAIT_CYCLES = 14'd16
 ) (
     input wire clk,
     input wire clk_pin,
@@ -330,7 +334,7 @@ module sdram_addon_port #(
             ST_REFW: begin
                 sdram_cke_r <= 1'b1;
                 sdram_ncs_r <= ref_hi;
-                if (wait_count == 14'd16) begin
+                if (wait_count == REFRESH_WAIT_CYCLES) begin
                     if (!ref_hi) begin
                         ref_hi <= 1'b1;
                         state <= ST_REF;

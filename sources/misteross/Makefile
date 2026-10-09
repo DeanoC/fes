@@ -1629,11 +1629,18 @@ sim-fes-atari-st-emutos: atari-st-sources
 .PHONY: sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 sim-fes-atari-st-memory:
 	$(require_local_sim)
+	@mkdir -p build/sim/fes-atari-st-memory build/sim/fes-atari-st-memory-legacy-refresh
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-memory" \
 		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
 		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-memory/Vst_memory_sim_top
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
+		"-GREFRESH_WAIT_CYCLES=14'd16" --Mdir "$(CURDIR)/build/sim/fes-atari-st-memory-legacy-refresh" \
+		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
+		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" \
+		-CFLAGS '-O2 -std=c++17 -DST_REFRESH_WAIT_CYCLES=16'
+	@build/sim/fes-atari-st-memory-legacy-refresh/Vst_memory_sim_top
 
 sim-fes-atari-st-video-adapter:
 	$(require_local_sim)
