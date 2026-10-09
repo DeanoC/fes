@@ -1767,6 +1767,8 @@ The retained nominal 8 MHz CPU therefore gives approximately
 timing remains independent at 2.4576 MHz.
 Ordinary PAL DE spans lines 63–262 and cycles 56–375; NTSC spans lines
 34–233 and cycles 52–371. DE line/frame modes are sampled at their boundaries.
+Horizontal DE bounds use constant comparisons before mode selection to avoid
+a mode-dependent carry chain into native pixel capture.
 Color line length samples sync separately at STF WS1 cycle 54, so a bottom
 pulse restored early on the following line preserves the native frame period.
 Both DE edges reach the MFP Timer B input 24 CPU cycles later, following

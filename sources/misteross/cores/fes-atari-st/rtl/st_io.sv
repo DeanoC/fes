@@ -122,16 +122,18 @@ module st_io #(
     // into a new frame midway through display. Other exact GLUE sample
     // positions and horizontal/top border effects remain unimplemented.
     wire [8:0] display_top = frame_resolution == 2'd2 ? 9'd34 : frame_pal ? 9'd63 : 9'd34;
-    wire [8:0] display_start = line_resolution == 2'd2 ? 9'd4 : line_pal ? 9'd56 : 9'd52;
-    wire [8:0] display_end = line_resolution == 2'd2 ? 9'd164 : line_pal ? 9'd376 : 9'd372;
+    // Constant bounds avoid a mode-dependent carry chain on DE/RGB.
+    wire active_cycle = line_resolution == 2'd2 ?
+        (horizontal_cycle >= 9'd4 && horizontal_cycle < 9'd164) : line_pal ?
+        (horizontal_cycle >= 9'd56 && horizontal_cycle < 9'd376) :
+        (horizontal_cycle >= 9'd52 && horizontal_cycle < 9'd372);
     // Constant bounds avoid a mode-dependent addition on the DE/RGB path.
     // Hatari video.h defines 47 PAL / 26 NTSC extra color DE lines.
     wire active_line = frame_resolution == 2'd2 ?
         (native_line >= 9'd34 && native_line < 9'd434) : frame_pal ?
         (native_line >= 9'd63 && (bottom_open ? native_line < 9'd310 : native_line < 9'd263)) :
         (native_line >= 9'd34 && (bottom_open ? native_line < 9'd260 : native_line < 9'd234));
-    assign native_display = !reset && active_line &&
-        horizontal_cycle >= display_start && horizontal_cycle < display_end;
+    assign native_display = !reset && active_line && active_cycle;
     always @(posedge clk) begin
         if (reset) begin
             timer_phase <= 0; horizontal_cycle <= 0; bottom_open <= 0;
