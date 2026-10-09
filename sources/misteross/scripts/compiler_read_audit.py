@@ -11,8 +11,10 @@ import stat
 
 TRACER = Path('/usr/bin/strace')
 POLICY = 'compiler-markdown-v1'
-MAX_TRACE_FILE = 32 * 1024 * 1024
-MAX_TRACE_TOTAL = 128 * 1024 * 1024
+# Large RAM-heavy ST synthesis launches many ABC partitions. Retain bounded
+# traces while allowing this authenticated compiler workload to complete.
+MAX_TRACE_FILE = 64 * 1024 * 1024
+MAX_TRACE_TOTAL = 256 * 1024 * 1024
 
 
 class ReadAuditError(ValueError):
@@ -77,7 +79,7 @@ def verify_traces(directory, source_root, closure=None):
         size = trace.stat().st_size
         total += size
         if size > MAX_TRACE_FILE or total > MAX_TRACE_TOTAL:
-            raise ReadAuditError('read audit exceeds bounded trace size')
+            raise ReadAuditError(f'read audit exceeds bounded trace size: file={size} total={total} bytes')
         lines = trace.read_text().splitlines()
         if not lines or not re.fullmatch(r'\+\+\+ (exited with \d+|killed by SIG[A-Z0-9]+(?: \(core dumped\))?) \+\+\+', lines[-1]):
             raise ReadAuditError('compiler trace lacks process completion: ' + ascii(lines[-1] if lines else '<empty>')[:320])
@@ -146,7 +148,7 @@ def _trace_sizes(directory):
         size = path.stat().st_size
         total += size
         if size > MAX_TRACE_FILE or total > MAX_TRACE_TOTAL:
-            raise ReadAuditError('read audit exceeds bounded trace size')
+            raise ReadAuditError(f'read audit exceeds bounded trace size: file={size} total={total} bytes')
 
 
 def _stop_tracees(process):

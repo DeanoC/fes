@@ -973,6 +973,29 @@ class HilPlanTest(unittest.TestCase):
         generated.write_text(command)
         self.assertEqual(subprocess.run(['sh', '-n', generated]).returncode, 0)
 
+    def test_host_command_omits_hash_for_kit_only_manifest(self):
+        manifest = self.work / 'kit-only.json'
+        manifest.write_text(json.dumps({'entries': [{
+            'component': 'mister-runtime', 'side': 'kit',
+            'target': '/usr/sbin/mister-runtime', 'sha256': 'ab'}]}))
+        command = run('host-command', '--manifest', manifest)
+        self.assertEqual(command.returncode, 0, command.stderr)
+        self.assertNotIn('sha256sum', command.stdout)
+        self.assertEqual(command.stdout, '')
+        generated = self.work / 'kit-only-host-command.sh'
+        generated.write_text(command.stdout)
+        self.assertEqual(subprocess.run(['sh', '-n', generated]).returncode, 0)
+
+    def test_evidence_refusal_removes_preexisting_output(self):
+        self.git_repo(['sources/libmister-runtime/change.cpp'])
+        entries = [('mister-runtime', 'kit', '/usr/sbin/mister-runtime', b'rt')]
+        manifest = self.make_manifest(entries)
+        output = self.work / 'stale-evidence.md'
+        output.write_text('previous successful evidence\n')
+        result = self.evidence(manifest, entries, output=output, lease=False)
+        self.assert_refused_without_evidence(result, output)
+        self.assertIn('--lease-log', result.stderr)
+
     def test_core_only_requires_update_lease_and_status(self):
         self.git_repo(['sources/misteross/cores/ramtest/change.v'])
         entries = [('core:ramtest', 'host', '/tmp/ramtest.fcore', b'core')]

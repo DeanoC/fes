@@ -49,7 +49,9 @@ module st_io #(
     output wire [1:0] dma_byte_enable,
     input wire dma_ready,
     input wire [15:0] dma_rdata,
-    output wire vblank, hblank
+    output wire vblank, hblank,
+    output wire native_display,
+    output reg [8:0] native_line
 );
     wire [23:0] address = {addr, 1'b0};
     wire unused_inputs = ^{screen_base[7:0], sync_mode[7:2], sync_mode[0]};
@@ -92,25 +94,39 @@ module st_io #(
                    midi_select ? {midi_data, 8'hff} : fdc_data;
 
     reg [31:0] timer_phase, vertical_phase, horizontal_phase;
+    reg [1:0] frame_resolution, line_resolution;
+    reg frame_pal, line_pal;
     wire [32:0] timer_sum = {1'b0, timer_phase} + 33'd2457600;
     wire [32:0] vertical_sum = {1'b0, vertical_phase} +
-        (resolution == 2'd2 ? 33'd71 : sync_mode[1] ? 33'd50 : 33'd60);
+        (frame_resolution == 2'd2 ? 33'd71 : frame_pal ? 33'd50 : 33'd60);
     wire [32:0] horizontal_sum = {1'b0, horizontal_phase} +
-        (resolution == 2'd2 ? 33'd35500 : sync_mode[1] ? 33'd15650 : 33'd15750);
+        (line_resolution == 2'd2 ? 33'd35500 : line_pal ? 33'd15650 : 33'd15750);
     wire timer_ce = timer_sum >= 33'(SYSTEM_CLOCK_HZ);
     assign vblank = vertical_sum >= 33'(SYSTEM_CLOCK_HZ) && !reset;
     assign hblank = horizontal_sum >= 33'(SYSTEM_CLOCK_HZ) && !reset;
     reg vbl_pending, hbl_pending;
-    reg [8:0] native_line;
     // Timer B is driven by native display enable, rather than every HBL.
-    // Functional active widths are 40 us color / 20 us mono; blank lines
-    // never produce events. The original GLUE's border phase is reduced.
-    wire native_display = native_line < (resolution == 2'd2 ? 9'd400 : 9'd200) &&
-        horizontal_phase < (resolution == 2'd2 ?
-            32'((64'(SYSTEM_CLOCK_HZ) * 71) / 100) : 32'((64'(SYSTEM_CLOCK_HZ) * 5) / 8));
+    // Ordinary color display porches: PAL lines 63..262 and cycles 56..375;
+    // NTSC lines 34..233 and cycles 52..371. See Hatari v2.5.0 video.h /
+    // Video_InitTimings. Border-opening and cycle-exact GLUE latches are absent.
+    // The reduced ordinary-raster model samples line/frame modes at their
+    // boundaries. Brief register writes cannot create extra DE edges or turn
+    // a 50 Hz line into a new frame midway through display. Exact GLUE sample
+    // positions and border-opening effects remain a separate implementation.
+    wire [8:0] display_top = frame_pal ? 9'd63 : 9'd34;
+    wire [31:0] display_start = line_pal ?
+        32'((64'(SYSTEM_CLOCK_HZ) * 56) / 512) : 32'((64'(SYSTEM_CLOCK_HZ) * 52) / 508);
+    wire [31:0] display_end = line_pal ?
+        32'((64'(SYSTEM_CLOCK_HZ) * 376) / 512) : 32'((64'(SYSTEM_CLOCK_HZ) * 372) / 508);
+    assign native_display = line_resolution == 2'd2 ?
+        native_line < 9'd400 && horizontal_phase < 32'((64'(SYSTEM_CLOCK_HZ) * 71) / 100) :
+        native_line >= display_top && native_line < display_top + 9'd200 &&
+        horizontal_phase >= display_start && horizontal_phase < display_end;
     always @(posedge clk) begin
         if (reset) begin
             timer_phase <= 0; vertical_phase <= 0; horizontal_phase <= 0;
+            frame_resolution <= resolution; line_resolution <= resolution;
+            frame_pal <= sync_mode[1]; line_pal <= sync_mode[1];
             vbl_pending <= 0; hbl_pending <= 0; native_line <= 0;
             video_counter <= 0;
         end else begin
@@ -122,13 +138,18 @@ module st_io #(
             if (irq_ack && irq_level == 4) vbl_pending <= 0;
             if (irq_ack && irq_level == 2) hbl_pending <= 0;
             if (vblank) begin
+                frame_resolution <= resolution; frame_pal <= sync_mode[1];
                 video_counter <= {screen_base[23:8], 8'd0};
                 native_line <= 0;
             end else if (hblank) begin
-                if (native_line < (resolution == 2'd2 ? 9'd400 : 9'd200))
-                    video_counter <= video_counter + (resolution == 2'd2 ? 24'd80 : 24'd160);
+                if (line_resolution != 2'd2 && native_line == display_top - 9'd1)
+                    video_counter <= {screen_base[23:8], 8'd0};
+                else if (line_resolution == 2'd2 ? native_line < 9'd400 :
+                         native_line >= display_top && native_line < display_top + 9'd200)
+                    video_counter <= video_counter + (line_resolution == 2'd2 ? 24'd80 : 24'd160);
                 if (native_line != 9'h1ff) native_line <= native_line + 1'b1;
             end
+            if (hblank) begin line_resolution <= resolution; line_pal <= sync_mode[1]; end
         end
     end
     wire mfp_irq, kbd_irq, midi_irq, fdc_irq;

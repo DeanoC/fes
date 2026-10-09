@@ -1,0 +1,9 @@
+{
+  "source_revision": "22e3994166ac18b1aa0b898785bc949dbe980ad5",
+  "route_log_sha256": "bf73d877c45f78853807b43c82b1f922ea90b680d4045f4eb31fe4e62886c611",
+  "classification": "interrupted unsealed diagnostic, not final timing or acceptance",
+  "selected_seed": 4,
+  "deployed": false,
+  "limiting_pixel_path": "renderer vertical/next-row arithmetic into RGB read address register",
+  "next_change": "blanking-time repeated-line counter with row base in 64-pixel units"
+}

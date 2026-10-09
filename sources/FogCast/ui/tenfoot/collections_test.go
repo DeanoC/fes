@@ -603,6 +603,21 @@ func TestChromeLineIncludesActiveView(t *testing.T) {
 
 func focusPickerRow(t *testing.T, app *App, create bool, id string) {
 	t.Helper()
+	if create {
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			app.mu.Lock()
+			loaded := app.collectionsLoaded
+			app.mu.Unlock()
+			if loaded {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("collections did not load before the create row was needed")
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
 	app.Press(CmdViewPicker, time.Now())
 	if !app.ViewPickerOpen() {
 		t.Fatal("picker should open")

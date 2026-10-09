@@ -15,6 +15,7 @@ struct Test {
     Vst_io_sim_top dut;
     uint64_t cycles=0, assertions=0, crystal_ticks=0;
     unsigned frames=0, lines=0, display_ends=0;
+    unsigned first_display_line=UINT32_MAX, first_display_phase=0;
     bool previous_display=false;
     void require(bool good,const std::string &message) {
         ++assertions;
@@ -29,6 +30,9 @@ struct Test {
             frames+=dut.vblank; lines+=dut.hblank;
             crystal_ticks+=dut.timer_ce_level;
             display_ends+=previous_display && !dut.timer_b_level;
+            if(!previous_display&&dut.timer_b_level&&first_display_line==UINT32_MAX){
+                first_display_line=dut.display_line;first_display_phase=dut.display_phase;
+            }
         }
         previous_display=dut.timer_b_level;
         dut.clk=1; dut.eval(); ++cycles;
@@ -44,6 +48,7 @@ struct Test {
         dut.media_valid=0; dut.dma_ready=0;
         dut.reset=1; tick(); tick(); dut.reset=0; tick();
         frames=lines=display_ends=0; crystal_ticks=0;
+        first_display_line=UINT32_MAX;first_display_phase=0;
     }
     uint16_t bus(bool write,unsigned address,unsigned data=0,unsigned lanes=3,unsigned hold=1) {
         dut.req=1; dut.write=write; dut.addr=address>>1;
@@ -166,6 +171,13 @@ static void display_enable(Test &t,unsigned resolution,unsigned sync,unsigned fp
     while (t.frames<1) t.tick();
     uint64_t previous_frame=t.cycles;
     t.require(t.display_ends==active,"one timer-B event per active native line");
+    if(resolution!=2){
+        // Ordinary ST timing positions from the primary video timing table,
+        // with tolerance for this test's reduced fabric-clock quantization.
+        t.require(t.first_display_line==(fps==50?63u:34u),"Timer B begins after the native vertical porch");
+        const unsigned phase=uint64_t(t.first_display_phase)*(fps==50?512:508)/system_hz;
+        t.require(phase>=(fps==50?56u:52u)&&phase<(fps==50?58u:54u),"Timer B begins after the native horizontal porch");
+    }
     if (active==200) t.require(t.mread(0x21)==55,"Timer B receives the 200 active color lines through its event pin");
     unsigned previous_ends=t.display_ends;
     for (unsigned frame=0;frame<3;++frame) {
@@ -183,12 +195,33 @@ static void display_enable(Test &t,unsigned resolution,unsigned sync,unsigned fp
     std::cout<<"ST I/O: "<<fps<<" Hz, "<<active<<" Timer B events/frame\n";
 }
 
+static void brief_mode_writes(Test &t) {
+    t.reset();
+    const uint64_t start=t.cycles;
+    t.mwrite(0x21,255); t.mwrite(0x1b,8);
+    while(t.frames<1) {
+        // Pulse both video settings inside every ordinary active line, away
+        // from HBL/VBL. A register write must not generate a second DE edge.
+        if(t.dut.timer_b_level && t.dut.display_phase>system_hz/3 &&
+           t.dut.display_phase<system_hz/3+20000) {
+            t.dut.sync_mode=0; t.dut.resolution=2;
+            t.run(3);
+            t.dut.sync_mode=2; t.dut.resolution=0;
+        }
+        t.tick();
+    }
+    t.require(t.display_ends==200,"brief mid-line mode writes retain 200 display edges");
+    t.require(t.mread(0x21)==55,"brief mode writes do not add Timer B events");
+    t.require(t.cycles-start>=system_hz/50-2 && t.cycles-start<system_hz/50+20,
+              "brief mode writes retain the ordinary PAL frame period");
+}
+
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     Test test;
     lanes_and_reset(test); interrupt_connection(test); timer_c_rate(test);
     display_enable(test,0,2,50,200); display_enable(test,1,0,60,200);
-    display_enable(test,2,2,71,400);
+    display_enable(test,2,2,71,400); brief_mode_writes(test);
     std::cout<<"ST I/O: "<<test.assertions<<" assertions, "<<test.cycles
              <<" cycles; byte lanes, reset, interrupt wiring and timer rates passed\n";
 }

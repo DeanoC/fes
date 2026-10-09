@@ -373,6 +373,44 @@ func TestLiveSlowInputsFailDespiteSuccessfulSteps(t *testing.T) {
 	}
 }
 
+func TestAbsentHoverDoesNotResetInputOverruns(t *testing.T) {
+	r := newRoom(t, memPack(t, "slow-input-no-hover", "function on_input(cmd) wait(); return false end\nfunction draw() end", nil), Options{
+		Budget: Budget{Load: time.Second, Frame: 8 * time.Millisecond, Input: 8 * time.Millisecond},
+	})
+	r.L.SetGlobal("wait", r.L.NewFunction(func(*lua.LState) int { time.Sleep(12 * time.Millisecond); return 0 }))
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < maxConsecutiveOverruns; i++ {
+		if r.Input("left") {
+			t.Fatalf("slow input %d lost its false result", i)
+		}
+		r.Hover("gap")
+		r.Activate("gap")
+		r.Resume()
+	}
+	if r.Err() == nil || !strings.Contains(r.Err().Error(), "overruns") {
+		t.Fatalf("absent optional callbacks reset input overruns: %v", r.Err())
+	}
+
+	reset := newRoom(t, memPack(t, "slow-input-hover-resets", "function on_input(cmd) wait(); return false end\nfunction on_hover(id) end\nfunction draw() end", nil), Options{
+		Budget: Budget{Load: time.Second, Frame: 8 * time.Millisecond, Input: 8 * time.Millisecond},
+	})
+	reset.L.SetGlobal("wait", reset.L.NewFunction(func(*lua.LState) int { time.Sleep(12 * time.Millisecond); return 0 }))
+	if err := reset.Load(); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < maxConsecutiveOverruns; i++ {
+		if reset.Input("left") {
+			t.Fatalf("slow input %d lost its false result", i)
+		}
+		reset.Hover("kept")
+		if reset.Err() != nil {
+			t.Fatalf("successful hover failed room at %d: %v", i, reset.Err())
+		}
+	}
+}
+
 func TestSoftCallbacksRestoreLuaStack(t *testing.T) {
 	r := newRoom(t, memPack(t, "stack", "function on_input(cmd) if slow_input then wait() end; return true end\nfunction draw() if slow_draw then wait() end end\nfunction result_cb(v,e) if slow_result then wait() end end", nil), Options{
 		Budget: Budget{Load: time.Second, Frame: 8 * time.Millisecond, Input: 8 * time.Millisecond},

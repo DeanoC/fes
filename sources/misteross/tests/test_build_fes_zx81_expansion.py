@@ -519,6 +519,13 @@ class ZX81OverlayTimingTests(unittest.TestCase):
             }})
         with self.assertRaisesRegex(ValueError, "unexpected overlay clocks"):
             validate_overlay_timing({"fmax": {"clk_sys": current["fmax"]["clk_sys"]}})
+        underconstrained = {"fmax": {
+            "clk_sys": {"achieved": 54.0, "constraint": 52.0},
+            "display.control.clk": {"achieved": 80.0, "constraint": 74.25},
+            "audio_clk": {"achieved": 2.0, "constraint": 1.0},
+        }}
+        with self.assertRaisesRegex(Exception, "12.288"):
+            validate_overlay_timing(underconstrained)
 
 
 if __name__ == "__main__":

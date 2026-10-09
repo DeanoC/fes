@@ -144,6 +144,21 @@ class ReadAuditTests(unittest.TestCase):
             pid = int(pidfile.read_text())
             with self.assertRaises(ProcessLookupError): os.kill(pid, 0)
 
+    def test_live_trace_budget_cancels_compiler_process(self):
+        pidfile = self.root / 'budget-pid'
+        data = self.root / 'data.hex'; data.write_text('input')
+        code = ('import os;from pathlib import Path;'
+                'Path(' + repr(str(pidfile)) + ').write_text(str(os.getpid()));'
+                'p=Path(' + repr(str(data)) + ');'
+                '\nfor _ in range(1_000_000): p.read_bytes()')
+        with patch.object(audit, 'MAX_TRACE_FILE', 128 * 1024), \
+             patch.object(audit, 'MAX_TRACE_TOTAL', 256 * 1024):
+            with self.assertRaisesRegex(audit.ReadAuditError, 'bounded trace size'):
+                audit.audited_run([sys.executable, '-c', code], source_root=self.root,
+                                  stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=5)
+        pid = int(pidfile.read_text())
+        with self.assertRaises(ProcessLookupError): os.kill(pid, 0)
+
     def test_sigstop_group_notification_keeps_completion_and_read_checks(self):
         trace = self.root / 'open.1'
         stop = '--- stopped by SIGSTOP ---\n'
