@@ -97,7 +97,8 @@ module st_machine #(
     // acknowledgement on a CPU phase edge waits a whole extra CPU cycle.
     // Writes and all other targets keep their registered completion.
     assign ram_read_completion = !reset && !cpu_as_n && state == WAITING &&
-        target == RAM && !writing && ram_ready;
+        target == RAM && !writing && ram_ready &&
+        timeout_halves != TIMER_BITS'(BUS_TIMEOUT_HALVES);
     reg [8:0] colors [0:15];
     genvar color;
     generate for (color = 0; color < 16; color = color + 1) begin : palette_pack
