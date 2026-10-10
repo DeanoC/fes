@@ -2,6 +2,7 @@
 // Diagnostic execution of an unchanged raw disk and stock ROM. Storage callbacks
 // are bounded models. PPM is a static framebuffer reconstruction, not HDMI/raster.
 #include "Vst_boot_sim_top.h"
+#include "../sources/misteross/cores/fes-atari-st/sim/st_audio_capture.hpp"
 #include "verilated.h"
 #include <array>
 #include <cstdint>
@@ -18,6 +19,7 @@ static void check(bool value, const char *message) { if (!value) throw std::runt
 struct Pending { bool seen=false, done=false; unsigned wait=0; uint32_t addr=0; uint16_t data=0; uint8_t lanes=0; bool write=false; };
 struct Demo {
     static constexpr uint64_t Hz=52224000;
+    StAudioCapture audio;
     Vst_boot_sim_top dut;
     std::vector<uint8_t> rom,disk;
     std::array<uint8_t,524288> ram{};
@@ -106,6 +108,7 @@ struct Demo {
         }
     }
     void tick() {
+        if(!dut.reset && dut.audio_valid) audio.sample(dut.audio_pcm,cycles);
         storage();dut.eval();
         // Observe the event consumed on this edge, before the accumulators advance.
         const bool native_vblank=!dut.reset&&dut.vblank;
@@ -271,27 +274,31 @@ struct Demo {
            <<",\"committed_palette_writes\":"<<palette_writes
            <<",\"native_rgb_frames\":"<<dut.capture_frames<<",\"native_rgb_underruns\":"<<dut.capture_underruns<<"}";
     }
-    void run(unsigned seconds,unsigned key_b_at=0) {
+    void run(unsigned seconds,unsigned key_at=0,unsigned key_usage=5) {
+        audio.open(prefix+"-audio.wav");
         for(unsigned i=0;i<64;++i)tick();dut.reset=0;
         while(cycles<Hz*seconds){
-            // HID usage 5 is B. Exercise the existing keyboard/IKBD path;
+            // Exercise the selected HID key through the existing keyboard/IKBD path;
             // the original disk and firmware are never modified.
-            dut.keyboard[0]=key_b_at&&cycles>=Hz*key_b_at&&cycles<Hz*key_b_at+Hz*150/1000 ? 1u<<5 : 0;
+            for(unsigned n=0;n<5;++n) dut.keyboard[n]=0;
+            if(key_at&&cycles>=Hz*key_at&&cycles<Hz*key_at+Hz*150/1000)
+                dut.keyboard[key_usage/32]=1u<<(key_usage%32);
             tick();
             if(cycles%(Hz/10)==0){status(trace);trace<<'\n';}
             if(cycles%Hz==0){status(std::cout);std::cout<<'\n'<<std::flush;snapshot("-second-"+std::to_string(cycles/Hz));}
             if(cycles>1000&&dut.debug_halted)break;
         }
         snapshot("-final");std::ofstream metrics(prefix+"-metrics.json");status(metrics);metrics<<'\n';
+        audio.finish(prefix+"-audio.json");
         dut.final();std::cout<<"Bounded diagnostic ended; demo compatibility is not asserted.\n";
     }
 };
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
-    try {check(argc==5||argc==6||argc==9||argc==10,"ROM DISK SECONDS PREFIX [KEY_B_AT [TRACE_START TRACE_END RAM_EXTRA_WAIT [RAM_FIXED_WAIT]]] required");
+    try {check(argc==5||argc==6||argc==9||argc==10||argc==11,"ROM DISK SECONDS PREFIX [KEY_B_AT [TRACE_START TRACE_END RAM_EXTRA_WAIT [RAM_FIXED_WAIT]]] required");
         Demo demo(argv[1],argv[2],argv[4]);
         if(argc>=9){demo.trace_start=std::strtoul(argv[6],nullptr,10);demo.trace_end=std::strtoul(argv[7],nullptr,10);demo.ram_extra_wait=std::strtoul(argv[8],nullptr,10);}
-        if(argc==10)demo.ram_fixed_wait=std::strtol(argv[9],nullptr,10);
-        demo.run(std::strtoul(argv[3],nullptr,10),argc>=6?std::strtoul(argv[5],nullptr,10):0);}
+        if(argc>=10)demo.ram_fixed_wait=std::strtol(argv[9],nullptr,10);
+        demo.run(std::strtoul(argv[3],nullptr,10),argc>=6?std::strtoul(argv[5],nullptr,10):0,argc==11?std::strtoul(argv[10],nullptr,10):5);}
     catch(const std::exception &error){std::cerr<<"FAIL "<<error.what()<<'\n';return 1;}
 }

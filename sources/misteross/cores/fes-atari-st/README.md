@@ -351,11 +351,16 @@ the original disk is preloaded into the separate SDRAM buffer before CPU release
 and the real memory arbiter, addon controller, DDIO digital model, floppy DMA,
 native capture and independent-clock 720p renderer execute together. It does not
 exercise mailbox upload, electrical pad timing or a physical FPGA. This mode
-requires at least six seconds and currently supports menu diagnosis without
-HID selection; callback RAM delays are rejected. The original diskless EmuTOS
+requires at least six seconds; callback RAM delays are rejected. The original diskless EmuTOS
 invocation keeps its boot assertions and supplies no media. A changing
 logo is reported as noncanonical, without automatically declaring a visual fault. `--key-b-at SECOND` selects the scroller through the normal
-HID/IKBD path with a 150 ms B press. These are observations of the reduced
+HID/IKBD path with a 150 ms B press. Both storage models accept
+`--key-at SECOND --key-usage USAGE` for other screens (1/2/3 use HID
+usages 30/31/32). Every run saves `demo-audio.wav`, the unfiltered signed
+mono 48 kHz chip PCM, and `demo-audio.json` with sample counts, amplitude
+statistics and system-clock cadence. Quiet boot audio is valid; these files
+do not establish analog sound fidelity. `--timeout-seconds` controls only
+the host deadline, independently of the guest duration. These are observations of the reduced
 native timing model, not original GLUE/shifter timing equivalence. Per-second
 static framebuffer images do not prove video timing or border behavior. Neither successful capture completion nor removal of one loader
 fault establishes demo compatibility.

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Boot stock EmuTOS through physical SDRAM commands while the native line
 // cache scans that same RAM with an independent 74.25 MHz pixel clock.
+#include "st_audio_capture.hpp"
 #include "Vst_boot_memory_sim_top.h"
 #include "verilated.h"
 #include <array>
@@ -124,6 +125,8 @@ class Boot {
     static constexpr uint32_t CE = 1u << 27, SOF = 1u << 28, EOL = 1u << 29, HOLD = 1u << 30;
     Vst_boot_memory_sim_top dut;
     Sdram sdram;
+    StAudioCapture audio;
+    unsigned key_at=0,key_usage=5;
     std::vector<uint8_t> rom;
     std::vector<uint8_t> picture = std::vector<uint8_t>(1280 * 720 * 3);
     std::vector<uint8_t> complete_picture;
@@ -205,6 +208,11 @@ class Boot {
     }
 
     void system_edge() {
+        for(unsigned n=0;n<5;++n) dut.keyboard[n]=0;
+        if(demo_mode && key_at && system_cycles>=boot_start+SystemHz*key_at &&
+           system_cycles<boot_start+SystemHz*key_at+SystemHz*150/1000)
+            dut.keyboard[key_usage/32]=1u<<(key_usage%32);
+        if(!dut.reset_sys && dut.audio_valid) audio.sample(dut.audio_pcm,system_cycles-boot_start);
 #ifdef ST_RAM_BUS_PROBE
         if (!dut.reset_sys && dut.debug_cpu_tick) ++cpu_ticks;
         if (!dut.reset_sys && dut.cpu_req && !cpu_transfer.active && dut.cpu_addr == 0x300)
@@ -471,7 +479,9 @@ public:
     }
 #endif
 
-    void run(unsigned seconds, const char *prefix, unsigned start=6, unsigned end=7) {
+    void run(unsigned seconds, const char *prefix, unsigned start=6, unsigned end=7, unsigned press_at=0, unsigned usage=5) {
+        key_at=press_at;key_usage=usage;
+        audio.open(std::string(prefix)+"-audio.wav");
         trace_start=start; trace_end=end;
         if (demo_mode) {
             trace_prefix=prefix;
@@ -533,6 +543,7 @@ public:
                   << " system clocks, " << pixel_cycles << " independent pixel clocks, "
                   << complete_frames << " complete frames, " << colors.size() << " RGB colors; max CPU/video latency "
                   << max_cpu_latency << '/' << max_video_latency << " clocks; output " << prefix << ".ppm\n";
+        audio.finish(std::string(prefix)+"-audio.json");
         dut.final();
     }
 };
@@ -544,12 +555,14 @@ int main(int argc, char **argv) {
     Boot boot(nullptr);
     boot.ram_bus_probe();
 #else
-    require((argc >= 2 && argc <= 4) || argc==7, "usage: boot_memory_tb STOCK_192K_ROM [SECONDS=8] [OUTPUT_PREFIX=emutos-sdram]");
+    require((argc >= 2 && argc <= 4) || argc==7 || argc==9, "usage: boot_memory_tb STOCK_192K_ROM [SECONDS=8] [OUTPUT_PREFIX=emutos-sdram]");
     const unsigned seconds = argc >= 3 ? unsigned(std::strtoul(argv[2], nullptr, 10)) : 8;
     require(seconds >= 6 && seconds <= 30, "boot duration must be 6..30 emulated seconds");
-    Boot boot(argv[1], argc==7 ? argv[4] : nullptr);
-    boot.run(seconds, argc >= 4 ? argv[3] : "emutos-sdram", argc==7 ? unsigned(std::strtoul(argv[5],nullptr,10)) : 6,
-             argc==7 ? unsigned(std::strtoul(argv[6],nullptr,10)) : 7);
+    Boot boot(argv[1], argc>=7 ? argv[4] : nullptr);
+    boot.run(seconds, argc >= 4 ? argv[3] : "emutos-sdram", argc>=7 ? unsigned(std::strtoul(argv[5],nullptr,10)) : 6,
+             argc>=7 ? unsigned(std::strtoul(argv[6],nullptr,10)) : 7,
+             argc==9 ? unsigned(std::strtoul(argv[7],nullptr,10)) : 0,
+             argc==9 ? unsigned(std::strtoul(argv[8],nullptr,10)) : 5);
 #endif
     return 0;
 }
