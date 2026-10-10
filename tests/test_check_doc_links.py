@@ -29,6 +29,23 @@ class CheckDocLinksTests(unittest.TestCase):
                                   '```\n[sample](not-there.md)\n```\n[root](/a.md)\n'})
         self.assertEqual(broken_links(root), [])
 
+    def test_destinations_may_contain_balanced_parentheses(self):
+        root = self.repo({'a.md': '[v2](manual(v2).md) [gone](old(v1).md)\n',
+                          'manual(v2).md': 'ok\n'})
+        self.assertEqual(broken_links(root), ['a.md:1: old(v1).md'])
+
+    def test_indented_and_nested_fences_hide_examples(self):
+        root = self.repo({'a.md': '- item\n\n  ```md\n  [example](missing.md)\n  ```\n'
+                                  '````md\n```\n[inner](missing.md)\n```\n````\n'
+                                  '[after](gone.md)\n'})
+        self.assertEqual(broken_links(root), ['a.md:11: gone.md'])
+
+    def test_reference_definitions_are_checked(self):
+        root = self.repo({'a.md': '[guide][setup] [ok][b]\n\n[setup]: missing.md\n'
+                                  '[b]: b.md\n[web]: https://example.com\n',
+                          'b.md': 'ok\n'})
+        self.assertEqual(broken_links(root), ['a.md:3: missing.md'])
+
     def test_untracked_markdown_is_not_checked(self):
         root = self.repo({'a.md': 'ok\n'})
         (root / 'scratch.md').write_text('[gone](missing.md)\n')
