@@ -7,10 +7,13 @@ from scripts.ci_gate import JOB_LANES, require_success, validate_plan
 from scripts.ci_simulations import simulation_matrix
 
 
-def results_for(selected=(), cores=()):
+def results_for(selected=(), cores=(), modes=None):
     lanes = {lane: lane in selected for lane in LANES}
+    if modes is None:
+        modes = {'video': False, 'media': False, 'full_race': False}
     results = {'plan': {'result': 'success', 'outputs': {
         'lanes': json.dumps(lanes), 'cores': json.dumps(list(cores)),
+        'test_modes': json.dumps(modes),
         'simulations': json.dumps(simulation_matrix(list(cores)))}}}
     results.update({job: {'result': 'success' if lanes[lane] else 'skipped'}
                     for job, lane in JOB_LANES.items()})
@@ -37,10 +40,36 @@ class GateTests(unittest.TestCase):
                 require_success(results)
 
     def test_documentation_producer_and_full_plans(self):
-        for selected, cores in [((), ()), (('parent', 'fpga'), ()),
-                                (('host', 'parent'), ()), (LANES, CORES)]:
+        all_modes = {'video': True, 'media': True, 'full_race': True}
+        for selected, cores, modes in [((), (), None), (('parent', 'fpga'), (), None),
+                                       (('host', 'parent'), (), None),
+                                       (LANES, CORES, all_modes)]:
             with self.subTest(selected=selected):
-                require_success(results_for(selected, cores))
+                require_success(results_for(selected, cores, modes))
+
+    def test_selected_modes_must_be_valid_and_lane_consistent(self):
+        baseline = results_for(LANES, CORES,
+                               {'video': True, 'media': True, 'full_race': True})
+        for bad in (None, [], {}, {'video': True}, 'true',
+                    {'video': 1, 'media': False, 'full_race': False},
+                    {'video': True, 'media': False, 'full_race': False, 'extra': False}):
+            results = copy.deepcopy(baseline)
+            results['plan']['outputs']['test_modes'] = json.dumps(bad)
+            with self.subTest(modes=bad), self.assertRaises(ValueError):
+                require_success(results)
+        results = copy.deepcopy(baseline)
+        del results['plan']['outputs']['test_modes']
+        with self.assertRaises(ValueError):
+            require_success(results)
+        for modes, selected in [
+                ({'video': True, 'media': False, 'full_race': False}, ('host', 'fpga')),
+                ({'video': False, 'media': True, 'full_race': False}, ('fpga',)),
+                ({'video': False, 'media': False, 'full_race': True}, ('parent', 'fpga'))]:
+            with self.subTest(modes=modes, selected=selected), self.assertRaises(ValueError):
+                require_success(results_for(selected, (), modes))
+        for modes in ({'video': True, 'media': True, 'full_race': False},
+                      {'video': False, 'media': False, 'full_race': True}):
+            require_success(results_for(('parent', 'host'), (), modes))
 
     def test_every_planned_job_must_succeed(self):
         baseline = results_for(LANES, CORES)

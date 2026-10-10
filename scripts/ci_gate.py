@@ -6,6 +6,7 @@ from pathlib import Path
 
 from scripts.affected import CORES, LANES
 from scripts.ci_simulations import simulation_matrix
+from scripts.test_policy import validate_test_modes
 
 JOB_LANES = {
     'parent-tests': 'parent', 'consistency': 'parent', 'host': 'host',
@@ -36,6 +37,8 @@ def require_success(results):
     lanes = json.loads(outputs.get('lanes', 'null'))
     cores = json.loads(outputs.get('cores', 'null'))
     validate_plan(lanes, cores)
+    modes = json.loads(outputs.get('test_modes', 'null'))
+    validate_test_modes(modes, lanes)
     if json.loads(outputs.get('simulations', 'null')) != simulation_matrix(cores):
         raise ValueError('Simulation matrix does not cover the selected cores exactly')
     selected = {job: lanes[lane] for job, lane in JOB_LANES.items()}

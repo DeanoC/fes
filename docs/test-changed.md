@@ -30,6 +30,7 @@ Make parallelism; values from 1 through 32 are accepted.
 | `sources/misteross/expansion` Go module | Parent checks and host/target consumers, including the shared linker tests; no FPGA simulations |
 | Runtime | Parent checks, runtime software suite and host protocol consumers |
 | Shared contracts | All software lanes and their dependent consumers |
+| Parent-owned roots (`scripts/`, `tests/`, `image/`, `platform/`, `profiles/`, `containers/`) | Parent regressions and generated-consumer consistency; no component lanes or core simulations |
 | Known FPGA producer/package software | Parent checks and producer/package/functional-identity/search-policy tests; no RTL simulation |
 | FPGA core source | Parent checks, FPGA software tests and simulations for that family and its dependent consumers |
 | Unknown or root inputs | All software lanes |
@@ -49,6 +50,55 @@ recursive compiler/import tracing: relative or dynamically constructed
 cross-family references need explicit review. When adding a consumer, update
 its rule and coverage test together. A new supported core also needs its
 simulation target registered in `scripts/ci_simulations.py`.
+
+Parent-owned matching is the exact directory or any descendant, so sibling
+names such as `scripts-other/` or `test-other/` stay unknown. The CI
+selection/compiler and shared generator policy files — `scripts/affected.py`,
+`scripts/test_changed.py`, `scripts/ci_gate.py`, `scripts/ci_simulations.py`,
+`scripts/ci_verilator.sh`, `scripts/generate.py`, `scripts/consistency.py`
+(the generated/copied/fixture mapping owner) and their regression suites
+under `tests/` — remain fail-broad and select every lane and core. Root files
+such as the top-level `Makefile`, `config/` and `.github/` also stay on the
+all-lanes path.
+
+## Routine and extended test modes
+
+Beyond lanes, each plan reports `test_modes` (`video`, `media`, `full_race`)
+computed by `scripts/test_policy.py`. Routine runs execute the fast regression
+and concurrency-focused checks; extended suites return only when their inputs
+change or on scheduled/manual full runs. A passing routine run intentionally
+omits tests and is not exhaustive green.
+
+| Mode | Routine run | Re-included by |
+| --- | --- | --- |
+| `video` | Parent suite omits the full-device video classes `RealProducerEvidenceTests`, `NativeProducerEvidenceTests`, `STProducerEvidenceTests` (`test_factory_video_parts.py`) and `FactoryVideoPublicationTests`, `RasterFactoryVideoPublicationTests` (`test_factory_video_publication.py`); lightweight classes in the same files still run | Video producer/admission inputs (`scripts/factory_video_parts.py`, `core_catalog.py`, `core_dev_accept.py`, `core_dev.py`, `package_acceptance_isolated.py`, `recipes.py`, `bundle.py`, `artifact_cache.py`, `core-recipes.toml`), `sources/misteross`, `sources/FogCast/corepackage`, `corecatalog`, and non-test `.go` under `catalog`/`fogcast` |
+| `media` | Parent suite omits the container drivers `ContainerImageTests`, `RealImageTests` (`test_media_image.py`), `ContainerTests`, `RealBootstrapTests` (`test_appliance.py`), `ContainerTests`, `RealCardTests` (`test_appliance_media.py`) | Image/platform/containers/profiles roots, `scripts/media*.py`, `scripts/appliance*.py`, `platform.py`, `image_toolchain.py`, `boot-media.lock.toml`, the three media test files, `sources/FogCast/appliance`, `cmd/target-image-lock` |
+| `full_race` | Host functional coverage is partitioned exactly once: the race-expensive `fogcast`/`corepackage` run all assertions non-race, and every other package runs its whole suite under `-race -short`. `fogcast`/`corepackage` additionally get concurrency-focused `-run` race instrumentation (`HOST_RACE_FOCUS`: Concurrent/Cancel/Session/Lifecycle/Stop/Target/Lock/Queued/Drain/Lease/Discovery/Watch/Input/Mesh names). Not exhaustive — full mode races every package in all three modules | Shared contracts (`sources/mister-packages`), `AGENTS.md`, unknown inputs and new branches select every mode; weekly schedule and manual dispatch always run all modes |
+
+Shared `scripts/build.py`, `inputs.py`, `native_dev.py`, `environment.py` and
+FogCast `go.mod`/`go.sum` select both video and media. CI validates
+`test_modes` against the lanes (`video`/`media` need parent, `full_race` needs
+host) in the plan step and again in the required integration gate, and retains
+`/tmp/affected.json` as the `fes-ci-plan-<run_id>-<attempt>` artifact.
+`scripts/parent_tests.py` prints the selected and intentionally omitted test
+IDs as JSON; with `media` selected it requires a working Docker before running
+rather than silently skipping. `scripts/host_tests.py` owns the Go commands;
+`--full` races every package in all three modules without `-short` or `-run`.
+
+The affected runner passes the planned modes through: parent checks run
+`scripts/parent_tests.py --video/--media`, host checks run
+`scripts/host_tests.py` with `--full` only under `full_race`. Opt into the
+exhaustive local run with `python3 scripts/test_changed.py --base origin/main
+--full`, which enables every mode for the already-selected lanes. The affected
+runner's routine Go commands also keep the reduced catalog fixture. The
+comprehensive `make test` (parent) and `make -C sources/FogCast test` (FogCast)
+suites remain unchanged full entry points that include every class. To exercise
+the full 10k-row catalog fixture locally:
+
+```sh
+(cd sources/FogCast && go test -race -timeout 30m ./catalog -run '^TestQueryGamesFixtureStaysBounded$')
+make -C sources/FogCast test GO_TEST_FLAGS=
+```
 
 The Atari 520ST family and shared FX68K files select `make sim-fes-atari-st`,
 covering CPU/MMU, SDRAM, peripherals, media upload, expansion and all video
@@ -84,6 +134,11 @@ fixtures and source copies. It does **not** replace `make check`'s committed-sou
 selection gate. Parent platform/image packaging suites and the required browser
 integration lane are outside this focused command. Individual tests may report
 their own skips; a passing command does not turn a skipped test into coverage.
+The recipe tests access bundle helpers through a module import (`from tests
+import test_bundle`) so discovery does not re-run the imported bundle suite.
+The regression suite also executes FogCast's contained-development diagnostic
+contract against the host and image inputs, so image-only changes retain that
+cross-component coverage without selecting the host lane.
 
 ## Results and prerequisites
 
