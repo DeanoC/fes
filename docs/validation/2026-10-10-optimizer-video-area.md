@@ -52,9 +52,24 @@ no remaining issues.
 
 ## Hardware status and limits
 
-The contained kit A diagnostic is pending availability. Another interactive
-operator holds the renewable lease; no takeover or hardware load was performed.
-The PR remains draft. No factory/image hardware acceptance is claimed, and
-Pong qualification does not qualify routing or timing in the other consumers.
-Later documentation commits do not change the sealed package's recorded source
-revision. Historical campaign and earlier sealed package receipts are unchanged.
+With the user's authorization to use either kit, the exact sealed package passed
+a contained kit B diagnostic through the existing renewable target lease.
+The [lifecycle receipt](2026-10-10-optimizer-video-area/receipt.json) reports
+matching package/build IDs, volatile activation, Stop returning idle, and the
+lease released and free. No image, service or host-library changes were made.
+
+The ASUS 4KPRO captured 298 frames over ten seconds. Early single-frame attempts
+were black; continuous capture recorded a 0.1-second startup black interval,
+with no later all-black interval detected under the stated filter.
+[Frame at 3 seconds](2026-10-10-optimizer-video-area/frame-0.png) and
+[frame at 8 seconds](2026-10-10-optimizer-video-area/frame-1.png) show the Pong
+field, paddles, ball and scores. The [black-interval analysis](2026-10-10-optimizer-video-area/blackdetect.log)
+and capture hash are retained. Capture conversion and buffering prevent a
+bit-exact RGB or direct FPGA sync measurement claim.
+
+This is a bounded load/video/Stop diagnostic; full gameplay and factory/image
+hardware acceptance are not claimed. Pong qualification does not qualify routing
+or timing in the other consumers. Later documentation commits do not change
+the sealed package's recorded source revision. Historical campaign and earlier
+sealed package receipts are unchanged, including `hardware_acceptance: false`
+and `promoted: false` campaign decisions.

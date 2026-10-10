@@ -51,7 +51,32 @@
   "format": 1,
   "hardware_acceptance": false,
   "hardware_diagnostic": {
-    "status": "pending_kit_availability"
+    "black_interval_seconds": [
+      0,
+      0.1
+    ],
+    "capture_device": "ASUS 4KPRO 802B003090700329",
+    "capture_duration_seconds": 10,
+    "capture_frames": 298,
+    "capture_sha256": "abc6e1a1ceeaf1ac1a645b545cf040cabfa0b6c15d55bf2541b5080faa56ed09",
+    "factory_image_acceptance": false,
+    "full_gameplay_tested": false,
+    "initial_capture_attempts": "Black early single-frame captures retained privately; continuous capture replaced single-frame admission.",
+    "receipt_files_sha256": {
+      "blackdetect.log": "ad225feabb4cf5f4884c2923c0936d5b981d5b0c87e8be72114cbb02a5509bb2",
+      "frame-0.png": "3c95426145cad7d394b09c187bbaba0211b57d3b86fd753617b49b95d192f5f4",
+      "frame-1.png": "8ff62a0c069d3fe8e39c10b390d2675390a6ea161642d4b7b836c366c510d373",
+      "receipt.json": "f863df84f04ae0ac56ec3d54ffc0378521e9ff00c516b05b0f6d4176a3fa9433"
+    },
+    "scope": [
+      "sealed package identity handshake",
+      "Pong field paddles ball and scores visible at seconds 3 and 8",
+      "ten-second continuous HDMI capture",
+      "Stop idle",
+      "lease released and free"
+    ],
+    "status": "passed_contained_diagnostic",
+    "target": "kit B"
   },
   "lint": {
     "passed": true,
