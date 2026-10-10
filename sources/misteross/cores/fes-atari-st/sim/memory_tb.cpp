@@ -11,6 +11,8 @@
 // single-word bursts, auto-precharge, byte masks, initialization and refresh.
 // Timing limits are conservative whole cycles at 52.224 MHz, from the ISSI
 // IS42S16320D data sheet. It does not model analog pad setup/hold or routing.
+// Independent DQM delay exercises setup margin. Write masking has no chip
+// latency; read-output masking uses the DQM sampled two chip clocks earlier.
 // https://www.issi.com/WW/pdf/42-45R-S_86400D-16320D-32160D.pdf
 static void require(bool value, const char *what, uint64_t cycle) {
     if (!value) {
@@ -21,17 +23,32 @@ static void require(bool value, const char *what, uint64_t cycle) {
 
 class Sdram {
 public:
-    std::vector<uint16_t> words = std::vector<uint16_t>(0xa0000, 0);
+    explicit Sdram(unsigned delay = 0) : mask_delay(delay) {
+        require(delay <= 2, "DQM delay must be zero, one or two clocks", 0);
+    }
+    std::vector<uint16_t> words = std::vector<uint16_t>(0xa6800, 0);
     uint64_t cycle = 0, reads = 0, writes = 0, refreshes = 0, mode_sets = 0;
     uint64_t last_refresh = 0, read_due = 0;
     uint16_t pending_read = 0;
     std::array<unsigned, 4> row{};
     std::array<bool, 4> open{};
     std::array<uint64_t, 4> activated{}, available{};
+    const unsigned mask_delay;
+    std::array<unsigned, 5> mask_history{};
+    std::array<uint64_t, 4> write_masks{};
+    uint64_t masked_after_refresh = 0;
+    bool after_refresh = false;
     bool precharged = false, initialized = false;
 
     uint16_t tick(const Vst_memory_sim_top &dut) {
         ++cycle;
+        for (unsigned i = mask_history.size() - 1; i; --i)
+            mask_history[i] = mask_history[i - 1];
+        // Physical MiSTer addon: chip masks share the high row-address pins.
+        mask_history[0] = (dut.sdram_a >> 11) & 3;
+        const unsigned mask = mask_history[mask_delay];
+        if (read_due == cycle)
+            require(mask_history[mask_delay + 2] == 0, "READ output suppressed by delayed DQM", cycle);
         const uint16_t sample = read_due == cycle ? pending_read : 0xf13d;
         if (!dut.sdram_cke || dut.sdram_ncs) return sample;
         const unsigned command = (dut.sdram_nras << 2) | (dut.sdram_ncas << 1) | dut.sdram_nwe;
@@ -58,16 +75,19 @@ public:
             available[bank] = cycle + (command == 4 ? 2 : 3);
             if (command == 4) {
                 require(dut.dq_oe, "WRITE without driven data", cycle);
-                if (!dut.sdram_dqml) words[address] = (words[address] & 0xff00) | (dut.dq_out & 0xff);
-                if (!dut.sdram_dqmh) words[address] = (words[address] & 0xff) | (dut.dq_out & 0xff00);
+                if (!(mask & 1)) words[address] = (words[address] & 0xff00) | (dut.dq_out & 0xff);
+                if (!(mask & 2)) words[address] = (words[address] & 0xff) | (dut.dq_out & 0xff00);
+                ++write_masks[mask];
+                if (after_refresh && mask) ++masked_after_refresh;
                 ++writes;
             } else {
                 require(!dut.dq_oe, "READ has output data contention", cycle);
-                require(!dut.sdram_dqml && !dut.sdram_dqmh, "READ unexpectedly masked", cycle);
+                require(mask == 0, "READ unexpectedly masked", cycle);
                 read_due = cycle + 2;
                 pending_read = words[address];
                 ++reads;
             }
+            after_refresh = false;
             break;
         case 2: // PRECHARGE ALL
             require(dut.sdram_a & 0x400, "PRECHARGE is not all-bank", cycle);
@@ -85,6 +105,7 @@ public:
             for (unsigned b = 0; b < 4; ++b)
                 require(!open[b] && cycle >= available[b], "refresh with active/recovering bank", cycle);
             last_refresh = cycle;
+            after_refresh = true;
             ++refreshes;
             break;
         case 0: // MODE REGISTER SET
@@ -109,9 +130,10 @@ struct Request {
 
 class Simulation {
 public:
+    explicit Simulation(unsigned delay = 0) : memory(delay) {}
     Vst_memory_sim_top dut;
     Sdram memory;
-    std::vector<uint16_t> reference = std::vector<uint16_t>(0xa0000, 0);
+    std::vector<uint16_t> reference = std::vector<uint16_t>(0xa6800, 0);
     uint64_t cycles = 0, completed = 0;
     unsigned max_latency = 0;
 
@@ -165,8 +187,8 @@ public:
     }
 
     void check(unsigned client, const Request &r) {
-        const bool valid = client != 2 ? client == 3 ? r.address < 368640 :
-                           client == 4 ? r.address < 737280 : true :
+        const bool valid = client != 2 ? client == 3 ? r.address < 419840 :
+                           client == 4 ? r.address < 839680 : true :
                            r.address >= 8 && r.address < 0x80000;
         const unsigned address = client == 2 ? r.address / 2 :
                                  client == 3 ? 0x40000 + r.address :
@@ -248,9 +270,9 @@ public:
         transaction(3, {0, 0x00ab, 1, true});
         transaction(4, {0});
         transaction(4, {1});
-        transaction(3, {368639, 0x9876, 3, true});
-        transaction(4, {737278});
-        transaction(4, {737279});
+        transaction(3, {419839, 0x9876, 3, true});
+        transaction(4, {839678});
+        transaction(4, {839679});
         transaction(0, {0}); // RAM zero does not alias media zero.
         transaction(0, {0x3ffff});
 
@@ -258,8 +280,8 @@ public:
         transaction(2, {0});
         transaction(2, {6, 0xffff, 3, true});
         transaction(2, {0x80000, 0xffff, 3, true});
-        transaction(3, {368640, 0xffff, 3, true});
-        transaction(4, {737280});
+        transaction(3, {419840, 0xffff, 3, true});
+        transaction(4, {839680});
         transaction(4, {1048575});
         require(memory.reads + memory.writes == physical, "invalid memory access reached SDRAM", cycles);
 
@@ -267,7 +289,7 @@ public:
         idle(5000);
         require(memory.refreshes >= refreshed + 10, "idle SDRAM is not refreshed", cycles);
         transaction(0, {4});
-        transaction(4, {737279});
+        transaction(4, {839679});
 
         // Reset after a physical ACTIVATE, before its WRITE. SDRAM must drain
         // and commit the command, while the invalidated client gets no ready.
@@ -287,7 +309,7 @@ public:
         require(memory.writes == writes_before + 1, "warm reset did not drain pending physical WRITE", cycles);
         reference[drained.address] = drained.data;
         transaction(0, {drained.address});
-        transaction(4, {737279});
+        transaction(4, {839679});
 
         // A short CPU Hold withdraws only the CPU request. A newly issued
         // request must not consume the old physical read's completion.
@@ -328,7 +350,7 @@ public:
                     r.address = i == 0 ? 0x100 + (next() % 0x200) :
                                 i == 1 ? 0x100 + (next() % 0x200) :
                                 i == 2 ? 8 + (next() % 0x20000) * 2 :
-                                i == 3 ? next() % 368640 : next() % 737280;
+                                i == 3 ? next() % 419840 : next() % 839680;
                     request(i, r);
                     active[i] = true;
                     age[i] = 0;
@@ -363,10 +385,24 @@ public:
 
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
-    Simulation sim;
-    sim.initialize();
-    sim.directed();
-    sim.contention();
-    std::cout << "st_memory: " << sim.completed << " requests passed, " << sim.memory.refreshes
-              << " refreshes, max latency " << sim.max_latency << " clocks over " << sim.cycles << " cycles\n";
+    require(argc <= 2, "usage: memory_tb [DQM_DELAY=0|1|2]", 0);
+    unsigned first = 0, last = 2;
+    if (argc == 2) {
+        require(argv[1][0] >= '0' && argv[1][0] <= '2' && argv[1][1] == '\0',
+                "DQM delay must be zero, one or two clocks", 0);
+        first = last = unsigned(argv[1][0] - '0');
+    }
+    for (unsigned delay = first; delay <= last; ++delay) {
+        Simulation sim(delay);
+        sim.initialize();
+        sim.directed();
+        sim.contention();
+        for (const auto count : sim.memory.write_masks)
+            require(count != 0, "missing DQM lane-mask coverage", sim.cycles);
+        require(sim.memory.masked_after_refresh != 0, "missing masked write after refresh", sim.cycles);
+        std::cout << "st_memory: DQM delay " << delay << ": " << sim.completed << " requests passed, "
+                  << sim.memory.refreshes << " refreshes, " << sim.memory.masked_after_refresh
+                  << " masked writes after refresh, max latency " << sim.max_latency
+                  << " clocks over " << sim.cycles << " cycles\n";
+    }
 }

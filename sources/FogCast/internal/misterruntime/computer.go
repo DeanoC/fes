@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -163,7 +164,10 @@ func computerMediaUnitState(response Protocol2Response, b protocol.MediaUnitBind
 // InsertMedia stages caller bytes privately and makes one insert_media call.
 // Only this adapter names a local path. It never replays an ambiguous call.
 // Success requires the unit to report ready; it returns the refreshed units.
-func (r *Runtime) InsertMedia(ctx, owner context.Context, size int64, body io.Reader, b protocol.MediaUnitBinding) (units []protocol.MediaUnitStatus, apiErr *protocol.APIError) {
+func (r *Runtime) InsertMedia(ctx, owner context.Context, size int64, body io.Reader, b protocol.MediaUnitBinding) ([]protocol.MediaUnitStatus, *protocol.APIError) {
+	return r.insertMedia(ctx, owner, size, body, b, nil)
+}
+func (r *Runtime) insertMedia(ctx, owner context.Context, size int64, body io.Reader, b protocol.MediaUnitBinding, library *protocol.LibraryMediaBinding) (units []protocol.MediaUnitStatus, apiErr *protocol.APIError) {
 	if !b.Valid() || body == nil || size < 1 || size > protocol.MaxComputerMediaBytes {
 		return nil, protocol.MediaUnitRequestError()
 	}
@@ -176,6 +180,9 @@ func (r *Runtime) InsertMedia(ctx, owner context.Context, size int64, body io.Re
 	}
 	r.computerMu.Lock()
 	defer r.computerMu.Unlock()
+	bound := false
+	geometry := false
+	stFloppy := false
 	admit := func() *protocol.APIError {
 		before, err := control.Protocol2Status(ctx)
 		if err != nil {
@@ -184,6 +191,11 @@ func (r *Runtime) InsertMedia(ctx, owner context.Context, size int64, body io.Re
 		if _, ok := computerMediaUnitState(before, b); !ok {
 			return protocol.MediaUnitIdentityError()
 		}
+		packageStatus := computerMediaStatus(before).CorePackage
+		mediaUnit, _ := protocol.MediaUnit(packageStatus, b.Unit)
+		stFloppy = mediaUnit.Interface == protocol.AtariStFloppyInterface()
+		geometry = protocol.AtariStFloppyGeometryCapable(packageStatus)
+		bound = protocol.MediaDataBound(packageStatus)
 		if !b.AcceptsSize(computerMediaStatus(before), size) {
 			return protocol.MediaUnitRequestError()
 		}
@@ -220,13 +232,35 @@ func (r *Runtime) InsertMedia(ctx, owner context.Context, size int64, body io.Re
 	if writeErr != nil || closeErr != nil || ctx.Err() != nil {
 		return nil, &protocol.APIError{Code: protocol.CodeTransferFailed, Message: "media unit staging failed", Phase: "admission", Cause: errors.Join(writeErr, closeErr, ctx.Err())}
 	}
+	if stFloppy && size != protocol.AtariStFloppyBytes {
+		data, err := os.ReadFile(path)
+		if err != nil || !corepackage.ValidAtariStBase(data, geometry) {
+			return nil, protocol.MediaUnitRequestError()
+		}
+	}
 	// Recheck after staging, immediately before the one local mutation.
 	if err := admit(); err != nil {
 		return nil, err
 	}
-	operation, cancel := context.WithTimeout(owner, computerMediaBudget)
+	budget := computerMediaBudget
+	if library != nil {
+		budget = 2 * computerMediaBudget
+	}
+	if bound {
+		budget = 3 * computerMediaBudget
+	}
+	operation, cancel := context.WithTimeout(owner, budget)
 	defer cancel()
-	response, err := control.InsertMedia(operation, path, b.PackageID, b.Generation, b.Unit, uint32(size))
+	var response Protocol2Response
+	if library != nil {
+		persistent, ok := r.control.(protocol2LibraryMediaControl)
+		if !ok {
+			return nil, unsupportedOperationError()
+		}
+		response, err = persistent.InsertLibraryMedia(operation, path, MediaDataRoot, *library, uint32(size))
+	} else {
+		response, err = control.InsertMedia(operation, path, b.PackageID, b.Generation, b.Unit, uint32(size))
+	}
 	r.noteDispatch("insert_media", err == nil)
 	if err != nil {
 		return nil, &protocol.APIError{Code: protocol.CodeMiSTerUnavailable, Message: "media unit insert is unconfirmed; inspect the session before retrying", Phase: "transfer"}
@@ -237,6 +271,12 @@ func (r *Runtime) InsertMedia(ctx, owner context.Context, size int64, body io.Re
 	state, ok := computerMediaUnitState(response, b)
 	if !ok || state != protocol.MediaUnitReady {
 		return nil, unavailableError()
+	}
+	if library != nil && protocol.MediaWriteCapable(computerMediaStatus(response).CorePackage) {
+		unit, _ := protocol.MediaUnit(computerMediaStatus(response).CorePackage, b.Unit)
+		if unit.Persistence == nil || unit.Persistence.GameID != library.GameID || unit.Persistence.BaseMediaID != library.BaseMediaID {
+			return nil, unavailableError()
+		}
 	}
 	return cloneMediaUnits(response.Capabilities.MediaUnits), nil
 }

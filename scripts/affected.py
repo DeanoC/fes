@@ -5,6 +5,11 @@ from fnmatch import fnmatchcase
 from pathlib import Path
 import subprocess
 
+try:
+    from scripts.test_policy import select_test_modes, validate_test_modes
+except ImportError:
+    from test_policy import select_test_modes, validate_test_modes
+
 # Logical module names survive the monorepo move; update only these roots.
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
@@ -13,6 +18,22 @@ LANES = ('parent', 'host', 'runtime', 'contracts', 'fpga')
 CORES = ('demo', 'pong', 'zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'menu', 'z80', 'atari-st', 'ramtest', 'riscv')
 SIMULATION_ONLY_CORES = frozenset({'z80'})
 EXPANSION_ROOT = 'sources/misteross/expansion'
+# Parent-owned orchestration, test and assembly roots contain no component
+# sources, so their changes select only the parent lane. Matching is the exact
+# directory or directory + '/', keeping siblings like scripts-other unknown.
+PARENT_ROOTS = ('scripts', 'tests', 'image', 'platform', 'profiles', 'containers')
+# CI selection/compiler and shared generator policy stay fail-broad: changing
+# the planner, gate, simulation matrix, Verilator pin, generator or their
+# regression suites must still exercise every lane and core.
+CI_BROAD_INPUTS = frozenset({
+    'scripts/affected.py', 'scripts/test_changed.py', 'scripts/ci_gate.py',
+    'scripts/ci_simulations.py', 'scripts/ci_verilator.sh', 'scripts/generate.py',
+    'scripts/consistency.py',
+    'tests/test_affected.py', 'tests/test_test_changed.py', 'tests/test_ci_gate.py',
+    'tests/test_generate.py', 'tests/test_consistency.py',
+    'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
+    'tests/test_test_policy.py',
+})
 
 
 # Keep this software suite shared with test_changed. A producer edit validates
@@ -191,7 +212,12 @@ def plan(paths):
             continue
         owner = next((module for module, prefix in MODULE_ROOTS.items()
                       if path == prefix or path.startswith(prefix + '/')), None)
-        if owner is None or owner == 'contracts':
+        if (owner is None and path not in CI_BROAD_INPUTS and
+                any(path == prefix or path.startswith(prefix + '/')
+                    for prefix in PARENT_ROOTS)):
+            selected.add('parent')
+            reasons.append(f'{path}: parent orchestration/tests/assembly; component sources unchanged')
+        elif owner is None or owner == 'contracts':
             selected.update(LANES)
             cores.update(CORES)
             reasons.append(f'{path}: shared contract or unknown/root input')
@@ -207,9 +233,19 @@ def plan(paths):
                 reasons.append(f'{path}: runtime, host protocol consumers and parent integration')
             else:
                 reasons.append(f'{path}: {owner} and parent integration')
-    return {'lanes': {lane: lane in selected for lane in LANES},
+    lanes = {lane: lane in selected for lane in LANES}
+    modes = select_test_modes(paths)
+    # Modes can only run inside an enabled lane; lane masking keeps docs or
+    # component-only plans from claiming extended coverage they cannot run.
+    if not lanes['parent']:
+        modes['video'] = modes['media'] = False
+    if not lanes['host']:
+        modes['full_race'] = False
+    validate_test_modes(modes, lanes)
+    return {'lanes': lanes,
             'skipped': [lane for lane in LANES if lane not in selected],
-            'cores': sorted(cores), 'paths': sorted(set(paths)), 'reasons': reasons,
+            'cores': sorted(cores), 'test_modes': modes,
+            'paths': sorted(set(paths)), 'reasons': reasons,
             'always': ['planner tests', 'diff whitespace checks'],
             'not_run': ['FPGA synthesis/place-and-route', 'cold image builds', 'hardware acceptance']}
 

@@ -33,6 +33,13 @@ The NMOS instruction controller uses explicit one-hot state bits to shorten
 control paths at the consumer system clock. The fast variant keeps its compact
 binary state encoding; this choice does not change instruction or pin timing.
 
+Register reads and ALU input/operation selection use parallel decoded terms.
+The ALU shares its shift datapath and derives common result flags after operation
+selection. The fast variant updates PC in a separate sequential block, keeping
+its control path independent of other register writebacks. NMOS retains its
+original state priority and PC update path. These changes preserve instruction
+results and transaction latency; they require fresh consumer timing evidence.
+
 Opcode fetches, operand cycles, I/O and interrupt acknowledge have separate
 bus timing. Internal cycles retain their machine-cycle boundaries for DMA;
 WAIT stretches the proper bus phase. BUSRQ takes priority over interrupt
@@ -236,10 +243,11 @@ codes. Its fast outputs pass all 499 mapped equivalence checks against the
 preceding implementation. Fresh timing evidence is required for that graph;
 the preceding engine's 56.654 MHz seed-6 result does not qualify it.
 
-With Yosys `0.69+ (1bf1ff3d7)` and nextpnr-mistral
-`0.11.1-261-gbdb24661`, router2, the current contained fast envelope reaches
+Before the parallel selection and separate fast PC changes, Yosys
+`0.69+ (1bf1ff3d7)` and nextpnr-mistral `0.11.1-261-gbdb24661`, router2,
+produced a contained fast envelope of
 46.221–54.404 MHz across seeds 1–10 at a 56 MHz target. Seed 6 reaches
-49.818 MHz. These placements do not pass `--require-target`; the range does
+49.818 MHz. Those placements do not pass `--require-target`; the range does
 not establish a CPU frequency ceiling. The full Spectrum fast producer uses
 its selected system toolchain, memory/socket schedule and placement search,
 and refuses sealing unless the actual system closes 56 MHz. Console recipes
@@ -267,3 +275,21 @@ from the design work:
 Each source file carries its SPDX license. The instruction engine/ALU/fast
 entry point are original MIT-licensed RTL; the NMOS bus/wrapper are original
 GPL-2.0-or-later RTL. Existing third-party CPU notices are untouched.
+
+## Production engine and historical optimizer handoff
+
+The shared engine currently follows current-main (#533) datapath structure:
+parallel `reg8` / ALU candidate decode and `next_bc!=0` block-repeat flags,
+with a single ALU driver set. That is the production consumer for Spectrum and
+SG-1000. A revised engine is not accepted from the historical AlphaMister
+handoff SHA-256
+`53187e407acee070bc6a48f43acb3cae05599dd912fe2d2a456ce4ce103fe5ee`; that hash
+is frozen evidence against an older consumer, not authority to discard main.
+
+Host named-state programs (`tests/test_z80_route_c_semantics.py`) check public
+`debug_*` ports for NMOS and fast. They are not a Yosys next-state proof.
+Acceptance still requires a fresh named-state/next-state proof against the
+current production consumer plus production synthesis/area (`--max-aluts 5831`)
+and timing with the real build identity. The optimizer's frozen 10/16 routes
+and 5689-ALUT diagnostic do not substitute. 5841 ALUTs remains a failed
+production qualification.

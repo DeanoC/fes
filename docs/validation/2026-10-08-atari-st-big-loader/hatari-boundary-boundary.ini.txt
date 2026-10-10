@@ -1,0 +1,5 @@
+cpureg
+disasm $10c0-$10e8
+memdump w $fc06a0-$fc06c0
+savebin loader-ram.bin $0 $80000
+quit

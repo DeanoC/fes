@@ -14,7 +14,7 @@ if __package__ in (None, ""):
 
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
-from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 
 
@@ -154,7 +154,7 @@ def create_build_record(
     }
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
-    fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS)
+    fields = functional_record_fields(root, fields, source_roots_for_producer(__name__, PINNED_INPUTS, root), execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
 
 
@@ -201,6 +201,7 @@ def build_commands(
 def validate_build_evidence(output: Path, source_root: Path = ROOT, *, audio: bool = False) -> dict:
     return validate_board_evidence(output, source_root, audio=audio,
         ordinary_resources=ORDINARY_RESOURCES, required_resources=REQUIRED_RESOURCES,
+        raw_fractional_video=not audio,
         forbidden_resources=FORBIDDEN_RESOURCES, required_zero_resources=REQUIRED_ZERO_RESOURCES)
 
 

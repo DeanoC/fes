@@ -10,9 +10,10 @@ import struct
 import subprocess
 import tempfile
 import unittest
+import io
 from unittest import mock
 
-from scripts import appliance, appliance_inside, platform as fes_platform
+from scripts import appliance, appliance_inside, appliance_media, platform as fes_platform
 
 ROOT = Path(__file__).resolve().parents[1]
 INSIDE = os.environ.get('FES_APPLIANCE_TEST_INSIDE') == '1'
@@ -55,6 +56,80 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(result.image.stat().st_ino, inode)
         with self.assertRaises(ValueError):
             appliance.export_release(self.root/'release', self.rootfs, self.kernel, version='v2', provenance=provenance(self.rootfs, self.kernel))
+
+    def test_single_pass_hil_release_records_pass_count_and_copies_marker(self):
+        self.assertEqual(appliance.release_version('hil-test',1),'hil-test-1p')
+        marker=self.root/'SINGLE-PASS-SCRATCH.txt';marker.write_text('head_sha='+'a'*40+'\nlinux_img_sha256='+appliance.digest(self.rootfs)+'\n')
+        result=appliance.export_release(self.root/'release-1p',self.rootfs,self.kernel,version='hil-smoke-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
+        self.assertEqual(appliance.load_manifest(result.manifest)['image_passes'],1)
+        self.assertEqual((result.directory/'SINGLE-PASS-SCRATCH.txt').read_bytes(),marker.read_bytes())
+        again=appliance.export_release(result.directory,self.rootfs,self.kernel,version='hil-smoke-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
+        self.assertEqual(again,result)
+        sealed = result.directory/'SINGLE-PASS-SCRATCH.txt'
+        sealed.chmod(0o644)
+        sealed.write_text(marker.read_text().replace('head_sha=','head_sha=b',1))
+        sealed.chmod(0o444)
+        with self.assertRaisesRegex(ValueError,'immutable release destination differs'):
+            appliance.export_release(result.directory,self.rootfs,self.kernel,version='hil-smoke-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
+        with self.assertRaisesRegex(ValueError,'HIL'):
+            appliance.export_release(self.root/'bad-single',self.rootfs,self.kernel,version='v1-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
+
+    def test_two_pass_manifest_keeps_legacy_bytes_and_legacy_manifest_loads(self):
+        p=provenance(self.rootfs,self.kernel)
+        manifest=appliance.release_manifest(self.rootfs,version='v1',provenance=p)
+        self.assertNotIn('image_passes',manifest)
+        legacy=self.root/'legacy.json';legacy.write_bytes(appliance.canonical(manifest))
+        self.assertEqual(appliance.load_manifest(legacy),manifest)
+        with self.assertRaisesRegex(ValueError,'invalid release image passes'):
+            malformed=dict(manifest,image_passes=2)
+            legacy.write_bytes(appliance.canonical(malformed));appliance.load_manifest(legacy)
+
+    def test_bootstrap_refuses_single_pass_release_explicitly(self):
+        import sys
+        single=dict(appliance.release_manifest(self.rootfs,version='hil-1p',provenance=provenance(self.rootfs,self.kernel)),image_passes=1)
+        release=self.root/'single-release';release.mkdir()
+        (release/'release.json').write_bytes(appliance.canonical(single))
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(mock.patch.object(sys,'argv',['appliance.py','bootstrap','--release',str(release)]))
+            stack.enter_context(mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,provenance(self.rootfs,self.kernel),self.root,{},None)))
+            stack.enter_context(mock.patch.object(appliance,'cached_media_container',side_effect=AssertionError('must reject before bootstrap')))
+            stderr=stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+            with self.assertRaises(SystemExit):
+                appliance.main()
+            self.assertIn('single-pass scratch release cannot be bootstrapped',stderr.getvalue())
+
+    def test_appliance_media_refuses_single_pass_release_explicitly(self):
+        manifest=dict(appliance.release_manifest(self.rootfs,version='hil-1p',provenance=provenance(self.rootfs,self.kernel)),image_passes=1)
+        release=self.root/'single-media-release';release.mkdir()
+        (release/'release.json').write_bytes(appliance.canonical(manifest))
+        with mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,provenance(self.rootfs,self.kernel),self.root,{},None)):
+            with self.assertRaisesRegex(ValueError,'single-pass scratch release cannot be bootstrapped'):
+                appliance_media.prepare(self.root,'native-integration-dev',release,self.root/'bootstrap',self.root/'scratch')
+
+    def test_media_kernel_cache_runner_forwards_selected_pass_count(self):
+        import sys
+        sys.path.insert(0,str(ROOT/'scripts'))
+        import media
+        runner=object.__new__(media.Runner)
+        runner.runtime='fake-runtime'
+        staged=self.root/'staged';staged.mkdir()
+        with mock.patch.dict(os.environ,{'IMAGE_PASSES':'1'}), mock.patch.object(runner,'create_and_start') as start:
+            runner.child_verify(self.root/'image',staged,{'TARGET_IMAGE_CONTAINER_RUNTIME':'docker'})
+        self.assertEqual(start.call_args.kwargs['env']['FES_IMAGE_PASSES'],'1')
+
+    def test_single_pass_cli_rejects_ci_and_non_hil_release_versions(self):
+        import sys
+        sys.path.insert(0,str(ROOT/'scripts'))
+        import media
+        for env,version in (({'CI':'true'},'hil-smoke'),({'GITHUB_ACTIONS':'true'},'hil-smoke'),({},'scratch')):
+            with self.subTest(env=env,version=version):
+                with contextlib.ExitStack() as stack:
+                    stack.enter_context(mock.patch.dict(os.environ,env,clear=True))
+                    stack.enter_context(mock.patch.object(sys,'argv',['appliance.py','release','--image-passes','1','--version',version]))
+                    stack.enter_context(mock.patch.object(media,'operation',return_value=contextlib.nullcontext()))
+                    stack.enter_context(mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,provenance(self.rootfs,self.kernel),self.root,{},None)))
+                    stack.enter_context(mock.patch('builtins.print'))
+                    with self.assertRaises(SystemExit): appliance.main()
 
     def test_reject_mismatched_provenance_and_unknown_manifest(self):
         p = dataclasses.replace(provenance(self.rootfs,self.kernel),rootfs_sha256='0'*64)

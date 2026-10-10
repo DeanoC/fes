@@ -234,3 +234,11 @@ and input behavior require separate hardware checks of the exact image.
 
 Next: [change a component](development.md#isolate-component-work) or
 [assign a bounded agent task](agent-workflow.md).
+
+# Scratch/HIL image builds
+
+For local scratch or HIL iteration, run `IMAGE_PASSES=1 make image`. The
+single output records `image_passes=1` and `single_pass_scratch=1`, and includes
+`SINGLE-PASS-SCRATCH.txt` binding the checkout head and `linux.img` digest.
+Releases and CI always use two passes. The out-of-repo
+`~/bin/fes-docker-1pass` shim is retired once this merges.

@@ -29,7 +29,7 @@ struct Boot {
         rom.assign(std::istreambuf_iterator<char>(f),{}); check(rom.size()==196608,"192 KiB ROM required");
         dut.clk_sys=0; dut.reset=1; dut.monochrome=0;
         dut.exp_ack=0; dut.exp_berr=0; dut.exp_rdata=0xffff; dut.exp_irq=0; dut.exp_present=0;
-        dut.rom_ready=0; dut.ram_ready=0; dut.media_ready=0; dut.media_valid=0;
+        dut.rom_ready=0; dut.ram_ready=0; dut.media_size=737280; dut.media_ready=0; dut.media_valid=0;
         dut.dma_ready=0; dut.mouse_valid=0; dut.controller_buttons=0;
         for(unsigned i=0;i<5;++i) dut.keyboard[i]=0;
         dut.eval();

@@ -217,10 +217,10 @@ class CoreBuildTest(unittest.TestCase):
         self.assertEqual(
             [entry['core_id'] for entry in repository_profile['fpga_packages']],
             ['fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sms',
-             'fes.sg1000', 'fes.spectrum', 'fes.ramtest'])
+             'fes.sg1000', 'fes.spectrum', 'fes.ramtest', 'fes.atari-st'])
         self.assertEqual(build.selected_packages(repository_profile, 'native-integration-dev'),
                          ('fes.menu', 'fes.pong', 'fes.zx81', 'fes.coleco', 'fes.sms',
-                          'fes.sg1000', 'fes.spectrum', 'fes.ramtest'))
+                          'fes.sg1000', 'fes.spectrum', 'fes.ramtest', 'fes.atari-st'))
 
     def test_selection_overrides_do_not_leak_from_shell(self):
         with patch.dict('os.environ', {'NATIVE_RUNTIME_SYSTEMS': 'pong',
@@ -289,6 +289,37 @@ class CoreBuildTest(unittest.TestCase):
         self.assertEqual(result['directory'], Path('/pkg'))
         self.assertNotIn('MAKEFLAGS', env)
         self.assertNotIn('FES_TOOLCHAIN_CACHE_ROOT', env)
+
+    def test_missing_video_shell_requires_an_explicit_rebuild(self):
+        from types import SimpleNamespace
+        from factory_video_parts import MissingVideoShell
+        calls = []
+
+        def fake_resolve(source, packages_revision, selection_path, force=False, env=None, recipe=None):
+            calls.append(force)
+            return {'directory': Path('/pkg'), 'inputs': {'selection': {'package_id': 'fes.coleco'}}}
+
+        def missing_shell(*args, **kwargs):
+            raise MissingVideoShell('resolved video package has no frozen companion')
+
+        recipe = SimpleNamespace(video_profiles=('direct',))
+        revisions = {'misteross': 'a' * 40, 'mister-packages': 'b' * 40}
+        with patch.object(build, 'source_checkout', return_value=Path('/work/misteross')), \
+             patch.object(build.core_bundle, 'resolve_core_package', side_effect=fake_resolve), \
+             patch('factory_video_parts.resolve_video_parts', side_effect=missing_shell):
+            with self.assertRaises(MissingVideoShell) as caught:
+                build.resolve_selected_package(
+                    revisions, Path('/out/fes-coleco.package-selection.toml'), {}, recipe=recipe)
+        self.assertEqual(calls, [False])
+        self.assertIn('explicit rebuild', str(caught.exception))
+        with patch.object(build, 'source_checkout', return_value=Path('/work/misteross')), \
+             patch.object(build.core_bundle, 'resolve_core_package', side_effect=fake_resolve), \
+             patch('factory_video_parts.resolve_video_parts', side_effect=missing_shell):
+            with self.assertRaises(MissingVideoShell) as forced:
+                build.resolve_selected_package(
+                    revisions, Path('/out/fes-coleco.package-selection.toml'), {}, force=True, recipe=recipe)
+        self.assertEqual(calls, [False, True])
+        self.assertNotIn('explicit rebuild', str(forced.exception))
 
     def test_rebuild_forces_selected_package_production(self):
         captured = {}

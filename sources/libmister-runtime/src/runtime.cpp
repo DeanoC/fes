@@ -1,6 +1,8 @@
 // Copyright 2026 FogCast contributors
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include "native/atari_st_geometry.hpp"
+
 #include "libmister-runtime/runtime.h"
 #include "native/diagnostic.hpp"
 #include "native/generated/fes_simple_computer.hpp"
@@ -44,6 +46,13 @@ Error IdleFailure(const Error& cause)
 	return {ErrorCode::idle_failed,
 		cause.message.empty() ? "idle load failed" : cause.message,
 		"recovery", cause.expected, cause.observed};
+}
+
+bool ValidLibraryGameId(const std::string& id) {
+ if(id.empty()||id.size()>256||id.front()=='-'||id.back()=='-')return false;
+ bool hyphen=false;
+ for(char c:id){if(!((c>='a'&&c<='z')||(c>='0'&&c<='9')||c=='-')||(c=='-'&&hyphen))return false;hyphen=c=='-';}
+ return true;
 }
 
 Error SaveFailure(const Error& cause)
@@ -346,7 +355,7 @@ public:
 	Error LoadCore(const std::string& directory, const std::string& expected_package_id,
 		const std::string& data_root = "", const CoreCompositionRequest* composition = nullptr,
 		const std::string& programmed_path = "", const std::string& programmed_sha256 = "", const CoreROMLink* rom_link = nullptr,
-		const CoreROMLinks* rom_links = nullptr)
+		const CoreROMLinks* rom_links = nullptr, const InitialComputerMedia* initial_media = nullptr)
 	{
 		LogRecord rejection;
 		bool rejected = false;
@@ -434,6 +443,16 @@ public:
 				return attached;
 			}
 		}
+		if (initial_media) {
+			const Error prepared = rom_link ? hardware_.PrepareInitialComputerMedia(package.get(), *initial_media) :
+				Error{ErrorCode::invalid_request, "initial disk requires a single ROM activation", "admission"};
+			if (!prepared.ok()) {
+				std::lock_guard<std::mutex> lock(mutex_);
+				busy_ = false;
+				condition_.notify_all();
+				return prepared;
+			}
+		}
 		const Error rechecked = hardware_.RecheckProgrammedBitstream(package.get());
 		if (!rechecked.ok()) {
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -472,6 +491,17 @@ public:
 			}
 		}
 
+		if (initial_media) {
+			const Error refreshed = hardware_.RefreshInitialComputerMedia(package.get());
+			if (!refreshed.ok()) {
+				if (replacing) return RestoreAfterSaveFailure("load_core", info.system,
+					info.declared_core, retired_generation, refreshed);
+				std::lock_guard<std::mutex> lock(mutex_);
+				busy_ = false;
+				condition_.notify_all();
+				return refreshed;
+			}
+		}
 		std::uint64_t generation = 0;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
@@ -487,47 +517,57 @@ public:
 		HardwareResult result = hardware_.LoadCore(std::move(package), generation);
 		if (!result.error.ok() && replacing && !result.mutation_attempted)
 			result.mutation_attempted = true;
-		if (!result.error.ok())
+		if (!result.error.ok() && !result.bound_media_may_have_run)
 			return FinishLaunchFailure("load_core", info.system,
 				result.observed_core.empty() ? info.declared_core : result.observed_core,
 				result,&previous_status);
+		Status retained_owner;
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
-			status_.state = State::running_development;
-			status_.execution = Execution::development;
-			status_.core = result.observed_core;
-			status_.declared_core = info.declared_core;
-			status_.package_id = info.package_id;
-			status_.generation = generation;
-			status_.core_data = data;
-			status_.active_package.package_id = info.package_id;
-			status_.active_package.descriptor = info.descriptor;
-			status_.active_package.composition = admitted_composition;
-			if (rom_link) status_.active_package.rom_link = *rom_link;
-			if (rom_links) status_.active_package.rom_links = *rom_links;
+			// Keep the public starting projection empty while a failed release is saved.
+			// Only failed-save recovery publishes the complete retained owner.
+			if (!result.error.ok()) retained_owner = status_;
+			Status& activated = result.error.ok() ? status_ : retained_owner;
+			activated.state = State::running_development;
+			activated.execution = Execution::development;
+			activated.core = result.observed_core;
+			activated.declared_core = info.declared_core;
+			activated.package_id = info.package_id;
+			activated.generation = generation;
+			activated.core_data = data;
+			activated.active_package.package_id = info.package_id;
+			activated.active_package.descriptor = info.descriptor;
+			activated.active_package.composition = admitted_composition;
+			if (rom_link) activated.active_package.rom_link = *rom_link;
+			if (rom_links) activated.active_package.rom_links = *rom_links;
 			if (info.descriptor.abi.id == "fes.simple-game" ||
 				info.descriptor.abi.id == "fes.simple-computer" ||
 				info.descriptor.abi.id == "fes.application" ||
 				info.descriptor.abi.id == native::generated::FesComputerABIID) {
-				status_.active_package.observed.abi = info.descriptor.abi;
-				status_.active_package.observed.build_id = info.descriptor.build.id;
+				activated.active_package.observed.abi = info.descriptor.abi;
+				activated.active_package.observed.build_id = info.descriptor.build.id;
 			}
-			status_.capabilities.active_interfaces = ActiveInterfaces(
-				info.descriptor, status_.capabilities);
+			activated.capabilities.active_interfaces = ActiveInterfaces(
+				info.descriptor, activated.capabilities);
 			const Capabilities observed = hardware_.capabilities();
-			status_.capabilities.media_stream = observed.media_stream;
-			status_.capabilities.media_units = observed.media_units;
-   status_.menu_display=hardware_.menu_display();
-			if (status_.capabilities.media_stream.interface.id.empty()) {
-				auto& interfaces = status_.capabilities.active_interfaces;
+			activated.capabilities.media_stream = observed.media_stream;
+			activated.capabilities.media_units = observed.media_units;
+			if (initial_media) activated.core_data.mode = "persistent";
+   activated.menu_display=hardware_.menu_display();
+			if (activated.capabilities.media_stream.interface.id.empty()) {
+				auto& interfaces = activated.capabilities.active_interfaces;
 				interfaces.erase(std::remove_if(interfaces.begin(), interfaces.end(),
 					[](const SupportedInterface& item) {
 						return item.id == native::generated::FesSimpleComputerInterfaceMediaBlobStreamID;
 					}), interfaces.end());
 			}
-			status_.error = {};
-			busy_ = false;
+			activated.error = {};
+			busy_ = !result.error.ok();
 		}
+		if (!result.error.ok())
+			return FinishLaunchFailure("load_core", info.system,
+				result.observed_core.empty() ? info.declared_core : result.observed_core,
+				result, &previous_status, &retained_owner);
 		condition_.notify_all();
 		Log("load_core", info.system, result.observed_core, "running");
 		return {};
@@ -827,6 +867,33 @@ public:
 		return error;
 	}
 
+	Error SendMouseRelative(const std::string& package_id, std::uint64_t generation,
+		std::int16_t dx, std::int16_t dy, std::uint8_t buttons)
+	{
+		using namespace native::generated;
+		if (!ValidPackageId(package_id) || generation == 0 || buttons > 3)
+			return Invalid("invalid relative mouse input");
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			if (busy_ || !started_ || pending_fault_generation_ != 0 || status_.state != State::running_development)
+				return Busy("mouse session is not available");
+			if (generation != active_generation_ || generation != status_.generation || package_id != status_.active_package.package_id)
+				return Invalid("mouse package or generation changed");
+			if (!DeclaresComputerInterface(status_.active_package.descriptor, FesComputerInterfaceMouseRelativeID))
+				return {ErrorCode::unsupported_interface, "mouse requires fes.computer with fes.mouse.relative", "compatibility"};
+			busy_ = true;
+		}
+		const Error error = hardware_.SendMouseRelative(dx, dy, buttons);
+		if (!error.ok() && error.code != ErrorCode::invalid_request && error.code != ErrorCode::unsupported_interface)
+			ReportHardwareFault({generation, error});
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			busy_ = false;
+		}
+		condition_.notify_all();
+		return error;
+	}
+
 	Error SetKeyboardHid(const std::string& package_id, std::uint64_t generation,
 		const KeyboardHidRows& rows)
 	{
@@ -883,12 +950,57 @@ public:
 			system = status_.system;
 			core = status_.core;
 		}
-		// Execution stays released. A failed transfer ejects the unit once in the
-		// driver and leaves the generation running.
+		// Execution stays released. Cleanup ejects only a transfer that accepted
+		// or ambiguously issued Begin; a rejected replacement retains the disk.
 		const Error error = hardware_.InsertComputerMedia(unit, path, size);
+		if (error.code == ErrorCode::save_failed)
+			return RestoreAfterSaveFailure("insert_media", system, core, generation, error);
 		FinishMediaUnit();
 		Log("insert_media", system, core, error.ok() ? "running" : "request", error);
 		return error;
+	}
+
+	Error InsertLibraryMedia(const std::string& path, const std::string& package_id,
+		std::uint64_t generation, std::uint8_t unit, std::uint32_t size,
+		const std::string& root, const MediaDataBinding& binding)
+	{
+		if (!ValidAbsolutePath(path) || !ValidAbsolutePath(root) || !ValidPackageId(package_id) ||
+			!ValidPackageId(binding.base_media_id) || generation == 0 || unit != 0 || binding.unit != unit ||
+			!native::InferAtariStGeometry(size) ||
+			!ValidLibraryGameId(binding.game_id))
+			return Invalid("invalid library media request");
+		std::string system, core;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
+			if (!rejected.ok()) return rejected;
+			busy_ = true; system = status_.system; core = status_.core;
+		}
+		const Error error = hardware_.InsertLibraryComputerMedia(unit, path, size, root, binding);
+		if (error.code == ErrorCode::save_failed && error.phase != "request")
+			return RestoreAfterSaveFailure("insert_library_media", system, core, generation, error);
+		FinishMediaUnit();
+		Log("insert_library_media", system, core, error.ok() ? "running" : "request", error);
+		return error;
+	}
+
+	Error SaveMedia(const std::string& package_id, std::uint64_t generation, std::uint8_t unit)
+	{
+		if (!ValidPackageId(package_id) || generation == 0 || unit != 0)
+			return Invalid("invalid media save binding");
+		std::string system, core;
+		{
+			std::lock_guard<std::mutex> lock(mutex_);
+			const Error rejected = AdmitMediaUnit(package_id, generation, unit);
+			if (!rejected.ok()) return rejected;
+			bool persistent = false;
+			for (const auto& media : status_.capabilities.media_units)
+				if (media.unit == unit && media.persistence_mode == "persistent") persistent = true;
+			if (!persistent) return {ErrorCode::unsupported_interface,
+				"media has no library data binding", "compatibility"};
+			busy_ = true; system = status_.system; core = status_.core;
+		}
+		return RestoreAfterSaveFailure("save_media", system, core, generation, hardware_.FlushSave());
 	}
 
 	Error EjectMedia(const std::string& package_id, std::uint64_t generation,
@@ -907,6 +1019,8 @@ public:
 			core = status_.core;
 		}
 		const Error error = hardware_.EjectComputerMedia(unit);
+		if (error.code == ErrorCode::save_failed)
+			return RestoreAfterSaveFailure("eject_media", system, core, generation, error);
 		FinishMediaUnit();
 		Log("eject_media", system, core, error.ok() ? "running" : "request", error);
 		return error;
@@ -1007,6 +1121,13 @@ public:
 				Log("recover_idle", "", "", "validate", error);
 				return error;
 			} else {
+				for (const auto& media : status_.capabilities.media_units)
+					if (media.persistence_mode == "persistent") {
+						const Error error{ErrorCode::save_failed,
+							"retained library disk requires recovery before idle programming", "recovery"};
+						Log("recover_idle", status_.system, status_.core, "recovery", error);
+						return error;
+					}
 				busy_ = true;
 				retry_idle = true;
 			}
@@ -1086,6 +1207,11 @@ public:
 			std::lock_guard<std::mutex> lock(mutex_);
 			// Publish the driver's unit state from its last live exchange.
 			status_.capabilities.media_units = hardware_.capabilities().media_units;
+			if (status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID) {
+				status_.core_data.mode = "volatile";
+				for (const auto& media : status_.capabilities.media_units)
+					if (media.persistence_mode == "persistent") status_.core_data.mode = "persistent";
+			}
 			busy_ = false;
 		}
 		condition_.notify_all();
@@ -1095,7 +1221,7 @@ public:
 		const std::string& system, const std::string& core,
 		std::uint64_t generation, const Error& cause)
 	{
-		const Error save_error = SaveFailure(cause);
+		const Error save_error = cause.ok() ? Error{} : SaveFailure(cause);
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			// Publish ownership before input becomes eligible so an immediate
@@ -1108,10 +1234,16 @@ public:
 			{
 				std::lock_guard<std::mutex> lock(mutex_);
 				status_.error = save_error;
+				status_.capabilities.media_units = hardware_.capabilities().media_units;
+				if (status_.active_package.descriptor.abi.id == native::generated::FesComputerABIID) {
+					status_.core_data.mode = "volatile";
+					for (const auto& media : status_.capabilities.media_units)
+						if (media.persistence_mode == "persistent") status_.core_data.mode = "persistent";
+				}
 				busy_ = false;
 			}
 			condition_.notify_all();
-			Log(operation, system, core, "save", save_error);
+			Log(operation, system, core, cause.ok() ? "running" : "save", save_error);
 			return save_error;
 		}
 
@@ -1155,9 +1287,16 @@ public:
 
 	Error FinishLaunchFailure(const std::string& operation,
 		const std::string& system, const std::string& core,
-		const HardwareResult& result,const Status* previous_status=nullptr)
+		const HardwareResult& result,const Status* previous_status=nullptr,
+		const Status* retained_owner=nullptr)
 	{
 		const Error primary = result.error;
+		Status retained;
+		if (result.bound_media_may_have_run) {
+			std::lock_guard<std::mutex> lock(mutex_);
+			retained = retained_owner ? *retained_owner : status_;
+		}
+
 		{
 			std::lock_guard<std::mutex> lock(mutex_);
 			active_generation_ = 0;
@@ -1174,6 +1313,26 @@ public:
 			return primary;
 		}
 		Log(operation, system, core, "cleanup");
+		if (result.bound_media_may_have_run) {
+			// The release command is never replayed. Recover the mailbox through
+			// the existing fault-save path, freeze and save before retiring its FPGA.
+			const Error saved = hardware_.FlushFaultSave();
+			if (!saved.ok()) {
+				const Error recovery = IdleFailure(saved);
+				{
+					std::lock_guard<std::mutex> lock(mutex_);
+					status_ = std::move(retained);
+					status_.state = State::reboot_required;
+					status_.capabilities.media_units = hardware_.capabilities().media_units;
+					status_.error = recovery;
+					busy_ = false;
+				}
+				condition_.notify_all();
+				Log(operation, system, core, "recovery", recovery);
+				EmitFence(kDiagnosticKindFenceRecovery, "error", operation.c_str(), false);
+				return recovery;
+			}
+		}
 		const HardwareResult cleanup = hardware_.LoadIdle();
 		if (cleanup.error.ok()) {
 			{
@@ -1205,6 +1364,8 @@ public:
 			HardwareFault fault;
 			std::string system;
 			std::string core;
+			Status retained;
+			bool bound_disk = false;
 			{
 				std::unique_lock<std::mutex> lock(mutex_);
 				condition_.wait(lock, [this]() {
@@ -1223,12 +1384,32 @@ public:
 				pending_fault_generation_ = 0;
 				system = status_.system;
 				core = status_.core;
+				for (const auto& media : status_.capabilities.media_units)
+					if (media.persistence_mode == "persistent") bound_disk = true;
+				if (bound_disk) retained = status_;
 				status_ = FreshStatus(State::starting);
 				status_.execution = Execution::none;
 			}
 
 			Log("input_fault", system, core, "failure", fault.error);
 			Log("input_fault", system, core, "cleanup");
+			if (bound_disk) {
+				const Error saved = hardware_.FlushFaultSave();
+				if (!saved.ok()) {
+					const Error recovery = IdleFailure(saved);
+					{
+						std::lock_guard<std::mutex> lock(mutex_);
+						status_ = std::move(retained);
+						status_.state = State::reboot_required;
+						status_.error = recovery;
+						busy_ = false;
+					}
+					condition_.notify_all();
+					Log("input_fault", system, core, "recovery", recovery);
+					EmitFence(kDiagnosticKindFenceRecovery, "error", "input_fault", false);
+					continue;
+				}
+			}
 			const HardwareResult cleanup = hardware_.LoadIdle();
 			if (cleanup.error.ok()) {
 				{
@@ -1314,17 +1495,17 @@ Error Runtime::LoadLibraryPartsCore(const std::string& directory, const std::str
 	return impl_->LoadCore(directory, id, root, &request);
 }
 Error Runtime::LoadROMCore(const std::string& directory, const std::string& id,
-	const std::string& path, const CoreROMLink& link)
-{ return impl_->LoadCore(directory, id, "", nullptr, path, "", &link); }
+	const std::string& path, const CoreROMLink& link, const InitialComputerMedia* initial_media)
+{ return impl_->LoadCore(directory, id, "", nullptr, path, "", &link, nullptr, initial_media); }
 Error Runtime::LoadROMLibraryCore(const std::string& directory, const std::string& id,
-	const std::string& root, const std::string& path, const CoreROMLink& link)
+	const std::string& root, const std::string& path, const CoreROMLink& link, const InitialComputerMedia* initial_media)
 {
 	if (!ValidAbsolutePath(root)) return Invalid("invalid core-data root");
-	return impl_->LoadCore(directory, id, root, nullptr, path, "", &link);
+	return impl_->LoadCore(directory, id, root, nullptr, path, "", &link, nullptr, initial_media);
 }
 Error Runtime::LoadROMComposedCore(const std::string& directory, const std::string& id,
-	const CoreCompositionRequest& request, const std::string& path, const CoreROMLink& link)
-{ return impl_->LoadCore(directory, id, "", &request, path, "", &link); }
+	const CoreCompositionRequest& request, const std::string& path, const CoreROMLink& link, const InitialComputerMedia* initial_media)
+{ return impl_->LoadCore(directory, id, "", &request, path, "", &link, nullptr, initial_media); }
 
 Error Runtime::LoadROMsCore(const std::string& directory, const std::string& id,
 	const std::string& path, const CoreROMLinks& links)
@@ -1421,6 +1602,12 @@ Error Runtime::LoadComputerMediaStream(const std::string& path,
 {
 	return impl_->LoadComputerMediaStream(path, package_id, generation, size);
 }
+Error Runtime::SendMouseRelative(const std::string& package_id, std::uint64_t generation,
+	std::int16_t dx, std::int16_t dy, std::uint8_t buttons)
+{
+	return impl_->SendMouseRelative(package_id, generation, dx, dy, buttons);
+}
+
 Error Runtime::SetKeyboardHid(const std::string& package_id, std::uint64_t generation,
 	const KeyboardHidRows& rows)
 {
@@ -1435,6 +1622,16 @@ Error Runtime::EjectMedia(const std::string& package_id, std::uint64_t generatio
 	std::uint8_t unit)
 {
 	return impl_->EjectMedia(package_id, generation, unit);
+}
+Error Runtime::InsertLibraryMedia(const std::string& path, const std::string& package_id,
+	std::uint64_t generation, std::uint8_t unit, std::uint32_t size,
+	const std::string& root, const MediaDataBinding& binding)
+{
+	return impl_->InsertLibraryMedia(path, package_id, generation, unit, size, root, binding);
+}
+Error Runtime::SaveMedia(const std::string& package_id, std::uint64_t generation, std::uint8_t unit)
+{
+	return impl_->SaveMedia(package_id, generation, unit);
 }
 Error Runtime::LoadContainedDevelopmentRBF(const std::string& rbf)
 {

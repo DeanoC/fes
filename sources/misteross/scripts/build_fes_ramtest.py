@@ -17,7 +17,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from scripts.compiler_read_audit import guard_functional_source
-from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts import fes_build_common as board
 from scripts import fes_de10nano_evidence as board_evidence
 from scripts.core_package import encode_manifest
@@ -54,6 +54,8 @@ RTL_SOURCES = (
     "cores/fes-common/rtl/fes_hps_ddr.v",
     "cores/fes-common/rtl/fes_hps_ddr_guard.v",
     "cores/fes-ramtest/rtl/mem_channel.v",
+    "cores/fes-ramtest/rtl/sdram_byte_lane.v",
+    "cores/fes-ramtest/rtl/pattern_latch.v",
     "cores/fes-ramtest/rtl/ram_font.v",
     "cores/fes-ramtest/rtl/ram_display.v",
     "cores/fes-ramtest/rtl/sdram_addon_port.v",
@@ -148,7 +150,7 @@ def create_build_record(root, repository, revision, identities, *, memory_mhz=10
         raise board.BuildError("unsupported build identity version")
     return encode_build_record(functional_record_fields(
         root, record_fields(root, repository, revision, identities, memory_mhz=memory_mhz),
-        source_roots_for_inputs(inputs_for(memory_mhz)),
+        source_roots_for_producer(__name__, inputs_for(memory_mhz), root),
         execution, pinned_inputs=inputs_for(memory_mhz)))
 
 

@@ -80,6 +80,7 @@ def route_shell(tools: dict[str, Path], env: dict[str, str]) -> None:
         required=shell.PLACER_QOR_CLOCKS,
         gpu_devices=(0,),
         env=env,
+        accept=expansion.accept_socket_route,
     )
     _require_gpu_backend((OUT / "nextpnr.log").read_text(errors="replace"))
     print(
@@ -90,16 +91,24 @@ def route_shell(tools: dict[str, Path], env: dict[str, str]) -> None:
 
 
 def validate_overlay_timing(timing: dict) -> None:
-    # Diagnostic HIP only. Official sealer still requires the net name pixel_clk.
-    # Flattening zx81_hdmi_i2s leaves the 74.25 MHz net as hdmi_i2s.pixel_clk.
+    # Diagnostic HIP. A current shell reports display.control.clk and audio_clk.
+    # Older reports still name pixel_clk or hdmi_i2s.pixel_clk. The cart sealer
+    # accepts only the current three-clock set.
     fmax = timing.get("fmax")
     if not isinstance(fmax, dict):
         raise ValueError("overlay timing has no fmax table")
     names = set(fmax)
-    if names != {"clk_sys", "pixel_clk"} and names != {"clk_sys", "hdmi_i2s.pixel_clk"}:
+    current = {"clk_sys", "display.control.clk", "audio_clk"}
+    legacy = ({"clk_sys", "pixel_clk"}, {"clk_sys", "hdmi_i2s.pixel_clk"})
+    if names != current and names not in legacy:
         raise ValueError(f"unexpected overlay clocks: {sorted(names)}")
     _, _, sys_hz = shell._frequency_row(fmax, 52.0, "system clock", "clk_sys")
-    _, _, pix_hz = shell._frequency_row(fmax, 74.25, "pixel clock", "pixel_clk")
+    pixel_key = "display.control.clk" if "display.control.clk" in names else "pixel_clk"
+    _, _, pix_hz = shell._frequency_row(fmax, 74.25, "pixel clock", pixel_key)
+    if names == current:
+        _, _, audio_hz = shell._frequency_row(fmax, 12.288, "audio clock", "audio_clk")
+        if audio_hz < 12.288:
+            raise ValueError("overlay audio clock below required 12.288 MHz")
     if sys_hz < 52.0 or pix_hz < 74.25:
         raise ValueError("overlay clocks below required 52/74.25 MHz")
 

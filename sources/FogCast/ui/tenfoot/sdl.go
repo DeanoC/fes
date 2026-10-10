@@ -26,7 +26,8 @@ enum {
 	FC_EV_KEY_ADDED,
 	FC_EV_KEY_REMOVED,
 	FC_EV_MOUSE_ADDED,
-	FC_EV_MOUSE_REMOVED
+	FC_EV_MOUSE_REMOVED,
+	FC_EV_FOCUS_LOST
 };
 
 typedef struct FogcastEvent {
@@ -37,6 +38,8 @@ typedef struct FogcastEvent {
 	int down;
 	int x;
 	int y;
+	double dx;
+	double dy;
 	char *text;
 } FogcastEvent;
 
@@ -52,6 +55,8 @@ int fogcast_poll(FogcastEvent *out, SDL_Renderer *renderer) {
 		out->x = 0;
 		out->y = 0;
 		out->which = 0;
+		out->dx = 0;
+		out->dy = 0;
 		switch (e.type) {
 		case SDL_EVENT_QUIT:
 			out->kind = FC_EV_QUIT;
@@ -68,6 +73,8 @@ int fogcast_poll(FogcastEvent *out, SDL_Renderer *renderer) {
 			out->which = (int)e.key.which;
 			return 1;
 		case SDL_EVENT_MOUSE_MOTION:
+			out->dx = e.motion.xrel;
+			out->dy = e.motion.yrel;
 			if (renderer != NULL) {
 				SDL_ConvertEventToRenderCoordinates(renderer, &e);
 			}
@@ -150,6 +157,9 @@ int fogcast_poll(FogcastEvent *out, SDL_Renderer *renderer) {
 		case SDL_EVENT_MOUSE_ADDED:
 			out->kind = FC_EV_MOUSE_ADDED;
 			out->which = (int)e.mdevice.which;
+			return 1;
+		case SDL_EVENT_WINDOW_FOCUS_LOST:
+			out->kind = FC_EV_FOCUS_LOST;
 			return 1;
 		case SDL_EVENT_MOUSE_REMOVED:
 			out->kind = FC_EV_MOUSE_REMOVED;
@@ -237,6 +247,7 @@ const (
 	evKeyRemoved   = C.FC_EV_KEY_REMOVED
 	evMouseAdded   = C.FC_EV_MOUSE_ADDED
 	evMouseRemoved = C.FC_EV_MOUSE_REMOVED
+	evFocusLost    = C.FC_EV_FOCUS_LOST
 )
 
 func runWindow(ctx context.Context, opts Options) error {
@@ -312,6 +323,7 @@ func runWindow(ctx context.Context, opts Options) error {
 	var stick stickTracker
 	held := map[Command]bool{}
 	textInput := false
+	mouseCapture := false
 	gpuParked := false
 	for {
 		if err := ctx.Err(); err != nil {
@@ -334,6 +346,11 @@ func runWindow(ctx context.Context, opts Options) error {
 		app.Tick(now)
 		snap := app.Snapshot()
 		textInput = syncTextInput(window, snap.OSK.Open, textInput)
+		if capture := app.ForwardsPlayMouse(); capture != mouseCapture {
+			if bool(C.SDL_SetWindowRelativeMouseMode(window, C.bool(capture))) {
+				mouseCapture = capture
+			}
+		}
 		gpuParked = presentFrame(dev, snap, textures, labels, gpuParked)
 		C.SDL_Delay(1)
 	}
@@ -877,8 +894,14 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		// and dummy video still drive the focus graph.
 		return false
 	case evMouseMove:
+		if app.HandlePlayMouseMotion(int(ev.which), float64(ev.dx), float64(ev.dy)) {
+			return false
+		}
 		app.PointerMoveFrom(int(ev.which), int(ev.x), int(ev.y), now)
 	case evMouseButton:
+		if app.HandlePlayMouseButton(int(ev.which), int(ev.code), ev.down != 0) {
+			return false
+		}
 		if ev.code != C.SDL_BUTTON_LEFT {
 			return false
 		}
@@ -910,7 +933,10 @@ func handleSDLEvent(app *App, pads map[C.SDL_JoystickID]*C.SDL_Gamepad, ev *C.Fo
 		app.DetachInput(InputKeyboard, int(ev.which))
 	case evMouseAdded:
 		app.AttachInput(InputMouse, int(ev.which))
+	case evFocusLost:
+		app.ReleaseAllPlayMouse()
 	case evMouseRemoved:
+		app.ReleasePlayMouse(int(ev.which))
 		app.DetachInput(InputMouse, int(ev.which))
 	}
 	return false

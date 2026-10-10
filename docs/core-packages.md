@@ -12,14 +12,16 @@ The locked idle core is the in-tree misteross seal
 bitstream; see [Idle MENU → rooms](idle-menu-rooms.md).
 
 The recipe registry supports the described `fes.pong`, `fes.zx81`,
-`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum`, `fes.catch`, `fes.riscv` and `fes.ramtest` HIP/nextpnr
+`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.apple2`, `fes.c64`, `fes.spectrum`, `fes.catch`, `fes.riscv` `fes.ramtest` and `fes.atari-st` HIP/nextpnr
 producers. The default target-image selector installs the ordered closed
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
-`fes.spectrum`, `fes.ramtest` package set.
-SMS, SG-1000 and Spectrum passed timing and are in that image. The 128 MiB
-rootfs from #347 holds them. `fes.apple2`,
-`fes.catch` and `fes.riscv` remain package-only. `fes.c64` is registered, but has no
-current timing-passing HIP seal, so it stays out.
+`fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set.
+SMS, SG-1000, Spectrum and Atari ST passed timing and are in that image.
+Coleco and ST include their independently sealed Direct and Scanlines video parts. The 160 MiB
+rootfs holds them. `fes.apple2`,
+`fes.catch` and `fes.riscv` remain package-only. `fes.c64` has a timing-passing
+frozen HIP seal and functional diagnostic, but remains package-only without
+factory-image acceptance.
 Package IDs and payload digests are recorded in generated per-core selection
 files, including `fes-sms.package-selection.toml`,
 `fes-sg1000.package-selection.toml` and `fes-spectrum.package-selection.toml`.
@@ -38,7 +40,7 @@ tree. See [FES ZX81](fes-zx81.md) for the ZX81 machine contract.
 
 The default `native-integration-dev` profile installs the locked idle RBF and
 the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
-`fes.sg1000`, `fes.spectrum`, `fes.ramtest` package set.
+`fes.sg1000`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set.
 The FES image route is package-only. Quartus is reserved for a documented bring-up or
 oracle/check when a system is not yet supported by nextpnr; the package-only
 route does not invoke it.

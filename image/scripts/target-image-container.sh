@@ -7,6 +7,20 @@ runtime=${TARGET_IMAGE_CONTAINER_RUNTIME:-docker}
 output_volume=${TARGET_IMAGE_OUTPUT_VOLUME:-fogcast-target-image-output}
 package_lock=$repo_root/build/target-image-container-packages.sha256
 native_mode=${NATIVE_RUNTIME_MODE:-package-only}
+image_passes=${FES_IMAGE_PASSES:-2}
+case "$image_passes" in
+  1|2) : ;;
+  *) printf '%s\n' 'target-image-container: FES_IMAGE_PASSES must be 1 or 2' >&2; exit 2 ;;
+esac
+image_work=/target-image-output/work-$image_passes-native-dev
+if [ -n "${FES_IMAGE_WORK:-}" ] && [ "$FES_IMAGE_WORK" != "$image_work" ]; then
+  printf 'target-image-container: FES_IMAGE_WORK must be %s when FES_IMAGE_PASSES=%s\n' "$image_work" "$image_passes" >&2
+  exit 2
+fi
+case "$image_work" in
+  /target-image-output/work-1-native-dev|/target-image-output/work-2-native-dev) : ;;
+  *) printf '%s\n' 'target-image-container: invalid image work directory' >&2; exit 2 ;;
+esac
 case "$native_mode" in
   package-only) : ;;
   *)
@@ -21,6 +35,17 @@ case "$output_volume" in
     exit 2
     ;;
 esac
+
+shared_cache=
+shared_container_path=/target-image-shared-cache
+if [ -n "${FES_TARGET_IMAGE_SHARED_CACHE:-}" ]; then
+  shared_cache=$(python3 "$repo_root/scripts/toolchain_cache.py" shared-root) || exit 2
+  mkdir -p "$shared_cache/dl" "$shared_cache/toolchains" "$shared_cache/ccache"
+  # Create the nested mount point as the invoking user. Otherwise the container
+  # runtime creates it as root in a fresh worktree, and the builder can no longer
+  # write build/cache/target-image (e.g. the Buildroot checkout).
+  mkdir -p "$repo_root/build/cache/target-image/dl"
+fi
 
 if ! command -v "$runtime" >/dev/null 2>&1; then
   printf 'target-image-container: container runtime is not executable: %s\n' "$runtime" >&2
@@ -51,6 +76,7 @@ if [ -n "${FES_VIDEO_PARTS_DIR:-}" ] || [ -n "${FES_PACKAGE_IDS:-}" ] ||
   [ -n "${FES_SG1000_PACKAGE_DIR:-}" ] || [ -n "${FES_SG1000_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_C64_PACKAGE_DIR:-}" ] || [ -n "${FES_C64_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_RAMTEST_PACKAGE_DIR:-}" ] || [ -n "${FES_RAMTEST_PACKAGE_SELECTION:-}" ] ||
+  [ -n "${FES_ATARI_ST_PACKAGE_DIR:-}" ] || [ -n "${FES_ATARI_ST_PACKAGE_SELECTION:-}" ] ||
   [ -n "${FES_SPECTRUM_PACKAGE_DIR:-}" ] || [ -n "${FES_SPECTRUM_PACKAGE_SELECTION:-}" ]; then
   "$repo_root/scripts/native-extra-cores.sh" validate
 fi
@@ -72,6 +98,7 @@ load_package_mount_order() {
       fes.c64) package_core=c64 ;;
       fes.spectrum) package_core=spectrum ;;
       fes.ramtest) package_core=ramtest ;;
+    fes.atari-st) package_core=atari-st ;;
       *) exit 2 ;;
     esac
     package_ids_reverse="$package_core $package_ids_reverse"
@@ -111,6 +138,14 @@ if [ -n "${FOGCAST_DIR:-}" ]; then
   fi
 fi
 docker_run() {
+  if [ -n "$shared_cache" ]; then
+    set -- --volume "$shared_cache:$shared_container_path" \
+      --volume "$shared_cache/dl:/work/build/cache/target-image/dl" \
+      --env "FES_TARGET_IMAGE_SHARED_CACHE=$shared_container_path" "$@"
+    if [ "${CCACHE_DISABLE:-}" = 1 ]; then
+      set -- --env CCACHE_DISABLE=1 "$@"
+    fi
+  fi
   if [ "$mode" = fetch ]; then
     if [ -n "${GITHUB_TOKEN:-}" ]; then
       set -- --env "GITHUB_TOKEN=$GITHUB_TOKEN" "$@"
@@ -119,6 +154,7 @@ docker_run() {
     fi
   fi
   set -- --env "FES_PACKAGE_IDS=${FES_PACKAGE_IDS:-}" "$@"
+  set -- --env "FES_IMAGE_PASSES=$image_passes" --env "FES_IMAGE_WORK=$image_work" "$@"
   if [ -n "${FES_VIDEO_PARTS_DIR:-}" ]; then
     set -- --volume "$FES_VIDEO_PARTS_DIR:/fes-core-video-parts:ro" \
       --env FES_VIDEO_PARTS_DIR=/fes-core-video-parts "$@"
@@ -181,6 +217,12 @@ docker_run() {
         package_dir_env=FES_RAMTEST_PACKAGE_DIR
         package_selection_env=FES_RAMTEST_PACKAGE_SELECTION
         ;;
+      atari-st)
+        package_dir=$FES_ATARI_ST_PACKAGE_DIR
+        package_selection=$FES_ATARI_ST_PACKAGE_SELECTION
+        package_dir_env=FES_ATARI_ST_PACKAGE_DIR
+        package_selection_env=FES_ATARI_ST_PACKAGE_SELECTION
+        ;;
       *) exit 2 ;;
     esac
     set -- --volume "$package_dir:/fes-$package_core-package:ro" \
@@ -197,6 +239,10 @@ docker_run() {
 run_container() {
   docker_run "$@"
 }
+if [ "${TARGET_IMAGE_TEST_CONTAINER:-0}" = 1 ]; then
+  run_container --rm test-image "$@"
+  exit 0
+fi
 native_runtime_source=
 native_runtime_mount=
 native_runtime_prefix=.

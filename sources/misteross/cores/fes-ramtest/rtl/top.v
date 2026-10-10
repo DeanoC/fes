@@ -121,6 +121,36 @@ module top #(
     wire [31:0] sdram_last;
     wire [15:0] sdram_was;
     wire [15:0] sdram_expect, sdram_got;
+    wire scan_start, scan_write, scan_pass, scan_fail, scan_stopped;
+    wire [25:0] scan_addr;
+    wire [15:0] scan_wdata;
+    wire [31:0] scan_errors;
+    wire byte_start, byte_write;
+    wire [25:0] byte_addr;
+    wire [15:0] byte_wdata;
+    wire [1:0] byte_enable;
+    wire byte_pass /* verilator public_flat_rd */;
+    wire byte_fail /* verilator public_flat_rd */;
+    wire byte_stopped, byte_timeout;
+    wire [7:0] byte_completed;
+    wire [15:0] byte_checks;
+    wire [25:0] byte_fault_addr;
+    wire [2:0] byte_fault_step;
+    wire [1:0] byte_fault_be;
+    wire [15:0] byte_fault_payload, byte_fault_expect, byte_fault_got;
+    wire [106:0] byte_status /* verilator public_flat_rd */ = {
+        byte_pass, byte_fail, byte_stopped, byte_timeout, byte_completed, byte_checks,
+        byte_fault_addr, byte_fault_step, byte_fault_be,
+        byte_fault_payload, byte_fault_expect, byte_fault_got
+    };
+    assign sdram_start = byte_pass ? scan_start : byte_start;
+    assign sdram_write = byte_pass ? scan_write : byte_write;
+    assign sdram_addr = byte_pass ? scan_addr : byte_addr;
+    assign sdram_wdata = byte_pass ? scan_wdata : byte_wdata;
+    assign sdram_pass = byte_pass && scan_pass;
+    assign sdram_fail = byte_fail || scan_fail;
+    assign sdram_stopped = byte_stopped || scan_stopped;
+    assign sdram_errors = byte_fail ? 32'd1 : scan_errors;
     wire [15:0] dq_out, dq_rise, dq_fall;
 `ifndef RAM_OSS_HIGH_SPEED
 `ifndef RAM_100_ONLY
@@ -255,44 +285,40 @@ module top #(
 `endif
 
     // Per-pattern counts stay on screen after the next rate re-inits the chip.
+    // The copy waits one cycle so a mismatch on the final word is included.
     wire [191:0] sdram_patterns;
-    reg [191:0] pat50 = 192'd0;
-    reg [191:0] pat75 = 192'd0;
-    reg [191:0] pat100 = 192'd0;
-    reg [2:0] pat_ok = 3'd0;
-    reg pat_seen = 1'b0;
+    wire [191:0] pat50, pat75, pat100;
+    wire [2:0] pat_ok;
     always @(posedge mem_clk) begin
         stop_sync <= {stop_sync[0], stop_level};
         mem_reset_sync <= {mem_reset_sync[0], mailbox_reset | rate_reset};
-        if (mem_reset_sync[1])
-            pat_seen <= 1'b0;
-        else if ((sdram_pass || sdram_fail) && !pat_seen) begin
-            pat_seen <= 1'b1;
-            case (rate)
-                2'd0: begin
-                    pat50 <= sdram_patterns;
-                    pat_ok[0] <= 1'b1;
-                end
-                2'd1: begin
-                    pat75 <= sdram_patterns;
-                    pat_ok[1] <= 1'b1;
-                end
-                default: begin
-                    pat100 <= sdram_patterns;
-                    pat_ok[2] <= 1'b1;
-                end
-            endcase
-        end
     end
+    // Follow the pattern scan. The combined status also rises when the
+    // byte-lane preflight fails, before any pattern count exists.
+    pattern_latch sdram_pattern_latch (
+        .clk(mem_clk), .reset(mem_reset_sync[1]), .rate(rate),
+        .pass(scan_pass), .fail(scan_fail), .counts(sdram_patterns),
+        .pat50(pat50), .pat75(pat75), .pat100(pat100), .pat_ok(pat_ok)
+    );
+
+    sdram_byte_lane byte_test (
+        .clk(mem_clk), .reset(mem_reset_sync[1]), .stop(stop_sync[1]),
+        .start(byte_start), .write(byte_write), .addr(byte_addr), .wdata(byte_wdata),
+        .byte_enable(byte_enable), .done(sdram_done && !byte_pass), .rdata(sdram_rdata),
+        .pass(byte_pass), .fail(byte_fail), .stopped(byte_stopped), .timed_out(byte_timeout),
+        .completed(byte_completed), .checks(byte_checks), .fault_addr(byte_fault_addr),
+        .fault_step(byte_fault_step), .fault_be(byte_fault_be), .fault_payload(byte_fault_payload),
+        .fault_expect(byte_fault_expect), .fault_got(byte_fault_got)
+    );
 
     mem_channel #(.ADDR_W(26), .WORDS(SDRAM_WORDS), .BASE(32'd0)) sdram_test (
-        .clk(mem_clk), .reset(mem_reset_sync[1]), .stop(stop_sync[1]),
-        .start(sdram_start), .write(sdram_write), .addr(sdram_addr), .wdata(sdram_wdata),
+        .clk(mem_clk), .reset(mem_reset_sync[1] || !byte_pass), .stop(stop_sync[1]),
+        .start(scan_start), .write(scan_write), .addr(scan_addr), .wdata(scan_wdata),
         .done(sdram_done), .rdata(sdram_rdata),
-        .busy(), .pass(sdram_pass), .fail(sdram_fail), .stopped(sdram_stopped),
+        .busy(), .pass(scan_pass), .fail(scan_fail), .stopped(scan_stopped),
         .phase(sdram_phase), .reading(sdram_reading), .shown_addr(sdram_shown),
         .fault_addr(sdram_fault), .last_addr(sdram_last), .fault_got(sdram_was),
-        .errors(sdram_errors), .pattern_errors(sdram_patterns),
+        .errors(scan_errors), .pattern_errors(sdram_patterns),
         .shown_expect(sdram_expect), .shown_got(sdram_got)
     );
 
@@ -307,13 +333,14 @@ module top #(
 `else
     localparam SDRAM_IO_OUTPUT_REGISTERS = 0;
 `endif
-    sdram_addon_port #(.IO_OUTPUT_REGISTERS(SDRAM_IO_OUTPUT_REGISTERS)) sdram (
+    sdram_addon_port #(.BYTE_MASK_ENABLED(1),
+                       .IO_OUTPUT_REGISTERS(SDRAM_IO_OUTPUT_REGISTERS)) sdram (
         .clk(mem_clk),
         .clk_pin(sdram_pin_clk),
         .rate(rate),
         .reset(mem_reset_sync[1]),
         .start(sdram_start), .write(sdram_write), .addr(sdram_addr), .wdata(sdram_wdata),
-        .write_byte_enable(2'b11), .initialized(),
+        .write_byte_enable(byte_pass ? 2'b11 : byte_enable), .initialized(),
         .done(sdram_done), .rdata(sdram_rdata),
         .sdram_clk(SDRAM_CLK), .sdram_cke(SDRAM_CKE),
         .sdram_ncs(SDRAM_nCS), .sdram_nras(SDRAM_nRAS),
@@ -517,6 +544,7 @@ module top #(
     assign ddr2_status[162:99] = 64'd0;
 
     ram_display display (
+        .byte_status(byte_status),
         .pixel_clk(pixel_clk),
         .x(playfield_x), .y(playfield_y), .active(playfield_active),
         .sdram_phase(sdram_phase), .sdram_reading(sdram_reading), .sdram_addr(sdram_shown),

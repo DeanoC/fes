@@ -117,6 +117,7 @@ type Build struct {
 }
 
 type Staged struct {
+	InitialMedia       *StagedInitialMedia         `json:"-"`
 	PartsComposition   *expansion.PartsComposition `json:"parts_composition,omitempty"`
 	PartDirectories    []PartDirectory             `json:"parts,omitempty"`
 	ROMLink            *ROMLinkIdentity            `json:"rom_link,omitempty"`
@@ -381,18 +382,22 @@ func Stage(ctx context.Context, root string, length int64, reader io.Reader) (St
 	if err := ctx.Err(); err != nil {
 		return Staged{}, err
 	}
-	data, err := io.ReadAll(io.LimitReader(&contextReader{ctx: ctx, reader: reader}, length+1))
-	if err != nil {
+	// The validated length bounds one allocation. ReadAll's geometric growth
+	// otherwise repeatedly copies a large map before it can be inspected.
+	data := make([]byte, int(length)+1)
+	n, err := io.ReadFull(&contextReader{ctx: ctx, reader: reader}, data)
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return Staged{}, err
 	}
-	if int64(len(data)) != length {
+	if int64(n) != length {
 		return Staged{}, errors.New("core package: upload length does not match the declared length")
 	}
-	manifest, payload, romMap, err := readArchive(data)
+	data = data[:n]
+	manifest, payload, romMap, err := readArchiveMembers(data, false)
 	if err != nil {
 		return Staged{}, err
 	}
-	descriptor, err := decode(manifest, payload, romMap)
+	descriptor, err := decodeContext(ctx, manifest, payload, romMap)
 	if err != nil {
 		return Staged{}, err
 	}
@@ -678,6 +683,15 @@ func readOpenFile(file *os.File, size, maximum int64, field string) ([]byte, err
 }
 
 func readArchive(data []byte) ([]byte, []byte, []byte, error) {
+	return readArchiveMembers(data, true)
+}
+
+// Stage owns the uploaded buffer through validation and private publication;
+// borrowing its payload/map avoids a second complete package allocation.
+// Clone the small manifest even here: descriptor strings must never pin the
+// complete upload if a TOML decoder borrows its input. Other callers retain
+// the original independent-member ownership for every member.
+func readArchiveMembers(data []byte, copyMembers bool) ([]byte, []byte, []byte, error) {
 	offset := 0
 	values := make([][]byte, 0, 2)
 	members := []struct {
@@ -702,7 +716,10 @@ func readArchive(data []byte) ([]byte, []byte, []byte, error) {
 		if padded > int64(len(data)-offset) {
 			return nil, nil, nil, fmt.Errorf("core package: archive member %s is truncated", member.name)
 		}
-		value := append([]byte(nil), data[offset:offset+int(size)]...)
+		value := data[offset : offset+int(size)]
+		if copyMembers || index == 0 {
+			value = bytes.Clone(value)
+		}
 		for _, padding := range data[offset+int(size) : offset+int(padded)] {
 			if padding != 0 {
 				return nil, nil, nil, fmt.Errorf("core package: archive member %s has nonzero padding", member.name)
@@ -779,11 +796,22 @@ func allZero(data []byte) bool {
 }
 
 func decode(manifest, payload []byte, maps ...[]byte) (Descriptor, error) {
-	d, _, err := decodeWithROMMap(manifest, payload, maps...)
+	return decodeContext(context.Background(), manifest, payload, maps...)
+}
+
+func decodeContext(ctx context.Context, manifest, payload []byte, maps ...[]byte) (Descriptor, error) {
+	d, _, err := decodeWithROMMapContext(ctx, manifest, payload, maps...)
 	return d, err
 }
 
 func decodeWithROMMap(manifest, payload []byte, maps ...[]byte) (Descriptor, *expansion.ROMMap, error) {
+	return decodeWithROMMapContext(context.Background(), manifest, payload, maps...)
+}
+
+func decodeWithROMMapContext(ctx context.Context, manifest, payload []byte, maps ...[]byte) (Descriptor, *expansion.ROMMap, error) {
+	if err := ctx.Err(); err != nil {
+		return Descriptor{}, nil, err
+	}
 	if len(manifest) < 1 || len(manifest) > MaxManifestSize || !utf8.Valid(manifest) {
 		return Descriptor{}, nil, errors.New("core package: manifest must be 1 through 65536 valid UTF-8 bytes")
 	}
@@ -831,7 +859,7 @@ func decodeWithROMMap(manifest, payload []byte, maps ...[]byte) (Descriptor, *ex
 		if int64(len(mapping)) != size || hex.EncodeToString(hash[:]) != sha {
 			return Descriptor{}, nil, errors.New("ROM map size or digest mismatch")
 		}
-		linkedMap, err := expansion.ParseROMMap(context.Background(), mapping, descriptor.Payload.SHA256, int(sourceSize))
+		linkedMap, err := expansion.ParseROMMap(ctx, mapping, descriptor.Payload.SHA256, int(sourceSize))
 		if err != nil {
 			return Descriptor{}, nil, fmt.Errorf("ROM map: %w", err)
 		}

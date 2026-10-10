@@ -1,0 +1,101 @@
+"""Private root-operated geometry diagnostic; no compatibility pass oracle."""
+from pathlib import Path
+import operator_common as oc
+import hashlib,json,os,subprocess,time,struct,shlex
+OUT=oc.OUT;ROOT=oc.ROOT;REV='4ab1d84b4967394d6f4edf4580e2f7dcb29cf096'
+PKG='2b7039a2ce0fe4e16a8a317a8c7c0f5c2d803f9941b38936e915f491c4d0d81d';BUILD='32b1d68a19c0bf2bb2cadafc00b2976e'
+ROM=ROOT.parent/'atari-520st-interaction/hardware-20261006/guest-restore-proof/etos192us.img'
+ROM_SHA='8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc'
+PACKAGE=ROOT/'fes/out/work/misteross-4ab1d84b4967394d6f4edf4580e2f7dcb29cf096/sources/misteross/build/packages'/ (PKG+'.fcore')
+sha=lambda b:hashlib.sha256(b).hexdigest()
+assert sha(ROM.read_bytes())==ROM_SHA
+assert sha(oc.CLI.read_bytes())==oc.HOST['cli_sha256']
+assert sha((OUT/'bin/fogcast-api').read_bytes())==oc.HOST['host_binary_sha256']
+run=OUT/('geometry-restore-'+time.strftime('%Y%m%dT%H%M%S'));run.mkdir();prefix=run.name+'/'
+def save(n,v):oc.save(prefix+n,v)
+def cmd(n,*args):
+ print('Probe step: '+n,flush=True)
+ return oc.command(prefix+n,*args)
+identity=None;game=None;started=False
+receipt={'source_revision':REV,'package_id':PKG,'build_id':BUILD,'classification':'derived hardware diagnostic, built-in Direct; no demo/raster or factory acceptance','demo_compatibility_asserted':False,'fixtures':[],'pass':False}
+def flush():save('receipt.json',receipt)
+def active():
+ v=oc.api('/api/v1/session');p=v.get('core_package',{})
+ assert v['state']=='active' and not v.get('error') and not v.get('last_error')
+ assert all(v.get(k)==val for k,val in identity.items())
+ assert p['package_id']==PKG and p['build_id']==BUILD and p['generation']==generation
+ assert p['rom_link']['source_sha256']==ROM_SHA
+ for required in ('fes.media.atari-st-floppy','fes.media.atari-st-floppy-write','fes.media.atari-st-floppy-geometry'):
+  assert {'id':required,'major':1,'minor':0} in p['active_interfaces']
+ h,s,l=(oc.client.request(x) for x in ('/v1/health','/v1/status','/v1/kit/lease'))
+ assert h['target_id']==oc.TARGET and h['boot_id']==oc.BOOT and h['artifacts']['image_sha256']==oc.IMAGE['image_sha256']
+ assert s['state']=='active' and s['core_package']['generation']==generation and l['state']=='held' and l['owner']==oc.HOST['lease_owner']
+ return v
+
+def record(name,base,disk,revision):
+ active();namespace=sha(('fes-media-data-v1\0fes.atari-st\0'+game+'\0'+str(0)+'\0'+base).encode())
+ path='/media/fat/fogcast/core-data/media/'+namespace+'/record.bin';q=shlex.quote(path)
+ script=['set -eu']
+ for p in list(Path(path).parents)[::-1]+[Path(path)]:
+  if str(p)!='/':script.append('test ! -L '+shlex.quote(str(p)))
+ script+=['test -f '+q,'test "$(wc -c < '+q+')" -eq '+str(len(disk)+173),'cat '+q]
+ with (run/(name+'-ssh.stderr')).open('wb') as e:data=subprocess.check_output(oc.ssh,input=('\n'.join(script)+'\n').encode(),stderr=e,env=oc.environment,timeout=60)
+ assert sha(data)==revision and data[:8]==b'FESDISK1'
+ assert data[8:40]==hashlib.sha256(b'fes.atari-st').digest() and data[40:72]==hashlib.sha256(game.encode()).digest() and data[72:104]==bytes.fromhex(base)
+ unit,major,minor,n,lo,hi=struct.unpack_from('<6H',data,104)
+ assert (unit,major,minor,n,lo|(hi<<16))==(0,1,1,25,len(disk))
+ assert data[116:141]==b'fes.atari-st-floppy.image' and data[141:-32]==disk and hashlib.sha256(data[:-32]).digest()==data[-32:]
+ (run/(name+'-record.bin')).write_bytes(data)
+ return {'namespace':namespace,'record_sha256':sha(data),'layout_major':major,'layout_minor':minor,'payload_bytes':len(disk),'payload_sha256':sha(data[141:-32]),'all_bytes_equal_immutable_base':True}
+
+def stop_owned():
+ global identity
+ if identity:
+  active();v=cmd('stop-'+game[:8],'stop');assert v['state']=='idle';identity=None;oc.wait_free()
+
+def finish_host(label):
+ stop_owned();h,s,l=oc.state(REV);assert s['state']=='idle' and l['state']=='free'
+ subprocess.run(['docker','stop','--time','15',oc.HOST['container_id']],check=True,stdout=subprocess.DEVNULL)
+ oc.restore_menu(label)
+try:
+ oc.idle(REV)
+ seeds=[p for p in sorted(OUT.glob('geometry-20*/receipt.json')) if json.loads(p.read_text()).get('pass')]
+ assert seeds
+ seed_path=seeds[-1];seed=json.loads(seed_path.read_text());f=next(f for f in seed['fixtures'] if f['name']=='cuddly')
+ game=f['game_id'];base=f['base_media_id'];disk=(ROOT/'downloads/cuddly.st').read_bytes();assert sha(disk)==base and len(disk)==839680
+ receipt.update(phase='cold-restore',seed_receipt=str(seed_path),game_id=game,expected_saved_revision=f['saved_revision'])
+ c=json.loads(subprocess.check_output(['docker','inspect',oc.HOST['container_id']],text=True))[0]
+ assert c['Id']==oc.HOST['container_id'] and c['Image']==oc.HOST['image_id'] and not c['State']['Running']
+ subprocess.run(['systemctl','--user','stop','fogcast-api.service'],check=True);started=True
+ subprocess.run(['docker','start',oc.HOST['container_id']],check=True,stdout=subprocess.DEVNULL)
+ for _ in range(90):
+  try:
+   h=oc.api('/api/v1/health');assert h['host']['revision']==REV;break
+  except Exception:time.sleep(.5)
+ else:raise RuntimeError('Private cold host unavailable')
+ assert oc.api('/api/v1/session')['state']=='idle'
+ v=cmd('cuddly-cold-launch','launch',game);identity={k:v[k] for k in ('id','target','target_id','game_id')};generation=v['core_package']['generation']
+ assert identity['target']=='dev' and identity['target_id']==oc.TARGET and identity['game_id']==game
+ v=active();u=next(u for u in v['core_package']['media_units'] if u['unit']==0)
+ assert u['state']=='ready' and u['persistence']['revision']==f['saved_revision'] and u['persistence']['base_media_id']==base
+ receipt['restored_session']=v;flush()
+ oc.remote('/etc/init.d/S60fogcast-kit stop\n',prefix+'cuddly-restore-launcher-stop.log')
+ time.sleep(20);active();oc.capture(prefix+'cuddly-restored-boot')
+ saved=cmd('cuddly-restored-save','save-disk');v=active();save('after-restored-save-session.json',v)
+ assert saved['ID']==v['id'] and saved['State']==v['state'] and saved['CorePackage']['media_units']==v['core_package']['media_units']
+ binding=next(u for u in v['core_package']['media_units'] if u['unit']==0)['persistence'];proof=record('cuddly-restored-saved',base,disk,binding['revision']);assert proof==f['snapshot']
+ receipt['snapshot']=proof;stop_owned();receipt['pass']=True;flush();finish_host('after-cold-geometry-restore');started=False
+ print('Cold host restored exact maximum-size layout 1.1 image; complete saved payload unchanged; normal menu restored.')
+except BaseException as e:
+ receipt['error']=str(e);flush()
+ if started:
+  try:
+   try:v=oc.api('/api/v1/session')
+   except Exception:
+    h,s,l=oc.state(REV);assert s['state']=='idle' and l['state']=='free';v={'state':'idle'}
+   if identity is None and v.get('state')=='active' and v.get('game_id')==game and v.get('core_package',{}).get('package_id')==PKG:
+    identity={k:v[k] for k in ('id','target','target_id','game_id')};generation=v['core_package']['generation']
+   finish_host('after-cold-geometry-failure')
+  except BaseException as cleanup:
+   receipt['cleanup_error']=str(cleanup);flush();raise
+ raise

@@ -32,24 +32,38 @@ type PartsBundle struct {
 
 func PartsShell(inspection Inspection, payload []byte) (expansion.PartsShell, error) {
 	d := inspection.Descriptor
-	if d.Format != 2 || d.Core.ID != "fes.coleco" || d.ABI.ID != "fes.application" || d.ABI.Major != 1 || d.ABI.Minor != 0 {
-		return expansion.PartsShell{}, errors.New("parts require a format-2 Coleco application developer shell")
+	st := d.Format == 3 && d.Core.ID == "fes.atari-st" && d.ROM != nil && d.ROM.Role == "firmware"
+	coleco := d.Format == 2 && d.Core.ID == "fes.coleco"
+	abi := "fes.application"
+	if st {
+		abi = "fes.computer"
+	}
+	if (!st && !coleco) || d.ABI.ID != abi || d.ABI.Major != 1 || d.ABI.Minor != 0 {
+		return expansion.PartsShell{}, errors.New("parts require a closed Coleco application or ST firmware shell")
 	}
 	video, cpu := false, false
 	layout := ""
 	for _, i := range d.Interfaces {
 		switch i.ID {
 		case expansion.VideoSlot, expansion.NativeVideoSlot:
-			if video || i.Required || i.Major != 1 || i.Minor != 0 {
+			if video || i.Required || i.Major != 1 || i.Minor != 0 || (st && i.ID != expansion.VideoSlot) {
 				return expansion.PartsShell{}, errors.New("unsupported video fabric socket")
 			}
 			video = true
 			layout = expansion.ColecoVideoLayout
+			if st {
+				layout = expansion.AtariStVideoLayout
+			}
 			if i.ID == expansion.NativeVideoSlot {
 				layout = expansion.ColecoNativeVideoLayout
 			}
+		case expansion.AtariStSlot:
+			if !st || cpu || i.Required || i.Major != 1 || i.Minor != 0 {
+				return expansion.PartsShell{}, errors.New("parts require optional ST cartridge bus 1.0")
+			}
+			cpu = true
 		case expansion.ColecoSlot:
-			if cpu || i.Required || i.Major != 2 || i.Minor != 0 {
+			if st || cpu || i.Required || i.Major != 2 || i.Minor != 0 {
 				return expansion.PartsShell{}, errors.New("parts require the optional Coleco CPU bus 2.0")
 			}
 			cpu = true
@@ -226,6 +240,10 @@ func StageParts(ctx context.Context, root string, size int64, input io.Reader) (
 	if err != nil {
 		return Staged{}, err
 	}
+	return stagePartsBundle(ctx, root, bundle)
+}
+
+func stagePartsBundle(ctx context.Context, root string, bundle PartsBundle) (Staged, error) {
 	staged, err := Stage(ctx, root, int64(len(bundle.Package)), bytes.NewReader(bundle.Package))
 	if err != nil {
 		return Staged{}, err

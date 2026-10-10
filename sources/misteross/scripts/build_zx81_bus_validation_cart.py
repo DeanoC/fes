@@ -22,7 +22,7 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import build_fes_zx81_oss as shell_recipe
 from scripts.core_package import read_package
-from scripts.fes_build_common import _authenticate_tools, _prepare_output, _require_clean_source
+from scripts.fes_build_common import _authenticate_tools, _prepare_output, _require_clean_source, reject_async_m10k_reads
 from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram_diff, CramRect
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -32,7 +32,9 @@ CART_SOURCES = {"ram16k": SOURCES, "zonx": ("cores/fes-zx81/expansions/zonx.v", 
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json", "scaffold.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log", "clocks.sdc")
 PLACER_SEED = 2
-REQUIRED_CLOCKS_MHZ = {"clk_sys": 52.224, "pixel_clk": 74.25, "audio_clk": 12.288}
+# nextpnr names a clock after its net and ignores create_clock -name.
+# Session display keeps the 74.25 MHz pixel clock as display.control.clk.
+REQUIRED_CLOCKS_MHZ = {"clk_sys": 52.224, "display.control.clk": 74.25, "audio_clk": 12.288}
 CRAM_REGION = (1769, 32, 2806, 7024)  # fes.zx81-bus.socket/2, half-open
 
 def digest(data: bytes) -> str:
@@ -155,6 +157,8 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
             path = output / artifact
             if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
                 raise ValueError(f"{name} did not produce nonempty {artifact}")
+        netlist_name = "cart.json" if name == "synthesis" else "cart-routed.json"
+        reject_async_m10k_reads(json.loads((output / netlist_name).read_text()))
     timing = json.loads((output / "timing.json").read_text())
     validate_cart_timing(timing)
     if (output / "clocks.sdc").read_bytes() != clock_constraints:

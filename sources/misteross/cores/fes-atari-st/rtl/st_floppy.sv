@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Original WD1772/ST DMA register model for a read-only 720 KiB .st image.
+// Original WD1772/ST DMA register model for bounded raw .st geometries.
 // Primary contracts: WD177X-00 datasheet and EmuTOS VERSION_1_4 bios/{fdc,dma}.h
 // https://info-coach.fr/atari/documents/general/fd/WD177x-00.pdf
 // https://github.com/emutos/emutos/tree/978e37569bff95841e42675d11fcc6799aad8483/bios
@@ -15,12 +15,15 @@
 // Sector images omit flux, CRC and deleted-sector metadata. Step/spin-up timing
 // is reduced; read-address/track, formatting, PIO streams and ACSI are absent.
 module st_floppy #(
+    parameter bit ENABLE_WRITE = 0,
     parameter integer COMMAND_DELAY_CYCLES = 64,
     parameter integer SYSTEM_CLOCK_HZ = 52224000,
     parameter integer INDEX_PERIOD_CYCLES = SYSTEM_CLOCK_HZ / 5
 ) (
     input  wire        clk,
     input  wire        reset,
+    input  wire        cold_reset,
+    input  wire        media_frozen,
     input  wire        mmio_req,
     input  wire [3:0]  mmio_addr,
     input  wire        mmio_write,
@@ -31,22 +34,31 @@ module st_floppy #(
     input  wire [1:0]  drive_select,
     input  wire        side,
     input  wire        media_ready,
+    input  wire [31:0] media_size,
     output wire        media_req,
     output wire [19:0] media_addr,
     input  wire [7:0]  media_data,
     input  wire        media_valid,
+    output wire        media_write_req,
+    output wire [19:1] media_write_addr,
+    output wire [15:0] media_write_data,
+    input  wire        media_write_ready,
+    output wire        media_write_busy,
+    output wire        media_changed,
     output wire        dma_req,
     output wire [23:0] dma_addr,
+    output wire        dma_write,
     output wire [15:0] dma_wdata,
     output wire [1:0]  dma_byte_enable,
     input  wire        dma_ready,
+    input  wire [15:0] dma_rdata,
     output reg         irq
 );
     localparam integer DELAY_BITS = $clog2(COMMAND_DELAY_CYCLES + 1);
     localparam integer INDEX_BITS = INDEX_PERIOD_CYCLES > 1 ?
                                     $clog2(INDEX_PERIOD_CYCLES) : 1;
     typedef enum logic [2:0] {
-        IDLE, TYPE_I_WAIT, MEDIA_WAIT, MEDIA_GAP, DMA_WAIT, DMA_GAP, NO_DMA
+        IDLE, TYPE_I_WAIT, MEDIA_WAIT, MEDIA_GAP, DMA_WAIT, DMA_GAP, NO_DMA, WRITE_WAIT
     } state_t;
     state_t state;
     reg [8:0] dma_mode;
@@ -55,7 +67,7 @@ module st_floppy #(
     reg [7:0] head_track;
     reg step_direction;
     reg type_i, motor_on, record_error, lost_data, dma_error, drq;
-    reg multi_sector, have_high_byte;
+    reg multi_sector, have_high_byte, writing;
     reg [19:0] media_cursor;
     reg [15:0] word_buffer;
     reg [7:0] sector_word;
@@ -67,7 +79,7 @@ module st_floppy #(
     reg [3:0] idle_revolutions;
 
     wire drive_a = drive_select == 2'b10;
-    wire busy = state != IDLE;
+    wire busy = state != IDLE || media_write_busy;
     wire index_pulse = motor_on && media_ready && drive_a &&
                        index_count == INDEX_BITS'(INDEX_PERIOD_CYCLES - 1);
     wire dma_address_valid = !dma_cursor[0] && dma_cursor >= 24'd8 &&
@@ -75,7 +87,7 @@ module st_floppy #(
     // Ordinary IRQ clears on status/new-command. A D8 immediate IRQ remains
     // latched until D0, as specified for WD1772 Type IV commands.
     wire [7:0] fdc_status = {
-        motor_on, drive_a, type_i, record_error, 1'b0,
+        motor_on, drive_a && (!ENABLE_WRITE || !media_ready), type_i, record_error, 1'b0,
         type_i ? (drive_a && head_track == 0) : lost_data,
         type_i ? index_pulse : drq, busy
     };
@@ -116,17 +128,59 @@ module st_floppy #(
     // Removal also withdraws a word that has not reached RAM yet. A shared
     // memory controller may drain a command it already issued, without
     // returning that old completion to this canceled transfer.
-    assign dma_req = state == DMA_WAIT && dma_address_valid &&
-                     media_ready && drive_a && !reset;
-    assign dma_addr = dma_cursor;
+    wire writer_dma_req;
+    wire [23:0] writer_dma_addr;
+    wire writer_ready, writer_error;
+    wire writer_req = ENABLE_WRITE && state == WRITE_WAIT && media_ready && drive_a && !reset;
+    st_floppy_writer writer (
+        .clk(clk), .cold_reset(cold_reset), .frozen(media_frozen),
+        .job_req(writer_req), .job_ram_addr(dma_cursor), .job_media_addr(media_cursor[19:1]),
+        .job_ready(writer_ready), .job_error(writer_error), .busy(media_write_busy), .changed(media_changed),
+        .dma_req(writer_dma_req), .dma_addr(writer_dma_addr), .dma_ready(dma_ready), .dma_data(dma_rdata),
+        .media_req(media_write_req), .media_addr(media_write_addr), .media_data(media_write_data),
+        .media_ready(media_write_ready)
+    );
+    assign dma_req = writer_dma_req || (state == DMA_WAIT && dma_address_valid &&
+                     media_ready && drive_a && !reset);
+    assign dma_addr = writer_dma_req ? writer_dma_addr : dma_cursor;
+    assign dma_write = !writer_dma_req;
     assign dma_wdata = word_buffer;
     assign dma_byte_enable = 2'b11;
 
     integer computed_head;
     integer computed_track;
     reg computed_direction;
-    wire [19:0] sector_offset = 20'(((int'(track_reg) * 2 + (side ? 0 : 1)) * 9 +
-                                   int'(sector_reg) - 1) * 512);
+    // Physical geometry comes from the committed upload length, never from
+    // the guest-writable boot sector. All supported sizes identify one shape.
+    reg [7:0] media_tracks;
+    reg two_heads, ten_sectors;
+    always @* begin
+        media_tracks = 0;
+        two_heads = 0;
+        ten_sectors = 0;
+        case (media_size)
+            32'd368640: begin media_tracks = 8'd80; two_heads = 1'b0; ten_sectors = 1'b0; end
+            32'd409600: begin media_tracks = 8'd80; two_heads = 1'b0; ten_sectors = 1'b1; end
+            32'd737280: begin media_tracks = 8'd80; two_heads = 1'b1; ten_sectors = 1'b0; end
+            32'd819200: begin media_tracks = 8'd80; two_heads = 1'b1; ten_sectors = 1'b1; end
+            32'd373248: begin media_tracks = 8'd81; two_heads = 1'b0; ten_sectors = 1'b0; end
+            32'd414720: begin media_tracks = 8'd81; two_heads = 1'b0; ten_sectors = 1'b1; end
+            32'd746496: begin media_tracks = 8'd81; two_heads = 1'b1; ten_sectors = 1'b0; end
+            32'd829440: begin media_tracks = 8'd81; two_heads = 1'b1; ten_sectors = 1'b1; end
+            32'd377856: begin media_tracks = 8'd82; two_heads = 1'b0; ten_sectors = 1'b0; end
+            32'd419840: begin media_tracks = 8'd82; two_heads = 1'b0; ten_sectors = 1'b1; end
+            32'd755712: begin media_tracks = 8'd82; two_heads = 1'b1; ten_sectors = 1'b0; end
+            32'd839680: begin media_tracks = 8'd82; two_heads = 1'b1; ten_sectors = 1'b1; end
+            default: ;
+        endcase
+    end
+    wire [7:0] last_sector = ten_sectors ? 8'd10 : 8'd9;
+    wire geometry_valid = media_tracks != 0 && (two_heads || side);
+    wire [8:0] track_slot = two_heads ? {track_reg, 1'b0} + 9'(!side) : {1'b0, track_reg};
+    wire [12:0] sector_slot = ten_sectors ?
+        ({4'd0, track_slot} << 3) + ({4'd0, track_slot} << 1) :
+        ({4'd0, track_slot} << 3) + {4'd0, track_slot};
+    wire [19:0] sector_offset = ({7'd0, sector_slot} + 20'(sector_reg) - 20'd1) << 9;
     // These reserved/word-pair bits have no original-ST behavior.
     wire unused_inputs = mmio_addr[0] ^ (^mmio_wdata[15:9]) ^
                          dma_mode[5] ^ dma_mode[0];
@@ -188,6 +242,7 @@ module st_floppy #(
             irq <= 1'b0;
             multi_sector <= 1'b0;
             have_high_byte <= 1'b0;
+            writing <= 1'b0;
             media_cursor <= 20'd0;
             word_buffer <= 16'd0;
             sector_word <= 8'd0;
@@ -277,7 +332,7 @@ module st_floppy #(
                                 irq <= 1'b1;
                             end else begin
                                 sector_reg <= sector_reg + 1'b1;
-                                if (sector_reg == 8'd9) begin
+                                if (sector_reg == last_sector) begin
                                     record_error <= 1'b1;
                                     state <= IDLE;
                                     irq <= 1'b1;
@@ -292,7 +347,31 @@ module st_floppy #(
                         end else sector_word <= sector_word + 1'b1;
                     end
                 end
-                DMA_GAP: state <= MEDIA_WAIT;
+                DMA_GAP: state <= writing ? WRITE_WAIT : MEDIA_WAIT;
+                WRITE_WAIT: begin
+                    if (!media_ready || !drive_a) begin
+                        state <= IDLE; record_error <= 1; drq <= 0; irq <= 1;
+                    end else if (writer_ready) begin
+                        drq <= 0;
+                        if (writer_error) begin
+                            state <= IDLE; dma_error <= 1; lost_data <= 1; irq <= 1;
+                        end else begin
+                            dma_cursor <= dma_cursor + 24'd512;
+                            dma_base <= dma_cursor + 24'd512;
+                            sector_count <= sector_count - 1'b1;
+                            if (!multi_sector) begin state <= IDLE; irq <= 1; end
+                            else begin
+                                sector_reg <= sector_reg + 1'b1;
+                                media_cursor <= media_cursor + 20'd512;
+                                if (sector_reg == last_sector) begin
+                                    record_error <= 1; state <= IDLE; irq <= 1;
+                                end else if (sector_count == 1) begin
+                                    state <= NO_DMA; drq <= 1;
+                                end else state <= DMA_GAP;
+                            end
+                        end
+                    end
+                end
                 NO_DMA: begin
                     if (!media_ready || !drive_a) begin
                         state <= IDLE;
@@ -379,16 +458,17 @@ module st_floppy #(
                     new_head <= 8'(computed_head);
                     new_track <= 8'(computed_track);
                     seek_error <= !drive_a ||
-                        (mmio_wdata[2] && (!media_ready || computed_head >= 80 ||
+                        (mmio_wdata[2] && (!media_ready || !geometry_valid || computed_head >= int'(media_tracks) ||
                                           computed_head != computed_track));
                     command_delay <= DELAY_BITS'(COMMAND_DELAY_CYCLES);
                     state <= TYPE_I_WAIT;
                 end else if (mmio_wdata[7:5] == 3'b100) begin
                     multi_sector <= mmio_wdata[4];
+                    writing <= 0;
                     dma_cursor <= dma_base;
                     sector_word <= 8'd0;
-                    if (!drive_a || !media_ready || track_reg >= 8'd80 ||
-                        track_reg != head_track || sector_reg < 8'd1 || sector_reg > 8'd9) begin
+                    if (!drive_a || !media_ready || !geometry_valid || track_reg >= media_tracks ||
+                        track_reg != head_track || sector_reg < 8'd1 || sector_reg > last_sector) begin
                         record_error <= 1'b1;
                         irq <= 1'b1;
                     end else if (!dma_mode[7] || dma_mode[8] || dma_mode[6] || sector_count == 0) begin
@@ -399,9 +479,19 @@ module st_floppy #(
                         media_cursor <= sector_offset;
                         state <= MEDIA_WAIT;
                     end
+                end else if (mmio_wdata[7:5] == 3'b101 && ENABLE_WRITE) begin
+                    multi_sector <= mmio_wdata[4]; writing <= 1;
+                    dma_cursor <= dma_base; media_cursor <= sector_offset;
+                    if (!drive_a || !media_ready || !geometry_valid || track_reg >= media_tracks ||
+                        track_reg != head_track || sector_reg < 1 || sector_reg > last_sector || mmio_wdata[0]) begin
+                        record_error <= 1; irq <= 1;
+                    end else if (!dma_mode[7] || !dma_mode[8] || dma_mode[6] || sector_count == 0) begin
+                        lost_data <= 1; dma_error <= 1; irq <= 1;
+                    end else begin state <= WRITE_WAIT; drq <= 1; end
                 end else if (mmio_wdata[7:5] == 3'b101 || mmio_wdata[7:4] == 4'hf) begin
-                    // Read-only medium: command completes with write protect,
-                    // without reading RAM or changing any media byte.
+                    // Legacy disks are write protected; raw .st has no track
+                    // stream or deleted-sector metadata even in writable mode.
+                    if (ENABLE_WRITE) record_error <= 1;
                     irq <= 1'b1;
                 end else begin
                     record_error <= 1'b1;

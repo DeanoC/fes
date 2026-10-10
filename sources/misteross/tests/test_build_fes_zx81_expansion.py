@@ -236,7 +236,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
         self.stack.enter_context(patch.object(cart_producer.subprocess, "run", side_effect=self.run_tool))
         self.mode = "valid"
         self.timing = {"fmax": {"clk_sys": {"achieved": 60, "constraint": 52.224},
-                                "pixel_clk": {"achieved": 100, "constraint": 74.250068664550781},
+                                "display.control.clk": {"achieved": 100, "constraint": 74.250068664550781},
                                 "audio_clk": {"achieved": 20, "constraint": 12.288}}}
         self.calls = []
         self.output = None
@@ -253,7 +253,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
             for old in ("cart.rbf", "cart-routed.json", "timing.json", "linked.rbf", "build-summary.json"):
                 self.assertFalse((self.output / old).exists(), old)
             if self.mode != "missing_synthesis":
-                netlist.write_text("{}")
+                netlist.write_text('{"modules": {}}')
         elif self.mode != "missing_route":
             self.assertEqual(command[command.index("--fes-cram-region") + 1], "1769,32,2806,7024")
             sdc = Path(command[command.index("--sdc") + 1])
@@ -261,10 +261,10 @@ class ZX81CartPublicationTests(unittest.TestCase):
             self.assertEqual(Path(command[command.index('--json') + 1]), self.output / 'scaffold.json')
             self.assertEqual((self.output / 'scaffold.json').read_bytes(), b'scaffold')
             self.assertIn("-period 19.148284313725 [get_nets {clk_sys}]", sdc.read_text())
-            self.assertIn("-period 13.468013468013 [get_nets {pixel_clk}]", sdc.read_text())
+            self.assertIn("-period 13.468013468013 [get_nets {display.control.clk}]", sdc.read_text())
             self.assertIn("-period 81.380208333333 [get_nets {audio_clk}]", sdc.read_text())
             (self.output / "cart.rbf").write_bytes(b"fresh cart")
-            (self.output / "cart-routed.json").write_text("{}")
+            (self.output / "cart-routed.json").write_text('{"modules": {}}')
             (self.output / "timing.json").write_text(json.dumps(self.timing))
             if self.mode == 'scaffold_mutation':
                 (self.output / 'scaffold.json').write_bytes(b'changed')
@@ -287,7 +287,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
         self.assertEqual((self.output / "linked.rbf").read_bytes(), b"linked")
         self.assertEqual(json.loads((self.output / "build-summary.json").read_text())["expansion_id"], result.stem)
         recipe = json.loads((self.output / "build-summary.json").read_text())["recipe"]
-        self.assertEqual(recipe["required_clocks_mhz"], {"clk_sys": 52.224, "pixel_clk": 74.25,
+        self.assertEqual(recipe["required_clocks_mhz"], {"clk_sys": 52.224, "display.control.clk": 74.25,
                                                           "audio_clk": 12.288})
         self.assertEqual(recipe["cram_region"], [1769, 32, 2806, 7024])
         self.assertEqual(recipe["clock_constraints_sha256"], cart_producer.digest((self.output / "clocks.sdc").read_bytes()))
@@ -354,7 +354,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
     def test_actual_audio_clock_report_publishes(self):
         self.timing = {"fmax": {
             "clk_sys": {"achieved": 52.803886, "constraint": 52.224},
-            "pixel_clk": {"achieved": 122.865, "constraint": 74.25},
+            "display.control.clk": {"achieved": 122.865, "constraint": 74.25},
             "audio_clk": {"achieved": 20, "constraint": 12.288},
         }}
         self.assertTrue(self.build().is_file())
@@ -393,18 +393,18 @@ class ZX81CartPublicationTests(unittest.TestCase):
     def test_missing_wrong_or_failing_clock_cannot_publish(self):
         good = copy.deepcopy(self.timing)
         cases = []
-        missing = copy.deepcopy(good); del missing["fmax"]["pixel_clk"]; cases.append(missing)
+        missing = copy.deepcopy(good); del missing["fmax"]["display.control.clk"]; cases.append(missing)
         missing_audio = copy.deepcopy(good); del missing_audio["fmax"]["audio_clk"]; cases.append(missing_audio)
         wrong = copy.deepcopy(good); wrong["fmax"]["clk_sys"]["constraint"] = 74.25; cases.append(wrong)
-        slow = copy.deepcopy(good); slow["fmax"]["pixel_clk"]["achieved"] = 74.0; cases.append(slow)
+        slow = copy.deepcopy(good); slow["fmax"]["display.control.clk"]["achieved"] = 74.0; cases.append(slow)
         nonfinite = copy.deepcopy(good); nonfinite["fmax"]["clk_sys"]["achieved"] = float("nan"); cases.append(nonfinite)
         too_low = copy.deepcopy(good); too_low["fmax"]["clk_sys"] = {"constraint": 51.999, "achieved": 51.9995}; cases.append(too_low)
         extra = copy.deepcopy(good); extra["fmax"]["unexpected"] = {"constraint": 1, "achieved": 2}; cases.append(extra)
         duplicate = copy.deepcopy(good)
-        duplicate["fmax"]["hdmi_i2s.pixel_clk"] = copy.deepcopy(duplicate["fmax"]["pixel_clk"])
+        duplicate["fmax"]["hdmi_i2s.pixel_clk"] = copy.deepcopy(duplicate["fmax"]["display.control.clk"])
         cases.append(duplicate)
         unexpected_alias = copy.deepcopy(good)
-        unexpected_alias["fmax"]["unexpected.pixel_clk"] = unexpected_alias["fmax"].pop("pixel_clk")
+        unexpected_alias["fmax"]["pixel_clk"] = unexpected_alias["fmax"].pop("display.control.clk")
         cases.append(unexpected_alias)
         slow_audio = copy.deepcopy(good)
         slow_audio["fmax"]["audio_clk"]["achieved"] = 12.0
@@ -439,6 +439,93 @@ class ZX81CartPublicationTests(unittest.TestCase):
                     self.assertEqual(self.calls, ["synthesis", "route"])
                 if mode.endswith("_error"):
                     self.assertIn("ERROR:", (self.output / (self.calls[-1] + ".log")).read_text())
+
+
+def _routed(routes: dict[str, str]) -> dict:
+    return {"modules": {"top": {"netnames": {
+        name: {"attributes": {"ROUTING": routing}} for name, routing in routes.items()
+    }}}}
+
+
+class ZX81PlugAddrExitTests(unittest.TestCase):
+    def test_fabric_exit_follows_the_socket_row(self) -> None:
+        self.assertEqual(expansion.plug_addr_fabric_exit(0), "GIN.24.1.0")
+        self.assertEqual(expansion.plug_addr_fabric_exit(19), "GIN.24.1.38")
+        self.assertEqual(expansion.plug_addr_fabric_exit(32), "GIN.24.2.24")
+        self.assertEqual(expansion.plug_addr_fabric_exit(39), "GIN.24.2.38")
+        for bit in (-1, 46):
+            with self.assertRaises(ValueError):
+                expansion.plug_addr_fabric_exit(bit)
+
+    def test_another_net_on_the_exit_blocks_that_bit(self) -> None:
+        wire = expansion.plug_addr_fabric_exit(39)
+        design = _routed({
+            "plug_addr[39]": wire,
+            "video.vsync": f"WIRE.24.2.COMBOUT[19].{wire};1;H6.25.2.6",
+            "display.rgb[14]": expansion.plug_addr_fabric_exit(32),
+        })
+        self.assertEqual(
+            expansion.blocked_plug_addr_exits(design),
+            [(32, "display.rgb[14]"), (39, "video.vsync")],
+        )
+
+    def test_the_plug_net_may_own_its_own_exit(self) -> None:
+        wire = expansion.plug_addr_fabric_exit(39)
+        design = _routed({"plug_addr[39]": f"WIRE.24.2.FFOUT[38].{wire}"})
+        self.assertEqual(expansion.blocked_plug_addr_exits(design), [])
+
+    def test_a_longer_wire_index_is_not_the_exit(self) -> None:
+        wire = expansion.plug_addr_fabric_exit(39)
+        self.assertEqual(expansion.blocked_plug_addr_exits(_routed({"other": wire + "0"})), [])
+        self.assertEqual(expansion.blocked_plug_addr_exits(_routed({"other": "GIN.24.2.3"})), [])
+        self.assertEqual(expansion.blocked_plug_addr_exits({}), [])
+        self.assertEqual(expansion.blocked_plug_addr_exits({"modules": {"top": {}}}), [])
+
+    def test_message_lists_four_exits_then_the_rest(self) -> None:
+        routes = {f"net{bit}": expansion.plug_addr_fabric_exit(bit) for bit in range(5)}
+        blocked = expansion.blocked_plug_addr_exits(_routed(routes))
+        message = expansion.blocked_plug_addr_message(blocked)
+        self.assertIn("plug_addr[0] exit used by net0", message)
+        self.assertIn("plug_addr[3] exit used by net3", message)
+        self.assertNotIn("plug_addr[4]", message)
+        self.assertIn("and 1 more", message)
+
+    def test_accept_hook_reads_the_candidate_routed_json(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            missing = SimpleNamespace(run_dir=str(run_dir))
+            self.assertEqual(expansion.accept_socket_route(missing), "routed design is missing")
+            wire = expansion.plug_addr_fabric_exit(39)
+            (run_dir / "routed.json").write_text(json.dumps(_routed({"video.vsync": wire})))
+            reason = expansion.accept_socket_route(missing)
+            self.assertIn("plug_addr[39] exit used by video.vsync", reason or "")
+            (run_dir / "routed.json").write_text(json.dumps(_routed({})))
+            self.assertIsNone(expansion.accept_socket_route(missing))
+
+
+class ZX81OverlayTimingTests(unittest.TestCase):
+    def test_diagnostic_accepts_the_current_and_legacy_clock_sets(self) -> None:
+        from scripts.hip_zx81_bus_socket import validate_overlay_timing
+        current = {"fmax": {
+            "clk_sys": {"achieved": 54.0, "constraint": 52.0},
+            "display.control.clk": {"achieved": 80.0, "constraint": 74.25},
+            "audio_clk": {"achieved": 20.0, "constraint": 12.288},
+        }}
+        validate_overlay_timing(current)
+        for pixel in ("pixel_clk", "hdmi_i2s.pixel_clk"):
+            validate_overlay_timing({"fmax": {
+                "clk_sys": {"achieved": 54.0, "constraint": 52.0},
+                pixel: {"achieved": 80.0, "constraint": 74.25},
+            }})
+        with self.assertRaisesRegex(ValueError, "unexpected overlay clocks"):
+            validate_overlay_timing({"fmax": {"clk_sys": current["fmax"]["clk_sys"]}})
+        underconstrained = {"fmax": {
+            "clk_sys": {"achieved": 54.0, "constraint": 52.0},
+            "display.control.clk": {"achieved": 80.0, "constraint": 74.25},
+            "audio_clk": {"achieved": 2.0, "constraint": 1.0},
+        }}
+        with self.assertRaisesRegex(Exception, "12.288"):
+            validate_overlay_timing(underconstrained)
 
 
 if __name__ == "__main__":

@@ -30,3 +30,6 @@ core_id = "fes.spectrum"
 
 [[fpga_packages]]
 core_id = "fes.ramtest"
+
+[[fpga_packages]]
+core_id = "fes.atari-st"

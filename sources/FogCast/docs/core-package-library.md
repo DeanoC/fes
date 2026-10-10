@@ -523,10 +523,11 @@ Swap or eject the running cassette with `fogcast change-cassette` and
 
 Atari ST packages use role `disk`, format `atari-st-floppy`, and required
 `fes.media.atari-st-floppy` 1.0: exactly 737,280 bytes (720 KiB), `.st`, unit
-0, read only. Offline library selection rejects any other size. Launch
-inserts the selected disk after Start; `fogcast change-disk` and
+0. Without the geometry extension, offline selection rejects every other size.
+Writable packages carry selected initial disks with the linked ROM and insert
+them before CPU release; diskless GEM launch is valid. `fogcast change-disk` and
 `fogcast eject-disk` replace or empty the drive while execution continues.
-The CLI accepts an exact `.st` file or a stored media ID, naming the latter
+The CLI accepts a `.st` file with the active package's admitted geometry or a stored media ID, naming the latter
 `disk.st` from the active unit. Optional `fes.expansion.atari-st-bus` 1.0
 uses the existing slot-card selection with map `fes.atari-st-bus.socket/1`
 and socket 1 only. These paths have host tests; hardware acceptance is pending.
@@ -666,3 +667,52 @@ Pending tenfoot Systems requests keep selection locked to prevent duplicate
 submission. Back dismisses the overlay and cancels its request context; stale
 responses are ignored. Dismissing a request does not undo a host operation
 that has already completed.
+
+### Writable Atari ST library disks
+
+The base `fes.media.atari-st-floppy` 1.0 image remains exactly 737,280 bytes.
+A package additionally requiring `fes.media.atari-st-floppy-geometry` 1.0 admits
+80..82 tracks, 1..2 heads and 9..10 sectors of 512 bytes. Non-720 KiB immutable
+bases require matching boot BPB geometry; raw image length uniquely identifies
+the shape. Compressed MSA streams require offline conversion. Durable records
+retain the admitted length even if guest writes change the BPB.
+Its additive `fes.media.atari-st-floppy-write` 1.0 extension permits ordinary
+WD1772 Write Sector operations. Format/write-track and deleted-data writes are
+unsupported. Library Play explicitly binds the selected entry and imported
+base digest, restores the latest compatible runtime record, and saves it before
+Stop, eject or replacement. Package, ROM and video profile changes preserve
+that disk identity. The catalog's imported `.st` blob is never overwritten.
+Raw `change-disk` or development insertion is writable but volatile.
+
+For a captured ST session, `POST /api/v1/session/disk/insert` takes
+`{game_id,base_media_id}` with the session/package/generation/target/unit
+headers; both IDs must match a selected library entry. `POST
+/api/v1/session/disk/save` uses the same binding with an empty body. The target
+routes are `/v1/library/media/insert` (exact-sized octet stream and explicit
+game/base headers) and `/v1/library/media/save` (empty body), under the current
+kit lease. The agent supplies `/media/fat/fogcast/core-data/media`; host callers
+cannot choose a storage path. Unit status reports the durable game/base binding
+and record revision; an absent revision means no checkpoint has been published.
+
+```sh
+fogcast --api http://127.0.0.1:8787 --json insert-library-disk GAME_ID BASE_MEDIA_ID
+fogcast --api http://127.0.0.1:8787 --json save-disk
+fogcast --api http://127.0.0.1:8787 --json eject-disk
+```
+
+Every destructive transition freezes and drains sector writes before full
+capture, even when the previous dirty flag was clear. Only a published record
+can authorize removal. Publication failure keeps the existing disk and session;
+an unconfirmed resume retains ownership for recovery. Corrupt or incompatible
+records fail instead of silently resetting. Save files in EmuTOS and close them
+before Stop: sectors commit atomically, while a FAT/directory update may span
+several sectors. Power loss before a checkpoint can lose volatile changes.
+A failed destructive request is reobserved without replay. A confirmed empty
+unit retires its binding; a retained image resumes only after ownership is
+confirmed. Different or unresolved replacement bytes remain in recovery.
+Save/eject/Stop allow a full bounded capture; replacement also allows bounded
+verification capture after an ambiguous failure. Bound-disk input faults save
+before idle retirement or retain the machine and its binding in recovery.
+
+Current validation is host software and RTL simulation; hardware evidence is
+recorded separately.

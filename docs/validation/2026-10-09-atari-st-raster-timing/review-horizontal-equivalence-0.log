@@ -1,0 +1,2308 @@
+
+ /----------------------------------------------------------------------------\
+ |  yosys -- Yosys Open SYnthesis Suite                                       |
+ |  Copyright (C) 2012 - 2026  Claire Xenia Wolf <claire@yosyshq.com>         |
+ |  Distributed under an ISC-like license, type "license" to see terms        |
+ \----------------------------------------------------------------------------/
+ Yosys 0.69+ (git sha1 886afa639, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]
+
+-- Executing script file `../review-horizontal-equivalence-0.ys' --
+
+1. Executing Verilog-2005 frontend: docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv
+Parsing SystemVerilog input from `docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv' to AST representation.
+Generating RTLIL representation for module `\st_io_gold'.
+Generating RTLIL representation for module `\st_io_gate'.
+Successfully finished Verilog frontend.
+
+2. Executing PROC pass (convert processes to netlists).
+
+2.1. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Cleaned up 0 empty switches.
+
+2.2. Executing PROC_RMDEAD pass (remove dead branches from decision trees).
+Marked 3 switch rules as full_case in process $proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224 in module st_io_gate.
+Marked 2 switch rules as full_case in process $proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:314$134 in module st_io_gate.
+Marked 3 switch rules as full_case in process $proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89 in module st_io_gold.
+Marked 2 switch rules as full_case in process $proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:65$2 in module st_io_gold.
+Removed a total of 0 dead cases.
+
+2.3. Executing PROC_PRUNE pass (remove redundant assignments in processes).
+Removed 2 redundant assignments.
+Promoted 0 assignments to connections.
+
+2.4. Executing PROC_INIT pass (extract init attributes).
+
+2.5. Executing PROC_ARST pass (detect async resets in processes).
+
+2.6. Executing PROC_ROM pass (convert switches to ROMs).
+Converted 0 switches.
+<suppressed ~36 debug messages>
+
+2.7. Executing PROC_MUX pass (convert decision trees to multiplexers).
+Creating decoders for process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+     1/13: $0\timer_phase[31:0]
+     2/13: $0\hbl_pending[0:0]
+     3/13: $0\vbl_pending[0:0]
+     4/13: $0\timer_b_display_delay[23:0]
+     5/13: $0\bottom_open[0:0]
+     6/13: $0\line_timing_pal[0:0]
+     7/13: $0\line_pal[0:0]
+     8/13: $0\frame_pal[0:0]
+     9/13: $0\line_resolution[1:0]
+    10/13: $0\frame_resolution[1:0]
+    11/13: $0\horizontal_cycle[8:0]
+    12/13: $0\native_line[8:0]
+    13/13: $0\video_counter[23:0]
+Creating decoders for process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:314$134'.
+     1/3: $0\keyboard_age[15:0]
+     2/3: $0\stable_keyboard[143:0]
+     3/3: $0\observed_keyboard[143:0]
+Creating decoders for process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+     1/13: $0\timer_phase[31:0]
+     2/13: $0\hbl_pending[0:0]
+     3/13: $0\vbl_pending[0:0]
+     4/13: $0\timer_b_display_delay[23:0]
+     5/13: $0\bottom_open[0:0]
+     6/13: $0\line_timing_pal[0:0]
+     7/13: $0\line_pal[0:0]
+     8/13: $0\frame_pal[0:0]
+     9/13: $0\line_resolution[1:0]
+    10/13: $0\frame_resolution[1:0]
+    11/13: $0\horizontal_cycle[8:0]
+    12/13: $0\native_line[8:0]
+    13/13: $0\video_counter[23:0]
+Creating decoders for process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:65$2'.
+     1/3: $0\keyboard_age[15:0]
+     2/3: $0\stable_keyboard[143:0]
+     3/3: $0\observed_keyboard[143:0]
+
+2.8. Executing PROC_DLATCH pass (convert process syncs to latches).
+
+2.9. Executing PROC_DFF pass (convert process syncs to FFs).
+Creating register for signal `\st_io_gate.\video_counter' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+  created $dff cell `$procdff$490' with positive edge clock.
+Creating register for signal `\st_io_gate.\native_line' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+  created $dff cell `$procdff$491' with positive edge clock.
+Creating register for signal `\st_io_gate.\timer_phase' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+  created $dff cell `$procdff$492' with positive edge clock.
+Creating register for signal `\st_io_gate.\horizontal_cycle' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+  created $dff cell `$procdff$493' with positive edge clock.
+Creating register for signal `\st_io_gate.\frame_resolution' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+  created $dff cell `$procdff$494' with positive edge clock.
+Creating register for signal `\st_io_gate.\line_resolution' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+  created $dff cell `$procdff$495' with positive edge clock.
+Creating register for signal `\st_io_gate.\frame_pal' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+  created $dff cell `$procdff$496' with positive edge clock.
+Creating register for signal `\st_io_gate.\line_pal' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+  created $dff cell `$procdff$497' with positive edge clock.
+Creating register for signal `\st_io_gate.\line_timing_pal' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+  created $dff cell `$procdff$498' with positive edge clock.
+Creating register for signal `\st_io_gate.\bottom_open' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+  created $dff cell `$procdff$499' with positive edge clock.
+Creating register for signal `\st_io_gate.\timer_b_display_delay' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+  created $dff cell `$procdff$500' with positive edge clock.
+Creating register for signal `\st_io_gate.\vbl_pending' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+  created $dff cell `$procdff$501' with positive edge clock.
+Creating register for signal `\st_io_gate.\hbl_pending' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+  created $dff cell `$procdff$502' with positive edge clock.
+Creating register for signal `\st_io_gate.\observed_keyboard' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:314$134'.
+  created $dff cell `$procdff$503' with positive edge clock.
+Creating register for signal `\st_io_gate.\stable_keyboard' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:314$134'.
+  created $dff cell `$procdff$504' with positive edge clock.
+Creating register for signal `\st_io_gate.\keyboard_age' using process `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:314$134'.
+  created $dff cell `$procdff$505' with positive edge clock.
+Creating register for signal `\st_io_gold.\video_counter' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+  created $dff cell `$procdff$506' with positive edge clock.
+Creating register for signal `\st_io_gold.\native_line' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+  created $dff cell `$procdff$507' with positive edge clock.
+Creating register for signal `\st_io_gold.\timer_phase' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+  created $dff cell `$procdff$508' with positive edge clock.
+Creating register for signal `\st_io_gold.\horizontal_cycle' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+  created $dff cell `$procdff$509' with positive edge clock.
+Creating register for signal `\st_io_gold.\frame_resolution' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+  created $dff cell `$procdff$510' with positive edge clock.
+Creating register for signal `\st_io_gold.\line_resolution' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+  created $dff cell `$procdff$511' with positive edge clock.
+Creating register for signal `\st_io_gold.\frame_pal' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+  created $dff cell `$procdff$512' with positive edge clock.
+Creating register for signal `\st_io_gold.\line_pal' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+  created $dff cell `$procdff$513' with positive edge clock.
+Creating register for signal `\st_io_gold.\line_timing_pal' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+  created $dff cell `$procdff$514' with positive edge clock.
+Creating register for signal `\st_io_gold.\bottom_open' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+  created $dff cell `$procdff$515' with positive edge clock.
+Creating register for signal `\st_io_gold.\timer_b_display_delay' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+  created $dff cell `$procdff$516' with positive edge clock.
+Creating register for signal `\st_io_gold.\vbl_pending' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+  created $dff cell `$procdff$517' with positive edge clock.
+Creating register for signal `\st_io_gold.\hbl_pending' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+  created $dff cell `$procdff$518' with positive edge clock.
+Creating register for signal `\st_io_gold.\observed_keyboard' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:65$2'.
+  created $dff cell `$procdff$519' with positive edge clock.
+Creating register for signal `\st_io_gold.\stable_keyboard' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:65$2'.
+  created $dff cell `$procdff$520' with positive edge clock.
+Creating register for signal `\st_io_gold.\keyboard_age' using process `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:65$2'.
+  created $dff cell `$procdff$521' with positive edge clock.
+
+2.10. Executing PROC_MEMWR pass (convert process memory writes to cells).
+
+2.11. Executing PROC_CLEAN pass (remove empty switches from decision trees).
+Found and cleaned up 14 empty switches in `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+Removing empty process `st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:386$224'.
+Found and cleaned up 4 empty switches in `\st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:314$134'.
+Removing empty process `st_io_gate.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:314$134'.
+Found and cleaned up 14 empty switches in `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+Removing empty process `st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:135$89'.
+Found and cleaned up 4 empty switches in `\st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:65$2'.
+Removing empty process `st_io_gold.$proc$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:65$2'.
+Cleaned up 36 empty switches.
+
+2.12. Executing OPT_EXPR pass (perform const folding).
+Optimizing module st_io_gate.
+Optimizing module st_io_gold.
+
+3. Executing MEMORY pass.
+
+3.1. Executing OPT_MEM pass (optimize memories).
+Performed a total of 0 transformations.
+
+3.2. Executing OPT_MEM_PRIORITY pass (removing unnecessary memory write priority relations).
+Performed a total of 0 transformations.
+
+3.3. Executing OPT_MEM_FEEDBACK pass (finding memory read-to-write feedback paths).
+
+3.4. Executing MEMORY_BMUX2ROM pass (converting muxes to ROMs).
+
+3.5. Executing MEMORY_DFF pass (merging $dff cells to $memrd).
+
+3.6. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \st_io_gate..
+Finding unused cells or wires in module \st_io_gold..
+Removed 2 unused cells and 161 unused wires.
+<suppressed ~6 debug messages>
+
+3.7. Executing MEMORY_SHARE pass (consolidating $memrd/$memwr cells).
+
+3.8. Executing OPT_MEM_WIDEN pass (optimize memories where all ports are wide).
+Performed a total of 0 transformations.
+
+3.9. Executing OPT_CLEAN pass (remove unused cells and wires).
+Finding unused cells or wires in module \st_io_gate..
+Finding unused cells or wires in module \st_io_gold..
+
+3.10. Executing MEMORY_COLLECT pass (generating $mem cells).
+
+3.11. Executing MEMORY_MAP pass (converting memories to logic and flip-flops).
+
+4. Executing EQUIV_MAKE pass (creating equiv checking module).
+Presumably equivalent wires: unused_midi_data_gold (\unused_midi_data_gold), unused_midi_data_gate (\unused_midi_data_gate) -> unused_midi_data
+Presumably equivalent wires: unused_midi_ready_gold (\unused_midi_ready_gold), unused_midi_ready_gate (\unused_midi_ready_gate) -> unused_midi_ready
+Presumably equivalent wires: unused_midi_valid_gold (\unused_midi_valid_gold), unused_midi_valid_gate (\unused_midi_valid_gate) -> unused_midi_valid
+Presumably equivalent wires: kbd_rx_data_gold (\kbd_rx_data_gold), kbd_rx_data_gate (\kbd_rx_data_gate) -> kbd_rx_data
+Presumably equivalent wires: kbd_tx_data_gold (\kbd_tx_data_gold), kbd_tx_data_gate (\kbd_tx_data_gate) -> kbd_tx_data
+Presumably equivalent wires: kbd_rx_ready_gold (\kbd_rx_ready_gold), kbd_rx_ready_gate (\kbd_rx_ready_gate) -> kbd_rx_ready
+Presumably equivalent wires: kbd_rx_valid_gold (\kbd_rx_valid_gold), kbd_rx_valid_gate (\kbd_rx_valid_gate) -> kbd_rx_valid
+Presumably equivalent wires: kbd_tx_ready_gold (\kbd_tx_ready_gold), kbd_tx_ready_gate (\kbd_tx_ready_gate) -> kbd_tx_ready
+Presumably equivalent wires: kbd_tx_valid_gold (\kbd_tx_valid_gold), kbd_tx_valid_gate (\kbd_tx_valid_gate) -> kbd_tx_valid
+Presumably equivalent wires: port_a_gold (\port_a_gold), port_a_gate (\port_a_gate) -> port_a
+Presumably equivalent wires: fdc_irq_gold (\fdc_irq_gold), fdc_irq_gate (\fdc_irq_gate) -> fdc_irq
+Presumably equivalent wires: midi_irq_gold (\midi_irq_gold), midi_irq_gate (\midi_irq_gate) -> midi_irq
+Presumably equivalent wires: kbd_irq_gold (\kbd_irq_gold), kbd_irq_gate (\kbd_irq_gate) -> kbd_irq
+Presumably equivalent wires: mfp_irq_gold (\mfp_irq_gold), mfp_irq_gate (\mfp_irq_gate) -> mfp_irq
+Presumably equivalent wires: active_line_gold (\active_line_gold), active_line_gate (\active_line_gate) -> active_line
+Presumably equivalent wires: display_top_gold (\display_top_gold), display_top_gate (\display_top_gate) -> display_top
+Presumably equivalent wires: hbl_pending_gold (\hbl_pending_gold), hbl_pending_gate (\hbl_pending_gate) -> hbl_pending
+Presumably equivalent wires: vbl_pending_gold (\vbl_pending_gold), vbl_pending_gate (\vbl_pending_gate) -> vbl_pending
+Presumably equivalent wires: frame_last_gold (\frame_last_gold), frame_last_gate (\frame_last_gate) -> frame_last
+Presumably equivalent wires: line_last_gold (\line_last_gold), line_last_gate (\line_last_gate) -> line_last
+Presumably equivalent wires: timer_ce_gold (\timer_ce_gold), timer_ce_gate (\timer_ce_gate) -> timer_ce
+Presumably equivalent wires: timer_sum_gold (\timer_sum_gold), timer_sum_gate (\timer_sum_gate) -> timer_sum
+Presumably equivalent wires: timer_b_display_delay_gold (\timer_b_display_delay_gold), timer_b_display_delay_gate (\timer_b_display_delay_gate) -> timer_b_display_delay
+Presumably equivalent wires: bottom_open_gold (\bottom_open_gold), bottom_open_gate (\bottom_open_gate) -> bottom_open
+Presumably equivalent wires: line_timing_pal_gold (\line_timing_pal_gold), line_timing_pal_gate (\line_timing_pal_gate) -> line_timing_pal
+Presumably equivalent wires: line_pal_gold (\line_pal_gold), line_pal_gate (\line_pal_gate) -> line_pal
+Presumably equivalent wires: frame_pal_gold (\frame_pal_gold), frame_pal_gate (\frame_pal_gate) -> frame_pal
+Presumably equivalent wires: line_resolution_gold (\line_resolution_gold), line_resolution_gate (\line_resolution_gate) -> line_resolution
+Presumably equivalent wires: frame_resolution_gold (\frame_resolution_gold), frame_resolution_gate (\frame_resolution_gate) -> frame_resolution
+Presumably equivalent wires: horizontal_cycle_gold (\horizontal_cycle_gold), horizontal_cycle_gate (\horizontal_cycle_gate) -> horizontal_cycle
+Presumably equivalent wires: timer_phase_gold (\timer_phase_gold), timer_phase_gate (\timer_phase_gate) -> timer_phase
+Presumably equivalent wires: fdc_data_gold (\fdc_data_gold), fdc_data_gate (\fdc_data_gate) -> fdc_data
+Presumably equivalent wires: midi_data_gold (\midi_data_gold), midi_data_gate (\midi_data_gate) -> midi_data
+Presumably equivalent wires: kbd_data_gold (\kbd_data_gold), kbd_data_gate (\kbd_data_gate) -> kbd_data
+Presumably equivalent wires: psg_data_gold (\psg_data_gold), psg_data_gate (\psg_data_gate) -> psg_data
+Presumably equivalent wires: mfp_data_gold (\mfp_data_gold), mfp_data_gate (\mfp_data_gate) -> mfp_data
+Presumably equivalent wires: fdc_ack_gold (\fdc_ack_gold), fdc_ack_gate (\fdc_ack_gate) -> fdc_ack
+Presumably equivalent wires: midi_ack_gold (\midi_ack_gold), midi_ack_gate (\midi_ack_gate) -> midi_ack
+Presumably equivalent wires: kbd_ack_gold (\kbd_ack_gold), kbd_ack_gate (\kbd_ack_gate) -> kbd_ack
+Presumably equivalent wires: psg_ack_gold (\psg_ack_gold), psg_ack_gate (\psg_ack_gate) -> psg_ack
+Presumably equivalent wires: mfp_ack_gold (\mfp_ack_gold), mfp_ack_gate (\mfp_ack_gate) -> mfp_ack
+Presumably equivalent wires: fdc_select_gold (\fdc_select_gold), fdc_select_gate (\fdc_select_gate) -> fdc_select
+Presumably equivalent wires: midi_select_gold (\midi_select_gold), midi_select_gate (\midi_select_gate) -> midi_select
+Presumably equivalent wires: kbd_select_gold (\kbd_select_gold), kbd_select_gate (\kbd_select_gate) -> kbd_select
+Presumably equivalent wires: psg_select_gold (\psg_select_gold), psg_select_gate (\psg_select_gate) -> psg_select
+Presumably equivalent wires: mfp_select_gold (\mfp_select_gold), mfp_select_gate (\mfp_select_gate) -> mfp_select
+Presumably equivalent wires: keyboard_age_gold (\keyboard_age_gold), keyboard_age_gate (\keyboard_age_gate) -> keyboard_age
+Presumably equivalent wires: stable_keyboard_gold (\stable_keyboard_gold), stable_keyboard_gate (\stable_keyboard_gate) -> stable_keyboard
+Presumably equivalent wires: observed_keyboard_gold (\observed_keyboard_gold), observed_keyboard_gate (\observed_keyboard_gate) -> observed_keyboard
+Presumably equivalent wires: address_gold ({ \addr_gold 1'0 }), address_gate ({ \addr_gate 1'0 }) -> address
+Presumably equivalent wires: native_line_gold (\native_line_gold), native_line_gate (\native_line_gate) -> native_line
+Presumably equivalent wires: native_display_gold (\native_display_gold), native_display_gate (\native_display_gate) -> native_display
+Presumably equivalent wires: hblank_gold (\hblank_gold), hblank_gate (\hblank_gate) -> hblank
+Presumably equivalent wires: vblank_gold (\vblank_gold), vblank_gate (\vblank_gate) -> vblank
+Presumably equivalent wires: dma_rdata_gold (\dma_rdata_gold), dma_rdata_gate (\dma_rdata_gate) -> dma_rdata
+Presumably equivalent wires: dma_ready_gold (\dma_ready_gold), dma_ready_gate (\dma_ready_gate) -> dma_ready
+Presumably equivalent wires: dma_byte_enable_gold (\dma_byte_enable_gold), dma_byte_enable_gate (\dma_byte_enable_gate) -> dma_byte_enable
+Presumably equivalent wires: dma_wdata_gold (\dma_wdata_gold), dma_wdata_gate (\dma_wdata_gate) -> dma_wdata
+Presumably equivalent wires: dma_addr_gold (\dma_addr_gold), dma_addr_gate (\dma_addr_gate) -> dma_addr
+Presumably equivalent wires: dma_write_gold (\dma_write_gold), dma_write_gate (\dma_write_gate) -> dma_write
+Presumably equivalent wires: dma_req_gold (\dma_req_gold), dma_req_gate (\dma_req_gate) -> dma_req
+Presumably equivalent wires: media_valid_gold (\media_valid_gold), media_valid_gate (\media_valid_gate) -> media_valid
+Presumably equivalent wires: media_data_gold (\media_data_gold), media_data_gate (\media_data_gate) -> media_data
+Presumably equivalent wires: media_addr_gold (\media_addr_gold), media_addr_gate (\media_addr_gate) -> media_addr
+Presumably equivalent wires: media_req_gold (\media_req_gold), media_req_gate (\media_req_gate) -> media_req
+Presumably equivalent wires: media_changed_gold (\media_changed_gold), media_changed_gate (\media_changed_gate) -> media_changed
+Presumably equivalent wires: media_write_busy_gold (\media_write_busy_gold), media_write_busy_gate (\media_write_busy_gate) -> media_write_busy
+Presumably equivalent wires: media_write_ready_gold (\media_write_ready_gold), media_write_ready_gate (\media_write_ready_gate) -> media_write_ready
+Presumably equivalent wires: media_write_data_gold (\media_write_data_gold), media_write_data_gate (\media_write_data_gate) -> media_write_data
+Presumably equivalent wires: media_write_addr_gold (\media_write_addr_gold), media_write_addr_gate (\media_write_addr_gate) -> media_write_addr
+Presumably equivalent wires: media_write_req_gold (\media_write_req_gold), media_write_req_gate (\media_write_req_gate) -> media_write_req
+Presumably equivalent wires: media_size_gold (\media_size_gold), media_size_gate (\media_size_gate) -> media_size
+Presumably equivalent wires: media_frozen_gold (\media_frozen_gold), media_frozen_gate (\media_frozen_gate) -> media_frozen
+Presumably equivalent wires: media_ready_gold (\media_ready_gold), media_ready_gate (\media_ready_gate) -> media_ready
+Presumably equivalent wires: audio_valid_gold (\audio_valid_gold), audio_valid_gate (\audio_valid_gate) -> audio_valid
+Presumably equivalent wires: audio_pcm_gold (\audio_pcm_gold), audio_pcm_gate (\audio_pcm_gate) -> audio_pcm
+Presumably equivalent wires: mouse_ready_gold (\mouse_ready_gold), mouse_ready_gate (\mouse_ready_gate) -> mouse_ready
+Presumably equivalent wires: mouse_buttons_gold (\mouse_buttons_gold), mouse_buttons_gate (\mouse_buttons_gate) -> mouse_buttons
+Presumably equivalent wires: mouse_dy_gold (\mouse_dy_gold), mouse_dy_gate (\mouse_dy_gate) -> mouse_dy
+Presumably equivalent wires: mouse_dx_gold (\mouse_dx_gold), mouse_dx_gate (\mouse_dx_gate) -> mouse_dx
+Presumably equivalent wires: mouse_valid_gold (\mouse_valid_gold), mouse_valid_gate (\mouse_valid_gate) -> mouse_valid
+Presumably equivalent wires: controller_buttons_gold (\controller_buttons_gold), controller_buttons_gate (\controller_buttons_gate) -> controller_buttons
+Presumably equivalent wires: keyboard_gold (\keyboard_gold), keyboard_gate (\keyboard_gate) -> keyboard
+Presumably equivalent wires: video_counter_gold (\video_counter_gold), video_counter_gate (\video_counter_gate) -> video_counter
+Presumably equivalent wires: monochrome_gold (\monochrome_gold), monochrome_gate (\monochrome_gate) -> monochrome
+Presumably equivalent wires: sync_mode_gold (\sync_mode_gold), sync_mode_gate (\sync_mode_gate) -> sync_mode
+Presumably equivalent wires: resolution_gold (\resolution_gold), resolution_gate (\resolution_gate) -> resolution
+Presumably equivalent wires: screen_base_gold (\screen_base_gold), screen_base_gate (\screen_base_gate) -> screen_base
+Presumably equivalent wires: irq_level_gold (\irq_level_gold), irq_level_gate (\irq_level_gate) -> irq_level
+Presumably equivalent wires: irq_ack_gold (\irq_ack_gold), irq_ack_gate (\irq_ack_gate) -> irq_ack
+Presumably equivalent wires: irq_vector_gold (\irq_vector_gold), irq_vector_gate (\irq_vector_gate) -> irq_vector
+Presumably equivalent wires: irq_vectored_gold (\mfp_irq_gold), irq_vectored_gate (\mfp_irq_gate) -> irq_vectored
+Presumably equivalent wires: irq_gold (\irq_gold), irq_gate (\irq_gate) -> irq
+Presumably equivalent wires: rdata_gold (\rdata_gold), rdata_gate (\rdata_gate) -> rdata
+Presumably equivalent wires: ack_gold (\ack_gold), ack_gate (\ack_gate) -> ack
+Presumably equivalent wires: selected_gold (\selected_gold), selected_gate (\selected_gate) -> selected
+Presumably equivalent wires: byte_enable_gold (\byte_enable_gold), byte_enable_gate (\byte_enable_gate) -> byte_enable
+Presumably equivalent wires: wdata_gold (\wdata_gold), wdata_gate (\wdata_gate) -> wdata
+Presumably equivalent wires: write_gold (\write_gold), write_gate (\write_gate) -> write
+Presumably equivalent wires: addr_gold (\addr_gold), addr_gate (\addr_gate) -> addr
+Presumably equivalent wires: req_gold (\req_gold), req_gate (\req_gate) -> req
+Presumably equivalent wires: cpu_cycle_ce_gold (\cpu_cycle_ce_gold), cpu_cycle_ce_gate (\cpu_cycle_ce_gate) -> cpu_cycle_ce
+Presumably equivalent wires: cold_reset_gold (\cold_reset_gold), cold_reset_gate (\cold_reset_gate) -> cold_reset
+Presumably equivalent wires: reset_gold (\reset_gold), reset_gate (\reset_gate) -> reset
+Presumably equivalent wires: clk_gold (\clk_gold), clk_gate (\clk_gate) -> clk
+Changing input A of cell $procmux$374_gate ($mux): \observed_keyboard_gate -> \observed_keyboard
+Changing input B of cell $procmux$368_gate ($mux): \stable_keyboard_gate -> \stable_keyboard
+Changing input A of cell $procmux$365_gate ($mux): \stable_keyboard_gate -> \stable_keyboard
+Changing input B of cell $procmux$363_gate ($mux): \observed_keyboard_gate -> \observed_keyboard
+Changing input A of cell $procmux$363_gate ($mux): \stable_keyboard_gate -> \stable_keyboard
+Changing input A of cell $procmux$355_gate ($mux): \keyboard_age_gate -> \keyboard_age
+Changing input S of cell $procmux$350_gate ($mux): \vblank_gate -> \vblank
+Changing input S of cell $procmux$347_gate ($mux): \hblank_gate -> \hblank
+Changing input A of cell $procmux$347_gate ($mux): \video_counter_gate -> \video_counter
+Changing input S of cell $procmux$342_gate ($mux): \active_line_gate -> \active_line
+Changing input A of cell $procmux$342_gate ($mux): \video_counter_gate -> \video_counter
+Changing input S of cell $procmux$337_gate ($mux): \vblank_gate -> \vblank
+Changing input S of cell $procmux$334_gate ($mux): \hblank_gate -> \hblank
+Changing input A of cell $procmux$334_gate ($mux): \native_line_gate -> \native_line
+Changing input A of cell $procmux$332_gate ($mux): \native_line_gate -> \native_line
+Changing input A of cell $procmux$327_gate ($mux): \horizontal_cycle_gate -> \horizontal_cycle
+Changing input S of cell $procmux$322_gate ($mux): \vblank_gate -> \vblank
+Changing input A of cell $procmux$322_gate ($mux): \frame_resolution_gate -> \frame_resolution
+Changing input S of cell $procmux$316_gate ($mux): \hblank_gate -> \hblank
+Changing input A of cell $procmux$316_gate ($mux): \line_resolution_gate -> \line_resolution
+Changing input S of cell $procmux$311_gate ($mux): \vblank_gate -> \vblank
+Changing input A of cell $procmux$311_gate ($mux): \frame_pal_gate -> \frame_pal
+Changing input S of cell $procmux$305_gate ($mux): \hblank_gate -> \hblank
+Changing input A of cell $procmux$305_gate ($mux): \line_pal_gate -> \line_pal
+Changing input A of cell $procmux$300_gate ($mux): \line_timing_pal_gate -> \line_timing_pal
+Changing input A of cell $procmux$298_gate ($mux): \line_timing_pal_gate -> \line_timing_pal
+Changing input S of cell $procmux$293_gate ($mux): \vblank_gate -> \vblank
+Changing input A of cell $procmux$290_gate ($mux): \bottom_open_gate -> \bottom_open
+Changing input B of cell $procmux$285_gate ($mux): { \timer_b_display_delay_gate [22:0] \native_display_gate } -> { \timer_b_display_delay [22:0] \native_display }
+Changing input A of cell $procmux$285_gate ($mux): \timer_b_display_delay_gate -> \timer_b_display_delay
+Changing input S of cell $procmux$278_gate ($mux): \vblank_gate -> \vblank
+Changing input A of cell $procmux$278_gate ($mux): \vbl_pending_gate -> \vbl_pending
+Changing input S of cell $procmux$271_gate ($mux): \hblank_gate -> \hblank
+Changing input A of cell $procmux$271_gate ($mux): \hbl_pending_gate -> \hbl_pending
+Changing input B of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:487$267_gate ($logic_and): \fdc_select_gate -> \fdc_select
+Changing input irq of cell floppy_gate (st_floppy): \fdc_irq_gate -> \fdc_irq
+Changing input dma_write of cell floppy_gate (st_floppy): \dma_write_gate -> \dma_write
+Changing input dma_byte_enable of cell floppy_gate (st_floppy): \dma_byte_enable_gate -> \dma_byte_enable
+Changing input dma_wdata of cell floppy_gate (st_floppy): \dma_wdata_gate -> \dma_wdata
+Changing input dma_addr of cell floppy_gate (st_floppy): \dma_addr_gate -> \dma_addr
+Changing input dma_req of cell floppy_gate (st_floppy): \dma_req_gate -> \dma_req
+Changing input media_addr of cell floppy_gate (st_floppy): \media_addr_gate -> \media_addr
+Changing input media_req of cell floppy_gate (st_floppy): \media_req_gate -> \media_req
+Changing input media_changed of cell floppy_gate (st_floppy): \media_changed_gate -> \media_changed
+Changing input media_write_busy of cell floppy_gate (st_floppy): \media_write_busy_gate -> \media_write_busy
+Changing input media_write_data of cell floppy_gate (st_floppy): \media_write_data_gate -> \media_write_data
+Changing input media_write_addr of cell floppy_gate (st_floppy): \media_write_addr_gate -> \media_write_addr
+Changing input media_write_req of cell floppy_gate (st_floppy): \media_write_req_gate -> \media_write_req
+Changing input side of cell floppy_gate (st_floppy): \port_a_gate [0] -> \port_a [0]
+Changing input drive_select of cell floppy_gate (st_floppy): \port_a_gate [2:1] -> \port_a [2:1]
+Changing input mmio_ack of cell floppy_gate (st_floppy): \fdc_ack_gate -> \fdc_ack
+Changing input mmio_rdata of cell floppy_gate (st_floppy): \fdc_data_gate -> \fdc_data
+Changing input B of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:481$265_gate ($logic_and): \psg_select_gate -> \psg_select
+Changing input port_a of cell psg_gate (st_ym2149): \port_a_gate -> \port_a
+Changing input sample_valid of cell psg_gate (st_ym2149): \audio_valid_gate -> \audio_valid
+Changing input pcm_signed of cell psg_gate (st_ym2149): \audio_pcm_gate -> \audio_pcm
+Changing input bus_ack of cell psg_gate (st_ym2149): \psg_ack_gate -> \psg_ack
+Changing input bus_rdata of cell psg_gate (st_ym2149): \psg_data_gate -> \psg_data
+Changing input mouse_ready of cell ikbd_gate (st_ikbd): \mouse_ready_gate -> \mouse_ready
+Changing input keyboard of cell ikbd_gate (st_ikbd): \stable_keyboard_gate -> \stable_keyboard
+Changing input response_ready of cell ikbd_gate (st_ikbd): \kbd_rx_ready_gate -> \kbd_rx_ready
+Changing input response_data of cell ikbd_gate (st_ikbd): \kbd_rx_data_gate -> \kbd_rx_data
+Changing input response_valid of cell ikbd_gate (st_ikbd): \kbd_rx_valid_gate -> \kbd_rx_valid
+Changing input command_ready of cell ikbd_gate (st_ikbd): \kbd_tx_ready_gate -> \kbd_tx_ready
+Changing input command_data of cell ikbd_gate (st_ikbd): \kbd_tx_data_gate -> \kbd_tx_data
+Changing input command_valid of cell ikbd_gate (st_ikbd): \kbd_tx_valid_gate -> \kbd_tx_valid
+Changing input B of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:466$263_gate ($logic_and): \midi_select_gate -> \midi_select
+Changing input rx_ready of cell midi_acia_gate (st_acia): \unused_midi_ready_gate -> \unused_midi_ready
+Changing input tx_data of cell midi_acia_gate (st_acia): \unused_midi_data_gate -> \unused_midi_data
+Changing input tx_valid of cell midi_acia_gate (st_acia): \unused_midi_valid_gate -> \unused_midi_valid
+Changing input irq of cell midi_acia_gate (st_acia): \midi_irq_gate -> \midi_irq
+Changing input bus_ack of cell midi_acia_gate (st_acia): \midi_ack_gate -> \midi_ack
+Changing input bus_rdata of cell midi_acia_gate (st_acia): \midi_data_gate -> \midi_data
+Changing input B of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:456$261_gate ($logic_and): \kbd_select_gate -> \kbd_select
+Changing input rx_ready of cell keyboard_acia_gate (st_acia): \kbd_rx_ready_gate -> \kbd_rx_ready
+Changing input rx_data of cell keyboard_acia_gate (st_acia): \kbd_rx_data_gate -> \kbd_rx_data
+Changing input rx_valid of cell keyboard_acia_gate (st_acia): \kbd_rx_valid_gate -> \kbd_rx_valid
+Changing input tx_ready of cell keyboard_acia_gate (st_acia): \kbd_tx_ready_gate -> \kbd_tx_ready
+Changing input tx_data of cell keyboard_acia_gate (st_acia): \kbd_tx_data_gate -> \kbd_tx_data
+Changing input tx_valid of cell keyboard_acia_gate (st_acia): \kbd_tx_valid_gate -> \kbd_tx_valid
+Changing input irq of cell keyboard_acia_gate (st_acia): \kbd_irq_gate -> \kbd_irq
+Changing input bus_ack of cell keyboard_acia_gate (st_acia): \kbd_ack_gate -> \kbd_ack
+Changing input bus_rdata of cell keyboard_acia_gate (st_acia): \kbd_data_gate -> \kbd_data
+Changing input A of cell $logic_not$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:449$257_gate ($logic_not): \fdc_irq_gate -> \fdc_irq
+Changing input B of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:449$255_gate ($logic_or): \midi_irq_gate -> \midi_irq
+Changing input A of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:449$255_gate ($logic_or): \kbd_irq_gate -> \kbd_irq
+Changing input B of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:447$253_gate ($logic_and): \mfp_select_gate -> \mfp_select
+Changing input irq_vector of cell mfp_gate (st_mfp): \irq_vector_gate -> \irq_vector
+Changing input irq of cell mfp_gate (st_mfp): \mfp_irq_gate -> \irq_vectored
+Changing input timer_b of cell mfp_gate (st_mfp): \timer_b_display_delay_gate [23] -> \timer_b_display_delay [23]
+Changing input ack of cell mfp_gate (st_mfp): \mfp_ack_gate -> \mfp_ack
+Changing input rdata of cell mfp_gate (st_mfp): \mfp_data_gate -> \mfp_data
+Changing input timer_ce of cell mfp_gate (st_mfp): \timer_ce_gate -> \timer_ce
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:443$252_gate ($mux): \mfp_irq_gate -> \irq_vectored
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:443$251_gate ($mux): \vbl_pending_gate -> \vbl_pending
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:443$250_gate ($mux): \hbl_pending_gate -> \hbl_pending
+Changing input A of cell $add$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:436$249_gate ($add): \native_line_gate -> \native_line
+Changing input A of cell $ne$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:436$248_gate ($ne): \native_line_gate -> \native_line
+Changing input A of cell $add$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:435$247_gate ($add): \video_counter_gate -> \video_counter
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:435$245_gate ($eq): \line_resolution_gate -> \line_resolution
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:432$244_gate ($eq): \native_line_gate -> \native_line
+Changing input A of cell $sub$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:432$243_gate ($sub): \display_top_gate -> \display_top
+Changing input B of cell $ne$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:424$241_gate ($ne): \frame_pal_gate -> \frame_pal
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:423$239_gate ($eq): \native_line_gate -> \native_line
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:423$238_gate ($mux): \frame_pal_gate -> \frame_pal
+Changing input A of cell $ne$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:422$236_gate ($ne): \frame_resolution_gate -> \frame_resolution
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:421$234_gate ($eq): \horizontal_cycle_gate -> \horizontal_cycle
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:404$229_gate ($eq): \horizontal_cycle_gate -> \horizontal_cycle
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:398$228_gate ($mux): \hblank_gate -> \hblank
+Changing input A of cell $add$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:398$227_gate ($add): \horizontal_cycle_gate -> \horizontal_cycle
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:396$226_gate ($mux): \timer_ce_gate -> \timer_ce
+Changing input A of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:396$226_gate ($mux): \timer_sum_gate [31:0] -> \timer_sum [31:0]
+Changing input A of cell $sub$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:396$225_gate ($sub): \timer_sum_gate -> \timer_sum
+Changing input B of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:385$222_gate ($logic_and): \active_line_gate -> \active_line
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:382$219_gate ($mux): \frame_pal_gate -> \frame_pal
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:384$217_gate ($mux): \bottom_open_gate -> \bottom_open
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:384$216_gate ($lt): \native_line_gate -> \native_line
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:384$215_gate ($lt): \native_line_gate -> \native_line
+Changing input A of cell $ge$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:384$214_gate ($ge): \native_line_gate -> \native_line
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:383$212_gate ($mux): \bottom_open_gate -> \bottom_open
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:383$211_gate ($lt): \native_line_gate -> \native_line
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:383$210_gate ($lt): \native_line_gate -> \native_line
+Changing input A of cell $ge$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:383$209_gate ($ge): \native_line_gate -> \native_line
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:382$207_gate ($lt): \native_line_gate -> \native_line
+Changing input A of cell $ge$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:382$206_gate ($ge): \native_line_gate -> \native_line
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:381$205_gate ($eq): \frame_resolution_gate -> \frame_resolution
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:376$203_gate ($mux): \line_pal_gate -> \line_pal
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:378$201_gate ($lt): \horizontal_cycle_gate -> \horizontal_cycle
+Changing input A of cell $ge$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:378$200_gate ($ge): \horizontal_cycle_gate -> \horizontal_cycle
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:377$198_gate ($lt): \horizontal_cycle_gate -> \horizontal_cycle
+Changing input A of cell $ge$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:377$197_gate ($ge): \horizontal_cycle_gate -> \horizontal_cycle
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:376$195_gate ($lt): \horizontal_cycle_gate -> \horizontal_cycle
+Changing input A of cell $ge$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:376$194_gate ($ge): \horizontal_cycle_gate -> \horizontal_cycle
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:375$193_gate ($eq): \line_resolution_gate -> \line_resolution
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:373$191_gate ($mux): \frame_pal_gate -> \frame_pal
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:373$190_gate ($eq): \frame_resolution_gate -> \frame_resolution
+Changing input A of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:362$189_gate ($logic_and): \hblank_gate -> \hblank
+Changing input B of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:362$188_gate ($eq): \frame_last_gate -> \frame_last
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:362$188_gate ($eq): \native_line_gate -> \native_line
+Changing input B of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:361$184_gate ($eq): \line_last_gate -> \line_last
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:361$184_gate ($eq): \horizontal_cycle_gate -> \horizontal_cycle
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:360$182_gate ($mux): \frame_pal_gate -> \frame_pal
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:359$181_gate ($eq): \frame_resolution_gate -> \frame_resolution
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:358$179_gate ($mux): \line_timing_pal_gate -> \line_timing_pal
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:357$178_gate ($eq): \line_resolution_gate -> \line_resolution
+Changing input A of cell $ge$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:353$177_gate ($ge): \timer_sum_gate -> \timer_sum
+Changing input A of cell $add$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:352$176_gate ($add): { 1'0 \timer_phase_gate } -> { 1'0 \timer_phase }
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:341$175_gate ($mux): \mfp_select_gate -> \mfp_select
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:341$175_gate ($mux): { 8'11111111 \mfp_data_gate } -> { 8'11111111 \mfp_data }
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:342$174_gate ($mux): \psg_select_gate -> \psg_select
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:342$174_gate ($mux): { \psg_data_gate 8'11111111 } -> { \psg_data 8'11111111 }
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:343$173_gate ($mux): \kbd_select_gate -> \kbd_select
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:343$173_gate ($mux): { \kbd_data_gate 8'11111111 } -> { \kbd_data 8'11111111 }
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:344$172_gate ($mux): \midi_select_gate -> \midi_select
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:344$172_gate ($mux): { \midi_data_gate 8'11111111 } -> { \midi_data 8'11111111 }
+Changing input A of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:344$172_gate ($mux): \fdc_data_gate -> \fdc_data
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:336$170_gate ($mux): \mfp_select_gate -> \mfp_select
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:337$169_gate ($mux): \psg_select_gate -> \psg_select
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:338$168_gate ($mux): \kbd_select_gate -> \kbd_select
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:339$167_gate ($mux): \midi_select_gate -> \midi_select
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:340$166_gate ($mux): \fdc_select_gate -> \fdc_select
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:340$166_gate ($mux): \fdc_ack_gate -> \fdc_ack
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:339$165_gate ($mux): \midi_ack_gate -> \midi_ack
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:338$164_gate ($mux): \kbd_ack_gate -> \kbd_ack
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:337$163_gate ($mux): \psg_ack_gate -> \psg_ack
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:336$162_gate ($mux): \mfp_ack_gate -> \mfp_ack
+Changing input B of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:332$161_gate ($logic_or): \fdc_select_gate -> \fdc_select
+Changing input B of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:332$160_gate ($logic_or): \midi_select_gate -> \midi_select
+Changing input B of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:332$159_gate ($logic_or): \kbd_select_gate -> \kbd_select
+Changing input B of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:332$158_gate ($logic_or): \psg_select_gate -> \psg_select
+Changing input A of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:332$158_gate ($logic_or): \mfp_select_gate -> \mfp_select
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:321$138_gate ($eq): \keyboard_age_gate -> \keyboard_age
+Changing input A of cell $add$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:320$137_gate ($add): \keyboard_age_gate -> \keyboard_age
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:319$136_gate ($lt): \keyboard_age_gate -> \keyboard_age
+Changing input B of cell $ne$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:317$135_gate ($ne): \observed_keyboard_gate -> \observed_keyboard
+Changing input A of cell $procmux$485_gold ($mux): \observed_keyboard_gold -> \observed_keyboard
+Changing input B of cell $procmux$479_gold ($mux): \stable_keyboard_gold -> \stable_keyboard
+Changing input A of cell $procmux$476_gold ($mux): \stable_keyboard_gold -> \stable_keyboard
+Changing input B of cell $procmux$474_gold ($mux): \observed_keyboard_gold -> \observed_keyboard
+Changing input A of cell $procmux$474_gold ($mux): \stable_keyboard_gold -> \stable_keyboard
+Changing input A of cell $procmux$466_gold ($mux): \keyboard_age_gold -> \keyboard_age
+Changing input S of cell $procmux$461_gold ($mux): \vblank_gold -> \vblank
+Changing input S of cell $procmux$458_gold ($mux): \hblank_gold -> \hblank
+Changing input A of cell $procmux$458_gold ($mux): \video_counter_gold -> \video_counter
+Changing input S of cell $procmux$453_gold ($mux): \active_line_gold -> \active_line
+Changing input A of cell $procmux$453_gold ($mux): \video_counter_gold -> \video_counter
+Changing input S of cell $procmux$448_gold ($mux): \vblank_gold -> \vblank
+Changing input S of cell $procmux$445_gold ($mux): \hblank_gold -> \hblank
+Changing input A of cell $procmux$445_gold ($mux): \native_line_gold -> \native_line
+Changing input A of cell $procmux$443_gold ($mux): \native_line_gold -> \native_line
+Changing input A of cell $procmux$438_gold ($mux): \horizontal_cycle_gold -> \horizontal_cycle
+Changing input S of cell $procmux$433_gold ($mux): \vblank_gold -> \vblank
+Changing input A of cell $procmux$433_gold ($mux): \frame_resolution_gold -> \frame_resolution
+Changing input S of cell $procmux$427_gold ($mux): \hblank_gold -> \hblank
+Changing input A of cell $procmux$427_gold ($mux): \line_resolution_gold -> \line_resolution
+Changing input S of cell $procmux$422_gold ($mux): \vblank_gold -> \vblank
+Changing input A of cell $procmux$422_gold ($mux): \frame_pal_gold -> \frame_pal
+Changing input S of cell $procmux$416_gold ($mux): \hblank_gold -> \hblank
+Changing input A of cell $procmux$416_gold ($mux): \line_pal_gold -> \line_pal
+Changing input A of cell $procmux$411_gold ($mux): \line_timing_pal_gold -> \line_timing_pal
+Changing input A of cell $procmux$409_gold ($mux): \line_timing_pal_gold -> \line_timing_pal
+Changing input S of cell $procmux$404_gold ($mux): \vblank_gold -> \vblank
+Changing input A of cell $procmux$401_gold ($mux): \bottom_open_gold -> \bottom_open
+Changing input B of cell $procmux$396_gold ($mux): { \timer_b_display_delay_gold [22:0] \native_display_gold } -> { \timer_b_display_delay [22:0] \native_display }
+Changing input A of cell $procmux$396_gold ($mux): \timer_b_display_delay_gold -> \timer_b_display_delay
+Changing input S of cell $procmux$389_gold ($mux): \vblank_gold -> \vblank
+Changing input A of cell $procmux$389_gold ($mux): \vbl_pending_gold -> \vbl_pending
+Changing input S of cell $procmux$382_gold ($mux): \hblank_gold -> \hblank
+Changing input A of cell $procmux$382_gold ($mux): \hbl_pending_gold -> \hbl_pending
+Changing input B of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:236$132_gold ($logic_and): \fdc_select_gold -> \fdc_select
+Changing input irq of cell floppy_gold (st_floppy): \fdc_irq_gold -> \fdc_irq
+Changing input dma_write of cell floppy_gold (st_floppy): \dma_write_gold -> \dma_write
+Changing input dma_byte_enable of cell floppy_gold (st_floppy): \dma_byte_enable_gold -> \dma_byte_enable
+Changing input dma_wdata of cell floppy_gold (st_floppy): \dma_wdata_gold -> \dma_wdata
+Changing input dma_addr of cell floppy_gold (st_floppy): \dma_addr_gold -> \dma_addr
+Changing input dma_req of cell floppy_gold (st_floppy): \dma_req_gold -> \dma_req
+Changing input media_addr of cell floppy_gold (st_floppy): \media_addr_gold -> \media_addr
+Changing input media_req of cell floppy_gold (st_floppy): \media_req_gold -> \media_req
+Changing input media_changed of cell floppy_gold (st_floppy): \media_changed_gold -> \media_changed
+Changing input media_write_busy of cell floppy_gold (st_floppy): \media_write_busy_gold -> \media_write_busy
+Changing input media_write_data of cell floppy_gold (st_floppy): \media_write_data_gold -> \media_write_data
+Changing input media_write_addr of cell floppy_gold (st_floppy): \media_write_addr_gold -> \media_write_addr
+Changing input media_write_req of cell floppy_gold (st_floppy): \media_write_req_gold -> \media_write_req
+Changing input side of cell floppy_gold (st_floppy): \port_a_gold [0] -> \port_a [0]
+Changing input drive_select of cell floppy_gold (st_floppy): \port_a_gold [2:1] -> \port_a [2:1]
+Changing input mmio_ack of cell floppy_gold (st_floppy): \fdc_ack_gold -> \fdc_ack
+Changing input mmio_rdata of cell floppy_gold (st_floppy): \fdc_data_gold -> \fdc_data
+Changing input B of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:230$130_gold ($logic_and): \psg_select_gold -> \psg_select
+Changing input port_a of cell psg_gold (st_ym2149): \port_a_gold -> \port_a
+Changing input sample_valid of cell psg_gold (st_ym2149): \audio_valid_gold -> \audio_valid
+Changing input pcm_signed of cell psg_gold (st_ym2149): \audio_pcm_gold -> \audio_pcm
+Changing input bus_ack of cell psg_gold (st_ym2149): \psg_ack_gold -> \psg_ack
+Changing input bus_rdata of cell psg_gold (st_ym2149): \psg_data_gold -> \psg_data
+Changing input mouse_ready of cell ikbd_gold (st_ikbd): \mouse_ready_gold -> \mouse_ready
+Changing input keyboard of cell ikbd_gold (st_ikbd): \stable_keyboard_gold -> \stable_keyboard
+Changing input response_ready of cell ikbd_gold (st_ikbd): \kbd_rx_ready_gold -> \kbd_rx_ready
+Changing input response_data of cell ikbd_gold (st_ikbd): \kbd_rx_data_gold -> \kbd_rx_data
+Changing input response_valid of cell ikbd_gold (st_ikbd): \kbd_rx_valid_gold -> \kbd_rx_valid
+Changing input command_ready of cell ikbd_gold (st_ikbd): \kbd_tx_ready_gold -> \kbd_tx_ready
+Changing input command_data of cell ikbd_gold (st_ikbd): \kbd_tx_data_gold -> \kbd_tx_data
+Changing input command_valid of cell ikbd_gold (st_ikbd): \kbd_tx_valid_gold -> \kbd_tx_valid
+Changing input B of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:215$128_gold ($logic_and): \midi_select_gold -> \midi_select
+Changing input rx_ready of cell midi_acia_gold (st_acia): \unused_midi_ready_gold -> \unused_midi_ready
+Changing input tx_data of cell midi_acia_gold (st_acia): \unused_midi_data_gold -> \unused_midi_data
+Changing input tx_valid of cell midi_acia_gold (st_acia): \unused_midi_valid_gold -> \unused_midi_valid
+Changing input irq of cell midi_acia_gold (st_acia): \midi_irq_gold -> \midi_irq
+Changing input bus_ack of cell midi_acia_gold (st_acia): \midi_ack_gold -> \midi_ack
+Changing input bus_rdata of cell midi_acia_gold (st_acia): \midi_data_gold -> \midi_data
+Changing input B of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:205$126_gold ($logic_and): \kbd_select_gold -> \kbd_select
+Changing input rx_ready of cell keyboard_acia_gold (st_acia): \kbd_rx_ready_gold -> \kbd_rx_ready
+Changing input rx_data of cell keyboard_acia_gold (st_acia): \kbd_rx_data_gold -> \kbd_rx_data
+Changing input rx_valid of cell keyboard_acia_gold (st_acia): \kbd_rx_valid_gold -> \kbd_rx_valid
+Changing input tx_ready of cell keyboard_acia_gold (st_acia): \kbd_tx_ready_gold -> \kbd_tx_ready
+Changing input tx_data of cell keyboard_acia_gold (st_acia): \kbd_tx_data_gold -> \kbd_tx_data
+Changing input tx_valid of cell keyboard_acia_gold (st_acia): \kbd_tx_valid_gold -> \kbd_tx_valid
+Changing input irq of cell keyboard_acia_gold (st_acia): \kbd_irq_gold -> \kbd_irq
+Changing input bus_ack of cell keyboard_acia_gold (st_acia): \kbd_ack_gold -> \kbd_ack
+Changing input bus_rdata of cell keyboard_acia_gold (st_acia): \kbd_data_gold -> \kbd_data
+Changing input A of cell $logic_not$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:198$122_gold ($logic_not): \fdc_irq_gold -> \fdc_irq
+Changing input B of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:198$120_gold ($logic_or): \midi_irq_gold -> \midi_irq
+Changing input A of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:198$120_gold ($logic_or): \kbd_irq_gold -> \kbd_irq
+Changing input B of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:196$118_gold ($logic_and): \mfp_select_gold -> \mfp_select
+Changing input irq_vector of cell mfp_gold (st_mfp): \irq_vector_gold -> \irq_vector
+Changing input irq of cell mfp_gold (st_mfp): \mfp_irq_gold -> \irq_vectored
+Changing input timer_b of cell mfp_gold (st_mfp): \timer_b_display_delay_gold [23] -> \timer_b_display_delay [23]
+Changing input ack of cell mfp_gold (st_mfp): \mfp_ack_gold -> \mfp_ack
+Changing input rdata of cell mfp_gold (st_mfp): \mfp_data_gold -> \mfp_data
+Changing input timer_ce of cell mfp_gold (st_mfp): \timer_ce_gold -> \timer_ce
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:192$117_gold ($mux): \mfp_irq_gold -> \irq_vectored
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:192$116_gold ($mux): \vbl_pending_gold -> \vbl_pending
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:192$115_gold ($mux): \hbl_pending_gold -> \hbl_pending
+Changing input A of cell $add$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:185$114_gold ($add): \native_line_gold -> \native_line
+Changing input A of cell $ne$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:185$113_gold ($ne): \native_line_gold -> \native_line
+Changing input A of cell $add$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:184$112_gold ($add): \video_counter_gold -> \video_counter
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:184$110_gold ($eq): \line_resolution_gold -> \line_resolution
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:181$109_gold ($eq): \native_line_gold -> \native_line
+Changing input A of cell $sub$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:181$108_gold ($sub): \display_top_gold -> \display_top
+Changing input B of cell $ne$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:173$106_gold ($ne): \frame_pal_gold -> \frame_pal
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:172$104_gold ($eq): \native_line_gold -> \native_line
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:172$103_gold ($mux): \frame_pal_gold -> \frame_pal
+Changing input A of cell $ne$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:171$101_gold ($ne): \frame_resolution_gold -> \frame_resolution
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:170$99_gold ($eq): \horizontal_cycle_gold -> \horizontal_cycle
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:153$94_gold ($eq): \horizontal_cycle_gold -> \horizontal_cycle
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:147$93_gold ($mux): \hblank_gold -> \hblank
+Changing input A of cell $add$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:147$92_gold ($add): \horizontal_cycle_gold -> \horizontal_cycle
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:145$91_gold ($mux): \timer_ce_gold -> \timer_ce
+Changing input A of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:145$91_gold ($mux): \timer_sum_gold [31:0] -> \timer_sum [31:0]
+Changing input A of cell $sub$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:145$90_gold ($sub): \timer_sum_gold -> \timer_sum
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:134$87_gold ($lt): \horizontal_cycle_gold -> \horizontal_cycle
+Changing input A of cell $ge$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:134$85_gold ($ge): \horizontal_cycle_gold -> \horizontal_cycle
+Changing input B of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:133$84_gold ($logic_and): \active_line_gold -> \active_line
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:130$81_gold ($mux): \frame_pal_gold -> \frame_pal
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:132$79_gold ($mux): \bottom_open_gold -> \bottom_open
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:132$78_gold ($lt): \native_line_gold -> \native_line
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:132$77_gold ($lt): \native_line_gold -> \native_line
+Changing input A of cell $ge$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:132$76_gold ($ge): \native_line_gold -> \native_line
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:131$74_gold ($mux): \bottom_open_gold -> \bottom_open
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:131$73_gold ($lt): \native_line_gold -> \native_line
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:131$72_gold ($lt): \native_line_gold -> \native_line
+Changing input A of cell $ge$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:131$71_gold ($ge): \native_line_gold -> \native_line
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:130$69_gold ($lt): \native_line_gold -> \native_line
+Changing input A of cell $ge$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:130$68_gold ($ge): \native_line_gold -> \native_line
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:129$67_gold ($eq): \frame_resolution_gold -> \frame_resolution
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:126$65_gold ($mux): \line_pal_gold -> \line_pal
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:126$64_gold ($eq): \line_resolution_gold -> \line_resolution
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:125$62_gold ($mux): \line_pal_gold -> \line_pal
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:125$61_gold ($eq): \line_resolution_gold -> \line_resolution
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:124$59_gold ($mux): \frame_pal_gold -> \frame_pal
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:124$58_gold ($eq): \frame_resolution_gold -> \frame_resolution
+Changing input A of cell $logic_and$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:113$57_gold ($logic_and): \hblank_gold -> \hblank
+Changing input B of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:113$56_gold ($eq): \frame_last_gold -> \frame_last
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:113$56_gold ($eq): \native_line_gold -> \native_line
+Changing input B of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:112$52_gold ($eq): \line_last_gold -> \line_last
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:112$52_gold ($eq): \horizontal_cycle_gold -> \horizontal_cycle
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:111$50_gold ($mux): \frame_pal_gold -> \frame_pal
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:110$49_gold ($eq): \frame_resolution_gold -> \frame_resolution
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:109$47_gold ($mux): \line_timing_pal_gold -> \line_timing_pal
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:108$46_gold ($eq): \line_resolution_gold -> \line_resolution
+Changing input A of cell $ge$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:104$45_gold ($ge): \timer_sum_gold -> \timer_sum
+Changing input A of cell $add$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:103$44_gold ($add): { 1'0 \timer_phase_gold } -> { 1'0 \timer_phase }
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:92$43_gold ($mux): \mfp_select_gold -> \mfp_select
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:92$43_gold ($mux): { 8'11111111 \mfp_data_gold } -> { 8'11111111 \mfp_data }
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:93$42_gold ($mux): \psg_select_gold -> \psg_select
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:93$42_gold ($mux): { \psg_data_gold 8'11111111 } -> { \psg_data 8'11111111 }
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:94$41_gold ($mux): \kbd_select_gold -> \kbd_select
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:94$41_gold ($mux): { \kbd_data_gold 8'11111111 } -> { \kbd_data 8'11111111 }
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:95$40_gold ($mux): \midi_select_gold -> \midi_select
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:95$40_gold ($mux): { \midi_data_gold 8'11111111 } -> { \midi_data 8'11111111 }
+Changing input A of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:95$40_gold ($mux): \fdc_data_gold -> \fdc_data
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:87$38_gold ($mux): \mfp_select_gold -> \mfp_select
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:88$37_gold ($mux): \psg_select_gold -> \psg_select
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:89$36_gold ($mux): \kbd_select_gold -> \kbd_select
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:90$35_gold ($mux): \midi_select_gold -> \midi_select
+Changing input S of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:91$34_gold ($mux): \fdc_select_gold -> \fdc_select
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:91$34_gold ($mux): \fdc_ack_gold -> \fdc_ack
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:90$33_gold ($mux): \midi_ack_gold -> \midi_ack
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:89$32_gold ($mux): \kbd_ack_gold -> \kbd_ack
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:88$31_gold ($mux): \psg_ack_gold -> \psg_ack
+Changing input B of cell $ternary$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:87$30_gold ($mux): \mfp_ack_gold -> \mfp_ack
+Changing input B of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:83$29_gold ($logic_or): \fdc_select_gold -> \fdc_select
+Changing input B of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:83$28_gold ($logic_or): \midi_select_gold -> \midi_select
+Changing input B of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:83$27_gold ($logic_or): \kbd_select_gold -> \kbd_select
+Changing input B of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:83$26_gold ($logic_or): \psg_select_gold -> \psg_select
+Changing input A of cell $logic_or$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:83$26_gold ($logic_or): \mfp_select_gold -> \mfp_select
+Changing input A of cell $eq$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:72$6_gold ($eq): \keyboard_age_gold -> \keyboard_age
+Changing input A of cell $add$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:71$5_gold ($add): \keyboard_age_gold -> \keyboard_age
+Changing input A of cell $lt$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:70$4_gold ($lt): \keyboard_age_gold -> \keyboard_age
+Changing input B of cell $ne$docs/validation/2026-10-09-atari-st-raster-timing/review-horizontal-equivalence.sv:68$3_gold ($ne): \observed_keyboard_gold -> \observed_keyboard
+Setting undriven nets to undef: \unused_midi_data_gold
+Setting undriven nets to undef: \unused_midi_ready_gold
+Setting undriven nets to undef: \unused_midi_valid_gold
+Setting undriven nets to undef: \kbd_rx_data_gold
+Setting undriven nets to undef: \kbd_tx_data_gold
+Setting undriven nets to undef: \kbd_rx_ready_gold
+Setting undriven nets to undef: \kbd_rx_valid_gold
+Setting undriven nets to undef: \kbd_tx_ready_gold
+Setting undriven nets to undef: \kbd_tx_valid_gold
+Setting undriven nets to undef: \port_a_gold
+Setting undriven nets to undef: \fdc_irq_gold
+Setting undriven nets to undef: \midi_irq_gold
+Setting undriven nets to undef: \kbd_irq_gold
+Setting undriven nets to undef: \mfp_irq_gold
+Setting undriven nets to undef: \fdc_data_gold
+Setting undriven nets to undef: \midi_data_gold
+Setting undriven nets to undef: \kbd_data_gold
+Setting undriven nets to undef: \psg_data_gold
+Setting undriven nets to undef: \mfp_data_gold
+Setting undriven nets to undef: \fdc_ack_gold
+Setting undriven nets to undef: \midi_ack_gold
+Setting undriven nets to undef: \kbd_ack_gold
+Setting undriven nets to undef: \psg_ack_gold
+Setting undriven nets to undef: \mfp_ack_gold
+Setting undriven nets to undef: \dma_byte_enable_gold
+Setting undriven nets to undef: \dma_wdata_gold
+Setting undriven nets to undef: \dma_addr_gold
+Setting undriven nets to undef: \dma_write_gold
+Setting undriven nets to undef: \dma_req_gold
+Setting undriven nets to undef: \media_addr_gold
+Setting undriven nets to undef: \media_req_gold
+Setting undriven nets to undef: \media_changed_gold
+Setting undriven nets to undef: \media_write_busy_gold
+Setting undriven nets to undef: \media_write_data_gold
+Setting undriven nets to undef: \media_write_addr_gold
+Setting undriven nets to undef: \media_write_req_gold
+Setting undriven nets to undef: \audio_valid_gold
+Setting undriven nets to undef: \audio_pcm_gold
+Setting undriven nets to undef: \mouse_ready_gold
+Setting undriven nets to undef: \irq_vector_gold
+Setting undriven nets to undef: \irq_vector_gate
+Setting undriven nets to undef: \mouse_ready_gate
+Setting undriven nets to undef: \audio_pcm_gate
+Setting undriven nets to undef: \audio_valid_gate
+Setting undriven nets to undef: \media_write_req_gate
+Setting undriven nets to undef: \media_write_addr_gate
+Setting undriven nets to undef: \media_write_data_gate
+Setting undriven nets to undef: \media_write_busy_gate
+Setting undriven nets to undef: \media_changed_gate
+Setting undriven nets to undef: \media_req_gate
+Setting undriven nets to undef: \media_addr_gate
+Setting undriven nets to undef: \dma_req_gate
+Setting undriven nets to undef: \dma_write_gate
+Setting undriven nets to undef: \dma_addr_gate
+Setting undriven nets to undef: \dma_wdata_gate
+Setting undriven nets to undef: \dma_byte_enable_gate
+Setting undriven nets to undef: \mfp_ack_gate
+Setting undriven nets to undef: \psg_ack_gate
+Setting undriven nets to undef: \kbd_ack_gate
+Setting undriven nets to undef: \midi_ack_gate
+Setting undriven nets to undef: \fdc_ack_gate
+Setting undriven nets to undef: \mfp_data_gate
+Setting undriven nets to undef: \psg_data_gate
+Setting undriven nets to undef: \kbd_data_gate
+Setting undriven nets to undef: \midi_data_gate
+Setting undriven nets to undef: \fdc_data_gate
+Setting undriven nets to undef: \mfp_irq_gate
+Setting undriven nets to undef: \kbd_irq_gate
+Setting undriven nets to undef: \midi_irq_gate
+Setting undriven nets to undef: \fdc_irq_gate
+Setting undriven nets to undef: \port_a_gate
+Setting undriven nets to undef: \kbd_tx_valid_gate
+Setting undriven nets to undef: \kbd_tx_ready_gate
+Setting undriven nets to undef: \kbd_rx_valid_gate
+Setting undriven nets to undef: \kbd_rx_ready_gate
+Setting undriven nets to undef: \kbd_tx_data_gate
+Setting undriven nets to undef: \kbd_rx_data_gate
+Setting undriven nets to undef: \unused_midi_valid_gate
+Setting undriven nets to undef: \unused_midi_ready_gate
+Setting undriven nets to undef: \unused_midi_data_gate
+
+5. Executing HIERARCHY pass (managing design hierarchy).
+
+5.1. Analyzing design hierarchy..
+Top module:  \st_io_equiv
+
+5.2. Analyzing design hierarchy..
+Top module:  \st_io_equiv
+Removing unused module `\st_io_gate'.
+Removing unused module `\st_io_gold'.
+Removed 2 unused modules.
+
+6. Executing EQUIV_SIMPLE pass.
+Found 752 unproven $equiv cells (76 groups) in st_io_equiv:
+  Trying to prove $equiv for \selected:ezsat
+ success!
+  Trying to prove $equiv for \ack:ezsat
+ success!
+ Grouping SAT models for \rdata:
+  Trying to prove $equiv for \rdata [0]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [1]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [2]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [3]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [4]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [5]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [6]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [7]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [8]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [9]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [10]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [11]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [12]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [13]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [14]:ezsat
+ success!
+  Trying to prove $equiv for \rdata [15]:ezsat
+ success!
+ Grouping SAT models for \irq:
+  Trying to prove $equiv for \irq [0]:ezsat
+ success!
+  Trying to prove $equiv for \irq [1]:ezsat
+ success!
+  Trying to prove $equiv for \irq [2]:ezsat
+ success!
+  Trying to prove $equiv for \irq_vectored:ezsat
+ success!
+ Grouping SAT models for \irq_vector:
+  Trying to prove $equiv for \irq_vector [0]:ezsat
+ success!
+  Trying to prove $equiv for \irq_vector [1]:ezsat
+ success!
+  Trying to prove $equiv for \irq_vector [2]:ezsat
+ success!
+  Trying to prove $equiv for \irq_vector [3]:ezsat
+ success!
+  Trying to prove $equiv for \irq_vector [4]:ezsat
+ success!
+  Trying to prove $equiv for \irq_vector [5]:ezsat
+ success!
+  Trying to prove $equiv for \irq_vector [6]:ezsat
+ success!
+  Trying to prove $equiv for \irq_vector [7]:ezsat
+ success!
+ Grouping SAT models for \video_counter:
+  Trying to prove $equiv for \video_counter [0]:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \video_counter [1]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [2]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [3]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [4]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [5]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [6]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [7]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [8]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [9]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [10]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [11]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [12]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [13]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [14]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [15]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [16]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [17]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [18]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [19]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [20]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [21]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [22]:ezsat
+ success!
+  Trying to prove $equiv for \video_counter [23]:ezsat
+ success!
+  Trying to prove $equiv for \mouse_ready:ezsat
+ success!
+ Grouping SAT models for \audio_pcm:
+  Trying to prove $equiv for \audio_pcm [0]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [1]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [2]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [3]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [4]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [5]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [6]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [7]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [8]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [9]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [10]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [11]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [12]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [13]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [14]:ezsat
+ success!
+  Trying to prove $equiv for \audio_pcm [15]:ezsat
+ success!
+  Trying to prove $equiv for \audio_valid:ezsat
+ success!
+  Trying to prove $equiv for \media_write_req:ezsat
+ success!
+ Grouping SAT models for \media_write_addr:
+  Trying to prove $equiv for \media_write_addr [0]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [1]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [2]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [3]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [4]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [5]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [6]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [7]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [8]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [9]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [10]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [11]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [12]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [13]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [14]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [15]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [16]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [17]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_addr [18]:ezsat
+ success!
+ Grouping SAT models for \media_write_data:
+  Trying to prove $equiv for \media_write_data [0]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [1]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [2]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [3]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [4]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [5]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [6]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [7]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [8]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [9]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [10]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [11]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [12]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [13]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [14]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_data [15]:ezsat
+ success!
+  Trying to prove $equiv for \media_write_busy:ezsat
+ success!
+  Trying to prove $equiv for \media_changed:ezsat
+ success!
+  Trying to prove $equiv for \media_req:ezsat
+ success!
+ Grouping SAT models for \media_addr:
+  Trying to prove $equiv for \media_addr [0]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [1]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [2]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [3]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [4]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [5]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [6]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [7]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [8]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [9]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [10]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [11]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [12]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [13]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [14]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [15]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [16]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [17]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [18]:ezsat
+ success!
+  Trying to prove $equiv for \media_addr [19]:ezsat
+ success!
+  Trying to prove $equiv for \dma_req:ezsat
+ success!
+  Trying to prove $equiv for \dma_write:ezsat
+ success!
+ Grouping SAT models for \dma_addr:
+  Trying to prove $equiv for \dma_addr [0]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [1]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [2]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [3]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [4]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [5]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [6]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [7]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [8]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [9]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [10]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [11]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [12]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [13]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [14]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [15]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [16]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [17]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [18]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [19]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [20]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [21]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [22]:ezsat
+ success!
+  Trying to prove $equiv for \dma_addr [23]:ezsat
+ success!
+ Grouping SAT models for \dma_wdata:
+  Trying to prove $equiv for \dma_wdata [0]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [1]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [2]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [3]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [4]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [5]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [6]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [7]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [8]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [9]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [10]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [11]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [12]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [13]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [14]:ezsat
+ success!
+  Trying to prove $equiv for \dma_wdata [15]:ezsat
+ success!
+ Grouping SAT models for \dma_byte_enable:
+  Trying to prove $equiv for \dma_byte_enable [0]:ezsat
+ success!
+  Trying to prove $equiv for \dma_byte_enable [1]:ezsat
+ success!
+  Trying to prove $equiv for \vblank:ezsat
+ success!
+  Trying to prove $equiv for \hblank:ezsat
+ success!
+  Trying to prove $equiv for \native_display:ezsat
+ success!
+ Grouping SAT models for \native_line:
+  Trying to prove $equiv for \native_line [0]:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \native_line [1]:ezsat
+ success!
+  Trying to prove $equiv for \native_line [2]:ezsat
+ success!
+  Trying to prove $equiv for \native_line [3]:ezsat
+ success!
+  Trying to prove $equiv for \native_line [4]:ezsat
+ success!
+  Trying to prove $equiv for \native_line [5]:ezsat
+ success!
+  Trying to prove $equiv for \native_line [6]:ezsat
+ success!
+  Trying to prove $equiv for \native_line [7]:ezsat
+ success!
+  Trying to prove $equiv for \native_line [8]:ezsat
+ success!
+ Grouping SAT models for \address:
+  Trying to prove $equiv for \address [0]:ezsat
+ success!
+  Trying to prove $equiv for \address [1]:ezsat
+ success!
+  Trying to prove $equiv for \address [2]:ezsat
+ success!
+  Trying to prove $equiv for \address [3]:ezsat
+ success!
+  Trying to prove $equiv for \address [4]:ezsat
+ success!
+  Trying to prove $equiv for \address [5]:ezsat
+ success!
+  Trying to prove $equiv for \address [6]:ezsat
+ success!
+  Trying to prove $equiv for \address [7]:ezsat
+ success!
+  Trying to prove $equiv for \address [8]:ezsat
+ success!
+  Trying to prove $equiv for \address [9]:ezsat
+ success!
+  Trying to prove $equiv for \address [10]:ezsat
+ success!
+  Trying to prove $equiv for \address [11]:ezsat
+ success!
+  Trying to prove $equiv for \address [12]:ezsat
+ success!
+  Trying to prove $equiv for \address [13]:ezsat
+ success!
+  Trying to prove $equiv for \address [14]:ezsat
+ success!
+  Trying to prove $equiv for \address [15]:ezsat
+ success!
+  Trying to prove $equiv for \address [16]:ezsat
+ success!
+  Trying to prove $equiv for \address [17]:ezsat
+ success!
+  Trying to prove $equiv for \address [18]:ezsat
+ success!
+  Trying to prove $equiv for \address [19]:ezsat
+ success!
+  Trying to prove $equiv for \address [20]:ezsat
+ success!
+  Trying to prove $equiv for \address [21]:ezsat
+ success!
+  Trying to prove $equiv for \address [22]:ezsat
+ success!
+  Trying to prove $equiv for \address [23]:ezsat
+ success!
+ Grouping SAT models for \observed_keyboard:
+  Trying to prove $equiv for \observed_keyboard [0]:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [1]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [2]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [3]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [4]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [5]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [6]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [7]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [8]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [9]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [10]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [11]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [12]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [13]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [14]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [15]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [16]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [17]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [18]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [19]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [20]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [21]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [22]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [23]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [24]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [25]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [26]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [27]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [28]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [29]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [30]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [31]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [32]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [33]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [34]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [35]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [36]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [37]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [38]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [39]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [40]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [41]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [42]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [43]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [44]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [45]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [46]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [47]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [48]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [49]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [50]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [51]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [52]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [53]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [54]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [55]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [56]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [57]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [58]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [59]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [60]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [61]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [62]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [63]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [64]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [65]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [66]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [67]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [68]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [69]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [70]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [71]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [72]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [73]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [74]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [75]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [76]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [77]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [78]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [79]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [80]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [81]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [82]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [83]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [84]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [85]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [86]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [87]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [88]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [89]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [90]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [91]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [92]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [93]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [94]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [95]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [96]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [97]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [98]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [99]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [100]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [101]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [102]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [103]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [104]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [105]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [106]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [107]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [108]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [109]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [110]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [111]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [112]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [113]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [114]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [115]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [116]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [117]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [118]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [119]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [120]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [121]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [122]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [123]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [124]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [125]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [126]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [127]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [128]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [129]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [130]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [131]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [132]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [133]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [134]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [135]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [136]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [137]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [138]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [139]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [140]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [141]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [142]:ezsat
+ success!
+  Trying to prove $equiv for \observed_keyboard [143]:ezsat
+ success!
+ Grouping SAT models for \stable_keyboard:
+  Trying to prove $equiv for \stable_keyboard [0]:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [1]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [2]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [3]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [4]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [5]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [6]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [7]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [8]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [9]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [10]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [11]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [12]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [13]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [14]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [15]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [16]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [17]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [18]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [19]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [20]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [21]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [22]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [23]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [24]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [25]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [26]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [27]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [28]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [29]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [30]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [31]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [32]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [33]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [34]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [35]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [36]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [37]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [38]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [39]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [40]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [41]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [42]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [43]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [44]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [45]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [46]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [47]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [48]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [49]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [50]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [51]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [52]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [53]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [54]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [55]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [56]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [57]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [58]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [59]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [60]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [61]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [62]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [63]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [64]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [65]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [66]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [67]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [68]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [69]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [70]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [71]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [72]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [73]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [74]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [75]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [76]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [77]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [78]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [79]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [80]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [81]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [82]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [83]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [84]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [85]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [86]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [87]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [88]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [89]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [90]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [91]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [92]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [93]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [94]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [95]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [96]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [97]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [98]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [99]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [100]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [101]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [102]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [103]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [104]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [105]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [106]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [107]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [108]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [109]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [110]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [111]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [112]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [113]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [114]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [115]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [116]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [117]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [118]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [119]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [120]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [121]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [122]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [123]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [124]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [125]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [126]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [127]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [128]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [129]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [130]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [131]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [132]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [133]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [134]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [135]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [136]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [137]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [138]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [139]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [140]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [141]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [142]:ezsat
+ success!
+  Trying to prove $equiv for \stable_keyboard [143]:ezsat
+ success!
+ Grouping SAT models for \keyboard_age:
+  Trying to prove $equiv for \keyboard_age [0]:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [1]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [2]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [3]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [4]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [5]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [6]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [7]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [8]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [9]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [10]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [11]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [12]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [13]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [14]:ezsat
+ success!
+  Trying to prove $equiv for \keyboard_age [15]:ezsat
+ success!
+  Trying to prove $equiv for \mfp_select:ezsat
+ success!
+  Trying to prove $equiv for \psg_select:ezsat
+ success!
+  Trying to prove $equiv for \kbd_select:ezsat
+ success!
+  Trying to prove $equiv for \midi_select:ezsat
+ success!
+  Trying to prove $equiv for \fdc_select:ezsat
+ success!
+  Trying to prove $equiv for \mfp_ack:ezsat
+ success!
+  Trying to prove $equiv for \psg_ack:ezsat
+ success!
+  Trying to prove $equiv for \kbd_ack:ezsat
+ success!
+  Trying to prove $equiv for \midi_ack:ezsat
+ success!
+  Trying to prove $equiv for \fdc_ack:ezsat
+ success!
+ Grouping SAT models for \mfp_data:
+  Trying to prove $equiv for \mfp_data [0]:ezsat
+ success!
+  Trying to prove $equiv for \mfp_data [1]:ezsat
+ success!
+  Trying to prove $equiv for \mfp_data [2]:ezsat
+ success!
+  Trying to prove $equiv for \mfp_data [3]:ezsat
+ success!
+  Trying to prove $equiv for \mfp_data [4]:ezsat
+ success!
+  Trying to prove $equiv for \mfp_data [5]:ezsat
+ success!
+  Trying to prove $equiv for \mfp_data [6]:ezsat
+ success!
+  Trying to prove $equiv for \mfp_data [7]:ezsat
+ success!
+ Grouping SAT models for \psg_data:
+  Trying to prove $equiv for \psg_data [0]:ezsat
+ success!
+  Trying to prove $equiv for \psg_data [1]:ezsat
+ success!
+  Trying to prove $equiv for \psg_data [2]:ezsat
+ success!
+  Trying to prove $equiv for \psg_data [3]:ezsat
+ success!
+  Trying to prove $equiv for \psg_data [4]:ezsat
+ success!
+  Trying to prove $equiv for \psg_data [5]:ezsat
+ success!
+  Trying to prove $equiv for \psg_data [6]:ezsat
+ success!
+  Trying to prove $equiv for \psg_data [7]:ezsat
+ success!
+ Grouping SAT models for \kbd_data:
+  Trying to prove $equiv for \kbd_data [0]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_data [1]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_data [2]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_data [3]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_data [4]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_data [5]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_data [6]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_data [7]:ezsat
+ success!
+ Grouping SAT models for \midi_data:
+  Trying to prove $equiv for \midi_data [0]:ezsat
+ success!
+  Trying to prove $equiv for \midi_data [1]:ezsat
+ success!
+  Trying to prove $equiv for \midi_data [2]:ezsat
+ success!
+  Trying to prove $equiv for \midi_data [3]:ezsat
+ success!
+  Trying to prove $equiv for \midi_data [4]:ezsat
+ success!
+  Trying to prove $equiv for \midi_data [5]:ezsat
+ success!
+  Trying to prove $equiv for \midi_data [6]:ezsat
+ success!
+  Trying to prove $equiv for \midi_data [7]:ezsat
+ success!
+ Grouping SAT models for \fdc_data:
+  Trying to prove $equiv for \fdc_data [0]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [1]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [2]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [3]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [4]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [5]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [6]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [7]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [8]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [9]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [10]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [11]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [12]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [13]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [14]:ezsat
+ success!
+  Trying to prove $equiv for \fdc_data [15]:ezsat
+ success!
+ Grouping SAT models for \timer_phase:
+  Trying to prove $equiv for \timer_phase [0]:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [1]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [2]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [3]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [4]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [5]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [6]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [7]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [8]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [9]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [10]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [11]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [12]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [13]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [14]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [15]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [16]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [17]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [18]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [19]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [20]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [21]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [22]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [23]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [24]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [25]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [26]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [27]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [28]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [29]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [30]:ezsat
+ success!
+  Trying to prove $equiv for \timer_phase [31]:ezsat
+ success!
+ Grouping SAT models for \horizontal_cycle:
+  Trying to prove $equiv for \horizontal_cycle [0]:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \horizontal_cycle [1]:ezsat
+ success!
+  Trying to prove $equiv for \horizontal_cycle [2]:ezsat
+ success!
+  Trying to prove $equiv for \horizontal_cycle [3]:ezsat
+ success!
+  Trying to prove $equiv for \horizontal_cycle [4]:ezsat
+ success!
+  Trying to prove $equiv for \horizontal_cycle [5]:ezsat
+ success!
+  Trying to prove $equiv for \horizontal_cycle [6]:ezsat
+ success!
+  Trying to prove $equiv for \horizontal_cycle [7]:ezsat
+ success!
+  Trying to prove $equiv for \horizontal_cycle [8]:ezsat
+ success!
+ Grouping SAT models for \frame_resolution:
+  Trying to prove $equiv for \frame_resolution [0]:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \frame_resolution [1]:ezsat
+ success!
+ Grouping SAT models for \line_resolution:
+  Trying to prove $equiv for \line_resolution [0]:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \line_resolution [1]:ezsat
+ success!
+  Trying to prove $equiv for \frame_pal:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \line_pal:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \line_timing_pal:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \bottom_open:ezsat
+ezsat
+ success!
+ Grouping SAT models for \timer_b_display_delay:
+  Trying to prove $equiv for \timer_b_display_delay [0]:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [1]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [2]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [3]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [4]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [5]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [6]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [7]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [8]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [9]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [10]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [11]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [12]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [13]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [14]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [15]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [16]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [17]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [18]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [19]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [20]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [21]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [22]:ezsat
+ success!
+  Trying to prove $equiv for \timer_b_display_delay [23]:ezsat
+ success!
+ Grouping SAT models for \timer_sum:
+  Trying to prove $equiv for \timer_sum [0]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [1]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [2]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [3]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [4]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [5]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [6]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [7]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [8]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [9]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [10]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [11]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [12]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [13]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [14]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [15]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [16]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [17]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [18]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [19]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [20]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [21]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [22]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [23]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [24]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [25]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [26]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [27]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [28]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [29]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [30]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [31]:ezsat
+ success!
+  Trying to prove $equiv for \timer_sum [32]:ezsat
+ success!
+  Trying to prove $equiv for \timer_ce:ezsat
+ success!
+ Grouping SAT models for \line_last:
+  Trying to prove $equiv for \line_last [0]:ezsat
+ success!
+  Trying to prove $equiv for \line_last [1]:ezsat
+ success!
+  Trying to prove $equiv for \line_last [2]:ezsat
+ success!
+  Trying to prove $equiv for \line_last [3]:ezsat
+ success!
+  Trying to prove $equiv for \line_last [4]:ezsat
+ success!
+  Trying to prove $equiv for \line_last [5]:ezsat
+ success!
+  Trying to prove $equiv for \line_last [6]:ezsat
+ success!
+  Trying to prove $equiv for \line_last [7]:ezsat
+ success!
+  Trying to prove $equiv for \line_last [8]:ezsat
+ success!
+ Grouping SAT models for \frame_last:
+  Trying to prove $equiv for \frame_last [0]:ezsat
+ success!
+  Trying to prove $equiv for \frame_last [1]:ezsat
+ success!
+  Trying to prove $equiv for \frame_last [2]:ezsat
+ success!
+  Trying to prove $equiv for \frame_last [3]:ezsat
+ success!
+  Trying to prove $equiv for \frame_last [4]:ezsat
+ success!
+  Trying to prove $equiv for \frame_last [5]:ezsat
+ success!
+  Trying to prove $equiv for \frame_last [6]:ezsat
+ success!
+  Trying to prove $equiv for \frame_last [7]:ezsat
+ success!
+  Trying to prove $equiv for \frame_last [8]:ezsat
+ success!
+  Trying to prove $equiv for \vbl_pending:ezsat
+ezsat
+ success!
+  Trying to prove $equiv for \hbl_pending:ezsat
+ezsat
+ success!
+ Grouping SAT models for \display_top:
+  Trying to prove $equiv for \display_top [0]:ezsat
+ success!
+  Trying to prove $equiv for \display_top [1]:ezsat
+ success!
+  Trying to prove $equiv for \display_top [2]:ezsat
+ success!
+  Trying to prove $equiv for \display_top [3]:ezsat
+ success!
+  Trying to prove $equiv for \display_top [4]:ezsat
+ success!
+  Trying to prove $equiv for \display_top [5]:ezsat
+ success!
+  Trying to prove $equiv for \display_top [6]:ezsat
+ success!
+  Trying to prove $equiv for \display_top [7]:ezsat
+ success!
+  Trying to prove $equiv for \display_top [8]:ezsat
+ success!
+  Trying to prove $equiv for \active_line:ezsat
+ success!
+  Trying to prove $equiv for \mfp_irq:ezsat
+ success!
+  Trying to prove $equiv for \kbd_irq:ezsat
+ success!
+  Trying to prove $equiv for \midi_irq:ezsat
+ success!
+  Trying to prove $equiv for \fdc_irq:ezsat
+ success!
+ Grouping SAT models for \port_a:
+  Trying to prove $equiv for \port_a [0]:ezsat
+ success!
+  Trying to prove $equiv for \port_a [1]:ezsat
+ success!
+  Trying to prove $equiv for \port_a [2]:ezsat
+ success!
+  Trying to prove $equiv for \port_a [3]:ezsat
+ success!
+  Trying to prove $equiv for \port_a [4]:ezsat
+ success!
+  Trying to prove $equiv for \port_a [5]:ezsat
+ success!
+  Trying to prove $equiv for \port_a [6]:ezsat
+ success!
+  Trying to prove $equiv for \port_a [7]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_tx_valid:ezsat
+ success!
+  Trying to prove $equiv for \kbd_tx_ready:ezsat
+ success!
+  Trying to prove $equiv for \kbd_rx_valid:ezsat
+ success!
+  Trying to prove $equiv for \kbd_rx_ready:ezsat
+ success!
+ Grouping SAT models for \kbd_tx_data:
+  Trying to prove $equiv for \kbd_tx_data [0]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_tx_data [1]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_tx_data [2]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_tx_data [3]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_tx_data [4]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_tx_data [5]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_tx_data [6]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_tx_data [7]:ezsat
+ success!
+ Grouping SAT models for \kbd_rx_data:
+  Trying to prove $equiv for \kbd_rx_data [0]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_rx_data [1]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_rx_data [2]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_rx_data [3]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_rx_data [4]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_rx_data [5]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_rx_data [6]:ezsat
+ success!
+  Trying to prove $equiv for \kbd_rx_data [7]:ezsat
+ success!
+  Trying to prove $equiv for \unused_midi_valid:ezsat
+ success!
+  Trying to prove $equiv for \unused_midi_ready:ezsat
+ success!
+ Grouping SAT models for \unused_midi_data:
+  Trying to prove $equiv for \unused_midi_data [0]:ezsat
+ success!
+  Trying to prove $equiv for \unused_midi_data [1]:ezsat
+ success!
+  Trying to prove $equiv for \unused_midi_data [2]:ezsat
+ success!
+  Trying to prove $equiv for \unused_midi_data [3]:ezsat
+ success!
+  Trying to prove $equiv for \unused_midi_data [4]:ezsat
+ success!
+  Trying to prove $equiv for \unused_midi_data [5]:ezsat
+ success!
+  Trying to prove $equiv for \unused_midi_data [6]:ezsat
+ success!
+  Trying to prove $equiv for \unused_midi_data [7]:ezsat
+ success!
+Proved 752 previously unproven $equiv cells.
+
+7. Executing EQUIV_STATUS pass.
+Found 752 $equiv cells in st_io_equiv:
+  Of those cells 752 are proven and 0 are unproven.
+  Equivalence successfully proven!
+
+End of script. Logfile hash: 1eb450d709, time: 0.13s, user: 0.13s, system: 0.00s, MEM: 33.17 MB peak
+Yosys 0.69+ (git sha1 886afa639, Release, GNU /usr/bin/c++ 14.2.0) [github.com/DeanoC/yosys at HEAD]
+Time spent: 79% 1x equiv_simple (0 sec), 6% 2x read_verilog (0 sec), ...

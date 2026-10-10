@@ -17,6 +17,7 @@ type mediaUnitController interface {
 // use the package, generation, target and X-FogCast-Media-Unit headers, the
 // existing kit lease and update exclusion; no caller supplies a path.
 func registerMediaUnitRoutes(mux *http.ServeMux, token string, controller DevelopmentController) {
+	registerMediaDataRoutes(mux, token, controller)
 	mux.Handle("/v1/development/insert-media", authenticate(token, exactMethod(http.MethodPost, insertMediaHandler(controller))))
 	mux.Handle("/v1/development/eject-media", authenticate(token, exactMethod(http.MethodPost, ejectMediaHandler(controller))))
 }

@@ -71,12 +71,14 @@ type SessionCoreABI struct {
 // PackageID and ABI are present on the host wire for live-media binding;
 // older fixture bodies may omit them.
 type SessionCorePackage struct {
-	PackageID        string                 `json:"package_id,omitempty"`
-	Composition      *SessionComposition    `json:"composition,omitempty"`
-	Generation       uint64                 `json:"generation"`
-	Gamepad          bool                   `json:"gamepad"`
-	ABI              SessionCoreABI         `json:"abi"`
-	ActiveInterfaces []SessionCoreInterface `json:"active_interfaces"`
+	PackageID        string                     `json:"package_id,omitempty"`
+	MediaUnits       []protocol.MediaUnitStatus `json:"media_units,omitempty"`
+	PersistenceMode  string                     `json:"persistence_mode,omitempty"`
+	Composition      *SessionComposition        `json:"composition,omitempty"`
+	Generation       uint64                     `json:"generation"`
+	Gamepad          bool                       `json:"gamepad"`
+	ABI              SessionCoreABI             `json:"abi"`
+	ActiveInterfaces []SessionCoreInterface     `json:"active_interfaces"`
 }
 
 // SessionComposition is the expansion identity verified for the active load.
@@ -105,6 +107,7 @@ type SessionResult struct {
 	CoreKeyboard            bool
 	// CoreKeyboardHID is set for fes.computer packages with fes.keyboard.hid 1.0.
 	CoreKeyboardHID bool
+	CoreMouse       bool
 	// HPSFramebuffer is set when the session JSON includes hps_framebuffer.
 	// Nil means the host did not say whether this idle enables SPI 0x002f.
 	HPSFramebuffer *bool
@@ -242,6 +245,9 @@ func DecodeSession(status int, body []byte) (SessionResult, error) {
 		for _, contract := range wire.CorePackage.ActiveInterfaces {
 			if contract.IsKeyboard() {
 				result.CoreKeyboard = true
+			}
+			if computer && contract.ID == "fes.mouse.relative" && contract.Major == 1 && contract.Minor == 0 {
+				result.CoreMouse = true
 			}
 			if computer && contract.IsKeyboardHID() {
 				result.CoreKeyboardHID = true

@@ -35,6 +35,7 @@ COPIED_TREES = (
     ('testdata/core-bundle-v4', 'libmister-runtime', 'tests/fixtures/core-bundle-v4'),
     ('testdata/core-bundle-v4', 'misteross', 'tests/fixtures/core-bundle-v4'),
     ('testdata/core-persistence-v1', 'libmister-runtime', 'tests/fixtures/core-persistence-v1'),
+    ('testdata/media-data-v1', 'libmister-runtime', 'tests/fixtures/media-data-v1'),
 )
 COPIED_FILES = (
     ('testdata/menu-display-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/menu-display-v1/exchanges.json'),
@@ -130,6 +131,9 @@ def main():
         root = Path(__file__).resolve().parents[1]
         validate(root)
         result = check(root)
+        import sys
+        subprocess.run([sys.executable, str(root / 'sources/misteross/scripts/closure_tools/manifest.py'), 'check'],
+                       cwd=root / 'sources/misteross', check=True, stdout=subprocess.DEVNULL)
     except (ValueError, KeyError, OSError, subprocess.CalledProcessError) as error:
         raise SystemExit(f'consistency: {error}') from error
     print(f"consistency: package YAML valid; {result['generated_files']} generated consumers, {result['fixture_copies']} fixture copies and {result['source_pin_copies']} copied source pins match")

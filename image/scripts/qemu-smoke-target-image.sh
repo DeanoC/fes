@@ -16,6 +16,23 @@ sha256_file() {
   fi
 }
 
+prepare_smoke_sd() {
+  smoke_source=$1
+  smoke_copy=$2
+  test -s "$smoke_source" && test -f "$smoke_source" || return 1
+  test -f "$smoke_copy" && test ! -L "$smoke_copy" || return 1
+  cp "$smoke_source" "$smoke_copy" || return 1
+  # QEMU's SD controller requires a power-of-two device size. Extend only
+  # this disposable copy; its filesystem and every original byte stay intact.
+  python3 - "$smoke_copy" <<'PY'
+import os, sys
+path = sys.argv[1]
+size = os.stat(path).st_size
+with open(path, 'r+b') as image:
+    image.truncate(max(512, 1 << (size - 1).bit_length()))
+PY
+}
+
 kernel_cache_valid() {
   cache_expected=$1
   cache_output=$2
@@ -58,6 +75,12 @@ verify_smoke_log() {
 }
 
 case "${1:-}" in
+  --prepare-sd-copy)
+    [ "$#" -eq 3 ] || usage
+    test "${TARGET_IMAGE_TEST_MODE:-0}" = 1 || usage
+    prepare_smoke_sd "$2" "$3"
+    exit
+    ;;
   --verify-kernel-cache)
     [ "$#" -eq 3 ] || usage
     test "${TARGET_IMAGE_TEST_MODE:-0}" = 1 || {
@@ -96,8 +119,10 @@ case "${1:-}" in
 
     # The smoke kernel uses the native image compiler so the native build
     # is independently sufficient for packaging smoke.
-    toolchain_root=/target-image-output/work-2-native-dev/host
-    toolchain=/target-image-output/work-2-native-dev/host/bin/arm-buildroot-linux-gnueabihf-
+    selected_work=${FES_IMAGE_WORK:-/target-image-output/work-2-native-dev}
+    export CCACHE_DISABLE=1  # only image pass 1 and make dev use the shared ccache
+    toolchain_root=$selected_work/host
+    toolchain=$selected_work/host/bin/arm-buildroot-linux-gnueabihf-
     test -x "${toolchain}gcc" || {
       printf 'qemu-smoke-target-image: cross compiler is missing: %sgcc\n' "$toolchain" >&2
       exit 1
@@ -164,6 +189,11 @@ case "${1:-}" in
 
     log=/work/build/output/target-image/$variant/qemu-smoke.log
     /bin/rm -f "$log"
+    smoke_disk=$(mktemp /target-image-output/qemu-sd.XXXXXX)
+    trap '/bin/rm -f "$smoke_disk"' EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    prepare_smoke_sd "$image" "$smoke_disk"
     timeout -s TERM 45 qemu-system-arm \
       -M vexpress-a9 \
       -m 256M \
@@ -173,7 +203,7 @@ case "${1:-}" in
       -audiodev none,id=noaudio \
       -kernel "$kernel_output/arch/arm/boot/zImage" \
       -dtb "$kernel_output/arch/arm/boot/dts/vexpress-v2p-ca9.dtb" \
-      -drive "file=$image,if=sd,format=raw" \
+      -drive "file=$smoke_disk,if=sd,format=raw" \
       -append 'root=/dev/mmcblk0 ro rootwait console=ttyAMA0,115200 init=/sbin/init fogcast_target_smoke=1' \
       > "$log" 2>&1 || true
     verify_smoke_log "$variant" "$log"

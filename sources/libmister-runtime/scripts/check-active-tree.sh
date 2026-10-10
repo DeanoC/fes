@@ -18,7 +18,10 @@ for active_path in fogcast runtime support lib releases; do
 	fi
 done
 
-historic_pattern='stage[-_ ]?c0|poc[0-9]*|fogcast-runtime|native[-_ ]personality|mister_runtime_linux_v2|NativeLinuxV2|HardwareBroker|OperationLease|CapabilityBundle|AuthorityView|BackendFence|ReplayTracker|native_recovery|native_containment|native_peripheral_session|native_resources|native_audio|native_av_io|native_video|native_input|native_save|native_scheduler|native_offload|native_snes|(^|[^[:alnum:]])v2([^[:alnum:]]|$)'
+# A PoC name begins a token or follows a nonletter (including C++ mangling's
+# length digits). Do not match the interior of legitimate Epoch identifiers.
+poc_pattern='(^|[^[:alpha:]])poc[0-9]*'
+historic_pattern="stage[-_ ]?c0|$poc_pattern|fogcast-runtime|native[-_ ]personality|mister_runtime_linux_v2|NativeLinuxV2|HardwareBroker|OperationLease|CapabilityBundle|AuthorityView|BackendFence|ReplayTracker|native_recovery|native_containment|native_peripheral_session|native_resources|native_audio|native_av_io|native_video|native_input|native_save|native_scheduler|native_offload|native_snes|(^|[^[:alnum:]])v2([^[:alnum:]]|$)"
 
 # Package schema guard versions are not the removed runtime-v2 lifecycle.
 # Exempt only their exact generated preprocessor lines; other v2 names still fail.
@@ -54,7 +57,7 @@ executable_list=$(find "$build" -maxdepth 1 -type f \
 	exit 1
 }
 
-built_name_pattern='fogcast[-_ ]runtime|personality|stage[-_ ]?[a-z0-9]*|poc[0-9]*|broker|coordinator|backendfence|replay|(^|[^[:alnum:]])v2([^[:alnum:]]|$)'
+built_name_pattern="fogcast[-_ ]runtime|personality|stage[-_ ]?[a-z0-9]*|$poc_pattern|broker|coordinator|backendfence|replay|(^|[^[:alnum:]])v2([^[:alnum:]]|$)"
 # The generated ProgressTag constant's C++ mangling ends in "sTagE".
 # Exclude only that exact generated symbol, retaining the historic-name guard.
 # The exact shared composition identity domain string is likewise excluded.
@@ -85,6 +88,7 @@ hardware.o
 i2c.o
 input.o
 linux_input.o
+media_data.o
 menu_display.o
 menu_memory.o
 mmio.o

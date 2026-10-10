@@ -6,10 +6,12 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -123,5 +125,67 @@ func TestCoreCatalogDisabledAndUnavailableStates(t *testing.T) {
 	rows, err = s.AvailableCores(context.Background())
 	if err != nil || rows[0].ArtifactState != "unavailable" {
 		t.Fatal(rows, err)
+	}
+}
+
+type failingVideoCatalog struct{ *catalog.Store }
+
+func (failingVideoCatalog) CoreVideoParts(context.Context) ([]catalog.CoreVideoPart, error) {
+	return nil, errors.New("inventory unreadable")
+}
+
+func TestAvailableCoresKeepsUnaffectedCoresWhenVideoInventoryFails(t *testing.T) {
+	s, packageID := catalogServiceFixture(t)
+	ctx := context.Background()
+	var value map[string]any
+	body, err := os.ReadFile(s.coreCatalogPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(body, &value); err != nil {
+		t.Fatal(err)
+	}
+	entries := value["entries"].([]any)
+	videoID := strings.Repeat("b", 64)
+	entries = append(entries, map[string]any{
+		"core_id": "fes.coleco", "label": "Coleco", "system": "coleco", "standing": "supported",
+		"package_id": videoID, "archive_path": "coleco.fcore", "archive_sha256": videoID, "archive_size": 1,
+		"video_parts": []any{map[string]any{
+			"archive_path": "coleco-direct.part", "archive_sha256": videoID, "archive_size": 1,
+			"part_id": videoID, "profile": "direct",
+		}},
+	})
+	value["entries"] = entries
+	delete(value, "catalog_sha256")
+	encoded, _ := json.Marshal(value)
+	sum := sha256.Sum256(encoded)
+	value["catalog_sha256"] = hex.EncodeToString(sum[:])
+	encoded, _ = json.Marshal(value)
+	if err := os.WriteFile(s.coreCatalogPath, encoded, 0600); err != nil {
+		t.Fatal(err)
+	}
+	store, ok := s.catalog.(*catalog.Store)
+	if !ok {
+		t.Fatalf("catalog type %T", s.catalog)
+	}
+	s.catalog = failingVideoCatalog{Store: store}
+	rows, err := s.AvailableCores(ctx)
+	if err != nil || len(rows) != 2 {
+		t.Fatalf("rows=%+v err=%v", rows, err)
+	}
+	var plain, video AvailableCore
+	for _, row := range rows {
+		if row.CoreID == "fes.pong" {
+			plain = row
+		}
+		if row.CoreID == "fes.coleco" {
+			video = row
+		}
+	}
+	if plain.ArtifactState != "installed" || plain.VideoInventoryError != "" || plain.PackageID != packageID {
+		t.Fatalf("unaffected core %+v", plain)
+	}
+	if video.VideoInventoryError == "" || video.ArtifactState == "installed" {
+		t.Fatalf("video core %+v", video)
 	}
 }

@@ -611,6 +611,17 @@
     });
   }
 
+  function titleForPreference(titles, gameID) {
+    if (!gameID || !Array.isArray(titles)) return null;
+    for (const title of titles) {
+      if (!title) continue;
+      if (title.title_id === gameID) return title;
+      const options = Array.isArray(title.options) ? title.options : [];
+      if (options.some(option => option && option.source_game_id === gameID)) return title;
+    }
+    return null;
+  }
+
   function titleForGame(titles, game) {
     if (!game || !Array.isArray(titles)) return null;
     for (const title of titles) {
@@ -628,13 +639,29 @@
     return option.execution || option.source_game_id;
   }
 
+  function canonicalEditionQuery(value) {
+    const text = String(value || '').trim().toLowerCase();
+    let out = '';
+    let spaced = false;
+    for (const ch of text) {
+      if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+        out += ch;
+        spaced = false;
+      } else if ((ch === ' ' || ch === '\t') && out && !spaced) {
+        out += ' ';
+        spaced = true;
+      }
+    }
+    return out.trim();
+  }
+
   function savedSourceGameID(title, game, picks, options) {
     if (!title || !picks || !Array.isArray(options)) return '';
     const known = id => typeof id === 'string' && options.some(option => option.source_game_id === id);
     // Household pick against the canonical title first, then the title query.
     // A catalog id that happens to equal a source id is not a choice.
     if (known(picks[title.title_id])) return picks[title.title_id];
-    const query = game && typeof game.title === 'string' ? game.title.trim().toLowerCase() : '';
+    const query = canonicalEditionQuery(game && game.title);
     if (query && known(picks[query])) return picks[query];
     return '';
   }
@@ -1059,6 +1086,10 @@
     if (input !== undefined) result.input = input;
     if (flightID !== undefined) result.flight_id = flightID;
     if (keyboardHID) result.keyboard_hid = true;
+    if (active && sessionHasMouse(payload.core_package)) {
+      result.mouse_relative = true;
+      result.mouse_binding = payload.core_package.package_id + ':' + payload.core_package.generation;
+    }
     return Object.freeze(result);
   }
 
@@ -1070,6 +1101,17 @@
     if (!abi || abi.id !== 'fes.computer' || abi.major !== 1 || abi.minor !== 0) return false;
     return Array.isArray(core.active_interfaces) && core.active_interfaces.some(contract =>
       contract && contract.id === 'fes.keyboard.hid' && contract.major === 1 && contract.minor === 0);
+  }
+
+  function sessionHasMouse(core) {
+    return Boolean(core && core.abi && core.abi.id === 'fes.computer' && core.abi.major === 1 && core.abi.minor === 0 &&
+      /^[a-f0-9]{64}$/.test(core.package_id) && Number.isSafeInteger(core.generation) && core.generation > 0 &&
+      Array.isArray(core.active_interfaces) && core.active_interfaces.some(c => c && c.id === 'fes.mouse.relative' && c.major === 1 && c.minor === 0));
+  }
+
+  function mouseEventRequest(dx, dy, buttons) {
+    return { path: '/api/v1/session/input/event', options: { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({event: {Player: 0, Device: 2, Kind: 4, Action: 3, Code: buttons, Value: (dx & 65535) | ((dy & 65535) << 16)}}) }};
   }
 
   function sessionViewState(session) {
@@ -1598,13 +1640,39 @@
     let playContextGeneration = 0;
     let confirmedPicks = {};
     let localPlayPicks = {};
+    // titleChoiceKeys holds the confirmed pick keys each title owns.
+    const titleChoiceKeys = new Map();
     let playPickRevision = 0;
     const confirmedLocalKeys = new Set();
     const pendingPickRevisions = new Map();
+    const pendingPickKeys = new Map();
+    // pickEpoch advances when a pick starts or saves, so a preference GET can
+    // tell that a title changed locally after the GET began.
+    let pickEpoch = 0;
+    const lastPickEpochs = new Map();
     const playPickSaves = new Map();
 
     function publishPlayPicks() {
       state.playPicks = Object.freeze({ ...confirmedPicks, ...localPlayPicks });
+    }
+
+    // A saved pick replaces every key the title owned before it.
+    function confirmPlayPick(titleKey, pick) {
+      for (const key of titleChoiceKeys.get(titleKey) || []) {
+        if (Object.prototype.hasOwnProperty.call(pick, key)) continue;
+        delete confirmedPicks[key];
+        confirmedLocalKeys.delete(key);
+      }
+      confirmedPicks = { ...confirmedPicks, ...pick };
+      Object.keys(pick).forEach(key => confirmedLocalKeys.add(key));
+      titleChoiceKeys.set(titleKey, Object.keys(pick));
+      lastPickEpochs.set(titleKey, ++pickEpoch);
+    }
+
+    function settlePendingPicks(titleKey) {
+      for (const key of pendingPickKeys.get(titleKey) || []) delete localPlayPicks[key];
+      pendingPickKeys.delete(titleKey);
+      pendingPickRevisions.delete(titleKey);
     }
 
     function liveSessionTitle(id) {
@@ -2138,6 +2206,7 @@
     async function ensurePlayContext() {
       const generation = ++playContextGeneration;
       const selectionRevision = state.selectionRevision;
+      const pickEpochAtStart = pickEpoch;
       const selected = state.selectedLiveGame;
       state.playOptionRows = [];
       state.playOptionState = 'loading';
@@ -2156,17 +2225,42 @@
       }
       if (prefsPayload && Array.isArray(prefsPayload.preferences)) {
         const fetched = {};
+        const refreshed = new Map();
+        const kept = new Set(confirmedLocalKeys);
         prefsPayload.preferences.forEach(pref => {
           if (!pref || typeof pref.game_id !== 'string' || !pref.game_id.trim()) return;
           const gameID = pref.game_id.trim();
-          const key = typeof pref.query === 'string' ? pref.query.trim().toLowerCase() : '';
+          const key = canonicalEditionQuery(pref.query);
+          const ownedTitle = titleForPreference(state.libraryTitles, gameID);
+          const titleID = ownedTitle && typeof ownedTitle.title_id === 'string' ? ownedTitle.title_id : '';
+          // A pick that is pending, or that started or saved after this GET
+          // began, is newer than this response, so the title keeps its keys.
+          if (titleID && (pendingPickRevisions.has(titleID)
+              || (lastPickEpochs.get(titleID) || 0) > pickEpochAtStart)) {
+            for (const owned of titleChoiceKeys.get(titleID) || []) kept.add(owned);
+            return;
+          }
           if (key) fetched[key] = gameID;
           fetched[gameID] = gameID;
+          if (!titleID) return;
+          // Otherwise the fetched preference replaces the title's owned keys,
+          // including a choice this browser saved before another client changed it.
+          if (!refreshed.has(titleID)) {
+            refreshed.set(titleID, []);
+            for (const stale of titleChoiceKeys.get(titleID) || []) {
+              confirmedLocalKeys.delete(stale);
+              kept.delete(stale);
+            }
+          }
+          const owned = refreshed.get(titleID);
+          if (key && !owned.includes(key)) owned.push(key);
+          if (!owned.includes(gameID)) owned.push(gameID);
+          titleChoiceKeys.set(titleID, owned);
         });
         confirmedPicks = Object.fromEntries(Object.entries(confirmedPicks)
-          .filter(([key]) => confirmedLocalKeys.has(key)));
+          .filter(([key]) => kept.has(key)));
         for (const [key, id] of Object.entries(fetched)) {
-          if (!confirmedLocalKeys.has(key)) confirmedPicks[key] = id;
+          if (!kept.has(key)) confirmedPicks[key] = id;
         }
       }
       publishPlayPicks();
@@ -2229,10 +2323,17 @@
       if (!query) return;
       const localPick = { [game.id]: game.id };
       if (title && title.title_id) localPick[title.title_id] = game.id;
-      localPick[String(query).trim().toLowerCase()] = game.id;
+      const canonicalQuery = canonicalEditionQuery(query);
+      if (canonicalQuery) localPick[canonicalQuery] = game.id;
       const titleKey = title.title_id;
       const revision = ++playPickRevision;
       pendingPickRevisions.set(titleKey, revision);
+      lastPickEpochs.set(titleKey, ++pickEpoch);
+      const pendingKeys = pendingPickKeys.get(titleKey) || new Set();
+      Object.keys(localPick).forEach(key => pendingKeys.add(key));
+      pendingPickKeys.set(titleKey, pendingKeys);
+      // The pick shows immediately; confirmed picks change only when a save
+      // succeeds, so a failed later choice falls back to the last saved one.
       localPlayPicks = { ...localPlayPicks, ...localPick };
       publishPlayPicks();
       // Keep writes for one title in user order. A later pending choice remains
@@ -2243,16 +2344,14 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, platform, game_id: game.id }),
       })).then(() => {
-        confirmedPicks = { ...confirmedPicks, ...localPick };
-        Object.keys(localPick).forEach(key => confirmedLocalKeys.add(key));
-        if (pendingPickRevisions.get(titleKey) !== revision) return;
-        for (const key of Object.keys(localPick)) delete localPlayPicks[key];
-        pendingPickRevisions.delete(titleKey);
+        // Saves for one title run in order, so each success is the household
+        // choice until a later save lands. A newer pending pick stays visible.
+        confirmPlayPick(titleKey, localPick);
+        if (pendingPickRevisions.get(titleKey) === revision) settlePendingPicks(titleKey);
         publishPlayPicks();
       }, () => {
         if (pendingPickRevisions.get(titleKey) !== revision) return;
-        for (const key of Object.keys(localPick)) delete localPlayPicks[key];
-        pendingPickRevisions.delete(titleKey);
+        settlePendingPicks(titleKey);
         publishPlayPicks();
         const currentTitle = titleForGame(state.libraryTitles, state.selectedLiveGame);
         if (!currentTitle || currentTitle.title_id !== title.title_id) return;
@@ -2396,6 +2495,27 @@
       return Boolean(state.sessionAuthority === 'authoritative' && state.session &&
         state.session.state === 'active' && state.session.keyboard_hid === true &&
         state.session.input && state.session.input.state === 'attached' && state.session.input.ready);
+    }
+
+    function mouseAllowed() {
+      return Boolean(state.sessionAuthority === 'authoritative' && state.session && state.session.state === 'active' &&
+        state.session.mouse_relative && state.session.input && state.session.input.state === 'attached' && state.session.input.ready);
+    }
+    let mouseQueue = Promise.resolve();
+    let mousePending = 0;
+    function sendMouseRelative(dx, dy, buttons) {
+      if (![dx,dy,buttons].every(Number.isInteger) || dx < -32768 || dx > 32767 || dy < -32768 || dy > 32767 || buttons < 0 || buttons > 3 || !mouseAllowed()) return Promise.resolve(false);
+      if (mousePending >= 64 && (dx || dy || buttons)) return Promise.resolve(false);
+      const binding = state.session.mouse_binding;
+      mousePending += 1;
+      const task = mouseQueue.then(async () => {
+        if (!mouseAllowed() || state.session.mouse_binding !== binding) return false;
+        const spec = mouseEventRequest(dx,dy,buttons);
+        try { await request(fetchImpl,spec.path,spec.options); return true; }
+        catch (_) { return false; } // Unconfirmed motion is never retried.
+      }).finally(() => { mousePending -= 1; });
+      mouseQueue = task.catch(() => false);
+      return task;
     }
 
     // HID events are delivered one at a time in event order, so a quick tap's
@@ -3463,6 +3583,8 @@
       attachInput,
       detachInput,
       keyboardHIDAllowed,
+      mouseAllowed,
+      sendMouseRelative,
       sendKeyboardHID,
       flushKeyboardHID,
       observeVisibleCovers,
@@ -3496,6 +3618,7 @@
     detachInputRequest,
     hidUsageForCode,
     keyboardHIDEventRequest,
+    mouseEventRequest,
     parseSession,
     sessionViewState,
     launchStatus,
@@ -3997,10 +4120,19 @@
   let attachInputButton;
   let detachInputButton;
   let captureKeyboardButton;
+  let captureMouseButton;
+  let capturedMouseButtons = 0;
   let sessionActionReason;
   // Keyboard capture forwards every physical key, including Escape and
   // Backspace, to a fes.keyboard.hid session. Stop stays on the Stop button.
   const keyboardCapture = { active: false, held: new Set() };
+
+  function releaseCapturedMouse() {
+    capturedMouseButtons = 0;
+    void controller.sendMouseRelative(0,0,0);
+    if (document.pointerLockElement === nodes.sessionPanel) document.exitPointerLock?.();
+  }
+  function mouseCaptured() { return controller.mouseAllowed() && document.pointerLockElement === nodes.sessionPanel; }
 
   function releaseCapturedKeys() {
     for (const usage of keyboardCapture.held) void controller.sendKeyboardHID(usage, false);
@@ -4162,6 +4294,18 @@
       captureKeyboardButton.addEventListener('click', toggleKeyboardCapture);
       nodes.sessionActions.appendChild(captureKeyboardButton);
     }
+    if (!captureMouseButton) {
+      captureMouseButton = element('button','button secondary','Capture mouse');
+      captureMouseButton.id = 'capture-session-mouse';
+      captureMouseButton.type = 'button';
+      captureMouseButton.addEventListener('click', () => {
+        if (mouseCaptured()) releaseCapturedMouse();
+        else if (controller.mouseAllowed()) {
+          try { Promise.resolve(nodes.sessionPanel.requestPointerLock?.()).catch(() => {}); } catch (_) {}
+        }
+      });
+      nodes.sessionActions.appendChild(captureMouseButton);
+    }
     if (!sessionActionReason) {
       sessionActionReason = element('p', 'launch-reason');
       sessionActionReason.id = 'session-action-reason';
@@ -4218,6 +4362,10 @@
     attachInputButton.disabled = Boolean(conflictReason) || !canAttach;
     detachInputButton.hidden = !canDetach && state.activeMutation !== 'detach';
     detachInputButton.disabled = Boolean(conflictReason) || !canDetach;
+    captureMouseButton.hidden = !controller.mouseAllowed();
+    captureMouseButton.textContent = mouseCaptured() ? 'Release mouse' : 'Capture mouse';
+    captureMouseButton.setAttribute('aria-pressed',String(mouseCaptured()));
+    if (!controller.mouseAllowed() && capturedMouseButtons) releaseCapturedMouse();
     captureKeyboardButton.hidden = !canCapture;
     captureKeyboardButton.textContent = keyboardCapture.active ? 'Release keyboard' : 'Capture keyboard';
     captureKeyboardButton.setAttribute('aria-pressed', String(keyboardCapture.active));
@@ -6340,12 +6488,28 @@
   if (nodes.settingsPreferredRegions) nodes.settingsPreferredRegions.addEventListener('input', () => touchSettings('regions'));
   if (nodes.settingsVideoProfile) nodes.settingsVideoProfile.addEventListener('change', () => touchSettings('video'));
   if (typeof document.addEventListener === 'function') {
+    document.addEventListener('pointerlockchange', () => { if (!mouseCaptured()) { capturedMouseButtons=0; void controller.sendMouseRelative(0,0,0); } renderSession(); });
+    document.addEventListener('mousemove', event => {
+      if (!mouseCaptured()) return;
+      const dx=Math.max(-32768,Math.min(32767,Math.trunc(event.movementX || 0)));
+      const dy=Math.max(-32768,Math.min(32767,Math.trunc(event.movementY || 0)));
+      if (dx || dy) void controller.sendMouseRelative(dx,dy,capturedMouseButtons);
+    });
+    for (const type of ['mousedown','mouseup']) document.addEventListener(type,event => {
+      if (!mouseCaptured()) return;
+      event.preventDefault?.(); event.stopPropagation?.();
+      if (event.button !== 0 && event.button !== 2) return;
+      const bit=event.button===0 ? 1 : 2;
+      if (type==='mousedown') capturedMouseButtons |= bit; else capturedMouseButtons &= ~bit;
+      void controller.sendMouseRelative(0,0,capturedMouseButtons);
+    });
+    document.addEventListener('contextmenu',event => { if(mouseCaptured()) event.preventDefault?.(); });
     document.addEventListener('keyup', event => {
       if (keyboardCapture.active) forwardCapturedKey(event, false);
     });
     if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       // Key releases are lost while the page is unfocused; release held keys.
-      window.addEventListener('blur', releaseCapturedKeys);
+      window.addEventListener('blur', () => { releaseCapturedKeys(); releaseCapturedMouse(); });
     }
     document.addEventListener('keydown', event => {
       if (keyboardCapture.active) {

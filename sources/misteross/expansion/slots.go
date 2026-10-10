@@ -216,7 +216,7 @@ func linkRegionOverlaysContext(ctx context.Context, shell []byte, overlays []reg
 			// The wide native fence includes real routing bits in columns the
 			// legacy profiles retain from the shell. Admit every decoded native
 			// change against its exact rectangle; frame CRCs are refreshed below.
-			if (policy != colecoNativeVideoSocket && crcCompanionColumn(x)) || bytes.Equal(before, after) {
+			if (policy != colecoNativeVideoSocket && policy != atariStVideoSocket && crcCompanionColumn(x)) || bytes.Equal(before, after) {
 				continue
 			}
 			target := result[x*frameBytes : (x+1)*frameBytes]

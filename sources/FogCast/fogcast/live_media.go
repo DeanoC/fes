@@ -54,7 +54,7 @@ func (s *Service) ClearLiveMedia(parent context.Context, b protocol.DevelopmentM
 		return protocol.Status{}, err
 	}
 	defer release()
-	return s.clearLiveMediaLocked(ctx, b)
+	return s.clearLiveMediaLocked(ctx, parent, b)
 }
 
 func (s *Service) readLiveTapeMedia(ctx context.Context, mediaID string) (*coreEntryMedia, error) {
@@ -126,7 +126,13 @@ func (s *Service) ejectComputerUnit(ctx context.Context, client interface{}, pri
 	if !ok {
 		return protocol.Status{}, true, canonicalError(protocol.CodeUnsupportedOperation, nil)
 	}
-	status, err := units.EjectMedia(ctx, unit)
+	var status protocol.Status
+	var err error
+	if saved, ok := client.(savedMediaUnitClient); ok && protocol.MediaDataBound(prior.CorePackage) {
+		status, err = saved.EjectMediaWithSave(ctx, unit)
+	} else {
+		status, err = units.EjectMedia(ctx, unit)
+	}
 	if err != nil {
 		return status, true, preserveCorePackageError(err)
 	}
@@ -136,7 +142,7 @@ func (s *Service) ejectComputerUnit(ctx context.Context, client interface{}, pri
 	return s.retainLiveSessionIdentity(status, b), true, nil
 }
 
-func (s *Service) clearLiveMediaLocked(ctx context.Context, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
+func (s *Service) clearLiveMediaLocked(ctx, owner context.Context, b protocol.DevelopmentMediaBinding) (protocol.Status, error) {
 	ctx = WithSessionTarget(ctx, b.Target)
 	if err := s.prepareLiveMediaClient(ctx, b); err != nil {
 		return protocol.Status{}, err
@@ -150,6 +156,11 @@ func (s *Service) clearLiveMediaLocked(ctx context.Context, b protocol.Developme
 	prior, err := client.Status(ctx)
 	if err != nil {
 		return protocol.Status{}, canonicalRemoteError(err, protocol.CodeMiSTerUnavailable)
+	}
+	if protocol.MediaDataBound(prior.CorePackage) {
+		operation, cancel := serviceTimeout(owner, 150*time.Second)
+		defer cancel()
+		ctx = operation
 	}
 	unit := diskUnitBinding("", b)
 	if status, handled, err := s.ejectComputerUnit(ctx, client, prior, b, unit, protocol.Apple2FloppyInterface()); handled || err != nil {

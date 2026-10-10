@@ -55,12 +55,9 @@ func (s *Service) loadDevelopmentMediaReaderLocked(ctx context.Context, size int
 	s.executionMu.Lock()
 	target := SessionTargetFromContext(ctx)
 	if target == "" {
-		target = s.activeTarget
+		target, _ = s.selectedKitPlayLocked()
 	}
 	s.executionMu.Unlock()
-	if target == "" {
-		target = s.selectedTarget
-	}
 	if target != b.Target || targetByName(s.targets, target).TargetID != b.TargetID {
 		return protocol.Status{}, protocol.DevelopmentMediaIdentityError()
 	}

@@ -1,0 +1,29 @@
+#include <cyclonev.h>
+#include <vector>
+#include <queue>
+#include <cstdio>
+#include <memory>
+using C=mistral::CycloneV;
+int main(){
+ std::unique_ptr<C> c(C::get_model("5CSEBA6U23I7"));
+ unsigned n=c->rnode_index_count();
+ std::vector<std::vector<unsigned>> down(n);
+ std::vector<unsigned char> allowed(n,0);
+ std::vector<std::pair<uint32_t,uint32_t>> bits;
+ for(unsigned i=0;i<n;i++){auto ro=c->ri2ro(i); if(!ro)continue;
+  if(!c->rnode_mux_cram_bits(ro->rc(),bits))return 2;
+  allowed[i]=1; for(auto b:bits)if(b.first<1769||b.first>=2806||b.second<3442||b.second>=5162)allowed[i]=0;
+  for(auto s=ro->sources_begin();s!=ro->sources_end();++s)down[*s].push_back(i);
+ }
+ unsigned src=c->pnode_to_rnode(C::pnode_coords(C::LAB,24,41,C::FFB0,5,-1));
+ unsigned dst=c->rc2ri(C::rnode_coords(c->rnode_type_lookup("GOUT"),25,42,58));
+ printf("source=%s index=%u destination=%u\n",c->ri2rc(src).to_string().c_str(),src,dst);
+ for(bool fence:{true,false}){
+  std::vector<unsigned> parent(n,0xffffffff); std::queue<unsigned> q; q.push(src); parent[src]=src; unsigned seen=0;
+  while(!q.empty()){unsigned v=q.front();q.pop();seen++;if(v==dst)break;for(auto d:down[v])if(parent[d]==0xffffffff&&(!fence||allowed[d])){parent[d]=v;q.push(d);}}
+  printf("fence=%d reached=%u destination_reachable=%d\n",fence,seen,parent[dst]!=0xffffffff);
+  if(parent[dst]!=0xffffffff){std::vector<unsigned> path;for(unsigned v=dst;;v=parent[v]){path.push_back(v);if(v==src)break;}
+   for(auto it=path.rbegin();it!=path.rend();++it){auto rc=c->ri2rc(*it);c->rnode_mux_cram_bits(rc,bits);printf("%s allowed=%d muxbits=",rc.to_string().c_str(),allowed[*it]);for(auto b:bits)printf("%u,%u ",b.first,b.second);puts("");}
+  }
+ }
+}

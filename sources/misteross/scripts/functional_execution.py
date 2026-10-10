@@ -12,6 +12,7 @@ import os
 import platform
 import re
 import subprocess
+import sys
 from pathlib import Path
 from scripts.compiler_read_audit import TRACER, read_execution_data
 
@@ -133,3 +134,44 @@ def source_roots_for_inputs(pinned_inputs):
         parts = Path(path).parts
         roots.add("/".join(parts[:2]) if parts[0] == "cores" else parts[0])
     return sorted(roots)
+
+
+class AuditedRoots(list):
+    """Roots whose reads must be checked against the committed manifest."""
+
+
+def producer_name(module_name, scripts_root):
+    """Map a producer's module name to its manifest entry.
+
+    Producers run both as `python scripts/build_x.py` (``__main__``) when they
+    build and write the sidecar record, and as ``scripts.build_x`` when FES
+    derives the canonical record. Both must pick the same roots, so
+    ``__main__`` resolves to the running script's stem.
+    """
+    if module_name != '__main__':
+        return module_name.removeprefix('scripts.')
+    path = getattr(sys.modules.get('__main__'), '__file__', None)
+    if not path or Path(path).resolve().parent != (Path(scripts_root) / 'scripts').resolve():
+        return None
+    return Path(path).stem
+
+
+def source_roots_for_producer(module_name, pinned_inputs, root=None):
+    """Use an audited closure when registered; preserve the old fallback exactly."""
+    from scripts.source_closure import ROOT, load_manifest
+    if (os.environ.get('FES_SOURCE_CLOSURE_BROAD') == '1' or
+            os.environ.get('FES_SOURCE_CLOSURE_RECORD_ONLY') == '1'):
+        return source_roots_for_inputs(pinned_inputs)
+    if root is not None and Path(root).resolve() != ROOT.resolve():
+        return source_roots_for_inputs(pinned_inputs)
+    name = producer_name(module_name, ROOT)
+    roots = None if name is None else load_manifest().get(name)
+    if roots is None:
+        return source_roots_for_inputs(pinned_inputs)
+    # Declared inputs always stay in the key, even for producer variants
+    # (e.g. video_socket) whose extra inputs the audit did not exercise.
+    merged = list(roots)
+    for path in pinned_inputs:
+        if not any(path == item or path.startswith(item.rstrip('/') + '/') for item in merged):
+            merged.append(path)
+    return AuditedRoots(sorted(merged))

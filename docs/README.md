@@ -11,6 +11,7 @@ a dated record. A dated record is not the schedule.
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
 | Change code: worktree, builds, handoff | [Development](development.md), then [agent workflow](agent-workflow.md) |
 | Coordinate cross-vendor tasks and milestone acceptance | [Agent workflow](agent-workflow.md#github-delivery-coordination) |
+| Plan PR hardware-test overlays and record hashes | [Overlay HIL](hil-overlay.md) |
 | See which module owns a change | [Project map](project-map.md), [component boundaries](component-boundaries.md) |
 | Build, provision or verify a flashable disk | [Bootable media](bootable-media.md) |
 | Publish a versioned appliance image | [Appliance releases](appliance-releases.md) |
@@ -37,8 +38,9 @@ Use these when the start-here page names the job and you need the steps.
 | --- | --- |
 | Install and select a described package | [Core packages](core-packages.md) |
 | Prepare one core without an image rebuild | [Core developer workflow](core-development.md) |
+| Audit or refresh core-package cache keys | [Core-key narrowing](core-key-narrowing.md) |
 | Run an isolated package lifecycle check | [Package acceptance](package-acceptance.md) |
-| Pong settings and best rally | [Core persistence](core-persistence.md) |
+| Core settings, progress and writable ST disks | [Core persistence](core-persistence.md) |
 | Blob versus blob-stream capacity | [Media capacity](core-media-evolution.md) |
 | Use or test the SoC DDR3 from a core | [HPS DDR](hps-ddr.md) |
 | ZX81 package, expansion cart, tape design | [FES ZX81](fes-zx81.md), [expansion bus](zx81-expansion-bus.md), [tape media](zx81-tape-media.md) |
@@ -54,6 +56,9 @@ Use these when the start-here page names the job and you need the steps.
 ## Not current instructions
 
 [validation/](validation/) records what a named artifact did on a named day.
+The [C64 functional diagnostic](validation/2026-10-06-c64-functional-closure.md)
+records both cartridge probes, input, SID, read-only D64 LOAD and CIA checks;
+it does not promote C64 into a factory image or add disk writes.
 [superpowers/](superpowers/) holds old design and task plans. Do not treat
 either as the way to build or accept the tree you have open.
 
@@ -66,6 +71,15 @@ records exact-image acceptance of normal library Direct/Scanlines launches,
 optional SGM, saved preferences and captured video/audio for the named open ROMs.
 Current build and selection behavior remains documented by the component
 guides and [core status](core-status.md).
+
+The [Atari ST native image record](validation/2026-10-07-atari-st-native-image.md) binds the verified nine-package/four-part image, diskless GEM, cold-host saved-disk restore, full payload comparisons and final populated-menu restoration.
+The [extended floppy geometry record](validation/2026-10-07-atari-st-floppy-geometry.md) binds all twelve supported shapes, original BIG/Cuddly loader captures, complete physical snapshots and cold restore, the separate nextpnr routing blocker, and final menu restoration. It is a derived-image diagnostic rather than factory or demo acceptance.
+The [BIG loader diagnosis](validation/2026-10-08-atari-st-big-loader.md) records the corrected empty-memory acknowledgement, a CPU regression that rejects the old decoder, and the same-ROM/same-disk Hatari failure. It is host-only evidence, with BIG display/audio acceptance still outstanding.
+
+
+The [Atari ST interaction record](validation/2026-10-04-atari-st-interaction.md)
+binds mouse and writable-disk software checks, the original GEMDOS guest
+diagnostic, sealed video parts, and the unresolved physical byte-write failure.
 
 Ownership that has already landed is [component boundaries](component-boundaries.md)
 and the [project map](project-map.md). [Structure](fes-structure.md) only

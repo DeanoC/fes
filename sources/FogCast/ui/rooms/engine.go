@@ -459,16 +459,26 @@ func (r *Instance) callSoft(fn *lua.LFunction, budget time.Duration, nret int, a
 	return nil
 }
 
+// callOptionalInput runs a named input callback when the script defines it.
+// An absent callback is not a success and must not clear inputOverruns.
+func (r *Instance) callOptionalInput(name string, args ...lua.LValue) {
+	fn, ok := r.L.GetGlobal(name).(*lua.LFunction)
+	if !ok {
+		return
+	}
+	if err := r.callSoft(fn, r.budget.Input, 0, args...); err != nil {
+		r.handleInputCallbackError(err)
+		return
+	}
+	r.inputOverruns = 0
+}
+
 // Hover reports pointer hover over a registered hit region.
 func (r *Instance) Hover(id string) {
 	if r.fatal != nil || !r.loaded {
 		return
 	}
-	if err := r.callGlobalSoft("on_hover", r.budget.Input, lua.LString(id)); err != nil {
-		r.handleInputCallbackError(err)
-	} else {
-		r.inputOverruns = 0
-	}
+	r.callOptionalInput("on_hover", lua.LString(id))
 }
 
 // Activate reports a pointer click on a registered hit region.
@@ -476,11 +486,7 @@ func (r *Instance) Activate(id string) {
 	if r.fatal != nil || !r.loaded {
 		return
 	}
-	if err := r.callGlobalSoft("on_activate", r.budget.Input, lua.LString(id)); err != nil {
-		r.handleInputCallbackError(err)
-	} else {
-		r.inputOverruns = 0
-	}
+	r.callOptionalInput("on_activate", lua.LString(id))
 }
 
 // Resume is called when the launcher returns to this room after a play
@@ -489,11 +495,7 @@ func (r *Instance) Resume() {
 	if r.fatal != nil || !r.loaded {
 		return
 	}
-	if err := r.callGlobalSoft("on_resume", r.budget.Input); err != nil {
-		r.handleInputCallbackError(err)
-	} else {
-		r.inputOverruns = 0
-	}
+	r.callOptionalInput("on_resume")
 }
 
 // Resize updates room.width/room.height after the launcher's content box
@@ -511,11 +513,7 @@ func (r *Instance) Resize(width, height int) {
 	if r.fatal != nil || !r.loaded {
 		return
 	}
-	if err := r.callGlobalSoft("on_resize", r.budget.Input, lua.LNumber(width), lua.LNumber(height)); err != nil {
-		r.handleInputCallbackError(err)
-	} else {
-		r.inputOverruns = 0
-	}
+	r.callOptionalInput("on_resize", lua.LNumber(width), lua.LNumber(height))
 }
 
 // SetSessionState is the launcher's current play-session state string.

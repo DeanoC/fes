@@ -62,7 +62,6 @@ core_id = "fes.coleco"
 identity_version = 2
 producer_script = "scripts/build_fes_coleco_socket_v2.py"
 producer_module = "scripts.build_fes_coleco_socket_v2"
-producer_arguments = ["--native-video-socket"]
 producer_options = { native_video = true }
 video_profiles = ["direct", "scanlines"]
 authenticate = "authenticate_tools"
@@ -175,6 +174,7 @@ quartus_role = "bring-up/check oracle"
 [[recipes]]
 core_id = "fes.atari-st"
 identity_version = 2
+video_profiles = ["direct", "scanlines"]
 producer_script = "scripts/build_fes_atari_st_oss.py"
 producer_module = "scripts.build_fes_atari_st_oss"
 authenticate = "_authenticate_atari_st_tools"

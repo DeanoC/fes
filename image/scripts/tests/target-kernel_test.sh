@@ -28,7 +28,7 @@ if grep -Fq 'LOCALVERSION=' "$build_script"; then
   exit 1
 fi
 
-grep -Fq 'work-2-native-dev/host' "$build_script"
+grep -Fq 'selected_work=${FES_IMAGE_WORK:-/target-image-output/work-2-native-dev}' "$build_script"
 grep -Fq 'target-kernel: target-image-native' "$repo/Makefile"
 ! grep -Fq 'work-2-prod' "$build_script"
 

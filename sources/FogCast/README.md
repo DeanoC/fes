@@ -43,9 +43,13 @@ and content selection; the MiSTer is a small, directly controlled target.
   launch links the ROM and cards on the host, the target relinks them
   independently and calls the runtime's multi-slot load. See
   [Apple II slot cards](docs/core-package-library.md#apple-ii-slot-cards).
-  The entry's selected medium is inserted into media unit 0 after Start:
+  The entry's selected medium is delivered to media unit 0; writable ST
+  library disks are restored and inserted before CPU release, and other media
+  is inserted after Start:
   Apple II is an exact 143,360-byte `.dsk`/`.do` image, Commodore 64 is an
-  exact 174,848-byte `.d64`, Atari ST is an exact 737,280-byte `.st`, and
+  exact 174,848-byte `.d64`, Atari ST uses raw `.st` disks (legacy 737,280 bytes;
+  packages requiring `fes.media.atari-st-floppy-geometry` also admit
+  80..82 tracks, 1..2 heads and 9..10 sectors of 512 bytes), and
   ZX Spectrum 48K is a 1..65,536-byte `.tap`.
   `POST /api/v1/session/live-media` swaps or ejects that unit while the
   machine runs. Apple II, Commodore 64 and Atari ST use `fogcast change-disk` and
@@ -252,7 +256,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   with optional sealed Pong, SNES and NES RBFs. FES integration can also add a
   selected set of validated format-2/3 packages (`fes.menu`, `fes.pong`,
   `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`, and
-  `fes.ramtest`) through the closed package selection described in [the
+  `fes.ramtest`, `fes.atari-st`) through the closed package selection described in [the
   development guide](docs/DEVELOPMENT.md).
   Source-built Mega Drive selection is the native image default; use the
   explicit upstream selection for fallback. Its idle path and one-player Mega
@@ -477,7 +481,18 @@ bar; missing logos keep the existing bold/regular text labels. The visible page 
 and a cheap next window prefetch those
 handles asynchronously; missing metadata still uses the placeholder. After the host attract `idle_seconds` with no pad input, the
 kit shows an attract stage (title chrome plus backdrop/cover artwork)
-and returns to the same shelf and focus on any input. When the staged title has
+and returns to the same shelf and focus on any input. When the host is
+unreachable and local play is enabled, that stage is built from playable
+kit-local SMS rows instead: a present browse-only cartridge that is not
+host-eligible. Session success followed by a later poll failure, including
+Health, uses that same replacement: the previous host playlist is dropped,
+the local list is tagged, and attract arms only when every remaining row is
+one of those cartridges. Those rows have no stills, so the stage shows the title
+after the default 60 second idle, and South launches it through the
+local-control socket. A disconnected host playlist with no such row, or a
+mixed host playlist that was not replaced, does
+not arm attract. When the host returns, that local list is dropped
+immediately and the host playlist is fetched again. When the staged title has
 a distinct `marquee_id` or attract `marquee` handle, a banner strip paints
 under the header alongside the still or motion preview; a marquee-only row
 keeps today's still fallback and hides the duplicate strip. When the staged title has
@@ -655,3 +670,10 @@ selects the runtime source revision and generates its assembly lock. The legacy
 smoke runner requires that concrete lock via `NATIVE_RUNTIME_INPUT_LOCK`.
 `TARGET_IMAGE_LOCK_BIN` remains an
 explicit verifier override.
+
+The Atari ST interaction path supports relative mouse from host browser,
+SDL and local evdev, with per-source button merging and no motion replay.
+Writable disks use explicit library bindings and runtime-owned complete-image
+saves. Format-3 Play can select firmware, an ST Direct/Scanlines video archive
+and the optional slot-1 CPU expansion together; every part binds the exact
+shell package. These extensions do not add Atari ST to the factory image.

@@ -3,6 +3,8 @@
 // 128 MB is 64M halfwords on two chips. The MiSTer memory tester packs a
 // halfword as column[1:0], bank, row[12:0], column[9:2], and uses the top
 // bit as the chip select. A10 is auto-precharge on READ and WRITE.
+// MiSTer addons wire chip DQML/DQMH to A11/A12, sharing the row address
+// pins. Keep the full row for ACTIVATE, then put masks on those pins for CAS.
 // Refresh also runs without requests so an idle client keeps its data.
 module sdram_addon_port #(
     // Preserve the memory tester's full-word writes unless explicitly enabled.
@@ -173,6 +175,7 @@ module sdram_addon_port #(
         dq_oe_r <= 1'b0;
         sdram_dqml_r <= 1'b0;
         sdram_dqmh_r <= 1'b0;
+        sdram_a_r[12:11] <= 2'b00;
         sdram_ncs_r <= 1'b0;
         sdram_nras_r <= 1'b1;
         sdram_ncas_r <= 1'b1;
@@ -345,6 +348,8 @@ module sdram_addon_port #(
                 sdram_ba_r <= held_addr[3:2];
                 sdram_a_r <= held_addr[16:4];
                 sdram_nras_r <= 1'b0;
+                sdram_dqml_r <= writing && !held_byte_enable[0];
+                sdram_dqmh_r <= writing && !held_byte_enable[1];
                 state <= ST_RCD1;
                 if (writing) begin
                     dq_out_q <= held_data;
@@ -355,6 +360,13 @@ module sdram_addon_port #(
                 sdram_cke_r <= 1'b1;
                 dq_out_q <= held_data;
                 dq_oe_r <= writing;
+                // Set write masks two fabric clocks before the column
+                // command, alongside the already held data and output enable.
+                // A11/A12 have finished carrying the ACTIVATE row here.
+                // Clear both for READ, including rows whose high bits are set.
+                sdram_a_r[12:11] <= writing ? ~held_byte_enable : 2'b00;
+                sdram_dqml_r <= writing && !held_byte_enable[0];
+                sdram_dqmh_r <= writing && !held_byte_enable[1];
                 state <= (state == ST_RCD1) ? ST_RCD2 : ST_ACT;
             end
             ST_ACT: begin
@@ -362,7 +374,8 @@ module sdram_addon_port #(
                 sdram_ncs_r <= held_addr[25];
                 sdram_ba_r <= held_addr[3:2];
                 // A10 is auto-precharge. Column is {addr[24:17], addr[1:0]}.
-                sdram_a_r <= {2'b00, 1'b1, held_addr[24:17], held_addr[1:0]};
+                sdram_a_r <= {writing ? ~held_byte_enable : 2'b00,
+                            1'b1, held_addr[24:17], held_addr[1:0]};
                 sdram_ncas_r <= 1'b0;
                 sdram_nwe_r <= writing ? 1'b0 : 1'b1;
                 dq_out_q <= held_data;
@@ -373,6 +386,7 @@ module sdram_addon_port #(
             end
             ST_RW: begin
                 sdram_cke_r <= 1'b1;
+                sdram_a_r[12:11] <= writing ? ~held_byte_enable : 2'b00;
                 dq_out_q <= held_data;
                 dq_oe_r <= writing;
                 sdram_dqml_r <= writing && !held_byte_enable[0];

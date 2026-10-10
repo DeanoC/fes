@@ -25,10 +25,12 @@ else
 NATIVE_GO_ENV =
 endif
 
-# Per-package limit for the -race suite. The catalog package's 10k-row query
-# fixture runs ~3 min under -race on a fast machine and can pass Go's 10m
-# default on 2-core CI runners (DeanoC/fes#482).
+# Per-package limit for the -race suite (DeanoC/fes#482). Routine runs pass
+# -short, so the catalog query fixture uses its reduced 500-row library; the
+# full 10k-row validation stays in scheduled/manual CI or an explicit
+# GO_TEST_FLAGS= run.
 GO_RACE_TIMEOUT ?= 30m
+GO_TEST_FLAGS ?= -short
 
 .PHONY: fmt test test-ui test-ui-boundary test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-ui-kit-tenfoot-boundary test-ui-kit-tenfoot-boundary-prefix test-kit-diagnostics test-ui-browser test-ui-browser-required vet check build build-fogcast build-fogcast-api build-fogcast-host build-fogcast-tenfoot tenfoot-cgo-env tenfoot-smoke build-tenfoot-linuxfb-spike build-tenfoot-linuxfb-grid build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-remote-play-audiobridge build-fogcast-kit build-fogcast-tenfoot-kit build-agent build-bridge build-target-image-lock build-target-image-lock-container target-package-smoke
 
@@ -36,8 +38,8 @@ fmt:
 	gofmt -w $$(find . -name '*.go' -not -path './.git/*')
 
 test: build-agent test-ui test-target-boundary test-target-contract-boundary test-target-boundary-rg-failure test-target-boundary-host-prefix test-ui-kit-tenfoot-boundary test-ui-kit-tenfoot-boundary-prefix
-	cd appliance && $(NATIVE_GO_ENV) go test -race -timeout $(GO_RACE_TIMEOUT) ./...
-	$(NATIVE_GO_ENV) go test -race -timeout $(GO_RACE_TIMEOUT) ./...
+	cd appliance && $(NATIVE_GO_ENV) go test -race -timeout $(GO_RACE_TIMEOUT) $(GO_TEST_FLAGS) ./...
+	$(NATIVE_GO_ENV) go test -race -timeout $(GO_RACE_TIMEOUT) $(GO_TEST_FLAGS) ./...
 	sh scripts/tests/fogcast-build_test.sh
 	sh scripts/tests/native-development-rbf-support-truth_test.sh
 	sh scripts/tests/package-runtime-smoke_test.sh
@@ -48,7 +50,7 @@ test-kit-diagnostics:
 
 test-ui:
 	$(MAKE) test-ui-boundary
-	node --test internal/hostapi/ui_metadata_test.js internal/hostapi/ui_app_test.js internal/hostapi/ui_core_library_test.js internal/hostapi/ui_browser_harness_test.js
+	node --test internal/hostapi/ui_metadata_test.js internal/hostapi/ui_app_test.js internal/hostapi/ui_core_library_test.js internal/hostapi/ui_browser_harness_test.js internal/hostapi/ui_mouse_test.js
 	node --test internal/hostapi/ui_browser_test.js
 
 test-ui-boundary:

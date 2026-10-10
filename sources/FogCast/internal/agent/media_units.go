@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/DeanoC/FogCast/protocol"
 )
@@ -59,7 +60,11 @@ func (c *Coordinator) EjectMedia(parent context.Context, b protocol.MediaUnitBin
 	if !ok {
 		return c.Status(), &protocol.APIError{Code: protocol.CodeUnsupportedOperation, Message: "requested operation is unsupported"}
 	}
-	ctx, cancel := context.WithTimeout(c.operationContext, c.stopTimeout)
+	budget := c.stopTimeout
+	if protocol.MediaDataBound(c.Status().CorePackage) && budget < 135*time.Second {
+		budget = 135 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(c.operationContext, budget)
 	defer cancel()
 	units, apiErr := runtime.EjectMedia(ctx, b)
 	if apiErr != nil {
@@ -75,7 +80,12 @@ func (c *Coordinator) setMediaUnits(b protocol.MediaUnitBinding, units []protoco
 	if status.CorePackage == nil || status.CorePackage.PackageID != b.PackageID || status.CorePackage.Generation != b.Generation {
 		return
 	}
-	status.CorePackage.MediaUnits = append([]protocol.MediaUnitStatus(nil), units...)
+	status.CorePackage.MediaUnits = protocol.CloneMediaUnits(units)
+	if protocol.MediaDataBound(status.CorePackage) {
+		status.CorePackage.PersistenceMode = "persistent"
+	} else {
+		status.CorePackage.PersistenceMode = "volatile"
+	}
 	c.set(status)
 }
 

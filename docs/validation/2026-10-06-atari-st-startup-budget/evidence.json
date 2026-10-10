@@ -1,0 +1,441 @@
+{
+  "schema": 1,
+  "date": "2026-10-06",
+  "classification": "exact ST package diagnostic on Kit A; no assembled appliance image acceptance",
+  "base_commit": "c84bcd8d8a20b5cf2746cc3592ce45999b5c4578",
+  "software_source_commit": "432fec4d0d82e1a838786d9c38635d5a581288ce",
+  "fpga_source_commit": "f4551a4d58dc1deadb8a979c77609b37bdd720cf",
+  "package_id": "4e4f4f1a9767c13328722a849d1a4f07e280d16805dbf7414fabd18014f16ba2",
+  "package_archive_sha256": "2dd09c771f2d72bb15d55528a322b7d667e3a0a0fca7e754e5f69dbfc2b50bfa",
+  "build_id": "eb6d41e5c73c58c65a89000fb280aedc",
+  "shell_rbf_sha256": "00ed458a4b3ae040d7c2e33a78cc24aa62355943bff0fb5c002457f233ac52a2",
+  "rom_map_sha256": "bfad3826ecfb276597e8dd772c3031e5f033fa0e439b5bf12281d8ee4db88c69",
+  "firmware": {
+    "name": "EmuTOS 1.4 US 192 KiB",
+    "bytes": 196608,
+    "sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc"
+  },
+  "initial_disk": {
+    "bytes": 737280,
+    "sha256": "ecf5c24d56236cb2d688ab09a618c0fb1703f0a63ea09dd7317dc2fff2fa65aa",
+    "program_sha256": "5751778793d56cc58ea582b5322b0b47672ab3ea3b93701fe745a751aa9d35ac"
+  },
+  "configured_upload_timeout_seconds": 60,
+  "ST_activation_minimum_seconds": 300,
+  "software_validation": {
+    "source_commit": "432fec4d0d82e1a838786d9c38635d5a581288ce",
+    "affected_suite_started_at": "a608f9742ba529e1d590f79a7a1e62173be1ada8",
+    "unchanged_packages_since_suite_start": [
+      "corepackage",
+      "internal/misterruntime",
+      "fogcast"
+    ],
+    "final_targetclient_full_race_at_selected_source": true,
+    "native_test_source_commit": "c933b8b35b539db997d43e79e5de43b92a72e6fc",
+    "native_tree_unchanged_after_suite": true,
+    "logs": {
+      "all_affected_race": {
+        "sha256": "6995247e32d06384ef59697974571a131f6f9c1567e7ae2817aeb6660ee06269",
+        "result": "pass"
+      },
+      "final_targetclient_race": {
+        "sha256": "e53a3bb2d2554d7731a9448ca22d86087b7319a11bede241bc82e22762b60f2e",
+        "result": "pass"
+      },
+      "lease_expiry_focused_race": {
+        "sha256": "36a2d8d2e798a2cf76aa5c8c5c16860d0322acd9758585e2f4171d7581b292e1",
+        "result": "pass"
+      },
+      "native_full_suite": {
+        "sha256": "cca82642e9c87853988d9ec227ecdcbb42a66a4c4060d6763b9ea6c3c18e64eb",
+        "result": "pass"
+      },
+      "parent_consistency": {
+        "sha256": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158",
+        "result": "pass"
+      }
+    },
+    "review": {
+      "model": "gpt-6-sol",
+      "head": "432fec4d0d82e1a838786d9c38635d5a581288ce",
+      "result": "no actionable blockers",
+      "classification": "static review"
+    }
+  },
+  "video_output": "built-in Direct; no expansion card",
+  "shared_schema_or_FPGA_contract_change": false,
+  "runs": {
+    "diskless": {
+      "launch_seconds": 47.55110286781564,
+      "no_guest_input": true,
+      "pass": true,
+      "normal_stop_and_menu_restoration": true,
+      "generation": 1,
+      "drive_A": "empty",
+      "persistence_mode": "volatile",
+      "visible_GEM_confirmed": true,
+      "capture_sha256": "e674fcb4944d506b5e57d4a85cedfb3263c4173f0e4620cef3d55942633db878"
+    },
+    "seed": {
+      "launch_seconds": 55.04302996210754,
+      "no_guest_input": true,
+      "pass": true,
+      "normal_stop_and_menu_restoration": true,
+      "generation": 2,
+      "launch_binding": {
+        "mode": "persistent",
+        "base_media_id": "ecf5c24d56236cb2d688ab09a618c0fb1703f0a63ea09dd7317dc2fff2fa65aa",
+        "revision": "absent"
+      },
+      "saved_record": {
+        "record_sha256": "5a56bd72a1a88a060878a3914a76507e1ca9e53df3742b920fde9098f8a685db",
+        "record_bytes": 737453,
+        "payload_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c"
+      },
+      "comparison": {
+        "against_original": {
+          "actual_guest_changed_non_timestamp_bytes": 1566,
+          "change_offset_sets_match": true,
+          "expected_guest_changed_non_timestamp_bytes": 1566,
+          "untouched_non_timestamp_bytes_checked": 735706
+        },
+        "all_bytes_compared": 737280,
+        "allowed_timestamp_fields": [
+          {
+            "entry_offset": 3648,
+            "field": "last_modified_time",
+            "offset": 3670,
+            "path": "PASS    TXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3648,
+            "field": "last_modified_date",
+            "offset": 3672,
+            "path": "PASS    TXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3680,
+            "field": "last_modified_time",
+            "offset": 3702,
+            "path": "RESTSEEDTXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3680,
+            "field": "last_modified_date",
+            "offset": 3704,
+            "path": "RESTSEEDTXT",
+            "width": 2
+          }
+        ],
+        "baseline_comparisons": {
+          "original": {
+            "image_sha256": "ecf5c24d56236cb2d688ab09a618c0fb1703f0a63ea09dd7317dc2fff2fa65aa",
+            "raw_differing_bytes": 1572
+          },
+          "restore": {
+            "image_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+            "raw_differing_bytes": 121
+          },
+          "seed": {
+            "image_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+            "raw_differing_bytes": 0
+          }
+        },
+        "capture_oracle": {
+          "hardware_acceptance": false,
+          "image_bytes": 737280,
+          "image_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+          "marker_pass": true,
+          "marker_restored": false,
+          "prg_sha256": "5751778793d56cc58ea582b5322b0b47672ab3ea3b93701fe745a751aa9d35ac",
+          "restore_proof_stage": "seeded",
+          "schema": 1
+        },
+        "capture_oracle_error": null,
+        "classification": "offline physical-capture byte comparison; does not perform hardware operations",
+        "expected_payload_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+        "generator_sha256": "a1d6765274a6327f30807ce28a0f3f744a77b8a1685de7480c1aba9ab2e18d9a",
+        "geometry": {
+          "cluster_bytes": 1024,
+          "data_clusters": 713,
+          "data_offset": 7168,
+          "fat_count": 2,
+          "fat_sectors": 3,
+          "reserved_sectors": 1,
+          "root_entries": 112,
+          "root_offset": 3584,
+          "sector_bytes": 512
+        },
+        "helper_sha256": "c8321fe54fe2e4d2a31b26eb8178f386b85752ac7edd0ded35f813d01c06106c",
+        "invalid_timestamp_fields": [],
+        "non_timestamp_bytes_compared": 737272,
+        "pass": true,
+        "payload_bytes": 737280,
+        "payload_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+        "permitted_timestamp_byte_offsets": [
+          3670,
+          3671,
+          3672,
+          3673,
+          3702,
+          3703,
+          3704,
+          3705
+        ],
+        "permitted_timestamp_differing_bytes": 0,
+        "phase": "seed",
+        "raw_differing_bytes": 0,
+        "schema": 1,
+        "source_revision": "f4551a4d58dc1deadb8a979c77609b37bdd720cf",
+        "timestamp_normalized_payload_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+        "unexpected_differing_bytes": 0,
+        "unexpected_examples": [],
+        "valid_timestamp_field_variations": []
+      },
+      "save_and_stop_pass": true,
+      "post_stop_record_identical": true,
+      "immutable_base_unchanged": true,
+      "host_cold_started_at": "2026-10-06T15:44:05.349763618Z",
+      "capture_sha256": "e674fcb4944d506b5e57d4a85cedfb3263c4173f0e4620cef3d55942633db878"
+    },
+    "restore": {
+      "launch_seconds": 56.34621737990528,
+      "no_guest_input": true,
+      "pass": true,
+      "normal_stop_and_menu_restoration": true,
+      "generation": 3,
+      "launch_binding": {
+        "mode": "persistent",
+        "base_media_id": "ecf5c24d56236cb2d688ab09a618c0fb1703f0a63ea09dd7317dc2fff2fa65aa",
+        "revision": "5a56bd72a1a88a060878a3914a76507e1ca9e53df3742b920fde9098f8a685db"
+      },
+      "saved_record": {
+        "record_sha256": "026097a9bad1423b7b1d07057780708a950ead3509e3bf688329aea2c2a075c1",
+        "record_bytes": 737453,
+        "payload_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b"
+      },
+      "comparison": {
+        "against_original": {
+          "actual_guest_changed_non_timestamp_bytes": 1684,
+          "change_offset_sets_match": true,
+          "expected_guest_changed_non_timestamp_bytes": 1684,
+          "untouched_non_timestamp_bytes_checked": 735584
+        },
+        "all_bytes_compared": 737280,
+        "allowed_timestamp_fields": [
+          {
+            "entry_offset": 3648,
+            "field": "last_modified_time",
+            "offset": 3670,
+            "path": "PASS    TXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3648,
+            "field": "last_modified_date",
+            "offset": 3672,
+            "path": "PASS    TXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3680,
+            "field": "last_modified_time",
+            "offset": 3702,
+            "path": "RESTSEEDTXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3680,
+            "field": "last_modified_date",
+            "offset": 3704,
+            "path": "RESTSEEDTXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3712,
+            "field": "last_modified_time",
+            "offset": 3734,
+            "path": "RESTOREDTXT",
+            "width": 2
+          },
+          {
+            "entry_offset": 3712,
+            "field": "last_modified_date",
+            "offset": 3736,
+            "path": "RESTOREDTXT",
+            "width": 2
+          }
+        ],
+        "baseline_comparisons": {
+          "original": {
+            "image_sha256": "ecf5c24d56236cb2d688ab09a618c0fb1703f0a63ea09dd7317dc2fff2fa65aa",
+            "raw_differing_bytes": 1693
+          },
+          "restore": {
+            "image_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+            "raw_differing_bytes": 0
+          },
+          "seed": {
+            "image_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+            "raw_differing_bytes": 121
+          }
+        },
+        "capture_oracle": {
+          "hardware_acceptance": false,
+          "image_bytes": 737280,
+          "image_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+          "marker_pass": true,
+          "marker_restored": true,
+          "prg_sha256": "5751778793d56cc58ea582b5322b0b47672ab3ea3b93701fe745a751aa9d35ac",
+          "restore_proof_stage": "restored",
+          "schema": 1
+        },
+        "capture_oracle_error": null,
+        "classification": "offline physical-capture byte comparison; does not perform hardware operations",
+        "expected_payload_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+        "generator_sha256": "a1d6765274a6327f30807ce28a0f3f744a77b8a1685de7480c1aba9ab2e18d9a",
+        "geometry": {
+          "cluster_bytes": 1024,
+          "data_clusters": 713,
+          "data_offset": 7168,
+          "fat_count": 2,
+          "fat_sectors": 3,
+          "reserved_sectors": 1,
+          "root_entries": 112,
+          "root_offset": 3584,
+          "sector_bytes": 512
+        },
+        "helper_sha256": "c8321fe54fe2e4d2a31b26eb8178f386b85752ac7edd0ded35f813d01c06106c",
+        "invalid_timestamp_fields": [],
+        "non_timestamp_bytes_compared": 737268,
+        "pass": true,
+        "payload_bytes": 737280,
+        "payload_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+        "permitted_timestamp_byte_offsets": [
+          3670,
+          3671,
+          3672,
+          3673,
+          3702,
+          3703,
+          3704,
+          3705,
+          3734,
+          3735,
+          3736,
+          3737
+        ],
+        "permitted_timestamp_differing_bytes": 0,
+        "phase": "restore",
+        "raw_differing_bytes": 0,
+        "schema": 1,
+        "source_revision": "f4551a4d58dc1deadb8a979c77609b37bdd720cf",
+        "timestamp_normalized_payload_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b",
+        "unexpected_differing_bytes": 0,
+        "unexpected_examples": [],
+        "valid_timestamp_field_variations": []
+      },
+      "save_and_stop_pass": true,
+      "post_stop_record_identical": true,
+      "immutable_base_unchanged": true,
+      "host_cold_started_at": "2026-10-06T15:47:36.049034242Z",
+      "capture_sha256": "e674fcb4944d506b5e57d4a85cedfb3263c4173f0e4620cef3d55942633db878"
+    }
+  },
+  "software_artifacts": {
+    "runtime_sha256": "ff3e55eee513d06f8ad2e37e9e48f010e9dadbdc90c45a1214ffc0c0543861ad",
+    "agent_sha256": "6a0a4ba1eb43d653abd03dbb670938f0f3fb3c6bdd084b471a2ba35fd55ba84c",
+    "host_sha256": "f57aebe345ebe42d9f3495c825c2708abe76cb58f606b81f770a152d2cb236f4",
+    "cli_sha256": "055588b174d6d32f124b58c550cbfc43e8a82d083e74b82c7616e52a87368a0c",
+    "patch_image_sha256": "0130a0b9638f1aee5f4388687e6dead53fa76821a8bb51118ef2a5051e37ca3a"
+  },
+  "cleanup": {
+    "factory_source": "5a58053229b5e1772defe5f9bdc34c72f659db71",
+    "owned_overlay_removed": true,
+    "original_factory_hashes_verified": true,
+    "private_container_removed": true,
+    "private_config_removed": true,
+    "owner_config_unchanged": true,
+    "boot_unchanged": true,
+    "unique_runtime_agent": true,
+    "menu_supervisor_and_tenfoot_alive": true,
+    "same_runtime_agent_lifetime_before_cleanup": true,
+    "normal_library_games": 4253,
+    "normal_host_active": "active",
+    "normal_host_enabled": "enabled",
+    "target_state": "idle",
+    "target_ready": true,
+    "lease": "free",
+    "menu_capture_sha256": "ea140f1845d7aea9a3f78236b2c72437f95f3db80c365c7ec6ae347bd15de50d"
+  },
+  "same_runtime_agent_lifetime": true,
+  "cold_host_same_container_and_home": true,
+  "supplemental_attempts": {
+    "operator_helper_stdin_abort": {
+      "before_successful_seed": true,
+      "owned_Stop_and_menu_cleanup_verified": true,
+      "software_commit": "a70164ed0a9ef1e7d01241ae50daf0d52fb56b0f"
+    },
+    "admission_rejection": {
+      "error_code": "INVALID_ARCHIVE",
+      "agent_request_seconds": 247.67520969,
+      "before_native_programming": true,
+      "idle_free_menu_cleanup_verified": true,
+      "unchanged_input_retry_passed": true,
+      "cause": "not established; no configured 247-second timeout or kernel OOM observed",
+      "merge_hold_retained": true,
+      "software_commit": "a70164ed0a9ef1e7d01241ae50daf0d52fb56b0f"
+    },
+    "earlier_restore_failure": {
+      "software_commit": "a70164ed0a9ef1e7d01241ae50daf0d52fb56b0f",
+      "launch_seconds": 190.711,
+      "reported_active_after_last_renewal_TTL_elapsed": true,
+      "black_HDMI_and_idle_after_reply": true,
+      "acceptance_pass": false,
+      "cleanup_verified": true,
+      "fixes": "check dispatch grant ownership and local expiry; reduce ROM staging allocations",
+      "underlying_renewal_failure_cause": "not established"
+    }
+  },
+  "rom_staging_profile": {
+    "classification": "host-only amd64 and 386 x86; not ARM HIL or proof of failure cause",
+    "before_commit": "a70164ed0a9ef1e7d01241ae50daf0d52fb56b0f",
+    "selected_commit": "432fec4d0d82e1a838786d9c38635d5a581288ce",
+    "repeats_per_architecture_and_version": 3,
+    "all_12_programmed_hashes_identical": true,
+    "programmed_sha256": "fba70aa9231c9eba778c08173390addb489733427a70373c25d15d907c9a66e3",
+    "medians": {
+      "amd64": {
+        "before": {
+          "elapsed_seconds": 4.25048867,
+          "total_alloc_bytes": 277249696,
+          "peak_heap_bytes": 98651008,
+          "process_max_rss_kib": 115240
+        },
+        "after": {
+          "elapsed_seconds": 1.596533687,
+          "total_alloc_bytes": 110315424,
+          "peak_heap_bytes": 79374600,
+          "process_max_rss_kib": 91420
+        }
+      },
+      "386": {
+        "before": {
+          "elapsed_seconds": 3.646067713,
+          "total_alloc_bytes": 261863440,
+          "peak_heap_bytes": 98322560,
+          "process_max_rss_kib": 106244
+        },
+        "after": {
+          "elapsed_seconds": 2.192460865,
+          "total_alloc_bytes": 102612696,
+          "peak_heap_bytes": 71916456,
+          "process_max_rss_kib": 79680
+        }
+      }
+    }
+  }
+}

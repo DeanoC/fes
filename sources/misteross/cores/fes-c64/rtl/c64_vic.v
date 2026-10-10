@@ -32,9 +32,11 @@ module c64_vic (
     output reg  [8:0]  raster
 );
     reg [7:0] regs [0:46];
-    reg [3:0] color_mem [0:999];
     reg [5:0] phi_div;
     integer i;
+
+    wire [3:0] color_cpu_q;
+    wire [3:0] color_video_q;
 
     wire [7:0] d011 = regs[6'h11];
     wire [7:0] d018 = regs[6'h18];
@@ -46,7 +48,7 @@ module c64_vic (
         if (addr == 6'h11) dout = {raster[8], d011[6:0]};
         else if (addr == 6'h12) dout = raster[7:0];
         else if (addr <= 6'h2E) dout = regs[addr];
-        color_dout = color_addr < 10'd1000 ? {4'h0, color_mem[color_addr]} : 8'h00;
+        color_dout = {4'h0, color_cpu_q};
     end
 
     always @(posedge clk_sys) begin
@@ -62,8 +64,6 @@ module c64_vic (
         end else begin
             if (we && cs && addr <= 6'h2E && addr != 6'h12)
                 regs[addr] <= din;
-            if (color_we && color_addr < 10'd1000)
-                color_mem[color_addr] <= color_din[3:0];
             if (phi) begin
                 if (phi_div == 6'd62) begin
                     phi_div <= 6'd0;
@@ -124,6 +124,13 @@ module c64_vic (
     assign hsync = hpos < 11'd40;
     assign vsync = vpos < 10'd5;
 
+    c64_color_ram color_ram (
+        .clk_a(clk_sys), .addr_a(color_addr), .wdata_a(color_din[3:0]),
+        .we_a(color_we && color_cs), .q_a(color_cpu_q),
+        .clk_b(pixel_clk),
+        .addr_b(text_cell < 10'd1000 ? text_cell : 10'd0), .q_b(color_video_q)
+    );
+
     wire [7:0] bits = c64_glyph(code_q, grow_q);
     wire pixel_on = den_q && text_q && bits[~sub_q];
     wire [23:0] pixel = !de ? 24'h000000 :
@@ -162,7 +169,7 @@ module c64_vic (
         end
 
         code_q <= ram_data;
-        color_q <= color_mem[text_cell < 10'd1000 ? text_cell : 10'd0];
+        color_q <= color_video_q;
         text_q <= text_line && h_active;
         den_q <= d011[4];
         sub_q <= ax[4:2];

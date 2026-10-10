@@ -1,0 +1,51 @@
+fdc enable drive=0 on
+fdc enable drive=1 off
+fdc set nbr heads drive=0 2
+fdc set nbr heads drive=1 2
+INFO : Hatari v2.5.0, compiled on:  Dec 29 2024, 22:59:40
+INFO : Inserted disk '<private-task-artifacts>/downloads/big-original.st' to drive A:.
+INFO : NVRAM not found at '/home/deano/hatari.nvram'
+Reading debugger commands from '<private-task-artifacts>/hatari-same-input/start.ini'...
+Changed to input file dir '<private-task-artifacts>/hatari-same-input'.
+> b VBL = 700 :once :file finish.ini
+CPU condition breakpoint 1 with 1 condition(s) added:
+	VBL = 700
+-> Break only once, and delete breakpoint afterwards.
+-> Execute debugger commands from 'finish.ini' file on hit.
+Changed back to '<private-task-artifacts>/hatari-same-input' dir.
+INFO : OS clock ticks / second: 100
+WARN : Address Error reading at address $fc4f21, PC=$10da addr_e3=10da op_e3=3070
+WARN : Bus Error reading at address $2a400000, PC=$2a3ffffe addr_e3=2a400000 op_e3=0
+WARN : Bus Error reading at address $2a400000, PC=$2a3ffffe addr_e3=2a400000 op_e3=0
+WARN : Bus Error reading at address $2a400000, PC=$2a3ffffe addr_e3=2a400000 op_e3=0
+WARN : Bus Error reading at address $2a400000, PC=$2a3ffffe addr_e3=2a400000 op_e3=0
+WARN : Bus Error reading at address $2a400000, PC=$2a3ffffe addr_e3=2a400000 op_e3=0
+WARN : Bus Error reading at address $2a400000, PC=$2a3ffffe addr_e3=2a400000 op_e3=0
+1. CPU breakpoint condition(s) matched 1 times.
+	VBL = 700 :once :file finish.ini
+Reading debugger commands from 'finish.ini'...
+> cpureg
+  D0 0000487B   D1 2A2A4E71   D2 2A2A2A2A   D3 2A2A2A2A
+  D4 2A202042   D5 2A2A2A2A   D6 2044454D   D7 4F20202A
+  A0 00FC06A2   A1 0000A100   A2 00000008   A3 31415926
+  A4 0000A100   A5 000011A8   A6 00000FFC   A7 00001120
+USP  00000000 ISP  00001120
+SR=2700 T=00 S=1 M=0 X=0 N=0 Z=0 V=0 C=0 IM=7 STP=0
+Prefetch 0000 (OR) 2a2a (MOVE) Chip latch 00000000
+2A2F917A 0000 0000                or.b #$00,d0
+Next PC: 2a2f917e
+> savebin final-ram.bin $0 $80000
+  Wrote 0x80000 bytes.
+> screenshot final-screen.png
+Screen dump to 'final-screen.png' succeeded
+> quit
+Removed CPU breakpoint 1:
+	VBL = 700 :once :file finish.ini
+
+----------------------------------------------------------------------
+You have entered debug mode. Type c to continue emulation, h for help.
+
+CPU=$2a2f917a, VBL=700, FrameCycles=72, HBL=0, LineCycles=72, DSP=N/A
+2A2F917A 0000 0000                or.b #$00,d0
+> INFO : Floppy A: has been removed from drive.
+WARN : Storing NVRAM to '/home/deano/hatari.nvram' failed

@@ -4,10 +4,12 @@
 #include "native/hardware.hpp"
 
 #include "native/artifacts.hpp"
+#include "native/sha256.hpp"
 #include "native/core_driver.hpp"
 #include "native/core_package.hpp"
 #include "native/core_composition.hpp"
 #include "native/core_data.hpp"
+#include "native/media_data.hpp"
 #include "native/diagnostic.hpp"
 #include "native/fes_gp.hpp"
 #include "native/generated/fes_gp.hpp"
@@ -181,6 +183,13 @@ InputRecipe FesGpInputRecipe()
 	return recipe;
 }
 
+struct PreparedInitialMedia {
+	ComputerMediaSnapshot base;
+	std::unique_ptr<ComputerMediaSnapshot> restored;
+	std::unique_ptr<MediaDataFile> file;
+	MediaDiskRecord record;
+};
+
 class NativeAdmittedCore final : public AdmittedCorePackage {
 public:
 	NativeAdmittedCore(OpenedCorePackage opened, ProgrammingProfile profile,
@@ -201,6 +210,7 @@ public:
 	bool has_programmed_ = false;
 	CoreROMLink rom_link_;
 	CoreROMLinks rom_links_;
+	std::unique_ptr<PreparedInitialMedia> initial_media_;
 	CoreComposition composition() const override { return composition_ ? composition_->info : CoreComposition{}; }
 };
 
@@ -261,6 +271,8 @@ Error NativeHardware::StopInput(std::uint64_t deadline)
 
 Error NativeHardware::FlushSave()
 {
+    const Error media = FlushMediaSave();
+    if (!media.ok()) return media;
 	if (core_data_file_) {
 		if (core_data_flushed_)
 			return {};
@@ -291,8 +303,44 @@ Error NativeHardware::FlushSave()
 	return {};
 }
 
+Error NativeHardware::FlushFaultSave()
+{
+    // StopInput joins/closes delivery even when its final neutral command
+    // fails on the poisoned mailbox. Capture then explicitly reidentifies
+    // that mailbox; no stale asynchronous writer remains eligible.
+    (void)StopInput(Deadline(clock_, timeouts_.core_io_ms));
+    return FlushSave();
+}
+
 Error NativeHardware::RestoreInput(std::uint64_t generation)
 {
+    if (media_data_file_) {
+        auto* driver = active_driver_ == fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+        if (!driver || generation == 0) return {ErrorCode::io_failed,"active media cannot be resumed","media_data"};
+        // A destructive command may have committed before its response was
+        // lost. Read the state without repeating that command or allowing a
+        // frozen old image to change before its ownership is confirmed.
+        const Error observed = driver->RefreshMediaState(durable_media_.identity.unit, Deadline(clock_,timeouts_.core_io_ms));
+        if (!observed.ok()) return observed;
+        for (const auto& unit : driver->media_units()) if (unit.unit == durable_media_.identity.unit) {
+            if (unit.state == MediaUnitState::empty) { ForgetMediaData(); return {}; }
+            if (unit.state != MediaUnitState::ready)
+                return {ErrorCode::io_failed,"retained media state is unresolved","media_data"};
+        }
+        if (media_image_uncertain_) {
+            std::vector<unsigned char> observed_image;
+            const Error captured = driver->CaptureMedia(durable_media_.identity.unit,clock_,
+                Deadline(clock_,timeouts_.media_io_ms),&observed_image);
+            if (!captured.ok()) return captured;
+            if (observed_image != media_snapshot_)
+                return {ErrorCode::io_failed,"retained media image differs after failed replacement","media_data"};
+        }
+        const Error resumed = driver->ResumeMedia(durable_media_.identity.unit, Deadline(clock_,timeouts_.core_io_ms));
+        if (!resumed.ok()) return resumed;
+        media_image_uncertain_ = false;
+        media_snapshot_.clear(); media_data_flushed_ = false;
+        return {};
+    }
 	if (!core_data_file_)
 		return {};
 	if (!has_active_input_recipe_ || active_driver_ == nullptr || generation == 0)
@@ -350,6 +398,7 @@ CoreDriver* NativeHardware::ResolveDriver(ProgrammingProfile profile) const
 
 void NativeHardware::ForgetActiveCore()
 {
+    ForgetMediaData();
 	session_display_focused_ = false;
 	active_driver_ = nullptr;
 	active_context_ = {};
@@ -675,6 +724,9 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesComputerInterfaceGamepadPortsID,
 				generated::FesComputerInterfaceGamepadPortsMajor,
 				generated::FesComputerInterfaceGamepadPortsMinor},
+			{generated::FesComputerInterfaceMouseRelativeID,
+				generated::FesComputerInterfaceMouseRelativeMajor,
+				generated::FesComputerInterfaceMouseRelativeMinor},
 			{generated::FesComputerInterfaceKeyboardHidID,
 				generated::FesComputerInterfaceKeyboardHidMajor,
 				generated::FesComputerInterfaceKeyboardHidMinor},
@@ -687,6 +739,10 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesComputerInterfaceMediaAtariStFloppyID,
 				generated::FesComputerInterfaceMediaAtariStFloppyMajor,
 				generated::FesComputerInterfaceMediaAtariStFloppyMinor},
+			{generated::FesComputerInterfaceMediaAtariStFloppyGeometryID, 1, 0},
+            {generated::FesComputerInterfaceMediaAtariStFloppyWriteID,
+                generated::FesComputerInterfaceMediaAtariStFloppyWriteMajor,
+                generated::FesComputerInterfaceMediaAtariStFloppyWriteMinor},
 			{generated::FesComputerInterfaceMediaSpectrumTapeID,
 				generated::FesComputerInterfaceMediaSpectrumTapeMajor,
 				generated::FesComputerInterfaceMediaSpectrumTapeMinor},
@@ -704,6 +760,12 @@ Capabilities NativeHardware::capabilities() const
 			const auto* driver = dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_);
 			if (driver != nullptr && driver->home_computer())
 				result.media_units = driver->media_units();
+            if (media_data_file_) for (auto& unit : result.media_units) {
+                if (unit.unit == durable_media_.identity.unit) {
+                    unit.persistence_mode="persistent"; unit.game_id=durable_media_.identity.game_id;
+                    unit.base_media_id=durable_media_.identity.base_media_id; unit.revision=durable_media_.revision;
+                }
+            }
 			if (driver != nullptr && driver->StreamInfo(&info).ok()) {
 				result.media_stream.interface = {generated::FesSimpleComputerInterfaceMediaBlobStreamID,
 					generated::FesSimpleComputerInterfaceMediaBlobStreamMajor,
@@ -814,6 +876,13 @@ Error NativeHardware::LoadComputerMediaStream(const std::string& path, std::uint
 	return error;
 }
 
+Error NativeHardware::SendMouseRelative(std::int16_t dx, std::int16_t dy, std::uint8_t buttons)
+{
+	auto* driver = active_driver_ == fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+	if (!driver) return {ErrorCode::unsupported_interface, "FES computer is not active", "input"};
+	return driver->SendMouseRelative(dx, dy, buttons, Deadline(clock_, timeouts_.core_io_ms));
+}
+
 Error NativeHardware::SetKeyboardHid(const KeyboardHidRows& rows)
 {
 	auto* driver = active_driver_ == fes_gp_driver_ ?
@@ -844,7 +913,26 @@ Error NativeHardware::InsertComputerMedia(std::uint8_t unit, const std::string& 
 	if (!error.ok()) return WithPhase(error, "request");
 	if (snapshot.size() != size)
 		return {ErrorCode::invalid_request, "media size does not match request", "request"};
-	return driver->InsertMedia(unit, snapshot, clock_, deadline, timeouts_.core_io_ms);
+	if (info->interface.id == generated::FesComputerInterfaceMediaAtariStFloppyID) {
+        std::array<unsigned char, 512> boot{};
+        error = snapshot.Read(0, boot.data(), boot.size(), clock_, deadline);
+        if (!error.ok()) return WithPhase(error, "request");
+        if (!AtariStBaseBpbValid(boot.data(), boot.size(), size))
+            return {ErrorCode::invalid_request, "Atari ST base BPB disagrees with geometry", "request"};
+    }
+	error = FlushMediaSave();
+    if (!error.ok()) return error;
+    const Error inserted = driver->InsertMedia(unit,snapshot,clock_,
+        Deadline(clock_,timeouts_.media_io_ms),timeouts_.core_io_ms);
+    // Successful insert or confirmed failure-eject retires the old binding.
+    if (inserted.ok()) ForgetMediaData();
+    else for (const auto& state : driver->media_units())
+        if (state.unit==unit && state.state==MediaUnitState::empty) ForgetMediaData();
+    if (!inserted.ok() && media_data_file_) {
+        media_image_uncertain_ = true;
+        return {ErrorCode::save_failed,inserted.message,"media_data"};
+    }
+    return inserted;
 }
 
 Error NativeHardware::EjectComputerMedia(std::uint8_t unit)
@@ -853,7 +941,186 @@ Error NativeHardware::EjectComputerMedia(std::uint8_t unit)
 		dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
 	if (driver == nullptr)
 		return {ErrorCode::unsupported_interface, "FES computer media unit is not active", "request"};
-	return driver->EjectMedia(unit, Deadline(clock_, timeouts_.core_io_ms));
+	const Error saved = FlushMediaSave();
+    if (!saved.ok()) return saved;
+    Error ejected = driver->EjectMedia(unit,Deadline(clock_,timeouts_.core_io_ms));
+    if (ejected.ok()) ForgetMediaData();
+    else if (media_data_file_) {
+        ejected.code = ErrorCode::save_failed;
+        ejected.phase = "media_data";
+    }
+    return ejected;
+}
+
+void NativeHardware::ForgetMediaData()
+{
+    media_data_file_.reset(); media_snapshot_.clear(); durable_media_={}; media_base_size_=0; media_data_flushed_=false;
+    media_image_uncertain_=false;
+}
+Error NativeHardware::FlushMediaSave()
+{
+    if (!media_data_file_ || media_data_flushed_) return {};
+    auto* driver=active_driver_==fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+    if(!driver) return {ErrorCode::save_failed,"active media snapshot unavailable","media_data"};
+    const auto deadline=Deadline(clock_,timeouts_.media_io_ms);
+    Error error;
+    if(media_snapshot_.empty()) error=driver->CaptureMedia(durable_media_.identity.unit,clock_,deadline,&media_snapshot_);
+    if(error.ok() && media_snapshot_.size()!=media_base_size_)
+        error={ErrorCode::save_failed,"incomplete media snapshot","media_data"};
+    if(error.ok()) {
+        MediaDiskRecord current; error=media_data_file_->Read(&current);
+        if(error.ok() && current.revision!=durable_media_.revision && current.bytes!=media_snapshot_)
+            error={ErrorCode::stale_revision,"media-data revision changed","media_data"};
+        if(error.ok()) {
+            MediaDiskRecord snapshot=durable_media_; snapshot.bytes=media_snapshot_;
+            error=media_data_file_->Persist(snapshot,current.revision,&durable_media_);
+            if(!error.ok() && error.code==ErrorCode::save_failed) {
+                // A rename can succeed before directory sync fails. Retain
+                // that exact visible revision as ours while still reporting
+                // uncertain durability. After Resume, new guest writes can
+                // checkpoint against it instead of appearing concurrent.
+                MediaDiskRecord visible;
+                if(media_data_file_->Read(&visible).ok() && visible.bytes==media_snapshot_)
+                    durable_media_=std::move(visible);
+            }
+        }
+    }
+    if(error.ok()) error=driver->MarkMediaSaved(durable_media_.identity.unit,deadline);
+    if(!error.ok()) { error.code=ErrorCode::save_failed; return WithPhase(error,"media_data"); }
+    media_data_flushed_=true; return {};
+}
+Error NativeHardware::InsertLibraryComputerMedia(std::uint8_t unit,const std::string& path,
+    std::uint32_t size,const std::string& root,const MediaDataBinding& binding)
+{
+    auto* driver=active_driver_==fes_gp_driver_ ? dynamic_cast<FesGpCoreDriver*>(fes_gp_driver_) : nullptr;
+    if(!driver || !active_context_.descriptor || unit!=0 || binding.unit!=unit || !AtariStSizeAdmitted(size,driver && driver->MediaGeometryCapable(unit)))
+        return {ErrorCode::unsupported_interface,"library disk unit is unavailable","request"};
+    MediaDataIdentity identity{active_context_.descriptor->core.id,binding.game_id,binding.base_media_id,unit};
+    if(!ValidMediaDataIdentity(identity)) return {ErrorCode::invalid_request,"invalid library disk binding","request"};
+    const auto deadline=Deadline(clock_,timeouts_.media_io_ms);
+    ComputerMediaSnapshot base; Error error=base.Prepare(path,size,size,clock_,deadline);
+    if(!error.ok()) return WithPhase(error,"request");
+    Sha256 source; std::array<std::uint8_t,512> bytes{};
+    for(std::uint32_t offset=0;offset<size && error.ok();offset+=bytes.size()) {
+        error=base.Read(offset,bytes.data(),bytes.size(),clock_,deadline);
+        if(error.ok() && offset==0 && !AtariStBaseBpbValid(bytes.data(),bytes.size(),size))
+            return {ErrorCode::invalid_request,"Atari ST base BPB disagrees with geometry","request"};
+        if(error.ok()) source.Update(bytes.data(),bytes.size());
+    }
+    if(!error.ok()) return WithPhase(error,"request");
+    if(Sha256Hex(source.Final())!=binding.base_media_id)
+        return {ErrorCode::invalid_request,"library disk source digest mismatch","request"};
+    std::unique_ptr<MediaDataFile> incoming;
+    error=MediaDataFile::Open(root,identity,&incoming);
+    MediaDiskRecord record;
+    if(error.ok()) error=incoming->Read(&record);
+    if(!error.ok()) return WithPhase(error,"request");
+    if(!record.bytes.empty() && record.bytes.size()!=size)
+        return {ErrorCode::incompatible_data,"saved disk geometry differs from immutable base","request"};
+    if(!driver->MediaWriteCapable(unit)) {
+        if(record.revision!="absent") return {ErrorCode::incompatible_data,"library disk requires writable media contract","media_data"};
+        return InsertComputerMedia(unit,path,size);
+    }
+    error=incoming->CheckWritable();
+    if(!error.ok()) return WithPhase(error,"request");
+    error=FlushMediaSave();
+    if(!error.ok()) return error;
+    // Outgoing and incoming disk can be the same namespace. Restore the
+    // freshly published bytes, never the earlier preflight record.
+    error=incoming->Read(&record);
+    // Capture and insertion are separately bounded media phases. The old
+    // image stays Frozen/Saved until the next Begin actually changes it.
+    const auto insert_deadline=Deadline(clock_,timeouts_.media_io_ms);
+    ComputerMediaSnapshot restored;
+    if(error.ok() && !record.bytes.empty() && record.bytes.size()!=size)
+        error={ErrorCode::incompatible_data,"saved disk geometry differs from immutable base","request"};
+    if(error.ok() && !record.bytes.empty()) error=restored.PrepareBytes(record.bytes,clock_,insert_deadline);
+    if(!error.ok()) {
+        if(media_data_file_) { error.code=ErrorCode::save_failed;return WithPhase(error,"media_data"); }
+        return WithPhase(error,"request");
+    }
+    error=driver->InsertMedia(unit,record.bytes.empty()?base:restored,clock_,insert_deadline,timeouts_.core_io_ms);
+    if(!error.ok()) {
+        for(const auto& state:driver->media_units())
+            if(state.unit==unit && state.state==MediaUnitState::empty) ForgetMediaData();
+        if(media_data_file_) {
+            media_image_uncertain_=true;
+            return {ErrorCode::save_failed,error.message,"media_data"};
+        }
+        return error;
+    }
+    media_data_file_=std::move(incoming); durable_media_=std::move(record); media_base_size_=size;
+    media_snapshot_.clear(); media_data_flushed_=false; media_image_uncertain_=false;
+    return {};
+}
+
+Error NativeHardware::PrepareInitialComputerMedia(AdmittedCorePackage* package,
+	const InitialComputerMedia& request)
+{
+	auto* admitted = dynamic_cast<NativeAdmittedCore*>(package);
+	if (!admitted) return {ErrorCode::invalid_request, "invalid admitted package", "admission"};
+	const auto& descriptor = admitted->opened_.descriptor;
+	bool floppy = false, writable = false, geometry = false;
+	for (const auto& interface : descriptor.interfaces) {
+		if (!interface.required || interface.major != 1 || interface.minor != 0) continue;
+		if (interface.id == generated::FesComputerInterfaceMediaAtariStFloppyID) floppy = true;
+		if (interface.id == generated::FesComputerInterfaceMediaAtariStFloppyWriteID) writable = true;
+        if (interface.id == generated::FesComputerInterfaceMediaAtariStFloppyGeometryID) geometry = true;
+	}
+	if (descriptor.format != 3 || descriptor.rom.role != "firmware" ||
+		descriptor.core.id != "fes.atari-st" || descriptor.abi.id != generated::FesComputerABIID ||
+		!floppy || !writable)
+		return {ErrorCode::unsupported_interface, "initial disk requires ROM-linked writable Atari ST", "admission"};
+	MediaDataIdentity identity{descriptor.core.id, request.binding.game_id, request.binding.base_media_id,
+		request.binding.unit};
+	if (!AtariStSizeAdmitted(request.size, geometry) || request.binding.unit != 0 || !ValidMediaDataIdentity(identity))
+		return {ErrorCode::invalid_request, "invalid initial disk identity or geometry", "admission"};
+	std::unique_ptr<PreparedInitialMedia> prepared(new PreparedInitialMedia);
+	const auto deadline = Deadline(clock_, timeouts_.media_io_ms);
+	Error error = prepared->base.Prepare(request.path, request.size, request.size, clock_, deadline);
+	Sha256 hash;
+	std::array<std::uint8_t, 512> bytes{};
+	for (std::uint32_t offset = 0; offset < request.size && error.ok(); offset += bytes.size()) {
+		error = prepared->base.Read(offset, bytes.data(), bytes.size(), clock_, deadline);
+		if (error.ok() && offset == 0 && !AtariStBaseBpbValid(bytes.data(), bytes.size(), request.size))
+            return {ErrorCode::invalid_request, "Atari ST base BPB disagrees with geometry", "admission"};
+        if (error.ok()) hash.Update(bytes.data(), bytes.size());
+	}
+	if (!error.ok()) return WithPhase(error, "admission");
+	if (Sha256Hex(hash.Final()) != request.binding.base_media_id)
+		return {ErrorCode::invalid_request, "initial disk source digest mismatch", "admission"};
+	error = MediaDataFile::Open(request.data_root, identity, &prepared->file);
+	if (error.ok()) error = prepared->file->Read(&prepared->record);
+	if (error.ok() && !prepared->record.bytes.empty() && prepared->record.bytes.size() != request.size)
+        error = {ErrorCode::incompatible_data, "saved disk geometry differs from immutable base", "admission"};
+	if (error.ok()) error = prepared->file->CheckWritable();
+	if (error.ok() && !prepared->record.bytes.empty()) {
+		prepared->restored.reset(new ComputerMediaSnapshot);
+		error = prepared->restored->PrepareBytes(prepared->record.bytes, clock_, deadline);
+	}
+	if (!error.ok()) return WithPhase(error, "admission");
+	admitted->initial_media_ = std::move(prepared);
+	return {};
+}
+
+Error NativeHardware::RefreshInitialComputerMedia(AdmittedCorePackage* package)
+{
+	auto* admitted = dynamic_cast<NativeAdmittedCore*>(package);
+	if (!admitted || !admitted->initial_media_)
+		return {ErrorCode::invalid_request, "initial disk is not prepared", "admission"};
+	auto& prepared = *admitted->initial_media_;
+	Error error = prepared.file->Read(&prepared.record);
+	if (error.ok() && !prepared.record.bytes.empty() && prepared.record.bytes.size() != prepared.base.size())
+        error = {ErrorCode::incompatible_data, "saved disk geometry differs from immutable base", "admission"};
+	if (error.ok()) {
+		std::unique_ptr<ComputerMediaSnapshot> restored;
+		if (!prepared.record.bytes.empty()) {
+			restored.reset(new ComputerMediaSnapshot);
+			error = restored->PrepareBytes(prepared.record.bytes, clock_, Deadline(clock_, timeouts_.media_io_ms));
+		}
+		if (error.ok()) prepared.restored = std::move(restored);
+	}
+	return WithPhase(error, "admission");
 }
 
 Error NativeHardware::AttachProgrammedBitstream(AdmittedCorePackage* package,
@@ -1038,7 +1305,10 @@ HardwareResult NativeHardware::LoadCoreInternal(
 			WithPhase(stopped, "input"),
 			quiesced.mutation_attempted || programmed.mutation_attempted, ""};
 	}
- menu_unsafe_=false;
+	// Programming retired the former core's disk ownership. Its record remains,
+	// but only explicit insertion may bind the new core to that namespace.
+	ForgetMediaData();
+	menu_unsafe_=false;
 	admitted->driver_->BeginSession();
 	admitted->context_.generation = generation;
 	active_driver_ = admitted->driver_;
@@ -1088,6 +1358,23 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		if (!error.ok())
 			return {WithPhase(error, "core_data"), true, identified.observed_core};
 	}
+	if (admitted->initial_media_) {
+		auto* driver = dynamic_cast<FesGpCoreDriver*>(admitted->driver_);
+		if (!driver || !driver->MediaWriteCapable(0))
+			return {{ErrorCode::unsupported_interface, "initial disk live write contract is unavailable", "input"},
+				true, identified.observed_core};
+		auto& prepared = *admitted->initial_media_;
+		error = driver->InsertMedia(0, prepared.restored ? *prepared.restored : prepared.base,
+			clock_, Deadline(clock_, timeouts_.media_io_ms), timeouts_.core_io_ms);
+		log_.Write({"load_core", admitted->opened_.descriptor.core.system,
+			identified.observed_core, "initial_media", error});
+		if (!error.ok()) return {WithPhase(error, "input"), true, identified.observed_core};
+		// InsertMedia confirmed ready; execution is still held until Start below.
+		media_data_file_ = std::move(prepared.file);
+		durable_media_ = std::move(prepared.record);
+        media_base_size_ = prepared.base.size();
+		admitted->initial_media_.reset();
+	}
 	if (fes_gp) {
 		if (identity_verified)
 			identity_verified->store(true);
@@ -1124,7 +1411,7 @@ HardwareResult NativeHardware::LoadCoreInternal(
 		CoreDriverResult started = admitted->driver_->Start(admitted->context_,
 			Deadline(clock_, timeouts_.core_io_ms));
 		if (!started.error.ok()) return {WithPhase(std::move(started.error),
-			"transport"), true, identified.observed_core};
+			"transport"), true, identified.observed_core, media_data_file_ != nullptr};
   if(menu) {
    error=menu_display_->Enable(Deadline(clock_,timeouts_.core_io_ms));
    MenuDisplayInfo info;if(error.ok())error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);
@@ -1266,6 +1553,7 @@ HardwareResult NativeHardware::LoadSplashIdle()
 		return {input_error.ok() ? error : input_error,
 			quiesce_mutation || programmed.mutation_attempted, ""};
 	}
+ ForgetMediaData();
  menu_unsafe_=false;session_display_focused_=false;
  if(menu_status_.session)menu_status_={};else menu_status_.available=false;
 	const VideoResult video = idle_video_.BringUp(idle_recipe_,
@@ -1374,6 +1662,7 @@ HardwareResult NativeHardware::LoadContainedDevelopmentRBF(const std::string& rb
 			programmed.mutation_attempted, ""};
 	}
 
+	ForgetMediaData();
 	CoreDriver* driver = ResolveDriver(profile);
 	if (driver == nullptr)
 		return {{ErrorCode::unsupported_abi,

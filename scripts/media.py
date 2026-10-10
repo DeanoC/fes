@@ -938,7 +938,8 @@ class Runner:
         try:
             self.create_and_start([image / 'scripts/target-image-container.sh', 'run', 'sh',
                       '/work/build/output/target-image/media-verify/verify.sh'], name,
-                     env=dict(env, TARGET_IMAGE_CONTAINER_RUNTIME=str(runtime_shim)))
+                     env=dict(env, TARGET_IMAGE_CONTAINER_RUNTIME=str(runtime_shim),
+                              FES_IMAGE_PASSES=os.environ.get('IMAGE_PASSES', '2')))
         except ValueError:
             raise ValueError('rootfs verification failed; if the pinned QEMU kernel cache is absent or stale, run make verify') from None
 
@@ -953,7 +954,7 @@ fail() { echo 'QEMU kernel cache is absent or stale; run make verify' >&2; exit 
 kernel_bare=/work/build/cache/target-image/linux-kernel.git
 kernel_source=/target-image-output/qemu-vexpress-source
 kernel_output=/target-image-output/qemu-vexpress-kernel
-toolchain_root=/target-image-output/work-2-native-dev/host
+toolchain_root=${FES_IMAGE_WORK:-/target-image-output/work-2-native-dev}/host
 test -x "$toolchain_root/bin/arm-buildroot-linux-gnueabihf-gcc" || fail
 source_head=$(git --git-dir="$kernel_bare" rev-parse refs/target-image/pinned) || fail
 test -d "$kernel_source/.git" || fail

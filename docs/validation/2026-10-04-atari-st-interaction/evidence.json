@@ -1,0 +1,815 @@
+{
+  "affected_remaining": {
+    "base_revision": "7953bf0f0b382bc797e2beb50696f890eaa3b90a",
+    "command_count": 37,
+    "contracts_commands": 1,
+    "excluded_completed_lanes": [
+      "always",
+      "parent",
+      "host",
+      "runtime"
+    ],
+    "final_checkout_head": "d4892592cd2c0e29910e83a72229e457821688d5",
+    "fpga_commands": 36,
+    "jobs": 2,
+    "log_sha256": "74fb2d7b632ce5a051aee39d7d0d91bef1ce62a4f86f542e4375868f26a38a31",
+    "pass": true,
+    "plan_sha256": "a09068d2a0673bc154324c5b025a9f61725f6c98a893bc7929c3760c40f2e668",
+    "preflight": "passed",
+    "results": [
+      {
+        "elapsed_seconds": 12.292,
+        "label": "contract schemas and generated fixtures",
+        "lane": "contracts",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 24.3,
+        "label": "sim-fes-native-video RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 9.05,
+        "label": "sim-fes-coleco-native RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 9.129,
+        "label": "sim-fes-native-socket RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 12.135,
+        "label": "test_build_fes_*.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 3.579,
+        "label": "test_functional_identity.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 1.669,
+        "label": "test_export_core_package.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 1.889,
+        "label": "test_compiler_read_audit.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 2.293,
+        "label": "test_source_provenance.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 2.294,
+        "label": "test_source_repository.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 0.311,
+        "label": "test_core_package.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 0.185,
+        "label": "test_core_package_v3.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 0.356,
+        "label": "test_search_placer_qor.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 0.223,
+        "label": "test_coleco_sim_shards.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 0.292,
+        "label": "test_rom_map.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 0.356,
+        "label": "test_video_parts_build.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 0.148,
+        "label": "test_native_video_parts.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 6.779,
+        "label": "test_native_video_build.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 0.325,
+        "label": "test_native_video_clock.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 25.634,
+        "label": "test_atari_st_*.py",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 112.136,
+        "label": "apple2 RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 75.773,
+        "label": "atari-st RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 9.996,
+        "label": "c64 RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 1168.657,
+        "label": "coleco RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 107.558,
+        "label": "demo RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 72.821,
+        "label": "menu RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 11.638,
+        "label": "pong RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 10.766,
+        "label": "ramtest RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 19.882,
+        "label": "sg1000 RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 18.665,
+        "label": "sg1000 OSS RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 16.171,
+        "label": "sg1000 linked ROM RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 2.844,
+        "label": "sg1000 audio identity simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 23.839,
+        "label": "sms RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 27.316,
+        "label": "sms OSS RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 75.327,
+        "label": "spectrum RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 99.719,
+        "label": "z80 RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      },
+      {
+        "elapsed_seconds": 135.173,
+        "label": "zx81 RTL simulation",
+        "lane": "fpga",
+        "returncode": 0
+      }
+    ],
+    "results_sha256": "456df18411f0ee20f37637da6ac8ee6701a18569f1122bb278cc55636b8979ac",
+    "rtl_targets": 20,
+    "software_patterns": 16,
+    "source_revision": "d4892592cd2c0e29910e83a72229e457821688d5"
+  },
+  "base_revision": "7953bf0f0b382bc797e2beb50696f890eaa3b90a",
+  "cpu_probe": {
+    "archive_manifest_payload_verified": true,
+    "archive_sha256": "ee0df85fd6d4a5f609d62d046e4658eaf115265055039810aa2fa7a1a08a8449",
+    "archive_size": 2887680,
+    "cram_bits_inside": 9130,
+    "cram_bits_outside": 0,
+    "expansion_id": "a53d635f7d0bda3ebc0994a901f40df7d06f9638b1eaecd56a41ef1d2d73a3b4",
+    "independent_cram_bits_inside": 9130,
+    "independent_cram_bits_outside": 0,
+    "independent_review": "pass: canonical archive/recipe/source/scaffold/clock/complete bit containment audit",
+    "manifest": {
+      "cart_sha256": "306b7e12b62d6ca78c22242f7f6f8b6c5953794047467ddc119e57de67c5c70b",
+      "cart_size": 2883468,
+      "device": "5CSEBA6U23I7",
+      "format": 1,
+      "map": "fes.atari-st-bus.socket/1",
+      "recipe_sha256": "05fcc30238021871dbd62b723276efe23721dec056306cacfb4f4e30942a306e",
+      "revision": "517a285c089153dc3701fd02dd366c0286a3efd2",
+      "shell_build_id": "bd83f737c1a8e2252fe0f9b8a10c2cf6",
+      "shell_package_id": "d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5",
+      "shell_sha256": "c7f5f61e0cba8c519e185f15ce0ace3cb96ee2ba2d49ae59a14ac2f0a2356320",
+      "slot": "fes.expansion.atari-st-bus",
+      "slot_index": 1,
+      "slot_major": 1,
+      "slot_minor": 0
+    },
+    "manifest_sha256": "a494ac0018dc8aef038bff9958b3674cd4f068b720e6ec6d65a0fc6206f84807",
+    "physical_execution_claimed": false,
+    "placer_seed": 5,
+    "producer_summary_sha256": "e3ae36792d667d81b04d730f5c33f1af9fb7c55b5672756f2a823c2dd96c81ef",
+    "source_revision": "517a285c089153dc3701fd02dd366c0286a3efd2",
+    "status": "producer sealed; independent review passed; no physical probe acceptance",
+    "timing": {
+      "pixel_clk": 79.80846405029297,
+      "system_clock.clocks[0]": 53.30206298828125,
+      "system_clock.clocks[1]": 202.9220733642578
+    }
+  },
+  "date": "2026-10-04",
+  "dqm": {
+    "collection_context_revision": "350c5dfedae50f05965e1cb6e9bd97841c3f7e6f",
+    "committed_result_revision": "d4892592cd2c0e29910e83a72229e457821688d5",
+    "corrected_inputs_match_native_source": true,
+    "limits": "host-only actual RTL delayed DQM command model; no analog timing or hardware acceptance",
+    "new_controller_sha256": "47d4d6055a9cd028cec76a60f6918e43eea517ea9448aea645c6efd7cdba0f1b",
+    "new_run_summary": [
+      "st_memory: DQM delay 0: 3036 requests passed, 132 refreshes, 32 masked writes after refresh, max latency 102 clocks over 63424 cycles",
+      "st_memory: DQM delay 1: 3036 requests passed, 132 refreshes, 32 masked writes after refresh, max latency 102 clocks over 63424 cycles",
+      "st_memory: DQM delay 2: 3036 requests passed, 132 refreshes, 32 masked writes after refresh, max latency 102 clocks over 63424 cycles"
+    ],
+    "old_controller_sha256": "cca29343fab039cac47d3cfa3695e8b90de256cc1385f92012970dd9c7f21fd2",
+    "old_controls": [
+      {
+        "delay": 0,
+        "output": "st_memory: DQM delay 0: 3036 requests passed, 132 refreshes, 32 masked writes after refresh, max latency 102 clocks over 63424 cycles",
+        "returncode": 0
+      },
+      {
+        "delay": 1,
+        "output": "physical WRITE data/byte mask mismatch at cycle 14181",
+        "returncode": 1
+      },
+      {
+        "delay": 2,
+        "output": "physical WRITE data/byte mask mismatch at cycle 14181",
+        "returncode": 1
+      }
+    ],
+    "record_sha256": "2c3a7a478ebccde59213a26f3afca81abdd5165e6ea364ad16ad0efa23e8ae6b"
+  },
+  "earlier_parent_host_lanes": {
+    "limitation": "Original affected run stopped at runtime failure; later runtime and remaining lanes are separate selections.",
+    "parent_python_cases": 695,
+    "passed": [
+      "test_affected.py",
+      "test_test_changed.py",
+      "committed whitespace",
+      "working whitespace",
+      "parent Python regressions",
+      "working-tree generated consumer consistency",
+      "Go tests host",
+      "Go tests /appliance",
+      "shared Go expansion linker tests",
+      "host UI tests"
+    ],
+    "record_sha256": "0ac50ffbf6a1281b022c8f8a82662f186890d1de489d8adea8e31c20e3b782f2",
+    "source_revision": "b9d9bd4862be01a9a274f9c3910cd5a24f1543d0"
+  },
+  "final_cleanup": {
+    "boot_identity_unchanged": true,
+    "boot_selection_changed": false,
+    "diagnostic_overlay_removed": true,
+    "displayed_titles": 4253,
+    "factory_artifacts": {
+      "agent_revision": "5a58053229b5e1772defe5f9bdc34c72f659db71",
+      "agent_sha256": "dd91591c8eb6a9728bb1036cbeaba4025e52de5c747402c2c980bdb046986754",
+      "idle_sha256": "43dc7e9db350dbdef87b290bfde61f8df37483957c93e81cbd753c30d4cd93b6",
+      "image_sha256": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+      "kit_sha256": "586b18a5bcaf338c99a55974d9062c65aaaf107bbb44fb2abeeea9a14c4e95b2",
+      "package_id": "519ac44a9d801267eb8a07d7f9258cf2df59fbeb389f3a630d1d5c8f02dfb798",
+      "record_sha256": "2081b2fe38571b3f8120e295f4981973f7bee1d99ca033a3705547131c612796",
+      "runtime_commit": "5a58053229b5e1772defe5f9bdc34c72f659db71"
+    },
+    "lease": "free",
+    "menu_mkv_sha256": "af89e1b1d547e22b330b59d79fff39dcf335cf8a4b5f0fbecaf959abf09be232",
+    "menu_png_sha256": "368139d857b23517de596bd8f5ff658ce75dd5f3d69f50acc3d40eb932ce1dd0",
+    "menu_visible": true,
+    "normal_config_changed": false,
+    "normal_host_active": true,
+    "normal_host_autostart": "enabled, matching initial setting",
+    "normal_host_library_accessible": true,
+    "owned_diagnostic_containers_removed": 3,
+    "private_configs_removed": 2,
+    "status": "idle"
+  },
+  "guest": {
+    "captured_disk_sha256": "d5e7c8f0015a44a545f16fec8db55ee1881836c1c2d8aa453f6f8c30010aff6d",
+    "executable_sha256": "ef7c218d9ee50ee8270358adee989624af9b9a634eaacdfdc46fa29dd08bec0f",
+    "executed_source_revision": "d4892592cd2c0e29910e83a72229e457821688d5",
+    "frozen_input_count": 28,
+    "generated_model_sha256": "21804858e99ceab888f4af56bfbbcc4c4da55f9a2154bf0a92592ee315091df1",
+    "independent_verification_sha256": "a0e11e3781fb6a01ee39c74441fb1ec606007b4ccd1fba4982e34a467592d82b",
+    "input_bridge_6fd_sha256": "f545d6c3f825fcf74adf8bd8e74b33c042ad2540d00ef594681b7d1ab389ae9e",
+    "input_equivalence_to_native_source": true,
+    "limits": "Original AUTO disk preloaded privately into modeled physical SDRAM; no host upload, snapshot publication, sealed-FPGA or analog acceptance.",
+    "metrics": {
+      "complete_frames": 479,
+      "concurrent_cycles": 12275203,
+      "cpu_reads": 980902,
+      "cpu_writes": 939667,
+      "disk_changed_bytes": 1552,
+      "disk_reads": 25600,
+      "disk_writes": 4352,
+      "dma_reads": 4352,
+      "dma_writes": 12800,
+      "faults": 4,
+      "mfp": 1763,
+      "pass_first_cycle": 313344000,
+      "program_base": 58874,
+      "program_fetches": 15798,
+      "refreshes": 1068525,
+      "schema": 1,
+      "system_cycles": 417792000,
+      "trap_fetches": 23,
+      "underruns": 0,
+      "vbl": 476,
+      "video_reads": 7664000
+    },
+    "original_disk_sha256": "36e692da3daa2f130bb58a555f65f799b32c21f4e80a213cd0fa351eedcad6e9",
+    "pass": true,
+    "prg_sha256": "6717e05a3e12a57db58f1f084fdd2a8608b5de1b0b63eae7d3819bdfc1d54e4d",
+    "proof_sha256": "0fef10f3d1aa9899eea53cfa0c9dbd69f9570bbf0925aa13a90c74716072c477",
+    "review_sha256": "d4da1476da1fd9f6d68f1dc45ead0ec03c83cd0ee68f611f8baaea12988de3cc",
+    "rom_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+    "selected_native_source_revision": "517a285c089153dc3701fd02dd366c0286a3efd2",
+    "source_archive_sha256": "f56c24a10efb5a13c13a4b6f1579635f071c0a182431e8dd3d8b6f0a0e0e0801"
+  },
+  "hardware": {
+    "memory_probe_rom_sha256": "89803338298d66159bcfead34bd54046a51a7893b9805cff7fddc6be67454e99",
+    "new_artifact_acceptance": "blocked by RED03 upper-byte preservation failure",
+    "new_shell_probe": {
+      "acceptance_blocked": [
+        "physical byte-lane correctness",
+        "EmuTOS mouse",
+        "durable disk",
+        "independent Direct video part",
+        "independent Scanlines video part"
+      ],
+      "build_id": "bd83f737c1a8e2252fe0f9b8a10c2cf6",
+      "capture": {
+        "codec": "ffv1",
+        "frame_rate": "60/1",
+        "height": 720,
+        "pixel_format": "yuv422p",
+        "png_file": "current-memory-720.png",
+        "png_identical_to_predecessor": true,
+        "png_sha256": "26dd3198361761697d9a75ae4e586dd26c136594992fec2d23d8b2c0d135c82f",
+        "video_sha256": "8c2a6b8ce7f71fcd222aba1170cfc141ec024d4ea87cca513b20ee91477c6bd3",
+        "width": 1280
+      },
+      "cause": "unresolved; nextpnr attribution not established",
+      "classification": "local exact-artifact hardware diagnostic; not appliance acceptance",
+      "execution": "fpga_native",
+      "generation": 1,
+      "launch_record_sha256": "0a1144938d3b30ce7fb5ddfea688fd6af10d233c586514ea8f4d033e38156754",
+      "launch_state": "active",
+      "observation": "RED03; upper-byte write preservation failed after stages01 and02 passed",
+      "operator_confirmed_runtime_source": "517a285c089153dc3701fd02dd366c0286a3efd2",
+      "operator_confirmed_target_boot_unchanged": true,
+      "package_id": "d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5",
+      "persistence_mode": "volatile",
+      "rom_link": {
+        "map_sha256": "469eb1eb93f1de33b53564d3c230f3eea449440ae91a4900c73bcb6020ee824a",
+        "programmed_sha256": "1c5b2d8ef36a611417ecd6880de442f522bd9c4d241a5a5079fab14d81b7ac49",
+        "programmed_size": 2591976,
+        "rom_id": "atari-st-firmware",
+        "source_sha256": "89803338298d66159bcfead34bd54046a51a7893b9805cff7fddc6be67454e99",
+        "source_size": 196608
+      },
+      "runtime_build_inputs_sha256": "a94e54c58c67fce76591461a46933faf57a8b40c03d4607c98d887af97e51881",
+      "source_revision": "517a285c089153dc3701fd02dd366c0286a3efd2",
+      "stop": {
+        "menu_observation": "FogCast menu visible; lease free",
+        "menu_png_file": "menu-after-new-memory.png",
+        "menu_png_sha256": "6e5c07970da467cb8e7548f187570ab22dad47307d9225e67f9595d42aa4a180",
+        "menu_video_sha256": "e16f918cb181e64280eb26859d9fcfd4cbf933a35d33896dd324cc4044453258",
+        "operator_confirmed_normal_host_restored": true,
+        "record_sha256": "605c20d1c164abdc4a74571ee76d43474615ad8769be3561fe7d20fcba635676",
+        "state": "idle"
+      }
+    },
+    "predecessor_build_id": "43ece831982c1e6e416cbf9bc4a6e2e9",
+    "predecessor_package_id": "7d213b4148a1ab659c61bd398c809c703d0c8a592309b7aa47782e0b1ab5e20a",
+    "predecessor_programmed_sha256": "7b5ab59859170988ce5f21c1c49cc004353dfec1557671e2fdca4ec8fd08020a",
+    "predecessor_source_revision": "fd45b2be7db01d5f9b6f56b2ed86f6dfb338d7a2",
+    "probe_capture_sha256": "26dd3198361761697d9a75ae4e586dd26c136594992fec2d23d8b2c0d135c82f",
+    "probe_observation": "Predecessor and corrected517 shell both display RED03 after full-word/address and byte-read stages pass. Added DQM margin has not resolved the physical failure."
+  },
+  "kind": "fes.atari-st.interaction-validation/1",
+  "limits": [
+    "Source-specific evidence is retained without relabeling earlier models or test runs.",
+    "Sector atomicity does not provide multi-sector FAT transaction or power-loss guarantees.",
+    "ROM bytes, device addresses, tokens and private paths are omitted."
+  ],
+  "main_integration": {
+    "committed_consistency": {
+      "command": [
+        "make",
+        "check"
+      ],
+      "log_sha256": "06b9018660c32c1cad12e6dcd405e48f4b03c7c53b83e88beba7ee5877545158",
+      "result": "pass: 18 generated consumers, 34 fixture copies and 0 copied source pins match",
+      "source_revision": "10a8ffbd7b3ab3801bd9c828256a10b86c2fb16a"
+    },
+    "committed_parent_host": {
+      "command": [
+        "make",
+        "host"
+      ],
+      "limits": "linux/amd64 host build only; no deployment or target acceptance",
+      "log_sha256": "7d7cce791375491407ef7a0d3a10a5a4783ff9e31d8fd94ab661745a1f67dd4b",
+      "manifest": {
+        "arch": "amd64",
+        "fes_revision": "10a8ffbd7b3ab3801bd9c828256a10b86c2fb16a",
+        "files": {
+          "fogcast": "7fa05370edb8467d8671d41bc27977f45b77161be843d4012312e94e01c56aee",
+          "fogcast-api": "1ed079b2166c061585ac3932bbe82d33adb30625354976de23e7a75ae1b76a52"
+        },
+        "inputs": "1793fc0a057046a560485fc50e939fffbe356107ab6ee0e8796fec2154381299",
+        "os": "linux"
+      },
+      "manifest_sha256": "aad0ccb3ca055ebd3ee85d07092a2b4f7255112ff4e60f81327d1da8fc5079ba",
+      "result": "pass"
+    },
+    "independent_overlap_review": "pass: all four overlapping files; durable Stop budgets, observation fences, kit-local ownership/admission preserved",
+    "limits": "combined host-only source tests; native artifacts and physical runs retain their original recorded selections",
+    "merge_revision": "b1236121a710b922dd7407ff1f401abaaa382d2e",
+    "race_test_command": [
+      "go",
+      "test",
+      "-race",
+      "-p",
+      "2",
+      "-timeout",
+      "30m",
+      "./hostclient",
+      "./internal/fogcastcli",
+      "./cmd/mister-agent",
+      "./internal/hostapi",
+      "./internal/httpapi",
+      "./internal/localcores",
+      "./ui/kitlauncher/...",
+      "./ui/tenfoot"
+    ],
+    "race_test_directory": "sources/FogCast",
+    "race_test_log_sha256": "a76e5630b520ec8a80ca11c02a75c84fdd149fa4e23a888a898ca9385fee3f84",
+    "race_test_result": "pass: all nine package results",
+    "source_overrides": [
+      {
+        "change": "remove duplicate protocol import produced by semantic merge",
+        "path": "sources/FogCast/hostclient/session.go",
+        "sha256": "9ebb7615ab87836e7f9ee5c16fbc2636129f5590b742f807267112fcc3457a0a"
+      }
+    ],
+    "upstream_revision": "31ba384656ba3f5cefecc9ee089561058f8a0918"
+  },
+  "media_lifecycle": {
+    "collection_base_revision": "d4892592cd2c0e29910e83a72229e457821688d5",
+    "compiled_inputs_match_native_source": true,
+    "exit_code": 0,
+    "fixture_sha256": "6445a02cca9d06bc847c0d2a519b4a8754b327c7b6f1966a56a6286470a007af",
+    "focused_command": "make -C sources/misteross sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction",
+    "limits": "1024-byte representative mailbox fixture with real writer/upload adapter/arbiter; independent delayed RAM/media model, no real CPU or SDRAM electrical behavior; existing all-device/guest tests are separate evidence",
+    "old_mailbox_negative_summary": "old mailbox accepts Begin into LOADING and Eject into EMPTY while actual writer_busy=1; both regression processes exit1 as expected",
+    "record_sha256": "53b43f6b0ceccf7949d0ce0976c6ed38752abe883962e66f66560cc04d95ffed",
+    "source_revision": "517a285c089153dc3701fd02dd366c0286a3efd2"
+  },
+  "native": {
+    "build_id": "bd83f737c1a8e2252fe0f9b8a10c2cf6",
+    "bus_boundary_cells": 119,
+    "bus_boundary_route_buffers": 119,
+    "floppy_sector_memory": {
+      "bits_per_word": 16,
+      "cell": "machine.system.io.floppy.writer.sector.0.0.0",
+      "status": "pass",
+      "words": 256
+    },
+    "manifest_sha256": "5e1f4e83cbf4758e8a9b577a9bdb02540cfd64e64e6455c515ca268c3d4ae4bb",
+    "package_id": "d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5",
+    "payload": {
+      "sha256": "c7f5f61e0cba8c519e185f15ce0ace3cb96ee2ba2d49ae59a14ac2f0a2356320",
+      "size": 2881106
+    },
+    "pinned_input_count": 51,
+    "pinned_inputs_match_selected_git": true,
+    "producer_summary_sha256": "8e6f8dea0444e1e1c973d20b9e606dc39534b012c14a2b31360adbc735dabd66",
+    "ram_configuration": {
+      "checked_cells": 202,
+      "policy": "m10k-bmux-configuration-bounds-v1",
+      "status": "pass"
+    },
+    "resources": {
+      "MISTRAL_BUF": 2666,
+      "MISTRAL_CLKENA": 3,
+      "MISTRAL_COMB": 14170,
+      "MISTRAL_FF": 6487,
+      "MISTRAL_IO": 74,
+      "MISTRAL_M10K": 202,
+      "altera_pll": 2,
+      "cyclonev_hps_interface_mpu_general_purpose": 1,
+      "cyclonev_hps_interface_peripheral_i2c": 1
+    },
+    "route": {
+      "gpu_backend": "hip",
+      "placer_heap_timingweight": 2000,
+      "placer_qor_mode": "first-pass",
+      "placer_seed": 5,
+      "status": "pass",
+      "unrouted": false
+    },
+    "source_revision": "517a285c089153dc3701fd02dd366c0286a3efd2",
+    "status": "pass",
+    "timing": {
+      "audio": {
+        "achieved_mhz": 202.9220733642578,
+        "clock": "system_clock.clocks[1]",
+        "constraint_mhz": 12.288031578063965,
+        "status": "pass"
+      },
+      "pixel": {
+        "achieved_mhz": 79.80846405029297,
+        "clock": "pixel_clk",
+        "constraint_mhz": 74.25006866455078,
+        "status": "pass"
+      },
+      "status": "pass",
+      "system": {
+        "achieved_mhz": 53.30206298828125,
+        "clock": "system_clock.clocks[0]",
+        "constraint_mhz": 52.22477340698242,
+        "status": "pass"
+      }
+    },
+    "tools": {
+      "mistral": "commit=7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039; sha256=99a5eb917eed354e9f29a5765797fc5c5ebac86473e6e09b806f2a4ec2cb5cef",
+      "nextpnr-mistral": "commit=3d4a5b352b4edb478b744b82cc61333353751a80; sha256=916534646dc64087e70ab43ccbf88581850146051eaa0f721667fbe1a0db863f; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+      "yosys": "commit=886afa63953e97407153e9f4aae25fcedb639696; sha256=af25cd2493a4df52d6a1441a2bf06b450834691de00847ff167ffd6469e07ab0"
+    },
+    "video_boundary_cells": 93,
+    "video_layout": "fes.atari-st-video.parts/1"
+  },
+  "physical_byte_observation": {
+    "build_id": "bd83f737c1a8e2252fe0f9b8a10c2cf6",
+    "capture": {
+      "format": "YUYV422 1280x720 60fps; FFV1 lossless",
+      "frames": 180,
+      "mkv_sha256": "8b3acedee70ecb6613749078184c4a56e13152341ed032a1452c68ce40ca9795",
+      "png_sha256": "13ec7591a326619388f3a8ced0005279bd4398022c22f2b141bc8e0fe8544fcb"
+    },
+    "classification": "exact-package Kit A diagnostic; not appliance acceptance",
+    "digital_cases": [
+      "ideal",
+      "both-unmasked",
+      "mask-swapped",
+      "upper-inhibited",
+      "lower-inhibited",
+      "all-inhibited"
+    ],
+    "digital_limitation": "Frozen 630950ab25707b9c87ad0cf02f075168dc448c0f model validates diagnostic semantics; not native517 or electrical timing.",
+    "digital_validation_sha256": "e3c9a98a02f6a6dcd0668c6b3ae30db1a6446ba29cc4013d339c17af623892aa",
+    "execution": "fpga_native",
+    "expected_word_rows": [
+      [
+        "5AA5",
+        "5AA5"
+      ],
+      [
+        "C3A5",
+        "5A3C"
+      ],
+      [
+        "C3A5",
+        "5A3C"
+      ],
+      [
+        "C3A5",
+        "5A3C"
+      ]
+    ],
+    "generation": 2,
+    "host_revision": "b9d9bd4862be01a9a274f9c3910cd5a24f1543d0",
+    "independent_review": "pass: full settled-frame ignored-mask oracle and exact package/ROM/Stop bindings",
+    "independent_review_sha256": "ca69690f8370cebd64eb11a99644e3502abc95dd40a0fda63868eef7a76b3d4f",
+    "interpretation": "Matches ignored-mask digital control. Compiler/electrical/module cause unconfirmed.",
+    "investigation_issue": "https://github.com/DeanoC/nextpnr/issues/125",
+    "lease_state_after": "free",
+    "normal_host_restored": true,
+    "observed_word_rows": [
+      [
+        "5AA5",
+        "5AA5"
+      ],
+      [
+        "C3C3",
+        "3C3C"
+      ],
+      [
+        "C3C3",
+        "3C3C"
+      ],
+      [
+        "C3C3",
+        "3C3C"
+      ]
+    ],
+    "package_id": "d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5",
+    "pixel_comparisons": 116121600,
+    "portable_generator_sha256": "f853126673ccad0b6be7c6d274cccf30693a1d3f880e34df8cff8f75867198d2",
+    "rom_link": {
+      "map_sha256": "469eb1eb93f1de33b53564d3c230f3eea449440ae91a4900c73bcb6020ee824a",
+      "programmed_sha256": "6cb76306b590b07c824d78b086ccbf6cb3344187bc2a24a868785d0ad92ea6fb",
+      "programmed_size": 2571586,
+      "rom_id": "atari-st-firmware",
+      "source_sha256": "7b4fd4cf2fbb3394469007de94cf4ebac2c58a7466cfd68d0c8cafcce81d39cb",
+      "source_size": 196608
+    },
+    "runtime_revision": "517a285c089153dc3701fd02dd366c0286a3efd2",
+    "settled_frames": 126,
+    "source_revision": "517a285c089153dc3701fd02dd366c0286a3efd2",
+    "stop_state": "idle"
+  },
+  "runtime": {
+    "archive_member_count": 21,
+    "clean_before_after": true,
+    "commands": [
+      {
+        "argv": [
+          "/usr/bin/make",
+          "-j2",
+          "test"
+        ],
+        "exit_code": 0,
+        "wall_seconds": 285.09206723910756
+      },
+      {
+        "argv": [
+          "/usr/bin/make",
+          "-j2",
+          "archive-audit"
+        ],
+        "exit_code": 0,
+        "wall_seconds": 0.23166778101585805
+      }
+    ],
+    "input_map_sha256": "f33c6ccbc6dd062cf453b8fdee77be19a26a0aa89a0ec21e5babd1f056eb6925",
+    "log_sha256": "4401c312579b06c27f3600d21dc6ae1fb8029effebca038e8d349f8cf2b0dd8b",
+    "pass": true,
+    "record_sha256": "f1e33e881f8e1d8677f1669fc9b7ecec1eb67f6f002270fa14fb9c58545edfd2",
+    "reported_version": "git-6fd86ac7de5d-dirty",
+    "resource_policy": "normal make -j2 test; private PATH shim maps only existing nested -j16 flags to -j2 without changing selected source or test targets",
+    "source_revision": "6fd86ac7de5d8bdd67b51913dd9a04cdcd3a724b",
+    "tracked_inputs_unchanged": true,
+    "tracked_runtime_files": 297,
+    "version_provenance": {
+      "daemon_exact_string_matches": 1,
+      "default_dirty_expression": "VERSION_DIRTY = $(shell test -z \"$$(git status --porcelain --untracked-files=normal)\" | printf '%s' -dirty)",
+      "explicit_version_regression": "Passed existing version-regression-one/two override and rebuild checks; this test does not cover the default dirty suffix.",
+      "limitation": "The default VERSION_DIRTY pipeline always prints -dirty even for a clean tree. The embedded label does not indicate source dirtiness; exact source revision, clean status and before/after input hashes provide independent provenance. No source correction was applied.",
+      "makefile_sha256": "bb679ede2b1feab0175772a15014fb1f126c0b52beb14df465dca97c7523456a",
+      "metadata_value": "git-6fd86ac7de5d-dirty"
+    }
+  },
+  "runtime_busy_rejection": {
+    "negative_control": "Old driver wrongly cleanup-ejects a disk after completed first-Begin rejection and immediate guest-busy clear.",
+    "old_driver_revision": "d4892592cd2c0e29910e83a72229e457821688d5",
+    "record_sha256": "1528c5552f6b132d825368b8c0c250c82e013dafe6554cc81c36c51dd8d835d0",
+    "source_revision": "517a285c089153dc3701fd02dd366c0286a3efd2"
+  },
+  "status": "software and native seals pass; physical byte masks appear ignored; hardware acceptance open",
+  "video_parts": {
+    "direct": {
+      "cram_bits_inside": 2362,
+      "cram_bits_outside": 0,
+      "manifest": {
+        "cart_sha256": "dfa05a9296bef924c80daa12419e098b6072194f40c70a9fdb9e989ab1f3c077",
+        "cart_size": 2882138,
+        "device": "5CSEBA6U23I7",
+        "format": 1,
+        "map": "fes.atari-st-video.socket/1",
+        "recipe_sha256": "4a1417bee2ee16042ae19c0f4b8e2ae3eb2e5fb6248734fb5c2888e06f7e57d2",
+        "revision": "517a285c089153dc3701fd02dd366c0286a3efd2",
+        "shell_build_id": "bd83f737c1a8e2252fe0f9b8a10c2cf6",
+        "shell_package_id": "d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5",
+        "shell_sha256": "c7f5f61e0cba8c519e185f15ce0ace3cb96ee2ba2d49ae59a14ac2f0a2356320",
+        "slot": "fes.fabric.video.raster-rgb888",
+        "slot_major": 1,
+        "slot_minor": 0
+      },
+      "part_id": "abb8407a2138e0668f2d9212452bbb8e472a94d30fa32455de82de79d95cb5fa",
+      "preview_matches_routed_cram": true,
+      "producer_summary_sha256": "c3a2cc6d371b57cb336322ece7ec0c50a8da00ae562d1d212484a07951350970",
+      "source_revision": "517a285c089153dc3701fd02dd366c0286a3efd2",
+      "timing": {
+        "pixel_clk": 79.80846405029297,
+        "system_clock.clocks[0]": 53.30206298828125,
+        "system_clock.clocks[1]": 202.9220733642578
+      }
+    },
+    "scanlines": {
+      "archive_manifest_payload_verified": true,
+      "archive_sha256": "163f06d1395efaeb58af24e1849c2f3179b7a23ba4bb2df6def9fddca080eb59",
+      "archive_size": 2887680,
+      "checked_clock_pins": 1,
+      "cram_bits_inside": 3654,
+      "cram_bits_outside": 0,
+      "manifest": {
+        "cart_sha256": "b08615d2cbd3603cf92525441d8c9cad3ea4c052aeec03ac6c6a446d4f47c305",
+        "cart_size": 2882738,
+        "device": "5CSEBA6U23I7",
+        "format": 1,
+        "map": "fes.atari-st-video.socket/1",
+        "recipe_sha256": "9c6bef2813561f1d865d852c92449b243ed338f1f2c332d6ae8284a6ffb5756a",
+        "revision": "517a285c089153dc3701fd02dd366c0286a3efd2",
+        "shell_build_id": "bd83f737c1a8e2252fe0f9b8a10c2cf6",
+        "shell_package_id": "d7a9e5412958beba958b37c5d1228785efd0f84180fe23763d5ec4492b2788b5",
+        "shell_sha256": "c7f5f61e0cba8c519e185f15ce0ace3cb96ee2ba2d49ae59a14ac2f0a2356320",
+        "slot": "fes.fabric.video.raster-rgb888",
+        "slot_major": 1,
+        "slot_minor": 0
+      },
+      "manifest_sha256": "4505ce5bde8022d728050118bb7858b1d646673ab61c9770d35807fa04a25988",
+      "part_ff_clock": "pixel_clk",
+      "part_ff_count": 1,
+      "part_id": "4fa1ae46b0ec742c312b9812f1215b02c2755ed69d329ccb7fefd278bd93623c",
+      "placer_seed": 4,
+      "preview_matches_routed_cram": true,
+      "producer_summary_sha256": "2f7ed9c11993f498c7c6130633effd04b072421c992284b410856721b2dd104e",
+      "source_revision": "517a285c089153dc3701fd02dd366c0286a3efd2",
+      "status": "pass; producer sealed and independent audit passed",
+      "timing": {
+        "pixel_clk": 79.80846405029297,
+        "system_clock.clocks[0]": 53.30206298828125,
+        "system_clock.clocks[1]": 202.9220733642578
+      }
+    }
+  }
+}

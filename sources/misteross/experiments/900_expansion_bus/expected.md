@@ -5,8 +5,9 @@ with the closed INIT oracle. Plug names `plug_addr` / `plug_rdata` match
 the 901 empty socket. Signature stays in the shell.
 
 Synth-only (`make oss EXP=900_expansion_bus`). Verilator:
-`make sim EXP=900_expansion_bus`. Compose onto the 901 shell with locked
-nextpnr `30ac6f47` (inherits freeze-scaffold `d672fade`; `make toolchain-fes`):
+`make sim EXP=900_expansion_bus`. Compose onto the 901 shell with the nextpnr
+pinned in `toolchain.lock` (inherits freeze-scaffold
+`d672fade`; `make toolchain-fes`):
 
 ```
 python3 scripts/build_fes_slot.py \

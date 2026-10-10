@@ -56,7 +56,8 @@ export TARGET_IMAGE_LOCK_BIN=$fixture/selector FES_VIDEO_PARTS_DIR=$source FIXTU
 helper=$repo/scripts/native-video-parts.sh
 sh "$helper" fetch "$cache"
 sh "$helper" verify "$cache"
-sh "$helper" install "$cache" "$target"
+# A restrictive umask must not strip the sealed 555/444 modes.
+(umask 077; sh "$helper" install "$cache" "$target")
 sh "$helper" verify-image "$cache" "$target"
 sh "$helper" build-inputs "$cache" "$target" >"$fixture/inputs"
 grep -Fqx 'factory_video_index_sha256=fixture' "$fixture/inputs"

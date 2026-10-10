@@ -10,10 +10,10 @@ from typing import Mapping, Sequence
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.source_repository import canonical_repository
-from scripts.fes_build_common import BuildError, FES_GPU_ARCHITECTURES, FES_GPU_BACKEND, _authenticate_tools as _authenticate_oss_tools, _cell_counts, _git, _i2c_evidence, _read_json, _require_gpu_backend, _run_tool, _sha256, _write_atomic, validate_timing_resources
+from scripts.fes_build_common import BuildError, FES_GPU_ARCHITECTURES, FES_GPU_BACKEND, _authenticate_tools as _authenticate_oss_tools, _cell_counts, _git, _i2c_evidence, _read_json, _require_gpu_backend, _run_tool, _sha256, _write_atomic, reject_async_m10k_reads, validate_timing_resources
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
-from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 from scripts.search_placer_qor import SearchError, _parse_ints, has_failed_route_arc, route_after_synth
 from scripts import zx81_expansion, rom_map
@@ -106,7 +106,7 @@ def create_build_record(root: Path, repository: str, revision: str, tool_identit
                                 rom_database_sha256=json.dumps(ROM_DATABASE_SHA256, sort_keys=True, separators=(',', ':')))
     if identity_version != 2:
         raise BuildError('unsupported build identity version')
-    fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS)
+    fields = functional_record_fields(root, fields, source_roots_for_producer(__name__, PINNED_INPUTS, root), execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
 
 def build_commands(root: Path, output: Path, build_id: str, tools: Mapping[str, Path], seed: int=PLACER_SEEDS[0]) -> tuple[tuple[str, ...], tuple[str, ...]]:
@@ -277,6 +277,8 @@ def _session_display_evidence(design: dict, label: str, source_root: Path) -> di
 def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
     synthesis = _read_json(output / 'synth.json', 'synthesis evidence')
     routed = _read_json(output / 'routed.json', 'routed design')
+    reject_async_m10k_reads(synthesis)
+    reject_async_m10k_reads(routed)
     if not isinstance(routed.get('modules'), dict) or not isinstance(routed['modules'].get(TOP), dict):
         raise BuildError('routed design does not contain the top module')
     _i2c_evidence(synthesis, 'synthesized')
@@ -302,6 +304,9 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
         raise BuildError('route log does not prove a complete routed design')
     if has_failed_route_arc(route_text):
         raise BuildError('route log contains a failed arc')
+    blocked = zx81_expansion.blocked_plug_addr_exits(routed)
+    if blocked:
+        raise BuildError(zx81_expansion.blocked_plug_addr_message(blocked))
     gpu_backend = _require_gpu_backend(route_text)
     if '50 MHz -> 52.224 MHz' not in route_text:
         raise BuildError('route log does not contain the 50-to-52.224 MHz system PLL')
@@ -365,12 +370,13 @@ def build(root: Path=ROOT, package_store: Path | None=None, *, cache_root: Path 
             raise BuildError('Yosys did not produce synthesis evidence')
         zx81_expansion.prepare_shell_netlist(output / 'synth.json')
         try:
-            winner = route_after_synth(nextpnr=authenticated['nextpnr-mistral'].path, fixture=output / 'synth.json', dest=output, device=TARGET, qsf=output / 'socket.qsf', sdc=root / SDC, freq='74.25', seeds=PLACER_SEEDS, weights=qor_weights, critexp=PLACER_CRITICALITY_EXPONENT, budget=qor_budget, mode=qor_mode, extra=('--router', 'gpu'), required=PLACER_QOR_CLOCKS, gpu_devices=gpu_devices, **{'env': invocation.env, 'audit_source_root': root})
+            winner = route_after_synth(nextpnr=authenticated['nextpnr-mistral'].path, fixture=output / 'synth.json', dest=output, device=TARGET, qsf=output / 'socket.qsf', sdc=root / SDC, freq='74.25', seeds=PLACER_SEEDS, weights=qor_weights, critexp=PLACER_CRITICALITY_EXPONENT, budget=qor_budget, mode=qor_mode, extra=('--router', 'gpu'), required=PLACER_QOR_CLOCKS, gpu_devices=gpu_devices, accept=zx81_expansion.accept_socket_route, **{'env': invocation.env, 'audit_source_root': root})
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
         evidence = validate_build_evidence(output, root)
         mapping, map_evidence = rom_map.build_rom_map(database, (output / 'core.rbf').read_bytes(),
-                                                     routed=_read_json(output / 'routed.json', 'routed ROM design'))
+                                                     routed=_read_json(output / 'routed.json', 'routed ROM design'),
+                                                     expected_async_read=0)
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(',', ':')) + '\n').encode()
         _write_atomic(output / 'rom-map.json', map_bytes)
         evidence['rom'] = dict(id='machine-rom', role='firmware', source_size=8192,

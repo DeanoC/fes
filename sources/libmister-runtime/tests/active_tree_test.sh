@@ -75,6 +75,11 @@ rm -f -- "$fixture/src/native/generated/invalid.hpp"
 printf '%s\n' 'class NativeLinuxV2;' >"$fixture/src/legacy.hpp"
 expect_guard_failure 'historic compatibility term remains in the active tree'
 rm -f -- "$fixture/src/legacy.hpp"
+for obsolete in 'class PoC;' 'class PoC12Hardware;' 'void run_poc3();'; do
+	printf '%s\n' "$obsolete" >"$fixture/src/legacy.hpp"
+	expect_guard_failure 'historic compatibility term remains in the active tree'
+	rm -f -- "$fixture/src/legacy.hpp"
+done
 expect_guard_failure 'canonical build must contain exactly build/libmister-runtime.a'
 
 archive="$root/build/libmister-runtime.a"
@@ -93,7 +98,33 @@ if nm -g "$archive" | c++filt | \
 	exit 1
 fi
 
-for member in video_recipe.o video.o i2c.o input.o linux_input.o; do
+# A real C++ epoch symbol and source must pass both name checks. The extra
+# member intentionally reaches the later archive-manifest rejection, giving
+# this positive name fixture a bounded check without another clean rebuild.
+mutated=$(production_fixture legitimate-epoch)
+cat >"$mutated/src/native/epoch.cpp" <<'EOF'
+struct SnapshotEpochField { static unsigned Epoch(); };
+unsigned SnapshotEpochField::Epoch() { unsigned epoch = 7; return epoch; }
+EOF
+${CXX:-c++} -c "$mutated/src/native/epoch.cpp" -o "$mutated/build/epoch.o"
+ar r "$mutated/build/libmister-runtime.a" "$mutated/build/epoch.o"
+nm -g "$mutated/build/epoch.o" | c++filt | grep -F 'SnapshotEpochField::Epoch()' >/dev/null
+expect_guard_failure 'archive members do not exactly match the production source manifest' "$mutated"
+
+# The source is outside the scanned active tree so the actual mangled PoC
+# symbols exercise the independent built-output name guard.
+mutated=$(production_fixture obsolete-symbols)
+cat >"$mutated/obsolete.cpp" <<'EOF'
+struct PoC { static void Start(); };
+struct PoC12 { static void Start(); };
+void PoC::Start() {}
+void PoC12::Start() {}
+EOF
+${CXX:-c++} -c "$mutated/obsolete.cpp" -o "$mutated/build/obsolete.o"
+ar r "$mutated/build/libmister-runtime.a" "$mutated/build/obsolete.o"
+expect_guard_failure 'historic name remains in production output: build/libmister-runtime.a' "$mutated"
+
+for member in video_recipe.o video.o i2c.o input.o linux_input.o media_data.o; do
 	mutated=$(production_fixture "missing-${member%.o}")
 	ar d "$mutated/build/libmister-runtime.a" "$member"
 	expect_guard_failure \

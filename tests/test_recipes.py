@@ -11,10 +11,58 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import recipes
 import build
-from tests.test_bundle import BundleTest
+from tests import test_bundle
+
+
+class ClosureAuditPrivateCacheTest(unittest.TestCase):
+    """#611: the closure-audit bypass must never feed the shared artifact cache."""
+
+    def test_audit_mode_refused_with_the_shared_artifact_cache(self):
+        shared = recipes.CACHE_ROOT / "core-packages"
+        with patch.object(recipes, "ARTIFACT_CACHE_ROOT", shared):
+            with self.assertRaisesRegex(ValueError, "FES_SOURCE_CLOSURE_AUDIT=1 is only allowed"):
+                recipes.producer_environment({"FES_SOURCE_CLOSURE_AUDIT": "1"})
+            # Without the bypass nothing changes.
+            recipes.producer_environment({"FES_SOURCE_CLOSURE_AUDIT": "0"})
+            recipes.producer_environment({})
+
+    def test_audit_mode_needs_the_nightly_marker(self):
+        with tempfile.TemporaryDirectory() as temp:
+            private = Path(temp) / "cache"
+            private.mkdir()
+            with patch.object(recipes, "ARTIFACT_CACHE_ROOT", private):
+                with self.assertRaisesRegex(ValueError, "private artifact cache"):
+                    recipes.producer_environment({"FES_SOURCE_CLOSURE_AUDIT": "1"})
+                (private / recipes.AUDIT_PRIVATE_CACHE_MARKER).write_text("core_key_nightly\n")
+                env = recipes.producer_environment({"FES_SOURCE_CLOSURE_AUDIT": "1"})
+                self.assertEqual(env["FES_SOURCE_CLOSURE_AUDIT"], "1")
+
+    def test_resolver_refuses_before_building_or_publishing(self):
+        import bundle
+        shared = recipes.CACHE_ROOT / "core-packages"
+        with tempfile.TemporaryDirectory() as temp, \
+                patch.object(recipes, "ARTIFACT_CACHE_ROOT", shared), \
+                patch.object(bundle, "canonical_package_record", side_effect=AssertionError("producer ran")), \
+                patch.object(bundle.artifact_cache, "publish", side_effect=AssertionError("published")):
+            with self.assertRaisesRegex(ValueError, "FES_SOURCE_CLOSURE_AUDIT=1 is only allowed"):
+                bundle.resolve_core_package(Path(temp), "a" * 40, Path(temp) / "selection.toml",
+                                            env={"FES_SOURCE_CLOSURE_AUDIT": "1"})
 
 
 class RecipeRegistryTest(unittest.TestCase):
+    def test_discovery_loads_only_this_modules_own_cases(self):
+        # Importing another suite's class for helper access must not let
+        # unittest discovery re-run that suite under this module's name.
+        def cases(suite):
+            for entry in suite:
+                if isinstance(entry, unittest.TestSuite):
+                    yield from cases(entry)
+                else:
+                    yield entry
+        loaded = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+        for case in cases(loaded):
+            self.assertEqual(case.__class__.__module__, __name__, case)
+
     def test_registry_preserves_existing_hip_descriptors(self):
         self.assert_existing_descriptors()
 
@@ -264,6 +312,12 @@ class RecipeDataTest(unittest.TestCase):
         recipe = recipes.recipe_for("fes.coleco")
         self.assertEqual(recipe.producer_arguments, ("--native-video-socket",))
         self.assertEqual(dict(recipe.producer_options), {"native_video": True})
+        document = self.document()
+        coleco = next(entry for entry in document["recipes"] if entry["core_id"] == "fes.coleco")
+        self.assertNotIn("producer_arguments", coleco)
+        coleco["producer_arguments"] = ["--video-socket"]
+        with self.assertRaisesRegex(ValueError, "disagree"):
+            self.load_document(document)
         self.assertEqual(recipe.video_profiles, ("direct", "scanlines"))
         for field, value in (("producer_options", {"execution": "override"}),
                              ("producer_options", {"video_socket": []}),
@@ -340,7 +394,7 @@ class RecipeDataTest(unittest.TestCase):
 
 class RecipeResolverTest(unittest.TestCase):
     def module(self):
-        return BundleTest.module(self)
+        return test_bundle.BundleTest.module(self)
 
 
     def test_each_descriptor_dispatches_its_producer_with_explicit_cache_root(self):

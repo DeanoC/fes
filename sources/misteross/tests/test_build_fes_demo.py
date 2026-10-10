@@ -79,7 +79,7 @@ class ApplicationProducerTests(unittest.TestCase):
         data["utilization"]["altera_pll"]["used"] = 2
         path.write_text(json.dumps(data))
         with (output / "nextpnr.log").open("a") as stream:
-            stream.write("Info: PLL 'audio_clock.pll': 50 MHz -> 12.288 MHz, direct, M=8 N=1 C6=32, bel altera_pll.0.14.1\n")
+            stream.write("Info: PLL 'audio_clock.pll': 50.000000 MHz -> VCO 405.504000 MHz, fractional-N, M=8 N=1 K=472790000, counters C6, bel altera_pll.0.14.1\n")
 
     def test_dual_pll_validation_and_single_pll_preservation(self):
         with tempfile.TemporaryDirectory() as directory:

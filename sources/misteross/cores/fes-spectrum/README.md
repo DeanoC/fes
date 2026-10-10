@@ -27,7 +27,9 @@ contract is the
   in this repository or the package.
   Each M10K uses a registered read address on the system clock. The bank
   selector is registered alongside that read, and the final data register
-  preserves the same two-stage latency as the behavioral simulation. Legacy
+  preserves the same two-stage latency as the behavioral simulation.
+  A binary indexed lane vector selects the registered bank. This avoids
+  a decoded sixteen-way case mux while retaining the same read pipeline. Legacy
   10-bit M10K write enable is active low; tying A1EN high protects linked ROM
   contents. The sealed map requires registered read mode and retains the
   existing lane names, BELs and INIT bit layout.
@@ -177,6 +179,11 @@ same media/expansion contracts. The seal gates every actual clock domain:
 52.224/74.25/12.288 MHz for normal mode, and 56/74.25 MHz for fast mode.
 Fast audio timing belongs to the 56 MHz domain; its pin rates are measured by
 the audio regression. The producer cannot publish a below-target route.
+It checks every pinned socket boundary and admits compiler-inserted
+route-through buffers only at the paired combinational half, with the exact
+physical pin map and a dedicated connection to the boundary flip-flop.
+Clock-coverage outputs remain unused; unrelated cells inside the sockets
+are rejected.
 
 Both variants sealed from `792b24805` on 2026-10-03 with these reported Fmax
 values. The configured system clocks remain 52.224 MHz and 56 MHz respectively.
@@ -203,10 +210,12 @@ complete twice with matching final RBF hashes after the `53e1ad42` fix is
 backported onto `0259c6dc`. The retained fixture passes all three clock gates;
 the reconstructed fixture routes legally but still misses the system target.
 These are compiler replay results, not new sealed packages or kit diagnostics.
-The maintained packer still rejects the existing `CFG_ASYNC_READ=1` ROM lanes,
-and the compatible backport remains a local qualification commit. The producer
-retains its qualified `0259c6dc` pin; adopting the fix requires a published
-compatible compiler revision or a separately qualified ROM migration.
+The historical fixtures used `CFG_ASYNC_READ=1` ROM lanes rejected by the
+maintained packer; the current producer uses registered ROM reads. The compatible
+backport remains a local qualification commit, and the producer retains its
+qualified `0259c6dc` pin. [FES issue 603](https://github.com/DeanoC/fes/issues/603)
+tracks bounded-search timeout evidence and qualification of a maintained
+compiler pin; the current pin still produces a fully gated sealed package.
 
 ## Not implemented
 

@@ -58,7 +58,10 @@ That fixture is not a claim of full decoder equivalence. In paired tenfoot
 mode, launch and kit mutations require a known, non-foreign scoped kit lease;
 an unavailable status is shown as `Can't tell if this machine is free.` while room browsing
 continues. Launch, stop,
-and input attach/detach stay on their existing endpoints. The host resolves installed package entries and explicitly binds library
+and input attach/detach stay on their existing endpoints. Explicit input attach
+returns the existing stream when it is attached, ready, and bound to the same
+observed package, generation, core and input capabilities. It does not rotate
+that stream or accept an old binding after a package change. The host resolves installed package entries and explicitly binds library
 persistence. The runtime validates the package and declared interfaces before
 programming. Bare legacy game records remain browseable but unlaunchable.
 Installed FPGA `core_package` rows, and any row on the `fpga` catalog
@@ -351,6 +354,12 @@ records and old raw-core profiles are rejected before stopping an active package
 Contained raw-RBF loads remain an explicit diagnostic with no media/input ABI.
 Their generation and state are reconciled without replay; Stop restores idle.
 
+The target HTTP request logger records successful GET/HEAD reads at debug level.
+Default logs retain mutations and failed reads, including their route, status and
+duration. This keeps routine health, status and lease polling from filling the
+appliance's RAM-backed log filesystem; query strings, credentials and bodies
+remain excluded from request logs.
+
 A `fes.simple-computer`
 package with `fes.keyboard` attaches remote input without `fes.gamepad`.
 Host keyboard events map through the agent onto the runtime 40-bit ZX81
@@ -469,6 +478,15 @@ before ownership handoff. The caller owns the returned directory lifetime and
 must release it with `Staged.Cleanup`, which reopens and verifies the retained
 root and publication identities before removing the sealed directory.
 
+Format-3 ROM staging reads one owned envelope buffer bounded by its declared
+size. Package payload and map bytes borrow that immutable buffer during the
+operation; receipt decoding and map validation honor the admission context.
+One parsed, sealed map is reused for receipt verification and independent ROM
+linking within that operation. Final private publication is revalidated, and
+all framing, digest and initial-media binding checks remain required. Published
+files own independent bytes after return. Restart adoption independently
+validates and relinks the retained source bytes.
+
 The target package lifecycle uses runtime protocol 2. A read-only
 `inspect_package` exchange negotiates the exact ABI registry and programming
 profiles before mutation. Protocol 1 is rejected without mutation; there is
@@ -493,6 +511,20 @@ proven pre-mutation failure reconstructs the same logical lease; failure to
 pause or reconstruct it is a recovery failure and leaves input gated. Startup
 adopts every still-valid publication through the same opened trusted root,
 selecting only the package that exactly matches the active runtime status.
+The host accepts a successful core-load reply only while it still holds the
+same kit grant used for dispatch. The token match and unexpired local monotonic
+deadline are checked together under the lease mutex; a retained token alone
+does not authorize success. A reply received after local lease loss is a
+recovery failure, even if a subsequent read observes the new active package.
+The host does not replay the load or claim another grant; target expiry cleanup
+still waits for the admitted operation to finish before normal Stop. A clean
+idle observation confirms cleanup and retires the previous play while retaining
+the launch failure. Lease renewal timing and expiry remain unchanged.
+A validated explicit `reboot_required` load reply with a retained active owner
+also retains the attempted package, linked ROM and initial disk sources until
+a confirmed clean Stop. An identity mismatch remains ambiguous and cannot
+justify deleting those sources; it does not permit adoption or a successful
+activation. Failed Stop preserves the retained publications.
 After an attempted activation failure, the target publishes idle only when the
 runtime confirms exact operational idle and retains the structured failure in
 that status. The host returns the original failure only when the observed idle
@@ -665,14 +697,15 @@ A `fes.computer` package projects media role `disk`
 `apple2-dos-order`, exactly 143,360 bytes, names `.dsk`/`.do`.
 `fes.media.c64-disk` 1.0 is format `c64-d64`, exactly 174,848 bytes, name
 `.d64`. `fes.media.atari-st-floppy` 1.0 is format `atari-st-floppy`, exactly
-737,280 bytes, name `.st`. `fes.media.spectrum-tape` 1.0 is role `cassette`, format
+737,280 bytes, name `.st`; the required geometry extension admits the bounded
+layouts described under [raw floppy geometry](#atari-st-raw-floppy-geometry). `fes.media.spectrum-tape` 1.0 is role `cassette`, format
 `spectrum-tap`, 1..65,536 bytes, name `.tap`, on the same unit 0. A shell
 declares one unit-0 medium. Library selection
 (`PUT …/core-entries/{game_id}/media` with `media_role:"disk"`, catalog schema
-13) validates the exact size offline. A home computer starts with its drive
-empty: launch programs the package first and then inserts the selected disk
-into unit 0; a failed insert is a failed launch and follows the existing
-library-slot Stop/recovery. The same session accepts later swaps:
+13) validates the size and source offline. Writable ST initial disks are
+restored and inserted before CPU release; other home computers program the
+package and then insert their selected medium into unit 0. A failed insertion
+is a failed launch and follows existing library-slot Stop/recovery. The same session accepts later swaps:
 `POST /api/v1/session/live-media` with a `.dsk`/`.do`, `.d64` or `.st` name inserts a
 household disk, and `…/live-media/clear` ejects the unit-0 medium the active
 generation declares (Apple II floppy, C64 disk, Atari ST floppy, or Spectrum tape). `.p` names
@@ -681,7 +714,7 @@ The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
 `fogcast eject-disk` for a disk, and `fogcast change-cassette` and
 `fogcast eject-cassette` for a Spectrum `.tap`. A stored
 media ID is named `disk.dsk`, `disk.d64` or `disk.st` from the active unit,
-so the host checks 143,360, 174,848 or 737,280 bytes against that generation. A path is imported
+so the host checks the declared disk size or discrete ST geometry against that generation. A path is imported
 through `POST /api/v1/core-media` and keeps its basename.
 
 `fogcast/media_units.go` binds each request to the package, generation, target
@@ -700,6 +733,58 @@ reply. The runtime never holds reset for these transfers and ejects the unit
 once on failure; the agent then republishes the live unit state from a fresh
 status read instead of replacing the session. Keyboard posts do not wait
 behind a disk transfer.
+
+A shell pairing `fes.media.atari-st-floppy-write` 1.0 with the Atari ST base
+interface supports writable disk RAM and versioned snapshots. Library launch
+uses explicit game/base-image identity in the initial ROM envelope or target
+`POST /v1/library/media/insert`; development `insert-media` and `change-disk`
+remain volatile. Imported catalog blobs remain immutable. Durable records live
+under the runtime's `/media/fat/fogcast/core-data/media` root, within the existing
+appliance data bind. This storage survives firmware/video package changes and
+is isolated by core ID, game ID, unit and immutable base digest.
+
+The target library insert route has the existing package/generation/target/unit
+headers plus `X-FogCast-Media-Game` and `X-FogCast-Media-Base`; it requires one
+exact admitted raw-ST octet stream, with non-720 KiB geometry requiring the
+active extension and a matching immutable-source BPB. `POST /v1/library/media/save` has the unit
+binding and an empty body. Both retain the existing kit lease and update
+exclusion. The agent chooses the storage root; callers never send target paths.
+Live status exposes optional unit `persistence` with `mode:"persistent"`,
+`game_id`, `base_media_id`, and `revision` (`absent` before the first publication
+or the full-record SHA-256). Whole-package persistence mode is persistent only
+while such a binding exists. ST parts/ROM composition does not change this
+identity or weaken composition validation.
+
+The host routes `POST /api/v1/session/disk/insert` and `…/disk/save` retain the
+captured session ID and package/generation/target/unit binding. Insert takes
+JSON `{game_id,base_media_id}` and verifies the selected library entry and base;
+Save has an empty body. CLI `insert-library-disk GAME_ID BASE_MEDIA_ID` restores
+that explicit library disk into the running ST, and `save-disk` publishes a
+checkpoint. `eject-disk`, Stop and replacement automatically save a bound disk.
+Failure keeps the disk/session binding available for recovery; a lost mutation
+reply is never replayed. One explicit Save may retry a retained `SAVE_FAILED`
+in phase `save` only for the same active package/generation/target, with no
+recovery state and the same ready, writable persistent ST game/base binding.
+A confirmed successful checkpoint publishes a valid revision digest and clears
+that retained error. Other errors and insert/eject/input retain their strict admission guards;
+there is no automatic Save replay. There is no durable binding inferred from
+filenames or raw development loads. Close files before a checkpoint/Stop: sector-atomic
+writes do not make an application's multi-sector FAT update atomic.
+
+Save-backed Eject/Stop own 135-second target operation budgets and 150-second
+HTTP envelopes. Explicit Stop selects its HTTP save deadline from completed
+session responses without a preflight poll; discovery Stop reuses its admission
+Status observation. Replacing an already bound disk allows 405 seconds locally and
+450 seconds on the host, including a possible third capture that confirms an
+ambiguous failure retained the original image. Ordinary unbound operation
+budgets remain in force. These calls never replay a destructive command.
+A confirmed input Busy rejection retains only the latest absolute mouse button
+state for zero-motion reconciliation, bounded to 450 seconds and the same
+generation. Unbind, source closure or an ambiguous transport failure cancels
+it; relative motion is discarded.
+A bound-disk input fault captures and publishes before idle retirement; if that
+fails, the runtime retains RAM and ownership in recovery instead of replacing
+it with idle firmware.
 
 ## Other modes
 
@@ -1182,7 +1267,8 @@ The only image variant is `native-dev`, which starts image-owned
 and the closed FES package set selected by
 [the default profile](../../../profiles/native-integration-dev.toml): `fes.menu`,
 `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`,
-`fes.ramtest`. The selector also admits `fes.c64`, which stays out because it
+`fes.ramtest`, `fes.atari-st`. ST retains its sealed firmware ROM map; firmware
+is separately selected at launch. The selector also admits `fes.c64`, which stays out because it
 has no current timing-passing HIP seal. The menu package is idle firmware,
 not a playable library entry. Image inclusion and selector admission do not
 establish playability; [core status](../../../docs/core-status.md) records the
@@ -1957,7 +2043,16 @@ stays a cheap nearest blit. Missing or still-loading art paints a theme-tinted
 placeholder (lettermark when missing; a distinct panel while loading) instead
 of a flat system fill. After host `idle_seconds` from
 `GET /api/v1/library/attract` with no pad input, the kit paints attract through
-`DecodeStill` and `fbgrid.PaintAttract`. Video-only rows stay dropped because
+`DecodeStill` and `fbgrid.PaintAttract`. When that host is unreachable and
+local play is enabled, attract uses playable kit-local SMS rows (a present
+browse-only cartridge that is not host-eligible) after the default 60 second
+idle. A session that succeeds and a later poll step that fails, including
+Health, is the same disconnect: the host playlist is replaced by that tagged
+local list. Attract arms only when the list is tagged and every row is one of
+those cartridges. Those rows have no stills. South launches the current row through the
+local-control socket. A disconnected host playlist with no such row, or an
+untagged mixed host playlist, does not
+arm attract. When the host returns, that local list is dropped immediately and the host playlist is fetched again. Video-only rows stay dropped because
 the CGO-free kit binary does not decode H.264. A distinct attract `marquee` or
 presentation `marquee_id` paints a banner strip under the header alongside the
 still, motion preview, or 2×2 wall; a marquee-only row keeps the still
@@ -2044,7 +2139,9 @@ format 3 with one `firmware` ROM linked at download. The optional
 physical slots 2, 4, 5 and 7), not a capability bit.
 
 Atari ST (`fes.atari-st`) uses the same home-computer launch and media paths
-with required `fes.media.atari-st-floppy` 1.0 and an exact 720 KiB raw disk.
+with required `fes.media.atari-st-floppy` 1.0 and optional selected raw disk.
+The base disk is exactly 720 KiB; the required geometry extension admits
+80..82-track, 1..2-head, 9..10-sector layouts.
 Optional `fes.expansion.atari-st-bus` 1.0 uses shared map
 `fes.atari-st-bus.socket/1`, with one card in socket 1 through the same
 slot-composition transport and independently checked shared linker. `.msa`,
@@ -2683,6 +2780,28 @@ retains package/generation attribution in failed status and blocks input.
 Existing post-activation HostOnly cleanup recovery remains unchanged.
 
 
+## Initial Atari ST library disk
+
+A writable format-3 ST library launch may omit the disk and boot to GEM with
+an empty drive A. Required floppy interfaces declare hardware support, not a
+requirement to insert media. When a disk is selected, the launch includes its
+exact admitted raw-ST source and explicit game/base-media binding in the closed ROM envelope. The
+host snapshots and hashes those immutable bytes before target mutation. The
+agent rejects initial disks on development routes, stages them privately and
+passes the fixed durable-media root to the runtime with the linked ROM load.
+The runtime validates the source and saved record before replacement, refreshes
+the record after outgoing save, uploads the chosen base or saved bytes while
+execution remains held, binds the ready drive and then releases the CPU. A disk
+failure cannot report a successful running launch. Every format-3 ROM-linked ST
+library activation uses `max(UploadTimeout, 300s)`, including plain firmware,
+cartridge-only, video-only and combined parts, with either an empty drive or an
+initial disk. The validated launch source selects this budget; earlier caller
+deadlines and cancellation still apply. Other cores retain their configured
+upload budget. Existing live insertion/ejection keeps the running machine intact.
+Launch confirmation checks both ROM/parts identities and the ready persistent
+disk's game/base binding; an initial disk is a startup input, not an immutable
+identity imposed on later live media changes.
+
 ## ROM-bearing package inspection
 
 `corepackage` accepts closed format-2 and format-3 packages during the ROM
@@ -2699,6 +2818,16 @@ source ranges, device/encoding, and binding to the manifest's payload digest
 and source size through `expansion.ParseROMMap`. It does not trust a map
 supplied separately by a media upload. Expansion composition retains the whole
 sealed shell package, including the map, and its package identity.
+
+ROM-map inspection streams closed objects and fixed 40-destination words rather
+than retaining JSON copies of the whole map and every block. It bounds maps to
+32 MiB, blocks and words per block to 256, and unconsumed decoder input to 4 KiB
+so oversized JSON values cannot grow the decoder buffer. Private staging reads
+the declared upload into one bounded allocation, clones its small manifest and
+borrows payload/map slices until publishing independent sealed files; other
+archive readers retain independent member ownership.
+Staging cancellation reaches map decoding and is checked between words as well
+as during decoder reads, before any publication or hardware transition.
 
 Format-3 library entries select one exact-size binary through the named ROM
 selection API. The host sends a source-only `rom-link.json` envelope containing
@@ -2831,7 +2960,9 @@ rejection, and recovery state in `plays[target]`. That per-kit record is the
 authority for kit status and lifecycle admission. Root `activeExecution` owns
 only the local `host_only` RetroArch game; kit loads and failures do not stop or
 replace it in non-cast mode, and kit-local cores execute directly on the kit.
-Scoped Stop and status use the corresponding kit record.
+Scoped Stop and status use the corresponding kit record. Library firmware and
+media bindings, including post-Start delivery, use the selected kit's play
+context so an independent local host game cannot redirect them to another target.
 
 The configured host capture sender is one physical pipeline with one RTP
 destination and sender token. Only its managed sender plus target cast path
@@ -2844,3 +2975,24 @@ with `MEDIA_BUSY_OTHER_KIT` (HTTP 409), and the target cast started for that
 launch is rolled back. Configuration does not bind the RTP destination to a
 named target address, so the host cannot validate destination-to-kit
 correspondence; operators must configure the destination for the intended kit.
+
+### Atari ST raw floppy geometry
+
+The original `fes.media.atari-st-floppy` and writable extension keep their
+737,280-byte raw ST admission. A package must require
+`fes.media.atari-st-floppy-geometry` 1.0 to admit the twelve layouts formed by
+80..82 tracks, 1..2 heads and 9..10 sectors of 512 bytes. Length uniquely
+identifies geometry; other sizes and compressed MSA/STX streams are refused.
+Non-720 KiB immutable sources require little-endian boot BPB fields matching
+their sector size, total sector count, sectors per track and heads. Legacy
+720 KiB sources still permit arbitrary boot sectors. The target independently
+stages and checks immutable sources before runtime insertion. Durable mutable
+snapshots retain their admitted length even if guest writes alter the BPB.
+
+The existing initial-ROM envelope carries the exact disk length through its
+receipt and immutable publication. No disk remains a valid GEM launch. Live
+unit 0 retains the base floppy interface and advertises 368,640..839,680 bytes
+only when the required geometry extension is also active; admission checks
+the discrete supported lengths rather than accepting every value in that
+range. Disk replacement, save and restore use the existing library binding
+and package-generation checks.

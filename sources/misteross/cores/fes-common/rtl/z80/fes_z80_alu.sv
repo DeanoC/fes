@@ -42,24 +42,27 @@ module fes_z80_alu #(
     logic [8:0] arithmetic_sum;
     logic [7:0] shift_result;
     logic       shift_carry;
+    logic       shift_left_fill, shift_right_fill;
     logic [7:0] daa_correction;
     logic       daa_carry;
+    logic       daa_low_gt9;
+    logic       daa_high_gt99;
     logic [1:0] carry_xy;
     logic       unused_inputs;
 
-    function automatic logic [7:0] szpxy(input logic [7:0] value);
-        szpxy = {value[7], value == 8'h00, NMOS && value[5], 1'b0,
-                 NMOS && value[3], ~^value, 1'b0, 1'b0};
-    endfunction
+    // Magnitude compares a[3:0]>9 and a>8'h99 are identical to these bit
+    // tests; sharing the low-nibble term avoids a byte-wide comparator.
+    assign daa_low_gt9 = a[3] && (a[2] || a[1]);
+    assign daa_high_gt99 = a[7] && (a[6] || a[5] || (a[4] && daa_low_gt9));
 
     // NMOS DAA also compares invalid BCD digits after subtraction. The
     // documented variant needs only C/H in the subtraction case. Both
     // implement all rows of Zilog's table for valid BCD arithmetic.
     always_comb begin
         daa_correction = 8'h00;
-        if (flags_in[4] || ((NMOS || !flags_in[1]) && a[3:0] > 4'd9))
+        if (flags_in[4] || ((NMOS || !flags_in[1]) && daa_low_gt9))
             daa_correction[3:0] = 4'h6;
-        daa_carry = flags_in[0] || ((NMOS || !flags_in[1]) && a > 8'h99);
+        daa_carry = flags_in[0] || ((NMOS || !flags_in[1]) && daa_high_gt99);
         if (daa_carry)
             daa_correction[7:4] = 4'h6;
     end
@@ -105,45 +108,19 @@ module fes_z80_alu #(
                           + {1'b0, arithmetic_b ^ {8{subtract}}}
                           + {8'h00, carry_in};
 
-    always_comb begin
-        shift_result = a;
-        shift_carry = 1'b0;
-        case (op)
-            OP_RLC, OP_RLCA: begin
-                shift_result = {a[6:0], a[7]};
-                shift_carry = a[7];
-            end
-            OP_RRC, OP_RRCA: begin
-                shift_result = {a[0], a[7:1]};
-                shift_carry = a[0];
-            end
-            OP_RL, OP_RLA: begin
-                shift_result = {a[6:0], flags_in[0]};
-                shift_carry = a[7];
-            end
-            OP_RR, OP_RRA: begin
-                shift_result = {flags_in[0], a[7:1]};
-                shift_carry = a[0];
-            end
-            OP_SLA: begin
-                shift_result = {a[6:0], 1'b0};
-                shift_carry = a[7];
-            end
-            OP_SRA: begin
-                shift_result = {a[7], a[7:1]};
-                shift_carry = a[0];
-            end
-            OP_SLL: begin
-                shift_result = {a[6:0], 1'b1};
-                shift_carry = a[7];
-            end
-            OP_SRL: begin
-                shift_result = {1'b0, a[7:1]};
-                shift_carry = a[0];
-            end
-            default: begin end
-        endcase
-    end
+    // Every left shift/rotate has an odd opcode; every right one is even.
+    // The output decoder selects this datapath only for those operations.
+    assign shift_left_fill =
+        (((op == OP_RLC) || (op == OP_RLCA)) && a[7]) ||
+        (((op == OP_RL)  || (op == OP_RLA))  && flags_in[0]) ||
+        (op == OP_SLL);
+    assign shift_right_fill =
+        (((op == OP_RRC) || (op == OP_RRCA)) && a[0]) ||
+        (((op == OP_RR)  || (op == OP_RRA))  && flags_in[0]) ||
+        ((op == OP_SRA) && a[7]);
+    assign shift_result = op[0] ? {a[6:0], shift_left_fill}
+                                : {shift_right_fill, a[7:1]};
+    assign shift_carry = op[0] ? a[7] : a[0];
 
     assign carry_xy = {a[5], a[3]} | (q ? 2'b00 : {flags_in[5], flags_in[3]});
     // Keep the byte-wide source interface while only two flag bits are used.
@@ -157,7 +134,7 @@ module fes_z80_alu #(
             OP_ADD, OP_ADC, OP_SUB, OP_SBC, OP_CP,
             OP_INC, OP_DEC, OP_NEG: begin
                 result = arithmetic_sum[7:0];
-                flags_out = szpxy(result);
+                flags_out = 8'h00;
                 flags_out[4] = arithmetic_a[4] ^ arithmetic_b[4] ^ result[4];
                 flags_out[2] = !(arithmetic_a[7] ^ arithmetic_b[7] ^ subtract)
                              && (arithmetic_a[7] ^ result[7]);
@@ -176,24 +153,24 @@ module fes_z80_alu #(
                     OP_XOR: result = a ^ b;
                     default: result = a | b;
                 endcase
-                flags_out = szpxy(result);
+                flags_out = 8'h00;
                 flags_out[4] = op == OP_AND;
             end
             OP_DAA: begin
                 result = arithmetic_sum[7:0];
-                flags_out = szpxy(result);
+                flags_out = 8'h00;
                 flags_out[4] = a[4] ^ result[4];
                 flags_out[1] = flags_in[1];
                 flags_out[0] = daa_carry;
             end
             OP_RLC, OP_RRC, OP_RL, OP_RR, OP_SLA, OP_SRA, OP_SRL: begin
                 result = shift_result;
-                flags_out = szpxy(result);
+                flags_out = 8'h00;
                 flags_out[0] = shift_carry;
             end
             OP_SLL: if (NMOS) begin
                 result = shift_result;
-                flags_out = szpxy(result);
+                flags_out = 8'h00;
                 flags_out[0] = shift_carry;
             end
             OP_BIT: begin
@@ -222,5 +199,15 @@ module fes_z80_alu #(
             end
             default: begin end
         endcase
+        if (op <= OP_DAA || (op >= OP_RLC && op <= OP_SRL &&
+                            (NMOS || op != OP_SLL)) || op == OP_NEG) begin
+            flags_out[7] = result[7];
+            flags_out[6] = result == 8'h00;
+            flags_out[5] = NMOS && (op == OP_CP ? b[5] : result[5]);
+            flags_out[3] = NMOS && (op == OP_CP ? b[3] : result[3]);
+            if ((op >= OP_AND && op <= OP_OR) || op == OP_DAA ||
+                (op >= OP_RLC && op <= OP_SRL))
+                flags_out[2] = ~^result;
+        end
     end
 endmodule

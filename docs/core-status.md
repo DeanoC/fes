@@ -25,18 +25,20 @@ selection are [core packages](core-packages.md).
 
 The current [default profile](../profiles/native-integration-dev.toml) installs
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
-`fes.spectrum`, `fes.ramtest` in that order: eight packages. `fes.coleco` is
-built as the native-pixel video shell, and the image keeps its sealed Direct and
-Scanlines parts in a separate video-part inventory. Menu (`fes.menu`) supplies
+`fes.spectrum`, `fes.ramtest`, `fes.atari-st` in that order: nine packages. `fes.coleco` is
+built as the native-pixel video shell. Coleco and ST each retain their sealed
+Direct and Scanlines parts in the separate video-part inventory. Menu (`fes.menu`) supplies
 the idle display and is not a library core. Factory standing records image inclusion;
 playability and hardware acceptance depend on the exact-artifact kit evidence below.
 
-The image selector supports nine IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
-`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`.
+The image selector supports ten IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
+`fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st`.
 `fes.riscv` is registered for `make core-dev` only.
-SMS, SG-1000 and Spectrum are sealed and included. The 128 MiB rootfs from #347
-holds them. C64 is registered but has no current timing-passing HIP seal, so it
-stays out. The factory packages, Apple II and Catch seal with
+SMS, SG-1000, Spectrum and Atari ST are sealed and included. The 160 MiB rootfs
+holds them. C64 remains registered and package-only: its frozen HIP seal and
+original firmware/probe [functional diagnostic](validation/2026-10-06-c64-functional-closure.md)
+pass, but there is no factory-image acceptance or promotion. The factory packages,
+Apple II and Catch seal with
 HIP/nextpnr. Quartus is an oracle where the recipe says so. It is not the product
 path and not a fallback.
 
@@ -50,7 +52,7 @@ path and not a fallback.
 | `fes.coleco` | 1.2.0 | Factory | `fes.application` 1.0 | `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.gamepad.ports` 1.0, `fes.keypad.ports` 1.0, `fes.video.fixed-720p60` 1.0, `fes.media.blob` 1.0, `fes.media.blob-stream` 1.0 | `fes.firmware.blob` 1.0, `fes.expansion.coleco-bus` 2.0 | Reduced ColecoVision with a vacant or linked SGM socket. Blob 1–16 KiB keeps the mirrored map. Stream admits 1–32 KiB at `0x8000–0xffff`. Two gamepads, two 12-key keypads, SN76489, optional 8 KiB firmware overlay. Open `JP 0x8000` shim when no firmware is bound. Not a retail-complete core. Lock `toolchains/coleco-sgm.lock`. |
 | `fes.sms` | 1.4.0 | Factory | `fes.simple-computer` 1.0 | `fes.keyboard` 1.0, `fes.video.fixed-720p60` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0 | — | Sega Master System slice. Do not use `fes.mastersystem`. Exact 32 KiB `cartridge-rom` is linked through a sealed ROM map before download; pad shorter fixed-map images with `0xff`. 8 KiB RAM at `0xc000`, Mode 4 VDP, SN76489 on `0x7E`/`0x7F`, shared PCM-to-I2S into the ADV7513. No host audio-stream mailbox or Sega mapper. Lock `toolchains/fes-sms.lock`. |
 | `fes.catch` | 1.0.0 | Package-only | `fes.application` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.gamepad` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0 | — | ROM-less paddle game on the shared application shell. No BIOS, cartridge, or factory-image entry. Lock `toolchain.lock`. |
-| `fes.atari-st` | 0.1.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.atari-st-floppy` 1.0 | `fes.expansion.atari-st-bus` 1.0 | Atari 520ST: 8 MHz 68000, 512 KiB SDRAM, exact 192 KiB `atari-st-firmware` link, original MMU aliases, MFP/ACIA/IKBD/YM2149, read-only 720 KiB `.st` drive A and all three video modes. Stock EmuTOS boots to GEM through SDRAM and video in host simulation. Native shell and probe card pass routing, timing and seal checks; actual ROM linking is verified. No hardware acceptance. Lock `toolchains/atari-st.lock`; nextpnr-head shell requalified at seed 6 (75.29/56.65/272.85 MHz) in the [2026-10-04 record](validation/2026-10-04-atari-st-nextpnr-head.md). |
+| `fes.atari-st` | 0.2.0 | Factory | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.atari-st-floppy` 1.0, `fes.mouse.relative` 1.0, `fes.media.atari-st-floppy-write` 1.0, `fes.media.atari-st-floppy-geometry` 1.0 | `fes.expansion.atari-st-bus` 1.0, `fes.fabric.video.raster-rgb888` 1.0 | Atari 520ST: 8 MHz 68000, 512 KiB SDRAM, exact 192 KiB `atari-st-firmware` link, original MMU aliases, MFP/ACIA/IKBD/YM2149, writable 80–82 track, one/two-sided, nine/ten-sector `.st` drive A, relative mouse and all three video modes. Library-bound disk saves and independently selected video parts pass host tests. Stock EmuTOS runs the original GEMDOS write/read/rename/delete diagnostic through the real CPU and modeled SDRAM. The earlier 0.1.0 shell seals at seed 4 (74.45/53.55/276.63 MHz), with separate sealed Direct/Scanlines parts. Both physical memory diagnostics, stock GEM/mouse and independent Direct/Scanlines video checks pass on Kit A. Automatic initial-disk boot and save/Stop/cold-reload/restore pass in the same runtime and agent lifetime, with exact complete payload comparisons against the guest model. See the [automatic-boot record](validation/2026-10-06-atari-st-auto-boot.md) and the [startup budget follow-up](validation/2026-10-06-atari-st-startup-budget.md). See the [current bring-up record](validation/2026-10-06-atari-st-bringup.md). Lock `toolchains/atari-st.lock`; the [earlier qualification](validation/2026-10-04-atari-st-nextpnr-head.md) records the read-only shell. |
 | `fes.sg1000` | 1.3.0 | Factory | `fes.simple-computer` 1.0 | `fes.keyboard` 1.0, `fes.video.fixed-720p60` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0 | — | Sega SG-1000 with the first-party NMOS Z80 at native cadence. Exact 16 KiB `cartridge-rom` linked before download at `0x0000`; pad shorter fixed-map images with `0xff`. 1 KiB RAM at `0xc000`, joysticks on `0xdc`/`0xdd`, SN76489 PSG at `0x40–0x7f` through HDMI I2S. No startup media blob. Lock `toolchains/registered-memory.lock`. |
 | `fes.c64` | 0.1.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.c64-disk` 1.0 | `fes.expansion.c64-bus` 1.0 | Commodore 64 pathfinder: 6510 at 1.022727 MHz, 64 KiB RAM, VIC-II text, reduced SID, CIA keyboard and joystick. Exact 16 KiB `c64-firmware` (BASIC window then KERNAL window) linked before download. Read-only 174,848-byte D64 on media unit 0. Two cartridge sockets (ROM window and I/O window) on one shared port. Open diagnostic only; no Commodore ROM is shipped. Simulation passes. Lock `toolchains/c64.lock`. |
 | `fes.apple2` | 0.1.0 | Package-only | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.apple2-floppy` 1.0 | `fes.expansion.apple2-bus` 1.0 | Apple II pathfinder: 6502 at 1.0205 MHz, 64 KiB RAM with language card, text/lores/hires, speaker. Exact 16 KiB `apple2-firmware` ($C000–$FFFF window) linked before download. Built-in Disk II in slot 6 reads a live-swappable 143,360-byte DOS-order image; no writes. Physical card sockets 2, 4, 5 and 7 take independently built cards composed by the target's Go linker. Open diagnostic firmware and probe card only; no Apple ROM is shipped. [Sealed build](validation/2026-09-26-apple2-pathfinder-seal.md) and a [kit hardware diagnostic](validation/2026-09-27-apple2-kit-diagnostic.md) with linked firmware, four cards and live disk swap, [re-checked](validation/2026-09-27-apple2-cart-clock-recheck.md) after the general cart-merge fix; no image acceptance. Lock `toolchains/apple2.lock`. |
@@ -151,16 +153,21 @@ acceptance covers the named open diagnostics, not general cartridge compatibilit
 The first 16-bit machine is [the `fes.atari-st` core](../sources/misteross/cores/fes-atari-st/README.md).
 It now assembles the real 8 MHz 68000, original ST MMU bank aliases, 512 KiB
 SDRAM, MFP vectored timers, native HBL/VBL interrupts, keyboard ACIA/IKBD,
-YM2149 audio and read-only drive-A floppy/DMA. A separate 720 KiB media
-buffer shares the SDRAM arbiter; upload remains valid while execution is
-held or running. `fes.media.atari-st-floppy` 1.0 uses unit 0 and capability
-bit 7, alongside the existing computer ABI. The optional expansion connector
+YM2149 audio and writable drive-A floppy/DMA. A separate buffer up to
+839,680 bytes shares the SDRAM arbiter; upload remains valid while execution
+is held or running. `fes.media.atari-st-floppy` 1.0 uses unit 0 and capability
+bit 7; the writable extension adds bit 9, relative mouse adds bit 8, and the
+required geometry extension adds bit 10. Without that explicit extension the
+legacy floppy interface still admits exactly 737,280 bytes.
+Durable disk data requires an explicit library binding and uses the complete
+image layout in [core persistence](core-persistence.md). The optional expansion connector
 is `fes.expansion.atari-st-bus` 1.0 with one registered physical socket.
 
 Host tests cover full CPU diagnostics, peripheral behavior, real SDRAM
 commands/refresh/byte masks/contention, coherent dual-clock line caches,
 complete CRC disk upload and stock EmuTOS 1.4 RAM/video/timer initialization.
-Video uses the existing direct/scanline part contract. ROM firmware is an
+The optional ST raster video socket uses independently sealed Direct/Scanlines
+parts, with a built-in Direct fallback. ROM firmware is an
 external exact 192 KiB input, and EmuTOS downloads are digest-pinned.
 The sealed native shell and independently built probe card pass synthesis,
 routing and all three clock targets. Combined ROM/card linking verifies the
@@ -169,8 +176,73 @@ every card bit and rejects incorrect shell identities or writes outside the
 socket. The
 [integration record](validation/2026-10-03-atari-st-integration.md) binds the
 selected source, timing, RAM placement, ROM map, socket and package evidence.
-No kit or appliance hardware acceptance follows from these host checks;
-factory selection is unchanged.
+The later [mouse, disk and video interaction record](validation/2026-10-04-atari-st-interaction.md)
+binds the earlier writable shell, independent video archives and GEMDOS guest
+diagnostic. The [current bring-up record](validation/2026-10-06-atari-st-bringup.md)
+supersedes its memory failure with passing Kit A tests on the corrected shell.
+Physical stock GEM/mouse and independent video-part checks also pass. A fresh two-boot
+durable disk test verifies every payload byte against the guest model across
+normal Stop and cold Play, without restarting the runtime or agent. The later
+[automatic-boot record](validation/2026-10-06-atari-st-auto-boot.md) verifies initial
+disk upload before CPU release, with AUTO execution on both fresh and saved disks
+and zero differing payload bytes. The [startup budget follow-up](validation/2026-10-06-atari-st-startup-budget.md) verifies diskless GEM and fresh/saved AUTO boot on the revised software at the configured 60-second upload timeout. No appliance
+hardware acceptance is claimed by that software diagnostic. The current factory
+selection includes Atari ST. The [native image acceptance](validation/2026-10-07-atari-st-native-image.md) binds its exact two-pass image, Direct diskless GEM, Scanlines AUTO/save/cold restore and complete disk-byte comparisons. It also records confirmed rollback and restoration of the populated normal menu.
+
+The [input/audio diagnostic](validation/2026-10-07-atari-st-input-audio.md)
+adds guest-visible keyboard/modifier and both joystick-port checks through
+normal host input, measured YM tones/noise/envelope and settled HDMI Stop mute
+on that exact reused image. Physical USB attachment, held-input Stop/relaunch
+and the observed one-sample capture-channel lag remain unqualified. Original
+BIG and TCB Cuddly demo disks use ten-sector geometry. The current source
+opts into the geometry extension for their original 80×1×10 and 82×2×10
+images. All twelve supported shapes have host sector read/write coverage;
+loader and border/raster effects require separate qualification. Historical
+0.1.0 hardware evidence does not qualify the revised 0.2.0 shell. The
+[geometry diagnostic](validation/2026-10-07-atari-st-floppy-geometry.md) now
+binds the sealed 0.2.0 shell, diskless GEM, complete original BIG/Cuddly
+upload/snapshot comparisons and maximum-size cold restore using built-in
+Direct on a private derived image. Neither original demo reaches its effects
+with the tested EmuTOS. The geometry diagnostic still records its original
+[nextpnr #165](https://github.com/DeanoC/nextpnr/issues/165) routing failure;
+that composition defect is resolved. Published egress anchors and the exact
+prepared Direct/Scanlines pair pass. Full factory image acceptance and
+border/raster compatibility remain open. The subsequent
+[BIG loader diagnosis](validation/2026-10-08-atari-st-big-loader.md) corrects
+unpopulated-memory acknowledgement below 4 MiB. With original TOS 1.00, BIG
+reaches its introductory instructions and main menu in the CPU/chipset model;
+the introductory planar framebuffer matches Hatari exactly. A fresh selected package also reaches the menu and B scroller on the kit
+with temporary qualified geometry software. Captures show incorrect raster
+palette colours; audio is present but fidelity is unqualified. The original
+image and populated menu were restored. Demo borders, later sections, accurate
+audio and full current-image integration remain open.
+The [native palette record](validation/2026-10-08-atari-st-native-palette.md)
+binds ordinary low-resolution live RGB capture, complete-frame ownership,
+completed simulations, a sealed shell and matching Direct/Scanlines parts.
+Its final pixel/system/audio clocks pass at 74.34/53.15/255.62 MHz. A bounded
+Kit A test with qualified geometry software shows rainbow bands in the B
+scroller through the prepared Direct part. The normal populated menu, original
+image and host autostart are restored; the lease is free. Medium/monochrome
+retain their indexed renderer. Menu flashing still appears in the capture,
+and the model alternates its source raster palette sequence. Original GLUE
+latch timing, opened borders, accurate audio and full image integration remain
+open; this diagnostic does not establish full BIG compatibility.
+
+The [raster timing follow-up](validation/2026-10-09-atari-st-raster-timing.md)
+uses coherent CPU/line/frame cycles, a bottom-stop sample and 24-cycle delayed
+Timer B display edges. Color line length samples sync at cycle 54, preserving
+frames when BIG restores its bottom pulse after HBL. Constant DE bounds close
+the native capture carry paths; whole-I/O equivalence preserves fresh BIG and
+stock EmuTOS captures. Full ST and parent checks pass. Diskless EmuTOS reaches
+GEM; the original BIG model has sixteen identical logo crops, menu VBL
+acknowledgements on line zero and the rainbow B scroller.
+The `dbf3fc1c8` package passes final timing at 79.72/52.44/163.93 MHz and seals
+Direct/Scanlines parts. Its bounded prepared-Direct hardware probe retains the
+rainbow. In twelve seconds, 711 of 717 nonblack logo crops match; six outliers
+in two bursts keep the rare palette anomaly open. The original image and
+populated free menu are restored, and the private host/credential copy removed.
+Full current-image acceptance remains separate; opened-region RGB still crops
+to ordinary 320×200, and later demo sections/audio fidelity remain unqualified.
 
 ## Not implemented, or not this package
 

@@ -1,0 +1,18 @@
+{
+  "hardware_execution": false,
+  "capture_completed": true,
+  "seconds": 8,
+  "system_clocks": 417792000,
+  "independent_pixel_clocks": 594018699,
+  "hdmi_frames": 479,
+  "native_underruns": 0,
+  "indexed_underruns": 0,
+  "halted": false,
+  "expected_startup_bus_faults": 4,
+  "media_ready": false,
+  "rom_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+  "log_sha256": "aeed18cc670e6abd4dda7db0c3f16f9472facb39c70b8e1fccbeabd358fcbe42",
+  "capture_sha256": "f7c7d235f7aa4699928dace7f1b4be54b29eb7f170708b45b4e5119a4d3ee7d6",
+  "source_classification": "local diskless fixture run before the subsequent demo-only image-retention change; no frozen full-source proof",
+  "acceptance": "host-only diskless boot regression"
+}

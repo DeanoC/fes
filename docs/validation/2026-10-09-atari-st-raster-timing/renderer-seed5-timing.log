@@ -1,0 +1,3 @@
+Info: Max frequency for clock              'pixel_clk': 74.67 MHz (PASS at 74.25 MHz)
+Info: Max frequency for clock 'system_clock.clocks[0]': 52.84 MHz (PASS at 52.22 MHz)
+Info: Max frequency for clock 'system_clock.clocks[1]': 193.54 MHz (PASS at 12.29 MHz)

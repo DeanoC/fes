@@ -281,7 +281,7 @@ class BuildFesPongTests(unittest.TestCase):
         self.assertEqual(fields["abi_definition"], "cores/fes-pong/generated/fes_gp.vh")
         self.assertEqual(fields["tools"], identities)
         self.assertEqual(
-            {k: v for k, v in fields["parameters"].items() if k not in ("execution_sha256", "gpu_device", "source_closure_policy")},
+            {k: v for k, v in fields["parameters"].items() if k not in ("execution_sha256", "gpu_device", "source_closure_policy", "source_closure_mode")},
             {
                 "device": "5CSEBA6U23I7",
                 "gpu_architectures": "gfx1100;gfx1201",
@@ -548,10 +548,10 @@ class BuildFesPongTests(unittest.TestCase):
         (output / "core.rbf").write_bytes(b"rbf\n")
         (output / "nextpnr.log").write_text(
             "Info: constraining clock net 'FPGA_CLK1_50' to 50.00 MHz\n"
-            "Info: PLL 'video_clock.pll': fractional-N requested 74250000.000000 Hz, "
+            "Info: PLL 'video_clock.pll': fractional-N requested 74250000.000000 Hz (output 0), "
             "achieved 74249999.832439542 Hz, error -0.00225670649 ppm.\n"
-            "Info: PLL 'video_clock.pll': 50 MHz -> 74.25 MHz, direct, M=8 N=1 C6=6, "
-            "bel altera_pll.0.14.0\n"
+            "Info: PLL 'video_clock.pll': 50.000000 MHz -> VCO 445.499999 MHz, fractional-N, "
+            "M=8 N=1 K=3908420153, counters C6, bel altera_pll.0.14.0\n"
             "Info: backend hip:AMD Radeon RX 7900 XTX ready\n"
             "Info: Program finished normally.\n",
             encoding="utf-8",
@@ -623,7 +623,7 @@ class BuildFesPongTests(unittest.TestCase):
             self.assertEqual(summary["status"], "pass")
             self.assertEqual(summary["timing"]["pixel"]["requested_mhz"], 74.25)
             self.assertEqual(
-                summary["timing"]["reference"],
+                {k: v for k, v in summary["timing"]["reference"].items() if k != "fractional_pll"},
                 {
                     "clock": "FPGA_CLK1_50",
                     "constraint_mhz": 50.0,
@@ -863,7 +863,7 @@ class BuildFesPongTests(unittest.TestCase):
             build_fes_pong.EXPECTED_TOOL_COMMITS,
             {
                 "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-                "nextpnr": "1656e473e1442f9b734ff5f4cdfddfd013846b9e",
+                "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
                 "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
             },
         )

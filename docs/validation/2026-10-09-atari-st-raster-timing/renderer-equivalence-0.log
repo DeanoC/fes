@@ -1,0 +1,4 @@
+9. Executing EQUIV_STATUS pass.
+Found 493 $equiv cells in st_video_equiv:
+  Of those cells 493 are proven and 0 are unproven.
+  Equivalence successfully proven!

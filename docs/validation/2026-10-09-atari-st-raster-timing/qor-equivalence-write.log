@@ -1,0 +1,5 @@
+Found 768 unproven $equiv cells (76 groups) in st_io_equiv:
+Proved 768 previously unproven $equiv cells.
+Found 768 $equiv cells in st_io_equiv:
+  Of those cells 768 are proven and 0 are unproven.
+  Equivalence successfully proven!

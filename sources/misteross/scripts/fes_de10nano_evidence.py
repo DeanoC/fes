@@ -32,10 +32,27 @@ PLL_PARAMETERS = {
     "reference_clock_frequency": "50.0 MHz",
 }
 REFERENCE_CONSTRAINT_LOG = "Info: constraining clock net 'FPGA_CLK1_50' to 50.00 MHz"
+# nextpnr #136 (1656e473) logs ref->VCO + fractional-N/integer + M/N[/K] + counters.
+# Single-PLL video stays on altera_pll.0.14.0; multi-PLL designs move BELs.
 PLL_ROUTE_LOG = (
-    "Info: PLL 'video_clock.pll': 50 MHz -> 74.25 MHz, direct, "
-    "M=8 N=1 C6=6, bel altera_pll.0.14.0"
+    "Info: PLL 'video_clock.pll': 50.000000 MHz -> VCO 445.499999 MHz, fractional-N, "
+    "M=8 N=1 K=3908420153, counters C6, bel altera_pll.0.14.0"
 )
+VIDEO_PLL_ROUTE_RE = (
+    r"Info: PLL 'video_clock\.pll': 50\.000000 MHz -> VCO 445\.499999 MHz, fractional-N, "
+    r"M=8 N=1 K=3908420153, counters C6, bel altera_pll\.[0-9.]+"
+)
+AUDIO_PLL_ROUTE_RE = (
+    r"Info: PLL 'audio_clock\.pll': 50\.000000 MHz -> VCO 405\.504000 MHz, fractional-N, "
+    r"M=8 N=1 K=472790000, counters C6, bel altera_pll\.[0-9.]+"
+)
+# memory_clock_mhz -> exact #136 integer route-log prefix (bel is flexible).
+RAM_PLL_ROUTE_PREFIX = {
+    100.0: (
+        "Info: PLL 'ram_clock.pll': 50.000000 MHz -> VCO 300.000000 MHz, integer, "
+        "M=12 N=2, counters C6,7, bel "
+    ),
+}
 
 # fes.memory.hps-ddr: the fpga2sdram cfg_* inputs and their widths. The
 # generated header is the single source of the layout values.
@@ -167,28 +184,20 @@ def _fractional_video_clock_evidence(text):
 
 
 def _reference_clock_evidence(source_root: Path, route_text: str, *, audio: bool = False,
-                              memory_pll: bool = False) -> dict[str, object]:
+                              memory_pll: bool = False, raw_fractional_video: bool = False) -> dict[str, object]:
     sdc = _regular_input(source_root, SDC)
     if sdc.read_bytes() != REFERENCE_SDC_BYTES:
         raise BuildError("tracked SDC does not contain the exact FPGA_CLK1_50 20.000 ns constraint")
     if route_text.count(REFERENCE_CONSTRAINT_LOG) != 1:
         raise BuildError("route log must apply the FPGA_CLK1_50 50.00 MHz constraint exactly once")
-    video_lines=[line for line in route_text.splitlines() if line.startswith("Info: PLL 'video_clock.pll': ")]
-    modern=any(" -> VCO " in line or "(output " in line for line in video_lines)
-    fractional=_fractional_video_clock_evidence(route_text) if modern else None
-    if modern:
-        pass
-    elif memory_pll:
-        video_routes = re.findall(
-            r"Info: PLL 'video_clock\.pll': 50 MHz -> 74\.25 MHz, direct, "
-            r"M=8 N=1 C6=6, bel altera_pll\.[0-9.]+", route_text,
-        )
-        if len(video_routes) != 1:
+    if memory_pll or audio:
+        if len(re.findall(VIDEO_PLL_ROUTE_RE, route_text)) != 1:
             raise BuildError("route log does not contain the expected fractional video PLL mapping")
     elif route_text.count(PLL_ROUTE_LOG) != 1:
         raise BuildError("route log does not contain the expected fixed fractional PLL mapping")
-    if audio and len(re.findall(r"Info: PLL 'audio_clock.pll': 50 MHz -> 12\.288 MHz, direct, .*bel altera_pll\.[0-9.]+", route_text)) != 1:
+    if audio and len(re.findall(AUDIO_PLL_ROUTE_RE, route_text)) != 1:
         raise BuildError("route log must contain the exact 12.288 MHz audio PLL mapping")
+    fractional = _fractional_video_clock_evidence(route_text) if raw_fractional_video else None
     return {
         "clock": "FPGA_CLK1_50",
         "constraint_mhz": 50.0,
@@ -199,7 +208,7 @@ def _reference_clock_evidence(source_root: Path, route_text: str, *, audio: bool
     }
 
 
-def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resources, required_resources, forbidden_resources, required_zero_resources, audio: bool = False, memory_clock_mhz: float | None = None, capture_clock_mhz: float | None = None, memory_pll_parameters: dict[str, str] | None = None) -> dict:
+def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resources, required_resources, forbidden_resources, required_zero_resources, audio: bool = False, memory_clock_mhz: float | None = None, capture_clock_mhz: float | None = None, memory_pll_parameters: dict[str, str] | None = None, raw_fractional_video: bool = False) -> dict:
     output = Path(output)
     source_root = Path(source_root)
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
@@ -232,10 +241,15 @@ def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resourc
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text)
     reference = _reference_clock_evidence(source_root, route_text, audio=audio,
-                                          memory_pll=memory_pll_parameters is not None)
+                                          memory_pll=memory_pll_parameters is not None, raw_fractional_video=raw_fractional_video)
     if memory_pll_parameters is not None:
-        expected_route = f"PLL 'ram_clock.pll': 50 MHz -> {memory_clock_mhz:g} MHz, direct,"
-        if route_text.count(expected_route) != 1:
+        prefix = RAM_PLL_ROUTE_PREFIX.get(float(memory_clock_mhz))
+        if prefix is None:
+            raise BuildError(f"no #136 ram PLL route prefix for {memory_clock_mhz:g} MHz")
+        ram_routes = re.findall(
+            re.escape(prefix) + r"altera_pll\.[0-9.]+", route_text,
+        )
+        if len(ram_routes) != 1:
             raise BuildError("route log lacks the selected memory PLL mapping")
 
     timing = _read_json(output / "timing.json", "timing report")

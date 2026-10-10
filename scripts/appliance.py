@@ -21,6 +21,10 @@ try:
 except ImportError:
     import platform as fes_platform
     from media_inputs import digest
+try:
+    from .image_passes import validate_image_passes
+except ImportError:
+    from image_passes import validate_image_passes
 
 FORMAT = 1
 BOARD = 'de10-nano'
@@ -28,6 +32,7 @@ BOOT_ABI = 'fes-bootstrap-v1'
 MAX_IMAGE_SIZE = (4 << 30) - 1
 MAX_MANIFEST_SIZE = 8192
 MANIFEST_FIELDS = {'format','board','boot_abi','version','kernel_sha256','image_sha256','image_size','fes_revision','fogcast_revision','runtime_revision'}
+OPTIONAL_MANIFEST_FIELDS = {'image_passes'}
 BOOTSTRAP_RECIPE_FILES = ('scripts/appliance.py','scripts/appliance_inside.py','scripts/media.py',
                           'scripts/media_container.py','scripts/media_inputs.py','scripts/media_uboot.py',
                           'scripts/platform.py')
@@ -54,7 +59,7 @@ def regular(path):
 
 
 def validate_manifest(data):
-    if not isinstance(data,dict) or set(data) != MANIFEST_FIELDS:
+    if not isinstance(data,dict) or not MANIFEST_FIELDS <= set(data) or set(data) - MANIFEST_FIELDS - OPTIONAL_MANIFEST_FIELDS:
         raise ValueError('release manifest has missing or unknown fields')
     if type(data['format']) is not int or data['format'] != FORMAT or data['board'] != BOARD or data['boot_abi'] != BOOT_ABI:
         raise ValueError('unsupported release format, board or boot ABI')
@@ -70,7 +75,13 @@ def validate_manifest(data):
             raise ValueError('invalid release revision')
     if type(data['image_size']) is not int or not 2048 <= data['image_size'] <= MAX_IMAGE_SIZE:
         raise ValueError('invalid release image size')
+    if 'image_passes' in data and (type(data['image_passes']) is not int or data['image_passes'] != 1):
+        raise ValueError('invalid release image passes')
     return data
+
+
+def manifest_image_passes(data):
+    return data.get('image_passes', 2)
 
 
 def load_manifest(path):
@@ -219,14 +230,23 @@ def bootstrap_identity(binary_sha,factory,container,assembly_revision,recipe,pla
     return hashlib.sha256(canonical(payload)).hexdigest()
 
 
-def release_manifest(rootfs,*,version,provenance):
-    return validate_manifest({'format':FORMAT,'board':BOARD,'boot_abi':BOOT_ABI,'version':version,
+def release_manifest(rootfs,*,version,provenance,image_passes=2):
+    if image_passes not in (1,2):
+        raise ValueError('image passes must be 1 or 2')
+    data = {'format':FORMAT,'board':BOARD,'boot_abi':BOOT_ABI,'version':version,
         'kernel_sha256':provenance.kernel_sha256,'image_sha256':provenance.rootfs_sha256,
         'image_size':regular(rootfs).stat().st_size,'fes_revision':provenance.fes_revision,
-        'fogcast_revision':provenance.fogcast_revision,'runtime_revision':provenance.runtime_revision})
+        'fogcast_revision':provenance.fogcast_revision,'runtime_revision':provenance.runtime_revision}
+    if image_passes == 1:
+        data['image_passes'] = 1
+    return validate_manifest(data)
 
 
-def export_release(output,rootfs,kernel,*,version,provenance):
+def release_version(version,image_passes):
+    return version if image_passes == 2 or version.endswith('-1p') else version + '-1p'
+
+
+def export_release(output,rootfs,kernel,*,version,provenance,image_passes=2,single_pass_marker=None):
     """Export caller-verified raw inputs, checking their explicit receipt hashes.
 
     The CLI obtains provenance from current cold-build validation. This lower
@@ -236,14 +256,23 @@ def export_release(output,rootfs,kernel,*,version,provenance):
     if digest(rootfs) != provenance.rootfs_sha256: raise ValueError('rootfs differs from verified provenance')
     if digest(kernel) != provenance.kernel_sha256: raise ValueError('kernel differs from locked provenance')
     features = validate_ext4(rootfs)
-    manifest = release_manifest(rootfs,version=version,provenance=provenance)
+    if image_passes not in (1,2): raise ValueError('image passes must be 1 or 2')
+    if image_passes == 1 and ('hil' not in version.lower() or single_pass_marker is None):
+        raise ValueError('single-pass release requires a HIL version and scratch marker')
+    if image_passes == 1:
+        marker_fields=dict(line.split('=',1) for line in regular(single_pass_marker).read_text().splitlines())
+        if marker_fields.get('linux_img_sha256') != provenance.rootfs_sha256 or marker_fields.get('head_sha') != provenance.fes_revision:
+            raise ValueError('single-pass scratch marker differs from verified release inputs')
+    manifest = release_manifest(rootfs,version=version,provenance=provenance,image_passes=image_passes)
     evidence = {'format':1,'kind':'fes-appliance-release','provenance':asdict(provenance),
         'manifest_sha256':hashlib.sha256(canonical(manifest)).hexdigest(),'ext4_features':features,'hardware':'not-run'}
     result = ReleaseResult(output)
     if output.exists() or output.is_symlink():
-        require_sealed_bundle(output,('rootfs.img','release.json','evidence.json'))
+        expected_files=('rootfs.img','release.json','evidence.json') + (('SINGLE-PASS-SCRATCH.txt',) if image_passes==1 else ())
+        require_sealed_bundle(output,expected_files)
+        marker_differs = image_passes == 1 and regular(output/'SINGLE-PASS-SCRATCH.txt').read_bytes() != regular(single_pass_marker).read_bytes()
         if (regular(result.manifest).read_bytes()!=canonical(manifest) or regular(result.evidence).read_bytes()!=canonical(evidence)
-                or digest(regular(result.image))!=provenance.rootfs_sha256):
+                or digest(regular(result.image))!=provenance.rootfs_sha256 or marker_differs):
             raise ValueError('immutable release destination differs')
         return result
     output.parent.mkdir(parents=True,exist_ok=True)
@@ -253,6 +282,7 @@ def export_release(output,rootfs,kernel,*,version,provenance):
         if digest(scratch/'rootfs.img') != provenance.rootfs_sha256: raise ValueError('rootfs changed during export')
         (scratch/'release.json').write_bytes(canonical(manifest))
         (scratch/'evidence.json').write_bytes(canonical(evidence))
+        if image_passes == 1: shutil.copyfile(single_pass_marker,scratch/'SINGLE-PASS-SCRATCH.txt')
         publish(scratch,output)
     return result
 
@@ -350,7 +380,7 @@ def assemble_bootstrap(output,bootstrap_binary,factory_manifest,kernel,*,runner,
     return result
 
 
-def verified_inputs(root,profile):
+def verified_inputs(root,profile,allow_single_pass=False):
     # Existing modules use script-style imports; keep this import boundary local.
     sys.path.insert(0,str(Path(__file__).resolve().parent))
     import media
@@ -358,7 +388,10 @@ def verified_inputs(root,profile):
     if media.cold_build.git(root,'status','--porcelain','--untracked-files=all','--ignore-submodules=all'):
         raise ValueError('appliance release requires a clean committed FES checkout')
     image_fingerprint,_host_fingerprint,fogcast,env=media.select(root,profile)
-    cold=media.cold_build.load_verified_image(root/'out'/profile,image_fingerprint)
+    if allow_single_pass:
+        cold=media.cold_build.load_verified_image(root/'out'/profile,image_fingerprint,allow_single_pass=True)
+    else:
+        cold=media.cold_build.load_verified_image(root/'out'/profile,image_fingerprint)
     lock=MediaLock.load(root/'boot-media.lock.toml')
     cache=root/'out/work/boot-media'/('image-creator-'+lock.commit)
     if not cache.is_dir(): raise ValueError('locked boot payload cache is absent; provision it separately')
@@ -377,24 +410,40 @@ def main():
     for command in ('release','bootstrap'):
         child=commands.add_parser(command);child.add_argument('--profile',default='native-integration-dev',choices=['native-integration-dev'])
         child.add_argument('--output',type=Path)
-        if command=='release':child.add_argument('--version',required=True)
+        if command=='release':
+            child.add_argument('--version',required=True);child.add_argument('--image-passes',type=int,default=2,choices=(1,2))
         else:
             child.add_argument('--release',type=Path,required=True)
     args=parser.parse_args();root=Path(__file__).resolve().parents[1]
     try:
+        if args.command == 'release':
+            validate_image_passes(args.image_passes)
+            if args.image_passes == 1 and 'hil' not in args.version.lower():
+                raise ValueError('single-pass release requires a HIL RELEASE_VERSION')
         if args.output is not None:
             args.output=args.output.resolve()
             if args.command=='bootstrap' and not args.output.is_relative_to(root):
                 raise ValueError('bootstrap output must be inside the FES checkout')
         sys.path.insert(0,str(root/'scripts'));import media
         with media.operation(root,args.profile):
-            rootfs,kernel,p,fogcast,env,lock=verified_inputs(root,args.profile)
+            rootfs,kernel,p,fogcast,env,lock=verified_inputs(root,args.profile,allow_single_pass=(args.command=='release' and args.image_passes==1))
             if args.command=='release':
-                manifest=release_manifest(rootfs,version=args.version,provenance=p)
+                if args.image_passes == 1:
+                    image_output=root/'out'/args.profile
+                    build_evidence=dict(line.split('=',1) for line in (image_output/'reproducibility.txt').read_text().splitlines())
+                    if build_evidence.get('image_passes') != '1': raise ValueError('single-pass release requested from a two-pass image')
+                    marker=image_output/'SINGLE-PASS-SCRATCH.txt'
+                    if not marker.is_file(): raise ValueError('single-pass scratch marker is missing')
+                    version=release_version(args.version,args.image_passes)
+                else:
+                    marker=None;version=args.version
+                manifest=release_manifest(rootfs,version=version,provenance=p,image_passes=args.image_passes)
                 output=args.output or root/'out'/args.profile/'appliance/releases'/p.rootfs_sha256/hashlib.sha256(canonical(manifest)).hexdigest()
-                result=export_release(output,rootfs,kernel,version=args.version,provenance=p)
+                result=export_release(output,rootfs,kernel,version=version,provenance=p,image_passes=args.image_passes,single_pass_marker=marker)
             else:
                 factory=load_manifest(args.release/'release.json')
+                if manifest_image_passes(factory) == 1:
+                    raise ValueError('single-pass scratch release cannot be bootstrapped')
                 if factory!=release_manifest(rootfs,version=factory['version'],provenance=p) or digest(regular(args.release/'rootfs.img'))!=p.rootfs_sha256:
                     raise ValueError('release differs from current verified cold image')
                 runtime=os.environ.get('CONTAINER_RUNTIME','docker')

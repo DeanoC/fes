@@ -5,7 +5,7 @@ The package is format 3: the sixteen blank 1024x10 firmware lanes (column 5,
 rows 32-47) are described by a sealed ROM map for the 16,384-byte
 `spectrum-firmware` image that FogCast links at download time. The shell
 reserves the four named socket rectangles of `fes.spectrum-bus.sockets/1`
-and pins each socket's boundary flip-flops; no other shell cell may sit in a
+and pins each socket's boundary flip-flops and their verified route-throughs; no other shell cell may sit in a
 socket and no firmware destination may fall in a socket's CRAM rectangle.
 """
 
@@ -22,7 +22,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import spectrum_slots, rom_map
+from scripts import spectrum_slots, rom_map, coleco_expansion
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.export_core_package import (
@@ -31,10 +31,10 @@ from scripts.export_core_package import (
 from scripts.fes_build_common import (
     BuildError, _authenticate_tools, _cell_counts, _i2c_evidence, _prepare_output,
     _read_json, _regular_input, _require_gpu_backend, _run_tool, _sha256, _write_atomic,
-    validate_timing_resources,
+    reject_async_m10k_reads, validate_timing_resources,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
-from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.search_placer_qor import SearchError, route_after_synth
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -102,7 +102,7 @@ RTL_SOURCES = (
     "cores/fes-common/rtl/z80/fes_z80_fast.sv",
 )
 PINNED_INPUTS = (
-    RECIPE, "scripts/spectrum_slots.py", "scripts/compiler_read_audit.py",
+    RECIPE, "scripts/spectrum_slots.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
     ABI_DEFINITION, SPECTRUM_TOOLCHAIN_LOCK, QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
@@ -167,6 +167,7 @@ def create_build_record(
     identity_version: int = 2,
     execution: dict | None = None,
     cpu: str = "nmos",
+    max_aluts: int | None = None,
 ) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
@@ -222,7 +223,10 @@ def create_build_record(
             "expansion_sockets": ",".join(s.placement for s in spectrum_slots.SOCKETS),
         },
     }
-    fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS),
+    if max_aluts is not None:
+        _area_budget({}, max_aluts)
+        fields["parameters"]["max_aluts"] = max_aluts
+    fields = functional_record_fields(root, fields, source_roots_for_producer(__name__, PINNED_INPUTS, root),
                                       execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
 
@@ -268,8 +272,9 @@ def build_commands(root: Path, output: Path, build_id: str,
 
 
 def validate_routed_shell(routed: dict) -> dict:
-    """Every socket holds only its pinned boundary flip-flops."""
-    cells = routed.get("modules", {}).get(TOP, {}).get("cells", {})
+    """Every socket holds only pinned boundary FFs and verified paired buffers."""
+    top = routed.get("modules", {}).get(TOP, {})
+    cells = top.get("cells", {})
     expected = {}
     for socket in spectrum_slots.SOCKETS:
         for name, bel in spectrum_slots.boundary_bels(socket).items():
@@ -279,17 +284,47 @@ def validate_routed_shell(routed: dict) -> dict:
         if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_FF" or \
                 cell.get("attributes", {}).get("NEXTPNR_BEL") != bel:
             raise BuildError(f"slot boundary cell {name} is not at {bel}")
+    try:
+        route_through = coleco_expansion.boundary_route_through_cells(top, expected)
+        coleco_expansion.validate_clock_anchors(top, {
+            name: bel for name, bel in expected.items() if ".clock_coverage_ff_" in name})
+    except ValueError as exc:
+        raise BuildError(str(exc)) from exc
+    drivers = {}
+    for cell in cells.values():
+        for port, bits in cell.get("connections", {}).items():
+            if cell.get("port_directions", {}).get(port) == "output":
+                for bit in bits:
+                    if type(bit) is int:
+                        drivers[bit] = drivers.get(bit, 0) + 1
+    for port in top.get("ports", {}).values():
+        if port.get("direction") == "input":
+            for bit in port.get("bits", []):
+                if type(bit) is int:
+                    drivers[bit] = drivers.get(bit, 0) + 1
+    for name in expected:
+        companion = name + "$ROUTETHRU"
+        data = (cells[companion]["connections"]["A"] if companion in route_through else
+                cells[name].get("connections", {}).get("DATAIN"))
+        # Older snapshots can disconnect an unused clock-only data input.
+        if data == [] and ".clock_coverage_ff_" in name:
+            continue
+        if not isinstance(data, list) or len(data) != 1 or not (
+                (type(data[0]) is int and drivers.get(data[0]) == 1) or
+                (type(data[0]) is str and data[0] in ("0", "1"))):
+            raise BuildError(f"slot boundary data input has no unique driver: {name}")
+    allowed = set(expected) | route_through
     for name, cell in cells.items():
         bel = cell.get("attributes", {}).get("NEXTPNR_BEL", "") if isinstance(cell, dict) else ""
         match = BEL_RE.match(bel)
-        if not match or name in expected:
+        if not match or name in allowed:
             continue
         x, y = int(match.group(1)), int(match.group(2))
         for socket in spectrum_slots.SOCKETS:
             if spectrum_slots.COLUMN <= x <= spectrum_slots.COLUMN + 4 and socket.first_row <= y <= socket.last_row:
                 raise BuildError(f"shell cell {name} is inside the slot {socket.slot} socket")
     return {"layout": spectrum_slots.LAYOUT, "sockets": [s.slot for s in spectrum_slots.SOCKETS],
-            "pinned_boundary_cells": len(expected)}
+            "pinned_boundary_cells": len(expected), "boundary_route_through_cells": len(route_through)}
 
 
 def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, float, float]:
@@ -335,6 +370,7 @@ def validate_firmware_ports(cells: dict) -> None:
 def validate_synth_evidence(output: Path, *, cpu: str = "nmos") -> dict:
     _output, _sys_mhz, pll_count = _cpu_parameters(cpu)
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
+    reject_async_m10k_reads(synthesis)
     _i2c_evidence(synthesis, "synthesized")
     counts = _cell_counts(synthesis)
     for name, expected in (REQUIRED_RESOURCES | {"altera_pll": pll_count}).items():
@@ -360,6 +396,7 @@ def validate_build_evidence(output: Path, *, cpu: str = "nmos") -> dict:
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
     synth = validate_synth_evidence(output, cpu=cpu)
+    reject_async_m10k_reads(routed)
     _i2c_evidence(routed, "routed")
     sockets = validate_routed_shell(routed)
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
@@ -394,6 +431,20 @@ def validate_build_evidence(output: Path, *, cpu: str = "nmos") -> dict:
         "synthesis_cells": synth["synthesis_cells"],
         "rbf": {"sha256": _sha256(rbf), "size": rbf.stat().st_size},
     }
+
+
+def _area_budget(counts: Mapping[str, int], maximum: int | None, *, require_comb: bool = False) -> dict:
+    if maximum is not None and (type(maximum) is not int or maximum <= 0):
+        raise BuildError("max ALUTs must be a positive integer")
+    if require_comb and maximum is not None:
+        comb = counts.get("MISTRAL_COMB")
+        if type(comb) is not int or comb < 0:
+            raise BuildError("routed utilization missing valid MISTRAL_COMB evidence")
+    used = sum(count for name, count in counts.items() if name.startswith("MISTRAL_ALUT") or name == "MISTRAL_COMB")
+    evidence = {"used": used, "maximum": maximum, "status": "pass"}
+    if maximum is not None and used > maximum:
+        raise BuildError(f"area budget exceeded: {used} ALUTs > {maximum}")
+    return evidence
 
 
 def check_firmware_outside_sockets(mapping: dict) -> None:
@@ -448,7 +499,9 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
 
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None,
-          identity_version: int = 2, gpu_device: int = 0, cpu: str = "nmos") -> Path:
+          identity_version: int = 2, gpu_device: int = 0, cpu: str = "nmos",
+          max_aluts: int | None = None) -> Path:
+    _area_budget({}, max_aluts)
     output_relative, sys_mhz, _pll_count = _cpu_parameters(cpu)
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
@@ -461,7 +514,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
     invocation = FunctionalInvocation(authenticated, gpu_device)
     record = create_build_record(root, repository, revision, identities,
-                                 identity_version=identity_version, execution=invocation.inputs, cpu=cpu)
+                                 identity_version=identity_version, execution=invocation.inputs, cpu=cpu,
+                                 max_aluts=max_aluts)
     output = _prepare_output(root, relative=output_relative, build_outputs=BUILD_OUTPUTS)
     _write_atomic(output / "build-inputs.json", record)
     _write_atomic(output / "socket.qsf", socket_qsf((root / QSF).read_text()).encode())
@@ -473,6 +527,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                   audit_source_root=root, output_relative=output_relative)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
+        synth_evidence = validate_synth_evidence(output, cpu=cpu)
+        area = _area_budget(synth_evidence["synthesis_cells"], max_aluts)
         try:
             winner = route_after_synth(
                 nextpnr=authenticated["nextpnr-mistral"].path,
@@ -488,6 +544,9 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
         evidence = validate_build_evidence(output, cpu=cpu)
+        evidence["area_budget"] = {"synthesis": area, "routed": _area_budget(
+            {name: values["used"] for name, values in evidence["resources"].items()}, max_aluts,
+            require_comb=True)}
         evidence["route"].update(placer_seed=winner.seed, placer_heap_timingweight=winner.weight,
                                  placer_qor_mode="first-pass")
         mapping, map_evidence = rom_map.build_rom_map(
@@ -520,7 +579,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
             raise BuildError("ROM database changed during build")
         if create_build_record(root, repository, revision, identities,
-                               identity_version=identity_version, execution=invocation.inputs, cpu=cpu) != record:
+                               identity_version=identity_version, execution=invocation.inputs, cpu=cpu,
+                               max_aluts=max_aluts) != record:
             raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store,
                               rom_map=output / "rom-map.json")
@@ -564,18 +624,22 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--gpu-device", type=int, default=0)
     parser.add_argument("--cpu", choices=("nmos", "fast"), default="nmos",
                         help="native NMOS default or documented-only 56 MHz development variant")
+    parser.add_argument("--max-aluts", type=int, help="production area cap; reject before routing and sealing")
     parser.add_argument("--synth-only", action="store_true",
                         help="run Yosys only; skip the clean-tree seal and nextpnr")
     arguments = parser.parse_args(argv)
     try:
         if arguments.synth_only:
+            if arguments.max_aluts is not None:
+                raise BuildError("--max-aluts requires the full production build")
             cells = synth(arguments.root, cache_root=arguments.cache_root, cpu=arguments.cpu)["synthesis_cells"]
             print(f"synth-only MISTRAL_M10K={cells.get('MISTRAL_M10K', 0)} "
                   f"MISTRAL_M10K_TDP={cells.get('MISTRAL_M10K_TDP', 0)} "
                   f"MISTRAL_FF={cells.get('MISTRAL_FF', 0)}")
             return 0
         print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
-                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device, cpu=arguments.cpu))
+                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device, cpu=arguments.cpu,
+                    max_aluts=arguments.max_aluts))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-spectrum-oss: {exc}", file=sys.stderr)
         return 1

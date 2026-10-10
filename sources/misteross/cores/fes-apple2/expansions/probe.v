@@ -67,17 +67,24 @@ module cart (
         ram_q <= ram[addr[9:0]];
     end
 
-    // $Cn00 page in an explicitly placed-by-nextpnr async-read M10K.
+    // $Cn00 page. The address and IOSEL stay held for the whole 6502 cycle
+    // and the motherboard samples the slot response at cycle 16, so one
+    // clock of registered M10K latency is inside that window. DRIVE stays
+    // combinational from the held select, matching the $C800 RAM path.
 `include "probe_rom.vh"
     wire [7:0] rom_data;
 `ifdef VERILATOR
     localparam [(1 << 10) * 10 - 1:0] ROM_WORDS = PROBE_ROM_INIT;
-    assign rom_data = ROM_WORDS[{6'd0, addr[7:0]} * 14'd10 +: 8];
+    reg [7:0] rom_q = 8'd0;
+    always @(posedge clk)
+        rom_q <= ROM_WORDS[{6'd0, addr[7:0]} * 14'd10 +: 8];
+    assign rom_data = rom_q;
 `else
     wire [9:0] rom_lane;
-    MISTRAL_M10K #(.CFG_ABITS(10), .CFG_DBITS(10), .CFG_ASYNC_READ(1), .INIT(PROBE_ROM_INIT)) rom (
+    MISTRAL_M10K #(.CFG_ABITS(10), .CFG_DBITS(10), .CFG_ASYNC_READ(0), .INIT(PROBE_ROM_INIT)) rom (
         .CLK1(clk), .A1ADDR(10'd0), .A1DATA(10'd0), .A1EN(1'b1),
-        .B1ADDR({2'b00, addr[7:0]}), .B1DATA(rom_lane), .ACLR0(1'b0), .ACLR1(1'b0)
+        .B1EN(1'b1), .B1ADDR({2'b00, addr[7:0]}), .B1DATA(rom_lane),
+        .ACLR0(1'b0), .ACLR1(1'b0)
     );
     assign rom_data = rom_lane[7:0];
 `endif

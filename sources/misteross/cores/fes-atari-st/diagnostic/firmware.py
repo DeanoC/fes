@@ -243,7 +243,20 @@ def firmware(variant: int = 1) -> tuple[bytes, dict[str, int]]:
     p.check("w", 0x68A5, ROM_SENTINEL)
     p.stage(8)
     p.check("w", 0xFFFF, 0x080000)  # configured bank 1 has no DRAM
-    p.fault(3, lambda: p.read("w", 0x0A0000))  # beyond both configured banks
+    # Empty logical banks and the rest of the 4 MiB RAM decode window
+    # acknowledge all byte lanes without aliasing the populated 512 KiB.
+    for address in (0x080000, 0x0A0000, 0x200000, 0x3FFFFE):
+        p.move_imm("w", 0x1234, address)
+        p.move_imm("b", 0x56, address)
+        p.move_imm("b", 0x78, address + 1)
+        p.check("w", 0xFFFF, address)
+        p.check("b", 0xFF, address)
+        p.check("b", 0xFF, address + 1)
+    p.check("l", 0xFEA51234, 0x07FFFC)
+    p.check("w", 0xA55A, 0x800)
+    for bank, marker in enumerate((0x1101, 0x2202, 0x3303, 0x4404)):
+        p.check("w", marker, bank * 0x20000 + 0x880)
+    p.fault(3, lambda: p.read("w", 0x400000))  # immediately above RAM decode
     p.stage(9)
     p.fault(4, lambda: p.read("w", 0xFF9002))
     p.stage(10)

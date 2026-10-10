@@ -1,0 +1,57 @@
+{
+  "classification": "host-only diagnosis; no compiler, RTL, recipe or artifact identity changed",
+  "strict_cpu_router": {
+    "router": "router2",
+    "seed": 4,
+    "exit_code": 125,
+    "compiler_binary_sha256": "436928bb79574752919332165e17ca4810aa7f63c6b6182718bb855cf534e665",
+    "inputs": {
+      "scaffold.json": "c11e2f071d93de1ce351434a40f8a01a512769d118b32312d51aff422d944a5c",
+      "cart.json": "1e0e5ef1305d1ec8ae8bb1a4aeb94ac57d2926b4d6c11a8c44fdae985925c2b4",
+      "cart.qsf": "461004549976f546503868b5a3e2d8968de9ed36638f75d2c6b93d53cd4a514c",
+      "clocks.sdc": "6f09dade2abb7b2982d268786b8aa93bab0c1ce1c2aa650c70e39606e033f5cb"
+    },
+    "failure": "video_plug_request[11]: WIRE.24.41.FFOUT[22] -> GOUT.25.42.58",
+    "log": "router2-seed4.log (absolute input/output paths reduced to file names only)"
+  },
+  "graph_model": {
+    "library_revision": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+    "source_pnode": "LAB.24.41.FFB0 (ALM 5)",
+    "source_rnode": "GIN.24.41.22",
+    "destination": "GOUT.25.42.58",
+    "physical_fence": [
+      1769,
+      3442,
+      2806,
+      5162
+    ],
+    "scaffold_occupied_physical_wires": 228967,
+    "unoccupied_graph": {
+      "with_fence_reachable": true,
+      "without_fence_reachable": true
+    },
+    "occupied_graph": {
+      "with_fence_reachable": false,
+      "reachable_nodes": 46,
+      "without_fence_reachable": true,
+      "reachable_nodes_without_fence": 8925
+    },
+    "limitations": "Physical mux graph and original scaffold wire ownership only: not a replacement for compiler pin-state, reserved-route, cart placement, clock, timing or complete CRAM checks. Releasing one shell net is a graph sensitivity diagnostic, not a legal route or accepted fix."
+  },
+  "unfenced_cpu_comparison": {
+    "status": "interrupted",
+    "reason": "Full-shell rerouting stopped after graph diagnostics; no completed route or qualified artifact"
+  },
+  "hardware": "No hardware transition or deployment; normal menu left running",
+  "files": {
+    "connectivity.cpp.txt": "78e1745681978437758dc328c9130465eaf18e2332a321a1e54ba63322609e4e",
+    "connectivity-occupied.cpp.txt": "44f624ce22eaf0604c47ba2b4d9fe7d964bfbc1ca1161935e2b898d25d6a15ec",
+    "connectivity-release-one.cpp.txt": "277e785644d5afcd605329d15642f992b8cb0d6cc2c2adb904d622146636a03a",
+    "export-occupied.py.txt": "2eaf5433ee04e1d34f578cddf1490c36264c5aec45765f83631d8c2799419f75",
+    "connectivity.log": "269a6f5cafa5e6214023dc26100c041d9174620a3e0f884a384390dedb0426c8",
+    "connectivity-occupied.log": "da64658a5766a99887f74b7585162a7a185d116d90098194c4dd1c7ab3a436d1",
+    "connectivity-release-one.log": "a43379aeb34501981b20e375d101a56e54c6ae95528f7c0c66f92df2e1560eac",
+    "router2-seed4.log": "54ba27646e832738d2360c08fe2d943bcbc21ea587d69f2e2f6665653de6db65"
+  },
+  "log_normalization": "Trailing whitespace removed; router2 absolute input/output paths reduced to file names. Original logs retained in the task scratch directory."
+}

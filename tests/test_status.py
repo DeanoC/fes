@@ -101,12 +101,22 @@ class StatusTest(unittest.TestCase):
         self.assertEqual(observed['input_closure']['binding'], 'matches')
         self.assertEqual(observed['software_verification']['state'], 'unknown')
         (self.output / 'qemu-smoke.log').write_bytes(b'QEMU passed\n')
-        (self.output / 'reproducibility.txt').write_text('run_1_sha256=' + image_digest + '\nrun_2_sha256=' + image_digest + '\n')
+        toolchain = {'toolchain_key': build.toolchain_key(build.IMAGE), 'toolchain_sha256': 'e' * 64}
+        (self.output / 'reproducibility.txt').write_text(
+            'run_1_sha256=' + image_digest + '\nrun_2_sha256=' + image_digest + '\n'
+            + ''.join(f'{name}={value}\n' for name, value in toolchain.items()))
         verification = {'image_sha256': image_digest, 'structural': 'pass', 'qemu_packaging': 'pass',
-                        'two_pass_reproducibility': 'pass', 'qemu_log_sha256': hashlib.sha256(b'QEMU passed\n').hexdigest()}
+                        'two_pass_reproducibility': 'pass', 'qemu_log_sha256': hashlib.sha256(b'QEMU passed\n').hexdigest(),
+                        **toolchain}
         (self.output / 'verification.json').write_text(json.dumps(verification))
         observed = status.artifact_receipt(self.output, 'image', self.head)
         self.assertEqual(observed['software_verification']['state'], 'verified-recorded-software-evidence')
+        # Evidence from before the toolchain cache (no toolchain fields) is not verified.
+        (self.output / 'verification.json').write_text(json.dumps(
+            {name: value for name, value in verification.items() if name not in toolchain}))
+        observed = status.artifact_receipt(self.output, 'image', self.head)
+        self.assertEqual(observed['software_verification']['state'], 'invalid-or-unavailable')
+        (self.output / 'verification.json').write_text(json.dumps(verification))
         (self.output / 'qemu-smoke.log').write_bytes(b'changed log')
         observed = status.artifact_receipt(self.output, 'image', self.head)
         self.assertEqual(observed['state'], 'bytes-verified')
@@ -253,7 +263,8 @@ class StatusTest(unittest.TestCase):
                    (*JOB_LANES, 'simulation-tools', 'fpga-simulation')}
         results['plan'] = {'result': 'success', 'outputs': {
             'lanes': json.dumps({lane: False for lane in LANES}),
-            'cores': '[]', 'simulations': '{"include": []}'}}
+            'cores': '[]', 'simulations': '{"include": []}',
+            'test_modes': json.dumps({'video': False, 'media': False, 'full_race': False})}}
         environment = dict(os.environ, RESULTS=json.dumps(results),
                            PYTHONPATH=str(Path(__file__).resolve().parents[1]),
                            TESTED_REVISION=self.head, INTEGRATION_BASE=self.head,

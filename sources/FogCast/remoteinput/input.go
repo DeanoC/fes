@@ -13,6 +13,7 @@ type Device uint8
 const (
 	DeviceKeyboard Device = iota
 	DeviceGamepad
+	DeviceMouse
 )
 
 type Kind uint8
@@ -22,6 +23,7 @@ const (
 	KindButton
 	KindAxis
 	KindSystem
+	KindRelative
 )
 
 type Action uint8
@@ -30,6 +32,7 @@ const (
 	ActionRelease Action = iota
 	ActionPress
 	ActionAbsolute
+	ActionRelative
 )
 
 type Code uint16
@@ -73,17 +76,41 @@ type Event struct {
 	Code   Code
 	Value  int32
 }
+
+// MouseEvent carries one transient vector and a complete left/right snapshot.
+func MouseEvent(dx, dy int16, buttons uint8) Event {
+	return Event{Device: DeviceMouse, Kind: KindRelative, Action: ActionRelative,
+		Code: Code(buttons), Value: int32(uint32(uint16(dx)) | uint32(uint16(dy))<<16)}
+}
+
+func MouseVector(e Event) (dx, dy int16, buttons uint8, ok bool) {
+	ok = e.Player == 0 && e.Device == DeviceMouse && e.Kind == KindRelative && e.Action == ActionRelative && e.Code <= 3
+	return int16(e.Value), int16(uint32(e.Value) >> 16), uint8(e.Code), ok
+}
+
 type Snapshot struct {
-	Pressed []Code
-	Axes    map[Code]int16
+	Mouse        bool
+	MouseButtons uint8
+	Pressed      []Code
+	Axes         map[Code]int16
 }
 type State struct {
-	second  *State
-	pressed map[Code]bool
-	axes    map[Code]int16
+	mouse        bool
+	mouseButtons uint8
+	second       *State
+	pressed      map[Code]bool
+	axes         map[Code]int16
 }
 
 func (s *State) Apply(e Event) error {
+	if e.Device == DeviceMouse {
+		_, _, buttons, ok := MouseVector(e)
+		if !ok {
+			return fmt.Errorf("invalid relative mouse event")
+		}
+		s.mouse, s.mouseButtons = true, buttons
+		return nil
+	}
 	if e.Player > 1 || (e.Player != 0 && e.Device != DeviceGamepad) {
 		return fmt.Errorf("unsupported controller port")
 	}
@@ -124,6 +151,7 @@ func (s *State) Apply(e Event) error {
 }
 func (s *State) Pressed(c Code) bool { return s.pressed[c] }
 func (s *State) ReleaseAll() {
+	s.mouse, s.mouseButtons = false, 0
 	s.pressed = make(map[Code]bool)
 	s.axes = make(map[Code]int16)
 	s.second = nil
@@ -147,7 +175,7 @@ func (s *State) Snapshot() Snapshot {
 	for c, v := range s.axes {
 		a[c] = v
 	}
-	return Snapshot{Pressed: p, Axes: a}
+	return Snapshot{Pressed: p, Axes: a, Mouse: s.mouse, MouseButtons: s.mouseButtons}
 }
 func clampAxis(v int32) int16 {
 	if v > math.MaxInt16 {

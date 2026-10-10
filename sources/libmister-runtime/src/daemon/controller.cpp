@@ -82,21 +82,21 @@ std::string Controller::Handle(const std::string& line)
 	case Operation::load_rom_core:
 		result = request.rom_links.sources.empty() ?
 			runtime_.LoadROMCore(request.package_path, request.package_id,
-				request.programmed_path, request.rom_link) :
+				request.programmed_path, request.rom_link, request.has_initial_media ? &request.initial_media : nullptr) :
 			runtime_.LoadROMsCore(request.package_path, request.package_id,
 				request.programmed_path, request.rom_links);
 		break;
 	case Operation::load_rom_library_core:
 		result = request.rom_links.sources.empty() ?
 			runtime_.LoadROMLibraryCore(request.package_path, request.package_id,
-				request.data_root, request.programmed_path, request.rom_link) :
+				request.data_root, request.programmed_path, request.rom_link, request.has_initial_media ? &request.initial_media : nullptr) :
 			runtime_.LoadROMsLibraryCore(request.package_path, request.package_id,
 				request.data_root, request.programmed_path, request.rom_links);
 		break;
 	case Operation::load_rom_composed_core:
 		result = request.rom_links.sources.empty() ?
 			runtime_.LoadROMComposedCore(request.package_path, request.package_id,
-				request.composition_request, request.programmed_path, request.rom_link) :
+				request.composition_request, request.programmed_path, request.rom_link, request.has_initial_media ? &request.initial_media : nullptr) :
 			runtime_.LoadROMsComposedCore(request.package_path, request.package_id,
 				request.composition_request, request.programmed_path, request.rom_links);
 		break;
@@ -141,6 +141,10 @@ std::string Controller::Handle(const std::string& line)
 		result = runtime_.LoadComputerMediaStream(request.media_path,
 			request.expected_package_id, request.expected_generation, request.media_size);
 		break;
+	case Operation::send_mouse_relative:
+		result = runtime_.SendMouseRelative(request.package_id, request.expected_generation,
+			request.mouse_dx, request.mouse_dy, request.mouse_buttons);
+		break;
 	case Operation::set_keyboard_hid:
 		result = runtime_.SetKeyboardHid(request.package_id, request.expected_generation,
 			request.keyboard_rows);
@@ -149,6 +153,14 @@ std::string Controller::Handle(const std::string& line)
 		result = runtime_.InsertMedia(request.media_path, request.expected_package_id,
 			request.expected_generation, request.media_unit, request.media_size);
 		break;
+	case Operation::insert_library_media:
+        result = runtime_.InsertLibraryMedia(request.media_path, request.expected_package_id,
+            request.expected_generation, request.media_unit, request.media_size,
+            request.data_root, request.media_binding);
+        break;
+    case Operation::save_media:
+        result=runtime_.SaveMedia(request.expected_package_id,request.expected_generation,request.media_unit);
+        break;
 	case Operation::eject_media:
 		result = runtime_.EjectMedia(request.expected_package_id,
 			request.expected_generation, request.media_unit);

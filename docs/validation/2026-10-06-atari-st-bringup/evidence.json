@@ -1,0 +1,534 @@
+{
+  "schema": 1,
+  "classification": "exact-package hardware diagnostics on a disposable software overlay; no appliance acceptance",
+  "native_source": "f4551a4d58dc1deadb8a979c77609b37bdd720cf",
+  "shell": {
+    "package_id": "4e4f4f1a9767c13328722a849d1a4f07e280d16805dbf7414fabd18014f16ba2",
+    "build_id": "eb6d41e5c73c58c65a89000fb280aedc",
+    "rbf_sha256": "00ed458a4b3ae040d7c2e33a78cc24aa62355943bff0fb5c002457f233ac52a2",
+    "rom_map_sha256": "bfad3826ecfb276597e8dd772c3031e5f033fa0e439b5bf12281d8ee4db88c69",
+    "seed": 4,
+    "timing_mhz": {
+      "pixel": 74.44907379,
+      "system": 53.55325699,
+      "audio": 276.6251831
+    },
+    "independent_audit": {
+      "sha256": "c6077c2bef8b3dee9193a6646d621f816cf45cccdb407bde1d931e21769f01a7",
+      "bytes": 5617
+    }
+  },
+  "physical_memory": {
+    "verdict": "PASS",
+    "runtime_and_agent_source": "f4551a4d58dc1deadb8a979c77609b37bdd720cf",
+    "diagnostic_rom_sha256": "89803338298d66159bcfead34bd54046a51a7893b9805cff7fddc6be67454e99",
+    "byte_observation_rom_sha256": "7b4fd4cf2fbb3394469007de94cf4ebac2c58a7466cfd68d0c8cafcce81d39cb",
+    "readbacks": [
+      [
+        "5AA5",
+        "5AA5"
+      ],
+      [
+        "C3A5",
+        "5A3C"
+      ],
+      [
+        "C3A5",
+        "5A3C"
+      ],
+      [
+        "C3A5",
+        "5A3C"
+      ]
+    ],
+    "settled_frames_per_capture": 179,
+    "binary_pixels_compared": 329932800,
+    "independent_review": {
+      "sha256": "ad15fa7a2e1fc115bd10f1ea6ef8c7371f16407152cdb2cf532f80a9a7c4f7e1",
+      "bytes": 17045
+    },
+    "reviewer": {
+      "sha256": "b65ac6f549d229d3864571d55e0954ca81ecb5d9aca6750240035044cfb4ba55",
+      "bytes": 13900
+    },
+    "movies": {
+      "memory.mkv": {
+        "sha256": "a6f19f92b367fa79f58ece0ddd382a89fa7e18d465f117c5ed0ce662b79a0fdc",
+        "bytes": 1162709
+      },
+      "byte-observation.mkv": {
+        "sha256": "8d08054124b16cab0b79f70449fb4d859d8e951f37d223e4df774220d3c3411c",
+        "bytes": 4738936
+      }
+    }
+  },
+  "independent_parts": {
+    "direct": {
+      "part_id": "0bb603f85b672edc90b7a42ccd0759eb82ffed77c6e56e0895cde25ce88f25d0",
+      "archive_sha256": "3caaf4f5b0ad14fc68be5d5852285627ab99b04b5d93476bc62a39f53e79cb75",
+      "changed_cram_bits": 2137,
+      "outside_cram_changes": 0,
+      "audit": {
+        "sha256": "d3a1e7425731ae0dc84f60fc6d4b2914715e879084573123b22d282fc17fe636",
+        "bytes": 4070
+      }
+    },
+    "scanlines": {
+      "part_id": "2a1e82d6e1f15b76d7844212f01cb777b53cae83b7188fa0929924f300d19933",
+      "archive_sha256": "9523dfcefc0a100406b54b723f89c3a0d946e155dfea92c84f0dc44975a04bcf",
+      "changed_cram_bits": 3649,
+      "outside_cram_changes": 0,
+      "audit": {
+        "sha256": "835dbffea9f7b613d93258ecaed36376ca7f9d4a952dff7609cd01da3abc2a1a",
+        "bytes": 4073
+      }
+    }
+  },
+  "two_boot_guest_model": {
+    "source": "f4551a4d58dc1deadb8a979c77609b37bdd720cf",
+    "classification": "two independent cold CPU/SDRAM digital runs; excludes upload, native/electrical and durable publication",
+    "proof": {
+      "sha256": "88a2862103e9737d6314de27837e6a20d003e0f1eee8ba3f6f30f20867d99fa1",
+      "bytes": 18917
+    },
+    "independent_verification": {
+      "sha256": "1b5e99c77bd18be735d8eb5f429beb67a47952dc24b5394e875e4fe7682fef64",
+      "bytes": 4878
+    },
+    "seed_disk_sha256": "a9d2a28156ffbef7989f42d99272b844eb1af519754e4486e72bd550fc99b53c",
+    "restored_disk_sha256": "c5a68818e6ac53d11e1c2f3596e61b0ad55eb7b11924fa79c3cb65d9e9a1744b"
+  },
+  "linux_memory_fault": {
+    "kernel_oom_confirmed": true,
+    "agent_anon_rss_kib": 182928,
+    "launcher_rss_kib": 103244,
+    "runtime_rss_kib": 648,
+    "shmem_kib": 193080,
+    "log_archived_prefix_bytes": 194374456,
+    "kernel_receipt": {
+      "sha256": "cbec82b4182a46f206e830b4e1d860dc8919a75ff5234bccc68b901d7de9da8e",
+      "bytes": 14400
+    },
+    "logging_regression": {
+      "sha256": "ca45d86d50582aeb2476f91f93181f5ce1606bdc37c47d6d848bcc6ad3e5a7e2",
+      "bytes": 861
+    }
+  },
+  "captures": {
+    "memory.png": {
+      "sha256": "ee8f60f49fdea4266424a4a96812338fbf4a0f1b0c3013cb83a6e2606a18e310",
+      "bytes": 5389
+    },
+    "byte-observation.png": {
+      "sha256": "959aa2b011486934a7b857e3c9bf7968446e62a6cf0b74a6bb03c6f71c53f802",
+      "bytes": 11442
+    },
+    "after-oom-agent-restart-menu.png": {
+      "sha256": "2c3359050e1ee17ff4450c94ac77eeee26b26e392f7dbf7fa1877e6d5e2c45d8",
+      "bytes": 184405
+    },
+    "video-direct.png": {
+      "sha256": "959aa2b011486934a7b857e3c9bf7968446e62a6cf0b74a6bb03c6f71c53f802",
+      "bytes": 11442
+    },
+    "video-scanlines.png": {
+      "sha256": "143f1537079fe0c97dba3e80524360d713b4b504c3d140b5ff4756733592cf42",
+      "bytes": 12050
+    },
+    "disk-seed-corrected-restseed.png": {
+      "sha256": "928d9da044c81615141eb9ead9966a2ec8fc78f70d41ebe48048174d8dd5f44a"
+    },
+    "disk-restore-root-listing.png": {
+      "sha256": "5b8a0206aff0dfd7ab068824c7c82779c60c8bf9ec4ba9bf3d29dfe459313e83"
+    },
+    "disk-restore-marker-listing.png": {
+      "sha256": "03c6532f43b3e563dec449e30f5f7b01262c23d629b85b0f1c8d0fccbde078dc"
+    },
+    "lifecycle-seed-root-after.png": {
+      "sha256": "d8660a1b1c6b5b4ebd4b612e95636fece8397a475097b463d73a6a99a6374e8f"
+    },
+    "lifecycle-seed-marker-listing.png": {
+      "sha256": "928d9da044c81615141eb9ead9966a2ec8fc78f70d41ebe48048174d8dd5f44a"
+    },
+    "lifecycle-restore-root-before.png": {
+      "sha256": "5b8a0206aff0dfd7ab068824c7c82779c60c8bf9ec4ba9bf3d29dfe459313e83"
+    },
+    "lifecycle-restore-marker-listing.png": {
+      "sha256": "03c6532f43b3e563dec449e30f5f7b01262c23d629b85b0f1c8d0fccbde078dc"
+    },
+    "final-populated-menu.png": {
+      "sha256": "2f11574f108e8a5577782ce09377f900012163c2dc1e02ecc622f54befa075b7"
+    }
+  },
+  "agent_memory_fix": {
+    "source_commit": "f45865c00193865df91c08573ea83fa78ad33630",
+    "agent_sha256": "6e7ba337ace08bea50eb418ff7f54f29d54a84ae68db974cc670a9ca99ffa640",
+    "build_receipt": {
+      "sha256": "a5557a6568da77a14185773291fe1b0a432f84916ba34e5cbb7114f5be9e3df9",
+      "bytes": 882
+    },
+    "comparison": {
+      "sha256": "7e8c96cc8341fc6bd9639bf90e7d8ec38237c980bab6611a31a0b3987d070c73",
+      "bytes": 80543
+    },
+    "source_binding": {
+      "sha256": "cc5193c3fff4db9f1c679400e9f94eaa2d16fc83bcbcb90f4f165b2722e7fefb",
+      "bytes": 1398
+    },
+    "race_result": {
+      "sha256": "4d5593391fef70cf0d80abf9d094a67ff4cf05495166ae6e5be54d66e77a9591",
+      "bytes": 3842
+    },
+    "log_archived": {
+      "sha256": "2e86fdc4354079a68dd4b3ef38f36195c1cffdd27a9830e5f3cb680db36fe115",
+      "bytes": 466
+    },
+    "agent_image": {
+      "sha256": "7a6a8a9a2eff172ee618faa7d42a6c39fa00d7ea28fac1b20c6fff5cfd0a5d33",
+      "bytes": 874
+    }
+  },
+  "physical_video": {
+    "verdict": "PASS",
+    "runtime_source": "f4551a4d58dc1deadb8a979c77609b37bdd720cf",
+    "agent_source": "f45865c00193865df91c08573ea83fa78ad33630",
+    "profiles": {
+      "direct": {
+        "generation": 3,
+        "part_id": "0bb603f85b672edc90b7a42ccd0759eb82ffed77c6e56e0895cde25ce88f25d0",
+        "composition_id": "fc2785e2c4294eb6396d93fc01c79b053b6e12fc423558f2a1990ba0b621b122",
+        "programmed_rbf_sha256": "8cf9c3d2ed5b2d6e77892f08e858fdac9a72504bdd8fe76d2db5d936ced4e969",
+        "settled_mask_matching_frames": 179,
+        "white_levels_by_physical_row_parity": {
+          "0": {
+            "median_red": 253.0,
+            "min_red": 251,
+            "max_red": 255,
+            "pixels": 39424
+          },
+          "1": {
+            "median_red": 253.0,
+            "min_red": 251,
+            "max_red": 255,
+            "pixels": 36224
+          }
+        }
+      },
+      "scanlines": {
+        "generation": 4,
+        "part_id": "2a1e82d6e1f15b76d7844212f01cb777b53cae83b7188fa0929924f300d19933",
+        "composition_id": "41ae6ffeddac6a26edfb8e8c5236e24dc43b144623f2d628e54061adbc8b61bc",
+        "programmed_rbf_sha256": "4d1670e4d997c5bef5012afeadf1cc765e54459c721d155033aa285d3cde0b95",
+        "settled_mask_matching_frames": 179,
+        "white_levels_by_physical_row_parity": {
+          "0": {
+            "median_red": 253.0,
+            "min_red": 251,
+            "max_red": 255,
+            "pixels": 39424
+          },
+          "1": {
+            "median_red": 125.0,
+            "min_red": 125,
+            "max_red": 158,
+            "pixels": 36224
+          }
+        }
+      }
+    },
+    "review": {
+      "sha256": "713e7fd134ede289f6c2b00e7303b882226bd274298d8c60b004d9706fca847f",
+      "bytes": 3814
+    },
+    "reviewer": {
+      "sha256": "b61d33a5bf0b5f9897e152fe64211858bef518597d4c6e669774a505d7e2ebfd",
+      "bytes": 5208
+    }
+  },
+  "physical_mouse": {
+    "result": "PASS",
+    "source_revision": "f4551a4d58dc1deadb8a979c77609b37bdd720cf",
+    "agent_revision": "f45865c00193865df91c08573ea83fa78ad33630",
+    "generation": 5,
+    "cursor_black_bounding_boxes": {
+      "mouse-baseline": [
+        640,
+        360,
+        671,
+        401
+      ],
+      "mouse-x24": [
+        736,
+        360,
+        767,
+        401
+      ],
+      "mouse-y24": [
+        736,
+        432,
+        767,
+        473
+      ],
+      "mouse-return": [
+        640,
+        360,
+        671,
+        401
+      ]
+    },
+    "native_relative_movements": [
+      [
+        24,
+        0
+      ],
+      [
+        0,
+        24
+      ],
+      [
+        -24,
+        -24
+      ]
+    ],
+    "output_displacements": [
+      [
+        96,
+        0
+      ],
+      [
+        0,
+        72
+      ],
+      [
+        -96,
+        -72
+      ]
+    ],
+    "returned_desktop_threshold_pixels_equal": true,
+    "single_left_click_disk_a_label_inverted": true,
+    "stop_idle_input_detached": true,
+    "menu_restored_lease_free": true,
+    "private_review_sha256": "bc52e1f541c8b8e4b59612a4e03e3fddcb51307a2d17dc5a25c1385a320facf7",
+    "captures": {
+      "mouse-baseline.png": "e674fcb4944d506b5e57d4a85cedfb3263c4173f0e4620cef3d55942633db878",
+      "mouse-x24.png": "3248c8df46cf79e12b54b200d4f7ca181ab049032ae1a0f7fa90fa5a887c8f63",
+      "mouse-y24.png": "89b9326804e3fea10ad56a206a49a5013d4e355b724c66e2c6d51288c88957f6",
+      "mouse-return.png": "e674fcb4944d506b5e57d4a85cedfb3263c4173f0e4620cef3d55942633db878",
+      "mouse-disk-a-hover.png": "5401397f964e0afb34ae7585a347815d9c32341eb4ad5791d24f33d0684be7d4",
+      "mouse-left-selection.png": "50e5f2c731efb960aa65d27c70d8331c3767be55cf26c99ba69493b1fae0e919"
+    }
+  },
+  "physical_disk_initial_failure": {
+    "result": "guest seed markers PASS; durable capture failed",
+    "generation": 6,
+    "base_sha256": "ecf5c24d56236cb2d688ab09a618c0fb1703f0a63ea09dd7317dc2fff2fa65aa",
+    "firmware_sha256": "8fbbf8b44fc3e34281eaf8cda5265510e9af9ccda0e3e409111648060d244cfc",
+    "operator_sha256": "af7c816563b89603abf35ca7c2a13f4bbf576b5b7e32dbeffade3d0927cfadfd",
+    "before_failed_save_revision": "absent",
+    "save_error": "unstable FES GP response",
+    "normal_stop_error": "unstable FES GP response",
+    "host_cli_error_mapping": "INTERNAL; existing SAVE_FAILED code missing from CLI whitelist",
+    "no_uncertain_record_published": true,
+    "owned_maintenance_discarded_only_unsaved_diagnostic_fixture": true,
+    "init_managed_SIGTERM_no_reboot": true,
+    "normal_menu_restored": true,
+    "lease_free": true,
+    "private_receipt_sha256": "86ade6bdd648a6b3192992ba08b3311fd57135b9db8f0d185175f202b76d6f6f",
+    "captures": {
+      "disk-seed-fast-open.png": "5b8a0206aff0dfd7ab068824c7c82779c60c8bf9ec4ba9bf3d29dfe459313e83",
+      "disk-seed-marker-listing.png": "928d9da044c81615141eb9ead9966a2ec8fc78f70d41ebe48048174d8dd5f44a"
+    }
+  },
+  "runtime_response_settling": {
+    "source_commit": "650598f3feae8c7fd146acb6f8fbfe93deaa858a",
+    "runtime_sha256": "fc4f8635f008a93b265c82b3bde6495c01938ef8292a390d1d518a543d1b1af8",
+    "settle_guard_us": 1,
+    "identical_validated_samples_required": 2,
+    "resends_command": false,
+    "classification": "bounded acknowledged response sampling; original physical cause unproven",
+    "build_receipt": {
+      "sha256": "78c2a2410079f1d2188aae7563bed61bf8f8bd1493be1aee9a5c1754b85656ac"
+    }
+  },
+  "explicit_save_recovery": {
+    "source_commit": "7a32b4d1c7017da902a33b4a324e00dcff101ba2",
+    "agent_sha256": "97ae02acae371fbaf550657d06a812e84728eda7c07e2646e87164fc371997ac",
+    "host_sha256": "28db1546483bcb4c33f00d6be6758e2cf08eef30cad6fbd2a610a7debd09bc95",
+    "cli_sha256": "d859c5c0d460d6a23c7c321f539e06538459703a2a121f8682973cfb4a1df312",
+    "race_top_level_tests": 298,
+    "passing_events": 749,
+    "failures": 0,
+    "skips": 0,
+    "test_receipt": {
+      "sha256": "e0ccbe46c817e72b3aaff9ed6f75d10c82544e87831a89a2ce25ea86bf714823"
+    },
+    "build_receipt": {
+      "sha256": "a3f1d2482ef3ce8db6944a740964d7ba6f9fd003fe654d69d55a7fc7da31c19d"
+    },
+    "one_physical_call_per_explicit_save": true,
+    "generic_admission_unchanged": true
+  },
+  "physical_disk_seed": {
+    "result": "PASS via independently completed verification; original operator receipt preserved as failed",
+    "native_source": "f4551a4d58dc1deadb8a979c77609b37bdd720cf",
+    "runtime_source": "650598f3feae8c7fd146acb6f8fbfe93deaa858a",
+    "agent_host_source": "7a32b4d1c7017da902a33b4a324e00dcff101ba2",
+    "generation": 1,
+    "record_sha256": "97fbece00d8778057ff38214e1d87a4f88d63838b5df047fb41332c980335de1",
+    "payload_sha256": "457c7317fb21a0319f2e47cb26bdf134c3554cb5211da00f2c632eea85bd9c60",
+    "all_bytes_compared": 737280,
+    "non_timestamp_bytes_compared": 737272,
+    "unexpected_differing_bytes": 0,
+    "same_revision_after_successful_stop": true,
+    "immutable_base_unchanged": true,
+    "marker_stage": "seeded",
+    "original_private_verifier_error": "health.ready is idle admission readiness, not active-core readiness",
+    "completion_receipt": {
+      "sha256": "24514ef47cbc2b052984d47c274e3e4d31aed9af576e39750ff58c3fd694d559"
+    },
+    "whole_payload_comparator": {
+      "sha256": "80bd2ec01b0c06ba71d3edb9c37720f6ecf5d11e42a7266e27da67f6f7e41c11"
+    },
+    "comparison_receipt": {
+      "sha256": "16a9f198ace46ca70199c4a3f31816a448ebc4d191829fd9d16f4542acdc067b"
+    },
+    "manual_guest_launch_once": true
+  },
+  "physical_restore_initial_launch_failure": {
+    "error": "MISTER_UNAVAILABLE/recovery",
+    "normal_stop_error": "MISTER_UNAVAILABLE",
+    "linux_available_memory_kib": 200460,
+    "init_managed_SIGTERM_no_reboot": true,
+    "normal_menu_restored": true,
+    "lease_free": true,
+    "first_boot_record_preserved": true,
+    "receipt": {
+      "sha256": "1315a899f1129777dc2f722f046857e43ea3d771c6a6c6f94f513a592e23a205"
+    },
+    "subsequent_cold_launch_after_service_recovery": true
+  },
+  "physical_disk_restore": {
+    "result": "PASS on explicit cold launch after owned service recovery",
+    "generation": 1,
+    "runtime_source": "650598f3feae8c7fd146acb6f8fbfe93deaa858a",
+    "agent_host_source": "7a32b4d1c7017da902a33b4a324e00dcff101ba2",
+    "launch_revision": "97fbece00d8778057ff38214e1d87a4f88d63838b5df047fb41332c980335de1",
+    "record_sha256": "03786d4ca2e7912891dfcbf66cc6380f2c6613f274c5a3f8b88c3cbb463ca5e5",
+    "payload_sha256": "f4486d332cc99aa50a7e80ddedec3d6754459dd0a4f6e60a0329c6301f5910f7",
+    "all_bytes_compared": 737280,
+    "non_timestamp_bytes_compared": 737268,
+    "unexpected_differing_bytes": 0,
+    "manual_guest_launch_once": true,
+    "seed_marker_85_bytes_and_pass_96_bytes_verified_before_first_write": true,
+    "restored_marker_100_bytes": true,
+    "same_record_after_successful_stop": true,
+    "immutable_base_unchanged": true,
+    "same_container_and_HOME": true,
+    "cold_host_started_at_changed": true,
+    "private_receipt_sha256": "124930461d0c56926f1e5c6d3ceef5d87e6a53ddb2c6474b4b87dbdbaccbc25b",
+    "private_whole_payload_comparison_sha256": "21dcc09da41e9e84b5e1c22141d99ad83ea6ffb6205c85818ff7352a18801644",
+    "normal_menu_restored": true,
+    "lease_free": true
+  },
+  "remaining_limits": [
+    "Exact-package diagnostic overlays; no assembled appliance acceptance",
+    "Guest manually launched once per accepted boot; media upload finishes after AUTO scan",
+    "No physical CPU expansion probe acceptance"
+  ],
+  "disk_binding_lifecycle_fix": {
+    "source_commit": "e2d503eb5ae5a4d447dda6800aeb8a48e28f5bae",
+    "runtime_sha256": "5bc4ae169fbec39764728b2e48b4b05d941ef6696ca4360001f9f390da23962f",
+    "retirement": "after confirmed successful FPGA programming; durable record retained",
+    "failed_save_retention": true,
+    "wire_or_package_change": false,
+    "baseline_regression_exit": 134,
+    "fixed_full_component_exit": 0,
+    "tracked_source_files_verified": 297,
+    "source_manifest_sha256": "11bc69c33ae8f7cb7120f4608eeec92b51672c3cd42a4f2d30e3b6c474a202bd",
+    "private_test_receipt_sha256": "193a5d9708379b076a553f7ebec16f03fd10adb43c74c600251a7b5bc722450b",
+    "private_build_receipt_sha256": "7dcb410d6119cb47d357e1d4275f4705356b7832293b5380db9fb85873f34b07",
+    "independent_review": "approved; no blocking findings"
+  },
+  "same_daemon_disk_lifecycle": {
+    "result": "PASS",
+    "runtime_source": "e2d503eb5ae5a4d447dda6800aeb8a48e28f5bae",
+    "agent_host_source": "7a32b4d1c7017da902a33b4a324e00dcff101ba2",
+    "native_source": "f4551a4d58dc1deadb8a979c77609b37bdd720cf",
+    "phases": {
+      "seed": {
+        "generation": 1,
+        "record_sha256": "a095ffe31011d8ceaf8bbdf06473f7c227c0c216040f8d10c6abc636620e0ba6",
+        "payload_sha256": "d71689314d152c7dce954e6254f4ded5492ffc6d82f4d5003fe40a7e4dc63ef4",
+        "all_bytes_compared": 737280,
+        "non_timestamp_bytes_compared": 737272,
+        "valid_timestamp_differing_bytes": 2,
+        "unexpected_differing_bytes": 0,
+        "same_record_after_successful_stop": true,
+        "immutable_base_unchanged": true,
+        "private_receipt_sha256": "e001c29ac21e23586ce4a84417629080cc05e9ea20facd41155727edc02ee25f",
+        "private_comparison_sha256": "c8bdb51b5e1f6bb368f2d558336542b51988a582185109e801ed712da1cacfbf",
+        "normal_menu_restored": true,
+        "lease_free": true,
+        "manual_guest_launch_once": true
+      },
+      "restore": {
+        "generation": 2,
+        "record_sha256": "ffe3c3849cb24691394518f56fdda5b85c9cdb56bb07ebda49552b2a80293972",
+        "payload_sha256": "fd7e602961de51898534faf066efb77a89bc6363f8e79c045a999d2ded5540ff",
+        "all_bytes_compared": 737280,
+        "non_timestamp_bytes_compared": 737268,
+        "valid_timestamp_differing_bytes": 3,
+        "unexpected_differing_bytes": 0,
+        "same_record_after_successful_stop": true,
+        "immutable_base_unchanged": true,
+        "private_receipt_sha256": "2de148729a976e6caa193848340be1521bd9c8bd0f0eab2037339eba3519be53",
+        "private_comparison_sha256": "0f373820c9b3cb07d2fb9eb10110773b55b1d9039a0f0140bd9e04faf0c49d03",
+        "normal_menu_restored": true,
+        "lease_free": true,
+        "manual_guest_launch_once": true,
+        "launch_revision": "a095ffe31011d8ceaf8bbdf06473f7c227c0c216040f8d10c6abc636620e0ba6"
+      }
+    },
+    "same_runtime_and_agent_PID_start_tick_through_both_boots": true,
+    "daemon_identity_receipt_sha256": "404a652f4524678eb428a1b81741ec54d1fffb69574651e5038c7f84b5793a87",
+    "cold_host_same_container_HOME": true,
+    "cold_host_started_at_changed": true,
+    "boot_id_unchanged": true,
+    "no_runtime_agent_service_restart_between_boots": true,
+    "final_state_receipt_sha256": "03692ad7a16b7e09d6d79360d1caafe2aeee7b6fbfee75dfa0a62409107cacfc"
+  },
+  "final_cleanup": {
+    "original_factory_source": "5a58053229b5e1772defe5f9bdc34c72f659db71",
+    "factory_image_sha256": "5032c2d2282da26e79e6f7efc47f9f2a1aa9abca4aad4ca6f19817e82d18ce4a",
+    "original_factory_files": {
+      "/usr/sbin/mister-runtime": {
+        "sha256": "69e5c6476620db8cba638d2b93675d99d34981eaa30e9027482c7ef061f7f5cc",
+        "size": 1063092
+      },
+      "/usr/sbin/mister-agent": {
+        "sha256": "dd91591c8eb6a9728bb1036cbeaba4025e52de5c747402c2c980bdb046986754",
+        "size": 9437346
+      },
+      "/usr/share/mister-runtime/build-inputs": {
+        "sha256": "2081b2fe38571b3f8120e295f4981973f7bee1d99ca033a3705547131c612796",
+        "size": 2784
+      }
+    },
+    "boot_selection_unchanged": true,
+    "single_runtime_and_agent": true,
+    "owned_overlays_removed": true,
+    "only_factory_bootstrap_image_loops_remain": true,
+    "private_owned_stopped_container_and_config_removed": true,
+    "normal_config_unchanged": true,
+    "normal_host_active": "active",
+    "normal_host_enabled": "enabled",
+    "normal_catalog_titles": 4253,
+    "HDMI_actual_capture_inspected": true,
+    "target_idle": true,
+    "lease_free": true,
+    "private_final_state_sha256": "628c47bd180c049ad5278fb2167d94602cee448779e9080575712bc282212f10",
+    "private_overlay_cleanup_sha256": "fa54a9545dee64e0da5d88f77b3d6e09a826ecc7ecfde640eb725ce1bcb703db",
+    "private_container_config_cleanup_sha256": "65d469adae2fae37fbe38fdf64e14dfa24cd50b0a1bffe2b7c159c782030688a",
+    "private_evidence_and_diagnostic_record_retained": true
+  }
+}

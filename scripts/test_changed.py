@@ -12,9 +12,6 @@ import sys
 import affected
 
 
-# Same explicit per-package limit as the host CI job (#482).
-GO_RACE_TEST = ["go", "test", "-race", "-timeout", "30m", "./..."]
-
 def git(root, *args):
     return subprocess.check_output(["git", "-C", str(root), *args],
                                    env=dict(os.environ, GIT_OPTIONAL_LOCKS="0", GIT_NO_LAZY_FETCH="1"))
@@ -24,7 +21,7 @@ def revision(root, ref):
     return git(root, "rev-parse", "--verify", "--end-of-options", ref + "^{commit}").decode().strip()
 
 
-def plan(root, base, head="HEAD", jobs=2):
+def plan(root, base, head="HEAD", jobs=2, full=False):
     root = Path(root).resolve()
     if git(root, "rev-parse", "--show-toplevel").decode().strip() != str(root):
         raise ValueError("root must be the FES Git checkout root")
@@ -42,6 +39,10 @@ def plan(root, base, head="HEAD", jobs=2):
         local = sorted({path.decode("utf-8", "surrogateescape") for path in raw.split(b"\0") if path})
         paths += local
     impact = affected.plan(paths)
+    if full:
+        # Opt-in exhaustive modes for the lanes this change already selected.
+        impact["test_modes"]["video"] = impact["test_modes"]["media"] = impact["lanes"]["parent"]
+        impact["test_modes"]["full_race"] = impact["lanes"]["host"]
     commands = []
     def add(lane, label, cwd, argv, tools=(), files=()):
         commands.append({"lane": lane, "label": label, "cwd": cwd, "argv": argv,
@@ -54,17 +55,23 @@ def plan(root, base, head="HEAD", jobs=2):
     if selected == current:
         add("always", "working whitespace", ".", ["git", "diff", "--check", "HEAD", "--"])
     if impact["lanes"]["parent"]:
-        add("parent", "parent Python regressions", ".", [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-v"], files=["tests"])
+        modes = impact["test_modes"]
+        add("parent", "parent Python regressions", ".",
+            [sys.executable, "scripts/parent_tests.py",
+             "--video", str(modes["video"]).lower(), "--media", str(modes["media"]).lower()],
+            tools=["sh"] + (["docker"] if modes["media"] else []),
+            files=["scripts/parent_tests.py", "tests"])
         add("parent", "working-tree generated consumer consistency", ".",
             [sys.executable, "-c", "import sys; from pathlib import Path; sys.path.insert(0, 'scripts'); from consistency import check; print(check(Path('.')))"],
             tools=["go"], files=["scripts/consistency.py"])
     if impact["lanes"]["host"]:
         host = affected.MODULE_ROOTS["host"]
-        for suffix in ("", "/appliance"):
-            add("host", "Go tests " + (suffix or "host"), host + suffix,
-                GO_RACE_TEST, tools=["cc"], files=["go.mod"])
-        add("host", "shared Go expansion linker tests", affected.EXPANSION_ROOT,
-            GO_RACE_TEST, tools=["cc"], files=["go.mod"])
+        host_run = [sys.executable, "scripts/host_tests.py"]
+        if impact["test_modes"]["full_race"]:
+            host_run.append("--full")
+        add("host", "host Go tests", ".", host_run, tools=["go", "cc"],
+            files=["scripts/host_tests.py", "sources/FogCast/go.mod",
+                   "sources/FogCast/appliance/go.mod", "sources/misteross/expansion/go.mod"])
         add("host", "host UI tests", host, ["make", "test-ui"], tools=["node", "sh", "rg"], files=["Makefile"])
     if impact["lanes"]["runtime"]:
         add("runtime", "runtime software tests", affected.MODULE_ROOTS["runtime"],
@@ -161,10 +168,12 @@ def main(argv=None):
     parser.add_argument("--head", default="HEAD")
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
     parser.add_argument("--jobs", type=int, default=2)
+    parser.add_argument("--full", action="store_true",
+                        help="opt-in exhaustive video/media/full-race modes for selected lanes")
     parser.add_argument("--plan-only", action="store_true")
     args = parser.parse_args(argv)
     try:
-        result = plan(args.root, args.base, args.head, args.jobs)
+        result = plan(args.root, args.base, args.head, args.jobs, full=args.full)
         success = True if args.plan_only else execute(result)
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(json.dumps({"format": 1, "status": "error", "error": str(error)}))

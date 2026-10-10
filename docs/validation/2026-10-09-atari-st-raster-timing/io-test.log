@@ -1,0 +1,6 @@
+Implementation source: 27b85008ffa2d6887d05c24c5de66cb87b7c541b
+Expected extra DE lines from Hatari video.h: PAL 47, NTSC 26
+ST I/O: nominal 50 Hz, 200 Timer B events/frame
+ST I/O: nominal 60 Hz, 200 Timer B events/frame
+ST I/O: nominal 71 Hz, 400 Timer B events/frame
+ST I/O: 6528377 assertions, 79286606 cycles; byte lanes, reset, interrupt wiring and timer rates passed

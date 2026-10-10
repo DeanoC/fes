@@ -89,3 +89,30 @@ runtime support, not merely a metadata declaration.
 The [approved design](superpowers/specs/2026-09-09-core-persistence-design.md)
 and [implementation plan](superpowers/plans/2026-09-09-core-persistence.md)
 define this milestone's boundaries and verification.
+
+## Writable Atari ST disks
+
+Packages with `fes.media.atari-st-floppy-write` 1.0 can persist drive A's exact
+720 KiB `.st` image. Ordinary library Play explicitly binds the stable game ID,
+core ID, drive unit and immutable imported disk hash. Writable format-3 ST
+launches carry that disk with the selected ROM; the runtime restores and commits
+drive A before releasing the CPU. A developer insert stays
+volatile. Saved data lives under `/media/fat/fogcast/core-data/media/` in a
+hashed namespace, separate from per-core Pong settings and immutable sources.
+Package, firmware and video selection do not change that namespace. Opening
+the namespace removes leftover private save and probe files before the record
+is read.
+
+The runtime freezes new disk writes, drains any accepted sector and captures
+the full image before save, Stop, eject or replacement. It publishes a synced,
+checksummed record atomically, then acknowledges Saved while retaining the
+freeze through the destructive boundary. Corruption blocks restore and saves;
+a failed save retains the captured generation and recovery ownership. This is
+a save boundary, not a claim that guest filesystem transactions or physical
+power loss are atomic. The [shared layout](../sources/mister-packages/docs/media-data.md)
+defines the exact envelope and revision contract. Hardware acceptance applies
+only to a subsequently named exact package/runtime record.
+
+For a bound disk, fault cleanup must save the verified image before loading
+idle. If capture or publication fails, it retains the disk RAM, generation and
+binding in recovery so cleanup cannot silently discard unsaved changes.

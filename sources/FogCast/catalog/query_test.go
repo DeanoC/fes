@@ -125,7 +125,7 @@ func TestQueryGamesPaginatesAndFilters(t *testing.T) {
 	}
 }
 
-func TestQueryGamesTenThousandFixtureStaysBounded(t *testing.T) {
+func TestQueryGamesFixtureStaysBounded(t *testing.T) {
 	ctx := context.Background()
 	store := openStore(t)
 	root := catalog.Root{ID: "snes-main", System: protocol.SystemSNES, Path: "/games/snes"}
@@ -133,7 +133,12 @@ func TestQueryGamesTenThousandFixtureStaysBounded(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const total = 10000
+	// The routine 500-row fixture still crosses both 200-row pagination
+	// boundaries; the full 10k size validates large-library behavior.
+	total := 10000
+	if testing.Short() {
+		total = 500
+	}
 	for index := 0; index < total; index++ {
 		id := fmt.Sprintf("snes-game-%05d", index)
 		title := fmt.Sprintf("Title %05d", index)
@@ -141,7 +146,7 @@ func TestQueryGamesTenThousandFixtureStaysBounded(t *testing.T) {
 			title = "Shared Hedgehog (USA)"
 		} else if index < 40 {
 			title = "Shared Hedgehog (Japan)"
-		} else if index == 4321 {
+		} else if index == total/2 {
 			title = "Unique Hedgehog"
 		}
 		c := candidate(id, title, fmt.Sprintf("game-%05d.sfc", index), catalog.SourceKindRaw, catalog.SourceStateAvailable, fingerprintA)

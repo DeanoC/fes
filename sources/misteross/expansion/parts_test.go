@@ -32,6 +32,11 @@ func fixturePart(t *testing.T, shell PartsShell, role string, points ...cramCoor
 		Slot: VideoSlot, SlotMajor: 1}
 	if role == PartRoleExpansion {
 		m.Slot, m.Map, m.SlotMajor = ColecoSlot, ColecoMapV2, 2
+		if shell.Layout == AtariStVideoLayout {
+			m.Slot, m.Map, m.SlotMajor, m.SlotIndex = AtariStSlot, AtariStMap, 1, 1
+		}
+	} else if shell.Layout == AtariStVideoLayout {
+		m.Map = AtariStVideoMap
 	} else if shell.Layout == ColecoNativeVideoLayout {
 		m.Slot, m.Map = NativeVideoSlot, ColecoNativeVideoMap
 	}
@@ -384,5 +389,51 @@ func TestPartsCompositionIdentityRejectsIncompleteSelections(t *testing.T) {
 	}
 	if _, err := PartsCompositionID(digest, "untrusted-layout", []PartSelection{video}, digest); err == nil {
 		t.Fatal("accepted caller-defined layout")
+	}
+}
+
+func TestAtariStPartsAndROMClosedFences(t *testing.T) {
+	base, mapping := romFixture()
+	shell := partsShell(t)
+	shell.Payload, shell.Layout = base, AtariStVideoLayout
+	video := fixturePart(t, shell, PartRoleVideo, cramCoordinate{1769, 3442}, cramCoordinate{2805, 5161})
+	cpu := fixturePart(t, shell, PartRoleExpansion, cramCoordinate{1769, 32}, cramCoordinate{2805, 1721})
+	rom := bytes.Repeat([]byte{0xa5}, 1024)
+	final, overlay, programmed, err := ComposePartsROM(context.Background(), shell, []Asset{video, cpu}, mapping, rom)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ordered, repeated, repeatedProgrammed, err := ComposePartsROM(context.Background(), shell, []Asset{cpu, video}, mapping, rom)
+	if err != nil || final.ID != ordered.ID || !bytes.Equal(overlay, repeated) || !bytes.Equal(programmed, repeatedProgrammed) || bytes.Equal(overlay, programmed) || final.PayloadSHA256 != hash(programmed) {
+		t.Fatal("ST ROM/parts ordering or final identity changed", err)
+	}
+	for _, p := range []cramCoordinate{{1768, 3442}, {2806, 3442}, {1769, 3441}, {1769, 5162}, {3921, 4000}} {
+		bad := fixturePart(t, shell, PartRoleVideo, p)
+		if _, _, err := ComposePartsContext(context.Background(), shell, []Asset{bad}); err == nil {
+			t.Fatal("accepted ST outside fence", p)
+		}
+	}
+	for _, p := range []cramCoordinate{{1769, 3442}, {2805, 5161}, {1769, 32}, {2805, 1721}} {
+		raw, _ := json.Marshal(mapping)
+		var bad ROMMap
+		_ = json.Unmarshal(raw, &bad)
+		bad.Blocks[0].WordBits[0][0] = uint32(p.y*cramWidth + p.x)
+		if _, _, _, err := ComposePartsROM(context.Background(), shell, []Asset{video}, bad, rom); err == nil {
+			t.Fatal("accepted ROM in ST socket without CPU card", p)
+		}
+	}
+	coleco := partsShell(t)
+	coleco.Payload = base
+	foreignCPU := fixturePart(t, coleco, PartRoleExpansion)
+	foreignVideo := fixturePart(t, coleco, PartRoleVideo)
+	for _, parts := range [][]Asset{{video, foreignCPU}, {foreignVideo}, {video, video}} {
+		if err := AdmitParts(shell, parts); err == nil {
+			t.Fatal("accepted crossed or duplicate ST roles")
+		}
+	}
+	bad := cpu.Manifest
+	bad.SlotIndex = 2
+	if _, err := NewAsset(bad, cpu.Cart); err == nil {
+		t.Fatal("accepted nonexistent ST card socket")
 	}
 }

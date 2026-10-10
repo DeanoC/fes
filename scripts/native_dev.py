@@ -18,7 +18,7 @@ from build_diagnostics import BuildDiagnostics
 from inputs import git
 
 # Keep the clean builder's absolute path: Buildroot host tools are not relocatable.
-WORK = '/target-image-output/work-2-native-dev'
+WORK = '/target-image-output/work-{passes}-native-dev'
 EXPORT = '/work/build/output/target-image/fes-development'
 
 
@@ -103,6 +103,7 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
                       fingerprint, env, fogcast_make, image_make, packages=None,
                       diagnostics=None):
     mode = native_image_mode(profile)
+    selected_work = env.get('FES_IMAGE_WORK', WORK.format(passes=os.environ.get('IMAGE_PASSES', '2')))
     if mode != 'package-only':
         raise ValueError('FES native development requires package-only mode')
     output = root / 'out' / profile_name / 'development'
@@ -146,6 +147,11 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
                      *selection_args], env=env)
     env.update(dict(argument.split('=', 1) for argument in selection_args))
     env['LIBMISTER_RUNTIME_DIR'] = str(runtime)
+    # The shared toolchain options live only in fogcast_toolchain.fragment, so the
+    # incremental build uses the same generated external config and cached SDK as
+    # the clean build (and as the seeded base it continues from).
+    run_stage(diagnostics, 'target toolchain subprocess',
+              [image / 'scripts/build-target-image.sh', '--ensure-toolchain', 'native-dev'], env=env)
     # Read the authoritative epoch; do not invent another image configuration.
     recipe = (image / 'scripts/build-target-image.sh').read_text()
     epoch_match = re.search(r'^epoch=([0-9]+)$', recipe, re.MULTILINE)
@@ -153,7 +159,7 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
         raise ValueError('FES image recipe has no supported fixed image epoch')
     epoch = epoch_match.group(1)
     make = shlex.join(['make', '-C', '/work/build/cache/target-image/buildroot',
-                      'O=' + WORK, 'BR2_EXTERNAL=/work/buildroot',
+                      'O=' + selected_work, 'BR2_EXTERNAL=/work/buildroot',
                       'BR2_DL_DIR=/work/build/cache/target-image/dl'])
     runtime_revision = git(runtime, 'rev-parse', 'HEAD')
     if not re.fullmatch('[0-9a-f]{40}', runtime_revision):
@@ -167,20 +173,27 @@ chmod 0444 {EXPORT}/{package_selection_name}.new
 mv {EXPORT}/{package_selection_name}.new {EXPORT}/{package_selection_name}'''
     script = f'''set -eu
 test "$(id -u)" -ne 0
+WORK={selected_work}
 rm -rf /target-image-output/seed-in-progress
 export SOURCE_DATE_EPOCH={epoch} E2FSPROGS_FAKE_TIME={epoch}
 /work/scripts/verify-target-image-source-cache.sh /work/build/target-image.sources.lock.toml /work/build/cache/target-image
 /work/bin/target-image-lock-linux-amd64 verify-inputs --lock /work/build/target-image.sources.lock.toml --cache /work/build/cache/target-image
-{make} fogcast_target_native_dev_defconfig
-if [ "$(cat {WORK}/.fes-runtime-commit 2>/dev/null || true)" != {runtime_revision} ]; then
-    rm -f {WORK}/.fes-runtime-commit
+mkdir -p "$WORK"
+/work/scripts/toolchain_cache.py config external "$WORK/fogcast.generated.defconfig"
+TOOLCHAIN_HOST=$(/work/scripts/toolchain_cache.py path)
+/work/scripts/toolchain_cache.py extract "$(dirname "$TOOLCHAIN_HOST")"
+"$TOOLCHAIN_HOST/relocate-sdk.sh"
+{make} BR2_DEFCONFIG="$WORK/fogcast.generated.defconfig" defconfig
+/work/scripts/toolchain_cache.py validate-config external "$WORK/.config"
+if [ "$(cat "$WORK"/.fes-runtime-commit 2>/dev/null || true)" != {runtime_revision} ]; then
+    rm -f "$WORK"/.fes-runtime-commit
     {make} mister-runtime-dirclean
 fi
 {make}
-printf '%s\\n' {runtime_revision} > {WORK}/.fes-runtime-commit.new
-mv {WORK}/.fes-runtime-commit.new {WORK}/.fes-runtime-commit
+printf '%s\\n' {runtime_revision} > "$WORK"/.fes-runtime-commit.new
+mv "$WORK"/.fes-runtime-commit.new "$WORK"/.fes-runtime-commit
 mkdir -p {EXPORT}
-cp {WORK}/images/rootfs.ext4 {EXPORT}/linux.img.new
+cp "$WORK"/images/rootfs.ext4 {EXPORT}/linux.img.new
 mv {EXPORT}/linux.img.new {EXPORT}/linux.img
 {selection_copy}
 '''

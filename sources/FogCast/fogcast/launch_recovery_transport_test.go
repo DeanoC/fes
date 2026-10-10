@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -21,11 +22,8 @@ import (
 )
 
 func TestLibraryRecoveryLeasedTransport(t *testing.T) {
-	for _, loseLease := range []bool{false, true} {
-		name := "retained-lease"
-		if loseLease {
-			name = "lease-lost-after-stop"
-		}
+	for _, name := range []string{"retained-lease", "lease-lost-after-stop", "lease-lost-after-load", "lease-lost-idle-after-load"} {
+		loseLease := name != "retained-lease"
 		t.Run(name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -93,7 +91,7 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 					state = protocol.Status{State: protocol.StateIdle}
 					// Deterministically invalidate authority after cleanup but before the
 					// service receives idle and attempts activation; no timer races.
-					if loseLease {
+					if name == "lease-lost-after-stop" {
 						client.InvalidateKitSession()
 					}
 					json.NewEncoder(w).Encode(state)
@@ -107,7 +105,14 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 						CorePackage: &protocol.CorePackageStatus{PackageID: pkg.PackageID, Generation: 1,
 							ABI: protocol.RuntimeContract{ID: pkg.Descriptor.ABI.ID, Major: 1}, BuildID: pkg.Descriptor.Build.ID,
 							PersistenceMode: "volatile"}}
+					if name == "lease-lost-after-load" || name == "lease-lost-idle-after-load" {
+						client.InvalidateKitSession()
+					}
 					json.NewEncoder(w).Encode(state)
+					if name == "lease-lost-idle-after-load" {
+						// Serialized target expiry cleanup completes before observation.
+						state = protocol.Status{State: protocol.StateIdle}
+					}
 				default:
 					t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 					http.Error(w, "unexpected", http.StatusInternalServerError)
@@ -130,11 +135,26 @@ func TestLibraryRecoveryLeasedTransport(t *testing.T) {
 				if err == nil || result.Status.State == protocol.StateActive || lease.Held() {
 					t.Fatalf("lost lease admitted activation: result=%+v err=%v", result, err)
 				}
+				if name == "lease-lost-after-load" || name == "lease-lost-idle-after-load" {
+					var api *protocol.APIError
+					if !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied || api.Phase != "recovery" {
+						t.Fatalf("lost load authority was not a recovery failure: %v", err)
+					}
+				}
+				if name == "lease-lost-idle-after-load" && result.Status.State != protocol.StateIdle {
+					t.Fatalf("confirmed target cleanup was not idle: %+v", result)
+				}
+				s.executionMu.Lock()
+				play := s.plays["kit"]
+				s.executionMu.Unlock()
+				if play.gameID == entry.GameID || play.packageID == pkg.PackageID {
+					t.Fatal("lost lease published a new play")
+				}
 			} else if err != nil || result.Status.GameID == nil || *result.Status.GameID != entry.GameID || result.Status.State != protocol.StateActive {
 				t.Fatalf("recovered launch: result=%+v err=%v", result, err)
 			}
 			want := []string{"/v1/kit/claim", "/v1/stop"}
-			if !loseLease {
+			if name != "lease-lost-after-stop" {
 				want = append(want, "/v1/library/core/load")
 			}
 			mu.Lock()

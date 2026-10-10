@@ -16,6 +16,8 @@ const (
 	NativeVideoSlot         = "fes.fabric.video.native-pixels"
 	ColecoNativeVideoMap    = "fes.coleco-native-video.socket/1"
 	ColecoNativeVideoLayout = "fes.coleco-native-video.parts/1"
+	AtariStVideoMap         = "fes.atari-st-video.socket/1"
+	AtariStVideoLayout      = "fes.atari-st-video.parts/1"
 	PartRoleExpansion       = "expansion"
 	PartRoleVideo           = "video"
 )
@@ -28,8 +30,10 @@ var colecoVideoSocket = socketPolicy{VideoSlot, ColecoVideoMap, 1769, 1800, 2806
 // These authenticated CRAM bounds include the M10K data and local mux bits.
 var colecoNativeVideoSocket = socketPolicy{NativeVideoSlot, ColecoNativeVideoMap, 124, 1800, 3906, 3442}
 
+var atariStVideoSocket = socketPolicy{VideoSlot, AtariStVideoMap, 1769, 3442, 2806, 5162}
+
 func supportedVideoPart(m Manifest) bool {
-	return m.SlotMajor == 1 && ((m.Slot == VideoSlot && m.Map == ColecoVideoMap) ||
+	return m.SlotMajor == 1 && ((m.Slot == VideoSlot && (m.Map == ColecoVideoMap || m.Map == AtariStVideoMap)) ||
 		(m.Slot == NativeVideoSlot && m.Map == ColecoNativeVideoMap))
 }
 
@@ -39,6 +43,8 @@ func partsVideoPolicy(layout string) (socketPolicy, bool) {
 		return colecoVideoSocket, true
 	case ColecoNativeVideoLayout:
 		return colecoNativeVideoSocket, true
+	case AtariStVideoLayout:
+		return atariStVideoSocket, true
 	default:
 		return socketPolicy{}, false
 	}
@@ -78,10 +84,12 @@ func roleForPart(layout string, m Manifest) (string, socketPolicy, error) {
 	switch {
 	case supportedVideoPart(m) && m.Slot == video.slot && m.Map == video.mapping:
 		return PartRoleVideo, video, nil
-	case m.Slot == ColecoSlot && m.Map == ColecoMapV2 && m.SlotMajor == 2:
+	case layout == AtariStVideoLayout && m.Slot == AtariStSlot && m.Map == AtariStMap && m.SlotMajor == 1 && m.SlotIndex == 1:
+		return PartRoleExpansion, atariStSockets[1], nil
+	case layout != AtariStVideoLayout && m.Slot == ColecoSlot && m.Map == ColecoMapV2 && m.SlotMajor == 2:
 		return PartRoleExpansion, colecoSocketV2, nil
 	default:
-		return "", socketPolicy{}, errors.New("parts layout accepts only its matching video 1.0 and Coleco CPU expansion 2.0")
+		return "", socketPolicy{}, errors.New("parts layout accepts only its matching video and CPU socket")
 	}
 }
 
@@ -181,6 +189,33 @@ func ComposePartsContext(ctx context.Context, shell PartsShell, assets []Asset) 
 	return result, linked, err
 }
 
+// ValidatePartsROMDestinations excludes both physical sockets even when the
+// shell uses its built-in Direct output and no independently linked parts.
+func ValidatePartsROMDestinations(ctx context.Context, layout string, m ROMMap) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if _, ok := partsVideoPolicy(layout); !ok {
+		return errors.New("unsupported parts layout")
+	}
+	cpuPolicy := colecoSocketV2
+	if layout == AtariStVideoLayout {
+		cpuPolicy = atariStSockets[1]
+	}
+	videoPolicy, _ := partsVideoPolicy(layout) // layout was checked above
+	for _, block := range m.Blocks {
+		for _, bits := range block.WordBits {
+			for _, destination := range bits {
+				x, y := int(destination)%cramWidth, int(destination)/cramWidth
+				if cpuPolicy.inside(x, y) || videoPolicy.inside(x, y) {
+					return errors.New("ROM destination overlaps a reserved parts socket")
+				}
+			}
+		}
+	}
+	return nil
+}
+
 // ComposePartsROM adds a trusted producer ROM map bound to the original base.
 // Both reserved sockets are excluded even when no CPU expansion is selected.
 // The returned identity describes programmed; overlay is the pre-ROM RBF.
@@ -194,16 +229,8 @@ func ComposePartsROM(ctx context.Context, shell PartsShell, assets []Asset, m RO
 	if err := validateROMMap(ctx, m, hash(shell.Payload), len(rom)); err != nil {
 		return PartsComposition{}, nil, nil, err
 	}
-	videoPolicy, _ := partsVideoPolicy(shell.Layout) // already checked by AdmitParts
-	for _, block := range m.Blocks {
-		for _, bits := range block.WordBits {
-			for _, destination := range bits {
-				x, y := int(destination)%cramWidth, int(destination)/cramWidth
-				if colecoSocketV2.inside(x, y) || videoPolicy.inside(x, y) {
-					return PartsComposition{}, nil, nil, errors.New("ROM destination overlaps a reserved parts socket")
-				}
-			}
-		}
+	if err := ValidatePartsROMDestinations(ctx, shell.Layout, m); err != nil {
+		return PartsComposition{}, nil, nil, err
 	}
 	_, overlay, err := ComposePartsContext(ctx, shell, assets)
 	if err != nil {

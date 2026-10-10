@@ -121,6 +121,8 @@ uint32_t command(bool toggle, uint8_t opcode, uint8_t index, uint16_t argument) 
 uint8_t media_at(Mailbox &mailbox, uint16_t address) {
     mailbox.dut.media_addr = address;
     mailbox.dut.eval();
+    // zx81_dpram q_b updates on the rising edge.
+    mailbox.tick();
     return uint8_t(mailbox.dut.media_q);
 }
 

@@ -29,7 +29,7 @@ from scripts import apple2_slots
 from scripts import build_fes_apple2_oss as shell_recipe
 from scripts.core_package import read_package
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
-from scripts.fes_build_common import _prepare_output, _require_clean_source
+from scripts.fes_build_common import _prepare_output, _require_clean_source, reject_async_m10k_reads
 
 ROOT = Path(__file__).resolve().parents[1]
 CARDS = {
@@ -247,6 +247,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
             path = output / artifact
             if path.is_symlink() or not path.is_file() or path.stat().st_size == 0:
                 raise ValueError(f"{name} did not produce nonempty {artifact}")
+        netlist_name = "cart.json" if name == "synthesis" else "cart-routed.json"
+        reject_async_m10k_reads(json.loads((output / netlist_name).read_text()))
     achieved = validate_cart_timing(json.loads((output / "timing.json").read_text()))
     validate_cart_clocks(json.loads((output / "cart-routed.json").read_text()))
     if (output / "scaffold.json").read_bytes() != scaffold or (output / "cart.qsf").read_bytes() != qsf:

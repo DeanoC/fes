@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+	"time"
 
 	"github.com/DeanoC/FogCast/catalog"
 	"github.com/DeanoC/FogCast/corepackage"
@@ -117,7 +118,7 @@ func (s *Service) readCoreEntryROM(ctx context.Context, entry catalog.CoreEntry,
 	}
 	return selected, data, nil
 }
-func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, descriptor corepackage.Descriptor, base []byte) (coreLoadSource, error) {
+func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, descriptor corepackage.Descriptor, base []byte, initial *corepackage.InitialMedia) (coreLoadSource, error) {
 	if descriptor.Format == 4 && (descriptor.Core.ID != "fes.coleco" || len(descriptor.ROMs) != 2 || descriptor.ROMs[0].SourceSize != 8192 || descriptor.ROMs[1].SourceSize != 131072) {
 		return coreLoadSource{}, romAdmissionError()
 	}
@@ -125,8 +126,15 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 	if err != nil {
 		return coreLoadSource{}, err
 	}
+	var videoParts *corepackage.PartsBundle
+	if descriptor.Format == 3 && descriptor.Core.ID == "fes.atari-st" {
+		videoParts, err = s.composeVideoEntry(ctx, entry, corepackage.Inspection{PackageID: entry.PackageID, Descriptor: descriptor}, base)
+		if err != nil {
+			return coreLoadSource{}, err
+		}
+	}
 	var asset *expansion.Asset
-	if store, ok := s.catalog.(coreExpansionCatalog); ok {
+	if store, ok := s.catalog.(coreExpansionCatalog); ok && videoParts == nil {
 		selection, err := store.CoreEntryExpansion(ctx, entry.GameID)
 		if err != nil {
 			return coreLoadSource{}, expansionError(err)
@@ -143,7 +151,7 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 		}
 	}
 	var slotCards []expansion.Asset
-	if store, ok := s.catalog.(coreSlotExpansionCatalog); ok && corepackage.SlotSockets(descriptor) != nil {
+	if store, ok := s.catalog.(coreSlotExpansionCatalog); ok && corepackage.SlotSockets(descriptor) != nil && videoParts == nil {
 		cards, _, err := s.readSlotCards(ctx, store, entry, corepackage.Inspection{PackageID: entry.PackageID, Descriptor: descriptor}, base)
 		if err != nil {
 			return coreLoadSource{}, err
@@ -153,6 +161,7 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 	var data []byte
 	var biosMediaID string
 	var slotComposition *expansion.SlotComposition
+	var partsComposition *expansion.PartsComposition
 	if descriptor.Format == 4 {
 		var bios []byte
 		var biosErr error
@@ -163,8 +172,13 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 		data, err = corepackage.WriteROMInputV2(corepackage.ROMInputV2{Package: base, BIOS: bios, Cartridge: rom, Expansion: asset})
 	} else {
 		var transport corepackage.ROMTransport
-		transport, err = corepackage.PrepareROMInput(ctx, corepackage.ROMInput{Package: base, ROM: rom, Expansion: asset, SlotExpansions: slotCards})
-		data, slotComposition = transport.Data, transport.SlotComposition
+		input := corepackage.ROMInput{Package: base, ROM: rom, Expansion: asset, SlotExpansions: slotCards}
+		input.InitialMedia = initial
+		if videoParts != nil {
+			input.Parts = videoParts.Assets
+		}
+		transport, err = corepackage.PrepareROMInput(ctx, input)
+		data, slotComposition, partsComposition = transport.Data, transport.SlotComposition, transport.PartsComposition
 		if err != nil && len(slotCards) != 0 {
 			return coreLoadSource{}, slotExpansionUnavailable()
 		}
@@ -172,7 +186,11 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 	if err != nil {
 		return coreLoadSource{}, romAdmissionError()
 	}
-	source := coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry, romID: selected.ROMID, romMediaID: selected.MediaID, slotComposition: slotComposition}
+	source := coreLoadSource{size: int64(len(data)), body: bytes.NewReader(data), entry: &entry, romID: selected.ROMID, romMediaID: selected.MediaID, slotComposition: slotComposition, partsComposition: partsComposition}
+	source.initialMedia = initial
+	if descriptor.Format == 3 && descriptor.Core.ID == "fes.atari-st" {
+		source.activationBudget = 300 * time.Second
+	}
 	if descriptor.Format == 4 {
 		source.biosID = descriptor.ROMs[0].ID
 		source.biosMediaID = biosMediaID
@@ -219,10 +237,16 @@ func (s *Service) readTwoROMFirmware(ctx context.Context, descriptor corepackage
 // The target computes linked and composed identities. The host binds the
 // returned receipt to its selected source identities, not a host-built image.
 func (s coreLoadSource) matchesLoadedIdentity(status *protocol.CorePackageStatus) bool {
+	if s.initialMedia != nil {
+		u, ok := protocol.MediaUnit(status, s.initialMedia.Unit)
+		if !ok || u.State != protocol.MediaUnitReady || status.PersistenceMode != "persistent" || u.Persistence == nil || u.Persistence.Mode != "persistent" || u.Persistence.GameID != s.initialMedia.GameID || u.Persistence.BaseMediaID != s.initialMedia.BaseMediaID {
+			return false
+		}
+	}
 	if !reflect.DeepEqual(status.PartsComposition, s.partsComposition) {
 		return false
 	}
-	if s.partsComposition != nil {
+	if s.partsComposition != nil && s.romID == "" {
 		return status.Composition == nil && status.SlotComposition == nil && status.ROMLink == nil && status.ROMLinks == nil
 	}
 	if s.biosID != "" {
