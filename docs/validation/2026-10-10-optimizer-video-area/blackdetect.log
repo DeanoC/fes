@@ -18,4 +18,4 @@ Output #0, null, to 'pipe:':
         encoder         : Lavc61.19.101 wrapped_avframe
 [blackdetect @ 0x7f6ddc0047c0] black_start:0 black_end:0.1 black_duration:0.1
 [out#0/null @ 0x562209aed4c0] video:128KiB audio:0KiB subtitle:0KiB other streams:0KiB global headers:0KiB muxing overhead: unknown
-frame=  298 fps=0.0 q=-0.0 Lsize=N/A time=00:00:10.00 bitrate=N/A speed=74.6x    
+frame=  298 fps=0.0 q=-0.0 Lsize=N/A time=00:00:10.00 bitrate=N/A speed=74.6x

@@ -64,7 +64,8 @@ with no later all-black interval detected under the stated filter.
 [Frame at 3 seconds](2026-10-10-optimizer-video-area/frame-0.png) and
 [frame at 8 seconds](2026-10-10-optimizer-video-area/frame-1.png) show the Pong
 field, paddles, ball and scores. The [black-interval analysis](2026-10-10-optimizer-video-area/blackdetect.log)
-and capture hash are retained. Capture conversion and buffering prevent a
+and capture hash are retained. The published analysis log has trailing whitespace
+removed; the original raw log is preserved privately and separately hashed. Capture conversion and buffering prevent a
 bit-exact RGB or direct FPGA sync measurement claim.
 
 This is a bounded load/video/Stop diagnostic; full gameplay and factory/image

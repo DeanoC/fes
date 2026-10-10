@@ -62,8 +62,10 @@
     "factory_image_acceptance": false,
     "full_gameplay_tested": false,
     "initial_capture_attempts": "Black early single-frame captures retained privately; continuous capture replaced single-frame admission.",
+    "published_blackdetect_log": "Trailing whitespace removed; raw diagnostic log preserved privately with separate digest.",
+    "raw_blackdetect_log_sha256": "ad225feabb4cf5f4884c2923c0936d5b981d5b0c87e8be72114cbb02a5509bb2",
     "receipt_files_sha256": {
-      "blackdetect.log": "ad225feabb4cf5f4884c2923c0936d5b981d5b0c87e8be72114cbb02a5509bb2",
+      "blackdetect.log": "c3287093d6e11e0659dc2ea6a08a92c1f83bcba910fc8bafcbbea7a8d192475d",
       "frame-0.png": "3c95426145cad7d394b09c187bbaba0211b57d3b86fd753617b49b95d192f5f4",
       "frame-1.png": "8ff62a0c069d3fe8e39c10b390d2675390a6ea161642d4b7b836c366c510d373",
       "receipt.json": "f863df84f04ae0ac56ec3d54ffc0378521e9ff00c516b05b0f6d4176a3fa9433"
