@@ -144,7 +144,7 @@ class Boot {
     uint64_t native_epoch = 0, palette_writes = 0, frame_palette_writes = 0;
     unsigned observed_frames = 0, frame_cpu_max = 0, frame_video_max = 0, last_sync = 0;
     uint64_t frame_video_reads = 0;
-    std::vector<uint8_t> native_picture = std::vector<uint8_t>(320*200*3);
+    std::vector<uint8_t> native_picture = std::vector<uint8_t>(320*247*3);
     std::ofstream raster_trace, logo_trace;
     std::set<uint64_t> saved_logo_hashes;
     std::string trace_prefix;
@@ -228,7 +228,7 @@ class Boot {
                 << ",\"lanes\":" << unsigned(dut.debug_palette_lanes) << "}\n";
         }
         if (demo_mode && dut.capture_pixel) {
-            require(dut.capture_x < 320 && dut.capture_y < 200, "native capture coordinate bounds", system_cycles);
+            require(dut.capture_x < 320 && dut.capture_y < 247, "native capture coordinate bounds", system_cycles);
             const unsigned offset = (dut.capture_y*320 + dut.capture_x)*3, rgb = dut.capture_rgb;
             for (unsigned c=0;c<3;++c) {
                 const unsigned v=(rgb >> (6-c*3)) & 7;
@@ -262,6 +262,8 @@ class Boot {
         }
         if (demo_mode && dut.native_frames != observed_frames) {
             observed_frames = dut.native_frames;
+            const unsigned height=dut.capture_height;
+            require(height==200||height==226||height==247,"published native height",system_cycles);
             if (tracing()) {
                 uint64_t hash=UINT64_C(14695981039346656037);
                 std::array<uint64_t,64> row_hashes;
@@ -283,8 +285,8 @@ class Boot {
                 if (saved_logo_hashes.size()<8 && saved_logo_hashes.insert(hash).second) {
                     std::ofstream image(trace_prefix+"-trace-logo-"+std::to_string(native_epoch)+"-native.ppm", std::ios::binary);
                     require(image.good(),"trace logo image unavailable");
-                    image << "P6\n320 200\n255\n";
-                    image.write(reinterpret_cast<const char*>(native_picture.data()),native_picture.size());
+                    image << "P6\n320 " << height << "\n255\n";
+                    image.write(reinterpret_cast<const char*>(native_picture.data()),320*height*3);
                 }
             }
         }

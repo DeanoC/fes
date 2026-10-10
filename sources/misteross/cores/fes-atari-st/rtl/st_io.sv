@@ -125,6 +125,10 @@ module st_io #(
     assign hblank = cpu_cycle_ce && horizontal_cycle == line_last && !reset;
     assign vblank = hblank && native_line == frame_last;
     reg vbl_pending, hbl_pending;
+    // STF wake-up state 1 asserts IRQ4 60 CPU cycles after the frame
+    // boundary (Hatari 2.5.0 Video_InitTimings). Keep the frame/capture pulse
+    // separate: delaying native_vblank would also move DE and RAM ownership.
+    reg [5:0] vbl_irq_delay;
     // Timer B is driven by native display enable, rather than every HBL.
     // Ordinary color display porches: PAL lines 63..262 and cycles 56..375;
     // NTSC lines 34..233 and cycles 52..371. See Hatari v2.5.0 video.h /
@@ -154,7 +158,7 @@ module st_io #(
             frame_resolution <= resolution; line_resolution <= resolution;
             frame_pal <= sync_mode[1]; line_pal <= sync_mode[1];
             line_timing_pal <= sync_mode[1];
-            vbl_pending <= 0; hbl_pending <= 0; native_line <= 0;
+            vbl_pending <= 0; hbl_pending <= 0; vbl_irq_delay <= 0; native_line <= 0;
             video_counter <= 0;
         end else begin
             timer_phase <= timer_ce ? 32'(timer_sum - 33'(SYSTEM_CLOCK_HZ)) : timer_sum[31:0];
@@ -173,7 +177,11 @@ module st_io #(
                 // native pixel capture retains the ordinary video porch.
                 timer_b_display_delay <= {timer_b_display_delay[22:0], native_display};
             end
-            if (vblank) vbl_pending <= 1;
+            if (vblank) vbl_irq_delay <= 6'd60;
+            else if (cpu_cycle_ce && vbl_irq_delay != 6'd0) begin
+                vbl_irq_delay <= vbl_irq_delay - 1'b1;
+                if (vbl_irq_delay == 6'd1) vbl_pending <= 1'b1;
+            end
             if (hblank) hbl_pending <= 1;
             if (irq_ack && irq_level == 4) vbl_pending <= 0;
             if (irq_ack && irq_level == 2) hbl_pending <= 0;

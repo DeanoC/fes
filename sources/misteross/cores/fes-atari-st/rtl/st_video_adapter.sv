@@ -322,27 +322,33 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     );
     wire native_req, native_ready, native_valid;
     wire [18:1] native_addr;
-    wire [8:0] native_rgb, native_border;
+    wire [8:0] native_rgb, native_border, native_height_captured;
+    wire native_bottom = native_height_captured != 9'd200;
+    wire [9:0] native_top = !native_bottom ? 10'd60 :
+                          native_height_captured == 9'd247 ? 10'd113 : 10'd134;
+    wire [9:0] native_end = !native_bottom ? 10'd660 :
+                          native_height_captured == 9'd247 ? 10'd607 : 10'd586;
+    wire native_image_line = vertical >= native_top && vertical < native_end;
     // Forecast two pixels ahead: address register, then synchronous RGB read.
     // Low output rows repeat three times. Advance the row base in blanking,
     // before the next-line lookahead, without a vertical-coordinate multiply.
     // Units of 64 pixels keep the address addition confined to its upper bits.
-    reg [9:0] rgb_row_base;
+    reg [10:0] rgb_row_base;
     reg [1:0] rgb_row_repeat;
     wire [8:0] rgb_x = horizontal < 11'd1278 ? 9'((horizontal + 11'd2) >> 2) : 9'd0;
-    wire [9:0] rgb_address_upper = rgb_row_base + {7'd0, rgb_x[8:6]};
-    reg [15:0] rgb_ram_address;
+    wire [10:0] rgb_address_upper = rgb_row_base + {8'd0, rgb_x[8:6]};
+    reg [16:0] rgb_ram_address;
     always @(posedge clk_pixel) begin
         if (reset_pixel) begin
-            rgb_row_base <= 10'd0; rgb_row_repeat <= 2'd0;
-            rgb_ram_address <= 16'd0;
+            rgb_row_base <= 11'd0; rgb_row_repeat <= 2'd0;
+            rgb_ram_address <= 17'd0;
         end else begin
             rgb_ram_address <= {rgb_address_upper, rgb_x[5:0]};
             if (horizontal == H_TOTAL - 11'd3) begin
-                if (vertical < 10'd60 || vertical >= 10'd659) begin
-                    rgb_row_base <= 10'd0; rgb_row_repeat <= 2'd0;
-                end else if (rgb_row_repeat == 2'd2) begin
-                    rgb_row_base <= rgb_row_base + 10'd5;
+                if (vertical < native_top || vertical >= native_end - 10'd1) begin
+                    rgb_row_base <= 11'd0; rgb_row_repeat <= 2'd0;
+                end else if (rgb_row_repeat == (native_bottom ? 2'd1 : 2'd2)) begin
+                    rgb_row_base <= rgb_row_base + 11'd5;
                     rgb_row_repeat <= 2'd0;
                 end else rgb_row_repeat <= rgb_row_repeat + 2'd1;
             end
@@ -358,7 +364,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
             .memory_req(native_req), .memory_addr(native_addr), .memory_ready(native_ready), .memory_data(video_rdata),
             .output_sof(horizontal == H_TOTAL - 11'd1 && vertical == V_TOTAL - 10'd1),
             .output_address(rgb_ram_address), .output_rgb(native_rgb), .output_border(native_border),
-            .output_valid(native_valid), .debug_frames(), .debug_skipped(), .debug_underruns()
+            .output_valid(native_valid), .output_height(native_height_captured), .debug_frames(), .debug_skipped(), .debug_underruns()
         );
         /* verilator lint_on PINCONNECTEMPTY */
         reg bus_active, bus_native, bus_gap, prefer_native;
@@ -387,13 +393,14 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
         assign legacy_ready = video_ready;
         assign native_req = 1'b0; assign native_addr = 18'd0; assign native_ready = 1'b0;
         assign native_rgb = 9'd0; assign native_border = 9'd0; assign native_valid = 1'b0;
+        assign native_height_captured = 9'd200;
     end endgenerate
     function automatic [23:0] expand_rgb(input [8:0] c);
         expand_rgb = {c[8:6], c[8:6], c[8:7], c[5:3], c[5:3], c[5:4], c[2:0], c[2:0], c[2:1]};
     endfunction
     wire native_low = NATIVE_LOW_CAPTURE && active_resolution == 2'd0;
     wire [23:0] captured_rgb = !source_request[`FES_VIDEO_PART_REQUEST_DE_BIT] ? 24'd0 :
-        expand_rgb(image_line ? native_rgb : native_border);
+        expand_rgb(native_image_line ? native_rgb : native_border);
     wire [31:0] selected_request = native_low ? {source_request[31:24], captured_rgb} : source_request;
     wire mute = hold_sync || !configured || (native_low ? !native_valid :
         image_line && horizontal < 11'd1280 && !line_available);
