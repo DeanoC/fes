@@ -1737,9 +1737,11 @@ motherboard launches valid, protected RAM reads on its transaction-capture
 edge, retaining captured address/lanes thereafter. Ready read data and DTACK
 reach the CPU on the completion edge and are retained for the rest of AS.
 Writes and other motherboard targets retain registered dispatch/completion.
-The ST supplies the raw DDR rising word to the controller with
+The ST supplies the first rising-edge input word to the controller with
 `RATE0_INPUT_REGISTER=0`, capturing the same physical sample one fabric edge
-earlier. `REGISTERED_READ_INPUT=1` retains the former ST input stage for
+earlier. The board retains its fabric pad-capture register; the simulation
+fixture models the corresponding DDIO edge. `REGISTERED_READ_INPUT=1` retains
+the former ST input stage for
 comparisons; shared-controller callers default to the existing staged capture.
 The controller still drains recovery before accepting another physical command;
 other callers retain late completion. Physical capture edge, CAS, DQM setup and

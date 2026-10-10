@@ -40,8 +40,10 @@ then holds the captured request. Ready read data and DTACK reach the CPU on the
 completion edge and are retained for the remaining bus cycle. Writes retain
 registered dispatch and completion; protection, reset-vector ROM overlay and
 other targets use the existing decoder.
-The ST supplies the raw rate-0 DDR rising word to the controller, which captures
-that same physical sample one fabric edge earlier. `REGISTERED_READ_INPUT=1`
+The ST supplies the first rate-0 rising-edge input word to the controller, which captures
+that same physical sample one fabric edge earlier. The board captures in fabric
+because native packing cannot combine bidirectional pads with input DDIO;
+the physical-memory fixture models the corresponding DDIO edge. `REGISTERED_READ_INPUT=1`
 retains the former fabric input stage for focused comparisons; the shared
 controller's `RATE0_INPUT_REGISTER` defaults to one for all other callers.
 CAS, physical DDR sampling, command and DQM setup timing stay unchanged.
