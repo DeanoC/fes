@@ -29,10 +29,17 @@ module st_native_low_video (
     output reg [31:0] debug_frames, debug_skipped, debug_underruns
 );
     localparam [31:0] SYSTEM_HZ = 32'd52224000;
-    reg [8:0] frame0 [0:79039];
-    reg [8:0] frame1 [0:79039];
-    reg [8:0] frame2 [0:79039];
-    reg [8:0] read0, read1, read2;
+    // Explicit shallow chunks avoid the mapper selecting ninety 8192x1
+    // blocks per 79040x9 bank instead of seventy-eight 1024x10 blocks.
+    // Keep the same registered read boundary and complete-frame ownership.
+    localparam integer FRAME_CHUNKS = 78;
+    wire [8:0] chunk_read0 [0:FRAME_CHUNKS-1];
+    wire [8:0] chunk_read1 [0:FRAME_CHUNKS-1];
+    wire [8:0] chunk_read2 [0:FRAME_CHUNKS-1];
+    reg [6:0] read_chunk;
+    wire [8:0] read0 = read_chunk < 7'd78 ? chunk_read0[read_chunk] : 9'd0;
+    wire [8:0] read1 = read_chunk < 7'd78 ? chunk_read1[read_chunk] : 9'd0;
+    wire [8:0] read2 = read_chunk < 7'd78 ? chunk_read2[read_chunk] : 9'd0;
     reg [1:0] front_bank;
     reg [2:0] published, released, seen;
     (* async_reg = "true" *) reg [2:0] pub_meta, pub_sync, release_meta, release_sync;
@@ -51,13 +58,9 @@ module st_native_low_video (
     reg [8:0] front_border;
     assign output_rgb = front_bank == 2'd0 ? read0 : front_bank == 2'd1 ? read1 : read2;
     assign output_border = front_border;
-    // Unconditional clocked reads infer independent dual-clock M10K ports.
-    // Unselected banks may be written; the selected bank remains owned by pixel.
-    always @(posedge clk_pixel) begin
-        read0 <= frame0[output_address];
-        read1 <= frame1[output_address];
-        read2 <= frame2[output_address];
-    end
+    // The chunk selector and all words capture the same incoming address.
+    // Their aligned combinational mux retains the original one-clock read.
+    always @(posedge clk_pixel) read_chunk <= output_address[16:10];
     integer candidate;
     reg choose_valid;
     reg [1:0] choose_bank;
@@ -166,16 +169,32 @@ module st_native_low_video (
             frame_write_black <= !sample_valid;
         end
     end
-    always @(posedge clk_sys) begin
-        if (frame_write && !reset_sys && !hold) begin
-            case (frame_write_bank)
-                2'd0: frame0[frame_write_address] <= frame_write_black ? 9'd0 : frame_write_rgb;
-                2'd1: frame1[frame_write_address] <= frame_write_black ? 9'd0 : frame_write_rgb;
-                2'd2: frame2[frame_write_address] <= frame_write_black ? 9'd0 : frame_write_rgb;
-                default: ;
-            endcase
+    generate for (genvar chunk = 0; chunk < FRAME_CHUNKS; chunk = chunk + 1) begin : frame_chunks
+        reg [8:0] frame0 [0:1023];
+        reg [8:0] frame1 [0:1023];
+        reg [8:0] frame2 [0:1023];
+        reg [8:0] word0, word1, word2;
+        assign chunk_read0[chunk] = word0;
+        assign chunk_read1[chunk] = word1;
+        assign chunk_read2[chunk] = word2;
+        // Unconditional clocked ports infer independent dual-clock M10Ks.
+        // Only the owned write bank changes; the displayed bank is immutable.
+        always @(posedge clk_pixel) begin
+            word0 <= frame0[output_address[9:0]];
+            word1 <= frame1[output_address[9:0]];
+            word2 <= frame2[output_address[9:0]];
         end
-    end
+        always @(posedge clk_sys) begin
+            if (frame_write && !reset_sys && !hold && frame_write_address[16:10] == 7'(chunk)) begin
+                case (frame_write_bank)
+                    2'd0: frame0[frame_write_address[9:0]] <= frame_write_black ? 9'd0 : frame_write_rgb;
+                    2'd1: frame1[frame_write_address[9:0]] <= frame_write_black ? 9'd0 : frame_write_rgb;
+                    2'd2: frame2[frame_write_address[9:0]] <= frame_write_black ? 9'd0 : frame_write_rgb;
+                    default: ;
+                endcase
+            end
+        end
+    end endgenerate
 
     typedef enum logic [1:0] { IDLE, READ, GAP } state_t;
     state_t memory_state;

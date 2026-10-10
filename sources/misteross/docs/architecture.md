@@ -1777,7 +1777,10 @@ delayed RAM and media completions, including rejected mutations and later retry.
 `st_video_adapter.sv` captures ordinary low-resolution native pixels through
 `st_native_low_video.sv`. Its system-domain row prefetch uses the existing
 video RAM port, selecting the live RGB333 palette at each nominal 8 MHz pixel.
-Three RGB333 banks, each holding up to 320×247 pixels, have explicit publish/release ownership
+Each RGB333 frame uses 78 shallow 1024-word chunks, retaining every 320×247
+pixel. Synchronous chunk reads and registered chunk selection preserve the
+one-clock read boundary while avoiding the deeper one-bit memory mapping.
+Three RGB333 banks have explicit publish/release ownership
 across the system and pixel domains. Only completed captures are published;
 the fixed 60 Hz reader selects the newest completed bank at SOF and pins it
 until a later SOF. A slow or stopped reader makes the producer skip frames
