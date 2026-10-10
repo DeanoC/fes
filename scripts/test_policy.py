@@ -23,8 +23,15 @@ VIDEO_FILES = frozenset({
     'tests/test_factory_video_parts.py',
     'tests/test_factory_video_publication.py',
 })
-VIDEO_ROOTS = ('sources/misteross', 'sources/FogCast/corepackage',
-               'sources/FogCast/corecatalog')
+# misteross is narrowed to the producer software, toolchain pins and the core
+# trees the Coleco/ST video-part recipes hash; its tests, docs, Makefile,
+# experiments and unrelated cores stay routine. Scheduled runs remain full.
+VIDEO_ROOTS = ('sources/misteross/scripts', 'sources/misteross/expansion',
+               'sources/misteross/toolchain.lock', 'sources/misteross/toolchains',
+               'sources/misteross/cores/fes-common', 'sources/misteross/cores/fes-coleco',
+               'sources/misteross/cores/fes-atari-st', 'sources/misteross/cores/fes-c64',
+               'sources/misteross/cores/fes-ramtest', 'sources/misteross/cores/fes-zx81',
+               'sources/FogCast/corepackage', 'sources/FogCast/corecatalog')
 # Host consumers of package/video admission; their *_test.go files stay routine.
 VIDEO_CONSUMER_ROOTS = ('sources/FogCast/catalog', 'sources/FogCast/fogcast')
 
