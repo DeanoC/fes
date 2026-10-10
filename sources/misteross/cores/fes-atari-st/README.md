@@ -369,7 +369,13 @@ HID/IKBD path with a 150 ms B press. Both storage models accept
 `--key-at SECOND --key-usage USAGE` for other screens (1/2/3 use HID
 usages 30/31/32). Every run saves `demo-audio.wav`, the unfiltered signed
 mono 48 kHz chip PCM, and `demo-audio.json` with sample counts, amplitude
-statistics and system-clock cadence. Quiet boot audio is valid; these files
+statistics and system-clock cadence. Shared-memory runs also save
+`demo-ym.jsonl`: every accepted valid-register PSG data write, with its raw
+value, selected register, system-cycle timestamp and diagnostic PC. The trace
+covers the entire guest run independently of the raster trace interval. It
+observes the PSG acceptance edge without changing its clock or audio model.
+The PC is exception-unit state, not an instruction-retirement assertion.
+Quiet boot audio is valid; these files
 do not establish analog sound fidelity. `--timeout-seconds` controls only
 the host deadline, independently of the guest duration. These are observations of the reduced
 native timing model, not original GLUE/shifter timing equivalence. Per-second

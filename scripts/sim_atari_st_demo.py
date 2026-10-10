@@ -180,6 +180,11 @@ def run(args):
     record["run_command"] = invocation
     record["timeout_seconds"] = args.timeout_seconds
     record["audio_capture"] = "unfiltered signed mono 48 kHz chip PCM; no audio-fidelity oracle"
+    if args.shared_memory:
+        record["ym_trace"] = {"file": "demo-ym.jsonl", "system_clock_hz": 52224000,
+                              "chip_clock_hz": 2000000,
+                              "scope": "all valid-register PSG data acceptance edges during guest run; raw values before register masking",
+                              "fidelity_asserted": False}
     process = subprocess.Popen(invocation, cwd=build, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     timer = threading.Timer(args.timeout_seconds, process.kill); timer.start()
     try:
