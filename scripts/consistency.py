@@ -47,6 +47,7 @@ COPIED_FILES = (
     ('testdata/fes-media-stream-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-media-stream-v1/exchanges.json'),
     ('testdata/fes-media-stream-v1/exchanges.json', 'misteross', 'cores/fes-sms/generated/stream-exchanges.json'),
     ('testdata/fes-media-stream-v1/exchanges.json', 'misteross', 'cores/fes-common/generated/stream-exchanges.json'),
+    ('testdata/fes-media-stream-v1/exchanges.json', 'misteross', 'docs/contracts/testdata/fes-media-stream-v1/exchanges.json'),
     ('testdata/fes-gp-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-gp-v1/exchanges.json'),
     ('testdata/fes-gp-v1/exchanges.json', 'misteross', 'cores/fes-pong/generated/exchanges.json'),
     ('testdata/fes-simple-computer-v1/exchanges.json', 'libmister-runtime', 'tests/fixtures/fes-simple-computer-v1/exchanges.json'),
@@ -69,6 +70,10 @@ COMPONENT_FIXTURES = (
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-persistence-responses.jsonl'),
     ('libmister-runtime', 'tests/fixtures/protocol-v2-computer-responses.jsonl',
      'FogCast', 'internal/misterruntime/testdata/protocol-v2-computer-responses.jsonl'),
+    ('libmister-runtime', 'tests/fixtures/protocol-v2.jsonl',
+     'FogCast', 'internal/misterruntime/testdata/protocol-v2.jsonl'),
+    ('libmister-runtime', 'tests/fixtures/protocol-v2-edge-responses.jsonl',
+     'FogCast', 'internal/misterruntime/testdata/protocol-v2-edge-responses.jsonl'),
 )
 CORE_SOURCES = ()
 
