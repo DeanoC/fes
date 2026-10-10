@@ -1504,8 +1504,31 @@ sequential timing domain must meet its
 74.25 MHz pixel constraint. The 50 MHz reference has no sequential Fmax row;
 the recipe instead requires the tracked SDC's exact 20.000 ns constraint, its
 application in the route log, and identical fixed fractional PLL parameters in
-the synthesized and routed designs. After creating the deterministic manifest, the recipe
-reauthenticates tools and the clean source before calling the Task-3 exporter. A failed
+the synthesized and routed designs.
+
+The single-PLL Pong producer also enables `raw_fractional_video` in
+`scripts/fes_de10nano_evidence.py`. The route log must contain exactly two
+`Info: PLL 'video_clock.pll':` records in the pinned nextpnr format: one
+fractional-N request for output 0 with requested/achieved frequency in Hz and
+error in ppm, and one packed reference/VCO record with M/N/K coefficients,
+counter C6 and BEL `altera_pll.0.14.0`. Missing, duplicate, additional or
+mixed-format video PLL records reject the build before package export.
+
+The validator requires finite numeric values, a 74,250,000 Hz request, a
+50 MHz reference, M=8, N=1 and an unsigned 32-bit K. It recomputes
+`VCO = reference_Hz * (M + K / 2**32) / N` and `output = VCO / 6`.
+The achieved output must be within 1 Hz of the request and 0.01 Hz of the
+computed output; the reported VCO must agree within 1 Hz, and the reported
+ppm error must agree with `(achieved / requested - 1) * 1e6` within
+`1e-8` ppm. These checks bind the reported frequency to the packed PLL
+coefficients in addition to the existing SDC, parameter and pixel-Fmax checks.
+The build summary records the reference, requested/achieved Hz, error ppm,
+M/N/K, counter and BEL under `timing.reference.fractional_pll`.
+This raw transcript gate applies to the normal single-PLL Pong lane; callers
+using the optional audio/multi-PLL validation retain their existing checks.
+
+After creating the deterministic manifest, the recipe reauthenticates tools
+and the clean source before calling the Task-3 exporter. A failed
 build retains the pre-synthesis input record and diagnostic reports but removes
 the RBF, manifest and passing summary so they cannot be mistaken for an
 exportable result. The recipe checkpoint itself has no FES Pong RBF, physical

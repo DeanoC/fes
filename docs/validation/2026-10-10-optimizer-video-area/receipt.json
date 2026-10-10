@@ -1,0 +1,149 @@
+{
+  "archive_sha256": "8d6108e84657347092ca3ba13eaa46fda60b56a3d77c10f9e221ffde8e7cb05b",
+  "capture_device": "ASUS 4KPRO 802B003090700329",
+  "captures_completed": true,
+  "final_lease": {
+    "expires_at": "0001-01-01T00:00:00Z",
+    "expires_in_ms": 0,
+    "generation": "dd977be397439c1ffb5b6cd77c48771e3a3fe027c0873119207f86828d9f00c8",
+    "state": "free"
+  },
+  "hardware_acceptance": false,
+  "inspection": {
+    "compatibility_error": null,
+    "compatible": true,
+    "descriptor": {
+      "abi": {
+        "id": "fes.simple-game",
+        "major": 1,
+        "minor": 0
+      },
+      "build": {
+        "id": "0f3ac9f20d9eac225f7014a912d42e55",
+        "recipe_sha256": "cc948739b3fff6e164477eb59ddaefd6742013c1db20f5f457bd5c501b8e1549",
+        "repository": "https://github.com/DeanoC/fes",
+        "revision": "5969e0f0911dbad351bcf16205b382b0fe9ab4d4",
+        "toolchain": "mistral commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=54d9710441ac33938303664e7eaf599d4cef7e4d22430e7971786ac50fb5c60b; nextpnr-mistral commit=9128800fa6e77c4138088a7107a95376ba47ff15; sha256=a897f274e4b8c7b5da477488dad1e512e1446116e60744e07c1592de7d67eae6; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=5391eeb1e91b38a3d0e96d04f24cf921743c9c78; sha256=ef9f30ff0952536c9fa147df616dde8d46a7383abce8169416774281bd2f6402"
+      },
+      "core": {
+        "description": "Standalone fixed-720p Pong for the FES general-purpose ABI",
+        "id": "fes.pong",
+        "name": "FES Pong",
+        "version": "1.1.0"
+      },
+      "format": 2,
+      "interfaces": [
+        {
+          "id": "fes.gamepad",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.persistence.words",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.pong.progress",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        }
+      ],
+      "payload": {
+        "file": "core.rbf",
+        "sha256": "d706bba03504cda0eb3cef4cf6e4f2e69ced253b991e2884cf58eaed5b5d2436",
+        "size": 1973630
+      },
+      "target": {
+        "device": "5CSEBA6U23I7",
+        "platform": "de10_nano",
+        "programming_profile": "fes-gp-v1"
+      }
+    },
+    "package_id": "403795ffb14593b192d44f2a0734050e26df94e9643ad1862ef9f1fa353a2836",
+    "persistence_layout": {
+      "id": "fes.pong.progress",
+      "major": 1,
+      "minor": 0
+    }
+  },
+  "lease": {
+    "expires_at": "1970-01-04T20:07:00.03390464Z",
+    "expires_in_ms": 89999,
+    "generation": "de70a8507f8d5ce923cc46f6f05acfd128781369f25a75b9caf8107af3a7df47",
+    "owner": "alphamister-video-area",
+    "purpose": "Contained qualified Pong video diagnostic",
+    "state": "held"
+  },
+  "load": {
+    "core_package": {
+      "abi": {
+        "id": "fes.simple-game",
+        "major": 1,
+        "minor": 0
+      },
+      "active_interfaces": [
+        {
+          "id": "fes.gamepad",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.persistence.words",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.pong.progress",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "build_id": "0f3ac9f20d9eac225f7014a912d42e55",
+      "gamepad": true,
+      "generation": 3,
+      "package_id": "403795ffb14593b192d44f2a0734050e26df94e9643ad1862ef9f1fa353a2836",
+      "persistence_mode": "volatile"
+    },
+    "development": true,
+    "expected_core": null,
+    "game_id": null,
+    "last_error": null,
+    "observed_core": "fes.pong",
+    "state": "active",
+    "system": null
+  },
+  "package_id": "403795ffb14593b192d44f2a0734050e26df94e9643ad1862ef9f1fa353a2836",
+  "release": {
+    "expires_at": "1970-01-04T20:07:00.03390464Z",
+    "expires_in_ms": 0,
+    "generation": "de70a8507f8d5ce923cc46f6f05acfd128781369f25a75b9caf8107af3a7df47",
+    "owner": "alphamister-video-area",
+    "purpose": "Contained qualified Pong video diagnostic",
+    "reason": "owner released lease",
+    "state": "revoking"
+  },
+  "stop": {
+    "expected_core": null,
+    "game_id": null,
+    "last_error": null,
+    "observed_core": null,
+    "state": "idle",
+    "system": null
+  },
+  "target": "kit B"
+}

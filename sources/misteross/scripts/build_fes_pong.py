@@ -201,6 +201,7 @@ def build_commands(
 def validate_build_evidence(output: Path, source_root: Path = ROOT, *, audio: bool = False) -> dict:
     return validate_board_evidence(output, source_root, audio=audio,
         ordinary_resources=ORDINARY_RESOURCES, required_resources=REQUIRED_RESOURCES,
+        raw_fractional_video=not audio,
         forbidden_resources=FORBIDDEN_RESOURCES, required_zero_resources=REQUIRED_ZERO_RESOURCES)
 
 

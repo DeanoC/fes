@@ -1,0 +1,240 @@
+{
+  "baseline": {
+    "clocks_mhz": {
+      "pixel": {
+        "maximum": 90.89256286621094,
+        "median": 87.18046188354492,
+        "minimum": 77.34550476074219
+      }
+    },
+    "ff": 233,
+    "full_core_alut": 1138,
+    "median_clock_ratio": 1.1741476347952178,
+    "worst_clock_ratio": 1.0416902998079756,
+    "worst_fmax_mhz": 77.34550476074219
+  },
+  "campaign": "/home/deano/alphamister/runs/pong-video-area-v3b",
+  "candidate": "0003",
+  "consumer_simulations": {
+    "compiler_revision": "8ff77e9d47351b0a59114929880687839a51840b",
+    "log_sha256": "5a9d00323ea669dc62cb143877ba84157a5a007c8d98ddeadd4cff6253c85d14",
+    "passed": true,
+    "source_revision": "5969e0f0911dbad351bcf16205b382b0fe9ab4d4",
+    "source_sha256": "6d92673855a4930908ae258d847ee99e6984c5ff18110a1131624b9294d6e901",
+    "targets": [
+      "sim-fes-pong",
+      "sim-fes-demo",
+      "sim-fes-ramtest",
+      "sim-fes-riscv"
+    ]
+  },
+  "development": {
+    "clocks_mhz": {
+      "pixel": {
+        "maximum": 89.23790740966797,
+        "median": 85.83539199829102,
+        "minimum": 84.41667938232422
+      }
+    },
+    "ff": 233,
+    "full_core_alut": 1118,
+    "median_clock_ratio": 1.1560322154651987,
+    "worst_clock_ratio": 1.1369249748461174,
+    "worst_fmax_mhz": 84.41667938232422
+  },
+  "development_seeds": [
+    30001,
+    30002,
+    30003,
+    30004
+  ],
+  "format": 1,
+  "hardware_acceptance": false,
+  "hardware_diagnostic": {
+    "black_interval_seconds": [
+      0,
+      0.1
+    ],
+    "capture_device": "ASUS 4KPRO 802B003090700329",
+    "capture_duration_seconds": 10,
+    "capture_frames": 298,
+    "capture_sha256": "abc6e1a1ceeaf1ac1a645b545cf040cabfa0b6c15d55bf2541b5080faa56ed09",
+    "factory_image_acceptance": false,
+    "full_gameplay_tested": false,
+    "initial_capture_attempts": "Black early single-frame captures retained privately; continuous capture replaced single-frame admission.",
+    "published_blackdetect_log": "Trailing whitespace removed; raw diagnostic log preserved privately with separate digest.",
+    "raw_blackdetect_log_sha256": "ad225feabb4cf5f4884c2923c0936d5b981d5b0c87e8be72114cbb02a5509bb2",
+    "receipt_files_sha256": {
+      "blackdetect.log": "c3287093d6e11e0659dc2ea6a08a92c1f83bcba910fc8bafcbbea7a8d192475d",
+      "frame-0.png": "3c95426145cad7d394b09c187bbaba0211b57d3b86fd753617b49b95d192f5f4",
+      "frame-1.png": "8ff62a0c069d3fe8e39c10b390d2675390a6ea161642d4b7b836c366c510d373",
+      "receipt.json": "f863df84f04ae0ac56ec3d54ffc0378521e9ff00c516b05b0f6d4176a3fa9433"
+    },
+    "scope": [
+      "sealed package identity handshake",
+      "Pong field paddles ball and scores visible at seconds 3 and 8",
+      "ten-second continuous HDMI capture",
+      "Stop idle",
+      "lease released and free"
+    ],
+    "status": "passed_contained_diagnostic",
+    "target": "kit B"
+  },
+  "lint": {
+    "passed": true,
+    "policy": "verilator_lint_only_fatal_wall_v2"
+  },
+  "optimizer_revision": "371b985",
+  "paired_private": {
+    "candidate": {
+      "complete": true,
+      "completed_routes": 4,
+      "metrics": {
+        "clocks_mhz": {
+          "pixel": {
+            "maximum": 90.5797119140625,
+            "median": 84.17635345458984,
+            "minimum": 80.92578887939453
+          }
+        },
+        "full_core_alut": 1118,
+        "median_clock_ratio": 1.1336882620146782,
+        "worst_clock_ratio": 1.0899096145373002,
+        "worst_fmax_mhz": 80.92578887939453
+      },
+      "timing_passes": 4
+    },
+    "decision": {
+      "area_difference": -20,
+      "conclusion": "supported_on_this_panel",
+      "hardware_acceptance": false,
+      "priority": "area",
+      "promoted": false,
+      "qualification": false,
+      "supported": true,
+      "timing_pass_count_difference": 0
+    },
+    "reference": {
+      "complete": true,
+      "completed_routes": 4,
+      "metrics": {
+        "clocks_mhz": {
+          "pixel": {
+            "maximum": 91.44947052001953,
+            "median": 89.29062271118164,
+            "minimum": 85.25149536132812
+          }
+        },
+        "full_core_alut": 1138,
+        "median_clock_ratio": 1.2025673092415037,
+        "worst_clock_ratio": 1.1481682876946548,
+        "worst_fmax_mhz": 85.25149536132812
+      },
+      "timing_passes": 4
+    },
+    "seeds": [
+      426,
+      427,
+      428,
+      429
+    ]
+  },
+  "pilot_nextpnr_revision": "1656e473e1442f9b734ff5f4cdfddfd013846b9e",
+  "priority": "area",
+  "production": {
+    "archive_sha256": "8d6108e84657347092ca3ba13eaa46fda60b56a3d77c10f9e221ffde8e7cb05b",
+    "build_id": "0f3ac9f20d9eac225f7014a912d42e55",
+    "package_id": "403795ffb14593b192d44f2a0734050e26df94e9643ad1862ef9f1fa353a2836",
+    "route": {
+      "gpu_backend": "hip",
+      "placer_heap_timingweight": 10,
+      "placer_seed": 1,
+      "status": "pass",
+      "unrouted": false
+    },
+    "source_revision": "5969e0f0911dbad351bcf16205b382b0fe9ab4d4",
+    "synthesized_aluts": 1138,
+    "timing": {
+      "pixel": {
+        "achieved_mhz": 91.54993438720703,
+        "clock": "core.game.clk",
+        "constraint_mhz": 74.25006866455078,
+        "requested_mhz": 74.25,
+        "status": "pass"
+      },
+      "reference": {
+        "clock": "FPGA_CLK1_50",
+        "constraint_mhz": 50.0,
+        "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+        "fractional_pll": {
+          "achieved_hz": 74249999.83243954,
+          "bel": "altera_pll.0.14.0",
+          "counter": "C6",
+          "error_ppm": -0.00225670649,
+          "k": 3908420153,
+          "m": 8,
+          "n": 1,
+          "reference_mhz": 50.0,
+          "requested_hz": 74250000.0
+        },
+        "requested_mhz": 50.0,
+        "status": "pass"
+      },
+      "status": "pass"
+    },
+    "toolchain": "mistral commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=54d9710441ac33938303664e7eaf599d4cef7e4d22430e7971786ac50fb5c60b; nextpnr-mistral commit=9128800fa6e77c4138088a7107a95376ba47ff15; sha256=a897f274e4b8c7b5da477488dad1e512e1446116e60744e07c1592de7d67eae6; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=5391eeb1e91b38a3d0e96d04f24cf921743c9c78; sha256=ef9f30ff0952536c9fa147df616dde8d46a7383abce8169416774281bd2f6402"
+  },
+  "promoted": false,
+  "proof": {
+    "arbitrary_binary_states": true,
+    "equivalent": true,
+    "initialized_state": "preserve",
+    "kind": "named_state_transition"
+  },
+  "qualification": {
+    "decision": {
+      "hardware_acceptance": false,
+      "promoted": false,
+      "status": "timing_qualified",
+      "timing_qualified": true
+    },
+    "seeds": [
+      402,
+      406,
+      408,
+      430,
+      431,
+      432,
+      433,
+      434
+    ],
+    "summary": {
+      "complete": true,
+      "completed_routes": 8,
+      "metrics": {
+        "clocks_mhz": {
+          "pixel": {
+            "maximum": 87.96621704101562,
+            "median": 79.76055908203125,
+            "minimum": 77.2081527709961
+          }
+        },
+        "full_core_alut": 1118,
+        "median_clock_ratio": 1.0742162839330809,
+        "worst_clock_ratio": 1.0398404413602167,
+        "worst_fmax_mhz": 77.2081527709961
+      },
+      "timing_passes": 8
+    }
+  },
+  "receipt_hashes": {
+    "campaign.json": "6d1f183342051e820eb7515ea81c39d494614c58d9223c0cf6f806b24cbfbbfe",
+    "qualification/latest.json": "82c75e2b20ae34c97797810ed8dff57116f9977b59837d5e0397dbbf94049db8",
+    "search-checkpoint.json": "fa909f02db8f5ae94226ede168d52cda047874c215473cc1017ae941c5fc3f5b",
+    "validation/latest.json": "9408d29eeb5a8e69f868183e05e348a478e71a0cde140053c3667813bf628d3f"
+  },
+  "required_pixel_mhz": 74.25,
+  "scope": "advisory_milestone_snapshot_not_campaign_receipts; pilot timing applies to frozen source/tools; production route applies to exact sealed package",
+  "source_base": "8f5c5b598",
+  "source_sha256": "6d92673855a4930908ae258d847ee99e6984c5ff18110a1131624b9294d6e901"
+}

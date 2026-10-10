@@ -548,7 +548,7 @@ class BuildFesPongTests(unittest.TestCase):
         (output / "core.rbf").write_bytes(b"rbf\n")
         (output / "nextpnr.log").write_text(
             "Info: constraining clock net 'FPGA_CLK1_50' to 50.00 MHz\n"
-            "Info: PLL 'video_clock.pll': fractional-N requested 74250000.000000 Hz, "
+            "Info: PLL 'video_clock.pll': fractional-N requested 74250000.000000 Hz (output 0), "
             "achieved 74249999.832439542 Hz, error -0.00225670649 ppm.\n"
             "Info: PLL 'video_clock.pll': 50.000000 MHz -> VCO 445.499999 MHz, fractional-N, "
             "M=8 N=1 K=3908420153, counters C6, bel altera_pll.0.14.0\n"
@@ -623,7 +623,7 @@ class BuildFesPongTests(unittest.TestCase):
             self.assertEqual(summary["status"], "pass")
             self.assertEqual(summary["timing"]["pixel"]["requested_mhz"], 74.25)
             self.assertEqual(
-                summary["timing"]["reference"],
+                {k: v for k, v in summary["timing"]["reference"].items() if k != "fractional_pll"},
                 {
                     "clock": "FPGA_CLK1_50",
                     "constraint_mhz": 50.0,
@@ -671,6 +671,31 @@ class BuildFesPongTests(unittest.TestCase):
             (output / "routed.json").write_text("{}\n", encoding="utf-8")
             with self.assertRaisesRegex(BuildError, "routed design"):
                 validate_build_evidence(output)
+
+    def test_current_fractional_pll_log_binds_raw_frequency_and_coefficients(self) -> None:
+        modern=("Info: PLL 'video_clock.pll': fractional-N requested 74250000.000000 Hz (output 0), "
+            "achieved 74249999.832439542 Hz, error -0.00225670649 ppm.\n"
+            "Info: PLL 'video_clock.pll': 50.000000 MHz -> VCO 445.499999 MHz, fractional-N, "
+            "M=8 N=1 K=3908420153, counters C6, bel altera_pll.0.14.0\n")
+        with tempfile.TemporaryDirectory() as directory:
+            output=Path(directory);self._write_passing_outputs(output)
+            log=output/'nextpnr.log';old=log.read_text()
+            lines=old.splitlines(keepends=True)
+            legacy=''.join(line for line in lines if line.startswith("Info: PLL 'video_clock.pll': "))
+            native=old.replace(legacy,modern)
+            log.write_text(native)
+            reference=validate_build_evidence(output)['timing']['reference']
+            self.assertEqual(reference['fractional_pll']['k'],3908420153)
+            self.assertAlmostEqual(reference['fractional_pll']['achieved_hz'],74249999.832439542)
+            for bad in (modern.replace('(output 0)','(output 1)'),modern+modern,
+                    modern.replace('M=8 N=1','M=9 N=1'),modern.replace('K=3908420153','K=0'),
+                    modern.replace('74249999.832439542','74249990.832439542'),
+                    modern.replace('-0.00225670649','0.0'),modern.replace('C6','C5'),
+                    modern.replace('altera_pll.0.14.0','altera_pll.1.14.0'),
+                    modern.replace('74249999.832439542','nan'),modern+legacy):
+                with self.subTest(log=bad):
+                    log.write_text(old.replace(legacy,bad))
+                    with self.assertRaises(BuildError):validate_build_evidence(output)
 
     def test_reference_and_pll_evidence_is_complete_and_consistent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
