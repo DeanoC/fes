@@ -61,7 +61,9 @@ func (f *recoveryCore) Stop(context.Context) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stops++
-	f.status = localcores.RunStatus{Phase: "idle"}
+	if !errors.Is(f.stopErr, localcores.ErrInUse) {
+		f.status = localcores.RunStatus{Phase: "idle"}
+	}
 	return f.stopErr
 }
 func (f *recoveryCore) counts() (int, int) {
@@ -165,6 +167,33 @@ func (p *recoveryLaunchPad) Poll() ([]remoteinput.Event, error) {
 	return []remoteinput.Event{selectPress, startPress}, nil
 }
 func (*recoveryLaunchPad) Close() error { return nil }
+
+func TestRunRefusedLocalStopKeepsTheCore(t *testing.T) {
+	f := &recoveryCore{status: localcores.RunStatus{Phase: "running", Running: true}, stopErr: localcores.ErrInUse}
+	client, hostStops := recoveryTestClient(t, f)
+	pad := recoveryChordPad()
+	var resumed atomic.Bool
+	client.SetMenuDisplayHandoff(func(context.Context) error {
+		pad.arm.Store(true)
+		return nil
+	}, func() { resumed.Store(true) })
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := Run(ctx, client, func(Model) {
+		if resumed.Load() {
+			cancel()
+		}
+	}, func() (Pad, error) { return pad, nil }); err != nil && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatal(err)
+	}
+	_, stops := f.counts()
+	f.mu.Lock()
+	phase := f.status.Phase
+	f.mu.Unlock()
+	if stops != 1 || resumed.Load() || phase != "running" || hostStops.Load() != 0 {
+		t.Fatalf("stops=%d resumed=%t phase=%s hostStops=%d", stops, resumed.Load(), phase, hostStops.Load())
+	}
+}
 
 func TestRunAdoptsLocalRunAtStartupAndStopsIt(t *testing.T) {
 	f := &recoveryCore{status: localcores.RunStatus{Phase: "running", Running: true}, stopErr: errors.New("response lost")}
@@ -272,7 +301,7 @@ func TestRunLaunchingReturnsToMenuOnlyAtIdle(t *testing.T) {
 
 func TestRunAdoptsFailedLocalLaunchAfterStatus(t *testing.T) {
 	probe, err := net.Listen("unix", filepath.Join(t.TempDir(), "probe.sock"))
-	if errors.Is(err, syscall.EPERM) {
+	if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EINVAL) {
 		t.Skip("sandbox denies local catalog socket binding")
 	}
 	if err != nil {

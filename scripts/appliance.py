@@ -270,8 +270,9 @@ def export_release(output,rootfs,kernel,*,version,provenance,image_passes=2,sing
     if output.exists() or output.is_symlink():
         expected_files=('rootfs.img','release.json','evidence.json') + (('SINGLE-PASS-SCRATCH.txt',) if image_passes==1 else ())
         require_sealed_bundle(output,expected_files)
+        marker_differs = image_passes == 1 and regular(output/'SINGLE-PASS-SCRATCH.txt').read_bytes() != regular(single_pass_marker).read_bytes()
         if (regular(result.manifest).read_bytes()!=canonical(manifest) or regular(result.evidence).read_bytes()!=canonical(evidence)
-                or digest(regular(result.image))!=provenance.rootfs_sha256):
+                or digest(regular(result.image))!=provenance.rootfs_sha256 or marker_differs):
             raise ValueError('immutable release destination differs')
         return result
     output.parent.mkdir(parents=True,exist_ok=True)

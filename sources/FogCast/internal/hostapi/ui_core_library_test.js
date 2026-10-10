@@ -392,6 +392,48 @@ test('inventory outage invalidates previously online guided setup',async()=>{
  const c=createController({fetchImpl:async(path,opt={})=>{if(opt.method==='POST'){posts++;return response({});}if(outage && path==='/api/v1/core-packages')throw Error('host offline');if(path==='/api/v1/core-packages')return response({packages:[pkg(A,'fes.sms')]});if(path==='/api/v1/library/core-entries')return response({entries:[]});if(path==='/api/v1/core-catalog')return response({cores:[row]});if(path.includes('media-capabilities'))return response(caps(A));if(path.includes('/setup?'))return response({...row,roms:[]});throw Error(path);}});
  await c.open();await c.selectCore('publication','fes.sms');outage=true;await c.refresh();assert.equal(c.snapshot().catalogOnline,false);await c.createSetupEntry('test');assert.equal(posts,0);
 });
+test('video inventory failure disables install and names the outage', async () => {
+  const message = 'video part inventory is unavailable';
+  const calls = [];
+  const row = {library_source_id:'library', source_id:'source', core_id:'fes.coleco', label:'Coleco', system:'coleco', standing:'supported', package_id:A, artifact_state:'available', video_inventory_error:message};
+  const controller = createController({fetchImpl: async (path, opt = {}) => {
+    calls.push({path, opt});
+    if (path === '/api/v1/core-packages') return response({packages: []});
+    if (path === '/api/v1/library/core-entries') return response({entries: []});
+    if (path === '/api/v1/library/video-parts') return response([]);
+    if (path === '/api/v1/core-catalog') return response({cores: [row]});
+    throw Error(path);
+  }});
+  class Node {
+    constructor() { this.hidden = true; this.open = false; this.listeners = {}; this.children = []; this.value = ''; this.disabled = false; this.text = ''; }
+    set textContent(value) { this.text = String(value); }
+    get textContent() { return this.text; }
+    set innerHTML(_) { throw new Error('unsafe DOM'); }
+    replaceChildren(...children) { this.children = children; }
+    addEventListener(name, fn) { this.listeners[name] = fn; }
+    setAttribute() {}
+    showModal() { this.open = true; }
+    close() { this.open = false; }
+    focus() {}
+  }
+  const ids = ['open-core-library','core-library','core-library-close','core-library-refresh',
+    'core-package-file','core-package-import','core-package-select','core-package-check','core-package-status',
+    'core-media-file','core-media-import','core-media-discard','core-media-status','core-entry-title',
+    'core-entry-create','core-entry-select','core-entry-current','core-entry-package-save',
+    'core-entry-media-save','core-entry-media-clear','core-library-message',
+    'core-system-select','core-system-status','core-system-install','core-setup-create','core-setup-roms'];
+  const nodes = Object.fromEntries(ids.map(id => [id, new Node()]));
+  nodes['core-library'].querySelectorAll = () => ids.filter(id => !id.endsWith('status') && id !== 'core-library').map(id => nodes[id]);
+  const document = {getElementById: id => nodes[id], createElement: () => new Node()};
+  mount(document, controller);
+  await controller.open();
+  await controller.selectCore('source', 'fes.coleco');
+  assert.match(nodes['core-system-status'].textContent, /video part inventory is unavailable/);
+  assert.equal(nodes['core-system-install'].disabled, true);
+  await controller.installCore();
+  assert.equal(calls.filter(call => call.opt.method === 'POST').length, 0);
+  assert.match(controller.snapshot().message, /video part inventory is unavailable/);
+});
 test('refresh and reopen keep uninstalled systems online and clear changed references',async()=>{
  let pid=A;let setupCalls=0;
  const c=createController({fetchImpl:async(path)=>{

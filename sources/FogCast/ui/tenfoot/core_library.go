@@ -53,7 +53,11 @@ func (a *App) coreLibraryRowsLocked() []FirmwarePickerRow {
 			if s.FilterCoreID != "" && r.CoreID != s.FilterCoreID {
 				continue
 			}
-			add(r.Label+" · "+r.Standing+" · "+r.ArtifactState, "system")
+			label := r.Label + " · " + r.Standing + " · " + r.ArtifactState
+			if strings.TrimSpace(r.VideoInventoryError) != "" {
+				label += " · " + r.VideoInventoryError
+			}
+			add(label, "system")
 			rows[len(rows)-1].Core = &r
 		}
 		return rows
@@ -308,6 +312,10 @@ func (a *App) handleCoreLibraryLocked(cmd Command) {
 		r := *row.Core
 		if r.PackageID == "" || r.ArtifactState == "unavailable" || r.ArtifactState == "unproduced" {
 			s.Status = "No installable package has been published for this system."
+			return
+		}
+		if strings.TrimSpace(r.VideoInventoryError) != "" {
+			s.Status = r.VideoInventoryError
 			return
 		}
 		ref := r.CoreReference

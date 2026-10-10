@@ -1579,6 +1579,23 @@ def locked_diagnostics(root, output, action):
             yield lock, diagnostics
 
 
+def image_pass_cache_reason(output, requested):
+    """Return why a cached image cannot satisfy this pass count.
+
+    A missing record is not a match in either direction. Older two-pass
+    receipts omit image_passes and still count as two passes.
+    """
+    try:
+        prior = dict(line.split("=", 1) for line in (Path(output) / "reproducibility.txt").read_text().splitlines() if "=" in line)
+    except (OSError, ValueError):
+        return "image pass evidence is missing"
+    recorded = prior.get("image_passes", "2")
+    requested = str(requested)
+    if recorded != requested:
+        return f"{recorded}-pass output cannot satisfy a {requested}-pass request"
+    return ""
+
+
 def resolve_selected_package(revisions, selection_path, env, force=False, recipe=None, source=None):
     recipe_source = source_checkout("misteross", revisions["misteross"]) if source is None else source
     package = core_bundle.resolve_core_package(
@@ -1590,14 +1607,12 @@ def resolve_selected_package(revisions, selection_path, env, force=False, recipe
         destination = Path(selection_path).parent / 'resolved-video-parts' / package['inputs']['selection']['package_id']
         try:
             video = resolve_video_parts(recipe_source, package, destination, recipe=recipe, env=env)
-        except MissingVideoShell:
+        except MissingVideoShell as error:
             if force:
                 raise
-            package = core_bundle.resolve_core_package(
-                recipe_source, revisions['mister-packages'], selection_path,
-                force=True, env=env, recipe=recipe)
-            destination = Path(selection_path).parent / 'resolved-video-parts' / package['inputs']['selection']['package_id']
-            video = resolve_video_parts(recipe_source, package, destination, recipe=recipe, env=env)
+            raise MissingVideoShell(
+                "cached package has no frozen video shell; rerun with an explicit rebuild"
+            ) from error
         package['video_parts'] = video
         package['inputs']['video_parts'] = video['inputs']
     return package
@@ -1723,13 +1738,9 @@ def main():
         if args.action in ("build", "image", "rebuild"):
             image_hit, image_reason = (False, "forced rebuild") if (args.action == "rebuild" or env.get("TOOLCHAIN_REBUILD") == "1") else reuse_status(
                 output, "image", image_fp)
-            if image_hit and os.environ.get("IMAGE_PASSES", "2") == "2":
-                try:
-                    prior = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
-                    if prior.get("image_passes", "2") != "2":
-                        image_hit, image_reason = False, "single-pass output cannot satisfy a two-pass request"
-                except (OSError, ValueError):
-                    image_hit, image_reason = False, "image pass evidence is missing"
+            if image_hit:
+                if reason := image_pass_cache_reason(output, os.environ.get("IMAGE_PASSES", "2")):
+                    image_hit, image_reason = False, reason
             if image_hit:
                 prior = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
                 if (prior.get("shared_cache") == "1") != bool(env.get("FES_TARGET_IMAGE_SHARED_CACHE")):

@@ -34,6 +34,22 @@ func smsRow() hostclient.Game {
 }
 func pressA() remoteinput.Event { e, _ := remoteinput.NormalizeGamepad("a", true); return e }
 
+func TestHostlessAttractArmsLocalSMS(t *testing.T) {
+	row := smsRow()
+	m := Model{Games: []hostclient.Game{row}, Catalog: []hostclient.Game{row}, LocalPlayEnabled: true}
+	m.setLocalAttract([]hostclient.Game{row})
+	m.SetAttractIdle(time.Millisecond)
+	t0 := time.Unix(0, 0)
+	m.Tick(t0)
+	m.Tick(t0.Add(time.Second))
+	if !m.AttractActive {
+		t.Fatal("local attract stayed blocked while the host was down")
+	}
+	if action := m.Input(pressA(), t0.Add(2*time.Second)); action != "local-launch" {
+		t.Fatalf("attract launch %q message %q", action, m.Message)
+	}
+}
+
 func TestHostlessLocalSMSPaths(t *testing.T) {
 	row := smsRow()
 	for _, screen := range []string{"browse", "detail", "attract"} {

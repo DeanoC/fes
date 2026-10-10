@@ -273,6 +273,24 @@ class HilPlanTest(unittest.TestCase):
                 self.assertEqual(data['class'], 'overlay')
                 for component in components:
                     self.assertIn(component, data['components'])
+                if filename == 'pr565.files':
+                    self.assertNotIn('core:ramtest-quartus', data['components'])
+
+    def test_producer_script_suffixes_map_to_canonical_cores(self):
+        path = self.work / 'producers.files'
+        path.write_text('\n'.join((
+            'sources/misteross/scripts/build_fes_sg1000_oss.py',
+            'sources/misteross/scripts/build_fes_ramtest_quartus.py',
+        )) + '\n')
+        result = run('classify', '--paths-file', path, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        components = set(json.loads(result.stdout)['components'])
+        self.assertTrue({'core:sg1000', 'core:ramtest'} <= components, components)
+        self.assertTrue({'core:sg1000-oss', 'core:ramtest-quartus'}.isdisjoint(components), components)
+        # The selected Coleco producer escalates through its video-part import,
+        # but its own rule must still name the deployed core.
+        row = hil_module().classify_path('sources/misteross/scripts/build_fes_coleco_socket_v2.py')
+        self.assertEqual(row['component'], 'core:coleco')
 
     def test_evidence_refuses_core_archive_from_other_revision(self):
         self.git_repo(['sources/misteross/cores/ramtest/change.v'])
@@ -445,7 +463,10 @@ class HilPlanTest(unittest.TestCase):
             with self.subTest(script=name):
                 self.assertEqual(plan.plan([scripts + name], texts)['decision'], 'FULL_IMAGE')
         result = plan.plan([scripts + 'build_fes_menu.py'], texts)
-        self.assertIn('core:menu-package', result['components'])
+        # The package producer imports this script. Both names canonicalize to
+        # core:menu, so the overlay does not invent a second component.
+        self.assertIn('core:menu', result['components'])
+        self.assertNotIn('core:menu-package', result['components'])
         result = plan.plan([scripts + 'build_fes_demo.py'], texts)
         self.assertIn('core:catch', result['components'])
 

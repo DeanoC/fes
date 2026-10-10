@@ -611,6 +611,17 @@
     });
   }
 
+  function titleForPreference(titles, gameID) {
+    if (!gameID || !Array.isArray(titles)) return null;
+    for (const title of titles) {
+      if (!title) continue;
+      if (title.title_id === gameID) return title;
+      const options = Array.isArray(title.options) ? title.options : [];
+      if (options.some(option => option && option.source_game_id === gameID)) return title;
+    }
+    return null;
+  }
+
   function titleForGame(titles, game) {
     if (!game || !Array.isArray(titles)) return null;
     for (const title of titles) {
@@ -628,13 +639,29 @@
     return option.execution || option.source_game_id;
   }
 
+  function canonicalEditionQuery(value) {
+    const text = String(value || '').trim().toLowerCase();
+    let out = '';
+    let spaced = false;
+    for (const ch of text) {
+      if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+        out += ch;
+        spaced = false;
+      } else if ((ch === ' ' || ch === '\t') && out && !spaced) {
+        out += ' ';
+        spaced = true;
+      }
+    }
+    return out.trim();
+  }
+
   function savedSourceGameID(title, game, picks, options) {
     if (!title || !picks || !Array.isArray(options)) return '';
     const known = id => typeof id === 'string' && options.some(option => option.source_game_id === id);
     // Household pick against the canonical title first, then the title query.
     // A catalog id that happens to equal a source id is not a choice.
     if (known(picks[title.title_id])) return picks[title.title_id];
-    const query = game && typeof game.title === 'string' ? game.title.trim().toLowerCase() : '';
+    const query = canonicalEditionQuery(game && game.title);
     if (query && known(picks[query])) return picks[query];
     return '';
   }
@@ -1613,13 +1640,39 @@
     let playContextGeneration = 0;
     let confirmedPicks = {};
     let localPlayPicks = {};
+    // titleChoiceKeys holds the confirmed pick keys each title owns.
+    const titleChoiceKeys = new Map();
     let playPickRevision = 0;
     const confirmedLocalKeys = new Set();
     const pendingPickRevisions = new Map();
+    const pendingPickKeys = new Map();
+    // pickEpoch advances when a pick starts or saves, so a preference GET can
+    // tell that a title changed locally after the GET began.
+    let pickEpoch = 0;
+    const lastPickEpochs = new Map();
     const playPickSaves = new Map();
 
     function publishPlayPicks() {
       state.playPicks = Object.freeze({ ...confirmedPicks, ...localPlayPicks });
+    }
+
+    // A saved pick replaces every key the title owned before it.
+    function confirmPlayPick(titleKey, pick) {
+      for (const key of titleChoiceKeys.get(titleKey) || []) {
+        if (Object.prototype.hasOwnProperty.call(pick, key)) continue;
+        delete confirmedPicks[key];
+        confirmedLocalKeys.delete(key);
+      }
+      confirmedPicks = { ...confirmedPicks, ...pick };
+      Object.keys(pick).forEach(key => confirmedLocalKeys.add(key));
+      titleChoiceKeys.set(titleKey, Object.keys(pick));
+      lastPickEpochs.set(titleKey, ++pickEpoch);
+    }
+
+    function settlePendingPicks(titleKey) {
+      for (const key of pendingPickKeys.get(titleKey) || []) delete localPlayPicks[key];
+      pendingPickKeys.delete(titleKey);
+      pendingPickRevisions.delete(titleKey);
     }
 
     function liveSessionTitle(id) {
@@ -2153,6 +2206,7 @@
     async function ensurePlayContext() {
       const generation = ++playContextGeneration;
       const selectionRevision = state.selectionRevision;
+      const pickEpochAtStart = pickEpoch;
       const selected = state.selectedLiveGame;
       state.playOptionRows = [];
       state.playOptionState = 'loading';
@@ -2171,17 +2225,42 @@
       }
       if (prefsPayload && Array.isArray(prefsPayload.preferences)) {
         const fetched = {};
+        const refreshed = new Map();
+        const kept = new Set(confirmedLocalKeys);
         prefsPayload.preferences.forEach(pref => {
           if (!pref || typeof pref.game_id !== 'string' || !pref.game_id.trim()) return;
           const gameID = pref.game_id.trim();
-          const key = typeof pref.query === 'string' ? pref.query.trim().toLowerCase() : '';
+          const key = canonicalEditionQuery(pref.query);
+          const ownedTitle = titleForPreference(state.libraryTitles, gameID);
+          const titleID = ownedTitle && typeof ownedTitle.title_id === 'string' ? ownedTitle.title_id : '';
+          // A pick that is pending, or that started or saved after this GET
+          // began, is newer than this response, so the title keeps its keys.
+          if (titleID && (pendingPickRevisions.has(titleID)
+              || (lastPickEpochs.get(titleID) || 0) > pickEpochAtStart)) {
+            for (const owned of titleChoiceKeys.get(titleID) || []) kept.add(owned);
+            return;
+          }
           if (key) fetched[key] = gameID;
           fetched[gameID] = gameID;
+          if (!titleID) return;
+          // Otherwise the fetched preference replaces the title's owned keys,
+          // including a choice this browser saved before another client changed it.
+          if (!refreshed.has(titleID)) {
+            refreshed.set(titleID, []);
+            for (const stale of titleChoiceKeys.get(titleID) || []) {
+              confirmedLocalKeys.delete(stale);
+              kept.delete(stale);
+            }
+          }
+          const owned = refreshed.get(titleID);
+          if (key && !owned.includes(key)) owned.push(key);
+          if (!owned.includes(gameID)) owned.push(gameID);
+          titleChoiceKeys.set(titleID, owned);
         });
         confirmedPicks = Object.fromEntries(Object.entries(confirmedPicks)
-          .filter(([key]) => confirmedLocalKeys.has(key)));
+          .filter(([key]) => kept.has(key)));
         for (const [key, id] of Object.entries(fetched)) {
-          if (!confirmedLocalKeys.has(key)) confirmedPicks[key] = id;
+          if (!kept.has(key)) confirmedPicks[key] = id;
         }
       }
       publishPlayPicks();
@@ -2244,10 +2323,17 @@
       if (!query) return;
       const localPick = { [game.id]: game.id };
       if (title && title.title_id) localPick[title.title_id] = game.id;
-      localPick[String(query).trim().toLowerCase()] = game.id;
+      const canonicalQuery = canonicalEditionQuery(query);
+      if (canonicalQuery) localPick[canonicalQuery] = game.id;
       const titleKey = title.title_id;
       const revision = ++playPickRevision;
       pendingPickRevisions.set(titleKey, revision);
+      lastPickEpochs.set(titleKey, ++pickEpoch);
+      const pendingKeys = pendingPickKeys.get(titleKey) || new Set();
+      Object.keys(localPick).forEach(key => pendingKeys.add(key));
+      pendingPickKeys.set(titleKey, pendingKeys);
+      // The pick shows immediately; confirmed picks change only when a save
+      // succeeds, so a failed later choice falls back to the last saved one.
       localPlayPicks = { ...localPlayPicks, ...localPick };
       publishPlayPicks();
       // Keep writes for one title in user order. A later pending choice remains
@@ -2258,16 +2344,14 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, platform, game_id: game.id }),
       })).then(() => {
-        confirmedPicks = { ...confirmedPicks, ...localPick };
-        Object.keys(localPick).forEach(key => confirmedLocalKeys.add(key));
-        if (pendingPickRevisions.get(titleKey) !== revision) return;
-        for (const key of Object.keys(localPick)) delete localPlayPicks[key];
-        pendingPickRevisions.delete(titleKey);
+        // Saves for one title run in order, so each success is the household
+        // choice until a later save lands. A newer pending pick stays visible.
+        confirmPlayPick(titleKey, localPick);
+        if (pendingPickRevisions.get(titleKey) === revision) settlePendingPicks(titleKey);
         publishPlayPicks();
       }, () => {
         if (pendingPickRevisions.get(titleKey) !== revision) return;
-        for (const key of Object.keys(localPick)) delete localPlayPicks[key];
-        pendingPickRevisions.delete(titleKey);
+        settlePendingPicks(titleKey);
         publishPlayPicks();
         const currentTitle = titleForGame(state.libraryTitles, state.selectedLiveGame);
         if (!currentTitle || currentTitle.title_id !== title.title_id) return;

@@ -664,7 +664,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						localPending = true
 						m.Busy = false
 						o.message = ""
-					} else if o.localAction == "stop" && (o.localErr == nil || errors.Is(o.localErr, localcores.ErrInUse)) || o.localAction == "local-launch" && o.localErr != nil {
+					} else if o.localAction == "stop" && errors.Is(o.localErr, localcores.ErrInUse) {
+						o.message = localCoreMessage(o.localErr)
+					} else if (o.localAction == "stop" && o.localErr == nil) || (o.localAction == "local-launch" && o.localErr != nil) {
 						elapsed := launcherNow().Sub(m.LoadStarted)
 						localTimedOut = false
 						localRunning = false
@@ -699,6 +701,16 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if o.err != nil {
 				m.Connected = false
 				m.ClearCoreStatuses(true)
+				if !localApplied && len(localGames) > 0 {
+					var merged []hostclient.Game
+					merged, kitRows = mergeKitRows(m.Catalog, localGames)
+					m.SetCatalog(merged)
+					localApplied = true
+					catalogLoaded = true
+				}
+				if m.LocalPlayEnabled {
+					m.setLocalAttract(localGames)
+				}
 				if !m.Busy {
 					m.Message = OfflineMessage
 				}
@@ -714,6 +726,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.SetCatalog(merged)
 					localApplied = true
 					catalogLoaded = true
+				}
+				if m.LocalPlayEnabled {
+					m.setLocalAttract(localGames)
 				}
 				if o.session.State != "" && !localRunning && !localPending {
 					m.Session = applyObservedSession(m.Session, o.session)
@@ -810,6 +825,17 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}
 				if o.haveCache || c.Cache != nil {
 					m.Cache = mergeCacheStatus(c.Cache, o.cache, o.haveCache)
+				}
+				// A hostless playlist must not survive reconnect. When this poll
+				// did not fetch the host list, drop the local rows and fetch
+				// on the next pass. A failed fetch leaves the list empty. A
+				// playlist already on this observation replaces the local rows.
+				if m.localAttract && !o.haveAttract {
+					m.clearLocalAttract()
+					if !o.hydrateAttract {
+						attractLoaded = false
+						lastAttract = time.Time{}
+					}
 				}
 				if o.haveAttract {
 					m.SetAttractPlaylist(o.attract)

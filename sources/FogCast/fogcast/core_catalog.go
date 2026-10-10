@@ -19,9 +19,10 @@ func validLibrarySourceID(id string) bool { return librarySourceRE.MatchString(i
 type AvailableCore struct {
 	LibrarySourceID string `json:"library_source_id"`
 	corecatalog.Entry
-	SourceID      string                  `json:"source_id"`
-	ArtifactState string                  `json:"artifact_state"`
-	Descriptor    *corepackage.Descriptor `json:"descriptor,omitempty"`
+	SourceID            string                  `json:"source_id"`
+	ArtifactState       string                  `json:"artifact_state"`
+	VideoInventoryError string                  `json:"video_inventory_error,omitempty"`
+	Descriptor          *corepackage.Descriptor `json:"descriptor,omitempty"`
 }
 
 func (s *Service) availableCatalog() (corecatalog.Catalog, error) {
@@ -44,13 +45,15 @@ func (s *Service) AvailableCores(ctx context.Context) ([]AvailableCore, error) {
 		return nil, err
 	}
 	installedVideo := map[catalog.CoreVideoPart]bool{}
+	videoInventoryErr := error(nil)
 	for _, entry := range c.Entries {
 		if len(entry.VideoParts) == 0 {
 			continue
 		}
 		parts, err := s.CoreVideoParts(ctx)
 		if err != nil {
-			return nil, err
+			videoInventoryErr = err
+			break
 		}
 		for _, part := range parts {
 			installedVideo[part] = true
@@ -69,6 +72,9 @@ func (s *Service) AvailableCores(ctx context.Context) ([]AvailableCore, error) {
 			}
 		}
 		item := AvailableCore{Entry: e, SourceID: c.SourceID, LibrarySourceID: s.coreLibrarySourceID, ArtifactState: state}
+		if len(e.VideoParts) > 0 && videoInventoryErr != nil {
+			item.VideoInventoryError = "video part inventory is unavailable"
+		}
 		for _, p := range installed {
 			if p.PackageID == e.PackageID && p.Descriptor.Core.ID == e.CoreID {
 				d := p.Descriptor
@@ -80,7 +86,7 @@ func (s *Service) AvailableCores(ctx context.Context) ([]AvailableCore, error) {
 						break
 					}
 				}
-				if complete {
+				if item.VideoInventoryError == "" && complete {
 					item.ArtifactState = "installed"
 				}
 				break
