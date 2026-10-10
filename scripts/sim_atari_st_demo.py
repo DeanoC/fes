@@ -180,7 +180,7 @@ def run(args):
     record["run_command"] = invocation
     record["timeout_seconds"] = args.timeout_seconds
     record["audio_capture"] = "unfiltered signed mono 48 kHz chip PCM; no audio-fidelity oracle"
-    if args.shared_memory:
+    if args.shared_memory and b'debug_ym_write' in (source / wrapper).read_bytes():
         record["ym_trace"] = {"file": "demo-ym.jsonl", "system_clock_hz": 52224000,
                               "chip_clock_hz": 2000000,
                               "scope": "all valid-register PSG data acceptance edges during guest run; raw values before register masking",
