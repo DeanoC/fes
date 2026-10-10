@@ -20,7 +20,11 @@ module sdram_addon_port #(
     parameter [13:0] REFRESH_WAIT_CYCLES = 14'd16,
     // Opt-in completion after read capture / committed write hold. Recovery
     // states still drain before the controller accepts another command.
-    parameter EARLY_DONE = 0
+    parameter EARLY_DONE = 0,
+    // Rate 0 normally receives one fabric register after DDR input capture.
+    // A caller supplying the raw DDR rising word selects zero; retain that
+    // same physical sample, capturing it one fabric edge earlier.
+    parameter RATE0_INPUT_REGISTER = 1
 ) (
     input wire clk,
     input wire clk_pin,
@@ -419,7 +423,8 @@ module sdram_addon_port #(
 `else
                                    14'd4 :
 `endif
-                                   rate == 2'd2 ? 14'd2 : 14'd3)) begin
+                                   rate == 2'd2 ? 14'd2 :
+                                   (RATE0_INPUT_REGISTER ? 14'd3 : 14'd2))) begin
 `ifdef RAM_OSS_HIGH_SPEED
                     if (rate != 2'd1)
                         rdata <= (rate == 2'd0) ? dq_rise : dq_fall;

@@ -264,7 +264,8 @@ module top #(
         );
         // Rate 0 consumes only the rising-edge sample. The native packer
         // cannot combine input DDIO and a bidirectional pad, so capture on
-        // the same edge in fabric before st_memory's existing second stage.
+        // the same edge in fabric. st_memory's matching rate-0 capture
+        // retains this sample directly, without another input pipeline stage.
         reg dq_sample;
         always @(posedge clk_sys) dq_sample <= dq_pin;
         assign dq_rise[bit_index] = dq_sample;

@@ -35,17 +35,31 @@ committed write hold. SDRAM recovery still drains before another physical
 command is accepted. The arbiter presents an idle-controller grant on its
 arbitration edge; CPU acknowledgement uses the captured controller word and
 retains it afterwards. No read cache or deferred write buffer is introduced.
+The motherboard also presents a valid RAM read on its transaction-capture edge,
+then holds the captured request. Ready read data and DTACK reach the CPU on the
+completion edge and are retained for the remaining bus cycle. Writes retain
+registered dispatch and completion; protection, reset-vector ROM overlay and
+other targets use the existing decoder.
+The ST supplies the first rate-0 rising-edge input word to the controller, which captures
+that same physical sample one fabric edge earlier. The board captures in fabric
+because native packing cannot combine bidirectional pads with input DDIO;
+the physical-memory fixture models the corresponding DDIO edge. `REGISTERED_READ_INPUT=1`
+retains the former fabric input stage for focused comparisons; the shared
+controller's `RATE0_INPUT_REGISTER` defaults to one for all other callers.
+CAS, physical DDR sampling, command and DQM setup timing stay unchanged.
 Other shared-controller callers retain late completion by default.
 
 The memory regression compares early/late completion and the previous refresh
 profile across three DQM delays, held-read retention, cancellation, reset and
 CPU/video/DMA/media contention. Its alternating CPU access sweep measures
-10–23 system clocks for reads and 6–20 for writes with early completion,
-versus 13–24 and 10–23 with late completion at the same refresh setting.
-`make sim-fes-atari-st-ram-bus` executes original firmware on the actual FX68K,
+9–22 system clocks for reads and 6–19 for writes with early completion,
+versus 12–25 and 10–22 with late completion at the same refresh setting.
+The optional registered-input comparison checks the former 10-clock minimum.
+`make sim-fes-atari-st-ram-bus` executes original diagnostic firmware on the actual FX68K,
 physical SDRAM/DDIO and independent-clock video fixture in both configurations.
-Across 511 same-instruction intervals, byte writes fall from 9205 to 8745 CPU
-cycles (mostly 18 to 17 per instruction); reads remain mostly 17 cycles.
+Across 511 read-instruction intervals, 503 take the nominal 16 CPU cycles and
+eight refresh waits take 18, totaling 8192 cycles; the previous path took 8740
+cycles, mostly 17 per instruction. Writes total 8746 cycles, mostly 17.
 The firmware accesses both byte lanes and checks physical data and completion.
 This is a bounded timing improvement, not original ST bus timing equivalence
 or acceptance of BIG raster timing. Fresh FPGA/kit qualification is separate.
@@ -56,7 +70,7 @@ command and suppresses its old completion. Warm Hold preserves RAM and media.
 Physical halfword offsets `$00000–$3FFFF` contain RAM; `$40000–$A67FF` contain
 the separate disk buffer (up to 820 KiB). RAM masks select the even high byte or odd
 low byte. The controller preserves its established row/bank/column wiring
-and uses its established rate-0 rising-edge sample plus its fabric capture stage.
+and uses its established rate-0 rising-edge sample, retained directly by the controller.
 
 The original ST MMU configures two logical banks. This machine has one
 physical 512 KiB bank and an empty second bank. `$FF8001` changes logical bank

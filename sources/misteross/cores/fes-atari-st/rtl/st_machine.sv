@@ -59,10 +59,13 @@ module st_machine #(
     reg dtack_n, berr_n;
     wire vpa_n;
     wire peripheral_reset_n, halted_n;
+    wire ram_read_completion;
     st_cpu #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ), .CPU_CLOCK_HZ(CPU_CLOCK_HZ)) cpu (
         .clk(clk_sys), .reset(reset), .addr(cpu_addr), .wdata(cpu_wdata),
-        .rdata(cpu_rdata), .as_n(cpu_as_n), .uds_n(cpu_uds_n), .lds_n(cpu_lds_n),
-        .rw(cpu_rw), .fc(cpu_fc), .dtack_n(dtack_n), .berr_n(berr_n),
+        .rdata(ram_read_completion ? ram_rdata : cpu_rdata),
+        .as_n(cpu_as_n), .uds_n(cpu_uds_n), .lds_n(cpu_lds_n),
+        .rw(cpu_rw), .fc(cpu_fc),
+        .dtack_n(ram_read_completion ? 1'b0 : dtack_n), .berr_n(berr_n),
         .vpa_n(vpa_n), .ipl_n(~exp_irq),
         .phi1_enable(phi1), .phi2_enable(phi2),
         .peripheral_reset_n(peripheral_reset_n), .halted_n(halted_n)
@@ -88,6 +91,14 @@ module st_machine #(
     reg [TIMER_BITS-1:0] timeout_halves;
     reg [7:0] memory_config;
     reg vectored_cycle;
+    // The RAM backend's ready word is valid before this fabric edge.
+    // Present read data/DTACK directly to the CPU on that edge, then let
+    // WAITING retain both for the rest of the bus cycle. Otherwise an
+    // acknowledgement on a CPU phase edge waits a whole extra CPU cycle.
+    // Writes and all other targets keep their registered completion.
+    assign ram_read_completion = !reset && !cpu_as_n && state == WAITING &&
+        target == RAM && !writing && ram_ready &&
+        timeout_halves != TIMER_BITS'(BUS_TIMEOUT_HALVES);
     reg [8:0] colors [0:15];
     genvar color;
     generate for (color = 0; color < 16; color = color + 1) begin : palette_pack
@@ -99,15 +110,22 @@ module st_machine #(
     assign rom_req = state == WAITING && target == ROM && !reset;
     assign rom_addr = address < 24'd8 ? address[17:1] :
                      17'((address - 24'hfc0000) >> 1);
-    assign ram_req = state == WAITING && target == RAM && !reset;
+    wire [23:0] live_address = {cpu_addr, 1'b0};
+    wire early_ram_read;
+    wire [23:0] ram_address = early_ram_read ? live_address : address;
+    // Reads have stable address/lanes on the same edge that captures the
+    // motherboard transaction. Let the RAM arbiter launch on that edge,
+    // then retain the captured request until completion. Writes still wait
+    // for the registered data/lanes; no request precedes valid CPU strobes.
+    assign ram_req = !reset && (early_ram_read || (state == WAITING && target == RAM));
     // One physical 512 KiB bank, using the original ST's multiplexed row/
     // column wiring. Selecting 2 MiB drops MAD9 in both phases; selecting
     // 128 KiB repeats A9 in row and column. ROMs use these aliases to size RAM.
-    assign ram_addr = memory_config[3:2] == 2'd2 ? {address[19:11], address[9:1]} :
-                      memory_config[3:2] == 2'd0 ? {address[17:9], address[9:1]} : address[18:1];
-    assign ram_wdata = write_data;
-    assign ram_byte_enable = lanes;
-    assign ram_write = writing;
+    assign ram_addr = memory_config[3:2] == 2'd2 ? {ram_address[19:11], ram_address[9:1]} :
+                      memory_config[3:2] == 2'd0 ? {ram_address[17:9], ram_address[9:1]} : ram_address[18:1];
+    assign ram_wdata = early_ram_read || !writing ? 16'd0 : write_data;
+    assign ram_byte_enable = early_ram_read ? {!cpu_uds_n, !cpu_lds_n} : lanes;
+    assign ram_write = early_ram_read ? 1'b0 : writing;
     assign exp_req = state == WAITING && target == EXPANSION && !reset;
     assign exp_addr = address[23:1];
     assign exp_wdata = write_data;
@@ -117,7 +135,6 @@ module st_machine #(
     assign vpa_n = state != IACK || vectored_cycle || reset;
     assign irq_ack = state == IACK && !reset;
 
-    wire [23:0] live_address = {cpu_addr, 1'b0};
     function automatic [23:0] bank_size(input [1:0] configuration);
         case (configuration)
             2'd0: bank_size = 24'h020000;
@@ -134,6 +151,13 @@ module st_machine #(
                    live_address == 24'hff8204 || live_address == 24'hff8206 ||
                    live_address == 24'hff8208 ||
                    live_address == 24'hff820a || live_address == 24'hff8260;
+    // Match the RAM branch of the normal decoder, including supervisor
+    // protection and the reset-vector ROM overlay. IACK, empty banks and
+    // all ROM/MMIO/expansion accesses retain their registered dispatch.
+    assign early_ram_read = state == IDLE && !reset && !cpu_as_n && cpu_rw &&
+        (!cpu_uds_n || !cpu_lds_n) && cpu_fc != 3'b111 &&
+        live_address < bank0_size && (supervisor || live_address >= 24'h000800) &&
+        !(supervisor && live_address < 24'd8);
     wire palette_access = address >= 24'hff8240 && address <= 24'hff825e;
     wire [3:0] palette_index = address[4:1];
     reg [15:0] io_rdata;

@@ -476,7 +476,7 @@ public:
                 std::cout << ' ' << ticks << ':' << count;
             }
             require(intervals == 511, "RAM instruction interval count", system_cycles);
-            require(total <= (writing ? (ST_EARLY_COMPLETION ? 9000u : 9500u) : 9000u),
+            require(total <= (writing ? (ST_EARLY_COMPLETION ? 9000u : 9500u) : (ST_EARLY_COMPLETION ? 8250u : 9000u)),
                     "RAM instruction timing regressed", system_cycles);
             std::cout << "; total " << total << " CPU cycles for " << intervals << " intervals\n";
         }
