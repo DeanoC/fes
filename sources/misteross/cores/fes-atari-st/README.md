@@ -106,7 +106,11 @@ HDMI. PAL uses 313 × 512 CPU cycles, NTSC 263 × 508, and monochrome
 501 × 224. At the retained nominal 8 MHz these are approximately
 49.920/59.878/71.286 Hz; the original PAL/NTSC crystal frequencies are not
 reproduced. Timer B receives active display enable, including opened bottom
-lines, so blank lines do not contribute events. The live video counter is reduced.
+lines, so blank lines do not contribute events. The live shifter address counter advances by two bytes per four native CPU
+cycles during DMA, including opened bottom lines. Its read visibility follows
+Hatari 2.5.0's eight-cycle offset; blanking holds the address and VBL reloads
+the aligned screen base. Exact MMU arbitration and horizontal border tricks
+remain unimplemented.
 The MFP UART has disconnected RX and timed TX status, without a physical serial port.
 
 `st_io` has an optional `MFP_WAIT_STATES` access-timing probe, default zero.
@@ -200,7 +204,8 @@ Height travels with each immutable bank and changes only at output SOF.
 `st_native_border.sv` records lossless palette-zero runs across the visible
 border raster in those same three owned banks. Every row has an initial colour
 and run offset/count, so repeated HDMI rows replay within-line changes. The
-4096-event budget is explicit: overflow increments capture underruns and
+8192-event budget accommodates BIG psycho screen 3's dense palette stream;
+the bound remains explicit: overflow increments capture underruns and
 rejects the entire frame. HOLD and consumer backpressure retain the same bank
 ownership rules for border runs and display pixels. Every low-resolution frame
 uses a centred 416×276 PAL or 416×255 NTSC canvas at 2×2 scaling, with black

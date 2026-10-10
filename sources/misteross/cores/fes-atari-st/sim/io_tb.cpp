@@ -238,6 +238,50 @@ static void display_enable(Test &t,unsigned resolution,unsigned sync,unsigned fp
     std::cout<<"ST I/O: nominal "<<fps<<" Hz, "<<active<<" Timer B events/frame\n";
 }
 
+// Hatari 2.5 Video_CalculateAddress: read cycle minus eight, then
+// two bytes per four cycles, clamped to the ordinary DMA line window.
+// Check every fabric edge, including the holds between CPU enables, and
+// carry through both byte boundaries used by FF8205/07/09.
+static void shifter_counter(Test &t,unsigned resolution,unsigned sync) {
+    t.reset(resolution,sync);
+    const bool mono=resolution==2, pal=(sync&2)!=0;
+    const unsigned top=mono?34:pal?63:34;
+    const unsigned start=mono?0:pal?56:52;
+    const unsigned width=mono?160:320;
+    const unsigned bytes=width/2;
+    const unsigned base=0x12ff00;
+    t.dut.screen_base=base|0xf3; // Low byte is ignored on an STF.
+    while(t.dut.display_line<top-1) t.tick();
+    while(t.dut.display_line<top) {
+        t.require(t.dut.video_counter==0,"top blanking holds the initial counter");
+        t.tick();
+    }
+    bool saw_negative=false;
+    unsigned calibration_values=0;
+    while(t.dut.display_line<top+4) {
+        const unsigned row=t.dut.display_line-top;
+        const int progress=int(t.dut.display_phase)-8-int(start);
+        const unsigned elapsed=progress<0?0:unsigned(progress)>width?width:unsigned(progress);
+        const unsigned expected=base+row*bytes+(elapsed/4)*2;
+        t.require(t.dut.video_counter==expected,
+                  "shifter counter exposes word progress at the documented read phase");
+        const unsigned low=expected&255;
+        if(low&128) saw_negative=true;
+        else if(saw_negative && low<=8) calibration_values|=1u<<(low/2);
+        t.tick();
+    }
+    t.require(calibration_values==31,"polling after a negative byte sees 0/2/4/6/8");
+    t.require(t.dut.video_counter==base+4*bytes,"four rows carry into the high address byte");
+    const unsigned stop=top+(mono?400:200);
+    while(t.dut.display_line<stop) t.tick();
+    const unsigned final=base+(mono?400:200)*bytes;
+    while(t.frames==0) {
+        t.require(t.dut.video_counter==final,"bottom blanking holds the final DMA address");
+        t.tick();
+    }
+    t.require(t.dut.video_counter==base,"VBL reloads all counter bytes from aligned base");
+}
+
 static void brief_mode_writes(Test &t) {
     t.reset();
     const uint64_t start=t.cpu_ticks;
@@ -284,13 +328,17 @@ static void bottom_border(Test &t,bool pal,bool cross_sample,bool next_line=fals
         while(t.dut.display_phase<(cross_sample?504u:500u)) t.tick();
     }
     t.dut.sync_mode=pal?2:0;
+    // VIDEO_HEIGHT_BOTTOM_50HZ=47 and VIDEO_HEIGHT_BOTTOM_60HZ=26.
+    const unsigned active=200+(cross_sample?(pal?47:26):0);
+    const unsigned last_active=(pal?63:34)+active-1;
+    while(t.dut.display_line<last_active || t.dut.display_phase<400) t.tick();
+    t.require(t.dut.video_counter==0x10200+active*160,
+              "counter includes every DMA word in opened bottom lines");
     while(t.frames<1) t.tick();
     const uint64_t next_frame=t.cpu_ticks;
     t.require(t.cpu_ticks-frame_start==(pal?160256u:133604u),
               "bottom sync pulse preserves the exact native frame length");
     t.require(t.lines==(pal?313u:263u),"bottom sync pulse retains every native HBL");
-    // VIDEO_HEIGHT_BOTTOM_50HZ=47 and VIDEO_HEIGHT_BOTTOM_60HZ=26.
-    const unsigned active=200+(cross_sample?(pal?47:26):0);
     t.require(t.display_ends==active,"bottom opening requires the opposite mode at the stop sample");
     t.require(t.mread(0x21)==255-active,"Timer B sees bottom-border DE lines");
     const unsigned prior=t.display_ends;
@@ -308,6 +356,7 @@ int main(int argc,char **argv) {
     vbl_interrupt_phase(test,2,2); timer_c_rate(test);
     display_enable(test,0,2,50,200); display_enable(test,1,0,60,200);
     display_enable(test,2,2,71,400); brief_mode_writes(test);
+    shifter_counter(test,0,2); shifter_counter(test,1,0); shifter_counter(test,2,2);
     timer_b_polarity(test,false); timer_b_polarity(test,true);
     bottom_border(test,true,false); bottom_border(test,true,true);
     bottom_border(test,false,false); bottom_border(test,false,true);

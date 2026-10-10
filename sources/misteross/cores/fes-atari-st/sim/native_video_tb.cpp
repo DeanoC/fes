@@ -35,6 +35,9 @@ struct Test {
     }
     static unsigned border_colour(unsigned line,unsigned x,bool ntsc) {
         const unsigned first=ntsc?5:34;
+        // PAL supplies 21 runs per row: 5,796 events over 276 rows.
+        // This exceeds the old 4,096-event arena, like BIG psycho screen 3.
+        if(!ntsc) return (((line-first)%7+1)<<6) | (((x/20)&7)<<3) | ((x/160)&7);
         return (((line-first)%7+1)<<6) ^ (x<12?0:x<81?7:0x38);
     }
     unsigned source_mode() const {return source_frame==7?1:source_frame==8?2:0;}

@@ -1791,7 +1791,8 @@ publication metadata selected together with the RGB bank at SOF. Every native
 low-resolution frame uses centred 2×2 scaling of the 416×276/255 canvas; border
 activity and opened bottoms do not change pixel proportions or image position.
 Palette-zero runs supply every border row, including constant-colour frames.
-A per-frame 4096-event overflow
+The per-frame event arena holds 8192 entries, including BIG psycho screen 3's
+dense palette stream. Overflow
 increments capture underruns and prevents publication; no colour changes are
 silently truncated. This captures border colour timing, not top/horizontal
 DE opening. Display RAM address addition uses only the upper eleven bits.
@@ -1842,8 +1843,15 @@ Hatari v2.5.0 `TIMERB_VIDEO_CYCLE_OFFSET`; pixel capture uses undelayed DE.
 Brief sync/resolution writes therefore do not add Timer B events mid-line.
 The STF WS1 bottom-stop sample at cycle 502 uses live sync: opposite mode on
 the last ordinary color line extends DE to PAL line 309 or NTSC line 259,
-then clears at frame rollover. Timer B and the reduced video counter see
-these extra lines. RGB capture and its published height include them;
+then clears at frame rollover. Timer B and the live video counter see
+these extra lines. The counter advances two bytes per four native CPU cycles,
+with the eight-cycle read offset from Hatari 2.5.0's
+`Video_CalculateAddress`: PAL visibility cycles 64–384, NTSC 60–380 and
+monochrome 8–168. Between words and through blanking it holds its value;
+VBL and the end of the top porch reload the aligned screen base. This exposes
+low-byte wrap and 0/2/4/6/8 phases to raster routines polling FF8209.
+Counter visibility does not move DE or Timer B. RGB capture and its published
+height include the extra bottom lines;
 horizontal/top borders and the other exact GLUE sampling positions are absent.
 Native capture prefetch is also not a cycle-exact MMU/shifter implementation.
 Monochrome DE spans lines 34–433 and cycles 4–163. No shared ABI,

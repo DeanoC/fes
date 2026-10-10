@@ -154,6 +154,16 @@ module st_io #(
         (native_line >= 9'd63 && (bottom_open ? native_line < 9'd310 : native_line < 9'd263)) :
         (native_line >= 9'd34 && (bottom_open ? native_line < 9'd260 : native_line < 9'd234));
     assign native_display = !reset && active_line && active_cycle;
+    // FF8205/07/09 report wordwise DMA progress, not just complete rows.
+    // Hatari 2.5 Video_CalculateAddress subtracts eight CPU cycles before
+    // counting one word per four cycles; mono's counter porch starts at 0.
+    // These are counter visibility positions, independent of DE/Timer B.
+    wire counter_window = line_resolution == 2'd2 ?
+        (horizontal_cycle >= 9'd8 && horizontal_cycle < 9'd168) : line_pal ?
+        (horizontal_cycle >= 9'd64 && horizontal_cycle < 9'd384) :
+        (horizontal_cycle >= 9'd60 && horizontal_cycle < 9'd380);
+    wire counter_word = cpu_cycle_ce && active_line && counter_window &&
+                        horizontal_cycle[1:0] == 2'b11;
     always @(posedge clk) begin
         if (reset) begin
             timer_phase <= 0; horizontal_cycle <= 0; bottom_open <= 0; native_pixel_ce <= 0;
@@ -209,10 +219,8 @@ module st_io #(
             end else if (hblank) begin
                 if (native_line == display_top - 9'd1)
                     video_counter <= {screen_base[23:8], 8'd0};
-                else if (active_line)
-                    video_counter <= video_counter + (line_resolution == 2'd2 ? 24'd80 : 24'd160);
                 if (native_line != 9'h1ff) native_line <= native_line + 1'b1;
-            end
+            end else if (counter_word) video_counter <= video_counter + 24'd2;
             if (hblank) begin line_resolution <= resolution; line_pal <= sync_mode[1]; end
         end
     end
