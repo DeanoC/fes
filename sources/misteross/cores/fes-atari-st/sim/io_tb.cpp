@@ -58,6 +58,7 @@ struct Test {
         dut.req=1; dut.write=write; dut.addr=address>>1;
         dut.wdata=data; dut.byte_enable=lanes;
         tick(); require(dut.selected,"peripheral address selection");
+        for(unsigned waited=1;!dut.ack&&waited<100;++waited)tick();
         require(dut.ack,"peripheral acknowledgement");
         const uint16_t result=dut.rdata;
         for (unsigned k=1;k<hold;++k) {
@@ -229,7 +230,8 @@ static void timer_b_polarity(Test &t,bool rising) {
     // Primary ST timing: rising at 56+24, falling at 376+24.
     // Inspect the real MFP count on both sides, not just the wrapper pin.
     const unsigned edge=rising?80:400;
-    while(t.dut.display_line<63 || t.dut.display_phase<edge-4) t.tick();
+    // Leave room for the register transaction to finish before the edge.
+    while(t.dut.display_line<63 || t.dut.display_phase<edge-8) t.tick();
     t.require(t.mread(0x21)==255,"Timer B does not count the undelayed video edge");
     while(t.dut.display_phase<edge+4) t.tick();
     t.require(t.mread(0x21)==254,"AER selects the delayed start or end of display");
@@ -249,6 +251,7 @@ static void bottom_border(Test &t,bool pal,bool cross_sample,bool next_line=fals
     }
     t.dut.sync_mode=pal?2:0;
     while(t.frames<1) t.tick();
+    const uint64_t next_frame=t.cpu_ticks;
     t.require(t.cpu_ticks-frame_start==(pal?160256u:133604u),
               "bottom sync pulse preserves the exact native frame length");
     t.require(t.lines==(pal?313u:263u),"bottom sync pulse retains every native HBL");
@@ -257,7 +260,6 @@ static void bottom_border(Test &t,bool pal,bool cross_sample,bool next_line=fals
     t.require(t.display_ends==active,"bottom opening requires the opposite mode at the stop sample");
     t.require(t.mread(0x21)==255-active,"Timer B sees bottom-border DE lines");
     const unsigned prior=t.display_ends;
-    const uint64_t next_frame=t.cpu_ticks;
     while(t.frames<2) t.tick();
     t.require(t.display_ends-prior==200,"bottom opening clears at the next frame");
     t.require(t.cpu_ticks-next_frame==(pal?160256u:133604u),

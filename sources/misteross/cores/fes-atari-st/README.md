@@ -85,6 +85,17 @@ reproduced. Timer B receives active display enable, including opened bottom
 lines, so blank lines do not contribute events. The live video counter is reduced.
 The MFP UART has disconnected RX and timed TX status, without a physical serial port.
 
+`st_io` has an optional `MFP_WAIT_STATES` access-timing probe, default zero.
+It delays the peripheral request itself, including read sampling and writes,
+in native CPU cycles. The simulator can select four states with
+`--mfp-wait-states 4`, following
+[Hatari 2.5.0's MFP accesses](https://github.com/hatari/hatari/blob/v2.5.0/src/mfp.c#L2468).
+`make sim-fes-atari-st-mfp-bus` checks the real 68000's read/write instruction
+timing across its fractional-clock phases and samples a Timer B edge during
+the delay. It also checks held reads, cancelled writes, reset, byte lanes and
+unaffected PSG accesses. The default production timing remains unchanged;
+this option alone does not establish a fix for BIG's menu flashes.
+
 `st_acia.sv` models MC6850 registers, timed byte transport, IRQs and receive
 errors. The keyboard ACIA connects to original `st_ikbd.sv` protocol logic:
 reset acknowledgement, HID make/break, mouse commands, joystick events,
@@ -293,7 +304,14 @@ RGB images, so a rare outlier can be inspected after the run. The logo crop is n
 expanded RGB bytes for equality; they are not cryptographic artifact identities.
 Per-capture counters report video-prefetch and CPU RAM latency. Optional
 `--ram-extra-wait 0..64` adds system-clock delay to each CPU RAM callback;
-this probes sensitivity and does not model shared SDRAM arbitration. Run
+this probes sensitivity and does not model shared SDRAM arbitration.
+`--ram-fixed-wait 0..64` instead replaces the variable CPU RAM callback delay
+with a fixed system-clock delay, before any extra wait. Zero provides an
+ideal-storage timing comparison; it does not change the physical controller
+or establish that real SDRAM can meet that timing. Shared-memory mode rejects
+callback overrides, so its reported timing always comes from the actual arbiter.
+`--mfp-wait-states 0..8` selects a separate native-cycle MFP access probe;
+its selected value is recorded in the source-bound result. Run
 `python3 scripts/analyse_atari_st_raster_trace.py OUTPUT --output SUMMARY.json`
 from the FES root after completion to check artifact digests and summarize
 logo equality, connected-bit palette repeats and interrupt positions. `--shared-memory` instead uses the existing `st_boot_memory_sim_top` fixture:

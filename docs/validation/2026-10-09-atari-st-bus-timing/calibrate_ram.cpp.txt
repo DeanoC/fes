@@ -1,0 +1,32 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+#define main original_demo_main
+#include "atari_st_demo_sim.cpp"
+#undef main
+int main(int argc,char**argv) {
+    Verilated::commandArgs(argc,argv);
+    try {
+        check(argc==5,"ROM DISK PREFIX RAM_FIXED_WAIT");
+        Demo d(argv[1],argv[2],argv[3]); d.ram_fixed_wait=std::strtol(argv[4],nullptr,10);
+        for(unsigned i=0;i<64;++i)d.tick();
+        d.dut.reset=0;
+        bool previous=false;
+        uint64_t ticks=0;
+        std::cout<<"[";
+        unsigned n=0;
+        while(d.cycles<200000) {
+            if(d.dut.exp_phi2)++ticks;
+            if(d.dut.ram_req&&!previous&&d.dut.ram_addr*2>=0x600&&d.dut.ram_addr*2<0x604) {
+                if(n++)std::cout<<",";
+                std::cout<<"{\"cpu_tick\":"<<ticks<<",\"system_clock\":"<<d.cycles
+                    <<",\"write\":"<<(d.dut.ram_write?"true":"false")
+                    <<",\"address\":"<<unsigned(d.dut.ram_addr*2)<<"}";
+            }
+            previous=d.dut.ram_req;
+            d.tick();
+            if(d.ram[0x400]==0xc0&&d.ram[0x401]==0xde)break;
+        }
+        std::cout<<"]\n";
+        check(d.ram[0x400]==0xc0&&d.ram[0x401]==0xde,"CPU completed original timing program");
+        check(n==32,"all RAM transactions observed");
+    } catch(const std::exception&e){std::cerr<<e.what()<<"\n";return 1;}
+}

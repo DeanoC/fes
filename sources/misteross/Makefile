@@ -1510,6 +1510,7 @@ build-fes-riscv:
 # Atari 520ST motherboard, shared memory and optional stock-firmware boot.
 ST_CORE := cores/fes-atari-st
 ST_CPU := cores/fes-common/rtl/fx68k
+ST_MFP_WAIT_STATES ?= 0
 ST_DIAGNOSTIC := $(CURDIR)/build/diagnostics/fes-atari-st
 ST_CPU_RTL := $(ST_CPU)/fx68k.sv $(ST_CPU)/fx68kAlu.sv $(ST_CPU)/uaddrPla.sv
 ST_VIDEO_RTL := $(ST_CORE)/rtl/st_native_low_video.sv $(ST_CORE)/rtl/st_video.sv cores/fes-common/rtl/fes_video_part_direct.v \
@@ -1531,7 +1532,7 @@ atari-st-sources:
 atari-st-diagnostic: atari-st-sources
 	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
 
-sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
+sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 
 sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
@@ -1675,10 +1676,28 @@ fetch-fes-atari-st-emutos:
 sim-fes-atari-st-io:
 	$(require_local_sim)
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_io_sim_top -Wall \
-		--Mdir "$(CURDIR)/build/sim/fes-atari-st-io" \
+		-GMFP_WAIT_STATES=$(ST_MFP_WAIT_STATES) --Mdir "$(CURDIR)/build/sim/fes-atari-st-io" \
 		$(ST_CORE)/sim/st_io_sim_top.sv $(ST_IO_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/io_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-io/Vst_io_sim_top
+
+.PHONY: sim-fes-atari-st-mfp-bus
+sim-fes-atari-st-mfp-bus: atari-st-sources
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-atari-st-mfp-bus
+	@cp $(ST_CPU)/microrom.mem $(ST_CPU)/nanorom.mem build/sim/fes-atari-st-mfp-bus/
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_boot_sim_top $(ST_CPU_FLAGS) \
+		-GMFP_WAIT_STATES=4 -Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-mfp-bus" \
+		$(ST_CORE)/sim/st_boot_sim_top.sv $(ST_CORE)/rtl/st_system.sv \
+		$(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv $(ST_IO_RTL) \
+		$(ST_CORE)/rtl/st_native_low_video.sv $(ST_CPU_RTL) \
+		"$(CURDIR)/$(ST_CORE)/sim/mfp_bus_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@cd build/sim/fes-atari-st-mfp-bus && ./Vst_boot_sim_top
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_io_sim_top -Wall \
+		-GMFP_WAIT_STATES=4 --Mdir "$(CURDIR)/build/sim/fes-atari-st-mfp-wait" \
+		$(ST_CORE)/sim/st_io_sim_top.sv $(ST_IO_RTL) \
+		"$(CURDIR)/$(ST_CORE)/sim/mfp_wait_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-mfp-wait/Vst_io_sim_top
 
 EMUTOS_SECONDS ?= 8
 EMUTOS_CAPTURE ?= $(CURDIR)/build/sim/fes-atari-st-boot-memory/emutos-sdram
@@ -1688,7 +1707,7 @@ sim-fes-atari-st-emutos-memory: atari-st-sources
 	@mkdir -p build/sim/fes-atari-st-boot-memory
 	@cp $(ST_CPU)/microrom.mem $(ST_CPU)/nanorom.mem build/sim/fes-atari-st-boot-memory/
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_boot_memory_sim_top $(ST_CPU_FLAGS) \
-		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-boot-memory" \
+		-GMFP_WAIT_STATES=$(ST_MFP_WAIT_STATES) -Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-boot-memory" \
 		$(ST_CORE)/sim/st_boot_memory_sim_top.sv $(ST_CORE)/sim/st_memory_sim_top.sv \
 		$(ST_CORE)/rtl/st_system.sv $(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv \
 		$(ST_CORE)/rtl/st_memory.sv cores/fes-ramtest/rtl/sdram_addon_port.v \

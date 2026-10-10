@@ -29,6 +29,7 @@ struct Demo {
     bool last_fault=false,last_ack=false,last_io=false;
     unsigned consecutive_captures=0, last_sync=0;
     unsigned trace_start=6,trace_end=7,ram_extra_wait=0;
+    int ram_fixed_wait=-1;
     uint64_t fetch_started=0,frame_fetches=0,frame_fetch_max=0,frame_ram_max=0,ram_started=0;
     uint64_t palette_writes=0,frame_palette_writes=0;
     bool last_capture_ready=false,last_ram_ready=false;
@@ -81,7 +82,7 @@ struct Demo {
         if(!dut.ram_req){mp={};dut.ram_ready=0;}
         else {
             unsigned a=dut.ram_addr*2;check(a+1<ram.size(),"RAM bounds");
-            if(!mp.seen){mp.seen=true;mp.addr=a;mp.data=dut.ram_wdata;mp.lanes=dut.ram_byte_enable;mp.write=dut.ram_write;mp.wait=8+(a%7)+ram_extra_wait;ram_started=cycles;}
+            if(!mp.seen){mp.seen=true;mp.addr=a;mp.data=dut.ram_wdata;mp.lanes=dut.ram_byte_enable;mp.write=dut.ram_write;mp.wait=(ram_fixed_wait<0?8+(a%7):unsigned(ram_fixed_wait))+ram_extra_wait;ram_started=cycles;}
             check(mp.addr==a&&mp.data==dut.ram_wdata&&mp.lanes==dut.ram_byte_enable&&mp.write==bool(dut.ram_write),"RAM changed before ACK");
             dut.ram_ready=mp.wait==0;
             if(mp.wait)--mp.wait;
@@ -283,9 +284,10 @@ struct Demo {
 };
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
-    try {check(argc==5||argc==6||argc==9,"ROM DISK SECONDS PREFIX [KEY_B_AT [TRACE_START TRACE_END RAM_EXTRA_WAIT]] required");
+    try {check(argc==5||argc==6||argc==9||argc==10,"ROM DISK SECONDS PREFIX [KEY_B_AT [TRACE_START TRACE_END RAM_EXTRA_WAIT [RAM_FIXED_WAIT]]] required");
         Demo demo(argv[1],argv[2],argv[4]);
-        if(argc==9){demo.trace_start=std::strtoul(argv[6],nullptr,10);demo.trace_end=std::strtoul(argv[7],nullptr,10);demo.ram_extra_wait=std::strtoul(argv[8],nullptr,10);}
+        if(argc>=9){demo.trace_start=std::strtoul(argv[6],nullptr,10);demo.trace_end=std::strtoul(argv[7],nullptr,10);demo.ram_extra_wait=std::strtoul(argv[8],nullptr,10);}
+        if(argc==10)demo.ram_fixed_wait=std::strtol(argv[9],nullptr,10);
         demo.run(std::strtoul(argv[3],nullptr,10),argc>=6?std::strtoul(argv[5],nullptr,10):0);}
     catch(const std::exception &error){std::cerr<<"FAIL "<<error.what()<<'\n';return 1;}
 }
