@@ -83,13 +83,13 @@ class TestChangedTest(unittest.TestCase):
     def plan(self):
         return test_changed.plan(self.root, self.base)
 
-    def test_host_edits_run_real_go_and_nested_appliance_tests(self):
+    def test_host_edits_run_shared_go_runner_and_ui_tests(self):
         self.change("sources/FogCast/fogcast/service.go", commit=True)
         result = self.plan()
         host = [c for c in result["commands"] if c["lane"] == "host"]
-        self.assertEqual([c["cwd"] for c in host if c["argv"][0] == "go"],
-                         ["sources/FogCast", "sources/FogCast/appliance", "sources/misteross/expansion"])
-        self.assertTrue(all(c["argv"] == ["go", "test", "-race", "-short", "-timeout", "30m", "./..."] for c in host if c["argv"][0] == "go"))
+        self.assertEqual([c["argv"] for c in host],
+                         [[sys.executable, "scripts/host_tests.py"], ["make", "test-ui"]])
+        self.assertEqual([c["cwd"] for c in host], [".", "sources/FogCast"])
         self.assertEqual(set(result["impact"]["skipped"]), {"runtime", "contracts", "fpga"})
 
     def test_expansion_changes_test_linker_and_downstream_host_without_rtl(self):
@@ -98,10 +98,9 @@ class TestChangedTest(unittest.TestCase):
         self.assertEqual(result["impact"]["cores"], [])
         self.assertFalse(result["impact"]["lanes"]["fpga"])
         self.assertTrue(result["impact"]["lanes"]["host"])
-        commands = [c for c in result["commands"] if c["lane"] == "host" and c["argv"][0] == "go"]
-        self.assertEqual({c["cwd"] for c in commands},
-                         {"sources/FogCast", "sources/FogCast/appliance", "sources/misteross/expansion"})
-        self.assertTrue(all(c["argv"] == ["go", "test", "-race", "-short", "-timeout", "30m", "./..."] for c in commands))
+        commands = [c for c in result["commands"] if c["lane"] == "host" and c["argv"][0] == sys.executable]
+        self.assertEqual([c["argv"] for c in commands],
+                         [[sys.executable, "scripts/host_tests.py"]])
 
     def test_parent_owned_paths_select_parent_and_always_commands_only(self):
         self.change("image/Makefile")
@@ -121,9 +120,35 @@ class TestChangedTest(unittest.TestCase):
                          {"parent"})
         self.assertEqual(result["impact"]["cores"], [])
         self.assertTrue(all(c["lane"] in ("always", "parent") for c in result["commands"]))
-        self.assertTrue(any(c["argv"] == [sys.executable, "-m", "unittest", "discover",
-                                        "-s", "tests", "-v"]
-                            for c in result["commands"]))
+        self.assertEqual(result["impact"]["test_modes"],
+                         {"video": False, "media": True, "full_race": False})
+        self.assertIn([sys.executable, "scripts/parent_tests.py",
+                       "--video", "false", "--media", "true"],
+                      [c["argv"] for c in result["commands"]])
+
+    def test_mode_relevant_changes_set_parent_runner_flags(self):
+        self.change("scripts/bundle.py")
+        result = self.plan()
+        self.assertEqual(result["impact"]["test_modes"],
+                         {"video": True, "media": False, "full_race": False})
+        self.assertIn([sys.executable, "scripts/parent_tests.py",
+                       "--video", "true", "--media", "false"],
+                      [c["argv"] for c in result["commands"]])
+
+    def test_full_opt_in_sets_modes_for_selected_lanes_only(self):
+        self.change("docs/guide.md")
+        result = test_changed.plan(self.root, self.base, full=True)
+        self.assertEqual(result["impact"]["test_modes"],
+                         {"video": False, "media": False, "full_race": False})
+        self.change("sources/FogCast/cmd/fogcast/main.go")
+        result = test_changed.plan(self.root, self.base, full=True)
+        self.assertEqual(result["impact"]["test_modes"],
+                         {"video": True, "media": True, "full_race": True})
+        self.assertIn([sys.executable, "scripts/host_tests.py", "--full"],
+                      [c["argv"] for c in result["commands"]])
+        self.assertIn([sys.executable, "scripts/parent_tests.py",
+                       "--video", "true", "--media", "true"],
+                      [c["argv"] for c in result["commands"]])
 
     def test_runtime_changes_include_host_protocol_consumers(self):
         self.change("sources/libmister-runtime/src/protocol.cpp")

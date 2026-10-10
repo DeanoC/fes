@@ -19,6 +19,7 @@ jobs:
       lanes: ${{ steps.plan.outputs.lanes }}
       cores: ${{ steps.plan.outputs.cores }}
       simulations: ${{ steps.plan.outputs.simulations }}
+      test_modes: ${{ steps.plan.outputs.test_modes }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -37,15 +38,26 @@ jobs:
           import json, os
           from scripts.ci_gate import validate_plan
           from scripts.ci_simulations import simulation_matrix
+          from scripts.test_policy import validate_test_modes
           plan = json.load(open('/tmp/affected.json'))
           validate_plan(plan['lanes'], plan['cores'])
+          validate_test_modes(plan['test_modes'], plan['lanes'])
           with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
               output.write('lanes=' + json.dumps(plan['lanes']) + '\n')
               output.write('cores=' + json.dumps(plan['cores']) + '\n')
               output.write('simulations=' + json.dumps(simulation_matrix(plan['cores'])) + '\n')
+              output.write('test_modes=' + json.dumps(plan['test_modes']) + '\n')
           with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
               output.write('Affected CI plan\n\n```json\n' + json.dumps(plan, indent=2) + '\n```\n')
           PYCODE
+      - name: Retain affected plan artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: fes-ci-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: /tmp/affected.json
+          retention-days: 7
+          if-no-files-found: error
       - name: Always-run planner and metadata checks
         env:
           BASE: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before || github.sha }}
@@ -54,7 +66,7 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           if [ "$EVENT" = workflow_dispatch ] || [ "$EVENT" = schedule ]; then BASE=0000000000000000000000000000000000000000; fi
-          python3 -m unittest tests.test_affected tests.test_check_diff tests.test_ci_gate -v
+          python3 -m unittest tests.test_affected tests.test_check_diff tests.test_ci_gate tests.test_test_policy tests.test_test_changed -v
           python3 scripts/check_diff.py --base "$BASE" --head "$HEAD" --fallback-base "refs/remotes/origin/$DEFAULT_BRANCH"
   parent-tests:
     needs: plan
@@ -71,8 +83,15 @@ jobs:
           cache-dependency-path: |
             sources/FogCast/go.sum
             platform/go.sum
-      - run: |
-          make test
+      - env:
+          TEST_VIDEO: ${{ fromJSON(needs.plan.outputs.test_modes).video }}
+          TEST_MEDIA: ${{ fromJSON(needs.plan.outputs.test_modes).media }}
+        run: |
+          make platform-provision
+          if [ "$TEST_MEDIA" = true ]; then make media-test-provision; fi
+          python3 scripts/parent_tests.py --video "$TEST_VIDEO" --media "$TEST_MEDIA"
+          make platform-test
+          make -C image test FOGCAST_DIR="$PWD/sources/FogCast"
   consistency:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).parent
@@ -106,21 +125,13 @@ jobs:
             sources/FogCast/go.sum
             platform/go.sum
       - env:
-          EVENT: ${{ github.event_name }}
+          TEST_FULL_RACE: ${{ fromJSON(needs.plan.outputs.test_modes).full_race }}
         run: |
           make host
-          cd sources/FogCast
-          # Routine checks use the short 500-row catalog fixture; weekly schedule
-          # and manual dispatch keep the full 10k-row large-library validation.
-          flags=(-short)
-          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ]; then flags=(); fi
-          go test -race -timeout 30m "${flags[@]}" ./...
-          make test-ui
-          cd appliance
-          go test -race -timeout 30m ./...
-      - name: Shared expansion linker tests
-        working-directory: sources/misteross/expansion
-        run: go test -race -timeout 30m ./...
+          flags=()
+          if [ "$TEST_FULL_RACE" = true ]; then flags=(--full); fi
+          python3 scripts/host_tests.py "${flags[@]}"
+          make -C sources/FogCast test-ui
   runtime:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).runtime

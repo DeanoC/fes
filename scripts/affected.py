@@ -5,6 +5,11 @@ from fnmatch import fnmatchcase
 from pathlib import Path
 import subprocess
 
+try:
+    from scripts.test_policy import select_test_modes, validate_test_modes
+except ImportError:
+    from test_policy import select_test_modes, validate_test_modes
+
 # Logical module names survive the monorepo move; update only these roots.
 MODULE_ROOTS = {'host': 'sources/FogCast', 'runtime': 'sources/libmister-runtime',
                 'contracts': 'sources/mister-packages', 'fpga': 'sources/misteross'}
@@ -25,6 +30,8 @@ CI_BROAD_INPUTS = frozenset({
     'scripts/ci_simulations.py', 'scripts/ci_verilator.sh', 'scripts/generate.py',
     'tests/test_affected.py', 'tests/test_test_changed.py', 'tests/test_ci_gate.py',
     'tests/test_generate.py',
+    'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
+    'tests/test_test_policy.py',
 })
 
 
@@ -225,9 +232,19 @@ def plan(paths):
                 reasons.append(f'{path}: runtime, host protocol consumers and parent integration')
             else:
                 reasons.append(f'{path}: {owner} and parent integration')
-    return {'lanes': {lane: lane in selected for lane in LANES},
+    lanes = {lane: lane in selected for lane in LANES}
+    modes = select_test_modes(paths)
+    # Modes can only run inside an enabled lane; lane masking keeps docs or
+    # component-only plans from claiming extended coverage they cannot run.
+    if not lanes['parent']:
+        modes['video'] = modes['media'] = False
+    if not lanes['host']:
+        modes['full_race'] = False
+    validate_test_modes(modes, lanes)
+    return {'lanes': lanes,
             'skipped': [lane for lane in LANES if lane not in selected],
-            'cores': sorted(cores), 'paths': sorted(set(paths)), 'reasons': reasons,
+            'cores': sorted(cores), 'test_modes': modes,
+            'paths': sorted(set(paths)), 'reasons': reasons,
             'always': ['planner tests', 'diff whitespace checks'],
             'not_run': ['FPGA synthesis/place-and-route', 'cold image builds', 'hardware acceptance']}
 

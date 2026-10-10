@@ -52,7 +52,13 @@ class AffectedTests(unittest.TestCase):
             'scripts/ci_simulations.py', 'scripts/ci_verilator.sh', 'scripts/generate.py',
             'tests/test_affected.py', 'tests/test_test_changed.py',
             'tests/test_ci_gate.py', 'tests/test_generate.py',
+            'scripts/test_policy.py', 'scripts/parent_tests.py',
+            'scripts/host_tests.py', 'tests/test_test_policy.py',
         })
+        for path in CI_BROAD_INPUTS:
+            with self.subTest(path=path):
+                self.assertEqual(plan([path])['test_modes'],
+                                 {'video': False, 'media': False, 'full_race': False})
         for path in CI_BROAD_INPUTS:
             with self.subTest(path=path):
                 result = plan([path])
@@ -236,9 +242,13 @@ class AffectedTests(unittest.TestCase):
     def test_docs_only_reports_explicit_skips_and_metadata(self):
         result = plan(['README.md', 'docs/development.md', 'sources/FogCast/docs/ARCHITECTURE.md'])
         self.assertEqual(result['skipped'], list(LANES))
+        self.assertEqual(result['test_modes'],
+                         {'video': False, 'media': False, 'full_race': False})
         self.assertTrue(result['always'])
         self.assertIn('hardware acceptance', result['not_run'])
         self.assertTrue(all(plan(['AGENTS.md'])['lanes'].values()))
+        self.assertEqual(plan(['AGENTS.md'])['test_modes'],
+                         {'video': True, 'media': True, 'full_race': True})
 
     def test_go_expansion_module_selects_software_consumers_only(self):
         for path in ('rbf.go', 'asset_test.go', 'go.mod', 'go.sum', 'testdata/linked.rbf'):
