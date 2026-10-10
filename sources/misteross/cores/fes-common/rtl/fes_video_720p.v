@@ -31,11 +31,36 @@ module fes_video_720p (
 
     reg [10:0] horizontal;
     reg [9:0] vertical;
-    wire [10:0] centered_x = horizontal - PLAYFIELD_LEFT;
-    /* verilator lint_off UNUSEDSIGNAL */
-    wire [10:0] scaled_x = centered_x / 11'd3;
-    /* verilator lint_on UNUSEDSIGNAL */
-    wire [9:0] scaled_y = vertical / 10'd3;
+    function automatic [9:0] divide_by_three(input [9:0] dividend);
+        reg [1:0] remainder;
+        integer i;
+        begin
+            remainder = 2'd0;
+            divide_by_three = 10'd0;
+            for (i = 4; i >= 0; i = i - 1) begin
+                divide_by_three[2*i+1] = remainder[1] |
+                    (remainder[0] & dividend[2*i+1]);
+                divide_by_three[2*i] =
+                    (~remainder[1] & ~remainder[0] &
+                     dividend[2*i+1] & dividend[2*i]) |
+                    (remainder[0] & ~dividend[2*i+1]) |
+                    (remainder[1] & (dividend[2*i+1] | dividend[2*i]));
+                remainder = {
+                    (~remainder[1] & ~remainder[0] &
+                     dividend[2*i+1] & ~dividend[2*i]) |
+                    (remainder[0] & ~dividend[2*i+1] & dividend[2*i]) |
+                    (remainder[1] & (dividend[2*i+1] ~^ dividend[2*i])),
+                    (~remainder[1] & ~remainder[0] &
+                     ~dividend[2*i+1] & dividend[2*i]) |
+                    (remainder[0] & (dividend[2*i+1] ~^ dividend[2*i])) |
+                    (remainder[1] & dividend[2*i+1] & ~dividend[2*i])};
+            end
+        end
+    endfunction
+
+    wire [9:0] centered_x = horizontal[9:0] - PLAYFIELD_LEFT[9:0];
+    wire [9:0] scaled_x = divide_by_three(centered_x);
+    wire [9:0] scaled_y = divide_by_three(vertical);
 
     assign de = horizontal < H_ACTIVE && vertical < V_ACTIVE;
     assign hsync = horizontal >= H_ACTIVE + H_FRONT &&
