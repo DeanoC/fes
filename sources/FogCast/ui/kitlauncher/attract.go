@@ -72,6 +72,7 @@ func (m *Model) cycleHold() time.Duration {
 func (m *Model) SetAttractPlaylist(p hostclient.AttractPlaylist) {
 	if p.IdleSeconds > 0 {
 		m.attractIdle = time.Duration(p.IdleSeconds) * time.Second
+		m.attractIdleFromHost = true
 	}
 	m.attractIdleReady = true
 	m.localAttract = false
@@ -99,6 +100,7 @@ func (m *Model) HydrateAttractIdle() {
 // SetAttractIdle overrides the host idle for tests and -selftest-attract.
 func (m *Model) SetAttractIdle(d time.Duration) {
 	m.attractIdle = attractIdleDuration(d)
+	m.attractIdleFromHost = false
 	m.attractIdleReady = true
 }
 
@@ -146,10 +148,16 @@ func (m *Model) localAttractReady() bool {
 	return true
 }
 
-func localAttractItems(games []hostclient.Game) []hostclient.AttractItem {
+// localAttractItems lists playable kit-local rows. A row whose id resolves
+// to a different catalog row (a cached host row with the same id) is left
+// out so it cannot block the rest of the hostless playlist.
+func (m Model) localAttractItems(games []hostclient.Game) []hostclient.AttractItem {
 	items := make([]hostclient.AttractItem, 0, len(games))
 	for _, game := range games {
 		if !game.LocalCatalogPlayable() {
+			continue
+		}
+		if shown, ok := m.attractGame(game.ID); !ok || !shown.LocalCatalogPlayable() {
 			continue
 		}
 		items = append(items, hostclient.AttractItem{
@@ -174,11 +182,13 @@ func sameAttractIDs(left, right []hostclient.AttractItem) bool {
 // setLocalAttract keeps a hostless playlist of playable kit-local rows.
 // Those rows have no stills, so they bypass the host still filter.
 // localAttract stays set, including when the rows are unchanged, until a
-// host playlist replaces them or reconnect drops the list.
+// host playlist replaces them or reconnect drops the list. The hostless
+// list waits the default idle rather than a previous host's idle_seconds.
 func (m *Model) setLocalAttract(games []hostclient.Game) {
-	items := localAttractItems(games)
-	if m.attractIdle <= 0 {
+	items := m.localAttractItems(games)
+	if m.attractIdle <= 0 || m.attractIdleFromHost {
 		m.attractIdle = defaultAttractIdle
+		m.attractIdleFromHost = false
 	}
 	m.attractIdleReady = true
 	m.localAttract = true

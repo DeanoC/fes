@@ -47,6 +47,7 @@ type Model struct {
 	attractIdle                                                     time.Duration
 	attractCycle                                                    time.Duration
 	attractIdleReady                                                bool
+	attractIdleFromHost                                             bool
 	localAttract                                                    bool
 	attractItems                                                    []hostclient.AttractItem
 	attractIndex                                                    int

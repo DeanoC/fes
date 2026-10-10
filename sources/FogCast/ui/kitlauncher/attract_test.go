@@ -560,3 +560,37 @@ func TestAttractMotionALaunchesStagedGameFromStrip(t *testing.T) {
 		t.Fatalf("launch id %q", id)
 	}
 }
+
+func TestLocalAttractUsesTheDefaultIdleAfterAHostPlaylist(t *testing.T) {
+	row := smsRow()
+	m := Model{Games: []hostclient.Game{row}, Catalog: []hostclient.Game{row}, LocalPlayEnabled: true, Connected: true, TargetReady: true}
+	m.SetAttractPlaylist(hostclient.AttractPlaylist{IdleSeconds: 3600, Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
+	m.Connected = false
+	m.setLocalAttract([]hostclient.Game{row})
+	if m.attractIdle != defaultAttractIdle {
+		t.Fatalf("hostless idle %v, want %v", m.attractIdle, defaultAttractIdle)
+	}
+	m.SetAttractIdle(time.Millisecond)
+	m.setLocalAttract([]hostclient.Game{row})
+	if m.attractIdle != time.Millisecond {
+		t.Fatalf("explicit idle override replaced with %v", m.attractIdle)
+	}
+}
+
+func TestLocalAttractSkipsARowShadowedByAHostRow(t *testing.T) {
+	local := smsRow()
+	other := hostclient.Game{ID: "other", Title: "Other", System: "sms", State: "available", RootOnline: true}
+	host := local
+	host.Launchable = true
+	if host.LocalCatalogPlayable() {
+		t.Fatal("fixture host row is locally playable")
+	}
+	m := Model{Catalog: []hostclient.Game{host, other}, Games: []hostclient.Game{host, other}, LocalPlayEnabled: true}
+	m.setLocalAttract([]hostclient.Game{local, other})
+	if len(m.attractItems) != 1 || m.attractItems[0].GameID != other.ID {
+		t.Fatalf("local attract items %+v", m.attractItems)
+	}
+	if !m.localAttractReady() {
+		t.Fatal("a shadowed id blocked the hostless playlist")
+	}
+}

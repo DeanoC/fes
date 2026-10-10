@@ -1141,6 +1141,82 @@ test('a refreshed preference replaces the owned source id', async () => {
   assert.equal(playChoiceFor(other, [poisoned], picks, [other, intermediate]).needsChoice, true);
 });
 
+test('a failed later save keeps the earlier saved choice and drops the persisted source id', async () => {
+  const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  const altID = 'sms-data-storm-alt';
+  const alt = dataStormPlayRow(altID, 'native_emu');
+  const title = dataStormTitle();
+  title.options = title.options.concat([
+    { source_game_id: altID, execution: 'native_emu', available: true, host_local: true },
+  ]);
+  let saved = emu.id;
+  const fetchImpl = async (requestPath, options) => {
+    const pathOnly = String(requestPath || '').split('?')[0];
+    if (pathOnly === '/api/v1/games') return jsonResponse({ games: [fpga, emu, alt] });
+    if (pathOnly === `/api/v1/games/${fpga.id}`) return jsonResponse(fpga);
+    if (pathOnly === `/api/v1/games/${emu.id}`) return jsonResponse(emu);
+    if (pathOnly === `/api/v1/games/${altID}`) return jsonResponse(alt);
+    if (pathOnly === '/api/v1/library/titles') return jsonResponse({ titles: [title] });
+    if (pathOnly === '/api/v1/library/edition-preferences' && options && options.method === 'PUT') {
+      const next = JSON.parse(options.body).game_id;
+      if (next === altID) return jsonResponse({ error: 'nope' }, 500);
+      saved = next;
+      return jsonResponse({ query: 'Data Storm', platform: 'sms', game_id: saved });
+    }
+    if (pathOnly === '/api/v1/library/edition-preferences') {
+      return jsonResponse({ preferences: [{ query: 'Data Storm', platform: 'sms', game_id: saved }] });
+    }
+    return jsonResponse({});
+  };
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadCatalog('');
+  await controller.selectGame(emu.id);
+  await controller.ensurePlayContext();
+  controller.chooseBackend(fpga.id);
+  controller.chooseBackend(altID);
+  for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve));
+  const picks = controller.getState().playPicks;
+  assert.equal(saved, fpga.id);
+  assert.equal(picks[emu.id], undefined);
+  assert.equal(picks[altID], undefined);
+  assert.equal(picks['data storm'], fpga.id);
+  assert.equal(picks[dataStormFPGA], fpga.id);
+});
+
+test('a preference changed elsewhere replaces this browser\'s saved choice', async () => {
+  const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
+  const emu = dataStormPlayRow(dataStormEmu, 'native_emu');
+  let saved = fpga.id;
+  const fetchImpl = async (requestPath, options) => {
+    const pathOnly = String(requestPath || '').split('?')[0];
+    if (pathOnly === '/api/v1/games') return jsonResponse({ games: [fpga, emu] });
+    if (pathOnly === `/api/v1/games/${fpga.id}`) return jsonResponse(fpga);
+    if (pathOnly === `/api/v1/games/${emu.id}`) return jsonResponse(emu);
+    if (pathOnly === '/api/v1/library/titles') return jsonResponse({ titles: [dataStormTitle()] });
+    if (pathOnly === '/api/v1/library/edition-preferences' && options && options.method === 'PUT') {
+      saved = JSON.parse(options.body).game_id;
+      return jsonResponse({ query: 'Data Storm', platform: 'sms', game_id: saved });
+    }
+    if (pathOnly === '/api/v1/library/edition-preferences') {
+      return jsonResponse({ preferences: [{ query: 'Data Storm', platform: 'sms', game_id: saved }] });
+    }
+    return jsonResponse({});
+  };
+  const controller = createAppController({ fetchImpl, metadataAdapter: FogCastMetadata });
+  await controller.loadCatalog('');
+  await controller.selectGame(fpga.id);
+  await controller.chooseBackend(emu.id);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(saved, emu.id);
+  saved = fpga.id;
+  await controller.ensurePlayContext();
+  const picks = controller.getState().playPicks;
+  assert.equal(picks[emu.id], undefined);
+  assert.equal(picks['data storm'], fpga.id);
+  assert.equal(picks[dataStormFPGA], fpga.id);
+});
+
 test('a household backend pick wins when the title id equals a source id', async () => {
   const fpga = dataStormPlayRow(dataStormFPGA, 'fpga_native');
   const emu = dataStormPlayRow(dataStormEmu, 'native_emu');

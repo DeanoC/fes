@@ -115,10 +115,7 @@ def classify_path(path):
                 else:
                     name = Path(path).stem.removeprefix('build_').removeprefix('fes_')
                     name = re.sub(r'_video_part.*$', '', name)
-                    for suffix in ('_socket_dev', '_quartus', '_package', '_oss'):
-                        if name.endswith(suffix):
-                            name = name[: -len(suffix)]
-                            break
+                    name = re.sub(r'_(?:socket_dev|socket_v\d+|quartus|package|oss)$', '', name)
                     name = name.replace('_', '-')
                 component = 'core:' + name
             return {'path': path, 'class': category, 'component': component,

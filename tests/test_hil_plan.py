@@ -287,6 +287,10 @@ class HilPlanTest(unittest.TestCase):
         components = set(json.loads(result.stdout)['components'])
         self.assertTrue({'core:sg1000', 'core:ramtest'} <= components, components)
         self.assertTrue({'core:sg1000-oss', 'core:ramtest-quartus'}.isdisjoint(components), components)
+        # The selected Coleco producer escalates through its video-part import,
+        # but its own rule must still name the deployed core.
+        row = hil_module().classify_path('sources/misteross/scripts/build_fes_coleco_socket_v2.py')
+        self.assertEqual(row['component'], 'core:coleco')
 
     def test_evidence_refuses_core_archive_from_other_revision(self):
         self.git_repo(['sources/misteross/cores/ramtest/change.v'])
