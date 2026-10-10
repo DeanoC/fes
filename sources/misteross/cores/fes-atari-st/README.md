@@ -206,7 +206,11 @@ supports palette-bit inversion; color borders use palette entry 0.
 `st_video_adapter.sv` defaults to native low-resolution capture. In the
 52.224 MHz system domain, `st_native_low_video.sv` prefetches alternating
 80-word RAM rows and selects the live palette at each nominal 8 MHz pixel.
-Three RGB333 banks hold up to 320×247 pixels and cross to the 74.25 MHz pixel domain through
+Three RGB333 banks hold up to 320×247 pixels. Each bank uses 78 independent
+1024-word chunks, avoiding the mapper's less compact deep one-bit layout.
+Registered chunk selection aligns the synchronous words with the original
+one-clock read boundary; frame publication and pixel capacity are unchanged.
+The banks cross to the 74.25 MHz pixel domain through
 publish/release toggles. Only complete native frames are published; the HDMI
 reader pins one bank until output SOF and selects the newest available frame.
 This repeats or drops complete source frames when native and output rates differ.

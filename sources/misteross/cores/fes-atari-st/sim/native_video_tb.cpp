@@ -19,6 +19,7 @@ struct Test {
     std::array<int,247> row_black{};
     uint64_t pal_bottom_pixels=0,ntsc_bottom_pixels=0,raster_border_pixels=0;
     bool border_overflow_seen=false;
+    std::array<bool,5> memory_boundaries{};
     void require(bool good,const char*message) {
         ++checks;
         if(!good){std::cerr<<"FAIL "<<message<<" sys="<<sys_cycles<<" pixel="<<pixel_cycles
@@ -126,6 +127,14 @@ struct Test {
                         unsigned expected=rgb(nx<160?intensity<<6:intensity);
                         if(row_black[row]<0){row_black[row]=actual==0;if(actual==0){++black_rows;if(selected==3)++stall_black_rows;}}
                         require(actual==(row_black[row]?0:expected),"native palette/pixel/scaling mismatch");
+                        // Check adjacent words across the first/final shallow
+                        // segments and the final opened-bottom frame pixel.
+                        // Row-varying colour makes a stale segment selection visible.
+                        if(selected==6) {
+                            constexpr std::array<unsigned,5> addresses{1023,1024,78847,78848,79039};
+                            for(unsigned i=0;i<addresses.size();++i)
+                                if(row*320+nx==addresses[i])memory_boundaries[i]=true;
+                        }
                         require(!row_black[row]||selected==3||selected==10,"unexpected missing native line");
                         require(selected!=10||actual==0,"invalid framebuffer reused previous pixels");
                     }else{
@@ -168,6 +177,7 @@ struct Test {
         next_pixel=next_sys+7331;
         while(output_frame<18)edge();
         require(dut.front_sequence>pinned,"capture failed to resume after consumer backpressure");
+        for(bool seen:memory_boundaries)require(seen,"frame memory boundary was not checked");
         std::cout<<"Native ST RGB: "<<checks<<" checks, "<<dut.captured_frames<<" captures, "
                  <<repeat_frames<<" repeated output frames, "<<dut.underruns
                  <<" capture underruns, "<<raster_border_pixels<<" raster border pixels; live palette, ownership, overflow, Hold and mode recovery passed\n";
