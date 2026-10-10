@@ -520,7 +520,8 @@ func presentMenuWait(t *testing.T, client *testMenuClient) {
 // so an in-flight probe is not idle.
 func waitMenuIdle(t *testing.T, d *MenuDisplay, client *testMenuClient, wantCalls int) {
 	t.Helper()
-	deadline := time.Now().Add(time.Second)
+	// Polls until idle; the generous deadline only bounds a hang under -race.
+	deadline := time.Now().Add(10 * time.Second)
 	for {
 		d.mu.Lock()
 		idle := d.flight == nil && len(d.frames) == 0 && !d.probeQueued

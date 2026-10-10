@@ -1,0 +1,6 @@
+# Captured evidence (logs, JSON, traces) is preserved byte-for-byte, so
+# `git diff --check` must not reject tool output; written records stay checked.
+docs/validation/** -whitespace
+docs/validation/**/*.md !whitespace
+sources/misteross/docs/validation/** -whitespace
+sources/misteross/docs/validation/**/*.md !whitespace

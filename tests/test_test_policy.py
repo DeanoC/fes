@@ -52,6 +52,22 @@ class SelectTestModesTests(unittest.TestCase):
                 self.assertEqual(test_policy.select_test_modes([path]),
                                  {'video': True, 'media': False, 'full_race': False})
 
+    def test_misteross_inputs_outside_video_recipes_stay_routine(self):
+        for path in ('sources/misteross/tests/test_lockfile.py',
+                     'sources/misteross/Makefile', 'sources/misteross/README.md',
+                     'sources/misteross/experiments/570/tb.cpp',
+                     'sources/misteross/cores/fes-sms/rtl/sms_vdp.sv',
+                     'sources/misteross/cores/fes-apple2/rtl/top.sv'):
+            with self.subTest(path=path):
+                self.assertEqual(test_policy.select_test_modes([path]), ALL_FALSE)
+        for path in ('sources/misteross/scripts/new_helper.py',
+                     'sources/misteross/toolchain.lock',
+                     'sources/misteross/toolchains/atari-st.lock',
+                     'sources/misteross/cores/fes-common/rtl/fes_video_part_direct.v',
+                     'sources/misteross/cores/fes-atari-st/rtl/shifter.sv'):
+            with self.subTest(path=path):
+                self.assertTrue(test_policy.select_test_modes([path])['video'])
+
     def test_shared_script_and_dependency_inputs_select_video_and_media(self):
         for path in ('scripts/build.py', 'scripts/inputs.py', 'scripts/native_dev.py',
                      'scripts/environment.py',

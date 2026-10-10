@@ -237,9 +237,9 @@ value or marker without its JSON fence produces a diagnostic identifying the
 comment; correct that comment rather than leaving a malformed historical record.
 Reports do not assign workers, change labels, post messages or program hardware.
 
-The `FES coordination` workflow runs hourly and on manual dispatch **after it
-lands on the default branch**. Its report is retained as a workflow artifact and
-job summary. Until then, use the command above. The lead checks the report at
+The `FES coordination` workflow runs on manual dispatch with a milestone
+number. Its report is retained as a workflow artifact and job summary. Between
+dispatches, use the command above. The lead checks the report at
 planning/handoff and dispatches work through a runner's actually supported
 trigger. A GitHub issue, project edit or readable Slack connector does not
 guarantee an idle Codex, Grok or Claude session wakes up. Do not promise vendor

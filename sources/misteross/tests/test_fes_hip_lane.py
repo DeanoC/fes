@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts import build_fes_coleco_oss, build_fes_pong, build_fes_zx81_oss, toolchain_cache
@@ -276,10 +277,12 @@ class FesHipLaneTests(unittest.TestCase):
                              return_value=("https://github.com/DeanoC/misteross.git", "a" * 40)),
                 patch.object(build_fes_pong, "_authenticate_tools", side_effect=authenticate),
                 patch.object(build_fes_pong, "_run_tool", side_effect=run_tool),
+                patch.object(build_fes_pong, "route_after_synth",
+                             return_value=SimpleNamespace(seed=1, weight=1)),
                 patch.object(
                     build_fes_pong,
                     "validate_build_evidence",
-                    return_value={"rbf": {"sha256": "a" * 64, "size": 1}},
+                    return_value={"rbf": {"sha256": "a" * 64, "size": 1}, "route": {}},
                 ),
                 patch.object(build_fes_pong, "export_package", return_value=root / "pkg"),
             ):

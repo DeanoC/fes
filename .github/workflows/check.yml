@@ -88,7 +88,14 @@ jobs:
           TEST_MEDIA: ${{ fromJSON(needs.plan.outputs.test_modes).media }}
         run: |
           make platform-provision
-          if [ "$TEST_MEDIA" = true ]; then make media-test-provision; fi
+          if [ "$TEST_MEDIA" = true ]; then
+            # Registry resolution of the pinned base image flakes; the build is digest-locked.
+            for attempt in 1 2 3; do
+              make media-test-provision && break
+              if [ "$attempt" = 3 ]; then exit 1; fi
+              sleep $((attempt * 20))
+            done
+          fi
           python3 scripts/parent_tests.py --video "$TEST_VIDEO" --media "$TEST_MEDIA"
           make platform-test
           make -C image test FOGCAST_DIR="$PWD/sources/FogCast"
@@ -116,7 +123,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
@@ -139,7 +146,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
       - run: |
           make -C sources/libmister-runtime -j2 test
@@ -150,7 +157,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
@@ -168,6 +175,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # The misteross suite includes pinned-commit comparisons (git show).
           fetch-depth: 0
           persist-credentials: false
       - name: Compiler read-audit dependency
@@ -189,7 +197,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
       - name: Simulation build dependencies
         run: |
@@ -224,6 +232,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Some simulation tests compare RTL against pinned commits (git show).
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -248,7 +257,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
           persist-credentials: false
       - name: Require every planned check to succeed
         env:

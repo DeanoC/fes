@@ -187,13 +187,21 @@ class AffectedTests(unittest.TestCase):
         for path in ('', 'Makefile', 'AGENTS.md', 'toolchain.lock',
                      'toolchains/registered-memory.lock', 'scripts/new_helper.py',
                      'scripts/build_fes_new_core.py', 'scripts/build_fes_z80.py',
-                     'tests/test_new_behavior.py',
                      'cores/fes-new/rtl/top.v', 'cores/fes-common/rtl/new_unit.sv',
                      'cores/fes-common/generated/fes_application.vh'):
             with self.subTest(path=path):
                 result = plan(['sources/misteross' + ('/' + path if path else '')])
                 self.assertEqual(set(result['cores']), set(CORES))
                 self.assertTrue(result['lanes']['fpga'])
+
+    def test_misteross_tests_run_software_without_simulations(self):
+        for path in ('tests/test_new_behavior.py', 'tests/producer_fixture.py',
+                     'tests/fixtures/new/case.json'):
+            with self.subTest(path=path):
+                result = plan(['sources/misteross/' + path])
+                self.assertEqual(result['cores'], [])
+                self.assertTrue(result['lanes']['fpga'])
+                self.assertFalse(result['test_modes']['video'])
 
     def test_atari_toolchain_lock_selects_only_atari_st(self):
         result = plan(['sources/misteross/toolchains/atari-st.lock'])
