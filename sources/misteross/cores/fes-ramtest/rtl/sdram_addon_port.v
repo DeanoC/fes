@@ -17,7 +17,10 @@ module sdram_addon_port #(
     // Runtime refresh recovery only. Keep the established tester timing by
     // default; slower fixed-clock clients may select a qualified cycle count.
     // Initialization retains its conservative sixteen-clock recovery.
-    parameter [13:0] REFRESH_WAIT_CYCLES = 14'd16
+    parameter [13:0] REFRESH_WAIT_CYCLES = 14'd16,
+    // Opt-in completion after read capture / committed write hold. Recovery
+    // states still drain before the controller accepts another command.
+    parameter EARLY_DONE = 0
 ) (
     input wire clk,
     input wire clk_pin,
@@ -400,6 +403,7 @@ module sdram_addon_port #(
             end
             ST_HOLD: begin
                 sdram_cke_r <= 1'b1;
+                if (EARLY_DONE) done <= 1'b1;
                 state <= ST_PRE2;
             end
             ST_CAP: begin
@@ -423,6 +427,7 @@ module sdram_addon_port #(
                     rdata <= (rate == 2'd0) ? dq_rise : dq_fall;
 `endif
                     state <= ST_PRE2;
+                    if (EARLY_DONE) done <= 1'b1;
                 end else begin
                     wait_count <= wait_count + 14'd1;
                 end
@@ -430,7 +435,7 @@ module sdram_addon_port #(
             ST_FINISH: begin
                 sdram_cke_r <= 1'b1;
                 sdram_ncs_r <= 1'b1;
-                done <= 1'b1;
+                if (!EARLY_DONE) done <= 1'b1;
                 state <= ST_IDLE;
             end
             default: begin
