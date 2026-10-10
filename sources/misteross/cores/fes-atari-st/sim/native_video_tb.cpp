@@ -109,12 +109,12 @@ struct Test {
                 unsigned actual=dut.video_request&0xffffff;
                 if(dut.active_resolution==0){
                     require(dut.front_valid,"visible low mode without completed frame");
-                    const unsigned scale=raster?2:rows==200?3:2;
+                    const unsigned scale=2;
                     const unsigned canvas_top=selected==9?105:84,canvas_rows=selected==9?255:276;
-                    const unsigned top=raster?canvas_top+58:(720-rows*scale)/2;
-                    const bool image_column=!raster||(x>=160&&x<1120);
+                    const unsigned top=canvas_top+58;
+                    const bool image_column=x>=320&&x<960;
                     if(y>=top&&y<top+rows*scale&&image_column){
-                        unsigned row=(y-top)/scale,nx=raster?(x-160)/3:x/4;
+                        unsigned row=(y-top)/scale,nx=(x-320)/2;
                         if(row>=200) {
                             if(selected==6) ++pal_bottom_pixels;
                             if(selected==9) ++ntsc_bottom_pixels;
@@ -125,12 +125,12 @@ struct Test {
                         require(actual==(row_black[row]?0:expected),"native palette/pixel/scaling mismatch");
                         require(!row_black[row]||selected==3||selected==10,"unexpected missing native line");
                         require(selected!=10||actual==0,"invalid framebuffer reused previous pixels");
-                    }else if(raster){
-                        const bool canvas=x>=16&&x<1264&&y>=canvas_top&&y<canvas_top+canvas_rows*2;
-                        const unsigned expected=canvas?rgb(border_colour((selected==9?5:34)+(y-canvas_top)/2,(x-16)/3,selected==9)):0;
+                    }else{
+                        const bool canvas=x>=224&&x<1056&&y>=canvas_top&&y<canvas_top+canvas_rows*2;
+                        const unsigned expected=canvas?rgb(raster?border_colour((selected==9?5:34)+(y-canvas_top)/2,(x-224)/2,selected==9):0xdb):0;
                         require(actual==expected,"live border colour/pixel/repeated-row mismatch");
                         if(canvas)++raster_border_pixels;
-                    }else require(actual==rgb(0xdb),"captured border colour changed");
+                    }
                 }else if(dut.active_resolution==1&&y>=60&&y<660)
                     require(actual==rgb((x/32)%2==0?0x38:0xdb),"medium-resolution path regressed");
                 else if(dut.active_resolution==2&&y>=160&&y<560)

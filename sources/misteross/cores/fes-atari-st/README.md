@@ -182,7 +182,8 @@ socket CRAM rectangle before publishing an exact-shell expansion archive.
 
 `st_video.sv` reads interleaved RAM bitplanes: 320×200 four-plane low,
 640×200 two-plane medium and 640×400 monochrome. The fixed 720p60 output uses
-integer nearest-neighbor scaling: color 4×3 or 2×3, monochrome 2×1. High mode
+integer nearest-neighbor scaling: native low 2×2, indexed medium 2×3,
+monochrome 2×1. The focused indexed low fallback retains 4×3. High mode
 supports palette-bit inversion; color borders use palette entry 0.
 `st_video_adapter.sv` defaults to native low-resolution capture. In the
 52.224 MHz system domain, `st_native_low_video.sv` prefetches alternating
@@ -193,17 +194,17 @@ reader pins one bank until output SOF and selects the newest available frame.
 This repeats or drops complete source frames when native and output rates differ.
 Registered RAM write data and a two-pixel address lookahead keep native RGB
 sampling and scaled output aligned while shortening paths into the buffers.
-Ordinary 200-row frames retain 4×3 scaling. Opened-bottom frames use 4×2
-scaling, centered vertically, so all 247 PAL or 226 NTSC rows remain visible.
+Ordinary and opened-bottom frames use the same centred 2×2 canvas, preserving
+square native pixels and image position. All 247 PAL or 226 NTSC rows remain visible.
 Height travels with each immutable bank and changes only at output SOF.
 `st_native_border.sv` records lossless palette-zero runs across the visible
 border raster in those same three owned banks. Every row has an initial colour
 and run offset/count, so repeated HDMI rows replay within-line changes. The
 4096-event budget is explicit: overflow increments capture underruns and
 rejects the entire frame. HOLD and consumer backpressure retain the same bank
-ownership rules for border runs and display pixels. A frame whose border colour
-varies uses a centred 416×276 PAL or 416×255 NTSC canvas at 3×2 scaling;
-unchanging borders retain the existing ordinary/opened-bottom scaling. The
+ownership rules for border runs and display pixels. Every low-resolution frame
+uses a centred 416×276 PAL or 416×255 NTSC canvas at 2×2 scaling, with black
+outside it. Border changes do not alter scaling or image position. The
 canvas includes the 29 top-border rows and 48 pixels at each side of the
 ordinary display. These are live palette-zero borders; they do not add top or
 horizontal display-enable opening.
