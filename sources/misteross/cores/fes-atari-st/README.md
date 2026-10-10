@@ -106,7 +106,11 @@ HDMI. PAL uses 313 × 512 CPU cycles, NTSC 263 × 508, and monochrome
 501 × 224. At the retained nominal 8 MHz these are approximately
 49.920/59.878/71.286 Hz; the original PAL/NTSC crystal frequencies are not
 reproduced. Timer B receives active display enable, including opened bottom
-lines, so blank lines do not contribute events. The live video counter is reduced.
+lines, so blank lines do not contribute events. The live shifter address counter advances by two bytes per four native CPU
+cycles during DMA, including opened bottom lines. Its read visibility follows
+Hatari 2.5.0's eight-cycle offset; blanking holds the address and VBL reloads
+the aligned screen base. Exact MMU arbitration and horizontal border tricks
+remain unimplemented.
 The MFP UART has disconnected RX and timed TX status, without a physical serial port.
 
 `st_io` has an optional `MFP_WAIT_STATES` access-timing probe, default zero.
