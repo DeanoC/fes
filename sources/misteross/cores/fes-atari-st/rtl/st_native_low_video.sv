@@ -8,7 +8,8 @@
 module st_native_low_video (
     input wire clk_sys, clk_pixel, reset_sys, reset_pixel, hold,
     input wire native_vblank, native_display,
-    input wire [8:0] native_line,
+    input wire [8:0] native_line, native_cycle,
+    input wire native_pixel_ce,
     input wire [7:0] sync_mode,
     input wire [23:0] screen_base,
     input wire [1:0] resolution,
@@ -19,7 +20,10 @@ module st_native_low_video (
     input wire [15:0] memory_data,
     input wire output_sof,
     input wire [16:0] output_address,
-    output wire [8:0] output_rgb, output_border,
+    output wire [8:0] output_rgb, output_border, output_raster_rgb,
+    input wire [8:0] output_border_row, output_border_x,
+    input wire output_border_line_start, output_border_ce,
+    output reg output_raster_border, output_pal,
     output reg output_valid,
     output reg [8:0] output_height,
     output reg [31:0] debug_frames, debug_skipped, debug_underruns
@@ -40,6 +44,9 @@ module st_native_low_video (
     reg [2:0] publication_counter;
     reg [8:0] border [0:2];
     reg [8:0] height [0:2];
+    reg [2:0] pal_banks;
+    wire [2:0] raster_banks;
+    wire border_overflow;
     reg [31:0] front_sequence;
     reg [8:0] front_border;
     assign output_rgb = front_bank == 2'd0 ? read0 : front_bank == 2'd1 ? read1 : read2;
@@ -80,6 +87,7 @@ module st_native_low_video (
             pub_meta <= 3'd0; pub_sync <= 3'd0;
             released <= 3'd0; seen <= 3'd0;
             front_bank <= 2'd0; front_sequence <= 32'd0;
+            output_raster_border <= 1'b0; output_pal <= 1'b1;
             front_border <= 9'd0; output_valid <= 1'b0; output_height <= 9'd200;
         end else begin
             pub_meta <= published; pub_sync <= pub_meta;
@@ -94,6 +102,8 @@ module st_native_low_video (
                 front_sequence <= sequence_number[choose_bank];
                 front_border <= border[choose_bank];
                 output_height <= height[choose_bank];
+                output_pal <= pal_banks[choose_bank];
+                output_raster_border <= raster_banks[choose_bank];
                 output_valid <= 1'b1;
             end
         end
@@ -103,7 +113,7 @@ module st_native_low_video (
     wire bank_free = |free_banks;
     wire [1:0] free_bank = free_banks[0] ? 2'd0 : free_banks[1] ? 2'd1 : 2'd2;
     reg owned, enabled, base_valid, good_frame, previous_display;
-    reg frame_pal, bottom_seen;
+    reg frame_pal, bottom_seen, border_enabled, border_overflow_reported;
     reg [1:0] write_bank;
     reg [8:0] frame_top, expected_row, pixel_x;
     reg [23:0] frame_base;
@@ -184,6 +194,20 @@ module st_native_low_video (
     wire [23:0] selected_base = base_valid ? frame_base : {screen_base[23:8], 8'd0};
     wire [23:0] start_word = {1'b0, selected_base[23:8], 7'd0} + 24'(desired_row) * 24'd80;
     wire address_valid = start_word + 24'd80 <= 24'h040000;
+    wire border_start = native_vblank && bank_free && !hold;
+    wire missing_row = display_rise && owned && enabled && active_row && !hold && !row_ready;
+    wire border_failed = border_overflow && !border_overflow_reported;
+    st_native_border borders (
+        .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
+        .capture_start(border_start), .capture_active(owned && border_enabled && !hold),
+        .capture_pal(frame_pal), .capture_tick(native_pixel_ce), .capture_display(native_display),
+        .capture_bank(border_start ? free_bank : write_bank), .native_line(native_line),
+        .native_cycle(native_cycle), .palette_zero(palette[8:0]),
+        .capture_overflow(border_overflow), .raster_banks(raster_banks),
+        .output_bank(output_sof && choose_valid ? choose_bank : front_bank),
+        .output_sof(output_sof), .output_line_start(output_border_line_start), .output_ce(output_border_ce),
+        .output_row(output_border_row), .output_x(output_border_x), .output_rgb(output_raster_rgb)
+    );
     integer b;
     always @(posedge clk_sys) begin
         if (reset_sys) begin
@@ -191,7 +215,7 @@ module st_native_low_video (
             publication_counter <= 3'd0;
             owned <= 1'b0; enabled <= 1'b0; base_valid <= 1'b0;
             good_frame <= 1'b0; previous_display <= 1'b0; line_valid <= 1'b0;
-            frame_pal <= 1'b1; bottom_seen <= 1'b0;
+            frame_pal <= 1'b1; bottom_seen <= 1'b0; border_enabled <= 1'b0; border_overflow_reported <= 1'b0; pal_banks <= 3'b111;
             write_bank <= 2'd0; frame_top <= 9'd63; expected_row <= 9'd0;
             pixel_x <= 9'd0; frame_base <= 24'd0; epoch <= 32'd0;
             pixel_phase <= 32'd0; pixels <= 17'd0;
@@ -208,15 +232,19 @@ module st_native_low_video (
         end else begin
             release_meta <= released; release_sync <= release_meta;
             previous_display <= native_display;
+            if (missing_row || border_failed)
+                debug_underruns <= debug_underruns + (missing_row ? 32'd1 : 32'd0) + (border_failed ? 32'd1 : 32'd0);
+            if (border_failed) border_overflow_reported <= 1'b1;
             if (hold) begin
                 owned <= 1'b0; line_valid <= 1'b0;
             end
             if (native_vblank) begin
+                border_overflow_reported <= 1'b0;
                 epoch <= epoch + 32'd1;
                 owned <= bank_free && !hold;
                 write_bank <= free_bank;
                 frame_top <= sync_mode[1] ? 9'd63 : 9'd34;
-                frame_pal <= sync_mode[1]; bottom_seen <= 1'b0;
+                frame_pal <= sync_mode[1]; bottom_seen <= 1'b0; border_enabled <= resolution == 2'd0;
                 enabled <= 1'b0; base_valid <= 1'b0;
                 expected_row <= 9'd0; good_frame <= 1'b1;
                 pixels <= 17'd0; pixel_x <= 9'd0; pixel_phase <= 32'd0;
@@ -226,7 +254,6 @@ module st_native_low_video (
                 if (display_rise && owned && enabled && active_row && !hold) begin
                     line_valid <= row_ready;
                     if (row >= 9'd200) bottom_seen <= 1'b1;
-                    if (!row_ready) debug_underruns <= debug_underruns + 32'd1;
                     if (row != expected_row) good_frame <= 1'b0;
                     if (row == 9'd0) border[write_bank] <= palette[8:0];
                 end
@@ -248,9 +275,10 @@ module st_native_low_video (
             if (!native_vblank && owned && enabled && !hold &&
                 native_line == frame_top + maximum_height) begin
                 owned <= 1'b0;
-                if (good_frame && expected_row == (bottom_seen ? maximum_height : 9'd200) &&
+                if (good_frame && !border_overflow && expected_row == (bottom_seen ? maximum_height : 9'd200) &&
                     pixels == (bottom_seen ? (frame_pal ? 17'd79040 : 17'd72320) : 17'd64000)) begin
                     height[write_bank] <= expected_row;
+                    pal_banks[write_bank] <= frame_pal;
                     sequence_number[write_bank] <= epoch;
                     publication_number[write_bank] <= publication_counter;
                     publication_counter <= publication_counter + 3'd1;

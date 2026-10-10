@@ -76,6 +76,8 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     output wire [31:0] capture_frames, capture_underruns,
     output wire vblank, hblank
 );
+    wire [8:0] native_cycle;
+    wire native_pixel_ce;
     st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES)) system (
         .cold_reset(reset), .media_frozen(1'b0),
         .media_write_req(), .media_write_addr(), .media_write_data(),
@@ -90,9 +92,12 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     st_native_low_video capture (
         .clk_sys(clk_sys), .clk_pixel(clk_sys), .reset_sys(reset), .reset_pixel(reset),
         .hold(reset), .native_vblank(vblank), .native_display(native_display), .native_line(native_line),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce),
         .sync_mode(sync_mode), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .memory_req(capture_req), .memory_addr(capture_addr), .memory_ready(capture_ready), .memory_data(capture_data),
         .output_sof(vblank), .output_address(17'd0), .output_rgb(unused_capture_rgb),
+        .output_raster_rgb(), .output_raster_border(), .output_pal(),
+        .output_border_row(9'd0), .output_border_x(9'd0), .output_border_line_start(vblank), .output_border_ce(1'b0),
         .output_border(unused_capture_border), .output_valid(unused_capture_valid), .output_height(),
         .debug_frames(capture_frames), .debug_skipped(unused_capture_skipped), .debug_underruns(capture_underruns)
     );

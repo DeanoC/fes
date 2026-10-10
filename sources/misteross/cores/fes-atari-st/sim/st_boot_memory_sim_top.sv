@@ -53,7 +53,8 @@ module st_boot_memory_sim_top #(
     input wire [15:0] dq_sample
 );
     wire native_display;
-    wire [8:0] native_line;
+    wire [8:0] native_line, native_cycle;
+    wire native_pixel_ce;
     wire [15:0] cpu_rdata, video_rdata;
     wire media_req, media_valid, dma_req, dma_ready, dma_write;
     wire [15:0] dma_rdata;
@@ -82,7 +83,8 @@ module st_boot_memory_sim_top #(
         .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .dma_write(dma_write), .dma_rdata(dma_rdata),
         .screen_base(screen_base), .resolution(resolution), .palette(palette), .sync_mode(sync_mode),
         .debug_addr(debug_addr), .debug_bus_error(debug_bus_error), .debug_overlay(),
-        .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_line(native_line)
+        .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_line(native_line),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce)
     );
     st_memory_sim_top #(.EARLY_COMPLETION(EARLY_COMPLETION)) memory (
         .clk(clk_sys), .cold_reset(cold_reset), .reset(reset_sys), .initialized(initialized),
@@ -102,7 +104,8 @@ module st_boot_memory_sim_top #(
     );
     st_video_adapter video (
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
-        .native_vblank(vblank), .native_display(native_display), .native_line(native_line), .sync_mode(sync_mode),
+        .native_vblank(vblank), .native_display(native_display), .native_line(native_line),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .sync_mode(sync_mode),
         .hold(reset_sys), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
         .video_request(video_request), .debug_underruns(debug_underruns), .debug_frame(debug_frame)

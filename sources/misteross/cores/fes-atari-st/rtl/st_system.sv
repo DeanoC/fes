@@ -62,7 +62,8 @@ module st_system #(
     output wire [23:0] debug_addr,
     output wire debug_bus_error, debug_overlay, debug_halted,
     output wire vblank, hblank, native_display,
-    output wire [8:0] native_line
+    output wire [8:0] native_line, native_cycle,
+    output wire native_pixel_ce
 );
     wire bus_req, io_selected, io_ack;
     wire [15:0] io_rdata;
@@ -109,6 +110,7 @@ module st_system #(
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data), .media_valid(media_valid),
         .dma_req(dma_req), .dma_write(dma_write), .dma_rdata(dma_rdata), .dma_addr(dma_addr), .dma_wdata(dma_wdata),
         .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .vblank(vblank), .hblank(hblank),
-        .native_display(native_display), .native_line(native_line)
+        .native_display(native_display), .native_line(native_line),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce)
     );
 endmodule
