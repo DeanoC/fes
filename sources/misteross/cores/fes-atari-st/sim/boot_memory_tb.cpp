@@ -148,7 +148,7 @@ class Boot {
     unsigned observed_frames = 0, frame_cpu_max = 0, frame_video_max = 0, last_sync = 0;
     uint64_t frame_video_reads = 0;
     std::vector<uint8_t> native_picture = std::vector<uint8_t>(320*247*3);
-    std::ofstream raster_trace, logo_trace;
+    std::ofstream raster_trace, logo_trace, ym_trace;
     std::set<uint64_t> saved_logo_hashes;
     std::string trace_prefix;
     bool tracing() const { return system_cycles >= boot_start + trace_start*SystemHz &&
@@ -228,6 +228,11 @@ class Boot {
         const unsigned line = dut.debug_native_line, phase = dut.debug_horizontal_phase;
         const bool native_vblank = !dut.reset_sys && dut.vblank;
         const bool palette_write = !dut.reset_sys && dut.debug_palette_write;
+        if (demo_mode && dut.debug_ym_write)
+            ym_trace << "{\"system_cycle\":" << system_cycles-boot_start
+                << ",\"register\":" << unsigned(dut.debug_ym_register)
+                << ",\"value\":" << unsigned(dut.debug_ym_data)
+                << ",\"pc\":" << dut.debug_pc << "}\n";
         if (demo_mode && palette_write) {
             ++palette_writes; ++frame_palette_writes;
             if (tracing()) raster_trace << "{\"kind\":\"palette_write\",\"cycle\":" << system_cycles
@@ -487,7 +492,8 @@ public:
             trace_prefix=prefix;
             raster_trace.open(std::string(prefix)+"-raster.jsonl");
             logo_trace.open(std::string(prefix)+"-logo.jsonl");
-            require(raster_trace.good() && logo_trace.good(), "demo trace output unavailable");
+            ym_trace.open(std::string(prefix)+"-ym.jsonl");
+            require(raster_trace.good() && logo_trace.good() && ym_trace.good(), "demo trace output unavailable");
         }
         uint64_t next_status = boot_start + SystemHz;
         const uint64_t limit = boot_start + SystemHz * seconds;
@@ -544,6 +550,10 @@ public:
                   << complete_frames << " complete frames, " << colors.size() << " RGB colors; max CPU/video latency "
                   << max_cpu_latency << '/' << max_video_latency << " clocks; output " << prefix << ".ppm\n";
         audio.finish(std::string(prefix)+"-audio.json");
+        if (demo_mode) {
+            ym_trace.flush();
+            require(ym_trace.good(), "YM trace write failed");
+        }
         dut.final();
     }
 };

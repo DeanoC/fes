@@ -12,6 +12,9 @@ module st_boot_memory_sim_top #(
     input wire [143:0] keyboard,
     output wire signed [15:0] audio_pcm,
     output wire audio_valid,
+    output wire debug_ym_write,
+    output wire [3:0] debug_ym_register,
+    output wire [7:0] debug_ym_data,
     input wire [31:0] media_size,
     output wire debug_palette_write,
     output wire [23:0] debug_palette_address,
@@ -132,6 +135,11 @@ module st_boot_memory_sim_top #(
     assign debug_palette_address = system.machine.address;
     assign debug_palette_data = system.machine.write_data;
     assign debug_palette_lanes = system.machine.lanes;
+    // Observe the actual PSG acceptance edge, rather than a held CPU request.
+    assign debug_ym_write = !system.io.psg.reset && system.io.psg.bus_first &&
+        system.io.psg.bus_write && system.io.psg.bus_reg && system.io.psg.selected_valid;
+    assign debug_ym_register = system.io.psg.selected;
+    assign debug_ym_data = system.io.psg.bus_wdata;
     assign debug_irq_vector = system.irq_vector;
     assign debug_native_line = native_line;
     assign debug_horizontal_phase = system.io.horizontal_cycle;
