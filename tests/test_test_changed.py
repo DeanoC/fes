@@ -114,6 +114,17 @@ class TestChangedTest(unittest.TestCase):
         self.assertFalse(any(c["argv"][0] in ("go", "node", "make", "docker") for c in result["commands"]))
         self.assertTrue(any("consistency" in c["label"] for c in result["commands"]))
 
+    def test_image_recipe_change_selects_parent_lane_and_python_checks(self):
+        self.change("image/scripts/build-target-image.sh")
+        result = self.plan()
+        self.assertEqual({lane for lane, enabled in result["impact"]["lanes"].items() if enabled},
+                         {"parent"})
+        self.assertEqual(result["impact"]["cores"], [])
+        self.assertTrue(all(c["lane"] in ("always", "parent") for c in result["commands"]))
+        self.assertTrue(any(c["argv"] == [sys.executable, "-m", "unittest", "discover",
+                                        "-s", "tests", "-v"]
+                            for c in result["commands"]))
+
     def test_runtime_changes_include_host_protocol_consumers(self):
         self.change("sources/libmister-runtime/src/protocol.cpp")
         result = self.plan()

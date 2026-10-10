@@ -1,6 +1,9 @@
 """FES image/ is the native image recipe; FogCast supplies agent and kit."""
 from pathlib import Path
 import hashlib
+import shutil
+import subprocess
+import tempfile
 import tomllib
 import unittest
 
@@ -38,6 +41,40 @@ class ImageAssemblyTest(unittest.TestCase):
         for relative in FOGCAST_INPUTS:
             path = FOGCAST / relative
             self.assertTrue(path.exists(), f'missing FogCast image input {relative}')
+
+    def test_host_contained_development_diagnostic_contract(self):
+        # The FogCast shell check covers host protocol, agent and image recipe
+        # markers; running it here keeps that contract on the parent lane.
+        result = subprocess.run(
+            ['sh', str(FOGCAST / 'scripts/tests/native-development-rbf-support-truth_test.sh')],
+            cwd=ROOT, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_host_development_contract_rejects_missing_image_variant(self):
+        copies = (
+            'sources/FogCast/scripts/tests/native-development-rbf-support-truth_test.sh',
+            'sources/FogCast/internal/misterruntime/protocol_v2.go',
+            'sources/FogCast/cmd/mister-agent/main.go',
+            'sources/FogCast/Makefile',
+            'image/scripts/build-target-image.sh',
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = Path(temporary)
+            for relative in copies:
+                target = fixture / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(ROOT / relative, target)
+            script = fixture / copies[0]
+            intact = subprocess.run(['sh', str(script)], cwd=fixture,
+                                    text=True, capture_output=True)
+            self.assertEqual(intact.returncode, 0, intact.stdout + intact.stderr)
+            image_script = fixture / 'image/scripts/build-target-image.sh'
+            image_script.write_text(
+                image_script.read_text().replace('native-dev', 'removed-development-variant'))
+            missing = subprocess.run(['sh', str(script)], cwd=fixture,
+                                     text=True, capture_output=True)
+            self.assertNotEqual(missing.returncode, 0,
+                                missing.stdout + missing.stderr)
 
     def test_splash_and_idle_pin_sealed_misteross_splash(self):
         policy = tomllib.loads((IMAGE / 'build/native-inputs.toml').read_text())

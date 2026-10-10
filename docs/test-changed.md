@@ -107,6 +107,9 @@ integration lane are outside this focused command. Individual tests may report
 their own skips; a passing command does not turn a skipped test into coverage.
 The recipe tests access bundle helpers through a module import (`from tests
 import test_bundle`) so discovery does not re-run the imported bundle suite.
+The regression suite also executes FogCast's contained-development diagnostic
+contract against the host and image inputs, so image-only changes retain that
+cross-component coverage without selecting the host lane.
 
 ## Results and prerequisites
 
