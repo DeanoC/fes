@@ -110,6 +110,7 @@ module st_machine #(
     assign rom_req = state == WAITING && target == ROM && !reset;
     assign rom_addr = address < 24'd8 ? address[17:1] :
                      17'((address - 24'hfc0000) >> 1);
+    wire [23:0] live_address = {cpu_addr, 1'b0};
     wire early_ram_read;
     wire [23:0] ram_address = early_ram_read ? live_address : address;
     // Reads have stable address/lanes on the same edge that captures the
@@ -134,7 +135,6 @@ module st_machine #(
     assign vpa_n = state != IACK || vectored_cycle || reset;
     assign irq_ack = state == IACK && !reset;
 
-    wire [23:0] live_address = {cpu_addr, 1'b0};
     function automatic [23:0] bank_size(input [1:0] configuration);
         case (configuration)
             2'd0: bank_size = 24'h020000;
