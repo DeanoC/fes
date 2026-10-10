@@ -2,7 +2,10 @@
 // Stock-firmware boot through the real shared SDRAM controller and DDIO
 // simulation path, concurrently with the independent-clock line-cache video.
 // The physical command model is external; no C++ RAM callback serves the CPU.
-module st_boot_memory_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
+module st_boot_memory_sim_top #(
+    parameter integer MFP_WAIT_STATES = 0,
+    parameter EARLY_COMPLETION = 1
+) (
     input wire clk_sys, clk_pixel, cold_reset, reset_sys, reset_pixel,
     output wire initialized,
     input wire media_ready,
@@ -31,6 +34,7 @@ module st_boot_memory_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     output wire [7:0] sync_mode,
     output wire [23:0] debug_addr,
     output wire debug_bus_error, debug_halted,
+    output wire debug_cpu_tick,
     output wire [31:0] debug_pc,
     output wire irq_ack,
     output wire [2:0] irq_level,
@@ -64,7 +68,7 @@ module st_boot_memory_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
         .ram_byte_enable(cpu_byte_enable), .ram_write(cpu_write),
         .ram_rdata(cpu_rdata), .ram_ready(cpu_ready),
         .exp_req(), .exp_addr(), .exp_wdata(), .exp_byte_enable(), .exp_write(), .exp_fc(),
-        .exp_reset(), .exp_phi1(), .exp_phi2(), .exp_ack(1'b0), .exp_berr(1'b0),
+        .exp_reset(), .exp_phi1(), .exp_phi2(debug_cpu_tick), .exp_ack(1'b0), .exp_berr(1'b0),
         .exp_present(1'b0), .exp_rdata(16'hffff), .exp_irq(3'd0),
         .irq_ack(irq_ack), .irq_level(irq_level),
         .keyboard(144'd0), .controller_buttons(16'd0), .monochrome(1'b0),
@@ -77,7 +81,7 @@ module st_boot_memory_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
         .debug_addr(debug_addr), .debug_bus_error(debug_bus_error), .debug_overlay(),
         .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_line(native_line)
     );
-    st_memory_sim_top memory (
+    st_memory_sim_top #(.EARLY_COMPLETION(EARLY_COMPLETION)) memory (
         .clk(clk_sys), .cold_reset(cold_reset), .reset(reset_sys), .initialized(initialized),
         .cpu_req(cpu_req), .cpu_addr(cpu_addr), .cpu_write(cpu_write), .cpu_wdata(cpu_wdata),
         .cpu_byte_enable(cpu_byte_enable), .cpu_ready(cpu_ready), .cpu_rdata(cpu_rdata),

@@ -26,6 +26,30 @@ The MiSTer addon wires chip DQML/DQMH to A11/A12. The shared controller keeps
 the full row during ACTIVATE, then places byte masks on those shared pins
 before the column command and clears them for reads. The separate logical
 DQM outputs alone cannot mask writes on this board.
+The ST selects a four-count runtime refresh recovery instead of the shared
+controller's sixteen-count default. Including state transitions, this leaves
+six chip clocks (114.9 ns at 52.224 MHz) before the next command, exceeding
+the ISSI IS42S16320D's 60 ns refresh command period. Initialization keeps its
+conservative timing. The ST also enables early completion after the existing read capture or
+committed write hold. SDRAM recovery still drains before another physical
+command is accepted. The arbiter presents an idle-controller grant on its
+arbitration edge; CPU acknowledgement uses the captured controller word and
+retains it afterwards. No read cache or deferred write buffer is introduced.
+Other shared-controller callers retain late completion by default.
+
+The memory regression compares early/late completion and the previous refresh
+profile across three DQM delays, held-read retention, cancellation, reset and
+CPU/video/DMA/media contention. Its alternating CPU access sweep measures
+10–23 system clocks for reads and 6–20 for writes with early completion,
+versus 13–24 and 10–23 with late completion at the same refresh setting.
+`make sim-fes-atari-st-ram-bus` executes original firmware on the actual FX68K,
+physical SDRAM/DDIO and independent-clock video fixture in both configurations.
+Across 511 same-instruction intervals, byte writes fall from 9205 to 8745 CPU
+cycles (mostly 18 to 17 per instruction); reads remain mostly 17 cycles.
+The firmware accesses both byte lanes and checks physical data and completion.
+This is a bounded timing improvement, not original ST bus timing equivalence
+or acceptance of BIG raster timing. Fresh FPGA/kit qualification is separate.
+
 Initialization completes before CPU release. SDRAM refresh continues while
 idle and while the CPU is held. An abandoned request drains its physical
 command and suppresses its old completion. Warm Hold preserves RAM and media.

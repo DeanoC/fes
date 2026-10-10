@@ -7,6 +7,13 @@
 #include <iostream>
 #include <vector>
 
+#ifndef ST_REFRESH_WAIT_CYCLES
+#define ST_REFRESH_WAIT_CYCLES 4
+#endif
+#ifndef ST_EARLY_COMPLETION
+#define ST_EARLY_COMPLETION 1
+#endif
+
 // Digital SDRAM command model: packed row/bank/column addresses, CAS-2,
 // single-word bursts, auto-precharge, byte masks, initialization and refresh.
 // Timing limits are conservative whole cycles at 52.224 MHz, from the ISSI
@@ -37,6 +44,7 @@ public:
     std::array<unsigned, 5> mask_history{};
     std::array<uint64_t, 4> write_masks{};
     uint64_t masked_after_refresh = 0;
+    uint64_t last_refresh_any_chip = 0, min_refresh_gap = UINT64_MAX;
     bool after_refresh = false;
     bool precharged = false, initialized = false;
 
@@ -50,8 +58,18 @@ public:
         if (read_due == cycle)
             require(mask_history[mask_delay + 2] == 0, "READ output suppressed by delayed DQM", cycle);
         const uint16_t sample = read_due == cycle ? pending_read : 0xf13d;
-        if (!dut.sdram_cke || dut.sdram_ncs) return sample;
         const unsigned command = (dut.sdram_nras << 2) | (dut.sdram_ncas << 1) | dut.sdram_nwe;
+        // The controller sequences both chip-select phases. RAM/media live
+        // on chip zero; check recovery after either refresh phase.
+        if (dut.sdram_cke && command != 7) {
+            if (initialized && last_refresh_any_chip) {
+                const auto gap = cycle - last_refresh_any_chip;
+                require(gap >= 5, "refresh recovery on either chip is too short", cycle);
+                if (gap < min_refresh_gap) min_refresh_gap = gap;
+            }
+            if (command == 1) last_refresh_any_chip = cycle;
+        }
+        if (!dut.sdram_cke || dut.sdram_ncs) return sample;
         const unsigned bank = dut.sdram_ba;
         const unsigned address = ((dut.sdram_a & 0x3fc) << 15) |
                                  (row[bank] << 4) | (bank << 2) | (dut.sdram_a & 3);
@@ -136,6 +154,9 @@ public:
     std::vector<uint16_t> reference = std::vector<uint16_t>(0xa6800, 0);
     uint64_t cycles = 0, completed = 0;
     unsigned max_latency = 0;
+    unsigned read_min = 160, read_max = 0, write_min = 160, write_max = 0;
+    bool held_cpu_read = false;
+    unsigned retained_cpu_data = 0;
 
     void step() {
         dut.clk = 0;
@@ -147,6 +168,10 @@ public:
         dut.eval();
         require(dut.sdram_clk == 0, "SDRAM clock high-half polarity", cycles);
         ++cycles;
+        if (held_cpu_read) {
+            require(!dut.cpu_ready, "held CPU read completed again during another client", cycles);
+            require(dut.cpu_rdata == retained_cpu_data, "other client changed held CPU read data", cycles);
+        }
     }
 
     void idle(unsigned count) { for (unsigned i = 0; i < count; ++i) step(); }
@@ -211,7 +236,7 @@ public:
         ++completed;
     }
 
-    void transaction(unsigned client, const Request &r, unsigned hold = 0) {
+    unsigned transaction(unsigned client, const Request &r, unsigned hold = 0) {
         request(client, r);
         unsigned waited = 0;
         do {
@@ -219,12 +244,16 @@ public:
             require(++waited <= 160, "single memory request timed out", cycles);
         } while (!ready(client));
         check(client, r);
+        const unsigned retained = data(client);
         for (unsigned i = 0; i < hold; ++i) {
             step();
             require(!ready(client), "held request completed more than once", cycles);
+            if (!r.write && client != 3)
+                require(data(client) == retained, "held read changed after completion", cycles);
         }
         request(client, r, false);
         step();
+        return waited;
     }
 
     void initialize() {
@@ -255,7 +284,7 @@ public:
         transaction(0, {4, 0xabcd, 3, true}, 1000);
         transaction(1, {4});
         transaction(0, {4, 0x5678, 2, true});
-        transaction(0, {4});
+        transaction(0, {4}, 1500);
         transaction(0, {4, 0x1234, 1, true});
         transaction(1, {4});
         transaction(0, {4, 0xffff, 0, true});
@@ -275,6 +304,21 @@ public:
         transaction(4, {839679});
         transaction(0, {0}); // RAM zero does not alias media zero.
         transaction(0, {0x3ffff});
+
+        // Keep the CPU read asserted while DMA changes a different word and
+        // video reads it. The shared controller's next rdata must not replace
+        // the CPU's completed value, nor cause a second CPU acknowledgement.
+        const Request held{4};
+        request(0, held);
+        while (!ready(0)) step();
+        check(0, held);
+        retained_cpu_data = dut.cpu_rdata;
+        held_cpu_read = true;
+        transaction(2, {10, 0xa53c, 3, true});
+        transaction(1, {5});
+        held_cpu_read = false;
+        request(0, held, false);
+        step();
 
         const uint64_t physical = memory.reads + memory.writes;
         transaction(2, {0});
@@ -381,6 +425,32 @@ public:
         idle(10);
         require(reference == memory.words, "RAM and media differ from request reference", cycles);
     }
+
+    void latency() {
+        // Alternating writes/reads with varying idle gaps walks refresh
+        // arrival phases. Every read checks the physical data just written;
+        // all lane masks, high rows and chip-zero bank bits are exercised.
+        for (unsigned i = 0; i < 4096; ++i) {
+            idle(i % 17);
+            const unsigned address = 0x10000 + (i % 0x1000);
+            unsigned wait = transaction(0, {address, uint16_t(i ^ 0xa55a), i % 4, true});
+            write_min = wait < write_min ? wait : write_min;
+            write_max = wait > write_max ? wait : write_max;
+            wait = transaction(0, {address});
+            read_min = wait < read_min ? wait : read_min;
+            read_max = wait > read_max ? wait : read_max;
+        }
+        require(read_min == (ST_EARLY_COMPLETION ? 10u : 13u) &&
+                write_min == (ST_EARLY_COMPLETION ? 6u : 10u),
+                "ordinary access latency changed", cycles);
+        require(memory.min_refresh_gap == ST_REFRESH_WAIT_CYCLES + 2,
+                "runtime refresh recovery does not match the selected profile", cycles);
+        // If refresh already owns the controller, launching on the grant edge
+        // cannot save that edge. Bound this case as well as an idle launch.
+        require(read_max <= 18 + 2 * ST_REFRESH_WAIT_CYCLES - 2 * ST_EARLY_COMPLETION &&
+                write_max <= 15 + 2 * ST_REFRESH_WAIT_CYCLES - 3 * ST_EARLY_COMPLETION,
+                "refresh-induced latency exceeds its bound", cycles);
+    }
 };
 
 int main(int argc, char **argv) {
@@ -397,6 +467,7 @@ int main(int argc, char **argv) {
         sim.initialize();
         sim.directed();
         sim.contention();
+        sim.latency();
         for (const auto count : sim.memory.write_masks)
             require(count != 0, "missing DQM lane-mask coverage", sim.cycles);
         require(sim.memory.masked_after_refresh != 0, "missing masked write after refresh", sim.cycles);
@@ -404,5 +475,10 @@ int main(int argc, char **argv) {
                   << sim.memory.refreshes << " refreshes, " << sim.memory.masked_after_refresh
                   << " masked writes after refresh, max latency " << sim.max_latency
                   << " clocks over " << sim.cycles << " cycles\n";
+        std::cout << "early completion " << ST_EARLY_COMPLETION
+                  << ", refresh wait " << ST_REFRESH_WAIT_CYCLES
+                  << ": CPU read " << sim.read_min << ".." << sim.read_max
+                  << ", write " << sim.write_min << ".." << sim.write_max
+                  << ", minimum refresh command gap " << sim.memory.min_refresh_gap << " clocks\n";
     }
 }
