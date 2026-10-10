@@ -72,7 +72,7 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     input wire capture_ready,
     input wire [15:0] capture_data,
     output wire capture_pixel,
-    output wire [8:0] capture_x, capture_y, capture_rgb,
+    output wire [8:0] capture_x, capture_y, capture_rgb, capture_height,
     output wire [31:0] capture_frames, capture_underruns,
     output wire vblank, hblank
 );
@@ -92,14 +92,15 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
         .hold(reset), .native_vblank(vblank), .native_display(native_display), .native_line(native_line),
         .sync_mode(sync_mode), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .memory_req(capture_req), .memory_addr(capture_addr), .memory_ready(capture_ready), .memory_data(capture_data),
-        .output_sof(vblank), .output_address(16'd0), .output_rgb(unused_capture_rgb),
-        .output_border(unused_capture_border), .output_valid(unused_capture_valid),
+        .output_sof(vblank), .output_address(17'd0), .output_rgb(unused_capture_rgb),
+        .output_border(unused_capture_border), .output_valid(unused_capture_valid), .output_height(),
         .debug_frames(capture_frames), .debug_skipped(unused_capture_skipped), .debug_underruns(capture_underruns)
     );
     assign capture_pixel = capture.write_pixel;
     assign capture_x = capture.sample_x;
     assign capture_y = capture.row;
     assign capture_rgb = capture.sample_rgb;
+    assign capture_height = capture.height[capture.write_bank];
     assign debug_fdc_status = system.io.floppy.fdc_status;
     assign debug_fdc_track = system.io.floppy.track_reg;
     assign debug_fdc_sector = system.io.floppy.sector_reg;

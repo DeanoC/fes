@@ -17,7 +17,7 @@ module st_boot_memory_sim_top #(
     output wire [7:0] debug_irq_vector,
     output wire [8:0] debug_native_line, debug_horizontal_phase,
     output wire capture_pixel,
-    output wire [8:0] capture_x, capture_y, capture_rgb,
+    output wire [8:0] capture_x, capture_y, capture_rgb, capture_height,
     output wire rom_req,
     output wire [17:1] rom_addr,
     input wire [15:0] rom_rdata,
@@ -132,6 +132,7 @@ module st_boot_memory_sim_top #(
     assign capture_pixel = video.native_capture.capture.write_pixel;
     assign capture_x = video.native_capture.capture.sample_x;
     assign capture_y = video.native_capture.capture.row;
+    assign capture_height = video.native_capture.capture.height[video.native_capture.capture.write_bank];
     assign capture_rgb = video.native_capture.capture.sample_rgb;
     // Observability does not modify the pinned CPU or supply execution data.
     assign debug_pc = {system.machine.cpu.cpu.excUnit.PcH, system.machine.cpu.cpu.excUnit.PcL};

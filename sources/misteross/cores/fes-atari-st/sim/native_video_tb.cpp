@@ -16,7 +16,8 @@ struct Test {
     unsigned source_clock=0,source_frame=0,position=0,output_frame=0,selected=0;
     unsigned transfer_address=0,delay=0,transfers=0,black_rows=0,stall_black_rows=0,repeat_frames=0;
     bool pending=false,complete=false,stalled=false,previous_front=false;
-    std::array<int,200> row_black{};
+    std::array<int,247> row_black{};
+    uint64_t pal_bottom_pixels=0,ntsc_bottom_pixels=0;
     void require(bool good,const char*message) {
         ++checks;
         if(!good){std::cerr<<"FAIL "<<message<<" sys="<<sys_cycles<<" pixel="<<pixel_cycles
@@ -39,13 +40,18 @@ struct Test {
             unsigned line=source_clock/LineClocks,phase=source_clock%LineClocks;
             dut.native_vblank=source_clock==0;
             dut.native_line=line;
-            dut.native_display=line>=63&&line<263&&phase>=DisplayStart&&phase<DisplayEnd;
+            const bool ntsc=source_frame==9;
+            const unsigned top=ntsc?34:63;
+            const unsigned rows=(source_frame==6||source_frame==11)?247:ntsc?226:200;
+            dut.sync_mode=ntsc?0:2;
+            dut.native_display=line>=top&&line<top+rows&&phase>=DisplayStart&&phase<DisplayEnd;
             dut.resolution=source_mode();
             dut.screen_base=source_frame==10?0xff0000:0x10000;
             // Abort one in-progress native frame without withdrawing its read.
-            dut.hold=source_frame==4&&line>=90&&line<108;
+            dut.hold=(source_frame==4&&line>=90&&line<108)||
+                     (source_frame==11&&line>=270&&line<280);
             palette(0,source_mode()==2?0:0xdb);
-            unsigned intensity=((line>=63?line-63:0)+source_frame)%7+1;
+            unsigned intensity=((line>=top?line-top:0)+source_frame)%7+1;
             palette(1,source_mode()==1?0x38:phase<DisplayStart+1044?intensity<<6:intensity);
             if(!dut.video_req){require(!pending||complete,"memory request abandoned");pending=complete=false;dut.video_ready=0;}
             else if(!pending){
@@ -82,14 +88,21 @@ struct Test {
                 selected=dut.front_sequence;previous_front=dut.front_valid;row_black.fill(-1);
             }
             require(dut.front_sequence==selected,"publication changed within output frame");
-            require(!dut.front_valid||(selected!=4&&selected!=7&&selected!=8),"aborted/non-low frame published");
+            const unsigned rows=selected==6?247:selected==9?226:200;
+            require(!dut.front_valid || dut.front_height==rows,"published height disagrees with its source bank");
+            require(!dut.front_valid||(selected!=4&&selected!=7&&selected!=8&&selected!=11),"aborted/non-low frame published");
             require(!(dut.video_request&(1u<<30))||!(dut.video_request&0xffffff),"Hold leaked visible RGB");
             if(!(dut.video_request&(1u<<30))&&x<1280&&y<720){
                 unsigned actual=dut.video_request&0xffffff;
                 if(dut.active_resolution==0){
                     require(dut.front_valid,"visible low mode without completed frame");
-                    if(y>=60&&y<660){
-                        unsigned row=(y-60)/3,nx=x/4;
+                    const unsigned scale=rows==200?3:2,top=(720-rows*scale)/2;
+                    if(y>=top&&y<top+rows*scale){
+                        unsigned row=(y-top)/scale,nx=x/4;
+                        if(row>=200) {
+                            if(selected==6) ++pal_bottom_pixels;
+                            if(selected==9) ++ntsc_bottom_pixels;
+                        }
                         unsigned intensity=(row+selected)%7+1;
                         unsigned expected=rgb(nx<160?intensity<<6:intensity);
                         if(row_black[row]<0){row_black[row]=actual==0;if(actual==0){++black_rows;if(selected==3)++stall_black_rows;}}
@@ -115,6 +128,7 @@ struct Test {
         for(unsigned i=0;i<40;++i)edge();
         dut.reset_sys=dut.reset_pixel=0;position=0;
         while(output_frame<15)edge();
+        require(pal_bottom_pixels>0&&ntsc_bottom_pixels>0,"opened PAL and NTSC pixels were cropped away");
         require(stalled&&stall_black_rows>0&&dut.underruns>0,"delayed RAM did not exercise black-line recovery");
         require(repeat_frames>0,"50-to-60 Hz repeat not exercised");
         require(dut.captured_frames>=8,"native capture failed to resume across Hold/mode changes");

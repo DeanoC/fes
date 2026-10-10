@@ -14,6 +14,7 @@ module st_native_video_sim_top (
     output wire [31:0] video_request,
     output wire [31:0] captured_frames, skipped_frames, underruns, front_sequence,
     output wire front_valid, write_pixel,
+    output wire [8:0] front_height,
     output wire [1:0] front_bank, write_bank, active_resolution
 );
     wire [31:0] unused_debug_frame, unused_debug_underruns;
@@ -29,6 +30,7 @@ module st_native_video_sim_top (
     assign underruns = adapter.native_capture.capture.debug_underruns;
     assign front_sequence = adapter.native_capture.capture.front_sequence;
     assign front_valid = adapter.native_capture.capture.output_valid;
+    assign front_height = adapter.native_capture.capture.output_height;
     assign front_bank = adapter.native_capture.capture.front_bank;
     assign write_bank = adapter.native_capture.capture.write_bank;
     assign write_pixel = adapter.native_capture.capture.write_pixel;

@@ -22,8 +22,9 @@ struct Demo {
     std::vector<uint8_t> rom,disk;
     std::array<uint8_t,524288> ram{};
     Pending rp,mp,dp,cp;
-    std::vector<unsigned char> native_picture = std::vector<unsigned char>(320*200*3);
+    std::vector<unsigned char> native_picture = std::vector<unsigned char>(320*247*3);
     std::vector<unsigned char> completed_native_picture;
+    unsigned completed_native_height=200;
     uint64_t cycles=0,writes=0,faults=0,vbl=0,hbl=0,mfp=0,dma=0,media=0;
     uint32_t last_media=UINT32_MAX,last_fdc=UINT32_MAX;
     bool last_fault=false,last_ack=false,last_io=false;
@@ -128,7 +129,7 @@ struct Demo {
             <<",\"address\":"<<palette_address<<",\"data\":"<<palette_data<<",\"lanes\":"<<palette_lanes<<"}\n";
         dut.clk_sys=1;dut.eval();
         if(native_pixel){
-            check(native_x<320&&native_y<200,"native capture coordinates");
+            check(native_x<320&&native_y<247,"native capture coordinates");
             auto expand=[](unsigned c){return (c<<5)|(c<<2)|(c>>1);};
             const unsigned offset=(native_y*320+native_x)*3;
             native_picture[offset]=expand((native_rgb>>6)&7);
@@ -136,7 +137,10 @@ struct Demo {
             native_picture[offset+2]=expand(native_rgb&7);
         }
         if(dut.capture_frames!=completed_before){
-            completed_native_picture=native_picture;
+            const unsigned height=dut.capture_height;
+            check(height==200||height==226||height==247,"published native height");
+            completed_native_height=height;
+            completed_native_picture.assign(native_picture.begin(),native_picture.begin()+320*height*3);
             if(tracing()){
                 uint64_t hash=UINT64_C(14695981039346656037);
                 std::array<uint64_t,64> row_hashes;
@@ -157,14 +161,14 @@ struct Demo {
                 if(saved_logo_hashes.size()<8 && saved_logo_hashes.insert(hash).second){
                     std::ofstream image(prefix+"-trace-logo-"+std::to_string(native_frames)+"-native.ppm",std::ios::binary);
                     check(image.good(),"trace logo image unavailable");
-                    image<<"P6\n320 200\n255\n";
-                    image.write(reinterpret_cast<const char*>(native_picture.data()),native_picture.size());
+                    image<<"P6\n320 "<<height<<"\n255\n";
+                    image.write(reinterpret_cast<const char*>(native_picture.data()),320*height*3);
                 }
             }
             if(cycles>=13*Hz/2 && consecutive_captures<16){
                 std::ofstream image(prefix+"-consecutive-"+std::to_string(consecutive_captures++)+"-native.ppm",std::ios::binary);
-                image<<"P6\n320 200\n255\n";
-                image.write(reinterpret_cast<const char*>(native_picture.data()),native_picture.size());
+                image<<"P6\n320 "<<height<<"\n255\n";
+                image.write(reinterpret_cast<const char*>(native_picture.data()),320*height*3);
             }
         }
         // A bounded bus trace locates timer programming and mode writes in
@@ -234,7 +238,7 @@ struct Demo {
     void snapshot(const std::string &suffix) {
         if(!completed_native_picture.empty()){
             std::ofstream native(prefix+suffix+"-native.ppm",std::ios::binary);
-            native<<"P6\n320 200\n255\n";
+            native<<"P6\n320 "<<completed_native_height<<"\n255\n";
             native.write(reinterpret_cast<const char*>(completed_native_picture.data()),completed_native_picture.size());
         }
         std::ofstream memory(prefix+suffix+"-ram.bin",std::ios::binary);

@@ -148,9 +148,43 @@ static void interrupt_connection(Test &t) {
     t.iack(6,20); t.require((t.mread(0x0d)&0x20)==0 && (t.mread(0x11)&0x20)!=0,"new IACK consumes Timer C once");
     t.mwrite(0x11,0xdf); t.mwrite(0x1d,0);
     while (t.frames==0) t.tick();
+    const auto frame_boundary=t.cpu_ticks;
+    while (t.cpu_ticks-frame_boundary<60) {
+        t.require(t.dut.irq==2,"VBL does not assert before STF WS1 phase 60");
+        t.tick();
+    }
+    t.require(t.cpu_ticks-frame_boundary==60 && t.dut.display_line==0 &&
+              t.dut.display_phase==60,"IRQ4 uses native CPU cycles after frame boundary");
     t.require(t.dut.irq==4 && !t.dut.irq_vectored,"native VBL is autovectored level 4");
     t.iack(4); t.require(t.dut.irq==2,"VBL acknowledgement leaves native HBL pending");
     t.iack(2); t.require(t.dut.irq==0,"native HBL acknowledgement clears level 2");
+}
+
+static void vbl_interrupt_phase(Test &t,unsigned resolution,unsigned sync) {
+    t.reset(resolution,sync);
+    for (unsigned frame=1;frame<=2;++frame) {
+        while(t.frames<frame) t.tick();
+        const auto boundary=t.cpu_ticks;
+        t.require(t.dut.irq==2,"frame boundary keeps HBL pending before IRQ4");
+        while(t.cpu_ticks-boundary<60) {
+            t.require(t.dut.irq==2,"IRQ4 waits for all sixty native cycles");
+            t.tick();
+        }
+        t.require(t.dut.irq==4 && t.dut.display_phase==60,
+                  "PAL/NTSC/mono IRQ4 phase is independent of frame period");
+        t.run(37); t.require(t.dut.irq==4,"IRQ4 stays pending until its IACK");
+        t.iack(2); t.require(t.dut.irq==4,"HBL IACK cannot clear delayed VBL");
+        t.iack(4); t.require(t.dut.irq==0,"IRQ4 IACK clears one delayed event");
+    }
+    while(t.frames<3) t.tick();
+    // Cancel a scheduled event through execution Hold/reset, then watch
+    // beyond its old deadline without waiting for another native frame.
+    t.reset(resolution,sync);
+    const auto reset_tick=t.cpu_ticks;
+    while(t.cpu_ticks-reset_tick<80) {
+        t.require(t.dut.irq==0,"reset cancels the scheduled VBL event");
+        t.tick();
+    }
 }
 
 static void timer_c_rate(Test &t) {
@@ -269,7 +303,9 @@ static void bottom_border(Test &t,bool pal,bool cross_sample,bool next_line=fals
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     Test test;
-    lanes_and_reset(test); interrupt_connection(test); timer_c_rate(test);
+    lanes_and_reset(test); interrupt_connection(test);
+    vbl_interrupt_phase(test,0,2); vbl_interrupt_phase(test,0,0);
+    vbl_interrupt_phase(test,2,2); timer_c_rate(test);
     display_enable(test,0,2,50,200); display_enable(test,1,0,60,200);
     display_enable(test,2,2,71,400); brief_mode_writes(test);
     timer_b_polarity(test,false); timer_b_polarity(test,true);

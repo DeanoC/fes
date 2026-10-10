@@ -1766,7 +1766,7 @@ delayed RAM and media completions, including rejected mutations and later retry.
 `st_video_adapter.sv` captures ordinary low-resolution native pixels through
 `st_native_low_video.sv`. Its system-domain row prefetch uses the existing
 video RAM port, selecting the live RGB333 palette at each nominal 8 MHz pixel.
-Three complete 320×200 RGB333 banks have explicit publish/release ownership
+Three RGB333 banks, each holding up to 320×247 pixels, have explicit publish/release ownership
 across the system and pixel domains. Only completed captures are published;
 the fixed 60 Hz reader selects the newest completed bank at SOF and pins it
 until a later SOF. A slow or stopped reader makes the producer skip frames
@@ -1776,7 +1776,12 @@ rejects an entire row before any truncation. Native RGB is sampled at the
 pixel event into a registered RAM write bundle; a two-pixel forecast feeds a
 registered read address before the synchronous pixel read. A blanking-time
 line counter advances the low-resolution row base by five 64-pixel units after
-each three output lines; address addition uses only the upper ten bits.
+each three ordinary output lines or two opened-bottom output lines. Bank height
+is immutable publication metadata: ordinary frames retain 200 rows at 4×3;
+opened PAL/NTSC frames carry 247/226 rows at centered 4×2. Publication waits
+past the bottom-stop decision and all potentially opened DE rows. Prefetch
+prepares row 200 before opening is known, then reads later rows only after DE
+enters the bottom region. Address addition uses only the upper eleven bits.
 These register
 stages shorten RAM paths while preserving palette sample and output positions.
 The write boundary registers RGB and black-line validity separately. Bank
@@ -1800,7 +1805,9 @@ The CPU phase-2 enable advances one horizontal counter, with line counts
 driving VBL: 313×512 PAL, 263×508 NTSC, and 501×224 monochrome CPU cycles.
 The retained nominal 8 MHz CPU therefore gives approximately
 49.920/59.878/71.286 Hz rather than rounded integer frame rates. MFP crystal
-timing remains independent at 2.4576 MHz.
+timing remains independent at 2.4576 MHz. The frame/capture pulse stays at
+rollover while IRQ4 asserts 60 native CPU cycles later, selecting the STF WS1
+VBL phase. IACK clears the pending event; reset cancels its scheduled delay.
 An optional `MFP_WAIT_STATES` probe delays the MFP request and data sampling
 in native CPU cycles; its default zero preserves the selected production
 timing. `sim-fes-atari-st-mfp-bus` calibrates four states with original 68000
@@ -1823,7 +1830,7 @@ Brief sync/resolution writes therefore do not add Timer B events mid-line.
 The STF WS1 bottom-stop sample at cycle 502 uses live sync: opposite mode on
 the last ordinary color line extends DE to PAL line 309 or NTSC line 259,
 then clears at frame rollover. Timer B and the reduced video counter see
-these extra lines. RGB capture still crops to the ordinary 320×200 area;
+these extra lines. RGB capture and its published height include them;
 horizontal/top borders and the other exact GLUE sampling positions are absent.
 Native capture prefetch is also not a cycle-exact MMU/shifter implementation.
 Monochrome DE spans lines 34–433 and cycles 4–163. No shared ABI,

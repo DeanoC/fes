@@ -187,14 +187,16 @@ supports palette-bit inversion; color borders use palette entry 0.
 `st_video_adapter.sv` defaults to native low-resolution capture. In the
 52.224 MHz system domain, `st_native_low_video.sv` prefetches alternating
 80-word RAM rows and selects the live palette at each nominal 8 MHz pixel.
-Three 320×200 RGB333 banks cross to the 74.25 MHz pixel domain through
+Three RGB333 banks hold up to 320×247 pixels and cross to the 74.25 MHz pixel domain through
 publish/release toggles. Only complete native frames are published; the HDMI
 reader pins one bank until output SOF and selects the newest available frame.
 This repeats or drops complete source frames when native and output rates differ.
 Registered RAM write data and a two-pixel address lookahead keep native RGB
 sampling and scaled output aligned while shortening paths into the buffers.
-A blanking-time line counter advances the low row base every three output
-lines, avoiding a vertical-coordinate multiply on the RAM read path.
+Ordinary 200-row frames retain 4×3 scaling. Opened-bottom frames use 4×2
+scaling, centered vertically, so all 247 PAL or 226 NTSC rows remain visible.
+Height travels with each immutable bank and changes only at output SOF.
+A blanking-time row counter avoids a vertical-coordinate multiply on the read path.
 RGB and black-line validity have separate write registers. Three-bit publication
 numbers order the bounded pending bank set across wrap and consumer pauses.
 A missing RAM row displays black for its whole line; HOLD aborts an unfinished
@@ -217,6 +219,11 @@ selection, preserving its pixel and lookup cycles while shortening timing paths.
 The reduced native timing uses ordinary PAL lines 63–262 with DE cycles
 56–375, and NTSC lines 34–233 with DE cycles 52–371, following the ordinary
 [Hatari 2.5.0 timing table](https://github.com/hatari/hatari/blob/v2.5.0/src/video.c).
+VBL's frame/capture pulse remains at the native frame boundary. IRQ4 asserts
+60 CPU cycles later, matching the same STF WS1 wake-up timing selected for
+line and bottom-stop samples. It remains pending until IACK; reset cancels a
+scheduled event. This is independent of HDMI frame publication.
+
 The MFP's Timer B input follows both DE edges by 24 CPU cycles, using
 [Hatari's Timer B offset](https://github.com/hatari/hatari/blob/v2.5.0/src/includes/video.h).
 DE mode settings are sampled at line/frame boundaries so brief writes do not
@@ -226,9 +233,10 @@ line preserves the ordinary HBL and frame period. The vertical bottom-stop condi
 samples live sync at cycle 502 on the last ordinary color line, using the
 STF WS1 timing table. Opposite sync extends PAL DE through line 309, or NTSC
 DE through line 259, and clears at the next frame. This lets Timer B handlers
-continue through the opened bottom region. The current native RGB buffer
-still presents only the ordinary 320×200 area; it does not display those
-extra lines. The remaining mode samples are approximate, and prefetching
+continue through the opened bottom region. The native RGB buffer includes
+those extra lines. Publication waits until all potentially opened rows finish;
+ordinary captures publish 200 rows. Only the first possible border row is
+prefetched before DE confirms opening. The remaining mode samples are approximate, and prefetching
 does not reproduce exact MMU/shifter arbitration, mid-line base writes,
 horizontal or top-border opening.
 
