@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -130,6 +131,10 @@ class Boot {
     uint64_t next_sys = 0, next_pixel = 9871, system_cycles = 0, pixel_cycles = 0, boot_start = 0;
     uint64_t faults = 0, mfp = 0, vbl = 0, cpu_reads = 0, cpu_writes = 0, video_reads = 0;
     uint64_t concurrent_cycles = 0, complete_frames = 0;
+#ifdef ST_RAM_BUS_PROBE
+    uint64_t cpu_ticks = 0;
+    std::vector<std::pair<bool, uint64_t>> ram_bus_starts;
+#endif
     unsigned max_cpu_latency = 0, max_video_latency = 0;
     bool last_fault = false, last_ack = false, picture_started = false;
     uint32_t previous_request = 0;
@@ -200,6 +205,11 @@ class Boot {
     }
 
     void system_edge() {
+#ifdef ST_RAM_BUS_PROBE
+        if (!dut.reset_sys && dut.debug_cpu_tick) ++cpu_ticks;
+        if (!dut.reset_sys && dut.cpu_req && !cpu_transfer.active && dut.cpu_addr == 0x300)
+            ram_bus_starts.emplace_back(bool(dut.cpu_write), cpu_ticks);
+#endif
         rom_before_edge();
         track_before(cpu_transfer, dut.cpu_req, dut.cpu_addr, dut.cpu_wdata,
                      dut.cpu_byte_enable, dut.cpu_write, "CPU SDRAM request changed before completion");
@@ -373,10 +383,30 @@ class Boot {
 
 public:
     explicit Boot(const char *path, const char *disk_path = nullptr) {
+#ifdef ST_RAM_BUS_PROBE
+        if (!path) {
+            // Original firmware: bank config, repeated byte instructions on
+            // both lanes, physical completion marker, STOP. No external ROM.
+            rom.resize(196608);
+            unsigned at = 0;
+            auto word = [&](unsigned value) { rom.at(at++) = value >> 8; rom.at(at++) = value; };
+            auto longword = [&](unsigned value) { word(value >> 16); word(value); };
+            longword(0x7fff0); longword(0xfc0100);
+            at = 0x100;
+            word(0x13fc); word(4); longword(0xff8001);
+            word(0x705a);
+            for (unsigned i = 0; i < 512; ++i) { word(0x1239); longword(0x600 + (i & 1)); }
+            for (unsigned i = 0; i < 512; ++i) { word(0x13c0); longword(0x600 + (i & 1)); }
+            word(0x33fc); word(0xc0de); longword(0x400);
+            word(0x4e72); word(0x2700);
+        } else
+#endif
+        {
         std::ifstream input(path, std::ios::binary);
         require(input.good(), "stock ROM unavailable");
         rom.assign(std::istreambuf_iterator<char>(input), {});
         require(rom.size() == 196608, "stock ROM must be exactly 192 KiB");
+        }
         dut.media_ready=0; dut.media_size=737280;
         if (disk_path) {
             std::ifstream disk_input(disk_path, std::ios::binary);
@@ -406,6 +436,38 @@ public:
         dut.eval();
         std::cout << "physical SDRAM initialized after " << system_cycles << " clocks\n" << std::flush;
     }
+
+#ifdef ST_RAM_BUS_PROBE
+    void ram_bus_probe() {
+        while (word(0x400) != 0xc0de) {
+            require(system_cycles - boot_start < 300000, "RAM timing firmware did not complete", system_cycles);
+            event();
+        }
+        require(faults == 0 && !dut.debug_halted, "RAM timing firmware faulted", system_cycles);
+        require(word(0x600) == 0x5a5a, "RAM timing byte lanes did not reach physical memory", system_cycles);
+        require(ram_bus_starts.size() == 1024, "RAM timing transaction count", system_cycles);
+        std::array<std::map<unsigned, unsigned>, 2> histograms;
+        for (unsigned i = 1; i < ram_bus_starts.size(); ++i) {
+            if (ram_bus_starts[i].first != ram_bus_starts[i-1].first) continue;
+            const auto ticks = unsigned(ram_bus_starts[i].second - ram_bus_starts[i-1].second);
+            require(ticks >= 16 && ticks <= 40, "RAM instruction timing outside bounded range", system_cycles);
+            ++histograms[ram_bus_starts[i].first][ticks];
+        }
+        for (unsigned writing = 0; writing < 2; ++writing) {
+            unsigned intervals = 0, total = 0;
+            std::cout << "RAM CPU " << (writing ? "write" : "read") << " histogram:";
+            for (const auto &[ticks, count] : histograms[writing]) {
+                intervals += count; total += ticks * count;
+                std::cout << ' ' << ticks << ':' << count;
+            }
+            require(intervals == 511, "RAM instruction interval count", system_cycles);
+            require(total <= (writing ? (ST_EARLY_COMPLETION ? 9000u : 9500u) : 9000u),
+                    "RAM instruction timing regressed", system_cycles);
+            std::cout << "; total " << total << " CPU cycles for " << intervals << " intervals\n";
+        }
+        std::cout << "RAM CPU physical bus PASS: 1024 byte transactions, zero faults, physical byte lanes and marker\n";
+    }
+#endif
 
     void run(unsigned seconds, const char *prefix, unsigned start=6, unsigned end=7) {
         trace_start=start; trace_end=end;
@@ -475,11 +537,17 @@ public:
 
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
+#ifdef ST_RAM_BUS_PROBE
+    require(argc == 1, "RAM timing firmware takes no external ROM");
+    Boot boot(nullptr);
+    boot.ram_bus_probe();
+#else
     require((argc >= 2 && argc <= 4) || argc==7, "usage: boot_memory_tb STOCK_192K_ROM [SECONDS=8] [OUTPUT_PREFIX=emutos-sdram]");
     const unsigned seconds = argc >= 3 ? unsigned(std::strtoul(argv[2], nullptr, 10)) : 8;
     require(seconds >= 6 && seconds <= 30, "boot duration must be 6..30 emulated seconds");
     Boot boot(argv[1], argc==7 ? argv[4] : nullptr);
     boot.run(seconds, argc >= 4 ? argv[3] : "emutos-sdram", argc==7 ? unsigned(std::strtoul(argv[5],nullptr,10)) : 6,
              argc==7 ? unsigned(std::strtoul(argv[6],nullptr,10)) : 7);
+#endif
     return 0;
 }

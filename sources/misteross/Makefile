@@ -1532,7 +1532,7 @@ atari-st-sources:
 atari-st-diagnostic: atari-st-sources
 	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
 
-sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
+sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 
 sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
@@ -1635,11 +1635,17 @@ sim-fes-atari-st-memory:
 		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
 		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-memory/Vst_memory_sim_top
+	@mkdir -p build/sim/fes-atari-st-memory-late-completion
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall -GEARLY_COMPLETION=0 \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-memory-late-completion" \
+		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
+		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" -CFLAGS '-O2 -std=c++17 -DST_EARLY_COMPLETION=0'
+	@build/sim/fes-atari-st-memory-late-completion/Vst_memory_sim_top
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
-		"-GREFRESH_WAIT_CYCLES=14'd16" --Mdir "$(CURDIR)/build/sim/fes-atari-st-memory-legacy-refresh" \
+		-GEARLY_COMPLETION=0 "-GREFRESH_WAIT_CYCLES=14'd16" --Mdir "$(CURDIR)/build/sim/fes-atari-st-memory-legacy-refresh" \
 		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
 		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" \
-		-CFLAGS '-O2 -std=c++17 -DST_REFRESH_WAIT_CYCLES=16'
+		-CFLAGS '-O2 -std=c++17 -DST_REFRESH_WAIT_CYCLES=16 -DST_EARLY_COMPLETION=0'
 	@build/sim/fes-atari-st-memory-legacy-refresh/Vst_memory_sim_top
 
 sim-fes-atari-st-video-adapter:
@@ -1722,6 +1728,22 @@ sim-fes-atari-st-emutos-memory: atari-st-sources
 		"$(CURDIR)/$(ST_CORE)/sim/boot_memory_tb.cpp" -CFLAGS '-O3 -std=c++17'
 	@cd build/sim/fes-atari-st-boot-memory && ./Vst_boot_memory_sim_top \
 		"$(abspath $(EMUTOS_ROM))" "$(EMUTOS_SECONDS)" "$(abspath $(EMUTOS_CAPTURE))"
+
+.PHONY: sim-fes-atari-st-ram-bus sim-fes-atari-st-ram-bus-0 sim-fes-atari-st-ram-bus-1
+sim-fes-atari-st-ram-bus: sim-fes-atari-st-ram-bus-0 sim-fes-atari-st-ram-bus-1
+
+sim-fes-atari-st-ram-bus-0 sim-fes-atari-st-ram-bus-1: sim-fes-atari-st-ram-bus-%: atari-st-sources
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-atari-st-ram-bus-$*
+	@cp $(ST_CPU)/microrom.mem $(ST_CPU)/nanorom.mem build/sim/fes-atari-st-ram-bus-$*/
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_boot_memory_sim_top $(ST_CPU_FLAGS) \
+		-GEARLY_COMPLETION=$* -GMFP_WAIT_STATES=$(ST_MFP_WAIT_STATES) -Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-ram-bus-$*" \
+		$(ST_CORE)/sim/st_boot_memory_sim_top.sv $(ST_CORE)/sim/st_memory_sim_top.sv \
+		$(ST_CORE)/rtl/st_system.sv $(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv \
+		$(ST_CORE)/rtl/st_memory.sv cores/fes-ramtest/rtl/sdram_addon_port.v \
+		$(ST_CORE)/rtl/st_video_adapter.sv $(ST_VIDEO_RTL) $(ST_IO_RTL) $(ST_CPU_RTL) \
+		"$(CURDIR)/$(ST_CORE)/sim/boot_memory_tb.cpp" -CFLAGS '-O3 -std=c++17 -DST_RAM_BUS_PROBE -DST_EARLY_COMPLETION=$*'
+	@cd build/sim/fes-atari-st-ram-bus-$* && ./Vst_boot_memory_sim_top
 
 ST_VIDEO_OUTPUT ?= direct
 build-fes-atari-st:
