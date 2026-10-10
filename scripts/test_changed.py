@@ -12,8 +12,10 @@ import sys
 import affected
 
 
-# Same explicit per-package limit as the host CI job (#482).
-GO_RACE_TEST = ["go", "test", "-race", "-timeout", "30m", "./..."]
+# Same explicit per-package limit as the host CI job (#482). Routine affected
+# checks pass -short so the catalog fixture uses its reduced 500-row library;
+# weekly/manual CI and explicit opt-in runs keep the full 10k-row validation.
+GO_RACE_TEST = ["go", "test", "-race", "-short", "-timeout", "30m", "./..."]
 
 def git(root, *args):
     return subprocess.check_output(["git", "-C", str(root), *args],

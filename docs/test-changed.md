@@ -30,6 +30,7 @@ Make parallelism; values from 1 through 32 are accepted.
 | `sources/misteross/expansion` Go module | Parent checks and host/target consumers, including the shared linker tests; no FPGA simulations |
 | Runtime | Parent checks, runtime software suite and host protocol consumers |
 | Shared contracts | All software lanes and their dependent consumers |
+| Parent-owned roots (`scripts/`, `tests/`, `image/`, `platform/`, `profiles/`, `containers/`) | Parent regressions and generated-consumer consistency; no component lanes or core simulations |
 | Known FPGA producer/package software | Parent checks and producer/package/functional-identity/search-policy tests; no RTL simulation |
 | FPGA core source | Parent checks, FPGA software tests and simulations for that family and its dependent consumers |
 | Unknown or root inputs | All software lanes |
@@ -49,6 +50,26 @@ recursive compiler/import tracing: relative or dynamically constructed
 cross-family references need explicit review. When adding a consumer, update
 its rule and coverage test together. A new supported core also needs its
 simulation target registered in `scripts/ci_simulations.py`.
+
+Parent-owned matching is the exact directory or any descendant, so sibling
+names such as `scripts-other/` or `test-other/` stay unknown. The CI
+selection/compiler and shared generator policy files — `scripts/affected.py`,
+`scripts/test_changed.py`, `scripts/ci_gate.py`, `scripts/ci_simulations.py`,
+`scripts/ci_verilator.sh`, `scripts/generate.py` and their regression suites
+under `tests/` — remain fail-broad and select every lane and core. Root files
+such as the top-level `Makefile`, `config/` and `.github/` also stay on the
+all-lanes path.
+
+The affected runner's Go race commands pass `-short`, matching routine CI: the
+catalog query fixture then builds a 500-row library, which still crosses both
+200-row pagination boundaries. Weekly schedule and manual dispatch runs keep
+the full 10,000-row large-library validation. To exercise the full fixture
+locally:
+
+```sh
+(cd sources/FogCast && go test -race -timeout 30m ./catalog -run '^TestQueryGamesFixtureStaysBounded$')
+make -C sources/FogCast test GO_TEST_FLAGS=
+```
 
 The Atari 520ST family and shared FX68K files select `make sim-fes-atari-st`,
 covering CPU/MMU, SDRAM, peripherals, media upload, expansion and all video
@@ -84,6 +105,8 @@ fixtures and source copies. It does **not** replace `make check`'s committed-sou
 selection gate. Parent platform/image packaging suites and the required browser
 integration lane are outside this focused command. Individual tests may report
 their own skips; a passing command does not turn a skipped test into coverage.
+The recipe tests access bundle helpers through a module import (`from tests
+import test_bundle`) so discovery does not re-run the imported bundle suite.
 
 ## Results and prerequisites
 

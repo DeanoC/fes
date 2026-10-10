@@ -105,12 +105,16 @@ jobs:
           cache-dependency-path: |
             sources/FogCast/go.sum
             platform/go.sum
-      - run: |
+      - env:
+          EVENT: ${{ github.event_name }}
+        run: |
           make host
           cd sources/FogCast
-          # Explicit per-package limit: catalog's 10k-row fixture can exceed Go's
-          # 10m default under -race on 2-core runners (#482).
-          go test -race -timeout 30m ./...
+          # Routine checks use the short 500-row catalog fixture; weekly schedule
+          # and manual dispatch keep the full 10k-row large-library validation.
+          flags=(-short)
+          if [ "$EVENT" = schedule ] || [ "$EVENT" = workflow_dispatch ]; then flags=(); fi
+          go test -race -timeout 30m "${flags[@]}" ./...
           make test-ui
           cd appliance
           go test -race -timeout 30m ./...

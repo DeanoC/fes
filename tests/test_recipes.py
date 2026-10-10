@@ -11,7 +11,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import recipes
 import build
-from tests.test_bundle import BundleTest
+from tests import test_bundle
 
 
 class ClosureAuditPrivateCacheTest(unittest.TestCase):
@@ -50,6 +50,19 @@ class ClosureAuditPrivateCacheTest(unittest.TestCase):
 
 
 class RecipeRegistryTest(unittest.TestCase):
+    def test_discovery_loads_only_this_modules_own_cases(self):
+        # Importing another suite's class for helper access must not let
+        # unittest discovery re-run that suite under this module's name.
+        def cases(suite):
+            for entry in suite:
+                if isinstance(entry, unittest.TestSuite):
+                    yield from cases(entry)
+                else:
+                    yield entry
+        loaded = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
+        for case in cases(loaded):
+            self.assertEqual(case.__class__.__module__, __name__, case)
+
     def test_registry_preserves_existing_hip_descriptors(self):
         self.assert_existing_descriptors()
 
@@ -375,7 +388,7 @@ class RecipeDataTest(unittest.TestCase):
 
 class RecipeResolverTest(unittest.TestCase):
     def module(self):
-        return BundleTest.module(self)
+        return test_bundle.BundleTest.module(self)
 
 
     def test_each_descriptor_dispatches_its_producer_with_explicit_cache_root(self):

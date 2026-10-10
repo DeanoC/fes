@@ -6,7 +6,7 @@ from pathlib import Path
 import unittest
 
 from scripts.affected import (changed_paths, plan, LANES, CORES, MODULE_ROOTS,
-                               FPGA_SOFTWARE_TESTS)
+                               FPGA_SOFTWARE_TESTS, PARENT_ROOTS, CI_BROAD_INPUTS)
 
 
 class AffectedTests(unittest.TestCase):
@@ -18,11 +18,57 @@ class AffectedTests(unittest.TestCase):
 
     def test_contracts_and_unknown_changes_close_over_every_lane(self):
         for path in ('sources/mister-packages', 'sources/mister-packages/packages/abi/new.yaml',
-                     'image/Makefile', '.github/workflows/check.yml', 'unknown/new.bin'):
+                     '.github/workflows/check.yml', 'unknown/new.bin'):
             with self.subTest(path=path):
                 result = plan([path])
                 self.assertTrue(all(result['lanes'].values()))
                 self.assertEqual(set(result['cores']), set(CORES))
+
+    def test_parent_owned_roots_select_only_the_parent_lane(self):
+        self.assertEqual(PARENT_ROOTS,
+                         ('scripts', 'tests', 'image', 'platform', 'profiles', 'containers'))
+        for path in ('scripts/media.py', 'scripts/recipes.py', 'scripts/nested/new.py',
+                     'tests/test_media.py', 'image/Makefile', 'image/buildroot/path',
+                     'platform/internal/applianceboot/boot.go',
+                     'profiles/native-integration-dev.toml', 'containers/build/Dockerfile',
+                     'scripts', 'tests', 'image', 'platform', 'profiles', 'containers'):
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
+                                 {'parent'})
+                self.assertEqual(result['cores'], [])
+
+    def test_parent_root_boundaries_do_not_swallow_sibling_names(self):
+        for path in ('scripts-other/new.py', 'test-other/new.py', 'images/x',
+                     'config/source-imports.toml', 'Makefile', 'boot-media.lock.toml'):
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertTrue(all(result['lanes'].values()))
+                self.assertEqual(set(result['cores']), set(CORES))
+
+    def test_ci_selection_and_generator_inputs_stay_fail_broad(self):
+        self.assertEqual(CI_BROAD_INPUTS, {
+            'scripts/affected.py', 'scripts/test_changed.py', 'scripts/ci_gate.py',
+            'scripts/ci_simulations.py', 'scripts/ci_verilator.sh', 'scripts/generate.py',
+            'tests/test_affected.py', 'tests/test_test_changed.py',
+            'tests/test_ci_gate.py', 'tests/test_generate.py',
+        })
+        for path in CI_BROAD_INPUTS:
+            with self.subTest(path=path):
+                result = plan([path])
+                self.assertTrue(all(result['lanes'].values()))
+                self.assertEqual(set(result['cores']), set(CORES))
+
+    def test_parent_owned_changes_union_with_component_lanes(self):
+        result = plan(['image/Makefile', 'sources/FogCast/catalog/query.go'])
+        self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
+                         {'parent', 'host'})
+        self.assertEqual(result['cores'], [])
+        result = plan(['scripts/media.py',
+                       'sources/misteross/cores/fes-atari-st/rtl/st_machine.sv'])
+        self.assertEqual({lane for lane, enabled in result['lanes'].items() if enabled},
+                         {'parent', 'fpga'})
+        self.assertEqual(result['cores'], ['atari-st'])
 
     def test_module_roots_and_gitlinks(self):
         for module in ('host', 'runtime'):

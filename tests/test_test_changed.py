@@ -89,7 +89,7 @@ class TestChangedTest(unittest.TestCase):
         host = [c for c in result["commands"] if c["lane"] == "host"]
         self.assertEqual([c["cwd"] for c in host if c["argv"][0] == "go"],
                          ["sources/FogCast", "sources/FogCast/appliance", "sources/misteross/expansion"])
-        self.assertTrue(all(c["argv"] == ["go", "test", "-race", "-timeout", "30m", "./..."] for c in host if c["argv"][0] == "go"))
+        self.assertTrue(all(c["argv"] == ["go", "test", "-race", "-short", "-timeout", "30m", "./..."] for c in host if c["argv"][0] == "go"))
         self.assertEqual(set(result["impact"]["skipped"]), {"runtime", "contracts", "fpga"})
 
     def test_expansion_changes_test_linker_and_downstream_host_without_rtl(self):
@@ -101,7 +101,18 @@ class TestChangedTest(unittest.TestCase):
         commands = [c for c in result["commands"] if c["lane"] == "host" and c["argv"][0] == "go"]
         self.assertEqual({c["cwd"] for c in commands},
                          {"sources/FogCast", "sources/FogCast/appliance", "sources/misteross/expansion"})
-        self.assertTrue(all(c["argv"] == ["go", "test", "-race", "-timeout", "30m", "./..."] for c in commands))
+        self.assertTrue(all(c["argv"] == ["go", "test", "-race", "-short", "-timeout", "30m", "./..."] for c in commands))
+
+    def test_parent_owned_paths_select_parent_and_always_commands_only(self):
+        self.change("image/Makefile")
+        self.change("scripts/media.py")
+        result = self.plan()
+        self.assertEqual({lane for lane, enabled in result["impact"]["lanes"].items() if enabled},
+                         {"parent"})
+        self.assertEqual(result["impact"]["cores"], [])
+        self.assertTrue(all(c["lane"] in ("always", "parent") for c in result["commands"]))
+        self.assertFalse(any(c["argv"][0] in ("go", "node", "make", "docker") for c in result["commands"]))
+        self.assertTrue(any("consistency" in c["label"] for c in result["commands"]))
 
     def test_runtime_changes_include_host_protocol_consumers(self):
         self.change("sources/libmister-runtime/src/protocol.cpp")
