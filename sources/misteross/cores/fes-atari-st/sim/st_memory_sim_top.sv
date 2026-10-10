@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Simulation shell with actual DDR input-register timing, no analog pad model.
 module st_memory_sim_top #(
-    parameter [13:0] REFRESH_WAIT_CYCLES = 14'd4
+    parameter [13:0] REFRESH_WAIT_CYCLES = 14'd4,
+    parameter EARLY_COMPLETION = 1
 ) (
     input wire clk,
     input wire cold_reset,
@@ -52,7 +53,8 @@ module st_memory_sim_top #(
     reg [15:0] dq_rise, dq_fall;
     always @(posedge clk) dq_rise <= dq_sample;
     always @(negedge clk) dq_fall <= dq_sample;
-    st_memory #(.REFRESH_WAIT_CYCLES(REFRESH_WAIT_CYCLES)) memory (.clk_pin(clk), .*);
+    st_memory #(.REFRESH_WAIT_CYCLES(REFRESH_WAIT_CYCLES),
+                .EARLY_COMPLETION(EARLY_COMPLETION)) memory (.clk_pin(clk), .*);
 endmodule
 
 // Only the clock pin is needed; the stand-in retains high/low DDR values.
