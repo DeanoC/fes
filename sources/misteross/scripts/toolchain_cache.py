@@ -279,8 +279,8 @@ def ensure_cache_root(path: Path) -> Path:
     path = _absolute(Path(path), "cache root")
     _check_no_symlink_components(path)
     try:
-        if not path.exists():
-            path.mkdir(mode=0o700, parents=True)
+        # Concurrent bootstraps may race to create the root; lstat validates it.
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
         info = path.lstat()
     except OSError as exc:
         raise CacheError(f"cannot create or inspect cache root {path}: {exc}") from exc
