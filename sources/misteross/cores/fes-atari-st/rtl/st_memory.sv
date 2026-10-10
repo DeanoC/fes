@@ -7,7 +7,13 @@
 // address mapping is preserved: these are physical halfword offsets.
 // cold_reset restarts SDRAM initialization. Warm reset drains any physical
 // transaction, suppresses its completion, and keeps refresh/memory intact.
-module st_memory (
+module st_memory #(
+    // At 52.224 MHz the controller's four-count wait leaves six chip clocks
+    // (114.9 ns) between runtime refresh and the next command. The ISSI
+    // IS42S16320D requires 60 ns; pad/route acceptance remains separate.
+    parameter [13:0] REFRESH_WAIT_CYCLES = 14'd4,
+    parameter EARLY_COMPLETION = 1
+) (
     input wire clk,
     input wire clk_pin,
     input wire cold_reset,
@@ -18,8 +24,8 @@ module st_memory (
     input wire cpu_write,
     input wire [15:0] cpu_wdata,
     input wire [1:0] cpu_byte_enable,
-    output reg cpu_ready,
-    output reg [15:0] cpu_rdata,
+    output wire cpu_ready,
+    output wire [15:0] cpu_rdata,
     input wire video_req,
     input wire [18:1] video_addr,
     output reg video_ready,
@@ -74,6 +80,20 @@ module st_memory (
     reg [1:0] held_byte_enable;
     wire controller_done;
     wire [15:0] controller_rdata;
+    reg cpu_ready_q;
+    reg [15:0] cpu_rdata_q;
+    // Present a valid grant to an idle controller on the arbitration edge.
+    // Once launched, BUSY retains the latched command until completion; a
+    // controller still draining its previous recovery accepts it later.
+    wire launch = EARLY_COMPLETION && state == IDLE && initialized &&
+                  !cold_reset && !reset && grant && selected_valid;
+    // Capture has already finished before controller_done asserts. The CPU
+    // may consume that word at the next fabric edge; other clients retain
+    // their registered boundary. Latch it on that edge for held-request data.
+    wire cpu_completion = state == BUSY && owner == CPU && controller_done &&
+                          !cold_reset && !reset && !discard && cpu_req;
+    assign cpu_ready = EARLY_COMPLETION ? cpu_completion : cpu_ready_q;
+    assign cpu_rdata = EARLY_COMPLETION && cpu_completion ? controller_rdata : cpu_rdata_q;
     // The rate-0 controller expects the same fabric stage following the
     // DDR input cells that the original memory tester uses at this rate.
     reg [15:0] dq_rise_q, dq_fall_q;
@@ -82,10 +102,15 @@ module st_memory (
         dq_fall_q <= dq_fall;
     end
 
-    sdram_addon_port #(.BYTE_MASK_ENABLED(1)) controller (
+    sdram_addon_port #(.BYTE_MASK_ENABLED(1),
+                       .REFRESH_WAIT_CYCLES(REFRESH_WAIT_CYCLES),
+                       .EARLY_DONE(EARLY_COMPLETION)) controller (
         .clk(clk), .clk_pin(clk_pin), .rate(2'd0), .reset(cold_reset),
-        .start(state == BUSY), .write(held_write), .addr(held_addr),
-        .wdata(held_wdata), .write_byte_enable(held_byte_enable),
+        .start(state == BUSY || launch),
+        .write(launch ? selected_write : held_write),
+        .addr(launch ? selected_addr : held_addr),
+        .wdata(launch ? selected_wdata : held_wdata),
+        .write_byte_enable(launch ? selected_byte_enable : held_byte_enable),
         .initialized(initialized), .done(controller_done), .rdata(controller_rdata),
         .sdram_clk(sdram_clk), .sdram_cke(sdram_cke), .sdram_ncs(sdram_ncs),
         .sdram_nras(sdram_nras), .sdram_ncas(sdram_ncas), .sdram_nwe(sdram_nwe),
@@ -143,7 +168,7 @@ module st_memory (
     end
 
     always @(posedge clk) begin
-        cpu_ready <= 1'b0;
+        cpu_ready_q <= 1'b0;
         video_ready <= 1'b0;
         dma_ready <= 1'b0;
         media_write_ready <= 1'b0;
@@ -159,7 +184,7 @@ module st_memory (
             held_byte_enable <= 2'd0;
             held_odd <= 1'b0;
             discard <= 1'b0;
-            cpu_rdata <= 16'd0;
+            cpu_rdata_q <= 16'd0;
             video_rdata <= 16'd0;
             dma_rdata <= 16'd0;
             media_read_rdata <= 8'd0;
@@ -195,8 +220,8 @@ module st_memory (
                         // reset. The already-issued SDRAM command still drains.
                         if (!reset && !discard && requests[owner]) case (owner)
                             CPU: begin
-                                cpu_ready <= 1'b1;
-                                cpu_rdata <= state == EMPTY ? 16'd0 : controller_rdata;
+                                cpu_ready_q <= 1'b1;
+                                cpu_rdata_q <= state == EMPTY ? 16'd0 : controller_rdata;
                             end
                             VIDEO: begin
                                 video_ready <= 1'b1;

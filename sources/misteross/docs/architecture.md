@@ -1727,7 +1727,20 @@ supports optional byte masks, initialization status and idle refresh while
 preserving full-word behavior for callers that disable masks. Chip DQM shares
 A11/A12 on the MiSTer addon, so the controller preserves row bits for ACTIVATE
 and establishes masks on those shared pins two fabric clocks before WRITE.
-Reads clear both masks. Warm CPU Hold
+Reads clear both masks. The ST selects four runtime refresh wait counts,
+leaving six chip clocks (114.9 ns) between refresh and the next command at
+52.224 MHz. This exceeds the IS42S16320D 60 ns command period; initialization
+and all other shared-controller callers retain the sixteen-count default.
+The ST enables early completion at the existing read-capture or committed
+write-hold boundary, presents idle-controller grants on the arbitration edge,
+and acknowledges CPU reads with the captured word before retaining it locally.
+The controller still drains recovery before accepting another physical command;
+other callers retain late completion. Capture edge, CAS, DQM setup and
+round-robin ordering are unchanged. Physical-memory and original-firmware
+68000 regressions compare early/late completion, including delayed byte masks,
+held reads, cancelled requests, reset and contention. The write instruction
+fixture improves from mostly 18 to 17 CPU cycles; reads remain mostly 17.
+This does not establish BIG raster compatibility. Warm CPU Hold
 leaves memory and uploads running. Withdrawn requests drain without stale
 acknowledgements.
 The bounded disk buffer (up to 820 KiB) is disjoint from the 512 KiB RAM, and the
