@@ -12,7 +12,10 @@ module st_memory #(
     // (114.9 ns) between runtime refresh and the next command. The ISSI
     // IS42S16320D requires 60 ns; pad/route acceptance remains separate.
     parameter [13:0] REFRESH_WAIT_CYCLES = 14'd4,
-    parameter EARLY_COMPLETION = 1
+    parameter EARLY_COMPLETION = 1,
+    // Retain the older extra input stage for timing comparisons. Production
+    // consumes the DDR rising word directly at the matching capture count.
+    parameter REGISTERED_READ_INPUT = 0
 ) (
     input wire clk,
     input wire clk_pin,
@@ -94,8 +97,8 @@ module st_memory #(
                           !cold_reset && !reset && !discard && cpu_req;
     assign cpu_ready = EARLY_COMPLETION ? cpu_completion : cpu_ready_q;
     assign cpu_rdata = EARLY_COMPLETION && cpu_completion ? controller_rdata : cpu_rdata_q;
-    // The rate-0 controller expects the same fabric stage following the
-    // DDR input cells that the original memory tester uses at this rate.
+    // The optional legacy stage and its later controller capture refer to
+    // the same physical DDR rising sample as the direct production path.
     reg [15:0] dq_rise_q, dq_fall_q;
     always @(posedge clk) begin
         dq_rise_q <= dq_rise;
@@ -104,7 +107,8 @@ module st_memory #(
 
     sdram_addon_port #(.BYTE_MASK_ENABLED(1),
                        .REFRESH_WAIT_CYCLES(REFRESH_WAIT_CYCLES),
-                       .EARLY_DONE(EARLY_COMPLETION)) controller (
+                       .EARLY_DONE(EARLY_COMPLETION),
+                       .RATE0_INPUT_REGISTER(REGISTERED_READ_INPUT)) controller (
         .clk(clk), .clk_pin(clk_pin), .rate(2'd0), .reset(cold_reset),
         .start(state == BUSY || launch),
         .write(launch ? selected_write : held_write),
@@ -116,7 +120,7 @@ module st_memory #(
         .sdram_nras(sdram_nras), .sdram_ncas(sdram_ncas), .sdram_nwe(sdram_nwe),
         .sdram_ba(sdram_ba), .sdram_a(sdram_a), .sdram_dqml(sdram_dqml),
         .sdram_dqmh(sdram_dqmh), .dq_out(dq_out), .dq_oe(dq_oe),
-        .dq_rise(dq_rise_q), .dq_fall(dq_fall_q)
+        .dq_rise(REGISTERED_READ_INPUT ? dq_rise_q : dq_rise), .dq_fall(dq_fall_q)
     );
 
     integer priority_index, candidate;

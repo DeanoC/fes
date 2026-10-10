@@ -14,6 +14,10 @@
 #define ST_EARLY_COMPLETION 1
 #endif
 
+#ifndef ST_REGISTERED_READ_INPUT
+#define ST_REGISTERED_READ_INPUT 0
+#endif
+
 // Digital SDRAM command model: packed row/bank/column addresses, CAS-2,
 // single-word bursts, auto-precharge, byte masks, initialization and refresh.
 // Timing limits are conservative whole cycles at 52.224 MHz, from the ISSI
@@ -440,7 +444,7 @@ public:
             read_min = wait < read_min ? wait : read_min;
             read_max = wait > read_max ? wait : read_max;
         }
-        require(read_min == (ST_EARLY_COMPLETION ? 10u : 13u) &&
+        require(read_min == (ST_EARLY_COMPLETION ? 9u : 12u) + ST_REGISTERED_READ_INPUT &&
                 write_min == (ST_EARLY_COMPLETION ? 6u : 10u),
                 "ordinary access latency changed", cycles);
         require(memory.min_refresh_gap == ST_REFRESH_WAIT_CYCLES + 2,

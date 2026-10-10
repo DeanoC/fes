@@ -1647,6 +1647,13 @@ sim-fes-atari-st-memory:
 		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" \
 		-CFLAGS '-O2 -std=c++17 -DST_REFRESH_WAIT_CYCLES=16 -DST_EARLY_COMPLETION=0'
 	@build/sim/fes-atari-st-memory-legacy-refresh/Vst_memory_sim_top
+	@mkdir -p build/sim/fes-atari-st-memory-registered-input
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall -GREGISTERED_READ_INPUT=1 \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-memory-registered-input" \
+		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
+		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" \
+		-CFLAGS '-O2 -std=c++17 -DST_REGISTERED_READ_INPUT=1'
+	@build/sim/fes-atari-st-memory-registered-input/Vst_memory_sim_top
 
 sim-fes-atari-st-video-adapter:
 	$(require_local_sim)

@@ -1731,15 +1731,24 @@ Reads clear both masks. The ST selects four runtime refresh wait counts,
 leaving six chip clocks (114.9 ns) between refresh and the next command at
 52.224 MHz. This exceeds the IS42S16320D 60 ns command period; initialization
 and all other shared-controller callers retain the sixteen-count default.
-The ST enables early completion at the existing read-capture or committed
-write-hold boundary, presents idle-controller grants on the arbitration edge,
-and acknowledges CPU reads with the captured word before retaining it locally.
+The ST enables early completion at the read-capture or committed write-hold
+boundary and presents idle-controller grants on the arbitration edge. The
+motherboard launches valid, protected RAM reads on its transaction-capture
+edge, retaining captured address/lanes thereafter. Ready read data and DTACK
+reach the CPU on the completion edge and are retained for the rest of AS.
+Writes and other motherboard targets retain registered dispatch/completion.
+The ST supplies the raw DDR rising word to the controller with
+`RATE0_INPUT_REGISTER=0`, capturing the same physical sample one fabric edge
+earlier. `REGISTERED_READ_INPUT=1` retains the former ST input stage for
+comparisons; shared-controller callers default to the existing staged capture.
 The controller still drains recovery before accepting another physical command;
-other callers retain late completion. Capture edge, CAS, DQM setup and
-round-robin ordering are unchanged. Physical-memory and original-firmware
-68000 regressions compare early/late completion, including delayed byte masks,
-held reads, cancelled requests, reset and contention. The write instruction
-fixture improves from mostly 18 to 17 CPU cycles; reads remain mostly 17.
+other callers retain late completion. Physical capture edge, CAS, DQM setup and
+round-robin ordering are unchanged. Physical-memory and original diagnostic
+firmware regressions compare early/late completion and registered input,
+including delayed byte masks, held reads, cancelled requests, reset and
+contention. The read-instruction fixture improves from mostly 17 to nominal
+16 CPU cycles (503/511 intervals); eight refresh waits take 18. Writes remain
+mostly 17 cycles.
 This does not establish BIG raster compatibility. Warm CPU Hold
 leaves memory and uploads running. Withdrawn requests drain without stale
 acknowledgements.
