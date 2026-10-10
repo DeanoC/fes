@@ -196,6 +196,17 @@ sampling and scaled output aligned while shortening paths into the buffers.
 Ordinary 200-row frames retain 4×3 scaling. Opened-bottom frames use 4×2
 scaling, centered vertically, so all 247 PAL or 226 NTSC rows remain visible.
 Height travels with each immutable bank and changes only at output SOF.
+`st_native_border.sv` records lossless palette-zero runs across the visible
+border raster in those same three owned banks. Every row has an initial colour
+and run offset/count, so repeated HDMI rows replay within-line changes. The
+4096-event budget is explicit: overflow increments capture underruns and
+rejects the entire frame. HOLD and consumer backpressure retain the same bank
+ownership rules for border runs and display pixels. A frame whose border colour
+varies uses a centred 416×276 PAL or 416×255 NTSC canvas at 3×2 scaling;
+unchanging borders retain the existing ordinary/opened-bottom scaling. The
+canvas includes the 29 top-border rows and 48 pixels at each side of the
+ordinary display. These are live palette-zero borders; they do not add top or
+horizontal display-enable opening.
 A blanking-time row counter avoids a vertical-coordinate multiply on the read path.
 RGB and black-line validity have separate write registers. Three-bit publication
 numbers order the bounded pending bank set across wrap and consumer pauses.
@@ -257,8 +268,8 @@ match the sealed package. `routed.json` and `socket.qsf` are not package
 members; the part recipe digest covers their bytes. It checks all three shell
 clocks, pixel-only part state and every outside CRAM bit, including companion
 columns. Rebuild parts after any shell identity change. HOLD blacks pixels while
-timing continues. Rendering opened borders, cycle-exact raster timing and aspect-ratio
-correction remain absent.
+timing continues. Horizontal/top display-enable opening, cycle-exact raster
+timing and aspect-ratio correction remain absent.
 
 ## Validation
 

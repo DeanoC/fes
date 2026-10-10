@@ -189,6 +189,7 @@ def record(image: bytes, labels: dict[str, int]) -> dict:
         "sources/misteross/cores/fes-atari-st/rtl/st_machine.sv",
         "sources/misteross/cores/fes-atari-st/rtl/st_memory.sv",
         "sources/misteross/cores/fes-atari-st/rtl/st_video_adapter.sv",
+        "sources/misteross/cores/fes-atari-st/rtl/st_native_border.sv",
         "sources/misteross/cores/fes-atari-st/rtl/st_native_low_video.sv",
         "sources/misteross/cores/fes-ramtest/rtl/sdram_addon_port.v")]]
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()

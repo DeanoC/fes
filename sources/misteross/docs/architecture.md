@@ -1781,7 +1781,19 @@ is immutable publication metadata: ordinary frames retain 200 rows at 4×3;
 opened PAL/NTSC frames carry 247/226 rows at centered 4×2. Publication waits
 past the bottom-stop decision and all potentially opened DE rows. Prefetch
 prepares row 200 before opening is known, then reads later rows only after DE
-enters the bottom region. Address addition uses only the upper eleven bits.
+enters the bottom region. The same owned banks hold `st_native_border.sv`'s
+lossless palette-zero runs and per-row offset/count descriptors. Native cycle
+coordinates and a one-fabric-edge delayed CPU phase-2 enable align border
+samples with the display-rise sample. PAL's visible canvas spans native
+lines 34–309 and cycles 8–423; NTSC spans lines 5–259 and cycles 4–419.
+The decoder preloads a row descriptor in output blanking, then replays colour
+runs for every vertically repeated row. Border raster/PAL flags are immutable
+publication metadata selected together with the RGB bank at SOF. Varying-border
+frames use centred 3×2 scaling of the 416×276/255 canvas; constant-border frames
+keep ordinary 4×3 or opened-bottom 4×2 scaling. A per-frame 4096-event overflow
+increments capture underruns and prevents publication; no colour changes are
+silently truncated. This captures border colour timing, not top/horizontal
+DE opening. Display RAM address addition uses only the upper eleven bits.
 These register
 stages shorten RAM paths while preserving palette sample and output positions.
 The write boundary registers RGB and black-line validity separately. Bank

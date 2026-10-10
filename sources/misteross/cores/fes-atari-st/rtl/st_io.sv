@@ -53,7 +53,9 @@ module st_io #(
     input wire [15:0] dma_rdata,
     output wire vblank, hblank,
     output wire native_display,
-    output reg [8:0] native_line
+    output reg [8:0] native_line,
+    output wire [8:0] native_cycle,
+    output reg native_pixel_ce
 );
     wire [23:0] address = {addr, 1'b0};
     wire unused_inputs = ^{screen_base[7:0], sync_mode[7:2], sync_mode[0]};
@@ -109,6 +111,7 @@ module st_io #(
 
     reg [31:0] timer_phase;
     reg [8:0] horizontal_cycle;
+    assign native_cycle = horizontal_cycle;
     reg [1:0] frame_resolution, line_resolution;
     reg frame_pal, line_pal, line_timing_pal;
     reg bottom_open;
@@ -153,7 +156,7 @@ module st_io #(
     assign native_display = !reset && active_line && active_cycle;
     always @(posedge clk) begin
         if (reset) begin
-            timer_phase <= 0; horizontal_cycle <= 0; bottom_open <= 0;
+            timer_phase <= 0; horizontal_cycle <= 0; bottom_open <= 0; native_pixel_ce <= 0;
             timer_b_display_delay <= 0;
             frame_resolution <= resolution; line_resolution <= resolution;
             frame_pal <= sync_mode[1]; line_pal <= sync_mode[1];
@@ -161,6 +164,9 @@ module st_io #(
             vbl_pending <= 0; hbl_pending <= 0; vbl_irq_delay <= 0; native_line <= 0;
             video_counter <= 0;
         end else begin
+            // Sample the new cycle one fabric edge after GLUE advances,
+            // aligned with the native DE-rise/palette capture edge.
+            native_pixel_ce <= cpu_cycle_ce;
             timer_phase <= timer_ce ? 32'(timer_sum - 33'(SYSTEM_CLOCK_HZ)) : timer_sum[31:0];
             if (cpu_cycle_ce) begin
                 horizontal_cycle <= hblank ? 9'd0 : horizontal_cycle + 1'b1;

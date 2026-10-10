@@ -100,7 +100,7 @@ RTL_SOURCES = (
     "cores/fes-common/rtl/fes_video_part_scanlines.v",
     *(f"cores/fes-atari-st/rtl/{name}" for name in (
         "st_cpu.sv", "st_machine.sv", "st_system.sv", "st_io.sv", "st_memory.sv",
-        "st_rom.v", "st_native_low_video.sv", "st_video.sv", "st_video_adapter.sv", "st_media_writer.sv", "st_mfp.sv",
+        "st_rom.v", "st_native_border.sv", "st_native_low_video.sv", "st_video.sv", "st_video_adapter.sv", "st_media_writer.sv", "st_mfp.sv",
         "st_floppy.sv", "st_floppy_writer.sv", "st_media_port.sv", "st_video_socket.sv", "st_acia.sv", "st_ikbd.sv", "st_ym2149.sv", "st_expansion_socket.sv")),
     "cores/fes-zx81/expansions/zonx_ay.v", "cores/fes-ramtest/rtl/sdram_addon_port.v",
 )

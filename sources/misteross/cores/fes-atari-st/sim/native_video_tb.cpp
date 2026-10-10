@@ -17,7 +17,8 @@ struct Test {
     unsigned transfer_address=0,delay=0,transfers=0,black_rows=0,stall_black_rows=0,repeat_frames=0;
     bool pending=false,complete=false,stalled=false,previous_front=false;
     std::array<int,247> row_black{};
-    uint64_t pal_bottom_pixels=0,ntsc_bottom_pixels=0;
+    uint64_t pal_bottom_pixels=0,ntsc_bottom_pixels=0,raster_border_pixels=0;
+    bool border_overflow_seen=false;
     void require(bool good,const char*message) {
         ++checks;
         if(!good){std::cerr<<"FAIL "<<message<<" sys="<<sys_cycles<<" pixel="<<pixel_cycles
@@ -32,6 +33,10 @@ struct Test {
         for(unsigned b=0;b<9;++b){unsigned bit=index*9+b;unsigned mask=1u<<(bit%32);
             dut.palette[bit/32]=(dut.palette[bit/32]&~mask)|((color&(1u<<b))?mask:0);}
     }
+    static unsigned border_colour(unsigned line,unsigned x,bool ntsc) {
+        const unsigned first=ntsc?5:34;
+        return (((line-first)%7+1)<<6) ^ (x<12?0:x<81?7:0x38);
+    }
     unsigned source_mode() const {return source_frame==7?1:source_frame==8?2:0;}
     void system_edge(){
         if(dut.reset_sys){dut.video_ready=0;pending=complete=false;}
@@ -40,6 +45,8 @@ struct Test {
             unsigned line=source_clock/LineClocks,phase=source_clock%LineClocks;
             dut.native_vblank=source_clock==0;
             dut.native_line=line;
+            dut.native_cycle=phase*512/LineClocks;
+            dut.native_pixel_ce=phase==0 || phase*512/LineClocks != (phase-1)*512/LineClocks;
             const bool ntsc=source_frame==9;
             const unsigned top=ntsc?34:63;
             const unsigned rows=(source_frame==6||source_frame==11)?247:ntsc?226:200;
@@ -50,7 +57,10 @@ struct Test {
             // Abort one in-progress native frame without withdrawing its read.
             dut.hold=(source_frame==4&&line>=90&&line<108)||
                      (source_frame==11&&line>=270&&line<280);
-            palette(0,source_mode()==2?0:0xdb);
+            unsigned border_x=dut.native_cycle>=(ntsc?4u:8u)?dut.native_cycle-(ntsc?4u:8u):0;
+            palette(0,source_frame==2?(dut.native_cycle%2?0xdb:0x124):
+                      (source_frame==6||ntsc)&&line>=(ntsc?5u:34u)?border_colour(line,border_x,ntsc):source_mode()==2?0:0xdb);
+            if(source_frame==2&&dut.border_overflow)border_overflow_seen=true;
             unsigned intensity=((line>=top?line-top:0)+source_frame)%7+1;
             palette(1,source_mode()==1?0x38:phase<DisplayStart+1044?intensity<<6:intensity);
             if(!dut.video_req){require(!pending||complete,"memory request abandoned");pending=complete=false;dut.video_ready=0;}
@@ -89,16 +99,22 @@ struct Test {
             }
             require(dut.front_sequence==selected,"publication changed within output frame");
             const unsigned rows=selected==6?247:selected==9?226:200;
+            const bool raster=selected==6||selected==9;
+            require(!dut.front_valid||dut.front_raster==raster,"border raster metadata disagrees with source bank");
+            require(!dut.front_valid||dut.front_pal==(selected!=9),"PAL metadata disagrees with source bank");
             require(!dut.front_valid || dut.front_height==rows,"published height disagrees with its source bank");
-            require(!dut.front_valid||(selected!=4&&selected!=7&&selected!=8&&selected!=11),"aborted/non-low frame published");
+            require(!dut.front_valid||(selected!=2&&selected!=4&&selected!=7&&selected!=8&&selected!=11),"aborted/non-low frame published");
             require(!(dut.video_request&(1u<<30))||!(dut.video_request&0xffffff),"Hold leaked visible RGB");
             if(!(dut.video_request&(1u<<30))&&x<1280&&y<720){
                 unsigned actual=dut.video_request&0xffffff;
                 if(dut.active_resolution==0){
                     require(dut.front_valid,"visible low mode without completed frame");
-                    const unsigned scale=rows==200?3:2,top=(720-rows*scale)/2;
-                    if(y>=top&&y<top+rows*scale){
-                        unsigned row=(y-top)/scale,nx=x/4;
+                    const unsigned scale=raster?2:rows==200?3:2;
+                    const unsigned canvas_top=selected==9?105:84,canvas_rows=selected==9?255:276;
+                    const unsigned top=raster?canvas_top+58:(720-rows*scale)/2;
+                    const bool image_column=!raster||(x>=160&&x<1120);
+                    if(y>=top&&y<top+rows*scale&&image_column){
+                        unsigned row=(y-top)/scale,nx=raster?(x-160)/3:x/4;
                         if(row>=200) {
                             if(selected==6) ++pal_bottom_pixels;
                             if(selected==9) ++ntsc_bottom_pixels;
@@ -109,6 +125,11 @@ struct Test {
                         require(actual==(row_black[row]?0:expected),"native palette/pixel/scaling mismatch");
                         require(!row_black[row]||selected==3||selected==10,"unexpected missing native line");
                         require(selected!=10||actual==0,"invalid framebuffer reused previous pixels");
+                    }else if(raster){
+                        const bool canvas=x>=16&&x<1264&&y>=canvas_top&&y<canvas_top+canvas_rows*2;
+                        const unsigned expected=canvas?rgb(border_colour((selected==9?5:34)+(y-canvas_top)/2,(x-16)/3,selected==9)):0;
+                        require(actual==expected,"live border colour/pixel/repeated-row mismatch");
+                        if(canvas)++raster_border_pixels;
                     }else require(actual==rgb(0xdb),"captured border colour changed");
                 }else if(dut.active_resolution==1&&y>=60&&y<660)
                     require(actual==rgb((x/32)%2==0?0x38:0xdb),"medium-resolution path regressed");
@@ -128,10 +149,13 @@ struct Test {
         for(unsigned i=0;i<40;++i)edge();
         dut.reset_sys=dut.reset_pixel=0;position=0;
         while(output_frame<15)edge();
+        require(border_overflow_seen,"dense border did not exhaust its bounded event buffer");
+        require(raster_border_pixels>100000,"no live border raster pixels checked");
         require(pal_bottom_pixels>0&&ntsc_bottom_pixels>0,"opened PAL and NTSC pixels were cropped away");
         require(stalled&&stall_black_rows>0&&dut.underruns>0,"delayed RAM did not exercise black-line recovery");
         require(repeat_frames>0,"50-to-60 Hz repeat not exercised");
-        require(dut.captured_frames>=8,"native capture failed to resume across Hold/mode changes");
+        // Frames 1,3,5,6,9,10,12 are complete; frame 2 overflows its border buffer.
+        require(dut.captured_frames==7,"unexpected capture count across overflow/Hold/mode changes");
         require(dut.front_sequence>=10,"latest completed native frame not displayed");
         // Pause only the consumer clock. Its current publication must remain
         // immutable while all other banks fill and the producer skips frames.
@@ -143,7 +167,7 @@ struct Test {
         require(dut.front_sequence>pinned,"capture failed to resume after consumer backpressure");
         std::cout<<"Native ST RGB: "<<checks<<" checks, "<<dut.captured_frames<<" captures, "
                  <<repeat_frames<<" repeated output frames, "<<dut.underruns
-                 <<" black native lines; live palette, ownership, Hold and mode recovery passed\n";
+                 <<" capture underruns, "<<raster_border_pixels<<" raster border pixels; live palette, ownership, overflow, Hold and mode recovery passed\n";
         dut.final();
     }
 };

@@ -45,7 +45,8 @@ module st_io_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     output wire [7:0] floppy_port_a
 );
     wire [38:0] unused_write;
-    wire unused_native_display;
+    wire unused_native_display, unused_native_pixel_ce;
+    wire [8:0] unused_native_cycle;
     st_io #(.SYSTEM_CLOCK_HZ(52_224_000), .MFP_WAIT_STATES(MFP_WAIT_STATES)) io (
         .clk(clk), .reset(reset), .cold_reset(reset), .cpu_cycle_ce(cpu_cycle_ce), .req(req), .addr(addr), .write(write),
         .media_frozen(1'b0), .media_write_req(unused_write[0]), .media_write_addr(unused_write[19:1]), .media_write_data(unused_write[35:20]),
@@ -62,7 +63,7 @@ module st_io_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data),
         .media_valid(media_valid), .dma_req(dma_req), .dma_addr(dma_addr),
         .dma_wdata(dma_wdata), .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready),
-        .vblank(vblank), .hblank(hblank), .native_display(unused_native_display), .native_line(display_line)
+        .vblank(vblank), .hblank(hblank), .native_cycle(unused_native_cycle), .native_pixel_ce(unused_native_pixel_ce), .native_display(unused_native_display), .native_line(display_line)
     );
     assign timer_b_level = io.timer_b_display_delay[23];
     assign timer_ce_level = io.timer_ce;
