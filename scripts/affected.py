@@ -28,8 +28,9 @@ PARENT_ROOTS = ('scripts', 'tests', 'image', 'platform', 'profiles', 'containers
 CI_BROAD_INPUTS = frozenset({
     'scripts/affected.py', 'scripts/test_changed.py', 'scripts/ci_gate.py',
     'scripts/ci_simulations.py', 'scripts/ci_verilator.sh', 'scripts/generate.py',
+    'scripts/consistency.py',
     'tests/test_affected.py', 'tests/test_test_changed.py', 'tests/test_ci_gate.py',
-    'tests/test_generate.py',
+    'tests/test_generate.py', 'tests/test_consistency.py',
     'scripts/test_policy.py', 'scripts/parent_tests.py', 'scripts/host_tests.py',
     'tests/test_test_policy.py',
 })

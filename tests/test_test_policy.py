@@ -1,5 +1,6 @@
 """Routine/extended test-mode policy shared by CI and the affected runner."""
 import contextlib
+import inspect
 import io
 import json
 import os
@@ -9,6 +10,8 @@ import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+from tests import test_factory_video_publication as publication
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import host_tests
@@ -34,7 +37,9 @@ class SelectTestModesTests(unittest.TestCase):
 
     def test_video_relevant_inputs_select_video_only(self):
         for path in ('scripts/factory_video_parts.py', 'scripts/core_catalog.py',
-                     'scripts/core_dev_accept.py', 'scripts/recipes.py', 'scripts/bundle.py',
+                     'scripts/core_dev_accept.py', 'scripts/core_dev.py',
+                     'scripts/package_acceptance_isolated.py',
+                     'scripts/recipes.py', 'scripts/bundle.py',
                      'scripts/artifact_cache.py', 'config/core-recipes.toml',
                      'tests/test_factory_video_parts.py',
                      'tests/test_factory_video_publication.py',
@@ -277,6 +282,41 @@ class ParentFilterTests(unittest.TestCase):
             code = parent_tests.main(['--video', 'false', '--media', 'false'])
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(out.getvalue())['status'], 'passed')
+
+    def test_publication_dependencies_select_video_and_restore_suite(self):
+        # The publication suite executes snapshot, candidate_arguments and the
+        # isolated ID validators through real imports; each implementation file
+        # must classify as video-relevant so its edits restore these classes.
+        helpers = (publication.core_catalog.snapshot,
+                   publication.core_dev_accept.snapshot,
+                   publication.core_dev_accept.isolated._require_core_id,
+                   publication.core_dev_accept.isolated._require_package_id)
+        for helper in helpers:
+            path = Path(inspect.getsourcefile(helper)).resolve()
+            rel = path.relative_to(ROOT).as_posix()
+            with self.subTest(helper=helper.__name__, path=rel):
+                self.assertEqual(test_policy.select_test_modes([rel]),
+                                 {'video': True, 'media': False, 'full_race': False})
+        modes = test_policy.select_test_modes(
+            [Path(inspect.getsourcefile(helper)).resolve()
+             .relative_to(ROOT).as_posix() for helper in helpers])
+        loader = unittest.defaultTestLoader
+        suite = unittest.TestSuite()
+        for cls in (publication.FactoryVideoPublicationTests,
+                    publication.RasterFactoryVideoPublicationTests):
+            suite.addTests(loader.loadTestsFromTestCase(cls))
+        filtered, selected, omitted = parent_tests.filter_suite(
+            suite, video=modes['video'], media=modes['media'])
+        self.assertEqual(omitted, [])
+        for name in ('FactoryVideoPublicationTests',
+                     'RasterFactoryVideoPublicationTests'):
+            self.assertTrue(any(name in i for i in selected), name)
+        # With the modes off every publication test stays omitted; the real
+        # classes are loaded but never reach setUpClass here.
+        _, selected, omitted = parent_tests.filter_suite(
+            suite, video=False, media=False)
+        self.assertEqual(selected, [])
+        self.assertTrue(omitted)
 
     def test_real_plan_only_reports_known_heavy_omissions(self):
         script = str(ROOT / 'scripts/parent_tests.py')

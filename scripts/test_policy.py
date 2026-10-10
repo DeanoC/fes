@@ -14,7 +14,9 @@ TEST_MODE_KEYS = ('video', 'media', 'full_race')
 # here re-include the real-device video suites in the parent run.
 VIDEO_FILES = frozenset({
     'scripts/factory_video_parts.py', 'scripts/core_catalog.py',
-    'scripts/core_dev_accept.py', 'scripts/recipes.py', 'scripts/bundle.py',
+    'scripts/core_dev_accept.py', 'scripts/core_dev.py',
+    'scripts/package_acceptance_isolated.py',
+    'scripts/recipes.py', 'scripts/bundle.py',
     'scripts/artifact_cache.py', 'scripts/inputs.py', 'scripts/build.py',
     'scripts/native_dev.py', 'scripts/environment.py',
     'config/core-recipes.toml',
