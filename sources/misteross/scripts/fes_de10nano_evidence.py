@@ -145,6 +145,27 @@ def _pll_cell_parameters(design: dict, label: str, *, audio: bool = False,
         raise BuildError(f"{label} PLL parameters do not match the fixed 50-to-74.25 MHz profile")
 
 
+NUMBER = r'[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?'
+
+
+def _fractional_video_clock_evidence(text):
+    request=re.findall(r"^Info: PLL 'video_clock\.pll': fractional-N requested ("+NUMBER+r") Hz \(output 0\), achieved ("+NUMBER+r") Hz, error ("+NUMBER+r") ppm\.$",text,re.M)
+    packed=re.findall(r"^Info: PLL 'video_clock\.pll': ("+NUMBER+r") MHz -> VCO ("+NUMBER+r") MHz, fractional-N, M=(\d+) N=(\d+) K=(\d+), counters C6, bel altera_pll\.0\.14\.0$",text,re.M)
+    video_lines=[line for line in text.splitlines() if line.startswith("Info: PLL 'video_clock.pll': ")]
+    if len(video_lines)!=2 or len(request)!=1 or len(packed)!=1:raise BuildError('missing or duplicate pinned fractional PLL evidence')
+    requested,achieved,error=map(float,request[0]);reference,vco=map(float,packed[0][:2]);m,n,k=map(int,packed[0][2:])
+    if not all(math.isfinite(v) for v in (requested,achieved,error,reference,vco)):
+        raise BuildError('nonfinite fractional PLL frequency')
+    if requested!=74250000 or reference!=50 or m!=8 or n!=1 or not 0<=k<2**32:
+        raise BuildError('fractional PLL request or coefficients changed')
+    computed_vco=reference*1e6*(m+k/2**32)/n;computed_output=computed_vco/6
+    if (abs(achieved-requested)>1 or abs(vco*1e6-computed_vco)>1 or abs(achieved-computed_output)>.01
+            or abs(error-(achieved/requested-1)*1e6)>1e-8):
+        raise BuildError('fractional PLL frequency does not match its packed coefficients')
+    return {'reference_mhz':reference,'requested_hz':requested,'achieved_hz':achieved,'error_ppm':error,
+            'm':m,'n':n,'k':k,'counter':'C6','bel':'altera_pll.0.14.0'}
+
+
 def _reference_clock_evidence(source_root: Path, route_text: str, *, audio: bool = False,
                               memory_pll: bool = False) -> dict[str, object]:
     sdc = _regular_input(source_root, SDC)
@@ -152,7 +173,12 @@ def _reference_clock_evidence(source_root: Path, route_text: str, *, audio: bool
         raise BuildError("tracked SDC does not contain the exact FPGA_CLK1_50 20.000 ns constraint")
     if route_text.count(REFERENCE_CONSTRAINT_LOG) != 1:
         raise BuildError("route log must apply the FPGA_CLK1_50 50.00 MHz constraint exactly once")
-    if memory_pll:
+    video_lines=[line for line in route_text.splitlines() if line.startswith("Info: PLL 'video_clock.pll': ")]
+    modern=any(" -> VCO " in line or "(output " in line for line in video_lines)
+    fractional=_fractional_video_clock_evidence(route_text) if modern else None
+    if modern:
+        pass
+    elif memory_pll:
         video_routes = re.findall(
             r"Info: PLL 'video_clock\.pll': 50 MHz -> 74\.25 MHz, direct, "
             r"M=8 N=1 C6=6, bel altera_pll\.[0-9.]+", route_text,
@@ -167,6 +193,7 @@ def _reference_clock_evidence(source_root: Path, route_text: str, *, audio: bool
         "clock": "FPGA_CLK1_50",
         "constraint_mhz": 50.0,
         "evidence": "boards/de10nano/clocks.sdc and routed PLL",
+        **({"fractional_pll": fractional} if fractional is not None else {}),
         "requested_mhz": 50.0,
         "status": "pass",
     }
