@@ -13,6 +13,7 @@ Agents: read [AGENTS.md](AGENTS.md), then the
 Start at the [documentation index](docs/README.md). Core ABI, interfaces and
 standing are the [core status](docs/core-status.md) matrix.
 
+- [DeepWiki](https://deepwiki.com/DeanoC/fes): Devin-generated guide to the FES codebase.
 - [Getting started](docs/getting-started.md): setup, build choices, running the host and common failures.
 - [Bootable media](docs/bootable-media.md): build, provision and verify a flashable native image.
 - [Development](docs/development.md): worktrees, incremental builds and handoffs.
