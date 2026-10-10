@@ -6,7 +6,7 @@ Use a FES worktree and open PRs against FES; do not clone or update the old repo
 
 These rules apply to all work in this repository.
 
-- Read `README.md`, `docs/PLAN.md`, and `docs/schema.md` before changing
+- Read `README.md` and `docs/schema.md` before changing
   package files or the emitter.
 - Documentation describes present code in present tense. Planned work is
   labelled as planned.
@@ -14,17 +14,16 @@ These rules apply to all work in this repository.
   `README.md` or `docs/` in the same commit.
 - Git history is the archive. Do not keep deprecated copies in the active
   tree.
-- Names describe current use. Do not use Overlord, numbered-stage, or
-  temporary experiment labels for active files.
-- This repository does not modify FogCast, libmister-runtime, misteross,
-  or overlord. Consumer patches happen in those repos after the oracle
-  matches.
+- Names describe current use. Do not use numbered-stage or temporary
+  experiment labels for active files.
+- A definition change regenerates its consumers in the same FES change:
+  run `make generate` from the FES root, then `make check`.
 - Package YAML is the source of truth. libmister-runtime keeps generated
   C++14 headers as reviewed target text for the ARMv7 Linux HPS. Change
   `testdata/oracles/` in the same commit as any intentional constant
-  change, and record the runtime commit in the oracle file. Regenerate
-  the runtime headers in that consumer repository; do not hand-edit
-  them. Do not compile the runtime with a development-host toolchain.
+  change, and record the runtime commit in the oracle file. Do not
+  hand-edit generated headers. Do not compile the runtime with a
+  development-host toolchain.
 - Do not add a connection solver, Verilog generator, SVD emitter, template
   CLI, or package-manager clone step without a demonstrated need and
   explicit approval. `core_source` files are pins, not clone recipes.

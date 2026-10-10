@@ -86,10 +86,6 @@ The import mapping in [config/source-imports.toml](../config/source-imports.toml
 records original repositories, prior gitlinks, imported commits and module trees.
 The import commit retains original histories as parents. That local history
 mapping does not assert that cutover has been published or hardware-qualified.
-When moving from a submodule checkout, preserve old component branches,
-worktrees and uncommitted work. Prefer a separate fresh checkout of the reviewed
-import revision; do not delete old module directories or reset them to make the
-new layout fit.
 
 ## Validate at the right scope
 

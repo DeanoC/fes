@@ -103,4 +103,4 @@ This establishes exact-artifact normal-library RAM composition, BASIC keyboard
 input, visible memory sizing, rejection continuity and lifecycle behavior.
 It does not qualify physical USB input, tape loading, all expansion combinations
 or a complete appliance release. Operator instructions are in the
-[ZX81 RAM guide](../zx81-ram-expansion.md).
+[ZX81 expansion bus guide](../zx81-expansion-bus.md), which replaced the RAM guide.

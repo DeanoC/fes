@@ -15,7 +15,7 @@ ARCHIVE := $(BUILD_DIR)/libmister-runtime.a
 DAEMON := $(BUILD_DIR)/mister-runtime
 VERSION_INPUT := $(BUILD_DIR)/.mister-runtime-version
 
-VERSION_DIRTY = $(shell test -z "$$(git status --porcelain --untracked-files=normal)" | printf '%s' -dirty)
+VERSION_DIRTY = $(shell test -z "$$(git status --porcelain --untracked-files=normal -- .)" || printf '%s' -dirty)
 MISTER_RUNTIME_VERSION ?= git-$(shell git rev-parse --short=12 HEAD)$(VERSION_DIRTY)
 
 CPPFLAGS := -D_FILE_OFFSET_BITS=64 -Iinclude -Isrc -isystem third_party/toml11/include
