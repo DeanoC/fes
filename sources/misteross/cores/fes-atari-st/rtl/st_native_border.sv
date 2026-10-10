@@ -2,7 +2,7 @@
 // Lossless palette-zero runs for the visible ST border. The surrounding native
 // capture owns these same three banks; it must reject overflowed captures and
 // pin the selected bank until output SOF. No independent publication protocol.
-module st_native_border #(parameter integer EVENT_BITS = 12) (
+module st_native_border #(parameter integer EVENT_BITS = 13) (
     input wire clk_sys, clk_pixel, reset_sys, reset_pixel,
     input wire capture_start, capture_active, capture_pal, capture_tick, capture_display,
     input wire [1:0] capture_bank,

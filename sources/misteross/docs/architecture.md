@@ -1791,7 +1791,8 @@ publication metadata selected together with the RGB bank at SOF. Every native
 low-resolution frame uses centred 2×2 scaling of the 416×276/255 canvas; border
 activity and opened bottoms do not change pixel proportions or image position.
 Palette-zero runs supply every border row, including constant-colour frames.
-A per-frame 4096-event overflow
+The per-frame event arena holds 8192 entries, including BIG psycho screen 3's
+dense palette stream. Overflow
 increments capture underruns and prevents publication; no colour changes are
 silently truncated. This captures border colour timing, not top/horizontal
 DE opening. Display RAM address addition uses only the upper eleven bits.

@@ -204,7 +204,8 @@ Height travels with each immutable bank and changes only at output SOF.
 `st_native_border.sv` records lossless palette-zero runs across the visible
 border raster in those same three owned banks. Every row has an initial colour
 and run offset/count, so repeated HDMI rows replay within-line changes. The
-4096-event budget is explicit: overflow increments capture underruns and
+8192-event budget accommodates BIG psycho screen 3's dense palette stream;
+the bound remains explicit: overflow increments capture underruns and
 rejects the entire frame. HOLD and consumer backpressure retain the same bank
 ownership rules for border runs and display pixels. Every low-resolution frame
 uses a centred 416×276 PAL or 416×255 NTSC canvas at 2×2 scaling, with black
