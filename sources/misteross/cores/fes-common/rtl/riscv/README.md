@@ -90,8 +90,28 @@ for the frozen source, compiler, prompt and routing provenance.
 
 These are frozen zero-BuildID pilot measurements. Every production package
 and other CPU consumer needs its own full-system timing and hardware
-validation. Production integration checks for this exact source are in progress;
-older production and kit results do not qualify it.
+validation.
+
+Production integration on 2026-10-11 built committed source
+`d439f0d915b4e0a922c89c986167877bcaf52e4a`. The normal package
+`c6c11fcdcc640420ac86da88972e85e685db4714f11f0f4014fdcf20de8206e2`
+(BuildID `a711869391990efc125d016204eccc88`) closed its first GPU1 HIP
+route, seed 1, at 75.188 MHz with 2623 ALUTs and 761 flip-flops. The real
+BuildID and package recipe define a separate context from the pilot; the
+pilot area cap and eight-route claim do not apply to this production package.
+All six simulation cases passed, including the 600-frame static-video soak
+(549,849,600 output pixels), as did seven producer tests and parent consistency.
+
+Contained developer diagnostics loaded that exact package on both authorized
+kits. The scene and timer-driven colour change were captured for ten seconds
+per kit. All sampled banner cells matched; sampled static differences above
+30 RGB levels were at most 26 capture pixels on kit A and zero on kit B.
+Compression/scaling prevent exact RGB equality. Stop returned each kit to idle
+and its lease was released. Gamepad movement was checked in simulation only.
+[The integration record](../../../../../../docs/validation/riscv-timing-alu-2026-10-11.json)
+binds the package, compiler, simulation, capture and cleanup evidence. This
+does not establish factory-image or full hardware acceptance or resolve
+[the intermittent video report](https://github.com/DeanoC/fes/issues/673).
 
 From `sources/misteross`:
 
