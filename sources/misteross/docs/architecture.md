@@ -1824,6 +1824,14 @@ Border palette-zero capture uses the same delayed output timeline. This is a
 calibrated net-output candidate against Hatari's hardware-calibrated renderer;
 it does not claim one literal 28-cycle physical Shifter delay. Raw DE, memory
 counters, CPU bus phases and Timer B timing remain separate.
+The isolated output fixture independently checks completed palette-access
+timestamps 80/84/88 against active pixels -3/1/5 in PAL and 1/5/9 in NTSC,
+using actual 512/508-cycle line wraps and DE starts 56/52. Both profiles cover
+fixed bitplane markers, border replay, bottom-row drain, immutable publication
+geometry, reset and Hold. The independent-clock adapter fixture also exercises
+263-line NTSC frames alongside PAL and resolution transitions. These authored
+checks isolate output timing; they do not replace real-CPU admission or original
+demo and physical-hardware qualification.
 Each RGB333 frame uses 78 shallow 1024-word chunks, retaining every 320×247
 pixel. Synchronous chunk reads and registered chunk selection preserve the
 one-clock read boundary while avoiding the deeper one-bit memory mapping.

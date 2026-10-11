@@ -254,8 +254,12 @@ literal 28-cycle hardware Shifter delay. Raw DE, MMU counters, CPU bus phases an
 Timer B remain unchanged. Reset and Hold cancel pending tokens; complete-frame
 publication waits for both relevant output tokens and the final RGB RAM write
 to drain. `make sim-fes-atari-st-shifter-output` independently checks completed
-palette-access timestamps 80/84/88 against first changed active pixels -3/1/5,
-fixed bitplane markers, side/bottom borders, line wrap and publication/reset/Hold.
+palette-access timestamps 80/84/88 against first changed active pixels -3/1/5
+in PAL and 1/5/9 in NTSC. It uses the actual 512/508-cycle line lengths,
+56/52-cycle DE starts, fixed bitplane markers, side/bottom borders, line wrap
+and publication/reset/Hold for both profiles. The independent-clock adapter
+fixture also uses true NTSC 263-line/508-cycle frames and DE cycles 52..371
+while retaining PAL, resolution transitions and bank ownership checks.
 Its registered accepted-write source isolates the output model; real-CPU palette
 admission, RAM 12/512 intervals and Timer B use their existing fixtures.
 Three RGB333 banks hold up to 320×247 pixels. Each bank uses 78 independent

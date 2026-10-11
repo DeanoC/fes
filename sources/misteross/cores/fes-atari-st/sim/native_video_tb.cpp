@@ -49,9 +49,15 @@ struct Test {
         else {
             cpu_phase+=CpuHz;
             const bool cpu_tick=cpu_phase>=SystemHz;
-            if(cpu_tick){cpu_phase-=SystemHz;source_clock=(source_clock+1)%(313*LineCycles);}
+            if(cpu_tick){
+                cpu_phase-=SystemHz;
+                const unsigned source_lines=source_frame==9?263:313;
+                const unsigned line_cycles=source_frame==9?508:LineCycles;
+                source_clock=(source_clock+1)%(source_lines*line_cycles);
+            }
             if(cpu_tick&&source_clock==0)++source_frame;
-            unsigned line=source_clock/LineCycles,phase=source_clock%LineCycles;
+            const unsigned line_cycles=source_frame==9?508:LineCycles;
+            unsigned line=source_clock/line_cycles,phase=source_clock%line_cycles;
             dut.native_vblank=cpu_tick&&source_clock==0;
             dut.native_line=line;
             dut.native_cycle=phase;
@@ -60,7 +66,8 @@ struct Test {
             const unsigned top=ntsc?34:63;
             const unsigned rows=(source_frame==6||source_frame==11)?247:ntsc?226:200;
             dut.sync_mode=ntsc?0:2;
-            dut.native_display=line>=top&&line<top+rows&&phase>=DisplayStart&&phase<DisplayEnd;
+            const unsigned display_start=ntsc?52:DisplayStart,display_end=ntsc?372:DisplayEnd;
+            dut.native_display=line>=top&&line<top+rows&&phase>=display_start&&phase<display_end;
             dut.resolution=source_mode();
             dut.screen_base=source_frame==10?0xff0000:0x10000;
             // Abort one in-progress native frame without withdrawing its read.
@@ -71,7 +78,7 @@ struct Test {
                       (source_frame==6||ntsc)&&line>=(ntsc?5u:34u)?border_colour(line,border_x,ntsc):source_mode()==2?0:0xdb);
             if(source_frame==2&&dut.border_overflow)border_overflow_seen=true;
             unsigned intensity=((line>=top?line-top:0)+source_frame)%7+1;
-            palette(1,source_mode()==1?0x38:phase<DisplayStart+160?intensity<<6:intensity);
+            palette(1,source_mode()==1?0x38:phase<display_start+160?intensity<<6:intensity);
             if(!dut.video_req){require(!pending||complete,"memory request abandoned");pending=complete=false;dut.video_ready=0;}
             else if(!pending){
                 require(dut.video_addr<0x40000,"invalid screen base wrapped into RAM");

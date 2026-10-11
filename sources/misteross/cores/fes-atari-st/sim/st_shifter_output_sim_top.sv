@@ -4,7 +4,7 @@
 // separately by the real-CPU RAM/ROM palette and Timer B fixtures.
 module st_shifter_output_sim_top (
     input wire clk_sys, clk_pixel, reset_sys, reset_pixel, hold,
-    input wire native_vblank, native_display, native_pixel_ce,
+    input wire native_vblank, native_display, native_pixel_ce, pal,
     input wire [8:0] native_line, native_cycle,
     input wire commit,
     input wire [3:0] commit_index,
@@ -22,10 +22,11 @@ module st_shifter_output_sim_top (
     output wire pixel, tick, pending, frame_write,
     output wire [8:0] x, row, rgb, token_line, token_cycle,
     output wire [31:0] frames, sequence_number,
-    output wire front_valid
+    output wire front_valid, front_pal,
+    output wire [8:0] front_height
 );
-    wire [8:0] unused_border, unused_height;
-    wire unused_raster, unused_pal;
+    wire [8:0] unused_border;
+    wire unused_raster;
     wire [31:0] unused_skipped, unused_underruns;
     reg [143:0] palette;
     always @(posedge clk_sys) begin
@@ -39,12 +40,12 @@ module st_shifter_output_sim_top (
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel), .hold(hold),
         .native_vblank(native_vblank), .native_display(native_display),
         .native_line(native_line), .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce),
-        .sync_mode(8'd2), .screen_base(24'h010000), .resolution(2'd0), .palette(palette),
+        .sync_mode(pal ? 8'd2 : 8'd0), .screen_base(24'h010000), .resolution(2'd0), .palette(palette),
         .memory_req(memory_req), .memory_addr(memory_addr), .memory_ready(memory_ready), .memory_data(memory_data),
         .output_sof(output_sof), .output_address(output_address), .output_rgb(output_rgb), .output_border(unused_border),
         .output_raster_rgb(border_rgb), .output_border_row(border_row), .output_border_x(border_x),
         .output_border_line_start(border_start), .output_border_ce(border_ce), .output_raster_border(unused_raster),
-        .output_pal(unused_pal), .output_valid(front_valid), .output_height(unused_height), .debug_frames(frames), .debug_skipped(unused_skipped), .debug_underruns(unused_underruns)
+        .output_pal(front_pal), .output_valid(front_valid), .output_height(front_height), .debug_frames(frames), .debug_skipped(unused_skipped), .debug_underruns(unused_underruns)
     );
     assign pixel = capture.write_pixel;
     assign x = capture.output_x;
