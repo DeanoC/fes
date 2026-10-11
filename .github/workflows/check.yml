@@ -68,6 +68,12 @@ jobs:
           if [ "$EVENT" = workflow_dispatch ] || [ "$EVENT" = schedule ]; then BASE=0000000000000000000000000000000000000000; fi
           python3 -m unittest tests.test_affected tests.test_check_diff tests.test_ci_gate tests.test_test_policy tests.test_test_changed -v
           python3 scripts/check_diff.py --base "$BASE" --head "$HEAD" --fallback-base "refs/remotes/origin/$DEFAULT_BRANCH"
+      - name: Documentation links and doc-reading checks
+        # Documentation-only changes select no lane, so the fast parent tests
+        # that read current guides run here for every change.
+        run: |
+          python3 scripts/check_doc_links.py
+          python3 -m unittest tests.test_check_doc_links tests.test_image_assembly tests.test_consistency tests.test_core_build tests.test_coordination -v
   parent-tests:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).parent

@@ -20,7 +20,7 @@ a dated record. A dated record is not the schedule.
 
 The factory image is the ordered closed package set `fes.menu`, `fes.pong`,
 `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`, `fes.ramtest`,
-selected by the [default profile](../profiles/native-integration-dev.toml)
+`fes.atari-st`, selected by the [default profile](../profiles/native-integration-dev.toml)
 and built with HIP/nextpnr. Menu (`fes.menu`) provides the idle
 display and is not a playable library entry. Other registered packages are not
 in that image. The selector also supports `fes.c64`; admission does not establish

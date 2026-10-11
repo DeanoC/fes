@@ -27,11 +27,7 @@ git status
 make check
 ```
 
-When coming from the earlier submodule layout, preserve existing component
-branches, worktrees and uncommitted changes. Use a separate fresh checkout of the
-reviewed import revision, and port the intended changes into its tracked module
-paths. Do not remove old module directories or reset existing work to force the
-new layout into place. Original URLs, commits and trees are recorded in
+Original URLs, commits and trees of the imported modules are recorded in
 [config/source-imports.toml](../config/source-imports.toml); the import retains
 original histories.
 
@@ -203,11 +199,11 @@ separately authorized physical-card acceptance procedure.
 `linux.img` is an ARMv7 root filesystem for the MiSTer target, not a complete
 bootable SD-card image. The default contains the native runtime, locked idle
 RBF and the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
-`fes.sg1000`, `fes.spectrum`, `fes.ramtest` package set
+`fes.sg1000`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set
 from [the default profile](../profiles/native-integration-dev.toml); use the
 media command above for the complete flashable layout. The selector also supports
-`fes.c64`, which stays out until it has a timing-passing HIP seal;
-see [core status](core-status.md). The image has no legacy
+`fes.c64`, which has a frozen HIP seal but stays out of the factory image until
+it has image acceptance; see [core status](core-status.md). The image has no legacy
 bundle lane.
 The `make build`, `make dev`, `make verify` and `make media` paths use the
 same closed package set.

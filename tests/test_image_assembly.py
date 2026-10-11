@@ -182,6 +182,13 @@ class ImageAssemblyTest(unittest.TestCase):
         )
         current_text = '\n'.join((ROOT / relative).read_text()
                                   for relative in current_docs)
+        # Any current doc that restates the factory set must restate all of it.
+        for relative in current_docs:
+            text = (ROOT / relative).read_text()
+            if '`fes.ramtest`' in text:
+                for core_id in core_ids:
+                    with self.subTest(doc=relative, core_id=core_id):
+                        self.assertIn(f'`{core_id}`', text)
         for stale in (
                 'installs the described FES Pong package',
                 'publishes the selected `fes-pong.package-selection.toml`',
