@@ -252,16 +252,12 @@ and content selection; the MiSTer is a small, directly controlled target.
 - A reproducible target image toolchain with a development image containing
   SSH and curl.
 - A separate reproducible `native-dev` image that packages the native runtime,
-  native agent backend, one locked idle RBF, and the selected Mega Drive RBF
-  with optional sealed Pong, SNES and NES RBFs. FES integration can also add a
-  selected set of validated format-2/3 packages (`fes.menu`, `fes.pong`,
+  native agent backend, one locked idle RBF and a selected set of validated
+  format-2/3 packages (`fes.menu`, `fes.pong`,
   `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`, and
   `fes.ramtest`, `fes.atari-st`) through the closed package selection described in [the
-  development guide](docs/DEVELOPMENT.md).
-  Source-built Mega Drive selection is the native image default; use the
-  explicit upstream selection for fallback. Its idle path and one-player Mega
-  Drive launch, input, Stop, and immediate relaunch path are hardware-tested
-  on the designated kit. See the dated
+  development guide](docs/DEVELOPMENT.md). The earlier Mega Drive image lane
+  is retired; its dated hardware record is the
   [native Mega Drive baseline](docs/hardware/native-megadrive-baseline.md).
 
 The native FES appliance also has a release/update client and a fixed bootstrap
@@ -566,32 +562,6 @@ generation, and required active interfaces to match that inspected package.
 There is no browser file picker. Tenfoot types or pastes a local path with
 the gamepad OSK and POSTs the file bytes.
 
-## Native Mega Drive RBF selection
-
-Source-built Mega Drive selection is the native image default; use the explicit upstream selection for fallback.
-
-The native image resolves one sealed two-file bundle before Buildroot. The
-bundle contains `megadrive.rbf` and its closed `megadrive-rbf.toml` provenance
-record. Both files must be regular, sealed (no write bits), and byte-matched to
-the declared source revision, recipe, toolchain, size, and SHA-256. The bundle
-path is supplied by the operator and is never embedded in the image.
-
-Build with the source-built default from a FES checkout:
-
-- `make build MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle`
-
-Build using the locked upstream release explicitly:
-
-- `make build MEGADRIVE_RBF_SOURCE=upstream`
-
-There is no automatic fallback between the two RBF selections. Both modes
-install exactly one Mega Drive RBF at the same role path and keep runtime
-launch, Stop, video, media, and input behavior unchanged. Both selections use the MiSTer ABI; generalized/custom/non-MiSTer RBF ABI support is deferred.
-
-The selection and provenance path is software-tested. Qualification of the
-source-built artifact on the designated kit is a separate later hardware gate;
-the existing hardware baseline does not silently qualify a different RBF.
-
 ## Repository boundaries
 
 | Repository | Owns |
@@ -658,13 +628,8 @@ uses MENU while idle. A display-capable ZX81 shell also offers visible live
 replace/eject on that HDMI output; older packages keep prelaunch selection.
 CPU execution and RAM continue while those controls are open.
 
-Native image assembly defaults to Mega Drive; the explicit
-`NATIVE_RUNTIME_SYSTEMS="megadrive pong snes nes"` selection adds sealed
-Pong/SNES/NES source bundles through the same builder and verifier. See the
-[image development guide](docs/DEVELOPMENT.md#optional-pong-snes-and-nes-image-cores).
-
 Native image assembly lives in the FES `image/` recipe. FogCast supplies the
-agent, kit launcher, extra-core selector (`cmd/target-image-lock`) while FES owns external-artifact policy in
+agent, kit launcher, package selector (`cmd/target-image-lock`) while FES owns external-artifact policy in
 `image/build/native-inputs.toml`. FES alone
 selects the runtime source revision and generates its assembly lock. The legacy
 smoke runner requires that concrete lock via `NATIVE_RUNTIME_INPUT_LOCK`.

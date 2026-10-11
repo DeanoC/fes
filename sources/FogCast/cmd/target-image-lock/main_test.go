@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -118,67 +117,13 @@ func TestCommandRejectsGeneratedOutputRecording(t *testing.T) {
 	}
 }
 
-func TestSelectMegaDriveCommandWritesSourceBuiltSelection(t *testing.T) {
-	t.Parallel()
-	payload := []byte("cli source-built")
-	digest := sha256.Sum256(payload)
-	bundle := t.TempDir()
-	manifest := fmt.Sprintf(`format = 1
-abi = 'mister'
-system = 'megadrive'
-artifact = 'megadrive.rbf'
-sha256 = '%s'
-size = %d
-repository = 'https://github.com/MiSTer-devel/MegaDrive_MiSTer'
-revision = '7365a137cfd8fa6f041e964d8b953159c0ec42d9'
-recipe = 'scripts/rebuild_core.py'
-recipe_sha256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
-toolchain = 'Version 17.0.2 Build 602 07/19/2017 SJ Lite Edition'
-`, hex.EncodeToString(digest[:]), len(payload))
-	if err := os.WriteFile(filepath.Join(bundle, "megadrive.rbf"), payload, 0o444); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(bundle, "megadrive-rbf.toml"), []byte(manifest), 0o444); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chmod(bundle, 0o555); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(bundle, 0o755) })
-	cache := filepath.Join(t.TempDir(), "cache")
-	output := filepath.Join(cache, "megadrive.selection.toml")
-	var stdout, stderr bytes.Buffer
-	if code := run([]string{
-		"select-megadrive", "--source", "source-built", "--bundle", bundle,
-		"--cache", cache, "--output", output,
-	}, &stdout, &stderr, nil); code != 0 {
-		t.Fatalf("run returned %d: %s", code, stderr.String())
-	}
-	selectionBytes, err := os.ReadFile(output)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(selectionBytes), "origin = 'source-built'") || !strings.Contains(string(selectionBytes), hex.EncodeToString(digest[:])) {
-		t.Fatalf("selection = %s", selectionBytes)
-	}
-}
-
-func TestSelectMegaDriveCommandRequiresMatchingSourceFlags(t *testing.T) {
-	t.Parallel()
-	for name, args := range map[string][]string{
-		"missing source":  {"select-megadrive", "--cache", t.TempDir(), "--output", filepath.Join(t.TempDir(), "selection.toml")},
-		"source artifact": {"select-megadrive", "--source", "source-built", "--artifact", "/tmp/rbf", "--cache", t.TempDir(), "--output", filepath.Join(t.TempDir(), "selection.toml")},
-		"upstream bundle": {"select-megadrive", "--source", "upstream", "--bundle", "/tmp/bundle", "--cache", t.TempDir(), "--output", filepath.Join(t.TempDir(), "selection.toml")},
-		"unknown flag":    {"select-megadrive", "--source", "source-built", "--wat", "x"},
-	} {
-		name, args := name, args
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			var stdout, stderr bytes.Buffer
-			if code := run(args, &stdout, &stderr, nil); code != 2 {
-				t.Fatalf("run returned %d, stderr=%s", code, stderr.String())
-			}
-		})
+func TestRetiredRBFSelectionCommandsAreUnknown(t *testing.T) {
+	// Images select only sealed core packages; raw RBF lanes were removed.
+	for _, command := range []string{"select-megadrive", "select-core", "verify-core"} {
+		var stdout, stderr bytes.Buffer
+		if code := run([]string{command}, &stdout, &stderr, nil); code != 2 || !strings.Contains(stderr.String(), "unknown command") {
+			t.Fatalf("%s: code=%d stderr=%q", command, code, stderr.String())
+		}
 	}
 }
 
