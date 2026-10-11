@@ -101,7 +101,7 @@ RTL_SOURCES = (
     *(f"cores/fes-atari-st/rtl/{name}" for name in (
         "st_cpu.sv", "st_machine.sv", "st_system.sv", "st_io.sv", "st_memory.sv",
         "st_rom.v", "st_native_border.sv", "st_native_low_video.sv", "st_video.sv", "st_video_adapter.sv", "st_media_writer.sv", "st_mfp.sv",
-        "st_floppy.sv", "st_floppy_writer.sv", "st_media_port.sv", "st_video_socket.sv", "st_acia.sv", "st_ikbd.sv", "st_ym2149.sv", "st_ym_mixer.sv", "st_ym_mix_rom.sv", "st_expansion_socket.sv")),
+        "st_floppy.sv", "st_floppy_writer.sv", "st_media_port.sv", "st_video_socket.sv", "st_acia.sv", "st_ikbd.sv", "st_ym2149.sv", "st_ym_filter.sv", "st_ym_mixer.sv", "st_ym_mix_rom.sv", "st_expansion_socket.sv")),
     "cores/fes-zx81/expansions/zonx_ay.v", "cores/fes-ramtest/rtl/sdram_addon_port.v",
 )
 PINNED_INPUTS = (

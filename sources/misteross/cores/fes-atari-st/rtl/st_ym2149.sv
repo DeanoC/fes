@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // ST even-byte YM2149 address/read and data-write registers. Clock and
 // sample enables stay in the transport clock domain. Nonlinear table output
-// is unipolar; filtering and weighted downsampling remain unimplemented.
+// is filtered and downsampled before signed mono PCM transport.
 module st_ym2149 #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
     parameter integer CHIP_CLOCK_HZ = 2_000_000,
@@ -12,8 +12,8 @@ module st_ym2149 #(
     input wire [7:0] bus_wdata,
     output reg [7:0] bus_rdata,
     output reg bus_ack,
-    output reg signed [15:0] pcm_signed,
-    output reg sample_valid,
+    output wire signed [15:0] pcm_signed,
+    output wire sample_valid,
     // Port A bit 0 is floppy side, bits 1/2 are active-low drive selects.
     // Unconnected inputs are pulled high; pin output is high in input mode.
     output wire [7:0] port_a
@@ -51,7 +51,14 @@ module st_ym2149 #(
     wire [14:0] mixed_pcm, unused_result_levels;
     st_ym_mixer mixer (.clk(clk), .reset(reset), .req(mix_req), .levels(ym_levels),
         .busy(mix_busy), .ready(mix_ready), .pcm(mixed_pcm), .result_levels(unused_result_levels));
-    wire unused_mix_status = mix_busy ^ mix_ready;
+    wire unused_mix_busy = mix_busy;
+    reg [8:0] sample_startup;
+    wire unused_filter_busy, unused_filter_fault;
+    st_ym_filter #(.CHIP_CLOCK_HZ(CHIP_CLOCK_HZ), .SAMPLE_RATE_HZ(SAMPLE_RATE_HZ)) filter (
+        .clk(clk), .reset(reset), .input_valid(mix_ready), .input_pcm(mixed_pcm),
+        .sample_ce(sample_ce && sample_startup==9'd320), .pcm(pcm_signed),
+        .sample_valid(sample_valid), .busy(unused_filter_busy), .fault(unused_filter_fault)
+    );
     always @(posedge clk) begin
         if(reset)begin counter_phase<=0;mix_req<=0;end
         else begin
@@ -61,14 +68,13 @@ module st_ym2149 #(
     end
     always @(posedge clk) begin
         if (reset) begin
-            chip_phase <= 0; sample_phase <= 0; pcm_signed <= 0; sample_valid <= 0;
+            chip_phase <= 0; sample_phase <= 0; sample_startup <= 0;
             bus_ack <= 0; bus_rdata <= 0; selected <= 0; selected_valid <= 1;
             port_direction <= 0; port_a_latch <= 0; port_b_latch <= 0;
         end else begin
             chip_phase <= chip_ce ? 32'(chip_sum - 33'(SYSTEM_CLOCK_HZ)) : chip_sum[31:0];
-            sample_phase <= sample_ce ? 32'(sample_sum - 33'(SYSTEM_CLOCK_HZ)) : sample_sum[31:0];
-            sample_valid <= sample_ce;
-            if (sample_ce) pcm_signed <= $signed({1'b0,mixed_pcm});
+            if(sample_startup!=9'd320)sample_startup<=sample_startup+1'b1;
+            else sample_phase <= sample_ce ? 32'(sample_sum - 33'(SYSTEM_CLOCK_HZ)) : sample_sum[31:0];
             if (!bus_req) bus_ack <= 0;
             if (bus_first) begin
                 bus_ack <= 1;

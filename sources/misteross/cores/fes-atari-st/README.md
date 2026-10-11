@@ -183,10 +183,21 @@ resource and timing qualification remain required. Its exhaustive simulation
 compares all 32,768 ordered inputs against an independent primary-table oracle
 and checks bounded completion and reset cancellation. The generator and unchanged
 measurement source, provenance and license are retained in the component.
-The maximum output is 32,767. PCM remains unfiltered and sampled by holding the
-latest completed value; PWM filtering, weighted downsampling and DC removal
-remain unimplemented. Board transport uses the existing
-signed stereo PCM/I2S path, duplicating the mono chip into both channels.
+The nonlinear mix reaches at most 32,767. `st_ym_filter.sv` applies Hatari's
+asymmetric PWM pull-down filter at every engine counter sample, averages all
+samples over each 48 kHz interval and removes DC with the signed 32-bit IIR
+state. Averaging uses the exact rational chip/output clock ratio, retaining the
+fractional counter rate instead of Hatari's truncated Q16 interval. Two
+registered products and a bounded restoring divider avoid a combinational
+divide. A four-entry register FIFO supplies the regular PCM cadence, delayed
+320 fabric edges after reset so each interval is complete before consumption.
+The production filter finishes within 39 fabric edges; the mixer plus filter
+finish before the next roughly 208-edge counter period. Reset clears filters,
+queued samples and in-flight work. Standalone tests cover both production and
+scaled clocks against an independent streaming oracle, including impulses,
+high-frequency signals, DC decay, reset and FIFO faults. Whole-demo waveform
+and exact FPGA/hardware qualification remain required. Board transport uses the
+existing signed stereo PCM/I2S path, duplicating mono into both channels.
 
 `st_floppy.sv` implements original WD1772 Type I positioning, Type II sector
 reads and writes, force interrupts and ST DMA. Drive A accepts raw `.st`
@@ -420,7 +431,7 @@ invocation keeps its boot assertions and supplies no media. A changing
 logo is reported as noncanonical, without automatically declaring a visual fault. `--key-b-at SECOND` selects the scroller through the normal
 HID/IKBD path with a 150 ms B press. Both storage models accept
 `--key-at SECOND --key-usage USAGE` for other screens (1/2/3 use HID
-usages 30/31/32). Every run saves `demo-audio.wav`, the unfiltered signed
+usages 30/31/32). Every run saves `demo-audio.wav`, the system-domain signed
 mono 48 kHz chip PCM, and `demo-audio.json` with sample counts, amplitude
 statistics and system-clock cadence. Shared-memory runs also save
 `demo-ym.jsonl`: every accepted valid-register PSG data write, with its raw
