@@ -19,6 +19,19 @@ strobes. A held request completes once; DTACK/BERR persists until AS or both
 data strobes release. Rearming between strobes supports TAS. An unanswered
 request faults after 128 CPU half cycles. The CPU RESET instruction resets
 peripherals through the same exported reset signal as host Hold.
+Palette-register reads and writes wait for a four-cycle shifter-bus window.
+`st_system` supplies that window from native cycle phase 1; `st_machine`
+retains the latched address/data/lanes until acceptance, then commits once.
+A palette byte write copies the selected byte to both halves before masking
+RGB to three bits per channel. Both byte addresses therefore replace the full
+color; word writes keep their normal sixteen-bit input. Hatari's
+[original-ST palette handler](https://github.com/hatari/hatari/blob/v2.5.0/src/video.c#L4619)
+documents the bus alignment and byte mirroring. New raster traces retain raw
+bus data/lanes and add the complete accepted `color`; analysis preserves the
+older source-bound lane-merge traces when that field is absent.
+This cycle label differs from Hatari's completed-access timestamp; absolute
+raster alignment requires a separate comparison. The isolated motherboard
+fixture has no GLUE counter and supplies an always-ready palette bus.
 
 `st_memory.sv` shares the existing addon-SDRAM controller among CPU, scanout,
 floppy DMA, upload and media reads. Round-robin arbitration bounds contention.
@@ -60,7 +73,10 @@ focused timing comparisons.
 `make sim-fes-atari-st-ram-bus` runs authored firmware on FX68K with physical
 SDRAM/DDIO and independent-clock video. The selected policy measures 511 byte
 write intervals of 16 CPU cycles and 510 read intervals of 16 plus one of 17.
-It checks both byte lanes, TAS rearming and RESET retention. Its RAM-resident
+It checks both byte lanes, TAS rearming and RESET retention. An authored ROM-fed
+palette loop alternates the CPU bus alignment with terminal DBF instructions
+and checks fifteen 32-cycle intervals in each direction, exactly-once acceptance, both
+palette byte addresses, mirroring before the RGB mask and readback. Its RAM-resident
 NOP/DBF workload checks 12,299 palette intervals of 12 cycles and 300 of 512
 while video fetches continue without underruns. These host regressions do not
 establish original BIG compatibility, routed timing or kit acceptance.

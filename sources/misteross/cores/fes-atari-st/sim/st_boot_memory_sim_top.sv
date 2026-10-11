@@ -21,9 +21,10 @@ module st_boot_memory_sim_top #(
     output wire [3:0] debug_ym_register,
     output wire [7:0] debug_ym_data,
     input wire [31:0] media_size,
-    output wire debug_palette_write,
+    output wire debug_palette_write, debug_palette_read,
     output wire [23:0] debug_palette_address,
     output wire [15:0] debug_palette_data,
+    output wire [11:0] debug_palette_color,
     output wire [1:0] debug_palette_lanes,
     output wire [7:0] debug_irq_vector,
     output wire [8:0] debug_native_line, debug_horizontal_phase,
@@ -138,10 +139,15 @@ module st_boot_memory_sim_top #(
     end
     assign debug_palette_write = !reset_sys && system.machine.state == 2'd1 &&
         system.machine.target == 3'd2 && system.machine.writing &&
+        system.machine.palette_access && system.machine.io_completion && !system.machine.cpu_as_n &&
+        system.machine.timeout_halves != 8'd128;
+    assign debug_palette_read = !reset_sys && system.machine.state == 2'd1 &&
+        system.machine.io_completion && !system.machine.writing &&
         system.machine.palette_access && !system.machine.cpu_as_n &&
         system.machine.timeout_halves != 8'd128;
     assign debug_palette_address = system.machine.address;
     assign debug_palette_data = system.machine.write_data;
+    assign debug_palette_color = system.machine.palette_wdata[11:0] & 12'h777;
     assign debug_palette_lanes = system.machine.lanes;
     // Observe the actual PSG acceptance edge, rather than a held CPU request.
     assign debug_ym_write = !system.io.psg.reset && system.io.psg.bus_first &&

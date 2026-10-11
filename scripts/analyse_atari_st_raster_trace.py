@@ -76,9 +76,11 @@ def analyse(directory):
             lanes = event['lanes']
             # Only connected RGB bits participate. An unknown unwritten lane
             # cannot establish an unchanged write at the trace-window boundary.
-            mask = (0x0700 if lanes & 2 else 0) | (0x0077 if lanes & 1 else 0)
+            # New captures record the complete color after byte replication.
+            # Older source-bound captures retain their former lane-merge model.
+            mask = 0x0777 if 'color' in event else ((0x0700 if lanes & 2 else 0) | (0x0077 if lanes & 1 else 0))
             old, known = palette_words.get(address, (0, 0))
-            data = event['data'] & mask
+            data = event.get('color', event['data']) & mask
             if mask and known & mask == mask and old & mask == data:
                 repeats += 1
             palette_words[address] = ((old & ~mask) | data, known | mask)

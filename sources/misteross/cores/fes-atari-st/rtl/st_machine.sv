@@ -42,6 +42,7 @@ module st_machine #(
     input  wire [7:0] irq_vector,
     output wire irq_ack,
     output reg [2:0] irq_level,
+    input  wire palette_ready,
     input  wire [23:0] video_counter,
     output reg [23:0] screen_base,
     output reg [1:0] resolution,
@@ -170,8 +171,15 @@ module st_machine #(
         (!cpu_uds_n || !cpu_lds_n) && cpu_fc != 3'b111 &&
         live_bank0 && (supervisor || live_address >= 24'h000800) &&
         !(supervisor && live_address < 24'd8);
+    // GLUE admits shifter palette accesses on one four-cycle bus phase.
+    // Retain the latched transaction until then, with one commit/DTACK.
     wire palette_access = address >= 24'hff8240 && address <= 24'hff825e;
+    wire io_completion = target == IO && (!palette_access || palette_ready);
     wire [3:0] palette_index = address[4:1];
+    // The original shifter mirrors a byte onto both data lanes before its
+    // RGB mask, for either byte address. Word writes retain all sixteen bits.
+    wire [15:0] palette_wdata = lanes == 2'b10 ? {write_data[15:8], write_data[15:8]} :
+                               lanes == 2'b01 ? {write_data[7:0], write_data[7:0]} : write_data;
     reg [15:0] io_rdata;
     always @* begin
         io_rdata = 16'hffff;
@@ -265,7 +273,7 @@ module st_machine #(
                                  timeout_halves == TIMER_BITS'(BUS_TIMEOUT_HALVES)) begin
                         berr_n <= 1'b0;
                         state <= COMPLETE;
-                    end else if (target == IO || target == EMPTY_BANK ||
+                    end else if (io_completion || target == EMPTY_BANK ||
                                  (target == RAM && ram_ready) ||
                                  (target == ROM && rom_ready) ||
                                  (target == EXPANSION && exp_ack)) begin
@@ -278,9 +286,8 @@ module st_machine #(
                                 cpu_rdata <= io_rdata;
                                 if (writing) begin
                                     if (palette_access) begin
-                                        if (lanes[1]) colors[palette_index][8:6] <= write_data[10:8];
-                                        if (lanes[0]) colors[palette_index][5:0] <=
-                                            {write_data[6:4], write_data[2:0]};
+                                        colors[palette_index] <= {palette_wdata[10:8],
+                                            palette_wdata[6:4], palette_wdata[2:0]};
                                     end else case (address)
                                         24'hff8000: if (lanes[0]) memory_config <= write_data[7:0];
                                         24'hff8200: if (lanes[0]) screen_base[23:16] <= write_data[7:0];

@@ -33,6 +33,27 @@ class RasterTraceTests(unittest.TestCase):
                                for name in ('demo-raster.jsonl', 'demo-logo.jsonl')}}
         (root / 'demo-proof.json').write_text(json.dumps(proof))
 
+    def test_complete_color_from_mirrored_byte_captures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.fixture(root)
+            events = [
+                {'kind': 'palette_write', 'frame': 10, 'address': 0xff8240,
+                 'lanes': lanes, 'data': data, 'color': color}
+                for lanes, data, color in ((2, 0x0200, 0x202), (1, 0x16, 0x616),
+                                          (3, 0x616, 0x616), (2, 0x7100, 0x171),
+                                          (1, 0x16, 0x616), (3, 0x616, 0x616))
+            ]
+            trace = root / 'demo-raster.jsonl'
+            trace.write_text(''.join(json.dumps(e)+'\n' for e in events))
+            proof_file = root / 'demo-proof.json'
+            proof = json.loads(proof_file.read_text())
+            proof['artifacts']['demo-raster.jsonl'] = hashlib.sha256(trace.read_bytes()).hexdigest()
+            proof_file.write_text(json.dumps(proof))
+            result = analyse(root)
+            self.assertEqual(result['committed_palette_writes_in_window'], 6)
+            self.assertEqual(result['known_unchanged_palette_writes_in_window'], 2)
+
     def test_lane_aware_repeats_and_noncanonical_neighbours(self):
         with tempfile.TemporaryDirectory() as name:
             root = Path(name)
