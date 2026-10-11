@@ -29,7 +29,8 @@ module st_input_audio_sim_top (
     // wrapper's sample cadence, while exercising the same shared engine.
     input wire engine_ce, engine_address_write, engine_data_write,
     input wire [7:0] engine_data,
-    output wire [7:0] engine_pcm, engine_read
+    output wire [7:0] engine_pcm, engine_read,
+    output wire [14:0] engine_levels, sampled_levels
 );
     st_acia #(.SYSTEM_CLOCK_HZ(2_000_000)) acia (
         .clk(clk), .reset(reset), .bus_req(ac_req), .bus_reg(ac_reg),
@@ -59,9 +60,10 @@ module st_input_audio_sim_top (
         .bus_ack(ym_ack), .sample_valid(sample_valid), .pcm_signed(pcm_signed),
         .port_a(port_a)
     );
+    assign sampled_levels = ym.ym_levels;
     zonx_ay #(.YM2149(1)) engine (
         .clk(clk), .reset_n(!reset), .chip_ce(engine_ce),
         .address_write(engine_address_write), .data_write(engine_data_write),
-        .data(engine_data), .pcm(engine_pcm), .read_data(engine_read)
+        .data(engine_data), .pcm(engine_pcm), .ym_levels(engine_levels), .read_data(engine_read)
     );
 endmodule

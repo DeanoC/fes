@@ -14,7 +14,10 @@ module zonx_ay #(parameter integer YM2149 = 0) (
     input wire address_write, data_write,
     input wire [7:0] data,
     output wire [7:0] read_data,
-    output wire [7:0] pcm
+    output wire [7:0] pcm,
+    // Optional YM consumer: gated 5-bit levels before the coarse AY-card DAC.
+    // Default AY mode drives zero; existing 8-bit PCM behavior is unchanged.
+    output wire [14:0] ym_levels
 );
     reg [3:0] selected = 0;
     reg selected_valid = 1;
@@ -166,12 +169,20 @@ module zonx_ay #(parameter integer YM2149 = 0) (
             endcase
         end
     endfunction
+    function [4:0] ym_level;
+        input [4:0] setting;
+        begin
+            // Original STF fixed levels 0/1 remain 0/1; other volumes use
+            // odd envelope levels. Hatari v2.5.0 sound.c YmVolume4to5.
+            ym_level = setting[4] ? envelope_level :
+                setting[3:0] < 2 ? {1'b0, setting[3:0]} : {setting[3:0], 1'b1};
+        end
+    endfunction
     function [7:0] channel_amplitude;
         input [4:0] setting;
         begin
             if (YM2149 != 0)
-                channel_amplitude = ym_amplitude(setting[4] ? envelope_level :
-                    (setting[3:0] == 0 ? 5'd0 : {setting[3:0], 1'b1}));
+                channel_amplitude = ym_amplitude(ym_level(setting));
             else channel_amplitude = amplitude(setting[4] ? envelope_level[3:0] : setting[3:0]);
         end
     endfunction
@@ -180,6 +191,10 @@ module zonx_ay #(parameter integer YM2149 = 0) (
     wire [7:0] a = gate[0] ? channel_amplitude(registers[8][4:0]) : 0;
     wire [7:0] b = gate[1] ? channel_amplitude(registers[9][4:0]) : 0;
     wire [7:0] c = gate[2] ? channel_amplitude(registers[10][4:0]) : 0;
+    assign ym_levels = YM2149 != 0 ? {
+        gate[2] ? ym_level(registers[10][4:0]) : 5'd0,
+        gate[1] ? ym_level(registers[9][4:0]) : 5'd0,
+        gate[0] ? ym_level(registers[8][4:0]) : 5'd0} : 15'd0;
     assign pcm = a + b + c;
     assign read_data = selected_valid ? registers[selected] : 8'hff;
 endmodule

@@ -11,9 +11,16 @@
 #include <utility>
 #include <vector>
 
+// Hatari sound.c ymout1c5bit: expanded from original STF measurements.
+static constexpr std::array<int,32> reference_volts={0,369,438,521,619,735,874,1039,
+    1234,1467,1744,2072,2463,2927,3479,4135,4914,5841,6942,8250,
+    9806,11654,13851,16462,19565,23253,27636,32845,39037,46395,55141,65535};
+static int reference_dac(unsigned level) {return (reference_volts[level]*10922+32767)/65535;}
 struct Test {
     Vst_input_audio_sim_top dut;
     unsigned transmitted = 0;
+    bool audio_oracle=false;
+    std::array<bool,32> sampled_dac_levels{};
     std::vector<int> tx_bytes;
     void require(bool ok, const std::string &message) {
         if (!ok) { std::cerr << "ST input/audio: " << message << '\n'; std::exit(1); }
@@ -23,7 +30,13 @@ struct Test {
         if (dut.raw_tx_valid && dut.raw_tx_ready && dut.raw_mode) {
             ++transmitted; tx_bytes.push_back(dut.raw_tx_data);
         }
+        const unsigned levels=dut.sampled_levels;
         dut.clk=1; dut.eval();
+        if(audio_oracle&&!dut.reset&&dut.sample_valid) {
+            const int expected=reference_dac(levels&31)+reference_dac((levels>>5)&31)+reference_dac(levels>>10);
+            require(dut.pcm_signed==expected,"all-voice sampled PCM matches expanded STF level reference");
+            sampled_dac_levels[levels&31]=true;
+        }
     }
     void run(int cycles) { while (cycles-- > 0) tick(); }
     void reset() {
@@ -466,7 +479,7 @@ static void ym(Test &t) {
     t.ym_write(7,0xff); t.ym_bus(true,0,15);
     t.require(t.ym_bus(false,0)==0xa5,"second YM I/O latch");
     t.ym_write(8,15); t.ym_write(9,15); t.ym_write(10,15); t.run(50);
-    t.require(t.dut.pcm_signed==32640,"48k PCM three-channel headroom");
+    t.require(t.dut.pcm_signed==32766,"48k PCM three-channel headroom");
     t.ym_write(8,0); t.ym_write(9,0); t.ym_write(10,0); t.run(50);
     t.require(t.dut.pcm_signed==0,"PCM silence");
     int samples=0; for (int i=0;i<2000;++i) { t.tick(); samples+=t.dut.sample_valid; }
@@ -477,7 +490,30 @@ static void ym(Test &t) {
     }
     for (int volume=0;volume<16;++volume) {
         t.reset(); t.engine_write(7,63); t.engine_write(8,volume);
-        t.require(t.dut.engine_pcm==ym_level(volume==0 ? 0 : volume*2+1),"Yamaha fixed volume scale");
+        const int level=volume<2 ? volume : volume*2+1;
+        t.require(t.dut.engine_pcm==ym_level(level),"Yamaha fixed volume scale");
+        t.require(t.dut.engine_levels==level,"fixed volume selects original STF envelope level");
+        // Independently published measured voltage levels, normalized for
+        // three-voice signed headroom; volume 1 must remain audible.
+        t.ym_write(7,63); t.ym_write(8,volume); t.run(50);
+        const int expected=reference_dac(level);
+        t.require(t.dut.pcm_signed==expected,"ST full-precision fixed-volume output");
+        if(volume==1)t.require(t.dut.pcm_signed>0,"quietest fixed YM volume survives DAC quantization");
+    }
+    // A slow envelope holds every level across several asynchronous samples.
+    t.reset(); t.ym_write(7,63); t.ym_write(8,16);
+    t.ym_write(11,128); t.ym_write(12,0); t.ym_write(13,8);
+    t.sampled_dac_levels.fill(false); t.audio_oracle=true;
+    t.run(40000); t.audio_oracle=false;
+    for(bool seen:t.sampled_dac_levels)t.require(seen,"every full-precision envelope DAC level sampled");
+    for(unsigned voice=0;voice<3;++voice) {
+        t.reset(); t.engine_write(7,63); t.engine_write(8+voice,1);
+        t.require(t.dut.engine_levels==(1u<<(5*voice)),"gated level channel packing/isolation");
+        t.ym_write(7,63); t.ym_write(8+voice,1); t.run(50);
+        t.require(t.dut.pcm_signed==61,"each quiet voice reaches sampled PCM independently");
+        // Both sources enabled, reset tone/noise initial combination is low.
+        t.reset(); t.engine_write(7,0); t.engine_write(8+voice,15);
+        t.require(t.dut.engine_levels==0,"tone/noise mixer gates exposed levels");
     }
     for (int period: {0,1,2,17,257,4095}) {
         t.reset(); t.engine_write(0,period&255); t.engine_write(1,period>>8);
@@ -494,6 +530,7 @@ static void ym(Test &t) {
         t.engine_write(11,3); t.engine_write(12,0); t.engine_write(13,shape);
         for (int step=0;step<100;++step) {
             t.require(t.dut.engine_pcm==ym_level(envelope(shape,step)),"32-step Yamaha envelope shape="+std::to_string(shape)+" step="+std::to_string(step));
+            t.require(t.dut.engine_levels==envelope(shape,step),"unquantized Yamaha envelope level");
             t.engine_run(24); // /8 envelope versus AY /16.
         }
     }

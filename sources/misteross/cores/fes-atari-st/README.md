@@ -172,8 +172,13 @@ absent; unsupported command modes consume their parameters safely.
 
 `st_ym2149.sv` reuses the shared AY engine with a YM2149 option: sixteen
 registers, 32-step envelopes, a CPU/4 enable (2.005311 MHz on the PAL board) and 48 kHz PCM. Port A drives
-floppy side and active-low drive selects. Its DAC is a bounded approximation;
-it does not reproduce analog filtering. Board transport uses the existing
+floppy side and active-low drive selects. Fixed volumes 0/1 select envelope
+levels 0/1; volumes 2..15 select odd levels 5..31. The ST wrapper converts
+unquantized gated channel levels using Hatari's 32-level table expanded from
+four-bit STF measurements. Each channel scales to 10,922 with nearest rounding;
+three voices sum to at most 32,766, retaining quiet level 1 at 61 instead of
+losing it in the shared card's coarse 8-bit DAC. Mixing remains linear and
+unfiltered; nonlinear three-channel mixing and analog filtering are unimplemented. Board transport uses the existing
 signed stereo PCM/I2S path, duplicating the mono chip into both channels.
 
 `st_floppy.sv` implements original WD1772 Type I positioning, Type II sector

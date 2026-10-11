@@ -1702,7 +1702,15 @@ companion of a pinned boundary flip-flop, using the shared
 ## FES Atari 520ST
 
 `cores/fes-atari-st` assembles the original ST's full FX68K 68000 and
-functional chipset in `st_system.sv`. Fractional alternating phase enables
+functional chipset in `st_system.sv`. The YM option in the shared
+`zonx_ay` engine exposes optional gated five-bit channel levels (zero in
+its default AY mode); existing AY PCM remains unchanged. `st_ym2149` uses
+these levels with a 32-entry table expanded from four-bit STF measurements,
+normalized to 10,922 per voice with nearest rounding. Fixed volume 1 selects
+level 1 and remains audible at PCM 61; three maximum voices sum to 32,766.
+The ST DAC still mixes linearly without analog filtering, so this precision
+correction does not establish full nonlinear/analog YM fidelity.
+ Fractional alternating phase enables
 run an average 8.021247 MHz PAL CPU in the 52.224 MHz system domain.
 `st_system` selects this fixed board clock and supplies CPU/4 and CPU/16
 to PSG and ACIA; software sync changes alter raster lengths, not oscillators. `st_machine.sv`
