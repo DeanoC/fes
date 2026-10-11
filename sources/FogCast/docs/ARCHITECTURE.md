@@ -1251,7 +1251,7 @@ They do not establish physical watchdog reset or exact-image kit acceptance.
 ## Target image
 
 Native Buildroot and rootfs assembly live in the FES `image/` recipe.
-FogCast supplies the agent, kit, extra-core selector (`cmd/target-image-lock`,
+FogCast supplies the agent, kit, package selector (`cmd/target-image-lock`,
 `internal/targetimage`) while FES owns external-artifact policy in
 `image/build/native-inputs.toml`. FES adds its selected runtime revision to a
 disposable assembly copy;
@@ -1268,8 +1268,8 @@ and the closed FES package set selected by
 [the default profile](../../../profiles/native-integration-dev.toml): `fes.menu`,
 `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`,
 `fes.ramtest`, `fes.atari-st`. ST retains its sealed firmware ROM map; firmware
-is separately selected at launch. The selector also admits `fes.c64`, which stays out because it
-has no current timing-passing HIP seal. The menu package is idle firmware,
+is separately selected at launch. The selector also admits `fes.c64`, which has a frozen HIP
+seal but stays out of the factory image until it has image acceptance. The menu package is idle firmware,
 not a playable library entry. Image inclusion and selector admission do not
 establish playability; [core status](../../../docs/core-status.md) records the
 exact-artifact kit evidence.
@@ -1312,14 +1312,14 @@ cleanup failures.
 Its QEMU
 smoke proves only root filesystem and init packaging; it does not emulate FPGA
 programming, prove target readiness, or establish game or development-RBF
-support. The designated-kit idle, Mega Drive launch/input/Stop/relaunch,
-and legacy rollback gates are
-hardware-tested. The image contains no development RBF at either production
+support. Package playability is recorded per exact artifact in
+[core status](../../../docs/core-status.md); the earlier Mega Drive
+launch/input/Stop/relaunch gates belong to the retired raw-RBF lane. The image contains no development RBF at either production
 path and relies on volatile `/tmp` staging for an admitted upload. Native
 development-RBF loading is hardware-tested for the existing MiSTer-compatible
 lifecycle. Exact hashes and dated physical observations are in
 [native-development-rbf-baseline.md](hardware/native-development-rbf-baseline.md);
-the game-only baseline remains in
+the retired lane's game baseline remains in
 [native-megadrive-baseline.md](hardware/native-megadrive-baseline.md).
 
 ## Contained development RBF diagnostic

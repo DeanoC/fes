@@ -162,17 +162,6 @@ hardware acceptance. The full image rebuild is also required for any change to
 Buildroot, init scripts, package contents, image configuration, or locked
 inputs, because a runtime-only replacement cannot validate those changes.
 
-### Milestone status
-
-```text
-legacy dev/prod = current game-capable path
-native-dev = hardware-tested Mega Drive launch/input/Stop/relaunch
-Milestone 2 = complete
-Milestone 3 = complete for the defined one-player Mega Drive vertical slice
-native development RBF = hardware-tested MiSTer-compatible load/Stop/game-regression path
-Milestone 4 = complete for the defined MiSTer-compatible development lifecycle
-```
-
 ## Dedicated fixture
 
 The designated disposable kit is:

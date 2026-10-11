@@ -571,30 +571,16 @@ the gamepad OSK and POSTs the file bytes.
 | `misteross` | Quartus, Verilator, and open-source FPGA builds that produce RBF files |
 
 Native image assembly lives in the FES `image/` recipe. FogCast keeps the
-agent, kit, extra-core selector and native-runtime lock as inputs. Git
+agent, kit, package selector and native-runtime lock as inputs. Git
 history is the archive for superseded experiments.
 
-The conventional `dev`/`prod` image remains the broad FPGA game and
-development-RBF path described above. The separate `native-dev` image supports
-only registry system `megadrive` for catalogue launches: it sends the
-image-owned core and staged cartridge path to `mister-runtime` and rejects
-every other catalogue system. Its separate MiSTer-compatible development-RBF
-path is hardware-tested for the narrow MiSTer-compatible load/Stop lifecycle
-and subsequent game regression. The accepted game slice is one player with
-D-pad, A/B/C, and Start. Audio, Mega Drive saves, six-button input, multiplayer,
-remapping, hot-plug recovery, generalized RBF ABIs, and development video/input
-remain unsupported.
-
-## Milestone status
-
-```text
-legacy dev/prod = current game-capable path
-native-dev = hardware-tested Mega Drive launch/input/Stop/relaunch
-Milestone 2 = complete
-Milestone 3 = complete for the defined one-player Mega Drive vertical slice
-native development RBF = hardware-tested MiSTer-compatible load/Stop/game-regression path
-Milestone 4 = complete for the defined MiSTer-compatible development lifecycle
-```
+The `native-dev` image installs only the sealed FES core packages selected by
+the FES profile; [core status](../../docs/core-status.md) records which packages
+have exact-artifact kit acceptance. Its MiSTer-compatible development-RBF path
+is hardware-tested for the narrow load/Stop lifecycle. The earlier Mega Drive
+image slice and its one-player hardware results are dated evidence for a
+retired lane ([baseline](docs/hardware/native-megadrive-baseline.md)), not a
+current image capability.
 
 ## Build and test
 
