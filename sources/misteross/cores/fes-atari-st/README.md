@@ -429,7 +429,10 @@ loaders or raster/border effects.
 pinned 192 KiB firmware on the actual FX68K/chipset model. Its default ROM
 digest selects stock EmuTOS; an explicit `--rom-sha256` admits an independently
 identified original TOS image without changing its bytes. It freezes source,
-ROM, disk and generated-model identities before execution. Its bounded fault
+ROM, disk and generated-model identities before execution. The diagnostic
+accepts 1..120 guest seconds (default 15), allowing several sampled
+tracks and the main-menu disk reload in one continuous run. The host deadline
+remains independent and must allow the longer simulation to finish. The fault
 log records the first 64 bus errors with the latched address, direction and
 function code; the first eight faults also capture RAM. The exported CPU PC
 is diagnostic prefetch/exception state, not an instruction-retirement trace.

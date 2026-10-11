@@ -306,7 +306,8 @@ def main(argv=None):
     parser.add_argument("--output", type=Path, required=True, help="new ignored output directory")
     parser.add_argument("--revision", default="HEAD")
     parser.add_argument("--working-tree", action="store_true", help="explicitly freeze current diagnostic edits")
-    parser.add_argument("--seconds", type=int, default=15)
+    parser.add_argument("--seconds", type=int, default=15,
+                        help="1..120 guest seconds; longer runs cover multi-track playback and disk reload")
     parser.add_argument("--key-at", "--key-b-at", dest="key_at", type=int,
                         help="press selected HID usage for 150 ms at this simulated second; B by default")
     parser.add_argument("--key-event", action="append", default=[], metavar="SECOND:HID[:HOLD_MS]",
@@ -325,8 +326,8 @@ def main(argv=None):
     args.key_usage = 5 if args.key_usage is None else args.key_usage
     if len(args.rom_sha256) != 64 or any(c not in "0123456789abcdef" for c in args.rom_sha256):
         parser.error("--rom-sha256 must be a lowercase SHA-256 digest")
-    if not 1 <= args.seconds <= 30:
-        parser.error("--seconds must be 1..30")
+    if not 1 <= args.seconds <= 120:
+        parser.error("--seconds must be 1..120")
     args.trace_start = min(6, args.seconds-1) if args.trace_start is None else args.trace_start
     args.trace_end = min(7, args.seconds) if args.trace_end is None else args.trace_end
     if not 0 <= args.trace_start < args.trace_end <= args.seconds:
