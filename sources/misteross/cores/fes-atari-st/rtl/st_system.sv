@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Reusable 520ST system: storage and video/audio sockets remain external.
 module st_system #(
+    // PAL STF master 32,084,988 / 4; sync-mode writes do not switch crystals.
+    // https://github.com/hatari/hatari/blob/v2.5.0/src/clocks_timings.c
+    parameter integer CPU_CLOCK_HZ = 8_021_247,
     parameter integer ENABLE_FLOPPY_WRITE = 0,
     parameter integer MFP_WAIT_STATES = 0,
     parameter EARLY_RAM_WRITE_COMPLETION = 0
@@ -78,7 +81,7 @@ module st_system #(
     // is empty. A plugged part owns the response and may insert wait states.
     wire empty_cartridge = !exp_present && exp_addr >= 23'h7d0000 && exp_addr < 23'h7e0000;
     assign exp_req = bus_req && !io_selected;
-    st_machine #(.EARLY_RAM_WRITE_COMPLETION(EARLY_RAM_WRITE_COMPLETION)) machine (
+    st_machine #(.CPU_CLOCK_HZ(CPU_CLOCK_HZ), .EARLY_RAM_WRITE_COMPLETION(EARLY_RAM_WRITE_COMPLETION)) machine (
         .clk_sys(clk_sys), .reset(reset),
         .rom_req(rom_req), .rom_addr(rom_addr), .rom_rdata(rom_rdata), .rom_ready(rom_ready),
         .ram_req(ram_req), .ram_addr(ram_addr), .ram_wdata(ram_wdata),
@@ -97,7 +100,7 @@ module st_system #(
         .palette(palette), .sync_mode(sync_mode), .debug_addr(debug_addr),
         .debug_bus_error(debug_bus_error), .debug_overlay(debug_overlay), .debug_halted(debug_halted)
     );
-    st_io #(.ENABLE_FLOPPY_WRITE(ENABLE_FLOPPY_WRITE), .MFP_WAIT_STATES(MFP_WAIT_STATES)) io (
+    st_io #(.CPU_CLOCK_HZ(CPU_CLOCK_HZ), .ENABLE_FLOPPY_WRITE(ENABLE_FLOPPY_WRITE), .MFP_WAIT_STATES(MFP_WAIT_STATES)) io (
         .clk(clk_sys), .reset(exp_reset), .cold_reset(cold_reset), .cpu_cycle_ce(exp_phi2), .req(bus_req), .addr(exp_addr),
         .write(exp_write), .wdata(exp_wdata), .byte_enable(exp_byte_enable),
         .selected(io_selected), .ack(io_ack), .rdata(io_rdata),

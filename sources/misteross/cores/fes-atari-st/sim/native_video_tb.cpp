@@ -11,9 +11,11 @@
 struct Test {
     Vst_native_video_sim_top dut;
     static constexpr uint64_t SysPeriod=19149, PixelPeriod=13468;
-    static constexpr unsigned LineClocks=3337, DisplayStart=366, DisplayEnd=2454;
+    static constexpr unsigned CpuHz=8021247, SystemHz=52224000;
+    static constexpr unsigned LineCycles=512, DisplayStart=56, DisplayEnd=376;
+    uint64_t cpu_phase=0;
     uint64_t next_sys=0,next_pixel=7331,sys_cycles=0,pixel_cycles=0,checks=0;
-    unsigned source_clock=0,source_frame=0,position=0,output_frame=0,selected=0;
+    unsigned source_clock=313*512-1,source_frame=0,position=0,output_frame=0,selected=0;
     unsigned transfer_address=0,delay=0,transfers=0,black_rows=0,stall_black_rows=0,repeat_frames=0;
     bool pending=false,complete=false,stalled=false,previous_front=false;
     std::array<int,247> row_black{};
@@ -45,12 +47,15 @@ struct Test {
     void system_edge(){
         if(dut.reset_sys){dut.video_ready=0;pending=complete=false;}
         else {
-            if(source_clock==0)++source_frame;
-            unsigned line=source_clock/LineClocks,phase=source_clock%LineClocks;
-            dut.native_vblank=source_clock==0;
+            cpu_phase+=CpuHz;
+            const bool cpu_tick=cpu_phase>=SystemHz;
+            if(cpu_tick){cpu_phase-=SystemHz;source_clock=(source_clock+1)%(313*LineCycles);}
+            if(cpu_tick&&source_clock==0)++source_frame;
+            unsigned line=source_clock/LineCycles,phase=source_clock%LineCycles;
+            dut.native_vblank=cpu_tick&&source_clock==0;
             dut.native_line=line;
-            dut.native_cycle=phase*512/LineClocks;
-            dut.native_pixel_ce=phase==0 || phase*512/LineClocks != (phase-1)*512/LineClocks;
+            dut.native_cycle=phase;
+            dut.native_pixel_ce=cpu_tick;
             const bool ntsc=source_frame==9;
             const unsigned top=ntsc?34:63;
             const unsigned rows=(source_frame==6||source_frame==11)?247:ntsc?226:200;
@@ -66,7 +71,7 @@ struct Test {
                       (source_frame==6||ntsc)&&line>=(ntsc?5u:34u)?border_colour(line,border_x,ntsc):source_mode()==2?0:0xdb);
             if(source_frame==2&&dut.border_overflow)border_overflow_seen=true;
             unsigned intensity=((line>=top?line-top:0)+source_frame)%7+1;
-            palette(1,source_mode()==1?0x38:phase<DisplayStart+1044?intensity<<6:intensity);
+            palette(1,source_mode()==1?0x38:phase<DisplayStart+160?intensity<<6:intensity);
             if(!dut.video_req){require(!pending||complete,"memory request abandoned");pending=complete=false;dut.video_ready=0;}
             else if(!pending){
                 require(dut.video_addr<0x40000,"invalid screen base wrapped into RAM");
@@ -85,7 +90,6 @@ struct Test {
             dut.eval();
             require(!dut.write_pixel||!dut.front_valid||dut.write_bank!=dut.front_bank,
                     "producer wrote the displayed bank");
-            source_clock=(source_clock+1)%(313*LineClocks);
         }
         dut.clk_sys=1;dut.eval();dut.clk_sys=0;dut.eval();++sys_cycles;
     }

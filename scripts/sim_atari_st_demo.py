@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -180,9 +181,21 @@ def run(args):
     record["run_command"] = invocation
     record["timeout_seconds"] = args.timeout_seconds
     record["audio_capture"] = "unfiltered signed mono 48 kHz chip PCM; no audio-fidelity oracle"
+    # Read the frozen selection, including historical revisions whose system
+    # used the machine's nominal default. Never label a new capture as 2 MHz
+    # after changing the selected board's clock policy.
+    system_rtl = (source / (PREFIX + CORE + "rtl/st_system.sv")).read_text()
+    clock_match = re.search(r"parameter integer CPU_CLOCK_HZ\s*=\s*([0-9_]+)\s*,", system_rtl)
+    if "parameter integer CPU_CLOCK_HZ" in system_rtl and clock_match is None:
+        raise ValueError("unsupported selected CPU clock policy")
+    cpu_clock_hz = int(clock_match.group(1).replace("_", "")) if clock_match else 8000000
+    record["machine_clocks"] = {"cpu_hz": cpu_clock_hz,
+                                 "psg_hz": cpu_clock_hz // 4,
+                                 "acia_hz": cpu_clock_hz // 16,
+                                 "mfp_crystal_hz": 2457600}
     if args.shared_memory and b'debug_ym_write' in (source / wrapper).read_bytes():
         record["ym_trace"] = {"file": "demo-ym.jsonl", "system_clock_hz": 52224000,
-                              "chip_clock_hz": 2000000,
+                              "chip_clock_hz": record["machine_clocks"]["psg_hz"],
                               "scope": "all valid-register PSG data acceptance edges during guest run; raw values before register masking",
                               "fidelity_asserted": False}
     process = subprocess.Popen(invocation, cwd=build, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)

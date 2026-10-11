@@ -13,7 +13,10 @@ semantics live in [mister-packages](../../../mister-packages/docs/computer-io.md
 
 The shared [FX68K](../fes-common/rtl/fx68k/README.md) retains exact upstream
 bytes and GPL-3.0-or-later licensing. Alternating fractional phase enables
-produce an average 8 MHz CPU in the 52.224 MHz system domain. CPU bus
+produce an average 8.021247 MHz PAL CPU in the 52.224 MHz system domain.
+`st_system` supplies this board rate to the CPU and derives PSG/ACIA rates
+of 2,005,311/501,327 Hz. Standalone machine/I/O fixtures retain their
+parameterized nominal defaults. CPU bus
 transactions latch address, function code, write data and big-endian byte
 strobes. A held request completes once; DTACK/BERR persists until AS or both
 data strobes release. Rearming between strobes supports TAS. An unanswered
@@ -131,9 +134,9 @@ other IRQ levels use the CPU's VPA autovectors. Its independent 2.4576 MHz
 clock enable gives EmuTOS's timer C `/64 × 192` exactly 200 Hz. Native
 VBL/HBL and display enable share the CPU's phase-2 enable, independently of
 HDMI. PAL uses 313 × 512 CPU cycles, NTSC 263 × 508, and monochrome
-501 × 224. At the retained nominal 8 MHz these are approximately
-49.920/59.878/71.286 Hz; the original PAL/NTSC crystal frequencies are not
-reproduced. Timer B receives active display enable, including opened bottom
+501 × 224. The fixed PAL board rate gives approximately
+50.053/60.037/71.475 Hz. The 60 Hz sync bit retains the PAL crystal; a
+physical NTSC crystal policy remains separate. Timer B receives active display enable, including opened bottom
 lines, so blank lines do not contribute events. The live shifter address counter advances by two bytes per four native CPU
 cycles during DMA, including opened bottom lines. Its read visibility follows
 Hatari 2.5.0's eight-cycle offset; blanking holds the address and VBL reloads
@@ -168,7 +171,7 @@ HD6301 program loading, monitor sampling and accelerated cursor modes are
 absent; unsupported command modes consume their parameters safely.
 
 `st_ym2149.sv` reuses the shared AY engine with a YM2149 option: sixteen
-registers, 32-step envelopes, a 2 MHz enable and 48 kHz PCM. Port A drives
+registers, 32-step envelopes, a CPU/4 enable (2.005311 MHz on the PAL board) and 48 kHz PCM. Port A drives
 floppy side and active-low drive selects. Its DAC is a bounded approximation;
 it does not reproduce analog filtering. Board transport uses the existing
 signed stereo PCM/I2S path, duplicating the mono chip into both channels.
@@ -219,7 +222,7 @@ monochrome 2×1. The focused indexed low fallback retains 4×3. High mode
 supports palette-bit inversion; color borders use palette entry 0.
 `st_video_adapter.sv` defaults to native low-resolution capture. In the
 52.224 MHz system domain, `st_native_low_video.sv` prefetches alternating
-80-word RAM rows and selects the live palette at each nominal 8 MHz pixel.
+80-word RAM rows and selects the live palette on the same CPU-derived native pixel pulse as border capture.
 Three RGB333 banks hold up to 320×247 pixels. Each bank uses 78 independent
 1024-word chunks, avoiding the mapper's less compact deep one-bit layout.
 Registered chunk selection aligns the synchronous words with the original

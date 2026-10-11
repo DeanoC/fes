@@ -1703,7 +1703,9 @@ companion of a pinned boundary flip-flop, using the shared
 
 `cores/fes-atari-st` assembles the original ST's full FX68K 68000 and
 functional chipset in `st_system.sv`. Fractional alternating phase enables
-run an average 8 MHz CPU in the 52.224 MHz system domain. `st_machine.sv`
+run an average 8.021247 MHz PAL CPU in the 52.224 MHz system domain.
+`st_system` selects this fixed board clock and supplies CPU/4 and CPU/16
+to PSG and ACIA; software sync changes alter raster lengths, not oscillators. `st_machine.sv`
 latches big-endian bus transactions, applies supervisor protection and the
 ROM-vector alias, rearms between TAS strobes, and implements the original
 MMU's RAM-sizing address aliases. One physical 512 KiB bank is populated;
@@ -1795,7 +1797,7 @@ delayed RAM and media completions, including rejected mutations and later retry.
 
 `st_video_adapter.sv` captures ordinary low-resolution native pixels through
 `st_native_low_video.sv`. Its system-domain row prefetch uses the existing
-video RAM port, selecting the live RGB333 palette at each nominal 8 MHz pixel.
+video RAM port, selecting the live RGB333 palette on the same CPU-derived native pixel pulse as border capture.
 Each RGB333 frame uses 78 shallow 1024-word chunks, retaining every 320×247
 pixel. Synchronous chunk reads and registered chunk selection preserve the
 one-clock read boundary while avoiding the deeper one-bit memory mapping.
@@ -1852,8 +1854,8 @@ before mode selection, avoiding a next-line carry chain in the lookup predicate.
 `st_io.sv` remains a reduced native timing model, independent of fixed HDMI.
 The CPU phase-2 enable advances one horizontal counter, with line counts
 driving VBL: 313×512 PAL, 263×508 NTSC, and 501×224 monochrome CPU cycles.
-The retained nominal 8 MHz CPU therefore gives approximately
-49.920/59.878/71.286 Hz rather than rounded integer frame rates. MFP crystal
+The fixed 8.021247 MHz PAL CPU gives approximately
+50.053/60.037/71.475 Hz rather than rounded integer frame rates. MFP crystal
 timing remains independent at 2.4576 MHz. The frame/capture pulse stays at
 rollover while IRQ4 asserts 60 native CPU cycles later, selecting the STF WS1
 VBL phase. IACK clears the pending event; reset cancels its scheduled delay.

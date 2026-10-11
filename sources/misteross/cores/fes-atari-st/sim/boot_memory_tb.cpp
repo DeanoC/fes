@@ -222,7 +222,14 @@ class Boot {
             dut.keyboard[key_usage/32]=1u<<(key_usage%32);
         if(!dut.reset_sys && dut.audio_valid) audio.sample(dut.audio_pcm,system_cycles-boot_start);
 #ifdef ST_RAM_BUS_PROBE
-        if (!dut.reset_sys && dut.debug_cpu_tick) ++cpu_ticks;
+        if (dut.reset_sys) require(!dut.debug_cpu_tick, "CPU phase-2 suppressed during reset", system_cycles);
+        if (!dut.reset_sys) {
+            const uint64_t elapsed = system_cycles - boot_start;
+            const bool expected_tick = (elapsed + 1) * 8021247 / SystemHz != elapsed * 8021247 / SystemHz;
+            require(bool(dut.debug_cpu_tick) == expected_tick,
+                    "PAL CPU phase-2 rate and reset origin", system_cycles);
+            if (dut.debug_cpu_tick) ++cpu_ticks;
+        }
         if (!dut.reset_sys && dut.cpu_req && !cpu_transfer.active && dut.cpu_addr == 0x300)
             ram_bus_starts.emplace_back(bool(dut.cpu_write), cpu_ticks);
 #endif

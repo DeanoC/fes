@@ -28,7 +28,6 @@ module st_native_low_video (
     output reg [8:0] output_height,
     output reg [31:0] debug_frames, debug_skipped, debug_underruns
 );
-    localparam [31:0] SYSTEM_HZ = 32'd52224000;
     // Explicit shallow chunks avoid the mapper selecting ninety 8192x1
     // blocks per 79040x9 bank instead of seventy-eight 1024x10 blocks.
     // Keep the same registered read boundary and complete-frame ownership.
@@ -120,7 +119,7 @@ module st_native_low_video (
     reg [1:0] write_bank;
     reg [8:0] frame_top, expected_row, pixel_x;
     reg [23:0] frame_base;
-    reg [31:0] epoch, pixel_phase;
+    reg [31:0] epoch;
     reg [16:0] pixels;
     reg line_valid;
     wire [8:0] row = native_line - frame_top;
@@ -128,8 +127,9 @@ module st_native_low_video (
     wire active_row = native_line >= frame_top && row < maximum_height;
     wire display_rise = native_display && !previous_display;
     wire display_fall = !native_display && previous_display;
-    wire [32:0] pixel_sum = {1'b0, pixel_phase} + 33'd8000000;
-    wire pixel_due = display_rise || pixel_sum >= {1'b0, SYSTEM_HZ};
+    // st_io registers this pulse with native cycle/DE. Consume the same
+    // event as border capture, without an independent oscillator or phase.
+    wire pixel_due = native_pixel_ce;
     wire [8:0] sample_x = display_rise ? 9'd0 : pixel_x;
     wire write_pixel = owned && enabled && !hold && active_row && native_display &&
                        pixel_due && sample_x < 9'd320;
@@ -237,7 +237,7 @@ module st_native_low_video (
             frame_pal <= 1'b1; bottom_seen <= 1'b0; border_enabled <= 1'b0; border_overflow_reported <= 1'b0; pal_banks <= 3'b111;
             write_bank <= 2'd0; frame_top <= 9'd63; expected_row <= 9'd0;
             pixel_x <= 9'd0; frame_base <= 24'd0; epoch <= 32'd0;
-            pixel_phase <= 32'd0; pixels <= 17'd0;
+            pixels <= 17'd0;
             cache_valid <= 2'd0; memory_state <= IDLE;
             job_bank <= 1'b0; word_index <= 7'd0; job_epoch <= 32'd0;
             memory_req <= 1'b0; memory_addr <= 18'd0;
@@ -266,7 +266,7 @@ module st_native_low_video (
                 frame_pal <= sync_mode[1]; bottom_seen <= 1'b0; border_enabled <= resolution == 2'd0;
                 enabled <= 1'b0; base_valid <= 1'b0;
                 expected_row <= 9'd0; good_frame <= 1'b1;
-                pixels <= 17'd0; pixel_x <= 9'd0; pixel_phase <= 32'd0;
+                pixels <= 17'd0; pixel_x <= 9'd0;
                 cache_valid <= 2'd0;
                 if (!bank_free && resolution == 2'd0 && !hold) debug_skipped <= debug_skipped + 32'd1;
             end else begin
@@ -280,8 +280,6 @@ module st_native_low_video (
                     pixel_x <= sample_x + 9'd1;
                     pixels <= pixels + 17'd1;
                 end
-                if (display_rise || !native_display) pixel_phase <= 32'd0;
-                else pixel_phase <= pixel_due ? 32'(pixel_sum - {1'b0, SYSTEM_HZ}) : pixel_sum[31:0];
                 if (display_fall && owned && enabled && active_row && !hold) begin
                     expected_row <= expected_row + 9'd1;
                     if (pixel_x != 9'd320 || row != expected_row) good_frame <= 1'b0;
