@@ -58,15 +58,44 @@ struct Test {
         if(d.hold)need(!d.pending&&!d.pixel&&!d.frame_write,"Hold failed to cancel output");
     }
     void pixel_clock(){d.clk_pixel=1;d.eval();d.clk_pixel=0;d.eval();}
-    unsigned read(unsigned address){d.output_address=address;pixel_clock();return d.output_rgb;}
+    unsigned read(unsigned address){d.output_address=address;pixel_clock();pixel_clock();return d.output_rgb;}
     void replay(){
+        // SOF selects a publication, while the sampled read retains its old
+        // bank. x4 distinguishes stamp84's blue from stamp88's red.
+        const bool previous=d.front_valid;
+        const unsigned old_rgb=read(4);
         for(unsigned i=0;i<4;++i)pixel_clock();d.output_sof=1;pixel_clock();d.output_sof=0;
+        if(previous)need(d.output_rgb==old_rgb,"SOF retagged an in-flight bank read");
+        pixel_clock();
+        if(previous)need(d.output_rgb==old_rgb,"SOF changed sampled read bank");
+        pixel_clock();
+        need(d.output_rgb==(4<first_change()?0x040:0x007),"SOF delayed bank selection");
         need(d.front_valid&&d.sequence_number==frame,"frame publication identity");
         need(bool(d.front_pal)==pal&&d.front_height==bottom()-top(),"immutable published geometry");
         for(unsigned row: {0u,bottom()-top()-1})for(unsigned x: {0u,1u,4u,5u,8u,9u,319u}) {
             int first=first_change();
             unsigned expected=x==0?0x1c7:(int(x)<first?0x040:0x007);
             need(read(row*320+x)==expected,"immutable first/last bottom pixel");
+        }
+        // Stream every edge: each response belongs to the preceding request.
+        // Alternating markers/spans/invalid addresses rejects one-edge replay
+        // and stale selector tags, including the final partially used chunk.
+        if(pal){
+            const unsigned addresses[]={1,64640,65536,78080,78848,79872,0,131071,79039,1023,1024};
+            auto expected=[&](unsigned address){
+                if(address>=78*1024)return 0u;
+                unsigned x=address%320;
+                return x==0?0x1c7u:(int(x)<first_change()?0x040u:0x007u);
+            };
+            unsigned preceding=addresses[0], distinguishable=0;read(preceding);
+            for(unsigned address:addresses){
+                d.output_address=address;pixel_clock();
+                need(d.output_rgb==expected(preceding),"streamed two-edge address/tag alignment");
+                if(expected(address)!=expected(preceding))++distinguishable;
+                preceding=address;
+            }
+            pixel_clock();need(d.output_rgb==expected(preceding),"stream drain address/tag alignment");
+            need(distinguishable>=8,"stream could not reject a one-edge/stale-tag replay");
         }
         for(unsigned row: {0u,29u,(pal?275u:254u)}){
             d.border_row=row;for(unsigned i=0;i<4;++i)pixel_clock();

@@ -274,14 +274,17 @@ Its registered accepted-write source isolates the output model; real-CPU palette
 admission, RAM 12/512 intervals and Timer B use their existing fixtures.
 Three RGB333 banks hold up to 320×247 pixels. Each bank uses 78 independent
 1024-word chunks, avoiding the mapper's less compact deep one-bit layout.
-Registered chunk selection aligns the synchronous words with the original
-one-clock read boundary; frame publication and pixel capacity are unchanged.
+Five groups of sixteen chunks register local selection before the final
+bank/group mux. Address and bank tags stay aligned with the two-edge read;
+invalid chunks return zero. Frame publication and pixel capacity are unchanged.
+Fresh resource and routed timing qualification remain required.
 The banks cross to the 74.25 MHz pixel domain through
 publish/release toggles. Only complete native frames are published; the HDMI
 reader pins one bank until output SOF and selects the newest available frame.
 This repeats or drops complete source frames when native and output rates differ.
-Registered RAM write data and a two-pixel address lookahead keep native RGB
-sampling and scaled output aligned while shortening paths into the buffers.
+Registered RAM write data and a separate three-pixel RGB address forecast keep
+native sampling and scaled output aligned. Border replay retains its two-pixel
+forecast, preserving fixed output geometry and the existing socket boundary.
 Ordinary and opened-bottom frames use the same centred 2×2 canvas, preserving
 square native pixels and image position. All 247 PAL or 226 NTSC rows remain visible.
 Height travels with each immutable bank and changes only at output SOF.

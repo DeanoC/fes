@@ -333,7 +333,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     wire [9:0] native_top = canvas_top + 10'd58;
     wire [9:0] native_end = native_top + {native_height_captured, 1'b0};
     wire native_image_line = vertical >= native_top && vertical < native_end;
-    // Forecast two pixels ahead: address register, then synchronous RGB read.
+    // Forecast RGB three pixels ahead: address, RAM, grouped selection.
     // Low output rows repeat twice. Advance the row base in blanking,
     // before the next-line lookahead, without a vertical-coordinate multiply.
     // Units of 64 pixels keep the address addition confined to its upper bits.
@@ -360,8 +360,12 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
                               9'((next_vertical - canvas_top) >> 1) : 9'd0;
         end
     end
-    wire [8:0] rgb_x = border_next_x >= 9'd48 && border_next_x < 9'd368 ?
-                       border_next_x - 9'd48 : 9'd0;
+    // RGB's extra read edge has its own forecast. Border replay retains the
+    // original two-pixel forecast and registered raster RGB boundary.
+    wire [8:0] rgb_next_x = horizontal >= 11'd221 && horizontal < 11'd1053 ?
+                            9'((horizontal - 11'd221) >> 1) : 9'd0;
+    wire [8:0] rgb_x = rgb_next_x >= 9'd48 && rgb_next_x < 9'd368 ?
+                       rgb_next_x - 9'd48 : 9'd0;
     wire [10:0] rgb_address_upper = rgb_row_base + {8'd0, rgb_x[8:6]};
     reg [16:0] rgb_ram_address;
     always @(posedge clk_pixel) begin

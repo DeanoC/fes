@@ -1838,8 +1838,10 @@ geometry, reset and Hold. The independent-clock adapter fixture also exercises
 checks isolate output timing; they do not replace real-CPU admission or original
 demo and physical-hardware qualification.
 Each RGB333 frame uses 78 shallow 1024-word chunks, retaining every 320×247
-pixel. Synchronous chunk reads and registered chunk selection preserve the
-one-clock read boundary while avoiding the deeper one-bit memory mapping.
+pixel. Synchronous chunk reads avoid the deeper one-bit memory mapping. Five groups
+of sixteen chunks split selection across a second pixel-clock edge, with group,
+validity and front-bank tags aligned to the sampled words. The last group pads
+two absent chunks with zero; out-of-range reads return zero.
 Three RGB333 banks have explicit publish/release ownership
 across the system and pixel domains. Only completed captures are published;
 the fixed 60 Hz reader selects the newest completed bank at SOF and pins it
@@ -1847,8 +1849,9 @@ until a later SOF. A slow or stopped reader makes the producer skip frames
 rather than overwrite the displayed bank. Missing rows become whole black
 lines; incomplete or held captures are discarded. RAM address validation
 rejects an entire row before any truncation. Resolved RGB enters a registered
-RAM write bundle after output palette lookup; a two-pixel forecast feeds a
-registered read address before the synchronous pixel read. A blanking-time
+RAM write bundle after output palette lookup; a three-pixel RGB forecast feeds a
+registered address before synchronous RAM and grouped-selection reads.
+Border replay retains its separate two-pixel forecast. A blanking-time
 line counter advances the low-resolution row base by five 64-pixel units after
 each two output lines. Bank height is immutable publication metadata: ordinary
 frames retain 200 rows; opened PAL/NTSC frames carry 247/226 rows. Publication waits

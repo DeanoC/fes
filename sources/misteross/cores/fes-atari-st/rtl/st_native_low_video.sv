@@ -31,15 +31,44 @@ module st_native_low_video (
 );
     // Explicit shallow chunks avoid the mapper selecting ninety 8192x1
     // blocks per 79040x9 bank instead of seventy-eight 1024x10 blocks.
-    // Keep the same registered read boundary and complete-frame ownership.
+    // Complete-frame ownership is independent of the playback read pipeline.
     localparam integer FRAME_CHUNKS = 78;
     wire [8:0] chunk_read0 [0:FRAME_CHUNKS-1];
     wire [8:0] chunk_read1 [0:FRAME_CHUNKS-1];
     wire [8:0] chunk_read2 [0:FRAME_CHUNKS-1];
     reg [6:0] read_chunk;
-    wire [8:0] read0 = read_chunk < 7'd78 ? chunk_read0[read_chunk] : 9'd0;
-    wire [8:0] read1 = read_chunk < 7'd78 ? chunk_read1[read_chunk] : 9'd0;
-    wire [8:0] read2 = read_chunk < 7'd78 ? chunk_read2[read_chunk] : 9'd0;
+    // Register local 16-chunk groups before the final group/bank mux.
+    // These are pixel registers; all 234 synchronous RAM ports stay unchanged.
+    wire [8:0] group_read0 [0:4], group_read1 [0:4], group_read2 [0:4];
+    reg [2:0] read_group;
+    reg [1:0] read_bank_ram, read_bank;
+    reg read_valid;
+    generate for (genvar g = 0; g < 5; g = g + 1) begin : read_groups
+        wire [8:0] words0 [0:15], words1 [0:15], words2 [0:15];
+        for (genvar k = 0; k < 16; k = k + 1) begin : words
+            if (g * 16 + k < FRAME_CHUNKS) begin : present
+                assign words0[k] = chunk_read0[g * 16 + k];
+                assign words1[k] = chunk_read1[g * 16 + k];
+                assign words2[k] = chunk_read2[g * 16 + k];
+            end else begin : padding
+                assign words0[k] = 9'd0;
+                assign words1[k] = 9'd0;
+                assign words2[k] = 9'd0;
+            end
+        end
+        reg [8:0] selected0, selected1, selected2;
+        always @(posedge clk_pixel) begin
+            selected0 <= words0[read_chunk[3:0]];
+            selected1 <= words1[read_chunk[3:0]];
+            selected2 <= words2[read_chunk[3:0]];
+        end
+        assign group_read0[g] = selected0;
+        assign group_read1[g] = selected1;
+        assign group_read2[g] = selected2;
+    end endgenerate
+    wire [8:0] read0 = read_valid ? group_read0[read_group] : 9'd0;
+    wire [8:0] read1 = read_valid ? group_read1[read_group] : 9'd0;
+    wire [8:0] read2 = read_valid ? group_read2[read_group] : 9'd0;
     reg [1:0] front_bank;
     reg [2:0] published, released, seen;
     (* async_reg = "true" *) reg [2:0] pub_meta, pub_sync, release_meta, release_sync;
@@ -56,11 +85,17 @@ module st_native_low_video (
     wire border_overflow;
     reg [31:0] front_sequence;
     reg [8:0] front_border;
-    assign output_rgb = front_bank == 2'd0 ? read0 : front_bank == 2'd1 ? read1 : read2;
+    assign output_rgb = read_bank == 2'd0 ? read0 : read_bank == 2'd1 ? read1 : read2;
     assign output_border = front_border;
-    // The chunk selector and all words capture the same incoming address.
-    // Their aligned combinational mux retains the original one-clock read.
-    always @(posedge clk_pixel) read_chunk <= output_address[16:10];
+    // One RAM edge and one grouped-selection edge. Capture tags with their
+    // words, including the old bank for a read in flight when SOF selects anew.
+    always @(posedge clk_pixel) begin
+        read_chunk <= output_address[16:10];
+        read_group <= read_chunk[6:4];
+        read_bank_ram <= front_bank;
+        read_bank <= read_bank_ram;
+        read_valid <= !reset_pixel && read_chunk < 7'd78;
+    end
     integer candidate;
     reg choose_valid;
     reg [1:0] choose_bank;
