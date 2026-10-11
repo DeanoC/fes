@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "Vst_memory_sim_top.h"
+#include "Vst_memory_sim_top___024root.h"
+#include <algorithm>
 #include "verilated.h"
 #include <array>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <vector>
+
+#ifndef ST_SLOT_POLICY
+#define ST_SLOT_POLICY 0
+#endif
 
 #ifndef ST_REFRESH_WAIT_CYCLES
 #define ST_REFRESH_WAIT_CYCLES 4
@@ -39,7 +45,7 @@ public:
     }
     std::vector<uint16_t> words = std::vector<uint16_t>(0xa6800, 0);
     uint64_t cycle = 0, reads = 0, writes = 0, refreshes = 0, mode_sets = 0;
-    uint64_t last_refresh = 0, read_due = 0;
+    uint64_t last_refresh = 0, read_due = 0, max_refresh_gap = 0;
     uint16_t pending_read = 0;
     std::array<unsigned, 4> row{};
     std::array<bool, 4> open{};
@@ -126,6 +132,11 @@ public:
             require(precharged, "refresh before initial precharge", cycle);
             for (unsigned b = 0; b < 4; ++b)
                 require(!open[b] && cycle >= available[b], "refresh with active/recovering bank", cycle);
+            if (initialized) {
+                const auto gap = cycle-last_refresh;
+                max_refresh_gap = std::max(max_refresh_gap, gap);
+                if (ST_SLOT_POLICY) require(gap <= 408, "slot refresh exceeds 7.8 us", cycle);
+            }
             last_refresh = cycle;
             after_refresh = true;
             ++refreshes;
@@ -158,15 +169,27 @@ public:
     std::vector<uint16_t> reference = std::vector<uint16_t>(0xa6800, 0);
     uint64_t cycles = 0, completed = 0;
     unsigned max_latency = 0;
+    bool posted_pending = false;
+    unsigned posted_address = 0, posted_value = 0;
+    uint64_t posted_write_count = 0, posted_commits = 0;
     unsigned read_min = 160, read_max = 0, write_min = 160, write_max = 0;
+    bool hold_raster = false;
     bool held_cpu_read = false;
     unsigned retained_cpu_data = 0;
 
     void step() {
+        dut.raster_reset = dut.reset || hold_raster;
+        dut.memory_phase = dut.reset || hold_raster ? 0 : ((cycles*8000000/52224000)&3);
         dut.clk = 0;
         dut.eval();
         require(dut.sdram_clk == 1, "SDRAM clock pin polarity", cycles);
         dut.dq_sample = memory.tick(dut);
+        if (posted_pending && memory.writes >= posted_write_count) {
+            require(memory.writes == posted_write_count, "posted write lost physical ordering", cycles);
+            require(memory.words[posted_address] == posted_value, "posted WRITE data/byte mask mismatch", cycles);
+            posted_pending = false;
+            ++posted_commits;
+        }
         dut.eval();
         dut.clk = 1;
         dut.eval();
@@ -226,9 +249,16 @@ public:
             if (valid) {
                 if (r.lanes & 1) reference[address] = (reference[address] & 0xff00) | (r.data & 0xff);
                 if (r.lanes & 2) reference[address] = (reference[address] & 0xff) | (r.data & 0xff00);
-                require(memory.words[address] == reference[address], "physical WRITE data/byte mask mismatch", cycles);
+                if (ST_SLOT_POLICY && client == 0) {
+                    require(!posted_pending, "second posted CPU write accepted before first physical commit", cycles);
+                    posted_pending = true;
+                    posted_address = address;
+                    posted_value = reference[address];
+                    posted_write_count = memory.writes + 1;
+                } else require(memory.words[address] == reference[address], "physical WRITE data/byte mask mismatch", cycles);
             }
         } else {
+            require(!posted_pending, "read acknowledged before preceding posted write committed", cycles);
             unsigned expected = valid ? reference[address] : 0;
             if (client == 4 && valid) expected = r.address & 1 ? expected & 0xff : expected >> 8;
             if (data(client) != expected) {
@@ -380,13 +410,34 @@ public:
         idle(10);
     }
 
-    void contention() {
+    void posted_reset_drain() {
+        const Request write{0x31a, 0x5678, 3, true};
+        request(0, write);
+        unsigned waited=0;
+        while (!ready(0)) { step(); require(++waited < 160, "posted write acceptance stalled", cycles); }
+        check(0, write);
+        dut.reset = 1;
+        dut.eval();
+        require(!dut.cpu_ready, "posted write ready escaped warm reset", cycles);
+        request(0, write, false);
+        dut.cpu_addr = 0x32a; dut.cpu_wdata = 0xfdfd; dut.cpu_byte_enable = 0;
+        idle(2); dut.reset=0; idle(20);
+        require(!posted_pending && memory.words[write.address] == 0x5678,
+                "accepted posted write lost after reset/payload change", cycles);
+        transaction(1, {write.address});
+    }
+
+    void contention(unsigned clients = 31, bool continuous_cpu_writes = false) {
         uint32_t random = 0x52068000;
         auto next = [&]() { random ^= random << 13; random ^= random >> 17; random ^= random << 5; return random; };
         std::array<Request, 5> pending{};
         std::array<bool, 5> active{};
         std::array<unsigned, 5> age{}, delay{}, remaining{{600, 600, 600, 600, 600}};
-        unsigned outstanding = 3000;
+        unsigned outstanding = 0;
+        for (unsigned i=0;i<5;++i) {
+            if (!(clients & (1u<<i))) remaining[i]=0;
+            outstanding += remaining[i];
+        }
         while (outstanding) {
             for (unsigned i = 0; i < 5; ++i) {
                 if (!active[i] && remaining[i]) {
@@ -394,7 +445,7 @@ public:
                     auto &r = pending[i];
                     r.lanes = next() & 3;
                     r.data = next();
-                    r.write = i == 0 || i == 2 ? next() & 1 : i == 3;
+                    r.write = (continuous_cpu_writes && i == 0) || (i == 0 || i == 2 ? next() & 1 : i == 3);
                     r.address = i == 0 ? 0x100 + (next() % 0x200) :
                                 i == 1 ? 0x100 + (next() % 0x200) :
                                 i == 2 ? 8 + (next() % 0x20000) * 2 :
@@ -405,7 +456,7 @@ public:
                 }
             }
             step();
-            require(cycles - memory.last_refresh < 450, "refresh starved during contention", cycles);
+            require(cycles - memory.last_refresh <= (ST_SLOT_POLICY ? 408 : 450), "refresh starved during contention", cycles);
             unsigned completions = 0;
             for (unsigned i = 0; i < 5; ++i) {
                 if (active[i]) {
@@ -421,14 +472,86 @@ public:
                     active[i] = false;
                     --remaining[i];
                     --outstanding;
-                    delay[i] = 1 + next() % 7;
+                    delay[i] = continuous_cpu_writes ? 1 : 1 + next() % 7;
                 }
             }
             require(completions <= 1, "multiple clients completed on one SDRAM transaction", cycles);
         }
         idle(10);
+        unsigned drain = 0;
+        while (posted_pending) { step(); require(++drain <= 48, "final posted write did not drain", cycles); }
         require(reference == memory.words, "RAM and media differ from request reference", cycles);
     }
+
+#if ST_SLOT_POLICY
+    void deferred_write_reset() {
+        unsigned waited = 0;
+        while (!(dut.rootp->st_memory_sim_top__DOT__memory__DOT__controller__DOT__refresh_due &&
+                 dut.rootp->st_memory_sim_top__DOT__memory__DOT__controller__DOT__state == 5 &&
+                 ((cycles * 8000000 / 52224000) & 3) == 1)) {
+            step(); require(++waited < 1000, "missing pending-refresh write window", cycles);
+        }
+        const Request write{0x31c, 0x9abc, 3, true};
+        const auto physical_before = memory.writes;
+        request(0, write); step();
+        require(ready(0), "deferred posted write was not retained/accepted", cycles);
+        check(0, write);
+        require(memory.writes == physical_before &&
+                dut.rootp->st_memory_sim_top__DOT__memory__DOT__controller__DOT__state == 5,
+                "write was not deferred before physical controller acceptance", cycles);
+        dut.reset = 1; request(0, write, false);
+        dut.cpu_addr = 0x33c; dut.cpu_wdata = 0xdead; dut.cpu_byte_enable = 0;
+        idle(2); dut.reset = 0; idle(30);
+        require(!posted_pending && memory.writes == physical_before + 1 &&
+                memory.words[write.address] == write.data,
+                "deferred posted write lost or duplicated across warm reset", cycles);
+        transaction(0, {write.address});
+    }
+
+    void held_counter_refresh() {
+        const auto before = memory.refreshes;
+        hold_raster = true;
+        idle(2000);
+        transaction(3, {0x121, 0x2468, 3, true});
+        transaction(4, {0x242});
+        require(memory.refreshes >= before + 5, "held native counter starved refresh", cycles);
+        hold_raster = false;
+    }
+
+    void reads_without_video() {
+        const auto phase = [](uint64_t cycle) { return (cycle * 8000000 / 52224000) & 3; };
+        for (unsigned offset = 0; offset < 7; ++offset) {
+            const auto before = memory.refreshes;
+            for (unsigned i = 0; i < 256; ++i) {
+                while (!(phase(cycles) == 0 && phase(cycles-offset) == 0 &&
+                         phase(cycles-offset-1) != 0)) {
+                    step(); require(cycles - memory.last_refresh <= 408, "no-video reads starved refresh", cycles);
+                }
+                transaction(0, {0x310});
+            }
+            require(memory.refreshes > before + 15, "no-video read refresh count too low", cycles);
+        }
+    }
+
+    void writes_without_video() {
+        const auto phase = [](uint64_t cycle) { return (cycle * 8000000 / 52224000) & 3; };
+        for (unsigned offset = 0; offset < 7; ++offset) {
+            const auto before = memory.refreshes;
+            for (unsigned i = 0; i < 512; ++i) {
+                while (!(phase(cycles) == 1 && phase(cycles-offset) == 1 &&
+                         phase(cycles-offset-1) != 1)) {
+                    step();
+                    require(cycles - memory.last_refresh <= 408, "no-video CPU writes starved refresh", cycles);
+                }
+                transaction(0, {0x310, uint16_t(i), 3, true});
+            }
+            idle(30);
+            require(memory.refreshes > before + 30, "no-video sustained refresh count too low", cycles);
+            require(!posted_pending, "no-video posted write did not drain", cycles);
+        }
+    }
+
+#endif
 
     void latency() {
         // Alternating writes/reads with varying idle gaps walks refresh
@@ -444,16 +567,26 @@ public:
             read_min = wait < read_min ? wait : read_min;
             read_max = wait > read_max ? wait : read_max;
         }
+#if ST_SLOT_POLICY
+        require(read_min >= 9u && write_min >= 1u && read_min <= 32u && write_min <= 32u,
+                "ordinary access latency changed", cycles);
+#else
         require(read_min == (ST_EARLY_COMPLETION ? 9u : 12u) + ST_REGISTERED_READ_INPUT &&
                 write_min == (ST_EARLY_COMPLETION ? 6u : 10u),
                 "ordinary access latency changed", cycles);
+#endif
         require(memory.min_refresh_gap == ST_REFRESH_WAIT_CYCLES + 2,
                 "runtime refresh recovery does not match the selected profile", cycles);
         // If refresh already owns the controller, launching on the grant edge
         // cannot save that edge. Bound this case as well as an idle launch.
+#if ST_SLOT_POLICY
+        require(read_max <= 48 && write_max <= 48,
+                "refresh-induced latency exceeds its bound", cycles);
+#else
         require(read_max <= 18 + 2 * ST_REFRESH_WAIT_CYCLES - 2 * ST_EARLY_COMPLETION &&
                 write_max <= 15 + 2 * ST_REFRESH_WAIT_CYCLES - 3 * ST_EARLY_COMPLETION,
                 "refresh-induced latency exceeds its bound", cycles);
+#endif
     }
 };
 
@@ -470,8 +603,19 @@ int main(int argc, char **argv) {
         Simulation sim(delay);
         sim.initialize();
         sim.directed();
+#if ST_SLOT_POLICY
+        sim.posted_reset_drain();
+        sim.held_counter_refresh();
+        sim.deferred_write_reset();
+        sim.reads_without_video();
+        sim.writes_without_video();
+        sim.contention(1);
+        sim.contention(3, true);
+#endif
         sim.contention();
         sim.latency();
+        require(!ST_SLOT_POLICY || (!sim.posted_pending && sim.posted_commits > 4096), "posted write coverage/drain incomplete", sim.cycles);
+        std::cout << "Physical posted commits checked: " << sim.posted_commits << "\n";
         for (const auto count : sim.memory.write_masks)
             require(count != 0, "missing DQM lane-mask coverage", sim.cycles);
         require(sim.memory.masked_after_refresh != 0, "missing masked write after refresh", sim.cycles);
@@ -483,6 +627,6 @@ int main(int argc, char **argv) {
                   << ", refresh wait " << ST_REFRESH_WAIT_CYCLES
                   << ": CPU read " << sim.read_min << ".." << sim.read_max
                   << ", write " << sim.write_min << ".." << sim.write_max
-                  << ", minimum refresh command gap " << sim.memory.min_refresh_gap << " clocks\n";
+                  << ", maximum refresh command gap " << sim.memory.max_refresh_gap << ", minimum refresh command gap " << sim.memory.min_refresh_gap << " clocks\n";
     }
 }

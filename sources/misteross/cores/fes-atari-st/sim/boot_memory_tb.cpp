@@ -32,7 +32,7 @@ class Sdram {
 public:
     std::vector<uint16_t> words = std::vector<uint16_t>(0xa6800, 0);
     uint64_t cycle = 0, reads = 0, writes = 0, refreshes = 0, mode_sets = 0;
-    uint64_t last_refresh = 0, read_due = 0;
+    uint64_t last_refresh = 0, read_due = 0, max_refresh_gap = 0;
     uint16_t pending_read = 0;
     std::array<unsigned, 4> row{};
     std::array<bool, 4> open{};
@@ -93,6 +93,11 @@ public:
             require(precharged, "refresh before initial precharge", cycle);
             for (unsigned b = 0; b < 4; ++b)
                 require(!open[b] && cycle >= available[b], "refresh with active/recovering bank", cycle);
+            if (initialized) {
+                const auto gap = cycle - last_refresh;
+                if (gap > max_refresh_gap) max_refresh_gap = gap;
+                require(gap <= 408, "private refresh interval exceeds 7.8 us", cycle);
+            }
             last_refresh = cycle;
             ++refreshes;
             break;
@@ -135,8 +140,9 @@ class Boot {
     uint64_t faults = 0, mfp = 0, vbl = 0, cpu_reads = 0, cpu_writes = 0, video_reads = 0;
     uint64_t concurrent_cycles = 0, complete_frames = 0;
 #ifdef ST_RAM_BUS_PROBE
-    uint64_t cpu_ticks = 0;
+    uint64_t cpu_ticks = 0, tas_reads = 0, tas_writes = 0;
     std::vector<std::pair<bool, uint64_t>> ram_bus_starts;
+    std::vector<uint64_t> raster_write_ticks;
 #endif
     unsigned max_cpu_latency = 0, max_video_latency = 0;
     bool last_fault = false, last_ack = false, picture_started = false;
@@ -218,6 +224,11 @@ class Boot {
         if (!dut.reset_sys && dut.cpu_req && !cpu_transfer.active && dut.cpu_addr == 0x300)
             ram_bus_starts.emplace_back(bool(dut.cpu_write), cpu_ticks);
 #endif
+#ifdef ST_RAM_BUS_PROBE
+        if (!dut.reset_sys && dut.cpu_req && !cpu_transfer.active && dut.cpu_addr == 0x310) {
+            if (dut.cpu_write) ++tas_writes; else ++tas_reads;
+        }
+#endif
         rom_before_edge();
         track_before(cpu_transfer, dut.cpu_req, dut.cpu_addr, dut.cpu_wdata,
                      dut.cpu_byte_enable, dut.cpu_write, "CPU SDRAM request changed before completion");
@@ -233,6 +244,10 @@ class Boot {
                 << ",\"register\":" << unsigned(dut.debug_ym_register)
                 << ",\"value\":" << unsigned(dut.debug_ym_data)
                 << ",\"pc\":" << dut.debug_pc << "}\n";
+#ifdef ST_RAM_BUS_PROBE
+        if (palette_write && dut.debug_palette_address == 0xff8240)
+            raster_write_ticks.push_back(cpu_ticks);
+#endif
         if (demo_mode && palette_write) {
             ++palette_writes; ++frame_palette_writes;
             if (tracing()) raster_trace << "{\"kind\":\"palette_write\",\"cycle\":" << system_cycles
@@ -397,7 +412,7 @@ class Boot {
     }
 
 public:
-    explicit Boot(const char *path, const char *disk_path = nullptr) {
+    explicit Boot(const char *path, const char *disk_path = nullptr, bool raster_probe = false) {
 #ifdef ST_RAM_BUS_PROBE
         if (!path) {
             // Original firmware: bank config, repeated byte instructions on
@@ -409,11 +424,37 @@ public:
             longword(0x7fff0); longword(0xfc0100);
             at = 0x100;
             word(0x13fc); word(4); longword(0xff8001);
-            word(0x705a);
-            for (unsigned i = 0; i < 512; ++i) { word(0x1239); longword(0x600 + (i & 1)); }
-            for (unsigned i = 0; i < 512; ++i) { word(0x13c0); longword(0x600 + (i & 1)); }
-            word(0x33fc); word(0xc0de); longword(0x400);
-            word(0x4e72); word(0x2700);
+            if (raster_probe) {
+                // Authored RAM-resident NOP/DBF workload. Its 29 iterations
+                // require the ST's two-cycle RAM alignment to make 512 cycles.
+                word(0x13fc); word(2); longword(0xff8201);
+                word(0x41f9); longword(0x10000);
+                word(0x43f9); longword(0xff8240);
+                word(0x4ef9); longword(0x2000);
+                unsigned code = 0x1000;
+                for (unsigned block = 0; block < 300; ++block) {
+                    const unsigned header[] = {0x3298, 0x323c, 28, 0x4e71,
+                        0x51c9, 0xfffc, 0x4e71, 0x2679, 0x0001, 0x8000, 0x329b};
+                    for (unsigned value : header) sdram.words[code++] = uint16_t(value);
+                    for (unsigned i = 0; i < 40; ++i) sdram.words[code++] = 0x3298;
+                }
+                const unsigned marker[] = {0x33fc, 0xc0de, 0, 0x0400, 0x4e72, 0x2700};
+                for (unsigned value : marker) sdram.words[code++] = uint16_t(value);
+                for (unsigned i = 0; i < 12600; ++i) sdram.words[0x8000+i] = uint16_t(i);
+                sdram.words[0xc000] = 1; sdram.words[0xc001] = 0;
+            } else {
+                word(0x705a);
+                for (unsigned i = 0; i < 512; ++i) { word(0x1239); longword(0x600 + (i & 1)); }
+                for (unsigned i = 0; i < 512; ++i) { word(0x13c0); longword(0x600 + (i & 1)); }
+                sdram.words[0x310] = 0x1234;
+                for (unsigned i = 0; i < 128; ++i) {
+                    word(0x4af9); longword(0x620);
+                    word(0x4af9); longword(0x621);
+                }
+                word(0x4e70); // RESET must not suspend SDRAM refresh or lose RAM.
+                word(0x33fc); word(0xc0de); longword(0x400);
+                word(0x4e72); word(0x2700);
+            }
         } else
 #endif
         {
@@ -460,6 +501,8 @@ public:
         }
         require(faults == 0 && !dut.debug_halted, "RAM timing firmware faulted", system_cycles);
         require(word(0x600) == 0x5a5a, "RAM timing byte lanes did not reach physical memory", system_cycles);
+        require(word(0x620) == 0x92b4, "TAS byte lanes lost physical RAM data", system_cycles);
+        require(tas_reads == 256 && tas_writes == 256, "TAS did not complete each read/write exactly once", system_cycles);
         require(ram_bus_starts.size() == 1024, "RAM timing transaction count", system_cycles);
         std::array<std::map<unsigned, unsigned>, 2> histograms;
         for (unsigned i = 1; i < ram_bus_starts.size(); ++i) {
@@ -476,12 +519,37 @@ public:
                 std::cout << ' ' << ticks << ':' << count;
             }
             require(intervals == 511, "RAM instruction interval count", system_cycles);
-            require(total <= (writing ? (ST_EARLY_COMPLETION ? 9000u : 9500u) : (ST_EARLY_COMPLETION ? 8250u : 9000u)),
+            require(total <= (writing ? (ST_EARLY_COMPLETION ? 8176u : 9500u) : (ST_EARLY_COMPLETION ? 8250u : 9000u)),
                     "RAM instruction timing regressed", system_cycles);
             std::cout << "; total " << total << " CPU cycles for " << intervals << " intervals\n";
         }
+        std::cout << "RAM CPU TAS/RESET PASS: " << tas_reads << " reads, " << tas_writes
+                  << " writes, maximum refresh gap " << sdram.max_refresh_gap << " clocks\n";
+        require(sdram.max_refresh_gap <= 408, "RAM probe refresh interval exceeded 7.8 us", system_cycles);
         std::cout << "RAM CPU physical bus PASS: 1024 byte transactions, zero faults, physical byte lanes and marker\n";
     }
+    void ram_raster_probe() {
+        while (word(0x400) != 0xc0de) {
+            require(system_cycles - boot_start < 4000000, "RAM raster firmware did not complete", system_cycles);
+            event();
+        }
+        require(faults == 0 && !dut.debug_halted, "RAM raster firmware faulted", system_cycles);
+        require(raster_write_ticks.size() == 12600, "RAM raster palette transaction count", system_cycles);
+        unsigned short_gaps = 0, long_gaps = 0;
+        for (unsigned i = 1; i < raster_write_ticks.size(); ++i) {
+            const auto gap = raster_write_ticks[i] - raster_write_ticks[i-1];
+            require(gap == 12 || gap == 512, "RAM alignment changed the raster interval", system_cycles);
+            if (gap == 12) ++short_gaps; else ++long_gaps;
+        }
+        require(short_gaps == 12299 && long_gaps == 300, "RAM raster interval counts", system_cycles);
+        require(video_reads > 18000 && dut.native_underruns == 0,
+                "RAM raster did not retain concurrent video deadlines", system_cycles);
+        require(sdram.max_refresh_gap <= 408, "RAM raster refresh interval exceeded 7.8 us", system_cycles);
+        std::cout << "RAM raster PASS: " << short_gaps << " intervals of 12 cycles, "
+                  << long_gaps << " intervals of 512; video reads " << video_reads
+                  << "; maximum refresh gap " << sdram.max_refresh_gap << "; no underruns\n";
+    }
+
 #endif
 
     void run(unsigned seconds, const char *prefix, unsigned start=6, unsigned end=7, unsigned press_at=0, unsigned usage=5) {
@@ -562,8 +630,14 @@ int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
 #ifdef ST_RAM_BUS_PROBE
     require(argc == 1, "RAM timing firmware takes no external ROM");
-    Boot boot(nullptr);
-    boot.ram_bus_probe();
+    {
+        Boot boot(nullptr);
+        boot.ram_bus_probe();
+    }
+#if ST_EARLY_COMPLETION
+    Boot raster(nullptr, nullptr, true);
+    raster.ram_raster_probe();
+#endif
 #else
     require((argc >= 2 && argc <= 4) || argc==7 || argc==9, "usage: boot_memory_tb STOCK_192K_ROM [SECONDS=8] [OUTPUT_PREFIX=emutos-sdram]");
     const unsigned seconds = argc >= 3 ? unsigned(std::strtoul(argv[2], nullptr, 10)) : 8;

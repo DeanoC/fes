@@ -2,7 +2,8 @@
 // Reusable 520ST system: storage and video/audio sockets remain external.
 module st_system #(
     parameter integer ENABLE_FLOPPY_WRITE = 0,
-    parameter integer MFP_WAIT_STATES = 0
+    parameter integer MFP_WAIT_STATES = 0,
+    parameter EARLY_RAM_WRITE_COMPLETION = 0
 ) (
     input wire clk_sys, reset, cold_reset,
     output wire rom_req,
@@ -77,7 +78,7 @@ module st_system #(
     // is empty. A plugged part owns the response and may insert wait states.
     wire empty_cartridge = !exp_present && exp_addr >= 23'h7d0000 && exp_addr < 23'h7e0000;
     assign exp_req = bus_req && !io_selected;
-    st_machine machine (
+    st_machine #(.EARLY_RAM_WRITE_COMPLETION(EARLY_RAM_WRITE_COMPLETION)) machine (
         .clk_sys(clk_sys), .reset(reset),
         .rom_req(rom_req), .rom_addr(rom_addr), .rom_rdata(rom_rdata), .rom_ready(rom_ready),
         .ram_req(ram_req), .ram_addr(ram_addr), .ram_wdata(ram_wdata),

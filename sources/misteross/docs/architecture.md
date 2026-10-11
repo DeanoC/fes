@@ -1731,29 +1731,37 @@ Reads clear both masks. The ST selects four runtime refresh wait counts,
 leaving six chip clocks (114.9 ns) between refresh and the next command at
 52.224 MHz. This exceeds the IS42S16320D 60 ns command period; initialization
 and all other shared-controller callers retain the sixteen-count default.
-The ST enables early completion at the read-capture or committed write-hold
-boundary and presents idle-controller grants on the arbitration edge. The
-motherboard launches valid, protected RAM reads on its transaction-capture
-edge, retaining captured address/lanes thereafter. Ready read data and DTACK
-reach the CPU on the completion edge and are retained for the rest of AS.
-Writes and other motherboard targets retain registered dispatch/completion.
-The ST supplies the first rising-edge input word to the controller with
-`RATE0_INPUT_REGISTER=0`, capturing the same physical sample one fabric edge
-earlier. The board retains its fabric pad-capture register; the simulation
-fixture models the corresponding DDIO edge. `REGISTERED_READ_INPUT=1` retains
-the former ST input stage for
-comparisons; shared-controller callers default to the existing staged capture.
-The controller still drains recovery before accepting another physical command;
-other callers retain late completion. Physical capture edge, CAS, DQM setup and
-round-robin ordering are unchanged. Physical-memory and original diagnostic
-firmware regressions compare early/late completion and registered input,
-including delayed byte masks, held reads, cancelled requests, reset and
-contention. The read-instruction fixture improves from mostly 17 to nominal
-16 CPU cycles (503/511 intervals); eight refresh waits take 18. Writes remain
-mostly 17 cycles.
-This does not establish BIG raster compatibility. Warm CPU Hold
-leaves memory and uploads running. Withdrawn requests drain without stale
-acknowledgements.
+The ST presents idle-controller grants on the arbitration edge and supplies
+`RATE0_INPUT_REGISTER=0`, capturing the same DDR rising sample one fabric edge
+earlier. The board retains its fabric pad capture. Protected RAM reads and
+selected writes launch only with valid CPU byte strobes; RAM data and DTACK
+reach the CPU on completion and remain valid through AS. Other motherboard
+targets retain registered dispatch/completion.
+
+The native counter supplies four-phase arbitration: phase 0 serves CPU reads
+and other non-video clients, phase 1 CPU writes, and phase 2 video. A phase-limited
+grant preserves an earlier pending non-video client's queue position. One CPU
+write is acknowledged after its payload is retained. Physical completion and
+recovery precede later clients. Cancellation and warm reset preserve an accepted
+write's original payload and suppress stale completion. No read cache is used.
+
+RAM and media live on rank zero. The board selects rank-zero runtime refresh
+with a 335-clock schedule and phase-2 admission, retaining conservative two-rank
+initialization. Pending refresh defers a late physical write that could occupy
+its window. `exp_reset` opens refresh admission while the native counter is held,
+independently of the arbiter reset so media work continues. Slot refresh requires
+phase slots and single-rank refresh; posted writes require phase slots and early
+completion. Board instances and Slang roots select the same policy explicitly.
+Shared controller defaults and RAM Tester callers preserve their existing policy.
+
+Physical-memory tests retain the exclusive 180-clock client fairness limit,
+verify physical posted commits and ordered reads, and sweep no-video slot
+arrivals, reset and held-counter refresh against a 408-clock maximum interval.
+The actual FX68K byte fixture measures 16-cycle writes, checks byte lanes/TAS
+rearming and RESET retention. Its authored RAM NOP/DBF workload requires 12- and
+512-cycle palette intervals without video underruns. Registered-input and late
+completion profiles remain focused comparisons. These digital regressions do
+not establish original BIG compatibility, routed timing or kit acceptance.
 The bounded disk buffer (up to 820 KiB) is disjoint from the 512 KiB RAM, and the
 big-endian media adapter handles arbitrary odd chunk boundaries before the
 mailbox acknowledges a write. `fes.media.atari-st-floppy` 1.0 adds capability

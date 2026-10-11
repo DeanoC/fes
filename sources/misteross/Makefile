@@ -1627,7 +1627,18 @@ sim-fes-atari-st-emutos: atari-st-sources
 	@cd build/sim/fes-atari-st-emutos && ./Vst_boot_sim_top "$(abspath $(EMUTOS_ROM))"
 
 .PHONY: sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-native-border sim-fes-atari-st-media sim-fes-atari-st-media-geometry
-sim-fes-atari-st-memory:
+.PHONY: sim-fes-atari-st-memory-slots
+sim-fes-atari-st-memory-slots:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
+		"-GPHASE_SLOTS=1'b1" "-GPOSTED_CPU_WRITES=1'b1" "-GSINGLE_RANK_REFRESH=1'b1" "-GSLOT_REFRESH=1'b1" \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-memory-slots" \
+		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
+		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" \
+		-CFLAGS '-O2 -std=c++17 -DST_SLOT_POLICY=1'
+	@build/sim/fes-atari-st-memory-slots/Vst_memory_sim_top
+
+sim-fes-atari-st-memory: sim-fes-atari-st-memory-slots
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-memory build/sim/fes-atari-st-memory-legacy-refresh
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \

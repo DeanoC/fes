@@ -323,7 +323,9 @@ def build_commands(root: Path, output: Path, build_id: str,
     program = (
         f"read_verilog -sv -DFES_ST_SLANG_IMPORT=1 -I ../../cores/fes-common/generated {legacy}; "
         "read_slang --single-unit --ignore-timing --empty-blackboxes "
-        "-I ../../cores/fes-common/generated --top st_system -G ENABLE_FLOPPY_WRITE=1 --top st_memory "
+        "-I ../../cores/fes-common/generated --top st_system -G ENABLE_FLOPPY_WRITE=1 -G EARLY_RAM_WRITE_COMPLETION=1 "
+        "--top st_memory -G PHASE_SLOTS=1 -G POSTED_CPU_WRITES=1 "
+        "-G SINGLE_RANK_REFRESH=1 -G SLOT_REFRESH=1 "
         f"--top st_video_adapter --top st_media_writer {megafunctions} {sources}; "
         f"chparam -set BUILD_ID 128'h{build_id} -set VIDEO_SCANLINES {int(video_output == 'scanlines')} {TOP}; "
         f"synth_intel_alm -nolutram -nodsp -top {TOP}; {cache_constraints} stat; write_json synth.json"
