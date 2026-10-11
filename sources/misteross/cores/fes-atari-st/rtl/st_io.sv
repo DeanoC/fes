@@ -145,29 +145,35 @@ module st_io #(
     // Brief register writes cannot create extra DE edges or turn a 50 Hz line
     // into a new frame midway through display. Other exact GLUE sample
     // positions and horizontal/top border effects remain unimplemented.
+    // Compare constant GLUE bounds in three-bit groups. No cycle or DE delay.
+    function automatic raster_lt9(input [8:0] value, input [8:0] limit);
+        raster_lt9 = (value[8:6] < limit[8:6]) ||
+            (value[8:6] == limit[8:6] && value[5:3] < limit[5:3]) ||
+            (value[8:6] == limit[8:6] && value[5:3] == limit[5:3] && value[2:0] < limit[2:0]);
+    endfunction
     wire [8:0] display_top = frame_resolution == 2'd2 ? 9'd34 : frame_pal ? 9'd63 : 9'd34;
     // Constant bounds avoid a mode-dependent carry chain on DE/RGB.
     wire active_cycle = line_resolution == 2'd2 ?
-        (horizontal_cycle >= 9'd4 && horizontal_cycle < 9'd164) : line_pal ?
-        (horizontal_cycle >= 9'd56 && (native_short_line ?
-            horizontal_cycle < 9'd372 : horizontal_cycle < 9'd376)) :
-        (horizontal_cycle >= 9'd52 && horizontal_cycle < 9'd372);
+        (!raster_lt9(horizontal_cycle, 9'd4) && raster_lt9(horizontal_cycle, 9'd164)) : line_pal ?
+        (!raster_lt9(horizontal_cycle, 9'd56) && (native_short_line ?
+            raster_lt9(horizontal_cycle, 9'd372) : raster_lt9(horizontal_cycle, 9'd376))) :
+        (!raster_lt9(horizontal_cycle, 9'd52) && raster_lt9(horizontal_cycle, 9'd372));
     // Constant bounds avoid a mode-dependent addition on the DE/RGB path.
     // Hatari video.h defines 47 PAL / 26 NTSC extra color DE lines.
     wire active_line = frame_resolution == 2'd2 ?
-        (native_line >= 9'd34 && native_line < 9'd434) : frame_pal ?
-        (native_line >= 9'd63 && (bottom_open ? native_line < 9'd310 : native_line < 9'd263)) :
-        (native_line >= 9'd34 && (bottom_open ? native_line < 9'd260 : native_line < 9'd234));
+        (!raster_lt9(native_line, 9'd34) && raster_lt9(native_line, 9'd434)) : frame_pal ?
+        (!raster_lt9(native_line, 9'd63) && (bottom_open ? raster_lt9(native_line, 9'd310) : raster_lt9(native_line, 9'd263))) :
+        (!raster_lt9(native_line, 9'd34) && (bottom_open ? raster_lt9(native_line, 9'd260) : raster_lt9(native_line, 9'd234)));
     assign native_display = !reset && active_line && active_cycle;
     // FF8205/07/09 report wordwise DMA progress, not just complete rows.
     // Hatari 2.5 Video_CalculateAddress subtracts eight CPU cycles before
     // counting one word per four cycles; mono's counter porch starts at 0.
     // These are counter visibility positions, independent of DE/Timer B.
     wire counter_window = line_resolution == 2'd2 ?
-        (horizontal_cycle >= 9'd8 && horizontal_cycle < 9'd168) : line_pal ?
-        (horizontal_cycle >= 9'd64 && (native_short_line ?
-            horizontal_cycle < 9'd380 : horizontal_cycle < 9'd384)) :
-        (horizontal_cycle >= 9'd60 && horizontal_cycle < 9'd380);
+        (!raster_lt9(horizontal_cycle, 9'd8) && raster_lt9(horizontal_cycle, 9'd168)) : line_pal ?
+        (!raster_lt9(horizontal_cycle, 9'd64) && (native_short_line ?
+            raster_lt9(horizontal_cycle, 9'd380) : raster_lt9(horizontal_cycle, 9'd384))) :
+        (!raster_lt9(horizontal_cycle, 9'd60) && raster_lt9(horizontal_cycle, 9'd380));
     wire counter_word = cpu_cycle_ce && active_line && counter_window &&
                         horizontal_cycle[1:0] == 2'b11;
     always @(posedge clk) begin
@@ -188,7 +194,7 @@ module st_io #(
             // decision cancels it; a later return cannot reopen DE. BIG's
             // screen 2 uses this together with vertical bottom opening.
             if (line_resolution != 2'd2 && line_pal &&
-                horizontal_cycle >= 9'd56 && horizontal_cycle < 9'd372)
+                !raster_lt9(horizontal_cycle, 9'd56) && raster_lt9(horizontal_cycle, 9'd372))
                 native_short_line <= !sync_mode[1];
             // STF WS1 samples live sync at cycle 502; the blank level changes
             // at the following HBL. It is independent of DMA and Timer B.

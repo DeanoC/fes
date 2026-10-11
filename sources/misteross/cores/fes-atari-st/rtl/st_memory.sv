@@ -91,7 +91,7 @@ module st_memory #(
     wire [4:0] requests = {media_read_req, media_write_req, dma_req, video_req, cpu_req};
     reg write_video_turn;
     reg grant;
-    reg advance_cursor, earlier_nonvideo_pending;
+    reg advance_cursor;
     reg [2:0] selected;
     reg selected_valid, selected_write;
     reg [25:0] selected_addr;
@@ -129,6 +129,11 @@ module st_memory #(
         dq_fall_q <= dq_fall;
     end
 
+    // An idle early-completion arbiter proposes its selected payload before
+    // launch. The controller samples it only with start; BUSY retains the
+    // issued payload. Keep grant/reset/initialization gating on start.
+    wire propose_payload = EARLY_COMPLETION && state == IDLE;
+
     sdram_addon_port #(.BYTE_MASK_ENABLED(1),
                        .REFRESH_WAIT_CYCLES(REFRESH_WAIT_CYCLES),
                        .EARLY_DONE(EARLY_COMPLETION),
@@ -140,10 +145,10 @@ module st_memory #(
         .refresh_window(!SLOT_REFRESH || reset || raster_reset || memory_phase == (CPU_SLOT_PHASE + 2'd2)),
         .refresh_pending(refresh_pending), .rate(2'd0), .reset(cold_reset),
         .start(state == BUSY || launch),
-        .write(launch ? selected_write : held_write),
-        .addr(launch ? selected_addr : held_addr),
-        .wdata(launch ? selected_wdata : held_wdata),
-        .write_byte_enable(launch ? selected_byte_enable : held_byte_enable),
+        .write(propose_payload ? selected_write : held_write),
+        .addr(propose_payload ? selected_addr : held_addr),
+        .wdata(propose_payload ? selected_wdata : held_wdata),
+        .write_byte_enable(propose_payload ? selected_byte_enable : held_byte_enable),
         .initialized(initialized), .done(controller_done), .rdata(controller_rdata),
         .sdram_clk(sdram_clk), .sdram_cke(sdram_cke), .sdram_ncs(sdram_ncs),
         .sdram_nras(sdram_nras), .sdram_ncas(sdram_ncas), .sdram_nwe(sdram_nwe),
@@ -152,66 +157,58 @@ module st_memory #(
         .dq_rise(REGISTERED_READ_INPUT ? dq_rise_q : dq_rise), .dq_fall(dq_fall_q)
     );
 
-    integer priority_index, candidate;
-    always @* begin
-        grant = 1'b0;
-        advance_cursor = 1'b0;
-        earlier_nonvideo_pending = 1'b0;
-        selected = CPU;
-        candidate = 0;
-        for (priority_index = 0; priority_index < 5; priority_index = priority_index + 1) begin
-            candidate = int'(cursor) + priority_index;
-            if (candidate >= 5) candidate = candidate - 5;
-            if (!grant && requests[candidate] && !seen[candidate] &&
-                (!SLOT_REFRESH || !refresh_pending || candidate == int'(CPU)) &&
-                (!PHASE_SLOTS || candidate != int'(CPU) || !cpu_write ||
-                 !video_req || seen[VIDEO] || !write_video_turn) &&
-                (candidate == int'(VIDEO) || !PHASE_SLOTS || memory_phase ==
-                    (CPU_SLOT_PHASE + ((candidate == int'(CPU) && cpu_write) ? 2'd1 : 2'd0))) &&
-                (candidate != int'(VIDEO) || (PHASE_SLOTS ?
-                    memory_phase == (CPU_SLOT_PHASE + 2'd2) : 1'b1))) begin
-                grant = 1'b1;
-                selected = 3'(candidate);
-                // A phase-1 write may bypass an older phase-0 client. Keep
-                // that client's queue position until its own grant occurs.
-                advance_cursor = candidate != int'(VIDEO) && !earlier_nonvideo_pending;
+    // Pairwise cyclic precedence depends only on the retained cursor. Each
+    // request sees four parallel blockers instead of five dynamic grant stages.
+    wire [4:0] pending_clients = requests & ~seen;
+    wire [4:0] eligible, winner;
+    wire [4:0] waiting_nonvideo = pending_clients & 5'b11101;
+    wire [4:0] older_nonvideo;
+    for (genvar client = 0; client < 5; client = client + 1) begin : arbitration
+        wire [4:0] predecessors;
+        for (genvar other = 0; other < 5; other = other + 1) begin : precedence
+            if (other < client) begin : lower
+                assign predecessors[other] = cursor <= 3'(other) || cursor > 3'(client);
+            end else if (other > client) begin : higher
+                assign predecessors[other] = cursor <= 3'(other) && cursor > 3'(client);
+            end else begin : same
+                assign predecessors[other] = 1'b0;
             end
-            if (candidate != int'(VIDEO) && requests[candidate] && !seen[candidate])
-                earlier_nonvideo_pending = 1'b1;
         end
-        selected_addr = 26'd0;
-        selected_write = 1'b0;
-        selected_wdata = 16'd0;
-        selected_byte_enable = 2'b11;
-        selected_valid = 1'b1;
-        case (selected)
-            CPU: begin
-                selected_addr = {8'd0, cpu_addr};
-                selected_write = cpu_write;
-                selected_wdata = cpu_wdata;
-                selected_byte_enable = cpu_byte_enable;
-            end
-            VIDEO: selected_addr = {8'd0, video_addr};
-            DMA: begin
-                selected_addr = {3'd0, dma_addr[23:1]};
-                selected_write = dma_write;
-                selected_wdata = dma_wdata;
-                selected_byte_enable = dma_byte_enable;
-                selected_valid = dma_addr >= 24'd8 && dma_addr < 24'h080000;
-            end
-            MEDIA_WRITE: begin
-                selected_addr = 26'h040000 + {7'd0, media_write_addr};
-                selected_write = 1'b1;
-                selected_wdata = media_write_wdata;
-                selected_byte_enable = media_write_byte_enable;
-                selected_valid = media_write_addr < 19'd419840;
-            end
-            MEDIA_READ: begin
-                selected_addr = 26'h040000 + {7'd0, media_read_addr[19:1]};
-                selected_valid = media_read_addr < 20'd839680;
-            end
-            default: selected_valid = 1'b0;
-        endcase
+        assign eligible[client] = pending_clients[client] &&
+            (!SLOT_REFRESH || !refresh_pending || client == int'(CPU)) &&
+            (!PHASE_SLOTS || client != int'(CPU) || !cpu_write ||
+             !video_req || seen[VIDEO] || !write_video_turn) &&
+            (client == int'(VIDEO) || !PHASE_SLOTS || memory_phase ==
+                (CPU_SLOT_PHASE + ((client == int'(CPU) && cpu_write) ? 2'd1 : 2'd0))) &&
+            (client != int'(VIDEO) || !PHASE_SLOTS || memory_phase == (CPU_SLOT_PHASE + 2'd2));
+        assign winner[client] = eligible[client] && !(|(eligible & predecessors));
+        assign older_nonvideo[client] = |(waiting_nonvideo & predecessors);
+    end
+    wire [4:0] selected_clients = winner | {4'd0, !(|winner)};
+    always @* begin
+        grant = |winner;
+        selected = {winner[4], winner[3] | winner[2], winner[3] | winner[1]};
+        advance_cursor = |(winner & ~older_nonvideo & 5'b11101);
+        // Preserve the no-grant CPU proposal; launch still requires grant.
+        selected_addr =
+            ({26{selected_clients[CPU]}} & {8'd0, cpu_addr}) |
+            ({26{selected_clients[VIDEO]}} & {8'd0, video_addr}) |
+            ({26{selected_clients[DMA]}} & {3'd0, dma_addr[23:1]}) |
+            ({26{selected_clients[MEDIA_WRITE]}} & (26'h040000 + {7'd0, media_write_addr})) |
+            ({26{selected_clients[MEDIA_READ]}} & (26'h040000 + {7'd0, media_read_addr[19:1]}));
+        selected_write = (selected_clients[CPU] && cpu_write) |
+                         (selected_clients[DMA] && dma_write) | selected_clients[MEDIA_WRITE];
+        selected_wdata = ({16{selected_clients[CPU]}} & cpu_wdata) |
+                         ({16{selected_clients[DMA]}} & dma_wdata) |
+                         ({16{selected_clients[MEDIA_WRITE]}} & media_write_wdata);
+        selected_byte_enable = ({2{selected_clients[CPU]}} & cpu_byte_enable) |
+                               ({2{selected_clients[DMA]}} & dma_byte_enable) |
+                               ({2{selected_clients[MEDIA_WRITE]}} & media_write_byte_enable) |
+                               {2{selected_clients[VIDEO] | selected_clients[MEDIA_READ]}};
+        selected_valid = selected_clients[CPU] | selected_clients[VIDEO] |
+                         (selected_clients[DMA] && dma_addr >= 24'd8 && dma_addr < 24'h080000) |
+                         (selected_clients[MEDIA_WRITE] && media_write_addr < 19'd419840) |
+                         (selected_clients[MEDIA_READ] && media_read_addr < 20'd839680);
     end
 
     always @(posedge clk) begin

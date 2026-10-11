@@ -13,6 +13,9 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     // Row is established during output blanking. Line start loads its run
     // descriptor; SOF always starts row zero at event zero in the new bank.
     input wire [1:0] output_bank,
+    // Parent front bank is registered. It equals output_bank away from SOF;
+    // SOF loads the new descriptor and overrides ordinary consumption.
+    input wire [1:0] output_consume_bank,
     input wire output_sof, output_line_start, output_ce,
     input wire [8:0] output_row, output_x,
     output wire [8:0] output_rgb
@@ -85,6 +88,8 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     wire [17:0] current1 = held_valid ? held1 : head1;
     wire [17:0] current2 = held_valid ? held2 : head2;
     wire [17:0] head = output_bank == 2'd0 ? current0 : output_bank == 2'd1 ? current1 : current2;
+    wire [17:0] consume_head = output_consume_bank == 2'd0 ? current0 :
+        output_consume_bank == 2'd1 ? current1 : current2;
     reg [EVENT_BITS-1:0] next_pointer;
     // The published display bank is immutable until SOF. Hold its current
     // event through pauses while the RAM ports prefetch the successor. A
@@ -92,6 +97,7 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     // comparison or consume decision feeds the ordinary RAM read address.
     reg [8:0] remaining, colour;
     wire consume = output_ce && remaining != 9'd0 && head[17:9] <= output_x;
+    wire consume_current = output_ce && remaining != 9'd0 && consume_head[17:9] <= output_x;
     wire [EVENT_BITS-1:0] read_pointer = output_sof ? {EVENT_BITS{1'b0}} :
         output_line_start ? descriptor[EVENT_BITS-1:0] : next_pointer;
     // Publication can select a bank on this same SOF edge. Increment each
@@ -116,9 +122,9 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
             next_pointer <= line_successor;
             remaining <= descriptor[EVENT_BITS+8:EVENT_BITS];
             colour <= 0;
-        end else if (consume) begin
+        end else if (consume_current) begin
             held_valid <= 1'b0;
-            colour <= head[8:0]; remaining <= remaining - 1'b1;
+            colour <= consume_head[8:0]; remaining <= remaining - 1'b1;
             if (remaining > 9'd1) next_pointer <= next_pointer + 1'b1;
         end else if (!held_valid) begin
             held0 <= head0; held1 <= head1; held2 <= head2;

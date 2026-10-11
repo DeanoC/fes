@@ -169,12 +169,12 @@ module st_machine #(
     // all ROM/MMIO/expansion accesses retain their registered dispatch.
     assign early_ram_write = EARLY_RAM_WRITE_COMPLETION && state == IDLE &&
         !reset && !cpu_as_n && !cpu_rw && (!cpu_uds_n || !cpu_lds_n) &&
-        cpu_fc != 3'b111 && live_address >= 24'd8 && live_bank0 &&
-        (supervisor || live_address >= 24'h000800);
+        cpu_fc != 3'b111 && (|live_address[23:3]) && live_bank0 &&
+        (supervisor || (|live_address[23:11]));
     assign early_ram_read = state == IDLE && !reset && !cpu_as_n && cpu_rw &&
         (!cpu_uds_n || !cpu_lds_n) && cpu_fc != 3'b111 &&
-        live_bank0 && (supervisor || live_address >= 24'h000800) &&
-        !(supervisor && live_address < 24'd8);
+        live_bank0 && (supervisor || (|live_address[23:11])) &&
+        !(supervisor && (~|live_address[23:3]));
     // GLUE admits shifter palette accesses on one four-cycle bus phase.
     // Retain the latched transaction until then, with one commit/DTACK.
     wire palette_access = address >= 24'hff8240 && address <= 24'hff825e;
@@ -244,9 +244,9 @@ module st_machine #(
                         state <= WAITING;
                         if ((!supervisor && (live_address < 24'h000800 ||
                                               live_address[23:16] == 8'hff)) ||
-                            (!cpu_rw && live_address < 24'd8))
+                            (!cpu_rw && (~|live_address[23:3])))
                             target <= FAULT;
-                        else if (supervisor && cpu_rw && live_address < 24'd8)
+                        else if (supervisor && cpu_rw && (~|live_address[23:3]))
                             target <= ROM;
                         else if (live_bank0)
                             target <= RAM;

@@ -187,9 +187,9 @@ module st_native_low_video (
     // The next row can be prefetched before the current row's late frequency
     // switch. Its 81-word window covers either normal or one-word-short DMA.
     wire word_offset = cache_margin[row[0]] && native_word_loss == cache_loss[row[0]];
-    wire [4:0] word_group = sample_x[8:4];
+    wire [4:0] word_group = pixel_x[8:4];
     wire [4:0] following_group = word_group + 5'd1;
-    wire [3:0] bit_index = 4'd15 - sample_x[3:0];
+    wire [3:0] bit_index = 4'd15 - pixel_x[3:0];
     // Keep the stored 81-word window unchanged. Expose its fixed modulo-four
     // lanes so each read selects one group instead of a general word address.
     // A one-word offset rotates lanes and takes lane zero from the next group.
@@ -219,9 +219,20 @@ module st_native_low_video (
     wire [15:0] plane2 = word_offset ? selected_lane3 : selected_lane2;
     wire [15:0] plane3 = word_offset ? selected_following_lane0 : selected_lane3;
     // The final DMA word (plane 3 of group 19) is absent on a shortened row.
-    wire missing_plane3 = native_short_line && sample_x >= 9'd304;
-    wire [3:0] color_index = !native_display ? 4'd0 :
+    wire missing_plane3 = native_short_line && pixel_x >= 9'd304;
+    // Resolve the first pixel in parallel. DE-rise selects the completed
+    // index rather than feeding every cache group and bit selector.
+    wire [3:0] first_index_plain = row[0] ?
+        {cache1[3][15], cache1[2][15], cache1[1][15], cache1[0][15]} :
+        {cache0[3][15], cache0[2][15], cache0[1][15], cache0[0][15]};
+    wire [3:0] first_index_margin = row[0] ?
+        {cache1[4][15], cache1[3][15], cache1[2][15], cache1[1][15]} :
+        {cache0[4][15], cache0[3][15], cache0[2][15], cache0[1][15]};
+    wire [3:0] first_index = word_offset ? first_index_margin : first_index_plain;
+    wire [3:0] steady_index =
         {plane3[bit_index] && !missing_plane3, plane2[bit_index], plane1[bit_index], plane0[bit_index]};
+    wire [3:0] color_index = !native_display ? 4'd0 :
+        display_rise ? first_index : steady_index;
     // Shift only on actual native pulses: input at t leaves at t+28.
     // Carry indices and coordinates, never resolved historical RGB.
     localparam integer OUTPUT_DELAY = 28;
@@ -341,6 +352,7 @@ module st_native_low_video (
         .native_cycle(output_token.cycle_number), .palette_zero(output_token.blank ? 9'd0 : palette[8:0]),
         .capture_overflow(border_overflow), .raster_banks(raster_banks),
         .output_bank(output_sof && choose_valid ? choose_bank : front_bank),
+        .output_consume_bank(front_bank),
         .output_sof(output_sof), .output_line_start(output_border_line_start), .output_ce(output_border_ce),
         .output_row(output_border_row), .output_x(output_border_x), .output_rgb(output_raster_rgb)
     );
