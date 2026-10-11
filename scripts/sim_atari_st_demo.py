@@ -225,6 +225,10 @@ def run(args):
     if args.shared_memory:
         record["raster_trace"]["events"] = "IACK (including MFP vector), sync changes and every committed palette write (including unchanged values)"
     if args.shared_memory:
+        record["ram_snapshots"] = {"trace": "demo-ram-snapshots.jsonl",
+            "files": "demo-ram-cycle-{system_cycle}.bin", "bytes_per_snapshot": 524288,
+            "scope": "read-only physical command-model RAM at per-second status events throughout the bounded guest run",
+            "system_cycle": "elapsed system clocks since reset release; no guest clocks advance during the copy"}
         record["rendered_capture"] = {"trace": "demo-rendered.jsonl",
             "source": "actual complete HDMI replay frames; pixel-domain immutable front_sequence",
             "saved": "first eight distinct valid displayed native sequences whose HDMI SOF is in trace window",

@@ -158,7 +158,8 @@ class Boot {
     unsigned observed_frames = 0, frame_cpu_max = 0, frame_video_max = 0, last_sync = 0;
     uint64_t frame_video_reads = 0;
     std::vector<uint8_t> native_picture = std::vector<uint8_t>(320*247*3);
-    std::ofstream raster_trace, logo_trace, ym_trace, rendered_trace;
+    std::ofstream raster_trace, logo_trace, ym_trace, rendered_trace, ram_snapshot_trace;
+    std::set<uint64_t> saved_ram_cycles;
     uint32_t rendered_sequence = 0;
     unsigned rendered_height = 200;
     bool rendered_valid = false, rendered_pal = true, rendered_tracing = false;
@@ -462,7 +463,18 @@ class Boot {
         }
     }
 
-    void status() const {
+    void save_ram(const std::string& path) const {
+        std::ofstream raw(path, std::ios::binary);
+        require(raw.good(), "cannot write physical RAM snapshot", system_cycles);
+        for (unsigned i = 0; i < 0x40000; ++i) {
+            raw.put(sdram.words[i] >> 8);
+            raw.put(sdram.words[i]);
+        }
+        raw.flush();
+        require(raw.good(), "physical RAM snapshot write failed", system_cycles);
+    }
+
+    void status() {
         std::cout << "assembled seconds=" << std::dec << (system_cycles - boot_start) / SystemHz
                   << " pc=" << std::hex << dut.debug_pc << " bus=" << dut.debug_addr
                   << " phystop=" << longword(0x42e) << " screen=" << longword(0x44e)
@@ -473,6 +485,15 @@ class Boot {
                   << " native frames/skipped/underruns=" << dut.native_frames << '/'
                   << dut.native_skipped << '/' << dut.native_underruns
                   << " indexed underruns=" << dut.debug_underruns << '\n' << std::flush;
+        const auto elapsed = system_cycles - boot_start;
+        if (demo_mode && saved_ram_cycles.insert(elapsed).second) {
+            // Observe the command-model RAM between events; no DUT clocks,
+            // input state or memory contents change while copying it.
+            save_ram(trace_prefix + "-ram-cycle-" + std::to_string(elapsed) + ".bin");
+            ram_snapshot_trace << "{\"system_cycle\":" << elapsed
+                               << ",\"bytes\":524288}\n" << std::flush;
+            require(ram_snapshot_trace.good(), "RAM snapshot index write failed", system_cycles);
+        }
     }
 
 public:
@@ -677,7 +698,8 @@ public:
             logo_trace.open(std::string(prefix)+"-logo.jsonl");
             ym_trace.open(std::string(prefix)+"-ym.jsonl");
             rendered_trace.open(std::string(prefix)+"-rendered.jsonl");
-            require(raster_trace.good() && logo_trace.good() && ym_trace.good() && rendered_trace.good(), "demo trace output unavailable");
+            ram_snapshot_trace.open(std::string(prefix)+"-ram-snapshots.jsonl");
+            require(raster_trace.good() && logo_trace.good() && ym_trace.good() && rendered_trace.good() && ram_snapshot_trace.good(), "demo trace output unavailable");
         }
         uint64_t next_status = boot_start + SystemHz;
         const uint64_t limit = boot_start + SystemHz * seconds;
@@ -712,12 +734,7 @@ public:
         require(ppm.good(), "cannot write rendered PPM", system_cycles);
         ppm << "P6\n1280 720\n255\n";
         ppm.write(reinterpret_cast<const char *>(complete_picture.data()), complete_picture.size());
-        std::ofstream raw(std::string(prefix) + "-ram.bin", std::ios::binary);
-        require(raw.good(), "cannot write physical RAM snapshot", system_cycles);
-        for (unsigned i = 0; i < 0x40000; ++i) {
-            raw.put(sdram.words[i] >> 8);
-            raw.put(sdram.words[i]);
-        }
+        save_ram(std::string(prefix) + "-ram.bin");
         if (demo_mode) {
             std::ofstream metrics(std::string(prefix)+"-metrics.json");
             metrics << "{\"cycle\":" << system_cycles-boot_start << ",\"bus_faults\":" << faults
