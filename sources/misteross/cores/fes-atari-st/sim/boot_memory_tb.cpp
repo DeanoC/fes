@@ -760,7 +760,7 @@ int main(int argc, char **argv) {
 #else
     require((argc >= 2 && argc <= 4) || argc==7 || argc==9 || argc==10, "usage: boot_memory_tb STOCK_192K_ROM [SECONDS=8] [OUTPUT_PREFIX=emutos-sdram]");
     const unsigned seconds = argc >= 3 ? unsigned(std::strtoul(argv[2], nullptr, 10)) : 8;
-    require(seconds >= 6 && seconds <= 30, "boot duration must be 6..30 emulated seconds");
+    require(seconds >= 6 && seconds <= 120, "boot duration must be 6..120 emulated seconds");
     Boot boot(argv[1], argc>=7 ? argv[4] : nullptr);
     boot.run(seconds, argc >= 4 ? argv[3] : "emutos-sdram", argc>=7 ? unsigned(std::strtoul(argv[5],nullptr,10)) : 6,
              argc>=7 ? unsigned(std::strtoul(argv[6],nullptr,10)) : 7,
