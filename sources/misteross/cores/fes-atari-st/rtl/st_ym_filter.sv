@@ -16,7 +16,7 @@ module st_ym_filter #(
     localparam integer TOTAL_BITS = WEIGHT_BITS + 15;
     localparam [WEIGHT_BITS-1:0] INTERVAL = WEIGHT_BITS'(CHIP_CLOCK_HZ);
     localparam [WEIGHT_BITS-1:0] STEP = WEIGHT_BITS'(8*SAMPLE_RATE_HZ);
-    localparam [2:0] IDLE=0, WEIGHTS=1, ACCUMULATE=2, DIVIDE=3, PUSH=4;
+    localparam [2:0] IDLE=0, WEIGHTS=1, MULTIPLY=2, COMBINE=3, ACCUMULATE=4, DIVIDE=5, PUSH=6;
     reg [2:0] state;
     reg [14:0] previous_input, filtered;
     wire [15:0] input_pair = {1'b0,input_pcm}+{1'b0,previous_input};
@@ -27,12 +27,18 @@ module st_ym_filter #(
     wire [14:0] fall_value = 15'((18'(input_pair) + (18'(filtered)<<2) +
                                  (18'(filtered)<<1))>>3);
     wire [14:0] low_pass_next = input_pcm>=filtered ? rise_value : fall_value;
-    reg [WEIGHT_BITS-1:0] weight, tail_weight;
+    reg [WEIGHT_BITS-1:0] weight, head_weight, tail_weight;
+    // Register weights before multiplication, then combine independently
+    // registered low/high products. This keeps subtraction and a full-width
+    // multiplier out of one fabric-clock path without changing any rounding.
+    localparam integer LOW_BITS = 8;
+    reg [WEIGHT_BITS+LOW_BITS-1:0] head_low;
+    reg [WEIGHT_BITS+15-LOW_BITS-1:0] head_high;
     wire [WEIGHT_BITS-1:0] remaining = INTERVAL-weight;
     wire boundary = remaining<=STEP;
     wire [WEIGHT_BITS-1:0] used_weight = boundary ? remaining : STEP;
     reg crosses_boundary;
-    reg [TOTAL_BITS-1:0] total, product, tail_product, numerator;
+    reg [TOTAL_BITS-1:0] total, product, step_product, numerator;
     reg [WEIGHT_BITS-1:0] remainder;
     reg [14:0] quotient;
     reg [$clog2(TOTAL_BITS+1)-1:0] divide_count;
@@ -43,22 +49,33 @@ module st_ym_filter #(
         if(reset) begin
             state<=IDLE;previous_input<=0;filtered<=0;
             // The first counter period starts at reset with silent chip levels.
-            weight<=STEP;tail_weight<=0;crosses_boundary<=0;
-            total<=0;product<=0;tail_product<=0;numerator<=0;
+            weight<=STEP;head_weight<=0;tail_weight<=0;crosses_boundary<=0;
+            head_low<=0;head_high<=0;
+            total<=0;product<=0;step_product<=0;numerator<=0;
             remainder<=0;quotient<=0;divide_count<=0;
         end else case(state)
             IDLE: if(input_valid) begin
                 previous_input<=input_pcm;filtered<=low_pass_next;state<=WEIGHTS;
             end
             WEIGHTS: begin
-                product<=TOTAL_BITS'(filtered)*TOTAL_BITS'(used_weight);
-                tail_product<=TOTAL_BITS'(filtered)*TOTAL_BITS'(STEP-used_weight);
-                tail_weight<=STEP-used_weight;crosses_boundary<=boundary;
+                head_weight<=used_weight;tail_weight<=STEP-used_weight;
+                crosses_boundary<=boundary;state<=MULTIPLY;
+            end
+            MULTIPLY: begin
+                head_low<=(WEIGHT_BITS+LOW_BITS)'(filtered[LOW_BITS-1:0])*head_weight;
+                head_high<=(WEIGHT_BITS+15-LOW_BITS)'(filtered[14:LOW_BITS])*head_weight;
+                // The remaining product is STEP*filtered minus the head.
+                // STEP is constant, so only the head needs a variable multiply.
+                step_product<=TOTAL_BITS'(filtered)*TOTAL_BITS'(STEP);
+                state<=COMBINE;
+            end
+            COMBINE: begin
+                product<=TOTAL_BITS'(head_low)+(TOTAL_BITS'(head_high)<<LOW_BITS);
                 state<=ACCUMULATE;
             end
             ACCUMULATE: begin
                 if(crosses_boundary) begin
-                    numerator<=total+product;total<=tail_product;weight<=tail_weight;
+                    numerator<=total+product;total<=step_product-product;weight<=tail_weight;
                     remainder<=0;quotient<=0;divide_count<=$bits(divide_count)'(TOTAL_BITS);
                     state<=DIVIDE;
                 end else begin total<=total+product;weight<=weight+STEP;state<=IDLE;end
