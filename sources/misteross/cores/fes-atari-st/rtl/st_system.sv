@@ -90,6 +90,9 @@ module st_system #(
         .exp_ack(io_selected ? io_ack : exp_ack || empty_cartridge), .exp_berr(!io_selected && exp_berr),
         .exp_rdata(io_selected ? io_rdata : empty_cartridge ? 16'hffff : exp_rdata), .exp_irq(machine_irq),
         .irq_vectored(irq_vectored), .irq_vector(irq_vector), .irq_ack(irq_ack), .irq_level(irq_level),
+        // Native cycle labels advance on CPU phase 2. Phase 1 is the
+        // palette acceptance window in this counter's coordinate system.
+        .palette_ready(native_cycle[1:0] == 2'd1),
         .video_counter(video_counter), .screen_base(screen_base), .resolution(resolution),
         .palette(palette), .sync_mode(sync_mode), .debug_addr(debug_addr),
         .debug_bus_error(debug_bus_error), .debug_overlay(debug_overlay), .debug_halted(debug_halted)

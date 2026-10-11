@@ -143,6 +143,8 @@ class Boot {
     uint64_t cpu_ticks = 0, tas_reads = 0, tas_writes = 0;
     std::vector<std::pair<bool, uint64_t>> ram_bus_starts;
     std::vector<uint64_t> raster_write_ticks;
+    std::vector<unsigned> raster_write_phases, palette_read_phases;
+    std::vector<uint64_t> palette_read_ticks;
 #endif
     unsigned max_cpu_latency = 0, max_video_latency = 0;
     bool last_fault = false, last_ack = false, picture_started = false;
@@ -245,14 +247,21 @@ class Boot {
                 << ",\"value\":" << unsigned(dut.debug_ym_data)
                 << ",\"pc\":" << dut.debug_pc << "}\n";
 #ifdef ST_RAM_BUS_PROBE
-        if (palette_write && dut.debug_palette_address == 0xff8240)
+        if (!dut.reset_sys && dut.debug_palette_read && dut.debug_palette_address == 0xff8240) {
+            palette_read_ticks.push_back(cpu_ticks);
+            palette_read_phases.push_back(phase);
+        }
+        if (palette_write && dut.debug_palette_address == 0xff8240) {
             raster_write_ticks.push_back(cpu_ticks);
+            raster_write_phases.push_back(phase);
+        }
 #endif
         if (demo_mode && palette_write) {
             ++palette_writes; ++frame_palette_writes;
             if (tracing()) raster_trace << "{\"kind\":\"palette_write\",\"cycle\":" << system_cycles
                 << ",\"frame\":" << native_epoch << ",\"line\":" << line << ",\"horizontal_phase\":" << phase
                 << ",\"address\":" << dut.debug_palette_address << ",\"data\":" << dut.debug_palette_data
+                << ",\"color\":" << dut.debug_palette_color
                 << ",\"lanes\":" << unsigned(dut.debug_palette_lanes) << "}\n";
         }
         if (demo_mode && dut.capture_pixel) {
@@ -412,7 +421,7 @@ class Boot {
     }
 
 public:
-    explicit Boot(const char *path, const char *disk_path = nullptr, bool raster_probe = false) {
+    explicit Boot(const char *path, const char *disk_path = nullptr, bool raster_probe = false, bool palette_probe = false) {
 #ifdef ST_RAM_BUS_PROBE
         if (!path) {
             // Original firmware: bank config, repeated byte instructions on
@@ -424,7 +433,33 @@ public:
             longword(0x7fff0); longword(0xfc0100);
             at = 0x100;
             word(0x13fc); word(4); longword(0xff8001);
-            if (raster_probe) {
+            if (palette_probe) {
+                // Authored ROM-fed writes. Terminal DBF takes 14 cycles and
+                // exercises both two-cycle alignments of the CPU bus.
+                word(0x43f9); longword(0xff8240);
+                for (unsigned i=1;i<=16;++i) {
+                    word(0x7000 | i); word(0x3280);
+                    word(0x7200); word(0x51c9); word(2);
+                }
+                word(0x33fc); word(0x0753); longword(0xff8240);
+                // Byte writes mirror first, then mask: these readbacks are
+                // independent of the prior register value or selected lane.
+                for (const auto &[byte, address, result] :
+                     std::array<std::array<unsigned,3>,4>{{
+                         {{0x02,0xff8240,0x404}}, {{0x16,0xff8241,0x402}},
+                         {{0x71,0xff8240,0x406}}, {{0x55,0xff8241,0x408}}
+                     }}) {
+                    word(0x13fc); word(byte); longword(address);
+                    word(0x3239); longword(0xff8240);
+                    word(0x33c1); longword(result);
+                }
+                for (unsigned i=0;i<16;++i) {
+                    word(0x4e71); word(0x3011);
+                    word(0x7200); word(0x51c9); word(2);
+                }
+                word(0x33fc); word(0xc0de); longword(0x400);
+                word(0x4e72); word(0x2700);
+            } else if (raster_probe) {
                 // Authored RAM-resident NOP/DBF workload. Its 29 iterations
                 // require the ST's two-cycle RAM alignment to make 512 cycles.
                 word(0x13fc); word(2); longword(0xff8201);
@@ -528,6 +563,30 @@ public:
         require(sdram.max_refresh_gap <= 408, "RAM probe refresh interval exceeded 7.8 us", system_cycles);
         std::cout << "RAM CPU physical bus PASS: 1024 byte transactions, zero faults, physical byte lanes and marker\n";
     }
+    void rom_palette_probe() {
+        while (word(0x400) != 0xc0de) {
+            require(system_cycles-boot_start < 100000, "ROM palette firmware did not complete", system_cycles);
+            event();
+        }
+        require(faults == 0 && !dut.debug_halted, "ROM palette firmware faulted", system_cycles);
+        require(raster_write_ticks.size() == 21, "palette accesses committed more than once", system_cycles);
+        for (unsigned i=1;i<16;++i)
+            require(raster_write_ticks[i]-raster_write_ticks[i-1] == 32,
+                    "ROM-fed palette access missed four-cycle bus alignment", system_cycles);
+        for (unsigned phase : raster_write_phases)
+            require((phase & 3) == 1, "palette commit escaped its native bus phase", system_cycles);
+        require(palette_read_ticks.size() == 20, "palette reads completed more than once", system_cycles);
+        for (unsigned i=5;i<20;++i)
+            require(palette_read_ticks[i]-palette_read_ticks[i-1] == 32,
+                    "ROM-fed palette read missed four-cycle bus alignment", system_cycles);
+        for (unsigned phase : palette_read_phases)
+            require((phase & 3) == 1, "palette read escaped its native bus phase", system_cycles);
+        require(word(0x404) == 0x0202 && word(0x402) == 0x0616 &&
+                word(0x406) == 0x0171 && word(0x408) == 0x0555,
+                "palette byte write did not mirror before the RGB mask", system_cycles);
+        std::cout << "ROM palette bus PASS: 15 read and 15 write intervals of 32 CPU cycles, 21 writes and 20 reads exactly once, byte mirroring before RGB mask\n";
+    }
+
     void ram_raster_probe() {
         while (word(0x400) != 0xc0de) {
             require(system_cycles - boot_start < 4000000, "RAM raster firmware did not complete", system_cycles);
@@ -635,6 +694,8 @@ int main(int argc, char **argv) {
         boot.ram_bus_probe();
     }
 #if ST_EARLY_COMPLETION
+    Boot palette(nullptr, nullptr, false, true);
+    palette.rom_palette_probe();
     Boot raster(nullptr, nullptr, true);
     raster.ram_raster_probe();
 #endif

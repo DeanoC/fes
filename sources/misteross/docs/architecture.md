@@ -1713,6 +1713,16 @@ Empty-memory reads retain the all-ones approximation rather than modeling
 the STF floating data bus. The populated bank retains its MMU aliases. Live bank membership checks the high address bits selected by the
 configured power-of-two size, without a variable-width limit comparison. A
 disconnected cartridge is acknowledged, while unclaimed MMIO has a bounded bus-error timeout.
+Palette-register dispatch waits for `palette_ready`, supplied by `st_system`
+at native cycle phase 1. Address, data and byte lanes remain latched until that
+window, and palette reads/writes complete once. Byte writes duplicate the
+selected byte across both halves before the original ST's RGB mask; they
+replace the whole color rather than merging it with the old register. The simulation write predicate
+observes this acceptance condition, so a held waiting request is not logged as
+multiple writes. The standalone motherboard fixture has no GLUE/native counter
+and supplies an always-ready bus; the assembled physical-SDRAM/CPU test covers
+ROM-fed palette alignment and preserves the RAM-fed 12/512-cycle workload.
+Absolute source/reference raster position remains a separate qualification.
 
 `st_io.sv` connects MFP IRQ6 vectors and timers, functional native VBL/HBL
 autovectors, keyboard/MIDI ACIAs, original IKBD protocol logic, shared YM2149

@@ -46,6 +46,8 @@ module st_sim_top (
     wire [2:0] irq_level;
     wire [23:0] video_counter = 24'd0;
     wire [7:0] sync_mode;
+    // This isolated motherboard fixture has no GLUE/native cycle generator.
+    wire palette_ready = 1'b1;
     st_machine machine (.*);
     st_probe probe (
         .clk(clk_sys), .reset(exp_reset), .enable(probe_enable),

@@ -129,7 +129,7 @@ struct Demo {
         if(palette_write){++palette_writes;++frame_palette_writes;}
         if(tracing()&&palette_write)raster_trace<<"{\"kind\":\"palette_write\",\"cycle\":"<<cycles
             <<",\"frame\":"<<native_frames<<",\"line\":"<<native_line<<",\"horizontal_phase\":"<<horizontal_phase
-            <<",\"address\":"<<palette_address<<",\"data\":"<<palette_data<<",\"lanes\":"<<palette_lanes<<"}\n";
+            <<",\"address\":"<<palette_address<<",\"data\":"<<palette_data<<",\"color\":"<<dut.debug_palette_color<<",\"lanes\":"<<palette_lanes<<"}\n";
         dut.clk_sys=1;dut.eval();
         if(native_pixel){
             check(native_x<320&&native_y<247,"native capture coordinates");
