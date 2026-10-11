@@ -76,6 +76,17 @@ execution.
 
 ## Validation and synthesis
 
+The ALU uses the exact model-generated candidate from AlphaMister RISC-V
+campaign v3 (candidate 0007, SHA256
+`144b84638c1ae7369f0fa8b014276cc7ea0c3ac7c75fb299f5ba22a012aecfa9`).
+Combinational equivalence covers every binary input and all four outputs.
+Fresh qualification v5 passed eight of eight whole-pilot routes at 74.25 MHz,
+with a 75.222 MHz minimum and 2692 ALUTs versus the baseline's 2701.
+These are frozen pilot measurements; each production package and other CPU
+consumer still needs its own timing and hardware validation. See
+[the optimizer recovery and qualification change](https://github.com/DeanoC/alphamister/pull/25)
+for provenance and interruption recovery validation.
+
 From `sources/misteross`:
 
 ```sh

@@ -15,16 +15,13 @@ module fes_rv32_alu (
     logic [31:0] sum;
     logic [31:0] shift_left;
     logic [31:0] shift_right;
-    logic [31:0] shift_right_arith;
 
     assign sum = alt ? a - b : a + b;
     assign shift_left = a << b[4:0];
-    assign shift_right = a >> b[4:0];
-    // Keep the arithmetic shift in its own assignment: inside a wider
-    // unsigned expression $signed() would be lost and >>> becomes logical.
-    assign shift_right_arith = $signed(a) >>> b[4:0];
+    // A controlled extension bit selects logical or arithmetic fill.
+    assign shift_right = 32'($signed({alt & a[31], a}) >>> b[4:0]);
     assign eq = a == b;
-    assign lt = $signed(a) < $signed(b);
+    assign lt = (a[31] ^ b[31]) ? a[31] : ltu;
     assign ltu = a < b;
 
     always_comb begin
@@ -34,7 +31,7 @@ module fes_rv32_alu (
             3'd2: result = {31'd0, lt};
             3'd3: result = {31'd0, ltu};
             3'd4: result = a ^ b;
-            3'd5: result = alt ? shift_right_arith : shift_right;
+            3'd5: result = shift_right;
             3'd6: result = a | b;
             default: result = a & b;
         endcase
