@@ -34,7 +34,7 @@ never infer persistence from a display name, package path or raw RBF.
 
 ## Change and validate
 
-- One task, one FES worktree under `out/dev/<task>/fes` and one branch, covering
+- One task, one FES worktree at `out/dev/<task>` and one branch, covering
   every affected module. Agree file ownership before parallel edits.
 - A shared-definition change regenerates its consumers in the same change
   (`make generate`, then `make check`).
