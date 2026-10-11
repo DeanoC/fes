@@ -12,6 +12,7 @@ struct Test {
     unsigned checks=0, samples=0, borders=0, wraps=0, published=0;
     unsigned frame=0, stamp=80;
     bool abort=false, pal=true;
+    unsigned commit_mode=0;
     unsigned top() const {return pal?63:34;}
     unsigned bottom() const {return pal?310:260;}
     unsigned lines() const {return pal?313:263;}
@@ -33,7 +34,7 @@ struct Test {
         d.memory_data=word%4==0?(word==0?0x7fff:0xffff):word==1?0x8000:0;
         d.clk_sys=1;d.eval();d.clk_sys=0;d.eval();
         if(!d.reset_sys&&d.frames!=oldframes){need(!d.pending&&!d.frame_write,"published before output drain");++published;}
-        d.commit=0;d.native_pixel_ce=0;d.native_vblank=0;
+        d.commit=0;d.native_pixel_ce=0;d.native_lookup_ce=0;d.native_vblank=0;
     }
     void pulse(unsigned line,unsigned cycle){
         d.native_line=line;d.native_cycle=cycle;d.native_pixel_ce=1;
@@ -42,19 +43,30 @@ struct Test {
         d.hold=abort&&line==bottom()-1&&cycle>=390;
         d.commit=0;
         // The palette bus admits phase 1 in FES's cycle label. Reset index 1
-        // during blanking, then commit C+1 on the native output edge.
+        // during blanking, then commit C+1 on the pulse, its following edge,
+        // or the actual late phase-1 edge (4/5 fabric clocks after the pulse).
         if(cycle==5){d.commit=1;d.commit_index=1;d.commit_color=0x040;}
         if(cycle==stamp+1){d.commit=1;d.commit_index=1;d.commit_color=0x007;}
         // Border independently exercises side/bottom runs and persistent
         // colour across line wrap. C40 -> canvas x5 PAL / x9 NTSC; C420 -> x385 / x389.
         if(cycle==1||cycle==41||cycle==421){d.commit=1;d.commit_index=0;d.commit_color=cycle==1?0x012:cycle==41?0x038:0x1c0;}
         need(!d.commit||(cycle&3)==1,"authored write outside admitted phase");
+        const bool commit=d.commit;
+        if(commit_mode)d.commit=0;
         fabric();
         if(d.tick&&!abort&&line>0&&cycle<28){need(d.token_line==line-1&&d.token_cycle==cycle+line_cycles()-28,"token line wrap");++wraps;}
         // Variable fabric spacing proves elapsed system clocks do not advance
         // the calibrated stage. Its output corresponds to exactly 28 pulses.
         if(d.tick&&!abort&&line>=1){unsigned n=line*line_cycles()+cycle-28;need(d.token_line==n/line_cycles()&&d.token_cycle==n%line_cycles(),"28 native pulse delay");}
-        for(unsigned i=0;i<5+cycle%2;++i)fabric();
+        // Raw phase2 closes the current phase one edge before the next pulse.
+        // Alternate 6/7-edge pulse spacing on adjacent lines, so admitted
+        // phase1 writes exercise BOTH real late offsets 4 and 5.
+        const unsigned span=5+(line+cycle)%2;
+        for(unsigned i=1;i<=span;++i){
+            d.native_lookup_ce=i==span;
+            d.commit=commit && i==(commit_mode==1?1:commit_mode==2?span-1:0);
+            fabric();
+        }
         if(d.hold)need(!d.pending&&!d.pixel&&!d.frame_write,"Hold failed to cancel output");
     }
     void pixel_clock(){d.clk_pixel=1;d.eval();d.clk_pixel=0;d.eval();}
@@ -108,9 +120,9 @@ struct Test {
             }
         }
     }
-    void reset(){d.reset_sys=d.reset_pixel=1;d.hold=d.commit=d.native_pixel_ce=d.native_vblank=0;fabric();pixel_clock();d.reset_sys=d.reset_pixel=0;frame=0;}
-    void profile(bool selected_pal){
-        pal=selected_pal;d.pal=pal;checks=samples=borders=wraps=published=0;reset();
+    void reset(){d.reset_sys=d.reset_pixel=1;d.hold=d.commit=d.native_pixel_ce=d.native_lookup_ce=d.native_vblank=0;fabric();pixel_clock();d.reset_sys=d.reset_pixel=0;frame=0;}
+    void profile(bool selected_pal,unsigned selected_mode){
+        pal=selected_pal;commit_mode=selected_mode;d.pal=pal;checks=samples=borders=wraps=published=0;reset();
         for(unsigned c: {80u,84u,88u}){
             stamp=c;++frame;
             for(unsigned line=0;line<lines();++line)for(unsigned cycle=0;cycle<line_cycles();++cycle)pulse(line,cycle);
@@ -130,8 +142,8 @@ struct Test {
         ++frame;for(unsigned line=0;line<lines();++line)for(unsigned cycle=0;cycle<line_cycles();++cycle)pulse(line,cycle);
         need(d.frames==1,"reset recovery did not publish");replay();
         need(published==5,"unexpected drained publication count");
-        std::cout<<(pal?"PAL":"NTSC")<<" Shifter output PASS: "<<checks<<" checks, "<<samples<<" pixel samples, "<<borders<<" replay border pixels, "<<wraps<<" wrapped tokens, "<<published<<" drained publications\n";
+        std::cout<<(pal?"PAL":"NTSC")<<(commit_mode==2?" phase1-late-commit":commit_mode==1?" following-edge-commit":" pulse-commit")<<" Shifter output PASS: "<<checks<<" checks, "<<samples<<" pixel samples, "<<borders<<" replay border pixels, "<<wraps<<" wrapped tokens, "<<published<<" drained publications\n";
     }
-    void run(){profile(true);profile(false);}
+    void run(){for(unsigned mode:{0u,1u,2u}){profile(true,mode);profile(false,mode);}}
 };
 int main(int argc,char**argv){Verilated::commandArgs(argc,argv);Test t;t.run();}

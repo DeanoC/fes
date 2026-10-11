@@ -1824,14 +1824,21 @@ delayed RAM and media completions, including rejected mutations and later retry.
 `st_native_low_video.sv`. Its system-domain row prefetch uses the existing
 video RAM port. Prepared bitplane indices, native coordinates and bank identity
 pass through a 28-native-pulse output stage. Current RGB333 palette lookup
-occurs on the following fabric edge, after any coincident palette commit.
+uses the retained token on the next raw CPU phase-2 edge, after palette admission
+closes. Real phase-1 writes can commit four or five fabric edges after the
+registered native pulse. This boundary sees their settled colours without
+advancing the sampled coordinate/index. Pending tokens participate in publication
+drain and are cancelled by Hold, reset and native VBL.
 Border palette-zero capture uses the same delayed output timeline. This is a
 calibrated net-output candidate against Hatari's hardware-calibrated renderer;
 it does not claim one literal 28-cycle physical Shifter delay. Raw DE, memory
 counters, CPU bus phases and Timer B timing remain separate.
 The isolated output fixture independently checks completed palette-access
 timestamps 80/84/88 against active pixels -3/1/5 in PAL and 1/5/9 in NTSC,
-using actual 512/508-cycle line wraps and DE starts 56/52. Both profiles cover
+using actual 512/508-cycle line wraps and DE starts 56/52. Each profile exercises
+commits on the native pulse, its following fabric edge and the actual late
+phase-1 edges (four/five clocks later). Raw phase2 precedes the next registered
+native pulse by one fabric edge. Both profiles cover
 fixed bitplane markers, border replay, bottom-row drain, immutable publication
 geometry, reset and Hold. The independent-clock adapter fixture also exercises
 263-line NTSC frames alongside PAL and resolution transitions. These authored

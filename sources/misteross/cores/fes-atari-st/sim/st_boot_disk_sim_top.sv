@@ -46,7 +46,7 @@ module st_boot_disk_sim_top (
     wire [7:0] sync_mode;
     wire native_display;
     wire [8:0] native_line, native_cycle;
-    wire native_pixel_ce;
+    wire native_pixel_ce, native_lookup_ce;
     wire [15:0] cpu_rdata, video_rdata;
     wire [15:0] dma_rdata;
     wire [7:0] media_data;
@@ -60,7 +60,7 @@ module st_boot_disk_sim_top (
         .ram_byte_enable(cpu_byte_enable), .ram_write(cpu_write),
         .ram_rdata(cpu_rdata), .ram_ready(cpu_ready),
         .exp_req(), .exp_addr(), .exp_wdata(), .exp_byte_enable(), .exp_write(), .exp_fc(),
-        .exp_reset(), .exp_phi1(), .exp_phi2(), .exp_ack(1'b0), .exp_berr(1'b0),
+        .exp_reset(), .exp_phi1(), .exp_phi2(native_lookup_ce), .exp_ack(1'b0), .exp_berr(1'b0),
         .exp_present(1'b0), .exp_rdata(16'hffff), .exp_irq(3'd0),
         .irq_ack(irq_ack), .irq_level(irq_level),
         .keyboard(144'd0), .controller_buttons(16'd0), .monochrome(1'b0),
@@ -95,7 +95,7 @@ module st_boot_disk_sim_top (
     st_video_adapter video (
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
         .native_vblank(vblank), .native_display(native_display), .native_line(native_line),
-        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .sync_mode(sync_mode),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(native_lookup_ce), .sync_mode(sync_mode),
         .hold(reset_sys), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
         .video_request(video_request), .debug_underruns(debug_underruns), .debug_frame(debug_frame)

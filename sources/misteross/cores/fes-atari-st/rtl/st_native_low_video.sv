@@ -10,7 +10,7 @@ module st_native_low_video (
     input wire clk_sys, clk_pixel, reset_sys, reset_pixel, hold,
     input wire native_vblank, native_display,
     input wire [8:0] native_line, native_cycle,
-    input wire native_pixel_ce,
+    input wire native_pixel_ce, native_lookup_ce,
     input wire [7:0] sync_mode,
     input wire [23:0] screen_base,
     input wire [1:0] resolution,
@@ -200,7 +200,8 @@ module st_native_low_video (
         native_line < (frame_pal ? 9'd310 : 9'd260) &&
         native_cycle >= (frame_pal ? 9'd8 : 9'd4) &&
         native_cycle < (frame_pal ? 9'd424 : 9'd420);
-    wire write_pixel = output_tick && output_token.pixel && !hold;
+    wire lookup_due = native_lookup_ce && output_tick;
+    wire write_pixel = lookup_due && output_token.pixel && !hold;
     wire [8:0] output_x = output_token.x;
     wire [8:0] output_row = output_token.row_number;
     wire [8:0] pixel_rgb = palette[output_token.index * 9 +: 9];
@@ -211,8 +212,11 @@ module st_native_low_video (
         for (integer i = 0; i < OUTPUT_DELAY; i = i + 1)
             output_pending = output_pending || output_pipe[i].pixel || output_pipe[i].visible;
     end
-    // Consume on the subsequent fabric edge, after any same-edge IO commit.
-    // Border capture consumes the same output token and current palette zero.
+    // Retain the sampled index/coordinates until the next raw CPU phase 2.
+    // Actual phase-1 palette commits occur 4/5 fabric edges after the registered
+    // native pulse. Phase 2 closes that admission window after they settle;
+    // it precedes the next registered native pulse by one fabric edge.
+    // RGB and border resolve the same retained token at that boundary.
     reg frame_write, frame_write_black;
     reg [1:0] frame_write_bank;
     reg [16:0] frame_write_address;
@@ -224,8 +228,9 @@ module st_native_low_video (
             frame_write <= 1'b0; frame_write_black <= 1'b1;
             frame_write_bank <= 2'd0; frame_write_address <= 17'd0; frame_write_rgb <= 9'd0;
         end else begin
-            output_tick <= pixel_due;
+            if (native_lookup_ce) output_tick <= 1'b0;
             if (pixel_due) begin
+                output_tick <= 1'b1;
                 output_pipe[0] <= {prepare_pixel, owned && border_enabled && prepared_visible,
                     native_display, frame_pal, sample_valid, write_bank,
                     native_line, native_cycle, sample_x, row, color_index};
@@ -290,7 +295,7 @@ module st_native_low_video (
     st_native_border borders (
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
         .capture_start(border_start), .capture_active(output_token.visible && !hold),
-        .capture_pal(output_token.pal), .capture_tick(output_tick), .capture_display(output_token.active),
+        .capture_pal(output_token.pal), .capture_tick(lookup_due), .capture_display(output_token.active),
         .capture_bank(border_start ? free_bank : output_token.bank), .native_line(output_token.line_number),
         .native_cycle(output_token.cycle_number), .palette_zero(palette[8:0]),
         .capture_overflow(border_overflow), .raster_banks(raster_banks),

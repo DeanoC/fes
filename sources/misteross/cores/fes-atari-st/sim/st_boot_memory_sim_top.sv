@@ -120,7 +120,7 @@ module st_boot_memory_sim_top #(
     st_video_adapter video (
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
         .native_vblank(vblank), .native_display(native_display), .native_line(native_line),
-        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .sync_mode(sync_mode),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(debug_cpu_tick), .sync_mode(sync_mode),
         .hold(reset_sys), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
         .video_request(video_request), .debug_underruns(debug_underruns), .debug_frame(debug_frame)

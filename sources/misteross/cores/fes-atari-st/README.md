@@ -256,18 +256,22 @@ supports palette-bit inversion; color borders use palette entry 0.
 `st_video_adapter.sv` defaults to native low-resolution capture. In the
 52.224 MHz system domain, `st_native_low_video.sv` prefetches alternating
 80-word RAM rows. Prepared bitplane indices and canvas coordinates pass through
-28 actual CPU-derived native pulses before selecting the current palette on the
-following fabric edge. Border palette-zero runs use that same delayed coordinate
+28 actual CPU-derived native pulses, then retain the sampled token until the
+next raw CPU phase-2 edge closes palette admission. Actual phase-1 writes can
+commit four or five fabric edges after the native pulse; lookup sees those
+committed colours without advancing the token's coordinates or index.
+Border palette-zero runs use that same delayed coordinate
 and lookup timeline. This is a calibrated net-output candidate derived from
 Hatari v2.5.0 Spec512's STF-tested write placement; it does not establish one
 literal 28-cycle hardware Shifter delay. Raw DE, MMU counters, CPU bus phases and
 Timer B remain unchanged. Reset and Hold cancel pending tokens; complete-frame
-publication waits for both relevant output tokens and the final RGB RAM write
+publication waits for pending output tokens and the final RGB RAM write
 to drain. `make sim-fes-atari-st-shifter-output` independently checks completed
 palette-access timestamps 80/84/88 against first changed active pixels -3/1/5
 in PAL and 1/5/9 in NTSC. It uses the actual 512/508-cycle line lengths,
 56/52-cycle DE starts, fixed bitplane markers, side/bottom borders, line wrap
-and publication/reset/Hold for both profiles. The independent-clock adapter
+and publication/reset/Hold for both profiles. Pulse-edge, following-edge and
+actual late phase-1 commits all use the same independent pixel-coordinate oracle. The independent-clock adapter
 fixture also uses true NTSC 263-line/508-cycle frames and DE cycles 52..371
 while retaining PAL, resolution transitions and bank ownership checks.
 Its registered accepted-write source isolates the output model; real-CPU palette

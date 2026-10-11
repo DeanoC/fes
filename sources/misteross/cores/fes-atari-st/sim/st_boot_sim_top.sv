@@ -93,7 +93,7 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     st_native_low_video capture (
         .clk_sys(clk_sys), .clk_pixel(clk_sys), .reset_sys(reset), .reset_pixel(reset),
         .hold(reset), .native_vblank(vblank), .native_display(native_display), .native_line(native_line),
-        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(exp_phi2),
         .sync_mode(sync_mode), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .memory_req(capture_req), .memory_addr(capture_addr), .memory_ready(capture_ready), .memory_data(capture_data),
         .output_sof(vblank), .output_address(17'd0), .output_rgb(unused_capture_rgb),

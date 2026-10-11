@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Isolated output oracle. Accepted palette commits are registered on the same
-// fabric edge as a native pulse, as in st_machine; CPU/bus admission is covered
-// separately by the real-CPU RAM/ROM palette and Timer B fixtures.
+// Isolated output oracle. Native pulses follow raw CPU phase 2 by one
+// fabric edge. Registered palette commits exercise both the pulse itself and
+// late phase-1 fabric edges; real CPU admission is independently diagnosed.
 module st_shifter_output_sim_top (
     input wire clk_sys, clk_pixel, reset_sys, reset_pixel, hold,
-    input wire native_vblank, native_display, native_pixel_ce, pal,
+    input wire native_vblank, native_display, native_pixel_ce, native_lookup_ce, pal,
     input wire [8:0] native_line, native_cycle,
     input wire commit,
     input wire [3:0] commit_index,
@@ -39,7 +39,7 @@ module st_shifter_output_sim_top (
     st_native_low_video capture (
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel), .hold(hold),
         .native_vblank(native_vblank), .native_display(native_display),
-        .native_line(native_line), .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce),
+        .native_line(native_line), .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(native_lookup_ce),
         .sync_mode(pal ? 8'd2 : 8'd0), .screen_base(24'h010000), .resolution(2'd0), .palette(palette),
         .memory_req(memory_req), .memory_addr(memory_addr), .memory_ready(memory_ready), .memory_data(memory_data),
         .output_sof(output_sof), .output_address(output_address), .output_rgb(output_rgb), .output_border(unused_border),

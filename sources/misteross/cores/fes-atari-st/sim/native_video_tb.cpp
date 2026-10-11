@@ -18,6 +18,7 @@ struct Test {
     unsigned source_clock=313*512-1,source_frame=0,position=0,output_frame=0,selected=0;
     unsigned transfer_address=0,delay=0,transfers=0,black_rows=0,stall_black_rows=0,repeat_frames=0;
     bool pending=false,complete=false,stalled=false,previous_front=false;
+    bool native_ce_delay=false;
     std::array<int,247> row_black{};
     uint64_t pal_bottom_pixels=0,ntsc_bottom_pixels=0,raster_border_pixels=0;
     bool border_overflow_seen=false;
@@ -45,7 +46,7 @@ struct Test {
     }
     unsigned source_mode() const {return source_frame==7?1:source_frame==8?2:0;}
     void system_edge(){
-        if(dut.reset_sys){dut.video_ready=0;pending=complete=false;}
+        if(dut.reset_sys){dut.video_ready=0;pending=complete=false;native_ce_delay=false;dut.native_lookup_ce=dut.native_pixel_ce=0;}
         else {
             cpu_phase+=CpuHz;
             const bool cpu_tick=cpu_phase>=SystemHz;
@@ -61,7 +62,9 @@ struct Test {
             dut.native_vblank=cpu_tick&&source_clock==0;
             dut.native_line=line;
             dut.native_cycle=phase;
-            dut.native_pixel_ce=cpu_tick;
+            dut.native_lookup_ce=cpu_tick;
+            dut.native_pixel_ce=native_ce_delay;
+            native_ce_delay=cpu_tick;
             const bool ntsc=source_frame==9;
             const unsigned top=ntsc?34:63;
             const unsigned rows=(source_frame==6||source_frame==11)?247:ntsc?226:200;
