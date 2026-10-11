@@ -273,12 +273,14 @@ class BootstrapInterfaceTests(unittest.TestCase):
                 capture_output=True,
                 env={"PATH": f"{guard_dir}:{os.environ['PATH']}"},
             )
-            # The guard answers CMake probes only; header checks still need the host.
+            # The guard answers CMake probes only; header checks still need the
+            # host. Missing host headers may fail the exit status, but every
+            # CMake probe must pass and the probes must still have run.
             missing = [line.strip() for line in result.stdout.splitlines()
                        if line.strip().startswith("[missing]")]
-            if result.returncode and missing:
-                self.skipTest("host lacks toolchain prerequisites: " + "; ".join(missing))
-            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse([line for line in missing if "find_package" in line], result.stdout)
+            if not missing:
+                self.assertEqual(result.returncode, 0, result.stderr)
             invocations = marker.read_text().splitlines()
             self.assertGreaterEqual(len(invocations), 2)
             self.assertTrue(
