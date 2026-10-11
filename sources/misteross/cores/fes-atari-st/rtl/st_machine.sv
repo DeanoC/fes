@@ -141,15 +141,17 @@ module st_machine #(
     assign vpa_n = state != IACK || vectored_cycle || reset;
     assign irq_ack = state == IACK && !reset;
 
-    function automatic [23:0] bank_size(input [1:0] configuration);
-        case (configuration)
-            2'd0: bank_size = 24'h020000;
-            2'd1: bank_size = 24'h080000;
-            2'd2: bank_size = 24'h200000;
-            default: bank_size = 24'd0;
+    // Configured banks are aligned powers of two. Decode their high bits
+    // directly so live RAM requests do not traverse a variable-width subtractor.
+    reg live_bank0;
+    always @* begin
+        case (memory_config[3:2])
+            2'd0: live_bank0 = live_address[23:17] == 7'd0;
+            2'd1: live_bank0 = live_address[23:19] == 5'd0;
+            2'd2: live_bank0 = live_address[23:21] == 3'd0;
+            default: live_bank0 = 1'b0;
         endcase
-    endfunction
-    wire [23:0] bank0_size = bank_size(memory_config[3:2]);
+    end
     wire supervisor = cpu_fc[2];
     wire live_palette = live_address >= 24'hff8240 && live_address <= 24'hff825e;
     wire live_io = live_palette || live_address == 24'hff8000 ||
@@ -162,11 +164,11 @@ module st_machine #(
     // all ROM/MMIO/expansion accesses retain their registered dispatch.
     assign early_ram_write = EARLY_RAM_WRITE_COMPLETION && state == IDLE &&
         !reset && !cpu_as_n && !cpu_rw && (!cpu_uds_n || !cpu_lds_n) &&
-        cpu_fc != 3'b111 && live_address >= 24'd8 && live_address < bank0_size &&
+        cpu_fc != 3'b111 && live_address >= 24'd8 && live_bank0 &&
         (supervisor || live_address >= 24'h000800);
     assign early_ram_read = state == IDLE && !reset && !cpu_as_n && cpu_rw &&
         (!cpu_uds_n || !cpu_lds_n) && cpu_fc != 3'b111 &&
-        live_address < bank0_size && (supervisor || live_address >= 24'h000800) &&
+        live_bank0 && (supervisor || live_address >= 24'h000800) &&
         !(supervisor && live_address < 24'd8);
     wire palette_access = address >= 24'hff8240 && address <= 24'hff825e;
     wire [3:0] palette_index = address[4:1];
@@ -233,7 +235,7 @@ module st_machine #(
                             target <= FAULT;
                         else if (supervisor && cpu_rw && live_address < 24'd8)
                             target <= ROM;
-                        else if (live_address < bank0_size)
+                        else if (live_bank0)
                             target <= RAM;
                         // The MMU acknowledges the whole original-ST 4 MiB
                         // RAM window, including unpopulated/unselected DRAM.

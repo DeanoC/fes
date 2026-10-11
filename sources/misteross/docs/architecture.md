@@ -1710,7 +1710,8 @@ MMU's RAM-sizing address aliases. One physical 512 KiB bank is populated;
 unpopulated RAM throughout the original 4 MiB decode window acknowledges
 accesses and discards writes, independently of the configured bank sizes.
 Empty-memory reads retain the all-ones approximation rather than modeling
-the STF floating data bus. The populated bank retains its MMU aliases. A
+the STF floating data bus. The populated bank retains its MMU aliases. Live bank membership checks the high address bits selected by the
+configured power-of-two size, without a variable-width limit comparison. A
 disconnected cartridge is acknowledged, while unclaimed MMIO has a bounded bus-error timeout.
 
 `st_io.sv` connects MFP IRQ6 vectors and timers, functional native VBL/HBL
@@ -1808,7 +1809,9 @@ coordinates and a one-fabric-edge delayed CPU phase-2 enable align border
 samples with the display-rise sample. PAL's visible canvas spans native
 lines 34–309 and cycles 8–423; NTSC spans lines 5–259 and cycles 4–419.
 The decoder preloads a row descriptor in output blanking, then replays colour
-runs for every vertically repeated row. Border raster/PAL flags are immutable
+runs for every vertically repeated row. A successor pointer is prepared ahead
+of the next run, keeping its increment out of the colour-to-RAM-address path
+without changing the synchronous event read or pixel boundary. Border raster/PAL flags are immutable
 publication metadata selected together with the RGB bank at SOF. Every native
 low-resolution frame uses centred 2×2 scaling of the 416×276/255 canvas; border
 activity and opened bottoms do not change pixel proportions or image position.

@@ -56,6 +56,23 @@ struct Test {
         capture(2,0x92); // another producer bank must preserve the front bank
         display(1,0,0x49,true);display(1,1,0x49);
         display(2,0,0x92,true);display(2,1,0x92);
+        // Fill every valid event slot, then replay consecutive one-pixel runs.
+        // The final successor wraps to zero but must not be read as a new run.
+        dut.capture_bank=2;dut.capture_pal=1;dut.capture_start=1;system();dut.capture_start=0;
+        dut.capture_active=1;dut.capture_tick=1;dut.native_line=34;
+        for(unsigned x=0;x<416;++x) {
+            dut.native_cycle=8+x;dut.palette_zero=x<32?x:31;system();
+        }
+        check(!dut.capture_overflow,"full event arena overflowed without an extra run");
+        dut.capture_active=0;dut.capture_tick=0;
+        dut.output_bank=2;dut.output_row=0;dut.output_ce=0;pixel();pixel();
+        dut.output_sof=1;pixel();dut.output_sof=0;
+        for(unsigned x=0;x<416;++x) {
+            dut.output_x=x;dut.output_ce=1;dut.eval();
+            check(dut.output_rgb==(x<32?x:31),"consecutive border run or last event replay failed");
+            pixel();
+        }
+        dut.output_ce=0;display(1,0,0x49,true);
         // The small test capacity exhausts on a deliberately dense border.
         dut.capture_bank=2;dut.capture_pal=1;dut.capture_start=1;system();dut.capture_start=0;
         dut.capture_active=1;dut.capture_tick=1;dut.native_line=34;
@@ -64,7 +81,7 @@ struct Test {
         dut.capture_active=0;display(1,0,0x49,true);
         dut.capture_start=1;system();dut.capture_start=0;
         check(!dut.capture_overflow,"next capture did not clear overflow");
-        std::cout<<"Native border PASS: "<<checks<<" checks, PAL/NTSC porches, within-line colours, repeated rows, banks and overflow\n";
+        std::cout<<"Native border PASS: "<<checks<<" checks, PAL/NTSC porches, within-line colours, consecutive runs, full arena, repeated rows, banks and overflow\n";
         dut.final();
     }
 };
