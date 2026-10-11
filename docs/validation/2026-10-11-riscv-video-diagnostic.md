@@ -39,8 +39,12 @@ The original kit B baseline and candidate recordings have **zero static
 capture pixels changing by more than 30 RGB levels** relative to the 3-second
 frame at each sampled second from 3 through 9. All 1,512 banner cell centres
 match the firmware glyph occupancy in every sampled frame, on both kits.
-Kit A has a small number of changed capture pixels near the animated box;
-there are no banner-cell mismatches. These are comparisons of captured pixels,
+The original kit A recording has 19–42 changed capture pixels per sampled
+second from 4 through 9, including columns x=240, 472 and 1670, well outside
+the animated box. The fresh kit A repeat has at most 29 changed capture pixels,
+clustered near the box. Neither recording has banner-cell mismatches; the
+original recording's scattered changes must not be described as confined to
+the box or assigned a cause from this analysis. These are comparisons of captured pixels,
 not reads of FPGA memory. Compression and scaling prevent exact RGB equality.
 
 [The numerical analysis](riscv-video-2026-10-11/original-and-repeat-analysis.json)
