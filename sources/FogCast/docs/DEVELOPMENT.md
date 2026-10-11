@@ -46,7 +46,7 @@ make verify
 
 FES publishes `out/<profile>/linux.img`. The cold build runs twice and
 requires identical image digests. Verification inspects the locked idle RBF,
-selected Mega Drive RBF and normalized build-input record, ARM runtime and
+selected core packages and normalized build-input record, ARM runtime and
 static ARM agent, and the runtime's target-library closure. QEMU proves only
 the read-only root, volatile mounts, and init packaging. The designated-kit
 idle and one-player Mega Drive launch/input/Stop/relaunch paths are
@@ -54,46 +54,9 @@ hardware-tested. The existing MiSTer-compatible native development-RBF
 load/Stop lifecycle and its subsequent game regression are also
 hardware-tested; exact evidence is in
 [native-development-rbf-baseline.md](hardware/native-development-rbf-baseline.md).
-`native-dev` defaults to the Mega Drive core set. It can also package the
-explicit four-system set described below. This does not establish a
-generalized RBF ABI or generic development video/input guarantee.
-
-### Optional Pong, SNES and NES image cores
-
-For the FES four-system profile, keep the same selected runtime checkout and
-Mega Drive selection, and supply three sealed misteross bundles:
-
-```sh
-make build
-make verify
-```
-
-The FES `native-integration-dev` profile already selects the four-system set.
-
-The only admitted sets are `megadrive` (the unchanged default) and
-`megadrive pong snes nes`. Pong/SNES/NES use source-built bundles only. Each contains
-exactly `<system>.rbf` and `<system>-rbf.toml`, using the existing closed format-1
-manifest. The selector validates system, source identity, recipe, digest and
-size before publishing a sealed artifact and selection pair. Pong identifies
-its exact misteross producer commit; SNES identifies source commit
-`93d359e6f23c734ae3928984e88bed1d9b53cbac`; NES identifies source commit
-`9a63821173b6da4d6e95dcbe2e2a322ec8171144`. FES additionally binds producer and
-recipe hashes to its selected component commits.
-
-The normal Buildroot post-build hook installs all selected cores and their
-provenance records. Returning to the default removes leftover Pong/SNES/NES cores
-and records. Image verification takes the expected set from the caller and
-compares installed bytes and records with the external selection sidecars;
-it never infers acceptance from files found inside the image. Preserve the
-`pong.selection.toml`, `snes.selection.toml` and `nes.selection.toml` files
-alongside the existing Mega Drive sidecar when moving an image. Both reproducible passes compare
-these sidecars, and the Make variables reach fetch, build, verification and
-QEMU consistently.
-
-These packaging checks are host-side evidence. QEMU checks init packaging;
-physical video, input and audio require acceptance of the exact assembled
-image. Basic SNES supports ordinary LoROM/HiROM cartridges, without enhancement
-chips or persistent saves.
+The earlier Mega Drive/Pong/SNES/NES raw-RBF image lane is retired; images
+install only the sealed core packages described below. The Mega Drive results
+above are dated evidence for that retired lane.
 
 ### FES format-2/3 image package set
 
@@ -175,25 +138,6 @@ removes its cached and installed package state. The FES orchestrator derives
 these inputs from its selected recipe; they are not an ambient package lookup
 or fallback mechanism.
 
-### Native Mega Drive RBF selection
-
-Source-built Mega Drive selection is the native image default; use the explicit upstream selection for fallback.
-
-For the default source-built path, provide a sealed bundle containing exactly
-`megadrive.rbf` and `megadrive-rbf.toml`:
-
-- `make build MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle`
-
-To exercise the locked upstream fallback explicitly:
-
-- `make build MEGADRIVE_RBF_SOURCE=upstream`
-
-There is no automatic fallback between the two RBF selections. A source-built
-failure stops before Buildroot/image mutation, and the upstream mode resolves
-the locked release independently. Both selections use the MiSTer ABI; generalized/custom/non-MiSTer RBF ABI support is deferred. The selection and
-provenance flow is software-tested; source-built artifact qualification on the
-designated kit is a separate later hardware gate.
-
 ### Fast target iteration policy
 
 During active runtime or target debugging, do not rebuild the complete image
@@ -217,17 +161,6 @@ stabilized and immediately before a major PR, merge, release, or formal
 hardware acceptance. The full image rebuild is also required for any change to
 Buildroot, init scripts, package contents, image configuration, or locked
 inputs, because a runtime-only replacement cannot validate those changes.
-
-### Milestone status
-
-```text
-legacy dev/prod = current game-capable path
-native-dev = hardware-tested Mega Drive launch/input/Stop/relaunch
-Milestone 2 = complete
-Milestone 3 = complete for the defined one-player Mega Drive vertical slice
-native development RBF = hardware-tested MiSTer-compatible load/Stop/game-regression path
-Milestone 4 = complete for the defined MiSTer-compatible development lifecycle
-```
 
 ## Dedicated fixture
 
