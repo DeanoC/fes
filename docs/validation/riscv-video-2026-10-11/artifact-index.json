@@ -1,0 +1,92 @@
+[
+  {
+    "path": "/home/deano/alphamister/tmp/riscv-baseline-production/kit-diagnostic/capture.mkv",
+    "size": 11668280,
+    "sha256": "7bfa49271d1af8cd5a3f9237f076dcbe55c6c193c6e919adedafe791a1c52ab5"
+  },
+  {
+    "path": "/home/deano/alphamister/tmp/riscv-baseline-production/kit-diagnostic/capture.log",
+    "size": 144,
+    "sha256": "987335bcaea63023e94acf0e9d691b5bb9565b2a5139cbcf25b91c289d9ebe1b"
+  },
+  {
+    "path": "/home/deano/alphamister/tmp/riscv-baseline-production/kit-diagnostic/receipt.json",
+    "size": 4025,
+    "sha256": "421d5e3c00f4c011473d59a82937662e6f4b86c701d0d207db974d2f60e4a7fd"
+  },
+  {
+    "path": "/home/deano/alphamister/tmp/riscv-production/kit-diagnostic/capture.mkv",
+    "size": 11705699,
+    "sha256": "51a56a46259370361052625a3aac57458aaf282fbabb9f8a4662a45b65a22c3f"
+  },
+  {
+    "path": "/home/deano/alphamister/tmp/riscv-production/kit-diagnostic/capture.log",
+    "size": 144,
+    "sha256": "6b99264a333404a65de4841b8b05f181f4875695b9d86f8bd9ec4ab7db141a94"
+  },
+  {
+    "path": "/home/deano/alphamister/tmp/riscv-production/kit-diagnostic/receipt.json",
+    "size": 4024,
+    "sha256": "e38c9ec5b9ac9440a19d06e32700c6b8d173a05f17ddd5588bb80bb5d46ce4f8"
+  },
+  {
+    "path": "/home/deano/alphamister/tmp/riscv-production/kit-a-diagnostic/capture.mkv",
+    "size": 15341741,
+    "sha256": "fb1a4da02b2a51a0029caa7c5a8a88e6cb288c63e661bc5a93ce458157478daf"
+  },
+  {
+    "path": "/home/deano/alphamister/tmp/riscv-production/kit-a-diagnostic/capture.log",
+    "size": 1684,
+    "sha256": "3d599225fab5c1c7367ad62a88ed6b4be4020643061f545e75b9db2687b6bc65"
+  },
+  {
+    "path": "/home/deano/alphamister/tmp/riscv-production/kit-a-diagnostic/receipt.json",
+    "size": 4024,
+    "sha256": "70b7c72027351279d19f7be7537a8ff7c8b73b160b74549e3931a1c370caf085"
+  },
+  {
+    "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/kit2-mjpeg/capture.mkv",
+    "size": 11669357,
+    "sha256": "8732835161e95dca145e8118037423c52a180065558f7100aeb5f0a366fb0d51"
+  },
+  {
+    "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/kit2-mjpeg/capture.log",
+    "size": 144,
+    "sha256": "2c95656cb26af2ada8e5019fd631f4911192630e2905aa2669062940a040b186"
+  },
+  {
+    "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/kit2-mjpeg/receipt.json",
+    "size": 4025,
+    "sha256": "49132cbbb2f9c923adad85de47e2c8ec8b56f4b3a0ed9c56140daab300d4c922"
+  },
+  {
+    "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/kit2-yuyv422/capture.mkv",
+    "size": 16033418,
+    "sha256": "3debc7ac897640336601499e344183cbd054b8ccbf536e5e9f9cdd10670d2ba2"
+  },
+  {
+    "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/kit2-yuyv422/capture.log",
+    "size": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  {
+    "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/kit2-yuyv422/receipt.json",
+    "size": 4025,
+    "sha256": "76873db790d4e55827421d271f40c747c89497ef6f915aed43b529d7c3a1116b"
+  },
+  {
+    "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/dev-mjpeg/capture.mkv",
+    "size": 12475646,
+    "sha256": "beaed932b40f19a5c1f559e0854b81e85f656611f2e0892e42d9dcb8a502561d"
+  },
+  {
+    "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/dev-mjpeg/capture.log",
+    "size": 312,
+    "sha256": "b185a50496ed32fdf3792b53c81cfc72bdb8407fd299271aa1abf6e342de3171"
+  },
+  {
+    "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/dev-mjpeg/receipt.json",
+    "size": 4024,
+    "sha256": "93d70fd7ec51906a6c7059d908acb6d5c7b3c4c3d6826c47ed8a3b0155869939"
+  }
+]

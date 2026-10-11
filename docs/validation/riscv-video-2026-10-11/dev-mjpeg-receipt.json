@@ -1,0 +1,123 @@
+{
+  "archive_sha256": "a30e75a67266a1bbb2e411293b8ee1b319123ad548add7300dcebc14bd84fc33",
+  "build_id": "39ccdf04c4d0877b75034c8319e2b099",
+  "captures_completed": true,
+  "final_lease": {
+    "expires_at": "0001-01-01T00:00:00Z",
+    "expires_in_ms": 0,
+    "generation": "26f07984339b734e3b2cda9ed18d013d99a702f84519e2003c62f656924c1f03",
+    "state": "free"
+  },
+  "hardware_acceptance": false,
+  "inspection": {
+    "compatibility_error": null,
+    "compatible": true,
+    "descriptor": {
+      "abi": {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0
+      },
+      "build": {
+        "id": "39ccdf04c4d0877b75034c8319e2b099",
+        "recipe_sha256": "f549064fe6d396284d5967e19760c926268dfb609be3adf80f65a124f6cbef79",
+        "repository": "https://github.com/DeanoC/fes",
+        "revision": "896f33ea5102b49559b787ec1a98ef6914d1eab2",
+        "toolchain": "mistral commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=d1fd55fb6ab652575207c0985306dc5e1ffcec3f3bf20150842e311a24b16f3d; nextpnr-mistral commit=9128800fa6e77c4138088a7107a95376ba47ff15; sha256=3577f0942231aa09ddcd5def235bc1d7d94b61662b28c1f9345cf43830be09bc; gpu-router=HIP; hip-architectures=gfx1100;gfx1201; yosys commit=5391eeb1e91b38a3d0e96d04f24cf921743c9c78; sha256=6003b9dc737596215e5cb4dfb368be02673f1f1b0a22548234020e32603367ad"
+      },
+      "core": {
+        "description": "Original RV32I system: 32 KiB RAM, 160x120 framebuffer, gamepad and timer-interrupt demonstration firmware",
+        "id": "fes.riscv",
+        "name": "FES RISC-V",
+        "version": "0.1.0"
+      },
+      "format": 2,
+      "interfaces": [
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        },
+        {
+          "id": "fes.gamepad",
+          "major": 1,
+          "minor": 0,
+          "required": true
+        }
+      ],
+      "payload": {
+        "file": "core.rbf",
+        "sha256": "982087df2da08b652e1d364c0191a566cc77ef68894fa07a77750fb688e3fedc",
+        "size": 2219981
+      },
+      "target": {
+        "device": "5CSEBA6U23I7",
+        "platform": "de10_nano",
+        "programming_profile": "fes-gp-v1"
+      }
+    },
+    "package_id": "72f3b2bed67dd9ddfe7d7404845f8456885947b43897cd546d10ea0b14f21809"
+  },
+  "lease": {
+    "expires_at": "1970-01-01T18:10:48.63211485Z",
+    "expires_in_ms": 89999,
+    "generation": "aae5a2d9ca2ebbdef3f6377e7d90a5013ab2cd233f61f3bb6d6246cc83924a07",
+    "owner": "codex-riscv-video-673",
+    "purpose": "Contained qualified RISC-V production package diagnostic",
+    "state": "held"
+  },
+  "load": {
+    "core_package": {
+      "abi": {
+        "id": "fes.application",
+        "major": 1,
+        "minor": 0
+      },
+      "active_interfaces": [
+        {
+          "id": "fes.gamepad",
+          "major": 1,
+          "minor": 0
+        },
+        {
+          "id": "fes.video.fixed-720p60",
+          "major": 1,
+          "minor": 0
+        }
+      ],
+      "build_id": "39ccdf04c4d0877b75034c8319e2b099",
+      "gamepad": true,
+      "generation": 2,
+      "package_id": "72f3b2bed67dd9ddfe7d7404845f8456885947b43897cd546d10ea0b14f21809",
+      "persistence_mode": "volatile"
+    },
+    "development": true,
+    "expected_core": null,
+    "game_id": null,
+    "last_error": null,
+    "observed_core": "fes.riscv",
+    "state": "active",
+    "system": null
+  },
+  "package_id": "72f3b2bed67dd9ddfe7d7404845f8456885947b43897cd546d10ea0b14f21809",
+  "promoted": false,
+  "release": {
+    "expires_at": "1970-01-01T18:10:48.63211485Z",
+    "expires_in_ms": 0,
+    "generation": "aae5a2d9ca2ebbdef3f6377e7d90a5013ab2cd233f61f3bb6d6246cc83924a07",
+    "owner": "codex-riscv-video-673",
+    "purpose": "Contained qualified RISC-V production package diagnostic",
+    "reason": "owner released lease",
+    "state": "revoking"
+  },
+  "stop": {
+    "expected_core": null,
+    "game_id": null,
+    "last_error": null,
+    "observed_core": null,
+    "state": "idle",
+    "system": null
+  },
+  "target": "dev"
+}

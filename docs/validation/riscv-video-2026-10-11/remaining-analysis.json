@@ -1,0 +1,173 @@
+{
+  "threshold": 30,
+  "box_exclusion": [
+    902,
+    482,
+    1018,
+    598
+  ],
+  "geometry": [
+    1920,
+    1080
+  ],
+  "captures": [
+    {
+      "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/kit2-yuyv422/capture.mkv",
+      "sha256": "3debc7ac897640336601499e344183cbd054b8ccbf536e5e9f9cdd10670d2ba2",
+      "size": 16033418,
+      "frames": [
+        {
+          "seconds": 3,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 4,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 5,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 6,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 7,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 8,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 9,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        }
+      ]
+    },
+    {
+      "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/dev-mjpeg/capture.mkv",
+      "sha256": "beaed932b40f19a5c1f559e0854b81e85f656611f2e0892e42d9dcb8a502561d",
+      "size": 12475646,
+      "frames": [
+        {
+          "seconds": 3,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 4,
+          "static_changed_pixels_vs_3s": 29,
+          "changed_columns": {
+            "896": 1,
+            "897": 1,
+            "900": 1,
+            "901": 1,
+            "910": 1,
+            "911": 1,
+            "1008": 1,
+            "1009": 1,
+            "1010": 1,
+            "1011": 1,
+            "1012": 1,
+            "1013": 1,
+            "1015": 1,
+            "1016": 1,
+            "1017": 1,
+            "1018": 3,
+            "1019": 3,
+            "1022": 4,
+            "1023": 4
+          },
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 5,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 6,
+          "static_changed_pixels_vs_3s": 29,
+          "changed_columns": {
+            "896": 1,
+            "897": 1,
+            "900": 1,
+            "901": 1,
+            "910": 1,
+            "911": 1,
+            "1008": 1,
+            "1009": 1,
+            "1010": 1,
+            "1011": 1,
+            "1012": 1,
+            "1013": 1,
+            "1015": 1,
+            "1016": 1,
+            "1017": 1,
+            "1018": 3,
+            "1019": 3,
+            "1022": 4,
+            "1023": 4
+          },
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 7,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 8,
+          "static_changed_pixels_vs_3s": 29,
+          "changed_columns": {
+            "896": 1,
+            "897": 1,
+            "900": 1,
+            "901": 1,
+            "910": 1,
+            "911": 1,
+            "1008": 1,
+            "1009": 1,
+            "1010": 1,
+            "1011": 1,
+            "1012": 1,
+            "1013": 1,
+            "1015": 1,
+            "1016": 1,
+            "1017": 1,
+            "1018": 3,
+            "1019": 3,
+            "1022": 4,
+            "1023": 4
+          },
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 9,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        }
+      ]
+    }
+  ]
+}

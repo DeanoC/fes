@@ -1,0 +1,32 @@
+[
+  {
+    "path": "/home/deano/alphamister/tmp/riscv-baseline-production/kit-diagnostic/capture.mkv",
+    "adjacent_frames": 209,
+    "max_adjacent_luma_difference": 6
+  },
+  {
+    "path": "/home/deano/alphamister/tmp/riscv-production/kit-diagnostic/capture.mkv",
+    "adjacent_frames": 209,
+    "max_adjacent_luma_difference": 6
+  },
+  {
+    "path": "/home/deano/alphamister/tmp/riscv-production/kit-a-diagnostic/capture.mkv",
+    "adjacent_frames": 204,
+    "max_adjacent_luma_difference": 15
+  },
+  {
+    "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/kit2-mjpeg/capture.mkv",
+    "adjacent_frames": 209,
+    "max_adjacent_luma_difference": 6
+  },
+  {
+    "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/kit2-yuyv422/capture.mkv",
+    "adjacent_frames": 209,
+    "max_adjacent_luma_difference": 7
+  },
+  {
+    "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/dev-mjpeg/capture.mkv",
+    "adjacent_frames": 209,
+    "max_adjacent_luma_difference": 7
+  }
+]
