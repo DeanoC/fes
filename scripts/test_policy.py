@@ -194,4 +194,3 @@ def shard_host_commands(commands, index, count):
             selected.append(command)
         dealt += 1
     return selected
-
