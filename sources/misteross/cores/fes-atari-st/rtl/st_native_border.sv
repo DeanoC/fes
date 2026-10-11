@@ -79,14 +79,21 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     reg [EVENT_BITS+8:0] desc0, desc1, desc2;
     reg [17:0] head0, head1, head2;
     wire [EVENT_BITS+8:0] descriptor = output_bank == 2'd0 ? desc0 : output_bank == 2'd1 ? desc1 : desc2;
-    wire [17:0] head = output_bank == 2'd0 ? head0 : output_bank == 2'd1 ? head1 : head2;
-    reg [EVENT_BITS-1:0] pointer, next_pointer;
-    // Keep the successor ready before the colour comparison. A late consume
-    // selects a RAM address without feeding an EVENT_BITS-wide carry chain.
+    reg [17:0] held0, held1, held2;
+    reg held_valid;
+    wire [17:0] current0 = held_valid ? held0 : head0;
+    wire [17:0] current1 = held_valid ? held1 : head1;
+    wire [17:0] current2 = held_valid ? held2 : head2;
+    wire [17:0] head = output_bank == 2'd0 ? current0 : output_bank == 2'd1 ? current1 : current2;
+    reg [EVENT_BITS-1:0] next_pointer;
+    // The published display bank is immutable until SOF. Hold its current
+    // event through pauses while the RAM ports prefetch the successor. A
+    // consume releases the held event on the original output edge; no head-X
+    // comparison or consume decision feeds the ordinary RAM read address.
     reg [8:0] remaining, colour;
     wire consume = output_ce && remaining != 9'd0 && head[17:9] <= output_x;
     wire [EVENT_BITS-1:0] read_pointer = output_sof ? {EVENT_BITS{1'b0}} :
-        output_line_start ? descriptor[EVENT_BITS-1:0] : consume && remaining > 9'd1 ? next_pointer : pointer;
+        output_line_start ? descriptor[EVENT_BITS-1:0] : next_pointer;
     // Publication can select a bank on this same SOF edge. Increment each
     // descriptor independently so that late bank selection does not precede
     // an EVENT_BITS-wide carry chain. SOF retains its fixed event-zero origin.
@@ -102,18 +109,20 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
         desc0 <= rows0[output_row]; desc1 <= rows1[output_row]; desc2 <= rows2[output_row];
         head0 <= events0[read_pointer]; head1 <= events1[read_pointer]; head2 <= events2[read_pointer];
         if (reset_pixel) begin
-            pointer <= 0; next_pointer <= 1; remaining <= 0; colour <= 0;
+            next_pointer <= 1; remaining <= 0; colour <= 0;
+            held_valid <= 1'b0; held0 <= 0; held1 <= 0; held2 <= 0;
         end else if (output_sof || output_line_start) begin
-            pointer <= read_pointer;
+            held_valid <= 1'b0;
             next_pointer <= line_successor;
             remaining <= descriptor[EVENT_BITS+8:EVENT_BITS];
             colour <= 0;
         end else if (consume) begin
+            held_valid <= 1'b0;
             colour <= head[8:0]; remaining <= remaining - 1'b1;
-            if (remaining > 9'd1) begin
-                pointer <= next_pointer;
-                next_pointer <= next_pointer + 1'b1;
-            end
+            if (remaining > 9'd1) next_pointer <= next_pointer + 1'b1;
+        end else if (!held_valid) begin
+            held0 <= head0; held1 <= head1; held2 <= head2;
+            held_valid <= 1'b1;
         end
     end
 endmodule

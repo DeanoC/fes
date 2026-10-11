@@ -315,6 +315,11 @@ canvas includes the 29 top-border rows and 48 pixels at each side of the
 ordinary display. These are live palette-zero borders; they do not add top or
 horizontal display-enable opening.
 A blanking-time row counter avoids a vertical-coordinate multiply on the read path.
+Border replay prefetches the registered successor while holding the current event
+through output pauses. Consuming an event releases that hold on the original pixel
+edge; SOF and line start load the original event-zero/row descriptor addresses.
+The event RAM address no longer depends on the current colour comparison.
+The surrounding capture pins published banks until SOF, and SOF runs in blanking.
 RGB and black-line validity have separate write registers. Three-bit publication
 numbers order the bounded pending bank set across wrap and consumer pauses.
 A missing RAM row displays black for its whole line; HOLD aborts an unfinished
