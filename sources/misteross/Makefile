@@ -1622,7 +1622,8 @@ sim-fes-atari-st-emutos: atari-st-sources
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_boot_sim_top $(ST_CPU_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-emutos" \
 		$(ST_CORE)/sim/st_boot_sim_top.sv $(ST_CORE)/rtl/st_system.sv \
-		$(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv $(ST_IO_RTL) $(ST_CPU_RTL) \
+		$(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv $(ST_IO_RTL) \
+		$(ST_CORE)/rtl/st_native_border.sv $(ST_CORE)/rtl/st_native_low_video.sv $(ST_CPU_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/boot_tb.cpp" -CFLAGS '-O3 -std=c++17'
 	@cd build/sim/fes-atari-st-emutos && ./Vst_boot_sim_top "$(abspath $(EMUTOS_ROM))"
 

@@ -21,12 +21,33 @@ struct Test {
     bool rom_seen=false, ram_seen=false;
     unsigned rom_wait=0, ram_wait=0;
     std::vector<std::pair<bool,uint64_t>> starts;
+    bool floating_bus;
+    uint16_t last_memory_read=0xffff;
+    uint32_t previous_cpu_address=0;
+    std::vector<uint16_t> empty_reads;
     void word(unsigned &at, unsigned value) { rom.at(at++)=value>>8; rom.at(at++)=value; }
     void longword(unsigned &at, unsigned value) { word(at,value>>16); word(at,value); }
-    Test() {
+    explicit Test(bool floating=false) : floating_bus(floating) {
         unsigned at=0; longword(at,0x7fff0); longword(at,0xfc0100);
         at=0x100;
         word(at,0x13fc); word(at,4); longword(at,0xff8001); // 512 KiB bank
+        if (floating_bus) {
+            // Real CPU word/even-byte/odd-byte accesses, with intervening
+            // instruction prefetches and delayed external memory reads.
+            for (unsigned address : {0x80000u,0x90000u}) {
+                word(at,0x3039); longword(at,address);
+                word(at,0x33c0); longword(at,address==0x80000 ? 0x600 : 0x602);
+            }
+            for (unsigned address : {0x80000u,0x80001u}) {
+                word(at,0x1239); longword(at,address);
+                word(at,0x13c1); longword(at,address==0x80000 ? 0x604 : 0x605);
+            }
+            // An empty-bank write has no storage destination and must not
+            // replace the retained read data with its payload.
+            word(at,0x33fc); word(at,0xcafe); longword(at,0x300000);
+            word(at,0x3039); longword(at,0x90000);
+            word(at,0x33c0); longword(at,0x606);
+        } else {
         word(at,0x705a); // MOVEQ #$5A,D0
         for (unsigned i=0;i<125;++i) {
             word(at,0x1239); longword(at,0xfffa01); word(at,0x4e71); // byte read; NOP
@@ -36,6 +57,7 @@ struct Test {
         }
         word(at,0x1239); longword(at,0xfffa03); // read back AER
         word(at,0x13c1); longword(at,0x405); // save byte result
+        }
         word(at,0x33fc); word(at,0xc0de); longword(at,0x400);
         word(at,0x4e72); word(at,0x2700);
         dut.reset=1; dut.clk_sys=0; dut.monochrome=0;
@@ -55,6 +77,7 @@ struct Test {
             if(!rom_seen) {rom_seen=true;rom_wait=2+a%3;}
             dut.rom_rdata=(unsigned(rom[a])<<8)|rom[a+1];
             dut.rom_ready=rom_wait==0; if(rom_wait)--rom_wait;
+            if(dut.rom_ready)last_memory_read=dut.rom_rdata;
         }
         if (!dut.ram_req) {ram_seen=false;dut.ram_ready=0;}
         else {
@@ -69,10 +92,17 @@ struct Test {
             }
             dut.ram_rdata=(unsigned(ram[a])<<8)|ram[a+1];
             dut.ram_ready=ram_wait==0; if(ram_wait)--ram_wait;
+            if(dut.ram_ready&&!dut.ram_write)last_memory_read=dut.ram_rdata;
         }
     }
     void tick() {
         storage(); dut.eval();
+        if(floating_bus && !dut.reset) {
+            const uint32_t address=dut.debug_addr;
+            if(address!=previous_cpu_address && (address==0x80000 || address==0x90000))
+                empty_reads.push_back(last_memory_read);
+            previous_cpu_address=address;
+        }
         if(!dut.reset&&dut.exp_phi2)++cpu_ticks;
         dut.clk_sys=0; dut.eval(); dut.clk_sys=1; dut.eval(); ++clocks;
     }
@@ -86,6 +116,18 @@ struct Test {
             if(ram[0x400]==0xc0&&ram[0x401]==0xde)break;
         }
         require(ram[0x400]==0xc0&&ram[0x401]==0xde,"original timing program completed");
+        if(floating_bus) {
+            require(empty_reads.size()==5,"five original CPU empty-bank reads");
+            const auto result=[&](unsigned address) {return (unsigned(ram[address])<<8)|ram[address+1];};
+            require(result(0x600)==empty_reads[0],"empty word retains preceding memory read");
+            require(result(0x602)==empty_reads[1],"second empty word retains new prefetch");
+            require(ram[0x604]==(empty_reads[2]>>8),"empty even byte uses retained upper lane");
+            require(ram[0x605]==(empty_reads[3]&0xff),"empty odd byte uses retained lower lane");
+            require(result(0x606)==empty_reads[4],"empty write does not substitute its payload");
+            require(empty_reads[0]!=0xffff && empty_reads[0]!=0xcafe,"CPU test distinguishes constant and write-payload responses");
+            std::cout<<"STF floating bus CPU PASS: word/byte reads retain last memory read; empty write discarded\n";
+            return;
+        }
         require(ram[0x405]==0x5a,"delayed write and read retain MFP data");
         require(starts.size()==251,"125 reads, 125 writes and one readback");
         unsigned checked=0;
@@ -102,4 +144,4 @@ struct Test {
         std::cout<<"MFP CPU bus PASS: "<<checked<<" instruction intervals; late read/write data retained\n";
     }
 };
-int main(int argc,char**argv) {Verilated::commandArgs(argc,argv);Test t;t.run();}
+int main(int argc,char**argv) {Verilated::commandArgs(argc,argv);Test t;t.run();Test floating(true);floating.run();}

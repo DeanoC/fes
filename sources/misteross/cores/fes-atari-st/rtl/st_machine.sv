@@ -104,6 +104,10 @@ module st_machine #(
         target == RAM && (!writing || EARLY_RAM_WRITE_COMPLETION) && ram_ready &&
         timeout_halves != TIMER_BITS'(BUS_TIMEOUT_HALVES);
     reg [8:0] colors [0:15];
+    // STF empty RAM retains the last word read by the CPU, including opcode
+    // prefetch. Keep writes and independent shifter/DMA reads out of this
+    // latch. CPU UDS/LDS still select the retained word's normal byte lane.
+    reg [15:0] last_cpu_read;
     genvar color;
     generate for (color = 0; color < 16; color = color + 1) begin : palette_pack
         assign palette[color*9 +: 9] = colors[color];
@@ -213,6 +217,7 @@ module st_machine #(
             dtack_n <= 1'b1;
             berr_n <= 1'b1;
             cpu_rdata <= 16'hffff;
+            last_cpu_read <= 16'hffff;
             screen_base <= 24'd0;
             resolution <= 2'd0;
             memory_config <= 8'd0;
@@ -247,7 +252,7 @@ module st_machine #(
                             target <= RAM;
                         // The MMU acknowledges the whole original-ST 4 MiB
                         // RAM window, including unpopulated/unselected DRAM.
-                        // Keep the existing all-ones empty-bank read model;
+                        // Empty reads retain the preceding CPU read word;
                         // writes have no physical DRAM destination.
                         else if (live_address < 24'h400000)
                             target <= EMPTY_BANK;
@@ -278,12 +283,22 @@ module st_machine #(
                                  (target == ROM && rom_ready) ||
                                  (target == EXPANSION && exp_ack)) begin
                         case (target)
-                            RAM: cpu_rdata <= ram_rdata;
-                            ROM: cpu_rdata <= rom_rdata;
-                            EXPANSION: cpu_rdata <= exp_rdata;
-                            EMPTY_BANK: cpu_rdata <= 16'hffff;
+                            RAM: begin
+                                cpu_rdata <= ram_rdata;
+                                if (!writing) last_cpu_read <= ram_rdata;
+                            end
+                            ROM: begin
+                                cpu_rdata <= rom_rdata;
+                                last_cpu_read <= rom_rdata;
+                            end
+                            EXPANSION: begin
+                                cpu_rdata <= exp_rdata;
+                                if (!writing) last_cpu_read <= exp_rdata;
+                            end
+                            EMPTY_BANK: cpu_rdata <= last_cpu_read;
                             IO: begin
                                 cpu_rdata <= io_rdata;
+                                if (!writing) last_cpu_read <= io_rdata;
                                 if (writing) begin
                                     if (palette_access) begin
                                         colors[palette_index] <= {palette_wdata[10:8],
@@ -316,6 +331,7 @@ module st_machine #(
                 IACK: begin
                     if (vectored_cycle) begin
                         cpu_rdata <= {8'hff, irq_vector};
+                        last_cpu_read <= {8'hff, irq_vector};
                         dtack_n <= 1'b0;
                     end
                     if (cpu_as_n) begin

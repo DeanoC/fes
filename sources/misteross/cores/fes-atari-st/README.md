@@ -91,11 +91,15 @@ The controller preserves its packed row/bank/column mapping.
 The original ST MMU configures two logical banks. This machine has one
 physical 512 KiB bank and an empty second bank. `$FF8001` changes logical bank
 sizes and the CPU's multiplexed address mapping, including the row/column
-aliases ROMs use to discover RAM. Empty-bank reads acknowledge `$FFFF` and
-writes have no effect. The remainder of the original ST RAM decode window
+aliases ROMs use to discover RAM. Empty-bank reads retain the last CPU-read
+word, including instruction prefetch, and writes have no effect. The remainder of the original ST RAM decode window
 below `$400000` also acknowledges accesses and discards writes, even beyond
-the configured logical bank sizes. Empty-memory reads use the existing all-ones
-model; the original STF floating data-bus value is not reproduced. Addresses
+the configured logical bank sizes. CPU byte strobes select the retained word's
+even upper or odd lower lane. Writes and shifter/DMA activity do not replace
+this CPU-read value, following the STF behavior documented in
+[Hatari's memory implementation](https://github.com/hatari/hatari/blob/v2.5.0/src/cpu/memory.c).
+The real-CPU MFP bus diagnostic also exercises empty-bank word/byte reads with
+delayed prefetch responses and discarded empty writes. Addresses
 from `$400000` upward remain unmapped until a separately decoded cartridge,
 ROM or peripheral window. The populated bank follows the original ST wiring,
 rather than the later STe mapping. In the normal `$04` configuration:

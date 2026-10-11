@@ -177,10 +177,10 @@ def firmware(variant: int = 1) -> tuple[bytes, dict[str, int]]:
         p.move_imm("w", 0x3917, size - 2)
         p.check("w", 0x3917, size - 2)
         p.move_imm("w", 0x4826, size)
-        p.check("w", 0xFFFF, size)
+        p.read("w", size)  # acknowledged floating read, no fixed value
         p.check("w", 0x3917, size - 2)
     p.move_imm("b", 12, 0xFF8001)
-    p.check("w", 0xFFFF, 0x800)
+    p.read("w", 0x800)
     p.check("l", STACK, 0)
     p.move_imm("b", 4, 0xFF8001)
     # ROM RAM-sizing uses the original ST's row/column aliases, not a flat
@@ -190,7 +190,7 @@ def firmware(variant: int = 1) -> tuple[bytes, dict[str, int]]:
     p.check("w", 0x1357, 0x001408)
     p.check("w", 0x1357, 0x101008)
     p.move_imm("w", 0x2468, 0x200008)
-    p.check("w", 0xFFFF, 0x200008)
+    p.read("w", 0x200008)
     p.check("w", 0x1357, 0x001008)
     p.move_imm("b", 4, 0xFF8001)
     p.check("w", 0x1357, 0x000808)
@@ -255,16 +255,19 @@ def firmware(variant: int = 1) -> tuple[bytes, dict[str, int]]:
     p.fault(2, lambda: p.move_imm("w", 0x0BAD, ROM_SENTINEL))
     p.check("w", 0x68A5, ROM_SENTINEL)
     p.stage(8)
-    p.check("w", 0xFFFF, 0x080000)  # configured bank 1 has no DRAM
+    p.read("w", 0x080000)  # configured bank 1 has no DRAM
     # Empty logical banks and the rest of the 4 MiB RAM decode window
     # acknowledge all byte lanes without aliasing the populated 512 KiB.
     for address in (0x080000, 0x0A0000, 0x200000, 0x3FFFFE):
         p.move_imm("w", 0x1234, address)
         p.move_imm("b", 0x56, address)
         p.move_imm("b", 0x78, address + 1)
-        p.check("w", 0xFFFF, address)
-        p.check("b", 0xFF, address)
-        p.check("b", 0xFF, address + 1)
+        # The value depends on the CPU's preceding read/prefetch, not $FFFF.
+        # The CPU bus diagnostic verifies retained words and byte lanes;
+        # this ROM checks acknowledgement and preservation of populated RAM.
+        p.read("w", address)
+        p.read("b", address)
+        p.read("b", address + 1)
     p.check("l", 0xFEA51234, 0x07FFFC)
     p.check("w", 0xA55A, 0x800)
     for bank, marker in enumerate((0x1101, 0x2202, 0x3303, 0x4404)):
