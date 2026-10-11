@@ -7,7 +7,9 @@
     {
       "file": "ym2149_fixed_vol.h",
       "url": "https://raw.githubusercontent.com/hatari/hatari/v2.5.0/src/includes/ym2149_fixed_vol.h",
-      "sha256": "0db6eee49cdf807a0395b5626f03e279ed6135873080ae7df855ddd6edb33b19"
+      "sha256": "969e218512039ac7ead8f6b8edb7793d458b7f24911db13c7c179ebfeba6e32a",
+      "upstream_sha256": "0db6eee49cdf807a0395b5626f03e279ed6135873080ae7df855ddd6edb33b19",
+      "local_transformation": "Remove the final blank line; retain one final newline. Table values and notices are unchanged."
     },
     {
       "file": "GPL-2.0.txt",
