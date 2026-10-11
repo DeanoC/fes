@@ -67,6 +67,11 @@ glyphs, box position after gamepad input, the colour change from the timer
 interrupt, clamping at the border and the restart after an execution hold,
 all read back from the HDMI pixel stream) and `board` (`top.v` through the
 mailbox: capabilities `0x3`, release, gamepad input, HDMI pixels and hold).
+The system case also checks every static 720p output pixel against the full
+border, gradient and nine-glyph banner for 600 consecutive frames after startup
+(ten seconds), while the CPU and timer run. Only the animated box footprint is
+excluded during that interval. This checks every pixel of each 6x6 scaled block,
+including edges that centre-only sampling would miss.
 Simulation targets refuse the shared toolchain cache.
 
 ## Seal

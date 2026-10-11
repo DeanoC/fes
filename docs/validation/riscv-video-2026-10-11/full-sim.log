@@ -1,0 +1,21 @@
+alu:
+fes_rv32_alu: 2001936 operations match (host simulation only).
+cpu:
+directed (max wait 0): 825 instructions, 15 exceptions, 6 interrupts, 1997 cycles
+directed (max wait 3): 824 instructions, 15 exceptions, 6 interrupts, 2927 cycles
+fuzz seed 1 (max wait 3): 18783 instructions, 518 exceptions, 40 interrupts, 122 adopted counter reads, 56645 cycles
+fuzz seed 2 (max wait 3): 17603 instructions, 480 exceptions, 75 interrupts, 40 adopted counter reads, 53281 cycles
+fuzz seed 3 (max wait 0): 17300 instructions, 440 exceptions, 1 interrupts, 40 adopted counter reads, 37084 cycles
+fuzz seed 4 (max wait 3): 19004 instructions, 529 exceptions, 159 interrupts, 120 adopted counter reads, 57697 cycles
+fuzz seed 5 (max wait 3): 20252 instructions, 640 exceptions, 80 interrupts, 40 adopted counter reads, 61590 cycles
+fuzz seed 6 (max wait 0): 19967 instructions, 440 exceptions, 279 interrupts, 40 adopted counter reads, 43892 cycles
+fes_rv32_cpu checks passed (host simulation only).
+firmware images match firmware.S (1256 bytes)
+system:
+Static scene: 549849600 output pixels checked across 600 frames.
+fes_riscv_system: firmware drew the scene, moved the box, cycled colour on the timer interrupt and restarted on hold (863733754 pixel cycles, 216304881 instructions).
+faults:
+fes_riscv_system: unmapped I/O, framebuffer overrun and wild addresses fault; mapped words do not (331 cycles)
+board:
+fes.riscv board mailbox, release, gamepad, HDMI output and hold passed (20996254 pixel cycles)
+RV32I RTL checks passed (host simulation only).

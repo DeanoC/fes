@@ -1892,7 +1892,10 @@ the first placement meeting 74.25 MHz, validates the shared board, PLL and
 I2C evidence and exports a format-2 package (`fes.riscv` 0.1.0, profile
 `fes-gp-v1`). Output is `build/fes-riscv/`. `make sim-fes-riscv` covers the
 CPU against an independent model, the firmware images, the system through
-its HDMI pixel stream and the board shell through the mailbox. The CPU
+its HDMI pixel stream and the board shell through the mailbox. The system
+case checks every static output pixel against the complete scene for 600
+consecutive frames while the CPU and timer run, excluding the animated box.
+The CPU
 contract is [its README](../cores/fes-common/rtl/riscv/README.md); the
 machine contract is [the core README](../cores/fes-riscv/README.md). FES
 registers the recipe as package-only; the factory image does not select it.

@@ -1,0 +1,274 @@
+{
+  "threshold": 30,
+  "box_exclusion": [
+    902,
+    482,
+    1018,
+    598
+  ],
+  "geometry": [
+    1920,
+    1080
+  ],
+  "captures": [
+    {
+      "path": "/home/deano/alphamister/tmp/riscv-baseline-production/kit-diagnostic/capture.mkv",
+      "sha256": "7bfa49271d1af8cd5a3f9237f076dcbe55c6c193c6e919adedafe791a1c52ab5",
+      "size": 11668280,
+      "frames": [
+        {
+          "seconds": 3,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 4,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 5,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 6,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 7,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 8,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 9,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        }
+      ]
+    },
+    {
+      "path": "/home/deano/alphamister/tmp/riscv-production/kit-diagnostic/capture.mkv",
+      "sha256": "51a56a46259370361052625a3aac57458aaf282fbabb9f8a4662a45b65a22c3f",
+      "size": 11705699,
+      "frames": [
+        {
+          "seconds": 3,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 4,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 5,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 6,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 7,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 8,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 9,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        }
+      ]
+    },
+    {
+      "path": "/home/deano/alphamister/tmp/riscv-production/kit-a-diagnostic/capture.mkv",
+      "sha256": "fb1a4da02b2a51a0029caa7c5a8a88e6cb288c63e661bc5a93ce458157478daf",
+      "size": 15341741,
+      "frames": [
+        {
+          "seconds": 3,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 4,
+          "static_changed_pixels_vs_3s": 39,
+          "changed_columns": {
+            "240": 5,
+            "243": 1,
+            "472": 12,
+            "473": 13,
+            "896": 1,
+            "897": 1,
+            "1068": 2,
+            "1070": 1,
+            "1071": 1,
+            "1086": 2
+          },
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 5,
+          "static_changed_pixels_vs_3s": 22,
+          "changed_columns": {
+            "240": 6,
+            "472": 8,
+            "473": 8
+          },
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 6,
+          "static_changed_pixels_vs_3s": 28,
+          "changed_columns": {
+            "240": 2,
+            "243": 1,
+            "468": 1,
+            "469": 1,
+            "472": 5,
+            "473": 6,
+            "896": 1,
+            "897": 1,
+            "976": 2,
+            "977": 2,
+            "1086": 6
+          },
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 7,
+          "static_changed_pixels_vs_3s": 42,
+          "changed_columns": {
+            "238": 1,
+            "240": 2,
+            "472": 14,
+            "473": 14,
+            "1068": 1,
+            "1070": 1,
+            "1071": 1,
+            "1086": 4,
+            "1670": 2,
+            "1671": 2
+          },
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 8,
+          "static_changed_pixels_vs_3s": 19,
+          "changed_columns": {
+            "254": 1,
+            "472": 4,
+            "473": 4,
+            "896": 1,
+            "897": 1,
+            "976": 1,
+            "977": 1,
+            "1068": 1,
+            "1070": 1,
+            "1670": 2,
+            "1671": 2
+          },
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 9,
+          "static_changed_pixels_vs_3s": 42,
+          "changed_columns": {
+            "240": 1,
+            "472": 8,
+            "473": 8,
+            "478": 1,
+            "479": 1,
+            "976": 2,
+            "977": 2,
+            "1086": 10,
+            "1670": 1,
+            "1671": 2,
+            "1672": 3,
+            "1673": 3
+          },
+          "banner_cell_mismatches": []
+        }
+      ]
+    },
+    {
+      "path": "/home/deano/.codex/worktrees/fa3f/fes/out/dev/riscv-video-diagnostics/fes/out/diagnostics/kit2-mjpeg/capture.mkv",
+      "sha256": "8732835161e95dca145e8118037423c52a180065558f7100aeb5f0a366fb0d51",
+      "size": 11669357,
+      "frames": [
+        {
+          "seconds": 3,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 4,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 5,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 6,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 7,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 8,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        },
+        {
+          "seconds": 9,
+          "static_changed_pixels_vs_3s": 0,
+          "changed_columns": {},
+          "banner_cell_mismatches": []
+        }
+      ]
+    }
+  ]
+}

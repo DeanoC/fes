@@ -4,6 +4,7 @@
 #pragma once
 #include <array>
 #include <cstdint>
+#include <functional>
 
 struct FrameCapture {
     static constexpr int WIDTH = 160, HEIGHT = 120;
@@ -13,6 +14,8 @@ struct FrameCapture {
     unsigned frames = 0;             // complete frames seen so far
     unsigned bar_violations = 0;     // non-black pixels in the side bars
     unsigned active_pixels = 0;
+    // Optional full-resolution oracle; centre samples remain useful for box tests.
+    std::function<void(int, int, uint32_t)> check_pixel;
 
     void sample(bool de, bool vs, uint32_t rgb) {
         if (vs && !prev_vs) {
@@ -21,6 +24,7 @@ struct FrameCapture {
         }
         if (de) {
             if (!prev_de) x = 0;
+            if (check_pixel) check_pixel(x, y, rgb);
             if (x < 160 || x >= 1120) {
                 if (rgb) ++bar_violations;
             } else if ((x - 160) % 6 == 3 && y % 6 == 3 && y / 6 < HEIGHT) {

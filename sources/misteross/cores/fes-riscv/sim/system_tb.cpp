@@ -24,6 +24,24 @@ constexpr uint8_t PALETTE[8] = {0xe0, 0xfc, 0x1c, 0x1f, 0x03, 0xe3, 0xff, 0x92};
 constexpr int BOX = 12, BOX_X0 = (160 - BOX) / 2, BOX_Y0 = (120 - BOX) / 2;
 constexpr uint64_t TICK_CYCLES = 18562500;   // the firmware's timer period
 
+// Independent scene oracle, including every glyph rather than selected stems.
+uint8_t scene(int x, int y) {
+    static constexpr uint8_t glyphs[9][7] = {
+        {31,16,30,16,16,16,16}, {31,16,30,16,16,16,31},
+        {15,16,16,14,1,1,30}, {0,0,0,0,0,0,0},
+        {30,17,17,30,20,18,17}, {17,17,17,17,17,10,4},
+        {30,1,1,14,1,1,30}, {14,17,1,2,4,8,31},
+        {31,4,4,4,4,4,31}
+    };
+    if (x == 0 || x == 159 || y == 0 || y == 119) return 0xff;
+    if (x >= 26 && x < 134 && y >= 8 && y < 22) {
+        int offset = x - 26, column = (offset % 12) / 2;
+        if (column < 5 && (glyphs[offset / 12][(y - 8) / 2] & (1 << (4 - column))))
+            return 0xff;
+    }
+    return FrameCapture::background(x, y);
+}
+
 struct System {
     Vfes_riscv_system dut;
     FrameCapture capture;
@@ -124,6 +142,32 @@ int main(int argc, char **argv) {
 
     // The box starts centred in the first palette colour.
     require(s.expect_box(BOX_X0, BOX_Y0) == PALETTE[0], "initial box colour");
+
+    // Ten seconds after scene initialization: check all 36 output pixels per
+    // framebuffer pixel on every frame while the CPU and timer keep running.
+    // The box is redrawn in place and may tear; only its 12x12 footprint is
+    // excluded. In particular, the entire banner and all four RAM lanes count.
+    uint64_t checked = 0;
+    s.capture.check_pixel = [&](int x, int y, uint32_t rgb) {
+        require(x < 1280 && y < 720, "active raster dimensions");
+        uint32_t want = 0;
+        if (x >= 160 && x < 1120) {
+            int fx = (x - 160) / 6, fy = y / 6;
+            if (fx >= BOX_X0 && fx < BOX_X0 + BOX && fy >= BOX_Y0 && fy < BOX_Y0 + BOX)
+                return;
+            want = FrameCapture::expand(scene(fx, fy));
+        }
+        ++checked;
+        if (rgb != want)
+            fail("static scene changed at output (" + std::to_string(x) + "," +
+                 std::to_string(y) + "), frame " + std::to_string(s.capture.frames) +
+                 ": got " + hex(rgb) + " expected " + hex(want));
+    };
+    s.frames(600);
+    s.capture.check_pixel = {};
+    require(checked == uint64_t(600) * (1280 * 720 - BOX * BOX * 36),
+            "soak must check every static pixel in 600 complete frames");
+    std::cout << "Static scene: " << checked << " output pixels checked across 600 frames.\n";
 
     // Right for ten frame ticks moves it ten pixels; a release stops it.
     s.dut.buttons = 8;
