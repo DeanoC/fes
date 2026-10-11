@@ -103,8 +103,8 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
         .debug_frames(capture_frames), .debug_skipped(unused_capture_skipped), .debug_underruns(capture_underruns)
     );
     assign capture_pixel = capture.write_pixel;
-    assign capture_x = capture.sample_x;
-    assign capture_y = capture.row;
+    assign capture_x = capture.output_x;
+    assign capture_y = capture.output_row;
     assign capture_rgb = capture.sample_rgb;
     assign capture_height = capture.height[capture.write_bank];
     assign debug_fdc_status = system.io.floppy.fdc_status;

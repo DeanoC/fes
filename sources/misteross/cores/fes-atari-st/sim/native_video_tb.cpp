@@ -12,7 +12,7 @@ struct Test {
     Vst_native_video_sim_top dut;
     static constexpr uint64_t SysPeriod=19149, PixelPeriod=13468;
     static constexpr unsigned CpuHz=8021247, SystemHz=52224000;
-    static constexpr unsigned LineCycles=512, DisplayStart=56, DisplayEnd=376;
+    static constexpr unsigned LineCycles=512, DisplayStart=56, DisplayEnd=376, OutputDelay=28;
     uint64_t cpu_phase=0;
     uint64_t next_sys=0,next_pixel=7331,sys_cycles=0,pixel_cycles=0,checks=0;
     unsigned source_clock=313*512-1,source_frame=0,position=0,output_frame=0,selected=0;
@@ -128,7 +128,7 @@ struct Test {
                             if(selected==9) ++ntsc_bottom_pixels;
                         }
                         unsigned intensity=(row+selected)%7+1;
-                        unsigned expected=rgb(nx<160?intensity<<6:intensity);
+                        unsigned expected=rgb(nx<160-OutputDelay?intensity<<6:intensity);
                         if(row_black[row]<0){row_black[row]=actual==0;if(actual==0){++black_rows;if(selected==3)++stall_black_rows;}}
                         require(actual==(row_black[row]?0:expected),"native palette/pixel/scaling mismatch");
                         // Check adjacent words across the first/final shallow
@@ -143,7 +143,7 @@ struct Test {
                         require(selected!=10||actual==0,"invalid framebuffer reused previous pixels");
                     }else{
                         const bool canvas=x>=224&&x<1056&&y>=canvas_top&&y<canvas_top+canvas_rows*2;
-                        const unsigned expected=canvas?rgb(raster?border_colour((selected==9?5:34)+(y-canvas_top)/2,(x-224)/2,selected==9):0xdb):0;
+                        const unsigned expected=canvas?rgb(raster?border_colour((selected==9?5:34)+(y-canvas_top)/2,(x-224)/2+OutputDelay,selected==9):0xdb):0;
                         require(actual==expected,"live border colour/pixel/repeated-row mismatch");
                         if(canvas)++raster_border_pixels;
                     }

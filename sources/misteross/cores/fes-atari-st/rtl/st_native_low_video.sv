@@ -4,7 +4,8 @@
 // domain; palette selection occurs at each native pixel, not at HDMI SOF.
 // Three RGB333 banks have explicit publish/release ownership. Pixel may read
 // only an immutable completed bank, and changes banks only at output SOF.
-// Horizontal/top border tricks and cycle-exact MMU/shifter timing remain separate.
+// Raw DE/MMU and Timer B timing remain separate from calibrated RGB output.
+// This is a net Hatari/STF-calibrated candidate, not one literal hardware delay.
 module st_native_low_video (
     input wire clk_sys, clk_pixel, reset_sys, reset_pixel, hold,
     input wire native_vblank, native_display,
@@ -131,9 +132,8 @@ module st_native_low_video (
     // event as border capture, without an independent oscillator or phase.
     wire pixel_due = native_pixel_ce;
     wire [8:0] sample_x = display_rise ? 9'd0 : pixel_x;
-    wire write_pixel = owned && enabled && !hold && active_row && native_display &&
+    wire prepare_pixel = owned && enabled && !hold && active_row && native_display &&
                        pixel_due && sample_x < 9'd320;
-    wire [16:0] write_address = 17'(row) * 17'd320 + 17'(sample_x);
 
     reg [15:0] cache0 [0:79];
     reg [15:0] cache1 [0:79];
@@ -149,24 +149,60 @@ module st_native_low_video (
     wire [15:0] plane2 = row[0] ? cache1[group_word + 7'd2] : cache0[group_word + 7'd2];
     wire [15:0] plane3 = row[0] ? cache1[group_word + 7'd3] : cache0[group_word + 7'd3];
     wire [3:0] color_index = {plane3[bit_index], plane2[bit_index], plane1[bit_index], plane0[bit_index]};
-    wire [8:0] pixel_rgb = palette[color_index * 9 +: 9];
-    wire [8:0] sample_rgb = sample_valid ? pixel_rgb : 9'd0;
-    // Sample RGB at the native event, then register the wide RAM input fanout.
-    // The final pixel drains before DE falls; publication follows that fall.
+    // Shift only on actual native pulses: input at t leaves at t+28.
+    // Carry indices and coordinates, never resolved historical RGB.
+    localparam integer OUTPUT_DELAY = 28;
+    typedef struct packed {
+        logic pixel, visible, active, pal, valid;
+        logic [1:0] bank;
+        logic [8:0] line_number, cycle_number, x, row_number;
+        logic [3:0] index;
+    } output_token_t;
+    output_token_t output_pipe [0:OUTPUT_DELAY-1];
+    output_token_t output_token;
+    reg output_tick;
+    wire prepared_visible = native_line >= (frame_pal ? 9'd34 : 9'd5) &&
+        native_line < (frame_pal ? 9'd310 : 9'd260) &&
+        native_cycle >= (frame_pal ? 9'd8 : 9'd4) &&
+        native_cycle < (frame_pal ? 9'd424 : 9'd420);
+    wire write_pixel = output_tick && output_token.pixel && !hold;
+    wire [8:0] output_x = output_token.x;
+    wire [8:0] output_row = output_token.row_number;
+    wire [8:0] pixel_rgb = palette[output_token.index * 9 +: 9];
+    wire [8:0] sample_rgb = output_token.valid ? pixel_rgb : 9'd0;
+    reg output_pending;
+    always @* begin
+        output_pending = output_tick && (output_token.pixel || output_token.visible);
+        for (integer i = 0; i < OUTPUT_DELAY; i = i + 1)
+            output_pending = output_pending || output_pipe[i].pixel || output_pipe[i].visible;
+    end
+    // Consume on the subsequent fabric edge, after any same-edge IO commit.
+    // Border capture consumes the same output token and current palette zero.
     reg frame_write, frame_write_black;
     reg [1:0] frame_write_bank;
     reg [16:0] frame_write_address;
     reg [8:0] frame_write_rgb;
     always @(posedge clk_sys) begin
-        if (reset_sys) begin
+        if (reset_sys || hold || native_vblank) begin
+            output_tick <= 1'b0; output_token <= '0;
+            for (integer i = 0; i < OUTPUT_DELAY; i = i + 1) output_pipe[i] <= '0;
             frame_write <= 1'b0; frame_write_black <= 1'b1;
             frame_write_bank <= 2'd0; frame_write_address <= 17'd0; frame_write_rgb <= 9'd0;
         end else begin
+            output_tick <= pixel_due;
+            if (pixel_due) begin
+                output_pipe[0] <= {prepare_pixel, owned && border_enabled && prepared_visible,
+                    native_display, frame_pal, sample_valid, write_bank,
+                    native_line, native_cycle, sample_x, row, color_index};
+                for (integer i = 1; i < OUTPUT_DELAY; i = i + 1)
+                    output_pipe[i] <= output_pipe[i-1];
+                output_token <= output_pipe[OUTPUT_DELAY-1];
+            end
             frame_write <= write_pixel;
-            frame_write_bank <= write_bank;
-            frame_write_address <= write_address;
+            frame_write_bank <= output_token.bank;
+            frame_write_address <= 17'(output_row) * 17'd320 + 17'(output_x);
             frame_write_rgb <= pixel_rgb;
-            frame_write_black <= !sample_valid;
+            frame_write_black <= !output_token.valid;
         end
     end
     generate for (genvar chunk = 0; chunk < FRAME_CHUNKS; chunk = chunk + 1) begin : frame_chunks
@@ -218,10 +254,10 @@ module st_native_low_video (
     wire border_failed = border_overflow && !border_overflow_reported;
     st_native_border borders (
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
-        .capture_start(border_start), .capture_active(owned && border_enabled && !hold),
-        .capture_pal(frame_pal), .capture_tick(native_pixel_ce), .capture_display(native_display),
-        .capture_bank(border_start ? free_bank : write_bank), .native_line(native_line),
-        .native_cycle(native_cycle), .palette_zero(palette[8:0]),
+        .capture_start(border_start), .capture_active(output_token.visible && !hold),
+        .capture_pal(output_token.pal), .capture_tick(output_tick), .capture_display(output_token.active),
+        .capture_bank(border_start ? free_bank : output_token.bank), .native_line(output_token.line_number),
+        .native_cycle(output_token.cycle_number), .palette_zero(palette[8:0]),
         .capture_overflow(border_overflow), .raster_banks(raster_banks),
         .output_bank(output_sof && choose_valid ? choose_bank : front_bank),
         .output_sof(output_sof), .output_line_start(output_border_line_start), .output_ce(output_border_ce),
@@ -276,7 +312,7 @@ module st_native_low_video (
                     if (row != expected_row) good_frame <= 1'b0;
                     if (row == 9'd0) border[write_bank] <= palette[8:0];
                 end
-                if (write_pixel) begin
+                if (prepare_pixel) begin
                     pixel_x <= sample_x + 9'd1;
                     pixels <= pixels + 17'd1;
                 end
@@ -290,7 +326,7 @@ module st_native_low_video (
             // Ordinary frames still publish only their original 200 rows;
             // height travels with the immutable bank and changes only at SOF.
             if (!native_vblank && owned && enabled && !hold &&
-                native_line == frame_top + maximum_height) begin
+                native_line == frame_top + maximum_height && !output_pending && !frame_write) begin
                 owned <= 1'b0;
                 if (good_frame && !border_overflow && expected_row == (bottom_seen ? maximum_height : 9'd200) &&
                     pixels == (bottom_seen ? (frame_pal ? 17'd79040 : 17'd72320) : 17'd64000)) begin

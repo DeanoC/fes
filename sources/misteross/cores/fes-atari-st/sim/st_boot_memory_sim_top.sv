@@ -165,8 +165,8 @@ module st_boot_memory_sim_top #(
     assign debug_native_line = native_line;
     assign debug_horizontal_phase = system.io.horizontal_cycle;
     assign capture_pixel = video.native_capture.capture.write_pixel;
-    assign capture_x = video.native_capture.capture.sample_x;
-    assign capture_y = video.native_capture.capture.row;
+    assign capture_x = video.native_capture.capture.output_x;
+    assign capture_y = video.native_capture.capture.output_row;
     assign capture_height = video.native_capture.capture.height[video.native_capture.capture.write_bank];
     assign capture_rgb = video.native_capture.capture.sample_rgb;
     // Observability does not modify the pinned CPU or supply execution data.

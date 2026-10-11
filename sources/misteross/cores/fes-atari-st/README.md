@@ -245,7 +245,19 @@ monochrome 2×1. The focused indexed low fallback retains 4×3. High mode
 supports palette-bit inversion; color borders use palette entry 0.
 `st_video_adapter.sv` defaults to native low-resolution capture. In the
 52.224 MHz system domain, `st_native_low_video.sv` prefetches alternating
-80-word RAM rows and selects the live palette on the same CPU-derived native pixel pulse as border capture.
+80-word RAM rows. Prepared bitplane indices and canvas coordinates pass through
+28 actual CPU-derived native pulses before selecting the current palette on the
+following fabric edge. Border palette-zero runs use that same delayed coordinate
+and lookup timeline. This is a calibrated net-output candidate derived from
+Hatari v2.5.0 Spec512's STF-tested write placement; it does not establish one
+literal 28-cycle hardware Shifter delay. Raw DE, MMU counters, CPU bus phases and
+Timer B remain unchanged. Reset and Hold cancel pending tokens; complete-frame
+publication waits for both relevant output tokens and the final RGB RAM write
+to drain. `make sim-fes-atari-st-shifter-output` independently checks completed
+palette-access timestamps 80/84/88 against first changed active pixels -3/1/5,
+fixed bitplane markers, side/bottom borders, line wrap and publication/reset/Hold.
+Its registered accepted-write source isolates the output model; real-CPU palette
+admission, RAM 12/512 intervals and Timer B use their existing fixtures.
 Three RGB333 banks hold up to 320×247 pixels. Each bank uses 78 independent
 1024-word chunks, avoiding the mapper's less compact deep one-bit layout.
 Registered chunk selection aligns the synchronous words with the original
