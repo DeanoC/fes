@@ -99,9 +99,8 @@ module st_native_low_video (
         read_valid <= !reset_pixel && read_chunk < 7'd78;
     end
     integer candidate;
-    reg choose_valid;
-    reg [1:0] choose_bank;
-    reg [2:0] choose_sequence;
+    wire choose_valid;
+    wire [1:0] choose_bank;
     function automatic newer_publication(input [2:0] latest, earlier);
         reg [2:0] distance;
         begin
@@ -109,19 +108,18 @@ module st_native_low_video (
             newer_publication = distance != 3'd0 && !distance[2];
         end
     endfunction
-    always @* begin
-        choose_valid = 1'b0;
-        choose_bank = 2'd0;
-        choose_sequence = 3'd0;
-        for (integer i = 0; i < 3; i = i + 1) begin
-            if (pub_sync[i] != seen[i] &&
-                (!choose_valid || newer_publication(publication_number[i], choose_sequence))) begin
-                choose_valid = 1'b1;
-                choose_bank = 2'(i);
-                choose_sequence = publication_number[i];
-            end
-        end
-    end
+    // Compare stable bank metadata in parallel. Pending toggles select among
+    // those results instead of feeding a sequence mux into another subtractor.
+    // The tournament retains the original bank-zero-first tie behaviour.
+    wire [2:0] pending_publications = pub_sync ^ seen;
+    wire bank1_newer0 = newer_publication(publication_number[1], publication_number[0]);
+    wire bank2_newer0 = newer_publication(publication_number[2], publication_number[0]);
+    wire bank2_newer1 = newer_publication(publication_number[2], publication_number[1]);
+    wire choose1 = pending_publications[1] && (!pending_publications[0] || bank1_newer0);
+    wire choose2 = pending_publications[2] &&
+        (!(|pending_publications[1:0]) || (choose1 ? bank2_newer1 : bank2_newer0));
+    assign choose_valid = |pending_publications;
+    assign choose_bank = choose2 ? 2'd2 : choose1 ? 2'd1 : 2'd0;
     always @(posedge clk_pixel) begin
         if (reset_pixel) begin
             pub_meta <= 3'd0; pub_sync <= 3'd0;
