@@ -171,7 +171,17 @@ HD6301 program loading, monitor sampling and accelerated cursor modes are
 absent; unsupported command modes consume their parameters safely.
 
 `st_ym2149.sv` reuses the shared AY engine with a YM2149 option: sixteen
-registers, 32-step envelopes, a CPU/4 enable (2.005311 MHz on the PAL board) and 48 kHz PCM. Port A drives
+registers, 32-step envelopes, a CPU/4 enable (2.005311 MHz on the PAL board) and 48 kHz PCM.
+YM noise increments its counter on alternate /8 ticks, but checks its period
+on every tick: period zero advances the generator each /8 tick; shrinking a
+positive period can advance it on the inactive half. Default AY retains its
+existing divider behavior and both modes retain their reset seed.
+`make sim-fes-atari-st-ym-counter` compares gated channel levels before the
+mixer/filter against unchanged Hatari 2.5 counter functions. It covers all
+noise periods, all period transitions on both counter halves, the full LFSR
+cycle and mixed tone/noise/envelope gates including quiet fixed volume 1. The test
+declares an equivalent Galois/Fibonacci initial noise state; this is not a
+musical phase fit or reset-phase qualification. Port A drives
 floppy side and active-low drive selects. Fixed volumes 0/1 select envelope
 levels 0/1; volumes 2..15 select odd levels 5..31. The ST wrapper converts
 unquantized gated channel levels with the normalized Hatari STF nonlinear

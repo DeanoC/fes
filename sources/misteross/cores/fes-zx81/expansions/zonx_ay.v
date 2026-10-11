@@ -95,7 +95,12 @@ module zonx_ay #(parameter integer YM2149 = 0) (
                 if (tone_count[2] >= period_c) begin
                     tone_count[2] <= 1; tone[2] <= ~tone[2];
                 end else tone_count[2] <= tone_count[2] + 1'b1;
-                if (half_phase) begin
+                // Count is biased by +1 versus Hatari's YM counter. YM
+                // increments on alternate /8 ticks but checks its threshold
+                // on every tick, including period zero and period shrink.
+                // The inactive half therefore compares >, the active >=.
+                // Default AY retains its existing half-clock behavior.
+                if (half_phase || ((YM2149 != 0) && (noise_count > registers[6][4:0]))) begin
                     if (noise_count >= registers[6][4:0]) begin
                         noise_count <= 1;
                         noise <= {noise[0] ^ noise[3], noise[16:1]};

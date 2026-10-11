@@ -1704,7 +1704,12 @@ companion of a pinned boundary flip-flop, using the shared
 `cores/fes-atari-st` assembles the original ST's full FX68K 68000 and
 functional chipset in `st_system.sv`. The YM option in the shared
 `zonx_ay` engine exposes optional gated five-bit channel levels (zero in
-its default AY mode); existing AY PCM remains unchanged. `st_ym2149` uses
+its default AY mode); existing AY PCM remains unchanged. YM noise retains its
+alternate-tick counter increment but checks the period on every /8 tick,
+including zero and period-shrink writes. Both reset seeds remain unchanged.
+`make sim-fes-atari-st-ym-counter` verifies primary gated-level sequences with
+an explicitly equivalent initial noise state and both write phases.
+`st_ym2149` uses
 these levels with the normalized Hatari STF nonlinear three-channel table.
 The OSS producer supplies the unused write clock on the CPU microcode ROMs
 and the fifteen selected YM mixer ROM banks from each cell's read clock. It

@@ -1532,7 +1532,7 @@ atari-st-sources:
 atari-st-diagnostic: atari-st-sources
 	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
 
-sim-fes-atari-st: sim-fes-atari-st-ym-filter sim-fes-atari-st-ym-mixer sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-native-border sim-fes-atari-st-shifter-output sim-fes-atari-st-media sim-fes-atari-st-media-geometry
+sim-fes-atari-st: sim-fes-atari-st-ym-counter sim-fes-atari-st-ym-filter sim-fes-atari-st-ym-mixer sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-native-border sim-fes-atari-st-shifter-output sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 
 sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
@@ -1798,6 +1798,16 @@ build-fes-atari-st-video-part:
 sim-fes-atari-st-video-parts:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_atari_st_video_parts.py
+
+.PHONY: sim-fes-atari-st-ym-counter
+sim-fes-atari-st-ym-counter:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-atari-st-ym-counter
+	@$(VERILATOR) --cc --exe --build -O2 --top-module st_ym_counter_sim_top -Wall -Wno-UNUSEDSIGNAL \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-ym-counter" \
+		$(ST_CORE)/sim/st_ym_counter_sim_top.sv cores/fes-zx81/expansions/zonx_ay.v \
+		"$(CURDIR)/$(ST_CORE)/sim/ym_counter_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-ym-counter/Vst_ym_counter_sim_top
 
 .PHONY: sim-fes-atari-st-ym-mixer
 sim-fes-atari-st-ym-mixer:
