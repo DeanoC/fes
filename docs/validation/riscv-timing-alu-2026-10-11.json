@@ -1,0 +1,279 @@
+{
+  "archive_sha256": "6e7f7b4b35038b12edc8a83d13623311b9fe2809e29434dc6c949bd7d70697d3",
+  "artifact_sha256": {
+    "/home/deano/alphamister/runs/riscv-alu-timing-guidance-v1/final/qualification/handoff.sv": {
+      "sha256": "077804dcf9fb050a55898c6479ddc11baf9cc5f0a794e9772f954637248ba7c9",
+      "size": 1568
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/audit.py": {
+      "sha256": "cfaad50dc1e9a1f4e8a45504ffc032665cfbed61a36a078475dc68dd8288b5c5",
+      "size": 5906
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/build.py": {
+      "sha256": "742203391b90bea46e1db0a351fbb7aaaefbdbf8214fa801194d5c5edbbfc5cf",
+      "size": 1280
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/consistency.log": {
+      "sha256": "7a1776db34913e75a5f9671b00560d84fc90991debaf5e6df46340dc35170c88",
+      "size": 137
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/doc-links.log": {
+      "sha256": "2340d99047ab9f3985a7cc5dfa7048812a4914fda94647b2c081d514d1135dc0",
+      "size": 14
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/finished.json": {
+      "sha256": "991b06e3d8d0203eac93fda6a8067d2c700d0eee04a528b9b78d6cd021000246",
+      "size": 195
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-a-analysis.json": {
+      "sha256": "d52353c3093438acf54d3ee60132378b3c3e565bfbe09111d9cd0e14e7d27312",
+      "size": 2773
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-a-diagnostic.py": {
+      "sha256": "355536e5276117bfc9f18c879e8c88c8a70127f7380c96d83c7b5b06e58bb989",
+      "size": 3625
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-a-diagnostic/capture.log": {
+      "sha256": "95ad5eb37f692ce0bf98c562f6be7637222206844c5922130a36e4dbf9d17553",
+      "size": 312
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-a-diagnostic/capture.mkv": {
+      "sha256": "ea257666f139d2df37acf7659c833d12e9876a4bd6b33324a98b9f3ea8ce2978",
+      "size": 12398547
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-a-diagnostic/frame-0.png": {
+      "sha256": "3c25bc4162852d73b5284022ea7c0754e3e3008e9a5f57f0ed68a341e65f2bf4",
+      "size": 86756
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-a-diagnostic/frame-1.png": {
+      "sha256": "2997d0eb77aef9539b2e5b0000584a960f0f4c9d77ae6e18638ea3cfba83db9f",
+      "size": 86413
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-a-diagnostic/receipt.json": {
+      "sha256": "41d17eb88a2401f0ee1e91d7ca898a70476ead2a84863eea706e198db7088b88",
+      "size": 4038
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-b-analysis.json": {
+      "sha256": "aba3f0ee6548e2cfeee811c194224d678a916cd4394fbf36b3d0fef181b67bba",
+      "size": 1514
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-diagnostic.py": {
+      "sha256": "242c1bc4ec994419bab48f6451ef355836de53a6cb77621bc5237544cf6089ae",
+      "size": 3624
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-diagnostic/capture.log": {
+      "sha256": "f3c0e47922286aa126a5d1a44f0fcd8e6cd21ea3ccefd118f2a46056af22158d",
+      "size": 144
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-diagnostic/capture.mkv": {
+      "sha256": "30b32fc7ef2cf4a729252b2f670f0bec2cd507629269deff668e0bd037a4a106",
+      "size": 11674915
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-diagnostic/frame-0.png": {
+      "sha256": "0a808e03eb45dce0f1e8762678737614341f43b5c18ec5fda45244a7e51b84a1",
+      "size": 87406
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-diagnostic/frame-1.png": {
+      "sha256": "0ad36f5f992f255347bd47d5f8327cb62638baad15dc79959561337ad3feac9a",
+      "size": 86922
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/kit-diagnostic/receipt.json": {
+      "sha256": "343d9d5102b43bbe44fd8ed572eab88015a3d7cdeffcb6c8e3dd714aeb8e6396",
+      "size": 4039
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/lease.json": {
+      "sha256": "21f27563a4e4cd32cb60e5d74afa2d6432a9837387a075c759a9656e52fdf70b",
+      "size": 490
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/producer-tests.log": {
+      "sha256": "95166a48cb6a3e925119dfabb70f93dab5c285611214e10540b86e454257f57a",
+      "size": 1242
+    },
+    "/home/deano/alphamister/tmp/riscv-timing-integration/simulation.log": {
+      "sha256": "5bd98283fac7553a1062df0ab106156ade0f46c0f40b57cd793a593cc3e494c1",
+      "size": 1814
+    },
+    "/home/deano/fes/out/dev/optimizer-riscv-timing-integration/fes/sources/misteross/build/fes-riscv/build-inputs.json": {
+      "sha256": "312a930580b582b42f6ef2904597e98d99285bfbf486e1606cff4c29c530a4dd",
+      "size": 23731
+    },
+    "/home/deano/fes/out/dev/optimizer-riscv-timing-integration/fes/sources/misteross/build/fes-riscv/build-summary.json": {
+      "sha256": "556966134623724ccb42a043084a33426797a9c332b17f5731207e00607bfba4",
+      "size": 150284
+    },
+    "/home/deano/fes/out/dev/optimizer-riscv-timing-integration/fes/sources/misteross/build/fes-riscv/nextpnr.log": {
+      "sha256": "c71d804ca1778dda9de2d0dfcd4952d0e8ec2f738fd2c4a688aafaa08b536296",
+      "size": 28161
+    },
+    "/home/deano/fes/out/dev/optimizer-riscv-timing-integration/fes/sources/misteross/build/fes-riscv/qor-ranking.json": {
+      "sha256": "f120a28864c6f6ac77fcdb3f1141f503090e265f5896115d58fc6568d8534c14",
+      "size": 1349
+    },
+    "/home/deano/fes/out/dev/optimizer-riscv-timing-integration/fes/sources/misteross/build/fes-riscv/routed.json": {
+      "sha256": "1f9b809ebaabd025a9758589f47361f0ce17ce17e89fcebd44635142b0b80b6e",
+      "size": 12882141
+    },
+    "/home/deano/fes/out/dev/optimizer-riscv-timing-integration/fes/sources/misteross/build/fes-riscv/synth.json": {
+      "sha256": "5dd4412aa4af30f7e07efc35a064e89c30f4e9f9ebf72935f46a4c5b8d8d2ad7",
+      "size": 6618849
+    },
+    "/home/deano/fes/out/dev/optimizer-riscv-timing-integration/fes/sources/misteross/build/fes-riscv/timing.json": {
+      "sha256": "3f8773b7feb32e076300d36a392a6f4c3a668c3616607357ceb4d3901fb0bcc4",
+      "size": 1155727
+    },
+    "/home/deano/fes/out/dev/optimizer-riscv-timing-integration/fes/sources/misteross/build/fes-riscv/yosys.log": {
+      "sha256": "294e7b665a187b13315daeeba01e1a6dfba8ed4de7c2481354e9112d0ad7df62",
+      "size": 537654
+    },
+    "/home/deano/fes/out/dev/optimizer-riscv-timing-integration/fes/sources/misteross/build/packages/c6c11fcdcc640420ac86da88972e85e685db4714f11f0f4014fdcf20de8206e2.fcore": {
+      "sha256": "6e7f7b4b35038b12edc8a83d13623311b9fe2809e29434dc6c949bd7d70697d3",
+      "size": 2226176
+    },
+    "/home/deano/fes/out/dev/optimizer-riscv-timing-integration/fes/sources/misteross/build/packages/c6c11fcdcc640420ac86da88972e85e685db4714f11f0f4014fdcf20de8206e2/core.rbf": {
+      "sha256": "37f1da68293f6f362283938cfa8b606543d34039d6411b3eed59c6afe31f07f3",
+      "size": 2222081
+    },
+    "/home/deano/fes/out/dev/optimizer-riscv-timing-integration/fes/sources/misteross/build/packages/c6c11fcdcc640420ac86da88972e85e685db4714f11f0f4014fdcf20de8206e2/manifest.toml": {
+      "sha256": "196857cc4e7473ce4cccc015def0c3c64dbff37cb5dd790b6dc17b92e38343a6",
+      "size": 1302
+    },
+    "/home/deano/fes/out/dev/optimizer-riscv-timing-integration/fes/sources/misteross/cores/fes-common/rtl/riscv/fes_rv32_alu.sv": {
+      "sha256": "077804dcf9fb050a55898c6479ddc11baf9cc5f0a794e9772f954637248ba7c9",
+      "size": 1568
+    }
+  },
+  "base_revision": "6707b65c4cef1897c87ad0d54509cd88ef4fb827",
+  "build_id": "a711869391990efc125d016204eccc88",
+  "build_revision": "d439f0d915b4e0a922c89c986167877bcaf52e4a",
+  "documentation_links": "pass",
+  "factory_image_acceptance": false,
+  "hardware": [
+    {
+      "banner_cell_mismatches": 0,
+      "box_center_RGB_at_3_and_8_seconds": [
+        [
+          220,
+          0,
+          231
+        ],
+        [
+          231,
+          247,
+          19
+        ]
+      ],
+      "capture_seconds": 10,
+      "classification": "contained_exact_package_developer_diagnostic",
+      "final_lease_state": "free",
+      "hardware_gamepad_tested": false,
+      "inspection_compatible": true,
+      "loaded_build_id": "a711869391990efc125d016204eccc88",
+      "loaded_package_id": "c6c11fcdcc640420ac86da88972e85e685db4714f11f0f4014fdcf20de8206e2",
+      "maximum_static_changed_pixels_above_30_RGB": 26,
+      "sampled_seconds": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "static_box_exclusion": [
+        902,
+        482,
+        1018,
+        598
+      ],
+      "stop_state": "idle",
+      "target": "dev"
+    },
+    {
+      "banner_cell_mismatches": 0,
+      "box_center_RGB_at_3_and_8_seconds": [
+        [
+          253,
+          253,
+          0
+        ],
+        [
+          254,
+          0,
+          253
+        ]
+      ],
+      "capture_seconds": 10,
+      "classification": "contained_exact_package_developer_diagnostic",
+      "final_lease_state": "free",
+      "hardware_gamepad_tested": false,
+      "inspection_compatible": true,
+      "loaded_build_id": "a711869391990efc125d016204eccc88",
+      "loaded_package_id": "c6c11fcdcc640420ac86da88972e85e685db4714f11f0f4014fdcf20de8206e2",
+      "maximum_static_changed_pixels_above_30_RGB": 0,
+      "sampled_seconds": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9
+      ],
+      "static_box_exclusion": [
+        902,
+        482,
+        1018,
+        598
+      ],
+      "stop_state": "idle",
+      "target": "kit2"
+    }
+  ],
+  "hardware_acceptance": false,
+  "limits": "Pilot gain applies to frozen zero-BuildID consumer. This current production package passed its bounded first-pass recipe, not an eight-seed production panel. Hardware evidence covers scene, timer-color and Stop/release; gamepad movement is covered by simulation only. No appliance image change.",
+  "optimizer_provenance": "https://github.com/DeanoC/alphamister/pull/27",
+  "package_id": "c6c11fcdcc640420ac86da88972e85e685db4714f11f0f4014fdcf20de8206e2",
+  "parent_consistency": "pass",
+  "payload_sha256": "37f1da68293f6f362283938cfa8b606543d34039d6411b3eed59c6afe31f07f3",
+  "producer_tests_passed": 7,
+  "production_area_aluts": 2623,
+  "production_ff": 761,
+  "production_route": {
+    "gpu_backend": "hip",
+    "gpu_device": 1,
+    "placer_heap_timingweight": 10,
+    "placer_seed": 1,
+    "status": "pass",
+    "unrouted": false
+  },
+  "production_routed_comb_cells": 2661,
+  "production_timing": {
+    "achieved_mhz": 75.1879653930664,
+    "clock": "endpoint.clk",
+    "constraint_mhz": 74.25006866455078,
+    "requested_mhz": 74.25,
+    "status": "pass"
+  },
+  "promoted": false,
+  "qualified_source_sha256": "077804dcf9fb050a55898c6479ddc11baf9cc5f0a794e9772f954637248ba7c9",
+  "scope": "riscv_timing_alu_production_integration_v1",
+  "simulation": {
+    "cases": [
+      "alu",
+      "cpu",
+      "firmware",
+      "system",
+      "faults",
+      "board"
+    ],
+    "cpu_fuzz_seeds": 6,
+    "static_pixels_checked": 549849600,
+    "static_video_frames": 600,
+    "verilator": "5.032"
+  },
+  "tools": {
+    "mistral": "commit=8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f; sha256=d1fd55fb6ab652575207c0985306dc5e1ffcec3f3bf20150842e311a24b16f3d",
+    "nextpnr-mistral": "commit=9128800fa6e77c4138088a7107a95376ba47ff15; sha256=3577f0942231aa09ddcd5def235bc1d7d94b61662b28c1f9345cf43830be09bc; gpu-router=HIP; hip-architectures=gfx1100;gfx1201",
+    "yosys": "commit=5391eeb1e91b38a3d0e96d04f24cf921743c9c78; sha256=6003b9dc737596215e5cb4dfb368be02673f1f1b0a22548234020e32603367ad"
+  }
+}

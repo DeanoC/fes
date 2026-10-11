@@ -15,11 +15,20 @@ module fes_rv32_alu (
     logic [31:0] sum;
     logic [31:0] shift_left;
     logic [31:0] shift_right;
+    logic [31:0] shift_input;
+    logic [31:0] bitwise_result;
+
+    assign bitwise_result = ((a ^ b) & {32{~funct3[0]}})
+                          | ((a & b) & {32{funct3[1]}});
 
     assign sum = alt ? a - b : a + b;
-    assign shift_left = a << b[4:0];
-    // A controlled extension bit selects logical or arithmetic fill.
-    assign shift_right = 32'($signed({alt & a[31], a}) >>> b[4:0]);
+    // Reverse input and output to share the barrel shifter.
+    for (genvar i = 0; i < 32; i = i + 1) begin : g_shift_reverse
+        assign shift_input[i] = funct3[2] ? a[i] : a[31-i];
+        assign shift_left[i] = shift_right[31-i];
+    end
+    // Left shifts always use zero fill.
+    assign shift_right = 32'($signed({alt & funct3[2] & a[31], shift_input}) >>> b[4:0]);
     assign eq = a == b;
     assign lt = (a[31] ^ b[31]) ? a[31] : ltu;
     assign ltu = a < b;
@@ -30,10 +39,8 @@ module fes_rv32_alu (
             3'd1: result = shift_left;
             3'd2: result = {31'd0, lt};
             3'd3: result = {31'd0, ltu};
-            3'd4: result = a ^ b;
             3'd5: result = shift_right;
-            3'd6: result = a | b;
-            default: result = a & b;
+            default: result = bitwise_result;
         endcase
     end
 endmodule
