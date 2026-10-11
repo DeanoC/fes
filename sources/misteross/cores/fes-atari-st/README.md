@@ -108,7 +108,7 @@ rather than the later STe mapping. In the normal `$04` configuration:
 | --- | --- |
 | `$000000–$000007` | Supervisor ROM-vector alias; writes fault |
 | `$000008–$07FFFF` | RAM; user access below `$800` faults |
-| `$080000–$3FFFFF` | Unpopulated RAM: reads acknowledge `$FFFF`, writes discarded |
+| `$080000–$3FFFFF` | Unpopulated RAM: reads acknowledge the retained CPU-read word, writes discarded |
 | `$FA0000–$FBFFFF` | Read-only cartridge connector; empty reads acknowledge `$FFFF` |
 | `$FC0000–$FEFFFF` | Exact 196,608-byte firmware image; writes fault |
 | `$FF8001` | Logical bank configuration |
