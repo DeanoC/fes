@@ -76,7 +76,7 @@ struct Test {
             const int16_t actual = int16_t(uint16_t(d.pcm));
             if (actual != expected.front().value)
                 std::cerr << "expected " << expected.front().value << ", actual " << actual << '\n';
-            require(actual == expected.front().value, "exact PWM/integration/DC oracle PCM");
+            require(actual == expected.front().value, "exact STF low-pass/integration/DC oracle PCM");
             expected.pop_front(); ++outputs;
         }
         if (!expected.empty())
@@ -144,17 +144,17 @@ struct Test {
         edge(); require(d.fault, "overflow fault is sticky"); reset();
     }
     void oracle_sanity() {
-        // Manually derived boundaries and PWM values exercise the oracle itself.
+        // Manually derived C10 filter values distinguish the former PWM path.
         st_ym_filter_reference::Reference r(500000, 48000);
         r.input(32767);
-        require(r.pwm() == 32767 && r.pending() == 1, "rising PWM bypass and seeded first boundary");
-        require(r.output() == int16_t(uint64_t(32767) * 116000 / 500000), "first weighted impulse with zero seed");
+        require(r.low_pass() == 12287 && r.pending() == 1, "rising STF edge is filtered and seeds first boundary");
+        require(r.output() == int16_t(uint64_t(12287) * 116000 / 500000), "first weighted impulse with zero seed");
         r.input(0);
-        require(r.pwm() == 20479, "falling PWM uses both input history and output history");
-        const int32_t first = int32_t(uint64_t(32767) * 116000 / 500000);
-        const int32_t second = int32_t((uint64_t(32767) * 268000 + uint64_t(20479) * 232000) / 500000);
+        require(r.low_pass() == 13311, "falling STF edge uses input history and sixfold output history");
+        const int32_t first = int32_t(uint64_t(12287) * 116000 / 500000);
+        const int32_t second = int32_t((uint64_t(12287) * 268000 + uint64_t(13311) * 232000) / 500000);
         require(r.output() == second - (first * 64 + 32767) / 32768, "DC state rounds negative correction downward");
-        r.reset(); require(r.pending() == 0 && r.pwm() == 0, "oracle reset clears all histories");
+        r.reset(); require(r.pending() == 0 && r.low_pass() == 0, "oracle reset clears all histories");
     }
     void run() {
         d.clk = 0; scenario = "reference sanity"; oracle_sanity();
@@ -172,7 +172,7 @@ struct Test {
         std::cout << "YM filter: " << outputs << " exact PCM samples, " << checks
                   << " checks; maximum input processing " << maximum_busy
                   << " edges; chip=" << chip << ", fabric=" << fabric
-                  << "; PWM/rational integration/DC/reset passed\n";
+                  << "; STF low-pass/rational integration/DC/reset passed\n";
         d.final();
     }
 };

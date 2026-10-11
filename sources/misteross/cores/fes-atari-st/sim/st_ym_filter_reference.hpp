@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// PWM and DC arithmetic from Hatari v2.5.0 src/sound.c, GPL-2.0-or-later:
+// STF LowPassFilter and DC arithmetic from Hatari v2.5.0, GPL-2.0-or-later:
 // https://github.com/hatari/hatari/blob/v2.5.0/src/sound.c
 // Primary SHA256: 2ffdf73c27c82edd998c41a250cd424a8da4f7385d8059f21d36bdc49c99c4f0
+// src/audio.c selects LowPassFilter for ST output at 40 kHz and above.
 // Exact-rational source integration replaces Hatari's truncated Q16 interval.
 // This is a mathematical oracle, independent of the RTL pipeline/divider/FIFO.
 #ifndef ST_YM_FILTER_REFERENCE_HPP
@@ -16,7 +17,7 @@ namespace st_ym_filter_reference {
 class Reference {
     const uint64_t interval_, step_;
     uint64_t weight_ = 0, integral_ = 0;
-    unsigned previous_input_ = 0, pwm_ = 0;
+    unsigned previous_input_ = 0, low_pass_ = 0;
     int32_t dc_state_ = 0, previous_average_ = 0, previous_output_ = 0;
     std::deque<unsigned> averages_;
 public:
@@ -31,19 +32,21 @@ public:
     {
         // One initial zero counter interval precedes the first input interval.
         weight_ = step_; integral_ = 0;
-        previous_input_ = pwm_ = 0;
+        previous_input_ = low_pass_ = 0;
         dc_state_ = previous_average_ = previous_output_ = 0;
         averages_.clear();
     }
     void input(unsigned raw)
     {
         if (raw > 32767) throw std::out_of_range("15-bit filter input");
-        pwm_ = raw >= pwm_ ? raw : (3 * (raw + previous_input_) + 2 * pwm_) / 8;
+        low_pass_ = raw >= low_pass_ ?
+            (3 * (raw + previous_input_) + 2 * low_pass_) / 8 :
+            ((raw + previous_input_) + 6 * low_pass_) / 8;
         previous_input_ = raw;
         uint64_t remaining = step_;
         while (remaining) {
             const uint64_t portion = std::min(remaining, interval_ - weight_);
-            integral_ += uint64_t(pwm_) * portion;
+            integral_ += uint64_t(low_pass_) * portion;
             weight_ += portion;
             remaining -= portion;
             if (weight_ == interval_) {
@@ -70,7 +73,7 @@ public:
         return int16_t(previous_output_);
     }
     std::size_t pending() const { return averages_.size(); }
-    unsigned pwm() const { return pwm_; }
+    unsigned low_pass() const { return low_pass_; }
 };
 } // namespace st_ym_filter_reference
 #endif
