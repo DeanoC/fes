@@ -433,7 +433,18 @@ HID/IKBD path with a 150 ms B press. Both storage models accept
 `--key-at SECOND --key-usage USAGE` for other screens (1/2/3 use HID
 usages 30/31/32). Every run saves `demo-audio.wav`, the system-domain signed
 mono 48 kHz chip PCM, and `demo-audio.json` with sample counts, amplitude
-statistics and system-clock cadence. Shared-memory runs also save
+statistics and system-clock cadence. Shared-memory runs also save `demo-rendered.jsonl`: each complete HDMI
+frame whose SOF falls in the trace window records its immutable pixel-domain
+native publication sequence, PAL/NTSC geometry and active height. The first
+eight distinct valid displayed native sequences save actual 1280×720 HDMI
+PPMs. The PAL canvas is xywh 224,84,832,552 (NTSC 224,105,832,510). A reduced
+416×276/255 canvas is saved only when all four displayed RGB samples in every
+2×2 block agree. These images observe border replay as well as active pixels;
+pre-replay `-trace-logo-*-native.ppm` images cover only the active capture.
+All saved images and the rendered trace are included in the helper's artifact
+digests. Displayed native identity is asserted stable through each active
+HDMI frame. This is digital output evidence, not a physical GLUE/HDMI oracle.
+Shared-memory runs also save
 `demo-ym.jsonl`: every accepted valid-register PSG data write, with its raw
 value, selected register, system-cycle timestamp and diagnostic PC. The trace
 covers the entire guest run independently of the raster trace interval. It

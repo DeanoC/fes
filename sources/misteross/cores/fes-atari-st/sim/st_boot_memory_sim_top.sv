@@ -28,6 +28,9 @@ module st_boot_memory_sim_top #(
     output wire [1:0] debug_palette_lanes,
     output wire [7:0] debug_irq_vector,
     output wire [8:0] debug_native_line, debug_horizontal_phase,
+    output wire [31:0] rendered_sequence,
+    output wire rendered_valid, rendered_pal,
+    output wire [8:0] rendered_height,
     output wire capture_pixel,
     output wire [8:0] capture_x, capture_y, capture_rgb, capture_height,
     output wire rom_req,
@@ -122,6 +125,10 @@ module st_boot_memory_sim_top #(
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
         .video_request(video_request), .debug_underruns(debug_underruns), .debug_frame(debug_frame)
     );
+    assign rendered_sequence = video.native_capture.capture.front_sequence;
+    assign rendered_valid = video.native_capture.capture.output_valid;
+    assign rendered_pal = video.native_capture.capture.output_pal;
+    assign rendered_height = video.native_capture.capture.output_height;
     assign native_frames = video.native_capture.capture.debug_frames;
     assign native_underruns = video.native_capture.capture.debug_underruns;
     assign native_skipped = video.native_capture.capture.debug_skipped;

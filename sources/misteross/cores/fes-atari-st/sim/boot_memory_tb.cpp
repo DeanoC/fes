@@ -2,6 +2,7 @@
 // Boot stock EmuTOS through physical SDRAM commands while the native line
 // cache scans that same RAM with an independent 74.25 MHz pixel clock.
 #include "st_audio_capture.hpp"
+#include "st_rendered_capture.hpp"
 #include "Vst_boot_memory_sim_top.h"
 #include "verilated.h"
 #include <array>
@@ -156,7 +157,12 @@ class Boot {
     unsigned observed_frames = 0, frame_cpu_max = 0, frame_video_max = 0, last_sync = 0;
     uint64_t frame_video_reads = 0;
     std::vector<uint8_t> native_picture = std::vector<uint8_t>(320*247*3);
-    std::ofstream raster_trace, logo_trace, ym_trace;
+    std::ofstream raster_trace, logo_trace, ym_trace, rendered_trace;
+    uint32_t rendered_sequence = 0;
+    unsigned rendered_height = 200;
+    bool rendered_valid = false, rendered_pal = true, rendered_tracing = false;
+    uint64_t rendered_start_cycle = 0;
+    std::set<uint32_t> saved_rendered_sequences;
     std::set<uint64_t> saved_logo_hashes;
     std::string trace_prefix;
     bool tracing() const { return system_cycles >= boot_start + trace_start*SystemHz &&
@@ -355,6 +361,39 @@ class Boot {
         dut.eval();
     }
 
+    void save_rendered_frame() {
+        const auto reduced = st_rendered_capture::canvas(complete_picture, rendered_pal);
+        std::string full_file, native_file;
+        if (rendered_valid && saved_rendered_sequences.size()<8 &&
+                saved_rendered_sequences.insert(rendered_sequence).second) {
+            const auto stem = trace_prefix + "-rendered-" + std::to_string(complete_frames) +
+                              "-frame-" + std::to_string(rendered_sequence);
+            full_file = stem + "-hdmi.ppm";
+            std::ofstream full(full_file, std::ios::binary);
+            require(full.good(), "rendered HDMI image unavailable");
+            full << "P6\n1280 720\n255\n";
+            full.write(reinterpret_cast<const char*>(complete_picture.data()), complete_picture.size());
+            if (reduced.repeated) {
+                native_file = stem + "-canvas.ppm";
+                std::ofstream native(native_file, std::ios::binary);
+                require(native.good(), "rendered canvas image unavailable");
+                native << "P6\n416 " << reduced.height << "\n255\n";
+                native.write(reinterpret_cast<const char*>(reduced.rgb.data()), reduced.rgb.size());
+            }
+        }
+        // Basenames let sealed evidence remain valid after directory relocation.
+        auto basename = [](const std::string& p) { return p.substr(p.find_last_of('/')+1); };
+        rendered_trace << "{\"hdmi_frame\":" << complete_frames << ",\"native_frame\":" << rendered_sequence
+            << ",\"start_cycle\":" << rendered_start_cycle << ",\"end_cycle\":" << system_cycles
+            << ",\"valid\":" << (rendered_valid ? "true" : "false")
+            << ",\"pal\":" << (rendered_pal ? "true" : "false")
+            << ",\"active_height\":" << rendered_height
+            << ",\"canvas_xywh\":[224," << reduced.top << ",832," << reduced.height*2 << "]"
+            << ",\"repeat_2x2\":" << (reduced.repeated ? "true" : "false")
+            << ",\"hdmi_file\":\"" << basename(full_file) << "\",\"canvas_file\":\""
+            << basename(native_file) << "\"}\n";
+    }
+
     void pixel_edge() {
         const uint32_t current = dut.video_request;
         if (!dut.reset_pixel) {
@@ -383,10 +422,21 @@ class Boot {
                 if (picture_started) {
                     complete_picture = picture;
                     ++complete_frames;
+                    if (demo_mode && rendered_tracing) save_rendered_frame();
                 }
                 picture_started = true;
+                rendered_sequence = dut.rendered_sequence;
+                rendered_height = dut.rendered_height;
+                rendered_valid = dut.rendered_valid;
+                rendered_pal = dut.rendered_pal;
+                rendered_tracing = tracing();
+                rendered_start_cycle = system_cycles;
             }
             if (previous_request & DE) {
+                require(dut.rendered_sequence == rendered_sequence &&
+                        dut.rendered_height == rendered_height && dut.rendered_pal == rendered_pal &&
+                        dut.rendered_valid == rendered_valid,
+                        "displayed native identity changed during HDMI active frame", system_cycles);
                 const unsigned x = previous_position % Width, y = previous_position / Width;
                 const unsigned offset = (y * 1280 + x) * 3;
                 picture[offset] = rgb >> 16;
@@ -627,7 +677,8 @@ public:
             raster_trace.open(std::string(prefix)+"-raster.jsonl");
             logo_trace.open(std::string(prefix)+"-logo.jsonl");
             ym_trace.open(std::string(prefix)+"-ym.jsonl");
-            require(raster_trace.good() && logo_trace.good() && ym_trace.good(), "demo trace output unavailable");
+            rendered_trace.open(std::string(prefix)+"-rendered.jsonl");
+            require(raster_trace.good() && logo_trace.good() && ym_trace.good() && rendered_trace.good(), "demo trace output unavailable");
         }
         uint64_t next_status = boot_start + SystemHz;
         const uint64_t limit = boot_start + SystemHz * seconds;

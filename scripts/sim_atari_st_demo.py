@@ -77,6 +77,7 @@ def run(args):
         top = "st_boot_memory_sim_top"
         wrapper = PREFIX + CORE + "sim/" + top + ".sv"
         helpers[1] = PREFIX + CORE + "sim/boot_memory_tb.cpp"
+        helpers.append(PREFIX + CORE + "sim/st_rendered_capture.hpp")
         rtl += [CORE + "sim/st_memory_sim_top.sv", CORE + "rtl/st_memory.sv",
                 CORE + "rtl/st_video.sv", CORE + "rtl/st_video_adapter.sv",
                 "cores/fes-ramtest/rtl/sdram_addon_port.v", "cores/fes-common/rtl/fes_video_part_direct.v"]
@@ -164,6 +165,12 @@ def run(args):
                               "pc": "diagnostic prefetch state, not instruction retirement"}
     if args.shared_memory:
         record["raster_trace"]["events"] = "IACK (including MFP vector), sync changes and every committed palette write (including unchanged values)"
+    if args.shared_memory:
+        record["rendered_capture"] = {"trace": "demo-rendered.jsonl",
+            "source": "actual complete HDMI replay frames; pixel-domain immutable front_sequence",
+            "saved": "first eight distinct valid displayed native sequences whose HDMI SOF is in trace window",
+            "canvas": "PAL xywh 224,84,832,552; NTSC 224,105,832,510; reduce only if all 2x2 RGB samples agree",
+            "identity": "native_frame is publication epoch; hdmi_frame is consumer frame; no original GLUE equivalence claim"}
     record["distinct_logo_captures"] = "save first eight distinct crop hashes as complete native PPMs in trace window"
     record["logo_trace"] = "every completed native capture in trace window; FNV-1a-64 RGB crop xywh 65,0,180,64; equality diagnostic, not cryptographic identity"
     record["storage_model"] = {"cpu_ram_wait": "8+(byte_address%7)+ram_extra_wait system clocks",
