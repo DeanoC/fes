@@ -189,12 +189,37 @@ module st_native_low_video (
     // The next row can be prefetched before the current row's late frequency
     // switch. Its 81-word window covers either normal or one-word-short DMA.
     wire word_offset = cache_margin[row[0]] && native_word_loss == cache_loss[row[0]];
-    wire [6:0] group_word = {sample_x[8:4], 2'b00} + {6'd0, word_offset};
+    wire [4:0] word_group = sample_x[8:4];
+    wire [4:0] following_group = word_group + 5'd1;
     wire [3:0] bit_index = 4'd15 - sample_x[3:0];
-    wire [15:0] plane0 = row[0] ? cache1[group_word] : cache0[group_word];
-    wire [15:0] plane1 = row[0] ? cache1[group_word + 7'd1] : cache0[group_word + 7'd1];
-    wire [15:0] plane2 = row[0] ? cache1[group_word + 7'd2] : cache0[group_word + 7'd2];
-    wire [15:0] plane3 = row[0] ? cache1[group_word + 7'd3] : cache0[group_word + 7'd3];
+    // Keep the stored 81-word window unchanged. Expose its fixed modulo-four
+    // lanes so each read selects one group instead of a general word address.
+    // A one-word offset rotates lanes and takes lane zero from the next group.
+    wire [15:0] lane00 [0:20], lane10 [0:20];
+    wire [15:0] lane01 [0:19], lane11 [0:19];
+    wire [15:0] lane02 [0:19], lane12 [0:19];
+    wire [15:0] lane03 [0:19], lane13 [0:19];
+    for (genvar group_index = 0; group_index < 20; group_index = group_index + 1) begin : cache_lanes
+        assign lane00[group_index] = cache0[group_index * 4];
+        assign lane10[group_index] = cache1[group_index * 4];
+        assign lane01[group_index] = cache0[group_index * 4 + 1];
+        assign lane11[group_index] = cache1[group_index * 4 + 1];
+        assign lane02[group_index] = cache0[group_index * 4 + 2];
+        assign lane12[group_index] = cache1[group_index * 4 + 2];
+        assign lane03[group_index] = cache0[group_index * 4 + 3];
+        assign lane13[group_index] = cache1[group_index * 4 + 3];
+    end
+    assign lane00[20] = cache0[80];
+    assign lane10[20] = cache1[80];
+    wire [15:0] selected_lane0 = row[0] ? lane10[word_group] : lane00[word_group];
+    wire [15:0] selected_lane1 = row[0] ? lane11[word_group] : lane01[word_group];
+    wire [15:0] selected_lane2 = row[0] ? lane12[word_group] : lane02[word_group];
+    wire [15:0] selected_lane3 = row[0] ? lane13[word_group] : lane03[word_group];
+    wire [15:0] selected_following_lane0 = row[0] ? lane10[following_group] : lane00[following_group];
+    wire [15:0] plane0 = word_offset ? selected_lane1 : selected_lane0;
+    wire [15:0] plane1 = word_offset ? selected_lane2 : selected_lane1;
+    wire [15:0] plane2 = word_offset ? selected_lane3 : selected_lane2;
+    wire [15:0] plane3 = word_offset ? selected_following_lane0 : selected_lane3;
     // The final DMA word (plane 3 of group 19) is absent on a shortened row.
     wire missing_plane3 = native_short_line && sample_x >= 9'd304;
     wire [3:0] color_index = !native_display ? 4'd0 :
