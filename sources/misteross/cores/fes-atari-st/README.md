@@ -237,7 +237,11 @@ read-address/track, PIO streams and ACSI are absent.
 
 ## Pluggable ROM, expansion and video
 
-The firmware socket accepts exactly 192 KiB. The board ROM is a synchronous
+The firmware socket accepts exactly 192 KiB. Mutually exclusive lane decodes
+and a byte reduction select the 192 synchronous RAM outputs. This preserves the five-clock word-read latency,
+held-request behavior and named ROM lanes used by the linker. The hardware ROM
+simulation checks every lane and undefined bank, reset cancellation and changed
+addresses during a held request. The board ROM is a synchronous
 M10K implementation whose blank base can be linked using the existing
 format-3 ROM map; no proprietary Atari ROM is distributed. EmuTOS is a
 separate, freely available GPL test input.

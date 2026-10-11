@@ -556,6 +556,62 @@ class AtariSTProducerTests(unittest.TestCase):
             for name in ('core.rbf', 'manifest.toml', 'rom-map.json', 'build-summary.json'):
                 self.assertFalse((root / st.OUTPUT_RELATIVE / name).exists())
 
+    @unittest.skipUnless(shutil.which('verilator'), 'Verilator required for physical ROM lane simulation')
+    def test_hardware_rom_lanes_latency_invalid_banks_and_reset(self):
+        # Undefine the simulator shortcut: exercise the same 192 named lanes
+        # and byte selector used by synthesis, with synchronous test RAM ports.
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            model = output / 'MISTRAL_M10K.sv'
+            model.write_text(r'''
+module MISTRAL_M10K #(parameter CFG_ABITS=10,CFG_DBITS=10,CFG_ASYNC_READ=0,parameter[10239:0] INIT=0)(input CLK1,input[9:0] A1ADDR,A1DATA,input A1EN,B1EN,input[9:0] B1ADDR,output reg[9:0] B1DATA,input ACLR0,ACLR1);
+integer lane_id /*verilator public_flat_rw*/;
+wire[17:0] a=18'(lane_id*1024)+{8'd0,B1ADDR};
+always@(posedge CLK1) B1DATA<={2'd0,8'((32'(a)&255)^(((32'(a)>>8)&3)*33)^((32'(a)>>10)*137))};
+endmodule
+''')
+            obj = output / 'obj'
+            argv = ['verilator', '--cc', '-UVERILATOR', '--top-module', 'st_rom',
+                    '--Mdir', str(obj), str(ROOT / 'cores/fes-atari-st/rtl/st_rom.v'), str(model)]
+            subprocess.run(argv, check=True, capture_output=True, text=True)
+            fields = re.findall(r'\b(\w*__DOT__lane(\d+)__DOT__lane_id);',
+                                (obj / 'Vst_rom___024root.h').read_text())
+            self.assertEqual(sorted(int(index) for _, index in fields), list(range(192)))
+            initializers = '\n'.join(f' d.rootp->{name}={index};' for name, index in fields)
+            cpp = output / 'rom.cpp'
+            cpp.write_text(r'''
+#include "Vst_rom.h"
+#include "Vst_rom___024root.h"
+#include "verilated.h"
+#include <cassert>
+#include <iostream>
+static unsigned checks=0;
+static void check(bool good){++checks;assert(good);}
+static void tick(Vst_rom&d){d.clk=0;d.eval();d.clk=1;d.eval();}
+static unsigned byte(unsigned a){return a>=196608?255:((a&255)^(((a>>8)&3)*33)^((a>>10)*137))&255;}
+static void read(Vst_rom&d,unsigned a){
+ d.req=1;d.address=a/2;
+ for(unsigned i=0;i<4;++i){tick(d);check(!d.ready);}
+ tick(d);check(d.ready);check(d.rdata==((byte(a)<<8)|byte(a+1)));
+ for(unsigned i=0;i<4;++i){d.address=(i*32749+1337)&0x1ffff;tick(d);check(d.ready);check(d.rdata==((byte(a)<<8)|byte(a+1)));}
+ d.req=0;tick(d);check(!d.ready);
+}
+int main(){Vst_rom d;d.reset=1;d.req=0;d.clk=0;d.eval();
+LANE_INITIALIZERS
+ tick(d);d.reset=0;
+ for(unsigned n=0;n<256;++n){read(d,n*1024);read(d,n*1024+1022);}
+ for(unsigned n=0;n<512;++n)read(d,((n*15773+19)&0x1ffff)*2);
+ for(unsigned p=0;p<5;++p){d.req=1;d.address=(p*32749)&0x1ffff;for(unsigned i=0;i<p;++i)tick(d);d.reset=1;tick(d);check(!d.ready);check(d.rdata==0);d.reset=0;d.req=0;tick(d);read(d,p*1024+638);}
+ std::cout<<"Actual192-lane ROM PASS: "<<checks<<" checks, all256 bank selectors/edges, randomizedrows, heldchangedaddresses and everyreset phase\n";
+}
+'''.replace('LANE_INITIALIZERS', initializers))
+            build = argv[:]
+            build[1:1] = ['--exe', '--build', '-O2']
+            build.append(str(cpp))
+            subprocess.run(build, check=True, capture_output=True, text=True)
+            result = subprocess.run([str(obj / 'Vst_rom')], check=True, capture_output=True, text=True)
+            self.assertIn('15445 checks', result.stdout)
+
     @unittest.skipUnless(shutil.which('verilator'), 'Verilator required for synchronous ROM simulation')
     def test_rom_big_endian_lane_edges_reset_and_held_request(self):
         with tempfile.TemporaryDirectory() as directory:
