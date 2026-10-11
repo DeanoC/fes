@@ -126,6 +126,12 @@ jobs:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).host
     runs-on: ubuntu-24.04
+    # Three parallel shards of the host Go suites (scripts/host_tests.py
+    # --shard); the shards together run exactly the unsharded command set.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -139,12 +145,13 @@ jobs:
             platform/go.sum
       - env:
           TEST_FULL_RACE: ${{ fromJSON(needs.plan.outputs.test_modes).full_race }}
+          SHARD: ${{ matrix.shard }}
         run: |
-          make host
-          flags=()
-          if [ "$TEST_FULL_RACE" = true ]; then flags=(--full); fi
+          if [ "$SHARD" = 1 ]; then make host; fi
+          flags=(--shard "$SHARD/3")
+          if [ "$TEST_FULL_RACE" = true ]; then flags+=(--full); fi
           python3 scripts/host_tests.py "${flags[@]}"
-          make -C sources/FogCast test-ui
+          if [ "$SHARD" = 3 ]; then make -C sources/FogCast test-ui; fi
   runtime:
     needs: plan
     if: fromJSON(needs.plan.outputs.lanes).runtime

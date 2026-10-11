@@ -24,7 +24,18 @@ def main(argv=None):
     parser.add_argument('--full', action='store_true',
                         help='exhaustive race run for weekly/manual selection')
     parser.add_argument('--plan-only', action='store_true')
+    parser.add_argument('--shard', metavar='I/N',
+                        help='run shard I of N (1-based) for parallel CI jobs')
     args = parser.parse_args(argv)
+    shard = None
+    if args.shard:
+        try:
+            number, count = (int(part) for part in args.shard.split('/'))
+        except ValueError:
+            parser.error('--shard must be I/N')
+        if not 1 <= number <= count:
+            parser.error('--shard must satisfy 1 <= I <= N')
+        shard = (number - 1, count)
     root = Path(__file__).resolve().parents[1]
     environment = dict(os.environ)
     # Native software tests; a cross-build shell must not redirect either the
@@ -37,8 +48,12 @@ def main(argv=None):
             ['go', 'list', './...'], cwd=root / test_policy.FOGCAST_MODULE,
             text=True, env=environment).split()
     commands = test_policy.host_test_commands(full=args.full, packages=packages)
+    if shard is not None:
+        commands = test_policy.shard_host_commands(commands, *shard)
     report = {'format': 1, 'mode': 'full' if args.full else 'routine',
               'commands': commands}
+    if shard is not None:
+        report['shard'] = args.shard
     if args.plan_only:
         report['status'] = 'planned'
         print(json.dumps(report, indent=2))

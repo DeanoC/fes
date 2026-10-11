@@ -166,3 +166,32 @@ def host_test_commands(full=False, packages=None):
         {'cwd': EXPANSION_MODULE, 'label': 'expansion concurrency-focused race checks',
          'argv': [*short_race, '-run', HOST_RACE_FOCUS, './...']},
     ]
+
+
+ORDINARY_RACE_LABEL = 'host race suite excluding race-expensive packages'
+
+
+def shard_host_commands(commands, index, count):
+    """Return shard ``index`` of ``count`` for parallel CI host jobs.
+
+    The ordinary-package race command is split round-robin by package so
+    every shard takes part of the largest suite; the other commands are dealt
+    round-robin. The union over all shards is exactly the input set.
+    """
+    if type(index) is not int or type(count) is not int or not 0 <= index < count:
+        raise ValueError('shard index must be within the shard count')
+    selected, dealt = [], 0
+    for command in commands:
+        if command['label'] == ORDINARY_RACE_LABEL:
+            argv = command['argv']
+            split = next(i for i, arg in enumerate(argv) if arg.startswith(('github.com/', './')))
+            packages = argv[split:][index::count]
+            if packages:
+                selected.append({**command, 'label': f'{command["label"]} ({index + 1}/{count})',
+                                 'argv': [*argv[:split], *packages]})
+            continue
+        if dealt % count == index:
+            selected.append(command)
+        dealt += 1
+    return selected
+
