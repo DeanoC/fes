@@ -4,7 +4,12 @@
 // The physical command model is external; no C++ RAM callback serves the CPU.
 module st_boot_memory_sim_top #(
     parameter integer MFP_WAIT_STATES = 0,
-    parameter EARLY_COMPLETION = 1
+    parameter EARLY_COMPLETION = 1,
+    parameter POSTED_CPU_WRITES = EARLY_COMPLETION,
+    parameter PHASE_SLOTS = EARLY_COMPLETION,
+    parameter [1:0] CPU_SLOT_PHASE = 2'd0,
+    parameter SINGLE_RANK_REFRESH = EARLY_COMPLETION,
+    parameter SLOT_REFRESH = EARLY_COMPLETION
 ) (
     input wire clk_sys, clk_pixel, cold_reset, reset_sys, reset_pixel,
     output wire initialized,
@@ -66,7 +71,8 @@ module st_boot_memory_sim_top #(
     wire [23:0] dma_addr;
     wire [15:0] dma_wdata;
     wire [1:0] dma_byte_enable;
-    st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES)) system (
+    st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES),
+                .EARLY_RAM_WRITE_COMPLETION(POSTED_CPU_WRITES)) system (
         .clk_sys(clk_sys), .reset(reset_sys), .cold_reset(cold_reset),
         .media_frozen(1'b0), .media_write_req(), .media_write_addr(), .media_write_data(),
         .media_write_ready(1'b0), .media_write_busy(), .media_changed(),
@@ -89,8 +95,10 @@ module st_boot_memory_sim_top #(
         .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_line(native_line),
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce)
     );
-    st_memory_sim_top #(.EARLY_COMPLETION(EARLY_COMPLETION)) memory (
-        .clk(clk_sys), .cold_reset(cold_reset), .reset(reset_sys), .initialized(initialized),
+    st_memory_sim_top #(.EARLY_COMPLETION(EARLY_COMPLETION), .POSTED_CPU_WRITES(POSTED_CPU_WRITES), .PHASE_SLOTS(PHASE_SLOTS),
+                       .CPU_SLOT_PHASE(CPU_SLOT_PHASE),
+                .SINGLE_RANK_REFRESH(SINGLE_RANK_REFRESH), .SLOT_REFRESH(SLOT_REFRESH)) memory (
+        .clk(clk_sys), .memory_phase(native_cycle[1:0]), .raster_reset(system.exp_reset), .cold_reset(cold_reset), .reset(reset_sys), .initialized(initialized),
         .cpu_req(cpu_req), .cpu_addr(cpu_addr), .cpu_write(cpu_write), .cpu_wdata(cpu_wdata),
         .cpu_byte_enable(cpu_byte_enable), .cpu_ready(cpu_ready), .cpu_rdata(cpu_rdata),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),

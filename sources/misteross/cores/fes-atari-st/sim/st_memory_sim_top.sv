@@ -3,9 +3,16 @@
 module st_memory_sim_top #(
     parameter [13:0] REFRESH_WAIT_CYCLES = 14'd4,
     parameter EARLY_COMPLETION = 1,
-    parameter REGISTERED_READ_INPUT = 0
+    parameter REGISTERED_READ_INPUT = 0,
+    parameter POSTED_CPU_WRITES = 0,
+    parameter PHASE_SLOTS = 0,
+    parameter [1:0] CPU_SLOT_PHASE = 2'd0,
+    parameter SINGLE_RANK_REFRESH = 0,
+    parameter SLOT_REFRESH = 0
 ) (
     input wire clk,
+    input wire [1:0] memory_phase,
+    input wire raster_reset,
     input wire cold_reset,
     input wire reset,
     output wire initialized,
@@ -56,7 +63,10 @@ module st_memory_sim_top #(
     always @(negedge clk) dq_fall <= dq_sample;
     st_memory #(.REFRESH_WAIT_CYCLES(REFRESH_WAIT_CYCLES),
                 .EARLY_COMPLETION(EARLY_COMPLETION),
-                .REGISTERED_READ_INPUT(REGISTERED_READ_INPUT)) memory (.clk_pin(clk), .*);
+                .REGISTERED_READ_INPUT(REGISTERED_READ_INPUT),
+                .POSTED_CPU_WRITES(POSTED_CPU_WRITES),
+                .PHASE_SLOTS(PHASE_SLOTS), .CPU_SLOT_PHASE(CPU_SLOT_PHASE),
+                .SINGLE_RANK_REFRESH(SINGLE_RANK_REFRESH), .SLOT_REFRESH(SLOT_REFRESH)) memory (.clk_pin(clk), .*);
 endmodule
 
 // Only the clock pin is needed; the stand-in retains high/low DDR values.

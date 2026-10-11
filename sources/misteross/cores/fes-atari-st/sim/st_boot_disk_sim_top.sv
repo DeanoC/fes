@@ -75,7 +75,8 @@ module st_boot_disk_sim_top (
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce)
     );
     st_memory_sim_top memory (
-        .clk(clk_sys), .cold_reset(cold_reset), .reset(reset_sys), .initialized(initialized),
+        .clk(clk_sys), .memory_phase(native_cycle[1:0]), .raster_reset(system.exp_reset),
+        .cold_reset(cold_reset), .reset(reset_sys), .initialized(initialized),
         .cpu_req(cpu_req), .cpu_addr(cpu_addr), .cpu_write(cpu_write), .cpu_wdata(cpu_wdata),
         .cpu_byte_enable(cpu_byte_enable), .cpu_ready(cpu_ready), .cpu_rdata(cpu_rdata),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),

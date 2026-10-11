@@ -24,9 +24,15 @@ module sdram_addon_port #(
     // Rate 0 normally receives one fabric register after DDR input capture.
     // A caller supplying the raw DDR rising word selects zero; retain that
     // same physical sample, capturing it one fabric edge earlier.
-    parameter RATE0_INPUT_REGISTER = 1
+    parameter RATE0_INPUT_REGISTER = 1,
+    // Opt-in callers that never address the second SDRAM chip.
+    parameter SINGLE_RANK_REFRESH = 0,
+    parameter EXTERNAL_REFRESH_WINDOW = 0,
+    parameter [11:0] REFRESH_INTERVAL_CYCLES = 12'd0
 ) (
     input wire clk,
+    input wire refresh_window,
+    output wire refresh_pending,
     input wire clk_pin,
     input wire [1:0] rate,
     input wire reset,
@@ -77,6 +83,7 @@ module sdram_addon_port #(
     reg [13:0] wait_count = 14'd0;
     reg [11:0] refresh_div = 12'd0;
     reg refresh_due = 1'b0;
+    assign refresh_pending = refresh_due || state == ST_REF || state == ST_REFW;
     reg seen = 1'b0;
     reg writing = 1'b0;
     reg [25:0] held_addr = 26'd0;
@@ -172,6 +179,7 @@ module sdram_addon_port #(
 
     // 7.8 us refresh. The count is in fabric clocks, so it tracks the rate.
     wire [11:0] refresh_every =
+        REFRESH_INTERVAL_CYCLES != 12'd0 ? REFRESH_INTERVAL_CYCLES :
         rate == 2'd0 ? 12'd390 :
         rate == 2'd1 ? 12'd1014 :
         12'd780;
@@ -303,13 +311,18 @@ module sdram_addon_port #(
             ST_IDLE: begin
                 sdram_cke_r <= 1'b1;
                 sdram_ncs_r <= 1'b1;
-                if (start && !seen) begin
+                // A late write can cover the entire external refresh window.
+                // Its caller retains the command until we accept it; reserve
+                // the pending window before starting that physical write.
+                if (EXTERNAL_REFRESH_WINDOW && refresh_due && write &&
+                    start && !seen && !refresh_window) begin
+                end else if (start && !seen) begin
                     seen <= 1'b1;
                     writing <= write;
                     held_addr <= addr;
                     held_data <= wdata;
                     held_byte_enable <= BYTE_MASK_ENABLED ? write_byte_enable : 2'b11;
-                    if (refresh_due) begin
+                    if (refresh_due && (!EXTERNAL_REFRESH_WINDOW || refresh_window)) begin
                         state <= ST_REF;
                         refresh_with_request <= 1'b1;
                     end else begin
@@ -324,7 +337,7 @@ module sdram_addon_port #(
                             dq_oe_r <= 1'b1;
                         end
                     end
-                end else if (refresh_due) begin
+                end else if (refresh_due && (!EXTERNAL_REFRESH_WINDOW || refresh_window)) begin
                     state <= ST_REF;
                     refresh_with_request <= 1'b0;
                 end
@@ -342,7 +355,10 @@ module sdram_addon_port #(
                 sdram_cke_r <= 1'b1;
                 sdram_ncs_r <= ref_hi;
                 if (wait_count == REFRESH_WAIT_CYCLES) begin
-                    if (!ref_hi) begin
+                    if (SINGLE_RANK_REFRESH) begin
+                        ref_hi <= 1'b0;
+                        state <= refresh_with_request ? ST_ROW : ST_IDLE;
+                    end else if (!ref_hi) begin
                         ref_hi <= 1'b1;
                         state <= ST_REF;
                     end else begin

@@ -335,6 +335,7 @@ module top #(
 `endif
     sdram_addon_port #(.BYTE_MASK_ENABLED(1),
                        .IO_OUTPUT_REGISTERS(SDRAM_IO_OUTPUT_REGISTERS)) sdram (
+        .refresh_window(1'b1), .refresh_pending(),
         .clk(mem_clk),
         .clk_pin(sdram_pin_clk),
         .rate(rate),

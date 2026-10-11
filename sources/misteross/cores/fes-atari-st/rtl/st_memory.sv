@@ -6,7 +6,8 @@
 // separate floppy image (up to 820 KiB). The controller's packed row/bank/column
 // address mapping is preserved: these are physical halfword offsets.
 // cold_reset restarts SDRAM initialization. Warm reset drains any physical
-// transaction, suppresses its completion, and keeps refresh/memory intact.
+// transaction, suppresses any remaining completion, and keeps refresh/memory
+// intact. An already-acknowledged posted write commits its retained payload.
 module st_memory #(
     // At 52.224 MHz the controller's four-count wait leaves six chip clocks
     // (114.9 ns) between runtime refresh and the next command. The ISSI
@@ -15,9 +16,17 @@ module st_memory #(
     parameter EARLY_COMPLETION = 1,
     // Retain the older extra input stage for timing comparisons. Production
     // consumes the DDR rising word directly at the matching capture count.
-    parameter REGISTERED_READ_INPUT = 0
+    parameter REGISTERED_READ_INPUT = 0,
+    parameter PHASE_SLOTS = 0,
+    parameter [1:0] CPU_SLOT_PHASE = 2'd0,
+    parameter SINGLE_RANK_REFRESH = 0,
+    parameter SLOT_REFRESH = 0,
+    // Retain and acknowledge one CPU write before its physical commit.
+    parameter POSTED_CPU_WRITES = 0
 ) (
     input wire clk,
+    input wire [1:0] memory_phase,
+    input wire raster_reset,
     input wire clk_pin,
     input wire cold_reset,
     input wire reset,
@@ -64,6 +73,15 @@ module st_memory #(
     input wire [15:0] dq_rise,
     input wire [15:0] dq_fall
 );
+    generate
+        if (SLOT_REFRESH && (!PHASE_SLOTS || !SINGLE_RANK_REFRESH)) begin : invalid_refresh_policy
+            initial $fatal(1, "slot refresh requires phase slots and single-rank refresh");
+        end
+        if (POSTED_CPU_WRITES && (!EARLY_COMPLETION || !PHASE_SLOTS)) begin : invalid_posted_policy
+            initial $fatal(1, "posted writes require early completion and phase slots");
+        end
+    endgenerate
+
     localparam [2:0] CPU = 3'd0, VIDEO = 3'd1, DMA = 3'd2,
                      MEDIA_WRITE = 3'd3, MEDIA_READ = 3'd4;
     typedef enum logic [1:0] { IDLE, BUSY, REARM, EMPTY } state_t;
@@ -71,7 +89,9 @@ module st_memory #(
     reg [2:0] cursor, owner;
     reg [4:0] seen;
     wire [4:0] requests = {media_read_req, media_write_req, dma_req, video_req, cpu_req};
+    reg write_video_turn;
     reg grant;
+    reg advance_cursor, earlier_nonvideo_pending;
     reg [2:0] selected;
     reg selected_valid, selected_write;
     reg [25:0] selected_addr;
@@ -82,6 +102,7 @@ module st_memory #(
     reg [15:0] held_wdata;
     reg [1:0] held_byte_enable;
     wire controller_done;
+    wire refresh_pending;
     wire [15:0] controller_rdata;
     reg cpu_ready_q;
     reg [15:0] cpu_rdata_q;
@@ -94,8 +115,11 @@ module st_memory #(
     // may consume that word at the next fabric edge; other clients retain
     // their registered boundary. Latch it on that edge for held-request data.
     wire cpu_completion = state == BUSY && owner == CPU && controller_done &&
-                          !cold_reset && !reset && !discard && cpu_req;
-    assign cpu_ready = EARLY_COMPLETION ? cpu_completion : cpu_ready_q;
+                          !cold_reset && !reset && !discard && cpu_req &&
+                          !(POSTED_CPU_WRITES && held_write);
+    assign cpu_ready = EARLY_COMPLETION ?
+        (cpu_completion || (POSTED_CPU_WRITES && held_write && cpu_ready_q &&
+                            !cold_reset && !reset && cpu_req)) : cpu_ready_q;
     assign cpu_rdata = EARLY_COMPLETION && cpu_completion ? controller_rdata : cpu_rdata_q;
     // The optional legacy stage and its later controller capture refer to
     // the same physical DDR rising sample as the direct production path.
@@ -108,8 +132,13 @@ module st_memory #(
     sdram_addon_port #(.BYTE_MASK_ENABLED(1),
                        .REFRESH_WAIT_CYCLES(REFRESH_WAIT_CYCLES),
                        .EARLY_DONE(EARLY_COMPLETION),
-                       .RATE0_INPUT_REGISTER(REGISTERED_READ_INPUT)) controller (
-        .clk(clk), .clk_pin(clk_pin), .rate(2'd0), .reset(cold_reset),
+                       .RATE0_INPUT_REGISTER(REGISTERED_READ_INPUT),
+                       .SINGLE_RANK_REFRESH(SINGLE_RANK_REFRESH),
+                       .EXTERNAL_REFRESH_WINDOW(SLOT_REFRESH),
+                       .REFRESH_INTERVAL_CYCLES(SLOT_REFRESH ? 12'd335 : 12'd0)) controller (
+        .clk(clk), .clk_pin(clk_pin),
+        .refresh_window(!SLOT_REFRESH || reset || raster_reset || memory_phase == (CPU_SLOT_PHASE + 2'd2)),
+        .refresh_pending(refresh_pending), .rate(2'd0), .reset(cold_reset),
         .start(state == BUSY || launch),
         .write(launch ? selected_write : held_write),
         .addr(launch ? selected_addr : held_addr),
@@ -126,15 +155,29 @@ module st_memory #(
     integer priority_index, candidate;
     always @* begin
         grant = 1'b0;
+        advance_cursor = 1'b0;
+        earlier_nonvideo_pending = 1'b0;
         selected = CPU;
         candidate = 0;
         for (priority_index = 0; priority_index < 5; priority_index = priority_index + 1) begin
             candidate = int'(cursor) + priority_index;
             if (candidate >= 5) candidate = candidate - 5;
-            if (!grant && requests[candidate] && !seen[candidate]) begin
+            if (!grant && requests[candidate] && !seen[candidate] &&
+                (!SLOT_REFRESH || !refresh_pending || candidate == int'(CPU)) &&
+                (!PHASE_SLOTS || candidate != int'(CPU) || !cpu_write ||
+                 !video_req || seen[VIDEO] || !write_video_turn) &&
+                (candidate == int'(VIDEO) || !PHASE_SLOTS || memory_phase ==
+                    (CPU_SLOT_PHASE + ((candidate == int'(CPU) && cpu_write) ? 2'd1 : 2'd0))) &&
+                (candidate != int'(VIDEO) || (PHASE_SLOTS ?
+                    memory_phase == (CPU_SLOT_PHASE + 2'd2) : 1'b1))) begin
                 grant = 1'b1;
                 selected = 3'(candidate);
+                // A phase-1 write may bypass an older phase-0 client. Keep
+                // that client's queue position until its own grant occurs.
+                advance_cursor = candidate != int'(VIDEO) && !earlier_nonvideo_pending;
             end
+            if (candidate != int'(VIDEO) && requests[candidate] && !seen[candidate])
+                earlier_nonvideo_pending = 1'b1;
         end
         selected_addr = 26'd0;
         selected_write = 1'b0;
@@ -182,6 +225,7 @@ module st_memory #(
             cursor <= CPU;
             owner <= CPU;
             seen <= 5'd0;
+            write_video_turn <= 1'b0;
             held_addr <= 26'd0;
             held_write <= 1'b0;
             held_wdata <= 16'd0;
@@ -197,13 +241,19 @@ module st_memory #(
             if (reset) begin
                 seen <= requests;
                 cursor <= CPU;
+                write_video_turn <= 1'b0;
                 discard <= 1'b1;
             end
             case (state)
                 IDLE: begin
                     if (initialized && !reset && grant) begin
                         owner <= selected;
-                        cursor <= selected == MEDIA_READ ? CPU : selected + 3'd1;
+                        if (selected == CPU && selected_write) write_video_turn <= 1'b1;
+                        if (selected == VIDEO) write_video_turn <= 1'b0;
+                        if (POSTED_CPU_WRITES && selected == CPU && selected_write && selected_valid)
+                            cpu_ready_q <= 1'b1;
+                        if (!PHASE_SLOTS || advance_cursor)
+                            cursor <= selected == MEDIA_READ ? CPU : selected + 3'd1;
                         seen[selected] <= 1'b1;
                         held_addr <= selected_addr;
                         held_write <= selected_write;
@@ -224,7 +274,7 @@ module st_memory #(
                         // reset. The already-issued SDRAM command still drains.
                         if (!reset && !discard && requests[owner]) case (owner)
                             CPU: begin
-                                cpu_ready_q <= 1'b1;
+                                cpu_ready_q <= state == EMPTY || !POSTED_CPU_WRITES || !held_write;
                                 cpu_rdata_q <= state == EMPTY ? 16'd0 : controller_rdata;
                             end
                             VIDEO: begin

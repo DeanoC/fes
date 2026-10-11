@@ -26,51 +26,48 @@ The MiSTer addon wires chip DQML/DQMH to A11/A12. The shared controller keeps
 the full row during ACTIVATE, then places byte masks on those shared pins
 before the column command and clears them for reads. The separate logical
 DQM outputs alone cannot mask writes on this board.
-The ST selects a four-count runtime refresh recovery instead of the shared
-controller's sixteen-count default. Including state transitions, this leaves
-six chip clocks (114.9 ns at 52.224 MHz) before the next command, exceeding
-the ISSI IS42S16320D's 60 ns refresh command period. Initialization keeps its
-conservative timing. The ST also enables early completion after the existing read capture or
-committed write hold. SDRAM recovery still drains before another physical
-command is accepted. The arbiter presents an idle-controller grant on its
-arbitration edge; CPU acknowledgement uses the captured controller word and
-retains it afterwards. No read cache or deferred write buffer is introduced.
-The motherboard also presents a valid RAM read on its transaction-capture edge,
-then holds the captured request. Ready read data and DTACK reach the CPU on the
-completion edge and are retained for the remaining bus cycle. Writes retain
-registered dispatch and completion; protection, reset-vector ROM overlay and
-other targets use the existing decoder.
-The ST supplies the first rate-0 rising-edge input word to the controller, which captures
-that same physical sample one fabric edge earlier. The board captures in fabric
-because native packing cannot combine bidirectional pads with input DDIO;
-the physical-memory fixture models the corresponding DDIO edge. `REGISTERED_READ_INPUT=1`
-retains the former fabric input stage for focused comparisons; the shared
-controller's `RATE0_INPUT_REGISTER` defaults to one for all other callers.
-CAS, physical DDR sampling, command and DQM setup timing stay unchanged.
-Other shared-controller callers retain late completion by default.
+The board selects phase-based grants from the native CPU/raster counter:
+phase 0 serves CPU reads and other non-video clients, phase 1 CPU writes,
+and phase 2 video. A grant that bypasses an earlier pending non-video client
+preserves that client's queue position. Protected RAM transactions launch only
+with valid byte strobes. Other motherboard targets retain registered dispatch.
 
-The memory regression compares early/late completion and the previous refresh
-profile across three DQM delays, held-read retention, cancellation, reset and
-CPU/video/DMA/media contention. Its alternating CPU access sweep measures
-9–22 system clocks for reads and 6–19 for writes with early completion,
-versus 12–25 and 10–22 with late completion at the same refresh setting.
-The optional registered-input comparison checks the former 10-clock minimum.
-`make sim-fes-atari-st-ram-bus` executes original diagnostic firmware on the actual FX68K,
-physical SDRAM/DDIO and independent-clock video fixture in both configurations.
-Across 511 read-instruction intervals, 503 take the nominal 16 CPU cycles and
-eight refresh waits take 18, totaling 8192 cycles; the previous path took 8740
-cycles, mostly 17 per instruction. Writes total 8746 cycles, mostly 17.
-The firmware accesses both byte lanes and checks physical data and completion.
-This is a bounded timing improvement, not original ST bus timing equivalence
-or acceptance of BIG raster timing. Fresh FPGA/kit qualification is separate.
+One CPU write can be acknowledged after its address, data and masks are retained.
+Physical completion and recovery precede subsequent clients. Request withdrawal,
+changed inactive CPU pins and warm reset preserve an accepted write and suppress
+stale completion. This is one ordered command, with no read cache. Hardware Hold
+leaves the arbiter running for media/upload work. CPU RESET preserves RAM.
 
-Initialization completes before CPU release. SDRAM refresh continues while
-idle and while the CPU is held. An abandoned request drains its physical
-command and suppresses its old completion. Warm Hold preserves RAM and media.
+Runtime refresh selects four wait counts, leaving six chip clocks (114.9 ns at
+52.224 MHz) before the next command, above the ISSI IS42S16320D's 60 ns period.
+RAM and media use rank zero, so runtime refresh selects that rank; initialization
+keeps the conservative two-rank sequence. The 335-clock schedule uses phase 2.
+A pending refresh defers a late physical write that could occupy its admission
+window. `raster_reset` opens the window while the native counter is held.
+Slot refresh requires phase slots and single-rank refresh; posted writes require
+phase slots and early completion. Board instances and Slang roots select the
+same policy explicitly. Shared controller defaults retain RAM Tester behavior.
+
+The ST consumes the first rate-0 DDR rising sample. The board retains its fabric
+pad capture and the simulation fixture models the matching DDIO edge.
+`make sim-fes-atari-st-memory` checks byte masks, physical posted-write commits
+and following read order, cancellation, held requests, warm reset, all five
+clients and every fabric offset of no-video read/write slots. It retains the
+exclusive 180-clock fairness limit and checks physical refresh intervals against
+408 clocks at 52.224 MHz. Registered-input and late-completion profiles remain
+focused timing comparisons.
+
+`make sim-fes-atari-st-ram-bus` runs authored firmware on FX68K with physical
+SDRAM/DDIO and independent-clock video. The selected policy measures 511 byte
+write intervals of 16 CPU cycles and 510 read intervals of 16 plus one of 17.
+It checks both byte lanes, TAS rearming and RESET retention. Its RAM-resident
+NOP/DBF workload checks 12,299 palette intervals of 12 cycles and 300 of 512
+while video fetches continue without underruns. These host regressions do not
+establish original BIG compatibility, routed timing or kit acceptance.
+
 Physical halfword offsets `$00000–$3FFFF` contain RAM; `$40000–$A67FF` contain
-the separate disk buffer (up to 820 KiB). RAM masks select the even high byte or odd
-low byte. The controller preserves its established row/bank/column wiring
-and uses its established rate-0 rising-edge sample, retained directly by the controller.
+the separate disk buffer (up to 820 KiB). Masks select even high or odd low bytes.
+The controller preserves its packed row/bank/column mapping.
 
 The original ST MMU configures two logical banks. This machine has one
 physical 512 KiB bank and an empty second bank. `$FF8001` changes logical bank
@@ -106,7 +103,8 @@ rather than the later STe mapping. In the normal `$04` configuration:
 Primary references are Atari's [520ST service manual](https://www.atarimania.com/documents/atari_520st_service_manual.pdf),
 Motorola's [68000 manual](https://www.nxp.com/docs/en/reference-manual/MC68000UM.pdf)
 and the pinned [EmuTOS memory initialization](https://github.com/emutos/emutos/blob/978e37569bff95841e42675d11fcc6799aad8483/bios/memory.S).
-Bus-master arbitration and cycle-exact GLUE/MMU contention are outside this implementation.
+Cycle-exact GLUE/MMU behavior beyond the selected RAM grant policy remains
+outside this implementation.
 
 ## Peripherals
 

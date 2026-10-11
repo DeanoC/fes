@@ -135,7 +135,7 @@ module top #(
 `ifdef FES_ST_SLANG_IMPORT
         st_system system (
 `else
-        st_system #(.ENABLE_FLOPPY_WRITE(1)) system (
+        st_system #(.ENABLE_FLOPPY_WRITE(1), .EARLY_RAM_WRITE_COMPLETION(1)) system (
 `endif
             .clk_sys(clk_sys), .reset(machine_reset), .cold_reset(cold_reset),
             .rom_req(rom_req), .rom_addr(rom_addr), .rom_rdata(rom_rdata), .rom_ready(rom_ready),
@@ -242,8 +242,14 @@ module top #(
     assign snapshot_data = shared_read_data;
     wire [15:0] dq_out, dq_rise, dq_fall;
     wire dq_oe;
+`ifdef FES_ST_SLANG_IMPORT
     st_memory memory (
-        .clk(clk_sys), .clk_pin(clk_sys), .cold_reset(cold_reset), .reset(1'b0), .initialized(initialized),
+`else
+    st_memory #(.PHASE_SLOTS(1), .POSTED_CPU_WRITES(1),
+                .SINGLE_RANK_REFRESH(1), .SLOT_REFRESH(1)) memory (
+`endif
+        .clk(clk_sys), .clk_pin(clk_sys), .memory_phase(native_cycle[1:0]),
+        .raster_reset(exp_reset), .cold_reset(cold_reset), .reset(1'b0), .initialized(initialized),
         .cpu_req(ram_req), .cpu_addr(ram_addr), .cpu_write(ram_write), .cpu_wdata(ram_wdata),
         .cpu_byte_enable(ram_byte_enable), .cpu_ready(ram_ready), .cpu_rdata(ram_rdata),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
