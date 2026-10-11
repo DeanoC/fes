@@ -182,12 +182,15 @@ def prepare_cpu_inputs(root: Path, output: Path) -> None:
 
 
 def clock_read_only_memories(path: Path) -> list[str]:
-    """Supply the unused write clock only for proven read-only CPU ROMs."""
+    """Supply the unused write clock only for selected read-only ROMs."""
     design = _read_json(path, "ST synthesized design")
     reject_async_m10k_reads(design)
     repaired = []
     prefixes = ("machine.system.machine.cpu.cpu.nanoRom.nRam.",
                 "machine.system.machine.cpu.cpu.uRom.uRam.")
+    ym_roms = {f"machine.system.io.psg.mixer.rom.{kind}_bank_{bank:02d}.0.0.0"
+               for kind, count in (("base", 12), ("correction", 3))
+               for bank in range(count)}
     for name, cell in design["modules"][TOP]["cells"].items():
         if cell["type"] != "MISTRAL_M10K" or cell["connections"].get("CLK1") != ["x"]:
             continue
@@ -196,7 +199,8 @@ def clock_read_only_memories(path: Path) -> list[str]:
             value = parameters.get(key, default)
             return int(value, 2) if isinstance(value, str) and re.fullmatch("[01]+", value) else value
         inactive_write = "0" if number("CFG_BYTE_ENABLE") or number("CFG_DBITS") == 40 else "1"
-        if (not name.startswith(prefixes) or number("CFG_DUAL_CLOCK") != 1 or
+        if ((not name.startswith(prefixes) and name not in ym_roms) or
+                number("CFG_DUAL_CLOCK") != 1 or
                 pins.get("A1EN") != [inactive_write] or len(pins.get("CLK2", [])) != 1 or
                 type(pins["CLK2"][0]) is not int):
             raise BuildError(f"unexpected disconnected ST M10K write clock: {name}")

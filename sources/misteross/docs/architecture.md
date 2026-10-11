@@ -1706,6 +1706,10 @@ functional chipset in `st_system.sv`. The YM option in the shared
 `zonx_ay` engine exposes optional gated five-bit channel levels (zero in
 its default AY mode); existing AY PCM remains unchanged. `st_ym2149` uses
 these levels with the normalized Hatari STF nonlinear three-channel table.
+The OSS producer supplies the unused write clock on the CPU microcode ROMs
+and the fifteen selected YM mixer ROM banks from each cell's read clock. It
+requires synchronous reads, an inactive constant write enable and a connected
+read clock; other disconnected memory clocks are rejected.
 The mixer snapshots each /8 counter-tick input and uses a sorted canonical
 lookup plus sparse order-dependent rounding corrections. Fifteen synchronous
 512-word ROM banks retain exact results for all 32,768 ordered inputs, verified
