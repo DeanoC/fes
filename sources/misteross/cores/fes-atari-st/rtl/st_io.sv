@@ -4,6 +4,7 @@
 // rather than a cycle-exact GLUE model. Unclaimed addresses go to the socket.
 module st_io #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
+    parameter integer CPU_CLOCK_HZ = 8_000_000,
     parameter integer ENABLE_FLOPPY_WRITE = 0,
     parameter integer MFP_WAIT_STATES = 0
 ) (
@@ -238,7 +239,7 @@ module st_io #(
     );
     wire kbd_tx_valid, kbd_tx_ready, kbd_rx_valid, kbd_rx_ready;
     wire [7:0] kbd_tx_data, kbd_rx_data;
-    st_acia #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ)) keyboard_acia (
+    st_acia #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ), .SERIAL_CLOCK_HZ(CPU_CLOCK_HZ / 16)) keyboard_acia (
         .clk(clk), .reset(reset), .bus_req(req && kbd_select && byte_enable[1]),
         .bus_reg(addr[1]), .bus_write(write), .bus_wdata(wdata[15:8]),
         .bus_rdata(kbd_data), .bus_ack(kbd_ack), .irq(kbd_irq),
@@ -248,7 +249,7 @@ module st_io #(
     );
     wire unused_midi_valid, unused_midi_ready;
     wire [7:0] unused_midi_data;
-    st_acia #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ)) midi_acia (
+    st_acia #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ), .SERIAL_CLOCK_HZ(CPU_CLOCK_HZ / 16)) midi_acia (
         .clk(clk), .reset(reset), .bus_req(req && midi_select && byte_enable[1]),
         .bus_reg(addr[1]), .bus_write(write), .bus_wdata(wdata[15:8]),
         .bus_rdata(midi_data), .bus_ack(midi_ack), .irq(midi_irq),
@@ -263,7 +264,7 @@ module st_io #(
         .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
         .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready)
     );
-    st_ym2149 #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ)) psg (
+    st_ym2149 #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ), .CHIP_CLOCK_HZ(CPU_CLOCK_HZ / 4)) psg (
         .clk(clk), .reset(reset), .bus_req(req && psg_select && byte_enable[1]),
         .bus_reg(addr[1]), .bus_write(write), .bus_wdata(wdata[15:8]),
         .bus_rdata(psg_data), .bus_ack(psg_ack), .pcm_signed(audio_pcm),

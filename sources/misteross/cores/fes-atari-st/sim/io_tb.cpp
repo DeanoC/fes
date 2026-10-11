@@ -10,10 +10,11 @@
 #include <string>
 
 static constexpr unsigned system_hz = 52'224'000;
+static constexpr unsigned cpu_hz = 8'021'247;
 static constexpr unsigned mfp_base = 0xfffa00;
 struct Test {
     Vst_io_sim_top dut;
-    uint64_t cycles=0, assertions=0, crystal_ticks=0;
+    uint64_t cycles=0, assertions=0, crystal_ticks=0, psg_ticks=0, serial_ticks=0;
     unsigned frames=0, lines=0, display_ends=0, cpu_phase=0;
     uint64_t cpu_ticks=0;
     unsigned first_display_line=UINT32_MAX, first_display_phase=0;
@@ -26,13 +27,14 @@ struct Test {
         }
     }
     void tick() {
-        dut.cpu_cycle_ce=!dut.reset && cpu_phase+8'000'000>=system_hz;
-        cpu_phase=dut.reset?0:(cpu_phase+8'000'000)%system_hz;
+        dut.cpu_cycle_ce=!dut.reset && cpu_phase+cpu_hz>=system_hz;
+        cpu_phase=dut.reset?0:(cpu_phase+cpu_hz)%system_hz;
         cpu_ticks+=dut.cpu_cycle_ce;
         dut.clk=0; dut.eval();
         if (!dut.reset) {
             frames+=dut.vblank; lines+=dut.hblank;
             crystal_ticks+=dut.timer_ce_level;
+            psg_ticks+=dut.psg_ce_level; serial_ticks+=dut.serial_ce_level;
             display_ends+=previous_display && !dut.timer_b_level;
             if(!previous_display&&dut.timer_b_level&&first_display_line==UINT32_MAX){
                 first_display_line=dut.display_line;first_display_phase=dut.display_phase;
@@ -189,9 +191,12 @@ static void vbl_interrupt_phase(Test &t,unsigned resolution,unsigned sync) {
 
 static void timer_c_rate(Test &t) {
     t.reset();
-    const auto before=t.crystal_ticks;
+    const auto before=t.crystal_ticks, psg_before=t.psg_ticks, serial_before=t.serial_ticks, cpu_before=t.cpu_ticks;
     t.run(system_hz);
     t.require(t.crystal_ticks-before==2'457'600,"fractional MFP crystal rate is 2.4576 MHz");
+    t.require(t.cpu_ticks-cpu_before==cpu_hz,"PAL CPU enable rate");
+    t.require(t.psg_ticks-psg_before==cpu_hz/4,"PAL PSG clock rate");
+    t.require(t.serial_ticks-serial_before==cpu_hz/16,"PAL ACIA clock rate");
     t.mwrite(0x17,0x40); t.mwrite(0x09,0x20); t.mwrite(0x15,0x20);
     t.mwrite(0x23,192); t.mwrite(0x1d,0x50);
     uint64_t previous=0;
