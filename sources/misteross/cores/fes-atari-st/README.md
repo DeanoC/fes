@@ -342,6 +342,23 @@ VBL's frame/capture pulse remains at the native frame boundary. IRQ4 asserts
 line and bottom-stop samples. It remains pending until IACK; reset cancels a
 scheduled event. This is independent of HDMI frame publication.
 
+GLUE vertical blanking is a separate level. At STF WS1 cycle 502, live
+frequency selects blank-off after PAL line 24 or NTSC line 15, and blank-on
+after PAL line 307 or NTSC line 257. The change takes effect at the next
+HBL. A second frequency switch can suppress the normal bottom check; VSYNC
+still forces blanking at line 310 or 260. Blanking does not stop DMA, the
+video counter or Timer B. Native low-resolution tokens carry the blank bit
+through the same delay as their coordinates, and both active RGB and border
+runs resolve to black regardless of palette zero. Complete opened-bottom
+captures still contain 247 PAL or 226 NTSC rows.
+
+The short-line fixture checks black output and immutable border replay with
+nonblack palette zero; the I/O fixture checks both frequencies, suppressed
+blank-on samples, VSYNC forcing and uninterrupted DMA/Timer B. Hatari's
+`Video_CopyScreenLine` instead clears blanked planar data to index zero and
+documents physical black output as a renderer TODO. This known reference
+limitation must remain distinct from physical output acceptance.
+
 The MFP's Timer B input follows both DE edges by 24 CPU cycles, using
 [Hatari's Timer B offset](https://github.com/hatari/hatari/blob/v2.5.0/src/includes/video.h).
 Color DE selects its porch at cycle 50, before either color profile can

@@ -79,7 +79,7 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
 );
     wire [8:0] native_cycle;
     wire native_pixel_ce;
-    wire native_short_line;
+    wire native_short_line, native_blank;
     wire [8:0] native_word_loss;
     st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES)) system (
         .cold_reset(reset), .media_frozen(1'b0),
@@ -94,7 +94,7 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     // Its consumer clock is the system clock; it is not an HDMI/CDC oracle.
     st_native_low_video capture (
         .clk_sys(clk_sys), .clk_pixel(clk_sys), .reset_sys(reset), .reset_pixel(reset),
-        .hold(reset), .native_vblank(vblank), .native_display(native_display), .native_short_line(native_short_line), .native_word_loss(native_word_loss), .native_line(native_line),
+        .hold(reset), .native_vblank(vblank), .native_display(native_display), .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss), .native_line(native_line),
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(exp_phi2),
         .sync_mode(sync_mode), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .memory_req(capture_req), .memory_addr(capture_addr), .memory_ready(capture_ready), .memory_data(capture_data),

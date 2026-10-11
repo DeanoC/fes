@@ -23,7 +23,7 @@ struct Test {
     uint64_t pal_bottom_pixels=0,ntsc_bottom_pixels=0,raster_border_pixels=0;
     bool border_overflow_seen=false;
     std::array<bool,5> memory_boundaries{};
-    Test(){dut.native_short_line=0;dut.native_word_loss=0;}
+    Test(){dut.native_blank=0;dut.native_short_line=0;dut.native_word_loss=0;}
     void require(bool good,const char*message) {
         ++checks;
         if(!good){std::cerr<<"FAIL "<<message<<" sys="<<sys_cycles<<" pixel="<<pixel_cycles

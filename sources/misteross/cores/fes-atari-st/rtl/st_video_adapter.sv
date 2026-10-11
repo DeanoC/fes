@@ -13,7 +13,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     input wire reset_sys, reset_pixel,
     input wire hold,
     input wire native_vblank, native_display,
-    input wire native_short_line,
+    input wire native_short_line, native_blank,
     input wire [8:0] native_word_loss,
     input wire [8:0] native_line, native_cycle,
     input wire native_pixel_ce, native_lookup_ce,
@@ -389,7 +389,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     generate if (NATIVE_LOW_CAPTURE) begin : native_capture
         /* verilator lint_off PINCONNECTEMPTY */
         st_native_low_video capture (
-            .native_short_line(native_short_line), .native_word_loss(native_word_loss),
+            .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss),
             .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
             .hold(hold), .native_vblank(native_vblank), .native_display(native_display),
             .native_line(native_line), .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(native_lookup_ce), .sync_mode(sync_mode), .screen_base(screen_base),
@@ -422,7 +422,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
         end
     end else begin : cached_renderer_test
         // The focused cache/renderer test isolates the retained indexed path.
-        wire unused_native_inputs = ^{native_vblank, native_display, native_short_line, native_word_loss, native_line, native_cycle, native_pixel_ce, native_lookup_ce, sync_mode,
+        wire unused_native_inputs = ^{native_vblank, native_display, native_short_line, native_blank, native_word_loss, native_line, native_cycle, native_pixel_ce, native_lookup_ce, sync_mode,
                                       border_row, border_sample_x, border_sample_ce,
                                       rgb_ram_address, native_req, native_ready, native_addr};
         assign video_req = legacy_req;

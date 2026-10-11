@@ -6,7 +6,7 @@ module st_shifter_output_sim_top (
     input wire clk_sys, clk_pixel, reset_sys, reset_pixel, hold,
     input wire native_vblank, native_display, native_pixel_ce, native_lookup_ce, pal,
     input wire [8:0] native_line, native_cycle,
-    input wire native_short_line,
+    input wire native_short_line, native_blank,
     input wire [8:0] native_word_loss,
     input wire commit,
     input wire [3:0] commit_index,
@@ -39,7 +39,7 @@ module st_shifter_output_sim_top (
         end else if (commit) palette[commit_index * 9 +: 9] <= commit_color;
     end
     st_native_low_video capture (
-        .native_short_line(native_short_line), .native_word_loss(native_word_loss),
+        .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss),
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel), .hold(hold),
         .native_vblank(native_vblank), .native_display(native_display),
         .native_line(native_line), .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(native_lookup_ce),

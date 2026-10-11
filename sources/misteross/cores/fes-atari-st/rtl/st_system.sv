@@ -66,7 +66,7 @@ module st_system #(
     output wire [23:0] debug_addr,
     output wire debug_bus_error, debug_overlay, debug_halted,
     output wire vblank, hblank, native_display,
-    output wire native_short_line,
+    output wire native_short_line, native_blank,
     output wire [8:0] native_word_loss,
     output wire [8:0] native_line, native_cycle,
     output wire native_pixel_ce
@@ -120,7 +120,7 @@ module st_system #(
         .dma_req(dma_req), .dma_write(dma_write), .dma_rdata(dma_rdata), .dma_addr(dma_addr), .dma_wdata(dma_wdata),
         .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .vblank(vblank), .hblank(hblank),
         .native_display(native_display), .native_line(native_line),
-        .native_short_line(native_short_line), .native_word_loss(native_word_loss),
+        .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss),
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce)
     );
 endmodule

@@ -11,8 +11,8 @@ struct Test {
     Vst_shifter_output_sim_top d;
     unsigned assertions=0, pixels=0, requests=0;
     bool early_next_row=false;
-    bool second_short;
-    explicit Test(bool second):second_short(second){}
+    bool second_short, physical_blank;
+    explicit Test(bool second,bool blank=false):second_short(second),physical_blank(blank){}
     void require(bool good,const char *message) {
         ++assertions;
         if(!good){std::cerr<<"Short-row capture FAIL: "<<message
@@ -20,10 +20,11 @@ struct Test {
             <<" row="<<d.row<<" x="<<d.x<<" rgb="<<d.rgb<<'\n';std::exit(1);}
     }
     unsigned expected(unsigned row,unsigned x) const {
+        if(physical_blank && row>=245)return 0;
         if(second_short && row>=238)return 0x0b7; // Two earlier words produce index6.
         if(second_short && row==237 && x>=316)return 0;
         if(row>=200)return 0x1a2; // Previous plane3 and current plane0 become planes0/1.
-        if(row==199 && x>=316)return 0; // Shortened DE ends four pixels early.
+        if(row==199 && x>=316)return physical_blank?0x077:0; // Shortened DE ends four pixels early.
         if(row==199 && x>=304)return 0x040; // The missing final plane3 leaves index1.
         return 0x12a;
     }
@@ -45,6 +46,7 @@ struct Test {
         d.native_line=line;d.native_cycle=cycle;
         d.native_vblank=line==0 && cycle==0;
         const bool shortened=line==262 || (second_short && line==300);
+        d.native_blank=physical_blank && line>=308;
         d.native_short_line=shortened && cycle>=300;
         d.native_word_loss=unsigned(line>262 || (line==262 && cycle>=383))+
             unsigned(second_short && (line>300 || (line==300 && cycle>=383)));
@@ -58,10 +60,11 @@ struct Test {
     unsigned read(unsigned address){d.output_address=address;for(unsigned i=0;i<4;++i)pixel_clock();return d.output_rgb;}
     void run() {
         d.pal=1;d.hold=d.commit=d.native_pixel_ce=d.native_lookup_ce=d.native_vblank=0;
-        d.native_short_line=d.native_word_loss=0;
+        d.native_blank=d.native_short_line=d.native_word_loss=0;
         d.output_sof=d.border_start=d.border_ce=0;
         d.reset_sys=d.reset_pixel=1;fabric();pixel_clock();
         d.reset_sys=d.reset_pixel=0;
+        if(physical_blank){d.commit=1;d.commit_index=0;d.commit_color=0x077;fabric();}
         d.commit=1;d.commit_index=9;d.commit_color=0x12a;fabric();
         d.commit_index=3;d.commit_color=0x1a2;fabric();d.commit=0;
         d.commit=1;d.commit_index=6;d.commit_color=0x0b7;fabric();d.commit=0;
@@ -79,8 +82,18 @@ struct Test {
         for(unsigned row:{0u,198u,199u,200u,201u,237u,238u,246u})
             for(unsigned x:{0u,15u,16u,303u,304u,315u,316u,319u})
                 require(read(row*320+x)==expected(row,x),"immutable replay retains the displaced bitplanes");
-        std::cout<<(second_short?"Two short PAL rows":"Short PAL row")<<" capture PASS: "<<assertions<<" assertions, "
+        if(physical_blank)for(unsigned row:{273u,274u,275u}) {
+            d.border_row=row;for(unsigned i=0;i<4;++i)pixel_clock();
+            d.border_start=1;pixel_clock();d.border_start=0;pixel_clock();
+            for(unsigned x=0;x<416;++x) {
+                d.border_x=x;d.border_ce=1;d.eval();
+                require(d.border_rgb==(row>=274?0:0x077),
+                        "vertical blank resolves border to black, not nonblack palette zero");
+                pixel_clock();d.border_ce=0;pixel_clock();
+            }
+        }
+        std::cout<<(physical_blank?"Blanked short PAL row":second_short?"Two short PAL rows":"Short PAL row")<<" capture PASS: "<<assertions<<" assertions, "
             <<pixels<<" pixels; prefetched row survives late one-word displacement\n";
     }
 };
-int main(int argc,char **argv){Verilated::commandArgs(argc,argv);Test one(false);one.run();Test two(true);two.run();}
+int main(int argc,char **argv){Verilated::commandArgs(argc,argv);Test one(false);one.run();Test two(true);two.run();Test blank(false,true);blank.run();}

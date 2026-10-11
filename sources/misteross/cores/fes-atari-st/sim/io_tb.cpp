@@ -394,15 +394,55 @@ static void short_pal_line(Test &t, unsigned restore_phase, bool next_line) {
     }
 }
 
+static void vertical_blank(Test &t, bool pal, bool suppress) {
+    t.reset(0,pal?2:0);
+    const unsigned off=pal?24:15, on=pal?307:257, last=pal?262:233;
+    t.require(t.dut.native_blank,"reset starts vertically blank");
+    while(t.dut.display_line<off || t.dut.display_phase<503)t.tick();
+    t.require(t.dut.native_blank,"blank sample waits for the following HBL");
+    while(t.dut.display_line==off)t.tick();
+    t.require(!t.dut.native_blank,"matching frequency clears vertical blank");
+    // Open bottom DE, independently of the later blank-frequency sample.
+    while(t.dut.display_line<last || t.dut.display_phase<496)t.tick();
+    t.dut.sync_mode=pal?0:2;
+    while(t.dut.display_line==last)t.tick();
+    while(t.dut.display_phase<24)t.tick();
+    t.dut.sync_mode=pal?2:0;
+    while(t.dut.display_line<on || t.dut.display_phase<496)t.tick();
+    t.require(!t.dut.native_blank,"opened bottom remains visible before blank sample");
+    if(suppress)t.dut.sync_mode=pal?0:2;
+    while(t.dut.display_phase<506)t.tick();
+    t.dut.sync_mode=pal?2:0;
+    t.require(!t.dut.native_blank,"blank-on sample also waits for HBL");
+    while(t.dut.display_line==on)t.tick();
+    t.require(bool(t.dut.native_blank)==!suppress,"live frequency at502 controls blank-on");
+    while(t.dut.display_phase<100)t.tick();
+    t.require(t.dut.native_display && t.dut.timer_b_level,
+              "vertical blank never suppresses DE or Timer B");
+    while(t.dut.display_line<(pal?309u:259u) || t.dut.display_phase<420)t.tick();
+    t.require(t.dut.video_counter==0x10200+(pal?247:226)*160,
+              "DMA completes the final two vertically blank rows");
+    t.require(t.display_ends==(pal?247u:226u),"Timer B retains every opened-bottom event");
+    while(t.dut.display_line<(pal?310u:260u))t.tick();
+    t.require(t.dut.native_blank,"VSYNC forces blanking even after suppressed frequency sample");
+}
+
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     Test test;
+    if(argc==2 && std::string(argv[1])=="--blank-only") {
+        vertical_blank(test,true,false); vertical_blank(test,true,true);
+        vertical_blank(test,false,false); vertical_blank(test,false,true);
+        std::cout<<"ST vertical blank: "<<test.assertions<<" assertions passed\n";return 0;
+    }
     if(argc==2 && std::string(argv[1])=="--short-line-only") {
         short_pal_line(test,368,false); short_pal_line(test,374,false);
         short_pal_line(test,20,true);
         std::cout<<"ST short PAL lines: "<<test.assertions<<" assertions passed\n";
         return 0;
     }
+    vertical_blank(test,true,false); vertical_blank(test,true,true);
+    vertical_blank(test,false,false); vertical_blank(test,false,true);
     lanes_and_reset(test); interrupt_connection(test);
     vbl_interrupt_phase(test,0,2); vbl_interrupt_phase(test,0,0);
     vbl_interrupt_phase(test,2,2); timer_c_rate(test);

@@ -54,7 +54,7 @@ module st_io #(
     input wire [15:0] dma_rdata,
     output wire vblank, hblank,
     output wire native_display,
-    output reg native_short_line,
+    output reg native_short_line, native_blank,
     output reg [8:0] native_word_loss,
     output reg [8:0] native_line,
     output wire [8:0] native_cycle,
@@ -118,6 +118,7 @@ module st_io #(
     reg [1:0] frame_resolution, line_resolution;
     reg frame_pal, line_pal, line_timing_pal;
     reg bottom_open;
+    reg blank_pending, blank_next;
     reg [23:0] timer_b_display_delay;
     wire [32:0] timer_sum = {1'b0, timer_phase} + 33'd2457600;
     wire timer_ce = timer_sum >= 33'(SYSTEM_CLOCK_HZ);
@@ -176,7 +177,8 @@ module st_io #(
             frame_resolution <= resolution; line_resolution <= resolution;
             frame_pal <= sync_mode[1]; line_pal <= sync_mode[1];
             line_timing_pal <= sync_mode[1];
-            native_short_line <= 1'b0;
+            native_short_line <= 1'b0; native_blank <= 1'b1;
+            blank_pending <= 1'b0; blank_next <= 1'b1;
             native_word_loss <= 9'd0;
             vbl_pending <= 0; hbl_pending <= 0; vbl_irq_delay <= 0; native_line <= 0;
             video_counter <= 0;
@@ -188,6 +190,20 @@ module st_io #(
             if (line_resolution != 2'd2 && line_pal &&
                 horizontal_cycle >= 9'd56 && horizontal_cycle < 9'd372)
                 native_short_line <= !sync_mode[1];
+            // STF WS1 samples live sync at cycle 502; the blank level changes
+            // at the following HBL. It is independent of DMA and Timer B.
+            // A second bottom-border switch can suppress the normal check;
+            // VSYNC still forces blanking at 310/260.
+            if (cpu_cycle_ce && line_resolution != 2'd2 && horizontal_cycle == 9'd502) begin
+                if ((native_line == 9'd15 && !sync_mode[1]) ||
+                    (native_line == 9'd24 && sync_mode[1])) begin
+                    blank_pending <= 1'b1; blank_next <= 1'b0;
+                end
+                if ((native_line == 9'd257 && !sync_mode[1]) ||
+                    (native_line == 9'd307 && sync_mode[1])) begin
+                    blank_pending <= 1'b1; blank_next <= 1'b1;
+                end
+            end
             // Sample the new cycle one fabric edge after GLUE advances,
             // aligned with the native DE-rise/palette capture edge.
             native_pixel_ce <= cpu_cycle_ce;
@@ -230,7 +246,7 @@ module st_io #(
                 sync_mode[1] != frame_pal)
                 bottom_open <= 1'b1;
             if (vblank) begin
-                bottom_open <= 1'b0;
+                bottom_open <= 1'b0; native_blank <= 1'b1; blank_pending <= 1'b0;
                 native_word_loss <= 9'd0;
                 frame_resolution <= resolution; frame_pal <= sync_mode[1];
                 video_counter <= {screen_base[23:8], 8'd0};
@@ -244,6 +260,9 @@ module st_io #(
                 native_short_line && horizontal_cycle == 9'd383)
                 native_word_loss <= native_word_loss + 9'd1;
             if (hblank) begin
+                if (blank_pending) native_blank <= blank_next;
+                blank_pending <= 1'b0;
+                if (native_line == (frame_pal ? 9'd309 : 9'd259)) native_blank <= 1'b1;
                 line_resolution <= resolution; line_pal <= sync_mode[1];
                 native_short_line <= 1'b0;
             end

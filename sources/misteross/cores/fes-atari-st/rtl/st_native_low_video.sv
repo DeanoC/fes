@@ -9,7 +9,7 @@
 module st_native_low_video (
     input wire clk_sys, clk_pixel, reset_sys, reset_pixel, hold,
     input wire native_vblank, native_display,
-    input wire native_short_line,
+    input wire native_short_line, native_blank,
     input wire [8:0] native_word_loss,
     input wire [8:0] native_line, native_cycle,
     input wire native_pixel_ce, native_lookup_ce,
@@ -203,7 +203,7 @@ module st_native_low_video (
     // Carry indices and coordinates, never resolved historical RGB.
     localparam integer OUTPUT_DELAY = 28;
     typedef struct packed {
-        logic pixel, visible, active, pal, valid;
+        logic pixel, visible, active, pal, valid, blank;
         logic [1:0] bank;
         logic [8:0] line_number, cycle_number, x, row_number;
         logic [3:0] index;
@@ -219,7 +219,7 @@ module st_native_low_video (
     wire write_pixel = lookup_due && output_token.pixel && !hold;
     wire [8:0] output_x = output_token.x;
     wire [8:0] output_row = output_token.row_number;
-    wire [8:0] pixel_rgb = palette[output_token.index * 9 +: 9];
+    wire [8:0] pixel_rgb = output_token.blank ? 9'd0 : palette[output_token.index * 9 +: 9];
     wire [8:0] sample_rgb = output_token.valid ? pixel_rgb : 9'd0;
     reg output_pending;
     always @* begin
@@ -247,7 +247,7 @@ module st_native_low_video (
             if (pixel_due) begin
                 output_tick <= 1'b1;
                 output_pipe[0] <= {prepare_pixel, owned && border_enabled && prepared_visible,
-                    native_display, frame_pal, sample_valid, write_bank,
+                    native_display, frame_pal, sample_valid, native_blank, write_bank,
                     native_line, native_cycle, sample_x, row, color_index};
                 for (integer i = 1; i < OUTPUT_DELAY; i = i + 1)
                     output_pipe[i] <= output_pipe[i-1];
@@ -315,7 +315,7 @@ module st_native_low_video (
         .capture_start(border_start), .capture_active(output_token.visible && !hold),
         .capture_pal(output_token.pal), .capture_tick(lookup_due), .capture_display(output_token.active),
         .capture_bank(border_start ? free_bank : output_token.bank), .native_line(output_token.line_number),
-        .native_cycle(output_token.cycle_number), .palette_zero(palette[8:0]),
+        .native_cycle(output_token.cycle_number), .palette_zero(output_token.blank ? 9'd0 : palette[8:0]),
         .capture_overflow(border_overflow), .raster_banks(raster_banks),
         .output_bank(output_sof && choose_valid ? choose_bank : front_bank),
         .output_sof(output_sof), .output_line_start(output_border_line_start), .output_ce(output_border_ce),
