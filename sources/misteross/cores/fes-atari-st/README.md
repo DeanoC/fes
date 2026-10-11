@@ -184,13 +184,16 @@ compares all 32,768 ordered inputs against an independent primary-table oracle
 and checks bounded completion and reset cancellation. The generator and unchanged
 measurement source, provenance and license are retained in the component.
 The nonlinear mix reaches at most 32,767. `st_ym_filter.sv` applies Hatari's
-asymmetric PWM pull-down filter at every engine counter sample, averages all
+asymmetric STF C10 low-pass filter at every engine counter sample, averages all
 samples over each 48 kHz interval and removes DC with the signed 32-bit IIR
 state. Averaging uses the exact rational chip/output clock ratio, retaining the
 fractional counter rate instead of Hatari's truncated Q16 interval. Two
 registered products and a bounded restoring divider avoid a combinational
 divide. A four-entry register FIFO supplies the regular PCM cadence, delayed
 320 fabric edges after reset so each interval is complete before consumption.
+This is the filter selected by Hatari's audio initialization for ST output at
+40 kHz and above, including the production 48 kHz cadence. Both rising and
+falling edges retain input/output history; the lower-rate PWM path is different.
 The production filter finishes within 39 fabric edges; the mixer plus filter
 finish before the next roughly 208-edge counter period. Reset clears filters,
 queued samples and in-flight work. Standalone tests cover both production and

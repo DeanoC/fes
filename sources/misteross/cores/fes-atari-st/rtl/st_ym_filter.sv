@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// STF PWM pull-down filter, exact-rational counter-to-PCM box average and
+// STF C10 low-pass filter, exact-rational counter-to-PCM box average and
 // Hatari-style DC removal. sample_ce is delayed at least 320 fabric clocks
 // after reset so the four-entry result FIFO supplies causal output samples.
 module st_ym_filter #(
@@ -20,9 +20,13 @@ module st_ym_filter #(
     reg [2:0] state;
     reg [14:0] previous_input, filtered;
     wire [15:0] input_pair = {1'b0,input_pcm}+{1'b0,previous_input};
-    wire [14:0] decay_value = 15'((18'(input_pair) + (18'(input_pair)<<1) +
-                                  (18'(filtered)<<1))>>3);
-    wire [14:0] pwm_next = input_pcm>=filtered ? input_pcm : decay_value;
+    // Hatari selects LowPassFilter for ST output at 40 kHz and above.
+    // Both branches use the previous input; a rising edge also filters.
+    wire [14:0] rise_value = 15'((18'(input_pair) + (18'(input_pair)<<1) +
+                                 (18'(filtered)<<1))>>3);
+    wire [14:0] fall_value = 15'((18'(input_pair) + (18'(filtered)<<2) +
+                                 (18'(filtered)<<1))>>3);
+    wire [14:0] low_pass_next = input_pcm>=filtered ? rise_value : fall_value;
     reg [WEIGHT_BITS-1:0] weight, tail_weight;
     wire [WEIGHT_BITS-1:0] remaining = INTERVAL-weight;
     wire boundary = remaining<=STEP;
@@ -44,7 +48,7 @@ module st_ym_filter #(
             remainder<=0;quotient<=0;divide_count<=0;
         end else case(state)
             IDLE: if(input_valid) begin
-                previous_input<=input_pcm;filtered<=pwm_next;state<=WEIGHTS;
+                previous_input<=input_pcm;filtered<=low_pass_next;state<=WEIGHTS;
             end
             WEIGHTS: begin
                 product<=TOTAL_BITS'(filtered)*TOTAL_BITS'(used_weight);

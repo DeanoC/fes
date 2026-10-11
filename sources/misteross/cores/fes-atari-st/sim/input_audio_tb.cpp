@@ -38,7 +38,7 @@ struct Test {
             require(!dut.sampled_filter_fault,"audio pipeline has no dropped tuple, overflow or underrun");
             if(dut.sample_valid) {
                 require(audio_reference.pending()>0,"causal filtered sample ready before output edge");
-                require(int16_t(dut.pcm_signed)==audio_reference.output(),"stream PCM matches nonlinear/PWM/weighted/DC oracle");
+                require(int16_t(dut.pcm_signed)==audio_reference.output(),"stream PCM matches nonlinear/STF low-pass/weighted/DC oracle");
             }
         }
     }
