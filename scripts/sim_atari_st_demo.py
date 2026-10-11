@@ -246,7 +246,7 @@ def run(args):
     record["palette_trace"] = "changes after six seconds; first eight changed bundles per native frame, plus complete per-frame counts; model timing only"
     record["run_command"] = invocation
     record["timeout_seconds"] = args.timeout_seconds
-    record["audio_capture"] = "system-domain signed mono 48 kHz production YM PCM, with nonlinear mixing/PWM/rational integration/DC removal; no audio-fidelity oracle"
+    record["audio_capture"] = "system-domain signed mono 48 kHz production YM PCM, with nonlinear mixing/STF C10 low-pass/rational integration/DC removal; no audio-fidelity oracle"
     # Read the frozen selection, including historical revisions whose system
     # used the machine's nominal default. Never label a new capture as 2 MHz
     # after changing the selected board's clock policy.
