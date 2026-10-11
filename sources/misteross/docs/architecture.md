@@ -1817,7 +1817,13 @@ delayed RAM and media completions, including rejected mutations and later retry.
 
 `st_video_adapter.sv` captures ordinary low-resolution native pixels through
 `st_native_low_video.sv`. Its system-domain row prefetch uses the existing
-video RAM port, selecting the live RGB333 palette on the same CPU-derived native pixel pulse as border capture.
+video RAM port. Prepared bitplane indices, native coordinates and bank identity
+pass through a 28-native-pulse output stage. Current RGB333 palette lookup
+occurs on the following fabric edge, after any coincident palette commit.
+Border palette-zero capture uses the same delayed output timeline. This is a
+calibrated net-output candidate against Hatari's hardware-calibrated renderer;
+it does not claim one literal 28-cycle physical Shifter delay. Raw DE, memory
+counters, CPU bus phases and Timer B timing remain separate.
 Each RGB333 frame uses 78 shallow 1024-word chunks, retaining every 320×247
 pixel. Synchronous chunk reads and registered chunk selection preserve the
 one-clock read boundary while avoiding the deeper one-bit memory mapping.
@@ -1827,18 +1833,20 @@ the fixed 60 Hz reader selects the newest completed bank at SOF and pins it
 until a later SOF. A slow or stopped reader makes the producer skip frames
 rather than overwrite the displayed bank. Missing rows become whole black
 lines; incomplete or held captures are discarded. RAM address validation
-rejects an entire row before any truncation. Native RGB is sampled at the
-pixel event into a registered RAM write bundle; a two-pixel forecast feeds a
+rejects an entire row before any truncation. Resolved RGB enters a registered
+RAM write bundle after output palette lookup; a two-pixel forecast feeds a
 registered read address before the synchronous pixel read. A blanking-time
 line counter advances the low-resolution row base by five 64-pixel units after
 each two output lines. Bank height is immutable publication metadata: ordinary
 frames retain 200 rows; opened PAL/NTSC frames carry 247/226 rows. Publication waits
-past the bottom-stop decision and all potentially opened DE rows. Prefetch
+past the bottom-stop decision and all potentially opened DE rows, and drains
+delayed output tokens and pending RAM writes before publication. Reset/Hold
+cancel the output stage. Prefetch
 prepares row 200 before opening is known, then reads later rows only after DE
 enters the bottom region. The same owned banks hold `st_native_border.sv`'s
 lossless palette-zero runs and per-row offset/count descriptors. Native cycle
-coordinates and a one-fabric-edge delayed CPU phase-2 enable align border
-samples with the display-rise sample. PAL's visible canvas spans native
+coordinates carried through the output stage align border sampling with active
+pixel palette lookup. PAL's visible canvas spans native
 lines 34–309 and cycles 8–423; NTSC spans lines 5–259 and cycles 4–419.
 The decoder preloads a row descriptor in output blanking, then replays colour
 runs for every vertically repeated row. A successor pointer is prepared ahead
