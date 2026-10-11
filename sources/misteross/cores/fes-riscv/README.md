@@ -96,6 +96,13 @@ required interfaces `fes.video.fixed-720p60` 1.0 and `fes.gamepad` 1.0.
 A passing seal is host evidence of a routed, timing-closed bitstream. It is
 not hardware acceptance; see the FES [core status](../../../../docs/core-status.md).
 
+## QoR
+
+Size, routed clock and what to change for timing are in [qor.md](qor.md).
+How to pipeline the CPU, and why that is a throughput change rather than
+a faster clock, is in [pipeline.md](pipeline.md). Both are notes. Neither
+is a sealed package or a kit result.
+
 ## Not implemented
 
 - No M, A, F, D or C extensions; no supervisor or user mode; no PMP.
