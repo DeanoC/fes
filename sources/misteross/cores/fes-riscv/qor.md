@@ -88,27 +88,36 @@ harness. A new `BUILD_ID` still moves placement. The useful timing work is
 margin at 74.25, not a core clock above the pixel clock. A second clock
 domain is not justified by these numbers.
 
-The routed critical path is inside the CPU, not the observation pin. It runs
-from the register-file read, through decode, through the 32-bit add/sub in
-`fes_rv32_alu` (`sum`, the assignment that selects `a + b` or `a - b`), then
-through the address adder and the CSR control cone, and ends at an `mtval`
-enable. The carry chain is in the same cycle as the M10K clock-to-out.
+The routed critical path, from `timing.json` on seed 1, is inside the CPU.
+It starts at the register-file read, passes `is_op`, then a long carry chain
+whose cell is named `csr.wdata` and whose source line is `sum` in
+`fes_rv32_alu`, then enters the `access_addr` carry chain, then control
+logic, and ends at `mepc`'s enable. Not `mtval`. The carry chain is in the
+same cycle as the M10K clock-to-out.
 
-1. Register that adder result before it fans into CSR write data, `mtval`
-   and the address adder. The machine is already multicycle: FETCH has
-   already captured the operands, so the extra cycle fits EXEC rather than
-   requiring a pipeline. ALU and address-generating instructions go from 3
-   cycles toward 4, and loads from 5 toward 6, if the address adder moves
-   with them. PicoRV32's two-cycle ALU is this trade, and that core routed
-   at 115 MHz. Do this before any other timing change. One change, then
-   re-measure; do not combine it with a shifter rewrite in the same edit.
+That series is in the netlist, not in the RTL. `access_addr` is
+`rs1 + access_imm`. It does not read `alu_result`. `pc_plus_offset` is a
+third adder, `pc + imm`. Registering `sum` does not cut the address adder.
+Do not choose the register boundary from the cell names alone.
 
-2. Leave the barrel shifter alone unless the adder cut is not enough. The
-   three shifts (`<<`, `>>`, arithmetic `>>>`) are computed on every cycle
-   and muxed with `sum`, so they widen the same cone, but the router named
-   the adder. An iterative shift would raise fmax further and make shifts
-   take as many cycles as the shift amount. That is a worse computer for a
-   problem the adder cut should address first.
+1. Register each adder's own result at the end of EXEC, before the
+   trap, CSR and PC mux: `alu_result`, `access_addr` and `pc_plus_offset`.
+   FETCH has already captured the operands, so the extra cycle fits EXEC
+   rather than requiring a pipeline. ALU, branch, jump and memory
+   instructions go from 3 cycles toward 4, and loads from 5 toward 6.
+   Re-measure before any other timing change, and do not combine it with a
+   shifter rewrite. If the new path no longer walks both carry chains, the
+   series link was the mapper joining adders that the RTL keeps apart. If
+   one adder remains critical, that adder is the one to cut further.
+   PicoRV32's two-cycle ALU is a related trade, not this cut: that core
+   routed at 115 MHz with the ALU split from the address add.
+
+2. Leave the barrel shifter alone unless that cut is not enough. The three
+   shifts are computed on every cycle and muxed with `sum`, so they widen
+   the ALU cone, but the worst path above is the carry chains. An iterative
+   shift would raise fmax further and make shifts take as many cycles as
+   the shift amount. That is a worse computer for a problem the result
+   registers should address first.
 
 3. Do not pipeline this core to close 74.25 MHz. VexRiscv Min shows what a
    pipeline buys: similar fmax, half the COMB, much higher instruction rate.

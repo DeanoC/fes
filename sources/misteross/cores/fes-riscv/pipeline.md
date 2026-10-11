@@ -161,13 +161,15 @@ cache to invalidate.
 
 ## What this does not fix
 
-The routed critical path is the register-file output through `sum` in
-`fes_rv32_alu` and the address adder, in one cycle, into the CSR control
-cone. That path is the X stage of this pipeline. Overlapping fetch does
-not shorten it. [qor.md](qor.md) is still the timing note: register the
-adder result if 74.25 MHz margin is the problem. Do not combine that cut
-with the first pipeline measurement. Build the pipeline, re-measure, and
-only then decide whether X still needs the cut.
+The routed critical path is still one combo cycle from the register-file
+output to `mepc`'s enable. The netlist walks the `sum` carry chain and then
+the `access_addr` carry chain, but those adders are independent in the RTL:
+`access_addr` does not read `alu_result`. Overlapping fetch does not
+shorten that cycle. [qor.md](qor.md) is the timing note. The cut, if it is
+done, registers each adder result, not `sum` on the theory that it feeds
+the address adder. Do not combine that cut with the first pipeline
+measurement. Build the pipeline, re-measure, and only then decide whether
+X still needs it.
 
 Do not add an instruction cache. VexRiscv Lite's cache was larger and
 slower on this device than VexRiscv Min without one. The firmware RAM is
