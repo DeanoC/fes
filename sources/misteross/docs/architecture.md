@@ -1737,8 +1737,10 @@ ROM-vector alias, rearms between TAS strobes, and implements the original
 MMU's RAM-sizing address aliases. One physical 512 KiB bank is populated;
 unpopulated RAM throughout the original 4 MiB decode window acknowledges
 accesses and discards writes, independently of the configured bank sizes.
-Empty-memory reads retain the all-ones approximation rather than modeling
-the STF floating data bus. The populated bank retains its MMU aliases. Live bank membership checks the high address bits selected by the
+Empty-memory reads return the last word read by the CPU, including opcode
+prefetch. CPU writes and independent shifter/DMA reads do not update this
+retained word; UDS/LDS select its normal byte lane. The populated bank retains
+its MMU aliases. Live bank membership checks the high address bits selected by the
 configured power-of-two size, without a variable-width limit comparison. A
 disconnected cartridge is acknowledged, while unclaimed MMIO has a bounded bus-error timeout.
 Palette-register dispatch waits for `palette_ready`, supplied by `st_system`
