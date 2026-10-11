@@ -2,6 +2,8 @@
 module st_native_video_sim_top (
     input wire clk_sys, clk_pixel, reset_sys, reset_pixel, hold,
     input wire native_vblank, native_display,
+    input wire native_short_line,
+    input wire [8:0] native_word_loss,
     input wire [8:0] native_line, native_cycle,
     input wire native_pixel_ce, native_lookup_ce,
     input wire [7:0] sync_mode,
@@ -22,11 +24,13 @@ module st_native_video_sim_top (
     // The authored source supplies the next raw phase2 state. Production IO
     // registers counters/DE and palette commits on that edge; capture sees
     // their new values with the registered native pulse on the following edge.
-    reg display_q, vblank_q;
+    reg display_q, vblank_q, short_q;
+    reg [8:0] loss_q;
     reg [8:0] line_q, cycle_q;
     reg [143:0] palette_q;
     always @(posedge clk_sys) begin
         display_q <= native_display;
+        short_q <= native_short_line; loss_q <= native_word_loss;
         vblank_q <= native_vblank;
         line_q <= native_line;
         cycle_q <= native_cycle;
@@ -34,7 +38,7 @@ module st_native_video_sim_top (
     end
     st_video_adapter adapter (
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
-        .hold(hold), .native_vblank(vblank_q), .native_display(display_q), .native_line(line_q), .native_cycle(cycle_q), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(native_lookup_ce),
+        .hold(hold), .native_vblank(vblank_q), .native_display(display_q), .native_short_line(short_q), .native_word_loss(loss_q), .native_line(line_q), .native_cycle(cycle_q), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(native_lookup_ce),
         .sync_mode(sync_mode), .screen_base(screen_base), .resolution(resolution), .palette(palette_q),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
         .video_request(video_request), .debug_underruns(unused_debug_underruns), .debug_frame(unused_debug_frame)

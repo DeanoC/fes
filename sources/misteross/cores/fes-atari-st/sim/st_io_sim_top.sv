@@ -36,7 +36,9 @@ module st_io_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     output wire [15:0] dma_wdata,
     output wire [1:0] dma_byte_enable,
     input wire dma_ready,
-    output wire vblank, hblank,
+    output wire vblank, hblank, native_display,
+    output wire native_short_line,
+    output wire [8:0] native_word_loss,
     // Observe the physical timer-B pin, crystal enable and floppy selects
     // to check their connection to MMIO, without substituting peripherals.
     output wire timer_b_level, timer_ce_level, psg_ce_level, serial_ce_level,
@@ -45,7 +47,7 @@ module st_io_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     output wire [7:0] floppy_port_a
 );
     wire [38:0] unused_write;
-    wire unused_native_display, unused_native_pixel_ce;
+    wire unused_native_pixel_ce;
     wire [8:0] unused_native_cycle;
     st_io #(.SYSTEM_CLOCK_HZ(52_224_000), .CPU_CLOCK_HZ(8_021_247), .MFP_WAIT_STATES(MFP_WAIT_STATES)) io (
         .clk(clk), .reset(reset), .cold_reset(reset), .cpu_cycle_ce(cpu_cycle_ce), .req(req), .addr(addr), .write(write),
@@ -63,7 +65,7 @@ module st_io_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data),
         .media_valid(media_valid), .dma_req(dma_req), .dma_addr(dma_addr),
         .dma_wdata(dma_wdata), .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready),
-        .vblank(vblank), .hblank(hblank), .native_cycle(unused_native_cycle), .native_pixel_ce(unused_native_pixel_ce), .native_display(unused_native_display), .native_line(display_line)
+        .vblank(vblank), .hblank(hblank), .native_cycle(unused_native_cycle), .native_pixel_ce(unused_native_pixel_ce), .native_display(native_display), .native_short_line(native_short_line), .native_word_loss(native_word_loss), .native_line(display_line)
     );
     assign timer_b_level = io.timer_b_display_delay[23];
     assign timer_ce_level = io.timer_ce;

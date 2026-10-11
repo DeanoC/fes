@@ -353,9 +353,56 @@ static void bottom_border(Test &t,bool pal,bool cross_sample,bool next_line=fals
               "frame after bottom opening retains its exact native period");
 }
 
+static void short_pal_line(Test &t, unsigned restore_phase, bool next_line) {
+    t.reset(0,2);
+    while(t.dut.display_line!=262 || t.dut.display_phase<300) t.tick();
+    t.require(t.dut.native_display,"last PAL row starts with ordinary DE");
+    t.dut.sync_mode=0;
+    unsigned end_phase=UINT32_MAX;
+    const auto advance=[&] {
+        const bool prior=t.dut.native_display;
+        t.tick();
+        if(prior && !t.dut.native_display) end_phase=t.dut.display_phase;
+    };
+    if(!next_line) {
+        while(t.dut.display_phase<restore_phase) advance();
+        t.dut.sync_mode=2;
+    }
+    const bool shortened=next_line || restore_phase>=372;
+    const unsigned end=shortened?372:376;
+    while(t.dut.native_display) advance();
+    t.require(end_phase==end,"PAL frequency pulse sets the actual DE end: expected "+
+              std::to_string(end)+", observed "+std::to_string(end_phase));
+    while(t.dut.display_line==262 && t.dut.display_phase<400) t.tick();
+    t.require(t.dut.video_counter==0x10200+200*160-(shortened?2:0),
+              "short PAL row fetches79 words; cancelled pulse fetches80");
+    t.require(t.dut.native_word_loss==unsigned(shortened),"capture metadata retains exactly the missing DMA word");
+    // A return after DE ended cannot manufacture a second display edge.
+    while(t.dut.display_line==262) {
+        t.require(!t.dut.native_display,"late PAL return never reopens the same row");
+        t.tick();
+    }
+    if(next_line) {
+        while(t.dut.display_phase<20) t.tick();
+        t.dut.sync_mode=2;
+        while(!t.dut.native_display) t.tick();
+        t.require(t.dut.display_line==263 && t.dut.display_phase==56,
+                  "BIG's early next-line PAL return restores the56-cycle porch");
+        while(t.dut.display_line<309 || t.dut.display_phase<400) t.tick();
+        t.require(t.dut.video_counter==0x10200+247*160-2,
+                  "opened bottom rows retain the one-word address displacement");
+    }
+}
+
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     Test test;
+    if(argc==2 && std::string(argv[1])=="--short-line-only") {
+        short_pal_line(test,368,false); short_pal_line(test,374,false);
+        short_pal_line(test,20,true);
+        std::cout<<"ST short PAL lines: "<<test.assertions<<" assertions passed\n";
+        return 0;
+    }
     lanes_and_reset(test); interrupt_connection(test);
     vbl_interrupt_phase(test,0,2); vbl_interrupt_phase(test,0,0);
     vbl_interrupt_phase(test,2,2); timer_c_rate(test);
@@ -366,6 +413,8 @@ int main(int argc,char **argv) {
     bottom_border(test,true,false); bottom_border(test,true,true);
     bottom_border(test,false,false); bottom_border(test,false,true);
     bottom_border(test,true,true,true); bottom_border(test,false,true,true);
+    short_pal_line(test,368,false); short_pal_line(test,374,false);
+    short_pal_line(test,20,true);
     std::cout<<"ST I/O: "<<test.assertions<<" assertions, "<<test.cycles
              <<" cycles; byte lanes, reset, interrupt wiring and timer rates passed\n";
 }

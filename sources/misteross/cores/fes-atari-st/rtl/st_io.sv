@@ -54,6 +54,8 @@ module st_io #(
     input wire [15:0] dma_rdata,
     output wire vblank, hblank,
     output wire native_display,
+    output reg native_short_line,
+    output reg [8:0] native_word_loss,
     output reg [8:0] native_line,
     output wire [8:0] native_cycle,
     output reg native_pixel_ce
@@ -146,7 +148,8 @@ module st_io #(
     // Constant bounds avoid a mode-dependent carry chain on DE/RGB.
     wire active_cycle = line_resolution == 2'd2 ?
         (horizontal_cycle >= 9'd4 && horizontal_cycle < 9'd164) : line_pal ?
-        (horizontal_cycle >= 9'd56 && horizontal_cycle < 9'd376) :
+        (horizontal_cycle >= 9'd56 && (native_short_line ?
+            horizontal_cycle < 9'd372 : horizontal_cycle < 9'd376)) :
         (horizontal_cycle >= 9'd52 && horizontal_cycle < 9'd372);
     // Constant bounds avoid a mode-dependent addition on the DE/RGB path.
     // Hatari video.h defines 47 PAL / 26 NTSC extra color DE lines.
@@ -161,7 +164,8 @@ module st_io #(
     // These are counter visibility positions, independent of DE/Timer B.
     wire counter_window = line_resolution == 2'd2 ?
         (horizontal_cycle >= 9'd8 && horizontal_cycle < 9'd168) : line_pal ?
-        (horizontal_cycle >= 9'd64 && horizontal_cycle < 9'd384) :
+        (horizontal_cycle >= 9'd64 && (native_short_line ?
+            horizontal_cycle < 9'd380 : horizontal_cycle < 9'd384)) :
         (horizontal_cycle >= 9'd60 && horizontal_cycle < 9'd380);
     wire counter_word = cpu_cycle_ce && active_line && counter_window &&
                         horizontal_cycle[1:0] == 2'b11;
@@ -172,9 +176,18 @@ module st_io #(
             frame_resolution <= resolution; line_resolution <= resolution;
             frame_pal <= sync_mode[1]; line_pal <= sync_mode[1];
             line_timing_pal <= sync_mode[1];
+            native_short_line <= 1'b0;
+            native_word_loss <= 9'd0;
             vbl_pending <= 0; hbl_pending <= 0; vbl_irq_delay <= 0; native_line <= 0;
             video_counter <= 0;
         end else begin
+            // A PAL line changed to 60 Hz during its active interval ends
+            // at cycle 372, fetching 79 words rather than 80. A return before that
+            // decision cancels it; a later return cannot reopen DE. BIG's
+            // screen 2 uses this together with vertical bottom opening.
+            if (line_resolution != 2'd2 && line_pal &&
+                horizontal_cycle >= 9'd56 && horizontal_cycle < 9'd372)
+                native_short_line <= !sync_mode[1];
             // Sample the new cycle one fabric edge after GLUE advances,
             // aligned with the native DE-rise/palette capture edge.
             native_pixel_ce <= cpu_cycle_ce;
@@ -188,6 +201,10 @@ module st_io #(
                 // could manufacture an extra edge near display start.
                 if (horizontal_cycle == 9'd54)
                     line_timing_pal <= sync_mode[1];
+                // An early return in the next line must select the PAL
+                // 56-cycle porch before either color mode can enable DE.
+                if (horizontal_cycle == 9'd50)
+                    line_pal <= sync_mode[1];
                 // The ST's MFP receives DE 24 CPU cycles after the video
                 // edge (Hatari v2.5.0 TIMERB_VIDEO_CYCLE_OFFSET). Delay both
                 // edges so AER selects the proper start/end event while
@@ -214,6 +231,7 @@ module st_io #(
                 bottom_open <= 1'b1;
             if (vblank) begin
                 bottom_open <= 1'b0;
+                native_word_loss <= 9'd0;
                 frame_resolution <= resolution; frame_pal <= sync_mode[1];
                 video_counter <= {screen_base[23:8], 8'd0};
                 native_line <= 0;
@@ -222,7 +240,13 @@ module st_io #(
                     video_counter <= {screen_base[23:8], 8'd0};
                 if (native_line != 9'h1ff) native_line <= native_line + 1'b1;
             end else if (counter_word) video_counter <= video_counter + 24'd2;
-            if (hblank) begin line_resolution <= resolution; line_pal <= sync_mode[1]; end
+            if (!vblank && cpu_cycle_ce && active_line && line_pal &&
+                native_short_line && horizontal_cycle == 9'd383)
+                native_word_loss <= native_word_loss + 9'd1;
+            if (hblank) begin
+                line_resolution <= resolution; line_pal <= sync_mode[1];
+                native_short_line <= 1'b0;
+            end
         end
     end
     wire mfp_irq, kbd_irq, midi_irq, fdc_irq;

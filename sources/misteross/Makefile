@@ -1532,7 +1532,7 @@ atari-st-sources:
 atari-st-diagnostic: atari-st-sources
 	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
 
-sim-fes-atari-st: sim-fes-atari-st-ym-counter sim-fes-atari-st-ym-filter sim-fes-atari-st-ym-mixer sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-native-border sim-fes-atari-st-shifter-output sim-fes-atari-st-media sim-fes-atari-st-media-geometry
+sim-fes-atari-st: sim-fes-atari-st-ym-counter sim-fes-atari-st-ym-filter sim-fes-atari-st-ym-mixer sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-native-border sim-fes-atari-st-shifter-output sim-fes-atari-st-short-line-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 
 sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
@@ -1684,6 +1684,16 @@ sim-fes-atari-st-native-border:
 		$(ST_CORE)/rtl/st_native_border.sv "$(CURDIR)/$(ST_CORE)/sim/native_border_tb.cpp" \
 		-CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-native-border/Vst_native_border
+
+.PHONY: sim-fes-atari-st-short-line-video
+sim-fes-atari-st-short-line-video:
+	$(require_local_sim)
+	@mkdir -p "$(CURDIR)/build/sim/fes-atari-st-short-line-video"
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_shifter_output_sim_top -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-short-line-video" \
+		$(ST_CORE)/sim/st_shifter_output_sim_top.sv $(ST_CORE)/rtl/st_native_low_video.sv $(ST_CORE)/rtl/st_native_border.sv \
+		"$(CURDIR)/$(ST_CORE)/sim/short_line_video_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-short-line-video/Vst_shifter_output_sim_top
 
 sim-fes-atari-st-native-video:
 	$(require_local_sim)

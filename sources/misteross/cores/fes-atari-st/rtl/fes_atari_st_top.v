@@ -127,6 +127,8 @@ module top #(
     wire native_display;
     wire [8:0] native_line, native_cycle;
     wire native_pixel_ce;
+    wire native_short_line;
+    wire [8:0] native_word_loss;
     generate begin : machine
         st_rom rom (.clk(clk_sys), .reset(machine_reset), .req(rom_req), .address(rom_addr),
                     .rdata(rom_rdata), .ready(rom_ready));
@@ -156,7 +158,7 @@ module top #(
             .dma_req(dma_req), .dma_write(dma_write), .dma_rdata(dma_rdata), .dma_addr(dma_addr), .dma_wdata(dma_wdata), .dma_byte_enable(dma_byte_enable),
             .dma_ready(dma_ready), .screen_base(screen_base), .resolution(resolution), .palette(palette),
             .sync_mode(sync_mode), .debug_addr(debug_addr), .debug_bus_error(debug_bus_error),
-            .debug_overlay(debug_overlay), .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_line(native_line),
+            .debug_overlay(debug_overlay), .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_short_line(native_short_line), .native_word_loss(native_word_loss), .native_line(native_line),
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce)
         );
     end endgenerate
@@ -168,7 +170,7 @@ module top #(
     wire [31:0] debug_underruns, debug_frame;
     st_video_adapter video (
         .clk_sys(clk_sys), .clk_pixel(pixel_clk), .reset_sys(cold_reset), .reset_pixel(pixel_reset),
-        .native_vblank(vblank), .native_display(native_display), .native_line(native_line),
+        .native_vblank(vblank), .native_display(native_display), .native_short_line(native_short_line), .native_word_loss(native_word_loss), .native_line(native_line),
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(exp_phi2), .sync_mode(sync_mode),
         .hold(machine_reset), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),

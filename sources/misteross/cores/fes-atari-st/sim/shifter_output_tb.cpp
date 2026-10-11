@@ -120,7 +120,7 @@ struct Test {
             }
         }
     }
-    void reset(){d.reset_sys=d.reset_pixel=1;d.hold=d.commit=d.native_pixel_ce=d.native_lookup_ce=d.native_vblank=0;fabric();pixel_clock();d.reset_sys=d.reset_pixel=0;frame=0;}
+    void reset(){d.native_short_line=0;d.native_word_loss=0;d.reset_sys=d.reset_pixel=1;d.hold=d.commit=d.native_pixel_ce=d.native_lookup_ce=d.native_vblank=0;fabric();pixel_clock();d.reset_sys=d.reset_pixel=0;frame=0;}
     void profile(bool selected_pal,unsigned selected_mode){
         pal=selected_pal;commit_mode=selected_mode;d.pal=pal;checks=samples=borders=wraps=published=0;reset();
         for(unsigned c: {80u,84u,88u}){

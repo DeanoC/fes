@@ -262,7 +262,10 @@ monochrome 2×1. The focused indexed low fallback retains 4×3. High mode
 supports palette-bit inversion; color borders use palette entry 0.
 `st_video_adapter.sv` defaults to native low-resolution capture. In the
 52.224 MHz system domain, `st_native_low_video.sv` prefetches alternating
-80-word RAM rows. Prepared bitplane indices and canvas coordinates pass through
+RAM row windows. Row zero fetches 80 words; subsequent rows fetch 81,
+including a one-word leading margin. That margin lets a row prefetched before
+a late frequency switch use either the ordinary or shortened DMA address.
+Prepared bitplane indices and canvas coordinates pass through
 28 actual CPU-derived native pulses, then retain the sampled token until the
 next raw CPU phase-2 edge closes palette admission. Actual phase-1 writes can
 commit four or five fabric edges after the native pulse; lookup sees those
@@ -341,8 +344,18 @@ scheduled event. This is independent of HDMI frame publication.
 
 The MFP's Timer B input follows both DE edges by 24 CPU cycles, using
 [Hatari's Timer B offset](https://github.com/hatari/hatari/blob/v2.5.0/src/includes/video.h).
-DE mode settings are sampled at line/frame boundaries so brief writes do not
-create extra display-enable edges. Color line length samples sync separately
+Color DE selects its porch at cycle 50, before either color profile can
+enable display. A PAL-to-60 Hz switch during cycles 56–371 shortens the
+current row to 79 DMA words if it remains selected at cycle 372. Returning
+to PAL before that decision cancels the shortening; returning later cannot
+reopen DE. The video counter omits the final word, and native capture carries
+the cumulative word displacement into following rows. The final group lacks
+plane 3, and the last four output positions use border colour.
+`make sim-fes-atari-st-short-line-video` checks every captured pixel,
+immutable replay, two cumulative short rows and prefetch completed before
+the late switch. The I/O fixture separately checks early cancellation, late
+restore, counter movement and next-line porch selection.
+Color line length samples sync separately
 at STF WS1 cycle 54: a bottom-stop pulse restored early on the following
 line preserves the ordinary HBL and frame period. The vertical bottom-stop condition also
 samples live sync at cycle 502 on the last ordinary color line, using the

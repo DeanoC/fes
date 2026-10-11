@@ -9,6 +9,8 @@
 module st_native_low_video (
     input wire clk_sys, clk_pixel, reset_sys, reset_pixel, hold,
     input wire native_vblank, native_display,
+    input wire native_short_line,
+    input wire [8:0] native_word_loss,
     input wire [8:0] native_line, native_cycle,
     input wire native_pixel_ce, native_lookup_ce,
     input wire [7:0] sync_mode,
@@ -167,23 +169,36 @@ module st_native_low_video (
     // event as border capture, without an independent oscillator or phase.
     wire pixel_due = native_pixel_ce;
     wire [8:0] sample_x = display_rise ? 9'd0 : pixel_x;
-    wire prepare_pixel = owned && enabled && !hold && active_row && native_display &&
+    // The shortened DE interval still owns a fixed 320-pixel output row.
+    // Complete its final four positions as border pixels, not stale RAM.
+    wire short_padding = native_short_line && pixel_x >= 9'd316 && pixel_x < 9'd320;
+    wire prepare_pixel = owned && enabled && !hold && active_row && (native_display || short_padding) &&
                        pixel_due && sample_x < 9'd320;
 
-    reg [15:0] cache0 [0:79];
-    reg [15:0] cache1 [0:79];
+    reg [15:0] cache0 [0:80];
+    reg [15:0] cache1 [0:80];
     reg [1:0] cache_valid;
     reg [8:0] cache_row [0:1];
     reg [31:0] cache_epoch [0:1];
-    wire row_ready = cache_valid[row[0]] && cache_row[row[0]] == row && cache_epoch[row[0]] == epoch;
+    reg [8:0] cache_loss [0:1];
+    reg cache_margin [0:1];
+    wire loss_matches = native_word_loss == cache_loss[row[0]] ||
+        (cache_margin[row[0]] && native_word_loss == cache_loss[row[0]] + 9'd1);
+    wire row_ready = cache_valid[row[0]] && cache_row[row[0]] == row && cache_epoch[row[0]] == epoch && loss_matches;
     wire sample_valid = display_rise ? row_ready : line_valid;
-    wire [6:0] group_word = {sample_x[8:4], 2'b00};
+    // The next row can be prefetched before the current row's late frequency
+    // switch. Its 81-word window covers either normal or one-word-short DMA.
+    wire word_offset = cache_margin[row[0]] && native_word_loss == cache_loss[row[0]];
+    wire [6:0] group_word = {sample_x[8:4], 2'b00} + {6'd0, word_offset};
     wire [3:0] bit_index = 4'd15 - sample_x[3:0];
     wire [15:0] plane0 = row[0] ? cache1[group_word] : cache0[group_word];
     wire [15:0] plane1 = row[0] ? cache1[group_word + 7'd1] : cache0[group_word + 7'd1];
     wire [15:0] plane2 = row[0] ? cache1[group_word + 7'd2] : cache0[group_word + 7'd2];
     wire [15:0] plane3 = row[0] ? cache1[group_word + 7'd3] : cache0[group_word + 7'd3];
-    wire [3:0] color_index = {plane3[bit_index], plane2[bit_index], plane1[bit_index], plane0[bit_index]};
+    // The final DMA word (plane 3 of group 19) is absent on a shortened row.
+    wire missing_plane3 = native_short_line && sample_x >= 9'd304;
+    wire [3:0] color_index = !native_display ? 4'd0 :
+        {plane3[bit_index] && !missing_plane3, plane2[bit_index], plane1[bit_index], plane0[bit_index]};
     // Shift only on actual native pulses: input at t leaves at t+28.
     // Carry indices and coordinates, never resolved historical RGB.
     localparam integer OUTPUT_DELAY = 28;
@@ -276,6 +291,7 @@ module st_native_low_video (
     state_t memory_state;
     reg job_bank;
     reg [6:0] word_index;
+    reg [6:0] job_last_word;
     reg [31:0] job_epoch;
     wire prefetch_window = owned && !hold && native_line >= frame_top - 9'd2 &&
                            native_line < frame_top + maximum_height - 9'd1;
@@ -287,8 +303,10 @@ module st_native_low_video (
     wire desired_ready = cache_valid[desired_bank] && cache_row[desired_bank] == desired_row &&
                          cache_epoch[desired_bank] == epoch;
     wire [23:0] selected_base = base_valid ? frame_base : {screen_base[23:8], 8'd0};
-    wire [23:0] start_word = {1'b0, selected_base[23:8], 7'd0} + 24'(desired_row) * 24'd80;
-    wire address_valid = start_word + 24'd80 <= 24'h040000;
+    wire desired_margin = desired_row != 9'd0;
+    wire [23:0] start_word = {1'b0, selected_base[23:8], 7'd0} + 24'(desired_row) * 24'd80 -
+        {15'd0, native_word_loss} - {23'd0, desired_margin};
+    wire address_valid = start_word + (desired_margin ? 24'd81 : 24'd80) <= 24'h040000;
     wire border_start = native_vblank && bank_free && !hold;
     wire missing_row = display_rise && owned && enabled && active_row && !hold && !row_ready;
     wire border_failed = border_overflow && !border_overflow_reported;
@@ -316,6 +334,7 @@ module st_native_low_video (
             pixels <= 17'd0;
             cache_valid <= 2'd0; memory_state <= IDLE;
             job_bank <= 1'b0; word_index <= 7'd0; job_epoch <= 32'd0;
+            job_last_word <= 7'd79;
             memory_req <= 1'b0; memory_addr <= 18'd0;
             debug_frames <= 32'd0; debug_skipped <= 32'd0; debug_underruns <= 32'd0;
             for (b = 0; b < 3; b = b + 1) begin
@@ -323,6 +342,7 @@ module st_native_low_video (
             end
             for (b = 0; b < 2; b = b + 1) begin
                 cache_row[b] <= 9'd0; cache_epoch[b] <= 32'd0;
+                cache_loss[b] <= 9'd0; cache_margin[b] <= 1'b0;
             end
         end else begin
             release_meta <= released; release_sync <= release_meta;
@@ -358,7 +378,8 @@ module st_native_low_video (
                 end
                 if (display_fall && owned && enabled && active_row && !hold) begin
                     expected_row <= expected_row + 9'd1;
-                    if (pixel_x != 9'd320 || row != expected_row) good_frame <= 1'b0;
+                    if (pixel_x != (native_short_line ? 9'd316 : 9'd320) || row != expected_row)
+                        good_frame <= 1'b0;
 
                 end
             end
@@ -389,8 +410,11 @@ module st_native_low_video (
                     cache_valid[desired_bank] <= 1'b0;
                     cache_row[desired_bank] <= desired_row;
                     cache_epoch[desired_bank] <= epoch;
+                    cache_loss[desired_bank] <= native_word_loss;
+                    cache_margin[desired_bank] <= desired_margin;
                     if (address_valid) begin
                         job_bank <= desired_bank; job_epoch <= epoch; word_index <= 7'd0;
+                        job_last_word <= desired_margin ? 7'd80 : 7'd79;
                         memory_addr <= start_word[17:0]; memory_req <= 1'b1; memory_state <= READ;
                     end
                 end
@@ -400,8 +424,8 @@ module st_native_low_video (
                     memory_req <= 1'b0; memory_state <= GAP;
                 end
                 GAP: begin
-                    if (word_index == 7'd79 || job_epoch != epoch || !owned || hold) begin
-                        cache_valid[job_bank] <= word_index == 7'd79 && job_epoch == epoch && owned && !hold;
+                    if (word_index == job_last_word || job_epoch != epoch || !owned || hold) begin
+                        cache_valid[job_bank] <= word_index == job_last_word && job_epoch == epoch && owned && !hold;
                         memory_state <= IDLE;
                     end else begin
                         word_index <= word_index + 7'd1;
