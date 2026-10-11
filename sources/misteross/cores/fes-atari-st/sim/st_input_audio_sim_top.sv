@@ -30,7 +30,7 @@ module st_input_audio_sim_top (
     input wire engine_ce, engine_address_write, engine_data_write,
     input wire [7:0] engine_data,
     output wire [7:0] engine_pcm, engine_read,
-    output wire [14:0] engine_levels, sampled_levels
+    output wire [14:0] engine_levels, sampled_levels, sampled_result_levels
 );
     st_acia #(.SYSTEM_CLOCK_HZ(2_000_000)) acia (
         .clk(clk), .reset(reset), .bus_req(ac_req), .bus_reg(ac_reg),
@@ -54,13 +54,16 @@ module st_input_audio_sim_top (
         .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
         .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready)
     );
-    st_ym2149 #(.SYSTEM_CLOCK_HZ(2_000_000)) ym (
+    // Scaled clocks retain 128 fabric edges per /8 counter tick, above the
+    // exhaustive 42-edge mixer bound (production has about 208 edges).
+    st_ym2149 #(.SYSTEM_CLOCK_HZ(2_000_000), .CHIP_CLOCK_HZ(125_000)) ym (
         .clk(clk), .reset(reset), .bus_req(ym_req), .bus_reg(ym_reg),
         .bus_write(ym_write), .bus_wdata(ym_wdata), .bus_rdata(ym_rdata),
         .bus_ack(ym_ack), .sample_valid(sample_valid), .pcm_signed(pcm_signed),
         .port_a(port_a)
     );
     assign sampled_levels = ym.ym_levels;
+    assign sampled_result_levels = ym.mixer.result_levels;
     zonx_ay #(.YM2149(1)) engine (
         .clk(clk), .reset_n(!reset), .chip_ce(engine_ce),
         .address_write(engine_address_write), .data_write(engine_data_write),

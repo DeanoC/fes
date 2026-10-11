@@ -35,7 +35,7 @@ FLAGS = ["-Wno-" + name for name in (
     "BLKANDNBLK", "CASEINCOMPLETE", "CASEOVERLAP")]
 RTL = [CORE + "rtl/" + name + ".sv" for name in (
     "st_system", "st_cpu", "st_machine", "st_io", "st_mfp", "st_acia", "st_ikbd",
-    "st_ym2149", "st_floppy", "st_floppy_writer", "st_native_border", "st_native_low_video")]
+    "st_ym2149", "st_ym_mixer", "st_ym_mix_rom", "st_floppy", "st_floppy_writer", "st_native_border", "st_native_low_video")]
 RTL += ["cores/fes-zx81/expansions/zonx_ay.v"]
 RTL += [CPU + name for name in ("fx68k.sv", "fx68kAlu.sv", "uaddrPla.sv")]
 DATA = [CPU + "microrom.mem", CPU + "nanorom.mem", "cores/fes-common/generated/fes_video_part.vh"]

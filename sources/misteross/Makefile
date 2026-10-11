@@ -1522,7 +1522,7 @@ ST_MACHINE_RTL := $(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv \
 ST_CPU_FLAGS := -Wno-WIDTH -Wno-TIMESCALEMOD -Wno-MULTIDRIVEN -Wno-INITIALDLY \
 	-Wno-ALWCOMBORDER -Wno-UNOPTFLAT -Wno-BLKANDNBLK -Wno-CASEINCOMPLETE -Wno-CASEOVERLAP
 ST_IO_RTL := $(ST_CORE)/rtl/st_io.sv $(ST_CORE)/rtl/st_mfp.sv \
-	$(ST_CORE)/rtl/st_acia.sv $(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_ym2149.sv \
+	$(ST_CORE)/rtl/st_acia.sv $(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_ym2149.sv $(ST_CORE)/rtl/st_ym_mixer.sv $(ST_CORE)/rtl/st_ym_mix_rom.sv \
 	$(ST_CORE)/rtl/st_floppy.sv $(ST_CORE)/rtl/st_floppy_writer.sv cores/fes-zx81/expansions/zonx_ay.v
 
 .PHONY: atari-st-sources atari-st-diagnostic sim-fes-atari-st sim-fes-atari-st-machine sim-fes-atari-st-video
@@ -1532,7 +1532,7 @@ atari-st-sources:
 atari-st-diagnostic: atari-st-sources
 	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
 
-sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-native-border sim-fes-atari-st-media sim-fes-atari-st-media-geometry
+sim-fes-atari-st: sim-fes-atari-st-ym-mixer sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-native-border sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 
 sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
@@ -1567,7 +1567,7 @@ sim-fes-atari-st-input-audio:
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_input_audio_sim_top -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-input-audio" \
 		$(ST_CORE)/sim/st_input_audio_sim_top.sv $(ST_CORE)/rtl/st_acia.sv \
-		$(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_ym2149.sv cores/fes-zx81/expansions/zonx_ay.v \
+		$(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_ym2149.sv $(ST_CORE)/rtl/st_ym_mixer.sv $(ST_CORE)/rtl/st_ym_mix_rom.sv cores/fes-zx81/expansions/zonx_ay.v \
 		"$(CURDIR)/$(ST_CORE)/sim/input_audio_tb.cpp" -CFLAGS '-std=c++17'
 	@build/sim/fes-atari-st-input-audio/Vst_input_audio_sim_top
 
@@ -1798,3 +1798,14 @@ build-fes-atari-st-video-part:
 sim-fes-atari-st-video-parts:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_atari_st_video_parts.py
+
+.PHONY: sim-fes-atari-st-ym-mixer
+sim-fes-atari-st-ym-mixer:
+	$(require_local_sim)
+	$(PYTHON) scripts/generate_st_ym_mix_rom.py --check
+	@mkdir -p build/sim/fes-atari-st-ym-mixer
+	@$(VERILATOR) --cc --exe --build -O2 --top-module st_ym_mixer -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-ym-mixer" \
+		$(ST_CORE)/rtl/st_ym_mixer.sv $(ST_CORE)/rtl/st_ym_mix_rom.sv \
+		"$(CURDIR)/$(ST_CORE)/sim/ym_mixer_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-ym-mixer/Vst_ym_mixer

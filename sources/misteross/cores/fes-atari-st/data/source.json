@@ -1,0 +1,33 @@
+{
+  "project": "Hatari",
+  "version": "v2.5.0",
+  "license": "GPL-2.0-or-later",
+  "measured_table_attribution": "Data measured by Paulo Simoes. Copyright 2012 Paulo Simoes.",
+  "sources": [
+    {
+      "file": "ym2149_fixed_vol.h",
+      "url": "https://raw.githubusercontent.com/hatari/hatari/v2.5.0/src/includes/ym2149_fixed_vol.h",
+      "sha256": "0db6eee49cdf807a0395b5626f03e279ed6135873080ae7df855ddd6edb33b19"
+    },
+    {
+      "file": "GPL-2.0.txt",
+      "url": "https://raw.githubusercontent.com/hatari/hatari/v2.5.0/gpl.txt",
+      "sha256": "ab15fd526bd8dd18a9e77ebc139656bf4d33e97fc7238cd11bf60e2b9b8666c6"
+    }
+  ],
+  "interpolation_source": {
+    "url": "https://raw.githubusercontent.com/hatari/hatari/v2.5.0/src/sound.c",
+    "sha256": "2ffdf73c27c82edd998c41a250cd424a8da4f7385d8059f21d36bdc49c99c4f0",
+    "functions": [
+      "interpolate_volumetable",
+      "YM2149_BuildVolumeTable"
+    ]
+  },
+  "normalization": "floor(interpolated_unsigned_voltage * 32767 / 65119)",
+  "ordering": "packed levels = (C << 10) | (B << 5) | A; canonical A <= B <= C",
+  "compression": {
+    "canonical_entries": 5984,
+    "correction_entries": 1159,
+    "correction_word": "(ordered_key << 1) | (difference > 0); absent key has zero correction"
+  }
+}
