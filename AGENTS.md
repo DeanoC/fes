@@ -54,7 +54,7 @@ never infer persistence from a display name, package path or raw RBF.
   or exact-artifact hardware acceptance. A new profile inherits no acceptance.
 - `make media`, `make verify-media` and `make rollback-media` hold the media
   lease and never write a block device; see [bootable media](docs/bootable-media.md).
-  Change `media/current` only through `make rollback-media`. Writing a physical
+  Change `media/current` only through these leased commands. Writing a physical
   card needs explicit device authorization plus the kit lease.
 - Versioned appliance images follow [appliance releases](docs/appliance-releases.md):
   preserve factory, known-good, previous and loop-referenced images, and verify
