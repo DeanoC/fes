@@ -87,6 +87,14 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     wire consume = output_ce && remaining != 9'd0 && head[17:9] <= output_x;
     wire [EVENT_BITS-1:0] read_pointer = output_sof ? {EVENT_BITS{1'b0}} :
         output_line_start ? descriptor[EVENT_BITS-1:0] : consume && remaining > 9'd1 ? next_pointer : pointer;
+    // Publication can select a bank on this same SOF edge. Increment each
+    // descriptor independently so that late bank selection does not precede
+    // an EVENT_BITS-wide carry chain. SOF retains its fixed event-zero origin.
+    wire [EVENT_BITS-1:0] successor0 = desc0[EVENT_BITS-1:0] + 1'b1;
+    wire [EVENT_BITS-1:0] successor1 = desc1[EVENT_BITS-1:0] + 1'b1;
+    wire [EVENT_BITS-1:0] successor2 = desc2[EVENT_BITS-1:0] + 1'b1;
+    wire [EVENT_BITS-1:0] line_successor = output_sof ? {{(EVENT_BITS-1){1'b0}}, 1'b1} :
+        output_bank == 2'd0 ? successor0 : output_bank == 2'd1 ? successor1 : successor2;
     assign output_rgb = consume ? head[8:0] : colour;
     // Unconditional clocked ports infer dual-clock M10Ks. The parent owns
     // cross-domain bank selection and the descriptor/event immutability.
@@ -97,7 +105,7 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
             pointer <= 0; next_pointer <= 1; remaining <= 0; colour <= 0;
         end else if (output_sof || output_line_start) begin
             pointer <= read_pointer;
-            next_pointer <= read_pointer + 1'b1;
+            next_pointer <= line_successor;
             remaining <= descriptor[EVENT_BITS+8:EVENT_BITS];
             colour <= 0;
         end else if (consume) begin
