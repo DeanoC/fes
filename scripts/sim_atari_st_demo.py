@@ -16,6 +16,8 @@ that revision. All compiled sources and input identities are frozen before build
 """
 from __future__ import annotations
 import argparse
+from decimal import Decimal, InvalidOperation
+from fractions import Fraction
 import hashlib
 import json
 import re
@@ -40,7 +42,7 @@ RTL += ["cores/fes-zx81/expansions/zonx_ay.v"]
 RTL += [CPU + name for name in ("fx68k.sv", "fx68kAlu.sv", "uaddrPla.sv")]
 DATA = [CPU + "microrom.mem", CPU + "nanorom.mem", "cores/fes-common/generated/fes_video_part.vh"]
 WRAPPER = PREFIX + CORE + "sim/st_boot_sim_top.sv"
-HELPERS = ["scripts/sim_atari_st_demo.py", "scripts/atari_st_demo_sim.cpp", PREFIX + CORE + "sim/st_audio_capture.hpp"]
+HELPERS = ["scripts/sim_atari_st_demo.py", "scripts/atari_st_demo_sim.cpp", PREFIX + CORE + "sim/st_audio_capture.hpp", PREFIX + CORE + "sim/st_keyboard_stimulus.hpp"]
 
 
 def sha(data):
@@ -66,6 +68,54 @@ def disk_geometry(data):
     tracks, heads, sectors = matches[0]
     return {"tracks": tracks, "heads": heads, "sectors_per_track": sectors,
             "sector_bytes": 512, "bytes": len(data)}
+
+
+SYSTEM_HZ = 52224000
+MAX_KEY_EVENTS = 256
+RELEASE_GAP_CYCLES = SYSTEM_HZ * 2 // 1000
+
+
+def keyboard_schedule(specifications, seconds):
+    """Normalize exact decimal times to the first system clock at/after each edge."""
+    if len(specifications) > MAX_KEY_EVENTS:
+        raise ValueError("at most 256 keyboard events are allowed")
+    schedule = []
+    for specification in specifications:
+        if len(specification) > 256:
+            raise ValueError("key event specification too long")
+        fields = specification.split(":")
+        if len(fields) not in (2, 3):
+            raise ValueError("key event must be SECOND:HID[:HOLD_MS]")
+        try:
+            start = Decimal(fields[0])
+            usage = int(fields[1])
+            hold = Decimal(fields[2]) if len(fields) == 3 else Decimal(150)
+        except (InvalidOperation, ValueError):
+            raise ValueError("key event has invalid time, HID or hold") from None
+        if not start.is_finite() or not hold.is_finite():
+            raise ValueError("key event times must be finite")
+        if not 0 <= start < seconds or not 0 < hold <= seconds * 1000 or not 4 <= usage <= 127:
+            raise ValueError("key event outside time, hold or HID bounds")
+        if start.as_tuple().exponent < -64 or hold.as_tuple().exponent < -64:
+            raise ValueError("key event times allow at most 64 fractional places")
+        start_exact = Fraction(start)
+        end_exact = start_exact + Fraction(hold) / 1000
+        def clock(time):
+            scaled = time * SYSTEM_HZ
+            return (scaled.numerator + scaled.denominator - 1) // scaled.denominator
+        press, release = clock(start_exact), clock(end_exact)
+        if release <= press or release >= seconds * SYSTEM_HZ:
+            raise ValueError("key event must press and release before the run ends")
+        if schedule and press - schedule[-1]["release_cycle"] < RELEASE_GAP_CYCLES:
+            raise ValueError("ordered key events need at least a 2 ms release gap")
+        schedule.append({"press_second": str(start), "hold_milliseconds": str(hold),
+                         "hid_usage": usage, "press_cycle": press, "release_cycle": release})
+    return schedule
+
+
+def schedule_bytes(schedule):
+    return "".join(f"{e['press_cycle']}\t{e['release_cycle']}\t{e['hid_usage']}\n"
+                   for e in schedule).encode("ascii")
 
 
 def run(args):
@@ -116,6 +166,9 @@ def run(args):
     (output / "original.st").write_bytes(disk)
     for name in ("microrom.mem", "nanorom.mem"):
         shutil.copyfile(source / PREFIX / CPU / name, build / name)
+    schedule_path = output / "keyboard-events.tsv"
+    schedule_data = schedule_bytes(args.input_schedule)
+    schedule_path.write_bytes(schedule_data)
     archive(output / "frozen-source.zip", source, identities)
     command = [verilator, "--cc", "--exe", "--build", "-O2", "-j", "2", "--top-module", top]
     command += [f"-GMFP_WAIT_STATES={args.mfp_wait_states}"]
@@ -156,6 +209,12 @@ def run(args):
         record["framebuffer_capture"] = "fixed 720p60 output after Direct part boundaries"
         record["native_rgb_capture"] = "production capture under shared SDRAM commands and independent 74.25 MHz pixel clock; no analog/electrical or original GLUE equivalence"
         record["media_fixture"] = "original disk preloaded into separate SDRAM disk buffer; production floppy/DMA/memory RTL; upload/mailbox not exercised"
+    if args.key_event:
+        invocation.append(str(schedule_path))
+    record["keyboard_schedule"] = {"events": args.input_schedule, "system_clock_hz": SYSTEM_HZ,
+        "file": schedule_path.name, "sha256": sha(schedule_data),
+        "origin": "reset release after SDRAM initialization" if args.shared_memory else "callback model cycle zero (including 64 reset clocks)",
+        "edges": "demo-input.jsonl; actual keyboard row transitions, not guest acknowledgement"}
     record["input_event"] = (None if args.key_at is None else
                              {"hid_usage": args.key_usage, "press_second": args.key_at,
                               "hold_milliseconds": 150})
@@ -218,6 +277,7 @@ def run(args):
             process.kill(); process.wait()
     record["frozen_inputs_unchanged"] = all(sha((source / name).read_bytes()) == digest for name, digest in identities.items())
     record["working_inputs_unchanged"] = all(sha((ROOT / name).read_bytes()) == digest for name, digest in identities.items())
+    record["keyboard_schedule_unchanged"] = schedule_path.read_bytes() == schedule_data
     record["rom_unchanged"] = sha((output / "etos192us.img").read_bytes()) == sha(rom)
     record["original_disk_unchanged"] = (output / "original.st").read_bytes() == disk
     record["runtime_microcode_unchanged"] = all(sha((build / name).read_bytes()) == digest for name, digest in microcode_hashes.items())
@@ -228,7 +288,7 @@ def run(args):
         record["metrics"] = json.loads(metrics.read_text())
     record["artifacts"] = {path.name: sha(path.read_bytes()) for path in output.glob("demo*") if path.is_file()}
     record["capture_completed"] = (record["exit_code"] == 0 and metrics.exists() and record["frozen_inputs_unchanged"]
-                                   and record["rom_unchanged"] and record["original_disk_unchanged"]
+                                   and record["rom_unchanged"] and record["original_disk_unchanged"] and record["keyboard_schedule_unchanged"]
                                    and record["generated_model_unchanged"] and record["runtime_microcode_unchanged"] and
                                    record["executable_sha256_before"] == record["executable_sha256_after"])
     write_json(output / "demo-proof.json", record)
@@ -249,7 +309,9 @@ def main(argv=None):
     parser.add_argument("--seconds", type=int, default=15)
     parser.add_argument("--key-at", "--key-b-at", dest="key_at", type=int,
                         help="press selected HID usage for 150 ms at this simulated second; B by default")
-    parser.add_argument("--key-usage", type=int, default=5, help="HID key usage 4..127; B=5, 1/2/3=30/31/32, Escape=41")
+    parser.add_argument("--key-event", action="append", default=[], metavar="SECOND:HID[:HOLD_MS]",
+                        help="repeat up to 256 ordered presses; default hold 150 ms; 2 ms release gap; time zero allowed")
+    parser.add_argument("--key-usage", type=int, help="HID key usage 4..127; B=5, 1/2/3=30/31/32, Escape=41")
     parser.add_argument("--timeout-seconds", type=int, default=3600, help="host run deadline; does not change guest timing")
     parser.add_argument("--trace-start", type=int, help="inclusive simulated second for complete raster/logo tracing")
     parser.add_argument("--trace-end", type=int, help="exclusive simulated second for complete raster/logo tracing")
@@ -259,6 +321,8 @@ def main(argv=None):
     parser.add_argument("--shared-memory", action="store_true", help="use the existing shared SDRAM/independent pixel-clock boot fixture; disk preloaded before reset release")
     parser.add_argument("--verilator", default="verilator")
     args = parser.parse_args(argv)
+    key_usage_explicit = args.key_usage is not None
+    args.key_usage = 5 if args.key_usage is None else args.key_usage
     if len(args.rom_sha256) != 64 or any(c not in "0123456789abcdef" for c in args.rom_sha256):
         parser.error("--rom-sha256 must be a lowercase SHA-256 digest")
     if not 1 <= args.seconds <= 30:
@@ -281,6 +345,13 @@ def main(argv=None):
         parser.error("timeout must be 1..86400 host seconds")
     if args.shared_memory and (args.seconds < 6 or args.ram_extra_wait or args.ram_fixed_wait is not None):
         parser.error("--shared-memory requires at least 6 seconds and no callback RAM delay or override")
+    if args.key_event and (args.key_at is not None or key_usage_explicit):
+        parser.error("--key-event cannot be combined with --key-at or --key-usage")
+    try:
+        args.input_schedule = keyboard_schedule(args.key_event or
+            ([] if args.key_at is None else [f"{args.key_at}:{args.key_usage}:150"]), args.seconds)
+    except ValueError as error:
+        parser.error(str(error))
     try:
         return 0 if run(args)["capture_completed"] else 1
     except (OSError, ValueError, subprocess.SubprocessError) as error:

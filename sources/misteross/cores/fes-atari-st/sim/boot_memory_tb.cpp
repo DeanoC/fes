@@ -2,6 +2,7 @@
 // Boot stock EmuTOS through physical SDRAM commands while the native line
 // cache scans that same RAM with an independent 74.25 MHz pixel clock.
 #include "st_audio_capture.hpp"
+#include "st_keyboard_stimulus.hpp"
 #include "st_rendered_capture.hpp"
 #include "Vst_boot_memory_sim_top.h"
 #include "verilated.h"
@@ -132,7 +133,7 @@ class Boot {
     Vst_boot_memory_sim_top dut;
     Sdram sdram;
     StAudioCapture audio;
-    unsigned key_at=0,key_usage=5;
+    st_keyboard_stimulus::Stimulus keys;
     std::vector<uint8_t> rom;
     std::vector<uint8_t> picture = std::vector<uint8_t>(1280 * 720 * 3);
     std::vector<uint8_t> complete_picture;
@@ -222,10 +223,7 @@ class Boot {
     }
 
     void system_edge() {
-        for(unsigned n=0;n<5;++n) dut.keyboard[n]=0;
-        if(demo_mode && key_at && system_cycles>=boot_start+SystemHz*key_at &&
-           system_cycles<boot_start+SystemHz*key_at+SystemHz*150/1000)
-            dut.keyboard[key_usage/32]=1u<<(key_usage%32);
+        keys.apply(dut.keyboard,system_cycles,boot_start,demo_mode && !dut.reset_sys);
         if(!dut.reset_sys && dut.audio_valid) audio.sample(dut.audio_pcm,system_cycles-boot_start);
 #ifdef ST_RAM_BUS_PROBE
         if (dut.reset_sys) require(!dut.debug_cpu_tick, "CPU phase-2 suppressed during reset", system_cycles);
@@ -668,8 +666,9 @@ public:
 
 #endif
 
-    void run(unsigned seconds, const char *prefix, unsigned start=6, unsigned end=7, unsigned press_at=0, unsigned usage=5) {
-        key_at=press_at;key_usage=usage;
+    void run(unsigned seconds, const char *prefix, unsigned start=6, unsigned end=7, unsigned press_at=0, unsigned usage=5, const char* schedule_path=nullptr) {
+        keys.configure(schedule_path ? st_keyboard_stimulus::load(schedule_path,SystemHz*seconds) :
+                       st_keyboard_stimulus::legacy(press_at,usage),prefix);
         audio.open(std::string(prefix)+"-audio.wav");
         trace_start=start; trace_end=end;
         if (demo_mode) {
@@ -745,6 +744,7 @@ public:
 
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
+    try {
 #ifdef ST_RAM_BUS_PROBE
     require(argc == 1, "RAM timing firmware takes no external ROM");
     {
@@ -758,14 +758,18 @@ int main(int argc, char **argv) {
     raster.ram_raster_probe();
 #endif
 #else
-    require((argc >= 2 && argc <= 4) || argc==7 || argc==9, "usage: boot_memory_tb STOCK_192K_ROM [SECONDS=8] [OUTPUT_PREFIX=emutos-sdram]");
+    require((argc >= 2 && argc <= 4) || argc==7 || argc==9 || argc==10, "usage: boot_memory_tb STOCK_192K_ROM [SECONDS=8] [OUTPUT_PREFIX=emutos-sdram]");
     const unsigned seconds = argc >= 3 ? unsigned(std::strtoul(argv[2], nullptr, 10)) : 8;
     require(seconds >= 6 && seconds <= 30, "boot duration must be 6..30 emulated seconds");
     Boot boot(argv[1], argc>=7 ? argv[4] : nullptr);
     boot.run(seconds, argc >= 4 ? argv[3] : "emutos-sdram", argc>=7 ? unsigned(std::strtoul(argv[5],nullptr,10)) : 6,
              argc>=7 ? unsigned(std::strtoul(argv[6],nullptr,10)) : 7,
-             argc==9 ? unsigned(std::strtoul(argv[7],nullptr,10)) : 0,
-             argc==9 ? unsigned(std::strtoul(argv[8],nullptr,10)) : 5);
+             argc>=9 ? unsigned(std::strtoul(argv[7],nullptr,10)) : 0,
+             argc>=9 ? unsigned(std::strtoul(argv[8],nullptr,10)) : 5, argc==10 ? argv[9] : nullptr);
 #endif
+    } catch (const std::exception& error) {
+        std::cerr << "FAIL " << error.what() << '\n';
+        return 1;
+    }
     return 0;
 }

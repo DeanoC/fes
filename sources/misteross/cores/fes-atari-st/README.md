@@ -460,7 +460,23 @@ invocation keeps its boot assertions and supplies no media. A changing
 logo is reported as noncanonical, without automatically declaring a visual fault. `--key-b-at SECOND` selects the scroller through the normal
 HID/IKBD path with a 150 ms B press. Both storage models accept
 `--key-at SECOND --key-usage USAGE` for other screens (1/2/3 use HID
-usages 30/31/32). Every run saves `demo-audio.wav`, the system-domain signed
+usages 30/31/32). For several actions, repeat `--key-event SECOND:HID[:HOLD_MS]`
+in chronological order, for example `--key-event 7:81 --key-event 7.2:40
+--key-event 8:30 --key-event 10:44` for Down, Return, 1, then Space.
+Up is HID 82. These are ordinary keyboard presses; the fixture does not alter
+ROM or disk bytes or bypass the guest's menu. Up to 256 events are accepted;
+holds default to 150 ms, must be positive, and must finish before the run ends.
+Allow at least 2 ms with all keys released between events, including repeated
+presses of the same key. Very short holds may not reach the IKBD's sampling path.
+Decimal timestamps round upward to the first 52,224,000 Hz system clock.
+Time zero is allowed: the callback fixture first applies it after its 64 reset
+clocks, while shared-memory timestamps begin when SDRAM initialization releases
+CPU reset. Existing single-key flags retain their timing and cannot be combined
+with `--key-event`. The source archive includes the common stimulus header;
+`keyboard-events.tsv` and its SHA-256 plus exact requested cycle schedule appear
+in the proof. `demo-input.jsonl` records actual keyboard row transitions relative
+to the respective anchor; it does not establish guest acknowledgement or demo
+compatibility. Every run saves `demo-audio.wav`, the system-domain signed
 mono 48 kHz chip PCM, and `demo-audio.json` with sample counts, amplitude
 statistics and system-clock cadence. Shared-memory runs also save `demo-rendered.jsonl`: each complete HDMI
 frame whose SOF falls in the trace window records its immutable pixel-domain
