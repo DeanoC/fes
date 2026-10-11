@@ -1705,11 +1705,14 @@ companion of a pinned boundary flip-flop, using the shared
 functional chipset in `st_system.sv`. The YM option in the shared
 `zonx_ay` engine exposes optional gated five-bit channel levels (zero in
 its default AY mode); existing AY PCM remains unchanged. `st_ym2149` uses
-these levels with a 32-entry table expanded from four-bit STF measurements,
-normalized to 10,922 per voice with nearest rounding. Fixed volume 1 selects
-level 1 and remains audible at PCM 61; three maximum voices sum to 32,766.
-The ST DAC still mixes linearly without analog filtering, so this precision
-correction does not establish full nonlinear/analog YM fidelity.
+these levels with the normalized Hatari STF nonlinear three-channel table.
+The mixer snapshots each /8 counter-tick input and uses a sorted canonical
+lookup plus sparse order-dependent rounding corrections. Fifteen synchronous
+512-word ROM banks retain exact results for all 32,768 ordered inputs, verified
+against an independent interpolation oracle. Resource and timing qualification
+of this addition remain pending. Output is unipolar with maximum 32,767;
+filtering, weighted downsampling and DC removal remain unimplemented, so exact
+table values do not establish full analog YM or whole-demo audio fidelity.
  Fractional alternating phase enables
 run an average 8.021247 MHz PAL CPU in the 52.224 MHz system domain.
 `st_system` selects this fixed board clock and supplies CPU/4 and CPU/16

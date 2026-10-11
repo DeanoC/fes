@@ -101,13 +101,16 @@ RTL_SOURCES = (
     *(f"cores/fes-atari-st/rtl/{name}" for name in (
         "st_cpu.sv", "st_machine.sv", "st_system.sv", "st_io.sv", "st_memory.sv",
         "st_rom.v", "st_native_border.sv", "st_native_low_video.sv", "st_video.sv", "st_video_adapter.sv", "st_media_writer.sv", "st_mfp.sv",
-        "st_floppy.sv", "st_floppy_writer.sv", "st_media_port.sv", "st_video_socket.sv", "st_acia.sv", "st_ikbd.sv", "st_ym2149.sv", "st_expansion_socket.sv")),
+        "st_floppy.sv", "st_floppy_writer.sv", "st_media_port.sv", "st_video_socket.sv", "st_acia.sv", "st_ikbd.sv", "st_ym2149.sv", "st_ym_mixer.sv", "st_ym_mix_rom.sv", "st_expansion_socket.sv")),
     "cores/fes-zx81/expansions/zonx_ay.v", "cores/fes-ramtest/rtl/sdram_addon_port.v",
 )
 PINNED_INPUTS = (
     RECIPE, "scripts/atari_st_slot.py", "scripts/atari_st_video_parts.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
+    "scripts/generate_st_ym_mix_rom.py",
+    "cores/fes-atari-st/data/ym2149_fixed_vol.h", "cores/fes-atari-st/data/source.json",
+    "cores/fes-atari-st/data/GPL-2.0.txt",
     ABI_DEFINITION, ST_TOOLCHAIN_LOCK, QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
     *(f"{CPU_VENDOR}/{name}" for name in ("source.json", "microrom.mem", "nanorom.mem", "fx68k.txt", "LICENSE")),
 )
