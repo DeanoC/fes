@@ -76,31 +76,22 @@ execution.
 
 ## Validation and synthesis
 
-The ALU uses the exact model-generated candidate from AlphaMister RISC-V
-campaign v3 (candidate 0007, SHA256
-`144b84638c1ae7369f0fa8b014276cc7ea0c3ac7c75fb299f5ba22a012aecfa9`).
-Combinational equivalence covers every binary input and all four outputs.
-Fresh qualification v5 passed eight of eight whole-pilot routes at 74.25 MHz,
-with a 75.222 MHz minimum and 2692 ALUTs versus the baseline's 2701.
-These are frozen pilot measurements; each production package and other CPU
-consumer still needs its own timing and hardware validation. See
-[the optimizer recovery and qualification change](https://github.com/DeanoC/alphamister/pull/25)
-for provenance and interruption recovery validation.
+The ALU uses the exact model-generated source from AlphaMister's
+`riscv-alu-timing-guidance-v1` campaign, round two proposal 0002 (SHA256
+`077804dcf9fb050a55898c6479ddc11baf9cc5f0a794e9772f954637248ba7c9`).
+It shares the left/right barrel shifter and bitwise selection, preserving the
+adder and signed/unsigned comparisons. Exact binary-input combinational
+proof covers result, eq, lt and ltu; strict integration lint passes.
+Fresh final qualification passed 8/8 whole-pilot routes at the unchanged
+74.25 MHz requirement, with a 74.744 MHz minimum. Area fell from 2692 to
+2587 ALUTs (105 / 3.9%); flip-flops remained 755. See
+[the optimizer timing-guidance change](https://github.com/DeanoC/alphamister/pull/27)
+for the frozen source, compiler, prompt and routing provenance.
 
-Integration validation on 2026-10-11 used committed source
-`322e38353f64b7a86752d5251670e5af07aa7cd8`. The normal production
-package `85bf8676b1638958d78262217f112697448e3c774b4bba4f8f443b906a9df1fb`
-(BuildID `c9dbfbd64f13d5fe6770d55b52c0eaf4`) passed its first HIP route
-on GPU1 at 79.051 MHz, using 2755 ALUTs and 761 flip-flops. Its real
-BuildID and current build recipe differ from the frozen pilot, so the pilot
-area cap and eight-route claim do not apply to this production context.
-All ALU, CPU, firmware, system, fault and board simulations passed, as did
-FES consistency checks. Authorized contained diagnostics loaded the exact
-package on both kits, observed the scene and changing box colour, then
-returned idle and released the leases. Kit A samples appeared intact; kit B
-showed intermittent static-image columns missing, also reproduced by the
-unchanged ALU baseline. See [FES #673](https://github.com/DeanoC/fes/issues/673).
-This is a contained diagnostic, not factory-image or full hardware acceptance.
+These are frozen zero-BuildID pilot measurements. Every production package
+and other CPU consumer needs its own full-system timing and hardware
+validation. Production integration checks for this exact source are in progress;
+older production and kit results do not qualify it.
 
 From `sources/misteross`:
 
