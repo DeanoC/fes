@@ -483,7 +483,15 @@ hashes. Shared-memory demo runs also save 512 KiB physical-RAM snapshots
 at per-second status events throughout the bounded run. `demo-ram-snapshots.jsonl`
 records each snapshot's elapsed system cycle; the corresponding file is
 `demo-ram-cycle-{system_cycle}.bin`. Copying RAM advances no guest clocks and
-changes no input or memory state. These observations allow sample pointers and
+changes no input or memory state. Optional shared-memory `--ram-write-range START:END`
+records accepted physical SDRAM WRITE commands during `--trace-start` / `--trace-end`.
+Repeat up to 16 nonoverlapping word-aligned byte ranges within 512 KiB, using
+decimal or hex addresses (for example `0x380:0x392`). `demo-ram-writes.jsonl`
+records elapsed system and physical-model cycles, byte address, driven data and
+actual byte masks, including unchanged values and DMA writes. Its PC is the
+current diagnostic prefetch state, not instruction retirement or writer identity.
+The range file and emitted trace are source-bound in the proof. The observer
+changes no commands, memory, inputs or guest clocks. These observations allow sample pointers and
 data to be compared without inferring their state from the audio waveform.
 The first eight distinct crop hashes save their complete native
 RGB images, so a rare outlier can be inspected after the run. The logo crop is native x=65..244, y=0..63. FNV-1a-64 hashes compare

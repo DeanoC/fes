@@ -4,6 +4,7 @@
 #include "st_audio_capture.hpp"
 #include "st_keyboard_stimulus.hpp"
 #include "st_rendered_capture.hpp"
+#include "st_ram_write_trace.hpp"
 #include "Vst_boot_memory_sim_top.h"
 #include "verilated.h"
 #include <array>
@@ -40,9 +41,13 @@ public:
     std::array<bool, 4> open{};
     std::array<uint64_t, 4> activated{}, available{};
     bool precharged = false, initialized = false;
+    unsigned write_address = UINT32_MAX;
+    uint16_t write_data = 0;
+    uint8_t write_lanes = 0;
 
     uint16_t tick(const Vst_boot_memory_sim_top &dut) {
         ++cycle;
+        write_address = UINT32_MAX;
         const uint16_t sample = read_due == cycle ? pending_read : 0xf13d;
         if (!dut.sdram_cke || dut.sdram_ncs) return sample;
         const unsigned command = (dut.sdram_nras << 2) | (dut.sdram_ncas << 1) | dut.sdram_nwe;
@@ -72,6 +77,9 @@ public:
                 if (!(dut.sdram_a & 0x800)) words[address] = (words[address] & 0xff00) | (dut.dq_out & 0xff);
                 if (!(dut.sdram_a & 0x1000)) words[address] = (words[address] & 0xff) | (dut.dq_out & 0xff00);
                 ++writes;
+                write_address = address * 2;
+                write_data = dut.dq_out;
+                write_lanes = ((dut.sdram_a & 0x1000) ? 0 : 2) | ((dut.sdram_a & 0x800) ? 0 : 1);
             } else {
                 require(!dut.dq_oe, "READ has output data contention", cycle);
                 require(!(dut.sdram_a & 0x1800), "READ unexpectedly masked", cycle);
@@ -133,6 +141,7 @@ class Boot {
     Vst_boot_memory_sim_top dut;
     Sdram sdram;
     StAudioCapture audio;
+    StRamWriteTrace ram_write_trace;
     st_keyboard_stimulus::Stimulus keys;
     std::vector<uint8_t> rom;
     std::vector<uint8_t> picture = std::vector<uint8_t>(1280 * 720 * 3);
@@ -249,6 +258,10 @@ class Boot {
         track_before(video_transfer, dut.video_req, dut.video_addr, 0, 3, false,
                      "video SDRAM request changed before completion");
         dut.dq_sample = sdram.tick(dut);
+        if (ram_write_trace.enabled() && demo_mode && !dut.reset_sys && tracing() &&
+            sdram.write_address != UINT32_MAX)
+            ram_write_trace.observe(system_cycles-boot_start,sdram.cycle,sdram.write_address,
+                                    sdram.write_data,sdram.write_lanes,dut.debug_pc);
         dut.eval();
         const unsigned line = dut.debug_native_line, phase = dut.debug_horizontal_phase;
         const bool native_vblank = !dut.reset_sys && dut.vblank;
@@ -497,6 +510,9 @@ class Boot {
     }
 
 public:
+    void open_ram_write_trace(const char *ranges, const char *prefix) {
+        ram_write_trace.open(ranges,std::string(prefix)+"-ram-writes.jsonl");
+    }
     explicit Boot(const char *path, const char *disk_path = nullptr, bool raster_probe = false, bool palette_probe = false) {
 #ifdef ST_RAM_BUS_PROBE
         if (!path) {
@@ -750,6 +766,7 @@ public:
                   << " system clocks, " << pixel_cycles << " independent pixel clocks, "
                   << complete_frames << " complete frames, " << colors.size() << " RGB colors; max CPU/video latency "
                   << max_cpu_latency << '/' << max_video_latency << " clocks; output " << prefix << ".ppm\n";
+        ram_write_trace.finish();
         audio.finish(std::string(prefix)+"-audio.json");
         if (demo_mode) {
             ym_trace.flush();
@@ -775,14 +792,15 @@ int main(int argc, char **argv) {
     raster.ram_raster_probe();
 #endif
 #else
-    require((argc >= 2 && argc <= 4) || argc==7 || argc==9 || argc==10, "usage: boot_memory_tb STOCK_192K_ROM [SECONDS=8] [OUTPUT_PREFIX=emutos-sdram]");
+    require((argc >= 2 && argc <= 4) || argc==7 || argc==9 || argc==10 || argc==11, "usage: boot_memory_tb STOCK_192K_ROM [SECONDS=8] [OUTPUT_PREFIX=emutos-sdram]");
     const unsigned seconds = argc >= 3 ? unsigned(std::strtoul(argv[2], nullptr, 10)) : 8;
     require(seconds >= 6 && seconds <= 120, "boot duration must be 6..120 emulated seconds");
     Boot boot(argv[1], argc>=7 ? argv[4] : nullptr);
+    if (argc==11) boot.open_ram_write_trace(argv[10],argv[3]);
     boot.run(seconds, argc >= 4 ? argv[3] : "emutos-sdram", argc>=7 ? unsigned(std::strtoul(argv[5],nullptr,10)) : 6,
              argc>=7 ? unsigned(std::strtoul(argv[6],nullptr,10)) : 7,
              argc>=9 ? unsigned(std::strtoul(argv[7],nullptr,10)) : 0,
-             argc>=9 ? unsigned(std::strtoul(argv[8],nullptr,10)) : 5, argc==10 ? argv[9] : nullptr);
+             argc>=9 ? unsigned(std::strtoul(argv[8],nullptr,10)) : 5, argc>=10 ? argv[9] : nullptr);
 #endif
     } catch (const std::exception& error) {
         std::cerr << "FAIL " << error.what() << '\n';

@@ -118,6 +118,27 @@ def schedule_bytes(schedule):
                    for e in schedule).encode("ascii")
 
 
+def ram_write_ranges(values):
+    if len(values) > 16:
+        raise ValueError("at most 16 RAM write ranges")
+    ranges = []
+    for value in values:
+        fields = value.split(":")
+        if len(fields) != 2 or len(value) > 64:
+            raise ValueError("RAM write range must be START:END byte addresses")
+        try:
+            start, end = (int(v, 16 if v.lower().startswith("0x") else 10) for v in fields)
+        except ValueError as error:
+            raise ValueError("RAM write addresses must be decimal or hexadecimal") from error
+        if not 0 <= start < end <= 524288 or (start | end) & 1:
+            raise ValueError("RAM write ranges must be word-aligned within 512 KiB")
+        ranges.append((start, end))
+    ranges.sort()
+    if any(b[0] < a[1] for a, b in zip(ranges, ranges[1:])):
+        raise ValueError("RAM write ranges must not overlap")
+    return ranges
+
+
 def run(args):
     rtl = list(RTL)
     wrapper = WRAPPER
@@ -128,6 +149,7 @@ def run(args):
         wrapper = PREFIX + CORE + "sim/" + top + ".sv"
         helpers[1] = PREFIX + CORE + "sim/boot_memory_tb.cpp"
         helpers.append(PREFIX + CORE + "sim/st_rendered_capture.hpp")
+        helpers.append(PREFIX + CORE + "sim/st_ram_write_trace.hpp")
         rtl += [CORE + "sim/st_memory_sim_top.sv", CORE + "rtl/st_memory.sv",
                 CORE + "rtl/st_video.sv", CORE + "rtl/st_video_adapter.sv",
                 "cores/fes-ramtest/rtl/sdram_addon_port.v", "cores/fes-common/rtl/fes_video_part_direct.v"]
@@ -209,8 +231,22 @@ def run(args):
         record["framebuffer_capture"] = "fixed 720p60 output after Direct part boundaries"
         record["native_rgb_capture"] = "production capture under shared SDRAM commands and independent 74.25 MHz pixel clock; no analog/electrical or original GLUE equivalence"
         record["media_fixture"] = "original disk preloaded into separate SDRAM disk buffer; production floppy/DMA/memory RTL; upload/mailbox not exercised"
-    if args.key_event:
+    if args.key_event or args.ram_write_ranges:
         invocation.append(str(schedule_path))
+    ram_ranges_path = output / "ram-write-ranges.tsv"
+    ram_ranges_data = "".join(f"{a}\t{b}\n" for a,b in args.ram_write_ranges).encode()
+    if args.ram_write_ranges:
+        ram_ranges_path.write_bytes(ram_ranges_data)
+        invocation.append(str(ram_ranges_path))
+        record["ram_write_trace"] = {"file": "demo-ram-writes.jsonl",
+            "ranges": args.ram_write_ranges, "ranges_file": ram_ranges_path.name,
+            "ranges_sha256": sha(ram_ranges_data),
+            "window_seconds": [args.trace_start,args.trace_end],
+            "origin": "reset release after SDRAM initialization",
+            "phase": "physical WRITE command before system rising edge",
+            "scope": "all physical writes in selected byte ranges, including CPU and DMA; repeated values retained",
+            "byte_enable": "bit1 high byte, bit0 low byte",
+            "pc": "current diagnostic prefetch state; not retirement or writer identity"}
     record["keyboard_schedule"] = {"events": args.input_schedule, "system_clock_hz": SYSTEM_HZ,
         "file": schedule_path.name, "sha256": sha(schedule_data),
         "origin": "reset release after SDRAM initialization" if args.shared_memory else "callback model cycle zero (including 64 reset clocks)",
@@ -282,6 +318,7 @@ def run(args):
     record["frozen_inputs_unchanged"] = all(sha((source / name).read_bytes()) == digest for name, digest in identities.items())
     record["working_inputs_unchanged"] = all(sha((ROOT / name).read_bytes()) == digest for name, digest in identities.items())
     record["keyboard_schedule_unchanged"] = schedule_path.read_bytes() == schedule_data
+    record["ram_write_ranges_unchanged"] = not args.ram_write_ranges or ram_ranges_path.read_bytes() == ram_ranges_data
     record["rom_unchanged"] = sha((output / "etos192us.img").read_bytes()) == sha(rom)
     record["original_disk_unchanged"] = (output / "original.st").read_bytes() == disk
     record["runtime_microcode_unchanged"] = all(sha((build / name).read_bytes()) == digest for name, digest in microcode_hashes.items())
@@ -292,7 +329,7 @@ def run(args):
         record["metrics"] = json.loads(metrics.read_text())
     record["artifacts"] = {path.name: sha(path.read_bytes()) for path in output.glob("demo*") if path.is_file()}
     record["capture_completed"] = (record["exit_code"] == 0 and metrics.exists() and record["frozen_inputs_unchanged"]
-                                   and record["rom_unchanged"] and record["original_disk_unchanged"] and record["keyboard_schedule_unchanged"]
+                                   and record["rom_unchanged"] and record["original_disk_unchanged"] and record["keyboard_schedule_unchanged"] and record["ram_write_ranges_unchanged"]
                                    and record["generated_model_unchanged"] and record["runtime_microcode_unchanged"] and
                                    record["executable_sha256_before"] == record["executable_sha256_after"])
     write_json(output / "demo-proof.json", record)
@@ -323,6 +360,8 @@ def main(argv=None):
     parser.add_argument("--ram-extra-wait", type=int, default=0, help="add 0..64 system clocks to each model CPU RAM access; not physical arbitration")
     parser.add_argument("--ram-fixed-wait", type=int, help="replace variable CPU RAM callback waits with a fixed 0..64 system-clock delay; an ideal-storage probe, not physical SDRAM")
     parser.add_argument("--mfp-wait-states", type=int, default=0, help="optional 0..8 native CPU wait-state experiment; delays MFP access and data sampling")
+    parser.add_argument("--ram-write-range", action="append", default=[], metavar="START:END",
+                        help="shared-memory only: trace accepted physical writes in up to 16 word-aligned byte ranges during the trace window; decimal or hex addresses")
     parser.add_argument("--shared-memory", action="store_true", help="use the existing shared SDRAM/independent pixel-clock boot fixture; disk preloaded before reset release")
     parser.add_argument("--verilator", default="verilator")
     args = parser.parse_args(argv)
@@ -350,9 +389,12 @@ def main(argv=None):
         parser.error("timeout must be 1..86400 host seconds")
     if args.shared_memory and (args.seconds < 6 or args.ram_extra_wait or args.ram_fixed_wait is not None):
         parser.error("--shared-memory requires at least 6 seconds and no callback RAM delay or override")
+    if args.ram_write_range and not args.shared_memory:
+        parser.error("--ram-write-range requires --shared-memory")
     if args.key_event and (args.key_at is not None or key_usage_explicit):
         parser.error("--key-event cannot be combined with --key-at or --key-usage")
     try:
+        args.ram_write_ranges = ram_write_ranges(args.ram_write_range)
         args.input_schedule = keyboard_schedule(args.key_event or
             ([] if args.key_at is None else [f"{args.key_at}:{args.key_usage}:150"]), args.seconds)
     except ValueError as error:
