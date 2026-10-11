@@ -172,9 +172,35 @@ absent; unsupported command modes consume their parameters safely.
 
 `st_ym2149.sv` reuses the shared AY engine with a YM2149 option: sixteen
 registers, 32-step envelopes, a CPU/4 enable (2.005311 MHz on the PAL board) and 48 kHz PCM. Port A drives
-floppy side and active-low drive selects. Its DAC is a bounded approximation;
-it does not reproduce analog filtering. Board transport uses the existing
-signed stereo PCM/I2S path, duplicating the mono chip into both channels.
+floppy side and active-low drive selects. Fixed volumes 0/1 select envelope
+levels 0/1; volumes 2..15 select odd levels 5..31. The ST wrapper converts
+unquantized gated channel levels with the normalized Hatari STF nonlinear
+three-channel table, including its order-dependent interpolation rounding.
+`st_ym_mixer.sv` snapshots levels at each /8 engine counter tick, sorts them
+for a 5,984-entry canonical ROM, and searches 1,159 sparse one-unit corrections.
+The generated ROM uses fifteen explicit synchronous 512-word banks; FPGA
+resource and timing qualification remain required. Its exhaustive simulation
+compares all 32,768 ordered inputs against an independent primary-table oracle
+and checks bounded completion and reset cancellation. The generator and unchanged
+measurement source, provenance and license are retained in the component.
+The nonlinear mix reaches at most 32,767. `st_ym_filter.sv` applies Hatari's
+asymmetric STF C10 low-pass filter at every engine counter sample, averages all
+samples over each 48 kHz interval and removes DC with the signed 32-bit IIR
+state. Averaging uses the exact rational chip/output clock ratio, retaining the
+fractional counter rate instead of Hatari's truncated Q16 interval. Two
+registered products and a bounded restoring divider avoid a combinational
+divide. A four-entry register FIFO supplies the regular PCM cadence, delayed
+320 fabric edges after reset so each interval is complete before consumption.
+This is the filter selected by Hatari's audio initialization for ST output at
+40 kHz and above, including the production 48 kHz cadence. Both rising and
+falling edges retain input/output history; the lower-rate PWM path is different.
+The production filter finishes within 39 fabric edges; the mixer plus filter
+finish before the next roughly 208-edge counter period. Reset clears filters,
+queued samples and in-flight work. Standalone tests cover both production and
+scaled clocks against an independent streaming oracle, including impulses,
+high-frequency signals, DC decay, reset and FIFO faults. Whole-demo waveform
+and exact FPGA/hardware qualification remain required. Board transport uses the
+existing signed stereo PCM/I2S path, duplicating mono into both channels.
 
 `st_floppy.sv` implements original WD1772 Type I positioning, Type II sector
 reads and writes, force interrupts and ST DMA. Drive A accepts raw `.st`
@@ -408,7 +434,7 @@ invocation keeps its boot assertions and supplies no media. A changing
 logo is reported as noncanonical, without automatically declaring a visual fault. `--key-b-at SECOND` selects the scroller through the normal
 HID/IKBD path with a 150 ms B press. Both storage models accept
 `--key-at SECOND --key-usage USAGE` for other screens (1/2/3 use HID
-usages 30/31/32). Every run saves `demo-audio.wav`, the unfiltered signed
+usages 30/31/32). Every run saves `demo-audio.wav`, the system-domain signed
 mono 48 kHz chip PCM, and `demo-audio.json` with sample counts, amplitude
 statistics and system-clock cadence. Shared-memory runs also save
 `demo-ym.jsonl`: every accepted valid-register PSG data write, with its raw

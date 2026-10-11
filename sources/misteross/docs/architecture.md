@@ -1702,7 +1702,28 @@ companion of a pinned boundary flip-flop, using the shared
 ## FES Atari 520ST
 
 `cores/fes-atari-st` assembles the original ST's full FX68K 68000 and
-functional chipset in `st_system.sv`. Fractional alternating phase enables
+functional chipset in `st_system.sv`. The YM option in the shared
+`zonx_ay` engine exposes optional gated five-bit channel levels (zero in
+its default AY mode); existing AY PCM remains unchanged. `st_ym2149` uses
+these levels with the normalized Hatari STF nonlinear three-channel table.
+The OSS producer supplies the unused write clock on the CPU microcode ROMs
+and the fifteen selected YM mixer ROM banks from each cell's read clock. It
+requires synchronous reads, an inactive constant write enable and a connected
+read clock; other disconnected memory clocks are rejected.
+The mixer snapshots each /8 counter-tick input and uses a sorted canonical
+lookup plus sparse order-dependent rounding corrections. Fifteen synchronous
+512-word ROM banks retain exact results for all 32,768 ordered inputs, verified
+against an independent interpolation oracle. Resource and timing qualification
+of this addition remain pending. The table output is unipolar with maximum 32,767. `st_ym_filter` applies the
+primary STF C10 low-pass and DC-removal equations around exact-rational weighted
+counter-sample integration to 48 kHz. Registered products and a serial divider
+finish within 39 fabric edges; a four-entry register FIFO supplies regular
+output enables after a 320-edge reset delay. This clock-ratio integration
+avoids Hatari's integer-counter/Q16 truncation while retaining its filter
+arithmetic. Hatari selects this low-pass path for ST output at 40 kHz and above;
+its PWM path has different rising/falling coefficients. Full original-demo waveform and FPGA/hardware qualification remain
+pending; arithmetic tests do not establish whole-demo audio fidelity.
+ Fractional alternating phase enables
 run an average 8.021247 MHz PAL CPU in the 52.224 MHz system domain.
 `st_system` selects this fixed board clock and supplies CPU/4 and CPU/16
 to PSG and ACIA; software sync changes alter raster lengths, not oscillators. `st_machine.sv`

@@ -418,6 +418,38 @@ class AtariSTProducerTests(unittest.TestCase):
             with self.assertRaisesRegex(BuildError, 'unexpected disconnected'):
                 st.clock_read_only_memories(path)
 
+    def test_ym_rom_clock_repair_accepts_only_selected_inactive_banks(self):
+        names = [f'machine.system.io.psg.mixer.rom.{kind}_bank_{bank:02d}.0.0.0'
+                 for kind, count in (('base', 12), ('correction', 3))
+                 for bank in range(count)]
+        cell = {'type': 'MISTRAL_M10K',
+                'parameters': {'CFG_DBITS': '00010100', 'CFG_BYTE_ENABLE': '1',
+                               'CFG_DUAL_CLOCK': '1', 'CFG_ASYNC_READ': '0'},
+                'connections': {'CLK1': ['x'], 'CLK2': [154], 'A1EN': ['0']}}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'synth.json'
+            def write(cells):
+                path.write_text(json.dumps({'modules': {'top': {'cells': cells}}}))
+            write({name: copy.deepcopy(cell) for name in names})
+            self.assertEqual(st.clock_read_only_memories(path), sorted(names))
+            repaired = json.loads(path.read_text())['modules']['top']['cells']
+            self.assertTrue(all(c['connections']['CLK1'] == [154] for c in repaired.values()))
+            for name in names:
+                for mutation in ('write', 'async', 'clock', 'dual_clock'):
+                    with self.subTest(name=name, mutation=mutation):
+                        changed = copy.deepcopy(cell)
+                        if mutation == 'write': changed['connections']['A1EN'] = ['1']
+                        elif mutation == 'async': changed['parameters']['CFG_ASYNC_READ'] = '1'
+                        elif mutation == 'clock': changed['connections']['CLK2'] = ['x']
+                        else: changed['parameters']['CFG_DUAL_CLOCK'] = '0'
+                        write({name: changed})
+                        with self.assertRaises(BuildError): st.clock_read_only_memories(path)
+            for name in ('machine.system.io.psg.mixer.rom.base_bank_12.0.0.0',
+                         'machine.system.io.psg.mixer.rom.correction_bank_03.0.0.0',
+                         'machine.system.io.psg.mixer.rom.unrelated.0.0.0', names[0] + '.extra'):
+                write({name: copy.deepcopy(cell)})
+                with self.assertRaises(BuildError): st.clock_read_only_memories(path)
+
     def test_failed_or_cancelled_build_withdraws_unsealed_artifacts(self):
         for failure in (BuildError('compiler failure'), KeyboardInterrupt()):
             with self.subTest(failure=type(failure).__name__), tempfile.TemporaryDirectory() as directory:
