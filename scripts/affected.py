@@ -1,7 +1,6 @@
 """Plan software CI from a merge-base diff; never claim FPGA builds or kit acceptance."""
 import argparse
 import json
-from fnmatch import fnmatchcase
 from pathlib import Path
 import subprocess
 
@@ -37,16 +36,9 @@ CI_BROAD_INPUTS = frozenset({
 
 
 # Keep this software suite shared with test_changed. A producer edit validates
-# package/provenance behavior without recompiling unchanged RTL.
-FPGA_SOFTWARE_TESTS = (
-    'test_build_fes_*.py', 'test_functional_identity.py',
-    'test_export_core_package.py', 'test_compiler_read_audit.py',
-    'test_source_provenance.py', 'test_source_repository.py',
-    'test_core_package.py', 'test_core_package_v3.py', 'test_search_placer_qor.py',
-    'test_coleco_sim_shards.py', 'test_rom_map.py', 'test_video_parts_build.py',
-    'test_native_video_parts.py', 'test_native_video_build.py', 'test_native_video_clock.py',
-    'test_atari_st_*.py',
-)
+# package/provenance behavior without recompiling unchanged RTL. The whole
+# misteross unittest suite runs (about two minutes); tool-dependent cases skip.
+FPGA_SOFTWARE_TESTS = ('test_*.py',)
 FPGA_PRODUCER_HELPERS = {
     'synth_fes_native_video.py', 'build_fes_coleco_socket_v2.py',
     'build_video_part.py', 'video_parts.py', 'native_video_parts.py', 'native_video_clock.py',
@@ -179,8 +171,8 @@ def fpga_cores(path):
             return ('spectrum',), 'Spectrum socket recipe'
         if parts[1] in ATARI_ST_SCRIPTS:
             return ('atari-st',), 'Atari ST socket/card/ROM test recipe'
-    if len(parts) == 2 and parts[0] == 'tests' and any(
-            fnmatchcase(parts[1], pattern) for pattern in FPGA_SOFTWARE_TESTS):
+    if parts and parts[0] == 'tests':
+        # No simulation recipe reads misteross tests or their fixtures.
         return (), 'FPGA producer/package software tests; RTL unchanged'
     return CORES, 'unclassified FPGA/shared graph input; all core families'
 

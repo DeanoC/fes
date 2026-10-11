@@ -174,7 +174,9 @@ func TestRunLocalStateTransitions(t *testing.T) {
 				successfulPauses++
 				return nil
 			}, func() { resumes++ })
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			// Every case cancels on success; the deadline only bounds a hang
+			// and must tolerate -race on a loaded two-core runner.
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			pad := &transitionPad{}
 			var last Model

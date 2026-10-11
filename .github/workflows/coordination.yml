@@ -1,8 +1,12 @@
 name: FES coordination
 on:
+  # Manual only: an hourly schedule kept observing a closed milestone.
   workflow_dispatch:
-  schedule:
-    - cron: "23 * * * *"
+    inputs:
+      milestone:
+        description: GitHub milestone number to report on
+        required: true
+        type: number
   pull_request:
     paths:
       - "scripts/coordination.py"
@@ -26,14 +30,15 @@ jobs:
         if: github.event_name != 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 -m scripts.coordination --repo "$GITHUB_REPOSITORY" --milestone 1 --output out/coordination/m1-report.md
+          MILESTONE: ${{ inputs.milestone }}
+        run: python3 -m scripts.coordination --repo "$GITHUB_REPOSITORY" --milestone "$MILESTONE" --output out/coordination/report.md
       - name: Publish read-only job summary
         if: github.event_name != 'pull_request'
-        run: cat out/coordination/m1-report.md >> "$GITHUB_STEP_SUMMARY"
+        run: cat out/coordination/report.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: github.event_name != 'pull_request'
         with:
-          name: fes-m1-coordination
-          path: out/coordination/m1-report.md
+          name: fes-coordination-${{ inputs.milestone }}
+          path: out/coordination/report.md
           retention-days: 7
           if-no-files-found: error
