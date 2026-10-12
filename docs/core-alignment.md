@@ -92,7 +92,7 @@ is that case.
 
 | Package | Usable as | Matches | Does not match |
 | --- | --- | --- | --- |
-| `fes.riscv` 0.1.0 | Original RV32I demo. No historical machine, no audio, no user programs. | Shared pin. Qualified ALU package closed 74.25 MHz. The [11 Oct diagnostic](validation/2026-10-11-riscv-video-diagnostic.md) showed the scene, timer colour and Stop on two kits. | Not in the image. Hardware did not test the gamepad. The 4 Oct seal does not accept the later ALU package. |
+| `fes.riscv` 0.1.0 | Original RV32I demo. No historical machine, no audio, no user programs. | Shared pin. Qualified ALU package closed 74.25 MHz. The [11 Oct diagnostic](validation/2026-10-11-riscv-video-diagnostic.md) of baseline package `72f3b2be…` (build `39ccdf04…`) showed the scene, timer colour and Stop on two kits. | Not in the image. Those 11 Oct loads did not test the gamepad. The candidate package `85bf8676…` in that note is a video comparison, not a gamepad check. The [4 Oct kit A load](validation/2026-10-04-riscv-kit-a.md) of package `e5c4bd79…` (build `55de600f…`) observed dpad-right movement. The 4 Oct seal does not accept the later ALU package. |
 | `fes.c64` 0.1.0 | Package-only pathfinder. The [6 Oct Kit A diagnostic](validation/2026-10-06-c64-functional-closure.md) passed firmware, both probes, input and a read-only D64 on that package. | Sync M10K, format 3. Yosys and Mistral match the shared pin. | nextpnr `0c5ed400`, not the shared pin. No disk writes. Not in the image. |
 | `fes.apple2` 0.1.0 | Package-only pathfinder. A Sept 27 kit diagnostic covered linked firmware, four cards and a live disk swap. | Sync M10K, format 3, HIP. | Lock `0259c6dc`. No writes. No Apple ROM. No image acceptance. |
 | `fes.catch` 1.0.0 | Registered ROM-less paddle demo. | Shared pin. Sims cover the optimizer scaler. | Not in the image. No separate kit acceptance. |
@@ -188,4 +188,6 @@ effect of a pin move or a CPU swap. Promotion is its own acceptance gate.
 It does not seal a bitstream, lease a kit, or accept an image. Those steps
 are [misteross cores](../sources/misteross/docs/cores.md), the
 [core developer workflow](core-development.md) and
-[package acceptance](package-acceptance.md).
+[package acceptance](package-acceptance.md). Build mechanisms — identity,
+lanes, compilers and package bytes — stay
+[misteross architecture](../sources/misteross/docs/architecture.md).

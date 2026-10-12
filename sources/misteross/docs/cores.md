@@ -284,8 +284,9 @@ EmuTOS or Atari ROMs.
 3. Add a producer next to `scripts/build_fes_sms_oss.py` or the closest
    sibling. It authenticates one lock, requires a clean committed module,
    and never programs hardware. A new core with a ROM embedded in CRAM seals
-   a producer-derived ROM map in format 3, as ZX81 does; ROM-less cores and
-   existing media-mailbox cores retain format 2 until explicitly converted.
+   a producer-derived ROM map in format 3. ROM-less cores keep format 2.
+   The factory Coleco recipe still emits format 2. Currency and retirement
+   are the FES [core alignment](../../../docs/core-alignment.md) contract.
    Wire `make sim-…` and
    `make build-…` in the Makefile. Add the tests the sibling has for manifest
    identity and the simulation you claim.
