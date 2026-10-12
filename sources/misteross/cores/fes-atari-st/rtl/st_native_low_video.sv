@@ -386,7 +386,12 @@ module st_native_low_video (
     wire desired_margin = desired_row != 9'd0;
     wire [23:0] start_word = {1'b0, selected_base[23:8], 7'd0} + 24'(desired_row) * 24'd80 -
         {15'd0, native_word_loss} - {23'd0, desired_margin};
-    wire address_valid = start_word + (desired_margin ? 24'd81 : 24'd80) <= 24'h040000;
+    // Compare constant limits directly rather than adding another24-bit
+    // carry chain after the row/base/loss calculation. Retain the original
+    // 24-bit addition's wrap cases too; all start/margin combinations match.
+    wire address_valid = desired_margin ?
+        (start_word <= 24'h03ffaf || start_word >= 24'hffffaf) :
+        (start_word <= 24'h03ffb0 || start_word >= 24'hffffb0);
     wire border_start = native_vblank && bank_free && !hold;
     wire missing_row = display_rise && owned && enabled && active_row && !hold && !row_ready;
     wire border_failed = border_overflow && !border_overflow_reported;
