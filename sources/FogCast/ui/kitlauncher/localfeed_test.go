@@ -106,7 +106,7 @@ func TestRunFeedsLocalSocketWithoutHostInputReady(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
-	client.localCore = func(context.Context) (bool, error) { return true, nil }
+	client.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{Bound: true}, nil }
 	client.localInputPath = path
 	pad := &oncePad{event: remoteinput.Event{Player: 1, Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionPress, Code: remoteinput.ButtonB}}
 	_ = Run(ctx, client, func(m Model) {
@@ -150,7 +150,7 @@ func TestRunForeignLeaseStillFeedsLocalSocket(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
-	client.localCore = func(context.Context) (bool, error) { return true, nil }
+	client.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{Bound: true}, nil }
 	client.localInputPath = path
 	pad := &oncePad{event: remoteinput.Event{Player: 0, Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionPress, Code: remoteinput.ButtonDPadLeft}}
 	_ = Run(ctx, client, func(m Model) {
@@ -181,7 +181,7 @@ func TestRunBoundCoreIdleSessionDoesNotBrowseOrLaunch(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
-	client.localCore = func(context.Context) (bool, error) { return true, nil }
+	client.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{Bound: true}, nil }
 	client.localInputPath = path
 	pad := &scriptPad{events: boundPlayEvents()}
 	var shelf atomic.Value
@@ -250,7 +250,7 @@ func TestRunBoundCoreStopChordStillPosts(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
-	client.localCore = func(context.Context) (bool, error) { return true, nil }
+	client.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{Bound: true}, nil }
 	client.localInputPath = path
 	pad := &scriptPad{repeat: true, events: []remoteinput.Event{
 		buttonPress(remoteinput.ButtonA),
@@ -298,7 +298,7 @@ func TestRunForeignBoundCoreStopChordPreservesOwner(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
-	client.localCore = func(context.Context) (bool, error) { return true, nil }
+	client.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{Bound: true}, nil }
 	client.localInputPath = path
 	pad := &scriptPad{events: []remoteinput.Event{
 		buttonPress(remoteinput.ButtonSelect),
@@ -347,11 +347,11 @@ func TestRunProbeErrorsExpireLocalInputUnavailable(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
-	client.localCore = func(context.Context) (bool, error) {
+	client.localCore = func(context.Context) (LocalCoreSample, error) {
 		if probes.Add(1) == 1 {
-			return true, nil
+			return LocalCoreSample{Bound: true}, nil
 		}
-		return false, errors.New("runtime unavailable")
+		return LocalCoreSample{}, errors.New("runtime unavailable")
 	}
 	client.localInputPath = localInputTestPath(t, "missing.sock")
 	client.localDial = func(string, string, time.Duration) (net.Conn, error) {
@@ -400,7 +400,7 @@ func TestRunUnboundCoreStillBrowses(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
-	client.localCore = func(context.Context) (bool, error) { return false, nil }
+	client.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{}, nil }
 	client.localInputPath = path
 	pad := &scriptPad{events: []remoteinput.Event{
 		buttonPress(remoteinput.ButtonDPadRight),
@@ -536,7 +536,7 @@ func TestRunMissingLocalSocketDoesNotFallBackToHost(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
-	client.localCore = func(context.Context) (bool, error) { return true, nil }
+	client.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{Bound: true}, nil }
 	client.localInputPath = localInputTestPath(t, "missing-local-input.sock")
 	var saw atomic.Bool
 	_ = Run(ctx, client, func(m Model) {
@@ -578,7 +578,7 @@ func TestRunIdleCoreDoesNotOpenLocalSocket(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
 	defer cancel()
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
-	client.localCore = func(context.Context) (bool, error) { return false, nil }
+	client.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{}, nil }
 	client.localInputPath = path
 	_ = Run(ctx, client, func(Model) {}, func() (Pad, error) {
 		return &oncePad{event: remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Action: remoteinput.ActionPress, Code: remoteinput.ButtonA}}, nil
@@ -595,25 +595,25 @@ func TestLocalInputDefaultsStayUnset(t *testing.T) {
 	if client.localInputSocket() != "" {
 		t.Fatalf("socket %q, want an injected path", client.localInputSocket())
 	}
-	bound, err := client.readLocalCore(context.Background())
-	if err != nil || bound {
-		t.Fatalf("probe bound=%v err=%v, want unbound", bound, err)
+	sample, err := client.readLocalCore(context.Background())
+	if err != nil || sample.Bound || sample.MenuIdle {
+		t.Fatalf("probe sample=%+v err=%v, want unbound", sample, err)
 	}
 }
 
 func TestSetLocalInputInstallsProbeAndSocket(t *testing.T) {
 	client := NewClient(Config{})
 	called := false
-	client.SetLocalInput("/run/fogcast/local-input.sock", func(context.Context) (bool, error) {
+	client.SetLocalInput("/run/fogcast/local-input.sock", func(context.Context) (LocalCoreSample, error) {
 		called = true
-		return true, nil
+		return LocalCoreSample{Bound: true}, nil
 	})
 	if client.localInputSocket() != "/run/fogcast/local-input.sock" {
 		t.Fatal(client.localInputSocket())
 	}
-	bound, err := client.readLocalCore(context.Background())
-	if err != nil || !bound || !called {
-		t.Fatalf("bound=%v err=%v called=%v", bound, err, called)
+	sample, err := client.readLocalCore(context.Background())
+	if err != nil || !sample.Bound || sample.MenuIdle || !called {
+		t.Fatalf("sample=%+v err=%v called=%v", sample, err, called)
 	}
 }
 
@@ -657,7 +657,7 @@ func TestRunMissingSocketDialsOncePerCooldown(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2200*time.Millisecond)
 	defer cancel()
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
-	client.localCore = func(context.Context) (bool, error) { return true, nil }
+	client.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{Bound: true}, nil }
 	client.localInputPath = localInputTestPath(t, "missing-local-input.sock")
 	client.localDial = func(network, address string, timeout time.Duration) (net.Conn, error) {
 		if network != "unix" || timeout != localInputDial {

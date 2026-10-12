@@ -91,7 +91,7 @@ func recoveryTestClient(t *testing.T, f *recoveryCore) (*Client, *atomic.Int64) 
 	client.HTTP = &http.Client{Transport: transport}
 	client.Library = hostclient.NewClient(client.config.API, client.HTTP)
 	client.SetLocalCores(f)
-	client.localCore = func(context.Context) (bool, error) { return true, nil }
+	client.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{Bound: true}, nil }
 	client.localInputPath = filepath.Join(t.TempDir(), "missing-input.sock")
 	client.localDial = func(string, string, time.Duration) (net.Conn, error) { return nil, errors.New("input unavailable") }
 	return client, hostStops
@@ -330,10 +330,10 @@ func TestRunAdoptsFailedLocalLaunchAfterStatus(t *testing.T) {
 	client.SetCatalogConfig(config)
 	// No core is bound until the (ambiguous) launch loads one, so the
 	// first presses browse instead of feeding the local input socket.
-	client.localCore = func(context.Context) (bool, error) {
+	client.localCore = func(context.Context) (LocalCoreSample, error) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
-		return f.status.Phase == "launching" || f.status.Running, nil
+		return LocalCoreSample{Bound: f.status.Phase == "launching" || f.status.Running}, nil
 	}
 	pad := &recoveryLaunchPad{core: f, chordOnRunning: true}
 	var pauses atomic.Int64

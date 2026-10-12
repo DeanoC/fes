@@ -182,9 +182,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	// menuHeldForLocal is a pause this loop took because the host reported
 	// state "local". The launcher does not own that core's stop. The next
 	// non-occupying host observation resumes the menu. While that host is
-	// absent, a runtime probe that saw the core bound and then unbound does
-	// it instead. A pause taken for a launch or for an active session keeps
-	// the existing handoff.
+	// absent, the pause stays through starting and recovery. It resumes only
+	// after a runtime probe confirms a completed idle menu, and only once
+	// this hold has seen the core bound. A pause taken for a launch or for
+	// an active session keeps the existing handoff.
 	menuHeldForLocal := false
 	localHoldSawCore := false
 	hostUnreachable := false
@@ -935,12 +936,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 			if !bound {
 				// A host-absent poll keeps the last local session and returns
-				// before the host resume. Release that hold only after the
-				// probe has seen this core bound and then not bound. Keep it
-				// while the core is still bound, and while a probe error has
-				// merely aged the last bound sample. Active sessions and
-				// local launches do not use this hold.
-				if hostUnreachable && menuHeldForLocal && localHoldSawCore && !localRunning && !localPending && coreBound.observedUnbound() {
+				// before the host resume. Release that hold only after this
+				// core was seen bound and a later probe confirms a completed
+				// idle menu. starting, reboot_required, a probe error, and an
+				// aged bound sample keep the pause. Active sessions and local
+				// launches do not use this hold.
+				if hostUnreachable && menuHeldForLocal && localHoldSawCore && !localRunning && !localPending && coreBound.menuIdle() {
 					m.Session.State = "idle"
 					m.Session.GameID = ""
 					m.LoadStarted = time.Time{}
