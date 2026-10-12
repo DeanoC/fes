@@ -1701,7 +1701,7 @@ independently of routing legality and CRAM containment. Each response output
 has a separate identity ALUT2 so the pinned merger cannot discard constant
 outputs or collapse aliased response sinks. The probe drives only read cycles.
 No Commodore ROM is in the tree, and the core is not in the
-factory image. The shell uses Yosys `5391eeb1`, Mistral `8fcc4cb4` and nextpnr
+factory image. The shell uses Yosys `4b971bb1`, Mistral `8fcc4cb4` and nextpnr
 `0c5ed400`; its
 socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`
 companion of a pinned boundary flip-flop, using the shared
