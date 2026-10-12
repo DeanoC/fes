@@ -362,7 +362,10 @@ Host games may include `rom_cached` when that inventory is reachable.
 When the idle enables the HPS framebuffer, power-on may paint that shelf and
 visible covers from disk before host games HTTP as a temporary linuxfb overlay;
 an absent host shows `Offline, showing your saved list`. Confirmed idle without an HPS
-framebuffer does not present, so FPGA splash pixels stay on HDMI.
+framebuffer does not present, so FPGA splash pixels stay on HDMI. A host-reported
+kit-local session occupies HDMI the same way an active session does: the launcher
+leaves that picture in place and leaves attract disarmed. Loading and stopping
+feedback still paints when the idle enables the framebuffer.
 Replacing the system image does not wipe this tree. D-pad and A still browse
 that local shelf. Launch and Stop remain bound to the persistent host session
 API and wait for host reconnect; the kit UI does not claim a target lease or

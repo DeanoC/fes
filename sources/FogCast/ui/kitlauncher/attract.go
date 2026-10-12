@@ -231,7 +231,7 @@ func (m *Model) attractBlocked() bool {
 	case "active", "launching", "stopping", "failed":
 		return true
 	}
-	return false
+	return hostclient.SessionKitLocal(m.Session.State)
 }
 
 func (m *Model) enterAttract(now time.Time) {

@@ -341,7 +341,10 @@ measured transport values separately from end-to-end button-to-photon latency.
 ## Display and verification
 
 The launcher only renders memory; it never issues SPI, programs the FPGA, or
-claims a kit lease. Rendering pauses while a game is active. After confirmed
+claims a kit lease. Rendering pauses while a game is active and while the
+host reports a kit-local session, so attract stays disarmed and the core's
+picture stays on HDMI. Loading and stopping feedback still uses the temporary
+overlay when the idle enables the framebuffer. After confirmed
 idle it also skips `present` when that idle has no HPS framebuffer (SPI
 `0x002f` omitted, the splash contract), logs once, and leaves FPGA splash
 pixels in place. A missing linuxfb device does not stop the service. When

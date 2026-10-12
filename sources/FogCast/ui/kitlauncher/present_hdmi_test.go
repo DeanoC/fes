@@ -36,6 +36,16 @@ func TestShouldPaintHDMISkipsSplashIdleAndKeepsTemporaryOverlay(t *testing.T) {
 	if ShouldPaintHDMI(active) {
 		t.Fatal("active session painted over the game")
 	}
+	local := active
+	local.Session.State = "local"
+	if ShouldPaintHDMI(local) {
+		t.Fatal("kit-local session painted over the core")
+	}
+	local.Busy = true
+	local.Message = "Stopping game"
+	if !ShouldPaintHDMI(local) {
+		t.Fatal("kit-local stopping feedback requires the temporary overlay")
+	}
 	loading := catalog
 	loading.Session.HPSFramebuffer = true
 	loading.Busy = true

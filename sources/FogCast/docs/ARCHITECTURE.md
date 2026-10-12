@@ -1914,7 +1914,10 @@ games HTTP as a temporary linuxfb overlay. It decodes visible covers from disk
 first and labels an absent host `Offline, showing your saved list`. Confirmed idle
 without an HPS framebuffer (SPI `0x002f` omitted) does not present, so FPGA
 splash pixels stay on HDMI, and a missing linuxfb device does not stop the
-service.
+service. A host-reported kit-local session occupies HDMI the same way an
+active session does: the launcher leaves the core's picture in place, and
+attract stays disarmed. Loading and stopping feedback still paints when that
+idle enables the framebuffer.
 Local D-pad/A still browse that snapshot. When the host is unreachable, host
 session launch and Stop remain unavailable until the configured host API
 reconnects. A browse-only SMS row from that saved list can still play when the

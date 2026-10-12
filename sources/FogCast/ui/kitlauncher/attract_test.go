@@ -74,7 +74,7 @@ func TestAttractArmsAfterIdle(t *testing.T) {
 
 func TestAttractDoesNotArmWhileBusyOrSession(t *testing.T) {
 	t0 := time.Unix(0, 0)
-	for _, state := range []string{"active", "launching", "stopping", "failed"} {
+	for _, state := range []string{"active", "launching", "stopping", "failed", "local"} {
 		m := Model{Connected: true, TargetReady: true, Session: Session{State: state}}
 		m.SetAttractIdle(time.Millisecond)
 		m.SetAttractPlaylist(hostclient.AttractPlaylist{Items: []hostclient.AttractItem{stillItem("mario", "Mario", handleAA())}})
