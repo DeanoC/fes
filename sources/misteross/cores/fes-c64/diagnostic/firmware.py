@@ -184,18 +184,44 @@ disk_bad:
         jmp fail
 disk_ok:
         jsr check_interrupts
-        lda #$05
+        ; Black border and screen. A green bar is the 720p letterbox and is
+        ; not this test. The pass mark is the word PASS in the active picture.
+        lda #$00
         sta $d020
+        sta $d021
+        ldx #$00
+blank_status:
+        lda #$20
+        sta $0400, x
+        inx
+        ; The status text is $0400..$0407. The stage digit is $0408.
+        cpx #$09
+        bne blank_status
+        ldx #$00
+paint_pass:
+        lda pass_row, x
+        sta $05b8, x
+        sta $05e0, x
+        sta $0608, x
+        lda #$01
+        sta $d9b8, x
+        sta $d9e0, x
+        sta $da08, x
+        inx
+        cpx #40
+        bne paint_pass
         lda #$ff
         sta $c000
         lda #$00
         sta $c001
-hang:   jmp hang
+        jmp hang
 fail:
         sta $c000
         jsr show_stage
         lda #$01
         sta $c001
+        jmp hang
+hang:
         jmp hang
 
 show_stage:
@@ -495,6 +521,16 @@ delay_loop:
 
 msg:
         .byte 6, 5, 19, 32, 3, 54, 52
+
+pass_row:
+        .byte 16, 1, 19, 19, 32
+        .byte 16, 1, 19, 19, 32
+        .byte 16, 1, 19, 19, 32
+        .byte 16, 1, 19, 19, 32
+        .byte 16, 1, 19, 19, 32
+        .byte 16, 1, 19, 19, 32
+        .byte 16, 1, 19, 19, 32
+        .byte 16, 1, 19, 19, 32
 
         .org $fffa
         .word nmi_handler
