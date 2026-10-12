@@ -1681,7 +1681,7 @@ NMI. The diagnostic checks both CPU vectors, including NMI with IRQ disabled;
 `make sim-fes-c64-cia` adds directed register/timer coverage. External CNT edges,
 TOD, serial shifting and timer port outputs remain outside this slice.
 
-`make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchains/c64.lock`,
+`make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchain.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this
 pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
 `c64-firmware`, 16,384 bytes, on the blank column-5 lanes at rows 32–47.
@@ -1701,8 +1701,9 @@ independently of routing legality and CRAM containment. Each response output
 has a separate identity ALUT2 so the pinned merger cannot discard constant
 outputs or collapse aliased response sinks. The probe drives only read cycles.
 No Commodore ROM is in the tree, and the core is not in the
-factory image. The shell uses Yosys `5391eeb1`, Mistral `8fcc4cb4` and nextpnr
-`0c5ed400`; its
+factory image. The shell uses the shared pin: Yosys `5391eeb1`, Mistral
+`8fcc4cb4` and nextpnr `9128800f`. The 6 Oct kit diagnostic used nextpnr
+`0c5ed400` and does not accept a later bitstream. Its
 socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`
 companion of a pinned boundary flip-flop, using the shared
 `coleco_expansion` check described for the Spectrum sockets.
