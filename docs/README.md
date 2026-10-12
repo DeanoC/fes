@@ -8,6 +8,7 @@ a dated record. A dated record is not the schedule.
 | You want to… | Read |
 | --- | --- |
 | See which cores exist, their ABI, interfaces and standing | [Core status](core-status.md) |
+| See whether cores match current FPGA choices, and the retirement order | [Core alignment](core-alignment.md) |
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
 | Change code: worktree, builds, handoff | [Development](development.md), then [agent workflow](agent-workflow.md) |
 | Coordinate cross-vendor tasks and milestone acceptance | [Agent workflow](agent-workflow.md#github-delivery-coordination) |

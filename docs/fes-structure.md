@@ -5,7 +5,9 @@ Feature work that crosses modules uses one FES worktree and one PR.
 
 The ownership decision is [component boundaries](component-boundaries.md).
 The directory map is the [project map](project-map.md). The package matrix is
-[core status](core-status.md). Current commands are the
+[core status](core-status.md). Which of those cores match the current FPGA
+choices, and the order for retiring the older paths, is
+[core alignment](core-alignment.md). Current commands are the
 [development guide](development.md).
 
 The old merge diary, cutover checklist and migration investigation that used

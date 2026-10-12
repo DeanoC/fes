@@ -9,6 +9,11 @@ experiment-by-experiment record. That record is the
 [OSS experiment catalog](oss-experiments.md). Files under `validation/` record
 a date. They are not current instructions.
 
+Which choices are the current standard, and the order for retiring older
+paths, is the FES [core alignment](../../../docs/core-alignment.md) currency
+contract. Retirement order stays there. This file records the build
+mechanisms in the tree.
+
 Network deployment and target lifecycle are outside this module. FogCast owns
 selection and transfer. libmister-runtime programs the FPGA.
 
@@ -19,14 +24,17 @@ identity 2 exclusively. Both Python and CLI entrypoints default to 2 and reject
 other identity versions. Quartus oracle and board-firmware records retain their
 current evidence schema. Rebuilt script closures receive new identities;
 existing artifacts and caches are never relabelled or deleted.
-ZX81, SMS and SG-1000 packages use format 3 to seal their ROM maps; other producers keep
-format 2. The external `build-inputs.json` record gains format 2, while the exporter still
-reads format 1 with its original full-record SHA256 correlation algorithm.
+ZX81, SMS, SG-1000, Apple II, C64, Spectrum and Atari ST packages use format 3
+to seal one ROM map. ROM-less producers and the factory Coleco recipe keep
+format 2. The external `build-inputs.json` record is format 2.
+`build_identity` still hashes a format-1 record with the original full-record
+SHA256; a format-2 record uses the domain-separated functional projection.
 
 The package exporter and inspector also recognize format 4 with two ordered ROM
-requirements and one sealed map. The Coleco development producer will select
-this format when its separate blank shell and map are available; existing
-registered recipes still emit their current formats.
+requirements and one sealed map. The Coleco MegaCart development producer
+(`scripts/build_fes_coleco_megacart.py`) emits that format. The factory Coleco
+recipe remains format 2. Which format a new core uses, and when an older
+format is retired, is [core alignment](../../../docs/core-alignment.md).
 
 Record 2 keeps repository/revision and `source_path` as original build provenance, but derives
 its embedded 128-bit ID from a domain-separated functional projection excluding
@@ -1924,8 +1932,8 @@ lease.
 
 ## Core package boundary
 
-`scripts/core_package.py` is the host inspector for format-2/3 package directories
-and `.fcore` archives. Its public Python API is
+`scripts/core_package.py` is the host inspector for format-2/3/4 package
+directories and `.fcore` archives. Its public Python API is
 `read_package(path: Path) -> CorePackage`,
 `encode_manifest(fields: dict) -> bytes`, and
 `package_identity(manifest: bytes, payload: bytes, rom_map: bytes | None = None) -> str`. `CorePackage` exposes
@@ -1955,8 +1963,9 @@ manifest to format 3 with the map's declared source size and exact digest/length
 Alternatively supply an already encoded format-3 manifest and `rom_map=path`.
 The CLI equivalents are `--rom-map`, `--rom-id`, and `--rom-role`. The map is
 snapshotted, validated, sealed read-only and compared during reuse alongside the
-manifest and RBF. ZX81 now exports format 3; the other production producers
-continue to export format 2.
+manifest and RBF. Format-3 exporters are ZX81, SMS, SG-1000, Apple II, C64,
+Spectrum and Atari ST. ROM-less producers and the factory Coleco recipe export
+format 2. The Coleco MegaCart development producer exports format 4.
 
 Repository URI syntax uses the host-only vendored
 `rfc3986-validator` 0.1.1 module from

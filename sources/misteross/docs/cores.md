@@ -49,6 +49,11 @@ a package. The package is `cores/fes-pong`. ZX81 has no
 
 Do not use `fes.mastersystem`. The Sega Master System package id is `fes.sms`.
 
+Currency against the shared HIP pin, the first-party Z80 and the two display
+contracts is [core alignment](../../../docs/core-alignment.md). A dedicated
+lock in the table above is the pin that producer authenticates today. It is
+not permission to add another lock.
+
 Quartus recipes (`make build-fes-zx81-quartus`, `build-fes-coleco-quartus`,
 `build-fes-sg1000-quartus`, `build-fes-sms-quartus`) are bring-up oracles.
 A failed HIP route does not fall back to Quartus. Quartus never programs a kit.
@@ -279,8 +284,9 @@ EmuTOS or Atari ROMs.
 3. Add a producer next to `scripts/build_fes_sms_oss.py` or the closest
    sibling. It authenticates one lock, requires a clean committed module,
    and never programs hardware. A new core with a ROM embedded in CRAM seals
-   a producer-derived ROM map in format 3, as ZX81 does; ROM-less cores and
-   existing media-mailbox cores retain format 2 until explicitly converted.
+   a producer-derived ROM map in format 3. ROM-less cores keep format 2.
+   The factory Coleco recipe still emits format 2. Currency and retirement
+   are the FES [core alignment](../../../docs/core-alignment.md) contract.
    Wire `make sim-…` and
    `make build-…` in the Makefile. Add the tests the sibling has for manifest
    identity and the simulation you claim.
