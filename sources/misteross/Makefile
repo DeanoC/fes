@@ -1510,7 +1510,7 @@ build-fes-riscv:
 # Atari 520ST motherboard, shared memory and optional stock-firmware boot.
 ST_CORE := cores/fes-atari-st
 ST_CPU := cores/fes-common/rtl/fx68k
-ST_MFP_WAIT_STATES ?= 0
+ST_MFP_WAIT_STATES ?= 4
 ST_DIAGNOSTIC := $(CURDIR)/build/diagnostics/fes-atari-st
 ST_CPU_RTL := $(ST_CPU)/fx68k.sv $(ST_CPU)/fx68kAlu.sv $(ST_CPU)/uaddrPla.sv
 ST_VIDEO_RTL := $(ST_CORE)/rtl/st_native_border.sv $(ST_CORE)/rtl/st_native_low_video.sv $(ST_CORE)/rtl/st_video.sv cores/fes-common/rtl/fes_video_part_direct.v \
@@ -1748,7 +1748,7 @@ sim-fes-atari-st-mfp-bus: atari-st-sources
 	@mkdir -p build/sim/fes-atari-st-mfp-bus
 	@cp $(ST_CPU)/microrom.mem $(ST_CPU)/nanorom.mem build/sim/fes-atari-st-mfp-bus/
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_boot_sim_top $(ST_CPU_FLAGS) \
-		-GMFP_WAIT_STATES=4 -Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-mfp-bus" \
+		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-mfp-bus" \
 		$(ST_CORE)/sim/st_boot_sim_top.sv $(ST_CORE)/rtl/st_system.sv \
 		$(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv $(ST_IO_RTL) \
 		$(ST_CORE)/rtl/st_native_border.sv $(ST_CORE)/rtl/st_native_low_video.sv $(ST_CPU_RTL) \

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Reusable 520ST system: storage and video/audio sockets remain external.
-module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
+module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 4) (
     input wire clk_sys, reset,
     output wire rom_req,
     output wire [17:1] rom_addr,

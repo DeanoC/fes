@@ -3,7 +3,7 @@
 // simulation path, concurrently with the independent-clock line-cache video.
 // The physical command model is external; no C++ RAM callback serves the CPU.
 module st_boot_memory_sim_top #(
-    parameter integer MFP_WAIT_STATES = 0,
+    parameter integer MFP_WAIT_STATES = 4,
     parameter EARLY_COMPLETION = 1,
     parameter POSTED_CPU_WRITES = EARLY_COMPLETION,
     parameter PHASE_SLOTS = EARLY_COMPLETION,

@@ -148,16 +148,17 @@ the aligned screen base. Exact MMU arbitration and horizontal border tricks
 remain unimplemented.
 The MFP UART has disconnected RX and timed TX status, without a physical serial port.
 
-`st_io` has an optional `MFP_WAIT_STATES` access-timing probe, default zero.
+`st_io` defaults to four native CPU wait states per MFP register access.
 It delays the peripheral request itself, including read sampling and writes,
-in native CPU cycles. The simulator can select four states with
-`--mfp-wait-states 4`, following
+in native CPU cycles. The producer and simulator select that same default,
+following
 [Hatari 2.5.0's MFP accesses](https://github.com/hatari/hatari/blob/v2.5.0/src/mfp.c#L2468).
 `make sim-fes-atari-st-mfp-bus` checks the real 68000's read/write instruction
 timing across its fractional-clock phases and samples a Timer B edge during
 the delay. It also checks held reads, cancelled writes, reset, byte lanes and
-unaffected PSG accesses. The default production timing remains unchanged;
-this option alone does not establish a fix for BIG's menu flashes.
+unaffected PSG accesses. The real-CPU fixture uses the default wrapper
+configuration. Complete MFP interrupt/clock timing remains separately
+unqualified.
 
 `st_acia.sv` models MC6850 registers, timed byte transport, IRQs and receive
 errors. The keyboard ACIA connects to original `st_ikbd.sv` protocol logic:
@@ -539,7 +540,7 @@ with a fixed system-clock delay, before any extra wait. Zero provides an
 ideal-storage timing comparison; it does not change the physical controller
 or establish that real SDRAM can meet that timing. Shared-memory mode rejects
 callback overrides, so its reported timing always comes from the actual arbiter.
-`--mfp-wait-states 0..8` selects a separate native-cycle MFP access probe;
+`--mfp-wait-states 0..8` explicitly overrides the standard four-state MFP access policy;
 its selected value is recorded in the source-bound result. Run
 `python3 scripts/analyse_atari_st_raster_trace.py OUTPUT --output SUMMARY.json`
 from the FES root after completion to check artifact digests and summarize

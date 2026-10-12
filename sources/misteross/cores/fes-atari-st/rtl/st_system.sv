@@ -5,7 +5,7 @@ module st_system #(
     // https://github.com/hatari/hatari/blob/v2.5.0/src/clocks_timings.c
     parameter integer CPU_CLOCK_HZ = 8_021_247,
     parameter integer ENABLE_FLOPPY_WRITE = 0,
-    parameter integer MFP_WAIT_STATES = 0,
+    parameter integer MFP_WAIT_STATES = 4,
     parameter EARLY_RAM_WRITE_COMPLETION = 0
 ) (
     input wire clk_sys, reset, cold_reset,

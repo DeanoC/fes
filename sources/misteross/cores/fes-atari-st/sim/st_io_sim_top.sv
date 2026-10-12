@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Focused motherboard-I/O shell. Its clock remains above the real 2.4576 MHz
 // MFP crystal enable; scaling the system clock does not change timer rates.
-module st_io_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
+module st_io_sim_top #(parameter integer MFP_WAIT_STATES = 4) (
     input wire clk, reset, req, write, cpu_cycle_ce,
     input wire [23:1] addr,
     input wire [15:0] wdata,

@@ -359,7 +359,7 @@ def main(argv=None):
     parser.add_argument("--trace-end", type=int, help="exclusive simulated second for complete raster/logo tracing")
     parser.add_argument("--ram-extra-wait", type=int, default=0, help="add 0..64 system clocks to each model CPU RAM access; not physical arbitration")
     parser.add_argument("--ram-fixed-wait", type=int, help="replace variable CPU RAM callback waits with a fixed 0..64 system-clock delay; an ideal-storage probe, not physical SDRAM")
-    parser.add_argument("--mfp-wait-states", type=int, default=0, help="optional 0..8 native CPU wait-state experiment; delays MFP access and data sampling")
+    parser.add_argument("--mfp-wait-states", type=int, default=4, help="MFP native CPU wait states (default: 4, matching the standard core); use 0..8 for diagnostics")
     parser.add_argument("--ram-write-range", action="append", default=[], metavar="START:END",
                         help="shared-memory only: trace accepted physical writes in up to 16 word-aligned byte ranges during the trace window; decimal or hex addresses")
     parser.add_argument("--shared-memory", action="store_true", help="use the existing shared SDRAM/independent pixel-clock boot fixture; disk preloaded before reset release")

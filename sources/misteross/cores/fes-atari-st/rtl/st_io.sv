@@ -6,7 +6,7 @@ module st_io #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
     parameter integer CPU_CLOCK_HZ = 8_000_000,
     parameter integer ENABLE_FLOPPY_WRITE = 0,
-    parameter integer MFP_WAIT_STATES = 0
+    parameter integer MFP_WAIT_STATES = 4
 ) (
     input wire clk, reset, cold_reset,
     input wire cpu_cycle_ce,
@@ -88,7 +88,8 @@ module st_io #(
                       address == 24'hff860c;
     assign selected = mfp_select || psg_select || kbd_select || midi_select || fdc_select;
     wire mfp_ack, psg_ack, kbd_ack, midi_ack, fdc_ack;
-    // Optional access-timing probe. Default zero retains the selected core.
+    // Standard ST register-access policy: four native CPU wait states.
+    // Other values remain explicit access-timing diagnostics.
     // Delay the peripheral transaction itself so timer reads sample late,
     // rather than returning an old value behind a delayed acknowledgement.
     localparam integer MFP_WAIT_BITS = $clog2(MFP_WAIT_STATES + 2);
