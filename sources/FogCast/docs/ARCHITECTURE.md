@@ -1917,7 +1917,10 @@ splash pixels stay on HDMI, and a missing linuxfb device does not stop the
 service. A host-reported kit-local session occupies HDMI the same way an
 active session does: the launcher leaves the core's picture in place, and
 attract stays disarmed. Menu display pauses and resumes through the same
-handoff as active play. Loading and stopping feedback still paints when that
+handoff as active play. If that host becomes unreachable, the pause stays
+while a successful runtime probe still sees the core bound, and the launcher
+clears the stale local session and resumes the menu once that probe sees the
+core leave. Loading and stopping feedback still paints when that
 idle enables the framebuffer.
 Local D-pad/A still browse that snapshot. When the host is unreachable, host
 session launch and Stop remain unavailable until the configured host API

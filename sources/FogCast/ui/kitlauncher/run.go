@@ -180,12 +180,17 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	localTimedOut := false
 	menuPaused := false
 	// menuHeldForLocal is a pause this loop took because the host reported
-	// state "local". The launcher does not own that core's stop, so the next
-	// non-occupying observation has to resume the menu. A pause taken for a
-	// launch or for an active session keeps the existing handoff.
+	// state "local". The launcher does not own that core's stop. The next
+	// non-occupying host observation resumes the menu. While that host is
+	// absent, a runtime probe that saw the core bound and then unbound does
+	// it instead. A pause taken for a launch or for an active session keeps
+	// the existing handoff.
 	menuHeldForLocal := false
+	localHoldSawCore := false
+	hostUnreachable := false
 	resumeMenu := func() {
 		menuHeldForLocal = false
+		localHoldSawCore = false
 		if c.menuDisplay && menuPaused {
 			if launcherObserve != nil {
 				launcherObserve(m)
@@ -253,7 +258,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	// A probe error keeps the last answer for one second so a brief stalled
 	// status read does not release held buttons. The first call is synchronous,
 	// just before the loop; later calls stay off the loop and do not wait on the host.
+	// A missing probe is not an idle core: play input stays off, and the
+	// menu hold below does not treat that silence as the core leaving.
 	refreshCore := func() {
+		if c.localCore == nil {
+			return
+		}
 		next, err := c.readLocalCore(ctx)
 		coreBound.observe(next, err, time.Now())
 	}
@@ -728,6 +738,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				continue
 			}
 			if o.hostAbsent {
+				hostUnreachable = true
 				m.Connected = false
 				m.ClearCoreStatuses(true)
 				if !localApplied && len(localGames) > 0 {
@@ -752,6 +763,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				continue
 			}
 			m.Connected = true
+			hostUnreachable = false
 			// ForeignLease still marks a grant this host does not own. Play
 			// input to the local socket does not consult it.
 			m.ForeignLease = kitlease.ForeignHID(kitlease.Status{
@@ -773,6 +785,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					}
 					menuPaused = true
 					menuHeldForLocal = hostclient.SessionKitLocal(o.session.State)
+					localHoldSawCore = menuHeldForLocal && coreBound.bound(time.Now())
 				}
 				if hostTimedOut && o.session.State == "launching" {
 					// Continue reconciling quietly after visible timeout.
@@ -810,6 +823,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				} else if menuHeldForLocal && m.Session.State == "active" {
 					// Active play keeps the pause and uses its own handoff.
 					menuHeldForLocal = false
+					localHoldSawCore = false
 				}
 			}
 			if !o.mutation {
@@ -904,6 +918,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				nextPad = now.Add(time.Second)
 			}
 			bound := coreBound.bound(now)
+			if menuHeldForLocal && bound {
+				localHoldSawCore = true
+			}
 			// A kit-local run started outside this shell (for example over the
 			// local control socket, or by a shell that restarted after its own
 			// startup check) binds the core without this shell knowing. Adopt
@@ -917,6 +934,19 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}(epoch)
 			}
 			if !bound {
+				// A host-absent poll keeps the last local session and returns
+				// before the host resume. Release that hold only after the
+				// probe has seen this core bound and then not bound. Keep it
+				// while the core is still bound, and while a probe error has
+				// merely aged the last bound sample. Active sessions and
+				// local launches do not use this hold.
+				if hostUnreachable && menuHeldForLocal && localHoldSawCore && !localRunning && !localPending && coreBound.observedUnbound() {
+					m.Session.State = "idle"
+					m.Session.GameID = ""
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
+					resumeMenu()
+				}
 				if feed != nil {
 					closeFeed(true)
 				}

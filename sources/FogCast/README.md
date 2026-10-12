@@ -365,7 +365,9 @@ an absent host shows `Offline, showing your saved list`. Confirmed idle without 
 framebuffer does not present, so FPGA splash pixels stay on HDMI. A host-reported
 kit-local session occupies HDMI the same way an active session does: the launcher
 leaves that picture in place and leaves attract disarmed. Menu display pauses and
-resumes through the same handoff. Loading and stopping feedback still paints when
+resumes through the same handoff. If the host drops during that session, the pause
+stays while a successful runtime probe still sees the core bound, and the menu
+resumes once that probe sees the core leave. Loading and stopping feedback still paints when
 the idle enables the framebuffer.
 Replacing the system image does not wipe this tree. D-pad and A still browse
 that local shelf. Launch and Stop remain bound to the persistent host session

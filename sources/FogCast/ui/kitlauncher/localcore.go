@@ -10,8 +10,17 @@ import (
 // play, while bounding stale play routing after a stopped or unreachable core.
 const localCorePositiveTTL = time.Second
 
+const (
+	localCoreVerdictNone int32 = iota
+	localCoreVerdictBound
+	localCoreVerdictUnbound
+)
+
 type localCorePresence struct {
 	until atomic.Pointer[time.Time]
+	// verdict is the last successful probe. A probe error leaves it alone, so
+	// a positive sample that has only aged out is not an exit.
+	verdict atomic.Int32
 }
 
 func (p *localCorePresence) observe(bound bool, err error, now time.Time) {
@@ -20,15 +29,24 @@ func (p *localCorePresence) observe(bound bool, err error, now time.Time) {
 	}
 	if !bound {
 		p.until.Store(nil)
+		p.verdict.Store(localCoreVerdictUnbound)
 		return
 	}
 	until := now.Add(localCorePositiveTTL)
 	p.until.Store(&until)
+	p.verdict.Store(localCoreVerdictBound)
 }
 
 func (p *localCorePresence) bound(now time.Time) bool {
 	until := p.until.Load()
 	return until != nil && now.Before(*until)
+}
+
+// observedUnbound reports that the last successful probe saw no bound core.
+// A missing probe, a probe error, and an aged positive sample are not an
+// exit: the core may still own HDMI.
+func (p *localCorePresence) observedUnbound() bool {
+	return p.verdict.Load() == localCoreVerdictUnbound
 }
 
 // readLocalCore reports whether the runtime on this kit has a core bound.

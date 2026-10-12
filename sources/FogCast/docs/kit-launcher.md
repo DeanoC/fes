@@ -344,7 +344,10 @@ The launcher only renders memory; it never issues SPI, programs the FPGA, or
 claims a kit lease. Rendering pauses while a game is active and while the
 host reports a kit-local session, so attract stays disarmed and the core's
 picture stays on HDMI. Menu display pauses and resumes through the same
-handoff as active play. Loading and stopping feedback still uses the temporary
+handoff as active play. If the host drops during that session, the pause stays
+while a successful runtime probe still sees the core bound, and the launcher
+clears the stale local session and resumes the menu once that probe sees the
+core leave. Loading and stopping feedback still uses the temporary
 overlay when the idle enables the framebuffer. After confirmed
 idle it also skips `present` when that idle has no HPS framebuffer (SPI
 `0x002f` omitted, the splash contract), logs once, and leaves FPGA splash
