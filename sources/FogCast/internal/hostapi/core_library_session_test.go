@@ -231,9 +231,12 @@ func TestSessionHostOnlyLaunchKeepsKitPackagePlay(t *testing.T) {
 	if out := launchSession(t, handler, packageGame); out.Code != http.StatusOK {
 		t.Fatalf("package launch = %d %s", out.Code, out.Body.String())
 	}
-	// A kit stop drops that play. The host-only launch leaves it listed.
-	service.stopHook = func(context.Context) (protocol.Status, error) {
-		service.playSessions = withoutPlayTarget(service.playSessions, "kit-b")
+	// A stop aimed at a kit drops that play. An unscoped stop, and the
+	// host-only launch, leave the kit play listed.
+	service.stopHook = func(ctx context.Context) (protocol.Status, error) {
+		if target := fogcast.SessionTargetFromContext(ctx); target != "" {
+			service.playSessions = withoutPlayTarget(service.playSessions, target)
+		}
 		return service.stopped, nil
 	}
 
