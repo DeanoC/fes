@@ -349,9 +349,13 @@ startup (`launching`), the running core (`local`), and the idle load
 that hold, the pause stays through runtime `starting` and recovery, including
 a failed idle load that leaves `reboot_required`. The launcher
 clears the stale local session and resumes the menu only after a probe taken
-during that hold confirms a completed idle menu: state `idle`, menu display
-available, and a non-zero generation that is not a session binding. A sample
-from before the hold and a probe error keep the pause. Loading and stopping feedback still uses the temporary
+during that hold confirms a completed idle menu that belongs to the hold: state
+`idle`, menu display available, and a non-zero generation that is not a session
+binding. The shelf generation captured when the hold starts does not qualify,
+nor does a later probe error after an idle sample. A different menu generation
+does, and so does a later idle probe after the hold has seen the runtime leave
+that shelf. The launch timeout does not resume the menu while the host is
+absent and that confirmation is still missing. Loading and stopping feedback still uses the temporary
 overlay when the idle enables the framebuffer. After confirmed
 idle it also skips `present` when that idle has no HPS framebuffer (SPI
 `0x002f` omitted, the splash contract), logs once, and leaves FPGA splash

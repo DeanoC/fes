@@ -44,7 +44,12 @@ func probeRuntimeCore(ctx context.Context, socketPath string) (kitlauncher.Local
 
 func runtimeCoreSample(status misterruntime.Protocol2Response) kitlauncher.LocalCoreSample {
 	bound := runtimeCoreBound(status)
-	return kitlauncher.LocalCoreSample{Bound: bound, MenuIdle: !bound && runtimeMenuIdle(status)}
+	menu := !bound && runtimeMenuIdle(status)
+	sample := kitlauncher.LocalCoreSample{Bound: bound, MenuIdle: menu}
+	if menu && status.MenuDisplay != nil {
+		sample.MenuGeneration = status.MenuDisplay.Generation
+	}
+	return sample
 }
 
 func runtimeCoreBound(status misterruntime.Protocol2Response) bool {

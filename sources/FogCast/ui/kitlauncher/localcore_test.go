@@ -74,27 +74,40 @@ func TestLocalCorePresenceRefreshesPositiveExpiry(t *testing.T) {
 func TestLocalCorePresenceIdleFollowsProbeGeneration(t *testing.T) {
 	var presence localCorePresence
 	now := time.Unix(10, 0)
-	presence.observe(LocalCoreSample{MenuIdle: true}, nil, now, 1)
-	if !presence.menuIdleAt(1) {
-		t.Fatal("probe during the hold did not confirm an idle menu")
-	}
-	if presence.menuIdleAt(2) {
+	const baseline = uint64(4)
+	presence.observe(LocalCoreSample{MenuIdle: true, MenuGeneration: baseline}, nil, now, 1)
+	if presence.menuIdleAt(2, baseline) {
 		t.Fatal("idle sample from before the hold confirmed the new hold")
 	}
-	presence.observe(LocalCoreSample{}, nil, now, 2)
-	if presence.menuIdle() || presence.menuIdleAt(2) {
-		t.Fatal("starting or recovery status confirmed an idle menu")
+	presence.observe(LocalCoreSample{MenuIdle: true, MenuGeneration: baseline}, nil, now, 2)
+	if got := presence.adoptShelfGeneration(2, 0); got != baseline {
+		t.Fatalf("shelf generation = %d", got)
+	}
+	if presence.menuIdleAt(2, baseline) {
+		t.Fatal("pre-launch idle generation confirmed the hold")
+	}
+	presence.observe(LocalCoreSample{MenuIdle: true, MenuGeneration: 9}, nil, now, 2)
+	if !presence.menuIdleAt(2, baseline) {
+		t.Fatal("new menu generation did not confirm the hold")
+	}
+	presence.observe(LocalCoreSample{}, errors.New("stale"), now, 1)
+	if !presence.menuIdleAt(2, baseline) {
+		t.Fatal("probe error from an earlier generation cleared the hold")
 	}
 	presence.observe(LocalCoreSample{}, errors.New("runtime unavailable"), now, 2)
-	if presence.menuIdleAt(2) {
-		t.Fatal("probe error confirmed an idle menu")
+	if presence.menuIdle() || presence.menuIdleAt(2, baseline) {
+		t.Fatal("probe error kept a stale idle confirmation")
 	}
-	presence.observe(LocalCoreSample{MenuIdle: true}, nil, now, 2)
-	if !presence.menuIdleAt(2) || presence.bound(now) {
-		t.Fatal("completed idle menu after the hold was not confirmed")
+	presence.observe(LocalCoreSample{}, nil, now, 2)
+	if presence.menuIdle() || presence.menuIdleAt(2, baseline) {
+		t.Fatal("starting or recovery status confirmed an idle menu")
+	}
+	presence.observe(LocalCoreSample{MenuIdle: true, MenuGeneration: baseline}, nil, now, 2)
+	if !presence.menuIdleAt(2, baseline) || presence.bound(now) {
+		t.Fatal("idle menu after leaving the shelf was not confirmed")
 	}
 	presence.observe(LocalCoreSample{Bound: true}, nil, now, 2)
-	if presence.menuIdleAt(2) {
+	if presence.menuIdleAt(2, baseline) {
 		t.Fatal("bound core confirmed an idle menu")
 	}
 }

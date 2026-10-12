@@ -3,6 +3,7 @@ package kitlauncher
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -488,6 +489,282 @@ func TestRunMenuDisplayHostlessResumeFollowsPostHoldIdle(t *testing.T) {
 	}
 	if resumes.Load() == 0 || idleAfter.Load() == 0 {
 		t.Fatalf("menu display did not resume after the post-hold idle menu: pauses=%d resumes=%d idleAfter=%d phase=%d", pauses.Load(), resumes.Load(), idleAfter.Load(), phase.Load())
+	}
+}
+
+func TestRunMenuDisplayPreLaunchIdleDoesNotResume(t *testing.T) {
+	oldObserve := launcherObserve
+	oldPoll := launcherPollInterval
+	defer func() {
+		launcherObserve = oldObserve
+		launcherPollInterval = oldPoll
+	}()
+	launcherPollInterval = 20 * time.Millisecond
+
+	// 0: host reports launching while the runtime still serves the shelf menu.
+	// 1: the host drops and probes keep returning that same generation.
+	// 2: a later probe returns a new menu generation.
+	var phase atomic.Int32
+	var sameGenProbes atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if phase.Load() != 0 {
+			http.Error(w, "host down", http.StatusBadGateway)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"launching"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"megadrive","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","launchable":true}]}`))
+		case "/api/v1/library/attract":
+			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	var pauses, resumes, heldPaints, idleAfter atomic.Int64
+	var early atomic.Bool
+	client := NewClient(Config{API: server.URL, MenuDisplay: true})
+	client.localCore = func(context.Context) (LocalCoreSample, error) {
+		if phase.Load() == 2 {
+			return LocalCoreSample{MenuIdle: true, MenuGeneration: 9}, nil
+		}
+		if phase.Load() == 1 {
+			sameGenProbes.Add(1)
+		}
+		return LocalCoreSample{MenuIdle: true, MenuGeneration: 4}, nil
+	}
+	client.SetMenuDisplayHandoff(func(context.Context) error {
+		pauses.Add(1)
+		phase.Store(1)
+		return nil
+	}, func() {
+		if phase.Load() < 2 {
+			early.Store(true)
+		}
+		resumes.Add(1)
+	})
+	launcherObserve = func(m Model) {
+		if resumes.Load() != 0 || phase.Load() != 1 || m.Connected {
+			return
+		}
+		if sameGenProbes.Load() >= 3 {
+			phase.Store(2)
+		}
+	}
+	err := Run(ctx, client, func(m Model) {
+		if phase.Load() == 1 && pauses.Load() > 0 {
+			heldPaints.Add(1)
+		}
+		if phase.Load() == 2 && resumes.Load() > 0 && m.Session.State == "idle" && !m.Busy {
+			idleAfter.Add(1)
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errNoPad })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if early.Load() || sameGenProbes.Load() < 3 || pauses.Load() == 0 {
+		t.Fatalf("pre-launch idle released the menu: early=%v probes=%d pauses=%d resumes=%d", early.Load(), sameGenProbes.Load(), pauses.Load(), resumes.Load())
+	}
+	if heldPaints.Load() != 0 {
+		t.Fatalf("menu display presented %d frames for the shelf generation", heldPaints.Load())
+	}
+	if resumes.Load() == 0 || idleAfter.Load() == 0 {
+		t.Fatalf("new menu generation did not resume: resumes=%d idleAfter=%d phase=%d", resumes.Load(), idleAfter.Load(), phase.Load())
+	}
+}
+
+func TestRunMenuDisplayHostAbsentLaunchTimeoutKeepsHold(t *testing.T) {
+	advance := transitionClock(t)
+	// 0: host reports launching. 1: host drops during startup. 2: idle menu.
+	var phase atomic.Int32
+	var downProbes atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if phase.Load() != 0 {
+			http.Error(w, "host down", http.StatusBadGateway)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"launching","title":"Sonic"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"megadrive","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","launchable":true}]}`))
+		case "/api/v1/library/attract":
+			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	var pauses, resumes, holdsAfterTimeout, heldPaints, idleAfter atomic.Int64
+	var advanced, early atomic.Bool
+	client := NewClient(Config{API: server.URL, MenuDisplay: true})
+	client.localCore = func(context.Context) (LocalCoreSample, error) {
+		if phase.Load() == 2 {
+			return LocalCoreSample{MenuIdle: true, MenuGeneration: 8}, nil
+		}
+		if phase.Load() == 1 {
+			downProbes.Add(1)
+		}
+		return LocalCoreSample{}, nil
+	}
+	client.SetMenuDisplayHandoff(func(context.Context) error {
+		pauses.Add(1)
+		phase.Store(1)
+		return nil
+	}, func() {
+		if phase.Load() < 2 {
+			early.Store(true)
+		}
+		resumes.Add(1)
+	})
+	launcherObserve = func(m Model) {
+		if phase.Load() == 1 && pauses.Load() > 0 && !m.Connected && m.Session.State == "launching" && !advanced.Load() {
+			advanced.Store(true)
+			advance(localLoadTimeout + launchTimeoutGrace + time.Second)
+		}
+		if advanced.Load() && resumes.Load() == 0 && !m.Connected && m.Session.State == "launching" && strings.Contains(m.Message, "took too long") {
+			if holdsAfterTimeout.Add(1) >= 8 && downProbes.Load() >= 1 {
+				phase.Store(2)
+			}
+		}
+	}
+	err := Run(ctx, client, func(m Model) {
+		if phase.Load() == 1 && pauses.Load() > 0 {
+			heldPaints.Add(1)
+		}
+		if phase.Load() == 2 && resumes.Load() > 0 && m.Session.State == "idle" && !m.Busy {
+			idleAfter.Add(1)
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errNoPad })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !advanced.Load() || early.Load() || holdsAfterTimeout.Load() < 8 || pauses.Load() == 0 {
+		t.Fatalf("launch timeout released the hold: advanced=%v early=%v holds=%d pauses=%d resumes=%d probes=%d", advanced.Load(), early.Load(), holdsAfterTimeout.Load(), pauses.Load(), resumes.Load(), downProbes.Load())
+	}
+	if heldPaints.Load() != 0 {
+		t.Fatalf("menu display presented %d frames after the host dropped", heldPaints.Load())
+	}
+	if resumes.Load() == 0 || idleAfter.Load() == 0 {
+		t.Fatalf("confirmed idle did not resume after the timeout: resumes=%d idleAfter=%d phase=%d", resumes.Load(), idleAfter.Load(), phase.Load())
+	}
+}
+
+func TestRunMenuDisplayProbeErrorDropsIdleConfirmation(t *testing.T) {
+	oldObserve := launcherObserve
+	oldPoll := launcherPollInterval
+	defer func() {
+		launcherObserve = oldObserve
+		launcherPollInterval = oldPoll
+	}()
+	launcherPollInterval = 20 * time.Millisecond
+
+	// 0: shelf idle while the host reports local. 1: after the hold, one new
+	// idle sample and then probe errors, still with the host up. 2: host drops
+	// while probes keep failing. 3: a fresh idle sample.
+	var stage atomic.Int32
+	var stage1Calls, downErrors atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if stage.Load() >= 2 {
+			http.Error(w, "host down", http.StatusBadGateway)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"local"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"megadrive","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","launchable":true}]}`))
+		case "/api/v1/library/attract":
+			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	var pauses, resumes, heldPaints, idleAfter atomic.Int64
+	var early atomic.Bool
+	client := NewClient(Config{API: server.URL, MenuDisplay: true})
+	client.localCore = func(context.Context) (LocalCoreSample, error) {
+		switch stage.Load() {
+		case 0:
+			return LocalCoreSample{MenuIdle: true, MenuGeneration: 3}, nil
+		case 1:
+			n := stage1Calls.Add(1)
+			switch {
+			case n <= 2:
+				return LocalCoreSample{}, nil
+			case n == 3:
+				return LocalCoreSample{MenuIdle: true, MenuGeneration: 8}, nil
+			case n < 6:
+				return LocalCoreSample{}, errors.New("runtime unavailable")
+			default:
+				stage.Store(2)
+				return LocalCoreSample{}, errors.New("runtime unavailable")
+			}
+		case 2:
+			if downErrors.Add(1) >= 4 {
+				stage.Store(3)
+			}
+			return LocalCoreSample{}, errors.New("runtime unavailable")
+		default:
+			return LocalCoreSample{MenuIdle: true, MenuGeneration: 8}, nil
+		}
+	}
+	client.SetMenuDisplayHandoff(func(context.Context) error {
+		pauses.Add(1)
+		stage.Store(1)
+		return nil
+	}, func() {
+		if stage.Load() < 3 {
+			early.Store(true)
+		}
+		resumes.Add(1)
+	})
+	err := Run(ctx, client, func(m Model) {
+		if stage.Load() == 2 && pauses.Load() > 0 {
+			heldPaints.Add(1)
+		}
+		if stage.Load() == 3 && resumes.Load() > 0 && m.Session.State == "idle" && !m.Busy {
+			idleAfter.Add(1)
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errNoPad })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if early.Load() || stage1Calls.Load() < 6 || downErrors.Load() < 4 || pauses.Load() == 0 {
+		t.Fatalf("stale idle confirmation released the menu: early=%v stage1=%d down=%d pauses=%d resumes=%d stage=%d", early.Load(), stage1Calls.Load(), downErrors.Load(), pauses.Load(), resumes.Load(), stage.Load())
+	}
+	if heldPaints.Load() != 0 {
+		t.Fatalf("menu display presented %d frames after the idle probe failed", heldPaints.Load())
+	}
+	if resumes.Load() == 0 || idleAfter.Load() == 0 {
+		t.Fatalf("fresh idle probe did not resume: resumes=%d idleAfter=%d stage=%d", resumes.Load(), idleAfter.Load(), stage.Load())
 	}
 }
 

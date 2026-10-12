@@ -369,9 +369,13 @@ through that session's startup (`launching`), the running core (`local`), and th
 idle load (`stopping`), and resumes when the host reports idle. If the host drops,
 the pause stays through runtime `starting` and recovery, including a failed idle
 load that leaves `reboot_required`. The menu resumes only after a probe taken
-during that hold confirms a completed idle menu: state `idle`, menu display
-available, and a non-zero generation that is not a session binding. A sample from
-before the hold and a probe error do not resume it. Loading and stopping feedback still paints when
+during that hold confirms a completed idle menu that belongs to the hold: state
+`idle`, menu display available, and a non-zero generation that is not a session
+binding. The shelf generation captured when the hold starts does not qualify, nor
+does a later probe error after an idle sample. A different menu generation does,
+and so does a later idle probe after the hold has seen the runtime leave that
+shelf. The launch timeout does not resume the menu while the host is absent and
+that confirmation is still missing. Loading and stopping feedback still paints when
 the idle enables the framebuffer.
 Replacing the system image does not wipe this tree. D-pad and A still browse
 that local shelf. Launch and Stop remain bound to the persistent host session
