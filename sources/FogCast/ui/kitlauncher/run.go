@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/DeanoC/FogCast/fogcast"
@@ -179,19 +180,20 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	hostTimedOut := false
 	localTimedOut := false
 	menuPaused := false
-	// menuHeldForLocal is a pause this loop took because the host reported
-	// state "local". The launcher does not own that core's stop. The next
-	// non-occupying host observation resumes the menu. While that host is
-	// absent, the pause stays through starting and recovery. It resumes only
-	// after a runtime probe confirms a completed idle menu, and only once
-	// this hold has seen the core bound. A pause taken for a launch or for
-	// an active session keeps the existing handoff.
+	// menuHeldForLocal is a pause this loop took for a host-reported kit-local
+	// lifecycle: launching (session startup), local (the running core), or
+	// stopping (the idle load). The launcher does not own that core's stop.
+	// A reachable host resumes the menu only when it reports idle. While that
+	// host is absent, the pause stays through starting and recovery. It
+	// resumes only after a runtime probe taken during this hold confirms a
+	// completed idle menu. coreProbeGen bumps when the hold starts so a shelf
+	// idle sample from before the hold cannot resume it. A pause taken for an
+	// active session keeps the existing handoff.
 	menuHeldForLocal := false
-	localHoldSawCore := false
+	var coreProbeGen atomic.Uint64
 	hostUnreachable := false
 	resumeMenu := func() {
 		menuHeldForLocal = false
-		localHoldSawCore = false
 		if c.menuDisplay && menuPaused {
 			if launcherObserve != nil {
 				launcherObserve(m)
@@ -212,10 +214,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			m.LoadElapsed = formatLoadElapsed(m.LoadNow.Sub(m.LoadStarted))
 		}
 		if c.menuDisplay {
-			// Active and kit-local sessions own HDMI, so this branch does not
-			// keep preparing frames for them. Launching still submits its
-			// loading frame before the handoff pauses. A paused menu submits
-			// nothing; stopping feedback stays on the linuxfb overlay.
+			// Active play and a kit-local startup, run, or idle load own HDMI,
+			// so this branch does not keep preparing frames once the handoff
+			// has paused. The launcher's own launch still submits its loading
+			// frame before that pause. A paused menu submits nothing; stopping
+			// feedback stays on the linuxfb overlay.
 			if !menuPaused && (!m.Busy || m.Session.State == "launching") && !sessionOccupiesHDMI(m.Session.State) && present != nil {
 				present(m)
 			}
@@ -265,8 +268,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		if c.localCore == nil {
 			return
 		}
+		gen := coreProbeGen.Load()
 		next, err := c.readLocalCore(ctx)
-		coreBound.observe(next, err, time.Now())
+		if gen != coreProbeGen.Load() {
+			return
+		}
+		coreBound.observe(next, err, time.Now(), gen)
 	}
 	showLocalInput := func() {
 		if inputDown && coreBound.bound(time.Now()) && !m.Busy {
@@ -774,7 +781,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			})
 			if !localRunning && !localPending {
 				wasLoading := m.Session.State == "launching"
-				if sessionOccupiesHDMI(o.session.State) && c.menuDisplay && !menuPaused {
+				// After a visible launch timeout the host may still say
+				// launching. That observation is quiet reconciliation, not a
+				// new kit-local startup, so it must not pause and resume again.
+				if sessionHoldsMenu(o.session.State) && c.menuDisplay && !menuPaused && !(hostTimedOut && o.session.State == "launching") {
 					pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
 					pauseErr := c.menuPause(pauseCtx)
 					pauseCancel()
@@ -785,8 +795,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						continue
 					}
 					menuPaused = true
-					menuHeldForLocal = hostclient.SessionKitLocal(o.session.State)
-					localHoldSawCore = menuHeldForLocal && coreBound.bound(time.Now())
+					if sessionLocalLifecycle(o.session.State) && !menuHeldForLocal {
+						// Drop shelf idle samples read before this hold.
+						coreProbeGen.Add(1)
+						menuHeldForLocal = true
+					}
 				}
 				if hostTimedOut && o.session.State == "launching" {
 					// Continue reconciling quietly after visible timeout.
@@ -819,12 +832,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.LoadPhase = ""
 					m.Message = "Couldn't start " + m.SessionTitle()
 					resumeMenu()
-				} else if menuHeldForLocal && !sessionOccupiesHDMI(m.Session.State) && m.Session.State != "launching" {
+				} else if menuHeldForLocal && m.Session.State == "idle" {
 					resumeMenu()
 				} else if menuHeldForLocal && m.Session.State == "active" {
 					// Active play keeps the pause and uses its own handoff.
 					menuHeldForLocal = false
-					localHoldSawCore = false
 				}
 			}
 			if !o.mutation {
@@ -919,9 +931,6 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				nextPad = now.Add(time.Second)
 			}
 			bound := coreBound.bound(now)
-			if menuHeldForLocal && bound {
-				localHoldSawCore = true
-			}
 			// A kit-local run started outside this shell (for example over the
 			// local control socket, or by a shell that restarted after its own
 			// startup check) binds the core without this shell knowing. Adopt
@@ -936,12 +945,14 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			}
 			if !bound {
 				// A host-absent poll keeps the last local session and returns
-				// before the host resume. Release that hold only after this
-				// core was seen bound and a later probe confirms a completed
-				// idle menu. starting, reboot_required, a probe error, and an
-				// aged bound sample keep the pause. Active sessions and local
-				// launches do not use this hold.
-				if hostUnreachable && menuHeldForLocal && localHoldSawCore && !localRunning && !localPending && coreBound.menuIdle() {
+				// before the host resume. Release that hold only after a probe
+				// taken during the hold confirms a completed idle menu.
+				// starting, reboot_required, a probe error, an aged bound
+				// sample, and an idle sample from before the hold keep the
+				// pause. Seeing the core bound is not required: startup or an
+				// idle load can finish before a running probe. Active sessions
+				// and local launches do not use this hold.
+				if hostUnreachable && menuHeldForLocal && !localRunning && !localPending && coreBound.menuIdleAt(coreProbeGen.Load()) {
 					m.Session.State = "idle"
 					m.Session.GameID = ""
 					m.LoadStarted = time.Time{}

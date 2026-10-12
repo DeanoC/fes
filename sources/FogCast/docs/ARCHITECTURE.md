@@ -1916,15 +1916,15 @@ without an HPS framebuffer (SPI `0x002f` omitted) does not present, so FPGA
 splash pixels stay on HDMI, and a missing linuxfb device does not stop the
 service. A host-reported kit-local session occupies HDMI the same way an
 active session does: the launcher leaves the core's picture in place, and
-attract stays disarmed. Menu display pauses and resumes through the same
-handoff as active play. If that host becomes unreachable, the pause stays
-while a successful runtime probe still sees the core bound, and through
-`starting` and recovery, including a failed idle load that leaves
-`reboot_required`. The launcher
-clears the stale local session and resumes the menu only after a later probe
+attract stays disarmed. Menu display stays paused through that session's
+startup (`launching`), the running core (`local`), and the idle load
+(`stopping`), and resumes when the host reports idle. If that host becomes
+unreachable, the pause stays through runtime `starting` and recovery, including
+a failed idle load that leaves `reboot_required`. The launcher clears the stale
+local session and resumes the menu only after a probe taken during that hold
 confirms a completed idle menu: state `idle`, menu display available, and a
-non-zero generation that is not a session binding. A probe error keeps the
-pause. Loading and stopping feedback still paints when that
+non-zero generation that is not a session binding. A sample from before the
+hold and a probe error keep the pause. Loading and stopping feedback still paints when that
 idle enables the framebuffer.
 Local D-pad/A still browse that snapshot. When the host is unreachable, host
 session launch and Stop remain unavailable until the configured host API

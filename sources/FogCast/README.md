@@ -364,10 +364,14 @@ visible covers from disk before host games HTTP as a temporary linuxfb overlay;
 an absent host shows `Offline, showing your saved list`. Confirmed idle without an HPS
 framebuffer does not present, so FPGA splash pixels stay on HDMI. A host-reported
 kit-local session occupies HDMI the same way an active session does: the launcher
-leaves that picture in place and leaves attract disarmed. Menu display pauses and
-resumes through the same handoff. If the host drops during that session, the pause
-stays while a successful runtime probe still sees the core bound, and the menu
-resumes once that probe sees the core leave. Loading and stopping feedback still paints when
+leaves that picture in place and leaves attract disarmed. Menu display stays paused
+through that session's startup (`launching`), the running core (`local`), and the
+idle load (`stopping`), and resumes when the host reports idle. If the host drops,
+the pause stays through runtime `starting` and recovery, including a failed idle
+load that leaves `reboot_required`. The menu resumes only after a probe taken
+during that hold confirms a completed idle menu: state `idle`, menu display
+available, and a non-zero generation that is not a session binding. A sample from
+before the hold and a probe error do not resume it. Loading and stopping feedback still paints when
 the idle enables the framebuffer.
 Replacing the system image does not wipe this tree. D-pad and A still browse
 that local shelf. Launch and Stop remain bound to the persistent host session

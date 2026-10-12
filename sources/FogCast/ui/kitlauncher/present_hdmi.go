@@ -39,3 +39,22 @@ func ShouldPaintHDMI(m Model) bool {
 func sessionOccupiesHDMI(state string) bool {
 	return state == "active" || hostclient.SessionKitLocal(state)
 }
+
+// sessionLocalLifecycle is a host-reported kit-local startup, run, or idle
+// load. launching is session startup, local is the running core, and stopping
+// is the idle load. The menu hold for these states resumes only at idle.
+func sessionLocalLifecycle(state string) bool {
+	switch state {
+	case "launching", "stopping":
+		return true
+	default:
+		return hostclient.SessionKitLocal(state)
+	}
+}
+
+// sessionHoldsMenu reports that menu scanout should pause. An active host
+// session does, and so does a kit-local startup, run, or idle load. linuxfb
+// occupancy stays narrower so a busy loading or stopping overlay can still paint.
+func sessionHoldsMenu(state string) bool {
+	return state == "active" || sessionLocalLifecycle(state)
+}

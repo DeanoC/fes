@@ -32,9 +32,14 @@ type localCorePresence struct {
 	// a positive sample that has only aged out is not an exit, and a
 	// transition sample is not a completed idle menu.
 	verdict atomic.Int32
+	// sampleGen is the probe generation that stored verdict. The menu hold
+	// bumps the generation when it starts, so an idle sample from the shelf
+	// before that hold cannot resume it. Store verdict before sampleGen so a
+	// reader cannot observe the new generation with the previous verdict.
+	sampleGen atomic.Uint64
 }
 
-func (p *localCorePresence) observe(sample LocalCoreSample, err error, now time.Time) {
+func (p *localCorePresence) observe(sample LocalCoreSample, err error, now time.Time, gen uint64) {
 	if err != nil {
 		return
 	}
@@ -44,14 +49,17 @@ func (p *localCorePresence) observe(sample LocalCoreSample, err error, now time.
 		until := now.Add(localCorePositiveTTL)
 		p.until.Store(&until)
 		p.verdict.Store(localCoreVerdictBound)
+		p.sampleGen.Store(gen)
 		return
 	}
 	p.until.Store(nil)
 	if sample.MenuIdle {
 		p.verdict.Store(localCoreVerdictMenuIdle)
+		p.sampleGen.Store(gen)
 		return
 	}
 	p.verdict.Store(localCoreVerdictTransition)
+	p.sampleGen.Store(gen)
 }
 
 func (p *localCorePresence) bound(now time.Time) bool {
@@ -64,6 +72,13 @@ func (p *localCorePresence) bound(now time.Time) bool {
 // transition such as starting or reboot_required are not that confirmation.
 func (p *localCorePresence) menuIdle() bool {
 	return p.verdict.Load() == localCoreVerdictMenuIdle
+}
+
+// menuIdleAt reports that confirmation for one probe generation. A completed
+// idle menu from an earlier generation, including the shelf before a hold
+// started, is not a resume.
+func (p *localCorePresence) menuIdleAt(gen uint64) bool {
+	return p.sampleGen.Load() == gen && p.menuIdle()
 }
 
 // readLocalCore reads one runtime status sample. Play input follows Bound.

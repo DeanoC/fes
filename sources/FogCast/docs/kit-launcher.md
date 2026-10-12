@@ -343,15 +343,15 @@ measured transport values separately from end-to-end button-to-photon latency.
 The launcher only renders memory; it never issues SPI, programs the FPGA, or
 claims a kit lease. Rendering pauses while a game is active and while the
 host reports a kit-local session, so attract stays disarmed and the core's
-picture stays on HDMI. Menu display pauses and resumes through the same
-handoff as active play. If the host drops during that session, the pause stays
-while a successful runtime probe still sees the core bound, and through
-`starting` and recovery, including a failed idle load that leaves
-`reboot_required`. The launcher
-clears the stale local session and resumes the menu only after a later probe
-confirms a completed idle menu: state `idle`, menu display available, and a
-non-zero generation that is not a session binding. A probe error keeps the
-pause. Loading and stopping feedback still uses the temporary
+picture stays on HDMI. Menu display stays paused through that session's
+startup (`launching`), the running core (`local`), and the idle load
+(`stopping`), and resumes when the host reports idle. If the host drops during
+that hold, the pause stays through runtime `starting` and recovery, including
+a failed idle load that leaves `reboot_required`. The launcher
+clears the stale local session and resumes the menu only after a probe taken
+during that hold confirms a completed idle menu: state `idle`, menu display
+available, and a non-zero generation that is not a session binding. A sample
+from before the hold and a probe error keep the pause. Loading and stopping feedback still uses the temporary
 overlay when the idle enables the framebuffer. After confirmed
 idle it also skips `present` when that idle has no HPS framebuffer (SPI
 `0x002f` omitted, the splash contract), logs once, and leaves FPGA splash
