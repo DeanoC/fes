@@ -2439,7 +2439,12 @@ socket is not listening, play input reports
 the failure, waits one second before dialing again, and does not post the pad
 to the host. Remote pads go from the host to the kit on that session's input
 stream (`POST /api/v1/launcher/input` for a pad on another machine, and
-`POST /api/v1/session/input/event`). If the stream is not live, the host
+`POST /api/v1/session/input/event`). The host reuses an attached, ready
+stream only while the core, package, generation, keyboard, gamepad-port,
+keypad, and relative-mouse capabilities still match. Status reconciliation
+replaces the stream when any of those change. An explicit attach of a
+stream that no longer matches is refused and leaves the existing stream
+in place. If the stream is not live, the host
 returns 503 `INPUT_UNAVAILABLE` (`no live input stream`) and does not accept
 the event. Kit-local pads stay on the unix socket and do not silently fall
 back to the host.

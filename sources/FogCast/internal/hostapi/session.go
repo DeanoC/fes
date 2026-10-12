@@ -143,6 +143,9 @@ type sessionInputBinding struct {
 	packageID  string
 	generation uint64
 	keyboard   bool
+	gamepad    bool
+	keypad     bool
+	mouse      bool
 }
 
 type adoptionSnapshot struct {
@@ -1908,7 +1911,11 @@ func corePackageHasKeyboard(status protocol.Status) bool {
 }
 
 func inputBindingForStatus(status protocol.Status) sessionInputBinding {
-	binding := sessionInputBinding{core: sessionCore(status), keyboard: corePackageHasKeyboard(status)}
+	ports, keypad := protocol.ControllerPorts(status.CorePackage)
+	binding := sessionInputBinding{
+		core: sessionCore(status), keyboard: corePackageHasKeyboard(status),
+		gamepad: ports, keypad: keypad, mouse: protocol.MouseRelativeCapable(status.CorePackage),
+	}
 	if status.CorePackage != nil {
 		binding.packageID = status.CorePackage.PackageID
 		binding.generation = status.CorePackage.Generation
