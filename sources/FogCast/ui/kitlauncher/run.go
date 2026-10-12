@@ -179,7 +179,13 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	hostTimedOut := false
 	localTimedOut := false
 	menuPaused := false
+	// menuHeldForLocal is a pause this loop took because the host reported
+	// state "local". The launcher does not own that core's stop, so the next
+	// non-occupying observation has to resume the menu. A pause taken for a
+	// launch or for an active session keeps the existing handoff.
+	menuHeldForLocal := false
 	resumeMenu := func() {
+		menuHeldForLocal = false
 		if c.menuDisplay && menuPaused {
 			if launcherObserve != nil {
 				launcherObserve(m)
@@ -200,7 +206,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			m.LoadElapsed = formatLoadElapsed(m.LoadNow.Sub(m.LoadStarted))
 		}
 		if c.menuDisplay {
-			if !menuPaused && (!m.Busy || m.Session.State == "launching") && m.Session.State != "active" && present != nil {
+			// Active and kit-local sessions own HDMI, so this branch does not
+			// keep preparing frames for them. Launching still submits its
+			// loading frame before the handoff pauses. A paused menu submits
+			// nothing; stopping feedback stays on the linuxfb overlay.
+			if !menuPaused && (!m.Busy || m.Session.State == "launching") && !sessionOccupiesHDMI(m.Session.State) && present != nil {
 				present(m)
 			}
 			return
@@ -751,17 +761,18 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			})
 			if !localRunning && !localPending {
 				wasLoading := m.Session.State == "launching"
-				if o.session.State == "active" && c.menuDisplay && !menuPaused {
+				if sessionOccupiesHDMI(o.session.State) && c.menuDisplay && !menuPaused {
 					pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
 					pauseErr := c.menuPause(pauseCtx)
 					pauseCancel()
 					if pauseErr != nil {
-						// Do not expose an active game while menu scanout may continue.
+						// Do not expose play while menu scanout may continue.
 						m.Session.State = "idle"
 						m.Busy = false
 						continue
 					}
 					menuPaused = true
+					menuHeldForLocal = hostclient.SessionKitLocal(o.session.State)
 				}
 				if hostTimedOut && o.session.State == "launching" {
 					// Continue reconciling quietly after visible timeout.
@@ -794,6 +805,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.LoadPhase = ""
 					m.Message = "Couldn't start " + m.SessionTitle()
 					resumeMenu()
+				} else if menuHeldForLocal && !sessionOccupiesHDMI(m.Session.State) && m.Session.State != "launching" {
+					resumeMenu()
+				} else if menuHeldForLocal && m.Session.State == "active" {
+					// Active play keeps the pause and uses its own handoff.
+					menuHeldForLocal = false
 				}
 			}
 			if !o.mutation {

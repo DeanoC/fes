@@ -27,8 +27,15 @@ func ShouldPaintHDMI(m Model) bool {
 	if m.Busy {
 		return true
 	}
-	if m.Session.State == "active" || hostclient.SessionKitLocal(m.Session.State) {
+	if sessionOccupiesHDMI(m.Session.State) {
 		return false
 	}
 	return true
+}
+
+// sessionOccupiesHDMI reports that a core owns the HDMI picture. An active
+// host session and a host-reported kit-local session both do. Loading and
+// stopping feedback is a separate busy overlay and is not occupancy.
+func sessionOccupiesHDMI(state string) bool {
+	return state == "active" || hostclient.SessionKitLocal(state)
 }

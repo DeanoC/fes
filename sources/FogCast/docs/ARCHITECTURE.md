@@ -1916,7 +1916,8 @@ without an HPS framebuffer (SPI `0x002f` omitted) does not present, so FPGA
 splash pixels stay on HDMI, and a missing linuxfb device does not stop the
 service. A host-reported kit-local session occupies HDMI the same way an
 active session does: the launcher leaves the core's picture in place, and
-attract stays disarmed. Loading and stopping feedback still paints when that
+attract stays disarmed. Menu display pauses and resumes through the same
+handoff as active play. Loading and stopping feedback still paints when that
 idle enables the framebuffer.
 Local D-pad/A still browse that snapshot. When the host is unreachable, host
 session launch and Stop remain unavailable until the configured host API
