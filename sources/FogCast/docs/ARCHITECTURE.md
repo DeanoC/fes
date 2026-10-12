@@ -1932,9 +1932,9 @@ reconnects. A browse-only SMS row from that saved list can still play when the
 kit matches it to a local cartridge: a cached ROM SHA-256 when the row has one,
 otherwise a single local SMS row with the same title. While the host catalog
 is up, those digests refresh in the background. A stored digest waits 15
-minutes. A cancelled fill stays eligible for the next catalog load, and a
-failed fetch waits 2 minutes. The pad stays on the
-kit-local control socket. The kit launcher does not claim a target lease or
+minutes. A cancelled fill stays eligible for the next catalog load and does
+not replace a digest stored by a later fill. A failed fetch waits 2 minutes.
+The pad stays on the kit-local control socket. The kit launcher does not claim a target lease or
 call `/v2/launch` directly; host lifecycle mutations continue through the
 persistent host session API. Cache and artwork browse state remains local and
 lease-free.

@@ -486,6 +486,61 @@ func TestSMSHashFillRetriesCancelledFetchOnNextFill(t *testing.T) {
 	fill.stop()
 }
 
+func TestSMSHashFillSupersededFillDoesNotOverwriteNewerDigest(t *testing.T) {
+	store := mustOpenStore(t)
+	row := smsRow()
+	row.ID = "sms-a-000000000000"
+	oldHash := strings.Repeat("ab", 32)
+	newHash := strings.Repeat("cd", 32)
+	var fill smsHashFill
+
+	// Pause the first fill after its fetch returns and before it stores.
+	// start then cancels that fill and a replacement stores the newer digest.
+	// The paused fill must not write the older digest afterwards.
+	reached := make(chan struct{})
+	var release sync.Mutex
+	release.Lock()
+	var callMu sync.Mutex
+	calls := 0
+	fill.testBeforeStore = func() {
+		callMu.Lock()
+		calls++
+		n := calls
+		callMu.Unlock()
+		if n != 1 {
+			return
+		}
+		close(reached)
+		release.Lock()
+		release.Unlock()
+	}
+	fill.start(context.Background(), func(context.Context, string) (string, error) {
+		return oldHash, nil
+	}, store, []hostclient.Game{row})
+	select {
+	case <-reached:
+	case <-time.After(5 * time.Second):
+		t.Fatal("first fill did not reach the store")
+	}
+
+	fill.start(context.Background(), func(context.Context, string) (string, error) {
+		return newHash, nil
+	}, store, []hostclient.Game{row})
+	deadline := time.Now().Add(5 * time.Second)
+	for store.ROMHash(row.ID) != newHash {
+		if time.Now().After(deadline) {
+			t.Fatal("replacement fill did not store the newer digest")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	release.Unlock()
+	fill.pending.Wait()
+	if got := store.ROMHash(row.ID); got != newHash {
+		t.Fatalf("superseded fill stored %q over the newer digest", got)
+	}
+	fill.stop()
+}
+
 func TestSMSHashFillFailureSkipsTheNextImmediateFill(t *testing.T) {
 	store := mustOpenStore(t)
 	row := smsRow()
