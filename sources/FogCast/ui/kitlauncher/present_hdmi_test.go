@@ -36,6 +36,16 @@ func TestShouldPaintHDMISkipsSplashIdleAndKeepsTemporaryOverlay(t *testing.T) {
 	if ShouldPaintHDMI(active) {
 		t.Fatal("active session painted over the game")
 	}
+	local := active
+	local.Session.State = "local"
+	if ShouldPaintHDMI(local) {
+		t.Fatal("kit-local session painted over the core")
+	}
+	local.Busy = true
+	local.Message = "Stopping game"
+	if !ShouldPaintHDMI(local) {
+		t.Fatal("kit-local stopping feedback requires the temporary overlay")
+	}
 	loading := catalog
 	loading.Session.HPSFramebuffer = true
 	loading.Busy = true
@@ -63,6 +73,199 @@ func TestShouldPaintHDMISkipsSplashIdleAndKeepsTemporaryOverlay(t *testing.T) {
 	connecting := Model{Message: connectingMessage, WheelOpen: true}
 	if ShouldPaintHDMI(connecting) {
 		t.Fatal("unconfirmed splash idle painted the connecting screen")
+	}
+}
+
+func TestRunMenuDisplayPausesForKitLocalSession(t *testing.T) {
+	oldObserve := launcherObserve
+	oldPoll := launcherPollInterval
+	defer func() {
+		launcherObserve = oldObserve
+		launcherPollInterval = oldPoll
+	}()
+	launcherPollInterval = 20 * time.Millisecond
+
+	// 0: host idle, menu presents. 1: host local, menu must pause.
+	// 2: host idle again, menu must resume and present.
+	var phase atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/session":
+			state := "idle"
+			if phase.Load() == 1 {
+				state = "local"
+			}
+			_, _ = w.Write([]byte(`{"state":"` + state + `","game_id":"should-not-survive"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"megadrive","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","launchable":true}]}`))
+		case "/api/v1/library/attract":
+			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	var pauses, resumes, idleBefore, localPaints, idleAfter atomic.Int64
+	client := NewClient(Config{API: server.URL, MenuDisplay: true})
+	client.SetMenuDisplayHandoff(func(context.Context) error {
+		pauses.Add(1)
+		return nil
+	}, func() { resumes.Add(1) })
+	launcherObserve = func(m Model) {
+		if phase.Load() == 1 && m.Session.State == "local" && m.Connected && pauses.Load() > 0 {
+			phase.Store(2)
+		}
+	}
+	err := Run(ctx, client, func(m Model) {
+		switch {
+		case phase.Load() == 0 && m.Session.State == "idle" && m.Connected && !m.Busy:
+			idleBefore.Add(1)
+			phase.Store(1)
+		case m.Session.State == "local" && !m.Busy:
+			localPaints.Add(1)
+		case phase.Load() == 2 && resumes.Load() > 0 && m.Session.State == "idle" && !m.Busy:
+			idleAfter.Add(1)
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errNoPad })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if idleBefore.Load() == 0 {
+		t.Fatal("menu display did not present while idle")
+	}
+	if pauses.Load() == 0 {
+		t.Fatal("menu display was not paused for a kit-local session")
+	}
+	if localPaints.Load() != 0 {
+		t.Fatalf("menu display presented %d frames during kit-local play", localPaints.Load())
+	}
+	if resumes.Load() == 0 || idleAfter.Load() == 0 {
+		t.Fatalf("menu display did not resume after kit-local play: pauses=%d resumes=%d idleAfter=%d", pauses.Load(), resumes.Load(), idleAfter.Load())
+	}
+}
+
+func TestRunMenuDisplayResumesWhenHostlessLocalCoreExits(t *testing.T) {
+	oldObserve := launcherObserve
+	oldPoll := launcherPollInterval
+	defer func() {
+		launcherObserve = oldObserve
+		launcherPollInterval = oldPoll
+	}()
+	launcherPollInterval = 20 * time.Millisecond
+
+	// 0: host reports local and the runtime core is bound; the menu pauses.
+	// 1: the host is unreachable while that core stays bound; the menu stays paused.
+	// 2: an in-flight Stop reports starting; the menu stays paused.
+	// 3: idle load failed and the runtime is in recovery; the menu stays paused.
+	// 4: status confirms a completed idle menu; the menu resumes and presents.
+	var phase atomic.Int32
+	var startingProbes, recoveryProbes atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if phase.Load() != 0 {
+			http.Error(w, "host down", http.StatusBadGateway)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"local","game_id":"should-not-survive"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"megadrive","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","launchable":true}]}`))
+		case "/api/v1/library/attract":
+			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	var pauses, resumes, absentHolds, startingHolds, recoveryHolds, heldPaints, idleAfter atomic.Int64
+	client := NewClient(Config{API: server.URL, MenuDisplay: true})
+	client.localCore = func(context.Context) (LocalCoreSample, error) {
+		switch phase.Load() {
+		case 0, 1:
+			return LocalCoreSample{Bound: true}, nil
+		case 2:
+			startingProbes.Add(1)
+			return LocalCoreSample{}, nil
+		case 3:
+			recoveryProbes.Add(1)
+			return LocalCoreSample{}, nil
+		default:
+			return LocalCoreSample{MenuIdle: true}, nil
+		}
+	}
+	client.SetMenuDisplayHandoff(func(context.Context) error {
+		pauses.Add(1)
+		return nil
+	}, func() { resumes.Add(1) })
+	launcherObserve = func(m Model) {
+		if resumes.Load() != 0 || m.Session.State != "local" {
+			return
+		}
+		switch phase.Load() {
+		case 0:
+			if m.Connected && pauses.Load() > 0 {
+				phase.Store(1)
+			}
+		case 1:
+			if !m.Connected && pauses.Load() > 0 && absentHolds.Add(1) >= 8 {
+				phase.Store(2)
+			}
+		case 2:
+			if !m.Connected && startingProbes.Load() >= 1 && startingHolds.Add(1) >= 8 {
+				phase.Store(3)
+			}
+		case 3:
+			if !m.Connected && recoveryProbes.Load() >= 1 && recoveryHolds.Add(1) >= 8 {
+				phase.Store(4)
+			}
+		}
+	}
+	err := Run(ctx, client, func(m Model) {
+		switch phase.Load() {
+		case 1, 2, 3:
+			heldPaints.Add(1)
+		case 4:
+			if resumes.Load() > 0 && m.Session.State == "idle" && !m.Busy {
+				idleAfter.Add(1)
+				cancel()
+			}
+		}
+	}, func() (Pad, error) { return nil, errNoPad })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pauses.Load() == 0 {
+		t.Fatal("menu display was not paused for a kit-local session")
+	}
+	if absentHolds.Load() < 8 {
+		t.Fatalf("host-absent local hold was not observed: holds=%d phase=%d", absentHolds.Load(), phase.Load())
+	}
+	if startingProbes.Load() < 1 || startingHolds.Load() < 8 {
+		t.Fatalf("in-flight Stop did not keep the menu paused: probes=%d holds=%d resumes=%d phase=%d", startingProbes.Load(), startingHolds.Load(), resumes.Load(), phase.Load())
+	}
+	if recoveryProbes.Load() < 1 || recoveryHolds.Load() < 8 {
+		t.Fatalf("failed idle load resumed the menu: probes=%d holds=%d resumes=%d phase=%d", recoveryProbes.Load(), recoveryHolds.Load(), resumes.Load(), phase.Load())
+	}
+	if heldPaints.Load() != 0 {
+		t.Fatalf("menu display presented %d frames before the idle menu was confirmed", heldPaints.Load())
+	}
+	if resumes.Load() == 0 || idleAfter.Load() == 0 {
+		t.Fatalf("menu display did not resume after the idle menu was confirmed: pauses=%d resumes=%d idleAfter=%d phase=%d", pauses.Load(), resumes.Load(), idleAfter.Load(), phase.Load())
 	}
 }
 

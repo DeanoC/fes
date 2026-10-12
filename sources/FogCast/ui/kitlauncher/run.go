@@ -179,7 +179,19 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	hostTimedOut := false
 	localTimedOut := false
 	menuPaused := false
+	// menuHeldForLocal is a pause this loop took because the host reported
+	// state "local". The launcher does not own that core's stop. The next
+	// non-occupying host observation resumes the menu. While that host is
+	// absent, the pause stays through starting and recovery. It resumes only
+	// after a runtime probe confirms a completed idle menu, and only once
+	// this hold has seen the core bound. A pause taken for a launch or for
+	// an active session keeps the existing handoff.
+	menuHeldForLocal := false
+	localHoldSawCore := false
+	hostUnreachable := false
 	resumeMenu := func() {
+		menuHeldForLocal = false
+		localHoldSawCore = false
 		if c.menuDisplay && menuPaused {
 			if launcherObserve != nil {
 				launcherObserve(m)
@@ -200,7 +212,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			m.LoadElapsed = formatLoadElapsed(m.LoadNow.Sub(m.LoadStarted))
 		}
 		if c.menuDisplay {
-			if !menuPaused && (!m.Busy || m.Session.State == "launching") && m.Session.State != "active" && present != nil {
+			// Active and kit-local sessions own HDMI, so this branch does not
+			// keep preparing frames for them. Launching still submits its
+			// loading frame before the handoff pauses. A paused menu submits
+			// nothing; stopping feedback stays on the linuxfb overlay.
+			if !menuPaused && (!m.Busy || m.Session.State == "launching") && !sessionOccupiesHDMI(m.Session.State) && present != nil {
 				present(m)
 			}
 			return
@@ -243,7 +259,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	// A probe error keeps the last answer for one second so a brief stalled
 	// status read does not release held buttons. The first call is synchronous,
 	// just before the loop; later calls stay off the loop and do not wait on the host.
+	// A missing probe is not an idle core: play input stays off, and the
+	// menu hold below does not treat that silence as the core leaving.
 	refreshCore := func() {
+		if c.localCore == nil {
+			return
+		}
 		next, err := c.readLocalCore(ctx)
 		coreBound.observe(next, err, time.Now())
 	}
@@ -718,6 +739,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				continue
 			}
 			if o.hostAbsent {
+				hostUnreachable = true
 				m.Connected = false
 				m.ClearCoreStatuses(true)
 				if !localApplied && len(localGames) > 0 {
@@ -742,6 +764,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				continue
 			}
 			m.Connected = true
+			hostUnreachable = false
 			// ForeignLease still marks a grant this host does not own. Play
 			// input to the local socket does not consult it.
 			m.ForeignLease = kitlease.ForeignHID(kitlease.Status{
@@ -751,17 +774,19 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			})
 			if !localRunning && !localPending {
 				wasLoading := m.Session.State == "launching"
-				if o.session.State == "active" && c.menuDisplay && !menuPaused {
+				if sessionOccupiesHDMI(o.session.State) && c.menuDisplay && !menuPaused {
 					pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
 					pauseErr := c.menuPause(pauseCtx)
 					pauseCancel()
 					if pauseErr != nil {
-						// Do not expose an active game while menu scanout may continue.
+						// Do not expose play while menu scanout may continue.
 						m.Session.State = "idle"
 						m.Busy = false
 						continue
 					}
 					menuPaused = true
+					menuHeldForLocal = hostclient.SessionKitLocal(o.session.State)
+					localHoldSawCore = menuHeldForLocal && coreBound.bound(time.Now())
 				}
 				if hostTimedOut && o.session.State == "launching" {
 					// Continue reconciling quietly after visible timeout.
@@ -794,6 +819,12 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.LoadPhase = ""
 					m.Message = "Couldn't start " + m.SessionTitle()
 					resumeMenu()
+				} else if menuHeldForLocal && !sessionOccupiesHDMI(m.Session.State) && m.Session.State != "launching" {
+					resumeMenu()
+				} else if menuHeldForLocal && m.Session.State == "active" {
+					// Active play keeps the pause and uses its own handoff.
+					menuHeldForLocal = false
+					localHoldSawCore = false
 				}
 			}
 			if !o.mutation {
@@ -888,6 +919,9 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				nextPad = now.Add(time.Second)
 			}
 			bound := coreBound.bound(now)
+			if menuHeldForLocal && bound {
+				localHoldSawCore = true
+			}
 			// A kit-local run started outside this shell (for example over the
 			// local control socket, or by a shell that restarted after its own
 			// startup check) binds the core without this shell knowing. Adopt
@@ -901,6 +935,19 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				}(epoch)
 			}
 			if !bound {
+				// A host-absent poll keeps the last local session and returns
+				// before the host resume. Release that hold only after this
+				// core was seen bound and a later probe confirms a completed
+				// idle menu. starting, reboot_required, a probe error, and an
+				// aged bound sample keep the pause. Active sessions and local
+				// launches do not use this hold.
+				if hostUnreachable && menuHeldForLocal && localHoldSawCore && !localRunning && !localPending && coreBound.menuIdle() {
+					m.Session.State = "idle"
+					m.Session.GameID = ""
+					m.LoadStarted = time.Time{}
+					m.LoadPhase = ""
+					resumeMenu()
+				}
 				if feed != nil {
 					closeFeed(true)
 				}

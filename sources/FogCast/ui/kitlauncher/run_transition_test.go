@@ -134,7 +134,7 @@ func localTransitionClient(t *testing.T, f *transitionCore) *Client {
 	c := NewClient(Config{API: "http://127.0.0.1:1", MenuDisplay: true})
 	c.SetCatalogConfig(cfg)
 	c.SetLocalCores(f)
-	c.localCore = func(context.Context) (bool, error) { return false, nil }
+	c.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{}, nil }
 	return c
 }
 

@@ -132,10 +132,11 @@ type Client struct {
 	Library     *hostclient.Client
 	LocalCores  LocalCoreClient
 	Cache       *DiskStore
-	// localCore reports whether a runtime core is bound. fogcast-kit installs
-	// it. Play input uses the result and ignores host reachability. Nil leaves
-	// play input off.
-	localCore func(context.Context) (bool, error)
+	// localCore is one runtime status sample. fogcast-kit installs it. Play
+	// input uses Bound and ignores host reachability. The host-absent menu
+	// handoff resumes only when MenuIdle is confirmed. Nil leaves play input
+	// off and keeps that hold.
+	localCore func(context.Context) (LocalCoreSample, error)
 	// localInputPath is the kit-local input socket. Empty leaves the feed down.
 	// fogcast-kit sets the agent socket path.
 	localInputPath string
@@ -205,9 +206,10 @@ func (c *Client) SetMenuDisplayHandoff(pause func(context.Context) error, resume
 }
 
 // SetLocalInput installs the kit-local play path. socketPath is the agent
-// listener. probe reports whether a runtime core is bound. The launcher does
-// not open the runtime socket and does not import target implementation packages.
-func (c *Client) SetLocalInput(socketPath string, probe func(context.Context) (bool, error)) {
+// listener. probe is one runtime status sample: Bound gates play input, and
+// MenuIdle is a completed idle menu. The launcher does not open the runtime
+// socket and does not import target implementation packages.
+func (c *Client) SetLocalInput(socketPath string, probe func(context.Context) (LocalCoreSample, error)) {
 	if c == nil {
 		return
 	}

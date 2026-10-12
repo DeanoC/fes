@@ -8,6 +8,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"github.com/DeanoC/FogCast/ui/kitlauncher"
 )
 
 func TestLocalInputConfigUsesAgentSocket(t *testing.T) {
@@ -54,6 +55,50 @@ func TestRuntimeCoreBoundMatchesAgentObservation(t *testing.T) {
 	}
 }
 
+func TestRuntimeMenuIdleRequiresCompletedIdleMenu(t *testing.T) {
+	gen := uint64(4)
+	ready := &misterruntime.Protocol2MenuDisplay{Available: true, Generation: 3}
+	cases := []struct {
+		name        string
+		status      misterruntime.Protocol2Response
+		bound, menu bool
+	}{
+		{
+			name: "running core",
+			status: misterruntime.Protocol2Response{
+				OK: true, State: "running_development",
+				ActivePackage: &misterruntime.Protocol2ActivePackage{PackageID: "pkg"},
+				Generation:    &gen,
+				MenuDisplay:   &misterruntime.Protocol2MenuDisplay{Available: true, Session: true, Generation: 3},
+			},
+			bound: true,
+		},
+		{name: "starting", status: misterruntime.Protocol2Response{OK: true, State: "starting", MenuDisplay: ready}},
+		{
+			name: "reboot required",
+			status: misterruntime.Protocol2Response{
+				OK: true, State: "reboot_required",
+				Error:       &misterruntime.Protocol2Error{Code: "idle_failed", Message: "load idle failed", Phase: "lifecycle"},
+				MenuDisplay: ready,
+			},
+		},
+		{name: "idle without menu", status: misterruntime.Protocol2Response{OK: true, State: "idle"}},
+		{name: "idle menu unavailable", status: misterruntime.Protocol2Response{OK: true, State: "idle", MenuDisplay: &misterruntime.Protocol2MenuDisplay{Generation: 3}}},
+		{name: "idle menu generation zero", status: misterruntime.Protocol2Response{OK: true, State: "idle", MenuDisplay: &misterruntime.Protocol2MenuDisplay{Available: true}}},
+		{name: "idle session display", status: misterruntime.Protocol2Response{OK: true, State: "idle", MenuDisplay: &misterruntime.Protocol2MenuDisplay{Available: true, Session: true, Generation: 3}}},
+		{name: "idle not ok", status: misterruntime.Protocol2Response{State: "idle", MenuDisplay: ready}},
+		{name: "idle menu", status: misterruntime.Protocol2Response{OK: true, State: "idle", MenuDisplay: ready}, menu: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sample := runtimeCoreSample(tc.status)
+			if sample.Bound != tc.bound || sample.MenuIdle != tc.menu {
+				t.Fatalf("sample = %+v, want bound %v menu %v", sample, tc.bound, tc.menu)
+			}
+		})
+	}
+}
+
 func TestProbeRuntimeCoreReadsIdleStatus(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "runtime.sock")
 	ln, err := net.Listen("unix", path)
@@ -72,12 +117,12 @@ func TestProbeRuntimeCoreReadsIdleStatus(t *testing.T) {
 		_, _ = conn.Read(buf)
 		_, _ = conn.Write([]byte(idle + "\n"))
 	}()
-	bound, err := probeRuntimeCore(context.Background(), path)
+	sample, err := probeRuntimeCore(context.Background(), path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bound {
-		t.Fatal("idle runtime reported a bound core")
+	if sample != (kitlauncher.LocalCoreSample{}) {
+		t.Fatalf("bare idle runtime sample = %+v", sample)
 	}
 	_, err = probeRuntimeCore(context.Background(), filepath.Join(t.TempDir(), "missing.sock"))
 	if err == nil {
