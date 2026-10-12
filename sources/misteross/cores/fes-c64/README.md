@@ -80,7 +80,8 @@ sleep: C64 media is currently mounted after CPU release. The SID pulse uses
 `--without-cartridges` skips only stages 5 and 6 for a vacant sealed shell; it
 is not expansion acceptance.
 The simulation covers both initially-ready input/media and delayed mount,
-joystick and keyboard delivery.
+joystick and keyboard delivery, then captures the next full frame and requires
+PASS in white, a black border, a black background and no stage digit.
 
 C64's D64/IEC path remains read-only. Atari ST's initial-disk-before-release
 and writable-disk save/restore path is a useful ordering reference, but its
