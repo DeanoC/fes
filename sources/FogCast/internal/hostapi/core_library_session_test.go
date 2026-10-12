@@ -231,6 +231,11 @@ func TestSessionHostOnlyLaunchKeepsKitPackagePlay(t *testing.T) {
 	if out := launchSession(t, handler, packageGame); out.Code != http.StatusOK {
 		t.Fatalf("package launch = %d %s", out.Code, out.Body.String())
 	}
+	// A kit stop drops that play. The host-only launch leaves it listed.
+	service.stopHook = func(context.Context) (protocol.Status, error) {
+		service.playSessions = withoutPlayTarget(service.playSessions, "kit-b")
+		return service.stopped, nil
+	}
 
 	service.execution = fogcast.ExecutionHostOnly
 	service.game = catalog.Game{ID: hostGame, Kind: catalog.SourceKindRaw}
@@ -259,6 +264,17 @@ func TestHostStopKeepsKitPackagePlayListed(t *testing.T) {
 		stopped:      protocol.Status{State: protocol.StateIdle},
 		playSessions: []fogcast.PlaySession{{Target: "kit-b", Execution: fogcast.ExecutionFPGANative, GameID: "core-pong"}},
 	}}
+	// An unscoped host Stop leaves the kit play listed. A stop aimed at that
+	// kit, and a lease release, drop it.
+	service.stopHook = func(ctx context.Context) (protocol.Status, error) {
+		if target := fogcast.SessionTargetFromContext(ctx); target != "" {
+			service.playSessions = withoutPlayTarget(service.playSessions, target)
+		}
+		return service.stopped, nil
+	}
+	service.releaseHook = func() {
+		service.playSessions = withoutPlayTarget(service.playSessions, "kit-b")
+	}
 	handler := hostapi.New(service)
 	if response := launchSession(t, handler, gameID); response.Code != http.StatusOK {
 		t.Fatalf("host launch = %d %s", response.Code, response.Body.String())
@@ -273,6 +289,16 @@ func TestHostStopKeepsKitPackagePlayListed(t *testing.T) {
 	if plays.Code != http.StatusOK || !strings.Contains(plays.Body.String(), `"target":"kit-b"`) || strings.Contains(plays.Body.String(), `"sessions":[]`) {
 		t.Fatalf("kit play missing after host Stop: %d %s", plays.Code, plays.Body.String())
 	}
+}
+
+func withoutPlayTarget(plays []fogcast.PlaySession, target string) []fogcast.PlaySession {
+	kept := make([]fogcast.PlaySession, 0, len(plays))
+	for _, play := range plays {
+		if play.Target != target {
+			kept = append(kept, play)
+		}
+	}
+	return kept
 }
 
 func TestSessionNoABIPackageMustStopBeforeCatalogLaunch(t *testing.T) {
