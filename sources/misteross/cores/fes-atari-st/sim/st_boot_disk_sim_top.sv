@@ -95,6 +95,8 @@ module st_boot_disk_sim_top (
         .dq_out(dq_out), .dq_oe(dq_oe), .dq_sample(dq_sample)
     );
     st_video_adapter video (
+        .ram_write_committed(1'b0), .ram_write_addr(18'd0),
+        .ram_write_data(16'd0), .ram_write_lanes(2'd0),
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
         .native_vblank(vblank), .native_display(native_display), .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss), .native_line(native_line),
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(native_lookup_ce), .sync_mode(sync_mode),

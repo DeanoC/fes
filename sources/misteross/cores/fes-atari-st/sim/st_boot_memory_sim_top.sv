@@ -104,6 +104,8 @@ module st_boot_memory_sim_top #(
     st_memory_sim_top #(.EARLY_COMPLETION(EARLY_COMPLETION), .POSTED_CPU_WRITES(POSTED_CPU_WRITES), .PHASE_SLOTS(PHASE_SLOTS),
                        .CPU_SLOT_PHASE(CPU_SLOT_PHASE),
                 .SINGLE_RANK_REFRESH(SINGLE_RANK_REFRESH), .SLOT_REFRESH(SLOT_REFRESH)) memory (
+        .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),
+        .ram_write_data(ram_write_data), .ram_write_lanes(ram_write_lanes),
         .clk(clk_sys), .memory_phase(native_cycle[1:0]), .raster_reset(system.exp_reset), .cold_reset(cold_reset), .reset(reset_sys), .initialized(initialized),
         .cpu_req(cpu_req), .cpu_addr(cpu_addr), .cpu_write(cpu_write), .cpu_wdata(cpu_wdata),
         .cpu_byte_enable(cpu_byte_enable), .cpu_ready(cpu_ready), .cpu_rdata(cpu_rdata),
@@ -119,7 +121,13 @@ module st_boot_memory_sim_top #(
         .sdram_ba(sdram_ba), .sdram_a(sdram_a), .sdram_dqml(sdram_dqml), .sdram_dqmh(sdram_dqmh),
         .dq_out(dq_out), .dq_oe(dq_oe), .dq_sample(dq_sample)
     );
+    wire ram_write_committed;
+    wire [18:1] ram_write_addr;
+    wire [15:0] ram_write_data;
+    wire [1:0] ram_write_lanes;
     st_video_adapter video (
+        .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),
+        .ram_write_data(ram_write_data), .ram_write_lanes(ram_write_lanes),
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
         .native_vblank(vblank), .native_display(native_display), .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss), .native_line(native_line),
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(debug_cpu_tick), .sync_mode(sync_mode),

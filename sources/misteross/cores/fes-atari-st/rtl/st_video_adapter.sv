@@ -28,6 +28,10 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     output wire [18:1] video_addr,
     input wire video_ready,
     input wire [15:0] video_rdata,
+    input wire ram_write_committed,
+    input wire [18:1] ram_write_addr,
+    input wire [15:0] ram_write_data,
+    input wire [1:0] ram_write_lanes,
     output wire [`FES_VIDEO_PART_REQUEST_BITS-1:0] video_request,
     output reg [31:0] debug_underruns,
     output reg [31:0] debug_frame
@@ -398,6 +402,8 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
         end
         /* verilator lint_off PINCONNECTEMPTY */
         st_native_low_video capture (
+            .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),
+            .ram_write_data(ram_write_data), .ram_write_lanes(ram_write_lanes),
             .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss),
             .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
             .hold(hold), .native_vblank(native_vblank), .native_display(native_display),
@@ -431,7 +437,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
         end
     end else begin : cached_renderer_test
         // The focused cache/renderer test isolates the retained indexed path.
-        wire unused_native_inputs = ^{native_vblank, native_display, native_short_line, native_blank, native_word_loss, native_line, native_cycle, native_pixel_ce, native_lookup_ce, sync_mode,
+        wire unused_native_inputs = ^{ram_write_committed, ram_write_addr, ram_write_data, ram_write_lanes, native_vblank, native_display, native_short_line, native_blank, native_word_loss, native_line, native_cycle, native_pixel_ce, native_lookup_ce, sync_mode,
                                       border_row, border_sample_x, border_sample_ce,
                                       rgb_ram_address, native_req, native_ready, native_addr};
         assign video_req = legacy_req;

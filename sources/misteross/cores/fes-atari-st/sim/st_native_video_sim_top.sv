@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 module st_native_video_sim_top (
-    input wire clk_sys, clk_pixel, reset_sys, reset_pixel, hold,
+    input wire clk_sys, clk_pixel,
+    input wire ram_write_committed,
+    input wire [18:1] ram_write_addr,
+    input wire [15:0] ram_write_data,
+    input wire [1:0] ram_write_lanes,
+    input wire reset_sys, reset_pixel, hold,
     input wire native_vblank, native_display,
     input wire native_short_line, native_blank,
     input wire [8:0] native_word_loss,
@@ -10,6 +15,8 @@ module st_native_video_sim_top (
     input wire [23:0] screen_base,
     input wire [1:0] resolution,
     input wire [143:0] palette,
+    output wire prepare_pixel,
+    output wire [8:0] prepare_x, prepare_y,
     output wire video_req,
     output wire [18:1] video_addr,
     input wire video_ready,
@@ -37,12 +44,17 @@ module st_native_video_sim_top (
         palette_q <= palette;
     end
     st_video_adapter adapter (
+        .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),
+        .ram_write_data(ram_write_data), .ram_write_lanes(ram_write_lanes),
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
         .hold(hold), .native_vblank(vblank_q), .native_display(display_q), .native_short_line(short_q), .native_blank(blank_q), .native_word_loss(loss_q), .native_line(line_q), .native_cycle(cycle_q), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(native_lookup_ce),
         .sync_mode(sync_mode), .screen_base(screen_base), .resolution(resolution), .palette(palette_q),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
         .video_request(video_request), .debug_underruns(unused_debug_underruns), .debug_frame(unused_debug_frame)
     );
+    assign prepare_pixel = adapter.native_capture.capture.prepare_pixel;
+    assign prepare_x = adapter.native_capture.capture.sample_x;
+    assign prepare_y = adapter.native_capture.capture.row;
     assign captured_frames = adapter.native_capture.capture.debug_frames;
     assign skipped_frames = adapter.native_capture.capture.debug_skipped;
     assign underruns = adapter.native_capture.capture.debug_underruns;

@@ -21,6 +21,10 @@ module st_native_low_video (
     output reg [18:1] memory_addr,
     input wire memory_ready,
     input wire [15:0] memory_data,
+    input wire ram_write_committed,
+    input wire [18:1] ram_write_addr,
+    input wire [15:0] ram_write_data,
+    input wire [1:0] ram_write_lanes,
     input wire output_sof,
     input wire [16:0] output_address,
     output wire [8:0] output_rgb, output_border, output_raster_rgb,
@@ -180,6 +184,31 @@ module st_native_low_video (
     reg [31:0] cache_epoch [0:1];
     reg [8:0] cache_loss [0:1];
     reg cache_margin [0:1];
+    reg [17:0] cache_start_word [0:1];
+    reg [1:0] cache_window_valid;
+    // A valid window ends within 512 KiB. An 18-bit subtraction that wraps
+    // below its start is therefore at least its full80/81-word length and
+    // fails the index bound. Invalid bases never acquire a snoop window.
+    wire [17:0] snoop_offset0 = ram_write_addr - cache_start_word[0];
+    wire [17:0] snoop_offset1 = ram_write_addr - cache_start_word[1];
+    // Once a group's first native pixel has sampled its planes, retain that
+    // group through all sixteen pixels. Earlier writes remain visible in a
+    // future row/group, including while the prefetch is still in progress.
+    wire [4:0] first_unsampled_group = 5'((10'(sample_x) + 10'd15) >> 4);
+    wire [6:0] first_unsampled_word0 = {first_unsampled_group, 2'b00} +
+        7'(cache_margin[0] && native_word_loss == cache_loss[0]);
+    wire [6:0] first_unsampled_word1 = {first_unsampled_group, 2'b00} +
+        7'(cache_margin[1] && native_word_loss == cache_loss[1]);
+    wire before_display = native_cycle < (frame_pal ? 9'd56 : 9'd52);
+    wire future_cache0 = native_line < frame_top || cache_row[0] > row ||
+        (cache_row[0] == row && (before_display || snoop_offset0[6:0] >= first_unsampled_word0));
+    wire future_cache1 = native_line < frame_top || cache_row[1] > row ||
+        (cache_row[1] == row && (before_display || snoop_offset1[6:0] >= first_unsampled_word1));
+    wire snoop_enabled = ram_write_committed && owned && enabled && !hold && !reset_sys;
+    wire snoop_hit0 = snoop_enabled && cache_window_valid[0] && cache_epoch[0] == epoch && future_cache0 &&
+        !(|snoop_offset0[17:7]) && snoop_offset0[6:0] <= (cache_margin[0] ? 7'd80 : 7'd79);
+    wire snoop_hit1 = snoop_enabled && cache_window_valid[1] && cache_epoch[1] == epoch && future_cache1 &&
+        !(|snoop_offset1[17:7]) && snoop_offset1[6:0] <= (cache_margin[1] ? 7'd80 : 7'd79);
     wire loss_matches = native_word_loss == cache_loss[row[0]] ||
         (cache_margin[row[0]] && native_word_loss == cache_loss[row[0]] + 9'd1);
     wire row_ready = cache_valid[row[0]] && cache_row[row[0]] == row && cache_epoch[row[0]] == epoch && loss_matches;
@@ -218,6 +247,23 @@ module st_native_low_video (
     wire [15:0] plane1 = word_offset ? selected_lane2 : selected_lane1;
     wire [15:0] plane2 = word_offset ? selected_lane3 : selected_lane2;
     wire [15:0] plane3 = word_offset ? selected_following_lane0 : selected_lane3;
+    wire retired_bit = ram_write_data[bit_index];
+    wire retired_lane_enabled = ram_write_lanes[bit_index[3]];
+    function automatic forwarded_bit(input [15:0] original, input [6:0] index);
+        reg hit;
+        begin
+            hit = row[0] ? (snoop_hit1 && snoop_offset1[6:0] == index) :
+                           (snoop_hit0 && snoop_offset0[6:0] == index);
+            forwarded_bit = hit && retired_lane_enabled ? retired_bit : original[bit_index];
+        end
+    endfunction
+    // A retired write on the sampling edge must reach the token as well as
+    // the registered cache; forwarding preserves that boundary for both bytes.
+    wire [6:0] first_plane_word = {word_group, 2'b00} + 7'(word_offset);
+    wire sampled_plane0 = forwarded_bit(plane0, first_plane_word);
+    wire sampled_plane1 = forwarded_bit(plane1, first_plane_word + 7'd1);
+    wire sampled_plane2 = forwarded_bit(plane2, first_plane_word + 7'd2);
+    wire sampled_plane3 = forwarded_bit(plane3, first_plane_word + 7'd3);
     // The final DMA word (plane 3 of group 19) is absent on a shortened row.
     wire missing_plane3 = native_short_line && pixel_x >= 9'd304;
     // Resolve the first pixel in parallel. DE-rise selects the completed
@@ -230,7 +276,7 @@ module st_native_low_video (
         {cache0[4][15], cache0[3][15], cache0[2][15], cache0[1][15]};
     wire [3:0] first_index = word_offset ? first_index_margin : first_index_plain;
     wire [3:0] steady_index =
-        {plane3[bit_index] && !missing_plane3, plane2[bit_index], plane1[bit_index], plane0[bit_index]};
+        {sampled_plane3 && !missing_plane3, sampled_plane2, sampled_plane1, sampled_plane0};
     wire [3:0] color_index = !native_display ? 4'd0 :
         display_rise ? first_index : steady_index;
     // Shift only on actual native pulses: input at t leaves at t+28.
@@ -367,7 +413,7 @@ module st_native_low_video (
             write_bank <= 2'd0; frame_top <= 9'd63; expected_row <= 9'd0;
             pixel_x <= 9'd0; frame_base <= 24'd0; epoch <= 32'd0;
             pixels <= 17'd0;
-            cache_valid <= 2'd0; memory_state <= IDLE;
+            cache_valid <= 2'd0; cache_window_valid <= 2'd0; memory_state <= IDLE;
             job_bank <= 1'b0; word_index <= 7'd0; job_epoch <= 32'd0;
             job_last_word <= 7'd79;
             memory_req <= 1'b0; memory_addr <= 18'd0;
@@ -378,6 +424,7 @@ module st_native_low_video (
             for (b = 0; b < 2; b = b + 1) begin
                 cache_row[b] <= 9'd0; cache_epoch[b] <= 32'd0;
                 cache_loss[b] <= 9'd0; cache_margin[b] <= 1'b0;
+                cache_start_word[b] <= 18'd0;
             end
         end else begin
             release_meta <= released; release_sync <= release_meta;
@@ -447,6 +494,8 @@ module st_native_low_video (
                     cache_epoch[desired_bank] <= epoch;
                     cache_loss[desired_bank] <= native_word_loss;
                     cache_margin[desired_bank] <= desired_margin;
+                    cache_start_word[desired_bank] <= start_word[17:0];
+                    cache_window_valid[desired_bank] <= address_valid;
                     if (address_valid) begin
                         job_bank <= desired_bank; job_epoch <= epoch; word_index <= 7'd0;
                         job_last_word <= desired_margin ? 7'd80 : 7'd79;
@@ -454,8 +503,6 @@ module st_native_low_video (
                     end
                 end
                 READ: if (memory_ready) begin
-                    if (job_bank) cache1[word_index] <= memory_data;
-                    else cache0[word_index] <= memory_data;
                     memory_req <= 1'b0; memory_state <= GAP;
                 end
                 GAP: begin
@@ -469,6 +516,21 @@ module st_native_low_video (
                 end
                 default: begin memory_req <= 1'b0; memory_state <= IDLE; end
             endcase
+            // Separate byte enables avoid an extra cache read/modify/write
+            // port. The shared controller cannot retire a RAM WRITE and a
+            // VIDEO READ together; keep read-fill priority explicit anyway.
+            if (memory_state == READ && memory_ready && !job_bank)
+                cache0[word_index] <= memory_data;
+            else if (snoop_hit0) begin
+                if (ram_write_lanes[1]) cache0[snoop_offset0[6:0]][15:8] <= ram_write_data[15:8];
+                if (ram_write_lanes[0]) cache0[snoop_offset0[6:0]][7:0] <= ram_write_data[7:0];
+            end
+            if (memory_state == READ && memory_ready && job_bank)
+                cache1[word_index] <= memory_data;
+            else if (snoop_hit1) begin
+                if (ram_write_lanes[1]) cache1[snoop_offset1[6:0]][15:8] <= ram_write_data[15:8];
+                if (ram_write_lanes[0]) cache1[snoop_offset1[6:0]][7:0] <= ram_write_data[7:0];
+            end
         end
     end
     // Retained only for simulation inspection of the selected publication.

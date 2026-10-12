@@ -57,6 +57,8 @@ public:
     uint64_t last_refresh_any_chip = 0, min_refresh_gap = UINT64_MAX;
     bool after_refresh = false;
     bool precharged = false, initialized = false;
+    struct RamWrite { unsigned address, data, lanes; };
+    std::vector<RamWrite> ram_writes;
 
     uint16_t tick(const Vst_memory_sim_top &dut) {
         ++cycle;
@@ -103,6 +105,9 @@ public:
             available[bank] = cycle + (command == 4 ? 2 : 3);
             if (command == 4) {
                 require(dut.dq_oe, "WRITE without driven data", cycle);
+                if (address < 0x40000)
+                    ram_writes.push_back({address, unsigned(dut.dq_out),
+                        ((dut.sdram_a & 0x1000) ? 0u : 2u) | ((dut.sdram_a & 0x800) ? 0u : 1u)});
                 if (!(mask & 1)) words[address] = (words[address] & 0xff00) | (dut.dq_out & 0xff);
                 if (!(mask & 2)) words[address] = (words[address] & 0xff) | (dut.dq_out & 0xff00);
                 ++write_masks[mask];
@@ -176,6 +181,7 @@ public:
     bool hold_raster = false;
     bool held_cpu_read = false;
     unsigned retained_cpu_data = 0;
+    size_t retired_ram_writes = 0;
 
     void step() {
         dut.raster_reset = dut.reset || hold_raster;
@@ -193,6 +199,14 @@ public:
         dut.eval();
         dut.clk = 1;
         dut.eval();
+        if (dut.ram_write_committed) {
+            require(retired_ram_writes < memory.ram_writes.size(),
+                    "RAM write notification preceded its physical WRITE", cycles);
+            const auto &w = memory.ram_writes[retired_ram_writes++];
+            require(dut.ram_write_addr == w.address && dut.ram_write_data == w.data &&
+                    dut.ram_write_lanes == w.lanes,
+                    "RAM write notification payload/order differs from physical WRITE", cycles);
+        }
         require(dut.sdram_clk == 0, "SDRAM clock high-half polarity", cycles);
         ++cycles;
         if (held_cpu_read) {
@@ -616,6 +630,10 @@ int main(int argc, char **argv) {
         sim.latency();
         require(!ST_SLOT_POLICY || (!sim.posted_pending && sim.posted_commits > 4096), "posted write coverage/drain incomplete", sim.cycles);
         std::cout << "Physical posted commits checked: " << sim.posted_commits << "\n";
+        sim.idle(48);
+        require(sim.retired_ram_writes == sim.memory.ram_writes.size(),
+                "RAM write notification omitted a physical WRITE", sim.cycles);
+        std::cout << "Physical RAM write notifications checked: " << sim.retired_ram_writes << "\n";
         for (const auto count : sim.memory.write_masks)
             require(count != 0, "missing DQM lane-mask coverage", sim.cycles);
         require(sim.memory.masked_after_refresh != 0, "missing masked write after refresh", sim.cycles);

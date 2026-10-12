@@ -6,6 +6,7 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 
 struct Test {
@@ -18,12 +19,15 @@ struct Test {
     unsigned source_clock=313*512-1,source_frame=0,position=0,output_frame=0,selected=0;
     unsigned transfer_address=0,delay=0,transfers=0,black_rows=0,stall_black_rows=0,repeat_frames=0;
     bool pending=false,complete=false,stalled=false,previous_front=false;
+    bool updated_first_word=false, coherence_mode=false;
+    unsigned coherence_checks=0;
+    std::array<unsigned,80> coherence_words{};
     bool native_ce_delay=false;
     std::array<int,247> row_black{};
     uint64_t pal_bottom_pixels=0,ntsc_bottom_pixels=0,raster_border_pixels=0;
     bool border_overflow_seen=false;
     std::array<bool,5> memory_boundaries{};
-    Test(){dut.native_blank=0;dut.native_short_line=0;dut.native_word_loss=0;}
+    Test(){for(unsigned i=0;i<80;++i)coherence_words[i]=i%4==0?0xffff:0;dut.ram_write_committed=0;dut.ram_write_addr=0;dut.ram_write_data=0;dut.ram_write_lanes=0;dut.native_blank=0;dut.native_short_line=0;dut.native_word_loss=0;}
     void require(bool good,const char*message) {
         ++checks;
         if(!good){std::cerr<<"FAIL "<<message<<" sys="<<sys_cycles<<" pixel="<<pixel_cycles
@@ -46,6 +50,12 @@ struct Test {
         return (((line-first)%7+1)<<6) ^ (x<12?0:x<81?7:0x38);
     }
     unsigned source_mode() const {return source_frame==7?1:source_frame==8?2:0;}
+    void commit_word(unsigned index,unsigned data,unsigned lanes){
+        dut.ram_write_committed=1;dut.ram_write_addr=0x10000/2+index;
+        dut.ram_write_data=data;dut.ram_write_lanes=lanes;
+        coherence_words[index]=((lanes&2)?data&0xff00:coherence_words[index]&0xff00)|
+                              ((lanes&1)?data&255:coherence_words[index]&255);
+    }
     void system_edge(){
         if(dut.reset_sys){dut.video_ready=0;pending=complete=false;native_ce_delay=false;dut.native_lookup_ce=dut.native_pixel_ce=0;}
         else {
@@ -72,6 +82,14 @@ struct Test {
             dut.sync_mode=ntsc?0:2;
             const unsigned display_start=ntsc?52:DisplayStart,display_end=ntsc?372:DisplayEnd;
             dut.native_display=line>=top&&line<top+rows&&phase>=display_start&&phase<display_end;
+            dut.ram_write_committed=0;
+            if(coherence_mode && cpu_tick && source_frame==1) {
+                if(line==62 && phase==400){commit_word(0,0,3);updated_first_word=true;}
+                if(line==62 && phase==404)commit_word(5,0xaa00,2);
+                if(line==62 && phase==408)commit_word(10,0x000f,1);
+                if(line==63 && phase==110)commit_word(12,0,3);
+                if(line==63 && phase==120)commit_word(40,0,3);
+            }
             dut.resolution=source_mode();
             dut.screen_base=source_frame==10?0xff0000:0x10000;
             // Abort one in-progress native frame without withdrawing its read.
@@ -83,6 +101,7 @@ struct Test {
             if(source_frame==2&&dut.border_overflow)border_overflow_seen=true;
             unsigned intensity=((line>=top?line-top:0)+source_frame)%7+1;
             palette(1,source_mode()==1?0x38:phase<display_start+160?intensity<<6:intensity);
+            if(coherence_mode){palette(3,0x1e3);palette(5,0x13d);}
             if(!dut.video_req){require(!pending||complete,"memory request abandoned");pending=complete=false;dut.video_ready=0;}
             else if(!pending){
                 require(dut.video_addr<0x40000,"invalid screen base wrapped into RAM");
@@ -95,10 +114,13 @@ struct Test {
                 else if(!complete){
                     complete=true;dut.video_ready=1;
                     unsigned relative=transfer_address-0x10000/2;
-                    dut.video_rdata=relative%4==0?0xffff:0;
+                    dut.video_rdata=coherence_mode && relative<80?coherence_words[relative]:(relative%4==0?0xffff:0);
                 }else require(false,"duplicate memory completion");
             }
             dut.eval();
+            if(coherence_mode && source_frame==1 && dut.prepare_pixel && dut.prepare_y==0 && dut.prepare_x==112) {
+                commit_word(28,0,3);dut.eval();
+            }
             require(!dut.write_pixel||!dut.front_valid||dut.write_bank!=dut.front_bank,
                     "producer wrote the displayed bank");
         }
@@ -140,6 +162,16 @@ struct Test {
                         }
                         unsigned intensity=(row+selected)%7+1;
                         unsigned expected=rgb(nx<160-OutputDelay?intensity<<6:intensity);
+                        if(coherence_mode && selected==1 && row==0) {
+                            require(updated_first_word,"authored pre-DE write did not occur");
+                            if(nx<16 || (nx>=112&&nx<128) || (nx>=160&&nx<176))expected=rgb(0xdb);
+                            if(nx>=16&&nx<24&&(nx%2)==0)expected=rgb(0x1e3);
+                            if(nx>=44&&nx<48)expected=rgb(0x13d);
+                            require(actual==expected,"coherent whole/byte/future/consumed/sampling-edge pixel mismatch");
+                            const unsigned targets[]={4,18,46,56,112,164};
+                            for(unsigned i=0;i<6;++i)if(nx==targets[i])coherence_checks|=1u<<i;
+                            if(coherence_checks==63){std::cout<<"Cache write coherence PASS: fullword, bothbytes, futuregroup, consumedgroup, and sampling-edge forwarding\n";std::exit(0);}
+                        }
                         if(row_black[row]<0){row_black[row]=actual==0;if(actual==0){++black_rows;if(selected==3)++stall_black_rows;}}
                         require(actual==(row_black[row]?0:expected),"native palette/pixel/scaling mismatch");
                         // Check adjacent words across the first/final shallow
@@ -199,4 +231,4 @@ struct Test {
         dut.final();
     }
 };
-int main(int argc,char**argv){Verilated::commandArgs(argc,argv);Test t;t.run();}
+int main(int argc,char**argv){Verilated::commandArgs(argc,argv);Test t;t.coherence_mode=argc>1&&std::strcmp(argv[1],"--cache-write-coherence")==0;t.run();}

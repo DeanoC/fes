@@ -42,6 +42,10 @@ module st_memory #(
     input wire [18:1] video_addr,
     output reg video_ready,
     output reg [15:0] video_rdata,
+    output wire ram_write_committed,
+    output wire [18:1] ram_write_addr,
+    output wire [15:0] ram_write_data,
+    output wire [1:0] ram_write_lanes,
     input wire dma_req,
     input wire [23:0] dma_addr,
     input wire dma_write,
@@ -102,6 +106,14 @@ module st_memory #(
     reg [15:0] held_wdata;
     reg [1:0] held_byte_enable;
     wire controller_done;
+    // Report the retained physical write, not its possibly earlier CPU ACK.
+    // Withdrawal/reset may suppress a client completion but cannot undo the
+    // issued WRITE. Media backing storage lies outside the ST RAM range.
+    assign ram_write_committed = initialized && state == BUSY &&
+        controller_done && held_write && held_addr < 26'h0040000;
+    assign ram_write_addr = held_addr[17:0];
+    assign ram_write_data = held_wdata;
+    assign ram_write_lanes = held_byte_enable;
     wire refresh_pending;
     wire [15:0] controller_rdata;
     reg cpu_ready_q;

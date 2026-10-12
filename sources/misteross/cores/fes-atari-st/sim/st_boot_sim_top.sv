@@ -93,6 +93,8 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     // This wrapper observes the production native capture with model RAM.
     // Its consumer clock is the system clock; it is not an HDMI/CDC oracle.
     st_native_low_video capture (
+        .ram_write_committed(1'b0), .ram_write_addr(18'd0),
+        .ram_write_data(16'd0), .ram_write_lanes(2'd0),
         .clk_sys(clk_sys), .clk_pixel(clk_sys), .reset_sys(reset), .reset_pixel(reset),
         .hold(reset), .native_vblank(vblank), .native_display(native_display), .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss), .native_line(native_line),
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(exp_phi2),

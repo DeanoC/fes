@@ -39,6 +39,8 @@ module st_shifter_output_sim_top (
         end else if (commit) palette[commit_index * 9 +: 9] <= commit_color;
     end
     st_native_low_video capture (
+        .ram_write_committed(1'b0), .ram_write_addr(18'd0),
+        .ram_write_data(16'd0), .ram_write_lanes(2'd0),
         .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss),
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel), .hold(hold),
         .native_vblank(native_vblank), .native_display(native_display),

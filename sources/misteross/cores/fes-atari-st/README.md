@@ -269,6 +269,18 @@ supports palette-bit inversion; color borders use palette entry 0.
 RAM row windows. Row zero fetches 80 words; subsequent rows fetch 81,
 including a one-word leading margin. That margin lets a row prefetched before
 a late frequency switch use either the ordinary or shortened DMA address.
+The shared memory port reports retired physical RAM writes with their retained
+address, data and byte lanes, including posted writes whose CPU acknowledgement
+occurred earlier. The capture updates prefetched words in future rows or
+groups that have not sampled their first native pixel. Once a group starts,
+its four planes remain unchanged for all sixteen pixels. A write retiring on
+the sampling edge also forwards its enabled byte into that pixel. Completed
+RGB banks remain immutable. This closes early-prefetch write visibility;
+exact original MMU word-fetch edges still need separate timing qualification.
+`make sim-fes-atari-st-cache-write-coherence` checks whole-word writes, both
+byte lanes, future and consumed groups, and sampling-edge forwarding alongside
+the full native-video fixture. Memory fixtures pair each notification with
+the actual physical WRITE command, including warm-reset drain and posted writes.
 Prepared bitplane indices and canvas coordinates pass through
 28 actual CPU-derived native pulses, then retain the sampled token until the
 next raw CPU phase-2 edge closes palette admission. Actual phase-1 writes can
