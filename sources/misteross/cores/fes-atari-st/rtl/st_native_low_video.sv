@@ -177,8 +177,6 @@ module st_native_low_video (
     wire prepare_pixel = owned && enabled && !hold && active_row && (native_display || short_padding) &&
                        pixel_due && sample_x < 9'd320;
 
-    reg [15:0] cache0 [0:80];
-    reg [15:0] cache1 [0:80];
     reg [1:0] cache_valid;
     reg [8:0] cache_row [0:1];
     reg [31:0] cache_epoch [0:1];
@@ -227,36 +225,77 @@ module st_native_low_video (
     output_token_t output_token;
     wire resolve_bank = output_pipe[FETCH_RESOLVE_DELAY-1].row_number[0];
     wire resolve_margin = output_pipe[FETCH_RESOLVE_DELAY-1].margin;
-    wire [4:0] word_group = output_pipe[FETCH_RESOLVE_DELAY-1].x[8:4];
-    wire [4:0] following_group = word_group + 5'd1;
     wire [3:0] bit_index = 4'd15 - output_pipe[FETCH_RESOLVE_DELAY-1].x[3:0];
     // The immutable words are resolved after all four individual loads.
     // Keep the original coordinate-to-palette deadline at 28 native pulses.
-    wire [15:0] lane00 [0:20], lane10 [0:20];
-    wire [15:0] lane01 [0:19], lane11 [0:19];
-    wire [15:0] lane02 [0:19], lane12 [0:19];
-    wire [15:0] lane03 [0:19], lane13 [0:19];
-    for (genvar group_index = 0; group_index < 20; group_index = group_index + 1) begin : cache_lanes
-        assign lane00[group_index] = cache0[group_index * 4];
-        assign lane10[group_index] = cache1[group_index * 4];
-        assign lane01[group_index] = cache0[group_index * 4 + 1];
-        assign lane11[group_index] = cache1[group_index * 4 + 1];
-        assign lane02[group_index] = cache0[group_index * 4 + 2];
-        assign lane12[group_index] = cache1[group_index * 4 + 2];
-        assign lane03[group_index] = cache0[group_index * 4 + 3];
-        assign lane13[group_index] = cache1[group_index * 4 + 3];
+    typedef enum logic [1:0] { IDLE, READ, GAP } state_t;
+    state_t memory_state;
+    reg job_bank;
+    reg [6:0] word_index;
+    reg [6:0] job_last_word;
+    reg [31:0] job_epoch;
+
+    reg [15:0] cache_words0 [0:3], cache_words1 [0:3];
+    wire [4:0] cache_read_group = output_pipe[FETCH_RESOLVE_DELAY-2].x[8:4];
+    wire read_margin = output_pipe[FETCH_RESOLVE_DELAY-2].margin;
+    reg [4:0] serial_group;
+    reg saved_margin, read_pending, copy_pending;
+    reg [1:0] read_lane, copy_lane;
+    wire cache_read = pixel_due || read_pending;
+    wire [1:0] cache_lane = pixel_due ? 2'd0 : read_lane;
+    wire [4:0] cache_group = pixel_due ? cache_read_group : serial_group;
+    wire serial_margin = pixel_due ? read_margin : saved_margin;
+    wire [6:0] cache_address = {cache_group, 2'b00} +
+        ((cache_lane == 0 && serial_margin) ? 7'd4 : {5'd0, cache_lane});
+    // Four synchronous reads and their output copies fit within the minimum
+    // six system edges between native pulses. Words are already frozen at
+    // this interval; index resolution and the palette deadline stay unchanged.
+    always @(posedge clk_sys) begin
+        if (reset_sys) begin
+            serial_group <= 0; saved_margin <= 0; read_lane <= 0;
+            read_pending <= 0; copy_pending <= 0; copy_lane <= 0;
+        end else begin
+            if (pixel_due) begin
+                serial_group <= cache_read_group; saved_margin <= read_margin;
+                read_lane <= 1; read_pending <= 1;
+            end else if (read_pending) begin
+                if (read_lane == 3) read_pending <= 0;
+                else read_lane <= read_lane + 1'b1;
+            end
+            copy_pending <= cache_read;
+            copy_lane <= cache_lane;
+        end
     end
-    assign lane00[20] = cache0[80];
-    assign lane10[20] = cache1[80];
-    wire [15:0] selected_lane0 = resolve_bank ? lane10[word_group] : lane00[word_group];
-    wire [15:0] selected_lane1 = resolve_bank ? lane11[word_group] : lane01[word_group];
-    wire [15:0] selected_lane2 = resolve_bank ? lane12[word_group] : lane02[word_group];
-    wire [15:0] selected_lane3 = resolve_bank ? lane13[word_group] : lane03[word_group];
-    wire [15:0] selected_following_lane0 = resolve_bank ? lane10[following_group] : lane00[following_group];
+    for (genvar bank = 0; bank < 2; bank = bank + 1) begin : cache_banks
+        (* ramstyle = "M10K" *) reg [15:0] words [0:80];
+        reg [15:0] read_word;
+        wire fill = !reset_sys && memory_state == READ && memory_ready && job_bank == 1'(bank);
+        wire hit = bank == 0 ? snoop_hit0 : snoop_hit1;
+        wire [6:0] snoop_word = bank == 0 ? snoop_offset0[6:0] : snoop_offset1[6:0];
+        wire update_word = !fill && hit;
+        wire [6:0] write_address = fill ? word_index : snoop_word;
+        wire [15:0] write_data = fill ? memory_data : ram_write_data;
+        always @(posedge clk_sys) begin
+            if (fill || (update_word && ram_write_lanes[1])) words[write_address][15:8] <= write_data[15:8];
+            if (fill || (update_word && ram_write_lanes[0])) words[write_address][7:0] <= write_data[7:0];
+            if (cache_read && !reset_sys) read_word <= words[cache_address];
+        end
+        if (bank == 0) begin : row0
+            always @(posedge clk_sys)
+                if (copy_pending && !reset_sys) cache_words0[copy_lane] <= read_word;
+        end else begin : row1
+            always @(posedge clk_sys)
+                if (copy_pending && !reset_sys) cache_words1[copy_lane] <= read_word;
+        end
+    end
+    wire [15:0] selected_lane0 = resolve_bank ? cache_words1[0] : cache_words0[0];
+    wire [15:0] selected_lane1 = resolve_bank ? cache_words1[1] : cache_words0[1];
+    wire [15:0] selected_lane2 = resolve_bank ? cache_words1[2] : cache_words0[2];
+    wire [15:0] selected_lane3 = resolve_bank ? cache_words1[3] : cache_words0[3];
     wire [15:0] plane0 = resolve_margin ? selected_lane1 : selected_lane0;
     wire [15:0] plane1 = resolve_margin ? selected_lane2 : selected_lane1;
     wire [15:0] plane2 = resolve_margin ? selected_lane3 : selected_lane2;
-    wire [15:0] plane3 = resolve_margin ? selected_following_lane0 : selected_lane3;
+    wire [15:0] plane3 = resolve_margin ? selected_lane0 : selected_lane3;
     // With only three final loads the shifter cannot reload this group.
     // Resolve all sixteen indices to zero after the final DMA deadline;
     // a late switch may follow their raw coordinate preparation.
@@ -348,12 +387,6 @@ module st_native_low_video (
         end
     end endgenerate
 
-    typedef enum logic [1:0] { IDLE, READ, GAP } state_t;
-    state_t memory_state;
-    reg job_bank;
-    reg [6:0] word_index;
-    reg [6:0] job_last_word;
-    reg [31:0] job_epoch;
     wire prefetch_window = owned && !hold && native_line >= frame_top - 9'd2 &&
                            native_line < frame_top + maximum_height - 9'd1;
     wire [8:0] desired_row = native_line < frame_top ? 9'd0 : row + 9'd1;
@@ -517,21 +550,6 @@ module st_native_low_video (
                 end
                 default: begin memory_req <= 1'b0; memory_state <= IDLE; end
             endcase
-            // Separate byte enables avoid an extra cache read/modify/write
-            // port. The shared controller cannot retire a RAM WRITE and a
-            // VIDEO READ together; keep read-fill priority explicit anyway.
-            if (memory_state == READ && memory_ready && !job_bank)
-                cache0[word_index] <= memory_data;
-            else if (snoop_hit0) begin
-                if (ram_write_lanes[1]) cache0[snoop_offset0[6:0]][15:8] <= ram_write_data[15:8];
-                if (ram_write_lanes[0]) cache0[snoop_offset0[6:0]][7:0] <= ram_write_data[7:0];
-            end
-            if (memory_state == READ && memory_ready && job_bank)
-                cache1[word_index] <= memory_data;
-            else if (snoop_hit1) begin
-                if (ram_write_lanes[1]) cache1[snoop_offset1[6:0]][15:8] <= ram_write_data[15:8];
-                if (ram_write_lanes[0]) cache1[snoop_offset1[6:0]][7:0] <= ram_write_data[7:0];
-            end
         end
     end
     // Retained only for simulation inspection of the selected publication.

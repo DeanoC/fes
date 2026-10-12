@@ -87,7 +87,6 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     wire [17:0] current0 = held_valid ? held0 : head0;
     wire [17:0] current1 = held_valid ? held1 : head1;
     wire [17:0] current2 = held_valid ? held2 : head2;
-    wire [17:0] head = output_bank == 2'd0 ? current0 : output_bank == 2'd1 ? current1 : current2;
     wire [17:0] consume_head = output_consume_bank == 2'd0 ? current0 :
         output_consume_bank == 2'd1 ? current1 : current2;
     reg [EVENT_BITS-1:0] next_pointer;
@@ -96,7 +95,6 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     // consume releases the held event on the original output edge; no head-X
     // comparison or consume decision feeds the ordinary RAM read address.
     reg [8:0] remaining, colour;
-    wire consume = output_ce && remaining != 9'd0 && head[17:9] <= output_x;
     wire consume_current = output_ce && remaining != 9'd0 && consume_head[17:9] <= output_x;
     wire [EVENT_BITS-1:0] read_pointer = output_sof ? {EVENT_BITS{1'b0}} :
         output_line_start ? descriptor[EVENT_BITS-1:0] : next_pointer;
@@ -108,7 +106,11 @@ module st_native_border #(parameter integer EVENT_BITS = 13) (
     wire [EVENT_BITS-1:0] successor2 = desc2[EVENT_BITS-1:0] + 1'b1;
     wire [EVENT_BITS-1:0] line_successor = output_sof ? {{(EVENT_BITS-1){1'b0}}, 1'b1} :
         output_bank == 2'd0 ? successor0 : output_bank == 2'd1 ? successor1 : successor2;
-    assign output_rgb = consume ? head[8:0] : colour;
+    // SOF's new bank affects descriptor loading, not visible consumption:
+    // the fixed raster issues no border sample at SOF. Away from SOF the
+    // registered front bank is the same selected bank. Keep publication
+    // arbitration out of both the consume decision and RGB forwarding.
+    assign output_rgb = consume_current ? consume_head[8:0] : colour;
     // Unconditional clocked ports infer dual-clock M10Ks. The parent owns
     // cross-domain bank selection and the descriptor/event immutability.
     always @(posedge clk_pixel) begin
