@@ -34,6 +34,9 @@ class C64FirmwareTests(unittest.TestCase):
             self.assertNotIn(green_border, kernal)
             self.assertIn(black_border, kernal)
             self.assertIn(pass_row, kernal)
+            # The stage digit is written at $0408. Clearing only eight cells
+            # leaves that 8 on a pass picture.
+            self.assertIn(bytes([0xE0, 0x09]), kernal)
 
 
 if __name__ == "__main__":

@@ -194,7 +194,8 @@ blank_status:
         lda #$20
         sta $0400, x
         inx
-        cpx #$08
+        ; The status text is $0400..$0407. The stage digit is $0408.
+        cpx #$09
         bne blank_status
         ldx #$00
 paint_pass:
