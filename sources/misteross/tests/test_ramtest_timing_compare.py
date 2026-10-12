@@ -41,6 +41,24 @@ class TimingComparisonTest(unittest.TestCase):
         self.assertAlmostEqual(result["effective_setup_ns"], 4.234)
         self.assertEqual(result["data_delay_ns"], 3.994)
 
+    def test_hard_block_latch_without_q_is_reported(self):
+        report = {"critical_paths": [{"from": "posedge ram_clock.clocks[0]",
+            "to": "posedge ram_clock.clocks[0]", "max_delay": 10.0, "path": [
+                {"type": "clk-to-q", "delay": 0.5, "from": {"cell": "skid_ff", "port": "Q"}},
+                {"type": "routing", "delay": 1.0},
+                {"type": "setup", "delay": 0.1,
+                 "to": {"cell": "hps_ddr.f2sdram", "port": "cmd_data_0[21]"}}]}]}
+        module = {"cells": {
+            "skid_ff": {"type": "cyclonev_ff", "connections": {"Q": [7]}},
+            "hps_ddr.f2sdram": {"type": "cyclonev_hps_interface_fpga2sdram",
+                "connections": {"cfg_port_width": [1], "cmd_data_0": [9]}}},
+            "netnames": {"skid": {"bits": [7]}}}
+        result, = nextpnr_paths(report, module)
+        self.assertEqual(result["from_signals"], ["skid"])
+        self.assertEqual(result["to_signals"], [])
+        self.assertEqual(result["to"]["cell"], "hps_ddr.f2sdram")
+        self.assertAlmostEqual(result["slack_ns"], 8.4)
+
     def test_missing_quartus_paths_fails(self):
         with self.assertRaises(ValueError):
             quartus_paths("Report Timing: Found 0 setup paths")
