@@ -235,7 +235,10 @@ and content selection; the MiSTer is a small, directly controlled target.
   The CGO-free on-kit `fogcast-kit` grid plays available kit-local SMS rows
   without the host through the local-control socket. A saved host SMS row
   plays the same way while the host is down when its cached ROM SHA-256, or
-  a single matching title, identifies the cartridge on the kit. A starts the
+  a single matching title, identifies the cartridge on the kit. While the host
+  catalog is reachable, those digests refresh in the background: a stored
+  digest at most every 15 minutes, a cancelled fill on the next catalog load,
+  and a failed fetch after 2 minutes. A starts the
   cartridge; Select+Start stops it and returns to the menu. The shell can select the described
   HDMI menu path with `menu_display: true` in `launcher.json` or
   `-menu-display`. It keeps the host-backed library, cached offline browsing,

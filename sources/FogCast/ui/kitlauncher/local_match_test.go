@@ -355,14 +355,32 @@ func TestOnlineDigestFailureNeverFallsBackToTitle(t *testing.T) {
 func TestSMSHashFillRefreshesEachIDAtMostOncePerInterval(t *testing.T) {
 	var f smsHashFill
 	now := time.Now()
-	if !f.due("sms-a-000000000000", now) {
+	id := "sms-a-000000000000"
+	if !f.due(id, now) {
 		t.Fatal("first check not due")
 	}
-	if f.due("sms-a-000000000000", now.Add(30*time.Second)) {
+	f.stored(id, now)
+	if f.due(id, now.Add(30*time.Second)) {
 		t.Fatal("re-fetched on the next catalog reload")
 	}
-	if !f.due("sms-a-000000000000", now.Add(smsHashRefreshEvery)) {
+	if !f.due(id, now.Add(smsHashRefreshEvery)) {
 		t.Fatal("not refreshed after the interval")
+	}
+}
+
+func TestSMSHashFillErrorBackoffRetriesBeforeTheSuccessInterval(t *testing.T) {
+	var f smsHashFill
+	now := time.Now()
+	id := "sms-a-000000000000"
+	if !f.due(id, now) {
+		t.Fatal("first check not due")
+	}
+	f.failed(id, now)
+	if f.due(id, now.Add(30*time.Second)) {
+		t.Fatal("failed fetch retried on the next catalog reload")
+	}
+	if !f.due(id, now.Add(smsHashErrorBackoff)) {
+		t.Fatal("failed fetch stayed throttled through the error backoff")
 	}
 }
 
@@ -414,10 +432,73 @@ func TestSMSHashFillCancellationLeavesUnattemptedRowsEligible(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
+	for _, row := range rows {
+		deadline = time.Now().Add(5 * time.Second)
+		for store.ROMHash(row.ID) != strings.Repeat("cd", 32) {
+			if time.Now().After(deadline) {
+				t.Fatalf("second fill left %s at %q", row.ID, store.ROMHash(row.ID))
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
 	fill.stop()
 	mu.Lock()
 	defer mu.Unlock()
-	if len(calls) != 3 || calls[0] != rows[0].ID || calls[1] != rows[1].ID || calls[2] != rows[2].ID {
+	counts := map[string]int{}
+	for _, id := range calls {
+		counts[id]++
+	}
+	if counts[rows[0].ID] < 2 || counts[rows[1].ID] < 1 || counts[rows[2].ID] < 1 {
 		t.Fatalf("fetch sequence %v", calls)
+	}
+}
+
+func TestSMSHashFillRetriesCancelledFetchOnNextFill(t *testing.T) {
+	store := mustOpenStore(t)
+	row := smsRow()
+	row.ID = "sms-a-000000000000"
+	var fill smsHashFill
+	started := make(chan struct{})
+	cancelled := make(chan struct{})
+	fill.start(context.Background(), func(ctx context.Context, _ string) (string, error) {
+		close(started)
+		<-ctx.Done()
+		close(cancelled)
+		return "", ctx.Err()
+	}, store, []hostclient.Game{row})
+	<-started
+	done := make(chan struct{})
+	fill.start(context.Background(), func(_ context.Context, id string) (string, error) {
+		if id == row.ID {
+			close(done)
+		}
+		return strings.Repeat("ab", 32), nil
+	}, store, []hostclient.Game{row})
+	<-cancelled
+	<-done
+	deadline := time.Now().Add(5 * time.Second)
+	for store.ROMHash(row.ID) != strings.Repeat("ab", 32) {
+		if time.Now().After(deadline) {
+			t.Fatalf("cancelled fetch was not stored on the next fill, hash=%q", store.ROMHash(row.ID))
+		}
+		time.Sleep(time.Millisecond)
+	}
+	fill.stop()
+}
+
+func TestSMSHashFillFailureSkipsTheNextImmediateFill(t *testing.T) {
+	store := mustOpenStore(t)
+	row := smsRow()
+	row.ID = "sms-a-000000000000"
+	var calls int
+	var fill smsHashFill
+	fetch := func(context.Context, string) (string, error) {
+		calls++
+		return "", errors.New("host 503")
+	}
+	fillSMSROMHashes(context.Background(), fetch, store, []hostclient.Game{row}, &fill)
+	fillSMSROMHashes(context.Background(), fetch, store, []hostclient.Game{row}, &fill)
+	if calls != 1 || store.ROMHash(row.ID) != "" {
+		t.Fatalf("calls=%d hash=%q", calls, store.ROMHash(row.ID))
 	}
 }

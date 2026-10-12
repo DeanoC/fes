@@ -214,25 +214,41 @@ func looseTitle(title string) string {
 type smsHashFill struct {
 	mu     sync.Mutex
 	cancel context.CancelFunc
-	// checked bounds background refreshes: each id is re-fetched at most
-	// once per smsHashRefreshEvery, not on every 30s catalog reload.
-	checked map[string]time.Time
+	// readyAt is the earliest time id may be fetched again. A stored digest
+	// waits smsHashRefreshEvery. A failed fetch waits smsHashErrorBackoff.
+	// A cancelled fetch records nothing, so the next catalog load retries it.
+	readyAt map[string]time.Time
 }
 
 const smsHashRefreshEvery = 15 * time.Minute
+const smsHashErrorBackoff = 2 * time.Minute
 
-// due reports whether id should be fetched now and marks it checked.
+// due reports whether id may be fetched at now. It does not record the attempt.
 func (f *smsHashFill) due(id string, now time.Time) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if last, ok := f.checked[id]; ok && now.Sub(last) < smsHashRefreshEvery {
-		return false
+	until, ok := f.readyAt[id]
+	return !ok || !now.Before(until)
+}
+
+func (f *smsHashFill) hold(id string, until time.Time) {
+	if f == nil {
+		return
 	}
-	if f.checked == nil {
-		f.checked = map[string]time.Time{}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.readyAt == nil {
+		f.readyAt = map[string]time.Time{}
 	}
-	f.checked[id] = now
-	return true
+	f.readyAt[id] = until
+}
+
+func (f *smsHashFill) stored(id string, now time.Time) {
+	f.hold(id, now.Add(smsHashRefreshEvery))
+}
+
+func (f *smsHashFill) failed(id string, now time.Time) {
+	f.hold(id, now.Add(smsHashErrorBackoff))
 }
 
 func (f *smsHashFill) start(parent context.Context, fetch func(context.Context, string) (string, error), store *DiskStore, games []hostclient.Game) {
@@ -266,6 +282,10 @@ func fillSMSROMHashes(ctx context.Context, fetch func(context.Context, string) (
 	if fetch == nil || store == nil {
 		return
 	}
+	var pace *smsHashFill
+	if len(throttle) > 0 {
+		pace = throttle[0]
+	}
 	for _, game := range games {
 		if ctx.Err() != nil {
 			return
@@ -273,17 +293,30 @@ func fillSMSROMHashes(ctx context.Context, fetch func(context.Context, string) (
 		if !game.LocalCatalogPlayable() {
 			continue
 		}
-		if len(throttle) > 0 && throttle[0] != nil && !throttle[0].due(game.ID, time.Now()) {
+		if pace != nil && !pace.due(game.ID, time.Now()) {
 			continue
 		}
 		reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		got, err := fetch(reqCtx, game.ID)
 		cancel()
 		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			pace.failed(game.ID, time.Now())
 			continue
 		}
-		if hash := normalizeROMHash(got); hash != "" {
-			_ = store.RememberROMHash(game.ID, hash)
+		hash := normalizeROMHash(got)
+		if hash == "" || store.RememberROMHash(game.ID, hash) != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			pace.failed(game.ID, time.Now())
+			continue
+		}
+		pace.stored(game.ID, time.Now())
+		if ctx.Err() != nil {
+			return
 		}
 	}
 }
