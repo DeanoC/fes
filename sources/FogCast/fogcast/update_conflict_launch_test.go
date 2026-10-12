@@ -23,7 +23,8 @@ import (
 // TestUpdateConflictLaunchReleasesOnlyANewLease drives a kit core-package
 // launch through the service. The target grants the claim and then refuses
 // activation with UPDATE_CONFLICT. A newly acquired lease is released. A
-// lease that already backs another live play on that kit is kept.
+// lease that already backs another live play is claimed before launch; the
+// peer reports that held generation and the grant is kept.
 func TestUpdateConflictLaunchReleasesOnlyANewLease(t *testing.T) {
 	for _, livePlay := range []bool{false, true} {
 		name := "release new lease"
@@ -61,12 +62,14 @@ func TestUpdateConflictLaunchReleasesOnlyANewLease(t *testing.T) {
 			}
 			var mu sync.Mutex
 			var calls []string
+			var granted bool
 			peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Body != nil {
 					_, _ = io.Copy(io.Discard, r.Body)
 				}
 				mu.Lock()
 				calls = append(calls, r.Method+" "+r.URL.Path)
+				alreadyGranted := granted
 				mu.Unlock()
 				if r.Header.Get("Authorization") != "Bearer secret" {
 					http.Error(w, "unauthorized", http.StatusUnauthorized)
@@ -76,10 +79,17 @@ func TestUpdateConflictLaunchReleasesOnlyANewLease(t *testing.T) {
 				case "GET /v1/health":
 					_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: targetID, Ready: true})
 				case "GET /v1/kit/lease":
-					_ = json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "free"})
+					ownership := targetclient.KitOwnership{State: "free"}
+					if alreadyGranted {
+						ownership.State, ownership.Generation = "held", "original-generation"
+					}
+					_ = json.NewEncoder(w).Encode(ownership)
 				case "GET /v1/status":
 					w.Write(idle)
 				case "POST /v1/kit/claim":
+					mu.Lock()
+					granted = true
+					mu.Unlock()
 					_ = json.NewEncoder(w).Encode(map[string]any{
 						"status": map[string]any{"state": "held", "generation": "original-generation", "expires_in_ms": 60000},
 						"token":  token,
@@ -122,6 +132,16 @@ func TestUpdateConflictLaunchReleasesOnlyANewLease(t *testing.T) {
 					execution: ExecutionFPGANative, gameID: "kept-play", system: catalog.CorePlatform,
 					packageID: pkg.PackageID, packageGeneration: 1,
 				}
+				claim, err := http.NewRequestWithContext(ctx, http.MethodPost, peer.URL+"/v1/launch", nil)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := lease.Authorize(claim, true); err != nil {
+					t.Fatal(err)
+				}
+				if !lease.Held() {
+					t.Fatal("live play grant was not held before launch")
+				}
 			}
 
 			_, err = s.Launch(ctx, entry.GameID, nil)
@@ -132,20 +152,25 @@ func TestUpdateConflictLaunchReleasesOnlyANewLease(t *testing.T) {
 			if !errors.As(err, &api) || api.Code != "UPDATE_CONFLICT" {
 				t.Fatalf("launch error = %#v calls=%v", err, seen)
 			}
-			releases := 0
+			releases, claims := 0, 0
 			for _, path := range seen {
-				if path == "POST /v1/kit/release" {
+				switch path {
+				case "POST /v1/kit/release":
 					releases++
+				case "POST /v1/kit/claim":
+					claims++
 				}
 			}
 			if livePlay {
-				if releases != 0 || !lease.Held() {
-					t.Fatalf("live play lost its lease: releases=%d held=%t posts=%v", releases, lease.Held(), seen)
+				// The preclaim is the only grant. A second claim would mean
+				// admission dropped it and launch took a new one.
+				if releases != 0 || !lease.Held() || claims != 1 {
+					t.Fatalf("live play lost its lease: releases=%d held=%t claims=%d posts=%v", releases, lease.Held(), claims, seen)
 				}
 				return
 			}
-			if releases != 1 || lease.Held() {
-				t.Fatalf("new lease was not released: releases=%d held=%t posts=%v err=%v", releases, lease.Held(), seen, err)
+			if releases != 1 || lease.Held() || claims != 1 {
+				t.Fatalf("new lease was not released: releases=%d held=%t claims=%d posts=%v err=%v", releases, lease.Held(), claims, seen, err)
 			}
 		})
 	}
