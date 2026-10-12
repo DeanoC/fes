@@ -235,35 +235,57 @@ module st_native_low_video (
     reg [6:0] job_last_word;
     reg [31:0] job_epoch;
 
-    wire [15:0] cache_words0 [0:3], cache_words1 [0:3];
+    reg [15:0] cache_words0 [0:3], cache_words1 [0:3];
     wire [4:0] cache_read_group = output_pipe[FETCH_RESOLVE_DELAY-2].x[8:4];
     wire read_margin = output_pipe[FETCH_RESOLVE_DELAY-2].margin;
-    // Read one system edge ahead of index resolution. Each individual word
-    // is frozen before this native interval, leaving its full read latency.
-    // Separate row/plane banks permit overlapping-window snoops to update
-    // both cached copies without creating multiple writes to one RAM port.
+    reg [4:0] serial_group;
+    reg saved_margin, read_pending, copy_pending;
+    reg [1:0] read_lane, copy_lane;
+    wire cache_read = pixel_due || read_pending;
+    wire [1:0] cache_lane = pixel_due ? 2'd0 : read_lane;
+    wire [4:0] cache_group = pixel_due ? cache_read_group : serial_group;
+    wire serial_margin = pixel_due ? read_margin : saved_margin;
+    wire [6:0] cache_address = {cache_group, 2'b00} +
+        ((cache_lane == 0 && serial_margin) ? 7'd4 : {5'd0, cache_lane});
+    // Four synchronous reads and their output copies fit within the minimum
+    // six system edges between native pulses. Words are already frozen at
+    // this interval; index resolution and the palette deadline stay unchanged.
+    always @(posedge clk_sys) begin
+        if (reset_sys) begin
+            serial_group <= 0; saved_margin <= 0; read_lane <= 0;
+            read_pending <= 0; copy_pending <= 0; copy_lane <= 0;
+        end else begin
+            if (pixel_due) begin
+                serial_group <= cache_read_group; saved_margin <= read_margin;
+                read_lane <= 1; read_pending <= 1;
+            end else if (read_pending) begin
+                if (read_lane == 3) read_pending <= 0;
+                else read_lane <= read_lane + 1'b1;
+            end
+            copy_pending <= cache_read;
+            copy_lane <= cache_lane;
+        end
+    end
     for (genvar bank = 0; bank < 2; bank = bank + 1) begin : cache_banks
-        for (genvar lane = 0; lane < 4; lane = lane + 1) begin : planes
-            (* ramstyle = "M10K" *) reg [15:0] words [0:20];
-            reg [15:0] read_word;
-            wire fill_bank = !reset_sys && memory_state == READ && memory_ready && job_bank == 1'(bank);
-            wire fill = fill_bank && word_index[1:0] == 2'(lane);
-            wire hit = bank == 0 ? snoop_hit0 : snoop_hit1;
-            wire [6:0] snoop_word = bank == 0 ? snoop_offset0[6:0] : snoop_offset1[6:0];
-            wire update_word = !fill_bank && hit && snoop_word[1:0] == 2'(lane);
-            wire [4:0] write_group = fill_bank ? word_index[6:2] : snoop_word[6:2];
-            wire [15:0] write_data = fill_bank ? memory_data : ram_write_data;
-            wire [4:0] address = cache_read_group + 5'(lane == 0 && read_margin);
-            always @(posedge clk_sys) begin
-                if (fill || (update_word && ram_write_lanes[1])) words[write_group][15:8] <= write_data[15:8];
-                if (fill || (update_word && ram_write_lanes[0])) words[write_group][7:0] <= write_data[7:0];
-                if (pixel_due) read_word <= words[address];
-            end
-            if (bank == 0) begin : row0
-                assign cache_words0[lane] = read_word;
-            end else begin : row1
-                assign cache_words1[lane] = read_word;
-            end
+        (* ramstyle = "M10K" *) reg [15:0] words [0:80];
+        reg [15:0] read_word;
+        wire fill = !reset_sys && memory_state == READ && memory_ready && job_bank == 1'(bank);
+        wire hit = bank == 0 ? snoop_hit0 : snoop_hit1;
+        wire [6:0] snoop_word = bank == 0 ? snoop_offset0[6:0] : snoop_offset1[6:0];
+        wire update_word = !fill && hit;
+        wire [6:0] write_address = fill ? word_index : snoop_word;
+        wire [15:0] write_data = fill ? memory_data : ram_write_data;
+        always @(posedge clk_sys) begin
+            if (fill || (update_word && ram_write_lanes[1])) words[write_address][15:8] <= write_data[15:8];
+            if (fill || (update_word && ram_write_lanes[0])) words[write_address][7:0] <= write_data[7:0];
+            if (cache_read && !reset_sys) read_word <= words[cache_address];
+        end
+        if (bank == 0) begin : row0
+            always @(posedge clk_sys)
+                if (copy_pending && !reset_sys) cache_words0[copy_lane] <= read_word;
+        end else begin : row1
+            always @(posedge clk_sys)
+                if (copy_pending && !reset_sys) cache_words1[copy_lane] <= read_word;
         end
     end
     wire [15:0] selected_lane0 = resolve_bank ? cache_words1[0] : cache_words0[0];
