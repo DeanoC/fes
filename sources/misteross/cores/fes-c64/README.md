@@ -67,15 +67,18 @@ clocks and exact CRAM containment are separate admission checks.
 ## Diagnostic
 
 `diagnostic/firmware.py` assembles the open 16 KiB image. Success stores `$FF`
-at `$C000`. A failure stores a stage at `$C000` and `1` at `$C001`:
+at `$C000` and paints the word PASS, in white, across three rows in the middle
+of the character screen. The border and the screen background are black.
+A green bar is the 720p letterbox and is not the pass mark. A failure stores
+a stage at `$C000` and `1` at `$C001`:
 
 Stages 7 and 8 with `$C001 = 0` mean waiting, not failure. Mount the
 synthetic D64 and confirm media unit 0 is ready before pressing joystick Up,
 then keyboard A. This gates LOAD on operator readiness rather than a fixed
 sleep: C64 media is currently mounted after CPU release. The SID pulse uses
 50% duty cycle so audio acceptance can require an AC tone rather than DC.
-Success also turns the border green. `--without-cartridges` skips only stages
-5 and 6 for a vacant sealed shell; it is not expansion acceptance.
+`--without-cartridges` skips only stages 5 and 6 for a vacant sealed shell; it
+is not expansion acceptance.
 The simulation covers both initially-ready input/media and delayed mount,
 joystick and keyboard delivery.
 
