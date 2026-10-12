@@ -274,7 +274,11 @@ address, data and byte lanes, including posted writes whose CPU acknowledgement
 occurred earlier. The capture updates prefetched words until their individual modeled MMU loads:
 word zero six CPU cycles after DE, then one word every four cycles. Each word
 retains its loaded value throughout the group's sixteen pixels; later planes
-can still receive writes after an earlier plane has loaded. The row's leading
+can still receive writes after an earlier plane has loaded. The missing final
+plane of a shortened row is decided after its DMA deadline, so a late frequency
+switch resolves all sixteen affected pixels to palette entry 0 even when
+their coordinates were already prepared. Three final loads cannot reload
+the shifter's four-plane group. The row's leading
 margin is retained through late shortened-line counter changes. Completed
 RGB banks remain immutable.
 This model follows the ordinary ST-compatibility raster and MMU with the
@@ -395,11 +399,13 @@ enable display. A PAL-to-60 Hz switch during cycles 56–371 shortens the
 current row to 79 DMA words if it remains selected at cycle 372. Returning
 to PAL before that decision cancels the shortening; returning later cannot
 reopen DE. The video counter omits the final word, and native capture carries
-the cumulative word displacement into following rows. The final group lacks
-plane 3, and the last four output positions use border colour.
+the cumulative word displacement into following rows. The absent fourth load
+prevents reloading the final sixteen-pixel group, which resolves to palette
+entry 0. The last four output positions also have DE disabled.
 `make sim-fes-atari-st-short-line-video` checks every captured pixel,
 immutable replay, two cumulative short rows and prefetch completed before
-the late switch. The I/O fixture separately checks early cancellation, late
+the late switch, with shortening decisions at cycles 300 and 372.
+The I/O fixture separately checks early cancellation, late
 restore, counter movement and next-line porch selection.
 Color line length samples sync separately
 at STF WS1 cycle 54: a bottom-stop pulse restored early on the following

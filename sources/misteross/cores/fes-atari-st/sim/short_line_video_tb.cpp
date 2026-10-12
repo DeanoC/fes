@@ -2,6 +2,8 @@
 // A 79-word last PAL row followed by ordinary opened-bottom rows. Physical
 // RAM contains plane 0 and plane 3 bits (index 9): a one-word earlier row
 // becomes index3, independently of the cache/address-generation RTL.
+// The reference decap shifter requires four loads before reloading: a79-word
+// shortened row leaves the whole final16-pixel group at palette index0.
 #include "Vst_shifter_output_sim_top.h"
 #include "verilated.h"
 #include <cstdlib>
@@ -12,7 +14,8 @@ struct Test {
     unsigned assertions=0, pixels=0, requests=0;
     bool early_next_row=false;
     bool second_short, physical_blank;
-    explicit Test(bool second,bool blank=false):second_short(second),physical_blank(blank){}
+    unsigned decision_cycle;
+    explicit Test(bool second,bool blank=false,unsigned decision=300):second_short(second),physical_blank(blank),decision_cycle(decision){}
     void require(bool good,const char *message) {
         ++assertions;
         if(!good){std::cerr<<"Short-row capture FAIL: "<<message
@@ -22,10 +25,9 @@ struct Test {
     unsigned expected(unsigned row,unsigned x) const {
         if(physical_blank && row>=245)return 0;
         if(second_short && row>=238)return 0x0b7; // Two earlier words produce index6.
-        if(second_short && row==237 && x>=316)return 0;
+        if(second_short && row==237 && x>=304)return physical_blank?0x077:0;
         if(row>=200)return 0x1a2; // Previous plane3 and current plane0 become planes0/1.
-        if(row==199 && x>=316)return physical_blank?0x077:0; // Shortened DE ends four pixels early.
-        if(row==199 && x>=304)return 0x040; // The missing final plane3 leaves index1.
+        if(row==199 && x>=304)return physical_blank?0x077:0; // Three loads cannot reload the last16-pixel group.
         return 0x12a;
     }
     void fabric() {
@@ -47,7 +49,7 @@ struct Test {
         d.native_vblank=line==0 && cycle==0;
         const bool shortened=line==262 || (second_short && line==300);
         d.native_blank=physical_blank && line>=308;
-        d.native_short_line=shortened && cycle>=300;
+        d.native_short_line=shortened && cycle>=decision_cycle;
         d.native_word_loss=unsigned(line>262 || (line==262 && cycle>=383))+
             unsigned(second_short && (line>300 || (line==300 && cycle>=383)));
         d.native_display=line>=63 && line<310 && cycle>=56 && cycle<(shortened?372u:376u);
@@ -93,7 +95,7 @@ struct Test {
             }
         }
         std::cout<<(physical_blank?"Blanked short PAL row":second_short?"Two short PAL rows":"Short PAL row")<<" capture PASS: "<<assertions<<" assertions, "
-            <<pixels<<" pixels; prefetched row survives late one-word displacement\n";
+            <<pixels<<" pixels; decision at cycle "<<decision_cycle<<"; prefetched row survives late one-word displacement\n";
     }
 };
-int main(int argc,char **argv){Verilated::commandArgs(argc,argv);Test one(false);one.run();Test two(true);two.run();Test blank(false,true);blank.run();}
+int main(int argc,char **argv){Verilated::commandArgs(argc,argv);Test one(false);one.run();Test two(true);two.run();Test blank(false,true);blank.run();Test late(false,false,372);late.run();Test late_two(true,false,372);late_two.run();Test late_blank(false,true,372);late_blank.run();}

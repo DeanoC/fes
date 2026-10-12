@@ -218,7 +218,7 @@ module st_native_low_video (
     localparam integer OUTPUT_DELAY = 28;
     localparam integer FETCH_RESOLVE_DELAY = 20;
     typedef struct packed {
-        logic pixel, visible, active, pal, valid, blank, margin, missing3;
+        logic pixel, visible, active, pal, valid, blank, margin;
         logic [1:0] bank;
         logic [8:0] line_number, cycle_number, x, row_number;
         logic [3:0] index;
@@ -257,8 +257,12 @@ module st_native_low_video (
     wire [15:0] plane1 = resolve_margin ? selected_lane2 : selected_lane1;
     wire [15:0] plane2 = resolve_margin ? selected_lane3 : selected_lane2;
     wire [15:0] plane3 = resolve_margin ? selected_following_lane0 : selected_lane3;
-    wire [3:0] color_index = !output_pipe[FETCH_RESOLVE_DELAY-1].active ? 4'd0 :
-        {plane3[bit_index] && !output_pipe[FETCH_RESOLVE_DELAY-1].missing3,
+    // With only three final loads the shifter cannot reload this group.
+    // Resolve all sixteen indices to zero after the final DMA deadline;
+    // a late switch may follow their raw coordinate preparation.
+    wire [3:0] color_index = (!output_pipe[FETCH_RESOLVE_DELAY-1].active ||
+        (native_short_line && output_pipe[FETCH_RESOLVE_DELAY-1].x >= 9'd304)) ? 4'd0 :
+        {plane3[bit_index],
          plane2[bit_index], plane1[bit_index], plane0[bit_index]};
     output_token_t resolved_token;
     always @* begin
@@ -303,7 +307,7 @@ module st_native_low_video (
                 output_tick <= 1'b1;
                 output_pipe[0] <= {prepare_pixel, owned && border_enabled && prepared_visible,
                     native_display, frame_pal, sample_valid, native_blank, word_offset,
-                    native_short_line && sample_x >= 9'd304, write_bank,
+                    write_bank,
                     native_line, native_cycle, sample_x, row, 4'd0};
                 for (integer i = 1; i < OUTPUT_DELAY; i = i + 1)
                     output_pipe[i] <= output_pipe[i-1];
@@ -531,5 +535,5 @@ module st_native_low_video (
         end
     end
     // Retained only for simulation inspection of the selected publication.
-    wire unused_input_bits = ^{front_sequence, sample_rgb, output_token.margin, output_token.missing3, sync_mode[7:2], sync_mode[0], screen_base[7:0]};
+    wire unused_input_bits = ^{front_sequence, sample_rgb, output_token.margin, sync_mode[7:2], sync_mode[0], screen_base[7:0]};
 endmodule
