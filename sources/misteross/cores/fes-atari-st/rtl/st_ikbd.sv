@@ -121,6 +121,28 @@ module st_ikbd #(
         else if (value < -65535) clip_motion=-65535;
         else clip_motion=value;
     endfunction
+    // A signed 16-bit motion (including inverted -32768) times an unsigned
+    // byte fits in signed 24 bits. Clamp through a 17-bit low-word addition;
+    // the product's upper byte identifies sums outside the position range.
+    function automatic [15:0] scaled_position(
+        input [15:0] position, input signed [16:0] motion,
+        input [7:0] scale, input [15:0] maximum);
+        reg signed [23:0] product;
+        reg [16:0] low_sum;
+        reg below_zero, above_word;
+        begin
+            product = motion * $signed({1'b0,scale});
+            low_sum = {1'b0,position} + {1'b0,product[15:0]};
+            below_zero = product[23] &&
+                (product[23:16] != 8'hff || !low_sum[16]);
+            above_word = !product[23] &&
+                (product[23:16] != 8'd0 || low_sum[16]);
+            if (below_zero) scaled_position = 0;
+            else if (above_word || low_sum[15:0] > maximum) scaled_position = maximum;
+            else scaled_position = low_sum[15:0];
+        end
+    endfunction
+
     function automatic [15:0] clip_position(input signed [31:0] value, input [15:0] maximum);
         if (value < 0) clip_position=0;
         else if (value > $signed({16'd0,maximum})) clip_position=maximum;
@@ -373,8 +395,8 @@ module st_ikbd #(
                 if (mouse_active) begin
                     relative_x<=clip_motion(relative_x+32'(mouse_dx));
                     relative_y<=clip_motion(relative_y+delta_y);
-                    position_x<=clip_position($signed({16'd0,position_x})+32'(mouse_dx)*$signed({24'd0,scale_x}),maximum_x);
-                    position_y<=clip_position($signed({16'd0,position_y})+delta_y*$signed({24'd0,scale_y}),maximum_y);
+                    position_x<=scaled_position(position_x,{mouse_dx[15],mouse_dx},scale_x,maximum_x);
+                    position_y<=scaled_position(position_y,delta_y[16:0],scale_y,maximum_y);
                 end
             end
             // Arrival of any command resumes output even if an inquiry is
