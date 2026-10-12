@@ -4,6 +4,9 @@
 // The physical command model is external; no C++ RAM callback serves the CPU.
 module st_boot_memory_sim_top #(
     parameter integer MFP_WAIT_STATES = 4,
+    parameter integer MFP_IACK_PHASE = 1,
+    parameter RAW_MFP_IACK = 1,
+    parameter integer PSG_WAIT_STATES = 4,
     parameter EARLY_COMPLETION = 1,
     parameter POSTED_CPU_WRITES = EARLY_COMPLETION,
     parameter PHASE_SLOTS = EARLY_COMPLETION,
@@ -77,7 +80,7 @@ module st_boot_memory_sim_top #(
     wire [23:0] dma_addr;
     wire [15:0] dma_wdata;
     wire [1:0] dma_byte_enable;
-    st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES),
+    st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES), .PSG_WAIT_STATES(PSG_WAIT_STATES), .MFP_IACK_PHASE(MFP_IACK_PHASE), .RAW_MFP_IACK(RAW_MFP_IACK),
                 .EARLY_RAM_WRITE_COMPLETION(POSTED_CPU_WRITES)) system (
         .clk_sys(clk_sys), .reset(reset_sys), .cold_reset(cold_reset),
         .media_frozen(1'b0), .media_write_req(), .media_write_addr(), .media_write_data(),

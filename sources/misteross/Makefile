@@ -1532,7 +1532,7 @@ atari-st-sources:
 atari-st-diagnostic: atari-st-sources
 	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
 
-sim-fes-atari-st: sim-fes-atari-st-ym-counter sim-fes-atari-st-ym-filter sim-fes-atari-st-ym-mixer sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-cache-write-coherence sim-fes-atari-st-native-border sim-fes-atari-st-shifter-output sim-fes-atari-st-short-line-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
+sim-fes-atari-st: sim-fes-atari-st-ym-counter sim-fes-atari-st-ym-filter sim-fes-atari-st-ym-mixer sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-mfp-iack-timing sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-psg-wait sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-cache-write-coherence sim-fes-atari-st-native-border sim-fes-atari-st-shifter-output sim-fes-atari-st-short-line-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 
 sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
@@ -1862,3 +1862,21 @@ sim-fes-atari-st-shifter-output:
 		$(ST_CORE)/sim/st_shifter_output_sim_top.sv $(ST_CORE)/rtl/st_native_low_video.sv \
 		$(ST_CORE)/rtl/st_native_border.sv "$(CURDIR)/$(ST_CORE)/sim/shifter_output_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-shifter-output/Vst_shifter_output_sim_top
+
+.PHONY: sim-fes-atari-st-psg-wait
+sim-fes-atari-st-psg-wait:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_io_sim_top -Wall \
+		-GPSG_WAIT_STATES=4 --Mdir "$(CURDIR)/build/sim/fes-atari-st-psg-wait" \
+		$(ST_CORE)/sim/st_io_sim_top.sv $(ST_IO_RTL) \
+		"$(CURDIR)/$(ST_CORE)/sim/psg_wait_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-psg-wait/Vst_io_sim_top
+
+.PHONY: sim-fes-atari-st-mfp-iack-timing
+sim-fes-atari-st-mfp-iack-timing:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_mfp_iack_timing \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-mfp-iack-timing" \
+		$(ST_CORE)/rtl/st_system.sv \
+		"$(CURDIR)/$(ST_CORE)/sim/mfp_iack_timing_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-mfp-iack-timing/Vst_mfp_iack_timing

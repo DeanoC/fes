@@ -193,7 +193,7 @@ def run(args):
     schedule_path.write_bytes(schedule_data)
     archive(output / "frozen-source.zip", source, identities)
     command = [verilator, "--cc", "--exe", "--build", "-O2", "-j", "2", "--top-module", top]
-    command += [f"-GMFP_WAIT_STATES={args.mfp_wait_states}"]
+    command += [f"-GRAW_MFP_IACK={int(args.mfp_iack_raw_pin)}", f"-GMFP_IACK_PHASE={args.mfp_iack_phase}", f"-GMFP_WAIT_STATES={args.mfp_wait_states}", f"-GPSG_WAIT_STATES={args.psg_wait_states}"]
     command += FLAGS + ["-I" + str(source / PREFIX / "cores/fes-common/generated"), "--Mdir", str(build)]
     command += [str(source / wrapper)] + [str(source / PREFIX / name) for name in rtl]
     command += [str(source / helpers[1]), "-CFLAGS", "-O3 -std=c++17"]
@@ -282,6 +282,9 @@ def run(args):
         record["storage_model"] = {"shared_arbitration": True, "cpu_video_dma_media": "production st_memory.sv and addon controller",
                                    "sdram": "digital command/timing model with CAS2, DDIO capture and byte masks; no electrical equivalence"}
     record["storage_model"]["mfp_wait_states"] = args.mfp_wait_states
+    record["storage_model"]["experimental_psg_wait_states"] = args.psg_wait_states
+    record["storage_model"]["experimental_mfp_iack_phase"] = args.mfp_iack_phase
+    record["storage_model"]["experimental_mfp_iack_raw_pin"] = args.mfp_iack_raw_pin
     record["horizontal_phase_units"] = "68000 cycles within the native line"
     record["palette_trace"] = "changes after six seconds; first eight changed bundles per native frame, plus complete per-frame counts; model timing only"
     record["run_command"] = invocation
@@ -360,6 +363,9 @@ def main(argv=None):
     parser.add_argument("--ram-extra-wait", type=int, default=0, help="add 0..64 system clocks to each model CPU RAM access; not physical arbitration")
     parser.add_argument("--ram-fixed-wait", type=int, help="replace variable CPU RAM callback waits with a fixed 0..64 system-clock delay; an ideal-storage probe, not physical SDRAM")
     parser.add_argument("--mfp-wait-states", type=int, default=4, help="MFP native CPU wait states (default: 4, matching the standard core); use 0..8 for diagnostics")
+    parser.add_argument("--mfp-iack-raw-pin", action=argparse.BooleanOptionalAction, default=True, help="start MFP clock timing at AS/FC pins (default); disable for registered-admission diagnostics")
+    parser.add_argument("--mfp-iack-phase", type=int, default=1, choices=(-1,0,1,2,3), help="MFP bus-clock phase (default: 1); -1 bypasses timing for diagnostics")
+    parser.add_argument("--psg-wait-states", type=int, default=4, help="GLUE sound-bus waits per FF88 burst (default: 4); 0..8 native CPU states")
     parser.add_argument("--ram-write-range", action="append", default=[], metavar="START:END",
                         help="shared-memory only: trace accepted physical writes in up to 16 word-aligned byte ranges during the trace window; decimal or hex addresses")
     parser.add_argument("--shared-memory", action="store_true", help="use the existing shared SDRAM/independent pixel-clock boot fixture; disk preloaded before reset release")
@@ -379,6 +385,10 @@ def main(argv=None):
         parser.error("--ram-extra-wait must be 0..64")
     if args.ram_fixed_wait is not None and not 0 <= args.ram_fixed_wait <= 64:
         parser.error("--ram-fixed-wait must be 0..64")
+    if args.mfp_iack_raw_pin and args.mfp_iack_phase < 0:
+        parser.error("--mfp-iack-raw-pin requires --mfp-iack-phase 0..3")
+    if not 0 <= args.psg_wait_states <= 8:
+        parser.error("--psg-wait-states must be 0..8")
     if not 0 <= args.mfp_wait_states <= 8:
         parser.error("--mfp-wait-states must be 0..8")
     if args.key_at is not None and not 1 <= args.key_at < args.seconds:

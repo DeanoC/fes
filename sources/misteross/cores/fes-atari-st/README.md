@@ -134,8 +134,11 @@ outside this implementation.
 `st_mfp.sv` implements GPIP, edge selection, direction, interrupt enable,
 pending, in-service, mask and vector registers, authentic priority and
 software/automatic EOI, and timers A/B/C/D. MFP IRQ6 uses a supplied vector;
-other IRQ levels use the CPU's VPA autovectors. Its independent 2.4576 MHz
-clock enable gives EmuTOS's timer C `/64 × 192` exactly 200 Hz. Native
+other IRQ levels use the CPU's VPA autovectors. The motherboard times IRQ6
+acknowledgement from the CPU's AS/FC and data-strobe pins. A free-running
+CPU/2 bus clock admits the request after at least 50 ns setup, then waits seven
+half periods before releasing DTACK. This clock is separate from the
+independent 2.4576 MHz timer crystal. Its timer clock enable gives EmuTOS's timer C `/64 × 192` exactly 200 Hz. Native
 VBL/HBL and display enable share the CPU's phase-2 enable, independently of
 HDMI. PAL uses 313 × 512 CPU cycles, NTSC 263 × 508, and monochrome
 501 × 224. The fixed PAL board rate gives approximately
@@ -156,9 +159,16 @@ following
 `make sim-fes-atari-st-mfp-bus` checks the real 68000's read/write instruction
 timing across its fractional-clock phases and samples a Timer B edge during
 the delay. It also checks held reads, cancelled writes, reset, byte lanes and
-unaffected PSG accesses. The real-CPU fixture uses the default wrapper
-configuration. Complete MFP interrupt/clock timing remains separately
-unqualified.
+PSG accesses. The real-CPU fixture uses the motherboard defaults. Physical
+clock phase and exact-artifact hardware acceptance remain separate.
+
+The motherboard selects four sound-bus waits at the first access of a
+contiguous FF88 burst, including two/four-byte MOVEP transfers. Intervening
+instruction/data accesses rearm the burst; no opcode or PC is inspected.
+Writes acknowledge the accepted edge once, while reads retain their sampled
+data through completion. Standalone peripheral fixtures retain parameterized
+zero-wait defaults. This changes bus delivery timing, not the YM counter,
+nonlinear mixer or analogue filter.
 
 `st_acia.sv` models MC6850 registers, timed byte transport, IRQs and receive
 errors. The keyboard ACIA connects to original `st_ikbd.sv` protocol logic:
@@ -540,6 +550,11 @@ with a fixed system-clock delay, before any extra wait. Zero provides an
 ideal-storage timing comparison; it does not change the physical controller
 or establish that real SDRAM can meet that timing. Shared-memory mode rejects
 callback overrides, so its reported timing always comes from the actual arbiter.
+The simulator defaults to the motherboard's clocked AS/FC IRQ acknowledgement
+and four-state sound-bus policy. `--mfp-iack-phase -1 --no-mfp-iack-raw-pin`
+selects an immediate-ACK diagnostic, while `--psg-wait-states 0` bypasses the
+sound-bus wait. These overrides change the recorded compiled model.
+
 `--mfp-wait-states 0..8` explicitly overrides the standard four-state MFP access policy;
 its selected value is recorded in the source-bound result. Run
 `python3 scripts/analyse_atari_st_raster_trace.py OUTPUT --output SUMMARY.json`
@@ -624,3 +639,13 @@ exact-artifact hardware acceptance. A board build must pass authenticated
 OSS synthesis, routing, timing and ROM/socket checks before it can publish a
 package. STE blitter, enhanced palette and DMA sound are outside the original
 520ST scope.
+
+`make sim-fes-atari-st-psg-wait` checks the four-access sound-bus burst with
+held fourth writes and reads, ignored lower-byte accesses, exactly-once write
+admission and a fresh wait on the fifth transaction. A completed request keeps
+its acknowledgement until withdrawal.
+
+`make sim-fes-atari-st-mfp-iack-timing` checks setup below and above the
+50 ns threshold, seven-half-period completion, held acknowledgement and
+IACK/data-strobe/reset cancellation. This checks the bus handshake separately
+from original-demo raster and audio phase comparisons.

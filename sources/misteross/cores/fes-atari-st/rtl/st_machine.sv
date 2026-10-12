@@ -7,6 +7,7 @@ module st_machine #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
     parameter integer CPU_CLOCK_HZ = 8_000_000,
     parameter integer BUS_TIMEOUT_HALVES = 128,
+    parameter TIMED_MFP_IACK = 0,
     // Enable only with a backend that retains an accepted CPU write.
     parameter EARLY_RAM_WRITE_COMPLETION = 0
 ) (
@@ -41,6 +42,9 @@ module st_machine #(
     input  wire irq_vectored,
     input  wire [7:0] irq_vector,
     output wire irq_ack,
+    output wire irq_data_strobe,
+    output wire irq_iack_pin,
+    input wire irq_vector_ready,
     output reg [2:0] irq_level,
     input  wire palette_ready,
     input  wire [23:0] video_counter,
@@ -145,6 +149,10 @@ module st_machine #(
     assign exp_fc = function_code;
     assign vpa_n = state != IACK || vectored_cycle || reset;
     assign irq_ack = state == IACK && !reset;
+    assign irq_data_strobe = !cpu_lds_n;
+    // External level-6 IACK decode: setup timing starts at AS/FC, before
+    // the registered motherboard admission used for peripheral side effects.
+    assign irq_iack_pin = !reset && !cpu_as_n && cpu_fc == 3'b111 && cpu_addr[3:1] == 3'd6;
 
     // Configured banks are aligned powers of two. Decode their high bits
     // directly so live RAM requests do not traverse a variable-width subtractor.
@@ -329,7 +337,7 @@ module st_machine #(
                     state <= IDLE;
                 end
                 IACK: begin
-                    if (vectored_cycle) begin
+                    if (vectored_cycle && (!TIMED_MFP_IACK || irq_vector_ready)) begin
                         cpu_rdata <= {8'hff, irq_vector};
                         last_cpu_read <= {8'hff, irq_vector};
                         dtack_n <= 1'b0;

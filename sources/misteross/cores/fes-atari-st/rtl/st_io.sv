@@ -6,7 +6,8 @@ module st_io #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
     parameter integer CPU_CLOCK_HZ = 8_000_000,
     parameter integer ENABLE_FLOPPY_WRITE = 0,
-    parameter integer MFP_WAIT_STATES = 4
+    parameter integer MFP_WAIT_STATES = 4,
+    parameter integer PSG_WAIT_STATES = 0
 ) (
     input wire clk, reset, cold_reset,
     input wire cpu_cycle_ce,
@@ -101,10 +102,39 @@ module st_io #(
         if (reset || !mfp_bus_req) mfp_bus_age <= 0;
         else if (cpu_cycle_ce && !mfp_bus_ready) mfp_bus_age <= mfp_bus_age + 1'b1;
     end
+    // The motherboard applies its GLUE sound-bus wait to each burst.
+    // Standalone peripheral fixtures can select zero waits. Operand bursts
+    // remain within FF88xx; intervening instruction/data accesses clear them.
+    // No opcode, program counter or instruction retirement is inspected.
+    localparam integer PSG_WAIT_BITS = $clog2(PSG_WAIT_STATES + 2);
+    reg [PSG_WAIT_BITS-1:0] psg_bus_age;
+    reg [1:0] psg_burst_count;
+    reg psg_transaction_seen;
+    wire psg_bus_req = req && psg_select;
+    wire psg_bus_ready = PSG_WAIT_STATES == 0 ||
+        psg_bus_age >= PSG_WAIT_BITS'(PSG_WAIT_STATES + (write ? 0 : 1));
+    wire psg_complete = psg_bus_req && psg_bus_ready &&
+        (byte_enable[1] ? psg_ack : 1'b1);
+    always @(posedge clk) begin
+        if (reset || !psg_select) begin
+            psg_bus_age <= 0; psg_burst_count <= 0; psg_transaction_seen <= 0;
+        end else begin
+            if (!psg_bus_req) begin
+                psg_transaction_seen <= 0;
+                if (psg_burst_count == 0) psg_bus_age <= 0;
+            end else if (cpu_cycle_ce && !psg_bus_ready) psg_bus_age <= psg_bus_age + 1'b1;
+            if (psg_complete && !psg_transaction_seen) begin
+                psg_transaction_seen <= 1;
+                psg_burst_count <= psg_burst_count + 1'b1;
+                // Keep ready/ACK asserted through a held fourth request.
+                // The wrapped count clears age only after request withdrawal.
+            end
+        end
+    end
     wire [7:0] mfp_data, psg_data, kbd_data, midi_data;
     wire [15:0] fdc_data;
     assign ack = req && (mfp_select ? (mfp_bus_ready && (byte_enable[0] ? mfp_ack : 1'b1)) :
-                         psg_select ? (byte_enable[1] ? psg_ack : 1'b1) :
+                         psg_select ? (psg_bus_ready && (byte_enable[1] ? psg_ack : 1'b1)) :
                          kbd_select ? (byte_enable[1] ? kbd_ack : 1'b1) :
                          midi_select ? (byte_enable[1] ? midi_ack : 1'b1) :
                          fdc_select ? fdc_ack : 1'b0);
@@ -314,8 +344,8 @@ module st_io #(
         .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
         .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready)
     );
-    st_ym2149 #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ), .CHIP_CLOCK_HZ(CPU_CLOCK_HZ / 4)) psg (
-        .clk(clk), .reset(reset), .bus_req(req && psg_select && byte_enable[1]),
+    st_ym2149 #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ), .CHIP_CLOCK_HZ(CPU_CLOCK_HZ / 4), .EARLY_WRITE_ACK(32'(PSG_WAIT_STATES != 0))) psg (
+        .clk(clk), .reset(reset), .bus_req(psg_bus_req && psg_bus_ready && byte_enable[1]),
         .bus_reg(addr[1]), .bus_write(write), .bus_wdata(wdata[15:8]),
         .bus_rdata(psg_data), .bus_ack(psg_ack), .pcm_signed(audio_pcm),
         .sample_valid(audio_valid), .port_a(port_a)
