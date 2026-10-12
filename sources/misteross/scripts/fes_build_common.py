@@ -36,7 +36,7 @@ class BuildError(ValueError):
 
 
 def _require_gpu_backend(route_text: str) -> str:
-    """Require nextpnr to have routed on a live HIP device backend."""
+    """Require nextpnr to have routed on a live HIP or CUDA device backend."""
 
     lowered = route_text.lower()
     if "falling back to the cpu reference backend" in lowered or "backend cpu-reference" in lowered:
@@ -44,10 +44,10 @@ def _require_gpu_backend(route_text: str) -> str:
             "route log proves that --router gpu has no live GPU device backend and "
             "fell back to the CPU reference backend"
         )
-    match = re.search(r"\bbackend\s+hip:[^\n]*\bready\b", route_text, re.IGNORECASE)
-    if match is None:
-        raise BuildError("route log does not prove a live HIP device backend")
-    return FES_GPU_BACKEND
+    for backend in ("hip", "cuda"):
+        if re.search(rf"\bbackend\s+{backend}:[^\n]*\bready\b", route_text, re.IGNORECASE):
+            return backend
+    raise BuildError("route log does not prove a live GPU device backend")
 
 
 @dataclass(frozen=True)

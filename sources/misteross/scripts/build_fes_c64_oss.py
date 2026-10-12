@@ -139,15 +139,28 @@ HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 BEL_RE = re.compile(r"[A-Z0-9_]+\.(\d+)\.(\d+)\.")
 
 
-def _authenticate_c64_tools(root: Path, cache_root: Path | None = None):
+def c64_gpu_choice(gpu_router: str) -> tuple[str, str, str]:
+    """Return backend name, architecture string, and toolchain configuration."""
+
+    if gpu_router == "HIP":
+        return C64_GPU_BACKEND, C64_GPU_ARCHITECTURES, C64_TOOLCHAIN_CONFIGURATION
+    if gpu_router == "CUDA":
+        return "cuda", "unused", "gpu-router=CUDA; hip-architectures=unused"
+    raise BuildError(f"unsupported C64 GPU router {gpu_router}")
+
+
+def _authenticate_c64_tools(root: Path, cache_root: Path | None = None,
+                            toolchain_root: Path | None = None, gpu_router: str = C64_GPU_ROUTER):
+    _backend, architectures, configuration = c64_gpu_choice(gpu_router)
+    root_path = root / C64_TOOLCHAIN_ROOT if toolchain_root is None else Path(toolchain_root)
     return _authenticate_tools(
         root,
         lock_path=root / C64_TOOLCHAIN_LOCK,
-        toolchain_root=root / C64_TOOLCHAIN_ROOT,
+        toolchain_root=root_path,
         expected_commits=C64_TOOL_COMMITS,
-        expected_configuration={"nextpnr": C64_TOOLCHAIN_CONFIGURATION},
-        gpu_router=C64_GPU_ROUTER,
-        hip_architectures=C64_GPU_ARCHITECTURES,
+        expected_configuration={"nextpnr": configuration},
+        gpu_router=gpu_router,
+        hip_architectures=architectures,
         cache_root=cache_root,
     )
 
@@ -204,6 +217,8 @@ def create_build_record(
     *,
     identity_version: int = 2,
     execution: dict | None = None,
+    gpu_backend: str = C64_GPU_BACKEND,
+    gpu_architectures: str = C64_GPU_ARCHITECTURES,
 ) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
@@ -221,8 +236,8 @@ def create_build_record(
             "device": TARGET,
             "top": TOP,
             "router": ROUTER,
-            "gpu_backend": C64_GPU_BACKEND,
-            "gpu_architectures": C64_GPU_ARCHITECTURES,
+            "gpu_backend": gpu_backend,
+            "gpu_architectures": gpu_architectures,
             "sys_clock_hz": 52_224_000,
             "pixel_clock_hz": 74_250_000,
             "audio_clock_hz": 12_288_000,
@@ -510,19 +525,24 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
 
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None,
-          identity_version: int = 2, gpu_device: int = 0) -> Path:
+          identity_version: int = 2, gpu_device: int = 0, gpu_router: str = C64_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
         raise BuildError(f"FES Commodore 64 package store must be {root / 'build/packages'}")
+    backend, architectures, _configuration = c64_gpu_choice(gpu_router)
     repository, revision = _require_clean_source(root, identity_version=identity_version)
-    authenticated = _authenticate_c64_tools(root, cache_root=cache_root)
+    authenticated = _authenticate_c64_tools(
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     database_root = authenticated["mistral"].path.parents[2] / "src/mistral"
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
-    invocation = FunctionalInvocation(authenticated, gpu_device)
+    extra_env = {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"} if gpu_router == "CUDA" else None
+    invocation = FunctionalInvocation(authenticated, gpu_device, extra_env=extra_env)
     record = create_build_record(root, repository, revision, identities,
-                                 identity_version=identity_version, execution=invocation.inputs)
+                                 identity_version=identity_version, execution=invocation.inputs,
+                                 gpu_backend=backend, gpu_architectures=architectures)
     output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
     _write_atomic(output / "build-inputs.json", record)
     _write_atomic(output / "socket.qsf", socket_qsf((root / QSF).read_text()).encode())
@@ -572,7 +592,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                       (json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode())
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / "manifest.toml", manifest)
-        final_tools = _authenticate_c64_tools(root, cache_root=cache_root)
+        final_tools = _authenticate_c64_tools(
+            root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
         if _require_clean_source(root, identity_version=identity_version) != (repository, revision):
@@ -581,7 +602,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
             raise BuildError("ROM database changed during build")
         if create_build_record(root, repository, revision, identities,
-                               identity_version=identity_version, execution=invocation.inputs) != record:
+                               identity_version=identity_version, execution=invocation.inputs,
+                               gpu_backend=backend, gpu_architectures=architectures) != record:
             raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store,
                               rom_map=output / "rom-map.json")
@@ -595,12 +617,14 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         invocation.close()
 
 
-def synth(root: Path = ROOT, *, cache_root: Path | None = None) -> dict:
+def synth(root: Path = ROOT, *, cache_root: Path | None = None, gpu_router: str = C64_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> dict:
     """Run Yosys only. Does not require a clean tree and does not seal a package."""
     root = Path(root).resolve()
     for relative in PINNED_INPUTS:
         _regular_input(root, relative)
-    authenticated = _authenticate_c64_tools(root, cache_root=cache_root)
+    authenticated = _authenticate_c64_tools(
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
     yosys, _route = build_commands(root, output, "0" * 32, {
         name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")})
@@ -622,18 +646,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=C64_GPU_ROUTER)
+    parser.add_argument("--toolchain-root", type=Path)
     parser.add_argument("--synth-only", action="store_true",
                         help="run Yosys only; skip the clean-tree seal and nextpnr")
     arguments = parser.parse_args(argv)
     try:
         if arguments.synth_only:
-            cells = synth(arguments.root, cache_root=arguments.cache_root)["synthesis_cells"]
+            cells = synth(arguments.root, cache_root=arguments.cache_root,
+                          gpu_router=arguments.gpu_router,
+                          toolchain_root=arguments.toolchain_root)["synthesis_cells"]
             print(f"synth-only MISTRAL_M10K={cells.get('MISTRAL_M10K', 0)} "
                   f"MISTRAL_M10K_TDP={cells.get('MISTRAL_M10K_TDP', 0)} "
                   f"MISTRAL_FF={cells.get('MISTRAL_FF', 0)}")
             return 0
         print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
-                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device))
+                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device,
+                    gpu_router=arguments.gpu_router, toolchain_root=arguments.toolchain_root))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-c64-oss: {exc}", file=sys.stderr)
         return 1

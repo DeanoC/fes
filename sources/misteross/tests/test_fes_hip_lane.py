@@ -240,6 +240,12 @@ class FesHipLaneTests(unittest.TestCase):
                 with self.assertRaisesRegex(BuildError, "device backend"):
                     module._require_gpu_backend(CPU_FALLBACK_LOG)
                 self.assertEqual(module._require_gpu_backend(LIVE_HIP_LOG), "hip")
+                self.assertEqual(
+                    module._require_gpu_backend(
+                        "Info: backend cuda:GPU-e553e081:0000:02:00.0:NVIDIA GeForce RTX 3090 ready\n"
+                    ),
+                    "cuda",
+                )
 
     def test_build_reauthenticates_with_the_same_explicit_cache_root(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
