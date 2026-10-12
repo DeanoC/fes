@@ -49,6 +49,11 @@ a package. The package is `cores/fes-pong`. ZX81 has no
 
 Do not use `fes.mastersystem`. The Sega Master System package id is `fes.sms`.
 
+Currency against the shared HIP pin, the first-party Z80 and the two display
+contracts is [core alignment](../../../docs/core-alignment.md). A dedicated
+lock in the table above is the pin that producer authenticates today. It is
+not permission to add another lock.
+
 Quartus recipes (`make build-fes-zx81-quartus`, `build-fes-coleco-quartus`,
 `build-fes-sg1000-quartus`, `build-fes-sms-quartus`) are bring-up oracles.
 A failed HIP route does not fall back to Quartus. Quartus never programs a kit.

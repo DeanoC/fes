@@ -85,7 +85,8 @@ The original shared Z80 CPU has NMOS and documented fast variants. Run
 Cyclone V timing diagnostic. SG-1000 and Spectrum select the NMOS variant.
 Spectrum also has an explicit documented-only 56 MHz development build;
 `make sim-fes-spectrum-turbo` compares both modes and measures elapsed workloads.
-Coleco, SMS and ZX81 retain their existing CPU implementations.
+Coleco, SMS and ZX81 still instantiate TV80/T80. That divergence is retired
+in [core alignment](../../docs/core-alignment.md), one machine at a time.
 
 ### OSS experiments
 
