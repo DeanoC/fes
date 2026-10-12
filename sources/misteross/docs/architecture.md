@@ -1913,13 +1913,15 @@ The fixed 8.021247 MHz PAL CPU gives approximately
 timing remains independent at 2.4576 MHz. The frame/capture pulse stays at
 rollover while IRQ4 asserts 60 native CPU cycles later, selecting the STF WS1
 VBL phase. IACK clears the pending event; reset cancels its scheduled delay.
-An optional `MFP_WAIT_STATES` probe delays the MFP request and data sampling
-in native CPU cycles; its default zero preserves the selected production
-timing. `sim-fes-atari-st-mfp-bus` calibrates four states with original 68000
-firmware, including read/write instruction intervals across fractional phases,
-and checks a Timer B edge during the delayed read. The original-disk diagnostic
-records the optional probe value with `--mfp-wait-states`; it is independent
-of the callback RAM-delay probe and does not assert demo compatibility.
+`MFP_WAIT_STATES` delays the MFP request and data sampling in native CPU
+cycles. The core, producer and simulator default to four states, the standard
+register-access policy, following Hatari 2.5.0. Zero remains an explicit
+diagnostic override. `sim-fes-atari-st-mfp-bus` checks that default with
+original 68000 firmware, including read/write instruction intervals across
+fractional phases, and checks a Timer B edge during the delayed read. The
+original-disk diagnostic records the selected value with `--mfp-wait-states`
+(default four; `0..8` overrides it); it is independent of the callback
+RAM-delay probe and does not assert demo compatibility.
 The callback diagnostic can additionally replace its variable CPU RAM wait
 with `--ram-fixed-wait`; zero is an ideal-storage comparison, not a change to
 the physical SDRAM controller. Shared-memory mode rejects this override.
