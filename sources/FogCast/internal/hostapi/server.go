@@ -976,6 +976,8 @@ func publicErrorMessage(code protocol.ErrorCode) string {
 		return "content transfer failed"
 	case protocol.CodeKitLeaseDenied:
 		return "kit lease is foreign; HID is fail-closed"
+	case protocol.CodeKitLeaseBusy:
+		return "Another session owns the kit; release it from that session before retrying."
 	case protocol.CodeVersionMismatch:
 		return "target API version is missing or unsupported; expected v1"
 	case protocol.CodeMiSTerUnavailable:
@@ -1175,7 +1177,7 @@ func writeSessionError(w http.ResponseWriter, err error) {
 	var apiErr *protocol.APIError
 	if errors.As(err, &apiErr) {
 		status := http.StatusInternalServerError
-		if apiErr.Code == protocol.CodeBusy {
+		if apiErr.Code == protocol.CodeBusy || apiErr.Code == protocol.CodeKitLeaseBusy {
 			status = http.StatusConflict
 		}
 		if apiErr.Code == protocol.CodeUnavailable {

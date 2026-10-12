@@ -65,6 +65,7 @@ const (
 	CodeContentNotCached     ErrorCode = "CONTENT_NOT_CACHED"
 	CodeCacheFull            ErrorCode = "CACHE_FULL"
 	CodeKitLeaseDenied       ErrorCode = "KIT_LEASE_DENIED"
+	CodeKitLeaseBusy         ErrorCode = "KIT_LEASE_BUSY"
 	CodeVersionMismatch      ErrorCode = "VERSION_MISMATCH"
 	CodeTargetNotFound       ErrorCode = "TARGET_NOT_FOUND"
 )

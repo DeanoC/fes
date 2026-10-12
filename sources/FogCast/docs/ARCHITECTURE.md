@@ -1374,7 +1374,10 @@ remains a maintenance escape outside the lease boundary.
 
 The production service owns a renewable target kit lease, shared explicitly
 with its game/development client and target input bridge (including CONNECT).
-The first hardware mutation claims ownership. Mesh content pull is one of
+The first hardware mutation claims ownership. A core-package launch whose
+target claim is refused with `KIT_LEASE_BUSY` is returned as HTTP 409 with
+that code and a fixed ownership message.
+Mesh content pull is one of
 those acquiring mutations, so a fresh session's first FPGA mesh launch on a
 free kit claims before Ensure. Mesh content link requires the grant already
 held. Renewal runs every 20 seconds
