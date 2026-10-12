@@ -21,6 +21,8 @@ struct Test {
     bool pending=false,complete=false,stalled=false,previous_front=false;
     bool updated_first_word=false, coherence_mode=false;
     unsigned coherence_checks=0;
+    bool word_boundary_mode=false, boundary_write_seen=false;
+    unsigned boundary_plane=0,boundary_phase=0;
     std::array<unsigned,80> coherence_words{};
     bool native_ce_delay=false;
     std::array<int,247> row_black{};
@@ -83,12 +85,20 @@ struct Test {
             const unsigned display_start=ntsc?52:DisplayStart,display_end=ntsc?372:DisplayEnd;
             dut.native_display=line>=top&&line<top+rows&&phase>=display_start&&phase<display_end;
             dut.ram_write_committed=0;
-            if(coherence_mode && cpu_tick && source_frame==1) {
+            if(word_boundary_mode && cpu_tick && source_frame==1 && line==63 && phase==boundary_phase) {
+                commit_word(40+boundary_plane,0xffff,3);boundary_write_seen=true;
+            }
+            if(coherence_mode && !word_boundary_mode && cpu_tick && source_frame==1) {
                 if(line==62 && phase==400){commit_word(0,0,3);updated_first_word=true;}
                 if(line==62 && phase==404)commit_word(5,0xaa00,2);
                 if(line==62 && phase==408)commit_word(10,0x000f,1);
-                if(line==63 && phase==110)commit_word(12,0,3);
+                if(line==63 && phase==116)commit_word(12,0,3);
                 if(line==63 && phase==120)commit_word(40,0,3);
+                // Group11 has started shifting in the old capture model,
+                // but plane2 has not yet reached its individual MMU load.
+                if(line==63 && phase==240)commit_word(46,0xffff,3);
+                // Plane0 was loaded at238 and must retain its old data.
+                if(line==63 && phase==241)commit_word(44,0,3);
             }
             dut.resolution=source_mode();
             dut.screen_base=source_frame==10?0xff0000:0x10000;
@@ -101,7 +111,7 @@ struct Test {
             if(source_frame==2&&dut.border_overflow)border_overflow_seen=true;
             unsigned intensity=((line>=top?line-top:0)+source_frame)%7+1;
             palette(1,source_mode()==1?0x38:phase<display_start+160?intensity<<6:intensity);
-            if(coherence_mode){palette(3,0x1e3);palette(5,0x13d);}
+            if(coherence_mode){palette(2,0x38);palette(3,0x1e3);palette(4,7);palette(5,0x13d);palette(8,0x1ff);}
             if(!dut.video_req){require(!pending||complete,"memory request abandoned");pending=complete=false;dut.video_ready=0;}
             else if(!pending){
                 require(dut.video_addr<0x40000,"invalid screen base wrapped into RAM");
@@ -118,7 +128,7 @@ struct Test {
                 }else require(false,"duplicate memory completion");
             }
             dut.eval();
-            if(coherence_mode && source_frame==1 && dut.prepare_pixel && dut.prepare_y==0 && dut.prepare_x==112) {
+            if(coherence_mode && !word_boundary_mode && source_frame==1 && dut.prepare_pixel && dut.prepare_y==0 && dut.prepare_x==112) {
                 commit_word(28,0,3);dut.eval();
             }
             require(!dut.write_pixel||!dut.front_valid||dut.write_bank!=dut.front_bank,
@@ -162,15 +172,27 @@ struct Test {
                         }
                         unsigned intensity=(row+selected)%7+1;
                         unsigned expected=rgb(nx<160-OutputDelay?intensity<<6:intensity);
-                        if(coherence_mode && selected==1 && row==0) {
+                        if(word_boundary_mode && selected==1 && row==0) {
+                            const unsigned colours[]={intensity,0x38,7,0x1ff};
+                            const bool fetched_new=boundary_phase<222+4*boundary_plane;
+                            expected=rgb(nx>=160 && nx<176 && fetched_new ? colours[boundary_plane] : 0xdb);
+                            require(actual==expected,"individual word-load boundary RGB mismatch");
+                            if(nx==175) {
+                                require(boundary_write_seen,"authored boundary write did not occur");
+                                std::cout<<"Word-load boundary PASS: plane="<<boundary_plane<<" write="<<boundary_phase
+                                    <<" fetch="<<222+4*boundary_plane<<" index="<<(fetched_new?(1u<<boundary_plane):0)<<" pixels=16\n";
+                                std::exit(0);
+                            }
+                        }
+                        if(coherence_mode && !word_boundary_mode && selected==1 && row==0) {
                             require(updated_first_word,"authored pre-DE write did not occur");
                             if(nx<16 || (nx>=112&&nx<128) || (nx>=160&&nx<176))expected=rgb(0xdb);
                             if(nx>=16&&nx<24&&(nx%2)==0)expected=rgb(0x1e3);
-                            if(nx>=44&&nx<48)expected=rgb(0x13d);
+                            if((nx>=44&&nx<48)||(nx>=176&&nx<192))expected=rgb(0x13d);
                             require(actual==expected,"coherent whole/byte/future/consumed/sampling-edge pixel mismatch");
-                            const unsigned targets[]={4,18,46,56,112,164};
-                            for(unsigned i=0;i<6;++i)if(nx==targets[i])coherence_checks|=1u<<i;
-                            if(coherence_checks==63){std::cout<<"Cache write coherence PASS: fullword, bothbytes, futuregroup, consumedgroup, and sampling-edge forwarding\n";std::exit(0);}
+                            const unsigned targets[]={4,18,46,56,112,164,180};
+                            for(unsigned i=0;i<7;++i)if(nx==targets[i])coherence_checks|=1u<<i;
+                            if(coherence_checks==127){std::cout<<"Cache write coherence PASS: fullword, bothbytes, futuregroup, consumedword, pre-load write, and writes between plane loads\n";std::exit(0);}
                         }
                         if(row_black[row]<0){row_black[row]=actual==0;if(actual==0){++black_rows;if(selected==3)++stall_black_rows;}}
                         require(actual==(row_black[row]?0:expected),"native palette/pixel/scaling mismatch");
@@ -231,4 +253,13 @@ struct Test {
         dut.final();
     }
 };
-int main(int argc,char**argv){Verilated::commandArgs(argc,argv);Test t;t.coherence_mode=argc>1&&std::strcmp(argv[1],"--cache-write-coherence")==0;t.run();}
+int main(int argc,char**argv){
+    Verilated::commandArgs(argc,argv);Test t;
+    t.coherence_mode=argc>1&&std::strcmp(argv[1],"--cache-write-coherence")==0;
+    if(argc==4&&std::strcmp(argv[1],"--cache-word-boundary")==0){
+        t.word_boundary_mode=t.coherence_mode=true;t.coherence_words.fill(0);
+        t.boundary_plane=std::strtoul(argv[2],nullptr,10);t.boundary_phase=std::strtoul(argv[3],nullptr,10);
+        if(t.boundary_plane>3||t.boundary_phase<221||t.boundary_phase>235)return 2;
+    }
+    t.run();
+}

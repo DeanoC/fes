@@ -1698,6 +1698,11 @@ sim-fes-atari-st-short-line-video:
 .PHONY: sim-fes-atari-st-cache-write-coherence
 sim-fes-atari-st-cache-write-coherence: sim-fes-atari-st-native-video
 	@build/sim/fes-atari-st-native-video/Vst_native_video_sim_top --cache-write-coherence
+	@for plane in 0 1 2 3; do \
+		for phase in 221 223 225 227 229 231 233 235; do \
+			build/sim/fes-atari-st-native-video/Vst_native_video_sim_top --cache-word-boundary $$plane $$phase || exit $$?; \
+		done; \
+	done
 
 sim-fes-atari-st-native-video:
 	$(require_local_sim)

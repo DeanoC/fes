@@ -271,19 +271,27 @@ including a one-word leading margin. That margin lets a row prefetched before
 a late frequency switch use either the ordinary or shortened DMA address.
 The shared memory port reports retired physical RAM writes with their retained
 address, data and byte lanes, including posted writes whose CPU acknowledgement
-occurred earlier. The capture updates prefetched words in future rows or
-groups that have not sampled their first native pixel. Once a group starts,
-its four planes remain unchanged for all sixteen pixels. A write retiring on
-the sampling edge also forwards its enabled byte into that pixel. Completed
-RGB banks remain immutable. This closes early-prefetch write visibility;
-exact original MMU word-fetch edges still need separate timing qualification.
+occurred earlier. The capture updates prefetched words until their individual modeled MMU loads:
+word zero six CPU cycles after DE, then one word every four cycles. Each word
+retains its loaded value throughout the group's sixteen pixels; later planes
+can still receive writes after an earlier plane has loaded. The row's leading
+margin is retained through late shortened-line counter changes. Completed
+RGB banks remain immutable.
+This model follows the ordinary ST-compatibility raster and MMU with the
+[decap-based shifter](https://github.com/MiSTer-devel/AtariST_MiSTer/blob/426ef8765fc16cb547e7ff5deb7d9be61003b36d/rtl/gstmcu/shifter_video.v)
+at reference revision `426ef8765fc16cb547e7ff5deb7d9be61003b36d`.
+The reference MMU originates in STe schematics; physical STF RAM sampling,
+CPU-slot alignment, and mode-switch fetch edges remain separately unqualified.
 `make sim-fes-atari-st-cache-write-coherence` checks whole-word writes, both
-byte lanes, future and consumed groups, and sampling-edge forwarding alongside
-the full native-video fixture. Memory fixtures pair each notification with
+byte lanes, future and consumed words, and writes between plane loads. Its
+32-case grid checks all four planes on both sides of every group-load boundary
+through the production adapter.
+Memory fixtures pair each notification with
 the actual physical WRITE command, including warm-reset drain and posted writes.
-Prepared bitplane indices and canvas coordinates pass through
-28 actual CPU-derived native pulses, then retain the sampled token until the
-next raw CPU phase-2 edge closes palette admission. Actual phase-1 writes can
+Canvas coordinates pass through 28 actual CPU-derived native pulses. Bitplane
+indices resolve at pulse 20, after all four word loads, within that same
+pipeline. The sampled token remains until the next raw CPU phase-2 edge closes
+palette admission. Actual phase-1 writes can
 commit four or five fabric edges after the native pulse; lookup sees those
 committed colours without advancing the token's coordinates or index.
 Border palette-zero runs use that same delayed coordinate

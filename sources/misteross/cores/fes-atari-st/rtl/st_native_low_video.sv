@@ -191,19 +191,18 @@ module st_native_low_video (
     // fails the index bound. Invalid bases never acquire a snoop window.
     wire [17:0] snoop_offset0 = ram_write_addr - cache_start_word[0];
     wire [17:0] snoop_offset1 = ram_write_addr - cache_start_word[1];
-    // Once a group's first native pixel has sampled its planes, retain that
-    // group through all sixteen pixels. Earlier writes remain visible in a
-    // future row/group, including while the prefetch is still in progress.
-    wire [4:0] first_unsampled_group = 5'((10'(sample_x) + 10'd15) >> 4);
-    wire [6:0] first_unsampled_word0 = {first_unsampled_group, 2'b00} +
-        7'(cache_margin[0] && native_word_loss == cache_loss[0]);
-    wire [6:0] first_unsampled_word1 = {first_unsampled_group, 2'b00} +
-        7'(cache_margin[1] && native_word_loss == cache_loss[1]);
+    // The reference ST-compatibility MMU loads word zero six CPU cycles
+    // after DE, then one word per four cycles. Freeze each word at its own
+    // native load pulse, rather than freezing four planes at group start.
+    reg [6:0] fetched_words;
+    reg line_word_margin;
+    reg [8:0] fetch_start_cycle;
+    wire [6:0] first_unsampled_word = fetched_words + 7'(line_word_margin);
     wire before_display = native_cycle < (frame_pal ? 9'd56 : 9'd52);
     wire future_cache0 = native_line < frame_top || cache_row[0] > row ||
-        (cache_row[0] == row && (before_display || snoop_offset0[6:0] >= first_unsampled_word0));
+        (cache_row[0] == row && (before_display || snoop_offset0[6:0] >= first_unsampled_word));
     wire future_cache1 = native_line < frame_top || cache_row[1] > row ||
-        (cache_row[1] == row && (before_display || snoop_offset1[6:0] >= first_unsampled_word1));
+        (cache_row[1] == row && (before_display || snoop_offset1[6:0] >= first_unsampled_word));
     wire snoop_enabled = ram_write_committed && owned && enabled && !hold && !reset_sys;
     wire snoop_hit0 = snoop_enabled && cache_window_valid[0] && cache_epoch[0] == epoch && future_cache0 &&
         !(|snoop_offset0[17:7]) && snoop_offset0[6:0] <= (cache_margin[0] ? 7'd80 : 7'd79);
@@ -216,12 +215,23 @@ module st_native_low_video (
     // The next row can be prefetched before the current row's late frequency
     // switch. Its 81-word window covers either normal or one-word-short DMA.
     wire word_offset = cache_margin[row[0]] && native_word_loss == cache_loss[row[0]];
-    wire [4:0] word_group = pixel_x[8:4];
+    localparam integer OUTPUT_DELAY = 28;
+    localparam integer FETCH_RESOLVE_DELAY = 20;
+    typedef struct packed {
+        logic pixel, visible, active, pal, valid, blank, margin, missing3;
+        logic [1:0] bank;
+        logic [8:0] line_number, cycle_number, x, row_number;
+        logic [3:0] index;
+    } output_token_t;
+    output_token_t output_pipe [0:OUTPUT_DELAY-1];
+    output_token_t output_token;
+    wire resolve_bank = output_pipe[FETCH_RESOLVE_DELAY-1].row_number[0];
+    wire resolve_margin = output_pipe[FETCH_RESOLVE_DELAY-1].margin;
+    wire [4:0] word_group = output_pipe[FETCH_RESOLVE_DELAY-1].x[8:4];
     wire [4:0] following_group = word_group + 5'd1;
-    wire [3:0] bit_index = 4'd15 - pixel_x[3:0];
-    // Keep the stored 81-word window unchanged. Expose its fixed modulo-four
-    // lanes so each read selects one group instead of a general word address.
-    // A one-word offset rotates lanes and takes lane zero from the next group.
+    wire [3:0] bit_index = 4'd15 - output_pipe[FETCH_RESOLVE_DELAY-1].x[3:0];
+    // The immutable words are resolved after all four individual loads.
+    // Keep the original coordinate-to-palette deadline at 28 native pulses.
     wire [15:0] lane00 [0:20], lane10 [0:20];
     wire [15:0] lane01 [0:19], lane11 [0:19];
     wire [15:0] lane02 [0:19], lane12 [0:19];
@@ -238,58 +248,23 @@ module st_native_low_video (
     end
     assign lane00[20] = cache0[80];
     assign lane10[20] = cache1[80];
-    wire [15:0] selected_lane0 = row[0] ? lane10[word_group] : lane00[word_group];
-    wire [15:0] selected_lane1 = row[0] ? lane11[word_group] : lane01[word_group];
-    wire [15:0] selected_lane2 = row[0] ? lane12[word_group] : lane02[word_group];
-    wire [15:0] selected_lane3 = row[0] ? lane13[word_group] : lane03[word_group];
-    wire [15:0] selected_following_lane0 = row[0] ? lane10[following_group] : lane00[following_group];
-    wire [15:0] plane0 = word_offset ? selected_lane1 : selected_lane0;
-    wire [15:0] plane1 = word_offset ? selected_lane2 : selected_lane1;
-    wire [15:0] plane2 = word_offset ? selected_lane3 : selected_lane2;
-    wire [15:0] plane3 = word_offset ? selected_following_lane0 : selected_lane3;
-    wire retired_bit = ram_write_data[bit_index];
-    wire retired_lane_enabled = ram_write_lanes[bit_index[3]];
-    function automatic forwarded_bit(input [15:0] original, input [6:0] index);
-        reg hit;
-        begin
-            hit = row[0] ? (snoop_hit1 && snoop_offset1[6:0] == index) :
-                           (snoop_hit0 && snoop_offset0[6:0] == index);
-            forwarded_bit = hit && retired_lane_enabled ? retired_bit : original[bit_index];
-        end
-    endfunction
-    // A retired write on the sampling edge must reach the token as well as
-    // the registered cache; forwarding preserves that boundary for both bytes.
-    wire [6:0] first_plane_word = {word_group, 2'b00} + 7'(word_offset);
-    wire sampled_plane0 = forwarded_bit(plane0, first_plane_word);
-    wire sampled_plane1 = forwarded_bit(plane1, first_plane_word + 7'd1);
-    wire sampled_plane2 = forwarded_bit(plane2, first_plane_word + 7'd2);
-    wire sampled_plane3 = forwarded_bit(plane3, first_plane_word + 7'd3);
-    // The final DMA word (plane 3 of group 19) is absent on a shortened row.
-    wire missing_plane3 = native_short_line && pixel_x >= 9'd304;
-    // Resolve the first pixel in parallel. DE-rise selects the completed
-    // index rather than feeding every cache group and bit selector.
-    wire [3:0] first_index_plain = row[0] ?
-        {cache1[3][15], cache1[2][15], cache1[1][15], cache1[0][15]} :
-        {cache0[3][15], cache0[2][15], cache0[1][15], cache0[0][15]};
-    wire [3:0] first_index_margin = row[0] ?
-        {cache1[4][15], cache1[3][15], cache1[2][15], cache1[1][15]} :
-        {cache0[4][15], cache0[3][15], cache0[2][15], cache0[1][15]};
-    wire [3:0] first_index = word_offset ? first_index_margin : first_index_plain;
-    wire [3:0] steady_index =
-        {sampled_plane3 && !missing_plane3, sampled_plane2, sampled_plane1, sampled_plane0};
-    wire [3:0] color_index = !native_display ? 4'd0 :
-        display_rise ? first_index : steady_index;
-    // Shift only on actual native pulses: input at t leaves at t+28.
-    // Carry indices and coordinates, never resolved historical RGB.
-    localparam integer OUTPUT_DELAY = 28;
-    typedef struct packed {
-        logic pixel, visible, active, pal, valid, blank;
-        logic [1:0] bank;
-        logic [8:0] line_number, cycle_number, x, row_number;
-        logic [3:0] index;
-    } output_token_t;
-    output_token_t output_pipe [0:OUTPUT_DELAY-1];
-    output_token_t output_token;
+    wire [15:0] selected_lane0 = resolve_bank ? lane10[word_group] : lane00[word_group];
+    wire [15:0] selected_lane1 = resolve_bank ? lane11[word_group] : lane01[word_group];
+    wire [15:0] selected_lane2 = resolve_bank ? lane12[word_group] : lane02[word_group];
+    wire [15:0] selected_lane3 = resolve_bank ? lane13[word_group] : lane03[word_group];
+    wire [15:0] selected_following_lane0 = resolve_bank ? lane10[following_group] : lane00[following_group];
+    wire [15:0] plane0 = resolve_margin ? selected_lane1 : selected_lane0;
+    wire [15:0] plane1 = resolve_margin ? selected_lane2 : selected_lane1;
+    wire [15:0] plane2 = resolve_margin ? selected_lane3 : selected_lane2;
+    wire [15:0] plane3 = resolve_margin ? selected_following_lane0 : selected_lane3;
+    wire [3:0] color_index = !output_pipe[FETCH_RESOLVE_DELAY-1].active ? 4'd0 :
+        {plane3[bit_index] && !output_pipe[FETCH_RESOLVE_DELAY-1].missing3,
+         plane2[bit_index], plane1[bit_index], plane0[bit_index]};
+    output_token_t resolved_token;
+    always @* begin
+        resolved_token = output_pipe[FETCH_RESOLVE_DELAY-1];
+        resolved_token.index = color_index;
+    end
     reg output_tick;
     wire prepared_visible = native_line >= (frame_pal ? 9'd34 : 9'd5) &&
         native_line < (frame_pal ? 9'd310 : 9'd260) &&
@@ -327,10 +302,12 @@ module st_native_low_video (
             if (pixel_due) begin
                 output_tick <= 1'b1;
                 output_pipe[0] <= {prepare_pixel, owned && border_enabled && prepared_visible,
-                    native_display, frame_pal, sample_valid, native_blank, write_bank,
-                    native_line, native_cycle, sample_x, row, color_index};
+                    native_display, frame_pal, sample_valid, native_blank, word_offset,
+                    native_short_line && sample_x >= 9'd304, write_bank,
+                    native_line, native_cycle, sample_x, row, 4'd0};
                 for (integer i = 1; i < OUTPUT_DELAY; i = i + 1)
                     output_pipe[i] <= output_pipe[i-1];
+                output_pipe[FETCH_RESOLVE_DELAY] <= resolved_token;
                 output_token <= output_pipe[OUTPUT_DELAY-1];
             end
             frame_write <= write_pixel;
@@ -416,6 +393,7 @@ module st_native_low_video (
             good_frame <= 1'b0; previous_display <= 1'b0; line_valid <= 1'b0;
             frame_pal <= 1'b1; bottom_seen <= 1'b0; border_enabled <= 1'b0; border_overflow_reported <= 1'b0; pal_banks <= 3'b111;
             write_bank <= 2'd0; frame_top <= 9'd63; expected_row <= 9'd0;
+            fetched_words <= 7'd0; line_word_margin <= 1'b0; fetch_start_cycle <= 9'd511;
             pixel_x <= 9'd0; frame_base <= 24'd0; epoch <= 32'd0;
             pixels <= 17'd0;
             cache_valid <= 2'd0; cache_window_valid <= 2'd0; memory_state <= IDLE;
@@ -434,6 +412,20 @@ module st_native_low_video (
         end else begin
             release_meta <= released; release_sync <= release_meta;
             previous_display <= native_display;
+            if (hold || native_vblank || (pixel_due && native_cycle == 9'd0)) begin
+                fetched_words <= 7'd0;
+                line_word_margin <= 1'b0;
+                fetch_start_cycle <= 9'd511;
+            end else begin
+                if (display_rise) begin
+                    line_word_margin <= word_offset;
+                    fetch_start_cycle <= native_cycle + 9'd6;
+                end
+                if (pixel_due && owned && enabled && active_row &&
+                    native_cycle >= fetch_start_cycle && native_cycle[1:0] == 2'd2 &&
+                    fetched_words < (native_short_line ? 7'd79 : 7'd80))
+                    fetched_words <= fetched_words + 7'd1;
+            end
             if (missing_row || border_failed)
                 debug_underruns <= debug_underruns + (missing_row ? 32'd1 : 32'd0) + (border_failed ? 32'd1 : 32'd0);
             if (border_failed) border_overflow_reported <= 1'b1;
@@ -539,5 +531,5 @@ module st_native_low_video (
         end
     end
     // Retained only for simulation inspection of the selected publication.
-    wire unused_input_bits = ^{front_sequence, sample_rgb, sync_mode[7:2], sync_mode[0], screen_base[7:0]};
+    wire unused_input_bits = ^{front_sequence, sample_rgb, output_token.margin, output_token.missing3, sync_mode[7:2], sync_mode[0], screen_base[7:0]};
 endmodule
