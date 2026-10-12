@@ -181,7 +181,7 @@ for case in variants:
     cart=frames[coordinate]
     recipe={k:current[k] for k in ('inputs','source_roots','source_closure_policy','tools','execution')}
     recipe.update(shell={name:sha((shell/name).read_bytes()) for name in ('manifest.toml','core.rbf','routed.json','socket.qsf')+(('rom-map.json',) if st else ())},variant=profile,slot_clock=layout.CLOCK,map=layout.MAP,cram_region=list(layout.CRAM),required_clocks_mhz=clock_producer.REQUIRED_CLOCKS_MHZ,clock_constraints_sha256=sha(clock_producer.cart_clock_constraints(root)))
-    if st: recipe['placer_seed']=producer.PLACER_SEED
+    if st: recipe['placer_seed']=5
     part_manifest={'cart_sha256':sha(cart),'cart_size':len(cart),'device':'5CSEBA6U23I7','format':1,'map':layout.MAP,'recipe_sha256':sha(enc(recipe)),'revision':revision,'shell_build_id':build_identity(record),'shell_package_id':package_id,'shell_sha256':sha(base_bytes),'slot':layout.INTERFACE,'slot_major':1,'slot_minor':0}
     encoded=enc(part_manifest); part_id=sha(b'fes-expansion-v1\0'+encoded)
     archive=directory/'part.tar'
@@ -358,7 +358,7 @@ class STProducerEvidenceTests(RealProducerEvidenceTests):
         before = summary.read_bytes()
         try:
             changed = json.loads(before)
-            changed["recipe"]["placer_seed"] = 5
+            changed["recipe"]["placer_seed"] = 4
             summary.write_bytes(video.canonical(changed))
             with self.assertRaisesRegex(ValueError, "producer summary"):
                 self.inspect("direct")

@@ -22,6 +22,8 @@ else:
     import recipes
 
 PROFILES = ("direct", "scanlines")
+# Atari ST seed 5 routes both profiles against the current sealed shell.
+ST_VIDEO_PART_SEED = 5
 MAX_ARCHIVE_BYTES = 32 << 20
 MAX_EVIDENCE_BYTES = 128 << 20
 MAX_INDEX_BYTES = 64 << 10
@@ -291,6 +293,7 @@ if mode == 'canonical':
               'source_roots':roots, 'source_closure_policy':POLICY,
               'tools':{name:tool.identity for name,tool in tools.items()},
               'execution':execution, 'revision':revision, 'map':layout.MAP}
+    if st: result['placer_seed'] = args['placer_seed']
 else:
     shell = Path(args['shell'])
     current = args['current']
@@ -348,7 +351,7 @@ else:
         clocks=clock_producer.cart_clock_constraints(root)
         recipe={key:current[key] for key in ('inputs','source_roots','source_closure_policy','tools','execution')}
         recipe.update(shell={name:sha(bounded(shell/name)) for name in shell_members},variant=variant,slot_clock=layout.CLOCK,map=layout.MAP,cram_region=list(layout.CRAM),required_clocks_mhz=clock_producer.REQUIRED_CLOCKS_MHZ,clock_constraints_sha256=sha(clocks))
-        if st: recipe['placer_seed']=producer.PLACER_SEED
+        if st: recipe['placer_seed']=args['placer_seed']
         recipe_sha=sha(encode(recipe)); part_id=sha(b'fes-expansion-v1\0'+encoded)
         require(manifest['recipe_sha256']==recipe_sha, 'video part differs from current build recipe')
         # Authenticate original source provenance without rewriting its revision.
@@ -395,6 +398,8 @@ print(json.dumps(result,sort_keys=True,separators=(',',':')))
 
 
 def _inspect(source, mode, arguments, recipe, env):
+    if recipe.core_id == "fes.atari-st":
+        arguments = dict(arguments, placer_seed=ST_VIDEO_PART_SEED)
     result = subprocess.run([sys.executable, "-I", "-B", "-c", _INSPECT,
                              str(source), mode], input=canonical(arguments),
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -407,9 +412,11 @@ def _inspect(source, mode, arguments, recipe, env):
 
 
 def _build_part(source, shell, package, profile, recipe, env):
+    seed_arguments = (["--seed", str(ST_VIDEO_PART_SEED)]
+                      if recipe.core_id == "fes.atari-st" else [])
     result = subprocess.run([sys.executable, ("scripts/build_atari_st_video_part.py" if recipe.core_id == "fes.atari-st" else "scripts/build_video_part.py"), "--root", str(source),
                              "--shell", str(shell), "--package", str(package),
-                             "--variant", profile, "--cache-root", str(recipe.cache_root), "--gpu", "0"],
+                             "--variant", profile, "--cache-root", str(recipe.cache_root), "--gpu", "0", *seed_arguments],
                             cwd=source, env=recipes.producer_environment(env, recipe=recipe),
                             stdout=subprocess.PIPE, check=True, text=True)
     path = Path(result.stdout.strip().splitlines()[-1])

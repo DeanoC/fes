@@ -119,6 +119,10 @@ packages](core-packages.md) for first-checkout setup and the inspect/load/Stop
 workflow. Host-only builds do not require those tools.
 The clean, development, verification and media paths are package-only and all
 reuse the same closed package set.
+FES selects placement seed 5 for both Atari ST video parts. The selected seed
+is part of their canonical cache identity and archive verification; it does not
+change the sealed shell, clocks or socket containment requirements. Standalone
+misteross builds can still select other bounded seeds explicitly.
 Systems whose nextpnr route is not implemented yet use an explicit Quartus
 oracle/check documented by that system's recipe. Quartus is never an automatic
 fallback and never creates a legacy image bundle.
