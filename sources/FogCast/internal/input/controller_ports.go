@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/joymatrix"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
@@ -127,7 +128,8 @@ func (s *controllerPortsSink) updateObservationContext(ctx context.Context, obs 
 		}
 	}
 	// An unconfirmed probe has not shown that this generation ended. Keep the
-	// HID binding and its held keys so a later release still posts neutral.
+	// HID binding and its held keys. deliverLocal posts a kit-local release
+	// for that generation anyway; a press stays gated until a probe confirms it.
 	if confirmed && s.hid != nil && !sameHIDBinding(s.hidBinding, obs.KeyboardHID) {
 		if err := s.hid.bindContext(ctx, obs.KeyboardHID); err != nil {
 			return err
@@ -179,6 +181,23 @@ func sameHIDBinding(left, right *KeyboardHIDBinding) bool {
 		return left == right
 	}
 	return *left == *right
+}
+
+// retainedHIDRelease is a key-up for a generation an unconfirmed probe kept.
+// Confirmed idle and replacement clear the binding, so the release is not
+// applied to the next core. Presses are not retained.
+func (s *controllerPortsSink) retainedHIDRelease(f protocol.InputFrame) bool {
+	if s == nil || f.Action != uint8(remoteinput.ActionRelease) || !keyboardFrame(f) {
+		return false
+	}
+	if _, ok := hidkeys.Usage(remoteinput.Code(f.Code)); !ok {
+		if _, ok := hidkeys.FromLegacy(remoteinput.Code(f.Code)); !ok {
+			return false
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.keyboardHID && s.hidBinding != nil && s.hid != nil
 }
 
 // keyboardModeLocked selects the keyboard shaping from the observed contract.

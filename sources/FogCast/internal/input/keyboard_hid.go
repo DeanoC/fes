@@ -128,6 +128,27 @@ func (s *keyboardHIDSink) repostLocked(ctx context.Context) error {
 	return s.postLocked(ctx)
 }
 
+// replayUnconfirmed posts the current union when the last post failed and
+// this is still that generation. TryLock gives up when a post already holds
+// the sink: that post owns the snapshot, and waiting here would keep the
+// local lifecycle lock behind it. A different generation is not replayed.
+func (s *keyboardHIDSink) replayUnconfirmed(ctx context.Context, binding *KeyboardHIDBinding) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if !s.mu.TryLock() {
+		return nil
+	}
+	defer s.mu.Unlock()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if !s.unconfirmed || s.binding == nil || binding == nil || *s.binding != *binding {
+		return nil
+	}
+	return s.postLocked(ctx)
+}
+
 // applyFrom records one HID key frame from a source and posts the new union.
 func (s *keyboardHIDSink) applyFrom(ctx context.Context, source inputSource, f protocol.InputFrame) error {
 	usage, ok := hidkeys.Usage(remoteinput.Code(f.Code))

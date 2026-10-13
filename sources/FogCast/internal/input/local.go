@@ -68,9 +68,11 @@ func listenLocalInput(path string) (net.Listener, error) {
 // ServeLocalInput accepts raw input frames on a unix socket and delivers them
 // into the same sink as the host stream. It is not an HTTP route and it does
 // not consult the kit lease. The feed drops frames while no runtime core is
-// bound, and while core replacement holds the input lifecycle lock. Closing
-// the connection releases only the local source. The listener serves one
-// writer synchronously: that writer must close before its successor can send.
+// bound, and while core replacement holds the input lifecycle lock. A key
+// release for an already bound HID generation is still delivered when the
+// probe that would confirm the core fails. Closing the connection releases
+// only the local source. The listener serves one writer synchronously: that
+// writer must close before its successor can send.
 func (c *TargetController) ServeLocalInput(ctx context.Context, path string) error {
 	if c == nil {
 		return errors.New("input controller is closed")
@@ -224,7 +226,13 @@ func (c *TargetController) deliverLocal(ctx context.Context, frame protocol.Inpu
 	}
 	defer c.lifecycle.Unlock()
 	if err := c.ensureLocalCore(ctx); err != nil {
-		return err
+		// The socket has already taken this frame. A press still waits for a
+		// confirmed generation. A release for the HID generation an
+		// unconfirmed probe kept must be posted now, or the key stays down
+		// with no later release left to send.
+		if !errors.Is(err, errNoCore) || c.ports == nil || !c.ports.retainedHIDRelease(frame) {
+			return err
+		}
 	}
 	if c.ports == nil {
 		return errNoCore
@@ -311,5 +319,16 @@ func (c *TargetController) setLocalObservation(ctx context.Context, obs CoreObse
 	// sits under the lifecycle lock too, so it needs the local write budget.
 	writeCtx, cancel := context.WithTimeout(ctx, localCoreWriteTimeout)
 	defer cancel()
-	return c.ports.setObservationContext(writeCtx, obs)
+	if err := c.ports.setObservationContext(writeCtx, obs); err != nil {
+		return err
+	}
+	// The release that met the failed probe is already in the sink. If that
+	// post did not land, send it once this same generation is confirmed.
+	// Replacement clears the unconfirmed state first, so the old keys are
+	// not written to the new core. A sink already posting skips the retry;
+	// failing this observation would only drop the frame that can post it.
+	if obs.Active && obs.KeyboardHID != nil && c.ports.hid != nil {
+		_ = c.ports.hid.replayUnconfirmed(writeCtx, obs.KeyboardHID)
+	}
+	return nil
 }
