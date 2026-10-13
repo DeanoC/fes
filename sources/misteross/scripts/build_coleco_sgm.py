@@ -113,8 +113,10 @@ def prepare_scaffold(source: Path, destination: Path) -> bytes:
 
 def cart_clock_constraints(root: Path) -> bytes:
     # --no-pack restores the routed nets but does not derive PLL constraints.
-    # These are the declared shell frequencies, never its achieved Fmax.
-    text = (root / factory.SDC).read_text() + "\n# Frozen Coleco PLL output clocks.\n"
+    # The cart scaffold has no physical FPGA_CLK1_50 target, so the shell's
+    # port create_clock is a virtual clock on this pin and nextpnr rejects it.
+    # These net clocks are the declared shell frequencies, never its achieved Fmax.
+    text = "# Frozen Coleco PLL output clocks.\n"
     for name, frequency in REQUIRED_CLOCKS_MHZ.items():
         text += f"create_clock -name {{{name}}} -period {1000 / frequency:.12f} [get_nets {{{name}}}]\n"
     return text.encode()
