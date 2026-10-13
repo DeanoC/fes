@@ -451,3 +451,100 @@ func TestLocalHIDReleaseDoesNotReplayOntoReplacement(t *testing.T) {
 		t.Fatalf("confirmed idle posted the retired release: %+v", posts[before:])
 	}
 }
+
+// A second failure of the consumed release must stay unconfirmed. Controller
+// ports then skip observation, so a later gamepad frame has to post neutral.
+func TestLocalHIDFailedReplayRetriesOnGamepadWhilePortsBound(t *testing.T) {
+	var mu sync.Mutex
+	var posts []hidPost
+	hidFails := 0
+	portWrites := 0
+	failProbe := false
+	withPorts := false
+	observations := 0
+	controller, sink := newLocalHIDFeed(t, func(_ context.Context, id string, generation uint64, rows hidkeys.Rows) error {
+		mu.Lock()
+		posts = append(posts, hidPost{id, generation, rows})
+		fail := hidFails > 0
+		if fail {
+			hidFails--
+		}
+		mu.Unlock()
+		if fail {
+			return errors.New("hid post lost")
+		}
+		return nil
+	}, func(context.Context) (CoreObservation, error) {
+		observations++
+		if failProbe {
+			return CoreObservation{}, errors.New("status unread")
+		}
+		obs := hidBinding(7)
+		if withPorts {
+			obs.Binding = &ControllerBinding{PackageID: "apple2", Generation: 7}
+		}
+		return obs, nil
+	})
+	sink.poster = func(context.Context, string, uint64, uint8, uint8, uint16) error {
+		mu.Lock()
+		portWrites++
+		mu.Unlock()
+		return nil
+	}
+	a, _ := hidkeys.Code(0x04)
+	if err := controller.deliverLocal(context.Background(), keyboardFrameFor(a, remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	hidFails = 2
+	mu.Unlock()
+	failProbe = true
+	expireLocalObservation(sink)
+	if err := controller.deliverLocal(context.Background(), keyboardFrameFor(a, remoteinput.ActionRelease)); err == nil {
+		t.Fatal("lost release post reported success")
+	}
+	failProbe = false
+	withPorts = true
+	expireLocalObservation(sink)
+	pad := gamepad(0, remoteinput.ButtonB, remoteinput.ActionPress, 0)
+	if err := controller.deliverLocal(context.Background(), pad); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	got := append([]hidPost(nil), posts...)
+	mu.Unlock()
+	if len(got) != 3 || got[2].generation != 7 || got[2].rows != (hidkeys.Rows{}) {
+		t.Fatalf("recovered observation did not retry neutral: %+v", got)
+	}
+	probes := observations
+	pad.Code = uint16(remoteinput.ButtonA)
+	if err := controller.deliverLocal(context.Background(), pad); err != nil {
+		t.Fatal(err)
+	}
+	if observations != probes {
+		t.Fatalf("bound ports re-probed: observations %d want %d", observations, probes)
+	}
+	mu.Lock()
+	got = append([]hidPost(nil), posts...)
+	writes := portWrites
+	mu.Unlock()
+	if len(got) != 4 || got[3].id != "apple2" || got[3].generation != 7 || got[3].rows != (hidkeys.Rows{}) {
+		t.Fatalf("gamepad frame left the release unconfirmed: %+v", got)
+	}
+	if writes < 2 {
+		t.Fatalf("gamepad frames did not reach the core: writes=%d", writes)
+	}
+	before := len(got)
+	pad.Action = uint8(remoteinput.ActionRelease)
+	if err := controller.deliverLocal(context.Background(), pad); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(posts) != before {
+		t.Fatalf("confirmed release was posted again: %+v", posts[before:])
+	}
+	if observations != probes {
+		t.Fatalf("later gamepad re-probed: observations %d want %d", observations, probes)
+	}
+}

@@ -218,6 +218,28 @@ func (s *controllerPortsSink) hasBinding() bool {
 	return s.binding != nil
 }
 
+// replayUnconfirmedHID posts the HID union when its last write failed, for
+// the generation this sink still holds. The controller-port lock is not held
+// across the runtime write. A nil binding or a generation that no longer
+// matches is left for a confirming observation.
+func (s *controllerPortsSink) replayUnconfirmedHID(ctx context.Context) error {
+	if s == nil || s.hid == nil {
+		return nil
+	}
+	s.mu.Lock()
+	binding := s.hidBinding
+	var copied KeyboardHIDBinding
+	if binding != nil {
+		copied = *binding
+	}
+	hid := s.hid
+	s.mu.Unlock()
+	if binding == nil {
+		return nil
+	}
+	return hid.replayUnconfirmed(ctx, &copied)
+}
+
 func (s *controllerPortsSink) cachedObservation() (active, fresh bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

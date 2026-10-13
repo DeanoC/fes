@@ -2269,10 +2269,12 @@ the core keeps that HID binding and its held keys. The kit-local release that
 meets that probe, and a later release while that generation stays bound, still
 posts the neutral rows. A press waits until a probe confirms the generation is
 active. If the release post failed, the next confirmed observation of that
-same generation posts it before the new frame. Confirmed idle, or a confirmed
-different generation, drops the retained binding and does not replay those
-keys. Source release posts the
-remaining holds; lease expiry, core replacement
+same generation posts it before the new frame. That replay stays unconfirmed
+until `set_keyboard_hid` succeeds. A later kit-local frame posts it again under
+the input lifecycle lock, including a gamepad frame while controller ports stay
+bound and skip observation. Confirmed idle, or a confirmed different
+generation, drops the retained binding and does not replay those keys.
+Source release posts the remaining holds; lease expiry, core replacement
 and Stop neutralize best-effort, and the runtime itself neutralizes on Hold and
 Stop. Controller frames of the same session still use `set_controller` ports 0/1
 with `keypad:0`.
@@ -2405,7 +2407,10 @@ ZX81 matrix or arrow code the kit sent before HID, so those cores see the same k
 The socket is not an HTTP route and does not consult the kit lease, so a pad on the
 kit drives the running core whichever host launched it. Frames are delivered only
 while a runtime core is bound. A kit-local HID release is the exception: when a
-probe fails, a release for the generation that probe kept is still posted. Delivery takes the same input lifecycle lock as host
+probe fails, a release for the generation that probe kept is still posted. If
+that post does not land, a later local frame retries it under the same lock,
+including when controller ports are bound. The release stays unconfirmed until
+the post succeeds. Delivery takes the same input lifecycle lock as host
 attach and core replacement. While replacement holds that lock, from ReleaseAll
 until the finish callback, an arriving frame is dropped before observation, binding,
 or writing. The status read that binds a local frame, and the set_keyboard or
