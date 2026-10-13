@@ -373,12 +373,14 @@ during that hold confirms a completed idle menu that belongs to the hold: state
 `idle`, menu display available, and a non-zero generation that is not a session
 binding. The shelf generation is the idle menu read at the pause. Runtime
 reads are serialized, and a probe that started earlier cannot replace that
-read. If the pause read fails, the shelf stays the last idle generation sampled
-before the hold. That generation does not qualify, nor does a later probe error
-after an idle sample. A different menu generation does, and so does a later idle
-probe after the hold has seen the runtime leave that shelf. When no idle menu
-was sampled before the hold, the first completed idle during the hold confirms
-it and is not kept as a stand-in shelf. The launch timeout does not resume the menu while the host is absent and
+read. If the pause read fails, a cached generation is not the shelf, and a
+later idle menu does not resume merely because its generation differs. The menu
+resumes after this hold has seen the runtime leave the shelf. When the pause
+read identified the shelf, that generation does not qualify, nor does a later
+probe error after an idle sample. A different menu generation does, and so does
+a later idle probe after the hold has seen the runtime leave that shelf. When
+no idle menu was sampled before the hold, the first completed idle during the
+hold confirms it and is not kept as a stand-in shelf. The launch timeout does not resume the menu while the host is absent and
 that confirmation is still missing. Loading and stopping feedback still paints when
 the idle enables the framebuffer.
 Replacing the system image does not wipe this tree. D-pad and A still browse

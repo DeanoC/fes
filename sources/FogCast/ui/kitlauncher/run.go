@@ -192,10 +192,11 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	// the hold starts. holdMenuGen is the shelf menu generation read at that
 	// pause, not an older probe, so a shelf that changed while still idle
 	// cannot resume it. A probe already in flight cannot replace that read.
-	// If the pause read fails, the last idle generation sampled before the
-	// hold remains the shelf. shelfKnown is false when no idle menu was
-	// sampled before the hold; the first completed idle then confirms it. A
-	// pause taken for an active session keeps the existing handoff.
+	// If the pause read fails, the cached generation is not the shelf. A
+	// later idle menu resumes only after this hold has seen the runtime
+	// leave it. shelfKnown is false when no idle menu was sampled before
+	// the hold; the first completed idle then confirms it. A pause taken
+	// for an active session keeps the existing handoff.
 	menuHeldForLocal := false
 	var coreProbeGen atomic.Uint64
 	var holdMenuGen uint64
@@ -816,9 +817,10 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						// in-flight probe has finished, and do not let that
 						// probe record afterward. A shelf that moved while
 						// idle is this sample, not a completed launch. If this
-						// read fails, the last idle generation from before the
-						// hold remains the shelf. No prior idle means there is
-						// no shelf to adopt from a later probe.
+						// read fails, the cached generation is not the shelf:
+						// disagreement with it is not a completed menu. No
+						// prior idle means there is no shelf to adopt from a
+						// later probe.
 						coreProbeGen.Add(1)
 						gen := coreProbeGen.Load()
 						func() {
@@ -827,9 +829,6 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 							hadShelf := coreBound.menuIdle() && coreBound.menuGeneration() != 0
 							holdMenuGen = 0
 							shelfKnown = hadShelf
-							if hadShelf {
-								holdMenuGen = coreBound.menuGeneration()
-							}
 							if c.localCore != nil {
 								seq := coreBound.startProbe()
 								sample, err := c.readLocalCore(ctx)
@@ -996,16 +995,18 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				// A host-absent poll keeps the last local session and returns
 				// before the host resume. Release that hold only after a probe
 				// taken during the hold confirms a completed idle menu that
-				// belongs to the hold. The shelf generation read at the pause, or
-				// the last idle generation from before the hold when that read
-				// fails, keeps the pause. So does a probe error, an aged bound
-				// sample, and starting or reboot_required. A different menu
-				// generation confirms it even when the transition was not
-				// sampled; so does a later idle after this hold has seen the
-				// runtime leave the shelf. With no shelf sampled before the
-				// hold, the first completed idle confirms it and is not stored
-				// as that shelf. An older probe completion cannot replace the
-				// pause sample.
+				// belongs to the hold. The shelf generation read at the pause
+				// keeps the pause. A failed pause read does not keep a cached
+				// generation, so a different later generation is not completion
+				// until this hold has seen the runtime leave the shelf. A probe
+				// error, an aged bound sample, and starting or reboot_required
+				// also keep the pause. A different menu generation confirms it
+				// when the pause read identified the shelf, even if the
+				// transition was not sampled; so does a later idle after this
+				// hold has seen the runtime leave the shelf. With no shelf
+				// sampled before the hold, the first completed idle confirms it
+				// and is not stored as that shelf. An older probe completion
+				// cannot replace the pause sample.
 				// Active sessions and local launches do not use this hold.
 				gen := coreProbeGen.Load()
 				if hostUnreachable && menuHeldForLocal && !localRunning && !localPending && coreBound.menuIdleAt(gen, holdMenuGen, shelfKnown) {

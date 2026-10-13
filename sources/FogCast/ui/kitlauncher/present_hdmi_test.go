@@ -1061,7 +1061,7 @@ func TestRunMenuDisplayOverlappingProbeDoesNotReleaseShelf(t *testing.T) {
 	}
 }
 
-func TestRunMenuDisplayFailedPauseProbeUsesCachedShelf(t *testing.T) {
+func TestRunMenuDisplayFailedPauseReadKeepsAdvancedShelf(t *testing.T) {
 	oldObserve := launcherObserve
 	oldPoll := launcherPollInterval
 	defer func() {
@@ -1070,12 +1070,12 @@ func TestRunMenuDisplayFailedPauseProbeUsesCachedShelf(t *testing.T) {
 	}()
 	launcherPollInterval = 20 * time.Millisecond
 
-	// The cached shelf is generation 4. The pause read fails. Generation 4
-	// must stay paused, and a later completed menu must resume even though
-	// the start and stop were not sampled.
+	// The cached shelf is generation 4 and then advances to 5 while still
+	// idle. The pause read fails. Generation 5 must stay paused. A later idle
+	// resumes only after this hold has seen the runtime leave the shelf.
 	var phase atomic.Int32
 	var failPause atomic.Bool
-	var sameShelf atomic.Int64
+	var advanced, leftShelf atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if phase.Load() != 0 {
 			http.Error(w, "host down", http.StatusBadGateway)
@@ -1107,13 +1107,18 @@ func TestRunMenuDisplayFailedPauseProbeUsesCachedShelf(t *testing.T) {
 		if failPause.CompareAndSwap(true, false) {
 			return LocalCoreSample{}, errors.New("runtime unavailable")
 		}
-		if phase.Load() >= 2 {
+		switch phase.Load() {
+		case 0:
+			return LocalCoreSample{MenuIdle: true, MenuGeneration: 4}, nil
+		case 1:
+			advanced.Add(1)
+			return LocalCoreSample{MenuIdle: true, MenuGeneration: 5}, nil
+		case 2:
+			leftShelf.Add(1)
+			return LocalCoreSample{}, nil
+		default:
 			return LocalCoreSample{MenuIdle: true, MenuGeneration: 8}, nil
 		}
-		if phase.Load() == 1 {
-			sameShelf.Add(1)
-		}
-		return LocalCoreSample{MenuIdle: true, MenuGeneration: 4}, nil
 	}
 	client.SetMenuDisplayHandoff(func(context.Context) error {
 		pauses.Add(1)
@@ -1121,17 +1126,24 @@ func TestRunMenuDisplayFailedPauseProbeUsesCachedShelf(t *testing.T) {
 		failPause.Store(true)
 		return nil
 	}, func() {
-		if phase.Load() < 2 {
+		if phase.Load() < 3 {
 			early.Store(true)
 		}
 		resumes.Add(1)
 	})
 	launcherObserve = func(m Model) {
-		if resumes.Load() != 0 || phase.Load() != 1 || m.Connected {
+		if resumes.Load() != 0 || m.Connected {
 			return
 		}
-		if sameShelf.Load() >= 3 {
-			phase.Store(2)
+		switch phase.Load() {
+		case 1:
+			if advanced.Load() >= 3 {
+				phase.Store(2)
+			}
+		case 2:
+			if leftShelf.Load() >= 2 {
+				phase.Store(3)
+			}
 		}
 	}
 	err := Run(ctx, client, func(m Model) {
@@ -1143,11 +1155,11 @@ func TestRunMenuDisplayFailedPauseProbeUsesCachedShelf(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if early.Load() || pauses.Load() == 0 || sameShelf.Load() < 3 {
-		t.Fatalf("failed pause read released or missed the cached shelf: early=%v pauses=%d same=%d resumes=%d", early.Load(), pauses.Load(), sameShelf.Load(), resumes.Load())
+	if early.Load() || pauses.Load() == 0 || advanced.Load() < 3 || leftShelf.Load() < 2 {
+		t.Fatalf("failed pause read released the advanced shelf: early=%v pauses=%d advanced=%d left=%d resumes=%d", early.Load(), pauses.Load(), advanced.Load(), leftShelf.Load(), resumes.Load())
 	}
 	if resumes.Load() == 0 || idleAfter.Load() == 0 {
-		t.Fatalf("newer idle after a failed pause read did not resume: resumes=%d idleAfter=%d phase=%d", resumes.Load(), idleAfter.Load(), phase.Load())
+		t.Fatalf("idle after leaving the shelf did not resume: resumes=%d idleAfter=%d phase=%d", resumes.Load(), idleAfter.Load(), phase.Load())
 	}
 }
 
