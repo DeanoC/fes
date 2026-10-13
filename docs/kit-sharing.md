@@ -32,6 +32,12 @@ just its PID: restart policies can undo a process kill. Slack is not a push
 notification channel for this harness; poll a thread when a reply is needed.
 Coordination does not replace the existing lease or authorize another device.
 
+Replacing a kit binary, launcher config, agent config, or core-package file
+is that kind of maintenance. Do it with the [kit runtime manifest](kit-manifest.md)
+(`scripts/fes kit claim`, `swap`, `restore`, `status`). The hold marker is
+`~/tmp/KITA-HELD-BY-<who>` or `~/tmp/KITB-HELD-BY-<who>`. Release the kit.py
+lease before a swap or restore, because those commands restart services.
+
 The selected components include renewable kit ownership. The target agent is
 the single lease authority; libmister-runtime owns FPGA programming and recovery.
 The matching diagnostic agent and host API are installed on the designated kit

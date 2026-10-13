@@ -2,6 +2,14 @@
 
 Use this procedure only on the designated kit A (`192.168.10.84`), under the dedicated fixture rules in `sources/FogCast/docs/DEVELOPMENT.md`. Never deploy to an unknown device. The planner compares base image commit to the full PR head with `--no-renames`; `FULL_IMAGE` means stop and build a full image.
 
+Kit file changes go through the [kit runtime manifest](kit-manifest.md):
+`python3 scripts/fes kit claim`, `swap`, and `restore`. Do not copy binaries,
+configs, or core-package files onto a kit directly, and do not install them
+with `kit-deploy-script`. HIL evidence includes `python3 scripts/fes kit status`
+for every kit the run touched. A persistent swap (including `launcher.json`
+and `agent.toml`) has `--why` in that status. Release the kit.py lease before
+swap or restore; those commands restart services and do not reboot the board.
+
 1. Authorize the designated kit and prepare a clean worktree at the exact full PR head. Build the affected binaries and cores from that head.
 2. For every SSH/SCP call create a throwaway known_hosts file and use `StrictHostKeyChecking=accept-new` (never `/dev/null`, the real known_hosts, or `StrictHostKeyChecking=no`).
 3. Classify against the commit that built the running image. Stop if the decision is `FULL_IMAGE`.
@@ -57,8 +65,8 @@ before the host attestation command is run.
 
 6. **Binary-only and mixed plans:** release before deployment because restart
    invalidates a held lease. Save status, confirm `"state": "free"`, and record
-   `released-for-restart`. Stage files in tmpfs and run the generated deploy
-   script with `on` (as described above).
+   `released-for-restart`. Claim the kit if this session does not already hold
+   it, then install each changed file with `python3 scripts/fes kit swap`.
 
 7. **Mixed kit binary and core sequence:** after deploy and restart, run
    `fogcast core-load` using the core archive from the exact-head build.
@@ -110,7 +118,8 @@ before the host attestation command is run.
    tenfoot, and the `kit_ui` line from `kit-command` must show that the overlaid
    `fogcast-kit` completed `--print-kit-ui` and selected `tenfoot`.
 
-9. Generate evidence with the base build's `release.json`, the update capture,
+9. Save `python3 scripts/fes kit status` for each kit in the run. Then generate
+   evidence with the base build's `release.json`, the update capture,
    the hash outputs, the lease log, and one `--core-status core:NAME=FILE` per
    core, where FILE is the `core-capture` bundle. Pass
    `--host-lease-owner HOST_OWNER` whenever cores are present. In mixed plans,
@@ -120,8 +129,9 @@ before the host attestation command is run.
    executable hashes, core package identity and state, image identity, boot
    identity, supervisor counts, and exact lease order.
 
-10. Finally run `kit-deploy-script ...` with `off` under the same
-    release/reacquire lease discipline to restore installed binaries.
+10. Release the kit.py lease, then run `python3 scripts/fes kit restore <kit>`
+    under that same release-before-restart discipline. The kit files must match
+    stock again and the boot id must be unchanged.
 
 ```sh
 python3 scripts/hil_plan.py evidence --repo . --base-image-commit "$BASE_IMAGE_COMMIT" \

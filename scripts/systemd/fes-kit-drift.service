@@ -1,0 +1,15 @@
+[Unit]
+Description=Flag unrecorded FES development-kit file changes
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=deano
+Group=deano
+WorkingDirectory=/home/deano/fes
+Environment=FES_KIT_SSH_PASSWORD=1
+Environment=FES_KIT_HOLD_DIR=/home/deano/tmp
+Environment=FES_KIT_DRIFT_DIR=/home/deano/tmp/fes-kit-drift
+ExecStart=/home/deano/fes/scripts/fes kit watch --once
+# FES_KIT_SSH_PASSWORD is the documented development-image login.

@@ -258,6 +258,15 @@ controller, persistence or exact-image acceptance. Record those physical checks
 separately against the selected image/runtime/package digests;
 historical raw-core acceptance does not qualify the new artifacts.
 
+## Swap a kit file
+
+Change `mister-runtime`, `mister-agent`, `fogcast-kit`, `fogcast-tenfoot`,
+`launcher.json`, `agent.toml`, or a core-package file only through the FES
+[kit runtime manifest](../../../docs/kit-manifest.md). Claim the hold, release
+the kit.py lease, swap, and restore. Do not copy those files onto the kit
+directly. The restart rules above still apply: swap and restore stop and start
+the affected init scripts, and they do not reboot the board.
+
 ## Deploy and exercise the kit
 
 Use the FES [appliance release guide](../../../docs/appliance-releases.md) or
