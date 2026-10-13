@@ -1555,13 +1555,28 @@ The endpoint owns no storage: accepted media words appear on a write port for
 their acknowledging clock and `unit0_state` gates presentation of unit 0.
 
 `make build-fes-apple2` (`scripts/build_fes_apple2_oss.py`,
-`toolchains/apple2.lock`, `make toolchain-fes-apple2`) seals a format-3
-package from a clean committed tree. Its single ROM is `apple2-firmware`,
+`toolchain.lock`, `make toolchain-fes-apple2`) is the format-3
+product lane. The registered recipe selects HIP. Backend identity is part of
+the build record, so a CUDA route of the same sources is a different package.
+The shared-pin clocks that closed on this lock move were a CUDA exploratory
+seal; that seal is not HIP closure, and product HIP seal evidence is still
+open. The September kit notes do not accept those bytes. The build record
+uses the audited static closure in `scripts/source_closures.json`: pinned
+inputs, the scripts they import, the toolchain recipe files, and the Apple II
+core tree, excluding simulation, tests and markdown. That replaces the broad
+`scripts` and `cores/fes-common` roots. A compiler-read derive during the
+product HIP seal is the remaining tightening; this closure is not that trace.
+Its single ROM is `apple2-firmware`,
 role `firmware`, 16,384 bytes on the blank column-5 lanes at rows 32–47.
 The shell QSF adds the four named `FES_RESERVED_RECT` regions of
-`scripts/apple2_slots.py`; the producer requires every socket to hold only
-its pinned boundary flip-flops and every firmware destination to fall
-outside all four socket CRAM rectangles. It searches seeds 5, 4, 2, 1, 3,
+`scripts/apple2_slots.py`. Socket validation admits a compiler-inserted
+`MISTRAL_BUF` only as the verified `$ROUTETHRU` companion of an already
+pinned boundary flip-flop. The shared `coleco_expansion` check requires the
+paired COMB/MCOMB half, the exact physical pin map, and a dedicated buffer
+output connected only to that flip-flop's data input. Clock-coverage outputs
+must remain unused. A matching name or the same tile is not enough. Every
+other shell cell inside a socket is rejected, and every firmware destination
+must fall outside all four socket CRAM rectangles. It searches seeds 5, 4, 2, 1, 3,
 6–10 at HeAP weight 2000 and takes the first route that closes 52.224 MHz
 system, 74.25 MHz pixel and 12.288 MHz audio timing. An inferred read-only
 memory maps to an M10K without a clock in this toolchain, so the font M10K
@@ -1581,8 +1596,11 @@ rejects every async M10K in the shell. The package declares `fes.expansion.apple
 against the exact sealed shell and its frozen `routed.json`: the scaffold
 renames only that slot's boundary flip-flops to `plug_addr_ff_N` /
 `plug_rdata_ff_N` (the other sockets keep their instance names, so nextpnr
-finds exactly one plug set), removes that slot's clock-coverage flip-flop,
-and reattaches the system PLL's second output as the Coleco card flow does.
+finds exactly one plug set) and removes that slot's clock-coverage flip-flop.
+Legacy routed JSON omits the PLL's second output; the scaffold reattaches
+that authenticated audio net and drops the obsolete `outclk[0]` alias.
+Shared-pin JSON already exposes physical C6/C7 outputs; the scaffold
+validates and preserves those connections and their pin map.
 nextpnr pass 2 runs with `--fes-cart-region slotN` and that socket's
 `--fes-cram-region`; the producer requires the three shell clocks and no CRAM
 change outside the socket, then publishes a two-member archive whose

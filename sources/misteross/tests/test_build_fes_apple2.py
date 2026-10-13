@@ -6,6 +6,7 @@ names one. It stops before ABC, which is enough to see mapped M10K parameters.
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import shutil
@@ -17,6 +18,7 @@ from pathlib import Path
 from scripts import apple2_slots
 from scripts import build_fes_apple2_oss as producer
 from scripts.fes_build_common import BuildError
+from scripts.functional_execution import AuditedRoots, source_roots_for_inputs, source_roots_for_producer
 from scripts.lockfile import load_lock
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -78,10 +80,37 @@ class BuildFesApple2Tests(unittest.TestCase):
         cells.update(extra or {})
         return {"modules": {"top": {"cells": cells}}}
 
+    def _with_companion(self, name: str, bit: int, *, bel: str | None = None,
+                        pin: str | None = None) -> dict:
+        design = self._routed()
+        cells = design["modules"]["top"]["cells"]
+        ff = cells[name]
+        parts = ff["attributes"]["NEXTPNR_BEL"].split(".")
+        z = int(parts[3])
+        half = 0 if z % 6 == 2 else 1
+        paired = f"MISTRAL_MCOMB.{parts[1]}.{parts[2]}.{(z // 6) * 6 + half}"
+        ff["connections"] = {"DATAIN": [bit]}
+        ff["port_directions"] = {"DATAIN": "input"}
+        cells[name + "$ROUTETHRU"] = {
+            "type": "MISTRAL_BUF", "parameters": {},
+            "attributes": {
+                "NEXTPNR_BEL": paired if bel is None else bel,
+                "FES_PINMAP_V1": json.dumps({
+                    "count": 2,
+                    "pins": {"A": [0, ("C" if half == 0 else "D") if pin is None else pin],
+                             "Q": [0, "COMBOUT"]},
+                }).encode().hex(),
+            },
+            "port_directions": {"A": "input", "Q": "output"},
+            "connections": {"A": [bit + 10000], "Q": [bit]},
+        }
+        return design
+
     def test_routed_shell_keeps_sockets_vacant(self) -> None:
         evidence = producer.validate_routed_shell(self._routed())
         self.assertEqual(evidence["sockets"], [2, 4, 5, 7])
         self.assertEqual(evidence["pinned_boundary_cells"], 4 * (60 + 33))
+        self.assertEqual(evidence["boundary_route_through_cells"], 0)
         intruder = {"machine.alu": {"type": "MISTRAL_COMB",
                                     "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.26.30.0"}}}
         with self.assertRaises(BuildError):
@@ -91,6 +120,61 @@ class BuildFesApple2Tests(unittest.TestCase):
             "MISTRAL_FF.24.42.2"
         with self.assertRaises(BuildError):
             producer.validate_routed_shell(moved)
+        companion = self._with_companion("slot7.clock_coverage_ff_32", 4000)
+        self.assertEqual(producer.validate_routed_shell(companion)["boundary_route_through_cells"], 1)
+        request = self._with_companion("slot5.plug_request_ff_0", 4001)
+        self.assertEqual(producer.validate_routed_shell(request)["boundary_route_through_cells"], 1)
+
+    def test_routed_shell_rejects_unpaired_route_through_buffers(self) -> None:
+        name = "slot7.clock_coverage_ff_32"
+
+        def _leak_anchor_q(bad: dict) -> None:
+            bad["modules"]["top"]["cells"][name]["connections"]["Q"] = [4100]
+            bad["modules"]["top"]["cells"]["leak"] = {
+                "type": "MISTRAL_BUF", "connections": {"A": [4100]}}
+
+        design = self._with_companion(name, 4000)
+        buffer = name + "$ROUTETHRU"
+        for label, mutate in (
+            ("bel", lambda bad: bad["modules"]["top"]["cells"][buffer]["attributes"].__setitem__(
+                "NEXTPNR_BEL", "MISTRAL_MCOMB.28.78.55")),
+            ("tile", lambda bad: bad["modules"]["top"]["cells"][buffer]["attributes"].__setitem__(
+                "NEXTPNR_BEL", "MISTRAL_COMB.26.30.0")),
+            ("pin", lambda bad: bad["modules"]["top"]["cells"][buffer]["attributes"].__setitem__(
+                "FES_PINMAP_V1", json.dumps({"count": 2, "pins": {
+                    "A": [0, "D"], "Q": [0, "COMBOUT"]}}).encode().hex())),
+            ("pin_malformed", lambda bad: bad["modules"]["top"]["cells"][buffer]["attributes"].__setitem__(
+                "FES_PINMAP_V1", "bad")),
+            ("connections", lambda bad: bad["modules"]["top"]["cells"][buffer]["connections"].__setitem__(
+                "Q", [3999])),
+            ("fanout", lambda bad: bad["modules"]["top"]["cells"].__setitem__(
+                "extra", {"type": "MISTRAL_BUF", "connections": {"A": [4000]}})),
+            ("anchor_q", _leak_anchor_q),
+        ):
+            with self.subTest(label=label):
+                bad = copy.deepcopy(design)
+                mutate(bad)
+                with self.assertRaises(BuildError):
+                    producer.validate_routed_shell(bad)
+        unrelated = self._routed({"shell$ROUTETHRU": {
+            "type": "MISTRAL_BUF",
+            "attributes": {"NEXTPNR_BEL": "MISTRAL_MCOMB.26.30.0"},
+            "connections": {}}})
+        with self.assertRaisesRegex(BuildError, "inside the slot 4 socket"):
+            producer.validate_routed_shell(unrelated)
+
+    def test_source_closure_is_the_audited_static_set(self) -> None:
+        roots = source_roots_for_producer("build_fes_apple2_oss", producer.PINNED_INPUTS, ROOT)
+        broad = source_roots_for_inputs(producer.PINNED_INPUTS)
+        self.assertIsInstance(roots, AuditedRoots)
+        self.assertIn("scripts", broad)
+        self.assertIn("cores/fes-common", broad)
+        self.assertNotIn("scripts", roots)
+        self.assertNotIn("cores/fes-common", roots)
+        self.assertIn("scripts/coleco_expansion.py", producer.PINNED_INPUTS)
+        for path in producer.PINNED_INPUTS:
+            self.assertTrue(any(path == root or path.startswith(root + "/") for root in roots), path)
+        self.assertFalse(any("sim" in Path(root).parts or root.endswith("/sim") for root in roots))
 
     def test_firmware_lanes_must_stay_out_of_sockets(self) -> None:
         inside = {"blocks": [{"bel": "M10K.026.030", "word_bits": [[500 * 7605 + 2000]]}]}

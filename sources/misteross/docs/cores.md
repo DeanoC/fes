@@ -33,7 +33,7 @@ A producer in this module does not put a package on that image.
 | `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchains/fes-sms.lock` | `make build-fes-sms` | yes |
 | `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sg1000` | yes |
 | `fes.catch` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `python3 scripts/build_fes_catch.py` | no; registered |
-| `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `toolchains/apple2.lock` | `make build-fes-apple2` | no; package-only recipe; per-slot cards via `scripts/build_apple2_slot_card.py` |
+| `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `toolchain.lock` | `make build-fes-apple2` (HIP default; HIP seal evidence still open) | no; package-only recipe; per-slot cards via `scripts/build_apple2_slot_card.py` |
 | `fes.c64` | `cores/fes-c64` | `fes.computer` | `toolchains/c64.lock` | `make build-fes-c64` | no; package-only recipe; cartridge cards via `scripts/build_c64_slot_card.py` |
 | `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchains/spectrum.lock` | `make build-fes-spectrum` | yes; four edge sockets |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
