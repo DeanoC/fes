@@ -359,11 +359,13 @@ class BuildFesColecoTests(unittest.TestCase):
             "hip",
         )
 
-    def test_oss_rejects_a_live_cuda_gpu_router_backend(self) -> None:
-        with self.assertRaisesRegex(BuildError, "HIP"):
+    def test_oss_accepts_a_live_cuda_gpu_router_backend(self) -> None:
+        self.assertEqual(
             _require_gpu_backend(
                 "Info: backend cuda:NVIDIA RTX 4090 ready\n"
-            )
+            ),
+            "cuda",
+        )
 
     def test_oss_top_and_ram_keep_the_open_source_boundaries(self) -> None:
         top = (ROOT / "cores/fes-coleco/rtl/top.v").read_text(encoding="utf-8")
