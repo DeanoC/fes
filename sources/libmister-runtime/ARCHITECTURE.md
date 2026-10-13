@@ -488,7 +488,7 @@ paths clear it together with package identity.
 
 Protocol-2 `inspect_parts_core` and `load_parts_core` accept a closed role list
 (`video`, plus optional `expansion`) and a separate typed parts composition.
-Only a format-2 Coleco application shell that explicitly declares optional
+Only a Coleco application shell, format 2 or the factory 16 KiB format-3 cartridge, that explicitly declares optional
 `fes.fabric.video.raster-rgb888` 1.0 or `fes.fabric.video.native-pixels` 1.0,
 and optional Coleco bus 2.0 qualifies. Duplicate or simultaneous video markers
 are rejected. Fabric markers have no GP capability and do not enter the runtime

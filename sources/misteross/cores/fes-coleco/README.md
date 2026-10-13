@@ -27,12 +27,12 @@ retail-game compatibility.
 - Verilog TV80 Z80-compatible CPU, clock-enabled from the 52.224 MHz FES system
   domain at exactly 3,579,545 Hz on average, with alternating fractional
   half-cycle enables.
-- Raw 1–32 KiB cartridge via `fes.media.blob-stream` 1.0. Images up to
-  16 KiB retain the mirrored map; larger images map linearly at `0x8000–0xffff`.
-  Legacy `fes.media.blob` remains bounded to 1–16 KiB.
+- Exact 16 KiB cartridge via the sealed format-3 ROM map. A shorter cart is
+  padded with `0xff` before import. The map is mirrored at `0x8000–0xffff`.
+  The factory shell does not advertise `fes.media.blob` or `fes.media.blob-stream`.
 - Open 8 KiB reset shim at `0x0000–0x1fff`; its vector is `JP 0x8000`, so no
-  proprietary ColecoVision BIOS is embedded. Synthesized packages optionally
-  overlay this aperture through `fes.firmware.blob` 1.0.
+  proprietary ColecoVision BIOS is embedded. The factory shell does not
+  advertise `fes.firmware.blob`.
 - 1 KiB CPU RAM at `0x6000–0x63ff`, mirrored through `0x7fff`.
 - TMS9918-style VDP ports `0xbe` (data) and `0xbf` (control/status), 16 KiB
   VRAM, Graphics I, Graphics II, Text and Multicolor rendering on a fixed

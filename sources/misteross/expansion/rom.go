@@ -109,6 +109,34 @@ func patchROM(ctx context.Context, base []byte, m ROMMap, rom []byte) ([]byte, e
 	return append(out, postamble()...), nil
 }
 
+// BlankROMDestinations returns n blank CRAM addresses outside the half-open
+// rectangle [x0,x1) × [y0,y1). Callers use it to build a sealed map for a
+// known blank bitstream; it does not authorize a package or a ROM.
+func BlankROMDestinations(base []byte, n, x0, y0, x1, y1 int) ([]uint32, error) {
+	if n < 1 {
+		return nil, fmt.Errorf("invalid blank destination count")
+	}
+	loaded, err := loadRBF(base)
+	if err != nil {
+		return nil, err
+	}
+	dest := make([]uint32, 0, n)
+	for y := 32; y < cramHeight && len(dest) < n; y++ {
+		for x := 0; x < cramWidth && len(dest) < n; x++ {
+			if x >= x0 && x < x1 && y >= y0 && y < y1 {
+				continue
+			}
+			if cramBit(loaded.cram, x, y) == 1 {
+				dest = append(dest, uint32(y*cramWidth+x))
+			}
+		}
+	}
+	if len(dest) < n {
+		return nil, fmt.Errorf("found %d blank ROM destinations, need %d", len(dest), n)
+	}
+	return dest, nil
+}
+
 func validateROMMap(ctx context.Context, m ROMMap, baseSHA256 string, sourceSize int) error {
 	if m.Format != 1 || m.Device != Device || m.Encoding != "m10k-1024x10-v1" {
 		return fmt.Errorf("unsupported ROM map format, device or encoding")

@@ -58,8 +58,9 @@ for an exact 131,072-byte cartridge. The source-only `rom-link-v2.json`
 archive carries both original objects and an optional exact-shell SGM archive;
 the target verifies each digest, composes the expansion and patches the sealed
 139,264-byte ROM map before programming. Status exposes both source identities
-in `rom_links`. Format-3 `rom_link` and current factory Coleco mailbox paths
-retain their existing behavior. This producer is imported explicitly for
+in `rom_links`. Format-3 `rom_link` keeps its one-source behavior. The factory
+Coleco cartridge is that format and does not keep blob, stream, or firmware
+mailboxes. This producer is imported explicitly for
 development because `config/core-recipes.toml` has one row per core ID.
 
 Format-3 packages seal one named ROM requirement and its CRAM map alongside the
@@ -71,10 +72,10 @@ This path needs no Python on the kit and requires runtime capability
 `rom_linking: 1`. Status records the map, source ROM and programmed RBF digests;
 restart adoption independently reconstructs the retained programmed bytes.
 
-The ZX81, SMS, SG-1000, Apple II, Commodore 64 and ZX Spectrum 48K producers export format 3 when sealed.
+The ZX81, SMS, SG-1000, Apple II, Commodore 64, ZX Spectrum 48K and factory Coleco producers export format 3 when sealed.
 Other core producers retain format 2 and their current media/firmware paths
 until explicitly converted. SMS requires an exact 32 KiB `cartridge-rom`;
-SG-1000 requires an exact 16 KiB `cartridge-rom`. Pad a shorter fixed-map
+SG-1000 and Coleco require an exact 16 KiB `cartridge-rom`. Pad a shorter fixed-map
 cartridge with `0xff` before import. Apple II requires an exact 16 KiB
 `apple2-firmware` image covering `$C000–$FFFF`; its slot cards and floppy
 media are separate inputs (see the
@@ -99,7 +100,7 @@ equivalents are `fogcast video-profile scanlines`,
 `fogcast video-part-install scanlines /absolute/path/part.tar`, and
 `fogcast core-video GAME_ID` to inspect the resolved choice.
 
-The factory Coleco recipe emits a format-2 native-pixel video shell. Its
+The factory Coleco recipe emits a format-3 native-pixel video shell. Its
 256×192 indexed source feeds a linked part that owns frame capture and 720p
 output. The earlier raster video shell remains supported with its own
 slot/map/layout. A part binds to one exact package and its frozen socket.

@@ -277,7 +277,7 @@ Error OpenPartsComposition(const std::vector<std::string>& roots,
 			cpu = !interface.required && interface.major == (st ? 1u : 2u) && interface.minor == 0;
 		}
 	}
-	if ((!st && (descriptor.format != 2 || descriptor.core.id != "fes.coleco")) || (st && native_pixels) ||
+	if ((!st && !ColecoVideoShell(descriptor)) || (st && native_pixels) ||
 		descriptor.abi.id != (st ? "fes.computer" : "fes.application") || descriptor.abi.major != 1 ||
 		descriptor.abi.minor != 0 || !video || !cpu || video_count != 1 || cpu_count != 1)
 		return Invalid("parts require the declared closed video shell");

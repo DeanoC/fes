@@ -155,16 +155,20 @@ base_bytes=rbf_save(base,compressed=True)
 evidence={'build_id':build_identity(record),'rbf':{'sha256':sha(base_bytes),'size':len(base_bytes)}}
 if st:
     mapping={'format':1,'device':'5CSEBA6U23I7','encoding':'m10k-1024x10-v1','base_sha256':sha(base_bytes),'source_size':1024,'blocks':[{'bel':'fixture','source_offset':0,'word_bits':[[32*7605+w*40+i for i in range(40)] for w in range(256)]}]}
-    rom_map=enc(mapping)+b'\n'
-    evidence['rom']={'id':'fes.atari-st.firmware','role':'firmware','source_size':1024,'file':'rom-map.json','size':len(rom_map),'sha256':sha(rom_map)}
+    rom_id,rom_role,rom_size='fes.atari-st.firmware','firmware',1024
+else:
+    mapping={'format':1,'device':'5CSEBA6U23I7','encoding':'m10k-1024x10-v1','base_sha256':sha(base_bytes),'source_size':16384,'blocks':[{'bel':f'fixture-{block}','source_offset':block*1024,'word_bits':[[32*7605+(block*256+w)*40+i for i in range(40)] for w in range(256)]} for block in range(16)]}
+    rom_id,rom_role,rom_size='cartridge-rom','cartridge',16384
+rom_map=enc(mapping)+b'\n'
+evidence['rom']={'id':rom_id,'role':rom_role,'source_size':rom_size,'file':'rom-map.json','size':len(rom_map),'sha256':sha(rom_map)}
 manifest=(shell_producer._manifest(record,evidence,'https://github.com/DeanoC/fes.git',revision,current['tools']) if st else shell_producer.manifest(record,evidence,'https://github.com/DeanoC/fes.git',revision,current['tools'],**options))
-package_id=package_identity(manifest,base_bytes,rom_map if st else None)
+package_id=package_identity(manifest,base_bytes,rom_map)
 package=output/package_id; package.mkdir()
 for name,value in [('manifest.toml',manifest),('core.rbf',base_bytes)]: (package/name).write_bytes(value)
 shell=output/'shell'; shell.mkdir()
 for name,value in [('manifest.toml',manifest),('core.rbf',base_bytes),('routed.json',b'{}'),('socket.qsf',b'fixture constraints'),('build-inputs.json',record)]: (shell/name).write_bytes(value)
+(package/'rom-map.json').write_bytes(rom_map)
 if st:
-    (package/'rom-map.json').write_bytes(rom_map)
     (shell/'rom-map.json').write_bytes(rom_map)
 cases={}
 variants=('direct','scanlines') if len(sys.argv)>4 and sys.argv[4]=='archives' else ('direct','scanlines','outside','header','inside-legacy-column','outside-legacy-column')
@@ -393,10 +397,16 @@ class VideoShellAdmissionTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     video.video_shell_profile(descriptor)
 
-    def test_profile_requires_format2_coleco_application(self):
+    def test_coleco_admits_format2_and_exact_format3_cartridge(self):
         original = self.descriptor("fes.fabric.video.native-pixels")
-        for changed in ({"format": 3}, {"format": 2.0}, {"core": {"id": "fes.pong"}},
-                        {"abi": {"id": "fes.application", "major": 2, "minor": 0}}):
+        self.assertEqual(video.video_shell_profile(original), video.NATIVE_MAP)
+        cartridge = original | {"format": 3, "rom": {"role": "cartridge", "source_size": 16384}}
+        self.assertEqual(video.video_shell_profile(cartridge), video.NATIVE_MAP)
+        for changed in ({"format": 3}, {"format": 2.0}, {"format": 4},
+                        {"core": {"id": "fes.pong"}},
+                        {"abi": {"id": "fes.application", "major": 2, "minor": 0}},
+                        {"format": 3, "rom": {"role": "firmware", "source_size": 16384}},
+                        {"format": 3, "rom": {"role": "cartridge", "source_size": 8192}}):
             with self.assertRaises(ValueError):
                 video.video_shell_profile(original | changed)
 

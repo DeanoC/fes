@@ -2658,8 +2658,9 @@ hardware acceptance claim.
 
 ## Developer video parts
 
-The separate developer parts path admits only a format-2 `fes.coleco`
-`fes.application` 1.0 package with optional `fes.expansion.coleco-bus` 2.0 and
+The separate developer parts path admits a format-2 `fes.coleco`
+`fes.application` 1.0 package, or a format-3 shell with one exact 16 KiB
+`cartridge` ROM, with optional `fes.expansion.coleco-bus` 2.0 and
 exactly one optional video marker: `fes.fabric.video.raster-rgb888` 1.0 selects
 `fes.coleco-video.parts/1`, while `fes.fabric.video.native-pixels` 1.0 selects
 `fes.coleco-native-video.parts/1`. Native version 1 fixes the source at
@@ -2719,7 +2720,7 @@ the selected parts independently, inspects the base core-data namespace even
 for a composed load, then sends local protocol-2 `load_parts_library_core`
 with the fixed core-data root. Native admission repeats the namespace check
 before programming. A durable namespace cannot be replaced by a candidate
-without its persistence contract. This closed format-2 Coleco lane remains
+without its persistence contract. This closed Coleco parts lane remains
 volatile; its exact parts tuple, persistence mode and generation are checked
 on response reconciliation and retained on restart adoption. Developer routes
 continue to reject library headers and remain explicitly volatile.
@@ -2762,8 +2763,9 @@ binding. Video imports do not enter CPU expansion inventory.
 | Inspect the next launch for an entry | `GET /api/v1/library/core-entries/{game_id}/video` |
 
 `fogcast/core_video.go` considers only parts for the entry's exact installed
-package and declared video socket. The closed format-2 Coleco shell contract
-rejects mixed markers and unsupported versions even without installed parts.
+package and declared video socket. The closed Coleco shell contract, format 2
+or a format-3 16 KiB cartridge, rejects mixed markers and unsupported versions
+even without installed parts.
 If the preferred Scanlines profile is absent, selection uses an installed Direct
 part for that same shell. A native shell without that fallback rejects launch;
 it cannot launch its vacant base. A valid selected Scanlines part works without
@@ -2788,7 +2790,8 @@ parts route described above. The host recognizes the confirmed application ABI
 as `fpga_native` and binds the complete parts tuple, programmed digest and
 generation to the library session. The shell package, BUILD_ID, fixed video and
 audio/input contracts remain those of the sealed base. This selection path
-accepts the same two closed format-2 Coleco layouts as the developer path.
+accepts the same two closed Coleco layouts as the developer path, including a
+format-3 16 KiB cartridge.
 
 ## Described-core persistent data
 

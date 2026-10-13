@@ -102,6 +102,21 @@ func TestNativeDeveloperPartsStageAdoptAndRejectCrossedShellMarkers(t *testing.T
 		t.Fatal(err)
 	}
 	inspection := Inspection{PackageID: bundle.Composition.PackageID, Descriptor: descriptor}
+	t.Run("format 3 cartridge", func(t *testing.T) {
+		candidate := inspection
+		candidate.Descriptor.Format = 3
+		candidate.Descriptor.ROM = &ROM{Role: "cartridge", SourceSize: 16384}
+		if _, err := PartsShell(candidate, payload); err != nil {
+			t.Fatal(err)
+		}
+	})
+	t.Run("format 3 without cartridge", func(t *testing.T) {
+		candidate := inspection
+		candidate.Descriptor.Format = 3
+		if _, err := PartsShell(candidate, payload); err == nil {
+			t.Fatal("accepted format 3 without a cartridge ROM")
+		}
+	})
 	for name, change := range map[string]func(*Inspection){
 		"both fabrics": func(i *Inspection) {
 			i.Descriptor.Interfaces = append(i.Descriptor.Interfaces, Interface{ID: expansion.VideoSlot, Major: 1})
