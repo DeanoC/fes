@@ -70,24 +70,33 @@ def card_inputs(card: str) -> tuple[str, ...]:
 def prepare_scaffold(source: bytes, slot: int) -> bytes:
     """Frozen shell netlist with the chosen socket exposed as the cart plugs.
 
-    The routed JSON omits the system PLL's second output connection while
-    keeping its physical pin map and routed net: reattach that net to the
-    physical `outclk[1]` pin and drop the obsolete `outclk[0]` alias. Every
-    socket's boundary must still be at its pinned BEL. The chosen socket's
-    request/response flip-flops are renamed plug_addr_ff_N / plug_rdata_ff_N
-    and its clock-coverage flip-flops are removed (their routed clock
-    branches stay frozen for the card to extend inside its fence); the other
-    sockets keep their instance names.
+    Legacy routed JSON omits the system PLL's second output connection:
+    reattach its authenticated audio net and drop the obsolete `outclk[0]`
+    alias. Current shared-pin JSON already exposes physical C6/C7 outputs;
+    validate and preserve those connections and their pin map without
+    rewriting. Every socket's boundary must still be at its pinned BEL. The
+    chosen socket's request/response flip-flops are renamed plug_addr_ff_N /
+    plug_rdata_ff_N and its clock-coverage flip-flops are removed (their
+    routed clock branches stay frozen for the card to extend inside its
+    fence); the other sockets keep their instance names.
     """
     design = json.loads(source)
     top = design["modules"]["top"]
     cells = top["cells"]
     pll = cells["system_clock.pll"]
-    if pll["type"] != "altera_pll" or set(pll["connections"]) != {"outclk", "refclk", "locked"}:
+    ports = {"outclk", "refclk", "locked"}
+    physical_outputs = set(pll["connections"]) == ports | {"outclk[1]"}
+    if pll["type"] != "altera_pll" or set(pll["connections"]) not in (ports, ports | {"outclk[1]"}):
         raise ValueError("Apple II system PLL connection contract changed")
     mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]).decode())
     aliases = {f"outclk[{bit}]": [0, f"outclk[{bit}]"] for bit in range(2)}
-    if mapping.get("count") != 6 or any(mapping["pins"].get(k) != v for k, v in aliases.items()):
+    physical_pins = {"locked": [0, "locked"], "outclk": [0, "C6"],
+                     "outclk[1]": [0, "C7"], "refclk": [0, "refclk"], "rst": [0, "rst"]}
+    if physical_outputs:
+        if mapping != {"count": 5, "pins": physical_pins} or pll["port_directions"] != {
+                "outclk": "output", "outclk[1]": "output", "refclk": "input", "locked": "output"}:
+            raise ValueError("Apple II system PLL physical pin map changed")
+    elif mapping.get("count") != 6 or any(mapping["pins"].get(k) != v for k, v in aliases.items()):
         raise ValueError("Apple II system PLL frozen pin map changed")
     output1 = top["netnames"].get("system_clock.pll_outclk_1", {}).get("bits")
     clock1 = top["netnames"].get("system_clock.clocks[1]", {}).get("bits")
@@ -96,11 +105,15 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
     if not isinstance(output1, list) or len(output1) != 1 or len(buffers) != 1 or \
             buffers[0]["connections"].get("A") != output1:
         raise ValueError("Apple II frozen audio PLL net changed")
-    pll["connections"]["outclk[1]"] = output1
-    pll["port_directions"]["outclk[1]"] = "output"
-    del mapping["pins"]["outclk[0]"]
-    mapping["count"] = len(mapping["pins"])
-    pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping, sort_keys=True).encode().hex()
+    if physical_outputs:
+        if pll["connections"]["outclk[1]"] != output1:
+            raise ValueError("Apple II frozen audio PLL connection changed")
+    else:
+        pll["connections"]["outclk[1]"] = output1
+        pll["port_directions"]["outclk[1]"] = "output"
+        del mapping["pins"]["outclk[0]"]
+        mapping["count"] = len(mapping["pins"])
+        pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping, sort_keys=True).encode().hex()
 
     if any(name.startswith(("plug_addr_ff_", "plug_rdata_ff_")) for name in cells):
         raise ValueError("frozen shell already exposes canonical plug cells")
