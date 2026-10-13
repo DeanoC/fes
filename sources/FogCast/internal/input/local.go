@@ -68,9 +68,11 @@ func listenLocalInput(path string) (net.Listener, error) {
 // ServeLocalInput accepts raw input frames on a unix socket and delivers them
 // into the same sink as the host stream. It is not an HTTP route and it does
 // not consult the kit lease. The feed drops frames while no runtime core is
-// bound, and while core replacement holds the input lifecycle lock. Closing
-// the connection releases only the local source. The listener serves one
-// writer synchronously: that writer must close before its successor can send.
+// bound, and while core replacement holds the input lifecycle lock. A key
+// release for an already bound HID generation is still delivered when the
+// probe that would confirm the core fails. Closing the connection releases
+// only the local source. The listener serves one writer synchronously: that
+// writer must close before its successor can send.
 func (c *TargetController) ServeLocalInput(ctx context.Context, path string) error {
 	if c == nil {
 		return errors.New("input controller is closed")
@@ -224,7 +226,13 @@ func (c *TargetController) deliverLocal(ctx context.Context, frame protocol.Inpu
 	}
 	defer c.lifecycle.Unlock()
 	if err := c.ensureLocalCore(ctx); err != nil {
-		return err
+		// The socket has already taken this frame. A press still waits for a
+		// confirmed generation. A release for the HID generation an
+		// unconfirmed probe kept must be posted now, or the key stays down
+		// with no later release left to send.
+		if !errors.Is(err, errNoCore) || c.ports == nil || !c.ports.retainedHIDRelease(frame) {
+			return err
+		}
 	}
 	if c.ports == nil {
 		return errNoCore
@@ -261,11 +269,17 @@ func (c *TargetController) ensureLocalCore(ctx context.Context) error {
 	if c == nil || c.ports == nil {
 		return errNoCore
 	}
+	// Controller ports skip later probes, and a fresh active observation does
+	// too. A release whose replay failed stays unconfirmed until its post
+	// succeeds; these frames are what can send it. The frame still applies
+	// when the retry fails.
 	if c.ports.hasBinding() {
+		c.retryUnconfirmedLocalHID(ctx)
 		return nil
 	}
 	if active, fresh := c.ports.cachedObservation(); fresh {
 		if active {
+			c.retryUnconfirmedLocalHID(ctx)
 			return nil
 		}
 		return errNoCore
@@ -311,5 +325,30 @@ func (c *TargetController) setLocalObservation(ctx context.Context, obs CoreObse
 	// sits under the lifecycle lock too, so it needs the local write budget.
 	writeCtx, cancel := context.WithTimeout(ctx, localCoreWriteTimeout)
 	defer cancel()
-	return c.ports.setObservationContext(writeCtx, obs)
+	if err := c.ports.setObservationContext(writeCtx, obs); err != nil {
+		return err
+	}
+	// The release that met the failed probe is already in the sink. If that
+	// post did not land, send it once this same generation is confirmed.
+	// Replacement clears the unconfirmed state first, so the old keys are
+	// not written to the new core. A sink already posting skips the retry.
+	// The error stays unconfirmed: failing this observation would drop the
+	// frame, and a later local frame retries it. postLocked clears
+	// unconfirmed only after the poster succeeds.
+	if obs.Active && obs.KeyboardHID != nil && c.ports.hid != nil {
+		_ = c.ports.hid.replayUnconfirmed(writeCtx, obs.KeyboardHID)
+	}
+	return nil
+}
+
+// retryUnconfirmedLocalHID reposts a kit-local HID union whose last write
+// failed. deliverLocal holds the lifecycle lock across this call. A miss
+// leaves the union unconfirmed for the next frame.
+func (c *TargetController) retryUnconfirmedLocalHID(ctx context.Context) {
+	if c == nil || c.ports == nil || c.ports.hid == nil {
+		return
+	}
+	writeCtx, cancel := context.WithTimeout(ctx, localCoreWriteTimeout)
+	defer cancel()
+	_ = c.ports.replayUnconfirmedHID(writeCtx)
 }

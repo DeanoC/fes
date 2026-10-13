@@ -102,6 +102,36 @@ func TestHIDKeyboardFramesPostUsageRowsForTheGeneration(t *testing.T) {
 	}
 }
 
+func TestTransientProbeKeepsHIDHoldUntilRelease(t *testing.T) {
+	sink, posts, _ := newHIDPortsFixture(t, false)
+	code, _ := hidkeys.Code(0x04)
+	press := keyboardFrameFor(code, remoteinput.ActionPress)
+	release := keyboardFrameFor(code, remoteinput.ActionRelease)
+	if err := sink.applyContext(context.Background(), sourceLocal, press); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.invalidateObservationContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(*posts) != 1 || !sink.keyboardHID || !sink.hid.bound() {
+		t.Fatalf("failed probe dropped the hold: posts=%d hid=%v bound=%v", len(*posts), sink.keyboardHID, sink.hid.bound())
+	}
+	obs := CoreObservation{Active: true, KeyboardHID: &KeyboardHIDBinding{PackageID: "apple2", Generation: 7}}
+	if err := sink.setObservationContext(context.Background(), obs); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.applyContext(context.Background(), sourceLocal, release); err != nil {
+		t.Fatal(err)
+	}
+	if len(*posts) != 2 {
+		t.Fatalf("posts %+v", *posts)
+	}
+	last := (*posts)[1]
+	if last.id != "apple2" || last.generation != 7 || last.rows != (hidkeys.Rows{}) {
+		t.Fatalf("release after recovered probe: %+v", last)
+	}
+}
+
 func TestHIDObservationRebindsSameIdentityAfterReleaseAll(t *testing.T) {
 	sink, posts, _ := newHIDPortsFixture(t, false)
 	if err := sink.ReleaseAll(); err != nil {
@@ -231,5 +261,290 @@ func TestHIDRetryAfterFailedPostRepostsState(t *testing.T) {
 	fail = false
 	if err := hid.releaseSource(sourceRemote); err != nil || len(posted) != 7 || posted[6] != neutral {
 		t.Fatalf("source release after failure: err=%v posts=%d", err, len(posted))
+	}
+}
+
+// newLocalHIDFeed is a kit-local controller whose runtime observation and
+// set_keyboard_hid poster are supplied by the test.
+func newLocalHIDFeed(t *testing.T, poster KeyboardHIDPoster, observe func(context.Context) (CoreObservation, error)) (*TargetController, *controllerPortsSink) {
+	t.Helper()
+	sink := &controllerPortsSink{hid: &keyboardHIDSink{}}
+	sink.hid.setPoster(poster)
+	controller := newTargetControllerWithSink("127.0.0.1:0", sink)
+	controller.ports = sink
+	controller.ObserveCore(observe)
+	return controller, sink
+}
+
+func hidBinding(generation uint64) CoreObservation {
+	return CoreObservation{Active: true, KeyboardHID: &KeyboardHIDBinding{PackageID: "apple2", Generation: generation}}
+}
+
+// The release that discovers a failed status read is the only release the
+// socket will deliver. It must post neutral for the generation still bound,
+// and a press in that same window must not.
+func TestLocalHIDReleaseSurvivesFailedProbe(t *testing.T) {
+	var mu sync.Mutex
+	var posts []hidPost
+	observations := 0
+	fail := false
+	controller, sink := newLocalHIDFeed(t, func(_ context.Context, id string, generation uint64, rows hidkeys.Rows) error {
+		mu.Lock()
+		posts = append(posts, hidPost{id, generation, rows})
+		mu.Unlock()
+		return nil
+	}, func(context.Context) (CoreObservation, error) {
+		observations++
+		if fail {
+			return CoreObservation{}, errors.New("status unread")
+		}
+		return hidBinding(7), nil
+	})
+	a, _ := hidkeys.Code(0x04)
+	b, _ := hidkeys.Code(0x05)
+	pressA := keyboardFrameFor(a, remoteinput.ActionPress)
+	pressB := keyboardFrameFor(b, remoteinput.ActionPress)
+	releaseA := keyboardFrameFor(a, remoteinput.ActionRelease)
+	if err := controller.deliverLocal(context.Background(), pressA); err != nil {
+		t.Fatal(err)
+	}
+	fail = true
+	expireLocalObservation(sink)
+	if err := controller.deliverLocal(context.Background(), pressB); !errors.Is(err, errNoCore) {
+		t.Fatalf("press during failed probe: %v", err)
+	}
+	probes := observations
+	if err := controller.deliverLocal(context.Background(), releaseA); err != nil {
+		t.Fatal(err)
+	}
+	if observations != probes {
+		t.Fatalf("cached failure re-read status: observations %d want %d", observations, probes)
+	}
+	mu.Lock()
+	got := append([]hidPost(nil), posts...)
+	mu.Unlock()
+	if len(got) != 2 || got[1].id != "apple2" || got[1].generation != 7 || got[1].rows != (hidkeys.Rows{}) {
+		t.Fatalf("release consumed by the failed probe: %+v", got)
+	}
+	if controller.LocalInputDrops() != 1 {
+		t.Fatalf("drops=%d, want the gated press only", controller.LocalInputDrops())
+	}
+	fail = false
+	expireLocalObservation(sink)
+	if err := controller.deliverLocal(context.Background(), pressB); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	last := posts[len(posts)-1]
+	mu.Unlock()
+	if last.generation != 7 || last.rows != (hidkeys.Rows{1 << 5}) {
+		t.Fatalf("recovered generation restored A or dropped B: %+v", last)
+	}
+}
+
+// A release post that does not land is sent again when the same generation
+// is confirmed, without requiring another copy of the consumed release.
+func TestLocalHIDUnconfirmedReleaseReplaysForSameGeneration(t *testing.T) {
+	var mu sync.Mutex
+	var posts []hidPost
+	failPost := false
+	failProbe := false
+	controller, sink := newLocalHIDFeed(t, func(_ context.Context, id string, generation uint64, rows hidkeys.Rows) error {
+		mu.Lock()
+		posts = append(posts, hidPost{id, generation, rows})
+		mu.Unlock()
+		if failPost {
+			return errors.New("hid post lost")
+		}
+		return nil
+	}, func(context.Context) (CoreObservation, error) {
+		if failProbe {
+			return CoreObservation{}, errors.New("status unread")
+		}
+		return hidBinding(7), nil
+	})
+	a, _ := hidkeys.Code(0x04)
+	if err := controller.deliverLocal(context.Background(), keyboardFrameFor(a, remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	failPost, failProbe = true, true
+	expireLocalObservation(sink)
+	if err := controller.deliverLocal(context.Background(), keyboardFrameFor(a, remoteinput.ActionRelease)); err == nil {
+		t.Fatal("lost release post reported success")
+	}
+	failPost, failProbe = false, false
+	expireLocalObservation(sink)
+	if err := controller.ensureLocalCore(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(posts) != 3 || posts[2].generation != 7 || posts[2].rows != (hidkeys.Rows{}) {
+		t.Fatalf("same generation did not replay the release: %+v", posts)
+	}
+}
+
+// A confirmed replacement must not receive keys the failed probe still held,
+// and a confirmed idle result must not post the release to the retired core.
+func TestLocalHIDReleaseDoesNotReplayOntoReplacement(t *testing.T) {
+	var mu sync.Mutex
+	var posts []hidPost
+	live := uint64(7)
+	failProbe := false
+	idle := false
+	controller, sink := newLocalHIDFeed(t, func(_ context.Context, id string, generation uint64, rows hidkeys.Rows) error {
+		mu.Lock()
+		posts = append(posts, hidPost{id, generation, rows})
+		rejected := generation != live
+		mu.Unlock()
+		if rejected {
+			return errors.New("generation mismatch")
+		}
+		return nil
+	}, func(context.Context) (CoreObservation, error) {
+		if failProbe {
+			return CoreObservation{}, errors.New("status unread")
+		}
+		if idle {
+			return CoreObservation{}, nil
+		}
+		return hidBinding(live), nil
+	})
+	a, _ := hidkeys.Code(0x04)
+	b, _ := hidkeys.Code(0x05)
+	if err := controller.deliverLocal(context.Background(), keyboardFrameFor(a, remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	live = 8
+	failProbe = true
+	expireLocalObservation(sink)
+	if err := controller.deliverLocal(context.Background(), keyboardFrameFor(a, remoteinput.ActionRelease)); err == nil {
+		t.Fatal("release posted to the replaced generation")
+	}
+	failProbe = false
+	expireLocalObservation(sink)
+	if err := controller.deliverLocal(context.Background(), keyboardFrameFor(b, remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	got := append([]hidPost(nil), posts...)
+	mu.Unlock()
+	var gen8 []hidPost
+	for _, post := range got {
+		if post.generation == 8 {
+			gen8 = append(gen8, post)
+		}
+	}
+	if len(gen8) != 1 || gen8[0].rows != (hidkeys.Rows{1 << 5}) {
+		t.Fatalf("replacement replayed the old key: %+v", got)
+	}
+
+	idle = true
+	expireLocalObservation(sink)
+	before := len(got)
+	if err := controller.deliverLocal(context.Background(), keyboardFrameFor(b, remoteinput.ActionRelease)); !errors.Is(err, errNoCore) {
+		t.Fatalf("confirmed idle release: %v", err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(posts) != before {
+		t.Fatalf("confirmed idle posted the retired release: %+v", posts[before:])
+	}
+}
+
+// A second failure of the consumed release must stay unconfirmed. Controller
+// ports then skip observation, so a later gamepad frame has to post neutral.
+func TestLocalHIDFailedReplayRetriesOnGamepadWhilePortsBound(t *testing.T) {
+	var mu sync.Mutex
+	var posts []hidPost
+	hidFails := 0
+	portWrites := 0
+	failProbe := false
+	withPorts := false
+	observations := 0
+	controller, sink := newLocalHIDFeed(t, func(_ context.Context, id string, generation uint64, rows hidkeys.Rows) error {
+		mu.Lock()
+		posts = append(posts, hidPost{id, generation, rows})
+		fail := hidFails > 0
+		if fail {
+			hidFails--
+		}
+		mu.Unlock()
+		if fail {
+			return errors.New("hid post lost")
+		}
+		return nil
+	}, func(context.Context) (CoreObservation, error) {
+		observations++
+		if failProbe {
+			return CoreObservation{}, errors.New("status unread")
+		}
+		obs := hidBinding(7)
+		if withPorts {
+			obs.Binding = &ControllerBinding{PackageID: "apple2", Generation: 7}
+		}
+		return obs, nil
+	})
+	sink.poster = func(context.Context, string, uint64, uint8, uint8, uint16) error {
+		mu.Lock()
+		portWrites++
+		mu.Unlock()
+		return nil
+	}
+	a, _ := hidkeys.Code(0x04)
+	if err := controller.deliverLocal(context.Background(), keyboardFrameFor(a, remoteinput.ActionPress)); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	hidFails = 2
+	mu.Unlock()
+	failProbe = true
+	expireLocalObservation(sink)
+	if err := controller.deliverLocal(context.Background(), keyboardFrameFor(a, remoteinput.ActionRelease)); err == nil {
+		t.Fatal("lost release post reported success")
+	}
+	failProbe = false
+	withPorts = true
+	expireLocalObservation(sink)
+	pad := gamepad(0, remoteinput.ButtonB, remoteinput.ActionPress, 0)
+	if err := controller.deliverLocal(context.Background(), pad); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	got := append([]hidPost(nil), posts...)
+	mu.Unlock()
+	if len(got) != 3 || got[2].generation != 7 || got[2].rows != (hidkeys.Rows{}) {
+		t.Fatalf("recovered observation did not retry neutral: %+v", got)
+	}
+	probes := observations
+	pad.Code = uint16(remoteinput.ButtonA)
+	if err := controller.deliverLocal(context.Background(), pad); err != nil {
+		t.Fatal(err)
+	}
+	if observations != probes {
+		t.Fatalf("bound ports re-probed: observations %d want %d", observations, probes)
+	}
+	mu.Lock()
+	got = append([]hidPost(nil), posts...)
+	writes := portWrites
+	mu.Unlock()
+	if len(got) != 4 || got[3].id != "apple2" || got[3].generation != 7 || got[3].rows != (hidkeys.Rows{}) {
+		t.Fatalf("gamepad frame left the release unconfirmed: %+v", got)
+	}
+	if writes < 2 {
+		t.Fatalf("gamepad frames did not reach the core: writes=%d", writes)
+	}
+	before := len(got)
+	pad.Action = uint8(remoteinput.ActionRelease)
+	if err := controller.deliverLocal(context.Background(), pad); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(posts) != before {
+		t.Fatalf("confirmed release was posted again: %+v", posts[before:])
+	}
+	if observations != probes {
+		t.Fatalf("later gamepad re-probed: observations %d want %d", observations, probes)
 	}
 }

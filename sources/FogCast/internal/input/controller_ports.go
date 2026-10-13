@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
+	"github.com/DeanoC/FogCast/internal/hidkeys"
 	"github.com/DeanoC/FogCast/internal/joymatrix"
 	"github.com/DeanoC/FogCast/internal/playhid"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
@@ -126,7 +127,10 @@ func (s *controllerPortsSink) updateObservationContext(ctx context.Context, obs 
 			return err
 		}
 	}
-	if s.hid != nil && !sameHIDBinding(s.hidBinding, obs.KeyboardHID) {
+	// An unconfirmed probe has not shown that this generation ended. Keep the
+	// HID binding and its held keys. deliverLocal posts a kit-local release
+	// for that generation anyway; a press stays gated until a probe confirms it.
+	if confirmed && s.hid != nil && !sameHIDBinding(s.hidBinding, obs.KeyboardHID) {
 		if err := s.hid.bindContext(ctx, obs.KeyboardHID); err != nil {
 			return err
 		}
@@ -162,8 +166,8 @@ func (s *controllerPortsSink) updateObservationContext(ctx context.Context, obs 
 		s.keyboard = obs.Keyboard
 		s.coreID = obs.CoreID
 		s.coreGeneration = obs.Generation
+		s.keyboardHID = obs.KeyboardHID != nil && s.hid != nil
 	}
-	s.keyboardHID = obs.KeyboardHID != nil && s.hid != nil
 	s.coreActive = obs.Active
 	// A negative result can still be cached once no neutral write is pending.
 	// Failed neutral writes return above with the cache invalidated.
@@ -177,6 +181,23 @@ func sameHIDBinding(left, right *KeyboardHIDBinding) bool {
 		return left == right
 	}
 	return *left == *right
+}
+
+// retainedHIDRelease is a key-up for a generation an unconfirmed probe kept.
+// Confirmed idle and replacement clear the binding, so the release is not
+// applied to the next core. Presses are not retained.
+func (s *controllerPortsSink) retainedHIDRelease(f protocol.InputFrame) bool {
+	if s == nil || f.Action != uint8(remoteinput.ActionRelease) || !keyboardFrame(f) {
+		return false
+	}
+	if _, ok := hidkeys.Usage(remoteinput.Code(f.Code)); !ok {
+		if _, ok := hidkeys.FromLegacy(remoteinput.Code(f.Code)); !ok {
+			return false
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.keyboardHID && s.hidBinding != nil && s.hid != nil
 }
 
 // keyboardModeLocked selects the keyboard shaping from the observed contract.
@@ -195,6 +216,28 @@ func (s *controllerPortsSink) hasBinding() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.binding != nil
+}
+
+// replayUnconfirmedHID posts the HID union when its last write failed, for
+// the generation this sink still holds. The controller-port lock is not held
+// across the runtime write. A nil binding or a generation that no longer
+// matches is left for a confirming observation.
+func (s *controllerPortsSink) replayUnconfirmedHID(ctx context.Context) error {
+	if s == nil || s.hid == nil {
+		return nil
+	}
+	s.mu.Lock()
+	binding := s.hidBinding
+	var copied KeyboardHIDBinding
+	if binding != nil {
+		copied = *binding
+	}
+	hid := s.hid
+	s.mu.Unlock()
+	if binding == nil {
+		return nil
+	}
+	return hid.replayUnconfirmed(ctx, &copied)
 }
 
 func (s *controllerPortsSink) cachedObservation() (active, fresh bool) {
