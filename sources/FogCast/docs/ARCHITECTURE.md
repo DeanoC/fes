@@ -2343,6 +2343,9 @@ For observed `fes.coleco`, `fes.sms` and `fes.sg1000` with active `fes.keyboard`
 1.0, the agent maps kit-local pad directions, left stick and A (plus Coleco B)
 onto that keyboard matrix. Each physical pad retains its own buttons and axes;
 their desired matrix keys combine by OR, including opposing stick directions.
+A matrix post that fails stays unconfirmed. The next local pad frame sends
+that pad's full desired matrix, so a release after an ambiguous press failure
+still reaches the runtime.
 Synthetic pad keys, the physical local keyboard and the remote keyboard retain
 separate contributions, so one release cannot clear another device's hold.
 Local pad frames do not also enter the virtual gamepad. Other cores retain the

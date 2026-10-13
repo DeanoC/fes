@@ -69,17 +69,21 @@ type controllerPortsSink struct {
 	localMatrix          remoteinput.State
 	localKeys            map[remoteinput.Code]bool
 	pendingMatrixNeutral bool
-	coreGeneration       uint64
-	keyboardHID          bool
-	hidBinding           *KeyboardHIDBinding
-	coreActive           bool
-	observed             bool
-	observedAt           time.Time
-	displayFocused       bool
-	keys                 *KeyboardSink
-	hid                  *keyboardHIDSink
-	mouse                *mouseSink
-	pads                 *padMerge
+	// localMatrixUnconfirmed means a pad-to-matrix post returned an error
+	// after the sink had already taken that state. localKeys can no longer
+	// describe the runtime, so the next publish sends the full desired matrix.
+	localMatrixUnconfirmed bool
+	coreGeneration         uint64
+	keyboardHID            bool
+	hidBinding             *KeyboardHIDBinding
+	coreActive             bool
+	observed               bool
+	observedAt             time.Time
+	displayFocused         bool
+	keys                   *KeyboardSink
+	hid                    *keyboardHIDSink
+	mouse                  *mouseSink
+	pads                   *padMerge
 }
 
 func (s *controllerPortsSink) bind(binding *ControllerBinding) error {
@@ -161,6 +165,7 @@ func (s *controllerPortsSink) updateObservationContext(ctx context.Context, obs 
 		}
 		s.localKeys = nil
 		s.pendingMatrixNeutral = false
+		s.localMatrixUnconfirmed = false
 	}
 	if confirmed {
 		s.keyboard = obs.Keyboard
@@ -365,6 +370,14 @@ func (s *controllerPortsSink) localMatrixKeysLocked() map[remoteinput.Code]bool 
 
 func (s *controllerPortsSink) publishLocalMatrixLocked(ctx context.Context) error {
 	desired := s.localMatrixKeysLocked()
+	if s.localMatrixUnconfirmed {
+		if err := s.keys.replaceSource(ctx, sourceLocalMatrix, desired); err != nil {
+			return err
+		}
+		s.localKeys = desired
+		s.localMatrixUnconfirmed = false
+		return nil
+	}
 	var removed, added []remoteinput.Code
 	for code := range s.localKeys {
 		if !desired[code] {
@@ -385,6 +398,7 @@ func (s *controllerPortsSink) publishLocalMatrixLocked(ctx context.Context) erro
 		for _, code := range transition.codes {
 			frame := protocol.InputFrame{Device: uint8(remoteinput.DeviceKeyboard), Kind: uint8(remoteinput.KindKey), Action: uint8(transition.action), Code: uint16(code)}
 			if err := s.keys.ApplyFrom(ctx, sourceLocalMatrix, frame); err != nil {
+				s.localMatrixUnconfirmed = true
 				return err
 			}
 		}
@@ -640,6 +654,7 @@ func (s *controllerPortsSink) releaseSource(source inputSource) error {
 		if s.binding != nil || s.keys == nil {
 			s.localKeys = nil
 			s.pendingMatrixNeutral = false
+			s.localMatrixUnconfirmed = false
 		}
 	}
 	if s.binding == nil {
@@ -654,6 +669,7 @@ func (s *controllerPortsSink) releaseSource(source inputSource) error {
 				if result == nil {
 					s.localKeys = nil
 					s.pendingMatrixNeutral = false
+					s.localMatrixUnconfirmed = false
 				} else {
 					s.observed = false
 				}
@@ -692,6 +708,7 @@ func (s *controllerPortsSink) ReleaseAll() error {
 		s.localMatrix.ReleaseAll()
 		s.localKeys = nil
 		s.pendingMatrixNeutral = false
+		s.localMatrixUnconfirmed = false
 		s.coreActive = false
 		s.observed = false
 		s.keyboard = false
@@ -738,6 +755,7 @@ func (s *controllerPortsSink) ReleaseAll() error {
 		s.localMatrix.ReleaseAll()
 		s.localKeys = nil
 		s.pendingMatrixNeutral = false
+		s.localMatrixUnconfirmed = false
 		s.binding = nil
 		s.coreActive = false
 		s.observed = false
