@@ -28,6 +28,7 @@ struct Test {
         }
     }
     void tick() {
+        dut.cpu_data_strobe=dut.req && (dut.byte_enable&1);
         dut.cpu_cycle_ce=!dut.reset && cpu_phase+cpu_hz>=system_hz;
         cpu_phase=dut.reset?0:(cpu_phase+cpu_hz)%system_hz;
         cpu_ticks+=dut.cpu_cycle_ce;

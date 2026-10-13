@@ -178,13 +178,27 @@ remain unimplemented.
 The MFP UART has disconnected RX and timed TX status, without a physical serial port.
 
 `st_io` defaults to four native CPU wait states per MFP register access.
-It delays the peripheral request itself, including read sampling and writes,
-in native CPU cycles. The producer and simulator select that same default,
+It delays the selected peripheral request, including writes and non-timer
+read sampling, in native CPU cycles. Timer data registers return the count
+captured when the raw CPU lower-byte strobe releases; they do not sample the
+live counter when the delayed request is admitted. All four snapshots update
+on that strobe independently of MFP selection, including RAM/ROM and other
+device cycles. This follows Motorola's original
+[MC68901 timer-register specification](https://ipv4.pccomponents.com/datasheets/MOTOR-MC68901FN.pdf)
+(section 5.2.1) and Atari's
+[C070231 schematic](https://wiki.retrotechcollection.com/images/5/5a/Atari_520ST_Schematic_C070231.pdf)
+(sheet 1, U11 DS pin 47 connected to LDS). Held accesses retain their returned
+data while the counters continue to run. Reset clears the snapshots, matching
+the model's deterministic initialization of undefined timer data.
+The focused MFP tests check all four snapshots, unselected strobe cycles,
+counter expiration during held reads and consecutive event-counter polls.
+The producer and simulator select that same wait default,
 following
 [Hatari 2.5.0's MFP accesses](https://github.com/hatari/hatari/blob/v2.5.0/src/mfp.c#L2468).
 `make sim-fes-atari-st-mfp-bus` checks the real 68000's read/write instruction
-timing across its fractional-clock phases and samples a Timer B edge during
-the delay. It also checks held reads, cancelled writes, reset, byte lanes and
+timing across its fractional-clock phases and crosses a Timer B edge during
+the delay while preserving the preceding strobe snapshot. It also checks
+held reads, cancelled writes, reset, byte lanes and
 PSG accesses. The real-CPU fixture uses the motherboard defaults. Physical
 clock phase and exact-artifact hardware acceptance remain separate.
 

@@ -11,6 +11,7 @@ public:
     Vst_mfp dut;
     uint64_t cycles = 0;
     unsigned assertions = 0;
+    bool unselected_data_strobe = false;
 
     void expect(unsigned actual, unsigned expected, const char *what) {
         ++assertions;
@@ -23,6 +24,7 @@ public:
 
     void step(bool timer = false) {
         dut.timer_ce = timer;
+        dut.data_strobe = dut.req || dut.iack || unselected_data_strobe;
         dut.clk = 0;
         dut.eval();
         dut.clk = 1;
@@ -35,6 +37,7 @@ public:
     }
 
     void reset() {
+        unselected_data_strobe = false;
         dut.req = 0;
         dut.iack = 0;
         dut.write = 0;
@@ -70,6 +73,16 @@ public:
         return result;
     }
 
+    // Timer-function checks sample after an unrelated CPU bus cycle, as a
+    // program fetch would. Direct read() remains available for capture tests.
+    void unselected_bus_cycle() {
+        unselected_data_strobe = true; step();
+        unselected_data_strobe = false; step();
+    }
+    unsigned current_timer(unsigned address) {
+        unselected_bus_cycle();
+        return access(address, false);
+    }
     unsigned read(unsigned address) { return access(address, false); }
     void write(unsigned address, unsigned value) { access(address, true, value); }
 
@@ -219,13 +232,13 @@ public:
             write(0x1f, 2);
             write(0x19, mode);
             clocks(divisors[mode] - 1);
-            expect(read(0x1f), 2, "prescaler has not expired");
+            expect(current_timer(0x1f), 2, "prescaler has not expired");
             clocks(1);
-            expect(read(0x1f), 1, "prescaler decrements counter");
+            expect(current_timer(0x1f), 1, "prescaler decrements counter");
             clocks(divisors[mode] - 1);
             expect(dut.irq, 0, "timer has not expired early");
             clocks(1);
-            expect(read(0x1f), 2, "timer reloads on count through one");
+            expect(current_timer(0x1f), 2, "timer reloads on count through one");
             expect(acknowledge(), 0x4d, "timer A vector");
         }
 
@@ -235,30 +248,30 @@ public:
         write(0x19, 1);
         clocks(4);
         write(0x1f, 3);
-        expect(read(0x1f), 1, "running data write preserves current countdown");
+        expect(current_timer(0x1f), 1, "running data write preserves current countdown");
         clocks(4);
-        expect(read(0x1f), 3, "running data write changes next reload");
+        expect(current_timer(0x1f), 3, "running data write changes next reload");
         acknowledge();
         clocks(4);
         write(0x19, 0);
         clocks(100);
-        expect(read(0x1f), 2, "stop preserves counter");
+        expect(current_timer(0x1f), 2, "stop preserves counter");
         write(0x19, 1);
         clocks(3);
-        expect(read(0x1f), 2, "restart resets residual prescaler");
+        expect(current_timer(0x1f), 2, "restart resets residual prescaler");
         clocks(1);
-        expect(read(0x1f), 1, "restart resumes previous counter");
+        expect(current_timer(0x1f), 1, "restart resumes previous counter");
 
         reset();
         enable(0, 0x10);
         write(0x25, 0);
         write(0x1d, 1);
         clocks(4 * 255);
-        expect(read(0x25), 1, "zero reload means 256 decrements");
+        expect(current_timer(0x25), 1, "zero reload means 256 decrements");
         expect(dut.irq, 0, "zero reload does not expire after 255");
         clocks(4);
         expect(acknowledge(), 0x44, "timer D vector");
-        expect(read(0x25), 0, "zero timer reload preserved");
+        expect(current_timer(0x25), 0, "zero timer reload preserved");
 
         reset();
         enable(0, 0x20, true);
@@ -291,7 +304,7 @@ public:
         expect(dut.rdata, 20, "stretched timer read remains captured");
         dut.req = 0;
         step();
-        expect(read(0x1f), 17, "next timer read sees current countdown");
+        expect(current_timer(0x1f), 17, "next timer read sees current countdown");
 
         reset();
         enable(0x20, 0);
@@ -307,7 +320,35 @@ public:
         expect(dut.irq, 1, "timer expires with held data-write request");
         dut.req = 0;
         step();
-        expect(read(0x1f), 3, "data register write happens once per request");
+        expect(current_timer(0x1f), 3, "data register write happens once per request");
+    }
+
+    void timer_read_capture() {
+        const unsigned data[] = {0x1f, 0x21, 0x23, 0x25};
+        const unsigned control[] = {0x19, 0x1b, 0x1d, 0x1d};
+        const unsigned mode[] = {1, 1, 0x10, 1};
+        for (unsigned i = 0; i < 4; ++i) {
+            reset();
+            write(data[i], 3);
+            write(control[i], mode[i]);
+            clocks(4); // Live count2, captured count3 from control write end.
+            expect(read(data[i]), 3, "timer read uses preceding DS-end snapshot");
+            expect(read(data[i]), 2, "read release captures count for next access");
+            clocks(4); // Live count1; an unselected CPU transfer refreshes it.
+            unselected_bus_cycle();
+            expect(read(data[i]), 1, "unselected CPU DS captures all timer counters");
+            dut.req = 1; dut.write = 0; dut.addr = data[i]; step();
+            expect(dut.rdata, 1, "held timer read starts from captured value");
+            clocks(4); // Reload3 while DS stays asserted.
+            expect(dut.rdata, 1, "counter expiry cannot alter held read data");
+            dut.req = 0; step();
+            expect(read(data[i]), 3, "DS release captures reloaded counter");
+        }
+        reset();
+        write(0x21, 8); write(0x1b, 8);
+        dut.timer_b = 0; step(); // Live7 after falling display edge.
+        expect(read(0x21), 8, "event counter retains pre-edge DS snapshot");
+        expect(read(0x21), 7, "next poll sees snapshot captured by prior read release");
     }
 
     void event_and_pulse_timers() {
@@ -316,10 +357,10 @@ public:
         write(0x21, 2);
         write(0x1b, 8);
         clocks(100);
-        expect(read(0x21), 2, "event timer ignores XTAL clocks");
+        expect(current_timer(0x21), 2, "event timer ignores XTAL clocks");
         dut.timer_b = 0;
         step();
-        expect(read(0x21), 1, "event timer counts falling TBI");
+        expect(current_timer(0x21), 1, "event timer counts falling TBI");
         clocks(100);
         expect(dut.irq, 0, "held event input counts once");
         dut.timer_b = 1;
@@ -344,21 +385,21 @@ public:
         write(0x1f, 20);
         write(0x19, 9); // Active-low pulse width, prescaler 4.
         clocks(20);
-        expect(read(0x1f), 20, "inactive pulse timer is stopped");
+        expect(current_timer(0x1f), 20, "inactive pulse timer is stopped");
         dut.gpip = 0xef;
         step();
         expect(dut.irq, 0, "pulse timer replaces GPIP4 interrupt source");
         dut.timer_a = 0;
         step();
         clocks(12);
-        expect(read(0x1f), 17, "pulse timer measures active width");
+        expect(current_timer(0x1f), 17, "pulse timer measures active width");
         dut.timer_a = 1;
         step();
         expect(acknowledge(), 0x46, "pulse termination uses GPIP4 channel");
         clocks(100);
-        expect(read(0x1f), 17, "pulse timer stops when pulse ends");
+        expect(current_timer(0x1f), 17, "pulse timer stops when pulse ends");
         write(0x1f, 15);
-        expect(read(0x1f), 15, "inactive pulse timer accepts counter reload");
+        expect(current_timer(0x1f), 15, "inactive pulse timer accepts counter reload");
         dut.timer_a = 0;
         step();
         clocks(60);
@@ -371,7 +412,7 @@ public:
         dut.timer_b = 0;
         step();
         clocks(8);
-        expect(read(0x21), 8, "timer B pulse countdown");
+        expect(current_timer(0x21), 8, "timer B pulse countdown");
         dut.timer_b = 1;
         step();
         expect(acknowledge(), 0x43, "pulse timer B termination uses GPIP3 channel");
@@ -446,6 +487,7 @@ int main(int argc, char **argv) {
     sim.gpio();
     sim.software_eoi();
     sim.delay_timers();
+    sim.timer_read_capture();
     sim.event_and_pulse_timers();
     sim.uart_and_reset();
     std::cout << "st_mfp: " << sim.assertions << " assertions passed over "

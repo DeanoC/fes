@@ -11,6 +11,7 @@ module st_io #(
 ) (
     input wire clk, reset, cold_reset,
     input wire cpu_cycle_ce,
+    input wire cpu_data_strobe,
     input wire req,
     input wire [23:1] addr,
     input wire write,
@@ -91,8 +92,9 @@ module st_io #(
     wire mfp_ack, psg_ack, kbd_ack, midi_ack, fdc_ack;
     // Standard ST register-access policy: four native CPU wait states.
     // Other values remain explicit access-timing diagnostics.
-    // Delay the peripheral transaction itself so timer reads sample late,
-    // rather than returning an old value behind a delayed acknowledgement.
+    // Delay the selected peripheral transaction, not only acknowledgement.
+    // Timer data uses the preceding raw DS-end snapshot independently of
+    // this admission delay; other reads and writes execute on admission.
     localparam integer MFP_WAIT_BITS = $clog2(MFP_WAIT_STATES + 2);
     reg [MFP_WAIT_BITS-1:0] mfp_bus_age;
     wire mfp_bus_req = req && mfp_select;
@@ -329,6 +331,7 @@ module st_io #(
     assign irq = mfp_irq ? 3'd6 : vbl_pending ? 3'd4 : hbl_pending ? 3'd2 : 3'd0;
     assign irq_vectored = mfp_irq;
     st_mfp mfp (
+        .data_strobe(cpu_data_strobe),
         .clk(clk), .reset(reset), .timer_ce(timer_ce),
         .req(mfp_bus_req && mfp_bus_ready && byte_enable[0]), .addr({addr[5:1], 1'b1}),
         .write(write), .wdata(wdata[7:0]), .rdata(mfp_data), .ack(mfp_ack),

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Check the MFP access boundary against live native Timer B edges, rather
-// than acknowledging late after an early read or repeating held side effects.
+// Check the MFP access boundary and the independent DS-end timer snapshot
+// against native Timer B edges, without repeating held side effects.
 #include "Vst_io_sim_top.h"
 #include "verilated.h"
 #include <cstdint>
@@ -16,6 +16,7 @@ struct Test {
         if(!good) {std::cerr<<"MFP wait boundary: "<<message<<'\n';std::exit(1);}
     }
     void tick() {
+        dut.cpu_data_strobe=dut.req && (dut.byte_enable&1);
         dut.cpu_cycle_ce=!dut.reset&&clocks%7==6;
         cpu_ticks+=dut.cpu_cycle_ce;
         dut.clk=0;dut.eval();dut.clk=1;dut.eval();++clocks;
@@ -58,12 +59,12 @@ struct Test {
         start(false,0xfffa21);
         const unsigned before=cpu_ticks;
         while(!dut.ack) {tick();require(cpu_ticks-before<20,"late Timer B read is bounded");}
-        require((dut.rdata&255)==2,"Timer B sampled after the falling edge during the wait");
+        require((dut.rdata&255)==3,"access waits retain the preceding DS-end timer snapshot");
         require(cpu_ticks-before>=5,"Timer B read did not complete early");
         // Hold through another Timer B event: the sampled value remains
         // fixed, while the actual counter continues to run independently.
         unsigned hold=cpu_ticks;
-        while(cpu_ticks-hold<512) {tick();require(dut.ack&&(dut.rdata&255)==2,"held read retains its one sampled value");}
+        while(cpu_ticks-hold<512) {tick();require(dut.ack&&(dut.rdata&255)==3,"held read retains its one sampled value");}
         dut.req=0;tick();require(read(0x21)==1,"next transaction samples the advanced counter");
         start(false,0xfffa21,0,2);require((finish()&0xff00)==0xff00,"upper-only MFP access waits but drives no upper data");
         // Other peripherals retain their existing acknowledgement timing.

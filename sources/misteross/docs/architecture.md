@@ -1913,12 +1913,21 @@ The fixed 8.021247 MHz PAL CPU gives approximately
 timing remains independent at 2.4576 MHz. The frame/capture pulse stays at
 rollover while IRQ4 asserts 60 native CPU cycles later, selecting the STF WS1
 VBL phase. IACK clears the pending event; reset cancels its scheduled delay.
-`MFP_WAIT_STATES` delays the MFP request and data sampling in native CPU
-cycles. The core, producer and simulator default to four states, the standard
+`MFP_WAIT_STATES` delays the selected MFP transaction in native CPU cycles.
+Timer data returns a separate snapshot of all four main counters at the last
+raw CPU LDS release, as specified by MC68901 section 5.2.1. The C070231 board
+wires LDS directly to MFP DS, so RAM/ROM and other-device cycles also refresh
+these snapshots. The timer read uses the preceding snapshot even when a
+counter changes during access waits; counters and interrupt generation keep
+running independently. Held reads retain their response until release and
+reset clears the model's snapshots. This internal connection uses the existing
+raw CPU strobe; it does not change the expansion wire contract.
+The core, producer and simulator default to four wait states, the standard
 register-access policy, following Hatari 2.5.0. Zero remains an explicit
 diagnostic override. `sim-fes-atari-st-mfp-bus` checks that default with
 original 68000 firmware, including read/write instruction intervals across
-fractional phases, and checks a Timer B edge during the delayed read. The
+fractional phases, and checks snapshot retention across a Timer B edge during
+the delayed read. The
 original-disk diagnostic records the selected value with `--mfp-wait-states`
 (default four; `0..8` overrides it); it is independent of the callback
 RAM-delay probe and does not assert demo compatibility.

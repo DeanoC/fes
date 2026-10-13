@@ -118,7 +118,8 @@ module st_system #(
         .debug_bus_error(debug_bus_error), .debug_overlay(debug_overlay), .debug_halted(debug_halted)
     );
     st_io #(.CPU_CLOCK_HZ(CPU_CLOCK_HZ), .ENABLE_FLOPPY_WRITE(ENABLE_FLOPPY_WRITE), .MFP_WAIT_STATES(MFP_WAIT_STATES), .PSG_WAIT_STATES(PSG_WAIT_STATES)) io (
-        .clk(clk_sys), .reset(exp_reset), .cold_reset(cold_reset), .cpu_cycle_ce(exp_phi2), .req(bus_req), .addr(exp_addr),
+        .clk(clk_sys), .reset(exp_reset), .cold_reset(cold_reset), .cpu_cycle_ce(exp_phi2),
+        .cpu_data_strobe(irq_data_strobe), .req(bus_req), .addr(exp_addr),
         .write(exp_write), .wdata(exp_wdata), .byte_enable(exp_byte_enable),
         .selected(io_selected), .ack(io_ack), .rdata(io_rdata),
         .irq(io_irq), .irq_vectored(io_vectored), .irq_vector(irq_vector),

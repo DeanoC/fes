@@ -3,7 +3,7 @@
 // MFP crystal enable; scaling the system clock does not change timer rates.
 module st_io_sim_top #(parameter integer MFP_WAIT_STATES = 4,
     parameter integer PSG_WAIT_STATES = 0) (
-    input wire clk, reset, req, write, cpu_cycle_ce,
+    input wire clk, reset, req, write, cpu_cycle_ce, cpu_data_strobe,
     input wire [23:1] addr,
     input wire [15:0] wdata,
     input wire [1:0] byte_enable,
@@ -53,7 +53,8 @@ module st_io_sim_top #(parameter integer MFP_WAIT_STATES = 4,
     wire [8:0] unused_native_cycle;
     st_io #(.SYSTEM_CLOCK_HZ(52_224_000), .CPU_CLOCK_HZ(8_021_247), .MFP_WAIT_STATES(MFP_WAIT_STATES),
         .PSG_WAIT_STATES(PSG_WAIT_STATES)) io (
-        .clk(clk), .reset(reset), .cold_reset(reset), .cpu_cycle_ce(cpu_cycle_ce), .req(req), .addr(addr), .write(write),
+        .clk(clk), .reset(reset), .cold_reset(reset), .cpu_cycle_ce(cpu_cycle_ce),
+        .cpu_data_strobe(cpu_data_strobe), .req(req), .addr(addr), .write(write),
         .media_frozen(1'b0), .media_write_req(unused_write[0]), .media_write_addr(unused_write[19:1]), .media_write_data(unused_write[35:20]),
         .media_write_ready(1'b0), .media_write_busy(unused_write[36]), .media_changed(unused_write[37]), .dma_write(unused_write[38]), .dma_rdata(16'd0),
         .wdata(wdata), .byte_enable(byte_enable), .selected(selected),

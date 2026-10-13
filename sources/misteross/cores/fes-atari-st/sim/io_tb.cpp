@@ -19,7 +19,7 @@ struct Test {
     unsigned frames=0, lines=0, display_ends=0, cpu_phase=0;
     uint64_t cpu_ticks=0;
     unsigned first_display_line=UINT32_MAX, first_display_phase=0;
-    bool previous_display=false;
+    bool previous_display=false, unselected_data_strobe=false;
     void require(bool good,const std::string &message) {
         ++assertions;
         if (!good) {
@@ -28,6 +28,7 @@ struct Test {
         }
     }
     void tick() {
+        dut.cpu_data_strobe=(dut.req && (dut.byte_enable&1)) || unselected_data_strobe;
         dut.cpu_cycle_ce=!dut.reset && cpu_phase+cpu_hz>=system_hz;
         cpu_phase=dut.reset?0:(cpu_phase+cpu_hz)%system_hz;
         cpu_ticks+=dut.cpu_cycle_ce;
@@ -46,6 +47,7 @@ struct Test {
     }
     void run(unsigned clocks) { while (clocks--) tick(); }
     void reset(unsigned resolution=0,unsigned sync=2) {
+        unselected_data_strobe=false;
         dut.req=0; dut.write=0; dut.addr=0; dut.wdata=0; dut.byte_enable=0;
         dut.irq_ack=0; dut.irq_level=0; dut.screen_base=0x10234;
         dut.resolution=resolution; dut.sync_mode=sync; dut.monochrome=resolution==2;
@@ -70,7 +72,14 @@ struct Test {
         dut.req=0; tick(); require(!dut.ack,"bus acknowledgement releases");
         return result;
     }
-    uint8_t mread(unsigned offset) { return bus(false,mfp_base+offset,0,1)&255; }
+    uint8_t mread(unsigned offset) {
+        if (offset>=0x1f && offset<=0x25) {
+            // Model the unselected CPU fetch preceding a timer-function probe.
+            unselected_data_strobe=true; tick();
+            unselected_data_strobe=false; tick();
+        }
+        return bus(false,mfp_base+offset,0,1)&255;
+    }
     void mwrite(unsigned offset,unsigned data,unsigned hold=1) { bus(true,mfp_base+offset,data,1,hold); }
     uint8_t acread(unsigned address) { return bus(false,address,0,2)>>8; }
     void acwrite(unsigned address,unsigned data,unsigned hold=1) { bus(true,address,data<<8,2,hold); }
