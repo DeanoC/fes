@@ -21,7 +21,9 @@ module coleco_application_gp #(
     wire [14:0] write_addr;
     wire [15:0] write_data;
     wire [1:0] write_enable;
-`if defined(FES_COLECO_MEGACART_LINK) || defined(FES_COLECO_ROM_LINK)
+`ifdef FES_COLECO_MEGACART_LINK
+    localparam bit ENABLE_MEDIA_ENDPOINT = 0;
+`elsif FES_COLECO_ROM_LINK
     localparam bit ENABLE_MEDIA_ENDPOINT = 0;
 `else
     localparam bit ENABLE_MEDIA_ENDPOINT = 1;
@@ -42,7 +44,9 @@ module coleco_application_gp #(
         .firmware_write_addr(firmware_write_addr), .firmware_write_data(firmware_write_data),
         .firmware_write_enable(firmware_write_enable), .firmware_ready()
     );
-`if defined(FES_COLECO_MEGACART_LINK) || defined(FES_COLECO_ROM_LINK)
+`ifdef FES_COLECO_MEGACART_LINK
+    assign media_q = 8'hff;
+`elsif FES_COLECO_ROM_LINK
     assign media_q = 8'hff;
 `else
     coleco_dpram #(.ADDRWIDTH(15), .NUMWORDS(32768)) media_ram (
