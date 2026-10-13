@@ -104,8 +104,8 @@ to enable 8 KiB over the BIOS at `0x0000–0x1fff`. Reset disables both windows.
 The module owns those claims and AY ports `0x50–0x52`; the shell owns the 32 KiB
 RAM and adds signed AY PCM to SN audio with saturation. The CPU/socket test
 checks both windows and preserves the console's 1 KiB RAM beneath the overlay.
-The v2 shell producer is `scripts/build_fes_coleco_socket_v2.py`; it uses
-the repaired GPU-router pin in `toolchains/coleco-sgm.lock` and advertises the
+The v2 shell producer is `scripts/build_fes_coleco_socket_v2.py`; it authenticates
+the shared `toolchain.lock` and advertises the
 optional `fes.expansion.coleco-bus` 2.0 interface. `scripts/build_coleco_sgm.py`
 routes the SGM independently against that exact sealed shell and admits only
 CRAM changes inside its reserved rectangle. Both recipes require clean,
@@ -686,7 +686,7 @@ Yosys/nextpnr/Mistral owner:
 
 | Boundary | Workaround in this bring-up |
 | --- | --- |
-| Toolchain selection | The repository-wide lock stays on current mainline Yosys/nextpnr. Coleco v2 selects `toolchains/coleco-sgm.lock`; SG-1000 retains `toolchains/registered-memory.lock`; SMS selects `toolchains/fes-sms.lock`. The Coleco lock installs under `build/toolchain/fes-coleco-socket-v2` and enables HIP. Bootstrap records the router and HIP architecture beside the compiler digests. Quartus uses its own vendor tools and needs neither lock. |
+| Toolchain selection | Coleco v2 selects the shared `toolchain.lock`. SG-1000 retains `toolchains/registered-memory.lock`; SMS selects `toolchains/fes-sms.lock`. A Coleco toolchain install under `build/toolchain/fes-coleco-socket-v2` is optional when a verified toolchain root is passed. Quartus uses its own vendor tools and needs neither lock. |
 | Verilog/VHDL frontend | OSS uses only the Verilog TV80 files and `T80pa`, with `TV80_REFRESH=1`; it does not depend on the VHDL T80 path. |
 | Inferred machine RAM | Cartridge, CPU RAM, and reset ROM use `coleco_dpram`; OSS selects registered `ram_style="m10k_tdp"` ports. Quartus also registers addresses despite UNREGISTERED outputs; only default simulation reads asynchronously. |
 | Registered media bridge | Both compiler lanes return `media_q` one clock after `media_addr`; the machine primes the request, delays the cartridge write address, flushes the final byte, and re-arms when `media_ready` drops or reset rises. |

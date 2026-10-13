@@ -106,7 +106,7 @@ class BuildFesColecoTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("FES_TOOLCHAIN_LOCKFILE=", result.stdout)
-        self.assertIn("toolchains/coleco-sgm.lock", result.stdout)
+        self.assertIn("toolchain.lock", result.stdout)
         self.assertIn("FES_TOOLCHAIN_ROOT=", result.stdout)
         self.assertIn("build/toolchain/fes-coleco-socket-v2", result.stdout)
         self.assertIn("FES_TOOLCHAIN_GPU_ROUTER=HIP", result.stdout)

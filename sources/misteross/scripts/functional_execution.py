@@ -92,10 +92,20 @@ def execution_inputs(tools: dict[str, Path], env: dict[str, str], gpu_device: in
 def _machine_input_files():
     topology = Path("/sys/class/kfd/kfd/topology/nodes")
     properties = sorted(topology.glob("*/properties"))
-    if not properties:
-        raise ValueError("functional HIP build requires readable KFD GPU topology")
-    files = properties + sorted(topology.glob("*/gpu_id"))
-    for path in (Path("/sys/module/amdgpu/version"), Path("/etc/os-release")):
+    if properties:
+        files = properties + sorted(topology.glob("*/gpu_id"))
+        for path in (Path("/sys/module/amdgpu/version"), Path("/etc/os-release")):
+            if path.is_file():
+                files.append(path)
+        return files
+    gpus = Path("/proc/driver/nvidia/gpus")
+    information = sorted(gpus.glob("*/information")) if gpus.is_dir() else []
+    if not information:
+        raise ValueError(
+            "functional GPU build requires readable KFD topology or NVIDIA GPU information"
+        )
+    files = list(information)
+    for path in (Path("/proc/driver/nvidia/version"), Path("/etc/os-release")):
         if path.is_file():
             files.append(path)
     return files
@@ -107,12 +117,14 @@ def execution_digest(inputs: dict) -> str:
 
 class FunctionalInvocation:
     """One controlled compiler invocation, shared by the production producers."""
-    def __init__(self, authenticated, gpu_device=0):
+    def __init__(self, authenticated, gpu_device=0, extra_env=None):
         import tempfile
         self.tools = {name: tool.path for name, tool in authenticated.items()}
         self.gpu_device = gpu_device
         self.home = tempfile.TemporaryDirectory(prefix="fes-tool-home-")
         self.env = execution_environment(Path(self.home.name), self.tools)
+        if extra_env:
+            self.env.update(extra_env)
         try:
             self.inputs = execution_inputs(self.tools, self.env, gpu_device)
         except Exception:

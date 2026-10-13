@@ -32,15 +32,15 @@ RECIPE = "scripts/build_fes_coleco_socket_v2.py"
 OUTPUT_RELATIVE = Path("build/fes-coleco-socket-v2")
 VIDEO_OUTPUT_RELATIVE = Path("build/fes-coleco-video")
 NATIVE_VIDEO_OUTPUT_RELATIVE = Path("build/fes-coleco-native-video")
-TOOLCHAIN_LOCK = "toolchains/coleco-sgm.lock"
+TOOLCHAIN_LOCK = "toolchain.lock"
 COLECO_TOOLCHAIN_LOCK = TOOLCHAIN_LOCK
 PLACER_SEEDS = (3, 4, 5, 1, 2, 6, 7, 8, 9, 10)
 PLACER_QOR_MODE = "first-pass"
 PLACER_TIMEOUT_SECONDS = 600
 TOOL_COMMITS = {
-    "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
-    "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "655f38334b8a1ba798cc05cf3744b6a897119b5d",
+    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
+    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
+    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
 }
 RTL_SOURCES = (*factory.RTL_SOURCES,
     "cores/fes-coleco/rtl/coleco_expansion_socket_v2.v",
@@ -84,7 +84,7 @@ def placement_policy(*, native_video: bool = False) -> tuple[tuple[int, ...], in
 
 
 def _route_placement(root: Path, output: Path, nextpnr: Path, *,
-                     native_video: bool = False, env=None):
+                     native_video: bool = False, gpu_device: int = 0, env=None):
     weights, budget = placement_policy(native_video=native_video)
     return route_after_synth(
         nextpnr=nextpnr, fixture=output / "synth.json", dest=output,
@@ -93,19 +93,31 @@ def _route_placement(root: Path, output: Path, nextpnr: Path, *,
         weights=weights, critexp=factory.PLACER_CRITICALITY_EXPONENT,
         budget=budget, mode=PLACER_QOR_MODE, timeout=PLACER_TIMEOUT_SECONDS,
         extra=("--router", factory.ROUTER),
-        required=factory.PLACER_QOR_CLOCKS, gpu_devices=(0,),
+        required=factory.PLACER_QOR_CLOCKS, gpu_devices=(gpu_device,),
         env=env, audit_source_root=root,
     )
 
 
-def authenticate_tools(root: Path, cache_root: Path | None):
+def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
+    if gpu_router == "HIP":
+        return (factory.COLECO_GPU_BACKEND, factory.COLECO_GPU_ARCHITECTURES,
+                factory.COLECO_TOOLCHAIN_CONFIGURATION)
+    if gpu_router == "CUDA":
+        return "cuda", "unused", "gpu-router=CUDA; hip-architectures=unused"
+    raise BuildError(f"unsupported Coleco GPU router {gpu_router}")
+
+
+def authenticate_tools(root: Path, cache_root: Path | None,
+                       toolchain_root: Path | None = None, gpu_router: str = factory.COLECO_GPU_ROUTER):
+    _backend, architectures, configuration = gpu_choice(gpu_router)
+    root_path = root / "build/toolchain/fes-coleco-socket-v2" if toolchain_root is None else Path(toolchain_root)
     return _authenticate_tools(
         root, lock_path=root / TOOLCHAIN_LOCK,
-        toolchain_root=root / "build/toolchain/fes-coleco-socket-v2",
+        toolchain_root=root_path,
         expected_commits=TOOL_COMMITS,
-        expected_configuration={"nextpnr": factory.COLECO_TOOLCHAIN_CONFIGURATION},
-        gpu_router=factory.COLECO_GPU_ROUTER,
-        hip_architectures=factory.COLECO_GPU_ARCHITECTURES,
+        expected_configuration={"nextpnr": configuration},
+        gpu_router=gpu_router,
+        hip_architectures=architectures,
         cache_root=cache_root,
     )
 
@@ -121,7 +133,9 @@ def _require_clean_source(root: Path, *, identity_version: int = 2, video_socket
 @guard_functional_source
 def create_build_record(root: Path, repository: str, revision: str,
                         identities: Mapping[str, str], execution: dict | None = None,
-                        *, identity_version: int = 2, video_socket: bool = False, native_video: bool = False) -> bytes:
+                        *, identity_version: int = 2, video_socket: bool = False, native_video: bool = False,
+                        gpu_backend: str = factory.COLECO_GPU_BACKEND,
+                        gpu_architectures: str = factory.COLECO_GPU_ARCHITECTURES) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
     weights, budget = placement_policy(native_video=native_video)
@@ -133,8 +147,8 @@ def create_build_record(root: Path, repository: str, revision: str,
         "dependencies": {}, "tools": dict(identities),
         "parameters": {
             "device": factory.TARGET, "top": factory.TOP,
-            "gpu_backend": factory.COLECO_GPU_BACKEND,
-            "gpu_architectures": factory.COLECO_GPU_ARCHITECTURES,
+            "gpu_backend": gpu_backend,
+            "gpu_architectures": gpu_architectures,
             "router": factory.ROUTER,
             "sys_clock_hz": 52_224_000, "pixel_clock_hz": 74_250_000,
             "audio_clock_hz": 12_288_000, "audio_sample_hz": 48_000,
@@ -230,23 +244,28 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str,
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *,
           cache_root: Path | None = None, identity_version: int = 2,
-          video_socket: bool = False, native_video: bool = False) -> Path:
+          video_socket: bool = False, native_video: bool = False,
+          gpu_device: int = 0, gpu_router: str = factory.COLECO_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> Path:
     root = root.resolve()
     repository, revision = _require_clean_source(root, identity_version=identity_version, video_socket=video_socket, native_video=native_video)
     profile, relative, inputs = video_profile(video_socket=video_socket, native_video=native_video)
     package_store = factory._package_store(root, package_store, private_bios=False)
-    tools = authenticate_tools(root, cache_root)
+    backend, architectures, _configuration = gpu_choice(gpu_router)
+    tools = authenticate_tools(root, cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in tools.items()}
     output = _prepare_output(root, relative=relative, build_outputs=BUILD_OUTPUTS)
     qsf = coleco_expansion.shell_qsf((root / factory.QSF).read_text(), version=2)
     if profile:
         qsf = profile.shell_qsf(qsf)
     _write_atomic(output / "socket.qsf", qsf.encode())
-    invocation = FunctionalInvocation(tools, 0)
+    extra_env = {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"} if gpu_router == "CUDA" else None
+    invocation = FunctionalInvocation(tools, gpu_device, extra_env=extra_env)
     try:
         execution, env = invocation.inputs, invocation.env
         record = create_build_record(root, repository, revision, identities,
-                                     execution=execution, identity_version=identity_version, video_socket=video_socket, native_video=native_video)
+                                     execution=execution, identity_version=identity_version, video_socket=video_socket, native_video=native_video,
+                                     gpu_backend=backend, gpu_architectures=architectures)
         _write_atomic(output / "build-inputs.json", record)
         build_id = build_identity(record)
         commands = build_commands(root, output, build_id, {
@@ -259,7 +278,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
         try:
             winner = _route_placement(
                 root, output, tools["nextpnr-mistral"].path,
-                native_video=native_video, env=env,
+                native_video=native_video, gpu_device=gpu_device, env=env,
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
@@ -280,13 +299,14 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
                       (json.dumps(evidence, sort_keys=True, indent=2) + "\n").encode())
         encoded = manifest(record, evidence, repository, revision, identities, video_socket=video_socket, native_video=native_video)
         _write_atomic(output / "manifest.toml", encoded)
-        if {name: tool.identity for name, tool in authenticate_tools(root, cache_root).items()} != identities:
+        if {name: tool.identity for name, tool in authenticate_tools(root, cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router).items()} != identities:
             raise BuildError("Coleco socket compiler identity changed")
         if _require_clean_source(root, identity_version=identity_version, video_socket=video_socket, native_video=native_video) != (repository, revision):
             raise BuildError("Coleco socket source changed")
         invocation.verify()
         if create_build_record(root, repository, revision, identities,
-                               execution=execution, identity_version=identity_version, video_socket=video_socket, native_video=native_video) != record:
+                               execution=execution, identity_version=identity_version, video_socket=video_socket, native_video=native_video,
+                               gpu_backend=backend, gpu_architectures=architectures) != record:
             raise BuildError("Coleco socket functional inputs changed")
         return export_package(encoded, output / "core.rbf", package_store)
     except Exception:
@@ -305,13 +325,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
+    parser.add_argument("--gpu-device", type=int, default=0)
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=factory.COLECO_GPU_ROUTER)
+    parser.add_argument("--toolchain-root", type=Path)
     video_options = parser.add_mutually_exclusive_group()
     video_options.add_argument("--native-video-socket", action="store_true", help="seal the native-pixel shell requiring a linked video part")
     video_options.add_argument("--video-socket", action="store_true", help="build the separate development shell with a pixel-domain video socket")
     args = parser.parse_args(argv)
     try:
         print(build(args.root, args.package_output, cache_root=args.cache_root,
-                    identity_version=args.identity_version, video_socket=args.video_socket, native_video=args.native_video_socket))
+                    identity_version=args.identity_version, video_socket=args.video_socket, native_video=args.native_video_socket,
+                    gpu_device=args.gpu_device, gpu_router=args.gpu_router, toolchain_root=args.toolchain_root))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-coleco-socket-v2: {exc}", file=sys.stderr)
         return 1

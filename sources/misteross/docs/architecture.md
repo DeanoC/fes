@@ -852,7 +852,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `9128800f` with Mistral `8fcc4cb4`. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
+| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `9128800f` with Mistral `8fcc4cb4`. Factory Coleco v2 selects that shared lock and can build it under `build/toolchain/fes-coleco-socket-v2`. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |

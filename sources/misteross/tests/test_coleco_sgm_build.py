@@ -177,8 +177,8 @@ class ColecoSgmBuildTest(unittest.TestCase):
         self.assertIn("cores/fes-coleco/rtl/coleco_audio_mix.v", shell.PINNED_INPUTS)
         self.assertIn("cores/fes-coleco/rtl/coleco_expansion_socket_v2.v", shell.PINNED_INPUTS)
         self.assertEqual(shell.TOOL_COMMITS["nextpnr"],
-                         "655f38334b8a1ba798cc05cf3744b6a897119b5d")
-        self.assertEqual(shell.TOOLCHAIN_LOCK, "toolchains/coleco-sgm.lock")
+                         "9128800fa6e77c4138088a7107a95376ba47ff15")
+        self.assertEqual(shell.TOOLCHAIN_LOCK, "toolchain.lock")
         lock = tomllib.loads((shell.ROOT / shell.TOOLCHAIN_LOCK).read_text())
         for name, revision in shell.TOOL_COMMITS.items():
             self.assertEqual(lock["tool"][name]["commit"], revision)
@@ -192,7 +192,7 @@ class ColecoSgmBuildTest(unittest.TestCase):
         self.assertEqual(record["parameters"]["seed_order"], "3,4,5,1,2,6,7,8,9,10")
         for source in ("sgm.v", "sgm_control.v", "sgm_ay.v"):
             self.assertIn(f"cores/fes-coleco/expansions/{source}", sgm.INPUTS)
-        self.assertIn("toolchains/coleco-sgm.lock", sgm.INPUTS)
+        self.assertIn("toolchain.lock", sgm.INPUTS)
 
     def test_v2_boundary_has_59_unique_physical_ffs(self):
         bels = coleco_expansion.socket_bels_v2()

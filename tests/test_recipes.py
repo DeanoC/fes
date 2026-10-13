@@ -131,7 +131,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.coleco": {
                 "producer_script": "scripts/build_fes_coleco_socket_v2.py",
                 "producer_module": "scripts.build_fes_coleco_socket_v2",
-                "lock_path": "toolchains/coleco-sgm.lock",
+                "lock_path": "toolchain.lock",
                 "selection_filename": "fes-coleco.package-selection.toml",
                 "authenticate": "authenticate_tools",
                 "package_dir_env": "FES_COLECO_PACKAGE_DIR",
@@ -206,7 +206,7 @@ class RecipeRegistryTest(unittest.TestCase):
         coleco = recipes.recipe_for("fes.coleco")
         sms = recipes.recipe_for("fes.sms")
         self.assertNotEqual(pong.lock_path, zx81.lock_path)
-        self.assertNotEqual(coleco.lock_path, pong.lock_path)
+        self.assertEqual(coleco.lock_path, pong.lock_path)
         self.assertNotEqual(sms.lock_path, pong.lock_path)
         self.assertNotEqual(sms.lock_path, coleco.lock_path)
         self.assertEqual(pong.cache_root, coleco.cache_root)
