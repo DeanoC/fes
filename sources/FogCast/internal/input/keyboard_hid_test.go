@@ -102,6 +102,36 @@ func TestHIDKeyboardFramesPostUsageRowsForTheGeneration(t *testing.T) {
 	}
 }
 
+func TestTransientProbeKeepsHIDHoldUntilRelease(t *testing.T) {
+	sink, posts, _ := newHIDPortsFixture(t, false)
+	code, _ := hidkeys.Code(0x04)
+	press := keyboardFrameFor(code, remoteinput.ActionPress)
+	release := keyboardFrameFor(code, remoteinput.ActionRelease)
+	if err := sink.applyContext(context.Background(), sourceLocal, press); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.invalidateObservationContext(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(*posts) != 1 || !sink.keyboardHID || !sink.hid.bound() {
+		t.Fatalf("failed probe dropped the hold: posts=%d hid=%v bound=%v", len(*posts), sink.keyboardHID, sink.hid.bound())
+	}
+	obs := CoreObservation{Active: true, KeyboardHID: &KeyboardHIDBinding{PackageID: "apple2", Generation: 7}}
+	if err := sink.setObservationContext(context.Background(), obs); err != nil {
+		t.Fatal(err)
+	}
+	if err := sink.applyContext(context.Background(), sourceLocal, release); err != nil {
+		t.Fatal(err)
+	}
+	if len(*posts) != 2 {
+		t.Fatalf("posts %+v", *posts)
+	}
+	last := (*posts)[1]
+	if last.id != "apple2" || last.generation != 7 || last.rows != (hidkeys.Rows{}) {
+		t.Fatalf("release after recovered probe: %+v", last)
+	}
+}
+
 func TestHIDObservationRebindsSameIdentityAfterReleaseAll(t *testing.T) {
 	sink, posts, _ := newHIDPortsFixture(t, false)
 	if err := sink.ReleaseAll(); err != nil {

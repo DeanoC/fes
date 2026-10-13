@@ -126,7 +126,9 @@ func (s *controllerPortsSink) updateObservationContext(ctx context.Context, obs 
 			return err
 		}
 	}
-	if s.hid != nil && !sameHIDBinding(s.hidBinding, obs.KeyboardHID) {
+	// An unconfirmed probe has not shown that this generation ended. Keep the
+	// HID binding and its held keys so a later release still posts neutral.
+	if confirmed && s.hid != nil && !sameHIDBinding(s.hidBinding, obs.KeyboardHID) {
 		if err := s.hid.bindContext(ctx, obs.KeyboardHID); err != nil {
 			return err
 		}
@@ -162,8 +164,8 @@ func (s *controllerPortsSink) updateObservationContext(ctx context.Context, obs 
 		s.keyboard = obs.Keyboard
 		s.coreID = obs.CoreID
 		s.coreGeneration = obs.Generation
+		s.keyboardHID = obs.KeyboardHID != nil && s.hid != nil
 	}
-	s.keyboardHID = obs.KeyboardHID != nil && s.hid != nil
 	s.coreActive = obs.Active
 	// A negative result can still be cached once no neutral write is pending.
 	// Failed neutral writes return above with the cache invalidated.
