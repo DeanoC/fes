@@ -1635,7 +1635,7 @@ sync and data edges across mixed bytes and consecutive blocks, then checks
 partial tails and live eject/replacement.
 
 `make build-fes-spectrum` (`scripts/build_fes_spectrum_oss.py`,
-`toolchains/spectrum.lock`, `make toolchain-fes-spectrum`) is the format-3
+`toolchain.lock`, `make toolchain-fes-spectrum`) is the format-3
 seal. Its ROM is `spectrum-firmware`, 16,384 bytes, on the same blank column-5
 lanes at rows 32–47. The shell reserves the four `FES_RESERVED_RECT` regions
 from `scripts/spectrum_slots.py` (`fes.spectrum-bus.sockets/1`, sockets 1–4).

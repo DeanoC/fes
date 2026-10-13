@@ -33,7 +33,7 @@ compiler lock serves factory Pong; the standard ZX81 socket uses
 `toolchains/zx81-expansion.lock`; Coleco v2 uses `toolchain.lock`,
 SG-1000 uses `toolchains/registered-memory.lock`, SMS uses `toolchains/fes-sms.lock`,
 Apple II uses `toolchains/apple2.lock`, Commodore 64 uses its independent
-`toolchains/c64.lock`, and ZX Spectrum 48K uses `toolchains/spectrum.lock`. Inspect `config/core-recipes.toml` for each
+`toolchains/c64.lock`, and ZX Spectrum 48K uses `toolchain.lock`. Inspect `config/core-recipes.toml` for each
 registered producer's current lock and HIP settings. Freeze-scaffold
 compose is documented in [FPGA cartridge expansion](fpga-expansion.md).
 An older sealed SMS package does not accept a bitstream built from a later
