@@ -253,11 +253,19 @@ module st_memory #(
                 write_video_turn <= 1'b0;
                 discard <= 1'b1;
             end
+            // Refresh may become pending after a CPU write grant. Its
+            // phase-2 service replaces VIDEO even in that arrival case.
+            if (SLOT_REFRESH && refresh_pending) write_video_turn <= 1'b0;
             case (state)
                 IDLE: begin
                     if (initialized && !reset && grant) begin
                         owner <= selected;
-                        if (selected == CPU && selected_write) write_video_turn <= 1'b1;
+                        // A retained write with pending slot refresh consumes
+                        // phase 2 doing refresh before WRITE. Do not require
+                        // that stolen video turn before the next CPU slot;
+                        // the next ordinary write restores the obligation.
+                        if (selected == CPU && selected_write)
+                            write_video_turn <= !(SLOT_REFRESH && refresh_pending);
                         if (selected == VIDEO) write_video_turn <= 1'b0;
                         if (POSTED_CPU_WRITES && selected == CPU && selected_write && selected_valid)
                             cpu_ready_q <= 1'b1;

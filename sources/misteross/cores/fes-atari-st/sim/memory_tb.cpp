@@ -168,11 +168,12 @@ struct Request {
 
 class Simulation {
 public:
-    explicit Simulation(unsigned delay = 0) : memory(delay) {}
+    explicit Simulation(unsigned delay = 0, unsigned hz = 8000000) : memory(delay), cpu_hz(hz) {}
     Vst_memory_sim_top dut;
     Sdram memory;
     std::vector<uint16_t> reference = std::vector<uint16_t>(0xa6800, 0);
     uint64_t cycles = 0, completed = 0;
+    unsigned cpu_hz;
     unsigned max_latency = 0;
     bool posted_pending = false;
     unsigned posted_address = 0, posted_value = 0;
@@ -185,7 +186,7 @@ public:
 
     void step() {
         dut.raster_reset = dut.reset || hold_raster;
-        dut.memory_phase = dut.reset || hold_raster ? 0 : ((cycles*8000000/52224000)&3);
+        dut.memory_phase = dut.reset || hold_raster ? 0 : ((cycles*cpu_hz/52224000)&3);
         dut.clk = 0;
         dut.eval();
         require(dut.sdram_clk == 1, "SDRAM clock pin polarity", cycles);
@@ -547,6 +548,54 @@ public:
         }
     }
 
+    // Synthetic four-CPU-clock request cadence, not an FX68K instruction.
+    // Uses the physical SDRAM model with continuously pending VIDEO.
+    void video_contended_write_slots(unsigned offset) {
+        idle(offset);
+        const auto ticks = [&]() { return cycles * cpu_hz / 52224000; };
+        while ((ticks() & 3) != 0) step();
+        const auto commits_before = posted_commits, refreshes_before = memory.refreshes;
+        unsigned accepted = 0, videos = 0;
+        bool cpu_active = false, video_active = false, video_rearm = false;
+        uint64_t release = UINT64_MAX, issue = ticks(), last_ack = 0, video_start = 0;
+        const auto deadline = cycles + 20000;
+        Request cpu, video;
+        while (accepted < 512 || cpu_active) {
+            if (!video_active && !video_rearm) {
+                video = {0x38000 + (videos & 127)};
+                request(1, video); video_active = true; video_start = cycles;
+            } else if (video_rearm) video_rearm = false;
+            if (!cpu_active && accepted < 512 && ticks() >= issue && (ticks() & 3) == 0) {
+                cpu = {0x310 + (accepted & 63), uint16_t(accepted ^ 0xa55a), 1 + accepted % 3, true};
+                request(0, cpu); cpu_active = true; release = UINT64_MAX;
+            }
+            step();
+            if (video_active) {
+                require(cycles - video_start < 180, "slot burst starved VIDEO", cycles);
+                if (ready(1)) {
+                    check(1, video); request(1, video, false);
+                    video_active = false; video_rearm = true; ++videos;
+                }
+            }
+            if (cpu_active && ready(0)) {
+                require(release == UINT64_MAX, "slot burst repeated ACK", cycles);
+                require((ticks() & 3) == 1, "slot burst ACK outside CPU write slot", cycles);
+                if (accepted) require(ticks() - last_ack == 4, "refresh/video added a write slot", cycles);
+                check(0, cpu); last_ack = ticks(); ++accepted;
+                release = ticks() + 2; issue = ticks() + 3;
+            }
+            if (cpu_active && ticks() >= release) { request(0, cpu, false); cpu_active = false; }
+            require(cycles - memory.last_refresh <= 408, "slot burst starved refresh", cycles);
+            require(cycles < deadline, "slot burst timeout", cycles);
+        }
+        request(1, video, false); idle(48);
+        require(!posted_pending && posted_commits - commits_before == 512, "slot burst physical drain", cycles);
+        require(memory.refreshes > refreshes_before + 30 && videos > 100, "sustained refresh/VIDEO coverage", cycles);
+        for (unsigned a = 0x310; a < 0x350; ++a)
+            require(memory.words[a] == reference[a], "slot burst final byte order/data", cycles);
+        require(retired_ram_writes == memory.ram_writes.size(), "slot burst write notifications", cycles);
+    }
+
     void writes_without_video() {
         const auto phase = [](uint64_t cycle) { return (cycle * 8000000 / 52224000) & 3; };
         for (unsigned offset = 0; offset < 7; ++offset) {
@@ -618,6 +667,12 @@ int main(int argc, char **argv) {
         sim.initialize();
         sim.directed();
 #if ST_SLOT_POLICY
+        for (unsigned offset = 0; offset < 336; ++offset) {
+            Simulation burst(delay, 8021247);
+            burst.initialize();
+            burst.video_contended_write_slots(offset);
+        }
+        std::cout << "Sustained writes: 336 refresh offsets x 512 words; VIDEO <180, refresh <=408 SYS\n";
         sim.posted_reset_drain();
         sim.held_counter_refresh();
         sim.deferred_write_reset();

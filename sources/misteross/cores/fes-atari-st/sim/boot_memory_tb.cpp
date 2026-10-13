@@ -153,6 +153,7 @@ class Boot {
 #ifdef ST_RAM_BUS_PROBE
     uint64_t cpu_ticks = 0, tas_reads = 0, tas_writes = 0;
     std::vector<std::pair<bool, uint64_t>> ram_bus_starts;
+    std::vector<uint64_t> movem_word_ticks;
     std::vector<uint64_t> raster_write_ticks;
     std::vector<unsigned> raster_write_phases, palette_read_phases;
     std::vector<uint64_t> palette_read_ticks;
@@ -250,6 +251,14 @@ class Boot {
 #ifdef ST_RAM_BUS_PROBE
         if (!dut.reset_sys && dut.cpu_req && !cpu_transfer.active && dut.cpu_addr == 0x310) {
             if (dut.cpu_write) ++tas_writes; else ++tas_reads;
+        }
+#endif
+#ifdef ST_RAM_BUS_PROBE
+        if (!dut.reset_sys && dut.cpu_req && !cpu_transfer.active && dut.cpu_write &&
+            dut.cpu_addr >= 0x37b00 && dut.cpu_addr < 0x38000) {
+            require(dut.cpu_byte_enable == 3 && dut.cpu_wdata == 0x1234,
+                    "MOVEM word payload/lanes", system_cycles);
+            movem_word_ticks.push_back(cpu_ticks);
         }
 #endif
         rom_before_edge();
@@ -578,6 +587,17 @@ public:
                     word(0x4af9); longword(0x620);
                     word(0x4af9); longword(0x621);
                 }
+                // The menu's ten-register MOVEM.L predecrement operation:
+                // 20 physical word writes. Repetition crosses refresh phases.
+                for (unsigned reg = 0; reg < 8; ++reg) {
+                    word(0x203c | (reg << 9)); longword(0x12341234);
+                }
+                word(0x267c); longword(0x12341234);
+                word(0x287c); longword(0x12341234);
+                word(0x2e7c); longword(0x70000);
+                for (unsigned burst = 0; burst < 64; ++burst) {
+                    word(0x48e7); word(0xff18); // D0-D7/A3-A4,-(A7)
+                }
                 word(0x4e70); // RESET must not suspend SDRAM refresh or lose RAM.
                 word(0x33fc); word(0xc0de); longword(0x400);
                 word(0x4e72); word(0x2700);
@@ -630,6 +650,17 @@ public:
         require(word(0x600) == 0x5a5a, "RAM timing byte lanes did not reach physical memory", system_cycles);
         require(word(0x620) == 0x92b4, "TAS byte lanes lost physical RAM data", system_cycles);
         require(tas_reads == 256 && tas_writes == 256, "TAS did not complete each read/write exactly once", system_cycles);
+        require(movem_word_ticks.size() == 1280, "MOVEM physical word count", system_cycles);
+        for (unsigned i = 0; i < 1280; ++i) {
+            require(word(0x6f600 + 2*i) == 0x1234, "MOVEM physical RAM payload/location", system_cycles);
+#if ST_EARLY_COMPLETION
+            if (i % 20) require(movem_word_ticks[i] - movem_word_ticks[i-1] == 4,
+                                "MOVEM added a four-cycle word-write slot", system_cycles);
+#endif
+        }
+        std::cout << "RAM CPU MOVEM PASS: 64 ten-register bursts, 1280 physical word writes";
+        if (ST_EARLY_COMPLETION) std::cout << ", all 1216 within-burst intervals four CPU clocks";
+        std::cout << "\n";
         require(ram_bus_starts.size() == 1024, "RAM timing transaction count", system_cycles);
         std::array<std::map<unsigned, unsigned>, 2> histograms;
         for (unsigned i = 1; i < ram_bus_starts.size(); ++i) {

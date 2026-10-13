@@ -59,7 +59,10 @@ Runtime refresh selects four wait counts, leaving six chip clocks (114.9 ns at
 RAM and media use rank zero, so runtime refresh selects that rank; initialization
 keeps the conservative two-rank sequence. The 335-clock schedule uses phase 2.
 A pending refresh defers a late physical write that could occupy its admission
-window. `raster_reset` opens the window while the native counter is held.
+window. Pending slot refresh replaces the CPU write's owed video turn, including
+refresh that becomes due after write admission. This avoids delaying the next
+CPU write for a video slot already consumed by refresh; the next ordinary write
+restores the video obligation. `raster_reset` opens the window while the native counter is held.
 Slot refresh requires phase slots and single-rank refresh; posted writes require
 phase slots and early completion. Board instances and Slang roots select the
 same policy explicitly. Shared controller defaults retain RAM Tester behavior.
@@ -68,7 +71,11 @@ The ST consumes the first rate-0 DDR rising sample. The board retains its fabric
 pad capture and the simulation fixture models the matching DDIO edge.
 `make sim-fes-atari-st-memory` checks byte masks, physical posted-write commits
 and following read order, cancellation, held requests, warm reset, all five
-clients and every fabric offset of no-video read/write slots. It retains the
+clients and every fabric offset of no-video read/write slots. A synthetic CPU
+client also sustains 512 writes at four native CPU clocks per word with VIDEO
+continuously pending, across all 336 refresh-counter offsets and three modeled
+DQM delays. Physical payload, byte ordering and notifications are checked.
+It retains the
 exclusive 180-clock fairness limit and checks physical refresh intervals against
 408 clocks at 52.224 MHz. Registered-input and late-completion profiles remain
 focused timing comparisons.
@@ -76,6 +83,8 @@ focused timing comparisons.
 `make sim-fes-atari-st-ram-bus` runs authored firmware on FX68K with physical
 SDRAM/DDIO and independent-clock video. The selected policy measures 511 byte
 write intervals of 16 CPU cycles and 510 read intervals of 16 plus one of 17.
+It also executes 64 ten-register `MOVEM.L D0-D7/A3-A4,-(A7)` bursts, checking all
+1,280 physical word writes and the 1,216 within-burst four-clock intervals.
 It checks both byte lanes, TAS rearming and RESET retention. An authored ROM-fed
 palette loop alternates the CPU bus alignment with terminal DBF instructions
 and checks fifteen 32-cycle intervals in each direction, exactly-once acceptance, both
