@@ -65,8 +65,8 @@ cartridge, VDP and controller reads retain console behavior. The
 `sim-fes-coleco-expansion` target checks vacant behavior and a behavioral
 diagnostic responder. The earlier v1 diagnostic used
 `FES_COLECO_EXPANSION_DEV`. Its separate
-`scripts/build_fes_coleco_socket_dev.py` recipe uses
-`toolchains/coleco-expansion.lock` to seal a timed development shell with a
+`scripts/build_fes_coleco_socket_dev.py` recipe authenticates `toolchain.lock`
+to seal a timed development shell with a
 reserved `24 1 28 11` region containing only its pinned boundary FFs. The
 cart now uses that full placement rectangle with a compiler that admits those
 frozen cells at their original BELs. It declares optional `fes.expansion.coleco-bus`
@@ -545,13 +545,11 @@ make build-fes-coleco
 The Quartus recipe requires authenticated Quartus Prime Lite 17.0.2. The OSS
 recipe authenticates the repository-local Yosys, nextpnr-mistral, and Mistral
 tools, routes `5CSEBA6U23I7`, and seals a format-2 package only after the
-timing/resource checks pass. The repository-wide `toolchain.lock` remains on
-the current mainline pins. `make toolchain-fes-coleco` instead builds the
-Coleco v2 lock at `toolchains/coleco-sgm.lock` into
-`build/toolchain/fes-coleco-socket-v2`, enabling the HIP device backend for
-`gfx1100;gfx1201`. The selected OSS recipe uses Yosys
-`e2d425dee148cc60c50f4e9b354a10d90eab15f4`, nextpnr
-`a93fe013af841214ecb4f7be3af0de65f3de3a0f` (Mistral `7ed06e21`), `--router gpu`, and
+timing/resource checks pass. The OSS recipe authenticates `toolchain.lock`. `make toolchain-fes-coleco`
+builds that shared pin into `build/toolchain/fes-coleco-socket-v2`. The
+recipe default remains HIP; a CUDA install of the same commits can seal it.
+The former `toolchains/coleco-sgm.lock` and `toolchains/coleco-expansion.lock`
+pins are not selected. The sealed search still uses
 seed 3 / HeAP weight 2000, with
 `--timing-allow-fail` and a 74.25 MHz request without `--tmg-ripup`; it rejects
 a CPU-reference fallback in the route log. The selected seed and weight are

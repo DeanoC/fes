@@ -83,7 +83,7 @@ is that case.
 | `fes.menu` | Idle scanout. Not a game. Splash is still the product idle fallback. | Shared pin. | No factory-image acceptance of this bitstream. |
 | `fes.pong` 1.1.0 | ROM-less game. Settings and best rally persist. The [10 Oct kit B load](validation/2026-10-10-optimizer-video-area.md) showed the field and Stop. | Shared pin, single-PLL gate, optimizer scaler. | That note is a bounded video/Stop check, not gameplay or image acceptance. |
 | `fes.zx81` 1.5.0 | Most complete 8-bit machine in the image: live `.p` tape, session display, bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | Sync M10K, format 3, HIP. | Still TV80. Lock is nextpnr `c2bb4363`, the oldest play pin. Physical keyboard, expansion and audio of 1.5.0 are not accepted. |
-| `fes.coleco` 1.2.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. The named [3 Oct image](validation/2026-10-03-native-video-factory-kit2.md) accepted open diagnostics, not cartridges in general. | Native video parts, sync M10K, HIP. | Still TV80. Lock `655f3833`. Factory cartridge is still blob/blob-stream. Not retail-complete. |
+| `fes.coleco` 1.2.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. The named [3 Oct image](validation/2026-10-03-native-video-factory-kit2.md) accepted open diagnostics, not cartridges in general. | Native video parts, sync M10K. Product lock is `toolchain.lock`. | Still TV80. Factory cartridge is still blob/blob-stream. Not retail-complete. The 3 Oct note does not accept the shared-pin bytes. |
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3, HIP. Named kit audio is artifact-scoped. | Still TV80. Lock `a93fe013`. |
 | `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3, HIP. | Lock `a93fe013`. The 1.2.0 kit audio note does not qualify 1.3.0. |
 | `fes.spectrum` 0.2.0 | In the image. Library standing is experimental. Open diagnostic firmware only; no Sinclair ROM is shipped. | `fes_z80_nmos` by default, sync M10K, format 3, HIP. | Lock `0259c6dc`. The 56 MHz build is documented-only. No card, keyboard or tape kit check of this shell. |
@@ -132,7 +132,7 @@ fix it in nextpnr, then delete the dedicated lock. Do not add another lock.
 | --- | --- | --- | --- |
 | 1 | `fes.c64` | `0c5ed400` | Same Yosys and Mistral as the shared pin. Package-only. Closest requalification. |
 | 2 | `fes.atari-st` | `3d4a5b35` | Factory, and its Yosys pin is also private. Do not keep this pin because an older seed missed pixel. |
-| 3 | `fes.coleco` | `655f3833` | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` is the socket diagnostic, not a recipe row. It moves or dies with this step. |
+| 3 | `fes.coleco` | `toolchain.lock` | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `0259c6dc` | Same pin and the same multi-region cart support. Each core still seals itself. |
 | 5 | `fes.sms`, `fes.sg1000` | `a93fe013` | `toolchains/fes-sms.lock` and `toolchains/registered-memory.lock`. |
 | 6 | `fes.zx81` | `c2bb4363` | Oldest pin. Bus 2.0 and session display make it a bad first move. |

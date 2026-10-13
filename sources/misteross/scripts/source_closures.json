@@ -42,7 +42,7 @@
     "scripts/source_repository.py",
     "scripts/toolchain_cache.py",
     "scripts/video_parts.py",
-    "toolchains/coleco-sgm.lock"
+    "toolchain.lock"
   ],
   "build_fes_menu_package": [
     "boards/de10nano/clocks.sdc",
