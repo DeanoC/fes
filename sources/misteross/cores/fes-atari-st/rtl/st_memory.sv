@@ -256,6 +256,11 @@ module st_memory #(
             // Refresh may become pending after a CPU write grant. Its
             // phase-2 service replaces VIDEO even in that arrival case.
             if (SLOT_REFRESH && refresh_pending) write_video_turn <= 1'b0;
+            // An empty phase-2 opportunity finishes the prior video debt.
+            // Later demand retains normal slot eligibility without using
+            // that unused turn to block an intervening CPU write.
+            if (PHASE_SLOTS && memory_phase == (CPU_SLOT_PHASE + 2'd2) &&
+                !pending_clients[VIDEO]) write_video_turn <= 1'b0;
             case (state)
                 IDLE: begin
                     if (initialized && !reset && grant) begin

@@ -54,6 +54,11 @@ changed inactive CPU pins and warm reset preserve an accepted write and suppress
 stale completion. This is one ordered command, with no read cache. Hardware Hold
 leaves the arbiter running for media/upload work. CPU RESET preserves RAM.
 
+An empty video slot also completes the preceding CPU write's video obligation.
+Later video demand retains normal slot eligibility without using that empty
+opportunity to block a CPU write. This covers line-prefetch requests starting
+after the previous line's fetches have ended, as well as continuous video traffic.
+
 Runtime refresh selects four wait counts, leaving six chip clocks (114.9 ns at
 52.224 MHz) before the next command, above the ISSI IS42S16320D's 60 ns period.
 RAM and media use rank zero, so runtime refresh selects that rank; initialization
@@ -75,6 +80,8 @@ clients and every fabric offset of no-video read/write slots. A synthetic CPU
 client also sustains 512 writes at four native CPU clocks per word with VIDEO
 continuously pending, across all 336 refresh-counter offsets and three modeled
 DQM delays. Physical payload, byte ordering and notifications are checked.
+An additional sweep spaces VIDEO requests by one through sixteen CPU clocks,
+checking 64-word CPU bursts across the same refresh offsets and DQM delays.
 It retains the
 exclusive 180-clock fairness limit and checks physical refresh intervals against
 408 clocks at 52.224 MHz. Registered-input and late-completion profiles remain
@@ -85,6 +92,8 @@ SDRAM/DDIO and independent-clock video. The selected policy measures 511 byte
 write intervals of 16 CPU cycles and 510 read intervals of 16 plus one of 17.
 It also executes 64 ten-register `MOVEM.L D0-D7/A3-A4,-(A7)` bursts, checking all
 1,280 physical word writes and the 1,216 within-burst four-clock intervals.
+The authored firmware delays those saves into active video; retained native line
+numbers and physical VIDEO reads verify that bursts cross shifter line starts.
 It checks both byte lanes, TAS rearming and RESET retention. An authored ROM-fed
 palette loop alternates the CPU bus alignment with terminal DBF instructions
 and checks fifteen 32-cycle intervals in each direction, exactly-once acceptance, both

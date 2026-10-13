@@ -549,8 +549,8 @@ public:
     }
 
     // Synthetic four-CPU-clock request cadence, not an FX68K instruction.
-    // Uses the physical SDRAM model with continuously pending VIDEO.
-    void video_contended_write_slots(unsigned offset) {
+    // Uses physical SDRAM with continuous or CPU-tick-spaced VIDEO requests.
+    void video_contended_write_slots(unsigned offset, unsigned video_gap = 0, unsigned words = 512) {
         idle(offset);
         const auto ticks = [&]() { return cycles * cpu_hz / 52224000; };
         while ((ticks() & 3) != 0) step();
@@ -558,14 +558,15 @@ public:
         unsigned accepted = 0, videos = 0;
         bool cpu_active = false, video_active = false, video_rearm = false;
         uint64_t release = UINT64_MAX, issue = ticks(), last_ack = 0, video_start = 0;
+        uint64_t video_issue = ticks();
         const auto deadline = cycles + 20000;
         Request cpu, video;
-        while (accepted < 512 || cpu_active) {
-            if (!video_active && !video_rearm) {
+        while (accepted < words || cpu_active) {
+            if (!video_active && !video_rearm && ticks() >= video_issue) {
                 video = {0x38000 + (videos & 127)};
                 request(1, video); video_active = true; video_start = cycles;
             } else if (video_rearm) video_rearm = false;
-            if (!cpu_active && accepted < 512 && ticks() >= issue && (ticks() & 3) == 0) {
+            if (!cpu_active && accepted < words && ticks() >= issue && (ticks() & 3) == 0) {
                 cpu = {0x310 + (accepted & 63), uint16_t(accepted ^ 0xa55a), 1 + accepted % 3, true};
                 request(0, cpu); cpu_active = true; release = UINT64_MAX;
             }
@@ -575,11 +576,16 @@ public:
                 if (ready(1)) {
                     check(1, video); request(1, video, false);
                     video_active = false; video_rearm = true; ++videos;
+                    video_issue = ticks() + video_gap;
                 }
             }
             if (cpu_active && ready(0)) {
                 require(release == UINT64_MAX, "slot burst repeated ACK", cycles);
                 require((ticks() & 3) == 1, "slot burst ACK outside CPU write slot", cycles);
+                if (accepted && ticks() - last_ack != 4) {
+                    std::cerr << "offset=" << offset << " VIDEO gap=" << video_gap
+                              << " word=" << accepted << " interval=" << ticks()-last_ack << '\n';
+                }
                 if (accepted) require(ticks() - last_ack == 4, "refresh/video added a write slot", cycles);
                 check(0, cpu); last_ack = ticks(); ++accepted;
                 release = ticks() + 2; issue = ticks() + 3;
@@ -589,8 +595,9 @@ public:
             require(cycles < deadline, "slot burst timeout", cycles);
         }
         request(1, video, false); idle(48);
-        require(!posted_pending && posted_commits - commits_before == 512, "slot burst physical drain", cycles);
-        require(memory.refreshes > refreshes_before + 30 && videos > 100, "sustained refresh/VIDEO coverage", cycles);
+        require(!posted_pending && posted_commits - commits_before == words, "slot burst physical drain", cycles);
+        require(memory.refreshes > refreshes_before + (words == 512 ? 30 : 0) &&
+                videos > (words == 512 && !video_gap ? 100 : 0), "sustained refresh/VIDEO coverage", cycles);
         for (unsigned a = 0x310; a < 0x350; ++a)
             require(memory.words[a] == reference[a], "slot burst final byte order/data", cycles);
         require(retired_ram_writes == memory.ram_writes.size(), "slot burst write notifications", cycles);
@@ -673,6 +680,16 @@ int main(int argc, char **argv) {
             burst.video_contended_write_slots(offset);
         }
         std::cout << "Sustained writes: 336 refresh offsets x 512 words; VIDEO <180, refresh <=408 SYS\n";
+        // A newly arriving VIDEO request must also walk empty video slots.
+        // This exercises gaps absent from the continuously pending stream.
+        for (unsigned gap = 1; gap <= 16; ++gap) {
+            for (unsigned offset = 0; offset < 336; ++offset) {
+                Simulation burst(delay, 8021247);
+                burst.initialize();
+                burst.video_contended_write_slots(offset, gap, 64);
+            }
+        }
+        std::cout << "Intermittent VIDEO: 16 request gaps x 336 refresh offsets x 64 CPU words\n";
         sim.posted_reset_drain();
         sim.held_counter_refresh();
         sim.deferred_write_reset();

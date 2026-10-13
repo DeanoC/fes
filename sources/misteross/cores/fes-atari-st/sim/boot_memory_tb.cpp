@@ -7,6 +7,9 @@
 #include "st_ram_write_trace.hpp"
 #include "Vst_boot_memory_sim_top.h"
 #include "verilated.h"
+#ifdef ST_RAM_BUS_PROBE
+#include "Vst_boot_memory_sim_top___024root.h"
+#endif
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -154,6 +157,8 @@ class Boot {
     uint64_t cpu_ticks = 0, tas_reads = 0, tas_writes = 0;
     std::vector<std::pair<bool, uint64_t>> ram_bus_starts;
     std::vector<uint64_t> movem_word_ticks;
+    std::vector<unsigned> movem_word_lines;
+    uint64_t movem_video_reads = 0;
     std::vector<uint64_t> raster_write_ticks;
     std::vector<unsigned> raster_write_phases, palette_read_phases;
     std::vector<uint64_t> palette_read_ticks;
@@ -258,7 +263,18 @@ class Boot {
             dut.cpu_addr >= 0x37b00 && dut.cpu_addr < 0x38000) {
             require(dut.cpu_byte_enable == 3 && dut.cpu_wdata == 0x1234,
                     "MOVEM word payload/lanes", system_cycles);
+        }
+        // S6/PHI2 is the CPU's completed word transfer. Request-start gaps
+        // also include the first word's legitimate two-cycle RAM alignment.
+        auto *root = dut.rootp;
+        if (!dut.reset_sys && dut.debug_cpu_tick &&
+            root->st_boot_memory_sim_top__DOT__system__DOT__machine__DOT__cpu__DOT__cpu__DOT__busControl__DOT__busPhase == 5 &&
+            root->st_boot_memory_sim_top__DOT__system__DOT__machine__DOT__target == 1 &&
+            root->st_boot_memory_sim_top__DOT__system__DOT__machine__DOT__writing &&
+            root->st_boot_memory_sim_top__DOT__system__DOT__machine__DOT__address >= 0x6f600 &&
+            root->st_boot_memory_sim_top__DOT__system__DOT__machine__DOT__address < 0x70000) {
             movem_word_ticks.push_back(cpu_ticks);
+            movem_word_lines.push_back(dut.debug_native_line);
         }
 #endif
         rom_before_edge();
@@ -328,6 +344,9 @@ class Boot {
                     "video SDRAM completion duplicated or unrequested", system_cycles);
             video_transfer.complete = true;
             ++video_reads; ++frame_video_reads;
+#ifdef ST_RAM_BUS_PROBE
+            if (!movem_word_ticks.empty() && movem_word_ticks.size() < 1280) ++movem_video_reads;
+#endif
             if (video_transfer.wait > frame_video_max) frame_video_max = video_transfer.wait;
             if (video_transfer.wait > max_video_latency) max_video_latency = video_transfer.wait;
         }
@@ -579,6 +598,8 @@ public:
                 for (unsigned i = 0; i < 12600; ++i) sdram.words[0x8000+i] = uint16_t(i);
                 sdram.words[0xc000] = 1; sdram.words[0xc001] = 0;
             } else {
+                word(0x13fc); word(2); longword(0xff8201); // screen base $20000
+                word(0x13fc); word(2); longword(0xff820a); // PAL raster
                 word(0x705a);
                 for (unsigned i = 0; i < 512; ++i) { word(0x1239); longword(0x600 + (i & 1)); }
                 for (unsigned i = 0; i < 512; ++i) { word(0x13c0); longword(0x600 + (i & 1)); }
@@ -588,7 +609,11 @@ public:
                     word(0x4af9); longword(0x621);
                 }
                 // The menu's ten-register MOVEM.L predecrement operation:
-                // 20 physical word writes. Repetition crosses refresh phases.
+                // 20 physical word writes. An authored DBF delay moves the
+                // saves after the first capture-bank handoff and into active
+                // video. Measured crossings/reads verify actual contention.
+                word(0x323c); word(19000); // MOVE.W #19000,D1
+                word(0x51c9); word(0xfffe); // DBF D1,self
                 for (unsigned reg = 0; reg < 8; ++reg) {
                     word(0x203c | (reg << 9)); longword(0x12341234);
                 }
@@ -643,7 +668,7 @@ public:
 #ifdef ST_RAM_BUS_PROBE
     void ram_bus_probe() {
         while (word(0x400) != 0xc0de) {
-            require(system_cycles - boot_start < 300000, "RAM timing firmware did not complete", system_cycles);
+            require(system_cycles - boot_start < 2000000, "RAM timing firmware did not complete", system_cycles);
             event();
         }
         require(faults == 0 && !dut.debug_halted, "RAM timing firmware faulted", system_cycles);
@@ -651,16 +676,22 @@ public:
         require(word(0x620) == 0x92b4, "TAS byte lanes lost physical RAM data", system_cycles);
         require(tas_reads == 256 && tas_writes == 256, "TAS did not complete each read/write exactly once", system_cycles);
         require(movem_word_ticks.size() == 1280, "MOVEM physical word count", system_cycles);
+        unsigned movem_line_crossings = 0;
         for (unsigned i = 0; i < 1280; ++i) {
             require(word(0x6f600 + 2*i) == 0x1234, "MOVEM physical RAM payload/location", system_cycles);
 #if ST_EARLY_COMPLETION
             if (i % 20) require(movem_word_ticks[i] - movem_word_ticks[i-1] == 4,
                                 "MOVEM added a four-cycle word-write slot", system_cycles);
 #endif
+            if (i % 20 && movem_word_lines[i] != movem_word_lines[i-1]) ++movem_line_crossings;
         }
+        std::cout << "MOVEM lines " << movem_word_lines.front() << ".." << movem_word_lines.back()
+                  << ", crossings " << movem_line_crossings << ", concurrent VIDEO reads " << movem_video_reads << '\n';
+        require(movem_line_crossings >= 4 && movem_video_reads > 500,
+                "MOVEM did not cross active shifter line starts", system_cycles);
         std::cout << "RAM CPU MOVEM PASS: 64 ten-register bursts, 1280 physical word writes";
         if (ST_EARLY_COMPLETION) std::cout << ", all 1216 within-burst intervals four CPU clocks";
-        std::cout << "\n";
+        std::cout << ", " << movem_line_crossings << " active scanline crossings\n";
         require(ram_bus_starts.size() == 1024, "RAM timing transaction count", system_cycles);
         std::array<std::map<unsigned, unsigned>, 2> histograms;
         for (unsigned i = 1; i < ram_bus_starts.size(); ++i) {
