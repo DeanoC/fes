@@ -236,5 +236,4 @@ Next: [change a component](development.md#isolate-component-work) or
 For local scratch or HIL iteration, run `IMAGE_PASSES=1 make image`. The
 single output records `image_passes=1` and `single_pass_scratch=1`, and includes
 `SINGLE-PASS-SCRATCH.txt` binding the checkout head and `linux.img` digest.
-Releases and CI always use two passes. The out-of-repo
-`~/bin/fes-docker-1pass` shim is retired once this merges.
+Releases and CI always use two passes.

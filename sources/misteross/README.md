@@ -58,8 +58,9 @@ command retains its CPU-only socket; `make build-fes-coleco-video` explicitly
 builds the video variant. The shared RTL contract is owned by
 [mister-packages](../mister-packages/docs/video-parts.md).
 
-The factory image installs `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
-`fes.sg1000`, `fes.spectrum`, `fes.ramtest` and `fes.atari-st`. Another
+The factory image installs `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`,
+`fes.sms`, `fes.sg1000`, `fes.spectrum`, `fes.ramtest` and `fes.atari-st`.
+`fes.menu` is the idle display, not a playable library entry. Another
 package is not added to that set merely because its producer exists.
 
 The first 16-bit machine is the [Atari 520ST](cores/fes-atari-st/README.md):
@@ -88,8 +89,9 @@ The original shared Z80 CPU has NMOS and documented fast variants. Run
 Cyclone V timing diagnostic. SG-1000 and Spectrum select the NMOS variant.
 Spectrum also has an explicit documented-only 56 MHz development build;
 `make sim-fes-spectrum-turbo` compares both modes and measures elapsed workloads.
-Coleco, SMS and ZX81 still instantiate TV80/T80. That divergence is retired
-in [core alignment](../../docs/core-alignment.md), one machine at a time.
+Coleco, SMS and ZX81 still instantiate TV80/T80. [Core alignment](../../docs/core-alignment.md)
+schedules the move onto `fes_z80_nmos` one machine at a time. That swap has
+not landed for those three packages.
 
 ### OSS experiments
 

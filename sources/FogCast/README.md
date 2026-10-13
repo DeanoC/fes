@@ -588,11 +588,17 @@ the gamepad OSK and POSTs the file bytes.
 
 ## Repository boundaries
 
-| Repository | Owns |
+These are modules in the FES repository. Quartus Lite 17.0.2 is an oracle
+check, not the product FPGA route. The product route is HIP/nextpnr.
+
+| Module | Owns |
 | --- | --- |
-| `FogCast` | Host application, browser UI, catalog, target agent, content transfer, and launch requests |
+| FES | Component selection, compatibility, orchestration, image assembly (`image/`), and integration evidence |
+| FogCast | UI, game library, host services, and the network-facing target agent |
+| libmister-runtime | FPGA programming, physical lifecycle, media and input delivery, and hardware recovery |
+| misteross | FPGA source builds, RBF provenance, simulations, and compiler recipes |
+| mister-packages | Shared board, protocol, and source definitions, and their schema and emitter |
 | `Main_MiSTer` | Comparison reference; not a production dependency |
-| `misteross` | Quartus, Verilator, and open-source FPGA builds that produce RBF files |
 
 Native image assembly lives in the FES `image/` recipe. FogCast keeps the
 agent, kit, package selector and native-runtime lock as inputs. Git

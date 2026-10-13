@@ -48,15 +48,14 @@ FES publishes `out/<profile>/linux.img`. The cold build runs twice and
 requires identical image digests. Verification inspects the locked idle RBF,
 selected core packages and normalized build-input record, ARM runtime and
 static ARM agent, and the runtime's target-library closure. QEMU proves only
-the read-only root, volatile mounts, and init packaging. The designated-kit
-idle and one-player Mega Drive launch/input/Stop/relaunch paths are
-hardware-tested. The existing MiSTer-compatible native development-RBF
-load/Stop lifecycle and its subsequent game regression are also
-hardware-tested; exact evidence is in
-[native-development-rbf-baseline.md](hardware/native-development-rbf-baseline.md).
-The earlier Mega Drive/Pong/SNES/NES raw-RBF image lane is retired; images
-install only the sealed core packages described below. The Mega Drive results
-above are dated evidence for that retired lane.
+the read-only root, volatile mounts, and init packaging. The earlier Mega
+Drive/Pong/SNES/NES raw-RBF image lane is retired. Images install only the
+sealed core packages described below. There is no NES, SNES, or Mega Drive
+package in the factory set. Dated one-player Mega Drive
+launch/input/Stop/relaunch results, and the
+[development-RBF baseline](hardware/native-development-rbf-baseline.md) that
+loaded a Mega Drive bitstream, are evidence for that retired lane. They do
+not accept this image. See [core status](../../../docs/core-status.md).
 
 ### FES format-2/3 image package set
 

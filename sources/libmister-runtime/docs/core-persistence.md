@@ -119,6 +119,6 @@ The target must retain its lease/session and require explicit recovery.
 The byte-exact response corpus is
 `tests/fixtures/protocol-v2-persistence-responses.jsonl`: absent durable
 inspection, running persistent, safe failed-save resume, retained unsafe
-recovery, and corrupt-data/stale-revision errors. Protocol 1 retains its existing request and response shape; retained persistent
-recovery is projected to its legacy reboot-required execution-none/null-core
-shape, while protocol 2 preserves ownership metadata.
+recovery, and corrupt-data/stale-revision errors. Protocol 2 is the only
+local socket protocol. Those responses preserve ownership metadata. The
+runtime rejects any other protocol without mutation.
