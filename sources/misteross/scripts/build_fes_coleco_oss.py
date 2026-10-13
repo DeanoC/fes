@@ -70,6 +70,14 @@ COLECO_GPU_ARCHITECTURES = "gfx1100;gfx1201"
 COLECO_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={COLECO_GPU_ROUTER}; hip-architectures={COLECO_GPU_ARCHITECTURES}"
 )
+# nextpnr #136 logs ref->VCO plus one requested line per output. The older
+# direct "50 MHz -> 52.224 MHz" line remains accepted.
+SYSTEM_PLL_ROUTE_RE = (
+    r"Info: PLL 'system_clock\.pll': 50\.000000 MHz -> VCO 417\.792000 MHz, fractional-N, "
+    r"M=8 N=1 K=1528321163, counters C6,7, bel altera_pll\.[0-9.]+"
+)
+SYSTEM_PLL_OUTPUT_RE = r"Info: PLL 'system_clock\.pll': fractional-N requested 52224000\.000000 Hz \(output 0\)"
+AUDIO_PLL_OUTPUT_RE = r"Info: PLL 'system_clock\.pll': fractional-N requested 12288000\.000000 Hz \(output 1\)"
 OUTPUT_RELATIVE = Path("build/fes-coleco-oss")
 COLECO_TOOLCHAIN_LOCK = "toolchains/registered-memory.lock"
 COLECO_TOOLCHAIN_ROOT = "build/toolchain/fes-coleco"
@@ -487,13 +495,16 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text)
-    if "50 MHz -> 52.224 MHz" not in route_text:
+    system_pll = "50 MHz -> 52.224 MHz" in route_text or (
+        re.search(SYSTEM_PLL_ROUTE_RE, route_text) and re.search(SYSTEM_PLL_OUTPUT_RE, route_text))
+    if not system_pll:
         raise BuildError("route log does not contain the 50-to-52.224 MHz system PLL")
     timing = _read_json(output / "timing.json", "timing report")
     system = _frequency_row(timing.get("fmax"), 52.224, "system clock")
     pixel = _frequency_row(timing.get("fmax"), 74.25, "pixel clock")
     audio = _frequency_row(timing.get("fmax"), 12.288, "audio clock")
-    if not re.search(r"PLL 'system_clock.pll': second output 12\.288 MHz", route_text):
+    audio_pll = re.search(r"PLL 'system_clock.pll': second output 12\.288 MHz", route_text) or re.search(AUDIO_PLL_OUTPUT_RE, route_text)
+    if not audio_pll:
         raise BuildError("route log must prove the 12.288 MHz audio PLL")
     utilization = timing.get("utilization")
     known = ORDINARY_RESOURCES | set(REQUIRED_RESOURCES) | FORBIDDEN_RESOURCES | REQUIRED_ZERO_RESOURCES
