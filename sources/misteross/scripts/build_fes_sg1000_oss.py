@@ -401,7 +401,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     route_text = route_log.read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
-    gpu_backend = _require_gpu_backend(route_text)
+    gpu_backend = _require_gpu_backend(route_text, SG1000_GPU_BACKEND)
     if "50 MHz -> 52.224 MHz" not in route_text:
         raise BuildError("route log does not contain the shared 50-to-52.224 MHz system/audio PLL")
     timing = _read_json(output / "timing.json", "timing report")

@@ -252,7 +252,7 @@ from scripts import build_atari_st_video_part, build_fes_atari_st_oss, rom_map
 from scripts.core_package import read_package
 from scripts.export_core_package import source_input_closure, POLICY, verify_record_source_at_revision, build_identity
 from scripts.functional_execution import execution_environment, execution_inputs, source_roots_for_inputs
-from scripts.fes_build_common import _cell_counts, validate_timing_resources
+from scripts.fes_build_common import _cell_counts, gpu_backend_for_router, validate_timing_resources
 from scripts.cyclonev_rbf import rbf_load, CramRect, classify_cram_diff, overlay_cram
 root = Path(sys.argv[1]); mode = sys.argv[2]; args = json.load(sys.stdin)
 def sha(data): return hashlib.sha256(data).hexdigest()
@@ -277,6 +277,7 @@ strict = native or st
 options = {} if st else ({'native_video':True} if native else {'video_socket':True})
 clock_producer = producer.slot_recipe if st else producer.sgm
 factory = shell_producer if st else shell_producer.factory
+expected_backend = gpu_backend_for_router(args['gpu_router'])
 shell_members = ('manifest.toml','core.rbf','routed.json','socket.qsf') + (('rom-map.json',) if st else ())
 if mode == 'canonical':
     require(args['producer_options']==options, 'resolved video profile differs from selected factory recipe')
@@ -304,10 +305,11 @@ else:
                     shell_producer.create_build_record(root, fields['repository'], fields['revision'], current['tools'], current['execution'], **options))
         require(functional(record)==functional(expected), 'frozen video shell differs from current recipe')
         summary = json.loads(bounded(shell/'build-summary.json'))
+        require(fields['parameters']['gpu_backend']==expected_backend, 'frozen shell GPU backend differs from the authenticated router')
         if st:
             tools = shell_producer._authenticate_atari_st_tools(root, Path(args['toolchain_cache']))
             database = rom_map.read_database(tools['mistral'].path.parents[2]/'src/mistral', shell_producer.ROM_DATABASE_SHA256)
-            evidence = shell_producer.validate_build_evidence(shell, ram_database=database)
+            evidence = shell_producer.validate_build_evidence(shell, ram_database=database, gpu_backend=expected_backend)
             mapping, map_evidence = rom_map.build_rom_map(database, package.payload_bytes,
                 routed=json.loads(bounded(shell/'routed.json')), lane_rows=shell_producer.FIRMWARE_LANE_ROWS, expected_async_read=0)
             shell_producer.check_firmware_outside_sockets(mapping)
@@ -321,9 +323,10 @@ else:
             coleco_expansion.validate_routed_shell(shell/'routed.json',version=2)
             layout.validate_boundary(json.loads(bounded(shell/'routed.json'))['modules']['top'],routed=True)
             require(bounded(shell/'socket.qsf') == layout.shell_qsf(coleco_expansion.shell_qsf((root/shell_producer.factory.QSF).read_text(),version=2)).encode(), 'frozen shell constraints differ from current recipe')
-            evidence = shell_producer.factory.validate_build_evidence(shell,root)
+            evidence = shell_producer.factory.validate_build_evidence(shell,root,gpu_backend=expected_backend)
             for key in ('status','timing','resources','synthesis_cells','rbf'):
                 require(summary[key]==evidence[key], 'frozen shell '+key+' evidence differs')
+            require(all(summary.get('route',{}).get(key)==value for key,value in evidence['route'].items()), 'frozen shell route evidence differs')
             manifest = shell_producer.manifest(record,summary,fields['repository'],fields['revision'],fields['tools'],**options)
         require(summary['build_id']==build_identity(record) and summary['tools']==current['tools'] and summary['execution']==current['execution'], 'frozen shell summary differs from authenticated inputs')
         require(manifest==package.manifest_bytes, 'frozen shell manifest differs from producer evidence')
@@ -360,7 +363,7 @@ else:
         require(summary['recipe']==recipe and summary['part_id']==part_id and summary['manifest']==manifest, 'video producer summary differs from sealed part')
         log=bounded(directory/'route.log').decode()
         require('Info: Program finished normally.' in log and 'unrouted' not in log.lower() and not re.search(r'^\s*(?:ERROR|FATAL)\b',log,re.M|re.I), 'video route did not complete')
-        backend=factory._require_gpu_backend(log)
+        backend=factory._require_gpu_backend(log, expected_backend)
         timing=json.loads(bounded(directory/'timing.json')); measured=clock_producer.validate_cart_timing(timing)
         resources=validate_timing_resources(timing.get('utilization'),factory.ORDINARY_RESOURCES|set(factory.REQUIRED_RESOURCES)|factory.FORBIDDEN_RESOURCES|factory.REQUIRED_ZERO_RESOURCES)
         if not st: measured={name:factory._frequency_row(timing['fmax'],freq,name,name) for name,freq in clock_producer.REQUIRED_CLOCKS_MHZ.items()}
@@ -395,8 +398,9 @@ print(json.dumps(result,sort_keys=True,separators=(',',':')))
 
 
 def _inspect(source, mode, arguments, recipe, env):
+    payload = dict(arguments, gpu_router=recipe.gpu_router)
     result = subprocess.run([sys.executable, "-I", "-B", "-c", _INSPECT,
-                             str(source), mode], input=canonical(arguments),
+                             str(source), mode], input=canonical(payload),
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                             cwd=source, env=recipes.producer_environment(env, recipe=recipe))
     if result.returncode:

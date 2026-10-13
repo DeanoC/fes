@@ -347,14 +347,16 @@ class BuildFesColecoTests(unittest.TestCase):
             _require_gpu_backend(
                 "Info: GPU router: nextpnr was built without a GPU device backend; "
                 "falling back to the CPU reference backend.\n"
-                "Info: backend cpu-reference ready\n"
+                "Info: backend cpu-reference ready\n",
+                COLECO_GPU_BACKEND,
             )
 
     def test_oss_accepts_a_live_hip_gpu_router_backend(self) -> None:
         self.assertEqual(
             _require_gpu_backend(
                 "Info: GPU devices: hip:AMD Radeon RX 7900 XTX\n"
-                "Info: backend hip:AMD Radeon RX 7900 XTX ready\n"
+                "Info: backend hip:AMD Radeon RX 7900 XTX ready\n",
+                COLECO_GPU_BACKEND,
             ),
             "hip",
         )
@@ -362,10 +364,18 @@ class BuildFesColecoTests(unittest.TestCase):
     def test_oss_accepts_a_live_cuda_gpu_router_backend(self) -> None:
         self.assertEqual(
             _require_gpu_backend(
-                "Info: backend cuda:NVIDIA RTX 4090 ready\n"
+                "Info: backend cuda:NVIDIA RTX 4090 ready\n",
+                "cuda",
             ),
             "cuda",
         )
+
+    def test_oss_rejects_a_cuda_route_for_the_hip_backend(self) -> None:
+        with self.assertRaisesRegex(BuildError, "authenticated backend hip"):
+            _require_gpu_backend(
+                "Info: backend cuda:NVIDIA RTX 4090 ready\n",
+                COLECO_GPU_BACKEND,
+            )
 
     def test_oss_top_and_ram_keep_the_open_source_boundaries(self) -> None:
         top = (ROOT / "cores/fes-coleco/rtl/top.v").read_text(encoding="utf-8")

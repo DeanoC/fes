@@ -307,7 +307,7 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
     blocked = zx81_expansion.blocked_plug_addr_exits(routed)
     if blocked:
         raise BuildError(zx81_expansion.blocked_plug_addr_message(blocked))
-    gpu_backend = _require_gpu_backend(route_text)
+    gpu_backend = _require_gpu_backend(route_text, FES_GPU_BACKEND)
     if '50 MHz -> 52.224 MHz' not in route_text:
         raise BuildError('route log does not contain the 50-to-52.224 MHz system PLL')
     if '12.288 MHz' not in route_text:

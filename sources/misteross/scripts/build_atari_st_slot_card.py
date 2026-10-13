@@ -264,7 +264,7 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     route_text = (output / "route.log").read_text(errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise ValueError("card route log does not prove a complete routed design")
-    _require_gpu_backend(route_text)
+    _require_gpu_backend(route_text, shell_recipe.ST_GPU_BACKEND)
     achieved = validate_cart_timing(json.loads((output / "timing.json").read_text()))
     validate_cart_clocks(json.loads((output / "cart-routed.json").read_text()))
     if (output / "scaffold.json").read_bytes() != scaffold or (output / "cart.qsf").read_bytes() != qsf:

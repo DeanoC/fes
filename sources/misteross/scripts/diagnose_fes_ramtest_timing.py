@@ -58,7 +58,7 @@ def final_hold_violation(candidate) -> bool:
     if set(candidate.fmax) != {name for name, _ in REQUIRED_CLOCKS}:
         raise board.BuildError(f"diagnostic route did not produce the three expected clock rows; see {candidate.log}")
     log = Path(candidate.log).read_text()
-    board._require_gpu_backend(log)
+    board._require_gpu_backend(log, board.FES_GPU_BACKEND)
     if SIGNOFF_MARKER not in log:
         raise board.BuildError(f"diagnostic route did not reach final signoff; see {candidate.log}")
     return "Hold/min time violation" in log.rsplit(SIGNOFF_MARKER, 1)[1]

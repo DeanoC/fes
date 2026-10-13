@@ -35,9 +35,21 @@ class BuildError(ValueError):
     """Raised when the build cannot produce authenticated passing evidence."""
 
 
-def _require_gpu_backend(route_text: str) -> str:
-    """Require nextpnr to have routed on a live HIP or CUDA device backend."""
+def gpu_backend_for_router(gpu_router: str) -> str:
+    """Map an authenticated nextpnr router selection to its sealed backend name."""
 
+    if gpu_router == "HIP":
+        return "hip"
+    if gpu_router == "CUDA":
+        return "cuda"
+    raise BuildError(f"unsupported GPU router {gpu_router}")
+
+
+def _require_gpu_backend(route_text: str, expected: str) -> str:
+    """Require nextpnr to have routed on the selected live GPU device backend."""
+
+    if expected not in {"hip", "cuda"}:
+        raise BuildError(f"unsupported GPU backend {expected}")
     lowered = route_text.lower()
     if "falling back to the cpu reference backend" in lowered or "backend cpu-reference" in lowered:
         raise BuildError(
@@ -47,7 +59,12 @@ def _require_gpu_backend(route_text: str) -> str:
     match = re.search(r"\bbackend\s+(hip|cuda):[^\n]*\bready\b", route_text, re.IGNORECASE)
     if match is None:
         raise BuildError("route log does not prove a live GPU device backend")
-    return match.group(1).lower()
+    backend = match.group(1).lower()
+    if backend != expected:
+        raise BuildError(
+            f"route log GPU backend {backend} does not match the authenticated backend {expected}"
+        )
+    return backend
 
 
 @dataclass(frozen=True)

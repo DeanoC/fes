@@ -471,7 +471,8 @@ def _audio_evidence(design: dict) -> None:
             raise BuildError(f"audio output {port} has incorrect routing or electrical constraints")
 
 
-def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
+def validate_build_evidence(output: Path, source_root: Path = ROOT, *,
+                            gpu_backend: str = COLECO_GPU_BACKEND) -> dict:
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
     routed = _read_json(output / "routed.json", "routed design")
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
@@ -494,7 +495,7 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     route_text = route_log.read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
-    gpu_backend = _require_gpu_backend(route_text)
+    gpu_backend = _require_gpu_backend(route_text, gpu_backend)
     system_pll = "50 MHz -> 52.224 MHz" in route_text or (
         re.search(SYSTEM_PLL_ROUTE_RE, route_text) and re.search(SYSTEM_PLL_OUTPUT_RE, route_text))
     if not system_pll:

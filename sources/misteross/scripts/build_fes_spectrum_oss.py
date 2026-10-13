@@ -402,7 +402,7 @@ def validate_build_evidence(output: Path, *, cpu: str = "nmos") -> dict:
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
-    gpu_backend = _require_gpu_backend(route_text)
+    gpu_backend = _require_gpu_backend(route_text, SPECTRUM_GPU_BACKEND)
     if f"50 MHz -> {sys_mhz:g} MHz" not in route_text:
         raise BuildError(f"route log does not contain the 50-to-{sys_mhz:g} MHz system PLL")
     if cpu == "nmos" and not re.search(

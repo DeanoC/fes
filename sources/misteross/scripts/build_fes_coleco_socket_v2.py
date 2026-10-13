@@ -285,7 +285,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
         coleco_expansion.validate_routed_shell(output / "routed.json", version=2)
         if profile:
             profile.validate_boundary(json.loads((output / "routed.json").read_bytes())["modules"]["top"], routed=True)
-        evidence = factory.validate_build_evidence(output, root)
+        evidence = factory.validate_build_evidence(output, root, gpu_backend=backend)
         evidence["route"].update(placer_seed=winner.seed,
                                  placer_heap_timingweight=winner.weight,
                                  placer_qor_mode=PLACER_QOR_MODE)
