@@ -740,11 +740,14 @@ func (a *App) releaseOwnedIdleLease() {
 
 // startReleaseIdleLeaseLocked releases a kit this shell kept after returning
 // to the menu. The menu stays open. A running game is left owned.
+// The idle read and the Stop are separate steps. Launches stay closed until
+// the goroutine finishes, including after settings closes, so that Stop
+// cannot end a game that started in between.
 func (a *App) startReleaseIdleLeaseLocked() {
 	if a.leaseReleaseBusy {
 		return
 	}
-	if a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" {
+	if a.session.State == "active" || a.session.State == "launching" || a.launch.Phase == "launching" || a.stopPhase == "stopping" {
 		a.settingsStatus = "A running game keeps the kit"
 		a.status = a.settingsStatus
 		return
@@ -2138,6 +2141,12 @@ func (a *App) startLaunchLocked() {
 }
 
 func (a *App) startLaunchGameLocked(game hostclient.Game) {
+	// Release kit may already have read an idle session and still be about
+	// to post an empty-body Stop. That Stop would end this game.
+	if a.leaseReleaseBusy {
+		a.status = "Releasing the kit"
+		return
+	}
 	if a.localLaunchBlockedLocked() {
 		a.status = localLaunchCheckingCopy
 		return

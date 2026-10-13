@@ -1642,10 +1642,140 @@ func TestSettingsReleaseKitLeavesARunningGameAndAFreeKit(t *testing.T) {
 	if !strings.Contains(app.Snapshot().Settings.Status, "running game") {
 		t.Fatalf("status = %q", app.Snapshot().Settings.Status)
 	}
+	app.mu.Lock()
+	app.session.State = "idle"
+	app.launch.Phase = "launching"
+	app.mu.Unlock()
+	app.HandleCommand(CmdSelect, now)
+	if !strings.Contains(app.Snapshot().Settings.Status, "running game") {
+		t.Fatalf("in-flight launch status = %q", app.Snapshot().Settings.Status)
+	}
 	mu.Lock()
 	n := stops
 	mu.Unlock()
 	if n != 0 {
 		t.Fatalf("stops = %d", n)
+	}
+}
+
+// TestSettingsReleaseKitDoesNotStopAMenuLaunchAfterIdleObservation holds the
+// idle release after it has read an idle session, launches from the menu, then
+// lets the release finish. The empty-body Stop must not be aimed at that launch.
+func TestSettingsReleaseKitDoesNotStopAMenuLaunchAfterIdleObservation(t *testing.T) {
+	var mu sync.Mutex
+	sessionJSON := `{"state":"idle"}`
+	var launches int
+	var stops []string
+	observed := make(chan struct{})
+	releaseStop := make(chan struct{})
+	var observeOnce sync.Once
+	var releaseOnce sync.Once
+	unblockRelease := func() { releaseOnce.Do(func() { close(releaseStop) }) }
+	mario := availableGame("snes-mario", "Mario", "snes")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
+			_ = json.NewEncoder(w).Encode(map[string]any{"games": []hostclient.Game{mario}})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			mu.Lock()
+			body := sessionJSON
+			mu.Unlock()
+			_, _ = io.WriteString(w, body)
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/library/settings":
+			_, _ = io.WriteString(w, `{}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/launch":
+			mu.Lock()
+			launches++
+			sessionJSON = `{"state":"active","game_id":"snes-mario","system":"snes","execution":"fpga_native"}`
+			mu.Unlock()
+			_, _ = io.WriteString(w, `{"state":"active","game_id":"snes-mario","system":"snes","execution":"fpga_native"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/stop":
+			raw, _ := io.ReadAll(r.Body)
+			body := string(raw)
+			mu.Lock()
+			stops = append(stops, body)
+			sessionJSON = `{"state":"idle","media":"stopped"}`
+			mu.Unlock()
+			if body == "" {
+				observeOnce.Do(func() { close(observed) })
+				<-releaseStop
+			}
+			_, _ = io.WriteString(w, `{"state":"idle","media":"stopped"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	t.Cleanup(unblockRelease)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return len(snap.Games) == 1 && !snap.Loading
+	})
+	now := time.Now()
+	app.Press(CmdSelect, now)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Session.State == "active"
+	})
+	app.Press(CmdBack, now)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Session.State != "active"
+	})
+	app.HandleCommand(CmdSettings, now)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Settings.Open && !snap.Settings.Loading
+	})
+	focusSettingsRow(t, app, "release-kit", now)
+	app.HandleCommand(CmdSelect, now)
+	select {
+	case <-observed:
+	case <-time.After(3 * time.Second):
+		t.Fatal("idle release did not post after reading the session")
+	}
+	app.HandleCommand(CmdBack, now)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return !snap.Settings.Open
+	})
+	app.Press(CmdSelect, now)
+	app.mu.Lock()
+	status := app.status
+	phase := app.launch.Phase
+	busy := app.leaseReleaseBusy
+	app.mu.Unlock()
+	mu.Lock()
+	launchCount := launches
+	mu.Unlock()
+	if !busy || phase == "launching" || launchCount != 1 || !strings.Contains(status, "Releasing the kit") {
+		t.Fatalf("launch during release busy=%v phase=%s launches=%d status=%q", busy, phase, launchCount, status)
+	}
+	unblockRelease()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		app.mu.Lock()
+		done := !app.leaseReleaseBusy && !app.retainedIdleLease
+		app.mu.Unlock()
+		if done {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	app.mu.Lock()
+	busy = app.leaseReleaseBusy
+	kept := app.retainedIdleLease
+	app.mu.Unlock()
+	if busy || kept {
+		t.Fatalf("release did not finish busy=%v retained=%v", busy, kept)
+	}
+	app.Press(CmdSelect, now)
+	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
+		return snap.Session.State == "active" && snap.Session.GameID == "snes-mario"
+	})
+	mu.Lock()
+	launchCount = launches
+	got := append([]string(nil), stops...)
+	mu.Unlock()
+	if launchCount != 2 || len(got) != 2 || got[0] != `{"retain_lease":true}` || got[1] != "" {
+		t.Fatalf("after release launches=%d stops=%#v", launchCount, got)
 	}
 }

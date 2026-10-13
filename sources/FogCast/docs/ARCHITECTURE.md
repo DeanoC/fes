@@ -1403,7 +1403,8 @@ still releases the other idle grants. The tenfoot shell's rooms Soft-stop is
 the retain request and keeps the grant while the shell stays up. Guide settings
 includes **Release kit**. Confirm posts that same idle release and leaves the
 menu open, so the host stops renewal and does not claim the kit again while
-the menu remains up. A running game keeps settings closed, so that row does
+the menu remains up. The shell does not start a game while that release is
+still in flight, including after settings closes. A running game keeps settings closed, so that row does
 not release during play. Start, Q, or
 closing the window waits for an in-flight Soft-stop, then releases that idle
 grant. A confirmed idle service gets an empty-body Stop. When a play still

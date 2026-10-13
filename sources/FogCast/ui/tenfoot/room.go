@@ -501,6 +501,10 @@ func (a *App) launchFromRoomLocked(gameID string) {
 	if gameID == "" {
 		return
 	}
+	if a.leaseReleaseBusy {
+		a.status = "Releasing the kit"
+		return
+	}
 	if a.sessionStopOfferedLocked() {
 		a.status = "Stop the running machine before starting a new hardware setup."
 		return
