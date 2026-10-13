@@ -327,6 +327,9 @@ void TestDeveloperVideoSocketCompatibility() {
  assert(mister::native::CheckCoreCompatibility(d).ok());
  auto changed=d;changed.core.id="fes.other";assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.format=3;assert(!mister::native::CheckCoreCompatibility(changed).ok());
+ changed.rom.role="cartridge";changed.rom.source_size=16384;
+ assert(mister::native::CheckCoreCompatibility(changed).ok());
+ changed.rom.source_size=8192;assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.interfaces.back().required=true;assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.interfaces.back().minor=1;assert(!mister::native::CheckCoreCompatibility(changed).ok());
  changed=d;changed.interfaces.back().major=2;assert(!mister::native::CheckCoreCompatibility(changed).ok());

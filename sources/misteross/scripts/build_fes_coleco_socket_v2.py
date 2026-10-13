@@ -306,6 +306,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
             database, (output / "core.rbf").read_bytes(),
             routed=json.loads((output / "routed.json").read_bytes()),
             lane_rows=rom_map.COLECO_LANE_ROWS, expected_async_read=0,
+            reserved_rect=(124, 1800, 3906, 3442),
         )
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(",", ":")) + "\n").encode()
         _write_atomic(output / "rom-map.json", map_bytes)

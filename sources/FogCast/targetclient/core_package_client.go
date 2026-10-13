@@ -160,6 +160,10 @@ func validCorePackageStatus(status protocol.Status) bool {
 			if value.ABI != (protocol.RuntimeContract{ID: "fes.computer", Major: 1}) || value.ROMLink == nil || !persistence {
 				return false
 			}
+		} else if c.Layout == expansion.ColecoNativeVideoLayout && value.ROMLink != nil {
+			if value.PersistenceMode != "volatile" || value.ABI != (protocol.RuntimeContract{ID: "fes.application", Major: 1}) {
+				return false
+			}
 		} else if value.ROMLink != nil || value.PersistenceMode != "volatile" || value.ABI != (protocol.RuntimeContract{ID: "fes.application", Major: 1}) {
 			return false
 		}

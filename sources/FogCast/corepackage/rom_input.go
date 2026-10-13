@@ -128,8 +128,8 @@ func prepareROMInput(ctx context.Context, in ROMInput) (preparedROMInput, error)
 	}
 	if len(in.Parts) != 0 {
 		shell, err := PartsShell(inspection, payload)
-		if err != nil || shell.Layout != expansion.AtariStVideoLayout {
-			return preparedROMInput{}, errors.New("ROM parts require the ST raster shell")
+		if err != nil || (shell.Layout != expansion.AtariStVideoLayout && shell.Layout != expansion.ColecoNativeVideoLayout) {
+			return preparedROMInput{}, errors.New("ROM parts require a sealed video shell")
 		}
 		if err := expansion.AdmitParts(shell, in.Parts); err != nil {
 			return preparedROMInput{}, err
@@ -377,7 +377,7 @@ func linkPreparedROMInput(ctx context.Context, prepared preparedROMInput, sent r
 	receipt.ProgrammedSHA256, receipt.ProgrammedSize = "", 0
 	m := *prepared.romMap
 	var err error
-	if shell, shellErr := PartsShell(inspection, base); shellErr == nil && shell.Layout == expansion.AtariStVideoLayout {
+	if shell, shellErr := PartsShell(inspection, base); shellErr == nil && (shell.Layout == expansion.AtariStVideoLayout || shell.Layout == expansion.ColecoNativeVideoLayout) {
 		if err := expansion.ValidatePartsROMDestinations(ctx, shell.Layout, m); err != nil {
 			return romLinkResult{}, err
 		}
