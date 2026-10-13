@@ -17,7 +17,7 @@ chrome.
   [`image/build/native-inputs.toml`](../image/build/native-inputs.toml)
 - Runtime idle sequence:
   [`sources/libmister-runtime/ARCHITECTURE.md`](../sources/libmister-runtime/ARCHITECTURE.md)
-  (`LoadIdle()`, MENU identity, HPS framebuffer) and
+  (`LoadIdle()` programs the sealed splash through `development-contained-v1`) and
   [`NativeHardware::LoadIdle`](../sources/libmister-runtime/src/native/hardware.cpp)
 - Rooms product and Stop restore:
   [`sources/FogCast/docs/rooms-experience.md`](../sources/FogCast/docs/rooms-experience.md)
@@ -31,7 +31,7 @@ chrome.
   same host binary:
   [`docs/mesh-lan.md`](mesh-lan.md),
   [`docs/mesh-node-protocol.md`](mesh-node-protocol.md)
-- Native image: no Main process, Menu bitstream retained:
+- Native image: no Main process; splash installed as `idle.rbf`:
   [`docs/bootable-media.md`](bootable-media.md),
   [`image/buildroot/board/fogcast-target/native-post-build.sh`](../image/buildroot/board/fogcast-target/native-post-build.sh)
 
@@ -52,36 +52,27 @@ The kit does not grow a second offline catalog.
 
 ## What is true now
 
-Present tense, FES tip `306d0e77` (includes #101). Paths below exist in this
-tree.
+Idle and splash are one in-tree seal, `sources/misteross/sealed/fes-splash.rbf`.
+[`image/build/native-inputs.toml`](../image/build/native-inputs.toml) pins that
+file twice: FAT `/idle.rbf` (`splash_rbf`, which the derived U-Boot programs as
+`core=idle.rbf`) and rootfs `/usr/share/mister-runtime/idle.rbf` (`idle_rbf`,
+the Stop / `LoadIdle()` artifact). [Image assembly](image-assembly.md) copies
+that seal into both places. It does not fetch standalone `DeanoC/misteross`,
+and it does not install Distribution_MiSTer `menu.rbf`.
 
-There is no separate FES idle-RBF product. Image policy in
-`image/build/native-inputs.toml` pins MiSTer-devel `Distribution_MiSTer`
-`menu.rbf` and installs those bytes as `/usr/share/mister-runtime/idle.rbf`.
-Media assembly copies the same bytes to FAT `/menu.rbf`. U-Boot still boots
-with `core=menu.rbf` (`scripts/media_inputs.py`, `boot-media.lock.toml`).
+`NativeHardware::LoadIdle()` programs that rootfs idle RBF through
+`development-contained-v1`
+([`idle_recipe.hpp`](../sources/libmister-runtime/src/native/idle_recipe.hpp)).
+The sealed splash has no MiSTer user-io and no HPS framebuffer. `mister_v1` is
+not a runtime programming profile. Play packages use `fes-gp-v1`.
 
-`NativeHardware::LoadIdle()` programs that locked idle RBF with
-`ProgrammingProfile::mister_v1`, requires core identity `MENU`, runs Menu
-video bring-up, and enables the 640×480 HPS framebuffer over SPI so Linux
-`/dev/fb0` can overlay HDMI. Play packages use `fes-gp-v1` and the format-2
-ABI registry. Idle is the remaining `mister_v1` MENU path.
+`fes.menu` is a separate factory package: the image idle display, not this
+splash and not a playable library entry. The rooms design below is not what
+the image installs. Verify rejects a Main init service and `/dev/MiSTer_cmd`
+wiring (`image/scripts/verify-target-image.sh`).
 
-Native image assembly deletes `S40mister-main` and the Menu blanking helper.
-Verify rejects `/dev/MiSTer_cmd` / Main / MGL init wiring
-(`image/scripts/verify-target-image.sh`). Bootable-media acceptance requires
-no Main process. The Menu *core bitstream* remains the idle and U-Boot core.
-
-Host tenfoot/rooms never program the FPGA. They talk to the host API; the
-target agent asks `mister-runtime`. Kit HDMI idle is MENU plus
-`/usr/sbin/fogcast-kit` (`cmd/fogcast-kit`, `ui/kitlauncher`) presenting a
-linuxfb catalog (`S60fogcast-kit`). That shell yields HDMI while a session is
-`active` (it keeps last menu pixels and does not present over a live core)
-and paints again after confirmed idle.
-
-After Stop: sofa tenfoot restores the same room, location, and parent stack
-(`rooms-experience.md` task 7) and unparks GPU cover work. Kit HDMI returns
-to MENU plus the kit grid, not the room.
+Host tenfoot/rooms do not program the FPGA. They talk to the host API; the
+target agent asks `mister-runtime`.
 
 `gfx.NewFPGA` records an FC2D command stream and rasters in software.
 `IsStub()` stays true. That is not a programmed 2D core and not HDMI FPGA UI.
@@ -164,8 +155,8 @@ Keep these names distinct. Do not collapse them into “the idle RBF.”
 | **Room custom RBF** | A room ships its own bitstream | No (phase 5) | Explicit future. Do not design v1 launch around it. |
 | **Graphics-accelerator ABI** | FPGA owns the framebuffer; rooms draw through that ABI | No (phase 5) | FC2D today is a software-recorded command stream (`fpga_protocol.md`), not this ABI and not HDMI UI. |
 
-The sealed Distribution_MiSTer `menu.rbf` is none of the above. It is the
-current idle/U-Boot stand-in to be retired.
+Distribution_MiSTer `menu.rbf` is none of the above, and it is not the
+installed idle. The image pins `sealed/fes-splash.rbf` as `/idle.rbf`.
 
 ## Process model
 

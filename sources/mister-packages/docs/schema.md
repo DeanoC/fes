@@ -325,9 +325,14 @@ while execution runs. See [home-computer I/O](computer-io.md). It adds one
 registry pair and no manifest-schema change.
 
 The optional registry extension `fes.media.blob-stream` 1.0 uses capability
-bit 3 and opcodes 7..12; new SMS packages declare it required alongside the
-legacy required interfaces. See [the authoritative stream contract](media-stream.md).
-The base ABI and format-2 manifest schema remain unchanged.
+bit 3 and opcodes 7..12. See [the stream wire contract](media-stream.md).
+The factory `fes.sms` package is format 3 from the OSS producer
+`sources/misteross/scripts/build_fes_sms_oss.py`: keyboard, fixed 720p, and
+PCM audio only. It does not declare blob or blob-stream. The SMS Quartus
+oracle (`sources/misteross/scripts/build_fes_sms.py`) is a format-2 diagnostic
+that still declares those media interfaces. [Core status](../../../docs/core-status.md)
+matches the OSS producer. The base ABI and format-2 manifest schema remain
+unchanged.
 
 A programming-profile registry names the platform/device and approved
 profile/ABI-major pairs. It remains descriptive: runtime owns each profile's
