@@ -58,15 +58,18 @@ def prepare_scaffold(source: Path, destination: Path) -> bytes:
     design = json.loads(source.read_text())
     top = design["modules"]["top"]
     cell = top["cells"]["system_clock.pll"]
-    if cell["type"] != "altera_pll" or set(cell["connections"]) != {"outclk", "refclk", "locked"} \
-            or any(len(bits) != 1 for bits in cell["connections"].values()):
+    connections = cell.get("connections", {})
+    old_pll = set(connections) == {"outclk", "refclk", "locked"}
+    connected_pll = set(connections) == {"outclk", "outclk[1]", "refclk", "locked"}
+    if cell["type"] != "altera_pll" or not (old_pll or connected_pll) \
+            or any(len(bits) != 1 for bits in connections.values()):
         raise ValueError("Coleco PLL connection contract changed")
     attr = cell["attributes"]["FES_PINMAP_V1"]
     mapping = json.loads(bytes.fromhex(attr).decode())
     aliases = {f"outclk[{bit}]": [0, f"outclk[{bit}]"] for bit in range(2)}
-    if mapping.get("count") != 6 or set(mapping.get("pins", {})) != {
+    if old_pll and (mapping.get("count") != 6 or set(mapping.get("pins", {})) != {
             "locked", "outclk", "refclk", "rst", *aliases} or any(
-            mapping["pins"].get(name) != value for name, value in aliases.items()):
+            mapping["pins"].get(name) != value for name, value in aliases.items())):
         raise ValueError("Coleco PLL frozen pin map changed")
     output1 = top["netnames"].get("system_clock.pll_outclk_1", {}).get("bits")
     logical_clock1 = top["netnames"].get("system_clock.clocks[1]", {}).get("bits")
@@ -78,12 +81,18 @@ def prepare_scaffold(source: Path, destination: Path) -> bytes:
             len(clock1) != 1 or clock1[0].get("connections", {}).get("A") != output1 or \
             cell.get("port_directions", {}).get("outclk") != "output":
         raise ValueError("Coleco frozen audio PLL net changed")
-    cell["connections"]["outclk[1]"] = output1
-    cell["port_directions"]["outclk[1]"] = "output"
-    del mapping["pins"]["outclk[0]"]
-    mapping["count"] = len(mapping["pins"])
-    # json11 validates its own canonical dump, including spaces after tokens.
-    cell["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping, sort_keys=True).encode().hex()
+    if old_pll:
+        cell["connections"]["outclk[1]"] = output1
+        cell["port_directions"]["outclk[1]"] = "output"
+        del mapping["pins"]["outclk[0]"]
+        mapping["count"] = len(mapping["pins"])
+        # json11 validates its own canonical dump, including spaces after tokens.
+        cell["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping, sort_keys=True).encode().hex()
+    elif cell["connections"].get("outclk[1]") != output1 or \
+            cell.get("port_directions", {}).get("outclk[1]") != "output" or \
+            "outclk[0]" in mapping.get("pins", {}) or \
+            mapping.get("pins", {}).get("outclk[1]") != [0, "C7"]:
+        raise ValueError("Coleco PLL frozen pin map changed")
     for name, bel in coleco_expansion.socket_bels_v2().items():
         boundary = design["modules"]["top"]["cells"].get(name)
         if not isinstance(boundary, dict) or boundary.get("type") != "MISTRAL_FF" or \
