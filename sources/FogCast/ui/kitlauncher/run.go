@@ -187,12 +187,15 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	// host is absent, the pause stays through starting and recovery. It
 	// resumes only after a runtime probe taken during this hold confirms a
 	// completed idle menu that belongs to the hold. coreProbeGen bumps when
-	// the hold starts. holdMenuGen is the shelf menu generation captured then,
-	// so that same generation cannot resume it. A pause taken for an active
-	// session keeps the existing handoff.
+	// the hold starts. holdMenuGen is the shelf menu generation read at that
+	// pause, not an older probe, so a shelf that changed while still idle
+	// cannot resume it. shelfKnown is false when no idle menu was sampled
+	// before the hold; the first completed idle then confirms it. A pause
+	// taken for an active session keeps the existing handoff.
 	menuHeldForLocal := false
 	var coreProbeGen atomic.Uint64
 	var holdMenuGen uint64
+	shelfKnown := false
 	hostUnreachable := false
 	resumeMenu := func() {
 		menuHeldForLocal = false
@@ -798,10 +801,23 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					}
 					menuPaused = true
 					if sessionLocalLifecycle(o.session.State) && !menuHeldForLocal {
-						// Drop shelf idle samples read before this hold, and
-						// remember that shelf's menu generation.
+						// The cached generation can be older than the shelf
+						// still on screen. Read once at this pause. A shelf
+						// that moved while idle is that sample, not a completed
+						// launch. No prior idle means there is no shelf to
+						// adopt from a later probe.
+						hadShelf := coreBound.menuIdle() && coreBound.menuGeneration() != 0
 						coreProbeGen.Add(1)
-						holdMenuGen = coreBound.menuGeneration()
+						gen := coreProbeGen.Load()
+						holdMenuGen = 0
+						shelfKnown = hadShelf
+						if c.localCore != nil {
+							sample, err := c.readLocalCore(ctx)
+							coreBound.observe(sample, err, time.Now(), gen)
+							if hadShelf && err == nil && sample.MenuIdle && sample.MenuGeneration != 0 {
+								holdMenuGen = sample.MenuGeneration
+							}
+						}
 						menuHeldForLocal = true
 					}
 				}
@@ -957,17 +973,16 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				// A host-absent poll keeps the last local session and returns
 				// before the host resume. Release that hold only after a probe
 				// taken during the hold confirms a completed idle menu that
-				// belongs to the hold. The shelf generation, a probe error, an
-				// aged bound sample, and starting or reboot_required keep the
-				// pause. A different menu generation confirms it even when the
-				// transition was not sampled; so does a later idle after this
-				// hold has seen the runtime leave the shelf. Active sessions
-				// and local launches do not use this hold.
+				// belongs to the hold. The shelf generation read at the pause, a
+				// probe error, an aged bound sample, and starting or
+				// reboot_required keep the pause. A different menu generation
+				// confirms it even when the transition was not sampled; so
+				// does a later idle after this hold has seen the runtime leave
+				// the shelf. With no shelf sampled before the hold, the first
+				// completed idle confirms it and is not stored as that shelf.
+				// Active sessions and local launches do not use this hold.
 				gen := coreProbeGen.Load()
-				if hostUnreachable && menuHeldForLocal && !localRunning && !localPending {
-					holdMenuGen = coreBound.adoptShelfGeneration(gen, holdMenuGen)
-				}
-				if hostUnreachable && menuHeldForLocal && !localRunning && !localPending && coreBound.menuIdleAt(gen, holdMenuGen) {
+				if hostUnreachable && menuHeldForLocal && !localRunning && !localPending && coreBound.menuIdleAt(gen, holdMenuGen, shelfKnown) {
 					m.Session.State = "idle"
 					m.Session.GameID = ""
 					m.LoadStarted = time.Time{}

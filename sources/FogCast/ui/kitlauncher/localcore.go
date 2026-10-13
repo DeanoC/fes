@@ -108,25 +108,14 @@ func (p *localCorePresence) leftIdle(gen uint64) bool {
 	return gen != 0 && p.leftIdleGen.Load() == gen
 }
 
-// adoptShelfGeneration records the first idle generation sampled during this
-// hold when the hold did not already know the shelf. That sample is the
-// pre-launch menu, not proof that startup finished.
-func (p *localCorePresence) adoptShelfGeneration(gen, baseline uint64) uint64 {
-	if baseline != 0 || gen == 0 || p.leftIdle(gen) || !p.menuIdle() || p.sampleGen.Load() != gen {
-		return baseline
-	}
-	if generation := p.menuGen.Load(); generation != 0 {
-		return generation
-	}
-	return baseline
-}
-
 // menuIdleAt reports an idle menu that belongs to this hold. A completed idle
-// from an earlier probe generation does not qualify. Neither does the shelf
-// generation captured for the hold, unless this hold has since seen the
-// runtime leave that menu. A different non-zero generation does, even when the
-// transition was not sampled. A probe error withdraws the confirmation.
-func (p *localCorePresence) menuIdleAt(gen, baseline uint64) bool {
+// from an earlier probe generation does not qualify. shelfKnown means a shelf
+// generation was read at the pause; baseline is that generation, or zero when
+// the refresh failed. The same generation does not qualify unless this hold
+// has since seen the runtime leave that menu. A different non-zero generation
+// does. When no shelf was known before the hold, this idle is the completion
+// and is not a stand-in shelf. A probe error withdraws the confirmation.
+func (p *localCorePresence) menuIdleAt(gen, baseline uint64, shelfKnown bool) bool {
 	if p.sampleGen.Load() != gen || !p.menuIdle() {
 		return false
 	}
@@ -134,7 +123,13 @@ func (p *localCorePresence) menuIdleAt(gen, baseline uint64) bool {
 		return true
 	}
 	generation := p.menuGen.Load()
-	return baseline != 0 && generation != 0 && generation != baseline
+	if generation == 0 {
+		return false
+	}
+	if !shelfKnown {
+		return true
+	}
+	return baseline != 0 && generation != baseline
 }
 
 // readLocalCore reads one runtime status sample. Play input follows Bound.

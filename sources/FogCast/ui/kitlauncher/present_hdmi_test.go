@@ -768,6 +768,176 @@ func TestRunMenuDisplayProbeErrorDropsIdleConfirmation(t *testing.T) {
 	}
 }
 
+func TestRunMenuDisplayStaleShelfGenerationDoesNotResume(t *testing.T) {
+	oldObserve := launcherObserve
+	oldPoll := launcherPollInterval
+	defer func() {
+		launcherObserve = oldObserve
+		launcherPollInterval = oldPoll
+	}()
+	launcherPollInterval = 20 * time.Millisecond
+
+	// The first probe records generation 4. The idle shelf then moves to
+	// generation 5 before the pause reads it. That newer shelf is not a
+	// completed launch.
+	var phase atomic.Int32
+	var calls, shelfProbes atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if phase.Load() != 0 {
+			http.Error(w, "host down", http.StatusBadGateway)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"launching"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"megadrive","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","launchable":true}]}`))
+		case "/api/v1/library/attract":
+			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	var pauses, resumes, heldPaints, idleAfter atomic.Int64
+	var early atomic.Bool
+	client := NewClient(Config{API: server.URL, MenuDisplay: true})
+	client.localCore = func(context.Context) (LocalCoreSample, error) {
+		if phase.Load() >= 2 {
+			return LocalCoreSample{MenuIdle: true, MenuGeneration: 7}, nil
+		}
+		n := calls.Add(1)
+		if n == 1 {
+			return LocalCoreSample{MenuIdle: true, MenuGeneration: 4}, nil
+		}
+		if phase.Load() == 1 {
+			shelfProbes.Add(1)
+		}
+		return LocalCoreSample{MenuIdle: true, MenuGeneration: 5}, nil
+	}
+	client.SetMenuDisplayHandoff(func(context.Context) error {
+		pauses.Add(1)
+		phase.Store(1)
+		return nil
+	}, func() {
+		if phase.Load() < 2 {
+			early.Store(true)
+		}
+		resumes.Add(1)
+	})
+	launcherObserve = func(m Model) {
+		if resumes.Load() != 0 || phase.Load() != 1 || m.Connected {
+			return
+		}
+		if shelfProbes.Load() >= 3 {
+			phase.Store(2)
+		}
+	}
+	err := Run(ctx, client, func(m Model) {
+		if phase.Load() == 1 && pauses.Load() > 0 {
+			heldPaints.Add(1)
+		}
+		if phase.Load() >= 2 && resumes.Load() > 0 && m.Session.State == "idle" && !m.Busy {
+			idleAfter.Add(1)
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errNoPad })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if early.Load() || shelfProbes.Load() < 3 || pauses.Load() == 0 {
+		t.Fatalf("updated shelf released the menu: early=%v probes=%d pauses=%d resumes=%d calls=%d", early.Load(), shelfProbes.Load(), pauses.Load(), resumes.Load(), calls.Load())
+	}
+	if heldPaints.Load() != 0 {
+		t.Fatalf("menu display presented %d frames for the updated shelf", heldPaints.Load())
+	}
+	if resumes.Load() == 0 || idleAfter.Load() == 0 {
+		t.Fatalf("later menu generation did not resume: resumes=%d idleAfter=%d phase=%d", resumes.Load(), idleAfter.Load(), phase.Load())
+	}
+}
+
+func TestRunMenuDisplayCompletedIdleWithoutShelfResumes(t *testing.T) {
+	oldObserve := launcherObserve
+	oldPoll := launcherPollInterval
+	defer func() {
+		launcherObserve = oldObserve
+		launcherPollInterval = oldPoll
+	}()
+	launcherPollInterval = 20 * time.Millisecond
+
+	// No idle sample exists before the hold. Startup finishes between probes,
+	// so the first success is the completed menu. It must resume, not become
+	// the shelf.
+	var phase atomic.Int32
+	var calls atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if phase.Load() != 0 {
+			http.Error(w, "host down", http.StatusBadGateway)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"launching"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"megadrive","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","launchable":true}]}`))
+		case "/api/v1/library/attract":
+			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	var pauses, resumes, idleAfter atomic.Int64
+	var early atomic.Bool
+	client := NewClient(Config{API: server.URL, MenuDisplay: true})
+	client.localCore = func(context.Context) (LocalCoreSample, error) {
+		n := calls.Add(1)
+		if n <= 4 {
+			return LocalCoreSample{}, errors.New("runtime unavailable")
+		}
+		return LocalCoreSample{MenuIdle: true, MenuGeneration: 8}, nil
+	}
+	client.SetMenuDisplayHandoff(func(context.Context) error {
+		pauses.Add(1)
+		phase.Store(1)
+		return nil
+	}, func() {
+		if calls.Load() <= 4 {
+			early.Store(true)
+		}
+		resumes.Add(1)
+	})
+	err := Run(ctx, client, func(m Model) {
+		if resumes.Load() > 0 && m.Session.State == "idle" && !m.Busy {
+			idleAfter.Add(1)
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errNoPad })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if early.Load() || pauses.Load() == 0 || calls.Load() <= 4 {
+		t.Fatalf("completed idle was latched or missed: early=%v pauses=%d calls=%d resumes=%d", early.Load(), pauses.Load(), calls.Load(), resumes.Load())
+	}
+	if resumes.Load() == 0 || idleAfter.Load() == 0 {
+		t.Fatalf("completed idle did not resume: resumes=%d idleAfter=%d calls=%d", resumes.Load(), idleAfter.Load(), calls.Load())
+	}
+}
+
 func TestRunMenuDisplayPaintsIdleWithoutFramebuffer(t *testing.T) {
 	server := idleFramebufferServer(t, ``)
 	defer server.Close()
