@@ -53,6 +53,8 @@ module coleco_machine (
     // copied code or let the VDP run until the final write (OSS flush included).
 `ifdef FES_COLECO_MEGACART_LINK
     wire      machine_reset = reset;
+`elsif FES_COLECO_ROM_LINK
+    wire      machine_reset = reset;
 `else
     wire      machine_reset = reset || !media_ready || !media_loaded;
 `endif
