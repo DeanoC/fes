@@ -2,6 +2,7 @@ package input
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/DeanoC/FogCast/internal/zx81keys"
@@ -89,6 +90,40 @@ func TestLocalJoystickMatrixAndSourceMerge(t *testing.T) {
 	press(remoteinput.ButtonA)
 	if matrix != zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('V'): true}) {
 		t.Fatalf("relaunch: %x", matrix)
+	}
+}
+
+func TestAmbiguousMatrixPressFailureReleasesOnNextFrame(t *testing.T) {
+	keys := NewKeyboardSink()
+	var posts []uint64
+	runtime := zx81keys.Neutral
+	fail := true
+	keys.SetPoster(func(_ context.Context, value uint64) error {
+		// A timed-out set_keyboard may already hold this matrix.
+		runtime = value
+		posts = append(posts, value)
+		if fail {
+			return errors.New("timeout")
+		}
+		return nil
+	})
+	sink := &controllerPortsSink{keys: keys}
+	sink.setObservation(CoreObservation{Active: true, Keyboard: true, CoreID: "fes.sms"})
+	press := gamepad(0, remoteinput.ButtonA, remoteinput.ActionPress, 0)
+	release := gamepad(0, remoteinput.ButtonA, remoteinput.ActionRelease, 0)
+	held := zx81keys.Matrix(map[remoteinput.Code]bool{zx81keys.Letter('V'): true})
+	if err := sink.apply(sourceLocal, press); err == nil {
+		t.Fatal("ambiguous press failure hidden")
+	}
+	if !sink.localMatrixUnconfirmed || len(sink.localKeys) != 0 || len(posts) != 1 || posts[0] != held || runtime != held {
+		t.Fatalf("failed press: unconfirmed=%v local=%v posts=%x runtime=%x", sink.localMatrixUnconfirmed, sink.localKeys, posts, runtime)
+	}
+	fail = false
+	if err := sink.apply(sourceLocal, release); err != nil {
+		t.Fatal(err)
+	}
+	if sink.localMatrixUnconfirmed || len(posts) != 2 || posts[1] != zx81keys.Neutral || runtime != zx81keys.Neutral {
+		t.Fatalf("release after ambiguous press: unconfirmed=%v posts=%x runtime=%x", sink.localMatrixUnconfirmed, posts, runtime)
 	}
 }
 
