@@ -108,6 +108,7 @@ producer_script = "scripts/build_fes_apple2_oss.py"
 producer_module = "scripts.build_fes_apple2_oss"
 authenticate = "_authenticate_apple2_tools"
 lock_path = "toolchain.lock"
+# Product default is HIP. A CUDA exploratory route is not HIP seal evidence.
 gpu_router = "HIP"
 hip_architectures = "gfx1100;gfx1201"
 selection_filename = "fes-apple2.package-selection.toml"

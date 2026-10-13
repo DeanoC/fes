@@ -108,8 +108,12 @@ python3 scripts/build_apple2_slot_card.py --shell build/fes-apple2-oss \
 ```
 
 The card producer copies the shell's frozen routed netlist, renames only the
-chosen slot's boundary flip-flops to the canonical plug cells, places the card
-in that slot's named region (`--fes-cart-region slotN`), fences routing to its
+chosen slot's boundary flip-flops to the canonical plug cells, and accepts
+both PLL routed forms. Legacy shells omit the second PLL output; the scaffold
+reattaches that audio net and drops the obsolete `outclk[0]` alias. A
+shared-pin shell already exposes physical C6/C7 (`outclk` / `outclk[1]`); the
+scaffold checks that connection and pin map and leaves them in place. It places
+the card in that slot's named region (`--fes-cart-region slotN`), fences routing to its
 CRAM rectangle, requires the three shell clocks, requires every card clock pin
 on the shell system clock, rejects any CRAM change outside the socket, and
 publishes `build/apple2-cards/RECIPE/EXPANSION_ID.tar`
@@ -174,6 +178,22 @@ translations and speaker audio, inserts the synthetic disk into unit 0 while
 the machine runs (71,680 data transactions), boots it, ejects it without
 stopping the machine and warm-resets with Control+F12. These are host
 simulations, not an RBF, timing or kit result.
+
+## OSS seal
+
+`make build-fes-apple2` authenticates `toolchain.lock`. The registered recipe
+selects HIP. Backend identity is part of the build record, so a CUDA route is
+a different package. The shared-pin clocks that closed on this lock move were
+a CUDA exploratory seal and are not HIP closure. Product HIP seal evidence is
+still open. The September kit notes do not accept those bytes.
+
+The shell admits a route-through buffer only when it is the paired
+`$ROUTETHRU` companion of a pinned boundary flip-flop: matching combinational
+BEL, physical pin map, and a dedicated connection into that flip-flop.
+Clock-coverage outputs stay unused. The build record uses the audited static
+source closure in `scripts/source_closures.json` rather than the broad
+`scripts` and `cores/fes-common` roots. A compiler-read derive of that closure
+during the product HIP seal is still open.
 
 ## Not implemented
 
