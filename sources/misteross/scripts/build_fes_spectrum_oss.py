@@ -418,17 +418,21 @@ def validate_build_evidence(output: Path, *, cpu: str = "nmos",
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text, gpu_backend)
-    faithful = "system_clock.faithful.pll"
     requested = int(sys_mhz * 1_000_000)
-    system_pll = f"50 MHz -> {sys_mhz:g} MHz" in route_text or (
-        re.search(rf"Info: PLL '{re.escape(faithful)}': 50\.000000 MHz -> VCO [0-9.]+ MHz, fractional-N,", route_text)
-        and re.search(
-            rf"Info: PLL '{re.escape(faithful)}': fractional-N requested {requested}\.000000 Hz \(output 0\)",
+    direct = f"50 MHz -> {sys_mhz:g} MHz" in route_text
+
+    def fractional_system(name: str) -> bool:
+        # A reference-to-VCO line names the PLL. Output 0 must still request
+        # the sealed system frequency, matching the NMOS fractional-N gate.
+        return bool(re.search(
+            rf"Info: PLL '{re.escape(name)}': 50\.000000 MHz -> VCO [0-9.]+ MHz, fractional-N,",
+            route_text) and re.search(
+            rf"Info: PLL '{re.escape(name)}': fractional-N requested {requested}\.000000 Hz \(output 0\)",
             route_text))
-    if cpu == "nmos" and not system_pll:
+
+    if cpu == "nmos" and not (direct or fractional_system("system_clock.faithful.pll")):
         raise BuildError(f"route log does not contain the 50-to-{sys_mhz:g} MHz system PLL")
-    if cpu != "nmos" and f"50 MHz -> {sys_mhz:g} MHz" not in route_text and not re.search(
-            rf"Info: PLL 'system_clock\.fast\.system_pll': 50\.000000 MHz -> VCO [0-9.]+ MHz, fractional-N,", route_text):
+    if cpu != "nmos" and not (direct or fractional_system("system_clock.fast.system_pll")):
         raise BuildError(f"route log does not contain the 50-to-{sys_mhz:g} MHz system PLL")
     audio_pll = re.search(r"PLL 'system_clock.faithful.pll': second output 12\.288 MHz", route_text) or re.search(
         r"Info: PLL 'system_clock\.faithful\.pll': fractional-N requested 12288000\.000000 Hz \(output 1\)", route_text)
@@ -625,13 +629,16 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         invocation.close()
 
 
-def synth(root: Path = ROOT, *, cache_root: Path | None = None, cpu: str = "nmos") -> dict:
+def synth(root: Path = ROOT, *, cache_root: Path | None = None, cpu: str = "nmos",
+          gpu_router: str = SPECTRUM_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> dict:
     """Run Yosys only. Does not require a clean tree and does not seal a package."""
     output_relative, _sys_mhz, _pll_count = _cpu_parameters(cpu)
     root = Path(root).resolve()
     for relative in PINNED_INPUTS:
         _regular_input(root, relative)
-    authenticated = _authenticate_spectrum_tools(root, cache_root=cache_root)
+    authenticated = _authenticate_spectrum_tools(
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     output = _prepare_output(root, relative=output_relative, build_outputs=BUILD_OUTPUTS)
     yosys, _route = build_commands(root, output, "0" * 32, {
         name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, cpu=cpu)
@@ -665,7 +672,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         if arguments.synth_only:
             if arguments.max_aluts is not None:
                 raise BuildError("--max-aluts requires the full production build")
-            cells = synth(arguments.root, cache_root=arguments.cache_root, cpu=arguments.cpu)["synthesis_cells"]
+            cells = synth(arguments.root, cache_root=arguments.cache_root, cpu=arguments.cpu,
+                          gpu_router=arguments.gpu_router,
+                          toolchain_root=arguments.toolchain_root)["synthesis_cells"]
             print(f"synth-only MISTRAL_M10K={cells.get('MISTRAL_M10K', 0)} "
                   f"MISTRAL_M10K_TDP={cells.get('MISTRAL_M10K_TDP', 0)} "
                   f"MISTRAL_FF={cells.get('MISTRAL_FF', 0)}")
