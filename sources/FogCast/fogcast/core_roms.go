@@ -128,7 +128,7 @@ func (s *Service) romLaunchSource(ctx context.Context, entry catalog.CoreEntry, 
 	}
 	var videoParts *corepackage.PartsBundle
 	shell := corepackage.Inspection{PackageID: entry.PackageID, Descriptor: descriptor}
-	if descriptor.Format == 3 && (descriptor.Core.ID == "fes.atari-st" || requiresVideoPart(shell)) {
+	if descriptor.Format == 3 && hasVideoSocket(shell) {
 		videoParts, err = s.composeVideoEntry(ctx, entry, shell, base)
 		if err != nil {
 			return coreLoadSource{}, err

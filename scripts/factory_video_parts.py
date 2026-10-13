@@ -56,14 +56,21 @@ def video_shell_profile(fields):
         return None
     core, abi = fields.get("core"), fields.get("abi")
     st = isinstance(core, dict) and core.get("id") == "fes.atari-st"
-    expected_format, expected_abi = (3, "fes.computer") if st else (2, "fes.application")
-    if (len(markers) != 1 or type(fields.get("format")) is not int or fields["format"] != expected_format
-            or not isinstance(core, dict) or core.get("id") not in ("fes.coleco", "fes.atari-st")
+    coleco = isinstance(core, dict) and core.get("id") == "fes.coleco"
+    expected_abi = "fes.computer" if st else "fes.application"
+    rom = fields.get("rom")
+    coleco_format = type(fields.get("format")) is int and (
+        fields["format"] == 2 or (
+            fields["format"] == 3 and isinstance(rom, dict) and rom.get("role") == "cartridge"
+            and type(rom.get("source_size")) is int and rom["source_size"] == 16384))
+    if (len(markers) != 1 or not (st or coleco)
+            or (st and (type(fields.get("format")) is not int or fields["format"] != 3))
+            or (coleco and not coleco_format)
             or abi != {"id": expected_abi, "major": 1, "minor": 0}
             or type(abi.get("major")) is not int or type(abi.get("minor")) is not int
             or (st and (markers[0]["id"] != "fes.fabric.video.raster-rgb888"
-                or not isinstance(fields.get("rom"), dict)
-                or fields["rom"].get("role") != "firmware"
+                or not isinstance(rom, dict)
+                or rom.get("role") != "firmware"
                 or {"id": "fes.expansion.atari-st-bus", "major": 1, "minor": 0,
                     "required": False} not in interfaces))):
         raise ValueError("factory video requires an exact Coleco application or ST firmware shell profile")

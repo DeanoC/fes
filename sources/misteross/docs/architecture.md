@@ -24,16 +24,16 @@ identity 2 exclusively. Both Python and CLI entrypoints default to 2 and reject
 other identity versions. Quartus oracle and board-firmware records retain their
 current evidence schema. Rebuilt script closures receive new identities;
 existing artifacts and caches are never relabelled or deleted.
-ZX81, SMS, SG-1000, Apple II, C64, Spectrum and Atari ST packages use format 3
-to seal one ROM map. ROM-less producers and the factory Coleco recipe keep
-format 2. The external `build-inputs.json` record is format 2.
+ZX81, SMS, SG-1000, Apple II, C64, Spectrum, Atari ST and the factory Coleco
+cartridge use format 3 to seal one ROM map. ROM-less producers keep format 2.
+The external `build-inputs.json` record is format 2.
 `build_identity` still hashes a format-1 record with the original full-record
 SHA256; a format-2 record uses the domain-separated functional projection.
 
 The package exporter and inspector also recognize format 4 with two ordered ROM
 requirements and one sealed map. The Coleco MegaCart development producer
 (`scripts/build_fes_coleco_megacart.py`) emits that format. The factory Coleco
-recipe remains format 2. Which format a new core uses, and when an older
+recipe emits format 3. Which format a new core uses, and when an older
 format is retired, is [core alignment](../../../docs/core-alignment.md).
 
 Record 2 keeps repository/revision and `source_path` as original build provenance, but derives
@@ -1960,7 +1960,7 @@ Alternatively supply an already encoded format-3 manifest and `rom_map=path`.
 The CLI equivalents are `--rom-map`, `--rom-id`, and `--rom-role`. The map is
 snapshotted, validated, sealed read-only and compared during reuse alongside the
 manifest and RBF. Format-3 exporters are ZX81, SMS, SG-1000, Apple II, C64,
-Spectrum and Atari ST. ROM-less producers and the factory Coleco recipe export
+Spectrum, Atari ST and the factory Coleco cartridge. ROM-less producers export
 format 2. The Coleco MegaCart development producer exports format 4.
 
 Repository URI syntax uses the host-only vendored

@@ -28,8 +28,10 @@ sys.path.insert(0, sys.argv[1])
 from scripts.export_core_package import _archive_bytes
 from scripts.core_package import read_package
 directory, destination = Path(sys.argv[2]), Path(sys.argv[3])
+rom_map = directory/'rom-map.json'
 destination.write_bytes(_archive_bytes((directory/'manifest.toml').read_bytes(),
-                                     (directory/'core.rbf').read_bytes(), None))
+                                     (directory/'core.rbf').read_bytes(),
+                                     rom_map.read_bytes() if rom_map.is_file() else None))
 package = read_package(destination)
 print(json.dumps(dict(package_id=package.package_id,
                       core_id=package.fields['core']['id'])))

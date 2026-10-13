@@ -58,8 +58,9 @@ for an exact 131,072-byte cartridge. The source-only `rom-link-v2.json`
 archive carries both original objects and an optional exact-shell SGM archive;
 the target verifies each digest, composes the expansion and patches the sealed
 139,264-byte ROM map before programming. Status exposes both source identities
-in `rom_links`. Format-3 `rom_link` and current factory Coleco mailbox paths
-retain their existing behavior. This producer is imported explicitly for
+in `rom_links`. Format-3 `rom_link` keeps its one-source behavior. The factory
+Coleco cartridge is that format and does not keep blob, stream, or firmware
+mailboxes. This producer is imported explicitly for
 development because `config/core-recipes.toml` has one row per core ID.
 
 Format-3 packages seal one named ROM requirement and its CRAM map alongside the
@@ -99,7 +100,7 @@ equivalents are `fogcast video-profile scanlines`,
 `fogcast video-part-install scanlines /absolute/path/part.tar`, and
 `fogcast core-video GAME_ID` to inspect the resolved choice.
 
-The factory Coleco recipe emits a format-2 native-pixel video shell. Its
+The factory Coleco recipe emits a format-3 native-pixel video shell. Its
 256×192 indexed source feeds a linked part that owns frame capture and 720p
 output. The earlier raster video shell remains supported with its own
 slot/map/layout. A part binds to one exact package and its frozen socket.

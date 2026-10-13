@@ -113,7 +113,7 @@ def package_profile(package):
     video_markers = [row for row in package.fields["interfaces"]
                      if row["id"] in (video_parts.INTERFACE, native_video_parts.INTERFACE)]
     if package.fields["format"] not in (2, 3) or len(profiles) != 1 or len(video_markers) != 1:
-        raise ValueError("video parts require one exact sealed format-2 video shell profile")
+        raise ValueError("video parts require one exact sealed format-2 or format-3 video shell profile")
     return profiles[0]
 
 

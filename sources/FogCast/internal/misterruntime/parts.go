@@ -155,6 +155,15 @@ func clonePartsComposition(c *expansion.PartsComposition) *expansion.PartsCompos
 	return &copy
 }
 
+func romLinkedPartsLayout(layout string) bool {
+	switch layout {
+	case expansion.AtariStVideoLayout, expansion.ColecoNativeVideoLayout, expansion.ColecoVideoLayout:
+		return true
+	default:
+		return false
+	}
+}
+
 // ROM parts reuse the existing composed-ROM operation and its separate source
 // receipt; the parts tuple describes the retained pre-ROM overlay.
 type protocol2ROMPartsCompositionControl interface {
@@ -168,7 +177,7 @@ func (client *Client) LoadROMPartsComposedCoreWithInitialMedia(ctx context.Conte
 	if !validInitialMediaRequest(initial) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
-	if !validRuntimePath(path) || !validRuntimePath(payload) || !validRuntimePath(programmed) || !validPartsComposition(c, id) || len(parts) != len(c.Parts) || (c.Layout != expansion.AtariStVideoLayout && c.Layout != expansion.ColecoNativeVideoLayout) || !protocol2Identifier.MatchString(link.ROMID) || !link.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: link.ROMID, SHA256: link.MapSHA256, SourceSize: link.SourceSize}}) {
+	if !validRuntimePath(path) || !validRuntimePath(payload) || !validRuntimePath(programmed) || !validPartsComposition(c, id) || len(parts) != len(c.Parts) || !romLinkedPartsLayout(c.Layout) || !protocol2Identifier.MatchString(link.ROMID) || !link.ValidFor(corepackage.Descriptor{Format: 3, ROM: &corepackage.ROM{ID: link.ROMID, SHA256: link.MapSHA256, SourceSize: link.SourceSize}}) {
 		return Protocol2Response{}, errInvalidRuntimeRequest
 	}
 	for i, p := range parts {

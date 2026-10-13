@@ -89,6 +89,15 @@ func inspectROMInput(in ROMInput) (Inspection, []byte, []byte, romInputReceipt, 
 	return p.inspection, p.base, p.mapping, p.receipt, err
 }
 
+func romLinkedPartsLayout(layout string) bool {
+	switch layout {
+	case expansion.AtariStVideoLayout, expansion.ColecoNativeVideoLayout, expansion.ColecoVideoLayout:
+		return true
+	default:
+		return false
+	}
+}
+
 func prepareROMInput(ctx context.Context, in ROMInput) (preparedROMInput, error) {
 	if ctx == nil {
 		return preparedROMInput{}, errors.New("missing ROM input context")
@@ -128,7 +137,7 @@ func prepareROMInput(ctx context.Context, in ROMInput) (preparedROMInput, error)
 	}
 	if len(in.Parts) != 0 {
 		shell, err := PartsShell(inspection, payload)
-		if err != nil || (shell.Layout != expansion.AtariStVideoLayout && shell.Layout != expansion.ColecoNativeVideoLayout) {
+		if err != nil || !romLinkedPartsLayout(shell.Layout) {
 			return preparedROMInput{}, errors.New("ROM parts require a sealed video shell")
 		}
 		if err := expansion.AdmitParts(shell, in.Parts); err != nil {
@@ -377,7 +386,7 @@ func linkPreparedROMInput(ctx context.Context, prepared preparedROMInput, sent r
 	receipt.ProgrammedSHA256, receipt.ProgrammedSize = "", 0
 	m := *prepared.romMap
 	var err error
-	if shell, shellErr := PartsShell(inspection, base); shellErr == nil && (shell.Layout == expansion.AtariStVideoLayout || shell.Layout == expansion.ColecoNativeVideoLayout) {
+	if shell, shellErr := PartsShell(inspection, base); shellErr == nil && romLinkedPartsLayout(shell.Layout) {
 		if err := expansion.ValidatePartsROMDestinations(ctx, shell.Layout, m); err != nil {
 			return romLinkResult{}, err
 		}
