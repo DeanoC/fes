@@ -95,6 +95,13 @@ func TestRuntimeMenuIdleRequiresCompletedIdleMenu(t *testing.T) {
 			if sample.Bound != tc.bound || sample.MenuIdle != tc.menu {
 				t.Fatalf("sample = %+v, want bound %v menu %v", sample, tc.bound, tc.menu)
 			}
+			var wantGen uint64
+			if tc.menu && tc.status.MenuDisplay != nil {
+				wantGen = tc.status.MenuDisplay.Generation
+			}
+			if sample.MenuGeneration != wantGen {
+				t.Fatalf("menu generation = %d, want %d", sample.MenuGeneration, wantGen)
+			}
 		})
 	}
 }

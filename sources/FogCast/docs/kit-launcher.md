@@ -343,15 +343,25 @@ measured transport values separately from end-to-end button-to-photon latency.
 The launcher only renders memory; it never issues SPI, programs the FPGA, or
 claims a kit lease. Rendering pauses while a game is active and while the
 host reports a kit-local session, so attract stays disarmed and the core's
-picture stays on HDMI. Menu display pauses and resumes through the same
-handoff as active play. If the host drops during that session, the pause stays
-while a successful runtime probe still sees the core bound, and through
-`starting` and recovery, including a failed idle load that leaves
-`reboot_required`. The launcher
-clears the stale local session and resumes the menu only after a later probe
-confirms a completed idle menu: state `idle`, menu display available, and a
-non-zero generation that is not a session binding. A probe error keeps the
-pause. Loading and stopping feedback still uses the temporary
+picture stays on HDMI. Menu display stays paused through that session's
+startup (`launching`), the running core (`local`), and the idle load
+(`stopping`), and resumes when the host reports idle. If the host drops during
+that hold, the pause stays through runtime `starting` and recovery, including
+a failed idle load that leaves `reboot_required`. The launcher
+clears the stale local session and resumes the menu only after a probe taken
+during that hold confirms a completed idle menu that belongs to the hold: state
+`idle`, menu display available, and a non-zero generation that is not a session
+binding. The shelf generation is the idle menu read at the pause. Runtime
+reads are serialized, and a probe that started earlier cannot replace that
+read. If the pause read fails, a cached generation is not the shelf, and a
+later idle menu does not resume merely because its generation differs. The menu
+resumes after this hold has seen the runtime leave the shelf. When the pause
+read identified the shelf, that generation does not qualify, nor does a later
+probe error after an idle sample. A different menu generation does, and so does
+a later idle probe after the hold has seen the runtime leave that shelf. When
+no idle menu was sampled before the hold, the first completed idle during the
+hold confirms it and is not kept as a stand-in shelf. The launch timeout does not resume the menu while the host is
+absent and that confirmation is still missing. Loading and stopping feedback still uses the temporary
 overlay when the idle enables the framebuffer. After confirmed
 idle it also skips `present` when that idle has no HPS framebuffer (SPI
 `0x002f` omitted, the splash contract), logs once, and leaves FPGA splash

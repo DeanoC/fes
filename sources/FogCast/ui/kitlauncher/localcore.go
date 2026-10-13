@@ -2,6 +2,7 @@ package kitlauncher
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -21,21 +22,72 @@ const (
 // Bound is the play-input condition: a development core is running.
 // MenuIdle is a completed idle menu. starting, reboot_required, and an idle
 // status whose menu display is not ready leave both false.
+// MenuGeneration is the runtime menu generation when MenuIdle is set. Zero
+// means this sample has no idle-menu identity. A generation equal to the
+// shelf captured when a hold starts is that pre-launch menu.
 type LocalCoreSample struct {
-	Bound    bool
-	MenuIdle bool
+	Bound          bool
+	MenuIdle       bool
+	MenuGeneration uint64
 }
 
 type localCorePresence struct {
-	until atomic.Pointer[time.Time]
-	// verdict is the last successful probe. A probe error leaves it alone, so
-	// a positive sample that has only aged out is not an exit, and a
-	// transition sample is not a completed idle menu.
+	// mu orders probe completions. nextSeq hands out a start order; appliedSeq
+	// is the newest completion recorded. An earlier read that finishes late
+	// must not replace the pause sample.
+	mu         sync.Mutex
+	nextSeq    uint64
+	appliedSeq uint64
+	until      atomic.Pointer[time.Time]
+	// verdict is the last successful probe. A probe error withdraws an idle
+	// confirmation and leaves a bound core's play-input TTL alone, so a
+	// positive sample that has only aged out is not an exit, and a transition
+	// sample is not a completed idle menu.
 	verdict atomic.Int32
+	// sampleGen is the probe generation that stored verdict. The menu hold
+	// bumps the generation when it starts, so an idle sample from the shelf
+	// before that hold cannot resume it. Store verdict before sampleGen so a
+	// reader cannot observe the new generation with the previous verdict.
+	sampleGen atomic.Uint64
+	// menuGen is the menu generation of the last successful idle sample.
+	menuGen atomic.Uint64
+	// leftIdleGen is the probe generation that saw the runtime leave the
+	// shelf, either bound or in transition. Zero means this hold has not.
+	leftIdleGen atomic.Uint64
 }
 
-func (p *localCorePresence) observe(sample LocalCoreSample, err error, now time.Time) {
+// startProbe reserves the completion order for one runtime read. The caller
+// may read outside this lock; finishProbe drops the result when a later read
+// has already been recorded.
+func (p *localCorePresence) startProbe() uint64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.nextSeq++
+	return p.nextSeq
+}
+
+func (p *localCorePresence) observe(sample LocalCoreSample, err error, now time.Time, gen uint64) {
+	p.finishProbe(sample, err, now, gen, 0)
+}
+
+// finishProbe records one probe. seq 0 is an unordered sample and always
+// applies. A non-zero seq older than the newest recorded completion is stale.
+func (p *localCorePresence) finishProbe(sample LocalCoreSample, err error, now time.Time, gen, seq uint64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if seq != 0 && seq < p.appliedSeq {
+		return
+	}
+	if seq != 0 {
+		p.appliedSeq = seq
+	}
 	if err != nil {
+		// A failed read is not a current idle menu. Play input keeps the
+		// one-second bound TTL; this does not mark the runtime as having left
+		// the shelf.
+		if p.sampleGen.Load() == gen && p.verdict.Load() == localCoreVerdictMenuIdle {
+			p.verdict.Store(localCoreVerdictNone)
+		}
 		return
 	}
 	// A bound core owns play input. It is not an idle menu, even if a caller
@@ -43,15 +95,27 @@ func (p *localCorePresence) observe(sample LocalCoreSample, err error, now time.
 	if sample.Bound {
 		until := now.Add(localCorePositiveTTL)
 		p.until.Store(&until)
+		p.markLeftIdle(gen)
 		p.verdict.Store(localCoreVerdictBound)
+		p.sampleGen.Store(gen)
 		return
 	}
 	p.until.Store(nil)
 	if sample.MenuIdle {
 		p.verdict.Store(localCoreVerdictMenuIdle)
+		p.menuGen.Store(sample.MenuGeneration)
+		p.sampleGen.Store(gen)
 		return
 	}
+	p.markLeftIdle(gen)
 	p.verdict.Store(localCoreVerdictTransition)
+	p.sampleGen.Store(gen)
+}
+
+func (p *localCorePresence) markLeftIdle(gen uint64) {
+	if gen != 0 {
+		p.leftIdleGen.Store(gen)
+	}
 }
 
 func (p *localCorePresence) bound(now time.Time) bool {
@@ -64,6 +128,41 @@ func (p *localCorePresence) bound(now time.Time) bool {
 // transition such as starting or reboot_required are not that confirmation.
 func (p *localCorePresence) menuIdle() bool {
 	return p.verdict.Load() == localCoreVerdictMenuIdle
+}
+
+// menuGeneration is the last successful idle menu's runtime generation.
+func (p *localCorePresence) menuGeneration() uint64 {
+	return p.menuGen.Load()
+}
+
+func (p *localCorePresence) leftIdle(gen uint64) bool {
+	return gen != 0 && p.leftIdleGen.Load() == gen
+}
+
+// menuIdleAt reports an idle menu that belongs to this hold. A completed idle
+// from an earlier probe generation does not qualify. shelfKnown means a shelf
+// generation was known at the pause; baseline is that generation. The same
+// generation does not qualify unless this hold has since seen the runtime
+// leave that menu. A different non-zero generation does. When no shelf was
+// known before the hold, this idle is the completion and is not a stand-in
+// shelf. A zero baseline with a known shelf does not accept an arbitrary
+// idle. A probe error withdraws the confirmation. A stale probe completion
+// does not replace a newer one.
+func (p *localCorePresence) menuIdleAt(gen, baseline uint64, shelfKnown bool) bool {
+	if p.sampleGen.Load() != gen || !p.menuIdle() {
+		return false
+	}
+	if p.leftIdle(gen) {
+		return true
+	}
+	generation := p.menuGen.Load()
+	if generation == 0 {
+		return false
+	}
+	if !shelfKnown {
+		return true
+	}
+	return baseline != 0 && generation != baseline
 }
 
 // readLocalCore reads one runtime status sample. Play input follows Bound.

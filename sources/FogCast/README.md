@@ -368,10 +368,24 @@ visible covers from disk before host games HTTP as a temporary linuxfb overlay;
 an absent host shows `Offline, showing your saved list`. Confirmed idle without an HPS
 framebuffer does not present, so FPGA splash pixels stay on HDMI. A host-reported
 kit-local session occupies HDMI the same way an active session does: the launcher
-leaves that picture in place and leaves attract disarmed. Menu display pauses and
-resumes through the same handoff. If the host drops during that session, the pause
-stays while a successful runtime probe still sees the core bound, and the menu
-resumes once that probe sees the core leave. Loading and stopping feedback still paints when
+leaves that picture in place and leaves attract disarmed. Menu display stays paused
+through that session's startup (`launching`), the running core (`local`), and the
+idle load (`stopping`), and resumes when the host reports idle. If the host drops,
+the pause stays through runtime `starting` and recovery, including a failed idle
+load that leaves `reboot_required`. The menu resumes only after a probe taken
+during that hold confirms a completed idle menu that belongs to the hold: state
+`idle`, menu display available, and a non-zero generation that is not a session
+binding. The shelf generation is the idle menu read at the pause. Runtime
+reads are serialized, and a probe that started earlier cannot replace that
+read. If the pause read fails, a cached generation is not the shelf, and a
+later idle menu does not resume merely because its generation differs. The menu
+resumes after this hold has seen the runtime leave the shelf. When the pause
+read identified the shelf, that generation does not qualify, nor does a later
+probe error after an idle sample. A different menu generation does, and so does
+a later idle probe after the hold has seen the runtime leave that shelf. When
+no idle menu was sampled before the hold, the first completed idle during the
+hold confirms it and is not kept as a stand-in shelf. The launch timeout does not resume the menu while the host is absent and
+that confirmation is still missing. Loading and stopping feedback still paints when
 the idle enables the framebuffer.
 Replacing the system image does not wipe this tree. D-pad and A still browse
 that local shelf. Launch and Stop remain bound to the persistent host session
