@@ -57,11 +57,11 @@ These are the choices already in the tree at `6d9939c2`.
    - Splash remains the pinned idle bitstream. Menu scanout does not replace
      it until its own acceptance gate.
 6. An external ROM uses a sealed ROM map. Format 3 is that shape: ZX81, SMS,
-   SG-1000, Apple II, C64, Spectrum and Atari ST. Format 2 remains for ROM-less
-   packages and for the factory Coleco recipe, which still uses blob and
-   blob-stream. Format 4 is the Coleco MegaCart development producer. It is
-   not a third cartridge mechanism to copy. A new external-ROM machine uses
-   format 3.
+   SG-1000, Apple II, C64, Spectrum, Atari ST and the factory Coleco cartridge.
+   Coleco format 3 is one exact 16 KiB cartridge, mirrored at `0x8000`. Pad a
+   shorter cart with `0xff`. Format 2 remains for ROM-less packages. Format 4
+   is the Coleco MegaCart development producer. It is not a third cartridge
+   mechanism to copy.
 7. Functional identity is 2. Factory producers use audited per-producer source
    closures. A producer moved onto the shared lock adopts an audited closure
    in the same change if it does not have one.
@@ -83,7 +83,7 @@ is that case.
 | `fes.menu` | Idle scanout. Not a game. Splash is still the product idle fallback. | Shared pin. | No factory-image acceptance of this bitstream. |
 | `fes.pong` 1.1.0 | ROM-less game. Settings and best rally persist. The [10 Oct kit B load](validation/2026-10-10-optimizer-video-area.md) showed the field and Stop. | Shared pin, single-PLL gate, optimizer scaler. | That note is a bounded video/Stop check, not gameplay or image acceptance. |
 | `fes.zx81` 1.5.0 | Most complete 8-bit machine in the image: live `.p` tape, session display, bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | Sync M10K, format 3, HIP. | Still TV80. Lock is nextpnr `c2bb4363`, the oldest play pin. Physical keyboard, expansion and audio of 1.5.0 are not accepted. |
-| `fes.coleco` 1.2.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. The named [3 Oct image](validation/2026-10-03-native-video-factory-kit2.md) accepted open diagnostics, not cartridges in general. | Native video parts, sync M10K. Product lock is `toolchain.lock`. | Still TV80. Factory cartridge is still blob/blob-stream. Not retail-complete. The 3 Oct note does not accept the shared-pin bytes. |
+| `fes.coleco` 1.2.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. One exact 16 KiB cartridge, padded with `0xff`. | Native video parts, sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. Not retail-complete. The 3 Oct note does not accept these bytes. |
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3, HIP. Named kit audio is artifact-scoped. | Still TV80. Lock `a93fe013`. |
 | `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3, HIP. | Lock `a93fe013`. The 1.2.0 kit audio note does not qualify 1.3.0. |
 | `fes.spectrum` 0.2.0 | In the image. Library standing is experimental. Open diagnostic firmware only; no Sinclair ROM is shipped. | `fes_z80_nmos` by default, sync M10K, format 3, HIP. | Lock `0259c6dc`. The 56 MHz build is documented-only. No card, keyboard or tape kit check of this shell. |
@@ -173,10 +173,10 @@ shell. Session-display is not that design.
 
 ### 5. Coleco cartridge shape
 
-The factory Coleco recipe stays on blob and blob-stream until a named
-sealed-ROM producer replaces it. MegaCart format 4 stays a development lane.
-It must not become a third cartridge interface that the image can select by
-accident.
+The factory Coleco recipe is format 3: one exact 16 KiB cartridge and one
+sealed map. Short carts are padded with `0xff`. MegaCart format 4 stays a
+development lane. It must not become a third cartridge interface that the
+image can select by accident.
 
 ### 6. Image
 

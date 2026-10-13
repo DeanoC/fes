@@ -13,7 +13,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts import build_fes_coleco_oss as factory, coleco_expansion, video_parts, native_video_parts
+from scripts import build_fes_coleco_oss as factory, coleco_expansion, video_parts, native_video_parts, rom_map
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import (
@@ -42,7 +42,13 @@ TOOL_COMMITS = {
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
     "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
 }
+ROM_DATABASE_SHA256 = {
+    "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
+    "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
+    "libmistral/cyclonev.h": "48c0acadd2d1dc47398d7e7ab8ad840e98cb3fda489c3197eace6f3ba59e6f21",
+}
 RTL_SOURCES = (*factory.RTL_SOURCES,
+    "cores/fes-coleco/rtl/coleco_rom_link.v",
     "cores/fes-coleco/rtl/coleco_expansion_socket_v2.v",
     "cores/fes-coleco/rtl/coleco_expansion_ram.v",
     "cores/fes-coleco/rtl/coleco_audio_mix.v")
@@ -198,6 +204,7 @@ def build_commands(root: Path, output: Path, build_id: str,
         raise BuildError("Coleco socket commands require authenticated compiler paths")
     program = (
         "read_verilog -sv -DTV80_REFRESH=1 -DFES_COLECO_OSS=1 "
+        "-DFES_COLECO_ROM_LINK=1 "
         "-DFES_COLECO_EXPANSION_V2_DEV=1 "
         f"{video_define}-I cores/fes-common/generated -I cores/fes-coleco/rtl {' '.join(sources)}; "
         f"chparam -set BUILD_ID 128'h{build_id} top; "
@@ -223,8 +230,15 @@ def build_commands(root: Path, output: Path, build_id: str,
 
 def manifest(record: bytes, evidence: dict, repository: str, revision: str,
              identities: Mapping[str, str], *, video_socket: bool = False, native_video: bool = False) -> bytes:
+    rom = evidence.get("rom")
+    if not isinstance(rom, dict) or rom.get("id") != "cartridge-rom" or rom.get("role") != "cartridge" or rom.get("source_size") != 16384:
+        raise BuildError("Coleco format 3 requires one 16384-byte cartridge ROM map")
     fields = tomllib.loads(factory._manifest(
         record, evidence, repository, revision, identities).decode())
+    fields["format"] = 3
+    fields["rom"] = dict(rom)
+    fields["interfaces"] = [row for row in fields["interfaces"]
+                            if not row["id"].startswith("fes.media.blob") and row["id"] != "fes.firmware.blob"]
     fields["core"]["version"] = "1.2.0"
     fields["core"]["description"] = "ColecoVision with optional SGM expansion socket"
     fields["interfaces"].append({
@@ -286,6 +300,19 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
         if profile:
             profile.validate_boundary(json.loads((output / "routed.json").read_bytes())["modules"]["top"], routed=True)
         evidence = factory.validate_build_evidence(output, root, gpu_backend=backend)
+        database_root = tools["mistral"].path.parents[2] / "src/mistral"
+        database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
+        mapping, map_evidence = rom_map.build_rom_map(
+            database, (output / "core.rbf").read_bytes(),
+            routed=json.loads((output / "routed.json").read_bytes()),
+            lane_rows=rom_map.COLECO_LANE_ROWS, expected_async_read=0,
+        )
+        map_bytes = (json.dumps(mapping, sort_keys=True, separators=(",", ":")) + "\n").encode()
+        _write_atomic(output / "rom-map.json", map_bytes)
+        evidence["rom"] = {"id": "cartridge-rom", "role": "cartridge", "source_size": 16384,
+                           "file": "rom-map.json", "size": len(map_bytes),
+                           "sha256": _sha256(output / "rom-map.json")}
+        evidence["rom_map"] = map_evidence
         evidence["route"].update(placer_seed=winner.seed,
                                  placer_heap_timingweight=winner.weight,
                                  placer_qor_mode=PLACER_QOR_MODE)
@@ -308,9 +335,10 @@ def build(root: Path = ROOT, package_store: Path | None = None, *,
                                execution=execution, identity_version=identity_version, video_socket=video_socket, native_video=native_video,
                                gpu_backend=backend, gpu_architectures=architectures) != record:
             raise BuildError("Coleco socket functional inputs changed")
-        return export_package(encoded, output / "core.rbf", package_store)
+        return export_package(encoded, output / "core.rbf", package_store,
+                              rom_map=output / "rom-map.json")
     except Exception:
-        for name in ("core.rbf", "manifest.toml", "build-summary.json"):
+        for name in ("core.rbf", "manifest.toml", "build-summary.json", "rom-map.json"):
             path = output / name
             if path.is_file() or path.is_symlink():
                 path.unlink()

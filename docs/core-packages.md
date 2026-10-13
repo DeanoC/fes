@@ -71,10 +71,10 @@ This path needs no Python on the kit and requires runtime capability
 `rom_linking: 1`. Status records the map, source ROM and programmed RBF digests;
 restart adoption independently reconstructs the retained programmed bytes.
 
-The ZX81, SMS, SG-1000, Apple II, Commodore 64 and ZX Spectrum 48K producers export format 3 when sealed.
+The ZX81, SMS, SG-1000, Apple II, Commodore 64, ZX Spectrum 48K and factory Coleco producers export format 3 when sealed.
 Other core producers retain format 2 and their current media/firmware paths
 until explicitly converted. SMS requires an exact 32 KiB `cartridge-rom`;
-SG-1000 requires an exact 16 KiB `cartridge-rom`. Pad a shorter fixed-map
+SG-1000 and Coleco require an exact 16 KiB `cartridge-rom`. Pad a shorter fixed-map
 cartridge with `0xff` before import. Apple II requires an exact 16 KiB
 `apple2-firmware` image covering `$C000–$FFFF`; its slot cards and floppy
 media are separate inputs (see the
