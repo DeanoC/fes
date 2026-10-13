@@ -142,7 +142,10 @@ independent 2.4576 MHz timer crystal. Its timer clock enable gives EmuTOS's time
 VBL/HBL and display enable share the CPU's phase-2 enable, independently of
 HDMI. PAL uses 313 × 512 CPU cycles, NTSC 263 × 508, and monochrome
 501 × 224. The fixed PAL board rate gives approximately
-50.053/60.037/71.475 Hz. The 60 Hz sync bit retains the PAL crystal; a
+50.053/60.037/71.475 Hz. STF WS1 IRQ2 asserts at PAL cycle 508, NTSC
+cycle 504 or monochrome cycle 220; the native line boundary follows four
+CPU cycles later. IRQ4 asserts 60 CPU cycles after the native frame boundary.
+The 60 Hz sync bit retains the PAL crystal; a
 physical NTSC crystal policy remains separate. Timer B receives active display enable, including opened bottom
 lines, so blank lines do not contribute events. The live shifter address counter advances by two bytes per four native CPU
 cycles during DMA, including opened bottom lines. Its read visibility follows

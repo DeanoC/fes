@@ -162,6 +162,12 @@ module st_io #(
                            frame_pal ? 9'd312 : 9'd262;
     assign hblank = cpu_cycle_ce && horizontal_cycle == line_last && !reset;
     assign vblank = hblank && native_line == frame_last;
+    // STF WS1 asserts IRQ2 four CPU cycles before the line boundary:
+    // PAL 508, NTSC 504, mono 220 (Hatari Video_InitTimings).
+    // Keep the native boundary pulse separate from interrupt admission.
+    wire [8:0] hbl_irq_last = line_resolution == 2'd2 ? 9'd219 :
+                            line_timing_pal ? 9'd507 : 9'd503;
+    wire hbl_irq_event = cpu_cycle_ce && horizontal_cycle == hbl_irq_last && !reset;
     reg vbl_pending, hbl_pending;
     // STF wake-up state 1 asserts IRQ4 60 CPU cycles after the frame
     // boundary (Hatari 2.5.0 Video_InitTimings). Keep the frame/capture pulse
@@ -269,7 +275,7 @@ module st_io #(
                 vbl_irq_delay <= vbl_irq_delay - 1'b1;
                 if (vbl_irq_delay == 6'd1) vbl_pending <= 1'b1;
             end
-            if (hblank) hbl_pending <= 1;
+            if (hbl_irq_event) hbl_pending <= 1;
             if (irq_ack && irq_level == 4) vbl_pending <= 0;
             if (irq_ack && irq_level == 2) hbl_pending <= 0;
             // STF WS1 samples the bottom-stop condition at cycle 502 of

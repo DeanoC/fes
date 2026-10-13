@@ -162,6 +162,37 @@ static void interrupt_connection(Test &t) {
     t.iack(2); t.require(t.dut.irq==0,"native HBL acknowledgement clears level 2");
 }
 
+static void hbl_interrupt_phase(Test &t,unsigned resolution,unsigned sync) {
+    t.reset(resolution,sync);
+    // STF WS1: IRQ2 at PAL 508, NTSC 504, mono 220. The native
+    // line boundary remains four CPU cycles later (Hatari Video_InitTimings).
+    const unsigned line_cycles=resolution==2?224:sync==2?512:508;
+    const auto origin=t.cpu_ticks;
+    for (unsigned line=0;line<4;++line) {
+        const auto assertion=line*line_cycles+line_cycles-4;
+        while(t.cpu_ticks-origin<assertion) {
+            t.require(t.dut.irq==0,"HBL does not assert before the WS1 deadline");
+            t.tick();
+        }
+        t.require(t.dut.irq==2 && !t.dut.irq_vectored &&
+                  t.dut.display_line==line && t.dut.display_phase==line_cycles-4,
+                  "WS1 HBL asserts four CPU cycles before the line boundary");
+        t.require(t.lines==line,"HBL IRQ does not advance the native raster");
+        while(t.cpu_ticks-origin<assertion+2) {
+            t.require(t.dut.irq==2,"HBL remains pending before IACK");
+            t.tick();
+        }
+        t.iack(2);
+        while(t.cpu_ticks-origin<(line+1)*line_cycles) {
+            t.require(t.dut.irq==0,"HBL IACK clears the pending line interrupt");
+            t.tick();
+        }
+        t.require(t.dut.irq==0 && t.lines==line+1 &&
+                  t.dut.display_line==line+1 && t.dut.display_phase==0,
+                  "Native line boundary does not reassert acknowledged HBL");
+    }
+}
+
 static void vbl_interrupt_phase(Test &t,unsigned resolution,unsigned sync) {
     t.reset(resolution,sync);
     for (unsigned frame=1;frame<=2;++frame) {
@@ -444,6 +475,8 @@ int main(int argc,char **argv) {
     vertical_blank(test,true,false); vertical_blank(test,true,true);
     vertical_blank(test,false,false); vertical_blank(test,false,true);
     lanes_and_reset(test); interrupt_connection(test);
+    hbl_interrupt_phase(test,0,2); hbl_interrupt_phase(test,1,0);
+    hbl_interrupt_phase(test,2,2);
     vbl_interrupt_phase(test,0,2); vbl_interrupt_phase(test,0,0);
     vbl_interrupt_phase(test,2,2); timer_c_rate(test);
     display_enable(test,0,2,50,200); display_enable(test,1,0,60,200);
