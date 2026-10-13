@@ -278,6 +278,10 @@ def validate_routed_shell(routed: dict) -> dict:
         if not match or name in expected:
             continue
         x, y = int(match.group(1)), int(match.group(2))
+        if name.endswith("$ROUTETHRU") and cell.get("type") == "MISTRAL_BUF":
+            parent = BEL_RE.match(expected.get(name[:-len("$ROUTETHRU")], ""))
+            if parent and int(parent.group(1)) == x and int(parent.group(2)) == y:
+                continue
         for socket in apple2_slots.SOCKETS:
             if apple2_slots.COLUMN <= x <= apple2_slots.COLUMN + 4 and socket.first_row <= y <= socket.last_row:
                 raise BuildError(f"shell cell {name} is inside the slot {socket.slot} socket")

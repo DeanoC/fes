@@ -91,6 +91,15 @@ class BuildFesApple2Tests(unittest.TestCase):
             "MISTRAL_FF.24.42.2"
         with self.assertRaises(BuildError):
             producer.validate_routed_shell(moved)
+        companion = {"slot7.clock_coverage_ff_32$ROUTETHRU": {
+            "type": "MISTRAL_BUF",
+            "attributes": {"NEXTPNR_BEL": "MISTRAL_MCOMB.28.78.54"}}}
+        producer.validate_routed_shell(self._routed(companion))
+        displaced = {"slot7.clock_coverage_ff_32$ROUTETHRU": {
+            "type": "MISTRAL_BUF",
+            "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.26.30.0"}}}
+        with self.assertRaises(BuildError):
+            producer.validate_routed_shell(self._routed(displaced))
 
     def test_firmware_lanes_must_stay_out_of_sockets(self) -> None:
         inside = {"blocks": [{"bel": "M10K.026.030", "word_bits": [[500 * 7605 + 2000]]}]}
