@@ -126,6 +126,36 @@ mount_del() {
   fi
 }
 
+# Copy the visible bytes of one mounted file before it is unmounted.
+# KIT_FAIL_STAGE=N fails the Nth call. A full tmpfs makes cp fail the same
+# way. The caller is `if ! stage_mounted`, so a copy failure returns 1
+# instead of exiting under set -e.
+stage_mounted() {
+  dest=$1
+  name=$2
+  kept=$(lp /tmp/fes-work)/kept-$name
+  case "${KIT_FAIL_STAGE:-}" in
+    ''|*[!0-9]*) ;;
+    *)
+      nfile=$(lp /tmp/fes-work)/stage-count
+      n=0
+      if [ -f "$nfile" ]; then
+        n=$(tr -cd '0-9' < "$nfile")
+        n=${n:-0}
+      fi
+      n=$((n + 1))
+      printf '%s\n' "$n" > "$nfile"
+      if [ "$n" -eq "$KIT_FAIL_STAGE" ]; then
+        return 1
+      fi
+      ;;
+  esac
+  cp -a "$(lp "$dest")" "$kept" || {
+    rm -f "$kept" || true
+    return 1
+  }
+}
+
 # Drop one mount. KIT_FAIL_UMOUNT=N fails the Nth call so tests can stop
 # mid-loop. A real umount failure returns 1; set -e is off when the caller
 # is `if ! unmount_dest`, so the failure has to be an explicit return.
@@ -422,6 +452,24 @@ run_undo() {
   done
 }
 
+# Services are already stopped. Put back any mounts this plan removed, then
+# start the selected services again. Used when staging mounted bytes fails
+# and when a later unmount fails.
+recover_stopped() {
+  why=$1
+  run_undo || true
+  start_services "$starts" </dev/null || note "restart after failure failed"
+  die "$why"
+}
+
+# Rollback copies are only needed until the plan commits. A mounted core
+# package staged here is large enough to fill tmpfs on the next restore.
+drop_staged() {
+  work=$(lp /tmp/fes-work)
+  rm -f "$work"/kept-* "$work"/stage-* "$work"/bytes-* "$work"/removed-* \
+    "$work"/manifest.prev || true
+}
+
 verify_rollback() {
   file=$(lp /tmp/fes-work)/expect-mounts
   [ -f "$file" ] || return 0
@@ -642,14 +690,16 @@ apply_plan() {
     if mounted "$dest"; then
       # Keep the visible bytes so a later failure can bind them back. Fake
       # unmount only drops the mounts line; a real unmount reveals the file
-      # underneath, which is not the swapped bytes.
+      # underneath, which is not the swapped bytes. A failed copy is the
+      # same recovery as a failed unmount: services are already stopped.
       mkdir -p "$(lp /tmp/fes-work)"
-      cp -a "$(lp "$dest")" "$(lp /tmp/fes-work)/kept-$name"
+      if ! stage_mounted "$dest" "$name"; then
+        note "stage failed; putting removed mounts back"
+        recover_stopped "stage failed $dest"
+      fi
       if ! unmount_dest "$dest"; then
         note "umount failed; putting removed mounts back"
-        run_undo || true
-        start_services "$starts" </dev/null || note "restart after umount failure failed"
-        die "umount failed $dest"
+        recover_stopped "umount failed $dest"
       fi
       push_undo "bind $dest /tmp/fes-work/kept-$name"
     fi
@@ -846,6 +896,7 @@ apply_plan() {
   done < "$clears"
 
   remount_ro || die "remount ro failed"
+  drop_staged
   sync >/dev/null 2>&1 || true
   if [ "$boot_changed" = 1 ]; then
     printf 'BOOT_CHANGED\n'

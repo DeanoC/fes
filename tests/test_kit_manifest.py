@@ -54,6 +54,7 @@ class KitManifestTests(unittest.TestCase):
         })
         self.env.pop('FES_KIT_FAIL_START', None)
         self.env.pop('FES_KIT_FAIL_UMOUNT', None)
+        self.env.pop('FES_KIT_FAIL_STAGE', None)
         self.seed()
 
     def seed(self):
@@ -363,6 +364,41 @@ class KitManifestTests(unittest.TestCase):
         mounts = (self.root / 'proc/mounts').read_text()
         self.assertNotIn(first, mounts)
         self.assertNotIn(second, mounts)
+
+    def test_failed_stage_restarts_services_and_restores_mounts(self):
+        first = self.core_path('core.rbf', 'ab' * 32)
+        second = self.core_path('core.rbf', 'cd' * 32)
+        self.write_core(b'one', 'core.rbf', 'ab' * 32)
+        self.write_core(b'two', 'core.rbf', 'cd' * 32)
+        (self.root / 'proc/mounts').write_text(
+            f'tmpfs {first} tmpfs rw 0 0\n'
+            f'tmpfs {second} tmpfs rw 0 0\n')
+        self.env['FES_KIT_FAIL_STAGE'] = '2'
+        failed = self.fes('restore', 'A', '--force')
+        self.assertNotEqual(failed.returncode, 0, failed.stdout)
+        self.assertIn('stage failed', failed.stderr)
+        self.assertIn(second, failed.stderr)
+        mounts = (self.root / 'proc/mounts').read_text()
+        self.assertIn(first, mounts)
+        self.assertIn(second, mounts)
+        self.assertEqual((self.root / first.lstrip('/')).read_bytes(), b'one')
+        self.assertEqual((self.root / second.lstrip('/')).read_bytes(), b'two')
+        log = (self.root / 'tmp/fes-services').read_text()
+        for service in ('S40mister-runtime', 'S50mister-agent', 'S60fogcast-kit'):
+            self.assertLess(log.index(f'stop {service}'), log.index(f'start {service}'))
+        self.env.pop('FES_KIT_FAIL_STAGE', None)
+        dropped = self.fes('restore', 'A', '--force')
+        self.assertEqual(dropped.returncode, 0, dropped.stderr)
+        mounts = (self.root / 'proc/mounts').read_text()
+        self.assertNotIn(first, mounts)
+        self.assertNotIn(second, mounts)
+        work = self.root / 'tmp/fes-work'
+        staged = [path.name for path in work.glob('kept-*')]
+        staged += [path.name for path in work.glob('bytes-*')]
+        staged += [path.name for path in work.glob('removed-*')]
+        staged += [path.name for path in work.glob('manifest.prev')]
+        staged += [path.name for path in work.glob('stage-*') if path.name != 'stage-count']
+        self.assertEqual(staged, [])
 
     def test_failed_persistent_switch_restores_the_bind(self):
         self.claim()
