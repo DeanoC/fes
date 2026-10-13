@@ -98,7 +98,9 @@ as stock instead.
 removed and the manifest still lists swaps, or when a tracked path,
 including a core-package file, has a bind mount the manifest does not
 record. Those abandoned binds are unmounted, the affected services restart,
-and the hold is not released while a tracked mount remains.
+and the hold is not released while a tracked mount remains. If an unmount
+fails, binds already removed in that attempt are mounted again and the
+services are started before the command returns the error.
 
 ## Drift watcher
 

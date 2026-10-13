@@ -53,6 +53,7 @@ class KitManifestTests(unittest.TestCase):
             'FES_KIT_A_ROOT': str(self.root),
         })
         self.env.pop('FES_KIT_FAIL_START', None)
+        self.env.pop('FES_KIT_FAIL_UMOUNT', None)
         self.seed()
 
     def seed(self):
@@ -335,6 +336,33 @@ class KitManifestTests(unittest.TestCase):
         log = (self.root / 'tmp/fes-services').read_text()
         self.assertIn('start S40mister-runtime', log)
         self.assertEqual(self.fes('claim', 'A', '--by', '700', '--for', 'after core mount').returncode, 0)
+
+    def test_failed_unmount_restores_mounts_already_removed(self):
+        first = self.core_path('core.rbf', 'ab' * 32)
+        second = self.core_path('core.rbf', 'cd' * 32)
+        self.write_core(b'one', 'core.rbf', 'ab' * 32)
+        self.write_core(b'two', 'core.rbf', 'cd' * 32)
+        (self.root / 'proc/mounts').write_text(
+            f'tmpfs {first} tmpfs rw 0 0\n'
+            f'tmpfs {second} tmpfs rw 0 0\n')
+        self.env['FES_KIT_FAIL_UMOUNT'] = '2'
+        failed = self.fes('restore', 'A', '--force')
+        self.assertNotEqual(failed.returncode, 0, failed.stdout)
+        self.assertIn('umount failed', failed.stderr)
+        mounts = (self.root / 'proc/mounts').read_text()
+        self.assertIn(first, mounts)
+        self.assertIn(second, mounts)
+        self.assertEqual((self.root / first.lstrip('/')).read_bytes(), b'one')
+        self.assertEqual((self.root / second.lstrip('/')).read_bytes(), b'two')
+        log = (self.root / 'tmp/fes-services').read_text()
+        self.assertIn('stop S40mister-runtime', log)
+        self.assertIn('start S40mister-runtime', log)
+        self.env.pop('FES_KIT_FAIL_UMOUNT', None)
+        dropped = self.fes('restore', 'A', '--force')
+        self.assertEqual(dropped.returncode, 0, dropped.stderr)
+        mounts = (self.root / 'proc/mounts').read_text()
+        self.assertNotIn(first, mounts)
+        self.assertNotIn(second, mounts)
 
     def test_failed_persistent_switch_restores_the_bind(self):
         self.claim()

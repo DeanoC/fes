@@ -126,6 +126,34 @@ mount_del() {
   fi
 }
 
+# Drop one mount. KIT_FAIL_UMOUNT=N fails the Nth call so tests can stop
+# mid-loop. A real umount failure returns 1; set -e is off when the caller
+# is `if ! unmount_dest`, so the failure has to be an explicit return.
+unmount_dest() {
+  dest=$1
+  case "${KIT_FAIL_UMOUNT:-}" in
+    ''|*[!0-9]*) ;;
+    *)
+      nfile=$(lp /tmp/fes-work)/umount-count
+      n=0
+      if [ -f "$nfile" ]; then
+        n=$(tr -cd '0-9' < "$nfile")
+        n=${n:-0}
+      fi
+      n=$((n + 1))
+      printf '%s\n' "$n" > "$nfile"
+      if [ "$n" -eq "$KIT_FAIL_UMOUNT" ]; then
+        return 1
+      fi
+      ;;
+  esac
+  if [ "${KIT_FAKE:-}" = 1 ]; then
+    mount_del "$dest"
+    return 0
+  fi
+  umount "$(lp "$dest")" || return 1
+}
+
 apply_bind() {
   dest=$1
   stage=$2
@@ -609,16 +637,21 @@ apply_plan() {
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     set -- $line
-    if mounted "$3"; then
-      if [ "${KIT_FAKE:-}" = 1 ]; then
-        mount_del "$3"
-      else
-        umount "$(lp "$3")" || {
-          note "umount failed; starting services again"
-          start_services "$starts" || note "restart after umount failure failed"
-          die "umount failed $3"
-        }
+    dest=$3
+    name=$2
+    if mounted "$dest"; then
+      # Keep the visible bytes so a later failure can bind them back. Fake
+      # unmount only drops the mounts line; a real unmount reveals the file
+      # underneath, which is not the swapped bytes.
+      mkdir -p "$(lp /tmp/fes-work)"
+      cp -a "$(lp "$dest")" "$(lp /tmp/fes-work)/kept-$name"
+      if ! unmount_dest "$dest"; then
+        note "umount failed; putting removed mounts back"
+        run_undo || true
+        start_services "$starts" </dev/null || note "restart after umount failure failed"
+        die "umount failed $dest"
       fi
+      push_undo "bind $dest /tmp/fes-work/kept-$name"
     fi
   done < "$unmounts"
 

@@ -427,6 +427,9 @@ class LocalTransport:
         env['KIT_ROOT'] = str(self.root)
         if os.environ.get('FES_KIT_FAIL_START') == '1':
             env['KIT_FAIL_START'] = '1'
+        fail_umount = os.environ.get('FES_KIT_FAIL_UMOUNT')
+        if fail_umount:
+            env['KIT_FAIL_UMOUNT'] = fail_umount
         proc = subprocess.run(['sh', str(REMOTE), *args], text=True, capture_output=True, env=env, check=False)
         if proc.returncode != 0:
             detail = (proc.stderr or proc.stdout or f'exit {proc.returncode}').strip()
