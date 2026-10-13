@@ -94,7 +94,7 @@ is that case.
 | --- | --- | --- | --- |
 | `fes.riscv` 0.1.0 | Original RV32I demo. No historical machine, no audio, no user programs. | Shared pin. Qualified ALU package `c6c11fcd…` (build `a7118693…`, [receipt](validation/riscv-timing-alu-2026-10-11.json)) closed 74.25 MHz. Its both-kit loads showed the scene, timer colour and Stop. | Not in the image. Those ALU loads did not test the gamepad. The [11 Oct video diagnostic](validation/2026-10-11-riscv-video-diagnostic.md) of baseline `72f3b2be…` (build `39ccdf04…`) is a static-scene and Stop check; candidate `85bf8676…` there is a video comparison only. Neither is a gamepad check. The [4 Oct kit A load](validation/2026-10-04-riscv-kit-a.md) of `e5c4bd79…` (build `55de600f…`) observed dpad-right. No seal accepts another package. |
 | `fes.c64` 0.1.0 | Package-only pathfinder. The [6 Oct Kit A diagnostic](validation/2026-10-06-c64-functional-closure.md) passed firmware, both probes, input and a read-only D64 on that package. | Sync M10K, format 3. Yosys and Mistral match the shared pin. | nextpnr `0c5ed400`, not the shared pin. No disk writes. Not in the image. |
-| `fes.apple2` 0.1.0 | Package-only pathfinder. A Sept 27 kit diagnostic covered linked firmware, four cards and a live disk swap. | Sync M10K, format 3, HIP. | Lock `0259c6dc`. No writes. No Apple ROM. No image acceptance. |
+| `fes.apple2` 0.1.0 | Package-only pathfinder. A Sept 27 kit diagnostic covered linked firmware, four cards and a live disk swap. | Sync M10K, format 3. Product lock is `toolchain.lock`. | The Sept 27 note does not accept a shared-pin seal. No writes. No Apple ROM. No image acceptance. |
 | `fes.catch` 1.0.0 | Registered ROM-less paddle demo. | Shared pin. Sims cover the optimizer scaler. | Not in the image. No separate kit acceptance. |
 
 `fes.demo`, `fes.demo-media` and `fes.demo-audio` are references. Catch is the
@@ -133,7 +133,7 @@ fix it in nextpnr, then delete the dedicated lock. Do not add another lock.
 | 1 | `fes.c64` | `0c5ed400` | Same Yosys and Mistral as the shared pin. Package-only. Closest requalification. |
 | 2 | `fes.atari-st` | `3d4a5b35` | Factory, and its Yosys pin is also private. Do not keep this pin because an older seed missed pixel. |
 | 3 | `fes.coleco` | `toolchain.lock` | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second lock. |
-| 4 | `fes.apple2`, `fes.spectrum` | `0259c6dc` | Same pin and the same multi-region cart support. Each core still seals itself. |
+| 4 | `fes.spectrum` | `0259c6dc` | Same multi-region cart support as the Apple II move. Apple II now selects `toolchain.lock`. |
 | 5 | `fes.sms`, `fes.sg1000` | `a93fe013` | `toolchains/fes-sms.lock` and `toolchains/registered-memory.lock`. |
 | 6 | `fes.zx81` | `c2bb4363` | Oldest pin. Bus 2.0 and session display make it a bad first move. |
 

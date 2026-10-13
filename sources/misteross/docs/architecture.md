@@ -1555,7 +1555,7 @@ The endpoint owns no storage: accepted media words appear on a write port for
 their acknowledging clock and `unit0_state` gates presentation of unit 0.
 
 `make build-fes-apple2` (`scripts/build_fes_apple2_oss.py`,
-`toolchains/apple2.lock`, `make toolchain-fes-apple2`) seals a format-3
+`toolchain.lock`, `make toolchain-fes-apple2`) seals a format-3
 package from a clean committed tree. Its single ROM is `apple2-firmware`,
 role `firmware`, 16,384 bytes on the blank column-5 lanes at rows 32–47.
 The shell QSF adds the four named `FES_RESERVED_RECT` regions of

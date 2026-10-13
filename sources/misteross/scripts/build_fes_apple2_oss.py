@@ -43,7 +43,7 @@ TOP = "top"
 ROUTER = "gpu"
 RECIPE = "scripts/build_fes_apple2_oss.py"
 OUTPUT_RELATIVE = Path("build/fes-apple2-oss")
-APPLE2_TOOLCHAIN_LOCK = "toolchains/apple2.lock"
+APPLE2_TOOLCHAIN_LOCK = "toolchain.lock"
 APPLE2_TOOLCHAIN_ROOT = "build/toolchain/fes-apple2"
 APPLE2_GPU_BACKEND = "hip"
 APPLE2_GPU_ROUTER = "HIP"
@@ -52,9 +52,9 @@ APPLE2_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={APPLE2_GPU_ROUTER}; hip-architectures={APPLE2_GPU_ARCHITECTURES}"
 )
 APPLE2_TOOL_COMMITS = {
-    "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "0259c6dc1c46dd46fe79f3923a17ad36d2513421",
-    "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
+    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
+    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
+    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
 }
 # First passing route wins; the order is part of the build identity. The
 # exploratory synthesis closed all three clocks on seeds 5, 4, 2 and 1.
@@ -65,7 +65,7 @@ PLACER_QOR_CLOCKS = ((None, 52.224), (None, 74.25), (None, 12.288))
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
     "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
-    "libmistral/cyclonev.h": "48c0acadd2d1dc47398d7e7ab8ad840e98cb3fda489c3197eace6f3ba59e6f21",
+    "libmistral/cyclonev.h": "185c24e2b75385d8e62a7144f12488eb68f7d8159af0a8a603cc4a3de1749ee9",
 }
 FIRMWARE_LANE_ROWS = tuple(range(32, 48))
 FIRMWARE_ID = "apple2-firmware"
@@ -122,19 +122,39 @@ FORBIDDEN_RESOURCES = frozenset({
     "MISTRAL_MUL18X19_COMBINED", "MISTRAL_MUL27X27",
 })
 REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
+# nextpnr #136 logs ref->VCO plus one requested line per output. The older
+# direct "50 MHz -> 52.224 MHz" line remains accepted.
+SYSTEM_PLL_ROUTE_RE = (
+    r"Info: PLL 'system_clock\.pll': 50\.000000 MHz -> VCO 417\.792000 MHz, fractional-N, "
+    r"M=8 N=1 K=1528321163, counters C6,7, bel altera_pll\.[0-9.]+"
+)
+SYSTEM_PLL_OUTPUT_RE = r"Info: PLL 'system_clock\.pll': fractional-N requested 52224000\.000000 Hz \(output 0\)"
+AUDIO_PLL_OUTPUT_RE = r"Info: PLL 'system_clock\.pll': fractional-N requested 12288000\.000000 Hz \(output 1\)"
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 BEL_RE = re.compile(r"[A-Z0-9_]+\.(\d+)\.(\d+)\.")
 
 
-def _authenticate_apple2_tools(root: Path, cache_root: Path | None = None):
+def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
+    if gpu_router == "HIP":
+        return APPLE2_GPU_BACKEND, APPLE2_GPU_ARCHITECTURES, APPLE2_TOOLCHAIN_CONFIGURATION
+    if gpu_router == "CUDA":
+        return "cuda", "unused", "gpu-router=CUDA; hip-architectures=unused"
+    raise BuildError(f"unsupported Apple II GPU router {gpu_router}")
+
+
+def _authenticate_apple2_tools(root: Path, cache_root: Path | None = None,
+                               toolchain_root: Path | None = None,
+                               gpu_router: str = APPLE2_GPU_ROUTER):
+    _backend, architectures, configuration = gpu_choice(gpu_router)
+    root_path = root / APPLE2_TOOLCHAIN_ROOT if toolchain_root is None else Path(toolchain_root)
     return _authenticate_tools(
         root,
         lock_path=root / APPLE2_TOOLCHAIN_LOCK,
-        toolchain_root=root / APPLE2_TOOLCHAIN_ROOT,
+        toolchain_root=root_path,
         expected_commits=APPLE2_TOOL_COMMITS,
-        expected_configuration={"nextpnr": APPLE2_TOOLCHAIN_CONFIGURATION},
-        gpu_router=APPLE2_GPU_ROUTER,
-        hip_architectures=APPLE2_GPU_ARCHITECTURES,
+        expected_configuration={"nextpnr": configuration},
+        gpu_router=gpu_router,
+        hip_architectures=architectures,
         cache_root=cache_root,
     )
 
@@ -154,6 +174,8 @@ def create_build_record(
     *,
     identity_version: int = 2,
     execution: dict | None = None,
+    gpu_backend: str = APPLE2_GPU_BACKEND,
+    gpu_architectures: str = APPLE2_GPU_ARCHITECTURES,
 ) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
@@ -171,8 +193,8 @@ def create_build_record(
             "device": TARGET,
             "top": TOP,
             "router": ROUTER,
-            "gpu_backend": APPLE2_GPU_BACKEND,
-            "gpu_architectures": APPLE2_GPU_ARCHITECTURES,
+            "gpu_backend": gpu_backend,
+            "gpu_architectures": gpu_architectures,
             "sys_clock_hz": 52_224_000,
             "pixel_clock_hz": 74_250_000,
             "audio_clock_hz": 12_288_000,
@@ -302,7 +324,7 @@ def validate_synth_evidence(output: Path) -> dict:
     return {"status": "pass", "synthesis_cells": {name: counts[name] for name in sorted(counts)}}
 
 
-def validate_build_evidence(output: Path) -> dict:
+def validate_build_evidence(output: Path, gpu_backend: str = APPLE2_GPU_BACKEND) -> dict:
     routed = _read_json(output / "routed.json", "routed design")
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
@@ -313,10 +335,13 @@ def validate_build_evidence(output: Path) -> dict:
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
-    gpu_backend = _require_gpu_backend(route_text, APPLE2_GPU_BACKEND)
-    if "50 MHz -> 52.224 MHz" not in route_text:
+    gpu_backend = _require_gpu_backend(route_text, gpu_backend)
+    system_pll = "50 MHz -> 52.224 MHz" in route_text or (
+        re.search(SYSTEM_PLL_ROUTE_RE, route_text) and re.search(SYSTEM_PLL_OUTPUT_RE, route_text))
+    if not system_pll:
         raise BuildError("route log does not contain the 50-to-52.224 MHz system PLL")
-    if not re.search(r"PLL 'system_clock.pll': second output 12\.288 MHz", route_text):
+    if not (re.search(r"PLL 'system_clock.pll': second output 12\.288 MHz", route_text)
+            or re.search(AUDIO_PLL_OUTPUT_RE, route_text)):
         raise BuildError("route log must prove the 12.288 MHz audio PLL")
     timing = _read_json(output / "timing.json", "timing report")
     rows = {label: _frequency_row(timing.get("fmax"), mhz, label)
@@ -387,19 +412,24 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
 
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None,
-          identity_version: int = 2, gpu_device: int = 0) -> Path:
+          identity_version: int = 2, gpu_device: int = 0,
+          gpu_router: str = APPLE2_GPU_ROUTER, toolchain_root: Path | None = None) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
         raise BuildError(f"FES Apple II package store must be {root / 'build/packages'}")
     repository, revision = _require_clean_source(root, identity_version=identity_version)
-    authenticated = _authenticate_apple2_tools(root, cache_root=cache_root)
+    backend, architectures, _configuration = gpu_choice(gpu_router)
+    authenticated = _authenticate_apple2_tools(
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     database_root = authenticated["mistral"].path.parents[2] / "src/mistral"
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
-    invocation = FunctionalInvocation(authenticated, gpu_device)
+    extra_env = {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"} if gpu_router == "CUDA" else None
+    invocation = FunctionalInvocation(authenticated, gpu_device, extra_env=extra_env)
     record = create_build_record(root, repository, revision, identities,
-                                 identity_version=identity_version, execution=invocation.inputs)
+                                 identity_version=identity_version, execution=invocation.inputs,
+                                 gpu_backend=backend, gpu_architectures=architectures)
     output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
     _write_atomic(output / "build-inputs.json", record)
     _write_atomic(output / "socket.qsf", socket_qsf((root / QSF).read_text()).encode())
@@ -424,7 +454,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        evidence = validate_build_evidence(output)
+        evidence = validate_build_evidence(output, gpu_backend=backend)
         evidence["route"].update(placer_seed=winner.seed, placer_heap_timingweight=winner.weight,
                                  placer_qor_mode="first-pass")
         mapping, map_evidence = rom_map.build_rom_map(
@@ -449,7 +479,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                       (json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode())
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / "manifest.toml", manifest)
-        final_tools = _authenticate_apple2_tools(root, cache_root=cache_root)
+        final_tools = _authenticate_apple2_tools(
+            root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
         if _require_clean_source(root, identity_version=identity_version) != (repository, revision):
@@ -458,7 +489,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
             raise BuildError("ROM database changed during build")
         if create_build_record(root, repository, revision, identities,
-                               identity_version=identity_version, execution=invocation.inputs) != record:
+                               identity_version=identity_version, execution=invocation.inputs,
+                               gpu_backend=backend, gpu_architectures=architectures) != record:
             raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store,
                               rom_map=output / "rom-map.json")
@@ -499,6 +531,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=APPLE2_GPU_ROUTER)
+    parser.add_argument("--toolchain-root", type=Path)
     parser.add_argument("--synth-only", action="store_true",
                         help="run Yosys only; skip the clean-tree seal and nextpnr")
     arguments = parser.parse_args(argv)
@@ -510,7 +544,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                   f"MISTRAL_FF={cells.get('MISTRAL_FF', 0)}")
             return 0
         print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
-                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device))
+                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device,
+                    gpu_router=arguments.gpu_router, toolchain_root=arguments.toolchain_root))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-apple2-oss: {exc}", file=sys.stderr)
         return 1
