@@ -1400,7 +1400,11 @@ Explicit release leaves a retained grant held when that lease still backs a
 remaining play, so Soft-stop, relaunch, and an explicit stop of another target
 do not revoke the live session. A failed explicit Stop of that surviving play
 still releases the other idle grants. The tenfoot shell's rooms Soft-stop is
-the retain request and keeps the grant while the shell stays up. Start, Q, or
+the retain request and keeps the grant while the shell stays up. Guide settings
+includes **Release kit**. Confirm posts that same idle release and leaves the
+menu open, so the host stops renewal and does not claim the kit again while
+the menu remains up. A running game keeps settings closed, so that row does
+not release during play. Start, Q, or
 closing the window waits for an in-flight Soft-stop, then releases that idle
 grant. A confirmed idle service gets an empty-body Stop. When a play still
 survives, the shell posts `release_idle` so idle grants drop without stopping

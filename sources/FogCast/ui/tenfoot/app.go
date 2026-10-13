@@ -395,6 +395,7 @@ type App struct {
 	// target's grant can still be retained. Shell exit releases idle grants.
 	// B/Back does not.
 	retainedIdleLease bool
+	leaseReleaseBusy  bool
 	// stopResponseLost is a Soft-stop whose transport failed after the host
 	// may already have retained the grant. Shell exit reconciles it.
 	stopResponseLost bool
@@ -729,6 +730,65 @@ func (a *App) releaseOwnedIdleLease() {
 	if !release || client == nil {
 		return
 	}
+	if releaseIdleLeaseNow(client, stamp) {
+		a.mu.Lock()
+		a.retainedIdleLease = false
+		a.stopResponseLost = false
+		a.mu.Unlock()
+	}
+}
+
+// startReleaseIdleLeaseLocked releases a kit this shell kept after returning
+// to the menu. The menu stays open. A running game is left owned.
+func (a *App) startReleaseIdleLeaseLocked() {
+	if a.leaseReleaseBusy {
+		return
+	}
+	if a.session.State == "active" || a.session.State == "launching" || a.stopPhase == "stopping" {
+		a.settingsStatus = "A running game keeps the kit"
+		a.status = a.settingsStatus
+		return
+	}
+	if !a.retainedIdleLease && !a.stopResponseLost {
+		a.settingsStatus = "The kit is already free"
+		a.status = a.settingsStatus
+		return
+	}
+	client := a.client
+	if client == nil {
+		a.settingsStatus = "The kit is already free"
+		a.status = a.settingsStatus
+		return
+	}
+	stamp := a.clientStampLocked()
+	a.leaseReleaseBusy = true
+	a.settingsStatus = "Releasing the kit"
+	a.status = a.settingsStatus
+	go func() {
+		ok := releaseIdleLeaseNow(client, stamp)
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		a.leaseReleaseBusy = false
+		if !ok {
+			if a.settingsOpen {
+				a.settingsStatus = "Could not release the kit"
+				a.status = a.settingsStatus
+			}
+			return
+		}
+		a.retainedIdleLease = false
+		a.stopResponseLost = false
+		if a.settingsOpen {
+			a.settingsStatus = "Kit released"
+			a.status = "Kit released. The menu stays open."
+		}
+	}()
+}
+
+func releaseIdleLeaseNow(client *Client, stamp ClientStamp) bool {
+	if client == nil {
+		return false
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	view := observeLeaseExit(ctx, client)
 	cancel()
@@ -741,12 +801,7 @@ func (a *App) releaseOwnedIdleLease() {
 		// not stop the foreground. An empty-body Stop would.
 		releaseFn = (*Client).ReleaseIdleGrants
 	}
-	if postLeaseRelease(client, stamp, releaseFn) {
-		a.mu.Lock()
-		a.retainedIdleLease = false
-		a.stopResponseLost = false
-		a.mu.Unlock()
-	}
+	return postLeaseRelease(client, stamp, releaseFn)
 }
 
 type leaseExitView int

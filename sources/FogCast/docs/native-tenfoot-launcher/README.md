@@ -287,7 +287,7 @@ shelf, the sofa returns to All. Attract does not arm while the view picker,
 manage/confirm, name OSK, search OSK, filter overlay, settings overlay, or an in-flight
 remote-input attach/detach is open. Hold
 North/Y on the grid to favorite or unfavorite the focused title. While a host session is active,
-East/B stops it (`POST /api/v1/session/stop` with `retain_lease: true`) and keeps the kit lease while the shell stays up. Start, Q, or closing the window quits the app. That exit waits for an in-flight Soft-stop, then releases the idle grant: an empty-body Stop when the service is idle, or `release_idle` when a play still survives so that play is not stopped. A failed release is retried before the process exits.
+East/B stops it (`POST /api/v1/session/stop` with `retain_lease: true`) and keeps the kit lease while the shell stays up. Guide settings **Release kit** posts the idle release (an empty-body Stop when the service is idle, or `release_idle` when a play still survives) and leaves the menu open. A running game keeps settings closed. Start, Q, or closing the window quits the app. That exit waits for an in-flight Soft-stop, then releases the idle grant the same way. A failed release is retried before the process exits.
 West/X attaches or detaches remote input when the session is `active` with
 `execution=fpga_native` and input is not `starting` or `reconnecting`. Browse
 header and now-playing chrome prefix `host unreachable`, `kit unreachable`, or
@@ -344,7 +344,11 @@ edit a path, Left/Right cycle the GET `systems[]` list, West/X removes a
 draft row, Add library appends a row, and Save libraries PATCHes only
 `libraries` (it does not send `targets`). **DIAGNOSTIC RBF** opens a path
 OSK; tenfoot reads that local file and POSTs `/api/v1/session/development-rbf`.
-That load is not a game session, and HDMI/input may be down. A successful libraries save
+That load is not a game session, and HDMI/input may be down. **Release kit**
+shows `A release` after East/B has returned to the menu and kept the kit.
+South/A releases that idle lease and leaves the menu open. The row shows
+`free` when this shell is not holding one. A running game cannot open
+settings, so play keeps its lease. A successful libraries save
 reloads the catalog. A failed PATCH keeps the previous values and reports a
 short status line. Changing `selected_target` can fail while a session is
 active.
