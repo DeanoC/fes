@@ -44,7 +44,7 @@ ROUTER = "gpu"
 RECIPE = "scripts/build_fes_spectrum_oss.py"
 OUTPUT_RELATIVE = Path("build/fes-spectrum-oss")
 FAST_OUTPUT_RELATIVE = Path("build/fes-spectrum-fast-oss")
-SPECTRUM_TOOLCHAIN_LOCK = "toolchains/spectrum.lock"
+SPECTRUM_TOOLCHAIN_LOCK = "toolchain.lock"
 SPECTRUM_TOOLCHAIN_ROOT = "build/toolchain/fes-spectrum"
 SPECTRUM_GPU_BACKEND = "hip"
 SPECTRUM_GPU_ROUTER = "HIP"
@@ -53,9 +53,9 @@ SPECTRUM_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={SPECTRUM_GPU_ROUTER}; hip-architectures={SPECTRUM_GPU_ARCHITECTURES}"
 )
 SPECTRUM_TOOL_COMMITS = {
-    "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "0259c6dc1c46dd46fe79f3923a17ad36d2513421",
-    "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
+    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
+    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
+    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
 }
 # First passing route wins; the order is part of the build identity. This is
 # the same first-pass order as the Apple II shell until a Spectrum seal
@@ -67,7 +67,7 @@ PLACER_QOR_CLOCKS = ((None, 52.224), (None, 74.25), (None, 12.288))
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
     "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
-    "libmistral/cyclonev.h": "48c0acadd2d1dc47398d7e7ab8ad840e98cb3fda489c3197eace6f3ba59e6f21",
+    "libmistral/cyclonev.h": "185c24e2b75385d8e62a7144f12488eb68f7d8159af0a8a603cc4a3de1749ee9",
 }
 FIRMWARE_LANE_ROWS = tuple(range(32, 48))
 FIRMWARE_ID = "spectrum-firmware"
@@ -138,15 +138,27 @@ def _cpu_parameters(cpu: str) -> tuple[Path, float, int]:
     raise BuildError("CPU must be nmos or fast")
 
 
-def _authenticate_spectrum_tools(root: Path, cache_root: Path | None = None):
+def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
+    if gpu_router == "HIP":
+        return SPECTRUM_GPU_BACKEND, SPECTRUM_GPU_ARCHITECTURES, SPECTRUM_TOOLCHAIN_CONFIGURATION
+    if gpu_router == "CUDA":
+        return "cuda", "unused", "gpu-router=CUDA; hip-architectures=unused"
+    raise BuildError(f"unsupported Spectrum GPU router {gpu_router}")
+
+
+def _authenticate_spectrum_tools(root: Path, cache_root: Path | None = None,
+                                 toolchain_root: Path | None = None,
+                                 gpu_router: str = SPECTRUM_GPU_ROUTER):
+    _backend, architectures, configuration = gpu_choice(gpu_router)
+    root_path = root / SPECTRUM_TOOLCHAIN_ROOT if toolchain_root is None else Path(toolchain_root)
     return _authenticate_tools(
         root,
         lock_path=root / SPECTRUM_TOOLCHAIN_LOCK,
-        toolchain_root=root / SPECTRUM_TOOLCHAIN_ROOT,
+        toolchain_root=root_path,
         expected_commits=SPECTRUM_TOOL_COMMITS,
-        expected_configuration={"nextpnr": SPECTRUM_TOOLCHAIN_CONFIGURATION},
-        gpu_router=SPECTRUM_GPU_ROUTER,
-        hip_architectures=SPECTRUM_GPU_ARCHITECTURES,
+        expected_configuration={"nextpnr": configuration},
+        gpu_router=gpu_router,
+        hip_architectures=architectures,
         cache_root=cache_root,
     )
 
@@ -168,6 +180,8 @@ def create_build_record(
     execution: dict | None = None,
     cpu: str = "nmos",
     max_aluts: int | None = None,
+    gpu_backend: str = SPECTRUM_GPU_BACKEND,
+    gpu_architectures: str = SPECTRUM_GPU_ARCHITECTURES,
 ) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
@@ -186,8 +200,8 @@ def create_build_record(
             "device": TARGET,
             "top": TOP,
             "router": ROUTER,
-            "gpu_backend": SPECTRUM_GPU_BACKEND,
-            "gpu_architectures": SPECTRUM_GPU_ARCHITECTURES,
+            "gpu_backend": gpu_backend,
+            "gpu_architectures": gpu_architectures,
             "sys_clock_hz": int(sys_mhz * 1_000_000),
             "cpu": cpu,
             "cpu_implementation": "fes_z80_nmos" if cpu == "nmos" else "fes_z80_fast",
@@ -390,7 +404,8 @@ def validate_synth_evidence(output: Path, *, cpu: str = "nmos") -> dict:
     return {"status": "pass", "synthesis_cells": {name: counts[name] for name in sorted(counts)}}
 
 
-def validate_build_evidence(output: Path, *, cpu: str = "nmos") -> dict:
+def validate_build_evidence(output: Path, *, cpu: str = "nmos",
+                            gpu_backend: str = SPECTRUM_GPU_BACKEND) -> dict:
     _output, sys_mhz, _pll_count = _cpu_parameters(cpu)
     routed = _read_json(output / "routed.json", "routed design")
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
@@ -402,11 +417,26 @@ def validate_build_evidence(output: Path, *, cpu: str = "nmos") -> dict:
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
-    gpu_backend = _require_gpu_backend(route_text, SPECTRUM_GPU_BACKEND)
-    if f"50 MHz -> {sys_mhz:g} MHz" not in route_text:
+    gpu_backend = _require_gpu_backend(route_text, gpu_backend)
+    requested = int(sys_mhz * 1_000_000)
+    direct = f"50 MHz -> {sys_mhz:g} MHz" in route_text
+
+    def fractional_system(name: str) -> bool:
+        # A reference-to-VCO line names the PLL. Output 0 must still request
+        # the sealed system frequency, matching the NMOS fractional-N gate.
+        return bool(re.search(
+            rf"Info: PLL '{re.escape(name)}': 50\.000000 MHz -> VCO [0-9.]+ MHz, fractional-N,",
+            route_text) and re.search(
+            rf"Info: PLL '{re.escape(name)}': fractional-N requested {requested}\.000000 Hz \(output 0\)",
+            route_text))
+
+    if cpu == "nmos" and not (direct or fractional_system("system_clock.faithful.pll")):
         raise BuildError(f"route log does not contain the 50-to-{sys_mhz:g} MHz system PLL")
-    if cpu == "nmos" and not re.search(
-            r"PLL 'system_clock.faithful.pll': second output 12\.288 MHz", route_text):
+    if cpu != "nmos" and not (direct or fractional_system("system_clock.fast.system_pll")):
+        raise BuildError(f"route log does not contain the 50-to-{sys_mhz:g} MHz system PLL")
+    audio_pll = re.search(r"PLL 'system_clock.faithful.pll': second output 12\.288 MHz", route_text) or re.search(
+        r"Info: PLL 'system_clock\.faithful\.pll': fractional-N requested 12288000\.000000 Hz \(output 1\)", route_text)
+    if cpu == "nmos" and not audio_pll:
         raise BuildError("route log must prove the selected 12.288 MHz audio PLL")
     timing = _read_json(output / "timing.json", "timing report")
     clocks = (("system", sys_mhz), ("pixel", 74.25))
@@ -500,7 +530,8 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None,
           identity_version: int = 2, gpu_device: int = 0, cpu: str = "nmos",
-          max_aluts: int | None = None) -> Path:
+          max_aluts: int | None = None, gpu_router: str = SPECTRUM_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> Path:
     _area_budget({}, max_aluts)
     output_relative, sys_mhz, _pll_count = _cpu_parameters(cpu)
     root = Path(root).resolve()
@@ -508,14 +539,17 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     if package_store != root / "build/packages":
         raise BuildError(f"FES ZX Spectrum package store must be {root / 'build/packages'}")
     repository, revision = _require_clean_source(root, identity_version=identity_version)
-    authenticated = _authenticate_spectrum_tools(root, cache_root=cache_root)
+    backend, architectures, _configuration = gpu_choice(gpu_router)
+    authenticated = _authenticate_spectrum_tools(
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     database_root = authenticated["mistral"].path.parents[2] / "src/mistral"
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
-    invocation = FunctionalInvocation(authenticated, gpu_device)
+    extra_env = {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"} if gpu_router == "CUDA" else None
+    invocation = FunctionalInvocation(authenticated, gpu_device, extra_env=extra_env)
     record = create_build_record(root, repository, revision, identities,
                                  identity_version=identity_version, execution=invocation.inputs, cpu=cpu,
-                                 max_aluts=max_aluts)
+                                 max_aluts=max_aluts, gpu_backend=backend, gpu_architectures=architectures)
     output = _prepare_output(root, relative=output_relative, build_outputs=BUILD_OUTPUTS)
     _write_atomic(output / "build-inputs.json", record)
     _write_atomic(output / "socket.qsf", socket_qsf((root / QSF).read_text()).encode())
@@ -543,7 +577,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        evidence = validate_build_evidence(output, cpu=cpu)
+        evidence = validate_build_evidence(output, cpu=cpu, gpu_backend=backend)
         evidence["area_budget"] = {"synthesis": area, "routed": _area_budget(
             {name: values["used"] for name, values in evidence["resources"].items()}, max_aluts,
             require_comb=True)}
@@ -570,7 +604,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                       (json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode())
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / "manifest.toml", manifest)
-        final_tools = _authenticate_spectrum_tools(root, cache_root=cache_root)
+        final_tools = _authenticate_spectrum_tools(
+            root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
         if _require_clean_source(root, identity_version=identity_version) != (repository, revision):
@@ -580,7 +615,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             raise BuildError("ROM database changed during build")
         if create_build_record(root, repository, revision, identities,
                                identity_version=identity_version, execution=invocation.inputs, cpu=cpu,
-                               max_aluts=max_aluts) != record:
+                               max_aluts=max_aluts, gpu_backend=backend, gpu_architectures=architectures) != record:
             raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store,
                               rom_map=output / "rom-map.json")
@@ -594,13 +629,16 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         invocation.close()
 
 
-def synth(root: Path = ROOT, *, cache_root: Path | None = None, cpu: str = "nmos") -> dict:
+def synth(root: Path = ROOT, *, cache_root: Path | None = None, cpu: str = "nmos",
+          gpu_router: str = SPECTRUM_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> dict:
     """Run Yosys only. Does not require a clean tree and does not seal a package."""
     output_relative, _sys_mhz, _pll_count = _cpu_parameters(cpu)
     root = Path(root).resolve()
     for relative in PINNED_INPUTS:
         _regular_input(root, relative)
-    authenticated = _authenticate_spectrum_tools(root, cache_root=cache_root)
+    authenticated = _authenticate_spectrum_tools(
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     output = _prepare_output(root, relative=output_relative, build_outputs=BUILD_OUTPUTS)
     yosys, _route = build_commands(root, output, "0" * 32, {
         name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, cpu=cpu)
@@ -622,6 +660,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=SPECTRUM_GPU_ROUTER)
+    parser.add_argument("--toolchain-root", type=Path)
     parser.add_argument("--cpu", choices=("nmos", "fast"), default="nmos",
                         help="native NMOS default or documented-only 56 MHz development variant")
     parser.add_argument("--max-aluts", type=int, help="production area cap; reject before routing and sealing")
@@ -632,14 +672,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         if arguments.synth_only:
             if arguments.max_aluts is not None:
                 raise BuildError("--max-aluts requires the full production build")
-            cells = synth(arguments.root, cache_root=arguments.cache_root, cpu=arguments.cpu)["synthesis_cells"]
+            cells = synth(arguments.root, cache_root=arguments.cache_root, cpu=arguments.cpu,
+                          gpu_router=arguments.gpu_router,
+                          toolchain_root=arguments.toolchain_root)["synthesis_cells"]
             print(f"synth-only MISTRAL_M10K={cells.get('MISTRAL_M10K', 0)} "
                   f"MISTRAL_M10K_TDP={cells.get('MISTRAL_M10K_TDP', 0)} "
                   f"MISTRAL_FF={cells.get('MISTRAL_FF', 0)}")
             return 0
         print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
                     identity_version=arguments.identity_version, gpu_device=arguments.gpu_device, cpu=arguments.cpu,
-                    max_aluts=arguments.max_aluts))
+                    max_aluts=arguments.max_aluts, gpu_router=arguments.gpu_router,
+                    toolchain_root=arguments.toolchain_root))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-spectrum-oss: {exc}", file=sys.stderr)
         return 1

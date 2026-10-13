@@ -35,7 +35,7 @@ A producer in this module does not put a package on that image.
 | `fes.catch` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `python3 scripts/build_fes_catch.py` | no; registered |
 | `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `toolchain.lock` | `make build-fes-apple2` (HIP default; HIP seal evidence still open) | no; package-only recipe; per-slot cards via `scripts/build_apple2_slot_card.py` |
 | `fes.c64` | `cores/fes-c64` | `fes.computer` | `toolchains/c64.lock` | `make build-fes-c64` | no; package-only recipe; cartridge cards via `scripts/build_c64_slot_card.py` |
-| `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchains/spectrum.lock` | `make build-fes-spectrum` | yes; four edge sockets |
+| `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchain.lock` | `make build-fes-spectrum` | yes; four edge sockets |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
 | `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `toolchain.lock` (shared FES HIP lane; 100 and 130 MHz) | `make build-fes-ramtest-100` (factory), `make build-fes-ramtest-130` (explicit) | yes; OSS 100 MHz utility |
 | `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `toolchains/atari-st.lock` | `make build-fes-atari-st` | yes; Atari 520ST firmware shell and Direct/Scanlines parts |

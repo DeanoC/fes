@@ -298,6 +298,64 @@ class BuildFesSpectrumTests(unittest.TestCase):
                 save()
                 with self.assertRaises(BuildError): producer.validate_build_evidence(output,cpu="fast")
 
+    def test_fast_fractional_pll_requires_requested_56mhz_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output/"routed.json").write_text('{"modules":{"top":{"cells":{}}}}')
+            (output/"core.rbf").write_bytes(b"rbf")
+            (output/"timing.json").write_text(json.dumps({
+                "fmax": {name: {"constraint": mhz, "achieved": mhz + 1}
+                         for name, mhz in (("system", 56), ("pixel", 74.25))},
+                "utilization": {"MISTRAL_FF": {"used": 10, "available": 100}}}))
+            vco = ("Info: PLL 'system_clock.fast.system_pll': "
+                   "50.000000 MHz -> VCO 448.000000 MHz, fractional-N,\n")
+            requested = ("Info: PLL 'system_clock.fast.system_pll': "
+                         "fractional-N requested 56000000.000000 Hz (output 0)\n")
+            wrong = ("Info: PLL 'system_clock.fast.system_pll': "
+                     "fractional-N requested 52000000.000000 Hz (output 0)\n")
+            other = ("Info: PLL 'system_clock.faithful.pll': "
+                     "50.000000 MHz -> VCO 417.792000 MHz, fractional-N,\n")
+
+            def check(body):
+                (output/"nextpnr.log").write_text("Info: Program finished normally.\n" + body)
+                return producer.validate_build_evidence(output, cpu="fast")
+
+            with patch.object(producer, "validate_synth_evidence", return_value={"synthesis_cells": {}}), \
+                 patch.object(producer, "_i2c_evidence"), patch.object(producer, "validate_routed_shell"), \
+                 patch.object(producer, "_require_gpu_backend", return_value="hip"):
+                self.assertEqual(check(vco + requested)["status"], "pass")
+                for body in (vco, requested, vco + wrong, other + requested):
+                    with self.subTest(body=body), self.assertRaisesRegex(BuildError, "50-to-56 MHz"):
+                        check(body)
+
+    def test_synth_only_forwards_gpu_router_and_toolchain_root(self):
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            output = Path(directory)
+            toolchain = Path("/tmp/spectrum-cuda")
+            (output/"synth.json").write_text("{}")
+            auth = {name: SimpleNamespace(identity="tool", path=Path("/cache/install/bin/tool"))
+                    for name in ("yosys", "nextpnr-mistral", "mistral")}
+            authenticate = stack.enter_context(patch.object(
+                producer, "_authenticate_spectrum_tools", return_value=auth))
+            stack.enter_context(patch.object(producer, "_prepare_output", return_value=output))
+            stack.enter_context(patch.object(producer, "build_commands", return_value=(("yosys",), ())))
+            stack.enter_context(patch.object(producer, "_run_tool"))
+            stack.enter_context(patch.object(
+                producer, "validate_synth_evidence",
+                return_value={"synthesis_cells": {
+                    "MISTRAL_M10K": 16, "MISTRAL_M10K_TDP": 128, "MISTRAL_FF": 1}}))
+
+            def run(argv):
+                authenticate.reset_mock()
+                return producer.main(["--root", str(ROOT), "--synth-only", *argv])
+
+            self.assertEqual(run(["--gpu-router", "CUDA", "--toolchain-root", str(toolchain)]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=toolchain, gpu_router="CUDA")
+            self.assertEqual(run([]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=None, gpu_router="HIP")
+
     def test_manifest_preserves_abi_and_labels_development(self):
         evidence = {"rbf":{"size":100,"sha256":"b"*64},"build_id":"c"*32,
             "rom":{"id":"spectrum-firmware","role":"firmware","source_size":16384,

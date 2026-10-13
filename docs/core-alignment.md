@@ -86,7 +86,7 @@ is that case.
 | `fes.coleco` 1.2.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. One exact 16 KiB cartridge, padded with `0xff`. | Native video parts, sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. Not retail-complete. The 3 Oct note does not accept these bytes. |
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3, HIP. Named kit audio is artifact-scoped. | Still TV80. Lock `a93fe013`. |
 | `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3, HIP. | Lock `a93fe013`. The 1.2.0 kit audio note does not qualify 1.3.0. |
-| `fes.spectrum` 0.2.0 | In the image. Library standing is experimental. Open diagnostic firmware only; no Sinclair ROM is shipped. | `fes_z80_nmos` by default, sync M10K, format 3, HIP. | Lock `0259c6dc`. The 56 MHz build is documented-only. No card, keyboard or tape kit check of this shell. |
+| `fes.spectrum` 0.2.0 | In the image. Library standing is experimental. Open diagnostic firmware only; no Sinclair ROM is shipped. | `fes_z80_nmos` by default, sync M10K, format 3. Product lock is `toolchain.lock`. | The 28 Sep notes do not accept a shared-pin seal. The 56 MHz build is documented-only. No card, keyboard or tape kit check of this shell. |
 | `fes.ramtest` 1.1.0 | SDRAM and HPS DDR tester. Factory ships 100 MHz. | Shared pin. | 130 MHz remains open. No exact-image hardware acceptance. |
 | `fes.atari-st` 0.2.0 | In the image. GEM, mouse, writable geometry-aware disks and video parts have passed on named artifacts. Not a compatible ST. | Video parts, sync M10K, format 3, HIP. | Own lock: Yosys `886afa63`, nextpnr `3d4a5b35`. Built-in Direct fallback remains. Borders, later demo sections, menu flash, audio fidelity and full current-image acceptance are open. |
 
@@ -133,7 +133,7 @@ fix it in nextpnr, then delete the dedicated lock. Do not add another lock.
 | 1 | `fes.c64` | `0c5ed400` | Same Yosys and Mistral as the shared pin. Package-only. Closest requalification. |
 | 2 | `fes.atari-st` | `3d4a5b35` | Factory, and its Yosys pin is also private. Do not keep this pin because an older seed missed pixel. |
 | 3 | `fes.coleco` | `toolchain.lock` | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second lock. |
-| 4 | `fes.spectrum` | `0259c6dc` | Same multi-region cart support as the Apple II move. Apple II now selects `toolchain.lock`. |
+| 4 | `fes.apple2`, `fes.spectrum` | `toolchain.lock` | Same multi-region cart support. Both now select `toolchain.lock`. |
 | 5 | `fes.sms`, `fes.sg1000` | `a93fe013` | `toolchains/fes-sms.lock` and `toolchains/registered-memory.lock`. |
 | 6 | `fes.zx81` | `c2bb4363` | Oldest pin. Bus 2.0 and session display make it a bad first move. |
 

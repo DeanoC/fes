@@ -176,7 +176,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.spectrum": {
                 "producer_script": "scripts/build_fes_spectrum_oss.py",
                 "producer_module": "scripts.build_fes_spectrum_oss",
-                "lock_path": "toolchains/spectrum.lock",
+                "lock_path": "toolchain.lock",
                 "selection_filename": "fes-spectrum.package-selection.toml",
                 "authenticate": "_authenticate_spectrum_tools",
                 "package_dir_env": "FES_SPECTRUM_PACKAGE_DIR",
@@ -208,6 +208,7 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertNotEqual(pong.lock_path, zx81.lock_path)
         self.assertEqual(coleco.lock_path, pong.lock_path)
         self.assertEqual(recipes.recipe_for("fes.apple2").lock_path, pong.lock_path)
+        self.assertEqual(recipes.recipe_for("fes.spectrum").lock_path, pong.lock_path)
         self.assertNotEqual(sms.lock_path, pong.lock_path)
         self.assertNotEqual(sms.lock_path, coleco.lock_path)
         self.assertEqual(pong.cache_root, coleco.cache_root)
