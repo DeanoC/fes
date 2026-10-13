@@ -2,6 +2,7 @@ package kitlauncher
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -31,7 +32,13 @@ type LocalCoreSample struct {
 }
 
 type localCorePresence struct {
-	until atomic.Pointer[time.Time]
+	// mu orders probe completions. nextSeq hands out a start order; appliedSeq
+	// is the newest completion recorded. An earlier read that finishes late
+	// must not replace the pause sample.
+	mu         sync.Mutex
+	nextSeq    uint64
+	appliedSeq uint64
+	until      atomic.Pointer[time.Time]
 	// verdict is the last successful probe. A probe error withdraws an idle
 	// confirmation and leaves a bound core's play-input TTL alone, so a
 	// positive sample that has only aged out is not an exit, and a transition
@@ -49,7 +56,31 @@ type localCorePresence struct {
 	leftIdleGen atomic.Uint64
 }
 
+// startProbe reserves the completion order for one runtime read. The caller
+// may read outside this lock; finishProbe drops the result when a later read
+// has already been recorded.
+func (p *localCorePresence) startProbe() uint64 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.nextSeq++
+	return p.nextSeq
+}
+
 func (p *localCorePresence) observe(sample LocalCoreSample, err error, now time.Time, gen uint64) {
+	p.finishProbe(sample, err, now, gen, 0)
+}
+
+// finishProbe records one probe. seq 0 is an unordered sample and always
+// applies. A non-zero seq older than the newest recorded completion is stale.
+func (p *localCorePresence) finishProbe(sample LocalCoreSample, err error, now time.Time, gen, seq uint64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if seq != 0 && seq < p.appliedSeq {
+		return
+	}
+	if seq != 0 {
+		p.appliedSeq = seq
+	}
 	if err != nil {
 		// A failed read is not a current idle menu. Play input keeps the
 		// one-second bound TTL; this does not mark the runtime as having left
@@ -110,11 +141,13 @@ func (p *localCorePresence) leftIdle(gen uint64) bool {
 
 // menuIdleAt reports an idle menu that belongs to this hold. A completed idle
 // from an earlier probe generation does not qualify. shelfKnown means a shelf
-// generation was read at the pause; baseline is that generation, or zero when
-// the refresh failed. The same generation does not qualify unless this hold
-// has since seen the runtime leave that menu. A different non-zero generation
-// does. When no shelf was known before the hold, this idle is the completion
-// and is not a stand-in shelf. A probe error withdraws the confirmation.
+// generation was known at the pause; baseline is that generation. The same
+// generation does not qualify unless this hold has since seen the runtime
+// leave that menu. A different non-zero generation does. When no shelf was
+// known before the hold, this idle is the completion and is not a stand-in
+// shelf. A zero baseline with a known shelf does not accept an arbitrary
+// idle. A probe error withdraws the confirmation. A stale probe completion
+// does not replace a newer one.
 func (p *localCorePresence) menuIdleAt(gen, baseline uint64, shelfKnown bool) bool {
 	if p.sampleGen.Load() != gen || !p.menuIdle() {
 		return false

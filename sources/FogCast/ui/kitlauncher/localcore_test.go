@@ -141,3 +141,27 @@ func TestLocalCorePresenceUnknownShelfIdleConfirms(t *testing.T) {
 		t.Fatal("a known shelf that failed to refresh accepted an arbitrary idle")
 	}
 }
+
+func TestLocalCorePresenceStaleCompletionDoesNotOverwrite(t *testing.T) {
+	var presence localCorePresence
+	now := time.Unix(10, 0)
+	older := presence.startProbe()
+	newer := presence.startProbe()
+	presence.finishProbe(LocalCoreSample{MenuIdle: true, MenuGeneration: 5}, nil, now, 2, newer)
+	presence.finishProbe(LocalCoreSample{MenuIdle: true, MenuGeneration: 4}, nil, now, 2, older)
+	if got := presence.menuGeneration(); got != 5 {
+		t.Fatalf("older probe overwrote the pause sample: generation %d", got)
+	}
+	if presence.menuIdleAt(2, 5, true) {
+		t.Fatal("obsolete generation 4 released the shelf")
+	}
+	presence.finishProbe(LocalCoreSample{}, errors.New("late"), now, 2, older)
+	if !presence.menuIdle() || presence.menuGeneration() != 5 {
+		t.Fatal("stale probe error cleared the pause sample")
+	}
+	next := presence.startProbe()
+	presence.finishProbe(LocalCoreSample{MenuIdle: true, MenuGeneration: 7}, nil, now, 2, next)
+	if !presence.menuIdleAt(2, 5, true) {
+		t.Fatal("later generation did not confirm the hold")
+	}
+}

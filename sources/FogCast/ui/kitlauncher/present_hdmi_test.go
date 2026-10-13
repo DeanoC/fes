@@ -938,6 +938,219 @@ func TestRunMenuDisplayCompletedIdleWithoutShelfResumes(t *testing.T) {
 	}
 }
 
+func TestRunMenuDisplayOverlappingProbeDoesNotReleaseShelf(t *testing.T) {
+	oldObserve := launcherObserve
+	oldPoll := launcherPollInterval
+	oldProbe := launcherProbeInterval
+	defer func() {
+		launcherObserve = oldObserve
+		launcherPollInterval = oldPoll
+		launcherProbeInterval = oldProbe
+	}()
+	launcherPollInterval = 20 * time.Millisecond
+	launcherProbeInterval = 20 * time.Millisecond
+
+	// The pause read records shelf generation 5. A periodic read of generation
+	// 4 that is still in flight must not complete afterward and look like a
+	// new menu.
+	var phase atomic.Int32
+	var inFlight, maxFlight atomic.Int32
+	var pauseRead, overlapLate atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if phase.Load() != 0 {
+			http.Error(w, "host down", http.StatusBadGateway)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"launching"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"megadrive","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","launchable":true}]}`))
+		case "/api/v1/library/attract":
+			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	enter := func() func() {
+		n := inFlight.Add(1)
+		for {
+			old := maxFlight.Load()
+			if n <= old || maxFlight.CompareAndSwap(old, n) {
+				break
+			}
+		}
+		return func() { inFlight.Add(-1) }
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	var pauses, resumes, heldPaints, idleAfter, shelfProbes atomic.Int64
+	var early atomic.Bool
+	client := NewClient(Config{API: server.URL, MenuDisplay: true})
+	client.localCore = func(context.Context) (LocalCoreSample, error) {
+		leave := enter()
+		defer leave()
+		if pauseRead.CompareAndSwap(true, false) {
+			time.Sleep(100 * time.Millisecond)
+			return LocalCoreSample{MenuIdle: true, MenuGeneration: 5}, nil
+		}
+		if inFlight.Load() > 1 && overlapLate.CompareAndSwap(false, true) {
+			for inFlight.Load() > 1 {
+				time.Sleep(time.Millisecond)
+			}
+			time.Sleep(20 * time.Millisecond)
+			return LocalCoreSample{MenuIdle: true, MenuGeneration: 4}, nil
+		}
+		if phase.Load() >= 2 {
+			return LocalCoreSample{MenuIdle: true, MenuGeneration: 7}, nil
+		}
+		if phase.Load() == 1 {
+			shelfProbes.Add(1)
+		}
+		if phase.Load() == 0 {
+			return LocalCoreSample{MenuIdle: true, MenuGeneration: 4}, nil
+		}
+		return LocalCoreSample{MenuIdle: true, MenuGeneration: 5}, nil
+	}
+	client.SetMenuDisplayHandoff(func(context.Context) error {
+		pauses.Add(1)
+		phase.Store(1)
+		pauseRead.Store(true)
+		return nil
+	}, func() {
+		if phase.Load() < 2 {
+			early.Store(true)
+		}
+		resumes.Add(1)
+	})
+	launcherObserve = func(m Model) {
+		if resumes.Load() != 0 || phase.Load() != 1 || m.Connected {
+			return
+		}
+		if shelfProbes.Load() >= 3 {
+			phase.Store(2)
+		}
+	}
+	err := Run(ctx, client, func(m Model) {
+		if phase.Load() == 1 && pauses.Load() > 0 {
+			heldPaints.Add(1)
+		}
+		if phase.Load() >= 2 && resumes.Load() > 0 && m.Session.State == "idle" && !m.Busy {
+			idleAfter.Add(1)
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errNoPad })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if early.Load() || maxFlight.Load() > 1 || pauses.Load() == 0 || shelfProbes.Load() < 3 {
+		t.Fatalf("overlapping probe released the shelf: early=%v flight=%d pauses=%d probes=%d resumes=%d", early.Load(), maxFlight.Load(), pauses.Load(), shelfProbes.Load(), resumes.Load())
+	}
+	if heldPaints.Load() != 0 {
+		t.Fatalf("menu display presented %d frames for the obsolete shelf", heldPaints.Load())
+	}
+	if resumes.Load() == 0 || idleAfter.Load() == 0 {
+		t.Fatalf("later menu generation did not resume: resumes=%d idleAfter=%d phase=%d", resumes.Load(), idleAfter.Load(), phase.Load())
+	}
+}
+
+func TestRunMenuDisplayFailedPauseProbeUsesCachedShelf(t *testing.T) {
+	oldObserve := launcherObserve
+	oldPoll := launcherPollInterval
+	defer func() {
+		launcherObserve = oldObserve
+		launcherPollInterval = oldPoll
+	}()
+	launcherPollInterval = 20 * time.Millisecond
+
+	// The cached shelf is generation 4. The pause read fails. Generation 4
+	// must stay paused, and a later completed menu must resume even though
+	// the start and stop were not sampled.
+	var phase atomic.Int32
+	var failPause atomic.Bool
+	var sameShelf atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if phase.Load() != 0 {
+			http.Error(w, "host down", http.StatusBadGateway)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/v1/session":
+			_, _ = w.Write([]byte(`{"state":"launching"}`))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"ready":true,"target":{"reachable":true,"ready":true}}`))
+		case "/api/v1/platforms":
+			_, _ = w.Write([]byte(`{"platforms":[{"id":"megadrive","game_count":1}]}`))
+		case "/api/v1/games":
+			_, _ = w.Write([]byte(`{"games":[{"id":"sonic","title":"Sonic","system":"megadrive","launchable":true}]}`))
+		case "/api/v1/library/attract":
+			_, _ = w.Write([]byte(`{"idle_seconds":60,"items":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+	defer cancel()
+	var pauses, resumes, idleAfter atomic.Int64
+	var early atomic.Bool
+	client := NewClient(Config{API: server.URL, MenuDisplay: true})
+	client.localCore = func(context.Context) (LocalCoreSample, error) {
+		if failPause.CompareAndSwap(true, false) {
+			return LocalCoreSample{}, errors.New("runtime unavailable")
+		}
+		if phase.Load() >= 2 {
+			return LocalCoreSample{MenuIdle: true, MenuGeneration: 8}, nil
+		}
+		if phase.Load() == 1 {
+			sameShelf.Add(1)
+		}
+		return LocalCoreSample{MenuIdle: true, MenuGeneration: 4}, nil
+	}
+	client.SetMenuDisplayHandoff(func(context.Context) error {
+		pauses.Add(1)
+		phase.Store(1)
+		failPause.Store(true)
+		return nil
+	}, func() {
+		if phase.Load() < 2 {
+			early.Store(true)
+		}
+		resumes.Add(1)
+	})
+	launcherObserve = func(m Model) {
+		if resumes.Load() != 0 || phase.Load() != 1 || m.Connected {
+			return
+		}
+		if sameShelf.Load() >= 3 {
+			phase.Store(2)
+		}
+	}
+	err := Run(ctx, client, func(m Model) {
+		if resumes.Load() > 0 && m.Session.State == "idle" && !m.Busy {
+			idleAfter.Add(1)
+			cancel()
+		}
+	}, func() (Pad, error) { return nil, errNoPad })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if early.Load() || pauses.Load() == 0 || sameShelf.Load() < 3 {
+		t.Fatalf("failed pause read released or missed the cached shelf: early=%v pauses=%d same=%d resumes=%d", early.Load(), pauses.Load(), sameShelf.Load(), resumes.Load())
+	}
+	if resumes.Load() == 0 || idleAfter.Load() == 0 {
+		t.Fatalf("newer idle after a failed pause read did not resume: resumes=%d idleAfter=%d phase=%d", resumes.Load(), idleAfter.Load(), phase.Load())
+	}
+}
+
 func TestRunMenuDisplayPaintsIdleWithoutFramebuffer(t *testing.T) {
 	server := idleFramebufferServer(t, ``)
 	defer server.Close()
