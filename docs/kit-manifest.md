@@ -12,7 +12,7 @@ live on the writable FAT volume, not under `/var/lib`:
 | Record | Path |
 | --- | --- |
 | Manifest | `/media/fat/fes/kit-manifest.json` on the kit |
-| Stock backup | `/media/fat/fes/stock/<component>` on the kit |
+| Stock backup | `/media/fat/fes/stock/<image-sha256>/<component>` on the kit |
 | Drift baseline | `/media/fat/fes/baseline.json` on the kit |
 | Named baseline | `/media/fat/fes/baselines/<name>.json` on the kit |
 | Hold marker | `~/tmp/KITA-HELD-BY-<who>` or `~/tmp/KITB-HELD-BY-<who>` on Powerboat |
@@ -58,9 +58,12 @@ python3 scripts/fes kit restore A
 manifest names another holder, or when a tracked path is bind-mounted and the
 manifest does not record it.
 
-Swap keeps the first stock bytes in `/media/fat/fes/stock/` and does not
-overwrite that backup on a later swap. The manifest entry records the path,
-stock hash, current hash, who, when, why, and `tmpfs` or `persistent`.
+Swap keeps the first stock bytes for the booted image in
+`/media/fat/fes/stock/<image-sha256>/` and does not overwrite that backup on
+a later swap of the same image. A different image gets its own directory, so
+an older backup does not block a swap after the image hash changes. The
+manifest entry records the path, stock hash, current hash, who, when, why,
+and `tmpfs` or `persistent`.
 
 `status` prints the image version and sha256 from the appliance release, the
 boot id, the hold, and each component's current hash against stock and, with
@@ -80,22 +83,33 @@ python3 scripts/fes kit baseline A clean
 python3 scripts/fes kit restore A --baseline clean
 ```
 
-`baseline` snapshots the visible bytes of the tracked files. `restore
---baseline` installs that snapshot. Components that match the image stock
-backup are cleared; components that differ stay as recorded swaps so the
-watcher does not treat them as drift.
+`baseline` snapshots every tracked file, including a core-package file the
+manifest currently records. A file that is absent is stored as missing.
+`restore --baseline` installs that snapshot. A fixed file the snapshot marks
+missing, or omits, is removed. An active swap the snapshot does not keep is
+cleared back to its stock backup before the hold is released. Components
+that match a trusted stock backup are cleared; components that differ stay
+as recorded swaps so the watcher does not treat them as drift. Stock is the
+manifest entry or the image backup already on the kit. A drifted file with
+neither is not copied into the backup; the named baseline bytes are saved
+as stock instead.
 
 `restore --force` runs without a hold marker. Use it when the marker was
-removed and the manifest still lists swaps, or when a tracked path has a bind
-mount the manifest does not record. Those abandoned binds are unmounted and
-the files underneath become the stock baseline. The affected services restart.
+removed and the manifest still lists swaps, or when a tracked path,
+including a core-package file, has a bind mount the manifest does not
+record. Those abandoned binds are unmounted, the affected services restart,
+and the hold is not released while a tracked mount remains.
 
 ## Drift watcher
 
 `python3 scripts/fes kit watch --once` hashes both kits, compares them with
 the manifest and the drift baseline, and appends to
-`~/tmp/fes-kit-drift/watch.log`. The first clean cycle writes the baseline.
-The next cycle flags a hash or bind mount the manifest does not record.
+`~/tmp/fes-kit-drift/watch.log`. A cycle with no drift baseline logs
+`UNVERIFIED` and does not treat the current bytes as stock, so an edit made
+before the first cycle stays uncertified. The baseline is written only when
+`--main-hashes` matches every present tracked file and nothing is drifted or
+bind-mounted outside the manifest. Later cycles flag a hash or bind mount
+the manifest and that baseline do not record.
 `--main-hashes FILE` also prints `STALE` when a hash differs from main.
 `--fail-stale` makes that a failing exit. A main-hash file is `sha256
 component` or `component sha256` per line.

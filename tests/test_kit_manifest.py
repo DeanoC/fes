@@ -247,7 +247,10 @@ class KitManifestTests(unittest.TestCase):
         self.assertIn('stock=unrecorded', before.stdout)
         first = self.fes('watch', '--once', '--kits', 'A')
         self.assertEqual(first.returncode, 0, first.stderr)
-        self.assertIn('BASELINE', first.stdout)
+        self.assertIn('UNVERIFIED', first.stdout)
+        self.assertNotIn(' kit A OK', first.stdout)
+        self.assertFalse((self.root / 'media/fat/fes/baseline.json').exists())
+        self.assertIn('stock=unrecorded', self.fes('status', 'A').stdout)
         (self.root / PATHS['mister-agent']).write_bytes(b'hand-made')
         second = self.fes('watch', '--once', '--kits', 'A')
         self.assertEqual(second.returncode, 1, second.stdout)
@@ -283,6 +286,207 @@ class KitManifestTests(unittest.TestCase):
         self.assertEqual(dropped.returncode, 0, dropped.stderr)
         self.assertNotIn('/usr/sbin/mister-agent', (self.root / 'proc/mounts').read_text())
         self.assertEqual(self.fes('claim', 'A', '--by', '700', '--for', 'after drift').returncode, 0)
+
+    def core_path(self, name='core.rbf', package=None):
+        package = package or ('ab' * 32)
+        return f'/usr/share/mister-runtime/core-packages/{package}/{name}'
+
+    def write_core(self, data, name='core.rbf', package=None):
+        path = self.root / self.core_path(name, package).lstrip('/')
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return path
+
+    def test_core_package_swap_restore_status_and_drift(self):
+        self.claim()
+        path = self.write_core(b'core-stock')
+        replacement = self.work / 'core.rbf'
+        replacement.write_bytes(b'core-swapped')
+        swapped = self.fes('swap', 'A', self.core_path(), str(replacement))
+        self.assertEqual(swapped.returncode, 0, swapped.stderr)
+        self.assertEqual(path.read_bytes(), b'core-swapped')
+        status = self.fes('status', 'A', '--json')
+        self.assertEqual(status.returncode, 0, status.stderr)
+        report = json.loads(status.stdout)
+        row = next(item for item in report['components'] if item['path'] == self.core_path())
+        self.assertEqual(row['current'], digest(b'core-swapped'))
+        self.assertEqual(row['stock'], digest(b'core-stock'))
+        self.assertTrue(row['mounted'])
+        watched = self.fes('watch', '--once', '--kits', 'A')
+        self.assertEqual(watched.returncode, 0, watched.stdout + watched.stderr)
+        self.assertNotIn('DRIFT', watched.stdout)
+        restored = self.fes('restore', 'A')
+        self.assertEqual(restored.returncode, 0, restored.stderr)
+        self.assertEqual(path.read_bytes(), b'core-stock')
+        self.assertNotIn(self.core_path(), (self.root / 'proc/mounts').read_text())
+        manifest = json.loads((self.root / 'media/fat/fes/kit-manifest.json').read_text())
+        self.assertEqual(manifest['components'], {})
+
+    def test_force_restore_drops_an_abandoned_core_mount(self):
+        mounted = self.core_path()
+        self.write_core(b'core-stock')
+        (self.root / 'proc/mounts').write_text(f'tmpfs {mounted} tmpfs rw 0 0\n')
+        refused = self.fes('claim', 'A', '--by', '700', '--for', 'core mount')
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn('unrecorded mounts', refused.stderr)
+        dropped = self.fes('restore', 'A', '--force')
+        self.assertEqual(dropped.returncode, 0, dropped.stderr)
+        self.assertNotIn(mounted, (self.root / 'proc/mounts').read_text())
+        log = (self.root / 'tmp/fes-services').read_text()
+        self.assertIn('start S40mister-runtime', log)
+        self.assertEqual(self.fes('claim', 'A', '--by', '700', '--for', 'after core mount').returncode, 0)
+
+    def test_failed_persistent_switch_restores_the_bind(self):
+        self.claim()
+        temporary = self.work / 'launcher-temp.json'
+        temporary.write_bytes(b'{"launcher":true,"temp":1}\n')
+        first = self.fes('swap', 'A', 'launcher.json', str(temporary), '--temporary')
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertIn('/media/fat/fogcast/launcher.json', (self.root / 'proc/mounts').read_text())
+        persistent = self.work / 'launcher-pers.json'
+        persistent.write_bytes(b'{"launcher":true,"pers":1}\n')
+        self.env['FES_KIT_FAIL_START'] = '1'
+        failed = self.fes('swap', 'A', 'launcher.json', str(persistent),
+                          '--persistent', '--why', 'restart should fail')
+        self.assertNotEqual(failed.returncode, 0, failed.stdout)
+        self.assertEqual((self.root / PATHS['launcher.json']).read_bytes(), temporary.read_bytes())
+        self.assertIn('/media/fat/fogcast/launcher.json', (self.root / 'proc/mounts').read_text())
+        manifest = json.loads((self.root / 'media/fat/fes/kit-manifest.json').read_text())
+        entry = manifest['components']['launcher.json']
+        self.assertEqual(entry['persistence'], 'tmpfs')
+        self.assertEqual(entry['current_sha256'], digest(temporary.read_bytes()))
+        backup = self.root / 'media/fat/fes/stock' / GOOD / 'launcher.json'
+        self.assertEqual(backup.read_bytes(), FILES['launcher.json'])
+
+    def test_new_image_gets_its_own_stock_backup(self):
+        self.claim()
+        replacement = self.work / 'mister-agent'
+        replacement.write_bytes(b'agent-swapped')
+        self.assertEqual(self.fes('swap', 'A', 'mister-agent', str(replacement)).returncode, 0)
+        self.assertEqual(self.fes('restore', 'A').returncode, 0)
+        old = self.root / 'media/fat/fes/stock' / GOOD / 'mister-agent'
+        self.assertEqual(old.read_bytes(), FILES['mister-agent'])
+        new_sha = 'cd' * 32
+        boot = json.loads((self.root / 'media/fat/fogcast/releases/boot.json').read_text())
+        boot['image_sha256'] = new_sha
+        (self.root / 'media/fat/fogcast/releases/boot.json').write_text(json.dumps(boot) + '\n')
+        (self.root / PATHS['mister-agent']).write_bytes(b'agent-image-2')
+        self.claim()
+        swapped = self.fes('swap', 'A', 'mister-agent', str(replacement))
+        self.assertEqual(swapped.returncode, 0, swapped.stderr)
+        new_backup = self.root / 'media/fat/fes/stock' / new_sha / 'mister-agent'
+        self.assertEqual(new_backup.read_bytes(), b'agent-image-2')
+        self.assertEqual(old.read_bytes(), FILES['mister-agent'])
+        self.assertEqual(self.fes('restore', 'A').returncode, 0)
+        self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), b'agent-image-2')
+
+    def test_baseline_restore_removes_a_file_absent_from_the_snapshot(self):
+        agent = self.root / PATHS['agent.toml']
+        agent.unlink()
+        self.claim()
+        saved = self.fes('baseline', 'A', 'before')
+        self.assertEqual(saved.returncode, 0, saved.stderr)
+        snapshot = json.loads((self.root / 'media/fat/fes/baselines/before.json').read_text())
+        self.assertTrue(snapshot['files']['agent.toml']['missing'])
+        agent.write_bytes(b'token = "added"\n')
+        updated = self.work / 'agent.toml'
+        updated.write_bytes(b'token = "swapped"\n')
+        swapped = self.fes('swap', 'A', 'agent.toml', str(updated), '--why', 'added after baseline')
+        self.assertEqual(swapped.returncode, 0, swapped.stderr)
+        restored = self.fes('restore', 'A', '--baseline', 'before')
+        self.assertEqual(restored.returncode, 0, restored.stderr)
+        self.assertFalse(agent.exists())
+        manifest = json.loads((self.root / 'media/fat/fes/kit-manifest.json').read_text())
+        self.assertNotIn('agent.toml', manifest['components'])
+        self.assertEqual(list(self.holds.glob('KITA-HELD-BY-*')), [])
+        self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), FILES['mister-agent'])
+
+    def test_baseline_restore_does_not_keep_drift_as_stock(self):
+        self.claim()
+        self.assertEqual(self.fes('baseline', 'A', 'clean').returncode, 0)
+        drifted = b'{"launcher":true,"drift":1}\n'
+        (self.root / PATHS['launcher.json']).write_bytes(drifted)
+        restored = self.fes('restore', 'A', '--baseline', 'clean')
+        self.assertEqual(restored.returncode, 0, restored.stderr)
+        self.assertEqual((self.root / PATHS['launcher.json']).read_bytes(), FILES['launcher.json'])
+        manifest = json.loads((self.root / 'media/fat/fes/kit-manifest.json').read_text())
+        entry = manifest['components'].get('launcher.json')
+        if entry:
+            self.assertEqual(entry['stock_sha256'], digest(FILES['launcher.json']))
+            self.assertNotEqual(entry['stock_sha256'], digest(drifted))
+        backup = self.root / 'media/fat/fes/stock' / GOOD / 'launcher.json'
+        if backup.exists():
+            self.assertEqual(backup.read_bytes(), FILES['launcher.json'])
+        self.claim()
+        again = self.fes('restore', 'A')
+        self.assertEqual(again.returncode, 0, again.stderr)
+        self.assertEqual((self.root / PATHS['launcher.json']).read_bytes(), FILES['launcher.json'])
+
+    def test_watcher_does_not_certify_preexisting_drift(self):
+        (self.root / PATHS['agent.toml']).write_bytes(b'token = "edited"\n')
+        first = self.fes('watch', '--once', '--kits', 'A')
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertIn('UNVERIFIED', first.stdout)
+        self.assertNotIn(' kit A OK', first.stdout)
+        self.assertFalse((self.root / 'media/fat/fes/baseline.json').exists())
+        status = self.fes('status', 'A')
+        self.assertIn('stock=unrecorded', status.stdout)
+        second = self.fes('watch', '--once', '--kits', 'A')
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertIn('UNVERIFIED', second.stdout)
+        self.assertNotIn('DRIFT', second.stdout)
+        self.assertNotIn(' kit A OK', second.stdout)
+
+    def test_watcher_records_baseline_from_a_matching_reference(self):
+        main = self.work / 'main.hashes'
+        main.write_text(''.join(f'{digest(data)} {name}\n' for name, data in FILES.items()))
+        first = self.fes('watch', '--once', '--kits', 'A', '--main-hashes', str(main))
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertIn('BASELINE', first.stdout)
+        self.assertTrue((self.root / 'media/fat/fes/baseline.json').is_file())
+        (self.root / PATHS['mister-agent']).write_bytes(b'hand-made')
+        second = self.fes('watch', '--once', '--kits', 'A', '--main-hashes', str(main))
+        self.assertEqual(second.returncode, 1, second.stdout)
+        self.assertIn('DRIFT mister-agent unrecorded', second.stdout)
+
+    def test_core_package_dot_segments_cannot_escape(self):
+        self.claim()
+        package = 'cd' * 32
+        outside = self.root / 'etc/passwd'
+        outside.parent.mkdir(parents=True)
+        outside.write_bytes(b'secret')
+        payload = self.work / 'evil'
+        payload.write_bytes(b'pwned')
+        escape = self.core_path('..', package) + '/../../../../etc/passwd'
+        refused = self.fes('swap', 'A', escape, str(payload))
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn('not tracked', refused.stderr)
+        self.assertEqual(outside.read_bytes(), b'secret')
+        dotted = self.core_path('./core.rbf', package)
+        refused = self.fes('swap', 'A', dotted, str(payload))
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn('not tracked', refused.stderr)
+        self.assertFalse((self.root / self.core_path('core.rbf', package).lstrip('/')).exists())
+        body = b'x'
+        source = self.root / 'tmp/fes-incoming/payload'
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_bytes(body)
+        dest = self.core_path('./core.rbf', package)
+        plan = self.root / 'tmp/fes-incoming/plan'
+        digest_bytes = digest(body)
+        plan.write_text(
+            f'BOOT {BOOT}\n'
+            f'PLACE path-test {dest} /tmp/fes-incoming/payload tmpfs 0755 '
+            f'/media/fat/fes/stock/{GOOD}/path-test /tmp/fes-swap/path-test '
+            f'{digest_bytes} {digest_bytes}\n'
+            'COMMIT\n')
+        env = os.environ.copy()
+        env.update({'KIT_FAKE': '1', 'KIT_ROOT': str(self.root)})
+        remote = subprocess.run(['sh', str(REMOTE), 'apply', '/tmp/fes-incoming/plan'],
+                                env=env, text=True, capture_output=True, check=False)
+        self.assertNotEqual(remote.returncode, 0)
+        self.assertIn('bad path', remote.stderr)
+        self.assertEqual(outside.read_bytes(), b'secret')
 
 
 if __name__ == '__main__':

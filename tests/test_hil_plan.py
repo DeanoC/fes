@@ -202,6 +202,24 @@ class HilPlanTest(unittest.TestCase):
         path.write_text('\n'.join(lines) + ('\n' if lines else ''))
         return path
 
+    def kit_status_file(self, entries, boot_id=None):
+        lines = [
+            'kit A local',
+            'hold: free',
+            f'image: version test sha256 {BASE_SHA} boot_id {boot_id or BOOT_ID}',
+            'manifest: /media/fat/fes/kit-manifest.json',
+            '',
+        ]
+        for component, side, _target, content in entries:
+            if side != 'kit':
+                continue
+            content = self.artifact_bytes.get(component, content)
+            lines.append(f'{component} current={digest(content)} stock={digest(content)} '
+                         'main=unknown persistence=tmpfs who=-')
+        path = self.work / 'kit-status.txt'
+        path.write_text('\n'.join(lines) + '\n')
+        return path
+
     def evidence(self, manifest, entries, *, update=True, lease=True, release=None,
                  output=None, extra=(), host_exe_value=None, host_owner='host-owner',
                  include_host_owner=True, lease_owner_override=None,
@@ -226,6 +244,8 @@ class HilPlanTest(unittest.TestCase):
             args += ['--kit-sha256', kit_file]
         if host_file:
             args += ['--host-sha256', host_file]
+        if kit_file or any(row[0].startswith('core:') for row in entries):
+            args += ['--kit-status', self.kit_status_file(entries)]
         if update:
             args += ['--kit-update-json', self.update_file()]
         if lease and (kit_file or any(row[0].startswith('core:') for row in entries)):
@@ -673,7 +693,7 @@ class HilPlanTest(unittest.TestCase):
         result = run('manifest', '--head', 'a' * 40, '--out', manifest,
                      f'mister-agent={binary}=kit:/usr/sbin/mister-agent')
         self.assertEqual(result.returncode, 0, result.stderr)
-        script = run('kit-deploy-script', '--manifest', manifest, '--stage-dir', '/run/hil-x')
+        script = run('kit-deploy-script', '--legacy', '--manifest', manifest, '--stage-dir', '/run/hil-x')
         self.assertEqual(script.returncode, 0, script.stderr)
         generated = self.work / 'deploy.sh'
         generated.write_text(script.stdout)
@@ -695,7 +715,11 @@ class HilPlanTest(unittest.TestCase):
         manifest = self.work / 'm.json'
         run('manifest', '--head', 'a' * 40, '--out', manifest,
             f'mister-agent={binary}=kit:/usr/sbin/mister-agent')
-        result = run('kit-deploy-script', '--manifest', manifest, '--stage-dir', '/run/hil', '--sha256sums')
+        refused = run('kit-deploy-script', '--manifest', manifest, '--stage-dir', '/run/hil')
+        self.assertEqual(refused.returncode, 2)
+        self.assertIn('scripts/fes kit swap', refused.stderr)
+        result = run('kit-deploy-script', '--legacy', '--manifest', manifest, '--stage-dir', '/run/hil',
+                     '--sha256sums')
         self.assertEqual(result.stdout, f'{digest(binary.read_bytes())}  mister-agent\n')
 
     def test_kit_command_handles_missing_pid_files(self):
@@ -726,6 +750,10 @@ class HilPlanTest(unittest.TestCase):
         for value in (self.head, self.base, BASE_SHA, BOOT_ID, 'mister-runtime',
                       'mister-agent', 'host:fogcast-api', 'core:ramtest', 'g0', 'g1', 'g2', 'g3'):
             self.assertIn(value, text)
+        self.assertIn('### fes kit status', text)
+        agent = next(row for row in json.loads(manifest.read_text())['entries']
+                     if row['component'] == 'mister-agent')
+        self.assertIn(f'mister-agent current={agent["sha256"]}', text)
 
     def test_plan_component_coverage_and_kit_go_host_expansion(self):
         self.git_repo(['sources/libmister-runtime/change.cpp',
@@ -820,6 +848,7 @@ class HilPlanTest(unittest.TestCase):
             args = ['evidence', '--repo', self.repo, '--base-image-commit', self.base,
                     '--head', self.head, '--base-image-sha256', BASE_SHA,
                     '--manifest', manifest, '--kit-sha256', kit,
+                    '--kit-status', self.kit_status_file(entries),
                     '--base-release-json', self.release_file(), '--kit-update-json', self.update_file(),
                     '--lease-log', self.lease_file(), '--lease-owner', 'owner', '--out', output]
             self.assert_refused_without_evidence(run(*args), output)
@@ -840,6 +869,7 @@ class HilPlanTest(unittest.TestCase):
             result = run('evidence', '--repo', self.repo, '--base-image-commit', self.base,
                          '--head', self.head, '--base-image-sha256', BASE_SHA,
                          '--manifest', manifest, '--kit-sha256', kit,
+                         '--kit-status', self.kit_status_file(entries),
                          '--base-release-json', self.release_file(), '--kit-update-json', self.update_file(),
                          '--lease-log', self.lease_file(), '--lease-owner', 'owner', '--out', output)
             self.assert_refused_without_evidence(result, output)
@@ -862,6 +892,7 @@ class HilPlanTest(unittest.TestCase):
             result = run('evidence', '--repo', self.repo, '--base-image-commit', self.base,
                          '--head', self.head, '--base-image-sha256', BASE_SHA,
                          '--manifest', manifest, '--kit-sha256', kit,
+                         '--kit-status', self.kit_status_file(entries),
                          '--base-release-json', self.release_file(), '--kit-update-json', self.update_file(),
                          '--lease-log', self.lease_file(), '--lease-owner', 'owner', '--out', output)
             self.assert_refused_without_evidence(result, output)
@@ -919,9 +950,30 @@ class HilPlanTest(unittest.TestCase):
         result = run('evidence', '--repo', self.repo, '--base-image-commit', self.base,
                      '--head', self.head, '--base-image-sha256', BASE_SHA,
                      '--manifest', manifest, '--kit-sha256', kit,
+                     '--kit-status', self.kit_status_file(entries),
                      '--base-release-json', self.release_file(), '--kit-update-json', self.update_file(),
                      '--lease-log', self.lease_file(), '--lease-owner', 'owner', '--out', output)
         self.assert_refused_without_evidence(result, output)
+        missing_status = run('evidence', '--repo', self.repo, '--base-image-commit', self.base,
+                             '--head', self.head, '--base-image-sha256', BASE_SHA,
+                             '--manifest', manifest, '--kit-sha256', self.kit_output(entries),
+                             '--base-release-json', self.release_file(), '--kit-update-json', self.update_file(),
+                             '--lease-log', self.lease_file(), '--lease-owner', 'owner',
+                             '--out', self.work / 'no-status.md')
+        self.assert_refused_without_evidence(missing_status, self.work / 'no-status.md')
+        self.assertIn('--kit-status', missing_status.stderr)
+        bad = self.kit_status_file(entries)
+        bad.write_text(bad.read_text().replace(
+            digest(self.artifact_bytes.get('mister-agent', b'agent')), '0' * 64))
+        mismatched = run('evidence', '--repo', self.repo, '--base-image-commit', self.base,
+                         '--head', self.head, '--base-image-sha256', BASE_SHA,
+                         '--manifest', manifest, '--kit-sha256', self.kit_output(entries),
+                         '--kit-status', bad,
+                         '--base-release-json', self.release_file(), '--kit-update-json', self.update_file(),
+                         '--lease-log', self.lease_file(), '--lease-owner', 'owner',
+                         '--out', self.work / 'bad-status.md')
+        self.assert_refused_without_evidence(mismatched, self.work / 'bad-status.md')
+        self.assertIn('current hash mismatch', mismatched.stderr)
 
     def test_release_and_update_identity_failures_refuse_without_traceback(self):
         self.git_repo(['sources/libmister-runtime/change.cpp'])
@@ -1042,7 +1094,9 @@ class HilPlanTest(unittest.TestCase):
                 '--head', self.head, '--base-image-sha256', BASE_SHA, '--manifest', manifest,
                 '--base-release-json', self.release_file(), '--kit-update-json', self.update_file(),
                 '--host-sha256', host_hashes,
-                '--lease-log', log, '--host-lease-owner', 'host-owner', '--core-status', f'core:ramtest={status}']
+                '--lease-log', log, '--host-lease-owner', 'host-owner',
+                '--kit-status', self.kit_status_file(entries),
+                '--core-status', f'core:ramtest={status}']
         missing_status_args = args[:-2]
         output = self.work / 'missing-status.md'
         self.assert_refused_without_evidence(run(*missing_status_args, '--out', output), output)

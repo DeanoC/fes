@@ -121,16 +121,115 @@ def resolve_component(spec):
     return component('path-' + digest, path, 'tmpfs', RUNTIME, '0755')
 
 
+def image_id(value):
+    text = (value or '').strip().lower()
+    if HASH_RE.fullmatch(text):
+        return text
+    return ''
+
+
 def allowed_path(path):
+    """Core-package destinations stay lexically inside the package directory.
+
+    ``.`` and ``..`` segments are rejected. ``normpath`` collapses them, so a
+    path that changes under normalization can leave the tracked directory.
+    """
     if path in TRACKED_PATHS:
         return True
-    if not path.startswith(CORE_PREFIX) or '/../' in path or path.endswith('/..'):
+    if '\x00' in path or not path.startswith(CORE_PREFIX):
         return False
-    rest = path[len(CORE_PREFIX):]
-    parts = rest.split('/')
-    if not parts or not HASH_RE.fullmatch(parts[0]):
+    normalized = os.path.normpath(path)
+    if normalized != path or not normalized.startswith(CORE_PREFIX):
         return False
-    return all(NAME_RE.fullmatch(part) for part in parts)
+    parts = normalized[len(CORE_PREFIX):].split('/')
+    if len(parts) < 2 or not HASH_RE.fullmatch(parts[0]):
+        return False
+    return all(part not in ('.', '..') and NAME_RE.fullmatch(part) for part in parts)
+
+
+def stock_path(name, image_sha):
+    image = image_id(image_sha)
+    if not image:
+        raise KitError('kit image sha256 is missing; cannot place a stock backup')
+    return f'/media/fat/fes/stock/{image}/{name}'
+
+
+def hash_specs(items, image_sha):
+    specs = []
+    seen = set()
+    image = image_id(image_sha)
+    for item in items:
+        if item.name in seen:
+            continue
+        seen.add(item.name)
+        specs.append(f'{item.name}={item.path}')
+        if image:
+            specs.append(f'stock-{item.name}={stock_path(item.name, image)}')
+    return specs
+
+
+def discover_items(probe, extra=()):
+    """Manifest entries and core-package mounts beyond the fixed components."""
+    items = []
+    seen = set(COMPONENTS)
+
+    def add(item):
+        if item is None or item.name in seen:
+            return
+        seen.add(item.name)
+        items.append(item)
+    for item in extra:
+        add(item)
+    manifest = (probe.get('manifest') or {}).get('components') or {}
+    for name, entry in manifest.items():
+        path = entry.get('path')
+        if not path:
+            continue
+        services = tuple(entry.get('services') or RUNTIME)
+        add(component(name, path, entry.get('persistence') or 'tmpfs', services,
+                      entry.get('mode') or '0755'))
+    for mount in probe.get('mounts') or []:
+        if mount in TRACKED_PATHS or not allowed_path(mount):
+            continue
+        add(resolve_component(mount))
+    return items
+
+
+def iter_tracked(probe):
+    return list(COMPONENTS.values()) + discover_items(probe)
+
+
+def trusted_stock(name, entry, probe, fallback):
+    """Stock comes from the manifest or the image backup, never from drift.
+
+    ``fallback`` is the named baseline hash. It is used only when neither
+    source exists, so a hand-edited file is not saved as the backup.
+    """
+    if entry and HASH_RE.fullmatch(entry.get('stock_sha256') or ''):
+        return entry['stock_sha256']
+    backup = probe['hashes'].get(f'stock-{name}', 'MISSING')
+    if HASH_RE.fullmatch(backup):
+        return backup
+    if HASH_RE.fullmatch(fallback or ''):
+        return fallback
+    raise KitError(f'{name} has no trusted stock backup')
+
+
+def reference_covers(probe, main_hashes):
+    """True when --main-hashes names every present tracked file at its current hash."""
+    if not main_hashes:
+        return False
+    present = False
+    for item in COMPONENTS.values():
+        current = probe['hashes'].get(item.name, 'MISSING')
+        if current == 'MISSING':
+            if item.name in main_hashes:
+                return False
+            continue
+        present = True
+        if main_hashes.get(item.name) != current:
+            return False
+    return present
 
 
 def ordered_services(names):
@@ -416,9 +515,15 @@ class Session:
         self.transport = transport
         self.host = host
 
-    def probe(self):
-        specs = [f'{item.name}={item.path}' for item in COMPONENTS.values()]
-        specs.extend(f'stock-{item.name}={stock_path(item.name)}' for item in COMPONENTS.values())
+    def probe(self, extra=None):
+        extra = list(extra or [])
+        base = list(COMPONENTS.values())
+        first = parse_probe(self.transport.run(['probe', *hash_specs(base + extra, '')]))
+        image = image_id(first['image'].get('image_sha256'))
+        items = base + discover_items(first, extra)
+        specs = hash_specs(items, image)
+        if specs == hash_specs(base + extra, ''):
+            return first
         return parse_probe(self.transport.run(['probe', *specs]))
 
     def put_text(self, remote, data):
@@ -479,8 +584,6 @@ class Session:
             result = self.apply(lines)
             if result not in ('OK', 'BOOT_CHANGED'):
                 raise KitError(result or 'claim failed')
-            if not probe['baseline'] and not manifest['components'] and not dirty:
-                self._write_baseline(probe)
             write_hold(path, who, why)
             created = None
         finally:
@@ -523,7 +626,7 @@ class Session:
             raise KitError(f'{source} is not a file', code=2)
         payload = source_path.read_bytes()
         new_hash = sha256_bytes(payload)
-        probe = self.probe()
+        probe = self.probe(extra=[item])
         manifest = probe['manifest'] or empty_manifest(self.name, probe['image'], None)
         self._check_boot(probe, manifest)
         current = probe['hashes'].get(item.name, 'MISSING')
@@ -539,11 +642,12 @@ class Session:
         if not HASH_RE.fullmatch(stock):
             raise KitError(f'{item.name} has no stock hash')
         stage = f'/tmp/fes-swap/{item.name}'
-        backup = stock_path(item.name)
+        backup = stock_path(item.name, probe['image'].get('image_sha256'))
         incoming = f'/tmp/fes-incoming/{os.getpid()}-{item.name}'
         self.put_text(incoming, payload)
         components = dict(manifest.get('components') or {})
         components[item.name] = {
+            'name': item.name,
             'path': item.path,
             'stock_sha256': stock,
             'current_sha256': new_hash,
@@ -566,7 +670,7 @@ class Session:
         result = self.apply(lines)
         if result != 'OK':
             raise KitError(result or 'swap failed')
-        checked = self.probe()
+        checked = self.probe(extra=[item])
         if checked['hashes'].get(item.name) != new_hash:
             raise KitError(f'{item.name} hash did not change')
         return f'swapped {item.name} on {self.name} {persistence} {new_hash}'
@@ -583,6 +687,17 @@ class Session:
                 return self._restore(found[0], baseline)
         return self._restore(None, baseline)
 
+    def _item_for(self, name, entry, info):
+        if name in COMPONENTS:
+            return COMPONENTS[name]
+        path = (entry or {}).get('path') or (info or {}).get('component_path')
+        if not path:
+            raise KitError(f'{name} is not a tracked component')
+        services = tuple((entry or {}).get('services') or (info or {}).get('services') or RUNTIME)
+        mode = (entry or {}).get('mode') or (info or {}).get('mode') or '0755'
+        persistence = (entry or {}).get('persistence') or (info or {}).get('persistence') or 'tmpfs'
+        return component(name, path, persistence, services, mode)
+
     def _restore(self, hold, baseline):
         probe = self.probe()
         manifest = probe['manifest'] or empty_manifest(self.name, probe['image'], None)
@@ -596,51 +711,94 @@ class Session:
                 raise KitError(f'baseline {baseline} is not on the kit')
         lines = [f'BOOT {(manifest.get("boot_id") or probe["boot_id"])}']
         services = set()
-        cleared = []
+        checks = []
+        extra = []
+        image = probe['image'].get('image_sha256')
         if desired:
             who = 'force'
             claim_why = f'baseline {baseline}'
             if hold is not None:
                 who, _claim_why = parse_hold(hold)
-            for name, info in (desired.get('files') or {}).items():
-                item = COMPONENTS[name]
-                want = info['sha256']
-                current = probe['hashes'].get(name, 'MISSING')
+            files = desired.get('files') or {}
+            names = list(dict.fromkeys([*COMPONENTS.keys(), *files.keys(), *components.keys()]))
+            for name in names:
+                info = files.get(name) or {}
                 entry = components.get(name)
-                stock = entry['stock_sha256'] if entry else probe['hashes'].get(f'stock-{name}', current)
-                if current == want and not (item.path in probe['mounts'] and want == stock):
+                omitted = name not in files
+                if info.get('missing') or (omitted and name in COMPONENTS):
+                    item = self._item_for(name, entry, info)
+                    path = item.path
+                    present = (probe['hashes'].get(name, 'MISSING') != 'MISSING'
+                               or path in probe['mounts'] or entry)
+                    if present:
+                        services.update(entry.get('services') if entry else item.services)
+                        lines.append(f'REMOVE {item.name} {path}')
+                        checks.append({'name': name, 'path': path, 'expect': 'MISSING', 'unmount': True})
+                        extra.append(item)
+                    components.pop(name, None)
+                    continue
+                if omitted:
+                    if entry:
+                        services.update(entry.get('services') or ())
+                        lines.append(clear_line(entry))
+                        checks.append({'name': name, 'path': entry['path'],
+                                       'expect': entry.get('stock_sha256') or '', 'unmount': True})
+                        extra.append(self._item_for(name, entry, {}))
+                        components.pop(name, None)
+                    continue
+                item = self._item_for(name, entry, info)
+                want = info.get('sha256') or ''
+                if not HASH_RE.fullmatch(want):
+                    raise KitError(f'{name} baseline hash is missing')
+                current = probe['hashes'].get(name, 'MISSING')
+                stock = trusted_stock(name, entry, probe, want)
+                mounted = item.path in probe['mounts']
+                backup_known = bool(entry) or probe['hashes'].get(f'stock-{name}', 'MISSING') != 'MISSING'
+                if current == want and not (mounted and want == stock):
                     continue
                 services.update(entry.get('services') if entry else item.services)
-                if want == stock and (entry or item.path in probe['mounts'] or probe['hashes'].get(f'stock-{name}')):
-                    lines.append(clear_line(entry or self._synthetic(item, stock)))
+                backup = stock_path(item.name, image)
+                if want == stock and backup_known:
+                    lines.append(clear_line(entry or self._synthetic(item, stock, image)))
                     components.pop(name, None)
-                    cleared.append(name)
+                    checks.append({'name': name, 'path': item.path, 'expect': want, 'unmount': True})
                 else:
-                    lines.append(place_line(item, info['path'], item.persistence, stock_path(name),
+                    lines.append(place_line(item, info['path'], item.persistence, backup,
                                             f'/tmp/fes-swap/{name}', stock, want))
                     components[name] = {
-                        'path': item.path, 'stock_sha256': stock, 'current_sha256': want,
-                        'who': who, 'when': utc_stamp(), 'why': claim_why,
-                        'persistence': item.persistence, 'backup': stock_path(name),
+                        'name': item.name, 'path': item.path, 'stock_sha256': stock,
+                        'current_sha256': want, 'who': who, 'when': utc_stamp(), 'why': claim_why,
+                        'persistence': item.persistence, 'backup': backup,
                         'stage': f'/tmp/fes-swap/{name}', 'mode': item.mode,
                         'services': list(item.services),
                     }
+                    checks.append({'name': name, 'path': item.path, 'expect': want,
+                                   'unmount': item.persistence != 'tmpfs'})
+                extra.append(item)
         else:
+            handled = set()
             for name, entry in list(components.items()):
                 services.update(entry.get('services') or ())
                 lines.append(clear_line(entry))
-                cleared.append(name)
-            for item in COMPONENTS.values():
-                if item.name in components:
+                path = entry['path']
+                checks.append({'name': name, 'path': path, 'expect': entry.get('stock_sha256') or '',
+                               'unmount': True})
+                if name not in COMPONENTS:
+                    extra.append(self._item_for(name, entry, {}))
+                handled.add(path)
+            for item in iter_tracked(probe):
+                if item.path in handled or item.path not in probe['mounts']:
                     continue
-                if item.path in probe['mounts']:
-                    stock = probe['hashes'].get(f'stock-{item.name}', 'MISSING')
-                    services.update(item.services)
-                    if stock == 'MISSING':
-                        lines.append(f'UNMOUNT {item.name} {item.path}')
-                    else:
-                        lines.append(clear_line(self._synthetic(item, stock)))
-                    cleared.append(item.name)
+                stock = probe['hashes'].get(f'stock-{item.name}', 'MISSING')
+                services.update(item.services)
+                if stock == 'MISSING':
+                    lines.append(f'UNMOUNT {item.name} {item.path}')
+                    checks.append({'name': item.name, 'path': item.path, 'expect': '', 'unmount': True})
+                else:
+                    lines.append(clear_line(self._synthetic(item, stock, image)))
+                    checks.append({'name': item.name, 'path': item.path, 'expect': stock, 'unmount': True})
+                if item.name not in COMPONENTS:
+                    extra.append(item)
             components = {}
         updated = empty_manifest(self.name, probe['image'], None)
         updated['boot_id'] = manifest.get('boot_id') or probe['boot_id']
@@ -650,23 +808,20 @@ class Session:
         lines.extend(service_plan(services))
         lines.extend([f'MANIFEST {remote}', 'COMMIT'])
         result = self.apply(lines)
-        checked = self.probe()
-        for name in cleared:
-            item = COMPONENTS.get(name)
-            if item and item.path in checked['mounts']:
+        checked = self.probe(extra=extra)
+        for item in checks:
+            name = item['name']
+            path = item['path']
+            if item.get('unmount') and path in checked['mounts']:
                 raise KitError(f'{name} is still mounted')
-            entry_stock = (manifest.get('components') or {}).get(name, {}).get('stock_sha256')
-            backup = checked['hashes'].get(f'stock-{name}', 'MISSING')
-            if desired and name in (desired.get('files') or {}):
-                expect = desired['files'][name]['sha256']
-            else:
-                expect = entry_stock or (backup if backup != 'MISSING' else '')
-            if expect and checked['hashes'].get(name) != expect:
+            expect = item.get('expect') or ''
+            if expect == 'MISSING':
+                if checked['hashes'].get(name, 'MISSING') != 'MISSING':
+                    raise KitError(f'{name} is still on the kit')
+            elif expect and checked['hashes'].get(name) != expect:
                 raise KitError(f'{name} restored to {checked["hashes"].get(name)}, want {expect}')
         if result not in ('OK', 'BOOT_CHANGED'):
             raise KitError(result or 'restore failed')
-        if not updated['components']:
-            self._write_baseline(checked)
         if result == 'BOOT_CHANGED':
             if hold is not None:
                 release_hold(hold)
@@ -675,10 +830,11 @@ class Session:
             release_hold(hold)
         return f'restored {self.name}'
 
-    def _synthetic(self, item, stock):
+    def _synthetic(self, item, stock, image_sha):
         return {
-            'path': item.path, 'persistence': item.persistence, 'backup': stock_path(item.name),
-            'stage': f'/tmp/fes-swap/{item.name}', 'stock_sha256': stock,
+            'name': item.name, 'path': item.path, 'persistence': item.persistence,
+            'backup': stock_path(item.name, image_sha), 'stage': f'/tmp/fes-swap/{item.name}',
+            'stock_sha256': stock,
         }
 
     def _check_boot(self, probe, manifest):
@@ -694,13 +850,29 @@ class Session:
             probe = self.probe()
             files = {}
             lines = [f'BOOT {probe["boot_id"]}']
-            for item in COMPONENTS.values():
+            seen = set()
+            for item in list(COMPONENTS.values()) + discover_items(probe):
+                if item.name in seen:
+                    continue
+                seen.add(item.name)
                 digest = probe['hashes'].get(item.name, 'MISSING')
                 if digest == 'MISSING':
+                    record = {'missing': True}
+                    if item.name not in COMPONENTS:
+                        record['component_path'] = item.path
+                    files[item.name] = record
                     continue
                 dest = f'/media/fat/fes/baselines/{name}/{item.name}'
                 lines.append(f'INSTALL {item.path} {dest}')
-                files[item.name] = {'sha256': digest, 'path': dest}
+                record = {'sha256': digest, 'path': dest}
+                if item.name not in COMPONENTS:
+                    record.update({
+                        'component_path': item.path,
+                        'persistence': item.persistence,
+                        'mode': item.mode,
+                        'services': list(item.services),
+                    })
+                files[item.name] = record
             document = {'format': 1, 'name': name, 'when': utc_stamp(), 'files': files}
             remote = f'/tmp/fes-incoming/{os.getpid()}-baseline-meta.json'
             self.put_text(remote, manifest_bytes(document))
@@ -733,10 +905,6 @@ class Session:
         return report
 
 
-def stock_path(name):
-    return f'/media/fat/fes/stock/{name}'
-
-
 def place_line(item, source, persistence, backup, stage, stock, desired):
     return (f'PLACE {item.name} {item.path} {source} {persistence} {item.mode} '
             f'{backup} {stage} {stock} {desired}')
@@ -744,13 +912,15 @@ def place_line(item, source, persistence, backup, stage, stock, desired):
 
 def clear_line(entry):
     component_name = entry.get('name')
+    path = entry['path']
     if not component_name:
-        for item in COMPONENTS.values():
-            if item.path == entry['path']:
-                component_name = item.name
-                break
+        item = TRACKED_PATHS.get(path)
+        if item:
+            component_name = item.name
+        elif allowed_path(path):
+            component_name = resolve_component(path).name
     if not component_name:
-        raise KitError(f'cannot restore untracked path {entry["path"]}')
+        raise KitError(f'cannot restore untracked path {path}')
     return (f'CLEAR {component_name} {entry["path"]} {entry["persistence"]} '
             f'{entry["backup"]} {entry["stage"]} {entry["stock_sha256"]}')
 
@@ -759,7 +929,7 @@ def component_rows(probe, main_hashes):
     manifest = (probe['manifest'] or {}).get('components') or {}
     baseline = (probe['baseline'] or {}).get('hashes') or {}
     rows = []
-    for item in COMPONENTS.values():
+    for item in iter_tracked(probe):
         current = probe['hashes'].get(item.name, 'MISSING')
         entry = manifest.get(item.name)
         if entry:
@@ -822,7 +992,7 @@ def drift_findings(probe, main_hashes, previous):
     baseline = (probe['baseline'] or {}).get('hashes') or {}
     previous = previous or {}
     rows = []
-    for item in COMPONENTS.values():
+    for item in iter_tracked(probe):
         current = probe['hashes'].get(item.name, 'MISSING')
         entry = manifest.get(item.name)
         if entry:
@@ -858,10 +1028,15 @@ def watch_kit(session, main_hashes, fail_stale):
     drifted = [row for row in findings if row[0] == 'DRIFT']
     manifest = probe['manifest'] or {}
     dirty = unrecorded_mounts(probe, manifest)
-    if (not probe['baseline'] and not manifest.get('components') and not dirty and not drifted):
+    # A matching operator reference is the only automatic stock baseline.
+    # The first observation of a kit is unverified, so a pre-existing edit
+    # is not recorded as stock.
+    if reference_covers(probe, main_hashes) and not dirty and not drifted and not probe['baseline']:
         session._write_baseline(probe)
         findings.append(('BASELINE', '-', 'recorded', '', ''))
-    snapshot = {item.name: probe['hashes'].get(item.name, 'MISSING') for item in COMPONENTS.values()}
+    elif not probe['baseline']:
+        findings.append(('UNVERIFIED', '-', 'no-stock-baseline', '', ''))
+    snapshot = {item.name: probe['hashes'].get(item.name, 'MISSING') for item in iter_tracked(probe)}
     previous_path.write_text(json.dumps({'format': 1, 'when': utc_stamp(), 'hashes': snapshot}, indent=2) + '\n',
                              encoding='utf-8')
     lines = [format_finding(session.name, *row) for row in findings]

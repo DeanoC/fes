@@ -51,8 +51,23 @@ valid_path() {
     *) return 1 ;;
   esac
   case "$1" in
-    *..*|*' '*|*'$'*|*'`'*) return 1 ;;
+    *..*|*' '*|*'$'*|*'`'*|*'//'*) return 1 ;;
   esac
+  # Reject "." segments. ".." is already rejected above. A lexical "." can
+  # combine with a later ".." and leave the tracked directory.
+  (
+    IFS=/
+    first=1
+    for seg in $1; do
+      if [ "$first" = 1 ]; then
+        first=0
+        [ -z "$seg" ] && continue
+      fi
+      case "$seg" in
+        ''|.|..) exit 1 ;;
+      esac
+    done
+  )
 }
 
 allowed_src() {
@@ -379,6 +394,24 @@ run_undo() {
   done
 }
 
+verify_rollback() {
+  file=$(lp /tmp/fes-work)/expect-mounts
+  [ -f "$file" ] || return 0
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    set -- $line
+    mounted "$1" || {
+      note "rollback lost mount on $1"
+      return 1
+    }
+    got=$(hash_file "$(lp "$1")")
+    [ "$got" = "$2" ] || {
+      note "rollback hash mismatch for $1"
+      return 1
+    }
+  done < "$file"
+}
+
 copy_install() {
   src=$1
   dest=$2
@@ -394,10 +427,21 @@ ensure_backup() {
   dest=$1
   backup=$2
   stock=$3
+  src=$4
   if [ -f "$(lp "$backup")" ]; then
     got=$(hash_file "$(lp "$backup")")
     [ "$got" = "$stock" ] || die "stock backup mismatch for $dest"
     return 0
+  fi
+  # A drifted destination is not stock. The incoming bytes may be, when a
+  # named baseline is promoted because no backup exists yet.
+  if [ -n "$src" ] && [ -f "$(lp "$src")" ]; then
+    got=$(hash_file "$(lp "$src")")
+    if [ "$got" = "$stock" ]; then
+      mkdir -p "$(dirname "$(lp "$backup")")"
+      cp -a "$(lp "$src")" "$(lp "$backup")"
+      return 0
+    fi
   fi
   if mounted "$dest"; then
     die "mounted without stock backup: $dest"
@@ -423,11 +467,14 @@ apply_plan() {
   places=$(lp /tmp/fes-work)/places
   clears=$(lp /tmp/fes-work)/clears
   unmounts=$(lp /tmp/fes-work)/unmounts
+  removes=$(lp /tmp/fes-work)/removes
   installs=$(lp /tmp/fes-work)/installs
   : > "$places"
   : > "$clears"
   : > "$unmounts"
+  : > "$removes"
   : > "$installs"
+  : > "$(lp /tmp/fes-work)/expect-mounts"
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in
       ''|'#'*) continue ;;
@@ -457,6 +504,10 @@ apply_plan() {
       UNMOUNT)
         [ "$#" -eq 3 ] || die "UNMOUNT fields"
         printf '%s\n' "$line" >> "$unmounts"
+        ;;
+      REMOVE)
+        [ "$#" -eq 3 ] || die "REMOVE fields"
+        printf '%s\n' "$line" >> "$removes"
         ;;
       INSTALL)
         [ "$#" -eq 3 ] || die "INSTALL fields"
@@ -498,7 +549,7 @@ apply_plan() {
     [ -f "$(lp "$4")" ] || die "missing source $4"
     got=$(hash_file "$(lp "$4")")
     [ "$got" = "${10}" ] || die "source hash mismatch for $2"
-    ensure_backup "$3" "$7" "$9"
+    ensure_backup "$3" "$7" "$9" "$4"
   done < "$places"
 
   while IFS= read -r line; do
@@ -525,6 +576,14 @@ apply_plan() {
     valid_path "$3" || die "bad path"
     allowed_dest "$3" || die "dest not allowed"
   done < "$unmounts"
+
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    set -- $line
+    valid_name "$2" || die "bad component"
+    valid_path "$3" || die "bad path"
+    allowed_dest "$3" || die "dest not allowed"
+  done < "$removes"
 
   while IFS= read -r line; do
     [ -n "$line" ] || continue
@@ -586,6 +645,13 @@ apply_plan() {
         ;;
     esac
   done < "$clears"
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    set -- $line
+    case "$3" in
+      /usr/*) need_rw=1 ;;
+    esac
+  done < "$removes"
   if [ "$need_rw" = 1 ]; then
     remount_rw || die "remount rw failed"
   fi
@@ -599,26 +665,46 @@ apply_plan() {
     mode=$6
     backup=$7
     stage=$8
-    mkdir -p "$(dirname "$(lp "$stage")")"
+    mkdir -p "$(dirname "$(lp "$stage")")" "$(lp /tmp/fes-work)"
+    stage_saved=0
     if [ -f "$(lp "$stage")" ]; then
       cp -a "$(lp "$stage")" "$(lp /tmp/fes-work)/stage-$2"
-      push_undo "copy /tmp/fes-work/stage-$2 $stage"
+      stage_saved=1
     fi
     cp -a "$(lp "$src")" "$(lp "$stage")"
     chmod "$mode" "$(lp "$stage")"
     if [ "$persistence" = tmpfs ]; then
+      if [ "$stage_saved" = 1 ]; then
+        push_undo "copy /tmp/fes-work/stage-$2 $stage"
+      fi
       if mounted "$dest"; then
         push_undo "bind $dest $stage"
         apply_umount "$dest" "$backup"
       fi
       push_undo "umount $dest $backup"
       apply_bind "$dest" "$stage"
+    elif mounted "$dest"; then
+      # Switching a bind to a persistent write. Undo restores the underlying
+      # stock, then the previous stage, then the bind. A byte copy of the
+      # mounted file would leave the new bytes on FAT with no mount.
+      if [ "$stage_saved" != 1 ]; then
+        cp -a "$(lp "$dest")" "$(lp /tmp/fes-work)/stage-$2"
+        stage_saved=1
+      fi
+      prev=$(hash_file "$(lp /tmp/fes-work)/stage-$2")
+      printf '%s %s\n' "$dest" "$prev" >> "$(lp /tmp/fes-work)/expect-mounts"
+      push_undo "bind $dest $stage"
+      push_undo "copy /tmp/fes-work/stage-$2 $stage"
+      push_undo "copy $backup $dest"
+      apply_umount "$dest" "$backup"
+      cp -a "$(lp "$stage")" "$(lp "$dest")"
+      chmod "$mode" "$(lp "$dest")"
     else
+      if [ "$stage_saved" = 1 ]; then
+        push_undo "copy /tmp/fes-work/stage-$2 $stage"
+      fi
       cp -a "$(lp "$dest")" "$(lp /tmp/fes-work)/bytes-$2"
       push_undo "copy /tmp/fes-work/bytes-$2 $dest"
-      if mounted "$dest"; then
-        apply_umount "$dest" "$backup"
-      fi
       cp -a "$(lp "$stage")" "$(lp "$dest")"
       chmod "$mode" "$(lp "$dest")"
     fi
@@ -650,6 +736,30 @@ apply_plan() {
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     set -- $line
+    dest=$3
+    name=$2
+    if [ -f "$(lp "$dest")" ]; then
+      cp -a "$(lp "$dest")" "$(lp /tmp/fes-work)/removed-$name"
+      push_undo "copy /tmp/fes-work/removed-$name $dest"
+    fi
+    if mounted "$dest"; then
+      if [ -f "$(lp /tmp/fes-swap/$name)" ]; then
+        cp -a "$(lp /tmp/fes-swap/$name)" "$(lp /tmp/fes-work)/stage-$name"
+        push_undo "bind $dest /tmp/fes-swap/$name"
+        push_undo "copy /tmp/fes-work/stage-$name /tmp/fes-swap/$name"
+      fi
+      if [ "${KIT_FAKE:-}" = 1 ]; then
+        mount_del "$dest"
+      else
+        umount "$(lp "$dest")" || die "umount failed $dest"
+      fi
+    fi
+    rm -f "$(lp "$dest")"
+  done < "$removes"
+
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    set -- $line
     copy_install "$2" "$3"
   done < "$installs"
 
@@ -664,6 +774,7 @@ apply_plan() {
   if ! start_services "$starts"; then
     note "start failed; rolling back"
     run_undo || true
+    verify_rollback || note "rollback did not restore the previous bind"
     remount_ro || true
     start_services "$starts" || note "rollback start failed"
     die "start failed"
@@ -675,6 +786,7 @@ apply_plan() {
     got=$(hash_file "$(lp "$3")")
     [ "$got" = "${10}" ] || {
       run_undo || true
+      verify_rollback || note "rollback did not restore the previous bind"
       remount_ro || true
       start_services "$starts" || true
       die "placed hash mismatch for $2"
@@ -686,12 +798,14 @@ apply_plan() {
     got=$(hash_file "$(lp "$3")")
     [ "$got" = "$7" ] || {
       run_undo || true
+      verify_rollback || note "rollback did not restore the previous bind"
       remount_ro || true
       start_services "$starts" || true
       die "restored hash mismatch for $2"
     }
     if [ "$4" = tmpfs ] && mounted "$3"; then
       run_undo || true
+      verify_rollback || note "rollback did not restore the previous bind"
       remount_ro || true
       start_services "$starts" || true
       die "tmpfs mount remains on $3"

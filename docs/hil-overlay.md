@@ -5,10 +5,15 @@ Use this procedure only on the designated kit A (`192.168.10.84`), under the ded
 Kit file changes go through the [kit runtime manifest](kit-manifest.md):
 `python3 scripts/fes kit claim`, `swap`, and `restore`. Do not copy binaries,
 configs, or core-package files onto a kit directly, and do not install them
-with `kit-deploy-script`. HIL evidence includes `python3 scripts/fes kit status`
-for every kit the run touched. A persistent swap (including `launcher.json`
-and `agent.toml`) has `--why` in that status. Release the kit.py lease before
-swap or restore; those commands restart services and do not reboot the board.
+with `kit-deploy-script`. `python3 scripts/hil_plan.py kit-deploy-script`
+refuses that install path. `--legacy` only reprints the old generator for
+the syntax fixture and must not be run on a kit. HIL evidence includes
+`python3 scripts/fes kit status` for every kit the run touched, passed to
+`hil_plan.py evidence` as `--kit-status`. Evidence checks the boot id and
+each overlaid kit binary's `current` hash, and copies the saved text into
+the report. A persistent swap (including `launcher.json` and `agent.toml`)
+has `--why` in that status. Release the kit.py lease before swap or restore;
+those commands restart services and do not reboot the board.
 
 1. Authorize the designated kit and prepare a clean worktree at the exact full PR head. Build the affected binaries and cores from that head.
 2. For every SSH/SCP call create a throwaway known_hosts file and use `StrictHostKeyChecking=accept-new` (never `/dev/null`, the real known_hosts, or `StrictHostKeyChecking=no`).
@@ -118,7 +123,8 @@ before the host attestation command is run.
    tenfoot, and the `kit_ui` line from `kit-command` must show that the overlaid
    `fogcast-kit` completed `--print-kit-ui` and selected `tenfoot`.
 
-9. Save `python3 scripts/fes kit status` for each kit in the run. Then generate
+9. Save `python3 scripts/fes kit status` for each kit in the run and pass
+   those files to evidence as repeated `--kit-status` arguments. Then generate
    evidence with the base build's `release.json`, the update capture,
    the hash outputs, the lease log, and one `--core-status core:NAME=FILE` per
    core, where FILE is the `core-capture` bundle. Pass
@@ -139,7 +145,8 @@ python3 scripts/hil_plan.py evidence --repo . --base-image-commit "$BASE_IMAGE_C
   --base-release-json /path/to/release.json --kit-update-json /tmp/kit-update.json \
   --manifest /tmp/hil-manifest.json --kit-sha256 /tmp/kit.sha256 \
   --host-sha256 /tmp/host.sha256 --lease-log /tmp/lease.jsonl --lease-owner KIT_OWNER \
-  --host-lease-owner HOST_OWNER --core-status core:NAME=/tmp/core-capture.json \
+  --host-lease-owner HOST_OWNER --kit-status /tmp/kit-a-status.txt \
+  --core-status core:NAME=/tmp/core-capture.json \
   --out /tmp/hil-evidence.md
 ```
 
