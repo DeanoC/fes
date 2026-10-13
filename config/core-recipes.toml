@@ -65,7 +65,7 @@ producer_module = "scripts.build_fes_coleco_socket_v2"
 producer_options = { native_video = true }
 video_profiles = ["direct", "scanlines"]
 authenticate = "authenticate_tools"
-lock_path = "toolchains/coleco-sgm.lock"
+lock_path = "toolchain.lock"
 gpu_router = "HIP"
 hip_architectures = "gfx1100;gfx1201"
 selection_filename = "fes-coleco.package-selection.toml"

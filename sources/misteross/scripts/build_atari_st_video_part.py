@@ -185,7 +185,7 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
         route_text = (output / "route.log").read_text()
         if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
             raise ValueError("video route log does not prove a complete routed design")
-        gpu_backend = _require_gpu_backend(route_text)
+        gpu_backend = _require_gpu_backend(route_text, shell_recipe.ST_GPU_BACKEND)
         timing = json.loads((output / "timing.json").read_bytes())
         measured = slot_recipe.validate_cart_timing(timing)
         factory = shell_recipe

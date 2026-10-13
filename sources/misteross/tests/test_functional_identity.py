@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 from scripts import build_fes_coleco_oss as coleco
 from scripts.export_core_package import build_identity, PackageExportError
-from scripts.functional_execution import execution_environment, execution_digest
+from scripts.functional_execution import _gpu_machine_files, execution_environment, execution_digest
 from scripts.fes_build_common import _run_tool
 from scripts.search_placer_qor import route_after_synth, SearchError
 
@@ -181,6 +181,34 @@ class FunctionalColecoTests(unittest.TestCase):
         self.assertNotIn("LD_PRELOAD", env)
         self.assertNotIn("YOSYS_DATDIR", env)
         self.assertNotEqual(execution_digest({"gpu_device": 0}), execution_digest({"gpu_device": 1}))
+
+    def test_mixed_gpu_host_records_kfd_and_nvidia(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            kfd = root / "kfd/nodes"
+            (kfd / "1").mkdir(parents=True)
+            (kfd / "1/properties").write_text("amd\n")
+            (kfd / "1/gpu_id").write_text("1\n")
+            amdgpu = root / "amdgpu-version"
+            amdgpu.write_text("amdgpu 1\n")
+            nvidia = root / "nvidia/gpus/0000:01:00.0"
+            nvidia.mkdir(parents=True)
+            (nvidia / "information").write_text("nvidia\n")
+            driver = root / "nvidia-version"
+            driver.write_text("driver 1\n")
+            release = root / "os-release"
+            release.write_text("NAME=test\n")
+            recorded = _gpu_machine_files(kfd, amdgpu, root / "nvidia/gpus", driver, release)
+            self.assertEqual(recorded, [
+                kfd / "1/properties", kfd / "1/gpu_id", amdgpu,
+                nvidia / "information", driver, release,
+            ])
+            nvidia_only = _gpu_machine_files(
+                root / "missing-kfd", root / "missing-amdgpu",
+                root / "nvidia/gpus", driver, release)
+            self.assertEqual(nvidia_only, [nvidia / "information", driver, release])
+            with self.assertRaisesRegex(ValueError, "KFD topology or NVIDIA"):
+                _gpu_machine_files(root / "missing-kfd", amdgpu, root / "missing-nvidia", driver, release)
 
 
 if __name__ == "__main__":

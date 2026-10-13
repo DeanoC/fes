@@ -167,7 +167,7 @@ make toolchain
 freeze-scaffold pass 2. `fes.menu` and both OSS `fes.ramtest` rates use the same
 `toolchain.lock` HIP compiler slot (also provisioned by
 `make toolchain-fes-ramtest`). Coleco uses `make toolchain-fes-coleco` against
-`toolchains/coleco-sgm.lock`. SG-1000 uses `make toolchain-fes-sg1000`
+`toolchain.lock`. SG-1000 uses `make toolchain-fes-sg1000`
 against `toolchains/registered-memory.lock`. SMS uses
 `make toolchain-fes-sms` against `toolchains/fes-sms.lock`. ZX81 uses
 `make toolchain-fes-zx81` against `toolchains/zx81-expansion.lock`. Those

@@ -20,7 +20,7 @@ if __package__ in (None, ""):
 from scripts import build_fes_zx81_oss as shell
 from scripts import build_zx81_bus_validation_cart as cart
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
-from scripts.fes_build_common import _require_gpu_backend, reject_async_m10k_reads
+from scripts.fes_build_common import FES_GPU_BACKEND, _require_gpu_backend, reject_async_m10k_reads
 from scripts.hip_zx81_bus_socket import validate_overlay_timing
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -96,7 +96,7 @@ def compose_cart(name: str, tools: dict[str, Path], env: dict[str, str]) -> None
         env,
     )
     reject_async_m10k_reads(json.loads((out / "cart-routed.json").read_text()))
-    _require_gpu_backend((out / "route.log").read_text(errors="replace"))
+    _require_gpu_backend((out / "route.log").read_text(errors="replace"), FES_GPU_BACKEND)
     validate_overlay_timing(json.loads((out / "timing.json").read_text()))
     base = rbf_load((SHELL_OUT / "core.rbf").read_bytes())
     placed = rbf_load((out / "cart.rbf").read_bytes())

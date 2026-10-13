@@ -177,8 +177,8 @@ class ColecoSgmBuildTest(unittest.TestCase):
         self.assertIn("cores/fes-coleco/rtl/coleco_audio_mix.v", shell.PINNED_INPUTS)
         self.assertIn("cores/fes-coleco/rtl/coleco_expansion_socket_v2.v", shell.PINNED_INPUTS)
         self.assertEqual(shell.TOOL_COMMITS["nextpnr"],
-                         "655f38334b8a1ba798cc05cf3744b6a897119b5d")
-        self.assertEqual(shell.TOOLCHAIN_LOCK, "toolchains/coleco-sgm.lock")
+                         "9128800fa6e77c4138088a7107a95376ba47ff15")
+        self.assertEqual(shell.TOOLCHAIN_LOCK, "toolchain.lock")
         lock = tomllib.loads((shell.ROOT / shell.TOOLCHAIN_LOCK).read_text())
         for name, revision in shell.TOOL_COMMITS.items():
             self.assertEqual(lock["tool"][name]["commit"], revision)
@@ -192,7 +192,7 @@ class ColecoSgmBuildTest(unittest.TestCase):
         self.assertEqual(record["parameters"]["seed_order"], "3,4,5,1,2,6,7,8,9,10")
         for source in ("sgm.v", "sgm_control.v", "sgm_ay.v"):
             self.assertIn(f"cores/fes-coleco/expansions/{source}", sgm.INPUTS)
-        self.assertIn("toolchains/coleco-sgm.lock", sgm.INPUTS)
+        self.assertIn("toolchain.lock", sgm.INPUTS)
 
     def test_v2_boundary_has_59_unique_physical_ffs(self):
         bels = coleco_expansion.socket_bels_v2()
@@ -210,6 +210,19 @@ class ColecoSgmBuildTest(unittest.TestCase):
         for name, bel in bels.items():
             raw = coleco_expansion.raw_cell_name(name)
             self.assertIn(f'`COLECO_V2_SOCKET_FF({raw.removeprefix("socket.")}, "{bel}",', rtl)
+
+    def test_clock_coverage_accepts_another_global_lane_when_row_4_is_present(self):
+        route = clock_coverage_route_fixture().replace("GCLK.0.36.3", "GCLK.0.36.2")
+        top = {
+            "cells": {"clock_coverage_ff": {"connections": {"CLK": [2107]}}},
+            "netnames": {"system_clock.clocks[0]": {
+                "bits": [2107], "attributes": {"ROUTING": route}}},
+        }
+        coleco_expansion.validate_v2_clock_coverage_route(top)
+        broken = route.replace("HCLK.16.4.5.HCLKB.16.4.5", "HCLK.16.4.5.OTHER")
+        top["netnames"]["system_clock.clocks[0]"]["attributes"]["ROUTING"] = broken
+        with self.assertRaisesRegex(ValueError, "row 4 branch"):
+            coleco_expansion.validate_v2_clock_coverage_route(top)
 
     def test_v2_routed_shell_admits_only_exact_boundary_buffers(self):
         top = route_through_fixture("clock_coverage_ff")

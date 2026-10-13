@@ -30,7 +30,7 @@ A successful package-only C64 preparation would use
 The selected FPGA sources are the tracked
 `sources/misteross` module at the selected FES commit. Its repository-default
 compiler lock serves factory Pong; the standard ZX81 socket uses
-`toolchains/zx81-expansion.lock`; Coleco v2 uses `toolchains/coleco-sgm.lock`,
+`toolchains/zx81-expansion.lock`; Coleco v2 uses `toolchain.lock`,
 SG-1000 uses `toolchains/registered-memory.lock`, SMS uses `toolchains/fes-sms.lock`,
 Apple II uses `toolchains/apple2.lock`, Commodore 64 uses its independent
 `toolchains/c64.lock`, and ZX Spectrum 48K uses `toolchains/spectrum.lock`. Inspect `config/core-recipes.toml` for each

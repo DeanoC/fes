@@ -760,9 +760,8 @@ a nominal 60 Hz frame cadence independent of CPU and HDMI pixel clocks. This
 models frame/line pacing, not composite sync, half-lines or cycle-perfect raster
 effects. The development Coleco machine edge has an inactive vacant response
 and masks expansion read claims to `0x2000–0x5fff` or unclaimed I/O. The
-physical socket is behind `FES_COLECO_EXPANSION_DEV`; a separate
-`coleco-expansion.lock` pairs registered-memory Yosys with the socket-aware
-Mistral and nextpnr pins. The development producer seals a timed shell with a
+physical socket is behind `FES_COLECO_EXPANSION_DEV`. The development producer
+authenticates `toolchain.lock` and seals a timed shell with a
 reserved `24 1 28 11` placement region containing only pinned boundary FFs.
 It declares optional `fes.expansion.coleco-bus` 1.0. The diagnostic module
 uses the frozen shell and restores the system PLL's
@@ -852,7 +851,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `9128800f` with Mistral `8fcc4cb4`. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
+| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `9128800f` with Mistral `8fcc4cb4`. Factory Coleco v2 selects that shared lock and can build it under `build/toolchain/fes-coleco-socket-v2`. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -875,11 +874,8 @@ The Opcode SGM candidate uses a separate development shell with a 31-bit
 request and 28-bit registered response. The response carries direct data,
 claim, WAIT, INT, a shell-RAM claim and signed PCM. The shell owns a dormant
 32 KiB M10K RAM and saturated SN+AY audio path; the separately synthesized SGM
-owns the window-enable and AY register decode. `toolchains/coleco-sgm.lock`
-pins nextpnr `655f3833` with frozen-scaffold BEL admission and bounded slot
-placement. Its GPU router selects all users of congested wires before rip-up
-and preserves the initial-routing budget through small congestion plateaus.
-The shell and its matching video/SGM parts use this same locked compiler.
+owns the window-enable and AY register decode. The v2 shell authenticates
+`toolchain.lock`. The former `toolchains/coleco-sgm.lock` pin is retired.
 The v2-only socket reserves `24 1 28 19` placement and
 `(1769,32,2806,1800)` CRAM; v1 retains its smaller rectangle. The v2
 build scripts keep the v1 diagnostic's socket and archive contract untouched.

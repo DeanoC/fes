@@ -238,8 +238,11 @@ class FesHipLaneTests(unittest.TestCase):
         for module in (build_fes_pong, build_fes_zx81_oss, build_fes_coleco_oss):
             with self.subTest(module=module.__name__):
                 with self.assertRaisesRegex(BuildError, "device backend"):
-                    module._require_gpu_backend(CPU_FALLBACK_LOG)
-                self.assertEqual(module._require_gpu_backend(LIVE_HIP_LOG), "hip")
+                    module._require_gpu_backend(CPU_FALLBACK_LOG, "hip")
+                self.assertEqual(module._require_gpu_backend(LIVE_HIP_LOG, "hip"), "hip")
+                with self.assertRaisesRegex(BuildError, "authenticated backend hip"):
+                    module._require_gpu_backend(
+                        "Info: backend cuda:NVIDIA RTX 4090 ready\n", "hip")
 
     def test_build_reauthenticates_with_the_same_explicit_cache_root(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
