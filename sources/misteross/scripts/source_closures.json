@@ -255,7 +255,7 @@
     "scripts/source_repository.py",
     "scripts/spectrum_slots.py",
     "scripts/toolchain_cache.py",
-    "toolchains/spectrum.lock"
+    "toolchain.lock"
   ],
   "build_fes_zx81_oss": [
     "cores/fes-common/generated/fes_application.vh",
