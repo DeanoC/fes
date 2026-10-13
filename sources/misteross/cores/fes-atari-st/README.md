@@ -149,8 +149,10 @@ The 60 Hz sync bit retains the PAL crystal; a
 physical NTSC crystal policy remains separate. Timer B receives active display enable, including opened bottom
 lines, so blank lines do not contribute events. The live shifter address counter advances by two bytes per four native CPU
 cycles during DMA, including opened bottom lines. Its read visibility follows
-Hatari 2.5.0's eight-cycle offset; blanking holds the address and VBL reloads
-the aligned screen base. Exact MMU arbitration and horizontal border tricks
+Hatari 2.5.0's eight-cycle offset. Low/medium resolution reloads the aligned
+live screen base at cycle 56 of PAL line 310 or NTSC line 260 during VSYNC.
+The frame-boundary reload also samples the base; the counter holds its address
+between DMA reads and reloads. Exact MMU arbitration and horizontal border tricks
 remain unimplemented.
 The MFP UART has disconnected RX and timed TX status, without a physical serial port.
 

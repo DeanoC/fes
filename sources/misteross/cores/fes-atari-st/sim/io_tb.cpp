@@ -312,10 +312,40 @@ static void shifter_counter(Test &t,unsigned resolution,unsigned sync) {
     while(t.dut.display_line<stop) t.tick();
     const unsigned final=base+(mono?400:200)*bytes;
     while(t.frames==0) {
-        t.require(t.dut.video_counter==final,"bottom blanking holds the final DMA address");
+        // STF low/medium counter restart: PAL line 310 / NTSC line 260,
+        // cycle 56. Mono has no intermediate restart in the reference.
+        const unsigned restart_line=sync==2?310:260;
+        const bool restarted=!mono && (t.dut.display_line>restart_line ||
+            (t.dut.display_line==restart_line && t.dut.display_phase>=56));
+        t.require(t.dut.video_counter==(restarted?base:final),
+                  "color shifter counter reloads at the STF VSYNC deadline");
         t.tick();
     }
     t.require(t.dut.video_counter==base,"VBL reloads all counter bytes from aligned base");
+}
+
+static void shifter_restart_base(Test &t,bool pal) {
+    t.reset(0,pal?2:0);
+    const unsigned restart_line=pal?310:260;
+    while(t.dut.display_line<restart_line) t.tick();
+    t.require(t.dut.video_counter==0x10200+200*160,
+              "VSYNC starts with the completed frame's DMA address");
+    t.dut.screen_base=0x203f3;
+    while(t.dut.display_phase<56) {
+        t.require(t.dut.video_counter==0x10200+200*160,
+                  "a base write does not move the counter before restart");
+        t.tick();
+    }
+    t.require(t.dut.video_counter==0x20300,
+              "VSYNC restart samples the aligned live screen base");
+    t.dut.screen_base=0x30455;
+    while(t.frames==0) {
+        t.require(t.dut.video_counter==0x20300,
+                  "a later base write does not change the completed VSYNC reload");
+        t.tick();
+    }
+    t.require(t.dut.video_counter==0x30400,
+              "frame-boundary reload samples the subsequent base write");
 }
 
 static void brief_mode_writes(Test &t) {
@@ -482,6 +512,7 @@ int main(int argc,char **argv) {
     display_enable(test,0,2,50,200); display_enable(test,1,0,60,200);
     display_enable(test,2,2,71,400); brief_mode_writes(test);
     shifter_counter(test,0,2); shifter_counter(test,1,0); shifter_counter(test,2,2);
+    shifter_restart_base(test,true); shifter_restart_base(test,false);
     timer_b_polarity(test,false); timer_b_polarity(test,true);
     bottom_border(test,true,false); bottom_border(test,true,true);
     bottom_border(test,false,false); bottom_border(test,false,true);

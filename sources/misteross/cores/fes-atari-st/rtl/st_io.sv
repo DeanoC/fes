@@ -213,6 +213,12 @@ module st_io #(
         (!raster_lt9(horizontal_cycle, 9'd60) && raster_lt9(horizontal_cycle, 9'd380));
     wire counter_word = cpu_cycle_ce && active_line && counter_window &&
                         horizontal_cycle[1:0] == 2'b11;
+    // STF low/medium MMU counter restart during VSYNC: cycle 56 on
+    // PAL line 310 or NTSC line 260, selected by the live sync register.
+    // Hatari Video_RestartVideoCounter / Video_InterruptHandler_HBL.
+    wire counter_restart = cpu_cycle_ce && line_resolution != 2'd2 &&
+        horizontal_cycle == 9'd55 &&
+        (sync_mode[1] ? native_line == 9'd310 : native_line == 9'd260);
     always @(posedge clk) begin
         if (reset) begin
             timer_phase <= 0; horizontal_cycle <= 0; bottom_open <= 0; native_pixel_ce <= 0;
@@ -298,7 +304,9 @@ module st_io #(
                 if (native_line == display_top - 9'd1)
                     video_counter <= {screen_base[23:8], 8'd0};
                 if (native_line != 9'h1ff) native_line <= native_line + 1'b1;
-            end else if (counter_word) video_counter <= video_counter + 24'd2;
+            end else if (counter_restart)
+                video_counter <= {screen_base[23:8], 8'd0};
+            else if (counter_word) video_counter <= video_counter + 24'd2;
             if (!vblank && cpu_cycle_ce && active_line && line_pal &&
                 native_short_line && horizontal_cycle == 9'd383)
                 native_word_loss <= native_word_loss + 9'd1;
