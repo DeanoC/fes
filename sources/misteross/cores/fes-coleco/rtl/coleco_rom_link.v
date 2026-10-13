@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Blank 16 KiB Coleco cartridge. The format-3 ROM map binds every lane.
-// Rows 1-15 and 40 of column 5 sit outside the native video CRAM rectangle
-// (y 1800-3442) and the v2 expansion socket (x 1769-2806, y 32-1800).
-// Row 39 is still inside that video rectangle, so it is not a lane.
+// Rows 1-14, 40 and 41 of column 5 sit outside the native video CRAM
+// rectangle (y 1800-3442) and the v2 expansion socket (x 1769-2806, y 32-1800).
+// Row 39 is inside that video rectangle. Row 15 is not a legal M10K BEL.
 // Latency matches sg1000_rom_link: two system clocks, CFG_ASYNC_READ=0.
 module coleco_rom_link (
     input wire clk,
@@ -132,7 +132,7 @@ module coleco_rom_link (
         .CLK1(clk), .A1ADDR(10'd0), .A1DATA(10'd0), .A1EN(1'b1),
         .B1EN(1'b1), .B1ADDR(lane_addr), .B1DATA(q13), .ACLR0(1'b0), .ACLR1(1'b0)
     );
-    (* keep, BEL = "MISTRAL_M10K.5.15.0" *)
+    (* keep, BEL = "MISTRAL_M10K.5.41.0" *)
     MISTRAL_M10K #(.CFG_ABITS(10), .CFG_DBITS(10), .CFG_ASYNC_READ(0), .INIT(10240'b0)) lane14 (
         .CLK1(clk), .A1ADDR(10'd0), .A1DATA(10'd0), .A1EN(1'b1),
         .B1EN(1'b1), .B1ADDR(lane_addr), .B1DATA(q14), .ACLR0(1'b0), .ACLR1(1'b0)
