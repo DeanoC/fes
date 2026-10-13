@@ -211,28 +211,94 @@ func looseTitle(title string) string {
 // smsHashFill remembers host ROM SHA-256 values for browse-only SMS rows
 // while the host catalog is reachable. A later offline launch reads the
 // cache and does not call the host. A new catalog cancels the previous fill.
+// The digest store and that cancellation share mu, so a cancelled fill cannot
+// write a digest after a replacement fill stores one.
 type smsHashFill struct {
 	mu     sync.Mutex
 	cancel context.CancelFunc
-	// checked bounds background refreshes: each id is re-fetched at most
-	// once per smsHashRefreshEvery, not on every 30s catalog reload.
-	checked map[string]time.Time
+	// readyAt is the earliest time id may be fetched again. A stored digest
+	// waits smsHashRefreshEvery. A failed fetch waits smsHashErrorBackoff.
+	// A cancelled fetch records nothing, so the next catalog load retries it.
+	readyAt map[string]time.Time
+	// pending counts background fills started and not yet finished.
+	pending sync.WaitGroup
+	// testBeforeStore, when set, runs after a successful fetch and before the
+	// digest store. Production leaves it nil. A test pauses here so a
+	// replacement fill can store first.
+	testBeforeStore func()
 }
 
 const smsHashRefreshEvery = 15 * time.Minute
+const smsHashErrorBackoff = 2 * time.Minute
 
-// due reports whether id should be fetched now and marks it checked.
+// due reports whether id may be fetched at now. It does not record the attempt.
 func (f *smsHashFill) due(id string, now time.Time) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if last, ok := f.checked[id]; ok && now.Sub(last) < smsHashRefreshEvery {
+	until, ok := f.readyAt[id]
+	return !ok || !now.Before(until)
+}
+
+func (f *smsHashFill) hold(id string, until time.Time) {
+	if f == nil {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.holdLocked(id, until)
+}
+
+func (f *smsHashFill) holdLocked(id string, until time.Time) {
+	if f.readyAt == nil {
+		f.readyAt = map[string]time.Time{}
+	}
+	f.readyAt[id] = until
+}
+
+// noteFailure records the error backoff when this fill is still current.
+// It reports whether the fill was cancelled and recorded nothing.
+func (f *smsHashFill) noteFailure(ctx context.Context, id string, now time.Time) bool {
+	if f == nil {
 		return false
 	}
-	if f.checked == nil {
-		f.checked = map[string]time.Time{}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if ctx.Err() != nil {
+		return true
 	}
-	f.checked[id] = now
+	f.holdLocked(id, now.Add(smsHashErrorBackoff))
+	return false
+}
+
+// commitDigest stores hash when this fill is still current. The cancellation
+// check and the write share f.mu with start and stop, so a replacement that
+// has already cancelled this fill cannot lose its digest to this store.
+// A cancelled fill records no throttle. A still-current empty or rejected
+// digest records the error backoff. A still-current store records the
+// refresh interval.
+func (f *smsHashFill) commitDigest(ctx context.Context, store *DiskStore, id, hash string, now time.Time) bool {
+	if f == nil {
+		return hash != "" && store.RememberROMHash(id, hash) == nil
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if ctx.Err() != nil {
+		return false
+	}
+	if hash == "" || store.RememberROMHash(id, hash) != nil {
+		f.holdLocked(id, now.Add(smsHashErrorBackoff))
+		return false
+	}
+	f.holdLocked(id, now.Add(smsHashRefreshEvery))
 	return true
+}
+
+func (f *smsHashFill) stored(id string, now time.Time) {
+	f.hold(id, now.Add(smsHashRefreshEvery))
+}
+
+func (f *smsHashFill) failed(id string, now time.Time) {
+	f.hold(id, now.Add(smsHashErrorBackoff))
 }
 
 func (f *smsHashFill) start(parent context.Context, fetch func(context.Context, string) (string, error), store *DiskStore, games []hostclient.Game) {
@@ -247,7 +313,11 @@ func (f *smsHashFill) start(parent context.Context, fetch func(context.Context, 
 	f.cancel = cancel
 	f.mu.Unlock()
 	copied := append([]hostclient.Game(nil), games...)
-	go fillSMSROMHashes(ctx, fetch, store, copied, f)
+	f.pending.Add(1)
+	go func() {
+		defer f.pending.Done()
+		fillSMSROMHashes(ctx, fetch, store, copied, f)
+	}()
 }
 
 func (f *smsHashFill) stop() {
@@ -266,6 +336,10 @@ func fillSMSROMHashes(ctx context.Context, fetch func(context.Context, string) (
 	if fetch == nil || store == nil {
 		return
 	}
+	var pace *smsHashFill
+	if len(throttle) > 0 {
+		pace = throttle[0]
+	}
 	for _, game := range games {
 		if ctx.Err() != nil {
 			return
@@ -273,17 +347,30 @@ func fillSMSROMHashes(ctx context.Context, fetch func(context.Context, string) (
 		if !game.LocalCatalogPlayable() {
 			continue
 		}
-		if len(throttle) > 0 && throttle[0] != nil && !throttle[0].due(game.ID, time.Now()) {
+		if pace != nil && !pace.due(game.ID, time.Now()) {
 			continue
 		}
 		reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		got, err := fetch(reqCtx, game.ID)
 		cancel()
 		if err != nil {
+			if ctx.Err() != nil || pace.noteFailure(ctx, game.ID, time.Now()) {
+				return
+			}
 			continue
 		}
-		if hash := normalizeROMHash(got); hash != "" {
-			_ = store.RememberROMHash(game.ID, hash)
+		hash := normalizeROMHash(got)
+		if pace != nil && pace.testBeforeStore != nil {
+			pace.testBeforeStore()
+		}
+		if !pace.commitDigest(ctx, store, game.ID, hash, time.Now()) {
+			if ctx.Err() != nil {
+				return
+			}
+			continue
+		}
+		if ctx.Err() != nil {
+			return
 		}
 	}
 }
