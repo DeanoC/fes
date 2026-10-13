@@ -215,10 +215,15 @@ module st_io #(
                         horizontal_cycle[1:0] == 2'b11;
     // STF low/medium MMU counter restart during VSYNC: cycle 56 on
     // PAL line 310 or NTSC line 260, selected by the live sync register.
+    // The NTSC deadline also requires an NTSC vertical frame. A brief
+    // 60 Hz line in a PAL frame must not reset its still-active DMA counter.
+    // A color line within a mono frame has no intermediate color restart.
     // Hatari Video_RestartVideoCounter / Video_InterruptHandler_HBL.
-    wire counter_restart = cpu_cycle_ce && line_resolution != 2'd2 &&
+    wire counter_restart = cpu_cycle_ce && frame_resolution != 2'd2 &&
+        line_resolution != 2'd2 &&
         horizontal_cycle == 9'd55 &&
-        (sync_mode[1] ? native_line == 9'd310 : native_line == 9'd260);
+        (sync_mode[1] ? native_line == 9'd310 :
+            (!frame_pal && native_line == 9'd260));
     always @(posedge clk) begin
         if (reset) begin
             timer_phase <= 0; horizontal_cycle <= 0; bottom_open <= 0; native_pixel_ce <= 0;

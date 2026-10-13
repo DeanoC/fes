@@ -4,6 +4,7 @@
 // counts are independent of the wrapper's implementation.
 #include "Vst_io_sim_top.h"
 #include "verilated.h"
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -348,6 +349,42 @@ static void shifter_restart_base(Test &t,bool pal) {
               "frame-boundary reload samples the subsequent base write");
 }
 
+static void shifter_restart_mode(Test &t,bool mono,bool frame_pal,
+                                 unsigned restart_line,bool live_pal) {
+    t.reset(mono?2:0,frame_pal?2:0);
+    // Select the new line mode after the preceding row has finished DMA.
+    // The vertical frame remains PAL/NTSC/mono until its frame boundary.
+    while(t.dut.display_line<restart_line-1 ||
+          t.dut.display_phase<(mono?200u:480u)) t.tick();
+    t.dut.resolution=0;
+    t.dut.sync_mode=live_pal?2:0;
+    while(t.dut.display_line<restart_line || t.dut.display_phase<54) t.tick();
+    const unsigned top=mono?34:frame_pal?63:34;
+    const unsigned rows=mono?restart_line-top:
+        std::min(restart_line-top,200u);
+    const unsigned expected=0x10200+rows*(mono?80:160);
+    t.require(t.dut.video_counter==expected,
+              "mode switch retains all completed rows before the restart deadline");
+    t.dut.screen_base=0x403a0;
+    while(t.dut.display_phase<60) {
+        t.require(t.dut.video_counter==expected,
+                  "live color/sync cannot restart a mismatched vertical frame");
+        t.tick();
+    }
+    const bool active=mono || (frame_pal && restart_line<263);
+    while(t.dut.display_line==restart_line) t.tick();
+    t.require(t.dut.video_counter==expected+(active?160:0),
+              "remaining active-row DMA continues from its retained address");
+}
+
+static void shifter_restart_modes(Test &t) {
+    shifter_restart_mode(t,false,true,260,false);
+    shifter_restart_mode(t,false,true,310,false);
+    shifter_restart_mode(t,false,false,260,true);
+    shifter_restart_mode(t,true,true,260,false);
+    shifter_restart_mode(t,true,true,310,true);
+}
+
 static void brief_mode_writes(Test &t) {
     t.reset();
     const uint64_t start=t.cpu_ticks;
@@ -491,6 +528,11 @@ static void vertical_blank(Test &t, bool pal, bool suppress) {
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     Test test;
+    if(argc==2 && std::string(argv[1])=="--restart-mode-only") {
+        shifter_restart_modes(test);
+        std::cout<<"ST shifter restart modes: "<<test.assertions<<" assertions passed\n";
+        return 0;
+    }
     if(argc==2 && std::string(argv[1])=="--blank-only") {
         vertical_blank(test,true,false); vertical_blank(test,true,true);
         vertical_blank(test,false,false); vertical_blank(test,false,true);
@@ -513,6 +555,7 @@ int main(int argc,char **argv) {
     display_enable(test,2,2,71,400); brief_mode_writes(test);
     shifter_counter(test,0,2); shifter_counter(test,1,0); shifter_counter(test,2,2);
     shifter_restart_base(test,true); shifter_restart_base(test,false);
+    shifter_restart_modes(test);
     timer_b_polarity(test,false); timer_b_polarity(test,true);
     bottom_border(test,true,false); bottom_border(test,true,true);
     bottom_border(test,false,false); bottom_border(test,false,true);

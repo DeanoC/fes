@@ -151,6 +151,9 @@ lines, so blank lines do not contribute events. The live shifter address counter
 cycles during DMA, including opened bottom lines. Its read visibility follows
 Hatari 2.5.0's eight-cycle offset. Low/medium resolution reloads the aligned
 live screen base at cycle 56 of PAL line 310 or NTSC line 260 during VSYNC.
+The NTSC restart requires an NTSC vertical frame; a brief 60 Hz line in a
+PAL frame retains its DMA address. A color line within a monochrome frame
+also retains the counter until the frame-boundary reload.
 The frame-boundary reload also samples the base; the counter holds its address
 between DMA reads and reloads. Exact MMU arbitration and horizontal border tricks
 remain unimplemented.
