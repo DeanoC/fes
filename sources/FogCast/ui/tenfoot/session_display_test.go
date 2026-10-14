@@ -57,6 +57,74 @@ func kitDisplayApp(t *testing.T, server *httptest.Server) (*App, *transitionPadF
 	return app, feed
 }
 
+func computerTapeKitSession() hostclient.SessionResult {
+	s := hardwareBoundSession()
+	s.CoreKeyboard = true
+	s.Input = &hostclient.SessionInput{State: "attached", Ready: true}
+	tape := protocol.Zx81TapeInterface()
+	s.CorePackage.ABI = hostclient.SessionCoreABI{ID: "fes.computer", Major: 1}
+	s.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{{ID: tape.ID, Major: tape.Major, Minor: tape.Minor}}
+	s.CorePackage.MediaUnits = []protocol.MediaUnitStatus{{
+		Unit: protocol.Zx81TapeUnit, Interface: tape, MinBytes: 1, MaxBytes: 16384, ChunkBytes: 512, State: "empty",
+	}}
+	return s
+}
+
+func TestKitComputerTapeOpensWithoutSessionDisplay(t *testing.T) {
+	var displays atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/session/display" {
+			displays.Add(1)
+			http.Error(w, "display", http.StatusBadRequest)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	presenter := &transientSessionMenu{status: menudisplay.Status{Available: true, Generation: 3}}
+	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(display.Close)
+	app.SetMenuDisplay(display)
+	app.mu.Lock()
+	app.session = computerTapeKitSession()
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+	snap := app.Snapshot()
+	if !snap.Session.LoadTape || !snap.Session.HardwareRoom || !snap.GPUParked {
+		t.Fatalf("computer tape kit hid live controls: load=%v room=%v parked=%v", snap.Session.LoadTape, snap.Session.HardwareRoom, snap.GPUParked)
+	}
+	now := time.Now()
+	app.HandleCommand(CmdSearch, now)
+	if snap = app.Snapshot(); !snap.TapePicker.Open || snap.Room.DuringPlay || displays.Load() != 0 {
+		t.Fatalf("tape picker requested session display: open=%v during=%v displays=%d status=%q", snap.TapePicker.Open, snap.Room.DuringPlay, displays.Load(), snap.Status)
+	}
+	app.HandleCommand(CmdHome, now)
+	if app.Snapshot().TapePicker.Open {
+		t.Fatal("home left the tape picker open")
+	}
+	app.HandleCommand(CmdHome, now)
+	app.Tick(now)
+	if snap = app.Snapshot(); !snap.Room.DuringPlay || snap.GPUParked || displays.Load() != 0 {
+		t.Fatalf("hardware room requested session display: during=%v parked=%v displays=%d", snap.Room.DuringPlay, snap.GPUParked, displays.Load())
+	}
+	app.HandleCommand(CmdBack, now)
+	if snap = app.Snapshot(); snap.Room.DuringPlay || !snap.GPUParked || displays.Load() != 0 {
+		t.Fatalf("return requested session display: during=%v parked=%v displays=%d", snap.Room.DuringPlay, snap.GPUParked, displays.Load())
+	}
+	selectDown := remoteinput.Event{Device: remoteinput.DeviceGamepad, Kind: remoteinput.KindButton, Code: remoteinput.ButtonSelect, Action: remoteinput.ActionPress}
+	app.HandleLocalPad(selectDown, now)
+	selectDown.Action = remoteinput.ActionRelease
+	app.HandleLocalPad(selectDown, now)
+	app.Tick(now)
+	if snap = app.Snapshot(); !snap.Room.DuringPlay || displays.Load() != 0 {
+		t.Fatalf("Select did not open the computer tape room without session display: during=%v displays=%d", snap.Room.DuringPlay, displays.Load())
+	}
+}
+
 func TestKitLiveControlsNeedObservedCapability(t *testing.T) {
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1); http.NotFound(w, r) }))

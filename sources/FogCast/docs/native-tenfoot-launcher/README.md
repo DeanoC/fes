@@ -88,9 +88,11 @@ start** cassette. Menu frames also pin that captured package and core generation
 and reject changed display generations. A lost open response keeps Back/Esc/B
 available for a guarded return and Home/Select for retry. A failed return retains
 room input until another return succeeds. Shell exit attempts that return without
-stopping the machine. Packages without the observed display contracts retain
-pre-launch cassette selection; the independent host window keeps its live tape
-controls.
+stopping the machine. A `fes.computer` generation that reports `fes.media.zx81-tape` 1.0 opens that
+workbench and the live tape picker on the menu-display launcher without
+`POST /api/v1/session/display`. Other packages without the observed display
+contracts retain pre-launch cassette selection. The independent host window
+keeps its live tape controls.
 
 ## CPU profiling and optimization
 

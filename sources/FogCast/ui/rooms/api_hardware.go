@@ -116,9 +116,13 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	out.RawSetString("session_error", lua.LString(v.SessionError))
 	if s := v.Session; s != nil {
 		session := L.NewTable()
-		r.SetLiveControls(!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
 		_, tapeErr := hostclient.LiveMediaBinding(*s)
-		session.RawSetString("tape_available", lua.LBool(tapeErr == nil && (!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))))
+		// A fes.computer tape unit is live on a menu-display kit without the
+		// retired simple-computer session-display plane. Legacy blob sessions
+		// still require that plane.
+		tapeAvailable := tapeErr == nil && (!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage) || hostclient.ComputerTapeCapable(s.CorePackage))
+		r.SetLiveControls(!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage) || hostclient.ComputerTapeCapable(s.CorePackage))
+		session.RawSetString("tape_available", lua.LBool(tapeAvailable))
 		known := s.CorePackage != nil && s.CorePackage.Composition != nil && s.CorePackage.Composition.PackageID == s.CorePackage.PackageID
 		session.RawSetString("hardware_known", lua.LBool(known))
 		for k, str := range map[string]string{"id": s.ID, "game_id": s.GameID, "state": s.State, "target": s.Target, "target_id": s.TargetID, "flight_id": s.FlightID} {

@@ -16,9 +16,17 @@ import (
 // tape. The projection keeps the active interfaces and media units so the
 // shared predicate can see fes.media.blob or fes.media.zx81-tape.
 func LiveMediaCapable(p *SessionCorePackage) bool {
-	if p == nil {
-		return false
-	}
+	return p != nil && protocol.LiveMediaCapable(sessionPackageStatus(p))
+}
+
+// ComputerTapeCapable reports an active fes.computer 1.0 ZX81 tape unit.
+// Kit launchers open its tape controls without the retired simple-computer
+// session-display plane. A legacy blob session stays on that plane.
+func ComputerTapeCapable(p *SessionCorePackage) bool {
+	return p != nil && protocol.ComputerZx81TapeCapable(sessionPackageStatus(p))
+}
+
+func sessionPackageStatus(p *SessionCorePackage) *protocol.CorePackageStatus {
 	status := &protocol.CorePackageStatus{
 		PackageID:  p.PackageID,
 		Generation: p.Generation,
@@ -32,7 +40,7 @@ func LiveMediaCapable(p *SessionCorePackage) bool {
 	if len(p.MediaUnits) > 0 {
 		status.MediaUnits = protocol.CloneMediaUnits(p.MediaUnits)
 	}
-	return protocol.LiveMediaCapable(status)
+	return status
 }
 
 // LiveMediaBinding builds the host change-tape / eject binding headers from a

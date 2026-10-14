@@ -666,9 +666,12 @@ generation with `fes.media.blob` still uses `replace_live_media` /
 `clear_media`. Live-media capability is that active tape interface or the
 legacy blob interface. The host session projection keeps those active
 interfaces and media units, so the tape picker and `change-tape` form a
-binding for either generation. Library play is native, and `change-tape`
-accepts that execution. Both paths are distinct from launch-time
-`POST /api/v1/session/development-media` (`load_media`). See the FES lock
+binding for either generation. On a menu-display kit, that tape unit opens
+the hardware room and the tape picker without the retired simple-computer
+session-display plane. A legacy blob session on the same kit still requires
+`fes.video.session-display` 1.0 and `fes.memory.hps-ddr` 1.0. Library play is
+native, and `change-tape` accepts that execution. Both paths are distinct from
+launch-time `POST /api/v1/session/development-media` (`load_media`). See the FES lock
 [ZX81 tape media](../../../docs/zx81-tape-media.md).
 
 Operator/diagnostics CLI:
@@ -685,6 +688,10 @@ a `.p` / `.P` name. The host call is `POST /api/v1/session/live-media` with JSON
 `{"media_id","name"}` and the same session/package/generation/target binding
 headers as development media. `eject-tape` posts
 `POST /api/v1/session/live-media/clear` so the next empty `LOAD ""` is `0/0`.
+The CLI reads the session with a 30-second client. `change-tape` and
+`eject-tape` post through the mutation client, which does not impose that
+timeout, so an insert can finish inside the host's 150-second budget. A lost
+response is not replayed.
 The target agent uses `POST /v1/development/live-media` and
 `POST /v1/development/clear-media`. Busy-while-LOAD maps to retryable `BUSY`.
 A poisoned or unstable GP handshake is the same retryable `BUSY`. A hard MMIO
@@ -2986,10 +2993,10 @@ retains the captured package and previous media ID for compare-and-swap; expansi
 import does not fit the asset. Catalogue schema 16 adds optional `in_progress`
 presentation, without changing immutable admission or shared wire definitions.
 The attributed `internal/zx81tapes` assets enter the existing media store only
-after explicit selection. A menu-display kit enables live routes only when the
-observed simple-computer package advertises `fes.video.session-display` 1.0 and
-`fes.memory.hps-ddr` 1.0. Home/Select first requests
-`POST /api/v1/session/display` with `visible: true`, the captured session ID and
+after explicit selection. A menu-display kit enables live routes for a legacy
+`fes.simple-computer` package only when that package advertises
+`fes.video.session-display` 1.0 and `fes.memory.hps-ddr` 1.0. Home/Select first
+requests `POST /api/v1/session/display` with `visible: true`, the captured session ID and
 existing target/package/core-generation headers. The paired listener admits only
 that kit's captured session, hardware/starter reads, exact starter imports,
 bounded 1..16384-byte tape imports and live replace/clear/display operations.
@@ -3022,8 +3029,11 @@ reload or Stop.
 Media delivery can briefly reject a concurrent launcher frame as busy. A healthy
 probe clears that presentation error and its retry delay; the room removes the
 temporary HDMI notice while retaining the cassette operation's status.
-Older packages keep prelaunch controls and the separate host renderer keeps its
-live routes. The shared wire layout is in
+A running `fes.computer` generation that reports `fes.media.zx81-tape` 1.0 opens
+the hardware room and the tape picker on that menu-display launcher without
+`POST /api/v1/session/display`. The machine keeps running while the launcher
+draws those controls. Older packages keep prelaunch controls and the separate
+host renderer keeps its live routes. The shared wire layout is in
 [mister-packages session display](../../mister-packages/docs/session-display.md).
 
 The session service records every kit's game, development load, package

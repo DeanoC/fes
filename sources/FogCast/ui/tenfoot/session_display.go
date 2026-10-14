@@ -27,6 +27,19 @@ func (a *App) sessionDisplayOfferedLocked() bool {
 	return !a.needsSessionDisplayLocked() || hostclient.SessionDisplayCapable(a.session.CorePackage)
 }
 
+// liveControlsOfferedLocked is the kit gate for the hardware room and tape
+// picker. A fes.computer tape unit does not need the retired session-display
+// plane. A legacy simple-computer package still does.
+func (a *App) liveControlsOfferedLocked() bool {
+	return a.sessionDisplayOfferedLocked() || hostclient.ComputerTapeCapable(a.session.CorePackage)
+}
+
+// kitSessionDisplayPlaneLocked is the POST /api/v1/session/display transition.
+// Tape-unit sessions stay on the menu-display launcher and do not request it.
+func (a *App) kitSessionDisplayPlaneLocked() bool {
+	return a.needsSessionDisplayLocked() && !hostclient.ComputerTapeCapable(a.session.CorePackage)
+}
+
 func (a *App) suppressHeldPlayKeysLocked() {
 	if a.playKeySuppressed == nil {
 		a.playKeySuppressed = make(map[string]bool)

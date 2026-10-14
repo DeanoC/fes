@@ -85,7 +85,7 @@ func changeTapeThroughHostAPI(ctx context.Context, origin, arg string) commandRe
 		return fail(protocol.LiveMediaIdentityError())
 	}
 	payload, _ := json.Marshal(protocol.LiveMediaRequest{MediaID: mediaID, Name: name})
-	after, err := postLiveMediaSession(ctx, client, origin, "/api/v1/session/live-media", payload, &b, prior.ID)
+	after, err := postLiveMediaSession(ctx, hostMutationClient(), origin, "/api/v1/session/live-media", payload, &b, prior.ID)
 	if err != nil {
 		return fail(err)
 	}
@@ -110,7 +110,7 @@ func ejectTapeThroughHostAPI(ctx context.Context, origin string) commandResult {
 	if !b.Valid() || !protocol.LiveMediaCapable(prior.CorePackage) {
 		return fail(protocol.LiveMediaIdentityError())
 	}
-	after, err := postLiveMediaSession(ctx, client, origin, "/api/v1/session/live-media/clear", nil, &b, prior.ID)
+	after, err := postLiveMediaSession(ctx, hostMutationClient(), origin, "/api/v1/session/live-media/clear", nil, &b, prior.ID)
 	if err != nil {
 		return fail(err)
 	}
@@ -194,13 +194,19 @@ func hostJSONClient() *http.Client {
 	return &http.Client{Timeout: 30 * time.Second, CheckRedirect: refuseRedirect}
 }
 
-// hostMutationClient carries a non-replayable disk insert or eject. The host
-// allows the disk transfer at least 150 s, so a short client timeout
-// could abandon an insert that still completes; only the caller's context and
-// the host's own deadline bound it.
-func hostMutationClient() *http.Client {
+// mutationHTTPClient builds the client for a non-replayable live-media insert
+// or eject. Tests replace it to show tape mutations do not use the 30s session
+// client.
+var mutationHTTPClient = func() *http.Client {
 	return &http.Client{CheckRedirect: refuseRedirect}
 }
+
+// hostMutationClient carries a non-replayable disk, cassette, or ZX81 tape
+// insert or eject. The host allows live insertion at least 150 s, so a short
+// client timeout could abandon an insert that still completes. Only the
+// caller's context and the host's own deadline bound it. A lost response is
+// not replayed.
+func hostMutationClient() *http.Client { return mutationHTTPClient() }
 
 func refuseRedirect(*http.Request, []*http.Request) error {
 	return errors.New("redirects are not accepted")

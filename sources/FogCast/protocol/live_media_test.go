@@ -46,8 +46,12 @@ func TestLiveMediaCapableAdmitsComputerZx81Tape(t *testing.T) {
 	tape := Zx81TapeInterface()
 	active := []RuntimeInterface{{ID: tape.ID, Major: tape.Major, Minor: tape.Minor}}
 	computer := &CorePackageStatus{ABI: RuntimeContract{ID: "fes.computer", Major: 1}, ActiveInterfaces: active}
-	if !LiveMediaCapable(computer) {
+	if !LiveMediaCapable(computer) || !ComputerZx81TapeCapable(computer) {
 		t.Fatal("fes.computer zx81 tape should be live-media capable")
+	}
+	blob := &CorePackageStatus{ABI: RuntimeContract{ID: "fes.simple-computer", Major: 1}, ActiveInterfaces: []RuntimeInterface{{ID: "fes.media.blob", Major: 1}}}
+	if ComputerZx81TapeCapable(blob) {
+		t.Fatal("legacy blob is not the computer tape unit")
 	}
 	if LiveMediaCapable(&CorePackageStatus{ABI: RuntimeContract{ID: "fes.computer", Major: 1}, ActiveInterfaces: []RuntimeInterface{{ID: "fes.media.blob", Major: 1}}}) {
 		t.Fatal("computer blob is not the ZX81 tape unit")

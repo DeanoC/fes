@@ -21,8 +21,8 @@ func TestLiveMediaCapableRequiresSimpleComputerBlob(t *testing.T) {
 		PackageID: strings.Repeat("a", 64), Generation: 3,
 		ABI: SessionCoreABI{ID: "fes.simple-computer", Major: 1}, ActiveInterfaces: blob,
 	}
-	if !LiveMediaCapable(ok) {
-		t.Fatal("expected capable")
+	if !LiveMediaCapable(ok) || ComputerTapeCapable(ok) {
+		t.Fatal("expected blob capable and not a computer tape unit")
 	}
 	if LiveMediaCapable(&SessionCorePackage{ABI: SessionCoreABI{ID: "fes.application", Major: 1}, ActiveInterfaces: blob}) {
 		t.Fatal("application must not be live-media capable")
@@ -40,7 +40,7 @@ func TestLiveMediaCapableProjectsComputerZx81Tape(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !LiveMediaCapable(result.CorePackage) {
+	if !LiveMediaCapable(result.CorePackage) || !ComputerTapeCapable(result.CorePackage) {
 		t.Fatal("projected fes.computer tape interface should be live-media capable")
 	}
 	binding, err := LiveMediaBinding(result)

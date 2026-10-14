@@ -250,7 +250,7 @@ func (a *App) closeTapePickerLocked() {
 }
 
 func (a *App) sessionLiveMediaOfferedLocked() bool {
-	return a.session.State == "active" && hostclient.LiveMediaCapable(a.session.CorePackage) && a.sessionDisplayOfferedLocked()
+	return a.session.State == "active" && hostclient.LiveMediaCapable(a.session.CorePackage) && a.liveControlsOfferedLocked()
 }
 
 func (a *App) openTapePickerLocked() {
@@ -262,7 +262,7 @@ func (a *App) openTapePickerLocked() {
 	if a.tapePickerBusy {
 		return
 	}
-	if a.needsSessionDisplayLocked() && !a.sessionDisplayVisible {
+	if a.kitSessionDisplayPlaneLocked() && !a.sessionDisplayVisible {
 		a.beginSessionDisplayLocked(true, true)
 		return
 	}

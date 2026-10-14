@@ -37,6 +37,13 @@ func liveComputerZx81TapeCapable(p *CorePackageStatus) bool {
 	return activeComputer(p) && activeInterface(p, Zx81TapeInterface())
 }
 
+// ComputerZx81TapeCapable reports an active fes.computer 1.0 generation with
+// fes.media.zx81-tape 1.0. A kit launcher offers that tape unit without the
+// retired fes.simple-computer session-display plane.
+func ComputerZx81TapeCapable(p *CorePackageStatus) bool {
+	return liveComputerZx81TapeCapable(p)
+}
+
 // AdmitTapeMediaName accepts only ZX81 .p / .P basenames.
 func AdmitTapeMediaName(name string) bool {
 	if name == "" || strings.ContainsAny(name, `/\`) || name != filepath.Base(name) {
