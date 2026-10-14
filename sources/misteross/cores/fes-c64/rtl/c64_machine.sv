@@ -42,7 +42,18 @@ module c64_machine #(
     localparam integer PHASE_BITS = 27;
     reg [PHASE_BITS-1:0] cpu_phase = 0;
     wire [PHASE_BITS:0] cpu_phase_next = {1'b0, cpu_phase} + CPU_CLOCK_HZ;
-    wire cpu_ce = cpu_phase_next >= SYSTEM_CLOCK_HZ;
+    wire cpu_ce;
+    generate if (SYSTEM_CLOCK_HZ > 2 * CPU_CLOCK_HZ) begin : registered_enable
+        // Predict the next tick before updating phase. This keeps the original
+        // pulse sequence and removes the phase adder from CPU RDY.
+        reg enable = 0;
+        always @(posedge clk_sys)
+            enable <= !enable && cpu_phase >= SYSTEM_CLOCK_HZ - 2 * CPU_CLOCK_HZ;
+        assign cpu_ce = enable;
+    end else begin : direct_enable
+        // Retain the original parameter behavior when enables may be adjacent.
+        assign cpu_ce = cpu_phase_next >= SYSTEM_CLOCK_HZ;
+    end endgenerate
     always @(posedge clk_sys)
         cpu_phase <= cpu_ce ? PHASE_BITS'(cpu_phase_next - SYSTEM_CLOCK_HZ)
                             : cpu_phase_next[PHASE_BITS-1:0];

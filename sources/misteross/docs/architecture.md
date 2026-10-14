@@ -1786,6 +1786,12 @@ Reverse scanning and electrical ghosting remain unimplemented.
 The VIC bank follows CIA2 PA0/PA1 physical pin levels, including input
 pull-ups. The open diagnostic clears the output latch and makes those bank
 pins inputs before its checked PASS frame, verifying selection of bank zero.
+The fractional CPU enable predicts the following system tick into a register,
+preserving the original phase and pulse sequence while removing the phase
+adder from CPU RDY. Rates at or above half the system clock retain the direct
+comparison for adjacent pulses. `make sim-fes-c64-clock` checks the actual
+motherboard enable against an independent fractional reference through a full
+PAL second, including boundary/adjacent/full-rate parameter cases.
 The machine uses a 985,248 Hz PAL Phi2 enable. Its VIC beam spans 312 lines
 of 63 Phi2 cycles; HDMI rendering still runs independently at 720p60. The
 open machine test checks the fractional Phi2 count on every system tick, and

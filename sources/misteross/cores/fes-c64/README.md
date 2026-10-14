@@ -154,6 +154,13 @@ VIC register programming. `make sim-fes-c64-sax` checks all four modes, wrapping
 enabled cycle counts and unchanged registers/flags in 144 cases. Other
 undocumented NMOS instructions remain incomplete.
 
+The fractional PAL enable is predicted one system tick ahead into a register,
+with the same pulse sequence and startup phase. This removes the phase adder
+from the CPU's RDY timing path. `make sim-fes-c64-clock` compares the actual
+motherboard enable against an independent fractional reference on every tick
+for a full PAL second, including alternate parameter cases with adjacent
+pulses. Rates at or above half the system clock retain the original direct enable.
+
 C64's D64/IEC path remains read-only. Atari ST's initial-disk-before-release
 and writable-disk save/restore path is a useful ordering reference, but its
 sector commit and game/base-media persistence contract is not implemented by
