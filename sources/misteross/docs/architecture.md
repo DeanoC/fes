@@ -2050,6 +2050,14 @@ contract is [its README](../cores/fes-common/rtl/riscv/README.md); the
 machine contract is [the core README](../cores/fes-riscv/README.md). FES
 registers the recipe as package-only; the factory image does not select it.
 
+The default placement order is seeds 1 through 8. For a package study with a
+single declared route attempt, invoke `scripts/build_fes_riscv.py --single-seed 1`
+(or `build(..., single_seed=1)`). This routes only that seed; a miss fails the
+build without trying the remaining ladder. The selected seed order is part of
+the functional build identity and `qor-ranking.json` records the one-attempt
+budget. A placement seed is independent of the input data or firmware selected
+by a benchmark study.
+
 ## Shared native kit client
 
 `scripts/kit.py` is a thin operator client of FogCast's target lease and native
