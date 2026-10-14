@@ -2,19 +2,19 @@
 repo = "https://github.com/DeanoC/yosys.git"
 commit = "4b971bb131a6d806bf14ded95f169d29838ade66"
 order = 10
-rationale = "DeanoC/yosys 4b971bb1 maps disconnected combinational cones independently, preventing a BUILD_ID or media cone from retargeting unrelated mailbox keyboard logic during abc9 reintegration. Its abc9_isolate_stable regression proves the payload cone stays structurally stable while the identity cone changes. It descends from 5391eeb1, retaining inferred tri-state top-level pads as MISTRAL_IO, and from e2d425de, retaining synchronous registered ramstyle=M10K for the Commodore 64 dual-clock video RAM port and D64 store. Pair with nextpnr 0c5ed400 and Mistral 8fcc4cb4. Previous pin 5391eeb1."
+rationale = "DeanoC/yosys 4b971bb1 maps disconnected combinational cones independently, preventing a BUILD_ID or media cone from retargeting unrelated mailbox keyboard logic during abc9 reintegration. Its abc9_isolate_stable regression proves the payload cone stays structurally stable while the identity cone changes. It descends from 5391eeb1, retaining inferred tri-state top-level pads as MISTRAL_IO, and from e2d425de, retaining synchronous registered ramstyle=M10K for the Commodore 64 dual-clock video RAM port and D64 store. Pair with nextpnr bd1c0909 and Mistral 8fcc4cb4. Previous pin 5391eeb1."
 
 [tool.mistral]
 repo = "https://github.com/DeanoC/mistral.git"
 commit = "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f"
 order = 20
-rationale = "Same Mistral pin as toolchain.lock (8fcc4cb4, DeanoC/mistral master: squash merge of #11, multi-bit booleans set every bit). One commit on 7ed06e21; keeps the indexed-node routing API, the M10K/PLL surface and the physical routing-mux CRAM footprints the frozen-socket CRAM fence and ROM map rely on. Required by nextpnr 0c5ed400. Previous pin 7ed06e21."
+rationale = "Same Mistral pin as toolchain.lock (8fcc4cb4, DeanoC/mistral master: squash merge of #11, multi-bit booleans set every bit). One commit on 7ed06e21; keeps the indexed-node routing API, the M10K/PLL surface and the physical routing-mux CRAM footprints the frozen-socket CRAM fence and ROM map rely on. Required by the selected nextpnr bd1c0909. Previous pin 7ed06e21."
 
 [tool.nextpnr]
 repo = "https://github.com/DeanoC/nextpnr.git"
-commit = "0c5ed400f003fbd0d8c4cc71491b68e4323e1a13"
+commit = "bd1c0909ff309350956965570ec37e306f1bf5db"
 order = 30
-rationale = "DeanoC/nextpnr main head 0c5ed400, the same pin as toolchain.lock (squash merge of #158: explicit per-endpoint setup_checked/hold_checked status and setup/hold slack in detailed net timings, plus ramtest-io SDRAM coverage tooling; no placement or routing change; also #159 docs). It includes 5063215e (squash merge of #157: cooperative five-minute Mistral analogue repair budget, --gpu-opt analogueTimeBudget=SECONDS, best measured routing kept or restored and re-timed through the final analogue setup/hold gate) and f8ccc448 (merge of #153: external IO timing, STA/placer/router criticality changes, fallback route minima fix), on 1656e473 (the #136 general Cyclone V PLL solver/packer). It descends from 0259c6dc, so the GPU router, frozen-scaffold cart merge and multi-region FES_RESERVED_RECT support for the two Commodore 64 cartridge sockets are kept. On 0259c6dc the C64 shell overran the per-seed budget in placement and its GPU router did not converge (DeanoC/nextpnr#150, #151); 1656e473 and later place and route the same netlist. Its PLL route-log format is the #136 VCO/counter form, and boundary FFs may gain a paired $ROUTETHRU buffer (validated as in #534). Pair with Yosys 4b971bb1 and Mistral 8fcc4cb4 (required). This core is not sealed. Previous pin 0259c6dc."
+rationale = "DeanoC/nextpnr main bd1c0909 sampled 2026-10-14 for the C64 fidelity development lane. Refreshes 0c5ed400 with frozen-boundary connectivity fixes, physical-pin timing work, analogue refresh worker exception handling (#189), and opt-in arrival-pin assignment (#183) and exact CPU search improvements (#188). Optional search and pin-assignment policies remain disabled unless selected explicitly. Pair with Yosys 4b971bb1 and Mistral 8fcc4cb4. This revision requires fresh C64 shell/card routing, final setup/hold, containment and exact-artifact hardware validation; earlier C64 seals do not qualify it. Previous pin 0c5ed400."
 
 [tool.verilator]
 repo = "https://github.com/verilator/verilator.git"

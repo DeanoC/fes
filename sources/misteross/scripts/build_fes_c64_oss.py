@@ -56,7 +56,7 @@ C64_TOOLCHAIN_CONFIGURATION = (
 )
 C64_TOOL_COMMITS = {
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "0c5ed400f003fbd0d8c4cc71491b68e4323e1a13",
+    "nextpnr": "bd1c0909ff309350956965570ec37e306f1bf5db",
     "yosys": "4b971bb131a6d806bf14ded95f169d29838ade66",
 }
 # First passing route wins; the order is part of the build identity. This

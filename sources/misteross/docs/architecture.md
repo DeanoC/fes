@@ -1724,7 +1724,8 @@ has a separate identity ALUT2 so the pinned merger cannot discard constant
 outputs or collapse aliased response sinks. The probe drives only read cycles.
 No Commodore ROM is in the tree, and the core is not in the
 factory image. The shell uses Yosys `4b971bb1`, Mistral `8fcc4cb4` and nextpnr
-`0c5ed400`; its
+`bd1c0909` (main sampled 2026-10-14; fresh routed and hardware validation
+required); its
 socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`
 companion of a pinned boundary flip-flop, using the shared
 `coleco_expansion` check described for the Spectrum sockets.
