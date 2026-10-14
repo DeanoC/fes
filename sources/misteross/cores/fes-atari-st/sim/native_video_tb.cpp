@@ -222,6 +222,65 @@ struct Test {
         dut.clk_pixel=1;dut.eval();dut.clk_pixel=0;dut.eval();++pixel_cycles;
     }
     void edge(){if(next_sys<next_pixel){system_edge();next_sys+=SysPeriod;}else{pixel_edge();next_pixel+=PixelPeriod;}}
+    void sys_tick(){
+        if(dut.video_req){dut.video_ready=1;dut.video_rdata=0;}
+        else dut.video_ready=0;
+        dut.eval();
+        dut.clk_sys=1;dut.eval();dut.clk_sys=0;dut.eval();++sys_cycles;
+    }
+    void vblank(){
+        dut.native_vblank=1;dut.native_display=0;dut.native_line=0;dut.native_cycle=0;dut.native_pixel_ce=1;
+        sys_tick();
+        dut.native_vblank=0;dut.native_pixel_ce=0;
+    }
+    // One dense capture, then Hold across later blanks. The stuck overflow
+    // must increment debug_underruns once and again only after a new capture.
+    void held_overflow_counts_once(){
+        dut.hold=0;dut.resolution=0;dut.sync_mode=2;dut.screen_base=0x10000;
+        dut.native_display=0;vblank();
+        unsigned steps=0;
+        while(!dut.border_overflow){
+            const unsigned x=steps%416,row=steps/416;
+            require(row<276,"border capture did not overflow");
+            dut.native_line=34+row;dut.native_cycle=8+x;dut.native_pixel_ce=1;
+            palette(0,steps&0x1ff);sys_tick();++steps;
+        }
+        dut.native_pixel_ce=0;sys_tick();
+        require(dut.underruns==1,"border overflow did not count once");
+        const unsigned counted=dut.underruns;
+        dut.hold=1;
+        for(unsigned frame=0;frame<3;++frame){
+            vblank();
+            for(unsigned i=0;i<8;++i)sys_tick();
+            require(dut.border_overflow,"Hold cleared a border overflow without a new capture");
+            require(dut.underruns==counted,"Hold recounted a stale border overflow");
+        }
+        dut.hold=0;vblank();
+        for(unsigned i=0;i<4;++i)sys_tick();
+        require(!dut.border_overflow,"new border capture left the previous overflow set");
+        require(dut.underruns==counted,"starting a capture recounted the previous overflow");
+        steps=0;
+        while(!dut.border_overflow){
+            const unsigned x=steps%416,row=steps/416;
+            require(row<276,"second border capture did not overflow");
+            dut.native_line=34+row;dut.native_cycle=8+x;dut.native_pixel_ce=1;
+            palette(0,steps&0x1ff);sys_tick();++steps;
+        }
+        dut.native_pixel_ce=0;sys_tick();
+        require(dut.underruns==counted+1,"a new border overflow did not count once");
+    }
+    void reset_capture(){
+        dut.reset_sys=dut.reset_pixel=1;dut.hold=0;dut.native_vblank=dut.native_display=0;
+        dut.native_line=0;dut.native_cycle=0;dut.native_pixel_ce=0;dut.sync_mode=2;
+        dut.screen_base=0x10000;dut.resolution=0;dut.video_ready=0;dut.video_rdata=0;
+        for(unsigned i=0;i<5;++i)dut.palette[i]=0;
+        pending=complete=false;
+        for(unsigned i=0;i<4;++i){
+            dut.clk_sys=1;dut.eval();dut.clk_sys=0;dut.eval();
+            dut.clk_pixel=1;dut.eval();dut.clk_pixel=0;dut.eval();
+        }
+        dut.reset_sys=dut.reset_pixel=0;
+    }
     void run(){
         dut.clk_sys=dut.clk_pixel=0;dut.reset_sys=dut.reset_pixel=1;dut.hold=0;
         dut.native_vblank=dut.native_display=0;dut.native_line=0;dut.sync_mode=2;
@@ -229,6 +288,8 @@ struct Test {
         for(unsigned i=0;i<5;++i)dut.palette[i]=0;
         for(unsigned i=0;i<40;++i)edge();
         dut.reset_sys=dut.reset_pixel=0;position=0;
+        held_overflow_counts_once();
+        reset_capture();
         while(output_frame<15)edge();
         require(border_overflow_seen,"dense border did not exhaust its bounded event buffer");
         require(raster_border_pixels>100000,"no live border raster pixels checked");
@@ -249,7 +310,7 @@ struct Test {
         for(bool seen:memory_boundaries)require(seen,"frame memory boundary was not checked");
         std::cout<<"Native ST RGB: "<<checks<<" checks, "<<dut.captured_frames<<" captures, "
                  <<repeat_frames<<" repeated output frames, "<<dut.underruns
-                 <<" capture underruns, "<<raster_border_pixels<<" raster border pixels; live palette, ownership, overflow, Hold and mode recovery passed\n";
+                 <<" capture underruns, "<<raster_border_pixels<<" raster border pixels; live palette, ownership, overflow, held overflow, Hold and mode recovery passed\n";
         dut.final();
     }
 };
