@@ -204,7 +204,8 @@ class KitManifestTests(unittest.TestCase):
         self.assertEqual(self.api.status_value['state'], 'completed')
 
     def test_stale_manifest_plan_cannot_replace_newer_manifest(self):
-        session = kit_manifest.Session('A', kit_manifest.LocalTransport(self.root), 'local')
+        with mock.patch.dict(os.environ, self.env):
+            session = kit_manifest.Session('A', kit_manifest.LocalTransport(self.root), 'local')
         session.probe()
         manifest = self.root / 'media/fat/fes/kit-manifest.json'
         newer = b'{"format":1,"holder":{"who":"other"}}\n'

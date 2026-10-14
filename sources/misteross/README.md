@@ -171,7 +171,7 @@ freeze-scaffold pass 2. `fes.menu` and both OSS `fes.ramtest` rates use the same
 `make toolchain-fes-ramtest`). Coleco uses `make toolchain-fes-coleco` against
 `toolchain.lock`. SG-1000 uses `make toolchain-fes-sg1000`
 against `toolchains/registered-memory.lock`. SMS uses
-`make toolchain-fes-sms` against `toolchains/fes-sms.lock`. ZX81 uses
+`make toolchain-fes-sms` against `toolchain.lock`. ZX81 uses
 `make toolchain-fes-zx81` against `toolchains/zx81-expansion.lock`. Those
 install under their own prefixes unless `CACHE_ROOT` selects the shared
 cache. See [Cores](docs/cores.md).

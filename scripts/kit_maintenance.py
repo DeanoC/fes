@@ -2,9 +2,13 @@
 
 The private journal retains credentials for explicit recovery after a lost
 response. It is not an ownership authority; the target decides admission.
-An omitted agent target_id is bound only when authenticated health and the
-persisted target identity agree. A config swap records an explicit identity
-transition; finish still requires the original boot and reservation.
+
+When agent.toml omits target_id, the effective identity is the saved
+/media/fat/fogcast/target-id file when that file exists, and otherwise the
+id in authenticated health. Health must agree with a configured or saved id.
+Finish may record one successor target id after a config swap when the
+original boot and reservation still match. A later finish accepts that
+recorded successor only on the same boot.
 """
 
 import contextlib
@@ -29,8 +33,8 @@ import urllib.request
 MAX_BYTES = 64 * 1024
 HEX = re.compile(r'^[0-9a-f]{64}$')
 REQUEST_ID = re.compile(r'^[0-9a-f]{32,128}$')
-TARGET_ID = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
-PERSISTED_TARGET_ID = '/media/fat/fogcast/target-id'
+# Match discovery.ValidID: canonical lowercase UUID, version nibble unchecked.
+TARGET_ID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
 PUBLIC_FIELDS = ('state', 'operation_id', 'generation', 'owner', 'purpose', 'boot_id', 'reason')
 
 
@@ -48,49 +52,7 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 def _target_id(value):
-    return isinstance(value, str) and bool(TARGET_ID.fullmatch(value))
-
-
-def _configured_target_id(config):
-    """Return a configured id, or '' when the agent may use its persisted id."""
-    if 'target_id' not in config:
-        return ''
-    value = config['target_id']
-    if value in ('', None):
-        return ''
-    if not _target_id(value):
-        raise ValueError('invalid target_id')
-    return value
-
-
-def _persisted_target_text(text):
-    # Match loadOrCreateTargetID: one trailing newline, no other trimming.
-    if not isinstance(text, str):
-        return ''
-    if text.endswith('\n'):
-        text = text[:-1]
-    return text if _target_id(text) else ''
-
-
-def replacement_target_id(toml_text, persisted_text):
-    """Identity an agent.toml will publish after it replaces the live file.
-
-    A configured target_id wins. An omission uses the persisted identity and
-    returns '' when that file is missing, which would mint an unknown id.
-    """
-    try:
-        config = tomllib.loads(toml_text)
-    except (tomllib.TOMLDecodeError, UnicodeError, TypeError):
-        raise MaintenanceError('agent.toml is not valid configuration') from None
-    if not isinstance(config, dict):
-        raise MaintenanceError('agent.toml is not valid configuration')
-    try:
-        configured = _configured_target_id(config)
-    except ValueError:
-        raise MaintenanceError('agent.toml target_id is invalid') from None
-    if configured:
-        return configured
-    return _persisted_target_text(persisted_text)
+    return isinstance(value, str) and TARGET_ID_RE.fullmatch(value) is not None
 
 
 def _label(value):
@@ -187,8 +149,20 @@ class KitMaintenance:
                 raise ValueError()
             config = tomllib.loads(raw)
             token = config['token']
-            target_id = _configured_target_id(config)
             if not _label(token):
+                raise ValueError()
+            configured = config.get('target_id', '')
+            if not isinstance(configured, str):
+                raise ValueError()
+            if configured == '':
+                saved = self._saved_target_id()
+                if saved:
+                    target_id, source = saved, 'file'
+                else:
+                    target_id, source = None, 'health'
+            elif _target_id(configured):
+                target_id, source = configured, 'config'
+            else:
                 raise ValueError()
             override = os.environ.get(f'FES_KIT_{self.name}_API')
             if override:
@@ -210,9 +184,24 @@ class KitMaintenance:
         except Exception:
             raise MaintenanceError('cannot read valid target agent connection settings') from None
         self.origin, self.token = origin.rstrip('/'), token
-        self._configured_target_id = target_id
-        # Health binds the effective id. Do not keep a previous kit's id.
-        self.target_id = ''
+        self.target_id, self.identity_source = target_id, source
+
+    def _saved_target_id(self):
+        """Return the agent's persisted id, or None when that file is absent.
+
+        Invalid contents are rejected. A missing file lets health supply the id.
+        """
+        try:
+            raw = self.transport.run(['show', '/media/fat/fogcast/target-id'])
+        except Exception:
+            return None
+        if len(raw.encode()) > MAX_BYTES:
+            raise ValueError()
+        if raw.endswith('\n'):
+            raw = raw[:-1]
+        if not _target_id(raw):
+            raise ValueError()
+        return raw
 
     def _request(self, path, body=None, lease=None):
         headers = {'Authorization': 'Bearer ' + self.token}
@@ -247,42 +236,19 @@ class KitMaintenance:
         except (ValueError, UnicodeError):
             raise MaintenanceError('invalid target maintenance response') from None
 
-    def _read_persisted_target_id(self):
-        try:
-            raw = self.transport.run(['show', PERSISTED_TARGET_ID])
-        except Exception:
-            return ''
-        return _persisted_target_text(raw)
-
     def _health(self):
         value = self._request('/v1/health')
-        observed = value.get('target_id')
-        if value.get('api_version') != 'v1' or not _target_id(observed):
+        reported = value.get('target_id')
+        if not _target_id(reported) or value.get('api_version') != 'v1':
             raise MaintenanceError('target identity or API version does not match configuration')
-        configured = self._configured_target_id
-        if configured:
-            if observed != configured:
-                raise MaintenanceError('target identity or API version does not match configuration')
-            bound = configured
-        else:
-            # Both sources are required. Health alone could be a different kit,
-            # and the file alone is not proof the running agent is that kit.
-            persisted = self._read_persisted_target_id()
-            if not persisted or persisted != observed:
-                raise MaintenanceError('target identity or API version does not match configuration')
-            bound = persisted
+        if self.identity_source == 'health':
+            self.target_id = reported
+        elif reported != self.target_id:
+            raise MaintenanceError('target identity or API version does not match configuration')
         boot_id = value.get('boot_id')
         if not _label(boot_id):
             raise MaintenanceError('target health has no boot identity')
-        self.target_id = bound
         return boot_id
-
-    def _confirm_identity(self, record, boot_id):
-        """Accept the journal id, or a declared replacement on the same boot."""
-        if self.target_id == record['target_id']:
-            return
-        if self.target_id != record.get('next_target_id') or boot_id != record['boot_id']:
-            raise MaintenanceError('target configuration identity changed during maintenance')
 
     def _read(self):
         try:
@@ -306,13 +272,14 @@ class KitMaintenance:
                     or not HEX.fullmatch(str(value.get('claim_id', '')))
                     or not _label(value.get('target_id')) or not _label(value.get('boot_id'))):
                 raise MaintenanceError('invalid private maintenance journal')
-            if 'next_target_id' in value and not _target_id(value.get('next_target_id')):
-                raise MaintenanceError('invalid private maintenance journal')
             for key in ('lease_token', 'token'):
                 if value.get(key) and not HEX.fullmatch(str(value[key])):
                     raise MaintenanceError('invalid private maintenance credentials')
             if value.get('status'):
                 _status(value['status'])
+            successor = value.get('successor_target_id')
+            if successor is not None and not _target_id(successor):
+                raise MaintenanceError('invalid private maintenance journal')
             return value
         except (ValueError, OSError):
             raise MaintenanceError('invalid private maintenance journal') from None
@@ -377,13 +344,51 @@ class KitMaintenance:
                     current.get('generation') != record['status']['generation'])):
             raise MaintenanceError('target maintenance operation differs from private journal')
 
-    def _wait(self, record, *, ready=False, terminal=False, settled=False):
+    def _remember_successor(self, record):
+        persisted = self._read()
+        if (persisted and persisted.get('request_id') == record['request_id']
+                and persisted.get('successor_target_id')):
+            record = dict(record)
+            record['successor_target_id'] = persisted['successor_target_id']
+        return record
+
+    def _accept_identity(self, record, boot_id, transition):
+        """Bind the live target id to this journal.
+
+        A config or saved-file swap may name one successor. Finish records it,
+        and later accepts that recorded successor, only while the original boot
+        still matches. Health-only drift, a second id, a different boot, or a
+        finished reservation is not that transition.
+        """
+        if not transition:
+            if self.target_id != record['target_id']:
+                raise MaintenanceError('target configuration identity changed during maintenance')
+            return record
+        record = self._remember_successor(record)
+        successor = record.get('successor_target_id')
+        if self.target_id == record['target_id'] or self.target_id == successor:
+            if successor and boot_id != record['boot_id']:
+                raise MaintenanceError('target configuration identity changed during maintenance')
+            return record
+        if (self.identity_source == 'health' or record.get('successor_target_id')
+                or boot_id != record['boot_id'] or not _target_id(self.target_id)):
+            raise MaintenanceError('target configuration identity changed during maintenance')
+        current = _status(self._request('/v1/kit/maintenance'))
+        if current['state'] in ('none', 'completed'):
+            raise MaintenanceError('target configuration identity changed during maintenance')
+        self._ours(current, record)
+        updated = dict(record)
+        updated['successor_target_id'] = self.target_id
+        self._write(updated)
+        return updated
+
+    def _wait(self, record, *, ready=False, terminal=False, settled=False, transition=False):
         deadline = time.monotonic() + self.timeout
         while True:
             try:
                 self._config()
                 boot_id = self._health()
-                self._confirm_identity(record, boot_id)
+                record = self._accept_identity(record, boot_id, transition)
                 if ready and boot_id != record['boot_id']:
                     raise MaintenanceError('target rebooted during maintenance; explicit recovery required')
                 current = _status(self._request('/v1/kit/maintenance'))
@@ -423,9 +428,9 @@ class KitMaintenance:
             boot_id = self._health()
             current = _status(self._request('/v1/kit/maintenance'))
         if record:
-            if record['owner'] != owner or record['purpose'] != purpose or record['boot_id'] != boot_id:
+            if (record['owner'] != owner or record['purpose'] != purpose
+                    or record['target_id'] != self.target_id or record['boot_id'] != boot_id):
                 raise MaintenanceError('private maintenance journal requires its original owner and identity')
-            self._confirm_identity(record, boot_id)
             if current['state'] != 'none' or (current.get('operation_id') and record.get('token')):
                 self._ours(current, record)
             if record.get('token'):
@@ -473,25 +478,6 @@ class KitMaintenance:
         self._write(record)
         return self._public(result, record)
 
-    def declare_identity_transition(self, target_id):
-        """Record the id a config swap will publish for this reservation.
-
-        Finish accepts that id only together with the original boot id and the
-        original reservation. The previous id remains valid until the swap is
-        visible. An undeclared id is refused.
-        """
-        if not _target_id(target_id):
-            raise MaintenanceError('replacement target identity is invalid')
-        with self.transaction():
-            record = self._read()
-            if not record or not record.get('token'):
-                raise MaintenanceError('identity transition requires the active reservation')
-            if target_id == record['target_id']:
-                record.pop('next_target_id', None)
-            else:
-                record['next_target_id'] = target_id
-            self._write(record)
-
     def finish(self):
         with self.transaction():
             return self._finish()
@@ -503,12 +489,15 @@ class KitMaintenance:
         # Startup can expose the retained preparing marker before idle cleanup
         # finishes. Observe it settling before attempting End; never replay End
         # because startup temporarily refused an otherwise valid operation.
-        current = self._wait(record, settled=True)
+        current = self._wait(record, settled=True, transition=True)
         if current['state'] == 'finishing':
-            current = self._wait(record, terminal=True)
+            current = self._wait(record, terminal=True, transition=True)
             if current['state'] not in ('none', 'completed'):
                 raise MaintenanceError('maintenance end incomplete; reservation retained')
         if current['state'] not in ('none', 'completed'):
+            # The settled wait may have recorded a successor. Keep it when
+            # this phase update replaces the journal.
+            record = self._remember_successor(record)
             record['phase'] = 'finishing'
             self._write(record)
             try:
@@ -518,13 +507,13 @@ class KitMaintenance:
                 }, record['token']))
             except MaintenanceError:
                 # Observe once after an ambiguous end; never replay the mutation.
-                current = self._wait(record, terminal=True)
+                current = self._wait(record, terminal=True, transition=True)
                 if current['state'] not in ('none', 'completed'):
                     raise MaintenanceError('maintenance end unconfirmed; reservation and journal retained') from None
             if current['state'] != 'none' or current.get('operation_id'):
                 self._ours(current, record)
             if current['state'] == 'finishing':
-                current = self._wait(record, terminal=True)
+                current = self._wait(record, terminal=True, transition=True)
         if current['state'] not in ('none', 'completed'):
             raise MaintenanceError('maintenance end incomplete; reservation retained')
         retained = self._read()

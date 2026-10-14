@@ -1386,9 +1386,9 @@ Public responses omit stored credentials. Ordinary claim, takeover, renewal and
 mutation cannot bypass maintenance; kit-local launches share the same manager.
 The host connection reports maintenance as busy with its owner and a maintenance
 message, and blocked reservations as recovery-required, even while runtime idle
-health is ready. Health refresh adopts those lease states. Adoption keeps local
-ownership false and invalidates a stale grant, so a reachable reservation is
-not published as disconnected.
+health is ready. Endpoint adoption accepts those lease states without granting
+ownership and drops a stale local grant, so the kit stays busy or
+recovery-required instead of looking disconnected.
 Maintenance status returns unavailable until its persisted marker loads; it
 never reports absent ownership during startup. A surviving active marker is
 blocked before replacement-agent startup cleanup,
@@ -1414,9 +1414,17 @@ maintenance support has no unguarded compatibility path.
 
 FES `scripts/kit_maintenance.py` handles owned start/resume/end and private journal
 recovery; `scripts/kit_manifest.py` keeps each swap/restore reserved until cleanup
-completes. This is temporary-overlay tooling, not yet a persistent userspace
-release manager. See FES [modular updates](../../../docs/modular-updates.md) for
-remaining durable-package and userspace-release work.
+completes. When `agent.toml` omits `target_id`, that client binds the saved
+`/media/fat/fogcast/target-id` file when the agent wrote one, and otherwise the
+id from authenticated health. A configured or saved id must match health.
+Finish of a config swap records one successor target id after the original boot
+and reservation still match, then ends that reservation. A later finish accepts
+that recorded successor only on the same boot. A different boot, a different
+reservation, a health id that disagrees with the new config or saved file, or
+a further id change keeps the journal. This is temporary-overlay
+tooling, not yet a persistent userspace release manager. See FES
+[modular updates](../../../docs/modular-updates.md) for remaining durable-package
+and userspace-release work.
 
 ## Host kit lease
 
@@ -1448,7 +1456,12 @@ Explicit release leaves a retained grant held when that lease still backs a
 remaining play, so Soft-stop, relaunch, and an explicit stop of another target
 do not revoke the live session. A failed explicit Stop of that surviving play
 still releases the other idle grants. The tenfoot shell's rooms Soft-stop is
-the retain request and keeps the grant while the shell stays up. Start, Q, or
+the retain request and keeps the grant while the shell stays up. Guide settings
+includes **Release kit**. Confirm posts that same idle release and leaves the
+menu open, so the host stops renewal and does not claim the kit again while
+the menu remains up. The shell does not start a game while that release is
+still in flight, including after settings closes. A running game keeps settings closed, so that row does
+not release during play. Start, Q, or
 closing the window waits for an in-flight Soft-stop, then releases that idle
 grant. A confirmed idle service gets an empty-body Stop. When a play still
 survives, the shell posts `release_idle` so idle grants drop without stopping
@@ -1904,7 +1917,9 @@ unreachable; if idle recovery still reports `reboot_required`, use a hard
 power cycle.
 
 Endpoint adoption reads public lease ownership and runtime status before reporting
-ready. The shared host lease object moves game requests, lease renewal, input
+ready. `maintenance` and `recovery-required` are accepted lease states. Adoption
+does not grant ownership for them, and it invalidates a stale local grant.
+The shared host lease object moves game requests, lease renewal, input
 attach and input CONNECT to the validated endpoint. On an unchanged boot, a
 locally held grant is retained only when its live generation still matches the
 agent. An address change closes the old local input stream without replaying held
@@ -1918,7 +1933,8 @@ include `connection`, including unavailable responses. Its states are
 `disconnected`, `connecting`, `ready`, `active`, `busy`, `version_mismatch`
 and `recovery-required`,
 separate from runtime/game state. Busy responses include the public owner label.
-Busy means another session holds the kit lease. Tenfoot rooms show a Ready
+Busy means another session holds the kit lease, or the kit is reserved for
+software maintenance. Tenfoot rooms show a Ready
 FPGA title aimed at that kit as Unavailable, with the copy "In use" /
 "Someone else is playing on this machine. You can play when they're done."
 Confirm explains and does not launch. Library and detail Confirm

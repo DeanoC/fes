@@ -33,6 +33,8 @@ func (l *KitLease) Endpoint() *url.URL {
 
 // AdoptEndpoint reconciles ownership using only GET. A reboot discards stale
 // credentials without Stop, release, renewal, or any other cleanup request.
+// maintenance and recovery-required are reachable admission states. They never
+// grant ownership, and a stale local grant is invalidated.
 // Callers serialize this with application lifecycle operations after validating
 // authenticated health at the new endpoint.
 func (c *Client) AdoptEndpoint(ctx context.Context, base *url.URL, reboot bool) (KitOwnership, error) {
@@ -44,8 +46,6 @@ func (c *Client) AdoptEndpoint(ctx context.Context, base *url.URL, reboot bool) 
 	if err := probe.doJSON(ctx, http.MethodGet, "/v1/kit/lease", nil, &ownership); err != nil {
 		return ownership, err
 	}
-	// maintenance and recovery-required are reservations, not a local grant.
-	// They stay unowned so the stale-grant path below drops any previous token.
 	switch ownership.State {
 	case "free", "held", "blocked", "revoking", "maintenance", "recovery-required":
 	default:

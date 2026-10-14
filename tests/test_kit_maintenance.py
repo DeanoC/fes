@@ -20,6 +20,8 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 from kit_maintenance import KitMaintenance, MaintenanceError
 
 TARGET_ID = '22222222-2222-4222-8222-222222222222'
+NEW_TARGET_ID = '44444444-4444-4444-8444-444444444444'
+THIRD_TARGET_ID = '55555555-5555-4555-8555-555555555555'
 BOOT_ID = '11111111-1111-4111-8111-111111111111'
 LEASE_TOKEN = 'a' * 64
 RESERVATION_TOKEN = 'b' * 64
@@ -51,6 +53,7 @@ It writes the target's private marker for the real shell executor to validate.
         self.prepared_state = 'ready'
         self.finish_polls = 0
         self.health_unavailable = 0
+        self.before_end = None
 
     @property
     def marker(self):
@@ -58,21 +61,6 @@ It writes the target's private marker for the real shell executor to validate.
 
     def config(self):
         return tomllib.loads((self.root / 'media/fat/fogcast/agent.toml').read_text())
-
-    def observed_target_id(self):
-        if self.health_target_id:
-            return self.health_target_id
-        configured = self.config().get('target_id') or ''
-        if isinstance(configured, str) and configured:
-            return configured
-        path = self.root / 'media/fat/fogcast/target-id'
-        try:
-            text = path.read_text()
-        except OSError:
-            return ''
-        if text.endswith('\n'):
-            text = text[:-1]
-        return text
 
     def boot_id(self):
         return (self.root / 'proc/sys/kernel/random/boot_id').read_text().strip()
@@ -115,8 +103,11 @@ class _Handler(BaseHTTPRequestHandler):
                 authority.health_unavailable -= 1
                 self.reply({'error': 'startup'}, 503)
                 return
+            configured = config.get('target_id') or ''
+            saved_path = authority.root / 'media/fat/fogcast/target-id'
+            saved = saved_path.read_text().strip() if saved_path.is_file() else ''
             self.reply({'api_version': authority.api_version,
-                        'target_id': authority.observed_target_id(),
+                        'target_id': authority.health_target_id or configured or saved,
                         'boot_id': authority.boot_id(), 'ready': True})
         elif self.path == '/v1/kit/maintenance' and self.command == 'GET':
             if authority.unsupported:
@@ -186,6 +177,8 @@ class _Handler(BaseHTTPRequestHandler):
                 authority.persist()
                 self.reply(authority.public())
                 return
+            if authority.before_end:
+                authority.before_end()
             authority.end_states.append(authority.status_value['state'])
             if authority.status_value['state'] == 'preparing':
                 self.reply({'error': 'startup cleanup busy'}, 409)
@@ -231,7 +224,7 @@ class _Transport:
 
     def run(self, args):
         if len(args) != 2 or args[0] != 'show':
-            raise AssertionError(args)
+            raise OSError(args)
         path = self.root / args[1].lstrip('/')
         if not path.is_file():
             raise FileNotFoundError(args[1])
@@ -486,57 +479,176 @@ for call in (lambda: c.begin('developer', 'replace runtime'), c.finish):
         self.api.persist()
         self.assertEqual(self.client.finish()['state'], 'none')
 
-    def test_omitted_target_id_binds_matching_health_and_persisted_identity(self):
-        self.config.write_text('token = "secret"\n')
-        persisted = self.root / 'media/fat/fogcast/target-id'
-        persisted.write_text(TARGET_ID + '\n')
+    def _omit_configured_target(self, target_id=''):
+        text = 'token = "secret"\n'
+        if target_id:
+            text += f'target_id = "{target_id}"\n'
+        self.config.write_text(text)
+
+    def test_omitted_target_id_uses_saved_file_when_health_agrees(self):
+        self._omit_configured_target()
+        saved = self.root / 'media/fat/fogcast/target-id'
+        saved.write_text(TARGET_ID + '\n')
         ready = self.client.begin('developer', 'replace runtime')
         self.assertEqual(ready['state'], 'ready')
-        record = json.loads(self.journal.read_text())
-        self.assertEqual(record['target_id'], TARGET_ID)
-        self.assertNotIn('next_target_id', record)
-        self.assertEqual(self.client.finish()['state'], 'none')
+        self.assertEqual(json.loads(self.journal.read_text())['target_id'], TARGET_ID)
+        self.client.finish()
 
-    def test_omitted_target_id_rejects_health_that_disagrees_with_persisted_identity(self):
-        self.config.write_text('token = "secret"\n')
-        (self.root / 'media/fat/fogcast/target-id').write_text(TARGET_ID + '\n')
-        self.api.health_target_id = '33333333-3333-4333-8333-333333333333'
+    def test_omitted_target_id_uses_health_when_saved_file_is_absent(self):
+        self._omit_configured_target()
+        self.api.health_target_id = TARGET_ID
+        ready = self.client.begin('developer', 'replace runtime')
+        self.assertEqual(json.loads(self.journal.read_text())['target_id'], TARGET_ID)
+        self.assertEqual(ready['state'], 'ready')
+        self.client.finish()
+
+    def test_saved_target_id_must_match_health_before_claim(self):
+        self._omit_configured_target()
+        saved = self.root / 'media/fat/fogcast/target-id'
+        saved.write_text(TARGET_ID + '\n')
+        self.api.health_target_id = NEW_TARGET_ID
         with self.assertRaises(MaintenanceError):
             self.client.begin('developer', 'replace runtime')
         self.assertFalse(self.journal.exists())
         self.assertEqual(self.posts('/v1/kit/claim'), [])
 
-    def test_identity_transition_finish_confirms_original_boot_and_reservation(self):
-        new_id = '33333333-3333-4333-8333-333333333333'
+    def test_invalid_configured_target_id_fails_before_request(self):
+        self.config.write_text('token = "secret"\ntarget_id = "not-a-uuid"\n')
+        with self.assertRaises(MaintenanceError):
+            self.client.begin('developer', 'replace runtime')
+        self.assertEqual(self.api.requests, [])
+        self.assertFalse(self.journal.exists())
+
+    def test_config_swap_records_one_successor_and_finish_keeps_original_reservation(self):
         self.client.begin('developer', 'replace runtime')
-        self.client.declare_identity_transition(new_id)
-        record = json.loads(self.journal.read_text())
-        self.assertEqual(record['next_target_id'], new_id)
-        self.assertEqual(record['target_id'], TARGET_ID)
-        self.config.write_text(f'token = "secret"\ntarget_id = "{new_id}"\n')
+        original = json.loads(self.journal.read_text())
+        self._omit_configured_target(NEW_TARGET_ID)
+        captured = {}
+
+        def capture():
+            captured['record'] = json.loads(self.journal.read_text())
+
+        self.api.before_end = capture
+        self.assertEqual(self.client.finish()['state'], 'none')
+        self.assertEqual(captured['record']['target_id'], TARGET_ID)
+        self.assertEqual(captured['record']['successor_target_id'], NEW_TARGET_ID)
+        self.assertEqual(captured['record']['boot_id'], original['boot_id'])
+        self.assertEqual(captured['record']['request_id'], original['request_id'])
+        ends = self.posts('/v1/kit/maintenance/end')
+        self.assertEqual(len(ends), 1)
+        self.assertEqual(ends[0]['body']['operation_id'], original['request_id'])
+        self.assertFalse(self.journal.exists())
+
+    def test_config_swap_requires_health_to_report_the_new_id(self):
+        self.client.begin('developer', 'replace runtime')
+        original = self.journal.read_bytes()
+        self._omit_configured_target(NEW_TARGET_ID)
+        self.api.health_target_id = TARGET_ID
+        with self.assertRaisesRegex(MaintenanceError, 'does not match configuration'):
+            self.client.finish()
+        self.assertEqual(self.journal.read_bytes(), original)
+        self.assertEqual(self.posts('/v1/kit/maintenance/end'), [])
+
+    def test_config_swap_saved_file_is_an_explicit_successor(self):
+        self.client.begin('developer', 'replace runtime')
+        self._omit_configured_target()
+        saved = self.root / 'media/fat/fogcast/target-id'
+        saved.write_text(NEW_TARGET_ID + '\n')
+        self.assertEqual(self.client.finish()['state'], 'none')
+        self.assertEqual(len(self.posts('/v1/kit/maintenance/end')), 1)
+
+    def test_config_swap_rejects_unrelated_boot_reservation_or_health(self):
+        self.client.begin('developer', 'replace runtime')
+        original = self.journal.read_bytes()
+        boot = self.root / 'proc/sys/kernel/random/boot_id'
+        self._omit_configured_target(NEW_TARGET_ID)
+        boot.write_text('33333333-3333-4333-8333-333333333333')
+        with self.assertRaisesRegex(MaintenanceError, 'identity changed'):
+            self.client.finish()
+        self.assertEqual(self.journal.read_bytes(), original)
+        self.assertEqual(self.posts('/v1/kit/maintenance/end'), [])
+        boot.write_text(BOOT_ID)
         self.api.status_value['operation_id'] = 'd' * 64
         with self.assertRaisesRegex(MaintenanceError, 'differs from private journal'):
             self.client.finish()
+        self.assertEqual(self.journal.read_bytes(), original)
         self.assertEqual(self.posts('/v1/kit/maintenance/end'), [])
-        self.assertTrue(self.journal.exists())
-        self.api.status_value['operation_id'] = record['request_id']
-        boot = self.root / 'proc/sys/kernel/random/boot_id'
-        boot.write_text('44444444-4444-4444-8444-444444444444')
-        with self.assertRaisesRegex(MaintenanceError, 'identity changed'):
+        self.api.status_value['operation_id'] = json.loads(original)['request_id']
+        self.api.health_target_id = THIRD_TARGET_ID
+        with self.assertRaisesRegex(MaintenanceError, 'does not match configuration'):
             self.client.finish()
+        self.assertEqual(self.journal.read_bytes(), original)
         self.assertEqual(self.posts('/v1/kit/maintenance/end'), [])
-        boot.write_text(BOOT_ID)
-        self.assertEqual(self.client.finish()['state'], 'none')
-        self.assertFalse(self.journal.exists())
 
-    def test_undeclared_identity_change_keeps_the_journal(self):
+    def test_health_only_target_id_change_is_not_a_transition(self):
         self.client.begin('developer', 'replace runtime')
-        new_id = '33333333-3333-4333-8333-333333333333'
-        self.config.write_text(f'token = "secret"\ntarget_id = "{new_id}"\n')
+        original = self.journal.read_bytes()
+        self._omit_configured_target()
+        self.api.health_target_id = NEW_TARGET_ID
         with self.assertRaisesRegex(MaintenanceError, 'identity changed'):
             self.client.finish()
+        self.assertEqual(self.journal.read_bytes(), original)
+        self.assertNotIn(b'successor_target_id', self.journal.read_bytes())
         self.assertEqual(self.posts('/v1/kit/maintenance/end'), [])
-        self.assertTrue(self.journal.exists())
+
+    def test_reboot_after_persisted_successor_retains_journal(self):
+        self.client.begin('developer', 'replace runtime')
+        self._omit_configured_target(NEW_TARGET_ID)
+        self.api.reject_end = True
+        with self.assertRaises(MaintenanceError):
+            self.client.finish()
+        persisted = json.loads(self.journal.read_text())
+        self.assertEqual(persisted['target_id'], TARGET_ID)
+        self.assertEqual(persisted['successor_target_id'], NEW_TARGET_ID)
+        self.assertEqual(persisted['boot_id'], BOOT_ID)
+        self.assertEqual(len(self.posts('/v1/kit/maintenance/end')), 1)
+        # A new boot retires the previous reservation. Finish must not treat
+        # the saved successor plus state none as a confirmed end.
+        (self.root / 'proc/sys/kernel/random/boot_id').write_text(
+            '33333333-3333-4333-8333-333333333333')
+        self.api.reject_end = False
+        self.api.status_value = {'state': 'none'}
+        self.api.persist()
+        retained = self.journal.read_bytes()
+        with self.assertRaisesRegex(MaintenanceError, 'identity changed'):
+            self.client.finish()
+        self.assertEqual(self.journal.read_bytes(), retained)
+        self.assertEqual(len(self.posts('/v1/kit/maintenance/end')), 1)
+
+    def test_second_target_id_after_successor_does_not_finish(self):
+        self.client.begin('developer', 'replace runtime')
+        self._omit_configured_target(NEW_TARGET_ID)
+        self.api.reject_end = True
+        with self.assertRaises(MaintenanceError):
+            self.client.finish()
+        record = json.loads(self.journal.read_text())
+        self.assertEqual(record['successor_target_id'], NEW_TARGET_ID)
+        self.assertEqual(len(self.posts('/v1/kit/maintenance/end')), 1)
+        self._omit_configured_target(THIRD_TARGET_ID)
+        with self.assertRaisesRegex(MaintenanceError, 'identity changed'):
+            self.client.finish()
+        self.assertEqual(json.loads(self.journal.read_text())['successor_target_id'], NEW_TARGET_ID)
+        self.assertEqual(len(self.posts('/v1/kit/maintenance/end')), 1)
+        self._omit_configured_target(NEW_TARGET_ID)
+        self.api.reject_end = False
+        self.assertEqual(self.client.finish()['state'], 'none')
+        self.assertEqual(len(self.posts('/v1/kit/maintenance/end')), 2)
+
+    def test_remote_show_reads_saved_target_id_only(self):
+        saved = self.root / 'media/fat/fogcast/target-id'
+        saved.write_text(TARGET_ID + '\n')
+        env = os.environ.copy()
+        env['KIT_FAKE'] = '1'
+        env['KIT_ROOT'] = str(self.root)
+        shown = subprocess.run(
+            ['sh', str(ROOT / 'scripts/kit_remote.sh'), 'show', '/media/fat/fogcast/target-id'],
+            capture_output=True, text=True, env=env)
+        self.assertEqual(shown.returncode, 0, shown.stderr)
+        self.assertEqual(shown.stdout, TARGET_ID + '\n')
+        refused = subprocess.run(
+            ['sh', str(ROOT / 'scripts/kit_remote.sh'), 'show', '/etc/passwd'],
+            capture_output=True, text=True, env=env)
+        self.assertNotEqual(refused.returncode, 0)
 
 
 if __name__ == '__main__':

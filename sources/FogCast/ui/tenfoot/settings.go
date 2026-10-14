@@ -43,6 +43,7 @@ const (
 	settingsRowSaveLibraries
 	settingsRowDevelopmentRBF
 	settingsRowSystems
+	settingsRowReleaseKit
 	settingsRowClose
 	settingsTrailingCount
 )
@@ -246,11 +247,16 @@ func (a *App) settingsRowsLocked() []SettingsRow {
 	if path := strings.TrimSpace(a.developmentRBFPath); path != "" {
 		devValue = path
 	}
+	release := "free"
+	if a.retainedIdleLease || a.stopResponseLost {
+		release = "A release"
+	}
 	rows = append(rows,
 		SettingsRow{ID: "add-library", Label: "Add library", Value: "A add"},
 		SettingsRow{ID: "save-libraries", Label: "Save libraries", Value: save},
 		SettingsRow{ID: "development-rbf", Label: "DIAGNOSTIC RBF", Value: devValue},
 		SettingsRow{ID: "systems", Label: "Systems", Value: "Install cores and add games"},
+		SettingsRow{ID: "release-kit", Label: "Release kit", Value: release},
 		SettingsRow{ID: "close", Label: "Close", Value: "B back"},
 	)
 	return rows
@@ -955,6 +961,10 @@ func (a *App) handleSettingsLibraryRowsLocked(cmd Command) {
 		if cmd == CmdSelect {
 			a.openCoreLibraryLocked()
 		}
+	case kind == settingsRowReleaseKit:
+		if cmd == CmdSelect {
+			a.startReleaseIdleLeaseLocked()
+		}
 	case kind == settingsRowClose:
 		if cmd == CmdSelect {
 			a.closeSettingsLocked()
@@ -1586,6 +1596,8 @@ func (a *App) settingsHintLocked() string {
 		return settingsActionHint(kind, "save libraries", "")
 	case settingsRowDevelopmentRBF:
 		return settingsActionHint(kind, "type path", "") + " · not a game session · HDMI/input may be down"
+	case settingsRowReleaseKit:
+		return settingsActionHint(kind, "release kit", "Returning to the menu keeps it")
 	default:
 		return settingsDefaultHint(kind)
 	}
