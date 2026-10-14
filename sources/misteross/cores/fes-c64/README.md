@@ -57,6 +57,18 @@ floppy uses; a core declares one of them). The image is an exact 174,848-byte
 35-track D64. The built-in device 8 speaks CLK/DATA, LSB first, with EOI on
 the last byte, well enough for LISTEN, OPEN, a filename, UNLISTEN, TALK and
 SECOND. Writes are ignored. `$` returns a four-byte synthetic program.
+CIA2 CLK/DATA inputs read high for released IEC wires; output controls pull
+wires low when set. Byte transfers use logical wire levels, a CLOCK-high ready
+handshake before bit 0, ACK after the last CLOCK-low edge, and EOI on filenames
+and the final received byte. TALK turnaround holds CLOCK low before announcing
+ready, and UNLISTEN releases an unaddressed idle bus.
+`make sim-fes-c64-iec` exercises these handshakes with a standard host and the
+synthetic D64, independently of the open CPU firmware. A linked-sector case
+checks 260 payload bytes, omits both link headers and requires EOI only on
+the last byte of the final sector. The firmware uses the
+same physical polarity and byte protocol. This is still a read-only file device,
+not an emulated 1541 CPU/VIA/GCR mechanism; drive-uploaded fastloaders are not
+implemented.
 
 ## Cartridge sockets
 

@@ -1697,6 +1697,15 @@ The default three-second observation budget is configurable.
 `--type-command` optionally types native C64 text through HID states after
 three seconds, with 50 ms press/release intervals. The observation makes no
 boot/demo acceptance assertion; the physical ROM map and media mailbox are unchanged. See the core README.
+The IEC device uses released-high CIA2 inputs and logical byte levels on the
+open-collector wires. It separates ready/EOI handshakes from received data bits,
+acknowledges after the final CLOCK-low edge, and holds CLOCK low for TALK
+turnaround before raising it to announce ready. The independent
+`make sim-fes-c64-iec` host checks LISTEN/OPEN, filename EOI, idle UNLISTEN,
+TALK/SECOND, exact single-sector and 260-byte linked-sector PRGs and final-byte
+EOI. Full sectors follow their track/sector links without transmitting link bytes. The CPU diagnostic
+uses this same polarity/protocol. No 1541 CPU, VIA, GCR or fastloader compatibility
+is implied by the read-only file device.
 The HID keyboard maps all 64 native switches with CIA1 PA columns/PB rows,
 correcting the former transposed diagnostic mapping. A is PA1/PB2 and Return
 is PA0/PB1. `make sim-fes-c64-keyboard`, included in `sim-fes-c64`, checks every

@@ -219,7 +219,7 @@ module c64_machine #(
         .dev_clk_low(dev_clk_low), .dev_data_low(dev_data_low),
         .disk_addr(disk_addr), .disk_byte(disk_byte), .debug(debug_iec)
     );
-    wire [7:0] pa2_pin = {(cpu_data_low | dev_data_low), (cpu_clk_low | dev_clk_low),
+    wire [7:0] pa2_pin = {~(cpu_data_low | dev_data_low), ~(cpu_clk_low | dev_clk_low),
                           (cia2_ddra[5:0] & cia2_pa[5:0]) | (~cia2_ddra[5:0] & 6'h3F)};
     c64_cia cia2 (
         .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_cia2),

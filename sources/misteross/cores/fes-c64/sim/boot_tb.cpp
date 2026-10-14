@@ -61,6 +61,12 @@ int main(int argc, char **argv) {
         }
         if (system && top.clk_sys && top.rootp->c64_boot_sim_top__DOT__machine__DOT__cpu_ce) {
             auto *r = top.rootp;
+            if (r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__state == 3) {
+                std::printf("IEC receive cycle=%llu byte=%02x ATN=%u\n",
+                    static_cast<unsigned long long>(sys_edge/2),
+                    r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__shifter,
+                    r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__atn_low);
+            }
             if (raster_access) {
                 ++raster_reads;
                 if (r->c64_boot_sim_top__DOT__machine__DOT__cpu_di == 0) ++raster_zero_reads;
@@ -101,6 +107,15 @@ int main(int argc, char **argv) {
         }
         std::putchar('\n');
     }
+    auto *r=top.rootp;
+    std::printf("IEC final state=%u listening=%u talking=%u ours=%u name-length=%u CIA2 PA=%02x DDR=%02x\n",
+        r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__state,
+        r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__listening,
+        r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__talking,
+        r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__ours,
+        r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__name_len,
+        r->c64_boot_sim_top__DOT__machine__DOT__cia2__DOT__pa_reg,
+        r->c64_boot_sim_top__DOT__machine__DOT__cia2__DOT__pa_ddr);
     std::printf("Keyboard events delivered=%zu of %zu\n", key_event, keys.size());
     std::printf("Raster reads=%u, zero reads=%u\n", raster_reads, raster_zero_reads);
     std::puts("Final CPU cycles (bus address, internal PC, data, microcode state):");

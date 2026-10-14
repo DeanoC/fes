@@ -371,6 +371,9 @@ send_byte:
         jsr port
         ora #$10
         sta $dd00
+        jsr wait_data_low
+        jsr port
+        sta $dd00
         jsr wait_data_high
         lda $17
         bne send_done
@@ -379,7 +382,7 @@ send_bit:
         jsr port
         ora #$10
         lsr $13
-        bcc send_zero
+        bcs send_zero
         ora #$20
 send_zero:
         sta $dd00
@@ -389,12 +392,12 @@ send_zero:
         jsr delay
         dex
         bne send_bit
-        jsr wait_data_low
-        lda $17
-        bne send_done
         jsr port
         ora #$10
         sta $dd00
+        jsr wait_data_low
+        lda $17
+        bne send_done
 send_done:
         rts
 
@@ -404,7 +407,7 @@ recv_byte:
         jsr port
         ora #$20
         sta $dd00
-        jsr wait_clk_low
+        jsr wait_clk_high
         lda $17
         bne recv_done
         jsr port
@@ -413,7 +416,7 @@ recv_byte:
 eoi_watch:
         lda $dd00
         and #$40
-        bne recv_bits
+        beq recv_bits
         jsr delay
         dey
         bne eoi_watch
@@ -447,7 +450,7 @@ wait_data_high:
         ldy #0
 wdh:
         lda $dd00
-        bpl wdh_ok
+        bmi wdh_ok
         iny
         bne wdh
         lda $17
@@ -463,7 +466,7 @@ wait_data_low:
         ldy #0
 wdl:
         lda $dd00
-        bmi wdl_ok
+        bpl wdl_ok
         iny
         bne wdl
         lda $17
@@ -480,7 +483,7 @@ wait_clk_low:
 wcl:
         lda $dd00
         and #$40
-        bne wcl_ok
+        beq wcl_ok
         iny
         bne wcl
         lda $17
@@ -497,7 +500,7 @@ wait_clk_high:
 wch:
         lda $dd00
         and #$40
-        beq wch_ok
+        bne wch_ok
         iny
         bne wch
         lda $17

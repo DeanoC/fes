@@ -30,8 +30,12 @@ module c64_iec (
     localparam ST_TX_SETUP  = 4'd10;
     localparam ST_TX_CLOCK  = 4'd11;
     localparam ST_TX_ACK    = 4'd12;
+    localparam ST_RX_EOI    = 4'd13;
+    localparam ST_RX_BITS   = 4'd14;
+    localparam ST_RX_END    = 4'd15;
+    localparam ST_TX_TURN   = 5'd16;
 
-    reg [3:0] state;
+    reg [4:0] state;
     reg [7:0] shifter, tx_byte, rd_data, link_t, link_s, load_i, idx, last;
     reg [7:0] sector [0:255];
     reg [7:0] name_mem [0:15];
@@ -41,7 +45,7 @@ module c64_iec (
     reg [5:0] file_track, file_sec;
     reg [15:0] timer;
     reg listening, talking, ours, opening, arm_send, tx_last, saw_pulse;
-    reg atn_d, clk_d;
+    reg atn_d, clk_d, rx_eoi, turnaround;
     reg [7:0] debug_state;
 
     wire bus_clk_low = cpu_clk_low | dev_clk_low;
@@ -123,11 +127,14 @@ module c64_iec (
             rd_phase <= 2'd0;
             atn_d <= 1'b0;
             clk_d <= 1'b0;
+            rx_eoi <= 1'b0;
+            turnaround <= 1'b0;
+            timer <= 16'd0;
             debug_state <= 8'h00;
         end else if (phi) begin
             atn_d <= atn_low;
             clk_d <= bus_clk_low;
-            debug_state <= {4'b0, state};
+            debug_state <= {3'b0, state};
             if (rd_phase == 2'd1) begin
                 rd_data <= disk_byte;
                 rd_phase <= 2'd2;
@@ -137,9 +144,14 @@ module c64_iec (
                 dev_data_low <= 1'b1;
                 dev_clk_low <= 1'b0;
                 arm_send <= 1'b0;
+                rx_eoi <= 1'b0;
+                timer <= 16'd0;
             end else if (!atn_low && atn_d) begin
                 if (arm_send && talking && ours) begin
                     arm_send <= 1'b0;
+                    turnaround <= 1'b1;
+                    dev_clk_low <= 1'b1;
+                    dev_data_low <= 1'b0;
                     load_i <= 8'd0;
                     rd_phase <= 2'd0;
                     if (name_len == 5'd1 && name_mem[0] == 8'h24) begin
@@ -157,20 +169,58 @@ module c64_iec (
                         last <= 8'd5;
                     end else
                         state <= ST_DIR_LOAD;
+                end else if (!listening) begin
+                    state <= ST_IDLE;
+                    dev_clk_low <= 1'b0;
+                    dev_data_low <= 1'b0;
                 end
             end else begin
                 case (state)
+                    // The listener holds DATA low until the talker raises
+                    // CLOCK, then releases DATA. That ready pulse is not bit 0.
                     ST_RX_HOLD: begin
                         dev_data_low <= 1'b1;
                         dev_clk_low <= 1'b0;
-                        if (bus_clk_low) state <= ST_RX_READY;
+                        if (!bus_clk_low) begin
+                            dev_data_low <= 1'b0;
+                            timer <= 16'd0;
+                            state <= ST_RX_READY;
+                        end
                     end
                     ST_RX_READY: begin
                         dev_data_low <= 1'b0;
+                        if (bus_clk_low) begin
+                            bit_i <= 4'd0;
+                            state <= ST_RX_BITS;
+                        end else if (!rx_eoi) begin
+                            if (timer == 16'd200) begin
+                                timer <= 16'd0;
+                                dev_data_low <= 1'b1;
+                                state <= ST_RX_EOI;
+                            end else timer <= timer + 16'd1;
+                        end
+                    end
+                    ST_RX_EOI: begin
+                        dev_data_low <= 1'b1;
+                        if (timer == 16'd60) begin
+                            dev_data_low <= 1'b0;
+                            rx_eoi <= 1'b1;
+                            state <= ST_RX_READY;
+                        end else timer <= timer + 16'd1;
+                    end
+                    ST_RX_BITS: begin
+                        dev_data_low <= 1'b0;
                         if (clk_d && !bus_clk_low) begin
-                            shifter <= {bus_data_low, shifter[7:1]};
-                            if (bit_i == 4'd7) state <= ST_RX_ACK;
+                            shifter <= {~bus_data_low, shifter[7:1]};
+                            if (bit_i == 4'd7) state <= ST_RX_END;
                             else bit_i <= bit_i + 4'd1;
+                        end
+                    end
+                    ST_RX_END: begin
+                        // Do not drive ACK during the final CLOCK-high bit.
+                        if (bus_clk_low) begin
+                            dev_data_low <= 1'b1;
+                            state <= ST_RX_ACK;
                         end
                     end
                     ST_RX_ACK: begin
@@ -205,10 +255,10 @@ module c64_iec (
                             name_mem[name_len] <= shifter;
                             name_len <= name_len + 5'd1;
                         end
-                        // Hold DATA low until the talker pulls CLK. Releasing on
-                        // that edge is the ready handshake for the next byte;
-                        // dropping the ACK before the edge loses the byte.
+                        // Keep ACK until the next CLOCK-high ready handshake.
                         bit_i <= 4'd0;
+                        rx_eoi <= 1'b0;
+                        timer <= 16'd0;
                         state <= ST_RX_HOLD;
                     end
                     ST_DIR_LOAD: begin
@@ -260,10 +310,23 @@ module c64_iec (
                         idx <= idx + 8'd1;
                         bit_i <= 4'd0;
                         timer <= 16'd0;
-                        state <= ST_TX_WAIT;
+                        state <= turnaround ? ST_TX_TURN : ST_TX_WAIT;
+                    end
+                    ST_TX_TURN: begin
+                        // KERNAL TKATN must see CLOCK low before ACPTR waits
+                        // for CLOCK high. Keep the turnaround observable even
+                        // for a synthetic directory that needs no disk fetch.
+                        dev_clk_low <= 1'b1;
+                        dev_data_low <= 1'b0;
+                        if (timer == 16'd80) begin
+                            turnaround <= 1'b0;
+                            state <= ST_TX_WAIT;
+                        end else timer <= timer + 16'd1;
                     end
                     ST_TX_WAIT: begin
-                        dev_clk_low <= 1'b1;
+                        // Announce ready with CLOCK high before waiting for
+                        // the listener to release DATA (KERNAL ACPTR).
+                        dev_clk_low <= 1'b0;
                         dev_data_low <= 1'b0;
                         if (!bus_data_low) begin
                             timer <= 16'd0;
@@ -283,7 +346,7 @@ module c64_iec (
                     end
                     ST_TX_SETUP: begin
                         dev_clk_low <= 1'b1;
-                        dev_data_low <= tx_byte[bit_i[2:0]];
+                        dev_data_low <= ~tx_byte[bit_i[2:0]];
                         if (timer == 16'd80) begin
                             timer <= 16'd0;
                             state <= ST_TX_CLOCK;
@@ -292,7 +355,7 @@ module c64_iec (
                     end
                     ST_TX_CLOCK: begin
                         dev_clk_low <= 1'b0;
-                        dev_data_low <= tx_byte[bit_i[2:0]];
+                        dev_data_low <= ~tx_byte[bit_i[2:0]];
                         if (timer == 16'd80) begin
                             timer <= 16'd0;
                             if (bit_i == 4'd7) begin
@@ -312,6 +375,15 @@ module c64_iec (
                             if (tx_last) begin
                                 dev_clk_low <= 1'b0;
                                 state <= ST_IDLE;
+                            end else if (idx == 8'd0 && link_t != 8'd0) begin
+                                // $FF was the last byte of a full sector;
+                                // continue at its D64 link, never transmit the
+                                // link header as payload or issue EOI here.
+                                file_track <= link_t[5:0];
+                                file_sec <= link_s[5:0];
+                                load_i <= 8'd0;
+                                rd_phase <= 2'd0;
+                                state <= ST_FILE_LOAD;
                             end else
                                 state <= ST_TAKE;
                         end
