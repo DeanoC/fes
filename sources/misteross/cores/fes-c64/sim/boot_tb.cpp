@@ -4,6 +4,8 @@
 #include "verilated.h"
 #include "verilated_save.h"
 #include <type_traits>
+#include <iterator>
+#include <algorithm>
 #include <string>
 #include <stdexcept>
 #include <cstdio>
@@ -79,6 +81,20 @@ int main(int argc, char **argv) {
     const uint64_t save_cycle=std::strtoull(option("C64_SAVE_CYCLE="),nullptr,10);
     if ((!restore_path.empty() || !save_path.empty() || !final_save_path.empty()) && identity.size()!=64) {
         std::fprintf(stderr,"checkpoint needs SHA256 model/input identity\n");return 2;
+    }
+    // Deliberate development PRG launch, independent of full-state restores.
+    // No previous model/CPU/peripheral state is imported or translated.
+    const std::string fixture_path=option("C64_PRG_FIXTURE=");
+    const uint64_t fixture_cycle=3ull*52224000;
+    std::vector<uint8_t> fixture;
+    if(!fixture_path.empty()) {
+        std::ifstream file(fixture_path,std::ios::binary);
+        if(!file)throw std::runtime_error("cannot open PRG fixture");
+        fixture.assign(std::istreambuf_iterator<char>(file),{});
+        if(fixture.size()<4 || fixture[0]!=1 || fixture[1]!=8 || fixture.size()-2>0xa000-0x0801)
+            throw std::runtime_error("PRG fixture requires BASIC load address $0801 and end <= $A000");
+        if(cycle_budget<=fixture_cycle || (save_cycle && save_cycle<fixture_cycle))
+            throw std::runtime_error("PRG fixture observation/checkpoints must follow its three-second installation");
     }
     // Model serialization covers all RTL registers, memories and event state.
     // The host archive additionally covers clocks, keyboard queue, disk angle,
@@ -224,6 +240,21 @@ int main(int argc, char **argv) {
                 r->c64_boot_sim_top__DOT__machine__DOT__cpu__DOT__state};
         }
         top.eval();
+        if(system && sys_edge==fixture_cycle*2 && !fixture.empty()) {
+            auto &ram=top.rootp->c64_boot_sim_top__DOT__machine__DOT__main_ram__DOT__ram;
+            const uint8_t ready[]={18,5,1,4,25,46}; // screen codes for READY.
+            if(ram[0x2b]!=1 || ram[0x2c]!=8 ||
+               std::search(&ram[0x400],&ram[0x400]+1000,std::begin(ready),std::end(ready))==&ram[0x400]+1000)
+                throw std::runtime_error("PRG fixture requires firmware at BASIC READY with TXTTAB=$0801");
+            const unsigned end=0x0801+fixture.size()-2;
+            for(unsigned i=2;i<fixture.size();++i)ram[0x0801+i-2]=fixture[i];
+            for(unsigned pointer:{0x2d,0x2f,0x31,0xae}) {ram[pointer]=end&255;ram[pointer+1]=end>>8;}
+            ram[0xba]=8; // selected device for a subsequent native fastloader
+            std::ofstream snapshot("prg-fixture-ram.bin",std::ios::binary);
+            snapshot.write(reinterpret_cast<const char *>(&ram[0]),65536);
+            std::printf("Development PRG fixture installed: address=0801 bytes=%u end=%04x device=8; NOT a native LOAD\n",unsigned(fixture.size()-2),end);
+            std::fflush(stdout);
+        }
 #ifdef FES_C64_REAL_DRIVE_SIM
         medium.advance(disk_reference,disk_motor);
 #endif

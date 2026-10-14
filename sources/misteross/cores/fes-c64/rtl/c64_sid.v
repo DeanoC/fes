@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// A reduced 6581: three voices, pulse/saw/triangle/noise, a crude envelope
-// and master volume. There is no filter, sync or ring modulation. Reads
-// return zero, as the SID's write-only registers do.
+// A reduced 6581: three voices, pulse/saw/triangle/noise, a pipelined ADSR envelope
+// and linear master volume. Digital ADSR follows reSID timing; filter, sync,
+// ring modulation and accurate waveform generation remain open. ENV3 is readable.
 module c64_sid (
     input  wire               clk,
     input  wire               phi,
@@ -10,17 +10,34 @@ module c64_sid (
     input  wire               we,
     input  wire [4:0]         addr,
     input  wire [7:0]         din,
+    output wire [7:0]         dout,
     output reg  signed [15:0] sample
 );
     reg [15:0] freq [0:2];
     reg [11:0] pw [0:2];
     reg [7:0] ctrl [0:2];
-    reg [3:0] env [0:2];
+    wire [7:0] env [0:2];
+    wire [7:0] env_read [0:2];
     reg [23:0] phase [0:2];
     reg [3:0] volume;
     integer voice;
     reg [7:0] wave0, wave1, wave2;
-    reg signed [19:0] mixed;
+    reg signed [18:0] mixed;
+    reg signed [23:0] volume_mix;
+    genvar v;
+    generate for(v=0;v<3;v=v+1) begin: envelopes
+        localparam [4:0] BASE=5'(v*7);
+        wire control_write=addr==BASE+5'd4;
+        wire ad_write=addr==BASE+5'd5;
+        wire sr_write=addr==BASE+5'd6;
+        c64_sid_envelope envelope (
+            .clk(clk), .reset(reset), .phi(phi),
+            .we(we && cs && (control_write || ad_write || sr_write)),
+            .addr(control_write ? 2'd0 : ad_write ? 2'd1 : 2'd2),
+            .din(din), .level(env[v]), .env3(env_read[v])
+        );
+    end endgenerate
+    assign dout=addr==5'h1c ? env_read[2] : 8'h00;
 
     function automatic [7:0] voice_wave;
         input [7:0] control;
@@ -41,9 +58,10 @@ module c64_sid (
         wave0 = voice_wave(ctrl[0], phase[0], pw[0]);
         wave1 = voice_wave(ctrl[1], phase[1], pw[1]);
         wave2 = voice_wave(ctrl[2], phase[2], pw[2]);
-        mixed = {{8{1'b0}}, wave0} * {{4{1'b0}}, env[0]} +
-                {{8{1'b0}}, wave1} * {{4{1'b0}}, env[1]} +
-                {{8{1'b0}}, wave2} * {{4{1'b0}}, env[2]};
+        mixed = ($signed({1'b0,wave0})-19'sd128) * $signed({1'b0,env[0]}) +
+                ($signed({1'b0,wave1})-19'sd128) * $signed({1'b0,env[1]}) +
+                ($signed({1'b0,wave2})-19'sd128) * $signed({1'b0,env[2]});
+        volume_mix = mixed * $signed({1'b0,volume});
     end
 
     always @(posedge clk) begin
@@ -54,7 +72,6 @@ module c64_sid (
                 freq[voice] <= 16'd0;
                 pw[voice] <= 12'd0;
                 ctrl[voice] <= 8'd0;
-                env[voice] <= 4'd0;
                 phase[voice] <= 24'd0;
             end
         end else begin
@@ -82,13 +99,10 @@ module c64_sid (
             if (phi) begin
                 for (voice = 0; voice < 3; voice = voice + 1) begin
                     phase[voice] <= phase[voice] + {8'd0, freq[voice]};
-                    if (ctrl[voice][0] && env[voice] != 4'hF)
-                        env[voice] <= env[voice] + 4'd1;
-                    else if (!ctrl[voice][0] && env[voice] != 4'h0)
-                        env[voice] <= env[voice] - 4'd1;
+
                 end
             end
-            sample <= volume == 4'd0 ? 16'sd0 : mixed[15:0];
+            sample <= 16'(volume_mix >>> 6);
         end
     end
 endmodule

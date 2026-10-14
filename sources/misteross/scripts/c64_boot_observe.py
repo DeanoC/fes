@@ -15,6 +15,7 @@ def main():
     parser.add_argument('--real-drive', action='store_true', help='use the firmware-driven 1541 diagnostic')
     parser.add_argument('--drive-rom', type=Path)
     parser.add_argument('--late-video', action='store_true', help='drive diagnostic: capture only the final HDMI frames')
+    parser.add_argument('--prg-fixture', type=Path, help='development only: install an $0801 PRG at BASIC READY, then type RUN; no native LOAD claim')
     parser.add_argument('--save-state', type=Path)
     parser.add_argument('--save-final-state', type=Path, help='also capture complete state at the observation endpoint')
     parser.add_argument('--save-at-cycles', type=int, default=0)
@@ -48,6 +49,15 @@ def main():
         args.late_video=restored_metadata.get('late_video_capture',args.late_video)
         if args.save_at_cycles and args.save_at_cycles<=restored_metadata['system_cycle']:
             parser.error('save cycle must be later than the restored checkpoint')
+    if restored_metadata and not args.prg_fixture and 'prg_fixture' in restored_metadata['inputs']:
+        args.prg_fixture=Path(restored_metadata['inputs']['prg_fixture']['path'])
+    if args.prg_fixture:
+        fixture=args.prg_fixture.read_bytes()
+        if len(fixture)<4 or fixture[:2]!=b'\x01\x08' or len(fixture)-2>0xa000-0x0801:
+            parser.error('PRG fixture requires BASIC load address $0801 and end <= $A000')
+        if args.cycles<=3*52224000 or (args.save_at_cycles and args.save_at_cycles<3*52224000):
+            parser.error('PRG fixture budget/checkpoints must follow its three-second installation')
+        if not args.restore_state and not args.type_command:args.type_command='RUN\n'
     if args.restore_state and args.disk_change:
         parser.error('restore preserves queued disk changes; use --append-disk-change for later insertions')
     if args.append_disk_change and not args.restore_state:
@@ -99,7 +109,7 @@ def main():
     # A short restored observation may not collect a complete frame. Never
     # hash a stale frame or pre-command snapshot left by an earlier run.
     for name in ['boot.log','boot-ram.bin','drive-ram.bin','boot.ppm',
-                 'before-followup-ram.bin','observation.json']:
+                 'before-followup-ram.bin','prg-fixture-ram.bin','prg-fixture.prg','observation.json']:
         artifact=output/name
         for state in [args.restore_state,args.save_state,args.save_final_state]:
             if state and artifact==state.resolve():
@@ -119,6 +129,11 @@ def main():
                              'sha256': hashlib.sha256(drive_blob).hexdigest()}
         inputs['g64']={'path': str(output/'disk.g64'), 'bytes':len(raw_disk),
                       'sha256':hashlib.sha256(raw_disk).hexdigest()}
+    if args.prg_fixture:
+        # Execute the validated bytes even if the development source PRG changes.
+        (output/'prg-fixture.prg').write_bytes(fixture)
+        inputs['prg_fixture']={'path':str(args.prg_fixture.resolve()),'bytes':len(fixture),
+                               'sha256':hashlib.sha256(fixture).hexdigest()}
     media_library=[]
     if args.real_drive:
         for index,path in enumerate(library_paths):
@@ -191,6 +206,8 @@ def main():
                f'+C64_DISK_HEX={output / "disk.hex"}', f'+C64_SYS_CYCLES={args.cycles}']
     if args.real_drive:
         command.extend([f'+C64_DRIVE_ROM_HEX={output / "drive.hex"}', f'+C64_G64_PATH={output / "disk.g64"}'])
+    if args.prg_fixture:
+        command.append(f'+C64_PRG_FIXTURE={output / "prg-fixture.prg"}')
     if args.real_drive:
         command.append(f'+C64_DISK_LIBRARY={output / "disk-library.txt"}')
     if added_disk_changes:
@@ -256,16 +273,18 @@ def main():
             'disk_changes':all_disk_changes, 'media_library':media_library,
             'typed_command':args.type_command, 'followup_command':args.then_command,
             'followup_cycle':args.then_at_cycles if args.then_command else None,
-            'key_event_count':len(key_events), 'evidence':'development simulation checkpoint'}
+            'key_event_count':len(key_events), 'initialization':'prg-fixture' if args.prg_fixture else 'cold-boot', 'evidence':'development simulation checkpoint'}
         if restored_metadata:
             for name in ['typed_command','followup_command','followup_cycle','key_event_count']:
                 state_metadata[name]=restored_metadata[name]
         state_path.with_name(state_path.name+'.json').write_text(json.dumps(state_metadata,indent=2)+'\n')
+    if args.prg_fixture:outputs_to_hash.append('prg-fixture.prg')
+    if (output/'prg-fixture-ram.bin').is_file():outputs_to_hash.append('prg-fixture-ram.bin')
     outputs = {name: hashlib.sha256((output / name).read_bytes()).hexdigest()
                for name in outputs_to_hash}
     receipt = {'checkout_commit_at_start': revision,
                'checkout_diff_sha256_at_start': hashlib.sha256(source_diff).hexdigest(),
-               'evidence': 'host-only observation', 'simulated_seconds': args.cycles / 52224000,
+               'evidence': 'host-only PRG-fixture observation; not native LOAD' if args.prg_fixture else 'host-only observation', 'initialization':'prg-fixture' if args.prg_fixture else 'cold-boot', 'simulated_seconds': args.cycles / 52224000,
                'system_clock_hz': 52224000, 'pixel_clock_hz': 74250000,
                'cpu_clock_hz': 985248, 'inputs': inputs, 'outputs': outputs,
                'simulator_sha256': simulator_sha256,

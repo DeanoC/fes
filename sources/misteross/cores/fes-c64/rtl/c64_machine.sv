@@ -282,6 +282,7 @@ module c64_machine #(
     wire [7:0] vic_dout, color_dout;
     wire vic_irq;
     wire signed [15:0] sid_sample;
+    wire [7:0] sid_dout;
     c64_vic vic (
         .clk_sys(clk_sys), .phi(cpu_ce), .pixel_clk(video_clk), .reset(system_reset),
         .cs(sel_vic), .we(bus_strobe && bus_we && sel_vic),
@@ -297,7 +298,7 @@ module c64_machine #(
     c64_sid sid (
         .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_sid),
         .we(bus_strobe && bus_we && sel_sid), .addr(bus_addr[4:0]), .din(bus_wdata),
-        .sample(sid_sample)
+        .dout(sid_dout), .sample(sid_sample)
     );
     assign audio_sample = sid_sample;
     assign irq_n = cart_irq | cia1_irq | vic_irq;
@@ -307,7 +308,7 @@ module c64_machine #(
         bus_addr == 16'h0000 ? ddr :
         bus_addr == 16'h0001 ? port_eff :
         sel_vic ? vic_dout :
-        sel_sid ? 8'h00 :
+        sel_sid ? sid_dout :
         sel_color ? color_dout :
         sel_cia1 ? cia1_dout :
         sel_cia2 ? cia2_dout :

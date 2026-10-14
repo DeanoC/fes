@@ -1679,7 +1679,7 @@ checks, and tape checks remain open.
 
 ## FES Commodore 64
 
-`cores/fes-c64` is `fes.c64` 0.2.0, a package-only Commodore 64 pathfinder on
+`cores/fes-c64` is `fes.c64` 0.3.0, a package-only Commodore 64 pathfinder on
 the same `fes.computer` 1.0 mailbox as Apple II. The machine contract is
 [its README](../cores/fes-c64/README.md). `make sim-fes-c64` boots the open
 diagnostic: RAM, firmware signature, VIC text, both cartridge sockets,
@@ -1695,6 +1695,16 @@ vacant and observes external BASIC/KERNAL/character firmware on the real machine
 firmware/disk memory paths and retains hashes, RAM, a complete HDMI frame and
 screen-code output and recent CPU cycles with the production clock ratio.
 The default three-second observation budget is configurable.
+`--prg-fixture` is an explicit development launch for an `$0801` BASIC PRG
+whose genuine disk LOAD has already been checked. Fresh firmware must reach
+BASIC READY before the three-second installation. The harness sets the
+program/variable end pointers and device 8, then types RUN by default. The
+receipt labels this path as a PRG fixture and binds its bytes into checkpoint
+identity. Whole-state restores still require the original executable and
+inputs; fixture installation does not migrate or patch an older model's state.
+The real-drive variant continues to run its native drive firmware and guest
+fastloader. This simulation shortcut does not qualify cold loading or runtime
+persistence.
 `--type-command` optionally types native C64 text through HID states after
 three seconds, with 50 ms press/release intervals. `--then-command` adds a
 later command and retains the RAM snapshot taken immediately before it.
@@ -1740,6 +1750,16 @@ dots; coupled tests cover late writes, carry, all banks and five valid modes.
 The 38-column border edges are X31/335, rather than the following byte edges.
 CPU palette-write latency and every fetch-mode/subphase combination remain
 unqualified.
+`c64_sid_envelope` supplies one eight-bit digital ADSR pipeline per voice.
+Its rate comparator, exponential divider, gate transitions, zero hold and
+ADSR delay behavior follow reSID's single-cycle model. AD/SR writes update
+only the selected voice; `$D41C` and SID mirrors expose the sampled ENV3 value
+through the motherboard's existing late read phase. The mixer centers the
+voice codes, sums their signed envelope products, applies linear four-bit
+master gain and scales into signed 16-bit PCM. The offline source-oracle
+regression exercises 15.6 million system-clock edges. Waveforms remain
+simplified and filter, sync, ring modulation, OSC3/paddle reads and bus decay
+remain open; this does not establish complete SID or analog audio fidelity.
 `c64_vic_sprite_pixels` supplies per-dot shifts, multicolor/X expansion,
 foreground priority and collision masks. `c64_vic_collisions` commits collision
 masks at the following cycle boundary, defers read clearing and latches IRQ

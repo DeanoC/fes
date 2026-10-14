@@ -49,8 +49,12 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Flags latch independently of `$D01A`; clearing a collision register permits
   a later event to retrigger. Light-pen capture, exact mode transitions and
   physical subpixel phase remain open.
-- Reduced SID: three voices, pulse, saw, triangle and noise, a crude envelope
-  and volume. No filter.
+- Reduced SID: three voices with eight-bit pipelined ADSR envelopes, ENV3
+  readback and signed PCM with linear four-bit master volume. Envelope rate,
+  exponential division, gate pipelines, zero hold and the ADSR delay bug follow
+  reSID's digital model. Pulse, saw, triangle and noise generation remain
+  simplified; filter, sync, ring modulation, accurate combined waveforms,
+  OSC3/paddle reads and SID bus decay remain open.
 - CIA1: keyboard matrix, joystick and IRQ. CIA2: IEC, the VIC bank and NMI.
   VIC banking follows the effective PA0/PA1 pin levels, including pull-ups
   when their direction bits select inputs; it does not follow the output
@@ -442,3 +446,38 @@ The disk electronics use inactive input pins; GCR rotation and active byte-ready
 disk loading and fastloader execution are not provided. This motherboard is
 not selected by the C64 package or its boot harness yet, and its ROM has no
 physical download map. The existing read-only IEC file device remains selected.
+
+### Digital SID envelope regression
+
+`make sim-fes-c64-sid` first checks 21,240,086 envelope edges against a second
+source-oracle fixture: all 16 rates, complete fast attack/release, 182,011
+writes, 249,426 held clocks and 11 resets. It then replays 15,600,002
+system-clock edges across all three
+voices, 37,907 selected writes and 300,000 ENV3 reads. Writes occur at native
+phase 26 and reads at phase 43. The offline fixture comes from unmodified
+VICE 3.10 reSID `EnvelopeGenerator`; the ordinary test needs no reference
+emulator, Commodore firmware or recordings. Regenerate it with
+`python3 scripts/generate_c64_sid_vectors.py --vice-source /path/to/vice-3.10`.
+The generator validates the reference source hashes and retains its GPL
+notices in the temporary build. Constant-pulse input checks signed PCM and
+linear gain arithmetic; this does not qualify the SID waveform or analog
+filter model. The digital envelope starts at the reference's power-up value
+`$AA`; reset retains its counter while clearing register/pipeline state.
+
+### Development PRG launch
+
+After proving a program's genuine cold disk LOAD, `--prg-fixture /path/boot.prg`
+provides a faster launch for RTL development. The observation boots fresh user
+firmware, requires BASIC READY with TXTTAB at `$0801`, and installs an `$0801`
+PRG at three simulated seconds. It sets the BASIC program/variable end pointers
+and selects device 8. A fresh observation types `RUN` by default; the real-drive
+variant still boots its own firmware and executes the demo's native fastloader.
+Programs must fit below `$A000`. The installation is saved separately as
+`prg-fixture-ram.bin` and is explicitly labelled as a fixture, not a native LOAD.
+
+PRG bytes can be reused across RTL builds. Full-state checkpoints remain bound
+to the exact executable, firmware, disk library and PRG hashes. A fixture
+checkpoint must follow installation; restores retain the captured keyboard and
+media schedule. They never translate model state across builds. Changing the
+PRG rejects restore before model execution. This is a simulation development
+path, not runtime save-state or end-to-end disk-loading acceptance.

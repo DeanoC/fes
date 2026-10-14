@@ -107,6 +107,7 @@ RTL_SOURCES = (
     "cores/fes-c64/rtl/c64_vic_fetch.sv",
     "cores/fes-c64/rtl/c64_vic_sprite_fetch.sv",
     "cores/fes-c64/rtl/c64_frame_store.sv",
+    "cores/fes-c64/rtl/c64_sid_envelope.sv",
     "cores/fes-c64/rtl/c64_sid.v",
     "cores/fes-c64/rtl/c64_cia.v",
     "cores/fes-c64/rtl/c64_iec.sv",
