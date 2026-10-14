@@ -91,9 +91,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   persistence interfaces retain paddle speed and best rally on the target;
   [settings/progress APIs and CLI](docs/core-package-library.md#persistent-settings-and-progress)
   expose durable data. Library FES ZX81 is a volatile `fes.computer` 1.0
-  entry (`fes.keyboard.hid`, `fes.media.zx81-tape`). A selected `.p` uses role
-  `cassette` and is inserted into unit 0 after Start; a setup saved earlier
-  as `blob` still launches on that unit. `POST /api/v1/session/launch` with its
+  entry (`fes.keyboard.hid`, `fes.media.zx81-tape`). A selected `.p` uses the
+  role that package declares: `cassette` on the tape unit, inserted into unit 0
+  after Start, or `blob` on an installed `fes.simple-computer` package. A setup
+  saved earlier as `blob` still launches on the tape unit when the current
+  package declares only cassette. `POST /api/v1/session/launch` with its
   `game_id` programs the package and attaches keyboard input. Library FES
   cores with a recognized play ABI (including ZX81 `fes.computer` 1.0
   and Coleco `fes.application` 1.0) are ordinary `fpga_native` play sessions, not

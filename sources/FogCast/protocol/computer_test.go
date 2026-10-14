@@ -123,6 +123,21 @@ func TestZx81TapeProjection(t *testing.T) {
 	if unit.Valid() {
 		t.Fatal("widened ZX81 tape unit accepted")
 	}
+	role, ok := ZX81TapeSelectionRole(got)
+	if !ok || role != CassetteRole {
+		t.Fatalf("tape-unit role = %q ok=%v", role, ok)
+	}
+	blob := []CoreMediaCapability{{Role: "blob", Format: "raw", Interface: RuntimeContract{ID: "fes.media.blob", Major: 1}}}
+	if role, ok = ZX81TapeSelectionRole(blob); !ok || role != "blob" {
+		t.Fatalf("legacy blob role = %q ok=%v", role, ok)
+	}
+	both := append(append([]CoreMediaCapability{}, blob...), got...)
+	if role, ok = ZX81TapeSelectionRole(both); !ok || role != CassetteRole {
+		t.Fatalf("declared tape unit should win, role=%q ok=%v", role, ok)
+	}
+	if _, ok = ZX81TapeSelectionRole(DeclaredCoreMediaCapabilities(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 1, Required: true}))); ok {
+		t.Fatal("spectrum cassette is not a ZX81 .p role")
+	}
 }
 
 func TestSpectrumTapeProjection(t *testing.T) {

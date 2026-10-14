@@ -3,8 +3,11 @@ package tenfoot
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -30,6 +33,11 @@ func TestHardwareCassetteSelectsNextLaunchAndKeepsExpectedBinding(t *testing.T) 
 			imports++
 			mu.Unlock()
 			json.NewEncoder(w).Encode(hostclient.CoreMedia{MediaID: tape.SHA256, Size: int64(len(tape.Data))})
+		case "/api/v1/core-packages/" + pkg + "/media-capabilities":
+			json.NewEncoder(w).Encode(map[string]any{"package_id": pkg, "media": []any{map[string]any{
+				"role": "cassette", "format": "zx81-p",
+				"interface": map[string]any{"id": "fes.media.zx81-tape", "major": 1, "minor": 0},
+			}}})
 		case "/api/v1/library/core-entries/test-zx81/media":
 			var body map[string]string
 			json.NewDecoder(r.Body).Decode(&body)
@@ -67,6 +75,82 @@ func TestHardwareCassetteSelectsNextLaunchAndKeepsExpectedBinding(t *testing.T) 
 	app.HandleCommand(CmdBack, time.Now())
 	if app.Snapshot().CoreLibrary.Open {
 		t.Fatal("Back did not return from cassette shelf")
+	}
+}
+
+func TestHardwareTapeRoleFollowsDeclaredPackage(t *testing.T) {
+	pkg := strings.Repeat("c", 64)
+	for _, tc := range []struct {
+		name, role, format, iface string
+		starter                   bool
+	}{
+		{name: "legacy blob starter", role: "blob", format: "raw", iface: "fes.media.blob", starter: true},
+		{name: "tape unit import", role: "cassette", format: "zx81-p", iface: "fes.media.zx81-tape"},
+		{name: "legacy blob import", role: "blob", format: "raw", iface: "fes.media.blob"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var mu sync.Mutex
+			var selection map[string]string
+			mediaID := strings.Repeat("d", 64)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/api/v1/library/zx81-tapes":
+					json.NewEncoder(w).Encode(map[string]any{"tapes": zx81tapes.Entries()})
+				case "/api/v1/library/zx81-tapes/" + zx81tapes.Entries()[0].ID + "/import":
+					json.NewEncoder(w).Encode(hostclient.CoreMedia{MediaID: zx81tapes.Entries()[0].SHA256, Size: int64(len(zx81tapes.Entries()[0].Data))})
+				case "/api/v1/core-packages/" + pkg + "/media-capabilities":
+					json.NewEncoder(w).Encode(map[string]any{"package_id": pkg, "media": []any{map[string]any{
+						"role": tc.role, "format": tc.format,
+						"interface": map[string]any{"id": tc.iface, "major": 1, "minor": 0},
+					}}})
+				case "/api/v1/core-media":
+					body, _ := io.ReadAll(r.Body)
+					json.NewEncoder(w).Encode(hostclient.CoreMedia{MediaID: mediaID, Size: int64(len(body))})
+				case "/api/v1/library/core-entries/test-zx81/media":
+					var body map[string]string
+					json.NewDecoder(r.Body).Decode(&body)
+					mu.Lock()
+					selection = body
+					mu.Unlock()
+					json.NewEncoder(w).Encode(hostclient.CoreEntry{GameID: "test-zx81", PackageID: pkg, MediaID: body["media_id"], MediaRole: body["media_role"]})
+				default:
+					t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+					http.Error(w, "unexpected", 500)
+				}
+			}))
+			defer server.Close()
+			app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+			app.ctx = context.Background()
+			app.mu.Lock()
+			app.openHardwarePickerLocked(rooms.Action{Kind: rooms.ActionHardwareTapes, GameID: "test-zx81", PackageID: pkg, ExpectedMediaID: ""})
+			app.mu.Unlock()
+			waitCoreLibrary(t, app)
+			if tc.starter {
+				app.mu.Lock()
+				app.coreLibrary.Index = 2
+				app.handleCoreLibraryLocked(CmdSelect)
+				app.mu.Unlock()
+			} else {
+				path := filepath.Join(t.TempDir(), "maze.p")
+				if err := os.WriteFile(path, []byte{1, 2, 3, 4}, 0600); err != nil {
+					t.Fatal(err)
+				}
+				app.mu.Lock()
+				app.importHardwareFileLocked(path)
+				app.mu.Unlock()
+			}
+			waitCoreLibrary(t, app)
+			mu.Lock()
+			got := selection
+			mu.Unlock()
+			wantID := mediaID
+			if tc.starter {
+				wantID = zx81tapes.Entries()[0].SHA256
+			}
+			if got["media_role"] != tc.role || got["media_id"] != wantID || got["expected_package_id"] != pkg {
+				t.Fatalf("selection = %+v", got)
+			}
+		})
 	}
 }
 

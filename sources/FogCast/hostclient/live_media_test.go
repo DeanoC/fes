@@ -32,6 +32,58 @@ func TestLiveMediaCapableRequiresSimpleComputerBlob(t *testing.T) {
 	}
 }
 
+func TestLiveMediaCapableProjectsComputerZx81Tape(t *testing.T) {
+	t.Parallel()
+	pkg := strings.Repeat("a", 64)
+	body := fmt.Sprintf(`{"id":"host-1","target":"dev","target_id":"dev-id","state":"active","core_package":{"package_id":%q,"generation":9,"abi":{"id":"fes.computer","major":1,"minor":0},"active_interfaces":[{"id":"fes.media.zx81-tape","major":1,"minor":0}],"media_units":[{"unit":0,"interface":{"id":"fes.media.zx81-tape","major":1,"minor":0},"min_bytes":1,"max_bytes":16384,"chunk_bytes":512,"state":"empty"}]}}`, pkg)
+	result, err := DecodeSession(http.StatusOK, []byte(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !LiveMediaCapable(result.CorePackage) {
+		t.Fatal("projected fes.computer tape interface should be live-media capable")
+	}
+	binding, err := LiveMediaBinding(result)
+	if err != nil || binding.PackageID != pkg || binding.Generation != 9 || binding.Target != "dev" || binding.TargetID != "dev-id" {
+		t.Fatalf("binding = %+v err=%v", binding, err)
+	}
+	result.CorePackage.ActiveInterfaces = nil
+	if LiveMediaCapable(result.CorePackage) {
+		t.Fatal("computer session without the tape interface must stay closed")
+	}
+	blobOnly := &SessionCorePackage{ABI: SessionCoreABI{ID: "fes.computer", Major: 1}, ActiveInterfaces: []SessionCoreInterface{{ID: "fes.media.blob", Major: 1}}}
+	if LiveMediaCapable(blobOnly) {
+		t.Fatal("computer blob must not use the legacy mailbox predicate")
+	}
+}
+
+func TestReplaceLiveMediaPostsComputerZx81Tape(t *testing.T) {
+	t.Parallel()
+	pkg := strings.Repeat("a", 64)
+	mediaID := strings.Repeat("b", 64)
+	posts := 0
+	sessionBody := fmt.Sprintf(`{"id":"host-1","target":"dev","target_id":"dev-id","state":"active","core_package":{"package_id":%q,"generation":4,"abi":{"id":"fes.computer","major":1,"minor":0},"active_interfaces":[{"id":"fes.media.zx81-tape","major":1,"minor":0}]}}`, pkg)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
+			_, _ = io.WriteString(w, sessionBody)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/session/live-media":
+			posts++
+			if r.Header.Get("X-FogCast-Package-ID") != pkg || r.Header.Get("X-FogCast-Core-Generation") != "4" || r.Header.Get("X-FogCast-Target") != "dev" {
+				t.Errorf("headers = %v", r.Header)
+			}
+			_, _ = io.WriteString(w, sessionBody)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	result, err := NewClient(server.URL, server.Client()).ReplaceLiveMedia(context.Background(), mediaID, "maze.p")
+	if err != nil || result.State != "active" || posts != 1 {
+		t.Fatalf("replace = %+v err=%v posts=%d", result, err, posts)
+	}
+}
+
 func TestReplaceLiveMediaAndClearLiveMedia(t *testing.T) {
 	t.Parallel()
 	pkg := strings.Repeat("a", 64)

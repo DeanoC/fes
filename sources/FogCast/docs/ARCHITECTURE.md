@@ -663,7 +663,11 @@ Mid-session tape arming does not hold reset. On an active `fes.computer`
 generation that reports `fes.media.zx81-tape`, `change-tape` inserts the `.p`
 into unit 0 and `eject-tape` ejects that unit. An active `fes.simple-computer`
 generation with `fes.media.blob` still uses `replace_live_media` /
-`clear_media`. Both are distinct from launch-time
+`clear_media`. Live-media capability is that active tape interface or the
+legacy blob interface. The host session projection keeps those active
+interfaces and media units, so the tape picker and `change-tape` form a
+binding for either generation. Library play is native, and `change-tape`
+accepts that execution. Both paths are distinct from launch-time
 `POST /api/v1/session/development-media` (`load_media`). See the FES lock
 [ZX81 tape media](../../../docs/zx81-tape-media.md).
 
@@ -2975,7 +2979,8 @@ routing gives the systems overlay priority over room/catalog widgets.
 
 The Sinclair ZX81 room reuses that overlay for local installed-package/ROM setup,
 expansion import and prelaunch cassette selection. The picker saves a `.p`
-selection as role `cassette` for `fes.media.zx81-tape`. Installed setup uses existing
+selection as the role that package declares: `cassette` for `fes.media.zx81-tape`,
+and `blob` for a legacy `fes.media.blob` package. Installed setup uses existing
 package/library/ROM endpoints independently of publication. Media selection
 retains the captured package and previous media ID for compare-and-swap; expansion
 import does not fit the asset. Catalogue schema 16 adds optional `in_progress`

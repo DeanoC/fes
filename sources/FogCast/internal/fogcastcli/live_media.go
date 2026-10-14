@@ -222,7 +222,9 @@ type sessionMediaForm struct {
 }
 
 var (
-	tapeMedia = sessionMediaForm{capable: protocol.LiveMediaCapable}
+	// change-tape accepts native library play. A fes.computer ZX81 launch is
+	// native; the legacy blob mailbox remains a development load.
+	tapeMedia = sessionMediaForm{capable: protocol.LiveMediaCapable, native: true}
 	// A recognized fes.computer library launch runs as native play.
 	diskMedia     = sessionMediaForm{capable: diskCapable, native: true}
 	cassetteMedia = sessionMediaForm{capable: cassetteCapable, native: true}

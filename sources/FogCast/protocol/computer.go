@@ -292,6 +292,26 @@ func DeclaresZx81Tape(descriptor corepackage.Descriptor) bool {
 	return false
 }
 
+// ZX81TapeSelectionRole is the library role for a .p file on this package.
+// A declared fes.media.zx81-tape unit uses cassette. A legacy fes.media.blob
+// declaration uses blob. The tape unit wins when a package declares both.
+func ZX81TapeSelectionRole(media []CoreMediaCapability) (string, bool) {
+	blob := RuntimeContract{ID: "fes.media.blob", Major: 1}
+	legacy := false
+	for _, cap := range media {
+		if cap.Role == CassetteRole && cap.Format == "zx81-p" && cap.Interface == Zx81TapeInterface() {
+			return CassetteRole, true
+		}
+		if cap.Role == "blob" && cap.Interface == blob {
+			legacy = true
+		}
+	}
+	if legacy {
+		return "blob", true
+	}
+	return "", false
+}
+
 // AdmitDiskMediaName accepts only DOS-order .dsk/.do basenames. ProDOS-order
 // .po and nibble .nib images are different formats and are refused.
 func AdmitDiskMediaName(name string) bool {

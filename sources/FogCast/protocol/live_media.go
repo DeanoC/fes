@@ -13,9 +13,15 @@ type LiveMediaRequest struct {
 	Name    string `json:"name,omitempty"`
 }
 
-// LiveMediaCapable is the mid-session ZX81 / fes.simple-computer mailbox path.
-// fes.application uses launch hold-reset load_media, not replace_live_media.
+// LiveMediaCapable reports a session that can change a mid-session .p tape.
+// The legacy case is fes.simple-computer 1.0 with active fes.media.blob 1.0.
+// An active fes.computer 1.0 generation with fes.media.zx81-tape 1.0 uses the
+// tape unit instead. fes.application stays on launch-time load_media.
 func LiveMediaCapable(p *CorePackageStatus) bool {
+	return liveBlobCapable(p) || liveComputerZx81TapeCapable(p)
+}
+
+func liveBlobCapable(p *CorePackageStatus) bool {
 	if p == nil || p.ABI.ID != "fes.simple-computer" || p.ABI.Major != 1 || p.ABI.Minor != 0 {
 		return false
 	}
@@ -25,6 +31,10 @@ func LiveMediaCapable(p *CorePackageStatus) bool {
 		}
 	}
 	return false
+}
+
+func liveComputerZx81TapeCapable(p *CorePackageStatus) bool {
+	return activeComputer(p) && activeInterface(p, Zx81TapeInterface())
 }
 
 // AdmitTapeMediaName accepts only ZX81 .p / .P basenames.
@@ -41,13 +51,15 @@ func AdmitTapeMediaSize(size int64) bool {
 	return size >= 1 && size <= MaxDevelopmentMediaBytes
 }
 
+// MatchesLive admits the legacy mailbox generation. A fes.computer ZX81 tape
+// insert uses the media unit and does not pass this mailbox check.
 func (b DevelopmentMediaBinding) MatchesLive(s Status) bool {
 	if !b.Valid() || b.Stream || b.Role == FirmwareRole || s.State != StateActive || !s.Development ||
 		s.Recovery != "" || s.LastError != nil || s.CorePackage == nil ||
 		s.CorePackage.PackageID != b.PackageID || s.CorePackage.Generation != b.Generation {
 		return false
 	}
-	return LiveMediaCapable(s.CorePackage)
+	return liveBlobCapable(s.CorePackage)
 }
 
 func LiveMediaRequestError() *APIError {
