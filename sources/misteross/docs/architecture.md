@@ -1711,10 +1711,19 @@ and the matrix latch support badlines, late DMA, FLI, FLD and linecrunch;
 BA stops CPU reads while pending writes finish. CPU bus strobes occur at
 cycle 26 and reads are sampled at cycle 43. The native 320×200 color window
 is stored in three frame buffers, each using 32 explicit 2048×5 M10Ks.
+`c64_vic_sprite_fetch` supplies PAL pointer/three-byte accesses, DMA/display,
+MC/MCBASE, expansion flips and cycle-15 crunch. Its requests arbitrate with
+the matrix/glyph engine on the native video port without overlap. Combined
+BA stalls CPU reads; pending writes retain the three-cycle warning window.
+Late unowned accesses use the current CPU read/write bus value. The directed
+sprite test covers 21/42 rows, all slots/banks, byte ordering, late ownership
+and sustained crunch. The motherboard diagnostic enables eight expanded
+sprites and requires CPU read stalls alongside IRQs and its PASS frame. Sprite
+pixel composition and collision IRQs remain open.
 `c64_frame_store` publishes complete frames to HDMI with a bundled-data
 mailbox; reader and queued complete buffers remain protected while the
 private buffer is written. The native clock runs independently of HDMI.
-Sprites, exact mode-transition quirks, subpixel phases, full overscan and
+Sprite pixel composition, exact mode-transition quirks, subpixel phases, full overscan and
 route/seal/hardware acceptance remain open. The D64 media mailbox is unchanged.
 See the core README.
 The IEC device uses released-high CIA2 inputs and logical byte levels on the
@@ -1803,7 +1812,7 @@ cartridge IRQ at the CPU. A source can fire once per line, including an immediat
 compare write on an unfired line. Automatic line-zero comparison waits one
 Phi2 after wrap. `make sim-fes-c64-vic` checks the register/line behavior; the
 open firmware checks CPU vector delivery and acknowledgement at stage 12.
-Sprites, collision/lightpen sources, exact mode-transition quirks, full native
+Sprite pixel composition, collision/lightpen sources, exact mode-transition quirks, full native
 overscan and physical subcycle timing remain outside this implementation.
 Both CIA timers expose their live counters, load stopped counters on high-byte
 writes, treat force-load as a strobe, and implement continuous/one-shot counting.

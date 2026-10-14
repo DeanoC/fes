@@ -188,6 +188,18 @@ disk_bad:
         lda #$09
         jmp fail
 disk_ok:
+        ; Exercise real CPU read stalls from eight expanded sprite DMAs.
+        ; X=0 keeps these sprites outside the native display window.
+        ldx #$0f
+        lda #$14
+sprite_y_setup:
+        sta $d000,x
+        dex
+        dex
+        bpl sprite_y_setup
+        lda #$ff
+        sta $d017
+        sta $d015
         jsr check_interrupts
         ; The demo's fastloader leaves VIC bank pins as inputs. Their pull-ups
         ; select bank zero even when the CIA output latch holds zero.

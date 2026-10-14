@@ -24,7 +24,9 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   text addressing. Matrix/color reads occur on native PAL badlines and glyph
   reads on each native display line. VC, VCBASE, RC and the matrix line follow
   native cycles, so late DMA, FLI, FLD and linecrunch affect the fetched data.
-  BA warns the CPU three cycles before matrix bus ownership. CPU reads stall;
+  Sprite pointer and three-byte reads occupy their PAL bus slots. Sprite DMA,
+  display, MC/MCBASE and expansion-flop state include cycle-15 crunch behavior.
+  Matrix and sprite BA warn the CPU three cycles before bus ownership. CPU reads stall;
   pending writes complete. Native raster, CIA, SID and drive clocks keep running.
   `$D018` selects the screen, character or bitmap base in the active VIC bank.
   Character ROM is visible at `$1000–$1FFF` in banks 0 and 2 independently of
@@ -41,7 +43,7 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   The PAL beam has 63 Phi2 cycles per line and 312 lines per frame.
   Events occur once per line; writes can match the current line, and automatic
   line-zero comparison waits one Phi2 after frame wrap.
-  Sprites, collision/lightpen, exact mode-transition quirks, subpixel clock
+  Sprite pixel composition, collision/lightpen, exact mode-transition quirks, subpixel clock
   phase and full native overscan remain open. HDMI still presents the scaled
   320×200 window with letterboxing.
 - Reduced SID: three voices, pulse, saw, triangle and noise, a crude envelope
@@ -160,6 +162,16 @@ from the CPU's RDY timing path. `make sim-fes-c64-clock` compares the actual
 motherboard enable against an independent fractional reference on every tick
 for a full PAL second, including alternate parameter cases with adjacent
 pulses. Rates at or above half the system clock retain the original direct enable.
+
+`make sim-fes-c64-sprite` checks all eight sprite fetch slots across four banks:
+21/42-row timing, pointer addresses, three-byte order, a late DMA enable's
+unowned first byte and sustained cycle-15 expansion crunch. The motherboard
+diagnostic enables eight expanded sprites and requires stalled CPU reads,
+interrupt delivery and the unchanged PASS frame. Sprite and matrix
+requests share the native video memory port and are checked for overlap in
+simulation. Unowned reads use the current Phi2 CPU read/write bus value,
+including writes. Sprite bytes are fetched but are not yet composed into native
+pixels; collision IRQs remain unimplemented.
 
 C64's D64/IEC path remains read-only. Atari ST's initial-disk-before-release
 and writable-disk save/restore path is a useful ordering reference, but its

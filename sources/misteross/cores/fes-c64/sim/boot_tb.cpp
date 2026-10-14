@@ -307,6 +307,14 @@ int main(int argc, char **argv) {
     std::printf("VIC final D011=%02x D012-compare=%02x D016=%02x D018=%02x D01A=%02x beam=%u\n",
         vic_regs[0x11],vic_regs[0x12],vic_regs[0x16],vic_regs[0x18],vic_regs[0x1a],
         r->c64_boot_sim_top__DOT__machine__DOT__vic__DOT__raster);
+    std::printf("VIC colors D020=%02x D021=%02x D022=%02x D023=%02x sprites D015=%02x D017=%02x\n",
+        vic_regs[0x20],vic_regs[0x21],vic_regs[0x22],vic_regs[0x23],vic_regs[0x15],vic_regs[0x17]);
+    std::printf("Sprite DMA=%02x display=%02x expansion-flops=%02x MC=%012llx MCBASE=%012llx\n",
+        r->c64_boot_sim_top__DOT__machine__DOT__vic__DOT__sprites__DOT__dma,
+        r->c64_boot_sim_top__DOT__machine__DOT__vic__DOT__sprites__DOT__display,
+        r->c64_boot_sim_top__DOT__machine__DOT__vic__DOT__sprites__DOT__exp_flop,
+        static_cast<unsigned long long>(r->c64_boot_sim_top__DOT__machine__DOT__vic__DOT__sprites__DOT__counters),
+        static_cast<unsigned long long>(r->c64_boot_sim_top__DOT__machine__DOT__vic__DOT__sprites__DOT__bases));
     std::printf("Keyboard events delivered=%zu of %zu\n", key_event, keys.size());
     std::printf("Raster reads=%u, zero reads=%u\n", raster_reads, raster_zero_reads);
     std::puts("Final CPU cycles (bus address, internal PC, data, microcode state):");

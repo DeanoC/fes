@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // PAL text/bitmap sequencer with native matrix/glyph DMA and CPU BA.
 // Native colors pass through complete-frame buffers into fixed 720p60 HDMI.
-// Sprite DMA, collision/lightpen and exact mode-transition quirks remain open.
+// Sprite pixels, collision/lightpen and exact mode-transition quirks remain open.
 
 module c64_vic (
     input  wire        clk_sys,
@@ -126,7 +126,13 @@ module c64_vic (
     wire first_phase = cycle_clock == 0;
     wire second_phase = cycle_clock == 26;
     wire fetch_sample = cycle_clock == 4 || cycle_clock == 30;
-    wire request, matrix_request, native_valid;
+    wire request, matrix_request, native_valid, matrix_ba_n, sprite_request;
+    wire [15:0] graphics_address, sprite_address;
+    wire [63:0] sprite_y;
+    for(genvar n=0;n<8;n=n+1)begin : sprite_positions
+        assign sprite_y[n*8+:8]=regs[n*2+1];
+    end
+    assign ram_addr=sprite_request?sprite_address:graphics_address;
     wire [9:0] native_color_address;
     wire [7:0] native_glyph, native_matrix;
     wire [3:0] native_color;
@@ -134,11 +140,24 @@ module c64_vic (
         .clk(clk_sys),.reset(reset),.first_phase(first_phase),.second_phase(second_phase),
         .sample(fetch_sample),.raster(raster),.cycle(native_cycle),.d011(d011),.d018(d018),
         .bank(bank),.cpu_data(cpu_bus_data),.ram_data(ram_data),.color_data(color_video_q),
-        .badline(),.ba_n(ba_n),.aec_n(),.request(request),.matrix_request(matrix_request),
-        .address(ram_addr),.color_address(native_color_address),.graphics_valid(native_valid),
+        .badline(),.ba_n(matrix_ba_n),.aec_n(),.request(request),.matrix_request(matrix_request),
+        .address(graphics_address),.color_address(native_color_address),.graphics_valid(native_valid),
         .graphics_data(native_glyph),.graphics_matrix(native_matrix),.graphics_color(native_color),
         .vc(),.vcbase(),.rc(),.display()
     );
+    c64_vic_sprite_fetch sprites (
+        .clk(clk_sys),.reset(reset),.phi1(first_phase),.phi2(second_phase),
+        .cycle(native_cycle),.raster(raster),.enabled(regs[6'h15]),.expanded(regs[6'h17]),
+        .ypos(sprite_y),.expansion_write(cs&&we&&addr==6'h17),.expansion_value(din),
+        .other_ba_n(matrix_ba_n),.sample(fetch_sample),.ram_data(ram_data),
+        .cpu_data(cpu_bus_data),.d018(d018),.bank(bank),.request(sprite_request),
+        .address(sprite_address),.pointers(),.sprite_data(),.dma(),.display(),.exp_flop(),
+        .counters(),.bases(),.ba_n(ba_n),.aec_n()
+    );
+`ifdef FES_SIMULATION
+    always @(posedge clk_sys)
+        if(!reset&&request&&sprite_request)$fatal(1,"VIC matrix/glyph and sprite memory requests overlap");
+`endif
     c64_color_ram color_ram (
         .clk_a(clk_sys),.addr_a(color_addr),.wdata_a(color_din[3:0]),.we_a(color_we),.q_a(color_cpu_q),
         .clk_b(clk_sys),.addr_b(native_color_address),.q_b(color_video_q)

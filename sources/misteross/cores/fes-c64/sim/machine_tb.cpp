@@ -107,12 +107,13 @@ static int run(bool delayed) {
     top.controller_buttons = delayed ? 0 : 1;
     top.disk_ready = !delayed;
 
-    uint64_t sys_cycles = 0, cpu_cycles = 0;
+    uint64_t sys_cycles = 0, cpu_cycles = 0, sprite_stalls = 0;
     auto tick = [&]() {
         top.clk_sys = 0;
         top.pixel_clk = 0;
         top.eval();
         cpu_cycles += top.cpu_enable;
+        if(top.cpu_enable&&top.sprite_bus_owned&&!top.cpu_run_enable)++sprite_stalls;
         ++sys_cycles;
         if (cpu_cycles != sys_cycles * 985248 / 52224000) {
             std::printf("c64 PAL Phi2 count mismatch at system cycle %llu\n",
@@ -188,6 +189,8 @@ static int run(bool delayed) {
             if (top.vsync && !prev_vsync && !frame.empty()) {
                 if (check_pass_frame(frame))
                     return 1;
+                if(!sprite_stalls){std::puts("c64 diagnostic never stalled a CPU read for sprite ownership");return 1;}
+                std::printf("c64 sprite ownership stalled %llu CPU reads\n",static_cast<unsigned long long>(sprite_stalls));
                 std::printf("c64 diagnostic passed after %d cycles (delayed=%d)\n", i, delayed);
                 return 0;
             }
