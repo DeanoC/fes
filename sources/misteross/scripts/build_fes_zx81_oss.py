@@ -200,6 +200,20 @@ def _audio_synthesis_evidence(design: dict) -> None:
                        for cell in cells.values())):
         raise BuildError('audio clock must come from the second PLL output and share its lock')
 
+def _signal_bits(netnames: dict, cells: dict, name: str, pad_bits: object) -> list[int] | None:
+    bits = netnames.get(name, {}).get('bits')
+    if isinstance(bits, list) and len(bits) == 1 and type(bits[0]) is int:
+        return bits
+    # The shared pin can drop the RTL net name after mapping. The flip-flop
+    # still carries it, and its Q is the signal when that Q drives the pad.
+    for cell_name, cell in cells.items():
+        q = cell.get('connections', {}).get('Q')
+        if (cell.get('type') == 'MISTRAL_FF' and cell_name.startswith(name)
+                and q == pad_bits and isinstance(q, list) and len(q) == 1
+                and type(q[0]) is int):
+            return q
+    return None
+
 def _audio_evidence(design: dict) -> None:
     module = design['modules'][TOP]
     cells = module.get('cells', {})
@@ -207,9 +221,15 @@ def _audio_evidence(design: dict) -> None:
     expected_nets = {'HDMI_MCLK': 'audio_clk', 'HDMI_SCLK': 'audio.sclk',
                      'HDMI_LRCLK': 'audio.lrclk', 'HDMI_I2S0': 'audio.sdata'}
     audio_nets: dict[str, list[int]] = {}
+    ports = module.get('ports', {})
     for port, name in expected_nets.items():
-        bits = netnames.get(name, {}).get('bits')
-        if not isinstance(bits, list) or len(bits) != 1 or type(bits[0]) is not int:
+        pad_bits = None
+        for cell in cells.values():
+            if cell.get('type') == 'MISTRAL_OB' and cell.get('connections', {}).get('PAD') == ports.get(port, {}).get('bits'):
+                pad_bits = cell.get('connections', {}).get('I')
+                break
+        bits = _signal_bits(netnames, cells, name, pad_bits)
+        if bits is None:
             raise BuildError(f'audio output {port} has no routed {name} signal')
         audio_nets[port] = bits
     lock = netnames.get('audio.locked', {}).get('bits')

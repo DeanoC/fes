@@ -135,6 +135,14 @@ class BuildFesZx81OssTests(unittest.TestCase):
                                           'NEXTPNR_BEL': f'MISTRAL_IO.1.1.{index}'}}
         routed = {'modules': {'top': {'ports': ports, 'cells': cells, 'netnames': netnames}}}
         build_fes_zx81_oss._audio_evidence(routed)
+        renamed = json.loads(json.dumps(routed))
+        del renamed['modules']['top']['netnames']['audio.lrclk']
+        renamed['modules']['top']['cells']['audio.lrclk_MISTRAL_FF_Q'] = {
+            'type': 'MISTRAL_FF', 'connections': {'Q': [204]}}
+        build_fes_zx81_oss._audio_evidence(renamed)
+        renamed['modules']['top']['cells']['audio.lrclk_MISTRAL_FF_Q']['connections']['Q'] = [999]
+        with self.assertRaisesRegex(BuildError, 'audio output HDMI_LRCLK has no routed audio.lrclk signal'):
+            build_fes_zx81_oss._audio_evidence(renamed)
         # ABC can name the unreset CDC synchronizer after sample_tick. Its
         # inactive ACLR must not be mistaken for a missing serializer reset.
         cells['audio.serializer.sample_tick_MISTRAL_FF_Q_DATAIN_MISTRAL_FF_Q'] = {
