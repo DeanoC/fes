@@ -38,7 +38,7 @@ A producer in this module does not put a package on that image.
 | `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchain.lock` | `make build-fes-spectrum` | yes; four edge sockets |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
 | `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `toolchain.lock` (shared FES HIP lane; 100 and 130 MHz) | `make build-fes-ramtest-100` (factory), `make build-fes-ramtest-130` (explicit) | yes; OSS 100 MHz utility |
-| `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `toolchains/atari-st.lock` | `make build-fes-atari-st` | yes; Atari 520ST firmware shell and Direct/Scanlines parts |
+| `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `toolchain.lock` | `make build-fes-atari-st` | yes; Atari 520ST firmware shell and Direct/Scanlines parts |
 | `fes.riscv` | `cores/fes-riscv` | `fes.application` with `fes.gamepad` | `toolchain.lock` | `make build-fes-riscv` | no; package-only recipe; original RV32I CPU from `cores/fes-common/rtl/riscv` |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
 
@@ -258,8 +258,8 @@ Copy the closest sibling. Do not start from an experiment, and do not fork a
 second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
 
-The Atari ST producer now pins DeanoC/nextpnr head `3d4a5b35` in its own
-`toolchains/atari-st.lock`; RAM test and menu use the shared `toolchain.lock`
+The Atari ST producer now selects the shared `toolchain.lock`
+(Yosys `5391eeb1`, nextpnr `9128800f`). RAM test and menu use that same lock
 and its HIP compiler slot. `toolchains/ramtest-timing.lock` remains a separate
 opt-in experimental stack for the 130 MHz timing comparison.
 Requalification is recorded in the [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md).
