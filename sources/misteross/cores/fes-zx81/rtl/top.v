@@ -100,9 +100,13 @@ module top #(
         .outclk_0(pixel_clk), .locked(pixel_locked)
     );
 
+    wire display_request, display_response_valid, display_response_error, display_quiesced;
+    wire [6:0] display_opcode;
+    wire [7:0] display_index;
+    wire [15:0] display_argument, display_response_data;
     fes_computer_mailbox #(
         .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1),
-        .ENABLE_ZX81_TAPE(1), .MEDIA_AW(14),
+        .ENABLE_ZX81_TAPE(1), .ENABLE_SESSION_DISPLAY(1), .MEDIA_AW(14),
         .UNIT0_MIN(`FES_COMPUTER_ZX81_TAPE_MIN_BYTES),
         .UNIT0_MAX(`FES_COMPUTER_ZX81_TAPE_MAX_BYTES)
     ) gp_mailbox (
@@ -114,7 +118,13 @@ module top #(
         .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
         .media_write_enable(media_write_enable), .media_write_ready(1'b1),
-        .unit0_state(unit0_state), .unit0_size(unit0_size)
+        .unit0_state(unit0_state), .unit0_size(unit0_size),
+        .display_request(display_request), .display_opcode(display_opcode),
+        .display_index(display_index), .display_argument(display_argument),
+        .display_response_valid(display_response_valid),
+        .display_response_error(display_response_error),
+        .display_response_data(display_response_data),
+        .display_quiesced(display_quiesced)
     );
     zx81_keyboard keyboard_map (
         .clk(clk_sys), .reset(exec_reset), .rows(keyboard_rows), .matrix(keyboard)
@@ -230,6 +240,18 @@ module top #(
         .src_y_max()
     );
 
-    assign HDMI_TX_D = {red, green, blue};
+    wire [23:0] hdmi_rgb;
+    // Launcher pixels replace machine RGB only after a completed frame.
+    // Closing the plane returns {red,green,blue} without reprogramming.
+    zx81_session_display display (
+        .clk_sys(clk_sys), .pixel_clk(pixel_clk), .reset_hold(~pixel_locked),
+        .exec_reset(exec_reset), .request(display_request), .opcode(display_opcode),
+        .index(display_index), .argument(display_argument),
+        .response_valid(display_response_valid), .response_error(display_response_error),
+        .response_data(display_response_data), .quiesced_sys(display_quiesced),
+        .raster_h(raster_h), .raster_v(raster_v), .machine_rgb({red, green, blue}),
+        .rgb(hdmi_rgb), .ui_active(), .displayed_sequence(), .underflows(), .faulted()
+    );
+    assign HDMI_TX_D = hdmi_rgb;
     assign HDMI_TX_CLK = pixel_clk;
 endmodule

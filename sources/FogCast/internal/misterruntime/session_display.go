@@ -43,12 +43,12 @@ func (r *Runtime) ConfigureSessionDisplayFocus(focus SessionDisplayFocus) {
 }
 
 func sessionDisplayResponseMatches(response Protocol2Response, b protocol.DevelopmentMediaBinding) bool {
-	if !liveMediaResponseMatches(response, b) {
+	if !response.OK || response.Error != nil || response.State != "running_development" || response.Execution != "development" || response.ActivePackage == nil || response.Generation == nil {
 		return false
 	}
 	p := response.ActivePackage
 	activation := activationFromProtocol2(p.PackageID, p.Descriptor, response)
-	return protocol.SessionDisplayCapable(corePackageStatus(activation))
+	return b.MatchesSessionDisplay(protocol.Status{State: protocol.StateActive, Development: true, CorePackage: corePackageStatus(activation)})
 }
 
 func (r *Runtime) SetSessionDisplay(ctx context.Context, visible bool, b protocol.DevelopmentMediaBinding) *protocol.APIError {

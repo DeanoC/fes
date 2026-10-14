@@ -56,6 +56,10 @@ constexpr std::uint32_t FesComputerOpcodeMediaSnapshotInfo = 0xcu;
 constexpr std::uint32_t FesComputerOpcodeMediaSnapshotControl = 0xdu;
 constexpr std::uint32_t FesComputerOpcodeMediaSnapshotChunk = 0xeu;
 constexpr std::uint32_t FesComputerOpcodeMediaSnapshotData = 0xfu;
+constexpr std::uint32_t FesComputerOpcodeMenuInfo = 0x12u;
+constexpr std::uint32_t FesComputerOpcodeMenuConfigure = 0x13u;
+constexpr std::uint32_t FesComputerOpcodeMenuControl = 0x14u;
+constexpr std::uint32_t FesComputerOpcodeMenuSubmit = 0x15u;
 constexpr std::uint32_t FesComputerMouseButtonMask = 0x3u;
 constexpr std::uint32_t FesComputerMediaSnapshotInfoStride = 0x8u;
 constexpr std::uint32_t FesComputerMediaSnapshotFlagsField = 0x0u;
@@ -188,6 +192,14 @@ constexpr const char* FesComputerInterfaceMediaZx81TapeID = "fes.media.zx81-tape
 constexpr std::uint16_t FesComputerInterfaceMediaZx81TapeMajor = 1u;
 constexpr std::uint16_t FesComputerInterfaceMediaZx81TapeMinor = 0u;
 constexpr std::uint32_t FesComputerCapabilityMediaZx81Tape = 0x800u;
+constexpr const char* FesComputerInterfaceMemoryHpsDdrID = "fes.memory.hps-ddr";
+constexpr std::uint16_t FesComputerInterfaceMemoryHpsDdrMajor = 1u;
+constexpr std::uint16_t FesComputerInterfaceMemoryHpsDdrMinor = 0u;
+constexpr std::uint32_t FesComputerCapabilityMemoryHpsDdr = 0x1000u;
+constexpr const char* FesComputerInterfaceVideoSessionDisplayID = "fes.video.session-display";
+constexpr std::uint16_t FesComputerInterfaceVideoSessionDisplayMajor = 1u;
+constexpr std::uint16_t FesComputerInterfaceVideoSessionDisplayMinor = 0u;
+constexpr std::uint32_t FesComputerCapabilityVideoSessionDisplay = 0x2000u;
 
 } // namespace generated
 } // namespace native

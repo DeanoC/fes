@@ -20,8 +20,7 @@ func LiveMediaCapable(p *SessionCorePackage) bool {
 }
 
 // ComputerTapeCapable reports an active fes.computer 1.0 ZX81 tape unit.
-// Kit launchers open its tape controls without the retired simple-computer
-// session-display plane. A legacy blob session stays on that plane.
+// A menu-display kit presents that unit through fes.video.session-display.
 func ComputerTapeCapable(p *SessionCorePackage) bool {
 	return p != nil && protocol.ComputerZx81TapeCapable(sessionPackageStatus(p))
 }

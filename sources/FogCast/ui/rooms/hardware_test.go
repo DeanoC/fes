@@ -297,7 +297,11 @@ func TestKitHardwareRoomOffersTapeForComputerTapeUnit(t *testing.T) {
 	s := hardwareData(true)
 	tape := protocol.Zx81TapeInterface()
 	s.value.Session.CorePackage.ABI = hostclient.SessionCoreABI{ID: "fes.computer", Major: 1}
-	s.value.Session.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{{ID: tape.ID, Major: tape.Major, Minor: tape.Minor}}
+	s.value.Session.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{
+		{ID: tape.ID, Major: tape.Major, Minor: tape.Minor},
+		{ID: "fes.memory.hps-ddr", Major: 1},
+		{ID: "fes.video.session-display", Major: 1},
+	}
 	r, err := New(examplePack(t, "example.hardware"), Options{Width: 1120, Height: 630, Services: s, SessionDisplayRequired: true, Budget: Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second}})
 	if err != nil {
 		t.Fatal(err)
@@ -310,6 +314,26 @@ func TestKitHardwareRoomOffersTapeForComputerTapeUnit(t *testing.T) {
 	r.Activate("tape")
 	acts := r.TakeActions()
 	if len(acts) != 1 || acts[0].Kind != ActionOpenTape || acts[0].SessionID != s.value.Session.ID || acts[0].MediaBinding.Generation != s.value.Session.CorePackage.Generation {
-		t.Fatalf("computer tape unit stayed behind the retired session-display plane: %+v", acts)
+		t.Fatalf("computer tape unit with session display did not offer the picker: %+v", acts)
+	}
+}
+
+func TestKitHardwareRoomHidesComputerTapeWithoutPlane(t *testing.T) {
+	s := hardwareData(true)
+	tape := protocol.Zx81TapeInterface()
+	s.value.Session.CorePackage.ABI = hostclient.SessionCoreABI{ID: "fes.computer", Major: 1}
+	s.value.Session.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{{ID: tape.ID, Major: tape.Major, Minor: tape.Minor}}
+	r, err := New(examplePack(t, "example.hardware"), Options{Width: 1120, Height: 630, Services: s, SessionDisplayRequired: true, Budget: Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool { return !r.hardwareReading })
+	r.Activate("tape")
+	if acts := r.TakeActions(); len(acts) != 0 {
+		t.Fatalf("computer tape without session display opened the picker: %+v", acts)
 	}
 }

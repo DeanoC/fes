@@ -48,6 +48,10 @@ const (
 	FesComputerOpcodeMediaSnapshotControl               uint32 = 0xd
 	FesComputerOpcodeMediaSnapshotChunk                 uint32 = 0xe
 	FesComputerOpcodeMediaSnapshotData                  uint32 = 0xf
+	FesComputerOpcodeMenuInfo                           uint32 = 0x12
+	FesComputerOpcodeMenuConfigure                      uint32 = 0x13
+	FesComputerOpcodeMenuControl                        uint32 = 0x14
+	FesComputerOpcodeMenuSubmit                         uint32 = 0x15
 	FesComputerMouseButtonMask                          uint32 = 0x3
 	FesComputerMediaSnapshotInfoStride                  uint32 = 0x8
 	FesComputerMediaSnapshotFlagsField                  uint32 = 0x0
@@ -180,4 +184,12 @@ const (
 	FesComputerInterfaceMediaZx81TapeMajor              uint16 = 1
 	FesComputerInterfaceMediaZx81TapeMinor              uint16 = 0
 	FesComputerCapabilityMediaZx81Tape                  uint32 = 0x800
+	FesComputerInterfaceMemoryHpsDdrID                         = "fes.memory.hps-ddr"
+	FesComputerInterfaceMemoryHpsDdrMajor               uint16 = 1
+	FesComputerInterfaceMemoryHpsDdrMinor               uint16 = 0
+	FesComputerCapabilityMemoryHpsDdr                   uint32 = 0x1000
+	FesComputerInterfaceVideoSessionDisplayID                  = "fes.video.session-display"
+	FesComputerInterfaceVideoSessionDisplayMajor        uint16 = 1
+	FesComputerInterfaceVideoSessionDisplayMinor        uint16 = 0
+	FesComputerCapabilityVideoSessionDisplay            uint32 = 0x2000
 )

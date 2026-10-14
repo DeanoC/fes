@@ -666,10 +666,13 @@ generation with `fes.media.blob` still uses `replace_live_media` /
 `clear_media`. Live-media capability is that active tape interface or the
 legacy blob interface. The host session projection keeps those active
 interfaces and media units, so the tape picker and `change-tape` form a
-binding for either generation. On a menu-display kit, that tape unit opens
-the hardware room and the tape picker without the retired simple-computer
-session-display plane. A legacy blob session on the same kit still requires
-`fes.video.session-display` 1.0 and `fes.memory.hps-ddr` 1.0. Library play is
+binding for either generation. On a menu-display kit, both that tape unit
+and a legacy blob session open the hardware room and the tape picker only
+when the running package reports `fes.video.session-display` 1.0 and
+`fes.memory.hps-ddr` 1.0. Home posts `visible: true`, the runtime makes menu
+presentation available, and `BindSession` authorizes the launcher frames.
+Back posts `visible: false`, which quiesces the plane and restores the
+machine's HDMI pixels. Library play is
 native, and `change-tape` accepts that execution. Both paths are distinct from
 launch-time `POST /api/v1/session/development-media` (`load_media`). See the FES lock
 [ZX81 tape media](../../../docs/zx81-tape-media.md).
@@ -3029,10 +3032,12 @@ reload or Stop.
 Media delivery can briefly reject a concurrent launcher frame as busy. A healthy
 probe clears that presentation error and its retry delay; the room removes the
 temporary HDMI notice while retaining the cassette operation's status.
-A running `fes.computer` generation that reports `fes.media.zx81-tape` 1.0 opens
-the hardware room and the tape picker on that menu-display launcher without
-`POST /api/v1/session/display`. The machine keeps running while the launcher
-draws those controls. Older packages keep prelaunch controls and the separate
+A running `fes.computer` generation that reports `fes.media.zx81-tape` 1.0 uses
+that same `POST /api/v1/session/display` when it also reports
+`fes.video.session-display` 1.0 and `fes.memory.hps-ddr` 1.0. The plane
+composites launcher frames over ZX81 video; closing it restores those pixels
+without reprogramming the core. A tape unit without the plane does not open
+the kit routes. Older packages keep prelaunch controls and the separate
 host renderer keeps its live routes. The shared wire layout is in
 [mister-packages session display](../../mister-packages/docs/session-display.md).
 

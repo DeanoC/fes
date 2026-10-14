@@ -28,16 +28,18 @@ func (a *App) sessionDisplayOfferedLocked() bool {
 }
 
 // liveControlsOfferedLocked is the kit gate for the hardware room and tape
-// picker. A fes.computer tape unit does not need the retired session-display
-// plane. A legacy simple-computer package still does.
+// picker. On a menu-display kit the running package must report the
+// session-display plane, including fes.computer ZX81. A host window draws
+// those controls on its own display.
 func (a *App) liveControlsOfferedLocked() bool {
-	return a.sessionDisplayOfferedLocked() || hostclient.ComputerTapeCapable(a.session.CorePackage)
+	return a.sessionDisplayOfferedLocked()
 }
 
 // kitSessionDisplayPlaneLocked is the POST /api/v1/session/display transition.
-// Tape-unit sessions stay on the menu-display launcher and do not request it.
+// Opening it makes menu presentation available and binds launcher frames.
+// Closing it restores the core's HDMI pixels.
 func (a *App) kitSessionDisplayPlaneLocked() bool {
-	return a.needsSessionDisplayLocked() && !hostclient.ComputerTapeCapable(a.session.CorePackage)
+	return a.needsSessionDisplayLocked()
 }
 
 func (a *App) suppressHeldPlayKeysLocked() {

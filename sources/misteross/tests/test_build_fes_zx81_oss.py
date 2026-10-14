@@ -495,7 +495,11 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertIn("fes.keyboard.hid", interfaces)
         self.assertIn("fes.media.zx81-tape", interfaces)
         self.assertNotIn("fes.media.blob", interfaces)
-        self.assertNotIn("fes.video.session-display", interfaces)
+        self.assertIn("fes.memory.hps-ddr", interfaces)
+        self.assertIn("fes.video.session-display", interfaces)
+        for item in fields["interfaces"]:
+            if item["id"] in ("fes.memory.hps-ddr", "fes.video.session-display"):
+                self.assertTrue(item["required"])
 
 
 class Zx81SyncM10kTests(unittest.TestCase):

@@ -67,9 +67,11 @@ bool HasMenu(const CoreDescriptor& descriptor) {
  return false;
 }
 bool HasSessionDisplay(const CoreDescriptor& descriptor) {
- if(descriptor.abi.id!=generated::FesSimpleComputerABIID)return false;
+ if(descriptor.abi.id!=generated::FesSimpleComputerABIID&&
+  descriptor.abi.id!=generated::FesComputerABIID)return false;
  for(const auto& interface:descriptor.interfaces)
-  if(interface.id==generated::FesSimpleComputerInterfaceVideoSessionDisplayID&&
+  if((interface.id==generated::FesSimpleComputerInterfaceVideoSessionDisplayID||
+   interface.id==generated::FesComputerInterfaceVideoSessionDisplayID)&&
    interface.required&&interface.major==1&&interface.minor==0)return true;
  return false;
 }
@@ -90,7 +92,8 @@ Error CheckMenu(const CoreDescriptor& descriptor) {
 bool RequiresHpsDdr(const CoreDescriptor& descriptor)
 {
 	if (descriptor.abi.id != generated::FesApplicationABIID &&
-		descriptor.abi.id != generated::FesSimpleComputerABIID) return false;
+		descriptor.abi.id != generated::FesSimpleComputerABIID &&
+		descriptor.abi.id != generated::FesComputerABIID) return false;
 	for (const CoreInterface& interface : descriptor.interfaces)
 		if (interface.id == generated::FesApplicationInterfaceMemoryHpsDdrID &&
 			interface.required &&
@@ -753,6 +756,12 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesComputerInterfaceVideoFixed720p60ID,
 				generated::FesComputerInterfaceVideoFixed720p60Major,
 				generated::FesComputerInterfaceVideoFixed720p60Minor}};
+		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_memory_) {
+			computer_io.interfaces.push_back(
+				{generated::FesComputerInterfaceMemoryHpsDdrID, 1, 0});
+			computer_io.interfaces.push_back(
+				{generated::FesComputerInterfaceVideoSessionDisplayID, 1, 0});
+		}
 		std::sort(computer_io.interfaces.begin(), computer_io.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(computer_io));
@@ -1466,7 +1475,9 @@ Error NativeHardware::SetSessionDisplay(bool visible)
   if(menu_status_.available)return {};
   // Neutralize held machine keys before handing navigation to the UI. There
   // is no execution hold here: BASIC, RAM and expansions keep running.
-  Error error=SetComputerKeyboard((std::uint64_t(1)<<40)-1);
+  const bool home=active_package_->info().descriptor.abi.id==generated::FesComputerABIID;
+  Error error=home?SetKeyboardHid({}):SetComputerKeyboard((std::uint64_t(1)<<40)-1);
+  if(home&&error.code==ErrorCode::unsupported_interface)error={};
   if(error.ok())error=menu_display_->Enable(deadline);
   if(!error.ok())return FailMenuPresent(error);
   session_display_focused_=true;

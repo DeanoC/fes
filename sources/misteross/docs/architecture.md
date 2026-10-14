@@ -1104,6 +1104,11 @@ one effect per toggle and error isolation.
 
 ## FES simple-computer mailbox
 
+The product ZX81 shell is `fes_computer_mailbox` with `ENABLE_SESSION_DISPLAY`.
+`zx81_session_display` composites launcher frames over machine RGB and returns
+those pixels when the plane closes. `fes_computer_gp.v` below remains the
+simple-computer simulation mailbox.
+
 `cores/fes-zx81/rtl/fes_computer_gp.v` implements `fes.simple-computer` 1.0 on
 the same GPO/GPI transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through

@@ -52,9 +52,10 @@ These are the choices already in the tree at `6d9939c2`.
      parts and does not own HDMI timing. Coleco native is the standard: no
      built-in Direct fallback; a missing or invalid part blocks launch.
      Atari ST's built-in Direct fallback is a migration aid, not the end state.
-   - ZX81 no longer owns an in-core session-display plane. Tape selection is the
-     host launcher and `fes.media.zx81-tape`, the same media-unit shape as the
-     other `fes.computer` shells.
+   - ZX81 keeps the shared session-display plane for kit HDMI. Tape bytes stay
+     `fes.media.zx81-tape`. The plane overlays launcher frames on the machine
+     raster and restores those pixels on close. It is not a third video-output
+     contract.
    - Splash remains the pinned idle bitstream. Menu scanout does not replace
      it until its own acceptance gate.
 6. An external ROM uses a sealed ROM map. Format 3 is that shape: ZX81, SMS,
@@ -83,7 +84,7 @@ is that case.
 | --- | --- | --- | --- |
 | `fes.menu` | Idle scanout. Not a game. Splash is still the product idle fallback. | Shared pin. | No factory-image acceptance of this bitstream. |
 | `fes.pong` 1.1.0 | ROM-less game. Settings and best rally persist. The [10 Oct kit B load](validation/2026-10-10-optimizer-video-area.md) showed the field and Stop. | Shared pin, single-PLL gate, optimizer scaler. | That note is a bounded video/Stop check, not gameplay or image acceptance. |
-| `fes.zx81` 1.5.0 | Most complete 8-bit machine in the image: live `.p` tape and bus 2.0. The in-core session plane is retired. | `fes.computer` 1.0, HID keyboard, `.p` media unit, format 3, `fes_z80_nmos`. Product lock is `toolchain.lock`. | The 2 Oct note does not accept a computer-ABI seal. Physical keyboard, expansion and audio of 1.5.0 are not accepted. |
+| `fes.zx81` 1.5.0 | Most complete 8-bit machine in the image: live `.p` tape, bus 2.0, and the session-display plane for kit HDMI. | `fes.computer` 1.0, HID keyboard, `.p` media unit, session display, format 3, `fes_z80_nmos`. Product lock is `toolchain.lock`. | The 2 Oct note does not accept a computer-ABI seal. Physical keyboard, expansion and audio of 1.5.0 are not accepted. |
 | `fes.coleco` 1.2.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. One exact 16 KiB cartridge, padded with `0xff`. | Native video parts, sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. Not retail-complete. The 3 Oct note does not accept these bytes. |
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. Named kit audio is artifact-scoped and does not accept a shared-pin seal. |
 | `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3. Product lock is `toolchain.lock`. | The 1.2.0 kit audio note does not qualify 1.3.0 or a shared-pin seal. |

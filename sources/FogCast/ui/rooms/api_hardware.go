@@ -117,11 +117,10 @@ func (r *Instance) hardwareTable(v hostclient.HardwareSnapshot) *lua.LTable {
 	if s := v.Session; s != nil {
 		session := L.NewTable()
 		_, tapeErr := hostclient.LiveMediaBinding(*s)
-		// A fes.computer tape unit is live on a menu-display kit without the
-		// retired simple-computer session-display plane. Legacy blob sessions
-		// still require that plane.
-		tapeAvailable := tapeErr == nil && (!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage) || hostclient.ComputerTapeCapable(s.CorePackage))
-		r.SetLiveControls(!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage) || hostclient.ComputerTapeCapable(s.CorePackage))
+		// Menu-display kits show the room only when the running package reports
+		// the session-display plane. That includes fes.computer ZX81.
+		tapeAvailable := tapeErr == nil && (!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
+		r.SetLiveControls(!r.opts.SessionDisplayRequired || hostclient.SessionDisplayCapable(s.CorePackage))
 		session.RawSetString("tape_available", lua.LBool(tapeAvailable))
 		known := s.CorePackage != nil && s.CorePackage.Composition != nil && s.CorePackage.Composition.PackageID == s.CorePackage.PackageID
 		session.RawSetString("hardware_known", lua.LBool(known))

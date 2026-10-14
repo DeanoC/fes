@@ -19,6 +19,7 @@ module fes_computer_mailbox #(
     parameter bit ENABLE_C64_DISK = 0,
     parameter bit ENABLE_SPECTRUM_TAPE = 0,
     parameter bit ENABLE_ZX81_TAPE = 0,
+    parameter bit ENABLE_SESSION_DISPLAY = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_WRITE = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_GEOMETRY = 0,
@@ -51,7 +52,17 @@ module fes_computer_mailbox #(
     input  wire        media_read_ready,
     input  wire [7:0]  media_read_data,
     output reg  [1:0]   unit0_state,
-    output reg  [31:0]  unit0_size
+    output reg  [31:0]  unit0_size,
+    // Optional in-session launcher plane. Omitted ports stay idle so other
+    // computers keep their identity word. Held until the pixel-domain reply.
+    output reg          display_request = 1'b0,
+    output reg  [6:0]   display_opcode = 7'd0,
+    output reg  [7:0]   display_index = 8'd0,
+    output reg  [15:0]  display_argument = 16'd0,
+    input  wire         display_response_valid = 1'b0,
+    input  wire         display_response_error = 1'b0,
+    input  wire [15:0]  display_response_data = 16'd0,
+    input  wire         display_quiesced = 1'b1
 );
     // Unit 0 is one drive. A shell enables one of the three media parameters.
     localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_C64_DISK | ENABLE_SPECTRUM_TAPE | ENABLE_ZX81_TAPE | ENABLE_ATARI_ST_FLOPPY;
@@ -69,7 +80,9 @@ module fes_computer_mailbox #(
         (ENABLE_ZX81_TAPE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ZX81_TAPE_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_ATARI_ST_FLOPPY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_CAPABILITY_MASK) : 16'd0) |
         (GEOMETRY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_GEOMETRY_CAPABILITY_MASK) : 16'd0) |
-        (WRITABLE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_WRITE_CAPABILITY_MASK) : 16'd0);
+        (WRITABLE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_WRITE_CAPABILITY_MASK) : 16'd0) |
+        (ENABLE_SESSION_DISPLAY ? 16'(`FES_COMPUTER_INTERFACE_MEMORY_HPS_DDR_CAPABILITY_MASK) : 16'd0) |
+        (ENABLE_SESSION_DISPLAY ? 16'(`FES_COMPUTER_INTERFACE_VIDEO_SESSION_DISPLAY_CAPABILITY_MASK) : 16'd0);
     localparam [15:0] E_OPCODE = 16'(`FES_COMPUTER_ERROR_INVALID_OPCODE);
     localparam [15:0] E_INDEX = 16'(`FES_COMPUTER_ERROR_INVALID_INDEX);
     localparam [15:0] E_ARGUMENT = 16'(`FES_COMPUTER_ERROR_INVALID_ARGUMENT);
@@ -142,6 +155,7 @@ module fes_computer_mailbox #(
     reg [9:0] chunk_length;
     reg [9:0] chunk_received;
     reg [7:0] ordinal;
+    reg display_wait = 1'b0;
 
     wire [4:0] unit8 = index[7:3];
     wire [2:0] field = index[2:0];
@@ -271,12 +285,22 @@ module fes_computer_mailbox #(
             read_low <= media_read_data;
             read_phase <= 2'd2; // electrical gap before the second byte request
         end else if (snapshot_data_ok && read_phase == 2'd2) read_phase <= 2'd1;
-        if (request && (!ENABLE_MEDIA_BACKPRESSURE || !data_ok || media_write_ready) &&
+        if (display_wait) begin
+            if (display_response_valid) begin
+                acknowledged_toggle <= request_sync;
+                response_error <= display_response_error;
+                response_data <= display_response_data;
+                display_request <= 1'b0;
+                display_wait <= 1'b0;
+            end
+        end else if (request && (!ENABLE_MEDIA_BACKPRESSURE || !data_ok || media_write_ready) &&
             (!mouse_ok || mouse_ready) && (!freeze_ok || (media_frozen && !media_write_busy)) &&
             (!snapshot_data_ok || snapshot_complete)) begin
-            acknowledged_toggle <= request_sync;
             response_error <= 1'b0;
             response_data <= 16'h0000;
+            begin : acknowledge
+                reg defer_ack;
+                defer_ack = 1'b0;
             case (opcode)
                 7'(`FES_COMPUTER_OPCODE_IDENTITY): begin
                     if (index >= 8'd16) reject(E_INDEX);
@@ -286,6 +310,8 @@ module fes_computer_mailbox #(
                 7'(`FES_COMPUTER_OPCODE_EXECUTION): begin
                     if (index != 8'd0) reject(E_INDEX);
                     else if (argument > 16'd1) reject(E_ARGUMENT);
+                    else if (argument == 16'd0 && ENABLE_SESSION_DISPLAY && !display_quiesced)
+                        reject(E_STATE);
                     else if (argument == 16'd0) begin
                         exec_reset <= 1'b1;
                         keyboard_rows <= 144'd0;
@@ -538,8 +564,26 @@ module fes_computer_mailbox #(
                         end
                     end
                 end
+                7'(`FES_COMPUTER_OPCODE_MENU_INFO),
+                7'(`FES_COMPUTER_OPCODE_MENU_CONFIGURE),
+                7'(`FES_COMPUTER_OPCODE_MENU_CONTROL),
+                7'(`FES_COMPUTER_OPCODE_MENU_SUBMIT): begin
+                    if (!ENABLE_SESSION_DISPLAY) reject(E_OPCODE);
+                    else begin
+                        // Hold the request until the pixel-domain plane replies.
+                        defer_ack = 1'b1;
+                        display_request <= 1'b1;
+                        display_opcode <= opcode;
+                        display_index <= index;
+                        display_argument <= argument;
+                        display_wait <= 1'b1;
+                    end
+                end
                 default: reject(E_OPCODE);
             endcase
+                if (!defer_ack)
+                    acknowledged_toggle <= request_sync;
+            end
         end
     end
 endmodule

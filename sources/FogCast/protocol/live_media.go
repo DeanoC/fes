@@ -38,8 +38,8 @@ func liveComputerZx81TapeCapable(p *CorePackageStatus) bool {
 }
 
 // ComputerZx81TapeCapable reports an active fes.computer 1.0 generation with
-// fes.media.zx81-tape 1.0. A kit launcher offers that tape unit without the
-// retired fes.simple-computer session-display plane.
+// fes.media.zx81-tape 1.0. Kit HDMI controls still require the session-display
+// plane; this predicate only identifies the tape unit.
 func ComputerZx81TapeCapable(p *CorePackageStatus) bool {
 	return liveComputerZx81TapeCapable(p)
 }

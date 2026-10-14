@@ -30,6 +30,8 @@ removable media by unit.
 | fes.media.atari-st-floppy-write | 9 | Writable extension to the ST disk interface, with frozen image capture |
 | fes.media.atari-st-floppy-geometry | 10 | Required opt-in for bounded alternate raw ST disk geometries |
 | fes.media.zx81-tape | 11 | Media unit 0: one ZX81 `.p` image, 1..16384 bytes |
+| fes.memory.hps-ddr | 12 | Reserved DDR window for launcher frames. Advertised only when the boot DDR layout and menu adapters exist |
+| fes.video.session-display | 13 | In-session HDMI plane. Reuses menu opcodes 18–21. Advertised with the DDR window, and only on a computer that implements the plane |
 
 Admission requires video. Every other interface is independently composable.
 The writable extension requires the base ST floppy interface; it changes its

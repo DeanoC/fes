@@ -28,7 +28,7 @@ A producer in this module does not put a package on that image.
 | --- | --- | --- | --- | --- | --- |
 | `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchain.lock` (shared FES HIP lane) | `make build-fes-menu-package` | yes; idle display, not playable |
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
-| `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` with session display and HPS DDR | `toolchain.lock` | `make build-fes-zx81` | yes |
+| `fes.zx81` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR | `toolchain.lock` | `make build-fes-zx81` | yes |
 | `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchain.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | yes; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
 | `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchain.lock` | `make build-fes-sms` | yes |
 | `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchain.lock` | `make build-fes-sg1000` | yes |

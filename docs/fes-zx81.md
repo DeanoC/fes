@@ -1,17 +1,16 @@
 # FES ZX81
 
-The standard core is a `fes.simple-computer` 1.0 package (`fes.zx81`
-1.5.0) with 1 KiB internal RAM, original ROM, a 40-key matrix, one `.p` mailbox blob,
-fixed 720p60 HDMI, runtime-owned in-session launcher controls and a registered
-Z80-like expansion bus. There is no ZX80,
+The standard core is a `fes.computer` 1.0 package (`fes.zx81`
+1.5.0) with 1 KiB internal RAM, original ROM, HID keyboard rows mapped to the
+40-key matrix, one `.p` tape unit, fixed 720p60 HDMI, the session-display
+plane for kit launcher frames, and a registered Z80-like expansion bus. There is no ZX80,
 colour, YM2149, turbo, joystick or SDRAM in this slice. The standard OSS
 package carries the vacant bus; carts are independent bus consumers.
 
 The native image selects this package. The
 [session-display validation](validation/2026-10-02-zx81-session-display.md)
-records the exact sealed shell,
-verified image and designated-kit HDMI diagnostics. Physical operator input
-and expansion/audio acceptance remain separate from that display smoke.
+accepts an older simple-computer shell. It does not accept these computer-ABI
+bytes. Physical operator input and expansion/audio acceptance remain separate.
 The host library path is `core-install` / `core-entry` /
 `POST /api/v1/session/launch` with the returned `game_id`, as for other
 described FPGA cores. Select the 8192-byte `machine-rom` binary explicitly;
@@ -24,16 +23,16 @@ the target links it through the package's sealed ROM map at download time. See
 | Item | Value |
 | --- | --- |
 | Core ID | `fes.zx81` |
-| ABI | `fes.simple-computer` 1.0 |
+| ABI | `fes.computer` 1.0 |
 | Profile | `fes-gp-v1` |
-| Interfaces | `fes.keyboard`, `fes.media.blob`, `fes.video.fixed-720p60`, `fes.audio.pcm-s16-stereo-48k`, `fes.memory.hps-ddr`, `fes.video.session-display` (required); `fes.expansion.zx81-bus` (optional) |
+| Interfaces | `fes.keyboard.hid`, `fes.gamepad.ports`, `fes.media.zx81-tape`, `fes.video.fixed-720p60`, `fes.audio.pcm-s16-stereo-48k`, `fes.memory.hps-ddr`, `fes.video.session-display` (required); `fes.expansion.zx81-bus` (optional) |
 | Persistence | none (library launches are volatile) |
-| Input | 40-bit active-low matrix via runtime `set_keyboard`; no `fes.gamepad` |
+| Input | HID keyboard rows mapped to the 40-key matrix |
 | Stop | ordinary session Stop; Select+Start held for one second on the kit |
-| Live controls | Home or Select opens the launcher plane; Escape/B or Return to play closes it |
-| Tape | launch `load_media` (hold-reset primary bind) or mid-session `replace_live_media` / `clear_media`; empty `LOAD ""` reports `0/0` |
+| Live controls | Home or Select opens the launcher plane; Escape/B or Return to play closes it and restores ZX81 video |
+| Tape | launch insert into unit 0, or mid-session tape insert/eject; empty `LOAD ""` reports `0/0` |
 
-Live tape arm/eject uses the existing `fes.media.blob` mailbox without a
+Live tape arm/eject uses `fes.media.zx81-tape` unit 0 without a
 hold-reset reboot. The captured host/agent session operations are
 `POST /api/v1/session/live-media` and `…/clear`; CLI uses `change-tape` /
 `eject-tape`. The visible kit picker offers imported `.p` files and attributed
