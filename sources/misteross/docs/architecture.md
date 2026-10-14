@@ -1763,6 +1763,13 @@ absolute and (zero-page,X) modes without changing registers or flags. Its
 four opcodes use the corresponding NMOS store bus sequence, including wrapping.
 `make sim-fes-c64-sax` covers all modes, enabled cycle counts and register/flag
 preservation. Other undocumented instructions remain incomplete.
+The shared CPU samples IRQ and its I mask through the enabled-cycle prefetch
+pipeline, including taken-branch polling and instructions following PLP.
+I updates require RDY, and latched hardware entry preserves the pushed B bit
+when IRQ is withdrawn. `make sim-fes-c64-irq` compares entry time and stack
+bytes with pinned transistor-model vectors across 40 arrival phases, mask
+changes, branches, RMW and enable gaps. NMI hijacking, every interrupt
+subphase and complete external bus equivalence remain unqualified.
 `make sim-fes-c64-boot-drive-build` selects `FES_C64_REAL_DRIVE_SIM` in the
 existing motherboard and boot harness. `--real-drive --drive-rom` runs user
 1541 firmware through both VIAs and `c64_gcr_read`; the helper encodes the D64

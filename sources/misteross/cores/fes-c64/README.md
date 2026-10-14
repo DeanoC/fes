@@ -156,6 +156,15 @@ VIC register programming. `make sim-fes-c64-sax` checks all four modes, wrapping
 enabled cycle counts and unchanged registers/flags in 144 cases. Other
 undocumented NMOS instructions remain incomplete.
 
+The shared CPU polls IRQ through its enabled-cycle prefetch pipeline rather
+than accepting the live pin at opcode decode. This preserves CLI/SEI/PLP
+mask timing and the additional taken-branch delay; the pushed B bit remembers
+hardware entry after IRQ is withdrawn. `make sim-fes-c64-irq` compares entry
+cycles and stack bytes against 400 transistor-model vectors with three
+enable schedules and held/withdrawn IRQs. The CPU README describes the pinned
+oracle and remaining subphase limits. The full demo's raster timing remains
+under investigation.
+
 The fractional PAL enable is predicted one system tick ahead into a register,
 with the same pulse sequence and startup phase. This removes the phase adder
 from the CPU's RDY timing path. `make sim-fes-c64-clock` compares the actual

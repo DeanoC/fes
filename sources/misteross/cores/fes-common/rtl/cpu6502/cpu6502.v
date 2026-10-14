@@ -291,13 +291,33 @@ always @*
 
 
 
+// The synchronous-memory pipeline decodes a prefetched opcode. Poll IRQ
+// two enabled cycles before that decision, using I at the polling point.
+// A taken branch without a page crossing polls one cycle earlier.
+reg irq_sampled = 0, irq_input = 0, irq_older = 0;
+reg branch_no_cross = 0, hardware_interrupt = 0;
+wire irq_take = branch_no_cross ? irq_older : irq_sampled;
+// PLP restores I after its poll, but the following instruction sees it.
+wire irq_mask = state == PULL2 && plp ? DIMUX[2] :
+                state == DECODE && plp ? ADD[2] : I;
+always @(posedge clk)
+    if (reset) begin
+        irq_sampled <= 0; irq_input <= 0; irq_older <= 0;
+        branch_no_cross <= 0; hardware_interrupt <= 0;
+    end else if (RDY) begin
+        irq_input <= IRQ && !irq_mask;
+        irq_sampled <= irq_input; irq_older <= irq_sampled;
+        branch_no_cross <= state == BRA1 && !(CO ^ backwards);
+        if (state == DECODE) hardware_interrupt <= irq_take | NMI_edge;
+    end
+
 /*
  * Program Counter Increment/Load. First calculate the base value in
  * PC_temp.
  */
 always @*
     case( state )
-        DECODE:         if( (~I & IRQ) | NMI_edge )
+        DECODE:         if( irq_take | NMI_edge )
                             PC_temp = { ABH, ABL };
                         else
                             PC_temp = PC;
@@ -324,7 +344,7 @@ always @*
  */
 always @*
     case( state )
-        DECODE:         if( (~I & IRQ) | NMI_edge )
+        DECODE:         if( irq_take | NMI_edge )
                             PC_inc = 0;
                         else
                             PC_inc = 1;
@@ -436,7 +456,7 @@ always @*
 
         PUSH1:   DO = php ? P : ADD;
 
-        BRK2:    DO = (IRQ | NMI_edge) ? (P & 8'b1110_1111) : P;
+        BRK2:    DO = hardware_interrupt ? (P & 8'b1110_1111) : P;
 
         default: DO = sax ? (AXYS[SEL_A] & AXYS[SEL_X]) : regfile;
     endcase
@@ -795,15 +815,17 @@ always @(posedge clk)
  */
 
 always @(posedge clk)
-    if( state == BRK3 )
-        I <= 1;
-    else if( state == RTI2 )
-        I <= DIMUX[2];
-    else if( state == REG ) begin
-        if( sei ) I <= 1;
-        if( cli ) I <= 0;
-    end else if( state == DECODE )
-        if( plp ) I <= ADD[2];
+    if( RDY ) begin
+        if( state == BRK3 )
+            I <= 1;
+        else if( state == RTI2 )
+            I <= DIMUX[2];
+        else if( state == REG ) begin
+            if( sei ) I <= 1;
+            if( cli ) I <= 0;
+        end else if( state == DECODE )
+            if( plp ) I <= ADD[2];
+    end
 
 /*
  * Update D flag
@@ -867,7 +889,7 @@ always @(posedge clk )
             IRHOLD_valid <= 0;
     end
 
-assign IR = (IRQ & ~I) | NMI_edge ? 8'h00 :
+assign IR = irq_take | NMI_edge ? 8'h00 :
                      IRHOLD_valid ? IRHOLD : DIMUX;
 
 always @(posedge clk )

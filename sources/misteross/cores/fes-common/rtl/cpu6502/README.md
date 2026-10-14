@@ -28,3 +28,28 @@ is implemented in all four addressing modes. It stores `A & X` without changing
 registers or flags, including zero-page index and indirect-pointer wrapping.
 `make sim-fes-c64-sax` checks the writes, enabled cycle counts and register/flag
 preservation, including CPU enable gaps.
+
+IRQ polling follows the synchronous opcode-prefetch pipeline. It retains I
+at the polling point, handles the extra delay for a taken branch without a
+page crossing, and uses restored I for instructions following PLP. I changes
+only on enabled cycles. Hardware interrupt entry is latched so a withdrawn
+IRQ or SEI cannot change the pushed B bit into a software BRK.
+`make sim-fes-c64-irq` checks 400 independent transistor-reference cases with
+three enable schedules and both held and withdrawn requests (2,400 cases).
+It compares handler entry time and all three stack writes across 40 arrival
+phases for NOP, CLI, SEI, PLP, RTI, taken/untaken/page-crossing branches and
+absolute loads/stores/RMW. This does not qualify every NMOS interrupt subphase,
+NMI hijacking or the complete external bus sequence.
+
+The checked-in vectors come from perfect6502 commit
+`09fc542877a84318291aa42dab143a3e2c3db974`, using only the original open
+programs in `cores/fes-c64/sim/irq_program.h`. The normal simulation needs no
+external oracle. To reproduce the vectors from that source checkout:
+
+```sh
+IRQ_ORACLE_ROOT=/absolute/path/to/perfect6502
+cc -O3 -I "$IRQ_ORACLE_ROOT" cores/fes-c64/sim/irq_oracle.c \
+  "$IRQ_ORACLE_ROOT/netlist_sim.c" -o /tmp/fes-c64-irq-oracle
+/tmp/fes-c64-irq-oracle > /tmp/fes-c64-irq-vectors.h
+cmp /tmp/fes-c64-irq-vectors.h cores/fes-c64/sim/irq_vectors.h
+```
