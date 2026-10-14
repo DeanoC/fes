@@ -29,11 +29,12 @@ module cart (
         end
     end
     wire [7:0] pcm;
+    wire [14:0] unused_ym_levels;
     zonx_ay sound (
         .clk(FPGA_CLK1_50), .reset_n(reset_n), .chip_ce(chip_ce),
         .address_write(write_event && cpu_a[7]),
         .data_write(write_event && !cpu_a[7]), .data(cpu_d),
-        .read_data(), .pcm(pcm)
+        .read_data(), .ym_levels(unused_ym_levels), .pcm(pcm)
     );
     // No CPU data readback on the physical board. peek_d is the shell's
     // digital replacement for the card's summed analog audio output.

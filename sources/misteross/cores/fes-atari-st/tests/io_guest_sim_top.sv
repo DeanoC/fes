@@ -55,10 +55,11 @@ module st_io_guest_sim_top (
     output wire [2:0] cpu_fc,
     output wire vblank, hblank
 );
-    wire unused_native_display;
+    wire unused_native_display, unused_native_pixel_ce;
+    wire [8:0] unused_native_cycle;
     wire [8:0] unused_native_line;
     st_system system (
-        .native_display(unused_native_display), .native_line(unused_native_line),
+        .native_cycle(unused_native_cycle), .native_pixel_ce(unused_native_pixel_ce), .native_display(unused_native_display), .native_line(unused_native_line),
         .cold_reset(reset), .media_size(32'd737280), .media_frozen(1'b0),
         .media_write_req(), .media_write_addr(), .media_write_data(),
         .media_write_ready(1'b0), .media_write_busy(), .media_changed(),

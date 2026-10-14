@@ -39,6 +39,7 @@ module byte_bench (
         .fault_be(fault_be), .fault_payload(fault_payload), .fault_expect(fault_expect), .fault_got(fault_got)
     );
     sdram_addon_port #(.BYTE_MASK_ENABLED(1)) controller (
+        .refresh_window(1'b1), .refresh_pending(),
         .clk(clk), .clk_pin(clk), .rate(rate), .reset(reset), .start(start), .write(write),
         .addr(addr), .wdata(wdata), .write_byte_enable(be), .initialized(), .done(done), .rdata(rdata),
         .sdram_clk(pin_clk), .sdram_cke(cke), .sdram_ncs(ncs), .sdram_nras(nras),

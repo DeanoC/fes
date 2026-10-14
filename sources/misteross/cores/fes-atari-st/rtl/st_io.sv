@@ -4,6 +4,7 @@
 // rather than a cycle-exact GLUE model. Unclaimed addresses go to the socket.
 module st_io #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
+    parameter integer CPU_CLOCK_HZ = 8_000_000,
     parameter integer ENABLE_FLOPPY_WRITE = 0,
     parameter integer MFP_WAIT_STATES = 0
 ) (
@@ -53,7 +54,9 @@ module st_io #(
     input wire [15:0] dma_rdata,
     output wire vblank, hblank,
     output wire native_display,
-    output reg [8:0] native_line
+    output reg [8:0] native_line,
+    output wire [8:0] native_cycle,
+    output reg native_pixel_ce
 );
     wire [23:0] address = {addr, 1'b0};
     wire unused_inputs = ^{screen_base[7:0], sync_mode[7:2], sync_mode[0]};
@@ -109,6 +112,7 @@ module st_io #(
 
     reg [31:0] timer_phase;
     reg [8:0] horizontal_cycle;
+    assign native_cycle = horizontal_cycle;
     reg [1:0] frame_resolution, line_resolution;
     reg frame_pal, line_pal, line_timing_pal;
     reg bottom_open;
@@ -125,6 +129,10 @@ module st_io #(
     assign hblank = cpu_cycle_ce && horizontal_cycle == line_last && !reset;
     assign vblank = hblank && native_line == frame_last;
     reg vbl_pending, hbl_pending;
+    // STF wake-up state 1 asserts IRQ4 60 CPU cycles after the frame
+    // boundary (Hatari 2.5.0 Video_InitTimings). Keep the frame/capture pulse
+    // separate: delaying native_vblank would also move DE and RAM ownership.
+    reg [5:0] vbl_irq_delay;
     // Timer B is driven by native display enable, rather than every HBL.
     // Ordinary color display porches: PAL lines 63..262 and cycles 56..375;
     // NTSC lines 34..233 and cycles 52..371. See Hatari v2.5.0 video.h /
@@ -147,16 +155,29 @@ module st_io #(
         (native_line >= 9'd63 && (bottom_open ? native_line < 9'd310 : native_line < 9'd263)) :
         (native_line >= 9'd34 && (bottom_open ? native_line < 9'd260 : native_line < 9'd234));
     assign native_display = !reset && active_line && active_cycle;
+    // FF8205/07/09 report wordwise DMA progress, not just complete rows.
+    // Hatari 2.5 Video_CalculateAddress subtracts eight CPU cycles before
+    // counting one word per four cycles; mono's counter porch starts at 0.
+    // These are counter visibility positions, independent of DE/Timer B.
+    wire counter_window = line_resolution == 2'd2 ?
+        (horizontal_cycle >= 9'd8 && horizontal_cycle < 9'd168) : line_pal ?
+        (horizontal_cycle >= 9'd64 && horizontal_cycle < 9'd384) :
+        (horizontal_cycle >= 9'd60 && horizontal_cycle < 9'd380);
+    wire counter_word = cpu_cycle_ce && active_line && counter_window &&
+                        horizontal_cycle[1:0] == 2'b11;
     always @(posedge clk) begin
         if (reset) begin
-            timer_phase <= 0; horizontal_cycle <= 0; bottom_open <= 0;
+            timer_phase <= 0; horizontal_cycle <= 0; bottom_open <= 0; native_pixel_ce <= 0;
             timer_b_display_delay <= 0;
             frame_resolution <= resolution; line_resolution <= resolution;
             frame_pal <= sync_mode[1]; line_pal <= sync_mode[1];
             line_timing_pal <= sync_mode[1];
-            vbl_pending <= 0; hbl_pending <= 0; native_line <= 0;
+            vbl_pending <= 0; hbl_pending <= 0; vbl_irq_delay <= 0; native_line <= 0;
             video_counter <= 0;
         end else begin
+            // Sample the new cycle one fabric edge after GLUE advances,
+            // aligned with the native DE-rise/palette capture edge.
+            native_pixel_ce <= cpu_cycle_ce;
             timer_phase <= timer_ce ? 32'(timer_sum - 33'(SYSTEM_CLOCK_HZ)) : timer_sum[31:0];
             if (cpu_cycle_ce) begin
                 horizontal_cycle <= hblank ? 9'd0 : horizontal_cycle + 1'b1;
@@ -173,7 +194,11 @@ module st_io #(
                 // native pixel capture retains the ordinary video porch.
                 timer_b_display_delay <= {timer_b_display_delay[22:0], native_display};
             end
-            if (vblank) vbl_pending <= 1;
+            if (vblank) vbl_irq_delay <= 6'd60;
+            else if (cpu_cycle_ce && vbl_irq_delay != 6'd0) begin
+                vbl_irq_delay <= vbl_irq_delay - 1'b1;
+                if (vbl_irq_delay == 6'd1) vbl_pending <= 1'b1;
+            end
             if (hblank) hbl_pending <= 1;
             if (irq_ack && irq_level == 4) vbl_pending <= 0;
             if (irq_ack && irq_level == 2) hbl_pending <= 0;
@@ -195,10 +220,8 @@ module st_io #(
             end else if (hblank) begin
                 if (native_line == display_top - 9'd1)
                     video_counter <= {screen_base[23:8], 8'd0};
-                else if (active_line)
-                    video_counter <= video_counter + (line_resolution == 2'd2 ? 24'd80 : 24'd160);
                 if (native_line != 9'h1ff) native_line <= native_line + 1'b1;
-            end
+            end else if (counter_word) video_counter <= video_counter + 24'd2;
             if (hblank) begin line_resolution <= resolution; line_pal <= sync_mode[1]; end
         end
     end
@@ -216,7 +239,7 @@ module st_io #(
     );
     wire kbd_tx_valid, kbd_tx_ready, kbd_rx_valid, kbd_rx_ready;
     wire [7:0] kbd_tx_data, kbd_rx_data;
-    st_acia #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ)) keyboard_acia (
+    st_acia #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ), .SERIAL_CLOCK_HZ(CPU_CLOCK_HZ / 16)) keyboard_acia (
         .clk(clk), .reset(reset), .bus_req(req && kbd_select && byte_enable[1]),
         .bus_reg(addr[1]), .bus_write(write), .bus_wdata(wdata[15:8]),
         .bus_rdata(kbd_data), .bus_ack(kbd_ack), .irq(kbd_irq),
@@ -226,7 +249,7 @@ module st_io #(
     );
     wire unused_midi_valid, unused_midi_ready;
     wire [7:0] unused_midi_data;
-    st_acia #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ)) midi_acia (
+    st_acia #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ), .SERIAL_CLOCK_HZ(CPU_CLOCK_HZ / 16)) midi_acia (
         .clk(clk), .reset(reset), .bus_req(req && midi_select && byte_enable[1]),
         .bus_reg(addr[1]), .bus_write(write), .bus_wdata(wdata[15:8]),
         .bus_rdata(midi_data), .bus_ack(midi_ack), .irq(midi_irq),
@@ -241,7 +264,7 @@ module st_io #(
         .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
         .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready)
     );
-    st_ym2149 #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ)) psg (
+    st_ym2149 #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ), .CHIP_CLOCK_HZ(CPU_CLOCK_HZ / 4)) psg (
         .clk(clk), .reset(reset), .bus_req(req && psg_select && byte_enable[1]),
         .bus_reg(addr[1]), .bus_write(write), .bus_wdata(wdata[15:8]),
         .bus_rdata(psg_data), .bus_ack(psg_ack), .pcm_signed(audio_pcm),

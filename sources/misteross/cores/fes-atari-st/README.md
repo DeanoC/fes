@@ -13,12 +13,28 @@ semantics live in [mister-packages](../../../mister-packages/docs/computer-io.md
 
 The shared [FX68K](../fes-common/rtl/fx68k/README.md) retains exact upstream
 bytes and GPL-3.0-or-later licensing. Alternating fractional phase enables
-produce an average 8 MHz CPU in the 52.224 MHz system domain. CPU bus
+produce an average 8.021247 MHz PAL CPU in the 52.224 MHz system domain.
+`st_system` supplies this board rate to the CPU and derives PSG/ACIA rates
+of 2,005,311/501,327 Hz. Standalone machine/I/O fixtures retain their
+parameterized nominal defaults. CPU bus
 transactions latch address, function code, write data and big-endian byte
 strobes. A held request completes once; DTACK/BERR persists until AS or both
 data strobes release. Rearming between strobes supports TAS. An unanswered
 request faults after 128 CPU half cycles. The CPU RESET instruction resets
 peripherals through the same exported reset signal as host Hold.
+Palette-register reads and writes wait for a four-cycle shifter-bus window.
+`st_system` supplies that window from native cycle phase 1; `st_machine`
+retains the latched address/data/lanes until acceptance, then commits once.
+A palette byte write copies the selected byte to both halves before masking
+RGB to three bits per channel. Both byte addresses therefore replace the full
+color; word writes keep their normal sixteen-bit input. Hatari's
+[original-ST palette handler](https://github.com/hatari/hatari/blob/v2.5.0/src/video.c#L4619)
+documents the bus alignment and byte mirroring. New raster traces retain raw
+bus data/lanes and add the complete accepted `color`; analysis preserves the
+older source-bound lane-merge traces when that field is absent.
+This cycle label differs from Hatari's completed-access timestamp; absolute
+raster alignment requires a separate comparison. The isolated motherboard
+fixture has no GLUE counter and supplies an always-ready palette bus.
 
 `st_memory.sv` shares the existing addon-SDRAM controller among CPU, scanout,
 floppy DMA, upload and media reads. Round-robin arbitration bounds contention.
@@ -26,37 +42,51 @@ The MiSTer addon wires chip DQML/DQMH to A11/A12. The shared controller keeps
 the full row during ACTIVATE, then places byte masks on those shared pins
 before the column command and clears them for reads. The separate logical
 DQM outputs alone cannot mask writes on this board.
-The ST selects a four-count runtime refresh recovery instead of the shared
-controller's sixteen-count default. Including state transitions, this leaves
-six chip clocks (114.9 ns at 52.224 MHz) before the next command, exceeding
-the ISSI IS42S16320D's 60 ns refresh command period. Initialization keeps its
-conservative timing. The ST also enables early completion after the existing read capture or
-committed write hold. SDRAM recovery still drains before another physical
-command is accepted. The arbiter presents an idle-controller grant on its
-arbitration edge; CPU acknowledgement uses the captured controller word and
-retains it afterwards. No read cache or deferred write buffer is introduced.
-Other shared-controller callers retain late completion by default.
+The board selects phase-based grants from the native CPU/raster counter:
+phase 0 serves CPU reads and other non-video clients, phase 1 CPU writes,
+and phase 2 video. A grant that bypasses an earlier pending non-video client
+preserves that client's queue position. Protected RAM transactions launch only
+with valid byte strobes. Other motherboard targets retain registered dispatch.
 
-The memory regression compares early/late completion and the previous refresh
-profile across three DQM delays, held-read retention, cancellation, reset and
-CPU/video/DMA/media contention. Its alternating CPU access sweep measures
-10–23 system clocks for reads and 6–20 for writes with early completion,
-versus 13–24 and 10–23 with late completion at the same refresh setting.
-`make sim-fes-atari-st-ram-bus` executes original firmware on the actual FX68K,
-physical SDRAM/DDIO and independent-clock video fixture in both configurations.
-Across 511 same-instruction intervals, byte writes fall from 9205 to 8745 CPU
-cycles (mostly 18 to 17 per instruction); reads remain mostly 17 cycles.
-The firmware accesses both byte lanes and checks physical data and completion.
-This is a bounded timing improvement, not original ST bus timing equivalence
-or acceptance of BIG raster timing. Fresh FPGA/kit qualification is separate.
+One CPU write can be acknowledged after its address, data and masks are retained.
+Physical completion and recovery precede subsequent clients. Request withdrawal,
+changed inactive CPU pins and warm reset preserve an accepted write and suppress
+stale completion. This is one ordered command, with no read cache. Hardware Hold
+leaves the arbiter running for media/upload work. CPU RESET preserves RAM.
 
-Initialization completes before CPU release. SDRAM refresh continues while
-idle and while the CPU is held. An abandoned request drains its physical
-command and suppresses its old completion. Warm Hold preserves RAM and media.
+Runtime refresh selects four wait counts, leaving six chip clocks (114.9 ns at
+52.224 MHz) before the next command, above the ISSI IS42S16320D's 60 ns period.
+RAM and media use rank zero, so runtime refresh selects that rank; initialization
+keeps the conservative two-rank sequence. The 335-clock schedule uses phase 2.
+A pending refresh defers a late physical write that could occupy its admission
+window. `raster_reset` opens the window while the native counter is held.
+Slot refresh requires phase slots and single-rank refresh; posted writes require
+phase slots and early completion. Board instances and Slang roots select the
+same policy explicitly. Shared controller defaults retain RAM Tester behavior.
+
+The ST consumes the first rate-0 DDR rising sample. The board retains its fabric
+pad capture and the simulation fixture models the matching DDIO edge.
+`make sim-fes-atari-st-memory` checks byte masks, physical posted-write commits
+and following read order, cancellation, held requests, warm reset, all five
+clients and every fabric offset of no-video read/write slots. It retains the
+exclusive 180-clock fairness limit and checks physical refresh intervals against
+408 clocks at 52.224 MHz. Registered-input and late-completion profiles remain
+focused timing comparisons.
+
+`make sim-fes-atari-st-ram-bus` runs authored firmware on FX68K with physical
+SDRAM/DDIO and independent-clock video. The selected policy measures 511 byte
+write intervals of 16 CPU cycles and 510 read intervals of 16 plus one of 17.
+It checks both byte lanes, TAS rearming and RESET retention. An authored ROM-fed
+palette loop alternates the CPU bus alignment with terminal DBF instructions
+and checks fifteen 32-cycle intervals in each direction, exactly-once acceptance, both
+palette byte addresses, mirroring before the RGB mask and readback. Its RAM-resident
+NOP/DBF workload checks 12,299 palette intervals of 12 cycles and 300 of 512
+while video fetches continue without underruns. These host regressions do not
+establish original BIG compatibility, routed timing or kit acceptance.
+
 Physical halfword offsets `$00000–$3FFFF` contain RAM; `$40000–$A67FF` contain
-the separate disk buffer (up to 820 KiB). RAM masks select the even high byte or odd
-low byte. The controller preserves its established row/bank/column wiring
-and uses its established rate-0 rising-edge sample plus its fabric capture stage.
+the separate disk buffer (up to 820 KiB). Masks select even high or odd low bytes.
+The controller preserves its packed row/bank/column mapping.
 
 The original ST MMU configures two logical banks. This machine has one
 physical 512 KiB bank and an empty second bank. `$FF8001` changes logical bank
@@ -92,7 +122,8 @@ rather than the later STe mapping. In the normal `$04` configuration:
 Primary references are Atari's [520ST service manual](https://www.atarimania.com/documents/atari_520st_service_manual.pdf),
 Motorola's [68000 manual](https://www.nxp.com/docs/en/reference-manual/MC68000UM.pdf)
 and the pinned [EmuTOS memory initialization](https://github.com/emutos/emutos/blob/978e37569bff95841e42675d11fcc6799aad8483/bios/memory.S).
-Bus-master arbitration and cycle-exact GLUE/MMU contention are outside this implementation.
+Cycle-exact GLUE/MMU behavior beyond the selected RAM grant policy remains
+outside this implementation.
 
 ## Peripherals
 
@@ -103,10 +134,14 @@ other IRQ levels use the CPU's VPA autovectors. Its independent 2.4576 MHz
 clock enable gives EmuTOS's timer C `/64 × 192` exactly 200 Hz. Native
 VBL/HBL and display enable share the CPU's phase-2 enable, independently of
 HDMI. PAL uses 313 × 512 CPU cycles, NTSC 263 × 508, and monochrome
-501 × 224. At the retained nominal 8 MHz these are approximately
-49.920/59.878/71.286 Hz; the original PAL/NTSC crystal frequencies are not
-reproduced. Timer B receives active display enable, including opened bottom
-lines, so blank lines do not contribute events. The live video counter is reduced.
+501 × 224. The fixed PAL board rate gives approximately
+50.053/60.037/71.475 Hz. The 60 Hz sync bit retains the PAL crystal; a
+physical NTSC crystal policy remains separate. Timer B receives active display enable, including opened bottom
+lines, so blank lines do not contribute events. The live shifter address counter advances by two bytes per four native CPU
+cycles during DMA, including opened bottom lines. Its read visibility follows
+Hatari 2.5.0's eight-cycle offset; blanking holds the address and VBL reloads
+the aligned screen base. Exact MMU arbitration and horizontal border tricks
+remain unimplemented.
 The MFP UART has disconnected RX and timed TX status, without a physical serial port.
 
 `st_io` has an optional `MFP_WAIT_STATES` access-timing probe, default zero.
@@ -136,10 +171,36 @@ HD6301 program loading, monitor sampling and accelerated cursor modes are
 absent; unsupported command modes consume their parameters safely.
 
 `st_ym2149.sv` reuses the shared AY engine with a YM2149 option: sixteen
-registers, 32-step envelopes, a 2 MHz enable and 48 kHz PCM. Port A drives
-floppy side and active-low drive selects. Its DAC is a bounded approximation;
-it does not reproduce analog filtering. Board transport uses the existing
-signed stereo PCM/I2S path, duplicating the mono chip into both channels.
+registers, 32-step envelopes, a CPU/4 enable (2.005311 MHz on the PAL board) and 48 kHz PCM. Port A drives
+floppy side and active-low drive selects. Fixed volumes 0/1 select envelope
+levels 0/1; volumes 2..15 select odd levels 5..31. The ST wrapper converts
+unquantized gated channel levels with the normalized Hatari STF nonlinear
+three-channel table, including its order-dependent interpolation rounding.
+`st_ym_mixer.sv` snapshots levels at each /8 engine counter tick, sorts them
+for a 5,984-entry canonical ROM, and searches 1,159 sparse one-unit corrections.
+The generated ROM uses fifteen explicit synchronous 512-word banks; FPGA
+resource and timing qualification remain required. Its exhaustive simulation
+compares all 32,768 ordered inputs against an independent primary-table oracle
+and checks bounded completion and reset cancellation. The generator and unchanged
+measurement source, provenance and license are retained in the component.
+The nonlinear mix reaches at most 32,767. `st_ym_filter.sv` applies Hatari's
+asymmetric STF C10 low-pass filter at every engine counter sample, averages all
+samples over each 48 kHz interval and removes DC with the signed 32-bit IIR
+state. Averaging uses the exact rational chip/output clock ratio, retaining the
+fractional counter rate instead of Hatari's truncated Q16 interval. Two
+registered products and a bounded restoring divider avoid a combinational
+divide. A four-entry register FIFO supplies the regular PCM cadence, delayed
+320 fabric edges after reset so each interval is complete before consumption.
+This is the filter selected by Hatari's audio initialization for ST output at
+40 kHz and above, including the production 48 kHz cadence. Both rising and
+falling edges retain input/output history; the lower-rate PWM path is different.
+The production filter finishes within 39 fabric edges; the mixer plus filter
+finish before the next roughly 208-edge counter period. Reset clears filters,
+queued samples and in-flight work. Standalone tests cover both production and
+scaled clocks against an independent streaming oracle, including impulses,
+high-frequency signals, DC decay, reset and FIFO faults. Whole-demo waveform
+and exact FPGA/hardware qualification remain required. Board transport uses the
+existing signed stereo PCM/I2S path, duplicating mono into both channels.
 
 `st_floppy.sv` implements original WD1772 Type I positioning, Type II sector
 reads and writes, force interrupts and ST DMA. Drive A accepts raw `.st`
@@ -182,19 +243,38 @@ socket CRAM rectangle before publishing an exact-shell expansion archive.
 
 `st_video.sv` reads interleaved RAM bitplanes: 320×200 four-plane low,
 640×200 two-plane medium and 640×400 monochrome. The fixed 720p60 output uses
-integer nearest-neighbor scaling: color 4×3 or 2×3, monochrome 2×1. High mode
+integer nearest-neighbor scaling: native low 2×2, indexed medium 2×3,
+monochrome 2×1. The focused indexed low fallback retains 4×3. High mode
 supports palette-bit inversion; color borders use palette entry 0.
 `st_video_adapter.sv` defaults to native low-resolution capture. In the
 52.224 MHz system domain, `st_native_low_video.sv` prefetches alternating
-80-word RAM rows and selects the live palette at each nominal 8 MHz pixel.
-Three 320×200 RGB333 banks cross to the 74.25 MHz pixel domain through
+80-word RAM rows and selects the live palette on the same CPU-derived native pixel pulse as border capture.
+Three RGB333 banks hold up to 320×247 pixels. Each bank uses 78 independent
+1024-word chunks, avoiding the mapper's less compact deep one-bit layout.
+Registered chunk selection aligns the synchronous words with the original
+one-clock read boundary; frame publication and pixel capacity are unchanged.
+The banks cross to the 74.25 MHz pixel domain through
 publish/release toggles. Only complete native frames are published; the HDMI
 reader pins one bank until output SOF and selects the newest available frame.
 This repeats or drops complete source frames when native and output rates differ.
 Registered RAM write data and a two-pixel address lookahead keep native RGB
 sampling and scaled output aligned while shortening paths into the buffers.
-A blanking-time line counter advances the low row base every three output
-lines, avoiding a vertical-coordinate multiply on the RAM read path.
+Ordinary and opened-bottom frames use the same centred 2×2 canvas, preserving
+square native pixels and image position. All 247 PAL or 226 NTSC rows remain visible.
+Height travels with each immutable bank and changes only at output SOF.
+`st_native_border.sv` records lossless palette-zero runs across the visible
+border raster in those same three owned banks. Every row has an initial colour
+and run offset/count, so repeated HDMI rows replay within-line changes. The
+8192-event budget accommodates BIG psycho screen 3's dense palette stream;
+the bound remains explicit: overflow increments capture underruns and
+rejects the entire frame. HOLD and consumer backpressure retain the same bank
+ownership rules for border runs and display pixels. Every low-resolution frame
+uses a centred 416×276 PAL or 416×255 NTSC canvas at 2×2 scaling, with black
+outside it. Border changes do not alter scaling or image position. The
+canvas includes the 29 top-border rows and 48 pixels at each side of the
+ordinary display. These are live palette-zero borders; they do not add top or
+horizontal display-enable opening.
+A blanking-time row counter avoids a vertical-coordinate multiply on the read path.
 RGB and black-line validity have separate write registers. Three-bit publication
 numbers order the bounded pending bank set across wrap and consumer pauses.
 A missing RAM row displays black for its whole line; HOLD aborts an unfinished
@@ -217,6 +297,11 @@ selection, preserving its pixel and lookup cycles while shortening timing paths.
 The reduced native timing uses ordinary PAL lines 63–262 with DE cycles
 56–375, and NTSC lines 34–233 with DE cycles 52–371, following the ordinary
 [Hatari 2.5.0 timing table](https://github.com/hatari/hatari/blob/v2.5.0/src/video.c).
+VBL's frame/capture pulse remains at the native frame boundary. IRQ4 asserts
+60 CPU cycles later, matching the same STF WS1 wake-up timing selected for
+line and bottom-stop samples. It remains pending until IACK; reset cancels a
+scheduled event. This is independent of HDMI frame publication.
+
 The MFP's Timer B input follows both DE edges by 24 CPU cycles, using
 [Hatari's Timer B offset](https://github.com/hatari/hatari/blob/v2.5.0/src/includes/video.h).
 DE mode settings are sampled at line/frame boundaries so brief writes do not
@@ -226,9 +311,10 @@ line preserves the ordinary HBL and frame period. The vertical bottom-stop condi
 samples live sync at cycle 502 on the last ordinary color line, using the
 STF WS1 timing table. Opposite sync extends PAL DE through line 309, or NTSC
 DE through line 259, and clears at the next frame. This lets Timer B handlers
-continue through the opened bottom region. The current native RGB buffer
-still presents only the ordinary 320×200 area; it does not display those
-extra lines. The remaining mode samples are approximate, and prefetching
+continue through the opened bottom region. The native RGB buffer includes
+those extra lines. Publication waits until all potentially opened rows finish;
+ordinary captures publish 200 rows. Only the first possible border row is
+prefetched before DE confirms opening. The remaining mode samples are approximate, and prefetching
 does not reproduce exact MMU/shifter arbitration, mid-line base writes,
 horizontal or top-border opening.
 
@@ -249,8 +335,8 @@ match the sealed package. `routed.json` and `socket.qsf` are not package
 members; the part recipe digest covers their bytes. It checks all three shell
 clocks, pixel-only part state and every outside CRAM bit, including companion
 columns. Rebuild parts after any shell identity change. HOLD blacks pixels while
-timing continues. Rendering opened borders, cycle-exact raster timing and aspect-ratio
-correction remain absent.
+timing continues. Horizontal/top display-enable opening, cycle-exact raster
+timing and aspect-ratio correction remain absent.
 
 ## Validation
 
@@ -343,11 +429,22 @@ the original disk is preloaded into the separate SDRAM buffer before CPU release
 and the real memory arbiter, addon controller, DDIO digital model, floppy DMA,
 native capture and independent-clock 720p renderer execute together. It does not
 exercise mailbox upload, electrical pad timing or a physical FPGA. This mode
-requires at least six seconds and currently supports menu diagnosis without
-HID selection; callback RAM delays are rejected. The original diskless EmuTOS
+requires at least six seconds; callback RAM delays are rejected. The original diskless EmuTOS
 invocation keeps its boot assertions and supplies no media. A changing
 logo is reported as noncanonical, without automatically declaring a visual fault. `--key-b-at SECOND` selects the scroller through the normal
-HID/IKBD path with a 150 ms B press. These are observations of the reduced
+HID/IKBD path with a 150 ms B press. Both storage models accept
+`--key-at SECOND --key-usage USAGE` for other screens (1/2/3 use HID
+usages 30/31/32). Every run saves `demo-audio.wav`, the system-domain signed
+mono 48 kHz chip PCM, and `demo-audio.json` with sample counts, amplitude
+statistics and system-clock cadence. Shared-memory runs also save
+`demo-ym.jsonl`: every accepted valid-register PSG data write, with its raw
+value, selected register, system-cycle timestamp and diagnostic PC. The trace
+covers the entire guest run independently of the raster trace interval. It
+observes the PSG acceptance edge without changing its clock or audio model.
+The PC is exception-unit state, not an instruction-retirement assertion.
+Quiet boot audio is valid; these files
+do not establish analog sound fidelity. `--timeout-seconds` controls only
+the host deadline, independently of the guest duration. These are observations of the reduced
 native timing model, not original GLUE/shifter timing equivalence. Per-second
 static framebuffer images do not prove video timing or border behavior. Neither successful capture completion nor removal of one loader
 fault establishes demo compatibility.

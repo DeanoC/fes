@@ -62,6 +62,7 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     output wire debug_palette_write,
     output wire [23:0] debug_palette_address,
     output wire [15:0] debug_palette_data,
+    output wire [11:0] debug_palette_color,
     output wire [1:0] debug_palette_lanes,
     output wire [8:0] debug_native_line,
     output wire [31:0] debug_horizontal_phase,
@@ -72,10 +73,12 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     input wire capture_ready,
     input wire [15:0] capture_data,
     output wire capture_pixel,
-    output wire [8:0] capture_x, capture_y, capture_rgb,
+    output wire [8:0] capture_x, capture_y, capture_rgb, capture_height,
     output wire [31:0] capture_frames, capture_underruns,
     output wire vblank, hblank
 );
+    wire [8:0] native_cycle;
+    wire native_pixel_ce;
     st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES)) system (
         .cold_reset(reset), .media_frozen(1'b0),
         .media_write_req(), .media_write_addr(), .media_write_data(),
@@ -90,16 +93,20 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     st_native_low_video capture (
         .clk_sys(clk_sys), .clk_pixel(clk_sys), .reset_sys(reset), .reset_pixel(reset),
         .hold(reset), .native_vblank(vblank), .native_display(native_display), .native_line(native_line),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce),
         .sync_mode(sync_mode), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .memory_req(capture_req), .memory_addr(capture_addr), .memory_ready(capture_ready), .memory_data(capture_data),
-        .output_sof(vblank), .output_address(16'd0), .output_rgb(unused_capture_rgb),
-        .output_border(unused_capture_border), .output_valid(unused_capture_valid),
+        .output_sof(vblank), .output_address(17'd0), .output_rgb(unused_capture_rgb),
+        .output_raster_rgb(), .output_raster_border(), .output_pal(),
+        .output_border_row(9'd0), .output_border_x(9'd0), .output_border_line_start(vblank), .output_border_ce(1'b0),
+        .output_border(unused_capture_border), .output_valid(unused_capture_valid), .output_height(),
         .debug_frames(capture_frames), .debug_skipped(unused_capture_skipped), .debug_underruns(capture_underruns)
     );
     assign capture_pixel = capture.write_pixel;
     assign capture_x = capture.sample_x;
     assign capture_y = capture.row;
     assign capture_rgb = capture.sample_rgb;
+    assign capture_height = capture.height[capture.write_bank];
     assign debug_fdc_status = system.io.floppy.fdc_status;
     assign debug_fdc_track = system.io.floppy.track_reg;
     assign debug_fdc_sector = system.io.floppy.sector_reg;
@@ -111,10 +118,11 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     // writes. These ports exist only on this simulation wrapper.
     assign debug_palette_write = !reset && system.machine.state == 2'd1 &&
         system.machine.target == 3'd2 && system.machine.writing &&
-        system.machine.palette_access && !system.machine.cpu_as_n &&
+        system.machine.palette_access && system.machine.io_completion && !system.machine.cpu_as_n &&
         system.machine.timeout_halves != 8'd128;
     assign debug_palette_address = system.machine.address;
     assign debug_palette_data = system.machine.write_data;
+    assign debug_palette_color = system.machine.palette_wdata[11:0] & 12'h777;
     assign debug_palette_lanes = system.machine.lanes;
     assign debug_irq_vector = system.irq_vector;
     assign debug_io_req = system.bus_req;

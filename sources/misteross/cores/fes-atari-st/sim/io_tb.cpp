@@ -10,10 +10,11 @@
 #include <string>
 
 static constexpr unsigned system_hz = 52'224'000;
+static constexpr unsigned cpu_hz = 8'021'247;
 static constexpr unsigned mfp_base = 0xfffa00;
 struct Test {
     Vst_io_sim_top dut;
-    uint64_t cycles=0, assertions=0, crystal_ticks=0;
+    uint64_t cycles=0, assertions=0, crystal_ticks=0, psg_ticks=0, serial_ticks=0;
     unsigned frames=0, lines=0, display_ends=0, cpu_phase=0;
     uint64_t cpu_ticks=0;
     unsigned first_display_line=UINT32_MAX, first_display_phase=0;
@@ -26,13 +27,14 @@ struct Test {
         }
     }
     void tick() {
-        dut.cpu_cycle_ce=!dut.reset && cpu_phase+8'000'000>=system_hz;
-        cpu_phase=dut.reset?0:(cpu_phase+8'000'000)%system_hz;
+        dut.cpu_cycle_ce=!dut.reset && cpu_phase+cpu_hz>=system_hz;
+        cpu_phase=dut.reset?0:(cpu_phase+cpu_hz)%system_hz;
         cpu_ticks+=dut.cpu_cycle_ce;
         dut.clk=0; dut.eval();
         if (!dut.reset) {
             frames+=dut.vblank; lines+=dut.hblank;
             crystal_ticks+=dut.timer_ce_level;
+            psg_ticks+=dut.psg_ce_level; serial_ticks+=dut.serial_ce_level;
             display_ends+=previous_display && !dut.timer_b_level;
             if(!previous_display&&dut.timer_b_level&&first_display_line==UINT32_MAX){
                 first_display_line=dut.display_line;first_display_phase=dut.display_phase;
@@ -148,16 +150,53 @@ static void interrupt_connection(Test &t) {
     t.iack(6,20); t.require((t.mread(0x0d)&0x20)==0 && (t.mread(0x11)&0x20)!=0,"new IACK consumes Timer C once");
     t.mwrite(0x11,0xdf); t.mwrite(0x1d,0);
     while (t.frames==0) t.tick();
+    const auto frame_boundary=t.cpu_ticks;
+    while (t.cpu_ticks-frame_boundary<60) {
+        t.require(t.dut.irq==2,"VBL does not assert before STF WS1 phase 60");
+        t.tick();
+    }
+    t.require(t.cpu_ticks-frame_boundary==60 && t.dut.display_line==0 &&
+              t.dut.display_phase==60,"IRQ4 uses native CPU cycles after frame boundary");
     t.require(t.dut.irq==4 && !t.dut.irq_vectored,"native VBL is autovectored level 4");
     t.iack(4); t.require(t.dut.irq==2,"VBL acknowledgement leaves native HBL pending");
     t.iack(2); t.require(t.dut.irq==0,"native HBL acknowledgement clears level 2");
 }
 
+static void vbl_interrupt_phase(Test &t,unsigned resolution,unsigned sync) {
+    t.reset(resolution,sync);
+    for (unsigned frame=1;frame<=2;++frame) {
+        while(t.frames<frame) t.tick();
+        const auto boundary=t.cpu_ticks;
+        t.require(t.dut.irq==2,"frame boundary keeps HBL pending before IRQ4");
+        while(t.cpu_ticks-boundary<60) {
+            t.require(t.dut.irq==2,"IRQ4 waits for all sixty native cycles");
+            t.tick();
+        }
+        t.require(t.dut.irq==4 && t.dut.display_phase==60,
+                  "PAL/NTSC/mono IRQ4 phase is independent of frame period");
+        t.run(37); t.require(t.dut.irq==4,"IRQ4 stays pending until its IACK");
+        t.iack(2); t.require(t.dut.irq==4,"HBL IACK cannot clear delayed VBL");
+        t.iack(4); t.require(t.dut.irq==0,"IRQ4 IACK clears one delayed event");
+    }
+    while(t.frames<3) t.tick();
+    // Cancel a scheduled event through execution Hold/reset, then watch
+    // beyond its old deadline without waiting for another native frame.
+    t.reset(resolution,sync);
+    const auto reset_tick=t.cpu_ticks;
+    while(t.cpu_ticks-reset_tick<80) {
+        t.require(t.dut.irq==0,"reset cancels the scheduled VBL event");
+        t.tick();
+    }
+}
+
 static void timer_c_rate(Test &t) {
     t.reset();
-    const auto before=t.crystal_ticks;
+    const auto before=t.crystal_ticks, psg_before=t.psg_ticks, serial_before=t.serial_ticks, cpu_before=t.cpu_ticks;
     t.run(system_hz);
     t.require(t.crystal_ticks-before==2'457'600,"fractional MFP crystal rate is 2.4576 MHz");
+    t.require(t.cpu_ticks-cpu_before==cpu_hz,"PAL CPU enable rate");
+    t.require(t.psg_ticks-psg_before==cpu_hz/4,"PAL PSG clock rate");
+    t.require(t.serial_ticks-serial_before==cpu_hz/16,"PAL ACIA clock rate");
     t.mwrite(0x17,0x40); t.mwrite(0x09,0x20); t.mwrite(0x15,0x20);
     t.mwrite(0x23,192); t.mwrite(0x1d,0x50);
     uint64_t previous=0;
@@ -202,6 +241,50 @@ static void display_enable(Test &t,unsigned resolution,unsigned sync,unsigned fp
     const unsigned expected=255-(4*active)%255;
     t.require(t.mread(0x21)==expected,"Timer B counts all active display-enable edges, including reload");
     std::cout<<"ST I/O: nominal "<<fps<<" Hz, "<<active<<" Timer B events/frame\n";
+}
+
+// Hatari 2.5 Video_CalculateAddress: read cycle minus eight, then
+// two bytes per four cycles, clamped to the ordinary DMA line window.
+// Check every fabric edge, including the holds between CPU enables, and
+// carry through both byte boundaries used by FF8205/07/09.
+static void shifter_counter(Test &t,unsigned resolution,unsigned sync) {
+    t.reset(resolution,sync);
+    const bool mono=resolution==2, pal=(sync&2)!=0;
+    const unsigned top=mono?34:pal?63:34;
+    const unsigned start=mono?0:pal?56:52;
+    const unsigned width=mono?160:320;
+    const unsigned bytes=width/2;
+    const unsigned base=0x12ff00;
+    t.dut.screen_base=base|0xf3; // Low byte is ignored on an STF.
+    while(t.dut.display_line<top-1) t.tick();
+    while(t.dut.display_line<top) {
+        t.require(t.dut.video_counter==0,"top blanking holds the initial counter");
+        t.tick();
+    }
+    bool saw_negative=false;
+    unsigned calibration_values=0;
+    while(t.dut.display_line<top+4) {
+        const unsigned row=t.dut.display_line-top;
+        const int progress=int(t.dut.display_phase)-8-int(start);
+        const unsigned elapsed=progress<0?0:unsigned(progress)>width?width:unsigned(progress);
+        const unsigned expected=base+row*bytes+(elapsed/4)*2;
+        t.require(t.dut.video_counter==expected,
+                  "shifter counter exposes word progress at the documented read phase");
+        const unsigned low=expected&255;
+        if(low&128) saw_negative=true;
+        else if(saw_negative && low<=8) calibration_values|=1u<<(low/2);
+        t.tick();
+    }
+    t.require(calibration_values==31,"polling after a negative byte sees 0/2/4/6/8");
+    t.require(t.dut.video_counter==base+4*bytes,"four rows carry into the high address byte");
+    const unsigned stop=top+(mono?400:200);
+    while(t.dut.display_line<stop) t.tick();
+    const unsigned final=base+(mono?400:200)*bytes;
+    while(t.frames==0) {
+        t.require(t.dut.video_counter==final,"bottom blanking holds the final DMA address");
+        t.tick();
+    }
+    t.require(t.dut.video_counter==base,"VBL reloads all counter bytes from aligned base");
 }
 
 static void brief_mode_writes(Test &t) {
@@ -250,13 +333,17 @@ static void bottom_border(Test &t,bool pal,bool cross_sample,bool next_line=fals
         while(t.dut.display_phase<(cross_sample?504u:500u)) t.tick();
     }
     t.dut.sync_mode=pal?2:0;
+    // VIDEO_HEIGHT_BOTTOM_50HZ=47 and VIDEO_HEIGHT_BOTTOM_60HZ=26.
+    const unsigned active=200+(cross_sample?(pal?47:26):0);
+    const unsigned last_active=(pal?63:34)+active-1;
+    while(t.dut.display_line<last_active || t.dut.display_phase<400) t.tick();
+    t.require(t.dut.video_counter==0x10200+active*160,
+              "counter includes every DMA word in opened bottom lines");
     while(t.frames<1) t.tick();
     const uint64_t next_frame=t.cpu_ticks;
     t.require(t.cpu_ticks-frame_start==(pal?160256u:133604u),
               "bottom sync pulse preserves the exact native frame length");
     t.require(t.lines==(pal?313u:263u),"bottom sync pulse retains every native HBL");
-    // VIDEO_HEIGHT_BOTTOM_50HZ=47 and VIDEO_HEIGHT_BOTTOM_60HZ=26.
-    const unsigned active=200+(cross_sample?(pal?47:26):0);
     t.require(t.display_ends==active,"bottom opening requires the opposite mode at the stop sample");
     t.require(t.mread(0x21)==255-active,"Timer B sees bottom-border DE lines");
     const unsigned prior=t.display_ends;
@@ -269,9 +356,12 @@ static void bottom_border(Test &t,bool pal,bool cross_sample,bool next_line=fals
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     Test test;
-    lanes_and_reset(test); interrupt_connection(test); timer_c_rate(test);
+    lanes_and_reset(test); interrupt_connection(test);
+    vbl_interrupt_phase(test,0,2); vbl_interrupt_phase(test,0,0);
+    vbl_interrupt_phase(test,2,2); timer_c_rate(test);
     display_enable(test,0,2,50,200); display_enable(test,1,0,60,200);
     display_enable(test,2,2,71,400); brief_mode_writes(test);
+    shifter_counter(test,0,2); shifter_counter(test,1,0); shifter_counter(test,2,2);
     timer_b_polarity(test,false); timer_b_polarity(test,true);
     bottom_border(test,true,false); bottom_border(test,true,true);
     bottom_border(test,false,false); bottom_border(test,false,true);

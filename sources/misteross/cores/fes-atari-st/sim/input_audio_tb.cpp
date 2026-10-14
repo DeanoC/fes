@@ -2,6 +2,8 @@
 // Independent register/protocol and published Yamaha frequency checks.
 #include "Vst_input_audio_sim_top.h"
 #include "verilated.h"
+#include "st_ym_mix_reference.hpp"
+#include "st_ym_filter_reference.hpp"
 #include <array>
 #include <cmath>
 #include <cstdlib>
@@ -14,6 +16,8 @@
 struct Test {
     Vst_input_audio_sim_top dut;
     unsigned transmitted = 0;
+    st_ym_filter_reference::Reference audio_reference{500000,48000};
+    std::array<bool,32> sampled_dac_levels{};
     std::vector<int> tx_bytes;
     void require(bool ok, const std::string &message) {
         if (!ok) { std::cerr << "ST input/audio: " << message << '\n'; std::exit(1); }
@@ -23,7 +27,20 @@ struct Test {
         if (dut.raw_tx_valid && dut.raw_tx_ready && dut.raw_mode) {
             ++transmitted; tx_bytes.push_back(dut.raw_tx_data);
         }
+        const unsigned levels=dut.sampled_result_levels;
+        if(dut.reset)audio_reference.reset();
+        else if(dut.sampled_mix_ready) {
+            audio_reference.input(st_ym_mix_reference::sample(levels));
+            sampled_dac_levels[levels&31]=true;
+        }
         dut.clk=1; dut.eval();
+        if(!dut.reset) {
+            require(!dut.sampled_filter_fault,"audio pipeline has no dropped tuple, overflow or underrun");
+            if(dut.sample_valid) {
+                require(audio_reference.pending()>0,"causal filtered sample ready before output edge");
+                require(int16_t(dut.pcm_signed)==audio_reference.output(),"stream PCM matches nonlinear/STF low-pass/weighted/DC oracle");
+            }
+        }
     }
     void run(int cycles) { while (cycles-- > 0) tick(); }
     void reset() {
@@ -465,19 +482,42 @@ static void ym(Test &t) {
     t.require(t.ym_bus(false,0)==255,"input port B pullups");
     t.ym_write(7,0xff); t.ym_bus(true,0,15);
     t.require(t.ym_bus(false,0)==0xa5,"second YM I/O latch");
-    t.ym_write(8,15); t.ym_write(9,15); t.ym_write(10,15); t.run(50);
-    t.require(t.dut.pcm_signed==32640,"48k PCM three-channel headroom");
-    t.ym_write(8,0); t.ym_write(9,0); t.ym_write(10,0); t.run(50);
-    t.require(t.dut.pcm_signed==0,"PCM silence");
+    t.ym_write(8,15); t.ym_write(9,15); t.ym_write(10,15); t.run(1024);
+    t.require(int16_t(t.dut.pcm_signed)>0,"filtered three-channel positive step");
+    t.ym_write(8,0); t.ym_write(9,0); t.ym_write(10,0); t.run(1024);
+    t.reset(); t.run(1024);
+    t.require(t.dut.pcm_signed==0,"filtered PCM silence after reset");
     int samples=0; for (int i=0;i<2000;++i) { t.tick(); samples+=t.dut.sample_valid; }
-    t.require(samples==48,"exact 48k sample cadence");
+    t.require(samples==12,"exact 48k sample cadence at scaled 8MHz transport");
     const std::array<int,16> masks={255,15,255,15,255,15,31,255,31,31,31,255,255,15,255,255};
     for(int reg=0;reg<16;++reg) {
         t.engine_write(reg,255); t.require(t.dut.engine_read==masks[reg],"YM register mask");
     }
     for (int volume=0;volume<16;++volume) {
         t.reset(); t.engine_write(7,63); t.engine_write(8,volume);
-        t.require(t.dut.engine_pcm==ym_level(volume==0 ? 0 : volume*2+1),"Yamaha fixed volume scale");
+        const int level=volume<2 ? volume : volume*2+1;
+        t.require(t.dut.engine_pcm==ym_level(level),"Yamaha fixed volume scale");
+        t.require(t.dut.engine_levels==level,"fixed volume selects original STF envelope level");
+        // Primary measured nonlinear table; volume 1 must remain audible.
+        t.ym_write(7,63); t.ym_write(8,volume); t.run(1024);
+        // Every emitted sample is checked against the streaming filter oracle.
+        t.require(int16_t(t.dut.pcm_signed)>=0,"ascending fixed-volume filtered response");
+        if(volume==1)t.require(int16_t(t.dut.pcm_signed)>0,"quietest fixed YM volume survives DAC quantization");
+    }
+    // A slow envelope holds every level across several asynchronous samples.
+    t.reset(); t.ym_write(7,63); t.ym_write(8,16);
+    t.ym_write(11,128); t.ym_write(12,0); t.ym_write(13,8);
+    t.sampled_dac_levels.fill(false);
+    t.run(5'000'000);
+    for(bool seen:t.sampled_dac_levels)t.require(seen,"every nonlinear envelope level reaches filter");
+    for(unsigned voice=0;voice<3;++voice) {
+        t.reset(); t.engine_write(7,63); t.engine_write(8+voice,1);
+        t.require(t.dut.engine_levels==(1u<<(5*voice)),"gated level channel packing/isolation");
+        t.ym_write(7,63); t.ym_write(8+voice,1); t.run(1024);
+        t.require(int16_t(t.dut.pcm_signed)>0,"each quiet voice reaches filtered PCM independently");
+        // Both sources enabled, reset tone/noise initial combination is low.
+        t.reset(); t.engine_write(7,0); t.engine_write(8+voice,15);
+        t.require(t.dut.engine_levels==0,"tone/noise mixer gates exposed levels");
     }
     for (int period: {0,1,2,17,257,4095}) {
         t.reset(); t.engine_write(0,period&255); t.engine_write(1,period>>8);
@@ -494,6 +534,7 @@ static void ym(Test &t) {
         t.engine_write(11,3); t.engine_write(12,0); t.engine_write(13,shape);
         for (int step=0;step<100;++step) {
             t.require(t.dut.engine_pcm==ym_level(envelope(shape,step)),"32-step Yamaha envelope shape="+std::to_string(shape)+" step="+std::to_string(step));
+            t.require(t.dut.engine_levels==envelope(shape,step),"unquantized Yamaha envelope level");
             t.engine_run(24); // /8 envelope versus AY /16.
         }
     }

@@ -170,6 +170,19 @@ def firmware(variant: int = 1) -> tuple[bytes, dict[str, int]]:
     p.check("w", 0x68A5, ROM_SENTINEL)
     p.move_imm("b", 4, 0xFF8001)
     p.check("b", 4, 0xFF8001)
+    # Exercise both sides of each configured bank boundary through real CPU
+    # transactions. Config 3 disables the bank; reset vectors remain ROM-backed.
+    for configuration, size in ((0, 0x020000), (4, 0x080000), (8, 0x200000)):
+        p.move_imm("b", configuration, 0xFF8001)
+        p.move_imm("w", 0x3917, size - 2)
+        p.check("w", 0x3917, size - 2)
+        p.move_imm("w", 0x4826, size)
+        p.check("w", 0xFFFF, size)
+        p.check("w", 0x3917, size - 2)
+    p.move_imm("b", 12, 0xFF8001)
+    p.check("w", 0xFFFF, 0x800)
+    p.check("l", STACK, 0)
+    p.move_imm("b", 4, 0xFF8001)
     # ROM RAM-sizing uses the original ST's row/column aliases, not a flat
     # address mask or the later STe wiring. Bank 1 is physically absent.
     p.move_imm("b", 0x0A, 0xFF8001)

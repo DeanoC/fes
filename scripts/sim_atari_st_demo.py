@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -34,12 +35,12 @@ FLAGS = ["-Wno-" + name for name in (
     "BLKANDNBLK", "CASEINCOMPLETE", "CASEOVERLAP")]
 RTL = [CORE + "rtl/" + name + ".sv" for name in (
     "st_system", "st_cpu", "st_machine", "st_io", "st_mfp", "st_acia", "st_ikbd",
-    "st_ym2149", "st_floppy", "st_floppy_writer", "st_native_low_video")]
+    "st_ym2149", "st_ym_filter", "st_ym_mixer", "st_ym_mix_rom", "st_floppy", "st_floppy_writer", "st_native_border", "st_native_low_video")]
 RTL += ["cores/fes-zx81/expansions/zonx_ay.v"]
 RTL += [CPU + name for name in ("fx68k.sv", "fx68kAlu.sv", "uaddrPla.sv")]
 DATA = [CPU + "microrom.mem", CPU + "nanorom.mem", "cores/fes-common/generated/fes_video_part.vh"]
 WRAPPER = PREFIX + CORE + "sim/st_boot_sim_top.sv"
-HELPERS = ["scripts/sim_atari_st_demo.py", "scripts/atari_st_demo_sim.cpp"]
+HELPERS = ["scripts/sim_atari_st_demo.py", "scripts/atari_st_demo_sim.cpp", PREFIX + CORE + "sim/st_audio_capture.hpp"]
 
 
 def sha(data):
@@ -144,17 +145,18 @@ def run(args):
     model_hashes = {name: sha((build / name).read_bytes()) for name in models}
     record["generated_model_inputs"] = model_hashes
     invocation = [str(executable), str(output / "etos192us.img"), str(output / "original.st"),
-                  str(args.seconds), str(output / "demo"), str(args.key_b_at or 0),
+                  str(args.seconds), str(output / "demo"), str(args.key_at or 0),
                   str(args.trace_start), str(args.trace_end), str(args.ram_extra_wait),
-                  str(-1 if args.ram_fixed_wait is None else args.ram_fixed_wait)]
+                  str(-1 if args.ram_fixed_wait is None else args.ram_fixed_wait), str(args.key_usage)]
     if args.shared_memory:
         invocation = [str(executable), str(output / "etos192us.img"), str(args.seconds),
-                      str(output / "demo"), str(output / "original.st"), str(args.trace_start), str(args.trace_end)]
+                      str(output / "demo"), str(output / "original.st"), str(args.trace_start), str(args.trace_end),
+                      str(args.key_at or 0), str(args.key_usage)]
         record["framebuffer_capture"] = "fixed 720p60 output after Direct part boundaries"
         record["native_rgb_capture"] = "production capture under shared SDRAM commands and independent 74.25 MHz pixel clock; no analog/electrical or original GLUE equivalence"
         record["media_fixture"] = "original disk preloaded into separate SDRAM disk buffer; production floppy/DMA/memory RTL; upload/mailbox not exercised"
-    record["input_event"] = (None if args.key_b_at is None else
-                             {"hid_usage": 5, "press_second": args.key_b_at,
+    record["input_event"] = (None if args.key_at is None else
+                             {"hid_usage": args.key_usage, "press_second": args.key_at,
                               "hold_milliseconds": 150})
     record["consecutive_native_frames"] = None if args.shared_memory else "first sixteen complete captures after 6.5 seconds; production capture with model RAM, no original GLUE/border oracle"
     record["raster_trace"] = {"start_second": args.trace_start, "end_second": args.trace_end,
@@ -177,8 +179,27 @@ def run(args):
     record["horizontal_phase_units"] = "68000 cycles within the native line"
     record["palette_trace"] = "changes after six seconds; first eight changed bundles per native frame, plus complete per-frame counts; model timing only"
     record["run_command"] = invocation
+    record["timeout_seconds"] = args.timeout_seconds
+    record["audio_capture"] = "unfiltered signed mono 48 kHz chip PCM; no audio-fidelity oracle"
+    # Read the frozen selection, including historical revisions whose system
+    # used the machine's nominal default. Never label a new capture as 2 MHz
+    # after changing the selected board's clock policy.
+    system_rtl = (source / (PREFIX + CORE + "rtl/st_system.sv")).read_text()
+    clock_match = re.search(r"parameter integer CPU_CLOCK_HZ\s*=\s*([0-9_]+)\s*,", system_rtl)
+    if "parameter integer CPU_CLOCK_HZ" in system_rtl and clock_match is None:
+        raise ValueError("unsupported selected CPU clock policy")
+    cpu_clock_hz = int(clock_match.group(1).replace("_", "")) if clock_match else 8000000
+    record["machine_clocks"] = {"cpu_hz": cpu_clock_hz,
+                                 "psg_hz": cpu_clock_hz // 4,
+                                 "acia_hz": cpu_clock_hz // 16,
+                                 "mfp_crystal_hz": 2457600}
+    if args.shared_memory and b'debug_ym_write' in (source / wrapper).read_bytes():
+        record["ym_trace"] = {"file": "demo-ym.jsonl", "system_clock_hz": 52224000,
+                              "chip_clock_hz": record["machine_clocks"]["psg_hz"],
+                              "scope": "all valid-register PSG data acceptance edges during guest run; raw values before register masking",
+                              "fidelity_asserted": False}
     process = subprocess.Popen(invocation, cwd=build, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    timer = threading.Timer(1800, process.kill); timer.start()
+    timer = threading.Timer(args.timeout_seconds, process.kill); timer.start()
     try:
         with (output / "demo.log").open("w") as log:
             for line in process.stdout:
@@ -219,8 +240,10 @@ def main(argv=None):
     parser.add_argument("--revision", default="HEAD")
     parser.add_argument("--working-tree", action="store_true", help="explicitly freeze current diagnostic edits")
     parser.add_argument("--seconds", type=int, default=15)
-    parser.add_argument("--key-b-at", type=int,
-                        help="press HID B at this simulated second for 150 ms (optional scroller selection)")
+    parser.add_argument("--key-at", "--key-b-at", dest="key_at", type=int,
+                        help="press selected HID usage for 150 ms at this simulated second; B by default")
+    parser.add_argument("--key-usage", type=int, default=5, help="HID key usage 4..127; B=5, 1/2/3=30/31/32, Escape=41")
+    parser.add_argument("--timeout-seconds", type=int, default=3600, help="host run deadline; does not change guest timing")
     parser.add_argument("--trace-start", type=int, help="inclusive simulated second for complete raster/logo tracing")
     parser.add_argument("--trace-end", type=int, help="exclusive simulated second for complete raster/logo tracing")
     parser.add_argument("--ram-extra-wait", type=int, default=0, help="add 0..64 system clocks to each model CPU RAM access; not physical arbitration")
@@ -243,10 +266,14 @@ def main(argv=None):
         parser.error("--ram-fixed-wait must be 0..64")
     if not 0 <= args.mfp_wait_states <= 8:
         parser.error("--mfp-wait-states must be 0..8")
-    if args.key_b_at is not None and not 1 <= args.key_b_at < args.seconds:
-        parser.error("--key-b-at must be at least one and less than --seconds")
-    if args.shared_memory and (args.seconds < 6 or args.key_b_at is not None or args.ram_extra_wait or args.ram_fixed_wait is not None):
-        parser.error("--shared-memory requires at least 6 seconds, no key event and no callback RAM delay or override")
+    if args.key_at is not None and not 1 <= args.key_at < args.seconds:
+        parser.error("--key-at must be at least one and less than --seconds")
+    if not 4 <= args.key_usage <= 127 or (args.key_at is None and args.key_usage != 5):
+        parser.error("key usage must be 4..127 and a nondefault usage requires --key-at")
+    if not 1 <= args.timeout_seconds <= 86400:
+        parser.error("timeout must be 1..86400 host seconds")
+    if args.shared_memory and (args.seconds < 6 or args.ram_extra_wait or args.ram_fixed_wait is not None):
+        parser.error("--shared-memory requires at least 6 seconds and no callback RAM delay or override")
     try:
         return 0 if run(args)["capture_completed"] else 1
     except (OSError, ValueError, subprocess.SubprocessError) as error:

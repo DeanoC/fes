@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Ordinary 320x200 ST raster capture. RAM rows are prefetched in the system
+// 320-pixel ST raster capture, including opened bottom display lines.
+// RAM rows are prefetched in the system
 // domain; palette selection occurs at each native pixel, not at HDMI SOF.
 // Three RGB333 banks have explicit publish/release ownership. Pixel may read
 // only an immutable completed bank, and changes banks only at output SOF.
-// This is not a cycle-exact MMU/shifter or opened-border implementation.
+// Horizontal/top border tricks and cycle-exact MMU/shifter timing remain separate.
 module st_native_low_video (
     input wire clk_sys, clk_pixel, reset_sys, reset_pixel, hold,
     input wire native_vblank, native_display,
-    input wire [8:0] native_line,
+    input wire [8:0] native_line, native_cycle,
+    input wire native_pixel_ce,
     input wire [7:0] sync_mode,
     input wire [23:0] screen_base,
     input wire [1:0] resolution,
@@ -17,16 +19,26 @@ module st_native_low_video (
     input wire memory_ready,
     input wire [15:0] memory_data,
     input wire output_sof,
-    input wire [15:0] output_address,
-    output wire [8:0] output_rgb, output_border,
+    input wire [16:0] output_address,
+    output wire [8:0] output_rgb, output_border, output_raster_rgb,
+    input wire [8:0] output_border_row, output_border_x,
+    input wire output_border_line_start, output_border_ce,
+    output reg output_raster_border, output_pal,
     output reg output_valid,
+    output reg [8:0] output_height,
     output reg [31:0] debug_frames, debug_skipped, debug_underruns
 );
-    localparam [31:0] SYSTEM_HZ = 32'd52224000;
-    reg [8:0] frame0 [0:63999];
-    reg [8:0] frame1 [0:63999];
-    reg [8:0] frame2 [0:63999];
-    reg [8:0] read0, read1, read2;
+    // Explicit shallow chunks avoid the mapper selecting ninety 8192x1
+    // blocks per 79040x9 bank instead of seventy-eight 1024x10 blocks.
+    // Keep the same registered read boundary and complete-frame ownership.
+    localparam integer FRAME_CHUNKS = 78;
+    wire [8:0] chunk_read0 [0:FRAME_CHUNKS-1];
+    wire [8:0] chunk_read1 [0:FRAME_CHUNKS-1];
+    wire [8:0] chunk_read2 [0:FRAME_CHUNKS-1];
+    reg [6:0] read_chunk;
+    wire [8:0] read0 = read_chunk < 7'd78 ? chunk_read0[read_chunk] : 9'd0;
+    wire [8:0] read1 = read_chunk < 7'd78 ? chunk_read1[read_chunk] : 9'd0;
+    wire [8:0] read2 = read_chunk < 7'd78 ? chunk_read2[read_chunk] : 9'd0;
     reg [1:0] front_bank;
     reg [2:0] published, released, seen;
     (* async_reg = "true" *) reg [2:0] pub_meta, pub_sync, release_meta, release_sync;
@@ -37,17 +49,17 @@ module st_native_low_video (
     reg [2:0] publication_number [0:2];
     reg [2:0] publication_counter;
     reg [8:0] border [0:2];
+    reg [8:0] height [0:2];
+    reg [2:0] pal_banks;
+    wire [2:0] raster_banks;
+    wire border_overflow;
     reg [31:0] front_sequence;
     reg [8:0] front_border;
     assign output_rgb = front_bank == 2'd0 ? read0 : front_bank == 2'd1 ? read1 : read2;
     assign output_border = front_border;
-    // Unconditional clocked reads infer independent dual-clock M10K ports.
-    // Unselected banks may be written; the selected bank remains owned by pixel.
-    always @(posedge clk_pixel) begin
-        read0 <= frame0[output_address];
-        read1 <= frame1[output_address];
-        read2 <= frame2[output_address];
-    end
+    // The chunk selector and all words capture the same incoming address.
+    // Their aligned combinational mux retains the original one-clock read.
+    always @(posedge clk_pixel) read_chunk <= output_address[16:10];
     integer candidate;
     reg choose_valid;
     reg [1:0] choose_bank;
@@ -77,7 +89,8 @@ module st_native_low_video (
             pub_meta <= 3'd0; pub_sync <= 3'd0;
             released <= 3'd0; seen <= 3'd0;
             front_bank <= 2'd0; front_sequence <= 32'd0;
-            front_border <= 9'd0; output_valid <= 1'b0;
+            output_raster_border <= 1'b0; output_pal <= 1'b1;
+            front_border <= 9'd0; output_valid <= 1'b0; output_height <= 9'd200;
         end else begin
             pub_meta <= published; pub_sync <= pub_meta;
             if (output_sof && choose_valid) begin
@@ -90,6 +103,9 @@ module st_native_low_video (
                 front_bank <= choose_bank;
                 front_sequence <= sequence_number[choose_bank];
                 front_border <= border[choose_bank];
+                output_height <= height[choose_bank];
+                output_pal <= pal_banks[choose_bank];
+                output_raster_border <= raster_banks[choose_bank];
                 output_valid <= 1'b1;
             end
         end
@@ -99,22 +115,25 @@ module st_native_low_video (
     wire bank_free = |free_banks;
     wire [1:0] free_bank = free_banks[0] ? 2'd0 : free_banks[1] ? 2'd1 : 2'd2;
     reg owned, enabled, base_valid, good_frame, previous_display;
+    reg frame_pal, bottom_seen, border_enabled, border_overflow_reported;
     reg [1:0] write_bank;
     reg [8:0] frame_top, expected_row, pixel_x;
     reg [23:0] frame_base;
-    reg [31:0] epoch, pixel_phase;
+    reg [31:0] epoch;
     reg [16:0] pixels;
     reg line_valid;
     wire [8:0] row = native_line - frame_top;
-    wire active_row = native_line >= frame_top && row < 9'd200;
+    wire [8:0] maximum_height = frame_pal ? 9'd247 : 9'd226;
+    wire active_row = native_line >= frame_top && row < maximum_height;
     wire display_rise = native_display && !previous_display;
     wire display_fall = !native_display && previous_display;
-    wire [32:0] pixel_sum = {1'b0, pixel_phase} + 33'd8000000;
-    wire pixel_due = display_rise || pixel_sum >= {1'b0, SYSTEM_HZ};
+    // st_io registers this pulse with native cycle/DE. Consume the same
+    // event as border capture, without an independent oscillator or phase.
+    wire pixel_due = native_pixel_ce;
     wire [8:0] sample_x = display_rise ? 9'd0 : pixel_x;
     wire write_pixel = owned && enabled && !hold && active_row && native_display &&
                        pixel_due && sample_x < 9'd320;
-    wire [15:0] write_address = 16'(row) * 16'd320 + 16'(sample_x);
+    wire [16:0] write_address = 17'(row) * 17'd320 + 17'(sample_x);
 
     reg [15:0] cache0 [0:79];
     reg [15:0] cache1 [0:79];
@@ -136,12 +155,12 @@ module st_native_low_video (
     // The final pixel drains before DE falls; publication follows that fall.
     reg frame_write, frame_write_black;
     reg [1:0] frame_write_bank;
-    reg [15:0] frame_write_address;
+    reg [16:0] frame_write_address;
     reg [8:0] frame_write_rgb;
     always @(posedge clk_sys) begin
         if (reset_sys) begin
             frame_write <= 1'b0; frame_write_black <= 1'b1;
-            frame_write_bank <= 2'd0; frame_write_address <= 16'd0; frame_write_rgb <= 9'd0;
+            frame_write_bank <= 2'd0; frame_write_address <= 17'd0; frame_write_rgb <= 9'd0;
         end else begin
             frame_write <= write_pixel;
             frame_write_bank <= write_bank;
@@ -150,16 +169,32 @@ module st_native_low_video (
             frame_write_black <= !sample_valid;
         end
     end
-    always @(posedge clk_sys) begin
-        if (frame_write && !reset_sys && !hold) begin
-            case (frame_write_bank)
-                2'd0: frame0[frame_write_address] <= frame_write_black ? 9'd0 : frame_write_rgb;
-                2'd1: frame1[frame_write_address] <= frame_write_black ? 9'd0 : frame_write_rgb;
-                2'd2: frame2[frame_write_address] <= frame_write_black ? 9'd0 : frame_write_rgb;
-                default: ;
-            endcase
+    generate for (genvar chunk = 0; chunk < FRAME_CHUNKS; chunk = chunk + 1) begin : frame_chunks
+        reg [8:0] frame0 [0:1023];
+        reg [8:0] frame1 [0:1023];
+        reg [8:0] frame2 [0:1023];
+        reg [8:0] word0, word1, word2;
+        assign chunk_read0[chunk] = word0;
+        assign chunk_read1[chunk] = word1;
+        assign chunk_read2[chunk] = word2;
+        // Unconditional clocked ports infer independent dual-clock M10Ks.
+        // Only the owned write bank changes; the displayed bank is immutable.
+        always @(posedge clk_pixel) begin
+            word0 <= frame0[output_address[9:0]];
+            word1 <= frame1[output_address[9:0]];
+            word2 <= frame2[output_address[9:0]];
         end
-    end
+        always @(posedge clk_sys) begin
+            if (frame_write && !reset_sys && !hold && frame_write_address[16:10] == 7'(chunk)) begin
+                case (frame_write_bank)
+                    2'd0: frame0[frame_write_address[9:0]] <= frame_write_black ? 9'd0 : frame_write_rgb;
+                    2'd1: frame1[frame_write_address[9:0]] <= frame_write_black ? 9'd0 : frame_write_rgb;
+                    2'd2: frame2[frame_write_address[9:0]] <= frame_write_black ? 9'd0 : frame_write_rgb;
+                    default: ;
+                endcase
+            end
+        end
+    end endgenerate
 
     typedef enum logic [1:0] { IDLE, READ, GAP } state_t;
     state_t memory_state;
@@ -167,14 +202,31 @@ module st_native_low_video (
     reg [6:0] word_index;
     reg [31:0] job_epoch;
     wire prefetch_window = owned && !hold && native_line >= frame_top - 9'd2 &&
-                           native_line < frame_top + 9'd199;
+                           native_line < frame_top + maximum_height - 9'd1;
     wire [8:0] desired_row = native_line < frame_top ? 9'd0 : row + 9'd1;
+    // Row 200 must be ready before the late bottom-stop latch can open DE.
+    // Do not read further border RAM until DE actually reaches that row.
+    wire desired_needed = desired_row <= 9'd200 || bottom_seen;
     wire desired_bank = desired_row[0];
     wire desired_ready = cache_valid[desired_bank] && cache_row[desired_bank] == desired_row &&
                          cache_epoch[desired_bank] == epoch;
     wire [23:0] selected_base = base_valid ? frame_base : {screen_base[23:8], 8'd0};
     wire [23:0] start_word = {1'b0, selected_base[23:8], 7'd0} + 24'(desired_row) * 24'd80;
     wire address_valid = start_word + 24'd80 <= 24'h040000;
+    wire border_start = native_vblank && bank_free && !hold;
+    wire missing_row = display_rise && owned && enabled && active_row && !hold && !row_ready;
+    wire border_failed = border_overflow && !border_overflow_reported;
+    st_native_border borders (
+        .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
+        .capture_start(border_start), .capture_active(owned && border_enabled && !hold),
+        .capture_pal(frame_pal), .capture_tick(native_pixel_ce), .capture_display(native_display),
+        .capture_bank(border_start ? free_bank : write_bank), .native_line(native_line),
+        .native_cycle(native_cycle), .palette_zero(palette[8:0]),
+        .capture_overflow(border_overflow), .raster_banks(raster_banks),
+        .output_bank(output_sof && choose_valid ? choose_bank : front_bank),
+        .output_sof(output_sof), .output_line_start(output_border_line_start), .output_ce(output_border_ce),
+        .output_row(output_border_row), .output_x(output_border_x), .output_rgb(output_raster_rgb)
+    );
     integer b;
     always @(posedge clk_sys) begin
         if (reset_sys) begin
@@ -182,15 +234,16 @@ module st_native_low_video (
             publication_counter <= 3'd0;
             owned <= 1'b0; enabled <= 1'b0; base_valid <= 1'b0;
             good_frame <= 1'b0; previous_display <= 1'b0; line_valid <= 1'b0;
+            frame_pal <= 1'b1; bottom_seen <= 1'b0; border_enabled <= 1'b0; border_overflow_reported <= 1'b0; pal_banks <= 3'b111;
             write_bank <= 2'd0; frame_top <= 9'd63; expected_row <= 9'd0;
             pixel_x <= 9'd0; frame_base <= 24'd0; epoch <= 32'd0;
-            pixel_phase <= 32'd0; pixels <= 17'd0;
+            pixels <= 17'd0;
             cache_valid <= 2'd0; memory_state <= IDLE;
             job_bank <= 1'b0; word_index <= 7'd0; job_epoch <= 32'd0;
             memory_req <= 1'b0; memory_addr <= 18'd0;
             debug_frames <= 32'd0; debug_skipped <= 32'd0; debug_underruns <= 32'd0;
             for (b = 0; b < 3; b = b + 1) begin
-                sequence_number[b] <= 32'd0; publication_number[b] <= 3'd0; border[b] <= 9'd0;
+                sequence_number[b] <= 32'd0; publication_number[b] <= 3'd0; border[b] <= 9'd0; height[b] <= 9'd200;
             end
             for (b = 0; b < 2; b = b + 1) begin
                 cache_row[b] <= 9'd0; cache_epoch[b] <= 32'd0;
@@ -198,6 +251,12 @@ module st_native_low_video (
         end else begin
             release_meta <= released; release_sync <= release_meta;
             previous_display <= native_display;
+            if (missing_row || border_failed)
+                debug_underruns <= debug_underruns + (missing_row ? 32'd1 : 32'd0) + (border_failed ? 32'd1 : 32'd0);
+            if (border_failed) border_overflow_reported <= 1'b1;
+            // capture_overflow stays set until capture_start. Clearing this
+            // latch on the same start counts each overflow once.
+            if (border_start) border_overflow_reported <= 1'b0;
             if (hold) begin
                 owned <= 1'b0; line_valid <= 1'b0;
             end
@@ -206,15 +265,16 @@ module st_native_low_video (
                 owned <= bank_free && !hold;
                 write_bank <= free_bank;
                 frame_top <= sync_mode[1] ? 9'd63 : 9'd34;
+                frame_pal <= sync_mode[1]; bottom_seen <= 1'b0; border_enabled <= resolution == 2'd0;
                 enabled <= 1'b0; base_valid <= 1'b0;
                 expected_row <= 9'd0; good_frame <= 1'b1;
-                pixels <= 17'd0; pixel_x <= 9'd0; pixel_phase <= 32'd0;
+                pixels <= 17'd0; pixel_x <= 9'd0;
                 cache_valid <= 2'd0;
                 if (!bank_free && resolution == 2'd0 && !hold) debug_skipped <= debug_skipped + 32'd1;
             end else begin
                 if (display_rise && owned && enabled && active_row && !hold) begin
                     line_valid <= row_ready;
-                    if (!row_ready) debug_underruns <= debug_underruns + 32'd1;
+                    if (row >= 9'd200) bottom_seen <= 1'b1;
                     if (row != expected_row) good_frame <= 1'b0;
                     if (row == 9'd0) border[write_bank] <= palette[8:0];
                 end
@@ -222,25 +282,32 @@ module st_native_low_video (
                     pixel_x <= sample_x + 9'd1;
                     pixels <= pixels + 17'd1;
                 end
-                if (display_rise || !native_display) pixel_phase <= 32'd0;
-                else pixel_phase <= pixel_due ? 32'(pixel_sum - {1'b0, SYSTEM_HZ}) : pixel_sum[31:0];
                 if (display_fall && owned && enabled && active_row && !hold) begin
                     expected_row <= expected_row + 9'd1;
                     if (pixel_x != 9'd320 || row != expected_row) good_frame <= 1'b0;
-                    if (row == 9'd199) begin
-                        owned <= 1'b0;
-                        if (good_frame && expected_row == 9'd199 && pixel_x == 9'd320 && pixels == 17'd64000) begin
-                            sequence_number[write_bank] <= epoch;
-                            publication_number[write_bank] <= publication_counter;
-                            publication_counter <= publication_counter + 3'd1;
-                            published[write_bank] <= !published[write_bank];
-                            debug_frames <= debug_frames + 32'd1;
-                        end
-                    end
+
+                end
+            end
+            // Wait past the bottom-stop decision and any opened DE rows.
+            // Ordinary frames still publish only their original 200 rows;
+            // height travels with the immutable bank and changes only at SOF.
+            if (!native_vblank && owned && enabled && !hold &&
+                native_line == frame_top + maximum_height) begin
+                owned <= 1'b0;
+                if (good_frame && !border_overflow && expected_row == (bottom_seen ? maximum_height : 9'd200) &&
+                    pixels == (bottom_seen ? (frame_pal ? 17'd79040 : 17'd72320) : 17'd64000)) begin
+                    height[write_bank] <= expected_row;
+                    pal_banks[write_bank] <= frame_pal;
+                    sequence_number[write_bank] <= epoch;
+                    publication_number[write_bank] <= publication_counter;
+                    publication_counter <= publication_counter + 3'd1;
+                    published[write_bank] <= !published[write_bank];
+                    debug_frames <= debug_frames + 32'd1;
                 end
             end
             case (memory_state)
-                IDLE: if (prefetch_window && (base_valid ? enabled : resolution == 2'd0) && !desired_ready) begin
+                IDLE: if (prefetch_window && desired_needed &&
+                          (base_valid ? enabled : resolution == 2'd0) && !desired_ready) begin
                     if (!base_valid) begin
                         frame_base <= selected_base; base_valid <= 1'b1;
                         enabled <= resolution == 2'd0;

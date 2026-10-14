@@ -11,12 +11,17 @@
 struct Test {
     Vst_native_video_sim_top dut;
     static constexpr uint64_t SysPeriod=19149, PixelPeriod=13468;
-    static constexpr unsigned LineClocks=3337, DisplayStart=366, DisplayEnd=2454;
+    static constexpr unsigned CpuHz=8021247, SystemHz=52224000;
+    static constexpr unsigned LineCycles=512, DisplayStart=56, DisplayEnd=376;
+    uint64_t cpu_phase=0;
     uint64_t next_sys=0,next_pixel=7331,sys_cycles=0,pixel_cycles=0,checks=0;
-    unsigned source_clock=0,source_frame=0,position=0,output_frame=0,selected=0;
+    unsigned source_clock=313*512-1,source_frame=0,position=0,output_frame=0,selected=0;
     unsigned transfer_address=0,delay=0,transfers=0,black_rows=0,stall_black_rows=0,repeat_frames=0;
     bool pending=false,complete=false,stalled=false,previous_front=false;
-    std::array<int,200> row_black{};
+    std::array<int,247> row_black{};
+    uint64_t pal_bottom_pixels=0,ntsc_bottom_pixels=0,raster_border_pixels=0;
+    bool border_overflow_seen=false;
+    std::array<bool,5> memory_boundaries{};
     void require(bool good,const char*message) {
         ++checks;
         if(!good){std::cerr<<"FAIL "<<message<<" sys="<<sys_cycles<<" pixel="<<pixel_cycles
@@ -31,22 +36,42 @@ struct Test {
         for(unsigned b=0;b<9;++b){unsigned bit=index*9+b;unsigned mask=1u<<(bit%32);
             dut.palette[bit/32]=(dut.palette[bit/32]&~mask)|((color&(1u<<b))?mask:0);}
     }
+    static unsigned border_colour(unsigned line,unsigned x,bool ntsc) {
+        const unsigned first=ntsc?5:34;
+        // PAL supplies 21 runs per row: 5,796 events over 276 rows.
+        // This exceeds the old 4,096-event arena, like BIG psycho screen 3.
+        if(!ntsc) return (((line-first)%7+1)<<6) | (((x/20)&7)<<3) | ((x/160)&7);
+        return (((line-first)%7+1)<<6) ^ (x<12?0:x<81?7:0x38);
+    }
     unsigned source_mode() const {return source_frame==7?1:source_frame==8?2:0;}
     void system_edge(){
         if(dut.reset_sys){dut.video_ready=0;pending=complete=false;}
         else {
-            if(source_clock==0)++source_frame;
-            unsigned line=source_clock/LineClocks,phase=source_clock%LineClocks;
-            dut.native_vblank=source_clock==0;
+            cpu_phase+=CpuHz;
+            const bool cpu_tick=cpu_phase>=SystemHz;
+            if(cpu_tick){cpu_phase-=SystemHz;source_clock=(source_clock+1)%(313*LineCycles);}
+            if(cpu_tick&&source_clock==0)++source_frame;
+            unsigned line=source_clock/LineCycles,phase=source_clock%LineCycles;
+            dut.native_vblank=cpu_tick&&source_clock==0;
             dut.native_line=line;
-            dut.native_display=line>=63&&line<263&&phase>=DisplayStart&&phase<DisplayEnd;
+            dut.native_cycle=phase;
+            dut.native_pixel_ce=cpu_tick;
+            const bool ntsc=source_frame==9;
+            const unsigned top=ntsc?34:63;
+            const unsigned rows=(source_frame==6||source_frame==11)?247:ntsc?226:200;
+            dut.sync_mode=ntsc?0:2;
+            dut.native_display=line>=top&&line<top+rows&&phase>=DisplayStart&&phase<DisplayEnd;
             dut.resolution=source_mode();
             dut.screen_base=source_frame==10?0xff0000:0x10000;
             // Abort one in-progress native frame without withdrawing its read.
-            dut.hold=source_frame==4&&line>=90&&line<108;
-            palette(0,source_mode()==2?0:0xdb);
-            unsigned intensity=((line>=63?line-63:0)+source_frame)%7+1;
-            palette(1,source_mode()==1?0x38:phase<DisplayStart+1044?intensity<<6:intensity);
+            dut.hold=(source_frame==4&&line>=90&&line<108)||
+                     (source_frame==11&&line>=270&&line<280);
+            unsigned border_x=dut.native_cycle>=(ntsc?4u:8u)?dut.native_cycle-(ntsc?4u:8u):0;
+            palette(0,source_frame==2?(dut.native_cycle%2?0xdb:0x124):
+                      (source_frame==6||ntsc)&&line>=(ntsc?5u:34u)?border_colour(line,border_x,ntsc):source_mode()==2?0:0xdb);
+            if(source_frame==2&&dut.border_overflow)border_overflow_seen=true;
+            unsigned intensity=((line>=top?line-top:0)+source_frame)%7+1;
+            palette(1,source_mode()==1?0x38:phase<DisplayStart+160?intensity<<6:intensity);
             if(!dut.video_req){require(!pending||complete,"memory request abandoned");pending=complete=false;dut.video_ready=0;}
             else if(!pending){
                 require(dut.video_addr<0x40000,"invalid screen base wrapped into RAM");
@@ -65,7 +90,6 @@ struct Test {
             dut.eval();
             require(!dut.write_pixel||!dut.front_valid||dut.write_bank!=dut.front_bank,
                     "producer wrote the displayed bank");
-            source_clock=(source_clock+1)%(313*LineClocks);
         }
         dut.clk_sys=1;dut.eval();dut.clk_sys=0;dut.eval();++sys_cycles;
     }
@@ -82,21 +106,47 @@ struct Test {
                 selected=dut.front_sequence;previous_front=dut.front_valid;row_black.fill(-1);
             }
             require(dut.front_sequence==selected,"publication changed within output frame");
-            require(!dut.front_valid||(selected!=4&&selected!=7&&selected!=8),"aborted/non-low frame published");
+            const unsigned rows=selected==6?247:selected==9?226:200;
+            const bool raster=selected==6||selected==9;
+            require(!dut.front_valid||dut.front_raster==raster,"border raster metadata disagrees with source bank");
+            require(!dut.front_valid||dut.front_pal==(selected!=9),"PAL metadata disagrees with source bank");
+            require(!dut.front_valid || dut.front_height==rows,"published height disagrees with its source bank");
+            require(!dut.front_valid||(selected!=2&&selected!=4&&selected!=7&&selected!=8&&selected!=11),"aborted/non-low frame published");
             require(!(dut.video_request&(1u<<30))||!(dut.video_request&0xffffff),"Hold leaked visible RGB");
             if(!(dut.video_request&(1u<<30))&&x<1280&&y<720){
                 unsigned actual=dut.video_request&0xffffff;
                 if(dut.active_resolution==0){
                     require(dut.front_valid,"visible low mode without completed frame");
-                    if(y>=60&&y<660){
-                        unsigned row=(y-60)/3,nx=x/4;
+                    const unsigned scale=2;
+                    const unsigned canvas_top=selected==9?105:84,canvas_rows=selected==9?255:276;
+                    const unsigned top=canvas_top+58;
+                    const bool image_column=x>=320&&x<960;
+                    if(y>=top&&y<top+rows*scale&&image_column){
+                        unsigned row=(y-top)/scale,nx=(x-320)/2;
+                        if(row>=200) {
+                            if(selected==6) ++pal_bottom_pixels;
+                            if(selected==9) ++ntsc_bottom_pixels;
+                        }
                         unsigned intensity=(row+selected)%7+1;
                         unsigned expected=rgb(nx<160?intensity<<6:intensity);
                         if(row_black[row]<0){row_black[row]=actual==0;if(actual==0){++black_rows;if(selected==3)++stall_black_rows;}}
                         require(actual==(row_black[row]?0:expected),"native palette/pixel/scaling mismatch");
+                        // Check adjacent words across the first/final shallow
+                        // segments and the final opened-bottom frame pixel.
+                        // Row-varying colour makes a stale segment selection visible.
+                        if(selected==6) {
+                            constexpr std::array<unsigned,5> addresses{1023,1024,78847,78848,79039};
+                            for(unsigned i=0;i<addresses.size();++i)
+                                if(row*320+nx==addresses[i])memory_boundaries[i]=true;
+                        }
                         require(!row_black[row]||selected==3||selected==10,"unexpected missing native line");
                         require(selected!=10||actual==0,"invalid framebuffer reused previous pixels");
-                    }else require(actual==rgb(0xdb),"captured border colour changed");
+                    }else{
+                        const bool canvas=x>=224&&x<1056&&y>=canvas_top&&y<canvas_top+canvas_rows*2;
+                        const unsigned expected=canvas?rgb(raster?border_colour((selected==9?5:34)+(y-canvas_top)/2,(x-224)/2,selected==9):0xdb):0;
+                        require(actual==expected,"live border colour/pixel/repeated-row mismatch");
+                        if(canvas)++raster_border_pixels;
+                    }
                 }else if(dut.active_resolution==1&&y>=60&&y<660)
                     require(actual==rgb((x/32)%2==0?0x38:0xdb),"medium-resolution path regressed");
                 else if(dut.active_resolution==2&&y>=160&&y<560)
@@ -107,6 +157,65 @@ struct Test {
         dut.clk_pixel=1;dut.eval();dut.clk_pixel=0;dut.eval();++pixel_cycles;
     }
     void edge(){if(next_sys<next_pixel){system_edge();next_sys+=SysPeriod;}else{pixel_edge();next_pixel+=PixelPeriod;}}
+    void sys_tick(){
+        if(dut.video_req){dut.video_ready=1;dut.video_rdata=0;}
+        else dut.video_ready=0;
+        dut.eval();
+        dut.clk_sys=1;dut.eval();dut.clk_sys=0;dut.eval();++sys_cycles;
+    }
+    void vblank(){
+        dut.native_vblank=1;dut.native_display=0;dut.native_line=0;dut.native_cycle=0;dut.native_pixel_ce=1;
+        sys_tick();
+        dut.native_vblank=0;dut.native_pixel_ce=0;
+    }
+    // One dense capture, then Hold across later blanks. The stuck overflow
+    // must increment debug_underruns once and again only after a new capture.
+    void held_overflow_counts_once(){
+        dut.hold=0;dut.resolution=0;dut.sync_mode=2;dut.screen_base=0x10000;
+        dut.native_display=0;vblank();
+        unsigned steps=0;
+        while(!dut.border_overflow){
+            const unsigned x=steps%416,row=steps/416;
+            require(row<276,"border capture did not overflow");
+            dut.native_line=34+row;dut.native_cycle=8+x;dut.native_pixel_ce=1;
+            palette(0,steps&0x1ff);sys_tick();++steps;
+        }
+        dut.native_pixel_ce=0;sys_tick();
+        require(dut.underruns==1,"border overflow did not count once");
+        const unsigned counted=dut.underruns;
+        dut.hold=1;
+        for(unsigned frame=0;frame<3;++frame){
+            vblank();
+            for(unsigned i=0;i<8;++i)sys_tick();
+            require(dut.border_overflow,"Hold cleared a border overflow without a new capture");
+            require(dut.underruns==counted,"Hold recounted a stale border overflow");
+        }
+        dut.hold=0;vblank();
+        for(unsigned i=0;i<4;++i)sys_tick();
+        require(!dut.border_overflow,"new border capture left the previous overflow set");
+        require(dut.underruns==counted,"starting a capture recounted the previous overflow");
+        steps=0;
+        while(!dut.border_overflow){
+            const unsigned x=steps%416,row=steps/416;
+            require(row<276,"second border capture did not overflow");
+            dut.native_line=34+row;dut.native_cycle=8+x;dut.native_pixel_ce=1;
+            palette(0,steps&0x1ff);sys_tick();++steps;
+        }
+        dut.native_pixel_ce=0;sys_tick();
+        require(dut.underruns==counted+1,"a new border overflow did not count once");
+    }
+    void reset_capture(){
+        dut.reset_sys=dut.reset_pixel=1;dut.hold=0;dut.native_vblank=dut.native_display=0;
+        dut.native_line=0;dut.native_cycle=0;dut.native_pixel_ce=0;dut.sync_mode=2;
+        dut.screen_base=0x10000;dut.resolution=0;dut.video_ready=0;dut.video_rdata=0;
+        for(unsigned i=0;i<5;++i)dut.palette[i]=0;
+        pending=complete=false;
+        for(unsigned i=0;i<4;++i){
+            dut.clk_sys=1;dut.eval();dut.clk_sys=0;dut.eval();
+            dut.clk_pixel=1;dut.eval();dut.clk_pixel=0;dut.eval();
+        }
+        dut.reset_sys=dut.reset_pixel=0;
+    }
     void run(){
         dut.clk_sys=dut.clk_pixel=0;dut.reset_sys=dut.reset_pixel=1;dut.hold=0;
         dut.native_vblank=dut.native_display=0;dut.native_line=0;dut.sync_mode=2;
@@ -114,10 +223,16 @@ struct Test {
         for(unsigned i=0;i<5;++i)dut.palette[i]=0;
         for(unsigned i=0;i<40;++i)edge();
         dut.reset_sys=dut.reset_pixel=0;position=0;
+        held_overflow_counts_once();
+        reset_capture();
         while(output_frame<15)edge();
+        require(border_overflow_seen,"dense border did not exhaust its bounded event buffer");
+        require(raster_border_pixels>100000,"no live border raster pixels checked");
+        require(pal_bottom_pixels>0&&ntsc_bottom_pixels>0,"opened PAL and NTSC pixels were cropped away");
         require(stalled&&stall_black_rows>0&&dut.underruns>0,"delayed RAM did not exercise black-line recovery");
         require(repeat_frames>0,"50-to-60 Hz repeat not exercised");
-        require(dut.captured_frames>=8,"native capture failed to resume across Hold/mode changes");
+        // Frames 1,3,5,6,9,10,12 are complete; frame 2 overflows its border buffer.
+        require(dut.captured_frames==7,"unexpected capture count across overflow/Hold/mode changes");
         require(dut.front_sequence>=10,"latest completed native frame not displayed");
         // Pause only the consumer clock. Its current publication must remain
         // immutable while all other banks fill and the producer skips frames.
@@ -127,9 +242,10 @@ struct Test {
         next_pixel=next_sys+7331;
         while(output_frame<18)edge();
         require(dut.front_sequence>pinned,"capture failed to resume after consumer backpressure");
+        for(bool seen:memory_boundaries)require(seen,"frame memory boundary was not checked");
         std::cout<<"Native ST RGB: "<<checks<<" checks, "<<dut.captured_frames<<" captures, "
                  <<repeat_frames<<" repeated output frames, "<<dut.underruns
-                 <<" black native lines; live palette, ownership, Hold and mode recovery passed\n";
+                 <<" capture underruns, "<<raster_border_pixels<<" raster border pixels; live palette, ownership, overflow, held overflow, Hold and mode recovery passed\n";
         dut.final();
     }
 };

@@ -1513,7 +1513,7 @@ ST_CPU := cores/fes-common/rtl/fx68k
 ST_MFP_WAIT_STATES ?= 0
 ST_DIAGNOSTIC := $(CURDIR)/build/diagnostics/fes-atari-st
 ST_CPU_RTL := $(ST_CPU)/fx68k.sv $(ST_CPU)/fx68kAlu.sv $(ST_CPU)/uaddrPla.sv
-ST_VIDEO_RTL := $(ST_CORE)/rtl/st_native_low_video.sv $(ST_CORE)/rtl/st_video.sv cores/fes-common/rtl/fes_video_part_direct.v \
+ST_VIDEO_RTL := $(ST_CORE)/rtl/st_native_border.sv $(ST_CORE)/rtl/st_native_low_video.sv $(ST_CORE)/rtl/st_video.sv cores/fes-common/rtl/fes_video_part_direct.v \
 	cores/fes-common/rtl/fes_video_part_scanlines.v
 ST_MACHINE_RTL := $(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv \
 	$(ST_CORE)/expansions/st_probe.sv $(ST_VIDEO_RTL) $(ST_CPU_RTL)
@@ -1522,7 +1522,7 @@ ST_MACHINE_RTL := $(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv \
 ST_CPU_FLAGS := -Wno-WIDTH -Wno-TIMESCALEMOD -Wno-MULTIDRIVEN -Wno-INITIALDLY \
 	-Wno-ALWCOMBORDER -Wno-UNOPTFLAT -Wno-BLKANDNBLK -Wno-CASEINCOMPLETE -Wno-CASEOVERLAP
 ST_IO_RTL := $(ST_CORE)/rtl/st_io.sv $(ST_CORE)/rtl/st_mfp.sv \
-	$(ST_CORE)/rtl/st_acia.sv $(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_ym2149.sv \
+	$(ST_CORE)/rtl/st_acia.sv $(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_ym2149.sv $(ST_CORE)/rtl/st_ym_filter.sv $(ST_CORE)/rtl/st_ym_mixer.sv $(ST_CORE)/rtl/st_ym_mix_rom.sv \
 	$(ST_CORE)/rtl/st_floppy.sv $(ST_CORE)/rtl/st_floppy_writer.sv cores/fes-zx81/expansions/zonx_ay.v
 
 .PHONY: atari-st-sources atari-st-diagnostic sim-fes-atari-st sim-fes-atari-st-machine sim-fes-atari-st-video
@@ -1532,7 +1532,7 @@ atari-st-sources:
 atari-st-diagnostic: atari-st-sources
 	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
 
-sim-fes-atari-st: sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
+sim-fes-atari-st: sim-fes-atari-st-ym-filter sim-fes-atari-st-ym-mixer sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-native-border sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 
 sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
@@ -1567,7 +1567,7 @@ sim-fes-atari-st-input-audio:
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_input_audio_sim_top -Wall \
 		--Mdir "$(CURDIR)/build/sim/fes-atari-st-input-audio" \
 		$(ST_CORE)/sim/st_input_audio_sim_top.sv $(ST_CORE)/rtl/st_acia.sv \
-		$(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_ym2149.sv cores/fes-zx81/expansions/zonx_ay.v \
+		$(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_ym2149.sv $(ST_CORE)/rtl/st_ym_filter.sv $(ST_CORE)/rtl/st_ym_mixer.sv $(ST_CORE)/rtl/st_ym_mix_rom.sv cores/fes-zx81/expansions/zonx_ay.v \
 		"$(CURDIR)/$(ST_CORE)/sim/input_audio_tb.cpp" -CFLAGS '-std=c++17'
 	@build/sim/fes-atari-st-input-audio/Vst_input_audio_sim_top
 
@@ -1626,8 +1626,19 @@ sim-fes-atari-st-emutos: atari-st-sources
 		"$(CURDIR)/$(ST_CORE)/sim/boot_tb.cpp" -CFLAGS '-O3 -std=c++17'
 	@cd build/sim/fes-atari-st-emutos && ./Vst_boot_sim_top "$(abspath $(EMUTOS_ROM))"
 
-.PHONY: sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
-sim-fes-atari-st-memory:
+.PHONY: sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-native-border sim-fes-atari-st-media sim-fes-atari-st-media-geometry
+.PHONY: sim-fes-atari-st-memory-slots
+sim-fes-atari-st-memory-slots:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
+		"-GPHASE_SLOTS=1'b1" "-GPOSTED_CPU_WRITES=1'b1" "-GSINGLE_RANK_REFRESH=1'b1" "-GSLOT_REFRESH=1'b1" \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-memory-slots" \
+		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
+		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" \
+		-CFLAGS '-O2 -std=c++17 -DST_SLOT_POLICY=1'
+	@build/sim/fes-atari-st-memory-slots/Vst_memory_sim_top
+
+sim-fes-atari-st-memory: sim-fes-atari-st-memory-slots
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-memory build/sim/fes-atari-st-memory-legacy-refresh
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall \
@@ -1647,6 +1658,13 @@ sim-fes-atari-st-memory:
 		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" \
 		-CFLAGS '-O2 -std=c++17 -DST_REFRESH_WAIT_CYCLES=16 -DST_EARLY_COMPLETION=0'
 	@build/sim/fes-atari-st-memory-legacy-refresh/Vst_memory_sim_top
+	@mkdir -p build/sim/fes-atari-st-memory-registered-input
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_memory_sim_top -Wall "-GREGISTERED_READ_INPUT=1'b1" \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-memory-registered-input" \
+		$(ST_CORE)/sim/st_memory_sim_top.sv $(ST_CORE)/rtl/st_memory.sv \
+		cores/fes-ramtest/rtl/sdram_addon_port.v "$(CURDIR)/$(ST_CORE)/sim/memory_tb.cpp" \
+		-CFLAGS '-O2 -std=c++17 -DST_REGISTERED_READ_INPUT=1'
+	@build/sim/fes-atari-st-memory-registered-input/Vst_memory_sim_top
 
 sim-fes-atari-st-video-adapter:
 	$(require_local_sim)
@@ -1655,6 +1673,16 @@ sim-fes-atari-st-video-adapter:
 		$(ST_CORE)/sim/st_video_adapter_sim_top.sv $(ST_CORE)/rtl/st_video_adapter.sv $(ST_VIDEO_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/video_adapter_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-video-adapter/Vst_video_adapter_sim_top
+
+.PHONY: sim-fes-atari-st-native-border
+sim-fes-atari-st-native-border:
+	$(require_local_sim)
+	@mkdir -p "$(CURDIR)/build/sim/fes-atari-st-native-border"
+	$(VERILATOR) --cc --exe --build -O2 --top-module st_native_border -Wall -GEVENT_BITS=5 \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-native-border" \
+		$(ST_CORE)/rtl/st_native_border.sv "$(CURDIR)/$(ST_CORE)/sim/native_border_tb.cpp" \
+		-CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-native-border/Vst_native_border
 
 sim-fes-atari-st-native-video:
 	$(require_local_sim)
@@ -1703,7 +1731,7 @@ sim-fes-atari-st-mfp-bus: atari-st-sources
 		-GMFP_WAIT_STATES=4 -Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-mfp-bus" \
 		$(ST_CORE)/sim/st_boot_sim_top.sv $(ST_CORE)/rtl/st_system.sv \
 		$(ST_CORE)/rtl/st_cpu.sv $(ST_CORE)/rtl/st_machine.sv $(ST_IO_RTL) \
-		$(ST_CORE)/rtl/st_native_low_video.sv $(ST_CPU_RTL) \
+		$(ST_CORE)/rtl/st_native_border.sv $(ST_CORE)/rtl/st_native_low_video.sv $(ST_CPU_RTL) \
 		"$(CURDIR)/$(ST_CORE)/sim/mfp_bus_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@cd build/sim/fes-atari-st-mfp-bus && ./Vst_boot_sim_top
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_io_sim_top -Wall \
@@ -1770,3 +1798,27 @@ build-fes-atari-st-video-part:
 sim-fes-atari-st-video-parts:
 	$(require_local_sim)
 	$(PYTHON) scripts/sim_atari_st_video_parts.py
+
+.PHONY: sim-fes-atari-st-ym-mixer
+sim-fes-atari-st-ym-mixer:
+	$(require_local_sim)
+	$(PYTHON) scripts/generate_st_ym_mix_rom.py --check
+	@mkdir -p build/sim/fes-atari-st-ym-mixer
+	@$(VERILATOR) --cc --exe --build -O2 --top-module st_ym_mixer -Wall \
+		--Mdir "$(CURDIR)/build/sim/fes-atari-st-ym-mixer" \
+		$(ST_CORE)/rtl/st_ym_mixer.sv $(ST_CORE)/rtl/st_ym_mix_rom.sv \
+		"$(CURDIR)/$(ST_CORE)/sim/ym_mixer_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-ym-mixer/Vst_ym_mixer
+
+.PHONY: sim-fes-atari-st-ym-filter
+sim-fes-atari-st-ym-filter:
+	$(require_local_sim)
+	@set -e; for profile in scaled nominal; do \
+		if [ "$$profile" = scaled ]; then chip=500000; fabric=8000000; else chip=2005311; fabric=52224000; fi; \
+		mkdir -p build/sim/fes-atari-st-ym-filter-$$profile; \
+		$(VERILATOR) --cc --exe --build -O2 --top-module st_ym_filter -Wall \
+			-GCHIP_CLOCK_HZ=$$chip --Mdir "$(CURDIR)/build/sim/fes-atari-st-ym-filter-$$profile" \
+			$(ST_CORE)/rtl/st_ym_filter.sv "$(CURDIR)/$(ST_CORE)/sim/ym_filter_tb.cpp" \
+			-CFLAGS "-O2 -std=c++17 -DST_YM_FILTER_TEST_CHIP_HZ=$$chip -DST_YM_FILTER_TEST_SYS_HZ=$$fabric"; \
+		build/sim/fes-atari-st-ym-filter-$$profile/Vst_ym_filter; \
+	done

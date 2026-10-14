@@ -2,6 +2,7 @@
 // Diagnostic execution of an unchanged raw disk and stock ROM. Storage callbacks
 // are bounded models. PPM is a static framebuffer reconstruction, not HDMI/raster.
 #include "Vst_boot_sim_top.h"
+#include "../sources/misteross/cores/fes-atari-st/sim/st_audio_capture.hpp"
 #include "verilated.h"
 #include <array>
 #include <cstdint>
@@ -18,12 +19,14 @@ static void check(bool value, const char *message) { if (!value) throw std::runt
 struct Pending { bool seen=false, done=false; unsigned wait=0; uint32_t addr=0; uint16_t data=0; uint8_t lanes=0; bool write=false; };
 struct Demo {
     static constexpr uint64_t Hz=52224000;
+    StAudioCapture audio;
     Vst_boot_sim_top dut;
     std::vector<uint8_t> rom,disk;
     std::array<uint8_t,524288> ram{};
     Pending rp,mp,dp,cp;
-    std::vector<unsigned char> native_picture = std::vector<unsigned char>(320*200*3);
+    std::vector<unsigned char> native_picture = std::vector<unsigned char>(320*247*3);
     std::vector<unsigned char> completed_native_picture;
+    unsigned completed_native_height=200;
     uint64_t cycles=0,writes=0,faults=0,vbl=0,hbl=0,mfp=0,dma=0,media=0;
     uint32_t last_media=UINT32_MAX,last_fdc=UINT32_MAX;
     bool last_fault=false,last_ack=false,last_io=false;
@@ -105,6 +108,7 @@ struct Demo {
         }
     }
     void tick() {
+        if(!dut.reset && dut.audio_valid) audio.sample(dut.audio_pcm,cycles);
         storage();dut.eval();
         // Observe the event consumed on this edge, before the accumulators advance.
         const bool native_vblank=!dut.reset&&dut.vblank;
@@ -125,10 +129,10 @@ struct Demo {
         if(palette_write){++palette_writes;++frame_palette_writes;}
         if(tracing()&&palette_write)raster_trace<<"{\"kind\":\"palette_write\",\"cycle\":"<<cycles
             <<",\"frame\":"<<native_frames<<",\"line\":"<<native_line<<",\"horizontal_phase\":"<<horizontal_phase
-            <<",\"address\":"<<palette_address<<",\"data\":"<<palette_data<<",\"lanes\":"<<palette_lanes<<"}\n";
+            <<",\"address\":"<<palette_address<<",\"data\":"<<palette_data<<",\"color\":"<<dut.debug_palette_color<<",\"lanes\":"<<palette_lanes<<"}\n";
         dut.clk_sys=1;dut.eval();
         if(native_pixel){
-            check(native_x<320&&native_y<200,"native capture coordinates");
+            check(native_x<320&&native_y<247,"native capture coordinates");
             auto expand=[](unsigned c){return (c<<5)|(c<<2)|(c>>1);};
             const unsigned offset=(native_y*320+native_x)*3;
             native_picture[offset]=expand((native_rgb>>6)&7);
@@ -136,7 +140,10 @@ struct Demo {
             native_picture[offset+2]=expand(native_rgb&7);
         }
         if(dut.capture_frames!=completed_before){
-            completed_native_picture=native_picture;
+            const unsigned height=dut.capture_height;
+            check(height==200||height==226||height==247,"published native height");
+            completed_native_height=height;
+            completed_native_picture.assign(native_picture.begin(),native_picture.begin()+320*height*3);
             if(tracing()){
                 uint64_t hash=UINT64_C(14695981039346656037);
                 std::array<uint64_t,64> row_hashes;
@@ -157,14 +164,14 @@ struct Demo {
                 if(saved_logo_hashes.size()<8 && saved_logo_hashes.insert(hash).second){
                     std::ofstream image(prefix+"-trace-logo-"+std::to_string(native_frames)+"-native.ppm",std::ios::binary);
                     check(image.good(),"trace logo image unavailable");
-                    image<<"P6\n320 200\n255\n";
-                    image.write(reinterpret_cast<const char*>(native_picture.data()),native_picture.size());
+                    image<<"P6\n320 "<<height<<"\n255\n";
+                    image.write(reinterpret_cast<const char*>(native_picture.data()),320*height*3);
                 }
             }
             if(cycles>=13*Hz/2 && consecutive_captures<16){
                 std::ofstream image(prefix+"-consecutive-"+std::to_string(consecutive_captures++)+"-native.ppm",std::ios::binary);
-                image<<"P6\n320 200\n255\n";
-                image.write(reinterpret_cast<const char*>(native_picture.data()),native_picture.size());
+                image<<"P6\n320 "<<height<<"\n255\n";
+                image.write(reinterpret_cast<const char*>(native_picture.data()),320*height*3);
             }
         }
         // A bounded bus trace locates timer programming and mode writes in
@@ -234,7 +241,7 @@ struct Demo {
     void snapshot(const std::string &suffix) {
         if(!completed_native_picture.empty()){
             std::ofstream native(prefix+suffix+"-native.ppm",std::ios::binary);
-            native<<"P6\n320 200\n255\n";
+            native<<"P6\n320 "<<completed_native_height<<"\n255\n";
             native.write(reinterpret_cast<const char*>(completed_native_picture.data()),completed_native_picture.size());
         }
         std::ofstream memory(prefix+suffix+"-ram.bin",std::ios::binary);
@@ -267,27 +274,31 @@ struct Demo {
            <<",\"committed_palette_writes\":"<<palette_writes
            <<",\"native_rgb_frames\":"<<dut.capture_frames<<",\"native_rgb_underruns\":"<<dut.capture_underruns<<"}";
     }
-    void run(unsigned seconds,unsigned key_b_at=0) {
+    void run(unsigned seconds,unsigned key_at=0,unsigned key_usage=5) {
+        audio.open(prefix+"-audio.wav");
         for(unsigned i=0;i<64;++i)tick();dut.reset=0;
         while(cycles<Hz*seconds){
-            // HID usage 5 is B. Exercise the existing keyboard/IKBD path;
+            // Exercise the selected HID key through the existing keyboard/IKBD path;
             // the original disk and firmware are never modified.
-            dut.keyboard[0]=key_b_at&&cycles>=Hz*key_b_at&&cycles<Hz*key_b_at+Hz*150/1000 ? 1u<<5 : 0;
+            for(unsigned n=0;n<5;++n) dut.keyboard[n]=0;
+            if(key_at&&cycles>=Hz*key_at&&cycles<Hz*key_at+Hz*150/1000)
+                dut.keyboard[key_usage/32]=1u<<(key_usage%32);
             tick();
             if(cycles%(Hz/10)==0){status(trace);trace<<'\n';}
             if(cycles%Hz==0){status(std::cout);std::cout<<'\n'<<std::flush;snapshot("-second-"+std::to_string(cycles/Hz));}
             if(cycles>1000&&dut.debug_halted)break;
         }
         snapshot("-final");std::ofstream metrics(prefix+"-metrics.json");status(metrics);metrics<<'\n';
+        audio.finish(prefix+"-audio.json");
         dut.final();std::cout<<"Bounded diagnostic ended; demo compatibility is not asserted.\n";
     }
 };
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
-    try {check(argc==5||argc==6||argc==9||argc==10,"ROM DISK SECONDS PREFIX [KEY_B_AT [TRACE_START TRACE_END RAM_EXTRA_WAIT [RAM_FIXED_WAIT]]] required");
+    try {check(argc==5||argc==6||argc==9||argc==10||argc==11,"ROM DISK SECONDS PREFIX [KEY_B_AT [TRACE_START TRACE_END RAM_EXTRA_WAIT [RAM_FIXED_WAIT]]] required");
         Demo demo(argv[1],argv[2],argv[4]);
         if(argc>=9){demo.trace_start=std::strtoul(argv[6],nullptr,10);demo.trace_end=std::strtoul(argv[7],nullptr,10);demo.ram_extra_wait=std::strtoul(argv[8],nullptr,10);}
-        if(argc==10)demo.ram_fixed_wait=std::strtol(argv[9],nullptr,10);
-        demo.run(std::strtoul(argv[3],nullptr,10),argc>=6?std::strtoul(argv[5],nullptr,10):0);}
+        if(argc>=10)demo.ram_fixed_wait=std::strtol(argv[9],nullptr,10);
+        demo.run(std::strtoul(argv[3],nullptr,10),argc>=6?std::strtoul(argv[5],nullptr,10):0,argc==11?std::strtoul(argv[10],nullptr,10):5);}
     catch(const std::exception &error){std::cerr<<"FAIL "<<error.what()<<'\n';return 1;}
 }

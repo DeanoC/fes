@@ -4,20 +4,32 @@
 // The physical command model is external; no C++ RAM callback serves the CPU.
 module st_boot_memory_sim_top #(
     parameter integer MFP_WAIT_STATES = 0,
-    parameter EARLY_COMPLETION = 1
+    parameter EARLY_COMPLETION = 1,
+    parameter POSTED_CPU_WRITES = EARLY_COMPLETION,
+    parameter PHASE_SLOTS = EARLY_COMPLETION,
+    parameter [1:0] CPU_SLOT_PHASE = 2'd0,
+    parameter SINGLE_RANK_REFRESH = EARLY_COMPLETION,
+    parameter SLOT_REFRESH = EARLY_COMPLETION
 ) (
     input wire clk_sys, clk_pixel, cold_reset, reset_sys, reset_pixel,
     output wire initialized,
     input wire media_ready,
+    input wire [143:0] keyboard,
+    output wire signed [15:0] audio_pcm,
+    output wire audio_valid,
+    output wire debug_ym_write,
+    output wire [3:0] debug_ym_register,
+    output wire [7:0] debug_ym_data,
     input wire [31:0] media_size,
-    output wire debug_palette_write,
+    output wire debug_palette_write, debug_palette_read,
     output wire [23:0] debug_palette_address,
     output wire [15:0] debug_palette_data,
+    output wire [11:0] debug_palette_color,
     output wire [1:0] debug_palette_lanes,
     output wire [7:0] debug_irq_vector,
     output wire [8:0] debug_native_line, debug_horizontal_phase,
     output wire capture_pixel,
-    output wire [8:0] capture_x, capture_y, capture_rgb,
+    output wire [8:0] capture_x, capture_y, capture_rgb, capture_height,
     output wire rom_req,
     output wire [17:1] rom_addr,
     input wire [15:0] rom_rdata,
@@ -50,7 +62,8 @@ module st_boot_memory_sim_top #(
     input wire [15:0] dq_sample
 );
     wire native_display;
-    wire [8:0] native_line;
+    wire [8:0] native_line, native_cycle;
+    wire native_pixel_ce;
     wire [15:0] cpu_rdata, video_rdata;
     wire media_req, media_valid, dma_req, dma_ready, dma_write;
     wire [15:0] dma_rdata;
@@ -59,7 +72,8 @@ module st_boot_memory_sim_top #(
     wire [23:0] dma_addr;
     wire [15:0] dma_wdata;
     wire [1:0] dma_byte_enable;
-    st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES)) system (
+    st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES),
+                .EARLY_RAM_WRITE_COMPLETION(POSTED_CPU_WRITES)) system (
         .clk_sys(clk_sys), .reset(reset_sys), .cold_reset(cold_reset),
         .media_frozen(1'b0), .media_write_req(), .media_write_addr(), .media_write_data(),
         .media_write_ready(1'b0), .media_write_busy(), .media_changed(),
@@ -71,18 +85,21 @@ module st_boot_memory_sim_top #(
         .exp_reset(), .exp_phi1(), .exp_phi2(debug_cpu_tick), .exp_ack(1'b0), .exp_berr(1'b0),
         .exp_present(1'b0), .exp_rdata(16'hffff), .exp_irq(3'd0),
         .irq_ack(irq_ack), .irq_level(irq_level),
-        .keyboard(144'd0), .controller_buttons(16'd0), .monochrome(1'b0),
+        .keyboard(keyboard), .controller_buttons(16'd0), .monochrome(1'b0),
         .mouse_valid(1'b0), .mouse_dx(16'sd0), .mouse_dy(16'sd0), .mouse_buttons(2'd0),
-        .mouse_ready(), .audio_pcm(), .audio_valid(), .media_size(media_size), .media_ready(media_ready),
+        .mouse_ready(), .audio_pcm(audio_pcm), .audio_valid(audio_valid), .media_size(media_size), .media_ready(media_ready),
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data), .media_valid(media_valid),
         .dma_req(dma_req), .dma_addr(dma_addr), .dma_wdata(dma_wdata),
         .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .dma_write(dma_write), .dma_rdata(dma_rdata),
         .screen_base(screen_base), .resolution(resolution), .palette(palette), .sync_mode(sync_mode),
         .debug_addr(debug_addr), .debug_bus_error(debug_bus_error), .debug_overlay(),
-        .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_line(native_line)
+        .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_line(native_line),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce)
     );
-    st_memory_sim_top #(.EARLY_COMPLETION(EARLY_COMPLETION)) memory (
-        .clk(clk_sys), .cold_reset(cold_reset), .reset(reset_sys), .initialized(initialized),
+    st_memory_sim_top #(.EARLY_COMPLETION(EARLY_COMPLETION), .POSTED_CPU_WRITES(POSTED_CPU_WRITES), .PHASE_SLOTS(PHASE_SLOTS),
+                       .CPU_SLOT_PHASE(CPU_SLOT_PHASE),
+                .SINGLE_RANK_REFRESH(SINGLE_RANK_REFRESH), .SLOT_REFRESH(SLOT_REFRESH)) memory (
+        .clk(clk_sys), .memory_phase(native_cycle[1:0]), .raster_reset(system.exp_reset), .cold_reset(cold_reset), .reset(reset_sys), .initialized(initialized),
         .cpu_req(cpu_req), .cpu_addr(cpu_addr), .cpu_write(cpu_write), .cpu_wdata(cpu_wdata),
         .cpu_byte_enable(cpu_byte_enable), .cpu_ready(cpu_ready), .cpu_rdata(cpu_rdata),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
@@ -99,7 +116,8 @@ module st_boot_memory_sim_top #(
     );
     st_video_adapter video (
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
-        .native_vblank(vblank), .native_display(native_display), .native_line(native_line), .sync_mode(sync_mode),
+        .native_vblank(vblank), .native_display(native_display), .native_line(native_line),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .sync_mode(sync_mode),
         .hold(reset_sys), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
         .video_request(video_request), .debug_underruns(debug_underruns), .debug_frame(debug_frame)
@@ -121,17 +139,28 @@ module st_boot_memory_sim_top #(
     end
     assign debug_palette_write = !reset_sys && system.machine.state == 2'd1 &&
         system.machine.target == 3'd2 && system.machine.writing &&
+        system.machine.palette_access && system.machine.io_completion && !system.machine.cpu_as_n &&
+        system.machine.timeout_halves != 8'd128;
+    assign debug_palette_read = !reset_sys && system.machine.state == 2'd1 &&
+        system.machine.io_completion && !system.machine.writing &&
         system.machine.palette_access && !system.machine.cpu_as_n &&
         system.machine.timeout_halves != 8'd128;
     assign debug_palette_address = system.machine.address;
     assign debug_palette_data = system.machine.write_data;
+    assign debug_palette_color = system.machine.palette_wdata[11:0] & 12'h777;
     assign debug_palette_lanes = system.machine.lanes;
+    // Observe the actual PSG acceptance edge, rather than a held CPU request.
+    assign debug_ym_write = !system.io.psg.reset && system.io.psg.bus_first &&
+        system.io.psg.bus_write && system.io.psg.bus_reg && system.io.psg.selected_valid;
+    assign debug_ym_register = system.io.psg.selected;
+    assign debug_ym_data = system.io.psg.bus_wdata;
     assign debug_irq_vector = system.irq_vector;
     assign debug_native_line = native_line;
     assign debug_horizontal_phase = system.io.horizontal_cycle;
     assign capture_pixel = video.native_capture.capture.write_pixel;
     assign capture_x = video.native_capture.capture.sample_x;
     assign capture_y = video.native_capture.capture.row;
+    assign capture_height = video.native_capture.capture.height[video.native_capture.capture.write_bank];
     assign capture_rgb = video.native_capture.capture.sample_rgb;
     // Observability does not modify the pinned CPU or supply execution data.
     assign debug_pc = {system.machine.cpu.cpu.excUnit.PcH, system.machine.cpu.cpu.excUnit.PcL};

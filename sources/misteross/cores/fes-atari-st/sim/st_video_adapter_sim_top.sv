@@ -25,7 +25,7 @@ module st_video_adapter_sim_top (
 );
     st_video_adapter #(.NATIVE_LOW_CAPTURE(0)) adapter (
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
-        .native_vblank(1'b0), .native_display(1'b0), .native_line(9'd0), .sync_mode(8'd2),
+        .native_vblank(1'b0), .native_display(1'b0), .native_line(9'd0), .native_cycle(9'd0), .native_pixel_ce(1'b0), .sync_mode(8'd2),
         .hold(hold), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready),
         .video_rdata(video_rdata), .video_request(video_request),

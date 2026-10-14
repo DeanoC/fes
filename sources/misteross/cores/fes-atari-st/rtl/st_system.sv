@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Reusable 520ST system: storage and video/audio sockets remain external.
 module st_system #(
+    // PAL STF master 32,084,988 / 4; sync-mode writes do not switch crystals.
+    // https://github.com/hatari/hatari/blob/v2.5.0/src/clocks_timings.c
+    parameter integer CPU_CLOCK_HZ = 8_021_247,
     parameter integer ENABLE_FLOPPY_WRITE = 0,
-    parameter integer MFP_WAIT_STATES = 0
+    parameter integer MFP_WAIT_STATES = 0,
+    parameter EARLY_RAM_WRITE_COMPLETION = 0
 ) (
     input wire clk_sys, reset, cold_reset,
     output wire rom_req,
@@ -62,7 +66,8 @@ module st_system #(
     output wire [23:0] debug_addr,
     output wire debug_bus_error, debug_overlay, debug_halted,
     output wire vblank, hblank, native_display,
-    output wire [8:0] native_line
+    output wire [8:0] native_line, native_cycle,
+    output wire native_pixel_ce
 );
     wire bus_req, io_selected, io_ack;
     wire [15:0] io_rdata;
@@ -76,7 +81,7 @@ module st_system #(
     // is empty. A plugged part owns the response and may insert wait states.
     wire empty_cartridge = !exp_present && exp_addr >= 23'h7d0000 && exp_addr < 23'h7e0000;
     assign exp_req = bus_req && !io_selected;
-    st_machine machine (
+    st_machine #(.CPU_CLOCK_HZ(CPU_CLOCK_HZ), .EARLY_RAM_WRITE_COMPLETION(EARLY_RAM_WRITE_COMPLETION)) machine (
         .clk_sys(clk_sys), .reset(reset),
         .rom_req(rom_req), .rom_addr(rom_addr), .rom_rdata(rom_rdata), .rom_ready(rom_ready),
         .ram_req(ram_req), .ram_addr(ram_addr), .ram_wdata(ram_wdata),
@@ -88,11 +93,14 @@ module st_system #(
         .exp_ack(io_selected ? io_ack : exp_ack || empty_cartridge), .exp_berr(!io_selected && exp_berr),
         .exp_rdata(io_selected ? io_rdata : empty_cartridge ? 16'hffff : exp_rdata), .exp_irq(machine_irq),
         .irq_vectored(irq_vectored), .irq_vector(irq_vector), .irq_ack(irq_ack), .irq_level(irq_level),
+        // Native cycle labels advance on CPU phase 2. Phase 1 is the
+        // palette acceptance window in this counter's coordinate system.
+        .palette_ready(native_cycle[1:0] == 2'd1),
         .video_counter(video_counter), .screen_base(screen_base), .resolution(resolution),
         .palette(palette), .sync_mode(sync_mode), .debug_addr(debug_addr),
         .debug_bus_error(debug_bus_error), .debug_overlay(debug_overlay), .debug_halted(debug_halted)
     );
-    st_io #(.ENABLE_FLOPPY_WRITE(ENABLE_FLOPPY_WRITE), .MFP_WAIT_STATES(MFP_WAIT_STATES)) io (
+    st_io #(.CPU_CLOCK_HZ(CPU_CLOCK_HZ), .ENABLE_FLOPPY_WRITE(ENABLE_FLOPPY_WRITE), .MFP_WAIT_STATES(MFP_WAIT_STATES)) io (
         .clk(clk_sys), .reset(exp_reset), .cold_reset(cold_reset), .cpu_cycle_ce(exp_phi2), .req(bus_req), .addr(exp_addr),
         .write(exp_write), .wdata(exp_wdata), .byte_enable(exp_byte_enable),
         .selected(io_selected), .ack(io_ack), .rdata(io_rdata),
@@ -109,6 +117,7 @@ module st_system #(
         .media_req(media_req), .media_addr(media_addr), .media_data(media_data), .media_valid(media_valid),
         .dma_req(dma_req), .dma_write(dma_write), .dma_rdata(dma_rdata), .dma_addr(dma_addr), .dma_wdata(dma_wdata),
         .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .vblank(vblank), .hblank(hblank),
-        .native_display(native_display), .native_line(native_line)
+        .native_display(native_display), .native_line(native_line),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce)
     );
 endmodule
