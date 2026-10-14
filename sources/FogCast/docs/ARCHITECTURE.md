@@ -2135,6 +2135,41 @@ listener remains loopback-only. The SDL sofa layout and the kit browse views are
 renderers over the same session model and do not own physical transitions.
 
 
+## Durable target core packages
+
+`internal/kitpackages` retains canonical archives and sealed package members on
+existing mounted ext4 FESDATA3 at `/run/fogcast/fesdata3/core-library`. Production
+opening verifies p3, writable ext4 and mount identity before mkdir; subsequent
+operations recheck the mount and pinned store directories. Preparation errors or
+skipped appliance update gates leave storage unavailable. A failed open after
+successful preparation blocks kit-local inventory rather than substitute factory
+versions for broken selections. Shared flock, file and directory fsync, immutable
+identity and selection CAS coordinate independent agents. Reopening completes
+verified interrupted unselected publications; selected corruption remains blocked.
+
+Bearer `GET/POST /v1/core-packages` and `GET /v1/core-selections`,
+`PUT /v1/core-selections/{core_id}` expose inventory, bounded archive installation
+and checked future selection. Installation does not select or inspect hardware.
+Selection compares `expected_package_id`, checks descriptor/core identity and
+queries the native runtime's read-only compatibility authority before commit.
+These storage operations acquire no execution lease; appliance update admission
+excludes mutations during trial or image transitions. The target client does not
+replay lost mutations. No delete, restart, activation or implicit rollback exists.
+
+Kit-local inventory overlays explicit durable selections by core ID on factory
+selections and rereads them at launch. Full package inspection replaces its
+partial payload checks and core-name launchability rules. Manifest requirements
+block unsupported local media, firmware, multi-ROM and native video-part paths.
+`Launchable` describes local inputs, not hardware acceptance; native inspection
+checks the exact canonical bytes before programming. Plain local loads use the
+existing archive staging path, preserving native trusted roots. Durable mesh
+inventory uses verified store objects instead of scanning only ABI metadata.
+Local launches also enter the appliance update drain before claiming execution.
+The existing local execution mode remains volatile for settings/progress.
+
+See [durable kit library](../../../docs/kit-core-library.md) for the operator
+workflow and explicit storage/recovery boundaries.
+
 ## Installed core packages and library entries
 
 Coleco firmware and optional ZX81/Coleco CPU expansion-bus modules use the normal library launch
@@ -2390,11 +2425,11 @@ While the phase is running, that same tick polls GET /v1/local/status at most
 about once a second, off the app lock and single-flight. If the agent reports
 idle or not running, tenfoot resumes the same way. Stop that returns in_use
 resumes too; only unavailable is retried, because the core may still be up.
-ZX81 stays
-in that firmware class: the socket does not link its firmware ROM and does not
-consult that rom map. A cartridge for an installed core is linked by
+Packages declaring firmware stay in that class: the local socket does not
+link firmware ROMs. A cartridge for an installed core is linked by
 LoadCartridge, which rebuilds the canonical archive from the extracted
-directory and programs the core. A held, busy, blocked, or recovery lease returns 409 and does not
+directory, verifies the exact archived identity with the runtime and programs
+the core through the existing staging path. A held, busy, blocked, or recovery lease returns 409 and does not
 call the runtime. The claim starts renewal immediately. The first renew waits
 a quarter of the time still remaining, so a slow launch renews before the
 grant expires, and renewal continues until stop, a failed renew, release, or

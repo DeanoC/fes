@@ -38,6 +38,7 @@ Use these when the start-here page names the job and you need the steps.
 | Job | Guide |
 | --- | --- |
 | Install and select a described package | [Core packages](core-packages.md) |
+| Install core versions durably on an existing kit volume | [Durable kit core library](kit-core-library.md) |
 | Prepare one core without an image rebuild | [Core developer workflow](core-development.md) |
 | Audit or refresh core-package cache keys | [Core-key narrowing](core-key-narrowing.md) |
 | Run an isolated package lifecycle check | [Package acceptance](package-acceptance.md) |

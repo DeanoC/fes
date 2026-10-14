@@ -1,24 +1,20 @@
 package localcores
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 
-	"github.com/DeanoC/FogCast/internal/kitcontent"
+	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/pelletier/go-toml/v2"
 )
 
-const (
-	maxSelectionBytes = 16 << 10
-	maxManifestBytes  = 64 << 10
-	maxPayloadBytes   = 32 << 20
-)
+const maxSelectionBytes = 16 << 10
 
 // Core is one installed package the kit can show. Name is the manifest
 // [core] name, copied verbatim. Block is empty when Launchable is true.
@@ -33,40 +29,6 @@ type Core struct {
 	installPath string
 }
 
-type manifestFile struct {
-	Core struct {
-		ID   string `toml:"id"`
-		Name string `toml:"name"`
-	} `toml:"core"`
-	Payload struct {
-		File   string `toml:"file"`
-		Size   int64  `toml:"size"`
-		SHA256 string `toml:"sha256"`
-	} `toml:"payload"`
-	ABI struct {
-		ID    string `toml:"id"`
-		Major int64  `toml:"major"`
-	} `toml:"abi"`
-	Interfaces []struct {
-		ID       string `toml:"id"`
-		Required bool   `toml:"required"`
-	} `toml:"interfaces"`
-	ROM *struct {
-		Role   string `toml:"role"`
-		File   string `toml:"file"`
-		Size   int64  `toml:"size"`
-		SHA256 string `toml:"sha256"`
-	} `toml:"rom"`
-	ROMs []struct {
-		Role string `toml:"role"`
-	} `toml:"roms"`
-	ROMMap *struct {
-		File   string `toml:"file"`
-		Size   int64  `toml:"size"`
-		SHA256 string `toml:"sha256"`
-	} `toml:"rom_map"`
-}
-
 type selectionFile struct {
 	CoreID        string `toml:"core_id"`
 	PackageID     string `toml:"package_id"`
@@ -74,23 +36,14 @@ type selectionFile struct {
 	InstallPath   string `toml:"install_path"`
 }
 
-// ReadInstalledCores lists selections under selectionDir whose packages live
-// in packageRoot. fes.menu is excluded. A payload SHA that does not match
-// the installed core.rbf and the manifest is dropped. Needs comes from the
-// core id plus manifest metadata: Pong and RAM Tester need nothing; ZX81 needs firmware
-// because this socket has no ROM link and does not consult rom-map.json;
-// Coleco, SMS and SG-1000 need a cartridge; C64 and Spectrum need firmware
-// unless the manifest does not declare any. Anything else is firmware and
-// not launchable.
+// ReadInstalledCores lists factory selections whose complete installed package
+// identity and payload digest match the selection. fes.menu is idle firmware.
+// Metadata describes what the local launch path needs; runtime inspection remains
+// the authority for supported ABI and interface versions.
 func ReadInstalledCores(selectionDir, packageRoot string) []Core {
 	cores := []Core{}
 	if !realDir(selectionDir) || !realDir(packageRoot) {
 		return cores
-	}
-	_, installed := kitcontent.ReadInstalledPackages([]string{packageRoot})
-	known := map[string]struct{}{}
-	for _, id := range installed {
-		known[id] = struct{}{}
 	}
 	entries, err := os.ReadDir(selectionDir)
 	if err != nil {
@@ -99,60 +52,27 @@ func ReadInstalledCores(selectionDir, packageRoot string) []Core {
 	seen := map[string]struct{}{}
 	packageRoot = filepath.Clean(packageRoot)
 	for _, entry := range entries {
-		name := entry.Name()
-		coreID, ok := selectionCoreID(name)
+		coreID, ok := selectionCoreID(entry.Name())
 		if !ok || coreID == "fes.menu" {
 			continue
 		}
-		path := filepath.Join(selectionDir, name)
-		info, err := os.Lstat(path)
-		if err != nil || !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		selection, ok := readSelection(filepath.Join(selectionDir, entry.Name()))
+		if !ok || selection.CoreID != coreID || !SHA256Hex(selection.PackageID) || !SHA256Hex(selection.PayloadSHA256) {
 			continue
 		}
-		selection, ok := readSelection(path)
-		if !ok || selection.CoreID != coreID || !packageID(selection.PackageID) || !sha256Hex(selection.PayloadSHA256) {
-			continue
-		}
-		if _, dup := seen[selection.PackageID]; dup {
+		if _, duplicate := seen[selection.PackageID]; duplicate {
 			continue
 		}
 		install := filepath.Join(packageRoot, selection.PackageID)
-		if filepath.Clean(selection.InstallPath) != install {
+		if filepath.Clean(selection.InstallPath) != install || !realDir(install) {
 			continue
 		}
-		if _, ok := known[selection.PackageID]; !ok {
+		inspection, err := corepackage.InspectPackage(install)
+		if err != nil || inspection.PackageID != selection.PackageID || inspection.Descriptor.Core.ID != coreID || inspection.Descriptor.Payload.SHA256 != selection.PayloadSHA256 {
 			continue
 		}
-		dirInfo, err := os.Lstat(install)
-		if err != nil || !dirInfo.IsDir() || dirInfo.Mode()&os.ModeSymlink != 0 {
-			continue
-		}
-		manifest, ok := readManifest(filepath.Join(install, "manifest.toml"))
-		if !ok || manifest.Core.ID != coreID || manifest.Core.Name == "" || manifest.ABI.ID == "" {
-			continue
-		}
-		if manifest.Payload.File != "core.rbf" || !sha256Hex(manifest.Payload.SHA256) {
-			continue
-		}
-		sum, size, err := sha256File(filepath.Join(install, "core.rbf"), maxPayloadBytes)
-		if err != nil || sum != selection.PayloadSHA256 || sum != manifest.Payload.SHA256 {
-			continue
-		}
-		if manifest.Payload.Size != 0 && manifest.Payload.Size != size {
-			continue
-		}
-		needs, block, launchable := deriveNeeds(coreID, !firmwareDeclared(manifest))
 		seen[selection.PackageID] = struct{}{}
-		cores = append(cores, Core{
-			CoreID:      coreID,
-			PackageID:   selection.PackageID,
-			Name:        manifest.Core.Name,
-			ABI:         manifest.ABI.ID,
-			Needs:       needs,
-			Launchable:  launchable,
-			Block:       block,
-			installPath: install,
-		})
+		cores = append(cores, FromInspection(inspection, install))
 	}
 	sort.Slice(cores, func(i, j int) bool {
 		if cores[i].CoreID == cores[j].CoreID {
@@ -163,40 +83,50 @@ func ReadInstalledCores(selectionDir, packageRoot string) []Core {
 	return cores
 }
 
-func deriveNeeds(coreID string, bootsWithoutFirmware bool) (needs, block string, launchable bool) {
-	switch coreID {
-	case "fes.pong", "fes.ramtest":
-		return "none", "", true
-	case "fes.zx81":
-		// No kit-local ROM link, so ZX81 is not launchable.
-		return "firmware", "Needs firmware", false
-	case "fes.coleco", "fes.sms", "fes.sg1000":
-		return "media", "Needs a cartridge", false
-	case "fes.c64", "fes.spectrum":
-		if bootsWithoutFirmware {
-			return "none", "", true
-		}
-		return "firmware", "Needs firmware", false
-	default:
-		return "firmware", "Needs firmware", false
-	}
+// FromInspection describes the local launch requirements of a verified package.
+// Launchable describes satisfied local metadata requirements, not live runtime
+// compatibility. Durable selection and activation use runtime inspection.
+func FromInspection(inspection corepackage.Inspection, path string) Core {
+	d := inspection.Descriptor
+	needs, block, launchable := descriptorNeeds(d)
+	return Core{CoreID: d.Core.ID, PackageID: inspection.PackageID, Name: d.Core.Name,
+		ABI: d.ABI.ID, Needs: needs, Block: block, Launchable: launchable, installPath: path}
 }
 
-func firmwareDeclared(m manifestFile) bool {
-	if m.ROM != nil && m.ROM.Role == "firmware" {
-		return true
-	}
-	for _, rom := range m.ROMs {
-		if rom.Role == "firmware" {
-			return true
+func descriptorNeeds(d corepackage.Descriptor) (needs, block string, launchable bool) {
+	// Native pixel shells have no built-in output even though the fabric socket
+	// itself is an optional interface. Local launches do not compose video parts.
+	for _, iface := range d.Interfaces {
+		if iface.ID == "fes.fabric.video.native-pixels" {
+			return "parts", "Needs a video part", false
 		}
 	}
-	for _, iface := range m.Interfaces {
-		if iface.Required && strings.HasPrefix(iface.ID, "fes.firmware") {
-			return true
+	if d.Format == 4 || len(d.ROMs) != 0 || (d.ROM != nil && d.ROM.Role == "firmware") {
+		return "firmware", "Needs firmware", false
+	}
+	if protocol.RequiresCoreMedia(d) {
+		return "unsupported", "Needs host media delivery", false
+	}
+	for _, iface := range d.Interfaces {
+		if !iface.Required {
+			continue
+		}
+		if strings.HasPrefix(iface.ID, "fes.firmware") {
+			return "firmware", "Needs firmware", false
+		}
+		// Computer media units support empty-drive startup. Other media endpoints
+		// need host delivery, which the kit-local launch path does not implement.
+		if strings.HasPrefix(iface.ID, "fes.media.") && d.ABI.ID != "fes.computer" {
+			return "unsupported", "Needs host media delivery", false
 		}
 	}
-	return false
+	if d.Format == 3 && d.ROM != nil && d.ROM.Role == "cartridge" {
+		return "media", "Needs a cartridge", false
+	}
+	if d.Format != 2 {
+		return "unsupported", "Unsupported local launch", false
+	}
+	return "none", "", true
 }
 
 func selectionCoreID(name string) (string, bool) {
@@ -209,16 +139,12 @@ func selectionCoreID(name string) (string, bool) {
 	}
 	for _, c := range stem {
 		switch {
-		case c >= 'a' && c <= 'z', c >= '0' && c <= '9':
+		case c >= 'a' && c <= 'z', c >= '0' && c <= '9', c == '-':
 		default:
 			return "", false
 		}
 	}
 	return "fes." + stem, true
-}
-
-func packageID(id string) bool {
-	return SHA256Hex(id)
 }
 
 // SHA256Hex reports whether value is a lowercase SHA-256 hex digest.
@@ -258,65 +184,23 @@ func readSelection(path string) (selectionFile, bool) {
 	return selection, true
 }
 
-func readManifest(path string) (manifestFile, bool) {
-	var manifest manifestFile
-	data, err := readLimited(path, maxManifestBytes)
-	if err != nil {
-		return manifest, false
-	}
-	if err := toml.Unmarshal(data, &manifest); err != nil {
-		return manifest, false
-	}
-	return manifest, true
-}
-
 func readLimited(path string, max int64) ([]byte, error) {
-	sum, data, err := readRegular(path, max)
+	info, err := os.Lstat(path)
+	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > max {
+		return nil, errors.New("invalid selection file")
+	}
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
 	if err != nil {
 		return nil, err
 	}
-	_ = sum
-	return data, nil
-}
-
-func readRegular(path string, max int64) (string, []byte, error) {
-	info, err := os.Lstat(path)
-	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-		return "", nil, errors.New("not a regular file")
-	}
-	if info.Size() < 1 || info.Size() > max {
-		return "", nil, errors.New("size")
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return "", nil, err
-	}
 	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil || !os.SameFile(info, opened) {
+		return nil, errors.New("selection changed while opening")
+	}
 	data, err := io.ReadAll(io.LimitReader(file, max+1))
 	if err != nil || int64(len(data)) != info.Size() {
-		return "", nil, errors.New("read")
+		return nil, errors.New("invalid selection size")
 	}
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:]), data, nil
-}
-
-func sha256File(path string, max int64) (string, int64, error) {
-	info, err := os.Lstat(path)
-	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-		return "", 0, errors.New("not a regular file")
-	}
-	if info.Size() < 1 || info.Size() > max {
-		return "", 0, errors.New("size")
-	}
-	file, err := os.Open(path)
-	if err != nil {
-		return "", 0, err
-	}
-	defer file.Close()
-	hash := sha256.New()
-	n, err := io.Copy(hash, io.LimitReader(file, max+1))
-	if err != nil || n != info.Size() {
-		return "", 0, errors.New("read")
-	}
-	return hex.EncodeToString(hash.Sum(nil)), n, nil
+	return data, nil
 }

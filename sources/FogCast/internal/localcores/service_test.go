@@ -123,7 +123,7 @@ func testService(t *testing.T, runtime *fakeRuntime) (*Service, *kitlease.Manage
 		t.Fatal(err)
 	}
 	installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
-	installCore(t, packages, selections, "fes.coleco", "FES Coleco", "fes.application", coreOpts{})
+	installCore(t, packages, selections, "fes.coleco", "FES Coleco", "fes.application", coreOpts{cartridge: true})
 	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
 	t.Cleanup(manager.Close)
 	waitFree(t, manager)
@@ -971,4 +971,122 @@ func TestRunStatusLaunchingThenRunningThenIdle(t *testing.T) {
 	if st := service.RunStatus(); st.Phase != phaseIdle || st.Running || st.CoreID != "" || st.PackageID != "" {
 		t.Fatalf("idle %+v", st)
 	}
+}
+
+func TestDurableSelectionChangesOnlyFutureLaunch(t *testing.T) {
+	runtime := &fakeRuntime{}
+	service, _, _, _ := testService(t, runtime)
+	factory := service.List()[1]
+	for _, core := range service.List() {
+		if core.CoreID == "fes.pong" {
+			factory = core
+		}
+	}
+	var selected []Core
+	service.SetInventory(func() ([]Core, error) { return selected, nil })
+	if _, err := service.Launch(context.Background(), factory.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	upgraded := factory
+	upgraded.PackageID = strings.Repeat("c", 64)
+	upgraded.installPath = "/durable/" + upgraded.PackageID
+	selected = []Core{upgraded}
+	listed := service.List()
+	if len(listed) != 2 {
+		t.Fatalf("factory inventory changed: %+v", listed)
+	}
+	for _, core := range listed {
+		if core.CoreID == factory.CoreID && core.PackageID != upgraded.PackageID {
+			t.Fatal("selected package did not override factory")
+		}
+	}
+	if service.RunStatus().PackageID != factory.PackageID {
+		t.Fatal("selection replaced running core")
+	}
+	if loads, stops := runtime.calls(); len(loads) != 1 || stops != 0 {
+		t.Fatal("selection mutated runtime")
+	}
+	if err := service.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Launch(context.Background(), factory.PackageID); !errors.Is(err, errNotFound) {
+		t.Fatalf("old selection launch %v", err)
+	}
+	if _, err := service.Launch(context.Background(), upgraded.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	loads, _ := runtime.calls()
+	if len(loads) != 2 || loads[1][0] != upgraded.installPath || loads[1][1] != upgraded.PackageID {
+		t.Fatalf("wrong future launch: %+v", loads)
+	}
+	if err := service.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	service.SetInventory(func() ([]Core, error) { return nil, errors.New("corrupt selection") })
+	if len(service.List()) != 0 {
+		t.Fatal("corrupt selection silently fell back to factory")
+	}
+}
+
+func TestLocalLaunchRespectsUpdateAdmissionBeforeClaim(t *testing.T) {
+	runtime := &fakeRuntime{}
+	service, manager, _, _ := testService(t, runtime)
+	service.SetAdmission(func(context.Context) (context.Context, func(), error) { return nil, nil, errors.New("trial") })
+	for _, core := range service.List() {
+		if core.CoreID == "fes.pong" {
+			if _, err := service.Launch(context.Background(), core.PackageID); !errors.Is(err, errInUse) {
+				t.Fatalf("launch %v", err)
+			}
+		}
+	}
+	if loads, stops := runtime.calls(); len(loads) != 0 || stops != 0 {
+		t.Fatal("blocked update touched hardware")
+	}
+	if manager.Status().State != "free" {
+		t.Fatal("blocked update claimed lease")
+	}
+}
+
+func TestApplianceUpdateCancelsAndDrainsLocalLaunch(t *testing.T) {
+	started := make(chan struct{})
+	runtime := &fakeRuntime{}
+	service, manager, _, _ := testService(t, runtime)
+	updateCtx, cancelUpdate := context.WithCancel(context.Background())
+	defer cancelUpdate()
+	drained := make(chan struct{})
+	service.SetAdmission(func(context.Context) (context.Context, func(), error) {
+		return updateCtx, func() { close(drained) }, nil
+	})
+	runtime.onLoad = func() { close(started); _, operation := runtime.contexts(); <-operation.Done() }
+	var id string
+	for _, core := range service.List() {
+		if core.CoreID == "fes.pong" {
+			id = core.PackageID
+		}
+	}
+	result := make(chan error, 1)
+	go func() { _, err := service.Launch(context.Background(), id); result <- err }()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("local launch did not start")
+	}
+	cancelUpdate()
+	select {
+	case err := <-result:
+		if !errors.Is(err, errUnavailable) {
+			t.Fatalf("launch %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("update did not cancel local launch")
+	}
+	select {
+	case <-drained:
+	default:
+		t.Fatal("local launch did not leave update admission")
+	}
+	if service.RunStatus().Running {
+		t.Fatal("canceled launch published running session")
+	}
+	waitFree(t, manager)
 }

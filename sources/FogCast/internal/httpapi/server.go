@@ -64,6 +64,9 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 		writeJSON(w, http.StatusOK, status)
 	})))
 	mux.Handle("POST /v1/stop", authenticate(token, stopHandler(controller)))
+	if settings.corePackagesEnabled {
+		registerCorePackageRoutes(mux, token, settings.corePackages, settings.corePackageInspect)
+	}
 	if settings.cast != nil {
 		registerCastRoutes(mux, token, settings.cast)
 	}

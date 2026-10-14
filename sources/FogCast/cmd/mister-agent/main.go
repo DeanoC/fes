@@ -30,7 +30,9 @@ import (
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/kitcontent"
 	"github.com/DeanoC/FogCast/internal/kitlease"
+	"github.com/DeanoC/FogCast/internal/kitpackages"
 	"github.com/DeanoC/FogCast/internal/localcores"
+	"github.com/DeanoC/FogCast/internal/meshcontent"
 
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
@@ -62,9 +64,11 @@ const (
 )
 
 var errCastShutdown = errors.New("cast controller could not be stopped")
+var errDataPartitionAbsent = errors.New("appliance data partition absent")
 
 type runDependencies struct {
 	prepareDataPartition  func() error
+	openCorePackages      func() (*kitpackages.Store, error)
 	openCache             func(targetcache.Config, ...targetcache.Option) (agent.ContentStore, error)
 	newRuntime            func(agentconfig.Config) agent.Runtime
 	configureRuntime      func(agent.Runtime, httpapi.InputController) error
@@ -108,6 +112,7 @@ func productionRunDependencies() (runDependencies, error) {
 
 func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, error) {
 	dependencies := runDependencies{
+		openCorePackages: func() (*kitpackages.Store, error) { return kitpackages.OpenPersistent(kitpackages.DefaultRoot) },
 		openCache: func(config targetcache.Config, options ...targetcache.Option) (agent.ContentStore, error) {
 			return targetcache.Open(config, options...)
 		},
@@ -230,11 +235,14 @@ func bindApplianceData(logger *slog.Logger) error {
 	result, err := appliancedata.Prepare(appliancedata.ProductionConfig())
 	if err != nil {
 		logger.Error("appliance data partition bind failed", "error", err, "skipped", result.Skipped)
-		return nil
+		return err
 	}
 	if result.Skipped != "" {
 		logger.Info("appliance data partition bind skipped", "reason", result.Skipped, "device", result.Device)
-		return nil
+		if result.Skipped == appliancedata.SkipAbsent {
+			return errDataPartitionAbsent
+		}
+		return fmt.Errorf("appliance data partition unavailable: %s", result.Skipped)
 	}
 	if len(result.Bound) > 0 {
 		logger.Info("appliance data partition bound", "device", result.Device, "paths", result.Bound)
@@ -337,8 +345,20 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			return bindApplianceData(logger)
 		}
 	}
+	var packages *kitpackages.Store
+	var coreLibraryError error
 	if err := dependencies.prepareDataPartition(); err != nil {
 		logger.Error("appliance data partition bind failed", "error", err)
+		if !errors.Is(err, errDataPartitionAbsent) {
+			coreLibraryError = err
+		}
+	} else if dependencies.openCorePackages != nil {
+		packages, err = dependencies.openCorePackages()
+		if err != nil {
+			logger.Error("durable core packages unavailable", "error", err)
+			packages = nil
+			coreLibraryError = err
+		}
 	}
 	cache, err := dependencies.openCache(targetcache.Config{
 		Root:         targetCacheRoot,
@@ -383,6 +403,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	coordinator.Initialize(startup)
 	cancel()
 	options := []httpapi.Option{httpapi.WithContent(content), httpapi.WithDevelopment(coordinator)}
+	options = append(options, httpapi.WithCorePackages(packages, coordinator.InspectCore))
 	if dependencies.meshContentRoot != "" && targetID != "" {
 		// The kit store is served for this node's id. Pull and link are
 		// kit-lease mutations and their bodies stay empty. mesh_content
@@ -412,6 +433,9 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 					roots = []string{installedPackageRoot, developmentCoreRoot}
 				}
 				meshStore.SetPackageRoots(roots)
+				if packages != nil {
+					meshStore.SetPackageInventory(func() ([]meshcontent.EligibleABI, []string) { return durableMeshInventory(ctx, roots, packages) })
+				}
 			}
 			options = append(options, httpapi.WithMeshContent(meshStore))
 		}
@@ -475,6 +499,7 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}
 		return cleanupErr
 	}
+	var localUpdater *applianceupdate.Service
 	if dependencies.newUpdate != nil {
 		updater, updateErr := dependencies.newUpdate(coordinator, cleanupPeripherals)
 		if updateErr != nil {
@@ -483,6 +508,8 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		if updater != nil {
 			options = append(options, httpapi.WithUpdate(updater))
 		}
+		// Keep the same admission fence for the kit-local launcher.
+		localUpdater = updater
 	}
 	localProgram := &kitLocalProgram{}
 	leases := kitlease.New(90*time.Second, func(cleanup context.Context) error {
@@ -512,6 +539,14 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			Selections: installedSelectionRoot,
 			Packages:   installedPackageRoot,
 		})
+		if localUpdater != nil {
+			cores.SetAdmission(localUpdater.BeginOperation)
+		}
+		if packages != nil {
+			cores.SetInventory(func() ([]localcores.Core, error) { return durableLocalInventory(ctx, packages) })
+		} else if coreLibraryError != nil {
+			cores.SetInventory(func() ([]localcores.Core, error) { return nil, coreLibraryError })
+		}
 		defer cores.Close()
 		options = append(options, httpapi.WithKitLocalRun(func() httpapi.KitLocalRun {
 			status := cores.RunStatus()

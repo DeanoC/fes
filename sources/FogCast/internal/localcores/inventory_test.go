@@ -1,9 +1,14 @@
 package localcores
 
 import (
+	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/misteross/expansion"
 	"os"
 	"path/filepath"
 	"testing"
@@ -14,23 +19,37 @@ type coreOpts struct {
 	romRole      string
 	badROMHash   bool
 	selectionSHA string
+	cartridge    bool
+	interfaces   []corepackage.Interface
 }
 
 func installCore(t *testing.T, packages, selections, coreID, name, abi string, opts coreOpts) string {
 	t.Helper()
-	sum := sha256.Sum256([]byte(coreID))
-	id := hex.EncodeToString(sum[:])
 	payload := []byte("rbf:" + coreID)
 	payloadSum := sha256.Sum256(payload)
 	payloadSHA := hex.EncodeToString(payloadSum[:])
-	dir := filepath.Join(packages, id)
-	if err := os.Mkdir(dir, 0o755); err != nil {
-		t.Fatal(err)
+	dir := t.TempDir()
+	format := 2
+	role := opts.romRole
+	if opts.rom != nil || opts.cartridge || role != "" {
+		format = 3
+		if role == "" {
+			role = "firmware"
+			if opts.cartridge {
+				role = "cartridge"
+			}
+		}
 	}
-	manifest := fmt.Sprintf(`format = 2
+	manifest := fmt.Sprintf(`format = %d
 [core]
 id = %q
 name = %q
+description = "Synthetic local control test fixture"
+version = "1.0.0"
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
 [payload]
 file = "core.rbf"
 size = %d
@@ -39,35 +58,70 @@ sha256 = %q
 id = %q
 major = 1
 minor = 0
-`, coreID, name, len(payload), payloadSHA, abi)
-	if opts.rom != nil {
-		romSum := sha256.Sum256(opts.rom)
-		romSHA := hex.EncodeToString(romSum[:])
-		if opts.badROMHash {
-			bad := sha256.Sum256([]byte("not-the-map"))
-			romSHA = hex.EncodeToString(bad[:])
-		}
-		role := opts.romRole
-		if role == "" {
-			role = "firmware"
-		}
-		if err := os.WriteFile(filepath.Join(dir, "rom-map.json"), opts.rom, 0o644); err != nil {
+[build]
+id = "0123456789abcdef0123456789abcdef"
+repository = "https://example.invalid/localcores"
+revision = "1111111111111111111111111111111111111111"
+recipe_sha256 = "2222222222222222222222222222222222222222222222222222222222222222"
+toolchain = "test fixture"
+`, format, coreID, name, len(payload), payloadSHA, abi)
+	interfaces := opts.interfaces
+	if len(interfaces) == 0 {
+		interfaces = []corepackage.Interface{{ID: "fes.video.fixed-720p60", Major: 1, Required: true}}
+	}
+	for _, iface := range interfaces {
+		manifest += fmt.Sprintf("\n[[interfaces]]\nid = %q\nmajor = %d\nminor = %d\nrequired = %t\n", iface.ID, iface.Major, iface.Minor, iface.Required)
+	}
+	if format == 3 {
+		// Bind a structurally valid test ROM map to these payload bytes. The marker
+		// opts.rom selects a firmware requirement, not a physical bitstream fixture.
+		file, err := os.Open("../../../misteross/expansion/testdata/rom/map.json.gz")
+		if err != nil {
 			t.Fatal(err)
 		}
-		manifest += fmt.Sprintf(`[rom]
-id = "machine-rom"
-role = %q
-source_size = 1024
-file = "rom-map.json"
-size = %d
-sha256 = %q
-`, role, len(opts.rom), romSHA)
+		reader, err := gzip.NewReader(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var mapping expansion.ROMMap
+		if err := json.NewDecoder(reader).Decode(&mapping); err != nil {
+			t.Fatal(err)
+		}
+		reader.Close()
+		file.Close()
+		mapping.BaseSHA256 = payloadSHA
+		mapping.SourceSize = 1024
+		mapping.Blocks = mapping.Blocks[:1]
+		mapping.Blocks[0].SourceOffset = 0
+		data, err := json.Marshal(mapping)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "rom-map.json"), data, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		manifest += fmt.Sprintf("\n[rom]\nid = \"machine-rom\"\nrole = %q\nsource_size = 1024\nfile = \"rom-map.json\"\nsize = %d\nsha256 = %q\n", role, len(data), fmt.Sprintf("%x", sha256.Sum256(data)))
 	}
 	if err := os.WriteFile(filepath.Join(dir, "manifest.toml"), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(dir, "core.rbf"), payload, 0o644); err != nil {
 		t.Fatal(err)
+	}
+	inspection, err := corepackage.InspectPackage(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := inspection.PackageID
+	installed := filepath.Join(packages, id)
+	if err := os.Rename(dir, installed); err != nil {
+		t.Fatal(err)
+	}
+	dir = installed
+	if opts.badROMHash {
+		if err := os.WriteFile(filepath.Join(dir, "rom-map.json"), []byte("corrupt"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 	}
 	selectionSHA := payloadSHA
 	if opts.selectionSHA != "" {
@@ -105,9 +159,9 @@ func TestReadInstalledCores(t *testing.T) {
 	ramtest := installCore(t, packages, selections, "fes.ramtest", "FES RAM Tester", "fes.application", coreOpts{})
 	pong := installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
 	zx81 := installCore(t, packages, selections, "fes.zx81", "ZX81  (sealed)", "fes.simple-computer", coreOpts{rom: rom})
-	coleco := installCore(t, packages, selections, "fes.coleco", "FES Coleco", "fes.application", coreOpts{})
-	sms := installCore(t, packages, selections, "fes.sms", "FES Master System", "fes.simple-computer", coreOpts{})
-	sg := installCore(t, packages, selections, "fes.sg1000", "FES SG-1000", "fes.simple-computer", coreOpts{})
+	coleco := installCore(t, packages, selections, "fes.coleco", "FES Coleco", "fes.application", coreOpts{cartridge: true})
+	sms := installCore(t, packages, selections, "fes.sms", "FES Master System", "fes.simple-computer", coreOpts{cartridge: true})
+	sg := installCore(t, packages, selections, "fes.sg1000", "FES SG-1000", "fes.simple-computer", coreOpts{cartridge: true})
 	c64 := installCore(t, packages, selections, "fes.c64", "FES Commodore 64", "fes.computer", coreOpts{rom: rom, romRole: "firmware"})
 	spectrum := installCore(t, packages, selections, "fes.spectrum", "FES ZX Spectrum", "fes.computer", coreOpts{rom: rom, romRole: "firmware"})
 	wrong := sha256.Sum256([]byte("wrong"))
@@ -155,7 +209,7 @@ func TestReadInstalledCores(t *testing.T) {
 	}
 }
 
-func TestZX81UnverifiedROMNeedsFirmware(t *testing.T) {
+func TestUnverifiedROMIsOmitted(t *testing.T) {
 	root := t.TempDir()
 	packages := filepath.Join(root, "pkgs")
 	selections := filepath.Join(root, "sel")
@@ -167,7 +221,7 @@ func TestZX81UnverifiedROMNeedsFirmware(t *testing.T) {
 		badROMHash: true,
 	})
 	got := ReadInstalledCores(selections, packages)
-	if len(got) != 1 || got[0].Needs != "firmware" || got[0].Block != "Needs firmware" || got[0].Launchable {
+	if len(got) != 0 {
 		t.Fatalf("%+v", got)
 	}
 }
@@ -187,5 +241,69 @@ func TestC64WithoutFirmwareIsLaunchable(t *testing.T) {
 		if !ok || core.Needs != "none" || !core.Launchable || core.Block != "" {
 			t.Fatalf("%s %+v", id, core)
 		}
+	}
+}
+
+func TestLaunchRequirementsComeFromDescriptor(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		format     int64
+		abi        string
+		role       string
+		interfaces []corepackage.Interface
+		needs      string
+		launchable bool
+	}{
+		{name: "new standalone application", format: 2, abi: "fes.application", needs: "none", launchable: true},
+		{name: "renamed cartridge core", format: 3, abi: "fes.application", role: "cartridge", needs: "media"},
+		{name: "firmware", format: 3, abi: "fes.simple-computer", role: "firmware", needs: "firmware"},
+		{name: "multiple ROM sources", format: 4, abi: "fes.application", needs: "firmware"},
+		{name: "native output is mandatory", format: 2, abi: "fes.application", interfaces: []corepackage.Interface{{ID: "fes.fabric.video.native-pixels", Major: 1}}, needs: "parts"},
+		{name: "cartridge cannot bypass native output", format: 3, abi: "fes.application", role: "cartridge", interfaces: []corepackage.Interface{{ID: "fes.fabric.video.native-pixels", Major: 1}}, needs: "parts"},
+		{name: "blob requires host delivery", format: 2, abi: "fes.application", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1, Required: true}}, needs: "unsupported"},
+		{name: "cartridge cannot substitute for required blob", format: 3, abi: "fes.application", role: "cartridge", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1, Required: true}}, needs: "unsupported"},
+		{name: "computer empty drives", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}, needs: "none", launchable: true},
+		{name: "optional media", format: 2, abi: "fes.application", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1}}, needs: "none", launchable: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := corepackage.Descriptor{Format: tc.format, Core: corepackage.Core{ID: "fes.new-core", Name: "New core"}, Target: corepackage.Target{ProgrammingProfile: "fes-gp-v1"}, ABI: corepackage.Contract{ID: tc.abi, Major: 1}, Interfaces: tc.interfaces}
+			if tc.role != "" {
+				d.ROM = &corepackage.ROM{Role: tc.role}
+			}
+			inspection := corepackage.Inspection{PackageID: fmt.Sprintf("%064x", 1), Descriptor: d}
+			got := FromInspection(inspection, "/installed/package")
+			if got.Needs != tc.needs || got.Launchable != tc.launchable || (got.Block == "") != tc.launchable || got.installPath != "/installed/package" || got.CoreID != d.Core.ID {
+				t.Fatalf("%+v", got)
+			}
+		})
+	}
+}
+
+func TestInstalledIdentityAndHyphenatedCoreID(t *testing.T) {
+	root := t.TempDir()
+	packages, selections := filepath.Join(root, "pkgs"), filepath.Join(root, "sel")
+	if err := os.Mkdir(packages, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(selections, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	id := installCore(t, packages, selections, "fes.atari-st", "ST", "fes.computer", coreOpts{})
+	got := ReadInstalledCores(selections, packages)
+	if len(got) != 1 || got[0].CoreID != "fes.atari-st" {
+		t.Fatalf("hyphenated core missing: %+v", got)
+	}
+	path := filepath.Join(packages, id, "manifest.toml")
+	manifest, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A name change preserves payload SHA but changes package identity.
+	manifest = bytes.Replace(manifest, []byte(`name = "ST"`), []byte(`name = "Changed"`), 1)
+	if err := os.WriteFile(path, manifest, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got := ReadInstalledCores(selections, packages); len(got) != 0 {
+		t.Fatalf("stale package identity admitted: %+v", got)
 	}
 }

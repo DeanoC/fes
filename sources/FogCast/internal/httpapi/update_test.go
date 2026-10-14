@@ -13,7 +13,10 @@ import (
 	"github.com/DeanoC/FogCast/internal/applianceupdate"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/kitlease"
+	"github.com/DeanoC/FogCast/internal/kitpackages"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"github.com/DeanoC/FogCast/protocol"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -36,7 +39,7 @@ func (updateControl) Protocol2LoadDevelopmentRBF(context.Context, string) (miste
 	panic("unexpected development")
 }
 
-func updateFixture(t *testing.T, trial bool, reboot func(context.Context) error) (http.Handler, *appliance.Store, release.Manifest, string, []byte) {
+func updateFixture(t *testing.T, trial bool, reboot func(context.Context) error, extra ...httpapi.Option) (http.Handler, *appliance.Store, release.Manifest, string, []byte) {
 	t.Helper()
 	b := make([]byte, 4096)
 	b[1080] = 0x53
@@ -72,7 +75,93 @@ func updateFixture(t *testing.T, trial bool, reboot func(context.Context) error)
 	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
 	t.Cleanup(func() { manager.Close() })
 	grant := claimKit(t, manager)
-	return httpapi.New(c, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithUpdate(svc)), s, n, grant.Token, b
+	options := append([]httpapi.Option{httpapi.WithKitLease(manager), httpapi.WithUpdate(svc)}, extra...)
+	return httpapi.New(c, "bearer", "test", nil, options...), s, n, grant.Token, b
+}
+
+type updateAdmissionReader struct {
+	reader io.Reader
+	reads  int
+}
+
+func (r *updateAdmissionReader) Read(body []byte) (int, error) {
+	r.reads++
+	return r.reader.Read(body)
+}
+
+func TestCorePackageWritesBlockedDuringUpdateTrialAndPending(t *testing.T) {
+	for _, trial := range []bool{true, false} {
+		name := "pending"
+		if trial {
+			name = "trial"
+		}
+		t.Run(name, func(t *testing.T) {
+			archive, inspection := installedPackageFixture(t, "valid-basic")
+			packages, err := kitpackages.New(durableHTTPStoreRoot(t))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, _, err := packages.Install(context.Background(), int64(len(archive)), bytes.NewReader(archive)); err != nil {
+				t.Fatal(err)
+			}
+			inspections := 0
+			inspect := func(context.Context, int64, io.Reader) (protocol.CoreInspection, *protocol.APIError) {
+				inspections++
+				return protocol.CoreInspection{PackageID: inspection.PackageID, Descriptor: inspection.Descriptor, Compatible: true}, nil
+			}
+			h, releases, next, lease, image := updateFixture(t, trial, func(context.Context) error { return nil }, httpapi.WithCorePackages(packages, inspect))
+			if !trial {
+				if err := releases.Stage(context.Background(), next, next.ImageSize, bytes.NewReader(image)); err != nil {
+					t.Fatal(err)
+				}
+				response := updateRequest(h, "/v1/update/activate", `{"image_sha256":"`+next.ImageSHA256+`"}`, lease)
+				if response.Code != http.StatusAccepted {
+					t.Fatalf("activation=%d %s", response.Code, response.Body.String())
+				}
+				status, err := releases.Status()
+				if err != nil || status.Pending != next.ImageSHA256 {
+					t.Fatalf("pending=%+v,%v", status, err)
+				}
+			}
+			for _, operation := range []struct {
+				method, path, contentType string
+				body                      []byte
+			}{
+				{http.MethodPost, "/v1/core-packages", "application/octet-stream", archive},
+				{http.MethodPut, "/v1/core-selections/fes.pong", "application/json", packageSelectionBody(t, "", inspection.PackageID)},
+			} {
+				body := &updateAdmissionReader{reader: bytes.NewReader(operation.body)}
+				request := httptest.NewRequest(operation.method, operation.path, body)
+				request.ContentLength = int64(len(operation.body))
+				request.Header.Set("Authorization", "Bearer bearer")
+				request.Header.Set("Content-Type", operation.contentType)
+				response := httptest.NewRecorder()
+				h.ServeHTTP(response, request)
+				if response.Code != http.StatusConflict {
+					t.Fatalf("%s %s=%d %s", operation.method, operation.path, response.Code, response.Body.String())
+				}
+				if body.reads != 0 {
+					t.Fatalf("blocked operation read request before admission: %s", operation.path)
+				}
+			}
+			if inspections != 0 {
+				t.Fatal("blocked selection called runtime inspector")
+			}
+			selections, err := packages.Selections(context.Background())
+			if err != nil || len(selections) != 0 {
+				t.Fatalf("blocked selection mutated store=%v,%v", selections, err)
+			}
+			for _, path := range []string{"/v1/core-packages", "/v1/core-selections"} {
+				request := httptest.NewRequest(http.MethodGet, path, nil)
+				request.Header.Set("Authorization", "Bearer bearer")
+				response := httptest.NewRecorder()
+				h.ServeHTTP(response, request)
+				if response.Code != http.StatusOK {
+					t.Fatalf("read inventory blocked: %s=%d %s", path, response.Code, response.Body.String())
+				}
+			}
+		})
+	}
 }
 func updateRequest(h http.Handler, path, body, lease string) *httptest.ResponseRecorder {
 	r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))

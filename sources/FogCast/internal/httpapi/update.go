@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"syscall"
 	"time"
 
@@ -181,6 +182,11 @@ func guardUpdateAdmission(next http.Handler, token string, s *applianceupdate.Se
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if (r.Method == http.MethodPost && r.URL.Path == "/v1/core-packages") ||
+			(r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/v1/core-selections/")) {
+			guarded.ServeHTTP(w, r)
+			return
+		}
 		switch r.URL.Path {
 		case "/v1/session/display", "/v1/development/media-stream", "/v1/development/media", "/v1/development/live-media", "/v1/development/clear-media", "/v1/development/insert-media", "/v1/development/eject-media", "/v1/library/media/insert", "/v1/library/media/save", "/v1/development/firmware", "/v1/library/core/load", "/v1/library/core/compose", "/v1/library/core/parts", "/v1/library/core/settings", "/v1/development/rbf", "/v1/development/core", "/v1/development/core/parts", "/v1/development/reboot", "/v1/input/attach", "/v1/input/detach", "/v1/input/stream", "/v1/cast/start", "/v1/cast/stop":
 			guarded.ServeHTTP(w, r)

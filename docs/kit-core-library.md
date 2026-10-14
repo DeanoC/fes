@@ -1,0 +1,89 @@
+# Durable kit core library
+
+The target agent can install described core packages on existing FESDATA3 storage
+without rebuilding the appliance image, restarting services, or activating the
+FPGA. Installation retains immutable versions. Explicit selection controls the
+next kit-local launch; a running core keeps its package and execution lease.
+
+The library requires the existing writable ext4 p3 volume. It lives at
+`/run/fogcast/fesdata3/core-library` inside that mounted volume, not on tmpfs.
+Startup positively checks the mount and device before creating anything. Absent
+storage or an appliance trial, pending update, or corrupt update record leaves
+the API unavailable. The agent does not format, repartition, or fall back to FAT.
+After confirming a trial image, restart the agent under owned maintenance to
+open a library that was unavailable at startup.
+
+## Install and select
+
+All routes use the target agent's bearer credential. Package identities are the
+existing sealed package IDs; ABI, board/profile and required-interface support
+remain the native runtime's authority. No execution lease is needed for these
+storage operations. Appliance update admission excludes writes during a trial
+or image transition.
+
+| Route | Effect |
+| --- | --- |
+| `GET /v1/core-packages` | Durable package descriptors and writable selections |
+| `POST /v1/core-packages` | Install a bounded `application/octet-stream` package archive |
+| `GET /v1/core-selections` | Read writable selections |
+| `PUT /v1/core-selections/{core_id}` | Select an installed compatible package using an expected prior ID |
+
+The PUT body is
+`{"expected_package_id":"<prior writable selection>","package_id":"<installed ID>"}`.
+Use an empty expected ID when there is no writable selection, including when the
+factory version is still selected. A competing selection returns HTTP 409
+`CORE_SELECTION_CONFLICT`; refresh rather than overwrite the other agent's
+choice. The package must identify the requested core and pass read-only native
+runtime inspection. That inspection does not activate hardware.
+
+For example, with `KIT_API` and `KIT_TOKEN` supplied from the authorized target
+configuration:
+
+```sh
+curl --fail-with-body -H "Authorization: Bearer $KIT_TOKEN" "$KIT_API/v1/core-packages"
+curl --fail-with-body -H "Authorization: Bearer $KIT_TOKEN" \
+  -H 'Content-Type: application/octet-stream' --data-binary @core.fcore \
+  "$KIT_API/v1/core-packages"
+curl --fail-with-body -X PUT -H "Authorization: Bearer $KIT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  --data '{"expected_package_id":"","package_id":"<installed ID>"}' \
+  "$KIT_API/v1/core-selections/fes.pong"
+```
+
+Installation returns the exact descriptor and ID, plus `created`. Reinstalling
+identical bytes retains the same ID and does not select them. The Go target
+client exposes `InstalledCorePackages`, `InstallCorePackage`, `CoreSelections`
+and `SelectCorePackage`; mutations are not automatically replayed after a lost
+reply. Reconcile through inventory first. An interrupted unselected install is
+completed from its verified retained archive when the store is reopened.
+
+## Launch and recovery
+
+The kit-local inventory combines factory selections with writable selections,
+overriding only the same core ID. Unselected installs do not add tiles. The
+factory inventory and earlier installed versions are retained. There is no
+package deletion API and no implicit rollback. Downgrade by selecting a retained
+compatible version with the expected current selection ID.
+
+Launch requirements come from the full verified manifest, not a core-name
+allowlist. Firmware, multiple ROMs, native-pixel shells requiring video parts and
+unsupported local media paths remain blocked. The current local cartridge path
+supports one format-3 cartridge map. Native runtime inspection checks the exact
+canonical bytes before activation through its existing trusted staging path.
+Every physical launch and stop still uses the execution lease; local launches
+also participate in appliance update admission and draining.
+
+Durable inventory is authenticated again on reads. Missing or corrupt selected
+bytes block local launch, including after restart; they do not silently substitute
+a factory version. A broken library returns HTTP 503
+`CORE_PACKAGE_STORE_UNAVAILABLE`. Mesh inventory advertises only authenticated
+durable packages and rereads installs dynamically.
+
+Package persistence is separate from settings and progress persistence. Kit-local
+execution still uses its existing volatile core-data mode. Persistent settings,
+ROMs, expansion/video parts and title-specific media follow their own contracts.
+Software tests cover concurrent publication, selection conflicts, process
+restart, interrupted installation, update exclusion and activation boundaries.
+They do not establish card power-loss behavior or exact-artifact hardware
+acceptance. See [core persistence](core-persistence.md),
+[core packages](core-packages.md) and [kit sharing](kit-sharing.md).

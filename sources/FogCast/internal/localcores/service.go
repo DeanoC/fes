@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"sort"
 	"sync"
 	"time"
 
@@ -71,9 +72,11 @@ type Roots struct {
 
 // Service lists, launches and stops installed cores for the kit-local socket.
 type Service struct {
-	leases  LeaseGate
-	runtime Runtime
-	roots   Roots
+	leases    LeaseGate
+	runtime   Runtime
+	roots     Roots
+	inventory func() ([]Core, error)
+	admission func(context.Context) (context.Context, func(), error)
 
 	mu          sync.Mutex
 	token       string
@@ -113,7 +116,39 @@ func (s *Service) List() []Core {
 	if s == nil {
 		return []Core{}
 	}
-	return ReadInstalledCores(s.roots.Selections, s.roots.Packages)
+	cores := ReadInstalledCores(s.roots.Selections, s.roots.Packages)
+	if s.inventory == nil {
+		return cores
+	}
+	selected, err := s.inventory()
+	if err != nil {
+		// A broken writable selection must not silently launch a factory
+		// version that the operator did not select.
+		return []Core{}
+	}
+	byCore := make(map[string]Core, len(cores)+len(selected))
+	for _, core := range cores {
+		byCore[core.CoreID] = core
+	}
+	for _, core := range selected {
+		byCore[core.CoreID] = core
+	}
+	cores = make([]Core, 0, len(byCore))
+	for _, core := range byCore {
+		cores = append(cores, core)
+	}
+	sort.Slice(cores, func(i, j int) bool { return cores[i].CoreID < cores[j].CoreID })
+	return cores
+}
+
+// SetInventory adds explicitly selected durable packages. Configure it before
+// serving requests; changes in selection are reread for each list and launch.
+func (s *Service) SetInventory(read func() ([]Core, error)) { s.inventory = read }
+
+// SetAdmission connects local launches to the appliance update drain. Configure
+// it before serving requests. Stop remains available for ownership cleanup.
+func (s *Service) SetAdmission(begin func(context.Context) (context.Context, func(), error)) {
+	s.admission = begin
 }
 
 // Launch claims owner kit-hostless purpose kit-local-core only when the
@@ -139,6 +174,9 @@ func (s *Service) LaunchCartridge(ctx context.Context, packageID string, rom []b
 }
 
 func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Core, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if s == nil || s.leases == nil || s.runtime == nil {
 		return Core{}, errUnavailable
 	}
@@ -166,6 +204,18 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 	}
 	if !leaseFree(s.leases.Status()) {
 		return Core{}, errInUse
+	}
+	var updateCtx context.Context
+	if s.admission != nil {
+		var done func()
+		var err error
+		// Client disconnects do not cancel programming; an appliance update
+		// still cancels and drains this admitted operation before reboot.
+		updateCtx, done, err = s.admission(context.WithoutCancel(ctx))
+		if err != nil {
+			return Core{}, errInUse
+		}
+		defer done()
 	}
 	requestID, err := newRequestID()
 	if err != nil {
@@ -197,7 +247,14 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 	s.runCore = core.CoreID
 	s.mu.Unlock()
 	s.startRenew(grant.Token, leaseCtx, time.Duration(grant.Status.ExpiresInMS)*time.Millisecond)
-	loadErr := s.load(ctx, leaseCtx, core, rom)
+	loadCtx := leaseCtx
+	if updateCtx != nil {
+		merged, cancel := context.WithCancel(leaseCtx)
+		stop := context.AfterFunc(updateCtx, cancel)
+		defer func() { stop(); cancel() }()
+		loadCtx = merged
+	}
+	loadErr := s.load(ctx, loadCtx, core, rom)
 	done()
 	if loadErr != nil {
 		_, _ = s.leases.Release(grant.Token)
@@ -214,7 +271,7 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 	}
 	s.mu.Lock()
 	// The renew loop may already have dropped a revoked session.
-	if s.phase != phaseLaunching || leaseCtx.Err() != nil {
+	if s.phase != phaseLaunching || loadCtx.Err() != nil {
 		s.token = ""
 		s.phase = phaseIdle
 		s.runPackage = ""

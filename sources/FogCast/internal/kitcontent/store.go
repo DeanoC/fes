@@ -63,7 +63,8 @@ type Store struct {
 	// packageRoots are directories whose described packages are this
 	// node's ABI and package lists. Empty means EligibleABIs and
 	// Packages return the lists recorded at Open and SetPackages.
-	packageRoots []string
+	packageRoots     []string
+	packageInventory func() ([]meshcontent.EligibleABI, []string)
 }
 
 // Open prepares one node's store. It does not create directories: the
@@ -166,6 +167,14 @@ func (s *Store) SetPackageRoots(roots []string) {
 	s.mu.Unlock()
 }
 
+// SetPackageInventory supplies a validated dynamic inventory. Configure it
+// before serving requests. The callback runs outside the content store lock.
+func (s *Store) SetPackageInventory(read func() ([]meshcontent.EligibleABI, []string)) {
+	s.mu.Lock()
+	s.packageInventory = read
+	s.mu.Unlock()
+}
+
 // Packages returns the described package ids on this node.
 func (s *Store) Packages() []string {
 	_, packages := s.inventory()
@@ -181,9 +190,13 @@ func (s *Store) inventory() ([]meshcontent.EligibleABI, []string) {
 	}
 	s.mu.Lock()
 	roots := append([]string(nil), s.packageRoots...)
+	read := s.packageInventory
 	abis := append([]meshcontent.EligibleABI(nil), s.abis...)
 	packages := append([]string(nil), s.packages...)
 	s.mu.Unlock()
+	if read != nil {
+		return read()
+	}
 	if len(roots) == 0 {
 		return abis, packages
 	}
