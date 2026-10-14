@@ -93,7 +93,9 @@ static void run(bool chained) {
     h.attention(true); h.send(0x3f); h.attention(false);
     h.t.cpu_clk_low=0; h.tick(400);
     if(h.t.dev_data_low || h.t.dev_clk_low) h.fail("UNLISTEN must release idle bus");
-    h.t.cpu_clk_low=1; h.attention(true);
+    // Stock KERNAL asserts TALK attention before pulling the idle CLOCK low.
+    h.t.cpu_clk_low=0; h.attention(true);
+    if(!h.t.dev_data_low) h.fail("attention acknowledgement released before CLOCK-low");
     h.send(0x48); h.send(0x60);
     h.t.cpu_data_low=1; h.attention(false); h.t.cpu_clk_low=0;
     const unsigned expected[]={1,8,0x11,0x22,0x33,0x44};

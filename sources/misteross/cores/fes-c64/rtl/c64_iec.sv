@@ -34,6 +34,7 @@ module c64_iec (
     localparam ST_RX_BITS   = 4'd14;
     localparam ST_RX_END    = 4'd15;
     localparam ST_TX_TURN   = 5'd16;
+    localparam ST_RX_ATN    = 5'd17;
 
     reg [4:0] state;
     reg [7:0] shifter, tx_byte, rd_data, link_t, link_s, load_i, idx, last;
@@ -139,7 +140,7 @@ module c64_iec (
                 rd_data <= disk_byte;
                 rd_phase <= 2'd2;
             end else if (atn_low && !atn_d) begin
-                state <= ST_RX_HOLD;
+                state <= ST_RX_ATN;
                 bit_i <= 4'd0;
                 dev_data_low <= 1'b1;
                 dev_clk_low <= 1'b0;
@@ -176,6 +177,14 @@ module c64_iec (
                 end
             end else begin
                 case (state)
+                    ST_RX_ATN: begin
+                        // ATN may be asserted while CLOCK is still released.
+                        // Acknowledge it until the talker first pulls CLOCK low;
+                        // only its subsequent high edge is the ready handshake.
+                        dev_data_low <= 1'b1;
+                        dev_clk_low <= 1'b0;
+                        if (bus_clk_low) state <= ST_RX_HOLD;
+                    end
                     // The listener holds DATA low until the talker raises
                     // CLOCK, then releases DATA. That ready pulse is not bit 0.
                     ST_RX_HOLD: begin

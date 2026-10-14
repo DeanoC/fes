@@ -61,7 +61,9 @@ CIA2 CLK/DATA inputs read high for released IEC wires; output controls pull
 wires low when set. Byte transfers use logical wire levels, a CLOCK-high ready
 handshake before bit 0, ACK after the last CLOCK-low edge, and EOI on filenames
 and the final received byte. TALK turnaround holds CLOCK low before announcing
-ready, and UNLISTEN releases an unaddressed idle bus.
+ready, and UNLISTEN releases an unaddressed idle bus. ATN acknowledgement
+remains asserted until the host first pulls CLOCK low, including TALK begun
+from a released idle bus.
 `make sim-fes-c64-iec` exercises these handshakes with a standard host and the
 synthetic D64, independently of the open CPU firmware. A linked-sector case
 checks 260 payload bytes, omits both link headers and requires EOI only on

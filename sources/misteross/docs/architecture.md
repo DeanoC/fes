@@ -1700,7 +1700,8 @@ boot/demo acceptance assertion; the physical ROM map and media mailbox are uncha
 The IEC device uses released-high CIA2 inputs and logical byte levels on the
 open-collector wires. It separates ready/EOI handshakes from received data bits,
 acknowledges after the final CLOCK-low edge, and holds CLOCK low for TALK
-turnaround before raising it to announce ready. The independent
+turnaround before raising it to announce ready. ATN acknowledgement waits
+for the initial CLOCK-low phase even when attention begins with CLOCK high. The independent
 `make sim-fes-c64-iec` host checks LISTEN/OPEN, filename EOI, idle UNLISTEN,
 TALK/SECOND, exact single-sector and 260-byte linked-sector PRGs and final-byte
 EOI. Full sectors follow their track/sector links without transmitting link bytes. The CPU diagnostic
