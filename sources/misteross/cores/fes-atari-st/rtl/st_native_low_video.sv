@@ -254,11 +254,13 @@ module st_native_low_video (
             if (missing_row || border_failed)
                 debug_underruns <= debug_underruns + (missing_row ? 32'd1 : 32'd0) + (border_failed ? 32'd1 : 32'd0);
             if (border_failed) border_overflow_reported <= 1'b1;
+            // capture_overflow stays set until capture_start. Clearing this
+            // latch on the same start counts each overflow once.
+            if (border_start) border_overflow_reported <= 1'b0;
             if (hold) begin
                 owned <= 1'b0; line_valid <= 1'b0;
             end
             if (native_vblank) begin
-                border_overflow_reported <= 1'b0;
                 epoch <= epoch + 32'd1;
                 owned <= bank_free && !hold;
                 write_bank <= free_bank;
