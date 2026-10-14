@@ -102,7 +102,10 @@ class FunctionalColecoTests(unittest.TestCase):
                     if producer is build_fes_sms_oss:
                         relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
                                      "toolchain.lock")
-                    elif producer in (coleco, build_fes_sg1000_oss):
+                    elif producer is build_fes_sg1000_oss:
+                        relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
+                                     "toolchain.lock")
+                    elif producer is coleco:
                         relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
                                      "toolchains/registered-memory.lock")
                     else:
