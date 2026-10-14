@@ -56,7 +56,7 @@ func ReadUpdateGate(paths GatePaths) (Gate, error) {
 	if err != nil {
 		return Gate{}, err
 	}
-	factory, err := release.DecodeManifest(f)
+	factory, _, err := release.DecodeManifest(f)
 	f.Close()
 	if err != nil {
 		return Gate{}, err

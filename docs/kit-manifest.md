@@ -15,10 +15,35 @@ live on the writable FAT volume, not under `/var/lib`:
 | Stock backup | `/media/fat/fes/stock/<image-sha256>/<component>` on the kit |
 | Drift baseline | `/media/fat/fes/baseline.json` on the kit |
 | Named baseline | `/media/fat/fes/baselines/<name>.json` on the kit |
-| Hold marker | `~/tmp/KITA-HELD-BY-<who>` or `~/tmp/KITB-HELD-BY-<who>` on Powerboat |
+| Task marker | `<hold>/KITA-HELD-BY-<who>` or `KITB-HELD-BY-<who>` on the workstation |
+| Maintenance credential journal | `<hold>/.fes-kit-maintenance/KITA.json` or `KITB.json`, private to the invoking user |
+| Target maintenance reservation | `/run/fogcast/kit-maintenance.json`, private and scoped to the current boot |
+| Target transaction lock | `/run/fogcast/kit-maintenance.lock` |
 
-`~/tmp` is the existing hold directory. A marker named `KITA-HELD-BY-<who>`
-means kit A is claimed. Restore renames it to `KITA-RELEASED-BY-<who>`.
+The hold directory is `FES_KIT_HOLD_DIR` when that variable is set. Otherwise
+it is `$XDG_STATE_HOME/fes-kit` when `XDG_STATE_HOME` is set, then
+`~/.local/state/fes-kit`. The directory is created mode `0700`. It is used
+only when the current user owns it, it is not a symlink, and neither it nor
+an ancestor is group- or world-writable. A sticky ancestor such as `/tmp` is
+allowed when this user owns the next component. An explicit path that fails
+these checks is an error. A default candidate that fails is skipped.
+
+Temporary storage is not the hold directory, so a workstation reboot does
+not drop the maintenance credential. A private journal and task marker left
+in the previous default `$TMPDIR/fes-kit-<uid>` are moved into the selected
+hold directory when that file is not already there. A legacy directory or
+file that is a symlink, is owned by someone else, or is group- or
+world-writable is left in place and is not used. Drift snapshots use
+`FES_KIT_DRIFT_DIR` when that variable is set. Otherwise they use
+`~/.local/state/fes-kit/fes-kit-drift`, including when `XDG_STATE_HOME` or
+`FES_KIT_HOLD_DIR` puts the hold directory somewhere else, so a manual watch
+and the timer share one history. A cycle whose own drift directory has no
+snapshot yet still reads that canonical snapshot when a home directory can
+be resolved. A missing home does not block a watch that sets
+`FES_KIT_DRIFT_DIR`. A marker named `KITA-HELD-BY-<who>` records a temporary
+diagnostic task. It does not fence target requests or other hosts. Restore
+renames it to `KITA-RELEASED-BY-<who>`. The target maintenance reservation
+is the authority while files and services change.
 
 Tracked components:
 
@@ -37,9 +62,28 @@ agent, and launcher. `--persistent` on a `/usr` file rewrites the read-only
 image and also requires `--why`. `--temporary` keeps a FAT file on a tmpfs
 bind instead of replacing it.
 
-The kit.py lease is still the FPGA session lock. Release it before swap or
-restore, because those commands restart services and a restart drops the lease.
-This tool does not reboot the board.
+The kit.py lease is the FPGA execution lock. Release that session before a
+swap/restore. The tool claims a grant, promotes it into target maintenance after
+cleanup, and retains the reservation across service and agent restart. Each
+successful transaction ends maintenance after the target confirms idle. This
+tool does not reboot the board. Ordinary claims, takeover and mutations are
+refused during maintenance, including kit-local launch requests.
+
+The maintenance client reads `target_id` from `agent.toml` when that key is
+set. When it is omitted, the client uses `/media/fat/fogcast/target-id` if the
+agent saved one, and otherwise the target id in authenticated health. Health
+must report the same id as a configured or saved identity. A swap of
+`agent.toml` that changes the target id can finish on the same boot: the
+client records one successor id in the private journal after the original
+reservation still matches, then ends that reservation. A different boot, a
+different reservation, a health id that disagrees with the new config or saved
+file, or a further id change does not finish and keeps the journal.
+
+The installed agent must support `fes-kit-maintenance-v1`; see the one-time
+[adoption procedure](kit-sharing.md). Replacement and restored agent executables
+must advertise that same contract with `--print-maintenance-contract`. A stock
+agent without it cannot be restored through this workflow. Missing API support
+never enables an unguarded SSH swap.
 
 ## Commands
 
@@ -55,8 +99,10 @@ python3 scripts/fes kit restore A
 
 `--by` is a slug (`700`, `lander`, `reimage`): letters, digits, `.`, `_`, and
 `-`. Claim refuses when another `KITA-HELD-BY-*` marker exists, when the
-manifest names another holder, or when a tracked path is bind-mounted and the
-manifest does not record it.
+manifest names another task, or when a tracked path is bind-mounted and the
+manifest does not record it. A random task identity is retained in both the
+local marker and remote holder; reusing the same `--by` label does not let an
+older task swap or restore a newer task's files.
 
 Swap keeps the first stock bytes for the booted image in
 `/media/fat/fes/stock/<image-sha256>/` and does not overwrite that backup on
@@ -70,13 +116,18 @@ boot id, the hold, and each component's current hash against stock and, with
 `--main-hashes`, against main. Before the first claim or watch there is no
 stock baseline, so stock is `unrecorded`. `--json` prints the same report.
 
+`restore` is for temporary overlay diagnostics. Accepted appliance updates remain
+installed and do not use this command. Separate persistent kit-software releases
+are planned in [modular updates](modular-updates.md).
+
 `restore` puts every manifest entry back to its stock backup, checks the
 hashes, unmounts tmpfs binds, restarts the affected services, removes stray
 `mister-agent`, `mister-runtime`, `fogcast-kit`, and `fogcast-tenfoot`
 processes whose executable is under `/tmp/fes-swap/` or a deleted mapping,
 clears the manifest entries, and releases the hold. The boot id must be
-unchanged. A changed boot id still restores the files, then the command exits
-4 and the hold is released.
+unchanged. A changed boot ID is rejected before mutation and keeps the task
+marker. Inspect the current boot and use `restore --expected-boot-id UUID` only
+when deliberately restoring the retained diagnostic files on that exact boot.
 
 ```sh
 python3 scripts/fes kit baseline A clean
@@ -97,16 +148,43 @@ as stock instead.
 `restore --force` runs without a hold marker. Use it when the marker was
 removed and the manifest still lists swaps, or when a tracked path,
 including a core-package file, has a bind mount the manifest does not
-record. Those abandoned binds are unmounted, the affected services restart,
+record. If a recorded task has no matching local marker, additionally pass
+`--expected-manifest-sha256 SHA256` from the inspected status to bind that
+explicit recovery to the current manifest. `--force` alone cannot restore
+another recorded task. Those abandoned binds are unmounted, the affected services restart,
 and the hold is not released while a tracked mount remains. If an unmount
 fails, binds already removed in that attempt are mounted again and the
 services are started before the command returns the error.
+
+## Failed transactions and concurrency
+
+The local credential journal is written privately before mutating API requests.
+An interrupted or failed transaction retains the target reservation. Inspect
+`kit status`, repair the cause, and rerun the explicit swap/restore to resume the
+same operation. To finish after independent repair without repeating a file
+change, run `python3 scripts/fes kit maintenance-end A` on the workstation that
+holds the journal. Matching completion still requires clean target idle. A
+missing credential journal cannot authorize clearing another operation.
+
+SSH apply takes the target transaction lock and checks the exact maintenance
+operation, generation and boot before any service stop or file change. It also
+compares the manifest digest observed during planning. Concurrent or stale plans
+are rejected; they cannot overwrite a newer task's manifest. Incoming paths are
+unique per invocation. The lock covers validation, changes, rollback and service
+start; child supervisors do not inherit it. API completion takes the same lock.
+
+The temporary task marker remains between transactions so ordinary leased tests
+can run. Each later swap/restore requires fresh target maintenance admission.
+Removing the agent or its configuration, or restoring an agent without the
+maintenance contract, is rejected before service shutdown.
 
 ## Drift watcher
 
 `python3 scripts/fes kit watch --once` hashes both kits, compares them with
 the manifest and the drift baseline, and appends to
-`~/tmp/fes-kit-drift/watch.log`. A cycle with no drift baseline logs
+`~/.local/state/fes-kit/fes-kit-drift/watch.log` (or `FES_KIT_DRIFT_DIR`).
+The timer uses that same canonical directory, not the hold directory selected
+by `XDG_STATE_HOME`. A cycle with no drift baseline logs
 `UNVERIFIED` and does not treat the current bytes as stock, so an edit made
 before the first cycle stays uncertified. The baseline is written only when
 `--main-hashes` matches every present tracked file and nothing is drifted or

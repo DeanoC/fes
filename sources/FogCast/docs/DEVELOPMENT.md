@@ -262,8 +262,10 @@ historical raw-core acceptance does not qualify the new artifacts.
 
 Change `mister-runtime`, `mister-agent`, `fogcast-kit`, `fogcast-tenfoot`,
 `launcher.json`, `agent.toml`, or a core-package file only through the FES
-[kit runtime manifest](../../../docs/kit-manifest.md). Claim the hold, release
-the kit.py lease, swap, and restore. Do not copy those files onto the kit
+[kit runtime manifest](../../../docs/kit-manifest.md). Record the temporary diagnostic hold, release
+the kit.py execution lease, and swap through the target maintenance API. Restore
+temporary overlays after testing. Each swap/restore reserves the target across
+service restart and ends maintenance only after idle cleanup. Do not copy those files onto the kit
 directly. The restart rules above still apply: swap and restore stop and start
 the affected init scripts, and they do not reboot the board.
 

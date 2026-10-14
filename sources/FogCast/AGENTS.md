@@ -59,6 +59,14 @@ designated kit. Do not assume the same authorization for another device.
 ## Working practices
 
 - Preserve unrelated user changes.
+- Leave the operator-selected shared host available. Run branch diagnostics in
+  private hosts with separate configuration, ports, catalogs and evidence.
+  Clean up only your host/session; follow FES `docs/kit-sharing.md`.
+- Check supported API/ABI contracts and record each exact artifact independently.
+  Different source revisions alone do not require paired host/kit updates.
+- Kit file swaps use FES target-enforced maintenance admission. Do not bypass
+  it with SSH copying or restore another task's state. Temporary overlays are
+  restored explicitly; accepted appliance updates remain installed.
 - Use a branch or worktree for substantial work.
 - Prefer `rg` for source discovery.
 - Run the narrowest relevant tests, then affected package tests and
@@ -72,7 +80,9 @@ designated kit. Do not assume the same authorization for another device.
 - Reserve the FES two-pass `make build` / `make verify` for a stabilized
   change immediately before a major PR, merge, release, or formal hardware
   acceptance. A full image rebuild remains mandatory when Buildroot, init
-  scripts, package contents, image configuration, or locked inputs change.
+  scripts, factory-image package contents, image configuration, or locked inputs
+  change. Importing/selecting a compatible library package does not change the
+  factory image and requires no image rebuild.
   Native image assembly lives in the FES `image/` recipe.
 - Commit, push, and open PRs as needed for the requested work without additional
   approval. Only merging a PR requires review by Deano or by another agent or

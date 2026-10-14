@@ -34,24 +34,28 @@ type TakeoverRequest = contract.TakeoverRequest
 type Grant = contract.Grant
 
 type Manager struct {
-	mu           sync.Mutex
-	ttl          time.Duration
-	cleanup      func(context.Context) error
-	status       Status
-	claim        ClaimRequest
-	token        string
-	leaseContext context.Context
-	cancel       context.CancelFunc
-	timer        *time.Timer
-	refs         int
-	drained      chan struct{}
-	pending      *TakeoverRequest
-	pendingReady string
-	takeover     *TakeoverRequest
-	retired      map[string]bool
-	finished     chan struct{}
-	closed       bool
-	events       flightdiag.Sink
+	mu                sync.Mutex
+	ttl               time.Duration
+	cleanup           func(context.Context) error
+	status            Status
+	claim             ClaimRequest
+	token             string
+	leaseContext      context.Context
+	cancel            context.CancelFunc
+	timer             *time.Timer
+	refs              int
+	drained           chan struct{}
+	pending           *TakeoverRequest
+	pendingReady      string
+	takeover          *TakeoverRequest
+	retired           map[string]bool
+	finished          chan struct{}
+	closed            bool
+	maintenanceStore  *maintenanceStore
+	maintenance       *maintenanceRecord
+	maintenanceLoaded bool
+	maintenanceFault  bool
+	events            flightdiag.Sink
 }
 
 type Option func(*Manager)
@@ -233,6 +237,12 @@ func (m *Manager) Takeover(r TakeoverRequest) (Grant, error) {
 	if m.closed {
 		return Grant{}, ErrBlocked
 	}
+	if m.maintenanceFault {
+		return Grant{}, ErrBlocked
+	}
+	if m.maintenanceActiveLocked() {
+		return Grant{}, ErrBusy
+	}
 	if m.retired[r.RequestID] {
 		return Grant{}, ErrLease
 	}
@@ -311,6 +321,24 @@ func (m *Manager) revokeLocked(reason string) {
 		defer close(finished)
 		<-drained
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		// A replacement agent may start while the root-only executor holds
+		// the maintenance lock. Serve health while loading asynchronously,
+		// with admission still revoking until the reservation is reconciled.
+		if m.maintenanceStore != nil && !m.maintenanceLoaded {
+			record, loadErr := m.maintenanceStore.reconcileStartup(ctx)
+			m.mu.Lock()
+			m.maintenanceLoaded = true
+			m.maintenance = record
+			m.maintenanceFault = loadErr != nil
+			if loadErr != nil {
+				m.status.State = "blocked"
+				m.status.Reason = "maintenance reservation could not be reconciled; operator recovery required"
+				m.mu.Unlock()
+				cancel()
+				return
+			}
+			m.mu.Unlock()
+		}
 		var err error
 		if m.cleanup == nil {
 			err = ErrBlocked
@@ -320,6 +348,15 @@ func (m *Manager) revokeLocked(reason string) {
 		cancel()
 		m.mu.Lock()
 		defer m.mu.Unlock()
+		if m.maintenanceFault {
+			m.status.State = "blocked"
+			m.status.Reason = "maintenance reservation could not be read; operator recovery required"
+			return
+		}
+		if m.maintenanceActiveLocked() {
+			m.reconcileMaintenanceLocked(err)
+			return
+		}
 		if m.closed || (err != nil && !errors.Is(err, ErrRuntimeUnreachable)) {
 			m.status.State = "blocked"
 			m.status.Reason = "kit cleanup failed or agent shutting down; operator recovery required"

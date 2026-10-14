@@ -85,6 +85,13 @@ digests in the preparation record describe the earlier preparation checks;
 the adapter does not independently re-attest build provenance. The existing
 host package reader validates the imported archive against the expected package ID.
 Target identity and software expectations are never discovered and blindly trusted.
+The host, agent and runtime revisions are independent artifact expectations:
+different full host and agent commits are accepted when the normal API, runtime
+protocol and package ABI/interface contracts support the requested operation.
+Do not update or restore kit software solely to make its commit match the host.
+An explicitly expected labelled diagnostic host still requires
+`--allow-development-host`; this does not relax agent/runtime identity or
+compatibility checks.
 No `--execute` means no acceptance execution. The original
 [package acceptance guide](package-acceptance.md) defines the lease, version,
 failure, cleanup and Docker-image requirements; all still apply.
