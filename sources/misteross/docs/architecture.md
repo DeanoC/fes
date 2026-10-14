@@ -1994,9 +1994,12 @@ anchors and CRAM rectangle remain the existing socket contract. The video
 scaffold and the slot-card scaffold share one repair for the system PLL's
 split second output, applied before either boundary is renamed. A routed
 shell whose connections are exactly `{outclk, refclk, locked}`, or that set
-plus `outclk[1]`, is accepted. The repair attaches `outclk[1]` to
-`system_clock.pll_outclk_1`, marks it an output, and drops the obsolete
-`outclk[0]` pin-map alias. Any other connection set is rejected. Separate
+plus `outclk[1]`, is accepted. Legacy JSON carries a six-pin map with
+self-aliased `outclk[0]` and `outclk[1]`. The repair attaches `outclk[1]` to
+`system_clock.pll_outclk_1`, marks it an output, and drops that obsolete
+alias. Shared-pin JSON carries the physical five-pin map: scalar `outclk`
+is bit 0 at cell pin C6 and `outclk[1]` is cell pin C7. That map is
+preserved. Any other connection set or pin map is rejected. Separate
 Direct/Scanlines routes must still pass timing and whole-bitstream containment;
 retained egress alone does not qualify a video part.
 

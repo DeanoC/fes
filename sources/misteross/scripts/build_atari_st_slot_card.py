@@ -74,8 +74,10 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
     """Frozen shell netlist with the chosen socket exposed as the cart plugs.
 
     The routed JSON may omit the system PLL's second output or already list
-    split `outclk[1]`. Both forms are repaired onto the frozen audio net and
-    the obsolete `outclk[0]` alias is dropped. Any other PLL port is rejected.
+    split `outclk[1]`. Both forms are repaired onto the frozen audio net.
+    A six-pin map drops the obsolete `outclk[0]` alias. The physical five-pin
+    map, scalar `outclk` at C6 beside `outclk[1]` at C7, is preserved. Any
+    other PLL port or pin map is rejected.
     The socket's boundary must still be at its pinned BEL. The socket's
     request/response flip-flops are renamed plug_addr_ff_N / plug_rdata_ff_N
     and its clock-coverage flip-flops are removed (their routed clock

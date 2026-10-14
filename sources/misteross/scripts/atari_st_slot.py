@@ -51,10 +51,13 @@ def _pll_net_bits(netnames: dict, name: str) -> list:
 def repair_split_system_pll(top: dict) -> None:
     """Reattach the split second system PLL output.
 
-    Legacy routed JSON omits ``outclk[1]``. A shell that already lists that
-    connection is repaired onto ``system_clock.pll_outclk_1`` the same way.
-    Any other connection set is rejected. The obsolete ``outclk[0]`` pin-map
-    alias is removed.
+    Legacy routed JSON omits ``outclk[1]`` and records a six-pin map whose
+    ``outclk[0]`` and ``outclk[1]`` entries alias themselves. That shell is
+    repaired onto ``system_clock.pll_outclk_1`` and the obsolete alias is
+    removed. Shared-pin nextpnr JSON already lists ``outclk[1]`` and carries
+    the physical five-pin map: scalar ``outclk`` is bit 0 at cell pin C6 and
+    ``outclk[1]`` is cell pin C7. That map is preserved. Any other connection
+    set or pin map is rejected.
     """
     top = _pll_object(top, 'ST system PLL top module')
     cells = _pll_object(top.get('cells'), 'ST system PLL cells')
@@ -72,8 +75,15 @@ def repair_split_system_pll(top: dict) -> None:
     mapping = _pll_object(json.loads(bytes.fromhex(encoded).decode()), 'ST system PLL pin map')
     pins = _pll_object(mapping.get('pins'), 'ST system PLL mapped pins')
     aliases = {f'outclk[{bit}]': [0, f'outclk[{bit}]'] for bit in range(2)}
-    if type(mapping.get('count')) is not int or mapping['count'] != 6 or len(pins) != 6 or \
-            any(pins.get(name) != value for name, value in aliases.items()):
+    # nextpnr's shared-pin shell: scalar outclk is bit 0 (C6), outclk[1] is C7.
+    physical_pins = {'locked': [0, 'locked'], 'outclk': [0, 'C6'], 'outclk[1]': [0, 'C7'],
+                     'refclk': [0, 'refclk'], 'rst': [0, 'rst']}
+    physical = (set(mapping) == {'count', 'pins'} and type(mapping.get('count')) is int and
+                mapping['count'] == 5 and pins == physical_pins and
+                all(type(entry[0]) is int and type(entry[1]) is str for entry in pins.values()))
+    legacy_map = (type(mapping.get('count')) is int and mapping['count'] == 6 and len(pins) == 6 and
+                  all(pins.get(name) == value for name, value in aliases.items()))
+    if not physical and not legacy_map:
         raise ValueError('ST system PLL frozen pin map changed')
     output1 = _pll_net_bits(netnames, 'system_clock.pll_outclk_1')
     clock1 = _pll_net_bits(netnames, 'system_clock.clocks[1]')
@@ -88,6 +98,7 @@ def repair_split_system_pll(top: dict) -> None:
         raise ValueError('ST frozen audio PLL net changed')
     connections['outclk[1]'] = output1
     directions['outclk[1]'] = 'output'
-    del pins['outclk[0]']
-    mapping['count'] = len(pins)
-    attributes['FES_PINMAP_V1'] = json.dumps(mapping, sort_keys=True).encode().hex()
+    if legacy_map:
+        del pins['outclk[0]']
+        mapping['count'] = len(pins)
+        attributes['FES_PINMAP_V1'] = json.dumps(mapping, sort_keys=True).encode().hex()

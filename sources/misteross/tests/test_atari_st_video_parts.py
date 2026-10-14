@@ -183,6 +183,33 @@ class Boundary(unittest.TestCase):
         del connections["outclk"]
         with self.assertRaisesRegex(ValueError,"ST system PLL connection contract changed"):
             layout.prepare_scaffold(json.dumps({"modules":{"top":top}}).encode())
+    def test_scaffold_accepts_routed_scalar_outclk_pin_map(self):
+        routed={"count":5,"pins":{"locked":[0,"locked"],"outclk":[0,"C6"],"outclk[1]":[0,"C7"],
+                                  "refclk":[0,"refclk"],"rst":[0,"rst"]}}
+        encoded=json.dumps(routed).encode().hex()
+        top=fixture(True)
+        pll=top["cells"]["system_clock.pll"]
+        pll["attributes"]["FES_PINMAP_V1"]=encoded
+        pll["connections"]["outclk[1]"]=[999]
+        result=json.loads(layout.prepare_scaffold(json.dumps({"modules":{"top":top}}).encode()))["modules"]["top"]
+        repaired=result["cells"]["system_clock.pll"]
+        self.assertEqual(repaired["connections"]["outclk[1]"],[20])
+        self.assertEqual(repaired["connections"]["outclk"],[10])
+        self.assertNotIn("outclk[0]",repaired["connections"])
+        self.assertEqual(repaired["port_directions"]["outclk[1]"],"output")
+        self.assertEqual(repaired["attributes"]["FES_PINMAP_V1"],encoded)
+        mapping=json.loads(bytes.fromhex(repaired["attributes"]["FES_PINMAP_V1"]).decode())
+        self.assertEqual(mapping,routed)
+        self.assertEqual(mapping["pins"]["outclk"],[0,"C6"])
+        self.assertEqual(mapping["pins"]["outclk[1]"],[0,"C7"])
+        self.assertIn("plug_addr_ff_0",result["cells"])
+        self.assertEqual(result["netnames"],top["netnames"])
+        indexed={"count":5,"pins":{"locked":[0,"locked"],"outclk[0]":[0,"C6"],"outclk[1]":[0,"C7"],
+                                    "refclk":[0,"refclk"],"rst":[0,"rst"]}}
+        bad=fixture(True)
+        bad["cells"]["system_clock.pll"]["attributes"]["FES_PINMAP_V1"]=json.dumps(indexed).encode().hex()
+        with self.assertRaisesRegex(ValueError,"ST system PLL frozen pin map changed"):
+            layout.prepare_scaffold(json.dumps({"modules":{"top":bad}}).encode())
     def test_boundary_rejects_source_clock_response_and_rogue_pair(self):
         layout.validate_boundary(fixture(),routed=False)
         for name,port,value in (("plug_request_ff_0","CLK",[0]),("plug_request_ff_0","DATAIN",[101]),("plug_response_ff_27","DATAIN",[1])):

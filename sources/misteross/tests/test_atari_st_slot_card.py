@@ -179,6 +179,54 @@ class AtariSTSlotCardTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "ST system PLL connection contract changed"):
             card.prepare_scaffold(json.dumps(design).encode(), 1)
 
+    def test_repair_accepts_routed_scalar_outclk_pin_map(self):
+        routed = {"count": 5, "pins": {
+            "locked": [0, "locked"], "outclk": [0, "C6"], "outclk[1]": [0, "C7"],
+            "refclk": [0, "refclk"], "rst": [0, "rst"]}}
+        encoded = json.dumps(routed).encode().hex()
+        design = frozen_shell()
+        top = design["modules"]["top"]
+        pll = top["cells"]["system_clock.pll"]
+        pll["attributes"]["FES_PINMAP_V1"] = encoded
+        pll["connections"]["outclk[1]"] = [999]
+        atari_st_slot.repair_split_system_pll(top)
+        self.assertEqual(pll["connections"]["outclk[1]"], [20])
+        self.assertEqual(pll["connections"]["outclk"], [10])
+        self.assertNotIn("outclk[0]", pll["connections"])
+        self.assertEqual(pll["port_directions"]["outclk[1]"], "output")
+        self.assertEqual(pll["attributes"]["FES_PINMAP_V1"], encoded)
+        mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]).decode())
+        self.assertEqual(mapping, routed)
+        self.assertEqual(mapping["pins"]["outclk"], [0, "C6"])
+        self.assertEqual(mapping["pins"]["outclk[1]"], [0, "C7"])
+        prepared = json.loads(card.prepare_scaffold(json.dumps(design).encode(), 1))["modules"]["top"]
+        self.assertIn("plug_addr_ff_0", prepared["cells"])
+        self.assertEqual(prepared["cells"]["system_clock.pll"]["attributes"]["FES_PINMAP_V1"], encoded)
+
+        def reject(mutated):
+            bad = frozen_shell()
+            bad["modules"]["top"]["cells"]["system_clock.pll"]["attributes"]["FES_PINMAP_V1"] = \
+                json.dumps(mutated).encode().hex()
+            with self.assertRaisesRegex(ValueError, "ST system PLL frozen pin map changed"):
+                atari_st_slot.repair_split_system_pll(bad["modules"]["top"])
+
+        indexed = {"count": 5, "pins": {
+            "locked": [0, "locked"], "outclk[0]": [0, "C6"], "outclk[1]": [0, "C7"],
+            "refclk": [0, "refclk"], "rst": [0, "rst"]}}
+        reject(indexed)
+        for name, value in (("outclk", [0, "C5"]), ("outclk[1]", [0, "outclk[1]"]),
+                            ("outclk", [1, "C6"]), ("outclk[0]", [0, "outclk[0]"])):
+            mutated = json.loads(json.dumps(routed))
+            mutated["pins"][name] = value
+            mutated["count"] = len(mutated["pins"])
+            reject(mutated)
+        counted = json.loads(json.dumps(routed))
+        counted["count"] = 6
+        reject(counted)
+        extra = json.loads(json.dumps(routed))
+        extra["revision"] = 1
+        reject(extra)
+
     def test_scaffold_rejects_moved_boundary_clock_and_pll(self):
         for mutation in ("bel", "clock", "pll", "audio", "canonical"):
             with self.subTest(mutation=mutation):
