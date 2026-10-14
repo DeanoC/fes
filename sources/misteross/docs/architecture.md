@@ -1990,7 +1990,13 @@ the scaffold. The loads and their input routes remain in the scaffold; part
 routing can extend those frozen branches inside the original CRAM fence.
 The producer checks all load sites, source bits, identity LUT masks and routed
 request branches. The request/response word mapping, boundary FF BELs, clock
-anchors and CRAM rectangle remain the existing socket contract. Separate
+anchors and CRAM rectangle remain the existing socket contract. The video
+scaffold repairs the system PLL's split second output before renaming the
+video boundary. A routed shell whose connections are exactly
+`{outclk, refclk, locked}`, or that set plus `outclk[1]`, is accepted. The
+repair attaches `outclk[1]` to `system_clock.pll_outclk_1`, marks it an
+output, and drops the obsolete `outclk[0]` pin-map alias. Any other
+connection set is rejected. Separate
 Direct/Scanlines routes must still pass timing and whole-bitstream containment;
 retained egress alone does not qualify a video part.
 

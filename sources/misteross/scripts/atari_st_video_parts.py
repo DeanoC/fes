@@ -170,12 +170,15 @@ def prepare_scaffold(source: bytes) -> bytes:
     if any(name.startswith(("plug_addr_ff_", "plug_rdata_ff_")) for name in cells):
         raise ValueError("frozen ST shell already exposes canonical plug cells")
     # Repair only the split second system PLL output, without moving/removing
-    # any of the 119 CPU socket FFs or their route-through buffers.
+    # any of the 119 CPU socket FFs or their route-through buffers. Legacy
+    # routed JSON omits outclk[1]; a shell that already lists that split
+    # connection is repaired the same way. Any other port is rejected.
     pll = _object(cells.get("system_clock.pll"), "system PLL")
     connections = _object(pll.get("connections"), "system PLL connections")
     attributes = _object(pll.get("attributes"), "system PLL attributes")
     directions = _object(pll.get("port_directions"), "system PLL port directions")
-    if pll.get("type") != "altera_pll" or set(connections) != {"outclk", "refclk", "locked"}:
+    legacy = {"outclk", "refclk", "locked"}
+    if pll.get("type") != "altera_pll" or set(connections) not in (legacy, legacy | {"outclk[1]"}):
         raise ValueError("ST system PLL connection contract changed")
     encoded = attributes.get("FES_PINMAP_V1")
     if not isinstance(encoded, str):
