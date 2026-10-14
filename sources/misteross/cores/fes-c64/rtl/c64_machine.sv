@@ -231,6 +231,7 @@ module c64_machine #(
     );
 
     wire [7:0] vic_dout, color_dout;
+    wire vic_irq;
     wire signed [15:0] sid_sample;
     c64_vic vic (
         .clk_sys(clk_sys), .phi(cpu_ce), .pixel_clk(video_clk), .reset(system_reset),
@@ -240,7 +241,7 @@ module c64_machine #(
         .color_we(bus_strobe && bus_we && sel_color), .color_dout(color_dout),
         .bank(~cia2_pa[1:0]), .ram_addr(video_ram_addr), .ram_data(video_ram_q),
         .red(red), .green(green), .blue(blue), .de(de), .hsync(hsync), .vsync(vsync),
-        .raster()
+        .raster(), .irq(vic_irq)
     );
     c64_sid sid (
         .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_sid),
@@ -248,7 +249,7 @@ module c64_machine #(
         .sample(sid_sample)
     );
     assign audio_sample = sid_sample;
-    assign irq_n = cart_irq | cia1_irq;
+    assign irq_n = cart_irq | cia1_irq | vic_irq;
     assign nmi_n = cart_nmi | cia2_irq;
 
     wire [7:0] char_byte = c64_glyph(bus_addr[10:3], bus_addr[2:0]);

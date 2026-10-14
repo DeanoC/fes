@@ -6,6 +6,8 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import shutil
+import tempfile
 
 
 def main():
@@ -72,18 +74,27 @@ def main():
                f'+C64_DISK_HEX={output / "disk.hex"}', f'+C64_SYS_CYCLES={args.cycles}']
     if key_events:
         command.append(f'+C64_KEY_EVENTS={output / "keyboard.txt"}')
-    with (output / 'boot.log').open('w') as log:
-        subprocess.run(command, cwd=output, stdout=log, stderr=subprocess.STDOUT, check=True)
-    outputs = {name: hashlib.sha256((output / name).read_bytes()).hexdigest()
-               for name in ['boot.log', 'boot-ram.bin', 'boot.ppm']}
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=module, text=True).strip()
     source_diff = subprocess.check_output(['git', 'diff', 'HEAD', '--',
         'cores/fes-c64', 'Makefile', 'scripts/c64_boot_observe.py'], cwd=module)
-    receipt = {'source_commit': revision, 'source_diff_sha256': hashlib.sha256(source_diff).hexdigest(),
+    # A long observation can span edits and a rebuild of the shared binary.
+    # Execute an immutable private copy and retain its launch-time hash. The
+    # checkout fields describe the invocation, not compiler input provenance.
+    with tempfile.TemporaryDirectory(prefix='c64-simulator-', dir=output) as run_directory:
+        frozen_binary = Path(run_directory) / binary.name
+        shutil.copy2(binary, frozen_binary)
+        simulator_sha256 = hashlib.sha256(frozen_binary.read_bytes()).hexdigest()
+        command[0] = str(frozen_binary)
+        with (output / 'boot.log').open('w') as log:
+            subprocess.run(command, cwd=output, stdout=log, stderr=subprocess.STDOUT, check=True)
+    outputs = {name: hashlib.sha256((output / name).read_bytes()).hexdigest()
+               for name in ['boot.log', 'boot-ram.bin', 'boot.ppm']}
+    receipt = {'checkout_commit_at_start': revision,
+               'checkout_diff_sha256_at_start': hashlib.sha256(source_diff).hexdigest(),
                'evidence': 'host-only observation', 'simulated_seconds': args.cycles / 52224000,
                'system_clock_hz': 52224000, 'pixel_clock_hz': 74250000,
                'cpu_clock_hz': 1022727, 'inputs': inputs, 'outputs': outputs,
-               'simulator_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
+               'simulator_sha256': simulator_sha256,
                'typed_command': args.type_command, 'key_event_count': len(key_events),
                'boot_acceptance': False, 'demo_acceptance': False}
     (output / 'observation.json').write_text(json.dumps(receipt, indent=2) + '\n')

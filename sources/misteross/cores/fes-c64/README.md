@@ -22,7 +22,11 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   one synchronous dual-port M10K, 1024×4 at `$D800–$DBFF`. The 6510 can use
   `$DBE8–$DBFF` as scratch. The VIC scan returns zero outside the 1000-cell
   matrix.
-  Raster timing is not locked to HDMI. No sprites, bitmap or badlines.
+  Nine-bit raster compare uses `$D011` bit 7 and `$D012`; `$D019` latches
+  events and acknowledges written ones, while `$D01A` masks the CPU IRQ.
+  Events occur once per line; writes can match the current line, and automatic
+  line-zero comparison waits one Phi2 after frame wrap. Raster timing is not
+  locked to HDMI. No sprites, bitmap, badlines, collision or lightpen events.
 - Reduced SID: three voices, pulse, saw, triangle and noise, a crude envelope
   and volume. No filter.
 - CIA1: keyboard matrix, joystick and IRQ. CIA2: IEC, the VIC bank and NMI.
@@ -130,10 +134,12 @@ C64 and is not implied by a successful C64 LOAD.
 | 9 | D64 `BOOT` bytes `01 08 11 22 33 44` at `$0800` |
 | 10 | CIA1 timer B one-shot, IRQ vector and interrupt acknowledgement |
 | 11 | CIA2 timer A one-shot, NMI vector and acknowledgement while `SEI` is set |
+| 12 | VIC raster IRQ through the CPU vector and `$D019` acknowledgement |
 
 ```sh
 make -C sources/misteross sim-fes-c64
 make -C sources/misteross sim-fes-c64-cia # directed timer/register checks
+make -C sources/misteross sim-fes-c64-vic # raster compare/mask/acknowledgement
 make -C sources/misteross build-fes-c64   # HIP seal; not part of the sim gate
 ```
 
@@ -160,6 +166,13 @@ assert successful boot or demo compatibility. Character ROM, PAL timing and
 Firmware and disk memories accept Verilator-only `+C64_FIRMWARE_HEX=...` and
 `+C64_DISK_HEX=...` overrides; the ordinary open diagnostic retains its defaults.
 The physical ROM map and media interface are unchanged.
+
+The raster interrupt tests follow the Commodore
+[Programmer's Reference Guide](https://www.devili.iki.fi/Computers/Commodore/C64/Programmers_Reference/Chapter_3/page_150.html)
+and Christian Bauer's measured VIC-II description,
+[section 3.12](https://www.cebix.net/VIC-Article.txt). These checks exercise
+register/line behavior and the CPU vector on the present raster counter;
+physical subcycle timing and native video/DMA coupling remain unqualified.
 
 The CIA register behavior follows the MOS/Commodore
 [6526 data sheet](https://www.retrodocs.fr/wp-content/uploads/pdf/MOS-6526.pdf),

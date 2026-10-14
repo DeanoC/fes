@@ -29,10 +29,23 @@ module c64_vic (
     output wire        de,
     output wire        hsync,
     output wire        vsync,
-    output reg  [8:0]  raster
+    output reg  [8:0]  raster,
+    output wire        irq
 );
     reg [7:0] regs [0:46];
     reg [5:0] phi_div;
+    reg raster_pending, raster_fired;
+    wire [8:0] raster_compare = {regs[6'h11][7], regs[6'h12]};
+    wire line_end = phi && phi_div == 6'd62;
+    wire [8:0] next_raster = raster == 9'd262 ? 9'd0 : raster + 9'd1;
+    wire compare_write = cs && we && (addr == 6'h11 || addr == 6'h12);
+    wire [8:0] written_compare = addr == 6'h11 ? {din[7], regs[6'h12]} :
+                                                              {regs[6'h11][7], din};
+    // One event per line. Line zero's automatic comparison is one Phi2 later.
+    wire raster_event = (line_end && next_raster != 0 && next_raster == raster_compare) ||
+        (!raster_fired && ((phi && raster == 0 && phi_div == 0 && raster_compare == 0) ||
+                          (compare_write && written_compare == raster)));
+    assign irq = raster_pending && regs[6'h1A][0];
     integer i;
 
     wire [3:0] color_cpu_q;
@@ -47,6 +60,8 @@ module c64_vic (
         dout = 8'hFF;
         if (addr == 6'h11) dout = {raster[8], d011[6:0]};
         else if (addr == 6'h12) dout = raster[7:0];
+        else if (addr == 6'h19) dout = {irq, 3'b111, 3'b000, raster_pending};
+        else if (addr == 6'h1A) dout = {4'b1111, regs[6'h1A][3:0]};
         else if (addr <= 6'h2E) dout = regs[addr];
         color_dout = {4'h0, color_cpu_q};
     end
@@ -55,6 +70,8 @@ module c64_vic (
         if (reset) begin
             raster <= 9'd0;
             phi_div <= 6'd0;
+            raster_pending <= 1'b0;
+            raster_fired <= 1'b0;
             for (i = 0; i < 47; i = i + 1) regs[i] <= 8'h00;
             regs[6'h11] <= 8'h1B;
             regs[6'h16] <= 8'hC8;
@@ -62,8 +79,14 @@ module c64_vic (
             regs[6'h20] <= 8'h0E;
             regs[6'h21] <= 8'h06;
         end else begin
-            if (we && cs && addr <= 6'h2E && addr != 6'h12)
+            if (we && cs && addr <= 6'h2E && addr != 6'h19)
                 regs[addr] <= din;
+            if (line_end) raster_fired <= 1'b0;
+            if (we && cs && addr == 6'h19 && din[0]) raster_pending <= 1'b0;
+            if (raster_event) begin
+                raster_pending <= 1'b1;
+                raster_fired <= 1'b1;
+            end
             if (phi) begin
                 if (phi_div == 6'd62) begin
                     phi_div <= 6'd0;

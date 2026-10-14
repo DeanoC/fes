@@ -1712,6 +1712,15 @@ correcting the former transposed diagnostic mapping. A is PA1/PB2 and Return
 is PA0/PB1. `make sim-fes-c64-keyboard`, included in `sim-fes-c64`, checks every
 switch across all scan columns plus release, chords and modifier aliases.
 Reverse scanning and electrical ghosting remain unimplemented.
+The VIC raster compare is writable through `$D011.7`/`$D012`, independently
+of the beam position returned by reads. `$D019` retains the raster event until
+write-one acknowledgement; `$D01A` enables its level IRQ, ORed with CIA1 and
+cartridge IRQ at the CPU. A source can fire once per line, including an immediate
+compare write on an unfired line. Automatic line-zero comparison waits one
+Phi2 after wrap. `make sim-fes-c64-vic` checks the register/line behavior; the
+open firmware checks CPU vector delivery and acknowledgement at stage 12.
+Sprites, collision/lightpen sources, DMA/badlines, native video coupling and
+physical subcycle timing are still outside this implementation.
 Both CIA timers expose their live counters, load stopped counters on high-byte
 writes, treat force-load as a strobe, and implement continuous/one-shot counting.
 Timer B can count Phi2 or timer A underflows. CIA1 asserts IRQ and CIA2 asserts

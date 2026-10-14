@@ -293,10 +293,65 @@ nmi_done:
         lda $19
         cmp #$01
         bne nmi_bad
+        jsr check_vic_irq
+        rts
+
+check_vic_irq:
+        lda #$00
+        sta $1d
+        sta $1e
+        lda $d011
+        and #$7f
+        sta $d011
+        lda #$20
+        sta $d012
+        lda #$01
+        sta $d019
+        sta $d01a
+        cli
+        ldy #$ff
+vic_wait_outer:
+        ldx #$ff
+vic_wait:
+        lda $1d
+        bne vic_irq_done
+        dex
+        bne vic_wait
+        dey
+        bne vic_wait_outer
+vic_irq_bad:
+        sei
+        lda #$0c
+        jmp fail
+vic_irq_done:
+        sei
+        cmp #$01
+        bne vic_irq_bad
+        lda $1e
+        and #$81
+        cmp #$81
+        bne vic_irq_bad
+        lda $d019
+        and #$81
+        bne vic_irq_bad
+        lda #$00
+        sta $d01a
         rts
 
 irq_handler:
         pha
+        lda $d019
+        and #$81
+        cmp #$81
+        bne irq_cia
+        lda $d019
+        sta $1e
+        lda #$01
+        sta $d019
+        inc $1d
+        pla
+        rti
+irq_cia:
         lda $dc0d
         sta $1b
         inc $19

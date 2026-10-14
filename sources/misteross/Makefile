@@ -1048,7 +1048,16 @@ sim-fes-c64-cia:
 		cores/fes-c64/rtl/c64_cia.v "$(CURDIR)/cores/fes-c64/sim/cia_tb.cpp"
 	@build/sim/fes-c64-cia/Vc64_cia
 
-.PHONY: sim-fes-c64-iec
+.PHONY: sim-fes-c64-vic
+sim-fes-c64-vic:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-vic
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-vic" \
+		cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_color_ram.v \
+		"$(CURDIR)/cores/fes-c64/sim/vic_tb.cpp"
+	@build/sim/fes-c64-vic/Vc64_vic
+
 sim-fes-c64-iec: c64-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-iec
@@ -1084,7 +1093,7 @@ sim-fes-c64-boot-build:
 		cores/fes-c64/sim/c64_boot_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/boot_tb.cpp"
 
-sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec
+sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
