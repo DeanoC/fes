@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from contextlib import ExitStack
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -97,7 +98,7 @@ class BuildFixture:
             kwargs["stdout"].write(self.route_text)
             self.after_route(output)
 
-    def build(self, *, final_tools=None, **options):
+    def build(self, *, final_tools=None, gpu=0, **options):
         with ExitStack() as stack:
             stack.enter_context(patch.object(card, "_require_clean_source", return_value=("repo", "d" * 40)))
             stack.enter_context(patch.object(card, "read_package", return_value=self.package))
@@ -108,7 +109,7 @@ class BuildFixture:
             stack.enter_context(patch.object(card, "rbf_load", side_effect=[self.base, self.placed]))
             overlay = stack.enter_context(patch.object(card, "overlay_cram", return_value=self.placed))
             stack.enter_context(patch.object(card, "rbf_save", return_value=b"linked-card"))
-            result = card.build(self.root, self.shell, self.root / "package", 1, "probe", 0, **options)
+            result = card.build(self.root, self.shell, self.root / "package", 1, "probe", gpu, **options)
             overlay.assert_called_once()
             return result
 
@@ -241,6 +242,49 @@ class AtariSTSlotCardTests(unittest.TestCase):
             for env in fixture.envs:
                 self.assertEqual(env["CUDA_DEVICE_ORDER"], "PCI_BUS_ID")
                 self.assertNotIn("HIP_VISIBLE_DEVICES", env)
+                self.assertNotIn("CUDA_VISIBLE_DEVICES", env)
+            route = fixture.commands[1]
+            self.assertEqual(route[route.index("--gpu-device") + 1], "0")
+            recipe = json.loads((next(Path(directory).glob("build/atari-st-cards/*/build-summary.json"))).read_text())["recipe"]
+            self.assertEqual(recipe["gpu_device"], 0)
+
+    def test_cuda_route_selects_requested_gpu_and_records_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = BuildFixture(Path(directory))
+            fixture.route_text = "Info: backend cuda:fixture ready\nInfo: Program finished normally.\n"
+            with patch.dict(os.environ, {"HIP_VISIBLE_DEVICES": "0", "CUDA_VISIBLE_DEVICES": "0",
+                                          "CUDA_DEVICE_ORDER": "FASTEST_FIRST"}):
+                selected = fixture.build(gpu=1, gpu_router="CUDA", toolchain_root=Path("/tmp/st-cuda"))
+            route = fixture.commands[1]
+            self.assertEqual(route[route.index("--router") + 1], "gpu")
+            self.assertEqual(route[route.index("--gpu-device") + 1], "1")
+            self.assertEqual(route.count("--gpu-device"), 1)
+            for env in fixture.envs:
+                self.assertEqual(env["CUDA_DEVICE_ORDER"], "PCI_BUS_ID")
+                self.assertNotIn("HIP_VISIBLE_DEVICES", env)
+                self.assertNotIn("CUDA_VISIBLE_DEVICES", env)
+            recipe = json.loads((selected.parent / "build-summary.json").read_text())["recipe"]
+            self.assertEqual(recipe["gpu_device"], 1)
+            recipe_bytes = json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode()
+            self.assertEqual(selected.parent.name, card.digest(recipe_bytes))
+        with tempfile.TemporaryDirectory() as directory:
+            other = BuildFixture(Path(directory))
+            other.route_text = "Info: backend cuda:fixture ready\nInfo: Program finished normally.\n"
+            untouched = other.build(gpu=0, gpu_router="CUDA", toolchain_root=Path("/tmp/st-cuda"))
+            self.assertEqual(other.commands[1][other.commands[1].index("--gpu-device") + 1], "0")
+            self.assertNotEqual(untouched.parent.name, selected.parent.name)
+
+    def test_hip_route_masks_requested_gpu_without_nextpnr_device_flag(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = BuildFixture(Path(directory))
+            with patch.dict(os.environ, {"HIP_VISIBLE_DEVICES": "9", "CUDA_VISIBLE_DEVICES": "3"}):
+                result = fixture.build(gpu=1)
+            route = fixture.commands[1]
+            self.assertNotIn("--gpu-device", route)
+            for env in fixture.envs:
+                self.assertEqual(env["HIP_VISIBLE_DEVICES"], "1")
+            recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
+            self.assertNotIn("gpu_device", recipe)
 
     def test_invalid_seed_rejected_before_source_tools_or_artifact_writes(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -258,6 +302,18 @@ class AtariSTSlotCardTests(unittest.TestCase):
                     compiler.assert_not_called()
                     output.assert_not_called()
                     self.assertEqual(list(root.iterdir()), [])
+            for gpu in (-1, True, False, "1", 1.5, None):
+                with self.subTest(gpu=gpu), \
+                     patch.object(card, "_require_clean_source") as source, \
+                     patch.object(card.shell_recipe, "_authenticate_atari_st_tools") as tools, \
+                     patch.object(card.subprocess, "run") as compiler, \
+                     patch.object(card, "_prepare_output") as output:
+                    with self.assertRaisesRegex(ValueError, "nonnegative integer"):
+                        card.build(root, root, root, 1, "probe", gpu)
+                    source.assert_not_called()
+                    tools.assert_not_called()
+                    compiler.assert_not_called()
+                    output.assert_not_called()
 
     def test_no_archive_on_outside_cram_header_clock_or_timing_change(self):
         for failure, message in (("outside", "outside"), ("header", "header"),

@@ -307,8 +307,31 @@ class FullProducer(unittest.TestCase):
                 self.assertEqual(call.kwargs, {'toolchain_root': toolchain, 'gpu_router': 'CUDA'})
             fixture.invocation_mock.assert_called_once_with(
                 fixture.tools, 0, extra_env={'CUDA_DEVICE_ORDER': 'PCI_BUS_ID'})
+            route = fixture.commands[1]
+            self.assertEqual(route[route.index('--gpu-device') + 1], '0')
             summary = json.loads(next(Path(tmp).glob('build/atari-st-video-parts/*/*/build-summary.json')).read_text())
             self.assertEqual(summary['route']['gpu_backend'], 'cuda')
+            self.assertEqual(summary['recipe']['execution'], fixture.invocation.inputs)
+
+    def test_route_passes_recorded_gpu_device_for_hip_and_cuda(self):
+        cases = (
+            ('HIP', None, 'hip'),
+            ('CUDA', {'CUDA_DEVICE_ORDER': 'PCI_BUS_ID'}, 'cuda'),
+        )
+        for router, extra, backend in cases:
+            with self.subTest(router=router), tempfile.TemporaryDirectory() as tmp:
+                fixture = CompilerFixture(Path(tmp))
+                fixture.backend = backend
+                fixture.invocation.inputs = {'version': 1, 'gpu_device': 1, 'frozen': 'test'}
+                fixture.build(gpu=1, gpu_router=router, toolchain_root=Path('/tmp/st-cuda'))
+                route = fixture.commands[1]
+                self.assertEqual(route[route.index('--router') + 1], 'gpu')
+                self.assertEqual(route[route.index('--gpu-device') + 1], '1')
+                self.assertEqual(route.count('--gpu-device'), 1)
+                fixture.invocation_mock.assert_called_once_with(fixture.tools, 1, extra_env=extra)
+                summary = json.loads(next(Path(tmp).glob('build/atari-st-video-parts/*/*/build-summary.json')).read_text())
+                self.assertEqual(summary['recipe']['execution']['gpu_device'], 1)
+
     def test_failures_never_publish_a_part(self):
         for name in ('pixel timing','system timing','audio timing','wrong clock','RAM','header','outside strict column','source mutation','generated mutation','map mismatch'):
             with self.subTest(name=name),tempfile.TemporaryDirectory() as tmp:

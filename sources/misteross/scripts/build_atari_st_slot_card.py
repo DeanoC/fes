@@ -196,6 +196,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
           toolchain_root: Path | None = None) -> Path:
     if type(seed) is not int or not 1 <= seed <= 10:
         raise ValueError("card placer seed must be an integer from 1 to 10")
+    if type(gpu) is not int or gpu < 0:
+        raise ValueError("card GPU device must be a nonnegative integer")
     root, shell = root.resolve(), shell.resolve()
     inputs = card_inputs(card)
     socket = socket_for(slot)
@@ -221,6 +223,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
               "region": socket.region, "cram_region": list(socket.cram), "map": atari_st_slot.LAYOUT,
               "slot_clock": SLOT_CLOCK, "placer_seed": seed,
               "required_clocks_mhz": REQUIRED_CLOCKS_MHZ, "clock_constraints_sha256": digest(clocks)}
+    if gpu_router == "CUDA":
+        recipe["gpu_device"] = gpu
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/atari-st-cards" / recipe_sha
     publications = tuple(path.name for path in output.glob("*.tar"))
@@ -234,8 +238,12 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     (output / "scaffold.json").write_bytes(scaffold)
     env = dict(os.environ)
     extra = shell_recipe.execution_extra(gpu_router)
+    # HIP remaps the selected device to index 0. CUDA keeps PCI bus order and
+    # selects that index with nextpnr --gpu-device, as the other producers do.
+    # An inherited visibility mask would renumber that index.
     if extra:
         env.pop("HIP_VISIBLE_DEVICES", None)
+        env.pop("CUDA_VISIBLE_DEVICES", None)
         env.update(extra)
     else:
         env["HIP_VISIBLE_DEVICES"] = str(gpu)
@@ -249,7 +257,9 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
          "--freq", "52.224", "--fes-scaffold", "--fes-cart", str(output / "cart.json"),
          "--fes-cart-region", socket.region, "--fes-slot-clock", SLOT_CLOCK,
          "--fes-cram-region", ",".join(str(v) for v in socket.cram),
-         "--no-pack", "--seed", str(seed), "--router", "gpu", "--placer-heap-timingweight", "300",
+         "--no-pack", "--seed", str(seed), "--router", "gpu",
+         *(["--gpu-device", str(gpu)] if extra else []),
+         "--placer-heap-timingweight", "300",
          "--rbf", str(output / "cart.rbf"), "--compress-rbf",
          "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")],
     ]
