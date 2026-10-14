@@ -170,18 +170,15 @@ the first seed that meets every clock at analogue signoff.
 `qor-ranking.json` lists the seeds it tried, and `build-summary.json`
 records the winning seed.
 
-For the opt-in 130 MHz compiler timing diagnostic, provision its separate
-lock and run the paired seed-2 routes:
+For the 130 MHz timing diagnostic, use the shared toolchain and run the
+paired seed-2 routes:
 
 ```sh
-make toolchain-fes-ramtest-timing
+make toolchain-fes-ramtest
 make diagnose-fes-ramtest-timing GPU_DEVICE=1
 ```
 
-The diagnostic pins merged Yosys [#17](https://github.com/DeanoC/yosys/pull/17)
-and nextpnr [#93](https://github.com/DeanoC/nextpnr/pull/93),
-[#95](https://github.com/DeanoC/nextpnr/pull/95) and the asynchronous-clear
-correctness fix [#94](https://github.com/DeanoC/nextpnr/pull/94). It first routes
+The diagnostic uses `toolchain.lock`. It first routes
 with up to four generic local enable copies. It then uses that timing report
 to try local LUT remap candidate 0 with up to eight LAB groups, routing the
 same synthesis and BUILD_ID again. Both attempts retain their own outputs in

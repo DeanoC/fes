@@ -261,8 +261,7 @@ mailbox uses.
 The Atari ST producer now selects the shared `toolchain.lock`
 (Yosys `5391eeb1`, nextpnr `9128800f`). The factory recipe stays HIP.
 A CUDA route is a separate package. RAM test and menu use that same lock
-and its HIP compiler slot. `toolchains/ramtest-timing.lock` remains a separate
-opt-in experimental stack for the 130 MHz timing comparison.
+and its HIP compiler slot. The 130 MHz timing comparison uses that same pin.
 The [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
 qualifies the earlier private pin and its read-only shell. It does not
 qualify this shared-pin seal. The October kit notes do not accept these bytes.
