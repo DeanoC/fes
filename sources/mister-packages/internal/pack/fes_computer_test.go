@@ -63,7 +63,7 @@ func TestFesComputerContract(t *testing.T) {
 		{"fes.media.spectrum-tape", 5}, {"fes.media.c64-disk", 6},
 		{"fes.media.atari-st-floppy", 7},
 		{"fes.mouse.relative", 8}, {"fes.media.atari-st-floppy-write", 9},
-		{"fes.media.atari-st-floppy-geometry", 10},
+		{"fes.media.atari-st-floppy-geometry", 10}, {"fes.media.zx81-tape", 11},
 	}
 	if len(abi.Interfaces) != len(want) {
 		t.Fatalf("interfaces = %+v", abi.Interfaces)

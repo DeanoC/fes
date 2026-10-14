@@ -123,6 +123,9 @@ constexpr std::uint32_t FesComputerApple2FloppyBytes = 0x23000u;
 constexpr std::uint32_t FesComputerSpectrumTapeUnit = 0x0u;
 constexpr std::uint32_t FesComputerSpectrumTapeMinBytes = 0x1u;
 constexpr std::uint32_t FesComputerSpectrumTapeMaxBytes = 0x10000u;
+constexpr std::uint32_t FesComputerZx81TapeUnit = 0x0u;
+constexpr std::uint32_t FesComputerZx81TapeMinBytes = 0x1u;
+constexpr std::uint32_t FesComputerZx81TapeMaxBytes = 0x4000u;
 constexpr std::uint32_t FesComputerC64DiskUnit = 0x0u;
 constexpr std::uint32_t FesComputerC64DiskBytes = 0x2ab00u;
 constexpr std::uint32_t FesComputerAtariStFloppyUnit = 0x0u;
@@ -181,6 +184,10 @@ constexpr const char* FesComputerInterfaceMediaAtariStFloppyGeometryID = "fes.me
 constexpr std::uint16_t FesComputerInterfaceMediaAtariStFloppyGeometryMajor = 1u;
 constexpr std::uint16_t FesComputerInterfaceMediaAtariStFloppyGeometryMinor = 0u;
 constexpr std::uint32_t FesComputerCapabilityMediaAtariStFloppyGeometry = 0x400u;
+constexpr const char* FesComputerInterfaceMediaZx81TapeID = "fes.media.zx81-tape";
+constexpr std::uint16_t FesComputerInterfaceMediaZx81TapeMajor = 1u;
+constexpr std::uint16_t FesComputerInterfaceMediaZx81TapeMinor = 0u;
+constexpr std::uint32_t FesComputerCapabilityMediaZx81Tape = 0x800u;
 
 } // namespace generated
 } // namespace native

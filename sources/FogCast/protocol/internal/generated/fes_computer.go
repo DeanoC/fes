@@ -115,6 +115,9 @@ const (
 	FesComputerSpectrumTapeUnit                         uint32 = 0x0
 	FesComputerSpectrumTapeMinBytes                     uint32 = 0x1
 	FesComputerSpectrumTapeMaxBytes                     uint32 = 0x10000
+	FesComputerZx81TapeUnit                             uint32 = 0x0
+	FesComputerZx81TapeMinBytes                         uint32 = 0x1
+	FesComputerZx81TapeMaxBytes                         uint32 = 0x4000
 	FesComputerC64DiskUnit                              uint32 = 0x0
 	FesComputerC64DiskBytes                             uint32 = 0x2ab00
 	FesComputerAtariStFloppyUnit                        uint32 = 0x0
@@ -173,4 +176,8 @@ const (
 	FesComputerInterfaceMediaAtariStFloppyGeometryMajor uint16 = 1
 	FesComputerInterfaceMediaAtariStFloppyGeometryMinor uint16 = 0
 	FesComputerCapabilityMediaAtariStFloppyGeometry     uint32 = 0x400
+	FesComputerInterfaceMediaZx81TapeID                        = "fes.media.zx81-tape"
+	FesComputerInterfaceMediaZx81TapeMajor              uint16 = 1
+	FesComputerInterfaceMediaZx81TapeMinor              uint16 = 0
+	FesComputerCapabilityMediaZx81Tape                  uint32 = 0x800
 )

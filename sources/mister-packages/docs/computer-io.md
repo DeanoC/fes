@@ -29,6 +29,7 @@ removable media by unit.
 | fes.mouse.relative | 8 | Relative signed movement and two mouse buttons |
 | fes.media.atari-st-floppy-write | 9 | Writable extension to the ST disk interface, with frozen image capture |
 | fes.media.atari-st-floppy-geometry | 10 | Required opt-in for bounded alternate raw ST disk geometries |
+| fes.media.zx81-tape | 11 | Media unit 0: one ZX81 `.p` image, 1..16384 bytes |
 
 Admission requires video. Every other interface is independently composable.
 The writable extension requires the base ST floppy interface; it changes its
@@ -225,8 +226,15 @@ payload bytes. The core plays complete blocks into the EAR bit while the
 machine runs (header pilot 8063 edges, data pilot 3223, sync 667/735, bit
 pulses 855 or 1710 T-states, then a one-second pause). A trailing partial
 block is not played. Version 1.0 does not return MIC writes to the host.
-A shell declares this unit, the Apple II floppy, or the C64 disk, and only
-one unit-0 media interface, including the Atari ST floppy below.
+A shell declares this unit, the Apple II floppy, the C64 disk, the Atari ST
+floppy, or the ZX81 tape, and only one unit-0 media interface.
+
+### fes.media.zx81-tape 1.0
+
+Unit 0. The unit accepts 1..16,384 bytes: a ZX81 `.p` memory image. The core
+copies a ready image into RAM when BASIC reaches `LOAD` at `$0347`. An empty
+unit makes that load return `0/0` instead of waiting on an analog cassette.
+Version 1.0 does not play audio tape and does not return saves to the host.
 
 ### fes.media.c64-disk 1.0
 

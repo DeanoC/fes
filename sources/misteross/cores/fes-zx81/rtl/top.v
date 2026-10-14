@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-`include "fes_simple_computer.vh"
+`include "fes_computer.vh"
 `ifndef FES_ZX81_BUILD_ID
 `define FES_ZX81_BUILD_ID 128'h00000000000000000000000000000000
 `endif
@@ -44,13 +44,14 @@ module top #(
     wire [7:0] red;
     wire [7:0] green;
     wire [7:0] blue;
-    wire display_request, display_response_valid, display_response_error, display_quiesced;
-    wire [6:0] display_opcode;
-    wire [7:0] display_index;
-    wire [15:0] display_argument, display_response_data;
+    wire [143:0] keyboard_rows;
+    wire [13:0] media_write_addr;
+    wire [15:0] media_write_data;
+    wire [1:0] media_write_enable;
+    wire [1:0] unit0_state;
+    wire [31:0] unit0_size;
     wire [10:0] raster_h;
     wire [9:0] raster_v;
-    wire [23:0] selected_rgb;
 
     cyclonev_hps_interface_mpu_general_purpose hps_gp (
         .gp_in(fpga_to_hps),
@@ -99,25 +100,30 @@ module top #(
         .outclk_0(pixel_clk), .locked(pixel_locked)
     );
 
-    fes_computer_gp #(.ENABLE_AUDIO(1), .ENABLE_SESSION_DISPLAY(1)) gp_mailbox (
-        .clk(clk_sys),
-        .gpo(hps_to_fpga),
-        .build_id(BUILD_ID),
-        .gpi(fpga_to_hps),
-        .exec_reset(exec_reset),
-        .keyboard(keyboard),
-        .media_ready(tape_ready),
-        .media_size(tape_size),
-        .media_byte0(),
-        .media_byte1(),
-        .media_byte2(),
-        .media_addr(tape_addr),
-        .media_q(tape_data),
-        .media_busy(tape_busy),
-        .display_request(display_request), .display_opcode(display_opcode), .display_index(display_index),
-        .display_argument(display_argument), .display_response_valid(display_response_valid),
-        .display_response_error(display_response_error), .display_response_data(display_response_data),
-        .display_quiesced(display_quiesced)
+    fes_computer_mailbox #(
+        .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1),
+        .ENABLE_ZX81_TAPE(1), .MEDIA_AW(14),
+        .UNIT0_MIN(`FES_COMPUTER_ZX81_TAPE_MIN_BYTES),
+        .UNIT0_MAX(`FES_COMPUTER_ZX81_TAPE_MAX_BYTES)
+    ) gp_mailbox (
+        .clk(clk_sys), .gpo(hps_to_fpga), .build_id(BUILD_ID), .gpi(fpga_to_hps),
+        .exec_reset(exec_reset), .keyboard_rows(keyboard_rows),
+        .controller_buttons(),
+        .mouse_valid(), .mouse_dx(), .mouse_dy(), .mouse_buttons(), .mouse_ready(1'b0),
+        .media_write_busy(1'b0), .media_changed(1'b0), .media_frozen(),
+        .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
+        .media_write_addr(media_write_addr), .media_write_data(media_write_data),
+        .media_write_enable(media_write_enable), .media_write_ready(1'b1),
+        .unit0_state(unit0_state), .unit0_size(unit0_size)
+    );
+    zx81_keyboard keyboard_map (
+        .clk(clk_sys), .reset(exec_reset), .rows(keyboard_rows), .matrix(keyboard)
+    );
+    zx81_tape_store tape (
+        .clk(clk_sys), .unit_state(unit0_state), .unit_size(unit0_size),
+        .write_addr(media_write_addr), .write_data(media_write_data),
+        .write_enable(media_write_enable), .tape_addr(tape_addr),
+        .tape_ready(tape_ready), .tape_size(tape_size), .tape_data(tape_data)
     );
 
     /* verilator lint_off PINCONNECTEMPTY */
@@ -224,14 +230,6 @@ module top #(
         .src_y_max()
     );
 
-    zx81_session_display display (
-        .clk_sys(clk_sys), .pixel_clk(pixel_clk), .reset_hold(!pixel_locked), .exec_reset(exec_reset),
-        .request(display_request), .opcode(display_opcode), .index(display_index), .argument(display_argument),
-        .response_valid(display_response_valid), .response_error(display_response_error),
-        .response_data(display_response_data), .quiesced_sys(display_quiesced),
-        .raster_h(raster_h), .raster_v(raster_v), .machine_rgb({red, green, blue}),
-        .rgb(selected_rgb), .ui_active(), .displayed_sequence(), .underflows(), .faulted()
-    );
-    assign HDMI_TX_D = selected_rgb;
+    assign HDMI_TX_D = {red, green, blue};
     assign HDMI_TX_CLK = pixel_clk;
 endmodule

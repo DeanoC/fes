@@ -8,8 +8,8 @@
 // exactly the clock they are acknowledged (low byte at addr, high byte at
 // addr+1), and unit0_state tells the core whether the unit's image may be
 // presented to the machine. Media requests are valid while execution runs.
-// ENABLE_APPLE2_FLOPPY, ENABLE_C64_DISK and ENABLE_SPECTRUM_TAPE each occupy
-// unit 0; a core sets one of them. UNIT0_MIN/MAX must match that interface.
+// ENABLE_APPLE2_FLOPPY, ENABLE_C64_DISK, ENABLE_SPECTRUM_TAPE and
+// ENABLE_ZX81_TAPE each occupy unit 0; a core sets one of them. UNIT0_MIN/MAX must match that interface.
 module fes_computer_mailbox #(
     parameter bit ENABLE_KEYBOARD = 0,
     parameter bit ENABLE_PORTS = 0,
@@ -18,6 +18,7 @@ module fes_computer_mailbox #(
     parameter bit ENABLE_APPLE2_FLOPPY = 0,
     parameter bit ENABLE_C64_DISK = 0,
     parameter bit ENABLE_SPECTRUM_TAPE = 0,
+    parameter bit ENABLE_ZX81_TAPE = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_WRITE = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_GEOMETRY = 0,
@@ -53,7 +54,7 @@ module fes_computer_mailbox #(
     output reg  [31:0]  unit0_size
 );
     // Unit 0 is one drive. A shell enables one of the three media parameters.
-    localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_C64_DISK | ENABLE_SPECTRUM_TAPE | ENABLE_ATARI_ST_FLOPPY;
+    localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_C64_DISK | ENABLE_SPECTRUM_TAPE | ENABLE_ZX81_TAPE | ENABLE_ATARI_ST_FLOPPY;
     localparam bit WRITABLE = ENABLE_ATARI_ST_FLOPPY_WRITE && ENABLE_ATARI_ST_FLOPPY;
     localparam bit GEOMETRY = ENABLE_ATARI_ST_FLOPPY && ENABLE_ATARI_ST_FLOPPY_GEOMETRY;
     localparam [15:0] CAPABILITIES =
@@ -65,6 +66,7 @@ module fes_computer_mailbox #(
         (ENABLE_APPLE2_FLOPPY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_APPLE2_FLOPPY_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_C64_DISK ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_C64_DISK_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_SPECTRUM_TAPE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_SPECTRUM_TAPE_CAPABILITY_MASK) : 16'd0) |
+        (ENABLE_ZX81_TAPE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ZX81_TAPE_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_ATARI_ST_FLOPPY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_CAPABILITY_MASK) : 16'd0) |
         (GEOMETRY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_GEOMETRY_CAPABILITY_MASK) : 16'd0) |
         (WRITABLE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_WRITE_CAPABILITY_MASK) : 16'd0);
