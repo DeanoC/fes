@@ -60,17 +60,17 @@ SG1000_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={SG1000_GPU_ROUTER}; hip-architectures={SG1000_GPU_ARCHITECTURES}"
 )
 OUTPUT_RELATIVE = Path("build/fes-sg1000-oss")
-SG1000_TOOLCHAIN_LOCK = "toolchains/registered-memory.lock"
+SG1000_TOOLCHAIN_LOCK = "toolchain.lock"
 SG1000_TOOLCHAIN_ROOT = "build/toolchain/fes-sg1000"
 SG1000_TOOL_COMMITS = {
-    "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "a93fe013af841214ecb4f7be3af0de65f3de3a0f",
-    "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
+    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
+    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
+    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
 }
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
     "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
-    "libmistral/cyclonev.h": "48c0acadd2d1dc47398d7e7ab8ad840e98cb3fda489c3197eace6f3ba59e6f21",
+    "libmistral/cyclonev.h": "185c24e2b75385d8e62a7144f12488eb68f7d8159af0a8a603cc4a3de1749ee9",
 }
 RECIPE = "scripts/build_fes_sg1000_oss.py"
 ABI_DEFINITION = "cores/fes-sg1000/generated/fes_simple_computer.vh"
@@ -152,15 +152,27 @@ AUDIO_PINS = {"HDMI_MCLK": "PIN_U11", "HDMI_SCLK": "PIN_T12",
               "HDMI_LRCLK": "PIN_T11", "HDMI_I2S": "PIN_T13"}
 
 
-def _authenticate_sg1000_tools(root: Path, cache_root: Path | None = None):
+def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
+    if gpu_router == "HIP":
+        return SG1000_GPU_BACKEND, SG1000_GPU_ARCHITECTURES, SG1000_TOOLCHAIN_CONFIGURATION
+    if gpu_router == "CUDA":
+        return "cuda", "unused", "gpu-router=CUDA; hip-architectures=unused"
+    raise BuildError(f"unsupported SG-1000 GPU router {gpu_router}")
+
+
+def _authenticate_sg1000_tools(root: Path, cache_root: Path | None = None,
+                               toolchain_root: Path | None = None,
+                               gpu_router: str = SG1000_GPU_ROUTER):
+    _backend, architectures, configuration = gpu_choice(gpu_router)
+    root_path = root / SG1000_TOOLCHAIN_ROOT if toolchain_root is None else Path(toolchain_root)
     return _authenticate_tools(
         root,
         lock_path=root / SG1000_TOOLCHAIN_LOCK,
-        toolchain_root=root / SG1000_TOOLCHAIN_ROOT,
+        toolchain_root=root_path,
         expected_commits=SG1000_TOOL_COMMITS,
-        expected_configuration={"nextpnr": SG1000_TOOLCHAIN_CONFIGURATION},
-        gpu_router=SG1000_GPU_ROUTER,
-        hip_architectures=SG1000_GPU_ARCHITECTURES,
+        expected_configuration={"nextpnr": configuration},
+        gpu_router=gpu_router,
+        hip_architectures=architectures,
         cache_root=cache_root,
     )
 
@@ -191,6 +203,8 @@ def create_build_record(
     *,
     identity_version: int = 2,
     execution: dict | None = None,
+    gpu_backend: str = SG1000_GPU_BACKEND,
+    gpu_architectures: str = SG1000_GPU_ARCHITECTURES,
 ) -> bytes:
     fields = {
         "format": 1,
@@ -204,8 +218,8 @@ def create_build_record(
         "tools": dict(tool_identities),
         "parameters": {
             "device": TARGET,
-            "gpu_architectures": SG1000_GPU_ARCHITECTURES,
-            "gpu_backend": SG1000_GPU_BACKEND,
+            "gpu_architectures": gpu_architectures,
+            "gpu_backend": gpu_backend,
             "pixel_clock_hz": 74_250_000,
             "sys_clock_hz": 52_224_000,
             "reference_clock_hz": 50_000_000,
@@ -386,7 +400,8 @@ def _audio_timing(fmax: object) -> tuple[str, float, float]:
     return _frequency_row(fmax, 12.288, "audio clock", "system_clock.clocks[1]")
 
 
-def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
+def validate_build_evidence(output: Path, source_root: Path = ROOT, *,
+                            gpu_backend: str = SG1000_GPU_BACKEND) -> dict:
     routed = _read_json(output / "routed.json", "routed design")
     reject_async_m10k_reads(routed)
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
@@ -401,8 +416,11 @@ def validate_build_evidence(output: Path, source_root: Path = ROOT) -> dict:
     route_text = route_log.read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
-    gpu_backend = _require_gpu_backend(route_text, SG1000_GPU_BACKEND)
-    if "50 MHz -> 52.224 MHz" not in route_text:
+    gpu_backend = _require_gpu_backend(route_text, gpu_backend)
+    system_pll = "50 MHz -> 52.224 MHz" in route_text or (
+        re.search(r"Info: PLL 'system_clock\.pll': 50\.000000 MHz -> VCO [0-9.]+ MHz, fractional-N,", route_text)
+        and re.search(r"Info: PLL 'system_clock\.pll': fractional-N requested 52224000\.000000 Hz \(output 0\)", route_text))
+    if not system_pll:
         raise BuildError("route log does not contain the shared 50-to-52.224 MHz system/audio PLL")
     timing = _read_json(output / "timing.json", "timing report")
     system = _frequency_row(timing.get("fmax"), 52.224, "system clock", "system_clock.clocks[0]")
@@ -498,19 +516,23 @@ def _route_placement(root: Path, output: Path, nextpnr: Path, invocation, gpu_de
 
 
 @guard_functional_source
-def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None, identity_version: int = 2, gpu_device: int = 0) -> Path:
+def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None, identity_version: int = 2, gpu_device: int = 0, gpu_router: str = SG1000_GPU_ROUTER, toolchain_root: Path | None = None) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
         raise BuildError(f"FES SG-1000 package store must be {root / 'build/packages'}")
     repository, revision = _require_clean_source(root, identity_version=identity_version)
-    authenticated = _authenticate_sg1000_tools(root, cache_root=cache_root)
+    backend, architectures, _configuration = gpu_choice(gpu_router)
+    authenticated = _authenticate_sg1000_tools(
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     database_root = authenticated["mistral"].path.parents[2] / "src/mistral"
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
-    invocation = FunctionalInvocation(authenticated, gpu_device)
+    extra_env = {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"} if gpu_router == "CUDA" else None
+    invocation = FunctionalInvocation(authenticated, gpu_device, extra_env=extra_env)
     record = create_build_record(root, repository, revision, identities,
-        identity_version=identity_version, execution=invocation.inputs)
+        identity_version=identity_version, execution=invocation.inputs,
+        gpu_backend=backend, gpu_architectures=architectures)
     output = _prepare_output(root)
     _write_atomic(output / "build-inputs.json", record)
     try:
@@ -527,7 +549,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                                       invocation, gpu_device)
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        evidence = validate_build_evidence(output, root)
+        evidence = validate_build_evidence(output, root, gpu_backend=backend)
         mapping, map_evidence = rom_map.build_rom_map(
             database, (output / "core.rbf").read_bytes(),
             routed=_read_json(output / "routed.json", "routed ROM design"),
@@ -570,7 +592,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         )
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / "manifest.toml", manifest)
-        final_tools = _authenticate_sg1000_tools(root, cache_root=cache_root)
+        final_tools = _authenticate_sg1000_tools(
+            root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
         final_repository, final_revision = _require_clean_source(root, identity_version=identity_version)
@@ -580,7 +603,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
             raise BuildError("ROM database changed during build")
         if create_build_record(root, repository, revision, identities,
-            identity_version=identity_version, execution=invocation.inputs) != record:
+            identity_version=identity_version, execution=invocation.inputs,
+            gpu_backend=backend, gpu_architectures=architectures) != record:
             raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store,
                               rom_map=output / "rom-map.json")
@@ -594,12 +618,15 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         invocation.close()
 
 
-def synth(root: Path = ROOT, *, cache_root: Path | None = None) -> dict:
+def synth(root: Path = ROOT, *, cache_root: Path | None = None,
+          gpu_router: str = SG1000_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> dict:
     """Run Yosys only. Does not require a clean tree and does not seal a package."""
     root = Path(root).resolve()
     for relative in PINNED_INPUTS:
         _regular_input(root, relative)
-    authenticated = _authenticate_sg1000_tools(root, cache_root=cache_root)
+    authenticated = _authenticate_sg1000_tools(
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     output = _prepare_output(root)
     build_id = "0" * 32
@@ -638,6 +665,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--print-commands", action="store_true")
     parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=SG1000_GPU_ROUTER)
+    parser.add_argument("--toolchain-root", type=Path)
     parser.add_argument(
         "--synth-only",
         action="store_true",
@@ -651,7 +680,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             root = arguments.root.resolve()
             for relative in PINNED_INPUTS:
                 _regular_input(root, relative)
-            authenticated = _authenticate_sg1000_tools(root, cache_root=arguments.cache_root)
+            authenticated = _authenticate_sg1000_tools(
+                root, cache_root=arguments.cache_root,
+                toolchain_root=arguments.toolchain_root, gpu_router=arguments.gpu_router)
             build_id = "0" * 32
             yosys, nextpnr = build_commands(
                 root,
@@ -662,7 +693,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(" ".join(yosys))
             return 0
         if arguments.synth_only:
-            evidence = synth(arguments.root, cache_root=arguments.cache_root)
+            evidence = synth(
+                arguments.root, cache_root=arguments.cache_root,
+                gpu_router=arguments.gpu_router, toolchain_root=arguments.toolchain_root)
             cells = evidence["synthesis_cells"]
             print(
                 "synth-only "
@@ -673,7 +706,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
         print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
-                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device))
+                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device,
+                    gpu_router=arguments.gpu_router, toolchain_root=arguments.toolchain_root))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-sg1000-oss: {exc}", file=sys.stderr)
         return 1
