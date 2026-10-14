@@ -10,7 +10,7 @@
 
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
-    // Two machine seconds, using the production clock ratio. Plusargs select
+    // Three machine seconds, using the production clock ratio. Plusargs select
     // external firmware/disk hex files; all copyrighted bytes stay outside Git.
     Vc64_boot_sim_top top;
     top.reset = 1;
@@ -21,7 +21,7 @@ int main(int argc, char **argv) {
     struct Cycle { uint16_t bus, pc; uint8_t data, state; };
     Cycle history[64] = {};
     unsigned history_count = 0;
-    uint64_t cycle_budget = 2ull * 52224000;
+    uint64_t cycle_budget = 3ull * 52224000;
     if (const char *arg = Verilated::commandArgsPlusMatch("C64_SYS_CYCLES="))
         if (*arg) cycle_budget = std::strtoull(arg + 16, nullptr, 10);
     unsigned raster_reads = 0, raster_zero_reads = 0;

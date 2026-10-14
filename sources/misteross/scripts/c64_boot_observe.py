@@ -14,7 +14,7 @@ def main():
     parser.add_argument('--kernal', type=Path, required=True)
     parser.add_argument('--disk', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
-    parser.add_argument('--cycles', type=int, default=2 * 52224000)
+    parser.add_argument('--cycles', type=int, default=3 * 52224000)
     args = parser.parse_args()
     if not 1044480 <= args.cycles <= 60 * 52224000:
         parser.error('cycles must cover 0.02 to 60 machine seconds')

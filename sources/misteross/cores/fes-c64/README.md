@@ -116,7 +116,7 @@ cartridge sockets. Run `python3 scripts/c64_boot_observe.py --basic /path/basic.
 from this module, using your own exact 8 KiB BASIC and KERNAL ROMs and 174,848-byte
 D64. The script retains input hashes, simulator identity, RAM, the final complete
 HDMI frame, a screen-code dump and the last 64 CPU bus cycles. The default
-observation covers two simulated machine seconds; `--cycles` sets a longer
+observation covers three simulated machine seconds; `--cycles` sets a longer
 startup budget or a shorter trace (0.02 to 60 seconds). The actual
 52.224/74.25 MHz system/pixel ratio is used; CPU cadence remains the current
 1.022727 MHz. No keyboard command is sent and the mounted demo is not started.
