@@ -61,13 +61,24 @@ class ROMMapTests(unittest.TestCase):
         from types import SimpleNamespace
         from unittest.mock import patch
         rows=tuple(range(32,52));tdp=tuple(range(16,20))
-        cells={f"machine.rom.lane{i}":{"type":"MISTRAL_M10K_TDP" if i in tdp else "MISTRAL_M10K",
+        cells={f"machine.rom.lane{i}":{"type":"MISTRAL_M10K",
             "attributes":{"NEXTPNR_BEL":f"MISTRAL_M10K.5.{row}.0"},
-            "parameters":{"CFG_ABITS":10,"CFG_DBITS":10,"CFG_ASYNC_READ":0,"INIT":"0"*10240}}
+            "parameters":{"CFG_ABITS":10,"CFG_DBITS":10,"CFG_ASYNC_READ":0,
+                          "CFG_TDP":"0001" if i in tdp else "0000","INIT":"0"*10240}}
             for i,row in enumerate(rows)}
         routed={"modules":{"top":{"cells":cells}}}
         rom_map.validate_routed_rom(routed,rows,expected_async_read=0,true_dual_port_lanes=tdp)
         with self.assertRaises(ValueError):rom_map.validate_routed_rom(routed,rows,expected_async_read=0)
+        lane = cells['machine.rom.lane16']
+        for value in [None, 0, '0', 2, True, 'invalid']:
+            lane['parameters']['CFG_TDP'] = value
+            with self.assertRaisesRegex(ValueError, 'invalid CFG_TDP'):
+                rom_map.validate_routed_rom(routed,rows,expected_async_read=0,true_dual_port_lanes=tdp)
+        lane['parameters']['CFG_TDP'] = '0001'
+        lane['type'] = 'MISTRAL_M10K_TDP'
+        with self.assertRaisesRegex(ValueError, 'must occupy'):
+            rom_map.validate_routed_rom(routed,rows,expected_async_read=0,true_dual_port_lanes=tdp)
+        lane['type'] = 'MISTRAL_M10K'
         for selection in [(16,16),(20,),(-1,),(True,)]:
             with self.assertRaises(ValueError):rom_map.validate_routed_rom(routed,rows,expected_async_read=0,true_dual_port_lanes=selection)
         die=('7605, 7024, // cram size\n// x to bit x\n{'+','.join(map(str,SX120F.x_to_bx))+

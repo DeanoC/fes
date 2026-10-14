@@ -1706,6 +1706,9 @@ of BASIC (8 KiB), KERNAL (8 KiB) and character ROM (4 KiB) through twenty blank
 system clock; CPU reads take two clocks and VIC reads one. The ROM map uses
 the existing encoding and each source block appears once. CPU/VIC character
 visibility follows separate banking rules.
+Routed ROM validation checks nextpnr's normalized `MISTRAL_M10K` cells;
+character lanes require `CFG_TDP=1`, while the other lanes require it disabled.
+Fixed BELs, registered read mode, dimensions and blank INIT remain mandatory.
 `c64_vic_fetch` schedules native matrix/color and glyph reads. VC, VCBASE, RC
 and the matrix latch support badlines, late DMA, FLI, FLD and linecrunch;
 BA stops CPU reads while pending writes finish. CPU bus strobes occur at

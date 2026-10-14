@@ -68,10 +68,16 @@ def validate_routed_rom(routed: dict, lane_rows: tuple[int | tuple[int, int], ..
         name = f'machine.rom.lane{index}'
         cell = cells.get(name, {})
         bel = f'MISTRAL_M10K.{column}.{row}.0'
-        expected_type = 'MISTRAL_M10K_TDP' if index in true_dual_port_lanes else 'MISTRAL_M10K'
-        if cell.get('type') != expected_type or cell.get('attributes', {}).get('NEXTPNR_BEL') != bel:
+        # nextpnr normalizes the frontend TDP primitive to MISTRAL_M10K
+        # with CFG_TDP=1 before placement. Validate the routed representation.
+        if cell.get('type') != 'MISTRAL_M10K' or cell.get('attributes', {}).get('NEXTPNR_BEL') != bel:
             raise ValueError(f'routed ROM lane {name} must occupy {bel}')
         parameters = cell.get('parameters', {})
+        tdp = parameters.get('CFG_TDP', 0)
+        if isinstance(tdp, str) and re.fullmatch('[01]+', tdp):
+            tdp = int(tdp, 2)
+        if type(tdp) is not int or tdp != int(index in true_dual_port_lanes):
+            raise ValueError(f'routed ROM lane {name} has invalid CFG_TDP')
         for key, expected in (('CFG_ABITS', 10), ('CFG_DBITS', 10), ('CFG_ASYNC_READ', expected_async_read)):
             value = parameters.get(key)
             if isinstance(value, str) and re.fullmatch('[01]+', value):
