@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Open 16 KiB C64 firmware: an 8 KiB BASIC window and an 8 KiB KERNAL window.
+"""Open 20 KiB C64 firmware: BASIC, KERNAL and a 4 KiB character ROM.
 
 No Commodore ROM is used. The KERNAL window is a diagnostic that checks RAM,
 the linked BASIC signature, VIC and character generator, both cartridge
 sockets, the joystick and keyboard, then LOADs BOOT from the built-in 1541
 over the IEC bus and checks CIA1 IRQ and CIA2 NMI delivery. Bytes 0..8191 map
-at $A000 and bytes 8192..16383 at $E000.
+at $A000, bytes 8192..16383 at $E000 and the final 4096 form character ROM.
 """
 
 from __future__ import annotations
@@ -17,6 +17,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from asm6502 import assemble
+import importlib.util
+_font_spec=importlib.util.spec_from_file_location("fes_c64_character_font",Path(__file__).with_name("font.py"))
+_font=importlib.util.module_from_spec(_font_spec)
+_font_spec.loader.exec_module(_font)
+character_image=_font.image
 
 BASIC = bytes(b"FESBASIC") + bytes(8192 - 8)
 
@@ -614,7 +619,7 @@ def build(*, without_cartridges: bool = False) -> bytes:
         raise RuntimeError("firmware windows must be 8 KiB")
     if kernal[0x1FFC] != 0x00 or kernal[0x1FFD] != 0xE0:
         raise RuntimeError("reset vector is not $E000")
-    return BASIC + kernal
+    return BASIC + kernal + character_image()
 
 
 def main() -> None:
@@ -627,6 +632,7 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "firmware.bin").write_bytes(image)
     (args.output_dir / "firmware.hex").write_text("".join(f"{byte:02X}\n" for byte in image))
+    (args.output_dir / "rom-test.hex").write_text("".join(f"{(i*37+(i>>8)*11)&255:02x}\n" for i in range(20480)))
 
 
 if __name__ == "__main__":

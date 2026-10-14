@@ -30,13 +30,12 @@ class BuildFesC64Tests(unittest.TestCase):
             def cell(name: str, *, write: str = "0") -> tuple[str, dict]:
                 return name, {"type": "MISTRAL_M10K", "connections": {
                     "CLK1": ["x"], "CLK2": [42], "A1EN": [write], "B1EN": ["1"]}}
-            cells = dict((cell("machine.iec.file_track_rom"),
-                          cell("machine.vic.code_q_rom")))
+            cells = dict([cell("machine.iec.file_track_rom")])
             path.write_text(json.dumps({"modules": {"top": {"cells": cells}}}))
             producer.clock_read_only_memories(path)
             fixed = json.loads(path.read_text())["modules"]["top"]["cells"]
             self.assertTrue(all(c["connections"]["CLK1"] == [42] for c in fixed.values()))
-            cells["machine.vic.code_q_rom"]["connections"]["A1EN"] = ["1"]
+            cells["machine.iec.file_track_rom"]["connections"]["A1EN"] = ["1"]
             path.write_text(json.dumps({"modules": {"top": {"cells": cells}}}))
             with self.assertRaises(BuildError):
                 producer.clock_read_only_memories(path)
@@ -182,7 +181,7 @@ class BuildFesC64Tests(unittest.TestCase):
     def test_manifest_declares_the_home_computer_contract(self) -> None:
         record = json.dumps({"recipe_sha256": "a" * 64}).encode()
         evidence = {"rbf": {"size": 2_000_000, "sha256": "b" * 64}, "build_id": "c" * 32,
-                    "rom": {"id": "c64-firmware", "role": "firmware", "source_size": 16384,
+                    "rom": {"id": "c64-firmware", "role": "firmware", "source_size": 20480,
                             "file": "rom-map.json", "size": 100, "sha256": "d" * 64}}
         manifest = tomllib.loads(producer._manifest(
             record, evidence, "https://github.com/DeanoC/fes.git", "e" * 40,
@@ -197,19 +196,19 @@ class BuildFesC64Tests(unittest.TestCase):
             "fes.expansion.c64-bus": False,
         })
         self.assertEqual(manifest["rom"]["role"], "firmware")
-        self.assertEqual(manifest["rom"]["source_size"], 16384)
+        self.assertEqual(manifest["rom"]["source_size"], 20480)
 
     def test_firmware_lanes_match_the_rtl(self) -> None:
         rtl = (ROOT / "cores/fes-c64/rtl/c64_rom.v").read_text()
         for index, row in enumerate(producer.FIRMWARE_LANE_ROWS):
-            self.assertIn(f'(* keep, BEL = "MISTRAL_M10K.5.{row}.0" *)', rtl)
+            self.assertIn(f'(* keep,BEL="MISTRAL_M10K.5.{row}.0" *)', rtl)
             self.assertIn(f") lane{index} (", rtl)
             self.assertIn(".CFG_ASYNC_READ(0)", rtl)
             self.assertIn(".B1EN(1'b1)", rtl)
             self.assertIn(".CLK1(clk)", rtl)
         self.assertNotIn("CFG_ASYNC_READ(1)", rtl)
-        self.assertIn("bank_d <= address[13:10]", rtl)
-        self.assertIn("sim_stage <= memory[address]", rtl)
+        self.assertIn("bank_d<=address[14:10]", rtl)
+        self.assertIn("cpu_stage<=address<20480?memory[address]", rtl)
         producer_source = (ROOT / "scripts/build_fes_c64_oss.py").read_text()
         self.assertIn("expected_async_read=0", producer_source)
 
@@ -218,7 +217,10 @@ class BuildFesC64Tests(unittest.TestCase):
             parameters = {} if async_read is None else {"CFG_ASYNC_READ": async_read}
             return name, {"type": "MISTRAL_M10K", "parameters": parameters, "connections": {
                 "CLK1": [7], "A1EN": ["1"], "B1EN": ["1"], "ACLR0": ["0"], "ACLR1": ["0"]}}
-        lanes = dict(cell(f"machine.rom.lane{index}", "0") for index in range(16))
+        lanes = dict(cell(f"machine.rom.lane{index}", "0") for index in range(20))
+        for index in producer.CHARACTER_ROM_LANES:
+            lane=lanes[f"machine.rom.lane{index}"];lane["type"]="MISTRAL_M10K_TDP"
+            lane["connections"].update(CLK2=[8],A1WE=["0"],B1WE=["0"],A1BE=["0","0"],B1BE=["0","0"])
         design = {"modules": {"top": {"cells": lanes}}}
         reject_async_m10k_reads(design)
         producer.validate_firmware_ports(lanes)
@@ -234,6 +236,19 @@ class BuildFesC64Tests(unittest.TestCase):
         self.assertEqual(async_m10k_parameter(f"{1:032b}"), 1)
         with self.assertRaises(BuildError):
             async_m10k_parameter("nope")
+
+    def test_character_rom_requires_independent_read_clocks_and_disabled_writes(self):
+        cells={}
+        for index in range(20):
+            pins={"CLK1":[7],"A1EN":["1"],"B1EN":["1"],"ACLR0":["0"],"ACLR1":["0"]}
+            if index>=16:pins.update(CLK2=[8],A1WE=["0"],B1WE=["0"],A1BE=["0","0"],B1BE=["0","0"])
+            cells[f"machine.rom.lane{index}"]={"type":"MISTRAL_M10K_TDP" if index>=16 else "MISTRAL_M10K","connections":pins}
+        producer.validate_firmware_ports(cells)
+        for field,value in [("A1WE",["1"]),("B1WE",["1"]),("CLK2",["0"]),("A1BE",["1","0"])]:
+            changed=json.loads(json.dumps(cells));changed["machine.rom.lane16"]["connections"][field]=value
+            with self.subTest(field=field),self.assertRaises(BuildError):producer.validate_firmware_ports(changed)
+        for index in range(16,20):cells[f"machine.rom.lane{index}"]["connections"]["CLK2"]=[7]
+        with self.assertRaises(BuildError):producer.validate_firmware_ports(cells)
 
     def test_color_ram_must_be_one_synchronous_dual_clock_m10k(self) -> None:
         name = "machine.vic.color_ram.ram.0.0"
@@ -271,12 +286,12 @@ class BuildFesC64Tests(unittest.TestCase):
                 producer.clock_read_only_memories(path)
                 return json.loads(path.read_text())["modules"]["top"]["cells"]
 
-        for names in ([vic, iec], [renamed_iec, "machine.vic.code_q_rom"], [vic, renamed_iec]):
+        for names in ([iec], [renamed_iec]):
             fixed = patch(names)
             self.assertTrue(all(cell["connections"]["CLK1"] == [41] for cell in fixed.values()), names)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "synth.json"
-            cells = dict(rom(name) for name in (vic, iec, "machine.extra_rom"))
+            cells = dict(rom(name) for name in (iec, "machine.extra_rom"))
             path.write_text(json.dumps({"modules": {"top": {"cells": cells}}}))
             with self.assertRaisesRegex(BuildError, "unexpected disconnected C64 M10K clock"):
                 producer.clock_read_only_memories(path)
@@ -320,7 +335,7 @@ class C64YosysM10kTests(unittest.TestCase):
             "log ---ASYNC---; "
             "select -list t:MISTRAL_M10K r:CFG_ASYNC_READ=1 %i; "
             "select -list t:MISTRAL_M10K_TDP r:CFG_ASYNC_READ=1 %i; "
-            "log ---LANES---; select -list t:MISTRAL_M10K r:CFG_ASYNC_READ=0 %i; "
+            "log ---LANES---; select -list t:MISTRAL_M10K t:MISTRAL_M10K_TDP %u r:CFG_ASYNC_READ=0 %i; "
             "log ---END---"
         )
         import tempfile
@@ -345,9 +360,9 @@ class C64YosysM10kTests(unittest.TestCase):
         async_cells = [line for line in sections["ASYNC"] if line.startswith("top/")]
         lanes = sorted(line.removeprefix("top/") for line in sections["LANES"] if line.startswith("top/"))
         self.assertEqual(async_cells, [])
-        self.assertEqual(objects("SDP"), "18 objects.")
-        self.assertEqual(objects("TDP"), "236 objects.")
-        self.assertEqual(lanes, sorted(f"machine.rom.lane{index}" for index in range(16)))
+        self.assertEqual(objects("SDP"), "17 objects.")
+        self.assertEqual(objects("TDP"), "240 objects.")
+        self.assertEqual(lanes, sorted(f"machine.rom.lane{index}" for index in range(20)))
 
     def test_full_synth_patches_autonamed_read_only_clocks(self) -> None:
         """The producer clock patch must accept the names left by ABC and autoname."""
@@ -378,7 +393,7 @@ class C64YosysM10kTests(unittest.TestCase):
                 name for name, cell in cells.items()
                 if cell.get("type") == "MISTRAL_M10K" and cell.get("connections", {}).get("CLK1") == ["x"]
             )
-            self.assertEqual(len(open_clocks), 2, open_clocks)
+            self.assertEqual(len(open_clocks), 1, open_clocks)
             producer.clock_read_only_memories(synth)
             patched = json.loads(synth.read_text())["modules"]["top"]["cells"]
             for name in open_clocks:

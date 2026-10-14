@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build and seal the OSS HIP nextpnr/Mistral FES Commodore 64 package.
 
-The package is format 3: the sixteen blank 1024x10 firmware lanes (column 5,
-rows 32-47) are described by a sealed ROM map for the 16,384-byte
+The package is format 3: the twenty blank 1024x10 firmware lanes (column 5,
+rows 32-51) are described by a sealed ROM map for the 20,480-byte
 `c64-firmware` image that FogCast links at download time. The shell reserves
 the two named cartridge-socket rectangles of `fes.c64-bus.sockets/1` and pins
 each socket's boundary flip-flops and their verified route-throughs; no other
@@ -79,15 +79,15 @@ ROM_DATABASE_SHA256 = {
     "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
     "libmistral/cyclonev.h": "185c24e2b75385d8e62a7144f12488eb68f7d8159af0a8a603cc4a3de1749ee9",
 }
-FIRMWARE_LANE_ROWS = tuple(range(32, 48))
+FIRMWARE_LANE_ROWS = tuple(range(32, 52))
+CHARACTER_ROM_LANES = tuple(range(16, 20))
 FIRMWARE_ID = "c64-firmware"
-FIRMWARE_BYTES = 16384
+FIRMWARE_BYTES = 20480
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 QSF = "cores/fes-c64/constraints-oss.qsf"
 SDC = "cores/fes-c64/clocks-oss.sdc"
 RTL_INCLUDES = (
     "cores/fes-c64/rtl/c64_bus.vh",
-    "cores/fes-c64/rtl/c64_font.vh",
 )
 RTL_SOURCES = (
     "cores/fes-c64/rtl/top.v",
@@ -164,7 +164,7 @@ def clock_read_only_memories(path: Path) -> None:
     design = _read_json(path, "C64 synthesized design")
     reject_async_m10k_reads(design)
     cells = design["modules"][TOP]["cells"]
-    expected = ("machine.iec.file_track_", "machine.vic.code_q_")
+    expected = ("machine.iec.file_track_",)
     found = set()
     for name, cell in cells.items():
         if cell["type"] != "MISTRAL_M10K":
@@ -173,12 +173,8 @@ def clock_read_only_memories(path: Path) -> None:
         if pins.get("CLK1") != ["x"]:
             continue
         match = next((prefix for prefix in expected if name.startswith(prefix)), None)
-        # Autoname runs after ABC and can name either read-only ROM from a
-        # connected net instead of its RTL prefix. The VIC glyph ROM has been
-        # named from a main_ram address net; the IEC track ROM can lose
-        # machine.iec.file_track_ the same way. A disconnected read-only M10K
-        # is accepted as whichever of those two roles no other disconnected
-        # cell still claims by name.
+        # ABC/autoname can name the IEC track ROM from a connected net.
+        # Exactly one disconnected read-only bank is allowed for this role.
         if match is None:
             match = next((prefix for prefix in expected
                           if prefix not in found and not any(
@@ -374,21 +370,31 @@ def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, floa
 
 
 def validate_firmware_ports(cells: dict) -> None:
-    """Require a shared live read clock, enabled reads and disabled ROM writes."""
-    clocks = set()
+    """Require CPU reads and independent character reads with all writes disabled."""
+    cpu_clocks = set()
+    video_clocks = set()
     for lane in range(len(FIRMWARE_LANE_ROWS)):
         name = f"machine.rom.lane{lane}"
-        pins = cells.get(name, {}).get("connections", {})
+        cell = cells.get(name, {})
+        pins = cell.get("connections", {})
         clock = pins.get("CLK1")
         if (not isinstance(clock, list) or len(clock) != 1 or type(clock[0]) is not int or
                 pins.get("A1EN") != ["1"] or pins.get("B1EN") != ["1"] or
-                pins.get("ACLR0") != ["0"] or pins.get("ACLR1") != ["0"] or
-                pins.get("A1BE") or pins.get("CLK2")):
-            raise BuildError(f"firmware lane {name} must have one live clock, enabled reads, "
-                             "disabled writes, inactive clears and no optional ports")
-        clocks.add(clock[0])
-    if len(clocks) != 1:
-        raise BuildError("firmware lanes must share the system read clock")
+                pins.get("ACLR0") != ["0"] or pins.get("ACLR1") != ["0"]):
+            raise BuildError(f"firmware lane {name} needs live clock, enabled reads and inactive clears")
+        cpu_clocks.add(clock[0])
+        if lane in CHARACTER_ROM_LANES:
+            video = pins.get("CLK2")
+            if (cell.get("type") != "MISTRAL_M10K_TDP" or not isinstance(video, list) or
+                    len(video) != 1 or type(video[0]) is not int or pins.get("A1WE") != ["0"] or
+                    pins.get("B1WE") != ["0"] or pins.get("A1BE") != ["0", "0"] or
+                    pins.get("B1BE") != ["0", "0"]):
+                raise BuildError(f"character lane {name} needs two live read clocks and disabled writes")
+            video_clocks.add(video[0])
+        elif cell.get("type") != "MISTRAL_M10K" or pins.get("A1BE") or pins.get("CLK2"):
+            raise BuildError(f"CPU ROM lane {name} has unexpected ports or primitive")
+    if len(cpu_clocks) != 1 or len(video_clocks) != 1 or cpu_clocks == video_clocks:
+        raise BuildError("ROM lanes require one CPU clock and one distinct character video clock")
 
 
 def validate_color_ram(cells: dict) -> None:
@@ -424,7 +430,7 @@ def validate_synth_evidence(output: Path) -> dict:
     for name, expected in REQUIRED_RESOURCES.items():
         if counts.get(name, 0) != expected:
             raise BuildError(f"synthesis must contain exactly {expected} {name}, got {counts.get(name, 0)}")
-    # Firmware lanes are sixteen explicit M10Ks and color RAM is one checked
+    # Firmware uses sixteen legacy and four true-dual-port M10Ks; color RAM is one checked
     # M10K_TDP. Other memories retain synthesis-selected totals.
     for name in FORBIDDEN_RESOURCES:
         if counts.get(name, 0):
@@ -494,9 +500,9 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
         "core": {
             "id": "fes.c64",
             "name": "FES Commodore 64",
-            "description": "Commodore 64 pathfinder with a linked 16 KiB firmware image, "
+            "description": "Commodore 64 pathfinder with a linked 20 KiB firmware image, "
                            "a read-only 1541 and two cartridge sockets",
-            "version": "0.1.0",
+            "version": "0.2.0",
         },
         "target": {"platform": "de10_nano", "device": TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
@@ -562,6 +568,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             database, (output / "core.rbf").read_bytes(),
             routed=_read_json(output / "routed.json", "routed firmware design"),
             lane_rows=FIRMWARE_LANE_ROWS, expected_async_read=0,
+            true_dual_port_lanes=CHARACTER_ROM_LANES,
         )
         check_firmware_outside_sockets(mapping)
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(",", ":")) + "\n").encode()

@@ -20,6 +20,7 @@ def main():
     parser.add_argument('--restore-state', type=Path)
     parser.add_argument('--basic', type=Path, required=True)
     parser.add_argument('--kernal', type=Path, required=True)
+    parser.add_argument('--chargen', type=Path, required=True)
     parser.add_argument('--disk', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--cycles', type=int, default=3 * 52224000)
@@ -39,7 +40,7 @@ def main():
         parser.error('restore preserves the captured keyboard queue; do not supply new typing commands')
     inputs = {}
     blobs = {}
-    for name, size in [('basic', 8192), ('kernal', 8192), ('disk', 174848)]:
+    for name, size in [('basic', 8192), ('kernal', 8192), ('chargen', 4096), ('disk', 174848)]:
         path = getattr(args, name).resolve()
         blob = path.read_bytes()
         if len(blob) != size:
@@ -63,7 +64,7 @@ def main():
             if state and artifact==state.resolve():
                 parser.error('checkpoint path conflicts with an observation output')
         artifact.unlink(missing_ok=True)
-    for name, blob in [('firmware', blobs['basic'] + blobs['kernal']), ('disk', blobs['disk'])]:
+    for name, blob in [('firmware', blobs['basic'] + blobs['kernal'] + blobs['chargen']), ('disk', blobs['disk'])]:
         (output / f'{name}.hex').write_text(''.join(f'{b:02x}\n' for b in blob))
     if args.real_drive:
         import c64_gcr

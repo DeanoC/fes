@@ -1,6 +1,6 @@
 # FES Commodore 64
 
-`fes.c64` 0.1.0 is a package-only Commodore 64 pathfinder on `fes.computer`
+`fes.c64` 0.2.0 is a package-only Commodore 64 pathfinder on `fes.computer`
 1.0. It follows the Apple II pattern: late-bound firmware, a live removable
 disk, and linkable expansion cards. It is not in the factory image. No
 Commodore ROM is in this tree. HIP seal and kit acceptance are still open.
@@ -14,20 +14,26 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   a fractional 0.985248 MHz PAL enable of the 52.224 MHz system clock.
 - 64 KiB RAM. Standard banking, plus 8 KiB, 16 KiB and Ultimax cartridge maps
   from `/EXROM` and `/GAME`.
-- 16 KiB linked firmware. Bytes 0..8191 are the BASIC window `$A000–$BFFF`.
-  Bytes 8192..16383 are the KERNAL window `$E000–$FFFF`. The OSS package leaves
-  sixteen 1024×10 M10K lanes (column 5, rows 32–47) blank. The character
-  generator is in the core, not in the firmware image.
-- VIC-II text: 40×25 and the registers the diagnostic writes. Color RAM is
-  one synchronous dual-port M10K, 1024×4 at `$D800–$DBFF`. The 6510 can use
-  `$DBE8–$DBFF` as scratch. The VIC scan returns zero outside the 1000-cell
-  matrix.
+- 20 KiB linked firmware: BASIC at bytes 0..8191, KERNAL at 8192..16383,
+  and the 4 KiB character ROM at 16384..20479. The OSS package leaves twenty
+  1024×10 M10K lanes (column 5, rows 32–51) blank. The final four lanes use
+  registered true dual-port reads for the CPU and VIC, with writes disabled.
+  CPU reads take two system clocks; VIC character reads take one video clock.
+- VIC-II monochrome/multicolor text and bitmap modes. `$D018` selects the
+  screen, character or bitmap base in the active VIC bank. Character ROM is
+  visible to the VIC at `$1000–$1FFF` in banks 0 and 2, independently of CPU
+  CHAREN. CPU CHAREN=0 reads use the same character ROM. A single registered
+  main-RAM video port fetches the matrix followed by glyph/bitmap data; the
+  pixel timing is delayed four HDMI clocks to align data and colors.
+  Color RAM is one synchronous dual-port M10K, 1024×4 at `$D800–$DBFF`.
+  The 6510 can use `$DBE8–$DBFF` as scratch; the scan returns zero outside
+  the 1000-cell matrix.
   Nine-bit raster compare uses `$D011` bit 7 and `$D012`; `$D019` latches
   events and acknowledges written ones, while `$D01A` masks the CPU IRQ.
   The PAL beam has 63 Phi2 cycles per line and 312 lines per frame.
   Events occur once per line; writes can match the current line, and automatic
   line-zero comparison waits one Phi2 after frame wrap. Raster timing is not
-  locked to HDMI. No sprites, bitmap, badlines, collision or lightpen events.
+  locked to HDMI. Sprites, badlines, extended-color text, collision and lightpen events remain unimplemented.
 - Reduced SID: three voices, pulse, saw, triangle and noise, a crude envelope
   and volume. No filter.
 - CIA1: keyboard matrix, joystick and IRQ. CIA2: IEC, the VIC bank and NMI.
@@ -40,7 +46,7 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   so CNT edge modes do not count and the gated timer A mode can count.
   TOD, serial shift and PB6/PB7 timer outputs remain unimplemented; internal
   6526 pipeline delays are not modelled. Port 2 (CIA1 port A) is controller port 0.
-- HDMI 720p60. The 320×200 text picture is scaled 4× horizontally and 3×
+- HDMI 720p60. The 320×200 picture is scaled 4× horizontally and 3×
   vertically. Audio is the shared 48 kHz I2S serializer.
 
 ## Keyboard
@@ -103,7 +109,8 @@ clocks and exact CRAM containment are separate admission checks.
 
 ## Diagnostic
 
-`diagnostic/firmware.py` assembles the open 16 KiB image. Success stores `$FF`
+`diagnostic/firmware.py` assembles the open 20 KiB image, including the
+original diagnostic character ROM. Success stores `$FF`
 at `$C000` and paints the word PASS, in white, across three rows in the middle
 of the character screen. The border and the screen background are black.
 A green bar is the 720p letterbox and is not the pass mark. A failure stores
@@ -160,9 +167,9 @@ make -C sources/misteross build-fes-c64   # HIP seal; not part of the sim gate
 
 `make sim-fes-c64-boot-build` builds a separate diagnostic harness with vacant
 cartridge sockets. Run `python3 scripts/c64_boot_observe.py --basic /path/basic.rom
---kernal /path/kernal.rom --disk /path/demo.d64 --output /path/ignored-output`
-from this module, using your own exact 8 KiB BASIC and KERNAL ROMs and 174,848-byte
-D64. The script retains input hashes, simulator identity, RAM, the final complete
+--kernal /path/kernal.rom --chargen /path/chargen.rom --disk /path/demo.d64 --output /path/ignored-output`
+from this module, using your own exact 8 KiB BASIC and KERNAL ROMs, a 4 KiB character ROM
+and a 174,848-byte D64. The script retains input hashes, simulator identity, RAM, the final complete
 HDMI frame, a screen-code dump and the last 64 CPU bus cycles. The default
 observation covers three simulated machine seconds; `--cycles` sets a longer
 startup budget or a shorter trace (0.02 to 300 seconds). The actual
@@ -178,8 +185,8 @@ event counts and the snapshot hash are retained in the observation receipt.
 Per-second bus/load-pointer/IEC observations and received IEC commands are
 flushed to the run log while execution continues.
 The generated bytes belong outside tracked source. This observation does not
-assert successful boot or demo compatibility. Character ROM, cycle-coupled video and
-1541 emulation are not implied by the default file-device harness.
+assert successful boot or demo compatibility. Cycle-coupled video and 1541 emulation are not implied by the default
+file-device harness.
 
 `make sim-fes-c64-boot-drive-build` builds the same motherboard and harness
 with `FES_C64_REAL_DRIVE_SIM`. Select it with `--real-drive --drive-rom
@@ -220,7 +227,14 @@ investigation and supplies no evidence of live native graphics fidelity.
 
 Firmware and disk memories accept Verilator-only `+C64_FIRMWARE_HEX=...` and
 `+C64_DISK_HEX=...` overrides; the ordinary open diagnostic retains its defaults.
-The physical ROM map and media interface are unchanged.
+Version 0.2.0 links a 20 KiB firmware image and has no inherited seal or
+hardware acceptance from the earlier 16 KiB package. The D64 media interface
+remains read-only media unit 0.
+
+`make sim-fes-c64-video` checks complete frames with alternating character
+colors and all multicolor-bitmap palette selections in all four banks.
+`make sim-fes-c64-rom` checks every firmware/character byte and the independent
+read clocks. Both are included in the aggregate simulation.
 
 The raster interrupt tests follow the Commodore
 [Programmer's Reference Guide](https://www.devili.iki.fi/Computers/Commodore/C64/Programmers_Reference/Chapter_3/page_150.html)
@@ -249,18 +263,19 @@ buffer only at a pinned boundary flip-flop's paired combinational half, with
 the exact physical pin map and a dedicated connection to that flip-flop;
 clock-coverage outputs stay unused and every other shell cell inside a socket
 is rejected.
-The sixteen firmware lanes are synchronous 1024x10 M10Ks on the system
-clock, with reads enabled and active-low writes disabled. The bank selector
+The first sixteen firmware lanes are synchronous 1024x10 M10Ks on the system
+clock, with reads enabled and active-low writes disabled. The four character
+lanes use true dual-port M10Ks with independent system/video clocks and both
+active-high write enables disabled. The bank selector
 is registered with the M10K address; a combinational lane mux and the final
 data register keep the two-cycle latency the 6510 samples at cycle 16 of
 phi2. The ROM map requires `CFG_ASYNC_READ=0`. After synthesis, and again
 on the routed netlist, any `MISTRAL_M10K` or `MISTRAL_M10K_TDP` with
 `CFG_ASYNC_READ=1` fails the build. Color RAM uses one synchronous dual-port
 M10K: the system-clock port returns CPU reads before the cycle-16 sample and
-the pixel-clock port follows the same two-stage scan pipeline as main RAM.
+the pixel-clock port aligns color attributes with the registered matrix/glyph fetches.
 Before routing, the producer connects the unused write clocks of the
-two inferred read-only M10Ks (VIC font and IEC track lookup) to their live
-read clocks. It checks their names and disabled write ports so a changed
+inferred read-only M10K (IEC track lookup) to its live read clock. It checks their names and disabled write ports so a changed
 synthesis shape fails closed.
 
 ## 1541 development motherboard

@@ -1033,9 +1033,6 @@ C64_RTL := cores/fes-c64/rtl/c64_machine.sv cores/fes-c64/rtl/c64_ram.v \
 .PHONY: c64-diagnostic sim-fes-c64 sim-fes-c64-cia sim-fes-c64-color-ram
 c64-diagnostic:
 	@mkdir -p $(C64_DIAGNOSTIC)
-	$(PYTHON) cores/fes-c64/diagnostic/font.py --verilog $(C64_DIAGNOSTIC)/font.vh
-	@cmp -s $(C64_DIAGNOSTIC)/font.vh cores/fes-c64/rtl/c64_font.vh || \
-		{ echo 'cores/fes-c64/rtl/c64_font.vh is stale; regenerate it with diagnostic/font.py' >&2; exit 1; }
 	$(PYTHON) cores/fes-c64/diagnostic/firmware.py --output-dir $(C64_DIAGNOSTIC)
 	$(PYTHON) cores/fes-c64/diagnostic/disk.py --output $(C64_DIAGNOSTIC)/disk.d64 \
 		--hex-output $(C64_DIAGNOSTIC)/disk.hex
@@ -1168,7 +1165,26 @@ sim-fes-c64-gcr:
 sim-fes-c64-checkpoint: sim-fes-c64-boot-build sim-fes-c64-boot-drive-build
 	$(PYTHON) cores/fes-c64/sim/checkpoint_tb.py
 
-sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw
+.PHONY: sim-fes-c64-video sim-fes-c64-rom
+sim-fes-c64-video:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-video
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_video_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-video" \
+		cores/fes-c64/sim/video_sim_top.sv cores/fes-c64/rtl/c64_vic.v \
+		cores/fes-c64/rtl/c64_ram.v cores/fes-c64/rtl/c64_color_ram.v \
+		"$(CURDIR)/cores/fes-c64/sim/video_tb.cpp"
+	@build/sim/fes-c64-video/Vc64_video_sim_top
+
+sim-fes-c64-rom: c64-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-rom
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_rom $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-rom" cores/fes-c64/rtl/c64_rom.v \
+		"$(CURDIR)/cores/fes-c64/sim/rom_tb.cpp"
+	@build/sim/fes-c64-rom/Vc64_rom +C64_FIRMWARE_HEX=build/diagnostics/fes-c64/rom-test.hex
+
+sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-video sim-fes-c64-rom
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \

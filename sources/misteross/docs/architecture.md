@@ -1679,7 +1679,7 @@ checks, and tape checks remain open.
 
 ## FES Commodore 64
 
-`cores/fes-c64` is `fes.c64` 0.1.0, a package-only Commodore 64 pathfinder on
+`cores/fes-c64` is `fes.c64` 0.2.0, a package-only Commodore 64 pathfinder on
 the same `fes.computer` 1.0 mailbox as Apple II. The machine contract is
 [its README](../cores/fes-c64/README.md). `make sim-fes-c64` boots the open
 diagnostic: RAM, firmware signature, VIC text, both cartridge sockets,
@@ -1690,7 +1690,7 @@ launch's existing ready input stream instead of attaching twice. This is an
 operator-gated diagnostic, not pre-release initial-disk mounting or write-back
 support. Atari ST's startup and durable writable-disk contract remains separate.
 A separate `make sim-fes-c64-boot-build` harness leaves cartridge sockets
-vacant and observes external BASIC/KERNAL firmware on the real machine RTL.
+vacant and observes external BASIC/KERNAL/character firmware on the real machine RTL.
 `scripts/c64_boot_observe.py` validates exact input lengths, supplies simulation-only
 firmware/disk memory paths and retains hashes, RAM, a complete HDMI frame and
 screen-code output and recent CPU cycles with the production clock ratio.
@@ -1700,7 +1700,19 @@ three seconds, with 50 ms press/release intervals. `--then-command` adds a
 later command and retains the RAM snapshot taken immediately before it.
 Per-second progress and IEC command traces are flushed during execution.
 The observation makes no
-boot/demo acceptance assertion; the physical ROM map and media mailbox are unchanged. See the core README.
+boot/demo acceptance assertion. Version 0.2.0 links a 20 KiB image consisting
+of BASIC (8 KiB), KERNAL (8 KiB) and character ROM (4 KiB) through twenty blank
+1024×10 lanes. The character lanes use independent registered CPU/VIC read
+ports; CPU reads take two system clocks and VIC reads one video clock. The
+ROM map uses the existing encoding and each source block appears once. The
+producer explicitly accepts true-dual-port character lanes and checks both
+read clocks and disabled writes. CPU and VIC character-ROM visibility follow
+separate banking rules. The renderer fetches screen and glyph/bitmap bytes
+through the registered main-RAM port and supports monochrome/multicolor text
+and bitmap modes. Pixel timing is delayed to align colors and fetched data.
+Sprites, extended-color text, native video/DMA coupling and the new profile's
+route/seal/hardware acceptance remain open. The D64 media mailbox is unchanged.
+See the core README.
 The IEC device uses released-high CIA2 inputs and logical byte levels on the
 open-collector wires. It separates ready/EOI handshakes from received data bits,
 acknowledges after the final CLOCK-low edge, and holds CLOCK low for TALK
@@ -1779,8 +1791,9 @@ TOD, serial shifting and timer port outputs remain outside this slice.
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchains/c64.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this
 pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
-`c64-firmware`, 16,384 bytes, on the blank column-5 lanes at rows 32–47.
-Those lanes use synchronous M10K reads (`CFG_ASYNC_READ=0`) with the bank
+`c64-firmware`, 20,480 bytes, on the blank column-5 lanes at rows 32–51.
+The final four character-ROM lanes use independent CPU/video read ports;
+all writes are disabled. Those lanes use synchronous M10K reads (`CFG_ASYNC_READ=0`) with the bank
 selector delayed one clock so the CPU-facing byte is still two system clocks
 behind the registered address. `c64_machine` samples that byte at
 `cycle_clock == 16`, sixteen 52.224 MHz clocks after the phi2 address

@@ -23,7 +23,7 @@ def main():
     drive[:19]=bytes.fromhex('78 a2 ff 9a a9 6f 8d 02 1c a9 6c 8d 00 1c e6 00 4c 0e c0')
     drive[-6:]=bytes.fromhex('00 c0 00 c0 00 c0')
     disk=bytes((i*37)&255 for i in range(174848))
-    for name,data in [('firmware',bytes(8192)+kernal),('drive',drive),('disk',disk)]:
+    for name,data in [('firmware',bytes(8192)+kernal+bytes(4096)),('drive',drive),('disk',disk)]:
         (output/f'{name}.hex').write_text(''.join(f'{b:02x}\n' for b in data))
     (output/'disk.g64').write_bytes(c64_gcr.g64(disk))
     # Hold a key across the snapshot; its release must remain queued.

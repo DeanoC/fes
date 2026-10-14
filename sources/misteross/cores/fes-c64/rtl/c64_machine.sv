@@ -3,7 +3,6 @@
 // The 6510 is the shared NMOS 6502 plus the processor port. Phi2 is a
 // fractional 0.985248 MHz PAL enable. Video is scanned in the HDMI domain.
 `include "c64_bus.vh"
-`include "c64_font.vh"
 
 module c64_machine #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
@@ -173,15 +172,20 @@ module c64_machine #(
 
     wire [7:0] ram_q, rom_q;
     wire [15:0] video_ram_addr;
-    wire [7:0] video_ram_q;
+    wire [7:0] video_ram_q, video_char_q;
+    reg video_char_selected;
+    always @(posedge video_clk)
+        video_char_selected <= !video_ram_addr[14] && video_ram_addr[13:12]==2'b01;
     c64_ram main_ram (
         .clk_a(clk_sys), .addr_a(bus_addr), .wdata_a(bus_wdata), .we_a(ram_we), .q_a(ram_q),
         .clk_b(video_clk), .addr_b(video_ram_addr), .q_b(video_ram_q)
     );
     wire basic_window = bus_addr[15:13] == 3'b101;
-    wire [13:0] rom_address = basic_window ? {1'b0, bus_addr[12:0]} : {1'b1, bus_addr[12:0]};
+    wire [14:0] rom_address = show_char ? {3'b100,bus_addr[11:0]} :
+        basic_window ? {2'b00,bus_addr[12:0]} : {2'b01,bus_addr[12:0]};
     c64_rom rom (
-        .clk(clk_sys), .address(rom_address), .data(rom_q)
+        .clk(clk_sys), .address(rom_address), .data(rom_q),
+        .video_clk(video_clk), .video_address(video_ram_addr[11:0]), .video_data(video_char_q)
     );
 
     wire [7:0] cia1_pa, cia1_pb, cia1_ddra, cia1_ddrb, cia1_dout;
@@ -268,7 +272,7 @@ module c64_machine #(
         .din(bus_wdata), .dout(vic_dout),
         .color_cs(sel_color), .color_addr(bus_addr[9:0]), .color_din(bus_wdata),
         .color_we(bus_strobe && bus_we && sel_color), .color_dout(color_dout),
-        .bank(~pa2_pin[1:0]), .ram_addr(video_ram_addr), .ram_data(video_ram_q),
+        .bank(~pa2_pin[1:0]), .ram_addr(video_ram_addr), .ram_data(video_char_selected?video_char_q:video_ram_q),
         .red(red), .green(green), .blue(blue), .de(de), .hsync(hsync), .vsync(vsync),
         .raster(), .irq(vic_irq)
     );
@@ -281,7 +285,6 @@ module c64_machine #(
     assign irq_n = cart_irq | cia1_irq | vic_irq;
     assign nmi_n = cart_nmi | cia2_irq;
 
-    wire [7:0] char_byte = c64_glyph(bus_addr[10:3], bus_addr[2:0]);
     wire [7:0] read_data =
         bus_addr == 16'h0000 ? ddr :
         bus_addr == 16'h0001 ? port_eff :
@@ -291,7 +294,7 @@ module c64_machine #(
         sel_cia1 ? cia1_dout :
         sel_cia2 ? cia2_dout :
         cart_hit ? cart_data :
-        show_char ? char_byte :
+        show_char ? rom_q :
         (show_basic || show_kernal) ? rom_q :
         (ultimax && !roml && !e000 && !d000 && bus_addr >= 16'h1000) ? 8'hFF :
         ram_q;
