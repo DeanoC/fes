@@ -410,6 +410,7 @@ print(json.dumps(result,sort_keys=True,separators=(',',':')))
 def _inspect(source, mode, arguments, recipe, env):
     if recipe.core_id == "fes.atari-st":
         arguments = dict(arguments, placer_seed=ST_VIDEO_PART_SEED)
+    payload = dict(arguments, gpu_router=recipe.gpu_router)
     result = subprocess.run([sys.executable, "-I", "-B", "-c", _INSPECT,
                              str(source), mode], input=canonical(payload),
                             stdout=subprocess.PIPE, stderr=subprocess.PIPE,

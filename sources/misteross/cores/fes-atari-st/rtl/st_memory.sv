@@ -185,8 +185,6 @@ module st_memory #(
             end else begin : same
                 assign predecessors[other] = 1'b0;
             end
-            if (candidate != int'(VIDEO) && requests[candidate] && !seen[candidate])
-                earlier_nonvideo_pending = 1'b1;
         end
         assign eligible[client] = pending_clients[client] &&
             (!SLOT_REFRESH || !refresh_pending || client == int'(CPU)) &&
