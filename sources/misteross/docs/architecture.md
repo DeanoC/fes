@@ -1692,7 +1692,8 @@ A separate `make sim-fes-c64-boot-build` harness leaves cartridge sockets
 vacant and observes external BASIC/KERNAL firmware on the real machine RTL.
 `scripts/c64_boot_observe.py` validates exact input lengths, supplies simulation-only
 firmware/disk memory paths and retains hashes, RAM, a complete HDMI frame and
-screen-code output after two simulated seconds with the production clock ratio.
+screen-code output and recent CPU cycles with the production clock ratio.
+The default two-second observation budget is configurable.
 It sends no LOAD command and makes no boot/demo acceptance assertion; the
 physical ROM map and media mailbox are unchanged. See the core README.
 Both CIA timers expose their live counters, load stopped counters on high-byte
