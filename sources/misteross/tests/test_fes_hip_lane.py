@@ -187,7 +187,7 @@ class FesHipLaneTests(unittest.TestCase):
             self.assertEqual(authenticated["yosys"].path, install / "yosys")
             self.assertNotEqual(authenticated["yosys"].path, request.cache_root / "slots")
 
-    def test_root_lock_hip_slot_differs_from_coleco_lock_slot(self) -> None:
+    def test_root_and_coleco_share_the_hip_slot(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             cache = Path(directory) / "cache"
             cache.mkdir(mode=0o700)
@@ -212,8 +212,9 @@ class FesHipLaneTests(unittest.TestCase):
                     ROOT, ROOT / "toolchain.lock", cache_root=cache,
                     gpu_router="OFF", hip_architectures=HIP_ARCHITECTURES,
                 )
+            self.assertEqual(COLECO_TOOLCHAIN_LOCK, "toolchain.lock")
             self.assertEqual(toolchain_cache.cache_key(pong), toolchain_cache.cache_key(zx81))
-            self.assertNotEqual(toolchain_cache.cache_key(pong), toolchain_cache.cache_key(coleco))
+            self.assertEqual(toolchain_cache.cache_key(pong), toolchain_cache.cache_key(coleco))
             self.assertNotEqual(toolchain_cache.cache_key(pong), toolchain_cache.cache_key(off))
 
     def test_pong_and_zx81_commands_and_records_use_hip_gpu_router(self) -> None:

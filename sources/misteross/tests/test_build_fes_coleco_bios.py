@@ -25,6 +25,9 @@ class PrivateBiosTests(unittest.TestCase):
         cls.root.mkdir(parents=True)
         for name in ('scripts', 'cores', 'boards', 'toolchains'):
             shutil.copytree(ROOT / name, cls.root / name, ignore=shutil.ignore_patterns('__pycache__'))
+        # Coleco authenticates the shared root lock. Copy the bytes so the
+        # fixture pin is a regular file even when the checkout entry is a link.
+        shutil.copyfile(ROOT / 'toolchain.lock', cls.root / 'toolchain.lock')
         (cls.root / '.gitignore').write_text('build/\n__pycache__/\n')
         for args in [('init', '-q'), ('remote', 'add', 'origin', 'https://example.invalid/source.git'), ('add', '.'), ('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'fixture')]:
             subprocess.run(['git', '-C', str(repo), *args], check=True)

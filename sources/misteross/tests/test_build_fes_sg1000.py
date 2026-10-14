@@ -168,7 +168,8 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertEqual(SG1000_TOOL_COMMITS["nextpnr"], "9128800fa6e77c4138088a7107a95376ba47ff15")
         pins = load_lock(ROOT / SG1000_TOOLCHAIN_LOCK)
         from scripts.build_fes_coleco_oss import COLECO_TOOLCHAIN_LOCK
-        self.assertNotEqual(SG1000_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)
+        self.assertEqual(SG1000_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)
+        self.assertEqual(COLECO_TOOLCHAIN_LOCK, "toolchain.lock")
         self.assertEqual(pins["yosys"].commit, SG1000_TOOL_COMMITS["yosys"])
         self.assertEqual(pins["nextpnr"].commit, SG1000_TOOL_COMMITS["nextpnr"])
         global_pins = load_lock(ROOT / "toolchain.lock")
