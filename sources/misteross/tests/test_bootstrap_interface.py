@@ -181,7 +181,7 @@ class BootstrapInterfaceTests(unittest.TestCase):
             shutil.copy2(BOOTSTRAP, scripts / "bootstrap.sh")
             shutil.copy2(ROOT / "scripts" / "lockfile.py", scripts / "lockfile.py")
             lock_path = root / "coleco.lock"
-            shutil.copy2(ROOT / "toolchains/registered-memory.lock", lock_path)
+            shutil.copy2(ROOT / "toolchain.lock", lock_path)
             toolchain_root = root / "coleco-toolchain"
             environment = os.environ.copy()
             environment.update(
@@ -200,7 +200,7 @@ class BootstrapInterfaceTests(unittest.TestCase):
                 env=environment,
             )
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("e2d425dee148cc60c50f4e9b354a10d90eab15f4", result.stdout)
+        self.assertIn("5391eeb1e91b38a3d0e96d04f24cf921743c9c78", result.stdout)
         self.assertIn(f"source: {toolchain_root}/src/yosys", result.stdout)
         self.assertIn(f"lock: {lock_path}", result.stdout)
         self.assertIn("gpu-router: HIP", result.stdout)

@@ -52,6 +52,9 @@ const (
 	targetIDFile            = "/media/fat/fogcast/target-id"
 	rebootCommand           = "/sbin/reboot"
 	bootIDFile              = "/proc/sys/kernel/random/boot_id"
+	maintenanceMarkerFile   = "/run/fogcast/kit-maintenance.json"
+	maintenanceLockFile     = "/run/fogcast/kit-maintenance.lock"
+	maintenanceContract     = "fes-kit-maintenance-v1"
 	castShutdownTimeout     = 2 * time.Second
 	// Release staging accepts multi-gigabyte raw images; this exceeds the
 	// operator's five-minute transport timeout by a bounded margin while the
@@ -85,8 +88,11 @@ type runDependencies struct {
 	newUpdate    func(*agent.Coordinator, func(context.Context) error) (*applianceupdate.Service, error)
 	// localControlSocket is the root-only kit-local HTTP socket.
 	// Empty leaves it off. Tests stay empty; production main passes the flag.
-	localControlSocket string
-	coreLoadTimeout    time.Duration
+	localControlSocket    string
+	coreLoadTimeout       time.Duration
+	maintenanceFile       string
+	maintenanceLock       string
+	maintenanceBootIDFile string
 }
 
 func run(ctx context.Context, configPath string, logger *slog.Logger, localControlSocket string) error {
@@ -128,10 +134,13 @@ func runtimeDependencies(nativeControl misterruntime.Control) (runDependencies, 
 				StopTimeout: 2 * time.Second,
 			}, nil)
 		},
-		serve:           func(server *http.Server) error { return server.ListenAndServe() },
-		advertise:       discovery.Advertise,
-		targetIDPath:    targetIDFile,
-		meshContentRoot: meshContentRoot,
+		serve:                 func(server *http.Server) error { return server.ListenAndServe() },
+		advertise:             discovery.Advertise,
+		targetIDPath:          targetIDFile,
+		meshContentRoot:       meshContentRoot,
+		maintenanceFile:       maintenanceMarkerFile,
+		maintenanceLock:       maintenanceLockFile,
+		maintenanceBootIDFile: bootIDFile,
 	}
 	if nativeControl == nil {
 		nativeControl = misterruntime.NewClient(misterruntime.DefaultSocketPath)
@@ -512,6 +521,11 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		localUpdater = updater
 	}
 	localProgram := &kitLocalProgram{}
+	leaseOptions, err := maintenanceLeaseOptions(dependencies)
+	if err != nil {
+		return errors.New("maintenance boot identity could not be verified")
+	}
+	leaseOptions = append(leaseOptions, kitlease.WithEventSink(diagnostics))
 	leases := kitlease.New(90*time.Second, func(cleanup context.Context) error {
 		var probe func(context.Context) bool
 		native, _ := runtime.(*misterruntime.Runtime)
@@ -522,12 +536,12 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 			return stopLeasedRuntime(ctx, coordinator.Stop, native, localProgram)
 		})
 		if errors.Is(cleanupErr, kitlease.ErrRuntimeUnreachable) {
-			slog.Warn("kit lease cleanup: runtime socket unavailable; releasing lease")
+			slog.Warn("kit ownership cleanup: runtime socket unavailable")
 		} else if cleanupErr != nil {
 			slog.Error("kit lease cleanup failed", "err", cleanupErr)
 		}
 		return cleanupErr
-	}, kitlease.WithEventSink(diagnostics))
+	}, leaseOptions...)
 	defer leases.Close()
 	options = append(options, httpapi.WithKitLease(leases), httpapi.WithDiagnostics(diagnostics))
 	if dependencies.localControlSocket != "" {
@@ -621,10 +635,15 @@ func main() {
 	configPath := flag.String("config", "/media/fat/fogcast/agent.toml", "target configuration path")
 	localControl := flag.String("local-control", localcores.DefaultSocket, "root-only kit-local control socket; empty disables")
 	coreLoadTimeout := flag.Duration("core-load-timeout", defaultCoreLoadTimeout, "package/ROM staging and core-load observation budget; positive, at most 10m")
+	printMaintenanceContract := flag.Bool("print-maintenance-contract", false, "print the enforced kit maintenance contract and exit")
 	flag.Parse()
 	if flag.NArg() != 0 {
-		_, _ = fmt.Fprintln(os.Stderr, "usage: mister-agent [--config path] [--local-control path] [--core-load-timeout duration]")
+		_, _ = fmt.Fprintln(os.Stderr, "usage: mister-agent [--config path] [--local-control path] [--core-load-timeout duration] [--print-maintenance-contract]")
 		os.Exit(2)
+	}
+	if *printMaintenanceContract {
+		_, _ = fmt.Fprintln(os.Stdout, maintenanceContract)
+		return
 	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

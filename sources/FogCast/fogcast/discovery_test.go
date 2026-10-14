@@ -514,6 +514,83 @@ func TestOwnedHeldLeaseAfterIdleStaysReady(t *testing.T) {
 	}
 }
 
+func TestHealthRefreshAcceptsMaintenanceWithoutOwnership(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	for _, tc := range []struct {
+		state, want, owner, message string
+	}{
+		{"maintenance", "busy", "kit-maintainer", "The kit is reserved for software maintenance."},
+		{"recovery-required", "recovery-required", "", "Target cleanup or recovery needs attention."},
+	} {
+		t.Run(tc.state, func(t *testing.T) {
+			var mutations atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					mutations.Add(1)
+				}
+				switch r.URL.Path {
+				case "/v1/health":
+					_ = json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "same-kernel-boot", Ready: true})
+				case "/v1/kit/lease":
+					_ = json.NewEncoder(w).Encode(targetclient.KitOwnership{State: tc.state, Generation: "maint-gen", Owner: "kit-maintainer", Purpose: "replace runtime"})
+				case "/v1/kit/claim":
+					_ = json.NewEncoder(w).Encode(kitlease.Grant{Token: "stale-token", Status: kitlease.Status{State: "held", Generation: "old-generation", ExpiresInMS: 60000}})
+				case "/v1/status":
+					_ = json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer srv.Close()
+			base, _ := url.Parse(srv.URL)
+			lease := targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test")
+			client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(lease)
+			s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: id, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+			req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, nil)
+			if err := lease.Authorize(req, true); err != nil {
+				t.Fatal(err)
+			}
+			if !client.HasKitGrant() {
+				t.Fatal("claim did not retain a grant")
+			}
+			mutations.Store(0)
+			s.plays["kit"] = targetPlay{execution: ExecutionFPGANative, gameID: "old-game", system: "fpga_native"}
+			if _, err := s.Health(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			got := s.TargetConnection()
+			if got.State != tc.want || got.Owner != tc.owner || got.Message != tc.message || got.leaseOwned || client.HasKitGrant() {
+				t.Fatalf("connection=%+v owned=%v grant=%v", got, got.leaseOwned, client.HasKitGrant())
+			}
+			if plays := s.PlaySessions(); len(plays) != 0 {
+				t.Fatalf("stale play survived maintenance: %+v", plays)
+			}
+			if mutations.Load() != 0 {
+				t.Fatalf("health refresh performed %d mutations", mutations.Load())
+			}
+		})
+	}
+}
+
+func TestMaintenanceOwnershipIsNeverReportedReady(t *testing.T) {
+	for _, owned := range []bool{false, true} {
+		for _, state := range []string{"maintenance", "recovery-required"} {
+			connection := connectionFromStatus(protocol.Health{APIVersion: "v1", Ready: true},
+				protocol.Status{State: protocol.StateIdle}, targetclient.KitOwnership{
+					State: state, Owner: "kit-maintainer", Owned: owned,
+				}, "http://kit", "kit-id")
+			if state == "maintenance" {
+				if connection.State != "busy" || connection.Owner != "kit-maintainer" ||
+					connection.Message != "The kit is reserved for software maintenance." {
+					t.Fatalf("maintenance owned=%t: %+v", owned, connection)
+				}
+			} else if connection.State != "recovery-required" {
+				t.Fatalf("blocked maintenance owned=%t: %+v", owned, connection)
+			}
+		}
+	}
+}
+
 func TestTargetInvalidationClearsPackageAssociationAndRejection(t *testing.T) {
 	for _, execution := range []string{ExecutionFPGADevelopment, ExecutionHostOnly} {
 		t.Run(execution, func(t *testing.T) {

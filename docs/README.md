@@ -43,6 +43,7 @@ Use these when the start-here page names the job and you need the steps.
 | Audit or refresh core-package cache keys | [Core-key narrowing](core-key-narrowing.md) |
 | Run an isolated package lifecycle check | [Package acceptance](package-acceptance.md) |
 | Change files on a dev kit, or see who changed them | [Kit runtime manifest](kit-manifest.md) |
+| Independent host, kit software and core updates | [Modular updates](modular-updates.md) |
 | Core settings, progress and writable ST disks | [Core persistence](core-persistence.md) |
 | Blob versus blob-stream capacity | [Media capacity](core-media-evolution.md) |
 | Use or test the SoC DDR3 from a core | [HPS DDR](hps-ddr.md) |

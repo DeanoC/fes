@@ -82,10 +82,10 @@ is that case.
 | --- | --- | --- | --- |
 | `fes.menu` | Idle scanout. Not a game. Splash is still the product idle fallback. | Shared pin. | No factory-image acceptance of this bitstream. |
 | `fes.pong` 1.1.0 | ROM-less game. Settings and best rally persist. The [10 Oct kit B load](validation/2026-10-10-optimizer-video-area.md) showed the field and Stop. | Shared pin, single-PLL gate, optimizer scaler. | That note is a bounded video/Stop check, not gameplay or image acceptance. |
-| `fes.zx81` 1.5.0 | Most complete 8-bit machine in the image: live `.p` tape, session display, bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | Sync M10K, format 3, HIP. | Still TV80. Lock is nextpnr `c2bb4363`, the oldest play pin. Physical keyboard, expansion and audio of 1.5.0 are not accepted. |
+| `fes.zx81` 1.5.0 | Most complete 8-bit machine in the image: live `.p` tape, session display, bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | Sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. The 2 Oct note does not accept a shared-pin seal. Physical keyboard, expansion and audio of 1.5.0 are not accepted. |
 | `fes.coleco` 1.2.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. One exact 16 KiB cartridge, padded with `0xff`. | Native video parts, sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. Not retail-complete. The 3 Oct note does not accept these bytes. |
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. Named kit audio is artifact-scoped and does not accept a shared-pin seal. |
-| `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3, HIP. | Lock `a93fe013`. The 1.2.0 kit audio note does not qualify 1.3.0. |
+| `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3. Product lock is `toolchain.lock`. | The 1.2.0 kit audio note does not qualify 1.3.0 or a shared-pin seal. |
 | `fes.spectrum` 0.2.0 | In the image. Library standing is experimental. Open diagnostic firmware only; no Sinclair ROM is shipped. | `fes_z80_nmos` by default, sync M10K, format 3. Product lock is `toolchain.lock`. | The 28 Sep notes do not accept a shared-pin seal. The 56 MHz build is documented-only. No card, keyboard or tape kit check of this shell. |
 | `fes.ramtest` 1.1.0 | SDRAM and HPS DDR tester. Factory ships 100 MHz. | Shared pin. | 130 MHz remains open. No exact-image hardware acceptance. |
 | `fes.atari-st` 0.2.0 | In the image. GEM, mouse, writable geometry-aware disks and video parts have passed on named artifacts. Not a compatible ST. | Video parts, sync M10K, format 3, HIP. | Own lock: Yosys `886afa63`, nextpnr `3d4a5b35`. Built-in Direct fallback remains. Borders, later demo sections, menu flash, audio fidelity and full current-image acceptance are open. |
@@ -134,16 +134,16 @@ fix it in nextpnr, then delete the dedicated lock. Do not add another lock.
 | 2 | `fes.atari-st` | `3d4a5b35` | Factory, and its Yosys pin is also private. Do not keep this pin because an older seed missed pixel. |
 | 3 | `fes.coleco` | `toolchain.lock` | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `toolchain.lock` | Same multi-region cart support. Both now select `toolchain.lock`. |
-| 5 | `fes.sg1000` | `a93fe013` | `toolchains/registered-memory.lock`. SMS now selects `toolchain.lock`. |
-| 6 | `fes.zx81` | `c2bb4363` | Oldest pin. Bus 2.0 and session display make it a bad first move. |
+| 5 | `fes.sms`, `fes.sg1000` | `toolchain.lock` | Both now select `toolchain.lock`. The old Coleco producer selects the same shared lock. |
+| 6 | `fes.zx81` | `toolchain.lock` | Bus 2.0 and session display. The 2 Oct note does not accept a shared-pin seal. |
 
 Completion: the recipe `lock_path` is `toolchain.lock`, the producer
 authenticates that file, the HIP seal meets the core's existing clock gates,
 and the old lock is deleted if nothing else selects it.
 
-`toolchains/ramtest-timing.lock` is the timing diagnostic, not a product pin.
-Do not bump it as if it were a core. Point the diagnostic at the shared pin
-or delete it when the diagnostic no longer needs a private pin.
+The 130 MHz timing diagnostic uses `toolchain.lock`. OSS has not closed 130 MHz.
+The shared-pin seed-2 route reached 110.91 MHz on `ram_clock.clocks[0]`. That
+miss is known and is not a private pin.
 
 ### 3. One Z80
 

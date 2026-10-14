@@ -79,12 +79,12 @@ SYSTEM_PLL_ROUTE_RE = (
 SYSTEM_PLL_OUTPUT_RE = r"Info: PLL 'system_clock\.pll': fractional-N requested 52224000\.000000 Hz \(output 0\)"
 AUDIO_PLL_OUTPUT_RE = r"Info: PLL 'system_clock\.pll': fractional-N requested 12288000\.000000 Hz \(output 1\)"
 OUTPUT_RELATIVE = Path("build/fes-coleco-oss")
-COLECO_TOOLCHAIN_LOCK = "toolchains/registered-memory.lock"
+COLECO_TOOLCHAIN_LOCK = "toolchain.lock"
 COLECO_TOOLCHAIN_ROOT = "build/toolchain/fes-coleco"
 COLECO_TOOL_COMMITS = {
-    "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "a93fe013af841214ecb4f7be3af0de65f3de3a0f",
-    "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
+    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
+    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
+    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
 }
 RECIPE = "scripts/build_fes_coleco_oss.py"
 ABI_DEFINITION = "cores/fes-common/generated/fes_application.vh"

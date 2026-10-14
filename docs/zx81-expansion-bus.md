@@ -35,8 +35,7 @@ the Z80-like edge, not the earlier pre-decoded 14-bit RAM port. Old RAM-port
 carts cannot overlay a bus shell: shell hashes differ. Software preserves historical bus 1.0/map `/1` admission. Cross-version
 shell/cart binding rejects. The physical CRAM rectangle is unchanged.
 The standard `fes.zx81`
-producer now builds this socketed shell with the scoped
-`sources/misteross/toolchains/zx81-expansion.lock`; `--legacy` is reserved for
+producer now builds this socketed shell with `toolchain.lock`; `--legacy` is reserved for
 diagnostic builds of the pre-expansion shell.
 
 ## Producer

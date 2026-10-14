@@ -2,25 +2,19 @@
 
 ## Development host protocol
 
-On Powerboat, keep the user `fogcast-api.service` disabled and stopped by
-default. Coding, builds, simulations and package preparation need no running
-host. This does not stop the MiSTer target agent or runtime.
+Keep the operator-selected shared host and its autostart setting unchanged.
+Coding, builds, simulations and package preparation do not require stopping it.
+For automated diagnostics use a private host with its own binary, configuration,
+port, catalog and evidence directory through the [package acceptance
+lane](package-acceptance.md). Do not replace the shared host or mount its live
+library to test a branch. Stop only the private host you started.
 
-For an authorized automated kit test, claim the target lease and run a
-temporary isolated host through the [package acceptance lane](package-acceptance.md)
-where appropriate. Shut down that host, verify cleanup and report release.
-For operator menu/controller testing, explicitly start one normal host for
-that session, stop it afterward and leave autostart disabled. Do not run a
-duplicate test host against the same kit.
-
-When the user requests that the menu remain available, restore the normal host
-and kit launcher after stopping the private test host. Restore the recorded
-initial autostart setting. Wait for the normal host API to serve the library
-before restarting the kit launcher; an early menu can retain a failed first
-library load. Verify the populated idle menu on HDMI and confirm that the
-lease is free before finishing. Keep the menu available during long builds
-between probes. This explicit request takes precedence over the default host
-shutdown above; never interrupt a session owned by someone else.
+Several idle hosts may inspect the same kit. The target lease admits one
+execution owner; a competing launch must report busy without stopping another
+session. Do not run two controllers for the same owned session. Keep the normal
+menu available between probes and during long builds. If a diagnostic requires
+changing the launcher, record its configuration and restore that temporary
+change after testing; do not disable the shared host as routine cleanup.
 
 The target lease is sufficient coordination for ordinary kit use: loading a
 core, supplying media/input, collecting diagnostics and stopping the session.
@@ -32,17 +26,24 @@ just its PID: restart policies can undo a process kill. Slack is not a push
 notification channel for this harness; poll a thread when a reply is needed.
 Coordination does not replace the existing lease or authorize another device.
 
-Replacing a kit binary, launcher config, agent config, or core-package file
-is that kind of maintenance. Do it with the [kit runtime manifest](kit-manifest.md)
-(`scripts/fes kit claim`, `swap`, `restore`, `status`). The hold marker is
-`~/tmp/KITA-HELD-BY-<who>` or `~/tmp/KITB-HELD-BY-<who>`. Release the kit.py
-lease before a swap or restore, because those commands restart services.
+Replacing kit binaries or configuration is exclusive maintenance. Use the
+[kit runtime manifest](kit-manifest.md) commands. Each swap/restore acquires a
+target maintenance reservation before changing files or stopping services,
+retains it across agent restart, and ends it only after idle cleanup succeeds.
+Workstation hold markers record a diagnostic task; they cannot reserve hardware
+against another host. Release an ordinary kit.py session before starting a
+swap/restore; the tool claims its own grant and promotes it into maintenance.
 
-The selected components include renewable kit ownership. The target agent is
-the single lease authority; libmister-runtime owns FPGA programming and recovery.
-The matching diagnostic agent and host API are installed on the designated kit
-and workstation. Build and deploy matching host/agent versions when setting up
-another environment.
+An agent that does not provide `fes-kit-maintenance-v1` cannot admit this workflow.
+Install the supporting agent once through the existing authorized appliance-image
+procedure. The tools reject missing maintenance routes and refuse replacement
+agents that cannot enforce the reservation; there is no SSH-only fallback.
+
+Host, agent and runtime revisions may differ when their advertised contracts are
+supported. Record each exact artifact independently. A new core using a supported
+ABI uses package import/selection/launch rather than a kit-file swap or OS update.
+An accepted appliance update remains installed; temporary overlay diagnostics
+retain their explicit restore procedure until separate software releases exist.
 
 ## Claim a development session
 
@@ -119,11 +120,18 @@ All routes use the existing bearer authentication:
 | Claim with owner, purpose and secret request ID | `POST /v1/kit/claim` |
 | Renew / release current credential | `POST /v1/kit/renew`, `POST /v1/kit/release` |
 | Explicit generation/reason takeover | `POST /v1/kit/takeover` |
+| Maintenance status | `GET /v1/kit/maintenance` |
+| Promote an owned grant into maintenance | `POST /v1/kit/maintenance/start` |
+| Resume/end the exact reservation | `POST /v1/kit/maintenance/resume`, `POST /v1/kit/maintenance/end` |
 
 Mutation requests carry `X-FogCast-Kit-Lease`. Status reports owner, purpose,
 generation, remaining milliseconds and reason; credentials are not included.
 Claim/takeover retries use the same random request ID to reconcile a lost
-response. Cleanup may still be running when release returns `revoking`.
+response. Cleanup may still be running when release returns `revoking`. Maintenance
+reservations have separate operation/generation identities and survive agent
+restarts on the same boot. Ordinary claim, takeover and mutation are refused
+until matching maintenance completion has confirmed idle. Failed maintenance
+stays reserved for explicit repair; it does not expire into another owner's play.
 
 Lease admission covers game launches, development uploads/reboots, Stop, input
 attach/detach/streams, session display open/close, cast start/stop, and mesh content pull and link. Mesh

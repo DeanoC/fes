@@ -61,7 +61,8 @@ class ReleaseTests(unittest.TestCase):
         self.assertEqual(appliance.release_version('hil-test',1),'hil-test-1p')
         marker=self.root/'SINGLE-PASS-SCRATCH.txt';marker.write_text('head_sha='+'a'*40+'\nlinux_img_sha256='+appliance.digest(self.rootfs)+'\n')
         result=appliance.export_release(self.root/'release-1p',self.rootfs,self.kernel,version='hil-smoke-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
-        self.assertEqual(appliance.load_manifest(result.manifest)['image_passes'],1)
+        self.assertNotIn('image_passes',appliance.load_manifest(result.manifest))
+        self.assertEqual(json.loads(result.evidence.read_text())['image_passes'],1)
         self.assertEqual((result.directory/'SINGLE-PASS-SCRATCH.txt').read_bytes(),marker.read_bytes())
         again=appliance.export_release(result.directory,self.rootfs,self.kernel,version='hil-smoke-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1,single_pass_marker=marker)
         self.assertEqual(again,result)
@@ -80,9 +81,50 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotIn('image_passes',manifest)
         legacy=self.root/'legacy.json';legacy.write_bytes(appliance.canonical(manifest))
         self.assertEqual(appliance.load_manifest(legacy),manifest)
-        with self.assertRaisesRegex(ValueError,'invalid release image passes'):
-            malformed=dict(manifest,image_passes=2)
-            legacy.write_bytes(appliance.canonical(malformed));appliance.load_manifest(legacy)
+        explicit=dict(manifest,image_passes=2)
+        legacy.write_bytes(appliance.canonical(explicit))
+        self.assertEqual(appliance.load_manifest(legacy)['image_passes'],2)
+        for bad in (0,-1,True,1.5,'1',1 << 63):
+            with self.subTest(bad=bad):
+                legacy.write_bytes(appliance.canonical(dict(manifest,image_passes=bad)))
+                with self.assertRaisesRegex(ValueError,'invalid release image passes'):
+                    appliance.load_manifest(legacy)
+
+    def test_produced_manifest_matches_deployed_decode_allow_list(self):
+        # mister-agent d7273fb6 DecodeManifest accepts only this closed set.
+        legacy={'format','board','boot_abi','version','kernel_sha256','image_sha256','image_size','fes_revision','fogcast_revision','runtime_revision'}
+        self.assertEqual(appliance.MANIFEST_FIELDS,legacy)
+        p=provenance(self.rootfs,self.kernel)
+        for passes,version in ((1,'hil-1p'),(2,'v1')):
+            produced=appliance.release_manifest(self.rootfs,version=version,provenance=p,image_passes=passes)
+            self.assertEqual(set(produced),legacy)
+            self.assertNotIn(b'image_passes',appliance.canonical(produced))
+        marker=self.root/'produced-marker.txt'
+        marker.write_text('head_sha='+'a'*40+'\nlinux_img_sha256='+appliance.digest(self.rootfs)+'\n')
+        one=appliance.export_release(self.root/'legacy-1p',self.rootfs,self.kernel,version='hil-legacy-1p',provenance=p,image_passes=1,single_pass_marker=marker)
+        self.assertEqual(set(json.loads(one.manifest.read_text())),legacy)
+        self.assertNotIn(b'image_passes',one.manifest.read_bytes())
+        self.assertEqual(json.loads(one.evidence.read_text())['image_passes'],1)
+        two=appliance.export_release(self.root/'legacy-2p',self.rootfs,self.kernel,version='v1',provenance=p)
+        self.assertEqual(set(json.loads(two.manifest.read_text())),legacy)
+        self.assertNotIn('image_passes',json.loads(two.evidence.read_text()))
+        once=appliance.canonical(dict(json.loads(one.manifest.read_text()),image_passes=1))
+        duplicate=once.decode().rstrip()[:-1]+',"image_passes":1}\n'
+        malformed=self.root/'duplicate.json';malformed.write_text(duplicate)
+        with self.assertRaisesRegex(ValueError,'duplicate JSON field'):
+            appliance.load_manifest(malformed)
+        import sys
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(mock.patch.object(sys,'argv',['appliance.py','bootstrap','--release',str(one.directory)]))
+            stack.enter_context(mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,p,self.root,{},None)))
+            stack.enter_context(mock.patch.object(appliance,'cached_media_container',side_effect=AssertionError('must reject before bootstrap')))
+            stderr=stack.enter_context(contextlib.redirect_stderr(io.StringIO()))
+            with self.assertRaises(SystemExit):
+                appliance.main()
+            self.assertIn('single-pass scratch release cannot be bootstrapped',stderr.getvalue())
+        with mock.patch.object(appliance,'verified_inputs',return_value=(self.rootfs,self.kernel,p,self.root,{},None)):
+            with self.assertRaisesRegex(ValueError,'single-pass scratch release cannot be bootstrapped'):
+                appliance_media.prepare(self.root,'native-integration-dev',one.directory,self.root/'bootstrap',self.root/'media-scratch')
 
     def test_bootstrap_refuses_single_pass_release_explicitly(self):
         import sys

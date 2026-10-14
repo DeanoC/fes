@@ -170,9 +170,9 @@ freeze-scaffold pass 2. `fes.menu` and both OSS `fes.ramtest` rates use the same
 `toolchain.lock` HIP compiler slot (also provisioned by
 `make toolchain-fes-ramtest`). Coleco uses `make toolchain-fes-coleco` against
 `toolchain.lock`. SG-1000 uses `make toolchain-fes-sg1000`
-against `toolchains/registered-memory.lock`. SMS uses
+against `toolchain.lock`. SMS uses
 `make toolchain-fes-sms` against `toolchain.lock`. ZX81 uses
-`make toolchain-fes-zx81` against `toolchains/zx81-expansion.lock`. Those
+`make toolchain-fes-zx81` against `toolchain.lock`. Those
 install under their own prefixes unless `CACHE_ROOT` selects the shared
 cache. See [Cores](docs/cores.md).
 
@@ -209,7 +209,7 @@ This path does not seal `fes.zx81`.
 | `scripts/experiment_policy.py` | Closed experiment list and checks |
 | `scripts/build_fes_*.py` | Core producers |
 | `toolchain.lock` | Generic OSS tools and the shared FES HIP slot |
-| `toolchains/` | ZX81 and registered-memory locks |
+| `toolchains/` | Private locks still selected by C64 and Atari ST |
 | `boards/de10nano/` | Shared device and pin constraints |
 | `sealed/` | Tracked splash/idle RBF |
 | `build/` | Generated tools and RBFs, not source |

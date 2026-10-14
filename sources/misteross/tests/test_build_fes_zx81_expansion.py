@@ -15,20 +15,38 @@ from scripts import zx81_expansion as expansion
 
 
 ROOT = Path(__file__).resolve().parents[1]
+PREPARE_SCAFFOLD = cart_producer.prepare_scaffold
+
+
+def legacy_pll_shell() -> dict:
+    pins = {'locked': [0, 'locked'], 'outclk': [0, 'outclk'],
+            'outclk[0]': [0, 'outclk[0]'], 'outclk[1]': [0, 'outclk[1]'],
+            'refclk': [0, 'refclk'], 'rst': [0, 'rst']}
+    return {'modules': {'top': {'cells': {
+        'system_clock.pll': {'type': 'altera_pll',
+            'connections': {'outclk': [10], 'locked': [11], 'refclk': [12]},
+            'port_directions': {'outclk': 'output', 'locked': 'output', 'refclk': 'input'},
+            'attributes': {'FES_PINMAP_V1': json.dumps({'count': 6, 'pins': pins}).encode().hex()}},
+        'audio_buffer': {'type': 'MISTRAL_CLKBUF', 'connections': {'A': [13], 'Q': [14]}},
+    }, 'netnames': {'system_clock.pll_outclk_1': {'bits': [13]},
+                    'audio_clk': {'bits': [14]}}}}}
+
+
+def shared_pin_pll_shell() -> dict:
+    """Shared-pin PLL: physical C6/C7 outputs, not the legacy alias map."""
+    design = legacy_pll_shell()
+    pll = design['modules']['top']['cells']['system_clock.pll']
+    pll['connections']['outclk[1]'] = [13]
+    pll['port_directions']['outclk[1]'] = 'output'
+    mapping = {'count': 5, 'pins': {'locked': [0, 'locked'], 'outclk': [0, 'C6'],
+               'outclk[1]': [0, 'C7'], 'refclk': [0, 'refclk'], 'rst': [0, 'rst']}}
+    pll['attributes']['FES_PINMAP_V1'] = json.dumps(mapping).encode().hex()
+    return design
+
 
 class ZX81SocketProducerTests(unittest.TestCase):
     def test_cart_scaffold_restores_second_pll_output(self):
-        pins = {'locked': [0, 'locked'], 'outclk': [0, 'outclk'],
-                'outclk[0]': [0, 'outclk[0]'], 'outclk[1]': [0, 'outclk[1]'],
-                'refclk': [0, 'refclk'], 'rst': [0, 'rst']}
-        design = {'modules': {'top': {'cells': {
-            'system_clock.pll': {'type': 'altera_pll',
-                'connections': {'outclk': [10], 'locked': [11], 'refclk': [12]},
-                'port_directions': {'outclk': 'output', 'locked': 'output', 'refclk': 'input'},
-                'attributes': {'FES_PINMAP_V1': json.dumps({'count': 6, 'pins': pins}).encode().hex()}},
-            'audio_buffer': {'type': 'MISTRAL_CLKBUF', 'connections': {'A': [13], 'Q': [14]}},
-        }, 'netnames': {'system_clock.pll_outclk_1': {'bits': [13]},
-                        'audio_clk': {'bits': [14]}}}}}
+        design = legacy_pll_shell()
         scaffold = json.loads(cart_producer.prepare_scaffold(json.dumps(design).encode()))
         pll = scaffold['modules']['top']['cells']['system_clock.pll']
         self.assertEqual(pll['connections']['outclk[1]'], [13])
@@ -36,6 +54,34 @@ class ZX81SocketProducerTests(unittest.TestCase):
         mapped = json.loads(bytes.fromhex(pll['attributes']['FES_PINMAP_V1']))
         self.assertEqual(mapped['count'], 5)
         self.assertNotIn('outclk[0]', mapped['pins'])
+
+    def test_scaffold_preserves_shared_pin_pll(self):
+        source = shared_pin_pll_shell()
+        result = json.loads(cart_producer.prepare_scaffold(json.dumps(source).encode()))
+        self.assertEqual(result['modules']['top']['cells']['system_clock.pll'],
+                         source['modules']['top']['cells']['system_clock.pll'])
+
+    def test_shared_pin_pll_contract_fails_closed(self):
+        for mutation in ('audio_net', 'pin', 'count', 'extra_pin', 'direction', 'extra_port'):
+            with self.subTest(mutation=mutation):
+                source = shared_pin_pll_shell()
+                pll = source['modules']['top']['cells']['system_clock.pll']
+                mapping = json.loads(bytes.fromhex(pll['attributes']['FES_PINMAP_V1']))
+                if mutation == 'audio_net':
+                    pll['connections']['outclk[1]'] = [99]
+                elif mutation == 'pin':
+                    mapping['pins']['outclk[1]'] = [0, 'C6']
+                elif mutation == 'count':
+                    mapping['count'] = 6
+                elif mutation == 'extra_pin':
+                    mapping['pins']['outclk[0]'] = [0, 'C6']
+                elif mutation == 'direction':
+                    pll['port_directions']['outclk[1]'] = 'input'
+                else:
+                    pll['connections']['outclk[2]'] = [99]
+                pll['attributes']['FES_PINMAP_V1'] = json.dumps(mapping).encode().hex()
+                with self.assertRaises(ValueError):
+                    cart_producer.prepare_scaffold(json.dumps(source).encode())
 
     def fixture(self):
         cells = {}
@@ -259,7 +305,15 @@ class ZX81CartPublicationTests(unittest.TestCase):
             sdc = Path(command[command.index("--sdc") + 1])
             self.assertEqual(sdc, self.output / "clocks.sdc")
             self.assertEqual(Path(command[command.index('--json') + 1]), self.output / 'scaffold.json')
-            self.assertEqual((self.output / 'scaffold.json').read_bytes(), b'scaffold')
+            scaffold_bytes = (self.output / 'scaffold.json').read_bytes()
+            if self.mode == 'shared_pin':
+                pll = json.loads(scaffold_bytes)['modules']['top']['cells']['system_clock.pll']
+                self.assertEqual(pll['connections']['outclk[1]'], [13])
+                pins = json.loads(bytes.fromhex(pll['attributes']['FES_PINMAP_V1']))['pins']
+                self.assertEqual(pins['outclk'], [0, 'C6'])
+                self.assertEqual(pins['outclk[1]'], [0, 'C7'])
+            else:
+                self.assertEqual(scaffold_bytes, b'scaffold')
             self.assertIn("-period 19.148284313725 [get_nets {clk_sys}]", sdc.read_text())
             self.assertIn("-period 13.468013468013 [get_nets {display.control.clk}]", sdc.read_text())
             self.assertIn("-period 81.380208333333 [get_nets {audio_clk}]", sdc.read_text())
@@ -291,6 +345,20 @@ class ZX81CartPublicationTests(unittest.TestCase):
                                                           "audio_clk": 12.288})
         self.assertEqual(recipe["cram_region"], [1769, 32, 2806, 7024])
         self.assertEqual(recipe["clock_constraints_sha256"], cart_producer.digest((self.output / "clocks.sdc").read_bytes()))
+
+    def test_ram_and_zonx_builds_accept_shared_pin_shell(self):
+        (self.shell / 'routed.json').write_bytes(json.dumps(shared_pin_pll_shell()).encode())
+        self.mode = 'shared_pin'
+        with patch.object(cart_producer, 'prepare_scaffold', side_effect=PREPARE_SCAFFOLD):
+            for kind in ('ram16k', 'zonx'):
+                with self.subTest(cart_kind=kind):
+                    result = cart_producer.build(
+                        self.root, self.shell, self.root / 'package', 0, cart_kind=kind)
+                    self.assertTrue(result.is_file())
+                    recipe = json.loads((self.output / 'build-summary.json').read_text())['recipe']
+                    self.assertEqual(recipe['cart_kind'], kind)
+                    pll = json.loads((self.output / 'scaffold.json').read_text())['modules']['top']['cells']['system_clock.pll']
+                    self.assertEqual(pll['connections']['outclk[1]'], [13])
 
     def test_zonx_publication_binds_its_sources_and_same_socket_gates(self):
         result = cart_producer.build(self.root, self.shell, self.root / 'package', 0, cart_kind='zonx')

@@ -2,9 +2,9 @@
 """Claim, swap, restore and watch development-kit runtime files.
 
 The root filesystem on a kit is read-only, so the manifest and stock backups
-live on the writable FAT volume at /media/fat/fes/. Hold markers stay on the
-workstation at ~/tmp/KITA-HELD-BY-<who> (and KITB-...), which is the existing
-cooperative lock for disruptive kit work.
+live on the writable FAT volume at /media/fat/fes/. Workstation hold markers
+record temporary diagnostic ownership. The target maintenance API reserves
+each disruptive transaction across hosts and target-agent restarts.
 """
 
 import argparse
@@ -16,10 +16,14 @@ import json
 import os
 from pathlib import Path
 import re
+import secrets
 import shlex
+import stat
 import subprocess
 import sys
 import tempfile
+
+from kit_maintenance import KitMaintenance, MaintenanceError
 
 
 REMOTE = Path(__file__).resolve().parent / 'kit_remote.sh'
@@ -71,16 +75,418 @@ def sha256_bytes(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def _home():
+    try:
+        return Path.home()
+    except RuntimeError as exc:
+        raise KitError('cannot locate a per-user state directory') from exc
+
+
+def durable_state_dir():
+    """Canonical per-user state directory, never a temp path or a fixed home."""
+    return _home() / '.local' / 'state' / 'fes-kit'
+
+
+def _shared_write(mode):
+    return stat.S_IMODE(mode) & (stat.S_IWGRP | stat.S_IWOTH)
+
+
+def _refuse_private(path):
+    raise KitError(
+        'kit state directory must be owned by the current user and not '
+        f'group- or world-writable: {path}')
+
+
+def _ensure_private_dir(path, mode=0o700):
+    """Create a private directory and refuse a shared parent or leaf.
+
+    Every existing component must be a real directory, not a symlink. A
+    group- or world-writable ancestor is refused unless it is sticky and the
+    next component is owned by this user (as with ``/tmp``). The leaf is
+    created ``mode`` (0700 for hold state) and must be owned by this user.
+    """
+    path = Path(os.path.abspath(path))
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current = current / part
+        parent_info = os.lstat(current.parent)
+        parent_shared = _shared_write(parent_info.st_mode)
+        parent_sticky = bool(parent_info.st_mode & stat.S_ISVTX)
+        # A non-sticky shared parent can be renamed by another user. Refuse
+        # before creating a child there.
+        if parent_shared and not parent_sticky:
+            raise KitError(
+                f'kit state directory is inside a shared writable directory: {current.parent}')
+        try:
+            info = os.lstat(current)
+        except FileNotFoundError:
+            try:
+                os.mkdir(current, mode if current == path else 0o700)
+            except OSError as exc:
+                raise KitError(f'cannot create kit state directory: {current}') from exc
+            info = os.lstat(current)
+        except OSError as exc:
+            raise KitError(f'cannot create kit state directory: {current}') from exc
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+            _refuse_private(current)
+        if parent_shared and info.st_uid != os.getuid():
+            raise KitError(
+                f'kit state directory is inside a shared writable directory: {current.parent}')
+        if current == path and (
+                info.st_uid != os.getuid() or _shared_write(info.st_mode)
+                or not os.access(current, os.W_OK | os.X_OK)):
+            _refuse_private(current)
+    return path
+
+
+def _is_private_dir(path):
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return False
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        return False
+    if info.st_uid != os.getuid() or _shared_write(info.st_mode):
+        return False
+    try:
+        _ensure_private_dir(path)
+    except KitError:
+        return False
+    return True
+
+
+def _owned_regular(path, private=False):
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return False
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+        return False
+    if info.st_uid != os.getuid():
+        return False
+    mode = stat.S_IMODE(info.st_mode)
+    if private and mode & 0o077:
+        return False
+    if mode & (stat.S_IWGRP | stat.S_IWOTH):
+        return False
+    return True
+
+
+def _hold_candidates():
+    candidates = []
+    xdg = os.environ.get('XDG_STATE_HOME')
+    if xdg:
+        candidates.append(Path(xdg) / 'fes-kit')
+    try:
+        home_default = durable_state_dir()
+    except KitError:
+        home_default = None
+    if home_default is not None and home_default not in candidates:
+        candidates.append(home_default)
+    return candidates
+
+
+def _legacy_hold_dir():
+    """Previous default hold directory, kept only so an active journal can move."""
+    return Path(tempfile.gettempdir()) / f'fes-kit-{os.getuid()}'
+
+
+def _copy_private_file(src, dest, mode):
+    """Copy an owned regular file without following symlinks.
+
+    The source is removed only after the destination is a private regular
+    file. A destination that already exists is left unchanged.
+    """
+    if dest.exists() or dest.is_symlink():
+        return False
+    dest.parent.mkdir(mode=0o700, exist_ok=True)
+    if not _is_private_dir(dest.parent):
+        raise KitError(f'cannot migrate into an unsafe directory: {dest.parent}')
+    try:
+        in_fd = os.open(src, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise KitError(f'cannot read kit state file: {src}') from exc
+    try:
+        out_fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
+        try:
+            while True:
+                chunk = os.read(in_fd, 65536)
+                if not chunk:
+                    break
+                view = chunk
+                while view:
+                    written = os.write(out_fd, view)
+                    view = view[written:]
+            os.fsync(out_fd)
+        finally:
+            os.close(out_fd)
+    except OSError as exc:
+        try:
+            os.unlink(dest)
+        except OSError:
+            pass
+        raise KitError(f'cannot migrate kit state file: {dest}') from exc
+    finally:
+        os.close(in_fd)
+    if not _owned_regular(dest, private=(mode & 0o077) == 0):
+        try:
+            os.unlink(dest)
+        except OSError:
+            pass
+        raise KitError(f'cannot migrate kit state file: {dest}')
+    os.unlink(src)
+    return True
+
+
+def _legacy_drift_destinations(destination):
+    """Drift directories to try, canonical first.
+
+    The timer reads ``~/.local/state/fes-kit/fes-kit-drift`` and does not see
+    ``FES_KIT_DRIFT_DIR``. That explicit directory, then the hold directory,
+    are fallbacks when the canonical directory cannot be created.
+    """
+    destinations = []
+
+    def add(path):
+        path = Path(path)
+        if path not in destinations:
+            destinations.append(path)
+
+    try:
+        add(durable_state_dir() / 'fes-kit-drift')
+    except KitError:
+        pass
+    override = os.environ.get('FES_KIT_DRIFT_DIR')
+    if override:
+        add(override)
+    add(destination / 'fes-kit-drift')
+    return destinations
+
+
+def _migrate_legacy_drift(legacy, destination):
+    """Move owned drift snapshots without blocking a usable hold.
+
+    Directory creation is best-effort. A snapshot stays in the legacy hold
+    when every destination fails, and that failure does not prevent the
+    maintenance journal from being used.
+    """
+    drift_src = legacy / 'fes-kit-drift'
+    if not _is_private_dir(drift_src):
+        return
+    destinations = _legacy_drift_destinations(destination)
+    try:
+        names = os.listdir(drift_src)
+    except OSError:
+        return
+    for name in names:
+        if not name.endswith('.json'):
+            continue
+        src = drift_src / name
+        if not _owned_regular(src):
+            continue
+        for root in destinations:
+            try:
+                prepared = _ensure_private_dir(root, mode=0o755)
+                _copy_private_file(src, prepared / name, 0o644)
+            except (KitError, OSError):
+                continue
+            break
+
+
+def _migrate_legacy_hold(destination):
+    """Move a valid journal and markers out of the retired temp hold.
+
+    An unsafe legacy directory or file is left in place. A file that already
+    exists at the destination is not replaced. Drift snapshots follow
+    ``_migrate_legacy_drift`` and never block this hold.
+    """
+    legacy = _legacy_hold_dir()
+    try:
+        same = destination.resolve() == legacy.resolve()
+    except OSError:
+        return
+    if same or not _is_private_dir(legacy):
+        return
+    journal_src = legacy / '.fes-kit-maintenance'
+    journal_dest = destination / '.fes-kit-maintenance'
+    if _is_private_dir(journal_src):
+        for name in ('KITA.json', 'KITB.json'):
+            src = journal_src / name
+            if _owned_regular(src, private=True):
+                _copy_private_file(src, journal_dest / name, 0o600)
+    for name in os.listdir(legacy) if legacy.is_dir() else ():
+        if not (name.startswith(('KITA-HELD-BY-', 'KITB-HELD-BY-',
+                                 'KITA-RELEASED-BY-', 'KITB-RELEASED-BY-'))):
+            continue
+        src = legacy / name
+        if _owned_regular(src):
+            _copy_private_file(src, destination / name, 0o644)
+    _migrate_legacy_drift(legacy, destination)
+
+
 def hold_dir():
-    path = Path(os.environ.get('FES_KIT_HOLD_DIR', '/home/deano/tmp'))
-    path.mkdir(parents=True, exist_ok=True)
+    """Private workstation directory for hold markers and the credential journal.
+
+    ``FES_KIT_HOLD_DIR`` is used when set and must be private, including its
+    parents. Otherwise use ``$XDG_STATE_HOME/fes-kit`` when that variable is
+    set, then ``~/.local/state/fes-kit``. Temporary storage is not a
+    candidate. A private journal left in the previous temp directory is
+    moved here when the destination does not already have that file.
+    """
+    override = os.environ.get('FES_KIT_HOLD_DIR')
+    if override:
+        path = _ensure_private_dir(Path(override))
+    else:
+        path = None
+        last = None
+        for candidate in _hold_candidates():
+            try:
+                path = _ensure_private_dir(candidate)
+                break
+            except KitError as exc:
+                last = exc
+        if path is None:
+            raise last or KitError('cannot create kit hold directory')
+    _migrate_legacy_hold(path)
     return path
 
 
 def drift_dir():
-    path = Path(os.environ.get('FES_KIT_DRIFT_DIR', '/home/deano/tmp/fes-kit-drift'))
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    """Canonical snapshot directory shared by manual watch and the timer.
+
+    ``FES_KIT_DRIFT_DIR`` selects another directory. Otherwise snapshots
+    live in ``~/.local/state/fes-kit/fes-kit-drift``, including when
+    ``XDG_STATE_HOME`` or ``FES_KIT_HOLD_DIR`` puts the hold directory
+    somewhere else. The timer does not see those variables, so drift does
+    not follow them. A missing home falls back to ``<hold>/fes-kit-drift``.
+    """
+    override = os.environ.get('FES_KIT_DRIFT_DIR')
+    if override:
+        return _ensure_private_dir(Path(override), mode=0o755)
+    try:
+        return _ensure_private_dir(durable_state_dir() / 'fes-kit-drift', mode=0o755)
+    except KitError:
+        return _ensure_private_dir(hold_dir() / 'fes-kit-drift', mode=0o755)
+
+
+def _canonical_drift_snapshots(name):
+    """The durable snapshot, when this process can resolve a home directory."""
+    try:
+        root = durable_state_dir()
+    except KitError:
+        return []
+    return [root / 'fes-kit-drift' / f'{name}.json']
+
+
+def _snapshot_readable(path):
+    """True for an owned regular snapshot, including one left group-writable.
+
+    ``Path.write_text`` uses mode ``0666`` masked by umask, so umask ``0002``
+    creates mode ``0664``. ``_owned_regular`` rejects that mode. The file is
+    still this user's snapshot and its hashes must remain visible. A
+    world-writable snapshot stays unreadable.
+    """
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return False
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+        return False
+    if info.st_uid != os.getuid():
+        return False
+    if stat.S_IMODE(info.st_mode) & stat.S_IWOTH:
+        return False
+    return True
+
+
+def _snapshot_hashes(path):
+    if not _snapshot_readable(path):
+        raise KitError(f'cannot read drift snapshot: {path}')
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise KitError(f'cannot read drift snapshot: {path}') from exc
+    try:
+        info = os.fstat(fd)
+        mode = stat.S_IMODE(info.st_mode)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or mode & stat.S_IWOTH:
+            raise KitError(f'cannot read drift snapshot: {path}')
+        if mode & stat.S_IWGRP:
+            try:
+                os.fchmod(fd, 0o644)
+            except OSError:
+                pass
+        chunks = []
+        while True:
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    except OSError as exc:
+        raise KitError(f'cannot read drift snapshot: {path}') from exc
+    finally:
+        os.close(fd)
+    return load_object(b''.join(chunks).decode('utf-8')).get('hashes') or {}
+
+
+def _write_snapshot(path, text, mode=0o644):
+    """Atomically replace a drift snapshot with an explicit mode.
+
+    ``os.open`` applies the process umask, so ``fchmod`` sets the mode that
+    ``_owned_regular`` accepts. A crash keeps the previous snapshot.
+    """
+    path = Path(path)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    temporary = path.parent / f'.{path.name}.{secrets.token_hex(8)}.tmp'
+    try:
+        fd = os.open(temporary, flags, mode)
+    except OSError as exc:
+        raise KitError(f'cannot write drift snapshot: {path}') from exc
+    try:
+        os.fchmod(fd, mode)
+        view = text.encode('utf-8')
+        while view:
+            written = os.write(fd, view)
+            if written <= 0:
+                raise OSError(f'short write to {temporary}')
+            view = view[written:]
+        os.fsync(fd)
+    except OSError as exc:
+        os.close(fd)
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise KitError(f'cannot write drift snapshot: {path}') from exc
+    os.close(fd)
+    try:
+        os.replace(temporary, path)
+    except OSError as exc:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise KitError(f'cannot write drift snapshot: {path}') from exc
+
+
+def previous_watch_hashes(name):
+    """Hashes from this drift directory, or the canonical durable snapshot.
+
+    A missing home only skips the optional canonical fallback. An explicit
+    drift directory is still compared on its own. Group-writable snapshots
+    created under a permissive umask are read and tightened to ``0644``.
+    """
+    primary = drift_dir() / f'{name}.json'
+    if _snapshot_readable(primary):
+        return _snapshot_hashes(primary)
+    for candidate in _canonical_drift_snapshots(name):
+        try:
+            if not _snapshot_readable(candidate) or candidate.resolve() == primary.resolve():
+                continue
+        except OSError:
+            continue
+        return _snapshot_hashes(candidate)
+    return {}
 
 
 def kit_name(value):
@@ -102,8 +508,8 @@ def check_slug(value, label):
 
 def check_reason(value):
     text = (value or '').strip()
-    if not text or '\n' in text or len(text) > 200:
-        raise KitError('a reason is required (one line, at most 200 characters)', code=2)
+    if not text or any(ord(c) < 32 or ord(c) == 127 for c in text) or len(text.encode('utf-8')) > 160:
+        raise KitError('a reason is required (one line, at most 160 UTF-8 bytes)', code=2)
     return text
 
 
@@ -263,13 +669,22 @@ def parse_hold(path):
     return who, why
 
 
-def hold_body(who, why):
+def hold_task_id(path):
+    for line in path.read_text(encoding='utf-8').splitlines():
+        if line.startswith('task_id='):
+            value = line[8:]
+            if HASH_RE.fullmatch(value):
+                return value
+    return None
+
+
+def hold_body(who, why, task_id):
     return (f'held by {who} {why} since {local_stamp()}\n'
-            f'who={who}\nwhy={why}\nsince={utc_stamp()}\n')
+            f'who={who}\nwhy={why}\ntask_id={task_id}\nsince={utc_stamp()}\n')
 
 
-def write_hold(path, who, why):
-    path.write_text(hold_body(who, why), encoding='utf-8')
+def write_hold(path, who, why, task_id):
+    path.write_text(hold_body(who, why, task_id), encoding='utf-8')
 
 
 def create_hold(name, who):
@@ -367,6 +782,7 @@ def parse_probe(text):
         'hashes': hashes,
         'mounts': mounts,
         'manifest': load_object(blocks.get('MANIFEST')) or None,
+        'manifest_sha256': (blocks.get('MANIFESTSHA') or 'MISSING').strip(),
         'baseline': load_object(blocks.get('BASELINE')) or None,
         'procs': procs,
     }
@@ -433,6 +849,8 @@ class LocalTransport:
         fail_stage = os.environ.get('FES_KIT_FAIL_STAGE')
         if fail_stage:
             env['KIT_FAIL_STAGE'] = fail_stage
+        if os.environ.get('FES_KIT_FAIL_AGENT_CONTRACT') == '1':
+            env['KIT_FAIL_AGENT_CONTRACT'] = '1'
         proc = subprocess.run(['sh', str(REMOTE), *args], text=True, capture_output=True, env=env, check=False)
         if proc.returncode != 0:
             detail = (proc.stderr or proc.stdout or f'exit {proc.returncode}').strip()
@@ -520,17 +938,25 @@ class Session:
         self.name = name
         self.transport = transport
         self.host = host
+        self.incoming_prefix = f'/tmp/fes-incoming/{secrets.token_hex(16)}'
+        self.manifest_sha256 = None
+        self.maintenance = KitMaintenance(name, transport, host,
+                                         hold_dir() / '.fes-kit-maintenance' / f'{kit_prefix(name)}.json')
 
     def probe(self, extra=None):
         extra = list(extra or [])
         base = list(COMPONENTS.values())
         first = parse_probe(self.transport.run(['probe', *hash_specs(base + extra, '')]))
+        self.manifest_sha256 = first['manifest_sha256']
         image = image_id(first['image'].get('image_sha256'))
         items = base + discover_items(first, extra)
         specs = hash_specs(items, image)
         if specs == hash_specs(base + extra, ''):
             return first
-        return parse_probe(self.transport.run(['probe', *specs]))
+        result = parse_probe(self.transport.run(['probe', *specs]))
+        if result['manifest_sha256'] != self.manifest_sha256:
+            raise KitError('kit manifest changed during inspection; inspect again')
+        return result
 
     def put_text(self, remote, data):
         payload = data if isinstance(data, bytes) else data.encode()
@@ -538,9 +964,31 @@ class Session:
         return remote
 
     def apply(self, lines):
-        remote = f'/tmp/fes-incoming/{os.getpid()}-plan'
-        self.put_text(remote, '\n'.join(lines) + '\n')
-        return self.transport.run(['apply', remote]).strip()
+        with self.maintenance.transaction():
+            return self._apply(lines)
+
+    def _apply(self, lines):
+        destructive = any(line.split()[0] in ('STOP', 'START', 'PLACE', 'CLEAR', 'UNMOUNT', 'REMOVE')
+                          for line in lines)
+        reservation = None
+        if destructive:
+            holds = held_files(self.name)
+            owner, purpose = parse_hold(holds[0]) if len(holds) == 1 else ('operator', 'explicit kit restore')
+            reservation = self.maintenance.begin(owner, purpose or 'kit maintenance')
+            lines = [f'MAINTENANCE {reservation["operation_id"]} {reservation["generation"]} {reservation["boot_id"]}', *lines]
+        if self.manifest_sha256 is None:
+            raise KitError('kit must be inspected before applying a plan')
+        lines = [f'MANIFEST_EXPECT {self.manifest_sha256}', *lines]
+        remote = self.put_text(f'{self.incoming_prefix}/plan', '\n'.join(lines) + '\n')
+        result = self.transport.run(['apply', remote]).strip()
+        if reservation:
+            self.maintenance.finish()
+        return result
+
+    def finish_maintenance(self):
+        with self.maintenance.transaction():
+            status = self.maintenance.finish()
+        return f'maintenance {self.name}: {status["state"]}'
 
     def show(self, path):
         return self.transport.run(['show', path])
@@ -565,32 +1013,37 @@ class Session:
             if holder != who:
                 raise KitError(f'{self.name} is held by {holder}')
             path = existing[0]
+            task_id = hold_task_id(path)
+            if not task_id:
+                raise KitError('task marker has no provenance identity; inspect and recover the older diagnostic explicitly')
         else:
             path = create_hold(self.name, who)
             created = path
+            task_id = secrets.token_hex(32)
+            write_hold(path, who, why, task_id)
         try:
             probe = self.probe()
             manifest = probe['manifest'] or empty_manifest(self.name, probe['image'], None)
             holder = manifest.get('holder') or {}
-            if manifest.get('components') and holder.get('who') not in (None, '', who):
-                raise KitError(f'{self.name} manifest is held by {holder.get("who")}')
+            if holder and (holder.get('who') != who or holder.get('task_id') != task_id):
+                raise KitError(f'{self.name} manifest belongs to a different diagnostic task ({holder.get("who")})')
             dirty = unrecorded_mounts(probe, manifest)
             if dirty:
                 raise KitError('unrecorded mounts: ' + ', '.join(dirty)
                                + '; fes kit restore --force drops abandoned binds')
-            manifest = empty_manifest(self.name, probe['image'], {'who': who, 'why': why, 'when': utc_stamp()})
+            manifest = empty_manifest(self.name, probe['image'], {'who': who, 'why': why, 'when': utc_stamp(), 'task_id': task_id})
             manifest['components'] = (probe['manifest'] or {}).get('components') or {}
             if probe['boot_id'] and manifest['components']:
                 recorded = (probe['manifest'] or {}).get('boot_id')
                 if recorded and recorded != probe['boot_id']:
                     raise KitError('kit boot id changed while components are swapped')
-            remote = f'/tmp/fes-incoming/{os.getpid()}-manifest.json'
+            remote = f'{self.incoming_prefix}/manifest.json'
             self.put_text(remote, manifest_bytes(manifest))
             lines = [f'BOOT {probe["boot_id"]}', f'MANIFEST {remote}', 'COMMIT']
             result = self.apply(lines)
-            if result not in ('OK', 'BOOT_CHANGED'):
+            if result != 'OK':
                 raise KitError(result or 'claim failed')
-            write_hold(path, who, why)
+            write_hold(path, who, why, task_id)
             created = None
         finally:
             if created is not None and created.exists():
@@ -601,11 +1054,11 @@ class Session:
         hashes = {name: digest for name, digest in probe['hashes'].items()
                   if not name.startswith('stock-') and digest != 'MISSING'}
         document = {'format': 1, 'when': utc_stamp(), 'hashes': hashes}
-        remote = f'/tmp/fes-incoming/{os.getpid()}-baseline.json'
+        remote = f'{self.incoming_prefix}/baseline.json'
         self.put_text(remote, manifest_bytes(document))
         lines = [f'BOOT {probe["boot_id"]}', f'INSTALL {remote} {BASELINE_PATH}', 'COMMIT']
         result = self.apply(lines)
-        if result not in ('OK', 'BOOT_CHANGED'):
+        if result != 'OK':
             raise KitError(result or 'baseline write failed')
 
     def swap(self, spec, source, why, persistent, temporary):
@@ -635,6 +1088,10 @@ class Session:
         probe = self.probe(extra=[item])
         manifest = probe['manifest'] or empty_manifest(self.name, probe['image'], None)
         self._check_boot(probe, manifest)
+        holder = manifest.get('holder') or {}
+        local_task_id = hold_task_id(hold)
+        if not local_task_id or holder.get('who') != who or holder.get('task_id') != local_task_id:
+            raise KitError('kit manifest belongs to a different diagnostic task; claim it before swapping')
         current = probe['hashes'].get(item.name, 'MISSING')
         if current == 'MISSING':
             raise KitError(f'{item.path} is not on the kit')
@@ -649,7 +1106,7 @@ class Session:
             raise KitError(f'{item.name} has no stock hash')
         stage = f'/tmp/fes-swap/{item.name}'
         backup = stock_path(item.name, probe['image'].get('image_sha256'))
-        incoming = f'/tmp/fes-incoming/{os.getpid()}-{item.name}'
+        incoming = f'{self.incoming_prefix}/{item.name}'
         self.put_text(incoming, payload)
         components = dict(manifest.get('components') or {})
         components[item.name] = {
@@ -668,7 +1125,7 @@ class Session:
         }
         updated = empty_manifest(self.name, probe['image'], manifest.get('holder'))
         updated['components'] = components
-        manifest_remote = f'/tmp/fes-incoming/{os.getpid()}-manifest.json'
+        manifest_remote = f'{self.incoming_prefix}/manifest.json'
         self.put_text(manifest_remote, manifest_bytes(updated))
         lines = [f'BOOT {probe["boot_id"]}', *service_plan(item.services),
                  place_line(item, incoming, persistence, backup, stage, stock, new_hash),
@@ -681,7 +1138,7 @@ class Session:
             raise KitError(f'{item.name} hash did not change')
         return f'swapped {item.name} on {self.name} {persistence} {new_hash}'
 
-    def restore(self, baseline=None, force=False):
+    def restore(self, baseline=None, force=False, expected_boot_id=None, expected_manifest_sha256=None):
         found = held_files(self.name)
         if len(found) > 1:
             raise KitError(f'{self.name} has more than one hold marker')
@@ -690,8 +1147,8 @@ class Session:
         if found:
             with found[0].open('r', encoding='utf-8') as handle:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-                return self._restore(found[0], baseline)
-        return self._restore(None, baseline)
+                return self._restore(found[0], baseline, expected_boot_id, force, expected_manifest_sha256)
+        return self._restore(None, baseline, expected_boot_id, force, expected_manifest_sha256)
 
     def _item_for(self, name, entry, info):
         if name in COMPONENTS:
@@ -704,9 +1161,19 @@ class Session:
         persistence = (entry or {}).get('persistence') or (info or {}).get('persistence') or 'tmpfs'
         return component(name, path, persistence, services, mode)
 
-    def _restore(self, hold, baseline):
+    def _restore(self, hold, baseline, expected_boot_id=None, force=False, expected_manifest_sha256=None):
         probe = self.probe()
+        if expected_boot_id is not None and expected_boot_id != probe['boot_id']:
+            raise KitError('expected boot id does not match the inspected kit')
         manifest = probe['manifest'] or empty_manifest(self.name, probe['image'], None)
+        if expected_manifest_sha256 is not None and expected_manifest_sha256 != probe['manifest_sha256']:
+            raise KitError('expected manifest digest does not match the inspected kit')
+        holder = manifest.get('holder') or {}
+        local_holder = parse_hold(hold)[0] if hold is not None else None
+        task_matches = (hold is not None and hold_task_id(hold) is not None and
+                        holder.get('who') == local_holder and holder.get('task_id') == hold_task_id(hold))
+        if holder and not task_matches and not (force and expected_manifest_sha256):
+            raise KitError('kit manifest belongs to another diagnostic task; explicit --force and --expected-manifest-sha256 recovery required')
         components = dict(manifest.get('components') or {})
         desired = None
         if baseline:
@@ -715,7 +1182,10 @@ class Session:
             desired = load_object(raw)
             if desired.get('name') != baseline:
                 raise KitError(f'baseline {baseline} is not on the kit')
-        lines = [f'BOOT {(manifest.get("boot_id") or probe["boot_id"])}']
+        selected_boot = expected_boot_id or manifest.get('boot_id') or probe['boot_id']
+        if selected_boot != probe['boot_id']:
+            raise KitError('boot id changed; inspect and pass --expected-boot-id to explicitly restore on this boot')
+        lines = [f'BOOT {selected_boot}']
         services = set()
         checks = []
         extra = []
@@ -807,9 +1277,9 @@ class Session:
                     extra.append(item)
             components = {}
         updated = empty_manifest(self.name, probe['image'], None)
-        updated['boot_id'] = manifest.get('boot_id') or probe['boot_id']
+        updated['boot_id'] = selected_boot
         updated['components'] = components
-        remote = f'/tmp/fes-incoming/{os.getpid()}-manifest.json'
+        remote = f'{self.incoming_prefix}/manifest.json'
         self.put_text(remote, manifest_bytes(updated))
         lines.extend(service_plan(services))
         lines.extend([f'MANIFEST {remote}', 'COMMIT'])
@@ -826,12 +1296,8 @@ class Session:
                     raise KitError(f'{name} is still on the kit')
             elif expect and checked['hashes'].get(name) != expect:
                 raise KitError(f'{name} restored to {checked["hashes"].get(name)}, want {expect}')
-        if result not in ('OK', 'BOOT_CHANGED'):
+        if result != 'OK':
             raise KitError(result or 'restore failed')
-        if result == 'BOOT_CHANGED':
-            if hold is not None:
-                release_hold(hold)
-            raise KitError('boot id changed; swapped files were restored', code=4)
         if hold is not None:
             release_hold(hold)
         return f'restored {self.name}'
@@ -880,12 +1346,12 @@ class Session:
                     })
                 files[item.name] = record
             document = {'format': 1, 'name': name, 'when': utc_stamp(), 'files': files}
-            remote = f'/tmp/fes-incoming/{os.getpid()}-baseline-meta.json'
+            remote = f'{self.incoming_prefix}/baseline-meta.json'
             self.put_text(remote, manifest_bytes(document))
             lines.append(f'INSTALL {remote} /media/fat/fes/baselines/{name}.json')
             lines.append('COMMIT')
             result = self.apply(lines)
-            if result not in ('OK', 'BOOT_CHANGED'):
+            if result != 'OK':
                 raise KitError(result or 'baseline save failed')
             return f'saved baseline {name} on {self.name}'
 
@@ -905,9 +1371,14 @@ class Session:
             'image': probe['image'],
             'manifest_path': MANIFEST_PATH,
             'manifest': probe['manifest'],
+            'manifest_sha256': probe['manifest_sha256'],
             'components': component_rows(probe, main_hashes or {}),
             'mounts': probe['mounts'],
         }
+        try:
+            report['maintenance'] = self.maintenance.status()
+        except MaintenanceError:
+            report['maintenance'] = {'state': 'unavailable'}
         return report
 
 
@@ -982,6 +1453,7 @@ def format_status(report):
          f'sha256 {image.get("image_sha256") or "-"} '
          f'boot_id {image.get("boot_id") or "-"}'),
         f'manifest: {report["manifest_path"]}',
+        f'maintenance: {report.get("maintenance", {}).get("state", "unavailable")}',
         '',
     ]
     for row in report['components']:
@@ -1027,9 +1499,7 @@ def format_finding(name, kind, component, detail, current, expected):
 def watch_kit(session, main_hashes, fail_stale):
     probe = session.probe()
     previous_path = drift_dir() / f'{session.name}.json'
-    previous = {}
-    if previous_path.exists():
-        previous = load_object(previous_path.read_text(encoding='utf-8')).get('hashes') or {}
+    previous = previous_watch_hashes(session.name)
     findings = drift_findings(probe, main_hashes, previous)
     drifted = [row for row in findings if row[0] == 'DRIFT']
     manifest = probe['manifest'] or {}
@@ -1043,8 +1513,8 @@ def watch_kit(session, main_hashes, fail_stale):
     elif not probe['baseline']:
         findings.append(('UNVERIFIED', '-', 'no-stock-baseline', '', ''))
     snapshot = {item.name: probe['hashes'].get(item.name, 'MISSING') for item in iter_tracked(probe)}
-    previous_path.write_text(json.dumps({'format': 1, 'when': utc_stamp(), 'hashes': snapshot}, indent=2) + '\n',
-                             encoding='utf-8')
+    _write_snapshot(previous_path,
+                    json.dumps({'format': 1, 'when': utc_stamp(), 'hashes': snapshot}, indent=2) + '\n')
     lines = [format_finding(session.name, *row) for row in findings]
     if not findings:
         lines.append(f'{utc_stamp()} kit {session.name} OK')
@@ -1087,6 +1557,11 @@ def build_parser():
     restore.add_argument('kit')
     restore.add_argument('--baseline')
     restore.add_argument('--force', action='store_true')
+    restore.add_argument('--expected-boot-id', help='explicitly authorize restoration on this inspected boot after a reboot')
+    restore.add_argument('--expected-manifest-sha256', help='bind explicit recovery of an abandoned recorded task to its inspected manifest')
+
+    finish = commands.add_parser('maintenance-end', help='finish this workstation\'s retained maintenance operation after repair')
+    finish.add_argument('kit')
 
     baseline = commands.add_parser('baseline')
     baseline.add_argument('kit')
@@ -1116,7 +1591,9 @@ def main(argv=None):
         elif args.kit_command == 'swap':
             print(open_session(args.kit).swap(args.component, args.file, args.why, args.persistent, args.temporary))
         elif args.kit_command == 'restore':
-            print(open_session(args.kit).restore(args.baseline, args.force))
+            print(open_session(args.kit).restore(args.baseline, args.force, args.expected_boot_id, args.expected_manifest_sha256))
+        elif args.kit_command == 'maintenance-end':
+            print(open_session(args.kit).finish_maintenance())
         elif args.kit_command == 'baseline':
             print(open_session(args.kit).save_baseline(args.name))
         elif args.kit_command == 'status':
@@ -1145,9 +1622,9 @@ def main(argv=None):
             return code
         else:
             parser.error('unknown kit command')
-    except KitError as exc:
+    except (KitError, MaintenanceError) as exc:
         print(f'fes: {exc}', file=sys.stderr)
-        return exc.code
+        return getattr(exc, 'code', 1)
     return 0
 
 

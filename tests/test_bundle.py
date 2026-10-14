@@ -213,7 +213,7 @@ class BundleTest(unittest.TestCase):
         # Production source selection separately enforces clean pinned inputs.
         producer = root / 'sources/misteross/scripts/build_fes_sms_oss.py'
         self.assertTrue(producer.is_file())
-        self.assertTrue((root / 'sources/misteross/toolchains/registered-memory.lock').is_file())
+        self.assertTrue((root / 'sources/misteross/toolchain.lock').is_file())
         text = producer.read_text()
         self.assertRegex(text, r'(?m)^PLACER_SEEDS = \(3,')
         self.assertRegex(text, r'(?m)^SEED = PLACER_SEEDS\[0\]$')
@@ -260,7 +260,7 @@ inspect.signature(authenticate).bind(
         self.assertIn(
             'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  make -C "$work" toolchain-fes', docs)
         self.assertIn(
-            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  FES_TOOLCHAIN_LOCKFILE=toolchains/registered-memory.lock \\\n  FES_TOOLCHAIN_GPU_ROUTER=HIP \\\n  FES_TOOLCHAIN_HIP_ARCHITECTURES=\'gfx1100;gfx1201\' \\\n  make -C "$work" doctor-strict', docs)
+            'FES_TOOLCHAIN_CACHE_ROOT="$cache" \\\n  FES_TOOLCHAIN_LOCKFILE=toolchain.lock \\\n  FES_TOOLCHAIN_GPU_ROUTER=HIP \\\n  FES_TOOLCHAIN_HIP_ARCHITECTURES=\'gfx1100;gfx1201\' \\\n  make -C "$work" doctor-strict', docs)
 
     def test_canonical_package_record_forwards_package_environment(self):
         module = self.module()

@@ -605,9 +605,13 @@ func connectionFromStatus(health protocol.Health, status protocol.Status, owners
 		return connection
 	}
 	switch {
-	case ownership.State == "blocked" || ownership.State == "revoking" || status.Recovery != "" || status.LastError != nil:
+	case ownership.State == "blocked" || ownership.State == "revoking" || ownership.State == "recovery-required" || status.Recovery != "" || status.LastError != nil:
 		connection.State = "recovery-required"
 		connection.Message = "Target cleanup or recovery needs attention."
+	case ownership.State == "maintenance":
+		connection.State = "busy"
+		connection.Owner = ownership.Owner
+		connection.Message = "The kit is reserved for software maintenance."
 	case ownership.State == "held" && !ownership.Owned:
 		connection.State = "busy"
 		connection.Owner = ownership.Owner

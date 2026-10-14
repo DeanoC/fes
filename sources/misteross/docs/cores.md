@@ -28,10 +28,10 @@ A producer in this module does not put a package on that image.
 | --- | --- | --- | --- | --- | --- |
 | `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchain.lock` (shared FES HIP lane) | `make build-fes-menu-package` | yes; idle display, not playable |
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
-| `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` with session display and HPS DDR | `toolchains/zx81-expansion.lock` | `make build-fes-zx81` | yes |
+| `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` with session display and HPS DDR | `toolchain.lock` | `make build-fes-zx81` | yes |
 | `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchain.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | yes; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
 | `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchain.lock` | `make build-fes-sms` | yes |
-| `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sg1000` | yes |
+| `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchain.lock` | `make build-fes-sg1000` | yes |
 | `fes.catch` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `python3 scripts/build_fes_catch.py` | no; registered |
 | `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `toolchain.lock` | `make build-fes-apple2` (HIP default; HIP seal evidence still open) | no; package-only recipe; per-slot cards via `scripts/build_apple2_slot_card.py` |
 | `fes.c64` | `cores/fes-c64` | `fes.computer` | `toolchains/c64.lock` | `make build-fes-c64` | no; package-only recipe; cartridge cards via `scripts/build_c64_slot_card.py` |
@@ -221,9 +221,9 @@ select that cache. If both variables are set they must be the same absolute
 path.
 
 Pong, Catch, the demos, the menu and RISC-V authenticate `toolchain.lock`. ZX81 authenticates
-`toolchains/zx81-expansion.lock`. Coleco uses `toolchain.lock`.
-SG-1000 uses `toolchains/registered-memory.lock`. SMS authenticates
-`toolchain.lock` and does not keep a private slot.
+`toolchain.lock` and does not keep a private slot. Coleco uses `toolchain.lock`.
+SG-1000 authenticates `toolchain.lock`. SMS authenticates
+`toolchain.lock` and does not keep a private slot. The old Coleco producer selects the same shared lock.
 
 For those HIP play-package producers, the route log must name a live HIP
 backend. A command line that merely contains `--router gpu` is not enough.
@@ -260,8 +260,7 @@ mailbox uses.
 
 The Atari ST producer now pins DeanoC/nextpnr head `3d4a5b35` in its own
 `toolchains/atari-st.lock`; RAM test and menu use the shared `toolchain.lock`
-and its HIP compiler slot. `toolchains/ramtest-timing.lock` remains a separate
-opt-in experimental stack for the 130 MHz timing comparison.
+and its HIP compiler slot. The 130 MHz timing comparison uses that same pin.
 Requalification is recorded in the [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md).
 
 The [Atari 520ST](../cores/fes-atari-st/README.md) is the first 16-bit core.

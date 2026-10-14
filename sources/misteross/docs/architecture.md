@@ -221,7 +221,7 @@ compiles the same RTL with Quartus 17.0.2 at 130 MHz; `RAMTEST_MHZ=100` selects
 a separate 100 MHz diagnostic. A gamepad button, or a keyboard key the host
 maps to one, stops the scans. The ABI has no memory opcode. Hardware results
 are recorded in the [core README](../cores/fes-ramtest/README.md).
-`make diagnose-fes-ramtest-timing` selects a separate, opt-in compiler lock and
+`make diagnose-fes-ramtest-timing` uses the shared `toolchain.lock` and
 compares a baseline route with report-guided LUT remapping on the same
 synthesis. It retains the remap only when final memory timing improves without
 regressing the other clocks or reporting hold violations. Both routes remain
@@ -426,11 +426,9 @@ not a policy selector for those producers. HIP (`gpu-router=HIP`,
 nextpnr commands include `--router gpu`, build records store that HIP
 configuration, and route evidence must name a live HIP backend rather than a
 CPU-reference fallback. Pong uses the repository-wide `toolchain.lock` HIP
-slot; the standard ZX81 socket selects `toolchains/zx81-expansion.lock`.
-SG-1000 selects `toolchains/registered-memory.lock` (Yosys `e2d425de`,
-nextpnr `a93fe013`, Mistral `7ed06e21`). SMS selects
-`toolchain.lock` (Yosys `5391eeb1`, nextpnr `9128800f`, Mistral
-`8fcc4cb4`), which keeps its own synthesis notes and ROM digests. Those two locks are different bytes and different HIP cache slots.
+slot. The standard ZX81 socket, SG-1000, SMS, and the old Coleco producer
+select that same lock (Yosys `5391eeb1`, nextpnr `9128800f`, Mistral
+`8fcc4cb4`).
 Local HIP tools
 come from `make toolchain-fes` for Pong, `make toolchain-fes-zx81` for the
 standard ZX81 socket, `make toolchain-fes-coleco` for
@@ -851,7 +849,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `9128800f` with Mistral `8fcc4cb4`. Factory Coleco v2 and SMS select that shared lock. SMS can build it under `build/toolchain/fes-sms`. SG-1000 retains `toolchains/registered-memory.lock`. Quartus needs neither lock. |
+| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `9128800f` with Mistral `8fcc4cb4`. Factory Coleco v2, the old Coleco producer, SMS, and SG-1000 select that shared lock. SMS can build it under `build/toolchain/fes-sms`. Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -934,8 +932,8 @@ programs hardware. `--compile-only` writes `build/fes-sg1000-quartus/core.rbf`
 and timing evidence without sealing.
 
 `make build-fes-sg1000` is the OSS producer
-(`scripts/build_fes_sg1000_oss.py`). It uses `toolchains/registered-memory.lock`
-(Coleco compatibility pin), `constraints-oss.qsf`, and `clocks-oss.sdc`.
+(`scripts/build_fes_sg1000_oss.py`). It uses `toolchain.lock`
+(nextpnr `9128800f`, Mistral `8fcc4cb4`, Yosys `5391eeb1`), `constraints-oss.qsf`, and `clocks-oss.sdc`.
 Yosys defines `FES_SG1000_OSS=1`, `FES_SG1000_ROM_LINK=1`, and
 `FES_COLECO_OSS=1`. The cartridge bank-mux output is registered in the system
 domain; its extra system-clock latency fits the native CPU read windows. Both
@@ -1203,7 +1201,7 @@ live separately under `build/zx81-bus-validation-cart/<recipe-sha>/` and survive
 diagnostic cleanup.
 
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
-`fes.zx81` 1.5.0 package. It authenticates the scoped ZX81 expansion-bus tools, writes
+`fes.zx81` 1.5.0 package. It authenticates the shared `toolchain.lock`, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
 M10K allowed and DSP/MLAB forbidden. The machine ROM is `zx81_rom_link`:
@@ -1264,9 +1262,11 @@ their nominal and reported constraints, with only the existing picosecond
 quantization tolerance when identifying the reported frequencies. This does
 not change the sealed base shell or infer requirements from achieved Fmax.
 For frozen replay, the cart producer makes an authenticated copy of the routed
-shell and restores the system PLL's second physical output to its audio clock
-net, dropping the obsolete scalar `outclk[0]` pin-map alias. The sealed routed
-shell bytes remain unchanged.
+shell. Legacy JSON omits the system PLL's second output; the scaffold restores
+that output to its audio clock net and drops the obsolete scalar `outclk[0]`
+pin-map alias. Shared-pin JSON already exposes physical C6/C7 outputs; the
+scaffold validates and preserves those connections and their pin map. The sealed
+routed shell bytes remain unchanged.
 Socketed shells export bus 2.0 (46-bit request, 20-bit response): CPU clock
 and /RESET append to the original packing. Map `fes.zx81-bus.socket/2` has
 unchanged CRAM bounds. Linker/host/runtime preserve matching historical v1
@@ -2052,6 +2052,14 @@ contract is [its README](../cores/fes-common/rtl/riscv/README.md); the
 machine contract is [the core README](../cores/fes-riscv/README.md). FES
 registers the recipe as package-only; the factory image does not select it.
 
+The default placement order is seeds 1 through 8. For a package study with a
+single declared route attempt, invoke `scripts/build_fes_riscv.py --single-seed 1`
+(or `build(..., single_seed=1)`). This routes only that seed; a miss fails the
+build without trying the remaining ladder. The selected seed order is part of
+the functional build identity and `qor-ranking.json` records the one-attempt
+budget. A placement seed is independent of the input data or firmware selected
+by a benchmark study.
+
 ## Shared native kit client
 
 `scripts/kit.py` is a thin operator client of FogCast's target lease and native
@@ -2169,10 +2177,8 @@ Coleco, SMS and SG-1000, their shared PLLs, RAMs, TMS9918 video path and legacy
 simple-computer mailbox. Existing HDL module names remain unchanged. TV80 retains
 its embedded MIT notices and pinned upstream attribution; other moved files
 retain their original SPDX notices. Core-specific machines, reset ROMs, diagnostics,
-and constraints remain in their existing directories. The Coleco OSS lane and
-SG-1000 share `toolchains/registered-memory.lock`; its historical Coleco-specific
-comments are preserved to keep the authenticated lock bytes and compiler cache
-identity unchanged. SMS now selects the shared `toolchain.lock` and does not keep a private slot.
+and constraints remain in their existing directories. The old Coleco producer, SMS, and
+SG-1000 select the shared `toolchain.lock` and do not keep a private slot.
 Per-core generated simple-computer headers remain checked against mister-packages;
 consumers use their own generated include directory.
 

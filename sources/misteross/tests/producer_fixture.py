@@ -52,7 +52,7 @@ def clean_module(source):
 
 class FakeInvocation:
     """Compiler identity seam; provenance and artifact checks remain real."""
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         self.inputs = dict(EXECUTION)
         self.env = {'LANG': 'C'}
         self.gpu_device = 0

@@ -187,7 +187,7 @@ class FesHipLaneTests(unittest.TestCase):
             self.assertEqual(authenticated["yosys"].path, install / "yosys")
             self.assertNotEqual(authenticated["yosys"].path, request.cache_root / "slots")
 
-    def test_root_lock_hip_slot_differs_from_coleco_lock_slot(self) -> None:
+    def test_root_and_coleco_share_the_hip_slot(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             cache = Path(directory) / "cache"
             cache.mkdir(mode=0o700)
@@ -212,8 +212,9 @@ class FesHipLaneTests(unittest.TestCase):
                     ROOT, ROOT / "toolchain.lock", cache_root=cache,
                     gpu_router="OFF", hip_architectures=HIP_ARCHITECTURES,
                 )
+            self.assertEqual(COLECO_TOOLCHAIN_LOCK, "toolchain.lock")
             self.assertEqual(toolchain_cache.cache_key(pong), toolchain_cache.cache_key(zx81))
-            self.assertNotEqual(toolchain_cache.cache_key(pong), toolchain_cache.cache_key(coleco))
+            self.assertEqual(toolchain_cache.cache_key(pong), toolchain_cache.cache_key(coleco))
             self.assertNotEqual(toolchain_cache.cache_key(pong), toolchain_cache.cache_key(off))
 
     def test_pong_and_zx81_commands_and_records_use_hip_gpu_router(self) -> None:
@@ -301,7 +302,7 @@ class FesHipLaneTests(unittest.TestCase):
                         (_write_local_zx81_tools if module is build_fes_zx81_oss else _write_local_root_tools)(
                             root, nextpnr_config=stamp)
                         with patch.dict(os.environ, {}, clear=True):
-                            hint = r"make toolchain-fes-zx81" if module is build_fes_zx81_oss else r"make toolchain-fes"
+                            hint = r"make toolchain-fes"
                             with self.assertRaisesRegex(BuildError, hint):
                                 module._authenticate_tools(root)
 
@@ -354,7 +355,8 @@ class FesHipLaneTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(zx81.returncode, 0, zx81.stderr)
-        self.assertIn("toolchains/zx81-expansion.lock", zx81.stdout)
+        self.assertIn("toolchain.lock", zx81.stdout)
+        self.assertNotIn("toolchains/zx81-expansion.lock", zx81.stdout)
         self.assertIn("build/toolchain/zx81-expansion", zx81.stdout)
 
     def test_make_forwards_cache_root_to_fes_producers(self) -> None:
