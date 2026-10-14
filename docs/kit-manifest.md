@@ -15,15 +15,19 @@ live on the writable FAT volume, not under `/var/lib`:
 | Stock backup | `/media/fat/fes/stock/<image-sha256>/<component>` on the kit |
 | Drift baseline | `/media/fat/fes/baseline.json` on the kit |
 | Named baseline | `/media/fat/fes/baselines/<name>.json` on the kit |
-| Task marker | `~/tmp/KITA-HELD-BY-<who>` or `~/tmp/KITB-HELD-BY-<who>` on the workstation |
-| Maintenance credential journal | `~/tmp/.fes-kit-maintenance/KITA.json` or `KITB.json`, private to the invoking user |
+| Task marker | `<hold>/KITA-HELD-BY-<who>` or `KITB-HELD-BY-<who>` on the workstation |
+| Maintenance credential journal | `<hold>/.fes-kit-maintenance/KITA.json` or `KITB.json`, private to the invoking user |
 | Target maintenance reservation | `/run/fogcast/kit-maintenance.json`, private and scoped to the current boot |
 | Target transaction lock | `/run/fogcast/kit-maintenance.lock` |
 
-`~/tmp` is the existing hold directory. A marker named `KITA-HELD-BY-<who>`
-records a temporary diagnostic task. It does not fence target requests or other
-hosts. Restore renames it to `KITA-RELEASED-BY-<who>`. The target maintenance
-reservation is the authority while files and services change.
+The hold directory is `FES_KIT_HOLD_DIR` when that variable is set. Otherwise
+it is `$XDG_STATE_HOME/fes-kit` when that directory can be created, then
+`$TMPDIR/fes-kit-<uid>`. The workstation drift unit sets
+`FES_KIT_HOLD_DIR=/home/deano/tmp`. Drift logs use `FES_KIT_DRIFT_DIR`, or
+`<hold>/fes-kit-drift` when that variable is unset. A marker named
+`KITA-HELD-BY-<who>` records a temporary diagnostic task. It does not fence
+target requests or other hosts. Restore renames it to `KITA-RELEASED-BY-<who>`.
+The target maintenance reservation is the authority while files and services change.
 
 Tracked components:
 
@@ -148,11 +152,19 @@ can run. Each later swap/restore requires fresh target maintenance admission.
 Removing the agent or its configuration, or restoring an agent without the
 maintenance contract, is rejected before service shutdown.
 
+`agent.toml` may omit `target_id`. Maintenance then binds the kit only when
+authenticated health and `/media/fat/fogcast/target-id` name the same canonical
+id. A swap or restore that changes the id records that next id on the private
+journal before the file is replaced. Finish accepts the new id only when the
+original boot id and reservation still match. Any other id or boot is refused
+and the journal stays.
+
 ## Drift watcher
 
 `python3 scripts/fes kit watch --once` hashes both kits, compares them with
 the manifest and the drift baseline, and appends to
-`~/tmp/fes-kit-drift/watch.log`. A cycle with no drift baseline logs
+`<hold>/fes-kit-drift/watch.log` (the workstation unit pins this under
+`/home/deano/tmp/fes-kit-drift`). A cycle with no drift baseline logs
 `UNVERIFIED` and does not treat the current bytes as stock, so an edit made
 before the first cycle stays uncertified. The baseline is written only when
 `--main-hashes` matches every present tracked file and nothing is drifted or

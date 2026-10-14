@@ -986,7 +986,12 @@ case "$op" in
   show)
     path=${1:-}
     valid_path "$path" || die "bad path"
-    allowed_src "$path" || allowed_dest "$path" || die "path not allowed"
+    # target-id is read to bind an omitted agent.toml identity. It is not a
+    # manifest source or destination.
+    case "$path" in
+      /media/fat/fogcast/target-id) ;;
+      *) allowed_src "$path" || allowed_dest "$path" || die "path not allowed" ;;
+    esac
     [ -f "$(lp "$path")" ] || die "missing $path"
     cat "$(lp "$path")"
     ;;

@@ -108,6 +108,48 @@ func TestIdentityProbeDoesNotFollowRedirect(t *testing.T) {
 	}
 }
 
+func TestAdoptEndpointMaintenanceStatesDropStaleGrant(t *testing.T) {
+	for _, state := range []string{"maintenance", "recovery-required"} {
+		t.Run(state, func(t *testing.T) {
+			var mutations atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					mutations.Add(1)
+				}
+				if r.Header.Get("Authorization") != "Bearer secret" {
+					t.Error("missing bearer")
+				}
+				json.NewEncoder(w).Encode(KitOwnership{
+					State: state, Generation: "maint-gen", Owner: "kit-maintainer", Purpose: "swap",
+				})
+			}))
+			defer srv.Close()
+			base, _ := url.Parse(srv.URL)
+			lease := NewKitLease(base, "secret", srv.Client(), "host", "test")
+			lease.grant = kitLeaseGrant{Token: "stale", Status: kitLeaseStatus{State: "held", Generation: "maint-gen", ExpiresInMS: 60000}}
+			lease.localExpiry = time.Now().Add(time.Minute)
+			client := NewClient(base, "secret", srv.Client()).WithKitLease(lease)
+			ownership, err := client.AdoptEndpoint(context.Background(), base, false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ownership.Owned || ownership.State != state || ownership.Owner != "kit-maintainer" {
+				t.Fatalf("%+v", ownership)
+			}
+			if client.HasKitGrant() || lease.CurrentToken() != "" {
+				t.Fatal("stale grant survived maintenance adoption")
+			}
+			lease.renew(context.Background())
+			if err := lease.Close(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if mutations.Load() != 0 {
+				t.Fatal("maintenance adoption mutated the kit")
+			}
+		})
+	}
+}
+
 func TestRebootInvalidatesGrantBeforeOwnershipProbeFailure(t *testing.T) {
 	var mutations atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

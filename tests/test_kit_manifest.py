@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from tests.test_kit_maintenance import authority, TARGET_ID
 import kit_manifest
 from kit_maintenance import KitMaintenance
@@ -136,6 +137,71 @@ class KitManifestTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.api.status_value['state'], 'completed')
         self.assertFalse((self.holds / '.fes-kit-maintenance/KITA.json').exists())
+
+    def test_hold_and_journal_paths_avoid_developer_home(self):
+        root = self.work / 'state'
+        root.mkdir()
+        (root / 'tmp').mkdir()
+        blocked = self.work / 'xdg-file'
+        blocked.write_text('not-a-dir')
+        saved_temp = tempfile.tempdir
+        try:
+            with mock.patch.dict(os.environ, {'HOME': str(self.work / 'home'), 'TMPDIR': str(root / 'tmp')}):
+                os.environ.pop('FES_KIT_HOLD_DIR', None)
+                os.environ.pop('FES_KIT_DRIFT_DIR', None)
+                os.environ['XDG_STATE_HOME'] = str(root / 'xdg')
+                # gettempdir skips a TMPDIR that does not exist yet and then caches /tmp.
+                tempfile.tempdir = None
+                path = kit_manifest.hold_dir()
+                self.assertEqual(path, root / 'xdg' / 'fes-kit')
+                session = kit_manifest.Session('A', kit_manifest.LocalTransport(self.root), 'local')
+                self.assertEqual(session.maintenance.journal, path / '.fes-kit-maintenance' / 'KITA.json')
+                self.assertNotIn('/home/deano', str(session.maintenance.journal))
+                os.environ['XDG_STATE_HOME'] = str(blocked)
+                tempfile.tempdir = None
+                fallback = kit_manifest.hold_dir()
+                self.assertEqual(fallback, root / 'tmp' / f'fes-kit-{os.getuid()}')
+                self.assertNotIn('/home/deano', str(fallback))
+                os.environ['FES_KIT_HOLD_DIR'] = str(root / 'override')
+                self.assertEqual(kit_manifest.hold_dir(), root / 'override')
+                self.assertEqual(kit_manifest.drift_dir(), root / 'override' / 'fes-kit-drift')
+                self.assertNotIn('/home/deano', str(kit_manifest.drift_dir()))
+        finally:
+            tempfile.tempdir = saved_temp
+
+    def test_omitted_target_id_follows_persisted_identity(self):
+        (self.root / 'media/fat/fogcast/target-id').write_text(TARGET_ID + '\n')
+        (self.root / PATHS['agent.toml']).write_bytes(b'token = "secret"\n')
+        self.claim()
+        candidate = self.work / 'mister-agent'
+        candidate.write_bytes(b'candidate-agent')
+        result = self.fes('swap', 'A', 'mister-agent', str(candidate))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), b'candidate-agent')
+
+    def test_omitted_target_id_without_persisted_identity_does_not_swap(self):
+        (self.root / PATHS['agent.toml']).write_bytes(b'token = "secret"\n')
+        self.claim()
+        candidate = self.work / 'mister-agent'
+        candidate.write_bytes(b'candidate-agent')
+        result = self.fes('swap', 'A', 'mister-agent', str(candidate))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('identity', result.stderr)
+        self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), FILES['mister-agent'])
+
+    def test_config_identity_transition_confirms_original_boot_across_swap_and_restore(self):
+        self.claim()
+        new_id = '33333333-3333-4333-8333-333333333333'
+        candidate = self.work / 'agent.toml'
+        candidate.write_text(f'token = "secret"\ntarget_id = "{new_id}"\n')
+        swapped = self.fes('swap', 'A', 'agent.toml', str(candidate), '--why', 'bind the replacement identity')
+        self.assertEqual(swapped.returncode, 0, swapped.stderr)
+        self.assertIn(new_id, (self.root / PATHS['agent.toml']).read_text())
+        self.assertEqual(self.api.status_value['state'], 'completed')
+        restored = self.fes('restore', 'A')
+        self.assertEqual(restored.returncode, 0, restored.stderr)
+        self.assertEqual((self.root / PATHS['agent.toml']).read_bytes(), FILES['agent.toml'])
+        self.assertEqual(self.api.status_value['state'], 'completed')
 
     def test_stale_manifest_plan_cannot_replace_newer_manifest(self):
         session = kit_manifest.Session('A', kit_manifest.LocalTransport(self.root), 'local')

@@ -22,7 +22,9 @@ import subprocess
 import sys
 import tempfile
 
-from kit_maintenance import KitMaintenance, MaintenanceError
+from kit_maintenance import (
+    PERSISTED_TARGET_ID, KitMaintenance, MaintenanceError, replacement_target_id,
+)
 
 
 REMOTE = Path(__file__).resolve().parent / 'kit_remote.sh'
@@ -74,16 +76,45 @@ def sha256_bytes(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def hold_dir():
-    path = Path(os.environ.get('FES_KIT_HOLD_DIR', '/home/deano/tmp'))
-    path.mkdir(mode=0o700, parents=True, exist_ok=True)
+def _ensure_dir(path, mode=0o700):
+    try:
+        path.mkdir(mode=mode, parents=True, exist_ok=True)
+        if not path.is_dir() or not os.access(path, os.W_OK | os.X_OK):
+            raise OSError('not a writable directory')
+    except OSError as exc:
+        raise KitError(f'cannot create kit state directory: {path}') from exc
     return path
+
+
+def hold_dir():
+    """Private workstation directory for hold markers and the credential journal.
+
+    An explicit FES_KIT_HOLD_DIR is required to succeed. Otherwise use
+    XDG_STATE_HOME/fes-kit when that can be created, then a per-user directory
+    under the process temp directory. Neither candidate is a developer home.
+    """
+    override = os.environ.get('FES_KIT_HOLD_DIR')
+    if override:
+        return _ensure_dir(Path(override))
+    candidates = []
+    xdg = os.environ.get('XDG_STATE_HOME')
+    if xdg:
+        candidates.append(Path(xdg) / 'fes-kit')
+    candidates.append(Path(tempfile.gettempdir()) / f'fes-kit-{os.getuid()}')
+    last = None
+    for candidate in candidates:
+        try:
+            return _ensure_dir(candidate)
+        except KitError as exc:
+            last = exc
+    raise last or KitError('cannot create kit hold directory')
 
 
 def drift_dir():
-    path = Path(os.environ.get('FES_KIT_DRIFT_DIR', '/home/deano/tmp/fes-kit-drift'))
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+    override = os.environ.get('FES_KIT_DRIFT_DIR')
+    if override:
+        return _ensure_dir(Path(override), mode=0o755)
+    return _ensure_dir(hold_dir() / 'fes-kit-drift', mode=0o755)
 
 
 def kit_name(value):
@@ -565,6 +596,9 @@ class Session:
             return self._apply(lines)
 
     def _apply(self, lines):
+        replacement = self._planned_replacement_identity(lines)
+        if replacement == '':
+            raise KitError('agent.toml omits target_id and the kit has no persisted target identity')
         destructive = any(line.split()[0] in ('STOP', 'START', 'PLACE', 'CLEAR', 'UNMOUNT', 'REMOVE')
                           for line in lines)
         reservation = None
@@ -572,6 +606,8 @@ class Session:
             holds = held_files(self.name)
             owner, purpose = parse_hold(holds[0]) if len(holds) == 1 else ('operator', 'explicit kit restore')
             reservation = self.maintenance.begin(owner, purpose or 'kit maintenance')
+            if replacement and replacement != self.maintenance.target_id:
+                self.maintenance.declare_identity_transition(replacement)
             lines = [f'MAINTENANCE {reservation["operation_id"]} {reservation["generation"]} {reservation["boot_id"]}', *lines]
         if self.manifest_sha256 is None:
             raise KitError('kit must be inspected before applying a plan')
@@ -589,6 +625,32 @@ class Session:
 
     def show(self, path):
         return self.transport.run(['show', path])
+
+    def _persisted_target_text(self):
+        try:
+            return self.show(PERSISTED_TARGET_ID)
+        except KitError:
+            return ''
+
+    def _planned_replacement_identity(self, lines):
+        """Identity the plan will publish, or None when agent.toml is untouched.
+
+        '' means the replacement omits target_id and the kit has no persisted
+        id, so the restarted agent would mint an identity finish cannot confirm.
+        """
+        dest = COMPONENTS['agent.toml'].path
+        for line in lines:
+            parts = line.split()
+            if len(parts) < 5 or parts[2] != dest:
+                continue
+            if parts[0] == 'PLACE':
+                text = self.show(parts[3])
+            elif parts[0] == 'CLEAR':
+                text = self.show(parts[4])
+            else:
+                continue
+            return replacement_target_id(text, self._persisted_target_text())
+        return None
 
     def require_hold(self):
         found = held_files(self.name)

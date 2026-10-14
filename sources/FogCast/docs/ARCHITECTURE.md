@@ -1386,7 +1386,9 @@ Public responses omit stored credentials. Ordinary claim, takeover, renewal and
 mutation cannot bypass maintenance; kit-local launches share the same manager.
 The host connection reports maintenance as busy with its owner and a maintenance
 message, and blocked reservations as recovery-required, even while runtime idle
-health is ready.
+health is ready. Health refresh adopts those lease states. Adoption keeps local
+ownership false and invalidates a stale grant, so a reachable reservation is
+not published as disconnected.
 Maintenance status returns unavailable until its persisted marker loads; it
 never reports absent ownership during startup. A surviving active marker is
 blocked before replacement-agent startup cleanup,

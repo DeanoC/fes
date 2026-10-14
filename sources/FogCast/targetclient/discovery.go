@@ -44,7 +44,11 @@ func (c *Client) AdoptEndpoint(ctx context.Context, base *url.URL, reboot bool) 
 	if err := probe.doJSON(ctx, http.MethodGet, "/v1/kit/lease", nil, &ownership); err != nil {
 		return ownership, err
 	}
-	if ownership.State != "free" && ownership.State != "held" && ownership.State != "blocked" && ownership.State != "revoking" {
+	// maintenance and recovery-required are reservations, not a local grant.
+	// They stay unowned so the stale-grant path below drops any previous token.
+	switch ownership.State {
+	case "free", "held", "blocked", "revoking", "maintenance", "recovery-required":
+	default:
 		return ownership, errors.New("invalid ownership state")
 	}
 	if ownership.State == "held" && ownership.Generation == "" {

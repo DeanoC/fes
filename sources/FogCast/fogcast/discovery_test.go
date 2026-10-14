@@ -514,6 +514,80 @@ func TestOwnedHeldLeaseAfterIdleStaysReady(t *testing.T) {
 	}
 }
 
+func TestHealthRefreshReportsMaintenanceLease(t *testing.T) {
+	const id = "f2bb8d43-3cf5-4407-9a11-dfb7cb0086aa"
+	for _, state := range []string{"maintenance", "recovery-required"} {
+		t.Run(state, func(t *testing.T) {
+			var reserved atomic.Bool
+			var leaseReads atomic.Int32
+			var mutations atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if reserved.Load() && r.Method != http.MethodGet {
+					mutations.Add(1)
+				}
+				if r.Header.Get("Authorization") != "Bearer secret" {
+					w.WriteHeader(http.StatusUnauthorized)
+					return
+				}
+				switch r.URL.Path {
+				case "/v1/health":
+					json.NewEncoder(w).Encode(protocol.Health{APIVersion: "v1", TargetID: id, BootID: "same-kernel-boot", Ready: true})
+				case "/v1/kit/claim":
+					json.NewEncoder(w).Encode(kitlease.Grant{Token: "stale", Status: kitlease.Status{State: "held", Generation: "old", ExpiresInMS: 60000}})
+				case "/v1/kit/lease":
+					if reserved.Load() {
+						leaseReads.Add(1)
+						json.NewEncoder(w).Encode(targetclient.KitOwnership{
+							State: state, Generation: "maint-gen", Owner: "kit-maintainer", Purpose: "swap",
+						})
+						return
+					}
+					json.NewEncoder(w).Encode(targetclient.KitOwnership{State: "held", Generation: "old", Owner: "host"})
+				case "/v1/status":
+					json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateIdle})
+				default:
+					if reserved.Load() {
+						http.NotFound(w, r)
+					}
+				}
+			}))
+			defer srv.Close()
+			base, _ := url.Parse(srv.URL)
+			lease := targetclient.NewKitLease(base, "secret", srv.Client(), "host", "test")
+			client := targetclient.NewClient(base, "secret", srv.Client()).WithKitLease(lease)
+			req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, srv.URL, nil)
+			if err := lease.Authorize(req, true); err != nil {
+				t.Fatal(err)
+			}
+			if !client.HasKitGrant() {
+				t.Fatal("test grant was not installed")
+			}
+			reserved.Store(true)
+			s := newService(Config{Targets: []TargetConfig{{Name: "kit", Enabled: true, TargetID: id, Address: srv.URL, Agent: "secret"}}, SelectedTarget: "kit", RequestTimeout: time.Second}, Paths{}, &fakeServiceCatalog{}, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+			s.connection = TargetConnection{State: "ready", Address: srv.URL, TargetID: id, BootID: "same-kernel-boot", leaseSeen: true, leaseOwned: true, leaseGeneration: "old"}
+			if _, err := s.Health(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			connection := s.TargetConnection()
+			if state == "maintenance" {
+				if connection.State != "busy" || connection.Owner != "kit-maintainer" ||
+					connection.Message != "The kit is reserved for software maintenance." {
+					t.Fatalf("%+v", connection)
+				}
+			} else if connection.State != "recovery-required" || connection.Message != "Target cleanup or recovery needs attention." {
+				t.Fatalf("%+v", connection)
+			}
+			if client.HasKitGrant() {
+				t.Fatal("stale grant survived health refresh")
+			}
+			// Owned false forces a second adoption after the host drops the grant.
+			if leaseReads.Load() != 2 || mutations.Load() != 0 {
+				t.Fatalf("lease reads %d mutations %d", leaseReads.Load(), mutations.Load())
+			}
+		})
+	}
+}
+
 func TestMaintenanceOwnershipIsNeverReportedReady(t *testing.T) {
 	for _, owned := range []bool{false, true} {
 		for _, state := range []string{"maintenance", "recovery-required"} {

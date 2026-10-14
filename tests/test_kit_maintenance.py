@@ -59,6 +59,21 @@ It writes the target's private marker for the real shell executor to validate.
     def config(self):
         return tomllib.loads((self.root / 'media/fat/fogcast/agent.toml').read_text())
 
+    def observed_target_id(self):
+        if self.health_target_id:
+            return self.health_target_id
+        configured = self.config().get('target_id') or ''
+        if isinstance(configured, str) and configured:
+            return configured
+        path = self.root / 'media/fat/fogcast/target-id'
+        try:
+            text = path.read_text()
+        except OSError:
+            return ''
+        if text.endswith('\n'):
+            text = text[:-1]
+        return text
+
     def boot_id(self):
         return (self.root / 'proc/sys/kernel/random/boot_id').read_text().strip()
 
@@ -101,7 +116,7 @@ class _Handler(BaseHTTPRequestHandler):
                 self.reply({'error': 'startup'}, 503)
                 return
             self.reply({'api_version': authority.api_version,
-                        'target_id': authority.health_target_id or config['target_id'],
+                        'target_id': authority.observed_target_id(),
                         'boot_id': authority.boot_id(), 'ready': True})
         elif self.path == '/v1/kit/maintenance' and self.command == 'GET':
             if authority.unsupported:
@@ -215,8 +230,12 @@ class _Transport:
         self.root = root
 
     def run(self, args):
-        assert args == ['show', '/media/fat/fogcast/agent.toml']
-        return (self.root / args[1].lstrip('/')).read_text()
+        if len(args) != 2 or args[0] != 'show':
+            raise AssertionError(args)
+        path = self.root / args[1].lstrip('/')
+        if not path.is_file():
+            raise FileNotFoundError(args[1])
+        return path.read_text()
 
 
 class KitMaintenanceTests(unittest.TestCase):
@@ -466,6 +485,58 @@ for call in (lambda: c.begin('developer', 'replace runtime'), c.finish):
         self.api.status_value['state'] = 'blocked'
         self.api.persist()
         self.assertEqual(self.client.finish()['state'], 'none')
+
+    def test_omitted_target_id_binds_matching_health_and_persisted_identity(self):
+        self.config.write_text('token = "secret"\n')
+        persisted = self.root / 'media/fat/fogcast/target-id'
+        persisted.write_text(TARGET_ID + '\n')
+        ready = self.client.begin('developer', 'replace runtime')
+        self.assertEqual(ready['state'], 'ready')
+        record = json.loads(self.journal.read_text())
+        self.assertEqual(record['target_id'], TARGET_ID)
+        self.assertNotIn('next_target_id', record)
+        self.assertEqual(self.client.finish()['state'], 'none')
+
+    def test_omitted_target_id_rejects_health_that_disagrees_with_persisted_identity(self):
+        self.config.write_text('token = "secret"\n')
+        (self.root / 'media/fat/fogcast/target-id').write_text(TARGET_ID + '\n')
+        self.api.health_target_id = '33333333-3333-4333-8333-333333333333'
+        with self.assertRaises(MaintenanceError):
+            self.client.begin('developer', 'replace runtime')
+        self.assertFalse(self.journal.exists())
+        self.assertEqual(self.posts('/v1/kit/claim'), [])
+
+    def test_identity_transition_finish_confirms_original_boot_and_reservation(self):
+        new_id = '33333333-3333-4333-8333-333333333333'
+        self.client.begin('developer', 'replace runtime')
+        self.client.declare_identity_transition(new_id)
+        record = json.loads(self.journal.read_text())
+        self.assertEqual(record['next_target_id'], new_id)
+        self.assertEqual(record['target_id'], TARGET_ID)
+        self.config.write_text(f'token = "secret"\ntarget_id = "{new_id}"\n')
+        self.api.status_value['operation_id'] = 'd' * 64
+        with self.assertRaisesRegex(MaintenanceError, 'differs from private journal'):
+            self.client.finish()
+        self.assertEqual(self.posts('/v1/kit/maintenance/end'), [])
+        self.assertTrue(self.journal.exists())
+        self.api.status_value['operation_id'] = record['request_id']
+        boot = self.root / 'proc/sys/kernel/random/boot_id'
+        boot.write_text('44444444-4444-4444-8444-444444444444')
+        with self.assertRaisesRegex(MaintenanceError, 'identity changed'):
+            self.client.finish()
+        self.assertEqual(self.posts('/v1/kit/maintenance/end'), [])
+        boot.write_text(BOOT_ID)
+        self.assertEqual(self.client.finish()['state'], 'none')
+        self.assertFalse(self.journal.exists())
+
+    def test_undeclared_identity_change_keeps_the_journal(self):
+        self.client.begin('developer', 'replace runtime')
+        new_id = '33333333-3333-4333-8333-333333333333'
+        self.config.write_text(f'token = "secret"\ntarget_id = "{new_id}"\n')
+        with self.assertRaisesRegex(MaintenanceError, 'identity changed'):
+            self.client.finish()
+        self.assertEqual(self.posts('/v1/kit/maintenance/end'), [])
+        self.assertTrue(self.journal.exists())
 
 
 if __name__ == '__main__':
