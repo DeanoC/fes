@@ -44,6 +44,9 @@ exact FES/FogCast/runtime revisions. It never embeds the rootfs's own hash insid
 that rootfs. `image_passes` stays in the release evidence sidecar. A one-pass
 HIL release records `1` there and appends `-1p` to the version. The manifest
 keeps the legacy field set so an already deployed agent can stage it.
+`manifest_format` is `major.minor`; readers treat a missing value as `1.0`.
+The same major with a higher minor may add unknown optional fields, which the
+update path ignores and logs. An unknown major is rejected.
 
 ## Create a bootable appliance card file
 

@@ -274,10 +274,20 @@ they are not a distributed ownership, failover, or recovery protocol.
 Appliance release manifests and immutable image storage form the independent
 Go module `github.com/DeanoC/FogCast/appliance` in `appliance/`. The store lives
 in `appliance/store`; both boot selection and target update handling consume
-that single implementation. Format 1 rejects unknown and duplicate fields.
-Optional `image_passes`, when present, is a positive integer and remains in the
-manifest bytes that are uploaded and stored. New releases omit the field and
-record the pass count in release evidence. The module uses the standard library and the
+that single implementation. Format 1 is manifest format `1.0`. A manifest may
+omit `manifest_format`; readers treat that as `1.0`. `manifest_format` is
+`major.minor`. A release with the same major and a higher minor may include
+unknown optional fields. The update path ignores those fields and logs their
+names, in both mister-agent `POST /v1/update/stage` and `fes-update` when it
+reads `release.json`. Ignored fields are not stored or uploaded. An unknown
+major, a malformed `manifest_format`, a duplicate field, or a missing or
+malformed required field is rejected. Optional `image_passes`, when present,
+is a positive integer and remains in the manifest bytes that are uploaded and
+stored. New releases omit `manifest_format` and `image_passes`. `release.json`
+keeps the field set the already deployed agent accepts (`format`, `board`,
+`boot_abi`, `version`, `kernel_sha256`, `image_sha256`, `image_size`,
+`fes_revision`, `fogcast_revision`, `runtime_revision`), so the bridge update
+can still stage the image. The pass count stays in release evidence. The module uses the standard library and the
 existing `golang.org/x/sys/unix` dependency for filesystem operations.
 The root module selects it through a checked-in relative replacement.
 `make test` and `make vet` explicitly check both modules because root

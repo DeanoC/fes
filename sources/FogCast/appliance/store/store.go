@@ -415,7 +415,7 @@ func (s *Store) verifyContext(ctx context.Context, hash string) (release.Manifes
 		if e != nil {
 			return m, e
 		}
-		m, e = release.DecodeManifest(f)
+		m, _, e = release.DecodeManifest(f)
 		f.Close()
 		if e != nil {
 			return m, e

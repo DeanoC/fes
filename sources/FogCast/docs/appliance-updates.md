@@ -49,13 +49,19 @@ migrations of save/configuration formats in this release ABI.
 | `POST /v1/update/confirm` | JSON `boot_id`, `image_sha256` | Durable exact trial confirmation (200) |
 
 All mutations require `X-FogCast-Kit-Lease` in addition to bearer authentication.
-Manifest format 1 binds `de10-nano`, `fes-bootstrap-v1`, kernel/image SHA-256 and
-size, version, and exact FES/FogCast/runtime commits. Readers also accept
-optional `image_passes`, a positive integer, when a manifest already contains
-it. New releases omit that field. A one-pass HIL release records `image_passes`
-in `evidence.json` and uses a `-1p` version suffix. The client keeps a present
-value in the manifest it uploads. Duplicate fields and names outside this set
-are rejected. Uploads are raw ext4, with
+Manifest format 1 is `manifest_format` `1.0` and binds `de10-nano`,
+`fes-bootstrap-v1`, kernel/image SHA-256 and size, version, and exact
+FES/FogCast/runtime commits. A manifest may omit `manifest_format`; that means
+`1.0`. The same major with a higher minor may include unknown optional fields.
+`fes-update` and `POST /v1/update/stage` ignore those fields and log their
+names. An unknown major, a malformed `manifest_format`, a duplicate field, or
+a missing or malformed required field is rejected. Readers also accept optional
+`image_passes`, a positive integer, when a manifest already contains it. New
+releases omit `manifest_format` and `image_passes`, so `release.json` stays on
+the field set the deployed agent already accepts. A one-pass HIL release
+records `image_passes` in `evidence.json` and uses a `-1p` version suffix. The
+client keeps a present `image_passes` value in the manifest it uploads.
+Uploads are raw ext4, with
 no archive paths or scripts to extract.
 
 If a response is lost, inspect status; do not blindly replay activation. A pending

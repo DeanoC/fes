@@ -23,9 +23,12 @@ For a local scratch/HIL image, run `IMAGE_PASSES=1 make image`. The output
 records the single pass and includes `SINGLE-PASS-SCRATCH.txt` with checkout
 head and image SHA-256. A HIL-named release appends `-1p`, records
 `image_passes: 1` in `evidence.json`, and includes the marker. `release.json`
-keeps the legacy field set. `fes-update` accepts an optional positive
-`image_passes` when a manifest already contains it, and rejects unknown fields
-and duplicates. CI and cold/production receipts require two passes and omit
+keeps the legacy field set so a deployed agent can stage it. `fes-update`
+treats a missing `manifest_format` as `1.0`. The same major with a higher
+minor may add unknown optional fields, which it ignores and logs. An unknown
+major, a duplicate, or a missing or malformed required field is rejected. It
+accepts an optional positive `image_passes` when a manifest already contains
+it. CI and cold/production receipts require two passes and omit
 the evidence field.
 
 Those commands build FogCast agent, kit and selector/verifier binaries, then run

@@ -139,9 +139,12 @@ carries the marker into release outputs, and records `image_passes: 1` in
 `evidence.json`. `release.json` keeps the legacy field set
 (`format`, `board`, `boot_abi`, `version`, `kernel_sha256`, `image_sha256`,
 `image_size`, `fes_revision`, `fogcast_revision`, `runtime_revision`) so a
-deployed agent can stage the image. Readers still accept an optional positive
-`image_passes` integer when a manifest already contains it, and still reject
-unknown fields and duplicates. CI and cold media/appliance paths keep two
+deployed agent can stage the image. Readers treat a missing `manifest_format`
+as `1.0`. The same major with a higher minor may add unknown optional fields;
+the update path ignores those fields and logs them. An unknown major, a
+duplicate, or a missing or malformed required field is rejected. Readers still
+accept an optional positive `image_passes` integer when a manifest already
+contains it. CI and cold media/appliance paths keep two
 passes and omit the evidence field.
 
 CI simulations use Verilator 5.032 at source commit
