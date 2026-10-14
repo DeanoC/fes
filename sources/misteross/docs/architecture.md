@@ -1724,7 +1724,12 @@ latches are acknowledged after sampling. The producer pins the development
 RTL in its source closure while the package still instantiates the file device.
 The drive enables the CPU's active-low SO input: falling edges set V, while
 instruction writes occur on CPU enables and a held-low pin does not retrigger.
-Apple II and the C64 motherboard retain the default CPU mode with SO tied high.
+Apple II and the C64 motherboard retain the default CPU mode with SO tied high. The shared NMOS
+CPU also writes the original operand during memory RMW's first store cycle,
+then the modified operand. This preserves hardware-visible register effects
+such as `INC $D019` acknowledging VIC IRQs. The C64 diagnostic uses that
+instruction, and its directed CPU test covers all 24 documented memory RMW
+opcode/address modes with CPU enable gaps.
 `make sim-fes-c64-boot-drive-build` selects `FES_C64_REAL_DRIVE_SIM` in the
 existing motherboard and boot harness. `--real-drive --drive-rom` runs user
 1541 firmware through both VIAs and `c64_gcr_read`; the helper encodes the D64

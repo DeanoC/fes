@@ -424,6 +424,7 @@ always @(posedge clk)
  */
 always @*
     case( state )
+        READ:    DO = DIMUX; // NMOS RMW writes the original operand first.
         WRITE:   DO = ADD;
 
         JSR0,
@@ -451,6 +452,7 @@ always @*
         JSR0,
         JSR1,
         PUSH1,
+        READ,    // NMOS read-modify-write dummy write
         WRITE:   WE = 1;
 
         INDX3,  // only if doing a STA, STX or STY

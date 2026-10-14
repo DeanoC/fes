@@ -120,6 +120,15 @@ The simulation covers both initially-ready input/media and delayed mount,
 joystick and keyboard delivery, then captures the next full frame and requires
 PASS in white, a black border, a black background and no stage digit.
 
+The raster handler acknowledges through `INC $D019`, exercising the NMOS
+6502 read-modify-write bus sequence: write the original operand, then write
+the modified operand on the following CPU cycle. Omitting the first write
+leaves the VIC source pending because the final incremented value clears bit
+zero. `make sim-fes-c64-rmw` checks both writes for all 24 documented memory
+RMW opcode/address-mode combinations, including absolute-index page crossing
+and CPU enable gaps. The motherboard diagnostic checks IRQ delivery and
+acknowledgement through the same shared CPU.
+
 C64's D64/IEC path remains read-only. Atari ST's initial-disk-before-release
 and writable-disk save/restore path is a useful ordering reference, but its
 sector commit and game/base-media persistence contract is not implemented by

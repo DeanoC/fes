@@ -352,8 +352,7 @@ irq_handler:
         bne irq_cia
         lda $d019
         sta $1e
-        lda #$01
-        sta $d019
+        inc $d019
         inc $1d
         pla
         rti

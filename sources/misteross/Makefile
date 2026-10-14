@@ -1142,6 +1142,16 @@ sim-fes-c64-boot-drive-build:
 		cores/fes-c64/rtl/c64_drive1541.sv cores/fes-c64/rtl/c64_via.v cores/fes-c64/rtl/c64_gcr_read.v \
 		"$(CURDIR)/cores/fes-c64/sim/boot_tb.cpp"
 
+.PHONY: sim-fes-c64-rmw
+sim-fes-c64-rmw:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-rmw
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-rmw" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/rmw_tb.cpp"
+	@build/sim/fes-c64-rmw/Vcpu6502
+
 sim-fes-c64-gcr:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-gcr
@@ -1158,7 +1168,7 @@ sim-fes-c64-gcr:
 sim-fes-c64-checkpoint: sim-fes-c64-boot-build sim-fes-c64-boot-drive-build
 	$(PYTHON) cores/fes-c64/sim/checkpoint_tb.py
 
-sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint
+sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
