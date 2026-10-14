@@ -591,6 +591,30 @@ for call in (lambda: c.begin('developer', 'replace runtime'), c.finish):
         self.assertNotIn(b'successor_target_id', self.journal.read_bytes())
         self.assertEqual(self.posts('/v1/kit/maintenance/end'), [])
 
+    def test_reboot_after_persisted_successor_retains_journal(self):
+        self.client.begin('developer', 'replace runtime')
+        self._omit_configured_target(NEW_TARGET_ID)
+        self.api.reject_end = True
+        with self.assertRaises(MaintenanceError):
+            self.client.finish()
+        persisted = json.loads(self.journal.read_text())
+        self.assertEqual(persisted['target_id'], TARGET_ID)
+        self.assertEqual(persisted['successor_target_id'], NEW_TARGET_ID)
+        self.assertEqual(persisted['boot_id'], BOOT_ID)
+        self.assertEqual(len(self.posts('/v1/kit/maintenance/end')), 1)
+        # A new boot retires the previous reservation. Finish must not treat
+        # the saved successor plus state none as a confirmed end.
+        (self.root / 'proc/sys/kernel/random/boot_id').write_text(
+            '33333333-3333-4333-8333-333333333333')
+        self.api.reject_end = False
+        self.api.status_value = {'state': 'none'}
+        self.api.persist()
+        retained = self.journal.read_bytes()
+        with self.assertRaisesRegex(MaintenanceError, 'identity changed'):
+            self.client.finish()
+        self.assertEqual(self.journal.read_bytes(), retained)
+        self.assertEqual(len(self.posts('/v1/kit/maintenance/end')), 1)
+
     def test_second_target_id_after_successor_does_not_finish(self):
         self.client.begin('developer', 'replace runtime')
         self._omit_configured_target(NEW_TARGET_ID)

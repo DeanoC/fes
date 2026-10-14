@@ -1418,9 +1418,10 @@ completes. When `agent.toml` omits `target_id`, that client binds the saved
 `/media/fat/fogcast/target-id` file when the agent wrote one, and otherwise the
 id from authenticated health. A configured or saved id must match health.
 Finish of a config swap records one successor target id after the original boot
-and reservation still match, then ends that reservation. A different boot, a
-different reservation, a health id that disagrees with the new config or saved
-file, or a further id change keeps the journal. This is temporary-overlay
+and reservation still match, then ends that reservation. A later finish accepts
+that recorded successor only on the same boot. A different boot, a different
+reservation, a health id that disagrees with the new config or saved file, or
+a further id change keeps the journal. This is temporary-overlay
 tooling, not yet a persistent userspace release manager. See FES
 [modular updates](../../../docs/modular-updates.md) for remaining durable-package
 and userspace-release work.

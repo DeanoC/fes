@@ -7,7 +7,8 @@ When agent.toml omits target_id, the effective identity is the saved
 /media/fat/fogcast/target-id file when that file exists, and otherwise the
 id in authenticated health. Health must agree with a configured or saved id.
 Finish may record one successor target id after a config swap when the
-original boot and reservation still match.
+original boot and reservation still match. A later finish accepts that
+recorded successor only on the same boot.
 """
 
 import contextlib
@@ -354,17 +355,20 @@ class KitMaintenance:
     def _accept_identity(self, record, boot_id, transition):
         """Bind the live target id to this journal.
 
-        A config or saved-file swap may name one successor. Finish records it
-        only while the original boot and reservation still match. Health-only
-        drift, a second id, a different boot, or a finished reservation is not
-        that transition.
+        A config or saved-file swap may name one successor. Finish records it,
+        and later accepts that recorded successor, only while the original boot
+        still matches. Health-only drift, a second id, a different boot, or a
+        finished reservation is not that transition.
         """
         if not transition:
             if self.target_id != record['target_id']:
                 raise MaintenanceError('target configuration identity changed during maintenance')
             return record
         record = self._remember_successor(record)
-        if self.target_id == record['target_id'] or self.target_id == record.get('successor_target_id'):
+        successor = record.get('successor_target_id')
+        if self.target_id == record['target_id'] or self.target_id == successor:
+            if successor and boot_id != record['boot_id']:
+                raise MaintenanceError('target configuration identity changed during maintenance')
             return record
         if (self.identity_source == 'health' or record.get('successor_target_id')
                 or boot_id != record['boot_id'] or not _target_id(self.target_id)):
