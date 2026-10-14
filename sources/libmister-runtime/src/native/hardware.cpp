@@ -756,12 +756,14 @@ Capabilities NativeHardware::capabilities() const
 			{generated::FesComputerInterfaceVideoFixed720p60ID,
 				generated::FesComputerInterfaceVideoFixed720p60Major,
 				generated::FesComputerInterfaceVideoFixed720p60Minor}};
-		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_memory_) {
+		// DDR follows the latched boot layout. Session display also needs both
+		// presentation adapters, matching admission of each interface.
+		if (fpga_.BootHpsDdrLayout())
 			computer_io.interfaces.push_back(
 				{generated::FesComputerInterfaceMemoryHpsDdrID, 1, 0});
+		if (fpga_.BootHpsDdrLayout() && menu_display_ && menu_memory_)
 			computer_io.interfaces.push_back(
 				{generated::FesComputerInterfaceVideoSessionDisplayID, 1, 0});
-		}
 		std::sort(computer_io.interfaces.begin(), computer_io.interfaces.end(),
 			[](const SupportedInterface& a, const SupportedInterface& b) { return a.id < b.id; });
 		result.abis.insert(result.abis.begin(), std::move(computer_io));

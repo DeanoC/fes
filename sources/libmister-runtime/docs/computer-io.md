@@ -53,10 +53,11 @@ Native capabilities advertise the ABI with every recognized interface:
 {"id":"fes.computer","major":1,"minor":0,"interfaces":[{"id":"fes.audio.pcm-s16-stereo-48k","major":1,"minor":0},{"id":"fes.expansion.apple2-bus","major":1,"minor":0},{"id":"fes.expansion.atari-st-bus","major":1,"minor":0},{"id":"fes.expansion.c64-bus","major":1,"minor":0},{"id":"fes.expansion.spectrum-bus","major":1,"minor":0},{"id":"fes.gamepad.ports","major":1,"minor":0},{"id":"fes.keyboard.hid","major":1,"minor":0},{"id":"fes.media.apple2-floppy","major":1,"minor":0},{"id":"fes.media.atari-st-floppy","major":1,"minor":0},{"id":"fes.media.c64-disk","major":1,"minor":0},{"id":"fes.media.spectrum-tape","major":1,"minor":0},{"id":"fes.media.zx81-tape","major":1,"minor":0},{"id":"fes.video.fixed-720p60","major":1,"minor":0}]}
 ```
 
-That list is the advertisement when the boot DDR layout or the menu adapters
-are absent. `fes.memory.hps-ddr` 1.0 and `fes.video.session-display` 1.0 are
-added, and sorted with the rest, only when both are present. A computer that
-does not implement the plane leaves those capability bits clear.
+`fes.memory.hps-ddr` 1.0 is added, and sorted with the rest, when the boot
+core latched the port layout, including a kit without presentation adapters.
+`fes.video.session-display` 1.0 is added only when that layout and both
+presentation adapters are present. A computer that does not implement the
+plane leaves the session-display bit clear.
 
 ## Lifecycle
 
