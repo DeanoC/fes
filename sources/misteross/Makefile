@@ -1126,12 +1126,39 @@ sim-fes-c64-color-ram:
 sim-fes-c64-boot-build:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-boot
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw -CFLAGS -O3 \
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw --savable -CFLAGS -O3 \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-boot" \
 		cores/fes-c64/sim/c64_boot_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/boot_tb.cpp"
 
-sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic sim-fes-c64-drive
+.PHONY: sim-fes-c64-boot-drive-build sim-fes-c64-gcr
+sim-fes-c64-boot-drive-build:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-boot-drive
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw --savable \
+		-DFES_C64_REAL_DRIVE_SIM -CFLAGS '-O3 -DFES_C64_REAL_DRIVE_SIM' \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-boot-drive" \
+		cores/fes-c64/sim/c64_boot_sim_top.sv $(C64_RTL) \
+		cores/fes-c64/rtl/c64_drive1541.sv cores/fes-c64/rtl/c64_via.v cores/fes-c64/rtl/c64_gcr_read.v \
+		"$(CURDIR)/cores/fes-c64/sim/boot_tb.cpp"
+
+sim-fes-c64-gcr:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-gcr
+	$(PYTHON) cores/fes-c64/sim/gcr_fixture.py --output build/sim/fes-c64-gcr
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_gcr_read $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-gcr" cores/fes-c64/rtl/c64_gcr_read.v \
+		"$(CURDIR)/cores/fes-c64/sim/gcr_read_tb.cpp"
+	@build/sim/fes-c64-gcr/Vc64_gcr_read build/sim/fes-c64-gcr/track-1.hex build/sim/fes-c64-gcr/blocks-1.hex 3 21
+	@build/sim/fes-c64-gcr/Vc64_gcr_read build/sim/fes-c64-gcr/track-18.hex build/sim/fes-c64-gcr/blocks-18.hex 2 19
+	@build/sim/fes-c64-gcr/Vc64_gcr_read build/sim/fes-c64-gcr/track-25.hex build/sim/fes-c64-gcr/blocks-25.hex 1 18
+	@build/sim/fes-c64-gcr/Vc64_gcr_read build/sim/fes-c64-gcr/track-31.hex build/sim/fes-c64-gcr/blocks-31.hex 0 17
+
+.PHONY: sim-fes-c64-checkpoint
+sim-fes-c64-checkpoint: sim-fes-c64-boot-build sim-fes-c64-boot-drive-build
+	$(PYTHON) cores/fes-c64/sim/checkpoint_tb.py
+
+sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \

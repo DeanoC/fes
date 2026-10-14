@@ -9,6 +9,12 @@ module c64_machine #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
     parameter integer CPU_CLOCK_HZ = 985_248
 ) (
+`ifdef FES_C64_REAL_DRIVE_SIM
+    input wire drive_flux,
+    output wire drive_ref_ce,
+    output wire [7:0] drive_pins, drive_ddr,
+    output wire [15:0] drive_pc,
+`endif
     input  wire        clk_sys,
     input  wire        reset,
     input  wire [143:0] keyboard_rows,
@@ -206,6 +212,28 @@ module c64_machine #(
     wire dev_clk_low, dev_data_low;
     wire cpu_clk_low = cia2_ddra[4] & cia2_pa[4];
     wire cpu_data_low = cia2_ddra[5] & cia2_pa[5];
+`ifdef FES_C64_REAL_DRIVE_SIM
+    wire [7:0] drive_data;
+    wire drive_sync, drive_ready_n, drive_reading, drive_enabled;
+    c64_drive1541 drive (
+        .clk(clk_sys), .reset(system_reset),
+        .atn_low(cia2_ddra[3] & cia2_pa[3]),
+        .host_clock_low(cpu_clk_low), .host_data_low(cpu_data_low),
+        .drive_clock_low(dev_clk_low), .drive_data_low(dev_data_low),
+        .disk_data(drive_data), .disk_pb({!drive_sync,3'b110,4'b1111}),
+        .byte_ready_n(drive_ready_n), .disk_pa_out(), .disk_pa_ddr(),
+        .disk_pb_out(drive_pins), .disk_pb_ddr(drive_ddr),
+        .byte_ready_enable(drive_enabled), .read_mode(drive_reading),
+        .debug_pc(drive_pc), .phi(), .ref_ce(drive_ref_ce)
+    );
+    c64_gcr_read reader (
+        .clk(clk_sys), .reset(system_reset), .ref_ce(drive_ref_ce), .flux(drive_flux),
+        .motor(drive_pins[2]), .reading(drive_reading), .ready_enable(drive_enabled),
+        .density(drive_pins[6:5]), .data(drive_data), .sync_found(drive_sync),
+        .byte_ready_n(drive_ready_n), .bit_sample()
+    );
+    assign debug_iec = {drive_sync, drive_ready_n, 4'b0, dev_clk_low, dev_data_low};
+`else
     wire [17:0] disk_addr;
     wire [7:0] disk_byte;
     c64_disk_store disk (
@@ -219,6 +247,7 @@ module c64_machine #(
         .dev_clk_low(dev_clk_low), .dev_data_low(dev_data_low),
         .disk_addr(disk_addr), .disk_byte(disk_byte), .debug(debug_iec)
     );
+`endif
     wire [7:0] pa2_pin = {~(cpu_data_low | dev_data_low), ~(cpu_clk_low | dev_clk_low),
                           (cia2_ddra[5:0] & cia2_pa[5:0]) | (~cia2_ddra[5:0] & 6'h3F)};
     c64_cia cia2 (

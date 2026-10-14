@@ -3,6 +3,12 @@
 // into the actual disk store; no CPU, RAM, CIA or IEC behavior is substituted.
 `include "c64_bus.vh"
 module c64_boot_sim_top (
+`ifdef FES_C64_REAL_DRIVE_SIM
+    input wire drive_flux,
+    output wire drive_ref_ce,
+    output wire [7:0] drive_pins, drive_ddr,
+    output wire [15:0] drive_pc,
+`endif
     input wire clk_sys, pixel_clk, reset,
     input wire [143:0] keyboard_rows,
     output wire [7:0] red, green, blue,
@@ -11,6 +17,10 @@ module c64_boot_sim_top (
     output wire [15:0] debug_pc
 );
     c64_machine machine (
+`ifdef FES_C64_REAL_DRIVE_SIM
+        .drive_flux(drive_flux), .drive_ref_ce(drive_ref_ce),
+        .drive_pins(drive_pins), .drive_ddr(drive_ddr), .drive_pc(drive_pc),
+`endif
         .clk_sys(clk_sys), .reset(reset), .video_clk(pixel_clk),
         .keyboard_rows(keyboard_rows), .controller_buttons(16'd0),
         .media_write_addr(18'd0), .media_write_data(16'd0),

@@ -115,6 +115,7 @@ RTL_SOURCES = (
 DEVELOPMENT_RTL = (
     "cores/fes-c64/rtl/c64_drive1541.sv",
     "cores/fes-c64/rtl/c64_via.v",
+    "cores/fes-c64/rtl/c64_gcr_read.v",
 )
 PINNED_INPUTS = (
     RECIPE, "scripts/c64_slots.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",

@@ -1725,9 +1725,24 @@ RTL in its source closure while the package still instantiates the file device.
 The drive enables the CPU's active-low SO input: falling edges set V, while
 instruction writes occur on CPU enables and a held-low pin does not retrigger.
 Apple II and the C64 motherboard retain the default CPU mode with SO tied high.
-The development disk pins are inactive. VIA serial shifting, NMOS SO subphases,
-rotation/GCR, physical drive-ROM linking and machine integration are still
-missing; production and C64 boot simulations retain the file device.
+`make sim-fes-c64-boot-drive-build` selects `FES_C64_REAL_DRIVE_SIM` in the
+existing motherboard and boot harness. `--real-drive --drive-rom` runs user
+1541 firmware through both VIAs and `c64_gcr_read`; the helper encodes the D64
+as raw G64 tracks. A C++ testbench medium supplies nominal 300 rpm rotation,
+head stepping and flux only. The digital reader recovers bits, sync and byte
+ready from the 16 MHz reference. `make sim-fes-c64-gcr` checks all four density
+zones with original sectors. VIA serial shifting, NMOS SO subphases, disk writes,
+analogue noise, physical drive-ROM linking and runtime media integration remain
+missing. The package and default boot diagnostic retain the file device.
+Both boot diagnostic builds use Verilator save/restore. The helper's
+`--save-state`, optional `--save-at-cycles` and `--restore-state` preserve the
+complete RTL model, host clock counters, pending keyboard/capture events,
+partial frame collection and the real-drive medium's angle/head position.
+Checkpoint metadata requires the same executable and firmware/media hashes;
+a rebuild requires recapture. Native LOAD must be verified before using a
+post-load checkpoint. This is development simulation, not runtime persistence.
+`--late-video` holds the independent HDMI renderer until the final five frames
+only in the real-drive diagnostic, without qualifying live native graphics.
 The HID keyboard maps all 64 native switches with CIA1 PA columns/PB rows,
 correcting the former transposed diagnostic mapping. A is PA1/PB2 and Return
 is PA0/PB1. `make sim-fes-c64-keyboard`, included in `sim-fes-c64`, checks every
