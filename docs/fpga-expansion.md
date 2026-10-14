@@ -41,8 +41,9 @@ there. The module README has the short entry point. The compose entry point is
 The compose support originated in [misteross #79](https://github.com/DeanoC/misteross/pull/79);
 that historical component revision is not the current source selection.
 Use the selected experiment's recipe and lock for these developer probes.
-The normal ZX81 library producer uses its own scoped lock, not an ambient
-compiler override. Other qualified core compiler selections remain separate.
+The normal ZX81 library producer selects the shared `toolchain.lock`, not an
+ambient compiler override. Other qualified core compiler selections remain
+separate.
 
 ## Development-RBF diagnostics
 

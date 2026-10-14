@@ -1203,7 +1203,7 @@ live separately under `build/zx81-bus-validation-cart/<recipe-sha>/` and survive
 diagnostic cleanup.
 
 `make build-fes-zx81` is the Yosys/nextpnr-mistral recipe for the same
-`fes.zx81` 1.5.0 package. It authenticates the scoped ZX81 expansion-bus tools, writes
+`fes.zx81` 1.5.0 package. It authenticates the shared `toolchain.lock`, writes
 `build/fes-zx81-oss/build-inputs.json` before synthesis, and embeds that
 record's 128-bit id as `BUILD_ID`. Synthesis is `synth_intel_alm` with
 M10K allowed and DSP/MLAB forbidden. The machine ROM is `zx81_rom_link`:
@@ -1264,9 +1264,11 @@ their nominal and reported constraints, with only the existing picosecond
 quantization tolerance when identifying the reported frequencies. This does
 not change the sealed base shell or infer requirements from achieved Fmax.
 For frozen replay, the cart producer makes an authenticated copy of the routed
-shell and restores the system PLL's second physical output to its audio clock
-net, dropping the obsolete scalar `outclk[0]` pin-map alias. The sealed routed
-shell bytes remain unchanged.
+shell. Legacy JSON omits the system PLL's second output; the scaffold restores
+that output to its audio clock net and drops the obsolete scalar `outclk[0]`
+pin-map alias. Shared-pin JSON already exposes physical C6/C7 outputs; the
+scaffold validates and preserves those connections and their pin map. The sealed
+routed shell bytes remain unchanged.
 Socketed shells export bus 2.0 (46-bit request, 20-bit response): CPU clock
 and /RESET append to the original packing. Map `fes.zx81-bus.socket/2` has
 unchanged CRAM bounds. Linker/host/runtime preserve matching historical v1
