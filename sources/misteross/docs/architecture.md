@@ -1755,7 +1755,10 @@ ready from the 16 MHz reference. `make sim-fes-c64-gcr` checks all four density
 zones with original sectors. VIA serial shifting, NMOS SO subphases, disk writes,
 analogue noise, physical drive-ROM linking and runtime media integration remain
 missing. The package and default boot diagnostic retain the file device.
-Both boot diagnostic builds use Verilator save/restore. The helper's
+Both boot diagnostic builds use Verilator save/restore. A Verilator control
+file exposes only the read-only fields needed by the observer, allowing
+optimization of unused debug state. `C64_BOOT_FULL_VISIBILITY=1` selects the
+full writable variant. Executable/layout checks remain strict across modes. The helper's
 `--save-state`, optional `--save-at-cycles` and `--restore-state` preserve the
 complete RTL model, host clock counters, pending keyboard/capture events,
 partial frame collection and the real-drive medium's angle/head position.

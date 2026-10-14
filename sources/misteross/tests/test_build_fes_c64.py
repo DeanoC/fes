@@ -220,7 +220,7 @@ class BuildFesC64Tests(unittest.TestCase):
         lanes = dict(cell(f"machine.rom.lane{index}", "0") for index in range(20))
         for index in producer.CHARACTER_ROM_LANES:
             lane=lanes[f"machine.rom.lane{index}"];lane["type"]="MISTRAL_M10K_TDP"
-            lane["connections"].update(CLK2=[7],A1WE=["0"],B1WE=["0"],A1BE=["0","0"],B1BE=["0","0"])
+            lane["connections"].update(CLK2=[7],A1WE=["0"],B1WE=["0"])
         design = {"modules": {"top": {"cells": lanes}}}
         reject_async_m10k_reads(design)
         producer.validate_firmware_ports(lanes)
@@ -241,10 +241,10 @@ class BuildFesC64Tests(unittest.TestCase):
         cells={}
         for index in range(20):
             pins={"CLK1":[7],"A1EN":["1"],"B1EN":["1"],"ACLR0":["0"],"ACLR1":["0"]}
-            if index>=16:pins.update(CLK2=[7],A1WE=["0"],B1WE=["0"],A1BE=["0","0"],B1BE=["0","0"])
+            if index>=16:pins.update(CLK2=[7],A1WE=["0"],B1WE=["0"])
             cells[f"machine.rom.lane{index}"]={"type":"MISTRAL_M10K_TDP" if index>=16 else "MISTRAL_M10K","connections":pins}
         producer.validate_firmware_ports(cells)
-        for field,value in [("A1WE",["1"]),("B1WE",["1"]),("CLK2",["0"]),("A1BE",["1","0"])]:
+        for field,value in [("A1WE",["1"]),("B1WE",["1"]),("CLK2",["0"]),("A1BE",["1","0"]),("B1BE",["0","0"])]:
             changed=json.loads(json.dumps(cells));changed["machine.rom.lane16"]["connections"][field]=value
             with self.subTest(field=field),self.assertRaises(BuildError):producer.validate_firmware_ports(changed)
         for index in range(16,20):cells[f"machine.rom.lane{index}"]["connections"]["CLK2"]=[8]

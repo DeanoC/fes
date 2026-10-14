@@ -153,25 +153,25 @@ module c64_rom (
  .CLK1(clk),.CLK2(video_clk),.A1ADDR(address[9:0]),.B1ADDR(video_address[9:0]),
  .A1DATA(10'd0),.B1DATA(10'd0),.A1Q(q16),.B1Q(v16),
  .A1EN(1'b1),.B1EN(1'b1),.A1WE(1'b0),.B1WE(1'b0),
- .A1BE(2'b00),.B1BE(2'b00),.ACLR0(1'b0),.ACLR1(1'b0));
+ .ACLR0(1'b0),.ACLR1(1'b0));
  (* keep,BEL="MISTRAL_M10K.5.49.0" *)
  MISTRAL_M10K_TDP #(.CFG_ABITS(10),.CFG_DBITS(10),.CFG_ASYNC_READ(0),.INIT(10240'b0)) lane17 (
  .CLK1(clk),.CLK2(video_clk),.A1ADDR(address[9:0]),.B1ADDR(video_address[9:0]),
  .A1DATA(10'd0),.B1DATA(10'd0),.A1Q(q17),.B1Q(v17),
  .A1EN(1'b1),.B1EN(1'b1),.A1WE(1'b0),.B1WE(1'b0),
- .A1BE(2'b00),.B1BE(2'b00),.ACLR0(1'b0),.ACLR1(1'b0));
+ .ACLR0(1'b0),.ACLR1(1'b0));
  (* keep,BEL="MISTRAL_M10K.5.50.0" *)
  MISTRAL_M10K_TDP #(.CFG_ABITS(10),.CFG_DBITS(10),.CFG_ASYNC_READ(0),.INIT(10240'b0)) lane18 (
  .CLK1(clk),.CLK2(video_clk),.A1ADDR(address[9:0]),.B1ADDR(video_address[9:0]),
  .A1DATA(10'd0),.B1DATA(10'd0),.A1Q(q18),.B1Q(v18),
  .A1EN(1'b1),.B1EN(1'b1),.A1WE(1'b0),.B1WE(1'b0),
- .A1BE(2'b00),.B1BE(2'b00),.ACLR0(1'b0),.ACLR1(1'b0));
+ .ACLR0(1'b0),.ACLR1(1'b0));
  (* keep,BEL="MISTRAL_M10K.5.51.0" *)
  MISTRAL_M10K_TDP #(.CFG_ABITS(10),.CFG_DBITS(10),.CFG_ASYNC_READ(0),.INIT(10240'b0)) lane19 (
  .CLK1(clk),.CLK2(video_clk),.A1ADDR(address[9:0]),.B1ADDR(video_address[9:0]),
  .A1DATA(10'd0),.B1DATA(10'd0),.A1Q(q19),.B1Q(v19),
  .A1EN(1'b1),.B1EN(1'b1),.A1WE(1'b0),.B1WE(1'b0),
- .A1BE(2'b00),.B1BE(2'b00),.ACLR0(1'b0),.ACLR1(1'b0));
+ .ACLR0(1'b0),.ACLR1(1'b0));
 `endif
  always @(posedge clk)data<=source_data;
 endmodule

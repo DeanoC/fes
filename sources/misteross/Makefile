@@ -1022,6 +1022,9 @@ C64_VERILATOR_FLAGS := -DFES_SIMULATION -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAM
 	-Wno-WIDTHTRUNC -Wno-CASEX -Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM \
 	-Wno-CASEINCOMPLETE -Wno-CASEOVERLAP -Wno-SYNCASYNCNET -Wno-UNOPTFLAT \
 	-Icores/fes-c64/rtl -Icores/fes-c64/expansions -Icores/fes-common/generated
+# Full writable visibility remains available for deep internal diagnostics.
+C64_BOOT_FULL_VISIBILITY ?= 0
+C64_BOOT_VISIBILITY := $(if $(filter 1,$(C64_BOOT_FULL_VISIBILITY)),--public-flat-rw,cores/fes-c64/sim/observe.vlt)
 C64_RTL := cores/fes-c64/rtl/c64_machine.sv cores/fes-c64/rtl/c64_ram.v \
 	cores/fes-c64/rtl/c64_color_ram.v \
 	cores/fes-c64/rtl/c64_rom.v cores/fes-c64/rtl/c64_vic.v \
@@ -1124,7 +1127,7 @@ sim-fes-c64-color-ram:
 sim-fes-c64-boot-build:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-boot
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw --savable -CFLAGS -O3 \
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) $(C64_BOOT_VISIBILITY) --savable -CFLAGS -O3 \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-boot" \
 		cores/fes-c64/sim/c64_boot_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/boot_tb.cpp"
@@ -1133,7 +1136,7 @@ sim-fes-c64-boot-build:
 sim-fes-c64-boot-drive-build:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-boot-drive
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw --savable \
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) $(C64_BOOT_VISIBILITY) --savable \
 		-DFES_C64_REAL_DRIVE_SIM -CFLAGS '-O3 -DFES_C64_REAL_DRIVE_SIM' \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-boot-drive" \
 		cores/fes-c64/sim/c64_boot_sim_top.sv $(C64_RTL) \

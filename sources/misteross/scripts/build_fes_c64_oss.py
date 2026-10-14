@@ -389,9 +389,8 @@ def validate_firmware_ports(cells: dict) -> None:
             video = pins.get("CLK2")
             if (cell.get("type") != "MISTRAL_M10K_TDP" or not isinstance(video, list) or
                     len(video) != 1 or type(video[0]) is not int or pins.get("A1WE") != ["0"] or
-                    pins.get("B1WE") != ["0"] or pins.get("A1BE") != ["0", "0"] or
-                    pins.get("B1BE") != ["0", "0"]):
-                raise BuildError(f"character lane {name} needs two live read clocks and disabled writes")
+                    pins.get("B1WE") != ["0"] or pins.get("A1BE") or pins.get("B1BE")):
+                raise BuildError(f"character lane {name} needs live native read clocks, disabled writes and omitted byte enables")
             video_clocks.add(video[0])
         elif cell.get("type") != "MISTRAL_M10K" or pins.get("A1BE") or pins.get("CLK2"):
             raise BuildError(f"CPU ROM lane {name} has unexpected ports or primitive")

@@ -18,6 +18,7 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   and the 4 KiB character ROM at 16384..20479. The OSS package leaves twenty
   1024×10 M10K lanes (column 5, rows 32–51) blank. The final four lanes use
   registered true dual-port reads for the CPU and VIC on the native system clock, with writes disabled.
+  Unused byte-enable ports are omitted; both write enables remain disabled.
   CPU reads take two system clocks; VIC character reads take one native system clock.
 - VIC-II monochrome/multicolor text and bitmap modes, plus extended-color
   text addressing. Matrix/color reads occur on native PAL badlines and glyph
@@ -213,6 +214,14 @@ open.
 `make sim-fes-c64-checkpoint`, included in the aggregate simulation, compares
 uninterrupted/restored CPU/RAM trajectories, a held key, a pending capture,
 complete frames and final serialized states using original test firmware.
+Boot diagnostics expose only their read-only observation fields by default.
+`C64_BOOT_FULL_VISIBILITY=1` retains full writable internal visibility for
+specialized diagnostics. Both modes serialize their complete model state;
+changing mode changes the executable/layout and requires a fresh checkpoint.
+The selected-field mode matches the full mode's RAM, frames and observations
+through real firmware boot and the start of native LOAD, with approximately
+2.6× faster execution in that host comparison.
+
 Both diagnostic builds support development checkpoints through Verilator
 `--savable`. `--save-state /path/loaded.state` saves at the run's end;
 `--save-at-cycles N` captures earlier and continues the run. Choose a point after
