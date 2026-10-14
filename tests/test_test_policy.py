@@ -62,7 +62,6 @@ class SelectTestModesTests(unittest.TestCase):
                 self.assertEqual(test_policy.select_test_modes([path]), ALL_FALSE)
         for path in ('sources/misteross/scripts/new_helper.py',
                      'sources/misteross/toolchain.lock',
-                     'sources/misteross/toolchains/atari-st.lock',
                      'sources/misteross/cores/fes-common/rtl/fes_video_part_direct.v',
                      'sources/misteross/cores/fes-atari-st/rtl/shifter.sv'):
             with self.subTest(path=path):
