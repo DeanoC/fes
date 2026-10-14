@@ -220,7 +220,8 @@ synthesis shape fails closed.
 ## 1541 development motherboard
 
 `make sim-fes-c64-drive` checks an independent development motherboard with a
-1 MHz 6502, mirrored 2 KiB RAM, two VIA port/timer/handshake slices and the IEC
+16 MHz reference divided by 16 for its 1 MHz 6502, mirrored 2 KiB RAM,
+two VIA port/timer/handshake slices and the IEC
 inverters/ATN acknowledge gate. Its open firmware checks RAM aliases, both VIA
 interrupts through the CPU vector and the released bus. `sim-fes-c64-via` checks
 input latches, PA pin/PB latch reads, handshake and pulse outputs, selectable
@@ -230,14 +231,16 @@ Timer 1 exposes the underflow cycle and reloads in one-shot mode as observed in
 [VICE's VIA implementation](https://github.com/VICE-Team/svn-mirror/blob/main/vice/src/core/viacore.c).
 The drive's VIA access and CPU sample occur together near the end of the
 1 us bus cycle, retaining the input latch until its byte is sampled.
-Serial shifting and NMOS subcycle behavior remain unimplemented. The C64
-producer also pins these development RTL inputs without instantiating them.
+The drive enables the shared CPU's optional SO input, connecting the external
+byte-ready pin to its overflow flag. `sim-fes-c64-so` checks both enabled and
+default-disabled modes. Serial shifting and NMOS subcycle behavior remain
+unimplemented. The C64 producer also pins these development RTL inputs without instantiating them.
 
 `make sim-fes-c64-drive-build` followed by
 `python3 scripts/c64_drive_observe.py --rom /path/1541.rom --output /path/ignored-output`
 observes a user-supplied exact 16 KiB drive ROM for three simulated seconds.
 It retains ROM/executable hashes, the drive RAM and bus/control observations.
-The disk electronics use inactive input pins; GCR rotation, CPU SO byte-ready,
+The disk electronics use inactive input pins; GCR rotation and active byte-ready,
 disk loading and fastloader execution are not provided. This motherboard is
 not selected by the C64 package or its boot harness yet, and its ROM has no
 physical download map. The existing read-only IEC file device remains selected.

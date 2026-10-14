@@ -18,7 +18,7 @@
  * on the output pads if external memory is required.
  */
 
-module cpu6502( clk, reset, AB, DI, DO, WE, IRQ, NMI, RDY );
+module cpu6502 #(parameter ENABLE_SO = 0)( clk, reset, AB, DI, DO, WE, IRQ, NMI, RDY, SO );
 
 input clk;              // CPU clock
 input reset;            // reset signal
@@ -28,6 +28,7 @@ output [7:0] DO;        // data out, write bus
 output WE;              // write enable
 input IRQ;              // interrupt request
 input NMI;              // non-maskable interrupt request
+input SO;               // optional active-low set-overflow pin
 input RDY;              // Ready signal. Pauses CPU when RDY=0
 
 /*
@@ -813,6 +814,20 @@ always @(posedge clk )
         if( plp ) D <= ADD[3];
     end
 
+generate if (ENABLE_SO) begin : so_pin
+    // A held decode state must not erase a pin event between CPU enables.
+    // Instruction writes retain priority when they coincide with an SO edge.
+    reg previous = 1;
+    always @(posedge clk) previous <= SO;
+    always @(posedge clk)
+        if (RDY && state == RTI2) V <= DIMUX[6];
+        else if (RDY && state == DECODE && (adc_sbc || clv || plp)) begin
+            if (adc_sbc) V <= AV;
+            if (clv) V <= 0;
+            if (plp) V <= ADD[6];
+        end else if (RDY && state == FETCH && bit_ins) V <= DIMUX[6];
+        else if (!reset && previous && !SO) V <= 1;
+end else begin : legacy_v
 /*
  * Update V flag
  */
@@ -825,6 +840,8 @@ always @(posedge clk )
         if( plp )     V <= ADD[6];
     end else if( state == FETCH && bit_ins )
         V <= DIMUX[6];
+
+end endgenerate
 
 /*
  * Instruction decoder

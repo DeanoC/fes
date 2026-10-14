@@ -65,7 +65,7 @@ module c64_machine #(
     wire irq_n, nmi_n;
     cpu6502 cpu (
         .clk(clk_sys), .reset(system_reset), .AB(cpu_ab), .DI(cpu_di),
-        .DO(cpu_do), .WE(cpu_we), .IRQ(irq_n), .NMI(nmi_n), .RDY(cpu_ce)
+        .DO(cpu_do), .WE(cpu_we), .IRQ(irq_n), .NMI(nmi_n), .RDY(cpu_ce), .SO(1'b1)
     );
     assign debug_pc = cpu_ab;
 

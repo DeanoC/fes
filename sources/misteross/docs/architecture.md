@@ -1548,7 +1548,8 @@ retaining II/II+ video, annunciator and language-card switches. Host execution
 reset initializes them. The machine regression installs an alternate reset
 vector in language-card RAM and checks both reset paths through the real CPU.
 Shared RTL it adds to `cores/fes-common`: the vendored NMOS 6502
-`rtl/cpu6502` (Arlet Ottens, module names only changed) and the generic
+`rtl/cpu6502` (Arlet Ottens, renamed modules and an optional SO input) and
+the generic
 `rtl/fes_computer_mailbox.v` endpoint, which replays the mister-packages
 `computer-exchanges.json` golden exchanges in `make sim-fes-apple2-mailbox`.
 The endpoint owns no storage: accepted media words appear on a write port for
@@ -1711,7 +1712,8 @@ EOI. Full sectors follow their track/sector links without transmitting link byte
 uses this same polarity/protocol. No 1541 CPU, VIA, GCR or fastloader compatibility
 is implied by the read-only file device.
 A separate `c64_drive1541` development motherboard runs the shared 6502 at
-1 MHz with 2 KiB mirrored RAM, an external 16 KiB simulation ROM, two
+1 MHz from a divided 16 MHz reference with 2 KiB mirrored RAM, an external
+16 KiB simulation ROM, two
 `c64_via` port/timer/handshake slices and the physical IEC inverter/ATN gate.
 `make sim-fes-c64-drive` runs open firmware that checks RAM aliases and both
 VIA IRQs through the CPU vector; the standalone VIA test checks ports,
@@ -1720,7 +1722,10 @@ helper retains an external ROM identity, frozen executable identity and RAM.
 Drive VIA accesses and CPU sampling share the late bus-cycle edge so input
 latches are acknowledged after sampling. The producer pins the development
 RTL in its source closure while the package still instantiates the file device.
-The development disk pins are inactive. VIA serial shifting, CPU SO,
+The drive enables the CPU's active-low SO input: falling edges set V, while
+instruction writes occur on CPU enables and a held-low pin does not retrigger.
+Apple II and the C64 motherboard retain the default CPU mode with SO tied high.
+The development disk pins are inactive. VIA serial shifting, NMOS SO subphases,
 rotation/GCR, physical drive-ROM linking and machine integration are still
 missing; production and C64 boot simulations retain the file device.
 The HID keyboard maps all 64 native switches with CIA1 PA columns/PB rows,

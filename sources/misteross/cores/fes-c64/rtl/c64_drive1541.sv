@@ -14,13 +14,17 @@ module c64_drive1541 #(
     output wire [7:0] disk_pa_out, disk_pa_ddr, disk_pb_out, disk_pb_ddr,
     output wire byte_ready_enable, read_mode,
     output wire [15:0] debug_pc,
+    output wire ref_ce,
     output wire phi
 );
     reg [26:0] phase = 0;
-    wire [27:0] phase_next = {1'b0,phase} + 28'd1_000_000;
-    assign phi = phase_next >= SYSTEM_CLOCK_HZ;
+    wire [27:0] phase_next = {1'b0,phase} + 28'd16_000_000;
+    assign ref_ce = phase_next >= SYSTEM_CLOCK_HZ;
+    reg [3:0] cpu_div = 0;
+    always @(posedge clk) if (ref_ce) cpu_div <= cpu_div + 4'd1;
+    assign phi = ref_ce && cpu_div == 4'd15;
     always @(posedge clk)
-        phase <= phi ? 27'(phase_next - SYSTEM_CLOCK_HZ) : phase_next[26:0];
+        phase <= ref_ce ? 27'(phase_next - SYSTEM_CLOCK_HZ) : phase_next[26:0];
     reg [4:0] reset_hold = 5'd16;
     always @(posedge clk)
         if (reset) reset_hold <= 5'd16;
@@ -53,8 +57,8 @@ module c64_drive1541 #(
     wire bus_access = cycle_clock == 43 && !cpu_reset;
     wire [7:0] data_in = bus_addr[15] ? rom_q : ram_cs ? ram_q :
                                via1_cs ? via1_q : via2_cs ? via2_q : 8'hff;
-    cpu6502 cpu (.clk(clk), .reset(cpu_reset), .AB(ab), .DI(cpu_data),
-        .DO(data_out), .WE(we), .IRQ(irq1 || irq2), .NMI(1'b0), .RDY(phi));
+    cpu6502 #(.ENABLE_SO(1)) cpu (.clk(clk), .reset(cpu_reset), .AB(ab), .DI(cpu_data),
+        .DO(data_out), .WE(we), .IRQ(irq1 || irq2), .NMI(1'b0), .RDY(phi), .SO(byte_ready_n));
     assign debug_pc = ab;
     always @(posedge clk) begin
         ram_q <= ram[bus_addr[10:0]];

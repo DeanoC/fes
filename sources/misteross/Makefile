@@ -1049,7 +1049,21 @@ sim-fes-c64-cia:
 	@build/sim/fes-c64-cia/Vc64_cia
 
 .PHONY: sim-fes-c64-vic
-.PHONY: sim-fes-c64-via sim-fes-c64-drive sim-fes-c64-drive-build
+.PHONY: sim-fes-c64-so sim-fes-c64-via sim-fes-c64-drive sim-fes-c64-drive-build
+sim-fes-c64-so:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-so build/sim/fes-c64-so-disabled
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw -GENABLE_SO=1 \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-so" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/so_tb.cpp"
+	@build/sim/fes-c64-so/Vcpu6502
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-so-disabled" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/so_tb.cpp"
+	@build/sim/fes-c64-so-disabled/Vcpu6502 +SO_DISABLED=1
+
 sim-fes-c64-via:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-via
@@ -1067,7 +1081,7 @@ sim-fes-c64-drive-build:
 		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
 		"$(CURDIR)/cores/fes-c64/sim/drive_tb.cpp"
 
-sim-fes-c64-drive: sim-fes-c64-via sim-fes-c64-drive-build
+sim-fes-c64-drive: sim-fes-c64-so sim-fes-c64-via sim-fes-c64-drive-build
 	$(PYTHON) cores/fes-c64/diagnostic/drive_firmware.py --output-dir build/diagnostics/fes-c64-drive
 	@cd build/sim/fes-c64-drive && ./Vc64_drive1541 \
 		+C64_DRIVE_ROM_HEX=$(CURDIR)/build/diagnostics/fes-c64-drive/drive.hex \
