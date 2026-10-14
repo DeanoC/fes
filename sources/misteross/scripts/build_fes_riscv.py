@@ -116,7 +116,16 @@ def require_current_firmware(root: Path) -> None:
             raise board.BuildError(f"stale firmware image {relative}; run {FIRMWARE_ASSEMBLER}")
 
 
-def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str]) -> dict:
+def placement_seeds(single_seed=None):
+    if single_seed is None:
+        return PLACER_SEEDS
+    if type(single_seed) is not int or not 1 <= single_seed <= 0x7fffffff:
+        raise board.BuildError("single placement seed must be an integer from 1 to 2147483647")
+    return (single_seed,)
+
+
+def record_fields(root: Path, repository: str, revision: str, identities: dict[str, str], *, single_seed=None) -> dict:
+    seeds = placement_seeds(single_seed)
     return {
         "format": 1, "repository": repository, "revision": revision,
         "recipe": RECIPE, "recipe_sha256": board._sha256(board._regular_input(root, RECIPE)),
@@ -125,8 +134,8 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
         "dependencies": {}, "tools": identities,
         "parameters": {
             "device": board.TARGET, "gpu_architectures": board.FES_GPU_ARCHITECTURES,
-            "gpu_backend": "hip", "router": "gpu", "seed": PLACER_SEEDS[0],
-            "seed_order": ",".join(str(seed) for seed in PLACER_SEEDS),
+            "gpu_backend": "hip", "router": "gpu", "seed": seeds[0],
+            "seed_order": ",".join(str(seed) for seed in seeds),
             "placer_heap_timingweight": PLACER_TIMING_WEIGHT,
             "placer_heap_critexp": PLACER_CRITICALITY_EXPONENT, "top": "top",
             "pixel_clock_hz": 74_250_000, "reference_clock_hz": 50_000_000,
@@ -138,20 +147,21 @@ def record_fields(root: Path, repository: str, revision: str, identities: dict[s
 
 
 @guard_functional_source
-def create_build_record(root, repository, revision, identities, *, identity_version=2, execution=None):
+def create_build_record(root, repository, revision, identities, *, identity_version=2, execution=None, single_seed=None):
     if identity_version != 2:
         raise board.BuildError("unsupported build identity version")
-    fields = record_fields(root, repository, revision, identities)
+    fields = record_fields(root, repository, revision, identities, single_seed=single_seed)
     return encode_build_record(functional_record_fields(root, fields,
         source_roots_for_inputs(PINNED_INPUTS), execution, pinned_inputs=PINNED_INPUTS))
 
 
-def build_commands(build_id: str, tools: dict[str, Path], *, gpu_device: int = 0):
+def build_commands(build_id: str, tools: dict[str, Path], *, gpu_device: int = 0, single_seed=None):
     """Synthesis and the first (reference) route; the search reuses the route shape."""
     if board.HEX32_RE.fullmatch(build_id) is None:
         raise board.BuildError("build ID must be 32 lowercase hexadecimal characters")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
         raise board.BuildError("build commands require authenticated tool paths")
+    seeds = placement_seeds(single_seed)
     output = OUTPUT.as_posix()
     program = (
         f"read_verilog -sv -I cores/fes-common/generated {' '.join(RTL_SOURCES)}; "
@@ -163,7 +173,7 @@ def build_commands(build_id: str, tools: dict[str, Path], *, gpu_device: int = 0
         (str(tools["yosys"]), "-p", program),
         (str(tools["nextpnr-mistral"]), "--json", f"{output}/synth.json",
          "--device", board.TARGET, "--qsf", QSF, "--sdc", board_evidence.SDC,
-         "--freq", f"{PIXEL_CLOCK_MHZ:g}", "--seed", str(PLACER_SEEDS[0]),
+         "--freq", f"{PIXEL_CLOCK_MHZ:g}", "--seed", str(seeds[0]),
          "--router", "gpu", "--gpu-device", str(gpu_device),
          "--rbf", f"{output}/core.rbf", "--compress-rbf",
          "--write", f"{output}/routed.json", "--report", f"{output}/timing.json",
@@ -171,12 +181,13 @@ def build_commands(build_id: str, tools: dict[str, Path], *, gpu_device: int = 0
     )
 
 
-def route_placement(root: Path, output: Path, nextpnr: Path, invocation, gpu_device: int):
+def route_placement(root: Path, output: Path, nextpnr: Path, invocation, gpu_device: int, *, single_seed=None):
+    seeds = placement_seeds(single_seed)
     return route_after_synth(
         nextpnr=nextpnr, fixture=output / "synth.json", dest=output, device=board.TARGET,
         qsf=root / QSF, sdc=root / board_evidence.SDC, freq=f"{PIXEL_CLOCK_MHZ:g}",
-        seeds=PLACER_SEEDS, weights=(PLACER_TIMING_WEIGHT,), critexp=PLACER_CRITICALITY_EXPONENT,
-        budget=len(PLACER_SEEDS), mode="first-pass",
+        seeds=seeds, weights=(PLACER_TIMING_WEIGHT,), critexp=PLACER_CRITICALITY_EXPONENT,
+        budget=len(seeds), mode="first-pass",
         extra=("--router", "gpu", "--gpu-device", str(gpu_device)),
         required=PLACER_QOR_CLOCKS, timeout=ROUTE_TIMEOUT_SECONDS,
         env=invocation.env, audit_source_root=root)
@@ -198,7 +209,8 @@ def manifest(record: bytes, evidence: dict, repository: str, revision: str, iden
 
 @guard_functional_source
 def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = None,
-          identity_version=2, gpu_device=0) -> Path:
+          identity_version=2, gpu_device=0, single_seed=None) -> Path:
+    placement_seeds(single_seed)
     root = Path(root).resolve()
     if identity_version != 2:
         raise board.BuildError("unsupported build identity version")
@@ -213,15 +225,15 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
     output = None
     try:
         record = create_build_record(root, repository, revision, identities,
-                                     identity_version=identity_version, execution=invocation.inputs)
+                                     identity_version=identity_version, execution=invocation.inputs, single_seed=single_seed)
         output = board._prepare_output(root, relative=OUTPUT, build_outputs=BUILD_OUTPUTS)
         board._write_atomic(output / "build-inputs.json", record)
         commands = build_commands(build_identity(record),
-            {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, gpu_device=gpu_device)
+            {name: authenticated[name].path for name in ("yosys", "nextpnr-mistral")}, gpu_device=gpu_device, single_seed=single_seed)
         board._run_tool(commands[0], root, output / "yosys.log", output_relative=OUTPUT,
                         env=invocation.env, audit_source_root=root)
         try:
-            winner = route_placement(root, output, authenticated["nextpnr-mistral"].path, invocation, gpu_device)
+            winner = route_placement(root, output, authenticated["nextpnr-mistral"].path, invocation, gpu_device, single_seed=single_seed)
         except SearchError as exc:
             raise board.BuildError(str(exc)) from exc
         evidence = board_evidence.validate_build_evidence(output, root,
@@ -243,7 +255,7 @@ def build(root: Path = ROOT, package_store=None, *, cache_root: Path | None = No
             raise board.BuildError("source identity changed during build")
         invocation.verify()
         if create_build_record(root, repository, revision, identities,
-                               identity_version=identity_version, execution=invocation.inputs) != record:
+                               identity_version=identity_version, execution=invocation.inputs, single_seed=single_seed) != record:
             raise board.BuildError("functional source inputs changed during build")
         return export_package(encoded, output / "core.rbf", package_store)
     except Exception:
@@ -261,10 +273,12 @@ def main() -> int:
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
+    parser.add_argument("--single-seed", type=int,
+                        help="route only this placement seed; a timing miss fails without fallback")
     args = parser.parse_args()
     try:
         print(build(args.root, args.package_output, cache_root=args.cache_root,
-                    identity_version=args.identity_version, gpu_device=args.gpu_device))
+                    identity_version=args.identity_version, gpu_device=args.gpu_device, single_seed=args.single_seed))
     except (board.BuildError, ValueError) as exc:
         print(f"FES RISC-V: {exc}", file=sys.stderr)
         return 1

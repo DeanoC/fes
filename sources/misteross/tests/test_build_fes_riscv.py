@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from scripts import build_fes_riscv as riscv
 from scripts import fes_build_common as board
+from scripts import search_placer_qor as placer
 from scripts.export_core_package import build_identity
 from tests.producer_fixture import EXECUTION
 
@@ -22,7 +23,40 @@ class RiscvProducerTests(unittest.TestCase):
                 "--identity-version", "2"]), patch.object(riscv, "build", return_value=Path("sealed")) as build:
             self.assertEqual(riscv.main(), 0)
         build.assert_called_once_with(ROOT, ROOT / "build/packages", cache_root=Path("/tmp/cache"),
-                                      identity_version=2, gpu_device=0)
+                                      identity_version=2, gpu_device=0, single_seed=None)
+
+    def test_cli_selects_one_seed_without_a_fallback_ladder(self):
+        with patch("sys.argv", ["build_fes_riscv.py", "--single-seed", "1"]), \
+                patch.object(riscv, "build", return_value=Path("sealed")) as build:
+            self.assertEqual(riscv.main(), 0)
+        self.assertEqual(build.call_args.kwargs["single_seed"], 1)
+
+    def test_invalid_single_seed_rejects_before_build_work(self):
+        for seed in (True, False, 0, -1, 0x80000000, 1.0, "1", ()):
+            with self.subTest(seed=seed), patch.object(riscv, "require_clean_source") as source:
+                with self.assertRaises(board.BuildError):
+                    riscv.build(ROOT, single_seed=seed)
+                source.assert_not_called()
+
+    def test_single_seed_miss_cannot_try_a_later_passing_seed(self):
+        invocation = type("Invocation", (), {"env": {}})()
+        attempted = []
+        def run(*args, **options):
+            seed = options["seed"]
+            attempted.append(seed)
+            passing = seed != 1
+            return placer.Candidate(seed, options["weight"], options["critexp"],
+                                    passing, 1.1 if passing else .9, 1.1 if passing else .9, {}, "")
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            with patch.object(placer, "_run_nextpnr", side_effect=run):
+                with self.assertRaisesRegex(placer.SearchError, "no placement met timing"):
+                    riscv.route_placement(ROOT, output, Path("/nextpnr"), invocation, 0, single_seed=1)
+            ranking = json.loads((output / "qor-ranking.json").read_text())
+            self.assertEqual(ranking["seeds"], [1])
+            self.assertEqual(ranking["budget"], 1)
+            self.assertEqual(attempted, [1])
+            self.assertFalse((output / "core.rbf").exists())
 
     def test_commands_pin_the_system_sources_build_id_and_pixel_clock(self):
         synth, route = riscv.build_commands("a" * 32,
@@ -37,6 +71,9 @@ class RiscvProducerTests(unittest.TestCase):
         self.assertEqual(route[route.index("--freq") + 1], "74.25")
         self.assertEqual(route[route.index("--gpu-device") + 1], "1")
         self.assertEqual(route[route.index("--router") + 1], "gpu")
+        _, single_route = riscv.build_commands("a" * 32,
+            {"yosys": Path("/auth/yosys"), "nextpnr-mistral": Path("/auth/nextpnr")}, single_seed=7)
+        self.assertEqual(single_route[single_route.index("--seed") + 1], "7")
         with self.assertRaises(board.BuildError):
             riscv.build_commands("zz", {"yosys": Path("/y"), "nextpnr-mistral": Path("/n")})
 
@@ -99,15 +136,21 @@ class RiscvProducerTests(unittest.TestCase):
         git("init", "-q"); git("config", "user.name", "Test"); git("config", "user.email", "test@example.invalid")
         git("add", "."); git("commit", "-qm", "source")
         self.addCleanup(shutil.rmtree, repo / ".git", ignore_errors=True)
-        def record():
+        def record(single_seed=None):
             return riscv.create_build_record(root, "https://example.invalid/source", git("rev-parse", "HEAD"),
-                                             {"yosys": "test"}, execution=EXECUTION)
+                                             {"yosys": "test"}, execution=EXECUTION, single_seed=single_seed)
         before = record()
         fields = json.loads(before)
         self.assertEqual(fields["format"], 2)
         self.assertEqual(fields["source_path"], "sources/misteross")
         self.assertTrue(set(riscv.CPU_SOURCES) <= fields["source_inputs"].keys())
         self.assertTrue(set(riscv.FIRMWARE_IMAGES) <= fields["source_inputs"].keys())
+        single = record(single_seed=1)
+        self.assertEqual(json.loads(single)["parameters"]["seed_order"], "1")
+        self.assertEqual(json.loads(single)["parameters"]["seed"], 1)
+        self.assertEqual(fields["parameters"]["seed_order"], "1,2,3,4,5,6,7,8")
+        self.assertNotEqual(build_identity(before), build_identity(single))
+        self.assertNotEqual(build_identity(single), build_identity(record(single_seed=7)))
         (repo / "README.md").write_text("Unrelated docs")
         git("add", "."); git("commit", "-qm", "docs")
         self.assertEqual(build_identity(before), build_identity(record()))
