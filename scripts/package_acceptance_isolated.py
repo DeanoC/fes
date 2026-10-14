@@ -812,7 +812,9 @@ def _receipt_base(args: argparse.Namespace, success: bool) -> dict[str, Any]:
         "core_id": args.expected_core_id,
         "target_id": args.expected_target_id,
         "revisions": _identity_value(args),
-        "host_revision_policy": "development-label" if args.allow_development_host else "strict",
+        "host_revision_policy": (
+            "full-commit" if COMMIT_RE.fullmatch(args.expected_host_revision) else "development-label"
+        ),
     }
     if args.library_media:
         value["library_media"] = {"media_id": args.expected_media_sha256,
@@ -1106,7 +1108,10 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--runner-timeout", type=float, default=120.0)
     result.add_argument("--poll-attempts", type=int, default=60)
     result.add_argument("--poll-interval", type=float, default=1.0)
-    result.add_argument("--allow-development-host", action="store_true")
+    result.add_argument(
+        "--allow-development-host", action="store_true",
+        help="permit an explicitly expected diag-/dev- host revision label; full commits need no opt-in",
+    )
     result.add_argument("--execute", action="store_true")
     return result
 
@@ -1175,16 +1180,13 @@ def validate_args(args: argparse.Namespace) -> PrivateTarget:
         raise AcceptanceError("expected agent revision must be a full 40-character commit")
     if COMMIT_RE.fullmatch(args.expected_runtime_revision) is None:
         raise AcceptanceError("expected runtime revision must be a full 40-character commit")
-    if not args.allow_development_host:
-        if COMMIT_RE.fullmatch(args.expected_host_revision) is None:
-            raise AcceptanceError("strict host acceptance requires a full 40-character host revision")
-        if args.expected_host_revision != args.expected_agent_revision:
-            raise AcceptanceError("strict host acceptance requires matching host and agent revisions")
-    elif COMMIT_RE.fullmatch(args.expected_host_revision) is not None:
-        if args.expected_host_revision != args.expected_agent_revision:
-            raise AcceptanceError("development mode cannot compare unequal full host and agent commits")
-    elif DEVELOPMENT_HOST_RE.fullmatch(args.expected_host_revision) is None:
-        raise AcceptanceError("development host revision must be a diag-/dev- labelled value")
+    # Revisions bind this diagnostic to exact artifacts; supported API/ABI
+    # contracts, not source revision equality, decide runtime compatibility.
+    if COMMIT_RE.fullmatch(args.expected_host_revision) is None:
+        if not args.allow_development_host:
+            raise AcceptanceError("host acceptance requires a full 40-character host revision")
+        if DEVELOPMENT_HOST_RE.fullmatch(args.expected_host_revision) is None:
+            raise AcceptanceError("development host revision must be a diag-/dev- labelled value")
     _require_string(args.new_entry_title, "new entry title")
     _require_string(args.container_runtime, "container runtime", 4096)
 

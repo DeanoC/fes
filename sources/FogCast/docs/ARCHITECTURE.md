@@ -1368,7 +1368,50 @@ lease through the same cleanup path; it never aborts FPGA programming halfway
 through a transition. Clients retry a busy takeover using the same request ID.
 Old lease credentials cannot stop or send input to the replacement owner.
 This protects agent API operations; direct root SSH or runtime socket access
-remains a maintenance escape outside the lease boundary.
+remains outside agent admission. Supported FES file replacement uses the
+maintenance reservation below rather than that escape.
+
+### Target maintenance ownership
+
+`GET /v1/kit/maintenance` reports a public boot-scoped operation. An authenticated
+`POST /v1/kit/maintenance/start` carries an owned ordinary kit grant and
+`request_id`/`purpose`. The existing lease manager drains admitted operations,
+neutralizes peripherals and stops through its existing runtime cleanup. It
+persists the reservation before changing admission; only `ready` authorizes a
+software transaction. Runtime-unreachable cleanup is a maintenance failure.
+
+The private `/run/fogcast/kit-maintenance.json` retains the operation, generation,
+boot ID and reservation credential across agent replacement on the same boot.
+Public responses omit stored credentials. Ordinary claim, takeover, renewal and
+mutation cannot bypass maintenance; kit-local launches share the same manager.
+Maintenance status returns unavailable until its persisted marker loads; it
+never reports absent ownership during startup. A surviving active marker is
+blocked before replacement-agent startup cleanup,
+so startup never temporarily reopens execution. Failed/corrupt state remains
+blocked rather than granting an automatic takeover.
+
+`POST /v1/kit/maintenance/resume` and `/v1/kit/maintenance/end` carry the reservation
+credential plus `operation_id`/`expected_generation`. Resume explicitly rechecks
+idle before marking the same reservation ready. End rechecks idle before opening
+ordinary admission. A completed private receipt supports lost-response
+reconciliation; stale credentials cannot end a newer reservation.
+
+Marker transitions and the FES SSH file executor share
+`/run/fogcast/kit-maintenance.lock`. The executor validates ready operation,
+generation, boot and its planned manifest digest before stopping services. The
+replacement agent loads its marker asynchronously while ordinary admission stays
+revoking, allowing process health to respond without claiming the kit. Neither
+workstation task markers nor the private credential journal grant target access.
+The agent's `--print-maintenance-contract` flag exits without initialization and
+prints `fes-kit-maintenance-v1`, which the executor requires of replacement or
+restored agents. Initial adoption uses the appliance image workflow; missing
+maintenance support has no unguarded compatibility path.
+
+FES `scripts/kit_maintenance.py` handles owned start/resume/end and private journal
+recovery; `scripts/kit_manifest.py` keeps each swap/restore reserved until cleanup
+completes. This is temporary-overlay tooling, not yet a persistent userspace
+release manager. See FES [modular updates](../../../docs/modular-updates.md) for
+remaining durable-package and userspace-release work.
 
 ## Host kit lease
 

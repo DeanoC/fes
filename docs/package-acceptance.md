@@ -9,8 +9,9 @@ The package acceptance runner exercises one explicitly selected package, not
 the factory image. The parent recipe registry also includes cores outside that
 closed set, including `fes.c64`. It does not compile, reseal, update software,
 rewrite `linux.img`, resize FAT or provision a card. It cannot repair a
-version-mismatched kit. Restore a coherent platform separately before physical
-testing.
+kit lacking the required API, runtime protocol or package interfaces. Establish
+those supported contracts separately before physical testing; differing host,
+agent and runtime source revisions alone do not require a software update.
 
 ## Optional input diagnostics
 
@@ -277,10 +278,19 @@ in the existing acceptance runner. Ambiguous mutations are not automatically
 replayed. Exclusive kit use is still required; catalog isolation does not reserve
 hardware or permit takeover of another operator's lease.
 
-By default the host and agent must advertise the same full Git commit. A
-separately authorized labelled development host requires
-`--allow-development-host`; this records the relaxed host-revision policy as
-diagnostic evidence and does not disable runtime compatibility or kit ownership
+The host, agent and runtime must each advertise their explicitly expected
+revision. By default all three expectations are full Git commits; the host and
+agent commits may differ. Revisions identify the tested artifacts, while the
+normal target API admission, runtime protocol and package ABI/interface checks
+determine compatibility. A compatible new host can use the installed kit
+software without updating it merely to match source revisions.
+
+A labelled development host requires `--allow-development-host` and an exact
+`diag-`/`dev-` (or underscore) revision label. This permits that label rather
+than a full host commit; agent/runtime expectations remain full commits and all
+observed identities must still match. The final receipt records
+`host_revision_policy` as `full-commit` or `development-label` based on the host
+identity actually supplied. Neither mode disables compatibility or kit ownership
 checks. The wrapper never changes a binary's embedded revision.
 
 Logs, individual cycle receipts and a final diagnostic result are retained in

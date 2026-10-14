@@ -48,13 +48,42 @@ type Grant struct {
 	Token  string `json:"token"`
 }
 
+// Maintenance is an exclusive, boot-scoped reservation for replacing kit
+// software. It never expires into an execution grant. Tokens are private.
+type MaintenanceStatus struct {
+	State       string `json:"state"`
+	OperationID string `json:"operation_id,omitempty"`
+	Generation  string `json:"generation,omitempty"`
+	Owner       string `json:"owner,omitempty"`
+	Purpose     string `json:"purpose,omitempty"`
+	BootID      string `json:"boot_id,omitempty"`
+	Reason      string `json:"reason,omitempty"`
+}
+
+type MaintenanceStartRequest struct {
+	RequestID string `json:"request_id"`
+	Purpose   string `json:"purpose"`
+}
+
+type MaintenanceEndRequest struct {
+	OperationID        string `json:"operation_id"`
+	ExpectedGeneration string `json:"expected_generation"`
+}
+
+type MaintenanceResumeRequest = MaintenanceEndRequest
+
+type MaintenanceGrant struct {
+	Status MaintenanceStatus `json:"status"`
+	Token  string            `json:"token"`
+}
+
 // ForeignHID reports a kit grant this FogCast host or launcher session must
 // not drive. Busy (held by another session), blocked, recovery-required,
 // hostless, and any non-host owner fail closed. Free or unlabeled grants
 // are not observed as foreign.
 func ForeignHID(s Status) bool {
 	switch s.State {
-	case "busy", "blocked", "recovery-required":
+	case "busy", "blocked", "recovery-required", "maintenance":
 		return true
 	case "held", "revoking":
 		if s.Owner == "" {
@@ -120,6 +149,9 @@ func localCoreLaunchPath(path string) bool {
 
 // ForeignSession reports a held grant that hostless launch must not displace.
 func ForeignSession(s Status) bool {
+	if s.State == "maintenance" || s.State == "recovery-required" {
+		return true
+	}
 	if s.State != "held" && s.State != "revoking" && s.State != "blocked" {
 		return false
 	}

@@ -1,6 +1,7 @@
 """Host-side tests for the kit runtime manifest."""
 
 import hashlib
+import fcntl
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,9 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from tests.test_kit_maintenance import authority, TARGET_ID
+import kit_manifest
+from kit_maintenance import KitMaintenance
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +25,7 @@ FILES = {
     'fogcast-kit': b'kit-stock',
     'fogcast-tenfoot': b'tenfoot-stock',
     'launcher.json': b'{"launcher":true}\n',
-    'agent.toml': b'token = "secret"\n',
+    'agent.toml': f'token = "secret"\ntarget_id = "{TARGET_ID}"\n'.encode(),
 }
 PATHS = {
     'mister-runtime': 'usr/sbin/mister-runtime',
@@ -56,6 +60,10 @@ class KitManifestTests(unittest.TestCase):
         self.env.pop('FES_KIT_FAIL_UMOUNT', None)
         self.env.pop('FES_KIT_FAIL_STAGE', None)
         self.seed()
+        self.api_context = authority(self.root)
+        self.api = self.api_context.__enter__()
+        self.addCleanup(self.api_context.__exit__, None, None, None)
+        self.env['FES_KIT_A_API'] = self.api.url
 
     def seed(self):
         for name, rel in PATHS.items():
@@ -97,6 +105,135 @@ class KitManifestTests(unittest.TestCase):
         self.assertIn('umount', text)
         self.assertNotIn('/sbin/reboot', text)
         self.assertNotRegex(text, r'(?m)^\s*reboot\b')
+
+    def maintenance(self):
+        return KitMaintenance('A', kit_manifest.LocalTransport(self.root), 'local',
+                              self.holds / '.fes-kit-maintenance/KITA.json', timeout=2)
+
+    def test_missing_target_maintenance_support_refuses_before_service_stop(self):
+        self.claim()
+        self.api.unsupported = True
+        candidate = self.work / 'mister-agent'
+        candidate.write_bytes(b'candidate')
+        result = self.fes('swap', 'A', 'mister-agent', str(candidate))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('upgrade required', result.stderr)
+        self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), FILES['mister-agent'])
+        self.assertEqual((self.root / 'tmp/fes-services').read_text(), '')
+
+    def test_failed_apply_keeps_reservation_until_explicit_finish(self):
+        self.claim()
+        candidate = self.work / 'mister-agent'
+        candidate.write_bytes(b'candidate')
+        rejected_env = {**self.env, 'FES_KIT_FAIL_AGENT_CONTRACT': '1'}
+        result = self.fes('swap', 'A', 'mister-agent', str(candidate), env=rejected_env)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('cannot enforce maintenance', result.stderr)
+        self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), FILES['mister-agent'])
+        self.assertEqual(self.api.status_value['state'], 'ready')
+        self.assertTrue((self.holds / '.fes-kit-maintenance/KITA.json').is_file())
+        result = self.fes('maintenance-end', 'A')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.api.status_value['state'], 'completed')
+        self.assertFalse((self.holds / '.fes-kit-maintenance/KITA.json').exists())
+
+    def test_stale_manifest_plan_cannot_replace_newer_manifest(self):
+        session = kit_manifest.Session('A', kit_manifest.LocalTransport(self.root), 'local')
+        session.probe()
+        manifest = self.root / 'media/fat/fes/kit-manifest.json'
+        newer = b'{"format":1,"holder":{"who":"other"}}\n'
+        manifest.write_bytes(newer)
+        source = session.put_text(session.incoming_prefix + '/manifest.json', b'{"format":1}\n')
+        with self.assertRaisesRegex(kit_manifest.KitError, 'manifest changed'):
+            session.apply([f'BOOT {BOOT}', f'MANIFEST {source}', 'COMMIT'])
+        self.assertEqual(manifest.read_bytes(), newer)
+
+    def test_apply_rejects_stale_reservation_before_service_stop(self):
+        marker = self.root / 'run/fogcast/kit-maintenance.json'
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(json.dumps({'state': 'ready', 'operation_id': 'a' * 64,
+                                     'generation': 'b' * 64, 'boot_id': BOOT}))
+        plan = self.root / 'tmp/fes-incoming/stale-plan'
+        plan.parent.mkdir(parents=True)
+        plan.write_text(f'MANIFEST_EXPECT MISSING\nMAINTENANCE {"c" * 64} {"b" * 64} {BOOT}\n'
+                        f'BOOT {BOOT}\nSTOP S50mister-agent\nSTART S50mister-agent\nCOMMIT\n')
+        with self.assertRaisesRegex(kit_manifest.KitError, 'operation changed'):
+            kit_manifest.LocalTransport(self.root).run(['apply', '/tmp/fes-incoming/stale-plan'])
+        self.assertEqual((self.root / 'tmp/fes-services').read_text(), '')
+
+    def test_install_cannot_bypass_component_maintenance(self):
+        source = self.root / 'tmp/fes-incoming/source'
+        source.parent.mkdir(parents=True)
+        source.write_bytes(b'replacement')
+        plan = source.parent / 'plan'
+        plan.write_text(f'MANIFEST_EXPECT MISSING\nBOOT {BOOT}\n'
+                        'INSTALL /tmp/fes-incoming/source /usr/sbin/mister-agent\nCOMMIT\n')
+        with self.assertRaisesRegex(kit_manifest.KitError, 'restricted to baseline metadata'):
+            kit_manifest.LocalTransport(self.root).run(['apply', '/tmp/fes-incoming/plan'])
+        self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), FILES['mister-agent'])
+
+    def test_same_owner_label_cannot_restore_a_newer_task(self):
+        self.claim()
+        candidate = self.work / 'mister-agent'
+        candidate.write_bytes(b'candidate')
+        self.assertEqual(self.fes('swap', 'A', 'mister-agent', str(candidate)).returncode, 0)
+        manifest = self.root / 'media/fat/fes/kit-manifest.json'
+        newer = json.loads(manifest.read_text())
+        newer['holder']['task_id'] = 'd' * 64
+        manifest.write_text(json.dumps(newer))
+        calls = len(self.api.requests)
+        result = self.fes('restore', 'A')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('another diagnostic task', result.stderr)
+        self.assertEqual(len(self.api.requests), calls)
+        self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), b'candidate')
+        result = self.fes('restore', 'A', '--force', '--expected-manifest-sha256', digest(manifest.read_bytes()))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), FILES['mister-agent'])
+
+    def test_executor_lock_refuses_before_shared_scratch_changes(self):
+        lock = self.root / 'run/fogcast/kit-maintenance.lock'
+        lock.parent.mkdir(parents=True, exist_ok=True)
+        scratch = self.root / 'tmp/fes-work/sentinel'
+        scratch.parent.mkdir(parents=True)
+        scratch.write_bytes(b'other transaction')
+        source = self.root / 'tmp/fes-incoming/plan'
+        source.parent.mkdir(parents=True)
+        source.write_text(f'MANIFEST_EXPECT MISSING\nBOOT {BOOT}\nCOMMIT\n')
+        with lock.open('w') as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            with self.assertRaisesRegex(kit_manifest.KitError, 'another kit transaction'):
+                kit_manifest.LocalTransport(self.root).run(['apply', '/tmp/fes-incoming/plan'])
+        self.assertEqual(scratch.read_bytes(), b'other transaction')
+
+    def test_old_marker_and_manifest_without_task_identity_cannot_swap(self):
+        self.claim()
+        hold = next(self.holds.glob('KITA-HELD-BY-*'))
+        hold.write_text('\n'.join(line for line in hold.read_text().splitlines()
+                                  if not line.startswith('task_id=')) + '\n')
+        manifest = self.root / 'media/fat/fes/kit-manifest.json'
+        old = json.loads(manifest.read_text())
+        old['holder'].pop('task_id')
+        manifest.write_text(json.dumps(old))
+        candidate = self.work / 'mister-agent'
+        candidate.write_bytes(b'candidate')
+        calls = len(self.api.requests)
+        result = self.fes('swap', 'A', 'mister-agent', str(candidate))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('different diagnostic task', result.stderr)
+        self.assertEqual(len(self.api.requests), calls)
+        self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), FILES['mister-agent'])
+
+    def test_boot_change_rejects_metadata_plan_before_publication(self):
+        source = self.root / 'tmp/fes-incoming/manifest.json'
+        source.parent.mkdir(parents=True)
+        source.write_text('{"holder":{"who":"stale"}}')
+        plan = source.parent / 'plan'
+        plan.write_text('MANIFEST_EXPECT MISSING\nBOOT 22222222-2222-4222-8222-222222222222\n'
+                        'MANIFEST /tmp/fes-incoming/manifest.json\nCOMMIT\n')
+        with self.assertRaisesRegex(kit_manifest.KitError, 'boot id changed'):
+            kit_manifest.LocalTransport(self.root).run(['apply', '/tmp/fes-incoming/plan'])
+        self.assertFalse((self.root / 'media/fat/fes/kit-manifest.json').exists())
 
     def test_claim_is_exclusive_and_status_names_the_holder(self):
         self.claim()
@@ -214,15 +351,20 @@ class KitManifestTests(unittest.TestCase):
         self.assertIn('55', kills)
         self.assertFalse(stray.exists())
 
-    def test_boot_id_change_restores_files_and_fails(self):
+    def test_boot_id_change_refuses_restoration_until_explicitly_bound(self):
         self.claim()
         new = self.work / 'mister-agent'
         new.write_bytes(b'agent-swapped')
         self.assertEqual(self.fes('swap', 'A', 'mister-agent', str(new)).returncode, 0)
         (self.root / 'proc/sys/kernel/random/boot_id').write_text('22222222-2222-4222-8222-222222222222\n')
         restored = self.fes('restore', 'A')
-        self.assertEqual(restored.returncode, 4, restored.stderr)
+        self.assertNotEqual(restored.returncode, 0, restored.stderr)
         self.assertIn('boot id changed', restored.stderr)
+        self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), b'agent-swapped')
+        self.assertTrue(list(self.holds.glob('KITA-HELD-BY-*')))
+        restored = self.fes('restore', 'A', '--expected-boot-id',
+                            '22222222-2222-4222-8222-222222222222')
+        self.assertEqual(restored.returncode, 0, restored.stderr)
         self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), FILES['mister-agent'])
         self.assertEqual(list(self.holds.glob('KITA-HELD-BY-*')), [])
 
@@ -445,23 +587,23 @@ class KitManifestTests(unittest.TestCase):
         self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), b'agent-image-2')
 
     def test_baseline_restore_removes_a_file_absent_from_the_snapshot(self):
-        agent = self.root / PATHS['agent.toml']
+        agent = self.root / PATHS['launcher.json']
         agent.unlink()
         self.claim()
         saved = self.fes('baseline', 'A', 'before')
         self.assertEqual(saved.returncode, 0, saved.stderr)
         snapshot = json.loads((self.root / 'media/fat/fes/baselines/before.json').read_text())
-        self.assertTrue(snapshot['files']['agent.toml']['missing'])
+        self.assertTrue(snapshot['files']['launcher.json']['missing'])
         agent.write_bytes(b'token = "added"\n')
-        updated = self.work / 'agent.toml'
+        updated = self.work / 'launcher.json'
         updated.write_bytes(b'token = "swapped"\n')
-        swapped = self.fes('swap', 'A', 'agent.toml', str(updated), '--why', 'added after baseline')
+        swapped = self.fes('swap', 'A', 'launcher.json', str(updated), '--why', 'added after baseline')
         self.assertEqual(swapped.returncode, 0, swapped.stderr)
         restored = self.fes('restore', 'A', '--baseline', 'before')
         self.assertEqual(restored.returncode, 0, restored.stderr)
         self.assertFalse(agent.exists())
         manifest = json.loads((self.root / 'media/fat/fes/kit-manifest.json').read_text())
-        self.assertNotIn('agent.toml', manifest['components'])
+        self.assertNotIn('launcher.json', manifest['components'])
         self.assertEqual(list(self.holds.glob('KITA-HELD-BY-*')), [])
         self.assertEqual((self.root / PATHS['mister-agent']).read_bytes(), FILES['mister-agent'])
 
@@ -538,7 +680,14 @@ class KitManifestTests(unittest.TestCase):
         dest = self.core_path('./core.rbf', package)
         plan = self.root / 'tmp/fes-incoming/plan'
         digest_bytes = digest(body)
+        marker = self.root / 'run/fogcast/kit-maintenance.json'
+        marker.parent.mkdir(parents=True, exist_ok=True)
+        marker.write_text(json.dumps({'state': 'ready', 'operation_id': 'a' * 64,
+                                     'generation': 'b' * 64, 'boot_id': BOOT}))
+        manifest_sha = digest((self.root / 'media/fat/fes/kit-manifest.json').read_bytes())
         plan.write_text(
+            f'MANIFEST_EXPECT {manifest_sha}\n'
+            f'MAINTENANCE {"a" * 64} {"b" * 64} {BOOT}\n'
             f'BOOT {BOOT}\n'
             f'PLACE path-test {dest} /tmp/fes-incoming/payload tmpfs 0755 '
             f'/media/fat/fes/stock/{GOOD}/path-test /tmp/fes-swap/path-test '

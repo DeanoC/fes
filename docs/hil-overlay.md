@@ -12,8 +12,10 @@ the syntax fixture and must not be run on a kit. HIL evidence includes
 `hil_plan.py evidence` as `--kit-status`. Evidence checks the boot id and
 each overlaid kit binary's `current` hash, and copies the saved text into
 the report. A persistent swap (including `launcher.json` and `agent.toml`)
-has `--why` in that status. Release the kit.py lease before swap or restore;
-those commands restart services and do not reboot the board.
+has `--why` in that status. Release the kit.py execution lease before swap or
+restore; those commands acquire their own target maintenance reservation across
+service restart and do not reboot the board. A supporting installed agent is
+required; follow the one-time adoption procedure in kit sharing.
 
 1. Authorize the designated kit and prepare a clean worktree at the exact full PR head. Build the affected binaries and cores from that head.
 2. For every SSH/SCP call create a throwaway known_hosts file and use `StrictHostKeyChecking=accept-new` (never `/dev/null`, the real known_hosts, or `StrictHostKeyChecking=no`).
@@ -71,7 +73,9 @@ before the host attestation command is run.
 6. **Binary-only and mixed plans:** release before deployment because restart
    invalidates a held lease. Save status, confirm `"state": "free"`, and record
    `released-for-restart`. Claim the kit if this session does not already hold
-   it, then install each changed file with `python3 scripts/fes kit swap`.
+   it, then install each changed file with `python3 scripts/fes kit swap`. Each
+   transaction is fenced by the target maintenance operation. On failure, repair
+   and explicitly resume/finish it before attempting execution.
 
 7. **Mixed kit binary and core sequence:** after deploy and restart, run
    `fogcast core-load` using the core archive from the exact-head build.
