@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import copy
+import io
 import json
 import os
 import shutil
@@ -10,6 +11,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack, redirect_stdout
+from types import SimpleNamespace
 from unittest.mock import patch
 from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
@@ -114,7 +117,8 @@ class BuildFesSg1000Tests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("FES_TOOLCHAIN_LOCKFILE=", result.stdout)
-        self.assertIn("toolchains/registered-memory.lock", result.stdout)
+        self.assertIn("toolchain.lock", result.stdout)
+        self.assertNotIn("toolchains/registered-memory.lock", result.stdout)
         self.assertIn("FES_TOOLCHAIN_ROOT=", result.stdout)
         self.assertIn("build/toolchain/fes-sg1000", result.stdout)
         self.assertIn("FES_TOOLCHAIN_GPU_ROUTER=HIP", result.stdout)
@@ -156,15 +160,16 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertIn("cores/fes-sg1000/constraints-oss.qsf", joined)
         self.assertIn("cores/fes-sg1000/clocks-oss.sdc", joined)
         self.assertNotIn("cores/fes-sg1000/clocks.sdc", joined)
-        self.assertEqual(SG1000_TOOLCHAIN_LOCK, "toolchains/registered-memory.lock")
+        self.assertEqual(SG1000_TOOLCHAIN_LOCK, "toolchain.lock")
         self.assertEqual(SG1000_TOOLCHAIN_ROOT, "build/toolchain/fes-sg1000")
         self.assertIn(SG1000_TOOLCHAIN_LOCK, OSS_PINNED_INPUTS)
         self.assertIn("scripts/search_placer_qor.py", OSS_PINNED_INPUTS)
-        self.assertEqual(SG1000_TOOL_COMMITS["yosys"], "e2d425dee148cc60c50f4e9b354a10d90eab15f4")
-        self.assertEqual(SG1000_TOOL_COMMITS["nextpnr"], "a93fe013af841214ecb4f7be3af0de65f3de3a0f")
+        self.assertEqual(SG1000_TOOL_COMMITS["yosys"], "5391eeb1e91b38a3d0e96d04f24cf921743c9c78")
+        self.assertEqual(SG1000_TOOL_COMMITS["nextpnr"], "9128800fa6e77c4138088a7107a95376ba47ff15")
         pins = load_lock(ROOT / SG1000_TOOLCHAIN_LOCK)
         from scripts.build_fes_coleco_oss import COLECO_TOOLCHAIN_LOCK
         self.assertEqual(SG1000_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)
+        self.assertEqual(COLECO_TOOLCHAIN_LOCK, "toolchain.lock")
         self.assertEqual(pins["yosys"].commit, SG1000_TOOL_COMMITS["yosys"])
         self.assertEqual(pins["nextpnr"].commit, SG1000_TOOL_COMMITS["nextpnr"])
         global_pins = load_lock(ROOT / "toolchain.lock")
@@ -393,7 +398,7 @@ class BuildFesSg1000Tests(unittest.TestCase):
         self.assertNotIn("/home/deano/", readme)
         self.assertIn("Quartus", readme)
         self.assertIn("FES_COLECO_OSS", readme)
-        self.assertIn("e2d425de", readme)
+        self.assertIn("5391eeb1", readme)
         self.assertIn("package-only", readme.lower())
         self.assertIn("sim-fes-sg1000-rom-link", readme)
         self.assertIn("in the factory image", readme.lower())
@@ -455,6 +460,44 @@ class BuildFesSg1000Tests(unittest.TestCase):
             self.assertIn(bytes.fromhex("3ee4d3403ef4d340"), data)
             self.assertIn(bytes.fromhex("3e9fd340"), data)
             self.assertIn(b"\x32\x00\xc0", data)
+
+    def test_diagnostic_auth_honors_gpu_router_and_toolchain_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            output = Path(directory)
+            toolchain = Path("/tmp/sg1000-cuda")
+            (output / "synth.json").write_text("{}")
+            auth = {
+                name: SimpleNamespace(identity="tool", path=Path(f"/cache/install/bin/{name}"))
+                for name in ("yosys", "nextpnr-mistral", "mistral")
+            }
+            authenticate = stack.enter_context(patch.object(
+                build_fes_sg1000_oss, "_authenticate_sg1000_tools", return_value=auth))
+            stack.enter_context(patch.object(build_fes_sg1000_oss, "_prepare_output", return_value=output))
+            stack.enter_context(patch.object(build_fes_sg1000_oss, "build_commands", return_value=(("yosys",), ())))
+            stack.enter_context(patch.object(build_fes_sg1000_oss, "_run_tool"))
+            stack.enter_context(patch.object(
+                build_fes_sg1000_oss, "validate_synth_evidence",
+                return_value={"synthesis_cells": {
+                    "altera_pll": 1, "MISTRAL_IO": 2, "MISTRAL_M10K": 3, "MISTRAL_M10K_TDP": 4}}))
+
+            def run(argv: list[str]) -> int:
+                authenticate.reset_mock()
+                with redirect_stdout(io.StringIO()):
+                    return build_fes_sg1000_oss.main(["--root", str(ROOT), *argv])
+
+            cuda = ["--gpu-router", "CUDA", "--toolchain-root", str(toolchain)]
+            self.assertEqual(run(["--synth-only", *cuda]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=toolchain, gpu_router="CUDA")
+            self.assertEqual(run(["--synth-only"]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=None, gpu_router="HIP")
+            self.assertEqual(run(["--print-commands", "--synth-only", *cuda]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=toolchain, gpu_router="CUDA")
+            self.assertEqual(run(["--print-commands", "--synth-only"]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=None, gpu_router="HIP")
 
 
 class Sg1000SyncM10kTests(unittest.TestCase):

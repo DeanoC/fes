@@ -208,7 +208,7 @@
     "scripts/source_provenance.py",
     "scripts/source_repository.py",
     "scripts/toolchain_cache.py",
-    "toolchains/registered-memory.lock"
+    "toolchain.lock"
   ],
   "build_fes_sms_oss": [
     "cores/fes-coleco/clocks-oss.sdc",

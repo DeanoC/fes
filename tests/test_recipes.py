@@ -149,7 +149,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.sg1000": {
                 "producer_script": "scripts/build_fes_sg1000_oss.py",
                 "producer_module": "scripts.build_fes_sg1000_oss",
-                "lock_path": "toolchains/registered-memory.lock",
+                "lock_path": "toolchain.lock",
                 "selection_filename": "fes-sg1000.package-selection.toml",
                 "authenticate": "_authenticate_sg1000_tools",
                 "package_dir_env": "FES_SG1000_PACKAGE_DIR",
@@ -211,6 +211,7 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(recipes.recipe_for("fes.spectrum").lock_path, pong.lock_path)
         self.assertEqual(sms.lock_path, pong.lock_path)
         self.assertEqual(sms.lock_path, coleco.lock_path)
+        self.assertEqual(recipes.recipe_for("fes.sg1000").lock_path, pong.lock_path)
         self.assertEqual(pong.cache_root, coleco.cache_root)
         self.assertEqual(pong.cache_root, sms.cache_root)
         with self.assertRaisesRegex(ValueError, "unknown format-2 recipe"):
