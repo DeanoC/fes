@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure the 130 MHz RAM tester with the accepted opt-in compiler stack.
+"""Measure the 130 MHz RAM tester on the shared toolchain.
 
 This is a host-only timing diagnostic. A completed route remains in build/ even
 when it misses timing; it is not validated or exported as a loadable package.
@@ -23,14 +23,10 @@ from scripts.search_placer_qor import ranking_document, search
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = "scripts/diagnose_fes_ramtest_timing.py"
-LOCK = "toolchains/ramtest-timing.lock"
+LOCK = "toolchain.lock"
 OUTPUT = Path("build/fes-ramtest-timing-130")
-TOOLCHAIN_ROOT = Path("build/toolchain-ramtest-timing")
-TOOL_COMMITS = {
-    **board.EXPECTED_TOOL_COMMITS,
-    "yosys": "22bf145df1438aa46eb912beab5b5c19e491906a",
-    "nextpnr": "24f9a1db0737559977a13abb2d05cceafa5e6142",
-}
+TOOLCHAIN_ROOT = Path("build/toolchain")
+TOOL_COMMITS = board.EXPECTED_TOOL_COMMITS
 SEED = 2
 REPLICATION_BUDGET = 4
 REMAP_CANDIDATE = 0
@@ -54,7 +50,7 @@ def fresh_directory(path: Path) -> None:
 
 
 def final_hold_violation(candidate) -> bool:
-    """Require a completed HIP signoff; screen only its final reported holds."""
+    """Require a completed GPU signoff; screen only its final reported holds."""
     if set(candidate.fmax) != {name for name, _ in REQUIRED_CLOCKS}:
         raise board.BuildError(f"diagnostic route did not produce the three expected clock rows; see {candidate.log}")
     log = Path(candidate.log).read_text()

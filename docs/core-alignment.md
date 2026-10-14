@@ -142,9 +142,9 @@ Completion: the recipe `lock_path` is `toolchain.lock`, the producer
 authenticates that file, the HIP seal meets the core's existing clock gates,
 and the old lock is deleted if nothing else selects it.
 
-`toolchains/ramtest-timing.lock` is the timing diagnostic, not a product pin.
-Do not bump it as if it were a core. Point the diagnostic at the shared pin
-or delete it when the diagnostic no longer needs a private pin.
+The 130 MHz timing diagnostic uses `toolchain.lock`. OSS has not closed 130 MHz.
+The shared-pin seed-2 route reached 110.91 MHz on `ram_clock.clocks[0]`. That
+miss is known and is not a private pin.
 
 ### 3. One Z80
 

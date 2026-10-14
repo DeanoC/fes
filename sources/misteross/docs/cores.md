@@ -260,8 +260,7 @@ mailbox uses.
 
 The Atari ST producer now pins DeanoC/nextpnr head `3d4a5b35` in its own
 `toolchains/atari-st.lock`; RAM test and menu use the shared `toolchain.lock`
-and its HIP compiler slot. `toolchains/ramtest-timing.lock` remains a separate
-opt-in experimental stack for the 130 MHz timing comparison.
+and its HIP compiler slot. The 130 MHz timing comparison uses that same pin.
 Requalification is recorded in the [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md).
 
 The [Atari 520ST](../cores/fes-atari-st/README.md) is the first 16-bit core.
