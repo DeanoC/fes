@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import copy
+import io
 import json
 import os
 import shutil
@@ -10,6 +11,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack, redirect_stdout
+from types import SimpleNamespace
 from unittest.mock import patch
 from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
@@ -456,6 +459,44 @@ class BuildFesSg1000Tests(unittest.TestCase):
             self.assertIn(bytes.fromhex("3ee4d3403ef4d340"), data)
             self.assertIn(bytes.fromhex("3e9fd340"), data)
             self.assertIn(b"\x32\x00\xc0", data)
+
+    def test_diagnostic_auth_honors_gpu_router_and_toolchain_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            output = Path(directory)
+            toolchain = Path("/tmp/sg1000-cuda")
+            (output / "synth.json").write_text("{}")
+            auth = {
+                name: SimpleNamespace(identity="tool", path=Path(f"/cache/install/bin/{name}"))
+                for name in ("yosys", "nextpnr-mistral", "mistral")
+            }
+            authenticate = stack.enter_context(patch.object(
+                build_fes_sg1000_oss, "_authenticate_sg1000_tools", return_value=auth))
+            stack.enter_context(patch.object(build_fes_sg1000_oss, "_prepare_output", return_value=output))
+            stack.enter_context(patch.object(build_fes_sg1000_oss, "build_commands", return_value=(("yosys",), ())))
+            stack.enter_context(patch.object(build_fes_sg1000_oss, "_run_tool"))
+            stack.enter_context(patch.object(
+                build_fes_sg1000_oss, "validate_synth_evidence",
+                return_value={"synthesis_cells": {
+                    "altera_pll": 1, "MISTRAL_IO": 2, "MISTRAL_M10K": 3, "MISTRAL_M10K_TDP": 4}}))
+
+            def run(argv: list[str]) -> int:
+                authenticate.reset_mock()
+                with redirect_stdout(io.StringIO()):
+                    return build_fes_sg1000_oss.main(["--root", str(ROOT), *argv])
+
+            cuda = ["--gpu-router", "CUDA", "--toolchain-root", str(toolchain)]
+            self.assertEqual(run(["--synth-only", *cuda]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=toolchain, gpu_router="CUDA")
+            self.assertEqual(run(["--synth-only"]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=None, gpu_router="HIP")
+            self.assertEqual(run(["--print-commands", "--synth-only", *cuda]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=toolchain, gpu_router="CUDA")
+            self.assertEqual(run(["--print-commands", "--synth-only"]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=None, gpu_router="HIP")
 
 
 class Sg1000SyncM10kTests(unittest.TestCase):
