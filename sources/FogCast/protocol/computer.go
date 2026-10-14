@@ -28,7 +28,7 @@ const (
 	Apple2FloppyBytes int64 = int64(generated.FesComputerApple2FloppyBytes)
 	// Apple2FloppyUnit is the media unit fes.media.apple2-floppy occupies.
 	Apple2FloppyUnit uint8 = uint8(generated.FesComputerApple2FloppyUnit)
-	// CassetteRole is the library media role of a ZX Spectrum .tap image.
+	// CassetteRole is the library media role of a Spectrum .tap or ZX81 .p image.
 	CassetteRole = "cassette"
 	// SpectrumTapeMinBytes is the smallest fes.media.spectrum-tape image.
 	SpectrumTapeMinBytes int64 = int64(generated.FesComputerSpectrumTapeMinBytes)
@@ -187,6 +187,10 @@ func (u MediaUnitStatus) Valid() bool {
 		return u.Interface == SpectrumTapeInterface() && u.Unit == SpectrumTapeUnit &&
 			int64(u.MinBytes) == SpectrumTapeMinBytes && int64(u.MaxBytes) == SpectrumTapeMaxBytes
 	}
+	if u.Interface.ID == Zx81TapeInterface().ID {
+		return u.Interface == Zx81TapeInterface() && u.Unit == Zx81TapeUnit &&
+			int64(u.MinBytes) == Zx81TapeMinBytes && int64(u.MaxBytes) == Zx81TapeMaxBytes
+	}
 	return true
 }
 
@@ -313,6 +317,11 @@ func AdmitSpectrumTapeName(name string) bool {
 // AdmitSpectrumTapeSize reports whether a .tap image fits the unit.
 func AdmitSpectrumTapeSize(size int64) bool {
 	return size >= SpectrumTapeMinBytes && size <= SpectrumTapeMaxBytes
+}
+
+// AdmitZx81TapeSize reports whether a .p image fits the ZX81 tape unit.
+func AdmitZx81TapeSize(size int64) bool {
+	return size >= Zx81TapeMinBytes && size <= Zx81TapeMaxBytes
 }
 
 // AdmitC64DiskName accepts a Commodore D64 basename.

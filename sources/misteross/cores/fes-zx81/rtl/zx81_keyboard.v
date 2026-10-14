@@ -85,7 +85,8 @@ module zx81_keyboard #(
             if (held[bit_index])
                 next_matrix = press(next_matrix, key_index(bit_index[6:0]));
         end
-        if (held[128] || held[132])
+        // Modifier row: 129/133 are Left/Right Shift. 128/132 are Control.
+        if (held[129] || held[133])
             next_matrix[0] = 1'b0;
         if (held[42]) begin
             next_matrix[0] = 1'b0;

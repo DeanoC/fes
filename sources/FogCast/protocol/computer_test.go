@@ -104,6 +104,27 @@ func TestAtariStFloppyContract(t *testing.T) {
 	}
 }
 
+func TestZx81TapeProjection(t *testing.T) {
+	descriptor := apple2Descriptor(corepackage.Interface{ID: "fes.media.zx81-tape", Major: 1, Required: true})
+	got := DeclaredCoreMediaCapabilities(descriptor)
+	encoded, err := json.Marshal(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `[{"role":"cassette","format":"zx81-p","min_bytes":1,"max_bytes":16384,"interface":{"id":"fes.media.zx81-tape","major":1,"minor":0},"transport":"fes-computer-media-unit-v1","unit":0,"extensions":[".p"]}]`
+	if string(encoded) != want || !DeclaresZx81Tape(descriptor) || DeclaresDiskMedia(descriptor) {
+		t.Fatalf("projection %s", encoded)
+	}
+	unit := MediaUnitStatus{Unit: Zx81TapeUnit, Interface: Zx81TapeInterface(), MinBytes: 1, MaxBytes: 16384, ChunkBytes: 512, State: MediaUnitReady}
+	if !unit.Valid() {
+		t.Fatal("exact ZX81 tape unit rejected")
+	}
+	unit.MaxBytes = 65536
+	if unit.Valid() {
+		t.Fatal("widened ZX81 tape unit accepted")
+	}
+}
+
 func TestSpectrumTapeProjection(t *testing.T) {
 	got := DeclaredCoreMediaCapabilities(apple2Descriptor(corepackage.Interface{ID: "fes.media.spectrum-tape", Major: 1, Required: true}))
 	encoded, err := json.Marshal(got)

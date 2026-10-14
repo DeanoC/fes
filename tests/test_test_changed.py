@@ -37,12 +37,12 @@ class TestChangedTest(unittest.TestCase):
         self.change("sources/misteross/cores/fes-common/sim/z80/cpu_tb.cpp")
         self.change("sources/misteross/scripts/sim_fes_z80.py")
         result = self.plan()
-        self.assertEqual(set(result["impact"]["cores"]), {"sg1000", "spectrum", "z80"})
+        self.assertEqual(set(result["impact"]["cores"]), {"sg1000", "spectrum", "z80", "zx81"})
         targets = [c["argv"][1] for c in result["commands"]
                    if c["lane"] == "fpga" and c["argv"][0] == "make"]
         self.assertEqual(set(targets), {"sim-fes-z80", "sim-fes-sg1000", "sim-fes-sg1000-oss",
                                         "sim-fes-sg1000-rom-link", "sim-fes-sg1000-gp-audio",
-                                        "sim-fes-spectrum"})
+                                        "sim-fes-spectrum", "sim-fes-zx81"})
         self.assertEqual({lane for lane, enabled in result["impact"]["lanes"].items() if enabled},
                          {"parent", "fpga"})
 

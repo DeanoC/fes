@@ -90,10 +90,12 @@ and content selection; the MiSTer is a small, directly controlled target.
   Library FES Pong packages with the
   persistence interfaces retain paddle speed and best rally on the target;
   [settings/progress APIs and CLI](docs/core-package-library.md#persistent-settings-and-progress)
-  expose durable data. Library FES ZX81 is a volatile `fes.simple-computer`
-  entry (`fes.keyboard`, no gamepad); `POST /api/v1/session/launch` with its
+  expose durable data. Library FES ZX81 is a volatile `fes.computer` 1.0
+  entry (`fes.keyboard.hid`, `fes.media.zx81-tape`). A selected `.p` uses role
+  `cassette` and is inserted into unit 0 after Start; a setup saved earlier
+  as `blob` still launches on that unit. `POST /api/v1/session/launch` with its
   `game_id` programs the package and attaches keyboard input. Library FES
-  cores with a recognized play ABI (including ZX81 `fes.simple-computer` 1.0
+  cores with a recognized play ABI (including ZX81 `fes.computer` 1.0
   and Coleco `fes.application` 1.0) are ordinary `fpga_native` play sessions, not
   Diagnostic `fpga_development`. That development label is the no-ABI
   fallback and the explicit LoadDevelopmentRBF path. Development package

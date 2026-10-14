@@ -28,13 +28,20 @@ func (s *Service) ReplaceLiveMedia(parent context.Context, mediaID, name string,
 	if !b.Valid() || b.Target == "" || protocol.ValidateDigest(mediaID) != nil || !protocol.AdmitTapeMediaName(name) {
 		return protocol.Status{}, protocol.LiveMediaRequestError()
 	}
-	ctx, cancel := serviceTimeout(parent, s.uploadTimeout)
+	ctx, cancel := serviceTimeout(parent, max(s.uploadTimeout, 150*time.Second))
 	defer cancel()
 	release, err := s.acquireLifecycle(ctx)
 	if err != nil {
 		return protocol.Status{}, err
 	}
 	defer release()
+	zx81, err := s.zx81TapeUnitActive(ctx, b)
+	if err != nil {
+		return protocol.Status{}, err
+	}
+	if zx81 {
+		return s.replaceLiveZx81TapeLocked(ctx, mediaID, b)
+	}
 	media, err := s.readLiveTapeMedia(ctx, mediaID)
 	if err != nil {
 		return protocol.Status{}, err
@@ -173,6 +180,9 @@ func (s *Service) clearLiveMediaLocked(ctx, owner context.Context, b protocol.De
 		return status, err
 	}
 	if status, handled, err := s.ejectComputerUnit(ctx, client, prior, b, cassetteUnitBinding(b), protocol.SpectrumTapeInterface()); handled || err != nil {
+		return status, err
+	}
+	if status, handled, err := s.ejectComputerUnit(ctx, client, prior, b, zx81TapeUnitBinding(b), protocol.Zx81TapeInterface()); handled || err != nil {
 		return status, err
 	}
 	loader, ok := client.(liveMediaClient)

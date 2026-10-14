@@ -930,7 +930,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			const bool media = interface.id == FesComputerInterfaceMediaApple2FloppyID ||
 				interface.id == FesComputerInterfaceMediaC64DiskID ||
 				interface.id == FesComputerInterfaceMediaAtariStFloppyID ||
-				interface.id == FesComputerInterfaceMediaSpectrumTapeID;
+				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
+				interface.id == FesComputerInterfaceMediaZx81TapeID;
 			const bool known = interface.id == FesComputerInterfaceVideoFixed720p60ID ||
 				interface.id == FesComputerInterfaceKeyboardHidID ||
 				interface.id == FesComputerInterfaceMouseRelativeID ||

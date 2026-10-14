@@ -87,7 +87,7 @@ SHARED_RTL = {
     'fes_audio_output.v': ('zx81', 'coleco', 'sg1000', 'sms', 'apple2', 'c64', 'spectrum', 'atari-st'),
     'fes_sn76489.sv': ('coleco', 'sg1000'),
     'fes_z80_ce.sv': COLECO_CONSUMERS,
-    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st'),
+    'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81'),
     't80pa.v': ('coleco', 'sms'),
     'fes_video_part_direct.v': ('coleco', 'atari-st'),
     'fes_video_part_scanlines.v': ('coleco', 'atari-st'),
@@ -128,7 +128,7 @@ def fpga_cores(path):
         if (len(parts) >= 4 and parts[1] == 'fes-common'
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'z80'):
             if parts[2] == 'rtl':
-                return ('z80', 'sg1000', 'spectrum'), 'shared original Z80 RTL consumers'
+                return ('z80', 'sg1000', 'spectrum', 'zx81'), 'shared original Z80 RTL consumers'
             return ('z80',), 'standalone Z80 simulation fixtures'
         if (len(parts) >= 4 and parts[1] == 'fes-common'
                 and parts[2] in ('rtl', 'sim') and parts[3] == 'riscv'):

@@ -130,7 +130,7 @@ func (a *App) selectHardwareTapeLocked(tape *hostclient.HardwareTape) {
 			if err != nil {
 				return err
 			}
-			role, id = "blob", media.MediaID
+			role, id = protocol.CassetteRole, media.MediaID
 		}
 		var err error
 		selected, err = a.client.SelectCoreEntryMedia(ctx, game, pkg, expected, role, id)
@@ -179,7 +179,7 @@ func (a *App) importHardwareFileLocked(path string) {
 		if err != nil {
 			return err
 		}
-		selected, err = a.client.SelectCoreEntryMedia(ctx, game, pkg, expected, "blob", media.MediaID)
+		selected, err = a.client.SelectCoreEntryMedia(ctx, game, pkg, expected, protocol.CassetteRole, media.MediaID)
 		return err
 	}, func() {
 		s.PickID = ""

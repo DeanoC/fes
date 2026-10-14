@@ -55,7 +55,7 @@ func TestHardwareCassetteSelectsNextLaunchAndKeepsExpectedBinding(t *testing.T) 
 	app.mu.Unlock()
 	waitCoreLibrary(t, app)
 	mu.Lock()
-	if imports != 1 || selection["expected_package_id"] != pkg || selection["expected_media_id"] != expected || selection["media_id"] != tape.SHA256 || selection["media_role"] != "blob" {
+	if imports != 1 || selection["expected_package_id"] != pkg || selection["expected_media_id"] != expected || selection["media_id"] != tape.SHA256 || selection["media_role"] != "cassette" {
 		t.Fatalf("wrong binding: imports=%d selection=%+v", imports, selection)
 	}
 	mu.Unlock()

@@ -821,7 +821,10 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
         assert(check(malformed).code==mister::ErrorCode::unsupported_interface);
     }
 
-	for (const char* medium : {"fes.media.apple2-floppy", "fes.media.c64-disk", "fes.media.spectrum-tape"}) {
+	auto zx81_tape = video;
+	zx81_tape.interfaces.push_back({"fes.media.zx81-tape", 1, 0, true});
+	assert(check(zx81_tape).ok());
+	for (const char* medium : {"fes.media.apple2-floppy", "fes.media.c64-disk", "fes.media.spectrum-tape", "fes.media.zx81-tape"}) {
 		auto mixed = atari;
 		mixed.interfaces.push_back({medium, 1, 0, true});
 		assert(check(mixed).code == mister::ErrorCode::unsupported_interface);
