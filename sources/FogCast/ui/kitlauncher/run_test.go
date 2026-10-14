@@ -625,7 +625,7 @@ func TestRunForwardsCapableCustomPaddleAndKeepsStopChord(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	client := NewClient(Config{API: server.URL})
-	client.localCore = func(context.Context) (bool, error) { return true, nil }
+	client.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{Bound: true}, nil }
 	client.localInputPath = path
 	_ = Run(ctx, client, func(Model) {}, func() (Pad, error) { return &customSessionPad{}, nil })
 	frame := awaitFrame(t, frames)
@@ -863,7 +863,7 @@ func TestRunRefetchesAttractAfterLocalPlaylist(t *testing.T) {
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
 	client.SetCatalogConfig(catalog)
 	client.SetLocalCores(idleLocalCore{})
-	client.SetLocalInput("", func(context.Context) (bool, error) { return false, nil })
+	client.SetLocalInput("", func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{}, nil })
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	var phase atomic.Int32
@@ -965,7 +965,7 @@ func TestRunHealthFailureReplacesMixedHostPlaylistWithLocalRows(t *testing.T) {
 	client := NewClient(Config{API: server.URL, HPSFramebuffer: true})
 	client.SetCatalogConfig(catalog)
 	client.SetLocalCores(idleLocalCore{})
-	client.SetLocalInput("", func(context.Context) (bool, error) { return false, nil })
+	client.SetLocalInput("", func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{}, nil })
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	var phase atomic.Int32

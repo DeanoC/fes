@@ -131,7 +131,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.coleco": {
                 "producer_script": "scripts/build_fes_coleco_socket_v2.py",
                 "producer_module": "scripts.build_fes_coleco_socket_v2",
-                "lock_path": "toolchains/coleco-sgm.lock",
+                "lock_path": "toolchain.lock",
                 "selection_filename": "fes-coleco.package-selection.toml",
                 "authenticate": "authenticate_tools",
                 "package_dir_env": "FES_COLECO_PACKAGE_DIR",
@@ -158,7 +158,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.apple2": {
                 "producer_script": "scripts/build_fes_apple2_oss.py",
                 "producer_module": "scripts.build_fes_apple2_oss",
-                "lock_path": "toolchains/apple2.lock",
+                "lock_path": "toolchain.lock",
                 "selection_filename": "fes-apple2.package-selection.toml",
                 "authenticate": "_authenticate_apple2_tools",
                 "package_dir_env": "FES_APPLE2_PACKAGE_DIR",
@@ -176,7 +176,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.spectrum": {
                 "producer_script": "scripts/build_fes_spectrum_oss.py",
                 "producer_module": "scripts.build_fes_spectrum_oss",
-                "lock_path": "toolchains/spectrum.lock",
+                "lock_path": "toolchain.lock",
                 "selection_filename": "fes-spectrum.package-selection.toml",
                 "authenticate": "_authenticate_spectrum_tools",
                 "package_dir_env": "FES_SPECTRUM_PACKAGE_DIR",
@@ -206,7 +206,9 @@ class RecipeRegistryTest(unittest.TestCase):
         coleco = recipes.recipe_for("fes.coleco")
         sms = recipes.recipe_for("fes.sms")
         self.assertNotEqual(pong.lock_path, zx81.lock_path)
-        self.assertNotEqual(coleco.lock_path, pong.lock_path)
+        self.assertEqual(coleco.lock_path, pong.lock_path)
+        self.assertEqual(recipes.recipe_for("fes.apple2").lock_path, pong.lock_path)
+        self.assertEqual(recipes.recipe_for("fes.spectrum").lock_path, pong.lock_path)
         self.assertNotEqual(sms.lock_path, pong.lock_path)
         self.assertNotEqual(sms.lock_path, coleco.lock_path)
         self.assertEqual(pong.cache_root, coleco.cache_root)

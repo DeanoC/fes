@@ -29,7 +29,6 @@ The full repository checks also include:
 ```sh
 make archive-audit
 scripts/check-active-tree.sh
-scripts/check-history.sh
 ```
 
 `check-active-tree.sh` rebuilds the canonical host products while checking

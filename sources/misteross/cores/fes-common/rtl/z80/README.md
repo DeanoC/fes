@@ -3,9 +3,11 @@
 Two synthesizable Z80 variants written from published behavior specifications.
 The new RTL does not instantiate, translate or include T80, TV80 or an emulator.
 SG-1000 and Spectrum select the NMOS variant at native cadence. Spectrum also
-has a documented-only 56 MHz development build. Coleco, SMS and ZX81 retain
-their existing CPU selections. Each consumer requires its own full-system
-timing and hardware qualification.
+has a documented-only 56 MHz development build. Coleco, SMS and ZX81 still
+instantiate TV80/T80. That is the remaining divergence, not a second product
+CPU. The retirement order is
+[core alignment](../../../../../../docs/core-alignment.md). Each consumer
+requires its own full-system timing and hardware qualification.
 
 | Entry point | Behavior | Interface |
 | --- | --- | --- |

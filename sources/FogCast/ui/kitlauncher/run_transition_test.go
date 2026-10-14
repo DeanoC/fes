@@ -134,7 +134,7 @@ func localTransitionClient(t *testing.T, f *transitionCore) *Client {
 	c := NewClient(Config{API: "http://127.0.0.1:1", MenuDisplay: true})
 	c.SetCatalogConfig(cfg)
 	c.SetLocalCores(f)
-	c.localCore = func(context.Context) (bool, error) { return false, nil }
+	c.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{}, nil }
 	return c
 }
 
@@ -174,7 +174,9 @@ func TestRunLocalStateTransitions(t *testing.T) {
 				successfulPauses++
 				return nil
 			}, func() { resumes++ })
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			// Every case cancels on success; the deadline only bounds a hang
+			// and must tolerate -race on a loaded two-core runner.
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
 			pad := &transitionPad{}
 			var last Model

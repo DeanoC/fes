@@ -86,10 +86,6 @@ The import mapping in [config/source-imports.toml](../config/source-imports.toml
 records original repositories, prior gitlinks, imported commits and module trees.
 The import commit retains original histories as parents. That local history
 mapping does not assert that cutover has been published or hardware-qualified.
-When moving from a submodule checkout, preserve old component branches,
-worktrees and uncommitted work. Prefer a separate fresh checkout of the reviewed
-import revision; do not delete old module directories or reset them to make the
-new layout fit.
 
 ## Validate at the right scope
 
@@ -140,8 +136,7 @@ For local scratch/HIL iteration, `IMAGE_PASSES=1 make image` runs once and
 records single-pass diagnostic status plus a `SINGLE-PASS-SCRATCH.txt` binding
 the checkout head and image digest. A HIL-named `make release` appends `-1p`,
 records `image_passes: 1`, and carries the marker into release outputs. CI and
-cold media/appliance paths keep two passes. The out-of-repo
-`~/bin/fes-docker-1pass` shim is retired once this merges.
+cold media/appliance paths keep two passes.
 
 CI simulations use Verilator 5.032 at source commit
 `8ff77e9d47351b0a59114929880687839a51840b`, selected by

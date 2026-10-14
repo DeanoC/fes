@@ -57,7 +57,7 @@ C64_TOOLCHAIN_CONFIGURATION = (
 C64_TOOL_COMMITS = {
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
     "nextpnr": "0c5ed400f003fbd0d8c4cc71491b68e4323e1a13",
-    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
+    "yosys": "4b971bb131a6d806bf14ded95f169d29838ade66",
 }
 # First passing route wins; the order is part of the build identity. This
 # core has not been sealed, so the search starts with the Apple II order.
@@ -436,7 +436,7 @@ def validate_build_evidence(output: Path) -> dict:
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
-    gpu_backend = _require_gpu_backend(route_text)
+    gpu_backend = _require_gpu_backend(route_text, C64_GPU_BACKEND)
     if not re.search(SYSTEM_PLL_ROUTE_RE, route_text) or not re.search(SYSTEM_PLL_OUTPUT_RE, route_text):
         raise BuildError("route log does not contain the 50-to-52.224 MHz system PLL")
     if not re.search(AUDIO_PLL_OUTPUT_RE, route_text):

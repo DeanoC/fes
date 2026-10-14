@@ -91,7 +91,7 @@ func recoveryTestClient(t *testing.T, f *recoveryCore) (*Client, *atomic.Int64) 
 	client.HTTP = &http.Client{Transport: transport}
 	client.Library = hostclient.NewClient(client.config.API, client.HTTP)
 	client.SetLocalCores(f)
-	client.localCore = func(context.Context) (bool, error) { return true, nil }
+	client.localCore = func(context.Context) (LocalCoreSample, error) { return LocalCoreSample{Bound: true}, nil }
 	client.localInputPath = filepath.Join(t.TempDir(), "missing-input.sock")
 	client.localDial = func(string, string, time.Duration) (net.Conn, error) { return nil, errors.New("input unavailable") }
 	return client, hostStops
@@ -277,11 +277,14 @@ func TestRunLaunchingReturnsToMenuOnlyAtIdle(t *testing.T) {
 				f.statuses = append(f.statuses, localcores.RunStatus{Phase: phase})
 			}
 			client, hostStops := recoveryTestClient(t, f)
-			var pauses, resumes atomic.Int64
+			var pauses, resumes, heldPaints atomic.Int64
 			client.SetMenuDisplayHandoff(func(context.Context) error { pauses.Add(1); return nil }, func() { resumes.Add(1) })
 			ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
 			defer cancel()
 			if err := Run(ctx, client, func(m Model) {
+				if pauses.Load() > 0 && resumes.Load() == 0 {
+					heldPaints.Add(1)
+				}
 				if resumes.Load() > 0 {
 					if m.Session.State != "idle" {
 						t.Error("menu resumed without idle session")
@@ -292,8 +295,8 @@ func TestRunLaunchingReturnsToMenuOnlyAtIdle(t *testing.T) {
 				t.Fatal(err)
 			}
 			_, stops := f.counts()
-			if f.statusReads() < len(phases) || pauses.Load() != 1 || resumes.Load() != 1 || stops != 0 || hostStops.Load() != 0 {
-				t.Fatalf("reads=%d pauses=%d resumes=%d local stops=%d host stops=%d", f.statusReads(), pauses.Load(), resumes.Load(), stops, hostStops.Load())
+			if f.statusReads() < len(phases) || pauses.Load() != 1 || resumes.Load() != 1 || stops != 0 || hostStops.Load() != 0 || heldPaints.Load() != 0 {
+				t.Fatalf("reads=%d pauses=%d resumes=%d heldPaints=%d local stops=%d host stops=%d", f.statusReads(), pauses.Load(), resumes.Load(), heldPaints.Load(), stops, hostStops.Load())
 			}
 		})
 	}
@@ -330,10 +333,10 @@ func TestRunAdoptsFailedLocalLaunchAfterStatus(t *testing.T) {
 	client.SetCatalogConfig(config)
 	// No core is bound until the (ambiguous) launch loads one, so the
 	// first presses browse instead of feeding the local input socket.
-	client.localCore = func(context.Context) (bool, error) {
+	client.localCore = func(context.Context) (LocalCoreSample, error) {
 		f.mu.Lock()
 		defer f.mu.Unlock()
-		return f.status.Phase == "launching" || f.status.Running, nil
+		return LocalCoreSample{Bound: f.status.Phase == "launching" || f.status.Running}, nil
 	}
 	pad := &recoveryLaunchPad{core: f, chordOnRunning: true}
 	var pauses atomic.Int64

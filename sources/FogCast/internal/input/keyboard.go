@@ -80,6 +80,39 @@ func (s *KeyboardSink) ApplyFrom(ctx context.Context, source inputSource, f prot
 	return poster(ctx, matrix)
 }
 
+// replaceSource sets one source's held keys to desired and posts the union.
+// A failed post leaves that source on desired so the next reconcile can
+// publish the matrix the runtime should hold.
+func (s *KeyboardSink) replaceSource(ctx context.Context, source inputSource, desired map[remoteinput.Code]bool) error {
+	if s == nil {
+		return nil
+	}
+	if source >= sourceCount {
+		source = sourceRemote
+	}
+	s.mu.Lock()
+	next := map[remoteinput.Code]bool{}
+	if !s.focused {
+		for code := range desired {
+			if s.blocked[source][code] {
+				continue
+			}
+			next[code] = true
+		}
+	}
+	s.pressed[source] = next
+	matrix := zx81keys.Matrix(s.unionLocked())
+	poster := s.poster
+	s.mu.Unlock()
+	if poster == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return poster(ctx, matrix)
+}
+
 func (s *KeyboardSink) unionLocked() map[remoteinput.Code]bool {
 	union := make(map[remoteinput.Code]bool)
 	for source := range s.pressed {

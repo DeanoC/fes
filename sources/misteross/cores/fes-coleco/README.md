@@ -27,12 +27,12 @@ retail-game compatibility.
 - Verilog TV80 Z80-compatible CPU, clock-enabled from the 52.224 MHz FES system
   domain at exactly 3,579,545 Hz on average, with alternating fractional
   half-cycle enables.
-- Raw 1–32 KiB cartridge via `fes.media.blob-stream` 1.0. Images up to
-  16 KiB retain the mirrored map; larger images map linearly at `0x8000–0xffff`.
-  Legacy `fes.media.blob` remains bounded to 1–16 KiB.
+- Exact 16 KiB cartridge via the sealed format-3 ROM map. A shorter cart is
+  padded with `0xff` before import. The map is mirrored at `0x8000–0xffff`.
+  The factory shell does not advertise `fes.media.blob` or `fes.media.blob-stream`.
 - Open 8 KiB reset shim at `0x0000–0x1fff`; its vector is `JP 0x8000`, so no
-  proprietary ColecoVision BIOS is embedded. Synthesized packages optionally
-  overlay this aperture through `fes.firmware.blob` 1.0.
+  proprietary ColecoVision BIOS is embedded. The factory shell does not
+  advertise `fes.firmware.blob`.
 - 1 KiB CPU RAM at `0x6000–0x63ff`, mirrored through `0x7fff`.
 - TMS9918-style VDP ports `0xbe` (data) and `0xbf` (control/status), 16 KiB
   VRAM, Graphics I, Graphics II, Text and Multicolor rendering on a fixed
@@ -65,8 +65,8 @@ cartridge, VDP and controller reads retain console behavior. The
 `sim-fes-coleco-expansion` target checks vacant behavior and a behavioral
 diagnostic responder. The earlier v1 diagnostic used
 `FES_COLECO_EXPANSION_DEV`. Its separate
-`scripts/build_fes_coleco_socket_dev.py` recipe uses
-`toolchains/coleco-expansion.lock` to seal a timed development shell with a
+`scripts/build_fes_coleco_socket_dev.py` recipe authenticates `toolchain.lock`
+to seal a timed development shell with a
 reserved `24 1 28 11` region containing only its pinned boundary FFs. The
 cart now uses that full placement rectangle with a compiler that admits those
 frozen cells at their original BELs. It declares optional `fes.expansion.coleco-bus`
@@ -104,8 +104,8 @@ to enable 8 KiB over the BIOS at `0x0000–0x1fff`. Reset disables both windows.
 The module owns those claims and AY ports `0x50–0x52`; the shell owns the 32 KiB
 RAM and adds signed AY PCM to SN audio with saturation. The CPU/socket test
 checks both windows and preserves the console's 1 KiB RAM beneath the overlay.
-The v2 shell producer is `scripts/build_fes_coleco_socket_v2.py`; it uses
-the repaired GPU-router pin in `toolchains/coleco-sgm.lock` and advertises the
+The v2 shell producer is `scripts/build_fes_coleco_socket_v2.py`; it authenticates
+the shared `toolchain.lock` and advertises the
 optional `fes.expansion.coleco-bus` 2.0 interface. `scripts/build_coleco_sgm.py`
 routes the SGM independently against that exact sealed shell and admits only
 CRAM changes inside its reserved rectangle. Both recipes require clean,
@@ -545,13 +545,11 @@ make build-fes-coleco
 The Quartus recipe requires authenticated Quartus Prime Lite 17.0.2. The OSS
 recipe authenticates the repository-local Yosys, nextpnr-mistral, and Mistral
 tools, routes `5CSEBA6U23I7`, and seals a format-2 package only after the
-timing/resource checks pass. The repository-wide `toolchain.lock` remains on
-the current mainline pins. `make toolchain-fes-coleco` instead builds the
-Coleco v2 lock at `toolchains/coleco-sgm.lock` into
-`build/toolchain/fes-coleco-socket-v2`, enabling the HIP device backend for
-`gfx1100;gfx1201`. The selected OSS recipe uses Yosys
-`e2d425dee148cc60c50f4e9b354a10d90eab15f4`, nextpnr
-`a93fe013af841214ecb4f7be3af0de65f3de3a0f` (Mistral `7ed06e21`), `--router gpu`, and
+timing/resource checks pass. The OSS recipe authenticates `toolchain.lock`. `make toolchain-fes-coleco`
+builds that shared pin into `build/toolchain/fes-coleco-socket-v2`. The
+recipe default remains HIP; a CUDA install of the same commits can seal it.
+The former `toolchains/coleco-sgm.lock` and `toolchains/coleco-expansion.lock`
+pins are not selected. The sealed search still uses
 seed 3 / HeAP weight 2000, with
 `--timing-allow-fail` and a 74.25 MHz request without `--tmg-ripup`; it rejects
 a CPU-reference fallback in the route log. The selected seed and weight are
@@ -686,7 +684,7 @@ Yosys/nextpnr/Mistral owner:
 
 | Boundary | Workaround in this bring-up |
 | --- | --- |
-| Toolchain selection | The repository-wide lock stays on current mainline Yosys/nextpnr. Coleco v2 selects `toolchains/coleco-sgm.lock`; SG-1000 retains `toolchains/registered-memory.lock`; SMS selects `toolchains/fes-sms.lock`. The Coleco lock installs under `build/toolchain/fes-coleco-socket-v2` and enables HIP. Bootstrap records the router and HIP architecture beside the compiler digests. Quartus uses its own vendor tools and needs neither lock. |
+| Toolchain selection | Coleco v2 selects the shared `toolchain.lock`. SG-1000 retains `toolchains/registered-memory.lock`; SMS selects `toolchains/fes-sms.lock`. A Coleco toolchain install under `build/toolchain/fes-coleco-socket-v2` is optional when a verified toolchain root is passed. Quartus uses its own vendor tools and needs neither lock. |
 | Verilog/VHDL frontend | OSS uses only the Verilog TV80 files and `T80pa`, with `TV80_REFRESH=1`; it does not depend on the VHDL T80 path. |
 | Inferred machine RAM | Cartridge, CPU RAM, and reset ROM use `coleco_dpram`; OSS selects registered `ram_style="m10k_tdp"` ports. Quartus also registers addresses despite UNREGISTERED outputs; only default simulation reads asynchronously. |
 | Registered media bridge | Both compiler lanes return `media_q` one clock after `media_addr`; the machine primes the request, delays the cartridge write address, flushes the final byte, and re-arms when `media_ready` drops or reset rises. |

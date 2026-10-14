@@ -19,7 +19,7 @@ if __package__ in (None, ""):
 from scripts import build_fes_zx81_oss as shell
 from scripts import build_zx81_bus_validation_cart as cart
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
-from scripts.fes_build_common import _require_gpu_backend
+from scripts.fes_build_common import FES_GPU_BACKEND, _require_gpu_backend
 from scripts.search_placer_qor import route_after_synth
 from scripts import zx81_expansion as expansion
 
@@ -82,7 +82,7 @@ def route_shell(tools: dict[str, Path], env: dict[str, str]) -> None:
         env=env,
         accept=expansion.accept_socket_route,
     )
-    _require_gpu_backend((OUT / "nextpnr.log").read_text(errors="replace"))
+    _require_gpu_backend((OUT / "nextpnr.log").read_text(errors="replace"), FES_GPU_BACKEND)
     print(
         f"shell route PASS seed={winner.seed} weight={winner.weight} "
         f"worst_ratio={winner.worst_ratio:.4f}",
@@ -155,7 +155,7 @@ def compose_cart(tools: dict[str, Path], env: dict[str, str]) -> None:
         CART_OUT / "route.log",
         env,
     )
-    _require_gpu_backend((CART_OUT / "route.log").read_text(errors="replace"))
+    _require_gpu_backend((CART_OUT / "route.log").read_text(errors="replace"), FES_GPU_BACKEND)
     validate_overlay_timing(json.loads((CART_OUT / "timing.json").read_text()))
     base = rbf_load((OUT / "core.rbf").read_bytes())
     placed = rbf_load((CART_OUT / "cart.rbf").read_bytes())

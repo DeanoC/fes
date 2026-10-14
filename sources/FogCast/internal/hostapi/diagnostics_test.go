@@ -46,6 +46,15 @@ func TestMeshLaunchErrorsUseTheirOwnStatuses(t *testing.T) {
 	}
 }
 
+func TestKitLeaseBusyLaunchIsConflict(t *testing.T) {
+	w := httptest.NewRecorder()
+	writeSessionError(w, &protocol.APIError{Code: protocol.CodeKitLeaseBusy, Message: "KIT_LEASE_BUSY", Phase: "request"})
+	body := w.Body.String()
+	if w.Code != http.StatusConflict || !strings.Contains(body, `"code":"KIT_LEASE_BUSY"`) || !strings.Contains(body, "Another session owns the kit") || strings.Contains(body, "failed internally") {
+		t.Fatalf("status %d body %s", w.Code, body)
+	}
+}
+
 func TestSessionErrorSafeDiagnostics(t *testing.T) {
 	for _, tc := range []struct {
 		name string

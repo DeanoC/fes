@@ -86,7 +86,7 @@ A failed host launch resumes the browsable menu with readable failure copy;
 Select+Start remains available to retry host cleanup before another launch.
 Host endpoint configuration is explicit; target discovery is separate.
 
-With the host up, a browse-only SMS row can still play on the kit when its cartridge bytes match a kit-local catalog entry. When Play is pressed the kit always asks the connected host for the row's current ROM SHA-256 (a game id names a library path, not ROM bytes, so a saved digest can be stale), refreshes the cached digest from it, then launches the matched local entry through local control and keeps pad input on the kit. While that catalog is up, digests for browse-only SMS rows are refreshed in the background (each row at most every 15 minutes) so a later offline launch does not ask the host. A definitive miss says “Not on this kit”; with the host up, an identity check failure is reported as “Could not check this kit's cartridges” and never falls back to a title match.
+With the host up, a browse-only SMS row can still play on the kit when its cartridge bytes match a kit-local catalog entry. When Play is pressed the kit always asks the connected host for the row's current ROM SHA-256 (a game id names a library path, not ROM bytes, so a saved digest can be stale), refreshes the cached digest from it, then launches the matched local entry through local control and keeps pad input on the kit. While that catalog is up, digests for browse-only SMS rows are refreshed in the background. A stored digest is refreshed at most every 15 minutes. A cancelled fill stays eligible for the next catalog load and does not replace a digest stored by a later fill. A failed fetch waits 2 minutes before another try. A later offline launch reads the saved digest and does not ask the host. A definitive miss says “Not on this kit”; with the host up, an identity check failure is reported as “Could not check this kit's cartridges” and never falls back to a title match.
 
 Offline, the saved host list stays on screen and kit-local SMS rows absent from that list are appended, so both browse-only host rows and kit-only cartridges remain available. Play on a host row uses its remembered digest and does not call the host, even if its id happens to match a kit-local row. Kit rows launch directly through local control. The title fallback applies only while the host is unreachable: if no digest is cached, Play accepts a single local SMS cartridge with the same title slug in the game id (`sms-datastorm-…`) or the same letters and digits in the title (`Data Storm` and `datastorm`). That title match is weaker than a hash: a saved host row does not carry a cartridge size, so size is not compared, and two local rows that share the title are refused with “Needs the host” instead of guessing. No local row says “Not on this kit”.
 
@@ -341,7 +341,28 @@ measured transport values separately from end-to-end button-to-photon latency.
 ## Display and verification
 
 The launcher only renders memory; it never issues SPI, programs the FPGA, or
-claims a kit lease. Rendering pauses while a game is active. After confirmed
+claims a kit lease. Rendering pauses while a game is active and while the
+host reports a kit-local session, so attract stays disarmed and the core's
+picture stays on HDMI. Menu display stays paused through that session's
+startup (`launching`), the running core (`local`), and the idle load
+(`stopping`), and resumes when the host reports idle. If the host drops during
+that hold, the pause stays through runtime `starting` and recovery, including
+a failed idle load that leaves `reboot_required`. The launcher
+clears the stale local session and resumes the menu only after a probe taken
+during that hold confirms a completed idle menu that belongs to the hold: state
+`idle`, menu display available, and a non-zero generation that is not a session
+binding. The shelf generation is the idle menu read at the pause. Runtime
+reads are serialized, and a probe that started earlier cannot replace that
+read. If the pause read fails, a cached generation is not the shelf, and a
+later idle menu does not resume merely because its generation differs. The menu
+resumes after this hold has seen the runtime leave the shelf. When the pause
+read identified the shelf, that generation does not qualify, nor does a later
+probe error after an idle sample. A different menu generation does, and so does
+a later idle probe after the hold has seen the runtime leave that shelf. When
+no idle menu was sampled before the hold, the first completed idle during the
+hold confirms it and is not kept as a stand-in shelf. The launch timeout does not resume the menu while the host is
+absent and that confirmation is still missing. Loading and stopping feedback still uses the temporary
+overlay when the idle enables the framebuffer. After confirmed
 idle it also skips `present` when that idle has no HPS framebuffer (SPI
 `0x002f` omitted, the splash contract), logs once, and leaves FPGA splash
 pixels in place. A missing linuxfb device does not stop the service. When

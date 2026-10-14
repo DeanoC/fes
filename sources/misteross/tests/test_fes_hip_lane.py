@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from scripts import build_fes_coleco_oss, build_fes_pong, build_fes_zx81_oss, toolchain_cache
@@ -237,8 +238,11 @@ class FesHipLaneTests(unittest.TestCase):
         for module in (build_fes_pong, build_fes_zx81_oss, build_fes_coleco_oss):
             with self.subTest(module=module.__name__):
                 with self.assertRaisesRegex(BuildError, "device backend"):
-                    module._require_gpu_backend(CPU_FALLBACK_LOG)
-                self.assertEqual(module._require_gpu_backend(LIVE_HIP_LOG), "hip")
+                    module._require_gpu_backend(CPU_FALLBACK_LOG, "hip")
+                self.assertEqual(module._require_gpu_backend(LIVE_HIP_LOG, "hip"), "hip")
+                with self.assertRaisesRegex(BuildError, "authenticated backend hip"):
+                    module._require_gpu_backend(
+                        "Info: backend cuda:NVIDIA RTX 4090 ready\n", "hip")
 
     def test_build_reauthenticates_with_the_same_explicit_cache_root(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -276,10 +280,12 @@ class FesHipLaneTests(unittest.TestCase):
                              return_value=("https://github.com/DeanoC/misteross.git", "a" * 40)),
                 patch.object(build_fes_pong, "_authenticate_tools", side_effect=authenticate),
                 patch.object(build_fes_pong, "_run_tool", side_effect=run_tool),
+                patch.object(build_fes_pong, "route_after_synth",
+                             return_value=SimpleNamespace(seed=1, weight=1)),
                 patch.object(
                     build_fes_pong,
                     "validate_build_evidence",
-                    return_value={"rbf": {"sha256": "a" * 64, "size": 1}},
+                    return_value={"rbf": {"sha256": "a" * 64, "size": 1}, "route": {}},
                 ),
                 patch.object(build_fes_pong, "export_package", return_value=root / "pkg"),
             ):

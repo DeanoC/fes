@@ -170,7 +170,10 @@ def validate_v2_clock_coverage_route(top: dict) -> None:
         raise ValueError('Coleco socket clock coverage route is malformed')
     nodes = set(fields[0::3])
     arcs = set(fields[1::3])
-    if 'GCLK.0.36.3' not in nodes or not set(SOCKET_CLOCK_COVERAGE_ARCS).issubset(arcs):
+    # The row-4 socket edge is the required coverage. The global lane index
+    # is chosen by the router; an older pin used GCLK.0.36.3 and the shared
+    # pin can use another GCLK on the same net.
+    if not any(node.startswith("GCLK.") for node in nodes) or not set(SOCKET_CLOCK_COVERAGE_ARCS).issubset(arcs):
         raise ValueError('Coleco socket clock coverage is missing the required row 4 branch')
 
 

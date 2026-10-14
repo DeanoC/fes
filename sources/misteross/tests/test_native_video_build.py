@@ -83,7 +83,7 @@ class NativeVideoProducerTest(unittest.TestCase):
                                         "a" * 32, tools, native_video=True)
         program = commands[0][-1]
         for define in ("FES_COLECO_NATIVE_VIDEO_DEV", "FES_COLECO_NATIVE_VIDEO_PART_DEV",
-                       "FES_COLECO_EXPANSION_V2_DEV"):
+                       "FES_COLECO_EXPANSION_V2_DEV", "FES_COLECO_ROM_LINK"):
             self.assertIn("-D" + define + "=1", program)
         for source in shell.NATIVE_VIDEO_SOURCES:
             self.assertIn(source, program)
@@ -102,11 +102,18 @@ class NativeVideoProducerTest(unittest.TestCase):
 
     def test_native_manifest_selects_exact_part_profile(self):
         record = b'{"format":2,"parameters":{},"recipe_sha256":"' + b'a' * 64 + b'"}'
-        evidence = {"rbf": {"size": 100, "sha256": "b" * 64}, "build_id": "c" * 32}
+        evidence = {"rbf": {"size": 100, "sha256": "b" * 64}, "build_id": "c" * 32,
+                    "rom": {"id": "cartridge-rom", "role": "cartridge", "source_size": 16384,
+                            "file": "rom-map.json", "size": 32, "sha256": "e" * 64}}
         identities = {name: "fixture" for name in ("yosys", "nextpnr-mistral", "mistral")}
         arguments = (record, evidence, "https://example.invalid/fes.git", "d" * 40, identities)
         for layout, flags in ((native, {"native_video": True}), (raster, {"video_socket": True})):
             fields = tomllib.loads(shell.manifest(*arguments, **flags).decode())
+            self.assertEqual(fields["format"], 3)
+            self.assertEqual(fields["rom"]["source_size"], 16384)
+            self.assertEqual(fields["rom"]["role"], "cartridge")
+            self.assertFalse(any(row["id"].startswith("fes.media.blob") or row["id"] == "fes.firmware.blob"
+                                 for row in fields["interfaces"]))
             self.assertEqual(fields["core"]["id"], "fes.coleco")
             self.assertIn({"id": "fes.expansion.coleco-bus", "major": 2,
                            "minor": 0, "required": False}, fields["interfaces"])

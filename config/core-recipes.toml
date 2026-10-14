@@ -1,4 +1,4 @@
-# FES package producers (ZX81, SMS, SG-1000 and Apple II format 3; other cores format 2); paths are relative to the selected misteross source.
+# FES package producers (ZX81, SMS, SG-1000, Apple II and Coleco format 3; ROM-less cores format 2); paths are relative to the selected misteross source.
 version = 1
 
 [[recipes]]
@@ -65,7 +65,7 @@ producer_module = "scripts.build_fes_coleco_socket_v2"
 producer_options = { native_video = true }
 video_profiles = ["direct", "scanlines"]
 authenticate = "authenticate_tools"
-lock_path = "toolchains/coleco-sgm.lock"
+lock_path = "toolchain.lock"
 gpu_router = "HIP"
 hip_architectures = "gfx1100;gfx1201"
 selection_filename = "fes-coleco.package-selection.toml"
@@ -107,7 +107,8 @@ identity_version = 2
 producer_script = "scripts/build_fes_apple2_oss.py"
 producer_module = "scripts.build_fes_apple2_oss"
 authenticate = "_authenticate_apple2_tools"
-lock_path = "toolchains/apple2.lock"
+lock_path = "toolchain.lock"
+# Product default is HIP. A CUDA exploratory route is not HIP seal evidence.
 gpu_router = "HIP"
 hip_architectures = "gfx1100;gfx1201"
 selection_filename = "fes-apple2.package-selection.toml"
@@ -135,7 +136,7 @@ identity_version = 2
 producer_script = "scripts/build_fes_spectrum_oss.py"
 producer_module = "scripts.build_fes_spectrum_oss"
 authenticate = "_authenticate_spectrum_tools"
-lock_path = "toolchains/spectrum.lock"
+lock_path = "toolchain.lock"
 gpu_router = "HIP"
 hip_architectures = "gfx1100;gfx1201"
 selection_filename = "fes-spectrum.package-selection.toml"

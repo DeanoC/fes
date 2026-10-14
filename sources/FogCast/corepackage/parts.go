@@ -33,7 +33,7 @@ type PartsBundle struct {
 func PartsShell(inspection Inspection, payload []byte) (expansion.PartsShell, error) {
 	d := inspection.Descriptor
 	st := d.Format == 3 && d.Core.ID == "fes.atari-st" && d.ROM != nil && d.ROM.Role == "firmware"
-	coleco := d.Format == 2 && d.Core.ID == "fes.coleco"
+	coleco := d.Core.ID == "fes.coleco" && (d.Format == 2 || (d.Format == 3 && d.ROM != nil && d.ROM.Role == "cartridge" && d.ROM.SourceSize == 16384))
 	abi := "fes.application"
 	if st {
 		abi = "fes.computer"

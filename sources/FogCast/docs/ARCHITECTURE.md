@@ -1251,7 +1251,7 @@ They do not establish physical watchdog reset or exact-image kit acceptance.
 ## Target image
 
 Native Buildroot and rootfs assembly live in the FES `image/` recipe.
-FogCast supplies the agent, kit, extra-core selector (`cmd/target-image-lock`,
+FogCast supplies the agent, kit, package selector (`cmd/target-image-lock`,
 `internal/targetimage`) while FES owns external-artifact policy in
 `image/build/native-inputs.toml`. FES adds its selected runtime revision to a
 disposable assembly copy;
@@ -1268,8 +1268,8 @@ and the closed FES package set selected by
 [the default profile](../../../profiles/native-integration-dev.toml): `fes.menu`,
 `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`,
 `fes.ramtest`, `fes.atari-st`. ST retains its sealed firmware ROM map; firmware
-is separately selected at launch. The selector also admits `fes.c64`, which stays out because it
-has no current timing-passing HIP seal. The menu package is idle firmware,
+is separately selected at launch. The selector also admits `fes.c64`, which has a frozen HIP
+seal but stays out of the factory image until it has image acceptance. The menu package is idle firmware,
 not a playable library entry. Image inclusion and selector admission do not
 establish playability; [core status](../../../docs/core-status.md) records the
 exact-artifact kit evidence.
@@ -1312,14 +1312,14 @@ cleanup failures.
 Its QEMU
 smoke proves only root filesystem and init packaging; it does not emulate FPGA
 programming, prove target readiness, or establish game or development-RBF
-support. The designated-kit idle, Mega Drive launch/input/Stop/relaunch,
-and legacy rollback gates are
-hardware-tested. The image contains no development RBF at either production
+support. Package playability is recorded per exact artifact in
+[core status](../../../docs/core-status.md); the earlier Mega Drive
+launch/input/Stop/relaunch gates belong to the retired raw-RBF lane. The image contains no development RBF at either production
 path and relies on volatile `/tmp` staging for an admitted upload. Native
 development-RBF loading is hardware-tested for the existing MiSTer-compatible
 lifecycle. Exact hashes and dated physical observations are in
 [native-development-rbf-baseline.md](hardware/native-development-rbf-baseline.md);
-the game-only baseline remains in
+the retired lane's game baseline remains in
 [native-megadrive-baseline.md](hardware/native-megadrive-baseline.md).
 
 ## Contained development RBF diagnostic
@@ -1374,7 +1374,10 @@ remains a maintenance escape outside the lease boundary.
 
 The production service owns a renewable target kit lease, shared explicitly
 with its game/development client and target input bridge (including CONNECT).
-The first hardware mutation claims ownership. Mesh content pull is one of
+The first hardware mutation claims ownership. A core-package launch whose
+target claim is refused with `KIT_LEASE_BUSY` is returned as HTTP 409 with
+that code and a fixed ownership message.
+Mesh content pull is one of
 those acquiring mutations, so a fresh session's first FPGA mesh launch on a
 free kit claims before Ensure. Mesh content link requires the grant already
 held. Renewal runs every 20 seconds
@@ -1911,13 +1914,37 @@ games HTTP as a temporary linuxfb overlay. It decodes visible covers from disk
 first and labels an absent host `Offline, showing your saved list`. Confirmed idle
 without an HPS framebuffer (SPI `0x002f` omitted) does not present, so FPGA
 splash pixels stay on HDMI, and a missing linuxfb device does not stop the
-service.
+service. A host-reported kit-local session occupies HDMI the same way an
+active session does: the launcher leaves the core's picture in place, and
+attract stays disarmed. Menu display stays paused through that session's
+startup (`launching`), the running core (`local`), and the idle load
+(`stopping`), and resumes when the host reports idle. If that host becomes
+unreachable, the pause stays through runtime `starting` and recovery, including
+a failed idle load that leaves `reboot_required`. The launcher clears the stale
+local session and resumes the menu only after a probe taken during that hold
+confirms a completed idle menu that belongs to the hold: state `idle`, menu
+display available, and a non-zero generation that is not a session binding.
+The shelf generation is the idle menu read at the pause. Runtime reads are
+serialized, and a probe that started earlier cannot replace that read. If the
+pause read fails, a cached generation is not the shelf, and a later idle menu
+does not resume merely because its generation differs. The menu resumes after
+this hold has seen the runtime leave the shelf. When the pause read identified
+the shelf, that generation does not qualify, nor does a later probe error after
+an idle sample. A different menu generation does, and so does a later idle probe
+after the hold has seen the runtime leave that shelf. When no idle menu was
+sampled before the hold, the first completed idle during the hold confirms it
+and is not kept as a stand-in shelf. The launch timeout does not resume the menu while the host is absent and
+that confirmation is still missing. Loading and stopping feedback still paints when that
+idle enables the framebuffer.
 Local D-pad/A still browse that snapshot. When the host is unreachable, host
 session launch and Stop remain unavailable until the configured host API
 reconnects. A browse-only SMS row from that saved list can still play when the
 kit matches it to a local cartridge: a cached ROM SHA-256 when the row has one,
-otherwise a single local SMS row with the same title. The pad stays on the
-kit-local control socket. The kit launcher does not claim a target lease or
+otherwise a single local SMS row with the same title. While the host catalog
+is up, those digests refresh in the background. A stored digest waits 15
+minutes. A cancelled fill stays eligible for the next catalog load and does
+not replace a digest stored by a later fill. A failed fetch waits 2 minutes.
+The pad stays on the kit-local control socket. The kit launcher does not claim a target lease or
 call `/v2/launch` directly; host lifecycle mutations continue through the
 persistent host session API. Cache and artwork browse state remains local and
 lease-free.
@@ -2247,8 +2274,17 @@ kit-local holds are kept per source and posted as their union; posts are ordered
 and do not hold the controller-port lock. Each change posts all nine rows with
 `set_keyboard_hid` for the observed generation (the runtime writes only changed
 rows). A failed post leaves the state unconfirmed, so a repeated press or release
-posts it again rather than reporting success. Source release posts the
-remaining holds; lease expiry, core replacement
+posts it again rather than reporting success. A probe that does not confirm
+the core keeps that HID binding and its held keys. The kit-local release that
+meets that probe, and a later release while that generation stays bound, still
+posts the neutral rows. A press waits until a probe confirms the generation is
+active. If the release post failed, the next confirmed observation of that
+same generation posts it before the new frame. That replay stays unconfirmed
+until `set_keyboard_hid` succeeds. A later kit-local frame posts it again under
+the input lifecycle lock, including a gamepad frame while controller ports stay
+bound and skip observation. Confirmed idle, or a confirmed different
+generation, drops the retained binding and does not replay those keys.
+Source release posts the remaining holds; lease expiry, core replacement
 and Stop neutralize best-effort, and the runtime itself neutralizes on Hold and
 Stop. Controller frames of the same session still use `set_controller` ports 0/1
 with `keypad:0`.
@@ -2317,6 +2353,9 @@ For observed `fes.coleco`, `fes.sms` and `fes.sg1000` with active `fes.keyboard`
 1.0, the agent maps kit-local pad directions, left stick and A (plus Coleco B)
 onto that keyboard matrix. Each physical pad retains its own buttons and axes;
 their desired matrix keys combine by OR, including opposing stick directions.
+A matrix post that fails stays unconfirmed. The next local pad frame sends
+that pad's full desired matrix, so a release after an ambiguous press failure
+still reaches the runtime.
 Synthetic pad keys, the physical local keyboard and the remote keyboard retain
 separate contributions, so one release cannot clear another device's hold.
 Local pad frames do not also enter the virtual gamepad. Other cores retain the
@@ -2380,7 +2419,11 @@ HID sessions keep the usages; `fes.keyboard` and native cores first map a usage 
 ZX81 matrix or arrow code the kit sent before HID, so those cores see the same keys.
 The socket is not an HTTP route and does not consult the kit lease, so a pad on the
 kit drives the running core whichever host launched it. Frames are delivered only
-while a runtime core is bound. Delivery takes the same input lifecycle lock as host
+while a runtime core is bound. A kit-local HID release is the exception: when a
+probe fails, a release for the generation that probe kept is still posted. If
+that post does not land, a later local frame retries it under the same lock,
+including when controller ports are bound. The release stays unconfirmed until
+the post succeeds. Delivery takes the same input lifecycle lock as host
 attach and core replacement. While replacement holds that lock, from ReleaseAll
 until the finish callback, an arriving frame is dropped before observation, binding,
 or writing. The status read that binds a local frame, and the set_keyboard or
@@ -2436,7 +2479,12 @@ socket is not listening, play input reports
 the failure, waits one second before dialing again, and does not post the pad
 to the host. Remote pads go from the host to the kit on that session's input
 stream (`POST /api/v1/launcher/input` for a pad on another machine, and
-`POST /api/v1/session/input/event`). If the stream is not live, the host
+`POST /api/v1/session/input/event`). The host reuses an attached, ready
+stream only while the core, package, generation, keyboard, gamepad-port,
+keypad, and relative-mouse capabilities still match. Status reconciliation
+replaces the stream when any of those change. An explicit attach of a
+stream that no longer matches is refused and leaves the existing stream
+in place. If the stream is not live, the host
 returns 503 `INPUT_UNAVAILABLE` (`no live input stream`) and does not accept
 the event. Kit-local pads stay on the unix socket and do not silently fall
 back to the host.
@@ -2610,8 +2658,9 @@ hardware acceptance claim.
 
 ## Developer video parts
 
-The separate developer parts path admits only a format-2 `fes.coleco`
-`fes.application` 1.0 package with optional `fes.expansion.coleco-bus` 2.0 and
+The separate developer parts path admits a format-2 `fes.coleco`
+`fes.application` 1.0 package, or a format-3 shell with one exact 16 KiB
+`cartridge` ROM, with optional `fes.expansion.coleco-bus` 2.0 and
 exactly one optional video marker: `fes.fabric.video.raster-rgb888` 1.0 selects
 `fes.coleco-video.parts/1`, while `fes.fabric.video.native-pixels` 1.0 selects
 `fes.coleco-native-video.parts/1`. Native version 1 fixes the source at
@@ -2671,7 +2720,7 @@ the selected parts independently, inspects the base core-data namespace even
 for a composed load, then sends local protocol-2 `load_parts_library_core`
 with the fixed core-data root. Native admission repeats the namespace check
 before programming. A durable namespace cannot be replaced by a candidate
-without its persistence contract. This closed format-2 Coleco lane remains
+without its persistence contract. This closed Coleco parts lane remains
 volatile; its exact parts tuple, persistence mode and generation are checked
 on response reconciliation and retained on restart adoption. Developer routes
 continue to reject library headers and remain explicitly volatile.
@@ -2714,8 +2763,9 @@ binding. Video imports do not enter CPU expansion inventory.
 | Inspect the next launch for an entry | `GET /api/v1/library/core-entries/{game_id}/video` |
 
 `fogcast/core_video.go` considers only parts for the entry's exact installed
-package and declared video socket. The closed format-2 Coleco shell contract
-rejects mixed markers and unsupported versions even without installed parts.
+package and declared video socket. The closed Coleco shell contract, format 2
+or a format-3 16 KiB cartridge, rejects mixed markers and unsupported versions
+even without installed parts.
 If the preferred Scanlines profile is absent, selection uses an installed Direct
 part for that same shell. A native shell without that fallback rejects launch;
 it cannot launch its vacant base. A valid selected Scanlines part works without
@@ -2740,7 +2790,8 @@ parts route described above. The host recognizes the confirmed application ABI
 as `fpga_native` and binds the complete parts tuple, programmed digest and
 generation to the library session. The shell package, BUILD_ID, fixed video and
 audio/input contracts remain those of the sealed base. This selection path
-accepts the same two closed format-2 Coleco layouts as the developer path.
+accepts the same two closed Coleco layouts as the developer path, including a
+format-3 16 KiB cartridge.
 
 ## Described-core persistent data
 

@@ -29,11 +29,11 @@ from scripts.search_placer_qor import SearchError, route_after_synth
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = "scripts/build_fes_coleco_socket_dev.py"
 OUTPUT_RELATIVE = Path("build/fes-coleco-socket-dev")
-TOOLCHAIN_LOCK = "toolchains/coleco-expansion.lock"
+TOOLCHAIN_LOCK = "toolchain.lock"
 TOOL_COMMITS = {
-    "yosys": "e2d425dee148cc60c50f4e9b354a10d90eab15f4",
-    "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "a93fe013af841214ecb4f7be3af0de65f3de3a0f",
+    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
+    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
+    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
 }
 RTL_SOURCES = (*factory.RTL_SOURCES, "cores/fes-coleco/rtl/coleco_expansion_socket.v")
 PINNED_INPUTS = tuple(dict.fromkeys((

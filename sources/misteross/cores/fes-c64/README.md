@@ -67,17 +67,21 @@ clocks and exact CRAM containment are separate admission checks.
 ## Diagnostic
 
 `diagnostic/firmware.py` assembles the open 16 KiB image. Success stores `$FF`
-at `$C000`. A failure stores a stage at `$C000` and `1` at `$C001`:
+at `$C000` and paints the word PASS, in white, across three rows in the middle
+of the character screen. The border and the screen background are black.
+A green bar is the 720p letterbox and is not the pass mark. A failure stores
+a stage at `$C000` and `1` at `$C001`:
 
 Stages 7 and 8 with `$C001 = 0` mean waiting, not failure. Mount the
 synthetic D64 and confirm media unit 0 is ready before pressing joystick Up,
 then keyboard A. This gates LOAD on operator readiness rather than a fixed
 sleep: C64 media is currently mounted after CPU release. The SID pulse uses
 50% duty cycle so audio acceptance can require an AC tone rather than DC.
-Success also turns the border green. `--without-cartridges` skips only stages
-5 and 6 for a vacant sealed shell; it is not expansion acceptance.
+`--without-cartridges` skips only stages 5 and 6 for a vacant sealed shell; it
+is not expansion acceptance.
 The simulation covers both initially-ready input/media and delayed mount,
-joystick and keyboard delivery.
+joystick and keyboard delivery, then captures the next full frame and requires
+PASS in white, a black border, a black background and no stage digit.
 
 C64's D64/IEC path remains read-only. Atari ST's initial-disk-before-release
 and writable-disk save/restore path is a useful ordering reference, but its
@@ -114,7 +118,7 @@ pages 348–349. `sim-fes-c64` includes the directed CIA regression and the
 firmware's CPU interrupt checks. These are host simulations, with no sealed
 artifact or kit acceptance implied.
 
-`build-fes-c64` authenticates `toolchains/c64.lock` (Yosys `5391eeb1`,
+`build-fes-c64` authenticates `toolchains/c64.lock` (Yosys `4b971bb1`,
 Mistral `8fcc4cb4`, nextpnr `0c5ed400`). The socket check admits a compiler-inserted route-through
 buffer only at a pinned boundary flip-flop's paired combinational half, with
 the exact physical pin map and a dedicated connection to that flip-flop;

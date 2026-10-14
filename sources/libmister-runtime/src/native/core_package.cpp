@@ -828,9 +828,9 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 		return CompatibilityError(ErrorCode::unsupported_interface,
 			"video fabric socket declarations must be unique");
 	if (native_pixels_socket && (descriptor.abi.id != FesApplicationABIID ||
-		descriptor.abi.major != 1 || descriptor.format != 2 || descriptor.core.id != "fes.coleco"))
+		descriptor.abi.major != 1 || !ColecoVideoShell(descriptor)))
 		return CompatibilityError(ErrorCode::unsupported_interface,
-			"native video fabric socket requires the format-2 Coleco application shell");
+			"native video fabric socket requires a Coleco application shell");
 	// Linked cartridges arrive in CRAM and have no later media commit. These
 	// mailbox contracts keep Start reset-held, so accepting them would publish
 	// a running session whose core never executes. Firmware delivery also holds
@@ -895,8 +895,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			if (interface.id == FesApplicationInterfaceGamepadPortsID) ports = true;
 			if (interface.id == FesApplicationInterfaceKeypadPortsID) keypad = true;
 		}
-		if (video_socket && (descriptor.format != 2 || descriptor.core.id != "fes.coleco" || !coleco_bus))
-			return CompatibilityError(ErrorCode::unsupported_interface, "video fabric socket requires the format-2 Coleco bus-2 developer shell");
+		if (video_socket && (!ColecoVideoShell(descriptor) || !coleco_bus))
+			return CompatibilityError(ErrorCode::unsupported_interface, "video fabric socket requires the Coleco bus-2 developer shell");
 		if (menu && (!ddr || descriptor.interfaces.size() != 3))
 			return CompatibilityError(ErrorCode::unsupported_interface,
 				"menu display requires exactly fixed video, HPS DDR and menu display");

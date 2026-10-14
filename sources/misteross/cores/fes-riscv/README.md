@@ -67,6 +67,11 @@ glyphs, box position after gamepad input, the colour change from the timer
 interrupt, clamping at the border and the restart after an execution hold,
 all read back from the HDMI pixel stream) and `board` (`top.v` through the
 mailbox: capabilities `0x3`, release, gamepad input, HDMI pixels and hold).
+The system case also checks every static 720p output pixel against the full
+border, gradient and nine-glyph banner for 600 consecutive frames after startup
+(ten seconds), while the CPU and timer run. Only the animated box footprint is
+excluded during that interval. This checks every pixel of each 6x6 scaled block,
+including edges that centre-only sampling would miss.
 Simulation targets refuse the shared toolchain cache.
 
 ## Seal
@@ -90,6 +95,13 @@ required interfaces `fes.video.fixed-720p60` 1.0 and `fes.gamepad` 1.0.
 
 A passing seal is host evidence of a routed, timing-closed bitstream. It is
 not hardware acceptance; see the FES [core status](../../../../docs/core-status.md).
+
+## QoR
+
+Size, routed clock and what to change for timing are in [qor.md](qor.md).
+How to pipeline the CPU, and why that is a throughput change rather than
+a faster clock, is in [pipeline.md](pipeline.md). Both are notes. Neither
+is a sealed package or a kit result.
 
 ## Not implemented
 

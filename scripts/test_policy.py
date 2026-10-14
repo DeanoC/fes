@@ -23,8 +23,15 @@ VIDEO_FILES = frozenset({
     'tests/test_factory_video_parts.py',
     'tests/test_factory_video_publication.py',
 })
-VIDEO_ROOTS = ('sources/misteross', 'sources/FogCast/corepackage',
-               'sources/FogCast/corecatalog')
+# misteross is narrowed to the producer software, toolchain pins and the core
+# trees the Coleco/ST video-part recipes hash; its tests, docs, Makefile,
+# experiments and unrelated cores stay routine. Scheduled runs remain full.
+VIDEO_ROOTS = ('sources/misteross/scripts', 'sources/misteross/expansion',
+               'sources/misteross/toolchain.lock', 'sources/misteross/toolchains',
+               'sources/misteross/cores/fes-common', 'sources/misteross/cores/fes-coleco',
+               'sources/misteross/cores/fes-atari-st', 'sources/misteross/cores/fes-c64',
+               'sources/misteross/cores/fes-ramtest', 'sources/misteross/cores/fes-zx81',
+               'sources/FogCast/corepackage', 'sources/FogCast/corecatalog')
 # Host consumers of package/video admission; their *_test.go files stay routine.
 VIDEO_CONSUMER_ROOTS = ('sources/FogCast/catalog', 'sources/FogCast/fogcast')
 
@@ -159,3 +166,31 @@ def host_test_commands(full=False, packages=None):
         {'cwd': EXPANSION_MODULE, 'label': 'expansion concurrency-focused race checks',
          'argv': [*short_race, '-run', HOST_RACE_FOCUS, './...']},
     ]
+
+
+ORDINARY_RACE_LABEL = 'host race suite excluding race-expensive packages'
+
+
+def shard_host_commands(commands, index, count):
+    """Return shard ``index`` of ``count`` for parallel CI host jobs.
+
+    The ordinary-package race command is split round-robin by package so
+    every shard takes part of the largest suite; the other commands are dealt
+    round-robin. The union over all shards is exactly the input set.
+    """
+    if type(index) is not int or type(count) is not int or not 0 <= index < count:
+        raise ValueError('shard index must be within the shard count')
+    selected, dealt = [], 0
+    for command in commands:
+        if command['label'] == ORDINARY_RACE_LABEL:
+            argv = command['argv']
+            split = next(i for i, arg in enumerate(argv) if arg.startswith(('github.com/', './')))
+            packages = argv[split:][index::count]
+            if packages:
+                selected.append({**command, 'label': f'{command["label"]} ({index + 1}/{count})',
+                                 'argv': [*argv[:split], *packages]})
+            continue
+        if dealt % count == index:
+            selected.append(command)
+        dealt += 1
+    return selected

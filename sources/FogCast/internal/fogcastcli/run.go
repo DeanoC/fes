@@ -718,6 +718,7 @@ func publicAPIError(code protocol.ErrorCode) commandError {
 		protocol.CodeDigestMismatch:       "content digest does not match its identity",
 		protocol.CodeContentNotCached:     "content is not present in the verified target cache",
 		protocol.CodeCacheFull:            "target cache has insufficient safe capacity",
+		protocol.CodeKitLeaseBusy:         "Another session owns the kit; release it from that session before retrying.",
 	}
 	message, ok := messages[code]
 	if !ok {

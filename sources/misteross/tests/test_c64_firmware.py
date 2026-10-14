@@ -24,6 +24,20 @@ class C64FirmwareTests(unittest.TestCase):
         self.assertIn(b"\xad\x01\xde", full[8192:])
         self.assertNotIn(b"\xad\x01\xde", vacant[8192:])
 
+    def test_success_is_pass_text_in_the_picture_not_a_green_border(self):
+        # Screen codes for "PASS " eight times: one 40-column row.
+        pass_row = bytes([16, 1, 19, 19, 32]) * 8
+        green_border = bytes([0xA9, 0x05, 0x8D, 0x20, 0xD0])
+        black_border = bytes([0xA9, 0x00, 0x8D, 0x20, 0xD0])
+        for image in (firmware.build(), firmware.build(without_cartridges=True)):
+            kernal = image[8192:]
+            self.assertNotIn(green_border, kernal)
+            self.assertIn(black_border, kernal)
+            self.assertIn(pass_row, kernal)
+            # The stage digit is written at $0408. Clearing only eight cells
+            # leaves that 8 on a pass picture.
+            self.assertIn(bytes([0xE0, 0x09]), kernal)
+
 
 if __name__ == "__main__":
     unittest.main()

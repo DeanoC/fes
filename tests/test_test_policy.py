@@ -52,6 +52,22 @@ class SelectTestModesTests(unittest.TestCase):
                 self.assertEqual(test_policy.select_test_modes([path]),
                                  {'video': True, 'media': False, 'full_race': False})
 
+    def test_misteross_inputs_outside_video_recipes_stay_routine(self):
+        for path in ('sources/misteross/tests/test_lockfile.py',
+                     'sources/misteross/Makefile', 'sources/misteross/README.md',
+                     'sources/misteross/experiments/570/tb.cpp',
+                     'sources/misteross/cores/fes-sms/rtl/sms_vdp.sv',
+                     'sources/misteross/cores/fes-apple2/rtl/top.sv'):
+            with self.subTest(path=path):
+                self.assertEqual(test_policy.select_test_modes([path]), ALL_FALSE)
+        for path in ('sources/misteross/scripts/new_helper.py',
+                     'sources/misteross/toolchain.lock',
+                     'sources/misteross/toolchains/atari-st.lock',
+                     'sources/misteross/cores/fes-common/rtl/fes_video_part_direct.v',
+                     'sources/misteross/cores/fes-atari-st/rtl/shifter.sv'):
+            with self.subTest(path=path):
+                self.assertTrue(test_policy.select_test_modes([path])['video'])
+
     def test_shared_script_and_dependency_inputs_select_video_and_media(self):
         for path in ('scripts/build.py', 'scripts/inputs.py', 'scripts/native_dev.py',
                      'scripts/environment.py',
@@ -144,6 +160,45 @@ class HostCommandTests(unittest.TestCase):
                     for arg in root[0]['argv'][5:]} |
                    set(root[1]['argv'][len(RACE):]))
         self.assertEqual(covered, set(self.PACKAGES))
+
+    def test_shards_partition_commands_and_ordinary_packages_exactly(self):
+        packages = (*self.PACKAGES, *(f'github.com/DeanoC/FogCast/p{i}' for i in range(7)))
+        commands = test_policy.host_test_commands(packages=packages)
+        for count in (1, 2, 3, 5):
+            shards = [test_policy.shard_host_commands(commands, i, count) for i in range(count)]
+            with self.subTest(count=count):
+                ordinary = [c for shard in shards for c in shard
+                            if c['label'].startswith(test_policy.ORDINARY_RACE_LABEL)]
+                raced = [arg for c in ordinary for arg in c['argv'] if arg.startswith('github.com/')]
+                expected = next(c for c in commands
+                                if c['label'] == test_policy.ORDINARY_RACE_LABEL)['argv'][len(RACE):]
+                self.assertEqual(sorted(raced), sorted(expected))
+                self.assertTrue(all(c['argv'][:len(RACE)] == RACE for c in ordinary))
+                others = [(c['cwd'], c['argv']) for shard in shards for c in shard
+                          if not c['label'].startswith(test_policy.ORDINARY_RACE_LABEL)]
+                self.assertEqual(sorted(others),
+                                 sorted((c['cwd'], c['argv']) for c in commands
+                                        if c['label'] != test_policy.ORDINARY_RACE_LABEL))
+        full = test_policy.host_test_commands(full=True)
+        self.assertEqual([c for i in range(3) for c in test_policy.shard_host_commands(full, i, 3)],
+                         full)
+        for index, count in ((3, 3), (-1, 3), (0, 0), ('0', 3)):
+            with self.subTest(index=index, count=count), self.assertRaises(ValueError):
+                test_policy.shard_host_commands(commands, index, count)
+
+    def test_host_runner_shard_flag(self):
+        listing = '\n'.join(self.PACKAGES) + '\n'
+        with patch.object(host_tests.subprocess, 'check_output', return_value=listing), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(host_tests.main(['--plan-only', '--shard', '2/3']), 0)
+        report = json.loads(out.getvalue())
+        self.assertEqual(report['shard'], '2/3')
+        self.assertEqual(report['commands'], test_policy.shard_host_commands(
+            test_policy.host_test_commands(packages=self.PACKAGES), 1, 3))
+        for bad in ('0/3', '4/3', 'x', '1/0'):
+            with self.subTest(bad=bad), self.assertRaises(SystemExit), \
+                    contextlib.redirect_stderr(io.StringIO()):
+                host_tests.main(['--plan-only', '--shard', bad])
 
     def test_full_mode_races_everything_and_mode_must_be_boolean(self):
         commands = test_policy.host_test_commands(full=True)

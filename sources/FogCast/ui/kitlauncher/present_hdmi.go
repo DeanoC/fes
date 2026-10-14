@@ -1,10 +1,14 @@
 package kitlauncher
 
+import "github.com/DeanoC/FogCast/hostclient"
+
 // ShouldPaintHDMI reports whether fogcast-kit may blit the HPS linuxfb.
 //
-// An active session does not paint: the game owns HDMI. Loading and stopping
-// feedback still paints when the idle enables the framebuffer, because that
-// copy is the temporary overlay rather than the game picture.
+// An active session does not paint: the game owns HDMI. A host-reported
+// kit-local session occupies HDMI the same way, so the launcher leaves that
+// core's picture in place. Loading and stopping feedback still paints when
+// the idle enables the framebuffer, because that copy is the temporary
+// overlay rather than the game picture.
 //
 // Confirmed idle without an HPS framebuffer — production SplashIdle omits SPI
 // 0x002f — does not paint, even when the model holds a catalog, detail pane,
@@ -23,5 +27,34 @@ func ShouldPaintHDMI(m Model) bool {
 	if m.Busy {
 		return true
 	}
-	return m.Session.State != "active"
+	if sessionOccupiesHDMI(m.Session.State) {
+		return false
+	}
+	return true
+}
+
+// sessionOccupiesHDMI reports that a core owns the HDMI picture. An active
+// host session and a host-reported kit-local session both do. Loading and
+// stopping feedback is a separate busy overlay and is not occupancy.
+func sessionOccupiesHDMI(state string) bool {
+	return state == "active" || hostclient.SessionKitLocal(state)
+}
+
+// sessionLocalLifecycle is a host-reported kit-local startup, run, or idle
+// load. launching is session startup, local is the running core, and stopping
+// is the idle load. The menu hold for these states resumes only at idle.
+func sessionLocalLifecycle(state string) bool {
+	switch state {
+	case "launching", "stopping":
+		return true
+	default:
+		return hostclient.SessionKitLocal(state)
+	}
+}
+
+// sessionHoldsMenu reports that menu scanout should pause. An active host
+// session does, and so does a kit-local startup, run, or idle load. linuxfb
+// occupancy stays narrower so a busy loading or stopping overlay can still paint.
+func sessionHoldsMenu(state string) bool {
+	return state == "active" || sessionLocalLifecycle(state)
 }

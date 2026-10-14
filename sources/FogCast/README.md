@@ -16,7 +16,7 @@ and content selection; the MiSTer is a small, directly controlled target.
   A missing Scanlines part falls back to a matching Direct part. Native pixel
   shells require a linked video part; raster shells retain built-in Direct as
   their final fallback. An installed selected part that fails admission
-  requires repair. Marked format-2 Coleco shells link
+  requires repair. Marked Coleco shells, including a format-3 16 KiB cartridge, link
   one video part with an optional CPU expansion, retaining the shell identity
   and fixed 720p output. The target independently links the selected bytes.
   The separate `go run ./cmd/fes-parts` developer path remains volatile. See
@@ -235,7 +235,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   The CGO-free on-kit `fogcast-kit` grid plays available kit-local SMS rows
   without the host through the local-control socket. A saved host SMS row
   plays the same way while the host is down when its cached ROM SHA-256, or
-  a single matching title, identifies the cartridge on the kit. A starts the
+  a single matching title, identifies the cartridge on the kit. While the host
+  catalog is reachable, those digests refresh in the background: a stored
+  digest at most every 15 minutes, a cancelled fill on the next catalog load
+  without replacing a digest stored by a later fill, and a failed fetch after
+  2 minutes. A starts the
   cartridge; Select+Start stops it and returns to the menu. The shell can select the described
   HDMI menu path with `menu_display: true` in `launcher.json` or
   `-menu-display`. It keeps the host-backed library, cached offline browsing,
@@ -252,16 +256,12 @@ and content selection; the MiSTer is a small, directly controlled target.
 - A reproducible target image toolchain with a development image containing
   SSH and curl.
 - A separate reproducible `native-dev` image that packages the native runtime,
-  native agent backend, one locked idle RBF, and the selected Mega Drive RBF
-  with optional sealed Pong, SNES and NES RBFs. FES integration can also add a
-  selected set of validated format-2/3 packages (`fes.menu`, `fes.pong`,
+  native agent backend, one locked idle RBF and a selected set of validated
+  format-2/3 packages (`fes.menu`, `fes.pong`,
   `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`, and
   `fes.ramtest`, `fes.atari-st`) through the closed package selection described in [the
-  development guide](docs/DEVELOPMENT.md).
-  Source-built Mega Drive selection is the native image default; use the
-  explicit upstream selection for fallback. Its idle path and one-player Mega
-  Drive launch, input, Stop, and immediate relaunch path are hardware-tested
-  on the designated kit. See the dated
+  development guide](docs/DEVELOPMENT.md). The earlier Mega Drive image lane
+  is retired; its dated hardware record is the
   [native Mega Drive baseline](docs/hardware/native-megadrive-baseline.md).
 
 The native FES appliance also has a release/update client and a fixed bootstrap
@@ -366,7 +366,27 @@ Host games may include `rom_cached` when that inventory is reachable.
 When the idle enables the HPS framebuffer, power-on may paint that shelf and
 visible covers from disk before host games HTTP as a temporary linuxfb overlay;
 an absent host shows `Offline, showing your saved list`. Confirmed idle without an HPS
-framebuffer does not present, so FPGA splash pixels stay on HDMI.
+framebuffer does not present, so FPGA splash pixels stay on HDMI. A host-reported
+kit-local session occupies HDMI the same way an active session does: the launcher
+leaves that picture in place and leaves attract disarmed. Menu display stays paused
+through that session's startup (`launching`), the running core (`local`), and the
+idle load (`stopping`), and resumes when the host reports idle. If the host drops,
+the pause stays through runtime `starting` and recovery, including a failed idle
+load that leaves `reboot_required`. The menu resumes only after a probe taken
+during that hold confirms a completed idle menu that belongs to the hold: state
+`idle`, menu display available, and a non-zero generation that is not a session
+binding. The shelf generation is the idle menu read at the pause. Runtime
+reads are serialized, and a probe that started earlier cannot replace that
+read. If the pause read fails, a cached generation is not the shelf, and a
+later idle menu does not resume merely because its generation differs. The menu
+resumes after this hold has seen the runtime leave the shelf. When the pause
+read identified the shelf, that generation does not qualify, nor does a later
+probe error after an idle sample. A different menu generation does, and so does
+a later idle probe after the hold has seen the runtime leave that shelf. When
+no idle menu was sampled before the hold, the first completed idle during the
+hold confirms it and is not kept as a stand-in shelf. The launch timeout does not resume the menu while the host is absent and
+that confirmation is still missing. Loading and stopping feedback still paints when
+the idle enables the framebuffer.
 Replacing the system image does not wipe this tree. D-pad and A still browse
 that local shelf. Launch and Stop remain bound to the persistent host session
 API and wait for host reconnect; the kit UI does not claim a target lease or
@@ -566,65 +586,31 @@ generation, and required active interfaces to match that inspected package.
 There is no browser file picker. Tenfoot types or pastes a local path with
 the gamepad OSK and POSTs the file bytes.
 
-## Native Mega Drive RBF selection
-
-Source-built Mega Drive selection is the native image default; use the explicit upstream selection for fallback.
-
-The native image resolves one sealed two-file bundle before Buildroot. The
-bundle contains `megadrive.rbf` and its closed `megadrive-rbf.toml` provenance
-record. Both files must be regular, sealed (no write bits), and byte-matched to
-the declared source revision, recipe, toolchain, size, and SHA-256. The bundle
-path is supplied by the operator and is never embedded in the image.
-
-Build with the source-built default from a FES checkout:
-
-- `make build MEGADRIVE_RBF_BUNDLE=/absolute/sealed/bundle`
-
-Build using the locked upstream release explicitly:
-
-- `make build MEGADRIVE_RBF_SOURCE=upstream`
-
-There is no automatic fallback between the two RBF selections. Both modes
-install exactly one Mega Drive RBF at the same role path and keep runtime
-launch, Stop, video, media, and input behavior unchanged. Both selections use the MiSTer ABI; generalized/custom/non-MiSTer RBF ABI support is deferred.
-
-The selection and provenance path is software-tested. Qualification of the
-source-built artifact on the designated kit is a separate later hardware gate;
-the existing hardware baseline does not silently qualify a different RBF.
-
 ## Repository boundaries
 
-| Repository | Owns |
+These are modules in the FES repository. Quartus Lite 17.0.2 is an oracle
+check, not the product FPGA route. The product route is HIP/nextpnr.
+
+| Module | Owns |
 | --- | --- |
-| `FogCast` | Host application, browser UI, catalog, target agent, content transfer, and launch requests |
+| FES | Component selection, compatibility, orchestration, image assembly (`image/`), and integration evidence |
+| FogCast | UI, game library, host services, and the network-facing target agent |
+| libmister-runtime | FPGA programming, physical lifecycle, media and input delivery, and hardware recovery |
+| misteross | FPGA source builds, RBF provenance, simulations, and compiler recipes |
+| mister-packages | Shared board, protocol, and source definitions, and their schema and emitter |
 | `Main_MiSTer` | Comparison reference; not a production dependency |
-| `misteross` | Quartus, Verilator, and open-source FPGA builds that produce RBF files |
 
 Native image assembly lives in the FES `image/` recipe. FogCast keeps the
-agent, kit, extra-core selector and native-runtime lock as inputs. Git
+agent, kit, package selector and native-runtime lock as inputs. Git
 history is the archive for superseded experiments.
 
-The conventional `dev`/`prod` image remains the broad FPGA game and
-development-RBF path described above. The separate `native-dev` image supports
-only registry system `megadrive` for catalogue launches: it sends the
-image-owned core and staged cartridge path to `mister-runtime` and rejects
-every other catalogue system. Its separate MiSTer-compatible development-RBF
-path is hardware-tested for the narrow MiSTer-compatible load/Stop lifecycle
-and subsequent game regression. The accepted game slice is one player with
-D-pad, A/B/C, and Start. Audio, Mega Drive saves, six-button input, multiplayer,
-remapping, hot-plug recovery, generalized RBF ABIs, and development video/input
-remain unsupported.
-
-## Milestone status
-
-```text
-legacy dev/prod = current game-capable path
-native-dev = hardware-tested Mega Drive launch/input/Stop/relaunch
-Milestone 2 = complete
-Milestone 3 = complete for the defined one-player Mega Drive vertical slice
-native development RBF = hardware-tested MiSTer-compatible load/Stop/game-regression path
-Milestone 4 = complete for the defined MiSTer-compatible development lifecycle
-```
+The `native-dev` image installs only the sealed FES core packages selected by
+the FES profile; [core status](../../docs/core-status.md) records which packages
+have exact-artifact kit acceptance. Its MiSTer-compatible development-RBF path
+is hardware-tested for the narrow load/Stop lifecycle. The earlier Mega Drive
+image slice and its one-player hardware results are dated evidence for a
+retired lane ([baseline](docs/hardware/native-megadrive-baseline.md)), not a
+current image capability.
 
 ## Build and test
 
@@ -658,13 +644,8 @@ uses MENU while idle. A display-capable ZX81 shell also offers visible live
 replace/eject on that HDMI output; older packages keep prelaunch selection.
 CPU execution and RAM continue while those controls are open.
 
-Native image assembly defaults to Mega Drive; the explicit
-`NATIVE_RUNTIME_SYSTEMS="megadrive pong snes nes"` selection adds sealed
-Pong/SNES/NES source bundles through the same builder and verifier. See the
-[image development guide](docs/DEVELOPMENT.md#optional-pong-snes-and-nes-image-cores).
-
 Native image assembly lives in the FES `image/` recipe. FogCast supplies the
-agent, kit launcher, extra-core selector (`cmd/target-image-lock`) while FES owns external-artifact policy in
+agent, kit launcher, package selector (`cmd/target-image-lock`) while FES owns external-artifact policy in
 `image/build/native-inputs.toml`. FES alone
 selects the runtime source revision and generates its assembly lock. The legacy
 smoke runner requires that concrete lock via `NATIVE_RUNTIME_INPUT_LOCK`.

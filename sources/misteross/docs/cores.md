@@ -29,13 +29,13 @@ A producer in this module does not put a package on that image.
 | `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchain.lock` (shared FES HIP lane) | `make build-fes-menu-package` | yes; idle display, not playable |
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
 | `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` with session display and HPS DDR | `toolchains/zx81-expansion.lock` | `make build-fes-zx81` | yes |
-| `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchains/coleco-sgm.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | yes; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
+| `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchain.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | yes; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
 | `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchains/fes-sms.lock` | `make build-fes-sms` | yes |
 | `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchains/registered-memory.lock` | `make build-fes-sg1000` | yes |
 | `fes.catch` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `python3 scripts/build_fes_catch.py` | no; registered |
-| `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `toolchains/apple2.lock` | `make build-fes-apple2` | no; package-only recipe; per-slot cards via `scripts/build_apple2_slot_card.py` |
+| `fes.apple2` | `cores/fes-apple2` | `fes.computer` | `toolchain.lock` | `make build-fes-apple2` (HIP default; HIP seal evidence still open) | no; package-only recipe; per-slot cards via `scripts/build_apple2_slot_card.py` |
 | `fes.c64` | `cores/fes-c64` | `fes.computer` | `toolchains/c64.lock` | `make build-fes-c64` | no; package-only recipe; cartridge cards via `scripts/build_c64_slot_card.py` |
-| `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchains/spectrum.lock` | `make build-fes-spectrum` | yes; four edge sockets |
+| `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchain.lock` | `make build-fes-spectrum` | yes; four edge sockets |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
 | `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `toolchain.lock` (shared FES HIP lane; 100 and 130 MHz) | `make build-fes-ramtest-100` (factory), `make build-fes-ramtest-130` (explicit) | yes; OSS 100 MHz utility |
 | `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `toolchains/atari-st.lock` | `make build-fes-atari-st` | yes; Atari 520ST firmware shell and Direct/Scanlines parts |
@@ -48,6 +48,11 @@ a package. The package is `cores/fes-pong`. ZX81 has no
 [the architecture](architecture.md).
 
 Do not use `fes.mastersystem`. The Sega Master System package id is `fes.sms`.
+
+Currency against the shared HIP pin, the first-party Z80 and the two display
+contracts is [core alignment](../../../docs/core-alignment.md). A dedicated
+lock in the table above is the pin that producer authenticates today. It is
+not permission to add another lock.
 
 Quartus recipes (`make build-fes-zx81-quartus`, `build-fes-coleco-quartus`,
 `build-fes-sg1000-quartus`, `build-fes-sms-quartus`) are bring-up oracles.
@@ -216,7 +221,7 @@ select that cache. If both variables are set they must be the same absolute
 path.
 
 Pong, Catch, the demos, the menu and RISC-V authenticate `toolchain.lock`. ZX81 authenticates
-`toolchains/zx81-expansion.lock`. Coleco uses `toolchains/coleco-sgm.lock`.
+`toolchains/zx81-expansion.lock`. Coleco uses `toolchain.lock`.
 SG-1000 uses `toolchains/registered-memory.lock`. SMS uses
 `toolchains/fes-sms.lock`. They do not alias another lock's slot.
 
@@ -279,8 +284,10 @@ EmuTOS or Atari ROMs.
 3. Add a producer next to `scripts/build_fes_sms_oss.py` or the closest
    sibling. It authenticates one lock, requires a clean committed module,
    and never programs hardware. A new core with a ROM embedded in CRAM seals
-   a producer-derived ROM map in format 3, as ZX81 does; ROM-less cores and
-   existing media-mailbox cores retain format 2 until explicitly converted.
+   a producer-derived ROM map in format 3. ROM-less cores keep format 2.
+   The factory Coleco recipe emits format 3: one exact 16 KiB cartridge.
+   Currency and retirement
+   are the FES [core alignment](../../../docs/core-alignment.md) contract.
    Wire `make sim-…` and
    `make build-…` in the Makefile. Add the tests the sibling has for manifest
    identity and the simulation you claim.

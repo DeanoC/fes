@@ -1,0 +1,10 @@
+[Unit]
+Description=Hourly FES kit drift check
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=fes-kit-drift.service
+
+[Install]
+WantedBy=timers.target

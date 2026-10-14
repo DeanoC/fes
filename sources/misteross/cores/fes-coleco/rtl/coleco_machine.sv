@@ -53,6 +53,8 @@ module coleco_machine (
     // copied code or let the VDP run until the final write (OSS flush included).
 `ifdef FES_COLECO_MEGACART_LINK
     wire      machine_reset = reset;
+`elsif FES_COLECO_ROM_LINK
+    wire      machine_reset = reset;
 `else
     wire      machine_reset = reset || !media_ready || !media_loaded;
 `endif
@@ -321,6 +323,15 @@ module coleco_machine (
     );
     assign cartridge_read = linked_read;
     assign reset_rom_read = linked_read;
+`elsif FES_COLECO_ROM_LINK
+    wire [7:0] cartridge_read;
+    wire [7:0] cartridge_peek;
+    wire [7:0] reset_rom_read;
+    wire [7:0] reset_rom_peek;
+    coleco_rom_link rom (
+        .clk(clk_sys), .address(cpu_addr[13:0]), .data(cartridge_read),
+        .peek_address(peek_addr[13:0]), .peek_data(cartridge_peek)
+    );
 `else
 `ifdef FES_COLECO_REGISTERED_MEDIA
     // Both compiler RAMs have a one-clock read result. media_addr requests
@@ -418,6 +429,8 @@ module coleco_machine (
             else if (cpu_cartridge_select)
 `ifdef FES_COLECO_MEGACART_LINK
                 cpu_din = cartridge_read;
+`elsif FES_COLECO_ROM_LINK
+                cpu_din = cartridge_read;
 `else
                 cpu_din = (media_size > 16'd16384 && {1'b0, cpu_addr[14:0]} >= media_size) ? 8'hff : cartridge_read;
 `endif
@@ -440,6 +453,7 @@ module coleco_machine (
     // starts a fresh transaction; reset's rising edge also permits a load when the
     // producer keeps the committed blob asserted.
 `ifndef FES_COLECO_MEGACART_LINK
+`ifndef FES_COLECO_ROM_LINK
     always @(posedge clk_sys) begin
         reset_d <= reset;
         if (!media_ready || (reset && !reset_d)) begin
@@ -486,6 +500,7 @@ module coleco_machine (
         end
     end
 `endif
+`endif
 
     always @* begin
         peek_data = 8'hff;
@@ -495,6 +510,8 @@ module coleco_machine (
             peek_data = ram_peek;
         else if (peek_addr[15:14] == 2'b10 || peek_addr[15:14] == 2'b11)
 `ifdef FES_COLECO_MEGACART_LINK
+            peek_data = cartridge_peek;
+`elsif FES_COLECO_ROM_LINK
             peek_data = cartridge_peek;
 `else
             peek_data = (media_size > 16'd16384 && {1'b0, peek_addr[14:0]} >= media_size) ? 8'hff : cartridge_peek;

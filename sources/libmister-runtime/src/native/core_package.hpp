@@ -48,6 +48,14 @@ Error OpenCorePackage(const std::vector<std::string>& trusted_roots,
 Error HashOpenedArtifact(const Artifact&, std::string* digest);
 Error RecheckCorePackage(const OpenedCorePackage& package);
 Error CheckCoreCompatibility(const CoreDescriptor& descriptor);
+// Format 2 is the ROM-less shell. Format 3 is the factory 16 KiB cartridge.
+inline bool ColecoVideoShell(const CoreDescriptor& descriptor)
+{
+	if (descriptor.core.id != "fes.coleco") return false;
+	if (descriptor.format == 2) return true;
+	return descriptor.format == 3 && descriptor.rom.role == "cartridge" &&
+		descriptor.rom.source_size == 16384;
+}
 Error CorePersistenceLayout(const CoreDescriptor&, VersionedContract*);
 
 } // namespace native

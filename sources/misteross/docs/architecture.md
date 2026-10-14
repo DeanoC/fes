@@ -9,6 +9,11 @@ experiment-by-experiment record. That record is the
 [OSS experiment catalog](oss-experiments.md). Files under `validation/` record
 a date. They are not current instructions.
 
+Which choices are the current standard, and the order for retiring older
+paths, is the FES [core alignment](../../../docs/core-alignment.md) currency
+contract. Retirement order stays there. This file records the build
+mechanisms in the tree.
+
 Network deployment and target lifecycle are outside this module. FogCast owns
 selection and transfer. libmister-runtime programs the FPGA.
 
@@ -19,14 +24,17 @@ identity 2 exclusively. Both Python and CLI entrypoints default to 2 and reject
 other identity versions. Quartus oracle and board-firmware records retain their
 current evidence schema. Rebuilt script closures receive new identities;
 existing artifacts and caches are never relabelled or deleted.
-ZX81, SMS and SG-1000 packages use format 3 to seal their ROM maps; other producers keep
-format 2. The external `build-inputs.json` record gains format 2, while the exporter still
-reads format 1 with its original full-record SHA256 correlation algorithm.
+ZX81, SMS, SG-1000, Apple II, C64, Spectrum, Atari ST and the factory Coleco
+cartridge use format 3 to seal one ROM map. ROM-less producers keep format 2.
+The external `build-inputs.json` record is format 2.
+`build_identity` still hashes a format-1 record with the original full-record
+SHA256; a format-2 record uses the domain-separated functional projection.
 
 The package exporter and inspector also recognize format 4 with two ordered ROM
-requirements and one sealed map. The Coleco development producer will select
-this format when its separate blank shell and map are available; existing
-registered recipes still emit their current formats.
+requirements and one sealed map. The Coleco MegaCart development producer
+(`scripts/build_fes_coleco_megacart.py`) emits that format. The factory Coleco
+recipe emits format 3. Which format a new core uses, and when an older
+format is retired, is [core alignment](../../../docs/core-alignment.md).
 
 Record 2 keeps repository/revision and `source_path` as original build provenance, but derives
 its embedded 128-bit ID from a domain-separated functional projection excluding
@@ -752,9 +760,8 @@ a nominal 60 Hz frame cadence independent of CPU and HDMI pixel clocks. This
 models frame/line pacing, not composite sync, half-lines or cycle-perfect raster
 effects. The development Coleco machine edge has an inactive vacant response
 and masks expansion read claims to `0x2000–0x5fff` or unclaimed I/O. The
-physical socket is behind `FES_COLECO_EXPANSION_DEV`; a separate
-`coleco-expansion.lock` pairs registered-memory Yosys with the socket-aware
-Mistral and nextpnr pins. The development producer seals a timed shell with a
+physical socket is behind `FES_COLECO_EXPANSION_DEV`. The development producer
+authenticates `toolchain.lock` and seals a timed shell with a
 reserved `24 1 28 11` placement region containing only pinned boundary FFs.
 It declares optional `fes.expansion.coleco-bus` 1.0. The diagnostic module
 uses the frozen shell and restores the system PLL's
@@ -844,7 +851,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `9128800f` with Mistral `8fcc4cb4`. Factory Coleco v2 selects `toolchains/coleco-sgm.lock`, builds it under `build/toolchain/fes-coleco-socket-v2`, and enables HIP. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
+| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `9128800f` with Mistral `8fcc4cb4`. Factory Coleco v2 selects that shared lock and can build it under `build/toolchain/fes-coleco-socket-v2`. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -867,11 +874,8 @@ The Opcode SGM candidate uses a separate development shell with a 31-bit
 request and 28-bit registered response. The response carries direct data,
 claim, WAIT, INT, a shell-RAM claim and signed PCM. The shell owns a dormant
 32 KiB M10K RAM and saturated SN+AY audio path; the separately synthesized SGM
-owns the window-enable and AY register decode. `toolchains/coleco-sgm.lock`
-pins nextpnr `655f3833` with frozen-scaffold BEL admission and bounded slot
-placement. Its GPU router selects all users of congested wires before rip-up
-and preserves the initial-routing budget through small congestion plateaus.
-The shell and its matching video/SGM parts use this same locked compiler.
+owns the window-enable and AY register decode. The v2 shell authenticates
+`toolchain.lock`. The former `toolchains/coleco-sgm.lock` pin is retired.
 The v2-only socket reserves `24 1 28 19` placement and
 `(1769,32,2806,1800)` CRAM; v1 retains its smaller rectangle. The v2
 build scripts keep the v1 diagnostic's socket and archive contract untouched.
@@ -1551,13 +1555,28 @@ The endpoint owns no storage: accepted media words appear on a write port for
 their acknowledging clock and `unit0_state` gates presentation of unit 0.
 
 `make build-fes-apple2` (`scripts/build_fes_apple2_oss.py`,
-`toolchains/apple2.lock`, `make toolchain-fes-apple2`) seals a format-3
-package from a clean committed tree. Its single ROM is `apple2-firmware`,
+`toolchain.lock`, `make toolchain-fes-apple2`) is the format-3
+product lane. The registered recipe selects HIP. Backend identity is part of
+the build record, so a CUDA route of the same sources is a different package.
+The shared-pin clocks that closed on this lock move were a CUDA exploratory
+seal; that seal is not HIP closure, and product HIP seal evidence is still
+open. The September kit notes do not accept those bytes. The build record
+uses the audited static closure in `scripts/source_closures.json`: pinned
+inputs, the scripts they import, the toolchain recipe files, and the Apple II
+core tree, excluding simulation, tests and markdown. That replaces the broad
+`scripts` and `cores/fes-common` roots. A compiler-read derive during the
+product HIP seal is the remaining tightening; this closure is not that trace.
+Its single ROM is `apple2-firmware`,
 role `firmware`, 16,384 bytes on the blank column-5 lanes at rows 32–47.
 The shell QSF adds the four named `FES_RESERVED_RECT` regions of
-`scripts/apple2_slots.py`; the producer requires every socket to hold only
-its pinned boundary flip-flops and every firmware destination to fall
-outside all four socket CRAM rectangles. It searches seeds 5, 4, 2, 1, 3,
+`scripts/apple2_slots.py`. Socket validation admits a compiler-inserted
+`MISTRAL_BUF` only as the verified `$ROUTETHRU` companion of an already
+pinned boundary flip-flop. The shared `coleco_expansion` check requires the
+paired COMB/MCOMB half, the exact physical pin map, and a dedicated buffer
+output connected only to that flip-flop's data input. Clock-coverage outputs
+must remain unused. A matching name or the same tile is not enough. Every
+other shell cell inside a socket is rejected, and every firmware destination
+must fall outside all four socket CRAM rectangles. It searches seeds 5, 4, 2, 1, 3,
 6–10 at HeAP weight 2000 and takes the first route that closes 52.224 MHz
 system, 74.25 MHz pixel and 12.288 MHz audio timing. An inferred read-only
 memory maps to an M10K without a clock in this toolchain, so the font M10K
@@ -1577,8 +1596,11 @@ rejects every async M10K in the shell. The package declares `fes.expansion.apple
 against the exact sealed shell and its frozen `routed.json`: the scaffold
 renames only that slot's boundary flip-flops to `plug_addr_ff_N` /
 `plug_rdata_ff_N` (the other sockets keep their instance names, so nextpnr
-finds exactly one plug set), removes that slot's clock-coverage flip-flop,
-and reattaches the system PLL's second output as the Coleco card flow does.
+finds exactly one plug set) and removes that slot's clock-coverage flip-flop.
+Legacy routed JSON omits the PLL's second output; the scaffold reattaches
+that authenticated audio net and drops the obsolete `outclk[0]` alias.
+Shared-pin JSON already exposes physical C6/C7 outputs; the scaffold
+validates and preserves those connections and their pin map.
 nextpnr pass 2 runs with `--fes-cart-region slotN` and that socket's
 `--fes-cram-region`; the producer requires the three shell clocks and no CRAM
 change outside the socket, then publishes a two-member archive whose
@@ -1631,7 +1653,7 @@ sync and data edges across mixed bytes and consecutive blocks, then checks
 partial tails and live eject/replacement.
 
 `make build-fes-spectrum` (`scripts/build_fes_spectrum_oss.py`,
-`toolchains/spectrum.lock`, `make toolchain-fes-spectrum`) is the format-3
+`toolchain.lock`, `make toolchain-fes-spectrum`) is the format-3
 seal. Its ROM is `spectrum-firmware`, 16,384 bytes, on the same blank column-5
 lanes at rows 32–47. The shell reserves the four `FES_RESERVED_RECT` regions
 from `scripts/spectrum_slots.py` (`fes.spectrum-bus.sockets/1`, sockets 1–4).
@@ -1693,7 +1715,7 @@ independently of routing legality and CRAM containment. Each response output
 has a separate identity ALUT2 so the pinned merger cannot discard constant
 outputs or collapse aliased response sinks. The probe drives only read cycles.
 No Commodore ROM is in the tree, and the core is not in the
-factory image. The shell uses Yosys `5391eeb1`, Mistral `8fcc4cb4` and nextpnr
+factory image. The shell uses Yosys `4b971bb1`, Mistral `8fcc4cb4` and nextpnr
 `0c5ed400`; its
 socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`
 companion of a pinned boundary flip-flop, using the shared
@@ -2022,7 +2044,10 @@ the first placement meeting 74.25 MHz, validates the shared board, PLL and
 I2C evidence and exports a format-2 package (`fes.riscv` 0.1.0, profile
 `fes-gp-v1`). Output is `build/fes-riscv/`. `make sim-fes-riscv` covers the
 CPU against an independent model, the firmware images, the system through
-its HDMI pixel stream and the board shell through the mailbox. The CPU
+its HDMI pixel stream and the board shell through the mailbox. The system
+case checks every static output pixel against the complete scene for 600
+consecutive frames while the CPU and timer run, excluding the animated box.
+The CPU
 contract is [its README](../cores/fes-common/rtl/riscv/README.md); the
 machine contract is [the core README](../cores/fes-riscv/README.md). FES
 registers the recipe as package-only; the factory image does not select it.
@@ -2051,8 +2076,8 @@ lease.
 
 ## Core package boundary
 
-`scripts/core_package.py` is the host inspector for format-2/3 package directories
-and `.fcore` archives. Its public Python API is
+`scripts/core_package.py` is the host inspector for format-2/3/4 package
+directories and `.fcore` archives. Its public Python API is
 `read_package(path: Path) -> CorePackage`,
 `encode_manifest(fields: dict) -> bytes`, and
 `package_identity(manifest: bytes, payload: bytes, rom_map: bytes | None = None) -> str`. `CorePackage` exposes
@@ -2082,8 +2107,9 @@ manifest to format 3 with the map's declared source size and exact digest/length
 Alternatively supply an already encoded format-3 manifest and `rom_map=path`.
 The CLI equivalents are `--rom-map`, `--rom-id`, and `--rom-role`. The map is
 snapshotted, validated, sealed read-only and compared during reuse alongside the
-manifest and RBF. ZX81 now exports format 3; the other production producers
-continue to export format 2.
+manifest and RBF. Format-3 exporters are ZX81, SMS, SG-1000, Apple II, C64,
+Spectrum, Atari ST and the factory Coleco cartridge. ROM-less producers export
+format 2. The Coleco MegaCart development producer exports format 4.
 
 Repository URI syntax uses the host-only vendored
 `rfc3986-validator` 0.1.1 module from

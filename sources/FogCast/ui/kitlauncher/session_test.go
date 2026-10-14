@@ -80,19 +80,28 @@ func TestRunTreatsKitLocalHostSessionAsOnlineAndOccupied(t *testing.T) {
 	client := newSessionTestClient(t, host.URL, "", game)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	oldObserve := launcherObserve
+	defer func() { launcherObserve = oldObserve }()
 	var sawOnlineLocal atomic.Bool
+	var localPaints atomic.Int64
+	launcherObserve = func(m Model) {
+		if m.Session.State == "local" && m.Connected {
+			sawOnlineLocal.Store(true)
+			cancel()
+		}
+	}
 	if err := Run(ctx, client, func(m Model) {
 		if m.Session.State == "local" {
-			if m.Connected {
-				sawOnlineLocal.Store(true)
-			}
-			cancel()
+			localPaints.Add(1)
 		}
 	}, func() (Pad, error) { return &offlineLaunchPad{}, nil }); err != nil {
 		t.Fatal(err)
 	}
 	if !sawOnlineLocal.Load() {
 		t.Fatal("kit-local session was treated as a host failure/offline session")
+	}
+	if localPaints.Load() != 0 {
+		t.Fatalf("kit-local session painted %d HDMI frames", localPaints.Load())
 	}
 	model := Model{Connected: true, TargetReady: true, Session: Session{State: "local"}, LocalPlayEnabled: true}
 	if action := model.launchAction(hostclient.Game{ID: "sms-cart", System: "sms", State: "available", RootOnline: true}); action != "" {

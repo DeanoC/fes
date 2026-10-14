@@ -1,0 +1,2 @@
+system:
+fes_riscv_system: static scene changed at output (164,0), frame 3: got 0x000000 expected 0xffffff

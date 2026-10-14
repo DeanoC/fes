@@ -7,6 +7,7 @@ from pathlib import Path
 from scripts.core_package import MAX_PAYLOAD_SIZE
 from scripts.fes_build_common import (
     BuildError,
+    FES_GPU_BACKEND,
     TOP,
     _cell_counts,
     _i2c_evidence,
@@ -239,7 +240,7 @@ def validate_build_evidence(output: Path, source_root: Path, *, ordinary_resourc
     route_text = route_log.read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
-    gpu_backend = _require_gpu_backend(route_text)
+    gpu_backend = _require_gpu_backend(route_text, FES_GPU_BACKEND)
     reference = _reference_clock_evidence(source_root, route_text, audio=audio,
                                           memory_pll=memory_pll_parameters is not None, raw_fractional_video=raw_fractional_video)
     if memory_pll_parameters is not None:

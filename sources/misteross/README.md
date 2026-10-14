@@ -30,12 +30,15 @@ programs the FPGA. misteross stops at the RBF. No build target programs a kit.
 go through FogCast as described packages; the contained development-RBF path
 serves experiments.
 
-ZX81, SMS and SG-1000 seal format-3 packages containing a blank base RBF and an
-authenticated ROM map. ZX81 requires an exact 8192-byte firmware input;
-SMS requires an exact 32768-byte cartridge input; SG-1000 requires an exact
-16384-byte cartridge input. Map extraction checks the
-selected Mistral database, routed ROM placements and blank INIT bits. Other
-normal producers retain format 2. See [functional input identity](docs/architecture.md#functional-input-identity).
+ZX81, SMS, SG-1000, Apple II, C64, Spectrum, Atari ST and the factory Coleco
+shell seal format-3 packages containing a blank base RBF and an authenticated
+ROM map. ZX81 requires an exact 8192-byte firmware input; SMS requires an
+exact 32768-byte cartridge input; SG-1000 and Coleco require an exact
+16384-byte cartridge input. Map extraction checks the selected Mistral
+database, routed ROM placements and blank INIT bits. ROM-less producers
+retain format 2. The Coleco MegaCart development producer emits format 4.
+Which format is current is the FES [core alignment](../../docs/core-alignment.md)
+contract. See [functional input identity](docs/architecture.md#functional-input-identity).
 
 Coleco [video parts](docs/cores.md#video-parts-development-lane) link direct or
 scanline processing into a frozen pixel-clock socket. The separate native-pixel
@@ -55,8 +58,9 @@ command retains its CPU-only socket; `make build-fes-coleco-video` explicitly
 builds the video variant. The shared RTL contract is owned by
 [mister-packages](../mister-packages/docs/video-parts.md).
 
-The factory image installs `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
-`fes.sg1000`, `fes.spectrum`, `fes.ramtest` and `fes.atari-st`. Another
+The factory image installs `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`,
+`fes.sms`, `fes.sg1000`, `fes.spectrum`, `fes.ramtest` and `fes.atari-st`.
+`fes.menu` is the idle display, not a playable library entry. Another
 package is not added to that set merely because its producer exists.
 
 The first 16-bit machine is the [Atari 520ST](cores/fes-atari-st/README.md):
@@ -85,7 +89,9 @@ The original shared Z80 CPU has NMOS and documented fast variants. Run
 Cyclone V timing diagnostic. SG-1000 and Spectrum select the NMOS variant.
 Spectrum also has an explicit documented-only 56 MHz development build;
 `make sim-fes-spectrum-turbo` compares both modes and measures elapsed workloads.
-Coleco, SMS and ZX81 retain their existing CPU implementations.
+Coleco, SMS and ZX81 still instantiate TV80/T80. [Core alignment](../../docs/core-alignment.md)
+schedules the move onto `fes_z80_nmos` one machine at a time. That swap has
+not landed for those three packages.
 
 ### OSS experiments
 
@@ -163,7 +169,7 @@ make toolchain
 freeze-scaffold pass 2. `fes.menu` and both OSS `fes.ramtest` rates use the same
 `toolchain.lock` HIP compiler slot (also provisioned by
 `make toolchain-fes-ramtest`). Coleco uses `make toolchain-fes-coleco` against
-`toolchains/coleco-sgm.lock`. SG-1000 uses `make toolchain-fes-sg1000`
+`toolchain.lock`. SG-1000 uses `make toolchain-fes-sg1000`
 against `toolchains/registered-memory.lock`. SMS uses
 `make toolchain-fes-sms` against `toolchains/fes-sms.lock`. ZX81 uses
 `make toolchain-fes-zx81` against `toolchains/zx81-expansion.lock`. Those

@@ -1,8 +1,11 @@
 """Controlled invocation and conservative machine inputs for functional IDs.
 
-This is a native Linux HIP lane. Capturing host libraries and KFD topology keeps
-reuse conservative across driver/device changes; it is not a portable container
-or a claim that HIP place-and-route produces identical bytes on every run.
+Capturing host libraries plus the readable AMD KFD and NVIDIA topology and
+driver records keeps reuse conservative across driver and device changes.
+On a mixed AMD/NVIDIA host both families are recorded, so a CUDA build cannot
+reuse an identity that omitted an NVIDIA change. Canonical record generation
+and the producers call this same selection. This is not a portable container
+or a claim that place-and-route produces identical bytes on every run.
 """
 from __future__ import annotations
 
@@ -89,16 +92,39 @@ def execution_inputs(tools: dict[str, Path], env: dict[str, str], gpu_device: in
             "environment": normalized_env, "files": dict(sorted(files.items()))}
 
 
-def _machine_input_files():
-    topology = Path("/sys/class/kfd/kfd/topology/nodes")
-    properties = sorted(topology.glob("*/properties"))
-    if not properties:
-        raise ValueError("functional HIP build requires readable KFD GPU topology")
-    files = properties + sorted(topology.glob("*/gpu_id"))
-    for path in (Path("/sys/module/amdgpu/version"), Path("/etc/os-release")):
-        if path.is_file():
-            files.append(path)
+def _gpu_machine_files(kfd_topology: Path, amdgpu_version: Path, nvidia_gpus: Path,
+                       nvidia_version: Path, os_release: Path) -> list[Path]:
+    """Record every readable GPU family so mixed hosts cannot hide one of them."""
+
+    files: list[Path] = []
+    properties = sorted(kfd_topology.glob("*/properties"))
+    if properties:
+        files.extend(properties)
+        files.extend(sorted(kfd_topology.glob("*/gpu_id")))
+        if amdgpu_version.is_file():
+            files.append(amdgpu_version)
+    information = sorted(nvidia_gpus.glob("*/information")) if nvidia_gpus.is_dir() else []
+    if information:
+        files.extend(information)
+        if nvidia_version.is_file():
+            files.append(nvidia_version)
+    if not files:
+        raise ValueError(
+            "functional GPU build requires readable KFD topology or NVIDIA GPU information"
+        )
+    if os_release.is_file():
+        files.append(os_release)
     return files
+
+
+def _machine_input_files():
+    return _gpu_machine_files(
+        Path("/sys/class/kfd/kfd/topology/nodes"),
+        Path("/sys/module/amdgpu/version"),
+        Path("/proc/driver/nvidia/gpus"),
+        Path("/proc/driver/nvidia/version"),
+        Path("/etc/os-release"),
+    )
 
 
 def execution_digest(inputs: dict) -> str:
@@ -107,12 +133,14 @@ def execution_digest(inputs: dict) -> str:
 
 class FunctionalInvocation:
     """One controlled compiler invocation, shared by the production producers."""
-    def __init__(self, authenticated, gpu_device=0):
+    def __init__(self, authenticated, gpu_device=0, extra_env=None):
         import tempfile
         self.tools = {name: tool.path for name, tool in authenticated.items()}
         self.gpu_device = gpu_device
         self.home = tempfile.TemporaryDirectory(prefix="fes-tool-home-")
         self.env = execution_environment(Path(self.home.name), self.tools)
+        if extra_env:
+            self.env.update(extra_env)
         try:
             self.inputs = execution_inputs(self.tools, self.env, gpu_device)
         except Exception:

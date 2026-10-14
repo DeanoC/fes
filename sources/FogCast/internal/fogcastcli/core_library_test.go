@@ -51,6 +51,13 @@ func TestCoreSelectionConflictHasRefreshablePublicError(t *testing.T) {
 	}
 }
 
+func TestKitLeaseBusyKeepsPublicCode(t *testing.T) {
+	result := publicAPIError(protocol.CodeKitLeaseBusy)
+	if result.Code != protocol.CodeKitLeaseBusy || result.Message != "Another session owns the kit; release it from that session before retrying." {
+		t.Fatalf("%+v", result)
+	}
+}
+
 func TestCoreInstallRequiresExactInspectionResponse(t *testing.T) {
 	archivePath, archive, inspection := cliCoreArchive(t)
 	wrong := inspection

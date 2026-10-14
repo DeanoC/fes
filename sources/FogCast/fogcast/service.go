@@ -3286,6 +3286,8 @@ func canonicalError(code protocol.ErrorCode, cause error) error {
 		message = "configured software emulator core is unavailable"
 	case protocol.CodeKitLeaseDenied:
 		message = "Another session owns the target; release it from that session before retrying."
+	case protocol.CodeKitLeaseBusy:
+		message = "Another session owns the kit; release it from that session before retrying."
 	case protocol.CodeUnsupportedSystem:
 		message = "game system is unsupported"
 	case protocol.CodeUnsupportedOperation:

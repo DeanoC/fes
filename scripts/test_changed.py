@@ -91,7 +91,7 @@ def plan(root, base, head="HEAD", jobs=2, full=False):
         for pattern in affected.FPGA_SOFTWARE_TESTS:
             add("fpga", pattern, fpga,
                 [sys.executable, "-m", "unittest", "discover", "-s", "tests", "-p", pattern, "-v"],
-                tools=["strace"] if pattern == "test_compiler_read_audit.py" else [],
+                tools=["strace"],
                 files=["tests/" + pattern])
         for core in impact["cores"]:
             add("fpga", core + " RTL simulation", fpga,

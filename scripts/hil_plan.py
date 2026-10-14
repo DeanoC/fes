@@ -731,6 +731,37 @@ def core_capture(args):
     Path(args.out).write_text(json.dumps(bundle, indent=2) + '\n')
 
 
+def load_kit_status(paths, boot_id, kit_entries):
+    """Require saved `fes kit status` text and check it against the overlay."""
+    paths = paths or []
+    if not paths:
+        return None, 'kit or core entries require --kit-status'
+    texts = []
+    found = {}
+    for path in paths:
+        file = Path(path)
+        if not file.is_file():
+            return None, f'kit status file is missing: {path}'
+        text = file.read_text()
+        if not re.search(r'(?m)^kit [AB] ', text):
+            return None, 'kit status does not name kit A or B'
+        match = re.search(r'boot_id (\S+)', text)
+        if not boot_id or not match or match.group(1) != boot_id:
+            return None, 'kit status boot_id does not match kit update'
+        for line in text.splitlines():
+            row = re.match(r'(\S+) current=([0-9a-fA-F]{64}|MISSING)\b', line)
+            if row:
+                found[row.group(1)] = row.group(2).lower()
+        texts.append(text)
+    for entry in kit_entries:
+        name = entry['component']
+        if name not in found:
+            return None, f'kit status missing {name}'
+        if found[name] != str(entry['sha256']).lower():
+            return None, f'kit status current hash mismatch for {name}'
+    return texts, None
+
+
 def evidence(args):
     # A refused run must not leave an earlier success sitting at --out.
     if args.out:
@@ -853,6 +884,11 @@ def evidence(args):
             lease, error = validate_core_lease(args.lease_log, args.host_lease_owner)
         if error:
             return refuse(error)
+    kit_status_texts = []
+    if kit_involved:
+        kit_status_texts, reason = load_kit_status(args.kit_status or [], boot_id, kit_entries)
+        if reason:
+            return refuse(reason)
     if kit_entries:
         kit_text = Path(args.kit_sha256).read_text()
         if not re.search(r'^SUPERVISORS runtime=1 agent=1 kit=1$', kit_text, re.M):
@@ -921,6 +957,8 @@ def evidence(args):
         lines.append('- Lease: ' + ', '.join(
             f"{record['step']} generation `{record['status'].get('generation', '')}` "
             f"at `{record.get('recorded_at', '')}`" for record in lease))
+    for text in kit_status_texts:
+        lines.extend(('', '### fes kit status', '', '```', text.rstrip('\n'), '```'))
     lines.extend(('', '| Class | Component | Path | Rule |', '| --- | --- | --- | --- |'))
     lines.extend(f"| {row['class']} | {row['component'] or '-'} | `{row['path']}` | `{row['rule']}` |"
                  for row in classified['rows'])
@@ -1027,10 +1065,13 @@ def parser():
     manifest_parser.add_argument('artifacts', nargs='+')
     for command in ('kit-command', 'host-command'):
         sub.add_parser(command).add_argument('--manifest', required=True)
-    deploy = sub.add_parser('kit-deploy-script')
+    deploy = sub.add_parser('kit-deploy-script',
+                            help='legacy generator; HIL installs use scripts/fes kit swap')
     deploy.add_argument('--manifest', required=True)
     deploy.add_argument('--stage-dir', required=True)
     deploy.add_argument('--sha256sums', action='store_true')
+    deploy.add_argument('--legacy', action='store_true',
+                        help='emit the old bind-mount script; do not run it on a kit')
     lease = sub.add_parser('lease-record')
     lease.add_argument('--log', required=True)
     lease.add_argument('--step', required=True,
@@ -1054,6 +1095,8 @@ def parser():
                                  help='host core-load lease owner, required for core entries')
     evidence_parser.add_argument('--core-status', action='append', default=[],
                                  help='COMPONENT=FILE, FILE written by core-capture')
+    evidence_parser.add_argument('--kit-status', action='append',
+                                 help='saved `fes kit status` output; required for kit and core plans')
     capture = sub.add_parser('core-capture',
                              help='capture update, status, update into one bundle (token from FOGCAST_TOKEN)')
     capture.add_argument('--target-url', default='http://192.168.10.84:8182')
@@ -1133,6 +1176,9 @@ def main(argv=None):
                 output.write(json.dumps(record) + '\n')
             return 0
         if args.command == 'kit-deploy-script':
+            if not args.legacy:
+                raise ValueError(
+                    'kit-deploy-script is not a kit install path; use python3 scripts/fes kit swap')
             entries = json.loads(Path(args.manifest).read_text()).get('entries', [])
             kit_entries = [entry for entry in entries if entry['side'] == 'kit']
             if args.sha256sums:

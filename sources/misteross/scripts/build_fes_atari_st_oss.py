@@ -656,7 +656,8 @@ def validate_m10k_configurations(routed: dict, database: Mapping[str, bytes]) ->
             "routing_coverage": "RAM-local BM_CRAM only; routing PIPs use the frozen shell/card containment contract"}
 
 
-def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes]) -> dict:
+def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes],
+                            gpu_backend: str = ST_GPU_BACKEND) -> dict:
     routed = _read_json(output / "routed.json", "routed design")
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
@@ -671,7 +672,7 @@ def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes]) 
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
-    gpu_backend = _require_gpu_backend(route_text)
+    gpu_backend = _require_gpu_backend(route_text, gpu_backend)
     if "50 MHz -> 52.224 MHz" not in route_text:
         raise BuildError("route log does not contain the 50-to-52.224 MHz system PLL")
     if not re.search(r"PLL 'system_clock.pll': second output 12\.288 MHz", route_text):

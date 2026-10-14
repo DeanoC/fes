@@ -17,7 +17,13 @@ import re
 
 
 def register_signals(module: dict, cell: str) -> list[str]:
-    bits = module["cells"][cell]["connections"]["Q"]
+    # Hard blocks such as cyclonev_hps_interface_fpga2sdram latch a path
+    # without a flip-flop Q. The endpoint stays in the path record; it has
+    # no logical register bit to resolve.
+    connections = module["cells"][cell].get("connections", {})
+    if "Q" not in connections:
+        return []
+    bits = connections["Q"]
     names = []
     for name, net in module["netnames"].items():
         if net.get("hide_name"):

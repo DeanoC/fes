@@ -137,7 +137,7 @@ def routed_evidence(directory):
     log = read(directory / "route.log").decode()
     require("Info: Program finished normally." in log and "unrouted" not in log.lower()
             and not re.search(r"^\s*(?:ERROR|FATAL)\b", log, re.M | re.I), "incomplete route")
-    backend = shell_producer.factory._require_gpu_backend(log)
+    backend = shell_producer.factory._require_gpu_backend(log, shell_producer.factory.COLECO_GPU_BACKEND)
     timing = json.loads(read(directory / "timing.json"))
     sgm.validate_cart_timing(timing)
     measured = {name: shell_producer.factory._frequency_row(timing["fmax"], requested, name, name)
@@ -179,7 +179,8 @@ summary = json.loads(read(shell / "build-summary.json"))
 shell_summary = summary
 require(execution_digest(shell_summary["execution"]) == record_fields["parameters"]["execution_sha256"],
         "shell execution evidence differs from its build identity")
-shell_evidence = shell_producer.factory.validate_build_evidence(shell, source)
+shell_evidence = shell_producer.factory.validate_build_evidence(
+    shell, source, gpu_backend=record_fields["parameters"]["gpu_backend"])
 for key in ("status", "timing", "resources", "synthesis_cells", "rbf"):
     require(summary[key] == shell_evidence[key], "shell " + key + " evidence changed")
 require(shell_producer.manifest(record, summary, record_fields["repository"], REVISION,

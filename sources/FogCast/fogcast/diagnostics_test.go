@@ -65,6 +65,17 @@ func TestSafeTargetDiagnosticRecognizedPhases(t *testing.T) {
 	}
 }
 
+func TestCanonicalKitLeaseBusyRemainsBusy(t *testing.T) {
+	err := canonicalRemoteError(&protocol.APIError{Code: protocol.CodeKitLeaseBusy, Message: "secret owner", Phase: "request"}, protocol.CodeMiSTerUnavailable)
+	var got *protocol.APIError
+	if !errors.As(err, &got) || got.Code != protocol.CodeKitLeaseBusy || got.Phase != "request" || strings.Contains(got.Message, "secret") || strings.Contains(got.Message, "internally") {
+		t.Fatalf("%+v", got)
+	}
+	if got.Message != "Another session owns the kit; release it from that session before retrying." {
+		t.Fatalf("message %q", got.Message)
+	}
+}
+
 func TestCanonicalRemoteRuntimePhasesRemainSafe(t *testing.T) {
 	for _, phase := range []string{"quiesce", "programming", "private-token-phase"} {
 		t.Run(phase, func(t *testing.T) {

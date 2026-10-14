@@ -16,7 +16,7 @@ class ColecoBusDiagnosticTest(unittest.TestCase):
         self.assertEqual(diagnostic.CRAM_REGION, (1769, 32, 2806, 1034))
         self.assertEqual(diagnostic.SOURCES, ("cores/fes-coleco/expansions/diagnostic.v",))
         self.assertIn("cores/fes-coleco/rtl/coleco_bus_pack.vh", diagnostic.INPUTS)
-        self.assertIn("toolchains/coleco-expansion.lock", diagnostic.INPUTS)
+        self.assertIn("toolchain.lock", diagnostic.INPUTS)
 
     def test_clock_gate_requires_all_three_declared_shell_clocks(self):
         rows = {name: {"constraint": expected + 0.0001, "achieved": expected + 1}

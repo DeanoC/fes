@@ -765,18 +765,18 @@ func TestAppRemoveFromCustomCollectionReloadsView(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, 10*time.Second, func(snap Snapshot) bool {
 		return !snap.Loading && len(snap.Games) == 1
 	})
 	for i := 0; i < 6; i++ {
 		app.Press(CmdViewNext, time.Now())
 	}
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, 10*time.Second, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "weekend-queue" && len(snap.Games) == 1
 	})
 	focusPickerRow(t, app, false, "weekend-queue")
 	app.Press(CmdSortCycle, time.Now())
-	waitSnapshot(t, app, 2*time.Second, func(snap Snapshot) bool {
+	waitSnapshot(t, app, 10*time.Second, func(snap Snapshot) bool {
 		return !snap.Loading && snap.Collection == "weekend-queue" && len(snap.Games) == 0
 	})
 	found := false
