@@ -14,11 +14,11 @@ from tests.producer_fixture import FakeInvocation, init_source
 
 
 class RamtestTimingDiagnosticTest(unittest.TestCase):
-    def test_compiler_lock_matches_diagnostic_and_stays_separate(self):
+    def test_compiler_lock_matches_the_shared_pin(self):
         lock = tomllib.loads((timing.ROOT / timing.LOCK).read_text())
         self.assertEqual(lock["tool"]["yosys"]["commit"], timing.TOOL_COMMITS["yosys"])
         self.assertEqual(lock["tool"]["nextpnr"]["commit"], timing.TOOL_COMMITS["nextpnr"])
-        self.assertNotEqual(timing.LOCK, ramtest.TOOLCHAIN_LOCK)
+        self.assertEqual(timing.LOCK, ramtest.TOOLCHAIN_LOCK)
         self.assertNotEqual(timing.OUTPUT, ramtest.OUTPUT_130)
 
     def test_synthesis_writes_diagnostic_fixture_without_changing_normal_path(self):
