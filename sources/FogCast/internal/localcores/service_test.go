@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -1089,4 +1091,85 @@ func TestApplianceUpdateCancelsAndDrainsLocalLaunch(t *testing.T) {
 		t.Fatal("canceled launch published running session")
 	}
 	waitFree(t, manager)
+}
+
+// A missing durable store must answer GET /v1/local/cores without opening
+// factory payloads. Reading those files is what grew the kit agent until the
+// OOM killer ran.
+func TestUnavailableStoreListIsBounded(t *testing.T) {
+	root := t.TempDir()
+	selections := filepath.Join(root, "selections")
+	packages := filepath.Join(root, "packages")
+	if err := os.Mkdir(selections, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(packages, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	packageID := strings.Repeat("ab", 32)
+	install := filepath.Join(packages, packageID)
+	if err := os.Mkdir(install, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := []byte("format = 2\n")
+	if err := os.WriteFile(filepath.Join(install, "manifest.toml"), manifest, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := os.Create(filepath.Join(install, "core.rbf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	const payloadBytes = 4 << 20
+	if _, err := io.Copy(payload, io.LimitReader(zeroReader{}, payloadBytes)); err != nil {
+		t.Fatal(err)
+	}
+	if err := payload.Close(); err != nil {
+		t.Fatal(err)
+	}
+	selection := "core_id = \"fes.pong\"\npackage_id = \"" + packageID + "\"\npayload_sha256 = \"" + strings.Repeat("cd", 32) + "\"\ninstall_path = \"" + install + "\"\n"
+	if err := os.WriteFile(filepath.Join(selections, "fes-pong.package.toml"), []byte(selection), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	service := New(nil, nil, Roots{Selections: selections, Packages: packages})
+	service.SetInventory(func() ([]Core, error) {
+		return nil, errors.New("durable core package storage is unavailable")
+	})
+
+	runtime.GC()
+	var before runtime.MemStats
+	runtime.ReadMemStats(&before)
+	started := time.Now()
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		Handler(service).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/local/cores", nil))
+		done <- response
+	}()
+	var response *httptest.ResponseRecorder
+	select {
+	case response = <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("GET /v1/local/cores hung while the durable store was unavailable")
+	}
+	elapsed := time.Since(started)
+	var after runtime.MemStats
+	runtime.ReadMemStats(&after)
+	if response.Code != http.StatusOK || strings.TrimSpace(response.Body.String()) != "[]" {
+		t.Fatalf("list %d %s", response.Code, response.Body.String())
+	}
+	if elapsed > time.Second {
+		t.Fatalf("list took %s", elapsed)
+	}
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 1<<20 {
+		t.Fatalf("list allocated %d bytes while the store was unavailable", allocated)
+	}
+}
+
+type zeroReader struct{}
+
+func (zeroReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 0
+	}
+	return len(p), nil
 }

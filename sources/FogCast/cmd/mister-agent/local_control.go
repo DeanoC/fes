@@ -191,6 +191,20 @@ func durableMeshInventory(ctx context.Context, roots []string, store *kitpackage
 	return abis, ids
 }
 
+// localCoreInventory is the kit-local catalog source. A nil store with an
+// open error means the durable library cannot be read, including when
+// FESDATA3 is absent. The callback returns that error and does not open or
+// scan factory packages. A nil callback leaves the factory catalog in place.
+func localCoreInventory(ctx context.Context, store *kitpackages.Store, libraryErr error) func() ([]localcores.Core, error) {
+	if store != nil {
+		return func() ([]localcores.Core, error) { return durableLocalInventory(ctx, store) }
+	}
+	if libraryErr != nil {
+		return func() ([]localcores.Core, error) { return nil, libraryErr }
+	}
+	return nil
+}
+
 func durableLocalInventory(ctx context.Context, store *kitpackages.Store) ([]localcores.Core, error) {
 	selections, err := store.SelectedPackages(ctx)
 	if err != nil {

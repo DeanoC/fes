@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -70,6 +71,20 @@ func installDurablePackage(t *testing.T, store *kitpackages.Store, archive []byt
 		t.Fatalf("install: created=%v err=%v", created, err)
 	}
 	return inspection
+}
+
+func TestAbsentPartitionWithholdsLocalFactoryInventory(t *testing.T) {
+	read := localCoreInventory(context.Background(), nil, errDataPartitionAbsent)
+	if read == nil {
+		t.Fatal("absent FESDATA3 left kit-local cores on the factory catalog")
+	}
+	cores, err := read()
+	if !errors.Is(err, errDataPartitionAbsent) || len(cores) != 0 {
+		t.Fatalf("absent inventory = %+v %v", cores, err)
+	}
+	if localCoreInventory(context.Background(), nil, nil) != nil {
+		t.Fatal("no library error installed a kit-local inventory callback")
+	}
 }
 
 func TestDurableInventoriesSeparateInstallationFromSelection(t *testing.T) {

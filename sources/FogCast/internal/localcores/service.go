@@ -116,18 +116,22 @@ func (s *Service) List() []Core {
 	if s == nil {
 		return []Core{}
 	}
+	// An unreadable durable library, including a missing FESDATA3 volume, is
+	// an empty list. Factory packages stay unread: inspecting them loads each
+	// core.rbf and ROM map, and a kit-local client that retries a slow list
+	// piled those reads up until the agent was OOM-killed. Bearer REST reports
+	// the same failure as HTTP 503 CORE_PACKAGE_STORE_UNAVAILABLE.
+	var selected []Core
+	if s.inventory != nil {
+		var err error
+		selected, err = s.inventory()
+		if err != nil {
+			return []Core{}
+		}
+	}
 	cores := ReadInstalledCores(s.roots.Selections, s.roots.Packages)
 	if s.inventory == nil {
 		return cores
-	}
-	selected, err := s.inventory()
-	if err != nil {
-		// The durable library could not be read. An empty result keeps local
-		// launch off factory packages the operator did not select. The
-		// kit-local socket publishes that as HTTP 200 with an empty list.
-		// Bearer REST reports the same failure as HTTP 503
-		// CORE_PACKAGE_STORE_UNAVAILABLE.
-		return []Core{}
 	}
 	byCore := make(map[string]Core, len(cores)+len(selected))
 	for _, core := range cores {

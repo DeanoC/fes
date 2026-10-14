@@ -358,9 +358,10 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	var coreLibraryError error
 	if err := dependencies.prepareDataPartition(); err != nil {
 		logger.Error("appliance data partition bind failed", "error", err)
-		if !errors.Is(err, errDataPartitionAbsent) {
-			coreLibraryError = err
-		}
+		// Absent FESDATA3 is an unavailable store, the same as a failed open.
+		// Kit-local inventory then returns an empty list and does not scan
+		// factory packages.
+		coreLibraryError = err
 	} else if dependencies.openCorePackages != nil {
 		packages, err = dependencies.openCorePackages()
 		if err != nil {
@@ -556,10 +557,8 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		if localUpdater != nil {
 			cores.SetAdmission(localUpdater.BeginOperation)
 		}
-		if packages != nil {
-			cores.SetInventory(func() ([]localcores.Core, error) { return durableLocalInventory(ctx, packages) })
-		} else if coreLibraryError != nil {
-			cores.SetInventory(func() ([]localcores.Core, error) { return nil, coreLibraryError })
+		if read := localCoreInventory(ctx, packages, coreLibraryError); read != nil {
+			cores.SetInventory(read)
 		}
 		defer cores.Close()
 		options = append(options, httpapi.WithKitLocalRun(func() httpapi.KitLocalRun {

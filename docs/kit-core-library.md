@@ -82,7 +82,8 @@ bytes block local launch, including after restart; they do not silently substitu
 a factory version. Bearer routes report a broken library as HTTP 503
 `CORE_PACKAGE_STORE_UNAVAILABLE`. Kit-local clients call `GET /v1/local/cores`
 on the root-only control socket. That route returns HTTP 200 and an empty list
-when the durable library cannot be read, so local launch stays on the empty
+when the durable library cannot be read, including when FESDATA3 is absent, and
+it does not read factory package bytes. Local launch stays on that empty
 inventory. An empty local list is that socket's response for this failure.
 Mesh inventory advertises only authenticated durable packages and rereads
 installs dynamically.

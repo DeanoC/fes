@@ -2216,10 +2216,11 @@ Production opening verifies that volume against the block device
 is present, including a labelled USB partition, otherwise labelled
 `/dev/mmcblk0p3`. It also requires writable ext4 and exact mount identity
 before mkdir. Subsequent operations recheck the mount and pinned store
-directories. Preparation errors or skipped appliance update gates leave
-storage unavailable. A failed open after successful preparation blocks
-kit-local inventory and withholds factory selections. The kit-local socket
-`GET /v1/local/cores` returns HTTP 200 with an empty list in that case.
+directories. An absent FESDATA3 volume, a preparation error, a skipped
+appliance update gate, or a failed open after successful preparation leaves
+storage unavailable. That failure blocks kit-local inventory and withholds
+factory selections. The kit-local socket `GET /v1/local/cores` returns HTTP 200
+with an empty list and does not read factory package bytes.
 Bearer `GET /v1/core-packages` reports the same unavailable store as HTTP 503
 `CORE_PACKAGE_STORE_UNAVAILABLE`. Shared flock, file and directory fsync, immutable
 identity and selection CAS coordinate independent agents. Reopening completes
