@@ -343,6 +343,14 @@ class KitMaintenance:
                     current.get('generation') != record['status']['generation'])):
             raise MaintenanceError('target maintenance operation differs from private journal')
 
+    def _remember_successor(self, record):
+        persisted = self._read()
+        if (persisted and persisted.get('request_id') == record['request_id']
+                and persisted.get('successor_target_id')):
+            record = dict(record)
+            record['successor_target_id'] = persisted['successor_target_id']
+        return record
+
     def _accept_identity(self, record, boot_id, transition):
         """Bind the live target id to this journal.
 
@@ -355,11 +363,7 @@ class KitMaintenance:
             if self.target_id != record['target_id']:
                 raise MaintenanceError('target configuration identity changed during maintenance')
             return record
-        persisted = self._read()
-        if (persisted and persisted.get('request_id') == record['request_id']
-                and persisted.get('successor_target_id')):
-            record = dict(record)
-            record['successor_target_id'] = persisted['successor_target_id']
+        record = self._remember_successor(record)
         if self.target_id == record['target_id'] or self.target_id == record.get('successor_target_id'):
             return record
         if (self.identity_source == 'health' or record.get('successor_target_id')
@@ -487,6 +491,9 @@ class KitMaintenance:
             if current['state'] not in ('none', 'completed'):
                 raise MaintenanceError('maintenance end incomplete; reservation retained')
         if current['state'] not in ('none', 'completed'):
+            # The settled wait may have recorded a successor. Keep it when
+            # this phase update replaces the journal.
+            record = self._remember_successor(record)
             record['phase'] = 'finishing'
             self._write(record)
             try:
