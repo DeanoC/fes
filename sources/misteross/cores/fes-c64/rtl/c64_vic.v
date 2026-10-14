@@ -56,7 +56,6 @@ module c64_vic (
     wire [7:0] d011 = regs[6'h11];
     wire [7:0] d018 = regs[6'h18];
     wire [3:0] border = regs[6'h20][3:0];
-    wire [3:0] back = regs[6'h21][3:0];
 
     always @* begin
         dout = 8'hFF;
@@ -170,8 +169,8 @@ module c64_vic (
         .clk_a(clk_sys),.addr_a(color_addr),.wdata_a(color_din[3:0]),.we_a(color_we),.q_a(color_cpu_q),
         .clk_b(clk_sys),.addr_b(native_color_address),.q_b(color_video_q)
     );
-    reg [7:0] next_glyph, next_matrix, glyph, matrix, previous_glyph, previous_matrix;
-    reg [3:0] next_color, cell_color, previous_color;
+    reg [7:0] next_glyph, next_matrix, glyph, matrix;
+    reg [3:0] next_color, cell_color;
     reg frame_started, vertical_border, set_vertical_border, main_border;
     reg [2:0] subpixel;
     reg pixel_strobe;
@@ -186,13 +185,14 @@ module c64_vic (
     wire native_frame_start = first_phase && raster==0 && native_cycle==1;
     wire lower_edge = raster==(d011[3]?9'd251:9'd247);
     wire upper_edge = raster==(d011[3]?9'd51:9'd55) && d011[4];
-    wire left_edge = first_phase && native_cycle==(regs[6'h16][3]?6'd17:6'd18);
-    wire right_edge = first_phase && native_cycle==(regs[6'h16][3]?6'd57:6'd56);
+    // Sample each border transition one SYS edge before its dot strobe.
+    // PAL CSEL1 edges are X24/344; CSEL0 edges are X31/335.
+    wire left_edge = native_cycle==6'd17 && (regs[6'h16][3]?first_phase:cycle_clock==6'd46);
+    wire right_edge = regs[6'h16][3]?(first_phase&&native_cycle==6'd57):(native_cycle==6'd55&&cycle_clock==6'd46);
     always @(posedge clk_sys) begin
         if(reset)begin
             frame_started<=0; vertical_border<=1;set_vertical_border<=1;main_border<=1;
             next_glyph<=0;next_matrix<=0;next_color<=0;glyph<=0;matrix<=0;cell_color<=0;
-            previous_glyph<=0;previous_matrix<=0;previous_color<=0;
         end else begin
             if(native_frame_start)frame_started<=1;
             if(upper_edge)begin vertical_border<=0;set_vertical_border<=0;end
@@ -205,36 +205,32 @@ module c64_vic (
             if(right_edge)main_border<=1;
             if(native_valid)begin next_glyph<=native_glyph;next_matrix<=native_matrix;next_color<=native_color;end
             if(first_phase)begin
-                previous_glyph<=glyph;previous_matrix<=matrix;previous_color<=cell_color;
                 glyph<=next_glyph;matrix<=next_matrix;cell_color<=next_color;
             end
         end
     end
-    wire [2:0] xscroll=regs[6'h16][2:0];
-    wire from_previous=subpixel<xscroll;
-    wire [2:0] bit_number=subpixel-xscroll;
-    wire [7:0] pixel_glyph=from_previous?previous_glyph:glyph;
-    wire [7:0] pixel_matrix=from_previous?previous_matrix:matrix;
-    wire [3:0] pixel_color=from_previous?previous_color:cell_color;
-    wire on_pixel=pixel_glyph[~bit_number];
-    wire [1:0] pair=(pixel_glyph >> ((3-bit_number[2:1])*2))&2'b11;
-    wire bitmap=d011[5],ecm=d011[6],mcm=regs[6'h16][4];
-    wire multicolor=mcm&&(bitmap||pixel_color[3]);
-    reg [3:0] graphics_ink;
-    wire [3:0] ink=(main_border||vertical_border)?border:sprite_ink;
-    always @* begin
-        if(ecm&&(bitmap||mcm))graphics_ink=0;
-        else if(multicolor)begin
-            case(pair)
-                0:graphics_ink=back;
-                1:graphics_ink=bitmap?pixel_matrix[7:4]:regs[6'h22][3:0];
-                2:graphics_ink=bitmap?pixel_matrix[3:0]:regs[6'h23][3:0];
-                3:graphics_ink=bitmap?pixel_color:{1'b0,pixel_color[2:0]};
-            endcase
-        end else if(bitmap)graphics_ink=on_pixel?pixel_matrix[7:4]:pixel_matrix[3:0];
-        else graphics_ink=on_pixel?pixel_color:ecm?regs[6'h21+{4'd0,pixel_matrix[7:6]}][3:0]:back;
-        if(from_previous && native_cycle==17)graphics_ink=back;
+    wire [3:0] graphics_ink;
+    wire graphics_foreground;
+    wire graphics_visible=native_cycle>=17&&native_cycle<=56&&!vertical_border;
+    // Graphics go blank outside the forty-byte window; matrix/color
+    // metadata retain the last visible byte until a later eligible load.
+    reg [7:0] last_graphics_matrix;
+    reg [3:0] last_graphics_color;
+    always @(posedge clk_sys)begin
+        if(reset)begin last_graphics_matrix<=0;last_graphics_color<=0;end
+        else if(pixel_strobe&&subpixel==7&&graphics_visible)begin
+            last_graphics_matrix<=matrix;last_graphics_color<=cell_color;
+        end
     end
+    wire [3:0] ink=(main_border||vertical_border)?border:sprite_ink;
+    c64_vic_graphics_pixels graphics(
+        .clk(clk_sys),.reset(reset),.tick(pixel_strobe),.dot(subpixel),
+        .glyph(graphics_visible?glyph:8'd0),.matrix(graphics_visible?matrix:last_graphics_matrix),
+        .cell_color(graphics_visible?cell_color:last_graphics_color),.d011(d011),.d016(regs[6'h16]),
+        .background({regs[6'h24][3:0],regs[6'h23][3:0],regs[6'h22][3:0],regs[6'h21][3:0]}),
+        .latch_scroll(native_cycle>=15&&native_cycle<=54&&!vertical_border),.color(graphics_ink),.foreground(graphics_foreground),
+        .color_q(),.foreground_q()
+    );
     wire [7:0] ss_event,bg_event,ss_mask,bg_mask,collision_status;
     wire [3:0] collision_flags;
     reg event_sample;
@@ -269,8 +265,6 @@ module c64_vic (
     end
     wire [8:0] sprite_dot_x=native_cycle>=14?9'((native_cycle-14)*8)+{6'd0,subpixel}:
         9'd400+9'((native_cycle-1)*8)+{6'd0,subpixel};
-    wire graphics_foreground=!vertical_border&&native_cycle>=17&&native_cycle<=56&&
-        (multicolor?pair[1]:on_pixel);
     c64_vic_sprite_pixels pixel_sprites(
         .clk(clk_sys),.reset(reset),.tick(pixel_strobe),.dot(subpixel),.xpos(sprite_dot_x),
         .positions(sprite_x),.data(sprite_data),.pending_update(previous_cycle==58),

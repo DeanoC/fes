@@ -101,6 +101,7 @@ RTL_SOURCES = (
     "cores/fes-c64/rtl/c64_color_ram.v",
     "cores/fes-c64/rtl/c64_rom.v",
     "cores/fes-c64/rtl/c64_vic.v",
+    "cores/fes-c64/rtl/c64_vic_graphics_pixels.sv",
     "cores/fes-c64/rtl/c64_vic_sprite_pixels.sv",
     "cores/fes-c64/rtl/c64_vic_collisions.sv",
     "cores/fes-c64/rtl/c64_vic_fetch.sv",

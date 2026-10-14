@@ -29,13 +29,15 @@ module c64_frame_store (
         q0 <= page0[read_address]; q1 <= page1[read_address]; q2 <= page2[read_address];
     end
 `else
-    wire [4:0] bank_data [0:152];
+    wire [3:0] page_data [0:2];
     reg [5:0] read_bank_q;
     always @(posedge pixel_clk) read_bank_q <= read_address[16:11];
-    wire [3:0] q0 = bank_data[read_bank_q][3:0];
-    wire [3:0] q1 = bank_data[8'd51+{2'd0,read_bank_q}][3:0];
-    wire [3:0] q2 = bank_data[8'd102+{2'd0,read_bank_q}][3:0];
+    wire [3:0] q0 = page_data[0];
+    wire [3:0] q1 = page_data[1];
+    wire [3:0] q2 = page_data[2];
     for (genvar page=0; page<3; page=page+1) begin: pages
+        wire [4:0] bank_data [0:50];
+        assign page_data[page]=bank_data[read_bank_q][3:0];
         for (genvar bank=0; bank<51; bank=bank+1) begin: banks
             // Dense 2048x5 uses one M10K for 2048 four-bit pixels.
             // The inferred ACLR memory pass otherwise chooses 1024x10.
@@ -45,7 +47,7 @@ module c64_frame_store (
                 .CFG_ASYNC_READ(0),.INIT(10240'b0)) ram (
                 .CLK1(clk_sys),.CLK2(pixel_clk),.A1ADDR(write_address[10:0]),
                 .A1DATA({1'b0,write_data}),.A1EN(!enabled),
-                .B1ADDR(read_address[10:0]),.B1EN(1'b1),.B1DATA(bank_data[page*51+bank]),
+                .B1ADDR(read_address[10:0]),.B1EN(1'b1),.B1DATA(bank_data[bank]),
                 .ACLR0(1'b0),.ACLR1(1'b0));
         end
     end

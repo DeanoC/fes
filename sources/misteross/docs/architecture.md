@@ -1727,6 +1727,19 @@ Late unowned accesses use the current CPU read/write bus value. The directed
 sprite test covers 21/42 rows, all slots/banks, byte ordering, late ownership
 and sustained crunch. The motherboard diagnostic enables eight expanded
 sprites and requires CPU read stalls alongside IRQs and its PASS frame.
+`c64_vic_graphics_pixels` loads prefetched glyph/matrix/color metadata at the
+scroll slot and shifts the remaining bits across byte boundaries. It applies
+PAL 6569R3 mode changes through the dot4/dot6/dot7 stages. A late scroll write
+therefore affects the next byte, and a scroll increase can expose exhausted
+bits before the next load. Scroll latching is enabled in cycles15–54;
+blank graphics retain the last visible matrix/color metadata. Each frame
+page has its own read-bank mux, avoiding cross-page connections for invalid
+bank indices while retaining153denseM10Ks and the existing handoff.
+The isolated source-oracle replay checks 800,000
+dots; coupled tests cover late writes, carry, all banks and five valid modes.
+The 38-column border edges are X31/335, rather than the following byte edges.
+CPU palette-write latency and every fetch-mode/subphase combination remain
+unqualified.
 `c64_vic_sprite_pixels` supplies per-dot shifts, multicolor/X expansion,
 foreground priority and collision masks. `c64_vic_collisions` commits collision
 masks at the following cycle boundary, defers read clearing and latches IRQ

@@ -343,6 +343,31 @@ Version 0.2.0 links a 20 KiB firmware image and has no inherited seal or
 hardware acceptance from the earlier 16 KiB package. The D64 media interface
 remains read-only media unit 0.
 
+`c64_vic_graphics_pixels` preserves graphics shift-register carry across byte
+boundaries and latches matrix/color metadata at the selected scroll slot.
+PAL 6569R3 graphics-mode changes use the dot4/dot6/dot7 stages. Scroll
+latching is enabled during native cycles15–54. Outside the forty-byte
+window, graphics go blank while the last matrix/color metadata are retained. A late
+`$D016` write does not reinterpret already loaded bits; increasing scroll can
+expose exhausted shift bits before the next byte loads. In 38-column mode,
+the horizontal border opens at native X31 and closes at X335, one dot before
+the following whole-byte boundaries.
+
+`make sim-fes-c64-graphics` replays 800,000 synthetic dots against recorded
+VICE3.10 source-oracle output at the prefetched-byte boundary. All eight mode
+combinations, scroll values, carry and foreground priority are covered.
+Regenerate with `python3 scripts/generate_c64_graphics_vectors.py --vice-source /path/to/vice-3.10`.
+`make sim-fes-c64-scroll` drives cycle-26 writes at native cycles32/55/56 and
+checks the central output for late scroll, carry and end-window freezing in all banks.
+`make sim-fes-c64-border-position` checks all displayed pixels in static
+38-column mode, and `make sim-fes-c64-graphics-modes` combines sprites with
+all five valid graphics modes across all banks.
+`make sim-fes-c64-open-graphics` checks complete PAL frames with open borders,
+nonzero bitmap/ECM metadata and solid glyphs. It requires graphics to blank
+outside the byte window while retaining metadata, including the first and
+last display rows. These checks do not qualify
+CPU palette-write latency, every physical subphase or fetch-mode transition.
+
 `make sim-fes-c64-video` checks complete frames with alternating character
 colors and all multicolor-bitmap palette selections in all four banks.
 `make sim-fes-c64-rom` checks every firmware/character byte and the independent
