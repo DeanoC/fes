@@ -14,7 +14,9 @@ import (
 )
 
 // OpenPersistent positively verifies the existing FESDATA3 mount before
-// creating any library directory. It neither mounts nor formats storage.
+// creating any library directory. The expected block device is the one
+// appliancedata.Prepare selects, including a labelled USB partition.
+// It neither mounts nor formats storage.
 func OpenPersistent(root string) (*Store, error) {
 	if err := checkPersistent(root); err != nil {
 		return nil, err
@@ -47,15 +49,21 @@ func checkPersistent(root string) error {
 	if filesystem.Type != unix.EXT4_SUPER_MAGIC || filesystem.Flags&unix.ST_RDONLY != 0 {
 		return errors.New("kit packages: FESDATA3 must be a writable ext4 filesystem")
 	}
+	devicePath, ok := appliancedata.SelectedDevice(appliancedata.Config{})
+	if !ok {
+		return errors.New("kit packages: FESDATA3 block device is absent")
+	}
 	var mounted, device unix.Stat_t
 	if err := unix.Stat(mount, &mounted); err != nil {
 		return err
 	}
-	if err := unix.Stat(appliancedata.DefaultMMCDevice, &device); err != nil {
+	// Stat follows /dev/disk/by-label/FESDATA3. The mounted device number is
+	// compared with that labelled partition's block device.
+	if err := unix.Stat(devicePath, &device); err != nil {
 		return fmt.Errorf("kit packages: verify persistent device: %w", err)
 	}
 	if device.Mode&unix.S_IFMT != unix.S_IFBLK || uint64(mounted.Dev) != uint64(device.Rdev) {
-		return errors.New("kit packages: FESDATA3 is not mounted from the expected p3 device")
+		return errors.New("kit packages: FESDATA3 is not mounted from the expected device")
 	}
 	data, err := os.ReadFile("/proc/self/mountinfo")
 	if err != nil {

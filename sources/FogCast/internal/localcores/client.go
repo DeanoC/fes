@@ -76,7 +76,9 @@ func NewClient(socketPath string) *Client {
 }
 
 // List returns the installed cores. A missing socket is an error.
-// An empty catalog is an empty slice, not nil.
+// An empty catalog is an empty slice, not nil. An unreadable durable
+// library is the same empty slice: the socket answers HTTP 200. Bearer
+// REST uses HTTP 503 CORE_PACKAGE_STORE_UNAVAILABLE for that failure.
 func (c *Client) List(ctx context.Context) ([]Core, error) {
 	var cores []Core
 	if err := c.do(ctx, http.MethodGet, "/v1/local/cores", &cores); err != nil {

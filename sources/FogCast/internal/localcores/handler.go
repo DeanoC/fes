@@ -16,6 +16,8 @@ func Handler(service *Service) http.Handler {
 		writeJSON(w, http.StatusOK, service.RunStatus())
 	})
 	mux.HandleFunc("GET /v1/local/cores", func(w http.ResponseWriter, r *http.Request) {
+		// An unreadable durable library is HTTP 200 and an empty list.
+		// Bearer /v1/core-packages uses HTTP 503 for that failure.
 		cores := service.List()
 		if cores == nil {
 			cores = []Core{}

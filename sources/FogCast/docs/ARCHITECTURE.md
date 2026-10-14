@@ -2138,12 +2138,18 @@ renderers over the same session model and do not own physical transitions.
 ## Durable target core packages
 
 `internal/kitpackages` retains canonical archives and sealed package members on
-existing mounted ext4 FESDATA3 at `/run/fogcast/fesdata3/core-library`. Production
-opening verifies p3, writable ext4 and mount identity before mkdir; subsequent
-operations recheck the mount and pinned store directories. Preparation errors or
-skipped appliance update gates leave storage unavailable. A failed open after
-successful preparation blocks kit-local inventory rather than substitute factory
-versions for broken selections. Shared flock, file and directory fsync, immutable
+the mounted ext4 FESDATA3 volume at `/run/fogcast/fesdata3/core-library`.
+Production opening verifies that volume against the block device
+`appliancedata.Prepare` selects: `/dev/disk/by-label/FESDATA3` when the label
+is present, including a labelled USB partition, otherwise labelled
+`/dev/mmcblk0p3`. It also requires writable ext4 and exact mount identity
+before mkdir. Subsequent operations recheck the mount and pinned store
+directories. Preparation errors or skipped appliance update gates leave
+storage unavailable. A failed open after successful preparation blocks
+kit-local inventory and withholds factory selections. The kit-local socket
+`GET /v1/local/cores` returns HTTP 200 with an empty list in that case.
+Bearer `GET /v1/core-packages` reports the same unavailable store as HTTP 503
+`CORE_PACKAGE_STORE_UNAVAILABLE`. Shared flock, file and directory fsync, immutable
 identity and selection CAS coordinate independent agents. Reopening completes
 verified interrupted unselected publications; selected corruption remains blocked.
 

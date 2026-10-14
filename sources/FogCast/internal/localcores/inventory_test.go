@@ -249,6 +249,7 @@ func TestLaunchRequirementsComeFromDescriptor(t *testing.T) {
 		name       string
 		format     int64
 		abi        string
+		abiMinor   int64
 		role       string
 		interfaces []corepackage.Interface
 		needs      string
@@ -263,10 +264,27 @@ func TestLaunchRequirementsComeFromDescriptor(t *testing.T) {
 		{name: "blob requires host delivery", format: 2, abi: "fes.application", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1, Required: true}}, needs: "unsupported"},
 		{name: "cartridge cannot substitute for required blob", format: 3, abi: "fes.application", role: "cartridge", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1, Required: true}}, needs: "unsupported"},
 		{name: "computer empty drives", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}, needs: "none", launchable: true},
+		{name: "computer spectrum tape starts empty", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.spectrum-tape", Major: 1, Required: true}}, needs: "none", launchable: true},
+		{name: "computer c64 disk starts empty", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.c64-disk", Major: 1, Required: true}}, needs: "none", launchable: true},
+		{name: "computer st floppy starts empty", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.atari-st-floppy", Major: 1, Required: true}}, needs: "none", launchable: true},
+		{name: "computer st empty-drive extensions", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{
+			{ID: "fes.media.atari-st-floppy", Major: 1, Required: true},
+			{ID: "fes.media.atari-st-floppy-write", Major: 1, Required: true},
+			{ID: "fes.media.atari-st-floppy-geometry", Major: 1, Required: true},
+		}, needs: "none", launchable: true},
+		{name: "computer blob is not an empty drive", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1, Required: true}}, needs: "unsupported"},
+		{name: "computer blob stream is not an empty drive", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.blob-stream", Major: 1, Required: true}}, needs: "unsupported"},
+		{name: "computer blob stays blocked beside an empty drive", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{
+			{ID: "fes.media.apple2-floppy", Major: 1, Required: true},
+			{ID: "fes.media.blob", Major: 1, Required: true},
+		}, needs: "unsupported"},
+		{name: "future computer floppy is not empty startup", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 2, Required: true}}, needs: "unsupported"},
+		{name: "future computer abi does not inherit empty drives", format: 2, abi: "fes.computer", abiMinor: 1, interfaces: []corepackage.Interface{{ID: "fes.media.apple2-floppy", Major: 1, Required: true}}, needs: "unsupported"},
+		{name: "optional computer blob", format: 2, abi: "fes.computer", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1}}, needs: "none", launchable: true},
 		{name: "optional media", format: 2, abi: "fes.application", interfaces: []corepackage.Interface{{ID: "fes.media.blob", Major: 1}}, needs: "none", launchable: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			d := corepackage.Descriptor{Format: tc.format, Core: corepackage.Core{ID: "fes.new-core", Name: "New core"}, Target: corepackage.Target{ProgrammingProfile: "fes-gp-v1"}, ABI: corepackage.Contract{ID: tc.abi, Major: 1}, Interfaces: tc.interfaces}
+			d := corepackage.Descriptor{Format: tc.format, Core: corepackage.Core{ID: "fes.new-core", Name: "New core"}, Target: corepackage.Target{ProgrammingProfile: "fes-gp-v1"}, ABI: corepackage.Contract{ID: tc.abi, Major: 1, Minor: tc.abiMinor}, Interfaces: tc.interfaces}
 			if tc.role != "" {
 				d.ROM = &corepackage.ROM{Role: tc.role}
 			}

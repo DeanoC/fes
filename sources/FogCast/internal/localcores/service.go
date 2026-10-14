@@ -122,8 +122,11 @@ func (s *Service) List() []Core {
 	}
 	selected, err := s.inventory()
 	if err != nil {
-		// A broken writable selection must not silently launch a factory
-		// version that the operator did not select.
+		// The durable library could not be read. An empty result keeps local
+		// launch off factory packages the operator did not select. The
+		// kit-local socket publishes that as HTTP 200 with an empty list.
+		// Bearer REST reports the same failure as HTTP 503
+		// CORE_PACKAGE_STORE_UNAVAILABLE.
 		return []Core{}
 	}
 	byCore := make(map[string]Core, len(cores)+len(selected))

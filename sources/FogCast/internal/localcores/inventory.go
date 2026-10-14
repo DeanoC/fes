@@ -114,9 +114,10 @@ func descriptorNeeds(d corepackage.Descriptor) (needs, block string, launchable 
 		if strings.HasPrefix(iface.ID, "fes.firmware") {
 			return "firmware", "Needs firmware", false
 		}
-		// Computer media units support empty-drive startup. Other media endpoints
-		// need host delivery, which the kit-local launch path does not implement.
-		if strings.HasPrefix(iface.ID, "fes.media.") && d.ABI.ID != "fes.computer" {
+		// Removable computer units, and the ST extensions that only widen that
+		// empty drive, boot with no image. The local launcher sends the package
+		// archive alone, so every other required media interface stays blocked.
+		if strings.HasPrefix(iface.ID, "fes.media.") && !computerEmptyStartup(d, iface) {
 			return "unsupported", "Needs host media delivery", false
 		}
 	}
@@ -127,6 +128,28 @@ func descriptorNeeds(d corepackage.Descriptor) (needs, block string, launchable 
 		return "unsupported", "Unsupported local launch", false
 	}
 	return "none", "", true
+}
+
+// computerEmptyStartup reports a fes.computer 1.0 removable-media interface
+// whose contract permits an empty unit at startup. Blob and other media
+// endpoints are startup inputs this launcher does not deliver.
+func computerEmptyStartup(d corepackage.Descriptor, iface corepackage.Interface) bool {
+	if !protocol.ComputerABI(d.ABI.ID, d.ABI.Major, d.ABI.Minor) {
+		return false
+	}
+	for _, contract := range []protocol.RuntimeContract{
+		protocol.Apple2FloppyInterface(),
+		protocol.SpectrumTapeInterface(),
+		protocol.C64DiskInterface(),
+		protocol.AtariStFloppyInterface(),
+		protocol.AtariStFloppyWriteInterface(),
+		protocol.AtariStFloppyGeometryInterface(),
+	} {
+		if iface.ID == contract.ID && iface.Major == int64(contract.Major) && iface.Minor == int64(contract.Minor) {
+			return true
+		}
+	}
+	return false
 }
 
 func selectionCoreID(name string) (string, bool) {

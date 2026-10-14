@@ -5,11 +5,15 @@ without rebuilding the appliance image, restarting services, or activating the
 FPGA. Installation retains immutable versions. Explicit selection controls the
 next kit-local launch; a running core keeps its package and execution lease.
 
-The library requires the existing writable ext4 p3 volume. It lives at
+The library requires the existing writable ext4 FESDATA3 volume. Startup
+resolves that volume the same way appliance-data preparation does:
+`/dev/disk/by-label/FESDATA3` when the label is present, including a labelled
+USB partition, and otherwise a labelled `/dev/mmcblk0p3`. It lives at
 `/run/fogcast/fesdata3/core-library` inside that mounted volume, not on tmpfs.
-Startup positively checks the mount and device before creating anything. Absent
-storage or an appliance trial, pending update, or corrupt update record leaves
-the API unavailable. The agent does not format, repartition, or fall back to FAT.
+Startup positively checks the mount, writable ext4, exact mount identity, and
+that selected device before creating anything. Absent storage or an appliance
+trial, pending update, or corrupt update record leaves the API unavailable.
+The agent does not format, repartition, or fall back to FAT.
 After confirming a trial image, restart the agent under owned maintenance to
 open a library that was unavailable at startup.
 
@@ -75,9 +79,13 @@ also participate in appliance update admission and draining.
 
 Durable inventory is authenticated again on reads. Missing or corrupt selected
 bytes block local launch, including after restart; they do not silently substitute
-a factory version. A broken library returns HTTP 503
-`CORE_PACKAGE_STORE_UNAVAILABLE`. Mesh inventory advertises only authenticated
-durable packages and rereads installs dynamically.
+a factory version. Bearer routes report a broken library as HTTP 503
+`CORE_PACKAGE_STORE_UNAVAILABLE`. Kit-local clients call `GET /v1/local/cores`
+on the root-only control socket. That route returns HTTP 200 and an empty list
+when the durable library cannot be read, so local launch stays on the empty
+inventory. An empty local list is that socket's response for this failure.
+Mesh inventory advertises only authenticated durable packages and rereads
+installs dynamically.
 
 Package persistence is separate from settings and progress persistence. Kit-local
 execution still uses its existing volatile core-data mode. Persistent settings,
