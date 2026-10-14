@@ -16,8 +16,12 @@ def main():
     parser.add_argument('--drive-rom', type=Path)
     parser.add_argument('--late-video', action='store_true', help='drive diagnostic: capture only the final HDMI frames')
     parser.add_argument('--save-state', type=Path)
+    parser.add_argument('--save-final-state', type=Path, help='also capture complete state at the observation endpoint')
     parser.add_argument('--save-at-cycles', type=int, default=0)
     parser.add_argument('--restore-state', type=Path)
+    parser.add_argument('--disk-library', type=Path, action='append', default=[], help='additional immutable D64 available after checkpoint restore')
+    parser.add_argument('--append-disk-change', nargs=2, action='append', default=[], metavar=('CYCLE','D64'), help='append a later insertion from the captured library after restore')
+    parser.add_argument('--disk-change', nargs=2, action='append', default=[], metavar=('CYCLE','D64'))
     parser.add_argument('--basic', type=Path, required=True)
     parser.add_argument('--kernal', type=Path, required=True)
     parser.add_argument('--chargen', type=Path, required=True)
@@ -28,8 +32,8 @@ def main():
     parser.add_argument('--then-command', default='', help='second native command after loading')
     parser.add_argument('--then-at-cycles', type=int, default=58 * 52224000)
     args = parser.parse_args()
-    if not 1044480 <= args.cycles <= 300 * 52224000:
-        parser.error('cycles must cover 0.02 to 300 machine seconds')
+    if not 1044480 <= args.cycles <= 1800 * 52224000:
+        parser.error('cycles must cover 0.02 to 1800 machine seconds')
     if args.real_drive != bool(args.drive_rom):
         parser.error('--real-drive requires --drive-rom; --drive-rom requires --real-drive')
     if args.late_video and not args.real_drive:
@@ -38,6 +42,43 @@ def main():
         parser.error('save cycle requires a save path and must fall within the run')
     if args.restore_state and (args.type_command or args.then_command):
         parser.error('restore preserves the captured keyboard queue; do not supply new typing commands')
+    restored_metadata=None
+    if args.restore_state:
+        restored_metadata=json.loads(args.restore_state.with_name(args.restore_state.name+'.json').read_text())
+        args.late_video=restored_metadata.get('late_video_capture',args.late_video)
+        if args.save_at_cycles and args.save_at_cycles<=restored_metadata['system_cycle']:
+            parser.error('save cycle must be later than the restored checkpoint')
+    if args.restore_state and args.disk_change:
+        parser.error('restore preserves queued disk changes; use --append-disk-change for later insertions')
+    if args.append_disk_change and not args.restore_state:
+        parser.error('additional disk changes require a restored checkpoint')
+    changes=[(event['cycle'],event['disk']['path']) for event in restored_metadata.get('disk_changes',[])] if restored_metadata else args.disk_change
+    if (changes or args.append_disk_change or args.disk_library) and not args.real_drive:
+        parser.error('disk library and changes require the real-drive diagnostic')
+    def normalize(events,after=0):
+        result=[]
+        for cycle,path in events:
+            try:cycle=int(cycle)
+            except (ValueError,TypeError):parser.error('disk-change cycle must be an integer')
+            if not after<cycle<=1800*52224000 or (result and cycle<=result[-1][0]):
+                parser.error('disk-change cycles must be ordered, later than the checkpoint and within 1800 seconds')
+            result.append((cycle,Path(path).resolve()))
+        return result
+    normalized_changes=normalize(changes)
+    after=max(restored_metadata['system_cycle'] if restored_metadata else 0,
+              normalized_changes[-1][0] if normalized_changes else 0)
+    appended_changes=normalize(args.append_disk_change,after)
+    if len(normalized_changes)+len(appended_changes)>64:parser.error('at most 64 disk changes are supported')
+    library_paths=args.disk_library
+    if restored_metadata and not library_paths:
+        library_paths=[Path(item['disk']['path']) for item in restored_metadata['media_library'][1:]]
+    library_paths=[args.disk.resolve()]+[path.resolve() for path in library_paths]
+    if not restored_metadata:
+        for _,path in normalized_changes:
+            if path not in library_paths:library_paths.append(path)
+    if len(library_paths)>64:parser.error('at most 64 library disks are supported')
+    if args.save_state and args.save_final_state and args.save_state.resolve()==args.save_final_state.resolve():
+        parser.error('intermediate and final checkpoints need different paths')
     inputs = {}
     blobs = {}
     for name, size in [('basic', 8192), ('kernal', 8192), ('chargen', 4096), ('disk', 174848)]:
@@ -60,7 +101,7 @@ def main():
     for name in ['boot.log','boot-ram.bin','drive-ram.bin','boot.ppm',
                  'before-followup-ram.bin','observation.json']:
         artifact=output/name
-        for state in [args.restore_state,args.save_state]:
+        for state in [args.restore_state,args.save_state,args.save_final_state]:
             if state and artifact==state.resolve():
                 parser.error('checkpoint path conflicts with an observation output')
         artifact.unlink(missing_ok=True)
@@ -78,6 +119,34 @@ def main():
                              'sha256': hashlib.sha256(drive_blob).hexdigest()}
         inputs['g64']={'path': str(output/'disk.g64'), 'bytes':len(raw_disk),
                       'sha256':hashlib.sha256(raw_disk).hexdigest()}
+    media_library=[]
+    if args.real_drive:
+        for index,path in enumerate(library_paths):
+            blob=path.read_bytes()
+            if len(blob)!=174848:parser.error('library disk must be exactly 174848 bytes')
+            raw=c64_gcr.g64(blob)
+            raw_path=output/f'library-{index}.g64';raw_path.write_bytes(raw)
+            disk={'path':str(path),'bytes':len(blob),'sha256':hashlib.sha256(blob).hexdigest()}
+            g64={'path':str(raw_path),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
+            inputs[f'disk_library_{index}']=disk;inputs[f'g64_library_{index}']=g64
+            media_library.append({'disk':disk,'g64':g64})
+        def quoted(value):
+            return '"'+value.replace(chr(92),chr(92)*2).replace(chr(34),chr(92)+chr(34))+'"'
+        (output/'disk-library.txt').write_text(''.join(quoted(item['g64']['path'])+chr(10) for item in media_library))
+    def materialize(events):
+        result=[]
+        for cycle,path in events:
+            blob=path.read_bytes()
+            digest=hashlib.sha256(blob).hexdigest()
+            index=next((i for i,item in enumerate(media_library) if item['disk']['sha256']==digest),None)
+            if index is None:parser.error('disk change must select an image from the checkpoint library')
+            result.append({'cycle':cycle,'library_index':index,**media_library[index]})
+        return result
+    disk_changes=materialize(normalized_changes)
+    added_disk_changes=materialize(appended_changes)
+    for name,events in [('disk-changes',disk_changes),('append-disk-changes',added_disk_changes)]:
+        if events:(output/(name+'.txt')).write_text(''.join(f"{event['cycle']} {event['library_index']}"+chr(10) for event in events))
+    all_disk_changes=disk_changes+added_disk_changes
     key_events = []
     event_cycle = 3 * 52224000
     key_period = 52224000 // 20  # 50 ms held, 50 ms released
@@ -122,6 +191,12 @@ def main():
                f'+C64_DISK_HEX={output / "disk.hex"}', f'+C64_SYS_CYCLES={args.cycles}']
     if args.real_drive:
         command.extend([f'+C64_DRIVE_ROM_HEX={output / "drive.hex"}', f'+C64_G64_PATH={output / "disk.g64"}'])
+    if args.real_drive:
+        command.append(f'+C64_DISK_LIBRARY={output / "disk-library.txt"}')
+    if added_disk_changes:
+        command.append(f'+C64_APPEND_DISK_CHANGES={output / "append-disk-changes.txt"}')
+    if disk_changes:
+        command.append(f'+C64_DISK_CHANGES={output / "disk-changes.txt"}')
     if args.late_video:
         command.append('+C64_LATE_VIDEO=1')
     if args.then_command:
@@ -144,13 +219,11 @@ def main():
         simulator_sha256 = hashlib.sha256(frozen_binary.read_bytes()).hexdigest()
         command[0] = str(frozen_binary)
         state_identity=hashlib.sha256(json.dumps({
-            'schema':'FES-C64-development-state-v1', 'simulator':simulator_sha256,
+            'schema':'FES-C64-development-state-v2', 'simulator':simulator_sha256,
             'inputs':{name:value['sha256'] for name,value in inputs.items()},
         },sort_keys=True).encode()).hexdigest()
         command.append(f'+C64_STATE_ID={state_identity}')
-        restored_metadata=None
         if args.restore_state:
-            restored_metadata=json.loads(args.restore_state.with_name(args.restore_state.name+'.json').read_text())
             if restored_metadata['model_input_identity']!=state_identity:
                 parser.error('checkpoint belongs to different firmware, disk or simulator')
             if hashlib.sha256(args.restore_state.read_bytes()).hexdigest()!=restored_metadata['sha256']:
@@ -162,6 +235,9 @@ def main():
             args.save_state.parent.mkdir(parents=True,exist_ok=True)
             command.append(f'+C64_SAVE={args.save_state.resolve()}')
             if args.save_at_cycles:command.append(f'+C64_SAVE_CYCLE={args.save_at_cycles}')
+        if args.save_final_state:
+            args.save_final_state.parent.mkdir(parents=True,exist_ok=True)
+            command.append(f'+C64_SAVE_FINAL={args.save_final_state.resolve()}')
         with (output / 'boot.log').open('w') as log:
             subprocess.run(command, cwd=output, stdout=log, stderr=subprocess.STDOUT, check=True)
     if args.real_drive:
@@ -170,18 +246,21 @@ def main():
     outputs_to_hash=[name for name in outputs_to_hash if name!='boot.ppm' or (output/name).is_file()]
     if (output/'before-followup-ram.bin').is_file() and 'before-followup-ram.bin' not in outputs_to_hash:
         outputs_to_hash.append('before-followup-ram.bin')
-    if args.save_state:
+    for state_path,state_cycle in [(args.save_state,args.save_at_cycles or args.cycles),(args.save_final_state,args.cycles)]:
+        if not state_path:continue
         state_metadata={'model_input_identity':state_identity,
-            'sha256':hashlib.sha256(args.save_state.read_bytes()).hexdigest(),
-            'system_cycle':args.save_at_cycles or args.cycles, 'inputs':inputs,
+            'sha256':hashlib.sha256(state_path.read_bytes()).hexdigest(),
+            'system_cycle':state_cycle, 'inputs':inputs,
             'simulator_sha256':simulator_sha256, 'real_drive':args.real_drive,
+            'late_video_capture':args.late_video,
+            'disk_changes':all_disk_changes, 'media_library':media_library,
             'typed_command':args.type_command, 'followup_command':args.then_command,
             'followup_cycle':args.then_at_cycles if args.then_command else None,
             'key_event_count':len(key_events), 'evidence':'development simulation checkpoint'}
         if restored_metadata:
             for name in ['typed_command','followup_command','followup_cycle','key_event_count']:
                 state_metadata[name]=restored_metadata[name]
-        args.save_state.with_name(args.save_state.name+'.json').write_text(json.dumps(state_metadata,indent=2)+'\n')
+        state_path.with_name(state_path.name+'.json').write_text(json.dumps(state_metadata,indent=2)+'\n')
     outputs = {name: hashlib.sha256((output / name).read_bytes()).hexdigest()
                for name in outputs_to_hash}
     receipt = {'checkout_commit_at_start': revision,
@@ -192,8 +271,11 @@ def main():
                'simulator_sha256': simulator_sha256,
                'typed_command': args.type_command, 'followup_command': args.then_command,
                'followup_cycle': args.then_at_cycles if args.then_command else None, 'key_event_count': len(key_events),
+               'disk_changes':all_disk_changes, 'media_library':media_library,
+               'appended_disk_changes':added_disk_changes,
                'real_drive': args.real_drive, 'late_video_capture':args.late_video,
                'restored_state':str(args.restore_state) if args.restore_state else None,
+               'saved_final_state':str(args.save_final_state) if args.save_final_state else None,
                'saved_state':str(args.save_state) if args.save_state else None, 'boot_acceptance': False, 'demo_acceptance': False}
     if restored_metadata:
         for name in ['typed_command','followup_command','followup_cycle','key_event_count']:

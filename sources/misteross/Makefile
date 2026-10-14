@@ -1165,6 +1165,7 @@ sim-fes-c64-gcr:
 .PHONY: sim-fes-c64-checkpoint
 sim-fes-c64-checkpoint: sim-fes-c64-boot-build sim-fes-c64-boot-drive-build
 	$(PYTHON) cores/fes-c64/sim/checkpoint_tb.py
+	$(PYTHON) cores/fes-c64/sim/observer_tb.py
 
 .PHONY: sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
 sim-fes-c64-video:

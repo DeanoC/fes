@@ -12,7 +12,7 @@
 #include <fstream>
 #include <vector>
 #ifdef FES_C64_REAL_DRIVE_SIM
-#include "rotating_disk.h"
+#include "disk_sequence.h"
 #endif
 
 int main(int argc, char **argv) {
@@ -26,6 +26,10 @@ int main(int argc, char **argv) {
     const char *disk_arg=Verilated::commandArgsPlusMatch("C64_G64_PATH=");
     if (!*disk_arg) return 2;
     RotatingDisk medium(disk_arg+sizeof("+C64_G64_PATH=")-1);
+    const std::string events_arg=Verilated::commandArgsPlusMatch("C64_DISK_CHANGES=");
+    const std::string library_arg=Verilated::commandArgsPlusMatch("C64_DISK_LIBRARY=");
+    DiskSequence disk_changes(library_arg.empty()?"":library_arg.c_str()+sizeof("+C64_DISK_LIBRARY=")-1,
+        events_arg.empty()?"":events_arg.c_str()+sizeof("+C64_DISK_CHANGES=")-1);
 #endif
     for (unsigned i=0; i<5; ++i) top.keyboard_rows[i]=0;
     struct KeyEvent { uint64_t cycle; unsigned usage, down; };
@@ -71,8 +75,9 @@ int main(int argc, char **argv) {
     const std::string identity=option("C64_STATE_ID=");
     const std::string restore_path=option("C64_RESTORE=");
     const std::string save_path=option("C64_SAVE=");
+    const std::string final_save_path=option("C64_SAVE_FINAL=");
     const uint64_t save_cycle=std::strtoull(option("C64_SAVE_CYCLE="),nullptr,10);
-    if ((!restore_path.empty() || !save_path.empty()) && identity.size()!=64) {
+    if ((!restore_path.empty() || !save_path.empty() || !final_save_path.empty()) && identity.size()!=64) {
         std::fprintf(stderr,"checkpoint needs SHA256 model/input identity\n");return 2;
     }
     // Model serialization covers all RTL registers, memories and event state.
@@ -91,10 +96,10 @@ int main(int argc, char **argv) {
             if constexpr(saving)stream.write(value.data(),count);
             else stream.read(value.data(),count);
         };
-        if constexpr(saving)stream << std::string("FES-C64-development-state-v1") << identity << top;
+        if constexpr(saving)stream << std::string("FES-C64-development-state-v2") << identity << top;
         else {
             std::string magic,saved_identity;stream >> magic >> saved_identity;
-            if(magic!="FES-C64-development-state-v1" || saved_identity!=identity)
+            if(magic!="FES-C64-development-state-v2" || saved_identity!=identity)
                 throw std::runtime_error("checkpoint model/firmware/media mismatch");
             stream >> top;
         }
@@ -105,7 +110,16 @@ int main(int argc, char **argv) {
         scalar(raster_access);scalar(late_video);
 
 #ifdef FES_C64_REAL_DRIVE_SIM
-        scalar(medium.halftrack);scalar(medium.rotation);
+        uint64_t disk_count=disk_changes.cycles.size();scalar(disk_count);
+        if(disk_count!=disk_changes.cycles.size())throw std::runtime_error("checkpoint disk schedule count mismatch");
+        for(size_t index=0;index<disk_changes.cycles.size();++index) {
+            uint64_t cycle=disk_changes.cycles[index];unsigned selection=disk_changes.selections[index];
+            scalar(cycle);scalar(selection);
+            if(cycle!=disk_changes.cycles[index] || selection!=disk_changes.selections[index])
+                throw std::runtime_error("checkpoint disk schedule mismatch");
+        }
+        scalar(medium.halftrack);scalar(medium.rotation);scalar(disk_changes.active);
+        if constexpr(!saving)disk_changes.restore_tracks(medium);
         if(medium.halftrack<2 || medium.halftrack>70 || medium.rotation>=3200000)
             throw std::runtime_error("invalid checkpoint disk position");
 
@@ -122,6 +136,9 @@ int main(int argc, char **argv) {
         archive(stream);stream.close();
         std::fprintf(stderr,"Restored at cycle %llu\n",static_cast<unsigned long long>(sys_edge/2));
     }
+#ifdef FES_C64_REAL_DRIVE_SIM
+    disk_changes.append(option("C64_APPEND_DISK_CHANGES="),sys_edge/2);
+#endif
     auto save=[&](const std::string &path) {
         VerilatedSave stream;stream.open(path);
         if(!stream.isOpen())throw std::runtime_error("cannot write checkpoint");
@@ -141,6 +158,11 @@ int main(int argc, char **argv) {
         if (system) {
             bool rising=!(sys_edge&1);
 #ifdef FES_C64_REAL_DRIVE_SIM
+            if(rising && disk_changes.advance(sys_edge/2,medium)) {
+                std::printf("Disk change cycle=%llu media=%u\n",
+                    static_cast<unsigned long long>(sys_edge/2),disk_changes.active);
+                std::fflush(stdout);
+            }
             disk_reference=rising && top.drive_ref_ce;
             medium.move(top.drive_pins,top.drive_ddr);
             top.drive_flux=medium.flux(disk_reference,disk_motor);
@@ -223,6 +245,7 @@ int main(int argc, char **argv) {
         }
     }
     if(!save_path.empty() && !save_cycle)save(save_path);
+    if(!final_save_path.empty())save(final_save_path);
     const auto &ram = top.rootp->c64_boot_sim_top__DOT__machine__DOT__main_ram__DOT__ram;
     std::ofstream memory("boot-ram.bin", std::ios::binary);
     memory.write(reinterpret_cast<const char *>(&ram[0]), 65536);
@@ -249,6 +272,7 @@ int main(int argc, char **argv) {
     }
 
 #ifdef FES_C64_REAL_DRIVE_SIM
+    std::printf("Disk media active=%u changes=%zu\n",disk_changes.active,disk_changes.cycles.size());
     std::printf("Drive final bus=%04x head=%.1f pins=%02x DDR=%02x CIA2 PA=%02x DDR=%02x\n",
         top.drive_pc,medium.halftrack/2.0,top.drive_pins,top.drive_ddr,
         r->c64_boot_sim_top__DOT__machine__DOT__cia2__DOT__pa_reg,

@@ -229,6 +229,22 @@ original invocation. The harness checks checkpoint identity and integrity;
 it does not certify native LOAD, demo compatibility or runtime save-state
 support.
 
+A real-drive observation accepts repeated `--disk-library D64` arguments.
+The library is immutable and hash-checked with the firmware and simulator.
+`--disk-change CYCLE D64` queues an initial physical insertion; it replaces
+raw tracks without changing CPU/VIA state, head position or spindle angle.
+A restore automatically retains the library and queued events. Use
+`--append-disk-change CYCLE D64` for a later insertion from that library;
+its cycle must follow both the checkpoint and existing queued events.
+This allows later demo sides to be explored from the saved machine state.
+The cycle budget is an absolute endpoint, bounded to 1800 machine seconds.
+`--save-final-state PATH` retains an endpoint checkpoint in addition to the
+intermediate capture. Both sidecars record complete replay inputs and their
+own capture cycle. Restores preserve the capture policy, pending events and
+model layout checks. Different firmware, library bytes or executable still
+require a fresh capture.
+
+
 `--late-video` is available only with the real-drive diagnostic. It holds the
 current independent HDMI renderer until the final five frames while native
 CPU, raster, CIA, SID and drive clocks continue. This accelerates disk/loader

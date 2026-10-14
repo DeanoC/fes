@@ -1759,8 +1759,14 @@ Both boot diagnostic builds use Verilator save/restore. The helper's
 `--save-state`, optional `--save-at-cycles` and `--restore-state` preserve the
 complete RTL model, host clock counters, pending keyboard/capture events,
 partial frame collection and the real-drive medium's angle/head position.
-Checkpoint metadata requires the same executable and firmware/media hashes;
-a rebuild requires recapture. Native LOAD must be verified before using a
+Checkpoint metadata requires the same executable, firmware and immutable
+media-library hashes; a rebuild requires recapture. Scheduled insertions and
+the active media cursor are serialized with the host state. An explicit later
+insertion can be appended after restore, selecting a disk from the captured
+library without modifying earlier events or machine/drive state.
+`--save-final-state` retains an endpoint snapshot alongside an intermediate
+capture, and restores preserve the capture policy. The absolute observation
+endpoint can extend to 1800 machine seconds. Native LOAD must be verified before using a
 post-load checkpoint. This is development simulation, not runtime persistence.
 `--late-video` holds the independent HDMI renderer until the final five frames
 only in the real-drive diagnostic, without qualifying live native graphics.
