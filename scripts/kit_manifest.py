@@ -238,11 +238,67 @@ def _copy_private_file(src, dest, mode):
     return True
 
 
+def _legacy_drift_destinations(destination):
+    """Drift directories to try, canonical first.
+
+    The timer reads ``~/.local/state/fes-kit/fes-kit-drift`` and does not see
+    ``FES_KIT_DRIFT_DIR``. That explicit directory, then the hold directory,
+    are fallbacks when the canonical directory cannot be created.
+    """
+    destinations = []
+
+    def add(path):
+        path = Path(path)
+        if path not in destinations:
+            destinations.append(path)
+
+    try:
+        add(durable_state_dir() / 'fes-kit-drift')
+    except KitError:
+        pass
+    override = os.environ.get('FES_KIT_DRIFT_DIR')
+    if override:
+        add(override)
+    add(destination / 'fes-kit-drift')
+    return destinations
+
+
+def _migrate_legacy_drift(legacy, destination):
+    """Move owned drift snapshots without blocking a usable hold.
+
+    Directory creation is best-effort. A snapshot stays in the legacy hold
+    when every destination fails, and that failure does not prevent the
+    maintenance journal from being used.
+    """
+    drift_src = legacy / 'fes-kit-drift'
+    if not _is_private_dir(drift_src):
+        return
+    destinations = _legacy_drift_destinations(destination)
+    try:
+        names = os.listdir(drift_src)
+    except OSError:
+        return
+    for name in names:
+        if not name.endswith('.json'):
+            continue
+        src = drift_src / name
+        if not _owned_regular(src):
+            continue
+        for root in destinations:
+            try:
+                prepared = _ensure_private_dir(root, mode=0o755)
+                _copy_private_file(src, prepared / name, 0o644)
+            except (KitError, OSError):
+                continue
+            break
+
+
 def _migrate_legacy_hold(destination):
     """Move a valid journal and markers out of the retired temp hold.
 
     An unsafe legacy directory or file is left in place. A file that already
-    exists at the destination is not replaced.
+    exists at the destination is not replaced. Drift snapshots follow
+    ``_migrate_legacy_drift`` and never block this hold.
     """
     legacy = _legacy_hold_dir()
     try:
@@ -265,19 +321,7 @@ def _migrate_legacy_hold(destination):
         src = legacy / name
         if _owned_regular(src):
             _copy_private_file(src, destination / name, 0o644)
-    drift_src = legacy / 'fes-kit-drift'
-    if not _is_private_dir(drift_src):
-        return
-    try:
-        drift_dest = durable_state_dir() / 'fes-kit-drift'
-    except KitError:
-        drift_dest = destination / 'fes-kit-drift'
-    for name in os.listdir(drift_src):
-        if not name.endswith('.json'):
-            continue
-        src = drift_src / name
-        if _owned_regular(src):
-            _copy_private_file(src, drift_dest / name, 0o644)
+    _migrate_legacy_drift(legacy, destination)
 
 
 def hold_dir():
@@ -334,14 +378,44 @@ def _canonical_drift_snapshots(name):
     return [root / 'fes-kit-drift' / f'{name}.json']
 
 
+def _snapshot_readable(path):
+    """True for an owned regular snapshot, including one left group-writable.
+
+    ``Path.write_text`` uses mode ``0666`` masked by umask, so umask ``0002``
+    creates mode ``0664``. ``_owned_regular`` rejects that mode. The file is
+    still this user's snapshot and its hashes must remain visible. A
+    world-writable snapshot stays unreadable.
+    """
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return False
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+        return False
+    if info.st_uid != os.getuid():
+        return False
+    if stat.S_IMODE(info.st_mode) & stat.S_IWOTH:
+        return False
+    return True
+
+
 def _snapshot_hashes(path):
-    if not _owned_regular(path):
+    if not _snapshot_readable(path):
         raise KitError(f'cannot read drift snapshot: {path}')
     try:
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     except OSError as exc:
         raise KitError(f'cannot read drift snapshot: {path}') from exc
     try:
+        info = os.fstat(fd)
+        mode = stat.S_IMODE(info.st_mode)
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or mode & stat.S_IWOTH:
+            raise KitError(f'cannot read drift snapshot: {path}')
+        if mode & stat.S_IWGRP:
+            try:
+                os.fchmod(fd, 0o644)
+            except OSError:
+                pass
         chunks = []
         while True:
             chunk = os.read(fd, 65536)
@@ -355,18 +429,59 @@ def _snapshot_hashes(path):
     return load_object(b''.join(chunks).decode('utf-8')).get('hashes') or {}
 
 
+def _write_snapshot(path, text, mode=0o644):
+    """Atomically replace a drift snapshot with an explicit mode.
+
+    ``os.open`` applies the process umask, so ``fchmod`` sets the mode that
+    ``_owned_regular`` accepts. A crash keeps the previous snapshot.
+    """
+    path = Path(path)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    temporary = path.parent / f'.{path.name}.{secrets.token_hex(8)}.tmp'
+    try:
+        fd = os.open(temporary, flags, mode)
+    except OSError as exc:
+        raise KitError(f'cannot write drift snapshot: {path}') from exc
+    try:
+        os.fchmod(fd, mode)
+        view = text.encode('utf-8')
+        while view:
+            written = os.write(fd, view)
+            if written <= 0:
+                raise OSError(f'short write to {temporary}')
+            view = view[written:]
+        os.fsync(fd)
+    except OSError as exc:
+        os.close(fd)
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise KitError(f'cannot write drift snapshot: {path}') from exc
+    os.close(fd)
+    try:
+        os.replace(temporary, path)
+    except OSError as exc:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise KitError(f'cannot write drift snapshot: {path}') from exc
+
+
 def previous_watch_hashes(name):
     """Hashes from this drift directory, or the canonical durable snapshot.
 
     A missing home only skips the optional canonical fallback. An explicit
-    drift directory is still compared on its own.
+    drift directory is still compared on its own. Group-writable snapshots
+    created under a permissive umask are read and tightened to ``0644``.
     """
     primary = drift_dir() / f'{name}.json'
-    if _owned_regular(primary):
+    if _snapshot_readable(primary):
         return _snapshot_hashes(primary)
     for candidate in _canonical_drift_snapshots(name):
         try:
-            if not _owned_regular(candidate) or candidate.resolve() == primary.resolve():
+            if not _snapshot_readable(candidate) or candidate.resolve() == primary.resolve():
                 continue
         except OSError:
             continue
@@ -1398,8 +1513,8 @@ def watch_kit(session, main_hashes, fail_stale):
     elif not probe['baseline']:
         findings.append(('UNVERIFIED', '-', 'no-stock-baseline', '', ''))
     snapshot = {item.name: probe['hashes'].get(item.name, 'MISSING') for item in iter_tracked(probe)}
-    previous_path.write_text(json.dumps({'format': 1, 'when': utc_stamp(), 'hashes': snapshot}, indent=2) + '\n',
-                             encoding='utf-8')
+    _write_snapshot(previous_path,
+                    json.dumps({'format': 1, 'when': utc_stamp(), 'hashes': snapshot}, indent=2) + '\n')
     lines = [format_finding(session.name, *row) for row in findings]
     if not findings:
         lines.append(f'{utc_stamp()} kit {session.name} OK')

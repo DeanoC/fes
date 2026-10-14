@@ -338,6 +338,127 @@ class KitManifestTests(unittest.TestCase):
         finally:
             tempfile.tempdir = saved_temp
 
+    def _legacy_private_hold(self, legacy_root, journal_payload, drift_payload=None):
+        legacy = legacy_root / f'fes-kit-{os.getuid()}'
+        journal_dir = legacy / '.fes-kit-maintenance'
+        journal_dir.mkdir(parents=True, mode=0o700)
+        legacy.chmod(0o700)
+        journal_dir.chmod(0o700)
+        journal = journal_dir / 'KITA.json'
+        journal.write_text(journal_payload)
+        journal.chmod(0o600)
+        snapshot = None
+        if drift_payload is not None:
+            drift_src = legacy / 'fes-kit-drift'
+            drift_src.mkdir(mode=0o700)
+            drift_src.chmod(0o700)
+            snapshot = drift_src / 'A.json'
+            snapshot.write_text(drift_payload)
+            snapshot.chmod(0o644)
+        return legacy, journal, snapshot
+
+    def test_legacy_drift_snapshot_moves_to_the_canonical_directory(self):
+        home = self.work / 'drift-home'
+        legacy_root = self.work / 'legacy-tmp'
+        legacy_root.mkdir()
+        payload = '{"format":1,"hashes":{"mister-agent":"abc"}}\n'
+        journal_payload = '{"request_id":"legacy"}\n'
+        _legacy, journal, snapshot = self._legacy_private_hold(legacy_root, journal_payload, payload)
+        hold = self.work / 'hold-override'
+        saved_temp = tempfile.tempdir
+        try:
+            with mock.patch.dict(os.environ, {
+                'HOME': str(home),
+                'TMPDIR': str(legacy_root),
+                'FES_KIT_HOLD_DIR': str(hold),
+            }):
+                os.environ.pop('FES_KIT_DRIFT_DIR', None)
+                os.environ.pop('XDG_STATE_HOME', None)
+                tempfile.tempdir = None
+                path = kit_manifest.hold_dir()
+                self.assertEqual(path, hold)
+                self.assertEqual((path / '.fes-kit-maintenance' / 'KITA.json').read_text(), journal_payload)
+                self.assertFalse(journal.exists())
+                canonical = home / '.local/state/fes-kit/fes-kit-drift/A.json'
+                self.assertEqual(canonical.read_text(), payload)
+                self.assertEqual(stat.S_IMODE(canonical.stat().st_mode), 0o644)
+                self.assertFalse(snapshot.exists())
+                self.assertFalse((hold / 'fes-kit-drift').exists())
+        finally:
+            tempfile.tempdir = saved_temp
+
+    def test_unwritable_home_routes_legacy_drift_without_blocking_the_hold(self):
+        home = self.work / 'ro-home'
+        state = home / '.local' / 'state'
+        state.mkdir(parents=True)
+        state.chmod(0o555)
+        legacy_root = self.work / 'legacy-tmp'
+        legacy_root.mkdir()
+        payload = '{"format":1,"hashes":{"mister-agent":"abc"}}\n'
+        journal_payload = '{"request_id":"legacy"}\n'
+        _legacy, journal, snapshot = self._legacy_private_hold(legacy_root, journal_payload, payload)
+        hold = self.work / 'writable-hold'
+        drift = self.work / 'writable-drift'
+        saved_temp = tempfile.tempdir
+        try:
+            with mock.patch.dict(os.environ, {
+                'HOME': str(home),
+                'TMPDIR': str(legacy_root),
+                'FES_KIT_HOLD_DIR': str(hold),
+                'FES_KIT_DRIFT_DIR': str(drift),
+            }):
+                os.environ.pop('XDG_STATE_HOME', None)
+                tempfile.tempdir = None
+                path = kit_manifest.hold_dir()
+                self.assertEqual(path, hold)
+                dest = path / '.fes-kit-maintenance' / 'KITA.json'
+                self.assertEqual(dest.read_text(), journal_payload)
+                self.assertFalse(journal.exists())
+                routed = drift / 'A.json'
+                self.assertEqual(routed.read_text(), payload)
+                self.assertFalse(snapshot.exists())
+                self.assertFalse((state / 'fes-kit').exists())
+                session = kit_manifest.Session('A', kit_manifest.LocalTransport(self.root), 'local')
+                self.assertEqual(session.maintenance.journal, dest)
+        finally:
+            state.chmod(0o755)
+            tempfile.tempdir = saved_temp
+
+    def test_unwritable_drift_destinations_skip_snapshot_migration(self):
+        home = self.work / 'ro-home'
+        state = home / '.local' / 'state'
+        state.mkdir(parents=True)
+        state.chmod(0o555)
+        legacy_root = self.work / 'legacy-tmp'
+        legacy_root.mkdir()
+        payload = '{"format":1,"hashes":{"mister-agent":"abc"}}\n'
+        journal_payload = '{"request_id":"kept"}\n'
+        _legacy, journal, snapshot = self._legacy_private_hold(legacy_root, journal_payload, payload)
+        hold = self.work / 'writable-hold'
+        hold.mkdir(mode=0o700)
+        blocker = hold / 'fes-kit-drift'
+        blocker.write_text('not-a-directory')
+        saved_temp = tempfile.tempdir
+        try:
+            with mock.patch.dict(os.environ, {
+                'HOME': str(home),
+                'TMPDIR': str(legacy_root),
+                'FES_KIT_HOLD_DIR': str(hold),
+            }):
+                os.environ.pop('FES_KIT_DRIFT_DIR', None)
+                os.environ.pop('XDG_STATE_HOME', None)
+                tempfile.tempdir = None
+                path = kit_manifest.hold_dir()
+                self.assertEqual(path, hold)
+                self.assertEqual((path / '.fes-kit-maintenance' / 'KITA.json').read_text(), journal_payload)
+                self.assertFalse(journal.exists())
+                self.assertEqual(snapshot.read_text(), payload)
+                self.assertEqual(blocker.read_text(), 'not-a-directory')
+                self.assertFalse((state / 'fes-kit').exists())
+        finally:
+            state.chmod(0o755)
+            tempfile.tempdir = saved_temp
+
     def test_manual_and_timer_share_the_drift_baseline(self):
         unit = (ROOT / 'scripts/systemd/fes-kit-drift.service').read_text()
         self.assertNotIn('FES_KIT_HOLD_DIR=', unit)
@@ -715,6 +836,46 @@ class KitManifestTests(unittest.TestCase):
         self.assertEqual(second.returncode, 1, second.stdout)
         self.assertIn('DRIFT mister-agent unrecorded', second.stdout)
         self.assertTrue((self.drift / 'watch.log').read_text())
+
+    def test_group_umask_keeps_drift_history(self):
+        previous = os.umask(0o002)
+        try:
+            first = self.fes('watch', '--once', '--kits', 'A')
+            self.assertEqual(first.returncode, 0, first.stderr)
+            snapshot = self.drift / 'A.json'
+            self.assertEqual(stat.S_IMODE(snapshot.stat().st_mode), 0o644)
+            self.assertEqual(list(self.drift.glob('.A.json.*.tmp')), [])
+            (self.root / PATHS['mister-agent']).write_bytes(b'umask-edit')
+            second = self.fes('watch', '--once', '--kits', 'A')
+            self.assertEqual(second.returncode, 1, second.stdout + second.stderr)
+            self.assertIn('DRIFT mister-agent unrecorded', second.stdout)
+            self.assertEqual(stat.S_IMODE(snapshot.stat().st_mode), 0o644)
+            self.assertEqual(list(self.drift.glob('.A.json.*.tmp')), [])
+        finally:
+            os.umask(previous)
+
+    def test_group_writable_snapshot_is_compared_then_tightened(self):
+        self.drift.mkdir()
+        expected = digest(b'previous-agent')
+        payload = json.dumps({
+            'format': 1,
+            'when': '2020-01-01T00:00:00Z',
+            'hashes': {'mister-agent': expected},
+        }) + '\n'
+        snapshot = self.drift / 'A.json'
+        snapshot.write_text(payload)
+        snapshot.chmod(0o664)
+        self.assertTrue(stat.S_IMODE(snapshot.stat().st_mode) & stat.S_IWGRP)
+        previous = os.umask(0o002)
+        try:
+            watched = self.fes('watch', '--once', '--kits', 'A')
+        finally:
+            os.umask(previous)
+        self.assertEqual(watched.returncode, 1, watched.stdout + watched.stderr)
+        self.assertIn('DRIFT mister-agent unrecorded', watched.stdout)
+        self.assertIn(f'expected={expected}', watched.stdout)
+        self.assertEqual(stat.S_IMODE(snapshot.stat().st_mode), 0o644)
+        self.assertEqual(list(self.drift.glob('.A.json.*.tmp')), [])
 
     def test_watcher_accepts_a_recorded_swap_and_flags_stale_main(self):
         self.claim()
