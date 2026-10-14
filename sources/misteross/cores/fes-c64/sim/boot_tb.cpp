@@ -231,16 +231,23 @@ int main(int argc, char **argv) {
         image << "P6\n1280 720\n255\n";
         image.write(reinterpret_cast<const char *>(last_frame.data()), last_frame.size());
     }
+    auto *r=top.rootp;
+    const auto &vic_regs=r->c64_boot_sim_top__DOT__machine__DOT__vic__DOT__regs;
+    const unsigned cia_pa=r->c64_boot_sim_top__DOT__machine__DOT__cia2__DOT__pa_reg;
+    const unsigned cia_ddr=r->c64_boot_sim_top__DOT__machine__DOT__cia2__DOT__pa_ddr;
+    const unsigned bank=(~((cia_pa&cia_ddr)|(~cia_ddr)))&3;
+    const unsigned screen=(bank<<14)|((vic_regs[0x18]&0xf0)<<6);
+    std::printf("Active VIC screen=%04x bank=%u\n",screen,bank);
     std::printf("C64 boot observation after %llu system cycles: bus address=%04x, screen codes:\n",
                 static_cast<unsigned long long>(cycle_budget), top.debug_pc);
     for (int row = 0; row < 25; ++row) {
         for (int col = 0; col < 40; ++col) {
-            uint8_t c = ram[0x400 + row * 40 + col] & 0x7f;
+            uint8_t c = ram[(screen + row * 40 + col)&0xffff] & 0x7f;
             std::putchar(c >= 1 && c <= 26 ? c + 'A' - 1 : c >= 32 && c <= 63 ? c : '.');
         }
         std::putchar('\n');
     }
-    auto *r=top.rootp;
+
 #ifdef FES_C64_REAL_DRIVE_SIM
     std::printf("Drive final bus=%04x head=%.1f pins=%02x DDR=%02x CIA2 PA=%02x DDR=%02x\n",
         top.drive_pc,medium.halftrack/2.0,top.drive_pins,top.drive_ddr,
@@ -250,7 +257,7 @@ int main(int argc, char **argv) {
     std::printf("Drive CPU PC=%04x state=%u A=%02x X=%02x Y=%02x S=%02x I=%u V=%u\n",
         r->c64_boot_sim_top__DOT__machine__DOT__drive__DOT__cpu__DOT__PC,
         r->c64_boot_sim_top__DOT__machine__DOT__drive__DOT__cpu__DOT__state,
-        drive_regs[0],drive_regs[1],drive_regs[2],drive_regs[3],
+        drive_regs[0],drive_regs[2],drive_regs[3],drive_regs[1],
         r->c64_boot_sim_top__DOT__machine__DOT__drive__DOT__cpu__DOT__I,
         r->c64_boot_sim_top__DOT__machine__DOT__drive__DOT__cpu__DOT__V);
     std::printf("Drive IEC VIA PB=%02x DDR=%02x IFR=%02x IER=%02x\n",
@@ -273,7 +280,6 @@ int main(int argc, char **argv) {
         r->c64_boot_sim_top__DOT__machine__DOT__cia2__DOT__pa_reg,
         r->c64_boot_sim_top__DOT__machine__DOT__cia2__DOT__pa_ddr);
 #endif
-    const auto &vic_regs=r->c64_boot_sim_top__DOT__machine__DOT__vic__DOT__regs;
     std::printf("VIC final D011=%02x D012-compare=%02x D016=%02x D018=%02x D01A=%02x beam=%u\n",
         vic_regs[0x11],vic_regs[0x12],vic_regs[0x16],vic_regs[0x18],vic_regs[0x1a],
         r->c64_boot_sim_top__DOT__machine__DOT__vic__DOT__raster);
