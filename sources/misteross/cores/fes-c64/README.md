@@ -216,3 +216,25 @@ Before routing, the producer connects the unused write clocks of the
 two inferred read-only M10Ks (VIC font and IEC track lookup) to their live
 read clocks. It checks their names and disabled write ports so a changed
 synthesis shape fails closed.
+
+## 1541 development motherboard
+
+`make sim-fes-c64-drive` checks an independent development motherboard with a
+1 MHz 6502, mirrored 2 KiB RAM, two VIA port/timer/handshake slices and the IEC
+inverters/ATN acknowledge gate. Its open firmware checks RAM aliases, both VIA
+interrupts through the CPU vector and the released bus. `sim-fes-c64-via` checks
+input latches, PA pin/PB latch reads, handshake and pulse outputs, selectable
+interrupt edges, IFR/IER, Timer 1/PB7 and Timer 2/PB6 pulse counting. These
+register semantics follow the [6522-compatible WDC datasheet](https://www.westerndesigncenter.com/wdc/documentation/w65c22.pdf);
+Timer 1 exposes the underflow cycle and reloads in one-shot mode as observed in
+[VICE's VIA implementation](https://github.com/VICE-Team/svn-mirror/blob/main/vice/src/core/viacore.c).
+Serial shifting and NMOS subcycle behavior remain unimplemented.
+
+`make sim-fes-c64-drive-build` followed by
+`python3 scripts/c64_drive_observe.py --rom /path/1541.rom --output /path/ignored-output`
+observes a user-supplied exact 16 KiB drive ROM for three simulated seconds.
+It retains ROM/executable hashes, the drive RAM and bus/control observations.
+The disk electronics use inactive input pins; GCR rotation, CPU SO byte-ready,
+disk loading and fastloader execution are not provided. This motherboard is
+not selected by the C64 package or its boot harness yet, and its ROM has no
+physical download map. The existing read-only IEC file device remains selected.

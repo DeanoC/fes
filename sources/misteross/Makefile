@@ -1049,6 +1049,30 @@ sim-fes-c64-cia:
 	@build/sim/fes-c64-cia/Vc64_cia
 
 .PHONY: sim-fes-c64-vic
+.PHONY: sim-fes-c64-via sim-fes-c64-drive sim-fes-c64-drive-build
+sim-fes-c64-via:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-via
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_via $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-via" \
+		cores/fes-c64/rtl/c64_via.v "$(CURDIR)/cores/fes-c64/sim/via_tb.cpp"
+	@build/sim/fes-c64-via/Vc64_via
+
+sim-fes-c64-drive-build:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-drive
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_drive1541 $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-drive" \
+		cores/fes-c64/rtl/c64_drive1541.sv cores/fes-c64/rtl/c64_via.v \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/drive_tb.cpp"
+
+sim-fes-c64-drive: sim-fes-c64-via sim-fes-c64-drive-build
+	$(PYTHON) cores/fes-c64/diagnostic/drive_firmware.py --output-dir build/diagnostics/fes-c64-drive
+	@cd build/sim/fes-c64-drive && ./Vc64_drive1541 \
+		+C64_DRIVE_ROM_HEX=$(CURDIR)/build/diagnostics/fes-c64-drive/drive.hex \
+		+C64_DRIVE_DIAGNOSTIC=1 +C64_DRIVE_CYCLES=1000000
+
 sim-fes-c64-vic:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-vic
@@ -1093,7 +1117,7 @@ sim-fes-c64-boot-build:
 		cores/fes-c64/sim/c64_boot_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/boot_tb.cpp"
 
-sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic
+sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic sim-fes-c64-drive
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \

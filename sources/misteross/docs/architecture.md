@@ -1710,6 +1710,16 @@ TALK/SECOND, exact single-sector and 260-byte linked-sector PRGs and final-byte
 EOI. Full sectors follow their track/sector links without transmitting link bytes. The CPU diagnostic
 uses this same polarity/protocol. No 1541 CPU, VIA, GCR or fastloader compatibility
 is implied by the read-only file device.
+A separate `c64_drive1541` development motherboard runs the shared 6502 at
+1 MHz with 2 KiB mirrored RAM, an external 16 KiB simulation ROM, two
+`c64_via` port/timer/handshake slices and the physical IEC inverter/ATN gate.
+`make sim-fes-c64-drive` runs open firmware that checks RAM aliases and both
+VIA IRQs through the CPU vector; the standalone VIA test checks ports,
+edge latches, handshakes, IFR/IER and T1/T2/PB7/PB6 behavior. Its observation
+helper retains an external ROM identity, frozen executable identity and RAM.
+The development disk pins are inactive. VIA serial shifting, CPU SO,
+rotation/GCR, physical drive-ROM linking and machine integration are still
+missing; production and C64 boot simulations retain the file device.
 The HID keyboard maps all 64 native switches with CIA1 PA columns/PB rows,
 correcting the former transposed diagnostic mapping. A is PA1/PB2 and Return
 is PA0/PB1. `make sim-fes-c64-keyboard`, included in `sim-fes-c64`, checks every
