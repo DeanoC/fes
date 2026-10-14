@@ -183,7 +183,7 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertEqual(SMS_TOOL_COMMITS["nextpnr"], "9128800fa6e77c4138088a7107a95376ba47ff15")
         pins = load_lock(ROOT / SMS_TOOLCHAIN_LOCK)
         from scripts.build_fes_coleco_oss import COLECO_TOOLCHAIN_LOCK
-        self.assertNotEqual(SMS_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)
+        self.assertEqual(SMS_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)
         self.assertEqual(pins["yosys"].commit, SMS_TOOL_COMMITS["yosys"])
         self.assertEqual(pins["mistral"].commit, SMS_TOOL_COMMITS["mistral"])
         self.assertEqual(pins["nextpnr"].commit, SMS_TOOL_COMMITS["nextpnr"])
