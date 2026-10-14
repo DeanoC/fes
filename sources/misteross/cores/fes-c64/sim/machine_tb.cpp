@@ -23,73 +23,18 @@ static constexpr uint8_t kGlyphP[8] = {0x7C, 0x66, 0x66, 0x7C, 0x60, 0x60, 0x60,
 static constexpr uint8_t kGlyphA[8] = {0x3C, 0x66, 0x66, 0x7E, 0x66, 0x66, 0x66, 0x00};
 static constexpr uint8_t kGlyphS[8] = {0x3C, 0x66, 0x60, 0x3C, 0x06, 0x66, 0x3C, 0x00};
 
-static bool black_at(const std::vector<uint8_t> &rgb, int x, int y) {
-    const uint8_t *p = &rgb[(y * kWidth + x) * 3];
-    return p[0] == 0 && p[1] == 0 && p[2] == 0;
-}
-
-static bool white_at(const std::vector<uint8_t> &rgb, int x, int y) {
-    const uint8_t *p = &rgb[(y * kWidth + x) * 3];
-    return p[0] == 0xFF && p[1] == 0xFF && p[2] == 0xFF;
-}
-
-// PASS is painted on character rows 11..13. The sample x is the last pixel of
-// each 4x-scaled glyph bit, which stays on that bit after the VIC's two-cycle
-// character-code delay and one-cycle bit-select delay. y is the middle line of
-// the 3x vertical scale.
 static int check_pass_frame(const std::vector<uint8_t> &rgb) {
-    if (rgb.size() != static_cast<size_t>(kWidth * kHeight * 3)) {
-        std::printf("c64 PASS frame has %zu pixels, want %d\n",
-                    rgb.size() / 3, kWidth * kHeight);
-        return 1;
-    }
-    // $0408 is row 0, column 8. A leftover stage digit is white there.
-    for (int y = 60; y < 84; ++y) {
-        for (int x = 8 * 32; x < 9 * 32; ++x) {
-            if (!black_at(rgb, x, y)) {
-                std::printf("c64 PASS frame still shows the stage digit at %d,%d\n", x, y);
-                return 1;
-            }
-        }
-    }
-    constexpr int pass_top = 60 + 11 * 24;
-    constexpr int pass_bottom = 60 + 14 * 24;
-    for (int y = 0; y < kHeight; ++y) {
-        if (y >= pass_top && y < pass_bottom)
-            continue;
-        const bool border = y < 60 || y >= 660;
-        for (int x = 0; x < kWidth; ++x) {
-            if (!black_at(rgb, x, y)) {
-                const uint8_t *p = &rgb[(y * kWidth + x) * 3];
-                std::printf("c64 PASS frame %s pixel %d,%d is %02x%02x%02x\n",
-                            border ? "border" : "background", x, y, p[0], p[1], p[2]);
-                return 1;
-            }
-        }
-    }
-    for (int row = 11; row <= 13; ++row) {
-        for (int col = 0; col < 40; ++col) {
-            const int which = col % 5;
-            const uint8_t *glyph = nullptr;
-            if (which == 0)
-                glyph = kGlyphP;
-            else if (which == 1)
-                glyph = kGlyphA;
-            else if (which != 4)
-                glyph = kGlyphS;
-            for (int by = 0; by < 8; ++by) {
-                for (int bx = 0; bx < 8; ++bx) {
-                    const bool on = glyph && (glyph[by] & (0x80u >> bx)) != 0;
-                    const int x = col * 32 + bx * 4 + 3;
-                    const int y = 60 + row * 24 + by * 3 + 1;
-                    if (white_at(rgb, x, y) != on) {
-                        std::printf("c64 PASS text mismatch row %d col %d bit %d,%d\n",
-                                    row, col, bx, by);
-                        return 1;
-                    }
-                }
-            }
-        }
+    if(rgb.size()!=size_t(kWidth*kHeight*3))return 1;
+    for(int y=0;y<kHeight;++y)for(int x=0;x<kWidth;++x){
+        bool on=false;
+        if(x>=160&&x<1120){int vx=(x-160)*2/5,vy=y*17/45;
+            if(vx>=32&&vx<352&&vy>=35&&vy<235){int nx=vx-32,ny=vy-35;
+                if(ny/8>=11&&ny/8<=13){int which=(nx/8)%5;
+                    const uint8_t *glyph=which==0?kGlyphP:which==1?kGlyphA:which==4?nullptr:kGlyphS;
+                    on=glyph&&(glyph[ny%8]&(0x80>>(nx%8)));}}}
+        const uint8_t *pixel=&rgb[(y*kWidth+x)*3];unsigned expected=on?255:0;
+        if(pixel[0]!=expected||pixel[1]!=expected||pixel[2]!=expected){
+            std::printf("C64 PASS pixel %d,%d got%02x%02x%02x expected%02x\n",x,y,pixel[0],pixel[1],pixel[2],expected);return 1;}
     }
     return 0;
 }

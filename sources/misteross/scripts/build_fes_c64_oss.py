@@ -101,6 +101,8 @@ RTL_SOURCES = (
     "cores/fes-c64/rtl/c64_color_ram.v",
     "cores/fes-c64/rtl/c64_rom.v",
     "cores/fes-c64/rtl/c64_vic.v",
+    "cores/fes-c64/rtl/c64_vic_sprite_pixels.sv",
+    "cores/fes-c64/rtl/c64_vic_collisions.sv",
     "cores/fes-c64/rtl/c64_vic_fetch.sv",
     "cores/fes-c64/rtl/c64_vic_sprite_fetch.sv",
     "cores/fes-c64/rtl/c64_frame_store.sv",
@@ -424,12 +426,12 @@ def validate_color_ram(cells: dict) -> None:
 def validate_frame_store(cells: dict) -> None:
     """Require three dense native-color pages with live system/HDMI clocks."""
     expected = {f"machine.vic.frame_store.pages[{page}].banks[{bank}].ram"
-                for page in range(3) for bank in range(32)}
+                for page in range(3) for bank in range(51)}
     found = {name for name, cell in cells.items()
              if name.startswith("machine.vic.frame_store.") and
              cell.get("type") in {"MISTRAL_M10K", "MISTRAL_M10K_TDP"}}
     if found != expected:
-        raise BuildError("native frame store requires exactly 96 dense M10K banks")
+        raise BuildError("native frame store requires exactly 153 dense M10K banks")
     system_clock = cells["machine.rom.lane0"]["connections"]["CLK1"]
     video_clocks = set()
     for name in sorted(expected):

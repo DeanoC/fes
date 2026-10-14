@@ -34,8 +34,8 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Color RAM is one synchronous dual-port M10K, 1024×4 at `$D800–$DBFF`;
   native DMA can read the final 24 scratch locations when VC wraps.
   CPU bus strobes occur at system cycle 26 and reads are sampled at cycle 43.
-  Three indexed-color buffers retain complete 320×200 native frames for HDMI.
-  Each buffer uses 32 explicit 2048×5 M10Ks, with a mailbox handoff across the
+  Three indexed-color buffers retain complete 384×272 PAL frames, including borders for HDMI.
+  Each buffer uses 51 explicit 2048×5 M10Ks, with a mailbox handoff across the
   system and HDMI clocks. Only complete frames reach the reader; an unconsumed
   publication keeps both the reader's buffer and queued frame protected.
   Nine-bit raster compare uses `$D011` bit 7 and `$D012`; `$D019` latches
@@ -43,9 +43,12 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   The PAL beam has 63 Phi2 cycles per line and 312 lines per frame.
   Events occur once per line; writes can match the current line, and automatic
   line-zero comparison waits one Phi2 after frame wrap.
-  Sprite pixel composition, collision/lightpen, exact mode-transition quirks, subpixel clock
-  phase and full native overscan remain open. HDMI still presents the scaled
-  320×200 window with letterboxing.
+  Eight sprite shift pipelines compose mono/multicolor pixels, independent X/Y
+  expansion and foreground priority. Dot collision masks feed sticky `$D01E/F`
+  registers, deferred read clearing and `$D019` sprite collision interrupts.
+  Flags latch independently of `$D01A`; clearing a collision register permits
+  a later event to retrigger. Light-pen capture, exact mode transitions and
+  physical subpixel phase remain open.
 - Reduced SID: three voices, pulse, saw, triangle and noise, a crude envelope
   and volume. No filter.
 - CIA1: keyboard matrix, joystick and IRQ. CIA2: IEC, the VIC bank and NMI.
@@ -58,8 +61,8 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   so CNT edge modes do not count and the gated timer A mode can count.
   TOD, serial shift and PB6/PB7 timer outputs remain unimplemented; internal
   6526 pipeline delays are not modelled. Port 2 (CIA1 port A) is controller port 0.
-- HDMI 720p60. The 320×200 picture is scaled 4× horizontally and 3×
-  vertically. Audio is the shared 48 kHz I2S serializer.
+- HDMI 720p60. The 384×272 PAL view is scaled into a centered 960×720
+  viewport using rational nearest-neighbor sampling; side pillars are black. Audio is the shared 48 kHz I2S serializer.
 
 ## Keyboard
 
@@ -198,8 +201,28 @@ diagnostic enables eight expanded sprites and requires stalled CPU reads,
 interrupt delivery and the unchanged PASS frame. Sprite and matrix
 requests share the native video memory port and are checked for overlap in
 simulation. Unowned reads use the current Phi2 CPU read/write bus value,
-including writes. Sprite bytes are fetched but are not yet composed into native
-pixels; collision IRQs remain unimplemented.
+including writes. `make sim-fes-c64-sprite-video` checks complete mixed-sprite
+frames across all four banks, priority and independent X/Y expansion masks.
+`make sim-fes-c64-border` opens borders through timed CSEL/RSEL writes and
+checks side, top, bottom, wrapped-X and frame-crossing sprites. The expected
+picture includes PAL's second Y trigger, reload-halt suppression and late
+sprite display clearing. These are VIC-bus fixtures; physical CPU write phases
+remain a separate qualification.
+
+`make sim-fes-c64-collision-cpu` runs an open RAM program on the actual
+motherboard. Four sprite masks, including a lone sprite, require IRQ entry,
+SS/background readback, deferred clearing, W1C and disabling/re-enabling the
+IRQ mask through real6510 instructions. The fixture initializes original test
+firmware, RAM graphics and vectors; it does not assert demo LOAD acceptance.
+
+`make sim-fes-c64-collisions` replays 500,000 ticks against recorded VICE 3.10
+source-oracle output: 15,832 reads and 3,838 acknowledgements cover deferred
+clear, W1C, mask-independent flags and retriggering. Regenerate the vectors with
+`python3 scripts/generate_c64_collision_vectors.py --vice-source /path/to/vice-3.10`;
+the generator checks the two source hashes and preserves VICE's license in its
+temporary adaptor. `make sim-fes-c64-readback` checks all 256 write values at
+61 VIC addresses, including read-only light-pen result registers and unused
+bits. Light-pen capture itself is not implemented.
 
 C64's D64/IEC path remains read-only. Atari ST's initial-disk-before-release
 and writable-disk save/restore path is a useful ordering reference, but its

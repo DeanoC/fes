@@ -360,12 +360,12 @@ class C64YosysM10kTests(unittest.TestCase):
         async_cells = [line for line in sections["ASYNC"] if line.startswith("top/")]
         lanes = sorted(line.removeprefix("top/") for line in sections["LANES"] if line.startswith("top/"))
         self.assertEqual(async_cells, [])
-        self.assertEqual(objects("SDP"), "113 objects.")
+        self.assertEqual(objects("SDP"), "170 objects.")
         self.assertEqual(objects("TDP"), "240 objects.")
         self.assertEqual(lanes, sorted(
             [f"machine.rom.lane{index}" for index in range(20)] +
             [f"machine.vic.frame_store.pages[{page}].banks[{bank}].ram"
-             for page in range(3) for bank in range(32)]))
+             for page in range(3) for bank in range(51)]))
 
     def test_full_synth_patches_autonamed_read_only_clocks(self) -> None:
         """The producer clock patch must accept the names left by ABC and autoname."""

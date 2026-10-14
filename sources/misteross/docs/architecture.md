@@ -1712,8 +1712,8 @@ Fixed BELs, registered read mode, dimensions and blank INIT remain mandatory.
 `c64_vic_fetch` schedules native matrix/color and glyph reads. VC, VCBASE, RC
 and the matrix latch support badlines, late DMA, FLI, FLD and linecrunch;
 BA stops CPU reads while pending writes finish. CPU bus strobes occur at
-cycle 26 and reads are sampled at cycle 43. The native 320×200 color window
-is stored in three frame buffers, each using 32 explicit 2048×5 M10Ks.
+cycle 26 and reads are sampled at cycle 43. The native 384×272 PAL view, including borders,
+is stored in three frame buffers, each using 51 explicit 2048×5 M10Ks.
 `c64_vic_sprite_fetch` supplies PAL pointer/three-byte accesses, DMA/display,
 MC/MCBASE, expansion flips and cycle-15 crunch. Its requests arbitrate with
 the matrix/glyph engine on the native video port without overlap. Combined
@@ -1726,13 +1726,22 @@ write timings; its unit setup installs an open RAM program and aligns DMA.
 Late unowned accesses use the current CPU read/write bus value. The directed
 sprite test covers 21/42 rows, all slots/banks, byte ordering, late ownership
 and sustained crunch. The motherboard diagnostic enables eight expanded
-sprites and requires CPU read stalls alongside IRQs and its PASS frame. Sprite
-pixel composition and collision IRQs remain open.
+sprites and requires CPU read stalls alongside IRQs and its PASS frame.
+`c64_vic_sprite_pixels` supplies per-dot shifts, multicolor/X expansion,
+foreground priority and collision masks. `c64_vic_collisions` commits collision
+masks at the following cycle boundary, defers read clearing and latches IRQ
+sources independently of their enable mask. The motherboard supplies the
+existing cycle-43 read sample for `$D01E/F`; writes to those masks are ignored.
+The collision test replays 500,000 source-oracle ticks, while full-frame tests
+cover mixed sprites and borders across all banks. Register readback tests cover
+unused bits and write-protected light-pen result registers.
 `c64_frame_store` publishes complete frames to HDMI with a bundled-data
 mailbox; reader and queued complete buffers remain protected while the
 private buffer is written. The native clock runs independently of HDMI.
-Sprite pixel composition, exact mode-transition quirks, subpixel phases, full overscan and
-route/seal/hardware acceptance remain open. The D64 media mailbox is unchanged.
+HDMI presents the PAL view in a centered 960×720 viewport at fixed 720p60.
+Small rational accumulators select native floor(x×2/5), floor(y×17/45)
+coordinates without dividers. Light-pen capture, exact mode-transition quirks,
+physical subpixel phases and fresh route/seal/hardware acceptance remain open. The D64 media mailbox is unchanged.
 See the core README.
 The IEC device uses released-high CIA2 inputs and logical byte levels on the
 open-collector wires. It separates ready/EOI handshakes from received data bits,

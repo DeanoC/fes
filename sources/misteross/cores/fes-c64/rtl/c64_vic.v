@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // PAL text/bitmap sequencer with native matrix/glyph DMA and CPU BA.
 // Native colors pass through complete-frame buffers into fixed 720p60 HDMI.
-// Sprite pixels, collision/lightpen and exact mode-transition quirks remain open.
+// Light-pen capture and exact mode-transition/subpixel quirks remain open.
 
 module c64_vic (
     input  wire        clk_sys,
@@ -13,6 +13,7 @@ module c64_vic (
     input  wire        reset,
     input  wire        cs,
     input  wire        we,
+    input wire reading, read_sample,
     input  wire [5:0]  addr,
     input  wire [7:0]  din,
     output reg  [7:0]  dout,
@@ -35,7 +36,7 @@ module c64_vic (
 );
     reg [7:0] regs [0:46];
     reg [5:0] phi_div;
-    reg raster_pending, raster_fired;
+    reg raster_fired;
     wire [8:0] raster_compare = {regs[6'h11][7], regs[6'h12]};
     wire line_end = phi && phi_div == 6'd62;
     wire [8:0] next_raster = raster == 9'd311 ? 9'd0 : raster + 9'd1;
@@ -46,7 +47,7 @@ module c64_vic (
     wire raster_event = (line_end && next_raster != 0 && next_raster == raster_compare) ||
         (!raster_fired && ((phi && raster == 0 && phi_div == 0 && raster_compare == 0) ||
                           (compare_write && written_compare == raster)));
-    assign irq = raster_pending && regs[6'h1A][0];
+
     integer i;
 
     wire [3:0] color_cpu_q;
@@ -61,8 +62,13 @@ module c64_vic (
         dout = 8'hFF;
         if (addr == 6'h11) dout = {raster[8], d011[6:0]};
         else if (addr == 6'h12) dout = raster[7:0];
-        else if (addr == 6'h19) dout = {irq, 3'b111, 3'b000, raster_pending};
+        else if (addr == 6'h19) dout = collision_status;
+        else if (addr == 6'h1e) dout = ss_mask;
+        else if (addr == 6'h1f) dout = bg_mask;
         else if (addr == 6'h1A) dout = {4'b1111, regs[6'h1A][3:0]};
+        else if (addr == 6'h16) dout = regs[addr] | 8'hc0;
+        else if (addr == 6'h18) dout = regs[addr] | 8'h01;
+        else if (addr >= 6'h20 && addr <= 6'h2e) dout = regs[addr] | 8'hf0;
         else if (addr <= 6'h2E) dout = regs[addr];
         color_dout = {4'h0, color_cpu_q};
     end
@@ -71,7 +77,6 @@ module c64_vic (
         if (reset) begin
             raster <= 9'd0;
             phi_div <= 6'd0;
-            raster_pending <= 1'b0;
             raster_fired <= 1'b0;
             for (i = 0; i < 47; i = i + 1) regs[i] <= 8'h00;
             regs[6'h11] <= 8'h1B;
@@ -80,12 +85,10 @@ module c64_vic (
             regs[6'h20] <= 8'h0E;
             regs[6'h21] <= 8'h06;
         end else begin
-            if (we && cs && addr <= 6'h2E && addr != 6'h19)
+            if (we && cs && addr <= 6'h2E && addr != 6'h19 && addr != 6'h13 && addr != 6'h14 && addr != 6'h1e && addr != 6'h1f)
                 regs[addr] <= din;
             if (line_end) raster_fired <= 1'b0;
-            if (we && cs && addr == 6'h19 && din[0]) raster_pending <= 1'b0;
             if (raster_event) begin
-                raster_pending <= 1'b1;
                 raster_fired <= 1'b1;
             end
             if (phi) begin
@@ -129,8 +132,13 @@ module c64_vic (
     wire request, matrix_request, native_valid, matrix_ba_n, sprite_request;
     wire [15:0] graphics_address, sprite_address;
     wire [63:0] sprite_y;
+    wire [71:0] sprite_x;wire [31:0] sprite_colors;
+    wire [191:0] sprite_data;wire [7:0] sprite_display;
+    wire [3:0] sprite_ink;
     for(genvar n=0;n<8;n=n+1)begin : sprite_positions
         assign sprite_y[n*8+:8]=regs[n*2+1];
+        assign sprite_x[n*9+:9]={regs[6'h10][n],regs[n*2]};
+        assign sprite_colors[n*4+:4]=regs[6'h27+n][3:0];
     end
     assign ram_addr=sprite_request?sprite_address:graphics_address;
     wire [9:0] native_color_address;
@@ -151,7 +159,7 @@ module c64_vic (
         .ypos(sprite_y),.expansion_write(cs&&we&&addr==6'h17),.expansion_value(din),
         .other_ba_n(matrix_ba_n),.sample(fetch_sample),.ram_data(ram_data),
         .cpu_data(cpu_bus_data),.d018(d018),.bank(bank),.request(sprite_request),
-        .address(sprite_address),.pointers(),.sprite_data(),.dma(),.display(),.exp_flop(),
+        .address(sprite_address),.pointers(),.sprite_data(sprite_data),.dma(),.display(sprite_display),.exp_flop(),
         .counters(),.bases(),.ba_n(ba_n),.aec_n()
     );
 `ifdef FES_SIMULATION
@@ -212,33 +220,79 @@ module c64_vic (
     wire [1:0] pair=(pixel_glyph >> ((3-bit_number[2:1])*2))&2'b11;
     wire bitmap=d011[5],ecm=d011[6],mcm=regs[6'h16][4];
     wire multicolor=mcm&&(bitmap||pixel_color[3]);
-    reg [3:0] ink;
+    reg [3:0] graphics_ink;
+    wire [3:0] ink=(main_border||vertical_border)?border:sprite_ink;
     always @* begin
-        if(ecm&&(bitmap||mcm))ink=0;
+        if(ecm&&(bitmap||mcm))graphics_ink=0;
         else if(multicolor)begin
             case(pair)
-                0:ink=back;
-                1:ink=bitmap?pixel_matrix[7:4]:regs[6'h22][3:0];
-                2:ink=bitmap?pixel_matrix[3:0]:regs[6'h23][3:0];
-                3:ink=bitmap?pixel_color:{1'b0,pixel_color[2:0]};
+                0:graphics_ink=back;
+                1:graphics_ink=bitmap?pixel_matrix[7:4]:regs[6'h22][3:0];
+                2:graphics_ink=bitmap?pixel_matrix[3:0]:regs[6'h23][3:0];
+                3:graphics_ink=bitmap?pixel_color:{1'b0,pixel_color[2:0]};
             endcase
-        end else if(bitmap)ink=on_pixel?pixel_matrix[7:4]:pixel_matrix[3:0];
-        else ink=on_pixel?pixel_color:ecm?regs[6'h21+{4'd0,pixel_matrix[7:6]}][3:0]:back;
-        if(from_previous && native_cycle==17)ink=back;
-        if(main_border || vertical_border)ink=border;
+        end else if(bitmap)graphics_ink=on_pixel?pixel_matrix[7:4]:pixel_matrix[3:0];
+        else graphics_ink=on_pixel?pixel_color:ecm?regs[6'h21+{4'd0,pixel_matrix[7:6]}][3:0]:back;
+        if(from_previous && native_cycle==17)graphics_ink=back;
     end
-    wire visible_native=raster>=51&&raster<=250&&native_cycle>=17&&native_cycle<=56;
-    wire [7:0] native_y=8'(raster-9'd51);
-    // Convert the native raster window into a 320x200 indexed-color frame.
-    wire [8:0] write_x=9'((native_cycle-6'd17)*8)+{6'd0,subpixel};
-    wire [15:0] write_address=16'(native_y*320)+{7'd0,write_x};
+    wire [7:0] ss_event,bg_event,ss_mask,bg_mask,collision_status;
+    wire [3:0] collision_flags;
+    reg event_sample;
+    reg [7:0] ss_acc,bg_acc;
+    always @(posedge clk_sys)begin
+        if(reset)begin event_sample<=0;ss_acc<=0;bg_acc<=0;end
+        else begin
+            event_sample<=pixel_strobe;
+            if(event_sample)begin ss_acc<=ss_acc|ss_event;bg_acc<=bg_acc|bg_event;end
+            if(first_phase)begin ss_acc<=0;bg_acc<=0;end
+        end
+    end
+    c64_vic_collisions collision(
+        .clk(clk_sys),.reset(reset),.group_tick(first_phase),
+        .read_sample(cs&&reading&&read_sample&&(addr==6'h1e||addr==6'h1f)),
+        .read_bg(addr==6'h1f),.ack(cs&&we&&addr==6'h19),.ack_mask(din[3:0]),
+        .other_events({3'd0,raster_event}),.enable(regs[6'h1a][3:0]),
+        .ss_events(ss_acc),.bg_events(bg_acc),.ss_mask(ss_mask),.bg_mask(bg_mask),
+        .flags(collision_flags),.read_value(),.status(collision_status),.irq(irq)
+    );
+    wire [5:0] previous_cycle=native_cycle==1?6'd63:native_cycle-1'b1;
+    reg [7:0] pointer_event,row_event;
+    always @*begin
+        pointer_event=0;row_event=0;
+        case(previous_cycle)
+            58:pointer_event=1;60:pointer_event=2;62:pointer_event=4;
+            1:pointer_event=8;3:pointer_event=16;5:pointer_event=32;7:pointer_event=64;9:pointer_event=128;
+            59:row_event=1;61:row_event=2;63:row_event=4;
+            2:row_event=8;4:row_event=16;6:row_event=32;8:row_event=64;10:row_event=128;
+            default:begin end
+        endcase
+    end
+    wire [8:0] sprite_dot_x=native_cycle>=14?9'((native_cycle-14)*8)+{6'd0,subpixel}:
+        9'd400+9'((native_cycle-1)*8)+{6'd0,subpixel};
+    wire graphics_foreground=!vertical_border&&native_cycle>=17&&native_cycle<=56&&
+        (multicolor?pair[1]:on_pixel);
+    c64_vic_sprite_pixels pixel_sprites(
+        .clk(clk_sys),.reset(reset),.tick(pixel_strobe),.dot(subpixel),.xpos(sprite_dot_x),
+        .positions(sprite_x),.data(sprite_data),.pending_update(previous_cycle==58),
+        .display_bits(sprite_display),.pointer_cycle(pointer_event),.row_cycle(row_event),
+        .priority_bits(regs[6'h1b]),.multicolor_bits(regs[6'h1c]),.expand_bits(regs[6'h1d]),
+        .foreground(graphics_foreground),.background_color(graphics_ink),
+        .multi0(regs[6'h25][3:0]),.multi1(regs[6'h26][3:0]),.colors(sprite_colors),
+        .color(sprite_ink),.color_q(),.ss_q(ss_event),.bg_q(bg_event),.active(),.pending(),.halt(),
+        .ex_flop(),.mc_flop(),.shifts(),.pixels()
+    );
+    wire visible_native=raster>=16&&raster<=287&&native_cycle>=13&&native_cycle<=60;
+    wire [8:0] native_y=9'(raster-9'd16);
+    // Convert the native raster window into a 384x272 indexed-color frame.
+    wire [8:0] write_x=9'((native_cycle-6'd13)*8)+{6'd0,subpixel};
+    wire [16:0] write_address=17'(native_y*384)+{8'd0,write_x};
 
     reg [10:0] hpos=0,hpos_q=0;
     reg [9:0] vpos=0,vpos_q=0;
-    reg [1:0] yscale=0;
-    reg [7:0] display_y=0;
-    wire [10:0] ax=hpos-11'd260;
-    wire [15:0] read_address=16'(display_y*320)+{7'd0,ax[10:2]};
+    reg [2:0] xphase=0;
+    reg [5:0] yphase=0;
+    reg [8:0] display_x=0,display_y=0;
+    wire [16:0] read_address=17'(display_y*384)+{8'd0,display_x};
     wire [3:0] frame_color;
     c64_frame_store frame_store (
         .clk_sys(clk_sys),.pixel_clk(pixel_clk),.reset(reset),
@@ -250,18 +304,25 @@ module c64_vic (
         hpos_q<=hpos;vpos_q<=vpos;
         if(hpos==1649)begin hpos<=0;vpos<=vpos==749?0:vpos+1'b1;end
         else hpos<=hpos+1'b1;
+        // 384x272 PAL picture in a 960x720 viewport (4:3).
+        // Rational accumulators select floor(x*2/5), floor(y*17/45).
+        if(hpos==419)begin xphase<=0;display_x<=0;end
+        else if(hpos>=420&&hpos<1379)begin
+            if(xphase>=3)begin xphase<=xphase-3'd3;display_x<=display_x+1'b1;end
+            else xphase<=xphase+3'd2;
+        end
         if(hpos==0)begin
-            if(vpos==85)begin yscale<=0;display_y<=0;end
-            else if(vpos>85&&vpos<=685)begin
-                if(yscale==2)begin yscale<=0;display_y<=display_y+1'b1;end
-                else yscale<=yscale+1'b1;
+            if(vpos==25)begin yphase<=0;display_y<=0;end
+            else if(vpos>25&&vpos<745)begin
+                if(yphase>=28)begin yphase<=yphase-6'd28;display_y<=display_y+1'b1;end
+                else yphase<=yphase+6'd17;
             end
         end
     end
     assign de=hpos_q>=260&&hpos_q<1540&&vpos_q>=25&&vpos_q<745;
     assign hsync=hpos_q<40;
     assign vsync=vpos_q<5;
-    wire text_window=vpos_q>=85&&vpos_q<685;
-    wire [23:0] rgb=!de?24'd0:palette(text_window?frame_color:border);
+    wire text_window=hpos_q>=420&&hpos_q<1380;
+    wire [23:0] rgb=!de?24'd0:(text_window?palette(frame_color):24'd0);
     assign red=rgb[23:16];assign green=rgb[15:8];assign blue=rgb[7:0];
 endmodule

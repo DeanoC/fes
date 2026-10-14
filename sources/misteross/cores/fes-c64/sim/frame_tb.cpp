@@ -55,12 +55,12 @@ int main(int argc,char **argv) {
     sys();video();t.reset=0;
     auto pattern=[](unsigned frame,unsigned address){return (frame^address^(address>>8)^(address>>11))&15;};
     for(unsigned frame=1;frame<=3;++frame){
-        for(unsigned address=0;address<65536;++address){
+        for(unsigned address=0;address<104448;++address){
             t.write_address=address;t.write_data=pattern(frame,address);t.write_enable=1;sys();
         }
         t.write_enable=0;t.frame_done=1;sys();t.frame_done=0;
         t.frame_start=1;video();video();video();t.frame_start=0;video();
-        for(unsigned address=0;address<65536;++address){
+        for(unsigned address=0;address<104448;++address){
             t.read_address=address;video();
             if(t.read_data!=pattern(frame,address)){
                 std::printf("full page frame%u address%04x got%x expected%x\n",frame,address,t.read_data,pattern(frame,address));
@@ -69,6 +69,6 @@ int main(int argc,char **argv) {
         }
         sys();sys();sys();
     }
-    std::puts("Native frame memory: all 196608 addresses across three pages match indexed patterns");
+    std::puts("Native frame memory: all 313344 addresses across three pages match indexed patterns");
 
 }

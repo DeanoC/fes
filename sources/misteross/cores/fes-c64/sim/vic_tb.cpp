@@ -8,7 +8,7 @@ struct Bench {
     Bench() {
         t.cycle_clock=0; t.cpu_bus_data=0;
         t.clk_sys=0; t.phi=0; t.pixel_clk=0; t.reset=1; t.cs=0; t.we=0;
-        t.color_cs=0; t.color_we=0; t.color_addr=0; t.color_din=0;
+        t.reading=0; t.read_sample=0; t.color_cs=0; t.color_we=0; t.color_addr=0; t.color_din=0;
         t.bank=0; t.ram_data=0; t.addr=0; t.din=0; tick(); t.reset=0; tick();
     }
     void tick() { t.clk_sys=0; t.eval(); t.clk_sys=1; t.eval(); }

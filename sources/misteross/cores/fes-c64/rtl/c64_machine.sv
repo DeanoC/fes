@@ -284,7 +284,8 @@ module c64_machine #(
     wire signed [15:0] sid_sample;
     c64_vic vic (
         .clk_sys(clk_sys), .phi(cpu_ce), .pixel_clk(video_clk), .reset(system_reset),
-        .cs(sel_vic), .we(bus_strobe && bus_we && sel_vic), .addr(bus_addr[5:0]),
+        .cs(sel_vic), .we(bus_strobe && bus_we && sel_vic),
+        .reading(!bus_we), .read_sample(bus_sample), .addr(bus_addr[5:0]),
         .din(bus_wdata), .dout(vic_dout),
         .color_cs(sel_color), .color_addr(bus_addr[9:0]), .color_din(bus_wdata),
         .color_we(bus_strobe && bus_we && sel_color), .color_dout(color_dout),
