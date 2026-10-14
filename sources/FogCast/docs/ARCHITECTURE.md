@@ -1384,6 +1384,9 @@ The private `/run/fogcast/kit-maintenance.json` retains the operation, generatio
 boot ID and reservation credential across agent replacement on the same boot.
 Public responses omit stored credentials. Ordinary claim, takeover, renewal and
 mutation cannot bypass maintenance; kit-local launches share the same manager.
+The host connection reports maintenance as busy with its owner and a maintenance
+message, and blocked reservations as recovery-required, even while runtime idle
+health is ready.
 Maintenance status returns unavailable until its persisted marker loads; it
 never reports absent ownership during startup. A surviving active marker is
 blocked before replacement-agent startup cleanup,

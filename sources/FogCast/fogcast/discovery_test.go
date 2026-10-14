@@ -514,6 +514,25 @@ func TestOwnedHeldLeaseAfterIdleStaysReady(t *testing.T) {
 	}
 }
 
+func TestMaintenanceOwnershipIsNeverReportedReady(t *testing.T) {
+	for _, owned := range []bool{false, true} {
+		for _, state := range []string{"maintenance", "recovery-required"} {
+			connection := connectionFromStatus(protocol.Health{APIVersion: "v1", Ready: true},
+				protocol.Status{State: protocol.StateIdle}, targetclient.KitOwnership{
+					State: state, Owner: "kit-maintainer", Owned: owned,
+				}, "http://kit", "kit-id")
+			if state == "maintenance" {
+				if connection.State != "busy" || connection.Owner != "kit-maintainer" ||
+					connection.Message != "The kit is reserved for software maintenance." {
+					t.Fatalf("maintenance owned=%t: %+v", owned, connection)
+				}
+			} else if connection.State != "recovery-required" {
+				t.Fatalf("blocked maintenance owned=%t: %+v", owned, connection)
+			}
+		}
+	}
+}
+
 func TestTargetInvalidationClearsPackageAssociationAndRejection(t *testing.T) {
 	for _, execution := range []string{ExecutionFPGADevelopment, ExecutionHostOnly} {
 		t.Run(execution, func(t *testing.T) {
