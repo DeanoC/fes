@@ -14,6 +14,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -37,6 +38,11 @@ func (updateControl) Protocol2LoadDevelopmentRBF(context.Context, string) (miste
 }
 
 func updateFixture(t *testing.T, trial bool, reboot func(context.Context) error) (http.Handler, *appliance.Store, release.Manifest, string, []byte) {
+	t.Helper()
+	return updateFixtureLogged(t, trial, reboot, nil)
+}
+
+func updateFixtureLogged(t *testing.T, trial bool, reboot func(context.Context) error, logger *slog.Logger) (http.Handler, *appliance.Store, release.Manifest, string, []byte) {
 	t.Helper()
 	b := make([]byte, 4096)
 	b[1080] = 0x53
@@ -72,7 +78,7 @@ func updateFixture(t *testing.T, trial bool, reboot func(context.Context) error)
 	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
 	t.Cleanup(func() { manager.Close() })
 	grant := claimKit(t, manager)
-	return httpapi.New(c, "bearer", "test", nil, httpapi.WithKitLease(manager), httpapi.WithUpdate(svc)), s, n, grant.Token, b
+	return httpapi.New(c, "bearer", "test", logger, httpapi.WithKitLease(manager), httpapi.WithUpdate(svc)), s, n, grant.Token, b
 }
 func updateRequest(h http.Handler, path, body, lease string) *httptest.ResponseRecorder {
 	r := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
@@ -208,5 +214,46 @@ func TestUpdateUploadRevocationInterruptsBodyAndNeverPublishes(t *testing.T) {
 	}
 	if _, err = s.Verify(m.ImageSHA256); err == nil {
 		t.Fatal("incomplete upload published")
+	}
+}
+
+func TestUpdateStageManifestFormat(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	h, _, m, lease, b := updateFixtureLogged(t, false, nil, logger)
+	stage := func(raw []byte) *httptest.ResponseRecorder {
+		t.Helper()
+		r := httptest.NewRequest(http.MethodPost, "/v1/update/stage", bytes.NewReader(b))
+		r.Header.Set("Authorization", "Bearer bearer")
+		r.Header.Set(httpapi.KitLeaseHeader, lease)
+		r.Header.Set("Content-Type", "application/octet-stream")
+		r.Header.Set(httpapi.ReleaseManifestHeader, base64.StdEncoding.EncodeToString(raw))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	known, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	higher := bytes.Replace(known, []byte(`"format":1`), []byte(`"format":1,"manifest_format":"1.1","future_field":true`), 1)
+	accepted := stage(higher)
+	if accepted.Code != 201 {
+		t.Fatalf("higher minor: %d %s", accepted.Code, accepted.Body.String())
+	}
+	if !bytes.Contains(logs.Bytes(), []byte("future_field")) {
+		t.Fatalf("ignored field was not logged: %s", logs.String())
+	}
+	if bytes.Contains(accepted.Body.Bytes(), []byte("future_field")) {
+		t.Fatalf("stage response kept unknown field: %s", accepted.Body.Bytes())
+	}
+	logs.Reset()
+	major := bytes.Replace(known, []byte(`"format":1`), []byte(`"format":1,"manifest_format":"2.0"`), 1)
+	rejected := stage(major)
+	if rejected.Code != http.StatusBadRequest {
+		t.Fatalf("unknown major: %d %s", rejected.Code, rejected.Body.String())
+	}
+	if bytes.Contains(logs.Bytes(), []byte("ignoring unknown release manifest fields")) {
+		t.Fatalf("unknown major logged ignored fields: %s", logs.String())
 	}
 }

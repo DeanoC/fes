@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/DeanoC/FogCast/appliance"
@@ -65,13 +66,13 @@ func run(ctx context.Context, args []string, out, log io.Writer) error {
 	var manifest appliance.Manifest
 	var image *os.File
 	if *action == "update" {
-		manifest, image, err = openRelease(*releaseDir)
+		manifest, image, err = openRelease(*releaseDir, log)
 		if err != nil {
 			return err
 		}
 		defer image.Close()
 	} else if *action == "confirm" && *releaseDir != "" {
-		manifest, err = readReleaseManifest(*releaseDir)
+		manifest, err = readReleaseManifest(*releaseDir, log)
 		if err != nil {
 			return err
 		}
@@ -169,21 +170,28 @@ func chooseDeadline(action string, explicit bool, timeout time.Duration, imageSi
 	}
 }
 
-func readReleaseManifest(dir string) (appliance.Manifest, error) {
+func readReleaseManifest(dir string, log io.Writer) (appliance.Manifest, error) {
 	f, err := os.Open(filepath.Join(dir, "release.json"))
 	if err != nil {
 		return appliance.Manifest{}, err
 	}
 	defer f.Close()
-	return appliance.DecodeManifest(f)
+	manifest, ignored, err := appliance.DecodeManifest(f)
+	if err != nil {
+		return manifest, err
+	}
+	if len(ignored) > 0 && log != nil {
+		fmt.Fprintf(log, "ignoring unknown release manifest fields: %s (manifest_format %s)\n", strings.Join(ignored, ","), manifest.ManifestFormat)
+	}
+	return manifest, nil
 }
 
-func openRelease(dir string) (appliance.Manifest, *os.File, error) {
+func openRelease(dir string, log io.Writer) (appliance.Manifest, *os.File, error) {
 	var manifest appliance.Manifest
 	if dir == "" {
 		return manifest, nil, errors.New("update requires --release directory")
 	}
-	manifest, err := readReleaseManifest(dir)
+	manifest, err := readReleaseManifest(dir, log)
 	if err != nil {
 		return manifest, nil, err
 	}

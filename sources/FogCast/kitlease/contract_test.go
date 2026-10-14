@@ -26,6 +26,9 @@ func TestForeignHIDFailClosed(t *testing.T) {
 	if !ForeignHID(Status{State: "recovery-required"}) {
 		t.Fatal("recovery-required connection must fail closed")
 	}
+	if !ForeignHID(Status{State: "maintenance", Owner: "fogcast@ai-dev-mac"}) {
+		t.Fatal("maintenance must suppress host HID even for the original owner")
+	}
 	if !ForeignHID(Status{State: "held", Owner: HostlessOwner, Purpose: HostlessPurpose}) {
 		t.Fatal("hostless grant must fail closed for HID")
 	}
@@ -61,6 +64,11 @@ func TestHostlessAndForeignSession(t *testing.T) {
 	free := Status{State: "free"}
 	if HostlessSession(free) || ForeignSession(free) {
 		t.Fatalf("free %+v", free)
+	}
+	for _, state := range []string{"maintenance", "recovery-required"} {
+		if !ForeignSession(Status{State: state}) {
+			t.Fatalf("hostless launch must not enter %s", state)
+		}
 	}
 	local := Status{State: "held", Owner: HostlessOwner, Purpose: LocalCorePurpose}
 	if HostlessSession(local) || !LocalCoreSession(local) || !ForeignSession(local) {

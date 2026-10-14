@@ -84,7 +84,7 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	}
 	var handler http.Handler = mux
 	if settings.update != nil {
-		registerUpdateRoutes(mux, token, settings.update, settings.kitLease != nil)
+		registerUpdateRoutes(mux, token, settings.update, settings.kitLease != nil, logger)
 		handler = guardUpdateAdmission(handler, token, settings.update)
 	}
 	if settings.kitLease != nil {

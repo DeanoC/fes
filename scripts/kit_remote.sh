@@ -3,6 +3,7 @@
 # (sh -s) or directly in tests with KIT_FAKE=1 and KIT_ROOT set.
 # It does not reboot the board.
 set -eu
+umask 077
 
 if [ "${KIT_FAKE:-}" = 1 ]; then
   : "${KIT_ROOT:?KIT_ROOT is required when KIT_FAKE=1}"
@@ -74,7 +75,7 @@ allowed_src() {
   case "$1" in
     /tmp/fes-incoming/*|/tmp/fes-swap/*|/tmp/fes-work/*) ;;
     /usr/sbin/mister-runtime|/usr/sbin/mister-agent|/usr/sbin/fogcast-kit|/usr/sbin/fogcast-tenfoot) ;;
-    /media/fat/fogcast/launcher.json|/media/fat/fogcast/agent.toml) ;;
+    /media/fat/fogcast/launcher.json|/media/fat/fogcast/agent.toml|/media/fat/fogcast/target-id) ;;
     /media/fat/fes/stock/*|/media/fat/fes/baselines/*) ;;
     /usr/share/mister-runtime/core-packages/*) ;;
     *) return 1 ;;
@@ -241,7 +242,8 @@ service_one() {
   if [ "${KIT_FAKE:-}" = 1 ]; then
     return 0
   fi
-  "/etc/init.d/$name" "$action"
+  # Supervisors must not inherit the transaction lock through a daemon fork.
+  "/etc/init.d/$name" "$action" 9>&-
 }
 
 walk_services() {
@@ -407,6 +409,11 @@ probe() {
   done
   printf -- '--/HASHES--\n'
   cat_block MANIFEST "$(lp /media/fat/fes/kit-manifest.json)"
+  manifest_sha=MISSING
+  if [ -f "$(lp /media/fat/fes/kit-manifest.json)" ]; then
+    manifest_sha=$(hash_file "$(lp /media/fat/fes/kit-manifest.json)")
+  fi
+  printf -- '--MANIFESTSHA--\n%s\n--/MANIFESTSHA--\n' "$manifest_sha"
   cat_block BASELINE "$(lp /media/fat/fes/baseline.json)"
   printf -- '--PROCS--\n'
   for dir in "$proc"/[0-9]*; do
@@ -529,10 +536,24 @@ ensure_backup() {
   cp -a "$(lp "$dest")" "$(lp "$backup")"
 }
 
+check_agent_contract() {
+  [ "$1" = /usr/sbin/mister-agent ] || return 0
+  [ "${KIT_FAIL_AGENT_CONTRACT:-}" != 1 ] || die "replacement agent cannot enforce maintenance"
+  [ "${KIT_FAKE:-}" != 1 ] || return 0
+  candidate=$(lp /tmp/fes-work)/agent-contract-check
+  cp -a "$(lp "$2")" "$candidate"
+  chmod 0755 "$candidate"
+  contract=$("$candidate" --print-maintenance-contract 9>&- 2>/dev/null) || die "replacement agent cannot enforce maintenance"
+  [ "$contract" = fes-kit-maintenance-v1 ] || die "replacement agent cannot enforce maintenance"
+}
+
 apply_plan() {
   plan=$1
   valid_path "$plan" || die "bad plan path"
   [ -f "$(lp "$plan")" ] || die "missing plan $plan"
+  mkdir -p "$(lp /run/fogcast)"
+  exec 9>"$(lp /run/fogcast/kit-maintenance.lock)"
+  flock -xn 9 || die "another kit transaction is running"
   mkdir -p "$(lp /tmp)/fes-work" "$(lp /tmp)/fes-swap" "$(lp /tmp)/fes-incoming" \
     "$(lp /media/fat/fes)/stock" "$(lp /proc)"
   : > "$(lp /tmp)/fes-services"
@@ -540,6 +561,10 @@ apply_plan() {
   stops=
   starts=
   manifest=
+  manifest_expect=
+  maintenance_id=
+  maintenance_generation=
+  maintenance_boot=
   places=$(lp /tmp/fes-work)/places
   clears=$(lp /tmp/fes-work)/clears
   unmounts=$(lp /tmp/fes-work)/unmounts
@@ -560,6 +585,16 @@ apply_plan() {
       BOOT)
         [ "$#" -eq 2 ] || die "BOOT fields"
         boot_expect=$2
+        ;;
+      MANIFEST_EXPECT)
+        [ "$#" -eq 2 ] || die "MANIFEST_EXPECT fields"
+        manifest_expect=$2
+        ;;
+      MAINTENANCE)
+        [ "$#" -eq 4 ] || die "MAINTENANCE fields"
+        maintenance_id=$2
+        maintenance_generation=$3
+        maintenance_boot=$4
         ;;
       STOP)
         [ "$#" -eq 2 ] || die "STOP fields"
@@ -599,11 +634,33 @@ apply_plan() {
   done < "$(lp "$plan")"
   [ -n "$boot_expect" ] || die "plan has no BOOT"
   current=$(tr -d '[:space:]' < "$proc/sys/kernel/random/boot_id")
-  boot_changed=0
-  if [ "$current" != "$boot_expect" ]; then
-    boot_changed=1
-    note "boot id changed"
+  [ -n "$manifest_expect" ] || die "plan has no manifest expectation"
+  observed_manifest=MISSING
+  if [ -f "$(lp /media/fat/fes/kit-manifest.json)" ]; then
+    observed_manifest=$(hash_file "$(lp /media/fat/fes/kit-manifest.json)")
   fi
+  [ "$manifest_expect" = "$observed_manifest" ] || die "kit manifest changed; inspect again"
+  if [ -n "$stops$starts" ] || [ -s "$places" ] || [ -s "$clears" ] || [ -s "$unmounts" ] || [ -s "$removes" ]; then
+    [ -n "$maintenance_id" ] || die "target maintenance reservation required"
+    valid_hash "$maintenance_generation" || die "bad maintenance generation"
+    case "$maintenance_id" in ''|*[!0-9a-f]*) die "bad maintenance operation" ;; esac
+    [ "${#maintenance_id}" -ge 32 ] && [ "${#maintenance_id}" -le 128 ] || die "bad maintenance operation"
+    [ "$current" = "$maintenance_boot" ] || die "maintenance boot id changed"
+    [ "$current" = "$boot_expect" ] || die "boot id changed; inspect and reclaim before restoring"
+    maintenance_file=$(lp /run/fogcast/kit-maintenance.json)
+    [ -f "$maintenance_file" ] || die "target maintenance reservation missing"
+    maintenance_json=$(tr -d '\n' < "$maintenance_file")
+    for field in operation_id generation boot_id state; do
+      value=$(printf '%s' "$maintenance_json" | sed -n "s/.*\"$field\" *: *\"\([^\"]*\)\".*/\1/p")
+      case "$field" in
+        operation_id) [ "$value" = "$maintenance_id" ] || die "maintenance operation changed" ;;
+        generation) [ "$value" = "$maintenance_generation" ] || die "maintenance generation changed" ;;
+        boot_id) [ "$value" = "$maintenance_boot" ] || die "maintenance boot id changed" ;;
+        state) [ "$value" = ready ] || die "maintenance is not ready" ;;
+      esac
+    done
+  fi
+  [ "$current" = "$boot_expect" ] || die "boot id changed; inspect again"
 
   # PLACE component path source persistence mode backup stage stock desired
   while IFS= read -r line; do
@@ -625,6 +682,7 @@ apply_plan() {
     [ -f "$(lp "$4")" ] || die "missing source $4"
     got=$(hash_file "$(lp "$4")")
     [ "$got" = "${10}" ] || die "source hash mismatch for $2"
+    check_agent_contract "$3" "$4"
     ensure_backup "$3" "$7" "$9" "$4"
   done < "$places"
 
@@ -643,6 +701,7 @@ apply_plan() {
     [ -f "$(lp "$5")" ] || die "missing backup $5"
     got=$(hash_file "$(lp "$5")")
     [ "$got" = "$7" ] || die "backup hash mismatch for $2"
+    check_agent_contract "$3" "$5"
   done < "$clears"
 
   while IFS= read -r line; do
@@ -664,8 +723,20 @@ apply_plan() {
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     set -- $line
+    case "$3" in
+      /usr/sbin/mister-agent|/media/fat/fogcast/agent.toml) die "cannot remove the maintenance authority or its configuration" ;;
+    esac
+  done < "$removes"
+
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    set -- $line
     allowed_src "$2" || die "source not allowed"
-    allowed_dest "$3" || die "dest not allowed"
+    case "$3" in
+      /media/fat/fes/baseline.json|/media/fat/fes/baselines/*) ;;
+      *) die "INSTALL is restricted to baseline metadata" ;;
+    esac
+    valid_path "$3" || die "bad install destination"
   done < "$installs"
 
   if [ -n "$manifest" ]; then
@@ -898,11 +969,7 @@ apply_plan() {
   remount_ro || die "remount ro failed"
   drop_staged
   sync >/dev/null 2>&1 || true
-  if [ "$boot_changed" = 1 ]; then
-    printf 'BOOT_CHANGED\n'
-  else
-    printf 'OK\n'
-  fi
+  printf 'OK\n'
 }
 
 cleanup() {

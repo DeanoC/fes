@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log/slog"
 	"net/http"
+	"strings"
 	"syscall"
 	"time"
 
@@ -41,7 +43,10 @@ func updateError(w http.ResponseWriter, err error) {
 	writeError(w, status, code, code)
 }
 
-func registerUpdateRoutes(mux *http.ServeMux, token string, s *applianceupdate.Service, leased bool) {
+func registerUpdateRoutes(mux *http.ServeMux, token string, s *applianceupdate.Service, leased bool, logger *slog.Logger) {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	mux.Handle("GET /v1/update", authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 		defer cancel()
@@ -72,10 +77,13 @@ func registerUpdateRoutes(mux *http.ServeMux, token string, s *applianceupdate.S
 			writeBadRequest(w, r, "invalid encoded release manifest")
 			return
 		}
-		m, err := release.DecodeManifest(bytes.NewReader(data))
+		m, ignored, err := release.DecodeManifest(bytes.NewReader(data))
 		if err != nil || m.ImageSize != r.ContentLength {
 			writeBadRequest(w, r, "release manifest or upload length is invalid")
 			return
+		}
+		if len(ignored) > 0 {
+			logger.Info("ignoring unknown release manifest fields", "manifest_format", m.ManifestFormat, "fields", strings.Join(ignored, ","))
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, m.ImageSize+1)
 		if err = s.Stage(r.Context(), m, r.ContentLength, r.Body); err != nil {

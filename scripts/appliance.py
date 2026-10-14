@@ -75,13 +75,29 @@ def validate_manifest(data):
             raise ValueError('invalid release revision')
     if type(data['image_size']) is not int or not 2048 <= data['image_size'] <= MAX_IMAGE_SIZE:
         raise ValueError('invalid release image size')
-    if 'image_passes' in data and (type(data['image_passes']) is not int or data['image_passes'] != 1):
+    if 'image_passes' in data and (type(data['image_passes']) is not int or not 1 <= data['image_passes'] <= (1 << 63) - 1):
         raise ValueError('invalid release image passes')
     return data
 
 
 def manifest_image_passes(data):
     return data.get('image_passes', 2)
+
+
+def recorded_image_passes(directory, manifest):
+    """Pass count from an optional manifest field or the evidence sidecar.
+
+    New releases omit image_passes from release.json. evidence.json carries 1
+    for a single-pass HIL release. Either record blocks bootstrap.
+    """
+    passes = manifest_image_passes(manifest)
+    evidence = Path(directory)/'evidence.json'
+    if not evidence.is_file():
+        return passes
+    data = json.loads(regular(evidence).read_bytes(), object_pairs_hook=unique)
+    if isinstance(data, dict) and data.get('image_passes') == 1:
+        return 1
+    return passes
 
 
 def load_manifest(path):
@@ -233,12 +249,12 @@ def bootstrap_identity(binary_sha,factory,container,assembly_revision,recipe,pla
 def release_manifest(rootfs,*,version,provenance,image_passes=2):
     if image_passes not in (1,2):
         raise ValueError('image passes must be 1 or 2')
+    # The pass count stays out of this object. Deployed DecodeManifest
+    # allow-lists reject any added field; evidence.json records image_passes.
     data = {'format':FORMAT,'board':BOARD,'boot_abi':BOOT_ABI,'version':version,
         'kernel_sha256':provenance.kernel_sha256,'image_sha256':provenance.rootfs_sha256,
         'image_size':regular(rootfs).stat().st_size,'fes_revision':provenance.fes_revision,
         'fogcast_revision':provenance.fogcast_revision,'runtime_revision':provenance.runtime_revision}
-    if image_passes == 1:
-        data['image_passes'] = 1
     return validate_manifest(data)
 
 
@@ -266,6 +282,8 @@ def export_release(output,rootfs,kernel,*,version,provenance,image_passes=2,sing
     manifest = release_manifest(rootfs,version=version,provenance=provenance,image_passes=image_passes)
     evidence = {'format':1,'kind':'fes-appliance-release','provenance':asdict(provenance),
         'manifest_sha256':hashlib.sha256(canonical(manifest)).hexdigest(),'ext4_features':features,'hardware':'not-run'}
+    if image_passes == 1:
+        evidence['image_passes'] = 1
     result = ReleaseResult(output)
     if output.exists() or output.is_symlink():
         expected_files=('rootfs.img','release.json','evidence.json') + (('SINGLE-PASS-SCRATCH.txt',) if image_passes==1 else ())
@@ -442,7 +460,7 @@ def main():
                 result=export_release(output,rootfs,kernel,version=version,provenance=p,image_passes=args.image_passes,single_pass_marker=marker)
             else:
                 factory=load_manifest(args.release/'release.json')
-                if manifest_image_passes(factory) == 1:
+                if recorded_image_passes(args.release, factory) == 1:
                     raise ValueError('single-pass scratch release cannot be bootstrapped')
                 if factory!=release_manifest(rootfs,version=factory['version'],provenance=p) or digest(regular(args.release/'rootfs.img'))!=p.rootfs_sha256:
                     raise ValueError('release differs from current verified cold image')

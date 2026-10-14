@@ -33,6 +33,47 @@ func leaseError(w http.ResponseWriter, err error) {
 
 func registerKitLeaseRoutes(mux *http.ServeMux, token string, manager *internallease.Manager) {
 	mux.Handle("GET /v1/kit/lease", authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, manager.Status()) })))
+	mux.Handle("GET /v1/kit/maintenance", authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		status, err := manager.MaintenanceStatusChecked()
+		if err != nil {
+			leaseError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, status)
+	})))
+	for _, action := range []string{"start", "end", "resume"} {
+		mux.Handle("POST /v1/kit/maintenance/"+action, authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, 8192)
+			decoder := json.NewDecoder(r.Body)
+			decoder.DisallowUnknownFields()
+			var result any
+			var err error
+			if action == "start" {
+				var request contractlease.MaintenanceStartRequest
+				if decoder.Decode(&request) != nil || decoder.Decode(&struct{}{}) != io.EOF {
+					leaseError(w, internallease.ErrInvalid)
+					return
+				}
+				result, err = manager.StartMaintenance(r.Header.Get(KitLeaseHeader), request)
+			} else {
+				var request contractlease.MaintenanceEndRequest
+				if decoder.Decode(&request) != nil || decoder.Decode(&struct{}{}) != io.EOF {
+					leaseError(w, internallease.ErrInvalid)
+					return
+				}
+				if action == "resume" {
+					result, err = manager.ResumeMaintenance(r.Header.Get(KitLeaseHeader), request)
+				} else {
+					result, err = manager.EndMaintenance(r.Header.Get(KitLeaseHeader), request)
+				}
+			}
+			if err != nil {
+				leaseError(w, err)
+				return
+			}
+			writeJSON(w, http.StatusOK, result)
+		})))
+	}
 	for _, action := range []string{"claim", "renew", "release", "takeover"} {
 		mux.Handle("POST /v1/kit/"+action, authenticate(token, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, 8192)

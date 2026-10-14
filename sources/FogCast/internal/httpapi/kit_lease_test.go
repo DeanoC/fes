@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +17,8 @@ import (
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/kitlease"
+	contractlease "github.com/DeanoC/FogCast/kitlease"
+	"golang.org/x/sys/unix"
 )
 
 func claimKit(t *testing.T, manager *kitlease.Manager) kitlease.Grant {
@@ -333,5 +337,164 @@ func TestKitLeaseTakeoverRequiresReasonAndCurrentGeneration(t *testing.T) {
 	}
 	if _, _, err := manager.Begin(old.Token); err == nil {
 		t.Fatal("old owner admitted after takeover")
+	}
+}
+
+func TestMaintenanceRoutesAuthenticateFenceAndFinish(t *testing.T) {
+	root := t.TempDir()
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil }, kitlease.WithMaintenanceFile(filepath.Join(root, "kit-maintenance.json"), filepath.Join(root, "kit-maintenance.lock"), "12345678-1234-1234-1234-123456789abc"))
+	defer manager.Close()
+	execution := claimKit(t, manager)
+	controller := &fakeController{}
+	handler := httpapi.New(controller, "bearer", "test", nil, httpapi.WithKitLease(manager))
+	request := func(method, path, body, bearer, lease string) *httptest.ResponseRecorder {
+		t.Helper()
+		r := httptest.NewRequest(method, path, strings.NewReader(body))
+		if bearer != "" {
+			r.Header.Set("Authorization", "Bearer "+bearer)
+		}
+		r.Header.Set(httpapi.KitLeaseHeader, lease)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		return w
+	}
+	start := `{"request_id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","purpose":"compatible software"}`
+	for _, path := range []string{"/v1/kit/maintenance/start", "/v1/kit/maintenance/end", "/v1/kit/maintenance/resume"} {
+		if w := request("POST", path, start, "", execution.Token); w.Code != 401 {
+			t.Fatalf("unauthenticated %s: %d", path, w.Code)
+		}
+	}
+	if w := request("GET", "/v1/kit/maintenance", "", "", ""); w.Code != 401 {
+		t.Fatal(w.Code)
+	}
+	for _, body := range []string{`{}`, start + `{}`, `{"request_id":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","purpose":"compatible software","extra":1}`} {
+		if w := request("POST", "/v1/kit/maintenance/start", body, "bearer", execution.Token); w.Code != 400 {
+			t.Fatalf("invalid start: %d", w.Code)
+		}
+	}
+	if w := request("POST", "/v1/kit/maintenance/start", start, "bearer", "foreign"); w.Code != 403 {
+		t.Fatal(w.Code)
+	}
+	w := request("POST", "/v1/kit/maintenance/start", start, "bearer", execution.Token)
+	if w.Code != 200 {
+		t.Fatalf("start: %d %s", w.Code, w.Body)
+	}
+	var grant contractlease.MaintenanceGrant
+	if err := json.Unmarshal(w.Body.Bytes(), &grant); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for manager.MaintenanceStatus().State != "ready" {
+		if time.Now().After(deadline) {
+			t.Fatal(manager.MaintenanceStatus())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	for _, lease := range []string{execution.Token, grant.Token, "foreign"} {
+		if w := request("POST", "/v1/stop", "", "bearer", lease); w.Code != 403 {
+			t.Fatalf("maintenance admitted stop: %d", w.Code)
+		}
+	}
+	if controller.stopCalls != 0 {
+		t.Fatal("physical mutation reached controller")
+	}
+	status := request("GET", "/v1/kit/maintenance", "", "bearer", "")
+	if strings.Contains(status.Body.String(), grant.Token) || strings.Contains(status.Body.String(), execution.Token) {
+		t.Fatal("status leaked private tokens")
+	}
+	endBody, err := json.Marshal(contractlease.MaintenanceEndRequest{OperationID: grant.Status.OperationID, ExpectedGeneration: grant.Status.Generation})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if w := request("POST", "/v1/kit/maintenance/end", string(endBody), "bearer", execution.Token); w.Code != 403 {
+		t.Fatal("execution token finished reservation", w.Code)
+	}
+	if w := request("POST", "/v1/kit/maintenance/resume", string(endBody), "bearer", grant.Token); w.Code != 200 {
+		t.Fatal(w.Code)
+	}
+	if w := request("POST", "/v1/kit/maintenance/end", string(endBody), "bearer", grant.Token); w.Code != 200 {
+		t.Fatal(w.Code)
+	}
+	deadline = time.Now().Add(time.Second)
+	for manager.Status().State != "free" {
+		if time.Now().After(deadline) {
+			t.Fatal(manager.Status())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if w := request("POST", "/v1/kit/maintenance/end", string(endBody), "bearer", grant.Token); w.Code != 200 || !strings.Contains(w.Body.String(), `"state":"none"`) {
+		t.Fatal("finish retry", w.Code, w.Body)
+	}
+}
+
+func TestMaintenanceStatusUnavailableUntilPersistedReservationLoaded(t *testing.T) {
+	root := t.TempDir()
+	marker := filepath.Join(root, "kit-maintenance.json")
+	lockPath := filepath.Join(root, "kit-maintenance.lock")
+	options := []kitlease.Option{kitlease.WithMaintenanceFile(marker, lockPath, "12345678-1234-1234-1234-123456789abc")}
+	original := kitlease.New(time.Minute, func(context.Context) error { return nil }, options...)
+	execution := claimKit(t, original)
+	grant, err := original.StartMaintenance(execution.Token, contractlease.MaintenanceStartRequest{RequestID: strings.Repeat("b", 32), Purpose: "software maintenance"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for original.MaintenanceStatus().State != "ready" {
+		if time.Now().After(deadline) {
+			t.Fatal(original.MaintenanceStatus())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	original.Close()
+	lock, err := os.OpenFile(lockPath, os.O_RDWR, 0600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lock.Close()
+	if err = unix.Flock(int(lock.Fd()), unix.LOCK_EX); err != nil {
+		t.Fatal(err)
+	}
+	replacement := kitlease.New(time.Minute, func(context.Context) error { return nil }, options...)
+	defer replacement.Close()
+	handler := httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(replacement))
+	status := func() *httptest.ResponseRecorder {
+		r := httptest.NewRequest("GET", "/v1/kit/maintenance", nil)
+		r.Header.Set("Authorization", "Bearer bearer")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		return w
+	}
+	if w := status(); w.Code != http.StatusServiceUnavailable || strings.Contains(w.Body.String(), `"state":"none"`) {
+		t.Fatal("pending persisted load reported no reservation", w.Code, w.Body)
+	}
+	unix.Flock(int(lock.Fd()), unix.LOCK_UN)
+	deadline = time.Now().Add(time.Second)
+	for replacement.MaintenanceStatus().State != "blocked" {
+		if time.Now().After(deadline) {
+			t.Fatal(replacement.MaintenanceStatus())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	w := status()
+	var active contractlease.MaintenanceStatus
+	if err = json.Unmarshal(w.Body.Bytes(), &active); err != nil || w.Code != 200 || active.OperationID != grant.Status.OperationID || active.Generation != grant.Status.Generation {
+		t.Fatal("loaded reservation identity lost", w.Code, err)
+	}
+	replacement.Close()
+	if err = os.WriteFile(marker, []byte(`{"schema":99}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	corrupt := kitlease.New(time.Minute, func(context.Context) error { return nil }, options...)
+	defer corrupt.Close()
+	handler = httpapi.New(&fakeController{}, "bearer", "test", nil, httpapi.WithKitLease(corrupt))
+	deadline = time.Now().Add(time.Second)
+	for corrupt.Status().State != "blocked" {
+		if time.Now().After(deadline) {
+			t.Fatal(corrupt.Status())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if w := status(); w.Code != http.StatusServiceUnavailable {
+		t.Fatal("corrupt identity was reported as known", w.Code, w.Body)
 	}
 }
