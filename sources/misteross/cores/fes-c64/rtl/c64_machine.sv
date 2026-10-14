@@ -239,7 +239,7 @@ module c64_machine #(
         .din(bus_wdata), .dout(vic_dout),
         .color_cs(sel_color), .color_addr(bus_addr[9:0]), .color_din(bus_wdata),
         .color_we(bus_strobe && bus_we && sel_color), .color_dout(color_dout),
-        .bank(~cia2_pa[1:0]), .ram_addr(video_ram_addr), .ram_data(video_ram_q),
+        .bank(~pa2_pin[1:0]), .ram_addr(video_ram_addr), .ram_data(video_ram_q),
         .red(red), .green(green), .blue(blue), .de(de), .hsync(hsync), .vsync(vsync),
         .raster(), .irq(vic_irq)
     );

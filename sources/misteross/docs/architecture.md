@@ -1715,6 +1715,9 @@ correcting the former transposed diagnostic mapping. A is PA1/PB2 and Return
 is PA0/PB1. `make sim-fes-c64-keyboard`, included in `sim-fes-c64`, checks every
 switch across all scan columns plus release, chords and modifier aliases.
 Reverse scanning and electrical ghosting remain unimplemented.
+The VIC bank follows CIA2 PA0/PA1 physical pin levels, including input
+pull-ups. The open diagnostic clears the output latch and makes those bank
+pins inputs before its checked PASS frame, verifying selection of bank zero.
 The VIC raster compare is writable through `$D011.7`/`$D012`, independently
 of the beam position returned by reads. `$D019` retains the raster event until
 write-one acknowledgement; `$D01A` enables its level IRQ, ORed with CIA1 and

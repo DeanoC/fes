@@ -30,6 +30,9 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
 - Reduced SID: three voices, pulse, saw, triangle and noise, a crude envelope
   and volume. No filter.
 - CIA1: keyboard matrix, joystick and IRQ. CIA2: IEC, the VIC bank and NMI.
+  VIC banking follows the effective PA0/PA1 pin levels, including pull-ups
+  when their direction bits select inputs; it does not follow the output
+  latch alone. The PASS-frame diagnostic checks this input-pin bank selection.
   Both CIAs have timer A and timer B with live counter reads, stopped high-byte
   loading, force-load strobes, continuous and one-shot operation. Timer B can
   count Phi2 or timer A underflows. CNT is held high without external edges,

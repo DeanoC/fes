@@ -184,6 +184,12 @@ disk_bad:
         jmp fail
 disk_ok:
         jsr check_interrupts
+        ; The demo's fastloader leaves VIC bank pins as inputs. Their pull-ups
+        ; select bank zero even when the CIA output latch holds zero.
+        lda #$00
+        sta $dd00
+        lda #$3c
+        sta $dd02
         ; Black border and screen. A green bar is the 720p letterbox and is
         ; not this test. The pass mark is the word PASS in the active picture.
         lda #$00
