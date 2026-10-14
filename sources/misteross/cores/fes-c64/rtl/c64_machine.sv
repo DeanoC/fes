@@ -77,8 +77,12 @@ module c64_machine #(
     wire [15:0] cpu_ab;
     wire [7:0] cpu_do;
     wire cpu_we;
+    reg bus_we = 1'b0;
     wire vic_ba_n;
-    wire cpu_run_ce=cpu_ce&&(vic_ba_n||cpu_we);
+    // The synchronous CPU prepares the following bus cycle. Only a write
+    // already on the bus can finish under BA; a prepared write must not
+    // retire its preceding operand read while that read is stalled.
+    wire cpu_run_ce=cpu_ce&&(vic_ba_n||bus_we);
     reg [7:0] cpu_di = 8'hff;
     wire irq_n, nmi_n;
     cpu6502 cpu (
@@ -89,7 +93,6 @@ module c64_machine #(
 
     reg [15:0] bus_addr = 16'h0000;
     reg [7:0] bus_wdata = 8'h00;
-    reg bus_we = 1'b0;
     always @(posedge clk_sys)
         if (cpu_run_ce) begin
             bus_addr <= cpu_ab;

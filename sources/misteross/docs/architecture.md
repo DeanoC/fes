@@ -1718,6 +1718,11 @@ is stored in three frame buffers, each using 32 explicit 2048×5 M10Ks.
 MC/MCBASE, expansion flips and cycle-15 crunch. Its requests arbitrate with
 the matrix/glyph engine on the native video port without overlap. Combined
 BA stalls CPU reads; pending writes retain the three-cycle warning window.
+The write exemption follows the latched active bus direction, not the CPU's
+prepared next direction. This prevents a prepared store from retiring its
+stalled operand read. `make sim-fes-c64-ready` runs the actual motherboard's
+raster-read stabilizer across 51 VIC phases against pinned transistor-model
+write timings; its unit setup installs an open RAM program and aligns DMA.
 Late unowned accesses use the current CPU read/write bus value. The directed
 sprite test covers 21/42 rows, all slots/banks, byte ordering, late ownership
 and sustained crunch. The motherboard diagnostic enables eight expanded

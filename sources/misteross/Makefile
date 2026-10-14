@@ -1153,6 +1153,16 @@ sim-fes-c64-sprite:
 		"$(CURDIR)/cores/fes-c64/sim/sprite_tb.cpp"
 	@build/sim/fes-c64-sprite/Vc64_vic_sprite_fetch
 
+.PHONY: sim-fes-c64-ready
+sim-fes-c64-ready: c64-diagnostic
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-ready
+	$(VERILATOR) --cc --exe --build -O2 --top-module ready_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-ready" \
+		cores/fes-c64/sim/ready_sim_top.sv $(C64_RTL) \
+		"$(CURDIR)/cores/fes-c64/sim/ready_tb.cpp"
+	@build/sim/fes-c64-ready/Vready_sim_top "$(CURDIR)/build/sim/fes-c64-ready/firmware.hex"
+
 .PHONY: sim-fes-c64-irq
 sim-fes-c64-irq:
 	$(require_local_sim)
@@ -1251,7 +1261,7 @@ sim-fes-c64-frame:
 		"$(CURDIR)/cores/fes-c64/sim/frame_tb.cpp"
 	@build/sim/fes-c64-frame/Vc64_frame_store
 
-sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-irq sim-fes-c64-clock sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
+sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-irq sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \

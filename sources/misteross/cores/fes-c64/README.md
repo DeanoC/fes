@@ -165,6 +165,25 @@ enable schedules and held/withdrawn IRQs. The CPU README describes the pinned
 oracle and remaining subphase limits. The full demo's raster timing remains
 under investigation.
 
+The motherboard's BA write exemption uses the active latched bus direction.
+The synchronous CPU's `WE` describes its prepared following cycle; using it
+can retire a stalled operand read early and let `$D011` change before sprite
+DMA finishes. `make sim-fes-c64-ready` exercises the actual motherboard with
+an open raster-read stabilizer across 51 initial VIC phases. Write timing
+matches pinned transistor-model vectors, including the boundary where the
+previous gate finished eleven cycles early. The unit fixture installs its
+RAM program and aligns VIC/DMA state once, then runs the real clock and bus.
+Its vectors can be reproduced with the perfect6502 checkout documented in
+the shared CPU README:
+
+```sh
+READY_ORACLE_ROOT=/absolute/path/to/perfect6502
+cc -O3 -I "$READY_ORACLE_ROOT" cores/fes-c64/sim/ready_oracle.c \
+  "$READY_ORACLE_ROOT/netlist_sim.c" -o /tmp/fes-c64-ready-oracle
+/tmp/fes-c64-ready-oracle > /tmp/fes-c64-ready-vectors.h
+cmp /tmp/fes-c64-ready-vectors.h cores/fes-c64/sim/ready_vectors.h
+```
+
 The fractional PAL enable is predicted one system tick ahead into a register,
 with the same pulse sequence and startup phase. This removes the phase adder
 from the CPU's RDY timing path. `make sim-fes-c64-clock` compares the actual
