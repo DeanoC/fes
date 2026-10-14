@@ -110,11 +110,17 @@ RTL_SOURCES = (
     "cores/fes-common/rtl/cpu6502/cpu6502.v",
     "cores/fes-common/rtl/cpu6502/cpu6502_alu.v",
 )
+# The development drive is not instantiated by top.v, but its RTL still belongs
+# to this core's authenticated input closure.
+DEVELOPMENT_RTL = (
+    "cores/fes-c64/rtl/c64_drive1541.sv",
+    "cores/fes-c64/rtl/c64_via.v",
+)
 PINNED_INPUTS = (
     RECIPE, "scripts/c64_slots.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
-    ABI_DEFINITION, C64_TOOLCHAIN_LOCK, QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
+    ABI_DEFINITION, C64_TOOLCHAIN_LOCK, QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES, *DEVELOPMENT_RTL,
 )
 BUILD_OUTPUTS = (
     "synth.json", "routed.json", "core.rbf", "timing.json", "yosys.log", "nextpnr.log",

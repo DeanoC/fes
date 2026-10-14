@@ -1717,6 +1717,9 @@ A separate `c64_drive1541` development motherboard runs the shared 6502 at
 VIA IRQs through the CPU vector; the standalone VIA test checks ports,
 edge latches, handshakes, IFR/IER and T1/T2/PB7/PB6 behavior. Its observation
 helper retains an external ROM identity, frozen executable identity and RAM.
+Drive VIA accesses and CPU sampling share the late bus-cycle edge so input
+latches are acknowledged after sampling. The producer pins the development
+RTL in its source closure while the package still instantiates the file device.
 The development disk pins are inactive. VIA serial shifting, CPU SO,
 rotation/GCR, physical drive-ROM linking and machine integration are still
 missing; production and C64 boot simulations retain the file device.

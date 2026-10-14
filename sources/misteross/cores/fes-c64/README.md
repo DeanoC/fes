@@ -228,7 +228,10 @@ interrupt edges, IFR/IER, Timer 1/PB7 and Timer 2/PB6 pulse counting. These
 register semantics follow the [6522-compatible WDC datasheet](https://www.westerndesigncenter.com/wdc/documentation/w65c22.pdf);
 Timer 1 exposes the underflow cycle and reloads in one-shot mode as observed in
 [VICE's VIA implementation](https://github.com/VICE-Team/svn-mirror/blob/main/vice/src/core/viacore.c).
-Serial shifting and NMOS subcycle behavior remain unimplemented.
+The drive's VIA access and CPU sample occur together near the end of the
+1 us bus cycle, retaining the input latch until its byte is sampled.
+Serial shifting and NMOS subcycle behavior remain unimplemented. The C64
+producer also pins these development RTL inputs without instantiating them.
 
 `make sim-fes-c64-drive-build` followed by
 `python3 scripts/c64_drive_observe.py --rom /path/1541.rom --output /path/ignored-output`

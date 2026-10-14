@@ -45,9 +45,12 @@ module c64_drive1541 #(
             bus_addr <= ab; bus_data <= data_out; bus_we <= we && !cpu_reset;
             cycle_clock <= 0;
         end else if (cycle_clock != 63) cycle_clock <= cycle_clock + 6'd1;
-        if (cycle_clock == 16) cpu_data <= data_in;
+        if (cycle_clock == 43) cpu_data <= data_in;
     end
-    wire bus_access = cycle_clock == 0 && !cpu_reset;
+    // Sample near the end of the 1 us cycle. VIA read side effects occur on
+    // the same edge, after cpu_data takes the pre-acknowledgement port value.
+    // An early access would release a latched GCR byte before it is sampled.
+    wire bus_access = cycle_clock == 43 && !cpu_reset;
     wire [7:0] data_in = bus_addr[15] ? rom_q : ram_cs ? ram_q :
                                via1_cs ? via1_q : via2_cs ? via2_q : 8'hff;
     cpu6502 cpu (.clk(clk), .reset(cpu_reset), .AB(ab), .DI(cpu_data),
