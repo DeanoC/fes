@@ -51,6 +51,23 @@ class KitManifestTests(unittest.TestCase):
         self.root = self.work / 'kit'
         self.holds = self.work / 'holds'
         self.drift = self.work / 'drift'
+        # Keep legacy-journal migration off the real temp directory.
+        self.proc_tmp = self.work / 'proc-tmp'
+        self.proc_tmp.mkdir()
+        saved_tempdir = tempfile.tempdir
+        saved_tmpdir = os.environ.get('TMPDIR')
+
+        def restore_tmpdir():
+            tempfile.tempdir = saved_tempdir
+            if saved_tmpdir is None:
+                os.environ.pop('TMPDIR', None)
+            else:
+                os.environ['TMPDIR'] = saved_tmpdir
+            tempfile.tempdir = None
+
+        os.environ['TMPDIR'] = str(self.proc_tmp)
+        tempfile.tempdir = None
+        self.addCleanup(restore_tmpdir)
         self.env = os.environ.copy()
         self.env.update({
             'FES_KIT_TRANSPORT': 'local',
@@ -176,7 +193,11 @@ class KitManifestTests(unittest.TestCase):
                 self.assertNotIn('/home/deano', str(fallback))
                 os.environ['FES_KIT_HOLD_DIR'] = str(root / 'override')
                 self.assertEqual(kit_manifest.hold_dir(), root / 'override')
-                self.assertEqual(kit_manifest.drift_dir(), root / 'override' / 'fes-kit-drift')
+                # Drift stays on the canonical directory so a timer that does
+                # not see FES_KIT_HOLD_DIR still shares the manual snapshot.
+                self.assertEqual(kit_manifest.drift_dir(), durable / 'fes-kit-drift')
+                os.environ['FES_KIT_DRIFT_DIR'] = str(root / 'drift-override')
+                self.assertEqual(kit_manifest.drift_dir(), root / 'drift-override')
                 self.assertNotIn('/home/deano', str(kit_manifest.drift_dir()))
         finally:
             tempfile.tempdir = saved_temp
@@ -226,6 +247,97 @@ class KitManifestTests(unittest.TestCase):
         self.assertTrue(stat.S_IMODE(group.stat().st_mode) & stat.S_IWGRP)
         self.assertTrue(stat.S_IMODE(world.stat().st_mode) & stat.S_IWOTH)
 
+    def test_hold_dir_rejects_a_shared_writable_parent(self):
+        home = self.work / 'parent-home'
+        shared = self.work / 'shared-parent'
+        shared.mkdir()
+        shared.chmod(0o777)
+        leaf = shared / 'fes-kit'
+        leaf.mkdir(mode=0o700)
+        sticky = self.work / 'sticky-parent'
+        sticky.mkdir()
+        sticky.chmod(0o1777)
+        sticky_leaf = sticky / 'fes-kit'
+        with mock.patch.dict(os.environ, {'FES_KIT_HOLD_DIR': str(leaf), 'HOME': str(home)}):
+            os.environ.pop('XDG_STATE_HOME', None)
+            with self.assertRaises(kit_manifest.KitError) as caught:
+                kit_manifest.hold_dir()
+        self.assertIn('shared writable directory', str(caught.exception))
+        self.assertFalse((home / '.local' / 'state' / 'fes-kit').exists())
+        with mock.patch.dict(os.environ, {'FES_KIT_HOLD_DIR': str(sticky_leaf), 'HOME': str(home)}):
+            os.environ.pop('XDG_STATE_HOME', None)
+            path = kit_manifest.hold_dir()
+        self.assertEqual(path, sticky_leaf)
+        self.assertEqual(stat.S_IMODE(path.stat().st_mode) & 0o077, 0)
+
+    def test_legacy_temp_journal_moves_into_the_durable_directory(self):
+        home = self.work / 'migrate-home'
+        legacy_root = self.work / 'legacy-tmp'
+        legacy_root.mkdir()
+        legacy = legacy_root / f'fes-kit-{os.getuid()}'
+        journal_dir = legacy / '.fes-kit-maintenance'
+        journal_dir.mkdir(parents=True, mode=0o700)
+        legacy.chmod(0o700)
+        journal_dir.chmod(0o700)
+        journal = journal_dir / 'KITA.json'
+        payload = '{"request_id":"legacy"}\n'
+        journal.write_text(payload)
+        journal.chmod(0o600)
+        marker = legacy / 'KITA-HELD-BY-700'
+        marker.write_text('who=700\n')
+        marker.chmod(0o644)
+        saved_temp = tempfile.tempdir
+        try:
+            with mock.patch.dict(os.environ, {'HOME': str(home), 'TMPDIR': str(legacy_root)}):
+                os.environ.pop('FES_KIT_HOLD_DIR', None)
+                os.environ.pop('FES_KIT_DRIFT_DIR', None)
+                os.environ.pop('XDG_STATE_HOME', None)
+                tempfile.tempdir = None
+                path = kit_manifest.hold_dir()
+                dest = path / '.fes-kit-maintenance' / 'KITA.json'
+                self.assertEqual(dest.read_text(), payload)
+                self.assertEqual(stat.S_IMODE(dest.stat().st_mode), 0o600)
+                self.assertFalse(journal.exists())
+                self.assertEqual((path / 'KITA-HELD-BY-700').read_text(), 'who=700\n')
+                self.assertFalse(marker.exists())
+                session = kit_manifest.Session('A', kit_manifest.LocalTransport(self.root), 'local')
+                self.assertEqual(session.maintenance.journal, dest)
+        finally:
+            tempfile.tempdir = saved_temp
+
+    def test_unsafe_or_existing_journal_is_not_migrated(self):
+        home = self.work / 'migrate-home'
+        legacy_root = self.work / 'legacy-tmp'
+        legacy_root.mkdir()
+        legacy = legacy_root / f'fes-kit-{os.getuid()}'
+        journal_dir = legacy / '.fes-kit-maintenance'
+        journal_dir.mkdir(parents=True, mode=0o700)
+        legacy.chmod(0o777)
+        journal = journal_dir / 'KITA.json'
+        journal.write_text('{"request_id":"unsafe"}\n')
+        journal.chmod(0o600)
+        saved_temp = tempfile.tempdir
+        try:
+            with mock.patch.dict(os.environ, {'HOME': str(home), 'TMPDIR': str(legacy_root)}):
+                os.environ.pop('FES_KIT_HOLD_DIR', None)
+                os.environ.pop('FES_KIT_DRIFT_DIR', None)
+                os.environ.pop('XDG_STATE_HOME', None)
+                tempfile.tempdir = None
+                path = kit_manifest.hold_dir()
+                self.assertFalse((path / '.fes-kit-maintenance' / 'KITA.json').exists())
+                self.assertTrue(journal.is_file())
+                legacy.chmod(0o700)
+                journal_dir.chmod(0o700)
+                kept = path / '.fes-kit-maintenance' / 'KITA.json'
+                kept.parent.mkdir(mode=0o700)
+                kept.write_text('{"request_id":"current"}\n')
+                kept.chmod(0o600)
+                kit_manifest.hold_dir()
+                self.assertEqual(kept.read_text(), '{"request_id":"current"}\n')
+                self.assertTrue(journal.is_file())
+        finally:
+            tempfile.tempdir = saved_temp
+
     def test_manual_and_timer_share_the_drift_baseline(self):
         unit = (ROOT / 'scripts/systemd/fes-kit-drift.service').read_text()
         self.assertNotIn('FES_KIT_HOLD_DIR=', unit)
@@ -256,6 +368,54 @@ class KitManifestTests(unittest.TestCase):
         self.assertEqual(timer.returncode, 1, timer.stdout + timer.stderr)
         self.assertIn('DRIFT mister-agent unrecorded', timer.stdout)
         self.assertTrue((self.work / 'timer-drift' / 'A.json').is_file())
+
+    def test_xdg_watch_and_timer_share_the_canonical_drift_directory(self):
+        home = self.work / 'xdg-home'
+        xdg = self.work / 'xdg-state'
+        manual = self.env.copy()
+        manual.pop('FES_KIT_HOLD_DIR', None)
+        manual.pop('FES_KIT_DRIFT_DIR', None)
+        manual['HOME'] = str(home)
+        manual['XDG_STATE_HOME'] = str(xdg)
+        manual['TMPDIR'] = str(self.proc_tmp)
+        first = self.fes('watch', '--once', '--kits', 'A', env=manual)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertIn('UNVERIFIED', first.stdout)
+        snapshot = home / '.local/state/fes-kit/fes-kit-drift/A.json'
+        self.assertTrue(snapshot.is_file(), first.stdout + first.stderr)
+        self.assertFalse((xdg / 'fes-kit/fes-kit-drift/A.json').exists())
+        (self.root / PATHS['mister-agent']).write_bytes(b'between-xdg-and-timer')
+        timer = manual.copy()
+        timer.pop('XDG_STATE_HOME')
+        second = self.fes('watch', '--once', '--kits', 'A', env=timer)
+        self.assertEqual(second.returncode, 1, second.stdout + second.stderr)
+        self.assertIn('DRIFT mister-agent unrecorded', second.stdout)
+
+    def test_explicit_drift_directory_does_not_require_a_home(self):
+        drift = self.work / 'only-drift'
+        env = {
+            'FES_KIT_TRANSPORT': 'local',
+            'FES_KIT_HOLD_DIR': str(self.holds),
+            'FES_KIT_DRIFT_DIR': str(drift),
+            'FES_KIT_A_ROOT': str(self.root),
+            'FES_KIT_A_API': self.env['FES_KIT_A_API'],
+            'TMPDIR': str(self.proc_tmp),
+            'PATH': os.environ.get('PATH', ''),
+        }
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch('kit_manifest.Path.home', side_effect=RuntimeError('no home directory')):
+                self.assertEqual(kit_manifest.previous_watch_hashes('A'), {})
+                self.assertEqual(kit_manifest.drift_dir(), drift)
+                code = kit_manifest.main(['kit', 'watch', '--once', '--kits', 'A'])
+        self.assertEqual(code, 0)
+        self.assertTrue((drift / 'A.json').is_file())
+        (self.root / PATHS['mister-agent']).write_bytes(b'explicit-drift-edit')
+        with mock.patch.dict(os.environ, env, clear=True):
+            with mock.patch('kit_manifest.Path.home', side_effect=RuntimeError('no home directory')):
+                code = kit_manifest.main(['kit', 'watch', '--once', '--kits', 'A'])
+        self.assertEqual(code, 1)
+        text = (drift / 'watch.log').read_text()
+        self.assertIn('DRIFT mister-agent unrecorded', text)
 
     def test_omitted_target_id_follows_persisted_identity(self):
         (self.root / 'media/fat/fogcast/target-id').write_text(TARGET_ID + '\n')

@@ -21,18 +21,29 @@ live on the writable FAT volume, not under `/var/lib`:
 | Target transaction lock | `/run/fogcast/kit-maintenance.lock` |
 
 The hold directory is `FES_KIT_HOLD_DIR` when that variable is set. Otherwise
-it is `$XDG_STATE_HOME/fes-kit` when `XDG_STATE_HOME` is set, then the XDG
-default `~/.local/state/fes-kit`. The directory must be owned by the current
-user and must not be group- or world-writable; a directory that fails those
-checks is refused. Temporary storage is not used, so a workstation reboot
-does not drop the maintenance credential. Drift snapshots use
-`FES_KIT_DRIFT_DIR` when that variable is set, or `<hold>/fes-kit-drift`
-otherwise. With neither override set, a manual watch and the installed timer
-share `~/.local/state/fes-kit/fes-kit-drift`. A cycle whose own directory has
-no snapshot yet still reads that durable snapshot. A marker named
-`KITA-HELD-BY-<who>` records a temporary diagnostic task. It does not fence
-target requests or other hosts. Restore renames it to `KITA-RELEASED-BY-<who>`.
-The target maintenance reservation is the authority while files and services change.
+it is `$XDG_STATE_HOME/fes-kit` when `XDG_STATE_HOME` is set, then
+`~/.local/state/fes-kit`. The directory is created mode `0700`. It is used
+only when the current user owns it, it is not a symlink, and neither it nor
+an ancestor is group- or world-writable. A sticky ancestor such as `/tmp` is
+allowed when this user owns the next component. An explicit path that fails
+these checks is an error. A default candidate that fails is skipped.
+
+Temporary storage is not the hold directory, so a workstation reboot does
+not drop the maintenance credential. A private journal and task marker left
+in the previous default `$TMPDIR/fes-kit-<uid>` are moved into the selected
+hold directory when that file is not already there. A legacy directory or
+file that is a symlink, is owned by someone else, or is group- or
+world-writable is left in place and is not used. Drift snapshots use
+`FES_KIT_DRIFT_DIR` when that variable is set. Otherwise they use
+`~/.local/state/fes-kit/fes-kit-drift`, including when `XDG_STATE_HOME` or
+`FES_KIT_HOLD_DIR` puts the hold directory somewhere else, so a manual watch
+and the timer share one history. A cycle whose own drift directory has no
+snapshot yet still reads that canonical snapshot when a home directory can
+be resolved. A missing home does not block a watch that sets
+`FES_KIT_DRIFT_DIR`. A marker named `KITA-HELD-BY-<who>` records a temporary
+diagnostic task. It does not fence target requests or other hosts. Restore
+renames it to `KITA-RELEASED-BY-<who>`. The target maintenance reservation
+is the authority while files and services change.
 
 Tracked components:
 
@@ -171,8 +182,9 @@ maintenance contract, is rejected before service shutdown.
 
 `python3 scripts/fes kit watch --once` hashes both kits, compares them with
 the manifest and the drift baseline, and appends to
-`<hold>/fes-kit-drift/watch.log`. The timer uses that same durable directory
-rather than a separate path. A cycle with no drift baseline logs
+`~/.local/state/fes-kit/fes-kit-drift/watch.log` (or `FES_KIT_DRIFT_DIR`).
+The timer uses that same canonical directory, not the hold directory selected
+by `XDG_STATE_HOME`. A cycle with no drift baseline logs
 `UNVERIFIED` and does not treat the current bytes as stock, so an edit made
 before the first cycle stays uncertified. The baseline is written only when
 `--main-hashes` matches every present tracked file and nothing is drifted or

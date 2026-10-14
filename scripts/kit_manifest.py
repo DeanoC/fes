@@ -83,29 +83,93 @@ def _home():
 
 
 def durable_state_dir():
-    """XDG state directory for this user, never a temp path or a fixed home."""
+    """Canonical per-user state directory, never a temp path or a fixed home."""
     return _home() / '.local' / 'state' / 'fes-kit'
 
 
-def _ensure_private_dir(path, mode=0o700):
-    """Create a directory owned by the current user and refuse a shared one.
+def _shared_write(mode):
+    return stat.S_IMODE(mode) & (stat.S_IWGRP | stat.S_IWOTH)
 
-    An existing directory that another user owns, or that is group- or
-    world-writable, is rejected. The caller does not fall back to it.
+
+def _refuse_private(path):
+    raise KitError(
+        'kit state directory must be owned by the current user and not '
+        f'group- or world-writable: {path}')
+
+
+def _ensure_private_dir(path, mode=0o700):
+    """Create a private directory and refuse a shared parent or leaf.
+
+    Every existing component must be a real directory, not a symlink. A
+    group- or world-writable ancestor is refused unless it is sticky and the
+    next component is owned by this user (as with ``/tmp``). The leaf is
+    created ``mode`` (0700 for hold state) and must be owned by this user.
     """
-    try:
-        path.mkdir(mode=mode, parents=True, exist_ok=True)
-        info = os.lstat(path)
-    except OSError as exc:
-        raise KitError(f'cannot create kit state directory: {path}') from exc
-    shared = stat.S_IMODE(info.st_mode) & (stat.S_IWGRP | stat.S_IWOTH)
-    if (stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode)
-            or not os.access(path, os.W_OK | os.X_OK)
-            or info.st_uid != os.getuid() or shared):
-        raise KitError(
-            'kit state directory must be owned by the current user and not '
-            f'group- or world-writable: {path}')
+    path = Path(os.path.abspath(path))
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current = current / part
+        parent_info = os.lstat(current.parent)
+        parent_shared = _shared_write(parent_info.st_mode)
+        parent_sticky = bool(parent_info.st_mode & stat.S_ISVTX)
+        # A non-sticky shared parent can be renamed by another user. Refuse
+        # before creating a child there.
+        if parent_shared and not parent_sticky:
+            raise KitError(
+                f'kit state directory is inside a shared writable directory: {current.parent}')
+        try:
+            info = os.lstat(current)
+        except FileNotFoundError:
+            try:
+                os.mkdir(current, mode if current == path else 0o700)
+            except OSError as exc:
+                raise KitError(f'cannot create kit state directory: {current}') from exc
+            info = os.lstat(current)
+        except OSError as exc:
+            raise KitError(f'cannot create kit state directory: {current}') from exc
+        if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+            _refuse_private(current)
+        if parent_shared and info.st_uid != os.getuid():
+            raise KitError(
+                f'kit state directory is inside a shared writable directory: {current.parent}')
+        if current == path and (
+                info.st_uid != os.getuid() or _shared_write(info.st_mode)
+                or not os.access(current, os.W_OK | os.X_OK)):
+            _refuse_private(current)
     return path
+
+
+def _is_private_dir(path):
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return False
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+        return False
+    if info.st_uid != os.getuid() or _shared_write(info.st_mode):
+        return False
+    try:
+        _ensure_private_dir(path)
+    except KitError:
+        return False
+    return True
+
+
+def _owned_regular(path, private=False):
+    try:
+        info = os.lstat(path)
+    except OSError:
+        return False
+    if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+        return False
+    if info.st_uid != os.getuid():
+        return False
+    mode = stat.S_IMODE(info.st_mode)
+    if private and mode & 0o077:
+        return False
+    if mode & (stat.S_IWGRP | stat.S_IWOTH):
+        return False
+    return True
 
 
 def _hold_candidates():
@@ -122,76 +186,187 @@ def _hold_candidates():
     return candidates
 
 
+def _legacy_hold_dir():
+    """Previous default hold directory, kept only so an active journal can move."""
+    return Path(tempfile.gettempdir()) / f'fes-kit-{os.getuid()}'
+
+
+def _copy_private_file(src, dest, mode):
+    """Copy an owned regular file without following symlinks.
+
+    The source is removed only after the destination is a private regular
+    file. A destination that already exists is left unchanged.
+    """
+    if dest.exists() or dest.is_symlink():
+        return False
+    dest.parent.mkdir(mode=0o700, exist_ok=True)
+    if not _is_private_dir(dest.parent):
+        raise KitError(f'cannot migrate into an unsafe directory: {dest.parent}')
+    try:
+        in_fd = os.open(src, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError as exc:
+        raise KitError(f'cannot read kit state file: {src}') from exc
+    try:
+        out_fd = os.open(dest, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
+        try:
+            while True:
+                chunk = os.read(in_fd, 65536)
+                if not chunk:
+                    break
+                view = chunk
+                while view:
+                    written = os.write(out_fd, view)
+                    view = view[written:]
+            os.fsync(out_fd)
+        finally:
+            os.close(out_fd)
+    except OSError as exc:
+        try:
+            os.unlink(dest)
+        except OSError:
+            pass
+        raise KitError(f'cannot migrate kit state file: {dest}') from exc
+    finally:
+        os.close(in_fd)
+    if not _owned_regular(dest, private=(mode & 0o077) == 0):
+        try:
+            os.unlink(dest)
+        except OSError:
+            pass
+        raise KitError(f'cannot migrate kit state file: {dest}')
+    os.unlink(src)
+    return True
+
+
+def _migrate_legacy_hold(destination):
+    """Move a valid journal and markers out of the retired temp hold.
+
+    An unsafe legacy directory or file is left in place. A file that already
+    exists at the destination is not replaced.
+    """
+    legacy = _legacy_hold_dir()
+    try:
+        same = destination.resolve() == legacy.resolve()
+    except OSError:
+        return
+    if same or not _is_private_dir(legacy):
+        return
+    journal_src = legacy / '.fes-kit-maintenance'
+    journal_dest = destination / '.fes-kit-maintenance'
+    if _is_private_dir(journal_src):
+        for name in ('KITA.json', 'KITB.json'):
+            src = journal_src / name
+            if _owned_regular(src, private=True):
+                _copy_private_file(src, journal_dest / name, 0o600)
+    for name in os.listdir(legacy) if legacy.is_dir() else ():
+        if not (name.startswith(('KITA-HELD-BY-', 'KITB-HELD-BY-',
+                                 'KITA-RELEASED-BY-', 'KITB-RELEASED-BY-'))):
+            continue
+        src = legacy / name
+        if _owned_regular(src):
+            _copy_private_file(src, destination / name, 0o644)
+    drift_src = legacy / 'fes-kit-drift'
+    if not _is_private_dir(drift_src):
+        return
+    try:
+        drift_dest = durable_state_dir() / 'fes-kit-drift'
+    except KitError:
+        drift_dest = destination / 'fes-kit-drift'
+    for name in os.listdir(drift_src):
+        if not name.endswith('.json'):
+            continue
+        src = drift_src / name
+        if _owned_regular(src):
+            _copy_private_file(src, drift_dest / name, 0o644)
+
+
 def hold_dir():
     """Private workstation directory for hold markers and the credential journal.
 
-    ``FES_KIT_HOLD_DIR`` is used when set and must already be private.
-    Otherwise use ``$XDG_STATE_HOME/fes-kit`` when that variable is set, then
-    ``~/.local/state/fes-kit``. Temporary storage is not a candidate: a
-    workstation reboot must not erase the maintenance credential.
+    ``FES_KIT_HOLD_DIR`` is used when set and must be private, including its
+    parents. Otherwise use ``$XDG_STATE_HOME/fes-kit`` when that variable is
+    set, then ``~/.local/state/fes-kit``. Temporary storage is not a
+    candidate. A private journal left in the previous temp directory is
+    moved here when the destination does not already have that file.
     """
     override = os.environ.get('FES_KIT_HOLD_DIR')
     if override:
-        return _ensure_private_dir(Path(override))
-    last = None
-    for candidate in _hold_candidates():
-        try:
-            return _ensure_private_dir(candidate)
-        except KitError as exc:
-            last = exc
-    raise last or KitError('cannot create kit hold directory')
+        path = _ensure_private_dir(Path(override))
+    else:
+        path = None
+        last = None
+        for candidate in _hold_candidates():
+            try:
+                path = _ensure_private_dir(candidate)
+                break
+            except KitError as exc:
+                last = exc
+        if path is None:
+            raise last or KitError('cannot create kit hold directory')
+    _migrate_legacy_hold(path)
+    return path
 
 
 def drift_dir():
-    """Directory of watch snapshots shared by a manual run and the timer.
+    """Canonical snapshot directory shared by manual watch and the timer.
 
-    ``FES_KIT_DRIFT_DIR`` selects another directory for this process. With
-    that unset, snapshots live in ``<hold>/fes-kit-drift``. When neither hold
-    nor drift is overridden, that is ``~/.local/state/fes-kit/fes-kit-drift``,
-    the same path the installed timer uses.
+    ``FES_KIT_DRIFT_DIR`` selects another directory. Otherwise snapshots
+    live in ``~/.local/state/fes-kit/fes-kit-drift``, including when
+    ``XDG_STATE_HOME`` or ``FES_KIT_HOLD_DIR`` puts the hold directory
+    somewhere else. The timer does not see those variables, so drift does
+    not follow them. A missing home falls back to ``<hold>/fes-kit-drift``.
     """
     override = os.environ.get('FES_KIT_DRIFT_DIR')
     if override:
         return _ensure_private_dir(Path(override), mode=0o755)
-    return _ensure_private_dir(hold_dir() / 'fes-kit-drift', mode=0o755)
+    try:
+        return _ensure_private_dir(durable_state_dir() / 'fes-kit-drift', mode=0o755)
+    except KitError:
+        return _ensure_private_dir(hold_dir() / 'fes-kit-drift', mode=0o755)
 
 
-def _shared_drift_snapshots(name):
-    """Baseline files a manual watch and the timer can both see.
-
-    The durable per-user directory is always included. An ``XDG_STATE_HOME``
-    snapshot is included when that variable is set, so the two invocations
-    still meet if only one of them exports it.
-    """
-    filename = f'{name}.json'
-    paths = [durable_state_dir() / 'fes-kit-drift' / filename]
-    xdg = os.environ.get('XDG_STATE_HOME')
-    if xdg:
-        paths.append(Path(xdg) / 'fes-kit' / 'fes-kit-drift' / filename)
-    return paths
+def _canonical_drift_snapshots(name):
+    """The durable snapshot, when this process can resolve a home directory."""
+    try:
+        root = durable_state_dir()
+    except KitError:
+        return []
+    return [root / 'fes-kit-drift' / f'{name}.json']
 
 
 def _snapshot_hashes(path):
+    if not _owned_regular(path):
+        raise KitError(f'cannot read drift snapshot: {path}')
     try:
-        text = path.read_text(encoding='utf-8')
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     except OSError as exc:
         raise KitError(f'cannot read drift snapshot: {path}') from exc
-    return load_object(text).get('hashes') or {}
+    try:
+        chunks = []
+        while True:
+            chunk = os.read(fd, 65536)
+            if not chunk:
+                break
+            chunks.append(chunk)
+    except OSError as exc:
+        raise KitError(f'cannot read drift snapshot: {path}') from exc
+    finally:
+        os.close(fd)
+    return load_object(b''.join(chunks).decode('utf-8')).get('hashes') or {}
 
 
 def previous_watch_hashes(name):
-    """Hashes from this drift directory, or the shared durable snapshot.
+    """Hashes from this drift directory, or the canonical durable snapshot.
 
-    A timer whose own directory has no snapshot yet still sees the baseline
-    written by a manual watch (and the reverse) instead of treating that
-    first cycle as having no prior hashes.
+    A missing home only skips the optional canonical fallback. An explicit
+    drift directory is still compared on its own.
     """
     primary = drift_dir() / f'{name}.json'
-    if primary.is_file():
+    if _owned_regular(primary):
         return _snapshot_hashes(primary)
-    for candidate in _shared_drift_snapshots(name):
+    for candidate in _canonical_drift_snapshots(name):
         try:
-            if not candidate.is_file() or candidate.resolve() == primary.resolve():
+            if not _owned_regular(candidate) or candidate.resolve() == primary.resolve():
                 continue
         except OSError:
             continue
