@@ -117,7 +117,8 @@ reg load_reg;           // loading a register (A, X, Y, S) in this instruction
 reg inc;                // increment
 reg write_back;         // set if memory is read/modified/written
 reg load_only;          // LDA/LDX/LDY instruction
-reg store;              // doing store (STA/STX/STY)
+reg store;              // doing store (STA/STX/STY/SAX)
+reg sax;                // stable undocumented NMOS A & X store
 reg adc_sbc;            // doing ADC/SBC
 reg compare;            // doing CMP/CPY/CPX
 reg shift;              // doing shift/rotate instruction
@@ -437,7 +438,7 @@ always @*
 
         BRK2:    DO = (IRQ | NMI_edge) ? (P & 8'b1110_1111) : P;
 
-        default: DO = regfile;
+        default: DO = sax ? (AXYS[SEL_A] & AXYS[SEL_X]) : regfile;
     endcase
 
 /*
@@ -884,6 +885,10 @@ always @(posedge clk or posedge reset)
     else if( RDY ) case( state )
         DECODE  :
             casex ( IR )
+                8'h83:          state <= INDX0; // SAX (zp,X)
+                8'h87:          state <= ZP0;   // SAX zp
+                8'h8f:          state <= ABS0;  // SAX abs
+                8'h97:          state <= ZPX0;  // SAX zp,Y
                 8'b0000_0000:   state <= BRK0;
                 8'b0010_0000:   state <= JSR0;
                 8'b0010_1100:   state <= ABS0;  // BIT abs
@@ -1049,6 +1054,7 @@ always @(posedge clk)
 always @(posedge clk)
      if( state == DECODE && RDY )
         casex( IR )
+                8'h97,         // SAX zp,Y
                 8'bxxx1_0001,   // INDY
                 8'b10x1_x110,   // LDX/STX zpg/abs, Y
                 8'bxxxx_1001:   // abs, Y
@@ -1061,6 +1067,7 @@ always @(posedge clk)
 always @(posedge clk)
      if( state == DECODE && RDY )
         casex( IR )
+                8'h83, 8'h87, 8'h8f, 8'h97, // SAX
                 8'b100x_x1x0,   // STX, STY
                 8'b100x_xx01:   // STA
                                 store <= 1;
@@ -1196,6 +1203,7 @@ always @(posedge clk )
  */
 always @(posedge clk )
      if( state == DECODE && RDY ) begin
+        sax <= (IR == 8'h83 || IR == 8'h87 || IR == 8'h8f || IR == 8'h97);
         php <= (IR == 8'h08);
         clc <= (IR == 8'h18);
         plp <= (IR == 8'h28);

@@ -23,4 +23,8 @@ modeled yet.
 The core expects synchronous memory: data for the address presented in one
 enabled cycle is consumed on the next enabled cycle. FES drives `RDY` as the
 CPU clock enable and holds `DI` stable between enables. Undocumented NMOS
-opcodes are not implemented.
+opcodes remain incomplete. The stable SAX family (`$83`, `$87`, `$8F`, `$97`)
+is implemented in all four addressing modes. It stores `A & X` without changing
+registers or flags, including zero-page index and indirect-pointer wrapping.
+`make sim-fes-c64-sax` checks the writes, enabled cycle counts and register/flag
+preservation, including CPU enable gaps.

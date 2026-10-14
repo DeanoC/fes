@@ -146,6 +146,14 @@ RMW opcode/address-mode combinations, including absolute-index page crossing
 and CPU enable gaps. The motherboard diagnostic checks IRQ delivery and
 acknowledgement through the same shared CPU.
 
+The shared CPU implements the stable undocumented SAX family in zero-page,
+zero-page,Y, absolute and (zero-page,X) modes. SAX writes `A & X` and leaves
+registers and flags unchanged. Edge of Disgrace uses `SAX $D016` in its
+checkerboard section; missing decoding loses instruction alignment and corrupts
+VIC register programming. `make sim-fes-c64-sax` checks all four modes, wrapping,
+enabled cycle counts and unchanged registers/flags in 144 cases. Other
+undocumented NMOS instructions remain incomplete.
+
 C64's D64/IEC path remains read-only. Atari ST's initial-disk-before-release
 and writable-disk save/restore path is a useful ordering reference, but its
 sector commit and game/base-media persistence contract is not implemented by

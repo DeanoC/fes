@@ -1746,6 +1746,11 @@ then the modified operand. This preserves hardware-visible register effects
 such as `INC $D019` acknowledging VIC IRQs. The C64 diagnostic uses that
 instruction, and its directed CPU test covers all 24 documented memory RMW
 opcode/address modes with CPU enable gaps.
+The stable undocumented SAX family stores `A & X` in zero-page, zero-page,Y,
+absolute and (zero-page,X) modes without changing registers or flags. Its
+four opcodes use the corresponding NMOS store bus sequence, including wrapping.
+`make sim-fes-c64-sax` covers all modes, enabled cycle counts and register/flag
+preservation. Other undocumented instructions remain incomplete.
 `make sim-fes-c64-boot-drive-build` selects `FES_C64_REAL_DRIVE_SIM` in the
 existing motherboard and boot harness. `--real-drive --drive-rom` runs user
 1541 firmware through both VIAs and `c64_gcr_read`; the helper encodes the D64
