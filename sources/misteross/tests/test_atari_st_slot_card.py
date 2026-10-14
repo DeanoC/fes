@@ -152,6 +152,33 @@ class AtariSTSlotCardTests(unittest.TestCase):
         self.assertNotIn("outclk[0]", mapping["pins"])
         self.assertEqual(json.dumps(original).encode(), encoded)
 
+    def test_scaffold_repairs_split_outclk1_and_rejects_other_pll_ports(self):
+        for prior in ([20], [999]):
+            design = frozen_shell()
+            design["modules"]["top"]["cells"]["system_clock.pll"]["connections"]["outclk[1]"] = prior
+            prepared = json.loads(card.prepare_scaffold(json.dumps(design).encode(), 1))["modules"]["top"]
+            pll = prepared["cells"]["system_clock.pll"]
+            self.assertEqual(set(pll["connections"]), {"outclk", "outclk[1]", "refclk", "locked"})
+            self.assertEqual(pll["connections"]["outclk[1]"], [20])
+            self.assertEqual(pll["port_directions"]["outclk[1]"], "output")
+            mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]).decode())
+            self.assertEqual(mapping["count"], 5)
+            self.assertNotIn("outclk[0]", mapping["pins"])
+            self.assertEqual(mapping["pins"]["outclk[1]"], [0, "outclk[1]"])
+            self.assertIn("plug_addr_ff_0", prepared["cells"])
+            self.assertFalse(any(name.startswith("expansion.") for name in prepared["cells"]))
+        for extra in ("rst", "outclk[0]", "outclk[2]"):
+            design = frozen_shell()
+            design["modules"]["top"]["cells"]["system_clock.pll"]["connections"][extra] = [20]
+            with self.assertRaisesRegex(ValueError, "ST system PLL connection contract changed"):
+                card.prepare_scaffold(json.dumps(design).encode(), 1)
+        design = frozen_shell()
+        connections = design["modules"]["top"]["cells"]["system_clock.pll"]["connections"]
+        connections["outclk[1]"] = [20]
+        del connections["outclk"]
+        with self.assertRaisesRegex(ValueError, "ST system PLL connection contract changed"):
+            card.prepare_scaffold(json.dumps(design).encode(), 1)
+
     def test_scaffold_rejects_moved_boundary_clock_and_pll(self):
         for mutation in ("bel", "clock", "pll", "audio", "canonical"):
             with self.subTest(mutation=mutation):

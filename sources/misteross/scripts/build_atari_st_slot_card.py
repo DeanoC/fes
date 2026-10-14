@@ -73,10 +73,10 @@ def card_inputs(card: str) -> tuple[str, ...]:
 def prepare_scaffold(source: bytes, slot: int) -> bytes:
     """Frozen shell netlist with the chosen socket exposed as the cart plugs.
 
-    The routed JSON omits the system PLL's second output connection while
-    keeping its physical pin map and routed net: reattach that net to the
-    physical `outclk[1]` pin and drop the obsolete `outclk[0]` alias. The
-    socket's boundary must still be at its pinned BEL. The socket's
+    The routed JSON may omit the system PLL's second output or already list
+    split `outclk[1]`. Both forms are repaired onto the frozen audio net and
+    the obsolete `outclk[0]` alias is dropped. Any other PLL port is rejected.
+    The socket's boundary must still be at its pinned BEL. The socket's
     request/response flip-flops are renamed plug_addr_ff_N / plug_rdata_ff_N
     and its clock-coverage flip-flops are removed (their routed clock
     branches stay frozen for the card to extend inside its fence).
@@ -85,25 +85,7 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
     shell_recipe.validate_routed_shell(design)
     top = design["modules"]["top"]
     cells = top["cells"]
-    pll = cells["system_clock.pll"]
-    if pll["type"] != "altera_pll" or set(pll["connections"]) != {"outclk", "refclk", "locked"}:
-        raise ValueError("Atari ST system PLL connection contract changed")
-    mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]).decode())
-    aliases = {f"outclk[{bit}]": [0, f"outclk[{bit}]"] for bit in range(2)}
-    if mapping.get("count") != 6 or any(mapping["pins"].get(k) != v for k, v in aliases.items()):
-        raise ValueError("Atari ST system PLL frozen pin map changed")
-    output1 = top["netnames"].get("system_clock.pll_outclk_1", {}).get("bits")
-    clock1 = top["netnames"].get("system_clock.clocks[1]", {}).get("bits")
-    buffers = [c for c in cells.values() if c.get("type") == "MISTRAL_CLKBUF" and
-               c.get("connections", {}).get("Q") == clock1]
-    if not isinstance(output1, list) or len(output1) != 1 or len(buffers) != 1 or \
-            buffers[0]["connections"].get("A") != output1:
-        raise ValueError("Atari ST frozen audio PLL net changed")
-    pll["connections"]["outclk[1]"] = output1
-    pll["port_directions"]["outclk[1]"] = "output"
-    del mapping["pins"]["outclk[0]"]
-    mapping["count"] = len(mapping["pins"])
-    pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping, sort_keys=True).encode().hex()
+    atari_st_slot.repair_split_system_pll(top)
 
     if any(name.startswith(("plug_addr_ff_", "plug_rdata_ff_")) for name in cells):
         raise ValueError("frozen shell already exposes canonical plug cells")
