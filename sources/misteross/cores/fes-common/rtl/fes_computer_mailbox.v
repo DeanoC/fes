@@ -53,16 +53,19 @@ module fes_computer_mailbox #(
     input  wire [7:0]  media_read_data,
     output reg  [1:0]   unit0_state,
     output reg  [31:0]  unit0_size,
-    // Optional in-session launcher plane. Omitted ports stay idle so other
-    // computers keep their identity word. Held until the pixel-domain reply.
-    output reg          display_request = 1'b0,
-    output reg  [6:0]   display_opcode = 7'd0,
-    output reg  [7:0]   display_index = 8'd0,
-    output reg  [15:0]  display_argument = 16'd0,
-    input  wire         display_response_valid = 1'b0,
-    input  wire         display_response_error = 1'b0,
-    input  wire [15:0]  display_response_data = 16'd0,
-    input  wire         display_quiesced = 1'b1
+    // Optional in-session launcher plane (fes.memory.hps-ddr and
+    // fes.video.session-display). The simulation Verilog parser rejects
+    // ranged input defaults, so shells that leave the plane off tie the
+    // response inputs idle: valid/error/data 0 and quiesced 1. Request
+    // outputs may be ignored. A request is held until the pixel-domain reply.
+    output reg          display_request,
+    output reg  [6:0]   display_opcode,
+    output reg  [7:0]   display_index,
+    output reg  [15:0]  display_argument,
+    input  wire         display_response_valid,
+    input  wire         display_response_error,
+    input  wire [15:0]  display_response_data,
+    input  wire         display_quiesced
 );
     // Unit 0 is one drive. A shell enables one of the three media parameters.
     localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_C64_DISK | ENABLE_SPECTRUM_TAPE | ENABLE_ZX81_TAPE | ENABLE_ATARI_ST_FLOPPY;
@@ -155,7 +158,7 @@ module fes_computer_mailbox #(
     reg [9:0] chunk_length;
     reg [9:0] chunk_received;
     reg [7:0] ordinal;
-    reg display_wait = 1'b0;
+    reg display_wait;
 
     wire [4:0] unit8 = index[7:3];
     wire [2:0] field = index[2:0];
@@ -270,6 +273,11 @@ module fes_computer_mailbox #(
         chunk_length = 10'd0;
         chunk_received = 10'd0;
         ordinal = 8'd0;
+        display_request = 1'b0;
+        display_opcode = 7'd0;
+        display_index = 8'd0;
+        display_argument = 16'd0;
+        display_wait = 1'b0;
     end
 
     always @(posedge clk) begin

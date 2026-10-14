@@ -920,6 +920,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			return CompatibilityError(ErrorCode::unsupported_abi,
 				"FES computer packages may link only a firmware ROM");
 		bool video = false;
+		bool ddr = false;
+		bool display = false;
 		int media_units = 0;
 		int buses = 0;
 		for (const auto& interface : descriptor.interfaces) {
@@ -939,6 +941,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
                 interface.id == FesComputerInterfaceMediaAtariStFloppyGeometryID ||
 				interface.id == FesComputerInterfaceGamepadPortsID ||
 				interface.id == FesComputerInterfaceAudioPcmS16Stereo48kID ||
+				interface.id == FesComputerInterfaceMemoryHpsDdrID ||
+				interface.id == FesComputerInterfaceVideoSessionDisplayID ||
 				media;
 			const bool supported = (known || bus) && interface.major == 1 && interface.minor == 0;
 			if (!supported && interface.required)
@@ -956,6 +960,8 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 				return CompatibilityError(ErrorCode::unsupported_interface,
 					"computer operational interfaces must be required when declared");
 			if (interface.id == FesComputerInterfaceVideoFixed720p60ID) video = true;
+			if (interface.id == FesComputerInterfaceMemoryHpsDdrID) ddr = true;
+			if (interface.id == FesComputerInterfaceVideoSessionDisplayID) display = true;
 			if (media) media_units++;
 		}
 		bool writable = false, geometry = false, st_medium = false;
@@ -964,6 +970,9 @@ Error CheckCoreCompatibility(const CoreDescriptor& descriptor)
 			writable |= interface.id == FesComputerInterfaceMediaAtariStFloppyWriteID && interface.required && interface.major == 1 && interface.minor == 0;
 			st_medium |= interface.id == FesComputerInterfaceMediaAtariStFloppyID && interface.required && interface.major == 1 && interface.minor == 0;
 		}
+		if (display && !ddr)
+			return CompatibilityError(ErrorCode::unsupported_interface,
+				"session display requires HPS DDR");
 		if ((writable || geometry) && !st_medium) return CompatibilityError(ErrorCode::unsupported_interface, "Atari ST media extensions require the base floppy interface");
 		if (media_units > 1 || buses > 1)
 			return CompatibilityError(ErrorCode::unsupported_interface,

@@ -16,6 +16,10 @@ module computer_interaction_sim_top (
  wire [1:0] buttons;
  wire [143:0] keys;
  wire [15:0] controllers;
+ wire unused_display_request;
+ wire [6:0] unused_display_opcode;
+ wire [7:0] unused_display_index;
+ wire [15:0] unused_display_argument;
  wire tx_valid,tx_ready,rx_valid,rx_ready;
  wire [7:0] tx_data,rx_data;
  assign mouse_ready=allow_mouse&&ik_mouse_ready;
@@ -30,7 +34,9 @@ module computer_interaction_sim_top (
  .media_write_addr(media_write_addr),.media_write_data(media_write_data),.media_write_enable(media_write_enable),.media_write_ready(1'b1),
  .media_write_busy(media_write_busy),.media_changed(media_changed),.media_frozen(media_frozen),
  .media_read_req(media_read_req),.media_read_addr(media_read_addr),.media_read_ready(media_read_ready),.media_read_data(media_read_data),
- .unit0_state(unit0_state),.unit0_size(unit0_size));
+ .unit0_state(unit0_state),.unit0_size(unit0_size),
+ .display_request(unused_display_request),.display_opcode(unused_display_opcode),.display_index(unused_display_index),.display_argument(unused_display_argument),
+ .display_response_valid(1'b0),.display_response_error(1'b0),.display_response_data(16'd0),.display_quiesced(1'b1));
  st_ikbd #(.SYSTEM_CLOCK_HZ(500000)) ikbd (.clk(clk),.reset(exec_reset),
  .command_valid(tx_valid),.command_data(tx_data),.command_ready(tx_ready),
  .response_valid(rx_valid),.response_data(rx_data),.response_ready(rx_ready),

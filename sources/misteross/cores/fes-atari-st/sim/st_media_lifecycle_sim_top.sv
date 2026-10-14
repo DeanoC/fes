@@ -27,6 +27,10 @@ module st_media_lifecycle_sim_top (
     wire signed [15:0] unused_mouse_dx, unused_mouse_dy;
     wire [1:0] unused_mouse_buttons;
     wire [19:0] unused_snapshot_addr;
+    wire unused_display_request;
+    wire [6:0] unused_display_opcode;
+    wire [7:0] unused_display_index;
+    wire [15:0] unused_display_argument;
     assign client_ready = ready;
     fes_computer_mailbox #(
         .ENABLE_ATARI_ST_FLOPPY(1), .ENABLE_ATARI_ST_FLOPPY_WRITE(1),
@@ -44,7 +48,11 @@ module st_media_lifecycle_sim_top (
         .media_write_busy(writer_busy), .media_changed(changed), .media_frozen(frozen),
         .media_read_req(unused_snapshot_req), .media_read_addr(unused_snapshot_addr),
         .media_read_ready(1'b0), .media_read_data(8'd0),
-        .unit0_state(unit0_state), .unit0_size(unit0_size)
+        .unit0_state(unit0_state), .unit0_size(unit0_size),
+        .display_request(unused_display_request), .display_opcode(unused_display_opcode),
+        .display_index(unused_display_index), .display_argument(unused_display_argument),
+        .display_response_valid(1'b0), .display_response_error(1'b0),
+        .display_response_data(16'd0), .display_quiesced(1'b1)
     );
     st_media_writer upload (
         .clk(clk), .cold_reset(cold_reset), .source_addr(host_addr), .source_data(host_data),

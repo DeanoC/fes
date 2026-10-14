@@ -3630,8 +3630,87 @@ void TestComputerSlotCompositionActivatesLinkedPayload()
 	}
 }
 
+// The interface table matches build_fes_zx81_oss._manifest. Inspection and
+// admission follow the kit advertisement: boot DDR layout plus both
+// presentation adapters.
+void TestZx81ComputerDisplayPackageAdmittedWhenAdvertised()
+{
+	using namespace mister::native;
+	using namespace mister::native::generated;
+	TempDirectory package;
+	std::string manifest = ReadText("tests/fixtures/core-bundle-v2/manifests/valid-basic.toml");
+	ReplaceAll(&manifest, "fes.simple-game", "fes.computer");
+	ReplaceAll(&manifest, "fes.gamepad", "fes.keyboard.hid");
+	manifest +=
+		"\n[[interfaces]]\nid = \"fes.gamepad.ports\"\nmajor = 1\nminor = 0\nrequired = true\n"
+		"\n[[interfaces]]\nid = \"fes.audio.pcm-s16-stereo-48k\"\nmajor = 1\nminor = 0\nrequired = true\n"
+		"\n[[interfaces]]\nid = \"fes.media.zx81-tape\"\nmajor = 1\nminor = 0\nrequired = true\n"
+		"\n[[interfaces]]\nid = \"fes.memory.hps-ddr\"\nmajor = 1\nminor = 0\nrequired = true\n"
+		"\n[[interfaces]]\nid = \"fes.video.session-display\"\nmajor = 1\nminor = 0\nrequired = true\n"
+		"\n[[interfaces]]\nid = \"fes.expansion.zx81-bus\"\nmajor = 2\nminor = 0\nrequired = false\n";
+	package.File("manifest.toml", manifest);
+	package.File("core.rbf", ReadText("tests/fixtures/core-bundle-v2/payloads/fes-fixture.rbf"));
+	OpenedCorePackage opened;
+	assert(OpenCorePackage(package.path, "", &opened).ok());
+	assert(opened.descriptor.abi.id == FesComputerABIID);
+	assert(CheckCoreCompatibility(opened.descriptor).ok());
+
+	auto advertised = [](const NativeHardware& hardware, const char* id) {
+		for (const auto& abi : hardware.capabilities().abis)
+			if (abi.id == FesComputerABIID)
+				for (const auto& interface : abi.interfaces)
+					if (interface.id == id) return true;
+		return false;
+	};
+	struct Case {
+		bool layout;
+		bool adapters;
+		bool admit;
+	};
+	const Case cases[] = {{false, true, false}, {true, false, false}, {true, true, true}};
+	for (const Case& item : cases) {
+		std::vector<std::string> events;
+		RecordingOpener opener(events);
+		RecordingFpga fpga(events);
+		fpga.boot_hps_ddr_layout = item.layout;
+		mister_test::FakeMmio mmio;
+		FixedClock clock(100);
+		FesGp transport(mmio, clock);
+		FesGpCoreDriver driver(transport);
+		MenuDisplayDriver display(transport, clock);
+		MenuOperations operations;
+		MenuMemory memory(operations);
+		RecordingI2c i2c(events);
+		RecordingVideo idle_video(events);
+		LedgerLog log(events);
+		FixedVideoBringup video(i2c, clock, log, Menu720p60Recipe());
+		RecordingInput input(events, clock);
+		TempDirectory splash;
+		const InputDeviceIdentity identity = {"test", 0, 0, 0, 0};
+		NativeHardware hardware(opener, fpga, idle_video, video, input, identity, clock, log,
+			splash.File("idle.rbf", "idle"), {30000, 10000, 10000}, &driver, {"/tmp"},
+			SplashIdle(), item.adapters ? &display : nullptr, item.adapters ? &memory : nullptr);
+		mister::CorePackageInspection inspection;
+		assert(hardware.InspectCorePackage(package.path, opened.package_id, &inspection).ok());
+		std::unique_ptr<mister::AdmittedCorePackage> admitted;
+		const mister::Error admission = hardware.AdmitCorePackage(
+			package.path, opened.package_id, &admitted);
+		assert(advertised(hardware, FesComputerInterfaceMemoryHpsDdrID) == item.admit);
+		assert(advertised(hardware, FesComputerInterfaceVideoSessionDisplayID) == item.admit);
+		if (item.admit) {
+			assert(inspection.compatible);
+			assert(admission.ok());
+		} else {
+			assert(!inspection.compatible);
+			assert(inspection.compatibility_error.code == mister::ErrorCode::unsupported_interface);
+			assert(admission.code == mister::ErrorCode::unsupported_interface);
+		}
+	}
+}
+
 int main()
 {
+	TestZx81ComputerDisplayPackageAdmittedWhenAdvertised();
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming();
 	TestLibraryPartsChecksCoreNamespaceBeforeProgramming(true);
  TestSessionDisplayPreservesMachineOnCloseAndPlaneFailure();

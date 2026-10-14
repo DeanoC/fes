@@ -241,8 +241,10 @@ module top #(
     );
 
     wire [23:0] hdmi_rgb;
-    // Launcher pixels replace machine RGB only after a completed frame.
-    // Closing the plane returns {red,green,blue} without reprogramming.
+    // Shipped HDMI contract: the in-core fes.video.session-display plane,
+    // backed by fes.memory.hps-ddr. Launcher sessions composite frames here.
+    // A closed plane selects machine RGB on the next frame boundary and does
+    // not reprogram the core.
     zx81_session_display display (
         .clk_sys(clk_sys), .pixel_clk(pixel_clk), .reset_hold(~pixel_locked),
         .exec_reset(exec_reset), .request(display_request), .opcode(display_opcode),

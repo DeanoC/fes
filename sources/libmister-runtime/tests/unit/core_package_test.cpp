@@ -420,10 +420,13 @@ void TestApplicationCompatibilityComposesInterfaces()
 		other.abi = {abi, 1, 0};
 		other.interfaces = {{"fes.video.fixed-720p60", 1, 0, true},
 			{"fes.memory.hps-ddr", 1, 0, true}};
-		if (other.abi.id == "fes.simple-game")
+		if (other.abi.id == "fes.simple-game") {
 			other.interfaces.push_back({"fes.gamepad", 1, 0, true});
-		assert(mister::native::CheckCoreCompatibility(other).code ==
-			mister::ErrorCode::unsupported_interface);
+			assert(mister::native::CheckCoreCompatibility(other).code ==
+				mister::ErrorCode::unsupported_interface);
+		} else {
+			assert(mister::native::CheckCoreCompatibility(other).ok());
+		}
 	}
 	descriptor.interfaces.push_back({"vendor.extension", 9, 9, false});
 	assert(mister::native::CheckCoreCompatibility(descriptor).ok());
@@ -824,6 +827,26 @@ void TestComputerCompatibilityComposesRecognizedInterfaces()
 	auto zx81_tape = video;
 	zx81_tape.interfaces.push_back({"fes.media.zx81-tape", 1, 0, true});
 	assert(check(zx81_tape).ok());
+	// Sealed ZX81 producer manifest: required DDR and session display, plus
+	// the optional rear bus. Session display without DDR is rejected.
+	auto zx81 = video;
+	zx81.interfaces.push_back({"fes.keyboard.hid", 1, 0, true});
+	zx81.interfaces.push_back({"fes.gamepad.ports", 1, 0, true});
+	zx81.interfaces.push_back({"fes.audio.pcm-s16-stereo-48k", 1, 0, true});
+	zx81.interfaces.push_back({"fes.media.zx81-tape", 1, 0, true});
+	zx81.interfaces.push_back({"fes.video.session-display", 1, 0, true});
+	assert(check(zx81).code == mister::ErrorCode::unsupported_interface);
+	zx81.interfaces.push_back({"fes.memory.hps-ddr", 1, 0, true});
+	zx81.interfaces.push_back({"fes.expansion.zx81-bus", 2, 0, false});
+	assert(check(zx81).ok());
+	for (std::size_t index = zx81.interfaces.size() - 3; index < zx81.interfaces.size() - 1; ++index) {
+		auto invalid = zx81;
+		invalid.interfaces[index].required = false;
+		assert(check(invalid).code == mister::ErrorCode::unsupported_interface);
+		invalid = zx81;
+		invalid.interfaces[index].minor = 1;
+		assert(check(invalid).code == mister::ErrorCode::unsupported_interface);
+	}
 	for (const char* medium : {"fes.media.apple2-floppy", "fes.media.c64-disk", "fes.media.spectrum-tape", "fes.media.zx81-tape"}) {
 		auto mixed = atari;
 		mixed.interfaces.push_back({medium, 1, 0, true});

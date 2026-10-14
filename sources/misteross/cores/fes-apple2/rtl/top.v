@@ -74,7 +74,10 @@ module top #(
         .media_read_req(), .media_read_addr(), .media_read_ready(1'b0), .media_read_data(8'd0),
         .media_write_addr(media_write_addr), .media_write_data(media_write_data),
         .media_write_enable(media_write_enable), .media_write_ready(1'b1), .unit0_state(unit0_state),
-        .unit0_size()
+        .unit0_size(),
+        .display_request(), .display_opcode(), .display_index(), .display_argument(),
+        .display_response_valid(1'b0), .display_response_error(1'b0),
+        .display_response_data(16'd0), .display_quiesced(1'b1)
     );
 
     wire key_event;
