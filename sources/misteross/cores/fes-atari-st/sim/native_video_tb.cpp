@@ -229,9 +229,23 @@ struct Test {
         dut.clk_sys=1;dut.eval();dut.clk_sys=0;dut.eval();++sys_cycles;
     }
     void vblank(){
-        dut.native_vblank=1;dut.native_display=0;dut.native_line=0;dut.native_cycle=0;dut.native_pixel_ce=1;
+        dut.native_vblank=1;dut.native_display=0;dut.native_line=0;dut.native_cycle=0;
+        dut.native_pixel_ce=1;dut.native_lookup_ce=0;
         sys_tick();
         dut.native_vblank=0;dut.native_pixel_ce=0;
+    }
+    // One visible border point, using the same two edges as a CPU tick.
+    // Lookup registers the raw phase-2 line, cycle and palette. The native
+    // pulse follows and shifts that point into the capture pipeline. Events
+    // are taken from the delayed token, so the colour has to change on the
+    // lookup itself; a pixel-only step never reaches the border buffer.
+    void border_sample(unsigned line,unsigned cycle,unsigned colour){
+        dut.native_vblank=0;dut.native_display=0;
+        dut.native_line=line;dut.native_cycle=cycle;
+        dut.native_lookup_ce=1;dut.native_pixel_ce=0;
+        palette(0,colour);sys_tick();
+        dut.native_lookup_ce=0;dut.native_pixel_ce=1;sys_tick();
+        dut.native_pixel_ce=0;
     }
     // One dense capture, then Hold across later blanks. The stuck overflow
     // must increment debug_underruns once and again only after a new capture.
@@ -242,10 +256,9 @@ struct Test {
         while(!dut.border_overflow){
             const unsigned x=steps%416,row=steps/416;
             require(row<276,"border capture did not overflow");
-            dut.native_line=34+row;dut.native_cycle=8+x;dut.native_pixel_ce=1;
-            palette(0,steps&0x1ff);sys_tick();++steps;
+            border_sample(34+row,8+x,steps&0x1ff);++steps;
         }
-        dut.native_pixel_ce=0;sys_tick();
+        sys_tick();
         require(dut.underruns==1,"border overflow did not count once");
         const unsigned counted=dut.underruns;
         dut.hold=1;
@@ -263,10 +276,9 @@ struct Test {
         while(!dut.border_overflow){
             const unsigned x=steps%416,row=steps/416;
             require(row<276,"second border capture did not overflow");
-            dut.native_line=34+row;dut.native_cycle=8+x;dut.native_pixel_ce=1;
-            palette(0,steps&0x1ff);sys_tick();++steps;
+            border_sample(34+row,8+x,steps&0x1ff);++steps;
         }
-        dut.native_pixel_ce=0;sys_tick();
+        sys_tick();
         require(dut.underruns==counted+1,"a new border overflow did not count once");
     }
     void reset_capture(){
