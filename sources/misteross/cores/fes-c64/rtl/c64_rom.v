@@ -23,7 +23,12 @@ module c64_rom (
     wire [7:0] source_data;
 `ifdef VERILATOR
     reg [7:0] memory [0:16383];
-    initial $readmemh("build/diagnostics/fes-c64/firmware.hex", memory);
+    string firmware_hex;
+    initial begin
+        if (!$value$plusargs("C64_FIRMWARE_HEX=%s", firmware_hex))
+            firmware_hex = "build/diagnostics/fes-c64/firmware.hex";
+        $readmemh(firmware_hex, memory);
+    end
     reg [7:0] sim_stage;
     always @(posedge clk) sim_stage <= memory[address];
     assign source_data = sim_stage;

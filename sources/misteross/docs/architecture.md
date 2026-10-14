@@ -1688,6 +1688,13 @@ runner confirms the live disk is ready before sending those inputs; it uses
 launch's existing ready input stream instead of attaching twice. This is an
 operator-gated diagnostic, not pre-release initial-disk mounting or write-back
 support. Atari ST's startup and durable writable-disk contract remains separate.
+A separate `make sim-fes-c64-boot-build` harness leaves cartridge sockets
+vacant and observes external BASIC/KERNAL firmware on the real machine RTL.
+`scripts/c64_boot_observe.py` validates exact input lengths, supplies simulation-only
+firmware/disk memory paths and retains hashes, RAM, a complete HDMI frame and
+screen-code output after two simulated seconds with the production clock ratio.
+It sends no LOAD command and makes no boot/demo acceptance assertion; the
+physical ROM map and media mailbox are unchanged. See the core README.
 Both CIA timers expose their live counters, load stopped counters on high-byte
 writes, treat force-load as a strobe, and implement continuous/one-shot counting.
 Timer B can count Phi2 or timer A underflows. CIA1 asserts IRQ and CIA2 asserts

@@ -187,7 +187,8 @@ static int run(bool delayed) {
     return 1;
 }
 
-int main() {
+int main(int argc, char **argv) {
+    Verilated::commandArgs(argc, argv);
     if (run(false)) return 1;
     return run(true);
 }

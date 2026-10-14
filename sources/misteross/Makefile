@@ -1057,6 +1057,15 @@ sim-fes-c64-color-ram:
 		"$(CURDIR)/cores/fes-c64/sim/color_ram_tb.cpp"
 	@build/sim/fes-c64-color-ram/Vc64_color_ram
 
+.PHONY: sim-fes-c64-boot-build
+sim-fes-c64-boot-build:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-boot
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-boot" \
+		cores/fes-c64/sim/c64_boot_sim_top.sv $(C64_RTL) \
+		"$(CURDIR)/cores/fes-c64/sim/boot_tb.cpp"
+
 sim-fes-c64: c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
