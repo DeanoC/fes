@@ -123,3 +123,29 @@ func TestManifestFormatForwardsOptionalFields(t *testing.T) {
 		t.Fatal("accepted duplicate unknown field")
 	}
 }
+
+func TestHigherMinorCaseVariantDoesNotOverwrite(t *testing.T) {
+	// The case variant follows the recognized field. encoding/json keeps the
+	// last case-insensitive match, so this is the order that used to replace
+	// a value the exact-name scan had already accepted.
+	input := strings.TrimSuffix(withManifestFormat("1.1", `"image_passes":2`), "}") + `,"Version":"v2","Image_Passes":0}`
+	m, ignored, e := DecodeManifest(strings.NewReader(input))
+	if e != nil || m.Version != "v1" || m.ImagePasses != 2 || m.ManifestFormat != "1.1" {
+		t.Fatalf("case variant overwrote manifest: %+v ignored %v err %v", m, ignored, e)
+	}
+	if len(ignored) != 2 || ignored[0] != "Version" || ignored[1] != "Image_Passes" {
+		t.Fatalf("ignored %v", ignored)
+	}
+	raw, e := json.Marshal(m)
+	if e != nil || !bytes.Contains(raw, []byte(`"version":"v1"`)) || !bytes.Contains(raw, []byte(`"image_passes":2`)) || bytes.Contains(raw, []byte(`"v2"`)) || bytes.Contains(raw, []byte("Image_Passes")) {
+		t.Fatalf("remarshal kept the case variant: %s %v", raw, e)
+	}
+	closed := strings.TrimSuffix(validJSON(), "}") + `,"Version":"v2"}`
+	if _, _, e = DecodeManifest(strings.NewReader(closed)); e == nil {
+		t.Fatal("accepted a case variant on manifest format 1.0")
+	}
+	onlyVariant := strings.Replace(withManifestFormat("1.1", ""), `"version":"v1"`, `"Version":"v2"`, 1)
+	if _, _, e = DecodeManifest(strings.NewReader(onlyVariant)); e == nil {
+		t.Fatal("accepted Version in place of version")
+	}
+}

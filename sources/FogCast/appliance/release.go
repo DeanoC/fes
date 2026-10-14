@@ -84,8 +84,9 @@ func (m Manifest) Compatible(kernelSHA string) error {
 }
 
 // DecodeManifest reads one release manifest. manifest_format is optional
-// "major.minor"; a missing value means 1.0. The same major with a higher minor
-// may carry unknown optional fields. Those names are returned so the update
+// "major.minor"; a missing value means 1.0. Field names match exactly. The
+// same major with a higher minor may carry unknown optional fields, including
+// a case variant of a recognized name. Those names are returned so the update
 // path can log them, and they are not kept on Manifest. An unknown major, a
 // duplicate, or a missing or malformed required field is rejected.
 // image_passes stays optional. When present it must be a positive integer and
@@ -108,6 +109,7 @@ func DecodeManifest(r io.Reader) (Manifest, []string, error) {
 	}
 	var ignored []string
 	var formatRaw json.RawMessage
+	recognized := make(map[string]json.RawMessage, len(names))
 	seenName := map[string]bool{}
 	d := json.NewDecoder(bytes.NewReader(b))
 	t, e := d.Token()
@@ -140,6 +142,7 @@ func DecodeManifest(r io.Reader) (Manifest, []string, error) {
 			continue
 		}
 		fields[n] = true
+		recognized[n] = append(json.RawMessage(nil), raw...)
 		if n == "image_passes" {
 			if e = validateImagePasses(raw); e != nil {
 				return m, nil, e
@@ -177,7 +180,14 @@ func DecodeManifest(r io.Reader) (Manifest, []string, error) {
 			return m, nil, fmt.Errorf("missing manifest field %q", n)
 		}
 	}
-	if e = json.Unmarshal(b, &m); e != nil {
+	// encoding/json matches struct fields case-insensitively and keeps the last
+	// match. Unmarshal only the exact recognized values so a trailing case
+	// variant cannot replace a field that already passed validation.
+	filtered, e := json.Marshal(recognized)
+	if e != nil {
+		return m, nil, e
+	}
+	if e = json.Unmarshal(filtered, &m); e != nil {
 		return m, nil, e
 	}
 	if minor <= ManifestFormatMinor {
