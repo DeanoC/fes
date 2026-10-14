@@ -47,6 +47,8 @@ def rendered_capture(directory, proof):
     entries = [json.loads(line) for line in sealed(trace_name).splitlines()]
     previous = 0
     saved = []
+    unsaved_claims = []
+    nonrepeated = []
     for entry in entries:
         if entry['hdmi_frame'] <= previous or entry['end_cycle'] <= entry['start_cycle']:
             raise ValueError('invalid rendered frame chronology')
@@ -56,8 +58,16 @@ def rendered_capture(directory, proof):
             raise ValueError('rendered canvas geometry mismatch')
         full_name, native_name = entry['hdmi_file'], entry['canvas_file']
         if not full_name:
+            # The trace still records a replication flag, but no HDMI PPM was
+            # saved, so that flag is a claim rather than a pixel result.
             if native_name:
                 raise ValueError('reduced canvas lacks HDMI source')
+            claimed, valid = entry['repeat_2x2'], entry['valid']
+            if not isinstance(claimed, bool) or not isinstance(valid, bool):
+                raise ValueError('unsaved rendered frame metadata is invalid')
+            unsaved_claims.append({
+                'hdmi_frame': entry['hdmi_frame'], 'native_frame': entry['native_frame'],
+                'valid': valid, 'repeat_2x2_claimed': claimed, 'pixel_verified': False})
             continue
         if not entry['valid']:
             raise ValueError('saved rendered frame is invalid')
@@ -79,10 +89,12 @@ def rendered_capture(directory, proof):
                 raise ValueError('reduced canvas differs from HDMI source')
         elif repeated:
             raise ValueError('replicated saved HDMI frame lacks reduced canvas')
+        if not repeated:
+            nonrepeated.append(entry['hdmi_frame'])
         saved.append({'hdmi_frame': entry['hdmi_frame'], 'native_frame': entry['native_frame'],
                       'hdmi_file': full_name, 'canvas_file': native_name, 'repeat_2x2': repeated})
     return {'complete_hdmi_frames_in_window': len(entries), 'saved_frames': saved,
-            'nonrepeated_frames': [e['hdmi_frame'] for e in entries if not e['repeat_2x2']]}
+            'nonrepeated_frames': nonrepeated, 'unsaved_replication_claims': unsaved_claims}
 
 
 def analyse(directory):

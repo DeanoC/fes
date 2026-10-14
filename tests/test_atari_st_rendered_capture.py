@@ -70,6 +70,7 @@ int main() {
             result = raster.rendered_capture(path,proof)
             self.assertEqual(result['saved_frames'][0]['native_frame'],23)
             self.assertEqual(result['nonrepeated_frames'],[])
+            self.assertEqual(result['unsaved_replication_claims'],[])
             # Matching manifest hashes cannot conceal a bad derived image.
             data=bytearray((path/native_name).read_bytes());data[-1]=1
             (path/native_name).write_bytes(data);seal()
@@ -95,10 +96,59 @@ int main() {
                 proof['artifacts']={p.name:hashlib.sha256(p.read_bytes()).hexdigest()
                                      for p in path.iterdir()}
             seal()
-            self.assertEqual(raster.rendered_capture(path,proof)['nonrepeated_frames'],[1])
+            checked = raster.rendered_capture(path,proof)
+            self.assertEqual(checked['nonrepeated_frames'],[1])
+            self.assertEqual(checked['unsaved_replication_claims'],[])
             entry['repeat_2x2']=True;seal()
             with self.assertRaisesRegex(ValueError,'replication claim'):
                 raster.rendered_capture(path,proof)
             entry['hdmi_file']='../demo-full.ppm';seal()
             with self.assertRaisesRegex(ValueError,'artifact name'):
+                raster.rendered_capture(path,proof)
+
+    def test_unsaved_replication_claim_is_not_a_pixel_finding(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            full = bytearray(1280*720*3)
+            full[((84+1)*1280+225)*3] = 1
+            (path/'demo-full.ppm').write_bytes(b'P6\n1280 720\n255\n'+full)
+            saved = {'hdmi_frame':1,'native_frame':7,'start_cycle':10,'end_cycle':20,
+                     'pal':True,'valid':True,'canvas_xywh':[224,84,832,552],
+                     'repeat_2x2':False,'hdmi_file':'demo-full.ppm','canvas_file':''}
+            unsaved = {'hdmi_frame':2,'native_frame':8,'start_cycle':30,'end_cycle':40,
+                       'pal':True,'valid':True,'canvas_xywh':[224,84,832,552],
+                       'repeat_2x2':False,'hdmi_file':'','canvas_file':''}
+            proof = {'rendered_capture':{'trace':'demo-rendered.jsonl'},'artifacts':{}}
+            def seal(*rows):
+                (path/'demo-rendered.jsonl').write_text(''.join(json.dumps(row)+'\n' for row in rows))
+                proof['artifacts'] = {p.name:hashlib.sha256(p.read_bytes()).hexdigest()
+                                       for p in path.iterdir()}
+            seal(unsaved)
+            claimed_only = raster.rendered_capture(path,proof)
+            self.assertEqual(claimed_only['nonrepeated_frames'],[])
+            self.assertEqual(claimed_only['saved_frames'],[])
+            self.assertEqual(claimed_only['unsaved_replication_claims'],[{
+                'hdmi_frame':2,'native_frame':8,'valid':True,
+                'repeat_2x2_claimed':False,'pixel_verified':False}])
+            seal(saved, unsaved)
+            mixed = raster.rendered_capture(path,proof)
+            self.assertEqual(mixed['nonrepeated_frames'],[1])
+            self.assertEqual(mixed['unsaved_replication_claims'][0]['hdmi_frame'],2)
+            self.assertFalse(mixed['unsaved_replication_claims'][0]['pixel_verified'])
+            unsaved['valid'] = False
+            unsaved['repeat_2x2'] = True
+            seal(unsaved)
+            invalid = raster.rendered_capture(path,proof)['unsaved_replication_claims'][0]
+            self.assertFalse(invalid['valid'])
+            self.assertTrue(invalid['repeat_2x2_claimed'])
+            unsaved['repeat_2x2'] = 'false';seal(unsaved)
+            with self.assertRaisesRegex(ValueError,'metadata is invalid'):
+                raster.rendered_capture(path,proof)
+            unsaved['repeat_2x2'] = False
+            unsaved['valid'] = 'true';seal(unsaved)
+            with self.assertRaisesRegex(ValueError,'metadata is invalid'):
+                raster.rendered_capture(path,proof)
+            unsaved['valid'] = True
+            unsaved['canvas_file'] = 'demo-canvas.ppm';seal(unsaved)
+            with self.assertRaisesRegex(ValueError,'lacks HDMI source'):
                 raster.rendered_capture(path,proof)
