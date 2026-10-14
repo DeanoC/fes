@@ -5,7 +5,12 @@ module st_system #(
     // https://github.com/hatari/hatari/blob/v2.5.0/src/clocks_timings.c
     parameter integer CPU_CLOCK_HZ = 8_021_247,
     parameter integer ENABLE_FLOPPY_WRITE = 0,
-    parameter integer MFP_WAIT_STATES = 0,
+    parameter integer MFP_WAIT_STATES = 4,
+    parameter integer PSG_WAIT_STATES = 4,
+    // MFP CLK is CPU/2, distinct from its timer crystal. Use the board
+    // phase by default; -1 bypasses timing and 0..3 permit clock diagnostics.
+    parameter integer MFP_IACK_PHASE = 1,
+    parameter RAW_MFP_IACK = 1,
     parameter EARLY_RAM_WRITE_COMPLETION = 0
 ) (
     input wire clk_sys, reset, cold_reset,
@@ -66,6 +71,8 @@ module st_system #(
     output wire [23:0] debug_addr,
     output wire debug_bus_error, debug_overlay, debug_halted,
     output wire vblank, hblank, native_display,
+    output wire native_short_line, native_blank,
+    output wire [8:0] native_word_loss,
     output wire [8:0] native_line, native_cycle,
     output wire native_pixel_ce
 );
@@ -74,6 +81,15 @@ module st_system #(
     wire [2:0] io_irq;
     wire io_vectored;
     wire [7:0] irq_vector;
+    wire irq_vector_ready, irq_data_strobe, irq_iack_pin;
+    generate if (MFP_IACK_PHASE < 0) begin
+        assign irq_vector_ready = 1'b1;
+    end else begin
+        st_mfp_iack_timing #(.PHASE(MFP_IACK_PHASE)) iack_timing (
+            .clk(clk_sys), .reset(reset), .phi1(exp_phi1), .phi2(exp_phi2),
+            .iack(RAW_MFP_IACK ? irq_iack_pin : irq_ack && irq_level == 3'd6), .ds(irq_data_strobe),
+            .ready(irq_vector_ready));
+    end endgenerate
     wire [23:0] video_counter;
     wire [2:0] machine_irq = io_irq >= exp_irq ? io_irq : exp_irq;
     wire irq_vectored = io_vectored && io_irq >= exp_irq;
@@ -81,7 +97,7 @@ module st_system #(
     // is empty. A plugged part owns the response and may insert wait states.
     wire empty_cartridge = !exp_present && exp_addr >= 23'h7d0000 && exp_addr < 23'h7e0000;
     assign exp_req = bus_req && !io_selected;
-    st_machine #(.CPU_CLOCK_HZ(CPU_CLOCK_HZ), .EARLY_RAM_WRITE_COMPLETION(EARLY_RAM_WRITE_COMPLETION)) machine (
+    st_machine #(.CPU_CLOCK_HZ(CPU_CLOCK_HZ), .EARLY_RAM_WRITE_COMPLETION(EARLY_RAM_WRITE_COMPLETION), .TIMED_MFP_IACK(MFP_IACK_PHASE >= 0)) machine (
         .clk_sys(clk_sys), .reset(reset),
         .rom_req(rom_req), .rom_addr(rom_addr), .rom_rdata(rom_rdata), .rom_ready(rom_ready),
         .ram_req(ram_req), .ram_addr(ram_addr), .ram_wdata(ram_wdata),
@@ -93,6 +109,7 @@ module st_system #(
         .exp_ack(io_selected ? io_ack : exp_ack || empty_cartridge), .exp_berr(!io_selected && exp_berr),
         .exp_rdata(io_selected ? io_rdata : empty_cartridge ? 16'hffff : exp_rdata), .exp_irq(machine_irq),
         .irq_vectored(irq_vectored), .irq_vector(irq_vector), .irq_ack(irq_ack), .irq_level(irq_level),
+        .irq_data_strobe(irq_data_strobe), .irq_iack_pin(irq_iack_pin), .irq_vector_ready(irq_vector_ready),
         // Native cycle labels advance on CPU phase 2. Phase 1 is the
         // palette acceptance window in this counter's coordinate system.
         .palette_ready(native_cycle[1:0] == 2'd1),
@@ -100,8 +117,9 @@ module st_system #(
         .palette(palette), .sync_mode(sync_mode), .debug_addr(debug_addr),
         .debug_bus_error(debug_bus_error), .debug_overlay(debug_overlay), .debug_halted(debug_halted)
     );
-    st_io #(.CPU_CLOCK_HZ(CPU_CLOCK_HZ), .ENABLE_FLOPPY_WRITE(ENABLE_FLOPPY_WRITE), .MFP_WAIT_STATES(MFP_WAIT_STATES)) io (
-        .clk(clk_sys), .reset(exp_reset), .cold_reset(cold_reset), .cpu_cycle_ce(exp_phi2), .req(bus_req), .addr(exp_addr),
+    st_io #(.CPU_CLOCK_HZ(CPU_CLOCK_HZ), .ENABLE_FLOPPY_WRITE(ENABLE_FLOPPY_WRITE), .MFP_WAIT_STATES(MFP_WAIT_STATES), .PSG_WAIT_STATES(PSG_WAIT_STATES)) io (
+        .clk(clk_sys), .reset(exp_reset), .cold_reset(cold_reset), .cpu_cycle_ce(exp_phi2),
+        .cpu_data_strobe(irq_data_strobe), .req(bus_req), .addr(exp_addr),
         .write(exp_write), .wdata(exp_wdata), .byte_enable(exp_byte_enable),
         .selected(io_selected), .ack(io_ack), .rdata(io_rdata),
         .irq(io_irq), .irq_vectored(io_vectored), .irq_vector(irq_vector),
@@ -118,6 +136,46 @@ module st_system #(
         .dma_req(dma_req), .dma_write(dma_write), .dma_rdata(dma_rdata), .dma_addr(dma_addr), .dma_wdata(dma_wdata),
         .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .vblank(vblank), .hblank(hblank),
         .native_display(native_display), .native_line(native_line),
+        .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss),
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce)
     );
+endmodule
+
+// MC68901 bus-clock handshake, separate from the timer crystal.
+// Motorola MC68901 Fig9: qualify IACK on a falling CLK; DTACK is launched
+// 3.5 CLK periods later. CLK is CPU/2, so seven half-period edges follow.
+// Table AC row4 requires50ns setup. Three SYS periods conservatively meet it
+// at52.224MHz. Registered inputs rise after a SYS edge: age2 at the
+// third subsequent sampling edge means three elapsed periods. Output
+// propagation is ideal here; physical max is180ns.
+module st_mfp_iack_timing #(parameter integer PHASE = 1) (
+    input wire clk, reset, phi1, phi2, iack, ds,
+    output reg ready
+);
+    reg clock_level, started;
+    reg [2:0] elapsed_half_periods;
+    reg [1:0] setup_age;
+    wire clock_edge = PHASE >= 2 ? phi1 : phi2;
+    always @(posedge clk) begin
+        if (reset) begin
+            clock_level <= (PHASE % 2) != 0;
+            started <= 0; ready <= 0; setup_age <= 0;
+            elapsed_half_periods <= 0;
+        end else begin
+            if (clock_edge) clock_level <= !clock_level;
+            if (!iack || !ds) begin
+                started <= 0; ready <= 0; setup_age <= 0;
+                elapsed_half_periods <= 0;
+            end else begin
+                if (setup_age != 3) setup_age <= setup_age + 1'b1;
+                if (clock_edge && !started && clock_level && setup_age >= 2) begin
+                    started <= 1;
+                    elapsed_half_periods <= 0;
+                end else if (clock_edge && started && !ready) begin
+                    elapsed_half_periods <= elapsed_half_periods + 1'b1;
+                    if (elapsed_half_periods == 6) ready <= 1;
+                end
+            end
+        end
+    end
 endmodule

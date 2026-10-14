@@ -7,6 +7,7 @@ module st_machine #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
     parameter integer CPU_CLOCK_HZ = 8_000_000,
     parameter integer BUS_TIMEOUT_HALVES = 128,
+    parameter TIMED_MFP_IACK = 0,
     // Enable only with a backend that retains an accepted CPU write.
     parameter EARLY_RAM_WRITE_COMPLETION = 0
 ) (
@@ -41,6 +42,9 @@ module st_machine #(
     input  wire irq_vectored,
     input  wire [7:0] irq_vector,
     output wire irq_ack,
+    output wire irq_data_strobe,
+    output wire irq_iack_pin,
+    input wire irq_vector_ready,
     output reg [2:0] irq_level,
     input  wire palette_ready,
     input  wire [23:0] video_counter,
@@ -104,6 +108,10 @@ module st_machine #(
         target == RAM && (!writing || EARLY_RAM_WRITE_COMPLETION) && ram_ready &&
         timeout_halves != TIMER_BITS'(BUS_TIMEOUT_HALVES);
     reg [8:0] colors [0:15];
+    // STF empty RAM retains the last word read by the CPU, including opcode
+    // prefetch. Keep writes and independent shifter/DMA reads out of this
+    // latch. CPU UDS/LDS still select the retained word's normal byte lane.
+    reg [15:0] last_cpu_read;
     genvar color;
     generate for (color = 0; color < 16; color = color + 1) begin : palette_pack
         assign palette[color*9 +: 9] = colors[color];
@@ -141,6 +149,10 @@ module st_machine #(
     assign exp_fc = function_code;
     assign vpa_n = state != IACK || vectored_cycle || reset;
     assign irq_ack = state == IACK && !reset;
+    assign irq_data_strobe = !cpu_lds_n;
+    // External level-6 IACK decode: setup timing starts at AS/FC, before
+    // the registered motherboard admission used for peripheral side effects.
+    assign irq_iack_pin = !reset && !cpu_as_n && cpu_fc == 3'b111 && cpu_addr[3:1] == 3'd6;
 
     // Configured banks are aligned powers of two. Decode their high bits
     // directly so live RAM requests do not traverse a variable-width subtractor.
@@ -165,12 +177,12 @@ module st_machine #(
     // all ROM/MMIO/expansion accesses retain their registered dispatch.
     assign early_ram_write = EARLY_RAM_WRITE_COMPLETION && state == IDLE &&
         !reset && !cpu_as_n && !cpu_rw && (!cpu_uds_n || !cpu_lds_n) &&
-        cpu_fc != 3'b111 && live_address >= 24'd8 && live_bank0 &&
-        (supervisor || live_address >= 24'h000800);
+        cpu_fc != 3'b111 && (|live_address[23:3]) && live_bank0 &&
+        (supervisor || (|live_address[23:11]));
     assign early_ram_read = state == IDLE && !reset && !cpu_as_n && cpu_rw &&
         (!cpu_uds_n || !cpu_lds_n) && cpu_fc != 3'b111 &&
-        live_bank0 && (supervisor || live_address >= 24'h000800) &&
-        !(supervisor && live_address < 24'd8);
+        live_bank0 && (supervisor || (|live_address[23:11])) &&
+        !(supervisor && (~|live_address[23:3]));
     // GLUE admits shifter palette accesses on one four-cycle bus phase.
     // Retain the latched transaction until then, with one commit/DTACK.
     wire palette_access = address >= 24'hff8240 && address <= 24'hff825e;
@@ -213,6 +225,7 @@ module st_machine #(
             dtack_n <= 1'b1;
             berr_n <= 1'b1;
             cpu_rdata <= 16'hffff;
+            last_cpu_read <= 16'hffff;
             screen_base <= 24'd0;
             resolution <= 2'd0;
             memory_config <= 8'd0;
@@ -239,15 +252,15 @@ module st_machine #(
                         state <= WAITING;
                         if ((!supervisor && (live_address < 24'h000800 ||
                                               live_address[23:16] == 8'hff)) ||
-                            (!cpu_rw && live_address < 24'd8))
+                            (!cpu_rw && (~|live_address[23:3])))
                             target <= FAULT;
-                        else if (supervisor && cpu_rw && live_address < 24'd8)
+                        else if (supervisor && cpu_rw && (~|live_address[23:3]))
                             target <= ROM;
                         else if (live_bank0)
                             target <= RAM;
                         // The MMU acknowledges the whole original-ST 4 MiB
                         // RAM window, including unpopulated/unselected DRAM.
-                        // Keep the existing all-ones empty-bank read model;
+                        // Empty reads retain the preceding CPU read word;
                         // writes have no physical DRAM destination.
                         else if (live_address < 24'h400000)
                             target <= EMPTY_BANK;
@@ -278,12 +291,22 @@ module st_machine #(
                                  (target == ROM && rom_ready) ||
                                  (target == EXPANSION && exp_ack)) begin
                         case (target)
-                            RAM: cpu_rdata <= ram_rdata;
-                            ROM: cpu_rdata <= rom_rdata;
-                            EXPANSION: cpu_rdata <= exp_rdata;
-                            EMPTY_BANK: cpu_rdata <= 16'hffff;
+                            RAM: begin
+                                cpu_rdata <= ram_rdata;
+                                if (!writing) last_cpu_read <= ram_rdata;
+                            end
+                            ROM: begin
+                                cpu_rdata <= rom_rdata;
+                                last_cpu_read <= rom_rdata;
+                            end
+                            EXPANSION: begin
+                                cpu_rdata <= exp_rdata;
+                                if (!writing) last_cpu_read <= exp_rdata;
+                            end
+                            EMPTY_BANK: cpu_rdata <= last_cpu_read;
                             IO: begin
                                 cpu_rdata <= io_rdata;
+                                if (!writing) last_cpu_read <= io_rdata;
                                 if (writing) begin
                                     if (palette_access) begin
                                         colors[palette_index] <= {palette_wdata[10:8],
@@ -314,8 +337,9 @@ module st_machine #(
                     state <= IDLE;
                 end
                 IACK: begin
-                    if (vectored_cycle) begin
+                    if (vectored_cycle && (!TIMED_MFP_IACK || irq_vector_ready)) begin
                         cpu_rdata <= {8'hff, irq_vector};
+                        last_cpu_read <= {8'hff, irq_vector};
                         dtack_n <= 1'b0;
                     end
                     if (cpu_as_n) begin

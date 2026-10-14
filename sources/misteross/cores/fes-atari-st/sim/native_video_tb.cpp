@@ -6,22 +6,30 @@
 #include <array>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 
 struct Test {
     Vst_native_video_sim_top dut;
     static constexpr uint64_t SysPeriod=19149, PixelPeriod=13468;
     static constexpr unsigned CpuHz=8021247, SystemHz=52224000;
-    static constexpr unsigned LineCycles=512, DisplayStart=56, DisplayEnd=376;
+    static constexpr unsigned LineCycles=512, DisplayStart=56, DisplayEnd=376, OutputDelay=28;
     uint64_t cpu_phase=0;
     uint64_t next_sys=0,next_pixel=7331,sys_cycles=0,pixel_cycles=0,checks=0;
     unsigned source_clock=313*512-1,source_frame=0,position=0,output_frame=0,selected=0;
     unsigned transfer_address=0,delay=0,transfers=0,black_rows=0,stall_black_rows=0,repeat_frames=0;
     bool pending=false,complete=false,stalled=false,previous_front=false;
+    bool updated_first_word=false, coherence_mode=false;
+    unsigned coherence_checks=0;
+    bool word_boundary_mode=false, boundary_write_seen=false;
+    unsigned boundary_plane=0,boundary_phase=0;
+    std::array<unsigned,80> coherence_words{};
+    bool native_ce_delay=false;
     std::array<int,247> row_black{};
     uint64_t pal_bottom_pixels=0,ntsc_bottom_pixels=0,raster_border_pixels=0;
     bool border_overflow_seen=false;
     std::array<bool,5> memory_boundaries{};
+    Test(){for(unsigned i=0;i<80;++i)coherence_words[i]=i%4==0?0xffff:0;dut.ram_write_committed=0;dut.ram_write_addr=0;dut.ram_write_data=0;dut.ram_write_lanes=0;dut.native_blank=0;dut.native_short_line=0;dut.native_word_loss=0;}
     void require(bool good,const char*message) {
         ++checks;
         if(!good){std::cerr<<"FAIL "<<message<<" sys="<<sys_cycles<<" pixel="<<pixel_cycles
@@ -44,23 +52,54 @@ struct Test {
         return (((line-first)%7+1)<<6) ^ (x<12?0:x<81?7:0x38);
     }
     unsigned source_mode() const {return source_frame==7?1:source_frame==8?2:0;}
+    void commit_word(unsigned index,unsigned data,unsigned lanes){
+        dut.ram_write_committed=1;dut.ram_write_addr=0x10000/2+index;
+        dut.ram_write_data=data;dut.ram_write_lanes=lanes;
+        coherence_words[index]=((lanes&2)?data&0xff00:coherence_words[index]&0xff00)|
+                              ((lanes&1)?data&255:coherence_words[index]&255);
+    }
     void system_edge(){
-        if(dut.reset_sys){dut.video_ready=0;pending=complete=false;}
+        if(dut.reset_sys){dut.video_ready=0;pending=complete=false;native_ce_delay=false;dut.native_lookup_ce=dut.native_pixel_ce=0;}
         else {
             cpu_phase+=CpuHz;
             const bool cpu_tick=cpu_phase>=SystemHz;
-            if(cpu_tick){cpu_phase-=SystemHz;source_clock=(source_clock+1)%(313*LineCycles);}
+            if(cpu_tick){
+                cpu_phase-=SystemHz;
+                const unsigned source_lines=source_frame==9?263:313;
+                const unsigned line_cycles=source_frame==9?508:LineCycles;
+                source_clock=(source_clock+1)%(source_lines*line_cycles);
+            }
             if(cpu_tick&&source_clock==0)++source_frame;
-            unsigned line=source_clock/LineCycles,phase=source_clock%LineCycles;
+            const unsigned line_cycles=source_frame==9?508:LineCycles;
+            unsigned line=source_clock/line_cycles,phase=source_clock%line_cycles;
             dut.native_vblank=cpu_tick&&source_clock==0;
             dut.native_line=line;
             dut.native_cycle=phase;
-            dut.native_pixel_ce=cpu_tick;
+            dut.native_lookup_ce=cpu_tick;
+            dut.native_pixel_ce=native_ce_delay;
+            native_ce_delay=cpu_tick;
             const bool ntsc=source_frame==9;
             const unsigned top=ntsc?34:63;
             const unsigned rows=(source_frame==6||source_frame==11)?247:ntsc?226:200;
             dut.sync_mode=ntsc?0:2;
-            dut.native_display=line>=top&&line<top+rows&&phase>=DisplayStart&&phase<DisplayEnd;
+            const unsigned display_start=ntsc?52:DisplayStart,display_end=ntsc?372:DisplayEnd;
+            dut.native_display=line>=top&&line<top+rows&&phase>=display_start&&phase<display_end;
+            dut.ram_write_committed=0;
+            if(word_boundary_mode && cpu_tick && source_frame==1 && line==63 && phase==boundary_phase) {
+                commit_word(40+boundary_plane,0xffff,3);boundary_write_seen=true;
+            }
+            if(coherence_mode && !word_boundary_mode && cpu_tick && source_frame==1) {
+                if(line==62 && phase==400){commit_word(0,0,3);updated_first_word=true;}
+                if(line==62 && phase==404)commit_word(5,0xaa00,2);
+                if(line==62 && phase==408)commit_word(10,0x000f,1);
+                if(line==63 && phase==116)commit_word(12,0,3);
+                if(line==63 && phase==120)commit_word(40,0,3);
+                // Group11 has started shifting in the old capture model,
+                // but plane2 has not yet reached its individual MMU load.
+                if(line==63 && phase==240)commit_word(46,0xffff,3);
+                // Plane0 was loaded at238 and must retain its old data.
+                if(line==63 && phase==241)commit_word(44,0,3);
+            }
             dut.resolution=source_mode();
             dut.screen_base=source_frame==10?0xff0000:0x10000;
             // Abort one in-progress native frame without withdrawing its read.
@@ -71,7 +110,8 @@ struct Test {
                       (source_frame==6||ntsc)&&line>=(ntsc?5u:34u)?border_colour(line,border_x,ntsc):source_mode()==2?0:0xdb);
             if(source_frame==2&&dut.border_overflow)border_overflow_seen=true;
             unsigned intensity=((line>=top?line-top:0)+source_frame)%7+1;
-            palette(1,source_mode()==1?0x38:phase<DisplayStart+160?intensity<<6:intensity);
+            palette(1,source_mode()==1?0x38:phase<display_start+160?intensity<<6:intensity);
+            if(coherence_mode){palette(2,0x38);palette(3,0x1e3);palette(4,7);palette(5,0x13d);palette(8,0x1ff);}
             if(!dut.video_req){require(!pending||complete,"memory request abandoned");pending=complete=false;dut.video_ready=0;}
             else if(!pending){
                 require(dut.video_addr<0x40000,"invalid screen base wrapped into RAM");
@@ -84,10 +124,13 @@ struct Test {
                 else if(!complete){
                     complete=true;dut.video_ready=1;
                     unsigned relative=transfer_address-0x10000/2;
-                    dut.video_rdata=relative%4==0?0xffff:0;
+                    dut.video_rdata=coherence_mode && relative<80?coherence_words[relative]:(relative%4==0?0xffff:0);
                 }else require(false,"duplicate memory completion");
             }
             dut.eval();
+            if(coherence_mode && !word_boundary_mode && source_frame==1 && dut.prepare_pixel && dut.prepare_y==0 && dut.prepare_x==112) {
+                commit_word(28,0,3);dut.eval();
+            }
             require(!dut.write_pixel||!dut.front_valid||dut.write_bank!=dut.front_bank,
                     "producer wrote the displayed bank");
         }
@@ -128,7 +171,29 @@ struct Test {
                             if(selected==9) ++ntsc_bottom_pixels;
                         }
                         unsigned intensity=(row+selected)%7+1;
-                        unsigned expected=rgb(nx<160?intensity<<6:intensity);
+                        unsigned expected=rgb(nx<160-OutputDelay?intensity<<6:intensity);
+                        if(word_boundary_mode && selected==1 && row==0) {
+                            const unsigned colours[]={intensity,0x38,7,0x1ff};
+                            const bool fetched_new=boundary_phase<222+4*boundary_plane;
+                            expected=rgb(nx>=160 && nx<176 && fetched_new ? colours[boundary_plane] : 0xdb);
+                            require(actual==expected,"individual word-load boundary RGB mismatch");
+                            if(nx==175) {
+                                require(boundary_write_seen,"authored boundary write did not occur");
+                                std::cout<<"Word-load boundary PASS: plane="<<boundary_plane<<" write="<<boundary_phase
+                                    <<" fetch="<<222+4*boundary_plane<<" index="<<(fetched_new?(1u<<boundary_plane):0)<<" pixels=16\n";
+                                std::exit(0);
+                            }
+                        }
+                        if(coherence_mode && !word_boundary_mode && selected==1 && row==0) {
+                            require(updated_first_word,"authored pre-DE write did not occur");
+                            if(nx<16 || (nx>=112&&nx<128) || (nx>=160&&nx<176))expected=rgb(0xdb);
+                            if(nx>=16&&nx<24&&(nx%2)==0)expected=rgb(0x1e3);
+                            if((nx>=44&&nx<48)||(nx>=176&&nx<192))expected=rgb(0x13d);
+                            require(actual==expected,"coherent whole/byte/future/consumed/sampling-edge pixel mismatch");
+                            const unsigned targets[]={4,18,46,56,112,164,180};
+                            for(unsigned i=0;i<7;++i)if(nx==targets[i])coherence_checks|=1u<<i;
+                            if(coherence_checks==127){std::cout<<"Cache write coherence PASS: fullword, bothbytes, futuregroup, consumedword, pre-load write, and writes between plane loads\n";std::exit(0);}
+                        }
                         if(row_black[row]<0){row_black[row]=actual==0;if(actual==0){++black_rows;if(selected==3)++stall_black_rows;}}
                         require(actual==(row_black[row]?0:expected),"native palette/pixel/scaling mismatch");
                         // Check adjacent words across the first/final shallow
@@ -143,7 +208,7 @@ struct Test {
                         require(selected!=10||actual==0,"invalid framebuffer reused previous pixels");
                     }else{
                         const bool canvas=x>=224&&x<1056&&y>=canvas_top&&y<canvas_top+canvas_rows*2;
-                        const unsigned expected=canvas?rgb(raster?border_colour((selected==9?5:34)+(y-canvas_top)/2,(x-224)/2,selected==9):0xdb):0;
+                        const unsigned expected=canvas?rgb(raster?border_colour((selected==9?5:34)+(y-canvas_top)/2,(x-224)/2+OutputDelay,selected==9):0xdb):0;
                         require(actual==expected,"live border colour/pixel/repeated-row mismatch");
                         if(canvas)++raster_border_pixels;
                     }
@@ -164,9 +229,23 @@ struct Test {
         dut.clk_sys=1;dut.eval();dut.clk_sys=0;dut.eval();++sys_cycles;
     }
     void vblank(){
-        dut.native_vblank=1;dut.native_display=0;dut.native_line=0;dut.native_cycle=0;dut.native_pixel_ce=1;
+        dut.native_vblank=1;dut.native_display=0;dut.native_line=0;dut.native_cycle=0;
+        dut.native_pixel_ce=1;dut.native_lookup_ce=0;
         sys_tick();
         dut.native_vblank=0;dut.native_pixel_ce=0;
+    }
+    // One visible border point, using the same two edges as a CPU tick.
+    // Lookup registers the raw phase-2 line, cycle and palette. The native
+    // pulse follows and shifts that point into the capture pipeline. Events
+    // are taken from the delayed token, so the colour has to change on the
+    // lookup itself; a pixel-only step never reaches the border buffer.
+    void border_sample(unsigned line,unsigned cycle,unsigned colour){
+        dut.native_vblank=0;dut.native_display=0;
+        dut.native_line=line;dut.native_cycle=cycle;
+        dut.native_lookup_ce=1;dut.native_pixel_ce=0;
+        palette(0,colour);sys_tick();
+        dut.native_lookup_ce=0;dut.native_pixel_ce=1;sys_tick();
+        dut.native_pixel_ce=0;
     }
     // One dense capture, then Hold across later blanks. The stuck overflow
     // must increment debug_underruns once and again only after a new capture.
@@ -177,10 +256,9 @@ struct Test {
         while(!dut.border_overflow){
             const unsigned x=steps%416,row=steps/416;
             require(row<276,"border capture did not overflow");
-            dut.native_line=34+row;dut.native_cycle=8+x;dut.native_pixel_ce=1;
-            palette(0,steps&0x1ff);sys_tick();++steps;
+            border_sample(34+row,8+x,steps&0x1ff);++steps;
         }
-        dut.native_pixel_ce=0;sys_tick();
+        sys_tick();
         require(dut.underruns==1,"border overflow did not count once");
         const unsigned counted=dut.underruns;
         dut.hold=1;
@@ -198,10 +276,9 @@ struct Test {
         while(!dut.border_overflow){
             const unsigned x=steps%416,row=steps/416;
             require(row<276,"second border capture did not overflow");
-            dut.native_line=34+row;dut.native_cycle=8+x;dut.native_pixel_ce=1;
-            palette(0,steps&0x1ff);sys_tick();++steps;
+            border_sample(34+row,8+x,steps&0x1ff);++steps;
         }
-        dut.native_pixel_ce=0;sys_tick();
+        sys_tick();
         require(dut.underruns==counted+1,"a new border overflow did not count once");
     }
     void reset_capture(){
@@ -249,4 +326,13 @@ struct Test {
         dut.final();
     }
 };
-int main(int argc,char**argv){Verilated::commandArgs(argc,argv);Test t;t.run();}
+int main(int argc,char**argv){
+    Verilated::commandArgs(argc,argv);Test t;
+    t.coherence_mode=argc>1&&std::strcmp(argv[1],"--cache-write-coherence")==0;
+    if(argc==4&&std::strcmp(argv[1],"--cache-word-boundary")==0){
+        t.word_boundary_mode=t.coherence_mode=true;t.coherence_words.fill(0);
+        t.boundary_plane=std::strtoul(argv[2],nullptr,10);t.boundary_phase=std::strtoul(argv[3],nullptr,10);
+        if(t.boundary_plane>3||t.boundary_phase<221||t.boundary_phase>235)return 2;
+    }
+    t.run();
+}

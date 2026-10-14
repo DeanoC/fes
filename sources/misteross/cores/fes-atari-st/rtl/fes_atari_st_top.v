@@ -127,6 +127,8 @@ module top #(
     wire native_display;
     wire [8:0] native_line, native_cycle;
     wire native_pixel_ce;
+    wire native_short_line, native_blank;
+    wire [8:0] native_word_loss;
     generate begin : machine
         st_rom rom (.clk(clk_sys), .reset(machine_reset), .req(rom_req), .address(rom_addr),
                     .rdata(rom_rdata), .ready(rom_ready));
@@ -156,7 +158,7 @@ module top #(
             .dma_req(dma_req), .dma_write(dma_write), .dma_rdata(dma_rdata), .dma_addr(dma_addr), .dma_wdata(dma_wdata), .dma_byte_enable(dma_byte_enable),
             .dma_ready(dma_ready), .screen_base(screen_base), .resolution(resolution), .palette(palette),
             .sync_mode(sync_mode), .debug_addr(debug_addr), .debug_bus_error(debug_bus_error),
-            .debug_overlay(debug_overlay), .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_line(native_line),
+            .debug_overlay(debug_overlay), .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss), .native_line(native_line),
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce)
         );
     end endgenerate
@@ -166,10 +168,16 @@ module top #(
     wire [15:0] video_rdata;
     (* keep *) wire [31:0] video_request;
     wire [31:0] debug_underruns, debug_frame;
+    wire ram_write_committed;
+    wire [18:1] ram_write_addr;
+    wire [15:0] ram_write_data;
+    wire [1:0] ram_write_lanes;
     st_video_adapter video (
+        .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),
+        .ram_write_data(ram_write_data), .ram_write_lanes(ram_write_lanes),
         .clk_sys(clk_sys), .clk_pixel(pixel_clk), .reset_sys(cold_reset), .reset_pixel(pixel_reset),
-        .native_vblank(vblank), .native_display(native_display), .native_line(native_line),
-        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .sync_mode(sync_mode),
+        .native_vblank(vblank), .native_display(native_display), .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss), .native_line(native_line),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(exp_phi2), .sync_mode(sync_mode),
         .hold(machine_reset), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
         .video_request(video_request), .debug_underruns(debug_underruns), .debug_frame(debug_frame)
@@ -248,6 +256,8 @@ module top #(
     st_memory #(.PHASE_SLOTS(1), .POSTED_CPU_WRITES(1),
                 .SINGLE_RANK_REFRESH(1), .SLOT_REFRESH(1)) memory (
 `endif
+        .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),
+        .ram_write_data(ram_write_data), .ram_write_lanes(ram_write_lanes),
         .clk(clk_sys), .clk_pin(clk_sys), .memory_phase(native_cycle[1:0]),
         .raster_reset(exp_reset), .cold_reset(cold_reset), .reset(1'b0), .initialized(initialized),
         .cpu_req(ram_req), .cpu_addr(ram_addr), .cpu_write(ram_write), .cpu_wdata(ram_wdata),

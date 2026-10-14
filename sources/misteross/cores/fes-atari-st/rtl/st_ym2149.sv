@@ -5,13 +5,14 @@
 module st_ym2149 #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
     parameter integer CHIP_CLOCK_HZ = 2_000_000,
-    parameter integer SAMPLE_RATE_HZ = 48_000
+    parameter integer SAMPLE_RATE_HZ = 48_000,
+    parameter integer EARLY_WRITE_ACK = 0
 ) (
     input wire clk, reset,
     input wire bus_req, bus_reg, bus_write,
     input wire [7:0] bus_wdata,
     output reg [7:0] bus_rdata,
-    output reg bus_ack,
+    output wire bus_ack,
     output wire signed [15:0] pcm_signed,
     output wire sample_valid,
     // Port A bit 0 is floppy side, bits 1/2 are active-low drive selects.
@@ -23,7 +24,9 @@ module st_ym2149 #(
     wire [32:0] sample_sum = {1'b0, sample_phase} + 33'(SAMPLE_RATE_HZ);
     wire chip_ce = chip_sum >= 33'(SYSTEM_CLOCK_HZ);
     wire sample_ce = sample_sum >= 33'(SYSTEM_CLOCK_HZ);
-    wire bus_first = bus_req && !bus_ack;
+    reg saved_ack, bus_seen;
+    assign bus_ack = EARLY_WRITE_ACK != 0 && bus_write ? (bus_req && !reset) : saved_ack;
+    wire bus_first = bus_req && !bus_seen;
     reg [3:0] selected;
     reg selected_valid;
     reg [1:0] port_direction;
@@ -69,15 +72,15 @@ module st_ym2149 #(
     always @(posedge clk) begin
         if (reset) begin
             chip_phase <= 0; sample_phase <= 0; sample_startup <= 0;
-            bus_ack <= 0; bus_rdata <= 0; selected <= 0; selected_valid <= 1;
+            saved_ack <= 0; bus_seen <= 0; bus_rdata <= 0; selected <= 0; selected_valid <= 1;
             port_direction <= 0; port_a_latch <= 0; port_b_latch <= 0;
         end else begin
             chip_phase <= chip_ce ? 32'(chip_sum - 33'(SYSTEM_CLOCK_HZ)) : chip_sum[31:0];
             if(sample_startup!=9'd320)sample_startup<=sample_startup+1'b1;
             else sample_phase <= sample_ce ? 32'(sample_sum - 33'(SYSTEM_CLOCK_HZ)) : sample_sum[31:0];
-            if (!bus_req) bus_ack <= 0;
+            if (!bus_req) begin saved_ack <= 0; bus_seen <= 0; end
             if (bus_first) begin
-                bus_ack <= 1;
+                saved_ack <= 1; bus_seen <= 1;
                 // Only FF8800 reads the selected register. FF8802 is write-only.
                 bus_rdata <= bus_reg ? 8'hff : selected_read;
                 if (bus_write && !bus_reg) begin

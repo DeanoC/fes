@@ -32,7 +32,7 @@ struct Test {
         dut.capture_active=0;check(!dut.capture_overflow,"ordinary colour runs overflowed");
     }
     void display(unsigned bank,unsigned row,unsigned bias,bool sof=false) {
-        dut.output_bank=bank;dut.output_row=row;dut.output_ce=0;
+        dut.output_bank=dut.output_consume_bank=bank;dut.output_row=row;dut.output_ce=0;
         pixel();pixel();
         dut.output_sof=sof;dut.output_line_start=!sof;pixel();
         dut.output_sof=0;dut.output_line_start=0;
@@ -65,7 +65,7 @@ struct Test {
         }
         check(!dut.capture_overflow,"full event arena overflowed without an extra run");
         dut.capture_active=0;dut.capture_tick=0;
-        dut.output_bank=2;dut.output_row=0;dut.output_ce=0;pixel();pixel();
+        dut.output_bank=dut.output_consume_bank=2;dut.output_row=0;dut.output_ce=0;pixel();pixel();
         dut.output_sof=1;pixel();dut.output_sof=0;
         for(unsigned x=0;x<416;++x) {
             dut.output_x=x;dut.output_ce=1;dut.eval();

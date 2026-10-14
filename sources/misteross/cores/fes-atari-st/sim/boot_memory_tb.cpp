@@ -2,8 +2,14 @@
 // Boot stock EmuTOS through physical SDRAM commands while the native line
 // cache scans that same RAM with an independent 74.25 MHz pixel clock.
 #include "st_audio_capture.hpp"
+#include "st_keyboard_stimulus.hpp"
+#include "st_rendered_capture.hpp"
+#include "st_ram_write_trace.hpp"
 #include "Vst_boot_memory_sim_top.h"
 #include "verilated.h"
+#ifdef ST_RAM_BUS_PROBE
+#include "Vst_boot_memory_sim_top___024root.h"
+#endif
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -38,9 +44,13 @@ public:
     std::array<bool, 4> open{};
     std::array<uint64_t, 4> activated{}, available{};
     bool precharged = false, initialized = false;
+    unsigned write_address = UINT32_MAX;
+    uint16_t write_data = 0;
+    uint8_t write_lanes = 0;
 
     uint16_t tick(const Vst_boot_memory_sim_top &dut) {
         ++cycle;
+        write_address = UINT32_MAX;
         const uint16_t sample = read_due == cycle ? pending_read : 0xf13d;
         if (!dut.sdram_cke || dut.sdram_ncs) return sample;
         const unsigned command = (dut.sdram_nras << 2) | (dut.sdram_ncas << 1) | dut.sdram_nwe;
@@ -70,6 +80,9 @@ public:
                 if (!(dut.sdram_a & 0x800)) words[address] = (words[address] & 0xff00) | (dut.dq_out & 0xff);
                 if (!(dut.sdram_a & 0x1000)) words[address] = (words[address] & 0xff) | (dut.dq_out & 0xff00);
                 ++writes;
+                write_address = address * 2;
+                write_data = dut.dq_out;
+                write_lanes = ((dut.sdram_a & 0x1000) ? 0 : 2) | ((dut.sdram_a & 0x800) ? 0 : 1);
             } else {
                 require(!dut.dq_oe, "READ has output data contention", cycle);
                 require(!(dut.sdram_a & 0x1800), "READ unexpectedly masked", cycle);
@@ -131,7 +144,8 @@ class Boot {
     Vst_boot_memory_sim_top dut;
     Sdram sdram;
     StAudioCapture audio;
-    unsigned key_at=0,key_usage=5;
+    StRamWriteTrace ram_write_trace;
+    st_keyboard_stimulus::Stimulus keys;
     std::vector<uint8_t> rom;
     std::vector<uint8_t> picture = std::vector<uint8_t>(1280 * 720 * 3);
     std::vector<uint8_t> complete_picture;
@@ -142,6 +156,9 @@ class Boot {
 #ifdef ST_RAM_BUS_PROBE
     uint64_t cpu_ticks = 0, tas_reads = 0, tas_writes = 0;
     std::vector<std::pair<bool, uint64_t>> ram_bus_starts;
+    std::vector<uint64_t> movem_word_ticks;
+    std::vector<unsigned> movem_word_lines;
+    uint64_t movem_video_reads = 0;
     std::vector<uint64_t> raster_write_ticks;
     std::vector<unsigned> raster_write_phases, palette_read_phases;
     std::vector<uint64_t> palette_read_ticks;
@@ -156,7 +173,13 @@ class Boot {
     unsigned observed_frames = 0, frame_cpu_max = 0, frame_video_max = 0, last_sync = 0;
     uint64_t frame_video_reads = 0;
     std::vector<uint8_t> native_picture = std::vector<uint8_t>(320*247*3);
-    std::ofstream raster_trace, logo_trace, ym_trace;
+    std::ofstream raster_trace, logo_trace, ym_trace, rendered_trace, ram_snapshot_trace;
+    std::set<uint64_t> saved_ram_cycles;
+    uint32_t rendered_sequence = 0;
+    unsigned rendered_height = 200;
+    bool rendered_valid = false, rendered_pal = true, rendered_tracing = false;
+    uint64_t rendered_start_cycle = 0;
+    std::set<uint32_t> saved_rendered_sequences;
     std::set<uint64_t> saved_logo_hashes;
     std::string trace_prefix;
     bool tracing() const { return system_cycles >= boot_start + trace_start*SystemHz &&
@@ -216,10 +239,7 @@ class Boot {
     }
 
     void system_edge() {
-        for(unsigned n=0;n<5;++n) dut.keyboard[n]=0;
-        if(demo_mode && key_at && system_cycles>=boot_start+SystemHz*key_at &&
-           system_cycles<boot_start+SystemHz*key_at+SystemHz*150/1000)
-            dut.keyboard[key_usage/32]=1u<<(key_usage%32);
+        keys.apply(dut.keyboard,system_cycles,boot_start,demo_mode && !dut.reset_sys);
         if(!dut.reset_sys && dut.audio_valid) audio.sample(dut.audio_pcm,system_cycles-boot_start);
 #ifdef ST_RAM_BUS_PROBE
         if (dut.reset_sys) require(!dut.debug_cpu_tick, "CPU phase-2 suppressed during reset", system_cycles);
@@ -238,12 +258,35 @@ class Boot {
             if (dut.cpu_write) ++tas_writes; else ++tas_reads;
         }
 #endif
+#ifdef ST_RAM_BUS_PROBE
+        if (!dut.reset_sys && dut.cpu_req && !cpu_transfer.active && dut.cpu_write &&
+            dut.cpu_addr >= 0x37b00 && dut.cpu_addr < 0x38000) {
+            require(dut.cpu_byte_enable == 3 && dut.cpu_wdata == 0x1234,
+                    "MOVEM word payload/lanes", system_cycles);
+        }
+        // S6/PHI2 is the CPU's completed word transfer. Request-start gaps
+        // also include the first word's legitimate two-cycle RAM alignment.
+        auto *root = dut.rootp;
+        if (!dut.reset_sys && dut.debug_cpu_tick &&
+            root->st_boot_memory_sim_top__DOT__system__DOT__machine__DOT__cpu__DOT__cpu__DOT__busControl__DOT__busPhase == 5 &&
+            root->st_boot_memory_sim_top__DOT__system__DOT__machine__DOT__target == 1 &&
+            root->st_boot_memory_sim_top__DOT__system__DOT__machine__DOT__writing &&
+            root->st_boot_memory_sim_top__DOT__system__DOT__machine__DOT__address >= 0x6f600 &&
+            root->st_boot_memory_sim_top__DOT__system__DOT__machine__DOT__address < 0x70000) {
+            movem_word_ticks.push_back(cpu_ticks);
+            movem_word_lines.push_back(dut.debug_native_line);
+        }
+#endif
         rom_before_edge();
         track_before(cpu_transfer, dut.cpu_req, dut.cpu_addr, dut.cpu_wdata,
                      dut.cpu_byte_enable, dut.cpu_write, "CPU SDRAM request changed before completion");
         track_before(video_transfer, dut.video_req, dut.video_addr, 0, 3, false,
                      "video SDRAM request changed before completion");
         dut.dq_sample = sdram.tick(dut);
+        if (ram_write_trace.enabled() && demo_mode && !dut.reset_sys && tracing() &&
+            sdram.write_address != UINT32_MAX)
+            ram_write_trace.observe(system_cycles-boot_start,sdram.cycle,sdram.write_address,
+                                    sdram.write_data,sdram.write_lanes,dut.debug_pc);
         dut.eval();
         const unsigned line = dut.debug_native_line, phase = dut.debug_horizontal_phase;
         const bool native_vblank = !dut.reset_sys && dut.vblank;
@@ -301,6 +344,9 @@ class Boot {
                     "video SDRAM completion duplicated or unrequested", system_cycles);
             video_transfer.complete = true;
             ++video_reads; ++frame_video_reads;
+#ifdef ST_RAM_BUS_PROBE
+            if (!movem_word_ticks.empty() && movem_word_ticks.size() < 1280) ++movem_video_reads;
+#endif
             if (video_transfer.wait > frame_video_max) frame_video_max = video_transfer.wait;
             if (video_transfer.wait > max_video_latency) max_video_latency = video_transfer.wait;
         }
@@ -355,6 +401,39 @@ class Boot {
         dut.eval();
     }
 
+    void save_rendered_frame() {
+        const auto reduced = st_rendered_capture::canvas(complete_picture, rendered_pal);
+        std::string full_file, native_file;
+        if (rendered_valid && saved_rendered_sequences.size()<8 &&
+                saved_rendered_sequences.insert(rendered_sequence).second) {
+            const auto stem = trace_prefix + "-rendered-" + std::to_string(complete_frames) +
+                              "-frame-" + std::to_string(rendered_sequence);
+            full_file = stem + "-hdmi.ppm";
+            std::ofstream full(full_file, std::ios::binary);
+            require(full.good(), "rendered HDMI image unavailable");
+            full << "P6\n1280 720\n255\n";
+            full.write(reinterpret_cast<const char*>(complete_picture.data()), complete_picture.size());
+            if (reduced.repeated) {
+                native_file = stem + "-canvas.ppm";
+                std::ofstream native(native_file, std::ios::binary);
+                require(native.good(), "rendered canvas image unavailable");
+                native << "P6\n416 " << reduced.height << "\n255\n";
+                native.write(reinterpret_cast<const char*>(reduced.rgb.data()), reduced.rgb.size());
+            }
+        }
+        // Basenames let sealed evidence remain valid after directory relocation.
+        auto basename = [](const std::string& p) { return p.substr(p.find_last_of('/')+1); };
+        rendered_trace << "{\"hdmi_frame\":" << complete_frames << ",\"native_frame\":" << rendered_sequence
+            << ",\"start_cycle\":" << rendered_start_cycle << ",\"end_cycle\":" << system_cycles
+            << ",\"valid\":" << (rendered_valid ? "true" : "false")
+            << ",\"pal\":" << (rendered_pal ? "true" : "false")
+            << ",\"active_height\":" << rendered_height
+            << ",\"canvas_xywh\":[224," << reduced.top << ",832," << reduced.height*2 << "]"
+            << ",\"repeat_2x2\":" << (reduced.repeated ? "true" : "false")
+            << ",\"hdmi_file\":\"" << basename(full_file) << "\",\"canvas_file\":\""
+            << basename(native_file) << "\"}\n";
+    }
+
     void pixel_edge() {
         const uint32_t current = dut.video_request;
         if (!dut.reset_pixel) {
@@ -383,10 +462,21 @@ class Boot {
                 if (picture_started) {
                     complete_picture = picture;
                     ++complete_frames;
+                    if (demo_mode && rendered_tracing) save_rendered_frame();
                 }
                 picture_started = true;
+                rendered_sequence = dut.rendered_sequence;
+                rendered_height = dut.rendered_height;
+                rendered_valid = dut.rendered_valid;
+                rendered_pal = dut.rendered_pal;
+                rendered_tracing = tracing();
+                rendered_start_cycle = system_cycles;
             }
             if (previous_request & DE) {
+                require(dut.rendered_sequence == rendered_sequence &&
+                        dut.rendered_height == rendered_height && dut.rendered_pal == rendered_pal &&
+                        dut.rendered_valid == rendered_valid,
+                        "displayed native identity changed during HDMI active frame", system_cycles);
                 const unsigned x = previous_position % Width, y = previous_position / Width;
                 const unsigned offset = (y * 1280 + x) * 3;
                 picture[offset] = rgb >> 16;
@@ -414,7 +504,18 @@ class Boot {
         }
     }
 
-    void status() const {
+    void save_ram(const std::string& path) const {
+        std::ofstream raw(path, std::ios::binary);
+        require(raw.good(), "cannot write physical RAM snapshot", system_cycles);
+        for (unsigned i = 0; i < 0x40000; ++i) {
+            raw.put(sdram.words[i] >> 8);
+            raw.put(sdram.words[i]);
+        }
+        raw.flush();
+        require(raw.good(), "physical RAM snapshot write failed", system_cycles);
+    }
+
+    void status() {
         std::cout << "assembled seconds=" << std::dec << (system_cycles - boot_start) / SystemHz
                   << " pc=" << std::hex << dut.debug_pc << " bus=" << dut.debug_addr
                   << " phystop=" << longword(0x42e) << " screen=" << longword(0x44e)
@@ -425,9 +526,21 @@ class Boot {
                   << " native frames/skipped/underruns=" << dut.native_frames << '/'
                   << dut.native_skipped << '/' << dut.native_underruns
                   << " indexed underruns=" << dut.debug_underruns << '\n' << std::flush;
+        const auto elapsed = system_cycles - boot_start;
+        if (demo_mode && saved_ram_cycles.insert(elapsed).second) {
+            // Observe the command-model RAM between events; no DUT clocks,
+            // input state or memory contents change while copying it.
+            save_ram(trace_prefix + "-ram-cycle-" + std::to_string(elapsed) + ".bin");
+            ram_snapshot_trace << "{\"system_cycle\":" << elapsed
+                               << ",\"bytes\":524288}\n" << std::flush;
+            require(ram_snapshot_trace.good(), "RAM snapshot index write failed", system_cycles);
+        }
     }
 
 public:
+    void open_ram_write_trace(const char *ranges, const char *prefix) {
+        ram_write_trace.open(ranges,std::string(prefix)+"-ram-writes.jsonl");
+    }
     explicit Boot(const char *path, const char *disk_path = nullptr, bool raster_probe = false, bool palette_probe = false) {
 #ifdef ST_RAM_BUS_PROBE
         if (!path) {
@@ -485,6 +598,8 @@ public:
                 for (unsigned i = 0; i < 12600; ++i) sdram.words[0x8000+i] = uint16_t(i);
                 sdram.words[0xc000] = 1; sdram.words[0xc001] = 0;
             } else {
+                word(0x13fc); word(2); longword(0xff8201); // screen base $20000
+                word(0x13fc); word(2); longword(0xff820a); // PAL raster
                 word(0x705a);
                 for (unsigned i = 0; i < 512; ++i) { word(0x1239); longword(0x600 + (i & 1)); }
                 for (unsigned i = 0; i < 512; ++i) { word(0x13c0); longword(0x600 + (i & 1)); }
@@ -492,6 +607,21 @@ public:
                 for (unsigned i = 0; i < 128; ++i) {
                     word(0x4af9); longword(0x620);
                     word(0x4af9); longword(0x621);
+                }
+                // The menu's ten-register MOVEM.L predecrement operation:
+                // 20 physical word writes. An authored DBF delay moves the
+                // saves after the first capture-bank handoff and into active
+                // video. Measured crossings/reads verify actual contention.
+                word(0x323c); word(19000); // MOVE.W #19000,D1
+                word(0x51c9); word(0xfffe); // DBF D1,self
+                for (unsigned reg = 0; reg < 8; ++reg) {
+                    word(0x203c | (reg << 9)); longword(0x12341234);
+                }
+                word(0x267c); longword(0x12341234);
+                word(0x287c); longword(0x12341234);
+                word(0x2e7c); longword(0x70000);
+                for (unsigned burst = 0; burst < 64; ++burst) {
+                    word(0x48e7); word(0xff18); // D0-D7/A3-A4,-(A7)
                 }
                 word(0x4e70); // RESET must not suspend SDRAM refresh or lose RAM.
                 word(0x33fc); word(0xc0de); longword(0x400);
@@ -538,13 +668,30 @@ public:
 #ifdef ST_RAM_BUS_PROBE
     void ram_bus_probe() {
         while (word(0x400) != 0xc0de) {
-            require(system_cycles - boot_start < 300000, "RAM timing firmware did not complete", system_cycles);
+            require(system_cycles - boot_start < 2000000, "RAM timing firmware did not complete", system_cycles);
             event();
         }
         require(faults == 0 && !dut.debug_halted, "RAM timing firmware faulted", system_cycles);
         require(word(0x600) == 0x5a5a, "RAM timing byte lanes did not reach physical memory", system_cycles);
         require(word(0x620) == 0x92b4, "TAS byte lanes lost physical RAM data", system_cycles);
         require(tas_reads == 256 && tas_writes == 256, "TAS did not complete each read/write exactly once", system_cycles);
+        require(movem_word_ticks.size() == 1280, "MOVEM physical word count", system_cycles);
+        unsigned movem_line_crossings = 0;
+        for (unsigned i = 0; i < 1280; ++i) {
+            require(word(0x6f600 + 2*i) == 0x1234, "MOVEM physical RAM payload/location", system_cycles);
+#if ST_EARLY_COMPLETION
+            if (i % 20) require(movem_word_ticks[i] - movem_word_ticks[i-1] == 4,
+                                "MOVEM added a four-cycle word-write slot", system_cycles);
+#endif
+            if (i % 20 && movem_word_lines[i] != movem_word_lines[i-1]) ++movem_line_crossings;
+        }
+        std::cout << "MOVEM lines " << movem_word_lines.front() << ".." << movem_word_lines.back()
+                  << ", crossings " << movem_line_crossings << ", concurrent VIDEO reads " << movem_video_reads << '\n';
+        require(movem_line_crossings >= 4 && movem_video_reads > 500,
+                "MOVEM did not cross active shifter line starts", system_cycles);
+        std::cout << "RAM CPU MOVEM PASS: 64 ten-register bursts, 1280 physical word writes";
+        if (ST_EARLY_COMPLETION) std::cout << ", all 1216 within-burst intervals four CPU clocks";
+        std::cout << ", " << movem_line_crossings << " active scanline crossings\n";
         require(ram_bus_starts.size() == 1024, "RAM timing transaction count", system_cycles);
         std::array<std::map<unsigned, unsigned>, 2> histograms;
         for (unsigned i = 1; i < ram_bus_starts.size(); ++i) {
@@ -618,8 +765,9 @@ public:
 
 #endif
 
-    void run(unsigned seconds, const char *prefix, unsigned start=6, unsigned end=7, unsigned press_at=0, unsigned usage=5) {
-        key_at=press_at;key_usage=usage;
+    void run(unsigned seconds, const char *prefix, unsigned start=6, unsigned end=7, unsigned press_at=0, unsigned usage=5, const char* schedule_path=nullptr) {
+        keys.configure(schedule_path ? st_keyboard_stimulus::load(schedule_path,SystemHz*seconds) :
+                       st_keyboard_stimulus::legacy(press_at,usage),prefix);
         audio.open(std::string(prefix)+"-audio.wav");
         trace_start=start; trace_end=end;
         if (demo_mode) {
@@ -627,7 +775,9 @@ public:
             raster_trace.open(std::string(prefix)+"-raster.jsonl");
             logo_trace.open(std::string(prefix)+"-logo.jsonl");
             ym_trace.open(std::string(prefix)+"-ym.jsonl");
-            require(raster_trace.good() && logo_trace.good() && ym_trace.good(), "demo trace output unavailable");
+            rendered_trace.open(std::string(prefix)+"-rendered.jsonl");
+            ram_snapshot_trace.open(std::string(prefix)+"-ram-snapshots.jsonl");
+            require(raster_trace.good() && logo_trace.good() && ym_trace.good() && rendered_trace.good() && ram_snapshot_trace.good(), "demo trace output unavailable");
         }
         uint64_t next_status = boot_start + SystemHz;
         const uint64_t limit = boot_start + SystemHz * seconds;
@@ -662,12 +812,7 @@ public:
         require(ppm.good(), "cannot write rendered PPM", system_cycles);
         ppm << "P6\n1280 720\n255\n";
         ppm.write(reinterpret_cast<const char *>(complete_picture.data()), complete_picture.size());
-        std::ofstream raw(std::string(prefix) + "-ram.bin", std::ios::binary);
-        require(raw.good(), "cannot write physical RAM snapshot", system_cycles);
-        for (unsigned i = 0; i < 0x40000; ++i) {
-            raw.put(sdram.words[i] >> 8);
-            raw.put(sdram.words[i]);
-        }
+        save_ram(std::string(prefix) + "-ram.bin");
         if (demo_mode) {
             std::ofstream metrics(std::string(prefix)+"-metrics.json");
             metrics << "{\"cycle\":" << system_cycles-boot_start << ",\"bus_faults\":" << faults
@@ -683,6 +828,7 @@ public:
                   << " system clocks, " << pixel_cycles << " independent pixel clocks, "
                   << complete_frames << " complete frames, " << colors.size() << " RGB colors; max CPU/video latency "
                   << max_cpu_latency << '/' << max_video_latency << " clocks; output " << prefix << ".ppm\n";
+        ram_write_trace.finish();
         audio.finish(std::string(prefix)+"-audio.json");
         if (demo_mode) {
             ym_trace.flush();
@@ -694,6 +840,7 @@ public:
 
 int main(int argc, char **argv) {
     Verilated::commandArgs(argc, argv);
+    try {
 #ifdef ST_RAM_BUS_PROBE
     require(argc == 1, "RAM timing firmware takes no external ROM");
     {
@@ -707,14 +854,19 @@ int main(int argc, char **argv) {
     raster.ram_raster_probe();
 #endif
 #else
-    require((argc >= 2 && argc <= 4) || argc==7 || argc==9, "usage: boot_memory_tb STOCK_192K_ROM [SECONDS=8] [OUTPUT_PREFIX=emutos-sdram]");
+    require((argc >= 2 && argc <= 4) || argc==7 || argc==9 || argc==10 || argc==11, "usage: boot_memory_tb STOCK_192K_ROM [SECONDS=8] [OUTPUT_PREFIX=emutos-sdram]");
     const unsigned seconds = argc >= 3 ? unsigned(std::strtoul(argv[2], nullptr, 10)) : 8;
-    require(seconds >= 6 && seconds <= 30, "boot duration must be 6..30 emulated seconds");
+    require(seconds >= 6 && seconds <= 120, "boot duration must be 6..120 emulated seconds");
     Boot boot(argv[1], argc>=7 ? argv[4] : nullptr);
+    if (argc==11) boot.open_ram_write_trace(argv[10],argv[3]);
     boot.run(seconds, argc >= 4 ? argv[3] : "emutos-sdram", argc>=7 ? unsigned(std::strtoul(argv[5],nullptr,10)) : 6,
              argc>=7 ? unsigned(std::strtoul(argv[6],nullptr,10)) : 7,
-             argc==9 ? unsigned(std::strtoul(argv[7],nullptr,10)) : 0,
-             argc==9 ? unsigned(std::strtoul(argv[8],nullptr,10)) : 5);
+             argc>=9 ? unsigned(std::strtoul(argv[7],nullptr,10)) : 0,
+             argc>=9 ? unsigned(std::strtoul(argv[8],nullptr,10)) : 5, argc>=10 ? argv[9] : nullptr);
 #endif
+    } catch (const std::exception& error) {
+        std::cerr << "FAIL " << error.what() << '\n';
+        return 1;
+    }
     return 0;
 }

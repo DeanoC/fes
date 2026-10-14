@@ -15,6 +15,8 @@ module st_mfp (
     input  wire clk,
     input  wire reset,
     input  wire timer_ce,
+    // Active high here; the physical CPU DS pin is active low.
+    input  wire data_strobe,
     input  wire req,
     input  wire [5:0] addr,
     input  wire write,
@@ -29,6 +31,8 @@ module st_mfp (
     input  wire iack
 );
     reg req_seen, iack_seen;
+    reg data_strobe_previous;
+    reg [7:0] timer_read_count [0:3];
     reg [7:0] gpdr, aer, ddr, vr;
     reg [15:0] ier, ipr, isr, imr;
     reg [15:0] next_ier, next_ipr, next_isr, next_imr;
@@ -183,10 +187,10 @@ module st_mfp (
             6'h19: read_value = {4'd0, control[0]};
             6'h1b: read_value = {4'd0, control[1]};
             6'h1d: read_value = {1'b0, control[2][2:0], 1'b0, control[3][2:0]};
-            6'h1f: read_value = count[0];
-            6'h21: read_value = count[1];
-            6'h23: read_value = count[2];
-            6'h25: read_value = count[3];
+            6'h1f: read_value = timer_read_count[0];
+            6'h21: read_value = timer_read_count[1];
+            6'h23: read_value = timer_read_count[2];
+            6'h25: read_value = timer_read_count[3];
             6'h27: read_value = scr;
             6'h29: read_value = ucr;
             6'h2b: read_value = {6'd0, rsr_control};
@@ -202,6 +206,7 @@ module st_mfp (
     always @(posedge clk) begin
         if (reset) begin
             req_seen <= 1'b0;
+            data_strobe_previous <= 1'b0;
             iack_seen <= 1'b0;
             rdata <= 8'd0;
             gpdr <= 8'd0;
@@ -231,6 +236,7 @@ module st_mfp (
                 control[state_index] <= 4'd0;
                 reload[state_index] <= 8'd0;
                 count[state_index] <= 8'd0;
+                timer_read_count[state_index] <= 8'd0;
                 prescale[state_index] <= 8'd0;
             end
         end else begin
@@ -241,6 +247,7 @@ module st_mfp (
             vr <= next_vr;
             gpip_previous <= gpip_level;
             timer_previous <= timer_level;
+            data_strobe_previous <= data_strobe;
             if (!req) req_seen <= 1'b0;
             if (transfer) begin
                 req_seen <= 1'b1;
@@ -253,6 +260,12 @@ module st_mfp (
             end
 
             for (state_index = 0; state_index < 4; state_index = state_index + 1) begin
+                // TDR reads use the last physical DS low-to-high snapshot
+                // (Motorola M68000 Family Reference Manual, page 9-47).
+                // Atari C070231 connects DS directly to CPU LDS, so this
+                // capture also occurs for RAM/ROM and other-device cycles.
+                if (data_strobe_previous && !data_strobe)
+                    timer_read_count[state_index] <= count[state_index];
                 if (control[state_index] == 0 || control[state_index] == 8 ||
                     (control[state_index][3] && timer_level[state_index % 2]))
                     prescale[state_index] <= 8'd0;

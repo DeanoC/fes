@@ -6,10 +6,12 @@ module st_io #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
     parameter integer CPU_CLOCK_HZ = 8_000_000,
     parameter integer ENABLE_FLOPPY_WRITE = 0,
-    parameter integer MFP_WAIT_STATES = 0
+    parameter integer MFP_WAIT_STATES = 4,
+    parameter integer PSG_WAIT_STATES = 0
 ) (
     input wire clk, reset, cold_reset,
     input wire cpu_cycle_ce,
+    input wire cpu_data_strobe,
     input wire req,
     input wire [23:1] addr,
     input wire write,
@@ -54,6 +56,8 @@ module st_io #(
     input wire [15:0] dma_rdata,
     output wire vblank, hblank,
     output wire native_display,
+    output reg native_short_line, native_blank,
+    output reg [8:0] native_word_loss,
     output reg [8:0] native_line,
     output wire [8:0] native_cycle,
     output reg native_pixel_ce
@@ -86,9 +90,11 @@ module st_io #(
                       address == 24'hff860c;
     assign selected = mfp_select || psg_select || kbd_select || midi_select || fdc_select;
     wire mfp_ack, psg_ack, kbd_ack, midi_ack, fdc_ack;
-    // Optional access-timing probe. Default zero retains the selected core.
-    // Delay the peripheral transaction itself so timer reads sample late,
-    // rather than returning an old value behind a delayed acknowledgement.
+    // Standard ST register-access policy: four native CPU wait states.
+    // Other values remain explicit access-timing diagnostics.
+    // Delay the selected peripheral transaction, not only acknowledgement.
+    // Timer data uses the preceding raw DS-end snapshot independently of
+    // this admission delay; other reads and writes execute on admission.
     localparam integer MFP_WAIT_BITS = $clog2(MFP_WAIT_STATES + 2);
     reg [MFP_WAIT_BITS-1:0] mfp_bus_age;
     wire mfp_bus_req = req && mfp_select;
@@ -98,10 +104,39 @@ module st_io #(
         if (reset || !mfp_bus_req) mfp_bus_age <= 0;
         else if (cpu_cycle_ce && !mfp_bus_ready) mfp_bus_age <= mfp_bus_age + 1'b1;
     end
+    // The motherboard applies its GLUE sound-bus wait to each burst.
+    // Standalone peripheral fixtures can select zero waits. Operand bursts
+    // remain within FF88xx; intervening instruction/data accesses clear them.
+    // No opcode, program counter or instruction retirement is inspected.
+    localparam integer PSG_WAIT_BITS = $clog2(PSG_WAIT_STATES + 2);
+    reg [PSG_WAIT_BITS-1:0] psg_bus_age;
+    reg [1:0] psg_burst_count;
+    reg psg_transaction_seen;
+    wire psg_bus_req = req && psg_select;
+    wire psg_bus_ready = PSG_WAIT_STATES == 0 ||
+        psg_bus_age >= PSG_WAIT_BITS'(PSG_WAIT_STATES + (write ? 0 : 1));
+    wire psg_complete = psg_bus_req && psg_bus_ready &&
+        (byte_enable[1] ? psg_ack : 1'b1);
+    always @(posedge clk) begin
+        if (reset || !psg_select) begin
+            psg_bus_age <= 0; psg_burst_count <= 0; psg_transaction_seen <= 0;
+        end else begin
+            if (!psg_bus_req) begin
+                psg_transaction_seen <= 0;
+                if (psg_burst_count == 0) psg_bus_age <= 0;
+            end else if (cpu_cycle_ce && !psg_bus_ready) psg_bus_age <= psg_bus_age + 1'b1;
+            if (psg_complete && !psg_transaction_seen) begin
+                psg_transaction_seen <= 1;
+                psg_burst_count <= psg_burst_count + 1'b1;
+                // Keep ready/ACK asserted through a held fourth request.
+                // The wrapped count clears age only after request withdrawal.
+            end
+        end
+    end
     wire [7:0] mfp_data, psg_data, kbd_data, midi_data;
     wire [15:0] fdc_data;
     assign ack = req && (mfp_select ? (mfp_bus_ready && (byte_enable[0] ? mfp_ack : 1'b1)) :
-                         psg_select ? (byte_enable[1] ? psg_ack : 1'b1) :
+                         psg_select ? (psg_bus_ready && (byte_enable[1] ? psg_ack : 1'b1)) :
                          kbd_select ? (byte_enable[1] ? kbd_ack : 1'b1) :
                          midi_select ? (byte_enable[1] ? midi_ack : 1'b1) :
                          fdc_select ? fdc_ack : 1'b0);
@@ -116,6 +151,7 @@ module st_io #(
     reg [1:0] frame_resolution, line_resolution;
     reg frame_pal, line_pal, line_timing_pal;
     reg bottom_open;
+    reg blank_pending, blank_next;
     reg [23:0] timer_b_display_delay;
     wire [32:0] timer_sum = {1'b0, timer_phase} + 33'd2457600;
     wire timer_ce = timer_sum >= 33'(SYSTEM_CLOCK_HZ);
@@ -128,6 +164,12 @@ module st_io #(
                            frame_pal ? 9'd312 : 9'd262;
     assign hblank = cpu_cycle_ce && horizontal_cycle == line_last && !reset;
     assign vblank = hblank && native_line == frame_last;
+    // STF WS1 asserts IRQ2 four CPU cycles before the line boundary:
+    // PAL 508, NTSC 504, mono 220 (Hatari Video_InitTimings).
+    // Keep the native boundary pulse separate from interrupt admission.
+    wire [8:0] hbl_irq_last = line_resolution == 2'd2 ? 9'd219 :
+                            line_timing_pal ? 9'd507 : 9'd503;
+    wire hbl_irq_event = cpu_cycle_ce && horizontal_cycle == hbl_irq_last && !reset;
     reg vbl_pending, hbl_pending;
     // STF wake-up state 1 asserts IRQ4 60 CPU cycles after the frame
     // boundary (Hatari 2.5.0 Video_InitTimings). Keep the frame/capture pulse
@@ -142,29 +184,48 @@ module st_io #(
     // Brief register writes cannot create extra DE edges or turn a 50 Hz line
     // into a new frame midway through display. Other exact GLUE sample
     // positions and horizontal/top border effects remain unimplemented.
+    // Compare constant GLUE bounds in three-bit groups. No cycle or DE delay.
+    function automatic raster_lt9(input [8:0] value, input [8:0] limit);
+        raster_lt9 = (value[8:6] < limit[8:6]) ||
+            (value[8:6] == limit[8:6] && value[5:3] < limit[5:3]) ||
+            (value[8:6] == limit[8:6] && value[5:3] == limit[5:3] && value[2:0] < limit[2:0]);
+    endfunction
     wire [8:0] display_top = frame_resolution == 2'd2 ? 9'd34 : frame_pal ? 9'd63 : 9'd34;
     // Constant bounds avoid a mode-dependent carry chain on DE/RGB.
     wire active_cycle = line_resolution == 2'd2 ?
-        (horizontal_cycle >= 9'd4 && horizontal_cycle < 9'd164) : line_pal ?
-        (horizontal_cycle >= 9'd56 && horizontal_cycle < 9'd376) :
-        (horizontal_cycle >= 9'd52 && horizontal_cycle < 9'd372);
+        (!raster_lt9(horizontal_cycle, 9'd4) && raster_lt9(horizontal_cycle, 9'd164)) : line_pal ?
+        (!raster_lt9(horizontal_cycle, 9'd56) && (native_short_line ?
+            raster_lt9(horizontal_cycle, 9'd372) : raster_lt9(horizontal_cycle, 9'd376))) :
+        (!raster_lt9(horizontal_cycle, 9'd52) && raster_lt9(horizontal_cycle, 9'd372));
     // Constant bounds avoid a mode-dependent addition on the DE/RGB path.
     // Hatari video.h defines 47 PAL / 26 NTSC extra color DE lines.
     wire active_line = frame_resolution == 2'd2 ?
-        (native_line >= 9'd34 && native_line < 9'd434) : frame_pal ?
-        (native_line >= 9'd63 && (bottom_open ? native_line < 9'd310 : native_line < 9'd263)) :
-        (native_line >= 9'd34 && (bottom_open ? native_line < 9'd260 : native_line < 9'd234));
+        (!raster_lt9(native_line, 9'd34) && raster_lt9(native_line, 9'd434)) : frame_pal ?
+        (!raster_lt9(native_line, 9'd63) && (bottom_open ? raster_lt9(native_line, 9'd310) : raster_lt9(native_line, 9'd263))) :
+        (!raster_lt9(native_line, 9'd34) && (bottom_open ? raster_lt9(native_line, 9'd260) : raster_lt9(native_line, 9'd234)));
     assign native_display = !reset && active_line && active_cycle;
     // FF8205/07/09 report wordwise DMA progress, not just complete rows.
     // Hatari 2.5 Video_CalculateAddress subtracts eight CPU cycles before
     // counting one word per four cycles; mono's counter porch starts at 0.
     // These are counter visibility positions, independent of DE/Timer B.
     wire counter_window = line_resolution == 2'd2 ?
-        (horizontal_cycle >= 9'd8 && horizontal_cycle < 9'd168) : line_pal ?
-        (horizontal_cycle >= 9'd64 && horizontal_cycle < 9'd384) :
-        (horizontal_cycle >= 9'd60 && horizontal_cycle < 9'd380);
+        (!raster_lt9(horizontal_cycle, 9'd8) && raster_lt9(horizontal_cycle, 9'd168)) : line_pal ?
+        (!raster_lt9(horizontal_cycle, 9'd64) && (native_short_line ?
+            raster_lt9(horizontal_cycle, 9'd380) : raster_lt9(horizontal_cycle, 9'd384))) :
+        (!raster_lt9(horizontal_cycle, 9'd60) && raster_lt9(horizontal_cycle, 9'd380));
     wire counter_word = cpu_cycle_ce && active_line && counter_window &&
                         horizontal_cycle[1:0] == 2'b11;
+    // STF low/medium MMU counter restart during VSYNC: cycle 56 on
+    // PAL line 310 or NTSC line 260, selected by the live sync register.
+    // The NTSC deadline also requires an NTSC vertical frame. A brief
+    // 60 Hz line in a PAL frame must not reset its still-active DMA counter.
+    // A color line within a mono frame has no intermediate color restart.
+    // Hatari Video_RestartVideoCounter / Video_InterruptHandler_HBL.
+    wire counter_restart = cpu_cycle_ce && frame_resolution != 2'd2 &&
+        line_resolution != 2'd2 &&
+        horizontal_cycle == 9'd55 &&
+        (sync_mode[1] ? native_line == 9'd310 :
+            (!frame_pal && native_line == 9'd260));
     always @(posedge clk) begin
         if (reset) begin
             timer_phase <= 0; horizontal_cycle <= 0; bottom_open <= 0; native_pixel_ce <= 0;
@@ -172,9 +233,33 @@ module st_io #(
             frame_resolution <= resolution; line_resolution <= resolution;
             frame_pal <= sync_mode[1]; line_pal <= sync_mode[1];
             line_timing_pal <= sync_mode[1];
+            native_short_line <= 1'b0; native_blank <= 1'b1;
+            blank_pending <= 1'b0; blank_next <= 1'b1;
+            native_word_loss <= 9'd0;
             vbl_pending <= 0; hbl_pending <= 0; vbl_irq_delay <= 0; native_line <= 0;
             video_counter <= 0;
         end else begin
+            // A PAL line changed to 60 Hz during its active interval ends
+            // at cycle 372, fetching 79 words rather than 80. A return before that
+            // decision cancels it; a later return cannot reopen DE. BIG's
+            // screen 2 uses this together with vertical bottom opening.
+            if (line_resolution != 2'd2 && line_pal &&
+                !raster_lt9(horizontal_cycle, 9'd56) && raster_lt9(horizontal_cycle, 9'd372))
+                native_short_line <= !sync_mode[1];
+            // STF WS1 samples live sync at cycle 502; the blank level changes
+            // at the following HBL. It is independent of DMA and Timer B.
+            // A second bottom-border switch can suppress the normal check;
+            // VSYNC still forces blanking at 310/260.
+            if (cpu_cycle_ce && line_resolution != 2'd2 && horizontal_cycle == 9'd502) begin
+                if ((native_line == 9'd15 && !sync_mode[1]) ||
+                    (native_line == 9'd24 && sync_mode[1])) begin
+                    blank_pending <= 1'b1; blank_next <= 1'b0;
+                end
+                if ((native_line == 9'd257 && !sync_mode[1]) ||
+                    (native_line == 9'd307 && sync_mode[1])) begin
+                    blank_pending <= 1'b1; blank_next <= 1'b1;
+                end
+            end
             // Sample the new cycle one fabric edge after GLUE advances,
             // aligned with the native DE-rise/palette capture edge.
             native_pixel_ce <= cpu_cycle_ce;
@@ -188,6 +273,10 @@ module st_io #(
                 // could manufacture an extra edge near display start.
                 if (horizontal_cycle == 9'd54)
                     line_timing_pal <= sync_mode[1];
+                // An early return in the next line must select the PAL
+                // 56-cycle porch before either color mode can enable DE.
+                if (horizontal_cycle == 9'd50)
+                    line_pal <= sync_mode[1];
                 // The ST's MFP receives DE 24 CPU cycles after the video
                 // edge (Hatari v2.5.0 TIMERB_VIDEO_CYCLE_OFFSET). Delay both
                 // edges so AER selects the proper start/end event while
@@ -199,7 +288,7 @@ module st_io #(
                 vbl_irq_delay <= vbl_irq_delay - 1'b1;
                 if (vbl_irq_delay == 6'd1) vbl_pending <= 1'b1;
             end
-            if (hblank) hbl_pending <= 1;
+            if (hbl_irq_event) hbl_pending <= 1;
             if (irq_ack && irq_level == 4) vbl_pending <= 0;
             if (irq_ack && irq_level == 2) hbl_pending <= 0;
             // STF WS1 samples the bottom-stop condition at cycle 502 of
@@ -213,7 +302,8 @@ module st_io #(
                 sync_mode[1] != frame_pal)
                 bottom_open <= 1'b1;
             if (vblank) begin
-                bottom_open <= 1'b0;
+                bottom_open <= 1'b0; native_blank <= 1'b1; blank_pending <= 1'b0;
+                native_word_loss <= 9'd0;
                 frame_resolution <= resolution; frame_pal <= sync_mode[1];
                 video_counter <= {screen_base[23:8], 8'd0};
                 native_line <= 0;
@@ -221,8 +311,19 @@ module st_io #(
                 if (native_line == display_top - 9'd1)
                     video_counter <= {screen_base[23:8], 8'd0};
                 if (native_line != 9'h1ff) native_line <= native_line + 1'b1;
-            end else if (counter_word) video_counter <= video_counter + 24'd2;
-            if (hblank) begin line_resolution <= resolution; line_pal <= sync_mode[1]; end
+            end else if (counter_restart)
+                video_counter <= {screen_base[23:8], 8'd0};
+            else if (counter_word) video_counter <= video_counter + 24'd2;
+            if (!vblank && cpu_cycle_ce && active_line && line_pal &&
+                native_short_line && horizontal_cycle == 9'd383)
+                native_word_loss <= native_word_loss + 9'd1;
+            if (hblank) begin
+                if (blank_pending) native_blank <= blank_next;
+                blank_pending <= 1'b0;
+                if (native_line == (frame_pal ? 9'd309 : 9'd259)) native_blank <= 1'b1;
+                line_resolution <= resolution; line_pal <= sync_mode[1];
+                native_short_line <= 1'b0;
+            end
         end
     end
     wire mfp_irq, kbd_irq, midi_irq, fdc_irq;
@@ -230,6 +331,7 @@ module st_io #(
     assign irq = mfp_irq ? 3'd6 : vbl_pending ? 3'd4 : hbl_pending ? 3'd2 : 3'd0;
     assign irq_vectored = mfp_irq;
     st_mfp mfp (
+        .data_strobe(cpu_data_strobe),
         .clk(clk), .reset(reset), .timer_ce(timer_ce),
         .req(mfp_bus_req && mfp_bus_ready && byte_enable[0]), .addr({addr[5:1], 1'b1}),
         .write(write), .wdata(wdata[7:0]), .rdata(mfp_data), .ack(mfp_ack),
@@ -264,8 +366,8 @@ module st_io #(
         .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
         .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready)
     );
-    st_ym2149 #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ), .CHIP_CLOCK_HZ(CPU_CLOCK_HZ / 4)) psg (
-        .clk(clk), .reset(reset), .bus_req(req && psg_select && byte_enable[1]),
+    st_ym2149 #(.SYSTEM_CLOCK_HZ(SYSTEM_CLOCK_HZ), .CHIP_CLOCK_HZ(CPU_CLOCK_HZ / 4), .EARLY_WRITE_ACK(32'(PSG_WAIT_STATES != 0))) psg (
+        .clk(clk), .reset(reset), .bus_req(psg_bus_req && psg_bus_ready && byte_enable[1]),
         .bus_reg(addr[1]), .bus_write(write), .bus_wdata(wdata[15:8]),
         .bus_rdata(psg_data), .bus_ack(psg_ack), .pcm_signed(audio_pcm),
         .sample_valid(audio_valid), .port_a(port_a)

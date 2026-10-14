@@ -58,7 +58,10 @@ module st_video #(
         (vertical >= 10'd160 && vertical < 10'd560) :
         (vertical >= 10'd60 && vertical < 10'd660);
     wire in_picture = horizontal < H_ACTIVE && picture_line && mode_valid;
-    wire [3:0] bit_index = 4'd15 - (low_resolution ? horizontal[5:2] : horizontal[4:1]);
+    // Lookup both colour modes before selecting the completed pixel. Keep
+    // all four plane bits in each path, including during mode transitions.
+    wire [3:0] low_bit_index = 4'd15 - horizontal[5:2];
+    wire [3:0] fast_bit_index = 4'd15 - horizontal[4:1];
 
     // Capture each plane immediately before its 16-pixel group. Group zero
     // uses the preceding line's blanking; staging preserves its final pixels.
@@ -238,16 +241,23 @@ module st_video #(
         end
     end
 
-    wire [3:0] color_index = {plane3[bit_index], plane2[bit_index],
-                              plane1[bit_index], plane0[bit_index]};
-    wire [8:0] color = palette[color_index * 9 +: 9];
+    wire [3:0] low_color_index = {plane3[low_bit_index], plane2[low_bit_index],
+                                  plane1[low_bit_index], plane0[low_bit_index]};
+    wire [3:0] fast_color_index = {plane3[fast_bit_index], plane2[fast_bit_index],
+                                   plane1[fast_bit_index], plane0[fast_bit_index]};
+    wire [8:0] low_color = palette[low_color_index * 9 +: 9];
+    wire [8:0] fast_color = palette[fast_color_index * 9 +: 9];
     wire [8:0] border = palette[8:0];
     function automatic [7:0] expand3(input [2:0] intensity);
         expand3 = {intensity, intensity, intensity[2:1]};
     endfunction
-    wire mono_white = plane0[bit_index] ^ palette[0];
+    wire mono_white = plane0[fast_bit_index] ^ palette[0];
+    wire [23:0] low_rgb =
+        {expand3(low_color[8:6]), expand3(low_color[5:3]), expand3(low_color[2:0])};
+    wire [23:0] fast_rgb =
+        {expand3(fast_color[8:6]), expand3(fast_color[5:3]), expand3(fast_color[2:0])};
     wire [23:0] picture_rgb = high_resolution ? {24{mono_white}} :
-        {expand3(color[8:6]), expand3(color[5:3]), expand3(color[2:0])};
+        low_resolution ? low_rgb : fast_rgb;
     wire [23:0] border_rgb = high_resolution ? 24'd0 :
         {expand3(border[8:6]), expand3(border[5:3]), expand3(border[2:0])};
     wire active_display = horizontal < H_ACTIVE && vertical < V_ACTIVE;

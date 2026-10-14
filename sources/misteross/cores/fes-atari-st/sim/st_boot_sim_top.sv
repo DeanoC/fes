@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Reusable 520ST system: storage and video/audio sockets remain external.
-module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
+module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 4, parameter integer PSG_WAIT_STATES = 4, parameter integer MFP_IACK_PHASE = 1, parameter RAW_MFP_IACK = 1) (
     input wire clk_sys, reset,
     output wire rom_req,
     output wire [17:1] rom_addr,
@@ -79,7 +79,9 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
 );
     wire [8:0] native_cycle;
     wire native_pixel_ce;
-    st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES)) system (
+    wire native_short_line, native_blank;
+    wire [8:0] native_word_loss;
+    st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES), .PSG_WAIT_STATES(PSG_WAIT_STATES), .MFP_IACK_PHASE(MFP_IACK_PHASE), .RAW_MFP_IACK(RAW_MFP_IACK)) system (
         .cold_reset(reset), .media_frozen(1'b0),
         .media_write_req(), .media_write_addr(), .media_write_data(),
         .media_write_ready(1'b0), .media_write_busy(), .media_changed(),
@@ -91,9 +93,11 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
     // This wrapper observes the production native capture with model RAM.
     // Its consumer clock is the system clock; it is not an HDMI/CDC oracle.
     st_native_low_video capture (
+        .ram_write_committed(1'b0), .ram_write_addr(18'd0),
+        .ram_write_data(16'd0), .ram_write_lanes(2'd0),
         .clk_sys(clk_sys), .clk_pixel(clk_sys), .reset_sys(reset), .reset_pixel(reset),
-        .hold(reset), .native_vblank(vblank), .native_display(native_display), .native_line(native_line),
-        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce),
+        .hold(reset), .native_vblank(vblank), .native_display(native_display), .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss), .native_line(native_line),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(exp_phi2),
         .sync_mode(sync_mode), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .memory_req(capture_req), .memory_addr(capture_addr), .memory_ready(capture_ready), .memory_data(capture_data),
         .output_sof(vblank), .output_address(17'd0), .output_rgb(unused_capture_rgb),
@@ -103,8 +107,8 @@ module st_boot_sim_top #(parameter integer MFP_WAIT_STATES = 0) (
         .debug_frames(capture_frames), .debug_skipped(unused_capture_skipped), .debug_underruns(capture_underruns)
     );
     assign capture_pixel = capture.write_pixel;
-    assign capture_x = capture.sample_x;
-    assign capture_y = capture.row;
+    assign capture_x = capture.output_x;
+    assign capture_y = capture.output_row;
     assign capture_rgb = capture.sample_rgb;
     assign capture_height = capture.height[capture.write_bank];
     assign debug_fdc_status = system.io.floppy.fdc_status;

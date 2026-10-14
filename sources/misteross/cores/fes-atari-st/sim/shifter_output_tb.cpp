@@ -1,0 +1,149 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Independent coordinate oracle from Hatari's completed-access timestamps:
+// admitted C=80/84/88 first change active x=C-83 PAL / C-79 NTSC;
+// marker x=0 stays index 2. Actual PAL 512 / NTSC 508-cycle line wraps.
+#include "Vst_shifter_output_sim_top.h"
+#include "verilated.h"
+#include <cstdlib>
+#include <iostream>
+
+struct Test {
+    Vst_shifter_output_sim_top d;
+    unsigned checks=0, samples=0, borders=0, wraps=0, published=0;
+    unsigned frame=0, stamp=80;
+    bool abort=false, pal=true;
+    unsigned commit_mode=0;
+    unsigned top() const {return pal?63:34;}
+    unsigned bottom() const {return pal?310:260;}
+    unsigned lines() const {return pal?313:263;}
+    unsigned line_cycles() const {return pal?512:508;}
+    int first_change() const {return int(stamp)-(pal?83:79);}
+    unsigned border_first() const {return pal?5:9;}
+    unsigned border_last() const {return pal?385:389;}
+    void need(bool v,const char*m){++checks;if(!v){std::cerr<<"FAIL "<<m<<" frame="<<frame<<" line="<<d.native_line<<" cycle="<<d.native_cycle<<" token="<<d.token_line<<":"<<d.token_cycle<<" x="<<d.x<<" row="<<d.row<<" rgb="<<d.rgb<<'\n';std::exit(1);}}
+    void fabric(){
+        d.eval();
+        if(d.pixel&&!d.reset_sys){
+            int first=first_change(); // PAL -3/1/5; NTSC 1/5/9.
+            unsigned expected=d.x==0?0x1c7:(int(d.x)<first?0x040:0x007);
+            need(d.rgb==expected,"current palette/index span");++samples;
+        }
+        unsigned oldframes=d.frames;
+        d.memory_ready=d.memory_req;
+        unsigned word=(d.memory_addr-0x10000/2)%80;
+        d.memory_data=word%4==0?(word==0?0x7fff:0xffff):word==1?0x8000:0;
+        d.clk_sys=1;d.eval();d.clk_sys=0;d.eval();
+        if(!d.reset_sys&&d.frames!=oldframes){need(!d.pending&&!d.frame_write,"published before output drain");++published;}
+        d.commit=0;d.native_pixel_ce=0;d.native_lookup_ce=0;d.native_vblank=0;
+    }
+    void pulse(unsigned line,unsigned cycle){
+        d.native_line=line;d.native_cycle=cycle;d.native_pixel_ce=1;
+        d.native_vblank=line==0&&cycle==0;
+        d.native_display=line>=top()&&line<bottom()&&cycle>=(pal?56u:52u)&&cycle<(pal?376u:372u);
+        d.hold=abort&&line==bottom()-1&&cycle>=390;
+        d.commit=0;
+        // The palette bus admits phase 1 in FES's cycle label. Reset index 1
+        // during blanking, then commit C+1 on the pulse, its following edge,
+        // or the actual late phase-1 edge (4/5 fabric clocks after the pulse).
+        if(cycle==5){d.commit=1;d.commit_index=1;d.commit_color=0x040;}
+        if(cycle==stamp+1){d.commit=1;d.commit_index=1;d.commit_color=0x007;}
+        // Border independently exercises side/bottom runs and persistent
+        // colour across line wrap. C40 -> canvas x5 PAL / x9 NTSC; C420 -> x385 / x389.
+        if(cycle==1||cycle==41||cycle==421){d.commit=1;d.commit_index=0;d.commit_color=cycle==1?0x012:cycle==41?0x038:0x1c0;}
+        need(!d.commit||(cycle&3)==1,"authored write outside admitted phase");
+        const bool commit=d.commit;
+        if(commit_mode)d.commit=0;
+        fabric();
+        if(d.tick&&!abort&&line>0&&cycle<28){need(d.token_line==line-1&&d.token_cycle==cycle+line_cycles()-28,"token line wrap");++wraps;}
+        // Variable fabric spacing proves elapsed system clocks do not advance
+        // the calibrated stage. Its output corresponds to exactly 28 pulses.
+        if(d.tick&&!abort&&line>=1){unsigned n=line*line_cycles()+cycle-28;need(d.token_line==n/line_cycles()&&d.token_cycle==n%line_cycles(),"28 native pulse delay");}
+        // Raw phase2 closes the current phase one edge before the next pulse.
+        // Alternate 6/7-edge pulse spacing on adjacent lines, so admitted
+        // phase1 writes exercise BOTH real late offsets 4 and 5.
+        const unsigned span=5+(line+cycle)%2;
+        for(unsigned i=1;i<=span;++i){
+            d.native_lookup_ce=i==span;
+            d.commit=commit && i==(commit_mode==1?1:commit_mode==2?span-1:0);
+            fabric();
+        }
+        if(d.hold)need(!d.pending&&!d.pixel&&!d.frame_write,"Hold failed to cancel output");
+    }
+    void pixel_clock(){d.clk_pixel=1;d.eval();d.clk_pixel=0;d.eval();}
+    unsigned read(unsigned address){d.output_address=address;pixel_clock();pixel_clock();return d.output_rgb;}
+    void replay(){
+        // SOF selects a publication, while the sampled read retains its old
+        // bank. x4 distinguishes stamp84's blue from stamp88's red.
+        const bool previous=d.front_valid;
+        const unsigned old_rgb=read(4);
+        for(unsigned i=0;i<4;++i)pixel_clock();d.output_sof=1;pixel_clock();d.output_sof=0;
+        if(previous)need(d.output_rgb==old_rgb,"SOF retagged an in-flight bank read");
+        pixel_clock();
+        if(previous)need(d.output_rgb==old_rgb,"SOF changed sampled read bank");
+        pixel_clock();
+        need(d.output_rgb==(4<first_change()?0x040:0x007),"SOF delayed bank selection");
+        need(d.front_valid&&d.sequence_number==frame,"frame publication identity");
+        need(bool(d.front_pal)==pal&&d.front_height==bottom()-top(),"immutable published geometry");
+        for(unsigned row: {0u,bottom()-top()-1})for(unsigned x: {0u,1u,4u,5u,8u,9u,319u}) {
+            int first=first_change();
+            unsigned expected=x==0?0x1c7:(int(x)<first?0x040:0x007);
+            need(read(row*320+x)==expected,"immutable first/last bottom pixel");
+        }
+        // Stream every edge: each response belongs to the preceding request.
+        // Alternating markers/spans/invalid addresses rejects one-edge replay
+        // and stale selector tags, including the final partially used chunk.
+        if(pal){
+            const unsigned addresses[]={1,64640,65536,78080,78848,79872,0,131071,79039,1023,1024};
+            auto expected=[&](unsigned address){
+                if(address>=78*1024)return 0u;
+                unsigned x=address%320;
+                return x==0?0x1c7u:(int(x)<first_change()?0x040u:0x007u);
+            };
+            unsigned preceding=addresses[0], distinguishable=0;read(preceding);
+            for(unsigned address:addresses){
+                d.output_address=address;pixel_clock();
+                need(d.output_rgb==expected(preceding),"streamed two-edge address/tag alignment");
+                if(expected(address)!=expected(preceding))++distinguishable;
+                preceding=address;
+            }
+            pixel_clock();need(d.output_rgb==expected(preceding),"stream drain address/tag alignment");
+            need(distinguishable>=8,"stream could not reject a one-edge/stale-tag replay");
+        }
+        for(unsigned row: {0u,29u,(pal?275u:254u)}){
+            d.border_row=row;for(unsigned i=0;i<4;++i)pixel_clock();
+            d.border_start=1;pixel_clock();d.border_start=0;pixel_clock();
+            for(unsigned x=0;x<416;++x){
+                d.border_x=x;d.border_ce=1;d.eval();
+                unsigned expected=x<border_first()?0x012:x<border_last()?0x038:0x1c0;
+                need(d.border_rgb==expected,"side/bottom border current palette span");++borders;
+                pixel_clock();d.border_ce=0;pixel_clock();
+            }
+        }
+    }
+    void reset(){d.native_blank=0;d.native_short_line=0;d.native_word_loss=0;d.reset_sys=d.reset_pixel=1;d.hold=d.commit=d.native_pixel_ce=d.native_lookup_ce=d.native_vblank=0;fabric();pixel_clock();d.reset_sys=d.reset_pixel=0;frame=0;}
+    void profile(bool selected_pal,unsigned selected_mode){
+        pal=selected_pal;commit_mode=selected_mode;d.pal=pal;checks=samples=borders=wraps=published=0;reset();
+        for(unsigned c: {80u,84u,88u}){
+            stamp=c;++frame;
+            for(unsigned line=0;line<lines();++line)for(unsigned cycle=0;cycle<line_cycles();++cycle)pulse(line,cycle);
+            need(d.frames==frame,"complete opened-bottom frame count");replay();
+        }
+        // Abort while the final pixel is still in flight. No partial bank may
+        // publish, and a subsequent complete frame must recover.
+        abort=true;++frame;
+        for(unsigned line=0;line<lines();++line)for(unsigned cycle=0;cycle<line_cycles();++cycle)pulse(line,cycle);
+        need(d.frames==3,"Hold published a partial bottom line");abort=false;
+        ++frame;for(unsigned line=0;line<lines();++line)for(unsigned cycle=0;cycle<line_cycles();++cycle)pulse(line,cycle);
+        need(d.frames==4,"Hold recovery did not publish");replay();
+        // Reset with live tokens cancels the pipeline and publication state.
+        for(unsigned line=0;line<=top();++line)for(unsigned cycle=0;cycle<(line==top()?100u:line_cycles());++cycle)pulse(line,cycle);
+        need(d.pending,"reset did not exercise live tokens");reset();
+        need(!d.pending&&!d.pixel&&!d.frame_write&&!d.front_valid&&d.frames==0,"reset leaked capture state");
+        ++frame;for(unsigned line=0;line<lines();++line)for(unsigned cycle=0;cycle<line_cycles();++cycle)pulse(line,cycle);
+        need(d.frames==1,"reset recovery did not publish");replay();
+        need(published==5,"unexpected drained publication count");
+        std::cout<<(pal?"PAL":"NTSC")<<(commit_mode==2?" phase1-late-commit":commit_mode==1?" following-edge-commit":" pulse-commit")<<" Shifter output PASS: "<<checks<<" checks, "<<samples<<" pixel samples, "<<borders<<" replay border pixels, "<<wraps<<" wrapped tokens, "<<published<<" drained publications\n";
+    }
+    void run(){for(unsigned mode:{0u,1u,2u}){profile(true,mode);profile(false,mode);}}
+};
+int main(int argc,char**argv){Verilated::commandArgs(argc,argv);Test t;t.run();}

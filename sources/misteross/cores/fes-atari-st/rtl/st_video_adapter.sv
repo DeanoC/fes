@@ -13,8 +13,10 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     input wire reset_sys, reset_pixel,
     input wire hold,
     input wire native_vblank, native_display,
+    input wire native_short_line, native_blank,
+    input wire [8:0] native_word_loss,
     input wire [8:0] native_line, native_cycle,
-    input wire native_pixel_ce,
+    input wire native_pixel_ce, native_lookup_ce,
     input wire [7:0] sync_mode,
     // The original ST base has no writable low byte.
     /* verilator lint_off UNUSEDSIGNAL */
@@ -26,6 +28,10 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     output wire [18:1] video_addr,
     input wire video_ready,
     input wire [15:0] video_rdata,
+    input wire ram_write_committed,
+    input wire [18:1] ram_write_addr,
+    input wire [15:0] ram_write_data,
+    input wire [1:0] ram_write_lanes,
     output wire [`FES_VIDEO_PART_REQUEST_BITS-1:0] video_request,
     output reg [31:0] debug_underruns,
     output reg [31:0] debug_frame
@@ -153,10 +159,10 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     reg line_available;
     wire high_resolution = active_resolution == 2'd2;
     wire mode_valid = active_resolution != 2'd3;
-    wire [9:0] image_top = high_resolution ? 10'd160 : 10'd60;
-    wire [9:0] image_height = high_resolution ? 10'd400 : 10'd600;
     wire [8:0] native_height = high_resolution ? 9'd400 : 9'd200;
-    wire image_line = mode_valid && vertical >= image_top && vertical < image_top + image_height;
+    wire image_line = mode_valid && (high_resolution ?
+        (vertical >= 10'd160 && vertical < 10'd560) :
+        (vertical >= 10'd60 && vertical < 10'd660));
     // The renderer tracks native row/repetition at EOL. Sharing its coordinates
     // removes color scaling division from both lookup and scheduling paths.
     wire [8:0] current_row, next_row;
@@ -173,8 +179,9 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     wire first_lookup = active_resolution == 2'd0 ? horizontal == 11'd1644 :
         high_resolution ? horizontal == 11'd1647 : horizontal == 11'd1646;
     wire [9:0] next_vertical = vertical == V_TOTAL - 1'b1 ? 10'd0 : vertical + 10'd1;
-    wire next_image_line = mode_valid && next_vertical >= image_top &&
-                           next_vertical < image_top + image_height;
+    wire next_image_line = mode_valid && (high_resolution ?
+        (next_vertical >= 10'd160 && next_vertical < 10'd560) :
+        (next_vertical >= 10'd60 && next_vertical < 10'd660));
     wire next_row_ready = cache_valid[next_row[0]] && !cache_busy[next_row[0]] &&
         job_frame[next_row[0]] == debug_frame && job_row[next_row[0]] == next_row;
     integer bank;
@@ -333,7 +340,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
     wire [9:0] native_top = canvas_top + 10'd58;
     wire [9:0] native_end = native_top + {native_height_captured, 1'b0};
     wire native_image_line = vertical >= native_top && vertical < native_end;
-    // Forecast two pixels ahead: address register, then synchronous RGB read.
+    // Forecast RGB three pixels ahead: address, RAM, grouped selection.
     // Low output rows repeat twice. Advance the row base in blanking,
     // before the next-line lookahead, without a vertical-coordinate multiply.
     // Units of 64 pixels keep the address addition confined to its upper bits.
@@ -360,8 +367,12 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
                               9'((next_vertical - canvas_top) >> 1) : 9'd0;
         end
     end
-    wire [8:0] rgb_x = border_next_x >= 9'd48 && border_next_x < 9'd368 ?
-                       border_next_x - 9'd48 : 9'd0;
+    // RGB's extra read edge has its own forecast. Border replay retains the
+    // original two-pixel forecast and registered raster RGB boundary.
+    wire [8:0] rgb_next_x = horizontal >= 11'd221 && horizontal < 11'd1053 ?
+                            9'((horizontal - 11'd221) >> 1) : 9'd0;
+    wire [8:0] rgb_x = rgb_next_x >= 9'd48 && rgb_next_x < 9'd368 ?
+                       rgb_next_x - 9'd48 : 9'd0;
     wire [10:0] rgb_address_upper = rgb_row_base + {8'd0, rgb_x[8:6]};
     reg [16:0] rgb_ram_address;
     always @(posedge clk_pixel) begin
@@ -381,14 +392,25 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
         end
     end
     generate if (NATIVE_LOW_CAPTURE) begin : native_capture
+        // Forecast the original final-pixel boundary one edge ahead. Counters
+        // step on every non-reset pixel edge, so this registered pulse has the
+        // same value/edge as the original horizontal/vertical decode.
+        reg native_output_sof;
+        always @(posedge clk_pixel) begin
+            if (reset_pixel) native_output_sof <= 1'b0;
+            else native_output_sof <= horizontal == H_TOTAL - 11'd2 && vertical == V_TOTAL - 10'd1;
+        end
         /* verilator lint_off PINCONNECTEMPTY */
         st_native_low_video capture (
+            .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),
+            .ram_write_data(ram_write_data), .ram_write_lanes(ram_write_lanes),
+            .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss),
             .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
             .hold(hold), .native_vblank(native_vblank), .native_display(native_display),
-            .native_line(native_line), .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .sync_mode(sync_mode), .screen_base(screen_base),
+            .native_line(native_line), .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(native_lookup_ce), .sync_mode(sync_mode), .screen_base(screen_base),
             .resolution(resolution), .palette(palette),
             .memory_req(native_req), .memory_addr(native_addr), .memory_ready(native_ready), .memory_data(video_rdata),
-            .output_sof(horizontal == H_TOTAL - 11'd1 && vertical == V_TOTAL - 10'd1),
+            .output_sof(native_output_sof),
             .output_address(rgb_ram_address), .output_rgb(native_rgb), .output_border(unused_native_border),
             .output_valid(native_valid), .output_height(native_height_captured),
             .output_raster_border(unused_native_raster_border), .output_pal(native_pal), .output_raster_rgb(native_raster_rgb),
@@ -415,7 +437,7 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
         end
     end else begin : cached_renderer_test
         // The focused cache/renderer test isolates the retained indexed path.
-        wire unused_native_inputs = ^{native_vblank, native_display, native_line, native_cycle, native_pixel_ce, sync_mode,
+        wire unused_native_inputs = ^{ram_write_committed, ram_write_addr, ram_write_data, ram_write_lanes, native_vblank, native_display, native_short_line, native_blank, native_word_loss, native_line, native_cycle, native_pixel_ce, native_lookup_ce, sync_mode,
                                       border_row, border_sample_x, border_sample_ce,
                                       rgb_ram_address, native_req, native_ready, native_addr};
         assign video_req = legacy_req;
@@ -430,12 +452,18 @@ module st_video_adapter #(parameter bit NATIVE_LOW_CAPTURE = 1'b1) (
         expand_rgb = {c[8:6], c[8:6], c[8:7], c[5:3], c[5:3], c[5:4], c[2:0], c[2:0], c[2:1]};
     endfunction
     wire native_low = NATIVE_LOW_CAPTURE && active_resolution == 2'd0;
-    wire [23:0] captured_rgb = !source_request[`FES_VIDEO_PART_REQUEST_DE_BIT] ? 24'd0 :
-        expand_rgb(native_image_line && image_column ? native_rgb :
-                   canvas_line && canvas_column ? raster_rgb_q : 9'd0);
-    wire [31:0] selected_request = native_low ? {source_request[31:24], captured_rgb} : source_request;
     wire mute = hold_sync || !configured || (native_low ? !native_valid :
         image_line && horizontal < 11'd1280 && !line_available);
-    assign video_request = mute ?
-        ((selected_request & 32'hff000000) | (32'd1 << `FES_VIDEO_PART_REQUEST_HOLD_BIT)) : selected_request;
+    // The three colour sources are mutually exclusive. Gate them in parallel
+    // so mode selection does not add a serial mux after indexed rendering.
+    wire show_native = !mute && native_low && source_request[`FES_VIDEO_PART_REQUEST_DE_BIT];
+    wire show_picture = show_native && native_image_line && image_column;
+    wire show_border = show_native && !(native_image_line && image_column) &&
+        canvas_line && canvas_column;
+    wire [23:0] output_rgb =
+        ({24{!mute && !native_low}} & source_request[23:0]) |
+        ({24{show_picture}} & expand_rgb(native_rgb)) |
+        ({24{show_border}} & expand_rgb(raster_rgb_q));
+    assign video_request = {source_request[31:24], output_rgb} |
+        (mute ? (32'd1 << `FES_VIDEO_PART_REQUEST_HOLD_BIT) : 32'd0);
 endmodule

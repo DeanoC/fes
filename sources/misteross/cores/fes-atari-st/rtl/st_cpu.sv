@@ -32,9 +32,23 @@ module st_cpu #(
 
     logic [ACCUMULATOR_BITS-1:0] phase_accumulator;
     logic next_phase;
-    wire [ACCUMULATOR_BITS:0] phase_sum =
-        {1'b0, phase_accumulator} + PHASE_STEP;
-    wire phase_due = phase_sum >= SYSTEM_TICKS;
+    wire phase_due;
+    wire [ACCUMULATOR_BITS-1:0] phase_next;
+    generate if (PHASE_STEP > 0 && PHASE_STEP <= SYSTEM_TICKS) begin : direct_phase
+        // Compare the retained accumulator before adding. The two next-state
+        // additions run in parallel; the selected value has the same residue.
+        localparam logic [ACCUMULATOR_BITS-1:0] PHASE_BOUND =
+            ACCUMULATOR_BITS'(SYSTEM_TICKS - PHASE_STEP);
+        assign phase_due = phase_accumulator >= PHASE_BOUND;
+        assign phase_next = phase_due ? phase_accumulator - PHASE_BOUND :
+            phase_accumulator + ACCUMULATOR_BITS'(PHASE_STEP);
+    end else begin : original_phase
+        wire [ACCUMULATOR_BITS:0] phase_sum =
+            {1'b0, phase_accumulator} + PHASE_STEP;
+        assign phase_due = phase_sum >= SYSTEM_TICKS;
+        assign phase_next = phase_due ? ACCUMULATOR_BITS'(phase_sum - SYSTEM_TICKS) :
+            phase_sum[ACCUMULATOR_BITS-1:0];
+    end endgenerate
 
     assign phi1_enable = !reset && phase_due && !next_phase;
     assign phi2_enable = !reset && phase_due && next_phase;
@@ -44,10 +58,10 @@ module st_cpu #(
             phase_accumulator <= '0;
             next_phase <= 1'b0;
         end else if (phase_due) begin
-            phase_accumulator <= ACCUMULATOR_BITS'(phase_sum - SYSTEM_TICKS);
+            phase_accumulator <= phase_next;
             next_phase <= !next_phase;
         end else begin
-            phase_accumulator <= phase_sum[ACCUMULATOR_BITS-1:0];
+            phase_accumulator <= phase_next;
         end
     end
 

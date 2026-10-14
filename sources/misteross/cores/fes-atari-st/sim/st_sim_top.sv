@@ -43,6 +43,9 @@ module st_sim_top (
     wire irq_vectored = 1'b0;
     wire [7:0] irq_vector = 8'd0;
     wire irq_ack, debug_halted;
+    wire irq_data_strobe, irq_iack_pin;
+    // The isolated motherboard fixture has no MFP clock handshake.
+    wire irq_vector_ready = 1'b1;
     wire [2:0] irq_level;
     wire [23:0] video_counter = 24'd0;
     wire [7:0] sync_mode;

@@ -3,7 +3,10 @@
 // simulation path, concurrently with the independent-clock line-cache video.
 // The physical command model is external; no C++ RAM callback serves the CPU.
 module st_boot_memory_sim_top #(
-    parameter integer MFP_WAIT_STATES = 0,
+    parameter integer MFP_WAIT_STATES = 4,
+    parameter integer MFP_IACK_PHASE = 1,
+    parameter RAW_MFP_IACK = 1,
+    parameter integer PSG_WAIT_STATES = 4,
     parameter EARLY_COMPLETION = 1,
     parameter POSTED_CPU_WRITES = EARLY_COMPLETION,
     parameter PHASE_SLOTS = EARLY_COMPLETION,
@@ -28,6 +31,9 @@ module st_boot_memory_sim_top #(
     output wire [1:0] debug_palette_lanes,
     output wire [7:0] debug_irq_vector,
     output wire [8:0] debug_native_line, debug_horizontal_phase,
+    output wire [31:0] rendered_sequence,
+    output wire rendered_valid, rendered_pal,
+    output wire [8:0] rendered_height,
     output wire capture_pixel,
     output wire [8:0] capture_x, capture_y, capture_rgb, capture_height,
     output wire rom_req,
@@ -64,6 +70,8 @@ module st_boot_memory_sim_top #(
     wire native_display;
     wire [8:0] native_line, native_cycle;
     wire native_pixel_ce;
+    wire native_short_line, native_blank;
+    wire [8:0] native_word_loss;
     wire [15:0] cpu_rdata, video_rdata;
     wire media_req, media_valid, dma_req, dma_ready, dma_write;
     wire [15:0] dma_rdata;
@@ -72,7 +80,7 @@ module st_boot_memory_sim_top #(
     wire [23:0] dma_addr;
     wire [15:0] dma_wdata;
     wire [1:0] dma_byte_enable;
-    st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES),
+    st_system #(.MFP_WAIT_STATES(MFP_WAIT_STATES), .PSG_WAIT_STATES(PSG_WAIT_STATES), .MFP_IACK_PHASE(MFP_IACK_PHASE), .RAW_MFP_IACK(RAW_MFP_IACK),
                 .EARLY_RAM_WRITE_COMPLETION(POSTED_CPU_WRITES)) system (
         .clk_sys(clk_sys), .reset(reset_sys), .cold_reset(cold_reset),
         .media_frozen(1'b0), .media_write_req(), .media_write_addr(), .media_write_data(),
@@ -93,12 +101,14 @@ module st_boot_memory_sim_top #(
         .dma_byte_enable(dma_byte_enable), .dma_ready(dma_ready), .dma_write(dma_write), .dma_rdata(dma_rdata),
         .screen_base(screen_base), .resolution(resolution), .palette(palette), .sync_mode(sync_mode),
         .debug_addr(debug_addr), .debug_bus_error(debug_bus_error), .debug_overlay(),
-        .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_line(native_line),
+        .debug_halted(debug_halted), .vblank(vblank), .hblank(hblank), .native_display(native_display), .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss), .native_line(native_line),
         .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce)
     );
     st_memory_sim_top #(.EARLY_COMPLETION(EARLY_COMPLETION), .POSTED_CPU_WRITES(POSTED_CPU_WRITES), .PHASE_SLOTS(PHASE_SLOTS),
                        .CPU_SLOT_PHASE(CPU_SLOT_PHASE),
                 .SINGLE_RANK_REFRESH(SINGLE_RANK_REFRESH), .SLOT_REFRESH(SLOT_REFRESH)) memory (
+        .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),
+        .ram_write_data(ram_write_data), .ram_write_lanes(ram_write_lanes),
         .clk(clk_sys), .memory_phase(native_cycle[1:0]), .raster_reset(system.exp_reset), .cold_reset(cold_reset), .reset(reset_sys), .initialized(initialized),
         .cpu_req(cpu_req), .cpu_addr(cpu_addr), .cpu_write(cpu_write), .cpu_wdata(cpu_wdata),
         .cpu_byte_enable(cpu_byte_enable), .cpu_ready(cpu_ready), .cpu_rdata(cpu_rdata),
@@ -114,14 +124,24 @@ module st_boot_memory_sim_top #(
         .sdram_ba(sdram_ba), .sdram_a(sdram_a), .sdram_dqml(sdram_dqml), .sdram_dqmh(sdram_dqmh),
         .dq_out(dq_out), .dq_oe(dq_oe), .dq_sample(dq_sample)
     );
+    wire ram_write_committed;
+    wire [18:1] ram_write_addr;
+    wire [15:0] ram_write_data;
+    wire [1:0] ram_write_lanes;
     st_video_adapter video (
+        .ram_write_committed(ram_write_committed), .ram_write_addr(ram_write_addr),
+        .ram_write_data(ram_write_data), .ram_write_lanes(ram_write_lanes),
         .clk_sys(clk_sys), .clk_pixel(clk_pixel), .reset_sys(reset_sys), .reset_pixel(reset_pixel),
-        .native_vblank(vblank), .native_display(native_display), .native_line(native_line),
-        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .sync_mode(sync_mode),
+        .native_vblank(vblank), .native_display(native_display), .native_short_line(native_short_line), .native_blank(native_blank), .native_word_loss(native_word_loss), .native_line(native_line),
+        .native_cycle(native_cycle), .native_pixel_ce(native_pixel_ce), .native_lookup_ce(debug_cpu_tick), .sync_mode(sync_mode),
         .hold(reset_sys), .screen_base(screen_base), .resolution(resolution), .palette(palette),
         .video_req(video_req), .video_addr(video_addr), .video_ready(video_ready), .video_rdata(video_rdata),
         .video_request(video_request), .debug_underruns(debug_underruns), .debug_frame(debug_frame)
     );
+    assign rendered_sequence = video.native_capture.capture.front_sequence;
+    assign rendered_valid = video.native_capture.capture.output_valid;
+    assign rendered_pal = video.native_capture.capture.output_pal;
+    assign rendered_height = video.native_capture.capture.output_height;
     assign native_frames = video.native_capture.capture.debug_frames;
     assign native_underruns = video.native_capture.capture.debug_underruns;
     assign native_skipped = video.native_capture.capture.debug_skipped;
@@ -158,8 +178,8 @@ module st_boot_memory_sim_top #(
     assign debug_native_line = native_line;
     assign debug_horizontal_phase = system.io.horizontal_cycle;
     assign capture_pixel = video.native_capture.capture.write_pixel;
-    assign capture_x = video.native_capture.capture.sample_x;
-    assign capture_y = video.native_capture.capture.row;
+    assign capture_x = video.native_capture.capture.output_x;
+    assign capture_y = video.native_capture.capture.output_row;
     assign capture_height = video.native_capture.capture.height[video.native_capture.capture.write_bank];
     assign capture_rgb = video.native_capture.capture.sample_rgb;
     // Observability does not modify the pinned CPU or supply execution data.

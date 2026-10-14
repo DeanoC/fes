@@ -1726,7 +1726,12 @@ companion of a pinned boundary flip-flop, using the shared
 `cores/fes-atari-st` assembles the original ST's full FX68K 68000 and
 functional chipset in `st_system.sv`. The YM option in the shared
 `zonx_ay` engine exposes optional gated five-bit channel levels (zero in
-its default AY mode); existing AY PCM remains unchanged. `st_ym2149` uses
+its default AY mode); existing AY PCM remains unchanged. YM noise retains its
+alternate-tick counter increment but checks the period on every /8 tick,
+including zero and period-shrink writes. Both reset seeds remain unchanged.
+`make sim-fes-atari-st-ym-counter` verifies primary gated-level sequences with
+an explicitly equivalent initial noise state and both write phases.
+`st_ym2149` uses
 these levels with the normalized Hatari STF nonlinear three-channel table.
 The OSS producer supplies the unused write clock on the CPU microcode ROMs
 and the fifteen selected YM mixer ROM banks from each cell's read clock. It
@@ -1754,8 +1759,10 @@ ROM-vector alias, rearms between TAS strobes, and implements the original
 MMU's RAM-sizing address aliases. One physical 512 KiB bank is populated;
 unpopulated RAM throughout the original 4 MiB decode window acknowledges
 accesses and discards writes, independently of the configured bank sizes.
-Empty-memory reads retain the all-ones approximation rather than modeling
-the STF floating data bus. The populated bank retains its MMU aliases. Live bank membership checks the high address bits selected by the
+Empty-memory reads return the last word read by the CPU, including opcode
+prefetch. CPU writes and independent shifter/DMA reads do not update this
+retained word; UDS/LDS select its normal byte lane. The populated bank retains
+its MMU aliases. Live bank membership checks the high address bits selected by the
 configured power-of-two size, without a variable-width limit comparison. A
 disconnected cartridge is acknowledged, while unclaimed MMIO has a bounded bus-error timeout.
 Palette-register dispatch waits for `palette_ready`, supplied by `st_system`
@@ -1840,28 +1847,54 @@ delayed RAM and media completions, including rejected mutations and later retry.
 
 `st_video_adapter.sv` captures ordinary low-resolution native pixels through
 `st_native_low_video.sv`. Its system-domain row prefetch uses the existing
-video RAM port, selecting the live RGB333 palette on the same CPU-derived native pixel pulse as border capture.
+video RAM port. Prepared bitplane indices, native coordinates and bank identity
+pass through a 28-native-pulse output stage. Current RGB333 palette lookup
+uses the retained token on the next raw CPU phase-2 edge, after palette admission
+closes. Real phase-1 writes can commit four or five fabric edges after the
+registered native pulse. This boundary sees their settled colours without
+advancing the sampled coordinate/index. Pending tokens participate in publication
+drain and are cancelled by Hold, reset and native VBL.
+Border palette-zero capture uses the same delayed output timeline. This is a
+calibrated net-output candidate against Hatari's hardware-calibrated renderer;
+it does not claim one literal 28-cycle physical Shifter delay. Raw DE, memory
+counters, CPU bus phases and Timer B timing remain separate.
+The isolated output fixture independently checks completed palette-access
+timestamps 80/84/88 against active pixels -3/1/5 in PAL and 1/5/9 in NTSC,
+using actual 512/508-cycle line wraps and DE starts 56/52. Each profile exercises
+commits on the native pulse, its following fabric edge and the actual late
+phase-1 edges (four/five clocks later). Raw phase2 precedes the next registered
+native pulse by one fabric edge. Both profiles cover
+fixed bitplane markers, border replay, bottom-row drain, immutable publication
+geometry, reset and Hold. The independent-clock adapter fixture also exercises
+263-line NTSC frames alongside PAL and resolution transitions. These authored
+checks isolate output timing; they do not replace real-CPU admission or original
+demo and physical-hardware qualification.
 Each RGB333 frame uses 78 shallow 1024-word chunks, retaining every 320×247
-pixel. Synchronous chunk reads and registered chunk selection preserve the
-one-clock read boundary while avoiding the deeper one-bit memory mapping.
+pixel. Synchronous chunk reads avoid the deeper one-bit memory mapping. Five groups
+of sixteen chunks split selection across a second pixel-clock edge, with group,
+validity and front-bank tags aligned to the sampled words. The last group pads
+two absent chunks with zero; out-of-range reads return zero.
 Three RGB333 banks have explicit publish/release ownership
 across the system and pixel domains. Only completed captures are published;
 the fixed 60 Hz reader selects the newest completed bank at SOF and pins it
 until a later SOF. A slow or stopped reader makes the producer skip frames
 rather than overwrite the displayed bank. Missing rows become whole black
 lines; incomplete or held captures are discarded. RAM address validation
-rejects an entire row before any truncation. Native RGB is sampled at the
-pixel event into a registered RAM write bundle; a two-pixel forecast feeds a
-registered read address before the synchronous pixel read. A blanking-time
+rejects an entire row before any truncation. Resolved RGB enters a registered
+RAM write bundle after output palette lookup; a three-pixel RGB forecast feeds a
+registered address before synchronous RAM and grouped-selection reads.
+Border replay retains its separate two-pixel forecast. A blanking-time
 line counter advances the low-resolution row base by five 64-pixel units after
 each two output lines. Bank height is immutable publication metadata: ordinary
 frames retain 200 rows; opened PAL/NTSC frames carry 247/226 rows. Publication waits
-past the bottom-stop decision and all potentially opened DE rows. Prefetch
+past the bottom-stop decision and all potentially opened DE rows, and drains
+delayed output tokens and pending RAM writes before publication. Reset/Hold
+cancel the output stage. Prefetch
 prepares row 200 before opening is known, then reads later rows only after DE
 enters the bottom region. The same owned banks hold `st_native_border.sv`'s
 lossless palette-zero runs and per-row offset/count descriptors. Native cycle
-coordinates and a one-fabric-edge delayed CPU phase-2 enable align border
-samples with the display-rise sample. PAL's visible canvas spans native
+coordinates carried through the output stage align border sampling with active
+pixel palette lookup. PAL's visible canvas spans native
 lines 34–309 and cycles 8–423; NTSC spans lines 5–259 and cycles 4–419.
 The decoder preloads a row descriptor in output blanking, then replays colour
 runs for every vertically repeated row. A successor pointer is prepared ahead
@@ -1902,13 +1935,24 @@ The fixed 8.021247 MHz PAL CPU gives approximately
 timing remains independent at 2.4576 MHz. The frame/capture pulse stays at
 rollover while IRQ4 asserts 60 native CPU cycles later, selecting the STF WS1
 VBL phase. IACK clears the pending event; reset cancels its scheduled delay.
-An optional `MFP_WAIT_STATES` probe delays the MFP request and data sampling
-in native CPU cycles; its default zero preserves the selected production
-timing. `sim-fes-atari-st-mfp-bus` calibrates four states with original 68000
-firmware, including read/write instruction intervals across fractional phases,
-and checks a Timer B edge during the delayed read. The original-disk diagnostic
-records the optional probe value with `--mfp-wait-states`; it is independent
-of the callback RAM-delay probe and does not assert demo compatibility.
+`MFP_WAIT_STATES` delays the selected MFP transaction in native CPU cycles.
+Timer data returns a separate snapshot of all four main counters at the last
+raw CPU LDS release, as specified by MC68901 section 5.2.1. The C070231 board
+wires LDS directly to MFP DS, so RAM/ROM and other-device cycles also refresh
+these snapshots. The timer read uses the preceding snapshot even when a
+counter changes during access waits; counters and interrupt generation keep
+running independently. Held reads retain their response until release and
+reset clears the model's snapshots. This internal connection uses the existing
+raw CPU strobe; it does not change the expansion wire contract.
+The core, producer and simulator default to four wait states, the standard
+register-access policy, following Hatari 2.5.0. Zero remains an explicit
+diagnostic override. `sim-fes-atari-st-mfp-bus` checks that default with
+original 68000 firmware, including read/write instruction intervals across
+fractional phases, and checks snapshot retention across a Timer B edge during
+the delayed read. The
+original-disk diagnostic records the selected value with `--mfp-wait-states`
+(default four; `0..8` overrides it); it is independent of the callback
+RAM-delay probe and does not assert demo compatibility.
 The callback diagnostic can additionally replace its variable CPU RAM wait
 with `--ram-fixed-wait`; zero is an ideal-storage comparison, not a change to
 the physical SDRAM controller. Shared-memory mode rejects this override.

@@ -4,6 +4,7 @@
 // counts are independent of the wrapper's implementation.
 #include "Vst_io_sim_top.h"
 #include "verilated.h"
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
@@ -18,7 +19,7 @@ struct Test {
     unsigned frames=0, lines=0, display_ends=0, cpu_phase=0;
     uint64_t cpu_ticks=0;
     unsigned first_display_line=UINT32_MAX, first_display_phase=0;
-    bool previous_display=false;
+    bool previous_display=false, unselected_data_strobe=false;
     void require(bool good,const std::string &message) {
         ++assertions;
         if (!good) {
@@ -27,6 +28,7 @@ struct Test {
         }
     }
     void tick() {
+        dut.cpu_data_strobe=(dut.req && (dut.byte_enable&1)) || unselected_data_strobe;
         dut.cpu_cycle_ce=!dut.reset && cpu_phase+cpu_hz>=system_hz;
         cpu_phase=dut.reset?0:(cpu_phase+cpu_hz)%system_hz;
         cpu_ticks+=dut.cpu_cycle_ce;
@@ -45,6 +47,7 @@ struct Test {
     }
     void run(unsigned clocks) { while (clocks--) tick(); }
     void reset(unsigned resolution=0,unsigned sync=2) {
+        unselected_data_strobe=false;
         dut.req=0; dut.write=0; dut.addr=0; dut.wdata=0; dut.byte_enable=0;
         dut.irq_ack=0; dut.irq_level=0; dut.screen_base=0x10234;
         dut.resolution=resolution; dut.sync_mode=sync; dut.monochrome=resolution==2;
@@ -69,7 +72,14 @@ struct Test {
         dut.req=0; tick(); require(!dut.ack,"bus acknowledgement releases");
         return result;
     }
-    uint8_t mread(unsigned offset) { return bus(false,mfp_base+offset,0,1)&255; }
+    uint8_t mread(unsigned offset) {
+        if (offset>=0x1f && offset<=0x25) {
+            // Model the unselected CPU fetch preceding a timer-function probe.
+            unselected_data_strobe=true; tick();
+            unselected_data_strobe=false; tick();
+        }
+        return bus(false,mfp_base+offset,0,1)&255;
+    }
     void mwrite(unsigned offset,unsigned data,unsigned hold=1) { bus(true,mfp_base+offset,data,1,hold); }
     uint8_t acread(unsigned address) { return bus(false,address,0,2)>>8; }
     void acwrite(unsigned address,unsigned data,unsigned hold=1) { bus(true,address,data<<8,2,hold); }
@@ -160,6 +170,37 @@ static void interrupt_connection(Test &t) {
     t.require(t.dut.irq==4 && !t.dut.irq_vectored,"native VBL is autovectored level 4");
     t.iack(4); t.require(t.dut.irq==2,"VBL acknowledgement leaves native HBL pending");
     t.iack(2); t.require(t.dut.irq==0,"native HBL acknowledgement clears level 2");
+}
+
+static void hbl_interrupt_phase(Test &t,unsigned resolution,unsigned sync) {
+    t.reset(resolution,sync);
+    // STF WS1: IRQ2 at PAL 508, NTSC 504, mono 220. The native
+    // line boundary remains four CPU cycles later (Hatari Video_InitTimings).
+    const unsigned line_cycles=resolution==2?224:sync==2?512:508;
+    const auto origin=t.cpu_ticks;
+    for (unsigned line=0;line<4;++line) {
+        const auto assertion=line*line_cycles+line_cycles-4;
+        while(t.cpu_ticks-origin<assertion) {
+            t.require(t.dut.irq==0,"HBL does not assert before the WS1 deadline");
+            t.tick();
+        }
+        t.require(t.dut.irq==2 && !t.dut.irq_vectored &&
+                  t.dut.display_line==line && t.dut.display_phase==line_cycles-4,
+                  "WS1 HBL asserts four CPU cycles before the line boundary");
+        t.require(t.lines==line,"HBL IRQ does not advance the native raster");
+        while(t.cpu_ticks-origin<assertion+2) {
+            t.require(t.dut.irq==2,"HBL remains pending before IACK");
+            t.tick();
+        }
+        t.iack(2);
+        while(t.cpu_ticks-origin<(line+1)*line_cycles) {
+            t.require(t.dut.irq==0,"HBL IACK clears the pending line interrupt");
+            t.tick();
+        }
+        t.require(t.dut.irq==0 && t.lines==line+1 &&
+                  t.dut.display_line==line+1 && t.dut.display_phase==0,
+                  "Native line boundary does not reassert acknowledged HBL");
+    }
 }
 
 static void vbl_interrupt_phase(Test &t,unsigned resolution,unsigned sync) {
@@ -281,10 +322,76 @@ static void shifter_counter(Test &t,unsigned resolution,unsigned sync) {
     while(t.dut.display_line<stop) t.tick();
     const unsigned final=base+(mono?400:200)*bytes;
     while(t.frames==0) {
-        t.require(t.dut.video_counter==final,"bottom blanking holds the final DMA address");
+        // STF low/medium counter restart: PAL line 310 / NTSC line 260,
+        // cycle 56. Mono has no intermediate restart in the reference.
+        const unsigned restart_line=sync==2?310:260;
+        const bool restarted=!mono && (t.dut.display_line>restart_line ||
+            (t.dut.display_line==restart_line && t.dut.display_phase>=56));
+        t.require(t.dut.video_counter==(restarted?base:final),
+                  "color shifter counter reloads at the STF VSYNC deadline");
         t.tick();
     }
     t.require(t.dut.video_counter==base,"VBL reloads all counter bytes from aligned base");
+}
+
+static void shifter_restart_base(Test &t,bool pal) {
+    t.reset(0,pal?2:0);
+    const unsigned restart_line=pal?310:260;
+    while(t.dut.display_line<restart_line) t.tick();
+    t.require(t.dut.video_counter==0x10200+200*160,
+              "VSYNC starts with the completed frame's DMA address");
+    t.dut.screen_base=0x203f3;
+    while(t.dut.display_phase<56) {
+        t.require(t.dut.video_counter==0x10200+200*160,
+                  "a base write does not move the counter before restart");
+        t.tick();
+    }
+    t.require(t.dut.video_counter==0x20300,
+              "VSYNC restart samples the aligned live screen base");
+    t.dut.screen_base=0x30455;
+    while(t.frames==0) {
+        t.require(t.dut.video_counter==0x20300,
+                  "a later base write does not change the completed VSYNC reload");
+        t.tick();
+    }
+    t.require(t.dut.video_counter==0x30400,
+              "frame-boundary reload samples the subsequent base write");
+}
+
+static void shifter_restart_mode(Test &t,bool mono,bool frame_pal,
+                                 unsigned restart_line,bool live_pal) {
+    t.reset(mono?2:0,frame_pal?2:0);
+    // Select the new line mode after the preceding row has finished DMA.
+    // The vertical frame remains PAL/NTSC/mono until its frame boundary.
+    while(t.dut.display_line<restart_line-1 ||
+          t.dut.display_phase<(mono?200u:480u)) t.tick();
+    t.dut.resolution=0;
+    t.dut.sync_mode=live_pal?2:0;
+    while(t.dut.display_line<restart_line || t.dut.display_phase<54) t.tick();
+    const unsigned top=mono?34:frame_pal?63:34;
+    const unsigned rows=mono?restart_line-top:
+        std::min(restart_line-top,200u);
+    const unsigned expected=0x10200+rows*(mono?80:160);
+    t.require(t.dut.video_counter==expected,
+              "mode switch retains all completed rows before the restart deadline");
+    t.dut.screen_base=0x403a0;
+    while(t.dut.display_phase<60) {
+        t.require(t.dut.video_counter==expected,
+                  "live color/sync cannot restart a mismatched vertical frame");
+        t.tick();
+    }
+    const bool active=mono || (frame_pal && restart_line<263);
+    while(t.dut.display_line==restart_line) t.tick();
+    t.require(t.dut.video_counter==expected+(active?160:0),
+              "remaining active-row DMA continues from its retained address");
+}
+
+static void shifter_restart_modes(Test &t) {
+    shifter_restart_mode(t,false,true,260,false);
+    shifter_restart_mode(t,false,true,310,false);
+    shifter_restart_mode(t,false,false,260,true);
+    shifter_restart_mode(t,true,true,260,false);
+    shifter_restart_mode(t,true,true,310,true);
 }
 
 static void brief_mode_writes(Test &t) {
@@ -353,19 +460,117 @@ static void bottom_border(Test &t,bool pal,bool cross_sample,bool next_line=fals
               "frame after bottom opening retains its exact native period");
 }
 
+static void short_pal_line(Test &t, unsigned restore_phase, bool next_line) {
+    t.reset(0,2);
+    while(t.dut.display_line!=262 || t.dut.display_phase<300) t.tick();
+    t.require(t.dut.native_display,"last PAL row starts with ordinary DE");
+    t.dut.sync_mode=0;
+    unsigned end_phase=UINT32_MAX;
+    const auto advance=[&] {
+        const bool prior=t.dut.native_display;
+        t.tick();
+        if(prior && !t.dut.native_display) end_phase=t.dut.display_phase;
+    };
+    if(!next_line) {
+        while(t.dut.display_phase<restore_phase) advance();
+        t.dut.sync_mode=2;
+    }
+    const bool shortened=next_line || restore_phase>=372;
+    const unsigned end=shortened?372:376;
+    while(t.dut.native_display) advance();
+    t.require(end_phase==end,"PAL frequency pulse sets the actual DE end: expected "+
+              std::to_string(end)+", observed "+std::to_string(end_phase));
+    while(t.dut.display_line==262 && t.dut.display_phase<400) t.tick();
+    t.require(t.dut.video_counter==0x10200+200*160-(shortened?2:0),
+              "short PAL row fetches79 words; cancelled pulse fetches80");
+    t.require(t.dut.native_word_loss==unsigned(shortened),"capture metadata retains exactly the missing DMA word");
+    // A return after DE ended cannot manufacture a second display edge.
+    while(t.dut.display_line==262) {
+        t.require(!t.dut.native_display,"late PAL return never reopens the same row");
+        t.tick();
+    }
+    if(next_line) {
+        while(t.dut.display_phase<20) t.tick();
+        t.dut.sync_mode=2;
+        while(!t.dut.native_display) t.tick();
+        t.require(t.dut.display_line==263 && t.dut.display_phase==56,
+                  "BIG's early next-line PAL return restores the56-cycle porch");
+        while(t.dut.display_line<309 || t.dut.display_phase<400) t.tick();
+        t.require(t.dut.video_counter==0x10200+247*160-2,
+                  "opened bottom rows retain the one-word address displacement");
+    }
+}
+
+static void vertical_blank(Test &t, bool pal, bool suppress) {
+    t.reset(0,pal?2:0);
+    const unsigned off=pal?24:15, on=pal?307:257, last=pal?262:233;
+    t.require(t.dut.native_blank,"reset starts vertically blank");
+    while(t.dut.display_line<off || t.dut.display_phase<503)t.tick();
+    t.require(t.dut.native_blank,"blank sample waits for the following HBL");
+    while(t.dut.display_line==off)t.tick();
+    t.require(!t.dut.native_blank,"matching frequency clears vertical blank");
+    // Open bottom DE, independently of the later blank-frequency sample.
+    while(t.dut.display_line<last || t.dut.display_phase<496)t.tick();
+    t.dut.sync_mode=pal?0:2;
+    while(t.dut.display_line==last)t.tick();
+    while(t.dut.display_phase<24)t.tick();
+    t.dut.sync_mode=pal?2:0;
+    while(t.dut.display_line<on || t.dut.display_phase<496)t.tick();
+    t.require(!t.dut.native_blank,"opened bottom remains visible before blank sample");
+    if(suppress)t.dut.sync_mode=pal?0:2;
+    while(t.dut.display_phase<506)t.tick();
+    t.dut.sync_mode=pal?2:0;
+    t.require(!t.dut.native_blank,"blank-on sample also waits for HBL");
+    while(t.dut.display_line==on)t.tick();
+    t.require(bool(t.dut.native_blank)==!suppress,"live frequency at502 controls blank-on");
+    while(t.dut.display_phase<100)t.tick();
+    t.require(t.dut.native_display && t.dut.timer_b_level,
+              "vertical blank never suppresses DE or Timer B");
+    while(t.dut.display_line<(pal?309u:259u) || t.dut.display_phase<420)t.tick();
+    t.require(t.dut.video_counter==0x10200+(pal?247:226)*160,
+              "DMA completes the final two vertically blank rows");
+    t.require(t.display_ends==(pal?247u:226u),"Timer B retains every opened-bottom event");
+    while(t.dut.display_line<(pal?310u:260u))t.tick();
+    t.require(t.dut.native_blank,"VSYNC forces blanking even after suppressed frequency sample");
+}
+
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     Test test;
+    if(argc==2 && std::string(argv[1])=="--restart-mode-only") {
+        shifter_restart_modes(test);
+        std::cout<<"ST shifter restart modes: "<<test.assertions<<" assertions passed\n";
+        return 0;
+    }
+    if(argc==2 && std::string(argv[1])=="--blank-only") {
+        vertical_blank(test,true,false); vertical_blank(test,true,true);
+        vertical_blank(test,false,false); vertical_blank(test,false,true);
+        std::cout<<"ST vertical blank: "<<test.assertions<<" assertions passed\n";return 0;
+    }
+    if(argc==2 && std::string(argv[1])=="--short-line-only") {
+        short_pal_line(test,368,false); short_pal_line(test,374,false);
+        short_pal_line(test,20,true);
+        std::cout<<"ST short PAL lines: "<<test.assertions<<" assertions passed\n";
+        return 0;
+    }
+    vertical_blank(test,true,false); vertical_blank(test,true,true);
+    vertical_blank(test,false,false); vertical_blank(test,false,true);
     lanes_and_reset(test); interrupt_connection(test);
+    hbl_interrupt_phase(test,0,2); hbl_interrupt_phase(test,1,0);
+    hbl_interrupt_phase(test,2,2);
     vbl_interrupt_phase(test,0,2); vbl_interrupt_phase(test,0,0);
     vbl_interrupt_phase(test,2,2); timer_c_rate(test);
     display_enable(test,0,2,50,200); display_enable(test,1,0,60,200);
     display_enable(test,2,2,71,400); brief_mode_writes(test);
     shifter_counter(test,0,2); shifter_counter(test,1,0); shifter_counter(test,2,2);
+    shifter_restart_base(test,true); shifter_restart_base(test,false);
+    shifter_restart_modes(test);
     timer_b_polarity(test,false); timer_b_polarity(test,true);
     bottom_border(test,true,false); bottom_border(test,true,true);
     bottom_border(test,false,false); bottom_border(test,false,true);
     bottom_border(test,true,true,true); bottom_border(test,false,true,true);
+    short_pal_line(test,368,false); short_pal_line(test,374,false);
+    short_pal_line(test,20,true);
     std::cout<<"ST I/O: "<<test.assertions<<" assertions, "<<test.cycles
              <<" cycles; byte lanes, reset, interrupt wiring and timer rates passed\n";
 }

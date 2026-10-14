@@ -16,6 +16,8 @@ that revision. All compiled sources and input identities are frozen before build
 """
 from __future__ import annotations
 import argparse
+from decimal import Decimal, InvalidOperation
+from fractions import Fraction
 import hashlib
 import json
 import re
@@ -40,7 +42,7 @@ RTL += ["cores/fes-zx81/expansions/zonx_ay.v"]
 RTL += [CPU + name for name in ("fx68k.sv", "fx68kAlu.sv", "uaddrPla.sv")]
 DATA = [CPU + "microrom.mem", CPU + "nanorom.mem", "cores/fes-common/generated/fes_video_part.vh"]
 WRAPPER = PREFIX + CORE + "sim/st_boot_sim_top.sv"
-HELPERS = ["scripts/sim_atari_st_demo.py", "scripts/atari_st_demo_sim.cpp", PREFIX + CORE + "sim/st_audio_capture.hpp"]
+HELPERS = ["scripts/sim_atari_st_demo.py", "scripts/atari_st_demo_sim.cpp", PREFIX + CORE + "sim/st_audio_capture.hpp", PREFIX + CORE + "sim/st_keyboard_stimulus.hpp"]
 
 
 def sha(data):
@@ -68,6 +70,75 @@ def disk_geometry(data):
             "sector_bytes": 512, "bytes": len(data)}
 
 
+SYSTEM_HZ = 52224000
+MAX_KEY_EVENTS = 256
+RELEASE_GAP_CYCLES = SYSTEM_HZ * 2 // 1000
+
+
+def keyboard_schedule(specifications, seconds):
+    """Normalize exact decimal times to the first system clock at/after each edge."""
+    if len(specifications) > MAX_KEY_EVENTS:
+        raise ValueError("at most 256 keyboard events are allowed")
+    schedule = []
+    for specification in specifications:
+        if len(specification) > 256:
+            raise ValueError("key event specification too long")
+        fields = specification.split(":")
+        if len(fields) not in (2, 3):
+            raise ValueError("key event must be SECOND:HID[:HOLD_MS]")
+        try:
+            start = Decimal(fields[0])
+            usage = int(fields[1])
+            hold = Decimal(fields[2]) if len(fields) == 3 else Decimal(150)
+        except (InvalidOperation, ValueError):
+            raise ValueError("key event has invalid time, HID or hold") from None
+        if not start.is_finite() or not hold.is_finite():
+            raise ValueError("key event times must be finite")
+        if not 0 <= start < seconds or not 0 < hold <= seconds * 1000 or not 4 <= usage <= 127:
+            raise ValueError("key event outside time, hold or HID bounds")
+        if start.as_tuple().exponent < -64 or hold.as_tuple().exponent < -64:
+            raise ValueError("key event times allow at most 64 fractional places")
+        start_exact = Fraction(start)
+        end_exact = start_exact + Fraction(hold) / 1000
+        def clock(time):
+            scaled = time * SYSTEM_HZ
+            return (scaled.numerator + scaled.denominator - 1) // scaled.denominator
+        press, release = clock(start_exact), clock(end_exact)
+        if release <= press or release >= seconds * SYSTEM_HZ:
+            raise ValueError("key event must press and release before the run ends")
+        if schedule and press - schedule[-1]["release_cycle"] < RELEASE_GAP_CYCLES:
+            raise ValueError("ordered key events need at least a 2 ms release gap")
+        schedule.append({"press_second": str(start), "hold_milliseconds": str(hold),
+                         "hid_usage": usage, "press_cycle": press, "release_cycle": release})
+    return schedule
+
+
+def schedule_bytes(schedule):
+    return "".join(f"{e['press_cycle']}\t{e['release_cycle']}\t{e['hid_usage']}\n"
+                   for e in schedule).encode("ascii")
+
+
+def ram_write_ranges(values):
+    if len(values) > 16:
+        raise ValueError("at most 16 RAM write ranges")
+    ranges = []
+    for value in values:
+        fields = value.split(":")
+        if len(fields) != 2 or len(value) > 64:
+            raise ValueError("RAM write range must be START:END byte addresses")
+        try:
+            start, end = (int(v, 16 if v.lower().startswith("0x") else 10) for v in fields)
+        except ValueError as error:
+            raise ValueError("RAM write addresses must be decimal or hexadecimal") from error
+        if not 0 <= start < end <= 524288 or (start | end) & 1:
+            raise ValueError("RAM write ranges must be word-aligned within 512 KiB")
+        ranges.append((start, end))
+    ranges.sort()
+    if any(b[0] < a[1] for a, b in zip(ranges, ranges[1:])):
+        raise ValueError("RAM write ranges must not overlap")
+    return ranges
+
+
 def run(args):
     rtl = list(RTL)
     wrapper = WRAPPER
@@ -77,6 +148,8 @@ def run(args):
         top = "st_boot_memory_sim_top"
         wrapper = PREFIX + CORE + "sim/" + top + ".sv"
         helpers[1] = PREFIX + CORE + "sim/boot_memory_tb.cpp"
+        helpers.append(PREFIX + CORE + "sim/st_rendered_capture.hpp")
+        helpers.append(PREFIX + CORE + "sim/st_ram_write_trace.hpp")
         rtl += [CORE + "sim/st_memory_sim_top.sv", CORE + "rtl/st_memory.sv",
                 CORE + "rtl/st_video.sv", CORE + "rtl/st_video_adapter.sv",
                 "cores/fes-ramtest/rtl/sdram_addon_port.v", "cores/fes-common/rtl/fes_video_part_direct.v"]
@@ -115,9 +188,12 @@ def run(args):
     (output / "original.st").write_bytes(disk)
     for name in ("microrom.mem", "nanorom.mem"):
         shutil.copyfile(source / PREFIX / CPU / name, build / name)
+    schedule_path = output / "keyboard-events.tsv"
+    schedule_data = schedule_bytes(args.input_schedule)
+    schedule_path.write_bytes(schedule_data)
     archive(output / "frozen-source.zip", source, identities)
     command = [verilator, "--cc", "--exe", "--build", "-O2", "-j", "2", "--top-module", top]
-    command += [f"-GMFP_WAIT_STATES={args.mfp_wait_states}"]
+    command += [f"-GRAW_MFP_IACK={int(args.mfp_iack_raw_pin)}", f"-GMFP_IACK_PHASE={args.mfp_iack_phase}", f"-GMFP_WAIT_STATES={args.mfp_wait_states}", f"-GPSG_WAIT_STATES={args.psg_wait_states}"]
     command += FLAGS + ["-I" + str(source / PREFIX / "cores/fes-common/generated"), "--Mdir", str(build)]
     command += [str(source / wrapper)] + [str(source / PREFIX / name) for name in rtl]
     command += [str(source / helpers[1]), "-CFLAGS", "-O3 -std=c++17"]
@@ -155,6 +231,26 @@ def run(args):
         record["framebuffer_capture"] = "fixed 720p60 output after Direct part boundaries"
         record["native_rgb_capture"] = "production capture under shared SDRAM commands and independent 74.25 MHz pixel clock; no analog/electrical or original GLUE equivalence"
         record["media_fixture"] = "original disk preloaded into separate SDRAM disk buffer; production floppy/DMA/memory RTL; upload/mailbox not exercised"
+    if args.key_event or args.ram_write_ranges:
+        invocation.append(str(schedule_path))
+    ram_ranges_path = output / "ram-write-ranges.tsv"
+    ram_ranges_data = "".join(f"{a}\t{b}\n" for a,b in args.ram_write_ranges).encode()
+    if args.ram_write_ranges:
+        ram_ranges_path.write_bytes(ram_ranges_data)
+        invocation.append(str(ram_ranges_path))
+        record["ram_write_trace"] = {"file": "demo-ram-writes.jsonl",
+            "ranges": args.ram_write_ranges, "ranges_file": ram_ranges_path.name,
+            "ranges_sha256": sha(ram_ranges_data),
+            "window_seconds": [args.trace_start,args.trace_end],
+            "origin": "reset release after SDRAM initialization",
+            "phase": "physical WRITE command before system rising edge",
+            "scope": "all physical writes in selected byte ranges, including CPU and DMA; repeated values retained",
+            "byte_enable": "bit1 high byte, bit0 low byte",
+            "pc": "current diagnostic prefetch state; not retirement or writer identity"}
+    record["keyboard_schedule"] = {"events": args.input_schedule, "system_clock_hz": SYSTEM_HZ,
+        "file": schedule_path.name, "sha256": sha(schedule_data),
+        "origin": "reset release after SDRAM initialization" if args.shared_memory else "callback model cycle zero (including 64 reset clocks)",
+        "edges": "demo-input.jsonl; actual keyboard row transitions, not guest acknowledgement"}
     record["input_event"] = (None if args.key_at is None else
                              {"hid_usage": args.key_usage, "press_second": args.key_at,
                               "hold_milliseconds": 150})
@@ -164,6 +260,16 @@ def run(args):
                               "pc": "diagnostic prefetch state, not instruction retirement"}
     if args.shared_memory:
         record["raster_trace"]["events"] = "IACK (including MFP vector), sync changes and every committed palette write (including unchanged values)"
+    if args.shared_memory:
+        record["ram_snapshots"] = {"trace": "demo-ram-snapshots.jsonl",
+            "files": "demo-ram-cycle-{system_cycle}.bin", "bytes_per_snapshot": 524288,
+            "scope": "read-only physical command-model RAM at per-second status events throughout the bounded guest run",
+            "system_cycle": "elapsed system clocks since reset release; no guest clocks advance during the copy"}
+        record["rendered_capture"] = {"trace": "demo-rendered.jsonl",
+            "source": "actual complete HDMI replay frames; pixel-domain immutable front_sequence",
+            "saved": "first eight distinct valid displayed native sequences whose HDMI SOF is in trace window",
+            "canvas": "PAL xywh 224,84,832,552; NTSC 224,105,832,510; reduce only if all 2x2 RGB samples agree",
+            "identity": "native_frame is publication epoch; hdmi_frame is consumer frame; no original GLUE equivalence claim"}
     record["distinct_logo_captures"] = "save first eight distinct crop hashes as complete native PPMs in trace window"
     record["logo_trace"] = "every completed native capture in trace window; FNV-1a-64 RGB crop xywh 65,0,180,64; equality diagnostic, not cryptographic identity"
     record["storage_model"] = {"cpu_ram_wait": "8+(byte_address%7)+ram_extra_wait system clocks",
@@ -176,11 +282,14 @@ def run(args):
         record["storage_model"] = {"shared_arbitration": True, "cpu_video_dma_media": "production st_memory.sv and addon controller",
                                    "sdram": "digital command/timing model with CAS2, DDIO capture and byte masks; no electrical equivalence"}
     record["storage_model"]["mfp_wait_states"] = args.mfp_wait_states
+    record["storage_model"]["experimental_psg_wait_states"] = args.psg_wait_states
+    record["storage_model"]["experimental_mfp_iack_phase"] = args.mfp_iack_phase
+    record["storage_model"]["experimental_mfp_iack_raw_pin"] = args.mfp_iack_raw_pin
     record["horizontal_phase_units"] = "68000 cycles within the native line"
     record["palette_trace"] = "changes after six seconds; first eight changed bundles per native frame, plus complete per-frame counts; model timing only"
     record["run_command"] = invocation
     record["timeout_seconds"] = args.timeout_seconds
-    record["audio_capture"] = "unfiltered signed mono 48 kHz chip PCM; no audio-fidelity oracle"
+    record["audio_capture"] = "system-domain signed mono 48 kHz production YM PCM, with nonlinear mixing/STF C10 low-pass/rational integration/DC removal; no audio-fidelity oracle"
     # Read the frozen selection, including historical revisions whose system
     # used the machine's nominal default. Never label a new capture as 2 MHz
     # after changing the selected board's clock policy.
@@ -211,6 +320,8 @@ def run(args):
             process.kill(); process.wait()
     record["frozen_inputs_unchanged"] = all(sha((source / name).read_bytes()) == digest for name, digest in identities.items())
     record["working_inputs_unchanged"] = all(sha((ROOT / name).read_bytes()) == digest for name, digest in identities.items())
+    record["keyboard_schedule_unchanged"] = schedule_path.read_bytes() == schedule_data
+    record["ram_write_ranges_unchanged"] = not args.ram_write_ranges or ram_ranges_path.read_bytes() == ram_ranges_data
     record["rom_unchanged"] = sha((output / "etos192us.img").read_bytes()) == sha(rom)
     record["original_disk_unchanged"] = (output / "original.st").read_bytes() == disk
     record["runtime_microcode_unchanged"] = all(sha((build / name).read_bytes()) == digest for name, digest in microcode_hashes.items())
@@ -221,7 +332,7 @@ def run(args):
         record["metrics"] = json.loads(metrics.read_text())
     record["artifacts"] = {path.name: sha(path.read_bytes()) for path in output.glob("demo*") if path.is_file()}
     record["capture_completed"] = (record["exit_code"] == 0 and metrics.exists() and record["frozen_inputs_unchanged"]
-                                   and record["rom_unchanged"] and record["original_disk_unchanged"]
+                                   and record["rom_unchanged"] and record["original_disk_unchanged"] and record["keyboard_schedule_unchanged"] and record["ram_write_ranges_unchanged"]
                                    and record["generated_model_unchanged"] and record["runtime_microcode_unchanged"] and
                                    record["executable_sha256_before"] == record["executable_sha256_after"])
     write_json(output / "demo-proof.json", record)
@@ -239,23 +350,33 @@ def main(argv=None):
     parser.add_argument("--output", type=Path, required=True, help="new ignored output directory")
     parser.add_argument("--revision", default="HEAD")
     parser.add_argument("--working-tree", action="store_true", help="explicitly freeze current diagnostic edits")
-    parser.add_argument("--seconds", type=int, default=15)
+    parser.add_argument("--seconds", type=int, default=15,
+                        help="1..120 guest seconds; longer runs cover multi-track playback and disk reload")
     parser.add_argument("--key-at", "--key-b-at", dest="key_at", type=int,
                         help="press selected HID usage for 150 ms at this simulated second; B by default")
-    parser.add_argument("--key-usage", type=int, default=5, help="HID key usage 4..127; B=5, 1/2/3=30/31/32, Escape=41")
+    parser.add_argument("--key-event", action="append", default=[], metavar="SECOND:HID[:HOLD_MS]",
+                        help="repeat up to 256 ordered presses; default hold 150 ms; 2 ms release gap; time zero allowed")
+    parser.add_argument("--key-usage", type=int, help="HID key usage 4..127; B=5, 1/2/3=30/31/32, Escape=41")
     parser.add_argument("--timeout-seconds", type=int, default=3600, help="host run deadline; does not change guest timing")
     parser.add_argument("--trace-start", type=int, help="inclusive simulated second for complete raster/logo tracing")
     parser.add_argument("--trace-end", type=int, help="exclusive simulated second for complete raster/logo tracing")
     parser.add_argument("--ram-extra-wait", type=int, default=0, help="add 0..64 system clocks to each model CPU RAM access; not physical arbitration")
     parser.add_argument("--ram-fixed-wait", type=int, help="replace variable CPU RAM callback waits with a fixed 0..64 system-clock delay; an ideal-storage probe, not physical SDRAM")
-    parser.add_argument("--mfp-wait-states", type=int, default=0, help="optional 0..8 native CPU wait-state experiment; delays MFP access and data sampling")
+    parser.add_argument("--mfp-wait-states", type=int, default=4, help="MFP native CPU wait states (default: 4, matching the standard core); use 0..8 for diagnostics")
+    parser.add_argument("--mfp-iack-raw-pin", action=argparse.BooleanOptionalAction, default=True, help="start MFP clock timing at AS/FC pins (default); disable for registered-admission diagnostics")
+    parser.add_argument("--mfp-iack-phase", type=int, default=1, choices=(-1,0,1,2,3), help="MFP bus-clock phase (default: 1); -1 bypasses timing for diagnostics")
+    parser.add_argument("--psg-wait-states", type=int, default=4, help="GLUE sound-bus waits per FF88 burst (default: 4); 0..8 native CPU states")
+    parser.add_argument("--ram-write-range", action="append", default=[], metavar="START:END",
+                        help="shared-memory only: trace accepted physical writes in up to 16 word-aligned byte ranges during the trace window; decimal or hex addresses")
     parser.add_argument("--shared-memory", action="store_true", help="use the existing shared SDRAM/independent pixel-clock boot fixture; disk preloaded before reset release")
     parser.add_argument("--verilator", default="verilator")
     args = parser.parse_args(argv)
+    key_usage_explicit = args.key_usage is not None
+    args.key_usage = 5 if args.key_usage is None else args.key_usage
     if len(args.rom_sha256) != 64 or any(c not in "0123456789abcdef" for c in args.rom_sha256):
         parser.error("--rom-sha256 must be a lowercase SHA-256 digest")
-    if not 1 <= args.seconds <= 30:
-        parser.error("--seconds must be 1..30")
+    if not 1 <= args.seconds <= 120:
+        parser.error("--seconds must be 1..120")
     args.trace_start = min(6, args.seconds-1) if args.trace_start is None else args.trace_start
     args.trace_end = min(7, args.seconds) if args.trace_end is None else args.trace_end
     if not 0 <= args.trace_start < args.trace_end <= args.seconds:
@@ -264,6 +385,10 @@ def main(argv=None):
         parser.error("--ram-extra-wait must be 0..64")
     if args.ram_fixed_wait is not None and not 0 <= args.ram_fixed_wait <= 64:
         parser.error("--ram-fixed-wait must be 0..64")
+    if args.mfp_iack_raw_pin and args.mfp_iack_phase < 0:
+        parser.error("--mfp-iack-raw-pin requires --mfp-iack-phase 0..3")
+    if not 0 <= args.psg_wait_states <= 8:
+        parser.error("--psg-wait-states must be 0..8")
     if not 0 <= args.mfp_wait_states <= 8:
         parser.error("--mfp-wait-states must be 0..8")
     if args.key_at is not None and not 1 <= args.key_at < args.seconds:
@@ -274,6 +399,16 @@ def main(argv=None):
         parser.error("timeout must be 1..86400 host seconds")
     if args.shared_memory and (args.seconds < 6 or args.ram_extra_wait or args.ram_fixed_wait is not None):
         parser.error("--shared-memory requires at least 6 seconds and no callback RAM delay or override")
+    if args.ram_write_range and not args.shared_memory:
+        parser.error("--ram-write-range requires --shared-memory")
+    if args.key_event and (args.key_at is not None or key_usage_explicit):
+        parser.error("--key-event cannot be combined with --key-at or --key-usage")
+    try:
+        args.ram_write_ranges = ram_write_ranges(args.ram_write_range)
+        args.input_schedule = keyboard_schedule(args.key_event or
+            ([] if args.key_at is None else [f"{args.key_at}:{args.key_usage}:150"]), args.seconds)
+    except ValueError as error:
+        parser.error(str(error))
     try:
         return 0 if run(args)["capture_completed"] else 1
     except (OSError, ValueError, subprocess.SubprocessError) as error:

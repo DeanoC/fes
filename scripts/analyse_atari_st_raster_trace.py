@@ -26,6 +26,77 @@ def rows(path):
             yield json.loads(line)
 
 
+def rendered_capture(directory, proof):
+    """Validate sealed replay images against their actual HDMI canvas."""
+    if 'rendered_capture' not in proof:
+        return None  # Older source-bound captures have no replay-frame oracle.
+    def sealed(name):
+        if not name or Path(name).name != name:
+            raise ValueError('invalid rendered artifact name')
+        path = directory / name
+        if proof['artifacts'].get(name) != sha256(path):
+            raise ValueError('artifact digest mismatch: ' + name)
+        return path.read_bytes()
+    def ppm(name, width, height):
+        data = sealed(name)
+        header = f'P6\n{width} {height}\n255\n'.encode()
+        if not data.startswith(header) or len(data) != len(header)+width*height*3:
+            raise ValueError('rendered PPM geometry mismatch: ' + name)
+        return data[len(header):]
+    trace_name = proof['rendered_capture']['trace']
+    entries = [json.loads(line) for line in sealed(trace_name).splitlines()]
+    previous = 0
+    saved = []
+    unsaved_claims = []
+    nonrepeated = []
+    for entry in entries:
+        if entry['hdmi_frame'] <= previous or entry['end_cycle'] <= entry['start_cycle']:
+            raise ValueError('invalid rendered frame chronology')
+        previous = entry['hdmi_frame']
+        top, height = (84, 276) if entry['pal'] else (105, 255)
+        if entry['canvas_xywh'] != [224, top, 832, height*2]:
+            raise ValueError('rendered canvas geometry mismatch')
+        full_name, native_name = entry['hdmi_file'], entry['canvas_file']
+        if not full_name:
+            # The trace still records a replication flag, but no HDMI PPM was
+            # saved, so that flag is a claim rather than a pixel result.
+            if native_name:
+                raise ValueError('reduced canvas lacks HDMI source')
+            claimed, valid = entry['repeat_2x2'], entry['valid']
+            if not isinstance(claimed, bool) or not isinstance(valid, bool):
+                raise ValueError('unsaved rendered frame metadata is invalid')
+            unsaved_claims.append({
+                'hdmi_frame': entry['hdmi_frame'], 'native_frame': entry['native_frame'],
+                'valid': valid, 'repeat_2x2_claimed': claimed, 'pixel_verified': False})
+            continue
+        if not entry['valid']:
+            raise ValueError('saved rendered frame is invalid')
+        full = ppm(full_name, 1280, 720)
+        reduced = bytearray()
+        repeated = True
+        for y in range(height):
+            for x in range(416):
+                offset = ((top+2*y)*1280+224+2*x)*3
+                rgb = full[offset:offset+3]
+                reduced += rgb
+                for dy, dx in ((0, 1), (1, 0), (1, 1)):
+                    other = offset+dy*1280*3+dx*3
+                    repeated &= full[other:other+3] == rgb
+        if entry['repeat_2x2'] != repeated:
+            raise ValueError('rendered replication claim differs from HDMI pixels')
+        if native_name:
+            if not repeated or ppm(native_name, 416, height) != reduced:
+                raise ValueError('reduced canvas differs from HDMI source')
+        elif repeated:
+            raise ValueError('replicated saved HDMI frame lacks reduced canvas')
+        if not repeated:
+            nonrepeated.append(entry['hdmi_frame'])
+        saved.append({'hdmi_frame': entry['hdmi_frame'], 'native_frame': entry['native_frame'],
+                      'hdmi_file': full_name, 'canvas_file': native_name, 'repeat_2x2': repeated})
+    return {'complete_hdmi_frames_in_window': len(entries), 'saved_frames': saved,
+            'nonrepeated_frames': nonrepeated, 'unsaved_replication_claims': unsaved_claims}
+
+
 def analyse(directory):
     proof = json.loads((directory / 'demo-proof.json').read_text())
     if not proof.get('capture_completed'):
@@ -93,6 +164,7 @@ def analyse(directory):
                 frame['iack_lines'][level].append([event['line'], event['horizontal_phase']])
     return {
         'analysis_script_sha256': sha256(Path(__file__)),
+        'rendered_capture': rendered_capture(directory, proof),
         'cross_frame_pal_pulses': crossing_pulses,
         'source_revision': proof['source_revision'],
         'source_mode': proof['source_mode'],
