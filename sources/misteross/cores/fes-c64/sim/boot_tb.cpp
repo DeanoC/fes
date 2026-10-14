@@ -14,6 +14,23 @@ int main(int argc, char **argv) {
     // external firmware/disk hex files; all copyrighted bytes stay outside Git.
     Vc64_boot_sim_top top;
     top.reset = 1;
+    for (unsigned i=0; i<5; ++i) top.keyboard_rows[i]=0;
+    struct KeyEvent { uint64_t cycle; unsigned usage, down; };
+    std::vector<KeyEvent> keys;
+    if (const char *arg = Verilated::commandArgsPlusMatch("C64_KEY_EVENTS=")) {
+        if (*arg) {
+            std::ifstream events(arg + 16);
+            if (!events) { std::fprintf(stderr,"cannot open key event file\n"); return 1; }
+            KeyEvent event;
+            while (events >> event.cycle >> event.usage >> event.down) {
+                if (event.usage >= 128 && (event.usage < 0xe0 || event.usage >= 0xe8)) return 1;
+                if (!keys.empty() && event.cycle < keys.back().cycle) return 1;
+                keys.push_back(event);
+            }
+            if (!events.eof()) return 1;
+        }
+    }
+    size_t key_event=0;
     uint64_t sys_edge = 0, pixel_edge = 0;
     std::vector<uint8_t> frame, last_frame;
     bool previous_vsync = false;
@@ -31,6 +48,12 @@ int main(int argc, char **argv) {
         if (system) {
             top.clk_sys = !(sys_edge & 1);
             ++sys_edge;
+            while (key_event < keys.size() && keys[key_event].cycle <= sys_edge / 2) {
+                const auto &event = keys[key_event++];
+                unsigned bit = event.usage >= 0xe0 ? 128 + event.usage - 0xe0 : event.usage;
+                if (event.down) top.keyboard_rows[bit/32] |= 1u << (bit%32);
+                else top.keyboard_rows[bit/32] &= ~(1u << (bit%32));
+            }
             if (sys_edge == 800) top.reset = 0;
         } else {
             top.pixel_clk = !(pixel_edge & 1);
@@ -78,6 +101,7 @@ int main(int argc, char **argv) {
         }
         std::putchar('\n');
     }
+    std::printf("Keyboard events delivered=%zu of %zu\n", key_event, keys.size());
     std::printf("Raster reads=%u, zero reads=%u\n", raster_reads, raster_zero_reads);
     std::puts("Final CPU cycles (bus address, internal PC, data, microcode state):");
     for (unsigned i = history_count > 64 ? history_count - 64 : 0; i < history_count; ++i) {

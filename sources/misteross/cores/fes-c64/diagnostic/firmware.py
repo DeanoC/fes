@@ -134,14 +134,14 @@ wait_joy:
 joy_ok:
         lda #$ff
         sta $dc02
-        lda #$fb
+        lda #$fd
         sta $dc00
         lda #$08
         sta $c000
         jsr show_stage
 wait_key:
         lda $dc01
-        and #$02
+        and #$04
         bne wait_key
 key_ok:
         lda #$00

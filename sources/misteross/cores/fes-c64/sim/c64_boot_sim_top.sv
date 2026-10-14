@@ -4,6 +4,7 @@
 `include "c64_bus.vh"
 module c64_boot_sim_top (
     input wire clk_sys, pixel_clk, reset,
+    input wire [143:0] keyboard_rows,
     output wire [7:0] red, green, blue,
     output wire de, vsync,
     output wire signed [15:0] audio_sample,
@@ -11,7 +12,7 @@ module c64_boot_sim_top (
 );
     c64_machine machine (
         .clk_sys(clk_sys), .reset(reset), .video_clk(pixel_clk),
-        .keyboard_rows(144'd0), .controller_buttons(16'd0),
+        .keyboard_rows(keyboard_rows), .controller_buttons(16'd0),
         .media_write_addr(18'd0), .media_write_data(16'd0),
         .media_write_enable(2'b00), .disk_ready(1'b1),
         .slot1_response(28'd0), .slot2_response(28'd0),

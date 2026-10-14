@@ -1694,8 +1694,14 @@ vacant and observes external BASIC/KERNAL firmware on the real machine RTL.
 firmware/disk memory paths and retains hashes, RAM, a complete HDMI frame and
 screen-code output and recent CPU cycles with the production clock ratio.
 The default three-second observation budget is configurable.
-It sends no LOAD command and makes no boot/demo acceptance assertion; the
-physical ROM map and media mailbox are unchanged. See the core README.
+`--type-command` optionally types native C64 text through HID states after
+three seconds, with 50 ms press/release intervals. The observation makes no
+boot/demo acceptance assertion; the physical ROM map and media mailbox are unchanged. See the core README.
+The HID keyboard maps all 64 native switches with CIA1 PA columns/PB rows,
+correcting the former transposed diagnostic mapping. A is PA1/PB2 and Return
+is PA0/PB1. `make sim-fes-c64-keyboard`, included in `sim-fes-c64`, checks every
+switch across all scan columns plus release, chords and modifier aliases.
+Reverse scanning and electrical ghosting remain unimplemented.
 Both CIA timers expose their live counters, load stopped counters on high-byte
 writes, treat force-load as a strobe, and implement continuous/one-shot counting.
 Timer B can count Phi2 or timer A underflows. CIA1 asserts IRQ and CIA2 asserts
