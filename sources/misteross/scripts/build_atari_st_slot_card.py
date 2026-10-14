@@ -191,7 +191,9 @@ def card_manifest(package, slot: int, cart: bytes, recipe_sha: str, revision: st
 
 
 def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu: int, *,
-          cache_root: Path | None = None, seed: int = PLACER_SEED) -> Path:
+          cache_root: Path | None = None, seed: int = PLACER_SEED,
+          gpu_router: str = shell_recipe.ST_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> Path:
     if type(seed) is not int or not 1 <= seed <= 10:
         raise ValueError("card placer seed must be an integer from 1 to 10")
     root, shell = root.resolve(), shell.resolve()
@@ -209,7 +211,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     if len(bus) != 1 or (bus[0]["major"], bus[0]["minor"], bus[0]["required"]) != (1, 0, False):
         raise ValueError("shell must declare the optional Atari ST cartridge bus 1.0")
     shell_members = ("routed.json", "socket.qsf", "manifest.toml", "core.rbf", "rom-map.json")
-    tools = shell_recipe._authenticate_atari_st_tools(root, cache_root)
+    tools = shell_recipe._authenticate_atari_st_tools(
+        root, cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in tools.items()}
     closure = {path: digest((root / path).read_bytes()) for path in inputs}
     closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in shell_members})
@@ -229,7 +232,13 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     (output / "cart.qsf").write_bytes(qsf)
     scaffold = prepare_scaffold((shell / "routed.json").read_bytes(), slot)
     (output / "scaffold.json").write_bytes(scaffold)
-    env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
+    env = dict(os.environ)
+    extra = shell_recipe.execution_extra(gpu_router)
+    if extra:
+        env.pop("HIP_VISIBLE_DEVICES", None)
+        env.update(extra)
+    else:
+        env["HIP_VISIBLE_DEVICES"] = str(gpu)
     sources = " ".join(CARDS[card])
     commands = [
         [str(tools["yosys"].path), "-p",
@@ -264,7 +273,7 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     route_text = (output / "route.log").read_text(errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise ValueError("card route log does not prove a complete routed design")
-    _require_gpu_backend(route_text, shell_recipe.ST_GPU_BACKEND)
+    _require_gpu_backend(route_text, shell_recipe.gpu_choice(gpu_router)[0])
     achieved = validate_cart_timing(json.loads((output / "timing.json").read_text()))
     validate_cart_clocks(json.loads((output / "cart-routed.json").read_text()))
     if (output / "scaffold.json").read_bytes() != scaffold or (output / "cart.qsf").read_bytes() != qsf:
@@ -289,7 +298,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
         raise ValueError("source changed during card build")
     if any(digest((shell / name).read_bytes()) != closure["shell/" + name] for name in shell_members):
         raise ValueError("frozen shell changed during card build")
-    if {n: t.identity for n, t in shell_recipe._authenticate_atari_st_tools(root, cache_root).items()} != identities:
+    if {n: t.identity for n, t in shell_recipe._authenticate_atari_st_tools(
+            root, cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router).items()} != identities:
         raise ValueError("authenticated compiler changed during card build")
     destination = output / (expansion_id + ".tar")
     with tarfile.open(destination, "w", format=tarfile.USTAR_FORMAT) as archive:
@@ -312,12 +322,15 @@ if __name__ == "__main__":
     parser.add_argument("--card", default="probe", choices=sorted(CARDS))
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=shell_recipe.ST_GPU_ROUTER)
+    parser.add_argument("--toolchain-root", type=Path)
     parser.add_argument("--seed", type=int, choices=range(1, 11), default=PLACER_SEED,
                         help="bounded card placement seed, recorded in the build identity")
     args = parser.parse_args()
     try:
         print(build(args.root, args.shell, args.package, args.slot, args.card, args.gpu,
-                    cache_root=args.cache_root, seed=args.seed))
+                    cache_root=args.cache_root, seed=args.seed, gpu_router=args.gpu_router,
+                    toolchain_root=args.toolchain_root))
     except (ValueError, OSError) as exc:
         print(f"build-atari-st-slot-card: {exc}", file=sys.stderr)
         raise SystemExit(1)

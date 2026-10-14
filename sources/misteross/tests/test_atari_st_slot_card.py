@@ -78,10 +78,11 @@ class BuildFixture:
         self.placed = LoadedRbf(die, b"same-header", bytearray(self.base.cram), True)
         cram_set(self.placed.cram, die, 1770, 33, 1)
         self.timing, self.route_text = good_timing(), "Info: backend hip:fixture ready\nInfo: Program finished normally.\n"
-        self.clock, self.after_route, self.commands = 10, lambda output: None, []
+        self.clock, self.after_route, self.commands, self.envs = 10, lambda output: None, [], []
 
     def compiler(self, command, **kwargs):
         self.commands.append(command)
+        self.envs.append(kwargs.get("env"))
         if Path(command[0]).name == "yosys":
             path = Path(command[-1].split("write_json ", 1)[1])
             path.write_text("{}")
@@ -100,8 +101,9 @@ class BuildFixture:
         with ExitStack() as stack:
             stack.enter_context(patch.object(card, "_require_clean_source", return_value=("repo", "d" * 40)))
             stack.enter_context(patch.object(card, "read_package", return_value=self.package))
-            stack.enter_context(patch.object(card.shell_recipe, "_authenticate_atari_st_tools",
-                                             side_effect=[self.tools, final_tools or self.tools]))
+            self.authenticate = stack.enter_context(patch.object(
+                card.shell_recipe, "_authenticate_atari_st_tools",
+                side_effect=[self.tools, final_tools or self.tools]))
             stack.enter_context(patch.object(card.subprocess, "run", side_effect=self.compiler))
             stack.enter_context(patch.object(card, "rbf_load", side_effect=[self.base, self.placed]))
             overlay = stack.enter_context(patch.object(card, "overlay_cram", return_value=self.placed))
@@ -224,6 +226,21 @@ class AtariSTSlotCardTests(unittest.TestCase):
             recipe_bytes = json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode()
             self.assertEqual(summary["manifest"]["recipe_sha256"], card.digest(recipe_bytes))
             self.assertEqual(selected.parent.name, card.digest(recipe_bytes))
+
+    def test_cuda_router_authenticates_matching_backend_and_toolchain(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = BuildFixture(Path(directory))
+            fixture.route_text = "Info: backend cuda:fixture ready\nInfo: Program finished normally.\n"
+            toolchain = Path("/tmp/st-cuda")
+            fixture.build(gpu_router="CUDA", toolchain_root=toolchain)
+            self.assertEqual(fixture.authenticate.call_count, 2)
+            for call in fixture.authenticate.call_args_list:
+                self.assertEqual(call.args, (fixture.root.resolve(), None))
+                self.assertEqual(call.kwargs, {"toolchain_root": toolchain, "gpu_router": "CUDA"})
+            self.assertTrue(fixture.envs)
+            for env in fixture.envs:
+                self.assertEqual(env["CUDA_DEVICE_ORDER"], "PCI_BUS_ID")
+                self.assertNotIn("HIP_VISIBLE_DEVICES", env)
 
     def test_invalid_seed_rejected_before_source_tools_or_artifact_writes(self):
         with tempfile.TemporaryDirectory() as directory:

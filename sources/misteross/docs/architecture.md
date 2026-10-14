@@ -54,7 +54,7 @@ Both working-tree and historical Git-object validation apply the recorded
 policy. Existing format-1 and format-2 records without that parameter retain
 their original semantics, including documentation in declared roots.
 
-The eight factory producers now select committed per-producer roots from
+The nine factory producers now select committed per-producer roots from
 `scripts/source_closures.json`, setting `parameters.source_closure_mode` to
 `audited-v1`. Their source key covers the declared import, HDL, recipe, ABI and
 toolchain-lock closure rather than the entire scripts and shared-core trees.
@@ -2015,8 +2015,14 @@ raster activity with CPU/video memory latency. Neither the digital SDRAM
 model nor injected callback waits establish electrical FPGA behavior. FX68K source bytes remain immutable; a
 compiler compatibility input may normalize its two simulation-only legacy
 translate-off/on comments without changing RTL assignments or microcode.
-The board producer must qualify the locked Slang/Yosys frontend, HIP route,
-all clocks and sealed ROM/socket maps. Host simulation does not confer kit
+The board producer authenticates the shared `toolchain.lock`. The factory
+recipe stays HIP; a CUDA route is a different package. The build record uses
+the audited closure in `scripts/source_closures.json`. The
+[2026-10-04 private-pin record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
+qualifies the earlier read-only shell and does not qualify this shared-pin
+seal. The October kit notes do not accept these bytes. The producer must
+still qualify the locked Slang/Yosys frontend, the selected GPU route, all
+clocks and sealed ROM/socket maps. Host simulation does not confer kit
 or appliance hardware acceptance. See [the core README](../cores/fes-atari-st/README.md)
 for maps, commands and the remaining original-ST timing/device limits.
 

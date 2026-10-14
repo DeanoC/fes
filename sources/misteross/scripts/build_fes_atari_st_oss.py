@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Build and seal the native HIP nextpnr/Mistral Atari 520ST package.
+"""Build and seal the Atari 520ST package on the shared toolchain lock.
 
+The factory recipe is HIP. ``--gpu-router CUDA`` selects a separate package.
 192 synchronous, blank 1024x10 M10K lanes describe the linked 192 KiB
 firmware. The ST expansion connector has a reserved, registered boundary.
 Synthesis diagnostics are unsealed and never export a package.
@@ -32,7 +33,7 @@ from scripts.fes_build_common import (
     reject_async_m10k_reads, validate_timing_resources,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
-from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.search_placer_qor import SearchError, route_after_synth
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -143,6 +144,14 @@ def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
     if gpu_router == "CUDA":
         return "cuda", "unused", "gpu-router=CUDA; hip-architectures=unused"
     raise BuildError(f"unsupported Atari ST GPU router {gpu_router}")
+
+
+def execution_extra(gpu_router: str) -> dict[str, str] | None:
+    """Environment shared by the shell, synthesis probe and ST companions."""
+    gpu_choice(gpu_router)
+    if gpu_router == "CUDA":
+        return {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"}
+    return None
 
 
 def _authenticate_atari_st_tools(root: Path, cache_root: Path | None = None,
@@ -295,8 +304,9 @@ def create_build_record(
             "expansion_sockets": ",".join(s.placement for s in atari_st_slot.SOCKETS),
         },
     }
-    fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS),
-                                      execution, pinned_inputs=PINNED_INPUTS)
+    fields = functional_record_fields(
+        root, fields, source_roots_for_producer(__name__, PINNED_INPUTS, root),
+        execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
 
 
@@ -790,7 +800,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     identities = {name: tool.identity for name, tool in authenticated.items()}
     database_root = authenticated["mistral"].path.parents[2] / "src/mistral"
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
-    extra_env = {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"} if gpu_router == "CUDA" else None
+    extra_env = execution_extra(gpu_router)
     invocation = FunctionalInvocation(authenticated, gpu_device, extra_env=extra_env)
     output = None
     try:
@@ -878,13 +888,15 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
 
 
 def synth(root: Path = ROOT, *, cache_root: Path | None = None,
-          video_output: str = "direct") -> dict:
+          video_output: str = "direct", gpu_router: str = ST_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> dict:
     """Run authenticated Yosys without a clean-tree seal or package export."""
     root = Path(root).resolve()
     for relative in PINNED_INPUTS:
         _regular_input(root, relative)
-    authenticated = _authenticate_atari_st_tools(root, cache_root=cache_root)
-    invocation = FunctionalInvocation(authenticated, 0)
+    authenticated = _authenticate_atari_st_tools(
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
+    invocation = FunctionalInvocation(authenticated, 0, extra_env=execution_extra(gpu_router))
     try:
         output = _prepare_output(root, relative=DIAGNOSTIC_OUTPUT, build_outputs=BUILD_OUTPUTS)
         prepare_cpu_inputs(root, output)
@@ -924,7 +936,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     try:
         if arguments.synth_only:
-            cells = synth(arguments.root, cache_root=arguments.cache_root, video_output=arguments.video_output)["synthesis_cells"]
+            cells = synth(arguments.root, cache_root=arguments.cache_root,
+                          video_output=arguments.video_output, gpu_router=arguments.gpu_router,
+                          toolchain_root=arguments.toolchain_root)["synthesis_cells"]
             print(f"synth-only MISTRAL_M10K={cells.get('MISTRAL_M10K', 0)} "
                   f"MISTRAL_M10K_TDP={cells.get('MISTRAL_M10K_TDP', 0)} "
                   f"MISTRAL_FF={cells.get('MISTRAL_FF', 0)}")

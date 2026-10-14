@@ -259,10 +259,13 @@ second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
 
 The Atari ST producer now selects the shared `toolchain.lock`
-(Yosys `5391eeb1`, nextpnr `9128800f`). RAM test and menu use that same lock
+(Yosys `5391eeb1`, nextpnr `9128800f`). The factory recipe stays HIP.
+A CUDA route is a separate package. RAM test and menu use that same lock
 and its HIP compiler slot. `toolchains/ramtest-timing.lock` remains a separate
 opt-in experimental stack for the 130 MHz timing comparison.
-Requalification is recorded in the [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md).
+The [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
+qualifies the earlier private pin and its read-only shell. It does not
+qualify this shared-pin seal. The October kit notes do not accept these bytes.
 
 The [Atari 520ST](../cores/fes-atari-st/README.md) is the first 16-bit core.
 `make sim-fes-atari-st` covers the full CPU, MMU aliases, peripherals,

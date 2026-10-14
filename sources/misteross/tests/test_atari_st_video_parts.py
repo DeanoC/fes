@@ -74,7 +74,7 @@ class CompilerFixture:
         cram_set(self.placed.cram,die,layout.CRAM[0],layout.CRAM[1],1)
         self.timing=good_timing();self.timing['utilization']={}
         self.clock=9000;self.synthesis={'modules':{'cart':{'cells':{}}}}
-        self.commands=[];self.after_route=lambda output:None
+        self.commands=[];self.after_route=lambda output:None;self.backend='hip'
     def closure(self,root,roots,**kwargs):
         return {name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in producer.INPUTS}
     def compiler(self,command,root,log,**kwargs):
@@ -87,7 +87,7 @@ class CompilerFixture:
             (output/'timing.json').write_text(json.dumps(self.timing))
             top=fixture(True);top['cells']['fes_cart$parity']={'type':'MISTRAL_FF','connections':{'CLK':[self.clock]}}
             (output/'cart-routed.json').write_text(json.dumps({'modules':{'top':top}}))
-            log.write_text('Info: backend hip:fixture ready\nInfo: Program finished normally.\n')
+            log.write_text(f'Info: backend {self.backend}:fixture ready\nInfo: Program finished normally.\n')
             self.after_route(output)
     def build(self,**kwargs):
         with ExitStack() as stack:
@@ -95,12 +95,12 @@ class CompilerFixture:
                 ('read_package',{'return_value':self.package}),
                 ('_require_clean_source',{'return_value':('repo','d'*40)}),
                 ('source_input_closure',{'side_effect':self.closure}),
-                ('FunctionalInvocation',{'return_value':self.invocation}),
                 ('_run_tool',{'side_effect':self.compiler}),
                 ('rbf_load',{'side_effect':[self.base,self.placed]}),
                 ('rbf_save',{'return_value':b'linked-video'})):
                 stack.enter_context(patch.object(producer,name,**options))
-            stack.enter_context(patch.object(producer.shell_recipe,'_authenticate_atari_st_tools',return_value=self.tools))
+            self.authenticate=stack.enter_context(patch.object(producer.shell_recipe,'_authenticate_atari_st_tools',return_value=self.tools))
+            self.invocation_mock=stack.enter_context(patch.object(producer,'FunctionalInvocation',return_value=self.invocation))
             # Full shell RAM audit is separately tested by its owner. The actual
             # video/CPU boundary and PLL replay shape remain in this fixture.
             stack.enter_context(patch.object(producer.shell_recipe,'validate_routed_shell'))
@@ -294,6 +294,21 @@ class FullProducer(unittest.TestCase):
             self.assertNotEqual(second.parent, third.parent)
             self.assertNotEqual(second_shell['socket.qsf'], third_shell['socket.qsf'])
             self.assertEqual(second_shell['routed.json'], third_shell['routed.json'])
+
+    def test_cuda_router_authenticates_matching_backend_and_toolchain(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = CompilerFixture(Path(tmp))
+            fixture.backend = 'cuda'
+            toolchain = Path('/tmp/st-cuda')
+            fixture.build(gpu_router='CUDA', toolchain_root=toolchain)
+            self.assertEqual(fixture.authenticate.call_count, 2)
+            for call in fixture.authenticate.call_args_list:
+                self.assertEqual(call.args, (fixture.root.resolve(), None))
+                self.assertEqual(call.kwargs, {'toolchain_root': toolchain, 'gpu_router': 'CUDA'})
+            fixture.invocation_mock.assert_called_once_with(
+                fixture.tools, 0, extra_env={'CUDA_DEVICE_ORDER': 'PCI_BUS_ID'})
+            summary = json.loads(next(Path(tmp).glob('build/atari-st-video-parts/*/*/build-summary.json')).read_text())
+            self.assertEqual(summary['route']['gpu_backend'], 'cuda')
     def test_failures_never_publish_a_part(self):
         for name in ('pixel timing','system timing','audio timing','wrong clock','RAM','header','outside strict column','source mutation','generated mutation','map mismatch'):
             with self.subTest(name=name),tempfile.TemporaryDirectory() as tmp:
