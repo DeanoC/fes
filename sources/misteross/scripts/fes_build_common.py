@@ -271,7 +271,6 @@ def _fes_hip_local_provision_hint(root: Path, lock_path: Path, configuration: st
         return ""
     target = {
         "toolchain.lock": "toolchain-fes",
-        "toolchains/zx81-expansion.lock": "toolchain-fes-zx81",
     }.get(relative)
     return f"; run `make {target}` to provision the FES HIP local toolchain" if target else ""
 
