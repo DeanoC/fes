@@ -73,8 +73,8 @@ func (m Manifest) Compatible(kernelSHA string) error {
 }
 
 // DecodeManifest rejects duplicate, unknown, case-variant and missing fields.
-// image_passes is optional; when present it must be a positive integer and
-// stays on Manifest so remarshaling keeps it inside any manifest digest.
+// image_passes is optional on read. When present it must be a positive integer
+// and stays on Manifest so remarshaling keeps those bytes. Producers omit it.
 func DecodeManifest(r io.Reader) (Manifest, error) {
 	var m Manifest
 	b, e := io.ReadAll(io.LimitReader(r, MaxManifestSize+1))

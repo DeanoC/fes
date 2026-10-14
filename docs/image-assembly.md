@@ -22,9 +22,11 @@ From the FES root:
 For a local scratch/HIL image, run `IMAGE_PASSES=1 make image`. The output
 records the single pass and includes `SINGLE-PASS-SCRATCH.txt` with checkout
 head and image SHA-256. A HIL-named release appends `-1p`, records
-`image_passes: 1`, and includes the marker. `fes-update` accepts that optional
-positive integer and keeps it in the uploaded manifest, so the release digest
-covers it. CI and cold/production receipts require two passes and omit the field.
+`image_passes: 1` in `evidence.json`, and includes the marker. `release.json`
+keeps the legacy field set. `fes-update` accepts an optional positive
+`image_passes` when a manifest already contains it, and rejects unknown fields
+and duplicates. CI and cold/production receipts require two passes and omit
+the evidence field.
 
 Those commands build FogCast agent, kit and selector/verifier binaries, then run
 `make -C image FOGCAST_DIR=<snapshot>/sources/FogCast`. Do not run FogCast

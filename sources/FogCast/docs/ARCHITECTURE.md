@@ -276,7 +276,8 @@ Go module `github.com/DeanoC/FogCast/appliance` in `appliance/`. The store lives
 in `appliance/store`; both boot selection and target update handling consume
 that single implementation. Format 1 rejects unknown and duplicate fields.
 Optional `image_passes`, when present, is a positive integer and remains in the
-manifest bytes that are uploaded and stored, so the release digest covers it. The module uses the standard library and the
+manifest bytes that are uploaded and stored. New releases omit the field and
+record the pass count in release evidence. The module uses the standard library and the
 existing `golang.org/x/sys/unix` dependency for filesystem operations.
 The root module selects it through a checked-in relative replacement.
 `make test` and `make vet` explicitly check both modules because root

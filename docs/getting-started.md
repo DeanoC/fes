@@ -236,7 +236,8 @@ Next: [change a component](development.md#isolate-component-work) or
 For local scratch or HIL iteration, run `IMAGE_PASSES=1 make image`. The
 single output records `image_passes=1` and `single_pass_scratch=1`, and includes
 `SINGLE-PASS-SCRATCH.txt` binding the checkout head and `linux.img` digest.
-A HIL-named `make release` with `IMAGE_PASSES=1` records optional
-`image_passes: 1` in `release.json`. `fes-update` accepts that positive integer
-and keeps it in the uploaded manifest, so the release digest covers it. CI and
-cold releases omit the field.
+A HIL-named `make release` with `IMAGE_PASSES=1` appends `-1p` to the version
+and records `image_passes: 1` in `evidence.json`. `release.json` keeps the
+legacy manifest fields. `fes-update` still accepts an optional positive
+`image_passes` on a manifest that already has it, and rejects unknown fields
+and duplicates. CI and cold releases omit the evidence field.

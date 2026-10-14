@@ -41,7 +41,9 @@ independent pass; use `make dev` for incremental development. Each ordinary upda
 ships only the new system image and manifest.
 The release manifest binds the kernel hash, board, bootstrap ABI, version, and
 exact FES/FogCast/runtime revisions. It never embeds the rootfs's own hash inside
-that rootfs.
+that rootfs. `image_passes` stays in the release evidence sidecar. A one-pass
+HIL release records `1` there and appends `-1p` to the version. The manifest
+keeps the legacy field set so an already deployed agent can stage it.
 
 ## Create a bootable appliance card file
 
