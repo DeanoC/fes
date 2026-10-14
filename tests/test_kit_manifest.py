@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from tests.test_kit_maintenance import authority, TARGET_ID
 import kit_manifest
 from kit_maintenance import KitMaintenance
@@ -138,7 +139,8 @@ class KitManifestTests(unittest.TestCase):
         self.assertFalse((self.holds / '.fes-kit-maintenance/KITA.json').exists())
 
     def test_stale_manifest_plan_cannot_replace_newer_manifest(self):
-        session = kit_manifest.Session('A', kit_manifest.LocalTransport(self.root), 'local')
+        with mock.patch.dict(os.environ, self.env):
+            session = kit_manifest.Session('A', kit_manifest.LocalTransport(self.root), 'local')
         session.probe()
         manifest = self.root / 'media/fat/fes/kit-manifest.json'
         newer = b'{"format":1,"holder":{"who":"other"}}\n'
