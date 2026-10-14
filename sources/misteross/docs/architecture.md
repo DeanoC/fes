@@ -426,7 +426,7 @@ not a policy selector for those producers. HIP (`gpu-router=HIP`,
 nextpnr commands include `--router gpu`, build records store that HIP
 configuration, and route evidence must name a live HIP backend rather than a
 CPU-reference fallback. Pong uses the repository-wide `toolchain.lock` HIP
-slot; the standard ZX81 socket selects `toolchains/zx81-expansion.lock`.
+slot; the standard ZX81 socket selects `toolchain.lock`.
 SG-1000 selects `toolchains/registered-memory.lock` (Yosys `e2d425de`,
 nextpnr `a93fe013`, Mistral `7ed06e21`). SMS selects
 `toolchains/fes-sms.lock` (Yosys `e2d425de`, nextpnr `a93fe013`, Mistral

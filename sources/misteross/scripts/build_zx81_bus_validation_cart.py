@@ -27,7 +27,7 @@ from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("cores/fes-zx81/rtl/zx81_dpram.v", "cores/fes-zx81/rtl/zx81_ram_pack.v", "cores/fes-zx81/expansions/ram16k.v")
-INPUTS = SOURCES + ("cores/fes-zx81/rtl/zx81_bus_pack.vh", "scripts/build_zx81_bus_validation_cart.py", "toolchains/zx81-expansion.lock", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/rom_map.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
+INPUTS = SOURCES + ("cores/fes-zx81/rtl/zx81_bus_pack.vh", "scripts/build_zx81_bus_validation_cart.py", shell_recipe.SOCKET_TOOLCHAIN_LOCK, "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/rom_map.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
 CART_SOURCES = {"ram16k": SOURCES, "zonx": ("cores/fes-zx81/expansions/zonx.v", "cores/fes-zx81/expansions/zonx_ay.v")}
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json", "scaffold.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log", "clocks.sdc")

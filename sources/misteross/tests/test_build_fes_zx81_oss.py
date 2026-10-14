@@ -265,7 +265,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             (output/'core.rbf').write_bytes(b'compiler fixture RBF')
             return SimpleNamespace(seed=10, weight=1000)
 
-        def evidence(*args):
+        def evidence(*args, **kwargs):
             return {'route': {}, 'rbf': {'size': 20, 'sha256': hashlib.sha256(b'compiler fixture RBF').hexdigest()}}
 
         with (patch.object(producer, 'ROM_DATABASE_SHA256', pins),
@@ -287,7 +287,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             self.assertEqual(read_package(package_path.with_suffix('.fcore')), package)
             self.assertEqual(producer.build(ROOT), package_path)
 
-            def tamper(*args):
+            def tamper(*args, **kwargs):
                 (database_root/'data/m10k-mux.txt').write_bytes(b'changed during compilation')
                 return evidence()
             with patch.object(producer, 'validate_build_evidence', side_effect=tamper):

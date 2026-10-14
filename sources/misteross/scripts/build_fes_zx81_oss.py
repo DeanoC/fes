@@ -10,7 +10,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.source_repository import canonical_repository
-from scripts.fes_build_common import BuildError, FES_GPU_ARCHITECTURES, FES_GPU_BACKEND, _authenticate_tools as _authenticate_oss_tools, _cell_counts, _git, _i2c_evidence, _read_json, _require_gpu_backend, _run_tool, _sha256, _write_atomic, reject_async_m10k_reads, validate_timing_resources
+from scripts.fes_build_common import BuildError, FES_GPU_ARCHITECTURES, FES_GPU_BACKEND, FES_TOOLCHAIN_CONFIGURATION, _authenticate_tools as _authenticate_oss_tools, _cell_counts, _git, _i2c_evidence, _read_json, _require_gpu_backend, _run_tool, _sha256, _write_atomic, reject_async_m10k_reads, validate_timing_resources
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
@@ -22,14 +22,14 @@ TARGET = '5CSEBA6U23I7'
 TOP = 'top'
 OUTPUT_RELATIVE = Path('build/fes-zx81-oss')
 SOCKET_OUTPUT_RELATIVE = OUTPUT_RELATIVE
-SOCKET_TOOLCHAIN_LOCK = 'toolchains/zx81-expansion.lock'
-SOCKET_TOOL_COMMITS = {'yosys': 'ec34fcf38986217af9b5558936044b7197d968a7', 'mistral': '7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039', 'nextpnr': 'c2bb4363f4628cfbc5f304f3635e1f6eb88a47a7'}
+SOCKET_TOOLCHAIN_LOCK = 'toolchain.lock'
+SOCKET_TOOL_COMMITS = {'yosys': '5391eeb1e91b38a3d0e96d04f24cf921743c9c78', 'mistral': '8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f', 'nextpnr': '9128800fa6e77c4138088a7107a95376ba47ff15'}
 # SHA256 of Git blobs at SOCKET_TOOL_COMMITS['mistral']; source checkouts are
 # mutable and are not part of FunctionalInvocation's installed support closure.
 ROM_DATABASE_SHA256 = {
     'data/m10k-mux.txt': '22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe',
     'libmistral/cvd-sx120f.cc': 'e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7',
-    'libmistral/cyclonev.h': '48c0acadd2d1dc47398d7e7ab8ad840e98cb3fda489c3197eace6f3ba59e6f21',
+    'libmistral/cyclonev.h': '185c24e2b75385d8e62a7144f12488eb68f7d8159af0a8a603cc4a3de1749ee9',
 }
 RECIPE = 'scripts/build_fes_zx81_oss.py'
 ABI_DEFINITION = 'cores/fes-zx81/generated/fes_simple_computer.vh'
@@ -52,7 +52,7 @@ RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v',
     'cores/fes-menu/rtl/fes_menu_control.v', 'cores/fes-menu/rtl/fes_menu_video.v',
     'cores/fes-menu/rtl/fes_menu_reader.v', 'cores/fes-common/rtl/fes_hps_ddr.v',
     'cores/fes-common/rtl/fes_hps_ddr_guard.v')
-PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, DDR_ATOM, 'cores/fes-common/generated/fes_application.vh', 'scripts/fes_de10nano_evidence.py', 'toolchain.lock', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
+PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, DDR_ATOM, 'cores/fes-common/generated/fes_application.vh', 'scripts/fes_de10nano_evidence.py', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
 BUILD_OUTPUTS = ('synth.json', 'routed.json', 'core.rbf', 'timing.json', 'yosys.log', 'nextpnr.log', 'build-summary.json', 'manifest.toml', 'qor-ranking.json', 'rom-map.json')
 ORDINARY_RESOURCES = frozenset({'MISTRAL_BUF', 'MISTRAL_CLKENA', 'MISTRAL_COMB', 'MISTRAL_FF', 'MISTRAL_IO', 'MISTRAL_M10K', 'MISTRAL_M10K_TDP'})
 REQUIRED_RESOURCES = {'altera_pll': 2, 'cyclonev_hps_interface_mpu_general_purpose': 1, 'cyclonev_hps_interface_peripheral_i2c': 1, 'cyclonev_hps_interface_fpga2sdram': 1}
@@ -63,11 +63,23 @@ REQUIRED_ZERO_RESOURCES = frozenset({'cyclonev_oscillator'})
 HEX32_RE = re.compile('[0-9a-f]{32}\\Z')
 HEX40_RE = re.compile('[0-9a-f]{40}\\Z')
 
+def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
+    if gpu_router == 'HIP':
+        return FES_GPU_BACKEND, FES_GPU_ARCHITECTURES, FES_TOOLCHAIN_CONFIGURATION
+    if gpu_router == 'CUDA':
+        return 'cuda', 'unused', 'gpu-router=CUDA; hip-architectures=unused'
+    raise BuildError(f'unsupported ZX81 GPU router {gpu_router}')
+
 def _authenticate_tools(root: Path, **kwargs):
     """Authenticate the standard socket lane."""
+    gpu_router = kwargs.pop('gpu_router', 'HIP')
+    _backend, architectures, configuration = gpu_choice(gpu_router)
     kwargs.setdefault('lock_path', Path(root) / SOCKET_TOOLCHAIN_LOCK)
     kwargs.setdefault('expected_commits', SOCKET_TOOL_COMMITS)
     kwargs.setdefault('toolchain_root', Path(root) / 'build/toolchain/zx81-expansion')
+    kwargs['gpu_router'] = gpu_router
+    kwargs['hip_architectures'] = architectures
+    kwargs['expected_configuration'] = {'nextpnr': configuration}
     return _authenticate_oss_tools(root, **kwargs)
 
 def _regular_input(root: Path, relative: str) -> Path:
@@ -93,9 +105,9 @@ def placement_policy(mode: str) -> tuple[tuple[int, ...], int]:
     raise BuildError(f'unsupported placement mode: {mode}')
 
 @guard_functional_source
-def create_build_record(root: Path, repository: str, revision: str, tool_identities: Mapping[str, str], *, qor_mode: str='first-pass-paired', identity_version: int=2, execution: dict | None=None) -> bytes:
+def create_build_record(root: Path, repository: str, revision: str, tool_identities: Mapping[str, str], *, qor_mode: str='first-pass-paired', identity_version: int=2, execution: dict | None=None, gpu_backend: str=FES_GPU_BACKEND, gpu_architectures: str=FES_GPU_ARCHITECTURES) -> bytes:
     weights, budget = placement_policy(qor_mode)
-    fields = {'format': 1, 'repository': repository, 'revision': revision, 'recipe': RECIPE, 'recipe_sha256': _sha256(_regular_input(root, RECIPE)), 'abi_definition': ABI_DEFINITION, 'abi_definition_sha256': _sha256(_regular_input(root, ABI_DEFINITION)), 'dependencies': {}, 'tools': dict(tool_identities), 'parameters': {'device': TARGET, 'gpu_architectures': FES_GPU_ARCHITECTURES, 'gpu_backend': FES_GPU_BACKEND, 'pixel_clock_hz': 74250000, 'sys_clock_hz': 52224000, 'audio_clock_hz': 12288000, 'reference_clock_hz': 50000000, 'router': 'gpu', 'seed': PLACER_SEEDS[0], 'seed_order': ','.join((str(seed) for seed in PLACER_SEEDS)), 'placer_heap_timingweight': PLACER_TIMING_WEIGHT, 'placer_heap_timingweights': ','.join((str(weight) for weight in weights)), 'placer_heap_critexp': PLACER_CRITICALITY_EXPONENT, 'placer_qor_mode': qor_mode, 'placer_qor_budget': budget, 'top': TOP}}
+    fields = {'format': 1, 'repository': repository, 'revision': revision, 'recipe': RECIPE, 'recipe_sha256': _sha256(_regular_input(root, RECIPE)), 'abi_definition': ABI_DEFINITION, 'abi_definition_sha256': _sha256(_regular_input(root, ABI_DEFINITION)), 'dependencies': {}, 'tools': dict(tool_identities), 'parameters': {'device': TARGET, 'gpu_architectures': gpu_architectures, 'gpu_backend': gpu_backend, 'pixel_clock_hz': 74250000, 'sys_clock_hz': 52224000, 'audio_clock_hz': 12288000, 'reference_clock_hz': 50000000, 'router': 'gpu', 'seed': PLACER_SEEDS[0], 'seed_order': ','.join((str(seed) for seed in PLACER_SEEDS)), 'placer_heap_timingweight': PLACER_TIMING_WEIGHT, 'placer_heap_timingweights': ','.join((str(weight) for weight in weights)), 'placer_heap_critexp': PLACER_CRITICALITY_EXPONENT, 'placer_qor_mode': qor_mode, 'placer_qor_budget': budget, 'top': TOP}}
     fields['parameters']['expansion_socket'] = 'zx81-bus-v2'
     fields['parameters'].update(session_display=True, session_display_complete_frame_ack=True,
                                 session_display_shared_raster=True, hps_ddr_read_only=True)
@@ -274,7 +286,7 @@ def _session_display_evidence(design: dict, label: str, source_root: Path) -> di
     return {**evidence, 'read_only': True, 'unused_ports_disabled': True}
 
 
-def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
+def validate_build_evidence(output: Path, source_root: Path=ROOT, *, gpu_backend: str=FES_GPU_BACKEND) -> dict:
     synthesis = _read_json(output / 'synth.json', 'synthesis evidence')
     routed = _read_json(output / 'routed.json', 'routed design')
     reject_async_m10k_reads(synthesis)
@@ -307,10 +319,15 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT) -> dict:
     blocked = zx81_expansion.blocked_plug_addr_exits(routed)
     if blocked:
         raise BuildError(zx81_expansion.blocked_plug_addr_message(blocked))
-    gpu_backend = _require_gpu_backend(route_text, FES_GPU_BACKEND)
-    if '50 MHz -> 52.224 MHz' not in route_text:
+    gpu_backend = _require_gpu_backend(route_text, gpu_backend)
+    system_pll = '50 MHz -> 52.224 MHz' in route_text or (
+        re.search(r"Info: PLL 'system_clock\.pll': 50\.000000 MHz -> VCO [0-9.]+ MHz, fractional-N,", route_text)
+        and re.search(r"Info: PLL 'system_clock\.pll': fractional-N requested 52224000\.000000 Hz \(output 0\)", route_text))
+    if not system_pll:
         raise BuildError('route log does not contain the 50-to-52.224 MHz system PLL')
-    if '12.288 MHz' not in route_text:
+    audio_pll = '12.288 MHz' in route_text or re.search(
+        r"Info: PLL 'system_clock\.pll': fractional-N requested 12288000\.000000 Hz \(output 1\)", route_text)
+    if not audio_pll:
         raise BuildError('route log does not contain the 12.288 MHz audio PLL output')
     timing = _read_json(output / 'timing.json', 'timing report')
     system = _frequency_row(timing.get('fmax'), 52.224, 'system clock', 'clk_sys')
@@ -341,7 +358,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str, too
     return encode_manifest(fields)
 
 @guard_functional_source
-def build(root: Path=ROOT, package_store: Path | None=None, *, cache_root: Path | None=None, best_fmax: bool=False, gpu_devices: Sequence[int]=(), identity_version: int=2) -> Path:
+def build(root: Path=ROOT, package_store: Path | None=None, *, cache_root: Path | None=None, best_fmax: bool=False, gpu_devices: Sequence[int]=(), identity_version: int=2, gpu_router: str='HIP', toolchain_root: Path | None=None) -> Path:
     root = Path(root).resolve()
     package_store = (root / 'build/packages' if package_store is None else Path(package_store)).resolve()
     if package_store != root / 'build/packages':
@@ -349,15 +366,17 @@ def build(root: Path=ROOT, package_store: Path | None=None, *, cache_root: Path 
     qor_mode = 'staged' if best_fmax else 'first-pass-paired'
     qor_weights, qor_budget = placement_policy(qor_mode)
     repository, revision = _require_clean_source(root, identity_version=identity_version)
-    authenticated = _authenticate_tools(root, cache_root=cache_root)
+    backend, architectures, _configuration = gpu_choice(gpu_router)
+    authenticated = _authenticate_tools(root, cache_root=cache_root, gpu_router=gpu_router, toolchain_root=toolchain_root)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     database_root = authenticated['mistral'].path.parents[2] / 'src/mistral'
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
     if len(gpu_devices) > 1:
         raise BuildError('functional identity requires one GPU device')
     gpu_devices = tuple(gpu_devices) or (0,)
-    invocation = FunctionalInvocation(authenticated, gpu_devices[0])
-    record = create_build_record(root, repository, revision, identities, qor_mode=qor_mode, identity_version=identity_version, execution=invocation.inputs)
+    extra_env = {'CUDA_DEVICE_ORDER': 'PCI_BUS_ID'} if gpu_router == 'CUDA' else None
+    invocation = FunctionalInvocation(authenticated, gpu_devices[0], extra_env=extra_env)
+    record = create_build_record(root, repository, revision, identities, qor_mode=qor_mode, identity_version=identity_version, execution=invocation.inputs, gpu_backend=backend, gpu_architectures=architectures)
     output = _prepare_output(root)
     relative = output.relative_to(root)
     (output / 'socket.qsf').write_text(zx81_expansion.shell_qsf((root / QSF).read_text()))
@@ -373,7 +392,7 @@ def build(root: Path=ROOT, package_store: Path | None=None, *, cache_root: Path 
             winner = route_after_synth(nextpnr=authenticated['nextpnr-mistral'].path, fixture=output / 'synth.json', dest=output, device=TARGET, qsf=output / 'socket.qsf', sdc=root / SDC, freq='74.25', seeds=PLACER_SEEDS, weights=qor_weights, critexp=PLACER_CRITICALITY_EXPONENT, budget=qor_budget, mode=qor_mode, extra=('--router', 'gpu'), required=PLACER_QOR_CLOCKS, gpu_devices=gpu_devices, accept=zx81_expansion.accept_socket_route, **{'env': invocation.env, 'audit_source_root': root})
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        evidence = validate_build_evidence(output, root)
+        evidence = validate_build_evidence(output, root, gpu_backend=backend)
         mapping, map_evidence = rom_map.build_rom_map(database, (output / 'core.rbf').read_bytes(),
                                                      routed=_read_json(output / 'routed.json', 'routed ROM design'),
                                                      expected_async_read=0)
@@ -390,7 +409,7 @@ def build(root: Path=ROOT, package_store: Path | None=None, *, cache_root: Path 
         _write_atomic(output / 'build-summary.json', (json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + '\n').encode('utf-8'))
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / 'manifest.toml', manifest)
-        final_tools = _authenticate_tools(root, cache_root=cache_root)
+        final_tools = _authenticate_tools(root, cache_root=cache_root, gpu_router=gpu_router, toolchain_root=toolchain_root)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError('authenticated tool identity changed during build')
         final_repository, final_revision = _require_clean_source(root, identity_version=identity_version)
@@ -399,7 +418,7 @@ def build(root: Path=ROOT, package_store: Path | None=None, *, cache_root: Path 
         invocation.verify()
         if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
             raise BuildError('ROM database changed during build')
-        if create_build_record(root, repository, revision, identities, qor_mode=qor_mode, identity_version=identity_version, execution=invocation.inputs) != record:
+        if create_build_record(root, repository, revision, identities, qor_mode=qor_mode, identity_version=identity_version, execution=invocation.inputs, gpu_backend=backend, gpu_architectures=architectures) != record:
             raise BuildError('functional source inputs changed during build')
         return export_package(manifest, output / 'core.rbf', package_store, rom_map=output / 'rom-map.json')
     except Exception:
@@ -420,11 +439,13 @@ def main(argv: Sequence[str] | None=None) -> int:
     parser.add_argument('--identity-version', type=int, choices=(2,), default=2)
     parser.add_argument('--best-fmax', action='store_true', help='after synthesis, search HeAP weight and seed for the best Fmax instead of first-to-pass')
     parser.add_argument('--gpu-devices', default=None, help='one HIP device index for the controlled build (default 0)')
+    parser.add_argument('--gpu-router', choices=('HIP', 'CUDA'), default='HIP')
+    parser.add_argument('--toolchain-root', type=Path)
     arguments = parser.parse_args(argv)
     try:
         if arguments.print_commands:
             raise BuildError('functional identity requires a controlled build')
-        print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root, best_fmax=arguments.best_fmax, identity_version=arguments.identity_version, gpu_devices=_parse_ints(arguments.gpu_devices or '0')))
+        print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root, best_fmax=arguments.best_fmax, identity_version=arguments.identity_version, gpu_devices=_parse_ints(arguments.gpu_devices or '0'), gpu_router=arguments.gpu_router, toolchain_root=arguments.toolchain_root))
     except (BuildError, OSError, ValueError) as exc:
         print(f'build-fes-zx81-oss: {exc}', file=sys.stderr)
         return 1

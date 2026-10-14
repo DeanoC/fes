@@ -352,7 +352,6 @@
     "scripts/source_repository.py",
     "scripts/toolchain_cache.py",
     "scripts/zx81_expansion.py",
-    "toolchain.lock",
-    "toolchains/zx81-expansion.lock"
+    "toolchain.lock"
   ]
 }
