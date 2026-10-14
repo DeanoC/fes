@@ -209,7 +209,7 @@ This path does not seal `fes.zx81`.
 | `scripts/experiment_policy.py` | Closed experiment list and checks |
 | `scripts/build_fes_*.py` | Core producers |
 | `toolchain.lock` | Generic OSS tools and the shared FES HIP slot |
-| `toolchains/` | ZX81 and registered-memory locks |
+| `toolchains/` | Private locks still selected by ZX81, C64, and Atari ST |
 | `boards/de10nano/` | Shared device and pin constraints |
 | `sealed/` | Tracked splash/idle RBF |
 | `build/` | Generated tools and RBFs, not source |

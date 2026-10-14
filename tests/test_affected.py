@@ -185,7 +185,7 @@ class AffectedTests(unittest.TestCase):
 
     def test_unclassified_fpga_inputs_fail_broad(self):
         for path in ('', 'Makefile', 'AGENTS.md', 'toolchain.lock',
-                     'toolchains/registered-memory.lock', 'scripts/new_helper.py',
+                     'toolchains/zx81-expansion.lock', 'scripts/new_helper.py',
                      'scripts/build_fes_new_core.py', 'scripts/build_fes_z80.py',
                      'cores/fes-new/rtl/top.v', 'cores/fes-common/rtl/new_unit.sv',
                      'cores/fes-common/generated/fes_application.vh'):

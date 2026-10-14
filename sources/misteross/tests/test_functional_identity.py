@@ -20,6 +20,7 @@ class FunctionalColecoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source = Path(__file__).resolve().parents[1]
+            shutil.copy2(source / "toolchain.lock", root / "toolchain.lock")
             for relative in ("scripts", "cores/fes-coleco", "cores/fes-common", "toolchains"):
                 shutil.copytree(source / relative, root / relative,
                                 ignore=shutil.ignore_patterns("__pycache__"))
@@ -49,7 +50,7 @@ class FunctionalColecoTests(unittest.TestCase):
             self.assertEqual(build_identity(before), build_identity(record()))
             for relative in ("scripts/fes_build_common.py", "cores/fes-common/rtl/fes_application_gp.v",
                              "cores/fes-coleco/rtl/top.v", "cores/fes-coleco/clocks-oss.sdc",
-                             "toolchains/registered-memory.lock"):
+                             "toolchain.lock"):
                 with self.subTest(relative=relative):
                     path = root / relative
                     original = path.read_bytes()
@@ -107,7 +108,7 @@ class FunctionalColecoTests(unittest.TestCase):
                                      "toolchain.lock")
                     elif producer is coleco:
                         relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
-                                     "toolchains/registered-memory.lock")
+                                     "toolchain.lock")
                     else:
                         relatives = ("scripts/fes_build_common.py",)
                     for relative in relatives:

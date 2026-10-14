@@ -134,7 +134,7 @@ fix it in nextpnr, then delete the dedicated lock. Do not add another lock.
 | 2 | `fes.atari-st` | `3d4a5b35` | Factory, and its Yosys pin is also private. Do not keep this pin because an older seed missed pixel. |
 | 3 | `fes.coleco` | `toolchain.lock` | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `toolchain.lock` | Same multi-region cart support. Both now select `toolchain.lock`. |
-| 5 | Coleco OSS | `a93fe013` | `toolchains/registered-memory.lock`. SMS and SG-1000 now select `toolchain.lock`. |
+| 5 | `fes.sms`, `fes.sg1000` | `toolchain.lock` | Both now select `toolchain.lock`. The old Coleco producer selects the same shared lock. |
 | 6 | `fes.zx81` | `c2bb4363` | Oldest pin. Bus 2.0 and session display make it a bad first move. |
 
 Completion: the recipe `lock_path` is `toolchain.lock`, the producer

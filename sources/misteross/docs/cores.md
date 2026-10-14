@@ -223,7 +223,7 @@ path.
 Pong, Catch, the demos, the menu and RISC-V authenticate `toolchain.lock`. ZX81 authenticates
 `toolchains/zx81-expansion.lock`. Coleco uses `toolchain.lock`.
 SG-1000 authenticates `toolchain.lock`. SMS authenticates
-`toolchain.lock` and does not keep a private slot. Coleco OSS still selects `toolchains/registered-memory.lock`.
+`toolchain.lock` and does not keep a private slot. The old Coleco producer selects the same shared lock.
 
 For those HIP play-package producers, the route log must name a live HIP
 backend. A command line that merely contains `--router gpu` is not enough.
