@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import copy
+import io
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack, redirect_stdout
+from types import SimpleNamespace
+from unittest.mock import patch
 from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
 
@@ -523,6 +527,44 @@ class BuildFesSmsTests(unittest.TestCase):
         for fmax in ({}, {"system_clock.clocks[1]": {"constraint": 12.288, "achieved": 12.287}}):
             with self.assertRaises(sms_oss.BuildError):
                 sms_oss._audio_timing(fmax)
+
+    def test_diagnostic_auth_honors_gpu_router_and_toolchain_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            output = Path(directory)
+            toolchain = Path("/tmp/sms-cuda")
+            (output / "synth.json").write_text("{}")
+            auth = {
+                name: SimpleNamespace(identity="tool", path=Path(f"/cache/install/bin/{name}"))
+                for name in ("yosys", "nextpnr-mistral", "mistral")
+            }
+            authenticate = stack.enter_context(patch.object(
+                sms_oss, "_authenticate_sms_tools", return_value=auth))
+            stack.enter_context(patch.object(sms_oss, "_prepare_output", return_value=output))
+            stack.enter_context(patch.object(sms_oss, "build_commands", return_value=(("yosys",), ())))
+            stack.enter_context(patch.object(sms_oss, "_run_tool"))
+            stack.enter_context(patch.object(
+                sms_oss, "validate_synth_evidence",
+                return_value={"synthesis_cells": {
+                    "altera_pll": 1, "MISTRAL_IO": 2, "MISTRAL_M10K": 3, "MISTRAL_M10K_TDP": 4}}))
+
+            def run(argv: list[str]) -> int:
+                authenticate.reset_mock()
+                with redirect_stdout(io.StringIO()):
+                    return sms_oss.main(["--root", str(ROOT), *argv])
+
+            cuda = ["--gpu-router", "CUDA", "--toolchain-root", str(toolchain)]
+            self.assertEqual(run(["--synth-only", *cuda]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=toolchain, gpu_router="CUDA")
+            self.assertEqual(run(["--synth-only"]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=None, gpu_router="HIP")
+            self.assertEqual(run(["--print-commands", "--synth-only", *cuda]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=toolchain, gpu_router="CUDA")
+            self.assertEqual(run(["--print-commands", "--synth-only"]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=None, gpu_router="HIP")
 
 
 class SmsSyncM10kTests(unittest.TestCase):

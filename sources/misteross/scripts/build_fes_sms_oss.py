@@ -607,12 +607,15 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         invocation.close()
 
 
-def synth(root: Path = ROOT, *, cache_root: Path | None = None) -> dict:
+def synth(root: Path = ROOT, *, cache_root: Path | None = None,
+          gpu_router: str = SMS_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> dict:
     """Run Yosys only. Does not require a clean tree and does not seal a package."""
     root = Path(root).resolve()
     for relative in PINNED_INPUTS:
         _regular_input(root, relative)
-    authenticated = _authenticate_sms_tools(root, cache_root=cache_root)
+    authenticated = _authenticate_sms_tools(
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     output = _prepare_output(root)
     build_id = "0" * 32
@@ -666,7 +669,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             root = arguments.root.resolve()
             for relative in PINNED_INPUTS:
                 _regular_input(root, relative)
-            authenticated = _authenticate_sms_tools(root, cache_root=arguments.cache_root)
+            authenticated = _authenticate_sms_tools(
+                root, cache_root=arguments.cache_root,
+                toolchain_root=arguments.toolchain_root, gpu_router=arguments.gpu_router)
             build_id = "0" * 32
             yosys, nextpnr = build_commands(
                 root,
@@ -677,7 +682,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(" ".join(yosys))
             return 0
         if arguments.synth_only:
-            evidence = synth(arguments.root, cache_root=arguments.cache_root)
+            evidence = synth(
+                arguments.root, cache_root=arguments.cache_root,
+                gpu_router=arguments.gpu_router, toolchain_root=arguments.toolchain_root)
             cells = evidence["synthesis_cells"]
             print(
                 "synth-only "
