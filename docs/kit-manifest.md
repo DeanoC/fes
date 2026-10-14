@@ -49,6 +49,16 @@ successful transaction ends maintenance after the target confirms idle. This
 tool does not reboot the board. Ordinary claims, takeover and mutations are
 refused during maintenance, including kit-local launch requests.
 
+The maintenance client reads `target_id` from `agent.toml` when that key is
+set. When it is omitted, the client uses `/media/fat/fogcast/target-id` if the
+agent saved one, and otherwise the target id in authenticated health. Health
+must report the same id as a configured or saved identity. A swap of
+`agent.toml` that changes the target id can finish on the same boot: the
+client records one successor id in the private journal after the original
+reservation still matches, then ends that reservation. A different boot, a
+different reservation, a health id that disagrees with the new config or saved
+file, or a further id change does not finish and keeps the journal.
+
 The installed agent must support `fes-kit-maintenance-v1`; see the one-time
 [adoption procedure](kit-sharing.md). Replacement and restored agent executables
 must advertise that same contract with `--print-maintenance-contract`. A stock

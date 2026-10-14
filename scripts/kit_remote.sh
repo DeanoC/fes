@@ -75,7 +75,7 @@ allowed_src() {
   case "$1" in
     /tmp/fes-incoming/*|/tmp/fes-swap/*|/tmp/fes-work/*) ;;
     /usr/sbin/mister-runtime|/usr/sbin/mister-agent|/usr/sbin/fogcast-kit|/usr/sbin/fogcast-tenfoot) ;;
-    /media/fat/fogcast/launcher.json|/media/fat/fogcast/agent.toml) ;;
+    /media/fat/fogcast/launcher.json|/media/fat/fogcast/agent.toml|/media/fat/fogcast/target-id) ;;
     /media/fat/fes/stock/*|/media/fat/fes/baselines/*) ;;
     /usr/share/mister-runtime/core-packages/*) ;;
     *) return 1 ;;
