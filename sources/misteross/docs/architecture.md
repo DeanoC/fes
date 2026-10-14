@@ -1695,7 +1695,10 @@ firmware/disk memory paths and retains hashes, RAM, a complete HDMI frame and
 screen-code output and recent CPU cycles with the production clock ratio.
 The default three-second observation budget is configurable.
 `--type-command` optionally types native C64 text through HID states after
-three seconds, with 50 ms press/release intervals. The observation makes no
+three seconds, with 50 ms press/release intervals. `--then-command` adds a
+later command and retains the RAM snapshot taken immediately before it.
+Per-second progress and IEC command traces are flushed during execution.
+The observation makes no
 boot/demo acceptance assertion; the physical ROM map and media mailbox are unchanged. See the core README.
 The IEC device uses released-high CIA2 inputs and logical byte levels on the
 open-collector wires. It separates ready/EOI handshakes from received data bits,

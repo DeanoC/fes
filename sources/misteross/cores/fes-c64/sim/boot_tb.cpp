@@ -41,6 +41,11 @@ int main(int argc, char **argv) {
     uint64_t cycle_budget = 3ull * 52224000;
     if (const char *arg = Verilated::commandArgsPlusMatch("C64_SYS_CYCLES="))
         if (*arg) cycle_budget = std::strtoull(arg + 16, nullptr, 10);
+    uint64_t capture_cycle = 0;
+    if (const char *arg = Verilated::commandArgsPlusMatch("C64_CAPTURE_CYCLE="))
+        if (*arg) capture_cycle = std::strtoull(arg + 19, nullptr, 10);
+    bool captured = false;
+    uint64_t next_progress = 52224000;
     unsigned raster_reads = 0, raster_zero_reads = 0;
     bool raster_access = false;
     while (sys_edge < cycle_budget * 2) {
@@ -48,6 +53,21 @@ int main(int argc, char **argv) {
         if (system) {
             top.clk_sys = !(sys_edge & 1);
             ++sys_edge;
+            if (!captured && capture_cycle && sys_edge/2 >= capture_cycle) {
+                const auto &ram=top.rootp->c64_boot_sim_top__DOT__machine__DOT__main_ram__DOT__ram;
+                std::ofstream snapshot("before-followup-ram.bin",std::ios::binary);
+                snapshot.write(reinterpret_cast<const char *>(&ram[0]),65536);
+                captured=true;
+            }
+            if (sys_edge/2 >= next_progress) {
+                const auto &ram=top.rootp->c64_boot_sim_top__DOT__machine__DOT__main_ram__DOT__ram;
+                std::printf("Progress second=%llu bus=%04x load-pointer=%04x IEC=%u\n",
+                    static_cast<unsigned long long>(next_progress/52224000),top.debug_pc,
+                    unsigned(ram[0xae]) | (unsigned(ram[0xaf])<<8),
+                    top.rootp->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__state);
+                std::fflush(stdout);
+                next_progress += 52224000;
+            }
             while (key_event < keys.size() && keys[key_event].cycle <= sys_edge / 2) {
                 const auto &event = keys[key_event++];
                 unsigned bit = event.usage >= 0xe0 ? 128 + event.usage - 0xe0 : event.usage;
@@ -66,6 +86,7 @@ int main(int argc, char **argv) {
                     static_cast<unsigned long long>(sys_edge/2),
                     r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__shifter,
                     r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__atn_low);
+                std::fflush(stdout);
             }
             if (raster_access) {
                 ++raster_reads;
@@ -116,6 +137,10 @@ int main(int argc, char **argv) {
         r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__name_len,
         r->c64_boot_sim_top__DOT__machine__DOT__cia2__DOT__pa_reg,
         r->c64_boot_sim_top__DOT__machine__DOT__cia2__DOT__pa_ddr);
+    const auto &vic_regs=r->c64_boot_sim_top__DOT__machine__DOT__vic__DOT__regs;
+    std::printf("VIC final D011=%02x D012-compare=%02x D016=%02x D018=%02x D01A=%02x beam=%u\n",
+        vic_regs[0x11],vic_regs[0x12],vic_regs[0x16],vic_regs[0x18],vic_regs[0x1a],
+        r->c64_boot_sim_top__DOT__machine__DOT__vic__DOT__raster);
     std::printf("Keyboard events delivered=%zu of %zu\n", key_event, keys.size());
     std::printf("Raster reads=%u, zero reads=%u\n", raster_reads, raster_zero_reads);
     std::puts("Final CPU cycles (bus address, internal PC, data, microcode state):");
