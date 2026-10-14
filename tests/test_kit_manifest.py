@@ -5,6 +5,7 @@ import fcntl
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
@@ -56,7 +57,9 @@ class KitManifestTests(unittest.TestCase):
             'FES_KIT_HOLD_DIR': str(self.holds),
             'FES_KIT_DRIFT_DIR': str(self.drift),
             'FES_KIT_A_ROOT': str(self.root),
+            'HOME': str(self.work / 'home'),
         })
+        self.env.pop('XDG_STATE_HOME', None)
         self.env.pop('FES_KIT_FAIL_START', None)
         self.env.pop('FES_KIT_FAIL_UMOUNT', None)
         self.env.pop('FES_KIT_FAIL_STAGE', None)
@@ -142,25 +145,34 @@ class KitManifestTests(unittest.TestCase):
         root = self.work / 'state'
         root.mkdir()
         (root / 'tmp').mkdir()
+        home = self.work / 'home'
         blocked = self.work / 'xdg-file'
         blocked.write_text('not-a-dir')
         saved_temp = tempfile.tempdir
         try:
-            with mock.patch.dict(os.environ, {'HOME': str(self.work / 'home'), 'TMPDIR': str(root / 'tmp')}):
+            with mock.patch.dict(os.environ, {'HOME': str(home), 'TMPDIR': str(root / 'tmp')}):
                 os.environ.pop('FES_KIT_HOLD_DIR', None)
                 os.environ.pop('FES_KIT_DRIFT_DIR', None)
-                os.environ['XDG_STATE_HOME'] = str(root / 'xdg')
-                # gettempdir skips a TMPDIR that does not exist yet and then caches /tmp.
+                os.environ.pop('XDG_STATE_HOME', None)
                 tempfile.tempdir = None
                 path = kit_manifest.hold_dir()
-                self.assertEqual(path, root / 'xdg' / 'fes-kit')
+                durable = home / '.local' / 'state' / 'fes-kit'
+                self.assertEqual(path, durable)
+                self.assertFalse((root / 'tmp' / f'fes-kit-{os.getuid()}').exists())
+                self.assertNotIn('/home/deano', str(path))
+                self.assertEqual(stat.S_IMODE(path.stat().st_mode) & 0o077, 0)
                 session = kit_manifest.Session('A', kit_manifest.LocalTransport(self.root), 'local')
                 self.assertEqual(session.maintenance.journal, path / '.fes-kit-maintenance' / 'KITA.json')
                 self.assertNotIn('/home/deano', str(session.maintenance.journal))
+                self.assertEqual(kit_manifest.drift_dir(), durable / 'fes-kit-drift')
+                os.environ['XDG_STATE_HOME'] = str(root / 'xdg')
+                xdg = kit_manifest.hold_dir()
+                self.assertEqual(xdg, root / 'xdg' / 'fes-kit')
                 os.environ['XDG_STATE_HOME'] = str(blocked)
                 tempfile.tempdir = None
                 fallback = kit_manifest.hold_dir()
-                self.assertEqual(fallback, root / 'tmp' / f'fes-kit-{os.getuid()}')
+                self.assertEqual(fallback, durable)
+                self.assertFalse((root / 'tmp' / f'fes-kit-{os.getuid()}').exists())
                 self.assertNotIn('/home/deano', str(fallback))
                 os.environ['FES_KIT_HOLD_DIR'] = str(root / 'override')
                 self.assertEqual(kit_manifest.hold_dir(), root / 'override')
@@ -168,6 +180,82 @@ class KitManifestTests(unittest.TestCase):
                 self.assertNotIn('/home/deano', str(kit_manifest.drift_dir()))
         finally:
             tempfile.tempdir = saved_temp
+
+    def test_hold_dir_rejects_shared_writable_and_foreign_directories(self):
+        home = self.work / 'private-home'
+        group = self.work / 'group-writable'
+        world = self.work / 'world-writable'
+        group.mkdir()
+        world.mkdir()
+        group.chmod(0o770)
+        world.chmod(0o707)
+        link_target = self.work / 'link-target'
+        link_target.mkdir(mode=0o700)
+        link = self.work / 'hold-link'
+        link.symlink_to(link_target, target_is_directory=True)
+        foreign = self.work / 'foreign'
+        foreign.mkdir(mode=0o707)
+        real_lstat = os.lstat
+
+        def fake_lstat(target, *args, **kwargs):
+            info = real_lstat(target)
+            if os.path.abspath(os.fspath(target)) == os.path.abspath(foreign):
+                return mock.Mock(st_mode=info.st_mode, st_uid=info.st_uid + 1)
+            return info
+
+        rejected = (
+            ('group', group, None),
+            ('world', world, None),
+            ('symlink', link, None),
+            ('foreign', foreign, fake_lstat),
+        )
+        for label, path, lstat in rejected:
+            with self.subTest(label=label):
+                with mock.patch.dict(os.environ, {'FES_KIT_HOLD_DIR': str(path), 'HOME': str(home)}):
+                    os.environ.pop('XDG_STATE_HOME', None)
+                    if lstat is None:
+                        with self.assertRaises(kit_manifest.KitError) as caught:
+                            kit_manifest.hold_dir()
+                    else:
+                        with mock.patch('kit_manifest.os.lstat', side_effect=lstat):
+                            with self.assertRaises(kit_manifest.KitError) as caught:
+                                kit_manifest.hold_dir()
+                self.assertIn('owned by the current user', str(caught.exception))
+                self.assertIn('not group- or world-writable', str(caught.exception))
+                self.assertFalse((home / '.local' / 'state' / 'fes-kit').exists())
+        self.assertTrue(stat.S_IMODE(group.stat().st_mode) & stat.S_IWGRP)
+        self.assertTrue(stat.S_IMODE(world.stat().st_mode) & stat.S_IWOTH)
+
+    def test_manual_and_timer_share_the_drift_baseline(self):
+        unit = (ROOT / 'scripts/systemd/fes-kit-drift.service').read_text()
+        self.assertNotIn('FES_KIT_HOLD_DIR=', unit)
+        self.assertNotIn('FES_KIT_DRIFT_DIR=', unit)
+        self.assertNotIn('/home/deano/tmp', unit)
+        home = self.work / 'watch-home'
+        manual = self.env.copy()
+        manual.pop('FES_KIT_HOLD_DIR', None)
+        manual.pop('FES_KIT_DRIFT_DIR', None)
+        manual.pop('XDG_STATE_HOME', None)
+        manual['HOME'] = str(home)
+        manual['TMPDIR'] = str(self.work / 'manual-tmp')
+        first = self.fes('watch', '--once', '--kits', 'A', env=manual)
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertIn('UNVERIFIED', first.stdout)
+        snapshot = home / '.local/state/fes-kit/fes-kit-drift/A.json'
+        self.assertTrue(snapshot.is_file(), first.stdout)
+        self.assertNotIn('/home/deano', str(snapshot))
+        self.assertFalse((self.work / 'manual-tmp').exists())
+        (self.root / PATHS['mister-agent']).write_bytes(b'hand-made')
+        shared = self.fes('watch', '--once', '--kits', 'A', env=manual)
+        self.assertEqual(shared.returncode, 1, shared.stdout + shared.stderr)
+        self.assertIn('DRIFT mister-agent unrecorded', shared.stdout)
+        separated = manual.copy()
+        separated['FES_KIT_DRIFT_DIR'] = str(self.work / 'timer-drift')
+        (self.root / PATHS['mister-agent']).write_bytes(b'hand-made-again')
+        timer = self.fes('watch', '--once', '--kits', 'A', env=separated)
+        self.assertEqual(timer.returncode, 1, timer.stdout + timer.stderr)
+        self.assertIn('DRIFT mister-agent unrecorded', timer.stdout)
+        self.assertTrue((self.work / 'timer-drift' / 'A.json').is_file())
 
     def test_omitted_target_id_follows_persisted_identity(self):
         (self.root / 'media/fat/fogcast/target-id').write_text(TARGET_ID + '\n')

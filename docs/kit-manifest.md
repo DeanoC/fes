@@ -21,10 +21,15 @@ live on the writable FAT volume, not under `/var/lib`:
 | Target transaction lock | `/run/fogcast/kit-maintenance.lock` |
 
 The hold directory is `FES_KIT_HOLD_DIR` when that variable is set. Otherwise
-it is `$XDG_STATE_HOME/fes-kit` when that directory can be created, then
-`$TMPDIR/fes-kit-<uid>`. The workstation drift unit sets
-`FES_KIT_HOLD_DIR=/home/deano/tmp`. Drift logs use `FES_KIT_DRIFT_DIR`, or
-`<hold>/fes-kit-drift` when that variable is unset. A marker named
+it is `$XDG_STATE_HOME/fes-kit` when `XDG_STATE_HOME` is set, then the XDG
+default `~/.local/state/fes-kit`. The directory must be owned by the current
+user and must not be group- or world-writable; a directory that fails those
+checks is refused. Temporary storage is not used, so a workstation reboot
+does not drop the maintenance credential. Drift snapshots use
+`FES_KIT_DRIFT_DIR` when that variable is set, or `<hold>/fes-kit-drift`
+otherwise. With neither override set, a manual watch and the installed timer
+share `~/.local/state/fes-kit/fes-kit-drift`. A cycle whose own directory has
+no snapshot yet still reads that durable snapshot. A marker named
 `KITA-HELD-BY-<who>` records a temporary diagnostic task. It does not fence
 target requests or other hosts. Restore renames it to `KITA-RELEASED-BY-<who>`.
 The target maintenance reservation is the authority while files and services change.
@@ -166,8 +171,8 @@ maintenance contract, is rejected before service shutdown.
 
 `python3 scripts/fes kit watch --once` hashes both kits, compares them with
 the manifest and the drift baseline, and appends to
-`<hold>/fes-kit-drift/watch.log` (the workstation unit pins this under
-`/home/deano/tmp/fes-kit-drift`). A cycle with no drift baseline logs
+`<hold>/fes-kit-drift/watch.log`. The timer uses that same durable directory
+rather than a separate path. A cycle with no drift baseline logs
 `UNVERIFIED` and does not treat the current bytes as stock, so an edit made
 before the first cycle stays uncertified. The baseline is written only when
 `--main-hashes` matches every present tracked file and nothing is drifted or

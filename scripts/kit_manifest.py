@@ -18,6 +18,7 @@ from pathlib import Path
 import re
 import secrets
 import shlex
+import stat
 import subprocess
 import sys
 import tempfile
@@ -74,45 +75,128 @@ def sha256_bytes(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def _ensure_dir(path, mode=0o700):
+def _home():
+    try:
+        return Path.home()
+    except RuntimeError as exc:
+        raise KitError('cannot locate a per-user state directory') from exc
+
+
+def durable_state_dir():
+    """XDG state directory for this user, never a temp path or a fixed home."""
+    return _home() / '.local' / 'state' / 'fes-kit'
+
+
+def _ensure_private_dir(path, mode=0o700):
+    """Create a directory owned by the current user and refuse a shared one.
+
+    An existing directory that another user owns, or that is group- or
+    world-writable, is rejected. The caller does not fall back to it.
+    """
     try:
         path.mkdir(mode=mode, parents=True, exist_ok=True)
-        if not path.is_dir() or not os.access(path, os.W_OK | os.X_OK):
-            raise OSError('not a writable directory')
+        info = os.lstat(path)
     except OSError as exc:
         raise KitError(f'cannot create kit state directory: {path}') from exc
+    shared = stat.S_IMODE(info.st_mode) & (stat.S_IWGRP | stat.S_IWOTH)
+    if (stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode)
+            or not os.access(path, os.W_OK | os.X_OK)
+            or info.st_uid != os.getuid() or shared):
+        raise KitError(
+            'kit state directory must be owned by the current user and not '
+            f'group- or world-writable: {path}')
     return path
+
+
+def _hold_candidates():
+    candidates = []
+    xdg = os.environ.get('XDG_STATE_HOME')
+    if xdg:
+        candidates.append(Path(xdg) / 'fes-kit')
+    try:
+        home_default = durable_state_dir()
+    except KitError:
+        home_default = None
+    if home_default is not None and home_default not in candidates:
+        candidates.append(home_default)
+    return candidates
 
 
 def hold_dir():
     """Private workstation directory for hold markers and the credential journal.
 
-    FES_KIT_HOLD_DIR is used when set. Otherwise use XDG_STATE_HOME/fes-kit
-    when that directory can be created, then a per-user directory under the
-    process temp directory. None of these is a hardcoded developer home.
+    ``FES_KIT_HOLD_DIR`` is used when set and must already be private.
+    Otherwise use ``$XDG_STATE_HOME/fes-kit`` when that variable is set, then
+    ``~/.local/state/fes-kit``. Temporary storage is not a candidate: a
+    workstation reboot must not erase the maintenance credential.
     """
     override = os.environ.get('FES_KIT_HOLD_DIR')
     if override:
-        return _ensure_dir(Path(override))
-    candidates = []
-    xdg = os.environ.get('XDG_STATE_HOME')
-    if xdg:
-        candidates.append(Path(xdg) / 'fes-kit')
-    candidates.append(Path(tempfile.gettempdir()) / f'fes-kit-{os.getuid()}')
+        return _ensure_private_dir(Path(override))
     last = None
-    for candidate in candidates:
+    for candidate in _hold_candidates():
         try:
-            return _ensure_dir(candidate)
+            return _ensure_private_dir(candidate)
         except KitError as exc:
             last = exc
     raise last or KitError('cannot create kit hold directory')
 
 
 def drift_dir():
+    """Directory of watch snapshots shared by a manual run and the timer.
+
+    ``FES_KIT_DRIFT_DIR`` selects another directory for this process. With
+    that unset, snapshots live in ``<hold>/fes-kit-drift``. When neither hold
+    nor drift is overridden, that is ``~/.local/state/fes-kit/fes-kit-drift``,
+    the same path the installed timer uses.
+    """
     override = os.environ.get('FES_KIT_DRIFT_DIR')
     if override:
-        return _ensure_dir(Path(override), mode=0o755)
-    return _ensure_dir(hold_dir() / 'fes-kit-drift', mode=0o755)
+        return _ensure_private_dir(Path(override), mode=0o755)
+    return _ensure_private_dir(hold_dir() / 'fes-kit-drift', mode=0o755)
+
+
+def _shared_drift_snapshots(name):
+    """Baseline files a manual watch and the timer can both see.
+
+    The durable per-user directory is always included. An ``XDG_STATE_HOME``
+    snapshot is included when that variable is set, so the two invocations
+    still meet if only one of them exports it.
+    """
+    filename = f'{name}.json'
+    paths = [durable_state_dir() / 'fes-kit-drift' / filename]
+    xdg = os.environ.get('XDG_STATE_HOME')
+    if xdg:
+        paths.append(Path(xdg) / 'fes-kit' / 'fes-kit-drift' / filename)
+    return paths
+
+
+def _snapshot_hashes(path):
+    try:
+        text = path.read_text(encoding='utf-8')
+    except OSError as exc:
+        raise KitError(f'cannot read drift snapshot: {path}') from exc
+    return load_object(text).get('hashes') or {}
+
+
+def previous_watch_hashes(name):
+    """Hashes from this drift directory, or the shared durable snapshot.
+
+    A timer whose own directory has no snapshot yet still sees the baseline
+    written by a manual watch (and the reverse) instead of treating that
+    first cycle as having no prior hashes.
+    """
+    primary = drift_dir() / f'{name}.json'
+    if primary.is_file():
+        return _snapshot_hashes(primary)
+    for candidate in _shared_drift_snapshots(name):
+        try:
+            if not candidate.is_file() or candidate.resolve() == primary.resolve():
+                continue
+        except OSError:
+            continue
+        return _snapshot_hashes(candidate)
+    return {}
 
 
 def kit_name(value):
@@ -1125,9 +1209,7 @@ def format_finding(name, kind, component, detail, current, expected):
 def watch_kit(session, main_hashes, fail_stale):
     probe = session.probe()
     previous_path = drift_dir() / f'{session.name}.json'
-    previous = {}
-    if previous_path.exists():
-        previous = load_object(previous_path.read_text(encoding='utf-8')).get('hashes') or {}
+    previous = previous_watch_hashes(session.name)
     findings = drift_findings(probe, main_hashes, previous)
     drifted = [row for row in findings if row[0] == 'DRIFT']
     manifest = probe['manifest'] or {}
