@@ -50,7 +50,11 @@ migrations of save/configuration formats in this release ABI.
 
 All mutations require `X-FogCast-Kit-Lease` in addition to bearer authentication.
 Manifest format 1 binds `de10-nano`, `fes-bootstrap-v1`, kernel/image SHA-256 and
-size, version, and exact FES/FogCast/runtime commits. Uploads are raw ext4, with
+size, version, and exact FES/FogCast/runtime commits. It may also include
+optional `image_passes`, a positive integer. A one-pass HIL release records `1`;
+a two-pass release omits the field. The client keeps a present value in the
+manifest it uploads, and the release manifest digest covers those bytes.
+Duplicate fields and names outside this set are rejected. Uploads are raw ext4, with
 no archive paths or scripts to extract.
 
 If a response is lost, inspect status; do not blindly replay activation. A pending

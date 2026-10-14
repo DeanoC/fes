@@ -135,8 +135,11 @@ Coordinate shared expensive runs rather than starting one per agent.
 For local scratch/HIL iteration, `IMAGE_PASSES=1 make image` runs once and
 records single-pass diagnostic status plus a `SINGLE-PASS-SCRATCH.txt` binding
 the checkout head and image digest. A HIL-named `make release` appends `-1p`,
-records `image_passes: 1`, and carries the marker into release outputs. CI and
-cold media/appliance paths keep two passes.
+records `image_passes: 1`, and carries the marker into release outputs. That
+optional field is a positive integer. `fes-update` accepts it and keeps it in
+the uploaded manifest, so the release digest still covers it. Unknown fields
+and duplicates are rejected. CI and cold media/appliance paths keep two passes
+and omit the field.
 
 CI simulations use Verilator 5.032 at source commit
 `8ff77e9d47351b0a59114929880687839a51840b`, selected by

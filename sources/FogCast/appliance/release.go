@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -31,6 +32,7 @@ type Manifest struct {
 	FESRevision     string `json:"fes_revision"`
 	FogCastRevision string `json:"fogcast_revision"`
 	RuntimeRevision string `json:"runtime_revision"`
+	ImagePasses     int64  `json:"image_passes,omitempty"`
 }
 
 var hashPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
@@ -55,6 +57,9 @@ func (m Manifest) Validate() error {
 			return errors.New("release revisions must be full lowercase Git SHA-1 IDs")
 		}
 	}
+	if m.ImagePasses < 0 {
+		return errors.New("image_passes must be a positive integer")
+	}
 	return nil
 }
 func (m Manifest) Compatible(kernelSHA string) error {
@@ -68,6 +73,8 @@ func (m Manifest) Compatible(kernelSHA string) error {
 }
 
 // DecodeManifest rejects duplicate, unknown, case-variant and missing fields.
+// image_passes is optional; when present it must be a positive integer and
+// stays on Manifest so remarshaling keeps it inside any manifest digest.
 func DecodeManifest(r io.Reader) (Manifest, error) {
 	var m Manifest
 	b, e := io.ReadAll(io.LimitReader(r, MaxManifestSize+1))
@@ -77,7 +84,8 @@ func DecodeManifest(r io.Reader) (Manifest, error) {
 	if len(b) > MaxManifestSize {
 		return m, errors.New("manifest too large")
 	}
-	names := []string{"format", "board", "boot_abi", "version", "kernel_sha256", "image_sha256", "image_size", "fes_revision", "fogcast_revision", "runtime_revision"}
+	names := []string{"format", "board", "boot_abi", "version", "kernel_sha256", "image_sha256", "image_size", "fes_revision", "fogcast_revision", "runtime_revision", "image_passes"}
+	optional := map[string]bool{"image_passes": true}
 	fields := make(map[string]bool, len(names))
 	for _, n := range names {
 		fields[n] = false
@@ -108,6 +116,11 @@ func DecodeManifest(r io.Reader) (Manifest, error) {
 		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
 			return m, fmt.Errorf("null manifest field %q", n)
 		}
+		if n == "image_passes" {
+			if e = validateImagePasses(raw); e != nil {
+				return m, e
+			}
+		}
 	}
 	if _, e = d.Token(); e != nil {
 		return m, e
@@ -116,7 +129,7 @@ func DecodeManifest(r io.Reader) (Manifest, error) {
 		return m, errors.New("trailing manifest data")
 	}
 	for n, seen := range fields {
-		if !seen {
+		if !seen && !optional[n] {
 			return m, fmt.Errorf("missing manifest field %q", n)
 		}
 	}
@@ -124,4 +137,21 @@ func DecodeManifest(r io.Reader) (Manifest, error) {
 		return m, e
 	}
 	return m, m.Validate()
+}
+
+func validateImagePasses(raw json.RawMessage) error {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || raw[0] < '1' || raw[0] > '9' {
+		return errors.New("image_passes must be a positive integer")
+	}
+	for _, c := range raw[1:] {
+		if c < '0' || c > '9' {
+			return errors.New("image_passes must be a positive integer")
+		}
+	}
+	n, e := strconv.ParseInt(string(raw), 10, 64)
+	if e != nil || n < 1 {
+		return errors.New("image_passes must be a positive integer")
+	}
+	return nil
 }

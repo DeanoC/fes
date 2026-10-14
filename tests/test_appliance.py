@@ -80,9 +80,25 @@ class ReleaseTests(unittest.TestCase):
         self.assertNotIn('image_passes',manifest)
         legacy=self.root/'legacy.json';legacy.write_bytes(appliance.canonical(manifest))
         self.assertEqual(appliance.load_manifest(legacy),manifest)
-        with self.assertRaisesRegex(ValueError,'invalid release image passes'):
-            malformed=dict(manifest,image_passes=2)
-            legacy.write_bytes(appliance.canonical(malformed));appliance.load_manifest(legacy)
+        explicit=dict(manifest,image_passes=2)
+        legacy.write_bytes(appliance.canonical(explicit))
+        self.assertEqual(appliance.load_manifest(legacy)['image_passes'],2)
+        for bad in (0,-1,True,1.5,'1',1 << 63):
+            with self.subTest(bad=bad):
+                legacy.write_bytes(appliance.canonical(dict(manifest,image_passes=bad)))
+                with self.assertRaisesRegex(ValueError,'invalid release image passes'):
+                    appliance.load_manifest(legacy)
+
+    def test_image_passes_stays_inside_manifest_digest(self):
+        one=appliance.release_manifest(self.rootfs,version='hil-1p',provenance=provenance(self.rootfs,self.kernel),image_passes=1)
+        covered=hashlib.sha256(appliance.canonical(one)).hexdigest()
+        stripped=dict(one);del stripped['image_passes']
+        self.assertIn(b'"image_passes":1',appliance.canonical(one))
+        self.assertNotEqual(covered,hashlib.sha256(appliance.canonical(stripped)).hexdigest())
+        duplicate=appliance.canonical(one).decode().rstrip()[:-1]+',"image_passes":1}\n'
+        malformed=self.root/'duplicate.json';malformed.write_text(duplicate)
+        with self.assertRaisesRegex(ValueError,'duplicate JSON field'):
+            appliance.load_manifest(malformed)
 
     def test_bootstrap_refuses_single_pass_release_explicitly(self):
         import sys

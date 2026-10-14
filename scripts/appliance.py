@@ -75,7 +75,7 @@ def validate_manifest(data):
             raise ValueError('invalid release revision')
     if type(data['image_size']) is not int or not 2048 <= data['image_size'] <= MAX_IMAGE_SIZE:
         raise ValueError('invalid release image size')
-    if 'image_passes' in data and (type(data['image_passes']) is not int or data['image_passes'] != 1):
+    if 'image_passes' in data and (type(data['image_passes']) is not int or not 1 <= data['image_passes'] <= (1 << 63) - 1):
         raise ValueError('invalid release image passes')
     return data
 
