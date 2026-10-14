@@ -54,7 +54,7 @@ Quartus Prime Lite 17.0.2 (`make build-fes-zx81-quartus`) remains the legacy
 the blank ROM RBF. The host sends the selected binary and optional expansion;
 the target Go linker composes the expansion and patches ROM INIT before loading.
 Python and Mistral remain producer/oracle tools, not kit dependencies. OSS uses TV80, a 52.224 MHz system clock, registered M10K and
-the scoped `toolchains/zx81-expansion.lock`, including the bounded HPS DDR atom
+the scoped `toolchain.lock`, including the bounded HPS DDR atom
 declaration. The producer closes over the shared display/DDR sources and checks
 all three clocks, ROM patching and the reserved socket. It does not inherit Quartus
 acceptance. Its combined 52.224/12.288 MHz system/audio PLL and shared PCM/I2S

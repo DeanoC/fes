@@ -82,7 +82,7 @@ is that case.
 | --- | --- | --- | --- |
 | `fes.menu` | Idle scanout. Not a game. Splash is still the product idle fallback. | Shared pin. | No factory-image acceptance of this bitstream. |
 | `fes.pong` 1.1.0 | ROM-less game. Settings and best rally persist. The [10 Oct kit B load](validation/2026-10-10-optimizer-video-area.md) showed the field and Stop. | Shared pin, single-PLL gate, optimizer scaler. | That note is a bounded video/Stop check, not gameplay or image acceptance. |
-| `fes.zx81` 1.5.0 | Most complete 8-bit machine in the image: live `.p` tape, session display, bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | Sync M10K, format 3, HIP. | Still TV80. Lock is nextpnr `c2bb4363`, the oldest play pin. Physical keyboard, expansion and audio of 1.5.0 are not accepted. |
+| `fes.zx81` 1.5.0 | Most complete 8-bit machine in the image: live `.p` tape, session display, bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | Sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. The 2 Oct note does not accept a shared-pin seal. Physical keyboard, expansion and audio of 1.5.0 are not accepted. |
 | `fes.coleco` 1.2.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. One exact 16 KiB cartridge, padded with `0xff`. | Native video parts, sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. Not retail-complete. The 3 Oct note does not accept these bytes. |
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. Named kit audio is artifact-scoped and does not accept a shared-pin seal. |
 | `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3. Product lock is `toolchain.lock`. | The 1.2.0 kit audio note does not qualify 1.3.0 or a shared-pin seal. |
@@ -135,7 +135,7 @@ fix it in nextpnr, then delete the dedicated lock. Do not add another lock.
 | 3 | `fes.coleco` | `toolchain.lock` | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `toolchain.lock` | Same multi-region cart support. Both now select `toolchain.lock`. |
 | 5 | `fes.sms`, `fes.sg1000` | `toolchain.lock` | Both now select `toolchain.lock`. The old Coleco producer selects the same shared lock. |
-| 6 | `fes.zx81` | `c2bb4363` | Oldest pin. Bus 2.0 and session display make it a bad first move. |
+| 6 | `fes.zx81` | `toolchain.lock` | Bus 2.0 and session display. The 2 Oct note does not accept a shared-pin seal. |
 
 Completion: the recipe `lock_path` is `toolchain.lock`, the producer
 authenticates that file, the HIP seal meets the core's existing clock gates,
