@@ -2,12 +2,16 @@ from __future__ import annotations
 
 import hashlib
 import copy
+import io
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import ExitStack, redirect_stdout
+from types import SimpleNamespace
+from unittest.mock import patch
 from tests.producer_fixture import clean_module, init_source, EXECUTION, FakeInvocation
 from pathlib import Path
 
@@ -123,7 +127,8 @@ class BuildFesSmsTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("FES_TOOLCHAIN_LOCKFILE=", result.stdout)
-        self.assertIn("toolchains/fes-sms.lock", result.stdout)
+        self.assertIn("toolchain.lock", result.stdout)
+        self.assertNotIn("toolchains/fes-sms.lock", result.stdout)
         self.assertNotIn("toolchains/registered-memory.lock", result.stdout)
         self.assertIn("FES_TOOLCHAIN_ROOT=", result.stdout)
         self.assertIn("build/toolchain/fes-sms", result.stdout)
@@ -170,12 +175,12 @@ class BuildFesSmsTests(unittest.TestCase):
         self.assertIn("cores/fes-sms/constraints-oss.qsf", joined)
         self.assertIn("cores/fes-sms/clocks-oss.sdc", joined)
         self.assertNotIn("cores/fes-sms/clocks.sdc", joined)
-        self.assertEqual(SMS_TOOLCHAIN_LOCK, "toolchains/fes-sms.lock")
+        self.assertEqual(SMS_TOOLCHAIN_LOCK, "toolchain.lock")
         self.assertEqual(SMS_TOOLCHAIN_ROOT, "build/toolchain/fes-sms")
         self.assertIn(SMS_TOOLCHAIN_LOCK, OSS_PINNED_INPUTS)
-        self.assertEqual(SMS_TOOL_COMMITS["yosys"], "e2d425dee148cc60c50f4e9b354a10d90eab15f4")
-        self.assertEqual(SMS_TOOL_COMMITS["mistral"], "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039")
-        self.assertEqual(SMS_TOOL_COMMITS["nextpnr"], "a93fe013af841214ecb4f7be3af0de65f3de3a0f")
+        self.assertEqual(SMS_TOOL_COMMITS["yosys"], "5391eeb1e91b38a3d0e96d04f24cf921743c9c78")
+        self.assertEqual(SMS_TOOL_COMMITS["mistral"], "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f")
+        self.assertEqual(SMS_TOOL_COMMITS["nextpnr"], "9128800fa6e77c4138088a7107a95376ba47ff15")
         pins = load_lock(ROOT / SMS_TOOLCHAIN_LOCK)
         from scripts.build_fes_coleco_oss import COLECO_TOOLCHAIN_LOCK
         self.assertNotEqual(SMS_TOOLCHAIN_LOCK, COLECO_TOOLCHAIN_LOCK)
@@ -340,7 +345,7 @@ class BuildFesSmsTests(unittest.TestCase):
         for text in (readme, architecture, root_readme):
             self.assertIn("first-pass", text)
             self.assertIn("HeAP 1000", text)
-        self.assertIn("e2d425de", readme)
+        self.assertIn("5391eeb1", readme)
         self.assertIn("package-only", readme.lower())
         self.assertIn("in the factory image", readme.lower())
         self.assertNotIn("not in the factory image", readme.lower())
@@ -522,6 +527,44 @@ class BuildFesSmsTests(unittest.TestCase):
         for fmax in ({}, {"system_clock.clocks[1]": {"constraint": 12.288, "achieved": 12.287}}):
             with self.assertRaises(sms_oss.BuildError):
                 sms_oss._audio_timing(fmax)
+
+    def test_diagnostic_auth_honors_gpu_router_and_toolchain_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            output = Path(directory)
+            toolchain = Path("/tmp/sms-cuda")
+            (output / "synth.json").write_text("{}")
+            auth = {
+                name: SimpleNamespace(identity="tool", path=Path(f"/cache/install/bin/{name}"))
+                for name in ("yosys", "nextpnr-mistral", "mistral")
+            }
+            authenticate = stack.enter_context(patch.object(
+                sms_oss, "_authenticate_sms_tools", return_value=auth))
+            stack.enter_context(patch.object(sms_oss, "_prepare_output", return_value=output))
+            stack.enter_context(patch.object(sms_oss, "build_commands", return_value=(("yosys",), ())))
+            stack.enter_context(patch.object(sms_oss, "_run_tool"))
+            stack.enter_context(patch.object(
+                sms_oss, "validate_synth_evidence",
+                return_value={"synthesis_cells": {
+                    "altera_pll": 1, "MISTRAL_IO": 2, "MISTRAL_M10K": 3, "MISTRAL_M10K_TDP": 4}}))
+
+            def run(argv: list[str]) -> int:
+                authenticate.reset_mock()
+                with redirect_stdout(io.StringIO()):
+                    return sms_oss.main(["--root", str(ROOT), *argv])
+
+            cuda = ["--gpu-router", "CUDA", "--toolchain-root", str(toolchain)]
+            self.assertEqual(run(["--synth-only", *cuda]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=toolchain, gpu_router="CUDA")
+            self.assertEqual(run(["--synth-only"]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=None, gpu_router="HIP")
+            self.assertEqual(run(["--print-commands", "--synth-only", *cuda]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=toolchain, gpu_router="CUDA")
+            self.assertEqual(run(["--print-commands", "--synth-only"]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=None, gpu_router="HIP")
 
 
 class SmsSyncM10kTests(unittest.TestCase):

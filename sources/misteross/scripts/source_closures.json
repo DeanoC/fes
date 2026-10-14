@@ -252,7 +252,7 @@
     "scripts/source_provenance.py",
     "scripts/source_repository.py",
     "scripts/toolchain_cache.py",
-    "toolchains/fes-sms.lock"
+    "toolchain.lock"
   ],
   "build_fes_spectrum_oss": [
     "cores/fes-common/generated/fes_computer.vh",

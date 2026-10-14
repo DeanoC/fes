@@ -101,7 +101,7 @@ class FunctionalColecoTests(unittest.TestCase):
                     self.assertEqual(producer._require_clean_source(module), (repository, revision))
                     if producer is build_fes_sms_oss:
                         relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
-                                     "toolchains/fes-sms.lock")
+                                     "toolchain.lock")
                     elif producer in (coleco, build_fes_sg1000_oss):
                         relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
                                      "toolchains/registered-memory.lock")
