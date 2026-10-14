@@ -135,6 +135,14 @@ class BuildFesZx81OssTests(unittest.TestCase):
                                           'NEXTPNR_BEL': f'MISTRAL_IO.1.1.{index}'}}
         routed = {'modules': {'top': {'ports': ports, 'cells': cells, 'netnames': netnames}}}
         build_fes_zx81_oss._audio_evidence(routed)
+        renamed = json.loads(json.dumps(routed))
+        del renamed['modules']['top']['netnames']['audio.lrclk']
+        renamed['modules']['top']['cells']['audio.lrclk_MISTRAL_FF_Q'] = {
+            'type': 'MISTRAL_FF', 'connections': {'Q': [204]}}
+        build_fes_zx81_oss._audio_evidence(renamed)
+        renamed['modules']['top']['cells']['audio.lrclk_MISTRAL_FF_Q']['connections']['Q'] = [999]
+        with self.assertRaisesRegex(BuildError, 'audio output HDMI_LRCLK has no routed audio.lrclk signal'):
+            build_fes_zx81_oss._audio_evidence(renamed)
         # ABC can name the unreset CDC synchronizer after sample_tick. Its
         # inactive ACLR must not be mistaken for a missing serializer reset.
         cells['audio.serializer.sample_tick_MISTRAL_FF_Q_DATAIN_MISTRAL_FF_Q'] = {
@@ -265,7 +273,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             (output/'core.rbf').write_bytes(b'compiler fixture RBF')
             return SimpleNamespace(seed=10, weight=1000)
 
-        def evidence(*args):
+        def evidence(*args, **kwargs):
             return {'route': {}, 'rbf': {'size': 20, 'sha256': hashlib.sha256(b'compiler fixture RBF').hexdigest()}}
 
         with (patch.object(producer, 'ROM_DATABASE_SHA256', pins),
@@ -287,7 +295,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
             self.assertEqual(read_package(package_path.with_suffix('.fcore')), package)
             self.assertEqual(producer.build(ROOT), package_path)
 
-            def tamper(*args):
+            def tamper(*args, **kwargs):
                 (database_root/'data/m10k-mux.txt').write_bytes(b'changed during compilation')
                 return evidence()
             with patch.object(producer, 'validate_build_evidence', side_effect=tamper):

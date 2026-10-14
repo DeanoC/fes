@@ -17,7 +17,7 @@ bus asset against an exact sealed shell. Clearing the selection loads that same
 original shell. Host and target independently verify composition bytes; the
 runtime programs the admitted payload and retains the base package identity.
 
-This uses the scoped `toolchains/zx81-expansion.lock` and a separate expansion
+This uses `toolchain.lock` and a separate expansion
 archive; the cart is bound to the exact sealed ZX81 shell. Selecting a cart
 does not change that shell's package identity or the factory package set.
 Build, software verification and exact-kit acceptance remain separate evidence.
@@ -41,8 +41,9 @@ there. The module README has the short entry point. The compose entry point is
 The compose support originated in [misteross #79](https://github.com/DeanoC/misteross/pull/79);
 that historical component revision is not the current source selection.
 Use the selected experiment's recipe and lock for these developer probes.
-The normal ZX81 library producer uses its own scoped lock, not an ambient
-compiler override. Other qualified core compiler selections remain separate.
+The normal ZX81 library producer selects the shared `toolchain.lock`, not an
+ambient compiler override. Other qualified core compiler selections remain
+separate.
 
 ## Development-RBF diagnostics
 

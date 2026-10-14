@@ -27,7 +27,7 @@ from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = ("cores/fes-zx81/rtl/zx81_dpram.v", "cores/fes-zx81/rtl/zx81_ram_pack.v", "cores/fes-zx81/expansions/ram16k.v")
-INPUTS = SOURCES + ("cores/fes-zx81/rtl/zx81_bus_pack.vh", "scripts/build_zx81_bus_validation_cart.py", "toolchains/zx81-expansion.lock", "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/rom_map.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
+INPUTS = SOURCES + ("cores/fes-zx81/rtl/zx81_bus_pack.vh", "scripts/build_zx81_bus_validation_cart.py", shell_recipe.SOCKET_TOOLCHAIN_LOCK, "scripts/cyclonev_rbf.py", "scripts/core_package.py", "scripts/rom_map.py", "scripts/fes_build_common.py", "scripts/build_fes_zx81_oss.py", shell_recipe.SDC)
 CART_SOURCES = {"ram16k": SOURCES, "zonx": ("cores/fes-zx81/expansions/zonx.v", "cores/fes-zx81/expansions/zonx_ay.v")}
 BUILD_OUTPUTS = ("cart.json", "cart.rbf", "cart-routed.json", "timing.json", "scaffold.json",
                  "linked.rbf", "build-summary.json", "synthesis.log", "route.log", "clocks.sdc")
@@ -60,21 +60,31 @@ def validate_cart_timing(timing: dict) -> None:
             raise ValueError(f"cart {name} timing is below required {expected:g} MHz")
 
 def prepare_scaffold(source: bytes) -> bytes:
-    """Restore the second physical PLL output omitted from routed JSON.
+    """Restore or preserve the second physical PLL output in routed JSON.
 
-    The frozen pin map contains the old scalar outclk[0] alias, but nextpnr's
-    no-pack replay expects the actual outclk[1] audio branch as a connection.
-    This is the same bounded replay repair used by Apple II and Coleco carts.
+    Legacy routed JSON omits the system PLL's second output connection:
+    reattach its authenticated audio net and drop the obsolete `outclk[0]`
+    alias. Shared-pin JSON already exposes physical C6/C7 outputs; validate
+    and preserve those connections and their pin map without rewriting.
     """
     design = json.loads(source)
     top = design['modules']['top']
     cells = top['cells']
     pll = cells['system_clock.pll']
-    if pll.get('type') != 'altera_pll' or set(pll.get('connections', {})) != {'outclk', 'locked', 'refclk'}:
+    ports = {'outclk', 'locked', 'refclk'}
+    connections = set(pll.get('connections', {}))
+    physical_outputs = connections == ports | {'outclk[1]'}
+    if pll.get('type') != 'altera_pll' or connections not in (ports, ports | {'outclk[1]'}):
         raise ValueError('ZX81 frozen system/audio PLL connection contract changed')
     mapping = json.loads(bytes.fromhex(pll['attributes']['FES_PINMAP_V1']))
     aliases = {f'outclk[{bit}]': [0, f'outclk[{bit}]'] for bit in range(2)}
-    if mapping.get('count') != 6 or any(mapping['pins'].get(name) != value for name, value in aliases.items()):
+    physical_pins = {'locked': [0, 'locked'], 'outclk': [0, 'C6'],
+                     'outclk[1]': [0, 'C7'], 'refclk': [0, 'refclk'], 'rst': [0, 'rst']}
+    if physical_outputs:
+        if mapping != {'count': 5, 'pins': physical_pins} or pll.get('port_directions') != {
+                'outclk': 'output', 'outclk[1]': 'output', 'refclk': 'input', 'locked': 'output'}:
+            raise ValueError('ZX81 frozen system/audio PLL physical pin map changed')
+    elif mapping.get('count') != 6 or any(mapping['pins'].get(name) != value for name, value in aliases.items()):
         raise ValueError('ZX81 frozen system/audio PLL pin map changed')
     output1 = top['netnames'].get('system_clock.pll_outclk_1', {}).get('bits')
     audio_clock = top['netnames'].get('audio_clk', {}).get('bits')
@@ -83,11 +93,15 @@ def prepare_scaffold(source: bytes) -> bytes:
     if (not isinstance(output1, list) or len(output1) != 1 or type(output1[0]) is not int
             or len(buffers) != 1 or buffers[0]['connections'].get('A') != output1):
         raise ValueError('ZX81 frozen audio PLL net changed')
-    pll['connections']['outclk[1]'] = output1
-    pll['port_directions']['outclk[1]'] = 'output'
-    del mapping['pins']['outclk[0]']
-    mapping['count'] = len(mapping['pins'])
-    pll['attributes']['FES_PINMAP_V1'] = json.dumps(mapping, sort_keys=True).encode().hex()
+    if physical_outputs:
+        if pll['connections']['outclk[1]'] != output1:
+            raise ValueError('ZX81 frozen audio PLL connection changed')
+    else:
+        pll['connections']['outclk[1]'] = output1
+        pll['port_directions']['outclk[1]'] = 'output'
+        del mapping['pins']['outclk[0]']
+        mapping['count'] = len(mapping['pins'])
+        pll['attributes']['FES_PINMAP_V1'] = json.dumps(mapping, sort_keys=True).encode().hex()
     return (json.dumps(design, sort_keys=True, separators=(',', ':')) + '\n').encode()
 
 def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: Path | None = None,

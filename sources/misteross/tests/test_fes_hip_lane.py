@@ -302,7 +302,7 @@ class FesHipLaneTests(unittest.TestCase):
                         (_write_local_zx81_tools if module is build_fes_zx81_oss else _write_local_root_tools)(
                             root, nextpnr_config=stamp)
                         with patch.dict(os.environ, {}, clear=True):
-                            hint = r"make toolchain-fes-zx81" if module is build_fes_zx81_oss else r"make toolchain-fes"
+                            hint = r"make toolchain-fes"
                             with self.assertRaisesRegex(BuildError, hint):
                                 module._authenticate_tools(root)
 
@@ -355,7 +355,8 @@ class FesHipLaneTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(zx81.returncode, 0, zx81.stderr)
-        self.assertIn("toolchains/zx81-expansion.lock", zx81.stdout)
+        self.assertIn("toolchain.lock", zx81.stdout)
+        self.assertNotIn("toolchains/zx81-expansion.lock", zx81.stdout)
         self.assertIn("build/toolchain/zx81-expansion", zx81.stdout)
 
     def test_make_forwards_cache_root_to_fes_producers(self) -> None:
