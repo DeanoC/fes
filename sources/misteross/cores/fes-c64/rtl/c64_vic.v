@@ -2,7 +2,7 @@
 // Text-mode slice of the VIC-II on fixed 720p60 HDMI. The 320x200 picture is
 // scaled by 4 horizontally and 3 vertically and centred in 1280x720. Sprites,
 // bitmap modes and badlines are not implemented. The raster counter advances
-// every 63 CPU enables and is not locked to the HDMI line.
+// every 63 CPU enables over 312 PAL lines and is not locked to the HDMI line.
 `include "c64_font.vh"
 
 module c64_vic (
@@ -37,7 +37,7 @@ module c64_vic (
     reg raster_pending, raster_fired;
     wire [8:0] raster_compare = {regs[6'h11][7], regs[6'h12]};
     wire line_end = phi && phi_div == 6'd62;
-    wire [8:0] next_raster = raster == 9'd262 ? 9'd0 : raster + 9'd1;
+    wire [8:0] next_raster = raster == 9'd311 ? 9'd0 : raster + 9'd1;
     wire compare_write = cs && we && (addr == 6'h11 || addr == 6'h12);
     wire [8:0] written_compare = addr == 6'h11 ? {din[7], regs[6'h12]} :
                                                               {regs[6'h11][7], din};
@@ -90,7 +90,7 @@ module c64_vic (
             if (phi) begin
                 if (phi_div == 6'd62) begin
                     phi_div <= 6'd0;
-                    raster <= raster == 9'd262 ? 9'd0 : raster + 9'd1;
+                    raster <= raster == 9'd311 ? 9'd0 : raster + 9'd1;
                 end else
                     phi_div <= phi_div + 6'd1;
             end

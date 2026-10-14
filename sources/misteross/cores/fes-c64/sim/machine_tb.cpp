@@ -10,6 +10,7 @@
 #include "verilated.h"
 
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <vector>
 
@@ -106,10 +107,18 @@ static int run(bool delayed) {
     top.controller_buttons = delayed ? 0 : 1;
     top.disk_ready = !delayed;
 
+    uint64_t sys_cycles = 0, cpu_cycles = 0;
     auto tick = [&]() {
         top.clk_sys = 0;
         top.pixel_clk = 0;
         top.eval();
+        cpu_cycles += top.cpu_enable;
+        ++sys_cycles;
+        if (cpu_cycles != sys_cycles * 985248 / 52224000) {
+            std::printf("c64 PAL Phi2 count mismatch at system cycle %llu\n",
+                        static_cast<unsigned long long>(sys_cycles));
+            std::exit(1);
+        }
         top.clk_sys = 1;
         top.pixel_clk = 1;
         top.eval();

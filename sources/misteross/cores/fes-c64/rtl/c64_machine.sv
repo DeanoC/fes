@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // FES Commodore 64 motherboard in the 52.224 MHz system domain.
 // The 6510 is the shared NMOS 6502 plus the processor port. Phi2 is a
-// fractional 1.022727 MHz enable. Video is scanned in the HDMI domain.
+// fractional 0.985248 MHz PAL enable. Video is scanned in the HDMI domain.
 `include "c64_bus.vh"
 `include "c64_font.vh"
 
 module c64_machine #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
-    parameter integer CPU_CLOCK_HZ = 1_022_727
+    parameter integer CPU_CLOCK_HZ = 985_248
 ) (
     input  wire        clk_sys,
     input  wire        reset,

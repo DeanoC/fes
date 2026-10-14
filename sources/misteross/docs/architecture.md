@@ -1718,6 +1718,10 @@ Reverse scanning and electrical ghosting remain unimplemented.
 The VIC bank follows CIA2 PA0/PA1 physical pin levels, including input
 pull-ups. The open diagnostic clears the output latch and makes those bank
 pins inputs before its checked PASS frame, verifying selection of bank zero.
+The machine uses a 985,248 Hz PAL Phi2 enable. Its VIC beam spans 312 lines
+of 63 Phi2 cycles; HDMI rendering still runs independently at 720p60. The
+open machine test checks the fractional Phi2 count on every system tick, and
+the VIC test checks the final PAL line, exact line length and frame wrap.
 The VIC raster compare is writable through `$D011.7`/`$D012`, independently
 of the beam position returned by reads. `$D019` retains the raster event until
 write-one acknowledgement; `$D01A` enables its level IRQ, ORed with CIA1 and

@@ -110,7 +110,7 @@ def main():
                'checkout_diff_sha256_at_start': hashlib.sha256(source_diff).hexdigest(),
                'evidence': 'host-only observation', 'simulated_seconds': args.cycles / 52224000,
                'system_clock_hz': 52224000, 'pixel_clock_hz': 74250000,
-               'cpu_clock_hz': 1022727, 'inputs': inputs, 'outputs': outputs,
+               'cpu_clock_hz': 985248, 'inputs': inputs, 'outputs': outputs,
                'simulator_sha256': simulator_sha256,
                'typed_command': args.type_command, 'followup_command': args.then_command,
                'followup_cycle': args.then_at_cycles if args.then_command else None, 'key_event_count': len(key_events),

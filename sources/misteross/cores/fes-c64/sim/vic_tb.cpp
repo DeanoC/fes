@@ -39,11 +39,14 @@ int main(int argc,char **argv) {
     b.phi(253*63);
     b.check(b.t.raster==256 && (b.read(0x11)&0x80) && b.t.irq,"nine-bit raster compare");
     b.write(0x19,1); b.write(0x11,0); b.write(0x12,0);
-    b.phi(7*63);
+    b.phi(55*63);
+    b.check(b.t.raster==311 && !b.t.irq,"PAL final line remains visible before wrap");
+    b.phi(62); b.check(b.t.raster==311,"PAL line has exactly 63 Phi2 cycles");
+    b.phi();
     b.check(b.t.raster==0 && !b.t.irq,"line zero comparison deferred to cycle two");
     b.phi(); b.check(b.t.irq,"line zero event");
     b.write(0x19,1); b.phi(62); b.check(!b.t.irq,"one event per zero line");
-    b.phi(262*63); b.check(!b.t.irq,"next frame zero starts without IRQ");
+    b.phi(311*63); b.check(!b.t.irq,"next frame zero starts without IRQ");
     b.phi(); b.check(b.t.irq,"next frame retriggers raster event");
-    std::puts("c64 VIC: compare reads/writes, mask, W1C, per-line limit, ninth bit and frame wrap passed");
+    std::puts("c64 VIC: compare reads/writes, mask, W1C, per-line limit, ninth bit and 312-line PAL frame wrap passed");
 }

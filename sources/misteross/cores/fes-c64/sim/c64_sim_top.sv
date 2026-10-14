@@ -20,12 +20,15 @@ module c64_sim_top (
     output wire [7:0]  debug_stage,
     output wire [7:0]  debug_error,
     output wire [7:0]  debug_iec,
+    output wire        cpu_enable,
     output wire [15:0] debug_pc
 );
     wire [`C64_BUS_REQ-1:0] slot1_request, slot2_request;
     wire [`C64_BUS_REQ-1:0] slot1_plug_request, slot2_plug_request;
     wire [`C64_BUS_RSP-1:0] slot1_response, slot2_response;
     wire [`C64_BUS_RSP-1:0] slot1_plug_response, slot2_plug_response;
+
+    assign cpu_enable = machine.cpu_ce;
 
     c64_machine machine (
         .clk_sys(clk_sys), .reset(reset),
