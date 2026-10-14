@@ -140,7 +140,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.sms": {
                 "producer_script": "scripts/build_fes_sms_oss.py",
                 "producer_module": "scripts.build_fes_sms_oss",
-                "lock_path": "toolchains/fes-sms.lock",
+                "lock_path": "toolchain.lock",
                 "selection_filename": "fes-sms.package-selection.toml",
                 "authenticate": "_authenticate_sms_tools",
                 "package_dir_env": "FES_SMS_PACKAGE_DIR",
@@ -209,8 +209,8 @@ class RecipeRegistryTest(unittest.TestCase):
         self.assertEqual(coleco.lock_path, pong.lock_path)
         self.assertEqual(recipes.recipe_for("fes.apple2").lock_path, pong.lock_path)
         self.assertEqual(recipes.recipe_for("fes.spectrum").lock_path, pong.lock_path)
-        self.assertNotEqual(sms.lock_path, pong.lock_path)
-        self.assertNotEqual(sms.lock_path, coleco.lock_path)
+        self.assertEqual(sms.lock_path, pong.lock_path)
+        self.assertEqual(sms.lock_path, coleco.lock_path)
         self.assertEqual(pong.cache_root, coleco.cache_root)
         self.assertEqual(pong.cache_root, sms.cache_root)
         with self.assertRaisesRegex(ValueError, "unknown format-2 recipe"):

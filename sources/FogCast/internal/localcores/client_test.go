@@ -237,7 +237,10 @@ func TestLaunchTimeoutThenRunningIsNotASecondLaunch(t *testing.T) {
 	})
 	serveUnix(t, path, handler)
 	client := NewClient(path)
-	client.launchPost = 150 * time.Millisecond
+	// The handler accepts the POST and then waits out this deadline. Under
+	// -race the first accept can take longer than a few tens of milliseconds;
+	// a shorter budget expires first, so Launch reconciles without a post.
+	client.launchPost = 2 * time.Second
 	client.reconcileFor = time.Second
 	client.reconcileEvery = 20 * time.Millisecond
 	if err := client.Launch(context.Background(), clientPongID); err != nil {
@@ -264,7 +267,8 @@ func TestLaunchTimeoutThenIdleStaysFailed(t *testing.T) {
 	})
 	serveUnix(t, path, handler)
 	client := NewClient(path)
-	client.launchPost = 80 * time.Millisecond
+	// Same accept margin as the running-after-timeout case.
+	client.launchPost = 2 * time.Second
 	client.reconcileFor = time.Second
 	if err := client.Launch(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("idle after timeout %v", err)

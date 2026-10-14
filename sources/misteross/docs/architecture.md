@@ -429,8 +429,8 @@ CPU-reference fallback. Pong uses the repository-wide `toolchain.lock` HIP
 slot; the standard ZX81 socket selects `toolchain.lock`.
 SG-1000 selects `toolchains/registered-memory.lock` (Yosys `e2d425de`,
 nextpnr `a93fe013`, Mistral `7ed06e21`). SMS selects
-`toolchains/fes-sms.lock` (Yosys `e2d425de`, nextpnr `a93fe013`, Mistral
-`7ed06e21`), which keeps its own synthesis notes and ROM digests. Those two locks are different bytes and different HIP cache slots.
+`toolchain.lock` (Yosys `5391eeb1`, nextpnr `9128800f`, Mistral
+`8fcc4cb4`), which keeps its own synthesis notes and ROM digests. Those two locks are different bytes and different HIP cache slots.
 Local HIP tools
 come from `make toolchain-fes` for Pong, `make toolchain-fes-zx81` for the
 standard ZX81 socket, `make toolchain-fes-coleco` for
@@ -851,7 +851,7 @@ marked as path-specific are not requirements of the other lane.
 
 | Boundary | Current accommodation and ownership |
 | --- | --- |
-| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `9128800f` with Mistral `8fcc4cb4`. Factory Coleco v2 selects that shared lock and can build it under `build/toolchain/fes-coleco-socket-v2`. SG-1000 retains `toolchains/registered-memory.lock`. SMS selects `toolchains/fes-sms.lock` (nextpnr `a93fe013`, Mistral `7ed06e21`, Yosys `e2d425de`). Quartus needs neither lock. |
+| Toolchain selection | The repository-wide lock pins DeanoC Yosys `5391eeb1` and nextpnr `9128800f` with Mistral `8fcc4cb4`. Factory Coleco v2 and SMS select that shared lock. SMS can build it under `build/toolchain/fes-sms`. SG-1000 retains `toolchains/registered-memory.lock`. Quartus needs neither lock. |
 | Verilog/VHDL frontend | OSS uses Verilog TV80/T80pa with `TV80_REFRESH=1`; Quartus may retain its VHDL T80pa path. This is an OSS frontend choice, not a nextpnr gap. |
 | Machine RAM | Both lanes use registered-address RAM semantics. OSS selects `coleco_dpram` with registered `ram_style="m10k_tdp"`; Quartus uses `altsyncram`. Default simulation alone keeps asynchronous reads. |
 | Registered media bridge | Both lanes prime the mailbox result, delay the cartridge write address, flush the final byte, and re-arm on `media_ready` falling or reset rising. This is required by the registered memory schedule in both lanes. |
@@ -1024,8 +1024,8 @@ programs hardware. `--compile-only` writes `build/fes-sms-quartus/core.rbf`
 and timing evidence without sealing.
 
 `make build-fes-sms` is the OSS producer
-(`scripts/build_fes_sms_oss.py`). It uses `toolchains/fes-sms.lock`
-(nextpnr `a93fe013` with Mistral `7ed06e21` and Yosys `e2d425de`), SMS `constraints-oss.qsf` (Coleco
+(`scripts/build_fes_sms_oss.py`). It uses `toolchain.lock`
+(nextpnr `9128800f` with Mistral `8fcc4cb4` and Yosys `5391eeb1`), SMS `constraints-oss.qsf` (Coleco
 video/I2C pins plus ADV7513 I2S), and Coleco `clocks-oss.sdc`. Yosys defines
 `TV80_REFRESH=1`, `FES_SMS_OSS=1`, `FES_SMS_ROM_LINK=1`, and `FES_COLECO_OSS=1`. `--synth-only` runs
 Yosys without a clean tree and does not seal. The producer uses `--router gpu`
@@ -2172,9 +2172,7 @@ retain their original SPDX notices. Core-specific machines, reset ROMs, diagnost
 and constraints remain in their existing directories. The Coleco OSS lane and
 SG-1000 share `toolchains/registered-memory.lock`; its historical Coleco-specific
 comments are preserved to keep the authenticated lock bytes and compiler cache
-identity unchanged. SMS uses `toolchains/fes-sms.lock` so its router pin can
-move without changing that shared slot. The different repository-wide
-`toolchain.lock` remains separate.
+identity unchanged. SMS now selects the shared `toolchain.lock` and does not keep a private slot.
 Per-core generated simple-computer headers remain checked against mister-packages;
 consumers use their own generated include directory.
 
