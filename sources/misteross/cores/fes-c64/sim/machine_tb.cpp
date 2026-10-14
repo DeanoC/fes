@@ -134,6 +134,7 @@ static int run(bool delayed) {
     // 0: diagnostic still running. 1: success seen, wait out this frame.
     // 2: wait for the next vsync. 3: record that frame's active pixels.
     int phase = 0;
+    int pass_seen = -1;
     bool prev_vsync = false;
     std::vector<uint8_t> frame;
     int budget = 3000000;
@@ -152,7 +153,14 @@ static int run(bool delayed) {
             if (top.red == 0xFF && top.green == 0xFF && top.blue == 0xFF) white = true;
             if (top.red == 0xCC && top.green == 0x00 && top.blue == 0x00) red = true;
         }
-        if (phase == 0 && top.debug_stage == 0xFF && white && red && sound) {
+        if (pass_seen < 0 && top.debug_stage == 0xFF) {
+            pass_seen = i;
+            budget = i + 6 * kFrameCycles;
+        }
+        // Native frame publication has bounded PAL + HDMI presentation latency.
+        // Allow two PAL frames to finish after the CPU paints PASS.
+        if (phase == 0 && top.debug_stage == 0xFF && white && red && sound &&
+            pass_seen >= 0 && i-pass_seen >= 2 * 19656ull * 52224000 / 985248) {
             if (delayed && (joy_wait < 100000 || key_wait < 100000)) {
                 std::printf("c64 diagnostic skipped delayed input gate\n");
                 return 1;

@@ -220,7 +220,7 @@ class BuildFesC64Tests(unittest.TestCase):
         lanes = dict(cell(f"machine.rom.lane{index}", "0") for index in range(20))
         for index in producer.CHARACTER_ROM_LANES:
             lane=lanes[f"machine.rom.lane{index}"];lane["type"]="MISTRAL_M10K_TDP"
-            lane["connections"].update(CLK2=[8],A1WE=["0"],B1WE=["0"],A1BE=["0","0"],B1BE=["0","0"])
+            lane["connections"].update(CLK2=[7],A1WE=["0"],B1WE=["0"],A1BE=["0","0"],B1BE=["0","0"])
         design = {"modules": {"top": {"cells": lanes}}}
         reject_async_m10k_reads(design)
         producer.validate_firmware_ports(lanes)
@@ -237,27 +237,27 @@ class BuildFesC64Tests(unittest.TestCase):
         with self.assertRaises(BuildError):
             async_m10k_parameter("nope")
 
-    def test_character_rom_requires_independent_read_clocks_and_disabled_writes(self):
+    def test_character_rom_requires_native_read_clocks_and_disabled_writes(self):
         cells={}
         for index in range(20):
             pins={"CLK1":[7],"A1EN":["1"],"B1EN":["1"],"ACLR0":["0"],"ACLR1":["0"]}
-            if index>=16:pins.update(CLK2=[8],A1WE=["0"],B1WE=["0"],A1BE=["0","0"],B1BE=["0","0"])
+            if index>=16:pins.update(CLK2=[7],A1WE=["0"],B1WE=["0"],A1BE=["0","0"],B1BE=["0","0"])
             cells[f"machine.rom.lane{index}"]={"type":"MISTRAL_M10K_TDP" if index>=16 else "MISTRAL_M10K","connections":pins}
         producer.validate_firmware_ports(cells)
         for field,value in [("A1WE",["1"]),("B1WE",["1"]),("CLK2",["0"]),("A1BE",["1","0"])]:
             changed=json.loads(json.dumps(cells));changed["machine.rom.lane16"]["connections"][field]=value
             with self.subTest(field=field),self.assertRaises(BuildError):producer.validate_firmware_ports(changed)
-        for index in range(16,20):cells[f"machine.rom.lane{index}"]["connections"]["CLK2"]=[7]
+        for index in range(16,20):cells[f"machine.rom.lane{index}"]["connections"]["CLK2"]=[8]
         with self.assertRaises(BuildError):producer.validate_firmware_ports(cells)
 
-    def test_color_ram_must_be_one_synchronous_dual_clock_m10k(self) -> None:
+    def test_color_ram_must_be_one_synchronous_native_clock_m10k(self) -> None:
         name = "machine.vic.color_ram.ram.0.0"
         cell = {"type": "MISTRAL_M10K_TDP", "connections": {
-            "CLK1": [7], "CLK2": [8], "A1EN": ["1"], "B1EN": ["1"],
+            "CLK1": [7], "CLK2": [7], "A1EN": ["1"], "B1EN": ["1"],
             "A1WE": [9], "B1WE": ["0"],
         }}
         producer.validate_color_ram({name: cell})
-        for field, value in (("CLK2", [7]), ("A1WE", ["0"]), ("B1WE", [10])):
+        for field, value in (("CLK2", [8]), ("A1WE", ["0"]), ("B1WE", [10])):
             changed = json.loads(json.dumps(cell))
             changed["connections"][field] = value
             with self.assertRaises(BuildError):
@@ -360,9 +360,12 @@ class C64YosysM10kTests(unittest.TestCase):
         async_cells = [line for line in sections["ASYNC"] if line.startswith("top/")]
         lanes = sorted(line.removeprefix("top/") for line in sections["LANES"] if line.startswith("top/"))
         self.assertEqual(async_cells, [])
-        self.assertEqual(objects("SDP"), "17 objects.")
+        self.assertEqual(objects("SDP"), "113 objects.")
         self.assertEqual(objects("TDP"), "240 objects.")
-        self.assertEqual(lanes, sorted(f"machine.rom.lane{index}" for index in range(20)))
+        self.assertEqual(lanes, sorted(
+            [f"machine.rom.lane{index}" for index in range(20)] +
+            [f"machine.vic.frame_store.pages[{page}].banks[{bank}].ram"
+             for page in range(3) for bank in range(32)]))
 
     def test_full_synth_patches_autonamed_read_only_clocks(self) -> None:
         """The producer clock patch must accept the names left by ABC and autoname."""
@@ -396,6 +399,20 @@ class C64YosysM10kTests(unittest.TestCase):
             self.assertEqual(len(open_clocks), 1, open_clocks)
             producer.clock_read_only_memories(synth)
             patched = json.loads(synth.read_text())["modules"]["top"]["cells"]
+            producer.validate_firmware_ports(patched)
+            producer.validate_color_ram(patched)
+            producer.validate_frame_store(patched)
+            name = "machine.vic.frame_store.pages[0].banks[0].ram"
+            for group, key, value in (
+                    ("parameters", "CFG_DBITS", f"{10:032b}"),
+                    ("connections", "A1EN", ["0"]),
+                    ("connections", "CLK2", patched[name]["connections"]["CLK1"]),
+                    ("connections", "B1EN", ["0"])):
+                changed = dict(patched)
+                changed[name] = {**patched[name], group: {**patched[name][group], key: value}}
+                with self.subTest(group=group, key=key), self.assertRaises(BuildError):
+                    producer.validate_frame_store(changed)
+
             for name in open_clocks:
                 pins = patched[name]["connections"]
                 self.assertEqual(pins["CLK1"], pins["CLK2"], name)

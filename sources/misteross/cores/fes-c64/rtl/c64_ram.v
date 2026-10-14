@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // 64 KiB Commodore 64 main RAM. Port A is the 6510 in the system domain.
-// Port B is the VIC scanner in the HDMI domain. Both reads are registered.
+// Port B is the native VIC DMA reader in the system domain. Both reads are registered.
 module c64_ram (
     input  wire        clk_a,
     input  wire [15:0] addr_a,

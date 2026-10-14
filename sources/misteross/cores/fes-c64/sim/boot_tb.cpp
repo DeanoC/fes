@@ -133,9 +133,9 @@ int main(int argc, char **argv) {
         bool disk_reference=false, disk_motor=top.drive_pins&4;
 #endif
         const bool render=!late_video || sys_edge/2+52224000/12>=cycle_budget;
-        // The present HDMI renderer has no CPU/DMA feedback. A drive-only
-        // observation may hold it until the final five frames; CPU, native
-        // raster, CIA, SID and drive clocks continue at their actual rates.
+        // A drive-only observation may hold the HDMI scanner until the final
+        // five frames. Native VIC DMA, its CPU stalls, raster, CIA, SID and
+        // drive clocks continue in the system domain at their actual rates.
         if(!render) pixel_edge=sys_edge*74250000/52224000;
         const bool system = !render || sys_edge * 74250000 <= pixel_edge * 52224000;
         if (system) {

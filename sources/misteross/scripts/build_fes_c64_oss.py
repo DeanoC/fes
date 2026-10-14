@@ -101,6 +101,8 @@ RTL_SOURCES = (
     "cores/fes-c64/rtl/c64_color_ram.v",
     "cores/fes-c64/rtl/c64_rom.v",
     "cores/fes-c64/rtl/c64_vic.v",
+    "cores/fes-c64/rtl/c64_vic_fetch.sv",
+    "cores/fes-c64/rtl/c64_frame_store.sv",
     "cores/fes-c64/rtl/c64_sid.v",
     "cores/fes-c64/rtl/c64_cia.v",
     "cores/fes-c64/rtl/c64_iec.sv",
@@ -370,7 +372,7 @@ def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, floa
 
 
 def validate_firmware_ports(cells: dict) -> None:
-    """Require CPU reads and independent character reads with all writes disabled."""
+    """Require native system-clock CPU/VIC reads with all writes disabled."""
     cpu_clocks = set()
     video_clocks = set()
     for lane in range(len(FIRMWARE_LANE_ROWS)):
@@ -393,12 +395,12 @@ def validate_firmware_ports(cells: dict) -> None:
             video_clocks.add(video[0])
         elif cell.get("type") != "MISTRAL_M10K" or pins.get("A1BE") or pins.get("CLK2"):
             raise BuildError(f"CPU ROM lane {name} has unexpected ports or primitive")
-    if len(cpu_clocks) != 1 or len(video_clocks) != 1 or cpu_clocks == video_clocks:
-        raise BuildError("ROM lanes require one CPU clock and one distinct character video clock")
+    if len(cpu_clocks) != 1 or len(video_clocks) != 1 or cpu_clocks != video_clocks:
+        raise BuildError("ROM lanes require one CPU clock and the same native character read clock")
 
 
 def validate_color_ram(cells: dict) -> None:
-    """Require the C64 color store to remain one synchronous dual-clock M10K."""
+    """Require the C64 color store to remain one synchronous dual-port M10K on the native clock."""
     name = "machine.vic.color_ram.ram.0.0"
     memories = sorted(cell_name for cell_name, cell in cells.items()
                       if cell_name.startswith("machine.vic.color_ram.ram.")
@@ -411,12 +413,45 @@ def validate_color_ram(cells: dict) -> None:
     pins = cell.get("connections", {})
     clocks = (pins.get("CLK1"), pins.get("CLK2"))
     if (any(not isinstance(clock, list) or len(clock) != 1 or type(clock[0]) is not int
-            for clock in clocks) or clocks[0] == clocks[1] or
+            for clock in clocks) or clocks[0] != clocks[1] or
             pins.get("A1EN") != ["1"] or pins.get("B1EN") != ["1"] or
             pins.get("B1WE") != ["0"] or not isinstance(pins.get("A1WE"), list) or
             len(pins["A1WE"]) != 1 or type(pins["A1WE"][0]) is not int):
-        raise BuildError("color RAM must have live independent clocks, enabled reads, "
-                         "one live system write port and a disabled video write port")
+        raise BuildError("color RAM must have one live native clock, enabled reads, "
+                         "one live system write port and a disabled VIC write port")
+
+
+def validate_frame_store(cells: dict) -> None:
+    """Require three dense native-color pages with live system/HDMI clocks."""
+    expected = {f"machine.vic.frame_store.pages[{page}].banks[{bank}].ram"
+                for page in range(3) for bank in range(32)}
+    found = {name for name, cell in cells.items()
+             if name.startswith("machine.vic.frame_store.") and
+             cell.get("type") in {"MISTRAL_M10K", "MISTRAL_M10K_TDP"}}
+    if found != expected:
+        raise BuildError("native frame store requires exactly 96 dense M10K banks")
+    system_clock = cells["machine.rom.lane0"]["connections"]["CLK1"]
+    video_clocks = set()
+    for name in sorted(expected):
+        cell = cells[name]
+        parameters = cell.get("parameters", {})
+        pins = cell.get("connections", {})
+        if cell.get("type") != "MISTRAL_M10K" or any(
+                parameters.get(key) not in (value, f"{value:032b}")
+                for key, value in (("CFG_ABITS", 11), ("CFG_DBITS", 5),
+                                   ("CFG_DUAL_CLOCK", 1), ("CFG_ASYNC_READ", 0))):
+            raise BuildError(f"native frame bank {name} needs registered dual-clock 2048x5")
+        clock = pins.get("CLK2")
+        enable = pins.get("A1EN")
+        if (pins.get("CLK1") != system_clock or not isinstance(clock, list) or
+                len(clock) != 1 or type(clock[0]) is not int or clock == system_clock or
+                pins.get("B1EN") != ["1"] or pins.get("ACLR0") != ["0"] or
+                pins.get("ACLR1") != ["0"] or not isinstance(enable, list) or
+                len(enable) != 1 or type(enable[0]) is not int):
+            raise BuildError(f"native frame bank {name} needs live SYS writes and independent HDMI reads")
+        video_clocks.add(clock[0])
+    if len(video_clocks) != 1:
+        raise BuildError("native frame banks must share one HDMI read clock")
 
 
 def validate_synth_evidence(output: Path) -> dict:
@@ -425,6 +460,7 @@ def validate_synth_evidence(output: Path) -> dict:
     cells = synthesis["modules"][TOP]["cells"]
     validate_firmware_ports(cells)
     validate_color_ram(cells)
+    validate_frame_store(cells)
     _i2c_evidence(synthesis, "synthesized")
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
@@ -502,7 +538,7 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
             "name": "FES Commodore 64",
             "description": "Commodore 64 pathfinder with a linked 20 KiB firmware image, "
                            "a read-only 1541 and two cartridge sockets",
-            "version": "0.2.0",
+            "version": "0.3.0",
         },
         "target": {"platform": "de10_nano", "device": TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},

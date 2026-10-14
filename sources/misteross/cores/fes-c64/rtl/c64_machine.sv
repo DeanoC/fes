@@ -50,8 +50,8 @@ module c64_machine #(
     always @(posedge clk_sys)
         if (cpu_ce) cycle_clock <= 6'd0;
         else if (cycle_clock != 6'd63) cycle_clock <= cycle_clock + 6'd1;
-    wire bus_strobe = cycle_clock == 6'd0;
-    wire bus_sample = cycle_clock == 6'd16;
+    wire bus_strobe = cycle_clock == 6'd26;
+    wire bus_sample = cycle_clock == 6'd43;
 
     reg [3:0] reset_hold = 4'hf;
     always @(posedge clk_sys)
@@ -66,11 +66,13 @@ module c64_machine #(
     wire [15:0] cpu_ab;
     wire [7:0] cpu_do;
     wire cpu_we;
+    wire vic_ba_n;
+    wire cpu_run_ce=cpu_ce&&(vic_ba_n||cpu_we);
     reg [7:0] cpu_di = 8'hff;
     wire irq_n, nmi_n;
     cpu6502 cpu (
         .clk(clk_sys), .reset(system_reset), .AB(cpu_ab), .DI(cpu_di),
-        .DO(cpu_do), .WE(cpu_we), .IRQ(irq_n), .NMI(nmi_n), .RDY(cpu_ce), .SO(1'b1)
+        .DO(cpu_do), .WE(cpu_we), .IRQ(irq_n), .NMI(nmi_n), .RDY(cpu_run_ce), .SO(1'b1)
     );
     assign debug_pc = cpu_ab;
 
@@ -78,11 +80,11 @@ module c64_machine #(
     reg [7:0] bus_wdata = 8'h00;
     reg bus_we = 1'b0;
     always @(posedge clk_sys)
-        if (cpu_ce) begin
+        if (cpu_run_ce) begin
             bus_addr <= cpu_ab;
             bus_wdata <= cpu_do;
             bus_we <= cpu_we && reset_writes == 2'd0 && !system_reset;
-        end
+        end else if(cpu_ce) bus_we <= 0;
 
     reg [7:0] ddr = 8'h00;
     reg [7:0] pr = 8'h00;
@@ -135,7 +137,7 @@ module c64_machine #(
             request[`C64_BUS_ROMH] <= (cart16 && a000) || (ultimax && e000);
             request[`C64_BUS_IO1] <= show_io && bus_addr[15:8] == 8'hDE;
             request[`C64_BUS_IO2] <= show_io && bus_addr[15:8] == 8'hDF;
-            request[`C64_BUS_BA] <= 1'b1;
+            request[`C64_BUS_BA] <= vic_ba_n;
         end else
             request[`C64_BUS_STROBE] <= 1'b0;
         if (bus_strobe && bus_we && bus_addr == 16'h0000) ddr <= bus_wdata;
@@ -174,18 +176,18 @@ module c64_machine #(
     wire [15:0] video_ram_addr;
     wire [7:0] video_ram_q, video_char_q;
     reg video_char_selected;
-    always @(posedge video_clk)
+    always @(posedge clk_sys)
         video_char_selected <= !video_ram_addr[14] && video_ram_addr[13:12]==2'b01;
     c64_ram main_ram (
         .clk_a(clk_sys), .addr_a(bus_addr), .wdata_a(bus_wdata), .we_a(ram_we), .q_a(ram_q),
-        .clk_b(video_clk), .addr_b(video_ram_addr), .q_b(video_ram_q)
+        .clk_b(clk_sys), .addr_b(video_ram_addr), .q_b(video_ram_q)
     );
     wire basic_window = bus_addr[15:13] == 3'b101;
     wire [14:0] rom_address = show_char ? {3'b100,bus_addr[11:0]} :
         basic_window ? {2'b00,bus_addr[12:0]} : {2'b01,bus_addr[12:0]};
     c64_rom rom (
         .clk(clk_sys), .address(rom_address), .data(rom_q),
-        .video_clk(video_clk), .video_address(video_ram_addr[11:0]), .video_data(video_char_q)
+        .video_clk(clk_sys), .video_address(video_ram_addr[11:0]), .video_data(video_char_q)
     );
 
     wire [7:0] cia1_pa, cia1_pb, cia1_ddra, cia1_ddrb, cia1_dout;
@@ -272,6 +274,7 @@ module c64_machine #(
         .din(bus_wdata), .dout(vic_dout),
         .color_cs(sel_color), .color_addr(bus_addr[9:0]), .color_din(bus_wdata),
         .color_we(bus_strobe && bus_we && sel_color), .color_dout(color_dout),
+        .cycle_clock(cycle_clock),.cpu_bus_data(bus_we?bus_wdata:read_data),.ba_n(vic_ba_n),
         .bank(~pa2_pin[1:0]), .ram_addr(video_ram_addr), .ram_data(video_char_selected?video_char_q:video_ram_q),
         .red(red), .green(green), .blue(blue), .de(de), .hsync(hsync), .vsync(vsync),
         .raster(), .irq(vic_irq)

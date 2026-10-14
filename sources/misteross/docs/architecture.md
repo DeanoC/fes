@@ -1700,17 +1700,21 @@ three seconds, with 50 ms press/release intervals. `--then-command` adds a
 later command and retains the RAM snapshot taken immediately before it.
 Per-second progress and IEC command traces are flushed during execution.
 The observation makes no
-boot/demo acceptance assertion. Version 0.2.0 links a 20 KiB image consisting
+boot/demo acceptance assertion. Version 0.3.0 links a 20 KiB image consisting
 of BASIC (8 KiB), KERNAL (8 KiB) and character ROM (4 KiB) through twenty blank
-1024×10 lanes. The character lanes use independent registered CPU/VIC read
-ports; CPU reads take two system clocks and VIC reads one video clock. The
-ROM map uses the existing encoding and each source block appears once. The
-producer explicitly accepts true-dual-port character lanes and checks both
-read clocks and disabled writes. CPU and VIC character-ROM visibility follow
-separate banking rules. The renderer fetches screen and glyph/bitmap bytes
-through the registered main-RAM port and supports monochrome/multicolor text
-and bitmap modes. Pixel timing is delayed to align colors and fetched data.
-Sprites, extended-color text, native video/DMA coupling and the new profile's
+1024×10 lanes. Character lanes have registered CPU/VIC ports on the native
+system clock; CPU reads take two clocks and VIC reads one. The ROM map uses
+the existing encoding and each source block appears once. CPU/VIC character
+visibility follows separate banking rules.
+`c64_vic_fetch` schedules native matrix/color and glyph reads. VC, VCBASE, RC
+and the matrix latch support badlines, late DMA, FLI, FLD and linecrunch;
+BA stops CPU reads while pending writes finish. CPU bus strobes occur at
+cycle 26 and reads are sampled at cycle 43. The native 320×200 color window
+is stored in three frame buffers, each using 32 explicit 2048×5 M10Ks.
+`c64_frame_store` publishes complete frames to HDMI with a bundled-data
+mailbox; reader and queued complete buffers remain protected while the
+private buffer is written. The native clock runs independently of HDMI.
+Sprites, exact mode-transition quirks, subpixel phases, full overscan and
 route/seal/hardware acceptance remain open. The D64 media mailbox is unchanged.
 See the core README.
 The IEC device uses released-high CIA2 inputs and logical byte levels on the
@@ -1779,8 +1783,8 @@ cartridge IRQ at the CPU. A source can fire once per line, including an immediat
 compare write on an unfired line. Automatic line-zero comparison waits one
 Phi2 after wrap. `make sim-fes-c64-vic` checks the register/line behavior; the
 open firmware checks CPU vector delivery and acknowledgement at stage 12.
-Sprites, collision/lightpen sources, DMA/badlines, native video coupling and
-physical subcycle timing are still outside this implementation.
+Sprites, collision/lightpen sources, exact mode-transition quirks, full native
+overscan and physical subcycle timing remain outside this implementation.
 Both CIA timers expose their live counters, load stopped counters on high-byte
 writes, treat force-load as a strobe, and implement continuous/one-shot counting.
 Timer B can count Phi2 or timer A underflows. CIA1 asserts IRQ and CIA2 asserts
@@ -1792,15 +1796,15 @@ TOD, serial shifting and timer port outputs remain outside this slice.
 `make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this
 pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
 `c64-firmware`, 20,480 bytes, on the blank column-5 lanes at rows 32–51.
-The final four character-ROM lanes use independent CPU/video read ports;
+The final four character-ROM lanes use CPU/VIC read ports on the native system clock;
 all writes are disabled. Those lanes use synchronous M10K reads (`CFG_ASYNC_READ=0`) with the bank
 selector delayed one clock so the CPU-facing byte is still two system clocks
 behind the registered address. `c64_machine` samples that byte at
-`cycle_clock == 16`, sixteen 52.224 MHz clocks after the phi2 address
+`cycle_clock == 43`, forty-three 52.224 MHz clocks after the phi2 address
 capture. The ROM-map producer requires `CFG_ASYNC_READ=0`, and the shared
 netlist check rejects every other async M10K. Color RAM is a synchronous
-dual-port M10K, with independent system and pixel clocks; the CPU samples its
-registered read at cycle 16 and the VIC aligns its result with main RAM.
+dual-port M10K, with two native system-clock ports; the CPU samples its
+registered read at cycle 43 and the VIC fetches its matrix/color line.
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
 frozen shell. The producer chooses probe mode from the socket and validates
 both legacy and physical PLL output maps. Frozen clocks are constrained by

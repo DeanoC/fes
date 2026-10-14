@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // BASIC 8 KiB, KERNAL 8 KiB, character ROM 4 KiB. CPU read latency is
-// two system clocks; VIC character reads use one video clock. Character
-// lanes share a single INIT through independent true-dual-port read clocks.
+// two system clocks; VIC character reads use one native system clock. Character
+// lanes share a single INIT through true-dual-port CPU/VIC reads.
 module c64_rom (
  input wire clk,input wire [14:0] address,output reg [7:0] data,
  input wire video_clk,input wire [11:0] video_address,output wire [7:0] video_data
