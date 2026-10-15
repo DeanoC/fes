@@ -38,6 +38,9 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Each buffer uses 51 explicit 2048×5 M10Ks, with a mailbox handoff across the
   system and HDMI clocks. Only complete frames reach the reader; an unconsumed
   publication keeps both the reader's buffer and queued frame protected.
+  Sprite beam X is prepared one system clock before each dot; guest-controlled
+  inputs keep their dot sampling. Complete framebuffer address/color writes
+  pass through one system-clock register, preserving dot and collision timing.
   Nine-bit raster compare uses `$D011` bit 7 and `$D012`; `$D019` latches
   events and acknowledges written ones, while `$D01A` masks the CPU IRQ.
   The PAL beam has 63 Phi2 cycles per line and 312 lines per frame.
@@ -415,6 +418,13 @@ CPU palette-write latency, every physical subphase or fetch-mode transition.
 colors and all multicolor-bitmap palette selections in all four banks.
 `make sim-fes-c64-rom` checks every firmware/character byte and the independent
 read clocks. Both are included in the aggregate simulation.
+
+`make sim-fes-c64-vic-timing` checks all 63×8 PAL cycle/dot coordinates at
+the native fractional 53/54-clock cadence, writes around each dot, the
+one-clock framebuffer transaction and reset cancellation. It exercises
+collisions and complete-frame publication, including the original visibility
+of a CPU palette write on the preparation edge. This checks the internal
+pipeline contract; physical VIC subphase behavior remains unqualified.
 
 The raster interrupt tests follow the Commodore
 [Programmer's Reference Guide](https://www.devili.iki.fi/Computers/Commodore/C64/Programmers_Reference/Chapter_3/page_150.html)

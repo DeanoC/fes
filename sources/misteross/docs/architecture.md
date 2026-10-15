@@ -1772,6 +1772,14 @@ existing cycle-43 read sample for `$D01E/F`; writes to those masks are ignored.
 The collision test replays 500,000 source-oracle ticks, while full-frame tests
 cover mixed sprites and borders across all banks. Register readback tests cover
 unused bits and write-protected light-pen result registers.
+The beam's sprite X coordinate is registered one SYS edge before each dot,
+while guest-controlled sprite inputs retain their original dot sampling.
+The complete framebuffer write (valid, address and color) is registered at
+the dot and delivered one SYS edge later. Collision and sprite shift state
+remain on the original edges. Reset discards an outstanding write; blanking
+separates the last visible write from frame publication.
+`make sim-fes-c64-vic-timing` checks all PAL cycle/dot pairs, the fractional
+cadence, adjacent-dot register writes and the delayed transaction contract.
 `c64_frame_store` publishes complete frames to HDMI with a bundled-data
 mailbox; reader and queued complete buffers remain protected while the
 private buffer is written. The native clock runs independently of HDMI.

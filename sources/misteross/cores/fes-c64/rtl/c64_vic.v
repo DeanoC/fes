@@ -263,12 +263,29 @@ module c64_vic (
             default:begin end
         endcase
     end
-    wire [8:0] sprite_dot_x=native_cycle>=14?9'((native_cycle-14)*8)+{6'd0,subpixel}:
-        9'd400+9'((native_cycle-1)*8)+{6'd0,subpixel};
+    // Prepare only the predictable beam coordinate one SYS edge before each
+    // dot. Guest-controlled sprite inputs retain their original dot sampling.
+    reg pixel_prepare;
+    reg [2:0] prepare_dot;
+    always @* begin
+        pixel_prepare=1; prepare_dot=0;
+        case(cycle_clock)
+            0:prepare_dot=0; 7:prepare_dot=1; 13:prepare_dot=2; 20:prepare_dot=3;
+            26:prepare_dot=4; 33:prepare_dot=5; 39:prepare_dot=6; 46:prepare_dot=7;
+            default:pixel_prepare=0;
+        endcase
+    end
+    wire [8:0] prepare_x=native_cycle>=14?9'((native_cycle-14)*8)+{6'd0,prepare_dot}:
+        9'd400+9'((native_cycle-1)*8)+{6'd0,prepare_dot};
+    reg [8:0] sprite_dot_x_q;
+    always @(posedge clk_sys) begin
+        if(reset)sprite_dot_x_q<=0;
+        else if(pixel_prepare)sprite_dot_x_q<=prepare_x;
+    end
     // Final DMA byte is sampled at SYS30, after dot4 (SYS27).
     // Capture at dot5 (SYS34), before row halt releases at dot7.
     c64_vic_sprite_pixels #(.ROW_DATA_DOT(5)) pixel_sprites(
-        .clk(clk_sys),.reset(reset),.tick(pixel_strobe),.dot(subpixel),.xpos(sprite_dot_x),
+        .clk(clk_sys),.reset(reset),.tick(pixel_strobe),.dot(subpixel),.xpos(sprite_dot_x_q),
         .positions(sprite_x),.data(sprite_data),.pending_update(native_cycle==58),
         .display_bits(sprite_display),.pointer_cycle(pointer_event),.row_cycle(row_event),
         .priority_bits(regs[6'h1b]),.multicolor_bits(regs[6'h1c]),.expand_bits(regs[6'h1d]),
@@ -283,6 +300,24 @@ module c64_vic (
     wire [8:0] write_x=9'((native_cycle-6'd13)*8)+{6'd0,subpixel};
     wire [16:0] write_address=17'(native_y*384)+{8'd0,write_x};
 
+    // The native dot and collision state advance on their original edges.
+    // Deliver the complete private framebuffer transaction one SYS later,
+    // separating sprite composition from the distributed M10K data load.
+    reg frame_write_valid;
+    reg [16:0] frame_write_address;
+    reg [3:0] frame_write_ink;
+    always @(posedge clk_sys) begin
+        if(reset)begin
+            frame_write_valid<=0; frame_write_address<=0; frame_write_ink<=0;
+        end else begin
+            frame_write_valid<=visible_native&&pixel_strobe;
+            if(visible_native&&pixel_strobe)begin
+                frame_write_address<=write_address;
+                frame_write_ink<=ink;
+            end
+        end
+    end
+
     reg [10:0] hpos=0,hpos_q=0;
     reg [9:0] vpos=0,vpos_q=0;
     reg [2:0] xphase=0;
@@ -292,7 +327,7 @@ module c64_vic (
     wire [3:0] frame_color;
     c64_frame_store frame_store (
         .clk_sys(clk_sys),.pixel_clk(pixel_clk),.reset(reset),
-        .write_enable(!reset&&visible_native&&pixel_strobe),.write_address(write_address),.write_data(ink),
+        .write_enable(!reset&&frame_write_valid),.write_address(frame_write_address),.write_data(frame_write_ink),
         .frame_done(native_frame_start&&frame_started),.frame_start(hpos==0&&vpos==0),
         .read_address(read_address),.read_data(frame_color),.write_page(),.read_page(),.pending()
     );
