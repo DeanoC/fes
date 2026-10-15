@@ -2562,6 +2562,11 @@ pad frame cannot rebind a generation that barrier just cleared. Stop uses the
 owned stop path. Kit-local loads do not enter the coordinator, so takeover,
 expiry, shutdown, and release after a failed load stop the runtime before the
 lease can be freed. Cleanup that does not reach idle leaves the lease blocked.
+A successful kit-local Stop waits until that revocation has left the revoking
+state and the lease is free. Release returns while cleanup is still running,
+and a launch during revocation is in use; the next launch claims only after
+Stop has seen the lease settle. Cleanup that fails makes Stop return
+unavailable. Disconnecting the local client does not abandon that wait.
 Bearer `GET /v1/status` still reads that coordinator record. While the record
 is idle and a kit-local core is launching, running, or stopping, the response
 reports state `launching`, `local`, or `stopping` and sets `observed_core` to

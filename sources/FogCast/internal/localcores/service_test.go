@@ -775,6 +775,10 @@ func (g *foreignGrant) Begin(string) (context.Context, func(), error) {
 	return nil, nil, errors.New("begin")
 }
 
+func (g *foreignGrant) Settled(context.Context) (kitlease.Status, error) {
+	return kitlease.Status{State: "free"}, nil
+}
+
 func TestClaimWithoutLocalSessionReleases(t *testing.T) {
 	runtime := &fakeRuntime{}
 	root := t.TempDir()
@@ -1029,6 +1033,109 @@ func TestDurableSelectionChangesOnlyFutureLaunch(t *testing.T) {
 	if len(service.List()) != 0 {
 		t.Fatal("corrupt selection silently fell back to factory")
 	}
+}
+
+// Release returns while cleanup is still running and the lease is revoking.
+// A launch in that window is in use. Stop must not return until the lease is
+// free, so the next launch can claim without waiting on its own.
+func TestStopReturnsOnlyAfterLeaseIsFree(t *testing.T) {
+	t.Run("slow cleanup", func(t *testing.T) {
+		runtime := &fakeRuntime{}
+		var cleanups atomic.Int32
+		hold := make(chan struct{})
+		entered := make(chan struct{})
+		var enteredOnce sync.Once
+		manager := kitlease.New(time.Minute, func(ctx context.Context) error {
+			if cleanups.Add(1) == 1 {
+				return nil
+			}
+			enteredOnce.Do(func() { close(entered) })
+			select {
+			case <-hold:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		})
+		t.Cleanup(manager.Close)
+		t.Cleanup(func() {
+			select {
+			case <-hold:
+			default:
+				close(hold)
+			}
+		})
+		waitFree(t, manager)
+		service, id := pongService(t, manager, runtime)
+		if _, err := service.Launch(context.Background(), id); err != nil {
+			t.Fatal(err)
+		}
+		stopped := make(chan error, 1)
+		go func() { stopped <- service.Stop(context.Background()) }()
+		select {
+		case <-entered:
+		case <-time.After(2 * time.Second):
+			t.Fatal("release cleanup did not start")
+		}
+		select {
+		case err := <-stopped:
+			t.Fatalf("stop returned while lease %s: %v", manager.Status().State, err)
+		default:
+		}
+		if _, err := service.Launch(context.Background(), id); !errors.Is(err, errInUse) {
+			t.Fatalf("launch during revocation %v", err)
+		}
+		if loads, stops := runtime.calls(); len(loads) != 1 || stops != 1 {
+			t.Fatalf("revoking launch loads=%v stops=%d", loads, stops)
+		}
+		close(hold)
+		select {
+		case err := <-stopped:
+			if err != nil {
+				t.Fatal(err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("stop did not return after cleanup")
+		}
+		if manager.Status().State != "free" {
+			t.Fatalf("stop returned with lease %s", manager.Status().State)
+		}
+		if _, err := service.Launch(context.Background(), id); err != nil {
+			t.Fatal(err)
+		}
+		loads, stops := runtime.calls()
+		if len(loads) != 2 || stops != 1 {
+			t.Fatalf("loads=%v stops=%d", loads, stops)
+		}
+	})
+	t.Run("cleanup failure", func(t *testing.T) {
+		runtime := &fakeRuntime{}
+		var cleanups atomic.Int32
+		manager := kitlease.New(time.Minute, func(context.Context) error {
+			if cleanups.Add(1) == 1 {
+				return nil
+			}
+			return errors.New("cleanup failed")
+		})
+		t.Cleanup(manager.Close)
+		waitFree(t, manager)
+		service, id := pongService(t, manager, runtime)
+		if _, err := service.Launch(context.Background(), id); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.Stop(context.Background()); !errors.Is(err, errUnavailable) {
+			t.Fatalf("stop %v", err)
+		}
+		if manager.Status().State != "blocked" {
+			t.Fatalf("lease %s", manager.Status().State)
+		}
+		if _, err := service.Launch(context.Background(), id); !errors.Is(err, errInUse) {
+			t.Fatalf("launch %v", err)
+		}
+		if loads, stops := runtime.calls(); len(loads) != 1 || stops != 1 {
+			t.Fatalf("loads=%v stops=%d", loads, stops)
+		}
+	})
 }
 
 func TestLocalLaunchRespectsUpdateAdmissionBeforeClaim(t *testing.T) {

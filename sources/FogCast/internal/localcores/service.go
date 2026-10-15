@@ -62,13 +62,16 @@ type CartridgeRuntime interface {
 }
 
 // LeaseGate is the kit lease operations local control may use.
-// Takeover is not part of this surface.
+// Takeover is not part of this surface. Settled waits until a revocation
+// started by Release has finished, so Stop can return a lease the next
+// launch is allowed to claim.
 type LeaseGate interface {
 	Status() contract.Status
 	Claim(contract.ClaimRequest) (contract.Grant, error)
 	Renew(token string) (contract.Grant, error)
 	Release(token string) (contract.Status, error)
 	Begin(token string) (context.Context, func(), error)
+	Settled(context.Context) (contract.Status, error)
 }
 
 // Roots are the installed selection directory and the core-packages directory.
@@ -518,6 +521,10 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 // Stop runs only while this process holds the kit-local lease. Any other
 // owner, including a host, is refused before the runtime is called.
 // A successful stop returns the kit to the menu and releases the lease.
+// Release only starts revocation: the grant stays revoking until cleanup
+// finishes, and a launch in that window is in use. Stop waits for that
+// revocation to settle before it returns, so the next launch can claim.
+// Disconnecting the caller does not abandon the wait.
 func (s *Service) Stop(ctx context.Context) error {
 	if s == nil || s.leases == nil || s.runtime == nil {
 		return errUnavailable
@@ -566,6 +573,15 @@ func (s *Service) Stop(ctx context.Context) error {
 	s.runCore = ""
 	s.mu.Unlock()
 	s.stopRenew()
+	// The caller context can already be canceled. Cleanup still has to
+	// finish or the next launch observes the lease as in use.
+	status, err := s.leases.Settled(context.Background())
+	if err != nil || status.State == "blocked" {
+		return errUnavailable
+	}
+	if status.State != "free" {
+		return errInUse
+	}
 	return nil
 }
 

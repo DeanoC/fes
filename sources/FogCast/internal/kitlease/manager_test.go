@@ -164,6 +164,73 @@ func TestTakeoverFencesAndWaits(t *testing.T) {
 		t.Fatal("stale takeover", e)
 	}
 }
+func TestSettledWaitsUntilReleaseCleanupFinishes(t *testing.T) {
+	hold := make(chan struct{})
+	entered := make(chan struct{})
+	var enteredOnce sync.Once
+	var n atomic.Int32
+	m := New(time.Minute, func(ctx context.Context) error {
+		if n.Add(1) == 1 {
+			return nil
+		}
+		enteredOnce.Do(func() { close(entered) })
+		select {
+		case <-hold:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	})
+	t.Cleanup(m.Close)
+	t.Cleanup(func() {
+		select {
+		case <-hold:
+		default:
+			close(hold)
+		}
+	})
+	wait(t, m, "free")
+	grant, err := m.Claim(req("a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Release(grant.Token); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("cleanup did not start")
+	}
+	if m.Status().State != "revoking" {
+		t.Fatalf("state %s", m.Status().State)
+	}
+	done := make(chan Status, 1)
+	go func() {
+		status, err := m.Settled(context.Background())
+		if err != nil {
+			t.Errorf("settled: %v", err)
+			done <- Status{}
+			return
+		}
+		done <- status
+	}()
+	select {
+	case status := <-done:
+		t.Fatalf("settled while revoking: %+v", status)
+	default:
+	}
+	close(hold)
+	select {
+	case status := <-done:
+		if status.State != "free" {
+			t.Fatalf("settled %+v", status)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("release did not settle")
+	}
+}
+
 func TestUnreachableRuntimeFreesLeaseOnStartup(t *testing.T) {
 	m := New(time.Minute, func(context.Context) error { return ErrRuntimeUnreachable })
 	defer m.Close()
