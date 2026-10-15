@@ -560,6 +560,14 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		if read := localCoreInventory(ctx, packages, coreLibraryError); read != nil {
 			cores.SetInventory(read)
 		}
+		// The store is open. Fill the factory catalog and the durable
+		// verification cache off the request path. Warm returns before the
+		// scan, so the control socket and the bearer listener are not held
+		// for it. An unavailable store is not warmed and does not read
+		// factory bytes.
+		if packages != nil {
+			cores.Warm()
+		}
 		defer cores.Close()
 		options = append(options, httpapi.WithKitLocalRun(func() httpapi.KitLocalRun {
 			status := cores.RunStatus()

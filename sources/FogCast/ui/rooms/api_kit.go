@@ -3,10 +3,15 @@ package rooms
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/DeanoC/FogCast/internal/localcores"
 	lua "github.com/yuin/gopher-lua"
 )
+
+// localCoresWarmRetry is how often kit.cores asks again while the agent is
+// still filling the catalog caches. The list call itself returns immediately.
+const localCoresWarmRetry = 200 * time.Millisecond
 
 // LocalCores is the kit-local control socket. A nil value leaves the kit
 // table unset. Tenfoot passes *localcores.Client only for -gfx menu-display.
@@ -44,6 +49,16 @@ func (r *Instance) kitCores(L *lua.LState) int {
 	}
 	go func() {
 		cores, err := client.List(r.ctx)
+		for errors.Is(err, localcores.ErrWarming) {
+			timer := time.NewTimer(localCoresWarmRetry)
+			select {
+			case <-r.ctx.Done():
+				timer.Stop()
+				return
+			case <-timer.C:
+			}
+			cores, err = client.List(r.ctx)
+		}
 		if err != nil {
 			r.deliver(asyncResult{cb: cb, err: err})
 			return

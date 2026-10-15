@@ -1094,6 +1094,57 @@ function draw() end`
 	}
 }
 
+type warmThenCores struct {
+	mu    sync.Mutex
+	calls int
+	cores []localcores.Core
+}
+
+func (f *warmThenCores) List(context.Context) ([]localcores.Core, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.calls++
+	if f.calls == 1 {
+		return nil, localcores.ErrWarming
+	}
+	return append([]localcores.Core(nil), f.cores...), nil
+}
+
+func (f *warmThenCores) Launch(context.Context, string) error { return nil }
+
+func (f *warmThenCores) Stop(context.Context) error { return nil }
+
+func (f *warmThenCores) Status(context.Context) (localcores.RunStatus, error) {
+	return localcores.RunStatus{}, nil
+}
+
+func TestKitCoresRetriesWarming(t *testing.T) {
+	fake := &warmThenCores{cores: []localcores.Core{{
+		PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true,
+	}}}
+	src := `
+function load()
+  kit.cores(function(rows, err)
+    got_err = err
+    got = rows
+  end)
+end
+function draw() end`
+	r := newRoom(t, memPack(t, "kit-warming", src, nil), Options{Local: fake})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(Frame) bool {
+		return r.CheckGlobal(`got_err == nil and type(got) == "table" and got[1] ~= nil and got[1].core_id == "fes.pong"`) == nil
+	})
+	fake.mu.Lock()
+	calls := fake.calls
+	fake.mu.Unlock()
+	if calls < 2 {
+		t.Fatalf("warming was not retried: %d calls", calls)
+	}
+}
+
 func TestCoreActivationErrorsDoNotCrash(t *testing.T) {
 	src := `
 function load()

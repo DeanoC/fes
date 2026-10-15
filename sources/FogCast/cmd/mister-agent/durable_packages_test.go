@@ -228,6 +228,65 @@ func TestRepeatedLocalCoreListDoesNotRereadSelectedPackage(t *testing.T) {
 	}
 }
 
+func TestWarmListIsFastThenCompleteWithoutRereading(t *testing.T) {
+	const payloadBytes = 1 << 20
+	root := t.TempDir()
+	selections := filepath.Join(root, "selections")
+	packages := filepath.Join(root, "packages")
+	if err := os.Mkdir(selections, 0o755); err != nil || os.Mkdir(packages, 0o755) != nil {
+		t.Fatal(err)
+	}
+	factoryID := installFactoryPackage(t, packages, selections, "fes.pong", "FES Pong", payloadBytes)
+	store, _ := durablePackageStore(t)
+	dir, inspection := largePackageDir(t, "fes.coleco", "FES Coleco", payloadBytes)
+	archive, err := corepackage.CanonicalArchive(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	installDurablePackage(t, store, archive)
+	if _, err := store.Select(context.Background(), "fes.coleco", "", inspection.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	service := localcores.New(nil, nil, localcores.Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	service.SetInventory(localCoreInventory(context.Background(), store, nil))
+	handler := localcores.Handler(service)
+	warmAt := time.Now()
+	service.Warm()
+	if time.Since(warmAt) > 100*time.Millisecond {
+		t.Fatalf("Warm blocked startup for %s", time.Since(warmAt))
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	var finished string
+	for {
+		started := time.Now()
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/local/cores", nil))
+		elapsed := time.Since(started)
+		body := response.Body.String()
+		if elapsed >= time.Second {
+			t.Fatalf("list took %s: %d %s", elapsed, response.Code, body)
+		}
+		if response.Code == http.StatusOK && strings.Contains(body, inspection.PackageID) && strings.Contains(body, factoryID) && strings.Contains(body, "fes.coleco") {
+			finished = body
+			break
+		}
+		if response.Code != http.StatusServiceUnavailable || !strings.Contains(body, `"error":"warming"`) || !time.Now().Before(deadline) {
+			t.Fatalf("warm list %d %s", response.Code, body)
+		}
+	}
+	before := processReadBytes(t)
+	for range 2 {
+		if again := listLocalCores(t, handler); again != finished {
+			t.Fatalf("list changed\n%s\n%s", finished, again)
+		}
+	}
+	if delta := processReadBytes(t) - before; delta > 256<<10 {
+		t.Fatalf("warm lists re-read %d payload bytes", delta)
+	}
+}
+
 func TestDurableInventoriesSeparateInstallationFromSelection(t *testing.T) {
 	ctx := context.Background()
 	store, _ := durablePackageStore(t)

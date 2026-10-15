@@ -1506,6 +1506,153 @@ func TestFactoryScanStaysSingleWhenFingerprintChanges(t *testing.T) {
 	}
 }
 
+// The first list after Warm starts must return while the catalog warm is
+// still running, and a later list must be the finished catalog. The warm
+// itself must return before that scan.
+func TestFirstListDuringWarmIsFastThenComplete(t *testing.T) {
+	root := t.TempDir()
+	selections := filepath.Join(root, "selections")
+	packages := filepath.Join(root, "packages")
+	if err := os.Mkdir(selections, 0o755); err != nil || os.Mkdir(packages, 0o755) != nil {
+		t.Fatal(err)
+	}
+	installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
+	service := New(nil, nil, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+
+	releaseInventory := make(chan struct{})
+	var releaseInventoryOnce sync.Once
+	t.Cleanup(func() { releaseInventoryOnce.Do(func() { close(releaseInventory) }) })
+	durableID := strings.Repeat("ab", 32)
+	service.SetInventory(func() ([]Core, error) {
+		<-releaseInventory
+		return []Core{{
+			CoreID: "fes.coleco", PackageID: durableID, Name: "Durable Coleco",
+			ABI: "fes.application", Needs: "none", Launchable: true,
+		}}, nil
+	})
+
+	started := make(chan struct{})
+	releaseScan := make(chan struct{})
+	var releaseScanOnce sync.Once
+	var scans atomic.Int32
+	useFactoryListGate(t, func(ctx context.Context) error {
+		if scans.Add(1) == 1 {
+			close(started)
+		}
+		select {
+		case <-releaseScan:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	})
+	t.Cleanup(func() { releaseScanOnce.Do(func() { close(releaseScan) }) })
+
+	warmAt := time.Now()
+	service.Warm()
+	if time.Since(warmAt) > 100*time.Millisecond {
+		t.Fatalf("Warm blocked startup for %s", time.Since(warmAt))
+	}
+
+	code, body, elapsed := timedList(t, service, context.Background())
+	if code != http.StatusServiceUnavailable || !strings.Contains(body, `"error":"warming"`) || elapsed >= time.Second {
+		t.Fatalf("in-progress list %d in %s: %s", code, elapsed, body)
+	}
+	if scans.Load() != 0 {
+		t.Fatalf("warming list started %d factory scans", scans.Load())
+	}
+
+	dead, cancel := context.WithCancel(context.Background())
+	cancel()
+	cancelledAt := time.Now()
+	cancelled := httptest.NewRecorder()
+	Handler(service).ServeHTTP(cancelled, httptest.NewRequest(http.MethodGet, "/v1/local/cores", nil).WithContext(dead))
+	if time.Since(cancelledAt) > 200*time.Millisecond || cancelled.Body.Len() != 0 || cancelled.Header().Get("Content-Type") != "" {
+		t.Fatalf("cancelled list waited %s and wrote %d %s", time.Since(cancelledAt), cancelled.Code, cancelled.Body.String())
+	}
+
+	releaseInventoryOnce.Do(func() { close(releaseInventory) })
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("factory warm did not start")
+	}
+	code, body, elapsed = timedList(t, service, context.Background())
+	if code != http.StatusServiceUnavailable || !strings.Contains(body, `"error":"warming"`) || elapsed >= time.Second || scans.Load() != 1 {
+		t.Fatalf("list during factory warm %d in %s scans %d: %s", code, elapsed, scans.Load(), body)
+	}
+
+	releaseScanOnce.Do(func() { close(releaseScan) })
+	deadline := time.Now().Add(2 * time.Second)
+	var finished string
+	for {
+		code, body, elapsed = timedList(t, service, context.Background())
+		if elapsed >= time.Second {
+			t.Fatalf("list took %s", elapsed)
+		}
+		if code == http.StatusOK && strings.Contains(body, `"core_id":"fes.pong"`) && strings.Contains(body, durableID) {
+			finished = body
+			break
+		}
+		if code != http.StatusServiceUnavailable || !strings.Contains(body, `"error":"warming"`) || !time.Now().Before(deadline) {
+			t.Fatalf("warm result %d %s", code, body)
+		}
+	}
+	if scans.Load() != 1 {
+		t.Fatalf("warm scanned %d times", scans.Load())
+	}
+	if again := listCores(t, service); again != finished || scans.Load() != 1 {
+		t.Fatalf("cached list scans %d\n%s\n%s", scans.Load(), finished, again)
+	}
+}
+
+func TestWarmSkipsFactoryWhenInventoryFails(t *testing.T) {
+	root := t.TempDir()
+	selections := filepath.Join(root, "selections")
+	packages := filepath.Join(root, "packages")
+	if err := os.Mkdir(selections, 0o755); err != nil || os.Mkdir(packages, 0o755) != nil {
+		t.Fatal(err)
+	}
+	installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
+	service := New(nil, nil, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	var scans atomic.Int32
+	useFactoryListGate(t, func(context.Context) error {
+		scans.Add(1)
+		return nil
+	})
+	service.SetInventory(func() ([]Core, error) {
+		return nil, errors.New("durable core package storage is unavailable")
+	})
+	service.Warm()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		code, body, elapsed := timedList(t, service, context.Background())
+		if elapsed >= time.Second {
+			t.Fatalf("list took %s", elapsed)
+		}
+		if code == http.StatusOK && strings.TrimSpace(body) == "[]" {
+			break
+		}
+		if code != http.StatusServiceUnavailable || !strings.Contains(body, `"error":"warming"`) || !time.Now().Before(deadline) {
+			t.Fatalf("list %d %s", code, body)
+		}
+	}
+	if scans.Load() != 0 {
+		t.Fatalf("failed inventory still scanned factory %d times", scans.Load())
+	}
+}
+
+func timedList(t *testing.T, service *Service, ctx context.Context) (int, string, time.Duration) {
+	t.Helper()
+	started := time.Now()
+	response := httptest.NewRecorder()
+	Handler(service).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/local/cores", nil).WithContext(ctx))
+	return response.Code, response.Body.String(), time.Since(started)
+}
+
 func listCores(t *testing.T, service *Service) string {
 	t.Helper()
 	response := httptest.NewRecorder()

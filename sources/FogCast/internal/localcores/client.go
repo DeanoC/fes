@@ -36,6 +36,11 @@ var (
 	ErrBlocked     = errors.New("blocked")
 	ErrNotFound    = errors.New("not_found")
 	ErrUnavailable = errors.New("unavailable")
+	// ErrWarming means the agent is still filling the catalog caches. The
+	// HTTP call itself already returned. Callers that poll, including
+	// tenfoot, retry until a list succeeds. A successful empty list is not
+	// this state.
+	ErrWarming = errors.New("warming")
 )
 
 // Client calls the kit-local control socket over HTTP. A nil or empty
@@ -79,6 +84,9 @@ func NewClient(socketPath string) *Client {
 // An empty catalog is an empty slice, not nil. An unreadable durable
 // library is the same empty slice: the socket answers HTTP 200. Bearer
 // REST uses HTTP 503 CORE_PACKAGE_STORE_UNAVAILABLE for that failure.
+// While the agent is still warming the catalog caches, List returns
+// ErrWarming as soon as that response arrives. It does not wait out the
+// 3s client timeout.
 func (c *Client) List(ctx context.Context) ([]Core, error) {
 	var cores []Core
 	if err := c.do(ctx, http.MethodGet, "/v1/local/cores", &cores); err != nil {
@@ -236,6 +244,8 @@ func classifyStatus(status int, body []byte) error {
 		return ErrNotFound
 	case ErrUnavailable.Error():
 		return ErrUnavailable
+	case ErrWarming.Error():
+		return ErrWarming
 	}
 	switch status {
 	case http.StatusNotFound:

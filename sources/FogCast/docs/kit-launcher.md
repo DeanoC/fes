@@ -73,7 +73,10 @@ does not claim a lease for those titles while offline. Installed cores that need
 firmware are listed and launched on the kit through mister-agent's root-only
 `/run/fogcast/local-control.sock` (`GET /v1/local/cores`,
 `POST /v1/local/cores/{package_id}/launch`, `POST /v1/local/stop`,
-`GET /v1/local/status`). That path
+`GET /v1/local/status`). A list while the agent is still warming those
+catalog caches returns HTTP 503 `{"error":"warming"}`. The client reports
+`warming` at once. Tenfoot keeps checking and retries; it does not treat
+that response as an empty library. That path
 claims owner `kit-hostless` with purpose `kit-local-core` and fails closed,
 without taking over, when the lease is already held (fes#172). See [the host connection
 contract](launcher-host.md) for listener configuration and the session HTTP

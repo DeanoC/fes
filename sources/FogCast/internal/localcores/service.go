@@ -20,6 +20,12 @@ const (
 	phaseLaunching = "launching"
 	phaseRunning   = "running"
 	phaseStopping  = "stopping"
+
+	// warmListBound is how long a kit-local list waits for the startup
+	// catalog warm. The kit client gives up after 3s, so this stays well
+	// under a second. A warm that is still running answers "warming"
+	// instead of holding the request for the scan.
+	warmListBound = 200 * time.Millisecond
 )
 
 // RunStatus is GET /v1/local/status. Running is true only after load has
@@ -37,6 +43,7 @@ var (
 	errBlocked     = errors.New("blocked")
 	errInUse       = errors.New("in_use")
 	errUnavailable = errors.New("unavailable")
+	errWarming     = errors.New("warming")
 )
 
 // Runtime loads an installed directory and returns the kit to the menu.
@@ -101,6 +108,14 @@ type Service struct {
 	factoryHits   []Core
 	factoryReady  bool
 	factoryFlight *factoryFlight
+
+	// warmStarted is set by Warm before its goroutine runs, so a list cannot
+	// begin a second scan between startup and the first request. warming is
+	// true until that goroutine has finished the durable verification and the
+	// factory catalog. warmDone closes after warming is cleared.
+	warmStarted bool
+	warming     bool
+	warmDone    chan struct{}
 }
 
 // RunStatus reports the in-flight or running kit-local core. A nil service
@@ -147,6 +162,9 @@ func (s *Service) list(ctx context.Context) ([]Core, error) {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.waitWarm(ctx); err != nil {
 		return nil, err
 	}
 	// An unreadable durable library, including a missing FESDATA3 volume, is
@@ -274,6 +292,74 @@ func (s *Service) scanFactory() ([]Core, error) {
 // SetInventory adds explicitly selected durable packages. Configure it before
 // serving requests; changes in selection are reread for each list and launch.
 func (s *Service) SetInventory(read func() ([]Core, error)) { s.inventory = read }
+
+// Warm starts the factory catalog scan and the durable verification pass in
+// the background. It returns immediately, so agent startup can listen before
+// either cache is filled. Call it after SetInventory and only when the durable
+// store opened: an unavailable store must not read factory package bytes.
+// One scan runs at a time. Close cancels the warm through the service list
+// context. A list that arrives while the warm is running waits at most
+// warmListBound, then returns errWarming without starting another scan.
+func (s *Service) Warm() {
+	if s == nil {
+		return
+	}
+	s.listMu.Lock()
+	if s.warmStarted {
+		s.listMu.Unlock()
+		return
+	}
+	s.warmStarted = true
+	s.warming = true
+	done := make(chan struct{})
+	s.warmDone = done
+	s.listMu.Unlock()
+	go s.runWarm(done)
+}
+
+func (s *Service) runWarm(done chan struct{}) {
+	defer close(done)
+	defer func() {
+		s.listMu.Lock()
+		s.warming = false
+		s.listMu.Unlock()
+	}()
+	// Durable verification and the factory scan both read package bytes.
+	// Running them one after another keeps a single payload in flight.
+	if s.inventory != nil {
+		if _, err := s.inventory(); err != nil {
+			return
+		}
+	}
+	ctx := s.listCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	_, _ = s.factoryCores(ctx)
+}
+
+// waitWarm bounds a list that arrives during startup warm-up. A finished
+// warm, or a service that was not warmed, continues into the cached list.
+// Cancellation of the request ends the wait and leaves the warm running.
+func (s *Service) waitWarm(ctx context.Context) error {
+	s.listMu.Lock()
+	if !s.warming {
+		s.listMu.Unlock()
+		return nil
+	}
+	done := s.warmDone
+	s.listMu.Unlock()
+	timer := time.NewTimer(warmListBound)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-done:
+		return nil
+	case <-timer.C:
+		return errWarming
+	}
+}
 
 // SetAdmission connects local launches to the appliance update drain. Configure
 // it before serving requests. Stop remains available for ownership cleanup.

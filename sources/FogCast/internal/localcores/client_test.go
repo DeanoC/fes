@@ -178,6 +178,32 @@ func TestClientEmptyListIsNotNil(t *testing.T) {
 	}
 }
 
+func TestClientListWarmingReturnsWithoutTheClientTimeout(t *testing.T) {
+	path := shortSock(t)
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "warming"})
+	}))
+	if err := srv.Listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	srv.Listener = ln
+	srv.Start()
+	t.Cleanup(srv.Close)
+
+	started := time.Now()
+	cores, err := NewClient(path).List(context.Background())
+	if !errors.Is(err, ErrWarming) || cores != nil {
+		t.Fatalf("list %+v %v", cores, err)
+	}
+	if time.Since(started) >= time.Second {
+		t.Fatalf("warming list waited %s", time.Since(started))
+	}
+}
+
 func TestClientMissingAndRefusedSocketsAreUnavailable(t *testing.T) {
 	missing := NewClient(shortSock(t))
 	if _, err := missing.List(context.Background()); !errors.Is(err, ErrUnavailable) {

@@ -2245,11 +2245,22 @@ destination bitmap for that package and does not retain the encoded map or its
 decoded blocks. A finished factory catalog is cached until its stat fingerprint changes:
 selection and member size, mtime, inode, and directory entries. Opening a
 selection file does not change that key, so a durable selection read does not
-start another factory scan. The list handler waits on the
-request context, so a client disconnect ends that wait. One catalog scan runs
+start another factory scan. After the durable store opens, the agent warms
+that factory cache and the durable verification cache on a background goroutine.
+The warm returns before the control socket and the bearer listener accept
+requests, so it does not delay agent readiness. Durable verification runs, then
+the factory scan, so only one payload is in flight. `GET /v1/local/cores` waits
+at most 200ms for an in-progress warm. If the warm is still running it returns
+HTTP 503 `{"error":"warming"}` and does not start a second scan or read package
+bytes for that request. The kit-local client surfaces that as `warming` without
+waiting out its 3s timeout. Tenfoot keeps the checking state and retries until
+a list succeeds; the installed-cores room does the same. A successful list is
+the finished catalog, not a partial one. The list handler waits on the
+request context, so a client disconnect ends that wait and leaves the warm
+running. One catalog scan runs
 at a time. A fingerprint change while that scan is in progress waits for it to
 finish, then scans once more when the tree still differs. Durable listing
-reuses the byte verification recorded at install, reopen, or the last
+reuses the byte verification recorded at install, reopen, warm-up, or the last
 fingerprint miss while the sealed archive and member fingerprint (size,
 mtime, ctime, device, inode, mode, and directory entries) still matches, and
 does not read those payloads again. On Linux, ctime and device come from the

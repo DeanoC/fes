@@ -82,8 +82,16 @@ does not change that key. A disconnected client ends the handler wait. One
 scan runs at a time; if the tree changes during that scan, the next request
 waits and then scans once more.
 
+After the durable store opens, the agent warms the factory catalog cache and
+the durable verification cache in the background. That warm does not run before
+the agent listens. `GET /v1/local/cores` waits at most 200ms for it. A list
+that arrives while the warm is still reading package bytes returns HTTP 503
+`{"error":"warming"}` and does not start another scan. The kit-local client
+returns that as `warming` immediately. Tenfoot and the installed-cores room
+retry until the finished catalog is ready. The next list is that catalog.
+
 A selected durable package is listed from the byte verification recorded at
-install, reopen, or the last fingerprint miss. Listing keeps that result
+install, reopen, warm-up, or the last fingerprint miss. Listing keeps that result
 while the sealed archive and member fingerprint still matches: size, mtime,
 ctime, device, inode, mode, and directory entries. On Linux, ctime and device
 come from the file stat. Repeated lists do not read payload or ROM-map bytes.
