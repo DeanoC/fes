@@ -531,6 +531,8 @@ func (s *Service) Stop(ctx context.Context) error {
 	}
 	s.mu.Lock()
 	token := s.token
+	pkg := s.runPackage
+	coreID := s.runCore
 	markedStopping := false
 	if token != "" && s.phase == phaseRunning {
 		s.phase = phaseStopping
@@ -565,8 +567,6 @@ func (s *Service) Stop(ctx context.Context) error {
 		return errUnavailable
 	}
 	s.mu.Lock()
-	pkg := s.runPackage
-	coreID := s.runCore
 	if s.token == token {
 		s.token = ""
 	}
