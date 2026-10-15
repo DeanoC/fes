@@ -35,8 +35,16 @@ recovery inputs subject to the same contract checks.
 
 ## Install and queue activation
 
-Use the existing private FogCast host configuration and its recorded target ID.
-The operator client verifies that target before sending a mutation:
+The supervisor and the authenticated target routes in
+[API and evidence](#api-and-evidence) are in this revision. The operator client
+`sources/FogCast/cmd/fes-software` is not. It arrives in the follow-up releases
+change. Until that client is present, operators use those routes. The commands
+in this section are that client's invocation, so the request fields match
+those routes; they are not a program in this revision.
+
+When that client is available, it uses the existing private FogCast host
+configuration and its recorded target ID, and verifies that target before
+sending a mutation:
 
 ```sh
 go run ./cmd/fes-software --config /absolute/path/config.toml --action status
@@ -49,12 +57,13 @@ go run ./cmd/fes-software --config /absolute/path/config.toml --action activate 
 
 Installation publishes the complete immutable bundle and returns its identity.
 It does not select that bundle. Activation returns the durable operation status;
-a queued response does not mean the services have restarted. The client prints
-the generated operation ID before sending the request. Supply `--request-id` to
-retain an explicitly chosen 64-character lowercase hexadecimal ID.
+a queued response does not mean the services have restarted. That follow-up
+client prints the generated operation ID before sending the request. Supply
+`--request-id` to retain an explicitly chosen 64-character lowercase hexadecimal
+ID.
 
-Activation and cancellation include an expected state generation. By default the
-client reads that generation once before the mutation. `--expected-generation N`
+Activation and cancellation include an expected state generation. By default that
+client reads the generation once before the mutation. `--expected-generation N`
 uses an explicitly reviewed value. A competing operation returns a conflict;
 inspect status rather than replace another agent's request.
 

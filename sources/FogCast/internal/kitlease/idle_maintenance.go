@@ -47,6 +47,52 @@ func (m *Manager) QueueIdleMaintenance(request ClaimRequest, credential string) 
 	return nil
 }
 
+// QueueHeldSuccessor installs the next idle intent while the caller still holds
+// the active maintenance reservation. The reservation stays in force until
+// EndMaintenance. A caller without that reservation token cannot queue across
+// it, so diagnostic maintenance keeps its existing exclusion.
+func (m *Manager) QueueHeldSuccessor(request ClaimRequest, credential, heldToken string) error {
+	if !valid(request) || !hexIdentity(request.RequestID, len(request.RequestID)) || !hexIdentity(credential, 64) || !hexIdentity(heldToken, 64) {
+		return ErrInvalid
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed || m.maintenanceStore == nil || m.maintenanceFault {
+		return ErrBlocked
+	}
+	if !m.maintenanceLoaded {
+		return ErrBusy
+	}
+	if !m.maintenanceActiveLocked() || !matchesCredential(heldToken, m.maintenance.Token) {
+		return ErrLease
+	}
+	if m.maintenance.State == "blocked" || m.status.State == "blocked" || m.status.State == "recovery-required" {
+		return ErrBlocked
+	}
+	if request.RequestID == m.maintenance.OperationID {
+		return ErrInvalid
+	}
+	if m.pending != nil {
+		return ErrBusy
+	}
+	if m.queuedMaintenance != nil {
+		if *m.queuedMaintenance == request {
+			if !matchesCredential(credential, m.queuedMaintenanceCredential) {
+				return ErrLease
+			}
+			return nil
+		}
+		if m.queuedMaintenance.RequestID == request.RequestID {
+			return ErrInvalid
+		}
+		return ErrBusy
+	}
+	copy := request
+	m.queuedMaintenance = &copy
+	m.queuedMaintenanceCredential = credential
+	return nil
+}
+
 // CancelQueuedMaintenance removes only the matching pending intent. Once it
 // has become maintenance, ResumeMaintenance/EndMaintenance govern recovery;
 // cancellation must not reopen execution during a service replacement.

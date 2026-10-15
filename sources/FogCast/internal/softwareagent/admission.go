@@ -23,6 +23,9 @@ var ErrBlocked = errors.New("kit software activation blocks mutations")
 type Request struct {
 	contract.ClaimRequest
 	Credential string `json:"credential"`
+	// HeldToken authorizes installing the next idle queue while the caller
+	// still holds the active maintenance reservation.
+	HeldToken string `json:"held_token,omitempty"`
 }
 type Completion struct {
 	contract.MaintenanceEndRequest
@@ -165,13 +168,26 @@ func (a *Admission) Handler() http.Handler {
 			BundleID      string                     `json:"bundle_id"`
 		}{maintenance, a.Ready(r.Context()), a.UpdateBlocked(r.Context()), a.BundleID})
 	})
-	for _, action := range []string{"queue", "acquire", "cancel", "resume", "end"} {
+	for _, action := range []string{"queue", "acquire", "cancel", "resume", "end", "fence", "clear-fence"} {
 		mux.HandleFunc("POST /"+action, func(w http.ResponseWriter, r *http.Request) {
 			a.mu.Lock()
 			defer a.mu.Unlock()
 			r.Body = http.MaxBytesReader(w, r.Body, 8192)
 			d := json.NewDecoder(r.Body)
 			d.DisallowUnknownFields()
+			if action == "fence" || action == "clear-fence" {
+				var body struct{}
+				if d.Decode(&body) != nil || d.Decode(&struct{}{}) != io.EOF {
+					http.Error(w, "invalid fence", 400)
+					return
+				}
+				if err := a.Leases.SetExecutionFence(action == "fence"); err != nil {
+					failure(w, err)
+					return
+				}
+				write(w, struct{}{})
+				return
+			}
 			if action == "resume" || action == "end" {
 				var req Completion
 				if d.Decode(&req) != nil || d.Decode(&struct{}{}) != io.EOF {
@@ -235,7 +251,13 @@ func (a *Admission) Handler() http.Handler {
 				return
 			}
 			if action == "queue" {
-				if err := a.Leases.QueueIdleMaintenance(req.ClaimRequest, req.Credential); err != nil {
+				var err error
+				if req.HeldToken != "" {
+					err = a.Leases.QueueHeldSuccessor(req.ClaimRequest, req.Credential, req.HeldToken)
+				} else {
+					err = a.Leases.QueueIdleMaintenance(req.ClaimRequest, req.Credential)
+				}
+				if err != nil {
 					failure(w, err)
 					return
 				}

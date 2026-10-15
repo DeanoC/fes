@@ -137,6 +137,42 @@ func (a *UnixAdmission) call(ctx context.Context, path string, in, out any) erro
 func (a *UnixAdmission) Queue(ctx context.Context, r Request) error {
 	return a.call(ctx, "/queue", a.Claim(r), nil)
 }
+
+// QueueWhileHeld installs next on this admission while held still owns the
+// active maintenance reservation. The boot grant is read from held and is not
+// released here.
+func (a *UnixAdmission) QueueWhileHeld(ctx context.Context, held *UnixAdmission, heldRequest, next Request) error {
+	if held == nil {
+		return errors.New("missing boot admission")
+	}
+	grant, err := held.loadGrant(heldRequest.ID)
+	if err != nil {
+		return err
+	}
+	if grant.Token == "" || grant.Status.OperationID != heldRequest.ID {
+		return errors.New("missing boot admission credential")
+	}
+	claim := a.Claim(next)
+	return a.call(ctx, "/queue", struct {
+		RequestID  string `json:"request_id"`
+		Owner      string `json:"owner"`
+		Purpose    string `json:"purpose"`
+		Credential string `json:"credential"`
+		HeldToken  string `json:"held_token"`
+	}{
+		RequestID:  claim.RequestID,
+		Owner:      claim.Owner,
+		Purpose:    claim.Purpose,
+		Credential: claim.Credential,
+		HeldToken:  grant.Token,
+	}, nil)
+}
+func (a *UnixAdmission) FenceExecution(ctx context.Context) error {
+	return a.call(ctx, "/fence", struct{}{}, nil)
+}
+func (a *UnixAdmission) ClearExecutionFence(ctx context.Context) error {
+	return a.call(ctx, "/clear-fence", struct{}{}, nil)
+}
 func (a *UnixAdmission) Cancel(ctx context.Context, id string) error {
 	return a.call(ctx, "/cancel", map[string]string{"request_id": id}, nil)
 }

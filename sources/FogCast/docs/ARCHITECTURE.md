@@ -2226,9 +2226,14 @@ after the current execution owner naturally releases. Queueing preserves that
 owner's renewal and operations. Only a settled free kit can atomically become a
 maintenance reservation. A private caller credential binds reservation recovery;
 public operation fields cannot recover a diagnostic owner's token. Cancelling a
-queued intent removes priority, while active maintenance retains its existing
-resume/end checks. The stable supervisor persists queue and activation state
-across reboot; the lease manager does not persist its pending queue.
+queued intent removes priority only after the durable cancellation is stored.
+The supervisor closes an execution fence first; if that durable write fails, it
+restores the queue before opening the fence, and leaves the fence closed when
+the restore fails. Active maintenance retains its existing resume/end checks.
+Trial reconciliation installs the persisted queue while the boot maintenance
+reservation is still held, and only then ends that reservation. The stable
+supervisor persists queue and activation state across reboot; the lease manager
+does not persist its pending queue.
 
 The supervisor verifies process exit before replacement, pins every service to
 one bundle, checks startup and finishes the exact maintenance generation.
@@ -2247,10 +2252,14 @@ while activation is deferred. Software proxy routes bypass the replaceable
 agent's software drain so supervisor calls back into admission cannot deadlock;
 the stable supervisor serializes installation and activation independently.
 Authenticated health reports `software` separately from sealed image artifacts.
-`targetclient` mutations have no implicit replay; `cmd/fes-software` records the
-operation ID and expected generation for later status reconciliation.
-See [kit software releases](../../../docs/kit-software-releases.md) for commands,
-recovery boundaries and evidence limits.
+`targetclient` mutations have no implicit replay. Callers record the operation
+ID and expected generation for later status reconciliation. The operator client
+`cmd/fes-software` that does this is not in this revision; it arrives in the
+follow-up releases change. This revision exposes the supervisor routes that
+client will call.
+See [kit software releases](../../../docs/kit-software-releases.md) for the
+current routes, the follow-up client invocation, recovery boundaries and
+evidence limits.
 
 ## Durable target core packages
 
