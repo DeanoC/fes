@@ -92,3 +92,43 @@ func TestProcessStopBlocksWhenGroupMemberSurvivesParent(t *testing.T) {
 		t.Fatal("failed stop discarded process ownership")
 	}
 }
+
+func TestAgentConfigWaitAppearsAndExpires(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "agent.toml")
+	ctx := context.Background()
+	started := time.Now()
+	go func() {
+		time.Sleep(40 * time.Millisecond)
+		if err := os.WriteFile(path, []byte("target"), 0600); err != nil {
+			t.Error(err)
+		}
+	}()
+	if err := waitForAgentConfig(ctx, path, time.Second); err != nil {
+		t.Fatal(err)
+	}
+	if time.Since(started) >= time.Second {
+		t.Fatal("waited for the full configuration deadline")
+	}
+	if err := waitForAgentConfig(ctx, filepath.Join(dir, "missing.toml"), 30*time.Millisecond); err == nil {
+		t.Fatal("missing configuration succeeded")
+	}
+}
+
+func TestLauncherProbeTimeoutDoesNotFollowParentContext(t *testing.T) {
+	dir := t.TempDir()
+	kit := filepath.Join(dir, "fogcast-kit")
+	// Sleep in this process. A shell waiting on a child would keep the output
+	// pipe open after the shell itself was killed.
+	if err := os.WriteFile(kit, []byte("#!/usr/bin/python3\nimport time\ntime.sleep(30)\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	_, err := probeLauncherUI(context.Background(), kit, 200*time.Millisecond)
+	if err == nil || !strings.Contains(err.Error(), "timed out") {
+		t.Fatal(err)
+	}
+	if time.Since(started) > 2*time.Second {
+		t.Fatal("probe followed an unbounded parent context", time.Since(started))
+	}
+}

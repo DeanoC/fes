@@ -448,8 +448,12 @@ grep -Fq 'run make build-fogcast-tenfoot-kit' "$fixture/prepare-reject.log"
 chmod 0755 "$fogcast/bin/fogcast-tenfoot-linux-armv7"
 
 stale_launchers
+stale_assets=$target/usr/share/fes/software/share/fogcast
+mkdir -p "$stale_assets"
+printf '%s\n' 'stale-catalog' >"$stale_assets/config.toml"
 SELECTOR_LOG=$fixture/retained-selector.log TARGET_IMAGE_LOCK_BIN="$selector" \
   "$prepare" "$target"
+cmp "$native_rootfs/usr/share/fogcast/config.toml" "$target/usr/share/fogcast/config.toml"
 grep -Fqx "fes.ramtest $target/usr/share/mister-runtime/core-packages/$old_ramtest_id $old_record" \
   "$fixture/retained-selector.log"
 cmp "$fogcast/bin/fogcast-kit-linux-armv7" "$target/usr/sbin/fogcast-kit"

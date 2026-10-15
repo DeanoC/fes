@@ -19,11 +19,19 @@ import (
 // Keep three worst-case sequential service stops below the appliance watchdog's
 // shutdown budget, including init's other service teardown.
 const (
-	StopTermGrace      = 5 * time.Second
-	StopKillGrace      = 2 * time.Second
-	StopGroupTimeout   = 22 * time.Second
-	StopCommandTimeout = 24 * time.Second
+	StopTermGrace        = 5 * time.Second
+	StopKillGrace        = 2 * time.Second
+	StopGroupTimeout     = 22 * time.Second
+	StopCommandTimeout   = 24 * time.Second
+	AgentConfigPath      = "/media/fat/fogcast/agent.toml"
+	AgentConfigWait      = 30 * time.Second
+	LauncherProbeTimeout = 10 * time.Second
 )
+
+// ErrProcessExited reports that a supervised process ended before acceptance.
+// Startup may retry it. An exit after acceptance is a service fault and is not
+// restarted behind an execution lease.
+var ErrProcessExited = errors.New("software process exited")
 
 type child struct {
 	cmd  *exec.Cmd
@@ -40,9 +48,14 @@ type ProcessController struct {
 	BaseIdentity        string
 	PermitUpdateBlocked bool
 	RunDir              string
-	mu                  sync.Mutex
-	children            []*child
-	active              string
+	// AgentConfigPath and AgentConfigWait override the FAT configuration wait.
+	// Zero values use AgentConfigPath and AgentConfigWait.
+	AgentConfig          string
+	AgentConfigWait      time.Duration
+	LauncherProbeTimeout time.Duration
+	mu                   sync.Mutex
+	children             []*child
+	active               string
 }
 
 func (c *ProcessController) Active() string { c.mu.Lock(); defer c.mu.Unlock(); return c.active }
@@ -53,6 +66,9 @@ func (c *ProcessController) Verify(ctx context.Context, id string) error {
 func (c *ProcessController) Stop(ctx context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.stopLocked(ctx)
+}
+func (c *ProcessController) stopLocked(ctx context.Context) error {
 	for i := len(c.children) - 1; i >= 0; i-- {
 		p := c.children[i]
 		select {
@@ -162,29 +178,85 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 	if len(menuID) != 64 || strings.Trim(menuID, "0123456789abcdef") != "" {
 		return errors.New("invalid menu package selection")
 	}
+	configPath := c.AgentConfig
+	if configPath == "" {
+		configPath = AgentConfigPath
+	}
+	configWait := c.AgentConfigWait
+	if configWait <= 0 {
+		configWait = AgentConfigWait
+	}
+	if err := waitForAgentConfig(ctx, configPath, configWait); err != nil {
+		return err
+	}
 	if err := c.start(filepath.Join(root, "bin/mister-runtime"), []string{"--menu-package", "/usr/share/mister-runtime/core-packages/" + menuID, menuID}, env); err != nil {
 		return err
 	}
-	if err := c.start(filepath.Join(root, "bin/mister-agent"), []string{"--config", "/media/fat/fogcast/agent.toml"}, env); err != nil {
+	if err := c.start(filepath.Join(root, "bin/mister-agent"), []string{"--config", configPath}, env); err != nil {
+		_ = c.stopLocked(ctx)
 		return err
 	}
 	catalog := filepath.Join(root, "share/fogcast/config.toml")
 	kit := filepath.Join(root, "bin/fogcast-kit")
-	probe := exec.CommandContext(ctx, kit, "--config", "/media/fat/fogcast/launcher.json", "--print-kit-ui")
-	output, err := probe.Output()
-	if err != nil {
-		return fmt.Errorf("read launcher selection: %w", err)
+	probeTimeout := c.LauncherProbeTimeout
+	if probeTimeout <= 0 {
+		probeTimeout = LauncherProbeTimeout
 	}
-	if strings.TrimSpace(string(output)) == "tenfoot" {
+	output, err := probeLauncherUI(ctx, kit, probeTimeout)
+	if err != nil {
+		_ = c.stopLocked(ctx)
+		return err
+	}
+	if output == "tenfoot" {
 		err = c.start(filepath.Join(root, "bin/fogcast-tenfoot"), []string{"-config", "/media/fat/fogcast/launcher.json", "-catalog-config", catalog, "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms"}, env)
 	} else {
 		err = c.start(kit, []string{"--config", "/media/fat/fogcast/launcher.json", "--catalog-config", catalog, "--menu-display"}, env)
 	}
 	if err != nil {
+		_ = c.stopLocked(ctx)
 		return err
 	}
 	c.active = id
 	return nil
+}
+func waitForAgentConfig(ctx context.Context, path string, wait time.Duration) error {
+	deadline := time.Now().Add(wait)
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return nil
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if !time.Now().Before(deadline) {
+			return fmt.Errorf("mister-agent: writable FAT configuration did not appear within %s", wait)
+		}
+		timer := time.NewTimer(20 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+func probeLauncherUI(ctx context.Context, kit string, timeout time.Duration) (string, error) {
+	probeCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	probe := exec.CommandContext(probeCtx, kit, "--config", "/media/fat/fogcast/launcher.json", "--print-kit-ui")
+	// A descendant that inherits the output pipe must not extend the probe
+	// past this deadline after the launcher process itself is killed.
+	probe.WaitDelay = timeout
+	output, err := probe.Output()
+	if err != nil {
+		if errors.Is(probeCtx.Err(), context.DeadlineExceeded) && ctx.Err() == nil {
+			return "", fmt.Errorf("read launcher selection: timed out after %s", timeout)
+		}
+		return "", fmt.Errorf("read launcher selection: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
 }
 func (c *ProcessController) Healthy(ctx context.Context, id string) error {
 	c.mu.Lock()
@@ -197,7 +269,7 @@ func (c *ProcessController) Healthy(ctx context.Context, id string) error {
 	for _, p := range children {
 		select {
 		case <-p.done:
-			return fmt.Errorf("%s exited: %v", p.path, p.err)
+			return fmt.Errorf("%s exited: %v: %w", p.path, p.err, ErrProcessExited)
 		default:
 		}
 		actual, err := os.Stat("/proc/" + strconv.Itoa(p.cmd.Process.Pid) + "/exe")

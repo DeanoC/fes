@@ -47,6 +47,11 @@ func HandoffTrial(ctx context.Context, repo Repository, restore Request, hold *S
 		return release(ctx)
 	}
 	if state.Pending == nil {
+		// A cancelled restore must not be queued again under the same ID.
+		// Retrying it fails closed and would leave the boot reservation held.
+		if receipt, ok := state.Receipts[restore.ID]; ok && receipt.Result == "cancelled" {
+			return release(ctx)
+		}
 		restore.Candidate = state.Selected
 		restore.Generation = state.Generation
 		if err := Queue(repo, restore); err != nil {

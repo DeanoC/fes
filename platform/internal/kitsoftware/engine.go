@@ -84,6 +84,11 @@ func (e *Engine) health(ctx context.Context, id string) error {
 		} else {
 			since = time.Time{}
 			last = err
+			// A dead process will not become ready by waiting. Let startup
+			// replace it before the readiness deadline.
+			if errors.Is(err, ErrProcessExited) {
+				return err
+			}
 		}
 		if err := e.Wait(ctx, e.Poll); err != nil {
 			return err
@@ -101,10 +106,26 @@ func (e *Engine) switchTo(ctx context.Context, id string, request Request) error
 	if err := e.Controller.Stop(ctx); err != nil {
 		return fmt.Errorf("old processes did not exit: %w", err)
 	}
-	if err := e.Controller.Start(ctx, id, request); err != nil {
-		return err
+	// Restart only until the first accepted readiness window. An exit after
+	// health returns is left for ServiceFault so a lease is not interrupted.
+	deadline := e.Now().Add(e.Deadline)
+	var last error
+	for e.Now().Before(deadline) {
+		if err := e.Controller.Start(ctx, id, request); err != nil {
+			return err
+		}
+		last = e.health(ctx, id)
+		if last == nil || !errors.Is(last, ErrProcessExited) {
+			return last
+		}
+		if err := e.Controller.Stop(ctx); err != nil {
+			return fmt.Errorf("old processes did not exit: %w", err)
+		}
+		if err := e.Wait(ctx, e.Poll); err != nil {
+			return err
+		}
 	}
-	return e.health(ctx, id)
+	return fmt.Errorf("software readiness deadline exceeded: %w", errors.Join(last, context.DeadlineExceeded))
 }
 
 // Run advances at most one durable request. A process-wide worker lock prevents

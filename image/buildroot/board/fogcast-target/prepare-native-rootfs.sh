@@ -83,12 +83,16 @@ for binary in mister-runtime mister-agent fogcast-kit fogcast-tenfoot; do
     fi
   fi
 done
-# Restore factory assets only for a warm tree whose overlay did not replace
-# the managed alias. Drop the previous bundle before scanning selected bytes.
+# Warm trees hold aliases from the previous assembled factory bundle. The
+# Buildroot overlay does not replace that symlink, so install this build's
+# overlay assets before the new bundle is sealed. Drop the previous bundle
+# before scanning selected bytes.
 if [ -L "$target/usr/share/fogcast" ]; then
   [ "$(readlink "$target/usr/share/fogcast")" = /run/fogcast/software/current/share/fogcast ] || exit 1
   /bin/rm "$target/usr/share/fogcast"
-  /bin/cp -R "$target/usr/share/fes/software/share/fogcast" "$target/usr/share/fogcast"
+  overlay_assets=$script_dir/native-rootfs-overlay/usr/share/fogcast
+  [ -d "$overlay_assets" ] && [ ! -L "$overlay_assets" ] || exit 1
+  /bin/cp -R "$overlay_assets" "$target/usr/share/fogcast"
 fi
 if [ -e "$target/usr/share/fes/software" ] || [ -L "$target/usr/share/fes/software" ]; then
   [ -d "$target/usr/share/fes/software" ] && [ ! -L "$target/usr/share/fes/software" ] || exit 1
