@@ -1,6 +1,7 @@
 package appliancedata
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -69,11 +70,25 @@ func ReadUpdateGate(paths GatePaths) (Gate, error) {
 	if err != nil {
 		return Gate{}, err
 	}
+	trial := boot.Trial
+	if trial {
+		// boot.json records the immutable boot selection. Confirmation lives in
+		// the durable store, and must match this exact boot/image and complete
+		// its sync boundary before storage migrations or software activation.
+		// Good alone is insufficient when the same image was retried as trial.
+		confirmed, err := store.ConfirmedContext(context.Background(), boot.BootID, boot.ImageSHA256)
+		if err != nil {
+			return Gate{Trial: true}, err
+		}
+		trial = !confirmed
+	}
+	// Read after reconciliation so a pending next image or corrupt state still
+	// blocks the data gate even when this boot has already been confirmed.
 	st, err := store.Status()
 	if err != nil {
-		return Gate{Trial: boot.Trial, Pending: st.Pending != "", Corrupt: st.Corrupt}, err
+		return Gate{Trial: trial, Pending: st.Pending != "", Corrupt: st.Corrupt}, err
 	}
-	return Gate{Trial: boot.Trial, Pending: st.Pending != "", Corrupt: st.Corrupt}, nil
+	return Gate{Trial: trial, Pending: st.Pending != "", Corrupt: st.Corrupt}, nil
 }
 
 func bootstrapMounted(mountInfo string) bool {

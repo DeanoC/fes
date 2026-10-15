@@ -2235,7 +2235,10 @@ one bundle, checks startup and finishes the exact maintenance generation.
 Accepted bundles remain selected. Failed startup permits one durably recorded
 prior-bundle recovery attempt; failed recovery remains blocked. Appliance trials
 run factory software, then reconcile persistent storage and queued work after
-confirmation. A base-image update blocks activation and software installation.
+confirmation. The storage gate verifies durable confirmation for the exact boot
+and image even while the original boot ticket still records a trial; this opens
+persistent storage without another reboot. A base-image update blocks activation
+and software installation.
 
 `WithKitSoftware` proxies the five bearer-authenticated `/v1/kit/software`
 routes to the fixed root-only supervisor socket. Upload is bounded by the bundle

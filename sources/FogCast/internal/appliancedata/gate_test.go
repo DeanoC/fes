@@ -210,3 +210,105 @@ func TestPrepareRefusesWhenUpdateStatusUnreadable(t *testing.T) {
 		t.Fatal("unreadable update still mounted p3")
 	}
 }
+
+func TestReadUpdateGateReconcilesDurableTrialConfirmation(t *testing.T) {
+	t.Parallel()
+	for _, sameGood := range []bool{false, true} {
+		t.Run(fmt.Sprintf("same-known-good-%t", sameGood), func(t *testing.T) {
+			image := bytes.Repeat([]byte{0x53, 0xef}, 2048)
+			image[1080], image[1081], image[1120] = 0x53, 0xef, 0x40
+			factory := testManifest(image)
+			candidateBytes := bytes.Clone(image)
+			if !sameGood {
+				candidateBytes[0]++
+			}
+			candidate := testManifest(candidateBytes)
+			root := t.TempDir()
+			releaseRoot := filepath.Join(root, "releases")
+			paths := GatePaths{Factory: filepath.Join(root, "factory.json"), MountInfo: filepath.Join(root, "mounts"), ReleaseRoot: releaseRoot, BootJSON: filepath.Join(releaseRoot, "boot.json"), BootIDPath: filepath.Join(root, "boot_id")}
+			writeFactory(t, paths.Factory, factory)
+			store, err := appliance.New(releaseRoot, factory)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.Stage(context.Background(), factory, factory.ImageSize, bytes.NewReader(image)); err != nil {
+				t.Fatal(err)
+			}
+			if !sameGood {
+				if err := store.Stage(context.Background(), candidate, candidate.ImageSize, bytes.NewReader(candidateBytes)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if !sameGood {
+				if err := store.Activate(candidate.ImageSHA256); err != nil {
+					t.Fatal(err)
+				}
+			}
+			bootID := "11111111-2222-4333-8444-555555555555"
+			selection, err := store.BeginBoot(bootID)
+			if err != nil || selection.Trial == sameGood {
+				t.Fatal(selection, err)
+			}
+			writeBootTicket(t, paths.BootJSON, paths.BootIDPath, bootID, candidate.ImageSHA256, true)
+			ticket, err := os.ReadFile(paths.BootJSON)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before, err := ReadUpdateGate(paths)
+			if err != nil || !before.Trial || before.Pending || before.Corrupt {
+				t.Fatalf("unconfirmed trial gate=%+v err=%v", before, err)
+			}
+			if sameGood {
+				// Good is already the ticket image, but no consumed trial or
+				// durable confirmation exists for this boot. Never clear it.
+				if err := store.Confirm(bootID, candidate.ImageSHA256); err == nil {
+					t.Fatal("ordinary known-good boot accepted as consumed trial")
+				}
+				gate, err := ReadUpdateGate(paths)
+				if err != nil || !gate.Trial {
+					t.Fatalf("Good alone cleared trial: %+v %v", gate, err)
+				}
+				return
+			}
+			if err := store.Confirm(bootID, candidate.ImageSHA256); err != nil {
+				t.Fatal(err)
+			}
+			after, err := ReadUpdateGate(paths)
+			if err != nil || after.Trial || after.Pending || after.Corrupt {
+				t.Fatalf("confirmed trial gate=%+v err=%v", after, err)
+			}
+			unchanged, err := os.ReadFile(paths.BootJSON)
+			if err != nil || !bytes.Equal(ticket, unchanged) {
+				t.Fatal("confirmation rewrote immutable boot ticket", err)
+			}
+			// An otherwise valid ticket for a different kernel boot or selected image
+			// cannot borrow this confirmation, including when Good equals trial image.
+			otherBoot := "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+			writeBootTicket(t, paths.BootJSON, paths.BootIDPath, otherBoot, candidate.ImageSHA256, true)
+			wrongBoot, err := ReadUpdateGate(paths)
+			if err != nil || !wrongBoot.Trial {
+				t.Fatalf("wrong boot accepted: %+v %v", wrongBoot, err)
+			}
+			writeBootTicket(t, paths.BootJSON, paths.BootIDPath, bootID, strings.Repeat("f", 64), true)
+			wrongImage, err := ReadUpdateGate(paths)
+			if err != nil || !wrongImage.Trial {
+				t.Fatalf("wrong image accepted: %+v %v", wrongImage, err)
+			}
+			writeBootTicket(t, paths.BootJSON, paths.BootIDPath, bootID, candidate.ImageSHA256, true)
+			if err := store.Activate(factory.ImageSHA256); err != nil {
+				t.Fatal(err)
+			}
+			pending, err := ReadUpdateGate(paths)
+			if err != nil || pending.Trial || !pending.Pending || pending.Corrupt {
+				t.Fatalf("next pending image did not gate confirmed boot: %+v %v", pending, err)
+			}
+			if err := os.WriteFile(filepath.Join(releaseRoot, "state.json"), []byte("corrupt\n"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			corrupt, err := ReadUpdateGate(paths)
+			if err != nil || !corrupt.Trial || !corrupt.Corrupt {
+				t.Fatalf("corrupt confirmation did not gate: %+v %v", corrupt, err)
+			}
+		})
+	}
+}
