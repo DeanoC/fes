@@ -206,6 +206,8 @@ func localCoreInventory(ctx context.Context, store *kitpackages.Store, libraryEr
 }
 
 func durableLocalInventory(ctx context.Context, store *kitpackages.Store) ([]localcores.Core, error) {
+	// SelectedPackages trusts install-time verification while the stat
+	// fingerprint matches. Launch still inspects the package bytes.
 	selections, err := store.SelectedPackages(ctx)
 	if err != nil {
 		return nil, err

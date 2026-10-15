@@ -73,27 +73,35 @@ Launch requirements come from the verified manifest. Firmware, multiple ROMs,
 native-pixel shells requiring video parts and unsupported local media paths
 remain blocked. The current local cartridge path supports one format-3
 cartridge map. When the durable store is open, `GET /v1/local/cores` overlays
-writable selections on the factory catalog. That pass reads manifests,
+writable selections on the factory catalog. The factory pass reads manifests,
 streams payload and ROM-map digests, and structurally validates each ROM map
 while streaming it. A map that full inspection would reject is omitted. The
-catalog is cached until selection metadata or a package directory entry
-changes. A disconnected client ends the handler wait. One scan runs at a
-time; if the tree changes during that scan, the next request waits and then
-scans once more. Native runtime inspection checks the exact
-canonical bytes before activation through its existing trusted staging path.
-Every physical launch and stop still uses the execution lease; local launches
-also participate in appliance update admission and draining.
+factory catalog is cached until its stat fingerprint changes: selection and
+member size, mtime, inode, and directory entries. Opening a selection file
+does not change that key. A disconnected client ends the handler wait. One
+scan runs at a time; if the tree changes during that scan, the next request
+waits and then scans once more.
 
-Durable inventory is authenticated again on reads. Missing or corrupt selected
-bytes block local launch, including after restart; they do not silently substitute
-a factory version. Bearer routes report a broken library as HTTP 503
+A selected durable package is listed from the verification recorded at
+install. Listing keeps that result while the sealed archive and member
+fingerprint still matches: size, mtime, inode, mode, and directory entries.
+Repeated lists do not read payload or ROM-map bytes. A changed fingerprint
+verifies the bytes again. Launch and path lookup still inspect the retained
+bytes in full. Missing or corrupt selected bytes then block local launch,
+including after restart, and do not silently substitute a factory version.
+Native runtime inspection checks the exact canonical bytes before activation
+through its existing trusted staging path. Every physical launch and stop
+still uses the execution lease; local launches also participate in appliance
+update admission and draining.
+
+Bearer routes report a broken library as HTTP 503
 `CORE_PACKAGE_STORE_UNAVAILABLE`. Kit-local clients call `GET /v1/local/cores`
 on the root-only control socket. That route returns HTTP 200 and an empty list
 when the durable library cannot be read, including when FESDATA3 is absent, and
 it does not read factory package bytes. Local launch stays on that empty
 inventory. An empty local list is that socket's response for this failure.
-Mesh inventory advertises only authenticated durable packages and rereads
-installs dynamically.
+Mesh inventory advertises durable packages from the same stat-keyed
+verification. A changed archive or member stat verifies the bytes again.
 
 Package persistence is separate from settings and progress persistence. Kit-local
 execution still uses its existing volatile core-data mode. Persistent settings,

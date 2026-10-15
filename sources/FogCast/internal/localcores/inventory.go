@@ -112,7 +112,9 @@ func readInstalledCores(ctx context.Context, selectionDir, packageRoot string) (
 // factoryFingerprint is the selection and package metadata that invalidates a
 // cached catalog. Every installed directory entry is part of the key, so an
 // unexpected member changes the verdict InspectListing would return. The key
-// is file metadata only: it does not read core.rbf or rom-map.json.
+// is size, mtime, inode, mode, and directory entry names. It does not read
+// core.rbf or rom-map.json. Opening a selection file to resolve its package
+// does not change the key, so a durable selection read cannot force a rescan.
 func factoryFingerprint(selectionDir, packageRoot string) string {
 	if !realDir(selectionDir) || !realDir(packageRoot) {
 		return "absent"
@@ -129,7 +131,7 @@ func factoryFingerprint(selectionDir, packageRoot string) string {
 			fmt.Fprintf(&b, "sel %s missing\n", entry.Name())
 			continue
 		}
-		fmt.Fprintf(&b, "sel %s %d %d\n", entry.Name(), info.Size(), info.ModTime().UnixNano())
+		fmt.Fprintf(&b, "sel %s %d %d %d\n", entry.Name(), info.Size(), info.ModTime().UnixNano(), statInode(info))
 		selection, ok := readSelection(filepath.Join(selectionDir, entry.Name()))
 		if !ok {
 			continue
@@ -141,7 +143,7 @@ func factoryFingerprint(selectionDir, packageRoot string) string {
 			fmt.Fprintf(&b, "dir %s missing\n", selection.PackageID)
 			continue
 		}
-		fmt.Fprintf(&b, "dir %s %d %d\n", selection.PackageID, dirInfo.ModTime().UnixNano(), dirInfo.Mode())
+		fmt.Fprintf(&b, "dir %s %d %d %d\n", selection.PackageID, dirInfo.ModTime().UnixNano(), dirInfo.Mode(), statInode(dirInfo))
 		if !dirInfo.IsDir() || dirInfo.Mode()&os.ModeSymlink != 0 {
 			continue
 		}
@@ -156,10 +158,22 @@ func factoryFingerprint(selectionDir, packageRoot string) string {
 				fmt.Fprintf(&b, "ent %s %s missing\n", selection.PackageID, member.Name())
 				continue
 			}
-			fmt.Fprintf(&b, "ent %s %s %d %d %d\n", selection.PackageID, member.Name(), meta.Size(), meta.ModTime().UnixNano(), meta.Mode())
+			fmt.Fprintf(&b, "ent %s %s %d %d %d %d\n", selection.PackageID, member.Name(), meta.Size(), meta.ModTime().UnixNano(), meta.Mode(), statInode(meta))
 		}
 	}
 	return b.String()
+}
+
+func statInode(info os.FileInfo) uint64 {
+	switch stat := info.Sys().(type) {
+	case *syscall.Stat_t:
+		if stat != nil {
+			return uint64(stat.Ino)
+		}
+	case syscall.Stat_t:
+		return uint64(stat.Ino)
+	}
+	return 0
 }
 
 // FromInspection describes the local launch requirements of a verified package.

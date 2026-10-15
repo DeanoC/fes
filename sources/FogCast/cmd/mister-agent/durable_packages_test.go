@@ -3,16 +3,24 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"io"
 	"io/fs"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/kitpackages"
+	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 )
 
@@ -84,6 +92,143 @@ func TestAbsentPartitionWithholdsLocalFactoryInventory(t *testing.T) {
 	}
 	if localCoreInventory(context.Background(), nil, nil) != nil {
 		t.Fatal("no library error installed a kit-local inventory callback")
+	}
+}
+
+type durableZeroReader struct{}
+
+func (durableZeroReader) Read(p []byte) (int, error) {
+	for i := range p {
+		p[i] = 0
+	}
+	return len(p), nil
+}
+
+func writeDurableZeros(t *testing.T, path string, n int64) string {
+	t.Helper()
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := sha256.New()
+	if _, err := io.CopyN(io.MultiWriter(file, hash), durableZeroReader{}, n); err != nil {
+		file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
+func largePackageDir(t *testing.T, coreID, name string, n int64) (string, corepackage.Inspection) {
+	t.Helper()
+	dir := t.TempDir()
+	manifest, err := os.ReadFile(filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2", "manifests", "valid-basic.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := writeDurableZeros(t, filepath.Join(dir, "core.rbf"), n)
+	manifest = bytes.ReplaceAll(manifest, []byte(`id = "fes.pong"`), []byte(`id = "`+coreID+`"`))
+	manifest = bytes.ReplaceAll(manifest, []byte(`name = "FES Pong"`), []byte(`name = "`+name+`"`))
+	manifest = bytes.ReplaceAll(manifest, []byte("size = 12\n"), []byte(fmt.Sprintf("size = %d\n", n)))
+	manifest = bytes.ReplaceAll(manifest, []byte(`sha256 = "e7bbf8fe5ebdebeef7f2e70638a0a3494f22ab977e1506386010705a3d43adf1"`), []byte(fmt.Sprintf("sha256 = %q", sum)))
+	if err := os.WriteFile(filepath.Join(dir, "manifest.toml"), manifest, 0o400); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Join(dir, "core.rbf"), 0o400); err != nil {
+		t.Fatal(err)
+	}
+	inspection, err := corepackage.InspectPackage(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return dir, inspection
+}
+
+func installFactoryPackage(t *testing.T, packages, selections, coreID, name string, n int64) string {
+	t.Helper()
+	dir, inspection := largePackageDir(t, coreID, name, n)
+	dest := filepath.Join(packages, inspection.PackageID)
+	if err := os.Rename(dir, dest); err != nil {
+		t.Fatal(err)
+	}
+	body := fmt.Sprintf("core_id = %q\npackage_id = %q\npayload_sha256 = %q\ninstall_path = %q\n",
+		coreID, inspection.PackageID, inspection.Descriptor.Payload.SHA256, dest)
+	stem := strings.TrimPrefix(coreID, "fes.")
+	if err := os.WriteFile(filepath.Join(selections, "fes-"+stem+".package.toml"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return inspection.PackageID
+}
+
+func processReadBytes(t *testing.T) uint64 {
+	t.Helper()
+	data, err := os.ReadFile("/proc/self/io")
+	if err != nil {
+		t.Fatalf("process io: %v", err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		var n uint64
+		if _, err := fmt.Sscanf(line, "read_bytes: %d", &n); err == nil && strings.HasPrefix(line, "read_bytes:") {
+			return n
+		}
+	}
+	t.Fatal("read_bytes missing")
+	return 0
+}
+
+func listLocalCores(t *testing.T, handler http.Handler) string {
+	t.Helper()
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/local/cores", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("list %d %s", response.Code, response.Body.String())
+	}
+	return response.Body.String()
+}
+
+func TestRepeatedLocalCoreListDoesNotRereadSelectedPackage(t *testing.T) {
+	const payloadBytes = 1 << 20
+	root := t.TempDir()
+	selections := filepath.Join(root, "selections")
+	packages := filepath.Join(root, "packages")
+	if err := os.Mkdir(selections, 0o755); err != nil || os.Mkdir(packages, 0o755) != nil {
+		t.Fatal(err)
+	}
+	factoryID := installFactoryPackage(t, packages, selections, "fes.pong", "FES Pong", payloadBytes)
+	store, _ := durablePackageStore(t)
+	dir, inspection := largePackageDir(t, "fes.coleco", "FES Coleco", payloadBytes)
+	archive, err := corepackage.CanonicalArchive(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	installDurablePackage(t, store, archive)
+	if _, err := store.Select(context.Background(), "fes.coleco", "", inspection.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	service := localcores.New(nil, nil, localcores.Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	service.SetInventory(localCoreInventory(context.Background(), store, nil))
+	handler := localcores.Handler(service)
+
+	first := listLocalCores(t, handler)
+	if !strings.Contains(first, inspection.PackageID) || !strings.Contains(first, factoryID) || !strings.Contains(first, "fes.coleco") {
+		t.Fatalf("list %s", first)
+	}
+	before := processReadBytes(t)
+	started := time.Now()
+	for range 2 {
+		again := listLocalCores(t, handler)
+		if again != first {
+			t.Fatalf("list changed\n%s\n%s", first, again)
+		}
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("repeated lists took %s", elapsed)
+	}
+	if delta := processReadBytes(t) - before; delta > 256<<10 {
+		t.Fatalf("repeated lists read %d payload bytes", delta)
 	}
 }
 

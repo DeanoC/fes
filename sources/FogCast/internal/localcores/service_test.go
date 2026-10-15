@@ -1253,6 +1253,47 @@ func TestOpenStoreFactoryListIsBounded(t *testing.T) {
 	}
 }
 
+func TestReadingSelectionsDoesNotRescanFactory(t *testing.T) {
+	root := t.TempDir()
+	selections := filepath.Join(root, "selections")
+	packages := filepath.Join(root, "packages")
+	if err := os.Mkdir(selections, 0o755); err != nil || os.Mkdir(packages, 0o755) != nil {
+		t.Fatal(err)
+	}
+	installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
+	service := New(nil, nil, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	var scans atomic.Int32
+	useFactoryListGate(t, func(context.Context) error {
+		scans.Add(1)
+		return nil
+	})
+	durableID := strings.Repeat("ab", 32)
+	service.SetInventory(func() ([]Core, error) {
+		entries, err := os.ReadDir(selections)
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			if _, err := os.ReadFile(filepath.Join(selections, entry.Name())); err != nil {
+				return nil, err
+			}
+		}
+		return []Core{{
+			CoreID: "fes.pong", PackageID: durableID, Name: "Durable Pong",
+			ABI: "fes.simple-game", Needs: "none", Launchable: true,
+		}}, nil
+	})
+	body := listCores(t, service)
+	if !strings.Contains(body, durableID) || scans.Load() != 1 {
+		t.Fatalf("scans %d body %s", scans.Load(), body)
+	}
+	again := listCores(t, service)
+	if again != body || scans.Load() != 1 {
+		t.Fatalf("reading selections rescanned the factory catalog: %d\n%s", scans.Load(), again)
+	}
+}
+
 func TestFactoryListStopsWhenClientCancels(t *testing.T) {
 	root := t.TempDir()
 	selections := filepath.Join(root, "selections")

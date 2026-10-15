@@ -16,6 +16,9 @@ import (
 	"reflect"
 	"regexp"
 	"sort"
+	"strings"
+	"sync"
+	"sync/atomic"
 
 	"github.com/DeanoC/FogCast/corepackage"
 )
@@ -52,6 +55,11 @@ type selectionFile struct {
 	Selections []Selection `json:"selections"`
 }
 
+type verifiedPackage struct {
+	key        string
+	inspection corepackage.Inspection
+}
+
 type Store struct {
 	root       string
 	info       os.FileInfo
@@ -59,7 +67,14 @@ type Store struct {
 	lockInfo   os.FileInfo
 	archives   *corepackage.Store
 	persistent bool
+
+	verifyMu sync.Mutex
+	verified map[string]verifiedPackage
 }
+
+// fullVerificationReads counts payload inspections performed by read.
+// Listing that trusts a matching stat fingerprint does not increment it.
+var fullVerificationReads atomic.Int64
 
 // New opens a private POSIX store. Production callers use OpenPersistent;
 // accepting a temporary directory here does not prove target persistence.
@@ -83,7 +98,7 @@ func New(path string) (*Store, error) {
 	if err != nil || !os.SameFile(info, opened) {
 		return nil, errors.New("kit packages: root changed while opening")
 	}
-	s := &Store{root: path, info: opened, children: make(map[string]os.FileInfo)}
+	s := &Store{root: path, info: opened, children: make(map[string]os.FileInfo), verified: make(map[string]verifiedPackage)}
 	for _, name := range []string{"archives", "packages"} {
 		if err := r.Mkdir(name, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
 			return nil, err
@@ -243,23 +258,19 @@ func (s *Store) List(ctx context.Context) ([]corepackage.Inspection, error) {
 		return nil, err
 	}
 	defer unlock()
-	list, err := s.archives.List(ctx)
+	ids, err := installedIDs(r)
 	if err != nil {
 		return nil, err
 	}
-	entries, err := directoryEntries(r, "packages")
-	if err != nil {
-		return nil, err
-	}
-	if len(entries) != len(list) {
-		return nil, errors.New("kit packages: archive and member inventories differ")
-	}
-	for _, inspection := range list {
-		if _, _, err := s.read(ctx, r, inspection.PackageID); err != nil {
+	result := make([]corepackage.Inspection, 0, len(ids))
+	for _, id := range ids {
+		inspection, err := s.listingInspection(ctx, r, id)
+		if err != nil {
 			return nil, err
 		}
+		result = append(result, inspection)
 	}
-	return list, nil
+	return result, nil
 }
 
 func (s *Store) Read(ctx context.Context, id string) (corepackage.Inspection, []byte, error) {
@@ -308,6 +319,8 @@ func (s *Store) read(ctx context.Context, r *os.Root, id string) (corepackage.In
 			return corepackage.Inspection{}, nil, errors.New("kit packages: installed member must be a sealed regular file")
 		}
 	}
+	beforeKey, beforeErr := packageStatKey(r, id)
+	fullVerificationReads.Add(1)
 	exploded, err := corepackage.InspectPackage(filepath.Join(s.root, name))
 	if err != nil {
 		return corepackage.Inspection{}, nil, err
@@ -318,6 +331,9 @@ func (s *Store) read(ctx context.Context, r *os.Root, id string) (corepackage.In
 	}
 	if err := s.validateRoot(r); err != nil {
 		return corepackage.Inspection{}, nil, err
+	}
+	if afterKey, afterErr := packageStatKey(r, id); beforeErr == nil && afterErr == nil && beforeKey == afterKey {
+		s.rememberVerified(id, afterKey, inspection)
 	}
 	return inspection, data, nil
 }
@@ -389,8 +405,10 @@ func (s *Store) Selections(ctx context.Context) ([]Selection, error) {
 	return s.selections(ctx, r)
 }
 
-// SelectedPackages reads each selected archive and sealed member set once
-// under the same lock, returning a coherent authenticated local launch inventory.
+// SelectedPackages returns the selected launch inventory. Listing reuses the
+// verification recorded at install while the archive and member stat
+// fingerprint still matches. Path, Read, and launch still call read, which
+// inspects the payload bytes.
 func (s *Store) SelectedPackages(ctx context.Context) ([]SelectedPackage, error) {
 	r, unlock, err := s.lock(ctx)
 	if err != nil {
@@ -407,7 +425,7 @@ func (s *Store) selectedPackages(ctx context.Context, r *os.Root) ([]SelectedPac
 	}
 	result := make([]SelectedPackage, 0, len(selections))
 	for _, selection := range selections {
-		inspection, _, err := s.read(ctx, r, selection.PackageID)
+		inspection, err := s.listingInspection(ctx, r, selection.PackageID)
 		if err != nil {
 			return nil, err
 		}
@@ -417,6 +435,121 @@ func (s *Store) selectedPackages(ctx context.Context, r *os.Root) ([]SelectedPac
 		result = append(result, SelectedPackage{Selection: selection, Inspection: inspection, Path: filepath.Join(s.root, "packages", selection.PackageID)})
 	}
 	return result, nil
+}
+
+// listingInspection trusts the install-time verification when size, mtime,
+// inode, mode, and directory entries are unchanged. A miss inspects the
+// payload once and records that fingerprint.
+func (s *Store) listingInspection(ctx context.Context, r *os.Root, id string) (corepackage.Inspection, error) {
+	if err := ctx.Err(); err != nil {
+		return corepackage.Inspection{}, err
+	}
+	if key, err := packageStatKey(r, id); err == nil {
+		if inspection, ok := s.cachedVerified(id, key); ok {
+			return inspection, nil
+		}
+	}
+	inspection, _, err := s.read(ctx, r, id)
+	return inspection, err
+}
+
+func (s *Store) rememberVerified(id, key string, inspection corepackage.Inspection) {
+	s.verifyMu.Lock()
+	defer s.verifyMu.Unlock()
+	if s.verified == nil {
+		s.verified = make(map[string]verifiedPackage)
+	}
+	s.verified[id] = verifiedPackage{key: key, inspection: inspection}
+}
+
+func (s *Store) cachedVerified(id, key string) (corepackage.Inspection, bool) {
+	s.verifyMu.Lock()
+	defer s.verifyMu.Unlock()
+	hit, ok := s.verified[id]
+	if !ok || hit.key != key {
+		return corepackage.Inspection{}, false
+	}
+	return hit.inspection, true
+}
+
+func packageStatKey(r *os.Root, id string) (string, error) {
+	var b strings.Builder
+	if err := writeStat(&b, r, filepath.Join("archives", id+".fcore")); err != nil {
+		return "", err
+	}
+	dir := filepath.Join("packages", id)
+	if err := writeStat(&b, r, dir); err != nil {
+		return "", err
+	}
+	entries, err := directoryEntries(r, dir)
+	if err != nil {
+		return "", err
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	for _, entry := range entries {
+		fmt.Fprintf(&b, "entry %s\n", entry.Name())
+		if err := writeStat(&b, r, filepath.Join(dir, entry.Name())); err != nil {
+			return "", err
+		}
+	}
+	return b.String(), nil
+}
+
+func writeStat(b *strings.Builder, r *os.Root, name string) error {
+	info, err := r.Lstat(name)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(b, "%s %d %d %d %d\n", name, info.Size(), info.ModTime().UnixNano(), uint64(info.Mode()), inodeOf(info))
+	return nil
+}
+
+func installedIDs(r *os.Root) ([]string, error) {
+	packages, err := directoryEntries(r, "packages")
+	if err != nil {
+		return nil, err
+	}
+	archives, err := directoryEntries(r, "archives")
+	if err != nil {
+		return nil, err
+	}
+	packageSet := make(map[string]struct{}, len(packages))
+	for _, entry := range packages {
+		name := entry.Name()
+		if stageRE.MatchString(name) {
+			return nil, errors.New("kit packages: unexpected staging entry")
+		}
+		info, err := entry.Info()
+		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || !packageIDRE.MatchString(name) {
+			return nil, fmt.Errorf("kit packages: unexpected package entry %q", name)
+		}
+		packageSet[name] = struct{}{}
+	}
+	ids := make([]string, 0, len(archives))
+	for _, entry := range archives {
+		name := entry.Name()
+		if archiveTemporaryRE.MatchString(name) {
+			info, err := entry.Info()
+			if err != nil || !info.Mode().IsRegular() || info.Mode().Perm() != 0o400 {
+				return nil, errors.New("kit packages: invalid archive temporary")
+			}
+			continue
+		}
+		if len(name) != 70 || !strings.HasSuffix(name, ".fcore") || !packageIDRE.MatchString(name[:64]) {
+			return nil, fmt.Errorf("kit packages: unexpected archive entry %q", name)
+		}
+		id := name[:64]
+		if _, ok := packageSet[id]; !ok {
+			return nil, errors.New("kit packages: archive and member inventories differ")
+		}
+		delete(packageSet, id)
+		ids = append(ids, id)
+	}
+	if len(packageSet) != 0 {
+		return nil, errors.New("kit packages: archive and member inventories differ")
+	}
+	sort.Strings(ids)
+	return ids, nil
 }
 
 func (s *Store) selections(ctx context.Context, r *os.Root) ([]Selection, error) {

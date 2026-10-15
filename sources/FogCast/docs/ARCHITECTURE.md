@@ -2242,11 +2242,16 @@ maps are structurally validated while they stream, including binding to the
 payload digest, and a map full inspection would reject is omitted. Only the
 manifest and the running hashes are kept. Checking one map holds a fixed CRAM
 destination bitmap for that package and does not retain the encoded map or its
-decoded blocks. A finished catalog is cached until selection metadata or any
-installed package directory entry changes. The list handler waits on the
+decoded blocks. A finished factory catalog is cached until its stat fingerprint changes:
+selection and member size, mtime, inode, and directory entries. Opening a
+selection file does not change that key, so a durable selection read does not
+start another factory scan. The list handler waits on the
 request context, so a client disconnect ends that wait. One catalog scan runs
 at a time. A fingerprint change while that scan is in progress waits for it to
-finish, then scans once more when the tree still differs. Launch rereads the
+finish, then scans once more when the tree still differs. Durable listing
+reuses the verification recorded at install while the sealed archive and
+member fingerprint (size, mtime, inode, mode, and directory entries) still
+matches, and does not read those payloads again. Launch rereads the
 selected package with full inspection before programming. Manifest requirements block unsupported local media,
 firmware, multi-ROM and native video-part paths.
 `Launchable` describes local inputs, not hardware acceptance; native inspection

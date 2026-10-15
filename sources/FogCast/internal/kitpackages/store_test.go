@@ -561,6 +561,52 @@ func TestReopenPreservesSelectedMissingOrCorruptData(t *testing.T) {
 	}
 }
 
+func TestSelectedListingTrustsInstallVerification(t *testing.T) {
+	s := newStore(t)
+	archive, expected := fixture(t, "0.1.0", "fes.pong")
+	install(t, s, archive)
+	if _, err := s.Select(context.Background(), "fes.pong", "", expected.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	fullVerificationReads.Store(0)
+	for range 3 {
+		selected, err := s.SelectedPackages(context.Background())
+		if err != nil || len(selected) != 1 || selected[0].PackageID != expected.PackageID {
+			t.Fatalf("selected=%+v,%v", selected, err)
+		}
+		listed, err := s.List(context.Background())
+		if err != nil || len(listed) != 1 || listed[0].PackageID != expected.PackageID {
+			t.Fatalf("list=%+v,%v", listed, err)
+		}
+		if _, err := s.Selections(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := fullVerificationReads.Load(); got != 0 {
+		t.Fatalf("listing re-read payloads %d times", got)
+	}
+	reopened, err := New(s.root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fullVerificationReads.Store(0)
+	if _, err := reopened.SelectedPackages(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reopened.List(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := fullVerificationReads.Load(); got != 0 {
+		t.Fatalf("reopened listing re-read payloads %d times", got)
+	}
+	if _, err := s.Path(context.Background(), expected.PackageID); err != nil {
+		t.Fatal(err)
+	}
+	if fullVerificationReads.Load() == 0 {
+		t.Fatal("launch path skipped payload inspection")
+	}
+}
+
 func TestSelectedPackagesReturnsAuthenticatedIdentityAndLocalPath(t *testing.T) {
 	s := newStore(t)
 	archive, expected := fixture(t, "0.1.0", "fes.pong")
