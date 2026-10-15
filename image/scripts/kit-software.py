@@ -59,7 +59,11 @@ def elf(path):
     if not re.search(r'Data:.*little endian', header) or 'Version5 EABI' not in header:
         raise ValueError(f'unsupported ARM ABI: {path}')
     dynamic = run('readelf', '-d', str(path))
-    if re.search(r'\((?:RPATH|RUNPATH)\)', dynamic):
+    # Buildroot sanitizes some libraries by retaining the dynamic tag with
+    # an empty value. Empty tags add no search path; nonempty paths remain
+    # forbidden so the checked base closure matches loader resolution.
+    search_paths = re.findall(r'\((?:RPATH|RUNPATH)\).*?\[(.*?)\]', dynamic)
+    if any(search_paths):
         raise ValueError(f'embedded dynamic search path: {path}')
     needed = re.findall(r'\(NEEDED\).*?\[(.*?)\]', dynamic)
     sonames = re.findall(r'\(SONAME\).*?\[(.*?)\]', dynamic)

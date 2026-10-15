@@ -37,6 +37,8 @@ class SoftwareABI(unittest.TestCase):
             self.assertEqual(value['required'], ['memcpy@GLIBC_2.4'])
             self.assertEqual(value['defined'], ['supplied', 'supplied@ABI_1'])
             self.assertEqual(value['needed'], ['libc.so.6'])
+            outputs['-d'] += '\n (RUNPATH) []\n (RPATH) []'
+            self.assertEqual(software.elf(Path('binary')), value)
             outputs['-d'] += '\n (RUNPATH) [/build/libraries]'
             with self.assertRaises(ValueError):
                 software.elf(Path('binary'))
