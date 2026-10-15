@@ -73,6 +73,48 @@ def sector_memory_cells(*, packed=False):
 
 
 class AtariSTProducerTests(unittest.TestCase):
+    def test_current_pll_metadata_is_preserved_and_legacy_shell_is_rejected(self):
+        from tests.test_atari_st_slot_card import frozen_shell
+        top = frozen_shell()["modules"]["top"]
+        original = copy.deepcopy(top)
+        st.validate_system_pll(top)
+        self.assertEqual(top, original)
+        for mutation in ("legacy", "counter", "audio", "buffer", "count"):
+            with self.subTest(mutation=mutation):
+                bad = copy.deepcopy(original)
+                pll = bad["cells"]["system_clock.pll"]
+                mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]).decode())
+                if mutation == "legacy":
+                    del pll["connections"]["outclk[1]"]
+                    mapping["pins"]["outclk[0]"] = [0, "outclk[0]"]
+                    mapping["count"] += 1
+                elif mutation == "counter":
+                    mapping["pins"]["outclk[1]"] = [0, "C6"]
+                elif mutation == "audio":
+                    pll["connections"]["outclk[1]"] = [99]
+                elif mutation == "buffer":
+                    bad["cells"]["system_clock.clocks_MISTRAL_CLKBUF_Q_1"]["connections"]["A"] = [99]
+                else:
+                    mapping["count"] += 1
+                pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping).encode().hex()
+                with self.assertRaisesRegex(BuildError, "rebuild the shell"):
+                    st.validate_system_pll(bad)
+
+    def test_solver_log_requires_both_achieved_system_pll_outputs(self):
+        log = ("Info: PLL 'system_clock.pll': fractional-N requested 52224000.000000 Hz (output 0), "
+               "achieved 52224000.000569507 Hz, error 1.09050546e-05 ppm.\n"
+               "Info: PLL 'system_clock.pll': fractional-N requested 12288000.000000 Hz (output 1), "
+               "achieved 12288000.000134002 Hz, error 1.09050546e-05 ppm.\n"
+               "Info: PLL 'system_clock.pll': 50.000000 MHz -> VCO 417.792000 MHz, fractional-N, "
+               "M=8 N=1 K=1528321163, counters C6,7, bel altera_pll.0.31.0\n")
+        st.validate_pll_log(log)
+        for bad in (log.replace("(output 1)", "(output 0)"),
+                    log.replace("12288000.000134002", "12000000.000000000"),
+                    log.replace("50.000000 MHz", "48.000000 MHz"),
+                    "50 MHz -> 52.224 MHz; second output 12.288 MHz"):
+            with self.assertRaises(BuildError):
+                st.validate_pll_log(bad)
+
     def test_vendor_cpu_adapter_preserves_all_functional_bytes(self):
         original = (ROOT / st.CPU_VENDOR / 'fx68k.sv').read_bytes()
         adapted = st.adapted_cpu_source(ROOT)

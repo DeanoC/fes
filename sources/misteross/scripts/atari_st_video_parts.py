@@ -169,34 +169,10 @@ def prepare_scaffold(source: bytes) -> bytes:
     cells = top["cells"]
     if any(name.startswith(("plug_addr_ff_", "plug_rdata_ff_")) for name in cells):
         raise ValueError("frozen ST shell already exposes canonical plug cells")
-    # Repair only the split second system PLL output, without moving/removing
-    # any of the 119 CPU socket FFs or their route-through buffers.
-    pll = _object(cells.get("system_clock.pll"), "system PLL")
-    connections = _object(pll.get("connections"), "system PLL connections")
-    attributes = _object(pll.get("attributes"), "system PLL attributes")
-    directions = _object(pll.get("port_directions"), "system PLL port directions")
-    if pll.get("type") != "altera_pll" or set(connections) != {"outclk", "refclk", "locked"}:
-        raise ValueError("ST system PLL connection contract changed")
-    encoded = attributes.get("FES_PINMAP_V1")
-    if not isinstance(encoded, str):
-        raise ValueError("ST system PLL frozen pin map is missing")
-    mapping = _object(json.loads(bytes.fromhex(encoded).decode()), "system PLL pin map")
-    pins = _object(mapping.get("pins"), "system PLL mapped pins")
-    aliases = {f"outclk[{bit}]": [0, f"outclk[{bit}]"] for bit in range(2)}
-    if type(mapping.get("count")) is not int or mapping["count"] != 6 or len(pins) != 6 or \
-            any(pins.get(k) != v for k, v in aliases.items()):
-        raise ValueError("ST system PLL frozen pin map changed")
-    output1 = _net_bits(top["netnames"], "system_clock.pll_outclk_1", 1, wires=True)
-    clock1 = _net_bits(top["netnames"], "system_clock.clocks[1]", 1, wires=True)
-    buffers = [c for c in cells.values() if c.get("type") == "MISTRAL_CLKBUF" and
-               _object(c.get("connections"), "clock buffer connections").get("Q") == clock1]
-    if len(buffers) != 1 or buffers[0]["connections"].get("A") != output1:
-        raise ValueError("ST frozen audio PLL net changed")
-    pll["connections"]["outclk[1]"] = output1
-    directions["outclk[1]"] = "output"
-    del mapping["pins"]["outclk[0]"]
-    mapping["count"] = len(mapping["pins"])
-    pll["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping, sort_keys=True).encode().hex()
+    # Current nextpnr serializes both PLL outputs and their physical counters.
+    # Replaying a legacy pin map requires a new shell, never an alias repair.
+    from scripts.build_fes_atari_st_oss import validate_system_pll
+    validate_system_pll(top)
     # Keep anchors and their constant routes frozen. Removing only their cells
     # leaves occupied input wires at sites that the cart placer would reuse.
     for name in boundary_bels():

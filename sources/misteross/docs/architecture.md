@@ -1999,6 +1999,16 @@ anchors and CRAM rectangle remain the existing socket contract. Separate
 Direct/Scanlines routes must still pass timing and whole-bitstream containment;
 retained egress alone does not qualify a video part.
 
+The ST compiler is pinned by `toolchains/atari-st.lock` at nextpnr `b7ba9b6e`.
+Its PLL solver serializes both system PLL output connections with physical
+counter pins (C6/C7 for the current frequencies). The shell and both part
+builders validate and preserve that metadata. They reject the old split-output
+pin map with a request to rebuild the shell; they do not repair old aliases.
+Shell evidence checks the solver's requested/achieved 52.224/12.288 MHz outputs,
+in addition to the three final routed timing gates. The compiler bounds repeated
+architecture rejections and reports the failing connection. This prevents the
+old Scanlines livelock; it does not establish that seed 5 routes successfully.
+
 `scripts/build_atari_st_video_part.py` compares the frozen shell directory with
 the sealed package for `manifest.toml`, `core.rbf` and `rom-map.json`.
 `routed.json` and `socket.qsf` are producer outputs, not package members; a

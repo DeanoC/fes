@@ -157,7 +157,7 @@ class Boundary(unittest.TestCase):
             for bit in range(count):
                 for suffix in ('','$ROUTETHRU'):
                     self.assertEqual(top["cells"][layout.PREFIX+f'plug_{kind}_ff_{bit}'+suffix],result["cells"][f'plug_{target}_ff_{bit}'+suffix])
-        self.assertEqual(result["cells"]["system_clock.pll"]["connections"]["outclk[1]"],[20])
+        self.assertEqual(result["cells"]["system_clock.pll"], top["cells"]["system_clock.pll"])
     def test_boundary_rejects_source_clock_response_and_rogue_pair(self):
         layout.validate_boundary(fixture(),routed=False)
         for name,port,value in (("plug_request_ff_0","CLK",[0]),("plug_request_ff_0","DATAIN",[101]),("plug_response_ff_27","DATAIN",[1])):

@@ -258,10 +258,11 @@ Copy the closest sibling. Do not start from an experiment, and do not fork a
 second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
 
-The Atari ST producer now pins DeanoC/nextpnr head `3d4a5b35` in its own
+The Atari ST producer now pins DeanoC/nextpnr head `b7ba9b6e` in its own
 `toolchains/atari-st.lock`; RAM test and menu use the shared `toolchain.lock`
 and its HIP compiler slot. The 130 MHz timing comparison uses that same pin.
-Requalification is recorded in the [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md).
+Shells and their exact-shell parts must be rebuilt together after this pin change.
+The older pin is covered by the [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md).
 
 The [Atari 520ST](../cores/fes-atari-st/README.md) is the first 16-bit core.
 `make sim-fes-atari-st` covers the full CPU, MMU aliases, peripherals,

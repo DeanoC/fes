@@ -52,7 +52,7 @@ ST_TOOLCHAIN_CONFIGURATION = (
 )
 ST_TOOL_COMMITS = {
     "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
-    "nextpnr": "3d4a5b352b4edb478b744b82cc61333353751a80",
+    "nextpnr": "b7ba9b6e3d67737c77aaea6bb23ac8d1b6c76cd2",
     "yosys": "886afa63953e97407153e9f4aae25fcedb639696",
 }
 # First passing route wins; the order is part of the build identity. Seed 4
@@ -656,6 +656,52 @@ def validate_m10k_configurations(routed: dict, database: Mapping[str, bytes]) ->
             "routing_coverage": "RAM-local BM_CRAM only; routing PIPs use the frozen shell/card containment contract"}
 
 
+def validate_system_pll(top: dict) -> None:
+    """Require the connected outputs and physical counter map from this compiler."""
+    try:
+        pll = top["cells"]["system_clock.pll"]
+        connections = pll["connections"]
+        attributes = pll["attributes"]
+        counters = attributes["MISTRAL_PLL_COUNTERS"].split(",")
+        mapping = json.loads(bytes.fromhex(attributes["FES_PINMAP_V1"]).decode())
+        pins = mapping["pins"]
+        output = top["netnames"]["system_clock.pll_outclk_1"]["bits"]
+        clock = top["netnames"]["system_clock.clocks[1]"]["bits"]
+        if (pll["type"] != "altera_pll" or
+                set(connections) != {"outclk", "outclk[1]", "refclk", "locked"} or
+                len(counters) != 2 or len(set(counters)) != 2 or
+                any(not re.fullmatch(r"[0-8]", counter) for counter in counters) or
+                type(mapping["count"]) is not int or mapping["count"] != len(pins) or
+                "outclk[0]" in pins or
+                any(pins.get(port) != [0, "C" + counter] for port, counter in
+                    zip(("outclk", "outclk[1]"), counters)) or
+                connections["outclk[1]"] != output or
+                len(output) != 1 or type(output[0]) is not int or
+                len(clock) != 1 or type(clock[0]) is not int or
+                pll["port_directions"].get("outclk[1]") != "output"):
+            raise ValueError("PLL output contract changed")
+        buffers = [cell for cell in top["cells"].values()
+                   if cell.get("type") == "MISTRAL_CLKBUF" and
+                   cell.get("connections", {}).get("Q") == clock]
+        if len(buffers) != 1 or buffers[0]["connections"].get("A") != output:
+            raise ValueError("PLL audio clock branch changed")
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
+        raise BuildError("ST system PLL must come from the current compiler; rebuild the shell") from exc
+
+
+def validate_pll_log(route_text: str) -> None:
+    """Check both achieved system-PLL outputs in the locked solver's log."""
+    if not re.search(r"PLL 'system_clock.pll': 50\.000000 MHz -> VCO ", route_text):
+        raise BuildError("route log does not contain the 50 MHz system PLL reference")
+    for index, hz in enumerate((52224000, 12288000)):
+        match = re.search(
+            rf"PLL 'system_clock.pll': fractional-N requested {hz}\.000000 Hz "
+            rf"\(output {index}\), achieved ([0-9.]+) Hz, error ([0-9.eE+-]+) ppm\.",
+            route_text)
+        if match is None or abs(float(match[1]) / hz - 1) > 1e-6 or abs(float(match[2])) > 1:
+            raise BuildError(f"route log must prove system PLL output {index} at {hz} Hz")
+
+
 def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes],
                             gpu_backend: str = ST_GPU_BACKEND) -> dict:
     routed = _read_json(output / "routed.json", "routed design")
@@ -673,10 +719,8 @@ def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes],
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text, gpu_backend)
-    if "50 MHz -> 52.224 MHz" not in route_text:
-        raise BuildError("route log does not contain the 50-to-52.224 MHz system PLL")
-    if not re.search(r"PLL 'system_clock.pll': second output 12\.288 MHz", route_text):
-        raise BuildError("route log must prove the 12.288 MHz audio PLL")
+    validate_system_pll(routed["modules"][TOP])
+    validate_pll_log(route_text)
     timing = _read_json(output / "timing.json", "timing report")
     rows = {label: _frequency_row(timing.get("fmax"), mhz, label)
             for label, mhz in (("system", 52.224), ("pixel", 74.25), ("audio", 12.288))}

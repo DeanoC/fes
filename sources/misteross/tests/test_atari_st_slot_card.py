@@ -20,12 +20,13 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def frozen_shell() -> dict:
-    pins = {name: [0, name] for name in ("locked", "outclk", "outclk[0]", "outclk[1]", "refclk", "rst")}
+    pins = {name: [0, name] for name in ("locked", "outclk", "outclk[1]", "refclk", "rst")}
+    pins.update({"outclk": [0, "C6"], "outclk[1]": [0, "C7"]})
     cells = {
         "system_clock.pll": {"type": "altera_pll",
-            "connections": {"outclk": [10], "refclk": [11], "locked": [12]},
-            "port_directions": {"outclk": "output", "refclk": "input", "locked": "output"},
-            "attributes": {"FES_PINMAP_V1": json.dumps({"count": 6, "pins": pins}, sort_keys=True).encode().hex()}},
+            "connections": {"outclk": [10], "outclk[1]": [20], "refclk": [11], "locked": [12]},
+            "port_directions": {"outclk": "output", "outclk[1]": "output", "refclk": "input", "locked": "output"},
+            "attributes": {"MISTRAL_PLL_COUNTERS": "6,7", "FES_PINMAP_V1": json.dumps({"count": 5, "pins": pins}, sort_keys=True).encode().hex()}},
         "system_clock.clocks_MISTRAL_CLKBUF_Q_1": {
             "type": "MISTRAL_CLKBUF", "connections": {"A": [20], "Q": [21]}},
         "video_clock": {"type": "altera_pll", "connections": {"outclk": [30]}},
@@ -142,6 +143,7 @@ class AtariSTSlotCardTests(unittest.TestCase):
         self.assertEqual(cells["machine.keep"], original["modules"]["top"]["cells"]["machine.keep"])
         self.assertEqual(cells["video_clock"], original["modules"]["top"]["cells"]["video_clock"])
         self.assertEqual(prepared["netnames"], original["modules"]["top"]["netnames"])
+        self.assertEqual(cells["system_clock.pll"], original["modules"]["top"]["cells"]["system_clock.pll"])
         pll = cells["system_clock.pll"]
         self.assertEqual(pll["connections"]["outclk[1]"], [20])
         mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]).decode())
