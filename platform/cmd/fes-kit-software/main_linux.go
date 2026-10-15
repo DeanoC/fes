@@ -274,6 +274,7 @@ func run() error {
 	defer ticker.Stop()
 	var trialHold *kitsoftware.UnixAdmission
 	var trialRequest kitsoftware.Request
+	var trialSuccessor kitsoftware.SuccessorHold
 
 	for {
 		select {
@@ -316,10 +317,21 @@ func run() error {
 			if trialHold != nil {
 				// Install the persisted queue before ending the boot reservation.
 				// A failure leaves that credential held so claims stay closed.
+				// Once the reservation has finished, confirm the same successor
+				// and retry release; do not require the reservation to accept
+				// another held install.
 				restore := bootRequest
 				restore.ID = operationID(restore.ID + "-restore-selection")
-				err := kitsoftware.HandoffTrial(ctx, repo, restore, func(ctx context.Context, request kitsoftware.Request) error {
+				err := kitsoftware.HandoffTrial(ctx, repo, restore, &trialSuccessor, func(ctx context.Context, request kitsoftware.Request) error {
 					return admission.QueueWhileHeld(ctx, trialHold, trialRequest, request)
+				}, func(ctx context.Context, request kitsoftware.Request) error {
+					return admission.Queue(ctx, request)
+				}, func(ctx context.Context) (bool, error) {
+					status, err := trialHold.Status(ctx)
+					if err != nil {
+						return false, err
+					}
+					return kitsoftware.ReservationStillHeld(status, trialRequest.ID), nil
 				}, func(ctx context.Context) error {
 					return trialHold.Release(ctx, trialRequest)
 				})
@@ -327,6 +339,7 @@ func run() error {
 					server.StorageError = err.Error()
 				} else {
 					trialHold = nil
+					trialSuccessor = kitsoftware.SuccessorHold{}
 					server.StorageError = ""
 				}
 			}

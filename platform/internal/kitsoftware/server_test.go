@@ -227,13 +227,17 @@ func (f *failUpdateRepo) Update(fn func(*State) error) error {
 }
 
 type admissionStub struct {
-	mu         sync.Mutex
-	queued     map[string]bool
-	fenced     bool
-	failQueue  bool
-	order      []string
-	entered    chan struct{}
-	blockQueue chan struct{}
+	mu           sync.Mutex
+	queued       map[string]bool
+	fenced       bool
+	failQueue    bool
+	dropFence    bool
+	rejectFence  bool
+	dropCancel   bool
+	rejectCancel bool
+	order        []string
+	entered      chan struct{}
+	blockQueue   chan struct{}
 }
 
 func (s *admissionStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -245,17 +249,37 @@ func (s *admissionStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.order = append(s.order, r.URL.Path)
 	switch r.URL.Path {
 	case "/fence":
+		if s.rejectFence {
+			s.mu.Unlock()
+			http.Error(w, "fence rejected", http.StatusInternalServerError)
+			return
+		}
 		s.fenced = true
+		drop := s.dropFence
 		s.mu.Unlock()
+		if drop {
+			discardAdmissionResponse(w)
+			return
+		}
 		w.Write([]byte("{}"))
 	case "/clear-fence":
 		s.fenced = false
 		s.mu.Unlock()
 		w.Write([]byte("{}"))
 	case "/cancel":
+		if s.rejectCancel {
+			s.mu.Unlock()
+			http.Error(w, "cancel rejected", http.StatusInternalServerError)
+			return
+		}
 		id, _ := body["request_id"].(string)
 		delete(s.queued, id)
+		drop := s.dropCancel
 		s.mu.Unlock()
+		if drop {
+			discardAdmissionResponse(w)
+			return
+		}
 		w.Write([]byte("{}"))
 	case "/queue":
 		id, _ := body["request_id"].(string)
@@ -287,6 +311,14 @@ func (s *admissionStub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		http.NotFound(w, r)
 	}
+}
+
+func discardAdmissionResponse(w http.ResponseWriter) {
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		return
+	}
+	conn.Close()
 }
 
 func listenAdmission(t *testing.T, stub *admissionStub) *UnixAdmission {
@@ -415,5 +447,155 @@ func TestCancelWriteFailureFencesClaimWhenRestoreFails(t *testing.T) {
 	}
 	if code := claimCode(stub); code != 409 {
 		t.Fatal("claim admitted after reconciliation", code)
+	}
+}
+
+func TestCancelLostResponseRestoresQueueBeforeOpen(t *testing.T) {
+	stub := &admissionStub{dropCancel: true}
+	server, _, request := cancelFixture(t, stub)
+	body := []byte(`{"id":"` + request.ID + `","expected_generation":0}`)
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/kit/software/cancel", bytes.NewReader(body)))
+	if w.Code != 503 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if server.ExecutionFenced {
+		t.Fatal("restored queue left execution fenced")
+	}
+	if !stub.queued[request.ID] || stub.fenced {
+		t.Fatal("queue or fence left open", stub.queued, stub.fenced)
+	}
+	state, err := server.Repository.Read()
+	if err != nil || state.Pending == nil || state.Pending.ID != request.ID {
+		t.Fatal("durable request lost", state, err)
+	}
+	want := []string{"/fence", "/cancel", "/queue", "/clear-fence"}
+	if strings.Join(stub.order, ",") != strings.Join(want, ",") {
+		t.Fatal(stub.order)
+	}
+	if code := claimCode(stub); code != 409 {
+		t.Fatal("claim admitted", code)
+	}
+}
+
+func TestCancelLostResponseKeepsFenceWhenRestoreFails(t *testing.T) {
+	stub := &admissionStub{dropCancel: true, failQueue: true}
+	server, _, request := cancelFixture(t, stub)
+	body := []byte(`{"id":"` + request.ID + `","expected_generation":0}`)
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/kit/software/cancel", bytes.NewReader(body)))
+	if w.Code != 503 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if !server.ExecutionFenced || !stub.fenced || stub.queued[request.ID] {
+		t.Fatal("fence opened after a lost cancel", server.ExecutionFenced, stub.fenced, stub.queued)
+	}
+	stub.mu.Lock()
+	stub.failQueue = false
+	stub.mu.Unlock()
+	if err := server.ReconcileExecutionFence(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if server.ExecutionFenced || !stub.queued[request.ID] || stub.fenced {
+		t.Fatal("reconciliation did not restore priority before opening", server.ExecutionFenced, stub.queued, stub.fenced)
+	}
+	if code := claimCode(stub); code != 409 {
+		t.Fatal("claim admitted after reconciliation", code)
+	}
+}
+
+func TestCancelRejectedLeavesQueueAndOpensFence(t *testing.T) {
+	stub := &admissionStub{rejectCancel: true}
+	server, _, request := cancelFixture(t, stub)
+	body := []byte(`{"id":"` + request.ID + `","expected_generation":0}`)
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/kit/software/cancel", bytes.NewReader(body)))
+	if w.Code != 503 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if server.ExecutionFenced || stub.fenced || !stub.queued[request.ID] {
+		t.Fatal("known cancel rejection changed the queue or left the fence closed", server.ExecutionFenced, stub.fenced, stub.queued)
+	}
+	want := []string{"/fence", "/cancel", "/clear-fence"}
+	if strings.Join(stub.order, ",") != strings.Join(want, ",") {
+		t.Fatal(stub.order)
+	}
+	if code := claimCode(stub); code != 409 {
+		t.Fatal("claim admitted", code)
+	}
+}
+
+func TestFenceLostResponseReconcilesBeforeAdmittingClaim(t *testing.T) {
+	stub := &admissionStub{dropFence: true}
+	server, _, request := cancelFixture(t, stub)
+	body := []byte(`{"id":"` + request.ID + `","expected_generation":0}`)
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/kit/software/cancel", bytes.NewReader(body)))
+	if w.Code != 503 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	stub.mu.Lock()
+	fenced, queued := stub.fenced, stub.queued[request.ID]
+	stub.mu.Unlock()
+	if !server.ExecutionFenced || !fenced || !queued {
+		t.Fatal("lost fence reply was treated as open", server.ExecutionFenced, fenced, queued)
+	}
+	stub.mu.Lock()
+	delete(stub.queued, request.ID)
+	stub.mu.Unlock()
+	if code := claimCode(stub); code != 409 {
+		t.Fatal("claim admitted while the lost fence was closed", code)
+	}
+	if err := server.ReconcileExecutionFence(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	stub.mu.Lock()
+	fenced, queued = stub.fenced, stub.queued[request.ID]
+	order := append([]string(nil), stub.order...)
+	stub.mu.Unlock()
+	if server.ExecutionFenced || fenced || !queued {
+		t.Fatal("reconciliation cleared priority or left the fence closed", server.ExecutionFenced, fenced, queued)
+	}
+	var calls []string
+	for _, path := range order {
+		if path != "/test/claim" {
+			calls = append(calls, path)
+		}
+	}
+	want := []string{"/fence", "/queue", "/clear-fence"}
+	if strings.Join(calls, ",") != strings.Join(want, ",") {
+		t.Fatal(calls)
+	}
+	if code := claimCode(stub); code != 409 {
+		t.Fatal("claim admitted over the restored queue", code)
+	}
+	stub.mu.Lock()
+	delete(stub.queued, request.ID)
+	stub.mu.Unlock()
+	if code := claimCode(stub); code != 200 {
+		t.Fatal("fence stayed closed after reconciliation", code)
+	}
+}
+
+func TestFenceRejectedStaysOpen(t *testing.T) {
+	stub := &admissionStub{rejectFence: true}
+	server, _, request := cancelFixture(t, stub)
+	body := []byte(`{"id":"` + request.ID + `","expected_generation":0}`)
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/v1/kit/software/cancel", bytes.NewReader(body)))
+	if w.Code != 503 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	if server.ExecutionFenced || stub.fenced || !stub.queued[request.ID] {
+		t.Fatal("rejected fence was recorded as closed", server.ExecutionFenced, stub.fenced, stub.queued)
+	}
+	if strings.Join(stub.order, ",") != "/fence" {
+		t.Fatal(stub.order)
+	}
+	stub.mu.Lock()
+	delete(stub.queued, request.ID)
+	stub.mu.Unlock()
+	if code := claimCode(stub); code != 200 {
+		t.Fatal("known-open fence blocked a claim", code)
 	}
 }

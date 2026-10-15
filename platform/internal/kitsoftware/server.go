@@ -26,9 +26,10 @@ type Server struct {
 	Controller   *ProcessController
 	BaseIdentity string
 	StorageError string
-	// ExecutionFenced is set when a durable cancellation fails and the volatile
-	// queue cannot be restored. Claims stay closed until ReconcileExecutionFence
-	// makes the durable and volatile records match.
+	// ExecutionFenced is set when the agent's execution fence may be closed and
+	// the durable queue is not yet known to match. That includes a lost /fence
+	// reply and a restore that failed after cancellation. Claims stay closed
+	// until ReconcileExecutionFence makes the durable and volatile records match.
 	ExecutionFenced bool
 	Gate            func() error
 }
@@ -38,8 +39,9 @@ func (s *Server) PublishStatus() {
 	s.snapshot.Store(snapshot)
 }
 
-// ReconcileExecutionFence restores a queued request's claim priority, then
-// opens the fence. It leaves the fence closed when the queue cannot be restored.
+// ReconcileExecutionFence restores a queued request's claim priority before it
+// opens the fence. A lost /fence reply and a failed restore both come through
+// here. The fence stays closed when that queue cannot be restored.
 func (s *Server) ReconcileExecutionFence(ctx context.Context) error {
 	if !s.ExecutionFenced || s.Admission == nil || s.Repository == nil {
 		return nil
@@ -59,6 +61,28 @@ func (s *Server) ReconcileExecutionFence(ctx context.Context) error {
 	s.ExecutionFenced = false
 	s.StorageError = ""
 	return nil
+}
+
+// restoreQueuedPriority puts the durable request ahead of new claims, then
+// opens the fence. A failed restore or a failed open leaves the fence closed
+// for ReconcileExecutionFence.
+func (s *Server) restoreQueuedPriority(ctx context.Context, request Request) {
+	if err := s.Admission.Queue(ctx, request); err != nil {
+		s.ExecutionFenced = true
+		s.StorageError = err.Error()
+		return
+	}
+	s.finishFence(ctx)
+}
+
+func (s *Server) finishFence(ctx context.Context) {
+	if err := s.Admission.ClearExecutionFence(ctx); err != nil {
+		s.ExecutionFenced = true
+		s.StorageError = err.Error()
+		return
+	}
+	s.ExecutionFenced = false
+	s.StorageError = ""
 }
 
 func (s *Server) status() (softwarecontrol.Status, error) {
@@ -183,8 +207,11 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Close an execution fence, then drop the volatile queue, all before this
 		// handler releases the operation mutex. A crash before the durable
 		// cancellation leaves the original request; the next start requeues it.
-		// If the durable write fails, restore that queue before opening the fence.
-		// A failed restore leaves the fence closed until both records match.
+		// The fence is uncertain until /fence returns: a lost reply keeps it
+		// closed for reconciliation, and an HTTP rejection means it stayed open.
+		// An uncertain /cancel is the same as a failed durable write: restore
+		// the queue before opening the fence. A failed restore leaves the fence
+		// closed until both records match.
 		state, err := s.Repository.Read()
 		if err != nil {
 			fail(503, err)
@@ -196,14 +223,22 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			queued = &copy
 		}
 		if queued != nil {
+			s.ExecutionFenced = true
 			if err := s.Admission.FenceExecution(r.Context()); err != nil {
+				if !AdmissionUncertain(err) {
+					s.ExecutionFenced = false
+					s.StorageError = ""
+				} else {
+					s.StorageError = err.Error()
+				}
 				fail(503, err)
 				return
 			}
 			if err := s.Admission.Cancel(r.Context(), req.ID); err != nil {
-				if clearErr := s.Admission.ClearExecutionFence(r.Context()); clearErr != nil {
-					s.ExecutionFenced = true
-					s.StorageError = clearErr.Error()
+				if AdmissionUncertain(err) {
+					s.restoreQueuedPriority(r.Context(), queued.Request)
+				} else {
+					s.finishFence(r.Context())
 				}
 				fail(503, err)
 				return
@@ -211,22 +246,15 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := Cancel(s.Repository, req.ID, req.Generation); err != nil {
 			if queued != nil {
-				if restoreErr := s.Admission.Queue(r.Context(), queued.Request); restoreErr != nil {
-					s.ExecutionFenced = true
-					s.StorageError = restoreErr.Error()
-				} else if clearErr := s.Admission.ClearExecutionFence(r.Context()); clearErr != nil {
-					s.ExecutionFenced = true
-					s.StorageError = clearErr.Error()
-				}
+				s.restoreQueuedPriority(r.Context(), queued.Request)
 			}
 			fail(409, err)
 			return
 		}
 		if queued != nil {
-			if err := s.Admission.ClearExecutionFence(r.Context()); err != nil {
-				s.ExecutionFenced = true
-				s.StorageError = err.Error()
-				fail(503, err)
+			s.finishFence(r.Context())
+			if s.ExecutionFenced {
+				fail(503, errors.New(s.StorageError))
 				return
 			}
 		}

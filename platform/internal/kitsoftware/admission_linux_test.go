@@ -14,6 +14,22 @@ import (
 	"time"
 )
 
+func TestAdmissionUncertainDistinguishesStatus(t *testing.T) {
+	if AdmissionUncertain(nil) {
+		t.Fatal("nil error")
+	}
+	if AdmissionUncertain(&admissionResponseError{Path: "/fence", Status: 500, Body: "rejected"}) {
+		t.Fatal("HTTP rejection is a known result")
+	}
+	busy := &busyAdmissionError{status: &admissionResponseError{Path: "/cancel", Status: 409, Body: "busy"}}
+	if AdmissionUncertain(busy) || !errors.Is(busy, ErrBusy) {
+		t.Fatal("busy HTTP status", AdmissionUncertain(busy), busy)
+	}
+	if !AdmissionUncertain(errors.New("timeout")) {
+		t.Fatal("transport error")
+	}
+}
+
 func TestAdmissionPreparingResumeAndLostEndReply(t *testing.T) {
 	dir := t.TempDir()
 	socket := filepath.Join(dir, "admission.sock")

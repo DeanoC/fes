@@ -124,16 +124,53 @@ func (a *UnixAdmission) call(ctx context.Context, path string, in, out any) erro
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		status := &admissionResponseError{Path: path, Status: resp.StatusCode, Body: string(b)}
 		if resp.StatusCode == 409 || resp.StatusCode == 423 {
-			return fmt.Errorf("%w: %s", ErrBusy, b)
+			return &busyAdmissionError{status: status}
 		}
-		return fmt.Errorf("admission %s: HTTP %d: %s", path, resp.StatusCode, b)
+		return status
 	}
 	if out != nil {
 		return json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(out)
 	}
 	return nil
 }
+
+// admissionResponseError is an HTTP status from the agent. The call was rejected
+// and the agent's state was left unchanged. A transport failure is not this
+// error: the agent may already have applied the call.
+type admissionResponseError struct {
+	Path   string
+	Status int
+	Body   string
+}
+
+func (e *admissionResponseError) Error() string {
+	return fmt.Sprintf("admission %s: HTTP %d: %s", e.Path, e.Status, e.Body)
+}
+
+type busyAdmissionError struct {
+	status *admissionResponseError
+}
+
+func (e *busyAdmissionError) Error() string {
+	return ErrBusy.Error() + ": " + e.status.Body
+}
+
+func (e *busyAdmissionError) Unwrap() []error {
+	return []error{ErrBusy, e.status}
+}
+
+// AdmissionUncertain reports that the agent may have applied the call.
+// An HTTP status is a definite rejection. A timeout or lost response is not.
+func AdmissionUncertain(err error) bool {
+	if err == nil {
+		return false
+	}
+	var status *admissionResponseError
+	return !errors.As(err, &status)
+}
+
 func (a *UnixAdmission) Queue(ctx context.Context, r Request) error {
 	return a.call(ctx, "/queue", a.Claim(r), nil)
 }
