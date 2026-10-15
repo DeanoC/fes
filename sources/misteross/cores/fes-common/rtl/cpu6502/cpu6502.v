@@ -108,6 +108,7 @@ reg [5:0] state;
 
 reg PC_inc;             // Increment PC
 reg [15:0] PC_temp;     // intermediate value of PC
+reg [7:0] jsr_low;      // target low byte retained across stack bus cycles
 
 reg [1:0] src_reg;      // source register index
 reg [1:0] dst_reg;      // destination register index
@@ -198,10 +199,10 @@ parameter
     JMP1   = 6'd23, // JMP     - fetch PCH
     JMPI0  = 6'd24, // JMP IND - fetch LSB and send to ALU for delay (+0)
     JMPI1  = 6'd25, // JMP IND - fetch MSB, proceed with JMP0 state
-    JSR0   = 6'd26, // JSR     - push PCH, save LSB, send S to ALU (-1)
-    JSR1   = 6'd27, // JSR     - push PCL, send S to ALU (-1)
-    JSR2   = 6'd28, // JSR     - write S
-    JSR3   = 6'd29, // JSR     - fetch MSB
+    JSR0   = 6'd26, // JSR     - dummy stack read, save LSB, calculate S-1
+    JSR1   = 6'd27, // JSR     - push PCH, calculate S-1
+    JSR2   = 6'd28, // JSR     - push PCL, calculate S-2
+    JSR3   = 6'd29, // JSR     - fetch MSB, write S
     PULL0  = 6'd30, // PLP/PLA - save next op in IRHOLD, send S to ALU (+1)
     PULL1  = 6'd31, // PLP/PLA - fetch data from stack, write S
     PULL2  = 6'd32, // PLP/PLA - prefetch op, but don't increment PC
@@ -221,7 +222,8 @@ parameter
     WRITE  = 6'd46, // Write memory for read/modify/write
     ZP0    = 6'd47, // Z-page  - fetch ZP address
     ZPX0   = 6'd48, // ZP, X   - fetch ZP, and send to ALU (+X)
-    ZPX1   = 6'd49; // ZP, X   - load from memory
+    ZPX1   = 6'd49, // ZP, X   - load from memory
+    JSR4   = 6'd50; // JSR     - fetch target opcode after consuming MSB
 
 `ifdef SIM
 
@@ -262,6 +264,7 @@ always @*
             JSR1:   statename = "JSR1";
             JSR2:   statename = "JSR2";
             JSR3:   statename = "JSR3";
+            JSR4:   statename = "JSR4";
             RTI0:   statename = "RTI0";
             RTI1:   statename = "RTI1";
             RTI2:   statename = "RTI2";
@@ -325,9 +328,10 @@ always @*
 
         JMP1,
         JMPI1,
-        JSR3,
         RTS3,
         RTI4:           PC_temp = { DIMUX, ADD };
+
+        JSR4:           PC_temp = { DIMUX, jsr_low };
 
         BRA1:           PC_temp = { ABH, ADD };
 
@@ -357,6 +361,7 @@ always @*
         BRK3,
         JMPI1,
         JMP1,
+        JSR4,
         RTI4,
         RTS3:           PC_inc = 1;
 
@@ -397,13 +402,14 @@ always @*
         BRA1:           AB = { ABH, ADD };
 
         JSR0,
+        JSR1,
         PUSH1,
         RTS0,
         RTI0,
         BRK0:           AB = { STACKPAGE, regfile };
 
         BRK1,
-        JSR1,
+        JSR2,
         PULL1,
         RTS1,
         RTS2,
@@ -423,6 +429,8 @@ always @*
         REG,
         READ,
         WRITE:          AB = { ABH, ABL };
+
+        JSR4:           AB = { DIMUX, jsr_low };
 
         default:        AB = PC;
     endcase
@@ -448,10 +456,10 @@ always @*
         READ:    DO = DIMUX; // NMOS RMW writes the original operand first.
         WRITE:   DO = ADD;
 
-        JSR0,
+        JSR1,
         BRK0:    DO = PCH;
 
-        JSR1,
+        JSR2,
         BRK1:    DO = PCL;
 
         PUSH1:   DO = php ? P : ADD;
@@ -470,8 +478,8 @@ always @*
         BRK0,   // writing to stack or memory
         BRK1,
         BRK2,
-        JSR0,
         JSR1,
+        JSR2,
         PUSH1,
         READ,    // NMOS read-modify-write dummy write
         WRITE:   WE = 1;
@@ -502,8 +510,7 @@ always @*
          RTS2,
          RTI3,
          BRK3,
-         JSR0,
-         JSR2 : write_register = 1;
+         JSR3 : write_register = 1;
 
        default: write_register = 0;
     endcase
@@ -547,14 +554,17 @@ always @* begin
 end
 
 /*
- * write to a register. Usually this is the (BCD corrected) output of the
- * ALU, but in case of the JSR0 we use the S register to temporarily store
- * the PCL. This is possible, because the S register itself is stored in
- * the ALU during those cycles.
+ * Write the (BCD corrected) ALU output to the selected register.
  */
 always @(posedge clk)
     if( write_register & RDY )
-        AXYS[regsel] <= (state == JSR0) ? DIMUX : { ADD[7:4] + ADJH, ADD[3:0] + ADJL };
+        AXYS[regsel] <= { ADD[7:4] + ADJH, ADD[3:0] + ADJL };
+
+// NMOS JSR reads the stack before either push, then reads the target high
+// byte after both pushes. Keeping the low byte outside S preserves that bus
+// order, including RDY stalls and operands overlapping the stack page.
+always @(posedge clk)
+    if (RDY && state == JSR0) jsr_low <= DIMUX;
 
 /*
  * register select logic. This determines which of the A, X, Y or
@@ -574,7 +584,9 @@ always @*
         BRK0,
         BRK3,
         JSR0,
+        JSR1,
         JSR2,
+        JSR3,
         PULL0,
         PULL1,
         PUSH1,
@@ -626,7 +638,8 @@ always @*
         BRK1,
         BRK2,
         JSR0,
-        JSR1:   alu_op = OP_SUB;
+        JSR1,
+        JSR2:   alu_op = OP_SUB;
 
      default:   alu_op = OP_ADD;
     endcase
@@ -655,7 +668,7 @@ always @(posedge clk)
 
 always @*
     case( state )
-        JSR1,
+        JSR2,
         RTS1,
         RTI1,
         RTI2,
@@ -670,7 +683,7 @@ always @*
         RTI0,
         RTS0,
         JSR0,
-        JSR2,
+        JSR1,
         BRK0,
         PULL0,
         INDY1,
@@ -975,7 +988,8 @@ always @(posedge clk or posedge reset)
         JSR0    : state <= JSR1;
         JSR1    : state <= JSR2;
         JSR2    : state <= JSR3;
-        JSR3    : state <= FETCH;
+        JSR3    : state <= JSR4;
+        JSR4    : state <= DECODE;
 
         RTI0    : state <= RTI1;
         RTI1    : state <= RTI2;

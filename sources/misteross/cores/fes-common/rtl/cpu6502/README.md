@@ -53,3 +53,13 @@ cc -O3 -I "$IRQ_ORACLE_ROOT" cores/fes-c64/sim/irq_oracle.c \
 /tmp/fes-c64-irq-oracle > /tmp/fes-c64-irq-vectors.h
 cmp /tmp/fes-c64-irq-vectors.h cores/fes-c64/sim/irq_vectors.h
 ```
+
+JSR performs the NMOS dummy stack read before pushing the return address,
+and reads the target high byte after both pushes. A separate low-byte latch
+preserves the operand across these bus cycles. This ordering matters when
+C64 BA stalls a call or when an operand overlaps the stack page.
+`make sim-fes-c64-jsr` checks nine transistor-reference bus cases with enable
+gaps and 20 call/write timings on the actual C64 motherboard around a PAL
+badline. The cases include stack wrapping, a page-crossing return address
+and an operand overwritten by a stack push. Generate `jsr_vectors.h` using
+the same pinned oracle checkout and `cores/fes-c64/sim/jsr_oracle.c`.

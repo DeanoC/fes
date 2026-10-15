@@ -1809,6 +1809,11 @@ then the modified operand. This preserves hardware-visible register effects
 such as `INC $D019` acknowledging VIC IRQs. The C64 diagnostic uses that
 instruction, and its directed CPU test covers all 24 documented memory RMW
 opcode/address modes with CPU enable gaps.
+JSR performs a dummy stack read, pushes the return address, then reads the
+target high operand. A separate target-low latch preserves this NMOS bus
+order across RDY stalls and operands overlapping the stack page.
+`make sim-fes-c64-jsr` checks transistor-reference bus sequences and call/write
+timings through the motherboard's PAL badline arbitration.
 The stable undocumented SAX family stores `A & X` in zero-page, zero-page,Y,
 absolute and (zero-page,X) modes without changing registers or flags. Its
 four opcodes use the corresponding NMOS store bus sequence, including wrapping.

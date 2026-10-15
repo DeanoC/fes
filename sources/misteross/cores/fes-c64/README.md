@@ -155,6 +155,15 @@ RMW opcode/address-mode combinations, including absolute-index page crossing
 and CPU enable gaps. The motherboard diagnostic checks IRQ delivery and
 acknowledgement through the same shared CPU.
 
+JSR retains the NMOS dummy stack read before its two pushes and fetches the
+target high byte afterward. Reordering those cycles changes when a call
+stalls on a VIC badline; Edge of Disgrace's unpacker exercises that boundary.
+`make sim-fes-c64-jsr` compares bus addresses, directions and pushed bytes
+against the pinned transistor model in nine cases, including page/stack wrap,
+stack/operand overlap and CPU enable gaps. It also compares 20 motherboard
+call/write timings around the PAL matrix-DMA window. The vectors are generated
+by `sim/jsr_oracle.c` using the same perfect6502 checkout as the IRQ oracle.
+
 The shared CPU implements the stable undocumented SAX family in zero-page,
 zero-page,Y, absolute and (zero-page,X) modes. SAX writes `A & X` and leaves
 registers and flags unchanged. Edge of Disgrace uses `SAX $D016` in its
