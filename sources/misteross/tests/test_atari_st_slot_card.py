@@ -52,20 +52,24 @@ def frozen_shell(*, direct_inputs: bool = False) -> dict:
                                       "SCLR": [], "SDATA": [], "SLOAD": []})
             ff["port_directions"] = {port: "output" if port == "Q" else "input"
                                      for port in mapping["pins"]}
-            if name.startswith("plug_request_ff_") and int(name.removeprefix("plug_request_ff_")) < 53:
-                cells[f"request_source_{index}"] = {
-                    "type": "MISTRAL_FF", "connections": {"Q": [2000 + index]},
-                    "port_directions": {"Q": "output"}}
-            else:
-                ff["connections"]["DATAIN"] = [9000]
-    if direct_inputs:
-        cells["$PACKER_GND_DRV"] = {
-            "type": "MISTRAL_CONST", "parameters": {"LUT": "0" * 32},
-            "connections": {"Q": [9000]}, "port_directions": {"Q": "output"}}
     netnames = {"system_clock.pll_outclk_1": {"bits": [20]},
                 "system_clock.clocks[1]": {"bits": [21]}, "pixel_clk": {"bits": [30]},
                 card.SLOT_CLOCK: {"bits": [10], "attributes": {"ROUTING": "frozen clock branches"}}}
-    return {"modules": {"top": {"cells": cells, "netnames": netnames}}}
+    top = {"cells": cells, "netnames": netnames}
+    if direct_inputs:
+        top["ports"] = {"request": {"direction": "input", "bits": list(range(2000, 2056))}}
+        cells["$PACKER_GND_DRV"] = {"type": "MISTRAL_CONST", "parameters": {"LUT": "0" * 32},
+            "connections": {"Q": [4000]}, "port_directions": {"Q": "output"}}
+        for name in atari_st_slot.boundary_bels(socket):
+            role, bit = name.rsplit("_", 1)
+            ff = cells[socket.instance + name]
+            alias = {"plug_request_ff": f"expansion_plug_request[{bit}]",
+                     "plug_response_ff": f"expansion.response[{bit}]",
+                     "clock_coverage_ff": f"expansion.clock_coverage_unused[{bit}]"}[role]
+            netnames[alias] = {"bits": ff["connections"]["Q"][:]}
+            if role != "plug_request_ff":
+                ff["connections"]["DATAIN"] = [4000]
+    return {"modules": {"top": top}}
 
 
 def good_timing() -> dict:
@@ -152,7 +156,7 @@ class AtariSTSlotCardTests(unittest.TestCase):
     def test_scaffold_rejects_undriven_direct_datain(self):
         source = frozen_shell(direct_inputs=True)
         source["modules"]["top"]["cells"]["expansion.plug_request_ff_0"]["connections"]["DATAIN"] = [999999]
-        with self.assertRaisesRegex(ValueError, "no unique driver"):
+        with self.assertRaisesRegex(ValueError, "exactly one driver"):
             card.prepare_scaffold(json.dumps(source).encode(), 1)
 
     def test_source_closure_includes_probe_header_and_locked_tools(self):

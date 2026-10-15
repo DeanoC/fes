@@ -473,9 +473,10 @@ horizontal or top-border opening.
 
 The CPU expansion socket retains 119 pinned boundary/clock FFs. Current nextpnr
 routes these locked FFs through their native E/F inputs; the producer validates
-their exact pin map, system clock, inactive control ports and one proven
-DATAIN driver. Vacant response and clock anchors, and the three tied request
-pads, are constant zero. The other request bits stay live sources. Legacy shells
+their exact pin map, system clock, inactive control ports, one cell-output or
+module-input driver on each data net, and the request, response and clock-anchor
+output aliases. Vacant response and clock anchors require a packed zero driver.
+Legacy shells
 retain their paired LUT buffers and the corresponding strict wiring checks.
 Both forms preserve the CPU socket BELs and exclusion fence.
 

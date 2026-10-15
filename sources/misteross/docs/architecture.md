@@ -1791,11 +1791,10 @@ The CPU socket keeps 119 pinned boundary/clock FFs. Older routes include a
 dedicated LUT buffer at each FF's paired site; current nextpnr instead uses
 the locked FF's native E/F direct input. Admission checks that form's exact
 eight-port pin map, system clock, single data/output wires and empty control
-ports. Each direct DATAIN has one driver: a cell output, a top-level input,
-a 0/1 literal, or one proven `MISTRAL_CONST`. Vacant response inputs, clock
-anchors and the three tied request pads are constant zero; the other request
-bits are live sources. A routed net ID alone is not a driver. A missing
-legacy buffer alone never qualifies a boundary. Both forms
+ports. Each data net needs exactly one cell-output or module-input driver;
+vacant responses and clock anchors require an explicit packed zero driver.
+The request/response and clock-anchor output aliases must match their FFs.
+A missing legacy buffer alone never qualifies a boundary. Both forms
 retain the same BEL and socket exclusion checks; card preparation renames
 only buffers that actually exist.
 
