@@ -181,7 +181,7 @@ Target, kit-as-host (no sofa/PC)
   still one catalog: rooms, not fogcast-kit
 ```
 
-`fogcast-kit` (`cmd/fogcast-kit`, `ui/kitlauncher`, image `S60fogcast-kit`)
+`fogcast-kit` (`cmd/fogcast-kit`, `ui/kitlauncher`, base software supervisor `S40fes-kit-software`)
 is the current on-kit catalog. It retires toward rooms. Do not extend it
 into an offline cache UI or a second library.
 

@@ -24,9 +24,9 @@ These paths have software tests. They do not establish physical kit acceptance.
 The first adoption requires an authorized image update containing the supporting
 agent. There is no fallback to file swaps outside target admission.
 
-## Planned update boundaries
+## Update boundaries
 
-| Layer | Planned update operation | Activation boundary |
+| Layer | Update operation | Activation boundary |
 | --- | --- | --- |
 | Base OS, kernel, drivers and foundational init | Verified appliance image | Protected reboot, infrequent |
 | Kit agent/runtime and launcher | Immutable userspace release outside the OS image | Owned idle maintenance and affected service restart |
@@ -41,29 +41,24 @@ reject unsupported contracts rather than guess older behavior.
 
 ## Durable core installation
 
-Reuse the current package reader and immutable identity model. Installation must
-not activate a package or change a running selection. Resolve installed packages
-across the factory read-only inventory and a writable durable inventory; the
-launcher, mesh inventory and runtime admission must observe the same selection.
-
-The host package store requires POSIX permissions and hardlinks. FAT storage
-cannot directly provide those guarantees. Choose an explicit ext4-backed store
-and admission policy before reusing that implementation on the kit; do not infer
-that every card already has FESDATA3. ROMs and parts remain separately identified
-objects, and upgrades must respect existing persistence layouts.
+[The durable core library](kit-core-library.md) stores verified immutable packages
+on FESDATA3 and uses explicit generation-safe version selections. Installation
+and selection do not restart services or replace a running core. The runtime
+checks the selected artifact's ABI/profile at the next owned launch.
 
 ## Persistent userspace releases
 
-Build and publish a closed software artifact with board, architecture, base-system
-requirements, provided contracts and executable digests. Store it outside the
-base image and select it atomically under maintenance. Successful accepted
-updates remain selected. Temporary diagnostics remain explicit and restore only
-their own overlay changes. Health should report base-image and active-software
-identities separately rather than represent a substituted binary as image stock.
+[Kit software releases](kit-software-releases.md) provide a deterministic bundle
+of agent, runtime and launchers above the base OS. The base supervisor owns
+startup, durable queued activation and one bounded previous-bundle recovery.
+Compatibility uses explicit base-system and interface contracts; revisions remain
+independent provenance. The target waits for the execution lease to become free
+before acquiring maintenance. It never takes over to make an update happen.
 
-The lifecycle must reject stale completion and selection requests. Recovery is
-scoped to the failed release or selection; it must not restore an unrelated
-host, core library or newer deployment. FPGA transitions remain runtime-owned.
+Managed-kit file overlays are rejected. An accepted release remains selected;
+ordinary diagnostic cleanup cannot restore an older release. Status identifies
+the base image, active software and pending operation independently. Host-only
+regressions do not establish physical acceptance of the bootstrap cutover.
 
 ## Legacy cutover and acceptance
 

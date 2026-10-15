@@ -64,19 +64,21 @@ designated kit. Do not assume the same authorization for another device.
   Clean up only your host/session; follow FES `docs/kit-sharing.md`.
 - Check supported API/ABI contracts and record each exact artifact independently.
   Different source revisions alone do not require paired host/kit updates.
-- Kit file swaps use FES target-enforced maintenance admission. Do not bypass
-  it with SSH copying or restore another task's state. Temporary overlays are
-  restored explicitly; accepted appliance updates remain installed.
+- Managed kits use immutable software bundles through the authenticated software
+  API. Install without disrupting the owner; queue activation for a free lease.
+  Successful selections remain installed. Restoring a prior bundle is a new
+  explicit generation-checked selection, never routine task cleanup. Managed
+  kits reject binary/configuration file overlays. Unmanaged adoption diagnostics
+  still require target-enforced maintenance; never bypass it with SSH copying.
 - Use a branch or worktree for substantial work.
 - Prefer `rg` for source discovery.
 - Run the narrowest relevant tests, then affected package tests and
   `git diff --check`.
-- During active target/runtime development, prefer the fast loop: run the
-  host tests, cross-build only the changed self-contained runtime artifact,
-  inject it into a disposable copy of the last verified image, and deploy it
-  for bounded hardware diagnostics. Keep the original verified image
-  untouched and label derived-image results diagnostic only; they are not
-  reproducibility, release, or formal acceptance evidence.
+- During active target/runtime development, run focused host tests and build a
+  compatible kit software bundle. Use a private host for branch diagnostics and
+  the managed installation/queued activation path for kit changes. A bundle
+  install does not authorize deployment or confer hardware acceptance. Bootstrap,
+  system-library, kernel or driver changes still require an appliance image.
 - Reserve the FES two-pass `make build` / `make verify` for a stabilized
   change immediately before a major PR, merge, release, or formal hardware
   acceptance. A full image rebuild remains mandatory when Buildroot, init

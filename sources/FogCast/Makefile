@@ -84,7 +84,7 @@ vet:
 
 check: fmt test vet
 
-build: build-fogcast build-fogcast-api build-cli build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-target-image-lock build-target-image-lock-container
+build: build-fogcast build-fogcast-api build-cli build-fes-software build-remote-play-sender build-remote-play-receiver build-remote-play-impair build-agent build-bridge build-target-image-lock build-target-image-lock-container
 
 build-fogcast:
 	mkdir -p "$(dir $(FOGCAST_OUTPUT))"
@@ -199,3 +199,8 @@ build-target-image-lock-container:
 
 target-package-smoke:
 	scripts/package-runtime-smoke.sh
+
+.PHONY: build-fes-software
+build-fes-software:
+	mkdir -p bin
+	CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fes-software ./cmd/fes-software
