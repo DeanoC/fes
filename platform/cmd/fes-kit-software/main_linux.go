@@ -272,6 +272,9 @@ func run() error {
 	server.Mu.Unlock()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
+	var trialHold *kitsoftware.UnixAdmission
+	var trialRequest kitsoftware.Request
+	var trialSuccessor kitsoftware.SuccessorHold
 
 	for {
 		select {
@@ -290,7 +293,7 @@ func run() error {
 			}
 		case <-ticker.C:
 			server.Mu.Lock()
-			if repo == nil && startupErr == nil {
+			if repo == nil && startupErr == nil && trialHold == nil {
 				// Confirmed trials reconcile through the ordinary queue. The
 				// factory session is never stopped outside atomic admission.
 				if err := gate(ctx); err == nil {
@@ -303,29 +306,47 @@ func run() error {
 								server.StorageError = err.Error()
 								_ = oldAdmission.Release(ctx, reconcile)
 							} else {
-								if err := oldAdmission.Release(ctx, reconcile); err != nil {
-									startupErr = err
-									server.StorageError = err.Error()
-								} else {
-									engine = &kitsoftware.Engine{Repository: repo, Controller: controller, Admission: admission, Gate: gate}
-									state, err := repo.Read()
-									if err == nil && state.Pending == nil && state.Unreleased == nil {
-										request := bootRequest
-										request.ID = operationID(request.ID + "-restore-selection")
-										request.Candidate = state.Selected
-										request.Generation = state.Generation
-										err = kitsoftware.Queue(repo, request)
-									}
-									if err != nil {
-										startupErr = err
-										server.StorageError = err.Error()
-									}
-								}
+								engine = &kitsoftware.Engine{Repository: repo, Controller: controller, Admission: admission, Gate: gate}
+								trialHold = oldAdmission
+								trialRequest = reconcile
 							}
 						}
 					}
 				}
-			} else if repo != nil && startupErr == nil {
+			}
+			if trialHold != nil {
+				// Install the persisted queue before ending the boot reservation.
+				// A failure leaves that credential held so claims stay closed.
+				// Once the reservation has finished, confirm the same successor
+				// and retry release; do not require the reservation to accept
+				// another held install.
+				restore := bootRequest
+				restore.ID = operationID(restore.ID + "-restore-selection")
+				err := kitsoftware.HandoffTrial(ctx, repo, restore, &trialSuccessor, func(ctx context.Context, request kitsoftware.Request) error {
+					return admission.QueueWhileHeld(ctx, trialHold, trialRequest, request)
+				}, func(ctx context.Context, request kitsoftware.Request) error {
+					return admission.Queue(ctx, request)
+				}, func(ctx context.Context) (bool, error) {
+					status, err := trialHold.Status(ctx)
+					if err != nil {
+						return false, err
+					}
+					return kitsoftware.ReservationStillHeld(status, trialRequest.ID), nil
+				}, func(ctx context.Context) error {
+					return trialHold.Release(ctx, trialRequest)
+				})
+				if err != nil {
+					server.StorageError = err.Error()
+				} else {
+					trialHold = nil
+					trialSuccessor = kitsoftware.SuccessorHold{}
+					server.StorageError = ""
+				}
+			}
+			if trialHold == nil && repo != nil && startupErr == nil {
+				if err := server.ReconcileExecutionFence(ctx); err != nil {
+					server.StorageError = err.Error()
+				}
 				state, err := repo.Read()
 				if err == nil && state.Pending != nil {
 					_ = admission.Queue(ctx, state.Pending.Request)

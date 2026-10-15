@@ -2226,9 +2226,14 @@ after the current execution owner naturally releases. Queueing preserves that
 owner's renewal and operations. Only a settled free kit can atomically become a
 maintenance reservation. A private caller credential binds reservation recovery;
 public operation fields cannot recover a diagnostic owner's token. Cancelling a
-queued intent removes priority, while active maintenance retains its existing
-resume/end checks. The stable supervisor persists queue and activation state
-across reboot; the lease manager does not persist its pending queue.
+queued intent removes priority only after the durable cancellation is stored.
+The supervisor closes an execution fence first; if that durable write fails, it
+restores the queue before opening the fence, and leaves the fence closed when
+the restore fails. Active maintenance retains its existing resume/end checks.
+Trial reconciliation installs the persisted queue while the boot maintenance
+reservation is still held, and only then ends that reservation. The stable
+supervisor persists queue and activation state across reboot; the lease manager
+does not persist its pending queue.
 
 The supervisor verifies process exit before replacement, pins every service to
 one bundle, checks startup and finishes the exact maintenance generation.

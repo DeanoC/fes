@@ -74,7 +74,7 @@ class CompilerFixture:
         cram_set(self.placed.cram,die,layout.CRAM[0],layout.CRAM[1],1)
         self.timing=good_timing();self.timing['utilization']={}
         self.clock=9000;self.synthesis={'modules':{'cart':{'cells':{}}}}
-        self.commands=[];self.after_route=lambda output:None
+        self.commands=[];self.after_route=lambda output:None;self.backend='hip'
     def closure(self,root,roots,**kwargs):
         return {name:hashlib.sha256((root/name).read_bytes()).hexdigest() for name in producer.INPUTS}
     def compiler(self,command,root,log,**kwargs):
@@ -87,7 +87,7 @@ class CompilerFixture:
             (output/'timing.json').write_text(json.dumps(self.timing))
             top=fixture(True);top['cells']['fes_cart$parity']={'type':'MISTRAL_FF','connections':{'CLK':[self.clock]}}
             (output/'cart-routed.json').write_text(json.dumps({'modules':{'top':top}}))
-            log.write_text('Info: backend hip:fixture ready\nInfo: Program finished normally.\n')
+            log.write_text(f'Info: backend {self.backend}:fixture ready\nInfo: Program finished normally.\n')
             self.after_route(output)
     def build(self,**kwargs):
         with ExitStack() as stack:
@@ -95,12 +95,12 @@ class CompilerFixture:
                 ('read_package',{'return_value':self.package}),
                 ('_require_clean_source',{'return_value':('repo','d'*40)}),
                 ('source_input_closure',{'side_effect':self.closure}),
-                ('FunctionalInvocation',{'return_value':self.invocation}),
                 ('_run_tool',{'side_effect':self.compiler}),
                 ('rbf_load',{'side_effect':[self.base,self.placed]}),
                 ('rbf_save',{'return_value':b'linked-video'})):
                 stack.enter_context(patch.object(producer,name,**options))
-            stack.enter_context(patch.object(producer.shell_recipe,'_authenticate_atari_st_tools',return_value=self.tools))
+            self.authenticate=stack.enter_context(patch.object(producer.shell_recipe,'_authenticate_atari_st_tools',return_value=self.tools))
+            self.invocation_mock=stack.enter_context(patch.object(producer,'FunctionalInvocation',return_value=self.invocation))
             # Full shell RAM audit is separately tested by its owner. The actual
             # video/CPU boundary and PLL replay shape remain in this fixture.
             stack.enter_context(patch.object(producer.shell_recipe,'validate_routed_shell'))
@@ -158,6 +158,77 @@ class Boundary(unittest.TestCase):
                 for suffix in ('','$ROUTETHRU'):
                     self.assertEqual(top["cells"][layout.PREFIX+f'plug_{kind}_ff_{bit}'+suffix],result["cells"][f'plug_{target}_ff_{bit}'+suffix])
         self.assertEqual(result["cells"]["system_clock.pll"]["connections"]["outclk[1]"],[20])
+    def test_scaffold_repairs_split_outclk1_and_rejects_other_pll_ports(self):
+        for prior in ([20],[999]):
+            top=fixture(True)
+            top["cells"]["system_clock.pll"]["connections"]["outclk[1]"]=prior
+            result=json.loads(layout.prepare_scaffold(json.dumps({"modules":{"top":top}}).encode()))["modules"]["top"]
+            pll=result["cells"]["system_clock.pll"]
+            self.assertEqual(set(pll["connections"]),{"outclk","outclk[1]","refclk","locked"})
+            self.assertEqual(pll["connections"]["outclk[1]"],[20])
+            self.assertEqual(pll["port_directions"]["outclk[1]"],"output")
+            mapping=json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]).decode())
+            self.assertEqual(mapping["count"],5)
+            self.assertNotIn("outclk[0]",mapping["pins"])
+            self.assertEqual(mapping["pins"]["outclk[1]"],[0,"outclk[1]"])
+            self.assertIn("plug_addr_ff_0",result["cells"])
+        for extra in ("rst","outclk[0]","outclk[2]"):
+            top=fixture(True)
+            top["cells"]["system_clock.pll"]["connections"][extra]=[20]
+            with self.assertRaisesRegex(ValueError,"ST system PLL connection contract changed"):
+                layout.prepare_scaffold(json.dumps({"modules":{"top":top}}).encode())
+        top=fixture(True)
+        connections=top["cells"]["system_clock.pll"]["connections"]
+        connections["outclk[1]"]=[20]
+        del connections["outclk"]
+        with self.assertRaisesRegex(ValueError,"ST system PLL connection contract changed"):
+            layout.prepare_scaffold(json.dumps({"modules":{"top":top}}).encode())
+    def test_scaffold_accepts_routed_scalar_outclk_pin_map(self):
+        routed={"count":5,"pins":{"locked":[0,"locked"],"outclk":[0,"C6"],"outclk[1]":[0,"C7"],
+                                  "refclk":[0,"refclk"],"rst":[0,"rst"]}}
+        encoded=json.dumps(routed).encode().hex()
+        def shell(*, connection=(20,), direction="output", present=True):
+            top=fixture(True)
+            pll=top["cells"]["system_clock.pll"]
+            pll["attributes"]["FES_PINMAP_V1"]=encoded
+            directions={"outclk":"output","refclk":"input","locked":"output"}
+            if direction is not None:
+                directions["outclk[1]"]=direction
+            pll["port_directions"]=directions
+            if present:
+                pll["connections"]["outclk[1]"]=list(connection)
+            return top
+        top=shell()
+        before=copy.deepcopy(top["cells"]["system_clock.pll"])
+        result=json.loads(layout.prepare_scaffold(json.dumps({"modules":{"top":top}}).encode()))["modules"]["top"]
+        repaired=result["cells"]["system_clock.pll"]
+        self.assertEqual(repaired,before)
+        self.assertEqual(repaired["connections"]["outclk[1]"],[20])
+        self.assertEqual(repaired["connections"]["outclk"],[10])
+        self.assertNotIn("outclk[0]",repaired["connections"])
+        self.assertEqual(repaired["port_directions"]["outclk[1]"],"output")
+        mapping=json.loads(bytes.fromhex(repaired["attributes"]["FES_PINMAP_V1"]).decode())
+        self.assertEqual(mapping,routed)
+        self.assertEqual(mapping["pins"]["outclk"],[0,"C6"])
+        self.assertEqual(mapping["pins"]["outclk[1]"],[0,"C7"])
+        self.assertIn("plug_addr_ff_0",result["cells"])
+        self.assertEqual(result["netnames"],top["netnames"])
+        cases=(
+            ("absent",{"present":False},"ST frozen audio PLL connection changed"),
+            ("mismatched",{"connection":(999,)},"ST frozen audio PLL connection changed"),
+            ("input-direction",{"direction":"input"},"ST system PLL physical port directions changed"),
+        )
+        for name,kwargs,pattern in cases:
+            with self.subTest(name=name):
+                rejected=shell(**kwargs)
+                with self.assertRaisesRegex(ValueError,pattern):
+                    layout.prepare_scaffold(json.dumps({"modules":{"top":rejected}}).encode())
+        indexed={"count":5,"pins":{"locked":[0,"locked"],"outclk[0]":[0,"C6"],"outclk[1]":[0,"C7"],
+                                    "refclk":[0,"refclk"],"rst":[0,"rst"]}}
+        bad=fixture(True)
+        bad["cells"]["system_clock.pll"]["attributes"]["FES_PINMAP_V1"]=json.dumps(indexed).encode().hex()
+        with self.assertRaisesRegex(ValueError,"ST system PLL frozen pin map changed"):
+            layout.prepare_scaffold(json.dumps({"modules":{"top":bad}}).encode())
     def test_boundary_rejects_source_clock_response_and_rogue_pair(self):
         layout.validate_boundary(fixture(),routed=False)
         for name,port,value in (("plug_request_ff_0","CLK",[0]),("plug_request_ff_0","DATAIN",[101]),("plug_response_ff_27","DATAIN",[1])):
@@ -294,6 +365,44 @@ class FullProducer(unittest.TestCase):
             self.assertNotEqual(second.parent, third.parent)
             self.assertNotEqual(second_shell['socket.qsf'], third_shell['socket.qsf'])
             self.assertEqual(second_shell['routed.json'], third_shell['routed.json'])
+
+    def test_cuda_router_authenticates_matching_backend_and_toolchain(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = CompilerFixture(Path(tmp))
+            fixture.backend = 'cuda'
+            toolchain = Path('/tmp/st-cuda')
+            fixture.build(gpu_router='CUDA', toolchain_root=toolchain)
+            self.assertEqual(fixture.authenticate.call_count, 2)
+            for call in fixture.authenticate.call_args_list:
+                self.assertEqual(call.args, (fixture.root.resolve(), None))
+                self.assertEqual(call.kwargs, {'toolchain_root': toolchain, 'gpu_router': 'CUDA'})
+            fixture.invocation_mock.assert_called_once_with(
+                fixture.tools, 0, extra_env={'CUDA_DEVICE_ORDER': 'PCI_BUS_ID'})
+            route = fixture.commands[1]
+            self.assertEqual(route[route.index('--gpu-device') + 1], '0')
+            summary = json.loads(next(Path(tmp).glob('build/atari-st-video-parts/*/*/build-summary.json')).read_text())
+            self.assertEqual(summary['route']['gpu_backend'], 'cuda')
+            self.assertEqual(summary['recipe']['execution'], fixture.invocation.inputs)
+
+    def test_route_passes_recorded_gpu_device_for_hip_and_cuda(self):
+        cases = (
+            ('HIP', None, 'hip'),
+            ('CUDA', {'CUDA_DEVICE_ORDER': 'PCI_BUS_ID'}, 'cuda'),
+        )
+        for router, extra, backend in cases:
+            with self.subTest(router=router), tempfile.TemporaryDirectory() as tmp:
+                fixture = CompilerFixture(Path(tmp))
+                fixture.backend = backend
+                fixture.invocation.inputs = {'version': 1, 'gpu_device': 1, 'frozen': 'test'}
+                fixture.build(gpu=1, gpu_router=router, toolchain_root=Path('/tmp/st-cuda'))
+                route = fixture.commands[1]
+                self.assertEqual(route[route.index('--router') + 1], 'gpu')
+                self.assertEqual(route[route.index('--gpu-device') + 1], '1')
+                self.assertEqual(route.count('--gpu-device'), 1)
+                fixture.invocation_mock.assert_called_once_with(fixture.tools, 1, extra_env=extra)
+                summary = json.loads(next(Path(tmp).glob('build/atari-st-video-parts/*/*/build-summary.json')).read_text())
+                self.assertEqual(summary['recipe']['execution']['gpu_device'], 1)
+
     def test_failures_never_publish_a_part(self):
         for name in ('pixel timing','system timing','audio timing','wrong clock','RAM','header','outside strict column','source mutation','generated mutation','map mismatch'):
             with self.subTest(name=name),tempfile.TemporaryDirectory() as tmp:

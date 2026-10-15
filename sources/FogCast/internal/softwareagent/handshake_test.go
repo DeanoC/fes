@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -217,4 +218,74 @@ func TestStartupCancellationCannotRequeueAndOpensFence(t *testing.T) {
 		t.Fatal("cancelled startup left mutation fence closed", e)
 	}
 	done()
+}
+
+func TestTrialReconciliationClaimDuringHandoff(t *testing.T) {
+	m := manager(t, t.TempDir(), func(context.Context) error { return nil })
+	await(t, func() bool { return m.Status().State == "free" })
+	a := newAdmission(m, false)
+	h := a.Handler()
+	boot := request()
+	if w := post(h, "/queue", boot); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var grant contract.MaintenanceGrant
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		w := post(h, "/acquire", boot)
+		if w.Code != 200 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &grant); err != nil {
+			t.Fatal(err)
+		}
+		if grant.Status.State == "ready" && grant.Token != "" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal(grant)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	foreign := request()
+	foreign.RequestID = strings.Repeat("c", 64)
+	foreign.Credential = strings.Repeat("d", 64)
+	if w := post(h, "/queue", foreign); w.Code == 200 {
+		t.Fatal("queue without the boot credential crossed maintenance")
+	}
+	foreign.HeldToken = grant.Token
+	if w := post(h, "/queue", foreign); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	var claimed atomic.Int32
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	competitor := contract.ClaimRequest{RequestID: strings.Repeat("e", 64), Owner: "other-host", Purpose: "playing"}
+	for range 20 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			if _, err := m.Claim(competitor); err == nil {
+				claimed.Add(1)
+			}
+		}()
+	}
+	close(start)
+	end := Completion{MaintenanceEndRequest: contract.MaintenanceEndRequest{OperationID: grant.Status.OperationID, ExpectedGeneration: grant.Status.Generation}, Credential: grant.Token}
+	if w := post(h, "/end", end); w.Code != 200 {
+		t.Fatal(w.Code, w.Body.String())
+	}
+	await(t, func() bool {
+		status, err := m.MaintenanceStatusChecked()
+		return err == nil && (status.State == "none" || status.State == "completed")
+	})
+	await(t, func() bool { return m.Status().State == "free" })
+	wg.Wait()
+	if claimed.Load() != 0 {
+		t.Fatalf("claim won during trial reconciliation: %d", claimed.Load())
+	}
+	if _, err := m.Claim(competitor); err == nil {
+		t.Fatal("claim won after the boot reservation ended")
+	}
 }

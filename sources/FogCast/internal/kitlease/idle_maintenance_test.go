@@ -236,3 +236,97 @@ func TestQueuedMaintenancePersistenceFailureKeepsExecutionClosed(t *testing.T) {
 		t.Fatal("ambiguous persistence reopened execution", err)
 	}
 }
+
+func TestTrialReconciliationClaimLosesToHeldSuccessor(t *testing.T) {
+	m := maintenanceManager(t, t.TempDir(), func(context.Context) error { return nil })
+	boot := req("b")
+	if err := m.QueueIdleMaintenance(boot, strings.Repeat("d", 64)); err != nil {
+		t.Fatal(err)
+	}
+	grant, err := m.StartQueuedMaintenance(boot, strings.Repeat("d", 64))
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitMaintenance(t, m, "ready")
+	successor := req("c")
+	credential := strings.Repeat("f", 64)
+	if err := m.QueueHeldSuccessor(successor, credential, strings.Repeat("e", 64)); !errors.Is(err, ErrLease) {
+		t.Fatal("wrong boot credential installed a queue", err)
+	}
+	if err := m.QueueIdleMaintenance(req("d"), strings.Repeat("d", 64)); !errors.Is(err, ErrBusy) {
+		t.Fatal("unheld queue crossed the boot reservation", err)
+	}
+	if err := m.QueueHeldSuccessor(successor, credential, grant.Token); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	var claimed atomic.Int32
+	for range 32 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			if _, err := m.Claim(req("e")); err == nil {
+				claimed.Add(1)
+			} else if !errors.Is(err, ErrBusy) && !errors.Is(err, ErrBlocked) {
+				t.Error(err)
+			}
+		}()
+	}
+	close(start)
+	if _, err := m.EndMaintenance(grant.Token, maintenanceEnd(grant)); err != nil {
+		t.Fatal(err)
+	}
+	wait(t, m, "free")
+	wg.Wait()
+	if claimed.Load() != 0 {
+		t.Fatalf("claim won during trial reconciliation: %d", claimed.Load())
+	}
+	if _, err := m.Claim(req("e")); !errors.Is(err, ErrBusy) {
+		t.Fatal("claim won after the boot reservation ended", err)
+	}
+	next, err := m.StartQueuedMaintenance(successor, credential)
+	if err != nil || next.Status.OperationID != successor.RequestID {
+		t.Fatal(next, err)
+	}
+}
+
+func TestExecutionFenceBlocksNewClaimsUntilQueueReturns(t *testing.T) {
+	m := maintenanceManager(t, t.TempDir(), func(context.Context) error { return nil })
+	owner, err := m.Claim(req("a"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.SetExecutionFence(true); err != nil {
+		t.Fatal(err)
+	}
+	if again, err := m.Claim(req("a")); err != nil || again.Token != owner.Token {
+		t.Fatal("owner retry", again, err)
+	}
+	if _, err := m.Renew(owner.Token); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Claim(req("b")); !errors.Is(err, ErrBlocked) {
+		t.Fatal("new claim", err)
+	}
+	if _, err := m.Takeover(TakeoverRequest{ClaimRequest: req("c"), ExpectedGeneration: owner.Status.Generation, Reason: "operator request"}); !errors.Is(err, ErrBlocked) {
+		t.Fatal("takeover", err)
+	}
+	if err := m.QueueIdleMaintenance(req("d"), strings.Repeat("e", 64)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Release(owner.Token); err != nil {
+		t.Fatal(err)
+	}
+	wait(t, m, "free")
+	if _, err := m.Claim(req("b")); !errors.Is(err, ErrBlocked) {
+		t.Fatal("fence opened a free kit", err)
+	}
+	if err := m.SetExecutionFence(false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.Claim(req("b")); !errors.Is(err, ErrBusy) {
+		t.Fatal("restored queue did not keep priority", err)
+	}
+}

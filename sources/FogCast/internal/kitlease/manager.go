@@ -57,7 +57,10 @@ type Manager struct {
 	maintenanceFault            bool
 	queuedMaintenance           *ClaimRequest
 	queuedMaintenanceCredential string
-	events                      flightdiag.Sink
+	// executionFence blocks new execution claims while a software cancellation
+	// has removed its queue but durable and volatile state have not reconciled.
+	executionFence bool
+	events         flightdiag.Sink
 }
 
 type Option func(*Manager)
@@ -93,6 +96,20 @@ func valid(r ClaimRequest) bool {
 	}
 	_, e := hex.DecodeString(r.RequestID)
 	return e == nil
+}
+
+// SetExecutionFence closes or opens new execution claims. An existing owner's
+// renewal still works. The software supervisor closes the fence before dropping
+// a queued intent and opens it only after the durable cancellation is stored,
+// or after the queue has been restored.
+func (m *Manager) SetExecutionFence(closed bool) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.closed {
+		return ErrBlocked
+	}
+	m.executionFence = closed
+	return nil
 }
 func (m *Manager) Status() Status {
 	m.mu.Lock()
@@ -159,6 +176,9 @@ func (m *Manager) Claim(r ClaimRequest) (Grant, error) {
 	}
 	if m.status.State == "held" && m.claim == r {
 		return Grant{Status: m.snapshotLocked(), Token: m.token}, nil
+	}
+	if m.executionFence {
+		return Grant{}, ErrBlocked
 	}
 	if m.queuedMaintenance != nil {
 		return Grant{}, ErrBusy
@@ -272,6 +292,9 @@ func (m *Manager) Takeover(r TakeoverRequest) (Grant, error) {
 	defer m.mu.Unlock()
 	m.expireLocked()
 	if m.closed {
+		return Grant{}, ErrBlocked
+	}
+	if m.executionFence {
 		return Grant{}, ErrBlocked
 	}
 	if m.maintenanceFault {
