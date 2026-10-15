@@ -402,13 +402,14 @@ def validate_routed_shell(routed: dict) -> dict:
         if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_FF" or \
                 cell.get("attributes", {}).get("NEXTPNR_BEL") != bel:
             raise BuildError(f"slot boundary cell {name} is not at {bel}")
+    drivers, ambiguous = _boundary_net_drivers(top)
     buffers = set()
     outputs = set()
     direct_inputs = 0
     for name, bel in expected.items():
         buffer_name = name + "$ROUTETHRU"
         if buffer_name not in cells:
-            _validate_direct_boundary_input(cells[name], top, name)
+            _validate_direct_boundary_input(cells[name], top, name, drivers, ambiguous)
             direct_inputs += 1
             continue
         cell = cells.get(buffer_name)
@@ -440,10 +441,102 @@ def validate_routed_shell(routed: dict) -> dict:
             "pinned_boundary_direct_inputs": direct_inputs}
 
 
-def _validate_direct_boundary_input(cell: dict, top: dict, name: str) -> None:
+# The shell concatenates `{3'd0, irq_level, ...}`. Interrupt level occupies
+# bits 50:52, so the three request pads above it are constant zero.
+REQUEST_PADDING_ZERO = range(53, atari_st_slot.REQUEST_BITS)
+
+
+def _boundary_net_drivers(top: dict) -> tuple[dict[int, list[tuple[str, str, str]]], set[int]]:
+    """Census cell outputs and top-level inputs. Any other direction is ambiguous.
+
+    An integer net ID only names a wire. A driver is one output pin or one
+    top-level input pin. Constant 0/1 literals are not nets and are not recorded
+    here; packed constants remain ``MISTRAL_CONST`` outputs.
+    """
+    drivers: dict[int, list[tuple[str, str, str]]] = {}
+    ambiguous: set[int] = set()
+
+    def record(bits: object, direction: object, driver: tuple[str, str, str] | None) -> None:
+        if not isinstance(bits, list):
+            raise BuildError("routed shell connection is malformed")
+        for bit in bits:
+            if type(bit) is not int or bit < 0:
+                continue
+            if driver is not None and direction == "output":
+                drivers.setdefault(bit, []).append(driver)
+            elif direction != "input":
+                ambiguous.add(bit)
+
+    cells = top.get("cells", {})
+    if not isinstance(cells, dict):
+        raise BuildError("routed shell cells are malformed")
+    for source_name, source in cells.items():
+        if not isinstance(source, dict):
+            raise BuildError(f"routed shell cell {source_name} is malformed")
+        connections = source.get("connections", {})
+        directions = source.get("port_directions", {})
+        if not isinstance(connections, dict) or not isinstance(directions, dict):
+            raise BuildError(f"routed shell cell {source_name} ports are malformed")
+        for port, bits in connections.items():
+            record(bits, directions.get(port), ("cell", str(source_name), str(port)))
+    ports = top.get("ports", {})
+    if not isinstance(ports, dict):
+        raise BuildError("routed shell ports are malformed")
+    for port_name, port in ports.items():
+        if not isinstance(port, dict):
+            raise BuildError(f"routed shell port {port_name} is malformed")
+        direction = port.get("direction")
+        # A top-level input drives the net. A top-level output is only a load.
+        if direction == "input":
+            record(port.get("bits", []), "output", ("port", str(port_name), "input"))
+        elif direction == "output":
+            record(port.get("bits", []), "input", None)
+        else:
+            record(port.get("bits", []), direction, None)
+    return drivers, ambiguous
+
+
+def _constant_level(cells: dict, bit: int, source: tuple[str, str, str]) -> int | None:
+    """Return 0 or 1 for one proven constant driver, or None for one live driver."""
+    kind, source_name, port = source
+    if kind == "port":
+        return None
+    cell = cells[source_name]
+    if cell.get("type") != "MISTRAL_CONST":
+        return None
+    lut = cell.get("parameters", {}).get("LUT")
+    if (port != "Q" or cell.get("connections", {}).get("Q") != [bit] or
+            cell.get("port_directions", {}).get("Q") != "output" or
+            not isinstance(lut, str) or not re.fullmatch("[01]{32}", lut) or
+            int(lut, 2) not in (0, 1)):
+        raise BuildError("slot boundary constant driver is not a proven zero or one")
+    return int(lut, 2)
+
+
+def _direct_datain_level(cell: dict, cells: dict, name: str,
+                         drivers: dict[int, list[tuple[str, str, str]]],
+                         ambiguous: set[int]) -> int | None:
+    """Classify one direct DATAIN as a live source or a proven 0/1 tie."""
+    bits = cell.get("connections", {}).get("DATAIN")
+    if isinstance(bits, list) and len(bits) == 1 and type(bits[0]) is str and bits[0] in ("0", "1"):
+        return int(bits[0])
+    bit = bits[0]
+    if bit in ambiguous:
+        raise BuildError(f"slot boundary data input has an unknown port direction: {name}")
+    sources = drivers.get(bit, [])
+    if len(sources) != 1:
+        raise BuildError(f"slot boundary data input has no unique driver: {name}")
+    return _constant_level(cells, bit, sources[0])
+
+
+def _validate_direct_boundary_input(cell: dict, top: dict, name: str,
+                                   drivers: dict[int, list[tuple[str, str, str]]],
+                                   ambiguous: set[int]) -> None:
     # Current nextpnr leaves user-locked FFs on their native E/F inputs instead
     # of inserting a LUT route-through. Admit only the serialized plain DFF
     # form observed on the pinned compiler; keep all socket BEL/exclusion checks.
+    # A routed net ID is not a driver. Direct DATAIN must have one cell output
+    # or top-level input, or a 0/1 literal. Packed ties are one MISTRAL_CONST.
     pins = {port: [index, port] for port, index in
             (("ACLR", 2), ("CLK", 0), ("DATAIN", 0), ("ENA", 2),
              ("Q", 0), ("SCLR", 1), ("SDATA", 0), ("SLOAD", 1))}
@@ -453,17 +546,49 @@ def _validate_direct_boundary_input(cell: dict, top: dict, name: str) -> None:
         mapping = None
     connections = cell.get("connections", {})
     clock = top.get("netnames", {}).get("system_clock.clocks[0]", {}).get("bits")
+
     def wire(bits):
         return isinstance(bits, list) and len(bits) == 1 and type(bits[0]) is int and bits[0] >= 0
 
+    datain = connections.get("DATAIN")
+    literal_tie = (isinstance(datain, list) and len(datain) == 1 and
+                   type(datain[0]) is str and datain[0] in ("0", "1"))
     if (mapping != {"count": 8, "pins": pins} or
             any(type(value[0]) is not int for value in mapping["pins"].values()) or
             cell.get("port_directions") != {port: "output" if port == "Q" else "input" for port in pins} or
             set(connections) != set(pins) or not wire(clock) or connections.get("CLK") != clock or
-            not wire(connections.get("DATAIN")) or not wire(connections.get("Q")) or
-            connections["DATAIN"] == connections["Q"] or
+            not (wire(datain) or literal_tie) or not wire(connections.get("Q")) or
+            datain == connections.get("Q") or
             any(connections[port] != [] for port in ("ACLR", "ENA", "SCLR", "SDATA", "SLOAD"))):
         raise BuildError(f"slot boundary route buffer missing without a native direct input: {name}")
+    role, bit = _socket_boundary_role(name)
+    level = _direct_datain_level(cell, top.get("cells", {}), name, drivers, ambiguous)
+    if role == "request" and bit not in REQUEST_PADDING_ZERO:
+        if level is not None:
+            raise BuildError(f"slot boundary request input is not a live source: {name}")
+    elif level != 0:
+        raise BuildError(f"slot boundary tied input is not a proven zero: {name}")
+    qbit = connections["Q"][0]
+    if qbit in ambiguous or drivers.get(qbit) != [("cell", name, "Q")]:
+        raise BuildError(f"slot boundary output has no unique driver: {name}")
+
+
+def _socket_boundary_role(name: str) -> tuple[str, int]:
+    for socket in atari_st_slot.SOCKETS:
+        if not name.startswith(socket.instance):
+            continue
+        local = name[len(socket.instance):]
+        boundary = atari_st_slot.boundary_bels(socket)
+        widths = {"plug_request_ff_": atari_st_slot.REQUEST_BITS,
+                  "plug_response_ff_": atari_st_slot.RESPONSE_BITS,
+                  "clock_coverage_ff_": sum(cell.startswith("clock_coverage_ff_") for cell in boundary)}
+        roles = {"plug_request_ff_": "request", "plug_response_ff_": "response",
+                 "clock_coverage_ff_": "clock"}
+        for prefix, role in roles.items():
+            suffix = local.removeprefix(prefix)
+            if local.startswith(prefix) and suffix.isdecimal() and int(suffix) < widths[prefix]:
+                return role, int(suffix)
+    raise BuildError(f"slot boundary cell {name} is not a socket register")
 
 
 def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, float, float]:

@@ -393,6 +393,58 @@ class AtariSTProducerTests(unittest.TestCase):
         with self.assertRaisesRegex(BuildError, 'inside the slot'):
             st.validate_routed_shell(routed)
 
+    def test_direct_boundary_datain_requires_one_proven_driver(self):
+        from tests.test_atari_st_slot_card import frozen_shell
+
+        def shell():
+            return frozen_shell(direct_inputs=True)
+
+        st.validate_routed_shell(shell())
+        top = shell()['modules']['top']
+        request = top['cells']['expansion.plug_request_ff_0']
+        request['connections']['DATAIN'] = [999999]
+        with self.assertRaisesRegex(BuildError, 'no unique driver'):
+            st.validate_routed_shell({'modules': {'top': top}})
+
+        def request_tie(design, bit):
+            design['cells'][f'constant_{bit}'] = {
+                'type': 'MISTRAL_CONST', 'parameters': {'LUT': '0' * 32},
+                'connections': {'Q': [9100 + bit]}, 'port_directions': {'Q': 'output'}}
+            design['cells'][f'expansion.plug_request_ff_{bit}']['connections']['DATAIN'] = [9100 + bit]
+
+        cases = (
+            ('second_output', 'no unique driver', lambda design: design['cells'].update(
+                extra={'type': 'MISTRAL_FF', 'connections': {'Q': [2000]}, 'port_directions': {'Q': 'output'}})),
+            ('second_port', 'no unique driver', lambda design: design.update(
+                ports={'source': {'direction': 'input', 'bits': [2000]}})),
+            ('unknown_direction', 'unknown port direction', lambda design: design['cells']['request_source_0']['port_directions'].update(Q='inout')),
+            ('constant_request', 'not a live source', lambda design: request_tie(design, 0)),
+            ('literal_request', 'not a live source', lambda design: design['cells']['expansion.plug_request_ff_0']['connections'].update(DATAIN=['0'])),
+            ('live_response', 'not a proven zero:', lambda design: design['cells']['expansion.plug_response_ff_0']['connections'].update(DATAIN=[2000])),
+            ('literal_one', 'not a proven zero:', lambda design: design['cells']['expansion.plug_response_ff_0']['connections'].update(DATAIN=['1'])),
+            ('high_tie', 'not a proven zero:', lambda design: design['cells']['$PACKER_GND_DRV']['parameters'].update(LUT=f'{1:032b}')),
+            ('bad_lut', 'not a proven zero or one', lambda design: design['cells']['$PACKER_GND_DRV']['parameters'].update(LUT='x' * 32)),
+            ('wide_const', 'not a proven zero or one', lambda design: design['cells']['$PACKER_GND_DRV']['connections']['Q'].append(9001)),
+            ('live_padding', 'not a proven zero:', lambda design: design['cells']['expansion.plug_request_ff_53']['connections'].update(DATAIN=[2000])),
+            ('second_q', 'output has no unique driver', lambda design: design['cells'].update(
+                extra={'type': 'MISTRAL_FF', 'connections': {'Q': [3000]}, 'port_directions': {'Q': 'output'}})),
+        )
+
+        for mutation, message, apply in cases:
+            with self.subTest(mutation=mutation):
+                design = shell()['modules']['top']
+                apply(design)
+                with self.assertRaisesRegex(BuildError, message):
+                    st.validate_routed_shell({'modules': {'top': design}})
+        admitted = shell()['modules']['top']
+        del admitted['cells']['request_source_0']
+        admitted['ports'] = {'source': {'direction': 'input', 'bits': [2000]}}
+        admitted['cells']['expansion.plug_response_ff_0']['connections']['DATAIN'] = ['0']
+        admitted['cells']['expansion.plug_request_ff_53']['connections']['DATAIN'] = ['0']
+        admitted['cells']['expansion.clock_coverage_ff_0']['connections']['DATAIN'] = ['0']
+        request_tie(admitted, 54)
+        st.validate_routed_shell({'modules': {'top': admitted}})
+
     def test_ram_bel_outside_video_still_rejects_overlapping_configuration(self):
         database = ram_database()
         for row in (40, 41, 58, 59):

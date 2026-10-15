@@ -52,6 +52,16 @@ def frozen_shell(*, direct_inputs: bool = False) -> dict:
                                       "SCLR": [], "SDATA": [], "SLOAD": []})
             ff["port_directions"] = {port: "output" if port == "Q" else "input"
                                      for port in mapping["pins"]}
+            if name.startswith("plug_request_ff_") and int(name.removeprefix("plug_request_ff_")) < 53:
+                cells[f"request_source_{index}"] = {
+                    "type": "MISTRAL_FF", "connections": {"Q": [2000 + index]},
+                    "port_directions": {"Q": "output"}}
+            else:
+                ff["connections"]["DATAIN"] = [9000]
+    if direct_inputs:
+        cells["$PACKER_GND_DRV"] = {
+            "type": "MISTRAL_CONST", "parameters": {"LUT": "0" * 32},
+            "connections": {"Q": [9000]}, "port_directions": {"Q": "output"}}
     netnames = {"system_clock.pll_outclk_1": {"bits": [20]},
                 "system_clock.clocks[1]": {"bits": [21]}, "pixel_clk": {"bits": [30]},
                 card.SLOT_CLOCK: {"bits": [10], "attributes": {"ROUTING": "frozen clock branches"}}}
@@ -137,6 +147,13 @@ class AtariSTSlotCardTests(unittest.TestCase):
                                  source["modules"]["top"]["cells"][f"expansion.{old}{bit}"])
         self.assertFalse(any(name.startswith("expansion.") or "$ROUTETHRU" in name for name in cells))
         self.assertIn("machine.keep", cells)
+        self.assertIn("$PACKER_GND_DRV", cells)
+
+    def test_scaffold_rejects_undriven_direct_datain(self):
+        source = frozen_shell(direct_inputs=True)
+        source["modules"]["top"]["cells"]["expansion.plug_request_ff_0"]["connections"]["DATAIN"] = [999999]
+        with self.assertRaisesRegex(ValueError, "no unique driver"):
+            card.prepare_scaffold(json.dumps(source).encode(), 1)
 
     def test_source_closure_includes_probe_header_and_locked_tools(self):
         inputs = card.card_inputs("probe")
