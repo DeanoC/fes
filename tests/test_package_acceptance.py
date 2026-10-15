@@ -11,7 +11,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -36,6 +36,7 @@ AGENT_REVISION = "agent-revision-1"
 RUNTIME_REVISION = "runtime-revision-1"
 SERVER_ID = "server-instance-1"
 TARGET_ID = "target-1"
+TARGET_NAME = "kit-a"
 FLIGHT_ID = "launch-flight-1"
 GAME_ID = "sg1000-game"
 NEW_GAME_ID = "sg1000-new-game"
@@ -60,6 +61,7 @@ def _active_identity(
     return {
         "id": SERVER_ID,
         "target_id": target_id,
+        "target": TARGET_NAME,
         "flight_id": flight_id,
         "game_id": game_id,
         "package_id": package_id,
@@ -77,6 +79,8 @@ def _state():
         "launch_target_id": TARGET_ID,
         "stop_response_target_id": TARGET_ID,
         "stop_confirmation_target_id": TARGET_ID,
+        "stop_response_target": TARGET_NAME,
+        "stop_confirmation_target": TARGET_NAME,
         "session_state": "idle",
         "server_id": SERVER_ID,
         "flight_id": FLIGHT_ID,
@@ -162,6 +166,12 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
                 return
         if self.state["session_state"] == "idle":
             payload = {"id": self.state["server_id"], "state": "idle"}
+            query = dict(parse_qsl(urlsplit(self.path).query))
+            self.state.setdefault("idle_session_queries", []).append(query)
+            if self.state["stops"] and not query.get("target"):
+                payload["id"] = self.state.get("unscoped_idle_id", payload["id"])
+            payload["target"] = (self.state["stop_confirmation_target"]
+                                 if self.state["stops"] else TARGET_NAME)
             target_id = (
                 self.state["stop_confirmation_target_id"]
                 if self.state["stops"]
@@ -184,6 +194,7 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
         self.state["active_reads"] += 1
         response = {
             "id": identity["id"],
+            "target": identity["target"],
             "flight_id": identity["flight_id"],
             "state": "active",
             "game_id": identity["game_id"],
@@ -368,6 +379,7 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
             self.state["active_reads"] = 0
             response = {
                 "id": identity["id"],
+                "target": identity["target"],
                 "flight_id": identity["flight_id"],
                 "state": "active",
                 "game_id": identity["game_id"],
@@ -391,6 +403,7 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
                 return
             self.state["session_state"] = "idle"
             response = {"id": self.state["server_id"], "state": "idle"}
+            response["target"] = self.state["stop_response_target"]
             if self.state["stop_response_target_id"] is not None:
                 response["target_id"] = self.state["stop_response_target_id"]
             if self.state["omit_stop_response_id"]:
@@ -764,6 +777,50 @@ class LibraryMediaAcceptanceTests(unittest.TestCase):
 
 
 class PackageAcceptanceTests(unittest.TestCase):
+    def test_stop_confirms_original_target_after_foreground_is_cleared(self):
+        state = _state()
+        state["unscoped_idle_id"] = "host-root-idle-coordinator"
+        with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            result, receipt = _run_command(server, directory)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(receipt.exists())
+            self.assertIn({"target": TARGET_NAME}, state["idle_session_queries"])
+            self.assertEqual(state["stops"], 1)
+
+    def test_stop_target_name_changes_are_rejected(self):
+        for field in ("stop_response_target", "stop_confirmation_target"):
+            for target in (None, "another-kit"):
+                with self.subTest(field=field, target=target):
+                    state = _state()
+                    state[field] = target
+                    with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+                        result, receipt = _run_command(server, directory)
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn("target name", result.stderr)
+                        self.assertFalse(receipt.exists())
+                        self.assertEqual(state["stops"], 1)
+
+    def test_pre_stop_target_name_change_refuses_stop(self):
+        state = _state()
+        state["change_identity_before_stop"] = True
+        state["changed_identity"] = {"target": "another-kit"}
+        with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            result, receipt = _run_command(server, directory)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("identity", result.stderr)
+            self.assertFalse(receipt.exists())
+            self.assertEqual(state["stops"], 0)
+
+    def test_target_scoped_idle_still_requires_original_session_id(self):
+        state = _state()
+        state["idle_fields"] = {"id": "foreign-target-session"}
+        with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            result, receipt = _run_command(server, directory)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("session ID", result.stderr)
+            self.assertFalse(receipt.exists())
+            self.assertEqual(state["stops"], 1)
+
     def test_accepts_new_core_without_image_selection_files_and_receipts_owned_flight(self):
         state = _state()
         state["entries"] = {}
