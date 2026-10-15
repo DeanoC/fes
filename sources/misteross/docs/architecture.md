@@ -1166,12 +1166,13 @@ The existing BASIC and expansion simulations remain part of `make sim-fes-zx81`.
 `fes.zx81` 1.2.0 oracle package. It is not a Mistral/nextpnr payload
 and is not the standard socketed package. The board shell
 `cores/fes-zx81/rtl/top.v` uses two `altera_pll` cells from the 50 MHz V11
-reference: 52 MHz system (T80, ULA, mailbox) and 74.25 MHz pixel (HDMI
+reference: 52 MHz system (`fes_z80_nmos`, ULA, mailbox) and 74.25 MHz pixel (HDMI
 1650×750). HDMI RGB/HS/VS/CLK pins and U10/AA4 match FES Pong. The HPS I2C
 cell is at `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111`; `out_clk`/`out_data`
 pull SCL/SDA low and `scl`/`sda` read the pads (Quartus assign-to-Z in place
-of Pong's `MISTRAL_IO`). The Quartus oracle Z80 is VHDL T80pa from ZX81_MiSTer Release
-20260603. Product simulation and the OSS shell use `fes_z80_nmos`.
+of Pong's `MISTRAL_IO`). The Quartus oracle compiles the same `zx81_machine.sv`
+as product simulation and the OSS shell. That module instantiates `fes_z80_nmos`
+with no Quartus-specific CPU.
 
 The compile defines `QUARTUS=1`. ROM, 16 KB RAM and the 16 KB media blob
 instantiate `zx81_dpram`. Its Quartus branch is `altsyncram` bidirectional
@@ -1393,7 +1394,7 @@ matching workaround rather than keep both.
 
 What already works in this design, so a toolchain fix should not regress it: two independent `altera_pll` cells on PIN_V11; 8-bit 16 K `m10k_tdp` infers 16 `MISTRAL_M10K_TDP` cells in under a second; Pong-style `MISTRAL_IO` HDMI I2C at X52/Y60.
 
-The product OSS shell instantiates `fes_z80_nmos`. That selection is not a nextpnr packing gap. The Quartus oracle keeps VHDL T80pa.
+The product OSS shell and the Quartus oracle both instantiate `fes_z80_nmos` from `zx81_machine.sv`. That selection is not a nextpnr packing gap, and the oracle has no separate VHDL T80pa CPU.
 
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
