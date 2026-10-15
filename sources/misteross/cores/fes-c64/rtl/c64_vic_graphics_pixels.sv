@@ -5,7 +5,7 @@
 module c64_vic_graphics_pixels(input wire clk,reset,tick,input wire [2:0] dot,
  input wire [7:0] glyph,matrix,d011,d016,input wire [3:0] cell_color,
  input wire [15:0] background,input wire latch_scroll,
- output wire [3:0] color,output wire foreground,
+ output wire [3:0] color,output wire foreground,output reg background0,
  output reg [3:0] color_q,output reg foreground_q);
  reg [7:0] shift_reg,matrix_reg;
  reg [3:0] color_reg;
@@ -33,18 +33,29 @@ module c64_vic_graphics_pixels(input wire clk,reset,tick,input wire [2:0] dot,
    if(next_mc_phase)next_pixel=next_shift[7:6];
   end else if(next_mode11[0]||next_color[3])next_pixel={next_shift[7],1'b0};
   else next_pixel={next_shift[7],next_shift[7]};
+  // Preserve source identity independently of the current color value.
+  // Only D021 is resolved later by the PAL color pipeline.
+  background0=0;
   case({next_mode11,next_mode16})
-   0:result=next_pixel[1]?next_color:background[3:0];
+   0:begin
+      result=next_pixel[1]?next_color:background[3:0];
+      background0=!next_pixel[1];
+     end
    1:case(next_pixel)
-      0:result=background[3:0];1:result=background[7:4];
+      0:begin result=background[3:0];background0=1;end
+      1:result=background[7:4];
       2:result=background[11:8];default:result={1'b0,next_color[2:0]};
      endcase
    2:result=next_pixel[1]?next_matrix[7:4]:next_matrix[3:0];
    3:case(next_pixel)
-      0:result=background[3:0];1:result=next_matrix[7:4];
+      0:begin result=background[3:0];background0=1;end
+      1:result=next_matrix[7:4];
       2:result=next_matrix[3:0];default:result=next_color;
      endcase
-   4:result=next_pixel[1]?next_color:background[next_matrix[7:6]*4+:4];
+   4:begin
+      result=next_pixel[1]?next_color:background[next_matrix[7:6]*4+:4];
+      background0=!next_pixel[1]&&next_matrix[7:6]==0;
+     end
    default:result=0;
   endcase
   next_shift=next_shift<<1;next_mc_phase=!next_mc_phase;

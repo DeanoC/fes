@@ -41,7 +41,24 @@ int main(int argc, char **argv) {
 
     std::array<std::array<unsigned,8>,63> dots{};
     std::array<unsigned,54> writes{};
+    std::array<std::array<unsigned,8>,8> pointer_dots{},row_dots{};
+    unsigned pending_dots=0,reset_phases=0;
     const std::array<unsigned,8> strobe={1,8,14,21,27,34,40,47};
+    auto check_events=[&](unsigned cycle,unsigned dot,bool count){
+        static const std::array<unsigned,8> pointer_cycles={58,60,62,1,3,5,7,9};
+        static const std::array<unsigned,8> row_cycles={59,61,63,2,4,6,8,10};
+        unsigned pointer=0,row=0;
+        for(unsigned n=0;n<8;++n){
+            if(cycle==pointer_cycles[n]){pointer|=1u<<n;if(count)++pointer_dots[n][dot];}
+            if(cycle==row_cycles[n]){row|=1u<<n;if(count)++row_dots[n][dot];}
+        }
+#ifndef SKIP_PREPARED_EVENTS
+        require(t.prepared_pointer==pointer,"sprite pointer event has wrong cycle/dot");
+        require(t.prepared_row==row,"sprite row event has wrong cycle/dot");
+        require(bool(t.prepared_pending)==(cycle==58),"sprite pending update has wrong cycle/dot");
+#endif
+        if(count&&cycle==58)++pending_dots;
+    };
     uint64_t accumulator=0,pixel_accumulator=0;
     unsigned cycle_clock=63,last_phi=0,period53=0,period54=0,wraps=0;
     std::array<unsigned,8> prepares{};
@@ -96,25 +113,47 @@ int main(int argc, char **argv) {
         if(dot){
             require(cycle>=1&&cycle<=63,"invalid PAL cycle");
             ++dots[cycle-1][t.dot];
+            check_events(cycle,t.dot,true);
             const unsigned x=((cycle>=14?(cycle-14)*8:400+(cycle-1)*8)+t.dot)&511;
             require(t.prepared_x==x,"prepared beam differs from PAL coordinate");
         }
         if(cycle_clock==0&&cycle==1&&!t.reset)++wraps;
-        const bool palette_dot=line>=16&&line<=30&&cycle==20&&cycle_clock==27&&!t.reset;
-        if(line>=16&&line<=30&&cycle==20&&cycle_clock==28&&!t.reset){
+        const bool palette_dot=line>=16&&line<=30&&cycle==20&&cycle_clock==47&&!t.reset;
+        if(line>=16&&line<=30&&cycle==20&&cycle_clock==48&&!t.reset){
             require(t.write_pending&&t.saved_ink==5,"post-dot write altered saved framebuffer pixel");
             ++checked_pending;
         }
         t.clk_sys=1;t.eval();
         if(t.reset)require(!t.write_pending,"reset failed to discard pending framebuffer write");
         if(palette_dot){
-            require(t.write_pending&&t.saved_ink==5,"phase26 write not visible at original dot4");
+            require(t.write_pending&&t.saved_ink==5,"original dot4 direct border color changed during pipeline");
             ++phase26_pairs;
         }
         if(t.phi)cycle_clock=0;else if(cycle_clock<63)++cycle_clock;
         pixel_accumulator+=74250000;
         while(pixel_accumulator>=52224000){pixel_accumulator-=52224000;pixel();}
     }
+    // Reset can arrive on any SYS phase. The beam resets to native cycle 1;
+    // its pointer event must be valid even if reset releases on a dot edge.
+    for(unsigned reset_phase=0;reset_phase<54;++reset_phase){
+        t.we=t.reading=t.read_sample=t.phi=0;t.reset=1;t.cycle_clock=reset_phase;
+        sys();pixel();
+        require(t.prepared_pointer==8&&t.prepared_row==0&&!t.prepared_pending,
+                "reset did not prepare native cycle 1 events");
+        ++reset_phases;t.reset=0;
+        unsigned phase=(reset_phase+1)%54;
+        for(unsigned edge=0;edge<162;++edge){
+            t.cycle_clock=phase;t.phi=phase==53;t.clk_sys=0;t.eval();
+            if(t.dot_tick)check_events(t.native_cycle,t.dot,false);
+            t.clk_sys=1;t.eval();pixel();phase=(phase+1)%54;
+        }
+    }
+    for(const auto &sprite:pointer_dots)for(unsigned count:sprite)
+        require(count>0,"uncovered sprite pointer dot");
+    for(const auto &sprite:row_dots)for(unsigned count:sprite)
+        require(count>0,"uncovered sprite row dot");
+    require(pending_dots>0&&reset_phases==54,"missing pending event or reset phase");
+    std::printf("Sprite events PASS: all 64 pointer and64 row/dot pairs, %u pending dots, %u reset phases\n",pending_dots,reset_phases);
     for(unsigned count:prepares)require(count>0,"uncovered beam preparation phase");
     for(const auto &cycle:dots)for(unsigned count:cycle)require(count>0,"uncovered cycle/dot pair");
     for(unsigned phase:strobe){
@@ -125,7 +164,7 @@ int main(int argc, char **argv) {
     require(t.checked_writes>300000&&t.publications>=3,"insufficient complete-frame transactions");
     std::fprintf(stderr,"Coverage: %u collision-bearing SYS samples, %u displayed pixels\n",t.collision_sys_samples,t.displayed_pixels);
     require(t.collision_sys_samples>100&&t.displayed_pixels>1000000,"missing collisions or completed HDMI frames");
-    std::printf("VIC timing PASS: %u SYS checks, %u dots, %u one-SYS-delayed writes, %u publications, %u collision-bearing SYS samples, %u displayed pixels; %u/%u periods53/54; %u phase26 palette pairs and %u pending reset discard\n",
+    std::printf("VIC timing PASS: %u SYS checks, %u dots, %u three-dot plus one-SYS-delayed writes, %u publications, %u collision-bearing SYS samples, %u displayed pixels; %u/%u periods53/54; %u phase26 palette pairs and %u pending reset discard\n",
         t.checked_clocks,t.checked_pixels,t.checked_writes,t.publications,t.collision_sys_samples,t.displayed_pixels,
         period53,period54,phase26_pairs,reset_discards);
 }

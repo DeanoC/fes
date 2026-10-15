@@ -1060,6 +1060,19 @@ sim-fes-c64-cia-reference:
 		cores/fes-c64/rtl/c64_cia.v "$(CURDIR)/cores/fes-c64/sim/cia_timing_tb.cpp"
 	@build/sim/fes-c64-cia-reference/Vc64_cia
 
+.PHONY: sim-fes-c64-d021
+sim-fes-c64-d021:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-d021
+	$(VERILATOR) --cc --exe --build -O2 --top-module d021_sim_top $(C64_VERILATOR_FLAGS) --public-flat-rw \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-d021" \
+		cores/fes-c64/sim/d021_sim_top.sv $(C64_RTL) "$(CURDIR)/cores/fes-c64/sim/d021_tb.cpp" \
+		-CFLAGS '-O2 -std=c++17' -MAKEFLAGS 'OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3'
+	@for fixture in 0 1 2 3 4 5 6 7 8 9 10 11; do \
+		build/sim/fes-c64-d021/Vd021_sim_top $$fixture \
+		build/sim/fes-c64-d021/firmware.hex build/sim/fes-c64-d021/disk.hex || exit $$?; \
+	done
+
 .PHONY: sim-fes-c64-vic-timing
 sim-fes-c64-vic-timing:
 	$(require_local_sim)
@@ -1364,7 +1377,7 @@ sim-fes-c64-frame:
 		"$(CURDIR)/cores/fes-c64/sim/frame_tb.cpp"
 	@build/sim/fes-c64-frame/Vc64_frame_store
 
-sim-fes-c64: sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
+sim-fes-c64: sim-fes-c64-d021 sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
@@ -2300,7 +2313,7 @@ sim-fes-c64-open-graphics:
 	@build/sim/fes-c64-open-graphics/Vc64_video_sim_top
 
 .PHONY: sim-fes-c64-sid
-sim-fes-c64-sid: sim-fes-c64-sid-envelope sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3
+sim-fes-c64-sid: sim-fes-c64-sid-envelope sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3 sim-fes-c64-sid-coupling
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top $(C64_VERILATOR_FLAGS) \
@@ -2330,6 +2343,18 @@ sim-fes-c64-sid-osc3:
 		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sid_oscillator_bus_tb.cpp"
 	@build/sim/fes-c64-sid-osc3/Vc64_sid_sim_top
+
+.PHONY: sim-fes-c64-sid-coupling
+sim-fes-c64-sid-coupling:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-coupling
+	$(VERILATOR) --cc --exe --build -O2 --top-module sid_coupling_sim_top $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-coupling" \
+		cores/fes-c64/sim/sid_coupling_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
+		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_coupling_tb.cpp"
+	@build/sim/fes-c64-sid-coupling/Vsid_coupling_sim_top
 
 .PHONY: sim-fes-c64-sid-envelope
 sim-fes-c64-sid-envelope:

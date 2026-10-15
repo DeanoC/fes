@@ -3,16 +3,21 @@
 // Copyright (C) 2010 Dag Lem <resid@nimrod.no>
 // GPL version 2 or later; complete license: c64_sid.COPYING.
 // See ../README.md for pinned source, regeneration and hardware limits.
-// Single waveforms/TEST only. Sync, ring and coupled waveforms remain open.
+// Single waveforms/TEST, three-voice hard sync and triangle ring modulation.
+// Coupled waveforms remain unqualified.
 module c64_sid_oscillator (
     input wire clk, reset, phi, we,
     input wire [2:0] addr,
     input wire [7:0] din,
+    input wire sync_clear, source_msb,
+    output wire [23:0] phase_now, phase_advanced,
+    output wire msb_rising, sync_enabled,
     output wire [11:0] waveform,
     output wire [7:0] osc
 );
     typedef struct packed {
         logic [23:0] phase;
+        logic msb_rising;
         logic [15:0] freq;
         logic [11:0] pw;
         logic [7:0] control;
@@ -26,16 +31,21 @@ module c64_sid_oscillator (
     state_t q,n;
     // reSID's deterministic power-up fixture; warm reset preserves phase.
     initial begin q='0; q.phase=24'h555555; q.lfsr=23'h7ffffe; q.pulse=12'hfff; end
+    assign phase_now=q.phase;
+    assign phase_advanced=q.control[3] ? q.phase : q.phase+{8'd0,q.freq};
+    // reSID retains this edge latch while TEST holds the accumulator.
+    assign msb_rising=q.control[3] ? q.msb_rising : (!q.phase[23] && phase_advanced[23]);
+    assign sync_enabled=q.control[1];
     assign waveform=q.wave;
     assign osc=q.wave[11:4];
     function automatic [11:0] noise_bits(input [22:0] sr);
         noise_bits={sr[20],sr[18],sr[14],sr[11],sr[9],sr[5],sr[2],sr[0],4'b0};
     endfunction
-    function automatic [11:0] selected_wave(input state_t s);
+    function automatic [11:0] selected_wave(input state_t s, input source_high);
         reg [7:0] legacy;
         begin
             case(s.control[7:4])
-            4'h1:selected_wave={(s.phase[23] ? ~s.phase[22:12] : s.phase[22:12]),1'b0};
+            4'h1:selected_wave={((s.phase[23] ^ (s.control[2] && !source_high)) ? ~s.phase[22:12] : s.phase[22:12]),1'b0};
             4'h2:selected_wave=s.phase[23:12];
             4'h4:selected_wave=s.pulse;
             4'h8:selected_wave=noise_bits(s.lfsr);
@@ -66,14 +76,18 @@ module c64_sid_oscillator (
                 end
                 n.pulse=12'hfff;
             end else begin
-                n.phase=q.phase+{8'd0,q.freq};
+                n.phase=phase_advanced;
+                n.msb_rising=msb_rising;
                 if(!q.phase[19] && n.phase[19]) n.shift_pipe=2;
                 else if(n.shift_pipe!=0) begin
                     n.shift_pipe=n.shift_pipe-1'b1;
                     if(n.shift_pipe==0) n.lfsr={n.lfsr[21:0],n.lfsr[22]^n.lfsr[17]};
                 end
             end
-            if(n.control[7:4]!=0) n.wave=selected_wave(n);
+            // Synchronize only after every voice has advanced its phase.
+            // Noise edge/shift behavior above observes the pre-sync phase.
+            if(sync_clear)n.phase=0;
+            if(n.control[7:4]!=0) n.wave=selected_wave(n,source_msb);
             else if(n.fade_count!=0) begin
                 n.fade_count=n.fade_count-1'b1;
                 if(n.fade_count==0) begin
@@ -98,7 +112,7 @@ module c64_sid_oscillator (
                 n.lfsr={n.lfsr[21:0],~n.lfsr[17]};
             end
             if(din[7:4]!=0) begin
-                n.wave=selected_wave(n);
+                n.wave=selected_wave(n,source_msb);
                 n.pulse=n.phase[23:12]>=n.pw ? 12'hfff : 12'h000;
             end else if(q.control[7:4]!=0) n.fade_count=18'd182000;
         end

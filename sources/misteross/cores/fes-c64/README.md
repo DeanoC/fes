@@ -38,9 +38,12 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Each buffer uses 51 explicit 2048×5 M10Ks, with a mailbox handoff across the
   system and HDMI clocks. Only complete frames reach the reader; an unconsumed
   publication keeps both the reader's buffer and queued frame protected.
-  Sprite beam X is prepared one system clock before each dot; guest-controlled
-  inputs keep their dot sampling. Complete framebuffer address/color writes
-  pass through one system-clock register, preserving dot and collision timing.
+  Sprite beam X and pointer/row/pending controls are prepared one system clock
+  before each dot; guest-controlled inputs keep their dot sampling. Original
+  framebuffer addresses and color-source tags travel together for three native
+  dots before D021 is resolved, then a complete write packet reaches memory
+  one system clock later. Sprite shifts and collisions retain their dot timing.
+  D020, D022-D024 and sprite-color write latencies remain unqualified.
   Nine-bit raster compare uses `$D011` bit 7 and `$D012`; `$D019` latches
   events and acknowledges written ones, while `$D01A` masks the CPU IRQ.
   The PAL beam has 63 Phi2 cycles per line and 312 lines per frame.
@@ -55,9 +58,10 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
 - Reduced SID: three digital oscillators with triangle, saw, delayed pulse,
   23-bit noise, TEST transitions and floating waveform decay; OSC3 and ENV3
   readback; eight-bit pipelined ADSR and signed PCM with linear master volume.
-  Single-wave digital timing and envelopes follow reSID's MOS6581 model.
-  Filter, sync, ring modulation, coupled waveforms, paddle reads, analog DAC
-  behavior and SID bus decay remain open. Unsupported waveform combinations
+  Single-wave digital timing, oscillator hard sync, triangle ring modulation
+  and envelopes follow reSID's MOS6581 model. Filter, coupled waveforms,
+  paddle reads, analog DAC behavior and SID bus decay remain open.
+  Unsupported waveform combinations
   retain the previous OR formula; their update timing is not qualified.
 - CIA1: keyboard matrix, joystick and IRQ. CIA2: IEC, the VIC bank and NMI.
   VIC banking follows the effective PA0/PA1 pin levels, including pull-ups
@@ -416,6 +420,28 @@ expose exhausted shift bits before the next byte loads. In 38-column mode,
 the horizontal border opens at native X31 and closes at X335, one dot before
 the following whole-byte boundaries.
 
+D021 background color is resolved three native dots after pixel-source
+selection, followed by the one-SYS framebuffer packet. The complete original
+address and direct-color index travel with an explicit D021 source tag.
+Standard text, multicolor text/bitmap and ECM background zero retain that tag;
+foreground, other ECM backgrounds, bitmap cell colors, opaque sprites and
+border pixels retain their original direct index, even when it equals D021.
+CPU register commits, sprite shifts, foreground and collision edges are unchanged.
+The pipeline drains during invisible dots before frame publication and is
+cancelled by reset. D020, D022–D024 and sprite-color write latency remain outside
+this timing correction.
+
+`make sim-fes-c64-d021` runs twelve open motherboard programs with the shared
+6502 and native 53/54-SYS cadence. It checks all sixteen colors in both
+directions, repeated and NMOS read-modify-write stores, architectural readback,
+all native write cycles, graphics modes, equal-valued direct colors, sprite
+priority, original framebuffer addresses, reset cancellation and frame drain.
+The recorded PAL6569R3 transition vectors come from unchanged VICE 3.10 color
+functions. Regenerate with
+`python3 scripts/generate_c64_d021_vectors.py --vice-source /path/to/vice-3.10`.
+The source oracle covers all 65,536 old/new-color and foreground-mask cases;
+NTSC and 8565 grey-dot behavior remain unqualified.
+
 `make sim-fes-c64-graphics` replays 800,000 synthetic dots against recorded
 VICE3.10 source-oracle output at the prefetched-byte boundary. All eight mode
 combinations, scroll values, carry and foreground priority are covered.
@@ -428,8 +454,9 @@ all five valid graphics modes across all banks.
 `make sim-fes-c64-open-graphics` checks complete PAL frames with open borders,
 nonzero bitmap/ECM metadata and solid glyphs. It requires graphics to blank
 outside the byte window while retaining metadata, including the first and
-last display rows. These checks do not qualify
-CPU palette-write latency, every physical subphase or fetch-mode transition.
+last display rows. The D021 motherboard test separately qualifies its PAL
+write transition; other palette writes, physical subphases and fetch-mode
+transitions remain outside these static frame checks.
 
 `make sim-fes-c64-video` checks complete frames with alternating character
 colors and all multicolor-bitmap palette selections in all four banks.
@@ -438,10 +465,11 @@ read clocks. Both are included in the aggregate simulation.
 
 `make sim-fes-c64-vic-timing` checks all 63×8 PAL cycle/dot coordinates at
 the native fractional 53/54-clock cadence, writes around each dot, the
-one-clock framebuffer transaction and reset cancellation. It exercises
+three-dot color pipeline, one-SYS framebuffer packet and reset cancellation. It exercises
 collisions and complete-frame publication, including the original visibility
-of a CPU palette write on the preparation edge. This checks the internal
-pipeline contract; physical VIC subphase behavior remains unqualified.
+of a direct border-color write on the preparation edge. This checks the
+internal pipeline contract; the D021 source oracle supplies its separate PAL
+write-timing expectation.
 
 The raster interrupt tests follow the Commodore
 [Programmer's Reference Guide](https://www.devili.iki.fi/Computers/Commodore/C64/Programmers_Reference/Chapter_3/page_150.html)
@@ -523,7 +551,7 @@ D64 medium and the C64.
 
 ### Digital SID regression
 
-`make sim-fes-c64-sid` runs four portable tests, using checked-in vectors and
+`make sim-fes-c64-sid` runs five portable tests, using checked-in vectors and
 no reference emulator, Commodore firmware or recordings:
 
 - `sim-fes-c64-sid-envelope` checks 21,240,086 envelope edges: all 16 rates,
@@ -543,6 +571,12 @@ no reference emulator, Commodore firmware or recordings:
   periods. Writes land 27 SYS edges after Phi2: the motherboard's comparison
   with `cycle_clock==26` observes the old register value.
 
+- `sim-fes-c64-sid-coupling` compares all three digital oscillator states
+  over 559 cases and 1,224,739 SYS edges. It exercises all 64 simultaneous
+  MSB-rise/SYNC masks, both source-MSB values for every triangle-ring voice,
+  sync suppression, TEST-held edge latches, fractional 53/54 cadence,
+  writes at every relative SYS phase, and simultaneous reset/clock/write.
+
 The oscillator runs on `cpu_ce`, including VIC CPU stalls, rather than the
 BA-qualified CPU execution enable. A SYS edge first advances the oscillator
 on Phi2 using its old registers, then accepts the bus write. Reset takes
@@ -553,6 +587,14 @@ bits 20/18/14/11/9/5/2/0; a rising accumulator bit 19 shifts it after two Phi2
 edges. TEST holds phase at zero, resets the noise register through the
 MOS6581 bit-fade sequence, and applies the falling-edge shift. Pulse output
 retains the reference's one-cycle comparator pipeline.
+
+Three-voice hard sync first advances every phase and noise pipeline using
+old registers, then clears the eligible destination phases, then calculates
+waveform output from the resulting phases. A source which is itself synced
+on that edge does not sync its destination. Triangle ring modulation uses
+that resulting source MSB; writes between Phi2 edges use its current MSB.
+The reference's MSB-rise latch is retained while TEST holds a source.
+No guest clock or register-write acceptance edge moves.
 
 The oracle links unchanged VICE 3.10 reSID `WaveformGenerator` and
 `EnvelopeGenerator`, by Dag Lem, under GPL-2.0-or-later. The adapted RTL and
@@ -565,7 +607,7 @@ combined-wave behavior is not included in the qualified subset.
 
 Reference: [VICE 3.10 source archive](https://github.com/VICE-Team/svn-mirror/releases/download/3.10.0/vice-3.10.tar.gz),
 SHA256 `8e5bac18cbcb9f192380ad3ef881f8790f5b75c41d7b3da65d831985d864d6d1`.
-From `sources/misteross`, regenerate or verify all four fixtures:
+From `sources/misteross`, regenerate or verify all five fixtures:
 
 ```sh
 python3 scripts/generate_c64_sid_vectors.py --vice-source /path/to/vice-3.10
@@ -573,8 +615,9 @@ python3 scripts/generate_c64_sid_vectors.py --vice-source /path/to/vice-3.10 --c
 make sim-fes-c64-sid
 ```
 
-`--component oscillator` and `--component oscillator-bus` select the new
-fixtures; `sid` and `envelope` select the prior tests. `--output` selects one
+`--component oscillator` and `--component oscillator-bus` select the
+single-voice and bus fixtures; `coupling` selects the three-voice sync/ring fixture; `sid` and `envelope`
+select the prior tests. `--output` selects one
 fixture's destination. The oscillator regression fingerprints every SYS
 state using 64-bit FNV-1a blocks, with explicit ending states for diagnosis.
 These are regression checks, not cryptographic attestations.
@@ -591,14 +634,16 @@ compared. Power-up phase `$555555` and envelope `$AA` are deterministic
 reSID fixtures, not measured hardware startup values. Warm reset retains
 phase and the envelope counter while clearing their register/pipeline state.
 
-The qualified oscillator subset is one waveform at a time, with sync and
-ring disabled. The prior OR formula remains for combinations, but its
-update timing is not qualified as unchanged. Sync, ring, analog DACs,
-filter/resonance, paddles and write-only bus decay remain unimplemented.
+The qualified oscillator subset is one waveform at a time, with three-voice
+hard sync and triangle ring modulation. The prior OR formula remains for
+combinations, but its
+update timing is not qualified as unchanged. Ring modulation of combined
+waveforms is also unqualified. Analog DACs, filter/resonance, paddles and
+write-only bus decay remain unimplemented.
 Host digital replay does not establish audible HDMI or real-SID fidelity.
-Standalone locked-Yosys synthesis of this change grew from 427 to 679 FF
-and 1,976 to 3,253 ALUT-family cells, with no RAM or DSP use. A whole-core
-fit, route and hardware qualification is still required for these bytes.
+Locked-Yosys standalone SID mapping grows from 679 to 688 FFs and from
+3,253 to 3,282 ALUT-family cells, with no RAM or DSP use. A whole-core
+mapped synthesis, route and hardware qualification is still required.
 
 ### Development PRG launch
 

@@ -22,7 +22,7 @@ int main(int argc,char**argv){
 #ifdef GENERATE_SPRITE_PAL_VECTORS
   oracle_reset();
 #else
-  Vc64_vic_sprite_pixels t;t.clk=0;t.reset=1;t.tick=0;t.dot=0;t.xpos=0;t.pending_update=0;t.display_bits=255;t.pointer_cycle=0;t.row_cycle=0;t.priority_bits=0;t.multicolor_bits=0;t.expand_bits=0;t.foreground=0;t.background_color=0;t.multi0=13;t.multi1=14;t.colors=0x87654321;
+  Vc64_vic_sprite_pixels t;t.background0=0;t.clk=0;t.reset=1;t.tick=0;t.dot=0;t.xpos=0;t.pending_update=0;t.display_bits=255;t.pointer_cycle=0;t.row_cycle=0;t.priority_bits=0;t.multicolor_bits=0;t.expand_bits=0;t.foreground=0;t.background_color=0;t.multi0=13;t.multi1=14;t.colors=0x87654321;
   for(unsigned i=0;i<3;++i)t.positions[i]=0;for(unsigned i=0;i<6;++i)t.data[i]=0;
   auto tick=[&](){t.clk=0;t.eval();t.clk=1;t.eval();};tick();t.reset=0;
 #endif
@@ -48,7 +48,18 @@ int main(int argc,char**argv){
      }
      for(unsigned i=0;i<3;++i)t.positions[i]=0;for(unsigned i=0;i<6;++i)t.data[i]=0;
      for(unsigned i=0;i<8;++i){for(unsigned b=0;b<9;++b)t.positions[(i*9+b)/32]|=((positions[i]>>b)&1)<<((i*9+b)%32);for(unsigned b=0;b<24;++b)t.data[(i*24+b)/32]|=((fetched[i]>>b)&1)<<((i*24+b)%32);}
-     t.tick=1;t.dot=dot;t.xpos=e.x+dot;t.pending_update=e.pending;t.pointer_cycle=e.ptr;t.row_cycle=e.row;t.multicolor_bits=mc;t.expand_bits=expand;tick();unsigned color=t.color_q;
+     t.tick=1;t.dot=dot;t.xpos=e.x+dot;t.pending_update=e.pending;t.pointer_cycle=e.ptr;t.row_cycle=e.row;t.multicolor_bits=mc;t.expand_bits=expand;
+     // Infer the winning source through background-port sensitivity, without
+     // relying on a color-value comparison with D021 or internal winner state.
+     t.clk=0;t.background0=1;t.eval();unsigned original=t.color;
+     t.background_color=15;t.eval();bool inherited=t.color!=original;
+     if(bool(t.color_background0)!=inherited){std::puts("sprite source tag mismatch");return 1;}
+     // Equal background/sprite palette values still retain the winning source.
+     t.background_color=original;t.eval();
+     if(bool(t.color_background0)!=inherited){std::puts("equal-color sprite source tag mismatch");return 1;}
+     t.background0=0;t.eval();
+     if(t.color_background0){std::puts("sprite invented a background source");return 1;}
+     t.background_color=0;tick();unsigned color=t.color_q;
 #endif
      hash^=color;hash*=UINT64_C(1099511628211);++count;
     }

@@ -1764,14 +1764,22 @@ with a two-Phi2 shift pipeline, TEST transitions and floating-output decay.
 unstalled Phi2 enable; a SYS edge advances old oscillator state before a bus
 write, with reset taking priority. Warm reset retains phase, while power-up
 uses reSID's deterministic `$555555` fixture, not a hardware startup claim.
+All three oscillators advance before hard-sync clear decisions. The source
+MSB-rise flags and old SYNC bits determine clears, including suppression
+when a source is itself synced. Output then uses post-sync phases; triangle
+ring modulation substitutes the source MSB without changing CPU/Phi2 timing.
+The reference's edge latch remains held during TEST. The portable coupling
+oracle covers the complete simultaneous-rise/SYNC mask space and all voices.
+Combined-wave coupling and analog filter/DAC behavior remain unqualified.
+
 The additional offline oscillator and OSC3 tests replay the pinned VICE 3.10
 reSID source at native 53/54-SYS periods and other directed write phases;
 native bus writes arrive 27 SYS edges after Phi2. Source, licensing,
 regeneration and the explicit host-integer noise-state normalization are in
 the core README. All compiled reference dependencies are hash checked.
 Unsupported combinations retain the old OR formula without a claim that
-its update timing is unchanged. Filter, sync, ring modulation, coupled
-waveforms, analog DACs, paddle reads and bus decay remain open. The host
+its update timing is unchanged. Filter, coupled waveforms (including ring
+modulation of them), analog DACs, paddle reads and bus decay remain open. The host
 checks do not establish complete SID, analog audio or routed-core fidelity.
 `c64_vic_sprite_pixels` supplies per-dot shifts, multicolor/X expansion,
 foreground priority and collision masks. Sprite X and pointer/row/display
@@ -1785,12 +1793,15 @@ existing cycle-43 read sample for `$D01E/F`; writes to those masks are ignored.
 The collision test replays 500,000 source-oracle ticks, while full-frame tests
 cover mixed sprites and borders across all banks. Register readback tests cover
 unused bits and write-protected light-pen result registers.
-The beam's sprite X coordinate is registered one SYS edge before each dot,
-while guest-controlled sprite inputs retain their original dot sampling.
-The complete framebuffer write (valid, address and color) is registered at
-the dot and delivered one SYS edge later. Collision and sprite shift state
-remain on the original edges. Reset discards an outstanding write; blanking
-separates the last visible write from frame publication.
+The beam's sprite X coordinate and deterministic pointer, row and pending
+controls are registered one SYS edge before each dot. Guest-controlled sprite
+inputs retain their original dot sampling. The original framebuffer address,
+direct color and D021-source tag travel together for three native dots; D021
+is resolved then, and the complete write packet reaches memory one SYS later.
+Collision and sprite shift state remain on their original edges. Reset clears
+all pending stages. Shifting through blank dots drains the last visible pixels
+before frame publication. D020, D022-D024 and sprite-color write latencies
+remain unqualified.
 `make sim-fes-c64-vic-timing` checks all PAL cycle/dot pairs, the fractional
 cadence, adjacent-dot register writes and the delayed transaction contract.
 `c64_frame_store` publishes complete frames to HDMI with a bundled-data

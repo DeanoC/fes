@@ -4,9 +4,9 @@ module c64_vic_sprite_pixels #(parameter integer ROW_DATA_DOT=4)(input wire clk,
  input wire [8:0] xpos,input wire [71:0] positions,input wire [191:0] data,
  input wire pending_update,input wire [7:0] display_bits,pointer_cycle,row_cycle,
  input wire [7:0] priority_bits,multicolor_bits,expand_bits,
- input wire foreground,input wire [3:0] background_color,multi0,multi1,
+ input wire foreground,background0,input wire [3:0] background_color,multi0,multi1,
  input wire [31:0] colors,
- output wire [3:0] color,output reg [3:0] color_q,output reg [7:0] ss_q,bg_q,
+ output wire [3:0] color,output reg color_background0,output reg [3:0] color_q,output reg [7:0] ss_q,bg_q,
  output reg [7:0] active,pending,halt,ex_flop,mc_flop,
  output wire [255:0] shifts,output wire [15:0] pixels);
  reg [8:0] xpipe[0:7];reg [31:0] shift[0:7],nshift[0:7];reg [1:0] pixel[0:7],npixel[0:7];
@@ -16,6 +16,7 @@ module c64_vic_sprite_pixels #(parameter integer ROW_DATA_DOT=4)(input wire clk,
  always @*begin
   nactive=active;npending=pending;nhalt=halt;nex=ex_flop;nmf=mc_flop;
   npri=pri;nmc=mc;nexpand=expand;opacity=0;winner=-1;result=background_color;
+  color_background0=background0;
   for(integer i=0;i<8;i=i+1)begin nshift[i]=shift[i];npixel[i]=pixel[i];end
   if(dot==2)nactive=nactive&~row_cycle;
   if(dot==3)nhalt=nhalt|pointer_cycle;
@@ -40,9 +41,14 @@ module c64_vic_sprite_pixels #(parameter integer ROW_DATA_DOT=4)(input wire clk,
     if(npixel[i]!=0)begin winner=i;opacity[i]=1;end
    end else nactive[i]=0;
   end
-  if(winner>=0&&!(foreground&&npri[winner]))case(npixel[winner])
-   1:result=multi0;2:result=colors[winner*4+:4];3:result=multi1;default:begin end
-  endcase
+  if(winner>=0&&!(foreground&&npri[winner]))begin
+   // The opaque winning sprite replaces the graphics source even when its
+   // color equals D021. Priority-hidden sprites retain the graphics source.
+   color_background0=0;
+   case(npixel[winner])
+    1:result=multi0;2:result=colors[winner*4+:4];3:result=multi1;default:begin end
+   endcase
+  end
  end
  assign color=result;
  for(genvar i=0;i<8;i=i+1)begin : state_outputs

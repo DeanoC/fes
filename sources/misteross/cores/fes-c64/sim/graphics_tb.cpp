@@ -29,7 +29,13 @@ int main(int argc,char**argv){
 #ifdef GENERATE_GRAPHICS_VECTORS
    unsigned result=oracle_color(dot)|(oracle_foreground(dot)<<4);
 #else
-   t.latch_scroll=(b>>7)&1;t.dot=dot;t.glyph=glyph;t.matrix=matrix;t.cell_color=color;t.d011=d011;t.d016=d016;t.background=background;t.tick=1;clock();unsigned result=t.color_q|(t.foreground_q<<4);
+   t.latch_scroll=(b>>7)&1;t.dot=dot;t.glyph=glyph;t.matrix=matrix;t.cell_color=color;t.d011=d011;t.d016=d016;t.background=background;t.tick=1;
+   // A source tag is exactly sensitivity to D021, including equal-valued
+   // direct colors. Probe without an edge, then restore the oracle inputs.
+   t.clk=0;t.eval();unsigned original=t.color,fg=t.foreground,tag=t.background0;
+   t.background=background^15;t.eval();
+   if(tag!=unsigned(t.color!=original)||t.foreground!=fg){std::puts("D021 graphics source tag mismatch");return 1;}
+   t.background=background;clock();unsigned result=t.color_q|(t.foreground_q<<4);
 #endif
    hash^=result;hash*=UINT64_C(1099511628211);
   }

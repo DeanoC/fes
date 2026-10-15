@@ -42,16 +42,16 @@ def main():
     parser.add_argument('--vice-source',type=Path,required=True)
     parser.add_argument('--output',type=Path)
     parser.add_argument('--check',action='store_true',help='compare generated fixtures with the selected output without modifying it')
-    parser.add_argument('--component',choices=['all','sid','envelope','oscillator','oscillator-bus'],default='all')
+    parser.add_argument('--component',choices=['all','sid','envelope','oscillator','oscillator-bus','coupling'],default='all')
     args=parser.parse_args()
     if args.output and args.component=='all':parser.error('--output requires one --component')
     module=Path(__file__).resolve().parents[1]
     sim=module/'cores/fes-c64/sim'
     source=args.vice_source/'src/resid'
-    selected=['sid','envelope','oscillator','oscillator-bus'] if args.component=='all' else [args.component]
+    selected=['sid','envelope','oscillator','oscillator-bus','coupling'] if args.component=='all' else [args.component]
     hashes={}
     for component in selected:
-        hashes.update(OSCILLATOR_SOURCE_HASHES if component.startswith('oscillator') else SOURCE_HASHES)
+        hashes.update(OSCILLATOR_SOURCE_HASHES if (component.startswith('oscillator') or component=='coupling') else SOURCE_HASHES)
     for name,digest in hashes.items():
         if hashlib.sha256((source/name).read_bytes()).hexdigest()!=digest:
             parser.error(f'{name}: expected unchanged VICE 3.10 source')
@@ -63,9 +63,9 @@ def main():
         for key,value in CONFIG.items():config=config.replace('@'+key+'@',value)
         (temp/'siddefs.h').write_text(config)
         for component in selected:
-            oscillator=component.startswith('oscillator')
+            oscillator=(component.startswith('oscillator') or component=='coupling')
             stem={'sid':'sid','envelope':'sid_envelope','oscillator':'sid_oscillator',
-                  'oscillator-bus':'sid_oscillator_bus'}[component]
+                  'oscillator-bus':'sid_oscillator_bus','coupling':'sid_coupling'}[component]
             define='C64_OSC_ORACLE' if oscillator else 'C64_SID_ORACLE'
             reference='wave.cc' if oscillator else 'envelope.cc'
             subprocess.run(['c++','-std=c++17','-O2','-D'+define,'-I'+str(temp),

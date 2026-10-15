@@ -214,7 +214,7 @@ module c64_vic (
         end
     end
     wire [3:0] graphics_ink;
-    wire graphics_foreground;
+    wire graphics_foreground,graphics_background0,sprite_background0;
     wire graphics_visible=native_cycle>=17&&native_cycle<=56&&!vertical_border;
     // Graphics go blank outside the forty-byte window; matrix/color
     // metadata retain the last visible byte until a later eligible load.
@@ -227,13 +227,14 @@ module c64_vic (
         end
     end
     wire [3:0] ink=(main_border||vertical_border)?border:sprite_ink;
+    wire ink_background0=!(main_border||vertical_border)&&sprite_background0;
     c64_vic_graphics_pixels graphics(
         .clk(clk_sys),.reset(reset),.tick(pixel_strobe),.dot(subpixel),
         .glyph(graphics_visible?glyph:8'd0),.matrix(graphics_visible?matrix:last_graphics_matrix),
         .cell_color(graphics_visible?cell_color:last_graphics_color),.d011(d011),.d016(regs[6'h16]),
         .background({regs[6'h24][3:0],regs[6'h23][3:0],regs[6'h22][3:0],regs[6'h21][3:0]}),
         .latch_scroll(native_cycle>=15&&native_cycle<=54&&!vertical_border),.color(graphics_ink),.foreground(graphics_foreground),
-        .color_q(),.foreground_q()
+        .background0(graphics_background0),.color_q(),.foreground_q()
     );
     wire [7:0] ss_event,bg_event,ss_mask,bg_mask,collision_status;
     wire [3:0] collision_flags;
@@ -256,19 +257,16 @@ module c64_vic (
         .flags(collision_flags),.read_value(),.status(collision_status),.irq(irq)
     );
     // PAL flags and sprite X describe the same native cycle.
-    reg [7:0] pointer_event,row_event;
-    always @*begin
-        pointer_event=0;row_event=0;
-        case(native_cycle)
-            58:pointer_event=1;60:pointer_event=2;62:pointer_event=4;
-            1:pointer_event=8;3:pointer_event=16;5:pointer_event=32;7:pointer_event=64;9:pointer_event=128;
-            59:row_event=1;61:row_event=2;63:row_event=4;
-            2:row_event=8;4:row_event=16;6:row_event=32;8:row_event=64;10:row_event=128;
-            default:begin end
-        endcase
+    // Explicit bit decodes keep the prepared events in logic rather than a ROM.
+    wire [7:0] pointer_event,row_event;
+    for(genvar n=0;n<8;n=n+1)begin : sprite_cycle_events
+        localparam [5:0] POINTER_CYCLE=6'(n<3?58+2*n:2*n-5);
+        localparam [5:0] ROW_CYCLE=POINTER_CYCLE+6'd1;
+        assign pointer_event[n]=native_cycle==POINTER_CYCLE;
+        assign row_event[n]=native_cycle==ROW_CYCLE;
     end
-    // Prepare only the predictable beam coordinate one SYS edge before each
-    // dot. Guest-controlled sprite inputs retain their original dot sampling.
+    // Prepare the predictable beam coordinate and sprite cycle events one SYS
+    // edge before each dot. Guest-controlled inputs retain their dot sampling.
     reg pixel_prepare;
     reg [2:0] prepare_dot;
     always @* begin
@@ -282,20 +280,29 @@ module c64_vic (
     wire [8:0] prepare_x=native_cycle>=14?9'((native_cycle-14)*8)+{6'd0,prepare_dot}:
         9'd400+9'((native_cycle-1)*8)+{6'd0,prepare_dot};
     reg [8:0] sprite_dot_x_q;
+    reg [7:0] sprite_pointer_q, sprite_row_q;
+    reg sprite_pending_update_q;
     always @(posedge clk_sys) begin
-        if(reset)sprite_dot_x_q<=0;
-        else if(pixel_prepare)sprite_dot_x_q<=prepare_x;
+        if(reset)begin
+            sprite_dot_x_q<=0;
+            // Reset leaves native_cycle at 1, whose pointer event is sprite 3.
+            sprite_pointer_q<=8'h08; sprite_row_q<=0; sprite_pending_update_q<=0;
+        end else if(pixel_prepare)begin
+            sprite_dot_x_q<=prepare_x;
+            sprite_pointer_q<=pointer_event; sprite_row_q<=row_event;
+            sprite_pending_update_q<=native_cycle==58;
+        end
     end
     // Final DMA byte is sampled at SYS30, after dot4 (SYS27).
     // Capture at dot5 (SYS34), before row halt releases at dot7.
     c64_vic_sprite_pixels #(.ROW_DATA_DOT(5)) pixel_sprites(
         .clk(clk_sys),.reset(reset),.tick(pixel_strobe),.dot(subpixel),.xpos(sprite_dot_x_q),
-        .positions(sprite_x),.data(sprite_data),.pending_update(native_cycle==58),
-        .display_bits(sprite_display),.pointer_cycle(pointer_event),.row_cycle(row_event),
+        .positions(sprite_x),.data(sprite_data),.pending_update(sprite_pending_update_q),
+        .display_bits(sprite_display),.pointer_cycle(sprite_pointer_q),.row_cycle(sprite_row_q),
         .priority_bits(regs[6'h1b]),.multicolor_bits(regs[6'h1c]),.expand_bits(regs[6'h1d]),
-        .foreground(graphics_foreground),.background_color(graphics_ink),
+        .foreground(graphics_foreground),.background0(graphics_background0),.background_color(graphics_ink),
         .multi0(regs[6'h25][3:0]),.multi1(regs[6'h26][3:0]),.colors(sprite_colors),
-        .color(sprite_ink),.color_q(),.ss_q(ss_event),.bg_q(bg_event),.active(),.pending(),.halt(),
+        .color(sprite_ink),.color_background0(sprite_background0),.color_q(),.ss_q(ss_event),.bg_q(bg_event),.active(),.pending(),.halt(),
         .ex_flop(),.mc_flop(),.shifts(),.pixels()
     );
     wire visible_native=raster>=16&&raster<=287&&native_cycle>=13&&native_cycle<=60;
@@ -304,20 +311,40 @@ module c64_vic (
     wire [8:0] write_x=9'((native_cycle-6'd13)*8)+{6'd0,subpixel};
     wire [16:0] write_address=17'(native_y*384)+{8'd0,write_x};
 
-    // The native dot and collision state advance on their original edges.
-    // Deliver the complete private framebuffer transaction one SYS later,
-    // separating sprite composition from the distributed M10K data load.
+    // PAL6569R3 resolves D021 three dots after selecting the pixel source.
+    // Keep direct colors and the complete original framebuffer transaction
+    // together; equal-valued cell, sprite and border colors are not D021.
+    // Shifting on blank dots drains the last visible pixels before publication.
+    reg [2:0] color_valid,color_background0;
+    reg [16:0] color_address[0:2];
+    reg [3:0] color_direct[0:2];
     reg frame_write_valid;
     reg [16:0] frame_write_address;
     reg [3:0] frame_write_ink;
     always @(posedge clk_sys) begin
         if(reset)begin
+            color_valid<=0; color_background0<=0;
+            for(integer stage=0;stage<3;stage=stage+1)begin
+                color_address[stage]<=0; color_direct[stage]<=0;
+            end
             frame_write_valid<=0; frame_write_address<=0; frame_write_ink<=0;
         end else begin
-            frame_write_valid<=visible_native&&pixel_strobe;
-            if(visible_native&&pixel_strobe)begin
-                frame_write_address<=write_address;
-                frame_write_ink<=ink;
+            // The existing one-SYS write packet follows color resolution.
+            // Graphics shifts, foreground and collisions retain their dot edge.
+            frame_write_valid<=pixel_strobe&&color_valid[2];
+            if(pixel_strobe)begin
+                color_valid<={color_valid[1:0],visible_native};
+                color_background0<={color_background0[1:0],ink_background0};
+                color_address[0]<=write_address;
+                color_direct[0]<=ink;
+                for(integer stage=1;stage<3;stage=stage+1)begin
+                    color_address[stage]<=color_address[stage-1];
+                    color_direct[stage]<=color_direct[stage-1];
+                end
+                if(color_valid[2])begin
+                    frame_write_address<=color_address[2];
+                    frame_write_ink<=color_background0[2]?regs[6'h21][3:0]:color_direct[2];
+                end
             end
         end
     end
