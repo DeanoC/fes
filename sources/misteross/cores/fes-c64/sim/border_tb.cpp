@@ -64,9 +64,8 @@ int main(int argc,char **argv){
    if(record&&t.de){unsigned x=pixels%1280,y=pixels/1280,color=0;
     if(x>=160&&x<1120){unsigned vx=(x-160)*2/5,raster=y*17/45+16;color=6;
      for(unsigned i=0;i<8;++i){
-      // Sprite7 X480 lies after its pointer halt and before row reload.
-      // The VICE source oracle confirms it cannot trigger here.
-      if(i==7)continue;
+      // PAL sprite flags and X positions refer to the same cycle. Sprite7
+      // X480 starts after its row reload and can cover the left eight pixels.
       int start=xpos[i]>=400?int(xpos[i])-496:int(xpos[i])+8;int dx=int(vx)-start,dy=int(raster)-int(ypos[i]);unsigned xscale=(xmask&(1u<<i))?2:1,yscale=(ymask&(1u<<i))?2:1;
       // Y compares only eight bits; PAL's312 lines allow a second
       // trigger and an expanded sprite can cross frame rollover.

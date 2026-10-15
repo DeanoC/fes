@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // PAL sprite shift registers, expansion, multicolor, priority and dot collision masks.
-module c64_vic_sprite_pixels(input wire clk,reset,tick,input wire [2:0] dot,
+module c64_vic_sprite_pixels #(parameter integer ROW_DATA_DOT=4)(input wire clk,reset,tick,input wire [2:0] dot,
  input wire [8:0] xpos,input wire [71:0] positions,input wire [191:0] data,
  input wire pending_update,input wire [7:0] display_bits,pointer_cycle,row_cycle,
  input wire [7:0] priority_bits,multicolor_bits,expand_bits,
@@ -21,8 +21,8 @@ module c64_vic_sprite_pixels(input wire clk,reset,tick,input wire [2:0] dot,
   if(dot==3)nhalt=nhalt|pointer_cycle;
   if(dot==4)begin
    if(pending_update)npending=display_bits;
-   for(integer i=0;i<8;i=i+1)if(row_cycle[i])nshift[i]={8'd0,data[i*24+:24]};
   end
+  if(dot==ROW_DATA_DOT)for(integer i=0;i<8;i=i+1)if(row_cycle[i])nshift[i]={8'd0,data[i*24+:24]};
   if(dot==6)begin npri=priority_bits;nexpand=expand_bits;end
   if(dot==7)begin nmf=nmf&~(multicolor_bits^mc);nmc=multicolor_bits;nhalt=nhalt&~row_cycle;end
   for(integer i=0;i<8;i=i+1)

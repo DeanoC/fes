@@ -1761,7 +1761,11 @@ regression exercises 15.6 million system-clock edges. Waveforms remain
 simplified and filter, sync, ring modulation, OSC3/paddle reads and bus decay
 remain open; this does not establish complete SID or analog audio fidelity.
 `c64_vic_sprite_pixels` supplies per-dot shifts, multicolor/X expansion,
-foreground priority and collision masks. `c64_vic_collisions` commits collision
+foreground priority and collision masks. Sprite X and pointer/row/display
+events use the same PAL cycle. The registered final DMA byte is captured at
+dot5, after its SYS30 read and before the dot7 halt release. An offline
+100,800-dot replay checks unchanged VICE sprite-renderer output with the PAL
+cycle table, reload-edge positions and late final-byte arrival. `c64_vic_collisions` commits collision
 masks at the following cycle boundary, defers read clearing and latches IRQ
 sources independently of their enable mask. The motherboard supplies the
 existing cycle-43 read sample for `$D01E/F`; writes to those masks are ignored.

@@ -251,11 +251,11 @@ module c64_vic (
         .ss_events(ss_acc),.bg_events(bg_acc),.ss_mask(ss_mask),.bg_mask(bg_mask),
         .flags(collision_flags),.read_value(),.status(collision_status),.irq(irq)
     );
-    wire [5:0] previous_cycle=native_cycle==1?6'd63:native_cycle-1'b1;
+    // PAL flags and sprite X describe the same native cycle.
     reg [7:0] pointer_event,row_event;
     always @*begin
         pointer_event=0;row_event=0;
-        case(previous_cycle)
+        case(native_cycle)
             58:pointer_event=1;60:pointer_event=2;62:pointer_event=4;
             1:pointer_event=8;3:pointer_event=16;5:pointer_event=32;7:pointer_event=64;9:pointer_event=128;
             59:row_event=1;61:row_event=2;63:row_event=4;
@@ -265,9 +265,11 @@ module c64_vic (
     end
     wire [8:0] sprite_dot_x=native_cycle>=14?9'((native_cycle-14)*8)+{6'd0,subpixel}:
         9'd400+9'((native_cycle-1)*8)+{6'd0,subpixel};
-    c64_vic_sprite_pixels pixel_sprites(
+    // Final DMA byte is sampled at SYS30, after dot4 (SYS27).
+    // Capture at dot5 (SYS34), before row halt releases at dot7.
+    c64_vic_sprite_pixels #(.ROW_DATA_DOT(5)) pixel_sprites(
         .clk(clk_sys),.reset(reset),.tick(pixel_strobe),.dot(subpixel),.xpos(sprite_dot_x),
-        .positions(sprite_x),.data(sprite_data),.pending_update(previous_cycle==58),
+        .positions(sprite_x),.data(sprite_data),.pending_update(native_cycle==58),
         .display_bits(sprite_display),.pointer_cycle(pointer_event),.row_cycle(row_event),
         .priority_bits(regs[6'h1b]),.multicolor_bits(regs[6'h1c]),.expand_bits(regs[6'h1d]),
         .foreground(graphics_foreground),.background_color(graphics_ink),

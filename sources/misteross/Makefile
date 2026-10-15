@@ -1261,7 +1261,7 @@ sim-fes-c64-frame:
 		"$(CURDIR)/cores/fes-c64/sim/frame_tb.cpp"
 	@build/sim/fes-c64-frame/Vc64_frame_store
 
-sim-fes-c64: sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-irq sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
+sim-fes-c64: sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-irq sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
@@ -2213,3 +2213,11 @@ sim-fes-c64-sid-envelope:
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-envelope" \
 		cores/fes-c64/rtl/c64_sid_envelope.sv "$(CURDIR)/cores/fes-c64/sim/sid_envelope_tb.cpp"
 	@build/sim/fes-c64-sid-envelope/Vc64_sid_envelope
+
+.PHONY: sim-fes-c64-sprite-pal
+sim-fes-c64-sprite-pal:
+	$(require_local_sim)
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_vic_sprite_pixels $(C64_VERILATOR_FLAGS) -GROW_DATA_DOT=5 \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sprite-pal" cores/fes-c64/rtl/c64_vic_sprite_pixels.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sprite_pal_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-c64-sprite-pal/Vc64_vic_sprite_pixels

@@ -198,6 +198,15 @@ motherboard enable against an independent fractional reference on every tick
 for a full PAL second, including alternate parameter cases with adjacent
 pulses. Rates at or above half the system clock retain the original direct enable.
 
+`make sim-fes-c64-sprite-pal` checks 100,800 dots against offline output
+from unchanged VICE 3.10 `draw_sprites8`, using its PAL cycle table and
+eight positions near reload boundaries. It covers mono/multicolor, X expansion
+and the registered final DMA byte arriving between dots4/5. Regenerate with
+`scripts/generate_c64_sprite_pal_vectors.py --vice-source /path/to/vice-3.10`;
+the generator checks both primary source hashes. The production caller uses
+the current cycle for sprite X and control events, and latches row data at
+dot5 before releasing halt at dot7.
+
 `make sim-fes-c64-sprite` checks all eight sprite fetch slots across four banks:
 21/42-row timing, pointer addresses, three-byte order, a late DMA enable's
 unowned first byte and sustained cycle-15 expansion crunch. The motherboard
