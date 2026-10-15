@@ -714,6 +714,13 @@ def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes],
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text, gpu_backend)
     validate_pll_log(route_text)
+    # Frequency rows do not prove the routed PLL. Admit only the current
+    # compiler's connections, audio clock branch, directions and physical pin
+    # map. Legacy six-pin repair is not a publication path.
+    try:
+        atari_st_slot.validate_current_system_pll(routed["modules"][TOP])
+    except ValueError as exc:
+        raise BuildError(str(exc)) from exc
     timing = _read_json(output / "timing.json", "timing report")
     rows = {label: _frequency_row(timing.get("fmax"), mhz, label)
             for label, mhz in (("system", 52.224), ("pixel", 74.25), ("audio", 12.288))}

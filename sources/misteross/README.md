@@ -86,12 +86,12 @@ runs the [fes.riscv](cores/fes-riscv/README.md) system and board shell.
 The original shared Z80 CPU has NMOS and documented fast variants. Run
 `make sim-fes-z80` for standalone instruction, flag and pin timing checks; see
 [the CPU contract](cores/fes-common/rtl/z80/README.md) for interfaces and the
-Cyclone V timing diagnostic. SG-1000 and Spectrum select the NMOS variant.
+Cyclone V timing diagnostic. SG-1000, ZX81 and Spectrum select the NMOS variant.
 Spectrum also has an explicit documented-only 56 MHz development build;
 `make sim-fes-spectrum-turbo` compares both modes and measures elapsed workloads.
-Coleco, SMS and ZX81 still instantiate TV80/T80. [Core alignment](../../docs/core-alignment.md)
+Coleco and SMS still instantiate TV80/T80. [Core alignment](../../docs/core-alignment.md)
 schedules the move onto `fes_z80_nmos` one machine at a time. That swap has
-not landed for those three packages.
+not landed for those two packages.
 
 ### OSS experiments
 

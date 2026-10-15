@@ -248,22 +248,20 @@ to ordinary 320×200, and later demo sections/audio fidelity remain unqualified.
 
 ## Not implemented, or not this package
 
-- ZX81 mid-session tape replace and eject use the same `fes.media.blob`
-  mailbox without a hold-reset reboot. The runtime path and the host
-  `live-media` / `change-tape` API are in. The kit's visible picker has a
-  [dated HDMI diagnostic](validation/2026-10-02-zx81-session-display.md).
-  See [FES ZX81](fes-zx81.md) and
+- ZX81 mid-session tape replace and eject use `fes.media.zx81-tape` unit 0
+  without a hold-reset reboot. The runtime path and the host
+  `live-media` / `change-tape` API are in. The
+  [2 Oct HDMI diagnostic](validation/2026-10-02-zx81-session-display.md)
+  accepts an older simple-computer shell. It does not accept these
+  `fes.computer` bytes. See [FES ZX81](fes-zx81.md) and
   [ZX81 tape media](zx81-tape-media.md). Launch-time ROM splice and
   expansion-cart selection are separate; the expansion bus guide is
   [ZX81 expansion bus](zx81-expansion-bus.md).
-- ZX81 source includes an in-session launcher plane with observed
-  `fes.video.session-display` and HPS DDR capabilities. Opening/closing it
-  preserves CPU, RAM and the active core generation; kit tenfoot enables live
-  tape routes only on that capable path. The sealed 1.5.0 package, verified
-  image and designated-kit observations are recorded in the
-  [session-display validation](validation/2026-10-02-zx81-session-display.md).
-  Physical operator input and expansion/audio acceptance remain separate.
-  See [the hardware room](hardware-rooms.md).
+- The ZX81 shell includes an in-session launcher plane on required
+  `fes.video.session-display` and `fes.memory.hps-ddr`. Opening and closing
+  it preserves CPU, RAM and the active core generation. The 2 Oct note does
+  not accept these bytes. Physical operator input and expansion/audio
+  acceptance remain separate. See [the hardware room](hardware-rooms.md).
 - Idle rooms and attract are not the splash bitstream. The splash is board
   firmware. The rooms design is [idle MENU → rooms](idle-menu-rooms.md).
 - There is no NES, SNES, or Mega Drive package in the factory set. Old

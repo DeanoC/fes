@@ -1102,10 +1102,12 @@ The retained `exchanges.json` remains the original volatile fixture with bits
 verifies exact GPI words, varied host-to-FPGA edge placement, field holding,
 one effect per toggle and error isolation.
 
-## FES simple-computer mailbox
+## FES ZX81 mailbox
 
-`cores/fes-zx81/rtl/fes_computer_gp.v` implements `fes.simple-computer` 1.0 on
-the same GPO/GPI transport. It holds execution in reset, keeps eight active-low
+The sealed shell is `fes.computer` 1.0. `top.v` instantiates
+`fes_computer_mailbox` with the ZX81 tape unit and the session-display plane.
+`cores/fes-zx81/rtl/fes_computer_gp.v` remains the session-harness mailbox on
+the older `fes.simple-computer` 1.0 transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
 begin/data/commit. Hold reset clears in-flight media and the keyboard; a
 committed blob stays. Media begin with eject index and argument 0 clears
@@ -1133,9 +1135,7 @@ normal show/return does not use execution hold.
 MiSTer-devel/ZX81_MiSTer `ZX81.sv` at Release 20260603: 16 KB RAM, PAL, no
 CHROMA/QS/YM2149/joystick. Keyboard rows and `.p` tape bytes come from the GP
 mailbox. Character ROM bytes are `cores/fes-zx81/rtl/zx8x.hex`, converted from
-the pinned `rtl/zx8x.mif`. The Z80 is TV80 (`66a131c`) wrapped as `T80pa` with
-Sorgelig half-cycle `CEN_p`/`CEN_n` timing, WAIT via CEN gating, and
-`TV80_REFRESH`. NMI is sampled every clock, matching T80.vhd. `CEN_p` averages exactly
+the pinned `rtl/zx8x.mif`. The Z80 is `fes_z80_nmos`. `ce_p` averages exactly
 3.25 MHz from the rational machine clock scheduler.
 
 `make sim-fes-zx81` also runs `Vzx81_machine`, which waits until NEW has built
@@ -1170,8 +1170,8 @@ reference: 52 MHz system (T80, ULA, mailbox) and 74.25 MHz pixel (HDMI
 1650×750). HDMI RGB/HS/VS/CLK pins and U10/AA4 match FES Pong. The HPS I2C
 cell is at `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111`; `out_clk`/`out_data`
 pull SCL/SDA low and `scl`/`sda` read the pads (Quartus assign-to-Z in place
-of Pong's `MISTRAL_IO`). The Z80 is VHDL T80pa from ZX81_MiSTer Release
-20260603; Verilator keeps TV80.
+of Pong's `MISTRAL_IO`). The Quartus oracle Z80 is VHDL T80pa from ZX81_MiSTer Release
+20260603. Product simulation and the OSS shell use `fes_z80_nmos`.
 
 The compile defines `QUARTUS=1`. ROM, 16 KB RAM and the 16 KB media blob
 instantiate `zx81_dpram`. Its Quartus branch is `altsyncram` bidirectional
@@ -1220,7 +1220,7 @@ that read so one response word describes one request. The shell producer
 rejects every async M10K in `synth.json` and `routed.json`. The
 validation-cart and QS producers reject every async M10K in `cart.json` and
 `cart-routed.json`. The 720p capture buffer is a dual-clock M10K SDP with
-its read registered on `pixel_clk`. The Z80 is Verilog T80pa/TV80.
+its read registered on `pixel_clk`. The Z80 is `fes_z80_nmos`.
 HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 (`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.
 
@@ -1393,7 +1393,7 @@ matching workaround rather than keep both.
 
 What already works in this design, so a toolchain fix should not regress it: two independent `altera_pll` cells on PIN_V11; 8-bit 16 K `m10k_tdp` infers 16 `MISTRAL_M10K_TDP` cells in under a second; Pong-style `MISTRAL_IO` HDMI I2C at X52/Y60.
 
-Verilog T80pa/TV80 is an OSS language choice, not a nextpnr packing gap. Quartus keeps VHDL T80pa.
+The product OSS shell instantiates `fes_z80_nmos`. That selection is not a nextpnr packing gap. The Quartus oracle keeps VHDL T80pa.
 
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
@@ -2239,9 +2239,8 @@ records routed timing from exact source/tool snapshots without producing an
 RBF. Its optional `--require-target` timing gate fails if any selected seed
 misses the requested clock, after preserving the reports. The CPU contract
 records the selected 56 MHz route and the limits of its 16-times clock ratio.
-SG-1000 and Spectrum now select the NMOS variant; Spectrum has a separate
-documented-fast development producer. Coleco, SMS and ZX81 retain their existing
-CPU selections. The synthetic raw-pin replay self-test is included in
+SG-1000, ZX81 and the default Spectrum producer select the NMOS variant; Spectrum has a separate
+documented-fast development producer. Coleco and SMS retain TV80. The synthetic raw-pin replay self-test is included in
 `make sim-fes-z80`; operator-supplied genuine-chip captures use the same
 strict half-edge comparator. No physical-chip equivalence is inferred from
 software vectors, synthetic waveforms or a timing-passing FPGA build.

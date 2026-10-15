@@ -148,6 +148,82 @@ class AtariSTProducerTests(unittest.TestCase):
             with self.assertRaises(BuildError):
                 st.validate_pll_log(bad)
 
+    def test_build_evidence_admits_only_the_current_system_pll(self):
+        def top(*, pin="C7", direction="output", connection=None, audio=True, legacy=False):
+            if legacy:
+                pins = {name: [0, name] for name in
+                        ("locked", "outclk", "outclk[0]", "outclk[1]", "refclk", "rst")}
+                connections = {"outclk": [10], "refclk": [11], "locked": [12]}
+                directions = {"outclk": "output", "refclk": "input", "locked": "output"}
+                mapping = {"count": 6, "pins": pins}
+            else:
+                pins = {"locked": [0, "locked"], "outclk": [0, "C6"], "outclk[1]": [0, pin],
+                        "refclk": [0, "refclk"], "rst": [0, "rst"]}
+                connected = [20] if connection is None else list(connection)
+                connections = {"outclk": [10], "outclk[1]": connected, "refclk": [11], "locked": [12]}
+                directions = {"outclk": "output", "outclk[1]": direction,
+                              "refclk": "input", "locked": "output"}
+                mapping = {"count": 5, "pins": pins}
+            cells = {"system_clock.pll": {
+                "type": "altera_pll", "connections": connections, "port_directions": directions,
+                "attributes": {"FES_PINMAP_V1": json.dumps(mapping).encode().hex()}}}
+            if audio:
+                cells["audio_buf"] = {"type": "MISTRAL_CLKBUF", "connections": {"A": [20], "Q": [21]}}
+            return {"cells": cells, "netnames": {
+                "system_clock.pll_outclk_1": {"bits": [20]},
+                "system_clock.clocks[1]": {"bits": [21]}}}
+
+        current = top()
+        before = copy.deepcopy(current)
+        atari_st_slot.validate_current_system_pll(current)
+        self.assertEqual(current, before)
+        for label, kwargs, pattern in (
+                ("c8", {"pin": "C8"}, "frozen pin map changed"),
+                ("legacy", {"legacy": True}, "frozen pin map changed"),
+                ("direction", {"direction": "input"}, "physical port directions changed"),
+                ("connection", {"connection": [999]}, "frozen audio PLL connection changed"),
+                ("branch", {"audio": False}, "frozen audio PLL net changed")):
+            with self.subTest(label=label):
+                rejected = top(**kwargs)
+                snapshot = copy.deepcopy(rejected)
+                with self.assertRaisesRegex(ValueError, pattern):
+                    atari_st_slot.validate_current_system_pll(rejected)
+                self.assertEqual(rejected, snapshot)
+
+        log = ("Info: backend hip: device ready\n"
+               "Info: PLL 'system_clock.pll': fractional-N requested 52224000.000000 Hz (output 0), "
+               "achieved 52224000.000569507 Hz, error 1.09050546e-05 ppm.\n"
+               "Info: PLL 'system_clock.pll': fractional-N requested 12288000.000000 Hz (output 1), "
+               "achieved 12288000.000134002 Hz, error 1.09050546e-05 ppm.\n"
+               "Info: PLL 'system_clock.pll': 50.000000 MHz -> VCO 417.792000 MHz, fractional-N, "
+               "M=8 N=1 K=1528321163, counters C6,7, bel altera_pll.0.31.0\n"
+               "Info: Program finished normally.\n")
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output / "nextpnr.log").write_text(log)
+            routed = output / "routed.json"
+
+            def evidence(module):
+                routed.write_text(json.dumps({"modules": {"top": module}}))
+                with patch.object(st, "validate_synth_evidence", return_value={"synthesis_cells": {}}), \
+                     patch.object(st, "reject_async_m10k_reads"), \
+                     patch.object(st, "_i2c_evidence"), \
+                     patch.object(st, "validate_routed_shell", return_value={}), \
+                     patch.object(st, "validate_cache_placements", return_value={}), \
+                     patch.object(st, "validate_m10k_configurations", return_value={}), \
+                     patch.object(st, "validate_sector_memory", return_value={}), \
+                     patch.object(st.atari_st_video_parts, "validate_boundary"):
+                    return st.validate_build_evidence(output, ram_database={})
+
+            rejected = top(pin="C8")
+            with self.assertRaisesRegex(BuildError, "frozen pin map changed"):
+                evidence(rejected)
+            self.assertEqual(json.loads(routed.read_text())["modules"]["top"], rejected)
+            with self.assertRaisesRegex(BuildError, "frozen pin map changed"):
+                evidence(top(legacy=True))
+            with self.assertRaisesRegex(BuildError, "missing nonempty timing report"):
+                evidence(top())
+
     def test_vendor_cpu_adapter_preserves_all_functional_bytes(self):
         original = (ROOT / st.CPU_VENDOR / 'fx68k.sv').read_bytes()
         adapted = st.adapted_cpu_source(ROOT)

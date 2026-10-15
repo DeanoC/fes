@@ -48,21 +48,17 @@ def _pll_net_bits(netnames: dict, name: str) -> list:
     return bits
 
 
-def repair_split_system_pll(top: dict) -> None:
-    """Reattach or accept the split second system PLL output.
+# Current nextpnr: scalar outclk is bit 0 at C6, outclk[1] is C7.
+PHYSICAL_PINS = {'locked': [0, 'locked'], 'outclk': [0, 'C6'], 'outclk[1]': [0, 'C7'],
+                 'refclk': [0, 'refclk'], 'rst': [0, 'rst']}
+PHYSICAL_DIRECTIONS = {'outclk': 'output', 'outclk[1]': 'output',
+                       'refclk': 'input', 'locked': 'output'}
+_LEGACY_CONNECTIONS = frozenset({'outclk', 'refclk', 'locked'})
+_CURRENT_CONNECTIONS = _LEGACY_CONNECTIONS | {'outclk[1]'}
 
-    Legacy routed JSON omits ``outclk[1]`` and records a six-pin map whose
-    ``outclk[0]`` and ``outclk[1]`` entries alias themselves. That shell is
-    repaired onto ``system_clock.pll_outclk_1`` and the obsolete alias is
-    removed. Shared-pin nextpnr JSON already routes ``outclk[1]`` and carries
-    the physical five-pin map: scalar ``outclk`` is bit 0 at cell pin C6 and
-    ``outclk[1]`` is cell pin C7. That cell is preserved when its ``outclk[1]``
-    connection already equals ``system_clock.pll_outclk_1`` and the port
-    directions are output, output, input and output for ``outclk``,
-    ``outclk[1]``, ``refclk`` and ``locked``. A missing, mismatched or
-    input-direction physical output is rejected. Any other connection set or
-    pin map is rejected.
-    """
+
+def _load_system_pll(top: dict) -> dict:
+    """Parse the system PLL. A map that is neither current nor legacy is rejected."""
     top = _pll_object(top, 'ST system PLL top module')
     cells = _pll_object(top.get('cells'), 'ST system PLL cells')
     netnames = _pll_object(top.get('netnames'), 'ST system PLL netnames')
@@ -70,8 +66,7 @@ def repair_split_system_pll(top: dict) -> None:
     connections = _pll_object(pll.get('connections'), 'ST system PLL connections')
     attributes = _pll_object(pll.get('attributes'), 'ST system PLL attributes')
     directions = _pll_object(pll.get('port_directions'), 'ST system PLL port directions')
-    legacy = {'outclk', 'refclk', 'locked'}
-    if pll.get('type') != 'altera_pll' or set(connections) not in (legacy, legacy | {'outclk[1]'}):
+    if pll.get('type') != 'altera_pll' or set(connections) not in (_LEGACY_CONNECTIONS, _CURRENT_CONNECTIONS):
         raise ValueError('ST system PLL connection contract changed')
     encoded = attributes.get('FES_PINMAP_V1')
     if not isinstance(encoded, str):
@@ -79,22 +74,23 @@ def repair_split_system_pll(top: dict) -> None:
     mapping = _pll_object(json.loads(bytes.fromhex(encoded).decode()), 'ST system PLL pin map')
     pins = _pll_object(mapping.get('pins'), 'ST system PLL mapped pins')
     aliases = {f'outclk[{bit}]': [0, f'outclk[{bit}]'] for bit in range(2)}
-    # nextpnr's shared-pin shell: scalar outclk is bit 0 (C6), outclk[1] is C7.
-    physical_pins = {'locked': [0, 'locked'], 'outclk': [0, 'C6'], 'outclk[1]': [0, 'C7'],
-                     'refclk': [0, 'refclk'], 'rst': [0, 'rst']}
     physical = (set(mapping) == {'count', 'pins'} and type(mapping.get('count')) is int and
-                mapping['count'] == 5 and pins == physical_pins and
+                mapping['count'] == 5 and pins == PHYSICAL_PINS and
                 all(type(entry[0]) is int and type(entry[1]) is str for entry in pins.values()))
     legacy_map = (type(mapping.get('count')) is int and mapping['count'] == 6 and len(pins) == 6 and
                   all(pins.get(name) == value for name, value in aliases.items()))
-    if not physical and not legacy_map:
+    if physical:
+        kind = 'physical'
+    elif legacy_map:
+        kind = 'legacy'
+    else:
         raise ValueError('ST system PLL frozen pin map changed')
-    # A five-pin map names C7. The routed outclk[1] connection and port
-    # directions have to match before the six-pin form is rewritten.
-    physical_directions = {'outclk': 'output', 'outclk[1]': 'output',
-                           'refclk': 'input', 'locked': 'output'}
-    if physical and directions != physical_directions:
-        raise ValueError('ST system PLL physical port directions changed')
+    return {'cells': cells, 'netnames': netnames, 'connections': connections, 'attributes': attributes,
+            'directions': directions, 'mapping': mapping, 'pins': pins, 'kind': kind}
+
+
+def _require_audio_clock_branch(cells: dict, netnames: dict) -> list:
+    """The one buffer from ``pll_outclk_1`` onto ``system_clock.clocks[1]``."""
     output1 = _pll_net_bits(netnames, 'system_clock.pll_outclk_1')
     clock1 = _pll_net_bits(netnames, 'system_clock.clocks[1]')
     buffers = []
@@ -106,12 +102,58 @@ def repair_split_system_pll(top: dict) -> None:
             buffers.append(cell)
     if len(buffers) != 1 or buffers[0]['connections'].get('A') != output1:
         raise ValueError('ST frozen audio PLL net changed')
-    if physical:
-        if connections.get('outclk[1]') != output1:
-            raise ValueError('ST frozen audio PLL connection changed')
+    return output1
+
+
+def validate_current_system_pll(top: dict) -> None:
+    """Admit the current compiler's system PLL. The cell is not rewritten.
+
+    A current shell connects ``outclk``, ``outclk[1]``, ``refclk`` and
+    ``locked``, drives ``system_clock.clocks[1]`` from
+    ``system_clock.pll_outclk_1`` through one clock buffer, and uses output,
+    output, input and output directions for ``outclk``, ``outclk[1]``,
+    ``refclk`` and ``locked``. Its physical pin map puts scalar ``outclk`` at
+    C6 and ``outclk[1]`` at C7. ``outclk[1]`` must already be that audio net.
+    A legacy six-pin map is not a current shell.
+    """
+    loaded = _load_system_pll(top)
+    if loaded['kind'] != 'physical':
+        raise ValueError('ST system PLL frozen pin map changed')
+    if loaded['directions'] != PHYSICAL_DIRECTIONS:
+        raise ValueError('ST system PLL physical port directions changed')
+    output1 = _require_audio_clock_branch(loaded['cells'], loaded['netnames'])
+    if loaded['connections'].get('outclk[1]') != output1:
+        raise ValueError('ST frozen audio PLL connection changed')
+
+
+def repair_split_system_pll(top: dict) -> None:
+    """Repair a legacy six-pin system PLL onto the frozen audio net.
+
+    Legacy routed JSON omits a connected ``outclk[1]`` and records a six-pin
+    map whose ``outclk[0]`` and ``outclk[1]`` entries alias themselves. That
+    shell is rewritten onto ``system_clock.pll_outclk_1`` and the obsolete
+    alias is removed. A current-compiler physical map is not repaired here;
+    ``validate_current_system_pll`` admits that shell without rewriting it.
+    """
+    loaded = _load_system_pll(top)
+    if loaded['kind'] != 'legacy':
+        raise ValueError('ST system PLL legacy repair requires the six-pin map')
+    output1 = _require_audio_clock_branch(loaded['cells'], loaded['netnames'])
+    loaded['connections']['outclk[1]'] = output1
+    loaded['directions']['outclk[1]'] = 'output'
+    del loaded['pins']['outclk[0]']
+    loaded['mapping']['count'] = len(loaded['pins'])
+    loaded['attributes']['FES_PINMAP_V1'] = json.dumps(loaded['mapping'], sort_keys=True).encode().hex()
+
+
+def adopt_system_pll(top: dict) -> None:
+    """Admit a current shell, or repair a legacy six-pin map.
+
+    Current-shell admission checks the PLL connections, audio clock branch,
+    port directions and physical pin map, and does not rewrite the cell.
+    Legacy-map repair is the only path that attaches ``outclk[1]``.
+    """
+    if _load_system_pll(top)['kind'] == 'physical':
+        validate_current_system_pll(top)
         return
-    connections['outclk[1]'] = output1
-    directions['outclk[1]'] = 'output'
-    del pins['outclk[0]']
-    mapping['count'] = len(pins)
-    attributes['FES_PINMAP_V1'] = json.dumps(mapping, sort_keys=True).encode().hex()
+    repair_split_system_pll(top)

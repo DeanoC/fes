@@ -201,8 +201,12 @@ class AtariSTSlotCardTests(unittest.TestCase):
         top = design["modules"]["top"]
         pll = top["cells"]["system_clock.pll"]
         before = json.loads(json.dumps(pll))
-        atari_st_slot.repair_split_system_pll(top)
+        atari_st_slot.validate_current_system_pll(top)
         self.assertEqual(pll, before)
+        untouched = json.loads(json.dumps(design))
+        with self.assertRaisesRegex(ValueError, "legacy repair requires the six-pin map"):
+            atari_st_slot.repair_split_system_pll(top)
+        self.assertEqual(design, untouched)
         self.assertEqual(pll["connections"]["outclk[1]"], [20])
         self.assertEqual(pll["connections"]["outclk"], [10])
         self.assertNotIn("outclk[0]", pll["connections"])
@@ -225,7 +229,7 @@ class AtariSTSlotCardTests(unittest.TestCase):
                 rejected = shell(**kwargs)
                 snapshot = json.loads(json.dumps(rejected))
                 with self.assertRaisesRegex(ValueError, pattern):
-                    atari_st_slot.repair_split_system_pll(rejected["modules"]["top"])
+                    atari_st_slot.validate_current_system_pll(rejected["modules"]["top"])
                 self.assertEqual(rejected, snapshot)
                 with self.assertRaisesRegex(ValueError, pattern):
                     card.prepare_scaffold(json.dumps(rejected).encode(), 1)
@@ -241,7 +245,8 @@ class AtariSTSlotCardTests(unittest.TestCase):
             "locked": [0, "locked"], "outclk[0]": [0, "C6"], "outclk[1]": [0, "C7"],
             "refclk": [0, "refclk"], "rst": [0, "rst"]}}
         reject(indexed)
-        for name, value in (("outclk", [0, "C5"]), ("outclk[1]", [0, "outclk[1]"]),
+        for name, value in (("outclk", [0, "C5"]), ("outclk[1]", [0, "C8"]),
+                            ("outclk[1]", [0, "outclk[1]"]),
                             ("outclk", [1, "C6"]), ("outclk[0]", [0, "outclk[0]"])):
             mutated = json.loads(json.dumps(routed))
             mutated["pins"][name] = value
