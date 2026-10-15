@@ -1,6 +1,7 @@
 package software
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,10 +11,16 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"syscall"
 	"time"
 )
+
+// MkdirTemp(incoming, "bundle-") appends a decimal suffix. Only those
+// incomplete staging directories are reclaimed; anything else under incoming,
+// and every published release, is left alone.
+var stagingDirPattern = regexp.MustCompile(`^bundle-[0-9]+$`)
 
 type Store struct {
 	root          string
@@ -31,13 +38,23 @@ func New(root string, c Compatibility) (*Store, error) {
 	if e = realDirectories(root, true); e != nil {
 		return nil, e
 	}
-	s := &Store{root: root, compatibility: c, pinned: map[string]fs.FileInfo{}}
-	for _, p := range []string{root, filepath.Join(root, "releases"), filepath.Join(root, "incoming")} {
+	rootInfo, e := os.Lstat(root)
+	if e != nil {
+		return nil, e
+	}
+	if e = requirePrivateDir(rootInfo); e != nil {
+		return nil, e
+	}
+	s := &Store{root: root, compatibility: c, pinned: map[string]fs.FileInfo{root: rootInfo}}
+	for _, p := range []string{filepath.Join(root, "releases"), filepath.Join(root, "incoming")} {
 		if e = realDirectories(p, true); e != nil {
 			return nil, e
 		}
 		s.pinned[p], e = os.Lstat(p)
 		if e != nil {
+			return nil, e
+		}
+		if e = requirePrivateDir(s.pinned[p]); e != nil {
 			return nil, e
 		}
 	}
@@ -48,14 +65,24 @@ func New(root string, c Compatibility) (*Store, error) {
 	}
 	info, e := f.Stat()
 	f.Close()
-	if e != nil || !info.Mode().IsRegular() {
-		return nil, errors.New("invalid store lock")
+	if e != nil {
+		return nil, e
+	}
+	if e = requirePrivateLock(info); e != nil {
+		return nil, e
 	}
 	s.pinned[p] = info
 	if e = syncDir(filepath.Dir(root)); e != nil {
 		return nil, e
 	}
 	if e = syncDir(root); e != nil {
+		return nil, e
+	}
+	// Reclaim crash leftovers only after the store identity is pinned and the
+	// process-shared lock is held, so a live install is never deleted.
+	if e = s.locked(context.Background(), func() error {
+		return reclaimIncoming(filepath.Join(root, "incoming"))
+	}); e != nil {
 		return nil, e
 	}
 	return s, nil
@@ -74,6 +101,13 @@ func (s *Store) check() error {
 		}
 		if !os.SameFile(info, now) || now.Mode()&os.ModeSymlink != 0 {
 			return errors.New("software store identity changed")
+		}
+		if filepath.Base(p) == ".lock" {
+			if e = requirePrivateLock(now); e != nil {
+				return e
+			}
+		} else if e = requirePrivateDir(now); e != nil {
+			return e
 		}
 	}
 	return nil
@@ -258,16 +292,26 @@ func VerifyDirectory(ctx context.Context, dir string) (Release, error) {
 	if e != nil {
 		return out, e
 	}
-	if !info.Mode().IsRegular() || info.Mode().Perm() != 0444 {
+	if !info.Mode().IsRegular() || info.Mode().Perm() != 0444 || info.Size() <= 0 || info.Size() > MaxManifestSize {
 		return out, errors.New("invalid stored manifest")
 	}
 	f, e := os.Open(p)
 	if e != nil {
 		return out, e
 	}
-	m, e := DecodeManifest(f)
+	raw := make([]byte, int(info.Size()))
+	_, e = io.ReadFull(f, raw)
 	f.Close()
 	if e != nil {
+		return out, e
+	}
+	m, e := DecodeManifest(bytes.NewReader(raw))
+	if e != nil {
+		return out, e
+	}
+	// Installed directories accept only the canonical manifest bytes, matching
+	// archive inspection.
+	if e = sameCanonical(raw, m); e != nil {
 		return out, e
 	}
 	id, e := m.ID()
@@ -348,7 +392,7 @@ func realDirectories(p string, create bool) error {
 	}
 	info, e := os.Lstat(p)
 	if errors.Is(e, os.ErrNotExist) && create {
-		if e = os.Mkdir(p, 0755); e != nil && !errors.Is(e, os.ErrExist) {
+		if e = os.Mkdir(p, 0700); e != nil && !errors.Is(e, os.ErrExist) {
 			return e
 		}
 		info, e = os.Lstat(p)
@@ -360,6 +404,42 @@ func realDirectories(p string, create bool) error {
 		return fmt.Errorf("not a real directory: %s", p)
 	}
 	return nil
+}
+func requirePrivateDir(info fs.FileInfo) error {
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 || info.Mode().Perm() != 0700 {
+		return errors.New("software store directory must be owner-only (0700)")
+	}
+	return nil
+}
+func requirePrivateLock(info fs.FileInfo) error {
+	if !info.Mode().IsRegular() || info.Mode().Perm() != 0600 {
+		return errors.New("software store lock must be owner-only (0600)")
+	}
+	return nil
+}
+func reclaimIncoming(dir string) error {
+	entries, e := os.ReadDir(dir)
+	if e != nil {
+		return e
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if !stagingDirPattern.MatchString(name) {
+			continue
+		}
+		p := filepath.Join(dir, name)
+		info, e := os.Lstat(p)
+		if e != nil {
+			return e
+		}
+		if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("invalid staging directory %s", name)
+		}
+		if e = os.RemoveAll(p); e != nil {
+			return e
+		}
+	}
+	return syncDir(dir)
 }
 func syncDir(p string) error {
 	f, e := os.Open(p)

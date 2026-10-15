@@ -13,6 +13,13 @@ not a same-commit compatibility gate. The deterministic uncompressed tar starts
 with `manifest.json`; all following members must match it exactly. Links,
 unlisted files, duplicate paths and oversized archives are rejected.
 
+Canonical JSON is at most 1 MiB. A payload can satisfy the file-count and byte
+limits and still encode a larger manifest; packing rejects that payload, and
+readers reject a bundle that contains it. Readers also compare the original
+manifest bytes with that canonical encoding. Whitespace, reordered fields and
+reordered file records are a different byte string and are rejected, in both
+archives and installed directories.
+
 `fes-kit-bundle pack --manifest metadata.json --root payload --output kit.tar`
 constructs a bundle; `fes-kit-bundle inspect --bundle kit.tar` verifies it. File
 metadata is populated from the payload during packing. Executables are sealed
@@ -20,10 +27,19 @@ metadata is populated from the payload during packing. Executables are sealed
 
 `OpenPersistent` verifies the mounted FESDATA3 ext4 volume before opening
 `/run/fogcast/fesdata3/software-releases`. `New` provides a POSIX store for tooling
-and tests. Installation verifies all bytes, syncs files and directories, then
-publishes atomically under a process-shared lock. Repeated identical installation
+and tests. The store root, `releases`, `incoming` and the lock file must be
+owner-only (`0700` directories and a `0600` lock). Both open paths refuse a
+group- or world-accessible store, and later reads refuse a store whose
+permissions change after it was opened.
+
+Opening the store takes the process-shared lock and removes recognizable
+incomplete staging directories (`incoming/bundle-` plus a decimal suffix) left
+by an interrupted install, then syncs `incoming`. Published releases are not
+removed. Installation verifies all bytes, syncs files and directories, then
+publishes atomically under that same lock. Repeated identical installation
 is idempotent. Reads reverify bytes and pinned storage identities. Installation
 alone never selects a release, restarts services or modifies user data.
 
 Activation and its durable journal are implemented separately by the base-image
-supervisor. This package deliberately provides no automatic selection or cleanup.
+supervisor. This package deliberately provides no automatic selection and does
+not delete published releases.

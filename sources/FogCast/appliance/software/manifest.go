@@ -105,12 +105,21 @@ func (m Manifest) Validate() error {
 	return nil
 }
 func (m Manifest) Canonical() ([]byte, error) {
-	if err := m.Validate(); err != nil {
-		return nil, err
+	if e := m.Validate(); e != nil {
+		return nil, e
 	}
 	m.Files = append([]File(nil), m.Files...)
 	sort.Slice(m.Files, func(i, j int) bool { return m.Files[i].Path < m.Files[j].Path })
-	return json.Marshal(m)
+	b, e := json.Marshal(m)
+	if e != nil {
+		return nil, e
+	}
+	// Validate allows the maximum file count and path length. Those records can
+	// still encode past the size every reader accepts, so packing stops here.
+	if len(b) > MaxManifestSize {
+		return nil, errors.New("manifest too large")
+	}
+	return b, nil
 }
 func (m Manifest) ID() (string, error) {
 	b, e := m.Canonical()
@@ -156,7 +165,22 @@ func DecodeManifest(r io.Reader) (Manifest, error) {
 	if e = d.Decode(&m); e != nil {
 		return m, e
 	}
-	return m, m.Validate()
+	if e = m.Validate(); e != nil {
+		return m, e
+	}
+	// Identity is the digest of the canonical bytes. Whitespace, reordered
+	// fields and reordered file records must not decode as that release.
+	return m, sameCanonical(b, m)
+}
+func sameCanonical(b []byte, m Manifest) error {
+	c, e := m.Canonical()
+	if e != nil {
+		return e
+	}
+	if !bytes.Equal(b, c) {
+		return errors.New("manifest is not canonical")
+	}
+	return nil
 }
 func uniqueJSON(d *json.Decoder) error {
 	t, e := d.Token()

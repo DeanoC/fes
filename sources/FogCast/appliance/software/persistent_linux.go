@@ -78,12 +78,16 @@ func checkPersistent(root string) error {
 		return errors.New("FESDATA3 full writable volume mount missing")
 	}
 	for _, p := range []string{root, filepath.Join(root, "releases"), filepath.Join(root, "incoming")} {
-		if _, e = os.Lstat(p); errors.Is(e, os.ErrNotExist) {
+		info, e := os.Lstat(p)
+		if errors.Is(e, os.ErrNotExist) {
 			continue
 		} else if e != nil {
 			return e
 		}
 		if e = realDirectories(p, false); e != nil {
+			return e
+		}
+		if e = requirePrivateDir(info); e != nil {
 			return e
 		}
 		var st unix.Stat_t
@@ -93,6 +97,21 @@ func checkPersistent(root string) error {
 		if st.Dev != mounted.Dev {
 			return errors.New("software store redirected outside FESDATA3")
 		}
+	}
+	lockPath := filepath.Join(root, ".lock")
+	if info, e := os.Lstat(lockPath); e == nil {
+		if e = requirePrivateLock(info); e != nil {
+			return e
+		}
+		var st unix.Stat_t
+		if e = unix.Stat(lockPath, &st); e != nil {
+			return e
+		}
+		if st.Dev != mounted.Dev {
+			return errors.New("software store redirected outside FESDATA3")
+		}
+	} else if !errors.Is(e, os.ErrNotExist) {
+		return e
 	}
 	return nil
 }

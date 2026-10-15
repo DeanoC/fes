@@ -58,5 +58,9 @@ func PopulateFiles(m Manifest, root fs.FS) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, err
 	}
-	return m, m.Validate()
+	// Canonical enforces the encoded manifest bound that Validate does not.
+	if _, err = m.Canonical(); err != nil {
+		return Manifest{}, err
+	}
+	return m, nil
 }

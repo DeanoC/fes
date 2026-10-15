@@ -2,6 +2,7 @@ package software
 
 import (
 	"archive/tar"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -81,8 +82,16 @@ func extract(ctx context.Context, r io.Reader, destination string) (Release, err
 	if hdr.Name != "manifest.json" || hdr.Typeflag != tar.TypeReg || hdr.Size > MaxManifestSize || hdr.Size <= 0 {
 		return out, errors.New("bundle must start with regular manifest.json")
 	}
-	m, e := DecodeManifest(tr)
+	raw := make([]byte, int(hdr.Size))
+	if _, e = io.ReadFull(tr, raw); e != nil {
+		return out, e
+	}
+	m, e := DecodeManifest(bytes.NewReader(raw))
 	if e != nil {
+		return out, e
+	}
+	// Archive readers keep the same canonical-byte contract as DecodeManifest.
+	if e = sameCanonical(raw, m); e != nil {
 		return out, e
 	}
 	id, e := m.ID()
