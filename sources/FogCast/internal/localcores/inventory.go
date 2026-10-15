@@ -1,7 +1,9 @@
 package localcores
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -39,19 +41,37 @@ type selectionFile struct {
 // ReadInstalledCores lists factory selections whose complete installed package
 // identity and payload digest match the selection. fes.menu is idle firmware.
 // Metadata describes what the local launch path needs; runtime inspection remains
-// the authority for supported ABI and interface versions.
+// the authority for supported ABI and interface versions. Payload and ROM-map
+// bytes are streamed into those digests and are not retained.
 func ReadInstalledCores(selectionDir, packageRoot string) []Core {
+	cores, err := readInstalledCores(context.Background(), selectionDir, packageRoot)
+	if err != nil || cores == nil {
+		return []Core{}
+	}
+	return cores
+}
+
+func readInstalledCores(ctx context.Context, selectionDir, packageRoot string) ([]Core, error) {
 	cores := []Core{}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if !realDir(selectionDir) || !realDir(packageRoot) {
-		return cores
+		return cores, nil
 	}
 	entries, err := os.ReadDir(selectionDir)
 	if err != nil {
-		return cores
+		return cores, nil
 	}
 	seen := map[string]struct{}{}
 	packageRoot = filepath.Clean(packageRoot)
 	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		coreID, ok := selectionCoreID(entry.Name())
 		if !ok || coreID == "fes.menu" {
 			continue
@@ -67,8 +87,14 @@ func ReadInstalledCores(selectionDir, packageRoot string) []Core {
 		if filepath.Clean(selection.InstallPath) != install || !realDir(install) {
 			continue
 		}
-		inspection, err := corepackage.InspectPackage(install)
-		if err != nil || inspection.PackageID != selection.PackageID || inspection.Descriptor.Core.ID != coreID || inspection.Descriptor.Payload.SHA256 != selection.PayloadSHA256 {
+		inspection, err := corepackage.InspectListing(ctx, install)
+		if err != nil {
+			if ctx.Err() != nil {
+				return nil, ctx.Err()
+			}
+			continue
+		}
+		if inspection.PackageID != selection.PackageID || inspection.Descriptor.Core.ID != coreID || inspection.Descriptor.Payload.SHA256 != selection.PayloadSHA256 {
 			continue
 		}
 		seen[selection.PackageID] = struct{}{}
@@ -80,7 +106,44 @@ func ReadInstalledCores(selectionDir, packageRoot string) []Core {
 		}
 		return cores[i].CoreID < cores[j].CoreID
 	})
-	return cores
+	return cores, nil
+}
+
+// factoryFingerprint is the selection and package metadata that invalidates a
+// cached catalog. It stats members and does not read core.rbf or rom-map.json.
+func factoryFingerprint(selectionDir, packageRoot string) string {
+	if !realDir(selectionDir) || !realDir(packageRoot) {
+		return "absent"
+	}
+	entries, err := os.ReadDir(selectionDir)
+	if err != nil {
+		return "unreadable"
+	}
+	var b strings.Builder
+	packageRoot = filepath.Clean(packageRoot)
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			fmt.Fprintf(&b, "sel %s missing\n", entry.Name())
+			continue
+		}
+		fmt.Fprintf(&b, "sel %s %d %d\n", entry.Name(), info.Size(), info.ModTime().UnixNano())
+		selection, ok := readSelection(filepath.Join(selectionDir, entry.Name()))
+		if !ok {
+			continue
+		}
+		install := filepath.Join(packageRoot, selection.PackageID)
+		fmt.Fprintf(&b, "path %s\n", selection.InstallPath)
+		for _, name := range []string{"manifest.toml", "core.rbf", "rom-map.json"} {
+			member, err := os.Lstat(filepath.Join(install, name))
+			if err != nil {
+				fmt.Fprintf(&b, "miss %s %s\n", selection.PackageID, name)
+				continue
+			}
+			fmt.Fprintf(&b, "mem %s %s %d %d %d\n", selection.PackageID, name, member.Size(), member.ModTime().UnixNano(), member.Mode())
+		}
+	}
+	return b.String()
 }
 
 // FromInspection describes the local launch requirements of a verified package.

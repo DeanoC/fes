@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1172,4 +1173,201 @@ func (zeroReader) Read(p []byte) (int, error) {
 		p[i] = 0
 	}
 	return len(p), nil
+}
+
+func useFactoryListGate(t *testing.T, fn func(context.Context) error) {
+	t.Helper()
+	factoryListGateMu.Lock()
+	factoryListGate = fn
+	factoryListGateMu.Unlock()
+	t.Cleanup(func() {
+		factoryListGateMu.Lock()
+		factoryListGate = nil
+		factoryListGateMu.Unlock()
+	})
+}
+
+// An open empty durable store still lists the factory catalog. The stock
+// agent streams payload hashes; this path must do the same when the store
+// is available, including a multi-megabyte ROM map, and a second request
+// must reuse that result.
+func TestOpenStoreFactoryListIsBounded(t *testing.T) {
+	root := t.TempDir()
+	selections := filepath.Join(root, "selections")
+	packages := filepath.Join(root, "packages")
+	if err := os.Mkdir(selections, 0o755); err != nil || os.Mkdir(packages, 0o755) != nil {
+		t.Fatal(err)
+	}
+	const payloadBytes = 2 << 20
+	installSizedCore(t, packages, selections, "fes.menu", "FES Menu", "fes.menu", payloadBytes, 0, "")
+	installSizedCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", payloadBytes, 0, "")
+	installSizedCore(t, packages, selections, "fes.ramtest", "FES RAM Tester", "fes.application", payloadBytes, 0, "")
+	installSizedCore(t, packages, selections, "fes.sms", "FES Master System", "fes.simple-computer", payloadBytes, payloadBytes, "cartridge")
+	installSizedCore(t, packages, selections, "fes.coleco", "FES Coleco", "fes.application", payloadBytes, 1024, "cartridge")
+	installSizedCore(t, packages, selections, "fes.zx81", "ZX81", "fes.simple-computer", payloadBytes, 1024, "firmware")
+
+	service := New(nil, nil, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	service.SetInventory(func() ([]Core, error) { return []Core{}, nil })
+
+	var scans atomic.Int32
+	useFactoryListGate(t, func(context.Context) error {
+		scans.Add(1)
+		return nil
+	})
+
+	body := assertBoundedList(t, service, 3*time.Second, 1<<20)
+	var cores []Core
+	if err := json.Unmarshal([]byte(body), &cores); err != nil {
+		t.Fatal(err)
+	}
+	got := byCore(cores)
+	if _, ok := got["fes.menu"]; ok {
+		t.Fatal("menu was listed")
+	}
+	if len(got) != 5 {
+		t.Fatalf("cores %+v", got)
+	}
+	for _, id := range []string{"fes.pong", "fes.ramtest"} {
+		if !got[id].Launchable || got[id].Needs != "none" || got[id].Name == "" {
+			t.Fatalf("%s %+v", id, got[id])
+		}
+	}
+	if got["fes.sms"].Needs != "media" || got["fes.sms"].Launchable || got["fes.coleco"].Needs != "media" || got["fes.zx81"].Needs != "firmware" {
+		t.Fatalf("requirements %+v", got)
+	}
+	if scans.Load() != 1 {
+		t.Fatalf("factory scans %d", scans.Load())
+	}
+	again := assertBoundedList(t, service, time.Second, 1<<20)
+	if again != body {
+		t.Fatalf("cached list changed\n%s\n%s", body, again)
+	}
+	if scans.Load() != 1 {
+		t.Fatalf("cached list scanned again: %d", scans.Load())
+	}
+}
+
+func TestFactoryListStopsWhenClientCancels(t *testing.T) {
+	root := t.TempDir()
+	selections := filepath.Join(root, "selections")
+	packages := filepath.Join(root, "packages")
+	if err := os.Mkdir(selections, 0o755); err != nil || os.Mkdir(packages, 0o755) != nil {
+		t.Fatal(err)
+	}
+	installSizedCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", 1<<20, 0, "")
+	service := New(nil, nil, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	service.SetInventory(func() ([]Core, error) { return []Core{}, nil })
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	var scans atomic.Int32
+	useFactoryListGate(t, func(ctx context.Context) error {
+		if scans.Add(1) == 1 {
+			close(started)
+		}
+		select {
+		case <-release:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	})
+	t.Cleanup(func() { once.Do(func() { close(release) }) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	firstDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodGet, "/v1/local/cores", nil).WithContext(ctx)
+		Handler(service).ServeHTTP(response, request)
+		firstDone <- response
+	}()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("factory scan did not start")
+	}
+	cancel()
+	var first *httptest.ResponseRecorder
+	select {
+	case first = <-firstDone:
+	case <-time.After(time.Second):
+		t.Fatal("handler kept running after the client cancelled")
+	}
+	if first.Body.Len() != 0 || first.Header().Get("Content-Type") != "" {
+		t.Fatalf("cancelled list wrote %d %s", first.Code, first.Body.String())
+	}
+
+	secondDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		Handler(service).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/local/cores", nil))
+		secondDone <- response
+	}()
+	select {
+	case response := <-secondDone:
+		t.Fatalf("second list did not share the in-flight scan: %d %s", response.Code, response.Body.String())
+	case <-time.After(200 * time.Millisecond):
+	}
+	once.Do(func() { close(release) })
+	var second *httptest.ResponseRecorder
+	select {
+	case second = <-secondDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("shared scan did not finish")
+	}
+	if second.Code != http.StatusOK || !strings.Contains(second.Body.String(), `"core_id":"fes.pong"`) {
+		t.Fatalf("list %d %s", second.Code, second.Body.String())
+	}
+	if scans.Load() != 1 {
+		t.Fatalf("retries scanned %d times", scans.Load())
+	}
+
+	dead, stop := context.WithCancel(context.Background())
+	stop()
+	startedAt := time.Now()
+	response := httptest.NewRecorder()
+	Handler(service).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/local/cores", nil).WithContext(dead))
+	if time.Since(startedAt) > 200*time.Millisecond || response.Body.Len() != 0 || response.Header().Get("Content-Type") != "" {
+		t.Fatalf("dead client waited %s and wrote %d %s", time.Since(startedAt), response.Code, response.Body.String())
+	}
+	if scans.Load() != 1 {
+		t.Fatalf("dead client started a scan: %d", scans.Load())
+	}
+}
+
+func assertBoundedList(t *testing.T, service *Service, limit time.Duration, allocBudget uint64) string {
+	t.Helper()
+	runtime.GC()
+	var before runtime.MemStats
+	runtime.ReadMemStats(&before)
+	started := time.Now()
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		Handler(service).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/local/cores", nil))
+		done <- response
+	}()
+	var response *httptest.ResponseRecorder
+	select {
+	case response = <-done:
+	case <-time.After(limit + time.Second):
+		t.Fatal("GET /v1/local/cores hung with the durable store open")
+	}
+	elapsed := time.Since(started)
+	var after runtime.MemStats
+	runtime.ReadMemStats(&after)
+	if response.Code != http.StatusOK {
+		t.Fatalf("list %d %s", response.Code, response.Body.String())
+	}
+	if elapsed > limit {
+		t.Fatalf("list took %s", elapsed)
+	}
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > allocBudget {
+		t.Fatalf("list allocated %d bytes", allocated)
+	}
+	return response.Body.String()
 }

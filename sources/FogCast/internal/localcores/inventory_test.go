@@ -3,15 +3,19 @@ package localcores
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/DeanoC/FogCast/corepackage"
-	"github.com/DeanoC/misteross/expansion"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/DeanoC/FogCast/corepackage"
+	"github.com/DeanoC/misteross/expansion"
 )
 
 type coreOpts struct {
@@ -136,12 +140,136 @@ toolchain = "test fixture"
 	return id
 }
 
+func installSizedCore(t *testing.T, packages, selections, coreID, name, abi string, payloadBytes, romBytes int64, role string) string {
+	t.Helper()
+	dir := t.TempDir()
+	payloadSHA := writeZeros(t, filepath.Join(dir, "core.rbf"), payloadBytes)
+	format := 2
+	if romBytes > 0 {
+		format = 3
+		if role == "" {
+			role = "firmware"
+		}
+	}
+	manifest := fmt.Sprintf(`format = %d
+[core]
+id = %q
+name = %q
+description = "Synthetic local control test fixture"
+version = "1.0.0"
+[target]
+platform = "de10_nano"
+device = "5CSEBA6U23I7"
+programming_profile = "fes-gp-v1"
+[payload]
+file = "core.rbf"
+size = %d
+sha256 = %q
+[abi]
+id = %q
+major = 1
+minor = 0
+[build]
+id = "0123456789abcdef0123456789abcdef"
+repository = "https://example.invalid/localcores"
+revision = "1111111111111111111111111111111111111111"
+recipe_sha256 = "2222222222222222222222222222222222222222222222222222222222222222"
+toolchain = "test fixture"
+[[interfaces]]
+id = "fes.video.fixed-720p60"
+major = 1
+minor = 0
+required = true
+`, format, coreID, name, payloadBytes, payloadSHA, abi)
+	if format == 3 {
+		romSHA := writeZeros(t, filepath.Join(dir, "rom-map.json"), romBytes)
+		manifest += fmt.Sprintf("\n[rom]\nid = \"machine-rom\"\nrole = %q\nsource_size = 1024\nfile = \"rom-map.json\"\nsize = %d\nsha256 = %q\n", role, romBytes, romSHA)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "manifest.toml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	inspection, err := corepackage.InspectListing(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	installed := filepath.Join(packages, inspection.PackageID)
+	if err := os.Rename(dir, installed); err != nil {
+		t.Fatal(err)
+	}
+	stem := coreID[len("fes."):]
+	body := fmt.Sprintf("core_id = %q\npackage_id = %q\npayload_sha256 = %q\ninstall_path = %q\n",
+		coreID, inspection.PackageID, payloadSHA, installed)
+	if err := os.WriteFile(filepath.Join(selections, "fes-"+stem+".package.toml"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return inspection.PackageID
+}
+
+func writeZeros(t *testing.T, path string, n int64) string {
+	t.Helper()
+	file, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hash := sha256.New()
+	if _, err := io.Copy(hash, io.TeeReader(io.LimitReader(zeroReader{}, n), file)); err != nil {
+		file.Close()
+		t.Fatal(err)
+	}
+	if err := file.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return hex.EncodeToString(hash.Sum(nil))
+}
+
 func byCore(cores []Core) map[string]Core {
 	out := map[string]Core{}
 	for _, core := range cores {
 		out[core.CoreID] = core
 	}
 	return out
+}
+
+func TestListingInspectionMatchesFullPackage(t *testing.T) {
+	root := t.TempDir()
+	packages := filepath.Join(root, "core-packages")
+	selections := filepath.Join(root, "selections")
+	if err := os.Mkdir(packages, 0o755); err != nil || os.Mkdir(selections, 0o755) != nil {
+		t.Fatal(err)
+	}
+	rom := []byte(`{"format":1}` + "\n")
+	for _, item := range []struct {
+		id, name, abi string
+		opts          coreOpts
+	}{
+		{id: "fes.pong", name: "FES Pong", abi: "fes.simple-game"},
+		{id: "fes.sms", name: "FES Master System", abi: "fes.simple-computer", opts: coreOpts{cartridge: true}},
+		{id: "fes.zx81", name: "ZX81", abi: "fes.simple-computer", opts: coreOpts{rom: rom}},
+	} {
+		packageID := installCore(t, packages, selections, item.id, item.name, item.abi, item.opts)
+		dir := filepath.Join(packages, packageID)
+		full, err := corepackage.InspectPackage(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		listed, err := corepackage.InspectListing(context.Background(), dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if listed.PackageID != full.PackageID || listed.Descriptor.Format != full.Descriptor.Format || listed.Descriptor.Core.ID != full.Descriptor.Core.ID || listed.Descriptor.Core.Name != full.Descriptor.Core.Name || listed.Descriptor.Payload != full.Descriptor.Payload {
+			t.Fatalf("%s listing id %s format %d payload %+v; full id %s format %d payload %+v", item.id, listed.PackageID, listed.Descriptor.Format, listed.Descriptor.Payload, full.PackageID, full.Descriptor.Format, full.Descriptor.Payload)
+		}
+		switch {
+		case listed.Descriptor.ROM == nil && full.Descriptor.ROM == nil:
+		case listed.Descriptor.ROM == nil || full.Descriptor.ROM == nil || listed.Descriptor.ROM.SHA256 != full.Descriptor.ROM.SHA256 || listed.Descriptor.ROM.Role != full.Descriptor.ROM.Role:
+			t.Fatalf("%s ROM listing %+v full %+v", item.id, listed.Descriptor.ROM, full.Descriptor.ROM)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := corepackage.InspectListing(ctx, filepath.Join(packages, "missing")); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled listing %v", err)
+	}
 }
 
 func TestReadInstalledCores(t *testing.T) {

@@ -69,10 +69,14 @@ factory inventory and earlier installed versions are retained. There is no
 package deletion API and no implicit rollback. Downgrade by selecting a retained
 compatible version with the expected current selection ID.
 
-Launch requirements come from the full verified manifest, not a core-name
-allowlist. Firmware, multiple ROMs, native-pixel shells requiring video parts and
-unsupported local media paths remain blocked. The current local cartridge path
-supports one format-3 cartridge map. Native runtime inspection checks the exact
+Launch requirements come from the verified manifest. Firmware, multiple ROMs,
+native-pixel shells requiring video parts and unsupported local media paths
+remain blocked. The current local cartridge path supports one format-3
+cartridge map. When the durable store is open, `GET /v1/local/cores` overlays
+writable selections on the factory catalog. That pass reads manifests and
+streams payload and ROM-map digests, then caches the catalog for unchanged
+metadata. A disconnected client ends the handler wait; one shared scan finishes
+and later requests reuse the cache. Native runtime inspection checks the exact
 canonical bytes before activation through its existing trusted staging path.
 Every physical launch and stop still uses the execution lease; local launches
 also participate in appliance update admission and draining.

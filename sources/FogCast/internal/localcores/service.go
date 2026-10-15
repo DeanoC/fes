@@ -70,6 +70,13 @@ type Roots struct {
 	Packages   string
 }
 
+type factoryFlight struct {
+	key   string
+	done  chan struct{}
+	cores []Core
+	err   error
+}
+
 // Service lists, launches and stops installed cores for the kit-local socket.
 type Service struct {
 	leases    LeaseGate
@@ -86,6 +93,14 @@ type Service struct {
 	closed      bool
 	renewCancel context.CancelFunc
 	renewDone   chan struct{}
+
+	listCtx       context.Context
+	listCancel    context.CancelFunc
+	listMu        sync.Mutex
+	factoryKey    string
+	factoryHits   []Core
+	factoryReady  bool
+	factoryFlight *factoryFlight
 }
 
 // RunStatus reports the in-flight or running kit-local core. A nil service
@@ -109,29 +124,48 @@ func (s *Service) RunStatus() RunStatus {
 }
 
 func New(leases LeaseGate, runtime Runtime, roots Roots) *Service {
-	return &Service{leases: leases, runtime: runtime, roots: roots}
+	ctx, cancel := context.WithCancel(context.Background())
+	return &Service{leases: leases, runtime: runtime, roots: roots, listCtx: ctx, listCancel: cancel}
 }
 
 func (s *Service) List() []Core {
 	if s == nil {
 		return []Core{}
 	}
+	cores, err := s.list(context.Background())
+	if err != nil || cores == nil {
+		return []Core{}
+	}
+	return cores
+}
+
+func (s *Service) list(ctx context.Context) ([]Core, error) {
+	if s == nil {
+		return []Core{}, nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	// An unreadable durable library, including a missing FESDATA3 volume, is
-	// an empty list. Factory packages stay unread: inspecting them loads each
-	// core.rbf and ROM map, and a kit-local client that retries a slow list
-	// piled those reads up until the agent was OOM-killed. Bearer REST reports
-	// the same failure as HTTP 503 CORE_PACKAGE_STORE_UNAVAILABLE.
+	// an empty list. Factory packages stay unread. Bearer REST reports the
+	// same failure as HTTP 503 CORE_PACKAGE_STORE_UNAVAILABLE.
 	var selected []Core
 	if s.inventory != nil {
 		var err error
 		selected, err = s.inventory()
 		if err != nil {
-			return []Core{}
+			return []Core{}, nil
 		}
 	}
-	cores := ReadInstalledCores(s.roots.Selections, s.roots.Packages)
+	cores, err := s.factoryCores(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if s.inventory == nil {
-		return cores
+		return cores, nil
 	}
 	byCore := make(map[string]Core, len(cores)+len(selected))
 	for _, core := range cores {
@@ -145,7 +179,85 @@ func (s *Service) List() []Core {
 		cores = append(cores, core)
 	}
 	sort.Slice(cores, func(i, j int) bool { return cores[i].CoreID < cores[j].CoreID })
-	return cores
+	return cores, nil
+}
+
+// factoryCores returns the factory catalog. One scan streams every package
+// and caches the result. The caller stops waiting when ctx ends; that scan
+// keeps the single shared read so a client retry does not start another.
+func (s *Service) factoryCores(ctx context.Context) ([]Core, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	key := factoryFingerprint(s.roots.Selections, s.roots.Packages)
+	s.listMu.Lock()
+	if s.factoryReady && s.factoryKey == key {
+		cores := append([]Core(nil), s.factoryHits...)
+		s.listMu.Unlock()
+		return cores, nil
+	}
+	flight := s.factoryFlight
+	if flight == nil || flight.key != key {
+		flight = &factoryFlight{key: key, done: make(chan struct{})}
+		s.factoryFlight = flight
+		go s.runFactory(flight)
+	}
+	done := flight.done
+	s.listMu.Unlock()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-done:
+		if flight.err != nil {
+			return nil, flight.err
+		}
+		return append([]Core(nil), flight.cores...), nil
+	}
+}
+
+func (s *Service) runFactory(flight *factoryFlight) {
+	defer close(flight.done)
+	cores, err := s.scanFactory()
+	s.listMu.Lock()
+	flight.cores, flight.err = cores, err
+	if s.factoryFlight == flight {
+		if err == nil {
+			s.factoryKey = flight.key
+			s.factoryHits = append([]Core(nil), cores...)
+			s.factoryReady = true
+		}
+		s.factoryFlight = nil
+	}
+	s.listMu.Unlock()
+}
+
+// factoryListGate is a same-package test seam. Production leaves it nil.
+// Tests block here to show a client cancellation ends the handler while one
+// shared catalog scan is still in flight.
+var (
+	factoryListGateMu sync.Mutex
+	factoryListGate   func(context.Context) error
+)
+
+func runFactoryListGate(ctx context.Context) error {
+	factoryListGateMu.Lock()
+	fn := factoryListGate
+	factoryListGateMu.Unlock()
+	if fn == nil {
+		return nil
+	}
+	return fn(ctx)
+}
+
+func (s *Service) scanFactory() ([]Core, error) {
+	ctx := s.listCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := runFactoryListGate(ctx); err != nil {
+		return nil, err
+	}
+	return readInstalledCores(ctx, s.roots.Selections, s.roots.Packages)
 }
 
 // SetInventory adds explicitly selected durable packages. Configure it before
@@ -190,9 +302,13 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 	if !sha256Hex(packageID) {
 		return Core{}, errNotFound
 	}
+	listed, err := s.list(ctx)
+	if err != nil {
+		return Core{}, errUnavailable
+	}
 	var core Core
 	found := false
-	for _, candidate := range s.List() {
+	for _, candidate := range listed {
 		if candidate.PackageID == packageID {
 			core = candidate
 			found = true
@@ -358,7 +474,12 @@ func (s *Service) Close() {
 	}
 	s.mu.Lock()
 	s.closed = true
+	cancel := s.listCancel
+	s.listCancel = nil
 	s.mu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
 	s.stopRenew()
 }
 

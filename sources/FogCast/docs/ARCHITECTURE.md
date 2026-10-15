@@ -2236,9 +2236,14 @@ excludes mutations during trial or image transitions. The target client does not
 replay lost mutations. No delete, restart, activation or implicit rollback exists.
 
 Kit-local inventory overlays explicit durable selections by core ID on factory
-selections and rereads them at launch. Full package inspection replaces its
-partial payload checks and core-name launchability rules. Manifest requirements
-block unsupported local media, firmware, multi-ROM and native video-part paths.
+selections. Listing reads each factory manifest and streams the payload and
+ROM-map digests, including the package id, keeping only that manifest and the
+running hashes. A finished catalog is cached until selection or package
+metadata changes. The list handler waits on the request context, so a client
+disconnect ends that wait while the single shared scan is left to finish for
+the next request. Launch rereads the selected package with full inspection
+before programming. Manifest requirements block unsupported local media,
+firmware, multi-ROM and native video-part paths.
 `Launchable` describes local inputs, not hardware acceptance; native inspection
 checks the exact canonical bytes before programming. Plain local loads use the
 existing archive staging path, preserving native trusted roots. Durable mesh

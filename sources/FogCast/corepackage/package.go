@@ -239,6 +239,88 @@ func InspectPackage(path string) (Inspection, error) {
 		Descriptor: descriptor}, nil
 }
 
+// InspectListing validates an installed package directory for inventory.
+// The manifest is the only member kept in memory. core.rbf and rom-map.json
+// are hashed as streams into the payload digest, the ROM-map digest and the
+// package id. The ROM map is not parsed; launch and staging still use
+// InspectPackage, which retains the bytes and parses the map.
+func InspectListing(ctx context.Context, path string) (Inspection, error) {
+	if ctx == nil {
+		return Inspection{}, errors.New("core package: missing listing context")
+	}
+	if err := ctx.Err(); err != nil {
+		return Inspection{}, err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return Inspection{}, fmt.Errorf("core package: inspect path: %w", err)
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+		return Inspection{}, errors.New("core package: listing requires a non-symlink package directory")
+	}
+	root, err := os.OpenRoot(path)
+	if err != nil {
+		return Inspection{}, fmt.Errorf("core package: open directory: %w", err)
+	}
+	defer root.Close()
+	opened, err := root.Stat(".")
+	if err != nil || !os.SameFile(info, opened) {
+		return Inspection{}, errors.New("core package: directory changed while opening")
+	}
+	manifest, err := readRootMember(root, "manifest.toml", MaxManifestSize)
+	if err != nil {
+		return Inspection{}, err
+	}
+	withROM, err := manifestRequiresROM(manifest)
+	if err != nil {
+		return Inspection{}, err
+	}
+	if err := exactDirectoryEntries(root, withROM); err != nil {
+		return Inspection{}, err
+	}
+	descriptor, err := decodeManifest(manifest)
+	if err != nil {
+		return Inspection{}, err
+	}
+	if err := ValidateDescriptor(descriptor); err != nil {
+		return Inspection{}, err
+	}
+	identity := sha256.New()
+	domain := "FES-CORE-PACKAGE-2\n"
+	if withROM {
+		domain = "FES-CORE-PACKAGE-3\n"
+		if descriptor.Format == 4 {
+			domain = "FES-CORE-PACKAGE-4\n"
+		}
+	}
+	_, _ = identity.Write([]byte(domain))
+	writeDigestLen(identity, int64(len(manifest)))
+	_, _ = identity.Write(manifest)
+	if _, err := streamMemberDigest(ctx, root, "core.rbf", descriptor.Payload.Size, descriptor.Payload.SHA256, identity); err != nil {
+		return Inspection{}, err
+	}
+	if withROM {
+		var declared int64
+		var sum string
+		if descriptor.Format == 3 {
+			declared, sum = descriptor.ROM.Size, descriptor.ROM.SHA256
+		} else {
+			declared, sum = descriptor.ROMMap.Size, descriptor.ROMMap.SHA256
+		}
+		if _, err := streamMemberDigest(ctx, root, "rom-map.json", declared, sum, identity); err != nil {
+			return Inspection{}, err
+		}
+	}
+	if err := exactDirectoryEntries(root, withROM); err != nil {
+		return Inspection{}, err
+	}
+	after, err := root.Stat(".")
+	if err != nil || !os.SameFile(opened, after) {
+		return Inspection{}, errors.New("core package: directory changed while listing")
+	}
+	return Inspection{PackageID: hex.EncodeToString(identity.Sum(nil)), Descriptor: descriptor}, nil
+}
+
 // CanonicalArchive rewrites a package directory or archive as the canonical
 // restricted ustar ROM input expects. Identity hashes the member bytes, so
 // the package id matches InspectPackage of the same path.
@@ -808,24 +890,111 @@ func decodeWithROMMap(manifest, payload []byte, maps ...[]byte) (Descriptor, *ex
 	return decodeWithROMMapContext(context.Background(), manifest, payload, maps...)
 }
 
-func decodeWithROMMapContext(ctx context.Context, manifest, payload []byte, maps ...[]byte) (Descriptor, *expansion.ROMMap, error) {
-	if err := ctx.Err(); err != nil {
-		return Descriptor{}, nil, err
-	}
+func decodeManifest(manifest []byte) (Descriptor, error) {
 	if len(manifest) < 1 || len(manifest) > MaxManifestSize || !utf8.Valid(manifest) {
-		return Descriptor{}, nil, errors.New("core package: manifest must be 1 through 65536 valid UTF-8 bytes")
+		return Descriptor{}, errors.New("core package: manifest must be 1 through 65536 valid UTF-8 bytes")
 	}
 	var descriptor Descriptor
 	decoder := toml.NewDecoder(bytes.NewReader(manifest))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&descriptor); err != nil {
-		return Descriptor{}, nil, fmt.Errorf("core package: invalid manifest: %w", err)
+		return Descriptor{}, fmt.Errorf("core package: invalid manifest: %w", err)
 	}
 	var fields map[string]any
 	if err := toml.Unmarshal(manifest, &fields); err != nil {
-		return Descriptor{}, nil, fmt.Errorf("core package: invalid manifest shape: %w", err)
+		return Descriptor{}, fmt.Errorf("core package: invalid manifest shape: %w", err)
 	}
 	if err := validateShape(fields); err != nil {
+		return Descriptor{}, err
+	}
+	return descriptor, nil
+}
+
+func writeDigestLen(w io.Writer, n int64) {
+	var length [8]byte
+	binary.LittleEndian.PutUint64(length[:], uint64(n))
+	_, _ = w.Write(length[:])
+}
+
+// streamMemberDigest hashes one package member without retaining it. The
+// length prefix and the bytes are written to identity in packageIdentity order.
+func streamMemberDigest(ctx context.Context, root *os.Root, name string, declared int64, declaredSum string, identity io.Writer) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if declared < 1 {
+		return "", fmt.Errorf("core package: %s size does not match manifest", name)
+	}
+	before, err := root.Lstat(name)
+	if err != nil || before.Mode()&os.ModeSymlink != 0 || !before.Mode().IsRegular() {
+		return "", fmt.Errorf("core package: %s must be a regular non-symlink file", name)
+	}
+	if before.Size() != declared {
+		return "", fmt.Errorf("core package: %s size does not match manifest", name)
+	}
+	file, err := root.Open(name)
+	if err != nil {
+		return "", fmt.Errorf("core package: open %s: %w", name, err)
+	}
+	opened, err := file.Stat()
+	if err != nil || !os.SameFile(before, opened) {
+		_ = file.Close()
+		return "", fmt.Errorf("core package: %s changed while opening", name)
+	}
+	writeDigestLen(identity, declared)
+	hash := sha256.New()
+	dest := io.MultiWriter(hash, identity)
+	buf := make([]byte, 32<<10)
+	var read int64
+	for {
+		if err := ctx.Err(); err != nil {
+			_ = file.Close()
+			return "", err
+		}
+		n, readErr := file.Read(buf)
+		if n > 0 {
+			if _, err := dest.Write(buf[:n]); err != nil {
+				_ = file.Close()
+				return "", err
+			}
+			read += int64(n)
+			if read > declared {
+				_ = file.Close()
+				return "", fmt.Errorf("core package: %s changed while reading", name)
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			_ = file.Close()
+			return "", fmt.Errorf("core package: %s was truncated: %w", name, readErr)
+		}
+	}
+	closeErr := file.Close()
+	if closeErr != nil {
+		return "", closeErr
+	}
+	if read != declared {
+		return "", fmt.Errorf("core package: %s changed while reading", name)
+	}
+	after, err := root.Lstat(name)
+	if err != nil || !os.SameFile(opened, after) || after.Size() != declared {
+		return "", fmt.Errorf("core package: %s changed while reading", name)
+	}
+	sum := hex.EncodeToString(hash.Sum(nil))
+	if sum != declaredSum {
+		return "", fmt.Errorf("core package: %s digest does not match manifest", name)
+	}
+	return sum, nil
+}
+
+func decodeWithROMMapContext(ctx context.Context, manifest, payload []byte, maps ...[]byte) (Descriptor, *expansion.ROMMap, error) {
+	if err := ctx.Err(); err != nil {
+		return Descriptor{}, nil, err
+	}
+	descriptor, err := decodeManifest(manifest)
+	if err != nil {
 		return Descriptor{}, nil, err
 	}
 	if err := validateDescriptor(descriptor, payload); err != nil {
