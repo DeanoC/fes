@@ -38,7 +38,7 @@ class ZonXFirmwareSimulationTest(unittest.TestCase):
             command = [verilator, "--cc", "--exe", "--build", "--top-module", "expansion_machine",
                        "-GCART_PRESENT=1", f'-GFIRMWARE_INIT="{firmware}"', "-Wall",
                        *[f"-Wno-{warning}" for warning in warnings],
-                       f"-I{CORE / 'rtl'}", f"-I{ROOT / 'cores/fes-common/rtl/z80'}",
+                       f"-I{CORE / 'rtl'}",
                        "--Mdir", str(directory / "build"), *map(str,sources),
                        str(CORE / "sim" / "zonx_firmware_tb.cpp")]
             built = subprocess.run(command, capture_output=True, text=True)
