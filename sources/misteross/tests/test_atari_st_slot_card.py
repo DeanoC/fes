@@ -55,7 +55,21 @@ def frozen_shell(*, direct_inputs: bool = False) -> dict:
     netnames = {"system_clock.pll_outclk_1": {"bits": [20]},
                 "system_clock.clocks[1]": {"bits": [21]}, "pixel_clk": {"bits": [30]},
                 card.SLOT_CLOCK: {"bits": [10], "attributes": {"ROUTING": "frozen clock branches"}}}
-    return {"modules": {"top": {"cells": cells, "netnames": netnames}}}
+    top = {"cells": cells, "netnames": netnames}
+    if direct_inputs:
+        top["ports"] = {"request": {"direction": "input", "bits": list(range(2000, 2056))}}
+        cells["$PACKER_GND_DRV"] = {"type": "MISTRAL_CONST", "parameters": {"LUT": "0" * 32},
+            "connections": {"Q": [4000]}, "port_directions": {"Q": "output"}}
+        for name in atari_st_slot.boundary_bels(socket):
+            role, bit = name.rsplit("_", 1)
+            ff = cells[socket.instance + name]
+            alias = {"plug_request_ff": f"expansion_plug_request[{bit}]",
+                     "plug_response_ff": f"expansion.response[{bit}]",
+                     "clock_coverage_ff": f"expansion.clock_coverage_unused[{bit}]"}[role]
+            netnames[alias] = {"bits": ff["connections"]["Q"][:]}
+            if role != "plug_request_ff":
+                ff["connections"]["DATAIN"] = [4000]
+    return {"modules": {"top": top}}
 
 
 def good_timing() -> dict:

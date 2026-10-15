@@ -393,6 +393,49 @@ class AtariSTProducerTests(unittest.TestCase):
         with self.assertRaisesRegex(BuildError, 'inside the slot'):
             st.validate_routed_shell(routed)
 
+    def test_native_boundary_rejects_undriven_multiple_and_wrong_constant_sources(self):
+        from tests.test_atari_st_slot_card import frozen_shell
+        for mutation in ('undriven', 'multiple', 'output_alias', 'output_driver', 'response_alias',
+                         'anchor_alias', 'constant_missing', 'constant_high', 'constant_malformed',
+                         'constant_ports', 'response_nonconstant', 'anchor_nonconstant'):
+            with self.subTest(mutation=mutation):
+                routed = frozen_shell(direct_inputs=True)
+                top = routed['modules']['top']
+                cells = top['cells']
+                ff = cells['expansion.plug_request_ff_0']
+                if mutation == 'undriven': ff['connections']['DATAIN'] = [999999]
+                elif mutation == 'multiple':
+                    cells['another_driver'] = {'type': 'MISTRAL_ALUT2',
+                        'connections': {'Q': ff['connections']['DATAIN']}, 'port_directions': {'Q': 'output'}}
+                elif mutation == 'output_alias': top['netnames']['expansion_plug_request[0]']['bits'] = [999999]
+                elif mutation == 'output_driver':
+                    cells['another_driver'] = {'type': 'MISTRAL_ALUT2',
+                        'connections': {'Q': ff['connections']['Q']}, 'port_directions': {'Q': 'output'}}
+                elif mutation == 'response_alias': del top['netnames']['expansion.response[0]']
+                elif mutation == 'anchor_alias': del top['netnames']['expansion.clock_coverage_unused[0]']
+                elif mutation == 'constant_missing': del cells['$PACKER_GND_DRV']
+                elif mutation == 'constant_high': cells['$PACKER_GND_DRV']['parameters']['LUT'] = f'{1:032b}'
+                elif mutation == 'constant_malformed': cells['$PACKER_GND_DRV']['parameters']['LUT'] = 'x' * 32
+                elif mutation == 'constant_ports': cells['$PACKER_GND_DRV']['connections']['Q'].append(4001)
+                elif mutation == 'response_nonconstant': cells['expansion.plug_response_ff_0']['connections']['DATAIN'] = [2000]
+                elif mutation == 'anchor_nonconstant': cells['expansion.clock_coverage_ff_0']['connections']['DATAIN'] = [2000]
+                with self.assertRaisesRegex(BuildError, 'driver|alias'):
+                    st.validate_routed_shell(routed)
+        # A request input can be driven by logic, a module input or a packed
+        # constant; response/clock-only D inputs must remain tied low.
+        routed = frozen_shell(direct_inputs=True)
+        cells = routed['modules']['top']['cells']
+        cells['expansion.plug_request_ff_0']['connections']['DATAIN'] = [4000]
+        st.validate_routed_shell(routed)
+        cells['request_logic'] = {'type': 'MISTRAL_ALUT2',
+            'connections': {'Q': [5000]}, 'port_directions': {'Q': 'output'}}
+        cells['expansion.plug_request_ff_0']['connections']['DATAIN'] = [5000]
+        st.validate_routed_shell(routed)
+        cells['request_high'] = {'type': 'MISTRAL_CONST', 'parameters': {'LUT': f'{1:032b}'},
+            'connections': {'Q': [6000]}, 'port_directions': {'Q': 'output'}}
+        cells['expansion.plug_request_ff_0']['connections']['DATAIN'] = [6000]
+        st.validate_routed_shell(routed)
+
     def test_ram_bel_outside_video_still_rejects_overlapping_configuration(self):
         database = ram_database()
         for row in (40, 41, 58, 59):

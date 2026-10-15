@@ -405,10 +405,11 @@ def validate_routed_shell(routed: dict) -> dict:
     buffers = set()
     outputs = set()
     direct_inputs = 0
+    drivers = _routed_drivers(top)
     for name, bel in expected.items():
         buffer_name = name + "$ROUTETHRU"
         if buffer_name not in cells:
-            _validate_direct_boundary_input(cells[name], top, name)
+            _validate_direct_boundary_input(cells[name], top, name, drivers)
             direct_inputs += 1
             continue
         cell = cells.get(buffer_name)
@@ -440,7 +441,24 @@ def validate_routed_shell(routed: dict) -> dict:
             "pinned_boundary_direct_inputs": direct_inputs}
 
 
-def _validate_direct_boundary_input(cell: dict, top: dict, name: str) -> None:
+def _routed_drivers(top: dict) -> dict:
+    """Census actual module inputs and cell outputs, including packed constants."""
+    drivers = {}
+    for name, port in top.get("ports", {}).items():
+        if port.get("direction") == "input":
+            for bit in port.get("bits", []):
+                if type(bit) is int:
+                    drivers.setdefault(bit, []).append((None, name))
+    for name, cell in top.get("cells", {}).items():
+        for port, direction in cell.get("port_directions", {}).items():
+            if direction == "output":
+                for bit in cell.get("connections", {}).get(port, []):
+                    if type(bit) is int:
+                        drivers.setdefault(bit, []).append((name, port))
+    return drivers
+
+
+def _validate_direct_boundary_input(cell: dict, top: dict, name: str, drivers: dict) -> None:
     # Current nextpnr leaves user-locked FFs on their native E/F inputs instead
     # of inserting a LUT route-through. Admit only the serialized plain DFF
     # form observed on the pinned compiler; keep all socket BEL/exclusion checks.
@@ -464,6 +482,30 @@ def _validate_direct_boundary_input(cell: dict, top: dict, name: str) -> None:
             connections["DATAIN"] == connections["Q"] or
             any(connections[port] != [] for port in ("ACLR", "ENA", "SCLR", "SDATA", "SLOAD"))):
         raise BuildError(f"slot boundary route buffer missing without a native direct input: {name}")
+    sources = drivers.get(connections["DATAIN"][0], [])
+    if len(sources) != 1:
+        raise BuildError(f"slot boundary direct input {name} must have exactly one driver")
+    local = name.removeprefix("expansion.")
+    role, bit = local.rsplit("_", 1)
+    alias = {"plug_request_ff": f"expansion_plug_request[{bit}]",
+             "plug_response_ff": f"expansion.response[{bit}]",
+             "clock_coverage_ff": f"expansion.clock_coverage_unused[{bit}]"}[role]
+    if top.get("netnames", {}).get(alias, {}).get("bits") != connections["Q"] or \
+            drivers.get(connections["Q"][0]) != [(name, "Q")]:
+        raise BuildError(f"slot boundary direct output alias/driver changed: {name}")
+    source_name, source_port = sources[0]
+    source = top["cells"].get(source_name, {})
+    if role != "plug_request_ff" or source.get("type") == "MISTRAL_CONST":
+        # The vacant response and clock-only anchors are tied low by RTL.
+        # nextpnr serializes that tie as a driven integer net, not literal "0".
+        mask = source.get("parameters", {}).get("LUT")
+        if (source.get("type") != "MISTRAL_CONST" or source_port != "Q" or
+                source.get("port_directions") != {"Q": "output"} or
+                source.get("connections") != {"Q": connections["DATAIN"]} or
+                not isinstance(mask, str) or len(mask) != 32 or set(mask) - {"0", "1"} or
+                int(mask, 2) not in (0, 1) or
+                (role != "plug_request_ff" and int(mask, 2) != 0)):
+            raise BuildError(f"slot boundary constant driver changed: {name}")
 
 
 def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, float, float]:
