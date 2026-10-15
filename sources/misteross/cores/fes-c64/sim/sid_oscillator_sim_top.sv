@@ -12,7 +12,7 @@ module oscillator_sim_top (
  output wire [17:0] fade_count,
  output wire [1:0] shift_pipe
 );
- c64_sid_oscillator dut(.clk(clk),.reset(reset),.phi(phi),.we(we),.addr(addr),.din(din),.sync_clear(1'b0),.source_msb(dut.q.phase[23]),.phase_now(),.phase_advanced(),.msb_rising(),.sync_enabled(),.waveform(waveform),.osc(osc));
+ c64_sid_oscillator dut(.clk(clk),.reset(reset),.phi(phi),.we(we),.addr(addr),.din(din),.sync_clear(1'b0),.source_msb(dut.q.phase[23]),.phase_now(),.phase_advanced(),.msb_rising(),.sync_enabled(),.waveform(waveform),.clocked_waveform(),.osc(osc));
  assign phase=dut.q.phase;
  assign freq=dut.q.freq;
  assign pw=dut.q.pw;

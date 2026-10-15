@@ -1754,7 +1754,7 @@ unqualified.
 Its rate comparator, exponential divider, gate transitions, zero hold and
 ADSR delay behavior follow reSID's single-cycle model. AD/SR writes update
 only the selected voice; `$D41C` and SID mirrors expose the sampled ENV3 value
-through the motherboard's existing late read phase. The mixer centers the
+through the motherboard's existing late read phase. The direct fallback mixer centers the
 voice codes, sums their signed envelope products, applies linear four-bit
 master gain and scales into signed 16-bit PCM. The offline source-oracle
 regression exercises 15.6 million system-clock edges. Each voice also has a
@@ -1787,11 +1787,34 @@ fixtures; adding idle edges leaves their logical observations unchanged.
 Combined pulse/triangle uses the pinned reSID MOS6581 4,096-entry sample table
 after ring-index substitution, masked by the delayed pulse level. The
 generator reproduces the sparse RTL lookup exactly; the producer includes
-its header in the pinned source closure. Other waveform combinations and
-analog filtering remain unqualified.
+its header in the pinned source closure. Other waveform combinations remain
+unqualified.
 The reference's edge latch remains held during TEST. The portable coupling
 oracle covers the complete simultaneous-rise/SYNC mask space and all voices.
-Remaining combined-wave coupling and analog filter/DAC behavior stay unqualified.
+Remaining combined-wave coupling stays unqualified.
+
+At the native 53/54-SYS cadence, `c64_sid` enables the staged MOS6581 waveform
+and envelope DACs, nonlinear internal filter and external output network at
+the pinned reSID default bias. External input is zero. It captures post-Phi,
+pre-write waveforms and old filter controls, then starts one SYS later with
+the updated envelope values. CPU writes on Phi therefore affect the next
+sample; reset cancels pending work. Output completes at Phi+39 SYS edges.
+The static guard `SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 41` leaves time for that
+result and idle state before the next transaction. Shorter ratios and default
+standalone instances use the direct linear-volume path. Signed-32 output is
+saturated to signed-16 PCM before the unchanged shared I2S transport.
+
+VCR current and cutoff tables are exact. Generated piecewise interpolation
+bounds individual gain/summer table errors to 4 integer units, mixer to 16,
+and reverse-opamp/kVg to 1; these are not final-PCM error bounds. The generators
+verify pinned, unchanged VICE dependencies. The portable audio regression
+compares the configured reference with both direct and prepared digital state
+over 23,052 Phi clocks, including minimum 41-SYS cadence, native 53/54 periods,
+writes and reset/restart. It checks wide output, PCM, readback and done/busy.
+Its initial ENV3 exclusion lasts only until the first non-reset Phi; subsequent
+warm-reset samples remain checked. Other register reads follow the core's
+zero-read contract. Other models/bias, paddles, bus decay, remaining combined
+waveforms, physical audio and routed/hardware acceptance remain open.
 
 The additional offline oscillator and OSC3 tests replay the pinned VICE 3.10
 reSID source at native 53/54-SYS periods and other directed write phases;
@@ -1799,9 +1822,8 @@ native bus writes arrive 27 SYS edges after Phi2. Source, licensing,
 regeneration and the explicit host-integer noise-state normalization are in
 the core README. All compiled reference dependencies are hash checked.
 Unsupported combinations retain the old OR formula without a claim that
-its update timing is unchanged. Filter, the remaining coupled waveforms, analog DACs, paddle reads and bus
-decay remain open. The host
-checks do not establish complete SID, analog audio or routed-core fidelity.
+its update timing is unchanged. Host checks establish the stated model and
+lookup policy, not complete SID, audible HDMI or routed-core fidelity.
 `c64_vic_sprite_pixels` supplies per-dot shifts, multicolor/X expansion,
 foreground priority and collision masks. Sprite X and pointer/row/display
 events use the same PAL cycle. The registered final DMA byte is captured at
@@ -1881,6 +1903,14 @@ absolute and (zero-page,X) modes without changing registers or flags. Its
 four opcodes use the corresponding NMOS store bus sequence, including wrapping.
 `make sim-fes-c64-sax` covers all modes, enabled cycle counts and register/flag
 preservation. Other undocumented instructions remain incomplete.
+AXS/SBX immediate (`$CB`) consumes two enabled read cycles and writes
+`(A & X) - operand` to X, with binary no-borrow C and result N/Z. Incoming
+carry and decimal mode do not affect the subtraction; A, Y, S, D, I and V
+remain unchanged. `make sim-fes-c64-axs` covers every subtraction input pair,
+independent A/X masks, status preservation and CPU enable gaps.
+`make sim-fes-c64-axs-oracle` independently checks 396 transistor-reference
+bus/state cases and 144 IRQ/NMI entry/stack cases from checked-in vectors.
+This opcode proof does not establish whole-demo completion.
 The shared CPU samples IRQ and its I mask through the enabled-cycle prefetch
 pipeline, including taken-branch polling and instructions following PLP.
 I updates require RDY, and latched hardware entry preserves the pushed B bit

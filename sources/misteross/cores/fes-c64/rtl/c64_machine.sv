@@ -318,9 +318,13 @@ module c64_machine #(
     );
     // One idle SYS edge prepares oscillator phase and the first envelope
     // state transition before Phi. Shorter ratios retain both direct paths.
+    // Filter output completes at Phi+39 SYS edges; require at least 41 between
+    // Phi edges so that result and idle state precede the next transaction.
+    // Native PAL cadence is 53/54 SYS edges. Faster modes keep direct audio.
     c64_sid #(
         .PREPARE_PHASE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2),
-        .PREPARE_ENVELOPE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2)
+        .PREPARE_ENVELOPE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2),
+        .FILTER_AUDIO(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 41)
     ) sid (
         .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_sid),
         .we(bus_strobe && bus_we && sel_sid), .addr(bus_addr[4:0]), .din(bus_wdata),

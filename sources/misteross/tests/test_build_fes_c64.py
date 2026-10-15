@@ -313,12 +313,24 @@ class C64YosysM10kTests(unittest.TestCase):
         async_cells = [line for line in sections["ASYNC"] if line.startswith("top/")]
         lanes = sorted(line.removeprefix("top/") for line in sections["LANES"] if line.startswith("top/"))
         self.assertEqual(async_cells, [])
-        self.assertEqual(objects("SDP"), "195 objects.")
-        self.assertEqual(objects("TDP"), "240 objects.")
+        self.assertEqual(objects("SDP"), "235 objects.")
+        self.assertEqual(objects("TDP"), "296 objects.")
+        filter_prefix = "machine.sid.filtered_audio.audio.filter."
+        filter_lanes = [filter_prefix + f"{name}.bank[{bank}].rom"
+                        for name, count in (("fc_rom", 4),
+                                            ("shared_vcr", 14),
+                                            ("gain_rom.descriptor_rom", 8),
+                                            ("summer_rom.descriptor_rom", 10),
+                                            ("mixer_rom.descriptor_rom", 14),
+                                            ("band.k.descriptor_rom", 1),
+                                            ("band.o.descriptor_rom", 1),
+                                            ("low.k.descriptor_rom", 1),
+                                            ("low.o.descriptor_rom", 1))
+                        for bank in range(count)]
         self.assertEqual(lanes, sorted(
             [f"machine.rom.lane{index}" for index in range(36)] +
             [f"machine.vic.frame_store.pages[{page}].banks[{bank}].ram"
-             for page in range(3) for bank in range(51)]))
+             for page in range(3) for bank in range(51)] + filter_lanes))
 
     def test_full_synth_has_live_memory_clocks(self) -> None:
         """The native drive synthesizes without repairing disconnected memory clocks."""

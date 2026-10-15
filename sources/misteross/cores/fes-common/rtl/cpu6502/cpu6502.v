@@ -119,6 +119,7 @@ reg inc;                // increment
 reg write_back;         // set if memory is read/modified/written
 reg load_only;          // LDA/LDX/LDY instruction
 reg store;              // doing store (STA/STX/STY/SAX)
+reg axs;                // stable NMOS (A & X) - immediate into X
 reg sax;                // stable undocumented NMOS A & X store
 reg adc_sbc;            // doing ADC/SBC
 reg compare;            // doing CMP/CPY/CPX
@@ -709,7 +710,7 @@ always @*
 
         BRA1:   AI = ABH;       // don't use PCH in case we're
 
-        FETCH:  AI = load_only ? 0 : regfile;
+        FETCH:  AI = axs ? (AXYS[SEL_A] & AXYS[SEL_X]) : load_only ? 0 : regfile;
 
         DECODE,
         ABS1:   AI = 8'hxx;     // don't care
@@ -934,6 +935,7 @@ always @(posedge clk or posedge reset)
     else if( RDY ) case( state )
         DECODE  :
             casex ( IR )
+                8'hcb:          state <= FETCH; // AXS/SBX immediate
                 8'h83:          state <= INDX0; // SAX (zp,X)
                 8'h87:          state <= ZP0;   // SAX zp
                 8'h8f:          state <= ABS0;  // SAX abs
@@ -1046,6 +1048,7 @@ always @(posedge clk)
 always @(posedge clk)
      if( state == DECODE && RDY )
         casex( IR )
+                8'hcb:          load_reg <= 1; // AXS writes X
                 8'b0xx01010,    // ASLA, ROLA, LSRA, RORA
                 8'b0xxxxx01,    // ORA, AND, EOR, ADC
                 8'b100x10x0,    // DEY, TYA, TXA, TXS
@@ -1063,6 +1066,7 @@ always @(posedge clk)
 always @(posedge clk)
      if( state == DECODE && RDY )
         casex( IR )
+                8'hcb:          dst_reg <= SEL_X;
                 8'b1110_1000,   // INX
                 8'b1100_1010,   // DEX
                 8'b101x_xx10:   // LDX, TAX, TSX
@@ -1186,6 +1190,7 @@ always @(posedge clk )
 always @(posedge clk )
      if( state == DECODE && RDY )
         casex( IR )
+                8'hcb:          compare <= 1; // binary subtract, carry-in always1
                 8'b11x0_0x00,   // CPX, CPY (imm/zp)
                 8'b11x0_1100,   // CPX, CPY (abs)
                 8'b110x_xx01:   // CMP
@@ -1216,6 +1221,7 @@ always @(posedge clk )
 always @(posedge clk )
      if( state == DECODE && RDY )
         casex( IR )
+                8'hcb:          op <= OP_SUB;
                 8'b00xx_xx10:   // ROL, ASL
                                 op <= OP_ROL;
 
@@ -1253,6 +1259,7 @@ always @(posedge clk )
  */
 always @(posedge clk )
      if( state == DECODE && RDY ) begin
+        axs <= (IR == 8'hcb);
         sax <= (IR == 8'h83 || IR == 8'h87 || IR == 8'h8f || IR == 8'h97);
         php <= (IR == 8'h08);
         clc <= (IR == 8'h18);

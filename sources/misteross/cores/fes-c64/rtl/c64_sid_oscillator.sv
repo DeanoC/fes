@@ -16,6 +16,7 @@ module c64_sid_oscillator #(
     output wire [23:0] phase_now, phase_advanced,
     output wire msb_rising, sync_enabled,
     output wire [11:0] waveform,
+    output reg [11:0] clocked_waveform,
     output wire [7:0] osc
 );
     typedef struct packed {
@@ -120,6 +121,7 @@ module c64_sid_oscillator #(
             end
             n.pulse=n.phase[23:12]>=n.pw ? 12'hfff : 12'h000;
         end
+        clocked_waveform=n.wave;
         // CPU writes follow the old-register oscillator clock on this SYS edge.
         if(we) case(addr)
         0:n.freq[7:0]=din;

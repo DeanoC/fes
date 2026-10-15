@@ -55,13 +55,16 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Flags latch independently of `$D01A`; clearing a collision register permits
   a later event to retrigger. Light-pen capture, exact mode transitions and
   physical subpixel phase remain open.
-- Reduced SID: three digital oscillators with triangle, saw, delayed pulse,
+- MOS6581 SID model: three digital oscillators with triangle, saw, delayed pulse,
   23-bit noise, TEST transitions and floating waveform decay; OSC3 and ENV3
-  readback; eight-bit pipelined ADSR and signed PCM with linear master volume.
+  readback; eight-bit pipelined ADSR, waveform/envelope DACs, nonlinear internal
+  filter with cutoff, resonance and routing, and the external output network.
   Single-wave digital timing, oscillator hard sync, triangle ring modulation
   and envelopes follow reSID's MOS6581 model. Combined pulse/triangle, including
-  ring modulation, uses its pinned 6581 samples. Filter, remaining coupled waveforms,
-  paddle reads, analog DAC behavior and SID bus decay remain open.
+  ring modulation, uses its pinned 6581 samples. Audio follows the reference's
+  default 6581 bias with bounded lookup approximations and signed-16 PCM
+  saturation. Other chip models and bias settings, remaining coupled waveforms,
+  paddle reads, SID bus decay and physical audio fidelity remain open.
   Unsupported waveform combinations
   retain the previous OR formula; their update timing is not qualified.
 - CIA1: keyboard matrix, joystick and IRQ. CIA2: IEC, the VIC bank and NMI.
@@ -177,6 +180,31 @@ zero. `make sim-fes-c64-rmw` checks both writes for all 24 documented memory
 RMW opcode/address-mode combinations, including absolute-index page crossing
 and CPU enable gaps. The motherboard diagnostic checks IRQ delivery and
 acknowledgement through the same shared CPU.
+
+The shared CPU implements stable NMOS AXS/SBX immediate (`$CB`): it stores
+`(A & X) - operand` in X, updates N/Z and no-borrow C, and leaves A, Y, S,
+D, I and V unchanged. It consumes two enabled read cycles; decimal mode and
+the incoming carry do not alter the subtraction. `make sim-fes-c64-axs`
+checks all 65,536 subtraction input pairs, independent A/X masks, flags and
+CPU enable gaps. Other undocumented instructions remain incomplete.
+
+`make sim-fes-c64-axs-oracle` adds pinned perfect6502 transistor fixtures:
+132 programs across three enable cadences (396 bus/state cases), plus
+144 IRQ/NMI entry/stack cases. It checks independent A/X bits, flags,
+operand-page and PC wrap, and a short AXS/PLA/BEQ sequence with both branch
+outcomes. Normal tests need no external model, firmware or demo. Regenerate
+with unmodified perfect6502 commit
+`09fc542877a84318291aa42dab143a3e2c3db974`:
+
+```sh
+AXS_ORACLE_ROOT=/absolute/path/to/perfect6502
+cc -O3 -Wall -Wextra -Werror -I"$AXS_ORACLE_ROOT" cores/fes-c64/sim/axs_oracle.c "$AXS_ORACLE_ROOT/netlist_sim.c" -o /tmp/axs-oracle
+/tmp/axs-oracle > /tmp/axs_oracle_vectors.h
+cmp /tmp/axs_oracle_vectors.h cores/fes-c64/sim/axs_oracle_vectors.h
+```
+
+This bounded opcode check does not establish whole-demo completion or
+interrupt-vector hijacking. The external model retains its MIT license.
 
 JSR retains the NMOS dummy stack read before its two pushes and fetches the
 target high byte afterward. Reordering those cycles changes when a call
@@ -550,9 +578,9 @@ disk loading and fastloader execution are not exercised by this isolated
 component observer. The full boot harness couples the production drive to the
 D64 medium and the C64.
 
-### Digital SID regression
+### SID regression
 
-`make sim-fes-c64-sid` runs five portable tests, using checked-in vectors and
+`make sim-fes-c64-sid` runs digital and staged-audio portable tests, using checked-in vectors and
 no reference emulator, Commodore firmware or recordings:
 
 - `sim-fes-c64-sid-envelope` checks 21,240,086 envelope edges: all 16 rates,
@@ -572,8 +600,8 @@ no reference emulator, Commodore firmware or recordings:
   periods. Writes land 27 SYS edges after Phi2: the motherboard's comparison
   with `cycle_clock==26` observes the old register value.
 
-- `sim-fes-c64-sid-coupling` compares all three digital oscillator states
-  over 559 cases and 1,224,739 SYS edges. It exercises all 64 simultaneous
+- `sim-fes-c64-sid-coupling` compares all three digital oscillator states,
+  including the pulse/triangle sample table. It exercises all 64 simultaneous
   MSB-rise/SYNC masks, both source-MSB values for every triangle-ring voice,
   sync suppression, TEST-held edge latches, fractional 53/54 cadence,
   writes at every relative SYS phase, and simultaneous reset/clock/write.
@@ -582,7 +610,7 @@ The oscillator runs on `cpu_ce`, including VIC CPU stalls, rather than the
 BA-qualified CPU execution enable. A SYS edge first advances the oscillator
 on Phi2 using its old registers, then accepts the bus write. Reset takes
 priority over both. `$D41B` and its motherboard mirrors read the upper eight
-bits of voice 3's digital waveform without a side effect. The mixer uses the
+bits of voice 3's digital waveform without a side effect. The direct fallback mixer uses the
 same upper eight bits. The noise shift register uses taps 22/17 and output
 bits 20/18/14/11/9/5/2/0; a rising accumulator bit 19 shifts it after two Phi2
 edges. TEST holds phase at zero, resets the noise register through the
@@ -668,11 +696,46 @@ MSB substitution and the existing delayed pulse mask. The prior OR formula
 remains for other combinations, whose timing and fidelity stay unqualified.
 Combined waveforms containing sawtooth can clear the phase MSB; their
 interaction with ring-source evaluation needs separate qualification.
-Analog DACs, filter/resonance, paddles and write-only bus decay remain
-unimplemented. Host digital replay does not establish audible HDMI or real-SID
-fidelity. The standalone SID maps to 688 FFs and 4,709 ALUT-family cells, with
-no RAM or DSP use with the default direct phase path. Prepared-phase and
-whole-core mapping, routing and hardware remain separate checks.
+Paddles and write-only bus decay remain unimplemented. The standalone SID
+defaults to the direct linear-volume audio path; the native motherboard enables
+the staged MOS6581 path described below. Host replay does not establish audible
+HDMI or real-SID fidelity. Whole-core mapping, routed timing and hardware
+acceptance remain separate checks.
+
+### Staged MOS6581 audio
+
+The native motherboard enables waveform/envelope DACs, the nonlinear internal
+filter and the external output network. It uses the pinned reSID MOS6581 model
+at its default bias, with external input held at zero. Filter routing, cutoff,
+resonance, voice-3 disable, modes and volume are guest-controlled. Each Phi2
+captures the post-clock, pre-write waveforms and old filter controls; the next
+SYS edge starts processing with the updated envelopes. A simultaneous CPU
+write therefore affects the following sample. Reset discards pending work.
+The signed-32 result is saturated at the signed-16 PCM boundary.
+
+Output completes 39 SYS edges after Phi2. `FILTER_AUDIO` is enabled only when
+`SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 41`; native PAL uses 53/54 SYS intervals.
+Shorter clock configurations and default standalone SID instances retain the
+direct linear-volume audio path. The shared 48 kHz I2S transport is unchanged.
+
+The generated tables keep VCR current and cutoff entries exact. Piecewise
+interpolation bounds each lookup error to 4 integer units for gain/summer,
+16 for the mixer, and 1 for reverse-opamp/kVg. These are table-entry bounds,
+not bounds on final PCM error. `scripts/generate_c64_sid_audio_tables.py`
+reproduces the three RTL headers from hash-pinned, unchanged VICE sources.
+`scripts/generate_c64_sid_audio_vectors.py` regenerates the independent
+portable fixture using the same documented table policy. Both accept
+`--vice-source /path/to/vice-3.10 --check`.
+
+`make sim-fes-c64-sid-audio` checks direct and prepared digital implementations
+with the filter enabled over 23,052 Phi2 clocks and 1,257,472 SYS edges each.
+It checks complete signed-32 output, PCM, OSC3, ENV3, bus reads and done/busy,
+including writes, reset/restart and 41/53/54/64-SYS cadence. Only the reference's
+indeterminate initial ENV3 sample is excluded until the first non-reset Phi2;
+all later samples, including warm-reset retention, are compared. Other bus
+registers retain this core's zero-read contract, not SID floating-bus behavior.
+Remaining combined waveforms, other chip models/bias, paddles, bus decay,
+physical audio and current-package timing/hardware acceptance stay open.
 
 ### Development PRG launch
 

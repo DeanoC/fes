@@ -87,10 +87,21 @@ ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 QSF = "cores/fes-c64/constraints-oss.qsf"
 SDC = "cores/fes-c64/clocks-oss.sdc"
 RTL_INCLUDES = (
+    "cores/fes-c64/rtl/c64_sid_filter_coefficients.vh",
+    "cores/fes-c64/rtl/c64_sid_filter_pages.vh",
+    "cores/fes-c64/rtl/c64_sid_vcr_data.vh",
     "cores/fes-c64/rtl/c64_sid_combined_waves.vh",
     "cores/fes-c64/rtl/c64_bus.vh",
 )
 RTL_SOURCES = (
+    "cores/fes-c64/rtl/c64_sid_filter_rom.sv",
+    "cores/fes-c64/rtl/c64_sid_filter_table.sv",
+    "cores/fes-c64/rtl/c64_sid_vcr_shared.sv",
+    "cores/fes-c64/rtl/c64_sid_integrator.sv",
+    "cores/fes-c64/rtl/c64_sid_filter.sv",
+    "cores/fes-c64/rtl/c64_sid_output_filter.sv",
+    "cores/fes-c64/rtl/c64_sid_dac.sv",
+    "cores/fes-c64/rtl/c64_sid_audio.sv",
     "cores/fes-c64/rtl/top.v",
     "cores/fes-c64/rtl/c64_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
