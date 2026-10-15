@@ -2231,11 +2231,17 @@ The supervisor closes an execution fence first; if that durable write fails, it
 restores the queue before opening the fence, and leaves the fence closed when
 the restore fails. Active maintenance retains its existing resume/end checks.
 Trial reconciliation installs the persisted queue while the boot maintenance
-reservation is still held, and only then ends that reservation. The stable
+reservation is still held, and only then ends that reservation. A cancelled
+trial-restore receipt ends that reservation instead of retrying the same
+operation ID. The stable
 supervisor persists queue and activation state across reboot; the lease manager
 does not persist its pending queue.
 
-The supervisor verifies process exit before replacement, pins every service to
+The supervisor waits up to 30 seconds for `/media/fat/fogcast/agent.toml` before
+starting the agent, and bounds the launcher selection probe. A process that
+exits before the readiness window is accepted is restarted within that startup
+deadline. An exit after acceptance is reported and is not restarted behind a
+lease. The supervisor verifies process exit before replacement, pins every service to
 one bundle, checks startup and finishes the exact maintenance generation.
 Accepted bundles remain selected. Failed startup permits one durably recorded
 prior-bundle recovery attempt; failed recovery remains blocked. Appliance trials
@@ -2252,14 +2258,10 @@ while activation is deferred. Software proxy routes bypass the replaceable
 agent's software drain so supervisor calls back into admission cannot deadlock;
 the stable supervisor serializes installation and activation independently.
 Authenticated health reports `software` separately from sealed image artifacts.
-`targetclient` mutations have no implicit replay. Callers record the operation
-ID and expected generation for later status reconciliation. The operator client
-`cmd/fes-software` that does this is not in this revision; it arrives in the
-follow-up releases change. This revision exposes the supervisor routes that
-client will call.
-See [kit software releases](../../../docs/kit-software-releases.md) for the
-current routes, the follow-up client invocation, recovery boundaries and
-evidence limits.
+`targetclient` mutations have no implicit replay; `cmd/fes-software` records the
+operation ID and expected generation for later status reconciliation.
+See [kit software releases](../../../docs/kit-software-releases.md) for commands,
+recovery boundaries and evidence limits.
 
 ## Durable target core packages
 

@@ -87,6 +87,39 @@ func TestHandoffTrialBlocksSimultaneousClaim(t *testing.T) {
 	}
 }
 
+func TestHandoffTrialReleasesCancelledRestore(t *testing.T) {
+	factory := strings.Repeat("a", 64)
+	repo, err := OpenRepository(t.TempDir(), factory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	restore := Request{ID: strings.Repeat("d", 64), Candidate: factory, Requester: "kit-software-supervisor", Generation: 0}
+	if err := Queue(repo, restore); err != nil {
+		t.Fatal(err)
+	}
+	if err := Cancel(repo, restore.ID, 0); err != nil {
+		t.Fatal(err)
+	}
+	lease := &trialLease{held: true}
+	released := false
+	installed := false
+	err = HandoffTrial(context.Background(), repo, restore, nil, func(context.Context, Request) error {
+		installed = true
+		return nil
+	}, nil, nil, func(context.Context) error {
+		released = true
+		return lease.Release()
+	})
+	if err != nil || !released || lease.held || installed {
+		t.Fatal(err, released, lease.held, installed)
+	}
+	state, err := repo.Read()
+	if err != nil || state.Pending != nil || state.Receipts[restore.ID].Result != "cancelled" {
+		t.Fatal("cancelled restore was queued again", state, err)
+	}
+}
+
 func TestHandoffTrialKeepsBootReservationWhenInstallFails(t *testing.T) {
 	factory := strings.Repeat("a", 64)
 	repo, err := OpenRepository(t.TempDir(), factory)

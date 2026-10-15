@@ -131,6 +131,66 @@ class KitManifestTests(unittest.TestCase):
         return KitMaintenance('A', kit_manifest.LocalTransport(self.root), 'local',
                               self.holds / '.fes-kit-maintenance/KITA.json', timeout=2)
 
+    def mark_software_managed(self):
+        marker = self.root / 'usr/sbin/fes-kit-software'
+        marker.write_bytes(b'stable supervisor')
+
+    def test_managed_kit_rejects_swap_and_restore_before_staging_or_maintenance(self):
+        self.claim()
+        before = (self.root / 'media/fat/fes/kit-manifest.json').read_bytes()
+        self.mark_software_managed()
+        candidate = self.work / 'mister-runtime'
+        candidate.write_bytes(b'new runtime')
+        staged = sorted((self.root / 'tmp/fes-incoming').rglob('*'))
+        for args in [('swap', 'A', 'mister-runtime', str(candidate)),
+                     ('restore', 'A'), ('restore', 'A', '--force')]:
+            result = self.fes(*args)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('managed kit software refuses', result.stderr)
+        self.assertEqual((self.root / PATHS['mister-runtime']).read_bytes(), FILES['mister-runtime'])
+        self.assertEqual((self.root / 'media/fat/fes/kit-manifest.json').read_bytes(), before)
+        self.assertEqual(sorted((self.root / 'tmp/fes-incoming').rglob('*')), staged)
+        self.assertEqual(self.api.status_value['state'], 'none')
+        self.assertEqual((self.root / 'tmp/fes-services').read_text(), '')
+
+    def test_managed_executor_refuses_before_scratch_or_service_mutation(self):
+        self.mark_software_managed()
+        scratch = self.root / 'tmp/fes-work/sentinel'
+        scratch.parent.mkdir(parents=True)
+        scratch.write_bytes(b'existing scratch')
+        plan = self.root / 'tmp/fes-incoming/plan'
+        plan.parent.mkdir(parents=True)
+        plan.write_text(f'MANIFEST_EXPECT MISSING\nBOOT {BOOT}\nSTOP mister-runtime\nCOMMIT\n')
+        with self.assertRaisesRegex(kit_manifest.KitError, 'managed kit software refuses'):
+            kit_manifest.LocalTransport(self.root).run(['apply', '/tmp/fes-incoming/plan'])
+        self.assertEqual(scratch.read_bytes(), b'existing scratch')
+        self.assertFalse((self.root / 'tmp/fes-services').exists())
+        self.assertFalse((self.root / 'run/fogcast/kit-maintenance.lock').exists())
+
+    def test_managed_claim_refuses_without_leaving_remote_manifest(self):
+        self.mark_software_managed()
+        result = self.fes('claim', 'A', '--by', 'worker', '--for', 'software test')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('managed kit software refuses', result.stderr)
+        self.assertFalse((self.root / 'media/fat/fes/kit-manifest.json').exists())
+        self.assertFalse(list(self.holds.glob('KITA-HELD-BY-*')))
+
+    def test_managed_watcher_does_not_create_or_restore_stock_baselines(self):
+        self.mark_software_managed()
+        hashes = self.work / 'main-hashes'
+        hashes.write_text('\n'.join(f'{digest(data)} {name}' for name, data in FILES.items()) + '\n')
+        watched = self.fes('watch', '--once', '--kits', 'A', '--main-hashes', str(hashes), '--fail-stale')
+        self.assertEqual(watched.returncode, 0, watched.stdout + watched.stderr)
+        self.assertIn('MANAGED software', watched.stdout)
+        self.assertNotIn('DRIFT', watched.stdout)
+        self.assertFalse((self.root / 'media/fat/fes/baseline.json').exists())
+        self.assertFalse((self.root / 'tmp/fes-services').exists())
+        status = self.fes('status', 'A', '--json')
+        self.assertEqual(status.returncode, 0, status.stderr)
+        report = json.loads(status.stdout)
+        self.assertTrue(report['software_managed'])
+        self.assertEqual(report['components'], [])
+
     def test_missing_target_maintenance_support_refuses_before_service_stop(self):
         self.claim()
         self.api.unsupported = True

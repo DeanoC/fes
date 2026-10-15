@@ -46,6 +46,10 @@ never infer persistence from a display name, package path or raw RBF.
 
 ## Hardware, media and releases
 
+- Managed kits install immutable userspace bundles and queue activation at the next
+  free lease boundary; see [kit software releases](docs/kit-software-releases.md).
+  Successful selections remain installed. Do not restore another task's release,
+  require matching host commits, or use file overlays on a managed kit.
 - A build never authorizes deployment. Use the designated kit only as the
   selected FogCast `docs/DEVELOPMENT.md` and `AGENTS.md` authorize, holding a
   session claimed through [kit sharing](docs/kit-sharing.md); never bypass

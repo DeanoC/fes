@@ -26,8 +26,14 @@ just its PID: restart policies can undo a process kill. Slack is not a push
 notification channel for this harness; poll a thread when a reply is needed.
 Coordination does not replace the existing lease or authorize another device.
 
-Replacing kit binaries or configuration is exclusive maintenance. Use the
-[kit runtime manifest](kit-manifest.md) commands. Each swap/restore acquires a
+Managed kit software is installed as an [immutable bundle](kit-software-releases.md)
+and activated at the next released idle boundary. Use private hosts for branch
+diagnostics. Managed images reject temporary binary/configuration swaps and
+stock restoration; selecting an earlier bundle is an explicit operation against
+the current generation. The stable supervisor owns the complete service group.
+
+On an unmanaged maintenance-aware image, replacing binaries or configuration
+uses the [kit runtime manifest](kit-manifest.md) commands. Each swap/restore acquires a
 target maintenance reservation before changing files or stopping services,
 retains it across agent restart, and ends it only after idle cleanup succeeds.
 Workstation hold markers record a diagnostic task; they cannot reserve hardware
@@ -42,8 +48,8 @@ agents that cannot enforce the reservation; there is no SSH-only fallback.
 Host, agent and runtime revisions may differ when their advertised contracts are
 supported. Record each exact artifact independently. A new core using a supported
 ABI uses package import/selection/launch rather than a kit-file swap or OS update.
-An accepted appliance update remains installed; temporary overlay diagnostics
-retain their explicit restore procedure until separate software releases exist.
+An accepted appliance update remains installed; unmanaged temporary overlay diagnostics
+retain their explicit restore procedure. Managed software releases stay installed.
 
 ## Claim a development session
 

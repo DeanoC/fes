@@ -1,7 +1,7 @@
 # Soft-restart Path B
 
-Path A is the restart that stays on the current boot: Stop reaches idle, the
-kit lease is free, and `mister-supervise` restarts the runtime and the agent.
+Path A stays on the current boot: the execution lease is released and the base
+software supervisor acquires maintenance before restarting the selected bundle.
 That path is the procedure in FogCast
 [development restart](../sources/FogCast/docs/DEVELOPMENT.md#restarting-target-services).
 

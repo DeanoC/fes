@@ -365,7 +365,8 @@ func waitFactory(ctx context.Context, c *kitsoftware.ProcessController, id strin
 	deadline := time.Now().Add(60 * time.Second)
 	var since time.Time
 	for time.Now().Before(deadline) {
-		if err := c.Healthy(ctx, id); err == nil {
+		err := c.Healthy(ctx, id)
+		if err == nil {
 			if since.IsZero() {
 				since = time.Now()
 			}
@@ -374,6 +375,14 @@ func waitFactory(ctx context.Context, c *kitsoftware.ProcessController, id strin
 			}
 		} else {
 			since = time.Time{}
+			if errors.Is(err, kitsoftware.ErrProcessExited) {
+				if stopErr := c.Stop(ctx); stopErr != nil {
+					return stopErr
+				}
+				if startErr := c.Start(ctx, id, kitsoftware.Request{}); startErr != nil {
+					return startErr
+				}
+			}
 		}
 		select {
 		case <-ctx.Done():

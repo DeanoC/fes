@@ -3,6 +3,7 @@ package kitsoftware
 import (
 	"context"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -235,5 +236,30 @@ func TestShutdownDoesNotSpendRecoveryWithCancelledContext(t *testing.T) {
 	s, _ := r.Read()
 	if s.Pending == nil || s.Pending.Phase != "applying" || c.starts != 1 {
 		t.Fatal("shutdown spent recovery", s, c)
+	}
+}
+
+type exitingControl struct {
+	*fakeControl
+	remaining int
+}
+
+func (c *exitingControl) Healthy(context.Context, string) error {
+	if c.remaining > 0 {
+		c.remaining--
+		return fmt.Errorf("agent exited: %w", ErrProcessExited)
+	}
+	return nil
+}
+
+func TestStartupRestartsExitedProcessBeforeAcceptance(t *testing.T) {
+	_, e, c, _ := setup(t)
+	control := &exitingControl{fakeControl: c, remaining: 1}
+	e.Controller = control
+	if err := e.Boot(context.Background(), req()); err != nil {
+		t.Fatal(err)
+	}
+	if control.starts != 2 {
+		t.Fatal(control.starts)
 	}
 }
