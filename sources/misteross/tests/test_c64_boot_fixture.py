@@ -15,6 +15,7 @@ class PrgFixtureInputTests(unittest.TestCase):
             prg=temp/'fixture.prg';prg.write_bytes(blob)
             args=[sys.executable,str(HELPER),'--basic',str(temp/'missing-basic'),
                   '--kernal',str(temp/'missing-kernal'),'--chargen',str(temp/'missing-chargen'),
+                  '--drive-rom',str(temp/'missing-drive-rom'),
                   '--disk',str(temp/'missing-disk'),'--output',str(temp/'output'),
                   '--prg-fixture',str(prg)]
             result=subprocess.run(args+extra,text=True,capture_output=True)
