@@ -107,10 +107,14 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
                 raise ValueError(f"frozen slot boundary clock changed: {socket.instance}{name}")
     for bit in range(atari_st_slot.REQUEST_BITS):
         cells[f"plug_addr_ff_{bit}"] = cells.pop(f"{target.instance}plug_request_ff_{bit}")
-        cells[f"plug_addr_ff_{bit}$ROUTETHRU"] = cells.pop(f"{target.instance}plug_request_ff_{bit}$ROUTETHRU")
+        buffer = f"{target.instance}plug_request_ff_{bit}$ROUTETHRU"
+        if buffer in cells:
+            cells[f"plug_addr_ff_{bit}$ROUTETHRU"] = cells.pop(buffer)
     for bit in range(atari_st_slot.RESPONSE_BITS):
         cells[f"plug_rdata_ff_{bit}"] = cells.pop(f"{target.instance}plug_response_ff_{bit}")
-        cells[f"plug_rdata_ff_{bit}$ROUTETHRU"] = cells.pop(f"{target.instance}plug_response_ff_{bit}$ROUTETHRU")
+        buffer = f"{target.instance}plug_response_ff_{bit}$ROUTETHRU"
+        if buffer in cells:
+            cells[f"plug_rdata_ff_{bit}$ROUTETHRU"] = cells.pop(buffer)
     for name in [n for n in cells if n.startswith(f"{target.instance}clock_coverage_ff_")]:
         del cells[name]
     return (json.dumps(design, separators=(",", ":")) + "\n").encode()

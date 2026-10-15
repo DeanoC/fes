@@ -20,7 +20,7 @@ from scripts.cyclonev_rbf import LoadedRbf, SX120F, cram_set
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def frozen_shell() -> dict:
+def frozen_shell(*, direct_inputs: bool = False) -> dict:
     pins = {name: [0, name] for name in ("locked", "outclk", "outclk[0]", "outclk[1]", "refclk", "rst")}
     cells = {
         "system_clock.pll": {"type": "altera_pll",
@@ -41,6 +41,17 @@ def frozen_shell() -> dict:
             "connections": {"A": [1000 + index], "Q": [2000 + index]},
             "port_directions": {"A": "input", "Q": "output"},
             "attributes": {"NEXTPNR_BEL": card.shell_recipe.boundary_route_buffer_bel(bel)}}
+        if direct_inputs:
+            del cells[socket.instance + name + "$ROUTETHRU"]
+            ff = cells[socket.instance + name]
+            mapping = {"count": 8, "pins": {port: [value, port] for port, value in
+                (("ACLR", 2), ("CLK", 0), ("DATAIN", 0), ("ENA", 2),
+                 ("Q", 0), ("SCLR", 1), ("SDATA", 0), ("SLOAD", 1))}}
+            ff["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping).encode().hex()
+            ff["connections"].update({"Q": [3000 + index], "ACLR": [], "ENA": [],
+                                      "SCLR": [], "SDATA": [], "SLOAD": []})
+            ff["port_directions"] = {port: "output" if port == "Q" else "input"
+                                     for port in mapping["pins"]}
     netnames = {"system_clock.pll_outclk_1": {"bits": [20]},
                 "system_clock.clocks[1]": {"bits": [21]}, "pixel_clk": {"bits": [30]},
                 card.SLOT_CLOCK: {"bits": [10], "attributes": {"ROUTING": "frozen clock branches"}}}
@@ -115,6 +126,18 @@ class BuildFixture:
 
 
 class AtariSTSlotCardTests(unittest.TestCase):
+    def test_scaffold_accepts_native_direct_inputs_without_inventing_buffers(self):
+        source = frozen_shell(direct_inputs=True)
+        prepared = json.loads(card.prepare_scaffold(json.dumps(source).encode(), 1))["modules"]["top"]
+        cells = prepared["cells"]
+        for prefix, old, count in (("plug_addr_ff_", "plug_request_ff_", 56),
+                                   ("plug_rdata_ff_", "plug_response_ff_", 32)):
+            for bit in range(count):
+                self.assertEqual(cells[f"{prefix}{bit}"],
+                                 source["modules"]["top"]["cells"][f"expansion.{old}{bit}"])
+        self.assertFalse(any(name.startswith("expansion.") or "$ROUTETHRU" in name for name in cells))
+        self.assertIn("machine.keep", cells)
+
     def test_source_closure_includes_probe_header_and_locked_tools(self):
         inputs = card.card_inputs("probe")
         for name in (*card.CARDS["probe"], *card.CARD_INCLUDES, card.shell_recipe.ST_TOOLCHAIN_LOCK):

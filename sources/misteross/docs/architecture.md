@@ -1787,6 +1787,13 @@ CPU RESET resets the devices. The optional expansion exports a wide stable
 request and response through pinned registered boundaries in
 `fes.atari-st-bus.socket/1`; the existing Go linker admits only socket 1 and
 confines its CRAM writes to the shared rectangle.
+The CPU socket keeps 119 pinned boundary/clock FFs. Older routes include a
+dedicated LUT buffer at each FF's paired site; current nextpnr instead uses
+the locked FF's native E/F direct input. Admission checks that form's exact
+eight-port pin map, system clock, single data/output wires and empty control
+ports. A missing legacy buffer alone never qualifies a boundary. Both forms
+retain the same BEL and socket exclusion checks; card preparation renames
+only buffers that actually exist.
 
 `st_memory.sv` fairly arbitrates CPU, video, floppy DMA and both media paths
 over the existing addon SDRAM controller at 52.224 MHz. That controller now

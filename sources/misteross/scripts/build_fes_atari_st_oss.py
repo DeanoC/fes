@@ -390,8 +390,9 @@ def boundary_route_buffer_bel(flip_flop_bel: str) -> str:
 
 
 def validate_routed_shell(routed: dict) -> dict:
-    """Every socket holds its pinned boundary FFs and dedicated input buffers."""
-    cells = routed.get("modules", {}).get(TOP, {}).get("cells", {})
+    """Keep each pinned boundary FF's legacy buffer or native direct input."""
+    top = routed.get("modules", {}).get(TOP, {})
+    cells = top.get("cells", {})
     expected = {}
     for socket in atari_st_slot.SOCKETS:
         for name, bel in atari_st_slot.boundary_bels(socket).items():
@@ -403,8 +404,13 @@ def validate_routed_shell(routed: dict) -> dict:
             raise BuildError(f"slot boundary cell {name} is not at {bel}")
     buffers = set()
     outputs = set()
+    direct_inputs = 0
     for name, bel in expected.items():
         buffer_name = name + "$ROUTETHRU"
+        if buffer_name not in cells:
+            _validate_direct_boundary_input(cells[name], top, name)
+            direct_inputs += 1
+            continue
         cell = cells.get(buffer_name)
         pins = cell.get("connections", {}) if isinstance(cell, dict) else {}
         input_bits, output_bits = pins.get("A"), pins.get("Q")
@@ -430,7 +436,34 @@ def validate_routed_shell(routed: dict) -> dict:
             if atari_st_slot.COLUMN <= x <= atari_st_slot.COLUMN + 4 and socket.first_row <= y <= socket.last_row:
                 raise BuildError(f"shell cell {name} is inside the slot {socket.slot} socket")
     return {"layout": atari_st_slot.LAYOUT, "sockets": [s.slot for s in atari_st_slot.SOCKETS],
-            "pinned_boundary_cells": len(expected), "pinned_boundary_route_buffers": len(buffers)}
+            "pinned_boundary_cells": len(expected), "pinned_boundary_route_buffers": len(buffers),
+            "pinned_boundary_direct_inputs": direct_inputs}
+
+
+def _validate_direct_boundary_input(cell: dict, top: dict, name: str) -> None:
+    # Current nextpnr leaves user-locked FFs on their native E/F inputs instead
+    # of inserting a LUT route-through. Admit only the serialized plain DFF
+    # form observed on the pinned compiler; keep all socket BEL/exclusion checks.
+    pins = {port: [index, port] for port, index in
+            (("ACLR", 2), ("CLK", 0), ("DATAIN", 0), ("ENA", 2),
+             ("Q", 0), ("SCLR", 1), ("SDATA", 0), ("SLOAD", 1))}
+    try:
+        mapping = json.loads(bytes.fromhex(cell["attributes"]["FES_PINMAP_V1"]).decode())
+    except (KeyError, TypeError, ValueError, UnicodeError):
+        mapping = None
+    connections = cell.get("connections", {})
+    clock = top.get("netnames", {}).get("system_clock.clocks[0]", {}).get("bits")
+    def wire(bits):
+        return isinstance(bits, list) and len(bits) == 1 and type(bits[0]) is int and bits[0] >= 0
+
+    if (mapping != {"count": 8, "pins": pins} or
+            any(type(value[0]) is not int for value in mapping["pins"].values()) or
+            cell.get("port_directions") != {port: "output" if port == "Q" else "input" for port in pins} or
+            set(connections) != set(pins) or not wire(clock) or connections.get("CLK") != clock or
+            not wire(connections.get("DATAIN")) or not wire(connections.get("Q")) or
+            connections["DATAIN"] == connections["Q"] or
+            any(connections[port] != [] for port in ("ACLR", "ENA", "SCLR", "SDATA", "SLOAD"))):
+        raise BuildError(f"slot boundary route buffer missing without a native direct input: {name}")
 
 
 def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, float, float]:

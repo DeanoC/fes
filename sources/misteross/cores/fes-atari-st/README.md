@@ -471,6 +471,12 @@ prefetched before DE confirms opening. The remaining mode samples are approximat
 does not reproduce exact MMU/shifter arbitration, mid-line base writes,
 horizontal or top-border opening.
 
+The CPU expansion socket retains 119 pinned boundary/clock FFs. Current nextpnr
+routes these locked FFs through their native E/F inputs; the producer validates
+their exact pin map, system clock and inactive control ports. Legacy shells
+retain their paired LUT buffers and the corresponding strict wiring checks.
+Both forms preserve the CPU socket BELs and exclusion fence.
+
 Video uses the existing [RGB888 part contract](../../../mister-packages/docs/video-parts.md)
 and shared direct/scanline implementations through two registered boundaries.
 `st_video_socket.sv` provides the optional frozen raster socket

@@ -358,6 +358,41 @@ class AtariSTProducerTests(unittest.TestCase):
         with self.assertRaisesRegex(BuildError, 'boundary cell'):
             st.validate_routed_shell(routed)
 
+    def test_native_boundary_requires_plain_dff_pin_map_clock_and_empty_controls(self):
+        from tests.test_atari_st_slot_card import frozen_shell
+        routed = frozen_shell(direct_inputs=True)
+        evidence = st.validate_routed_shell(routed)
+        self.assertEqual(evidence['pinned_boundary_cells'], 119)
+        self.assertEqual(evidence['pinned_boundary_route_buffers'], 0)
+        self.assertEqual(evidence['pinned_boundary_direct_inputs'], 119)
+        for mutation in ('pinmap', 'pinmap_absent', 'clock', 'clock_net', 'control',
+                         'direction', 'datain', 'q', 'feedback', 'extra_port', 'fake_buffer'):
+            with self.subTest(mutation=mutation):
+                changed = copy.deepcopy(routed)
+                top = changed['modules']['top']
+                ff = top['cells']['expansion.plug_request_ff_0']
+                if mutation == 'pinmap':
+                    mapping = json.loads(bytes.fromhex(ff['attributes']['FES_PINMAP_V1']))
+                    mapping['pins']['DATAIN'] = [0, 'SDATA']
+                    ff['attributes']['FES_PINMAP_V1'] = json.dumps(mapping).encode().hex()
+                elif mutation == 'pinmap_absent': del ff['attributes']['FES_PINMAP_V1']
+                elif mutation == 'clock': ff['connections']['CLK'] = [99]
+                elif mutation == 'clock_net': del top['netnames']['system_clock.clocks[0]']
+                elif mutation == 'control': ff['connections']['ENA'] = [99]
+                elif mutation == 'direction': ff['port_directions']['DATAIN'] = 'output'
+                elif mutation == 'datain': ff['connections']['DATAIN'] = []
+                elif mutation == 'q': ff['connections']['Q'] = [True]
+                elif mutation == 'feedback': ff['connections']['DATAIN'] = ff['connections']['Q']
+                elif mutation == 'extra_port': ff['connections']['D'] = [99]
+                elif mutation == 'fake_buffer': top['cells']['expansion.plug_request_ff_0$ROUTETHRU'] = {}
+                with self.assertRaisesRegex(BuildError, 'route buffer'):
+                    st.validate_routed_shell(changed)
+        top = routed['modules']['top']
+        top['cells']['rogue'] = {'type': 'MISTRAL_ALUT6',
+            'attributes': {'NEXTPNR_BEL': st.boundary_route_buffer_bel('MISTRAL_FF.24.1.2')}}
+        with self.assertRaisesRegex(BuildError, 'inside the slot'):
+            st.validate_routed_shell(routed)
+
     def test_ram_bel_outside_video_still_rejects_overlapping_configuration(self):
         database = ram_database()
         for row in (40, 41, 58, 59):
