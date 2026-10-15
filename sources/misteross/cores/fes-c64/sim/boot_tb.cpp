@@ -13,8 +13,10 @@
 #include <cstdlib>
 #include <fstream>
 #include <vector>
-#ifdef FES_C64_REAL_DRIVE_SIM
+#ifdef FES_C64_EXTERNAL_MEDIUM_SIM
 #include "disk_sequence.h"
+#else
+#include "d64_sequence.h"
 #endif
 
 int main(int argc, char **argv) {
@@ -23,16 +25,23 @@ int main(int argc, char **argv) {
     // external firmware/disk hex files; all copyrighted bytes stay outside Git.
     Vc64_boot_sim_top top;
     top.reset = 1;
-#ifdef FES_C64_REAL_DRIVE_SIM
+#ifdef FES_C64_EXTERNAL_MEDIUM_SIM
     top.drive_flux=0;
     const char *disk_arg=Verilated::commandArgsPlusMatch("C64_G64_PATH=");
     if (!*disk_arg) return 2;
     RotatingDisk medium(disk_arg+sizeof("+C64_G64_PATH=")-1);
+#else
+    top.medium_ready=1;top.medium_write_addr=0;top.medium_write_data=0;top.medium_write_enable=0;
+#endif
     const std::string events_arg=Verilated::commandArgsPlusMatch("C64_DISK_CHANGES=");
     const std::string library_arg=Verilated::commandArgsPlusMatch("C64_DISK_LIBRARY=");
-    DiskSequence disk_changes(library_arg.empty()?"":library_arg.c_str()+sizeof("+C64_DISK_LIBRARY=")-1,
-        events_arg.empty()?"":events_arg.c_str()+sizeof("+C64_DISK_CHANGES=")-1);
+#ifdef FES_C64_EXTERNAL_MEDIUM_SIM
+    DiskSequence disk_changes(
+#else
+    D64Sequence disk_changes(
 #endif
+        library_arg.empty()?"":library_arg.c_str()+sizeof("+C64_DISK_LIBRARY=")-1,
+        events_arg.empty()?"":events_arg.c_str()+sizeof("+C64_DISK_CHANGES=")-1);
     for (unsigned i=0; i<5; ++i) top.keyboard_rows[i]=0;
     struct KeyEvent { uint64_t cycle; unsigned usage, down; };
     std::vector<KeyEvent> keys;
@@ -97,7 +106,7 @@ int main(int argc, char **argv) {
             throw std::runtime_error("PRG fixture observation/checkpoints must follow its three-second installation");
     }
     // Model serialization covers all RTL registers, memories and event state.
-    // The host archive additionally covers clocks, keyboard queue, disk angle,
+    // The host archive additionally covers clocks, keyboard queue, media transfer or oracle disk angle,
     // partially collected video and diagnostic history. Save only after eval.
     auto archive=[&](auto &stream) {
         constexpr bool saving=std::is_base_of_v<VerilatedSerialize,std::decay_t<decltype(stream)>>;
@@ -112,10 +121,10 @@ int main(int argc, char **argv) {
             if constexpr(saving)stream.write(value.data(),count);
             else stream.read(value.data(),count);
         };
-        if constexpr(saving)stream << std::string("FES-C64-development-state-v2") << identity << top;
+        if constexpr(saving)stream << std::string("FES-C64-development-state-v3") << identity << top;
         else {
             std::string magic,saved_identity;stream >> magic >> saved_identity;
-            if(magic!="FES-C64-development-state-v2" || saved_identity!=identity)
+            if(magic!="FES-C64-development-state-v3" || saved_identity!=identity)
                 throw std::runtime_error("checkpoint model/firmware/media mismatch");
             stream >> top;
         }
@@ -125,7 +134,6 @@ int main(int argc, char **argv) {
         scalar(capture_cycle);scalar(captured);scalar(next_progress);scalar(raster_reads);scalar(raster_zero_reads);
         scalar(raster_access);scalar(late_video);
 
-#ifdef FES_C64_REAL_DRIVE_SIM
         uint64_t disk_count=disk_changes.cycles.size();scalar(disk_count);
         if(disk_count!=disk_changes.cycles.size())throw std::runtime_error("checkpoint disk schedule count mismatch");
         for(size_t index=0;index<disk_changes.cycles.size();++index) {
@@ -134,12 +142,18 @@ int main(int argc, char **argv) {
             if(cycle!=disk_changes.cycles[index] || selection!=disk_changes.selections[index])
                 throw std::runtime_error("checkpoint disk schedule mismatch");
         }
+#ifdef FES_C64_EXTERNAL_MEDIUM_SIM
         scalar(medium.halftrack);scalar(medium.rotation);scalar(disk_changes.active);
         if constexpr(!saving)disk_changes.restore_tracks(medium);
         if(medium.halftrack<2 || medium.halftrack>70 || medium.rotation>=3200000)
             throw std::runtime_error("invalid checkpoint disk position");
-
+#else
+        scalar(disk_changes.active);scalar(disk_changes.transfer_offset);scalar(disk_changes.transfer_selection);scalar(disk_changes.transferring);
+        if(disk_changes.active>disk_changes.cycles.size() || disk_changes.transfer_offset>174848 ||
+            (disk_changes.transferring && disk_changes.transfer_selection>=disk_changes.images.size()))
+            throw std::runtime_error("invalid checkpoint D64 upload state");
 #endif
+
         bytes(frame);bytes(last_frame);
         uint64_t count=keys.size();scalar(count);
         if(count>100000 || key_event>count)throw std::runtime_error("invalid checkpoint key queue");
@@ -152,9 +166,7 @@ int main(int argc, char **argv) {
         archive(stream);stream.close();
         std::fprintf(stderr,"Restored at cycle %llu\n",static_cast<unsigned long long>(sys_edge/2));
     }
-#ifdef FES_C64_REAL_DRIVE_SIM
     disk_changes.append(option("C64_APPEND_DISK_CHANGES="),sys_edge/2);
-#endif
     auto save=[&](const std::string &path) {
         VerilatedSave stream;stream.open(path);
         if(!stream.isOpen())throw std::runtime_error("cannot write checkpoint");
@@ -162,9 +174,10 @@ int main(int argc, char **argv) {
     };
     bool saved=false;
     while (sys_edge < cycle_budget * 2) {
-#ifdef FES_C64_REAL_DRIVE_SIM
+#ifdef FES_C64_EXTERNAL_MEDIUM_SIM
         bool disk_reference=false, disk_motor=top.drive_pins&4;
 #endif
+
         const bool render=!late_video || sys_edge/2+52224000/12>=cycle_budget;
         // A drive-only observation may hold the HDMI scanner until the final
         // five frames. Native VIC DMA, its CPU stalls, raster, CIA, SID and
@@ -173,17 +186,19 @@ int main(int argc, char **argv) {
         const bool system = !render || sys_edge * 74250000 <= pixel_edge * 52224000;
         if (system) {
             bool rising=!(sys_edge&1);
-#ifdef FES_C64_REAL_DRIVE_SIM
+#ifdef FES_C64_EXTERNAL_MEDIUM_SIM
             if(rising && disk_changes.advance(sys_edge/2,medium)) {
-                std::printf("Disk change cycle=%llu media=%u\n",
+                std::printf("Oracle disk change cycle=%llu media=%u\n",
                     static_cast<unsigned long long>(sys_edge/2),disk_changes.active);
                 std::fflush(stdout);
             }
             disk_reference=rising && top.drive_ref_ce;
             medium.move(top.drive_pins,top.drive_ddr);
             top.drive_flux=medium.flux(disk_reference,disk_motor);
-
+#else
+            if(rising)disk_changes.prepare(sys_edge/2,top);
 #endif
+
             top.clk_sys = rising;
             ++sys_edge;
             if (!captured && capture_cycle && sys_edge/2 >= capture_cycle) {
@@ -194,16 +209,10 @@ int main(int argc, char **argv) {
             }
             if (sys_edge/2 >= next_progress) {
                 const auto &ram=top.rootp->c64_boot_sim_top__DOT__machine__DOT__main_ram__DOT__ram;
-#ifdef FES_C64_REAL_DRIVE_SIM
                 std::printf("Progress second=%llu bus=%04x load-pointer=%04x drive=%04x\n",
                     static_cast<unsigned long long>(next_progress/52224000),top.debug_pc,
                     unsigned(ram[0xae]) | (unsigned(ram[0xaf])<<8),
                     top.drive_pc);
-#else
-                std::printf("Progress second=%llu bus=%04x load-pointer=%04x\n",
-                    static_cast<unsigned long long>(next_progress/52224000),top.debug_pc,
-                    unsigned(ram[0xae]) | (unsigned(ram[0xaf])<<8));
-#endif
                 std::fflush(stdout);
                 next_progress += 52224000;
             }
@@ -220,15 +229,6 @@ int main(int argc, char **argv) {
         }
         if (system && top.clk_sys && top.rootp->c64_boot_sim_top__DOT__machine__DOT__cpu_ce) {
             auto *r = top.rootp;
-#ifndef FES_C64_REAL_DRIVE_SIM
-            if (r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__state == 3) {
-                std::printf("IEC receive cycle=%llu byte=%02x ATN=%u\n",
-                    static_cast<unsigned long long>(sys_edge/2),
-                    r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__shifter,
-                    r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__atn_low);
-                std::fflush(stdout);
-            }
-#endif
             if (raster_access) {
                 ++raster_reads;
                 if (r->c64_boot_sim_top__DOT__machine__DOT__cpu_di == 0) ++raster_zero_reads;
@@ -255,7 +255,8 @@ int main(int argc, char **argv) {
             std::printf("Development PRG fixture installed: address=0801 bytes=%u end=%04x device=8; NOT a native LOAD\n",unsigned(fixture.size()-2),end);
             std::fflush(stdout);
         }
-#ifdef FES_C64_REAL_DRIVE_SIM
+
+#ifdef FES_C64_EXTERNAL_MEDIUM_SIM
         medium.advance(disk_reference,disk_motor);
 #endif
         if (!system && top.pixel_clk) {
@@ -302,10 +303,18 @@ int main(int argc, char **argv) {
         std::putchar('\n');
     }
 
-#ifdef FES_C64_REAL_DRIVE_SIM
+#ifndef FES_C64_EXTERNAL_MEDIUM_SIM
+    std::printf("RTL medium final head=%u rotation=%u cache=%u ready=%u transfer=%u offset=%u\n",top.medium_halftrack,top.medium_rotation,top.medium_cache_ready,top.medium_ready,disk_changes.transferring,disk_changes.transfer_offset);
+#endif
     std::printf("Disk media active=%u changes=%zu\n",disk_changes.active,disk_changes.cycles.size());
     std::printf("Drive final bus=%04x head=%.1f pins=%02x DDR=%02x CIA2 PA=%02x DDR=%02x\n",
-        top.drive_pc,medium.halftrack/2.0,top.drive_pins,top.drive_ddr,
+        top.drive_pc,
+#ifdef FES_C64_EXTERNAL_MEDIUM_SIM
+        medium.halftrack/2.0,
+#else
+        top.medium_halftrack/2.0,
+#endif
+        top.drive_pins,top.drive_ddr,
         r->c64_boot_sim_top__DOT__machine__DOT__cia2__DOT__pa_reg,
         r->c64_boot_sim_top__DOT__machine__DOT__cia2__DOT__pa_ddr);
     const auto &drive_regs=r->c64_boot_sim_top__DOT__machine__DOT__drive__DOT__cpu__DOT__AXYS;
@@ -324,17 +333,6 @@ int main(int argc, char **argv) {
     std::ofstream drive_memory("drive-ram.bin",std::ios::binary);
     drive_memory.write(reinterpret_cast<const char *>(&drive_ram[0]),2048);
 
-#endif
-#ifndef FES_C64_REAL_DRIVE_SIM
-    std::printf("IEC final state=%u listening=%u talking=%u ours=%u name-length=%u CIA2 PA=%02x DDR=%02x\n",
-        r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__state,
-        r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__listening,
-        r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__talking,
-        r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__ours,
-        r->c64_boot_sim_top__DOT__machine__DOT__iec__DOT__name_len,
-        r->c64_boot_sim_top__DOT__machine__DOT__cia2__DOT__pa_reg,
-        r->c64_boot_sim_top__DOT__machine__DOT__cia2__DOT__pa_ddr);
-#endif
     std::printf("VIC final D011=%02x D012-compare=%02x D016=%02x D018=%02x D01A=%02x beam=%u\n",
         vic_regs[0x11],vic_regs[0x12],vic_regs[0x16],vic_regs[0x18],vic_regs[0x1a],
         r->c64_boot_sim_top__DOT__machine__DOT__vic__DOT__raster);

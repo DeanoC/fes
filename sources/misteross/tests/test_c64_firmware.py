@@ -14,9 +14,12 @@ class C64FirmwareTests(unittest.TestCase):
         full = firmware.build()
         vacant = firmware.build(without_cartridges=True)
         for image in (full, vacant):
-            self.assertEqual(len(image), 20480)
+            self.assertEqual(len(image), 36864)
             self.assertEqual(image[:8192], firmware.BASIC)
             self.assertEqual(image[16380:16382], b"\x00\xe0")
+            self.assertEqual(image[16384:20480], firmware.character_image())
+            self.assertEqual(image[20480:], firmware.drive_media_image())
+            self.assertEqual(image[36860:36862], b"\x00\xc0")
         self.assertNotEqual(full, vacant)
         # Absolute cartridge reads vanish only in the explicitly vacant variant.
         self.assertIn(b"\xad\x00\x80", full[8192:16384])

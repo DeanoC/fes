@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Observe user drive firmware, without asserting disk/loader acceptance.
-#include "Vc64_drive1541.h"
-#include "Vc64_drive1541___024root.h"
+#include "Vc64_drive_sim_top.h"
+#include "Vc64_drive_sim_top___024root.h"
 #include "verilated.h"
 #include <cstdio>
 #include <cstdint>
@@ -9,7 +9,7 @@
 #include <fstream>
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
-    Vc64_drive1541 t;
+    Vc64_drive_sim_top t;
     t.reset=1;t.clk=0;t.atn_low=0;t.host_clock_low=0;t.host_data_low=0;
     t.disk_data=0xff;t.disk_pb=0xef;t.byte_ready_n=1;
     uint64_t cpu_cycles=0, cycles=52224000;
@@ -25,19 +25,19 @@ int main(int argc,char **argv) {
         t.clk=1;t.eval();
         if (trace && enabled && cpu_cycles < 1000)
             std::printf("bus=%04x PC=%04x data=%02x state=%u Z=%u\n",
-                t.rootp->c64_drive1541__DOT__bus_addr,
-                t.rootp->c64_drive1541__DOT__cpu__DOT__PC,
-                t.rootp->c64_drive1541__DOT__cpu_data,
-                t.rootp->c64_drive1541__DOT__cpu__DOT__state,
-                t.rootp->c64_drive1541__DOT__cpu__DOT__Z);
+                t.rootp->c64_drive_sim_top__DOT__drive__DOT__bus_addr,
+                t.rootp->c64_drive_sim_top__DOT__drive__DOT__cpu__DOT__PC,
+                t.rootp->c64_drive_sim_top__DOT__drive__DOT__cpu_data,
+                t.rootp->c64_drive_sim_top__DOT__drive__DOT__cpu__DOT__state,
+                t.rootp->c64_drive_sim_top__DOT__drive__DOT__cpu__DOT__Z);
 
         if(i%5222400==0)std::printf("cycle=%llu bus=%04x IEC clock=%u data=%u motor=%u LED=%u disk-PCR=%02x serial-PCR=%02x\n",
             static_cast<unsigned long long>(i),t.debug_pc,t.drive_clock_low,t.drive_data_low,
             (t.disk_pb_out>>2)&1,(t.disk_pb_out>>3)&1,
-            t.rootp->c64_drive1541__DOT__disk_via__DOT__pcr,
-            t.rootp->c64_drive1541__DOT__serial_via__DOT__pcr);
+            t.rootp->c64_drive_sim_top__DOT__drive__DOT__disk_via__DOT__pcr,
+            t.rootp->c64_drive_sim_top__DOT__drive__DOT__serial_via__DOT__pcr);
     }
-    const auto &ram=t.rootp->c64_drive1541__DOT__ram;
+    const auto &ram=t.rootp->c64_drive_sim_top__DOT__drive__DOT__ram;
     std::ofstream dump("drive-ram.bin",std::ios::binary);
     dump.write(reinterpret_cast<const char *>(&ram[0]),2048);
     std::printf("Final bus=%04x CPU enables=%llu IEC clock=%u data=%u\n",t.debug_pc,

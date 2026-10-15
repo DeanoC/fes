@@ -23,19 +23,23 @@ def main():
     drive[:19]=bytes.fromhex('78 a2 ff 9a a9 6f 8d 02 1c a9 6c 8d 00 1c e6 00 4c 0e c0')
     drive[-6:]=bytes.fromhex('00 c0 00 c0 00 c0')
     disk=bytes((i*37)&255 for i in range(174848))
-    for name,data in [('firmware',bytes(8192)+kernal+bytes(4096)),('drive',drive),('disk',disk)]:
+    for name,data in [('firmware',bytes(8192)+kernal+bytes(4096)+drive),('drive',drive),('disk',disk)]:
         (output/f'{name}.hex').write_text(''.join(f'{b:02x}\n' for b in data))
     (output/'disk.g64').write_bytes(c64_gcr.g64(disk))
     # Hold a key across the snapshot; its release must remain queued.
     (output/'keys.txt').write_text('500000 4 1\n1000000 4 0\n')
-    for mode in ('file','real'):
-        build='fes-c64-boot-drive' if mode=='real' else 'fes-c64-boot'
+    (output/'disk.d64').write_bytes(disk)
+    (output/'changes.txt').write_text('700000 0\n')
+    for mode in ('rtl','oracle'):
+        build='fes-c64-boot-oracle' if mode=='oracle' else 'fes-c64-boot'
         binary=MODULE/f'build/sim/{build}/Vc64_boot_sim_top'
         identity=hashlib.sha256(binary.read_bytes()).hexdigest()
         base=[str(binary),f'+C64_STATE_ID={identity}',f'+C64_FIRMWARE_HEX={output}/firmware.hex',
               f'+C64_DISK_HEX={output}/disk.hex',f'+C64_KEY_EVENTS={output}/keys.txt',
               '+C64_SYS_CYCLES=1566720']
-        if mode=='real':base += [f'+C64_DRIVE_ROM_HEX={output}/drive.hex',f'+C64_G64_PATH={output}/disk.g64']
+        (output/'library.txt').write_text('"'+str(output/('disk.g64' if mode=='oracle' else 'disk.d64'))+'"\n')
+        base += [f'+C64_DISK_LIBRARY={output}/library.txt',f'+C64_DISK_CHANGES={output}/changes.txt']
+        if mode=='oracle':base.append(f'+C64_G64_PATH={output}/disk.g64')
         paths={phase:output/f'{mode}-{phase}' for phase in ('continuous','split','restored')}
         for path in paths.values():path.mkdir(exist_ok=True)
         for phase,extra in [
@@ -46,7 +50,7 @@ def main():
             with (paths[phase]/'run.log').open('w') as log:
                 subprocess.run(base+extra,cwd=paths[phase],stdout=log,stderr=subprocess.STDOUT,check=True)
         names=['boot-ram.bin','boot.ppm','before-followup-ram.bin','final.state']
-        if mode=='real':names.append('drive-ram.bin')
+        names.append('drive-ram.bin')
         for name in names:
             if (paths['continuous']/name).read_bytes()!=(paths['restored']/name).read_bytes():
                 raise AssertionError(f'{mode}: restored {name} differs')

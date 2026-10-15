@@ -12,9 +12,9 @@ import tempfile
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--real-drive', action='store_true', help='use the firmware-driven 1541 diagnostic')
-    parser.add_argument('--drive-rom', type=Path)
-    parser.add_argument('--late-video', action='store_true', help='drive diagnostic: capture only the final HDMI frames')
+    parser.add_argument('--medium-oracle', action='store_true', help='use the independent C++ rotating-medium oracle instead of production RTL medium')
+    parser.add_argument('--drive-rom', type=Path, required=True)
+    parser.add_argument('--late-video', action='store_true', help='capture only the final HDMI frames; guest clocks continue normally')
     parser.add_argument('--prg-fixture', type=Path, help='development only: install an $0801 PRG at BASIC READY, then type RUN; no native LOAD claim')
     parser.add_argument('--save-state', type=Path)
     parser.add_argument('--save-final-state', type=Path, help='also capture complete state at the observation endpoint')
@@ -35,10 +35,6 @@ def main():
     args = parser.parse_args()
     if not 1044480 <= args.cycles <= 1800 * 52224000:
         parser.error('cycles must cover 0.02 to 1800 machine seconds')
-    if args.real_drive != bool(args.drive_rom):
-        parser.error('--real-drive requires --drive-rom; --drive-rom requires --real-drive')
-    if args.late_video and not args.real_drive:
-        parser.error('--late-video is reserved for the real-drive diagnostic')
     if args.save_at_cycles and (not args.save_state or not 0 < args.save_at_cycles <= args.cycles):
         parser.error('save cycle requires a save path and must fall within the run')
     if args.restore_state and (args.type_command or args.then_command):
@@ -63,8 +59,6 @@ def main():
     if args.append_disk_change and not args.restore_state:
         parser.error('additional disk changes require a restored checkpoint')
     changes=[(event['cycle'],event['disk']['path']) for event in restored_metadata.get('disk_changes',[])] if restored_metadata else args.disk_change
-    if (changes or args.append_disk_change or args.disk_library) and not args.real_drive:
-        parser.error('disk library and changes require the real-drive diagnostic')
     def normalize(events,after=0):
         result=[]
         for cycle,path in events:
@@ -78,6 +72,10 @@ def main():
     after=max(restored_metadata['system_cycle'] if restored_metadata else 0,
               normalized_changes[-1][0] if normalized_changes else 0)
     appended_changes=normalize(args.append_disk_change,after)
+    if not args.medium_oracle:
+        ordered=normalized_changes+appended_changes
+        if any(next_cycle-cycle<=174848//2 for (cycle,_),(next_cycle,_) in zip(ordered,ordered[1:])):
+            parser.error('RTL disk replacements require at least 87425 system cycles between starts')
     if len(normalized_changes)+len(appended_changes)>64:parser.error('at most 64 disk changes are supported')
     library_paths=args.disk_library
     if restored_metadata and not library_paths:
@@ -91,7 +89,7 @@ def main():
         parser.error('intermediate and final checkpoints need different paths')
     inputs = {}
     blobs = {}
-    for name, size in [('basic', 8192), ('kernal', 8192), ('chargen', 4096), ('disk', 174848)]:
+    for name, size in [('basic', 8192), ('kernal', 8192), ('chargen', 4096), ('drive_rom', 16384), ('disk', 174848)]:
         path = getattr(args, name).resolve()
         blob = path.read_bytes()
         if len(blob) != size:
@@ -100,7 +98,7 @@ def main():
         inputs[name] = {'path': str(path), 'bytes': size,
                         'sha256': hashlib.sha256(blob).hexdigest()}
     module = Path(__file__).resolve().parents[1]
-    build_name = 'fes-c64-boot-drive' if args.real_drive else 'fes-c64-boot'
+    build_name = 'fes-c64-boot-oracle' if args.medium_oracle else 'fes-c64-boot'
     binary = module / f'build/sim/{build_name}/Vc64_boot_sim_top'
     if not binary.is_file():
         parser.error(f'run make sim-{build_name}-build first')
@@ -115,39 +113,37 @@ def main():
             if state and artifact==state.resolve():
                 parser.error('checkpoint path conflicts with an observation output')
         artifact.unlink(missing_ok=True)
-    for name, blob in [('firmware', blobs['basic'] + blobs['kernal'] + blobs['chargen']), ('disk', blobs['disk'])]:
+    for name, blob in [('firmware', blobs['basic'] + blobs['kernal'] + blobs['chargen'] + blobs['drive_rom']), ('disk', blobs['disk'])]:
         (output / f'{name}.hex').write_text(''.join(f'{b:02x}\n' for b in blob))
-    if args.real_drive:
+    if args.medium_oracle:
         import c64_gcr
-        drive_blob=args.drive_rom.read_bytes()
-        if len(drive_blob)!=16384:
-            parser.error('drive ROM must be exactly 16384 bytes')
-        (output/'drive.hex').write_text(''.join(f'{b:02x}\n' for b in drive_blob))
         raw_disk=c64_gcr.g64(blobs['disk'])
         (output/'disk.g64').write_bytes(raw_disk)
-        inputs['drive_rom']={'path': str(args.drive_rom.resolve()), 'bytes': len(drive_blob),
-                             'sha256': hashlib.sha256(drive_blob).hexdigest()}
-        inputs['g64']={'path': str(output/'disk.g64'), 'bytes':len(raw_disk),
-                      'sha256':hashlib.sha256(raw_disk).hexdigest()}
+        inputs['g64']={'path':str(output/'disk.g64'),'bytes':len(raw_disk),
+                       'sha256':hashlib.sha256(raw_disk).hexdigest()}
     if args.prg_fixture:
         # Execute the validated bytes even if the development source PRG changes.
         (output/'prg-fixture.prg').write_bytes(fixture)
         inputs['prg_fixture']={'path':str(args.prg_fixture.resolve()),'bytes':len(fixture),
                                'sha256':hashlib.sha256(fixture).hexdigest()}
     media_library=[]
-    if args.real_drive:
-        for index,path in enumerate(library_paths):
-            blob=path.read_bytes()
-            if len(blob)!=174848:parser.error('library disk must be exactly 174848 bytes')
+    for index,path in enumerate(library_paths):
+        blob=path.read_bytes()
+        if len(blob)!=174848:parser.error('library disk must be exactly 174848 bytes')
+        raw_path=output/f'library-{index}.d64';raw_path.write_bytes(blob)
+        disk={'path':str(path),'bytes':len(blob),'sha256':hashlib.sha256(blob).hexdigest()}
+        inputs[f'disk_library_{index}']=disk
+        item={'disk':disk,'medium_path':str(raw_path)}
+        if args.medium_oracle:
             raw=c64_gcr.g64(blob)
             raw_path=output/f'library-{index}.g64';raw_path.write_bytes(raw)
-            disk={'path':str(path),'bytes':len(blob),'sha256':hashlib.sha256(blob).hexdigest()}
             g64={'path':str(raw_path),'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}
-            inputs[f'disk_library_{index}']=disk;inputs[f'g64_library_{index}']=g64
-            media_library.append({'disk':disk,'g64':g64})
-        def quoted(value):
-            return '"'+value.replace(chr(92),chr(92)*2).replace(chr(34),chr(92)+chr(34))+'"'
-        (output/'disk-library.txt').write_text(''.join(quoted(item['g64']['path'])+chr(10) for item in media_library))
+            inputs[f'g64_library_{index}']=g64
+            item.update(g64=g64,medium_path=str(raw_path))
+        media_library.append(item)
+    def quoted(value):
+        return '"'+value.replace(chr(92),chr(92)*2).replace(chr(34),chr(92)+chr(34))+'"'
+    (output/'disk-library.txt').write_text(''.join(quoted(item['medium_path'])+chr(10) for item in media_library))
     def materialize(events):
         result=[]
         for cycle,path in events:
@@ -204,12 +200,11 @@ def main():
             for cycle, usage, down in key_events))
     command = [str(binary), f'+C64_FIRMWARE_HEX={output / "firmware.hex"}',
                f'+C64_DISK_HEX={output / "disk.hex"}', f'+C64_SYS_CYCLES={args.cycles}']
-    if args.real_drive:
-        command.extend([f'+C64_DRIVE_ROM_HEX={output / "drive.hex"}', f'+C64_G64_PATH={output / "disk.g64"}'])
+    if args.medium_oracle:
+        command.append(f'+C64_G64_PATH={output / "disk.g64"}')
     if args.prg_fixture:
         command.append(f'+C64_PRG_FIXTURE={output / "prg-fixture.prg"}')
-    if args.real_drive:
-        command.append(f'+C64_DISK_LIBRARY={output / "disk-library.txt"}')
+    command.append(f'+C64_DISK_LIBRARY={output / "disk-library.txt"}')
     if added_disk_changes:
         command.append(f'+C64_APPEND_DISK_CHANGES={output / "append-disk-changes.txt"}')
     if disk_changes:
@@ -236,7 +231,7 @@ def main():
         simulator_sha256 = hashlib.sha256(frozen_binary.read_bytes()).hexdigest()
         command[0] = str(frozen_binary)
         state_identity=hashlib.sha256(json.dumps({
-            'schema':'FES-C64-development-state-v2', 'simulator':simulator_sha256,
+            'schema':'FES-C64-development-state-v3', 'simulator':simulator_sha256,
             'inputs':{name:value['sha256'] for name,value in inputs.items()},
         },sort_keys=True).encode()).hexdigest()
         command.append(f'+C64_STATE_ID={state_identity}')
@@ -257,8 +252,7 @@ def main():
             command.append(f'+C64_SAVE_FINAL={args.save_final_state.resolve()}')
         with (output / 'boot.log').open('w') as log:
             subprocess.run(command, cwd=output, stdout=log, stderr=subprocess.STDOUT, check=True)
-    if args.real_drive:
-        outputs_to_hash.append('drive-ram.bin')
+    outputs_to_hash.append('drive-ram.bin')
     # Short restored runs can end before a complete HDMI frame is collected.
     outputs_to_hash=[name for name in outputs_to_hash if name!='boot.ppm' or (output/name).is_file()]
     if (output/'before-followup-ram.bin').is_file() and 'before-followup-ram.bin' not in outputs_to_hash:
@@ -268,7 +262,7 @@ def main():
         state_metadata={'model_input_identity':state_identity,
             'sha256':hashlib.sha256(state_path.read_bytes()).hexdigest(),
             'system_cycle':state_cycle, 'inputs':inputs,
-            'simulator_sha256':simulator_sha256, 'real_drive':args.real_drive,
+            'simulator_sha256':simulator_sha256, 'medium_oracle':args.medium_oracle,
             'late_video_capture':args.late_video,
             'disk_changes':all_disk_changes, 'media_library':media_library,
             'typed_command':args.type_command, 'followup_command':args.then_command,
@@ -284,7 +278,7 @@ def main():
                for name in outputs_to_hash}
     receipt = {'checkout_commit_at_start': revision,
                'checkout_diff_sha256_at_start': hashlib.sha256(source_diff).hexdigest(),
-               'evidence': 'host-only PRG-fixture observation; not native LOAD' if args.prg_fixture else 'host-only observation', 'initialization':'prg-fixture' if args.prg_fixture else 'cold-boot', 'simulated_seconds': args.cycles / 52224000,
+               'firmware_topology':'36KiB shared firmware image; independent one-clock drive ROM port','medium_implementation':'independent C++ RotatingDisk oracle' if args.medium_oracle else 'RTL c64_d64_medium plus c64_disk_store; host uploads D64 bytes only', 'evidence': 'host-only PRG-fixture observation; not native LOAD' if args.prg_fixture else 'host-only observation', 'initialization':'prg-fixture' if args.prg_fixture else 'cold-boot', 'simulated_seconds': args.cycles / 52224000,
                'system_clock_hz': 52224000, 'pixel_clock_hz': 74250000,
                'cpu_clock_hz': 985248, 'inputs': inputs, 'outputs': outputs,
                'simulator_sha256': simulator_sha256,
@@ -292,7 +286,7 @@ def main():
                'followup_cycle': args.then_at_cycles if args.then_command else None, 'key_event_count': len(key_events),
                'disk_changes':all_disk_changes, 'media_library':media_library,
                'appended_disk_changes':added_disk_changes,
-               'real_drive': args.real_drive, 'late_video_capture':args.late_video,
+               'medium_oracle': args.medium_oracle, 'late_video_capture':args.late_video,
                'restored_state':str(args.restore_state) if args.restore_state else None,
                'saved_final_state':str(args.save_final_state) if args.save_final_state else None,
                'saved_state':str(args.save_state) if args.save_state else None, 'boot_acceptance': False, 'demo_acceptance': False}

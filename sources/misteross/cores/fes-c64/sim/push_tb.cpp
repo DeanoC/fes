@@ -10,7 +10,7 @@
 #include <string>
 int main(int argc,char **argv) {
     if(argc!=2)return 2;
-    std::array<uint8_t,20480> firmware{};firmware[16381]=0x0f;
+    std::array<uint8_t,36864> firmware{};firmware[16381]=0x0f;
     std::ofstream file(argv[1]);
     for(unsigned byte:firmware) {
         char text[4];std::snprintf(text,sizeof(text),"%02x\n",byte);file<<text;

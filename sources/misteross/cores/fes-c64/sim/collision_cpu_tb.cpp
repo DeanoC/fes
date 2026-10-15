@@ -12,7 +12,7 @@ int main(int argc,char**argv){
  if(argc!=3)return 2;
  std::ifstream input(argv[2],std::ios::binary);
  std::vector<unsigned char> collision_program(std::istreambuf_iterator<char>(input),{});
- if(collision_program.size()!=512)return 2;std::array<unsigned char,20480>fw{};fw[16381]=0x10;
+ if(collision_program.size()!=512)return 2;std::array<unsigned char,36864>fw{};fw[16381]=0x10;
  std::ofstream f(argv[1]);for(unsigned b:fw){char s[4];std::snprintf(s,sizeof(s),"%02x\n",b);f<<s;}f.close();if(!f)return 2;
  std::string opt=std::string("+C64_FIRMWARE_HEX=")+argv[1];char *args[]={argv[0],opt.data()};Verilated::commandArgs(2,args);
  for(unsigned mask:{255u,189u,219u,128u}){

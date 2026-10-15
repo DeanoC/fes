@@ -12,7 +12,7 @@
 int main(int argc,char **argv) {
     if(argc!=2)return 2;
     // Own firmware supplies only a reset vector into the open RAM program.
-    std::array<unsigned char,20480> firmware{};
+    std::array<unsigned char,36864> firmware{};
     firmware[16381]=0x10;
     std::ofstream file(argv[1]);
     for(unsigned byte:firmware) {

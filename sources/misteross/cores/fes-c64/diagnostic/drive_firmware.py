@@ -100,6 +100,10 @@ def main():
     data = assemble(SOURCE, 0xc000, 16384)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir/'drive.hex').write_text(''.join(f'{v:02x}\n' for v in data))
+    # Exercise the same mapped drive-ROM port as the complete motherboard.
+    combined = bytes(20480) + data
+    (args.output_dir/'combined-firmware.hex').write_text(
+        ''.join(f'{v:02x}\n' for v in combined))
 
 if __name__ == '__main__':
     main()

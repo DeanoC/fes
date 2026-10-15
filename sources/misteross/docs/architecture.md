@@ -1679,11 +1679,11 @@ checks, and tape checks remain open.
 
 ## FES Commodore 64
 
-`cores/fes-c64` is `fes.c64` 0.3.0, a package-only Commodore 64 pathfinder on
+`cores/fes-c64` is `fes.c64` 0.4.0, a package-only Commodore 64 pathfinder on
 the same `fes.computer` 1.0 mailbox as Apple II. The machine contract is
 [its README](../cores/fes-c64/README.md). `make sim-fes-c64` boots the open
 diagnostic: RAM, firmware signature, VIC text, both cartridge sockets,
-joystick, keyboard, a SID sample and a read-only D64 LOAD of `BOOT`.
+joystick, keyboard, a SID sample and a native drive sector read over IEC.
 The diagnostic waits at stages 7/8 for joystick Up and HID A. A hardware
 runner confirms the live disk is ready before sending those inputs; it uses
 launch's existing ready input stream instead of attaching twice. This is an
@@ -1702,19 +1702,19 @@ program/variable end pointers and device 8, then types RUN by default. The
 receipt labels this path as a PRG fixture and binds its bytes into checkpoint
 identity. Whole-state restores still require the original executable and
 inputs; fixture installation does not migrate or patch an older model's state.
-The real-drive variant continues to run its native drive firmware and guest
-fastloader. This simulation shortcut does not qualify cold loading or runtime
+Both medium variants continue to run native drive firmware and guest
+fastloaders. This simulation shortcut does not qualify cold loading or runtime
 persistence.
 `--type-command` optionally types native C64 text through HID states after
 three seconds, with 50 ms press/release intervals. `--then-command` adds a
 later command and retains the RAM snapshot taken immediately before it.
 Per-second progress and IEC command traces are flushed during execution.
-The observation makes no
-boot/demo acceptance assertion. Version 0.3.0 links a 20 KiB image consisting
-of BASIC (8 KiB), KERNAL (8 KiB) and character ROM (4 KiB) through twenty blank
-1024×10 lanes. Character lanes have registered CPU/VIC ports on the native
-system clock; CPU reads take two clocks and VIC reads one. The ROM map uses
-the existing encoding and each source block appears once. CPU/VIC character
+The observation makes no boot/demo acceptance assertion. Version 0.4.0 links
+36 KiB: BASIC (8 KiB), KERNAL (8 KiB), character ROM (4 KiB), then 1541 firmware
+(16 KiB). Lanes 0–19 occupy column 5, rows 32–51; drive lanes 20–35 occupy
+column 14, rows 32–47. Character lanes 16–19 have registered CPU/VIC ports on
+the native clock. CPU reads take two clocks; VIC and independent drive reads
+one. Each source block appears once in the format-3 ROM map. CPU/VIC character
 visibility follows separate banking rules.
 Routed ROM validation checks nextpnr's normalized `MISTRAL_M10K` cells;
 character lanes require `CFG_TDP=1`, while the other lanes require it disabled.
@@ -1780,27 +1780,25 @@ Small rational accumulators select native floor(x×2/5), floor(y×17/45)
 coordinates without dividers. Light-pen capture, exact mode-transition quirks,
 physical subpixel phases and fresh route/seal/hardware acceptance remain open. The D64 media mailbox is unchanged.
 See the core README.
-The IEC device uses released-high CIA2 inputs and logical byte levels on the
-open-collector wires. It separates ready/EOI handshakes from received data bits,
-acknowledges after the final CLOCK-low edge, and holds CLOCK low for TALK
-turnaround before raising it to announce ready. ATN acknowledgement waits
-for the initial CLOCK-low phase even when attention begins with CLOCK high. The independent
-`make sim-fes-c64-iec` host checks LISTEN/OPEN, filename EOI, idle UNLISTEN,
-TALK/SECOND, exact single-sector and 260-byte linked-sector PRGs and final-byte
-EOI. Full sectors follow their track/sector links without transmitting link bytes. The CPU diagnostic
-uses this same polarity/protocol. No 1541 CPU, VIA, GCR or fastloader compatibility
-is implied by the read-only file device.
-A separate `c64_drive1541` development motherboard runs the shared 6502 at
-1 MHz from a divided 16 MHz reference with 2 KiB mirrored RAM, an external
-16 KiB simulation ROM, two
-`c64_via` port/timer/handshake slices and the physical IEC inverter/ATN gate.
-`make sim-fes-c64-drive` runs open firmware that checks RAM aliases and both
-VIA IRQs through the CPU vector; the standalone VIA test checks ports,
-edge latches, handshakes, IFR/IER and T1/T2/PB7/PB6 behavior. Its observation
-helper retains an external ROM identity, frozen executable identity and RAM.
-Drive VIA accesses and CPU sampling share the late bus-cycle edge so input
-latches are acknowledged after sampling. The producer pins the development
-RTL in its source closure while the package still instantiates the file device.
+The production `c64_drive1541` runs the shared 6502 at 1 MHz from a divided
+16 MHz reference, with 2 KiB mirrored RAM, two `c64_via` slices and IEC
+inverter/ATN logic. Its independent ROM port reads the final 16 KiB of the
+linked firmware, retaining the $8000 mirror. Drive VIA access and CPU sampling
+share the late bus-cycle edge so input latches are acknowledged after sampling.
+`c64_gcr_read` recovers bits, sync and byte ready from nominal flux transitions.
+
+The existing D64 store feeds `c64_d64_medium`, which builds one 8 KiB GCR track
+cache. Nominal 300 rpm rotation, halftrack movement and physical density follow
+the drive VIA pins. Flux is hidden during media loading, ejection and the bounded
+track rebuild. Swapping media preserves both CPUs, RAM, head position and spindle
+angle. The write-protect input remains fixed, so general DOS disk-change
+sensing is unqualified. The standard 174,848-byte read-only D64 mailbox remains unchanged.
+`make sim-fes-c64-medium` compares all 35 tracks with an independent flux model;
+`make sim-fes-c64-medium-mailbox` covers actual upload, CRC/commit, replacement
+and ejection. The open diagnostic drive seeks and decodes an original sector,
+then sends six bytes through a diagnostic IEC handshake. No general DOS ROM is
+bundled. The standalone drive/VIA checks retain RAM aliases, both IRQ vectors,
+ports, edge latches, IFR/IER and timer behavior.
 The drive enables the CPU's active-low SO input: falling edges set V, while
 instruction writes occur on CPU enables and a held-low pin does not retrigger.
 Apple II and the C64 motherboard retain the default CPU mode with SO tied high. The shared NMOS
@@ -1831,22 +1829,28 @@ when IRQ is withdrawn. `make sim-fes-c64-irq` compares entry time and stack
 bytes with pinned transistor-model vectors across 40 arrival phases, mask
 changes, branches, RMW and enable gaps. NMI hijacking, every interrupt
 subphase and complete external bus equivalence remain unqualified.
-`make sim-fes-c64-boot-drive-build` selects `FES_C64_REAL_DRIVE_SIM` in the
-existing motherboard and boot harness. `--real-drive --drive-rom` runs user
-1541 firmware through both VIAs and `c64_gcr_read`; the helper encodes the D64
-as raw G64 tracks. A C++ testbench medium supplies nominal 300 rpm rotation,
-head stepping and flux only. The digital reader recovers bits, sync and byte
-ready from the 16 MHz reference. `make sim-fes-c64-gcr` checks all four density
-zones with original sectors. VIA serial shifting, NMOS SO subphases, disk writes,
-analogue noise, physical drive-ROM linking and runtime media integration remain
-missing. The package and default boot diagnostic retain the file device.
+NMI edges survive CPU-enable gaps and use the instruction polling pipeline,
+including taken-branch timing, before entering the handler. NMI takes
+priority over simultaneous IRQ. `make sim-fes-c64-nmi` checks 7,840 entry
+and stack cases against pinned transistor-model results, including short
+pulses entirely between CPU enables. NMI hijacking and subphase behavior
+remain unqualified.
+
+`make sim-fes-c64-boot-build` observes the production drive and RTL medium.
+The helper requires external BASIC, KERNAL, character and 1541 firmware.
+The optional `--medium-oracle` lane replaces only the medium with the independent
+C++ rotation/flux model, built by `make sim-fes-c64-boot-oracle-build`.
+Both lanes run native drive firmware and guest fastloaders through the same
+6502, VIAs and digital reader. `make sim-fes-c64-gcr` checks all density zones.
+VIA serial shifting, disk writes, raw/protected tracks, analogue noise and NMOS
+SO subphases remain unqualified or unsupported.
 Both boot diagnostic builds use Verilator save/restore. A Verilator control
 file exposes only the read-only fields needed by the observer, allowing
 optimization of unused debug state. `C64_BOOT_FULL_VISIBILITY=1` selects the
 full writable variant. Executable/layout checks remain strict across modes. The helper's
 `--save-state`, optional `--save-at-cycles` and `--restore-state` preserve the
 complete RTL model, host clock counters, pending keyboard/capture events,
-partial frame collection and the real-drive medium's angle/head position.
+partial frame collection, in-flight D64 uploads and the medium's angle/head position.
 Checkpoint metadata requires the same executable, firmware and immutable
 media-library hashes; a rebuild requires recapture. Scheduled insertions and
 the active media cursor are serialized with the host state. An explicit later
@@ -1857,7 +1861,7 @@ capture, and restores preserve the capture policy. The absolute observation
 endpoint can extend to 1800 machine seconds. Native LOAD must be verified before using a
 post-load checkpoint. This is development simulation, not runtime persistence.
 `--late-video` holds the independent HDMI renderer until the final five frames
-only in the real-drive diagnostic, without qualifying live native graphics.
+without qualifying continuous HDMI presentation. Native VIC rendering continues.
 The HID keyboard maps all 64 native switches with CIA1 PA columns/PB rows,
 correcting the former transposed diagnostic mapping. A is PA1/PB2 and Return
 is PA0/PB1. `make sim-fes-c64-keyboard`, included in `sim-fes-c64`, checks every
@@ -1895,8 +1899,9 @@ TOD, serial shifting and timer port outputs remain outside this slice.
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchains/c64.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this
 pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
-`c64-firmware`, 20,480 bytes, on the blank column-5 lanes at rows 32–51.
-The final four character-ROM lanes use CPU/VIC read ports on the native system clock;
+`c64-firmware`, 36,864 bytes, with twenty column-5 lanes at rows 32–51
+and sixteen column-14 drive lanes at rows 32–47. Character lanes 16–19 use
+CPU/VIC read ports on the native system clock;
 all writes are disabled. Those lanes use synchronous M10K reads (`CFG_ASYNC_READ=0`) with the bank
 selector delayed one clock so the CPU-facing byte is still two system clocks
 behind the registered address. `c64_machine` samples that byte at

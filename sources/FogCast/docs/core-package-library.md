@@ -508,9 +508,10 @@ launch as well as a development load. The mutation is not bounded by the CLI's
 30-second status timeout: the host allows the transfer at least 150 s.
 `core-media-capabilities` reports the disk role with `unit` and `extensions`.
 ProDOS-order `.po` and nibble `.nib` images are different formats and are not
-accepted. `fes.c64` uses the same firmware binding for `c64-firmware` (20 KiB in
-package versions 0.2.0 and later: BASIC 8 KiB, KERNAL 8 KiB, character ROM 4 KiB;
-earlier 0.1.0 packages declare 16 KiB)
+accepted. `fes.c64` uses the same firmware binding for `c64-firmware` (36 KiB in
+package version 0.4.0: BASIC 8 KiB, KERNAL 8 KiB, character ROM 4 KiB, then
+1541 drive ROM 16 KiB; versions 0.2.0/0.3.0 declare 20 KiB and 0.1.0 declares
+16 KiB). The selected package declares the exact required size
 and role `disk` for `fes.media.c64-disk` 1.0: exactly 174,848 bytes, `.d64`,
 media unit 0, read only. `fes.spectrum` uses firmware id `spectrum-firmware`
 (16 KiB) and role `cassette` for `fes.media.spectrum-tape` 1.0: 1..65,536

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Observe external 1541 ROM on the development motherboard, with no spinning disk."""
+"""Observe external 1541 ROM on the native motherboard, with no spinning disk."""
 import argparse
 import hashlib
 import json
@@ -22,12 +22,12 @@ def main():
     if len(data) != 16384:
         parser.error(f'expected a 16384-byte drive ROM, got {len(data)}')
     module = Path(__file__).resolve().parents[1]
-    binary = module / 'build/sim/fes-c64-drive/Vc64_drive1541'
+    binary = module / 'build/sim/fes-c64-drive/Vc64_drive_sim_top'
     if not binary.is_file():
         parser.error('run make sim-fes-c64-drive-build first')
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
-    (output/'drive.hex').write_text(''.join(f'{v:02x}\n' for v in data))
+    (output/'firmware.hex').write_text(''.join(f'{v:02x}\n' for v in bytes(20480)+data))
     revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=module, text=True).strip()
     # The executable is frozen. The revision describes this invocation, not
     # the compiler inputs; this observation does not claim sealed provenance.
@@ -36,7 +36,7 @@ def main():
         shutil.copy2(binary, frozen)
         binary_hash = hashlib.sha256(frozen.read_bytes()).hexdigest()
         with (output/'drive.log').open('w') as log:
-            subprocess.run([str(frozen), f'+C64_DRIVE_ROM_HEX={output / "drive.hex"}',
+            subprocess.run([str(frozen), f'+C64_FIRMWARE_HEX={output / "firmware.hex"}',
                             f'+C64_DRIVE_CYCLES={args.cycles}'], cwd=output,
                            stdout=log, stderr=subprocess.STDOUT, check=True)
     receipt = {'evidence': 'host-only development drive observation',

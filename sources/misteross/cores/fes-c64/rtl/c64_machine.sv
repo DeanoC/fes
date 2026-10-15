@@ -8,11 +8,9 @@ module c64_machine #(
     parameter integer SYSTEM_CLOCK_HZ = 52_224_000,
     parameter integer CPU_CLOCK_HZ = 985_248
 ) (
-`ifdef FES_C64_REAL_DRIVE_SIM
+`ifdef FES_C64_EXTERNAL_MEDIUM_SIM
+    // Explicit simulation oracle; normal builds use the internal RTL medium.
     input wire drive_flux,
-    output wire drive_ref_ce,
-    output wire [7:0] drive_pins, drive_ddr,
-    output wire [15:0] drive_pc,
 `endif
     input  wire        clk_sys,
     input  wire        reset,
@@ -187,6 +185,8 @@ module c64_machine #(
     assign slot2_request = io_socket(request);
 
     wire [7:0] ram_q, rom_q;
+    wire [13:0] drive_rom_address;
+    wire [7:0] drive_rom_data;
     wire [15:0] video_ram_addr;
     wire [7:0] video_ram_q, video_char_q;
     reg video_char_selected;
@@ -201,7 +201,8 @@ module c64_machine #(
         basic_window ? {2'b00,bus_addr[12:0]} : {2'b01,bus_addr[12:0]};
     c64_rom rom (
         .clk(clk_sys), .address(rom_address), .data(rom_q),
-        .video_clk(clk_sys), .video_address(video_ram_addr[11:0]), .video_data(video_char_q)
+        .video_clk(clk_sys), .video_address(video_ram_addr[11:0]), .video_data(video_char_q),
+        .drive_address(drive_rom_address), .drive_data(drive_rom_data)
     );
 
     wire [7:0] cia1_pa, cia1_pb, cia1_ddra, cia1_ddrb, cia1_dout;
@@ -232,7 +233,9 @@ module c64_machine #(
     wire dev_clk_low, dev_data_low;
     wire cpu_clk_low = cia2_ddra[4] & cia2_pa[4];
     wire cpu_data_low = cia2_ddra[5] & cia2_pa[5];
-`ifdef FES_C64_REAL_DRIVE_SIM
+    wire drive_ref_ce;
+    wire [7:0] drive_pins, drive_ddr;
+    wire [15:0] drive_pc;
     wire [7:0] drive_data;
     wire drive_sync, drive_ready_n, drive_reading, drive_enabled;
     c64_drive1541 drive (
@@ -244,7 +247,8 @@ module c64_machine #(
         .byte_ready_n(drive_ready_n), .disk_pa_out(), .disk_pa_ddr(),
         .disk_pb_out(drive_pins), .disk_pb_ddr(drive_ddr),
         .byte_ready_enable(drive_enabled), .read_mode(drive_reading),
-        .debug_pc(drive_pc), .phi(), .ref_ce(drive_ref_ce)
+        .debug_pc(drive_pc), .phi(), .ref_ce(drive_ref_ce),
+        .rom_address(drive_rom_address), .rom_data(drive_rom_data)
     );
     c64_gcr_read reader (
         .clk(clk_sys), .reset(system_reset), .ref_ce(drive_ref_ce), .flux(drive_flux),
@@ -253,19 +257,25 @@ module c64_machine #(
         .byte_ready_n(drive_ready_n), .bit_sample()
     );
     assign debug_iec = {drive_sync, drive_ready_n, 4'b0, dev_clk_low, dev_data_low};
-`else
+`ifndef FES_C64_EXTERNAL_MEDIUM_SIM
+    wire drive_flux;
     wire [17:0] disk_addr;
     wire [7:0] disk_byte;
+    wire medium_cache_ready;
+    wire [6:0] medium_halftrack;
+    wire [21:0] medium_rotation;
+    wire [12:0] medium_byte_addr;
+    wire [7:0] medium_byte;
     c64_disk_store disk (
         .clk(clk_sys), .write_addr(media_write_addr), .write_data(media_write_data),
         .write_enable(media_write_enable), .read_addr(disk_addr), .read_data(disk_byte)
     );
-    c64_iec iec (
-        .clk(clk_sys), .phi(cpu_ce), .reset(system_reset),
-        .atn_low(cia2_ddra[3] & cia2_pa[3]),
-        .cpu_clk_low(cpu_clk_low), .cpu_data_low(cpu_data_low), .disk_ready(disk_ready),
-        .dev_clk_low(dev_clk_low), .dev_data_low(dev_data_low),
-        .disk_addr(disk_addr), .disk_byte(disk_byte), .debug(debug_iec)
+    c64_d64_medium disk_medium (
+        .clk(clk_sys), .reset(reset), .ref_ce(drive_ref_ce), .disk_ready(disk_ready),
+        .drive_pins(drive_pins), .drive_ddr(drive_ddr),
+        .disk_addr(disk_addr), .disk_data(disk_byte), .flux(drive_flux),
+        .cache_ready(medium_cache_ready), .halftrack(medium_halftrack),
+        .rotation(medium_rotation), .debug_byte_addr(medium_byte_addr), .debug_byte(medium_byte)
     );
 `endif
     wire [7:0] pa2_pin = {~(cpu_data_low | dev_data_low), ~(cpu_clk_low | dev_clk_low),

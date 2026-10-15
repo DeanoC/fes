@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Boots the open C64 diagnostic and requires the CPU, both cartridge sockets,
-// the joystick, the keyboard, a SID sample, the D64 LOAD and both border and
+// the joystick, the keyboard, a SID sample, the native drive GCR-to-IEC transaction and both border and
 // text pixels. The firmware also requires CIA1 timer B IRQ and CIA2 timer A
 // NMI through the CPU vectors, with SEI still set during the NMI check.
 // Success then captures the next full frame. Earlier white and red pixels are
@@ -50,7 +50,8 @@ static int run(bool delayed) {
     top.keyboard_rows[3] = 0;
     top.keyboard_rows[4] = 0;
     top.controller_buttons = delayed ? 0 : 1;
-    top.disk_ready = !delayed;
+    const bool no_media=*Verilated::commandArgsPlusMatch("C64_DIAG_NO_MEDIA");
+    top.disk_ready = !delayed && !no_media;
 
     uint64_t sys_cycles = 0, cpu_cycles = 0, sprite_stalls = 0;
     auto tick = [&]() {
@@ -83,13 +84,14 @@ static int run(bool delayed) {
     int pass_seen = -1;
     bool prev_vsync = false;
     std::vector<uint8_t> frame;
-    int budget = 3000000;
+    // A physical revolution takes 0.2 seconds; allow the firmware timeout too.
+    int budget = 60000000;
     for (int i = 0; i < budget; ++i) {
         tick();
         // Model a library mount arriving after CPU release. Do not send the
-        // operator's LOAD trigger until the media is ready, then delay A too.
+        // diagnostic input trigger until the media is ready, then delay A too.
         if (delayed && top.debug_stage == 7 && ++joy_wait == 100000) {
-            top.disk_ready = 1;
+            top.disk_ready = !no_media;
             top.controller_buttons = 1;
         }
         if (delayed && top.debug_stage == 8 && ++key_wait == 100000)
@@ -141,8 +143,8 @@ static int run(bool delayed) {
             }
         }
         if (top.debug_stage != 0 && top.debug_stage != 0xFF && top.debug_error == 1) {
-            std::printf("c64 diagnostic failed stage %u iec %u pc %04x at cycle %d\n",
-                        top.debug_stage, top.debug_iec, top.debug_pc, i);
+            std::printf("c64 diagnostic failed stage %u iec %u load_status %u pc %04x at cycle %d\n",
+                        top.debug_stage, top.debug_iec, top.debug_load_status, top.debug_pc, i);
             return 1;
         }
         prev_vsync = top.vsync;
