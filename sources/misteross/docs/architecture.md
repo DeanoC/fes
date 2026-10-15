@@ -1135,8 +1135,11 @@ normal show/return does not use execution hold.
 MiSTer-devel/ZX81_MiSTer `ZX81.sv` at Release 20260603: 16 KB RAM, PAL, no
 CHROMA/QS/YM2149/joystick. Keyboard rows and `.p` tape bytes come from the GP
 mailbox. Character ROM bytes are `cores/fes-zx81/rtl/zx8x.hex`, converted from
-the pinned `rtl/zx8x.mif`. The Z80 is `fes_z80_nmos`. `ce_p` averages exactly
-3.25 MHz from the rational machine clock scheduler.
+the pinned `rtl/zx8x.mif`. The CPU is the shared first-party `fes_z80_nmos`,
+driven by positive and negative phase enables from the rational machine clock scheduler at an average
+3.25 MHz. The machine passes WAIT, INT and NMI to that CPU and uses its native
+refresh bus cycle. The Zon X firmware diagnostic uses the same NMOS CPU and
+expansion socket as the machine and expansion simulations.
 
 `make sim-fes-zx81` also runs `Vzx81_machine`, which waits until NEW has built
 a display file at `D_FILE` starting with `0x76`, the CPU has HALTed for slow
