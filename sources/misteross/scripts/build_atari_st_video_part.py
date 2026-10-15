@@ -115,7 +115,9 @@ def package_profile(package):
 
 
 def build(root: Path, shell: Path, package_path: Path, variant: str, *,
-          cache_root: Path | None = None, gpu: int = 0, seed: int = PLACER_SEED) -> Path:
+          cache_root: Path | None = None, gpu: int = 0, seed: int = PLACER_SEED,
+          gpu_router: str = shell_recipe.ST_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> Path:
     if variant not in ("direct", "scanlines"):
         raise ValueError("unknown video variant")
     if type(seed) is not int or not 1 <= seed <= 10:
@@ -134,7 +136,8 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
             (shell / members[1]).read_bytes() != package.payload_bytes or \
             (shell / "rom-map.json").read_bytes() != package.rom_map_bytes:
         raise ValueError("frozen producer output differs from sealed shell package")
-    tools = shell_recipe._authenticate_atari_st_tools(root, cache_root)
+    tools = shell_recipe._authenticate_atari_st_tools(
+        root, cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in tools.items()}
     roots = source_roots_for_inputs(inputs)
     closure = source_input_closure(root, roots, policy=POLICY)
@@ -142,7 +145,7 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
         raise ValueError("video part input is outside the tracked functional source closure")
     shell_closure = {name: slot_recipe.digest((shell / name).read_bytes()) for name in members}
     clocks = slot_recipe.cart_clock_constraints(root)
-    invocation = FunctionalInvocation(tools, gpu)
+    invocation = FunctionalInvocation(tools, gpu, extra_env=shell_recipe.execution_extra(gpu_router))
     try:
         recipe = {"inputs": closure, "source_roots": roots, "source_closure_policy": POLICY,
                   "shell": shell_closure, "tools": identities,
@@ -170,7 +173,8 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
              "--fes-scaffold", "--fes-cart", str(output / "cart.json"),
              "--fes-cart-region", layout.REGION, "--fes-slot-clock", layout.CLOCK,
              "--fes-cram-region", ",".join(map(str, layout.CRAM)), "--no-pack",
-             "--seed", str(seed), "--router", "gpu", "--placer-heap-timingweight", "300",
+             "--seed", str(seed), "--router", "gpu", "--gpu-device", str(gpu),
+             "--placer-heap-timingweight", "300",
              "--rbf", str(output / "cart.rbf"), "--compress-rbf",
              "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")),
         )
@@ -185,7 +189,7 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
         route_text = (output / "route.log").read_text()
         if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
             raise ValueError("video route log does not prove a complete routed design")
-        gpu_backend = _require_gpu_backend(route_text, shell_recipe.ST_GPU_BACKEND)
+        gpu_backend = _require_gpu_backend(route_text, shell_recipe.gpu_choice(gpu_router)[0])
         timing = json.loads((output / "timing.json").read_bytes())
         measured = slot_recipe.validate_cart_timing(timing)
         factory = shell_recipe
@@ -225,7 +229,8 @@ def build(root: Path, shell: Path, package_path: Path, variant: str, *,
                 source_input_closure(root, roots, policy=POLICY) != closure or \
                 any(slot_recipe.digest((shell / name).read_bytes()) != value for name, value in shell_closure.items()):
             raise ValueError("video source or frozen shell changed during build")
-        if {name: tool.identity for name, tool in shell_recipe._authenticate_atari_st_tools(root, cache_root).items()} != identities:
+        if {name: tool.identity for name, tool in shell_recipe._authenticate_atari_st_tools(
+                root, cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router).items()} != identities:
             raise ValueError("video compiler identity changed")
         invocation.verify()
         if (output / "clocks.sdc").read_bytes() != clocks or (output / "cart.qsf").read_bytes() != qsf or \
@@ -250,6 +255,10 @@ if __name__ == "__main__":
     parser.add_argument("--variant", choices=("direct", "scanlines"), required=True)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=shell_recipe.ST_GPU_ROUTER)
+    parser.add_argument("--toolchain-root", type=Path)
     parser.add_argument("--seed", type=int, choices=range(1, 11), default=PLACER_SEED)
     args = parser.parse_args()
-    print(build(args.root, args.shell, args.package, args.variant, cache_root=args.cache_root, gpu=args.gpu, seed=args.seed))
+    print(build(args.root, args.shell, args.package, args.variant, cache_root=args.cache_root,
+                gpu=args.gpu, seed=args.seed, gpu_router=args.gpu_router,
+                toolchain_root=args.toolchain_root))

@@ -1,6 +1,6 @@
 # Audited core-package source keys
 
-The eight `native-integration-dev` FPGA producers use the committed
+The nine `native-integration-dev` FPGA producers use the committed
 `sources/misteross/scripts/source_closures.json` manifest. Each entry lists the
 files or directories that can affect that producer: its Python imports,
 explicit HDL and constraint inputs, recipe, ABI definition, selected toolchain
