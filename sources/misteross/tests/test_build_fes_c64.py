@@ -1,7 +1,8 @@
 """FES Commodore 64 OSS producer contract checks.
 
 The Yosys netlist check runs when a `yosys` binary is on `PATH` or `YOSYS`
-names one. It stops before ABC, which is enough to see mapped M10K parameters.
+names one. A partial pass checks M10K parameters; the full pass checks live
+clocks and also runs packing when a sibling `nextpnr-mistral` is installed.
 """
 
 from __future__ import annotations
@@ -383,6 +384,23 @@ class C64YosysM10kTests(unittest.TestCase):
                 if cell.get("type") == "MISTRAL_M10K" and cell.get("connections", {}).get("CLK1") == ["x"]
             ]
             self.assertEqual(still_open, [])
+
+            # Exercise the actual primitive contract on this already-built netlist.
+            # Minimal Yosys-only hosts retain the memory checks without packing.
+            nextpnr = Path(yosys).resolve().with_name("nextpnr-mistral")
+            if nextpnr.is_file() and os.access(nextpnr, os.X_OK):
+                qsf = Path(directory) / "socket.qsf"
+                qsf.write_text(producer.socket_qsf((ROOT / producer.QSF).read_text()))
+                packed = Path(directory) / "packed.json"
+                pack = subprocess.run([
+                    str(nextpnr), "--json", str(synth), "--device", producer.TARGET,
+                    "--qsf", str(qsf), "--sdc", str(ROOT / producer.SDC),
+                    "--pack-only", "--write", str(packed),
+                ], cwd=ROOT, text=True, capture_output=True, check=False, timeout=300)
+                output = pack.stdout + pack.stderr
+                self.assertEqual(pack.returncode, 0, output[-4000:])
+                self.assertIn("Program finished normally.", output[-4000:])
+                self.assertTrue(packed.is_file())
 
 
 if __name__ == "__main__":

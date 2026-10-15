@@ -19,7 +19,7 @@ module c64_sid_vcr_shared(input wire clk,reset,request_a,request_b,input wire [1
  assign word_a[lane*20+:20]=read_a;assign word_b[lane*20+:20]=read_b;
 `else
  MISTRAL_M10K_TDP #(.CFG_ABITS(9),.CFG_DBITS(20),.CFG_ASYNC_READ(0),.INIT(init_bank(lane))) rom(
- .CLK1(clk),.CLK2(clk),.A1ADDR(address_a[15:7]),.B1ADDR(address_b[15:7]),.A1DATA(20'd0),.B1DATA(20'd0),.A1Q(word_a[lane*20+:20]),.B1Q(word_b[lane*20+:20]),.A1EN(1'b1),.B1EN(1'b1),.A1WE(1'b0),.B1WE(1'b0),.A1BE(2'b00),.B1BE(2'b00),.ACLR0(1'b0),.ACLR1(1'b0));
+ .CLK1(clk),.CLK2(clk),.A1ADDR(address_a[15:7]),.B1ADDR(address_b[15:7]),.A1DATA(20'd0),.B1DATA(20'd0),.A1Q(word_a[lane*20+:20]),.B1Q(word_b[lane*20+:20]),.A1EN(1'b1),.B1EN(1'b1),.A1WE(1'b0),.B1WE(1'b0),.A1BE(),.B1BE(),.ACLR0(1'b0),.ACLR1(1'b0));
 `endif
  end endgenerate
  c64_sid_vcr_finish lookup_finish_a(.clk(clk),.index1(index_a),.packed_word(word_a),.value(value_a));
