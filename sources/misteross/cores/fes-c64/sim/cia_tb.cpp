@@ -81,6 +81,22 @@ struct Bench {
     }
 };
 
+static void ports() {
+    Bench b;
+    b.write(0, 0x5a);
+    b.write(1, 0xa5);
+    b.write(2, 0xf0);
+    b.write(3, 0x0f);
+    b.expect("port A output latch", b.top.pa_reg, 0x5a);
+    b.expect("port B output latch", b.top.pb_reg, 0xa5);
+    b.expect("port A DDR", b.read(2), 0xf0);
+    b.expect("port B DDR", b.read(3), 0x0f);
+    b.top.pa_pin = 0x3c;
+    b.top.pb_pin = 0xc3;
+    b.expect("port A reads external resolved pins", b.read(0), 0x3c);
+    b.expect("port B reads external resolved pins", b.read(1), 0xc3);
+}
+
 static void timer_a() {
     Bench b;
     b.write(4, 3);
@@ -89,8 +105,8 @@ static void timer_a() {
     b.expect("TA stopped high write loads full counter", b.count(4), 3);
     b.write(14, 0x11);
     b.expect("CRA force load reads zero", b.read(14), 1);
-    b.phi(2);
-    b.expect("TA phi counter", b.count(4), 1);
+    b.phi(5);
+    b.expect("TA delayed force/start counter", b.count(4), 1);
     b.write(5, 1);
     b.expect("TA running high write leaves counter", b.count(4), 1);
     b.phi(2);
@@ -99,15 +115,17 @@ static void timer_a() {
     b.expect("TA unmasked underflow does not interrupt", b.top.irq, 0);
     b.phi();
     b.write(14, 0x11, true);
-    b.expect("TA force load takes priority over counting", b.count(4), 0x103);
+    b.expect("TA force write leaves current decrement visible", b.count(4), 0x101);
+    b.phi(2);
+    b.expect("TA delayed force load", b.count(4), 0x103);
     b.write(14, 0x21);
     b.phi(4);
-    b.expect("TA CNT mode receives no external edges", b.count(4), 0x103);
+    b.expect("TA CNT mode drains pending count then receives no edges", b.count(4), 0x102);
     b.write(14, 0);
     b.write(4, 0);
     b.write(5, 0);
     b.write(14, 9);
-    b.phi();
+    b.phi(2);
     b.expect("TA zero one-shot underflow", b.read(13, true), 1);
     b.expect("TA one-shot clears START", b.read(14), 8);
     b.phi(3);
@@ -122,8 +140,8 @@ static void timer_b() {
     b.expect("TB stopped high write loads full counter", b.count(6), 2);
     b.write(15, 0x11);
     b.expect("CRB force load reads zero", b.read(15), 1);
-    b.phi();
-    b.expect("TB reads live counter", b.count(6), 1);
+    b.phi(4);
+    b.expect("TB delayed force/start reads live counter", b.count(6), 1);
     b.write(7, 1);
     b.expect("TB running high write leaves counter", b.count(6), 1);
     b.write(13, 0x82);
@@ -133,16 +151,23 @@ static void timer_b() {
     b.expect("TB ICR flags remain before CPU sample", b.read(13), 0x82);
     b.expect("TB ICR read returns pending flags", b.read(13, true), 0x82);
     b.expect("TB ICR clears on CPU sample", b.top.irq, 0);
-    b.expect("TB ICR second read", b.read(13, true), 0);
+    b.expect("old CIA ICR retains bit7 after pin clears", b.read(13, true), 0x80);
+    b.phi(2);
+    b.expect("old CIA delayed ICR bit7 clear", b.read(13, true), 0);
     b.write(15, 0x11, true);
-    b.expect("TB force load takes priority over counting", b.count(6), 0x102);
+    b.expect("TB force write leaves current decrement visible", b.count(6), 0xff);
+    b.phi(2);
+    b.expect("TB delayed force load", b.count(6), 0x102);
     b.write(15, 0x21);
     b.phi(4);
-    b.expect("TB CNT mode receives no external edges", b.count(6), 0x102);
+    b.expect("TB CNT mode drains pending count then receives no edges", b.count(6), 0x101);
     b.write(15, 0);
     b.write(6, 0);
     b.write(7, 0);
     b.write(15, 9);
+    b.phi(2);
+    b.expect("TB zero one-shot sets source before IRQ", b.read(13), 2);
+    b.expect("old CIA one-shot IRQ is delayed", b.top.irq, 0);
     b.phi();
     b.expect("TB zero one-shot underflow", b.read(13, true), 0x82);
     b.expect("TB one-shot clears START", b.read(15), 8);
@@ -159,15 +184,21 @@ static void linked_timers(int mode) {
     b.write(14, 1);
     b.write(15, mode | 9);
     b.write(13, 0x83);
+    b.phi(2);
+    b.expect("TB chain waits for TA pipeline", b.count(6), 1);
+    b.expect("TA has not underflowed during start delay", b.read(13), 0);
     b.phi();
-    b.expect("TB chain waits for TA underflow", b.count(6), 1);
+    b.expect("TA underflow queues B step", b.count(6), 1);
+    b.expect("TA source precedes old CIA IRQ", b.read(13), 1);
+    b.expect("TA IRQ delay", b.top.irq, 0);
     b.phi();
-    b.expect("TA underflow clocks TB", b.count(6), 0);
-    b.expect("TA underflow flag", b.read(13, true), 0x81);
+    b.expect("TB queued step enters count pipeline", b.count(6), 1);
+    b.expect("TA delayed IRQ", b.top.irq, 1);
     b.phi();
-    b.expect("TB chain skips ordinary phi", b.count(6), 0);
+    b.expect("TB queued step decrements count", b.count(6), 0);
+    b.expect("TA underflow flag", b.read(13), 0x81);
     b.phi();
-    b.expect("TB chain reloads on underflow", b.count(6), 1);
+    b.expect("TB next queued step reloads zero counter", b.count(6), 1);
     b.expect("both underflows retained", b.read(13, true), 0x83);
     b.expect("TB chain one-shot clears START", b.read(15), mode | 8);
     b.phi(2);
@@ -177,6 +208,7 @@ static void linked_timers(int mode) {
 
 int main() {
     try {
+        ports();
         timer_a();
         timer_b();
         linked_timers(0x40);

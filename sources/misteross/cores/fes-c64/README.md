@@ -63,8 +63,10 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   loading, force-load strobes, continuous and one-shot operation. Timer B can
   count Phi2 or timer A underflows. CNT is held high without external edges,
   so CNT edge modes do not count and the gated timer A mode can count.
-  TOD, serial shift and PB6/PB7 timer outputs remain unimplemented; internal
-  6526 pipeline delays are not modelled. Port 2 (CIA1 port A) is controller port 0.
+  The old MOS 6526 count-enable, force-load, one-shot and interrupt pipelines
+  preserve delayed starts, pending counts after STOP and separate ICR flags,
+  bit 7 and interrupt-pin timing. TOD, serial shift, FLAG input and PB6/PB7
+  timer outputs remain unimplemented. Port 2 (CIA1 port A) is controller port 0.
 - HDMI 720p60. The 384×272 PAL view is scaled into a centered 960×720
   viewport using rational nearest-neighbor sampling; side pillars are black. Audio is the shared 48 kHz I2S serializer.
 
@@ -427,7 +429,13 @@ pages 5–7: separate latches and counters, load conditions, clock selection,
 one-shot stopping, ICR acknowledgement and the read-zero force-load bit.
 The CIA2 NMI connection follows the Commodore
 [Programmer's Reference Guide](https://www.zimmers.net/anonftp/pub/cbm/c64/manuals/c64-programmers-reference-guide.txt),
-pages 348–349. `sim-fes-c64` includes the directed CIA regression and the
+pages 348–349. Timer and interrupt pipelines adapt the old-6526 model from
+pinned VICE 3.10 sources. `sim-fes-c64-cia-reference` checks 377 bus programs
+at the native fractional cadence and two boundary schedules, including
+ordered interrupt edges within a guest cycle. Its checked-in fixtures need
+no external firmware; [source provenance and regeneration](sim/cia_timing.md)
+describe the independent oracle and qualification limits. `sim-fes-c64`
+includes this replay, the directed CIA register/port regression and the
 firmware's CPU interrupt checks. These are host simulations, with no sealed
 artifact or kit acceptance implied.
 

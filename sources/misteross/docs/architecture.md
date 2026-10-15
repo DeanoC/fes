@@ -1690,7 +1690,7 @@ launch's existing ready input stream instead of attaching twice. This is an
 operator-gated diagnostic, not pre-release initial-disk mounting or write-back
 support. Atari ST's startup and durable writable-disk contract remains separate.
 A separate `make sim-fes-c64-boot-build` harness leaves cartridge sockets
-vacant and observes external BASIC/KERNAL/character firmware on the real machine RTL.
+vacant and observes external BASIC/KERNAL/character/1541 firmware on the real machine RTL.
 `scripts/c64_boot_observe.py` validates exact input lengths, supplies simulation-only
 firmware/disk memory paths and retains hashes, RAM, a complete HDMI frame and
 screen-code output and recent CPU cycles with the production clock ratio.
@@ -1708,7 +1708,7 @@ persistence.
 `--type-command` optionally types native C64 text through HID states after
 three seconds, with 50 ms press/release intervals. `--then-command` adds a
 later command and retains the RAM snapshot taken immediately before it.
-Per-second progress and IEC command traces are flushed during execution.
+Per-second CPU/drive bus and load-pointer observations are flushed during execution.
 The observation makes no boot/demo acceptance assertion. Version 0.4.0 links
 36 KiB: BASIC (8 KiB), KERNAL (8 KiB), character ROM (4 KiB), then 1541 firmware
 (16 KiB). Lanes 0–19 occupy column 5, rows 32–51; drive lanes 20–35 occupy
@@ -1887,14 +1887,22 @@ cartridge IRQ at the CPU. A source can fire once per line, including an immediat
 compare write on an unfired line. Automatic line-zero comparison waits one
 Phi2 after wrap. `make sim-fes-c64-vic` checks the register/line behavior; the
 open firmware checks CPU vector delivery and acknowledgement at stage 12.
-Sprite pixel composition, collision/lightpen sources, exact mode-transition quirks, full native
-overscan and physical subcycle timing remain outside this implementation.
+Light-pen capture, exact mode-transition quirks, full native overscan and
+physical subcycle timing remain outside this implementation.
 Both CIA timers expose their live counters, load stopped counters on high-byte
 writes, treat force-load as a strobe, and implement continuous/one-shot counting.
 Timer B can count Phi2 or timer A underflows. CIA1 asserts IRQ and CIA2 asserts
-NMI. The diagnostic checks both CPU vectors, including NMI with IRQ disabled;
-`make sim-fes-c64-cia` adds directed register/timer coverage. External CNT edges,
-TOD, serial shifting and timer port outputs remain outside this slice.
+NMI. The old MOS 6526 model retains count-enable, force-load and one-shot
+pipelines; STOP leaves pending pipeline work intact. ICR source flags, bit 7
+and the physical interrupt pin have separate state, including delayed
+assertion/acknowledgement and the old timer-B read suppression corner.
+The diagnostic checks both CPU vectors, including NMI with IRQ disabled.
+`make sim-fes-c64-cia` adds directed register/port coverage, and
+`make sim-fes-c64-cia-reference` replays 377 programs against unchanged pinned
+VICE 3.10 sources at three bus schedules, checking every cycle and ordered
+interrupt edges. [The reference contract](../cores/fes-c64/sim/cia_timing.md)
+records fixture regeneration, provenance and limits. External CNT edges,
+TOD, serial shifting, FLAG input and timer port outputs remain outside this slice.
 
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchains/c64.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this
