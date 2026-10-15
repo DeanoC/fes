@@ -24,8 +24,16 @@ module c64_boot_sim_top (
     output wire [7:0] red, green, blue,
     output wire de, vsync,
     output wire signed [15:0] audio_sample,
+    output wire sid_store,
+    output wire [15:0] sid_store_address,
+    output wire [7:0] sid_store_data,
     output wire [15:0] debug_pc
 );
+    // Observation only: these are the inputs accepted by SID on clk_sys.
+    assign sid_store = machine.bus_strobe && machine.bus_we &&
+                       machine.sel_sid && !machine.system_reset;
+    assign sid_store_address = machine.bus_addr;
+    assign sid_store_data = machine.bus_wdata;
     assign drive_ref_ce=machine.drive_ref_ce;
     assign drive_pins=machine.drive_pins;
     assign drive_ddr=machine.drive_ddr;

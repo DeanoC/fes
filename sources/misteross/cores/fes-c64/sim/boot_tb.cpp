@@ -87,6 +87,8 @@ int main(int argc, char **argv) {
     const std::string restore_path=option("C64_RESTORE=");
     const std::string save_path=option("C64_SAVE=");
     const std::string final_save_path=option("C64_SAVE_FINAL=");
+    const std::string sid_trace_path=option("C64_SID_TRACE=");
+    const std::string audio_pcm_path=option("C64_AUDIO_PCM=");
     const uint64_t save_cycle=std::strtoull(option("C64_SAVE_CYCLE="),nullptr,10);
     if ((!restore_path.empty() || !save_path.empty() || !final_save_path.empty()) && identity.size()!=64) {
         std::fprintf(stderr,"checkpoint needs SHA256 model/input identity\n");return 2;
@@ -105,6 +107,10 @@ int main(int argc, char **argv) {
         if(cycle_budget<=fixture_cycle || (save_cycle && save_cycle<fixture_cycle))
             throw std::runtime_error("PRG fixture observation/checkpoints must follow its three-second installation");
     }
+    // These counters advance even when recording is disabled. They preserve
+    // absolute Phi/store ordinals and the first store delta after restoration.
+    // Their epoch is model power-on; guest reset does not restart these counters.
+    uint64_t phi_count=0, sid_store_count=0, last_sid_phi=0;
     // Model serialization covers all RTL registers, memories and event state.
     // The host archive additionally covers clocks, keyboard queue, media transfer or oracle disk angle,
     // partially collected video and diagnostic history. Save only after eval.
@@ -121,14 +127,15 @@ int main(int argc, char **argv) {
             if constexpr(saving)stream.write(value.data(),count);
             else stream.read(value.data(),count);
         };
-        if constexpr(saving)stream << std::string("FES-C64-development-state-v3") << identity << top;
+        if constexpr(saving)stream << std::string("FES-C64-development-state-v4") << identity << top;
         else {
             std::string magic,saved_identity;stream >> magic >> saved_identity;
-            if(magic!="FES-C64-development-state-v3" || saved_identity!=identity)
+            if(magic!="FES-C64-development-state-v4" || saved_identity!=identity)
                 throw std::runtime_error("checkpoint model/firmware/media mismatch");
             stream >> top;
         }
         scalar(sys_edge);scalar(pixel_edge);scalar(key_event);
+        scalar(phi_count);scalar(sid_store_count);scalar(last_sid_phi);
         scalar(previous_vsync);scalar(recording);scalar(history_count);
         for(auto &c:history){scalar(c.bus);scalar(c.pc);scalar(c.data);scalar(c.state);}
         scalar(capture_cycle);scalar(captured);scalar(next_progress);scalar(raster_reads);scalar(raster_zero_reads);
@@ -171,6 +178,55 @@ int main(int argc, char **argv) {
         VerilatedSave stream;stream.open(path);
         if(!stream.isOpen())throw std::runtime_error("cannot write checkpoint");
         archive(stream);stream.close();
+    };
+    // Recording sinks and per-segment counts are deliberately not serialized:
+    // capture on/off must produce identical machine and host checkpoints.
+    std::ofstream sid_trace, audio_pcm;
+    if(!sid_trace_path.empty()) {
+        sid_trace.open(sid_trace_path);
+        if(!sid_trace)throw std::runtime_error("cannot open SID trace");
+        sid_trace << "sys_cycle,phi_cycle,store_index,delta_phi,address,register,value\n";
+    }
+    if(!audio_pcm_path.empty()) {
+        audio_pcm.open(audio_pcm_path,std::ios::binary);
+        if(!audio_pcm)throw std::runtime_error("cannot open audio PCM");
+    }
+    const uint64_t capture_start_cycle=sys_edge/2;
+    const uint64_t capture_start_phi=phi_count;
+    const uint64_t capture_start_store=sid_store_count;
+    uint64_t audio_samples=0;
+    auto finish_capture=[&]() {
+        if(sid_trace.is_open()) {
+            sid_trace.flush();
+            if(!sid_trace)throw std::runtime_error("SID trace write failed");
+            sid_trace.close();
+        }
+        if(audio_pcm.is_open()) {
+            audio_pcm.flush();
+            if(!audio_pcm)throw std::runtime_error("audio PCM write failed");
+            audio_pcm.close();
+        }
+        if(!sid_trace_path.empty() || !audio_pcm_path.empty()) {
+            std::ofstream metadata("capture.json");
+            metadata << "{\n  \"schema\": \"FES-C64-native-capture-v1\",\n"
+                << "  \"system_clock_hz\": 52224000,\n  \"cpu_clock_hz\": 985248,\n"
+                << "  \"start_cycle_inclusive\": " << capture_start_cycle << ",\n"
+                << "  \"end_cycle_exclusive\": " << sys_edge/2 << ",\n"
+                << "  \"start_phi_count\": " << capture_start_phi << ",\n"
+                << "  \"end_phi_count\": " << phi_count << ",\n"
+                << "  \"start_store_count\": " << capture_start_store << ",\n"
+                << "  \"end_store_count\": " << sid_store_count << ",\n"
+                << "  \"sid_trace_enabled\": " << (!sid_trace_path.empty()?"true":"false") << ",\n"
+                << "  \"sid_timestamp\": \"zero-based accepting SYS rising edge; Phi is the one-based count through this edge, including reset; first global delta_phi is -1\",\n"
+                << "  \"audio_enabled\": " << (!audio_pcm_path.empty()?"true":"false") << ",\n"
+                << "  \"audio_format\": \"signed PCM16 little-endian mono\",\n"
+                << "  \"audio_rate_hz\": 48000,\n  \"audio_period_sys\": 1088,\n"
+                << "  \"audio_first_phase_sys\": 1087,\n"
+                << "  \"audio_samples\": " << audio_samples << ",\n"
+                << "  \"audio_sampling\": \"post-eval held output of the completed SID pipeline; host resampling, not CDC/I2S\"\n}\n";
+            metadata.flush();
+            if(!metadata)throw std::runtime_error("capture metadata write failed");
+        }
     };
     bool saved=false;
     while (sys_edge < cycle_budget * 2) {
@@ -239,7 +295,32 @@ int main(int argc, char **argv) {
                 r->c64_boot_sim_top__DOT__machine__DOT__cpu_di,
                 r->c64_boot_sim_top__DOT__machine__DOT__cpu__DOT__state};
         }
+        if(system && top.clk_sys) {
+            if(top.rootp->c64_boot_sim_top__DOT__machine__DOT__cpu_ce)++phi_count;
+            // Read the settled pre-eval bus, never a changed-register value:
+            // identical stores and both writes of an RMW remain separate.
+            if(top.sid_store) {
+                if(sid_trace.is_open()) {
+                    sid_trace << sys_edge/2 << ',' << phi_count << ',' << sid_store_count+1 << ',';
+                    if(sid_store_count)sid_trace << phi_count-last_sid_phi;
+                    else sid_trace << -1;
+                    sid_trace << ',' << unsigned(top.sid_store_address) << ','
+                              << unsigned(top.sid_store_address&31) << ','
+                              << unsigned(top.sid_store_data) << '\n';
+                }
+                ++sid_store_count;
+                last_sid_phi=phi_count;
+            }
+        }
         top.eval();
+        // 52.224 MHz / 48 kHz = 1088 exactly. Absolute SYS phase means a
+        // restored segment neither duplicates nor drops a boundary sample.
+        if(system && top.clk_sys && audio_pcm.is_open() && (sys_edge/2+1)%1088==0) {
+            const uint16_t sample=top.audio_sample;
+            const char bytes[2]={static_cast<char>(sample&255),static_cast<char>(sample>>8)};
+            audio_pcm.write(bytes,2);
+            ++audio_samples;
+        }
         if(system && sys_edge==fixture_cycle*2 && !fixture.empty()) {
             auto &ram=top.rootp->c64_boot_sim_top__DOT__machine__DOT__main_ram__DOT__ram;
             const uint8_t ready[]={18,5,1,4,25,46}; // screen codes for READY.
@@ -273,11 +354,12 @@ int main(int argc, char **argv) {
 
         if(!saved && !save_path.empty() && save_cycle && sys_edge/2>=save_cycle) {
             save(save_path);saved=true;
-            if(*option("C64_STOP_AFTER_SAVE="))return 0;
+            if(*option("C64_STOP_AFTER_SAVE=")){finish_capture();return 0;}
         }
     }
     if(!save_path.empty() && !save_cycle)save(save_path);
     if(!final_save_path.empty())save(final_save_path);
+    finish_capture();
     const auto &ram = top.rootp->c64_boot_sim_top__DOT__machine__DOT__main_ram__DOT__ram;
     std::ofstream memory("boot-ram.bin", std::ios::binary);
     memory.write(reinterpret_cast<const char *>(&ram[0]), 65536);

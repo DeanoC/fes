@@ -1959,6 +1959,18 @@ endpoint can extend to 1800 machine seconds. Native LOAD must be verified before
 post-load checkpoint. This is development simulation, not runtime persistence.
 `--late-video` holds the independent HDMI renderer until the final five frames
 without qualifying continuous HDMI presentation. Native VIC rendering continues.
+The observer optionally records accepted SID stores with `--sid-trace` and
+post-pipeline PCM16 with `--audio-capture`. Store capture samples the pre-eval
+write strobe, banking and reset qualifiers, preserving identical stores and
+read-modify-write pairs. PCM uses post-eval point sampling at the absolute
+48 kHz phase (one sample every 1088 SYS clocks), independently of the HDMI
+renderer. It adds no anti-alias filter and excludes CDC/I2S transport. Capture
+defaults off; either sink can be changed after restore. Host Phi/store counters
+and the absolute clock preserve stream continuity across v4 checkpoints, while
+output sinks remain outside serialization. Older private formats require a
+fresh capture. Metadata identifies and hashes each enabled stream; the original
+CPU fixture checks store values/timestamps and cold-versus-restored stream
+concatenation, including complete-state equivalence with capture disabled.
 The HID keyboard maps all 64 native switches with CIA1 PA columns/PB rows,
 correcting the former transposed diagnostic mapping. A is PA1/PB2 and Return
 is PA0/PB1. `make sim-fes-c64-keyboard`, included in `sim-fes-c64`, checks every

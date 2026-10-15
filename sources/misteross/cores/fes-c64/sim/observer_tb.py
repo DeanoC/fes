@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
 from pathlib import Path
-import subprocess,json,hashlib
+import subprocess,json,hashlib,csv
 module=Path(__file__).resolve().parents[3]
 
 def run(medium_oracle):
@@ -18,15 +18,33 @@ def run(medium_oracle):
     original.mkdir(exist_ok=True);restored.mkdir(exist_ok=True)
     state=original/'saved.state'
     with (p/'helper-continuous.log').open('w') as log:
-     subprocess.run(base+['--late-video','--output',str(original),'--save-state',str(state),'--save-at-cycles','1031119','--save-final-state',str(original/'end.state'),'--disk-change','1000000',str(p/'disk1.d64'),'--disk-change','1200000',str(p/'disk2.d64')],stdout=log,stderr=subprocess.STDOUT,check=True)
+     subprocess.run(base+['--late-video','--sid-trace','--audio-capture','--output',str(original),'--save-state',str(state),'--save-at-cycles','1031119','--save-final-state',str(original/'end.state'),'--disk-change','1000000',str(p/'disk1.d64'),'--disk-change','1200000',str(p/'disk2.d64')],stdout=log,stderr=subprocess.STDOUT,check=True)
     with (p/'helper-restored.log').open('w') as log:
-     subprocess.run(base+['--output',str(restored),'--restore-state',str(state),'--save-final-state',str(restored/'end.state')],stdout=log,stderr=subprocess.STDOUT,check=True)
+     subprocess.run(base+['--sid-trace','--audio-capture','--output',str(restored),'--restore-state',str(state),'--save-final-state',str(restored/'end.state')],stdout=log,stderr=subprocess.STDOUT,check=True)
     for name in ['boot-ram.bin','drive-ram.bin','boot.ppm','end.state']:
      assert (original/name).read_bytes()==(restored/name).read_bytes(),name
     metadata=json.loads(state.with_name(state.name+'.json').read_text())
     receipt=json.loads((restored/'observation.json').read_text())
     assert [e['cycle'] for e in receipt['disk_changes']]==[1000000,1200000]
     assert metadata['model_input_identity']
+    assert metadata['state_schema']=='FES-C64-development-state-v4'
+    def stores(path):
+        with (path/'sid-writes.csv').open() as source:
+            return list(csv.DictReader(source))
+    assert stores(restored)==[row for row in stores(original) if int(row['sys_cycle'])>=1031119]
+    assert (restored/'audio.pcm').read_bytes()==(original/'audio.pcm').read_bytes()[2*(1031119//1088):]
+    for path in (original,restored):
+        observed=json.loads((path/'observation.json').read_text())
+        for name in ('capture.json','sid-writes.csv','audio.pcm'):
+            assert observed['outputs'][name]==hashlib.sha256((path/name).read_bytes()).hexdigest()
+        assert observed['capture']['end_cycle_exclusive']==1566720
+    # Reject the previous private format before starting any simulator.
+    legacy=p/'legacy.state';legacy.write_bytes(state.read_bytes())
+    legacy_metadata=dict(metadata,state_schema='FES-C64-development-state-v3')
+    legacy.with_name(legacy.name+'.json').write_text(json.dumps(legacy_metadata))
+    with (p/'helper-legacy-state.log').open('w') as log:
+        result=subprocess.run(base+['--output',str(p/'legacy-output'),'--restore-state',str(legacy)],stdout=log,stderr=subprocess.STDOUT)
+    assert result.returncode!=0 and 'requires recapture' in (p/'helper-legacy-state.log').read_text()
     assert metadata['late_video_capture'] and receipt['late_video_capture']
     assert json.loads((original/'end.state.json').read_text())['system_cycle']==1566720
     for label,extra in [('time',['--disk-change','1000001',str(p/'disk1.d64'),'--disk-change','1200000',str(p/'disk2.d64')]),('bytes',['--disk-library',str(p/'disk2.d64'),'--disk-library',str(p/'disk2.d64')])]:
@@ -40,12 +58,17 @@ def run(medium_oracle):
     # reference so complete serialized state can be compared without normalization.
     branch.mkdir(exist_ok=True);reference.mkdir(exist_ok=True)
     with (p/'helper-append.log').open('w') as log:
-     subprocess.run(base+['--output',str(branch),'--restore-state',str(state),'--append-disk-change','1420000',str(p/'disk0.d64'),'--save-final-state',str(branch/'end.state')],stdout=log,stderr=subprocess.STDOUT,check=True)
+     subprocess.run(base+['--sid-trace','--output',str(branch),'--restore-state',str(state),'--append-disk-change','1420000',str(p/'disk0.d64'),'--save-final-state',str(branch/'end.state')],stdout=log,stderr=subprocess.STDOUT,check=True)
     with (p/'helper-reference.log').open('w') as log:
-     subprocess.run(base+['--late-video','--output',str(reference),'--disk-change','1000000',str(p/'disk1.d64'),'--disk-change','1200000',str(p/'disk2.d64'),'--disk-change','1420000',str(p/'disk0.d64'),'--save-final-state',str(reference/'end.state')],stdout=log,stderr=subprocess.STDOUT,check=True)
+     subprocess.run(base+['--late-video','--audio-capture','--output',str(reference),'--disk-change','1000000',str(p/'disk1.d64'),'--disk-change','1200000',str(p/'disk2.d64'),'--disk-change','1420000',str(p/'disk0.d64'),'--save-final-state',str(reference/'end.state')],stdout=log,stderr=subprocess.STDOUT,check=True)
     for name in ['boot-ram.bin','drive-ram.bin','boot.ppm','end.state']:
      assert (branch/name).read_bytes()==(reference/name).read_bytes(),name
     receipt=json.loads((branch/'observation.json').read_text());assert len(receipt['disk_changes'])==3
+    assert receipt['capture']['sid_trace_enabled'] and not receipt['capture']['audio_enabled']
+    assert not (branch/'audio.pcm').exists()
+    reference_receipt=json.loads((reference/'observation.json').read_text())
+    assert reference_receipt['capture']['audio_enabled'] and not reference_receipt['capture']['sid_trace_enabled']
+    assert not (reference/'sid-writes.csv').exists(), 'stale capture survived output reuse'
     with (p/'helper-past-event.log').open('w') as log:
      result=subprocess.run(base+['--output',str(p/'past-event'),'--restore-state',str(state),'--append-disk-change','1031119',str(p/'disk0.d64')],stdout=log,stderr=subprocess.STDOUT)
     assert result.returncode!=0,'past event accepted'

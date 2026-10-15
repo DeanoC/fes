@@ -15,6 +15,8 @@ def main():
     parser.add_argument('--medium-oracle', action='store_true', help='use the independent C++ rotating-medium oracle instead of production RTL medium')
     parser.add_argument('--drive-rom', type=Path, required=True)
     parser.add_argument('--late-video', action='store_true', help='capture only the final HDMI frames; guest clocks continue normally')
+    parser.add_argument('--sid-trace', action='store_true', help='record every accepting SID bus store with absolute SYS/Phi timestamps')
+    parser.add_argument('--audio-capture', action='store_true', help='record mono PCM16 at fixed 48 kHz host resampling phase; not HDMI/I2S capture')
     parser.add_argument('--prg-fixture', type=Path, help='development only: install an $0801 PRG at BASIC READY, then type RUN; no native LOAD claim')
     parser.add_argument('--save-state', type=Path)
     parser.add_argument('--save-final-state', type=Path, help='also capture complete state at the observation endpoint')
@@ -42,6 +44,8 @@ def main():
     restored_metadata=None
     if args.restore_state:
         restored_metadata=json.loads(args.restore_state.with_name(args.restore_state.name+'.json').read_text())
+        if restored_metadata.get('state_schema') != 'FES-C64-development-state-v4':
+            parser.error('checkpoint format requires recapture with this executable')
         args.late_video=restored_metadata.get('late_video_capture',args.late_video)
         if args.save_at_cycles and args.save_at_cycles<=restored_metadata['system_cycle']:
             parser.error('save cycle must be later than the restored checkpoint')
@@ -107,7 +111,8 @@ def main():
     # A short restored observation may not collect a complete frame. Never
     # hash a stale frame or pre-command snapshot left by an earlier run.
     for name in ['boot.log','boot-ram.bin','drive-ram.bin','boot.ppm',
-                 'before-followup-ram.bin','prg-fixture-ram.bin','prg-fixture.prg','observation.json']:
+                 'before-followup-ram.bin','prg-fixture-ram.bin','prg-fixture.prg','observation.json',
+                 'capture.json','sid-writes.csv','audio.pcm']:
         artifact=output/name
         for state in [args.restore_state,args.save_state,args.save_final_state]:
             if state and artifact==state.resolve():
@@ -211,6 +216,10 @@ def main():
         command.append(f'+C64_DISK_CHANGES={output / "disk-changes.txt"}')
     if args.late_video:
         command.append('+C64_LATE_VIDEO=1')
+    if args.sid_trace:
+        command.append(f'+C64_SID_TRACE={output / "sid-writes.csv"}')
+    if args.audio_capture:
+        command.append(f'+C64_AUDIO_PCM={output / "audio.pcm"}')
     if args.then_command:
         command.append(f'+C64_CAPTURE_CYCLE={args.then_at_cycles}')
     if key_events:
@@ -231,7 +240,7 @@ def main():
         simulator_sha256 = hashlib.sha256(frozen_binary.read_bytes()).hexdigest()
         command[0] = str(frozen_binary)
         state_identity=hashlib.sha256(json.dumps({
-            'schema':'FES-C64-development-state-v3', 'simulator':simulator_sha256,
+            'schema':'FES-C64-development-state-v4', 'simulator':simulator_sha256,
             'inputs':{name:value['sha256'] for name,value in inputs.items()},
         },sort_keys=True).encode()).hexdigest()
         command.append(f'+C64_STATE_ID={state_identity}')
@@ -253,13 +262,32 @@ def main():
         with (output / 'boot.log').open('w') as log:
             subprocess.run(command, cwd=output, stdout=log, stderr=subprocess.STDOUT, check=True)
     outputs_to_hash.append('drive-ram.bin')
+    capture=None
+    if args.sid_trace or args.audio_capture:
+        capture=json.loads((output/'capture.json').read_text())
+        start_cycle=restored_metadata['system_cycle'] if restored_metadata else 0
+        if (capture['schema'] != 'FES-C64-native-capture-v1' or
+                capture['start_cycle_inclusive'] != start_cycle or
+                capture['end_cycle_exclusive'] != args.cycles or
+                capture['sid_trace_enabled'] != args.sid_trace or
+                capture['audio_enabled'] != args.audio_capture):
+            raise RuntimeError('capture mode or interval differs from the invocation')
+        outputs_to_hash.append('capture.json')
+        if args.sid_trace:outputs_to_hash.append('sid-writes.csv')
+        if args.audio_capture:
+            expected_samples=args.cycles//1088-start_cycle//1088
+            if (capture['audio_samples'] != expected_samples or
+                    (output/'audio.pcm').stat().st_size != 2*expected_samples):
+                raise RuntimeError('PCM capture has an incomplete sample interval')
+            outputs_to_hash.append('audio.pcm')
     # Short restored runs can end before a complete HDMI frame is collected.
     outputs_to_hash=[name for name in outputs_to_hash if name!='boot.ppm' or (output/name).is_file()]
     if (output/'before-followup-ram.bin').is_file() and 'before-followup-ram.bin' not in outputs_to_hash:
         outputs_to_hash.append('before-followup-ram.bin')
     for state_path,state_cycle in [(args.save_state,args.save_at_cycles or args.cycles),(args.save_final_state,args.cycles)]:
         if not state_path:continue
-        state_metadata={'model_input_identity':state_identity,
+        state_metadata={'state_schema':'FES-C64-development-state-v4',
+            'model_input_identity':state_identity,
             'sha256':hashlib.sha256(state_path.read_bytes()).hexdigest(),
             'system_cycle':state_cycle, 'inputs':inputs,
             'simulator_sha256':simulator_sha256, 'medium_oracle':args.medium_oracle,
@@ -287,6 +315,7 @@ def main():
                'disk_changes':all_disk_changes, 'media_library':media_library,
                'appended_disk_changes':added_disk_changes,
                'medium_oracle': args.medium_oracle, 'late_video_capture':args.late_video,
+               'capture':capture,
                'restored_state':str(args.restore_state) if args.restore_state else None,
                'saved_final_state':str(args.save_final_state) if args.save_final_state else None,
                'saved_state':str(args.save_state) if args.save_state else None, 'boot_acceptance': False, 'demo_acceptance': False}

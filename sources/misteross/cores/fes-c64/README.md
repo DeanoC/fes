@@ -414,6 +414,27 @@ original invocation. The harness checks checkpoint identity and integrity;
 it does not certify native LOAD, demo compatibility or runtime save-state
 support.
 
+`--sid-trace` records every accepted SID store in `sid-writes.csv`, including
+repeated values, register mirrors and both writes of a read-modify-write
+instruction. Rows retain the full bus address, register and value, the absolute
+zero-based SYS edge, the Phi count since power-on and the interval from the
+previous accepted store. Reset does not restart this host epoch.
+`--audio-capture` writes signed little-endian mono PCM16 to `audio.pcm` at
+48 kHz, sampling the completed SID output after evaluation on SYS edges
+1087 + 1088*n. This is host point sampling, without an added anti-alias filter;
+it does not capture the board's CDC/I2S output. Both options default off and
+may be enabled independently. `capture.json` records the mode and absolute
+sample interval; the observation receipt hashes the enabled outputs.
+
+Capture can be enabled or disabled after restore. Absolute sampling phase and
+SID store counters are serialized, so successive captured segments concatenate
+without duplicating or dropping a boundary sample or store. Output streams are
+excluded from state. The private development checkpoint format is now v4;
+earlier formats require recapture with the selected executable. The checkpoint
+regression checks accepted stores against its original 6502 program, compares
+cold/split streams and verifies identical RAM, frames and complete state with
+capture enabled and disabled in both medium modes.
+
 An observation accepts repeated `--disk-library D64` arguments.
 The library is immutable and hash-checked with the firmware and simulator.
 `--disk-change CYCLE D64` queues an initial physical insertion; it replaces
