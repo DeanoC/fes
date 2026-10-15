@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -303,6 +304,9 @@ func rewriteSameSizeRestoreMtime(t *testing.T, path string) {
 }
 
 func TestSameSizeRewriteWithRestoredMtimeIsNotAdvertised(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("listing ctime comes from Linux stat")
+	}
 	for _, member := range []string{"archive", "member"} {
 		t.Run(member, func(t *testing.T) {
 			ctx := context.Background()

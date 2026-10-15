@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -638,6 +639,9 @@ func rewriteSameSizeRestoreMtime(t *testing.T, path string) {
 }
 
 func TestSameSizeRewriteWithRestoredMtimeMissesVerificationCache(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip("listing ctime comes from Linux stat")
+	}
 	for _, member := range []string{"archive", "member"} {
 		t.Run(member, func(t *testing.T) {
 			s := newStore(t)
