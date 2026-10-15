@@ -415,3 +415,14 @@ cache, lock and HIP settings. See [compiler provisioning](core-packages.md)
 for clean-module provisioning commands. A plain `make toolchain` without those
 settings can populate a different slot. Manual provisioning inherits shell
 compiler overrides that FES normally removes for producer execution.
+
+## Compatible kit software updates
+
+Use `make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img
+KIT_SOFTWARE_BASE_SHA256=<reviewed-image-sha256> KIT_SOFTWARE_VERSION=<version>`
+to build the four kit executables and selected assets from committed HEAD using
+the retained base's pinned SDK. This publishes an immutable bundle plus receipt;
+it does not rebuild the OS or cores, update host software, or contact the kit.
+The existing image and previous output directories stay intact. See
+[kit software releases](kit-software-releases.md#build-an-update-without-rebuilding-the-os)
+for cache prerequisites, receipt details, installation and activation.

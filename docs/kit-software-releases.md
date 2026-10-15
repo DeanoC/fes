@@ -13,6 +13,9 @@ installing or activating software does not rewrite their selections or settings.
 
 ## Prepare a bundle
 
+For ordinary updates, use the [parent build command](#build-an-update-without-rebuilding-the-os)
+to compile and package the complete software release from committed sources.
+
 The producer is `sources/FogCast/cmd/fes-kit-bundle`. Its metadata declares the
 board, architecture, required base contract, interface versions and provenance.
 Its payload includes `bin/mister-agent`, `bin/mister-runtime`, `bin/fogcast-kit`,
@@ -128,31 +131,49 @@ Software tests establish host behavior. They do not establish card power-loss
 behavior, physical startup, HDMI/input/media behavior or exact-artifact kit
 acceptance for a new bundle.
 
-## Package an update without rebuilding the OS
+## Build an update without rebuilding the OS
 
-Retain an extracted, verified appliance root as the base. Build the four new ARMv7
-executables and place them under `payload/bin/` with their deployed names
-(`mister-agent`, `mister-runtime`, `fogcast-kit`, `fogcast-tenfoot`). Put required
-application assets, including the launcher defaults `fogcast/config.toml`, under
-`payload/share/`. Assets embedded in Go executables need no separate copy. Build
-the selected FogCast's `build-fes-kit-bundle-container` helper; its adjacent
-`kit-software.revision` records the selected source revision.
+On Linux amd64, retain the verified `linux.img` and its reviewed SHA-256 from the
+appliance release manifest. Keep the matching verified SDK cache from that image
+build, or set `FES_TARGET_IMAGE_SHARED_CACHE` to its existing absolute cache path.
+Commit the new software sources, then run:
 
 ```sh
-python3 image/scripts/kit-software.py \
-  --base-root /path/to/verified-extracted-root \
-  --payload /path/to/new-payload \
-  --output /path/to/kit-update.tar \
-  --version kit-2026.10.15 \
-  --fogcast /path/to/selected/FogCast \
-  --runtime-revision FULL_RUNTIME_SOURCE_SHA
+make kit-software \
+  KIT_SOFTWARE_BASE=/absolute/path/linux.img \
+  KIT_SOFTWARE_BASE_SHA256=REVIEWED_IMAGE_SHA256 \
+  KIT_SOFTWARE_VERSION=kit-2026.10.16
 ```
 
-This Linux/amd64 packaging command verifies the retained factory bundle and base
-contract, checks the new executables' ARM ABI, interpreter, dynamic dependencies
-and versioned symbols against that base, then publishes a deterministic archive.
-It does not modify the extracted base or payload, rebuild the image, select the
-release, or contact a kit. A failed build preserves an existing output archive.
-Upload the resulting archive through the software-release install command, then
-request activation separately. If the base ABI does not satisfy the new software,
-change its dependencies or plan an explicit base-image upgrade.
+The command freezes the committed FES HEAD, builds the agent and both launchers
+with the selected Go version, and builds the runtime with the pinned container
+and verified cached ARM SDK. It copies application assets from that same source
+snapshot. It never runs an OS image build or an FPGA package producer. A missing
+or mismatching SDK fails explicitly; qualify its base image first.
+
+The image hash is required: an extracted filesystem or a self-authored base
+receipt is not a substitute for the reviewed image identity. The command hashes
+a private image copy before extracting the factory and system-library trees,
+then validates factory integrity and the new software's architecture, dynamic
+library dependencies and versioned symbols against the retained base contract.
+The supplied image stays unchanged.
+
+The default output is the new directory `out/kit-software/<version>/`, containing
+`bundle.tar` and `receipt.json`. Override the directory with
+`KIT_SOFTWARE_OUTPUT=/absolute/new-release-directory`. Existing output directories
+are never overwritten, including when two builders compete. Failed builds leave
+prior outputs intact. The receipt closes the bundle digest, file inventory,
+selected source and tree identities, base image/factory/ABI identities, Go
+version, and SDK/container identities. It explicitly records `deployed: false`.
+
+Install `bundle.tar` through the software-release client and request activation
+separately. Build receipts do not establish hardware acceptance. If the retained
+base cannot satisfy the new software's ABI, change its dependencies or plan an
+explicit base-image upgrade. Host software and installed core packages remain
+independently managed.
+
+For producers that already have a closed payload, the lower-level
+`image/scripts/kit-software.py --base-root ... --payload ... --output ...
+--version ... --fogcast ... --runtime-revision ...` command remains available.
+Its caller is responsible for authenticating the extracted base against the
+reviewed original image; prefer the parent command for ordinary updates.
