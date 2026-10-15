@@ -60,7 +60,7 @@ func openStore() (*store.Store, release.Manifest, error) {
 		return nil, release.Manifest{}, err
 	}
 	defer f.Close()
-	factory, err := release.DecodeManifest(f)
+	factory, _, err := release.DecodeManifest(f)
 	if err != nil {
 		return nil, factory, err
 	}

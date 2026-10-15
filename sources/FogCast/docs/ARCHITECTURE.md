@@ -274,7 +274,20 @@ they are not a distributed ownership, failover, or recovery protocol.
 Appliance release manifests and immutable image storage form the independent
 Go module `github.com/DeanoC/FogCast/appliance` in `appliance/`. The store lives
 in `appliance/store`; both boot selection and target update handling consume
-that single implementation. The module uses the standard library and the
+that single implementation. Format 1 is manifest format `1.0`. A manifest may
+omit `manifest_format`; readers treat that as `1.0`. `manifest_format` is
+`major.minor`. A release with the same major and a higher minor may include
+unknown optional fields. The update path ignores those fields and logs their
+names, in both mister-agent `POST /v1/update/stage` and `fes-update` when it
+reads `release.json`. Ignored fields are not stored or uploaded. An unknown
+major, a malformed `manifest_format`, a duplicate field, or a missing or
+malformed required field is rejected. Optional `image_passes`, when present,
+is a positive integer and remains in the manifest bytes that are uploaded and
+stored. New releases omit `manifest_format` and `image_passes`. `release.json`
+keeps the field set the already deployed agent accepts (`format`, `board`,
+`boot_abi`, `version`, `kernel_sha256`, `image_sha256`, `image_size`,
+`fes_revision`, `fogcast_revision`, `runtime_revision`), so the bridge update
+can still stage the image. The pass count stays in release evidence. The module uses the standard library and the
 existing `golang.org/x/sys/unix` dependency for filesystem operations.
 The root module selects it through a checked-in relative replacement.
 `make test` and `make vet` explicitly check both modules because root
@@ -1390,7 +1403,63 @@ lease through the same cleanup path; it never aborts FPGA programming halfway
 through a transition. Clients retry a busy takeover using the same request ID.
 Old lease credentials cannot stop or send input to the replacement owner.
 This protects agent API operations; direct root SSH or runtime socket access
-remains a maintenance escape outside the lease boundary.
+remains outside agent admission. Supported FES file replacement uses the
+maintenance reservation below rather than that escape.
+
+### Target maintenance ownership
+
+`GET /v1/kit/maintenance` reports a public boot-scoped operation. An authenticated
+`POST /v1/kit/maintenance/start` carries an owned ordinary kit grant and
+`request_id`/`purpose`. The existing lease manager drains admitted operations,
+neutralizes peripherals and stops through its existing runtime cleanup. It
+persists the reservation before changing admission; only `ready` authorizes a
+software transaction. Runtime-unreachable cleanup is a maintenance failure.
+
+The private `/run/fogcast/kit-maintenance.json` retains the operation, generation,
+boot ID and reservation credential across agent replacement on the same boot.
+Public responses omit stored credentials. Ordinary claim, takeover, renewal and
+mutation cannot bypass maintenance; kit-local launches share the same manager.
+The host connection reports maintenance as busy with its owner and a maintenance
+message, and blocked reservations as recovery-required, even while runtime idle
+health is ready. Endpoint adoption accepts those lease states without granting
+ownership and drops a stale local grant, so the kit stays busy or
+recovery-required instead of looking disconnected.
+Maintenance status returns unavailable until its persisted marker loads; it
+never reports absent ownership during startup. A surviving active marker is
+blocked before replacement-agent startup cleanup,
+so startup never temporarily reopens execution. Failed/corrupt state remains
+blocked rather than granting an automatic takeover.
+
+`POST /v1/kit/maintenance/resume` and `/v1/kit/maintenance/end` carry the reservation
+credential plus `operation_id`/`expected_generation`. Resume explicitly rechecks
+idle before marking the same reservation ready. End rechecks idle before opening
+ordinary admission. A completed private receipt supports lost-response
+reconciliation; stale credentials cannot end a newer reservation.
+
+Marker transitions and the FES SSH file executor share
+`/run/fogcast/kit-maintenance.lock`. The executor validates ready operation,
+generation, boot and its planned manifest digest before stopping services. The
+replacement agent loads its marker asynchronously while ordinary admission stays
+revoking, allowing process health to respond without claiming the kit. Neither
+workstation task markers nor the private credential journal grant target access.
+The agent's `--print-maintenance-contract` flag exits without initialization and
+prints `fes-kit-maintenance-v1`, which the executor requires of replacement or
+restored agents. Initial adoption uses the appliance image workflow; missing
+maintenance support has no unguarded compatibility path.
+
+FES `scripts/kit_maintenance.py` handles owned start/resume/end and private journal
+recovery; `scripts/kit_manifest.py` keeps each swap/restore reserved until cleanup
+completes. When `agent.toml` omits `target_id`, that client binds the saved
+`/media/fat/fogcast/target-id` file when the agent wrote one, and otherwise the
+id from authenticated health. A configured or saved id must match health.
+Finish of a config swap records one successor target id after the original boot
+and reservation still match, then ends that reservation. A later finish accepts
+that recorded successor only on the same boot. A different boot, a different
+reservation, a health id that disagrees with the new config or saved file, or
+a further id change keeps the journal. This is temporary-overlay
+tooling, not yet a persistent userspace release manager. See FES
+[modular updates](../../../docs/modular-updates.md) for remaining durable-package
+and userspace-release work.
 
 ## Host kit lease
 
@@ -1883,7 +1952,9 @@ unreachable; if idle recovery still reports `reboot_required`, use a hard
 power cycle.
 
 Endpoint adoption reads public lease ownership and runtime status before reporting
-ready. The shared host lease object moves game requests, lease renewal, input
+ready. `maintenance` and `recovery-required` are accepted lease states. Adoption
+does not grant ownership for them, and it invalidates a stale local grant.
+The shared host lease object moves game requests, lease renewal, input
 attach and input CONNECT to the validated endpoint. On an unchanged boot, a
 locally held grant is retained only when its live generation still matches the
 agent. An address change closes the old local input stream without replaying held
@@ -1897,7 +1968,8 @@ include `connection`, including unavailable responses. Its states are
 `disconnected`, `connecting`, `ready`, `active`, `busy`, `version_mismatch`
 and `recovery-required`,
 separate from runtime/game state. Busy responses include the public owner label.
-Busy means another session holds the kit lease. Tenfoot rooms show a Ready
+Busy means another session holds the kit lease, or the kit is reserved for
+software maintenance. Tenfoot rooms show a Ready
 FPGA title aimed at that kit as Unavailable, with the copy "In use" /
 "Someone else is playing on this machine. You can play when they're done."
 Confirm explains and does not launch. Library and detail Confirm

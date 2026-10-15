@@ -292,6 +292,7 @@ def _isolated_command(
     container_timeout: str = "3",
     shutdown_timeout: str = "1",
     runner_timeout: str = "120",
+    allow_development: bool = True,
     **overrides,
 ):
     values = {
@@ -304,7 +305,7 @@ def _isolated_command(
         paths,
         evidence,
         runtime=runtime,
-        allow_development=True,
+        allow_development=allow_development,
         **values,
     )
     command.extend([
@@ -319,13 +320,13 @@ def _isolated_command(
 
 
 @contextlib.contextmanager
-def _full_identity_fixture(state):
+def _full_identity_fixture(state, *, host_revision="diag-host-revision"):
     old_values = (
         package_acceptance_tests.HOST_REVISION,
         package_acceptance_tests.AGENT_REVISION,
         package_acceptance_tests.RUNTIME_REVISION,
     )
-    package_acceptance_tests.HOST_REVISION = "diag-host-revision"
+    package_acceptance_tests.HOST_REVISION = host_revision
     package_acceptance_tests.AGENT_REVISION = "a" * 40
     package_acceptance_tests.RUNTIME_REVISION = "b" * 40
     state["runtime_revision"] = package_acceptance_tests.RUNTIME_REVISION
@@ -755,19 +756,21 @@ class IsolatedPackageAcceptanceOfflineTests(unittest.TestCase):
             self.assertIn("host binary", result.stderr.lower())
             self.assertFalse(evidence.exists())
 
-    def test_rejects_nonmatching_strict_host_and_agent_revisions_offline(self):
+    def test_accepts_different_full_host_and_agent_commits_without_label_opt_in(self):
         with tempfile.TemporaryDirectory() as directory:
             paths = _write_inputs(directory)
             evidence = Path(directory) / "evidence"
-            result = subprocess.run(
-                _command(paths, evidence, expected_agent_revision="f" * 40),
-                cwd=ROOT,
-                text=True,
-                capture_output=True,
+            args = package_acceptance_isolated.parser().parse_args(
+                _command(paths, evidence, expected_agent_revision="f" * 40)[3:]
             )
-
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("host and agent", result.stderr.lower())
+            target = package_acceptance_isolated.validate_args(args)
+            self.assertEqual(target.target_id, TARGET_ID)
+            self.assertFalse(args.allow_development_host)
+            receipt = package_acceptance_isolated._receipt_base(args, True)
+            self.assertEqual(receipt["host_revision_policy"], "full-commit")
+            self.assertEqual(receipt["revisions"], {
+                "host": HOST_REVISION, "agent": "f" * 40, "runtime": RUNTIME_REVISION,
+            })
             self.assertFalse(evidence.exists())
 
     def test_rejects_config_target_id_mismatch_before_evidence(self):
@@ -808,26 +811,45 @@ class IsolatedPackageAcceptanceOfflineTests(unittest.TestCase):
                     self.assertIn(field.removeprefix("expected_").replace("_", " "), result.stderr.lower())
                     self.assertFalse(evidence.exists())
 
-    def test_development_mode_rejects_unequal_full_host_and_agent_commits(self):
+    def test_host_labels_require_opt_in_and_diagnostic_prefix(self):
+        for revision, allow_development, message in (
+            ("diag-host-revision", False, "full 40-character"),
+            ("arbitrary-host", True, "diag-/dev-"),
+        ):
+            with self.subTest(revision=revision), tempfile.TemporaryDirectory() as directory:
+                paths = _write_inputs(directory)
+                evidence = Path(directory) / "evidence"
+                args = package_acceptance_isolated.parser().parse_args(
+                    _command(paths, evidence, allow_development=allow_development,
+                             expected_host_revision=revision)[3:]
+                )
+                with self.assertRaisesRegex(package_acceptance_isolated.AcceptanceError, message):
+                    package_acceptance_isolated.validate_args(args)
+                self.assertFalse(evidence.exists())
+
+    def test_mixed_revision_readiness_still_rejects_each_wrong_expected_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             paths = _write_inputs(directory)
-            evidence = Path(directory) / "evidence"
-            result = subprocess.run(
-                _command(
-                    paths,
-                    evidence,
-                    allow_development=True,
-                    expected_host_revision="a" * 40,
-                    expected_agent_revision="b" * 40,
-                ),
-                cwd=ROOT,
-                text=True,
-                capture_output=True,
+            args = package_acceptance_isolated.parser().parse_args(
+                _command(paths, Path(directory) / "evidence", expected_agent_revision="a" * 40)[3:]
             )
-
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("host and agent", result.stderr.lower())
-            self.assertFalse(evidence.exists())
+            target = package_acceptance_isolated.validate_args(args)
+            health = {
+                "ready": True, "host": {"revision": HOST_REVISION},
+                "target": {"reachable": True, "ready": True,
+                           "connection": {"target_id": TARGET_ID},
+                           "artifacts": {"agent_revision": "a" * 40,
+                                         "runtime_commit": RUNTIME_REVISION}},
+            }
+            with mock.patch.object(package_acceptance_isolated, "_get_json", return_value=health):
+                package_acceptance_isolated._probe_host("http://127.0.0.1:1", args, target)
+                for name in ("host", "agent", "runtime"):
+                    with self.subTest(identity=name), mock.patch.object(
+                        args, f"expected_{name}_revision", "f" * 40
+                    ):
+                        with self.assertRaisesRegex(package_acceptance_isolated.AcceptanceError,
+                                                    f"{name} identity"):
+                            package_acceptance_isolated._probe_host("http://127.0.0.1:1", args, target)
 
     def test_rejects_target_url_userinfo_before_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -855,6 +877,33 @@ class IsolatedPackageAcceptanceOfflineTests(unittest.TestCase):
 
 
 class IsolatedPackageAcceptanceContainerTests(unittest.TestCase):
+    def test_mixed_full_commits_pass_both_lifecycle_cycles_and_record_exact_revisions(self):
+        state = package_acceptance_tests._state()
+        state["entries"] = {}
+        with _full_identity_fixture(state, host_revision=HOST_REVISION) as server, \
+                tempfile.TemporaryDirectory() as directory:
+            paths = _write_inputs(directory)
+            runtime = _write_fake_runtime(directory)
+            evidence = Path(directory) / "evidence"
+            result = _run_isolated(
+                _isolated_command(paths, evidence, runtime, allow_development=False,
+                                  expected_host_revision=HOST_REVISION),
+                Path(directory) / "runtime.log", Path(directory) / "runtime-state.json",
+                api_port=server.server_port,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            expected = {"host": HOST_REVISION, "agent": "a" * 40, "runtime": "b" * 40}
+            receipt = json.loads((evidence / "receipt.json").read_text())
+            self.assertEqual(receipt["host_revision_policy"], "full-commit")
+            self.assertEqual(receipt["revisions"], expected)
+            self.assertEqual(len(state["launch_bodies"]), 2)
+            self.assertEqual(state["stops"], 2)
+            self.assertEqual(state["compatibility_calls"], 2)
+            for cycle in ("cycle-1", "cycle-2"):
+                child_receipt = json.loads((evidence / cycle / "receipt.json").read_text())
+                self.assertEqual(child_receipt["revisions"], expected)
+            self.assertFalse((evidence / "container-home/.config/fogcast/config.toml").exists())
+
     def test_media_is_bound_across_restart_and_final_receipt(self):
         state = package_acceptance_tests._state()
         state["entries"] = {}

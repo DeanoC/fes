@@ -74,7 +74,7 @@ func openApplianceUpdate(factoryPath, mountInfoPath, root, bootPath string, coor
 	if err != nil {
 		return nil, err
 	}
-	factory, err := release.DecodeManifest(f)
+	factory, _, err := release.DecodeManifest(f)
 	f.Close()
 	if err != nil {
 		return nil, err

@@ -135,8 +135,17 @@ Coordinate shared expensive runs rather than starting one per agent.
 For local scratch/HIL iteration, `IMAGE_PASSES=1 make image` runs once and
 records single-pass diagnostic status plus a `SINGLE-PASS-SCRATCH.txt` binding
 the checkout head and image digest. A HIL-named `make release` appends `-1p`,
-records `image_passes: 1`, and carries the marker into release outputs. CI and
-cold media/appliance paths keep two passes.
+carries the marker into release outputs, and records `image_passes: 1` in
+`evidence.json`. `release.json` keeps the legacy field set
+(`format`, `board`, `boot_abi`, `version`, `kernel_sha256`, `image_sha256`,
+`image_size`, `fes_revision`, `fogcast_revision`, `runtime_revision`) so a
+deployed agent can stage the image. Readers treat a missing `manifest_format`
+as `1.0`. The same major with a higher minor may add unknown optional fields;
+the update path ignores those fields and logs them. An unknown major, a
+duplicate, or a missing or malformed required field is rejected. Readers still
+accept an optional positive `image_passes` integer when a manifest already
+contains it. CI and cold media/appliance paths keep two
+passes and omit the evidence field.
 
 CI simulations use Verilator 5.032 at source commit
 `8ff77e9d47351b0a59114929880687839a51840b`, selected by
