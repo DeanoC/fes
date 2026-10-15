@@ -1190,7 +1190,8 @@ func useFactoryListGate(t *testing.T, fn func(context.Context) error) {
 // An open empty durable store still lists the factory catalog. The stock
 // agent streams payload hashes; this path must do the same when the store
 // is available, including a multi-megabyte ROM map, and a second request
-// must reuse that result.
+// must reuse that result. A digest-matching map that fails structural
+// parsing is streamed and omitted.
 func TestOpenStoreFactoryListIsBounded(t *testing.T) {
 	root := t.TempDir()
 	selections := filepath.Join(root, "selections")
@@ -1225,7 +1226,9 @@ func TestOpenStoreFactoryListIsBounded(t *testing.T) {
 	if _, ok := got["fes.menu"]; ok {
 		t.Fatal("menu was listed")
 	}
-	if len(got) != 5 {
+	// The format-3 fixtures are digest-matching zero maps. Structural validation
+	// omits them, and streaming that multi-megabyte map stays inside the budget.
+	if len(got) != 2 {
 		t.Fatalf("cores %+v", got)
 	}
 	for _, id := range []string{"fes.pong", "fes.ramtest"} {
@@ -1233,8 +1236,10 @@ func TestOpenStoreFactoryListIsBounded(t *testing.T) {
 			t.Fatalf("%s %+v", id, got[id])
 		}
 	}
-	if got["fes.sms"].Needs != "media" || got["fes.sms"].Launchable || got["fes.coleco"].Needs != "media" || got["fes.zx81"].Needs != "firmware" {
-		t.Fatalf("requirements %+v", got)
+	for _, id := range []string{"fes.sms", "fes.coleco", "fes.zx81"} {
+		if _, ok := got[id]; ok {
+			t.Fatalf("%s listed with a malformed ROM map", id)
+		}
 	}
 	if scans.Load() != 1 {
 		t.Fatalf("factory scans %d", scans.Load())
@@ -1337,6 +1342,137 @@ func TestFactoryListStopsWhenClientCancels(t *testing.T) {
 	if scans.Load() != 1 {
 		t.Fatalf("dead client started a scan: %d", scans.Load())
 	}
+}
+
+func TestFactoryCacheDropsUnexpectedPackageEntry(t *testing.T) {
+	root := t.TempDir()
+	selections := filepath.Join(root, "selections")
+	packages := filepath.Join(root, "packages")
+	if err := os.Mkdir(selections, 0o755); err != nil || os.Mkdir(packages, 0o755) != nil {
+		t.Fatal(err)
+	}
+	id := installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
+	service := New(nil, nil, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	service.SetInventory(func() ([]Core, error) { return []Core{}, nil })
+
+	var scans atomic.Int32
+	useFactoryListGate(t, func(context.Context) error {
+		scans.Add(1)
+		return nil
+	})
+
+	first := listCores(t, service)
+	if !strings.Contains(first, `"core_id":"fes.pong"`) {
+		t.Fatalf("list %s", first)
+	}
+	if again := listCores(t, service); again != first || scans.Load() != 1 {
+		t.Fatalf("cache scans %d\n%s", scans.Load(), again)
+	}
+	if err := os.WriteFile(filepath.Join(packages, id, "core.rbf.tmp"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stale := listCores(t, service)
+	if strings.Contains(stale, "fes.pong") || scans.Load() != 2 {
+		t.Fatalf("scans %d body %s", scans.Load(), stale)
+	}
+	if err := os.Remove(filepath.Join(packages, id, "core.rbf.tmp")); err != nil {
+		t.Fatal(err)
+	}
+	restored := listCores(t, service)
+	if !strings.Contains(restored, `"core_id":"fes.pong"`) || scans.Load() != 3 {
+		t.Fatalf("scans %d body %s", scans.Load(), restored)
+	}
+}
+
+func TestFactoryScanStaysSingleWhenFingerprintChanges(t *testing.T) {
+	root := t.TempDir()
+	selections := filepath.Join(root, "selections")
+	packages := filepath.Join(root, "packages")
+	if err := os.Mkdir(selections, 0o755); err != nil || os.Mkdir(packages, 0o755) != nil {
+		t.Fatal(err)
+	}
+	id := installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
+	service := New(nil, nil, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	service.SetInventory(func() ([]Core, error) { return []Core{}, nil })
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	var scans atomic.Int32
+	useFactoryListGate(t, func(ctx context.Context) error {
+		if scans.Add(1) == 1 {
+			close(started)
+			select {
+			case <-release:
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
+			}
+		}
+		return nil
+	})
+	t.Cleanup(func() { once.Do(func() { close(release) }) })
+
+	firstDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		Handler(service).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/local/cores", nil))
+		firstDone <- response
+	}()
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("factory scan did not start")
+	}
+	if err := os.WriteFile(filepath.Join(packages, id, "core.rbf.tmp"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	secondDone := make(chan *httptest.ResponseRecorder, 1)
+	go func() {
+		response := httptest.NewRecorder()
+		Handler(service).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/local/cores", nil))
+		secondDone <- response
+	}()
+	select {
+	case response := <-secondDone:
+		t.Fatalf("fingerprint change started a second scan: %d %s", response.Code, response.Body.String())
+	case <-time.After(200 * time.Millisecond):
+	}
+	if scans.Load() != 1 {
+		t.Fatalf("overlapping scans %d", scans.Load())
+	}
+	once.Do(func() { close(release) })
+	var first, second *httptest.ResponseRecorder
+	select {
+	case first = <-firstDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("first list did not finish")
+	}
+	select {
+	case second = <-secondDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("second list did not finish")
+	}
+	if scans.Load() != 2 {
+		t.Fatalf("follow-up scans %d", scans.Load())
+	}
+	for _, response := range []*httptest.ResponseRecorder{first, second} {
+		if response.Code != http.StatusOK || strings.Contains(response.Body.String(), "fes.pong") {
+			t.Fatalf("list %d %s", response.Code, response.Body.String())
+		}
+	}
+}
+
+func listCores(t *testing.T, service *Service) string {
+	t.Helper()
+	response := httptest.NewRecorder()
+	Handler(service).ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/local/cores", nil))
+	if response.Code != http.StatusOK {
+		t.Fatalf("list %d %s", response.Code, response.Body.String())
+	}
+	return response.Body.String()
 }
 
 func assertBoundedList(t *testing.T, service *Service, limit time.Duration, allocBudget uint64) string {

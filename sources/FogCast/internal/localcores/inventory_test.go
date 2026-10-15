@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/misteross/expansion"
+	"github.com/pelletier/go-toml/v2"
 )
 
 type coreOpts struct {
@@ -188,21 +190,89 @@ required = true
 	if err := os.WriteFile(filepath.Join(dir, "manifest.toml"), []byte(manifest), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	inspection, err := corepackage.InspectListing(context.Background(), dir)
-	if err != nil {
+	id := directoryPackageID(t, dir)
+	listed, err := corepackage.InspectListing(context.Background(), dir)
+	if err == nil && listed.PackageID != id {
+		t.Fatalf("package id %s, listing %s", id, listed.PackageID)
+	}
+	if err != nil && format == 2 {
 		t.Fatal(err)
 	}
-	installed := filepath.Join(packages, inspection.PackageID)
+	installed := filepath.Join(packages, id)
 	if err := os.Rename(dir, installed); err != nil {
 		t.Fatal(err)
 	}
 	stem := coreID[len("fes."):]
 	body := fmt.Sprintf("core_id = %q\npackage_id = %q\npayload_sha256 = %q\ninstall_path = %q\n",
-		coreID, inspection.PackageID, payloadSHA, installed)
+		coreID, id, payloadSHA, installed)
 	if err := os.WriteFile(filepath.Join(selections, "fes-"+stem+".package.toml"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	return inspection.PackageID
+	return id
+}
+
+// directoryPackageID is the package identity InspectListing hashes, streamed
+// so a multi-megabyte member is not buffered. Callers use it for a map whose
+// digest matches but whose structure listing must reject.
+func directoryPackageID(t *testing.T, dir string) string {
+	t.Helper()
+	manifest, err := os.ReadFile(filepath.Join(dir, "manifest.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var header struct {
+		Format int64 `toml:"format"`
+	}
+	if err := toml.Unmarshal(manifest, &header); err != nil {
+		t.Fatal(err)
+	}
+	domain := "FES-CORE-PACKAGE-2\n"
+	switch header.Format {
+	case 3:
+		domain = "FES-CORE-PACKAGE-3\n"
+	case 4:
+		domain = "FES-CORE-PACKAGE-4\n"
+	}
+	hash := sha256.New()
+	if _, err := hash.Write([]byte(domain)); err != nil {
+		t.Fatal(err)
+	}
+	writeMember := func(data []byte, path string) {
+		t.Helper()
+		var length [8]byte
+		var size uint64
+		var reader io.Reader
+		if data != nil {
+			size = uint64(len(data))
+			reader = bytes.NewReader(data)
+		} else {
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			size = uint64(info.Size())
+			file, err := os.Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer file.Close()
+			reader = file
+		}
+		binary.LittleEndian.PutUint64(length[:], size)
+		if _, err := hash.Write(length[:]); err != nil {
+			t.Fatal(err)
+		}
+		n, err := io.Copy(hash, reader)
+		if err != nil || uint64(n) != size {
+			t.Fatalf("hash %s: %v", path, err)
+		}
+	}
+	writeMember(manifest, "")
+	writeMember(nil, filepath.Join(dir, "core.rbf"))
+	if header.Format == 3 || header.Format == 4 {
+		writeMember(nil, filepath.Join(dir, "rom-map.json"))
+	}
+	return hex.EncodeToString(hash.Sum(nil))
 }
 
 func writeZeros(t *testing.T, path string, n int64) string {
@@ -334,6 +404,59 @@ func TestReadInstalledCores(t *testing.T) {
 			core.Needs != item.needs || core.Block != item.block || core.Launchable != item.launchable {
 			t.Fatalf("%s = %+v", item.id, core)
 		}
+	}
+}
+
+func TestMalformedDigestMatchingROMMapIsNotListed(t *testing.T) {
+	root := t.TempDir()
+	packages := filepath.Join(root, "pkgs")
+	selections := filepath.Join(root, "sel")
+	if err := os.Mkdir(packages, 0o755); err != nil || os.Mkdir(selections, 0o755) != nil {
+		t.Fatal(err)
+	}
+	pong := installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
+	if directoryPackageID(t, filepath.Join(packages, pong)) != pong {
+		t.Fatal("directory identity drifted from InspectPackage")
+	}
+	validROM := installCore(t, packages, selections, "fes.coleco", "FES Coleco", "fes.application", coreOpts{cartridge: true})
+	if directoryPackageID(t, filepath.Join(packages, validROM)) != validROM {
+		t.Fatal("format-3 directory identity drifted from InspectPackage")
+	}
+
+	// 1024 zero bytes match the manifest digest and the package id, and fail
+	// structural parsing. Listing and launch inspection must both reject it.
+	id := installSizedCore(t, packages, selections, "fes.sms", "FES Master System", "fes.simple-computer", 64, 1024, "cartridge")
+	dir := filepath.Join(packages, id)
+	romMap, err := os.ReadFile(filepath.Join(dir, "rom-map.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(romMap) != 1024 || !bytes.Equal(romMap, make([]byte, 1024)) {
+		t.Fatalf("map len %d", len(romMap))
+	}
+	sum := sha256.Sum256(romMap)
+	manifest, err := os.ReadFile(filepath.Join(dir, "manifest.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(manifest, []byte(hex.EncodeToString(sum[:]))) {
+		t.Fatal("manifest digest does not match the zero map")
+	}
+	if _, err := corepackage.InspectPackage(dir); err == nil {
+		t.Fatal("InspectPackage accepted a zero ROM map")
+	}
+	if _, err := corepackage.InspectListing(context.Background(), dir); err == nil {
+		t.Fatal("InspectListing accepted a zero ROM map")
+	}
+	got := byCore(ReadInstalledCores(selections, packages))
+	if _, ok := got["fes.sms"]; ok {
+		t.Fatal("malformed digest-matching map was listed")
+	}
+	if got["fes.pong"].PackageID != pong || !got["fes.pong"].Launchable {
+		t.Fatalf("pong %+v", got["fes.pong"])
+	}
+	if got["fes.coleco"].PackageID != validROM || got["fes.coleco"].Needs != "media" {
+		t.Fatalf("coleco %+v", got["fes.coleco"])
 	}
 }
 

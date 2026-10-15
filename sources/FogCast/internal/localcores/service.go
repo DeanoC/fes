@@ -183,45 +183,56 @@ func (s *Service) list(ctx context.Context) ([]Core, error) {
 }
 
 // factoryCores returns the factory catalog. One scan streams every package
-// and caches the result. The caller stops waiting when ctx ends; that scan
-// keeps the single shared read so a client retry does not start another.
+// and caches the result when the fingerprint is still current at the end.
+// The caller stops waiting when ctx ends. Another caller shares that scan,
+// including when its fingerprint differs: a second scan starts only after
+// the first finishes, and only if the tree still does not match the cache.
 func (s *Service) factoryCores(ctx context.Context) ([]Core, error) {
-	if err := ctx.Err(); err != nil {
-		return nil, err
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	key := factoryFingerprint(s.roots.Selections, s.roots.Packages)
-	s.listMu.Lock()
-	if s.factoryReady && s.factoryKey == key {
-		cores := append([]Core(nil), s.factoryHits...)
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		key := factoryFingerprint(s.roots.Selections, s.roots.Packages)
+		s.listMu.Lock()
+		if s.factoryReady && s.factoryKey == key {
+			cores := append([]Core(nil), s.factoryHits...)
+			s.listMu.Unlock()
+			return cores, nil
+		}
+		flight := s.factoryFlight
+		if flight == nil {
+			flight = &factoryFlight{key: key, done: make(chan struct{})}
+			s.factoryFlight = flight
+			go s.runFactory(flight)
+		}
+		done := flight.done
+		waited := flight.key
 		s.listMu.Unlock()
-		return cores, nil
-	}
-	flight := s.factoryFlight
-	if flight == nil || flight.key != key {
-		flight = &factoryFlight{key: key, done: make(chan struct{})}
-		s.factoryFlight = flight
-		go s.runFactory(flight)
-	}
-	done := flight.done
-	s.listMu.Unlock()
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-done:
-		if flight.err != nil {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-done:
+		}
+		if flight.err != nil && factoryFingerprint(s.roots.Selections, s.roots.Packages) == waited {
 			return nil, flight.err
 		}
-		return append([]Core(nil), flight.cores...), nil
 	}
 }
 
 func (s *Service) runFactory(flight *factoryFlight) {
 	defer close(flight.done)
 	cores, err := s.scanFactory()
+	var keyNow string
+	if err == nil {
+		keyNow = factoryFingerprint(s.roots.Selections, s.roots.Packages)
+	}
 	s.listMu.Lock()
 	flight.cores, flight.err = cores, err
 	if s.factoryFlight == flight {
-		if err == nil {
+		if err == nil && keyNow == flight.key {
 			s.factoryKey = flight.key
 			s.factoryHits = append([]Core(nil), cores...)
 			s.factoryReady = true

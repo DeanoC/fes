@@ -240,10 +240,11 @@ func InspectPackage(path string) (Inspection, error) {
 }
 
 // InspectListing validates an installed package directory for inventory.
-// The manifest is the only member kept in memory. core.rbf and rom-map.json
-// are hashed as streams into the payload digest, the ROM-map digest and the
-// package id. The ROM map is not parsed; launch and staging still use
-// InspectPackage, which retains the bytes and parses the map.
+// The manifest is the only member kept in memory. core.rbf is hashed as a
+// stream. rom-map.json is hashed and structurally validated as a stream,
+// including its binding to the payload digest, and its decoded blocks are
+// not retained. A map InspectPackage would reject is rejected here. Launch
+// and staging still use InspectPackage.
 func InspectListing(ctx context.Context, path string) (Inspection, error) {
 	if ctx == nil {
 		return Inspection{}, errors.New("core package: missing listing context")
@@ -296,18 +297,27 @@ func InspectListing(ctx context.Context, path string) (Inspection, error) {
 	_, _ = identity.Write([]byte(domain))
 	writeDigestLen(identity, int64(len(manifest)))
 	_, _ = identity.Write(manifest)
-	if _, err := streamMemberDigest(ctx, root, "core.rbf", descriptor.Payload.Size, descriptor.Payload.SHA256, identity); err != nil {
+	if _, err := streamMemberDigest(ctx, root, "core.rbf", descriptor.Payload.Size, descriptor.Payload.SHA256, identity, nil); err != nil {
 		return Inspection{}, err
 	}
 	if withROM {
 		var declared int64
 		var sum string
+		var sourceSize int64
 		if descriptor.Format == 3 {
-			declared, sum = descriptor.ROM.Size, descriptor.ROM.SHA256
+			declared, sum, sourceSize = descriptor.ROM.Size, descriptor.ROM.SHA256, descriptor.ROM.SourceSize
 		} else {
 			declared, sum = descriptor.ROMMap.Size, descriptor.ROMMap.SHA256
+			for _, rom := range descriptor.ROMs {
+				sourceSize += rom.SourceSize
+			}
 		}
-		if _, err := streamMemberDigest(ctx, root, "rom-map.json", declared, sum, identity); err != nil {
+		if _, err := streamMemberDigest(ctx, root, "rom-map.json", declared, sum, identity, func(r io.Reader) error {
+			if err := expansion.ValidateROMMapStream(ctx, r, declared, descriptor.Payload.SHA256, int(sourceSize)); err != nil {
+				return fmt.Errorf("ROM map: %w", err)
+			}
+			return nil
+		}); err != nil {
 			return Inspection{}, err
 		}
 	}
@@ -553,6 +563,27 @@ func Stage(ctx context.Context, root string, length int64, reader io.Reader) (St
 	return Staged{Directory: filepath.Join(root, publication), PackageID: id,
 		Descriptor: descriptor, root: root, rootInfo: openedRoot,
 		publication: publication, publicationInfo: publicationInfo}, nil
+}
+
+type digestReader struct {
+	ctx context.Context
+	r   io.Reader
+	w   io.Writer
+	n   int64
+}
+
+func (d *digestReader) Read(p []byte) (int, error) {
+	if err := d.ctx.Err(); err != nil {
+		return 0, err
+	}
+	n, err := d.r.Read(p)
+	if n > 0 {
+		if _, werr := d.w.Write(p[:n]); werr != nil {
+			return n, werr
+		}
+		d.n += int64(n)
+	}
+	return n, err
 }
 
 type contextReader struct {
@@ -918,7 +949,9 @@ func writeDigestLen(w io.Writer, n int64) {
 
 // streamMemberDigest hashes one package member without retaining it. The
 // length prefix and the bytes are written to identity in packageIdentity order.
-func streamMemberDigest(ctx context.Context, root *os.Root, name string, declared int64, declaredSum string, identity io.Writer) (string, error) {
+// examine, when set, reads the same stream. It is how a ROM map is structurally
+// validated without a second copy of the member.
+func streamMemberDigest(ctx context.Context, root *os.Root, name string, declared int64, declaredSum string, identity io.Writer, examine func(io.Reader) error) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
@@ -944,6 +977,29 @@ func streamMemberDigest(ctx context.Context, root *os.Root, name string, declare
 	writeDigestLen(identity, declared)
 	hash := sha256.New()
 	dest := io.MultiWriter(hash, identity)
+	if examine != nil {
+		reader := &digestReader{ctx: ctx, r: io.LimitReader(file, declared), w: dest}
+		examErr := examine(reader)
+		closeErr := file.Close()
+		if examErr != nil {
+			return "", examErr
+		}
+		if closeErr != nil {
+			return "", closeErr
+		}
+		if reader.n != declared {
+			return "", fmt.Errorf("core package: %s changed while reading", name)
+		}
+		after, err := root.Lstat(name)
+		if err != nil || !os.SameFile(opened, after) || after.Size() != declared {
+			return "", fmt.Errorf("core package: %s changed while reading", name)
+		}
+		sum := hex.EncodeToString(hash.Sum(nil))
+		if sum != declaredSum {
+			return "", fmt.Errorf("core package: %s digest does not match manifest", name)
+		}
+		return sum, nil
+	}
 	buf := make([]byte, 32<<10)
 	var read int64
 	for {

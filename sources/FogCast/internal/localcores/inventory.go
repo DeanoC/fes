@@ -110,7 +110,9 @@ func readInstalledCores(ctx context.Context, selectionDir, packageRoot string) (
 }
 
 // factoryFingerprint is the selection and package metadata that invalidates a
-// cached catalog. It stats members and does not read core.rbf or rom-map.json.
+// cached catalog. Every installed directory entry is part of the key, so an
+// unexpected member changes the verdict InspectListing would return. The key
+// is file metadata only: it does not read core.rbf or rom-map.json.
 func factoryFingerprint(selectionDir, packageRoot string) string {
 	if !realDir(selectionDir) || !realDir(packageRoot) {
 		return "absent"
@@ -134,13 +136,27 @@ func factoryFingerprint(selectionDir, packageRoot string) string {
 		}
 		install := filepath.Join(packageRoot, selection.PackageID)
 		fmt.Fprintf(&b, "path %s\n", selection.InstallPath)
-		for _, name := range []string{"manifest.toml", "core.rbf", "rom-map.json"} {
-			member, err := os.Lstat(filepath.Join(install, name))
+		dirInfo, err := os.Lstat(install)
+		if err != nil {
+			fmt.Fprintf(&b, "dir %s missing\n", selection.PackageID)
+			continue
+		}
+		fmt.Fprintf(&b, "dir %s %d %d\n", selection.PackageID, dirInfo.ModTime().UnixNano(), dirInfo.Mode())
+		if !dirInfo.IsDir() || dirInfo.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		members, err := os.ReadDir(install)
+		if err != nil {
+			fmt.Fprintf(&b, "dir %s unreadable\n", selection.PackageID)
+			continue
+		}
+		for _, member := range members {
+			meta, err := member.Info()
 			if err != nil {
-				fmt.Fprintf(&b, "miss %s %s\n", selection.PackageID, name)
+				fmt.Fprintf(&b, "ent %s %s missing\n", selection.PackageID, member.Name())
 				continue
 			}
-			fmt.Fprintf(&b, "mem %s %s %d %d %d\n", selection.PackageID, name, member.Size(), member.ModTime().UnixNano(), member.Mode())
+			fmt.Fprintf(&b, "ent %s %s %d %d %d\n", selection.PackageID, member.Name(), meta.Size(), meta.ModTime().UnixNano(), meta.Mode())
 		}
 	}
 	return b.String()

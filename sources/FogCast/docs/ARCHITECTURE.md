@@ -2236,13 +2236,18 @@ excludes mutations during trial or image transitions. The target client does not
 replay lost mutations. No delete, restart, activation or implicit rollback exists.
 
 Kit-local inventory overlays explicit durable selections by core ID on factory
-selections. Listing reads each factory manifest and streams the payload and
-ROM-map digests, including the package id, keeping only that manifest and the
-running hashes. A finished catalog is cached until selection or package
-metadata changes. The list handler waits on the request context, so a client
-disconnect ends that wait while the single shared scan is left to finish for
-the next request. Launch rereads the selected package with full inspection
-before programming. Manifest requirements block unsupported local media,
+selections. Listing reads each factory manifest, streams the payload digest,
+and streams the ROM-map digest, including the package id. Format 3 and format 4
+maps are structurally validated while they stream, including binding to the
+payload digest, and a map full inspection would reject is omitted. Only the
+manifest and the running hashes are kept. Checking one map holds a fixed CRAM
+destination bitmap for that package and does not retain the encoded map or its
+decoded blocks. A finished catalog is cached until selection metadata or any
+installed package directory entry changes. The list handler waits on the
+request context, so a client disconnect ends that wait. One catalog scan runs
+at a time. A fingerprint change while that scan is in progress waits for it to
+finish, then scans once more when the tree still differs. Launch rereads the
+selected package with full inspection before programming. Manifest requirements block unsupported local media,
 firmware, multi-ROM and native video-part paths.
 `Launchable` describes local inputs, not hardware acceptance; native inspection
 checks the exact canonical bytes before programming. Plain local loads use the
