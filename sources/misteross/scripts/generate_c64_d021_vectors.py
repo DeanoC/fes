@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-"""Regenerate PAL6569R3 D021 transitions from unchanged VICE 3.10 functions."""
+"""Regenerate PAL6569R3 D020/D021 transitions from unchanged VICE 3.10 functions."""
 from pathlib import Path
 import argparse,hashlib,subprocess,tempfile
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--vice-source',type=Path,required=True)
-parser.add_argument('--output',type=Path,default=Path(__file__).resolve().parents[1]/'cores/fes-c64/sim/d021_vectors.h')
+parser.add_argument('--register',choices=('d020','d021'),default='d021')
+parser.add_argument('--output',type=Path)
 args=parser.parse_args();src=args.vice_source.resolve()/'src/viciisc'
+register=int(args.register[1:],16)
+if args.output is None:args.output=Path(__file__).resolve().parents[1]/f'cores/fes-c64/sim/{args.register}_vectors.h'
 hashes={
  'vicii-draw-cycle.c':'78f70f99f77d26c507d7ebb2dba46ea5e8d2083f71c28d1c4c56420486dafaf6',
  'vicii-mem.c':'f8e2bdd30fbe8abf60a7e77647723f4615834e5b414f2695698ed28b31857edf',
@@ -67,7 +70,10 @@ int main(int argc,char **argv) {
  printf("source oracle PASS %u old/new/foreground cases\\n",cases);
 }
 '''
-with tempfile.TemporaryDirectory(prefix='c64-d021-oracle-') as temporary:
+if register==0x20:
+ start=code.index('int main(')
+ code=code[:start]+code[start:].replace('0x21','0x20')
+with tempfile.TemporaryDirectory(prefix='c64-color-oracle-') as temporary:
  b=Path(temporary);(b/'oracle.c').write_text(code)
  subprocess.run(['cc','-std=c11','-O2','-Wall','-Wextra','-Werror',str(b/'oracle.c'),'-o',str(b/'oracle')],check=True)
  subprocess.run([str(b/'oracle'),str(b/'expected.bin')],check=True)
@@ -77,4 +83,5 @@ with tempfile.TemporaryDirectory(prefix='c64-d021-oracle-') as temporary:
  header+='// '+ '; '.join(name+' SHA256 '+digest for name,digest in hashes.items())+'\n'
  header+='#include <cstdint>\nstatic constexpr uint8_t source_expected[]={\n'
  header+=''.join(' '+','.join(map(str,data[i:i+32]))+',\n' for i in range(0,len(data),32))+'};\n'
+ if register==0x20:header=header.replace('source_expected','source_expected_d020')
  args.output.write_text(header)

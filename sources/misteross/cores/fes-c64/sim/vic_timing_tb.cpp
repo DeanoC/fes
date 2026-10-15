@@ -81,9 +81,9 @@ int main(int argc, char **argv) {
         const unsigned line=t.raster,cycle=t.native_cycle;
         if(edge>4900000&&!reset_done&&t.write_pending){t.reset=1;reset_done=true;++reset_discards;}
         else if(line>=16&&line<=30&&cycle==20&&cycle_clock>=25&&cycle_clock<=28){
-            // A bus write on prepare phase26 must be visible at dot4/phase27.
-            // A simultaneous dot write and the later phase28 write must not
-            // recolor the transaction already captured for that dot.
+            // Border resolves three dots after source selection. Writes through
+            // phase28 must affect dot4 when it resolves at dot7/phase47;
+            // the completed write packet must then stay fixed.
             t.we=1;t.addr=0x20;t.din=3+2*(cycle_clock-25);
         }else if(line>=72&&line<=140&&cycle>=18&&cycle<=22){
             bool adjacent=false;
@@ -120,13 +120,13 @@ int main(int argc, char **argv) {
         if(cycle_clock==0&&cycle==1&&!t.reset)++wraps;
         const bool palette_dot=line>=16&&line<=30&&cycle==20&&cycle_clock==47&&!t.reset;
         if(line>=16&&line<=30&&cycle==20&&cycle_clock==48&&!t.reset){
-            require(t.write_pending&&t.saved_ink==5,"post-dot write altered saved framebuffer pixel");
+            require(t.write_pending&&t.saved_ink==9,"post-dot write altered saved framebuffer pixel");
             ++checked_pending;
         }
         t.clk_sys=1;t.eval();
         if(t.reset)require(!t.write_pending,"reset failed to discard pending framebuffer write");
         if(palette_dot){
-            require(t.write_pending&&t.saved_ink==5,"original dot4 direct border color changed during pipeline");
+            require(t.write_pending&&t.saved_ink==9,"late border color did not observe the phase28 write");
             ++phase26_pairs;
         }
         if(t.phi)cycle_clock=0;else if(cycle_clock<63)++cycle_clock;

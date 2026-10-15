@@ -41,9 +41,9 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Sprite beam X and pointer/row/pending controls are prepared one system clock
   before each dot; guest-controlled inputs keep their dot sampling. Original
   framebuffer addresses and color-source tags travel together for three native
-  dots before D021 is resolved, then a complete write packet reaches memory
+  dots before D020/D021 are resolved, then a complete write packet reaches memory
   one system clock later. Sprite shifts and collisions retain their dot timing.
-  D020, D022-D024 and sprite-color write latencies remain unqualified.
+  D022-D024 and sprite-color write latencies remain unqualified.
   Nine-bit raster compare uses `$D011` bit 7 and `$D012`; `$D019` latches
   events and acknowledges written ones, while `$D01A` masks the CPU IRQ.
   The PAL beam has 63 Phi2 cycles per line and 312 lines per frame.
@@ -474,25 +474,28 @@ expose exhausted shift bits before the next byte loads. In 38-column mode,
 the horizontal border opens at native X31 and closes at X335, one dot before
 the following whole-byte boundaries.
 
-D021 background color is resolved three native dots after pixel-source
+D020 border and D021 background colors are resolved three native dots after pixel-source
 selection, followed by the one-SYS framebuffer packet. The complete original
-address and direct-color index travel with an explicit D021 source tag.
+address and direct-color index travel with explicit border/background source tags.
 Standard text, multicolor text/bitmap and ECM background zero retain that tag;
-foreground, other ECM backgrounds, bitmap cell colors, opaque sprites and
-border pixels retain their original direct index, even when it equals D021.
+border pixels retain their D020 tag; foreground, other ECM backgrounds, bitmap
+cell colors and opaque sprites retain their original direct index, even when
+it equals D020 or D021.
 CPU register commits, sprite shifts, foreground and collision edges are unchanged.
 The pipeline drains during invisible dots before frame publication and is
-cancelled by reset. D020, D022–D024 and sprite-color write latency remain outside
+cancelled by reset. D022–D024 and sprite-color write latency remain outside
 this timing correction.
 
-`make sim-fes-c64-d021` runs twelve open motherboard programs with the shared
+`make sim-fes-c64-d021` runs twenty-four open motherboard programs (twelve per
+color register) with the shared
 6502 and native 53/54-SYS cadence. It checks all sixteen colors in both
 directions, repeated and NMOS read-modify-write stores, architectural readback,
 all native write cycles, graphics modes, equal-valued direct colors, sprite
 priority, original framebuffer addresses, reset cancellation and frame drain.
 The recorded PAL6569R3 transition vectors come from unchanged VICE 3.10 color
 functions. Regenerate with
-`python3 scripts/generate_c64_d021_vectors.py --vice-source /path/to/vice-3.10`.
+`python3 scripts/generate_c64_d021_vectors.py --vice-source /path/to/vice-3.10`,
+adding `--register d020` for the separate border vectors.
 The source oracle covers all 65,536 old/new-color and foreground-mask cases;
 NTSC and 8565 grey-dot behavior remain unqualified.
 

@@ -1069,7 +1069,7 @@ sim-fes-c64-d021:
 		--Mdir "$(CURDIR)/build/sim/fes-c64-d021" \
 		cores/fes-c64/sim/d021_sim_top.sv $(C64_RTL) "$(CURDIR)/cores/fes-c64/sim/d021_tb.cpp" \
 		-CFLAGS '-O2 -std=c++17' -MAKEFLAGS 'OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3'
-	@for fixture in 0 1 2 3 4 5 6 7 8 9 10 11; do \
+	@for fixture in 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23; do \
 		build/sim/fes-c64-d021/Vd021_sim_top $$fixture \
 		build/sim/fes-c64-d021/firmware.hex build/sim/fes-c64-d021/disk.hex || exit $$?; \
 	done

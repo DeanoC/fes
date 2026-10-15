@@ -1847,11 +1847,11 @@ unused bits and write-protected light-pen result registers.
 The beam's sprite X coordinate and deterministic pointer, row and pending
 controls are registered one SYS edge before each dot. Guest-controlled sprite
 inputs retain their original dot sampling. The original framebuffer address,
-direct color and D021-source tag travel together for three native dots; D021
-is resolved then, and the complete write packet reaches memory one SYS later.
+direct color and border/background source tags travel together for three native
+dots; D020/D021 are resolved then, and the complete write packet reaches memory one SYS later.
 Collision and sprite shift state remain on their original edges. Reset clears
 all pending stages. Shifting through blank dots drains the last visible pixels
-before frame publication. D020, D022-D024 and sprite-color write latencies
+before frame publication. D022-D024 and sprite-color write latencies
 remain unqualified.
 `make sim-fes-c64-vic-timing` checks all PAL cycle/dot pairs, the fractional
 cadence, adjacent-dot register writes and the delayed transaction contract.

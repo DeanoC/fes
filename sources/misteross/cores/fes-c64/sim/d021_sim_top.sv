@@ -6,7 +6,7 @@ module d021_sim_top(
  output wire [5:0] phase,native_cycle,
  output wire [8:0] raster,x,
  output wire [15:0] address,pc,
- output wire [7:0] data,d021,
+ output wire [7:0] data,d020,d021,
  output wire [3:0] ink,
  output wire frame_valid,publish,
  output wire [16:0] frame_address,
@@ -28,6 +28,7 @@ module d021_sim_top(
  assign x=machine.vic.write_x;assign strobe=machine.vic.pixel_strobe;
  assign foreground=machine.vic.graphics_foreground;
  assign border=machine.vic.main_border||machine.vic.vertical_border;
+ assign d020=machine.vic.regs[6'h20];
  assign ink=machine.vic.ink;assign d021=machine.vic.regs[6'h21];
  assign publish=machine.vic.native_frame_start&&machine.vic.frame_started;
  assign frame_valid=machine.vic.frame_write_valid&&!machine.system_reset;

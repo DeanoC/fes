@@ -311,11 +311,11 @@ module c64_vic (
     wire [8:0] write_x=9'((native_cycle-6'd13)*8)+{6'd0,subpixel};
     wire [16:0] write_address=17'(native_y*384)+{8'd0,write_x};
 
-    // PAL6569R3 resolves D021 three dots after selecting the pixel source.
+    // PAL6569R3 resolves D020/D021 three dots after selecting the pixel source.
     // Keep direct colors and the complete original framebuffer transaction
-    // together; equal-valued cell, sprite and border colors are not D021.
+    // together; equal-valued direct cell/sprite colors are not palette sources.
     // Shifting on blank dots drains the last visible pixels before publication.
-    reg [2:0] color_valid,color_background0;
+    reg [2:0] color_valid,color_background0,color_border;
     reg [16:0] color_address[0:2];
     reg [3:0] color_direct[0:2];
     reg frame_write_valid;
@@ -323,7 +323,7 @@ module c64_vic (
     reg [3:0] frame_write_ink;
     always @(posedge clk_sys) begin
         if(reset)begin
-            color_valid<=0; color_background0<=0;
+            color_valid<=0; color_background0<=0; color_border<=0;
             for(integer stage=0;stage<3;stage=stage+1)begin
                 color_address[stage]<=0; color_direct[stage]<=0;
             end
@@ -335,6 +335,7 @@ module c64_vic (
             if(pixel_strobe)begin
                 color_valid<={color_valid[1:0],visible_native};
                 color_background0<={color_background0[1:0],ink_background0};
+                color_border<={color_border[1:0],main_border||vertical_border};
                 color_address[0]<=write_address;
                 color_direct[0]<=ink;
                 for(integer stage=1;stage<3;stage=stage+1)begin
@@ -343,7 +344,8 @@ module c64_vic (
                 end
                 if(color_valid[2])begin
                     frame_write_address<=color_address[2];
-                    frame_write_ink<=color_background0[2]?regs[6'h21][3:0]:color_direct[2];
+                    frame_write_ink<=color_border[2]?regs[6'h20][3:0]:
+                        color_background0[2]?regs[6'h21][3:0]:color_direct[2];
                 end
             end
         end

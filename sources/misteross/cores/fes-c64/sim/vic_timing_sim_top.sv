@@ -52,17 +52,17 @@ module vic_timing_sim_top (
     assign write_pending=dut.frame_write_valid;
     assign saved_ink=dut.frame_write_ink;
 
-    // Save original dot/address/direct color together. D021 is the sole late
+    // Save original dot/address/direct color together. D020/D021 are late
     // source; the resolved packet still reaches memory one SYS later.
     reg expected_valid;
     reg [16:0] expected_address;
     reg [3:0] expected_ink;
-    reg [2:0] pending_valid,pending_background0;
+    reg [2:0] pending_valid,pending_background0,pending_border;
     reg [16:0] pending_address[0:2];
     reg [3:0] pending_ink[0:2];
     always @(posedge clk_sys) begin
         if(reset)begin
-            pending_valid<=0;pending_background0<=0;
+            pending_valid<=0;pending_background0<=0;pending_border<=0;
             for(integer stage=0;stage<3;stage=stage+1)begin
                 pending_address[stage]<=0;pending_ink[stage]<=0;
             end
@@ -84,6 +84,7 @@ module vic_timing_sim_top (
             if(dot_tick)begin
                 pending_valid<={pending_valid[1:0],raster>=16&&raster<=287&&native_cycle>=13&&native_cycle<=60};
                 pending_background0<={pending_background0[1:0],dut.ink_background0};
+                pending_border<={pending_border[1:0],dut.main_border||dut.vertical_border};
                 pending_address[0]<=17'((int'(raster)-16)*384+(int'(native_cycle)-13)*8+int'(dot));
                 pending_ink[0]<=dut.ink;
                 for(integer stage=1;stage<3;stage=stage+1)begin
@@ -91,7 +92,8 @@ module vic_timing_sim_top (
                     pending_ink[stage]<=pending_ink[stage-1];
                 end
                 expected_address<=pending_address[2];
-                expected_ink<=pending_background0[2]?dut.regs[6'h21][3:0]:pending_ink[2];
+                expected_ink<=pending_border[2]?dut.regs[6'h20][3:0]:
+                    pending_background0[2]?dut.regs[6'h21][3:0]:pending_ink[2];
             end
             if(frame_done)begin
                 if(write_pending||(|pending_valid))$fatal(1,"frame publication overlaps pending write");
