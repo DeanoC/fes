@@ -1,5 +1,5 @@
 """The selected profile controls the complete installed FPGA core set."""
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 import json
 import os
 from pathlib import Path
@@ -517,48 +517,52 @@ class CoreBuildTest(unittest.TestCase):
                 'mister-packages': '3' * 40,
                 'misteross': '4' * 40,
             }
-            with patch.dict(os.environ, {
-                    'FES_PACKAGE_IDS': 'ambient',
-                    'FES_PONG_PACKAGE_DIR': '/ambient/pong',
-                    'FES_PONG_PACKAGE_SELECTION': '/ambient/pong-selection',
-                    'FES_ZX81_PACKAGE_DIR': '/ambient/zx81',
-                    'FES_ZX81_PACKAGE_SELECTION': '/ambient/zx81-selection',
-                    'FES_COLECO_PACKAGE_DIR': '/ambient/coleco',
-                    'FES_COLECO_PACKAGE_SELECTION': '/ambient/coleco-selection',
-                    'FES_SMS_PACKAGE_DIR': '/ambient/sms',
-                    'FES_SMS_PACKAGE_SELECTION': '/ambient/sms-selection',
-                }), \
+            with ExitStack() as stack:
+                for context in (
+                    patch.dict(os.environ, {
+                        'FES_PACKAGE_IDS': 'ambient',
+                        'FES_PONG_PACKAGE_DIR': '/ambient/pong',
+                        'FES_PONG_PACKAGE_SELECTION': '/ambient/pong-selection',
+                        'FES_ZX81_PACKAGE_DIR': '/ambient/zx81',
+                        'FES_ZX81_PACKAGE_SELECTION': '/ambient/zx81-selection',
+                        'FES_COLECO_PACKAGE_DIR': '/ambient/coleco',
+                        'FES_COLECO_PACKAGE_SELECTION': '/ambient/coleco-selection',
+                        'FES_SMS_PACKAGE_DIR': '/ambient/sms',
+                        'FES_SMS_PACKAGE_SELECTION': '/ambient/sms-selection',
+                    }),
                     patch.object(build.sys, 'argv',
-                                 ['build.py', 'image', '--profile', 'native-integration-dev']), \
-                    patch.object(build, 'validate', return_value=revisions), \
-                    patch.object(build, 'source_checkout', side_effect=fake_checkout), \
+                                 ['build.py', 'image', '--profile', 'native-integration-dev']),
+                    patch.object(build, 'validate', return_value=revisions),
+                    patch.object(build, 'source_checkout', side_effect=fake_checkout),
                     patch.object(build, 'git', side_effect=lambda root, *args:
                                  "[mister_runtime]\nmount_path = '/runtime-source'\n"
                                  if args[-1] == 'HEAD:build/native-runtime.inputs.lock.toml'
-                                 else 'module test\n'), \
-                    patch.object(build.tomllib, 'loads', side_effect=fake_loads), \
+                                 else 'module test\n'),
+                    patch.object(build.tomllib, 'loads', side_effect=fake_loads),
                     patch.object(build.subprocess, 'check_output',
                                  side_effect=lambda args, **kwargs:
                                  b'lock' if args[0] == 'git'
-                                 else 'go version go1.26.5 linux/amd64\n'), \
-                    patch.object(build.platform, 'system', return_value='Linux'), \
-                    patch.object(build.platform, 'machine', return_value='x86_64'), \
-                    patch.object(build.platform, 'build_kit_software'), \
-                    patch.object(build.shutil, 'which', return_value='/usr/bin/tool'), \
+                                 else 'go version go1.26.5 linux/amd64\n'),
+                    patch.object(build.platform, 'system', return_value='Linux'),
+                    patch.object(build.platform, 'machine', return_value='x86_64'),
+                    patch.object(build.platform, 'build_kit_software'),
+                    patch.object(build.shutil, 'which', return_value='/usr/bin/tool'),
                     patch.object(build.subprocess, 'run',
-                                 return_value=subprocess.CompletedProcess([], 1)), \
-                    patch.object(build, 'run', side_effect=fake_run), \
-                    patch.object(build, 'locked_diagnostics', no_diagnostics), \
+                                 return_value=subprocess.CompletedProcess([], 1)),
+                    patch.object(build, 'run', side_effect=fake_run),
+                    patch.object(build, 'locked_diagnostics', no_diagnostics),
                     patch.object(build, 'resolve_packages_for_action',
-                                 return_value=packages), \
+                                 return_value=packages),
                     patch.object(build, 'build_fingerprint',
-                                 return_value=('base-fingerprint', {'sources': {}})), \
+                                 return_value=('base-fingerprint', {'sources': {}})),
                     patch.object(build, 'host_fingerprint',
-                                 return_value=('host-fingerprint', {})), \
+                                 return_value=('host-fingerprint', {})),
                     patch.object(build, 'image_fingerprint',
-                                 return_value=('image-fingerprint', {})), \
+                                 return_value=('image-fingerprint', {})),
                     patch.object(build, 'reuse_status',
-                                 return_value=(False, 'test miss')):
+                                 return_value=(False, 'test miss')),
+                ):
+                    stack.enter_context(context)
                 with self.assertRaises(StopAfterFetch):
                     build.main()
 
