@@ -54,7 +54,7 @@ func TestServerRejectsIncompatibleHistoryAndQueuesFactory(t *testing.T) {
 	ctx := context.Background()
 	incompatible, _, oldArchive := softwareFixture(t, "old-base")
 	factory, factoryRoot, factoryArchive := softwareFixture(t, "new-base")
-	root := t.TempDir()
+	root := filepath.Join(t.TempDir(), "store")
 	base := software.Compatibility{Board: "de10-nano", Architecture: "armv7", BaseContract: "old-base", Interfaces: map[string]string{"runtime": "1"}}
 	oldStore, err := software.New(root, base)
 	if err != nil {
@@ -154,7 +154,7 @@ func TestFactorySelectionSurvivesBaseImageReplacement(t *testing.T) {
 	ctx := context.Background()
 	old, oldRoot, _ := softwareFixture(t, "base-contract")
 	base := software.Compatibility{Board: "de10-nano", Architecture: "armv7", BaseContract: "base-contract", Interfaces: map[string]string{"runtime": "1"}}
-	store, err := software.New(t.TempDir(), base)
+	store, err := software.New(filepath.Join(t.TempDir(), "store"), base)
 	if err != nil {
 		t.Fatal(err)
 	}
