@@ -2,11 +2,13 @@
 #include "Vc64_video_sim_top.h"
 #include "Vc64_video_sim_top___024root.h"
 #include "verilated.h"
+#include "pal_palette_reference.h"
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
 #include <initializer_list>
 int main(int argc,char **argv){
+ const auto palette=pal_palette_reference();
  Verilated::commandArgs(argc,argv);Vc64_video_sim_top t;t.clk_sys=0;t.pixel_clk=0;t.reset=1;
  t.reading=0;t.read_sample=0;t.phi=0;t.cycle_clock=0;t.we=0;t.color_we=0;t.addr=0;t.din=0;t.color_addr=0;t.color_din=0;t.bank=0;t.eval();
  auto sys=[&](){t.clk_sys=0;t.eval();t.clk_sys=1;t.eval();};sys();t.reset=0;sys();
@@ -47,7 +49,7 @@ int main(int argc,char **argv){
   for(unsigned n=0;n<3*1650*750;++n){pixel();if(t.vsync&&!previous){if(record&&pixels==1280*720)break;record=true;pixels=0;errors=0;checked=0;}previous=t.vsync;
    if(record&&t.de){unsigned x=pixels%1280,y=pixels/1280;
     if(x>=160&&x<1120){unsigned vx=(x-160)*2/5,vy=y*17/45;
-     if(vx>=32&&vx<(carry?332u:352u)&&vy>=35&&vy<235){unsigned nx=vx-32;unsigned expected=carry?((nx==128||nx==129)?0x0000cc:0xffffff):((nx%8)==4?0xffffff:0x0000cc);
+     if(vx>=32&&vx<(carry?332u:352u)&&vy>=35&&vy<235){unsigned nx=vx-32;unsigned expected=carry?((nx==128||nx==129)?palette[6]:palette[1]):((nx%8)==4?palette[1]:palette[6]);
       if(t.red!=(expected>>16)||t.green!=((expected>>8)&255)||t.blue!=(expected&255)){if(errors++<4)std::printf("bank%u native%u,%u got%02x%02x%02x expected%06x\n",bank,nx,vy-35,t.red,t.green,t.blue,expected);}++checked;
      }
     }++pixels;

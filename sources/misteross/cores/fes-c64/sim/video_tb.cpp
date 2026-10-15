@@ -2,11 +2,13 @@
 #include "Vc64_video_sim_top.h"
 #include "Vc64_video_sim_top___024root.h"
 #include "verilated.h"
+#include "pal_palette_reference.h"
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
 #include <initializer_list>
 int main(int argc,char **argv){
+ const auto palette=pal_palette_reference();
  Verilated::commandArgs(argc,argv);Vc64_video_sim_top t;t.clk_sys=0;t.pixel_clk=0;t.reset=1;
  t.reading=0;t.read_sample=0;t.phi=0;t.cycle_clock=0;t.we=0;t.color_we=0;t.addr=0;t.din=0;t.color_addr=0;t.color_din=0;t.bank=0;t.eval();
  auto sys=[&](){t.clk_sys=0;t.eval();t.clk_sys=1;t.eval();};sys();t.reset=0;sys();
@@ -49,8 +51,8 @@ int main(int argc,char **argv){
     if(x>=160&&x<1120){unsigned vx=(x-160)*2/5,vy=y*17/45;
      if(vx>=32&&vx<352&&vy>=35&&vy<235){unsigned nx=vx-32,ny=vy-35;col=nx/8;unsigned row=ny%8,bit=nx%8;
       white=(col&1)?(bit==7-((row+bank)&7)):(bit==((row+bank)&7));}}
-     unsigned expected=white?((col&1)?204:255):0; unsigned gb=white&&!(col&1)?255:0;
-    if(t.red!=expected||t.green!=gb||t.blue!=gb){if(errors++<5)std::printf("bank%u x%u y%u got%u wanted%u\n",bank,x,y,t.red,expected);}
+     unsigned expected=palette[white?((col&1)?2:1):0];
+    if(t.red!=(expected>>16)||t.green!=((expected>>8)&255)||t.blue!=(expected&255)){if(errors++<5)std::printf("bank%u x%u y%u got%u wanted%u\n",bank,x,y,t.red,expected);}
     ++pixels;
    }
   }
@@ -63,7 +65,7 @@ int main(int argc,char **argv){
   ram[b*0x4000+0x400+c]=0x12;
   for(unsigned row=0;row<8;++row)ram[b*0x4000+0x2000+c*8+row]=((c+row+b)&1)?0xe4:0x1b;
  }
- const unsigned colors[]={0x0000cc,0xffffff,0xcc0000,0x00cc00};
+ const unsigned colors[]={palette[6],palette[1],palette[2],palette[5]};
  for(bool multicolor : {false,true}) {
  write(0x16,multicolor?0x18:0x08);
  for(unsigned bank=0;bank<4;++bank){
@@ -76,7 +78,7 @@ int main(int argc,char **argv){
     if(vx>=32&&vx<352&&vy>=35&&vy<235){unsigned nx=vx-32,ny=vy-35;unsigned cell=(ny/8)*40+nx/8,row=ny%8;
      unsigned packed=((cell+row+bank)&1)?0xe4:0x1b;
      if(multicolor){unsigned pair=(packed>>(6-2*((nx%8)/2)))&3;expected=colors[pair];}
-     else expected=(packed&(0x80>>(nx%8)))?0xffffff:0xcc0000;}}
+     else expected=(packed&(0x80>>(nx%8)))?palette[1]:palette[2];}}
     if(t.red!=(expected>>16)||t.green!=((expected>>8)&255)||t.blue!=(expected&255)){
       if(errors++<5)std::printf("bitmap bank%u x%u y%u got%02x%02x%02x expected%06x\n",bank,x,y,t.red,t.green,t.blue,expected);}
     ++pixels;

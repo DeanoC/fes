@@ -8,6 +8,7 @@
 // background and no stage digit.
 #include "Vc64_sim_top.h"
 #include "verilated.h"
+#include "pal_palette_reference.h"
 
 #include <cstdint>
 #include <cstdlib>
@@ -75,6 +76,7 @@ static int run(bool delayed) {
 
     bool white = false;
     bool red = false;
+    const auto expected_red = pal_palette_reference()[2];
     bool sound = false;
     int joy_wait = 0;
     int key_wait = 0;
@@ -99,7 +101,9 @@ static int run(bool delayed) {
         if (top.audio_sample != 0) sound = true;
         if (top.de) {
             if (top.red == 0xFF && top.green == 0xFF && top.blue == 0xFF) white = true;
-            if (top.red == 0xCC && top.green == 0x00 && top.blue == 0x00) red = true;
+            if (top.red == (expected_red >> 16) &&
+                top.green == ((expected_red >> 8) & 255) &&
+                top.blue == (expected_red & 255)) red = true;
         }
         if (pass_seen < 0 && top.debug_stage == 0xFF) {
             pass_seen = i;

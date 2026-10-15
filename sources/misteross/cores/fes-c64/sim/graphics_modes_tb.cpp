@@ -2,6 +2,7 @@
 #include "Vc64_video_sim_top.h"
 #include "Vc64_video_sim_top___024root.h"
 #include "verilated.h"
+#include "pal_palette_reference.h"
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
@@ -35,7 +36,8 @@ int main(int argc,char **argv){
  auto settle=[&](){for(unsigned n=0;n<6*1650*750;++n)pixel();};
  auto &ram=t.rootp->c64_video_sim_top__DOT__memory__DOT__ram;
 
- const unsigned palette[]={0x000000,0xffffff,0xcc0000,0x00ffff,0xcc44cc,0x00cc00,0x0000cc,0xeeee77,0xdd8855,0x664400,0xff7777,0x333333,0x777777,0xaaff66,0x0088ff,0xbbbbbb};
+ const auto palette=pal_palette_reference();
+ unsigned color_pixels[16]={};
 
  for(unsigned bank=0;bank<4;++bank)for(unsigned mode=0;mode<5;++mode){
   const unsigned enabled=0xdb,mcmask=0xaa,xmask=0x33,ymask=0x0f;
@@ -45,7 +47,7 @@ int main(int argc,char **argv){
   write(0x25,13);write(0x26,10);write(0x1b,0x55);write(0x1c,mcmask);write(0x1d,xmask);write(0x17,ymask);
   const unsigned patterns[]={0x1b,0xe4,0x3c,0x81};
   for(unsigned c=0;c<1000;++c){
-   unsigned code=c%4,mat=mode==2||mode==3?((c%14+1)<<4)|((c*3)%14+1):mode==4?((c%4)<<6)|code:code;
+   unsigned code=c%4,mat=mode==2||mode==3?((c%15+1)<<4)|((c*3)%14+1):mode==4?((c%4)<<6)|code:code;
    ram[bank*0x4000+0x400+c]=mat;t.color_addr=c;t.color_din=(c&1)?9:2;t.color_we=1;sys();
    if(mode==2||mode==3)for(unsigned row=0;row<8;++row)ram[bank*0x4000+0x2000+c*8+row]=patterns[(c+row)&3];
   }t.color_we=0;
@@ -75,10 +77,14 @@ int main(int argc,char **argv){
      }
     }
     }
-    unsigned expected=palette[color];if(t.red!=(expected>>16)||t.green!=((expected>>8)&255)||t.blue!=(expected&255)){if(errors++<8)std::printf("gfx bank%u mode%u x%u y%u got%02x%02x%02x expected%06x\n",bank,mode,x,y,t.red,t.green,t.blue,expected);}++pixels;
+    ++color_pixels[color];unsigned expected=palette[color];if(t.red!=(expected>>16)||t.green!=((expected>>8)&255)||t.blue!=(expected&255)){if(errors++<8)std::printf("gfx bank%u mode%u x%u y%u got%02x%02x%02x expected%06x\n",bank,mode,x,y,t.red,t.green,t.blue,expected);}++pixels;
    }
   }
   if(pixels!=1280*720||errors){std::printf("FAIL gfx bank%u mode%u pixels%u errors%u\n",bank,mode,pixels,errors);return 1;}
   std::printf("Sprite graphics-mode frame PASS bank%u mode%u\n",bank,mode);
  }
+ for(unsigned color=0;color<16;++color){
+  if(!color_pixels[color]){std::printf("FAIL no HDMI pixels for PAL color%u\n",color);return 1;}
+ }
+ std::puts("All 16 PAL colors checked through native graphics, frame store and HDMI scaling");
 }

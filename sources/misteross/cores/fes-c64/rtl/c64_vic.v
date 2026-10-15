@@ -100,26 +100,30 @@ module c64_vic (
         end
     end
 
+    // Colodore PAL, common VIC-II luma revision, brightness/contrast/color 50/100/50.
+    // Philip Timmermann, Calculating the color palette of the VIC II (Feb 2017):
+    // https://www.pepto.de/projects/colorvic/ . PAL 2.8 -> display 2.2 gamma.
+    // Fixed RGB reference only; composite chroma/scanline effects are not applied.
     function automatic [23:0] palette;
         input [3:0] index;
         begin
             case (index)
                 4'h0: palette = 24'h000000;
                 4'h1: palette = 24'hFFFFFF;
-                4'h2: palette = 24'hCC0000;
-                4'h3: palette = 24'h00FFFF;
-                4'h4: palette = 24'hCC44CC;
-                4'h5: palette = 24'h00CC00;
-                4'h6: palette = 24'h0000CC;
-                4'h7: palette = 24'hEEEE77;
-                4'h8: palette = 24'hDD8855;
-                4'h9: palette = 24'h664400;
-                4'hA: palette = 24'hFF7777;
-                4'hB: palette = 24'h333333;
-                4'hC: palette = 24'h777777;
-                4'hD: palette = 24'hAAFF66;
-                4'hE: palette = 24'h0088FF;
-                default: palette = 24'hBBBBBB;
+                4'h2: palette = 24'h813338;
+                4'h3: palette = 24'h75CEC8;
+                4'h4: palette = 24'h8E3C97;
+                4'h5: palette = 24'h56AC4D;
+                4'h6: palette = 24'h2E2C9B;
+                4'h7: palette = 24'hEDF171;
+                4'h8: palette = 24'h8E5029;
+                4'h9: palette = 24'h553800;
+                4'hA: palette = 24'hC46C71;
+                4'hB: palette = 24'h4A4A4A;
+                4'hC: palette = 24'h7B7B7B;
+                4'hD: palette = 24'hA9FF9F;
+                4'hE: palette = 24'h706DEB;
+                default: palette = 24'hB2B2B2;
             endcase
         end
     endfunction

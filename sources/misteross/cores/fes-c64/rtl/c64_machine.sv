@@ -80,7 +80,18 @@ module c64_machine #(
     // The synchronous CPU prepares the following bus cycle. Only a write
     // already on the bus can finish under BA; a prepared write must not
     // retire its preceding operand read while that read is stalled.
-    wire cpu_run_ce=cpu_ce&&(vic_ba_n||bus_we);
+    // Phase26 guest writes commit27 SYS edges after the previous CPU enable.
+    // BA can be captured on edge28 and consumed on edge29. Shorter periods
+    // retain the direct path, including adjacent-enable parameter modes.
+    wire cpu_ba_n;
+    generate if (SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 29) begin : prepared_cpu_ba
+        reg value = 1'b1;
+        always @(posedge clk_sys) value <= vic_ba_n;
+        assign cpu_ba_n = value;
+    end else begin : direct_cpu_ba
+        assign cpu_ba_n = vic_ba_n;
+    end endgenerate
+    wire cpu_run_ce=cpu_ce&&(cpu_ba_n||bus_we);
     reg [7:0] cpu_di = 8'hff;
     wire irq_n, nmi_n;
     cpu6502 cpu (

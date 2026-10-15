@@ -108,6 +108,7 @@ RTL_SOURCES = (
     "cores/fes-c64/rtl/c64_vic_sprite_fetch.sv",
     "cores/fes-c64/rtl/c64_frame_store.sv",
     "cores/fes-c64/rtl/c64_sid_envelope.sv",
+    "cores/fes-c64/rtl/c64_sid_oscillator.sv",
     "cores/fes-c64/rtl/c64_sid.v",
     "cores/fes-c64/rtl/c64_cia.v",
     "cores/fes-c64/rtl/c64_drive1541.sv",
@@ -126,6 +127,7 @@ PINNED_INPUTS = (
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
     ABI_DEFINITION, C64_TOOLCHAIN_LOCK, QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
     "cores/fes-c64/rtl/c64_cia.COPYING",
+    "cores/fes-c64/rtl/c64_sid.COPYING",
 )
 BUILD_OUTPUTS = (
     "synth.json", "routed.json", "core.rbf", "timing.json", "yosys.log", "nextpnr.log",

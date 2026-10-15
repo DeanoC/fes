@@ -1757,9 +1757,22 @@ only the selected voice; `$D41C` and SID mirrors expose the sampled ENV3 value
 through the motherboard's existing late read phase. The mixer centers the
 voice codes, sums their signed envelope products, applies linear four-bit
 master gain and scales into signed 16-bit PCM. The offline source-oracle
-regression exercises 15.6 million system-clock edges. Waveforms remain
-simplified and filter, sync, ring modulation, OSC3/paddle reads and bus decay
-remain open; this does not establish complete SID or analog audio fidelity.
+regression exercises 15.6 million system-clock edges. Each voice also has a
+`c64_sid_oscillator`: single triangle/saw/pulse/noise waveforms, 23-bit noise
+with a two-Phi2 shift pipeline, TEST transitions and floating-output decay.
+`$D41B` exposes voice 3's upper eight waveform bits. The oscillator uses the
+unstalled Phi2 enable; a SYS edge advances old oscillator state before a bus
+write, with reset taking priority. Warm reset retains phase, while power-up
+uses reSID's deterministic `$555555` fixture, not a hardware startup claim.
+The additional offline oscillator and OSC3 tests replay the pinned VICE 3.10
+reSID source at native 53/54-SYS periods and other directed write phases;
+native bus writes arrive 27 SYS edges after Phi2. Source, licensing,
+regeneration and the explicit host-integer noise-state normalization are in
+the core README. All compiled reference dependencies are hash checked.
+Unsupported combinations retain the old OR formula without a claim that
+its update timing is unchanged. Filter, sync, ring modulation, coupled
+waveforms, analog DACs, paddle reads and bus decay remain open. The host
+checks do not establish complete SID, analog audio or routed-core fidelity.
 `c64_vic_sprite_pixels` supplies per-dot shifts, multicolor/X expansion,
 foreground priority and collision masks. Sprite X and pointer/row/display
 events use the same PAL cycle. The registered final DMA byte is captured at
@@ -1786,7 +1799,13 @@ private buffer is written. The native clock runs independently of HDMI.
 HDMI presents the PAL view in a centered 960×720 viewport at fixed 720p60.
 Small rational accumulators select native floor(x×2/5), floor(y×17/45)
 coordinates without dividers. Light-pen capture, exact mode-transition quirks,
-physical subpixel phases and fresh route/seal/hardware acceptance remain open. The D64 media mailbox is unchanged.
+physical subpixel phases and fresh route/seal/hardware acceptance remain open.
+HDMI maps the 16 indices through the fixed Colodore PAL RGB lookup: common
+VIC-II luma revision, brightness/contrast/saturation 50/100/50 and gamma
+2.8 to 2.2. Full-frame graphics tests calculate the expected RGB values from
+the published model and cover every colour at the HDMI pins. This does not
+simulate composite chroma mixing, scanlines or adjustable monitor controls.
+The D64 media mailbox is unchanged.
 See the core README.
 The production `c64_drive1541` runs the shared 6502 at 1 MHz from a divided
 16 MHz reference, with 2 KiB mirrored RAM, two `c64_via` slices and IEC
@@ -1884,6 +1903,15 @@ adder from CPU RDY. Rates at or above half the system clock retain the direct
 comparison for adjacent pulses. `make sim-fes-c64-clock` checks the actual
 motherboard enable against an independent fractional reference through a full
 PAL second, including boundary/adjacent/full-rate parameter cases.
+The CPU BA input is registered only when the minimum Phi2 interval is at
+least 29 system clocks. The last relevant guest write is accepted at old
+cycle counter 26, changing BA after edge 27; registration captures it on
+edge 28, so edge 29 is the earliest safe retirement. Earlier beam and DMA
+changes settle before this point. Shorter and adjacent-enable parameter
+modes keep direct BA, while the active bus-write exemption remains live.
+Raw VIC BA/AEC and DMA outputs are unchanged. `make sim-fes-c64-ba-timing`
+checks enabled-edge retirement across native fractional cadence, guard
+boundaries, faster fallbacks, late writes and every reset phase.
 The machine uses a 985,248 Hz PAL Phi2 enable. Its VIC beam spans 312 lines
 of 63 Phi2 cycles; HDMI rendering still runs independently at 720p60. The
 open machine test checks the fractional Phi2 count on every system tick, and

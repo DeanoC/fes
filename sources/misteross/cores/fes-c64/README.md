@@ -52,12 +52,13 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Flags latch independently of `$D01A`; clearing a collision register permits
   a later event to retrigger. Light-pen capture, exact mode transitions and
   physical subpixel phase remain open.
-- Reduced SID: three voices with eight-bit pipelined ADSR envelopes, ENV3
-  readback and signed PCM with linear four-bit master volume. Envelope rate,
-  exponential division, gate pipelines, zero hold and the ADSR delay bug follow
-  reSID's digital model. Pulse, saw, triangle and noise generation remain
-  simplified; filter, sync, ring modulation, accurate combined waveforms,
-  OSC3/paddle reads and SID bus decay remain open.
+- Reduced SID: three digital oscillators with triangle, saw, delayed pulse,
+  23-bit noise, TEST transitions and floating waveform decay; OSC3 and ENV3
+  readback; eight-bit pipelined ADSR and signed PCM with linear master volume.
+  Single-wave digital timing and envelopes follow reSID's MOS6581 model.
+  Filter, sync, ring modulation, coupled waveforms, paddle reads, analog DAC
+  behavior and SID bus decay remain open. Unsupported waveform combinations
+  retain the previous OR formula; their update timing is not qualified.
 - CIA1: keyboard matrix, joystick and IRQ. CIA2: IEC, the VIC bank and NMI.
   VIC banking follows the effective PA0/PA1 pin levels, including pull-ups
   when their direction bits select inputs; it does not follow the output
@@ -71,7 +72,14 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   bit 7 and interrupt-pin timing. TOD, serial shift, FLAG input and PB6/PB7
   timer outputs remain unimplemented. Port 2 (CIA1 port A) is controller port 0.
 - HDMI 720p60. The 384×272 PAL view is scaled into a centered 960×720
-  viewport using rational nearest-neighbor sampling; side pillars are black. Audio is the shared 48 kHz I2S serializer.
+  viewport using rational nearest-neighbor sampling; side pillars are black.
+  The fixed RGB lookup uses Philip Timmermann's
+  [Colodore PAL calculation](https://www.pepto.de/projects/colorvic/) (February
+  2017), common VIC-II luma revision, brightness/contrast/saturation 50/100/50
+  and PAL 2.8 to display 2.2 gamma. The graphics-mode simulation checks all 16
+  colours through the frame store and HDMI output against an independent
+  calculation. Composite chroma mixing, scanlines and monitor adjustments
+  remain outside this fixed RGB output. Audio is the shared 48 kHz I2S serializer.
 
 ## Keyboard
 
@@ -205,6 +213,15 @@ priority over simultaneous IRQ. `make sim-fes-c64-nmi` checks 7,840 entry
 and stack cases against pinned transistor-model results, including short
 pulses entirely between CPU enables. NMI hijacking and subphase behavior
 remain unqualified.
+
+The CPU consumes a registered VIC BA value when every Phi2 interval has at
+least 29 system clocks. A phase-26 guest write commits at system edge 27;
+BA is captured at edge 28 and is safe for CPU retirement at edge 29.
+Shorter intervals retain the direct BA path, and the active write exemption
+remains combinational. Raw VIC BA and DMA timing are unchanged.
+`make sim-fes-c64-ba-timing` checks retirement against raw BA at each enabled
+edge across native 53/54-clock intervals, the 29-clock boundary and faster
+fallbacks, with late register writes, sprite/display boundaries and resets.
 
 The motherboard's BA write exemption uses the active latched bus direction.
 The synchronous CPU's `WE` describes its prepared following cycle; using it
@@ -504,22 +521,84 @@ disk loading and fastloader execution are not exercised by this isolated
 component observer. The full boot harness couples the production drive to the
 D64 medium and the C64.
 
-### Digital SID envelope regression
+### Digital SID regression
 
-`make sim-fes-c64-sid` first checks 21,240,086 envelope edges against a second
-source-oracle fixture: all 16 rates, complete fast attack/release, 182,011
-writes, 249,426 held clocks and 11 resets. It then replays 15,600,002
-system-clock edges across all three
-voices, 37,907 selected writes and 300,000 ENV3 reads. Writes occur at native
-phase 26 and reads at phase 43. The offline fixture comes from unmodified
-VICE 3.10 reSID `EnvelopeGenerator`; the ordinary test needs no reference
-emulator, Commodore firmware or recordings. Regenerate it with
-`python3 scripts/generate_c64_sid_vectors.py --vice-source /path/to/vice-3.10`.
-The generator validates the reference source hashes and retains its GPL
-notices in the temporary build. Constant-pulse input checks signed PCM and
-linear gain arithmetic; this does not qualify the SID waveform or analog
-filter model. The digital envelope starts at the reference's power-up value
-`$AA`; reset retains its counter while clearing register/pipeline state.
+`make sim-fes-c64-sid` runs four portable tests, using checked-in vectors and
+no reference emulator, Commodore firmware or recordings:
+
+- `sim-fes-c64-sid-envelope` checks 21,240,086 envelope edges: all 16 rates,
+  complete fast attack/release, 182,011 writes, 249,426 held clocks and 11 resets.
+- The existing three-voice envelope/gain replay checks 15,600,002 SYS edges,
+  37,907 writes and 300,000 ENV3 reads. Its fixed 52-clock test schedule writes
+  at offset 26 and reads at offset 43; constant pulse output isolates the
+  envelope and signed linear-gain arithmetic.
+- `sim-fes-c64-sid-oscillator` checks 29 scenarios over 1,906,885 SYS edges,
+  1,188,866 Phi2 edges and 20,581 writes. It covers frequency extremes, noise
+  bit-19 pipeline timing, TEST rise/fall and long reset holds, pulse-width
+  updates, each single waveform, floating-output decay, warm reset, all
+  relative write phases and simultaneous clock/register events.
+- `sim-fes-c64-sid-osc3` checks 1,200,010 SYS edges, 1,194,495 OSC3 reads and
+  4,332 accepted writes across three voices, including deselected writes and
+  warm resets. Its fractional 52.224 MHz / 985248 Hz clock uses 53/54 SYS
+  periods. Writes land 27 SYS edges after Phi2: the motherboard's comparison
+  with `cycle_clock==26` observes the old register value.
+
+The oscillator runs on `cpu_ce`, including VIC CPU stalls, rather than the
+BA-qualified CPU execution enable. A SYS edge first advances the oscillator
+on Phi2 using its old registers, then accepts the bus write. Reset takes
+priority over both. `$D41B` and its motherboard mirrors read the upper eight
+bits of voice 3's digital waveform without a side effect. The mixer uses the
+same upper eight bits. The noise shift register uses taps 22/17 and output
+bits 20/18/14/11/9/5/2/0; a rising accumulator bit 19 shifts it after two Phi2
+edges. TEST holds phase at zero, resets the noise register through the
+MOS6581 bit-fade sequence, and applies the falling-edge shift. Pulse output
+retains the reference's one-cycle comparator pipeline.
+
+The oracle links unchanged VICE 3.10 reSID `WaveformGenerator` and
+`EnvelopeGenerator`, by Dag Lem, under GPL-2.0-or-later. The adapted RTL and
+source-linked oscillator harnesses use the same license; the complete text
+is [c64_sid.COPYING](rtl/c64_sid.COPYING). The generator checks every compiled
+reference dependency, including both model waveform-table sets, before
+copying them into a temporary build. It does not call RTL or duplicate the
+waveform equations. The tables are required to compile the reference;
+combined-wave behavior is not included in the qualified subset.
+
+Reference: [VICE 3.10 source archive](https://github.com/VICE-Team/svn-mirror/releases/download/3.10.0/vice-3.10.tar.gz),
+SHA256 `8e5bac18cbcb9f192380ad3ef881f8790f5b75c41d7b3da65d831985d864d6d1`.
+From `sources/misteross`, regenerate or verify all four fixtures:
+
+```sh
+python3 scripts/generate_c64_sid_vectors.py --vice-source /path/to/vice-3.10
+python3 scripts/generate_c64_sid_vectors.py --vice-source /path/to/vice-3.10 --check
+make sim-fes-c64-sid
+```
+
+`--component oscillator` and `--component oscillator-bus` select the new
+fixtures; `sid` and `envelope` select the prior tests. `--output` selects one
+fixture's destination. The oscillator regression fingerprints every SYS
+state using 64-bit FNV-1a blocks, with explicit ending states for diagnosis.
+These are regression checks, not cryptographic attestations.
+`C64_OSC_TRACE_FROM` and `C64_OSC_TRACE_TO` print an inclusive SYS-edge range
+from either the source oracle or the oscillator replay.
+
+reSID's noise bit-fade operation leaves unused host-integer bits above bit
+22 set. The comparison masks those bits to the physical 23-bit register,
+and ignores the reset countdown only when TEST is clear or all 23 bits have
+become one. In either case the countdown cannot change the visible output;
+the next TEST rise starts it again. Phase, waveform, OSC3, register state,
+shift pipeline, pulse pipeline and every active decay transition remain
+compared. Power-up phase `$555555` and envelope `$AA` are deterministic
+reSID fixtures, not measured hardware startup values. Warm reset retains
+phase and the envelope counter while clearing their register/pipeline state.
+
+The qualified oscillator subset is one waveform at a time, with sync and
+ring disabled. The prior OR formula remains for combinations, but its
+update timing is not qualified as unchanged. Sync, ring, analog DACs,
+filter/resonance, paddles and write-only bus decay remain unimplemented.
+Host digital replay does not establish audible HDMI or real-SID fidelity.
+Standalone locked-Yosys synthesis of this change grew from 427 to 679 FF
+and 1,976 to 3,253 ALUT-family cells, with no RAM or DSP use. A whole-core
+fit, route and hardware qualification is still required for these bytes.
 
 ### Development PRG launch
 

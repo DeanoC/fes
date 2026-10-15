@@ -2,6 +2,7 @@
 #include "Vc64_video_sim_top.h"
 #include "Vc64_video_sim_top___024root.h"
 #include "verilated.h"
+#include "pal_palette_reference.h"
 #include <cstdio>
 #include <cstdint>
 #include <cstdlib>
@@ -35,7 +36,7 @@ int main(int argc,char **argv){
  auto settle=[&](){for(unsigned n=0;n<6*1650*750;++n)pixel();};
  auto &ram=t.rootp->c64_video_sim_top__DOT__memory__DOT__ram;
 
- const unsigned palette[]={0x000000,0xffffff,0xcc0000,0x00ffff,0xcc44cc,0x00cc00,0x0000cc,0xeeee77,0xdd8855,0x664400,0xff7777,0x333333,0x777777,0xaaff66,0x0088ff,0xbbbbbb};
+ const auto palette=pal_palette_reference();
  for(unsigned bank=0;bank<4;++bank)for(unsigned mode=0;mode<8;++mode){
   const unsigned mcmask=(mode&1)?0xaa:0x55,xmask=(mode&2)?0xcc:0x33,ymask=(mode&4)?0xf0:0x0f,enabled=(mode&4)?0xdb:0xbd;
   t.bank=bank;write(0x11,0x1b);write(0x16,8);write(0x18,0x18);write(0x20,0);write(0x21,6);

@@ -119,6 +119,8 @@ help:
 		"  build-fes-spectrum  Seal FES ZX Spectrum (format 3 firmware map, four edge sockets) with HIP (CACHE_ROOT=)" \
 		"  c64-diagnostic  Generate the open C64 firmware, font and synthetic D64" \
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
+		"  sim-fes-c64-sid  Check digital oscillators, OSC3, envelopes and linear gain" \
+		"  sim-fes-c64-ba-timing  Check CPU retirement at VIC BA phase boundaries" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
 		"  build-fes-atari-st-card  Seal a probe in ST_SHELL/ST_PACKAGE socket 1" \
@@ -1028,7 +1030,7 @@ C64_BOOT_VISIBILITY := $(if $(filter 1,$(C64_BOOT_FULL_VISIBILITY)),--public-fla
 C64_RTL := cores/fes-c64/rtl/c64_machine.sv cores/fes-c64/rtl/c64_ram.v \
 	cores/fes-c64/rtl/c64_color_ram.v \
 	cores/fes-c64/rtl/c64_rom.v cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv \
-	cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv cores/fes-c64/rtl/c64_frame_store.sv cores/fes-c64/rtl/c64_sid_envelope.sv cores/fes-c64/rtl/c64_sid.v \
+	cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv cores/fes-c64/rtl/c64_frame_store.sv cores/fes-c64/rtl/c64_sid_envelope.sv cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid.v \
 	cores/fes-c64/rtl/c64_cia.v cores/fes-c64/rtl/c64_disk_store.v \
 	cores/fes-c64/rtl/c64_drive1541.sv cores/fes-c64/rtl/c64_via.v cores/fes-c64/rtl/c64_gcr_read.v cores/fes-c64/rtl/c64_d64_medium.sv \
 	cores/fes-c64/rtl/c64_keyboard.v cores/fes-c64/rtl/c64_slot_sockets.v \
@@ -1199,6 +1201,12 @@ sim-fes-c64-sprite:
 		"$(CURDIR)/cores/fes-c64/sim/sprite_tb.cpp"
 	@build/sim/fes-c64-sprite/Vc64_vic_sprite_fetch
 
+.PHONY: sim-fes-c64-ba-timing
+sim-fes-c64-ba-timing:
+	$(require_local_sim)
+	$(PYTHON) cores/fes-c64/sim/ba_timing_cases.py --verilator "$(VERILATOR)" \
+		--build-dir build/sim/fes-c64-ba-timing -- $(C64_VERILATOR_FLAGS) $(C64_RTL)
+
 .PHONY: sim-fes-c64-ready
 sim-fes-c64-ready: c64-diagnostic
 	$(require_local_sim)
@@ -1356,7 +1364,7 @@ sim-fes-c64-frame:
 		"$(CURDIR)/cores/fes-c64/sim/frame_tb.cpp"
 	@build/sim/fes-c64-frame/Vc64_frame_store
 
-sim-fes-c64: sim-fes-c64-vic-timing sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
+sim-fes-c64: sim-fes-c64-ba-timing sim-fes-c64-vic-timing sim-fes-c64-medium sim-fes-c64-medium-mailbox sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-cia-reference sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \
@@ -2292,14 +2300,36 @@ sim-fes-c64-open-graphics:
 	@build/sim/fes-c64-open-graphics/Vc64_video_sim_top
 
 .PHONY: sim-fes-c64-sid
-sim-fes-c64-sid: sim-fes-c64-sid-envelope
+sim-fes-c64-sid: sim-fes-c64-sid-envelope sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid" \
-		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_envelope.sv \
+		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sid_tb.cpp"
 	@build/sim/fes-c64-sid/Vc64_sid_sim_top
+
+.PHONY: sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3
+sim-fes-c64-sid-oscillator:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-oscillator
+	$(VERILATOR) --cc --exe --build -O2 --top-module oscillator_sim_top $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-oscillator" \
+		cores/fes-c64/sim/sid_oscillator_sim_top.sv cores/fes-c64/rtl/c64_sid_oscillator.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_oscillator_tb.cpp"
+	@build/sim/fes-c64-sid-oscillator/Voscillator_sim_top
+
+sim-fes-c64-sid-osc3:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-osc3
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-osc3" \
+		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
+		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_oscillator_bus_tb.cpp"
+	@build/sim/fes-c64-sid-osc3/Vc64_sid_sim_top
 
 .PHONY: sim-fes-c64-sid-envelope
 sim-fes-c64-sid-envelope:
