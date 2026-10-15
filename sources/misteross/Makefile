@@ -1121,7 +1121,8 @@ sim-fes-c64-color-ram:
 sim-fes-c64-boot-build:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-boot
-	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) $(C64_BOOT_VISIBILITY) --savable -CFLAGS -O3 \
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) $(C64_BOOT_VISIBILITY) --savable \
+		-MAKEFLAGS 'OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3' \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-boot" \
 		cores/fes-c64/sim/c64_boot_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/boot_tb.cpp"
@@ -1131,7 +1132,8 @@ sim-fes-c64-boot-oracle-build:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-boot-oracle
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_boot_sim_top $(C64_VERILATOR_FLAGS) $(C64_BOOT_VISIBILITY) --savable \
-		-DFES_C64_EXTERNAL_MEDIUM_SIM -CFLAGS '-O3 -DFES_C64_EXTERNAL_MEDIUM_SIM' \
+		-MAKEFLAGS 'OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3' \
+		-DFES_C64_EXTERNAL_MEDIUM_SIM -CFLAGS -DFES_C64_EXTERNAL_MEDIUM_SIM \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-boot-oracle" \
 		cores/fes-c64/sim/c64_boot_sim_top.sv $(C64_RTL) \
 		"$(CURDIR)/cores/fes-c64/sim/boot_tb.cpp"
