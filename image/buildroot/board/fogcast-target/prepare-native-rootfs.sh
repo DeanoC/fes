@@ -70,7 +70,37 @@ if [ -n "$verified_notice" ]; then
     --selection "$target/usr/share/mister-runtime/selections/fes-ramtest.package.toml" >/dev/null
 fi
 
+# Warm trees hold aliases from the previous assembled factory bundle. Restore
+# the last runtime only when Buildroot has not installed a new regular binary;
+# FogCast executables below always come from the selected fresh build.
+for binary in mister-runtime mister-agent fogcast-kit fogcast-tenfoot; do
+  destination=$target/usr/sbin/$binary
+  if [ -L "$destination" ]; then
+    [ "$(readlink "$destination")" = "/run/fogcast/software/current/bin/$binary" ] || exit 1
+    /bin/rm "$destination"
+    if [ "$binary" = mister-runtime ]; then
+      /usr/bin/install -m 0755 "$target/usr/share/fes/software/bin/$binary" "$destination"
+    fi
+  fi
+done
+# Warm trees hold aliases from the previous assembled factory bundle. The
+# Buildroot overlay does not replace that symlink, so install this build's
+# overlay assets before the new bundle is sealed. Drop the previous bundle
+# before scanning selected bytes.
+if [ -L "$target/usr/share/fogcast" ]; then
+  [ "$(readlink "$target/usr/share/fogcast")" = /run/fogcast/software/current/share/fogcast ] || exit 1
+  /bin/rm "$target/usr/share/fogcast"
+  overlay_assets=$script_dir/native-rootfs-overlay/usr/share/fogcast
+  [ -d "$overlay_assets" ] && [ ! -L "$overlay_assets" ] || exit 1
+  /bin/cp -R "$overlay_assets" "$target/usr/share/fogcast"
+fi
+if [ -e "$target/usr/share/fes/software" ] || [ -L "$target/usr/share/fes/software" ]; then
+  [ -d "$target/usr/share/fes/software" ] && [ ! -L "$target/usr/share/fes/software" ] || exit 1
+  /bin/chmod -R u+rwX "$target/usr/share/fes/software"
+  /bin/rm -rf "$target/usr/share/fes/software"
+fi
 /bin/mkdir -p "$target/usr/sbin"
+/bin/rm -f "$target/usr/sbin/mister-supervise"
 /usr/bin/install -m 0755 "$agent" "$target/usr/sbin/mister-agent"
 # Warm Buildroot trees retain the previous launchers. Replace every selected
 # FogCast executable before scanning the tree that this build will ship.
@@ -86,8 +116,6 @@ fi
   "$target/etc/init.d"/S20mister-network \
   "$target/etc/init.d"/S30mister-dropbear \
   "$target/etc/init.d"/S49fogcast-target-smoke \
-  "$target/etc/init.d"/S50mister-agent \
-  "$target/usr/sbin/mister-supervise" \
   "$target/usr/sbin/fes-reboot-backstop"
 
 /bin/rm -rf "$target/etc/dropbear"

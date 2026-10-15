@@ -1,5 +1,13 @@
 # Kit runtime manifest
 
+This file-overlay workflow applies only to maintenance-aware images that do not
+use the stable kit software supervisor. Managed images reject claim, swap,
+baseline and restore plans before mutation. Use a private diagnostic host and
+[immutable kit software releases](kit-software-releases.md); return to a prior
+installed bundle through explicit generation-checked activation. Config-only
+temporary overlays are not supported on managed images. The unmanaged path
+remains for bootstrap adoption and is not an alternative managed update path.
+
 Dev kits A and B keep a record of every file that is not the stock copy.
 Agents change those files only through `scripts/fes`. Copying a binary, a
 package file, `launcher.json`, or `agent.toml` onto a kit any other way is
@@ -117,8 +125,8 @@ boot id, the hold, and each component's current hash against stock and, with
 stock baseline, so stock is `unrecorded`. `--json` prints the same report.
 
 `restore` is for temporary overlay diagnostics. Accepted appliance updates remain
-installed and do not use this command. Separate persistent kit-software releases
-are planned in [modular updates](modular-updates.md).
+installed and do not use this command. Managed software uses [persistent kit-software releases](kit-software-releases.md)
+and refuses this file-overlay command.
 
 `restore` puts every manifest entry back to its stock backup, checks the
 hashes, unmounts tmpfs binds, restarts the affected services, removes stray
@@ -180,6 +188,10 @@ maintenance contract, is rejected before service shutdown.
 
 ## Drift watcher
 
+Managed images report `MANAGED software` and direct the operator to
+`fes-software --action status`. Their watcher does not compare inactive factory
+binaries with a working bundle, write stock baselines, or attempt restoration.
+
 `python3 scripts/fes kit watch --once` hashes both kits, compares them with
 the manifest and the drift baseline, and appends to
 `~/.local/state/fes-kit/fes-kit-drift/watch.log` (or `FES_KIT_DRIFT_DIR`).
@@ -208,8 +220,10 @@ sudo systemctl enable --now fes-kit-drift.timer
 
 ## HIL
 
-Hardware evidence for a kit run includes `python3 scripts/fes kit status <kit>`.
-Claim before changing files, swap instead of copying, and restore before
+Managed kit evidence records `fes-software --action status` with the exact
+base-image, bundle and core identities. On unmanaged images, hardware evidence
+includes `python3 scripts/fes kit status <kit>`. Claim before changing files,
+swap instead of copying, and restore before
 calling the run done. The lease steps in [overlay HIL](hil-overlay.md) stay;
 file installation goes through this tool. The kit addresses and the restart
 rules are in the FogCast [development guide](../sources/FogCast/docs/DEVELOPMENT.md).

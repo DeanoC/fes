@@ -1759,6 +1759,7 @@ def main():
                 if present.returncode:
                     run_stage(diagnostics, "image subprocess", [container, "pull", "--platform", base["platform"], ref], env=env)
                 run_stage(diagnostics, "image subprocess", fogcast_make + ["build-agent", "build-fogcast-kit"], env=env)
+                platform.build_kit_software(ROOT, fogcast, env)
                 run_stage(diagnostics, "image subprocess", image_make + ["build-target-image-lock-container"], env=env)
                 fetch_env = dict(env)
                 fetch_env.update(dict(argument.split("=", 1)

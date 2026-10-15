@@ -52,6 +52,9 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 		health.TargetID = ""
 		if authenticatedRequest(r, token) {
 			health.TargetID = settings.targetID
+			if settings.kitSoftwareSocket != "" {
+				health.Software = kitSoftwareHealth(r.Context(), settings.kitSoftwareSocket)
+			}
 		}
 		writeJSON(w, http.StatusOK, health)
 	})
@@ -86,6 +89,9 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 		registerInputRoutes(mux, token, settings.input)
 	}
 	var handler http.Handler = mux
+	if settings.kitSoftwareSocket != "" {
+		registerKitSoftwareRoutes(mux, token, settings.kitSoftwareSocket)
+	}
 	if settings.update != nil {
 		registerUpdateRoutes(mux, token, settings.update, settings.kitLease != nil, logger)
 		handler = guardUpdateAdmission(handler, token, settings.update)

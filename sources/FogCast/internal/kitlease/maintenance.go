@@ -91,7 +91,13 @@ func (m *Manager) StartMaintenance(token string, r contract.MaintenanceStartRequ
 		}
 		return m.maintenanceGrantLocked(), nil
 	}
+	if m.executionFence {
+		return contract.MaintenanceGrant{}, ErrBlocked
+	}
 	if m.maintenanceActiveLocked() {
+		return contract.MaintenanceGrant{}, ErrBusy
+	}
+	if m.queuedMaintenance != nil {
 		return contract.MaintenanceGrant{}, ErrBusy
 	}
 	if m.status.State != "held" || !m.ownsLocked(token) {

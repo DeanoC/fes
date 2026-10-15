@@ -163,8 +163,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   again (`recover_idle`) before any board reboot. `/sbin/reboot` runs when
   that idle program fails, and when an older runtime rejects `recover_idle`
   as an unknown operation. Stop returns a recovery error immediately when
-  no reboot was started. Overlay restarts use host Stop to idle, a free kit
-  lease, then SIGTERM through `mister-supervise`.
+  no reboot was started. Managed software updates wait for a released kit lease
+  and restart through the base supervisor; successful releases remain installed.
+  See [kit software releases](../../docs/kit-software-releases.md).
 - Browser UI, local media previews, and host-emulator/remote-media modes.
 - Linux hosts can provide the optional local session preview from a V4L2
   capture device through FFmpeg; configure the absolute device path in the

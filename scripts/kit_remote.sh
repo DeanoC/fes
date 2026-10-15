@@ -26,6 +26,19 @@ note() {
   printf 'fes-kit: %s\n' "$*" >&2
 }
 
+software_managed() {
+  [ -e "$(lp /usr/sbin/fes-kit-software)" ] ||
+    [ -L "$(lp /usr/sbin/fes-kit-software)" ] ||
+    [ -e "$(lp /etc/init.d/S40fes-kit-software)" ] ||
+    [ -S "$(lp /run/fogcast/software.sock)" ]
+}
+
+require_unmanaged() {
+  if software_managed; then
+    die "managed kit software refuses file swaps/restores; use immutable bundle install and queued activation (fes-software)"
+  fi
+}
+
 valid_name() {
   case "$1" in
     ''|*[!A-Za-z0-9._+-]*) return 1 ;;
@@ -378,6 +391,9 @@ probe() {
   mkdir -p "$(lp /tmp)" "$(lp /media/fat/fes)"
   boot=$(tr -d '[:space:]' < "$proc/sys/kernel/random/boot_id")
   printf -- '--BOOT--\n%s\n--/BOOT--\n' "$boot"
+  managed=0
+  if software_managed; then managed=1; fi
+  printf -- '--SOFTWAREMANAGED--\n%s\n--/SOFTWAREMANAGED--\n' "$managed"
   cat_block BOOTJSON "$(lp /media/fat/fogcast/releases/boot.json)"
   cat_block STATEJSON "$(lp /media/fat/fogcast/releases/state.json)"
   good=$(extract_good "$(lp /media/fat/fogcast/releases/state.json)")
@@ -548,6 +564,7 @@ check_agent_contract() {
 }
 
 apply_plan() {
+  require_unmanaged
   plan=$1
   valid_path "$plan" || die "bad plan path"
   [ -f "$(lp "$plan")" ] || die "missing plan $plan"

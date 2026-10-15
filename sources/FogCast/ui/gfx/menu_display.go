@@ -141,6 +141,7 @@ func (d *MenuDisplay) ClearSessionBinding() {
 }
 
 func (d *MenuDisplay) setBindingLocked(binding menuSessionBinding) {
+	reportSoftwareReady(false)
 	d.binding = binding
 	d.bindingEpoch++
 	d.known = false
@@ -308,6 +309,7 @@ func (d *MenuDisplay) Pause(ctx context.Context) error {
 	}
 	d.mu.Lock()
 	d.paused = true
+	reportSoftwareReady(false)
 	d.forgetSubmissionLocked()
 	d.clearPaceLocked()
 	select {
@@ -437,6 +439,7 @@ func (d *MenuDisplay) runProbe(frame queuedMenuFrame) {
 		d.lastProbe = d.clock()
 		d.lastErr = nil
 		d.resetBackoffLocked()
+		d.reportSoftwareReadyLocked(status)
 		d.mu.Unlock()
 		return
 	}
@@ -481,6 +484,7 @@ func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudispla
 		d.clearProbeQueuedLocked(frame.epoch)
 		return
 	}
+	defer func() { d.reportSoftwareReadyLocked(status) }()
 	d.clearProbeQueuedLocked(frame.epoch)
 	if err == nil {
 		d.generation = status.Generation
@@ -513,7 +517,14 @@ func (d *MenuDisplay) noteGenerationLocked(seq, generation uint64) {
 	}
 }
 
+// Readiness describes the current acknowledged idle display, not a historical
+// successful frame. Call only after validating the response's binding epoch.
+func (d *MenuDisplay) reportSoftwareReadyLocked(status menudisplay.Status) {
+	reportSoftwareReady(!d.paused && !d.closed && d.hasPresented && d.lastErr == nil && status.Available && status.Generation == d.presentedGen && status.Underflows <= menudisplay.TransientUnderflowCap)
+}
+
 func (d *MenuDisplay) notePresentResultLocked(presented, genChanged bool, err error, status menudisplay.Status) {
+	defer func() { d.reportSoftwareReadyLocked(status) }()
 	if presented {
 		d.hasPresented = true
 		d.presentedGen = status.Generation
@@ -642,6 +653,7 @@ func (d *MenuDisplay) Close() {
 		return
 	}
 	d.closed = true
+	reportSoftwareReady(false)
 	d.cancel()
 	d.mu.Unlock()
 	<-d.done

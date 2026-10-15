@@ -1,0 +1,17 @@
+#!/bin/sh
+# The base-image supervisor owns the entire selected kit software process group.
+# It verifies child exit before replacement; PID-file deletion is not proof.
+set -eu
+case "${1:-start}" in
+ start)
+  /usr/sbin/fes-kit-software start
+  ;;
+ stop)
+  /usr/sbin/fes-kit-software stop
+  ;;
+ restart)
+  "$0" stop
+  "$0" start
+  ;;
+ *) echo "usage: $0 start|stop|restart" >&2; exit 2 ;;
+esac

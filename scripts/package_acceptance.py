@@ -162,6 +162,7 @@ class Api:
 class SessionIdentity:
     session_id: str
     target_id: str
+    target_name: str
     flight_id: str
     game_id: str
     package_id: str
@@ -249,6 +250,7 @@ def _session_identity(value: Any, context: str) -> SessionIdentity:
     return SessionIdentity(
         session_id=_require_string(value.get("id"), f"{context} session ID"),
         target_id=_require_string(value.get("target_id"), f"{context} target_id"),
+        target_name=_require_string(value.get("target"), f"{context} target name"),
         flight_id=_require_string(value.get("flight_id"), f"{context} flight ID"),
         game_id=_require_game_id(value.get("game_id"), f"{context} game ID"),
         package_id=_require_package_id(package.get("package_id"), f"{context} package ID"),
@@ -402,8 +404,11 @@ class Runner:
         self.last_revisions = actual
         return value
 
-    def session(self) -> dict[str, Any]:
-        value = self.api.get("/api/v1/session")
+    def session(self, target: str | None = None) -> dict[str, Any]:
+        path = "/api/v1/session"
+        if target is not None:
+            path += "?" + urllib.parse.urlencode({"target": target})
+        value = self.api.get(path)
         if not isinstance(value, dict):
             raise AcceptanceError("session response is not an object")
         return value
@@ -530,12 +535,12 @@ class Runner:
                 time.sleep(self.args.poll_interval)
         raise AcceptanceError(f"owned launch was not confirmed: {last_error}")
 
-    def wait_for_clean_idle(self, context: str) -> dict[str, Any]:
+    def wait_for_clean_idle(self, context: str, target: str | None = None) -> dict[str, Any]:
         last_error = ""
         for attempt in range(self.args.poll_attempts):
             try:
                 return _require_session_target(
-                    _require_clean_idle(self.session(), context), self.target_id, context
+                    _require_clean_idle(self.session(target), context), self.target_id, context
                 )
             except AcceptanceError as exc:
                 last_error = str(exc)
@@ -558,9 +563,16 @@ class Runner:
         response_id = response.get("id") if isinstance(response, dict) else None
         if response_id != expected.session_id:
             raise AcceptanceError("Stop response session ID does not match the owned host session")
-        confirmed = self.wait_for_clean_idle("Stop")
+        if response.get("target") != expected.target_name:
+            raise AcceptanceError("Stop response target name does not match the owned host session")
+        # Explicit Stop clears foreground ownership. An unscoped read now uses
+        # the host's root idle coordinator, whose ID differs from this target's
+        # coordinator. Keep confirming the exact coordinator that we stopped.
+        confirmed = self.wait_for_clean_idle("Stop", expected.target_name)
         if confirmed.get("id") != expected.session_id:
             raise AcceptanceError("Stop confirmation session ID does not match the owned host session")
+        if confirmed.get("target") != expected.target_name:
+            raise AcceptanceError("Stop confirmation target name does not match the owned host session")
         return {"response": response, "confirmed": confirmed}
 
     def observe_ambiguous_launch(self, operation_error: AcceptanceError) -> None:

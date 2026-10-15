@@ -106,7 +106,7 @@ again. Shutdown has three reset layers:
   deadline of 150 seconds while I/O keeps progressing. It first runs an explicit
   sync bounded to 10 seconds; sysrq `b` skips device shutdown, while `reboot -nf`
   avoids another sync if sysrq fails or returns. The capped stop
-  scripts wait at most 20 seconds without I/O in total, below the 30-second stall
+  scripts and software supervisor wait at most 29 seconds without I/O in total, below the 30-second stall
   trigger (`image/scripts/tests/shutdown-budget_test.sh`). This covers a stall
   inside rcK. BusyBox init has no kill-all omit list: after its synchronous
   `::shutdown` actions it sends SIGTERM and SIGKILL to every process except
