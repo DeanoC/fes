@@ -662,7 +662,8 @@ class HilPlanTest(unittest.TestCase):
                      'sources/misteross/scripts/build_atari_st_video_part.py',
                      'sources/misteross/scripts/build_video_part.py',
                      'sources/misteross/scripts/video_parts.py',
-                     'sources/FogCast/internal/targetimage/lock.go'):
+                     'sources/FogCast/internal/targetimage/lock.go',
+                     'sources/FogCast/appliance/software/manifest.go'):
             result = run('classify', '--paths-file', self.path_file(path), '--json')
             self.assertEqual(json.loads(result.stdout)['decision'], 'FULL_IMAGE')
         for path in ('sources/FogCast/internal/example.go', 'sources/FogCast/catalog/example.go'):
