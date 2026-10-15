@@ -31,6 +31,9 @@ int main(int argc,char**argv){
 #endif
   ++chunk;hash=14695981039346656037ull;
  };
+#if defined(C64_PREPARED_ENVELOPE) && !defined(C64_SID_ORACLE)
+ bool previous_phi=false;uint64_t physical_idle=0;
+#endif
  auto step=[&](bool phi,int addr=-1,unsigned data=0,bool reset=false){
   unsigned level,env3;
   if(!reset&&phi)sampled=true;
@@ -44,6 +47,14 @@ int main(int argc,char**argv){
   }
   level=ref.level();env3=sampled?ref.readENV():0;
 #else
+#ifdef C64_PREPARED_ENVELOPE
+  // Preserve the oracle's logical sequence, adding only no-write idle SYS
+  // edges required by the prepared implementation's cadence contract.
+  if(phi&&previous_phi){
+   rtl.clk=0;rtl.reset=0;rtl.phi=0;rtl.we=0;rtl.eval();rtl.clk=1;rtl.eval();++physical_idle;
+  }
+  previous_phi=phi;
+#endif
   rtl.clk=0;rtl.reset=reset;rtl.phi=phi;rtl.we=addr>=0;rtl.addr=addr<0?0:addr;rtl.din=data;rtl.eval();
   rtl.clk=1;rtl.eval();level=rtl.level;env3=sampled?rtl.env3:0;
 #endif
@@ -71,6 +82,9 @@ int main(int argc,char**argv){
  std::puts("};");
 #else
  if(chunk!=sizeof(c64_sid_envelope_hashes)/sizeof(c64_sid_envelope_hashes[0]))return 1;
+#ifdef C64_PREPARED_ENVELOPE
+ std::printf("Prepared envelope inserted %llu physical idle SYS edges\n",(unsigned long long)physical_idle);
+#endif
  std::printf("SID envelope replay PASS: %llu edges, %llu writes, %llu held clocks, %llu resets, all rates and complete fast attack/release\n",(unsigned long long)edges,(unsigned long long)writes,(unsigned long long)held,(unsigned long long)resets);
 #endif
 }

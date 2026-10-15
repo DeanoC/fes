@@ -4,7 +4,8 @@
 // follows reSID, including hard sync, triangle ring and pulse/triangle.
 // Filter and the remaining combined-wave fidelity stay open.
 // See c64_sid.COPYING and ../README.md for source provenance and scope.
-module c64_sid #(parameter bit PREPARE_PHASE = 1'b0) (
+module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
+    parameter bit PREPARE_ENVELOPE = 1'b0) (
     input  wire               clk,
     input  wire               phi,
     input  wire               reset,
@@ -46,7 +47,7 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0) (
             .msb_rising(msb_rising[v]),.sync_enabled(sync_enabled[v]),
             .waveform(digital_wave[v]),.osc(oscillator_read[v])
         );
-        c64_sid_envelope envelope (
+        c64_sid_envelope #(.PREPARE_STATE(PREPARE_ENVELOPE)) envelope (
             .clk(clk), .reset(reset), .phi(phi),
             .we(we && cs && (control_write || ad_write || sr_write)),
             .addr(control_write ? 2'd0 : ad_write ? 2'd1 : 2'd2),

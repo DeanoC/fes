@@ -11,8 +11,8 @@ int main(int argc,char **argv) {
     constexpr std::array<unsigned,6> cpu={985248,17,5,6,10,2};
     std::array<uint64_t,6> phase{},count{};
     top.clk=0;top.eval();
-    if(top.prepared!=0b100111) {
-        std::printf("SID preparation guard mask %x expected27\n",top.prepared);
+    if(top.prepared!=0b100111 || top.envelope_prepared!=0b100111) {
+        std::printf("SID preparation guard masks oscillator=%x envelope=%x expected27\n",top.prepared,top.envelope_prepared);
         return 1;
     }
     for(unsigned tick=0;tick<52224000;++tick) {

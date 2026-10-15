@@ -1775,6 +1775,15 @@ reset uses the retained phase and cleared frequency. The SID component defaults
 to direct calculation, which also handles ratios with adjacent Phi2 enables.
 The phase replay adds physical idle edges to the existing source-oracle inputs
 and checks the prepared value at Phi2 without changing their logical sequence.
+The same guard enables a 20-bit envelope helper containing the result of only
+the first state-pipeline transition: state-pipeline count, state, rate period
+and zero-hold flag. On idle edges it computes that transition from the state
+after any register write; on Phi2 it supplies those four fields before the
+remaining envelope/exponential/rate logic. CPU writes still follow Phi2 and
+reset remains last, retaining the old envelope value and ENV3 sample. The
+component defaults to the direct transition for dense standalone use.
+Prepared envelope and three-voice PCM tests reuse the original source-oracle
+fixtures; adding idle edges leaves their logical observations unchanged.
 Combined pulse/triangle uses the pinned reSID MOS6581 4,096-entry sample table
 after ring-index substitution, masked by the delayed pulse level. The
 generator reproduces the sparse RTL lookup exactly; the producer includes

@@ -1281,7 +1281,7 @@ sim-fes-c64-irq:
 	@build/sim/fes-c64-irq/Vcpu6502
 
 .PHONY: sim-fes-c64-clock
-sim-fes-c64-clock:
+sim-fes-c64-clock: c64-diagnostic
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-clock
 	$(VERILATOR) --cc --exe --build -O2 --top-module clock_sim_top $(C64_VERILATOR_FLAGS) \
@@ -2313,7 +2313,7 @@ sim-fes-c64-open-graphics:
 	@build/sim/fes-c64-open-graphics/Vc64_video_sim_top
 
 .PHONY: sim-fes-c64-sid
-sim-fes-c64-sid: sim-fes-c64-sid-envelope sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3 sim-fes-c64-sid-coupling sim-fes-c64-sid-phase
+sim-fes-c64-sid: sim-fes-c64-sid-envelope-prepared sim-fes-c64-sid-prepared sim-fes-c64-sid-envelope sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3 sim-fes-c64-sid-coupling sim-fes-c64-sid-phase
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top $(C64_VERILATOR_FLAGS) \
@@ -2377,6 +2377,25 @@ sim-fes-c64-sid-envelope:
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-envelope" \
 		cores/fes-c64/rtl/c64_sid_envelope.sv "$(CURDIR)/cores/fes-c64/sim/sid_envelope_tb.cpp"
 	@build/sim/fes-c64-sid-envelope/Vc64_sid_envelope
+
+.PHONY: sim-fes-c64-sid-envelope-prepared sim-fes-c64-sid-prepared
+sim-fes-c64-sid-envelope-prepared:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-envelope-prepared
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_envelope -GPREPARE_STATE=1 $(C64_VERILATOR_FLAGS) -CFLAGS "-DC64_PREPARED_ENVELOPE" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-envelope-prepared" \
+		cores/fes-c64/rtl/c64_sid_envelope.sv "$(CURDIR)/cores/fes-c64/sim/sid_envelope_tb.cpp"
+	@build/sim/fes-c64-sid-envelope-prepared/Vc64_sid_envelope
+
+sim-fes-c64-sid-prepared:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-prepared
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-prepared" \
+		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_tb.cpp"
+	@build/sim/fes-c64-sid-prepared/Vc64_sid_sim_top
+
 
 .PHONY: sim-fes-c64-sprite-pal
 sim-fes-c64-sprite-pal:

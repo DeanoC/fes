@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Digital ADSR pipeline derived from reSID EnvelopeGenerator.
 // Copyright (C) 2010 Dag Lem <resid@nimrod.no>
-module c64_sid_envelope (
+module c64_sid_envelope #(
+    // The caller guarantees an idle SYS edge between Phi edges.
+    parameter bit PREPARE_STATE = 1'b0
+) (
     input wire clk, reset, phi, we,
     input wire [1:0] addr,
     input wire [7:0] din,
@@ -32,19 +35,83 @@ module c64_sid_envelope (
         12:rate_period=3906; 13:rate_period=11719; 14:rate_period=19531; 15:rate_period=31250;
         endcase
     endfunction
+    // Apply writes to the supplied state: clocked state on Phi, current state
+    // on idle edges. Preparation uses the latter explicitly, avoiding the full
+    // Phi transition in its own combinational input path.
+    function automatic state_t write_registers(input state_t current,
+        input write_enable, input [1:0] write_address, input [7:0] write_data);
+        state_t written;
+        begin
+            written=current;
+            if(write_enable) case(write_address)
+            0:if(written.gate!=write_data[0]) begin
+                written.next_state=write_data[0] ? ATTACK : RELEASE;
+                if(write_data[0]) begin
+                    written.state=DECAY; written.period=rate_period(written.decay); written.state_pipe=2;
+                    if(written.reset_rate || written.exp_pipe==2)
+                        written.envelope_pipe=(written.exp_period==1 || written.exp_pipe==2) ? 2 : 4;
+                    else if(written.exp_pipe==1) written.state_pipe=3;
+                end else written.state_pipe=written.envelope_pipe!=0 ? 3 : 2;
+                written.gate=write_data[0];
+            end
+            1:begin
+                written.attack=write_data[7:4]; written.decay=write_data[3:0];
+                if(written.state==ATTACK) written.period=rate_period(written.attack);
+                else if(written.state==DECAY) written.period=rate_period(written.decay);
+            end
+            2:begin
+                written.sustain=write_data[7:4]; written.release_rate=write_data[3:0];
+                if(written.state==RELEASE) written.period=rate_period(written.release_rate);
+            end
+            default:;
+            endcase
+            write_registers=written;
+        end
+    endfunction
+
+    typedef struct packed {
+        logic [1:0] state_pipe, state;
+        logic [14:0] period;
+        logic hold_zero;
+    } prepared_t;
+    function automatic prepared_t first_transition(input state_t current);
+        prepared_t advanced;
+        begin
+            advanced={current.state_pipe,current.state,current.period,current.hold_zero};
+            if(advanced.state_pipe!=0) begin
+                advanced.state_pipe=advanced.state_pipe-1'b1;
+                if(current.next_state==ATTACK && advanced.state_pipe==0) begin
+                    advanced.state=ATTACK;
+                    advanced.period=rate_period(current.attack);
+                    advanced.hold_zero=0;
+                end else if(current.next_state==RELEASE &&
+                    ((advanced.state==ATTACK && advanced.state_pipe==0) ||
+                     (advanced.state==DECAY && advanced.state_pipe==1))) begin
+                    advanced.state=RELEASE;
+                    advanced.period=rate_period(current.release_rate);
+                end
+            end
+            first_transition=advanced;
+        end
+    endfunction
+
+    wire [19:0] transition_value;
+    generate if(PREPARE_STATE) begin : prepared_state
+        // E(power-up q) is all zero, including its initial ATTACK state.
+        prepared_t value='0;
+        always @(posedge clk)
+            if(reset) value<={2'd0,RELEASE,15'd8,1'b0};
+            else if(!phi) value<=first_transition(write_registers(q,we,addr,din));
+        assign transition_value=value;
+    end else begin : direct_state
+        assign transition_value=first_transition(q);
+    end endgenerate
+
     always @* begin
         n=q;
         if (phi) begin
             n.sampled=n.value;
-            if (n.state_pipe!=0) begin
-                n.state_pipe=n.state_pipe-1'b1;
-                if(n.next_state==ATTACK && n.state_pipe==0) begin
-                    n.state=ATTACK; n.period=rate_period(n.attack); n.hold_zero=0;
-                end else if(n.next_state==RELEASE &&
-                    ((n.state==ATTACK && n.state_pipe==0) || (n.state==DECAY && n.state_pipe==1))) begin
-                    n.state=RELEASE; n.period=rate_period(n.release_rate);
-                end
-            end
+            {n.state_pipe,n.state,n.period,n.hold_zero}=transition_value;
             if(n.envelope_pipe!=0) begin
                 n.envelope_pipe=n.envelope_pipe-1'b1;
                 if(n.envelope_pipe==0 && !n.hold_zero) begin
@@ -79,28 +146,7 @@ module c64_sid_envelope (
             else n.reset_rate=1;
         end
         // CPU writes follow this cycle's digital envelope clock.
-        if(we) case(addr)
-        0:if(n.gate!=din[0]) begin
-            n.next_state=din[0] ? ATTACK : RELEASE;
-            if(din[0]) begin
-                n.state=DECAY; n.period=rate_period(n.decay); n.state_pipe=2;
-                if(n.reset_rate || n.exp_pipe==2)
-                    n.envelope_pipe=(n.exp_period==1 || n.exp_pipe==2) ? 2 : 4;
-                else if(n.exp_pipe==1) n.state_pipe=3;
-            end else n.state_pipe=n.envelope_pipe!=0 ? 3 : 2;
-            n.gate=din[0];
-        end
-        1:begin
-            n.attack=din[7:4]; n.decay=din[3:0];
-            if(n.state==ATTACK) n.period=rate_period(n.attack);
-            else if(n.state==DECAY) n.period=rate_period(n.decay);
-        end
-        2:begin
-            n.sustain=din[7:4]; n.release_rate=din[3:0];
-            if(n.state==RELEASE) n.period=rate_period(n.release_rate);
-        end
-        default:;
-        endcase
+        n=write_registers(n,we,addr,din);
         if(reset) begin
             n='0; n.value=q.value; n.sampled=q.sampled;
             n.exp_period=1; n.state=RELEASE; n.next_state=RELEASE; n.period=8;

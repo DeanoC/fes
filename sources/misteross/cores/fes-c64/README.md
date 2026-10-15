@@ -607,6 +607,19 @@ that direct calculation because they can produce adjacent Phi2 enables.
 `make sim-fes-c64-sid-phase` replays the same source fixture with physical idle
 edges between dense logical Phi2 calls and checks the sum at every Phi2.
 
+The same cadence guard prepares the envelope's first state-pipeline transition
+on idle SYS edges. Its 20-bit helper holds only the next state-pipeline count,
+state, rate period and zero-hold flag. Gate and attack/decay/sustain/release
+writes on the last idle edge are forwarded before this transition is prepared.
+Phi2 consumes that helper before advancing the remaining envelope logic, then
+applies CPU writes; reset retains the original envelope value and ENV3 sample.
+Standalone envelopes and ratios below two keep the direct calculation.
+`make sim-fes-c64-sid-envelope-prepared` replays the unchanged 21,240,086-edge
+source fixture with physical idle edges, while `sim-fes-c64-sid-prepared`
+checks the three-voice ENV3 and PCM fixture with both preparations enabled.
+This changes internal timing structure; routed timing and hardware acceptance
+require separate evidence.
+
 The oracle links unchanged VICE 3.10 reSID `WaveformGenerator` and
 `EnvelopeGenerator`, by Dag Lem, under GPL-2.0-or-later. The adapted RTL and
 source-linked oscillator harnesses use the same license; the complete text

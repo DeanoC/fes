@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Exercise clock enables in the actual motherboard, including adjacent pulses.
-module clock_sim_top(input wire clk, output wire [5:0] enables, output wire [5:0] prepared);
+module clock_sim_top(input wire clk, output wire [5:0] enables, output wire [5:0] prepared, output wire [5:0] envelope_prepared);
     for (genvar i=0;i<6;i=i+1) begin : clocks
         localparam SYS=i==0?52224000:i==1?100:i<5?10:5;
         localparam CPU=i==0?985248:i==1?17:i==2?5:i==3?6:i==4?10:2;
@@ -13,5 +13,6 @@ module clock_sim_top(input wire clk, output wire [5:0] enables, output wire [5:0
         );
         assign enables[i]=machine.cpu_ce;
         assign prepared[i]=machine.sid.PREPARE_PHASE;
+        assign envelope_prepared[i]=machine.sid.PREPARE_ENVELOPE;
     end
 endmodule
