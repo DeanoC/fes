@@ -636,6 +636,36 @@ func rewriteSameSizeRestoreMtime(t *testing.T, path string) {
 	if err := os.Chmod(path, info.Mode().Perm()); err != nil {
 		t.Fatal(err)
 	}
+	// Linux inode timestamps follow a coarse clock. A rewrite that finishes
+	// inside the current tick leaves ctime unchanged, so re-apply metadata
+	// until it moves. Callers on other systems skip the ctime assertion.
+	if runtime.GOOS != "linux" {
+		return
+	}
+	beforeCtime := ctimeOf(info)
+	deadline := time.Now().Add(time.Second)
+	for {
+		after, err := os.Lstat(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ctimeOf(after) != beforeCtime {
+			return
+		}
+		if !time.Now().Before(deadline) {
+			t.Fatal("Linux ctime did not advance after a same-size rewrite")
+		}
+		time.Sleep(2 * time.Millisecond)
+		if err := os.Chmod(path, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, info.ModTime(), info.ModTime()); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(path, info.Mode().Perm()); err != nil {
+			t.Fatal(err)
+		}
+	}
 }
 
 func TestSameSizeRewriteWithRestoredMtimeMissesVerificationCache(t *testing.T) {

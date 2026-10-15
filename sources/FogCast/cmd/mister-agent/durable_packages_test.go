@@ -290,6 +290,9 @@ func rewriteSameSizeRestoreMtime(t *testing.T, path string) {
 	if err := os.Chmod(path, info.Mode().Perm()); err != nil {
 		t.Fatal(err)
 	}
+	// Linux inode timestamps follow a coarse clock. Re-apply metadata until
+	// ctime moves so the inventory check is not a race against that tick.
+	settleLinuxCtime(t, path, info)
 	after, err := os.Lstat(path)
 	if err != nil {
 		t.Fatal(err)
