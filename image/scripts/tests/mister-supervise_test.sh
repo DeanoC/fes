@@ -5,7 +5,24 @@ set -eu
 here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 src=$here/../../buildroot/board/fogcast-target/native-rootfs-overlay/usr/sbin/mister-supervise
 tmp=$(mktemp -d)
-trap 'cat "$tmp"/log/*.log >&2; rm -rf "$tmp"' EXIT
+# Stop a live supervisor before removing its log directory. Otherwise a
+# restart (or the TERM escalator) can still be writing when the directory
+# disappears.
+cleanup() {
+  if [ -n "${sup:-}" ] && kill -0 "$sup" 2>/dev/null; then
+    kill -TERM "$sup" 2>/dev/null || true
+    n=80
+    while kill -0 "$sup" 2>/dev/null && [ "$n" -gt 0 ]; do
+      sleep 0.1
+      n=$((n - 1))
+    done
+    kill -KILL "$sup" 2>/dev/null || true
+    wait "$sup" 2>/dev/null || true
+  fi
+  cat "$tmp"/log/*.log >&2 2>/dev/null || true
+  rm -rf "$tmp"
+}
+trap cleanup EXIT
 mkdir -p "$tmp/run" "$tmp/log"
 sed -e "s|/run/|$tmp/run/|g" -e "s|/var/log/|$tmp/log/|g" "$src" > "$tmp/supervise"
 chmod +x "$tmp/supervise"
@@ -64,9 +81,13 @@ first=$(cat "$tmp/run/killed.pid")
 kill -KILL "$first"
 n=30
 while [ "$n" -gt 0 ]; do
+  # The supervisor unlinks the pid file as soon as the killed child is
+  # reaped, then pauses before writing the replacement. The file can
+  # disappear between the size check and the read; that gap is the restart
+  # backoff, not a missing record.
   if [ -s "$tmp/run/killed.pid" ]; then
-    second=$(cat "$tmp/run/killed.pid")
-    if [ "$second" != "$first" ] && kill -0 "$second" 2>/dev/null && kill -0 "$sup" 2>/dev/null; then
+    second=$(cat "$tmp/run/killed.pid" 2>/dev/null || true)
+    if [ -n "$second" ] && [ "$second" != "$first" ] && kill -0 "$second" 2>/dev/null && kill -0 "$sup" 2>/dev/null; then
       break
     fi
   fi
