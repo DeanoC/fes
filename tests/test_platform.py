@@ -180,3 +180,15 @@ class PlatformBuildTests(unittest.TestCase):
             ):
                 with self.assertRaisesRegex(ValueError, 'platform source changed'):
                     fes_platform.build_static_arm(root, FOGCAST, output, env)
+
+class SoftwareSupervisorBuildTests(unittest.TestCase):
+    def test_uses_selected_go_toolchain_before_disabling_auto_selection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_tree(root / 'platform', {'go.mod': 'module github.com/DeanoC/fes/platform\n\ngo 1.26.5\n'})
+            fogcast = write_tree(root / 'sources/FogCast', {'appliance/go.mod': 'module github.com/DeanoC/FogCast/appliance\n\ngo 1.26.5\n'})
+            with mock.patch.object(fes_platform.subprocess, 'check_output', return_value='/selected/go1.26.5\n') as probe, mock.patch.object(fes_platform.subprocess, 'run') as compile_go, mock.patch.object(appliance, 'validate_static_arm', return_value='a' * 64):
+                self.assertEqual(fes_platform.build_kit_software(root, fogcast, {}), 'a' * 64)
+            self.assertEqual(probe.call_args.args[0], ['go', 'env', 'GOROOT'])
+            self.assertEqual(compile_go.call_args.args[0][0], '/selected/go1.26.5/bin/go')
+            self.assertEqual(compile_go.call_args.kwargs['env']['GOTOOLCHAIN'], 'local')

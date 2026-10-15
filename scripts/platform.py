@@ -328,8 +328,12 @@ def build_kit_software(root, fogcast, env):
     before = (tree_identity(platform_dir), tree_identity(appliance_dir))
     with tempfile.TemporaryDirectory(prefix='fes-kit-software-') as temporary:
         workspace = write_workspace(temporary, platform_dir, appliance_dir)
+        probe_env = dict(env, GOWORK='off', GOPROXY='off')
+        goroot = subprocess.check_output(['go', 'env', 'GOROOT'], cwd=platform_dir,
+                                        env=probe_env, text=True).strip()
+        go_bin = Path(goroot) / 'bin' / 'go'
         build_env = dict(env, **BUILD_ENV, GOWORK=str(workspace))
-        subprocess.run(['go', 'build', *BUILD_FLAGS, '-o', str(output),
+        subprocess.run([str(go_bin), 'build', *BUILD_FLAGS, '-o', str(output),
                         './cmd/fes-kit-software'], cwd=platform_dir,
                        env=build_env, check=True)
     if before != (tree_identity(platform_dir), tree_identity(appliance_dir)):
