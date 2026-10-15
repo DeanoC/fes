@@ -2249,15 +2249,24 @@ start another factory scan. The list handler waits on the
 request context, so a client disconnect ends that wait. One catalog scan runs
 at a time. A fingerprint change while that scan is in progress waits for it to
 finish, then scans once more when the tree still differs. Durable listing
-reuses the verification recorded at install while the sealed archive and
-member fingerprint (size, mtime, inode, mode, and directory entries) still
-matches, and does not read those payloads again. Launch rereads the
-selected package with full inspection before programming. Manifest requirements block unsupported local media,
+reuses the byte verification recorded at install, reopen, or the last
+fingerprint miss while the sealed archive and member fingerprint (size,
+mtime, ctime, device, inode, mode, and directory entries) still matches, and
+does not read those payloads again. On Linux, ctime and device come from the
+file stat. A same-size rewrite that restores mtime updates ctime, so the next
+list verifies the bytes and withholds a package that fails authentication.
+Select, path lookup, and launch reread the selected package with full
+inspection before programming. Reopening the store verifies every installed
+package before it serves. Corruption that leaves every stat field unchanged
+waits for one of those byte reads. Manifest requirements block unsupported local media,
 firmware, multi-ROM and native video-part paths.
 `Launchable` describes local inputs, not hardware acceptance; native inspection
 checks the exact canonical bytes before programming. Plain local loads use the
 existing archive staging path, preserving native trusted roots. Durable mesh
-inventory uses verified store objects instead of scanning only ABI metadata.
+inventory advertises a package only when that byte verification is current
+for the same fingerprint, and omits the durable library when verification
+fails. It uses those verified store objects instead of scanning only ABI
+metadata.
 Local launches also enter the appliance update drain before claiming execution.
 The existing local execution mode remains volatile for settings/progress.
 

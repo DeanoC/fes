@@ -405,10 +405,11 @@ func (s *Store) Selections(ctx context.Context) ([]Selection, error) {
 	return s.selections(ctx, r)
 }
 
-// SelectedPackages returns the selected launch inventory. Listing reuses the
-// verification recorded at install while the archive and member stat
-// fingerprint still matches. Path, Read, and launch still call read, which
-// inspects the payload bytes.
+// SelectedPackages returns the selected launch inventory. Listing reuses a
+// completed byte verification while the archive and member fingerprint still
+// matches: size, mtime, ctime, device, inode, mode, and directory entries.
+// Select, Path, and Read call read, which inspects the payload bytes. Launch
+// inspects those bytes again before programming.
 func (s *Store) SelectedPackages(ctx context.Context) ([]SelectedPackage, error) {
 	r, unlock, err := s.lock(ctx)
 	if err != nil {
@@ -437,9 +438,11 @@ func (s *Store) selectedPackages(ctx context.Context, r *os.Root) ([]SelectedPac
 	return result, nil
 }
 
-// listingInspection trusts the install-time verification when size, mtime,
-// inode, mode, and directory entries are unchanged. A miss inspects the
-// payload once and records that fingerprint.
+// listingInspection reuses the last successful byte verification when size,
+// mtime, ctime, device, inode, mode, and directory entries are unchanged.
+// A miss inspects the payload once and records that fingerprint. On Linux a
+// same-size rewrite that restores mtime still changes ctime, so the cached
+// verification is not reused.
 func (s *Store) listingInspection(ctx context.Context, r *os.Root, id string) (corepackage.Inspection, error) {
 	if err := ctx.Err(); err != nil {
 		return corepackage.Inspection{}, err
@@ -500,7 +503,8 @@ func writeStat(b *strings.Builder, r *os.Root, name string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(b, "%s %d %d %d %d\n", name, info.Size(), info.ModTime().UnixNano(), uint64(info.Mode()), inodeOf(info))
+	fmt.Fprintf(b, "%s size=%d mtime=%d mode=%d dev=%d ino=%d ctime=%d\n",
+		name, info.Size(), info.ModTime().UnixNano(), uint64(info.Mode()), devOf(info), inodeOf(info), ctimeOf(info))
 	return nil
 }
 

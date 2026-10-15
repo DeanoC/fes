@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -604,6 +605,105 @@ func TestSelectedListingTrustsInstallVerification(t *testing.T) {
 	}
 	if fullVerificationReads.Load() == 0 {
 		t.Fatal("launch path skipped payload inspection")
+	}
+}
+
+func rewriteSameSizeRestoreMtime(t *testing.T, path string) {
+	t.Helper()
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(original) == 0 {
+		t.Fatal("empty package member")
+	}
+	rewritten := bytes.Clone(original)
+	rewritten[len(rewritten)/2] ^= 0xff
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, rewritten, info.Mode().Perm()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(path, info.ModTime(), info.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, info.Mode().Perm()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestSameSizeRewriteWithRestoredMtimeMissesVerificationCache(t *testing.T) {
+	for _, member := range []string{"archive", "member"} {
+		t.Run(member, func(t *testing.T) {
+			s := newStore(t)
+			archive, expected := fixture(t, "0.1.0", "fes.pong")
+			install(t, s, archive)
+			if _, err := s.Select(context.Background(), "fes.pong", "", expected.PackageID); err != nil {
+				t.Fatal(err)
+			}
+			fullVerificationReads.Store(0)
+			if _, err := s.List(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := s.SelectedPackages(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			if got := fullVerificationReads.Load(); got != 0 {
+				t.Fatalf("warm listing re-read payloads %d times", got)
+			}
+			path := filepath.Join(s.root, "archives", expected.PackageID+".fcore")
+			if member == "member" {
+				path = filepath.Join(s.root, "packages", expected.PackageID, "core.rbf")
+			}
+			before, err := os.Lstat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			beforeDev, beforeIno, beforeCtime := devOf(before), inodeOf(before), ctimeOf(before)
+			rewriteSameSizeRestoreMtime(t, path)
+			after, err := os.Lstat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if after.Size() != before.Size() || !after.ModTime().Equal(before.ModTime()) || after.Mode().Perm() != before.Mode().Perm() {
+				t.Fatalf("rewrite changed size, mtime, or mode")
+			}
+			if devOf(after) != beforeDev || inodeOf(after) != beforeIno {
+				t.Fatalf("rewrite changed device or inode: dev %d->%d ino %d->%d", beforeDev, devOf(after), beforeIno, inodeOf(after))
+			}
+			if ctimeOf(after) == beforeCtime {
+				t.Fatal("same-size rewrite left ctime unchanged, so the fingerprint cannot see it")
+			}
+			root, err := os.OpenRoot(s.root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer root.Close()
+			key, err := packageStatKey(root, expected.PackageID)
+			if err != nil || !strings.Contains(key, fmt.Sprintf("ctime=%d", ctimeOf(after))) {
+				t.Fatalf("stat key omitted the new ctime: %s %v", key, err)
+			}
+			fullVerificationReads.Store(0)
+			if _, err := s.List(context.Background()); err == nil {
+				t.Fatal("same-size rewrite stayed in the authenticated list")
+			} else if member == "archive" && !strings.HasPrefix(err.Error(), "core package:") {
+				t.Fatalf("archive rewrite was rejected before its bytes were checked: %v", err)
+			}
+			if member == "member" && fullVerificationReads.Load() == 0 {
+				t.Fatal("listing trusted the cached verification after a same-size member rewrite")
+			}
+			if _, err := s.SelectedPackages(context.Background()); err == nil {
+				t.Fatal("same-size rewrite stayed in the selected inventory")
+			}
+			if _, _, err := s.Read(context.Background(), expected.PackageID); err == nil {
+				t.Fatal("read accepted rewritten bytes")
+			}
+		})
 	}
 }
 

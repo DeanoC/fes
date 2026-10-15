@@ -156,6 +156,10 @@ func (n nativeLocalRuntime) Stop(admission, operation context.Context) error {
 var _ localcores.Runtime = nativeLocalRuntime{}
 var _ localcores.CartridgeRuntime = nativeLocalRuntime{}
 
+// durableMeshInventory publishes factory package ids plus durable packages
+// from store.List. List reuses a byte verification only while the stat
+// fingerprint matches. When that verification fails, this advertisement
+// omits the durable library.
 func durableMeshInventory(ctx context.Context, roots []string, store *kitpackages.Store) ([]meshcontent.EligibleABI, []string) {
 	abis, ids := kitcontent.ReadInstalledPackages(roots)
 	installed, err := store.List(ctx)
@@ -206,8 +210,9 @@ func localCoreInventory(ctx context.Context, store *kitpackages.Store, libraryEr
 }
 
 func durableLocalInventory(ctx context.Context, store *kitpackages.Store) ([]localcores.Core, error) {
-	// SelectedPackages trusts install-time verification while the stat
-	// fingerprint matches. Launch still inspects the package bytes.
+	// SelectedPackages reuses the last byte verification while size, mtime,
+	// ctime, device, inode, mode, and directory entries match. Launch still
+	// inspects the package bytes.
 	selections, err := store.SelectedPackages(ctx)
 	if err != nil {
 		return nil, err

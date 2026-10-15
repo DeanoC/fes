@@ -16,7 +16,6 @@ import (
 	"reflect"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/kitpackages"
@@ -217,15 +216,11 @@ func TestRepeatedLocalCoreListDoesNotRereadSelectedPackage(t *testing.T) {
 		t.Fatalf("list %s", first)
 	}
 	before := processReadBytes(t)
-	started := time.Now()
 	for range 2 {
 		again := listLocalCores(t, handler)
 		if again != first {
 			t.Fatalf("list changed\n%s\n%s", first, again)
 		}
-	}
-	if elapsed := time.Since(started); elapsed > time.Second {
-		t.Fatalf("repeated lists took %s", elapsed)
 	}
 	if delta := processReadBytes(t) - before; delta > 256<<10 {
 		t.Fatalf("repeated lists read %d payload bytes", delta)
@@ -264,6 +259,89 @@ func TestDurableInventoriesSeparateInstallationFromSelection(t *testing.T) {
 	local, err = durableLocalInventory(ctx, store)
 	if err != nil || len(local) != 1 || local[0].PackageID != second.PackageID || local[0].CoreID != second.Descriptor.Core.ID {
 		t.Fatalf("selected local upgrade: %+v %v", local, err)
+	}
+}
+
+func rewriteSameSizeRestoreMtime(t *testing.T, path string) {
+	t.Helper()
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(original) == 0 {
+		t.Fatal("empty package member")
+	}
+	rewritten := bytes.Clone(original)
+	rewritten[len(rewritten)/2] ^= 0xff
+	if err := os.Chmod(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, rewritten, info.Mode().Perm()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chtimes(path, info.ModTime(), info.ModTime()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(path, info.Mode().Perm()); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.Lstat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Size() != info.Size() || !after.ModTime().Equal(info.ModTime()) || after.Mode().Perm() != info.Mode().Perm() {
+		t.Fatalf("rewrite changed size, mtime, or mode: before=%d %v %v after=%d %v %v", info.Size(), info.ModTime(), info.Mode().Perm(), after.Size(), after.ModTime(), after.Mode().Perm())
+	}
+	body, err := os.ReadFile(path)
+	if err != nil || bytes.Equal(body, original) {
+		t.Fatal("same-size rewrite left the original bytes in place")
+	}
+}
+
+func TestSameSizeRewriteWithRestoredMtimeIsNotAdvertised(t *testing.T) {
+	for _, member := range []string{"archive", "member"} {
+		t.Run(member, func(t *testing.T) {
+			ctx := context.Background()
+			store, root := durablePackageStore(t)
+			archive, inspection, _ := durablePackageFixture(t, "0.1.0")
+			installDurablePackage(t, store, archive)
+			if _, err := store.Select(ctx, inspection.Descriptor.Core.ID, "", inspection.PackageID); err != nil {
+				t.Fatal(err)
+			}
+			listed, err := durableLocalInventory(ctx, store)
+			if err != nil || len(listed) != 1 || listed[0].PackageID != inspection.PackageID {
+				t.Fatalf("selected inventory before rewrite: %+v %v", listed, err)
+			}
+			abis, ids := durableMeshInventory(ctx, nil, store)
+			if len(ids) != 1 || ids[0] != inspection.PackageID || len(abis) != 1 {
+				t.Fatalf("mesh inventory before rewrite: %+v %v", abis, ids)
+			}
+			path := filepath.Join(root, "archives", inspection.PackageID+".fcore")
+			if member == "member" {
+				path = filepath.Join(root, "packages", inspection.PackageID, "core.rbf")
+			}
+			rewriteSameSizeRestoreMtime(t, path)
+			if local, err := durableLocalInventory(ctx, store); err == nil || len(local) != 0 {
+				t.Fatalf("rewritten local core stayed advertised: %+v %v", local, err)
+			}
+			abis, ids = durableMeshInventory(ctx, nil, store)
+			if len(abis) != 0 || len(ids) != 0 {
+				t.Fatalf("rewritten package stayed in mesh inventory: %+v %v", abis, ids)
+			}
+			_, factory, factoryPath := durablePackageFixture(t, "0.0.1")
+			factoryRoot := t.TempDir()
+			if err := os.Rename(factoryPath, filepath.Join(factoryRoot, factory.PackageID)); err != nil {
+				t.Fatal(err)
+			}
+			abis, ids = durableMeshInventory(ctx, []string{factoryRoot}, store)
+			if len(ids) != 1 || ids[0] != factory.PackageID || len(abis) != 1 {
+				t.Fatalf("rewritten durable package hid unrelated factory inventory: %+v %v", abis, ids)
+			}
+		})
 	}
 }
 

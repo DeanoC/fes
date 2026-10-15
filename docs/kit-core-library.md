@@ -82,13 +82,20 @@ does not change that key. A disconnected client ends the handler wait. One
 scan runs at a time; if the tree changes during that scan, the next request
 waits and then scans once more.
 
-A selected durable package is listed from the verification recorded at
-install. Listing keeps that result while the sealed archive and member
-fingerprint still matches: size, mtime, inode, mode, and directory entries.
-Repeated lists do not read payload or ROM-map bytes. A changed fingerprint
-verifies the bytes again. Launch and path lookup still inspect the retained
-bytes in full. Missing or corrupt selected bytes then block local launch,
-including after restart, and do not silently substitute a factory version.
+A selected durable package is listed from the byte verification recorded at
+install, reopen, or the last fingerprint miss. Listing keeps that result
+while the sealed archive and member fingerprint still matches: size, mtime,
+ctime, device, inode, mode, and directory entries. On Linux, ctime and device
+come from the file stat. Repeated lists do not read payload or ROM-map bytes.
+A changed fingerprint verifies the bytes again. A same-size rewrite that
+restores mtime updates ctime, so the next list verifies the bytes and
+withholds a package that fails authentication. Select, path lookup, and
+launch still inspect the retained bytes in full. Missing or corrupt selected
+bytes then block local launch, including after restart, and do not silently
+substitute a factory version. Reopening the store verifies every installed
+package before it serves. Corruption that leaves every stat field unchanged
+is outside this fingerprint; the next select, path, launch, or reopen
+rejects it.
 Native runtime inspection checks the exact canonical bytes before activation
 through its existing trusted staging path. Every physical launch and stop
 still uses the execution lease; local launches also participate in appliance
@@ -100,8 +107,10 @@ on the root-only control socket. That route returns HTTP 200 and an empty list
 when the durable library cannot be read, including when FESDATA3 is absent, and
 it does not read factory package bytes. Local launch stays on that empty
 inventory. An empty local list is that socket's response for this failure.
-Mesh inventory advertises durable packages from the same stat-keyed
-verification. A changed archive or member stat verifies the bytes again.
+Mesh inventory advertises a durable package only when that byte verification
+is current for the fingerprint above. A failed verification omits the durable
+library from the advertisement. A changed archive or member stat, including
+ctime, verifies the bytes again before the package is advertised.
 
 Package persistence is separate from settings and progress persistence. Kit-local
 execution still uses its existing volatile core-data mode. Persistent settings,
