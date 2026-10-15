@@ -51,6 +51,9 @@ RULES = [
     # falls through to kit-go+host below.
     # Imported only by cmd/target-image-lock, which no overlay artifact runs.
     ('sources/FogCast/internal/targetimage/**', 'full', 'image-selector'),
+    # The immutable bundle producer and stable base supervisor share this code;
+    # replacing the Go kit services cannot validate or replace those consumers.
+    ('sources/FogCast/appliance/software/**', 'full', 'kit-software'),
     ('sources/FogCast/**', 'overlay', 'kit-go+host'),
     ('sources/misteross/toolchain.lock', 'overlay', 'core:ALL'),
     ('sources/misteross/toolchains/*.lock', 'overlay', 'core:{lock}'),
