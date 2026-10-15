@@ -32,6 +32,9 @@ int main(int argc,char **argv){
 #else
  std::puts("// SPDX-License-Identifier: MIT\n// Unmodified VICE3.10 reSID MOS6581 three-voice hard-sync/triangle-ring state.\n#pragma once\n#include <cstdint>\nstruct CouplingExpected {uint64_t hash,edge;};\nstatic constexpr CouplingExpected expected_coupling[]={");
 #endif
+#ifdef C64_PREPARED_PHASE
+ bool previous_phi=false;uint64_t prepared_idle=0;
+#endif
  uint64_t edges=0,phi_edges=0,writes=0,hash=14695981039346656037ull;unsigned chunks=0,cases=0;const char *scenario="powerup";
  uint64_t rise_sync_seen=0,suppressed=0,clears=0,test_held_rise=0;unsigned ring_sources=0;
  auto flush=[&](){
@@ -50,6 +53,15 @@ int main(int argc,char **argv){
   }
 #endif
 #ifndef C64_OSC_ORACLE
+#ifdef C64_PREPARED_PHASE
+  // Extra no-write SYS edges leave the logical source-oracle sequence intact.
+  // Dense logical Phi calls exercise the exactly2-clock preparation boundary.
+  if(phi&&previous_phi){
+   rtl.clk=0;rtl.reset=0;rtl.phi=0;rtl.we=0;rtl.cs=0;rtl.eval();
+   rtl.clk=1;rtl.eval();++prepared_idle;
+  }
+  previous_phi=phi;
+#endif
   rtl.clk=0;rtl.reset=reset;rtl.phi=phi;rtl.we=we;rtl.cs=we;rtl.addr=addr;rtl.din=data;rtl.eval();rtl.clk=1;rtl.eval();
 #endif
   unsigned rise_mask=0,sync_mask=0;
@@ -84,10 +96,10 @@ int main(int argc,char **argv){
  auto clocks=[&](unsigned n){for(unsigned i=0;i<n;++i)step(true);};
  step(false,false,0,0,true);
  if(argc==1){
- for(unsigned rises=0;rises<8;++rises)for(unsigned sync=0;sync<8;++sync)for(unsigned ring=0;ring<8;++ring){
+ for(unsigned selected:{0x10u,0x50u})for(unsigned rises=0;rises<8;++rises)for(unsigned sync=0;sync<8;++sync)for(unsigned ring=0;ring<8;++ring){
   boundary("all simultaneous rise/sync/ring masks");
-  for(unsigned v=0;v<3;++v){wr(v,4,0x18);freq(v,(rises&(1<<v))?0x8000:0);}
-  for(unsigned v=0;v<3;++v)wr(v,4,0x10|((sync>>v)&1)*2|((ring>>v)&1)*4);
+  for(unsigned v=0;v<3;++v){wr(v,4,selected|8);freq(v,(rises&(1<<v))?0x8000:0);}
+  for(unsigned v=0;v<3;++v)wr(v,4,selected|((sync>>v)&1)*2|((ring>>v)&1)*4);
   clocks(520);
  }
  for(unsigned source=0;source<3;++source){
@@ -95,7 +107,7 @@ int main(int argc,char **argv){
   for(unsigned v=0;v<3;++v){wr(v,4,0x18);freq(v,v==source?0x8000:0xffff);wr(v,4,0x17);}
   clocks(256);wr(source,4,0x1f);clocks(19);wr(source,4,0x17);clocks(19);
  }
- for(unsigned wave:{0u,0x10u,0x20u,0x40u,0x80u})for(unsigned mask=0;mask<8;++mask){
+ for(unsigned wave:{0u,0x10u,0x20u,0x40u,0x50u,0x80u})for(unsigned mask=0;mask<8;++mask){
   boundary("single waves/noise with asymmetric hard sync and ring");
   for(unsigned v=0;v<3;++v){freq(v,0xfff1-v*0x3311);wr(v,2,v*79);wr(v,3,2+v);wr(v,4,wave|((mask>>v)&1)*2|5);}
   clocks(3333);
@@ -104,11 +116,11 @@ int main(int argc,char **argv){
  boundary("fractional53/54 cadence, native write phase27");
  uint32_t fraction=0,rng=0x6581c064;unsigned since=0;
  auto random=[&](){rng^=rng<<13;rng^=rng>>17;rng^=rng<<5;return rng;};
- for(unsigned sys=0;sys<700000;++sys){fraction+=985248;bool phi=fraction>=52224000;if(phi){fraction-=52224000;since=0;}else ++since;unsigned r=random(),a=(r>>16)%21,d=r>>24;if(a%7==4){const unsigned waves[]={0,16,32,64,128};d=waves[(r>>8)%5]|(d&15);}step(phi,since==27&&(r&3)==0,a,d);}
+ for(unsigned sys=0;sys<700000;++sys){fraction+=985248;bool phi=fraction>=52224000;if(phi){fraction-=52224000;since=0;}else ++since;unsigned r=random(),a=(r>>16)%21,d=r>>24;if(a%7==4){const unsigned waves[]={0,16,32,64,80,128};d=waves[(r>>8)%6]|(d&15);}step(phi,since==27&&(r&3)==0,a,d);}
  boundary("control writes at every SYS phase around phi");
  for(unsigned offset=0;offset<54;++offset)for(unsigned v=0;v<3;++v)for(unsigned sys=0;sys<108;++sys)step(sys%54==0,sys==offset,v*7+4,0x11|((offset&7)<<1));
  boundary("dense simultaneous phi/register mutation");
- for(unsigned i=0;i<100000;++i){unsigned r=random(),a=(r>>16)%21,d=r>>24;if(a%7==4){const unsigned waves[]={0,16,32,64,128};d=waves[(r>>8)%5]|(d&15);}step((r&3)!=0,(r&15)<3,a,d);}
+ for(unsigned i=0;i<100000;++i){unsigned r=random(),a=(r>>16)%21,d=r>>24;if(a%7==4){const unsigned waves[]={0,16,32,64,80,128};d=waves[(r>>8)%6]|(d&15);}step((r&3)!=0,(r&15)<3,a,d);}
  }
  if(argc>1){
 #ifndef C64_COUPLING_LIVE
@@ -126,6 +138,9 @@ int main(int argc,char **argv){
   while(now<limit){step(true);++now;}
   std::fprintf(stderr,"Music digital replay: %llu writes through guest cycle %llu; idle SYS edges coalesced, Phi/write ordering retained\n",(unsigned long long)count,(unsigned long long)now);
  }
+#ifdef C64_PREPARED_PHASE
+ std::printf("SID phase preparation: %llu extra idle SYS edges; unchanged source-oracle logical sequence\n",(unsigned long long)prepared_idle);
+#endif
  if(edges%8192)flush();
  if(argc==1&&(rise_sync_seen!=~0ull||ring_sources!=63||!suppressed||!clears||!test_held_rise)){std::fprintf(stderr,"incomplete coupling coverage risesync=%016llx rings=%x suppression=%llu clears=%llu TEST=%llu\n",(unsigned long long)rise_sync_seen,ring_sources,(unsigned long long)suppressed,(unsigned long long)clears,(unsigned long long)test_held_rise);return 1;}
  if(argc==1)std::fprintf(stderr,"Coverage: all 64 rise/sync masks, all 6 voice/source-MSB ring pairs; suppression=%llu clear=%llu TEST-held-rise=%llu\n",(unsigned long long)suppressed,(unsigned long long)clears,(unsigned long long)test_held_rise);

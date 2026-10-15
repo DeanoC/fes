@@ -2313,7 +2313,7 @@ sim-fes-c64-open-graphics:
 	@build/sim/fes-c64-open-graphics/Vc64_video_sim_top
 
 .PHONY: sim-fes-c64-sid
-sim-fes-c64-sid: sim-fes-c64-sid-envelope sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3 sim-fes-c64-sid-coupling
+sim-fes-c64-sid: sim-fes-c64-sid-envelope sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3 sim-fes-c64-sid-coupling sim-fes-c64-sid-phase
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top $(C64_VERILATOR_FLAGS) \
@@ -2355,6 +2355,19 @@ sim-fes-c64-sid-coupling:
 		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sid_coupling_tb.cpp"
 	@build/sim/fes-c64-sid-coupling/Vsid_coupling_sim_top
+
+.PHONY: sim-fes-c64-sid-phase
+sim-fes-c64-sid-phase:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-phase
+	$(VERILATOR) --cc --exe --build -O2 --top-module sid_coupling_sim_top -GPREPARE_PHASE=1 $(C64_VERILATOR_FLAGS) -CFLAGS "-DC64_PREPARED_PHASE" \
+		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-phase" \
+		cores/fes-c64/sim/sid_coupling_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
+		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_coupling_tb.cpp"
+	@build/sim/fes-c64-sid-phase/Vsid_coupling_sim_top
+
 
 .PHONY: sim-fes-c64-sid-envelope
 sim-fes-c64-sid-envelope:

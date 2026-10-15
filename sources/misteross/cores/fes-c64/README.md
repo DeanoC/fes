@@ -59,7 +59,8 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   23-bit noise, TEST transitions and floating waveform decay; OSC3 and ENV3
   readback; eight-bit pipelined ADSR and signed PCM with linear master volume.
   Single-wave digital timing, oscillator hard sync, triangle ring modulation
-  and envelopes follow reSID's MOS6581 model. Filter, coupled waveforms,
+  and envelopes follow reSID's MOS6581 model. Combined pulse/triangle, including
+  ring modulation, uses its pinned 6581 samples. Filter, remaining coupled waveforms,
   paddle reads, analog DAC behavior and SID bus decay remain open.
   Unsupported waveform combinations
   retain the previous OR formula; their update timing is not qualified.
@@ -596,18 +597,29 @@ that resulting source MSB; writes between Phi2 edges use its current MSB.
 The reference's MSB-rise latch is retained while TEST holds a source.
 No guest clock or register-write acceptance edge moves.
 
+The motherboard prepares each oscillator's next phase on idle SYS edges when
+`SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2`. Frequency writes on the final idle edge
+and TEST phase clears are forwarded into that sum; reset prepares the preserved
+phase with zero frequency. This shortens the path through cross-voice sync and
+ring logic without moving Phi2, CPU writes or waveform updates. Standalone SID
+instances default to the direct phase calculation. Ratios below two retain
+that direct calculation because they can produce adjacent Phi2 enables.
+`make sim-fes-c64-sid-phase` replays the same source fixture with physical idle
+edges between dense logical Phi2 calls and checks the sum at every Phi2.
+
 The oracle links unchanged VICE 3.10 reSID `WaveformGenerator` and
 `EnvelopeGenerator`, by Dag Lem, under GPL-2.0-or-later. The adapted RTL and
 source-linked oscillator harnesses use the same license; the complete text
 is [c64_sid.COPYING](rtl/c64_sid.COPYING). The generator checks every compiled
 reference dependency, including both model waveform-table sets, before
 copying them into a temporary build. It does not call RTL or duplicate the
-waveform equations. The tables are required to compile the reference;
-combined-wave behavior is not included in the qualified subset.
+waveform equations. The pulse/triangle table is also emitted as an exact 4,096-entry RTL lookup
+with zero entries represented by the default case. Other combined-wave
+behavior is outside the qualified subset.
 
 Reference: [VICE 3.10 source archive](https://github.com/VICE-Team/svn-mirror/releases/download/3.10.0/vice-3.10.tar.gz),
 SHA256 `8e5bac18cbcb9f192380ad3ef881f8790f5b75c41d7b3da65d831985d864d6d1`.
-From `sources/misteross`, regenerate or verify all five fixtures:
+From `sources/misteross`, regenerate or verify all five fixtures and the waveform table:
 
 ```sh
 python3 scripts/generate_c64_sid_vectors.py --vice-source /path/to/vice-3.10
@@ -615,8 +627,10 @@ python3 scripts/generate_c64_sid_vectors.py --vice-source /path/to/vice-3.10 --c
 make sim-fes-c64-sid
 ```
 
+`--component oscillator-table` selects the RTL pulse/triangle lookup.
 `--component oscillator` and `--component oscillator-bus` select the
-single-voice and bus fixtures; `coupling` selects the three-voice sync/ring fixture; `sid` and `envelope`
+single-voice and bus fixtures; `coupling` selects the three-voice sync/ring and
+pulse/triangle fixture; `sid` and `envelope`
 select the prior tests. `--output` selects one
 fixture's destination. The oscillator regression fingerprints every SYS
 state using 64-bit FNV-1a blocks, with explicit ending states for diagnosis.
@@ -634,16 +648,18 @@ compared. Power-up phase `$555555` and envelope `$AA` are deterministic
 reSID fixtures, not measured hardware startup values. Warm reset retains
 phase and the envelope counter while clearing their register/pipeline state.
 
-The qualified oscillator subset is one waveform at a time, with three-voice
-hard sync and triangle ring modulation. The prior OR formula remains for
-combinations, but its
-update timing is not qualified as unchanged. Ring modulation of combined
-waveforms is also unqualified. Analog DACs, filter/resonance, paddles and
-write-only bus decay remain unimplemented.
-Host digital replay does not establish audible HDMI or real-SID fidelity.
-Locked-Yosys standalone SID mapping grows from 679 to 688 FFs and from
-3,253 to 3,282 ALUT-family cells, with no RAM or DSP use. A whole-core
-mapped synthesis, route and hardware qualification is still required.
+The qualified oscillator subset includes the single waveforms and combined
+pulse/triangle (selector `$5`), with three-voice hard sync and triangle ring
+modulation. The pulse/triangle sample uses the accumulator index after ring
+MSB substitution and the existing delayed pulse mask. The prior OR formula
+remains for other combinations, whose timing and fidelity stay unqualified.
+Combined waveforms containing sawtooth can clear the phase MSB; their
+interaction with ring-source evaluation needs separate qualification.
+Analog DACs, filter/resonance, paddles and write-only bus decay remain
+unimplemented. Host digital replay does not establish audible HDMI or real-SID
+fidelity. The standalone SID maps to 688 FFs and 4,709 ALUT-family cells, with
+no RAM or DSP use with the default direct phase path. Prepared-phase and
+whole-core mapping, routing and hardware remain separate checks.
 
 ### Development PRG launch
 

@@ -7,10 +7,14 @@
 int main(int argc,char **argv) {
     Verilated::commandArgs(argc,argv);
     Vclock_sim_top top;
-    constexpr std::array<unsigned,5> system={52224000,100,10,10,10};
-    constexpr std::array<unsigned,5> cpu={985248,17,5,6,10};
-    std::array<uint64_t,5> phase{},count{};
+    constexpr std::array<unsigned,6> system={52224000,100,10,10,10,5};
+    constexpr std::array<unsigned,6> cpu={985248,17,5,6,10,2};
+    std::array<uint64_t,6> phase{},count{};
     top.clk=0;top.eval();
+    if(top.prepared!=0b100111) {
+        std::printf("SID preparation guard mask %x expected27\n",top.prepared);
+        return 1;
+    }
     for(unsigned tick=0;tick<52224000;++tick) {
         for(unsigned i=0;i<system.size();++i) {
             phase[i]+=cpu[i];
@@ -25,5 +29,5 @@ int main(int argc,char **argv) {
         top.clk=1;top.eval();top.clk=0;top.eval();
     }
     if(count[0]!=985248)return 1;
-    std::puts("C64 clock PASS: 52224000 motherboard ticks match independent fractional reference, PAL/boundary/adjacent/full-rate enables");
+    std::puts("C64 clock PASS: 52224000 motherboard ticks match independent fractional reference, PAL/boundary/fractional2-3/adjacent/full-rate enables and SID preparation guard");
 }

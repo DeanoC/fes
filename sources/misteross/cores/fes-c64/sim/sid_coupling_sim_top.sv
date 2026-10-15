@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-module sid_coupling_sim_top (
+module sid_coupling_sim_top #(parameter bit PREPARE_PHASE=1'b0) (
  input wire clk,reset,phi,cs,we,
  input wire [4:0] addr,input wire [7:0] din,
  output wire [23:0] phase[0:2],
@@ -11,8 +11,15 @@ module sid_coupling_sim_top (
  output wire [17:0] fade_count[0:2],
  output wire [2:0] rise
 );
- c64_sid dut(.clk(clk),.reset(reset),.phi(phi),.cs(cs),.we(we),.addr(addr),.din(din),.dout(),.sample());
+ c64_sid #(.PREPARE_PHASE(PREPARE_PHASE)) dut(.clk(clk),.reset(reset),.phi(phi),.cs(cs),.we(we),.addr(addr),.din(din),.dout(),.sample());
  for(genvar v=0;v<3;v=v+1) begin: observe
+  if(PREPARE_PHASE)begin:prepare_check
+   always @(posedge clk)
+    if(phi&&!reset&&dut.phase_advanced[v] !==
+       (dut.envelopes[v].oscillator.q.control[3] ? dut.envelopes[v].oscillator.q.phase :
+        dut.envelopes[v].oscillator.q.phase+{8'd0,dut.envelopes[v].oscillator.q.freq}))
+     $fatal(1,"prepared phase mismatch at Phi, voice %0d",v);
+  end
   assign phase[v]=dut.envelopes[v].oscillator.q.phase;
   assign freq[v]=dut.envelopes[v].oscillator.q.freq;
   assign pw[v]=dut.envelopes[v].oscillator.q.pw;

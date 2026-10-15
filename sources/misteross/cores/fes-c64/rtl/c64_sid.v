@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // A reduced 6581: three digital oscillators, pipelined ADSR envelopes and
 // linear master volume. OSC3 and ENV3 are readable. Single-wave/TEST timing
-// follows reSID, including hard sync and triangle ring. Filter and
-// combined-wave fidelity remain open.
+// follows reSID, including hard sync, triangle ring and pulse/triangle.
+// Filter and the remaining combined-wave fidelity stay open.
 // See c64_sid.COPYING and ../README.md for source provenance and scope.
-module c64_sid (
+module c64_sid #(parameter bit PREPARE_PHASE = 1'b0) (
     input  wire               clk,
     input  wire               phi,
     input  wire               reset,
@@ -37,7 +37,7 @@ module c64_sid (
         wire control_write=addr==BASE+5'd4;
         wire ad_write=addr==BASE+5'd5;
         wire sr_write=addr==BASE+5'd6;
-        c64_sid_oscillator oscillator (
+        c64_sid_oscillator #(.PREPARE_PHASE(PREPARE_PHASE)) oscillator (
             .clk(clk),.reset(reset),.phi(phi),
             .we(we && cs && oscillator_addr<=5'd4),
             .addr(oscillator_addr[2:0]),.din(din),

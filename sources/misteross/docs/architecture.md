@@ -1768,9 +1768,21 @@ All three oscillators advance before hard-sync clear decisions. The source
 MSB-rise flags and old SYNC bits determine clears, including suppression
 when a source is itself synced. Output then uses post-sync phases; triangle
 ring modulation substitutes the source MSB without changing CPU/Phi2 timing.
+The motherboard enables prepared phase sums when the system-to-CPU clock
+ratio is at least two, ensuring an idle SYS edge between Phi2 enables.
+The sum forwards frequency writes and TEST phase clears on that idle edge;
+reset uses the retained phase and cleared frequency. The SID component defaults
+to direct calculation, which also handles ratios with adjacent Phi2 enables.
+The phase replay adds physical idle edges to the existing source-oracle inputs
+and checks the prepared value at Phi2 without changing their logical sequence.
+Combined pulse/triangle uses the pinned reSID MOS6581 4,096-entry sample table
+after ring-index substitution, masked by the delayed pulse level. The
+generator reproduces the sparse RTL lookup exactly; the producer includes
+its header in the pinned source closure. Other waveform combinations and
+analog filtering remain unqualified.
 The reference's edge latch remains held during TEST. The portable coupling
 oracle covers the complete simultaneous-rise/SYNC mask space and all voices.
-Combined-wave coupling and analog filter/DAC behavior remain unqualified.
+Remaining combined-wave coupling and analog filter/DAC behavior stay unqualified.
 
 The additional offline oscillator and OSC3 tests replay the pinned VICE 3.10
 reSID source at native 53/54-SYS periods and other directed write phases;
@@ -1778,8 +1790,8 @@ native bus writes arrive 27 SYS edges after Phi2. Source, licensing,
 regeneration and the explicit host-integer noise-state normalization are in
 the core README. All compiled reference dependencies are hash checked.
 Unsupported combinations retain the old OR formula without a claim that
-its update timing is unchanged. Filter, coupled waveforms (including ring
-modulation of them), analog DACs, paddle reads and bus decay remain open. The host
+its update timing is unchanged. Filter, the remaining coupled waveforms, analog DACs, paddle reads and bus
+decay remain open. The host
 checks do not establish complete SID, analog audio or routed-core fidelity.
 `c64_vic_sprite_pixels` supplies per-dot shifts, multicolor/X expansion,
 foreground priority and collision masks. Sprite X and pointer/row/display

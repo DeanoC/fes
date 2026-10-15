@@ -4,8 +4,11 @@
 // GPL version 2 or later; complete license: c64_sid.COPYING.
 // See ../README.md for pinned source, regeneration and hardware limits.
 // Single waveforms/TEST, three-voice hard sync and triangle ring modulation.
-// Coupled waveforms remain unqualified.
-module c64_sid_oscillator (
+// Pulse/triangle uses pinned MOS6581 samples; other combinations remain open.
+module c64_sid_oscillator #(
+    // The caller must guarantee a non-Phi edge between Phi edges.
+    parameter bit PREPARE_PHASE = 1'b0
+) (
     input wire clk, reset, phi, we,
     input wire [2:0] addr,
     input wire [7:0] din,
@@ -32,7 +35,25 @@ module c64_sid_oscillator (
     // reSID's deterministic power-up fixture; warm reset preserves phase.
     initial begin q='0; q.phase=24'h555555; q.lfsr=23'h7ffffe; q.pulse=12'hfff; end
     assign phase_now=q.phase;
-    assign phase_advanced=q.control[3] ? q.phase : q.phase+{8'd0,q.freq};
+    wire [23:0] next_phase;
+    generate if (PREPARE_PHASE) begin : prepared_phase
+        reg [23:0] value = 24'h555555;
+        wire [15:0] frequency = we && addr==0 ? {q.freq[15:8],din} :
+                               we && addr==1 ? {din,q.freq[7:0]} : q.freq;
+        wire test_rise = we && addr==4 && !q.control[3] && din[3];
+        wire [23:0] phase_base = test_rise ? 24'd0 : q.phase;
+        // Forward writes on the last idle edge, including TEST's phase clear.
+        // Reset preserves the old phase and clears frequency, even on Phi.
+        always @(posedge clk)
+            if(reset) value <= q.phase;
+            else if(!phi) value <= phase_base+{8'd0,frequency};
+        assign next_phase=value;
+    end else begin : direct_phase
+        assign next_phase=q.phase+{8'd0,q.freq};
+    end endgenerate
+    // Only Phi consumes an advanced phase. The prepared sum is refreshed
+    // after Phi; idle-edge source-MSB write behavior uses current q instead.
+    assign phase_advanced=q.control[3] ? q.phase : next_phase;
     // reSID retains this edge latch while TEST holds the accumulator.
     assign msb_rising=q.control[3] ? q.msb_rising : (!q.phase[23] && phase_advanced[23]);
     assign sync_enabled=q.control[1];
@@ -41,6 +62,7 @@ module c64_sid_oscillator (
     function automatic [11:0] noise_bits(input [22:0] sr);
         noise_bits={sr[20],sr[18],sr[14],sr[11],sr[9],sr[5],sr[2],sr[0],4'b0};
     endfunction
+    `include "c64_sid_combined_waves.vh"
     function automatic [11:0] selected_wave(input state_t s, input source_high);
         reg [7:0] legacy;
         begin
@@ -49,8 +71,9 @@ module c64_sid_oscillator (
             4'h2:selected_wave=s.phase[23:12];
             4'h4:selected_wave=s.pulse;
             4'h8:selected_wave=noise_bits(s.lfsr);
+            4'h5:selected_wave=combined_pulse_triangle(s.phase[23:12] ^ ((s.control[2] && !source_high) ? 12'h800 : 12'h000)) & s.pulse;
             default:begin
-                // Retain the old OR formula for unsupported combinations.
+                // Retain the old OR formula for the remaining unsupported combinations.
                 // Update timing and coupled-wave fidelity remain unqualified.
                 legacy=0;
                 if(s.control[6] && s.phase[23:12]>=s.pw) legacy=legacy|8'hff;

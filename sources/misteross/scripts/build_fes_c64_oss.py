@@ -87,6 +87,7 @@ ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 QSF = "cores/fes-c64/constraints-oss.qsf"
 SDC = "cores/fes-c64/clocks-oss.sdc"
 RTL_INCLUDES = (
+    "cores/fes-c64/rtl/c64_sid_combined_waves.vh",
     "cores/fes-c64/rtl/c64_bus.vh",
 )
 RTL_SOURCES = (

@@ -3,6 +3,7 @@
 """Regenerate offline digital SID vectors from unmodified VICE 3.10 reSID."""
 import argparse
 import hashlib
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -42,13 +43,13 @@ def main():
     parser.add_argument('--vice-source',type=Path,required=True)
     parser.add_argument('--output',type=Path)
     parser.add_argument('--check',action='store_true',help='compare generated fixtures with the selected output without modifying it')
-    parser.add_argument('--component',choices=['all','sid','envelope','oscillator','oscillator-bus','coupling'],default='all')
+    parser.add_argument('--component',choices=['all','sid','envelope','oscillator','oscillator-bus','coupling','oscillator-table'],default='all')
     args=parser.parse_args()
     if args.output and args.component=='all':parser.error('--output requires one --component')
     module=Path(__file__).resolve().parents[1]
     sim=module/'cores/fes-c64/sim'
     source=args.vice_source/'src/resid'
-    selected=['sid','envelope','oscillator','oscillator-bus','coupling'] if args.component=='all' else [args.component]
+    selected=['sid','envelope','oscillator','oscillator-bus','coupling','oscillator-table'] if args.component=='all' else [args.component]
     hashes={}
     for component in selected:
         hashes.update(OSCILLATOR_SOURCE_HASHES if (component.startswith('oscillator') or component=='coupling') else SOURCE_HASHES)
@@ -63,6 +64,28 @@ def main():
         for key,value in CONFIG.items():config=config.replace('@'+key+'@',value)
         (temp/'siddefs.h').write_text(config)
         for component in selected:
+            if component == 'oscillator-table':
+                name='wave6581_P_T.h'
+                raw=(source/name).read_bytes()
+                text=re.sub(r'/\*.*?\*/', '', raw.decode(), flags=re.S)
+                values=[int(value,16) for value in re.findall(r'0x[0-9a-fA-F]+',text)]
+                if len(values)!=4096:parser.error('pulse/triangle table requires 4096 entries')
+                lines=['// SPDX-License-Identifier: GPL-2.0-or-later',
+                       '// MOS6581 pulse/triangle samples from VICE 3.10 reSID.',
+                       '// Copyright (C) 2010 Dag Lem <resid@nimrod.no>. See c64_sid.COPYING.',
+                       '// Generated exactly from wave6581_P_T.h SHA256 '+hashlib.sha256(raw).hexdigest()+'.',
+                       'function automatic [11:0] combined_pulse_triangle(input [11:0] index);', ' case(index)']
+                lines += [f"  12'h{index:03x}:combined_pulse_triangle=12'h{value:03x};"
+                          for index,value in enumerate(values) if value]
+                lines += ["  default:combined_pulse_triangle=12'h000;", ' endcase', 'endfunction']
+                result='\n'.join(lines)+'\n'
+                output=args.output or module/'cores/fes-c64/rtl/c64_sid_combined_waves.vh'
+                if args.check:
+                    if output.read_text()!=result:parser.error(f'{output}: generated table differs')
+                    print(f'{output}: unchanged')
+                else:
+                    output.write_text(result);print(output)
+                continue
             oscillator=(component.startswith('oscillator') or component=='coupling')
             stem={'sid':'sid','envelope':'sid_envelope','oscillator':'sid_oscillator',
                   'oscillator-bus':'sid_oscillator_bus','coupling':'sid_coupling'}[component]

@@ -316,7 +316,9 @@ module c64_machine #(
         .red(red), .green(green), .blue(blue), .de(de), .hsync(hsync), .vsync(vsync),
         .raster(), .irq(vic_irq)
     );
-    c64_sid sid (
+    // One idle SYS edge prepares phase+frequency before each Phi. Shorter
+    // ratios can have adjacent enables and retain the direct oscillator path.
+    c64_sid #(.PREPARE_PHASE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2)) sid (
         .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_sid),
         .we(bus_strobe && bus_we && sel_sid), .addr(bus_addr[4:0]), .din(bus_wdata),
         .dout(sid_dout), .sample(sid_sample)
