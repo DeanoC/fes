@@ -2,10 +2,9 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/internal/agent"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/localcores"
@@ -114,7 +114,7 @@ func (c *scriptedControl) Protocol2LoadDevelopmentRBF(context.Context, string) (
 	return misterruntime.Protocol2Response{}, errors.New("unused")
 }
 
-func (c *scriptedControl) LoadCore(ctx context.Context, _, _ string) (misterruntime.Protocol2Response, error) {
+func (c *scriptedControl) LoadCore(ctx context.Context, path, packageID string) (misterruntime.Protocol2Response, error) {
 	c.mu.Lock()
 	c.loads++
 	c.op = ctx
@@ -126,7 +126,7 @@ func (c *scriptedControl) LoadCore(ctx context.Context, _, _ string) (misterrunt
 	if ctx.Err() != nil {
 		return misterruntime.Protocol2Response{}, ctx.Err()
 	}
-	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "running_development", Execution: "development", Version: "test"}, nil
+	return installedLoadResponse(path, packageID)
 }
 
 func (c *scriptedControl) counts() (loads, stops int, freedEarly bool) {
@@ -157,7 +157,7 @@ type kitFixture struct {
 func newKitFixture(t *testing.T, ttl time.Duration) *kitFixture {
 	t.Helper()
 	control := &scriptedControl{}
-	runtime := misterruntime.NewRuntime(control, filepath.Join(t.TempDir(), "boot-id"), time.Millisecond, time.Second)
+	runtime := misterruntime.NewRuntime(control, filepath.Join(t.TempDir(), "boot-id"), time.Millisecond, time.Second, misterruntime.WithCorePackageRoot(leasePackageStagingRoot(t)))
 	coordinator := agent.New(runtime, time.Second, time.Second)
 	program := &kitLocalProgram{}
 	var manager *kitlease.Manager
@@ -194,7 +194,16 @@ func (f *kitFixture) load(t *testing.T) {
 	if f.coordinator.Status().State != protocol.StateIdle {
 		t.Fatalf("coordinator %s", f.coordinator.Status().State)
 	}
-	if err := f.native.LoadCore(context.Background(), context.Background(), "/tmp/fes-pong", strings.Repeat("ab", 32)); err != nil {
+	root := t.TempDir()
+	packages, selections := filepath.Join(root, "pkgs"), filepath.Join(root, "sel")
+	if err := os.MkdirAll(packages, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(selections, 0755); err != nil {
+		t.Fatal(err)
+	}
+	id := installPong(t, packages, selections)
+	if err := f.native.LoadCore(context.Background(), context.Background(), filepath.Join(packages, id), id); err != nil {
 		t.Fatal(err)
 	}
 	loads, stops, early := f.control.counts()
@@ -363,13 +372,22 @@ func TestOwnedLoadKeepsOperationOnItsOwnContext(t *testing.T) {
 			close(release)
 		}
 	})
-	runtime := misterruntime.NewRuntime(control, filepath.Join(t.TempDir(), "boot-id"), time.Millisecond, time.Second)
+	runtime := misterruntime.NewRuntime(control, filepath.Join(t.TempDir(), "boot-id"), time.Millisecond, time.Second, misterruntime.WithCorePackageRoot(leasePackageStagingRoot(t)))
 	native := nativeLocalRuntime{runtime: runtime, program: &kitLocalProgram{}}
 	admission, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	root := t.TempDir()
+	packages, selections := filepath.Join(root, "pkgs"), filepath.Join(root, "sel")
+	if err := os.MkdirAll(packages, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(selections, 0755); err != nil {
+		t.Fatal(err)
+	}
+	id := installPong(t, packages, selections)
 	done := make(chan error, 1)
 	go func() {
-		done <- native.LoadCore(admission, context.Background(), "/tmp/fes-pong", strings.Repeat("ab", 32))
+		done <- native.LoadCore(admission, context.Background(), filepath.Join(packages, id), id)
 	}()
 	select {
 	case <-started:
@@ -399,7 +417,7 @@ type blockingControl struct {
 }
 
 func (c *blockingControl) Protocol2Status(context.Context) (misterruntime.Protocol2Response, error) {
-	return misterruntime.Protocol2Response{}, errors.New("unused")
+	return cleanIdleResponse(), nil
 }
 
 func (c *blockingControl) Protocol2Stop(context.Context) (misterruntime.Protocol2Response, error) {
@@ -410,7 +428,7 @@ func (c *blockingControl) Protocol2LoadDevelopmentRBF(context.Context, string) (
 	return misterruntime.Protocol2Response{}, errors.New("unused")
 }
 
-func (c *blockingControl) LoadCore(ctx context.Context, _, _ string) (misterruntime.Protocol2Response, error) {
+func (c *blockingControl) LoadCore(ctx context.Context, path, packageID string) (misterruntime.Protocol2Response, error) {
 	c.mu.Lock()
 	c.op = ctx
 	c.mu.Unlock()
@@ -419,7 +437,7 @@ func (c *blockingControl) LoadCore(ctx context.Context, _, _ string) (misterrunt
 	if ctx.Err() != nil {
 		return misterruntime.Protocol2Response{}, ctx.Err()
 	}
-	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "running_development", Execution: "development", Version: "test"}, nil
+	return installedLoadResponse(path, packageID)
 }
 
 func (c *blockingControl) operation() context.Context {
@@ -430,37 +448,94 @@ func (c *blockingControl) operation() context.Context {
 
 func installPong(t *testing.T, packages, selections string) string {
 	t.Helper()
-	sum := sha256.Sum256([]byte("fes.pong"))
-	id := hex.EncodeToString(sum[:])
-	payload := []byte("rbf:fes.pong")
-	payloadSum := sha256.Sum256(payload)
-	payloadSHA := hex.EncodeToString(payloadSum[:])
-	dir := filepath.Join(packages, id)
-	if err := os.Mkdir(dir, 0o755); err != nil {
+	dir := filepath.Join(packages, "incoming")
+	if err := os.Mkdir(dir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	manifest := fmt.Sprintf(`format = 2
-[core]
-id = "fes.pong"
-name = "FES Pong"
-[payload]
-file = "core.rbf"
-size = %d
-sha256 = %q
-[abi]
-id = "fes.simple-game"
-major = 1
-minor = 0
-`, len(payload), payloadSHA)
-	if err := os.WriteFile(filepath.Join(dir, "manifest.toml"), []byte(manifest), 0o644); err != nil {
+	fixtureRoot := filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v2")
+	for _, item := range []struct{ source, target string }{{"manifests/valid-basic.toml", "manifest.toml"}, {"payloads/fes-fixture.rbf", "core.rbf"}} {
+		data, err := os.ReadFile(filepath.Join(fixtureRoot, item.source))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, item.target), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	inspection, err := corepackage.InspectPackage(dir)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "core.rbf"), payload, 0o644); err != nil {
+	installed := filepath.Join(packages, inspection.PackageID)
+	if err := os.Rename(dir, installed); err != nil {
 		t.Fatal(err)
 	}
-	body := fmt.Sprintf("core_id = \"fes.pong\"\npackage_id = %q\npayload_sha256 = %q\ninstall_path = %q\n", id, payloadSHA, dir)
-	if err := os.WriteFile(filepath.Join(selections, "fes-pong.package.toml"), []byte(body), 0o644); err != nil {
+	body := fmt.Sprintf("core_id = %q\npackage_id = %q\npayload_sha256 = %q\ninstall_path = %q\n", inspection.Descriptor.Core.ID, inspection.PackageID, inspection.Descriptor.Payload.SHA256, installed)
+	if err := os.WriteFile(filepath.Join(selections, "fes-pong.package.toml"), []byte(body), 0644); err != nil {
 		t.Fatal(err)
 	}
-	return id
+	return inspection.PackageID
+}
+
+func (c *scriptedControl) InspectCore(_ context.Context, path, packageID string) (misterruntime.Protocol2Response, error) {
+	return installedInspectionResponse(path, packageID)
+}
+
+func (c *blockingControl) InspectCore(_ context.Context, path, packageID string) (misterruntime.Protocol2Response, error) {
+	return installedInspectionResponse(path, packageID)
+}
+
+func installedInspectionResponse(path, packageID string) (misterruntime.Protocol2Response, error) {
+	inspection, err := corepackage.InspectPackage(path)
+	if err != nil {
+		return misterruntime.Protocol2Response{}, err
+	}
+	if inspection.PackageID != packageID {
+		return misterruntime.Protocol2Response{}, errors.New("staged package identity mismatch")
+	}
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "idle", Execution: "none", Version: "test",
+		Capabilities:     installedControlCapabilities(inspection.Descriptor, false),
+		InspectedPackage: &misterruntime.Protocol2Inspection{PackageID: packageID, Descriptor: inspection.Descriptor, Compatible: true}}, nil
+}
+
+func installedLoadResponse(path, packageID string) (misterruntime.Protocol2Response, error) {
+	inspection, err := corepackage.InspectPackage(path)
+	if err != nil {
+		return misterruntime.Protocol2Response{}, err
+	}
+	if inspection.PackageID != packageID {
+		return misterruntime.Protocol2Response{}, errors.New("staged load identity mismatch")
+	}
+	generation := uint64(1)
+	buildID := inspection.Descriptor.Build.ID
+	observedABI := misterruntime.Protocol2Contract{ID: inspection.Descriptor.ABI.ID, Major: uint16(inspection.Descriptor.ABI.Major), Minor: uint16(inspection.Descriptor.ABI.Minor)}
+	return misterruntime.Protocol2Response{Protocol: 2, OK: true, State: "running_development", Execution: "development", Version: "test", Generation: &generation,
+		Capabilities:  installedControlCapabilities(inspection.Descriptor, true),
+		ActivePackage: &misterruntime.Protocol2ActivePackage{PackageID: packageID, Descriptor: inspection.Descriptor, PersistenceMode: "volatile", Observed: misterruntime.Protocol2Observed{ABI: &observedABI, BuildID: &buildID}}}, nil
+}
+
+func leasePackageStagingRoot(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	t.Cleanup(func() {
+		_ = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+			if err == nil && entry.IsDir() {
+				return os.Chmod(path, 0700)
+			}
+			return nil
+		})
+	})
+	return root
+}
+
+func installedControlCapabilities(descriptor corepackage.Descriptor, active bool) misterruntime.Protocol2Capabilities {
+	interfaces := make([]misterruntime.Protocol2Interface, 0, len(descriptor.Interfaces))
+	for _, iface := range descriptor.Interfaces {
+		interfaces = append(interfaces, misterruntime.Protocol2Interface{ID: iface.ID, Major: uint16(iface.Major), Minor: uint16(iface.Minor)})
+	}
+	capabilities := misterruntime.Protocol2Capabilities{ProgrammingProfiles: []string{descriptor.Target.ProgrammingProfile}, ABIs: []misterruntime.Protocol2ABI{{ID: descriptor.ABI.ID, Major: uint16(descriptor.ABI.Major), Minor: uint16(descriptor.ABI.Minor), Interfaces: interfaces}}, ActiveInterfaces: []misterruntime.Protocol2Interface{}}
+	if active {
+		capabilities.ActiveInterfaces = interfaces
+	}
+	return capabilities
 }

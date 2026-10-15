@@ -178,7 +178,7 @@ func TestLoadCartridgeProgramsInstalledCore(t *testing.T) {
 	if err = native.LoadCartridge(context.Background(), context.Background(), install, inspection.PackageID, rom); err != nil {
 		t.Fatal(err)
 	}
-	if control.linkedCalls != 1 || control.loadCalls != 0 || control.inspectCalls != 1 || !program.active() {
+	if control.linkedCalls != 1 || control.loadCalls != 0 || control.inspectCalls != 2 || !program.active() {
 		t.Fatalf("linked=%d loads=%d inspects=%d programmed=%v", control.linkedCalls, control.loadCalls, control.inspectCalls, program.active())
 	}
 	if control.link.SourceSHA256 != fmt.Sprintf("%x", sha256.Sum256(rom)) || control.link.SourceSize != int64(len(rom)) {

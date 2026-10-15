@@ -2,6 +2,7 @@ package localcores
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -16,7 +17,26 @@ func Handler(service *Service) http.Handler {
 		writeJSON(w, http.StatusOK, service.RunStatus())
 	})
 	mux.HandleFunc("GET /v1/local/cores", func(w http.ResponseWriter, r *http.Request) {
-		cores := service.List()
+		// An unreadable durable library is HTTP 200 and an empty list.
+		// Bearer /v1/core-packages uses HTTP 503 for that failure.
+		// A catalog warm still in progress is HTTP 503 warming. The client
+		// retries that; it is not an empty catalog.
+		// A disconnected client cancels this wait. The shared catalog scan
+		// is not started again by the retry.
+		cores, err := service.list(r.Context())
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return
+			}
+			if errors.Is(err, errWarming) {
+				// The catalog warm is still reading package bytes. The client
+				// retries; an empty 200 would be cached as a finished list.
+				writeLocalError(w, http.StatusServiceUnavailable, "warming")
+				return
+			}
+			writeLocalError(w, http.StatusServiceUnavailable, "unavailable")
+			return
+		}
 		if cores == nil {
 			cores = []Core{}
 		}
@@ -81,6 +101,8 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		writeLocalError(w, http.StatusConflict, "blocked")
 	case errors.Is(err, errInUse):
 		writeLocalError(w, http.StatusConflict, "in_use")
+	case errors.Is(err, errWarming):
+		writeLocalError(w, http.StatusServiceUnavailable, "warming")
 	default:
 		writeLocalError(w, http.StatusServiceUnavailable, "unavailable")
 	}

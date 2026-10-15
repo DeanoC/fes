@@ -2207,6 +2207,89 @@ listener remains loopback-only. The SDL sofa layout and the kit browse views are
 renderers over the same session model and do not own physical transitions.
 
 
+## Durable target core packages
+
+`internal/kitpackages` retains canonical archives and sealed package members on
+the mounted ext4 FESDATA3 volume at `/run/fogcast/fesdata3/core-library`.
+Production opening verifies that volume against the block device
+`appliancedata.Prepare` selects: `/dev/disk/by-label/FESDATA3` when the label
+is present, including a labelled USB partition, otherwise labelled
+`/dev/mmcblk0p3`. It also requires writable ext4 and exact mount identity
+before mkdir. Subsequent operations recheck the mount and pinned store
+directories. An absent FESDATA3 volume, a preparation error, a skipped
+appliance update gate, or a failed open after successful preparation leaves
+storage unavailable. That failure blocks kit-local inventory and withholds
+factory selections. The kit-local socket `GET /v1/local/cores` returns HTTP 200
+with an empty list and does not read factory package bytes.
+Bearer `GET /v1/core-packages` reports the same unavailable store as HTTP 503
+`CORE_PACKAGE_STORE_UNAVAILABLE`. Shared flock, file and directory fsync, immutable
+identity and selection CAS coordinate independent agents. Reopening completes
+verified interrupted unselected publications; selected corruption remains blocked.
+
+Bearer `GET/POST /v1/core-packages` and `GET /v1/core-selections`,
+`PUT /v1/core-selections/{core_id}` expose inventory, bounded archive installation
+and checked future selection. Installation does not select or inspect hardware.
+Selection compares `expected_package_id`, checks descriptor/core identity and
+queries the native runtime's read-only compatibility authority before commit.
+These storage operations acquire no execution lease; appliance update admission
+excludes mutations during trial or image transitions. The target client does not
+replay lost mutations. No delete, restart, activation or implicit rollback exists.
+
+Kit-local inventory overlays explicit durable selections by core ID on factory
+selections. Listing reads each factory manifest, streams the payload digest,
+and streams the ROM-map digest, including the package id. Format 3 and format 4
+maps are structurally validated while they stream, including binding to the
+payload digest, and a map full inspection would reject is omitted. Only the
+manifest and the running hashes are kept. Checking one map holds a fixed CRAM
+destination bitmap for that package and does not retain the encoded map or its
+decoded blocks. A finished factory catalog is cached until its stat fingerprint changes:
+selection and member size, mtime, inode, and directory entries. Opening a
+selection file does not change that key, so a durable selection read does not
+start another factory scan. After the durable store opens, the agent warms
+that factory cache and the durable verification cache on a background goroutine.
+The warm returns before the control socket and the bearer listener accept
+requests, so it does not delay agent readiness. Durable verification runs, then
+the factory scan, so only one payload is in flight. `GET /v1/local/cores` waits
+at most 200ms for an in-progress warm. If the warm is still running it returns
+HTTP 503 `{"error":"warming"}` and does not start a second scan or read package
+bytes for that request. The kit-local client surfaces that as `warming` without
+waiting out its 3s timeout. Tenfoot keeps the checking state and retries until
+a list succeeds; the installed-cores room does the same. `POST
+/v1/local/cores/{package_id}/launch` resolves the package through that same
+list. A launch that arrives while the warm is still running returns the same
+HTTP 503 `{"error":"warming"}`, claims no lease, and does not program a core.
+The kit-local client returns `warming` as soon as that response arrives, as it
+does for a list, so the caller can retry. It does not treat the response as an
+unavailable agent and does not reconcile it as a lost launch. A successful list is
+the finished catalog, not a partial one. The list handler waits on the
+request context, so a client disconnect ends that wait and leaves the warm
+running. One catalog scan runs
+at a time. A fingerprint change while that scan is in progress waits for it to
+finish, then scans once more when the tree still differs. Durable listing
+reuses the byte verification recorded at install, reopen, warm-up, or the last
+fingerprint miss while the sealed archive and member fingerprint (size,
+mtime, ctime, device, inode, mode, and directory entries) still matches, and
+does not read those payloads again. On Linux, ctime and device come from the
+file stat. A same-size rewrite that restores mtime updates ctime, so the next
+list verifies the bytes and withholds a package that fails authentication.
+Select, path lookup, and launch reread the selected package with full
+inspection before programming. Reopening the store verifies every installed
+package before it serves. Corruption that leaves every stat field unchanged
+waits for one of those byte reads. Manifest requirements block unsupported local media,
+firmware, multi-ROM and native video-part paths.
+`Launchable` describes local inputs, not hardware acceptance; native inspection
+checks the exact canonical bytes before programming. Plain local loads use the
+existing archive staging path, preserving native trusted roots. Durable mesh
+inventory advertises a package only when that byte verification is current
+for the same fingerprint, and omits the durable library when verification
+fails. It uses those verified store objects instead of scanning only ABI
+metadata.
+Local launches also enter the appliance update drain before claiming execution.
+The existing local execution mode remains volatile for settings/progress.
+
+See [durable kit library](../../../docs/kit-core-library.md) for the operator
+workflow and explicit storage/recovery boundaries.
+
 ## Installed core packages and library entries
 
 Coleco firmware and optional ZX81/Coleco CPU expansion-bus modules use the normal library launch
@@ -2462,11 +2545,11 @@ While the phase is running, that same tick polls GET /v1/local/status at most
 about once a second, off the app lock and single-flight. If the agent reports
 idle or not running, tenfoot resumes the same way. Stop that returns in_use
 resumes too; only unavailable is retried, because the core may still be up.
-ZX81 stays
-in that firmware class: the socket does not link its firmware ROM and does not
-consult that rom map. A cartridge for an installed core is linked by
+Packages declaring firmware stay in that class: the local socket does not
+link firmware ROMs. A cartridge for an installed core is linked by
 LoadCartridge, which rebuilds the canonical archive from the extracted
-directory and programs the core. A held, busy, blocked, or recovery lease returns 409 and does not
+directory, verifies the exact archived identity with the runtime and programs
+the core through the existing staging path. A held, busy, blocked, or recovery lease returns 409 and does not
 call the runtime. The claim starts renewal immediately. The first renew waits
 a quarter of the time still remaining, so a slow launch renews before the
 grant expires, and renewal continues until stop, a failed renew, release, or
@@ -2479,6 +2562,15 @@ pad frame cannot rebind a generation that barrier just cleared. Stop uses the
 owned stop path. Kit-local loads do not enter the coordinator, so takeover,
 expiry, shutdown, and release after a failed load stop the runtime before the
 lease can be freed. Cleanup that does not reach idle leaves the lease blocked.
+A successful kit-local Stop waits until that revocation has left the revoking
+state and the lease is free. Until then local status stays stopping; idle means
+the next launch can claim. Release returns while cleanup is still running, and
+a launch during revocation is in use. Cleanup that fails makes Stop return
+unavailable. Disconnecting the local client does not abandon that wait. The
+kit client gives the stop POST the runtime stop budget plus the lease cleanup
+budget. A lost response is reconciled from local status: idle resumes, and
+stopping or running stays unavailable so the menu does not offer another launch
+while the grant is still revoking. Tenfoot's stop budget outlives that POST.
 Bearer `GET /v1/status` still reads that coordinator record. While the record
 is idle and a kit-local core is launching, running, or stopping, the response
 reports state `launching`, `local`, or `stopping` and sets `observed_core` to

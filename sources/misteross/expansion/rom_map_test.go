@@ -5,9 +5,84 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
+	"runtime"
 	"strings"
 	"testing"
 )
+
+func TestValidateROMMapStreamMatchesParse(t *testing.T) {
+	_, m := mistralFixture(t)
+	raw, err := json.Marshal(m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateROMMapStream(context.Background(), bytes.NewReader(raw), int64(len(raw)), m.BaseSHA256, m.SourceSize); err != nil {
+		t.Fatal(err)
+	}
+	var reordered map[string]any
+	if err := json.Unmarshal(raw, &reordered); err != nil {
+		t.Fatal(err)
+	}
+	indented, err := json.MarshalIndent(reordered, "", " ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateROMMapStream(context.Background(), bytes.NewReader(indented), int64(len(indented)), m.BaseSHA256, m.SourceSize); err != nil {
+		t.Fatalf("reordered map: %v", err)
+	}
+	zeros := bytes.Repeat([]byte{0}, 1024)
+	if err := ValidateROMMapStream(context.Background(), bytes.NewReader(zeros), int64(len(zeros)), m.BaseSHA256, m.SourceSize); err == nil {
+		t.Fatal("zero map accepted")
+	}
+	if _, err := ParseROMMap(context.Background(), zeros, m.BaseSHA256, m.SourceSize); err == nil {
+		t.Fatal("ParseROMMap accepted a zero map")
+	}
+	if err := ValidateROMMapStream(context.Background(), bytes.NewReader(raw), int64(len(raw)), digest([]byte("wrong")), m.SourceSize); err == nil {
+		t.Fatal("unbound stream accepted")
+	}
+	badUTF := append([]byte(nil), raw...)
+	badUTF[len(badUTF)-2] = 0xff
+	if err := ValidateROMMapStream(context.Background(), bytes.NewReader(badUTF), int64(len(badUTF)), m.BaseSHA256, m.SourceSize); err == nil {
+		t.Fatal("invalid UTF-8 accepted")
+	}
+}
+
+func TestValidateROMMapStreamDoesNotBufferZeros(t *testing.T) {
+	const size = 2 << 20
+	runtime.GC()
+	var before runtime.MemStats
+	runtime.ReadMemStats(&before)
+	err := ValidateROMMapStream(context.Background(), &zeroStream{left: size}, size, strings.Repeat("ab", 32), 1024)
+	var after runtime.MemStats
+	runtime.ReadMemStats(&after)
+	if err == nil {
+		t.Fatal("zero stream accepted")
+	}
+	if allocated := after.TotalAlloc - before.TotalAlloc; allocated > 1<<20 {
+		t.Fatalf("stream allocated %d bytes", allocated)
+	}
+}
+
+type zeroStream struct{ left int64 }
+
+func (z *zeroStream) Read(p []byte) (int, error) {
+	if z.left == 0 {
+		return 0, io.EOF
+	}
+	n := len(p)
+	if int64(n) > z.left {
+		n = int(z.left)
+	}
+	for i := 0; i < n; i++ {
+		p[i] = 0
+	}
+	z.left -= int64(n)
+	if z.left == 0 {
+		return n, io.EOF
+	}
+	return n, nil
+}
 
 func TestParseROMMapClosedAndBound(t *testing.T) {
 	_, m := mistralFixture(t)

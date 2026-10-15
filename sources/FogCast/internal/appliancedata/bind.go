@@ -115,6 +115,16 @@ func ProductionConfig() Config {
 	}
 }
 
+// SelectedDevice is the block device Prepare would mount. It uses the same
+// candidate order and label rule as Prepare and does not mount or format.
+// A path ending in the volume label is accepted when present, so a labelled
+// USB partition matches /dev/disk/by-label/FESDATA3. Any other candidate must
+// carry that ext4 label. The second result is false when no candidate is present.
+func SelectedDevice(cfg Config) (string, bool) {
+	cfg = applyDefaults(cfg)
+	return findDevice(cfg)
+}
+
 // Prepare bind-mounts p3 over the mutable FogCast directories when FESDATA3
 // exists and /v1/update is not trial, pending, or corrupt. Missing p3 is a
 // no-op. A blocked or unreadable update status refuses the bind without

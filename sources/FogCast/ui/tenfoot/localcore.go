@@ -28,8 +28,11 @@ const (
 	localCoreMissingAction  = "Install the Master System core."
 	localCoreCheckingCopy   = "Checking whether the Master System core is installed."
 	localCoreCheckingAction = "Wait — still checking."
-	localStopBudget         = 35 * time.Second
-	localChordHold          = time.Second
+	// localStopBudget outlives the local client's stop POST (runtime stop
+	// plus lease cleanup, 65s) and its short status reconcile. A lost stop
+	// that is still revoking stays ErrUnavailable, so presents stay paused.
+	localStopBudget = 75 * time.Second
+	localChordHold  = time.Second
 	// localStatusEvery is the fastest the running-phase status poll runs.
 	// The client's own timeout is 3s, so the poll never runs under a.mu.
 	localStatusEvery      = time.Second
@@ -447,8 +450,9 @@ func (a *App) beginLocalStopLocked() {
 		if a.localGen != gen || a.localPhase != localPhaseStopping {
 			return
 		}
-		// Unavailable can mean the core is still up. in_use means the lease is
-		// gone (takeover or expiry); staying paused would wedge presents.
+		// Unavailable can mean the core is still up, or that stop's response
+		// was lost while the lease was still revoking. in_use means the lease
+		// is gone (takeover or expiry); staying paused would wedge presents.
 		if errors.Is(err, localcores.ErrUnavailable) {
 			a.localStatusEpoch++
 			a.localPhase = localPhaseRunning

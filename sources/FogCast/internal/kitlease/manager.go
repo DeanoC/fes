@@ -227,6 +227,38 @@ func (m *Manager) Release(token string) (Status, error) {
 	}
 	return m.snapshotLocked(), nil
 }
+
+// Settled waits until an in-flight revocation finishes. Release and takeover
+// return while cleanup is still running and the state is revoking; a grant
+// cannot be claimed again until this returns. A lease that is not revoking
+// returns immediately. Cancelling ctx abandons the wait and leaves cleanup
+// running.
+func (m *Manager) Settled(ctx context.Context) (Status, error) {
+	if m == nil {
+		return Status{}, ErrLease
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	for {
+		m.mu.Lock()
+		if m.status.State != "revoking" {
+			status := m.snapshotLocked()
+			m.mu.Unlock()
+			return status, nil
+		}
+		finished := m.finished
+		m.mu.Unlock()
+		if finished == nil {
+			return Status{}, ErrLease
+		}
+		select {
+		case <-ctx.Done():
+			return Status{}, ctx.Err()
+		case <-finished:
+		}
+	}
+}
 func (m *Manager) Takeover(r TakeoverRequest) (Grant, error) {
 	if !valid(r.ClaimRequest) || !label(r.Reason) || r.ExpectedGeneration == "" {
 		return Grant{}, ErrInvalid
