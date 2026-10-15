@@ -24,6 +24,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/discovery"
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/input"
+	"github.com/DeanoC/FogCast/internal/kitpackages"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
 	"github.com/DeanoC/FogCast/internal/targetcache"
 	"github.com/DeanoC/FogCast/protocol"
@@ -439,6 +440,10 @@ func TestRunBindsDataPartitionBeforeOpeningCache(t *testing.T) {
 			order = append(order, "data")
 			return errors.New("trial blocks bind")
 		},
+		openCorePackages: func() (*kitpackages.Store, error) {
+			t.Fatal("opened core library after blocked preparation")
+			return nil, nil
+		},
 		openCache: func(targetcache.Config, ...targetcache.Option) (agent.ContentStore, error) {
 			order = append(order, "cache")
 			return &compositionStore{}, nil
@@ -461,10 +466,10 @@ func TestRunBindsDataPartitionBeforeOpeningCache(t *testing.T) {
 	}
 }
 
-func TestBindApplianceDataSkipsAbsentPartitionWithoutFailing(t *testing.T) {
+func TestBindApplianceDataReportsAbsentPartition(t *testing.T) {
 	t.Parallel()
-	if err := bindApplianceData(slog.New(slog.NewJSONHandler(io.Discard, nil))); err != nil {
-		t.Fatal(err)
+	if err := bindApplianceData(slog.New(slog.NewJSONHandler(io.Discard, nil))); err == nil {
+		t.Fatal("absent data partition must not enable a durable core store")
 	}
 	cfg := appliancedata.ProductionConfig()
 	if got := strings.Join(cfg.BindNames, ","); got != "cache,saves,core-data,launcher-cache,evidence" {
@@ -815,4 +820,56 @@ func TestAgentStartupCLIProcess(t *testing.T) {
 	flag.CommandLine = flag.NewFlagSet("mister-agent", flag.ExitOnError)
 	os.Args = []string{"mister-agent", "--config", path}
 	main()
+}
+
+func TestRunDurableLibraryAvailability(t *testing.T) {
+	for _, scenario := range []struct {
+		name                    string
+		prepareErr, errorOnOpen bool
+		wantStatus, opens       int
+	}{
+		{"blocked preparation", true, false, 503, 0}, {"broken library", false, true, 503, 1}, {"available", false, false, 200, 1},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			opened := 0
+			deps := runDependencies{
+				prepareDataPartition: func() error {
+					if scenario.prepareErr {
+						return errors.New("trial")
+					}
+					return nil
+				},
+				openCorePackages: func() (*kitpackages.Store, error) {
+					opened++
+					if scenario.errorOnOpen {
+						return nil, errors.New("broken library")
+					}
+					return kitpackages.New(filepath.Join(t.TempDir(), "library"))
+				},
+				openCache: func(targetcache.Config, ...targetcache.Option) (agent.ContentStore, error) {
+					return &compositionStore{}, nil
+				},
+				newRuntime: func(agentconfig.Config) agent.Runtime { return &compositionRuntime{} },
+				serve: func(server *http.Server) error {
+					request := httptest.NewRequest("GET", "/v1/core-packages", nil)
+					request.Header.Set("Authorization", "Bearer test-token")
+					result := httptest.NewRecorder()
+					server.Handler.ServeHTTP(result, request)
+					if result.Code != scenario.wantStatus {
+						t.Fatalf("inventory status %d: %s", result.Code, result.Body.String())
+					}
+					cancel()
+					return http.ErrServerClosed
+				},
+			}
+			if err := runWithDependencies(ctx, writeCompositionConfig(t, ""), slog.New(slog.NewJSONHandler(io.Discard, nil)), deps); err != nil {
+				t.Fatal(err)
+			}
+			if opened != scenario.opens {
+				t.Fatalf("opened %d", opened)
+			}
+		})
+	}
 }

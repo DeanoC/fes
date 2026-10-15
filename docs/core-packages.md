@@ -92,6 +92,14 @@ a package does not inherit earlier acceptance. Cartridge ROM packages must remov
 blob/stream and firmware mailboxes; firmware ROM packages may retain separate
 tape/disk input.
 
+## Durable target installation
+
+The [durable kit core library](kit-core-library.md) installs and selects immutable
+versions on an existing FESDATA3 volume through the target REST API. It retains
+the factory inventory and older versions, affects the next kit-local launch and
+requires no OS rebuild, reboot or service restart. Host library import remains
+separate; installation does not activate the FPGA.
+
 ## Library video preference
 
 Settings selects the household `direct` or `scanlines` preference for the next

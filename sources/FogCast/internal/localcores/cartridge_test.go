@@ -66,7 +66,7 @@ func TestReadCartridgeZIPRejectsMultipleSMSROMs(t *testing.T) {
 func TestLaunchCartridgeDeliversROMWithoutLoadingTheBareCore(t *testing.T) {
 	runtime := &fakeRuntime{}
 	service, _, selections, packages := testService(t, runtime)
-	smsID := installCore(t, packages, selections, "fes.sms", "Master System", "fes.computer", coreOpts{})
+	smsID := installCore(t, packages, selections, "fes.sms", "Master System", "fes.computer", coreOpts{cartridge: true})
 	romPath := filepath.Join(t.TempDir(), "Data Storm 1.00.sms")
 	rom := []byte("data-storm-fixture")
 	if err := os.WriteFile(romPath, rom, 0o600); err != nil {

@@ -256,6 +256,52 @@ func TestPrepareIsIdempotentWhenAlreadyBound(t *testing.T) {
 	}
 }
 
+func TestSelectedDevicePrefersLabelOverMMC(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	label := filepath.Join(root, "by-label", DefaultLabel)
+	mmc := filepath.Join(root, "mmcblk0p3")
+	if err := os.MkdirAll(filepath.Dir(label), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(label, []byte("not-ext4"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(mmc, ext4Superblock(DefaultLabel), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	got, ok := SelectedDevice(Config{Devices: []string{label, mmc}, Label: DefaultLabel})
+	if !ok || got != label {
+		t.Fatalf("selected %q ok=%v", got, ok)
+	}
+}
+
+func TestSelectedDeviceAcceptsLabelledNonMMCDevice(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	usb := filepath.Join(root, "sda3")
+	mmc := filepath.Join(root, "mmcblk0p3")
+	if err := os.WriteFile(usb, ext4Superblock(DefaultLabel), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(mmc, ext4Superblock("OTHER"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	missingLabel := filepath.Join(root, "by-label", DefaultLabel)
+	got, ok := SelectedDevice(Config{Devices: []string{missingLabel, usb, mmc}, Label: DefaultLabel})
+	if !ok || got != usb {
+		t.Fatalf("selected %q ok=%v", got, ok)
+	}
+}
+
+func TestProductionDevicesPreferLabel(t *testing.T) {
+	t.Parallel()
+	cfg := ProductionConfig()
+	if len(cfg.Devices) != 2 || cfg.Devices[0] != DefaultLabelDevice || cfg.Devices[1] != DefaultMMCDevice {
+		t.Fatalf("devices = %v", cfg.Devices)
+	}
+}
+
 func TestPrepareUsesByLabelWithoutReadingSuperblock(t *testing.T) {
 	t.Parallel()
 	mounter := newRecordingMounter()

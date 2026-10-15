@@ -178,6 +178,70 @@ func TestClientEmptyListIsNotNil(t *testing.T) {
 	}
 }
 
+func TestClientListWarmingReturnsWithoutTheClientTimeout(t *testing.T) {
+	path := shortSock(t)
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "warming"})
+	}))
+	if err := srv.Listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	srv.Listener = ln
+	srv.Start()
+	t.Cleanup(srv.Close)
+
+	started := time.Now()
+	cores, err := NewClient(path).List(context.Background())
+	if !errors.Is(err, ErrWarming) || cores != nil {
+		t.Fatalf("list %+v %v", cores, err)
+	}
+	if time.Since(started) >= time.Second {
+		t.Fatalf("warming list waited %s", time.Since(started))
+	}
+}
+
+func TestClientLaunchWarmingReturnsWithoutReconcile(t *testing.T) {
+	path := shortSock(t)
+	var statusHits atomic.Int32
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/v1/local/status" {
+			statusHits.Add(1)
+		}
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "warming"})
+	}))
+	if err := srv.Listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	srv.Listener = ln
+	srv.Start()
+	t.Cleanup(srv.Close)
+
+	client := NewClient(path)
+	started := time.Now()
+	err = client.Launch(context.Background(), clientPongID)
+	if !errors.Is(err, ErrWarming) {
+		t.Fatalf("launch %v", err)
+	}
+	if time.Since(started) >= time.Second {
+		t.Fatalf("warming launch waited %s", time.Since(started))
+	}
+	romErr := client.LaunchROM(context.Background(), clientPongID, "/tmp/cart.rom")
+	if !errors.Is(romErr, ErrWarming) {
+		t.Fatalf("cartridge launch %v", romErr)
+	}
+	if statusHits.Load() != 0 {
+		t.Fatalf("warming launch reconciled status %d times", statusHits.Load())
+	}
+}
+
 func TestClientMissingAndRefusedSocketsAreUnavailable(t *testing.T) {
 	missing := NewClient(shortSock(t))
 	if _, err := missing.List(context.Background()); !errors.Is(err, ErrUnavailable) {
@@ -272,6 +336,67 @@ func TestLaunchTimeoutThenIdleStaysFailed(t *testing.T) {
 	client.reconcileFor = time.Second
 	if err := client.Launch(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("idle after timeout %v", err)
+	}
+	if posts.Load() != 1 {
+		t.Fatalf("posts %d", posts.Load())
+	}
+}
+
+func TestStopTimeoutThenIdleIsClaimable(t *testing.T) {
+	path := shortSock(t)
+	var posts atomic.Int32
+	var phase atomic.Value
+	phase.Store(phaseStopping)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/local/status":
+			writeJSON(w, http.StatusOK, RunStatus{Phase: phase.Load().(string), PackageID: clientPongID, Running: false})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/local/stop":
+			if posts.Add(1) != 1 {
+				t.Errorf("stop posted %d times", posts.Load())
+			}
+			phase.Store(phaseIdle)
+			<-r.Context().Done()
+		default:
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+		}
+	})
+	serveUnix(t, path, handler)
+	client := NewClient(path)
+	// Same accept margin as the launch timeout cases. A few tens of
+	// milliseconds can expire before the handler runs, and Stop would
+	// reconcile without posting.
+	client.stopPost = 2 * time.Second
+	client.reconcileFor = time.Second
+	client.reconcileEvery = 20 * time.Millisecond
+	if err := client.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if posts.Load() != 1 {
+		t.Fatalf("posts %d", posts.Load())
+	}
+}
+
+func TestStopTimeoutThenRunningStaysUnavailable(t *testing.T) {
+	path := shortSock(t)
+	var posts atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/local/status":
+			writeJSON(w, http.StatusOK, RunStatus{Phase: phaseRunning, PackageID: clientPongID, Running: true})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/local/stop":
+			posts.Add(1)
+			<-r.Context().Done()
+		default:
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+		}
+	})
+	serveUnix(t, path, handler)
+	client := NewClient(path)
+	client.stopPost = 2 * time.Second
+	client.reconcileFor = time.Second
+	if err := client.Stop(context.Background()); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("running after timeout %v", err)
 	}
 	if posts.Load() != 1 {
 		t.Fatalf("posts %d", posts.Load())
