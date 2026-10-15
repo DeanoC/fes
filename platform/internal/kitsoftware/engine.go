@@ -1,0 +1,267 @@
+package kitsoftware
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+)
+
+// Controller must verify that all former processes have exited before returning
+// from Stop. Healthy verifies exact executable identities, native idle and actual
+// launcher readiness. It must not treat process existence alone as readiness.
+type Controller interface {
+	Verify(context.Context, string) error
+	Stop(context.Context) error
+	Start(context.Context, string, Request) error
+	Healthy(context.Context, string) error
+}
+
+// Admission owns the target lease reservation. Acquire never takes over a live
+// execution owner. It is idempotent across agent restart and supervisor restart.
+// Release is called only after durable completion, including failed-candidate
+// recovery. Errors must retain the reservation and block execution.
+type Admission interface {
+	Acquire(context.Context, Request) error
+	Release(context.Context, Request) error
+}
+
+type Engine struct {
+	Repository Repository
+	Controller Controller
+	Admission  Admission
+	// Gate rejects activation during appliance trial/pending/corrupt state.
+	Gate func(context.Context) error
+	// Defaults are 60 seconds deadline, 10 seconds uninterrupted readiness and
+	// 250 milliseconds polling. Tests can use a virtual clock.
+	Deadline, Stable, Poll time.Duration
+	Now                    func() time.Time
+	Wait                   func(context.Context, time.Duration) error
+}
+
+func (e *Engine) defaults() {
+	if e.Deadline == 0 {
+		e.Deadline = 60 * time.Second
+	}
+	if e.Stable == 0 {
+		e.Stable = 10 * time.Second
+	}
+	if e.Poll == 0 {
+		e.Poll = 250 * time.Millisecond
+	}
+	if e.Now == nil {
+		e.Now = time.Now
+	}
+	if e.Wait == nil {
+		e.Wait = func(ctx context.Context, d time.Duration) error {
+			t := time.NewTimer(d)
+			defer t.Stop()
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-t.C:
+				return nil
+			}
+		}
+	}
+}
+
+func (e *Engine) health(ctx context.Context, id string) error {
+	deadline := e.Now().Add(e.Deadline)
+	var since time.Time
+	var last error
+	for e.Now().Before(deadline) {
+		probeCtx, cancel := context.WithTimeout(ctx, e.Poll*4)
+		err := e.Controller.Healthy(probeCtx, id)
+		cancel()
+		if err == nil {
+			if since.IsZero() {
+				since = e.Now()
+			}
+			if e.Now().Sub(since) >= e.Stable {
+				return nil
+			}
+		} else {
+			since = time.Time{}
+			last = err
+		}
+		if err := e.Wait(ctx, e.Poll); err != nil {
+			return err
+		}
+	}
+	return fmt.Errorf("software readiness deadline exceeded: %w", errors.Join(last, context.DeadlineExceeded))
+}
+
+func (e *Engine) switchTo(ctx context.Context, id string, request Request) error {
+	ctx, cancel := context.WithTimeout(ctx, e.Deadline)
+	defer cancel()
+	if err := e.Controller.Verify(ctx, id); err != nil {
+		return err
+	}
+	if err := e.Controller.Stop(ctx); err != nil {
+		return fmt.Errorf("old processes did not exit: %w", err)
+	}
+	if err := e.Controller.Start(ctx, id, request); err != nil {
+		return err
+	}
+	return e.health(ctx, id)
+}
+
+// Run advances at most one durable request. A process-wide worker lock prevents
+// a concurrent poller mistaking a live activation for an interrupted one.
+func (e *Engine) Run(ctx context.Context) error {
+	unlock, err := e.Repository.WorkerLock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	e.defaults()
+	s, err := e.Repository.Read()
+	if err != nil {
+		return err
+	}
+	if s.Unreleased != nil {
+		return e.release(ctx, *s.Unreleased)
+	}
+	if s.Pending == nil {
+		return nil
+	}
+	op := *s.Pending
+	if op.Phase == "blocked" {
+		return fmt.Errorf("software activation blocked: %s", op.Reason)
+	}
+	if e.Gate != nil {
+		if err := e.Gate(ctx); err != nil {
+			if op.Phase == "queued" {
+				_ = transition(e.Repository, op, "queued", "queued", err.Error())
+			}
+			return err
+		}
+	}
+	if err := e.Admission.Acquire(ctx, op.Request); err != nil {
+		if op.Phase == "queued" {
+			_ = transition(e.Repository, op, "queued", "queued", err.Error())
+		}
+		return err
+	}
+	if op.Phase == "recovering" {
+		reason := "supervisor interrupted after recovery attempt was consumed"
+		if err := transition(e.Repository, op, "recovering", "blocked", reason); err != nil {
+			return err
+		}
+		return errors.New(reason)
+	}
+	reason := "interrupted software activation"
+	if op.Phase == "queued" {
+		if err := e.Controller.Verify(ctx, op.Candidate); err != nil {
+			// No service was stopped. Preserve a diagnosable blocked request and its
+			// reservation rather than repeatedly attempting an invalid artifact.
+			if save := transition(e.Repository, op, "queued", "blocked", err.Error()); save != nil {
+				return save
+			}
+			return err
+		}
+		if err := transition(e.Repository, op, "queued", "applying", ""); err != nil {
+			return err
+		}
+		err = e.switchTo(ctx, op.Candidate, op.Request)
+		if err == nil {
+			if err = complete(e.Repository, op, "applying", "accepted", ""); err != nil {
+				return err
+			}
+			return e.release(ctx, op.Request)
+		}
+		reason = err.Error()
+	}
+	// A shutdown during candidate activation leaves applying durable. Spending
+	// recovery with a cancelled context would prevent the next boot recovering.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	// Persist the spent recovery attempt BEFORE stopping or starting anything.
+	if err := transition(e.Repository, op, "applying", "recovering", reason); err != nil {
+		return err
+	}
+	if err := e.switchTo(ctx, op.Previous, op.Request); err != nil {
+		failure := fmt.Sprintf("candidate failed (%s); recovery failed: %v", reason, err)
+		if save := transition(e.Repository, op, "recovering", "blocked", failure); save != nil {
+			return save
+		}
+		return errors.New(failure)
+	}
+	if err := complete(e.Repository, op, "recovering", "recovered", reason); err != nil {
+		return err
+	}
+	return e.release(ctx, op.Request)
+}
+
+func (e *Engine) release(ctx context.Context, req Request) error {
+	if err := e.Admission.Release(ctx, req); err != nil {
+		return err
+	}
+	return e.Repository.Update(func(s *State) error {
+		if s.Unreleased == nil || *s.Unreleased != req {
+			return ErrConflict
+		}
+		s.Unreleased = nil
+		return nil
+	})
+}
+
+// Boot starts the committed selection while the agent queues admission before
+// exposing sessions. Interrupted candidate activation consumes its one recovery
+// before starting the prior release. A spent recovery never starts again.
+func (e *Engine) Boot(ctx context.Context, boot Request) error {
+	unlock, err := e.Repository.WorkerLock()
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	e.defaults()
+	s, err := e.Repository.Read()
+	if err != nil {
+		return err
+	}
+	if s.Pending != nil && (s.Pending.Phase == "recovering" || s.Pending.Phase == "blocked") {
+		if s.Pending.Phase == "recovering" {
+			if err := transition(e.Repository, *s.Pending, "recovering", "blocked", "recovery interrupted by reboot"); err != nil {
+				return err
+			}
+		}
+		return errors.New("software recovery exhausted; operator intervention required")
+	}
+	req := boot
+	if s.Pending != nil {
+		req = s.Pending.Request
+	} else if s.Unreleased != nil {
+		req = *s.Unreleased
+	}
+	recovering := s.Pending != nil && s.Pending.Phase == "applying"
+	if recovering {
+		if err := transition(e.Repository, *s.Pending, "applying", "recovering", "activation interrupted by reboot"); err != nil {
+			return err
+		}
+	}
+	if err := e.switchTo(ctx, s.Selected, req); err != nil {
+		if recovering {
+			_ = transition(e.Repository, *s.Pending, "recovering", "blocked", err.Error())
+		}
+		return err
+	}
+	if err := e.Admission.Acquire(ctx, req); err != nil {
+		return err
+	}
+	if recovering {
+		if err := complete(e.Repository, *s.Pending, "recovering", "recovered", "activation interrupted by reboot"); err != nil {
+			return err
+		}
+		return e.release(ctx, req)
+	}
+	if s.Unreleased != nil {
+		return e.release(ctx, req)
+	}
+	if s.Pending != nil {
+		return nil
+	}
+	return e.Admission.Release(ctx, req)
+}

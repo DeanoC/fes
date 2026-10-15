@@ -166,7 +166,19 @@ build-fes-update:
 	mkdir -p bin
 	CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fes-update ./cmd/fes-update
 
-build-agent: build-fogcast-kit build-fogcast-tenfoot-kit
+# Stable storage helper stays in the base image; bundle builder runs in the
+# linux/amd64 image builder, independently of the development host architecture.
+.PHONY: build-fes-kit-data build-fes-kit-bundle-container
+build-fes-kit-data:
+	mkdir -p bin
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fes-kit-data-linux-armv7 ./cmd/fes-kit-data
+
+build-fes-kit-bundle-container:
+	mkdir -p bin
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/fes-kit-bundle-linux-amd64 ./cmd/fes-kit-bundle
+	printf '%s\n' '$(REVISION)' > bin/kit-software.revision
+
+build-agent: build-fogcast-kit build-fogcast-tenfoot-kit build-fes-kit-data build-fes-kit-bundle-container
 	mkdir -p bin
 	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -buildvcs=false -trimpath -ldflags '$(FOGCAST_LDFLAGS)' -o bin/mister-agent-linux-armv7 ./cmd/mister-agent
 

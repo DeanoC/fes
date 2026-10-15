@@ -543,6 +543,7 @@ class CoreBuildTest(unittest.TestCase):
                                  else 'go version go1.26.5 linux/amd64\n'), \
                     patch.object(build.platform, 'system', return_value='Linux'), \
                     patch.object(build.platform, 'machine', return_value='x86_64'), \
+                    patch.object(build.platform, 'build_kit_software'), \
                     patch.object(build.shutil, 'which', return_value='/usr/bin/tool'), \
                     patch.object(build.subprocess, 'run',
                                  return_value=subprocess.CompletedProcess([], 1)), \

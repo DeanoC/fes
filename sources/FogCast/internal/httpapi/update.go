@@ -189,7 +189,7 @@ func guardUpdateAdmission(next http.Handler, token string, s *applianceupdate.Se
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if (r.Method == http.MethodPost && r.URL.Path == "/v1/core-packages") ||
+		if (r.Method == http.MethodPost && (r.URL.Path == "/v1/core-packages" || r.URL.Path == "/v1/kit/software/releases")) ||
 			(r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/v1/core-selections/")) {
 			guarded.ServeHTTP(w, r)
 			return

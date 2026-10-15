@@ -34,28 +34,30 @@ type TakeoverRequest = contract.TakeoverRequest
 type Grant = contract.Grant
 
 type Manager struct {
-	mu                sync.Mutex
-	ttl               time.Duration
-	cleanup           func(context.Context) error
-	status            Status
-	claim             ClaimRequest
-	token             string
-	leaseContext      context.Context
-	cancel            context.CancelFunc
-	timer             *time.Timer
-	refs              int
-	drained           chan struct{}
-	pending           *TakeoverRequest
-	pendingReady      string
-	takeover          *TakeoverRequest
-	retired           map[string]bool
-	finished          chan struct{}
-	closed            bool
-	maintenanceStore  *maintenanceStore
-	maintenance       *maintenanceRecord
-	maintenanceLoaded bool
-	maintenanceFault  bool
-	events            flightdiag.Sink
+	mu                          sync.Mutex
+	ttl                         time.Duration
+	cleanup                     func(context.Context) error
+	status                      Status
+	claim                       ClaimRequest
+	token                       string
+	leaseContext                context.Context
+	cancel                      context.CancelFunc
+	timer                       *time.Timer
+	refs                        int
+	drained                     chan struct{}
+	pending                     *TakeoverRequest
+	pendingReady                string
+	takeover                    *TakeoverRequest
+	retired                     map[string]bool
+	finished                    chan struct{}
+	closed                      bool
+	maintenanceStore            *maintenanceStore
+	maintenance                 *maintenanceRecord
+	maintenanceLoaded           bool
+	maintenanceFault            bool
+	queuedMaintenance           *ClaimRequest
+	queuedMaintenanceCredential string
+	events                      flightdiag.Sink
 }
 
 type Option func(*Manager)
@@ -157,6 +159,9 @@ func (m *Manager) Claim(r ClaimRequest) (Grant, error) {
 	}
 	if m.status.State == "held" && m.claim == r {
 		return Grant{Status: m.snapshotLocked(), Token: m.token}, nil
+	}
+	if m.queuedMaintenance != nil {
+		return Grant{}, ErrBusy
 	}
 	if m.status.State == "blocked" {
 		return Grant{}, ErrBlocked
@@ -273,6 +278,9 @@ func (m *Manager) Takeover(r TakeoverRequest) (Grant, error) {
 		return Grant{}, ErrBlocked
 	}
 	if m.maintenanceActiveLocked() {
+		return Grant{}, ErrBusy
+	}
+	if m.queuedMaintenance != nil {
 		return Grant{}, ErrBusy
 	}
 	if m.retired[r.RequestID] {

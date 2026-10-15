@@ -477,6 +477,7 @@ func (d *MenuDisplay) acceptStatusLocked(frame queuedMenuFrame, status menudispl
 func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudisplay.Status, err error, presented bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	defer func() { reportSoftwareReady(d.hasPresented && d.lastErr == nil) }()
 	if frame.epoch != d.bindingEpoch {
 		d.clearProbeQueuedLocked(frame.epoch)
 		return
@@ -514,6 +515,7 @@ func (d *MenuDisplay) noteGenerationLocked(seq, generation uint64) {
 }
 
 func (d *MenuDisplay) notePresentResultLocked(presented, genChanged bool, err error, status menudisplay.Status) {
+	defer func() { reportSoftwareReady(d.hasPresented && d.lastErr == nil) }()
 	if presented {
 		d.hasPresented = true
 		d.presentedGen = status.Generation
