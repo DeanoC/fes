@@ -279,9 +279,9 @@ verify_package_only_native() {
   {
     printf 'format=1\n'
     printf 'mister_runtime_commit=%s\n' "$(read_native_lock_value mister_runtime commit)"
-    printf 'mister_agent_sha256=%s\n' "$(sha256sum "$package_root/usr/sbin/mister-agent" | awk '{print $1}')"
-    printf 'fogcast_kit_sha256=%s\n' "$(sha256sum "$package_root/usr/sbin/fogcast-kit" | awk '{print $1}')"
-    printf 'fogcast_tenfoot_sha256=%s\n' "$(sha256sum "$package_root/usr/sbin/fogcast-tenfoot" | awk '{print $1}')"
+    printf 'mister_agent_sha256=%s\n' "$(sha256sum "$package_root/usr/share/fes/software/bin/mister-agent" | awk '{print $1}')"
+    printf 'fogcast_kit_sha256=%s\n' "$(sha256sum "$package_root/usr/share/fes/software/bin/fogcast-kit" | awk '{print $1}')"
+    printf 'fogcast_tenfoot_sha256=%s\n' "$(sha256sum "$package_root/usr/share/fes/software/bin/fogcast-tenfoot" | awk '{print $1}')"
     printf 'idle_repository=%s\n' "$(read_native_lock_value idle_rbf repository)"
     printf 'idle_commit=%s\n' "$(read_native_lock_value idle_rbf commit)"
     printf 'idle_path=%s\n' "$(read_native_lock_value idle_rbf path)"
@@ -311,19 +311,21 @@ verify_root() {
     required_paths='/sbin/init
 /usr/bin/busybox
 /usr/bin/readlink
-/usr/sbin/mister-runtime
-/usr/sbin/fogcast-kit
-/usr/sbin/fogcast-tenfoot
-/usr/sbin/mister-agent
+/usr/share/fes/software/bin/mister-runtime
+/usr/share/fes/software/bin/fogcast-kit
+/usr/share/fes/software/bin/fogcast-tenfoot
+/usr/share/fes/software/bin/mister-agent
 /usr/share/mister-runtime/idle.rbf
 /usr/share/mister-runtime/core-packages
 /usr/share/mister-runtime/build-inputs
 /etc/init.d/S15fes-ethaddr
 /etc/init.d/S20mister-network
-/etc/init.d/S40mister-runtime
+/etc/init.d/S40fes-kit-software
 /etc/init.d/S49fogcast-target-smoke
-/etc/init.d/S50mister-agent
-/etc/init.d/S60fogcast-kit'
+/usr/sbin/fes-kit-software
+/usr/sbin/fes-kit-data
+/etc/fes/software-base.json
+/usr/share/fes/software/manifest.json'
   fi
   printf '%s\n' "$required_paths" | while IFS= read -r required; do
     [ -n "$required" ] || continue
@@ -378,24 +380,21 @@ EOF
       printf '%s\n' 'verify-target-image: native image contains the legacy Menu configuration helper' >&2
       exit 1
     }
-    [ -x "$root/usr/sbin/fogcast-kit" ] && [ -x "$root/usr/sbin/fogcast-tenfoot" ] && [ -x "$root/etc/init.d/S60fogcast-kit" ] || {
-      printf '%s\n' 'verify-target-image: launcher binaries and init must be executable' >&2
+    [ -x "$root/usr/share/fes/software/bin/fogcast-kit" ] && [ -x "$root/usr/share/fes/software/bin/fogcast-tenfoot" ] && [ -x "$root/etc/init.d/S40fes-kit-software" ] || {
+      printf '%s\n' 'verify-target-image: factory launchers and supervisor init must be executable' >&2
       exit 1
     }
-    cmp "$root/etc/init.d/S60fogcast-kit" \
-      "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S60fogcast-kit" || {
-      printf '%s\n' 'verify-target-image: launcher init differs from selected service' >&2
-      exit 1
-    }
-    native_runtime_service=$root/etc/init.d/S40mister-runtime
-    native_agent_service=$root/etc/init.d/S50mister-agent
-    "$repo/scripts/validate-native-init-services.sh" \
-      "$native_runtime_service" "$native_agent_service"
-    if grep -Eq '/dev/MiSTer_cmd|CORENAME|/media/fat/MiSTer|agent_binary=|killall|pidof|pgrep|/proc/' \
-      "$native_agent_service"; then
-      printf '%s\n' 'verify-target-image: native agent service depends on legacy Main state' >&2
-      exit 1
-    fi
+    cmp "$root/etc/init.d/S40fes-kit-software" \
+      "$repo/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S40fes-kit-software" || exit 1
+    for binary in mister-runtime mister-agent fogcast-kit fogcast-tenfoot; do
+      [ -L "$root/usr/sbin/$binary" ] && [ "$(readlink "$root/usr/sbin/$binary")" = "/run/fogcast/software/current/bin/$binary" ] || {
+        printf '%s\n' 'verify-target-image: software alias differs from managed selection' >&2
+        exit 1
+      }
+    done
+    for obsolete in S40mister-runtime S50mister-agent S60fogcast-kit; do
+      [ ! -e "$root/etc/init.d/$obsolete" ] || exit 1
+    done
     if grep -ERq '/dev/MiSTer_cmd|/tmp/CORENAME|/media/fat/MiSTer|load_core[[:space:]].*\.mgl' \
       "$root/etc/init.d"; then
       printf '%s\n' 'verify-target-image: native init contains conventional Main, MGL, or FIFO startup wiring' >&2
@@ -404,6 +403,9 @@ EOF
   fi
 
   if [ "$variant" = native-dev ]; then
+    software_tool=${FOGCAST_DIR:?FOGCAST_DIR is required}/bin/fes-kit-bundle-linux-amd64
+    "$software_tool" verify-directory --root "$root/usr/share/fes/software" \
+      --base "$root/etc/fes/software-base.json" >/dev/null
     verify_package_only_native "$root"
   fi
   server_resolved=$(find "$root" \( -type f -o -type l \) \
@@ -453,7 +455,7 @@ EOF
     }
   done
 
-  agent=$root/usr/sbin/mister-agent
+  agent=$root/usr/share/fes/software/bin/mister-agent
   agent_type=$(file "$agent")
   printf '%s\n' "$agent_type" | grep -Eq 'ELF 32-bit.*ARM.*EABI5'
   printf '%s\n' "$agent_type" | grep -Fq 'statically linked'
@@ -467,14 +469,14 @@ EOF
   fi
 
   if [ "$variant" = native-dev ]; then
-    launcher_type=$(file "$root/usr/sbin/fogcast-kit")
+    launcher_type=$(file "$root/usr/share/fes/software/bin/fogcast-kit")
     printf '%s\n' "$launcher_type" | grep -Eq 'ELF 32-bit.*ARM.*EABI5'
     printf '%s\n' "$launcher_type" | grep -Fq 'statically linked'
     printf '%s\n' "$launcher_type" | grep -Fq 'stripped'
-    launcher_header=$(readelf -h "$root/usr/sbin/fogcast-kit")
+    launcher_header=$(readelf -h "$root/usr/share/fes/software/bin/fogcast-kit")
     printf '%s\n' "$launcher_header" | grep -Eq 'Class:[[:space:]]+ELF32'
     printf '%s\n' "$launcher_header" | grep -Eq 'Machine:[[:space:]]+ARM'
-    runtime=$root/usr/sbin/mister-runtime
+    runtime=$root/usr/share/fes/software/bin/mister-runtime
     runtime_type=$(file "$runtime")
     printf '%s\n' "$runtime_type" | grep -Eq 'ELF 32-bit.*ARM.*EABI5'
     runtime_header=$(readelf -h "$runtime")

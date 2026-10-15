@@ -5,15 +5,12 @@ repo=$(CDPATH='' cd -- "$(dirname "$0")/../.." && pwd)
 native_rootfs=$repo/buildroot/board/fogcast-target/native-rootfs-overlay
 native_post_build=$repo/buildroot/board/fogcast-target/native-post-build.sh
 native_extra=$repo/scripts/native-extra-cores.sh
-native_runtime=$native_rootfs/etc/init.d/S40mister-runtime
-native_agent=$native_rootfs/etc/init.d/S50mister-agent
-native_kit=$native_rootfs/etc/init.d/S60fogcast-kit
+native_runtime=$native_rootfs/etc/init.d/S40fes-kit-software
 native_config=$repo/buildroot/configs/fogcast_target_native_dev_defconfig
 
-for required_file in "$native_runtime" "$native_agent" "$native_kit" "$native_post_build" "$native_extra"; do
+for required_file in "$native_runtime" "$native_post_build" "$native_extra"; do
   test -f "$required_file"
 done
-sh "$repo/scripts/validate-native-init-services.sh" "$native_runtime" "$native_agent"
 grep -Fqx 'BR2_PACKAGE_FOGCAST_MISTER_RUNTIME=y' "$native_config"
 grep -Fq 'BR2_ROOTFS_OVERLAY=' "$native_config"
 grep -Fq 'native-rootfs-overlay' "$native_config"
@@ -48,6 +45,24 @@ chmod 0755 "$fogcast/bin/fogcast-kit-linux-armv7"
 printf '%s\n' tenfoot >"$fogcast/bin/fogcast-tenfoot-linux-armv7"
 chmod 0755 "$fogcast/bin/fogcast-tenfoot-linux-armv7"
 export FOGCAST_DIR=$fogcast
+for helper in fes-kit-data fes-kit-software; do
+  printf '%s\n' helper >"$fogcast/bin/$helper-linux-armv7"
+  chmod 0755 "$fogcast/bin/$helper-linux-armv7"
+done
+(cd "$repo/../sources/FogCast" && go build -o "$fogcast/bin/fes-kit-bundle-linux-amd64" ./cmd/fes-kit-bundle)
+printf '%s\n' 1111111111111111111111111111111111111111 >"$fogcast/bin/kit-software.revision"
+# This fixture tests rootfs wiring with tiny stand-ins. ELF closure validation
+# has separate tests; only readelf is replaced here, the bundle packer is real.
+mkdir "$fixture/tools"
+cat >"$fixture/tools/readelf" <<'READELF'
+#!/bin/sh
+if [ "$1" = -h ]; then
+  printf '%s\n' 'Class: ELF32' 'Machine: ARM' 'Data: little endian' 'Flags: Version5 EABI'
+fi
+READELF
+chmod 0755 "$fixture/tools/readelf"
+PATH=$fixture/tools:$PATH
+export PATH
 
 for library in \
   /lib/ld-linux-armhf.so.3 \
@@ -279,16 +294,42 @@ NATIVE_RUNTIME_MODE=package-only \
   NATIVE_RUNTIME_IDLE_FILE="$cache/idle.rbf" \
   "$native_post_build" "$target"
 
+# Produce a software-only update from separately built payload bytes against
+# this retained base. Neither factory identity nor the input tree is modified.
+update_payload=$fixture/update-payload
+mkdir "$update_payload"
+cp -R "$target/usr/share/fes/software/bin" "$target/usr/share/fes/software/share" "$update_payload/"
+chmod u+w "$update_payload/bin/mister-agent"
+printf '%s\n' new-agent >"$update_payload/bin/mister-agent"
+factory_before=$(sha256sum "$target/usr/share/fes/software/manifest.json")
+payload_before=$(sha256sum "$update_payload/bin/mister-agent")
+python3 "$repo/scripts/kit-software.py" --base-root "$target" --payload "$update_payload" \
+  --output "$fixture/update.tar" --version test-update --fogcast "$fogcast" \
+  --runtime-revision 1111111111111111111111111111111111111111 >"$fixture/update.json"
+"$fogcast/bin/fes-kit-bundle-linux-amd64" inspect --bundle "$fixture/update.tar" >/dev/null
+test "$factory_before" = "$(sha256sum "$target/usr/share/fes/software/manifest.json")"
+test "$payload_before" = "$(sha256sum "$update_payload/bin/mister-agent")"
+archive_before=$(sha256sum "$fixture/update.tar")
+# An unsafe new member fails without replacing the previously built archive.
+ln -s /etc/passwd "$update_payload/share/unsafe"
+if python3 "$repo/scripts/kit-software.py" --base-root "$target" --payload "$update_payload" \
+  --output "$fixture/update.tar" --version test-update --fogcast "$fogcast" \
+  --runtime-revision 1111111111111111111111111111111111111111 >"$fixture/update-rejected.log" 2>&1; then
+  echo 'software-only pack admitted a payload symlink' >&2
+  exit 1
+fi
+test "$archive_before" = "$(sha256sum "$fixture/update.tar")"
+
 test ! -e "$target/etc/init.d/S40mister-main"
 test ! -e "$target/etc/init.d/S40bluetooth"
 test ! -e "$target/etc/init.d/S30dbus"
 test ! -e "$target/usr/libexec/bluetooth/bluetoothd"
 test ! -e "$target/usr/bin/dbus-daemon"
 test ! -e "$target/usr/sbin/mister-disable-menu-blanking"
-test -x "$target/usr/sbin/fogcast-kit"
-test -x "$target/usr/sbin/fogcast-tenfoot"
-test -x "$target/etc/init.d/S60fogcast-kit"
-grep -Fq "fogcast_tenfoot_sha256=$(sha256sum "$target/usr/sbin/fogcast-tenfoot" | awk '{print $1}')" \
+test -x "$target/usr/share/fes/software/bin/fogcast-kit"
+test -x "$target/usr/share/fes/software/bin/fogcast-tenfoot"
+test -x "$target/etc/init.d/S40fes-kit-software"
+grep -Fq "fogcast_tenfoot_sha256=$(sha256sum "$target/usr/share/fes/software/bin/fogcast-tenfoot" | awk '{print $1}')" \
   "$target/usr/share/mister-runtime/build-inputs"
 test -x "$target/etc/init.d/S15fes-ethaddr"
 test "$(stat -c %a "$target/usr/share/mister-runtime/idle.rbf")" = 644
@@ -355,6 +396,7 @@ prepare_reject() {
   fi
 }
 stale_launchers() {
+  rm -f "$target/usr/sbin/fogcast-kit" "$target/usr/sbin/fogcast-tenfoot"
   printf '%s\n' 'const token = ++epoch;' >"$target/usr/sbin/fogcast-kit"
   printf '%s\n' 'const token = String(region);' >"$target/usr/sbin/fogcast-tenfoot"
 }

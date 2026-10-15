@@ -129,7 +129,9 @@ func SelectedDevice(cfg Config) (string, bool) {
 // exists and /v1/update is not trial, pending, or corrupt. Missing p3 is a
 // no-op. A blocked or unreadable update status refuses the bind without
 // mutating mounts.
-func Prepare(cfg Config) (Result, error) {
+// Mount prepares only the ext4 mount. It never copies or bind-mounts mutable
+// application data, and obeys the same trial/pending/corruption gate as Prepare.
+func Mount(cfg Config) (Result, error) {
 	if err := validateConfig(cfg); err != nil {
 		return Result{}, err
 	}
@@ -153,6 +155,17 @@ func Prepare(cfg Config) (Result, error) {
 			return Result{Device: device}, err
 		}
 	}
+	return Result{Device: device}, nil
+}
+
+func Prepare(cfg Config) (Result, error) {
+	mounted, err := Mount(cfg)
+	if err != nil || mounted.Skipped != "" {
+		return mounted, err
+	}
+	cfg = applyDefaults(cfg)
+	device := mounted.Device
+
 	var result Result
 	result.Device = device
 	var bindErr error

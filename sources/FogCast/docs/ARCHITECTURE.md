@@ -1275,8 +1275,8 @@ FES produces:
 - `image/build/output/target-image/native-dev/linux.img`: the reproducible native
   runtime candidate image.
 
-The only image variant is `native-dev`, which starts image-owned
-`mister-runtime` and `mister-agent`. It installs the locked splash/idle artifact
+The only image variant is `native-dev`. Its base-image software supervisor
+starts the selected immutable runtime, agent and kit launcher group. It installs the locked splash/idle artifact
 and the closed FES package set selected by
 [the default profile](../../../profiles/native-integration-dev.toml): `fes.menu`,
 `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.spectrum`,
@@ -1414,6 +1414,11 @@ idle before marking the same reservation ready. End rechecks idle before opening
 ordinary admission. A completed private receipt supports lost-response
 reconciliation; stale credentials cannot end a newer reservation.
 
+Managed images reject file-overlay claim/swap/restore plans before mutation.
+Diagnostics use private hosts and immutable software bundles; returning to a
+prior bundle requires explicit generation-checked activation. Configuration-only
+temporary overlays are not supported by this lifecycle.
+
 Marker transitions and the FES SSH file executor share
 `/run/fogcast/kit-maintenance.lock`. The executor validates ready operation,
 generation, boot and its planned manifest digest before stopping services. The
@@ -1425,8 +1430,8 @@ prints `fes-kit-maintenance-v1`, which the executor requires of replacement or
 restored agents. Initial adoption uses the appliance image workflow; missing
 maintenance support has no unguarded compatibility path.
 
-FES `scripts/kit_maintenance.py` handles owned start/resume/end and private journal
-recovery; `scripts/kit_manifest.py` keeps each swap/restore reserved until cleanup
+On unmanaged maintenance-aware images, FES `scripts/kit_maintenance.py` handles
+owned start/resume/end and private journal recovery; `scripts/kit_manifest.py` keeps each swap/restore reserved until cleanup
 completes. When `agent.toml` omits `target_id`, that client binds the saved
 `/media/fat/fogcast/target-id` file when the agent wrote one, and otherwise the
 id from authenticated health. A configured or saved id must match health.
@@ -2206,6 +2211,55 @@ for setup, controls, exact routes, timeouts and ownership. The existing browser
 listener remains loopback-only. The SDL sofa layout and the kit browse views are separate
 renderers over the same session model and do not own physical transitions.
 
+
+## Persistent kit software releases
+
+The FES base-image `fes-kit-software` supervisor owns the agent, native runtime
+and selected kit launcher as one userspace group. Immutable bundles declare the
+board, architecture, base-system contract, interfaces and executable/asset
+digests. Installation and selection live on verified FESDATA3 independently of
+core packages and the base appliance image. The existing service scripts are
+replaced by one supervisor entrypoint; physical transitions remain runtime-owned.
+
+The lease manager's idle queue gives a caller-persisted software intent priority
+after the current execution owner naturally releases. Queueing preserves that
+owner's renewal and operations. Only a settled free kit can atomically become a
+maintenance reservation. A private caller credential binds reservation recovery;
+public operation fields cannot recover a diagnostic owner's token. Cancelling a
+queued intent removes priority only after the durable cancellation is stored.
+The supervisor closes an execution fence first; if that durable write fails, it
+restores the queue before opening the fence, and leaves the fence closed when
+the restore fails. Active maintenance retains its existing resume/end checks.
+Trial reconciliation installs the persisted queue while the boot maintenance
+reservation is still held, and only then ends that reservation. The stable
+supervisor persists queue and activation state across reboot; the lease manager
+does not persist its pending queue.
+
+The supervisor verifies process exit before replacement, pins every service to
+one bundle, checks startup and finishes the exact maintenance generation.
+Accepted bundles remain selected. Failed startup permits one durably recorded
+prior-bundle recovery attempt; failed recovery remains blocked. Appliance trials
+run factory software, then reconcile persistent storage and queued work after
+confirmation. The storage gate verifies durable confirmation for the exact boot
+and image even while the original boot ticket still records a trial; this opens
+persistent storage without another reboot. A base-image update blocks activation
+and software installation.
+
+`WithKitSoftware` proxies the five bearer-authenticated `/v1/kit/software`
+routes to the fixed root-only supervisor socket. Upload is bounded by the bundle
+contract and joins appliance-operation draining. Queue/cancel remain visible
+while activation is deferred. Software proxy routes bypass the replaceable
+agent's software drain so supervisor calls back into admission cannot deadlock;
+the stable supervisor serializes installation and activation independently.
+Authenticated health reports `software` separately from sealed image artifacts.
+`targetclient` mutations have no implicit replay. Callers record the operation
+ID and expected generation for later status reconciliation. The operator client
+`cmd/fes-software` that does this is not in this revision; it arrives in the
+follow-up releases change. This revision exposes the supervisor routes that
+client will call.
+See [kit software releases](../../../docs/kit-software-releases.md) for the
+current routes, the follow-up client invocation, recovery boundaries and
+evidence limits.
 
 ## Durable target core packages
 

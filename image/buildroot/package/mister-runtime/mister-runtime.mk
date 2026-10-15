@@ -20,6 +20,7 @@ define MISTER_RUNTIME_BUILD_CMDS
 endef
 
 define MISTER_RUNTIME_INSTALL_TARGET_CMDS
+	/bin/rm -f $(TARGET_DIR)/usr/sbin/mister-runtime
 	$(INSTALL) -D -m 0755 $(@D)/build/mister-runtime \
 		$(TARGET_DIR)/usr/sbin/mister-runtime
 endef

@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import platform
 from pathlib import Path
 import re
 import shlex
@@ -140,6 +141,7 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
         seed_base(container, base, output_volume(root, profile_name), volume,
                   seed_digest(output.parent, info))
     run_stage(diagnostics, 'target subprocess', fogcast_make + ['build-agent', 'build-fogcast-kit'], env=env)
+    platform.build_kit_software(root, fogcast, env)
     run_stage(diagnostics, 'target subprocess', image_make + ['build-target-image-lock-container'], env=env)
     run_stage(diagnostics, 'target subprocess', [image / 'scripts/target-image-container.sh', 'fetch',
          '/work/scripts/fetch-target-image-sources.sh'], env=selection_env)
