@@ -20,8 +20,12 @@ const (
 	clientDialTimeout = time.Second
 	clientTimeout     = 3 * time.Second
 	// launchPostTimeout covers the agent's 60s load plus a short margin so a
-	// normal program returns on this POST. List and Stop stay on clientTimeout.
+	// normal program returns on this POST. List stays on clientTimeout.
 	launchPostTimeout = 65 * time.Second
+	// stopPostTimeout covers the 30s runtime stop plus the lease manager's
+	// 30s cleanup and a short margin. Stop waits for that cleanup before the
+	// lease can be claimed again, so the list timeout is too short.
+	stopPostTimeout = stopTimeout + 30*time.Second + 5*time.Second
 	// launchReconcileTimeout is how long Launch keeps reading status after
 	// that POST deadline. A lost response is not "did not launch".
 	launchReconcileTimeout = 8 * time.Second
@@ -44,23 +48,26 @@ var (
 )
 
 // Client calls the kit-local control socket over HTTP. A nil or empty
-// client returns ErrUnavailable and does not panic. List and Stop give up
-// after 3s. Launch waits long enough for the agent's load, then reads
-// status before deciding the program failed. The agent keeps an in-flight
-// program if this process gives up.
+// client returns ErrUnavailable and does not panic. List gives up after 3s.
+// Launch waits long enough for the agent's load, then reads status before
+// deciding the program failed. Stop waits long enough for the runtime stop
+// and the lease cleanup, then reads status if that POST is lost. The agent
+// keeps an in-flight program if this process gives up.
 type Client struct {
 	path string
 	http *http.Client
-	// launchPost, reconcileFor and reconcileEvery override the launch
-	// deadlines. Zero uses the production values. Tests set them short.
+	// launchPost, stopPost, reconcileFor and reconcileEvery override the
+	// launch and stop deadlines. Zero uses the production values. Tests set
+	// them short.
 	launchPost     time.Duration
+	stopPost       time.Duration
 	reconcileFor   time.Duration
 	reconcileEvery time.Duration
 }
 
 // NewClient dials socketPath for each request. An empty path does not listen.
 // The shared HTTP client has no overall timeout: each call applies its own
-// deadline so Launch can outlive List and Stop.
+// deadline so Launch and Stop can outlive List.
 func NewClient(socketPath string) *Client {
 	path := strings.TrimSpace(socketPath)
 	dialer := &net.Dialer{Timeout: clientDialTimeout}
@@ -177,9 +184,30 @@ func (c *Client) Status(ctx context.Context) (RunStatus, error) {
 }
 
 // Stop asks the agent to return the kit to the menu when this process
-// holds the kit-local lease.
+// holds the kit-local lease. The POST waits for the runtime stop and for
+// lease revocation to settle. If that deadline fires and the caller did
+// not cancel, Stop polls GET /v1/local/status. Idle means the lease is
+// claimable again. Running means the stop did not finish. Stopping keeps
+// polling until the reconcile budget ends, then returns ErrUnavailable.
+// It does not post stop a second time.
 func (c *Client) Stop(ctx context.Context) error {
-	return c.do(ctx, http.MethodPost, "/v1/local/stop", nil)
+	if c == nil || c.http == nil || c.path == "" {
+		return ErrUnavailable
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	post := c.stopPost
+	if post <= 0 {
+		post = stopPostTimeout
+	}
+	postCtx, cancel := context.WithTimeout(ctx, post)
+	err := c.doRequest(postCtx, http.MethodPost, "/v1/local/stop", nil, nil)
+	cancel()
+	if err == nil || !timedOut(err) || ctx.Err() != nil {
+		return err
+	}
+	return c.reconcileStopped(ctx)
 }
 
 func (c *Client) do(ctx context.Context, method, path string, out any) error {
@@ -302,6 +330,69 @@ func (c *Client) reconcileRunning(ctx context.Context, packageID string) error {
 				return nil
 			}
 			if status.Phase == phaseIdle || status.Phase == "" {
+				return ErrUnavailable
+			}
+		} else if errors.Is(err, ErrUnavailable) {
+			return ErrUnavailable
+		}
+		wait := every
+		if remain := time.Until(deadline); remain < wait {
+			wait = remain
+		}
+		if wait <= 0 {
+			return ErrUnavailable
+		}
+		timer.Reset(wait)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
+}
+
+// reconcileStopped reads status after a lost stop POST. Idle is published
+// only once the lease is claimable, so a menu that resumes on nil does not
+// launch into a revoking grant.
+func (c *Client) reconcileStopped(ctx context.Context) error {
+	budget := c.reconcileFor
+	if budget <= 0 {
+		budget = launchReconcileTimeout
+	}
+	every := c.reconcileEvery
+	if every <= 0 {
+		every = launchReconcilePoll
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	deadline := time.Now().Add(budget)
+	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
+		deadline = d
+	}
+	timer := time.NewTimer(0)
+	if !timer.Stop() {
+		select {
+		case <-timer.C:
+		default:
+		}
+	}
+	defer timer.Stop()
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if !time.Now().Before(deadline) {
+			return ErrUnavailable
+		}
+		poll, cancel := context.WithTimeout(ctx, clientTimeout)
+		status, err := c.Status(poll)
+		cancel()
+		if err == nil {
+			switch status.Phase {
+			case phaseIdle, "":
+				return nil
+			case phaseRunning:
 				return ErrUnavailable
 			}
 		} else if errors.Is(err, ErrUnavailable) {

@@ -565,17 +565,38 @@ func (s *Service) Stop(ctx context.Context) error {
 		return errUnavailable
 	}
 	s.mu.Lock()
+	pkg := s.runPackage
+	coreID := s.runCore
 	if s.token == token {
 		s.token = ""
 	}
-	s.phase = phaseIdle
-	s.runPackage = ""
-	s.runCore = ""
+	// Stay stopping until revocation settles. Idle means the next launch
+	// can claim. Release cancels the lease, and the renew loop publishes
+	// idle for that cancellation; put stopping back after it exits.
+	s.phase = phaseStopping
+	s.runPackage = pkg
+	s.runCore = coreID
 	s.mu.Unlock()
 	s.stopRenew()
+	s.mu.Lock()
+	if s.token == "" && s.phase != phaseLaunching && s.phase != phaseRunning {
+		s.phase = phaseStopping
+		s.runPackage = pkg
+		s.runCore = coreID
+	}
+	s.mu.Unlock()
 	// The caller context can already be canceled. Cleanup still has to
 	// finish or the next launch observes the lease as in use.
 	status, err := s.leases.Settled(context.Background())
+	s.mu.Lock()
+	// Idle is published only when the grant can be claimed. A blocked
+	// cleanup stays stopping so a lost stop response is not treated as done.
+	if err == nil && status.State == "free" && s.token == "" && s.phase == phaseStopping {
+		s.phase = phaseIdle
+		s.runPackage = ""
+		s.runCore = ""
+	}
+	s.mu.Unlock()
 	if err != nil || status.State == "blocked" {
 		return errUnavailable
 	}

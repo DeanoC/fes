@@ -342,6 +342,67 @@ func TestLaunchTimeoutThenIdleStaysFailed(t *testing.T) {
 	}
 }
 
+func TestStopTimeoutThenIdleIsClaimable(t *testing.T) {
+	path := shortSock(t)
+	var posts atomic.Int32
+	var phase atomic.Value
+	phase.Store(phaseStopping)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/local/status":
+			writeJSON(w, http.StatusOK, RunStatus{Phase: phase.Load().(string), PackageID: clientPongID, Running: false})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/local/stop":
+			if posts.Add(1) != 1 {
+				t.Errorf("stop posted %d times", posts.Load())
+			}
+			phase.Store(phaseIdle)
+			<-r.Context().Done()
+		default:
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+		}
+	})
+	serveUnix(t, path, handler)
+	client := NewClient(path)
+	// Same accept margin as the launch timeout cases. A few tens of
+	// milliseconds can expire before the handler runs, and Stop would
+	// reconcile without posting.
+	client.stopPost = 2 * time.Second
+	client.reconcileFor = time.Second
+	client.reconcileEvery = 20 * time.Millisecond
+	if err := client.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if posts.Load() != 1 {
+		t.Fatalf("posts %d", posts.Load())
+	}
+}
+
+func TestStopTimeoutThenRunningStaysUnavailable(t *testing.T) {
+	path := shortSock(t)
+	var posts atomic.Int32
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/local/status":
+			writeJSON(w, http.StatusOK, RunStatus{Phase: phaseRunning, PackageID: clientPongID, Running: true})
+		case r.Method == http.MethodPost && r.URL.Path == "/v1/local/stop":
+			posts.Add(1)
+			<-r.Context().Done()
+		default:
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
+		}
+	})
+	serveUnix(t, path, handler)
+	client := NewClient(path)
+	client.stopPost = 2 * time.Second
+	client.reconcileFor = time.Second
+	if err := client.Stop(context.Background()); !errors.Is(err, ErrUnavailable) {
+		t.Fatalf("running after timeout %v", err)
+	}
+	if posts.Load() != 1 {
+		t.Fatalf("posts %d", posts.Load())
+	}
+}
+
 func serveUnix(t *testing.T, path string, handler http.Handler) {
 	t.Helper()
 	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {

@@ -2563,10 +2563,14 @@ owned stop path. Kit-local loads do not enter the coordinator, so takeover,
 expiry, shutdown, and release after a failed load stop the runtime before the
 lease can be freed. Cleanup that does not reach idle leaves the lease blocked.
 A successful kit-local Stop waits until that revocation has left the revoking
-state and the lease is free. Release returns while cleanup is still running,
-and a launch during revocation is in use; the next launch claims only after
-Stop has seen the lease settle. Cleanup that fails makes Stop return
-unavailable. Disconnecting the local client does not abandon that wait.
+state and the lease is free. Until then local status stays stopping; idle means
+the next launch can claim. Release returns while cleanup is still running, and
+a launch during revocation is in use. Cleanup that fails makes Stop return
+unavailable. Disconnecting the local client does not abandon that wait. The
+kit client gives the stop POST the runtime stop budget plus the lease cleanup
+budget. A lost response is reconciled from local status: idle resumes, and
+stopping or running stays unavailable so the menu does not offer another launch
+while the grant is still revoking. Tenfoot's stop budget outlives that POST.
 Bearer `GET /v1/status` still reads that coordinator record. While the record
 is idle and a kit-local core is launching, running, or stopping, the response
 reports state `launching`, `local`, or `stopping` and sets `observed_core` to

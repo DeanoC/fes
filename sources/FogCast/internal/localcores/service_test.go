@@ -1077,6 +1077,22 @@ func TestStopReturnsOnlyAfterLeaseIsFree(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("release cleanup did not start")
 		}
+		deadline := time.Now().Add(2 * time.Second)
+		for {
+			st := service.RunStatus()
+			if st.Phase == phaseStopping && !st.Running && st.PackageID != "" {
+				break
+			}
+			select {
+			case err := <-stopped:
+				t.Fatalf("stop returned while lease %s: %v status=%+v", manager.Status().State, err, service.RunStatus())
+			default:
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("status during revocation %+v lease=%s", service.RunStatus(), manager.Status().State)
+			}
+			time.Sleep(time.Millisecond)
+		}
 		select {
 		case err := <-stopped:
 			t.Fatalf("stop returned while lease %s: %v", manager.Status().State, err)
@@ -1099,6 +1115,9 @@ func TestStopReturnsOnlyAfterLeaseIsFree(t *testing.T) {
 		}
 		if manager.Status().State != "free" {
 			t.Fatalf("stop returned with lease %s", manager.Status().State)
+		}
+		if st := service.RunStatus(); st.Phase != phaseIdle || st.Running || st.PackageID != "" {
+			t.Fatalf("idle after stop %+v", st)
 		}
 		if _, err := service.Launch(context.Background(), id); err != nil {
 			t.Fatal(err)
@@ -1128,6 +1147,9 @@ func TestStopReturnsOnlyAfterLeaseIsFree(t *testing.T) {
 		}
 		if manager.Status().State != "blocked" {
 			t.Fatalf("lease %s", manager.Status().State)
+		}
+		if st := service.RunStatus(); st.Phase != phaseStopping || st.Running {
+			t.Fatalf("blocked cleanup published idle %+v", st)
 		}
 		if _, err := service.Launch(context.Background(), id); !errors.Is(err, errInUse) {
 			t.Fatalf("launch %v", err)
