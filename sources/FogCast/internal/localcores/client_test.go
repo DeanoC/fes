@@ -204,6 +204,44 @@ func TestClientListWarmingReturnsWithoutTheClientTimeout(t *testing.T) {
 	}
 }
 
+func TestClientLaunchWarmingReturnsWithoutReconcile(t *testing.T) {
+	path := shortSock(t)
+	var statusHits atomic.Int32
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && r.URL.Path == "/v1/local/status" {
+			statusHits.Add(1)
+		}
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "warming"})
+	}))
+	if err := srv.Listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	srv.Listener = ln
+	srv.Start()
+	t.Cleanup(srv.Close)
+
+	client := NewClient(path)
+	started := time.Now()
+	err = client.Launch(context.Background(), clientPongID)
+	if !errors.Is(err, ErrWarming) {
+		t.Fatalf("launch %v", err)
+	}
+	if time.Since(started) >= time.Second {
+		t.Fatalf("warming launch waited %s", time.Since(started))
+	}
+	romErr := client.LaunchROM(context.Background(), clientPongID, "/tmp/cart.rom")
+	if !errors.Is(romErr, ErrWarming) {
+		t.Fatalf("cartridge launch %v", romErr)
+	}
+	if statusHits.Load() != 0 {
+		t.Fatalf("warming launch reconciled status %d times", statusHits.Load())
+	}
+}
+
 func TestClientMissingAndRefusedSocketsAreUnavailable(t *testing.T) {
 	missing := NewClient(shortSock(t))
 	if _, err := missing.List(context.Background()); !errors.Is(err, ErrUnavailable) {

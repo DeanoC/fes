@@ -30,7 +30,7 @@ const (
 )
 
 // Typed failures from the local-control socket. Error text is the JSON
-// code the agent writes (in_use, blocked, not_found, unavailable).
+// code the agent writes (in_use, blocked, not_found, unavailable, warming).
 var (
 	ErrInUse       = errors.New("in_use")
 	ErrBlocked     = errors.New("blocked")
@@ -103,7 +103,10 @@ func (c *Client) List(ctx context.Context) ([]Core, error) {
 // deadline fires and the caller did not cancel, Launch polls
 // GET /v1/local/status and returns nil when that package is already
 // running. It does not post launch a second time. A completed in_use,
-// blocked, not_found, or unavailable response is returned as-is.
+// blocked, not_found, unavailable, or warming response is returned as-is.
+// Warming means the catalog caches are still filling. It arrives without
+// waiting out the POST deadline, the same way List reports it, and the
+// caller retries. It is not a lost response and it is not an unavailable agent.
 func (c *Client) Launch(ctx context.Context, packageID string) error {
 	if !sha256Hex(packageID) {
 		return ErrNotFound

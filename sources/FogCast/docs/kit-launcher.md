@@ -76,7 +76,10 @@ firmware are listed and launched on the kit through mister-agent's root-only
 `GET /v1/local/status`). A list while the agent is still warming those
 catalog caches returns HTTP 503 `{"error":"warming"}`. The client reports
 `warming` at once. Tenfoot keeps checking and retries; it does not treat
-that response as an empty library. That path
+that response as an empty library. A launch posted during the same warm
+returns that `warming` response. The client reports it at once, the same way
+it reports a warming list, so the caller can retry. It does not treat the
+response as an unavailable agent. That path
 claims owner `kit-hostless` with purpose `kit-local-core` and fails closed,
 without taking over, when the lease is already held (fes#172). See [the host connection
 contract](launcher-host.md) for listener configuration and the session HTTP

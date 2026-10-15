@@ -89,6 +89,10 @@ that arrives while the warm is still reading package bytes returns HTTP 503
 `{"error":"warming"}` and does not start another scan. The kit-local client
 returns that as `warming` immediately. Tenfoot and the installed-cores room
 retry until the finished catalog is ready. The next list is that catalog.
+A launch posted during that warm uses the same wait and returns the same
+`warming` response. It does not claim a lease or program a core. The client
+returns `warming` immediately so the caller can retry; it is not an
+unavailable agent.
 
 A selected durable package is listed from the byte verification recorded at
 install, reopen, warm-up, or the last fingerprint miss. Listing keeps that result

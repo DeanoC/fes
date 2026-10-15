@@ -401,6 +401,12 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 	}
 	listed, err := s.list(ctx)
 	if err != nil {
+		// list already waited warmListBound. A warm that is still running is
+		// the same retryable warming a GET publishes. Folding it into
+		// unavailable makes a temporary catalog fill look like a failed agent.
+		if errors.Is(err, errWarming) {
+			return Core{}, err
+		}
 		return Core{}, errUnavailable
 	}
 	var core Core

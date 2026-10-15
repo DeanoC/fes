@@ -2254,7 +2254,13 @@ at most 200ms for an in-progress warm. If the warm is still running it returns
 HTTP 503 `{"error":"warming"}` and does not start a second scan or read package
 bytes for that request. The kit-local client surfaces that as `warming` without
 waiting out its 3s timeout. Tenfoot keeps the checking state and retries until
-a list succeeds; the installed-cores room does the same. A successful list is
+a list succeeds; the installed-cores room does the same. `POST
+/v1/local/cores/{package_id}/launch` resolves the package through that same
+list. A launch that arrives while the warm is still running returns the same
+HTTP 503 `{"error":"warming"}`, claims no lease, and does not program a core.
+The kit-local client returns `warming` as soon as that response arrives, as it
+does for a list, so the caller can retry. It does not treat the response as an
+unavailable agent and does not reconcile it as a lost launch. A successful list is
 the finished catalog, not a partial one. The list handler waits on the
 request context, so a client disconnect ends that wait and leaves the warm
 running. One catalog scan runs

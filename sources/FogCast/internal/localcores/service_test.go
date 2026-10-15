@@ -1645,6 +1645,112 @@ func TestWarmSkipsFactoryWhenInventoryFails(t *testing.T) {
 	}
 }
 
+// A launch posted while the startup warm is still reading package bytes
+// returns the same retryable warming response as a list. It does not start
+// another scan, claim a lease, or program a core. After the warm finishes,
+// that launch proceeds.
+func TestLaunchDuringWarmReturnsWarming(t *testing.T) {
+	root := t.TempDir()
+	selections := filepath.Join(root, "selections")
+	packages := filepath.Join(root, "packages")
+	if err := os.Mkdir(selections, 0o755); err != nil || os.Mkdir(packages, 0o755) != nil {
+		t.Fatal(err)
+	}
+	pongID := installCore(t, packages, selections, "fes.pong", "FES Pong", "fes.simple-game", coreOpts{})
+	runtime := &fakeRuntime{}
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	t.Cleanup(manager.Close)
+	waitFree(t, manager)
+	service := New(manager, runtime, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+
+	releaseInventory := make(chan struct{})
+	var releaseInventoryOnce sync.Once
+	t.Cleanup(func() { releaseInventoryOnce.Do(func() { close(releaseInventory) }) })
+	service.SetInventory(func() ([]Core, error) {
+		<-releaseInventory
+		return nil, nil
+	})
+
+	startedScan := make(chan struct{})
+	releaseScan := make(chan struct{})
+	var releaseScanOnce sync.Once
+	var scans atomic.Int32
+	useFactoryListGate(t, func(ctx context.Context) error {
+		if scans.Add(1) == 1 {
+			close(startedScan)
+		}
+		select {
+		case <-releaseScan:
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	})
+	t.Cleanup(func() { releaseScanOnce.Do(func() { close(releaseScan) }) })
+
+	service.Warm()
+
+	code, body, elapsed := timedLaunch(t, service, pongID)
+	if code != http.StatusServiceUnavailable || !strings.Contains(body, `"error":"warming"`) || elapsed >= time.Second {
+		t.Fatalf("launch during inventory warm %d in %s: %s", code, elapsed, body)
+	}
+	listCode, listBody, listElapsed := timedList(t, service, context.Background())
+	if listCode != http.StatusServiceUnavailable || !strings.Contains(listBody, `"error":"warming"`) || listElapsed >= time.Second || scans.Load() != 0 {
+		t.Fatalf("list during inventory warm %d in %s scans %d: %s", listCode, listElapsed, scans.Load(), listBody)
+	}
+	if loads, stops := runtime.calls(); len(loads) != 0 || stops != 0 {
+		t.Fatalf("warming launch touched runtime loads=%v stops=%d", loads, stops)
+	}
+	if manager.Status().State != "free" {
+		t.Fatalf("warming launch claimed lease %s", manager.Status().State)
+	}
+
+	releaseInventoryOnce.Do(func() { close(releaseInventory) })
+	select {
+	case <-startedScan:
+	case <-time.After(2 * time.Second):
+		t.Fatal("factory warm did not start")
+	}
+	code, body, elapsed = timedLaunch(t, service, pongID)
+	if code != http.StatusServiceUnavailable || !strings.Contains(body, `"error":"warming"`) || elapsed >= time.Second || scans.Load() != 1 {
+		t.Fatalf("launch during factory warm %d in %s scans %d: %s", code, elapsed, scans.Load(), body)
+	}
+
+	releaseScanOnce.Do(func() { close(releaseScan) })
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		code, body, elapsed = timedLaunch(t, service, pongID)
+		if elapsed >= time.Second {
+			t.Fatalf("launch took %s", elapsed)
+		}
+		if code == http.StatusOK && strings.Contains(body, pongID) {
+			break
+		}
+		if code != http.StatusServiceUnavailable || !strings.Contains(body, `"error":"warming"`) || !time.Now().Before(deadline) {
+			t.Fatalf("warm launch result %d %s", code, body)
+		}
+	}
+	if scans.Load() != 1 {
+		t.Fatalf("warm scanned %d times", scans.Load())
+	}
+	loads, _ := runtime.calls()
+	if len(loads) != 1 || loads[0][1] != pongID {
+		t.Fatalf("launch after warm %+v", loads)
+	}
+	if againCode, againBody, againElapsed := timedList(t, service, context.Background()); againCode != http.StatusOK || !strings.Contains(againBody, `"core_id":"fes.pong"`) || againElapsed >= time.Second || scans.Load() != 1 {
+		t.Fatalf("cached list after warm %d in %s scans %d: %s", againCode, againElapsed, scans.Load(), againBody)
+	}
+}
+
+func timedLaunch(t *testing.T, service *Service, packageID string) (int, string, time.Duration) {
+	t.Helper()
+	started := time.Now()
+	response := httptest.NewRecorder()
+	Handler(service).ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/local/cores/"+packageID+"/launch", nil))
+	return response.Code, response.Body.String(), time.Since(started)
+}
+
 func timedList(t *testing.T, service *Service, ctx context.Context) (int, string, time.Duration) {
 	t.Helper()
 	started := time.Now()
