@@ -1193,6 +1193,16 @@ sim-fes-c64-jsr: c64-diagnostic
 		"$(CURDIR)/cores/fes-c64/sim/jsr_tb.cpp"
 	@build/sim/fes-c64-jsr/Vready_sim_top "$(CURDIR)/build/sim/fes-c64-jsr/firmware.hex"
 
+.PHONY: sim-fes-c64-nmi
+sim-fes-c64-nmi:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-nmi
+	$(VERILATOR) --cc --exe --build -O2 --top-module cpu6502 $(C64_VERILATOR_FLAGS) \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-nmi" \
+		cores/fes-common/rtl/cpu6502/cpu6502.v cores/fes-common/rtl/cpu6502/cpu6502_alu.v \
+		"$(CURDIR)/cores/fes-c64/sim/nmi_tb.cpp"
+	@build/sim/fes-c64-nmi/Vcpu6502
+
 .PHONY: sim-fes-c64-irq
 sim-fes-c64-irq:
 	$(require_local_sim)
@@ -1291,7 +1301,7 @@ sim-fes-c64-frame:
 		"$(CURDIR)/cores/fes-c64/sim/frame_tb.cpp"
 	@build/sim/fes-c64-frame/Vc64_frame_store
 
-sim-fes-c64: sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
+sim-fes-c64: sim-fes-c64-sprite-pal sim-fes-c64-sid sim-fes-c64-open-graphics sim-fes-c64-graphics sim-fes-c64-border-position sim-fes-c64-scroll sim-fes-c64-graphics-modes sim-fes-c64-collision-cpu sim-fes-c64-collisions sim-fes-c64-sprite-video sim-fes-c64-border sim-fes-c64-readback c64-diagnostic sim-fes-c64-cia sim-fes-c64-color-ram sim-fes-c64-keyboard sim-fes-c64-iec sim-fes-c64-vic sim-fes-c64-drive sim-fes-c64-gcr sim-fes-c64-checkpoint sim-fes-c64-rmw sim-fes-c64-sax sim-fes-c64-jsr sim-fes-c64-push sim-fes-c64-irq sim-fes-c64-nmi sim-fes-c64-ready sim-fes-c64-clock sim-fes-c64-sprite sim-fes-c64-video sim-fes-c64-rom sim-fes-c64-fetch sim-fes-c64-frame
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-machine
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sim_top $(C64_VERILATOR_FLAGS) \

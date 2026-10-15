@@ -300,18 +300,28 @@ always @*
 reg irq_sampled = 0, irq_input = 0, irq_older = 0;
 reg branch_no_cross = 0, hardware_interrupt = 0;
 wire irq_take = branch_no_cross ? irq_older : irq_sampled;
+// NMI keeps an edge latch independent of RDY, then uses the same instruction
+// polling points as IRQ without I masking. A newly arriving edge joins the
+// pending latch here so enable gaps do not add an extra polling cycle.
+// NMI_edge remains pending for vector selection; nmi_take controls when
+// the instruction decoder enters the interrupt sequence.
+reg nmi_input = 0, nmi_sampled = 0, nmi_older = 0;
+wire nmi_take = branch_no_cross ? nmi_older : nmi_sampled;
 // PLP restores I after its poll, but the following instruction sees it.
 wire irq_mask = state == PULL2 && plp ? DIMUX[2] :
                 state == DECODE && plp ? ADD[2] : I;
 always @(posedge clk)
     if (reset) begin
         irq_sampled <= 0; irq_input <= 0; irq_older <= 0;
+        nmi_sampled <= 0; nmi_input <= 0; nmi_older <= 0;
         branch_no_cross <= 0; hardware_interrupt <= 0;
     end else if (RDY) begin
         irq_input <= IRQ && !irq_mask;
         irq_sampled <= irq_input; irq_older <= irq_sampled;
+        nmi_input <= NMI_edge || (NMI && !NMI_1);
+        nmi_sampled <= nmi_input; nmi_older <= nmi_sampled;
         branch_no_cross <= state == BRA1 && !(CO ^ backwards);
-        if (state == DECODE) hardware_interrupt <= irq_take | NMI_edge;
+        if (state == DECODE) hardware_interrupt <= irq_take | nmi_take;
     end
 
 /*
@@ -320,7 +330,7 @@ always @(posedge clk)
  */
 always @*
     case( state )
-        DECODE:         if( irq_take | NMI_edge )
+        DECODE:         if( irq_take | nmi_take )
                             PC_temp = { ABH, ABL };
                         else
                             PC_temp = PC;
@@ -348,7 +358,7 @@ always @*
  */
 always @*
     case( state )
-        DECODE:         if( irq_take | NMI_edge )
+        DECODE:         if( irq_take | nmi_take )
                             PC_inc = 0;
                         else
                             // Pushes fetch the following opcode after the
@@ -906,7 +916,7 @@ always @(posedge clk )
             IRHOLD_valid <= 0;
     end
 
-assign IR = irq_take | NMI_edge ? 8'h00 :
+assign IR = irq_take | nmi_take ? 8'h00 :
                      IRHOLD_valid ? IRHOLD : DIMUX;
 
 always @(posedge clk )
@@ -1279,7 +1289,9 @@ always @(posedge clk)
     NMI_1 <= NMI;
 
 always @(posedge clk )
-    if( NMI_edge && state == BRK3 )
+    if (reset)
+        NMI_edge <= 0;
+    else if( NMI_edge && state == BRK3 )
         NMI_edge <= 0;
     else if( NMI & ~NMI_1 )
         NMI_edge <= 1;
