@@ -187,23 +187,42 @@ class Boundary(unittest.TestCase):
         routed={"count":5,"pins":{"locked":[0,"locked"],"outclk":[0,"C6"],"outclk[1]":[0,"C7"],
                                   "refclk":[0,"refclk"],"rst":[0,"rst"]}}
         encoded=json.dumps(routed).encode().hex()
-        top=fixture(True)
-        pll=top["cells"]["system_clock.pll"]
-        pll["attributes"]["FES_PINMAP_V1"]=encoded
-        pll["connections"]["outclk[1]"]=[999]
+        def shell(*, connection=(20,), direction="output", present=True):
+            top=fixture(True)
+            pll=top["cells"]["system_clock.pll"]
+            pll["attributes"]["FES_PINMAP_V1"]=encoded
+            directions={"outclk":"output","refclk":"input","locked":"output"}
+            if direction is not None:
+                directions["outclk[1]"]=direction
+            pll["port_directions"]=directions
+            if present:
+                pll["connections"]["outclk[1]"]=list(connection)
+            return top
+        top=shell()
+        before=copy.deepcopy(top["cells"]["system_clock.pll"])
         result=json.loads(layout.prepare_scaffold(json.dumps({"modules":{"top":top}}).encode()))["modules"]["top"]
         repaired=result["cells"]["system_clock.pll"]
+        self.assertEqual(repaired,before)
         self.assertEqual(repaired["connections"]["outclk[1]"],[20])
         self.assertEqual(repaired["connections"]["outclk"],[10])
         self.assertNotIn("outclk[0]",repaired["connections"])
         self.assertEqual(repaired["port_directions"]["outclk[1]"],"output")
-        self.assertEqual(repaired["attributes"]["FES_PINMAP_V1"],encoded)
         mapping=json.loads(bytes.fromhex(repaired["attributes"]["FES_PINMAP_V1"]).decode())
         self.assertEqual(mapping,routed)
         self.assertEqual(mapping["pins"]["outclk"],[0,"C6"])
         self.assertEqual(mapping["pins"]["outclk[1]"],[0,"C7"])
         self.assertIn("plug_addr_ff_0",result["cells"])
         self.assertEqual(result["netnames"],top["netnames"])
+        cases=(
+            ("absent",{"present":False},"ST frozen audio PLL connection changed"),
+            ("mismatched",{"connection":(999,)},"ST frozen audio PLL connection changed"),
+            ("input-direction",{"direction":"input"},"ST system PLL physical port directions changed"),
+        )
+        for name,kwargs,pattern in cases:
+            with self.subTest(name=name):
+                rejected=shell(**kwargs)
+                with self.assertRaisesRegex(ValueError,pattern):
+                    layout.prepare_scaffold(json.dumps({"modules":{"top":rejected}}).encode())
         indexed={"count":5,"pins":{"locked":[0,"locked"],"outclk[0]":[0,"C6"],"outclk[1]":[0,"C7"],
                                     "refclk":[0,"refclk"],"rst":[0,"rst"]}}
         bad=fixture(True)

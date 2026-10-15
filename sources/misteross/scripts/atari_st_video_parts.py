@@ -169,8 +169,10 @@ def prepare_scaffold(source: bytes) -> bytes:
     cells = top["cells"]
     if any(name.startswith(("plug_addr_ff_", "plug_rdata_ff_")) for name in cells):
         raise ValueError("frozen ST shell already exposes canonical plug cells")
-    # Repair only the split second system PLL output. The physical five-pin
-    # map keeps scalar outclk at C6 and outclk[1] at C7; the six-pin map drops
+    # Validate the split second system PLL output before renaming the video
+    # boundary. A physical five-pin map (scalar outclk at C6, outclk[1] at C7)
+    # must already route outclk[1] to the frozen audio net with the expected
+    # port directions. A six-pin map is repaired onto that net and drops
     # obsolete outclk[0]. CPU socket FFs and their route-through buffers stay.
     atari_st_slot.repair_split_system_pll(top)
     # Keep anchors and their constant routes frozen. Removing only their cells

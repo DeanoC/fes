@@ -184,24 +184,51 @@ class AtariSTSlotCardTests(unittest.TestCase):
             "locked": [0, "locked"], "outclk": [0, "C6"], "outclk[1]": [0, "C7"],
             "refclk": [0, "refclk"], "rst": [0, "rst"]}}
         encoded = json.dumps(routed).encode().hex()
-        design = frozen_shell()
+
+        def shell(*, connection=(20,), direction="output", present=True):
+            design = frozen_shell()
+            pll = design["modules"]["top"]["cells"]["system_clock.pll"]
+            pll["attributes"]["FES_PINMAP_V1"] = encoded
+            directions = {"outclk": "output", "refclk": "input", "locked": "output"}
+            if direction is not None:
+                directions["outclk[1]"] = direction
+            pll["port_directions"] = directions
+            if present:
+                pll["connections"]["outclk[1]"] = list(connection)
+            return design
+
+        design = shell()
         top = design["modules"]["top"]
         pll = top["cells"]["system_clock.pll"]
-        pll["attributes"]["FES_PINMAP_V1"] = encoded
-        pll["connections"]["outclk[1]"] = [999]
+        before = json.loads(json.dumps(pll))
         atari_st_slot.repair_split_system_pll(top)
+        self.assertEqual(pll, before)
         self.assertEqual(pll["connections"]["outclk[1]"], [20])
         self.assertEqual(pll["connections"]["outclk"], [10])
         self.assertNotIn("outclk[0]", pll["connections"])
         self.assertEqual(pll["port_directions"]["outclk[1]"], "output")
-        self.assertEqual(pll["attributes"]["FES_PINMAP_V1"], encoded)
         mapping = json.loads(bytes.fromhex(pll["attributes"]["FES_PINMAP_V1"]).decode())
         self.assertEqual(mapping, routed)
         self.assertEqual(mapping["pins"]["outclk"], [0, "C6"])
         self.assertEqual(mapping["pins"]["outclk[1]"], [0, "C7"])
         prepared = json.loads(card.prepare_scaffold(json.dumps(design).encode(), 1))["modules"]["top"]
+        self.assertEqual(prepared["cells"]["system_clock.pll"], before)
         self.assertIn("plug_addr_ff_0", prepared["cells"])
-        self.assertEqual(prepared["cells"]["system_clock.pll"]["attributes"]["FES_PINMAP_V1"], encoded)
+
+        cases = (
+            ("absent", {"present": False}, "ST frozen audio PLL connection changed"),
+            ("mismatched", {"connection": (999,)}, "ST frozen audio PLL connection changed"),
+            ("input-direction", {"direction": "input"}, "ST system PLL physical port directions changed"),
+        )
+        for name, kwargs, pattern in cases:
+            with self.subTest(name=name):
+                rejected = shell(**kwargs)
+                snapshot = json.loads(json.dumps(rejected))
+                with self.assertRaisesRegex(ValueError, pattern):
+                    atari_st_slot.repair_split_system_pll(rejected["modules"]["top"])
+                self.assertEqual(rejected, snapshot)
+                with self.assertRaisesRegex(ValueError, pattern):
+                    card.prepare_scaffold(json.dumps(rejected).encode(), 1)
 
         def reject(mutated):
             bad = frozen_shell()
