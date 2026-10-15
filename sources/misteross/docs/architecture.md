@@ -2008,6 +2008,17 @@ rejected. Separate
 Direct/Scanlines routes must still pass timing and whole-bitstream containment;
 retained egress alone does not qualify a video part.
 
+The video-part and slot-card producers reload that routed shell with
+`--no-pack`. The scaffold exposes the routed input net, not the top-level
+port, so the shell `create_clock` on `[get_ports {FPGA_CLK1_50}]` is a virtual
+clock and nextpnr rejects it. The generated SDC keeps the name `FPGA_CLK1_50`,
+the 20.000 ns period and the default 50% waveform, and points that
+`create_clock` at `[get_nets {FPGA_CLK1_50}]`. It still constrains
+`system_clock.clocks[0]` to 52.224 MHz, `pixel_clk` to 74.25 MHz and
+`system_clock.clocks[1]` to 12.288 MHz. No input or output delay references
+the reference clock. The shell's own `clocks-oss.sdc` stays a port
+`create_clock`, which the core build can apply to the physical pin.
+
 `scripts/build_atari_st_video_part.py` compares the frozen shell directory with
 the sealed package for `manifest.toml`, `core.rbf` and `rom-map.json`.
 `routed.json` and `socket.qsf` are producer outputs, not package members; a

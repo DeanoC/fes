@@ -273,8 +273,19 @@ class AtariSTSlotCardTests(unittest.TestCase):
 
     def test_timing_requires_all_three_finite_passing_clocks(self):
         self.assertEqual(set(card.validate_cart_timing(good_timing())), set(card.REQUIRED_CLOCKS_MHZ))
+        shell = (ROOT / "cores/fes-atari-st/constraints/clocks-oss.sdc").read_text()
+        self.assertEqual(shell.count("[get_ports {FPGA_CLK1_50}]"), 1)
+        self.assertNotIn("set_input_delay", shell)
+        self.assertNotIn("set_output_delay", shell)
         text = card.cart_clock_constraints(ROOT).decode()
-        for name in card.REQUIRED_CLOCKS_MHZ:
+        # The shell still constrains the physical port. The cart scaffold does
+        # not, so the same 20.000 ns / 50% clock moves onto the input net.
+        self.assertNotIn("get_ports", text)
+        self.assertIn("create_clock -name FPGA_CLK1_50 -period 20.000 [get_nets {FPGA_CLK1_50}]", text)
+        for name, frequency in card.REQUIRED_CLOCKS_MHZ.items():
+            period = f"{1000 / frequency:.12f}"
+            self.assertIn(
+                f"create_clock -name {{{name}}} -period {period} [get_nets {{{name}}}]", text)
             self.assertIn(f"[get_nets {{{name}}}]", text)
             for failure in ("missing", "slow", "nan"):
                 with self.subTest(name=name, failure=failure):

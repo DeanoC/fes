@@ -120,7 +120,16 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
 def cart_clock_constraints(root: Path) -> bytes:
     # --no-pack restores routed nets but does not derive PLL constraints. These
     # are the declared shell frequencies, never its achieved Fmax.
-    text = (root / shell_recipe.SDC).read_text() + "\n# Frozen Atari ST shell clocks.\n"
+    # The scaffold has no top-level port in the SDC context, so the shell's
+    # [get_ports {FPGA_CLK1_50}] collection is empty and nextpnr rejects that
+    # create_clock as a virtual clock (DeanoC/nextpnr#198). Keep the same
+    # name, 20.000 ns period and default 50% waveform on the physical input net.
+    shell = (root / shell_recipe.SDC).read_text()
+    port = "[get_ports {FPGA_CLK1_50}]"
+    if shell.count(port) != 1:
+        raise ValueError("Atari ST reference clock is not the single port create_clock")
+    text = shell.replace(port, "[get_nets {FPGA_CLK1_50}]")
+    text += "\n# Frozen Atari ST shell clocks.\n"
     for name, frequency in REQUIRED_CLOCKS_MHZ.items():
         text += f"create_clock -name {{{name}}} -period {1000 / frequency:.12f} [get_nets {{{name}}}]\n"
     return text.encode()
