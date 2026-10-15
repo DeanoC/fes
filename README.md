@@ -79,7 +79,7 @@ sealed and included. ST firmware remains separately selected by the user; no ROM
 is bundled in the image. Coleco and ST each include independently sealed Direct
 and Scanlines video parts. C64 has a timing-passing frozen HIP seal and a
 [functional package diagnostic](docs/validation/2026-10-06-c64-functional-closure.md),
-but remains package-only without factory-image acceptance. The 160 MiB rootfs
+but remains package-only without factory-image acceptance. The 192 MiB rootfs
 holds the selected set.
 Menu (`fes.menu`) is the idle display, not a playable library entry. Each selected
 package is independently resolved, cached, installed and recorded; this is the

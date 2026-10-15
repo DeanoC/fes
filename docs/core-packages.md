@@ -17,7 +17,7 @@ producers. The default target-image selector installs the ordered closed
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
 `fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set.
 SMS, SG-1000, Spectrum and Atari ST passed timing and are in that image.
-Coleco and ST include their independently sealed Direct and Scanlines video parts. The 160 MiB
+Coleco and ST include their independently sealed Direct and Scanlines video parts. The 192 MiB
 rootfs holds them. `fes.apple2`,
 `fes.catch` and `fes.riscv` remain package-only. `fes.c64` has a timing-passing
 frozen HIP seal and functional diagnostic, but remains package-only without

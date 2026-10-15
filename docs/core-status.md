@@ -36,7 +36,7 @@ playability and hardware acceptance depend on the exact-artifact kit evidence be
 The image selector supports ten IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st`.
 `fes.riscv` is registered for `make core-dev` only.
-SMS, SG-1000, Spectrum and Atari ST are sealed and included. The 160 MiB rootfs
+SMS, SG-1000, Spectrum and Atari ST are sealed and included. The 192 MiB rootfs
 holds them. C64 remains registered and package-only: its frozen HIP seal and
 original firmware/probe [functional diagnostic](validation/2026-10-06-c64-functional-closure.md)
 pass, but there is no factory-image acceptance or promotion. The factory packages,
