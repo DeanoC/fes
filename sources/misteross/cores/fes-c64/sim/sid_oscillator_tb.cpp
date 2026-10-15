@@ -86,6 +86,35 @@ int main(int argc,char**argv){
  for(unsigned offset=0;offset<54;++offset){for(unsigned sys=0;sys<108;++sys)step(sys%54==0,sys==offset,4,offset&1?0x89:0x81);}
  boundary("seeded simultaneous phi/register mutations single-wave subset");
  for(unsigned i=0;i<100000;++i){unsigned r=random();unsigned a=(r>>16)%5,d=r>>24;if(a==4){const unsigned waves[]={0,16,32,64,128};d=waves[(r>>8)%5]|(d&9);}step((r&3)!=0,(r&15)<3,a,d);}
+ // CPU writes prepare every table address through the ordinary accumulator.
+ // Keep all preceding regressions intact; no hidden state is injected.
+ auto position=[&](unsigned phase){
+  write(4,0x28);freq(0xffff);write(4,0x20);
+  cycles(phase/0xffff);freq(phase%0xffff);cycles(1);freq(0);
+ };
+ for(unsigned selected:{0x30u,0x50u,0x60u,0x70u})for(unsigned width:{0u,0xfffu})for(unsigned ring:{0u,4u}){
+  boundary("all4096 combined-wave table addresses through CONTROL writes");
+  for(unsigned index=0;index<4096;++index){
+   position(index<<12);write(2,width&255);write(3,width>>8);
+   write(4,selected|ring);write(4,selected|ring);cycles(2);
+  }
+ }
+ for(unsigned selected:{0x30u,0x60u,0x70u})for(unsigned target:{0x7fffffu,0x800000u,0x83f000u,0x85f000u,0xfff000u})for(unsigned width:{0u,0xfffu}){
+  boundary("combined saw phase feedback and delayed pulse around MSB");
+  position(target);write(2,width&255);write(3,width>>8);write(4,selected);
+  freq(1);cycles(3);write(4,selected,true);cycles(2);
+  write(2,0,true);write(3,0);freq(0xffff);cycles(7);
+  write(4,selected|8,true);cycles(3);write(4,selected);cycles(4);
+  step(true,true,4,selected,true);cycles(2);
+ }
+ for(unsigned selected:{0x1cu,0x5cu})for(unsigned same_phi:{0u,1u}){
+  boundary("self-ring TEST rise observes the cleared source phase");
+  position(0x800000);write(2,0);write(3,0);
+  write(4,selected,same_phi);write(4,selected);cycles(2);
+  write(4,selected&~8u);cycles(2);
+ }
+ boundary("seeded combined-wave writes on Phi and idle SYS edges");
+ for(unsigned i=0;i<100000;++i){unsigned r=random(),a=(r>>16)%5,d=r>>24;if(a==4){const unsigned waves[]={0,16,32,48,64,80,96,112,128};d=waves[(r>>8)%9]|(d&9);}step((r&3)!=0,(r&15)<3,a,d);}
  if(edges%8192 && !flush())return 1;
 #ifdef C64_OSC_ORACLE
  std::puts("};");

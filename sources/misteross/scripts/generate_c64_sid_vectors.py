@@ -65,19 +65,22 @@ def main():
         (temp/'siddefs.h').write_text(config)
         for component in selected:
             if component == 'oscillator-table':
-                name='wave6581_P_T.h'
-                raw=(source/name).read_bytes()
-                text=re.sub(r'/\*.*?\*/', '', raw.decode(), flags=re.S)
-                values=[int(value,16) for value in re.findall(r'0x[0-9a-fA-F]+',text)]
-                if len(values)!=4096:parser.error('pulse/triangle table requires 4096 entries')
                 lines=['// SPDX-License-Identifier: GPL-2.0-or-later',
-                       '// MOS6581 pulse/triangle samples from VICE 3.10 reSID.',
-                       '// Copyright (C) 2010 Dag Lem <resid@nimrod.no>. See c64_sid.COPYING.',
-                       '// Generated exactly from wave6581_P_T.h SHA256 '+hashlib.sha256(raw).hexdigest()+'.',
-                       'function automatic [11:0] combined_pulse_triangle(input [11:0] index);', ' case(index)']
-                lines += [f"  12'h{index:03x}:combined_pulse_triangle=12'h{value:03x};"
-                          for index,value in enumerate(values) if value]
-                lines += ["  default:combined_pulse_triangle=12'h000;", ' endcase', 'endfunction']
+                       '// MOS6581 combined-wave samples from VICE 3.10 reSID.',
+                       '// Copyright (C) 2010 Dag Lem <resid@nimrod.no>. See c64_sid.COPYING.']
+                for name,function in [('wave6581__ST.h','combined_triangle_saw'),
+                                      ('wave6581_P_T.h','combined_pulse_triangle'),
+                                      ('wave6581_PS_.h','combined_pulse_saw'),
+                                      ('wave6581_PST.h','combined_pulse_triangle_saw')]:
+                    raw=(source/name).read_bytes()
+                    text=re.sub(r'/\*.*?\*/', '', raw.decode(), flags=re.S)
+                    values=[int(value,16) for value in re.findall(r'0x[0-9a-fA-F]+',text)]
+                    if len(values)!=4096:parser.error(name+': requires 4096 entries')
+                    lines += ['// Generated exactly from '+name+' SHA256 '+hashlib.sha256(raw).hexdigest()+'.',
+                              'function automatic [11:0] '+function+'(input [11:0] index);', ' case(index)']
+                    lines += [f"  12'h{index:03x}:{function}=12'h{value:03x};"
+                              for index,value in enumerate(values) if value]
+                    lines += ["  default:"+function+"=12'h000;", ' endcase', 'endfunction']
                 result='\n'.join(lines)+'\n'
                 output=args.output or module/'cores/fes-c64/rtl/c64_sid_combined_waves.vh'
                 if args.check:

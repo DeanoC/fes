@@ -35,8 +35,12 @@ int main(int argc,char **argv){
 #ifdef C64_PREPARED_PHASE
  bool previous_phi=false;uint64_t prepared_idle=0;
 #endif
+ std::array<unsigned,3> clocked{};
+#ifdef C64_COUPLING_LIVE
+ std::array<unsigned,3> expected_clocked{};
+#endif
  uint64_t edges=0,phi_edges=0,writes=0,hash=14695981039346656037ull;unsigned chunks=0,cases=0;const char *scenario="powerup";
- uint64_t rise_sync_seen=0,suppressed=0,clears=0,test_held_rise=0;unsigned ring_sources=0;
+ uint64_t rise_sync_seen=0,suppressed=0,clears=0,test_held_rise=0;unsigned ring_sources=0;uint64_t blocked_writes=0;
  auto flush=[&](){
 #ifdef C64_OSC_ORACLE
   std::printf("{0x%016llxull,%lluull},\n",(unsigned long long)hash,(unsigned long long)edges);
@@ -45,11 +49,15 @@ int main(int argc,char **argv){
 #endif
   ++chunks;hash=14695981039346656037ull;
  };
- auto step=[&](bool phi=false,bool we=false,unsigned addr=0,unsigned data=0,bool reset=false){
+ auto step=[&](bool phi=false,bool we=false,unsigned addr=0,unsigned data=0,bool reset=false,bool selected=true){
 #if defined(C64_OSC_ORACLE) || defined(C64_COUPLING_LIVE)
   if(reset){for(auto&r:ref)r.restart();}else{
    if(phi){for(auto&r:ref)r.clock();for(auto&r:ref)r.synchronize();for(auto&r:ref)r.set_waveform_output();}
-   if(we&&addr<21)ref[addr/7].write(addr%7,data);
+   for(unsigned v=0;v<3;++v)clocked[v]=ref[v].state()[9];
+#ifdef C64_COUPLING_LIVE
+   expected_clocked=clocked;
+#endif
+   if(we&&selected&&addr<21)ref[addr/7].write(addr%7,data);
   }
 #endif
 #ifndef C64_OSC_ORACLE
@@ -62,7 +70,12 @@ int main(int argc,char **argv){
   }
   previous_phi=phi;
 #endif
-  rtl.clk=0;rtl.reset=reset;rtl.phi=phi;rtl.we=we;rtl.cs=we;rtl.addr=addr;rtl.din=data;rtl.eval();rtl.clk=1;rtl.eval();
+  rtl.clk=0;rtl.reset=reset;rtl.phi=phi;rtl.we=we;rtl.cs=we&&selected;rtl.addr=addr;rtl.din=data;rtl.eval();
+  for(unsigned v=0;v<3;++v)clocked[v]=rtl.clocked[v];
+#ifdef C64_COUPLING_LIVE
+  if(phi&&!reset&&clocked!=expected_clocked){std::fprintf(stderr,"pre-write audio waveform mismatch %s SYS=%llu\n",scenario,(unsigned long long)edges);std::exit(1);}
+#endif
+  rtl.clk=1;rtl.eval();
 #endif
   unsigned rise_mask=0,sync_mask=0;
   for(unsigned v=0;v<3;++v){
@@ -86,9 +99,10 @@ int main(int argc,char **argv){
     ring_sources|=1u<<(v*2+source_msb);
    }
    for(auto value:state)for(unsigned b=0;b<4;++b){hash^=(value>>(8*b))&255;hash*=1099511628211ull;}
+   if(phi&&!reset)for(unsigned b=0;b<4;++b){hash^=(clocked[v]>>(8*b))&255;hash*=1099511628211ull;}
   }
   if(phi&&!reset){rise_sync_seen|=1ull<<(rise_mask*8+sync_mask);for(unsigned v=0;v<3;++v)if((sync_mask&(1u<<v))&&(rise_mask&(1u<<((v+2)%3)))){if((sync_mask&(1u<<((v+2)%3)))&&(rise_mask&(1u<<((v+1)%3))))++suppressed;else ++clears;}}
-  ++edges;if(phi&&!reset)++phi_edges;if(we&&!reset)++writes;if(edges%8192==0)flush();
+  ++edges;if(phi&&!reset)++phi_edges;if(we&&!reset){if(selected)++writes;else ++blocked_writes;}if(edges%8192==0)flush();
  };
  auto boundary=[&](const char *name){if(edges%8192)flush();scenario=name;++cases;};
  auto wr=[&](unsigned v,unsigned a,unsigned d,bool phi=false){step(phi,true,v*7+a,d);};
@@ -121,6 +135,41 @@ int main(int argc,char **argv){
  for(unsigned offset=0;offset<54;++offset)for(unsigned v=0;v<3;++v)for(unsigned sys=0;sys<108;++sys)step(sys%54==0,sys==offset,v*7+4,0x11|((offset&7)<<1));
  boundary("dense simultaneous phi/register mutation");
  for(unsigned i=0;i<100000;++i){unsigned r=random(),a=(r>>16)%21,d=r>>24;if(a%7==4){const unsigned waves[]={0,16,32,64,80,128};d=waves[(r>>8)%6]|(d&15);}step((r&3)!=0,(r&15)<3,a,d);}
+ // All original scenarios above remain; the source oracle also hashes the
+ // post-Phi/pre-write waveform used by the audio pipeline.
+ auto position=[&](unsigned v,unsigned phase){
+  wr(v,4,0x28);freq(v,0xffff);wr(v,4,0x20);
+  clocks(phase/0xffff);freq(v,phase%0xffff);clocks(1);freq(v,0);
+ };
+ for(unsigned source=0;source<3;++source)for(unsigned selected:{0x30u,0x60u,0x70u})for(unsigned ring_wave:{0x14u,0x54u})for(unsigned same_phi:{0u,1u})for(unsigned cadence:{2u,53u,54u,64u}){
+  boundary("combined-saw feedback in every source/ring rotation and write view");
+  for(unsigned v=0;v<3;++v){freq(v,0);wr(v,4,0x28);}
+  unsigned dest=(source+1)%3;
+  position(dest,0x245678);position(source,0x7fffff);
+  wr(dest,2,0);wr(dest,3,0);wr(dest,4,ring_wave);
+  wr(source,2,0);wr(source,3,0);wr(source,4,selected);freq(source,1);
+  // This Phi crosses bit23 before source feedback. A same-edge destination
+  // CONTROL write observes final feedback; its audio capture observes Phi output.
+  step(true,same_phi,dest*7+4,ring_wave);
+  for(unsigned idle=1;idle<cadence;++idle)step();
+  for(unsigned i=0;i<8;++i){step(true);for(unsigned idle=1;idle<cadence;++idle)step();}
+  // A last-idle source CONTROL write clears phase after the prepared helper
+  // would have computed the old sum. Exactly one idle edge is available.
+  wr(source,4,0x20);position(source,0x800000);freq(source,0xffff);
+  wr(source,4,selected);step(true);step();step(true);
+  wr(source,4,selected,true);step();step(true);
+ }
+ boundary("fractional53/54 native phase27 writes including all non-noise combinations");
+ fraction=0;since=0;rng=0xc0640367;unsigned combined_seen=0;
+ for(unsigned sys=0;sys<700000;++sys){
+  fraction+=985248;bool phi=fraction>=52224000;if(phi){fraction-=52224000;since=0;}else ++since;
+  unsigned r=random(),a=(r>>16)%21,d=r>>24;bool we=since==27&&(r&3)==0,selected=(r&15)!=0;
+  if(a%7==4){const unsigned waves[]={0,16,32,48,64,80,96,112,128};d=waves[(r>>8)%9]|(d&15);if(we&&selected)combined_seen|=1u<<(d>>4);}
+  step(phi,we,a,d,false,selected);
+ }
+ if((combined_seen&0xe8)!=0xe8||!blocked_writes){std::fprintf(stderr,"incomplete native combined/CS coverage mask=%x blocked=%llu\n",combined_seen,(unsigned long long)blocked_writes);return 1;}
+ boundary("seeded all non-noise combinations, coupled sync/ring and same-Phi writes");
+ for(unsigned i=0;i<200000;++i){unsigned r=random(),a=(r>>16)%21,d=r>>24;if(a%7==4){const unsigned waves[]={0,16,32,48,64,80,96,112,128};d=waves[(r>>8)%9]|(d&15);}step((r&3)!=0,(r&15)<3,a,d);}
  }
  if(argc>1){
 #ifndef C64_COUPLING_LIVE

@@ -4,7 +4,7 @@ module sid_coupling_sim_top #(parameter bit PREPARE_PHASE=1'b0) (
  input wire [4:0] addr,input wire [7:0] din,
  output wire [23:0] phase[0:2],
  output wire [15:0] freq[0:2],reset_count[0:2],
- output wire [11:0] pw[0:2],pulse[0:2],waveform[0:2],
+ output wire [11:0] pw[0:2],pulse[0:2],waveform[0:2],clocked[0:2],
  output wire [7:0] control[0:2],osc[0:2],
  output wire [22:0] lfsr[0:2],
  output wire [1:0] shift_pipe[0:2],
@@ -30,6 +30,7 @@ module sid_coupling_sim_top #(parameter bit PREPARE_PHASE=1'b0) (
   assign fade_count[v]=dut.envelopes[v].oscillator.q.fade_count;
   assign pulse[v]=dut.envelopes[v].oscillator.q.pulse;
   assign waveform[v]=dut.digital_wave[v];
+  assign clocked[v]=dut.clocked_wave[v];
   assign osc[v]=dut.oscillator_read[v];
   assign rise[v]=dut.envelopes[v].oscillator.q.msb_rising;
  end

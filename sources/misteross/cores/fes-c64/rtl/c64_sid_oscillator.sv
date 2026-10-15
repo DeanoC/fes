@@ -4,7 +4,7 @@
 // GPL version 2 or later; complete license: c64_sid.COPYING.
 // See ../README.md for pinned source, regeneration and hardware limits.
 // Single waveforms/TEST, three-voice hard sync and triangle ring modulation.
-// Pulse/triangle uses pinned MOS6581 samples; other combinations remain open.
+// Non-noise combinations use pinned MOS6581 samples and phase feedback.
 module c64_sid_oscillator #(
     // The caller must guarantee a non-Phi edge between Phi edges.
     parameter bit PREPARE_PHASE = 1'b0
@@ -12,8 +12,8 @@ module c64_sid_oscillator #(
     input wire clk, reset, phi, we,
     input wire [2:0] addr,
     input wire [7:0] din,
-    input wire sync_clear, source_msb,
-    output wire [23:0] phase_now, phase_advanced,
+    input wire sync_clear, source_msb, source_write_msb,
+    output wire [23:0] phase_now, phase_advanced, phase_feedback,
     output wire msb_rising, sync_enabled,
     output wire [11:0] waveform,
     output reg [11:0] clocked_waveform,
@@ -39,15 +39,12 @@ module c64_sid_oscillator #(
     wire [23:0] next_phase;
     generate if (PREPARE_PHASE) begin : prepared_phase
         reg [23:0] value = 24'h555555;
-        wire [15:0] frequency = we && addr==0 ? {q.freq[15:8],din} :
-                               we && addr==1 ? {din,q.freq[7:0]} : q.freq;
-        wire test_rise = we && addr==4 && !q.control[3] && din[3];
-        wire [23:0] phase_base = test_rise ? 24'd0 : q.phase;
-        // Forward writes on the last idle edge, including TEST's phase clear.
+        // The final idle state includes FREQ, TEST and combined-wave feedback.
+        // Forward even a repeated CONTROL write on the last idle edge.
         // Reset preserves the old phase and clears frequency, even on Phi.
         always @(posedge clk)
             if(reset) value <= q.phase;
-            else if(!phi) value <= phase_base+{8'd0,frequency};
+            else if(!phi) value <= n.phase+{8'd0,n.freq};
         assign next_phase=value;
     end else begin : direct_phase
         assign next_phase=q.phase+{8'd0,q.freq};
@@ -70,6 +67,9 @@ module c64_sid_oscillator #(
             case(s.control[7:4])
             4'h1:selected_wave={((s.phase[23] ^ (s.control[2] && !source_high)) ? ~s.phase[22:12] : s.phase[22:12]),1'b0};
             4'h2:selected_wave=s.phase[23:12];
+            4'h3:selected_wave=combined_triangle_saw(s.phase[23:12]);
+            4'h6:selected_wave=combined_pulse_saw(s.phase[23:12]) & s.pulse;
+            4'h7:selected_wave=combined_pulse_triangle_saw(s.phase[23:12]) & s.pulse;
             4'h4:selected_wave=s.pulse;
             4'h8:selected_wave=noise_bits(s.lfsr);
             4'h5:selected_wave=combined_pulse_triangle(s.phase[23:12] ^ ((s.control[2] && !source_high) ? 12'h800 : 12'h000)) & s.pulse;
@@ -86,6 +86,26 @@ module c64_sid_oscillator #(
             endcase
         end
     endfunction
+    function automatic [23:0] feedback_phase(input [23:0] phase_value,
+        input [3:0] selector, input [11:0] wave);
+        feedback_phase=phase_value;
+        if(selector==3 || selector==6 || selector==7)
+            feedback_phase[23]=phase_value[23] & wave[11];
+    endfunction
+    // Saw-selected feedback is independent of ring modulation. Expose this
+    // local stage, not n, to preserve a finite cross-voice feed-forward path.
+    wire [23:0] synced_phase=sync_clear ? 24'd0 : phase_advanced;
+    wire [11:0] phi_pulse=q.control[3] ? 12'hfff : q.pulse;
+    reg [11:0] feedback_wave;
+    always @* begin
+        case(q.control[7:4])
+        3:feedback_wave=combined_triangle_saw(synced_phase[23:12]);
+        6:feedback_wave=combined_pulse_saw(synced_phase[23:12]) & phi_pulse;
+        7:feedback_wave=combined_pulse_triangle_saw(synced_phase[23:12]) & phi_pulse;
+        default:feedback_wave=12'hfff;
+        endcase
+    end
+    assign phase_feedback=feedback_phase(synced_phase,q.control[7:4],feedback_wave);
     always @* begin
         n=q;
         if(phi) begin
@@ -111,7 +131,10 @@ module c64_sid_oscillator #(
             // Synchronize only after every voice has advanced its phase.
             // Noise edge/shift behavior above observes the pre-sync phase.
             if(sync_clear)n.phase=0;
-            if(n.control[7:4]!=0) n.wave=selected_wave(n,source_msb);
+            if(n.control[7:4]!=0) begin
+                n.wave=selected_wave(n,source_msb);
+                n.phase=feedback_phase(n.phase,n.control[7:4],n.wave);
+            end
             else if(n.fade_count!=0) begin
                 n.fade_count=n.fade_count-1'b1;
                 if(n.fade_count==0) begin
@@ -137,7 +160,8 @@ module c64_sid_oscillator #(
                 n.lfsr={n.lfsr[21:0],~n.lfsr[17]};
             end
             if(din[7:4]!=0) begin
-                n.wave=selected_wave(n,source_msb);
+                n.wave=selected_wave(n,source_write_msb);
+                n.phase=feedback_phase(n.phase,n.control[7:4],n.wave);
                 n.pulse=n.phase[23:12]>=n.pw ? 12'hfff : 12'h000;
             end else if(q.control[7:4]!=0) n.fade_count=18'd182000;
         end

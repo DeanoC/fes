@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // MOS6581 digital oscillators and ADSR with optional staged analog filtering.
 // Direct fallback retains linear master volume. OSC3 and ENV3 are readable. Single-wave/TEST timing
-// follows reSID, including hard sync, triangle ring and pulse/triangle.
-// Remaining combined-wave fidelity and analog hardware acceptance stay open.
+// follows reSID, including hard sync, ring modulation and non-noise combinations.
+// Noise combinations and analog hardware acceptance stay open.
 // See c64_sid.COPYING and ../README.md for source provenance and scope.
 module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
     parameter bit PREPARE_ENVELOPE = 1'b0,
@@ -17,7 +17,7 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
     output wire [7:0]         dout,
     output reg  signed [15:0] sample
 );
-    wire [23:0] phase_now [0:2], phase_advanced [0:2];
+    wire [23:0] phase_now [0:2], phase_advanced [0:2], phase_feedback [0:2];
     wire [2:0] msb_rising, sync_enabled, sync_clear;
     wire [11:0] digital_wave [0:2], clocked_wave [0:2];
     wire [7:0] oscillator_read [0:2];
@@ -34,7 +34,12 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
         // Suppress sync when its source is itself synced on the same edge.
         assign sync_clear[v]=sync_enabled[v] && msb_rising[SOURCE] &&
             !(sync_enabled[SOURCE] && msb_rising[SOURCE_SOURCE]);
-        wire ring_source_msb=phi ? (sync_clear[SOURCE] ? 1'b0 : phase_advanced[SOURCE][23]) : phase_now[SOURCE][23];
+        // Match the pinned reSID output loop: voice0 observes source2 before
+        // feedback; voices1/2 observe the preceding voice after feedback.
+        // CONTROL writes occur after every voice's Phi output stage.
+        wire source_before_feedback=sync_clear[SOURCE] ? 1'b0 : phase_advanced[SOURCE][23];
+        wire ring_source_msb=phi ? (v==0 ? source_before_feedback : phase_feedback[SOURCE][23]) : phase_now[SOURCE][23];
+        wire write_source_msb=phi ? phase_feedback[SOURCE][23] : phase_now[SOURCE][23];
         wire [4:0] oscillator_addr=addr-BASE;
         wire control_write=addr==BASE+5'd4;
         wire ad_write=addr==BASE+5'd5;
@@ -43,8 +48,8 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
             .clk(clk),.reset(reset),.phi(phi),
             .we(we && cs && oscillator_addr<=5'd4),
             .addr(oscillator_addr[2:0]),.din(din),
-            .sync_clear(sync_clear[v]),.source_msb(ring_source_msb),
-            .phase_now(phase_now[v]),.phase_advanced(phase_advanced[v]),
+            .sync_clear(sync_clear[v]),.source_msb(ring_source_msb),.source_write_msb(write_source_msb),
+            .phase_now(phase_now[v]),.phase_advanced(phase_advanced[v]),.phase_feedback(phase_feedback[v]),
             .msb_rising(msb_rising[v]),.sync_enabled(sync_enabled[v]),
             .waveform(digital_wave[v]),.clocked_waveform(clocked_wave[v]),.osc(oscillator_read[v])
         );

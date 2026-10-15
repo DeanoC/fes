@@ -1766,11 +1766,15 @@ write, with reset taking priority. Warm reset retains phase, while power-up
 uses reSID's deterministic `$555555` fixture, not a hardware startup claim.
 All three oscillators advance before hard-sync clear decisions. The source
 MSB-rise flags and old SYNC bits determine clears, including suppression
-when a source is itself synced. Output then uses post-sync phases; triangle
-ring modulation substitutes the source MSB without changing CPU/Phi2 timing.
+when a source is itself synced. Output uses post-sync phases, then saw-selected
+combinations may clear the local phase MSB without recalculating the rise latch.
+To reproduce the pinned reSID loop, voice 0's ring input observes source 2 before
+feedback; voices 1 and 2 observe their sources after feedback. Same-Phi CONTROL
+writes see all final source phases, while idle writes use committed phases.
+This is software-model ordering, not a physical SID ordering claim.
 The motherboard enables prepared phase sums when the system-to-CPU clock
 ratio is at least two, ensuring an idle SYS edge between Phi2 enables.
-The sum forwards frequency writes and TEST phase clears on that idle edge;
+The sum forwards final idle phase and frequency, including TEST and combined-wave clears;
 reset uses the retained phase and cleared frequency. The SID component defaults
 to direct calculation, which also handles ratios with adjacent Phi2 enables.
 The phase replay adds physical idle edges to the existing source-oracle inputs
@@ -1784,14 +1788,18 @@ reset remains last, retaining the old envelope value and ENV3 sample. The
 component defaults to the direct transition for dense standalone use.
 Prepared envelope and three-voice PCM tests reuse the original source-oracle
 fixtures; adding idle edges leaves their logical observations unchanged.
-Combined pulse/triangle uses the pinned reSID MOS6581 4,096-entry sample table
-after ring-index substitution, masked by the delayed pulse level. The
-generator reproduces the sparse RTL lookup exactly; the producer includes
-its header in the pinned source closure. Other waveform combinations remain
-unqualified.
+All four non-noise combinations use the pinned reSID MOS6581 4,096-entry
+sample tables. Pulse/triangle substitutes the ring index; saw-selected
+combinations disable that substitution. Pulse combinations use the delayed
+pulse mask. Output precedes phase feedback, then the next pulse level compares
+the final phase. CONTROL writes repeat this evaluation after any TEST change,
+even if the register value is unchanged. The generator reproduces all sparse
+RTL lookups exactly; their header is in the producer's pinned source closure.
 The reference's edge latch remains held during TEST. The portable coupling
-oracle covers the complete simultaneous-rise/SYNC mask space and all voices.
-Remaining combined-wave coupling stays unqualified.
+oracle covers the complete simultaneous-rise/SYNC mask space, all voices,
+feedback/ring ordering and pre-write audio waveforms. It includes native
+fractional53/54 periods and Phi+27 writes, blocked writes and minimum preparation
+cadence. Noise-combined behavior remains unqualified.
 
 At the native 53/54-SYS cadence, `c64_sid` enables the staged MOS6581 waveform
 and envelope DACs, nonlinear internal filter and external output network at
@@ -1813,7 +1821,7 @@ over 23,052 Phi clocks, including minimum 41-SYS cadence, native 53/54 periods,
 writes and reset/restart. It checks wide output, PCM, readback and done/busy.
 Its initial ENV3 exclusion lasts only until the first non-reset Phi; subsequent
 warm-reset samples remain checked. Other register reads follow the core's
-zero-read contract. Other models/bias, paddles, bus decay, remaining combined
+zero-read contract. Other models/bias, paddles, bus decay, noise-combined
 waveforms, physical audio and routed/hardware acceptance remain open.
 
 The additional offline oscillator and OSC3 tests replay the pinned VICE 3.10

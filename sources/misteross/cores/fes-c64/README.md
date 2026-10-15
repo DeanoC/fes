@@ -60,10 +60,14 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   readback; eight-bit pipelined ADSR, waveform/envelope DACs, nonlinear internal
   filter with cutoff, resonance and routing, and the external output network.
   Single-wave digital timing, oscillator hard sync, triangle ring modulation
-  and envelopes follow reSID's MOS6581 model. Combined pulse/triangle, including
-  ring modulation, uses its pinned 6581 samples. Audio follows the reference's
+  and envelopes follow reSID's MOS6581 model. Non-noise combinations use its
+  pinned 6581 samples, including saw-selected accumulator feedback and delayed
+  pulse comparison. Three-voice output follows the pinned reference's 0, 1, 2
+  loop: voice 0 reads source 2 before feedback; voices 1 and 2 read their sources
+  after feedback. CONTROL writes see all final phases. This software ordering
+  is a compatibility target, not evidence of physical SID voice ordering. Audio follows the reference's
   default 6581 bias with bounded lookup approximations and signed-16 PCM
-  saturation. Other chip models and bias settings, remaining coupled waveforms,
+  saturation. Other chip models and bias settings, noise-combined waveforms,
   paddle reads, SID bus decay and physical audio fidelity remain open.
   Unsupported waveform combinations
   retain the previous OR formula; their update timing is not qualified.
@@ -589,11 +593,13 @@ no reference emulator, Commodore firmware or recordings:
   37,907 writes and 300,000 ENV3 reads. Its fixed 52-clock test schedule writes
   at offset 26 and reads at offset 43; constant pulse output isolates the
   envelope and signed linear-gain arithmetic.
-- `sim-fes-c64-sid-oscillator` checks 29 scenarios over 1,906,885 SYS edges,
-  1,188,866 Phi2 edges and 20,581 writes. It covers frequency extremes, noise
+- `sim-fes-c64-sid-oscillator` checks 80 scenarios over 11,352,289 SYS edges,
+  9,822,034 Phi2 edges and 826,364 writes. It covers frequency extremes, noise
   bit-19 pipeline timing, TEST rise/fall and long reset holds, pulse-width
   updates, each single waveform, floating-output decay, warm reset, all
-  relative write phases and simultaneous clock/register events.
+  relative write phases and simultaneous clock/register events. CPU writes
+  prepare all 4,096 table addresses for every non-noise combination, including
+  both ring settings, delayed pulse levels, phase feedback and repeated CONTROL.
 - `sim-fes-c64-sid-osc3` checks 1,200,010 SYS edges, 1,194,495 OSC3 reads and
   4,332 accepted writes across three voices, including deselected writes and
   warm resets. Its fractional 52.224 MHz / 985248 Hz clock uses 53/54 SYS
@@ -601,10 +607,14 @@ no reference emulator, Commodore firmware or recordings:
   with `cycle_clock==26` observes the old register value.
 
 - `sim-fes-c64-sid-coupling` compares all three digital oscillator states,
-  including the pulse/triangle sample table. It exercises all 64 simultaneous
+  and pre-write audio waveforms over 2,529,783 SYS edges and 989,179 Phi2 edges.
+  It exercises all 64 simultaneous
   MSB-rise/SYNC masks, both source-MSB values for every triangle-ring voice,
   sync suppression, TEST-held edge latches, fractional 53/54 cadence,
   writes at every relative SYS phase, and simultaneous reset/clock/write.
+  Combined-saw feedback covers every source/destination rotation, same-Phi
+  CONTROL writes, last-idle phase preparation, native Phi+27 bus writes and
+  CS-blocked writes. Direct and prepared variants share the reference fixture.
 
 The oscillator runs on `cpu_ce`, including VIC CPU stalls, rather than the
 BA-qualified CPU execution enable. A SYS edge first advances the oscillator
@@ -621,13 +631,17 @@ Three-voice hard sync first advances every phase and noise pipeline using
 old registers, then clears the eligible destination phases, then calculates
 waveform output from the resulting phases. A source which is itself synced
 on that edge does not sync its destination. Triangle ring modulation uses
-that resulting source MSB; writes between Phi2 edges use its current MSB.
+the pinned output-loop order: voice 0 sees source 2 before combined-saw
+feedback, while voices 1 and 2 see their sources after feedback. CONTROL
+writes on Phi2 see all post-feedback sources; idle writes see current phases.
+This reproduces software ordering without qualifying physical SID ordering.
 The reference's MSB-rise latch is retained while TEST holds a source.
 No guest clock or register-write acceptance edge moves.
 
 The motherboard prepares each oscillator's next phase on idle SYS edges when
 `SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2`. Frequency writes on the final idle edge
-and TEST phase clears are forwarded into that sum; reset prepares the preserved
+and TEST or combined-wave phase clears are forwarded into that sum, including
+unchanged CONTROL writes; reset prepares the preserved
 phase with zero frequency. This shortens the path through cross-voice sync and
 ring logic without moving Phi2, CPU writes or waveform updates. Standalone SID
 instances default to the direct phase calculation. Ratios below two retain
@@ -654,13 +668,13 @@ source-linked oscillator harnesses use the same license; the complete text
 is [c64_sid.COPYING](rtl/c64_sid.COPYING). The generator checks every compiled
 reference dependency, including both model waveform-table sets, before
 copying them into a temporary build. It does not call RTL or duplicate the
-waveform equations. The pulse/triangle table is also emitted as an exact 4,096-entry RTL lookup
-with zero entries represented by the default case. Other combined-wave
-behavior is outside the qualified subset.
+waveform equations. All four non-noise combination tables are emitted as exact
+4,096-entry RTL lookups with zero entries represented by the default case.
+Noise combinations remain outside the qualified subset.
 
 Reference: [VICE 3.10 source archive](https://github.com/VICE-Team/svn-mirror/releases/download/3.10.0/vice-3.10.tar.gz),
 SHA256 `8e5bac18cbcb9f192380ad3ef881f8790f5b75c41d7b3da65d831985d864d6d1`.
-From `sources/misteross`, regenerate or verify all five fixtures and the waveform table:
+From `sources/misteross`, regenerate or verify all five fixtures and the four waveform tables:
 
 ```sh
 python3 scripts/generate_c64_sid_vectors.py --vice-source /path/to/vice-3.10
@@ -668,10 +682,10 @@ python3 scripts/generate_c64_sid_vectors.py --vice-source /path/to/vice-3.10 --c
 make sim-fes-c64-sid
 ```
 
-`--component oscillator-table` selects the RTL pulse/triangle lookup.
+`--component oscillator-table` selects all four RTL non-noise combination lookups.
 `--component oscillator` and `--component oscillator-bus` select the
 single-voice and bus fixtures; `coupling` selects the three-voice sync/ring and
-pulse/triangle fixture; `sid` and `envelope`
+combined-wave fixture; `sid` and `envelope`
 select the prior tests. `--output` selects one
 fixture's destination. The oscillator regression fingerprints every SYS
 state using 64-bit FNV-1a blocks, with explicit ending states for diagnosis.
@@ -689,13 +703,14 @@ compared. Power-up phase `$555555` and envelope `$AA` are deterministic
 reSID fixtures, not measured hardware startup values. Warm reset retains
 phase and the envelope counter while clearing their register/pipeline state.
 
-The qualified oscillator subset includes the single waveforms and combined
-pulse/triangle (selector `$5`), with three-voice hard sync and triangle ring
-modulation. The pulse/triangle sample uses the accumulator index after ring
-MSB substitution and the existing delayed pulse mask. The prior OR formula
-remains for other combinations, whose timing and fidelity stay unqualified.
-Combined waveforms containing sawtooth can clear the phase MSB; their
-interaction with ring-source evaluation needs separate qualification.
+The qualified oscillator subset includes the single waveforms and all four
+non-noise combinations (selectors `$3`, `$5`, `$6` and `$7`), with three-voice
+hard sync and triangle ring modulation. Pulse/triangle applies ring index
+substitution; saw-selected combinations ignore ring, calculate output before
+accumulator-MSB feedback, and compare the next pulse level after feedback.
+The existing MSB-rise latch and noise clock are not recalculated after a clamp.
+CONTROL writes repeat waveform evaluation and feedback even when unchanged.
+Noise combinations retain the prior OR formula, whose fidelity is unqualified.
 Paddles and write-only bus decay remain unimplemented. The standalone SID
 defaults to the direct linear-volume audio path; the native motherboard enables
 the staged MOS6581 path described below. Host replay does not establish audible
