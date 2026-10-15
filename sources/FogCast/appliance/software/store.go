@@ -199,7 +199,11 @@ func (s *Store) Read(ctx context.Context, id string) (release Release, err error
 	return
 }
 func (s *Store) Path(ctx context.Context, id string) (string, error) {
-	if _, e := s.Read(ctx, id); e != nil {
+	r, e := s.Read(ctx, id)
+	if e != nil {
+		return "", e
+	}
+	if e = r.Manifest.Compatible(s.compatibility); e != nil {
 		return "", e
 	}
 	return filepath.Join(s.root, "releases", id), nil
@@ -233,9 +237,6 @@ func (s *Store) read(ctx context.Context, id string) (Release, error) {
 	}
 	if r.ID != id {
 		return Release{}, errors.New("stored manifest identity mismatch")
-	}
-	if err = r.Manifest.Compatible(s.compatibility); err != nil {
-		return Release{}, err
 	}
 	return r, nil
 }

@@ -56,13 +56,13 @@ type Release struct {
 
 func ValidID(id string) bool { return hashPattern.MatchString(id) }
 func validPath(p string) bool {
-	return fs.ValidPath(p) && p != "." && path.Clean(p) == p && !strings.ContainsAny(p, "\\\x00\r\n") && (strings.HasPrefix(p, "bin/") || strings.HasPrefix(p, "share/"))
+	return len(p) <= 240 && fs.ValidPath(p) && p != "." && path.Clean(p) == p && !strings.ContainsAny(p, "\\\x00\r\n") && (strings.HasPrefix(p, "bin/") || strings.HasPrefix(p, "share/"))
 }
 func (m Manifest) Validate() error {
 	if m.Format != Format || !namePattern.MatchString(m.Board) || !namePattern.MatchString(m.Architecture) || !namePattern.MatchString(m.BaseContract) || !namePattern.MatchString(m.Version) {
 		return errors.New("invalid software release identity or format")
 	}
-	if len(m.Files) < len(RequiredExecutables) || len(m.Files) > MaxFiles || len(m.Interfaces) == 0 {
+	if len(m.Files) < len(RequiredExecutables) || len(m.Files) > MaxFiles || len(m.Interfaces) == 0 || len(m.Interfaces) > 64 || len(m.Provenance) > 64 {
 		return errors.New("invalid release file or interface count")
 	}
 	for k, v := range m.Interfaces {

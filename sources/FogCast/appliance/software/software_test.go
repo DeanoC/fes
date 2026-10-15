@@ -289,3 +289,34 @@ func TestPersistentMountParsing(t *testing.T) {
 		}
 	}
 }
+
+func TestRetainedIncompatibleReleaseRemainsInspectable(t *testing.T) {
+	m, b := fixture(t)
+	root := t.TempDir()
+	s, e := New(root, compatibility(m))
+	if e != nil {
+		t.Fatal(e)
+	}
+	r, _, e := s.Install(context.Background(), bytes.NewReader(b))
+	if e != nil {
+		t.Fatal(e)
+	}
+	nextBase := compatibility(m)
+	nextBase.BaseContract = "fes-base-v2"
+	reopened, e := New(root, nextBase)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if _, e = reopened.Read(context.Background(), r.ID); e != nil {
+		t.Fatal("historical release cannot be inspected", e)
+	}
+	if list, e := reopened.List(context.Background()); e != nil || len(list) != 1 {
+		t.Fatal("historical inventory unavailable", list, e)
+	}
+	if _, e = reopened.Path(context.Background(), r.ID); e == nil {
+		t.Fatal("incompatible executable path admitted")
+	}
+	if _, _, e = reopened.Install(context.Background(), bytes.NewReader(b)); e == nil {
+		t.Fatal("incompatible install admitted")
+	}
+}
