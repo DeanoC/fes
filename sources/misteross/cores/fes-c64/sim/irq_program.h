@@ -3,11 +3,13 @@
 #define FES_C64_IRQ_PROGRAM_H
 #include <stdint.h>
 #include <string.h>
-#define IRQ_SCENARIOS 10
+#define IRQ_SCENARIOS 12
 static const char *const irq_names[IRQ_SCENARIOS] = {
     "nop", "cli", "sei", "bcc_loop", "beq_untaken", "plp", "rti",
-    "bcc_page", "bcc_forward", "absolute_rmw"
+    "bcc_page", "bcc_forward", "absolute_rmw", "php", "pha"
 };
+// Writes made by the instruction under test before the IRQ's three pushes.
+static const unsigned irq_program_pushes[IRQ_SCENARIOS]={0,0,0,0,0,0,0,0,0,0,1,1};
 static void irq_program(uint8_t *ram, unsigned scenario) {
     memset(ram, 0xea, 65536);
     const uint8_t prefix[] = {0xa2,0xfd,0x9a,0xa9,1,0x18,0xd8,0x58};
@@ -34,6 +36,8 @@ static void irq_program(uint8_t *ram, unsigned scenario) {
         case 8:ram[0x1100]=0x90;ram[0x1101]=2;break;
         case 9:{const uint8_t code[]={0xad,0,0x80,0x8d,1,0x90,0xee,2,0x90};
             memcpy(ram+0x1100,code,sizeof(code));break;}
+        case 10:ram[0x1100]=0x08;break;
+        case 11:ram[0x1100]=0x48;break;
     }
     ram[0xfffc]=0;ram[0xfffd]=0x10;ram[0xfffe]=0;ram[0xffff]=0x20;
 }

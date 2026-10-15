@@ -1814,6 +1814,11 @@ target high operand. A separate target-low latch preserves this NMOS bus
 order across RDY stalls and operands overlapping the stack page.
 `make sim-fes-c64-jsr` checks transistor-reference bus sequences and call/write
 timings through the motherboard's PAL badline arbitration.
+PHP/PHA also keep the NMOS bus order: dummy read, stack write, then the next
+opcode fetch. Delaying that fetch preserves stack/code aliasing and prevents
+the preceding write's BA exemption from retiring a prefetched instruction.
+`make sim-fes-c64-push` checks transistor-reference bus/state results and
+motherboard badline timings without changing their unstalled three-cycle length.
 The stable undocumented SAX family stores `A & X` in zero-page, zero-page,Y,
 absolute and (zero-page,X) modes without changing registers or flags. Its
 four opcodes use the corresponding NMOS store bus sequence, including wrapping.

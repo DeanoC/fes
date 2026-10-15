@@ -10,7 +10,7 @@ int main(void) {
         printf("    { // %s\n",irq_names[scenario]);
         for(unsigned phase=1;phase<=40;++phase) {
             irq_program(memory,scenario);void *chip=initAndResetChip();
-            int origin=-1,handler=-1;unsigned count=0,pushed[3]={0};
+            int origin=-1,handler=-1;unsigned count=0,pushed[3]={0},skip=irq_program_pushes[scenario];
             for(int tick=0;tick<175;++tick) {
                 if(origin>=0&&tick-origin==(int)phase) {
                     setNode(chip,irq,0);recalcNodeList(chip);
@@ -19,8 +19,11 @@ int main(void) {
                 if(origin<0&&address==0x1100)origin=tick;
                 if(origin>=0&&handler<0) {
                     if(!readRW(chip)&&address>=0x100&&address<0x200) {
-                        if(count>=3||address!=0x1fd-count)return 2;
-                        pushed[count++]=readDataBus(chip);
+                        if(skip)--skip;
+                        else {
+                            if(count>=3||address!=0x1fd-irq_program_pushes[scenario]-count)return 2;
+                            pushed[count++]=readDataBus(chip);
+                        }
                     }
                     if(address==0x2000)handler=tick-origin;
                 }

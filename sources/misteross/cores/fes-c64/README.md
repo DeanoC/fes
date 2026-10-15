@@ -164,6 +164,14 @@ stack/operand overlap and CPU enable gaps. It also compares 20 motherboard
 call/write timings around the PAL matrix-DMA window. The vectors are generated
 by `sim/jsr_oracle.c` using the same perfect6502 checkout as the IRQ oracle.
 
+PHP/PHA write the stack before fetching the next opcode. Retaining the dummy
+read as a prefetch can execute an overwritten opcode and advance one cycle
+early when BA falls after a push. `make sim-fes-c64-push` checks 24 independent
+bus/state cases and 40 motherboard badline timings, including stack wrap,
+code-page crossing, overwritten next opcodes, SP decrement, A/P preservation and
+CPU enable gaps. Its vectors come from `sim/push_oracle.c` and the pinned
+transistor model.
+
 The shared CPU implements the stable undocumented SAX family in zero-page,
 zero-page,Y, absolute and (zero-page,X) modes. SAX writes `A & X` and leaves
 registers and flags unchanged. Edge of Disgrace uses `SAX $D016` in its
@@ -176,8 +184,8 @@ The shared CPU polls IRQ through its enabled-cycle prefetch pipeline rather
 than accepting the live pin at opcode decode. This preserves CLI/SEI/PLP
 mask timing and the additional taken-branch delay; the pushed B bit remembers
 hardware entry after IRQ is withdrawn. `make sim-fes-c64-irq` compares entry
-cycles and stack bytes against 400 transistor-model vectors with three
-enable schedules and held/withdrawn IRQs. The CPU README describes the pinned
+cycles and stack bytes against 480 transistor-model vectors, including PHP/PHA,
+with three enable schedules and held/withdrawn IRQs. The CPU README describes the pinned
 oracle and remaining subphase limits. The full demo's raster timing remains
 under investigation.
 

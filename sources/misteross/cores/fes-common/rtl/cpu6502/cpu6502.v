@@ -206,8 +206,8 @@ parameter
     PULL0  = 6'd30, // PLP/PLA - save next op in IRHOLD, send S to ALU (+1)
     PULL1  = 6'd31, // PLP/PLA - fetch data from stack, write S
     PULL2  = 6'd32, // PLP/PLA - prefetch op, but don't increment PC
-    PUSH0  = 6'd33, // PHP/PHA - send A to ALU (+0)
-    PUSH1  = 6'd34, // PHP/PHA - write A/P, send S to ALU (-1)
+    PUSH0  = 6'd33, // PHP/PHA - write A/P, calculate S-1
+    PUSH1  = 6'd34, // PHP/PHA - fetch next opcode, retain S-1
     READ   = 6'd35, // Read memory for read/modify/write (INC, DEC, shift)
     REG    = 6'd36, // Read register for reg-reg transfers
     RTI0   = 6'd37, // RTI     - send S to ALU (+1)
@@ -351,7 +351,9 @@ always @*
         DECODE:         if( irq_take | NMI_edge )
                             PC_inc = 0;
                         else
-                            PC_inc = 1;
+                            // Pushes fetch the following opcode after the
+                            // stack write, rather than retaining a prefetch.
+                            PC_inc = !(IR == 8'h08 || IR == 8'h48);
 
         ABS0,
         ABSX0,
@@ -362,6 +364,7 @@ always @*
         JMPI1,
         JMP1,
         JSR4,
+        PUSH1,
         RTI4,
         RTS3:           PC_inc = 1;
 
@@ -403,7 +406,7 @@ always @*
 
         JSR0,
         JSR1,
-        PUSH1,
+        PUSH0,
         RTS0,
         RTI0,
         BRK0:           AB = { STACKPAGE, regfile };
@@ -462,7 +465,7 @@ always @*
         JSR2,
         BRK1:    DO = PCL;
 
-        PUSH1:   DO = php ? P : ADD;
+        PUSH0:   DO = php ? P : AXYS[SEL_A];
 
         BRK2:    DO = hardware_interrupt ? (P & 8'b1110_1111) : P;
 
@@ -480,7 +483,7 @@ always @*
         BRK2,
         JSR1,
         JSR2,
-        PUSH1,
+        PUSH0,
         READ,    // NMOS read-modify-write dummy write
         WRITE:   WE = 1;
 
@@ -589,6 +592,7 @@ always @*
         JSR3,
         PULL0,
         PULL1,
+        PUSH0,
         PUSH1,
         RTI0,
         RTI3,
@@ -633,7 +637,7 @@ always @*
         DECODE,
         ABS1:   alu_op = 1'bx;
 
-        PUSH1,
+        PUSH0,
         BRK0,
         BRK1,
         BRK2,
@@ -669,6 +673,7 @@ always @(posedge clk)
 always @*
     case( state )
         JSR2,
+        PUSH1,
         RTS1,
         RTI1,
         RTI2,
@@ -687,8 +692,7 @@ always @*
         BRK0,
         PULL0,
         INDY1,
-        PUSH0,
-        PUSH1:  AI = regfile;
+        PUSH0:  AI = regfile;
 
         BRA0,
         READ:   AI = DIMUX;
@@ -886,16 +890,16 @@ end endgenerate
  */
 
 /*
- * IR register/mux. Hold previous DI value in IRHOLD in PULL0 and PUSH0
- * states. In these states, the IR has been prefetched, and there is no
- * time to read the IR again before the next decode.
+ * Pull instructions retain their prefetched opcode across stack reads.
+ * Pushes fetch it after the stack write, so BA cannot retire a prefetched
+ * instruction using the previous write's RDY exemption.
  */
 
 always @(posedge clk )
     if( reset )
         IRHOLD_valid <= 0;
     else if( RDY ) begin
-        if( state == PULL0 || state == PUSH0 ) begin
+        if( state == PULL0 ) begin
             IRHOLD <= DIMUX;
             IRHOLD_valid <= 1;
         end else if( state == DECODE )
