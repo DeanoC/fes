@@ -20,8 +20,11 @@ log_file=/var/log/$name.log
 child=
 
 log_event() {
+  # Supervision must keep running if the log directory is removed while a
+  # stop or restart is still writing (test cleanup, or a late escalator).
+  [ -d "${log_file%/*}" ] || return 0
   event_time=$(/bin/date -u '+%Y-%m-%dT%H:%M:%SZ')
-  printf '%s %s\n' "$event_time" "$1" >> "$log_file"
+  printf '%s %s\n' "$event_time" "$1" >> "$log_file" 2>/dev/null || return 0
 }
 
 terminate() {
@@ -47,7 +50,19 @@ terminate() {
     ) &
     escalator=$!
     wait "$child" 2>/dev/null || true
-    { /bin/kill "$escalator"; wait "$escalator"; } 2>/dev/null || true
+    # Stop the escalator shell and wait until it is gone before touching
+    # its sleep child. Killing that sleep while the shell is alive wakes
+    # the shell, which would log or signal after the child pid is stale.
+    # Once the shell is dead, the orphaned sleep cannot resume the script.
+    kids=
+    if [ -r "/proc/$escalator/task/$escalator/children" ]; then
+      kids=$(cat "/proc/$escalator/task/$escalator/children" 2>/dev/null || true)
+    fi
+    /bin/kill "$escalator" 2>/dev/null || true
+    wait "$escalator" 2>/dev/null || true
+    if [ -n "$kids" ]; then
+      /bin/kill $kids 2>/dev/null || true
+    fi
   fi
   /bin/rm -f "$pid_file"
   log_event stopped

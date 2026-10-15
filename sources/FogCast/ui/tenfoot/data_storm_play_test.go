@@ -1,9 +1,8 @@
 package tenfoot
 
 import (
+	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -14,10 +13,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/internal/hostapi"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/localcores"
+	contractlease "github.com/DeanoC/FogCast/kitlease"
 	"github.com/DeanoC/FogCast/remoteinput"
 	"github.com/DeanoC/FogCast/ui/rooms"
 )
@@ -54,7 +55,8 @@ func TestDataStormKitDirectLaunchPadStopAndReturn(t *testing.T) {
 	if err := os.MkdirAll(root, 0o700); err != nil {
 		t.Fatal(err)
 	}
-	rom := []byte("data-storm-fixture")
+	rom := make([]byte, 1024)
+	copy(rom, "data-storm-fixture")
 	if err := os.WriteFile(filepath.Join(root, "Data Storm 1.00.sms"), rom, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -109,8 +111,9 @@ root = %q
 	if err := os.Mkdir(packages, 0o755); err != nil || os.Mkdir(selections, 0o755) != nil {
 		t.Fatal(err)
 	}
-	installSMSCore(t, packages, selections)
+	runtime.packageID = installSMSCore(t, packages, selections)
 	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	runtime.lease = manager
 	t.Cleanup(manager.Close)
 	cores := localcores.New(manager, runtime, localcores.Roots{Selections: selections, Packages: packages})
 	t.Cleanup(cores.Close)
@@ -191,6 +194,8 @@ type holdCartridge struct {
 	coreLoads int
 	stopCount int
 	hold      chan struct{}
+	packageID string
+	lease     *kitlease.Manager
 }
 
 func (h *holdCartridge) LoadCore(context.Context, context.Context, string, string) error {
@@ -200,7 +205,17 @@ func (h *holdCartridge) LoadCore(context.Context, context.Context, string, strin
 	return nil
 }
 
-func (h *holdCartridge) LoadCartridge(_ context.Context, _ context.Context, _, _ string, rom []byte) error {
+func (h *holdCartridge) LoadCartridge(_ context.Context, _ context.Context, path, packageID string, rom []byte) error {
+	if h.lease == nil || !contractlease.LocalCoreSession(h.lease.Status()) {
+		return fmt.Errorf("local cartridge load requires the kit-local execution lease")
+	}
+	inspection, err := corepackage.InspectPackage(path)
+	if err != nil {
+		return err
+	}
+	if inspection.PackageID != packageID || packageID != h.packageID || inspection.Descriptor.Core.ID != "fes.sms" || inspection.Descriptor.Format != 3 || inspection.Descriptor.ROM == nil || inspection.Descriptor.ROM.Role != "cartridge" || inspection.Descriptor.ROM.SourceSize != int64(len(rom)) {
+		return fmt.Errorf("local cartridge request does not match the installed closed package")
+	}
 	h.mu.Lock()
 	h.romBytes = append(h.romBytes, append([]byte(nil), rom...))
 	h.mu.Unlock()
@@ -235,40 +250,43 @@ func (h *holdCartridge) stops() int {
 
 func installSMSCore(t *testing.T, packages, selections string) string {
 	t.Helper()
-	coreID := "fes.sms"
-	sum := sha256.Sum256([]byte(coreID))
-	id := hex.EncodeToString(sum[:])
-	payload := []byte("rbf:" + coreID)
-	payloadSum := sha256.Sum256(payload)
-	payloadSHA := hex.EncodeToString(payloadSum[:])
-	dir := filepath.Join(packages, id)
-	if err := os.Mkdir(dir, 0o755); err != nil {
+	fixtureRoot := filepath.Join("..", "..", "corepackage", "testdata", "core-bundle-v3")
+	manifest, err := os.ReadFile(filepath.Join(fixtureRoot, "manifests", "valid-cartridge.toml"))
+	if err != nil {
 		t.Fatal(err)
 	}
-	manifest := fmt.Sprintf(`format = 2
-[core]
-id = %q
-name = "Master System"
-[payload]
-file = "core.rbf"
-size = %d
-sha256 = %q
-[abi]
-id = "fes.computer"
-major = 1
-minor = 0
-`, coreID, len(payload), payloadSHA)
-	if err := os.WriteFile(filepath.Join(dir, "manifest.toml"), []byte(manifest), 0o644); err != nil {
+	manifest = bytes.Replace(manifest, []byte(`id = "fes.pong"`), []byte(`id = "fes.sms"`), 1)
+	manifest = bytes.Replace(manifest, []byte(`name = "FES Pong"`), []byte(`name = "Master System"`), 1)
+	manifest = bytes.Replace(manifest, []byte(`id = "fes.simple-game"`), []byte(`id = "fes.computer"`), 1)
+	dir := filepath.Join(packages, "incoming")
+	if err := os.Mkdir(dir, 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "core.rbf"), payload, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "manifest.toml"), manifest, 0644); err != nil {
 		t.Fatal(err)
 	}
-	body := fmt.Sprintf("core_id = %q\npackage_id = %q\npayload_sha256 = %q\ninstall_path = %q\n", coreID, id, payloadSHA, dir)
-	if err := os.WriteFile(filepath.Join(selections, "fes-sms.package.toml"), []byte(body), 0o644); err != nil {
+	for _, member := range []struct{ source, target string }{{"payloads/fes-fixture.rbf", "core.rbf"}, {"maps/valid-basic.json", "rom-map.json"}} {
+		data, err := os.ReadFile(filepath.Join(fixtureRoot, member.source))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, member.target), data, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	inspection, err := corepackage.InspectPackage(dir)
+	if err != nil {
 		t.Fatal(err)
 	}
-	return id
+	installed := filepath.Join(packages, inspection.PackageID)
+	if err := os.Rename(dir, installed); err != nil {
+		t.Fatal(err)
+	}
+	body := fmt.Sprintf("core_id = %q\npackage_id = %q\npayload_sha256 = %q\ninstall_path = %q\n", inspection.Descriptor.Core.ID, inspection.PackageID, inspection.Descriptor.Payload.SHA256, installed)
+	if err := os.WriteFile(filepath.Join(selections, "fes-sms.package.toml"), []byte(body), 0644); err != nil {
+		t.Fatal(err)
+	}
+	return inspection.PackageID
 }
 
 func waitForSocket(t *testing.T, path string) {

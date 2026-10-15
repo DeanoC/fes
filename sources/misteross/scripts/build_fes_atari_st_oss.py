@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
-"""Build and seal the native HIP nextpnr/Mistral Atari 520ST package.
+"""Build and seal the Atari 520ST package.
 
+Yosys and Mistral match the shared pin. nextpnr comes from
+``toolchains/atari-st.lock`` at current main, which bounds GPU-router
+architecture-rejection retries. The factory recipe is HIP.
+``--gpu-router CUDA`` selects a separate package.
 192 synchronous, blank 1024x10 M10K lanes describe the linked 192 KiB
 firmware. The ST expansion connector has a reserved, registered boundary.
 Synthesis diagnostics are unsealed and never export a package.
@@ -32,7 +36,7 @@ from scripts.fes_build_common import (
     reject_async_m10k_reads, validate_timing_resources,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
-from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.search_placer_qor import SearchError, route_after_synth
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -51,9 +55,9 @@ ST_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={ST_GPU_ROUTER}; hip-architectures={ST_GPU_ARCHITECTURES}"
 )
 ST_TOOL_COMMITS = {
-    "mistral": "7ed06e21c18b047ec5c6d6a7e85e5ea2c8827039",
+    "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
     "nextpnr": "b7ba9b6e3d67737c77aaea6bb23ac8d1b6c76cd2",
-    "yosys": "886afa63953e97407153e9f4aae25fcedb639696",
+    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
 }
 # First passing route wins; the order is part of the build identity. Seed 4
 # completed the initial diagnostic route; seed 5 exceeded its old placement bound.
@@ -67,7 +71,7 @@ PLACER_QOR_CLOCKS = ((None, 52.224), (None, 74.25), (None, 12.288))
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
     "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
-    "libmistral/cyclonev.h": "48c0acadd2d1dc47398d7e7ab8ad840e98cb3fda489c3197eace6f3ba59e6f21",
+    "libmistral/cyclonev.h": "185c24e2b75385d8e62a7144f12488eb68f7d8159af0a8a603cc4a3de1749ee9",
 }
 FIRMWARE_LANE_ROWS = (tuple((5, row) for row in (*range(1, 15), *range(32, 56), *range(73, 81))) +
                       tuple((14, row) for row in range(1, 81)) +
@@ -137,15 +141,35 @@ HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 BEL_RE = re.compile(r"[A-Z0-9_]+\.(\d+)\.(\d+)\.")
 
 
-def _authenticate_atari_st_tools(root: Path, cache_root: Path | None = None):
+def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
+    if gpu_router == "HIP":
+        return ST_GPU_BACKEND, ST_GPU_ARCHITECTURES, ST_TOOLCHAIN_CONFIGURATION
+    if gpu_router == "CUDA":
+        return "cuda", "unused", "gpu-router=CUDA; hip-architectures=unused"
+    raise BuildError(f"unsupported Atari ST GPU router {gpu_router}")
+
+
+def execution_extra(gpu_router: str) -> dict[str, str] | None:
+    """Environment shared by the shell, synthesis probe and ST companions."""
+    gpu_choice(gpu_router)
+    if gpu_router == "CUDA":
+        return {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"}
+    return None
+
+
+def _authenticate_atari_st_tools(root: Path, cache_root: Path | None = None,
+                                 toolchain_root: Path | None = None,
+                                 gpu_router: str = ST_GPU_ROUTER):
+    _backend, architectures, configuration = gpu_choice(gpu_router)
+    root_path = root / ST_TOOLCHAIN_ROOT if toolchain_root is None else Path(toolchain_root)
     return _authenticate_tools(
         root,
         lock_path=root / ST_TOOLCHAIN_LOCK,
-        toolchain_root=root / ST_TOOLCHAIN_ROOT,
+        toolchain_root=root_path,
         expected_commits=ST_TOOL_COMMITS,
-        expected_configuration={"nextpnr": ST_TOOLCHAIN_CONFIGURATION},
-        gpu_router=ST_GPU_ROUTER,
-        hip_architectures=ST_GPU_ARCHITECTURES,
+        expected_configuration={"nextpnr": configuration},
+        gpu_router=gpu_router,
+        hip_architectures=architectures,
         cache_root=cache_root,
     )
 
@@ -226,6 +250,8 @@ def create_build_record(
     identity_version: int = 2,
     execution: dict | None = None,
     video_output: str = "direct",
+    gpu_backend: str = ST_GPU_BACKEND,
+    gpu_architectures: str = ST_GPU_ARCHITECTURES,
 ) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
@@ -245,8 +271,8 @@ def create_build_record(
             "device": TARGET,
             "top": TOP,
             "router": ROUTER,
-            "gpu_backend": ST_GPU_BACKEND,
-            "gpu_architectures": ST_GPU_ARCHITECTURES,
+            "gpu_backend": gpu_backend,
+            "gpu_architectures": gpu_architectures,
             "sys_clock_hz": 52_224_000,
             "pixel_clock_hz": 74_250_000,
             "audio_clock_hz": 12_288_000,
@@ -281,8 +307,9 @@ def create_build_record(
             "expansion_sockets": ",".join(s.placement for s in atari_st_slot.SOCKETS),
         },
     }
-    fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS),
-                                      execution, pinned_inputs=PINNED_INPUTS)
+    fields = functional_record_fields(
+        root, fields, source_roots_for_producer(__name__, PINNED_INPUTS, root),
+        execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
 
 
@@ -656,39 +683,6 @@ def validate_m10k_configurations(routed: dict, database: Mapping[str, bytes]) ->
             "routing_coverage": "RAM-local BM_CRAM only; routing PIPs use the frozen shell/card containment contract"}
 
 
-def validate_system_pll(top: dict) -> None:
-    """Require the connected outputs and physical counter map from this compiler."""
-    try:
-        pll = top["cells"]["system_clock.pll"]
-        connections = pll["connections"]
-        attributes = pll["attributes"]
-        counters = attributes["MISTRAL_PLL_COUNTERS"].split(",")
-        mapping = json.loads(bytes.fromhex(attributes["FES_PINMAP_V1"]).decode())
-        pins = mapping["pins"]
-        output = top["netnames"]["system_clock.pll_outclk_1"]["bits"]
-        clock = top["netnames"]["system_clock.clocks[1]"]["bits"]
-        if (pll["type"] != "altera_pll" or
-                set(connections) != {"outclk", "outclk[1]", "refclk", "locked"} or
-                len(counters) != 2 or len(set(counters)) != 2 or
-                any(not re.fullmatch(r"[0-8]", counter) for counter in counters) or
-                type(mapping["count"]) is not int or mapping["count"] != len(pins) or
-                "outclk[0]" in pins or
-                any(pins.get(port) != [0, "C" + counter] for port, counter in
-                    zip(("outclk", "outclk[1]"), counters)) or
-                connections["outclk[1]"] != output or
-                len(output) != 1 or type(output[0]) is not int or
-                len(clock) != 1 or type(clock[0]) is not int or
-                pll["port_directions"].get("outclk[1]") != "output"):
-            raise ValueError("PLL output contract changed")
-        buffers = [cell for cell in top["cells"].values()
-                   if cell.get("type") == "MISTRAL_CLKBUF" and
-                   cell.get("connections", {}).get("Q") == clock]
-        if len(buffers) != 1 or buffers[0]["connections"].get("A") != output:
-            raise ValueError("PLL audio clock branch changed")
-    except (KeyError, TypeError, ValueError, AttributeError) as exc:
-        raise BuildError("ST system PLL must come from the current compiler; rebuild the shell") from exc
-
-
 def validate_pll_log(route_text: str) -> None:
     """Check both achieved system-PLL outputs in the locked solver's log."""
     if not re.search(r"PLL 'system_clock.pll': 50\.000000 MHz -> VCO ", route_text):
@@ -719,7 +713,6 @@ def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes],
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text, gpu_backend)
-    validate_system_pll(routed["modules"][TOP])
     validate_pll_log(route_text)
     timing = _read_json(output / "timing.json", "timing report")
     rows = {label: _frequency_row(timing.get("fmax"), mhz, label)
@@ -802,21 +795,27 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
 
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None,
-          identity_version: int = 2, gpu_device: int = 0, video_output: str = "direct") -> Path:
+          identity_version: int = 2, gpu_device: int = 0, video_output: str = "direct",
+          gpu_router: str = ST_GPU_ROUTER, toolchain_root: Path | None = None) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
         raise BuildError(f"FES Atari 520ST package store must be {root / 'build/packages'}")
     repository, revision = _require_clean_source(root, identity_version=identity_version)
-    authenticated = _authenticate_atari_st_tools(root, cache_root=cache_root)
+    backend, architectures, _configuration = gpu_choice(gpu_router)
+    authenticated = _authenticate_atari_st_tools(
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     database_root = authenticated["mistral"].path.parents[2] / "src/mistral"
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
-    invocation = FunctionalInvocation(authenticated, gpu_device)
+    extra_env = execution_extra(gpu_router)
+    invocation = FunctionalInvocation(authenticated, gpu_device, extra_env=extra_env)
     output = None
     try:
         record = create_build_record(root, repository, revision, identities,
-                                     identity_version=identity_version, execution=invocation.inputs, video_output=video_output)
+                                     identity_version=identity_version, execution=invocation.inputs,
+                                     video_output=video_output, gpu_backend=backend,
+                                     gpu_architectures=architectures)
         output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
         prepare_cpu_inputs(root, output)
         _write_atomic(output / "build-inputs.json", record)
@@ -844,7 +843,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        evidence = validate_build_evidence(output, ram_database=database)
+        evidence = validate_build_evidence(output, ram_database=database, gpu_backend=backend)
         evidence["cpu_rom_clock_repairs"] = repaired
         evidence["route"].update(placer_seed=winner.seed, placer_heap_timingweight=winner.weight,
                                  placer_qor_mode="first-pass")
@@ -869,7 +868,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                       (json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode())
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / "manifest.toml", manifest)
-        final_tools = _authenticate_atari_st_tools(root, cache_root=cache_root)
+        final_tools = _authenticate_atari_st_tools(
+            root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
         if _require_clean_source(root, identity_version=identity_version) != (repository, revision):
@@ -878,7 +878,9 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
             raise BuildError("ROM database changed during build")
         if create_build_record(root, repository, revision, identities,
-                               identity_version=identity_version, execution=invocation.inputs, video_output=video_output) != record:
+                               identity_version=identity_version, execution=invocation.inputs,
+                               video_output=video_output, gpu_backend=backend,
+                               gpu_architectures=architectures) != record:
             raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store,
                               rom_map=output / "rom-map.json")
@@ -894,13 +896,15 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
 
 
 def synth(root: Path = ROOT, *, cache_root: Path | None = None,
-          video_output: str = "direct") -> dict:
+          video_output: str = "direct", gpu_router: str = ST_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> dict:
     """Run authenticated Yosys without a clean-tree seal or package export."""
     root = Path(root).resolve()
     for relative in PINNED_INPUTS:
         _regular_input(root, relative)
-    authenticated = _authenticate_atari_st_tools(root, cache_root=cache_root)
-    invocation = FunctionalInvocation(authenticated, 0)
+    authenticated = _authenticate_atari_st_tools(
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
+    invocation = FunctionalInvocation(authenticated, 0, extra_env=execution_extra(gpu_router))
     try:
         output = _prepare_output(root, relative=DIAGNOSTIC_OUTPUT, build_outputs=BUILD_OUTPUTS)
         prepare_cpu_inputs(root, output)
@@ -932,20 +936,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=ST_GPU_ROUTER)
+    parser.add_argument("--toolchain-root", type=Path)
     parser.add_argument("--video-output", choices=("direct", "scanlines"), default="direct")
     parser.add_argument("--synth-only", action="store_true",
                         help="run Yosys only; skip the clean-tree seal and nextpnr")
     arguments = parser.parse_args(argv)
     try:
         if arguments.synth_only:
-            cells = synth(arguments.root, cache_root=arguments.cache_root, video_output=arguments.video_output)["synthesis_cells"]
+            cells = synth(arguments.root, cache_root=arguments.cache_root,
+                          video_output=arguments.video_output, gpu_router=arguments.gpu_router,
+                          toolchain_root=arguments.toolchain_root)["synthesis_cells"]
             print(f"synth-only MISTRAL_M10K={cells.get('MISTRAL_M10K', 0)} "
                   f"MISTRAL_M10K_TDP={cells.get('MISTRAL_M10K_TDP', 0)} "
                   f"MISTRAL_FF={cells.get('MISTRAL_FF', 0)}")
             return 0
         print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
                     identity_version=arguments.identity_version, gpu_device=arguments.gpu_device,
-                    video_output=arguments.video_output))
+                    video_output=arguments.video_output, gpu_router=arguments.gpu_router,
+                    toolchain_root=arguments.toolchain_root))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-atari-st-oss: {exc}", file=sys.stderr)
         return 1

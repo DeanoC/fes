@@ -172,7 +172,10 @@ freeze-scaffold pass 2. `fes.menu` and both OSS `fes.ramtest` rates use the same
 `toolchain.lock`. SG-1000 uses `make toolchain-fes-sg1000`
 against `toolchain.lock`. SMS uses
 `make toolchain-fes-sms` against `toolchain.lock`. ZX81 uses
-`make toolchain-fes-zx81` against `toolchain.lock`. Those
+`make toolchain-fes-zx81` against `toolchain.lock`. Atari ST uses
+`make toolchain-fes-atari-st` against `toolchains/atari-st.lock`: Yosys and
+Mistral match the shared pin, and nextpnr is `b7ba9b6e`. The factory recipe
+stays HIP. The October kit notes do not accept this pin. Those
 install under their own prefixes unless `CACHE_ROOT` selects the shared
 cache. See [Cores](docs/cores.md).
 

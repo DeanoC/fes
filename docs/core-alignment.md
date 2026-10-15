@@ -40,7 +40,7 @@ These are the choices already in the tree at `6d9939c2`.
    sets `CFG_ASYNC_READ(1)`. Do not reintroduce it.
 4. The Z80 product CPU is `fes_z80_nmos` at native cadence. `fes_z80_fast` is
    not a second product CPU. TV80/T80 is the historical selection still
-   instantiated by Coleco and SMS. ZX81 uses `fes_z80_nmos`. A sibling already on the first-party
+   instantiated by Coleco, SMS and ZX81. A sibling already on the first-party
    CPU does not qualify the others. There is no newer first-party 6502 or
    68000; `cpu6502` and `fx68k` stay until a replacement exists. Do not add a
    third Z80.
@@ -52,10 +52,8 @@ These are the choices already in the tree at `6d9939c2`.
      parts and does not own HDMI timing. Coleco native is the standard: no
      built-in Direct fallback; a missing or invalid part blocks launch.
      Atari ST's built-in Direct fallback is a migration aid, not the end state.
-   - ZX81 keeps the shared session-display plane for kit HDMI. Tape bytes stay
-     `fes.media.zx81-tape`. The plane overlays launcher frames on the machine
-     raster and restores those pixels on close. It is not a third video-output
-     contract.
+   - ZX81 `fes.video.session-display` stays a named capability until a separate
+     design says it is a video part.
    - Splash remains the pinned idle bitstream. Menu scanout does not replace
      it until its own acceptance gate.
 6. An external ROM uses a sealed ROM map. Format 3 is that shape: ZX81, SMS,
@@ -84,13 +82,13 @@ is that case.
 | --- | --- | --- | --- |
 | `fes.menu` | Idle scanout. Not a game. Splash is still the product idle fallback. | Shared pin. | No factory-image acceptance of this bitstream. |
 | `fes.pong` 1.1.0 | ROM-less game. Settings and best rally persist. The [10 Oct kit B load](validation/2026-10-10-optimizer-video-area.md) showed the field and Stop. | Shared pin, single-PLL gate, optimizer scaler. | That note is a bounded video/Stop check, not gameplay or image acceptance. |
-| `fes.zx81` 1.5.0 | Most complete 8-bit machine in the image: live `.p` tape, bus 2.0, and the session-display plane for kit HDMI. | `fes.computer` 1.0, HID keyboard, `.p` media unit, session display, format 3, `fes_z80_nmos`. Product lock is `toolchain.lock`. | The 2 Oct note does not accept a computer-ABI seal. Physical keyboard, expansion and audio of 1.5.0 are not accepted. |
+| `fes.zx81` 1.5.0 | Most complete 8-bit machine in the image: live `.p` tape, session display, bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | Sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. The 2 Oct note does not accept a shared-pin seal. Physical keyboard, expansion and audio of 1.5.0 are not accepted. |
 | `fes.coleco` 1.2.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. One exact 16 KiB cartridge, padded with `0xff`. | Native video parts, sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. Not retail-complete. The 3 Oct note does not accept these bytes. |
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. Named kit audio is artifact-scoped and does not accept a shared-pin seal. |
 | `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3. Product lock is `toolchain.lock`. | The 1.2.0 kit audio note does not qualify 1.3.0 or a shared-pin seal. |
 | `fes.spectrum` 0.2.0 | In the image. Library standing is experimental. Open diagnostic firmware only; no Sinclair ROM is shipped. | `fes_z80_nmos` by default, sync M10K, format 3. Product lock is `toolchain.lock`. | The 28 Sep notes do not accept a shared-pin seal. The 56 MHz build is documented-only. No card, keyboard or tape kit check of this shell. |
 | `fes.ramtest` 1.1.0 | SDRAM and HPS DDR tester. Factory ships 100 MHz. | Shared pin. | 130 MHz remains open. No exact-image hardware acceptance. |
-| `fes.atari-st` 0.2.0 | In the image. GEM, mouse, writable geometry-aware disks and video parts have passed on named artifacts. Not a compatible ST. | Video parts, sync M10K, format 3, HIP. | Own lock: Yosys `886afa63`, nextpnr `b7ba9b6e`. Built-in Direct fallback remains. Borders, later demo sections, menu flash, audio fidelity and full current-image acceptance are open. |
+| `fes.atari-st` 0.2.0 | In the image. GEM, mouse, writable geometry-aware disks and video parts have passed on named artifacts. Not a compatible ST. | Video parts, sync M10K, format 3, HIP. Yosys `5391eeb1` and Mistral `8fcc4cb4` match the shared pin. | nextpnr `b7ba9b6e` in `toolchains/atari-st.lock`. The shared pin lacks bounded architecture-rejection retries. The October kit notes do not accept this pin. Built-in Direct fallback remains. Borders, later demo sections, menu flash, audio fidelity and full current-image acceptance are open. |
 
 | Package | Usable as | Matches | Does not match |
 | --- | --- | --- | --- |
@@ -133,7 +131,7 @@ fix it in nextpnr, then delete the dedicated lock. Do not add another lock.
 | Order | Core | nextpnr now | Why this order |
 | --- | --- | --- | --- |
 | 1 | `fes.c64` | `0c5ed400` | Same Yosys and Mistral as the shared pin. Package-only. Closest requalification. |
-| 2 | `fes.atari-st` | `b7ba9b6e` | Factory, and its Yosys pin is also private. Do not keep this pin because an older seed missed pixel. |
+| 2 | `fes.atari-st` | `b7ba9b6e` | Factory. Yosys and Mistral match the shared pin. The dedicated nextpnr pin stays until `toolchain.lock` has bounded architecture-rejection retries. The October kit notes do not accept this pin. |
 | 3 | `fes.coleco` | `toolchain.lock` | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `toolchain.lock` | Same multi-region cart support. Both now select `toolchain.lock`. |
 | 5 | `fes.sms`, `fes.sg1000` | `toolchain.lock` | Both now select `toolchain.lock`. The old Coleco producer selects the same shared lock. |

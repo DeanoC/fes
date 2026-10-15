@@ -54,7 +54,7 @@ Both working-tree and historical Git-object validation apply the recorded
 policy. Existing format-1 and format-2 records without that parameter retain
 their original semantics, including documentation in declared roots.
 
-The eight factory producers now select committed per-producer roots from
+The nine factory producers now select committed per-producer roots from
 `scripts/source_closures.json`, setting `parameters.source_closure_mode` to
 `audited-v1`. Their source key covers the declared import, HDL, recipe, ABI and
 toolchain-lock closure rather than the entire scripts and shared-core trees.
@@ -1104,11 +1104,6 @@ one effect per toggle and error isolation.
 
 ## FES simple-computer mailbox
 
-The product ZX81 shell is `fes_computer_mailbox` with `ENABLE_SESSION_DISPLAY`.
-`zx81_session_display` composites launcher frames over machine RGB and returns
-those pixels when the plane closes. `fes_computer_gp.v` below remains the
-simple-computer simulation mailbox.
-
 `cores/fes-zx81/rtl/fes_computer_gp.v` implements `fes.simple-computer` 1.0 on
 the same GPO/GPI transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
@@ -1995,19 +1990,44 @@ the scaffold. The loads and their input routes remain in the scaffold; part
 routing can extend those frozen branches inside the original CRAM fence.
 The producer checks all load sites, source bits, identity LUT masks and routed
 request branches. The request/response word mapping, boundary FF BELs, clock
-anchors and CRAM rectangle remain the existing socket contract. Separate
+anchors and CRAM rectangle remain the existing socket contract. The video
+scaffold and the slot-card scaffold share one repair for the system PLL's
+split second output, applied before either boundary is renamed. A routed
+shell whose connections are exactly `{outclk, refclk, locked}`, or that set
+plus `outclk[1]`, is accepted only with a matching pin map. Legacy JSON
+carries a six-pin map with self-aliased `outclk[0]` and `outclk[1]`. The
+repair attaches `outclk[1]` to `system_clock.pll_outclk_1`, marks it an
+output, and drops that obsolete alias. Shared-pin JSON carries the physical
+five-pin map: scalar `outclk` is bit 0 at cell pin C6 and `outclk[1]` is
+cell pin C7. That form must already route `outclk[1]` to
+`system_clock.pll_outclk_1`, with output directions on `outclk` and
+`outclk[1]`, input on `refclk`, and output on `locked`. The repair checks
+those facts and preserves the cell. A missing, mismatched or input-direction
+physical `outclk[1]` is rejected. Any other connection set or pin map is
+rejected. Separate
 Direct/Scanlines routes must still pass timing and whole-bitstream containment;
 retained egress alone does not qualify a video part.
 
-The ST compiler is pinned by `toolchains/atari-st.lock` at nextpnr `b7ba9b6e`.
-Its PLL solver serializes both system PLL output connections with physical
-counter pins (C6/C7 for the current frequencies). The shell and both part
-builders validate and preserve that metadata. They reject the old split-output
-pin map with a request to rebuild the shell; they do not repair old aliases.
-Shell evidence checks the solver's requested/achieved 52.224/12.288 MHz outputs,
-in addition to the three final routed timing gates. The compiler bounds repeated
-architecture rejections and reports the failing connection. This prevents the
-old Scanlines livelock; it does not establish that seed 5 routes successfully.
+The video-part and slot-card producers reload that routed shell with
+`--no-pack`. The scaffold exposes the routed input net, not the top-level
+port, so the shell `create_clock` on `[get_ports {FPGA_CLK1_50}]` is a virtual
+clock and nextpnr rejects it. The generated SDC keeps the name `FPGA_CLK1_50`,
+the 20.000 ns period and the default 50% waveform, and points that
+`create_clock` at `[get_nets {FPGA_CLK1_50}]`. It still constrains
+`system_clock.clocks[0]` to 52.224 MHz, `pixel_clk` to 74.25 MHz and
+`system_clock.clocks[1]` to 12.288 MHz. No input or output delay references
+the reference clock. The shell's own `clocks-oss.sdc` stays a port
+`create_clock`, which the core build can apply to the physical pin.
+
+The shell authenticates `toolchains/atari-st.lock`. Yosys `5391eeb1` and Mistral
+`8fcc4cb4` match `toolchain.lock`. nextpnr is `b7ba9b6e`, current main, because
+the shared pin `9128800f` lacks the bounded GPU-router architecture-rejection
+retries from nextpnr #196. That compiler rejects a shell frozen on the older
+pin with `Invalid frozen physical pin for video_clock.outclk`, so the shell and
+both exact-shell parts have to be rebuilt together. The scaffold repair above
+still accepts the physical five-pin PLL map and still repairs the six-pin
+legacy map. Shell evidence requires the solver's requested and achieved
+52.224 MHz and 12.288 MHz outputs. The October kit notes do not accept this pin.
 
 `scripts/build_atari_st_video_part.py` compares the frozen shell directory with
 the sealed package for `manifest.toml`, `core.rbf` and `rom-map.json`.
@@ -2030,8 +2050,14 @@ raster activity with CPU/video memory latency. Neither the digital SDRAM
 model nor injected callback waits establish electrical FPGA behavior. FX68K source bytes remain immutable; a
 compiler compatibility input may normalize its two simulation-only legacy
 translate-off/on comments without changing RTL assignments or microcode.
-The board producer must qualify the locked Slang/Yosys frontend, HIP route,
-all clocks and sealed ROM/socket maps. Host simulation does not confer kit
+The board producer authenticates `toolchains/atari-st.lock`. The factory
+recipe stays HIP; a CUDA route is a different package. The build record uses
+the audited closure in `scripts/source_closures.json`. The
+[2026-10-04 private-pin record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
+qualifies the earlier read-only shell and does not qualify this nextpnr pin.
+The October kit notes do not accept these bytes. The producer must
+still qualify the locked Slang/Yosys frontend, the selected GPU route, all
+clocks and sealed ROM/socket maps. Host simulation does not confer kit
 or appliance hardware acceptance. See [the core README](../cores/fes-atari-st/README.md)
 for maps, commands and the remaining original-ST timing/device limits.
 

@@ -28,7 +28,7 @@ A producer in this module does not put a package on that image.
 | --- | --- | --- | --- | --- | --- |
 | `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchain.lock` (shared FES HIP lane) | `make build-fes-menu-package` | yes; idle display, not playable |
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
-| `fes.zx81` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR | `toolchain.lock` | `make build-fes-zx81` | yes |
+| `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` with session display and HPS DDR | `toolchain.lock` | `make build-fes-zx81` | yes |
 | `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchain.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | yes; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
 | `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchain.lock` | `make build-fes-sms` | yes |
 | `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchain.lock` | `make build-fes-sg1000` | yes |
@@ -38,7 +38,7 @@ A producer in this module does not put a package on that image.
 | `fes.spectrum` | `cores/fes-spectrum` | `fes.computer` | `toolchain.lock` | `make build-fes-spectrum` | yes; four edge sockets |
 | `fes.demo`, `fes.demo-media`, `fes.demo-audio` | `cores/fes-demo` | `fes.application` | `toolchain.lock` | `make build-fes-demo`, `build-fes-demo-media`, `build-fes-demo-audio` | no; not registered |
 | `fes.ramtest` | `cores/fes-ramtest` | `fes.application` with `fes.memory.hps-ddr` | `toolchain.lock` (shared FES HIP lane; 100 and 130 MHz) | `make build-fes-ramtest-100` (factory), `make build-fes-ramtest-130` (explicit) | yes; OSS 100 MHz utility |
-| `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `toolchains/atari-st.lock` | `make build-fes-atari-st` | yes; Atari 520ST firmware shell and Direct/Scanlines parts |
+| `fes.atari-st` | `cores/fes-atari-st` | `fes.computer` | `toolchains/atari-st.lock` (shared Yosys/Mistral; nextpnr `b7ba9b6e`) | `make build-fes-atari-st` | yes; Atari 520ST firmware shell and Direct/Scanlines parts |
 | `fes.riscv` | `cores/fes-riscv` | `fes.application` with `fes.gamepad` | `toolchain.lock` | `make build-fes-riscv` | no; package-only recipe; original RV32I CPU from `cores/fes-common/rtl/riscv` |
 | splash / idle | `cores/fes-splash` | none | generic `toolchain.lock`, GPU router off | `make build-fes-splash` | not a play package; pinned as `sealed/fes-splash.rbf` |
 
@@ -258,11 +258,15 @@ Copy the closest sibling. Do not start from an experiment, and do not fork a
 second CPU, VDP or PLL when `cores/fes-common` already has the one this
 mailbox uses.
 
-The Atari ST producer now pins DeanoC/nextpnr head `b7ba9b6e` in its own
-`toolchains/atari-st.lock`; RAM test and menu use the shared `toolchain.lock`
-and its HIP compiler slot. The 130 MHz timing comparison uses that same pin.
-Shells and their exact-shell parts must be rebuilt together after this pin change.
-The older pin is covered by the [2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md).
+The Atari ST producer authenticates `toolchains/atari-st.lock`. Yosys
+`5391eeb1` and Mistral `8fcc4cb4` match the shared `toolchain.lock`. nextpnr
+is `b7ba9b6e` because that shared pin lacks bounded architecture-rejection
+retries. The factory recipe stays HIP. A CUDA route is a separate package.
+RAM test and menu stay on `toolchain.lock`. The shell and both exact-shell
+parts must be rebuilt together after this pin change. The
+[2026-10-04 nextpnr-head validation record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
+qualifies the earlier private pin and its read-only shell. It does not
+qualify this pin. The October kit notes do not accept these bytes.
 
 The [Atari 520ST](../cores/fes-atari-st/README.md) is the first 16-bit core.
 `make sim-fes-atari-st` covers the full CPU, MMU aliases, peripherals,

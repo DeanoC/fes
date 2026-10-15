@@ -73,7 +73,14 @@ def card_inputs(card: str) -> tuple[str, ...]:
 def prepare_scaffold(source: bytes, slot: int) -> bytes:
     """Frozen shell netlist with the chosen socket exposed as the cart plugs.
 
-    Both system PLL outputs and their physical counter mapping stay frozen.
+    Legacy routed JSON omits the system PLL's second output. The repair
+    attaches that output to the frozen audio net and drops the obsolete
+    `outclk[0]` alias from the six-pin map. Shared-pin JSON already exposes
+    physical C6/C7 outputs. That shell is preserved when `outclk[1]` already
+    equals the frozen audio net and the port directions are output for
+    `outclk` and `outclk[1]`, input for `refclk`, and output for `locked`.
+    A missing, mismatched or input-direction physical output is rejected, as
+    is any other PLL port or pin map.
     The socket's boundary must still be at its pinned BEL. The socket's
     request/response flip-flops are renamed plug_addr_ff_N / plug_rdata_ff_N
     and its clock-coverage flip-flops are removed (their routed clock
@@ -83,7 +90,7 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
     shell_recipe.validate_routed_shell(design)
     top = design["modules"]["top"]
     cells = top["cells"]
-    shell_recipe.validate_system_pll(top)
+    atari_st_slot.repair_split_system_pll(top)
 
     if any(name.startswith(("plug_addr_ff_", "plug_rdata_ff_")) for name in cells):
         raise ValueError("frozen shell already exposes canonical plug cells")
@@ -113,7 +120,16 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
 def cart_clock_constraints(root: Path) -> bytes:
     # --no-pack restores routed nets but does not derive PLL constraints. These
     # are the declared shell frequencies, never its achieved Fmax.
-    text = (root / shell_recipe.SDC).read_text() + "\n# Frozen Atari ST shell clocks.\n"
+    # The scaffold has no top-level port in the SDC context, so the shell's
+    # [get_ports {FPGA_CLK1_50}] collection is empty and nextpnr rejects that
+    # create_clock as a virtual clock (DeanoC/nextpnr#198). Keep the same
+    # name, 20.000 ns period and default 50% waveform on the physical input net.
+    shell = (root / shell_recipe.SDC).read_text()
+    port = "[get_ports {FPGA_CLK1_50}]"
+    if shell.count(port) != 1:
+        raise ValueError("Atari ST reference clock is not the single port create_clock")
+    text = shell.replace(port, "[get_nets {FPGA_CLK1_50}]")
+    text += "\n# Frozen Atari ST shell clocks.\n"
     for name, frequency in REQUIRED_CLOCKS_MHZ.items():
         text += f"create_clock -name {{{name}}} -period {1000 / frequency:.12f} [get_nets {{{name}}}]\n"
     return text.encode()
@@ -171,9 +187,13 @@ def card_manifest(package, slot: int, cart: bytes, recipe_sha: str, revision: st
 
 
 def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu: int, *,
-          cache_root: Path | None = None, seed: int = PLACER_SEED) -> Path:
+          cache_root: Path | None = None, seed: int = PLACER_SEED,
+          gpu_router: str = shell_recipe.ST_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> Path:
     if type(seed) is not int or not 1 <= seed <= 10:
         raise ValueError("card placer seed must be an integer from 1 to 10")
+    if type(gpu) is not int or gpu < 0:
+        raise ValueError("card GPU device must be a nonnegative integer")
     root, shell = root.resolve(), shell.resolve()
     inputs = card_inputs(card)
     socket = socket_for(slot)
@@ -189,7 +209,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     if len(bus) != 1 or (bus[0]["major"], bus[0]["minor"], bus[0]["required"]) != (1, 0, False):
         raise ValueError("shell must declare the optional Atari ST cartridge bus 1.0")
     shell_members = ("routed.json", "socket.qsf", "manifest.toml", "core.rbf", "rom-map.json")
-    tools = shell_recipe._authenticate_atari_st_tools(root, cache_root)
+    tools = shell_recipe._authenticate_atari_st_tools(
+        root, cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in tools.items()}
     closure = {path: digest((root / path).read_bytes()) for path in inputs}
     closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in shell_members})
@@ -198,6 +219,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
               "region": socket.region, "cram_region": list(socket.cram), "map": atari_st_slot.LAYOUT,
               "slot_clock": SLOT_CLOCK, "placer_seed": seed,
               "required_clocks_mhz": REQUIRED_CLOCKS_MHZ, "clock_constraints_sha256": digest(clocks)}
+    if gpu_router == "CUDA":
+        recipe["gpu_device"] = gpu
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/atari-st-cards" / recipe_sha
     publications = tuple(path.name for path in output.glob("*.tar"))
@@ -209,7 +232,17 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     (output / "cart.qsf").write_bytes(qsf)
     scaffold = prepare_scaffold((shell / "routed.json").read_bytes(), slot)
     (output / "scaffold.json").write_bytes(scaffold)
-    env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
+    env = dict(os.environ)
+    extra = shell_recipe.execution_extra(gpu_router)
+    # HIP remaps the selected device to index 0. CUDA keeps PCI bus order and
+    # selects that index with nextpnr --gpu-device, as the other producers do.
+    # An inherited visibility mask would renumber that index.
+    if extra:
+        env.pop("HIP_VISIBLE_DEVICES", None)
+        env.pop("CUDA_VISIBLE_DEVICES", None)
+        env.update(extra)
+    else:
+        env["HIP_VISIBLE_DEVICES"] = str(gpu)
     sources = " ".join(CARDS[card])
     commands = [
         [str(tools["yosys"].path), "-p",
@@ -220,7 +253,9 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
          "--freq", "52.224", "--fes-scaffold", "--fes-cart", str(output / "cart.json"),
          "--fes-cart-region", socket.region, "--fes-slot-clock", SLOT_CLOCK,
          "--fes-cram-region", ",".join(str(v) for v in socket.cram),
-         "--no-pack", "--seed", str(seed), "--router", "gpu", "--placer-heap-timingweight", "300",
+         "--no-pack", "--seed", str(seed), "--router", "gpu",
+         *(["--gpu-device", str(gpu)] if extra else []),
+         "--placer-heap-timingweight", "300",
          "--rbf", str(output / "cart.rbf"), "--compress-rbf",
          "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")],
     ]
@@ -244,7 +279,7 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     route_text = (output / "route.log").read_text(errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise ValueError("card route log does not prove a complete routed design")
-    _require_gpu_backend(route_text, shell_recipe.ST_GPU_BACKEND)
+    _require_gpu_backend(route_text, shell_recipe.gpu_choice(gpu_router)[0])
     achieved = validate_cart_timing(json.loads((output / "timing.json").read_text()))
     validate_cart_clocks(json.loads((output / "cart-routed.json").read_text()))
     if (output / "scaffold.json").read_bytes() != scaffold or (output / "cart.qsf").read_bytes() != qsf:
@@ -269,7 +304,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
         raise ValueError("source changed during card build")
     if any(digest((shell / name).read_bytes()) != closure["shell/" + name] for name in shell_members):
         raise ValueError("frozen shell changed during card build")
-    if {n: t.identity for n, t in shell_recipe._authenticate_atari_st_tools(root, cache_root).items()} != identities:
+    if {n: t.identity for n, t in shell_recipe._authenticate_atari_st_tools(
+            root, cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router).items()} != identities:
         raise ValueError("authenticated compiler changed during card build")
     destination = output / (expansion_id + ".tar")
     with tarfile.open(destination, "w", format=tarfile.USTAR_FORMAT) as archive:
@@ -292,12 +328,15 @@ if __name__ == "__main__":
     parser.add_argument("--card", default="probe", choices=sorted(CARDS))
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=shell_recipe.ST_GPU_ROUTER)
+    parser.add_argument("--toolchain-root", type=Path)
     parser.add_argument("--seed", type=int, choices=range(1, 11), default=PLACER_SEED,
                         help="bounded card placement seed, recorded in the build identity")
     args = parser.parse_args()
     try:
         print(build(args.root, args.shell, args.package, args.slot, args.card, args.gpu,
-                    cache_root=args.cache_root, seed=args.seed))
+                    cache_root=args.cache_root, seed=args.seed, gpu_router=args.gpu_router,
+                    toolchain_root=args.toolchain_root))
     except (ValueError, OSError) as exc:
         print(f"build-atari-st-slot-card: {exc}", file=sys.stderr)
         raise SystemExit(1)

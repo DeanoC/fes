@@ -1246,6 +1246,8 @@ func localCoreMessage(err error) string {
 		return "Kit is in use"
 	case errors.Is(err, localcores.ErrBlocked):
 		return "Kit cannot launch this game"
+	case errors.Is(err, localcores.ErrWarming):
+		return "Still checking installed cores."
 	default:
 		return "Kit local control is unavailable"
 	}

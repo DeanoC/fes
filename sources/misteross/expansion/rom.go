@@ -138,52 +138,100 @@ func BlankROMDestinations(base []byte, n, x0, y0, x1, y1 int) ([]uint32, error) 
 }
 
 func validateROMMap(ctx context.Context, m ROMMap, baseSHA256 string, sourceSize int) error {
-	if m.Format != 1 || m.Device != Device || m.Encoding != "m10k-1024x10-v1" {
-		return fmt.Errorf("unsupported ROM map format, device or encoding")
+	if err := checkROMMapHeader(m.Format, m.Device, m.Encoding, m.BaseSHA256, m.SourceSize, len(m.Blocks), baseSHA256, sourceSize); err != nil {
+		return err
 	}
-	if len(m.Blocks) == 0 || len(m.Blocks) > 256 || m.SourceSize != len(m.Blocks)*1024 || sourceSize != m.SourceSize {
-		return fmt.Errorf("invalid ROM size or block count")
-	}
-	if baseSHA256 != m.BaseSHA256 {
-		return fmt.Errorf("ROM map base SHA256 mismatch")
-	}
-	seen := make([]byte, cramBytes)
-	sources := make([]bool, len(m.Blocks))
-	bels := make(map[string]bool, len(m.Blocks))
+	live := &romLive{sourceSize: m.SourceSize, haveSize: true}
 	for _, b := range m.Blocks {
-		if err := ctx.Err(); err != nil {
+		if err := live.add(ctx, b); err != nil {
 			return err
 		}
-		if b.BEL == "" || len(b.BEL) > 64 || bels[b.BEL] {
-			return fmt.Errorf("invalid or duplicate ROM BEL")
+	}
+	return nil
+}
+
+func checkROMMapHeader(format int, device, encoding, base string, mapSourceSize, blocks int, baseSHA256 string, sourceSize int) error {
+	if format != 1 || device != Device || encoding != "m10k-1024x10-v1" {
+		return fmt.Errorf("unsupported ROM map format, device or encoding")
+	}
+	if blocks == 0 || blocks > 256 || mapSourceSize != blocks*1024 || sourceSize != mapSourceSize {
+		return fmt.Errorf("invalid ROM size or block count")
+	}
+	if baseSHA256 != base {
+		return fmt.Errorf("ROM map base SHA256 mismatch")
+	}
+	return nil
+}
+
+// romLive checks blocks as they are decoded. Seen destinations stay in one
+// fixed CRAM bitmap. Word bits are not retained.
+type romLive struct {
+	seen       []byte
+	bels       map[string]bool
+	offsets    map[int]struct{}
+	blocks     int
+	sourceSize int
+	haveSize   bool
+}
+
+func (s *romLive) add(ctx context.Context, b ROMBlock) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if s.bels == nil {
+		s.bels = make(map[string]bool)
+	}
+	if s.offsets == nil {
+		s.offsets = make(map[int]struct{})
+	}
+	if b.BEL == "" || len(b.BEL) > 64 || s.bels[b.BEL] {
+		return fmt.Errorf("invalid or duplicate ROM BEL")
+	}
+	for _, r := range b.BEL {
+		if r < 32 || (r >= 127 && r <= 159) {
+			return fmt.Errorf("ROM BEL contains control character")
 		}
-		for _, r := range b.BEL {
-			if r < 32 || (r >= 127 && r <= 159) {
-				return fmt.Errorf("ROM BEL contains control character")
+	}
+	s.bels[b.BEL] = true
+	if b.SourceOffset < 0 || b.SourceOffset%1024 != 0 || (s.haveSize && b.SourceOffset > s.sourceSize-1024) {
+		return fmt.Errorf("invalid or overlapping ROM source range")
+	}
+	if _, exists := s.offsets[b.SourceOffset]; exists {
+		return fmt.Errorf("invalid or overlapping ROM source range")
+	}
+	s.offsets[b.SourceOffset] = struct{}{}
+	if len(b.WordBits) != 256 {
+		return fmt.Errorf("ROM block must have 256 words")
+	}
+	if s.seen == nil {
+		s.seen = make([]byte, cramBytes)
+	}
+	for _, bits := range b.WordBits {
+		if len(bits) != 40 {
+			return fmt.Errorf("ROM word must have 40 destinations")
+		}
+		for _, p := range bits {
+			if p < 32*cramWidth || p >= cramWidth*cramHeight {
+				return fmt.Errorf("ROM destination outside CRAM data")
 			}
+			mask := byte(1 << (p % 8))
+			if s.seen[p/8]&mask != 0 {
+				return fmt.Errorf("overlapping ROM destinations")
+			}
+			s.seen[p/8] |= mask
 		}
-		bels[b.BEL] = true
-		if b.SourceOffset < 0 || b.SourceOffset%1024 != 0 || b.SourceOffset > m.SourceSize-1024 || sources[b.SourceOffset/1024] {
+	}
+	s.blocks++
+	return nil
+}
+
+func (s *romLive) finish(format int, device, encoding, base string, mapSourceSize int, baseSHA256 string, sourceSize int) error {
+	if err := checkROMMapHeader(format, device, encoding, base, mapSourceSize, s.blocks, baseSHA256, sourceSize); err != nil {
+		return err
+	}
+	for offset := range s.offsets {
+		if offset > mapSourceSize-1024 {
 			return fmt.Errorf("invalid or overlapping ROM source range")
-		}
-		sources[b.SourceOffset/1024] = true
-		if len(b.WordBits) != 256 {
-			return fmt.Errorf("ROM block must have 256 words")
-		}
-		for _, bits := range b.WordBits {
-			if len(bits) != 40 {
-				return fmt.Errorf("ROM word must have 40 destinations")
-			}
-			for _, p := range bits {
-				if p < 32*cramWidth || p >= cramWidth*cramHeight {
-					return fmt.Errorf("ROM destination outside CRAM data")
-				}
-				mask := byte(1 << (p % 8))
-				if seen[p/8]&mask != 0 {
-					return fmt.Errorf("overlapping ROM destinations")
-				}
-				seen[p/8] |= mask
-			}
 		}
 	}
 	return nil
