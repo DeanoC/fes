@@ -2267,7 +2267,12 @@ exits before the readiness window is accepted is restarted within that startup
 deadline. After acceptance, a launcher exit is restarted on its own while the
 runtime and agent stay up. An accepted agent or runtime exit stops the whole
 group, confirms every process group is gone, and starts it again, backing off
-from one second to thirty seconds when the replacement dies quickly. The supervisor verifies process exit before replacement, pins every service to
+from one second to thirty seconds when the replacement dies quickly. The
+replacement agent closes new execution claims before it listens. The supervisor
+confirms that fence before probing the launcher and opens it only after the
+group is accepted. A core that has reached `running_development` is accepted; a
+load still in `starting`, and a sample whose fence was not confirmed, stay on
+the readiness budget. The supervisor verifies process exit before replacement, pins every service to
 one bundle, checks startup and finishes the exact maintenance generation.
 Accepted bundles remain selected. Failed startup permits one durably recorded
 prior-bundle recovery attempt; failed recovery remains blocked. Appliance trials

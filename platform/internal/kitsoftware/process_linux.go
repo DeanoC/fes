@@ -108,6 +108,10 @@ type ProcessController struct {
 	// readyStable and readyBudget override the readiness window in tests.
 	readyStable time.Duration
 	readyBudget time.Duration
+	// holdRecoveryClaims is set only while a group restart is inside Start.
+	// The replacement agent closes execution claims before it serves, and Start
+	// confirms that fence before the launcher probe.
+	holdRecoveryClaims bool
 }
 
 type groupReap struct {
@@ -312,6 +316,12 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 	if r.ID != "" {
 		env = append(env, "FES_SOFTWARE_REQUEST="+string(claim))
 	}
+	if c.holdRecoveryClaims {
+		// The agent closes its execution fence before listening. A later
+		// supervisor sample confirms the same fence; this env is what closes
+		// it before the first claim can be served.
+		env = append(env, "FES_SOFTWARE_RECOVERY_FENCE=1")
+	}
 	// Idle/menu core packages belong to the OS/core library, not the userspace
 	// bundle. Preserve their explicit immutable selection.
 	selection, err := os.ReadFile("/usr/share/mister-runtime/selections/fes-menu.package.toml")
@@ -350,6 +360,14 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 		filepath.Join(root, "bin/mister-agent"), []string{"--config", configPath}, env,
 		"/run/mister-runtime.sock", readNativeStatus); err != nil {
 		return err
+	}
+	// Confirm the fence before the launcher probe. A claim that lands during
+	// that probe would be stopped with the group if the probe fails.
+	if c.holdRecoveryClaims {
+		if err := c.confirmRecoveryClaims(ctx); err != nil {
+			_ = c.stopLocked(ctx)
+			return err
+		}
 	}
 	catalog := filepath.Join(root, "share/fogcast/config.toml")
 	kit := filepath.Join(root, "bin/fogcast-kit")
@@ -981,7 +999,13 @@ func (c *ProcessController) noteGroupRestartLocked(lived time.Duration) {
 func (c *ProcessController) finishGroupStart(ctx context.Context, id string, lived time.Duration, pending Request) error {
 	c.mu.Lock()
 	c.noteGroupRestartLocked(lived)
+	c.holdRecoveryClaims = true
 	c.mu.Unlock()
+	defer func() {
+		c.mu.Lock()
+		c.holdRecoveryClaims = false
+		c.mu.Unlock()
+	}()
 	err := groupRestartStart(c, ctx, id, pending)
 	if err != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), StopGroupTimeout)
@@ -1063,11 +1087,38 @@ func (c *ProcessController) abandonReplacedRecoveryLocked() {
 	c.recoveryPIDs = nil
 }
 
-// nativeSessionActive reports a runtime status that is already in a session.
-// Idle and a failed return to idle are not sessions. A development session is
-// the runtime's name for a running core, including a game.
+// nativeSessionActive reports a runtime status for a core that has finished
+// loading. execution=development with state=starting is an in-progress load,
+// not a session, and stays on the readiness budget.
 func nativeSessionActive(status nativeStatus) bool {
-	return status.OK && status.Execution != "" && status.Execution != "none"
+	return status.OK && status.State == "running_development" && status.Execution == "development"
+}
+
+// confirmRecoveryClaims polls until the execution fence is closed or the start
+// context ends. The first dial can fail while the agent is still binding its
+// socket. Called with c.mu held.
+func (c *ProcessController) confirmRecoveryClaims(ctx context.Context) error {
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		callCtx, cancel := context.WithTimeout(ctx, time.Second)
+		err := closeRecoveryClaims(c, callCtx)
+		cancel()
+		if err == nil {
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		timer := time.NewTimer(50 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 // runtimeExecuting reports that this replacement's own runtime is in a session.
@@ -1142,7 +1193,7 @@ func (c *ProcessController) observeGroupReady(ctx context.Context, id string) er
 		return nil
 	}
 	claimCtx, claimCancel := context.WithTimeout(ctx, time.Second)
-	_ = closeRecoveryClaims(c, claimCtx)
+	fenceErr := closeRecoveryClaims(c, claimCtx)
 	claimCancel()
 
 	probeCtx, cancel := context.WithTimeout(ctx, time.Second)
@@ -1156,9 +1207,6 @@ func (c *ProcessController) observeGroupReady(ctx context.Context, id string) er
 	if !owned {
 		return nil
 	}
-	if probeErr == nil || errors.Is(probeErr, errRecoveryExecuting) {
-		return c.acceptReadyRecovery(ctx, id, errors.Is(probeErr, errRecoveryExecuting))
-	}
 	if errors.Is(probeErr, ErrProcessExited) {
 		c.mu.Lock()
 		c.recoveryID = ""
@@ -1168,12 +1216,25 @@ func (c *ProcessController) observeGroupReady(ctx context.Context, id string) er
 		c.mu.Unlock()
 		return nil
 	}
+	// A lost or rejected /fence leaves claims open. That sample is not ready,
+	// including when a session started because the fence was not closed.
+	// A nil error is the only confirmed close. Opening claims later uses the
+	// same rule: an uncertain or rejected clear does not accept the group.
+	if fenceErr != nil {
+		probeErr = fenceErr
+	} else if probeErr == nil || errors.Is(probeErr, errRecoveryExecuting) {
+		return c.acceptReadyRecovery(ctx, id, errors.Is(probeErr, errRecoveryExecuting))
+	}
 	if !expired {
 		c.mu.Lock()
 		c.groupReadySince = time.Time{}
 		c.mu.Unlock()
 		return nil
 	}
+	return c.stopUnreadyRecovery(probeErr)
+}
+
+func (c *ProcessController) stopUnreadyRecovery(probeErr error) error {
 	stopCtx, stopCancel := context.WithTimeout(context.Background(), StopGroupTimeout)
 	stopErr := c.Stop(stopCtx)
 	stopCancel()

@@ -998,6 +998,9 @@ func TestNativeSessionActive(t *testing.T) {
 	if nativeSessionActive(nativeStatus{OK: true, State: "reboot_required", Execution: "none", Error: &nativeStatusError{Code: "idle_failed", Phase: "recovery"}}) {
 		t.Fatal("failed idle looked active")
 	}
+	if nativeSessionActive(nativeStatus{OK: true, Execution: "development", State: "starting"}) {
+		t.Fatal("in-progress core load looked like a finished session")
+	}
 	if nativeSessionActive(nativeStatus{OK: false, Execution: "development", State: "running_development"}) {
 		t.Fatal("unsuccessful status looked active")
 	}
@@ -1042,6 +1045,10 @@ func TestRuntimeExecutingDistinguishesSessionFromIdle(t *testing.T) {
 	if c.runtimeExecuting(context.Background(), "accepted") {
 		t.Fatal("idle runtime looked like a session")
 	}
+	native = nativeStatus{OK: true, Execution: "development", State: "starting"}
+	if c.runtimeExecuting(context.Background(), "accepted") {
+		t.Fatal("core load still starting looked like a session")
+	}
 	native = nativeStatus{OK: true, Execution: "development", State: "running_development"}
 	if !c.runtimeExecuting(context.Background(), "accepted") {
 		t.Fatal("live session was not executing")
@@ -1049,6 +1056,108 @@ func TestRuntimeExecutingDistinguishesSessionFromIdle(t *testing.T) {
 	bundle.Store("other")
 	if c.runtimeExecuting(context.Background(), "accepted") {
 		t.Fatal("another bundle's session was treated as this group")
+	}
+}
+
+func TestRecoveryClaimsAreHeldDuringGroupStart(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted", readyStable: time.Nanosecond, readyBudget: time.Minute}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	if err := c.children[0].cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-c.children[0].done
+	previousStart := groupRestartStart
+	previousProbe := groupReadyProbe
+	t.Cleanup(func() {
+		groupRestartStart = previousStart
+		groupReadyProbe = previousProbe
+	})
+	groupRestartStart = func(controller *ProcessController, _ context.Context, id string, request Request) error {
+		if !controller.holdRecoveryClaims {
+			t.Fatal("group start did not hold recovery claims")
+		}
+		return replaceAcceptedGroup(controller, id, request)
+	}
+	groupReadyProbe = func(*ProcessController, context.Context, string) error { return nil }
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if c.holdRecoveryClaims {
+		t.Fatal("recovery claim hold outlived the start")
+	}
+}
+
+func TestConfirmRecoveryClaimsRetriesUntilClosed(t *testing.T) {
+	var calls int
+	previous := closeRecoveryClaims
+	t.Cleanup(func() { closeRecoveryClaims = previous })
+	closeRecoveryClaims = func(*ProcessController, context.Context) error {
+		calls++
+		if calls < 3 {
+			return errors.New("admission socket is not listening")
+		}
+		return nil
+	}
+	if err := (&ProcessController{}).confirmRecoveryClaims(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 3 {
+		t.Fatalf("fence attempts %d", calls)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	closeRecoveryClaims = func(*ProcessController, context.Context) error {
+		t.Fatal("fence was called after the start context ended")
+		return nil
+	}
+	if err := (&ProcessController{}).confirmRecoveryClaims(ctx); err == nil {
+		t.Fatal("cancelled start confirmed the fence")
+	}
+}
+
+func TestUnconfirmedFenceDoesNotAcceptSession(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted", readyStable: time.Nanosecond, readyBudget: time.Hour}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	if err := c.children[1].cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-c.children[1].done
+	var starts int
+	previousStart := groupRestartStart
+	previousProbe := groupReadyProbe
+	previousClose := closeRecoveryClaims
+	t.Cleanup(func() {
+		groupRestartStart = previousStart
+		groupReadyProbe = previousProbe
+		closeRecoveryClaims = previousClose
+	})
+	groupRestartStart = func(controller *ProcessController, _ context.Context, id string, request Request) error {
+		starts++
+		return replaceAcceptedGroup(controller, id, request)
+	}
+	groupReadyProbe = func(*ProcessController, context.Context, string) error {
+		return errRecoveryExecuting
+	}
+	closeRecoveryClaims = func(*ProcessController, context.Context) error {
+		return errors.New("execution fence was not confirmed")
+	}
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || c.pendingGroup != "accepted" || len(c.children) != 3 || c.Active() != "accepted" {
+		t.Fatalf("unconfirmed fence accepted the session starts=%d pending=%s children=%d active=%s", starts, c.pendingGroup, len(c.children), c.Active())
+	}
+	c.mu.Lock()
+	c.groupReadyBy = time.Now().Add(-time.Millisecond)
+	c.mu.Unlock()
+	err := c.RecoverAcceptedExits(context.Background(), Request{}, true)
+	if err == nil || !strings.Contains(err.Error(), "not ready") {
+		t.Fatal(err)
+	}
+	if starts != 1 || len(c.children) != 0 || c.pendingGroup != "accepted" || c.Active() != "" {
+		t.Fatalf("expired unconfirmed fence left the group running starts=%d children=%d pending=%s active=%s", starts, len(c.children), c.pendingGroup, c.Active())
 	}
 }
 
