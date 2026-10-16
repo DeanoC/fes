@@ -26,21 +26,21 @@ func WithUpdate(service *applianceupdate.Service) Option {
 }
 
 func updateError(w http.ResponseWriter, err error) {
-	status, code := http.StatusUnprocessableEntity, "UPDATE_INVALID"
+	status, code, message := http.StatusUnprocessableEntity, "UPDATE_INVALID", "UPDATE_INVALID"
 	switch {
 	case errors.Is(err, applianceupdate.ErrBlocked), errors.Is(err, appliance.ErrBusy), errors.Is(err, applianceupdate.ErrIdentity):
-		status, code = http.StatusConflict, "UPDATE_CONFLICT"
+		status, code, message = http.StatusConflict, "UPDATE_CONFLICT", "UPDATE_CONFLICT"
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-		status, code = statusClientClosedRequest, "UPDATE_CANCELLED"
-	case errors.Is(err, syscall.ENOSPC):
-		status, code = http.StatusInsufficientStorage, "UPDATE_NO_SPACE"
+		status, code, message = statusClientClosedRequest, "UPDATE_CANCELLED", "UPDATE_CANCELLED"
+	case errors.Is(err, syscall.ENOSPC), errors.Is(err, appliance.ErrInsufficientStorage):
+		status, code, message = http.StatusInsufficientStorage, "UPDATE_NO_SPACE", "insufficient release storage"
 	}
 	var apiErr *protocol.APIError
 	if errors.As(err, &apiErr) {
 		writeAPIError(w, statusForError(apiErr.Code), apiErr)
 		return
 	}
-	writeError(w, status, code, code)
+	writeError(w, status, code, message)
 }
 
 func registerUpdateRoutes(mux *http.ServeMux, token string, s *applianceupdate.Service, leased bool, logger *slog.Logger) {
