@@ -206,8 +206,11 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 	if err := c.start(filepath.Join(root, "bin/mister-runtime"), []string{"--menu-package", "/usr/share/mister-runtime/core-packages/" + menuID, menuID}, env); err != nil {
 		return err
 	}
-	if err := c.start(filepath.Join(root, "bin/mister-agent"), []string{"--config", configPath}, env); err != nil {
-		_ = c.stopLocked(ctx)
+	// Native initialization owns FPGA programming and completes before its
+	// protocol socket opens. An agent/launcher failure must not interrupt it.
+	if err := c.startAgentAfterNative(ctx, c.children[len(c.children)-1],
+		filepath.Join(root, "bin/mister-agent"), []string{"--config", configPath}, env,
+		"/run/mister-runtime.sock", readNativeStatus); err != nil {
 		return err
 	}
 	catalog := filepath.Join(root, "share/fogcast/config.toml")
@@ -233,6 +236,70 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 	c.active = id
 	return nil
 }
+
+// nativeStatusProbe is injected only by in-package tests. Production always
+// authenticates the socket peer to the child PID, start time and executable.
+type nativeStatusProbe func(context.Context, string, int, string, string) (nativeStatus, error)
+
+// Called with c.mu held. No new timeout is created: native startup and the
+// remaining service group share the Engine's one startup deadline. A failure
+// leaves the child owned and admission fenced for the Engine's recovery path.
+func (c *ProcessController) startAgentAfterNative(ctx context.Context, runtime *child, path string, args, env []string, socket string, probe nativeStatusProbe) error {
+	if err := waitNativeIdle(ctx, runtime, socket, probe); err != nil {
+		return err
+	}
+	if err := c.start(path, args, env); err != nil {
+		_ = c.stopLocked(ctx)
+		return err
+	}
+	return nil
+}
+
+func waitNativeIdle(ctx context.Context, runtime *child, socket string, probe nativeStatusProbe) error {
+	identity, err := processStartTime(runtime.cmd.Process.Pid)
+	if err != nil {
+		return fmt.Errorf("runtime startup process unavailable: %w", err)
+	}
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		select {
+		case <-runtime.done:
+			return fmt.Errorf("runtime exited during native initialization: %w", ErrProcessExited)
+		default:
+		}
+		status, err := probe(ctx, socket, runtime.cmd.Process.Pid, identity, runtime.path)
+		if contextErr := ctx.Err(); contextErr != nil {
+			return contextErr
+		}
+		select {
+		case <-runtime.done:
+			return fmt.Errorf("runtime exited during native initialization: %w", ErrProcessExited)
+		default:
+		}
+		if err == nil {
+			if !status.OK || status.State != "idle" || status.Execution != "none" || status.Error != nil {
+				return fmt.Errorf("runtime native initialization is not ready: state=%s execution=%s error=%v", status.State, status.Execution, status.Error)
+			}
+			return nil
+		}
+		if !errors.Is(err, os.ErrNotExist) && !errors.Is(err, syscall.ECONNREFUSED) {
+			return fmt.Errorf("runtime startup status failed: %w", err)
+		}
+		timer := time.NewTimer(50 * time.Millisecond)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return ctx.Err()
+		case <-runtime.done:
+			timer.Stop()
+			return fmt.Errorf("runtime exited during native initialization: %w", ErrProcessExited)
+		case <-timer.C:
+		}
+	}
+}
+
 func waitForAgentConfig(ctx context.Context, path string, wait time.Duration) error {
 	deadline := time.Now().Add(wait)
 	for {

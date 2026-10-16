@@ -51,10 +51,12 @@ func main() {
 		err = status()
 	case "acknowledge":
 		err = acknowledge(os.Args[2:])
+	case "prepare-power-cycle":
+		err = preparePowerCycle(os.Args[2:])
 	case "run":
 		err = run()
 	default:
-		err = errors.New("usage: fes-kit-software start|stop|run|status|acknowledge")
+		err = errors.New("usage: fes-kit-software start|stop|run|status|acknowledge|prepare-power-cycle")
 	}
 	if err != nil {
 		log.Print(err)

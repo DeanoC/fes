@@ -93,6 +93,9 @@ has not changed. Stopping services, starting replacements and observing ten
 seconds of stable readiness share one sixty-second deadline, including startup
 retries. Factory trial startup follows the same rule. Verification and elapsed
 readiness do not require a working real-time clock on the kit.
+The runtime must finish native initialization and report idle through its own
+authenticated protocol socket before the agent or launcher starts. A dependent
+service failure therefore cannot terminate normal native initialization midway.
 
 A failed startup permits one automatic attempt to restore the recorded prior
 bundle. That attempt is recorded durably before the prior bundle starts. A
@@ -138,6 +141,34 @@ reply; repeat only the same action and exact identities to reconcile it.
 If the previous service group is absent or unhealthy, this command cannot repair
 it. Preserve the journal and plan a separate operator recovery rather than editing
 selection state or resetting the automatic recovery phase.
+
+### Prepare a required physical power cycle
+
+If the exact running native runtime reports `reboot_required`, prepare the failed
+operation **before** the documented hard power-supply cycle:
+
+```sh
+fes-kit-software prepare-power-cycle \
+  --operation FAILED_OPERATION_ID --generation OBSERVED_GENERATION \
+  --selected COMMITTED_PREVIOUS_BUNDLE_ID \
+  --base RUNNING_BASE_IMAGE_SHA256 --boot CURRENT_BOOT_ID \
+  --action FRESH_64_CHARACTER_LOWERCASE_HEX_ID
+```
+
+This root-only action verifies the native runtime and existing reservation
+without retrying cleanup. It preserves the original failure in a durable audit,
+cancels that failed software request, and leaves the current boot fenced in its
+existing maintenance reservation. It does not release maintenance, restart a
+service, change the committed selection or initiate a reboot. Its result is
+`prepared-awaiting-physical-cycle`, not successful recovery.
+
+The operator must then perform the [documented hard power-supply
+cycle](../sources/FogCast/docs/DEVELOPMENT.md#restarting-target-services).
+After boot, verify the actual base, committed/active bundle, generation, native
+idle readiness and free admission. A changed boot ID alone does not prove power
+removal. Preserve any newer queued operation; preparation and delayed retries
+cannot cancel it or restore an older selection. If another update activates,
+report its new generation instead of treating the earlier selection as current.
 
 ## API and evidence
 
