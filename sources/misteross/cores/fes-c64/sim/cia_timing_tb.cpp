@@ -79,6 +79,7 @@ static void run_case(unsigned id, const Schedule &schedule) {
         for (unsigned phase = 0; phase < period; ++phase) {
             top.reset = resetting;
             top.phi = phase == 0;
+            top.tod_tick = active && event.op == 'T' && phase == 0;
             top.cs = active;
             top.we = writing && phase == schedule.write_phase;
             top.rs = event.reg;
@@ -109,6 +110,7 @@ static void run_case(unsigned id, const Schedule &schedule) {
                 previous_pin = top.irq;
             }
         }
+        top.tod_tick = 0;
         top.cs = top.we = top.reading = top.read_sample = top.phi = top.reset = 0;
         const unsigned ta = value(4) | (value(5) << 8);
         const unsigned tb = value(6) | (value(7) << 8);

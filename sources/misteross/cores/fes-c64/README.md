@@ -548,7 +548,7 @@ one-shot stopping, ICR acknowledgement and the read-zero force-load bit.
 The CIA2 NMI connection follows the Commodore
 [Programmer's Reference Guide](https://www.zimmers.net/anonftp/pub/cbm/c64/manuals/c64-programmers-reference-guide.txt),
 pages 348–349. Timer and interrupt pipelines adapt the old-6526 model from
-pinned VICE 3.10 sources. `sim-fes-c64-cia-reference` checks 377 bus programs
+pinned VICE 3.10 sources. `sim-fes-c64-cia-reference` checks 385 bus programs
 at the native fractional cadence and two boundary schedules, including
 ordered interrupt edges within a guest cycle. Its checked-in fixtures need
 no external firmware; [source provenance and regeneration](sim/cia_timing.md)

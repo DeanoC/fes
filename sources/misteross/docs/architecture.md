@@ -2033,11 +2033,13 @@ and the physical interrupt pin have separate state, including delayed
 assertion/acknowledgement and the old timer-B read suppression corner.
 The diagnostic checks both CPU vectors, including NMI with IRQ disabled.
 `make sim-fes-c64-cia` adds directed register/port coverage, and
-`make sim-fes-c64-cia-reference` replays 377 programs against unchanged pinned
+`make sim-fes-c64-cia-reference` replays 385 programs against unchanged pinned
 VICE 3.10 sources at three bus schedules, checking every cycle and ordered
 interrupt edges. [The reference contract](../cores/fes-c64/sim/cia_timing.md)
-records fixture regeneration, provenance and limits. Its timer/IRQ fixtures
-do not qualify TOD. Directed CIA tests separately cover TOD BCD carry, noon
+records fixture regeneration, provenance and limits. Eight TOD alarm programs
+cover both input-divider modes, masked flags, later mask enable and IRQ
+acknowledgement at the declared Phi2 pulse boundary. Directed CIA tests
+separately cover TOD BCD carry, noon
 and midnight, register masks, read latching, stop/restart, five/six-pulse input
 division and alarm IRQ acknowledgement. Both CIAs receive the same PAL 50 Hz
 power-supply pulse, derived from the free-running Phi enable without depending

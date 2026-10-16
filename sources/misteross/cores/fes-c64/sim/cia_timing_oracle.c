@@ -81,6 +81,7 @@ static void run_case(unsigned id, const CIATimingCase *program) {
     cia->clk_ptr = &clock_now;
     cia->rmw_flag = &rmw;
     cia->todticks = cia->power_ticks = 100000000;
+    cia->ticks_per_sec = 1000000000;
     cia->power_freq = 50;
     cia->cia_set_int_clk = set_irq;
     cia->do_reset_cia = null_cia;
@@ -108,6 +109,7 @@ static void run_case(unsigned id, const CIATimingCase *program) {
             CIATimingEvent event = events[next++];
             if (event.op == 'W') ciacore_store(cia, event.reg, event.value);
             else if (event.op == 'X') ciacore_reset(cia);
+            else if (event.op == 'T') ciacore_inttod(0, cia);
             else {
                 unsigned data = ciacore_read(cia, event.reg);
                 printf("R,%u,%lu,%u,%u\n", id, clock_now, event.reg, data);
