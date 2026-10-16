@@ -433,6 +433,7 @@ type App struct {
 	roomsDir                string
 	homeRooms               bool
 	homeRoom                string
+	gfxBackend              string
 	pinnedRooms             []string
 	reducedMotion           bool
 	homeRecents             []hostclient.Game

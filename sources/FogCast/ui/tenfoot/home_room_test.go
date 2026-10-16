@@ -399,3 +399,143 @@ func TestConfiguredInstalledHomeRecoversStartupList(t *testing.T) {
 		t.Fatalf("startup read was not retried: %d", cores.listCalls)
 	}
 }
+
+// A kit that boots on Library has no resolved home room. Switching to Rooms
+// in Settings must open Installed cores on confirm, before the process
+// restarts, without storing that implicit id as home_room.
+func TestSettingsSwitchToRoomsOpensInstalledCores(t *testing.T) {
+	app, path := startUnconfiguredLibraryHome(t, "menu-display", "")
+	if room := homeRoomID(app); room != "" {
+		t.Fatalf("library start resolved %q", room)
+	}
+	toggleSettingsHome(t, app)
+	if room := homeRoomID(app); room != "example.fes-cores" {
+		t.Fatalf("settings switch home room = %q", room)
+	}
+	assertSavedHome(t, path, "rooms", "")
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "installed cores after settings", func(s Snapshot) bool {
+		return !s.Settings.Open && s.Room.Open && s.Room.ID == "example.fes-cores" && s.Room.Err == "" && !s.RoomPicker.Open
+	})
+	assertSavedHome(t, path, "rooms", "")
+}
+
+func TestSettingsSwitchKeepsExplicitHomeRoom(t *testing.T) {
+	app, path := startUnconfiguredLibraryHome(t, "menu-display", "chosen")
+	if room := homeRoomID(app); room != "chosen" {
+		t.Fatalf("explicit room = %q", room)
+	}
+	toggleSettingsHome(t, app)
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "explicit room after settings", func(s Snapshot) bool {
+		return !s.Settings.Open && s.Room.Open && s.Room.ID == "chosen" && !s.RoomPicker.Open
+	})
+	assertSavedHome(t, path, "rooms", "chosen")
+}
+
+func TestSettingsSwitchOnSDLKeepsPicker(t *testing.T) {
+	app, path := startUnconfiguredLibraryHome(t, "sdl", "")
+	toggleSettingsHome(t, app)
+	if room := homeRoomID(app); room != "" {
+		t.Fatalf("sdl switch resolved %q", room)
+	}
+	app.HandleCommand(CmdSelect, time.Now())
+	snap := app.Snapshot()
+	if snap.Settings.Open || snap.Room.Open || !snap.RoomPicker.Open {
+		t.Fatalf("sdl home settings=%v room=%v picker=%v id=%q", snap.Settings.Open, snap.Room.Open, snap.RoomPicker.Open, snap.Room.ID)
+	}
+	assertSavedHome(t, path, "rooms", "")
+}
+
+func TestSettingsLibraryConfirmLeavesInstalledCores(t *testing.T) {
+	app, path := startUnconfiguredLibraryHome(t, "menu-display", "")
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	focusSettingsRow(t, app, "home", now)
+	app.HandleCommand(CmdSelect, now)
+	snap := app.Snapshot()
+	if snap.Settings.Open || snap.Room.ID == "example.fes-cores" || snap.Room.Open {
+		t.Fatalf("library confirm opened installed cores: settings=%v room=%q open=%v", snap.Settings.Open, snap.Room.ID, snap.Room.Open)
+	}
+	if !snap.RoomPicker.Open {
+		t.Fatal("library confirm must still open the home picker")
+	}
+	if room := homeRoomID(app); room != "" {
+		t.Fatalf("library confirm resolved %q", room)
+	}
+	assertSavedHome(t, path, "library", "")
+}
+
+func startUnconfiguredLibraryHome(t *testing.T, gfxName, savedRoom string) (*App, string) {
+	t.Helper()
+	t.Setenv("FOGCAST_HOME_ROOM", "")
+	t.Setenv("FOGCAST_THEME", "")
+	t.Setenv("TENFOOT_GFX", "")
+	h := newRoomHost(t)
+	path := filepath.Join(t.TempDir(), "tenfoot.json")
+	if err := saveTenfootPrefs(path, tenfootPrefs{Home: "library", HomeRoom: savedRoom}); err != nil {
+		t.Fatal(err)
+	}
+	opts := Options{
+		GFX:       gfxName,
+		APIBase:   h.server.URL,
+		PrefsPath: path,
+		Home:      "library",
+		HomeSet:   true,
+		Theme:     "default",
+		Width:     1280,
+		Height:    720,
+	}.normalized()
+	if opts.Home != "library" || opts.HomeRoom != savedRoom {
+		t.Fatalf("startup home=%q room=%q", opts.Home, opts.HomeRoom)
+	}
+	app, err := configuredApp(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	packs := rooms.Examples()
+	if savedRoom != "" {
+		packs = append(append([]rooms.Pack{}, packs...), testRoomPack(t, savedRoom, homeRoomScript))
+	}
+	app.SetRooms(rooms.NewIndex(packs), t.TempDir())
+	if gfxName == "menu-display" {
+		app.SetKitLocal(&fakeLocalCores{cores: []localcores.Core{{
+			PackageID: tenfootPongID, CoreID: "fes.pong", Name: "FES Pong", Launchable: true,
+		}}}, &fakePadFeed{})
+	}
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	return app, path
+}
+
+func toggleSettingsHome(t *testing.T, app *App) {
+	t.Helper()
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	if !app.Snapshot().Settings.Open {
+		t.Fatal("settings did not open")
+	}
+	focusSettingsRow(t, app, "home", now)
+	app.HandleCommand(CmdRight, now)
+	row := settingsRowByID(t, app, "home")
+	if !strings.HasPrefix(row.Value, "Rooms") {
+		t.Fatalf("home row = %#v", row)
+	}
+}
+
+func homeRoomID(app *App) string {
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	return app.homeRoom
+}
+
+func assertSavedHome(t *testing.T, path, home, room string) {
+	t.Helper()
+	got, err := loadTenfootPrefs(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Home != home || got.HomeRoom != room {
+		t.Fatalf("saved home=%q room=%q, want home=%q room=%q", got.Home, got.HomeRoom, home, room)
+	}
+}
