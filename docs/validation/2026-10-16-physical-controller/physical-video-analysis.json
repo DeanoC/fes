@@ -1,0 +1,231 @@
+{
+  "method": "One HDMI frame per second; white rows in x295..312, all RGB channels >180 in at least12/18 columns, accept contiguous paddle130..150px high. Sample indices approximate seconds.",
+  "samples": [
+    {
+      "sample": 0,
+      "left_y_min": 73,
+      "left_y_max": 215
+    },
+    {
+      "sample": 1,
+      "left_y_min": 469,
+      "left_y_max": 611
+    },
+    {
+      "sample": 2,
+      "left_y_min": 577,
+      "left_y_max": 719
+    },
+    {
+      "sample": 3,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 4,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 5,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 6,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 7,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 8,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 9,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 10,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 11,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 12,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 13,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 14,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 15,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 16,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 17,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 18,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 19,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 20,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 21,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 22,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 23,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 24,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 25,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 26,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 27,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 28,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 29,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 30,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 31,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 32,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 33,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 34,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 35,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 36,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 37,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 38,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 39,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 40,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 41,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 42,
+      "left_y_min": 757,
+      "left_y_max": 899
+    },
+    {
+      "sample": 43,
+      "left_y_min": 703,
+      "left_y_max": 845
+    },
+    {
+      "sample": 44,
+      "left_y_min": 577,
+      "left_y_max": 719
+    }
+  ],
+  "video_sha256": "84cd042edb8f27bed0f2465583726f82a651b46535b03d9c2e80eae7e3189840"
+}
