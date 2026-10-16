@@ -64,6 +64,15 @@ client keeps a present `image_passes` value in the manifest it uploads.
 Uploads are raw ext4, with
 no archive paths or scripts to extract.
 
+`POST /v1/update/stage` returns `507` with code `UPDATE_NO_SPACE` and message
+`insufficient release storage` when the release volume cannot hold the image.
+`fes-update` prints that code and message. Other rejected uploads stay `422`
+`UPDATE_INVALID`. Before returning the storage error, staging deletes
+unreferenced images oldest first, only until the upload fits. It keeps the
+factory image, known-good, previous, pending, trial, the `boot.json` image,
+and every image in the release store that backs a loop device. It does not
+change the boot selection and does not touch `u-boot.txt` or other boot files.
+
 If a response is lost, inspect status; do not blindly replay activation. A pending
 selection after a failed reboot request remains visible and is attempted on the
 next reboot. An unconfirmed trial blocks normal launch/input/cast and has a

@@ -100,10 +100,14 @@ configuration are included. On first boot no state file is necessary:
 the verified factory is selected, then the native services start normally.
 
 The extra space holds factory, known-good, previous and a staged candidate.
-Unreferenced images are retained for now; there is no automatic garbage
-collection. Staging refuses insufficient free space without changing the boot
-selection. The conventional 256 MiB layout is unchanged and is too small for
-this appliance update workflow.
+Staging keeps the factory image, known-good, previous, pending and trial
+selections, the image named by `boot.json`, and every release image in the
+store that currently backs a loop device. It deletes other release images
+oldest first, and only until the new image plus a 1 MiB margin fits. Staging
+does not change the boot selection and does not remove bootloader files. If
+those retained images still leave too little free space, staging fails with
+insufficient storage rather than a generic invalid update. The conventional
+256 MiB layout is unchanged and is too small for this appliance update workflow.
 
 Writing a physical card still requires exact-device authorization and the kit
 sharing procedure. A new installation of the bootstrap is distinct from an

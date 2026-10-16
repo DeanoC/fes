@@ -1253,7 +1253,11 @@ and selected image permits magic-close. Failure, deadline, or process death
 leaves reset armed. Known-good boots do not require the host to be online.
 
 `appliance/store` owns bounded raw-image admission, immutable publication,
-cross-process locking, checksummed state, and consumed-trial selection.
+cross-process locking, checksummed state, consumed-trial selection, and
+removal of unreferenced images when staging needs the space. Factory,
+known-good, previous, pending, trial, the `boot.json` image, and loop-backed
+images in the release store stay. A volume that is still too small fails the
+stage with HTTP 507 `UPDATE_NO_SPACE` (`insufficient release storage`).
 `internal/appliancedata` owns the optional FESDATA3 bind at agent startup.
 The FES bootstrap owns fallback ordering, Linux mounts, loops, and the
 watchdog. The bootstrap records its selected image in

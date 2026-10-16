@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -26,13 +27,23 @@ const DefaultRoot = "/media/fat/fogcast/releases"
 var ErrCorruptState = errors.New("release selection state is corrupt; factory fallback only")
 var ErrBusy = errors.New("release trial or pending activation already exists")
 
+// ErrInsufficientStorage means the release volume cannot hold the image after
+// unreferenced images have been pruned.
+var ErrInsufficientStorage = errors.New("insufficient release storage")
+
+var errUnreadableBootTicket = errors.New("refusing to prune releases: boot ticket is unreadable")
+
+const releaseHeadroom = 1 << 20
+
 type Store struct {
 	root    string
 	factory release.Manifest
 	// Keep state persistence operations together: a reader may need to finish
 	// syncing a confirmation made visible by a rename whose directory sync failed.
-	syncFile      func(*os.File) error
-	syncDirectory func(string) error
+	syncFile       func(*os.File) error
+	syncDirectory  func(string) error
+	availableBytes func(string) (uint64, error)
+	loopBackings   func() ([]string, error)
 }
 type Status struct {
 	ConfirmedBootID string `json:"confirmed_boot_id,omitempty"`
@@ -83,7 +94,14 @@ func New(root string, factory release.Manifest) (*Store, error) {
 			return nil, fmt.Errorf("release directory is not a real directory: %s", p)
 		}
 	}
-	return &Store{root: root, factory: factory, syncFile: (*os.File).Sync, syncDirectory: syncDir}, nil
+	return &Store{
+		root:           root,
+		factory:        factory,
+		syncFile:       (*os.File).Sync,
+		syncDirectory:  syncDir,
+		availableBytes: statAvailable,
+		loopBackings:   loopBackingFiles,
+	}, nil
 }
 func (s *Store) ImagePath(hash string) (string, error) {
 	if !release.ValidHash(hash) {
@@ -494,6 +512,10 @@ func verifyImage(ctx context.Context, f *os.File, m release.Manifest) error {
 
 // Stage publishes only complete verified raw images. It never changes selection
 // and never replaces an existing content-addressed image, including corrupt ones.
+// When a new image does not fit, Stage deletes other release images oldest
+// first until the image and a 1 MiB margin fit. It keeps factory, known-good,
+// previous, pending, trial, the boot.json image, and every image in this store
+// that backs a loop device. It does not remove boot files.
 func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.Reader) error {
 	if e := m.Compatible(s.factory.KernelSHA256); e != nil {
 		return e
@@ -541,12 +563,8 @@ func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return e
 	}
-	var fs unix.Statfs_t
-	if e = unix.Statfs(s.root, &fs); e != nil {
+	if e = s.ensureSpace(ctx, size); e != nil {
 		return e
-	}
-	if uint64(size)+(1<<20) > uint64(fs.Bavail)*uint64(fs.Bsize) {
-		return errors.New("insufficient release storage")
 	}
 	f, e := os.CreateTemp(filepath.Join(s.root, "images"), ".stage-")
 	if e != nil {
@@ -594,6 +612,255 @@ func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.
 	}
 	return atomicWrite(filepath.Join(s.root, "manifests", m.ImageSHA256+".json"), append(b, '\n'))
 }
+
+func statAvailable(root string) (uint64, error) {
+	var fs unix.Statfs_t
+	if err := unix.Statfs(root, &fs); err != nil {
+		return 0, err
+	}
+	return uint64(fs.Bavail) * uint64(fs.Bsize), nil
+}
+
+// ensureSpace frees unreferenced images until size plus the staging margin
+// fits. Protected identities are resolved before the first deletion.
+func (s *Store) ensureSpace(ctx context.Context, size int64) error {
+	if size < 0 {
+		return errors.New("invalid image size")
+	}
+	need := uint64(size) + releaseHeadroom
+	free, err := s.availableBytes(s.root)
+	if err != nil {
+		return err
+	}
+	if free >= need {
+		return nil
+	}
+	keep, err := s.protectedImages()
+	if err != nil {
+		return err
+	}
+	for {
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+		removed, err := s.removeOldestUnreferenced(keep)
+		if err != nil {
+			return err
+		}
+		if !removed {
+			return ErrInsufficientStorage
+		}
+		free, err = s.availableBytes(s.root)
+		if err != nil {
+			return err
+		}
+		if free >= need {
+			return nil
+		}
+	}
+}
+
+func (s *Store) protectedImages() (map[string]struct{}, error) {
+	st, corrupt, err := s.readState()
+	if err != nil {
+		return nil, err
+	}
+	if corrupt {
+		return nil, ErrCorruptState
+	}
+	keep := map[string]struct{}{}
+	add := func(hash string) {
+		if release.ValidHash(hash) {
+			keep[hash] = struct{}{}
+		}
+	}
+	add(s.factory.ImageSHA256)
+	add(st.Good)
+	add(st.Previous)
+	add(st.Pending)
+	add(st.TrialImage)
+	add(st.ConfirmedImage)
+	boot, err := s.bootImage()
+	if err != nil {
+		return nil, err
+	}
+	add(boot)
+	paths, err := s.loopBackings()
+	if err != nil {
+		return nil, fmt.Errorf("refusing to prune releases: %w", err)
+	}
+	imagesDir := filepath.Join(s.root, "images")
+	for _, path := range paths {
+		if hash, ok := imageHashFromBacking(imagesDir, path); ok {
+			add(hash)
+		}
+	}
+	return keep, nil
+}
+
+func (s *Store) bootImage() (string, error) {
+	f, err := regularOpen(filepath.Join(s.root, "boot.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, 4097))
+	if err != nil {
+		return "", err
+	}
+	if len(b) > 4096 {
+		return "", errUnreadableBootTicket
+	}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	var ticket struct {
+		BootID      string `json:"boot_id"`
+		ImageSHA256 string `json:"image_sha256"`
+		Trial       bool   `json:"trial"`
+	}
+	if dec.Decode(&ticket) != nil || !release.ValidHash(ticket.ImageSHA256) {
+		return "", errUnreadableBootTicket
+	}
+	if err = dec.Decode(&struct{}{}); err != io.EOF {
+		return "", errUnreadableBootTicket
+	}
+	return ticket.ImageSHA256, nil
+}
+
+func (s *Store) removeOldestUnreferenced(keep map[string]struct{}) (bool, error) {
+	dir := filepath.Join(s.root, "images")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, err
+	}
+	type candidate struct {
+		hash string
+		mod  time.Time
+	}
+	var stale []candidate
+	for _, entry := range entries {
+		hash, ok := publishedImageHash(entry.Name())
+		if !ok {
+			continue
+		}
+		if _, protected := keep[hash]; protected {
+			continue
+		}
+		info, err := os.Lstat(filepath.Join(dir, entry.Name()))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return false, err
+		}
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		stale = append(stale, candidate{hash: hash, mod: info.ModTime()})
+	}
+	if len(stale) == 0 {
+		return false, nil
+	}
+	sort.Slice(stale, func(i, j int) bool {
+		if !stale[i].mod.Equal(stale[j].mod) {
+			return stale[i].mod.Before(stale[j].mod)
+		}
+		return stale[i].hash < stale[j].hash
+	})
+	hash := stale[0].hash
+	if err = os.Remove(filepath.Join(dir, hash+".img")); err != nil {
+		return false, err
+	}
+	if err = s.syncDirectory(dir); err != nil {
+		return false, err
+	}
+	manifestDir := filepath.Join(s.root, "manifests")
+	manifest := filepath.Join(manifestDir, hash+".json")
+	info, err := os.Lstat(manifest)
+	if errors.Is(err, os.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !info.Mode().IsRegular() {
+		return false, errors.New("release manifest is not a regular file")
+	}
+	if err = os.Remove(manifest); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	if err = s.syncDirectory(manifestDir); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func publishedImageHash(name string) (string, bool) {
+	hash, ok := strings.CutSuffix(name, ".img")
+	if !ok || !release.ValidHash(hash) {
+		return "", false
+	}
+	return hash, true
+}
+
+func imageHashFromBacking(imagesDir, backing string) (string, bool) {
+	backing = strings.TrimSpace(backing)
+	backing = strings.TrimSuffix(backing, " (deleted)")
+	if backing == "" {
+		return "", false
+	}
+	cleaned := filepath.Clean(backing)
+	hash, ok := publishedImageHash(filepath.Base(cleaned))
+	if !ok || filepath.Dir(cleaned) != filepath.Clean(imagesDir) {
+		return "", false
+	}
+	return hash, true
+}
+
+func loopBackingFiles() ([]string, error) {
+	entries, err := os.ReadDir("/sys/block")
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var paths []string
+	for _, entry := range entries {
+		if !loopDeviceName(entry.Name()) {
+			continue
+		}
+		backing, err := os.ReadFile(filepath.Join("/sys/block", entry.Name(), "loop", "backing_file"))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		path := strings.TrimSpace(string(backing))
+		if path != "" {
+			paths = append(paths, path)
+		}
+	}
+	return paths, nil
+}
+
+func loopDeviceName(name string) bool {
+	rest, ok := strings.CutPrefix(name, "loop")
+	if !ok || rest == "" {
+		return false
+	}
+	for _, r := range rest {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Store) activate(ctx context.Context, st diskState, hash string) error {
 	if st.Pending == hash {
 		return nil
