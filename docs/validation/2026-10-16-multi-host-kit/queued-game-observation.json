@@ -39,8 +39,15 @@
     "session_id": "77d3887d-48bc-43b0-8a2b-11146d6fccee",
     "state": "active"
   },
-  "capture_sha256": "5b403441b32ac220178c92e5b325e7b594cdf6d4579fe8e3be41446d7ab55284",
-  "scope": "read-only HDMI capture during exact queued software request and active Host A session",
+  "hdmi_still": {
+    "duplicate_of": "docs/validation/2026-10-16-merged-kit-software/up.png",
+    "earlier_at_monotonic": 3020356.721515021,
+    "earlier_receipt": "docs/validation/2026-10-16-merged-kit-software/visual.json",
+    "included": false,
+    "sha256": "5b403441b32ac220178c92e5b325e7b594cdf6d4579fe8e3be41446d7ab55284",
+    "size": 13936
+  },
+  "scope": "Software identity samples while the candidate request stayed queued and Host A remained active. The previously attached PNG was the earlier merged-kit up capture and is not included.",
   "unchanged_identity_fields": [
     "active_bundle",
     "generation",

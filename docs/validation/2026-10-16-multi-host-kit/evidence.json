@@ -45,10 +45,6 @@
     "final-menu.png": {
       "sha256": "7bcf47ef4a55bddebb49ea3b0a8c61c88059bb754c40755bf2241295855c6002",
       "size": 358811
-    },
-    "queued-game.png": {
-      "sha256": "5b403441b32ac220178c92e5b325e7b594cdf6d4579fe8e3be41446d7ab55284",
-      "size": 13936
     }
   },
   "local_probe": {
@@ -60,8 +56,15 @@
   "multi_host_result": "multi-host-result.json",
   "probe_sha256": "6c772fea649bbf20e62857659306d5c7e8dce462190f2dde7346e6460cc9a5b7",
   "queued_game_capture": {
-    "result": "Pong visible; exact host ownership and queued request retained across read-only capture",
-    "sha256": "5b403441b32ac220178c92e5b325e7b594cdf6d4579fe8e3be41446d7ab55284"
+    "does_not_prove": "HDMI contents during this multi-host queued update, continuous video, or a physical button path.",
+    "duplicate_of": "docs/validation/2026-10-16-merged-kit-software/up.png",
+    "earlier_at_monotonic": 3020356.721515021,
+    "earlier_receipt": "docs/validation/2026-10-16-merged-kit-software/visual.json",
+    "included": false,
+    "proves": "The earlier merged-kit visual diagnostic captured Pong HDMI after a software-injected up event on bundle eaff152f generation 11. The withdrawn file was that still.",
+    "sha256": "5b403441b32ac220178c92e5b325e7b594cdf6d4579fe8e3be41446d7ab55284",
+    "size": 13936,
+    "this_run_first_input_monotonic": 3024463.525242513
   },
   "result_summary": {
     "accepted_stable_seconds": 10,

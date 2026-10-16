@@ -51,13 +51,24 @@ change occurred (the previous bundle remained at generation 11). The corrected
 diagnostic retained bounded HTTP status and symbolic error-code evidence and
 passed as described above.
 
-A [read-only HDMI capture](2026-10-16-multi-host-kit/queued-game.png) shows Pong
-while the corrected run has the candidate installed and its exact request queued.
-The [capture guards](2026-10-16-multi-host-kit/queued-game-observation.json)
-retain Host A's exact session/flight/input identity and lease generation before
-and after the capture; the prior bundle remains active at generation 11 while
-the input-frame counter advances from 222 to 225. This shows the game during the queued update; it does not establish a physical
-button path or continuous HDMI recording.
+No HDMI still from this queued interval is included. The file previously
+published as `queued-game.png` is byte-identical to the earlier
+[merged-kit up capture](2026-10-16-merged-kit-software/up.png)
+(SHA-256 `5b403441b32ac220178c92e5b325e7b594cdf6d4579fe8e3be41446d7ab55284`,
+13,936 bytes). [That visual receipt](2026-10-16-merged-kit-software/visual.json)
+records the still at monotonic 3020356.721515021, during the prior
+software-injected up event on bundle `eaff152f…` generation 11. This run's
+first recorded input event is at monotonic 3024463.525242513, 4106.8 seconds
+later. That earlier still shows Pong after the injected up. It is not an
+observation of the display while this candidate was queued, and it is not
+kept in this evidence directory.
+
+The [software samples](2026-10-16-multi-host-kit/queued-game-observation.json)
+retain Host A's exact session, flight, input-session ID and lease generation
+across two reads while the candidate request stayed queued. The prior bundle
+remains active at generation 11 and the input-frame counter advances from
+222 to 225. Those samples establish that software state. They do not
+authenticate an HDMI picture, a physical button path, or continuous video.
 
 A separate [operator-exclusive kit-local API probe](2026-10-16-multi-host-kit/local-api-receipt.json)
 confirmed one Launch and one Stop in 6,870 ms on the new bundle at generation 12,
