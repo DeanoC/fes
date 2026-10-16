@@ -1,0 +1,22 @@
+{
+  "equal": true,
+  "file_count": 6,
+  "inventory_sha256": "f53833661a55a96ce6c5b598bd5394295e146c64028e36927bca175bf3516377",
+  "before": [
+    "422cfac5e1a029c8d9a77d3a6f3571aa02f9d3551ad7e8e266d65c211376d04d  /run/fogcast/fesdata3/core-library/selections.json",
+    "7890fe09cccfb15e12de53311d0ff53763261ae76299f0a93c0572e05998ac71  /run/fogcast/fesdata3/core-library/packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/manifest.toml",
+    "79e74f2cc1b01abd61eb986c1a93ead7684ebf88be499ff5f7b883bdb56cf6d3  /run/fogcast/fesdata3/core-library/packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/core.rbf",
+    "d8c19066779510301e2b7f1ce49e4ccdd4e34452ba110258287ecc54e8559043  /run/fogcast/fesdata3/core-library/packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/rom-map.json",
+    "df8a5d7ee4ac42e1f2ba261f3c48536b59400294151b2eed075d4b00712c0b02  /run/fogcast/fesdata3/core-library/archives/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337.fcore",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /run/fogcast/fesdata3/core-library/.lock"
+  ],
+  "after": [
+    "422cfac5e1a029c8d9a77d3a6f3571aa02f9d3551ad7e8e266d65c211376d04d  /run/fogcast/fesdata3/core-library/selections.json",
+    "7890fe09cccfb15e12de53311d0ff53763261ae76299f0a93c0572e05998ac71  /run/fogcast/fesdata3/core-library/packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/manifest.toml",
+    "79e74f2cc1b01abd61eb986c1a93ead7684ebf88be499ff5f7b883bdb56cf6d3  /run/fogcast/fesdata3/core-library/packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/core.rbf",
+    "d8c19066779510301e2b7f1ce49e4ccdd4e34452ba110258287ecc54e8559043  /run/fogcast/fesdata3/core-library/packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/rom-map.json",
+    "df8a5d7ee4ac42e1f2ba261f3c48536b59400294151b2eed075d4b00712c0b02  /run/fogcast/fesdata3/core-library/archives/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337.fcore",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /run/fogcast/fesdata3/core-library/.lock"
+  ],
+  "scope": "all six files found in durable core-library; bytes and paths only"
+}
