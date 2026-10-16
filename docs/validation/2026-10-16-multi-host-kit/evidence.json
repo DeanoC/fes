@@ -1,0 +1,97 @@
+{
+  "base_contract": "fes-kit-base-v1-4bdcca8a7ad3927f3de68a658ef625285e12165f025ac989700eb83631edaa0d",
+  "build_base_image_sha256": "32f16cd2eba9befefaef7f6c94ee70f5c830b3c231e859222df7c7aee7b3b993",
+  "bundle_archive": {
+    "sha256": "d82b2003325efb4343c563d0e5eed1983aba93c67cec0f66798d9791b9b60498",
+    "size": 50681856
+  },
+  "bundle_id": "67afde612b5d12cd18aa68485e81b524a56c0b55fc7c06b05dd81bf8906de080",
+  "core_file_inventory_sha256": "f53833661a55a96ce6c5b598bd5394295e146c64028e36927bca175bf3516377",
+  "core_files_before": {
+    ".lock": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "archives/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337.fcore": "df8a5d7ee4ac42e1f2ba261f3c48536b59400294151b2eed075d4b00712c0b02",
+    "packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/core.rbf": "79e74f2cc1b01abd61eb986c1a93ead7684ebf88be499ff5f7b883bdb56cf6d3",
+    "packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/manifest.toml": "7890fe09cccfb15e12de53311d0ff53763261ae76299f0a93c0572e05998ac71",
+    "packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/rom-map.json": "d8c19066779510301e2b7f1ce49e4ccdd4e34452ba110258287ecc54e8559043",
+    "selections.json": "422cfac5e1a029c8d9a77d3a6f3571aa02f9d3551ad7e8e266d65c211376d04d"
+  },
+  "final_ready": "final-ready.json",
+  "first_attempt": {
+    "generation_after_owned_cleanup": 11,
+    "observed_http_status": null,
+    "reason": "RuntimeError; failing check and HTTP status not retained; source contained a 409-only assertion despite 403/409 refusal contract",
+    "result": "not passing",
+    "selection_changed": false
+  },
+  "format": 1,
+  "host": {
+    "sha256": "93e37aaa4ebd419dc7161c19ab4936af4ff2baf6fafb90c1a8f6b1b602d1fcc7",
+    "source_commit": "d1a38ecfd1f1f461d207e0b88ea152475d7ac2e3"
+  },
+  "host_checks": {
+    "focused_busy_race": {
+      "command": "go test -race ./fogcast -run 'TestForeignLeaseBlocksFPGALaunchOnTheBusyKit|TestKitLeaseBusyCorePackageLaunchRefusesHostSession'",
+      "result": "passed",
+      "seconds": 1.245
+    },
+    "focused_go": {
+      "hostapi_seconds": 0.522,
+      "localcores_seconds": 3.378,
+      "result": "passed"
+    },
+    "make_check": "passed"
+  },
+  "images": {
+    "final-menu.png": {
+      "sha256": "7bcf47ef4a55bddebb49ea3b0a8c61c88059bb754c40755bf2241295855c6002",
+      "size": 358811
+    },
+    "queued-game.png": {
+      "sha256": "5b403441b32ac220178c92e5b325e7b594cdf6d4579fe8e3be41446d7ab55284",
+      "size": 13936
+    }
+  },
+  "local_probe": {
+    "binary_sha256": "4e37183343b48e44be79fb6410abb47af90f69929c9942b41f6c6203634b8482",
+    "receipt": "local-api-receipt.json",
+    "source_sha256": "4bc291c3ab6df955f5397060571e52b68a33a6115cd7b7808471d69f0b343866",
+    "temporary_helper_removed": true
+  },
+  "multi_host_result": "multi-host-result.json",
+  "probe_sha256": "6c772fea649bbf20e62857659306d5c7e8dce462190f2dde7346e6460cc9a5b7",
+  "queued_game_capture": {
+    "result": "Pong visible; exact host ownership and queued request retained across read-only capture",
+    "sha256": "5b403441b32ac220178c92e5b325e7b594cdf6d4579fe8e3be41446d7ab55284"
+  },
+  "result_summary": {
+    "accepted_stable_seconds": 10,
+    "before_generation": 11,
+    "final_generation": 12,
+    "held_samples": 13,
+    "held_seconds": 65,
+    "refusals": [
+      {
+        "code": "KIT_LEASE_DENIED",
+        "http_status": 403,
+        "path": "/api/v1/session/launch",
+        "scope": "host refusal; target admission not claimed"
+      },
+      {
+        "code": "KIT_LEASE_DENIED",
+        "http_status": 403,
+        "path": "/api/v1/session/input/event",
+        "scope": "host refusal; target admission not claimed"
+      }
+    ],
+    "same_base": true,
+    "same_boot": true
+  },
+  "scope": "Two independent private host processes on one physical workstation; no physical USB-button or HDMI-effect claim.",
+  "source_commit": "d0ca0f3e8f49f0dbef1af32acd21b728e09a4d09",
+  "stages": {
+    "core_byte_persistence": "passed; six captured files byte-identical; no execution claim",
+    "local_api": "passed with operator-exclusive scope and non-atomic Local Stop caveat",
+    "multi_host": "passed"
+  },
+  "status": "complete"
+}

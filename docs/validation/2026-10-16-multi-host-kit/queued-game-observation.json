@@ -1,0 +1,55 @@
+{
+  "after": {
+    "active_bundle": "eaff152f182b69e1bcd867e4ec0c43931806e7dccf9b73cebe90250a4e560e65",
+    "flight_id": "12972c40-290d-41e7-a302-66b052fe2da6",
+    "frames_sent": 225,
+    "generation": 11,
+    "input_session_id": "7ad9c3f9d30acae2",
+    "lease_generation": "2a8f56c75d7947ea35bbc568e81235bb745464c58d21b44fe5f30b9b9168140b",
+    "lease_state": "held",
+    "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+    "pending": {
+      "candidate": "67afde612b5d12cd18aa68485e81b524a56c0b55fc7c06b05dd81bf8906de080",
+      "expected_generation": 11,
+      "id": "aa58acf6d20b327d122f3b3497691ae1342a101e2efc94fd1598aab2485aa5d3",
+      "phase": "queued",
+      "previous": "eaff152f182b69e1bcd867e4ec0c43931806e7dccf9b73cebe90250a4e560e65",
+      "requester": "multi-host-private-diagnostic"
+    },
+    "session_id": "77d3887d-48bc-43b0-8a2b-11146d6fccee",
+    "state": "active"
+  },
+  "before": {
+    "active_bundle": "eaff152f182b69e1bcd867e4ec0c43931806e7dccf9b73cebe90250a4e560e65",
+    "flight_id": "12972c40-290d-41e7-a302-66b052fe2da6",
+    "frames_sent": 222,
+    "generation": 11,
+    "input_session_id": "7ad9c3f9d30acae2",
+    "lease_generation": "2a8f56c75d7947ea35bbc568e81235bb745464c58d21b44fe5f30b9b9168140b",
+    "lease_state": "held",
+    "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+    "pending": {
+      "candidate": "67afde612b5d12cd18aa68485e81b524a56c0b55fc7c06b05dd81bf8906de080",
+      "expected_generation": 11,
+      "id": "aa58acf6d20b327d122f3b3497691ae1342a101e2efc94fd1598aab2485aa5d3",
+      "phase": "queued",
+      "previous": "eaff152f182b69e1bcd867e4ec0c43931806e7dccf9b73cebe90250a4e560e65",
+      "requester": "multi-host-private-diagnostic"
+    },
+    "session_id": "77d3887d-48bc-43b0-8a2b-11146d6fccee",
+    "state": "active"
+  },
+  "capture_sha256": "5b403441b32ac220178c92e5b325e7b594cdf6d4579fe8e3be41446d7ab55284",
+  "scope": "read-only HDMI capture during exact queued software request and active Host A session",
+  "unchanged_identity_fields": [
+    "active_bundle",
+    "generation",
+    "lease_state",
+    "lease_generation",
+    "session_id",
+    "flight_id",
+    "state",
+    "package_id",
+    "input_session_id"
+  ]
+}
