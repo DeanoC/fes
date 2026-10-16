@@ -1253,7 +1253,15 @@ and selected image permits magic-close. Failure, deadline, or process death
 leaves reset armed. Known-good boots do not require the host to be online.
 
 `appliance/store` owns bounded raw-image admission, immutable publication,
-cross-process locking, checksummed state, and consumed-trial selection.
+cross-process locking, checksummed state, consumed-trial selection, and
+removal of unreferenced images after an upload has been verified. When the
+release volume is short, the upload is verified on the mounted FESDATA3
+volume, or a directory bind-mounted from it, before any image is deleted.
+tmpfs and ramfs are not used. Factory, known-good, previous, pending, trial,
+the `boot.json` image, and loop-backed images in the release store stay. A
+volume that is still too small, or that has nowhere outside itself to verify
+the upload, fails the stage with HTTP 507 `UPDATE_NO_SPACE`
+(`insufficient release storage`) and deletes nothing.
 `internal/appliancedata` owns the optional FESDATA3 bind at agent startup.
 The FES bootstrap owns fallback ordering, Linux mounts, loops, and the
 watchdog. The bootstrap records its selected image in
