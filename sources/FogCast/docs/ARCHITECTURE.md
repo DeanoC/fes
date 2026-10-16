@@ -2264,8 +2264,10 @@ does not persist its pending queue.
 The supervisor waits up to 30 seconds for `/media/fat/fogcast/agent.toml` before
 starting the agent, and bounds the launcher selection probe. A process that
 exits before the readiness window is accepted is restarted within that startup
-deadline. An exit after acceptance is reported and is not restarted behind a
-lease. The supervisor verifies process exit before replacement, pins every service to
+deadline. After acceptance, a launcher exit is restarted on its own while the
+runtime and agent stay up. An accepted agent or runtime exit stops the whole
+group, confirms every process group is gone, and starts it again, backing off
+from one second to thirty seconds when the replacement dies quickly. The supervisor verifies process exit before replacement, pins every service to
 one bundle, checks startup and finishes the exact maintenance generation.
 Accepted bundles remain selected. Failed startup permits one durably recorded
 prior-bundle recovery attempt; failed recovery remains blocked. Appliance trials

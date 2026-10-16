@@ -123,9 +123,9 @@ func (e *Engine) switchPrepared(ctx context.Context, id string, request Request)
 	}
 	// Restart only until the first accepted readiness window. An exit during
 	// native initialization and an exit observed by health share this deadline.
-	// An exit after health returns is left for ServiceFault. The supervisor
-	// restarts a dead launcher without stopping the runtime or agent. A dead
-	// runtime or agent is not restarted behind an execution lease. Every other
+	// An exit after health returns is left for the supervisor tick. That tick
+	// restarts a dead launcher without stopping the runtime or agent, and
+	// restarts the whole group when the runtime or agent exits. Every other
 	// Start error ends the attempt unchanged.
 	var last error
 	for e.Now().Before(deadline) {

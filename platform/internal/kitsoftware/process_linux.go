@@ -35,15 +35,17 @@ const (
 	launcherRestartMin   = time.Second
 	launcherRestartMax   = 30 * time.Second
 	launcherStableLife   = 2 * time.Second
+	// groupRestartTimeout bounds one accepted-group start. Native initialization
+	// shares this deadline; the supervisor tick retries with backoff after it.
+	groupRestartTimeout = 60 * time.Second
 	// launcherGroupReapPoll is how long one restart attempt waits for init to
 	// reap a just-signaled descendant. The supervisor tick retries after that.
 	launcherGroupReapPoll = 200 * time.Millisecond
 )
 
 // ErrProcessExited reports that a supervised process ended before acceptance.
-// Startup may retry it. An accepted runtime or agent exit is a service fault
-// and is not restarted behind an execution lease. An accepted launcher exit is
-// restarted by RestartExitedLauncher without stopping the other two.
+// Startup may retry it. After acceptance, RecoverAcceptedExits restarts a dead
+// launcher alone and restarts the whole group when the runtime or agent exits.
 var ErrProcessExited = errors.New("software process exited")
 
 type child struct {
@@ -78,11 +80,25 @@ type ProcessController struct {
 	prepared        *preparedRelease
 	launcherRestart time.Time
 	launcherDelay   time.Duration
-	// reapPID is the exited launcher whose process group is still being
+	groupRestart    time.Time
+	groupDelay      time.Duration
+	// pendingGroup is the accepted bundle waiting to be started again after an
+	// agent or runtime exit. It survives Stop, which clears active.
+	pendingGroup string
+	// reapPID is the exited child whose process group is still being
 	// terminated. Zero means no reap is in progress.
 	reapPID  int
 	reapTerm time.Time
 	reapKill time.Time
+}
+
+// groupRestartStart launches a replacement group after an accepted agent or
+// runtime exit. The default is Start with an empty admission request, so a
+// recovered agent does not replay the boot credential. Tests replace it.
+var groupRestartStart = func(c *ProcessController, ctx context.Context, id string, request Request) error {
+	startCtx, cancel := context.WithTimeout(ctx, groupRestartTimeout)
+	defer cancel()
+	return c.Start(startCtx, id, request)
 }
 
 func (c *ProcessController) Active() string { c.mu.Lock(); defer c.mu.Unlock(); return c.active }
@@ -514,18 +530,23 @@ func StopOrphans(ctx context.Context) error {
 	return nil
 }
 
-// ServiceFault does not restart an accepted runtime or agent behind an
-// execution owner's back. A dead launcher is reported while RestartExitedLauncher
-// brings that one process back. Operators can inspect this through the base
+// ServiceFault reports an accepted exit while RecoverAcceptedExits brings the
+// launcher or the whole group back. Operators can inspect this through the base
 // supervisor's local socket.
 func (c *ProcessController) ServiceFault() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.pendingGroup != "" {
+		return "supervisor is restarting the service group"
+	}
 	for _, p := range c.children {
 		select {
 		case <-p.done:
 			if p.role == roleLauncher && launcherPeersAlive(c.children) {
 				return fmt.Sprintf("%s exited: %v; supervisor is restarting the launcher", filepath.Base(p.path), p.err)
+			}
+			if p.role == roleAgent || p.role == roleRuntime {
+				return fmt.Sprintf("%s exited: %v; supervisor is restarting the service group", filepath.Base(p.path), p.err)
 			}
 			return fmt.Sprintf("%s exited: %v; explicit supervisor restart required", filepath.Base(p.path), p.err)
 		default:
@@ -556,7 +577,8 @@ func launcherPeersAlive(children []*child) bool {
 
 // RestartExitedLauncher replaces a dead accepted launcher. The runtime and
 // agent stay up, so an execution lease is not dropped and the menu can return.
-// A dead runtime or agent still requires an explicit supervisor restart.
+// RecoverAcceptedExits is the supervisor entry point. It uses this when both
+// peers are alive, and restarts the whole group when the agent or runtime exits.
 // The exited launcher's process group is terminated and confirmed gone before
 // the replacement starts. If that group cannot be cleared, the launcher stays
 // owned so Stop refuses activation and the next call retries.
@@ -564,6 +586,10 @@ func launcherPeersAlive(children []*child) bool {
 func (c *ProcessController) RestartExitedLauncher() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	return c.restartExitedLauncherLocked()
+}
+
+func (c *ProcessController) restartExitedLauncherLocked() error {
 	if c.active == "" || !launcherPeersAlive(c.children) {
 		// A dead runtime must not abandon descendants of the launcher that
 		// already exited. Keep ownership and retry until that group is gone.
@@ -642,10 +668,10 @@ func (c *ProcessController) clearLauncherReap() {
 	c.reapKill = time.Time{}
 }
 
-// confirmLauncherGroup signals an exited launcher's process group and returns
-// nil only after that group is gone. The direct child is already reaped;
-// descendants that inherited the group are not visible to a later Stop once
-// this child is dropped.
+// confirmLauncherGroup signals an exited child's process group and returns nil
+// only after that group is gone. The direct child is already reaped; descendants
+// that inherited the group are not visible to a later Stop once this child is
+// dropped. Launcher and group restarts both use it.
 func (c *ProcessController) confirmLauncherGroup(p *child) error {
 	pid := p.cmd.Process.Pid
 	if pid <= 1 {
@@ -706,6 +732,162 @@ func (c *ProcessController) awaitLauncherGroup(pid int) error {
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
+}
+
+// RecoverAcceptedExits restarts an accepted launcher when the runtime and agent
+// are still alive. An accepted agent or runtime exit stops the remaining group,
+// confirms every exited process group is gone, and starts the bundle again.
+// A replacement that dies quickly backs off from one second to thirty seconds.
+// The new agent is started without the original admission request. Called with
+// no controller lock held.
+func (c *ProcessController) RecoverAcceptedExits(ctx context.Context) error {
+	c.mu.Lock()
+	if c.pendingGroup == "" {
+		if c.active == "" || !acceptedServiceFailed(c.children) {
+			err := c.restartExitedLauncherLocked()
+			c.mu.Unlock()
+			return err
+		}
+		c.pendingGroup = c.active
+	}
+	if err := c.reapExitedGroupsLocked(); err != nil {
+		c.mu.Unlock()
+		return err
+	}
+	reason := c.groupFailureReasonLocked()
+	lived := c.failedServiceLifeLocked()
+	id := c.pendingGroup
+	running := len(c.children) != 0
+	if !c.groupRestartDueLocked() {
+		c.mu.Unlock()
+		return nil
+	}
+	c.mu.Unlock()
+	if reason != "" {
+		log.Printf("restarting service group after %s", reason)
+	} else {
+		log.Printf("restarting service group for %s", id)
+	}
+	if running {
+		if err := c.Stop(ctx); err != nil {
+			return err
+		}
+	}
+	return c.finishGroupStart(ctx, id, lived)
+}
+
+func acceptedServiceFailed(children []*child) bool {
+	for _, p := range children {
+		if p.role != roleRuntime && p.role != roleAgent {
+			continue
+		}
+		select {
+		case <-p.done:
+			return true
+		default:
+		}
+	}
+	return false
+}
+
+func (c *ProcessController) reapExitedGroupsLocked() error {
+	for _, p := range c.children {
+		select {
+		case <-p.done:
+		default:
+			continue
+		}
+		if err := c.confirmLauncherGroup(p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (c *ProcessController) groupFailureReasonLocked() string {
+	var parts []string
+	for _, p := range c.children {
+		if p.role != roleAgent && p.role != roleRuntime {
+			continue
+		}
+		select {
+		case <-p.done:
+			parts = append(parts, fmt.Sprintf("%s %s exited: %v", p.role, filepath.Base(p.path), p.err))
+		default:
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+func (c *ProcessController) failedServiceLifeLocked() time.Duration {
+	var lived time.Duration
+	seen := false
+	for _, p := range c.children {
+		if p.role != roleAgent && p.role != roleRuntime {
+			continue
+		}
+		select {
+		case <-p.done:
+			life := time.Since(p.started)
+			if !seen || life < lived {
+				lived = life
+				seen = true
+			}
+		default:
+		}
+	}
+	if !seen {
+		return 0
+	}
+	return lived
+}
+
+func (c *ProcessController) groupRestartDueLocked() bool {
+	if c.groupRestart.IsZero() {
+		return true
+	}
+	delay := c.groupDelay
+	if delay < launcherRestartMin {
+		delay = launcherRestartMin
+	}
+	return time.Since(c.groupRestart) >= delay
+}
+
+func (c *ProcessController) noteGroupRestartLocked(lived time.Duration) {
+	c.groupRestart = time.Now()
+	if lived >= launcherStableLife {
+		c.groupDelay = launcherRestartMin
+		return
+	}
+	if c.groupDelay < launcherRestartMin {
+		c.groupDelay = launcherRestartMin
+		return
+	}
+	c.groupDelay *= 2
+	if c.groupDelay > launcherRestartMax {
+		c.groupDelay = launcherRestartMax
+	}
+}
+
+func (c *ProcessController) finishGroupStart(ctx context.Context, id string, lived time.Duration) error {
+	c.mu.Lock()
+	c.noteGroupRestartLocked(lived)
+	c.mu.Unlock()
+	err := groupRestartStart(c, ctx, id, Request{})
+	if err != nil {
+		stopCtx, cancel := context.WithTimeout(context.Background(), StopGroupTimeout)
+		stopErr := c.Stop(stopCtx)
+		cancel()
+		if stopErr != nil {
+			return fmt.Errorf("service group restart: %w; cleanup: %v", err, stopErr)
+		}
+		return err
+	}
+	c.mu.Lock()
+	c.pendingGroup = ""
+	c.clearLauncherReap()
+	c.mu.Unlock()
+	return nil
 }
 
 func processStartTime(pid int) (string, error) {

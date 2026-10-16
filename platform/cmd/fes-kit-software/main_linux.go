@@ -340,8 +340,8 @@ func supervise(ctx context.Context, output io.Writer) error {
 				server.Mu.Unlock()
 				continue
 			}
-			if err := controller.RestartExitedLauncher(); err != nil {
-				log.Printf("launcher restart: %v", err)
+			if err := controller.RecoverAcceptedExits(ctx); err != nil {
+				log.Printf("service restart: %v", err)
 			}
 			if repo == nil && startupErr == nil && trialHold == nil {
 				// Confirmed trials reconcile through the ordinary queue. The
