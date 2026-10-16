@@ -49,10 +49,14 @@ func main() {
 		err = stop()
 	case "status":
 		err = status()
+	case "acknowledge":
+		err = acknowledge(os.Args[2:])
+	case "prepare-power-cycle":
+		err = preparePowerCycle(os.Args[2:])
 	case "run":
 		err = run()
 	default:
-		err = errors.New("usage: fes-kit-software start|stop|run|status")
+		err = errors.New("usage: fes-kit-software start|stop|run|status|acknowledge|prepare-power-cycle")
 	}
 	if err != nil {
 		log.Print(err)
@@ -171,20 +175,7 @@ func run() error {
 	controller := &kitsoftware.ProcessController{RunDir: runDir, BaseIdentity: baseIdentity}
 	server.Controller = controller
 	controller.Resolve = func(ctx context.Context, id string) (string, error) {
-		if id == factory.ID {
-			verified, err := software.VerifyDirectory(ctx, factoryPath)
-			if err != nil {
-				return "", err
-			}
-			if verified.ID != id {
-				return "", errors.New("factory software identity changed")
-			}
-			return factoryPath, verified.Manifest.Compatible(base)
-		}
-		if store == nil {
-			return "", errors.New("durable release storage unavailable")
-		}
-		return store.Path(ctx, id)
+		return kitsoftware.ResolveRelease(ctx, id, factoryPath, factory, base, store)
 	}
 	// The helper refuses trial/pending/corrupt images and absent/mismounted p3.
 	// Never create a durable state directory on the temporary mountpoint.
@@ -258,10 +249,7 @@ func run() error {
 		startupErr = engine.Boot(ctx, bootRequest)
 	} else {
 		controller.PermitUpdateBlocked = true
-		startupErr = controller.Start(ctx, factory.ID, kitsoftware.Request{})
-		if startupErr == nil {
-			startupErr = waitFactory(ctx, controller, factory.ID)
-		}
+		startupErr = engine.StartFactory(ctx, factory.ID)
 		controller.PermitUpdateBlocked = false
 	}
 	if startupErr != nil {
@@ -361,38 +349,6 @@ func run() error {
 	}
 }
 func readOptional(path string) string { b, _ := os.ReadFile(path); return string(b) }
-func waitFactory(ctx context.Context, c *kitsoftware.ProcessController, id string) error {
-	deadline := time.Now().Add(60 * time.Second)
-	var since time.Time
-	for time.Now().Before(deadline) {
-		err := c.Healthy(ctx, id)
-		if err == nil {
-			if since.IsZero() {
-				since = time.Now()
-			}
-			if time.Since(since) >= 10*time.Second {
-				return nil
-			}
-		} else {
-			since = time.Time{}
-			if errors.Is(err, kitsoftware.ErrProcessExited) {
-				if stopErr := c.Stop(ctx); stopErr != nil {
-					return stopErr
-				}
-				if startErr := c.Start(ctx, id, kitsoftware.Request{}); startErr != nil {
-					return startErr
-				}
-			}
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(250 * time.Millisecond):
-		}
-	}
-	return errors.New("factory software readiness deadline exceeded")
-}
-
 func operationID(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])

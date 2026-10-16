@@ -244,8 +244,11 @@ They are not a second update path for managed images.
 
 A software update does not reboot the board. `/sbin/reboot` and
 `POST /v1/development/reboot` are not service-restart operations. If physical
-recovery reports `reboot_required`, use the designated kit's documented hard
-power-supply cycle; a front-panel reset does not replace that cycle. The separate
+recovery reports `reboot_required`, keep execution fenced and arrange separately
+authorized board recovery. A software reboot can clear the observed HDMI I2C
+failure; verify the new boot, native idle and admission before resuming work.
+If the fault persists, use the designated kit's hard power-supply cycle; a
+front-panel reset does not replace that cycle. The separate
 [soft-restart Path B](../../../docs/soft-restart-path-b.md) note describes the
 board-reboot diagnostic and its arming rules. Do not run that kit check.
 

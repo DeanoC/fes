@@ -13,6 +13,9 @@ installing or activating software does not rewrite their selections or settings.
 
 ## Prepare a bundle
 
+For ordinary updates, use the [parent build command](#build-an-update-without-rebuilding-the-os)
+to compile and package the complete software release from committed sources.
+
 The producer is `sources/FogCast/cmd/fes-kit-bundle`. Its metadata declares the
 board, architecture, required base contract, interface versions and provenance.
 Its payload includes `bin/mister-agent`, `bin/mister-runtime`, `bin/fogcast-kit`,
@@ -84,6 +87,19 @@ not sufficient proof. It starts one selected bundle, checks the agent, runtime
 and launcher, and completes the matching maintenance reservation only after the
 startup checks pass. Accepted software remains selected and survives reboot.
 
+Bundle verification completes before the service startup clock begins, while
+the current group is still running. Each start checks that the verified tree
+has not changed. Stopping services, starting replacements and observing ten
+seconds of stable readiness share one sixty-second deadline, including startup
+retries. Factory trial startup follows the same rule. Verification and elapsed
+readiness do not require a working real-time clock on the kit.
+The runtime must finish native initialization through its own authenticated
+protocol socket before the agent or launcher starts. Clean idle permits normal
+startup. The exact terminal `reboot_required` state with `idle_failed` in the
+`recovery` phase permits diagnostic services to start inside maintenance, but
+cannot pass readiness or reopen execution admission. A dependent service failure
+therefore cannot terminate normal native initialization midway.
+
 A failed startup permits one automatic attempt to restore the recorded prior
 bundle. That attempt is recorded durably before the prior bundle starts. A
 reboot cannot reset the attempt budget. Failed recovery or an unkillable old
@@ -98,6 +114,64 @@ and queued intent. A pending OS image change defers software activation. Softwar
 installation joins appliance-operation draining; the stable supervisor also
 serializes installation and activation and checks the appliance gate itself.
 Queue and cancellation remain available while execution is deferred.
+
+### Acknowledge a failed recovery
+
+A failed automatic recovery stays fenced. Rebooting or restarting the supervisor
+does not replenish its attempt budget. If the previous bundle's complete service
+group is already running, an operator can explicitly acknowledge that group
+without restarting it. Inspect the failed operation, selection generation, active
+bundle, base identity and boot ID first. On the kit, as root, use a fresh action
+identifier and those exact observed values:
+
+```sh
+fes-kit-software acknowledge \
+  --operation FAILED_OPERATION_ID --generation OBSERVED_GENERATION \
+  --selected ALREADY_RUNNING_PREVIOUS_BUNDLE_ID \
+  --base RUNNING_BASE_IMAGE_SHA256 --boot CURRENT_BOOT_ID \
+  --action FRESH_64_CHARACTER_LOWERCASE_HEX_ID
+```
+
+This command verifies the bundle, running supervisor and its complete service
+group, then requires ten seconds of native idle and launcher readiness. It resumes
+and completes only that operation's existing maintenance reservation. A separate
+durable acknowledgment retains the original failure and operator action identity;
+selection and generation remain unchanged. It neither starts a service nor
+retries the candidate. Missing services, changed identities, another operation or
+failed readiness leave execution blocked. Inspect status after an uncertain
+reply; repeat only the same action and exact identities to reconcile it.
+
+If the previous service group is absent or unhealthy, this command cannot repair
+it. Preserve the journal and plan a separate operator recovery rather than editing
+selection state or resetting the automatic recovery phase.
+
+### Prepare a required physical power cycle
+
+If the exact running native runtime reports `reboot_required`, prepare the failed
+operation **before** the documented hard power-supply cycle:
+
+```sh
+fes-kit-software prepare-power-cycle \
+  --operation FAILED_OPERATION_ID --generation OBSERVED_GENERATION \
+  --selected COMMITTED_PREVIOUS_BUNDLE_ID \
+  --base RUNNING_BASE_IMAGE_SHA256 --boot CURRENT_BOOT_ID \
+  --action FRESH_64_CHARACTER_LOWERCASE_HEX_ID
+```
+
+This root-only action verifies the native runtime and existing reservation
+without retrying cleanup. It preserves the original failure in a durable audit,
+cancels that failed software request, and leaves the current boot fenced in its
+existing maintenance reservation. It does not release maintenance, restart a
+service, change the committed selection or initiate a reboot. Its result is
+`prepared-awaiting-physical-cycle`, not successful recovery.
+
+The operator must then perform the [documented hard power-supply
+cycle](../sources/FogCast/docs/DEVELOPMENT.md#restarting-target-services).
+After boot, verify the actual base, committed/active bundle, generation, native
+idle readiness and free admission. A changed boot ID alone does not prove power
+removal. Preserve any newer queued operation; preparation and delayed retries
+cannot cancel it or restore an older selection. If another update activates,
+report its new generation instead of treating the earlier selection as current.
 
 ## API and evidence
 
@@ -128,31 +202,49 @@ Software tests establish host behavior. They do not establish card power-loss
 behavior, physical startup, HDMI/input/media behavior or exact-artifact kit
 acceptance for a new bundle.
 
-## Package an update without rebuilding the OS
+## Build an update without rebuilding the OS
 
-Retain an extracted, verified appliance root as the base. Build the four new ARMv7
-executables and place them under `payload/bin/` with their deployed names
-(`mister-agent`, `mister-runtime`, `fogcast-kit`, `fogcast-tenfoot`). Put required
-application assets, including the launcher defaults `fogcast/config.toml`, under
-`payload/share/`. Assets embedded in Go executables need no separate copy. Build
-the selected FogCast's `build-fes-kit-bundle-container` helper; its adjacent
-`kit-software.revision` records the selected source revision.
+On Linux amd64, retain the verified `linux.img` and its reviewed SHA-256 from the
+appliance release manifest. Keep the matching verified SDK cache from that image
+build, or set `FES_TARGET_IMAGE_SHARED_CACHE` to its existing absolute cache path.
+Commit the new software sources, then run:
 
 ```sh
-python3 image/scripts/kit-software.py \
-  --base-root /path/to/verified-extracted-root \
-  --payload /path/to/new-payload \
-  --output /path/to/kit-update.tar \
-  --version kit-2026.10.15 \
-  --fogcast /path/to/selected/FogCast \
-  --runtime-revision FULL_RUNTIME_SOURCE_SHA
+make kit-software \
+  KIT_SOFTWARE_BASE=/absolute/path/linux.img \
+  KIT_SOFTWARE_BASE_SHA256=REVIEWED_IMAGE_SHA256 \
+  KIT_SOFTWARE_VERSION=kit-2026.10.16
 ```
 
-This Linux/amd64 packaging command verifies the retained factory bundle and base
-contract, checks the new executables' ARM ABI, interpreter, dynamic dependencies
-and versioned symbols against that base, then publishes a deterministic archive.
-It does not modify the extracted base or payload, rebuild the image, select the
-release, or contact a kit. A failed build preserves an existing output archive.
-Upload the resulting archive through the software-release install command, then
-request activation separately. If the base ABI does not satisfy the new software,
-change its dependencies or plan an explicit base-image upgrade.
+The command freezes the committed FES HEAD, builds the agent and both launchers
+with the selected Go version, and builds the runtime with the pinned container
+and verified cached ARM SDK. It copies application assets from that same source
+snapshot. It never runs an OS image build or an FPGA package producer. A missing
+or mismatching SDK fails explicitly; qualify its base image first.
+
+The image hash is required: an extracted filesystem or a self-authored base
+receipt is not a substitute for the reviewed image identity. The command hashes
+a private image copy before extracting the factory and system-library trees,
+then validates factory integrity and the new software's architecture, dynamic
+library dependencies and versioned symbols against the retained base contract.
+The supplied image stays unchanged.
+
+The default output is the new directory `out/kit-software/<version>/`, containing
+`bundle.tar` and `receipt.json`. Override the directory with
+`KIT_SOFTWARE_OUTPUT=/absolute/new-release-directory`. Existing output directories
+are never overwritten, including when two builders compete. Failed builds leave
+prior outputs intact. The receipt closes the bundle digest, file inventory,
+selected source and tree identities, base image/factory/ABI identities, Go
+version, and SDK/container identities. It explicitly records `deployed: false`.
+
+Install `bundle.tar` through the software-release client and request activation
+separately. Build receipts do not establish hardware acceptance. If the retained
+base cannot satisfy the new software's ABI, change its dependencies or plan an
+explicit base-image upgrade. Host software and installed core packages remain
+independently managed.
+
+For producers that already have a closed payload, the lower-level
+`image/scripts/kit-software.py --base-root ... --payload ... --output ...
+--version ... --fogcast ... --runtime-revision ...` command remains available.
+Its caller is responsible for authenticating the extracted base against the
+reviewed original image; prefer the parent command for ordinary updates.

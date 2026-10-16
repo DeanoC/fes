@@ -64,6 +64,9 @@ packages and publishes a structurally checked diagnostic image under
 seed that cache; otherwise the first run builds the base once. See
 [the incremental workflow](docs/development.md#incremental-native-image).
 
+For compatible kit software updates, use `make kit-software` with a retained
+verified base image; see [kit software releases](docs/kit-software-releases.md).
+
 For clean integration and release verification:
 
 ```sh

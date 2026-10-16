@@ -44,8 +44,11 @@ MEDIA_RECIPE_FILES = tuple(ROOT / name for name in (
     "scripts/appliance_media.py", "scripts/appliance_media_inside.py",
     "containers/boot-media/Dockerfile", "containers/boot-media/create-builder-user.sh",
     "containers/boot-media/packages.sha256"))
+# The standalone bundle producer consumes an existing verified OS image; the
+# cold image build never consumes its implementation.
 BUILD_RECIPE_FILES = tuple(path for path in sorted((ROOT / "scripts").glob("*.py"))
-                           if path not in MEDIA_RECIPE_FILES and not is_diagnostic_recipe_file(path)) + (REGISTRY_PATH,)
+                           if path not in MEDIA_RECIPE_FILES and not is_diagnostic_recipe_file(path)
+                           and path != ROOT / "scripts/kit_software.py") + (REGISTRY_PATH,)
 IMAGE_RECIPE_NAMES = (
     "Makefile",
     "build/target-image.sources.lock.toml",
