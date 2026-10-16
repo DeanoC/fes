@@ -207,6 +207,11 @@ func (o Options) normalized() Options {
 	if o.HomeRoom == "" {
 		o.HomeRoom = strings.TrimSpace(os.Getenv("FOGCAST_HOME_ROOM"))
 	}
+	if o.HomeRoom == "" && o.Home == "rooms" {
+		if backend, err := gfx.ParseBackend(o.GFX); err == nil && backend == gfx.BackendMenuDisplay {
+			o.HomeRoom = "example.fes-cores"
+		}
+	}
 	if envTruthy(os.Getenv("FOGCAST_TENFOOT_REDUCED_MOTION")) || envTruthy(os.Getenv("FOGCAST_REDUCED_MOTION")) {
 		o.ReducedMotion = true
 		o.ReducedMotionSet = true

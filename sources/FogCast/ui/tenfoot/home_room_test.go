@@ -303,3 +303,53 @@ func TestConfiguredAppAppliesHomeRoom(t *testing.T) {
 		t.Fatalf("homeRooms=%v homeRoom=%q", app.homeRooms, app.homeRoom)
 	}
 }
+
+func TestInstalledCoresHomeDefault(t *testing.T) {
+	for _, tc := range []struct {
+		name, backend, backendEnv, home, flag, pref, env, want string
+	}{
+		{name: "kit rooms", backend: "menu-display", home: "rooms", want: "example.fes-cores"},
+		{name: "environment backend", backendEnv: "menu-display", home: "rooms", want: "example.fes-cores"},
+		{name: "explicit room", backend: "menu-display", home: "rooms", flag: "chosen", pref: "saved", env: "environment", want: "chosen"},
+		{name: "saved room", backend: "menu-display", home: "rooms", pref: "saved", env: "environment", want: "saved"},
+		{name: "environment room", backend: "menu-display", home: "rooms", env: "environment", want: "environment"},
+		{name: "kit library", backend: "menu-display", home: "library"},
+		{name: "host SDL", backend: "sdl", home: "rooms"},
+		{name: "framebuffer", backend: "linuxfb", home: "rooms"},
+		{name: "software", backend: "software", home: "rooms"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("TENFOOT_GFX", tc.backendEnv)
+			t.Setenv("FOGCAST_HOME_ROOM", tc.env)
+			path := filepath.Join(t.TempDir(), "tenfoot.json")
+			if err := saveTenfootPrefs(path, tenfootPrefs{Home: tc.home, HomeRoom: tc.pref}); err != nil {
+				t.Fatal(err)
+			}
+			opts := Options{PrefsPath: path, GFX: tc.backend, HomeRoom: tc.flag}.normalized()
+			if opts.HomeRoom != tc.want {
+				t.Fatalf("home room = %q, want %q", opts.HomeRoom, tc.want)
+			}
+		})
+	}
+}
+
+func TestInstalledCoresDefaultOpensAndBackKeepsHomePicker(t *testing.T) {
+	t.Setenv("FOGCAST_HOME_ROOM", "")
+	h := newRoomHost(t)
+	opts := Options{GFX: "menu-display", Home: "rooms", HomeSet: true, PrefsPath: filepath.Join(t.TempDir(), "tenfoot.json")}.normalized()
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	app.SetPrefsPath(opts.PrefsPath)
+	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
+	app.SetHomeRooms(true)
+	app.SetHomeRoom(opts.HomeRoom)
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitFor(t, app, "installed cores root", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.ID == "example.fes-cores" && s.Room.Err == ""
+	})
+	app.HandleCommand(CmdBack, time.Now())
+	snap := app.Snapshot()
+	if snap.Room.Open || !snap.RoomPicker.Open {
+		t.Fatalf("Back must expose Home picker: room=%v picker=%v", snap.Room.Open, snap.RoomPicker.Open)
+	}
+}
