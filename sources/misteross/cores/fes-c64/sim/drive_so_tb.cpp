@@ -14,7 +14,7 @@ static constexpr unsigned captured[7]={0x0080,0x00c0,0x00f0,0x00ff,0xffff,0xffff
 
 static void run(unsigned phase,unsigned width,unsigned mask) {
     Vdrive_so_sim_top t;
-    t.clk=0;t.reset=1;t.byte_ready_n=1;t.clear_overflow=0;
+    t.clk=0;t.reset=1;t.byte_ready_n=1;t.clear_overflow=0;t.adjacent_clv=0;
     unsigned refs=0,fetches=0,injection=0,v_tick=0,marker_tick=0;
     bool armed=false,injected=false,clearing=false,cleared=false;
     for(unsigned sys=0;sys<18000;++sys){
@@ -47,7 +47,7 @@ static void run(unsigned phase,unsigned width,unsigned mask) {
 }
 static void reset_case(bool pending) {
     Vdrive_so_sim_top t;
-    t.clk=0;t.reset=1;t.byte_ready_n=pending ? 1 : 0;t.clear_overflow=0;
+    t.clk=0;t.reset=1;t.byte_ready_n=pending ? 1 : 0;t.clear_overflow=0;t.adjacent_clv=0;
     unsigned refs=0,reset_ref=0;
     bool requested=false,asserted=false,released=false;
     for(unsigned sys=0;sys<18000;++sys){
@@ -75,10 +75,47 @@ static void reset_case(bool pending) {
     }
     if(pending&&(!asserted||!released))std::abort();
 }
+static void clv_case(unsigned offset) {
+    Vdrive_so_sim_top t;
+    t.clk=0;t.reset=1;t.byte_ready_n=1;t.clear_overflow=0;t.adjacent_clv=1;
+    unsigned refs=0,anchor=0,v_tick=0,marker_tick=0;
+    bool armed=false,injected=false;
+    for(unsigned sys=0;sys<18000;++sys){
+        t.clk=0;t.eval();
+        if(sys==400)t.reset=0;
+        if(t.ref_ce){
+            // The CLV dummy read precedes this repeated opcode-fetch cycle.
+            // Anchor the first BVC's DECODE, not the earlier REG prefetch.
+            if(!armed&&t.state==12&&t.pc==0xc002&&t.divider==0){
+                armed=true;anchor=refs;
+            }
+            if(armed&&!injected&&refs==anchor+offset){
+                injected=true;t.byte_ready_n=0;
+            }
+            ++refs;
+        }
+        t.clk=1;t.eval();
+        if(injected&&t.overflow&&!v_tick)v_tick=refs-1;
+        if(t.marker==0xa5&&!marker_tick)marker_tick=refs-1;
+    }
+    // Netlist observations: the first eight positions are inhibited; later
+    // edges set V at relative32/48/64 and finish the program in CPU cycle10.
+    // The RTL writes RAM late in Phi2; the netlist memory adapter writes at
+    // Phi2's rising edge. Compare the complete CPU cycle, not those bus phases.
+    bool captured=offset>=8;
+    unsigned expected_v=offset<24 ? 32 : offset<40 ? 48 : 64;
+    if(!armed||!injected||bool(v_tick)!=captured||bool(marker_tick)!=captured||
+        (captured&&(v_tick-anchor!=expected_v||(marker_tick-anchor)/16!=10))){
+        std::printf("SO CLV offset%u anchor%u V%u marker%u captured%u\n",
+            offset,anchor,v_tick,marker_tick,captured);
+        std::exit(1);
+    }
+}
 int main(int argc,char**argv){
     Verilated::commandArgs(argc,argv);
     for(unsigned i=0;i<7;++i)for(unsigned phase=0;phase<16;++phase)
         run(phase,widths[i],captured[i]);
     reset_case(false);reset_case(true);
-    std::puts("1541 SO:112 netlist-derived phase/pulse cases, BVC, CLV, reset and raw VIA path passed");
+    for(unsigned offset=0;offset<48;++offset)clv_case(offset);
+    std::puts("1541 SO:112 pulse/phase and48 CLV-inhibit netlist cases, BVC, reset and raw VIA path passed");
 }

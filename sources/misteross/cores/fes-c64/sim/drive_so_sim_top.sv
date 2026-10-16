@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 module drive_so_sim_top (
-    input wire clk, reset, byte_ready_n, clear_overflow,
+    input wire clk, reset, byte_ready_n, clear_overflow, adjacent_clv,
     output wire ref_ce, phi, cpu_reset, cpu_so_n, raw_ca1, overflow,
     output wire [3:0] divider,
     output wire [15:0] pc,
@@ -10,6 +10,15 @@ module drive_so_sim_top (
     wire [13:0] address;
     reg [7:0] data;
     function automatic [7:0] rom(input [13:0] a);
+        if(adjacent_clv) begin
+            case(a)
+            0:rom=8'hb8; 1:rom=8'h50; 2:rom=8'hfe; // CLV; BVC self
+            3:rom=8'ha9; 4:rom=8'ha5;
+            5:rom=8'h8d; 6:rom=0; 7:rom=2;
+            8:rom=8'h4c; 9:rom=8'h08; 10:rom=8'hc0;
+            14'h3ffc:rom=0; 14'h3ffd:rom=8'hc0; default:rom=8'hea;
+            endcase
+        end else begin
         case(a)
         0:rom=8'hb8; 1,2:rom=8'hea; // CLV; NOP; NOP
         3:rom=8'h50; 4:rom=8'hfe; // BVC self
@@ -21,6 +30,7 @@ module drive_so_sim_top (
         14'h3ffc:rom=0; 14'h3ffd:rom=8'hc0;
         default:rom=8'hea;
         endcase
+        end
     endfunction
     always @(posedge clk) data <= rom(address);
     c64_drive1541 drive(.clk(clk),.reset(reset),

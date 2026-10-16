@@ -73,7 +73,7 @@ module c64_drive1541 #(
             if (cpu_div == 4'd0) cpu_so_n <= sampled_so_n;
         end
     end
-    cpu6502 #(.ENABLE_SO(1)) cpu (.clk(clk), .reset(cpu_reset), .AB(ab), .DI(cpu_data),
+    cpu6502 #(.ENABLE_SO(1), .ENABLE_SO_CLV_INHIBIT(1)) cpu (.clk(clk), .reset(cpu_reset), .AB(ab), .DI(cpu_data),
         .DO(data_out), .WE(we), .IRQ(irq1 || irq2), .NMI(1'b0), .RDY(phi), .SO(cpu_so_n));
     assign debug_pc = ab;
     assign rom_address = bus_addr[13:0];

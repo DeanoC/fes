@@ -18,7 +18,7 @@
  * on the output pads if external memory is required.
  */
 
-module cpu6502 #(parameter ENABLE_SO = 0)( clk, reset, AB, DI, DO, WE, IRQ, NMI, RDY, SO );
+module cpu6502 #(parameter ENABLE_SO = 0, parameter ENABLE_SO_CLV_INHIBIT = 0)( clk, reset, AB, DI, DO, WE, IRQ, NMI, RDY, SO );
 
 input clk;              // CPU clock
 input reset;            // reset signal
@@ -871,6 +871,13 @@ generate if (ENABLE_SO) begin : so_pin
     // A held decode state must not erase a pin event between CPU enables.
     // Instruction writes retain priority when they coincide with an SO edge.
     reg previous = 1;
+    // With a phase-qualified SO input, an edge sampled while CLV finishes
+    // can arrive after CLV's flag write. The NMOS input path discards that
+    // event rather than setting V again in the following instruction.
+    reg clv_inhibit = 0;
+    always @(posedge clk)
+        if (reset) clv_inhibit <= 0;
+        else if (RDY) clv_inhibit <= state == DECODE && clv;
     always @(posedge clk) previous <= SO;
     always @(posedge clk)
         if (RDY && state == RTI2) V <= DIMUX[6];
@@ -879,7 +886,7 @@ generate if (ENABLE_SO) begin : so_pin
             if (clv) V <= 0;
             if (plp) V <= ADD[6];
         end else if (RDY && state == FETCH && bit_ins) V <= DIMUX[6];
-        else if (!reset && previous && !SO) V <= 1;
+        else if (!reset && previous && !SO && !(ENABLE_SO_CLV_INHIBIT && clv_inhibit)) V <= 1;
 end else begin : legacy_v
 /*
  * Update V flag

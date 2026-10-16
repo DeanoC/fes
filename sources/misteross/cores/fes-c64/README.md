@@ -599,10 +599,21 @@ level at the following Phi1 boundary. The VIA CA1 latch retains the raw pin.
 `sim-fes-c64-drive-so` checks 112 phase/pulse cases against observations from
 the original NMOS transistor netlist in
 [perfect6502](https://github.com/mist64/perfect6502/tree/09fc542877a84318291aa42dab143a3e2c3db974),
-including BVC polling, CLV under a held-low pin and the raw VIA path.
+including BVC polling, CLV under a held-low pin and the raw VIA path. Another
+48 netlist cases check edges around CLV, including the suppressed window and
+the CPU cycle in which polling finishes. The drive enables the shared CPU's
+optional CLV inhibit so a delayed SO edge cannot undo CLV's flag write.
+`sim/so_phase_oracle.c` reproduces these observations with that external
+netlist checkout; it is not part of the build or a required test dependency.
+Build it using the command in its header. `settled 7 1` observes a one-tick
+pulse at the sampling boundary, and `clv 0 0` observes a held-low edge in
+CLV's suppressed window. Width zero keeps the pin low; an optional final
+argument zero selects a rising-edge negative control. The model toggles
+the CPU clock every eight reference ticks, so it qualifies digital half-cycle
+behavior without resolving analogue timing within a clock phase.
 The shared CPU's optional SO input retains its asynchronous edge interface;
 `sim-fes-c64-so` checks both enabled and default-disabled modes. Analogue SO
-setup-time margins, instruction-specific SO inhibit windows and VIA serial
+setup-time margins, other instruction-specific SO inhibit windows and VIA serial
 shifting remain unimplemented. These same drive, VIA and GCR modules belong to the
 production source closure.
 
