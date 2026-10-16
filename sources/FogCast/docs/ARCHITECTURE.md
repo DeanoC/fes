@@ -338,8 +338,24 @@ optional sealed package ID, and on an appliance boot the bootstrap ticket
 `image_sha256`. The agent does not hash live binaries on each poll. Missing
 fields mean there is no sealed record (for example an unsealed diagnostic image), not
 that identity was rewritten. Host `GET /api/v1/health` adds a `host` identity
-(`version`, `revision`, `os`, `arch`) and forwards `target.artifacts` when the
-target is reachable. These identities describe provenance, not runtime
+(`version`, `revision`, `os`, `arch`) and forwards `target.artifacts` and
+`target.api_version` when the target is reachable. Authenticated target health
+also reports managed software independently of that sealed base-image record.
+The host projects only `target.software.active_bundle`, `base_identity`,
+`selected` and `generation`; it omits the operation journal, requester labels
+and diagnostic error strings. Unmanaged targets omit `target.software`, and
+failed health does not retain a previous identity. Public unauthenticated target
+health never exposes software status.
+
+`GET /api/v1/kit/software/releases` reads the selected target's immutable release
+inventory through the authenticated target client, without acquiring a lease or
+changing selection. The response is an array of `{id, manifest}` records with
+verified manifest IDs. Paired launcher requests read their authenticated kit,
+not another host-selected target. Diagnostics can match `active_bundle` to a
+manifest and inspect its declared interface contracts; inventory is not fetched
+on the health polling path. Activation and runtime readiness remain independent
+requirements. The base record's runtime commit does not identify a running
+replacement bundle. Source revisions describe provenance, not runtime
 compatibility. FES retains exact component pins, native input locks, hashes and
 release receipts for reproducibility and exact-artifact acceptance.
 

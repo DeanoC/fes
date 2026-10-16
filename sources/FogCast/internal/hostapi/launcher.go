@@ -299,7 +299,7 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			return
 		}
 		if pairedRead {
-			if r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/status" || r.URL.Path == "/api/v1/session/input" || r.URL.Path == "/api/v1/games" || launcherGamePath(r.URL.Path) || r.URL.Path == "/api/v1/library/cache" {
+			if r.URL.Path == "/api/v1/health" || r.URL.Path == "/api/v1/status" || r.URL.Path == "/api/v1/session/input" || r.URL.Path == "/api/v1/games" || launcherGamePath(r.URL.Path) || r.URL.Path == "/api/v1/library/cache" || r.URL.Path == "/api/v1/kit/software/releases" {
 				r = r.WithContext(fogcast.WithPairedTarget(r.Context(), headerID))
 			}
 			r = r.WithContext(withLauncherTarget(r.Context(), name))
@@ -388,7 +388,7 @@ func launcherPairedRead(method, path string) bool {
 		return false
 	}
 	switch path {
-	case "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/status", "/api/v1/session/input", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/facets", "/api/v1/library/hardware", "/api/v1/library/titles", "/api/v1/library/zx81-tapes":
+	case "/api/v1/kit/software/releases", "/api/v1/games", "/api/v1/platforms", "/api/v1/health", "/api/v1/status", "/api/v1/session/input", "/api/v1/launcher/kit-lease", "/api/v1/library/attract", "/api/v1/library/cache", "/api/v1/library/collections", "/api/v1/library/facets", "/api/v1/library/hardware", "/api/v1/library/titles", "/api/v1/library/zx81-tapes":
 		return true
 	}
 	return launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path)
@@ -525,7 +525,7 @@ func launcherOperation(method, path string) bool {
 		return true
 	}
 	switch method + " " + path {
-	case "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/facets", "GET /api/v1/library/hardware", "GET /api/v1/library/titles", "GET /api/v1/library/zx81-tapes", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop", "POST /api/v1/core-media":
+	case "GET /api/v1/kit/software/releases", "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/facets", "GET /api/v1/library/hardware", "GET /api/v1/library/titles", "GET /api/v1/library/zx81-tapes", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop", "POST /api/v1/core-media":
 		return true
 	}
 	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path))

@@ -12,9 +12,9 @@ library to test a branch. Stop only the private host you started.
 Several idle hosts may inspect the same kit. The target lease admits one
 execution owner; a competing launch must report busy without stopping another
 session. Do not run two controllers for the same owned session. Keep the normal
-menu available between probes and during long builds. If a diagnostic requires
-changing the launcher, record its configuration and restore that temporary
-change after testing; do not disable the shared host as routine cleanup.
+menu available between probes and during long builds. Launcher changes on a
+managed image use a bundle update; do not disable the shared host as routine
+cleanup.
 
 The target lease is sufficient coordination for ordinary kit use: loading a
 core, supplying media/input, collecting diagnostics and stopping the session.
@@ -46,7 +46,9 @@ procedure. The tools reject missing maintenance routes and refuse replacement
 agents that cannot enforce the reservation; there is no SSH-only fallback.
 
 Host, agent and runtime revisions may differ when their advertised contracts are
-supported. Record each exact artifact independently. A new core using a supported
+supported. Diagnostics pin the active bundle and base-image digests; sealed
+base-image runtime provenance does not identify the active bundle. Record each
+exact artifact independently. A new core using a supported
 ABI uses package import/selection/launch rather than a kit-file swap or OS update.
 An accepted appliance update remains installed; unmanaged temporary overlay diagnostics
 retain their explicit restore procedure. Managed software releases stay installed.

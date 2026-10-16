@@ -50,6 +50,7 @@ func New(controller Controller, token string, version string, logger *slog.Logge
 	mux.HandleFunc("GET /v1/health", func(w http.ResponseWriter, r *http.Request) {
 		health := controller.Health(version)
 		health.TargetID = ""
+		health.Software = nil
 		if authenticatedRequest(r, token) {
 			health.TargetID = settings.targetID
 			if settings.kitSoftwareSocket != "" {
