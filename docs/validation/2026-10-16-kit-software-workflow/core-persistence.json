@@ -1,0 +1,37 @@
+{
+  "all_existing_bytes_unchanged": true,
+  "base_identity": "32f16cd2eba9befefaef7f6c94ee70f5c830b3c231e859222df7c7aee7b3b993",
+  "boot_id": "e9c755b2-b341-479c-b2dc-5b295f33f26d",
+  "existing_files_compared": 6,
+  "files": [
+    {
+      "path": "archives/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337.fcore",
+      "sha256": "df8a5d7ee4ac42e1f2ba261f3c48536b59400294151b2eed075d4b00712c0b02"
+    },
+    {
+      "path": ".lock",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/rom-map.json",
+      "sha256": "d8c19066779510301e2b7f1ce49e4ccdd4e34452ba110258287ecc54e8559043"
+    },
+    {
+      "path": "packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/core.rbf",
+      "sha256": "79e74f2cc1b01abd61eb986c1a93ead7684ebf88be499ff5f7b883bdb56cf6d3"
+    },
+    {
+      "path": "packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/manifest.toml",
+      "sha256": "7890fe09cccfb15e12de53311d0ff53763261ae76299f0a93c0572e05998ac71"
+    },
+    {
+      "path": "selections.json",
+      "sha256": "422cfac5e1a029c8d9a77d3a6f3571aa02f9d3551ad7e8e266d65c211376d04d"
+    }
+  ],
+  "generation": 6,
+  "outcome": "pass",
+  "scope": "Installed-core archive, members and selection bytes unchanged after final image adoption, recovery and two Pong launch/input/Stop cycles; no Coleco execution claim.",
+  "selected_bundle": "7d71e90f32da8d0ff7ce26472539bc067648abb0c5fc865654dc4aec8f1c04d0",
+  "selection_sha256": "422cfac5e1a029c8d9a77d3a6f3571aa02f9d3551ad7e8e266d65c211376d04d"
+}

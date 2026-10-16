@@ -1,0 +1,93 @@
+{
+  "container_image": "sha256:ab62ac5ca21cff3313f41a3f62ece2d42b76627045ff47d1384139969012c4f5",
+  "core_id": "fes.pong",
+  "created_at_utc": "2026-10-16T05:27:13.005232+00:00",
+  "cycles": [
+    {
+      "container": {
+        "cycle": "cycle-1",
+        "exit_code": 0,
+        "forced_remove_error": null,
+        "listen_port": 37119,
+        "name": "fes-package-acceptance-863e7bb0f4e5a853",
+        "remove_attempts": 1,
+        "remove_error": null,
+        "removed": true,
+        "status": "exited",
+        "stop_error": null
+      },
+      "diagnostics": [
+        {
+          "events_acknowledged": 2,
+          "events_requested": 2,
+          "frame_delta": 2,
+          "frames_after": 62,
+          "frames_before": 60,
+          "input_session_id": "a58cc3611fb805f6",
+          "interface": {
+            "id": "fes.gamepad",
+            "major": 1,
+            "minor": 0
+          },
+          "sha256": "3d80d5f5f2ce7991af1f623b8e51630a027cd534a6478e5c86577d177b446460"
+        }
+      ],
+      "game_id": "fpga-persistent-software-workflow-pong-diagnostic-2eb2a4424685",
+      "name": "initial"
+    },
+    {
+      "container": {
+        "cycle": "cycle-2",
+        "exit_code": 0,
+        "forced_remove_error": null,
+        "listen_port": 37699,
+        "name": "fes-package-acceptance-c3699f481e1b05ec",
+        "remove_attempts": 1,
+        "remove_error": null,
+        "removed": true,
+        "status": "exited",
+        "stop_error": null
+      },
+      "diagnostics": [
+        {
+          "events_acknowledged": 2,
+          "events_requested": 2,
+          "frame_delta": 2,
+          "frames_after": 62,
+          "frames_before": 60,
+          "input_session_id": "cb34ffe2b510bcd1",
+          "interface": {
+            "id": "fes.gamepad",
+            "major": 1,
+            "minor": 0
+          },
+          "sha256": "3d80d5f5f2ce7991af1f623b8e51630a027cd534a6478e5c86577d177b446460"
+        }
+      ],
+      "game_id": "fpga-persistent-software-workflow-pong-diagnostic-2eb2a4424685",
+      "name": "restart"
+    }
+  ],
+  "diagnostic_scope": "Explicit event acknowledgements and input frame-counter increases in both cycles are required for success; not hardware consumption, HDMI or physical controller acceptance.",
+  "format": 1,
+  "host_binary_sha256": "ab9473572974a419ad85cf0c425b55b6e76dcde8d090582082ccaedb83266797",
+  "host_revision_policy": "full-commit",
+  "input_diagnostic": {
+    "events_requested": 2,
+    "interface": {
+      "id": "fes.gamepad",
+      "major": 1,
+      "minor": 0
+    },
+    "sha256": "3d80d5f5f2ce7991af1f623b8e51630a027cd534a6478e5c86577d177b446460"
+  },
+  "mode": "isolated-lifecycle-input-diagnostic",
+  "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+  "revisions": {
+    "agent": "b463f445b34eed9dbeabdbae5d92b63d5867a33d",
+    "host": "beeeb0b40f952f1d38f3cf2865e592c1d634637b",
+    "runtime": "9af8dbb2b8d77f622a4414d8969efe5cb5f3cb5e"
+  },
+  "success": true,
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+}

@@ -1,9 +1,11 @@
-# Retained-base kit software workflow: partial acceptance
+# Retained-base kit software workflow: validation
 
-[PR #732](https://github.com/DeanoC/fes/pull/732) remains draft. Host validation
-and image qualification passed; final hardware acceptance is incomplete. The
+[PR #732](https://github.com/DeanoC/fes/pull/732) completed host validation,
+image qualification, final-image adoption and failed-candidate recovery, followed
+by two Pong launch/input-API/Stop cycles, captured HDMI output and installed-core
+byte persistence checks. The
 [sanitized evidence](2026-10-16-kit-software-workflow/evidence.json) separates
-prior hardware observations, failed recovery and pending checks.
+prior hardware observations, failed recovery, artifact-specific results and limits.
 
 ## Scope and exact inputs
 
@@ -61,19 +63,63 @@ neither establishes the cause of that observed hardware fault.
 The source-`095cf32b` power-preparation helper durably audited and cancelled that
 failed request while preserving selection, generation 5, base, boot and process
 identities. It left maintenance held; it restarted nothing and released no
-admission. The selected bundle remains `7d71e90f…` on base `a9b7718c…`.
-A bounded twenty-minute read-only monitor saw no boot change in 48 snapshots.
-Physical recovery has not been confirmed.
+admission. A subsequent bounded twenty-minute read-only monitor saw no boot
+change in 48 snapshots.
 
-## Remaining integration
+At the user's request, one explicit software reboot then restored readiness,
+idle runtime status and free admission for over ten seconds. Boot changed from
+`c7505aea…` to `687e01ff…`; base `a9b7718c…`, selected bundle `7d71e90f…` and
+generation 5 were preserved. No physical power cycle occurred. The earlier claim
+that a soft reboot could not suffice was too strong: this reboot restored the
+observed state. The original automatic failed-candidate recovery remains failed.
 
-1. Physically disconnect and reconnect `.84` power, then verify fresh native idle,
-   readiness, free admission and preserved selection, respecting newer intent.
-2. Under the kit lease, adopt and confirm the exact qualified image above through
-   the supported appliance updater.
-3. Repeat failed-candidate recovery and prove the single bounded recovery attempt.
-4. Complete HDMI/input, installed-core launch and persistence acceptance.
-5. Update this evidence and mark the validated PR ready for the grokbot pipeline.
+## Final-image adoption and recovery
 
-A front-panel reset or soft reboot does not substitute for the required physical
-power cycle. No final-image hardware acceptance is claimed.
+The supported appliance updater staged, activated and confirmed the exact
+`32f16cd2…` image above. Boot changed to `e9c755b2…`, the image became confirmed
+good with `trial: false`, and base identity matched the qualified image hash.
+Persistent bundle `7d71e90f…` was reconciled at generation 6; it remained selected
+and active with no pending or unreleased operation. Post-adoption readiness,
+idle runtime status and free admission remained stable for over ten seconds.
+The final base/supervisor is source `9af8dbb2…`; the persistent userspace bundle
+retains its recorded source `b463f445…`.
+
+On that final supervisor image, deliberately failing candidate `b69e84c0…`
+produced one durable `recovered` receipt. Selected bundle, generation 6, base and
+boot remained unchanged, with fifteen seconds of healthy/free state afterward
+and no reboot. The observer recorded one entry into recovery and no replay.
+Source and host tests establish the bounded recovery policy; these API
+observations do not count every process start.
+
+## Pong, HDMI and persistence checks
+
+The first isolated-input attempt refused a runtime metadata pin of `b463f445…`
+before any game cycle, and its container was removed cleanly. The corrected pin
+is the base runtime artifact revision, `9af8dbb2…`; the actual selected userspace
+bundle remains `7d71e90f…`, built from `b463f445…`. The compatible private host is
+`beeeb0b4…`. These components do not need identical source commits.
+
+The corrected [input diagnostic](2026-10-16-kit-software-workflow/input-receipt.json)
+passed both initial and restart cycles. Each held the exact owned active session
+for fifteen seconds, acknowledged two API input events and advanced the input
+frame counter by two. Ordinary Stop and identity checks completed; both private
+containers exited successfully and were removed. This proves the recorded API
+input path and lifecycle, not physical controller delivery or hardware consumption.
+
+A 67-second HDMI recording shows Pong during both active cycles and the launcher
+after Stop. The capture was intentionally stopped with SIGINT, returning 255;
+`ffprobe` confirmed a complete H.264 MP4. Independently reviewed frames show
+[initial Pong](2026-10-16-kit-software-workflow/hdmi-frame-03.png),
+[restart Pong](2026-10-16-kit-software-workflow/hdmi-frame-09.png) and the
+[restored launcher](2026-10-16-kit-software-workflow/hdmi-frame-12.png).
+
+The [persistence comparison](2026-10-16-kit-software-workflow/core-persistence.json)
+found all six original installed-core files unchanged after final adoption,
+recovery and both Pong cycles, including the archive, members and selection bytes.
+It does not claim Coleco execution. The final observation held ready, idle and
+free for over ten seconds on confirmed image `32f16cd2…`, selected bundle
+`7d71e90f…`, generation 6, with no pending or unreleased operation.
+
+This completes the workflow's bounded acceptance checks. Physical controller
+delivery, hardware input consumption and Coleco execution are not claimed.
+The next step is to mark the PR ready for the grokbot review pipeline.

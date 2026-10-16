@@ -1,0 +1,14 @@
+{
+  "cleanup_errors": [],
+  "completed_cycles": 0,
+  "containers_removed": true,
+  "corrected_runtime_metadata_revision": "9af8dbb2b8d77f622a4414d8969efe5cb5f3cb5e",
+  "error": "isolated host did not become ready: isolated host runtime identity does not match the expected revision",
+  "evidence": {
+    "file": "fes-workflow-main-input/failure.json",
+    "sha256": "88812e78e624b9c8a4e19c1d299a3d84c327600ebb87c4377afb3f99008244b1"
+  },
+  "expected_runtime_metadata_revision": "b463f445b34eed9dbeabdbae5d92b63d5867a33d",
+  "outcome": "preflight runtime metadata expectation mismatch",
+  "success": false
+}
