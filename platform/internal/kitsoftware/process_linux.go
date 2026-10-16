@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"golang.org/x/sys/unix"
+	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +15,8 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"golang.org/x/sys/unix"
 )
 
 // Keep three worst-case sequential service stops below the appliance watchdog's
@@ -26,18 +29,29 @@ const (
 	AgentConfigPath      = "/media/fat/fogcast/agent.toml"
 	AgentConfigWait      = 30 * time.Second
 	LauncherProbeTimeout = 10 * time.Second
+	roleRuntime          = "runtime"
+	roleAgent            = "agent"
+	roleLauncher         = "launcher"
+	launcherRestartMin   = time.Second
+	launcherRestartMax   = 30 * time.Second
+	launcherStableLife   = 2 * time.Second
 )
 
 // ErrProcessExited reports that a supervised process ended before acceptance.
-// Startup may retry it. An exit after acceptance is a service fault and is not
-// restarted behind an execution lease.
+// Startup may retry it. An accepted runtime or agent exit is a service fault
+// and is not restarted behind an execution lease. An accepted launcher exit is
+// restarted by RestartExitedLauncher without stopping the other two.
 var ErrProcessExited = errors.New("software process exited")
 
 type child struct {
-	cmd  *exec.Cmd
-	done chan struct{}
-	err  error
-	path string
+	cmd     *exec.Cmd
+	done    chan struct{}
+	err     error
+	path    string
+	args    []string
+	env     []string
+	role    string
+	started time.Time
 }
 
 // ProcessController directly parents the kit processes. It never relies on
@@ -53,10 +67,14 @@ type ProcessController struct {
 	AgentConfig          string
 	AgentConfigWait      time.Duration
 	LauncherProbeTimeout time.Duration
-	mu                   sync.Mutex
-	children             []*child
-	active               string
-	prepared             *preparedRelease
+	// Output receives child stdout and stderr. Nil uses the supervisor stdout.
+	Output          io.Writer
+	mu              sync.Mutex
+	children        []*child
+	active          string
+	prepared        *preparedRelease
+	launcherRestart time.Time
+	launcherDelay   time.Duration
 }
 
 func (c *ProcessController) Active() string { c.mu.Lock(); defer c.mu.Unlock(); return c.active }
@@ -116,18 +134,39 @@ func (c *ProcessController) stopLocked(ctx context.Context) error {
 	c.active = ""
 	return os.RemoveAll(filepath.Join(c.RunDir, "launcher-ready.json"))
 }
-func (c *ProcessController) start(path string, args []string, env []string) error {
+func (c *ProcessController) start(path string, args []string, env []string, role string) error {
 	cmd := exec.Command(path, args...)
 	cmd.Env = append(os.Environ(), env...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	output := c.Output
+	if output == nil {
+		output = os.Stdout
+	}
+	cmd.Stdout = output
+	cmd.Stderr = output
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
 	if err := cmd.Start(); err != nil {
 		return err
 	}
-	p := &child{cmd: cmd, done: make(chan struct{}), path: path}
+	p := &child{
+		cmd:     cmd,
+		done:    make(chan struct{}),
+		path:    path,
+		args:    append([]string(nil), args...),
+		env:     append([]string(nil), env...),
+		role:    role,
+		started: time.Now(),
+	}
 	c.children = append(c.children, p)
-	go func() { p.err = cmd.Wait(); close(p.done) }()
+	pid := cmd.Process.Pid
+	go func() {
+		p.err = cmd.Wait()
+		name := filepath.Base(path)
+		if role != "" {
+			name = role + " " + name
+		}
+		log.Printf("software process %s pid %d exited: %v", name, pid, p.err)
+		close(p.done)
+	}()
 	return nil
 }
 func (c *ProcessController) Start(ctx context.Context, id string, r Request) error {
@@ -203,7 +242,7 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 	if err := waitForAgentConfig(ctx, configPath, configWait); err != nil {
 		return err
 	}
-	if err := c.start(filepath.Join(root, "bin/mister-runtime"), []string{"--menu-package", "/usr/share/mister-runtime/core-packages/" + menuID, menuID}, env); err != nil {
+	if err := c.start(filepath.Join(root, "bin/mister-runtime"), []string{"--menu-package", "/usr/share/mister-runtime/core-packages/" + menuID, menuID}, env, roleRuntime); err != nil {
 		return err
 	}
 	// Native initialization owns FPGA programming and completes before its
@@ -226,9 +265,9 @@ func (c *ProcessController) Start(ctx context.Context, id string, r Request) err
 		return err
 	}
 	if output == "tenfoot" {
-		err = c.start(filepath.Join(root, "bin/fogcast-tenfoot"), []string{"-config", "/media/fat/fogcast/launcher.json", "-catalog-config", catalog, "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms"}, env)
+		err = c.start(filepath.Join(root, "bin/fogcast-tenfoot"), []string{"-config", "/media/fat/fogcast/launcher.json", "-catalog-config", catalog, "-gfx", "menu-display", "-menu-socket", "/run/mister-runtime.sock", "-input", "auto", "-home", "rooms"}, env, roleLauncher)
 	} else {
-		err = c.start(kit, []string{"--config", "/media/fat/fogcast/launcher.json", "--catalog-config", catalog, "--menu-display"}, env)
+		err = c.start(kit, []string{"--config", "/media/fat/fogcast/launcher.json", "--catalog-config", catalog, "--menu-display"}, env, roleLauncher)
 	}
 	if err != nil {
 		_ = c.stopLocked(ctx)
@@ -249,7 +288,7 @@ func (c *ProcessController) startAgentAfterNativeInitialization(ctx context.Cont
 	if err := waitNativeInitialization(ctx, runtime, socket, probe); err != nil {
 		return err
 	}
-	if err := c.start(path, args, env); err != nil {
+	if err := c.start(path, args, env, roleAgent); err != nil {
 		_ = c.stopLocked(ctx)
 		return err
 	}
@@ -467,14 +506,19 @@ func StopOrphans(ctx context.Context) error {
 	return nil
 }
 
-// ServiceFault does not restart accepted software behind an execution owner's
-// back. Operators can inspect this through the base supervisor's local socket.
+// ServiceFault does not restart an accepted runtime or agent behind an
+// execution owner's back. A dead launcher is reported while RestartExitedLauncher
+// brings that one process back. Operators can inspect this through the base
+// supervisor's local socket.
 func (c *ProcessController) ServiceFault() string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for _, p := range c.children {
 		select {
 		case <-p.done:
+			if p.role == roleLauncher && launcherPeersAlive(c.children) {
+				return fmt.Sprintf("%s exited: %v; supervisor is restarting the launcher", filepath.Base(p.path), p.err)
+			}
 			return fmt.Sprintf("%s exited: %v; explicit supervisor restart required", filepath.Base(p.path), p.err)
 		default:
 		}
@@ -483,6 +527,75 @@ func (c *ProcessController) ServiceFault() string {
 		return "kit software services are not running"
 	}
 	return ""
+}
+
+func launcherPeersAlive(children []*child) bool {
+	if len(children) != 3 {
+		return false
+	}
+	for _, p := range children[:2] {
+		if p.role != roleRuntime && p.role != roleAgent {
+			return false
+		}
+		select {
+		case <-p.done:
+			return false
+		default:
+		}
+	}
+	return true
+}
+
+// RestartExitedLauncher replaces a dead accepted launcher. The runtime and
+// agent stay up, so an execution lease is not dropped and the menu can return.
+// A dead runtime or agent still requires an explicit supervisor restart.
+// Called with no controller lock held.
+func (c *ProcessController) RestartExitedLauncher() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.active == "" || !launcherPeersAlive(c.children) {
+		return nil
+	}
+	launcher := c.children[2]
+	if launcher.role != roleLauncher {
+		return nil
+	}
+	select {
+	case <-launcher.done:
+	default:
+		if time.Since(launcher.started) >= launcherStableLife {
+			c.launcherDelay = launcherRestartMin
+		}
+		return nil
+	}
+	delay := c.launcherDelay
+	if delay < launcherRestartMin {
+		delay = launcherRestartMin
+	}
+	if !c.launcherRestart.IsZero() && time.Since(c.launcherRestart) < delay {
+		return nil
+	}
+	log.Printf("restarting launcher after %s exited: %v", filepath.Base(launcher.path), launcher.err)
+	lived := time.Since(launcher.started)
+	c.children = c.children[:2]
+	if err := c.start(launcher.path, launcher.args, launcher.env, roleLauncher); err != nil {
+		c.children = append(c.children, launcher)
+		return err
+	}
+	c.launcherRestart = time.Now()
+	if lived < launcherStableLife {
+		if c.launcherDelay < launcherRestartMin {
+			c.launcherDelay = launcherRestartMin
+		} else if c.launcherDelay < launcherRestartMax {
+			c.launcherDelay *= 2
+		}
+	} else {
+		c.launcherDelay = launcherRestartMin
+	}
+	if err := os.Remove(filepath.Join(c.RunDir, "launcher-ready.json")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 func processStartTime(pid int) (string, error) {

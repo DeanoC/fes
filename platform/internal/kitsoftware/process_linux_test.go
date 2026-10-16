@@ -33,7 +33,7 @@ func TestProcessStopKillsAndReapsTermIgnoringChild(t *testing.T) {
 		t.Fatal(err)
 	}
 	controller := &ProcessController{RunDir: dir}
-	if err := controller.start(binary, []string{"-test.run=^TestTermIgnoringProcessFixture$"}, []string{"FES_TEST_IGNORE_TERM_READY=" + ready}); err != nil {
+	if err := controller.start(binary, []string{"-test.run=^TestTermIgnoringProcessFixture$"}, []string{"FES_TEST_IGNORE_TERM_READY=" + ready}, ""); err != nil {
 		t.Fatal(err)
 	}
 	child := controller.children[0]
@@ -66,7 +66,7 @@ func TestProcessStopKillsAndReapsTermIgnoringChild(t *testing.T) {
 }
 func TestProcessStopBlocksWhenGroupMemberSurvivesParent(t *testing.T) {
 	controller := &ProcessController{RunDir: t.TempDir()}
-	if err := controller.start("/bin/sleep", []string{"60"}, nil); err != nil {
+	if err := controller.start("/bin/sleep", []string{"60"}, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	parent := controller.children[0]
@@ -130,5 +130,50 @@ func TestLauncherProbeTimeoutDoesNotFollowParentContext(t *testing.T) {
 	}
 	if time.Since(started) > 2*time.Second {
 		t.Fatal("probe followed an unbounded parent context", time.Since(started))
+	}
+}
+
+func TestRestartExitedLauncherRestartsOnlyTheLauncher(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted"}
+	defer func() { _ = c.Stop(context.Background()) }()
+	for _, role := range []string{roleRuntime, roleAgent} {
+		if err := c.start("/bin/sleep", []string{"60"}, nil, role); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := c.start("/bin/true", nil, nil, roleLauncher); err != nil {
+		t.Fatal(err)
+	}
+	launcher := c.children[2]
+	<-launcher.done
+	if !strings.Contains(c.ServiceFault(), "restarting the launcher") {
+		t.Fatal(c.ServiceFault())
+	}
+	if err := c.RestartExitedLauncher(); err != nil {
+		t.Fatal(err)
+	}
+	if c.children[2] == launcher {
+		t.Fatal("launcher was not replaced")
+	}
+	replaced := c.children[2]
+	<-replaced.done
+	if err := c.RestartExitedLauncher(); err != nil {
+		t.Fatal(err)
+	}
+	if c.children[2] != replaced {
+		t.Fatal("launcher restarted again inside the backoff window")
+	}
+	if err := c.children[0].cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	<-c.children[0].done
+	if err := c.RestartExitedLauncher(); err != nil {
+		t.Fatal(err)
+	}
+	if c.children[2] != replaced {
+		t.Fatal("launcher restart ran without a live runtime")
+	}
+	if !strings.Contains(c.ServiceFault(), "explicit supervisor restart") {
+		t.Fatal(c.ServiceFault())
 	}
 }

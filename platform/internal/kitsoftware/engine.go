@@ -123,8 +123,10 @@ func (e *Engine) switchPrepared(ctx context.Context, id string, request Request)
 	}
 	// Restart only until the first accepted readiness window. An exit during
 	// native initialization and an exit observed by health share this deadline.
-	// An exit after health returns is left for ServiceFault so a lease is not
-	// interrupted. Every other Start error ends the attempt unchanged.
+	// An exit after health returns is left for ServiceFault. The supervisor
+	// restarts a dead launcher without stopping the runtime or agent. A dead
+	// runtime or agent is not restarted behind an execution lease. Every other
+	// Start error ends the attempt unchanged.
 	var last error
 	for e.Now().Before(deadline) {
 		if err := ctx.Err(); err != nil {

@@ -1,6 +1,7 @@
 #!/bin/sh
 # The base-image supervisor owns the entire selected kit software process group.
 # It verifies child exit before replacement; PID-file deletion is not proof.
+# Its log and the children's stdout/stderr are /run/fogcast/software/supervisor.log.
 set -eu
 case "${1:-start}" in
  start)

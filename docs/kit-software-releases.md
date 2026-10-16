@@ -87,6 +87,18 @@ not sufficient proof. It starts one selected bundle, checks the agent, runtime
 and launcher, and completes the matching maintenance reservation only after the
 startup checks pass. Accepted software remains selected and survives reboot.
 
+The supervisor appends its own log and the stdout and stderr of the runtime,
+agent and launcher to `/run/fogcast/software/supervisor.log`. The file rotates
+once, at 2 MiB, to `supervisor.log.1`. The directory is root-only tmpfs, so a
+stalled data disk cannot block the log or drop it. The same bytes are copied to
+the supervisor's original stderr. An accepted launcher that exits is restarted
+without stopping the runtime or agent, so a menu crash does not leave a frozen
+frame or drop an execution lease. An accepted runtime or agent exit remains a
+service fault and still needs an explicit supervisor restart. If startup itself
+fails, the supervisor stays up, records the error in that log, and retries with
+backoff instead of exiting. A failure before the status socket is open retries
+the whole startup; a failure after it is open keeps the socket serving the error.
+
 Bundle verification completes before the service startup clock begins, while
 the current group is still running. Each start checks that the verified tree
 has not changed. Stopping services, starting replacements and observing ten
