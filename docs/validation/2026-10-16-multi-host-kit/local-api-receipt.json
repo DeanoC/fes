@@ -1,0 +1,20 @@
+{
+  "active_bundle": "67afde612b5d12cd18aa68485e81b524a56c0b55fc7c06b05dd81bf8906de080",
+  "base_identity": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+  "boot_id": "14c05a47-1615-43f0-a084-a1dc8948c119",
+  "elapsed_ms": 6870,
+  "inspect_required": false,
+  "launch_attempted": true,
+  "launch_confirmed": true,
+  "observed_local_lease_generation": "fbca2a89d0273944d64f312ed6f55b6ed720bc89490f5f5fd6470a58da017b27",
+  "ownership_caveat": "Local Stop has no atomic expected-generation argument. Lease-generation precheck does not exclude a concurrent replacement local session.",
+  "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+  "phase": "complete",
+  "scope": "operator-exclusive kit-local API Launch/Stop; no physical controller-button claim",
+  "selection_generation": 12,
+  "source_receipt_sha256": "f75e4c05707d1c9423308ecb63c422718d39c91e3afa131a0ed401a1a8869f21",
+  "stop_attempted": true,
+  "stop_confirmed": true,
+  "success": true,
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+}
