@@ -2628,7 +2628,11 @@ loop. The event that reaches that mark is not forwarded. Stop returns the runtim
 to fes.menu; tenfoot resumes presents and redraws on that new menu generation.
 While the phase is running, that same tick polls GET /v1/local/status at most
 about once a second, off the app lock and single-flight. If the agent reports
-idle or not running, tenfoot resumes the same way. Stop that returns in_use
+idle or not running, tenfoot resumes the same way. A running status whose
+generation or package differs from the launch claim is not adopted and is not
+stopped. Tenfoot keeps menu presents paused and delivers pad input on the local
+feed, without Select+Start stop, until status is idle with an empty generation.
+That hold has no timeout. Stop that returns in_use
 resumes too; only unavailable is retried, because the core may still be up.
 Packages declaring firmware stay in that class: the local socket does not
 link firmware ROMs. A cartridge for an installed core is linked by
@@ -2727,7 +2731,11 @@ for this host's active or failed session. For a kit-local run it goes to local
 control `POST /v1/local/stop` instead, including a run the grid did not start:
 while a core is bound and no local run is known, the grid reads
 `GET /v1/local/status` at most once a second (single-flight) and adopts a
-launching or running answer as its active session. A foreign-owned core accepts
+launching or running answer as its active session. A local launch that is
+confirmed idle before it is observed running forgets its generation, and the
+next local launch starts without that identity, so the new run is not treated
+as a replacement. A successful launch reply owns the returned generation and
+clears uncertainty left by an earlier run. A foreign-owned core accepts
 local play controls, but this launcher cannot stop it. With no core bound, the
 same pad drives browse. Stop and kit menu actions stay on the kit. If the
 socket is not listening, play input reports

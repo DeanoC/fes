@@ -464,6 +464,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if action == "local-launch" {
 				localSawLaunching = false
 				localRequestReturned = false
+				// A finished launch must not make this run look like a replacement.
+				localGeneration = ""
 			}
 			m.LoadPhase = "Launching"
 			m.Message = "Loading game"
@@ -638,6 +640,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				localStatusBusy = false
 				if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "idle" && localUncertain {
 					localUncertain = false
+					localGeneration = ""
 					m.Session.State = "idle"
 					resumeMenu()
 				}
@@ -687,6 +690,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					elapsed := launcherNow().Sub(m.LoadStarted)
 					localPending = false
 					localStopRequested = false
+					localGeneration = ""
 					m.Busy = false
 					m.Session.State = "idle"
 					m.LoadStarted = time.Time{}

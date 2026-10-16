@@ -352,6 +352,29 @@ func (a *App) completeLocalLaunchHandoff(err error) {
 	launch()
 }
 
+// holdUnownedLocalRunLocked drops Stop ownership of a replacement that is
+// still running. Presents stay paused and the pad stays off the menu until
+// status is idle with an empty generation. There is no time limit.
+func (a *App) holdUnownedLocalRunLocked() {
+	a.localUnownedRun = true
+	a.localLeaseGeneration = ""
+	a.localPackageID = ""
+	a.localStopAfterStart = false
+	a.localChordSince = time.Time{}
+	a.localChordFired = false
+	a.localSelectDown = false
+	a.localStartDown = false
+	a.localSent = nil
+	a.localPhase = localPhaseLaunching
+	a.localReconcileAfterFailure = true
+	a.localReconcileDeadline = time.Time{}
+	a.localPresentsPaused = true
+	a.localStatus = localInUseCopy
+	a.status = a.localStatus
+	a.localStatusNext = time.Time{}
+	a.localRedraw++
+}
+
 func (a *App) reconcileLocalLaunchErrorLocked(err error, block string) {
 	// Even a rejected response can follow a completed runtime mutation.
 	// Keep launch admission fenced until status confirms idle; a running
@@ -412,6 +435,7 @@ func (a *App) failLocalCoreLocked(err error, block string) {
 	a.localLaunchPending = nil
 	a.localReconcileAfterFailure = false
 	a.localReconcileDeadline = time.Time{}
+	a.localUnownedRun = false
 	a.localPhase = ""
 	a.localStartedAt = time.Time{}
 	a.localPresentsPaused = false
@@ -498,6 +522,7 @@ func (a *App) finishLocalCoreLocked() {
 	a.localLaunchPending = nil
 	a.localReconcileAfterFailure = false
 	a.localReconcileDeadline = time.Time{}
+	a.localUnownedRun = false
 	a.localPhase = ""
 	a.localPresentsPaused = false
 	a.localLateAdopt = false
@@ -517,7 +542,7 @@ func (a *App) finishLocalCoreLocked() {
 
 func (a *App) tickLocalCoreLocked(now time.Time) {
 	a.pollLocalStatusLocked(now)
-	if a.localPhase == localPhaseLaunching && a.localReconcileAfterFailure && !a.localReconcileDeadline.IsZero() && !now.Before(a.localReconcileDeadline) {
+	if !a.localUnownedRun && a.localPhase == localPhaseLaunching && a.localReconcileAfterFailure && !a.localReconcileDeadline.IsZero() && !now.Before(a.localReconcileDeadline) {
 		a.localPhase = ""
 		a.localStartedAt = time.Time{}
 		a.localPresentsPaused = false
@@ -566,14 +591,17 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 		}
 		// An unavailable launch has no grant identity. A later running status
 		// may belong to another local launch, even for the same package.
+		// A confirmed replacement stays held until generation-free idle: the
+		// failed-launch deadline must not hand the pad back to the menu.
+		if a.localUnownedRun {
+			if status.Phase == "idle" && status.Generation == "" {
+				a.finishLocalCoreLocked()
+			}
+			return
+		}
 		if status.Phase == "running" && a.localPhase == localPhaseRunning &&
 			(status.Generation != a.localLeaseGeneration || status.PackageID != a.localPackageID) {
-			a.localLeaseGeneration = ""
-			a.localStopAfterStart = false
-			a.localChordSince = time.Time{}
-			a.localChordFired = false
-			a.localPhase = localPhaseLaunching
-			a.reconcileLocalLaunchErrorLocked(localcores.ErrInUse, "")
+			a.holdUnownedLocalRunLocked()
 			return
 		}
 		if status.Phase == "idle" {
@@ -614,6 +642,14 @@ func (a *App) HandleLocalPad(e remoteinput.Event, now time.Time) bool {
 		now = time.Now()
 	}
 	a.mu.Lock()
+	if a.localUnownedRun {
+		feed := a.localFeed
+		a.mu.Unlock()
+		if feed != nil {
+			_ = feed.Send(e, now)
+		}
+		return true
+	}
 	if !a.localCoreBusyLocked() {
 		handled, forward := a.sessionPadLocked(e, now)
 		feed := a.localFeed
