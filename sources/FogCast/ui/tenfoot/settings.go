@@ -1770,6 +1770,9 @@ func (a *App) toggleHomePrefLocked() {
 		return
 	}
 	a.homeRooms = !a.homeRooms
+	if a.homeRooms {
+		a.homeRoom = menuDisplayInstalledHome(a.gfxBackend, homePrefValue(true), a.homeRoom)
+	}
 	a.persistPrefsLocked("home")
 	a.status = "home: " + homePrefValue(a.homeRooms)
 }

@@ -2,6 +2,7 @@ package rooms
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -140,7 +141,7 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 		t.Fatalf("empty catalog changed the strip: %+v", got)
 	}
 
-	broken := &fakeLocalCores{listErr: localcores.ErrUnavailable}
+	broken := &fakeLocalCores{listErr: errors.New("invalid catalog response")}
 	failed := newRoom(t, pack, Options{Local: broken, Width: 1280, Height: 720})
 	if err := failed.Load(); err != nil {
 		t.Fatal(err)

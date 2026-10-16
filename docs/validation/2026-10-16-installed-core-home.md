@@ -1,0 +1,27 @@
+# Installed-core home startup diagnostic
+
+On 2026-10-16, kit A (`192.168.10.84`, target `73dc9f5f-1a12-4a95-a820-a9b4e600769a`) started directly into a populated Installed cores room after a compatible userspace update. HDMI showed eight installed entries, including FES Pong and the existing cartridge/firmware/video-part block reasons. The user library was not deleted or rewritten. Explicit home-room flag, preference and environment precedence remains unchanged; host and other rendering backends retain their defaults. Back-to-picker behavior is covered by the app navigation tests; physical Back was not independently exercised in this run.
+
+## Artifact and activation
+
+The accepted bundle is `7b51a65d6d8535f90276a71b7e63d5d011724099da0312c34b4f1251b87bf08c`, built from source `4a9e4ad500bc1be6c963e195f7f32030845d660b`, software generation 14. It includes generation-bound Stop from the dependent parent PR. The [build receipt](2026-10-16-installed-core-home/build-receipt.json) records archive/file digests, ARM toolchain and base contract. No base OS, startup supervisor, runtime physical protocol or host REST changes are required.
+
+The managed API diagnostic installed while holding its execution lease, verified conflicting claims/activation requests, explicit cancellation and idempotence, persisted the queue after its requester exited, then accepted activation after release. Supported core inventory and selections were unchanged. Boot `14c05a47-1615-43f0-a084-a1dc8948c119` and base image `ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2` remained unchanged. The successful selection remains installed; no reboot or routine restoration occurred. See the [lifecycle receipt](2026-10-16-installed-core-home/software-lifecycle.json).
+
+## Startup failure found and corrected
+
+The first combined bundle (`e1d724c154f1936445e2b985cbe8498be9002b898e1b6f4b025c2e3c5025cb93`, source `1b715ad5`, software generation 13) opened the new default room but displayed [Installed cores are not available here](2026-10-16-installed-core-home/initial-startup-unavailable.png). It passed service startup health, so this separate HDMI observation was essential. Its exact catalog-read error was not logged; attributing that particular failure to socket startup or a timeout remains an inference.
+
+Code and regression tests confirmed that a transient unavailable/timed-out room catalog read was terminal. Read-only listing now retries with a 200 ms interval, a 60 second overall context and 3 second per-read deadlines. Closing the room cancels the active request or wait; permanent errors remain terminal. No launch or Stop retries were introduced. The corrected bundle showed the [populated default room](2026-10-16-installed-core-home/installed-home.png).
+
+## Local Stop and HDMI evidence
+
+The root-only local-control API launched the same installed FES Pong package twice with distinct execution generations. Empty-body and wrong-generation Stop returned 409. After A stopped and B launched, A's old generation returned 409 while B remained running with its own identity. A current-generation Stop succeeded for each run. [Operation receipts](2026-10-16-installed-core-home/local-stop-result.json) record those checks without lease credentials. Local launches acquired their target-enforced local-core lease; no direct runtime programming or foreign-owner takeover occurred.
+
+After allowing two seconds for game scanout, HDMI showed [Pong during B](2026-10-16-installed-core-home/replacement-pong.png), bracketed by generation/status checks. After the final current-generation Stop, API state was ready/idle/free and HDMI showed [the populated Installed cores menu again](2026-10-16-installed-core-home/returned-menu.png). These are inspected still frames, not continuous-video or physical-button evidence. An earlier immediate post-launch sample on the first bundle was black and did not establish visible-game acceptance. ShadowCast emitted initial MJPEG decoder warnings; each retained PNG was visually inspected.
+
+This is a hardware diagnostic for this exact bundle, including visible launch and return. After automated diagnostics finished and the lease was free, the operator was asked to select FES Pong, press A/Cross and hold Select+Start for one second to return. The operator replied: “Launch and return both work”. No assistant launch, input or Stop was sent during this physical test. A subsequent read-only API check confirmed the same bundle/boot, ready state and free lease; [HDMI showed FES Pong selected back in Installed cores](2026-10-16-installed-core-home/physical-returned-menu.png). The [physical-test receipt](2026-10-16-installed-core-home/physical-result.json) records the operator report and final identities. This confirms physical launch and return; it makes no new directional-movement, button-timing or electrical-input claim.
+
+## Host validation
+
+Focused startup/navigation tests and concurrency tests passed, including configured-app startup where the first room read fails and a later read publishes a launchable Pong destination. Full tenfoot tests, full rooms race tests, independent read-only review, `make check`, and ARM bundle assembly passed. The parent Stop implementation also passed its service/launcher race regressions and full affected checks. The final menu-change `make test-changed` passed (parent, host Go and UI lanes) under umask 022; ambient umask 0002 caused two unchanged private-directory fixture failures in the initial run, without a production defect or workaround.

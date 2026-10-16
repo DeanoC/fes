@@ -1,0 +1,14 @@
+{
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "boot_id": "14c05a47-1615-43f0-a084-a1dc8948c119",
+  "ready": true,
+  "active_bundle": "7b51a65d6d8535f90276a71b7e63d5d011724099da0312c34b4f1251b87bf08c",
+  "selected": "7b51a65d6d8535f90276a71b7e63d5d011724099da0312c34b4f1251b87bf08c",
+  "generation": 14,
+  "base_identity": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+  "lease_state": "free",
+  "pending": null,
+  "user_report": "Launch and return both work",
+  "physical_action": "Select FES Pong, press A/Cross, hold Select+Start for one second",
+  "evidence_limit": "User-confirmed launch and return; no new directional-input claim"
+}
