@@ -785,8 +785,8 @@ including writes, reset/restart and 41/53/54/64-SYS cadence. Only the reference'
 indeterminate initial ENV3 sample is excluded until the first non-reset Phi2;
 all later samples, including warm-reset retention, are compared. Other bus
 registers retain this core's zero-read contract, not SID floating-bus behavior.
-Remaining combined waveforms, other chip models/bias, paddles, bus decay,
-physical audio and current-package timing/hardware acceptance stay open.
+Other chip models/bias, paddles, bus decay, physical audio and current-package
+timing/hardware acceptance stay open.
 
 ### Development PRG launch
 
