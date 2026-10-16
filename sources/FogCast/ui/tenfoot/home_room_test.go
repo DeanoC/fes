@@ -1,10 +1,13 @@
 package tenfoot
 
 import (
+	"context"
 	"errors"
+	"github.com/DeanoC/FogCast/internal/localcores"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -351,5 +354,48 @@ func TestInstalledCoresDefaultOpensAndBackKeepsHomePicker(t *testing.T) {
 	snap := app.Snapshot()
 	if snap.Room.Open || !snap.RoomPicker.Open {
 		t.Fatalf("Back must expose Home picker: room=%v picker=%v", snap.Room.Open, snap.RoomPicker.Open)
+	}
+}
+
+// The initial launcher inventory succeeds, but the home room's independent
+// read races startup. A later successful read must populate the same room.
+type startupRoomCores struct {
+	fakeLocalCores
+	listMu    sync.Mutex
+	listCalls int
+}
+
+func (f *startupRoomCores) List(ctx context.Context) ([]localcores.Core, error) {
+	f.listMu.Lock()
+	f.listCalls++
+	call := f.listCalls
+	f.listMu.Unlock()
+	if call == 2 {
+		return nil, localcores.ErrUnavailable
+	}
+	return f.fakeLocalCores.List(ctx)
+}
+func TestConfiguredInstalledHomeRecoversStartupList(t *testing.T) {
+	t.Setenv("FOGCAST_HOME_ROOM", "")
+	h := newRoomHost(t)
+	opts := Options{GFX: "menu-display", APIBase: h.server.URL, Home: "rooms", HomeSet: true, PrefsPath: filepath.Join(t.TempDir(), "tenfoot.json"), CatalogConfig: filepath.Join(t.TempDir(), "absent.toml")}.normalized()
+	app, err := configuredApp(opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cores := &startupRoomCores{fakeLocalCores: fakeLocalCores{cores: []localcores.Core{{PackageID: tenfootPongID, CoreID: "fes.pong", Name: "FES Pong", Launchable: true}}}}
+	app.SetKitLocal(cores, &fakePadFeed{})
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	snap := waitFor(t, app, "usable installed home", func(s Snapshot) bool {
+		return s.Room.Open && s.Room.ID == "example.fes-cores" && s.Room.Destination.Kind == rooms.KindCore
+	})
+	if snap.Room.Destination.PackageID != tenfootPongID || !snap.Room.Destination.CoreLaunchable {
+		t.Fatalf("destination %+v", snap.Room.Destination)
+	}
+	cores.listMu.Lock()
+	defer cores.listMu.Unlock()
+	if cores.listCalls < 3 {
+		t.Fatalf("startup read was not retried: %d", cores.listCalls)
 	}
 }

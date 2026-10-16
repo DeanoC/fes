@@ -1095,9 +1095,10 @@ function draw() end`
 }
 
 type warmThenCores struct {
-	mu    sync.Mutex
-	calls int
-	cores []localcores.Core
+	firstError error
+	mu         sync.Mutex
+	calls      int
+	cores      []localcores.Core
 }
 
 func (f *warmThenCores) List(context.Context) ([]localcores.Core, error) {
@@ -1105,6 +1106,9 @@ func (f *warmThenCores) List(context.Context) ([]localcores.Core, error) {
 	defer f.mu.Unlock()
 	f.calls++
 	if f.calls == 1 {
+		if f.firstError != nil {
+			return nil, f.firstError
+		}
 		return nil, localcores.ErrWarming
 	}
 	return append([]localcores.Core(nil), f.cores...), nil
@@ -1440,5 +1444,76 @@ func TestReducedMotionFlagRoundTrip(t *testing.T) {
 	}
 	if err := r.CheckGlobal("room.reduced_motion == true"); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestKitCoresStartupReadFailures(t *testing.T) {
+	for _, first := range []error{localcores.ErrUnavailable, context.DeadlineExceeded} {
+		t.Run(first.Error(), func(t *testing.T) {
+			fake := &warmThenCores{firstError: first, cores: []localcores.Core{{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Launchable: true}}}
+			r := newRoom(t, memPack(t, "startup-cores", `function load() kit.cores(function(rows, err) got=rows got_err=err end) end function draw() end`, nil), Options{Local: fake})
+			if err := r.Load(); err != nil {
+				t.Fatal(err)
+			}
+			stepUntil(t, r, func(Frame) bool {
+				return r.CheckGlobal(`got_err == nil and type(got) == "table" and got[1].core_id == "fes.pong"`) == nil
+			})
+		})
+	}
+}
+
+func TestKitCoresStartupRetryBoundAndPermanentError(t *testing.T) {
+	permanent := errors.New("invalid catalog response")
+	fake := &warmThenCores{firstError: permanent}
+	_, err := listLocalCores(t.Context(), fake, time.Second)
+	if !errors.Is(err, permanent) || fake.calls != 1 {
+		t.Fatalf("err=%v calls=%d", err, fake.calls)
+	}
+	fake = &warmThenCores{firstError: localcores.ErrUnavailable}
+	_, err = listLocalCores(t.Context(), fake, 10*time.Millisecond)
+	if !errors.Is(err, context.DeadlineExceeded) || fake.calls != 1 {
+		t.Fatalf("err=%v calls=%d", err, fake.calls)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	fake = &warmThenCores{firstError: localcores.ErrUnavailable}
+	_, err = listLocalCores(ctx, fake, time.Minute)
+	if !errors.Is(err, context.Canceled) || fake.calls != 0 {
+		t.Fatalf("err=%v calls=%d", err, fake.calls)
+	}
+}
+
+func TestKitCoresStartupRetryCancelsDuringWait(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	fake := &warmThenCores{firstError: localcores.ErrUnavailable}
+	done := make(chan error, 1)
+	go func() { _, err := listLocalCores(ctx, fake, time.Minute); done <- err }()
+	deadline := time.Now().Add(time.Second)
+	for {
+		fake.mu.Lock()
+		calls := fake.calls
+		fake.mu.Unlock()
+		if calls > 0 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("listing did not start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("retry wait ignored cancellation")
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if fake.calls != 1 {
+		t.Fatalf("listed again after cancellation: %d", fake.calls)
 	}
 }
