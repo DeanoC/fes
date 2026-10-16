@@ -1,0 +1,23 @@
+{
+  "accepted": false,
+  "base_identity": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+  "before_bundle": "eaff152f182b69e1bcd867e4ec0c43931806e7dccf9b73cebe90250a4e560e65",
+  "before_generation": 11,
+  "boot_id": "14c05a47-1615-43f0-a084-a1dc8948c119",
+  "candidate": "67afde612b5d12cd18aa68485e81b524a56c0b55fc7c06b05dd81bf8906de080",
+  "classification": "RuntimeError; actual failing check and HTTP status were not retained; source included a 409-only competing-launch assertion",
+  "failure_type": "RuntimeError",
+  "final_generation": null,
+  "input_events": [],
+  "observations": [],
+  "owned_cleanup": {
+    "generation": 11,
+    "lease_free": true,
+    "pending": false,
+    "stop_confirmed_idle": true
+  },
+  "scope": "two independent private host processes on one physical workstation; software-injected input acknowledgments, no physical USB or HDMI effect claim",
+  "script_sha256": "bd154db1cc0ded2ad87bcbad9631dea986cccab7fd233d0483150fa18fc5e3c0",
+  "source_result_sha256": "ea062b8285ee3836937ae7f51be1e5717d7e9306976e0972a169005472f2bc61",
+  "success": false
+}
