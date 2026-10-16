@@ -1,0 +1,10 @@
+{
+  "architecture": "armv7",
+  "base_contract": "fes-kit-base-v1-4bdcca8a7ad3927f3de68a658ef625285e12165f025ac989700eb83631edaa0d",
+  "board": "de10-nano",
+  "interfaces": {
+    "maintenance": "fes-kit-maintenance-v1",
+    "runtime-protocol": "2",
+    "software-admission": "fes-kit-software-v1"
+  }
+}

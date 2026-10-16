@@ -1,0 +1,64 @@
+{
+  "captures": [
+    {
+      "at_monotonic": 3020355.221790337,
+      "file": "baseline.png",
+      "sha256": "35fa14a01382c5a8ac2f2a9fb02704dbb4e582c1183ab44941aac5ac149c2f51"
+    },
+    {
+      "at_monotonic": 3020356.721515021,
+      "file": "up.png",
+      "sha256": "5b403441b32ac220178c92e5b325e7b594cdf6d4579fe8e3be41446d7ab55284"
+    },
+    {
+      "at_monotonic": 3020358.349546491,
+      "file": "down.png",
+      "sha256": "bd9f8f0c158c3ae14d0846de30bdd99d2a465909049360ed14ce38e88bc6b893"
+    }
+  ],
+  "cleanup": [],
+  "events": [
+    {
+      "acknowledged": true,
+      "action": 1,
+      "at_monotonic": 3020355.368492162,
+      "code": 100
+    },
+    {
+      "acknowledged": true,
+      "action": 0,
+      "at_monotonic": 3020356.038207198,
+      "code": 100
+    },
+    {
+      "acknowledged": true,
+      "action": 1,
+      "at_monotonic": 3020356.858521453,
+      "code": 101
+    },
+    {
+      "acknowledged": true,
+      "action": 0,
+      "at_monotonic": 3020357.505745769,
+      "code": 101
+    }
+  ],
+  "expected_base": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+  "expected_boot": "14c05a47-1615-43f0-a084-a1dc8948c119",
+  "expected_bundle": "eaff152f182b69e1bcd867e4ec0c43931806e7dccf9b73cebe90250a4e560e65",
+  "expected_generation": 11,
+  "host_sha256": "93e37aaa4ebd419dc7161c19ab4936af4ff2baf6fafb90c1a8f6b1b602d1fcc7",
+  "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+  "private_host_exit": 0,
+  "scope": "software-injected input and captured HDMI; paddle displacement requires independent image review; no physical USB-controller claim",
+  "script_sha256": "086d417454625638d8029f17c3555c6e01fa78dc469092d4933025b820eefe29",
+  "source_hashes": {
+    "diagnostic_identity.py": "ea4bc21b777970b7fa9ccc2583ee2c69ebab4f84b8d12613b340c606ac297d36",
+    "input_diagnostic.py": "dcf3f6e4d61d97bde0d58f021468ccc3ecf0f964c13beac2de6fcebd06719cae",
+    "kit_software_acceptance.py": "67d301b14aa8d3a8fe1adfe19459d0ebbb08aac0429332edb813cc394662d942",
+    "package_acceptance.py": "6c7a688a4cadcf3f00aaebc65b2d15031aa0f3e2d06f3f71147d25797aa97c4b",
+    "package_acceptance_isolated.py": "bdf6bed442071c0f28d8454865fd1e560c8a8ba381f3a0487797425673458b43"
+  },
+  "success": true,
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+}
