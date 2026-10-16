@@ -67,7 +67,7 @@ func TestSessionReadTransportFailureRemainsUnavailable(t *testing.T) {
 }
 
 func TestSessionInputReconcileUsesRealLeaseAndBridge(t *testing.T) {
-	for _, failure := range []string{"local-loss", "claim-denied", "attach-denied", "loss-before-connect", "unknown-attach-failure"} {
+	for _, failure := range []string{"local-loss", "claim-denied", "claim-busy", "attach-denied", "attach-busy", "loss-before-connect", "unknown-attach-failure"} {
 		t.Run(failure, func(t *testing.T) {
 			var claims, attaches atomic.Int32
 			var invalidate func()
@@ -75,6 +75,11 @@ func TestSessionInputReconcileUsesRealLeaseAndBridge(t *testing.T) {
 				switch r.URL.Path {
 				case "/v1/kit/claim":
 					claims.Add(1)
+					if failure == "claim-busy" {
+						w.WriteHeader(http.StatusConflict)
+						fmt.Fprint(w, `{"error":{"code":"KIT_LEASE_BUSY","message":"private target details"}}`)
+						return
+					}
 					if failure == "claim-denied" {
 						w.WriteHeader(http.StatusForbidden)
 						fmt.Fprint(w, `{"error":{"code":"KIT_LEASE_DENIED","message":"private target details"}}`)
@@ -83,6 +88,11 @@ func TestSessionInputReconcileUsesRealLeaseAndBridge(t *testing.T) {
 					fmt.Fprint(w, `{"token":"test-grant","status":{"state":"held","generation":"test-generation","expires_in_ms":60000}}`)
 				case "/v1/input/attach":
 					attaches.Add(1)
+					if failure == "attach-busy" {
+						w.WriteHeader(http.StatusConflict)
+						fmt.Fprint(w, `{"error":{"code":"KIT_LEASE_BUSY","message":"private target details"}}`)
+						return
+					}
 					if failure == "loss-before-connect" {
 						invalidate()
 						fmt.Fprint(w, `{"ready":true}`)
@@ -129,6 +139,10 @@ func TestSessionInputReconcileUsesRealLeaseAndBridge(t *testing.T) {
 			r := serve(t, hostapi.New(svc, hostapi.WithRemoteInput(input)), http.MethodGet, "/api/v1/session")
 			want := http.StatusForbidden
 			code := "KIT_LEASE_DENIED"
+			if failure == "claim-busy" || failure == "attach-busy" {
+				want = http.StatusConflict
+				code = "KIT_LEASE_BUSY"
+			}
 			if failure == "unknown-attach-failure" {
 				want = http.StatusServiceUnavailable
 				code = "TARGET_UNAVAILABLE"
@@ -140,7 +154,7 @@ func TestSessionInputReconcileUsesRealLeaseAndBridge(t *testing.T) {
 			if failure == "local-loss" {
 				expectedClaims, expectedAttaches = 0, 0
 			}
-			if failure == "claim-denied" {
+			if failure == "claim-denied" || failure == "claim-busy" {
 				expectedAttaches = 0
 			}
 			if claims.Load() != expectedClaims || attaches.Load() != expectedAttaches || len(svc.stopCtxErrs) != 0 {

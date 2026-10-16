@@ -148,7 +148,7 @@ func (s *HTTPBridgeStarter) doJSONRequest(ctx context.Context, method, path stri
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		var envelope protocol.ErrorEnvelope
-		if response.StatusCode == http.StatusForbidden && json.Unmarshal(data, &envelope) == nil && envelope.Error.Code == protocol.CodeKitLeaseDenied {
+		if json.Unmarshal(data, &envelope) == nil && ((response.StatusCode == http.StatusForbidden && envelope.Error.Code == protocol.CodeKitLeaseDenied) || (response.StatusCode == http.StatusConflict && envelope.Error.Code == protocol.CodeKitLeaseBusy)) {
 			return remoteInputStartError(&envelope.Error)
 		}
 		return ErrRemoteInputInvalid

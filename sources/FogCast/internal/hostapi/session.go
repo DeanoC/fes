@@ -1847,7 +1847,7 @@ func developmentMustStopError() error {
 // bridge failures retain their existing sanitized unavailable response.
 func remoteInputReconcileError(err error) error {
 	var apiErr *protocol.APIError
-	if errors.As(err, &apiErr) && apiErr.Code == protocol.CodeKitLeaseDenied {
+	if errors.As(err, &apiErr) && (apiErr.Code == protocol.CodeKitLeaseDenied || apiErr.Code == protocol.CodeKitLeaseBusy) {
 		return err
 	}
 	return remoteInputError()

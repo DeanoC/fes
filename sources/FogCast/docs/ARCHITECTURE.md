@@ -71,8 +71,10 @@ composition flags such as `firmware_ready` pass; raw Coleco library carts
 remain browse-only.
 A locally expired or lost kit lease remains `KIT_LEASE_DENIED` through host
 service normalization, session reads, input reconciliation, Launch and Stop.
-The host API returns HTTP 403 for this ownership refusal, rather than treating
-it as a disconnected target or failed input bridge. Unclassified transport and
+The host API returns HTTP 403 for this ownership refusal. An ordinary claim
+refused by a foreign holder remains HTTP 409 `KIT_LEASE_BUSY`, including during
+input reconciliation after endpoint adoption. Neither becomes a disconnected
+target or failed input bridge. Unclassified transport and
 bridge failures retain their unavailable responses. A refusal does not establish
 whether an earlier operation completed; clients must inspect current ownership
 before issuing a new operation. Existing authenticated endpoint reconciliation

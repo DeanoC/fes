@@ -200,8 +200,8 @@ func NewRemoteInput(config RemoteInputConfig) (*RemoteInput, error) {
 // transport, parsing and bridge errors retain their existing generic failure.
 func remoteInputStartError(err error) error {
 	var api *protocol.APIError
-	if errors.As(err, &api) && api.Code == protocol.CodeKitLeaseDenied {
-		return &protocol.APIError{Code: protocol.CodeKitLeaseDenied, Message: "session does not own the kit lease", Phase: "recovery"}
+	if errors.As(err, &api) && (api.Code == protocol.CodeKitLeaseDenied || api.Code == protocol.CodeKitLeaseBusy) {
+		return &protocol.APIError{Code: api.Code, Message: "session does not own the kit lease", Phase: "recovery"}
 	}
 	return ErrRemoteInputInvalid
 }
@@ -1062,7 +1062,7 @@ func (r *RemoteInput) connectionLiveLocked() bool {
 
 func streamDialError(err error) error {
 	var api *protocol.APIError
-	if errors.As(err, &api) && api.Code == protocol.CodeKitLeaseDenied {
+	if errors.As(err, &api) && (api.Code == protocol.CodeKitLeaseDenied || api.Code == protocol.CodeKitLeaseBusy) {
 		return remoteInputStartError(err)
 	}
 	if err == nil || errors.Is(err, ErrRemoteInputNoStream) || errors.Is(err, context.Canceled) {

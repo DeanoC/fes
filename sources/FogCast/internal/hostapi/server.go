@@ -299,7 +299,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 		result, err := coordinator.status(r.Context())
 		if err != nil {
 			var apiErr *protocol.APIError
-			if errors.As(err, &apiErr) && apiErr.Code == protocol.CodeKitLeaseDenied {
+			if errors.As(err, &apiErr) && (apiErr.Code == protocol.CodeKitLeaseDenied || apiErr.Code == protocol.CodeKitLeaseBusy) {
 				writeSessionError(w, err)
 				return
 			}
