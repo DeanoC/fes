@@ -207,6 +207,11 @@ class Evidence:
         self.root.mkdir(mode=0o700)
         self.sequence = 0
 
+    def _sync_directory(self, directory):
+        fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+        try: os.fsync(fd)
+        finally: os.close(fd)
+
     def save(self, label, value):
         self.sequence += 1
         path = self.root / f'{self.sequence:03d}-{label}.json'
@@ -214,6 +219,8 @@ class Evidence:
         with os.fdopen(fd, 'w') as stream:
             json.dump(value, stream, indent=2, sort_keys=True); stream.write('\n')
             stream.flush(); os.fsync(stream.fileno())
+        # The file fsync keeps the bytes; the directory fsync keeps the new name.
+        self._sync_directory(self.root)
 
     def private_record(self, name, value):
         private = self.root / 'private'
@@ -222,9 +229,7 @@ class Evidence:
         with os.fdopen(fd, 'w') as stream:
             json.dump(value, stream); stream.write('\n'); stream.flush(); os.fsync(stream.fileno())
         for directory in (private, self.root):
-            fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
-            try: os.fsync(fd)
-            finally: os.close(fd)
+            self._sync_directory(directory)
 
     def freeze(self, path, expected, expected_id, label):
         destination = self.root / (label + '.tar')

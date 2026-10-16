@@ -5,6 +5,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import secrets
 import sys
@@ -46,6 +47,10 @@ class State:
         self.maintenance = {'state': 'none'}
         self.fault = None
         self.drop = None
+        # Release normally publishes the receipt immediately. A test can instead
+        # leave the operation queued and publish one later phase per software read.
+        self.activation_steps = None
+        self.deferred_activation = False
         self.install_id = GOOD
         self.status = 'idle'
         self.releases = [{'id': OLD, 'manifest': manifest('old')}]
@@ -112,6 +117,14 @@ def server(state=None):
                     result = {'packages': [], 'selections': []}
                 elif self.path == '/v1/kit/software':
                     result = sw
+                    if method == 'GET' and state.deferred_activation and sw.get('pending') and state.activation_steps:
+                        result = copy.deepcopy(sw)
+                        step = state.activation_steps.pop(0)
+                        if step == 'receipt':
+                            state.complete()
+                            state.deferred_activation = False
+                        else:
+                            sw['pending']['phase'] = step
                 elif self.path == '/v1/kit/software/releases':
                     if method == 'GET':
                         result = state.releases
@@ -128,7 +141,12 @@ def server(state=None):
                 elif self.path == '/v1/stop':
                     result = {'state': 'idle'}
                 elif self.path == '/v1/kit/release':
-                    state.owner = None; state.complete(); result = state.lease()
+                    state.owner = None
+                    if state.activation_steps:
+                        state.deferred_activation = True
+                    else:
+                        state.complete()
+                    result = state.lease()
                 elif self.path == '/v1/kit/software/activate':
                     pending = sw['pending']
                     if value['expected_generation'] != sw['generation'] or (pending and any(pending[k] != v for k, v in value.items())):
@@ -207,6 +225,17 @@ class AcceptanceTests(unittest.TestCase):
             self.assertGreater(sum(path == '/v1/kit/renew' for _, path, _ in state.calls), 0)
             self.assertNotIn(SECRET, ''.join(p.read_text() for p in records))
             self.assertEqual(sum(path == '/v1/kit/release' for _, path, _ in state.calls), 1)
+
+    def test_activation_observes_delayed_phases_before_receipt(self):
+        with tempfile.TemporaryDirectory() as temporary, server() as (state, url):
+            state.activation_steps = ['applying', 'receipt']
+            ok, runner, _ = self.run_suite(Path(temporary), url, state)
+            self.assertTrue(ok)
+            self.assertEqual(runner.stages['activation']['observed_phases'], ['queued', 'applying'])
+            self.assertEqual(runner.stages['activation']['result'], 'accepted')
+            self.assertEqual((state.software['selected'], state.software['generation']), (GOOD, 5))
+            self.assertFalse(state.deferred_activation)
+            self.assertEqual(state.activation_steps, [])
 
     def test_public_cli_inputs_execute_real_http_and_requester_process(self):
         with tempfile.TemporaryDirectory() as temporary, server() as (state,url):
@@ -326,6 +355,40 @@ class AcceptanceTests(unittest.TestCase):
             ok, _, _ = self.run_suite(Path(temporary), url, state, configure=configure)
             self.assertFalse(ok)
             self.assertEqual(sum(p == '/v1/kit/release' for _, p, _ in state.calls), 0)
+
+    def test_evidence_save_fsyncs_new_file_then_directory(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / 'evidence'
+            evidence = accept.Evidence(root)
+            seen = []
+            real_fsync = os.fsync
+            def record_fsync(fd):
+                seen.append(Path(os.readlink(f'/proc/self/fd/{fd}')).resolve())
+                return real_fsync(fd)
+            with patch.object(accept.os, 'fsync', side_effect=record_fsync):
+                evidence.save('reboot-attempt', {'invocation_attempt_recorded': True})
+            self.assertEqual(seen, [(root / '001-reboot-attempt.json').resolve(), root.resolve()])
+
+    def test_reboot_attempt_directory_entry_is_durable_before_command(self):
+        with tempfile.TemporaryDirectory() as temporary, server() as (state, url):
+            events = []
+            real_fsync = os.fsync
+            def record_fsync(fd):
+                events.append(Path(os.readlink(f'/proc/self/fd/{fd}')).resolve())
+                return real_fsync(fd)
+            def fake_external(command, timeout, output=False):
+                events.append('external')
+                return {'outcome': 'spawn-failed', 'command_sha256': command['sha256']}
+            command = {'argv': ['/must-not-run'], 'sha256': 'f' * 64}
+            with patch.object(accept.os, 'fsync', side_effect=record_fsync), \
+                 patch.object(accept, 'external', side_effect=fake_external):
+                ok, _, records = self.run_suite(Path(temporary), url, state, reboot=command, timeout=.8)
+            self.assertFalse(ok)
+            evidence = (Path(temporary) / 'evidence').resolve()
+            attempt = next(path.resolve() for path in records if path.name.endswith('-reboot-attempt.json'))
+            before = events[:events.index('external')]
+            self.assertIn(attempt, before)
+            self.assertIn(evidence, before[before.index(attempt) + 1:])
 
     def test_optional_reboot_runs_once_and_persists_private_grant(self):
         with tempfile.TemporaryDirectory() as temporary, server() as (state, url):
