@@ -121,20 +121,23 @@ func (e *Engine) switchPrepared(ctx context.Context, id string, request Request)
 	if err := e.Controller.Stop(ctx); err != nil {
 		return fmt.Errorf("old processes did not exit: %w", err)
 	}
-	// Restart only until the first accepted readiness window. An exit after
-	// health returns is left for ServiceFault so a lease is not interrupted.
+	// Restart only until the first accepted readiness window. An exit during
+	// native initialization and an exit observed by health share this deadline.
+	// An exit after health returns is left for ServiceFault so a lease is not
+	// interrupted. Every other Start error ends the attempt unchanged.
 	var last error
 	for e.Now().Before(deadline) {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := e.Controller.Start(ctx, id, request); err != nil {
+		err := e.Controller.Start(ctx, id, request)
+		if err == nil {
+			err = e.health(ctx, id, deadline)
+		}
+		if err == nil || !errors.Is(err, ErrProcessExited) {
 			return err
 		}
-		last = e.health(ctx, id, deadline)
-		if last == nil || !errors.Is(last, ErrProcessExited) {
-			return last
-		}
+		last = err
 		if err := e.Controller.Stop(ctx); err != nil {
 			return fmt.Errorf("old processes did not exit: %w", err)
 		}

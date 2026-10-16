@@ -264,6 +264,90 @@ func TestStartupRestartsExitedProcessBeforeAcceptance(t *testing.T) {
 	}
 }
 
+// nativeInitExitControl reports the runtime dying inside Start, which is how
+// waitNativeInitialization surfaces an exit before the protocol socket answers.
+type nativeInitExitControl struct {
+	*fakeControl
+	exits   int
+	now     func() time.Time
+	at      []time.Time
+	order   []string
+	other   error
+	healths int
+}
+
+func (c *nativeInitExitControl) Stop(ctx context.Context) error {
+	c.order = append(c.order, "stop")
+	return c.fakeControl.Stop(ctx)
+}
+func (c *nativeInitExitControl) Start(_ context.Context, id string, _ Request) error {
+	c.order = append(c.order, "start")
+	c.at = append(c.at, c.now())
+	c.starts++
+	c.active = id
+	if c.other != nil {
+		return c.other
+	}
+	if c.exits != 0 {
+		if c.exits > 0 {
+			c.exits--
+		}
+		return fmt.Errorf("runtime exited during native initialization: %w", ErrProcessExited)
+	}
+	return nil
+}
+func (c *nativeInitExitControl) Healthy(ctx context.Context, id string) error {
+	c.healths++
+	return c.fakeControl.Healthy(ctx, id)
+}
+
+func TestNativeInitializationExitRetriesWithinStartupDeadline(t *testing.T) {
+	t.Run("once", func(t *testing.T) {
+		_, e, c, _ := setup(t)
+		control := &nativeInitExitControl{fakeControl: c, exits: 1, now: e.Now}
+		e.Controller = control
+		if err := e.StartFactory(context.Background(), testFactoryID); err != nil {
+			t.Fatal(err)
+		}
+		if control.starts != 2 || control.healths == 0 {
+			t.Fatalf("starts=%d healths=%d", control.starts, control.healths)
+		}
+		if strings.Join(control.order, ",") != "stop,start,stop,start" {
+			t.Fatal(control.order)
+		}
+		if control.at[1].Sub(control.at[0]) >= e.Deadline {
+			t.Fatal("retry reset startup deadline")
+		}
+	})
+	t.Run("deadline", func(t *testing.T) {
+		_, e, c, _ := setup(t)
+		control := &nativeInitExitControl{fakeControl: c, exits: -1, now: e.Now}
+		e.Controller = control
+		err := e.StartFactory(context.Background(), testFactoryID)
+		if err == nil || !errors.Is(err, ErrProcessExited) || !errors.Is(err, context.DeadlineExceeded) || !strings.Contains(err.Error(), "software readiness deadline exceeded") {
+			t.Fatal(err)
+		}
+		if control.starts < 2 || control.healths != 0 || control.stops != control.starts+1 {
+			t.Fatalf("starts=%d stops=%d healths=%d", control.starts, control.stops, control.healths)
+		}
+		for _, at := range control.at {
+			if !at.Before(control.at[0].Add(e.Deadline)) {
+				t.Fatal("retry reset startup deadline", control.at)
+			}
+		}
+	})
+	t.Run("other", func(t *testing.T) {
+		_, e, c, _ := setup(t)
+		sentinel := errors.New("menu selection missing")
+		control := &nativeInitExitControl{fakeControl: c, other: sentinel, now: e.Now}
+		e.Controller = control
+		err := e.StartFactory(context.Background(), testFactoryID)
+		if err != sentinel || control.starts != 1 || control.healths != 0 || strings.Join(control.order, ",") != "stop,start" {
+			t.Fatal(err, control.starts, control.healths, control.order)
+		}
+	})
+}
+
 type slowVerifiedController struct {
 	fakeControl
 	t                 *testing.T
