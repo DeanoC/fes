@@ -74,7 +74,10 @@ before deleting anything. That filesystem must be a different device from the
 release volume, must not be tmpfs or ramfs, and must have room for the image
 plus the same margin. The kit uses the mounted FESDATA3 volume
 (`/run/fogcast/fesdata3`) or a FogCast directory bind-mounted from it. A
-truncated or corrupt upload removes only that temporary file. After the
+truncated or corrupt upload removes only that temporary file. A spill file left
+behind when that write is interrupted is removed on the next stage, before
+free space is measured. Only regular `.stage-spill-` files in that store's
+own staging directory are removed. After the
 upload passes the size, ext4, and digest checks, staging deletes unreferenced
 images oldest first, only until the image fits, then copies the verified file
 into the release store. It keeps the factory image, known-good, previous,

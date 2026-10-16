@@ -698,7 +698,10 @@ func (s *Store) openSpill(size int64) (*os.File, error) {
 		if e := spillInsideRelease(s.root, s.spillRoot); e != nil {
 			return nil, e
 		}
-		return os.CreateTemp(s.spillRoot, ".stage-spill-")
+		if e := removeStaleSpillFiles(s.spillRoot); e != nil {
+			return nil, e
+		}
+		return os.CreateTemp(s.spillRoot, spillFilePrefix)
 	}
 	candidates := releaseSpillCandidates
 	if s.spillCandidates != nil {
@@ -708,20 +711,70 @@ func (s *Store) openSpill(size int64) (*os.File, error) {
 		if !s.spillUsable(dir, size) {
 			continue
 		}
-		staging := filepath.Join(dir, ".release-stage")
+		// One directory per release root. Stage holds this store's lock, so a
+		// file left here belongs to a process that exited before removing it.
+		// Another store's in-progress upload lives in its own directory.
+		staging := filepath.Join(dir, ".release-stage", spillOwner(s.root))
 		if e := os.MkdirAll(staging, 0700); e != nil {
+			continue
+		}
+		if e := removeStaleSpillFiles(staging); e != nil {
 			continue
 		}
 		if !s.spillUsable(staging, size) {
 			continue
 		}
-		f, e := os.CreateTemp(staging, ".stage-spill-")
+		f, e := os.CreateTemp(staging, spillFilePrefix)
 		if e != nil {
 			continue
 		}
 		return f, nil
 	}
 	return nil, ErrInsufficientStorage
+}
+
+const spillFilePrefix = ".stage-spill-"
+
+func spillOwner(root string) string {
+	sum := sha256.Sum256([]byte(filepath.Clean(root)))
+	return fmt.Sprintf("%x", sum[:8])
+}
+
+// removeStaleSpillFiles deletes regular spill files left by a crashed Stage.
+// The caller holds the store lock. Symlinks and other names are left in place.
+func removeStaleSpillFiles(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	removed := false
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), spillFilePrefix) {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		info, err := os.Lstat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		if err = os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		removed = true
+	}
+	if !removed {
+		return nil
+	}
+	return syncDir(dir)
 }
 
 func (s *Store) spillUsable(dir string, size int64) bool {

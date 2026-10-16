@@ -106,7 +106,9 @@ When it does not, staging first verifies the upload on a different filesystem
 that is not tmpfs or ramfs and has room for the image plus that margin. On
 the kit that filesystem is the mounted FESDATA3 volume or a FogCast directory
 bind-mounted from it. A truncated or corrupt upload removes only that
-temporary file and leaves every release in place. After verification, staging
+temporary file and leaves every release in place. A spill file left behind
+when that write is interrupted is removed on the next stage, before free
+space is measured. After verification, staging
 deletes other release images oldest first, and only until the new image plus
 the margin fits, then copies the verified file into the release store. It
 keeps the factory image, known-good, previous, pending and trial selections,

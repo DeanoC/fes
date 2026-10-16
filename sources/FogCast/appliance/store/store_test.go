@@ -849,6 +849,62 @@ func TestStageLowSpaceFailedUploadKeepsUnreferencedRelease(t *testing.T) {
 	})
 }
 
+func TestStageDropsAbandonedSpillFileBeforePrune(t *testing.T) {
+	s, _, raw := fixture(t)
+	stale := stageDistinct(t, s, raw, 5)
+	staleImage, _ := releasePaths(t, s, stale.ImageSHA256)
+	spill := t.TempDir()
+	abandoned := filepath.Join(spill, ".stage-spill-abandoned")
+	if e := os.WriteFile(abandoned, bytes.Repeat([]byte("x"), 64), 0600); e != nil {
+		t.Fatal(e)
+	}
+	keep := filepath.Join(spill, "keep.txt")
+	if e := os.WriteFile(keep, []byte("keep\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	link := filepath.Join(spill, ".stage-spill-link")
+	if e := os.Symlink(keep, link); e != nil {
+		t.Fatal(e)
+	}
+	nested := filepath.Join(spill, ".stage-spill-dir")
+	if e := os.Mkdir(nested, 0700); e != nil {
+		t.Fatal(e)
+	}
+	s.spillRoot = spill
+	s.availableBytes = func(string) (uint64, error) {
+		if _, e := os.Lstat(staleImage); e == nil {
+			return 0, nil
+		}
+		return 1 << 30, nil
+	}
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); e != nil {
+		t.Fatal(e)
+	}
+	mustAbsent(t, abandoned)
+	mustAbsent(t, staleImage)
+	mustExist(t, keep)
+	mustExist(t, link)
+	mustExist(t, nested)
+	if b, e := os.ReadFile(keep); e != nil || string(b) != "keep\n" {
+		t.Fatalf("spill neighbor changed: %q %v", b, e)
+	}
+	published, _ := releasePaths(t, s, staged.ImageSHA256)
+	mustExist(t, published)
+	entries, e := os.ReadDir(spill)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".stage-spill-") && entry.Type().IsRegular() {
+			t.Fatalf("abandoned spill file remains: %s", entry.Name())
+		}
+	}
+}
+
 func TestStageLowSpaceWithoutSpillDoesNotPrune(t *testing.T) {
 	s, _, raw := fixture(t)
 	stale := stageDistinct(t, s, raw, 5)
