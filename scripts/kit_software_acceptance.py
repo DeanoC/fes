@@ -592,7 +592,7 @@ class Runner:
                     'appliance gate or base identity is incompatible')
             maintenance = self.client.request('/v1/kit/maintenance')
             require(maintenance.get('state') == 'none', 'maintenance is already owned')
-            active_manifest(self.client.request('/v1/kit/software/releases'), self.selected)
+            active_manifest(self.client.request('/v1/kit/software/releases', timeout=180), self.selected)
             self.generation = sw['generation']
             self.previous = sw.get('previous')
             before_cores = self.cores()

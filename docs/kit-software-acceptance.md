@@ -178,3 +178,8 @@ Public projections exclude bearer credentials, lease/reservation tokens, private
 configuration and arbitrary remote/command error bodies. Preserve private recovery
 records separately. Input and HDMI remain skipped here; link independently
 classified evidence from the standard package runner and capture workflow.
+
+Verified software inventory and bundle upload each have a bounded 180-second
+request budget within the overall `--timeout`; routine status calls remain
+shorter. Inventory validates every retained release, so its cost grows with the
+installed bundle set.
