@@ -372,6 +372,9 @@ func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Eve
 		return ErrRemoteInputInvalid
 	}
 	if err := r.ensureConnectionLocked(ctx); err != nil {
+		if refusal, lost := r.ownershipReconnectFailureLocked(err); lost {
+			return refusal
+		}
 		return streamUnavailable(err)
 	}
 	var sendErr error
@@ -394,6 +397,9 @@ func (r *RemoteInput) sendEventLocked(ctx context.Context, event remoteinput.Eve
 	r.state = RemoteInputReconnecting
 	r.ready = false
 	if err := r.reconnectLocked(ctx); err != nil {
+		if refusal, lost := r.ownershipReconnectFailureLocked(err); lost {
+			return refusal
+		}
 		r.failLocked("reconnect_timeout")
 		return streamUnavailable(err)
 	}
@@ -845,12 +851,9 @@ func (r *RemoteInput) heartbeatLoop(ctx context.Context) {
 				r.state = RemoteInputReconnecting
 				r.ready = false
 				if err := r.reconnectLocked(context.Background()); err != nil {
-					reason := "reconnect_timeout"
-					var leaseErr *protocol.APIError
-					if errors.As(err, &leaseErr) && (leaseErr.Code == protocol.CodeKitLeaseDenied || leaseErr.Code == protocol.CodeKitLeaseBusy) {
-						reason = "lease_lost"
+					if _, lost := r.ownershipReconnectFailureLocked(err); !lost {
+						r.failLocked("reconnect_timeout")
 					}
-					r.failLocked(reason)
 				}
 			} else {
 				r.readPongLocked()
@@ -1053,6 +1056,9 @@ func (r *RemoteInput) ensureLiveStreamLocked(ctx context.Context) error {
 	err := r.ensureConnectionLocked(dialCtx)
 	cancel()
 	if err != nil {
+		if refusal, lost := r.ownershipReconnectFailureLocked(err); lost {
+			return refusal
+		}
 		r.state = RemoteInputReconnecting
 		r.ready = false
 		return streamUnavailable(err)
@@ -1072,9 +1078,23 @@ func (r *RemoteInput) connectionLiveLocked() bool {
 	return peerStreamLive(r.conn)
 }
 
-func streamDialError(err error) error {
+func ownershipRefusal(err error) bool {
 	var api *protocol.APIError
-	if errors.As(err, &api) && (api.Code == protocol.CodeKitLeaseDenied || api.Code == protocol.CodeKitLeaseBusy) {
+	return errors.As(err, &api) && (api.Code == protocol.CodeKitLeaseDenied || api.Code == protocol.CodeKitLeaseBusy)
+}
+
+// ownershipReconnectFailureLocked records lease loss and returns the sanitized
+// refusal. Transient reconnect errors stay with the caller.
+func (r *RemoteInput) ownershipReconnectFailureLocked(err error) (error, bool) {
+	if !ownershipRefusal(err) {
+		return err, false
+	}
+	r.failLocked("lease_lost")
+	return streamUnavailable(err), true
+}
+
+func streamDialError(err error) error {
+	if ownershipRefusal(err) {
 		return remoteInputStartError(err)
 	}
 	if err == nil || errors.Is(err, ErrRemoteInputNoStream) || errors.Is(err, context.Canceled) {
@@ -1084,6 +1104,9 @@ func streamDialError(err error) error {
 }
 
 func streamUnavailable(err error) error {
+	if ownershipRefusal(err) {
+		return remoteInputStartError(err)
+	}
 	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, ErrRemoteInputNoStream) {
 		return err
 	}

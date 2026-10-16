@@ -81,12 +81,16 @@ before issuing a new operation. Existing authenticated endpoint reconciliation
 uses read-only ownership/status observations to discard stale local authority;
 it never stops or releases the replacement owner's session. A subsequent
 explicit launch uses an ordinary claim, which still refuses a foreign holder.
-Input reconnect stops immediately on an explicit lease-denied or busy response;
-it does not redial the stale handle for the network reconnect grace period.
-This releases the input lock for ownership reconciliation. The heartbeat records
-`lease_lost` rather than a network reconnect timeout. Transient stream failures
-retain the bounded reconnect grace. No mutation is automatically retried after
-lease loss.
+Input reconnect stops immediately on an explicit lease-denied or busy response.
+A CONNECT `/v1/input/stream` refusal of 403 `KIT_LEASE_REQUIRED` — the kit has
+already revoked, expired, or superseded the grant — is read from a bounded
+response and mapped to the same sanitized `KIT_LEASE_DENIED` before reconnect
+sees it. The host does not redial that stale handle for the network reconnect
+grace period. This releases the input lock for ownership reconciliation.
+Heartbeat and event-driven reconnect both record `lease_lost` rather than a
+network reconnect timeout, and event delivery keeps the sanitized refusal.
+Transient stream failures retain the bounded reconnect grace. No mutation is
+automatically retried after lease loss.
 
 Native FPGA Stop uses the
 mutation (`upload_timeout_seconds`) deadline, not the short status request
