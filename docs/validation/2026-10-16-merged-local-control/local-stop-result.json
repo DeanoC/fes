@@ -1,0 +1,187 @@
+{
+  "success": true,
+  "evidence_class": "kit hardware diagnostic; no physical controller claim",
+  "before": {
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+    "boot_id": "14c05a47-1615-43f0-a084-a1dc8948c119",
+    "base_identity": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+    "active_bundle": "0b6b7d8138f2147bc5f3a7b18a3117209365994550aa530b52d2bef819b5602f",
+    "generation": 15,
+    "ready": true
+  },
+  "after": {
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+    "boot_id": "14c05a47-1615-43f0-a084-a1dc8948c119",
+    "base_identity": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+    "active_bundle": "0b6b7d8138f2147bc5f3a7b18a3117209365994550aa530b52d2bef819b5602f",
+    "generation": 15,
+    "ready": true
+  },
+  "events": [
+    {
+      "method": "GET",
+      "path": "/v1/local/status",
+      "request": null,
+      "http_status": 200,
+      "response": {
+        "phase": "idle",
+        "package_id": "",
+        "running": false
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/v1/local/cores/6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87/launch",
+      "request": null,
+      "http_status": 200,
+      "response": {
+        "ok": true,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "core_id": "fes.pong",
+        "generation": "caa901543eaa74783b5900864b65e9ef5950c6224495af6286e736229420be0b"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/v1/local/status",
+      "request": null,
+      "http_status": 200,
+      "response": {
+        "generation": "caa901543eaa74783b5900864b65e9ef5950c6224495af6286e736229420be0b",
+        "phase": "running",
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "core_id": "fes.pong",
+        "running": true
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/v1/local/stop",
+      "request": null,
+      "http_status": 409,
+      "response": {
+        "error": "in_use"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/v1/local/stop",
+      "request": {
+        "expected_generation": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "http_status": 409,
+      "response": {
+        "error": "in_use"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/v1/local/status",
+      "request": null,
+      "http_status": 200,
+      "response": {
+        "generation": "caa901543eaa74783b5900864b65e9ef5950c6224495af6286e736229420be0b",
+        "phase": "running",
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "core_id": "fes.pong",
+        "running": true
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/v1/local/stop",
+      "request": {
+        "expected_generation": "caa901543eaa74783b5900864b65e9ef5950c6224495af6286e736229420be0b"
+      },
+      "http_status": 200,
+      "response": {
+        "ok": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/v1/local/status",
+      "request": null,
+      "http_status": 200,
+      "response": {
+        "phase": "idle",
+        "package_id": "",
+        "running": false
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/v1/local/cores/6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87/launch",
+      "request": null,
+      "http_status": 200,
+      "response": {
+        "ok": true,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "core_id": "fes.pong",
+        "generation": "904af6c427d8a4806978559a1665e4f49bcdd062d7d3bb3b24373b17c2c618f0"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/v1/local/status",
+      "request": null,
+      "http_status": 200,
+      "response": {
+        "generation": "904af6c427d8a4806978559a1665e4f49bcdd062d7d3bb3b24373b17c2c618f0",
+        "phase": "running",
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "core_id": "fes.pong",
+        "running": true
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/v1/local/stop",
+      "request": {
+        "expected_generation": "caa901543eaa74783b5900864b65e9ef5950c6224495af6286e736229420be0b"
+      },
+      "http_status": 409,
+      "response": {
+        "error": "in_use"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/v1/local/status",
+      "request": null,
+      "http_status": 200,
+      "response": {
+        "generation": "904af6c427d8a4806978559a1665e4f49bcdd062d7d3bb3b24373b17c2c618f0",
+        "phase": "running",
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "core_id": "fes.pong",
+        "running": true
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/v1/local/stop",
+      "request": {
+        "expected_generation": "904af6c427d8a4806978559a1665e4f49bcdd062d7d3bb3b24373b17c2c618f0"
+      },
+      "http_status": 200,
+      "response": {
+        "ok": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/v1/local/status",
+      "request": null,
+      "http_status": 200,
+      "response": {
+        "phase": "idle",
+        "package_id": "",
+        "running": false
+      }
+    }
+  ],
+  "distinct_same_package_generations": true,
+  "empty_stop_rejected": true,
+  "stale_stop_rejected": true
+}
