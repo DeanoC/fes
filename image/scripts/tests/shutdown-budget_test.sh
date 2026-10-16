@@ -26,9 +26,12 @@ for script in "$initd"/S*; do
     if [ "$first" = 1 ]; then total=$((total + w)); first=0; fi
   done
 done
-supervise=$initd/../../usr/sbin/mister-supervise
-grep -q '/bin/sleep 5' "$supervise" || fail 'mister-supervise escalator is not 5 s'
-grep -q '/bin/sleep 2' "$supervise" || fail 'mister-supervise unkillable window is not 2 s'
+# The unified supervisor bounds the complete three-service group. Include its
+# command deadline, not only shell countdowns, in the reboot backstop budget.
+controller=$root/platform/internal/kitsoftware/process_linux.go
+software_stop=$(awk '$1 == "StopCommandTimeout" && $2 == "=" {print $3; exit}' "$controller")
+[ -n "$software_stop" ] || fail 'missing unified supervisor stop budget'
+total=$((total + software_stop))
 
 value() { # value NAME -> seconds of `c.NAME = N * time.Second` in guard_linux.go
   awk -v n="$1" '$0 ~ "c\\." n " = [0-9]+ \\* time.Second" {gsub(/[^0-9]/, "", $3); print $3; exit}' "$guard"

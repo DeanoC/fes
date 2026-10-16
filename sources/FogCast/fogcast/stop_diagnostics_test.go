@@ -180,3 +180,16 @@ func TestStopStagePreservesErrorIdentity(t *testing.T) {
 		t.Fatal("untrusted stage accepted")
 	}
 }
+
+func TestLeaseLossSurvivesRemoteErrorNormalization(t *testing.T) {
+	for _, normalize := range []func(error) error{
+		func(err error) error { return canonicalRemoteError(err, protocol.CodeMiSTerUnavailable) },
+		stopAdmissionError,
+	} {
+		err := normalize(targetclient.ErrKitLeaseLost)
+		var api *protocol.APIError
+		if !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied {
+			t.Fatalf("lease loss became %v", err)
+		}
+	}
+}

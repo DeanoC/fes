@@ -1,6 +1,7 @@
 """ST compiler boundary, physical connector and synchronous firmware checks."""
 import hashlib
 import copy
+from contextlib import ExitStack
 import json
 from pathlib import Path
 import re
@@ -73,6 +74,63 @@ def sector_memory_cells(*, packed=False):
 
 
 class AtariSTProducerTests(unittest.TestCase):
+    def test_source_closure_is_audited_and_ignores_unrelated_scripts(self):
+        from scripts.functional_execution import AuditedRoots, source_roots_for_inputs, source_roots_for_producer
+        roots = source_roots_for_producer("build_fes_atari_st_oss", st.PINNED_INPUTS, ROOT)
+        broad = source_roots_for_inputs(st.PINNED_INPUTS)
+        self.assertIsInstance(roots, AuditedRoots)
+        self.assertIn("scripts", broad)
+        self.assertNotIn("scripts", roots)
+        self.assertIn("toolchain.lock", roots)
+        self.assertNotIn("scripts/build_fes_pong.py", roots)
+        for path in st.PINNED_INPUTS:
+            self.assertTrue(any(path == root or path.startswith(root + "/") for root in roots), path)
+        self.assertFalse(any("sim" in Path(root).parts or root.endswith("/sim") for root in roots))
+        record = json.loads(st.create_build_record(
+            ROOT, "https://example.invalid/fes", "a" * 40, {"yosys": "test"},
+            execution={"gpu_device": 0, "version": 1, "environment": {"LANG": "C"}}))
+        self.assertEqual(record["parameters"]["source_closure_mode"], "audited-v1")
+        self.assertEqual(record["parameters"]["toolchain_lock"], "toolchain.lock")
+        self.assertNotIn("scripts/build_fes_pong.py", record["source_inputs"])
+        self.assertIn("toolchain.lock", record["source_inputs"])
+
+    def test_synth_only_forwards_gpu_router_and_toolchain_root(self):
+        with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
+            output = Path(directory)
+            toolchain = Path("/tmp/st-cuda")
+            (output / "synth.json").write_text("{}")
+            auth = {name: SimpleNamespace(identity="tool", path=Path("/cache/install/bin/tool"))
+                    for name in ("yosys", "nextpnr-mistral", "mistral")}
+            authenticate = stack.enter_context(patch.object(
+                st, "_authenticate_atari_st_tools", return_value=auth))
+            invocation = SimpleNamespace(inputs={}, env={}, verify=lambda: None, close=lambda: None)
+            functional = stack.enter_context(patch.object(
+                st, "FunctionalInvocation", return_value=invocation))
+            stack.enter_context(patch.object(st, "_prepare_output", return_value=output))
+            stack.enter_context(patch.object(st, "prepare_cpu_inputs"))
+            stack.enter_context(patch.object(st, "build_commands", return_value=(("yosys",), ())))
+            stack.enter_context(patch.object(st, "_run_tool"))
+            stack.enter_context(patch.object(st, "clock_read_only_memories", return_value=[]))
+            stack.enter_context(patch.object(
+                st, "validate_synth_evidence",
+                return_value={"synthesis_cells": {
+                    "MISTRAL_M10K": 1, "MISTRAL_M10K_TDP": 0, "MISTRAL_FF": 1}}))
+
+            def run(argv):
+                authenticate.reset_mock()
+                functional.reset_mock()
+                return st.main(["--root", str(ROOT), "--synth-only", *argv])
+
+            self.assertEqual(run(["--gpu-router", "CUDA", "--toolchain-root", str(toolchain)]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=toolchain, gpu_router="CUDA")
+            functional.assert_called_once_with(
+                auth, 0, extra_env={"CUDA_DEVICE_ORDER": "PCI_BUS_ID"})
+            self.assertEqual(run([]), 0)
+            authenticate.assert_called_once_with(
+                ROOT.resolve(), cache_root=None, toolchain_root=None, gpu_router="HIP")
+            functional.assert_called_once_with(auth, 0, extra_env=None)
+
     def test_vendor_cpu_adapter_preserves_all_functional_bytes(self):
         original = (ROOT / st.CPU_VENDOR / 'fx68k.sv').read_bytes()
         adapted = st.adapted_cpu_source(ROOT)

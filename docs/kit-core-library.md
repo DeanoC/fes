@@ -14,8 +14,11 @@ Startup positively checks the mount, writable ext4, exact mount identity, and
 that selected device before creating anything. Absent storage or an appliance
 trial, pending update, or corrupt update record leaves the API unavailable.
 The agent does not format, repartition, or fall back to FAT.
-After confirming a trial image, restart the agent under owned maintenance to
-open a library that was unavailable at startup.
+After confirming a trial image, the managed software supervisor automatically
+reconciles persistent storage and restarts its service group at a free lease
+boundary to open the library. Do not restart individual managed services.
+On an unmanaged adoption image, reopening a library unavailable at startup
+still requires an agent restart under owned maintenance.
 
 ## Install and select
 

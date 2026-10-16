@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -26,13 +27,31 @@ const DefaultRoot = "/media/fat/fogcast/releases"
 var ErrCorruptState = errors.New("release selection state is corrupt; factory fallback only")
 var ErrBusy = errors.New("release trial or pending activation already exists")
 
+// ErrInsufficientStorage means the release volume cannot hold the image.
+// Staging also returns it, without deleting anything, when the only way to
+// make room is to prune and no filesystem outside the release volume can hold
+// the upload long enough to verify it.
+var ErrInsufficientStorage = errors.New("insufficient release storage")
+
+var errUnreadableBootTicket = errors.New("refusing to prune releases: boot ticket is unreadable")
+
+const releaseHeadroom = 1 << 20
+
 type Store struct {
 	root    string
 	factory release.Manifest
 	// Keep state persistence operations together: a reader may need to finish
 	// syncing a confirmation made visible by a rename whose directory sync failed.
-	syncFile      func(*os.File) error
-	syncDirectory func(string) error
+	syncFile       func(*os.File) error
+	syncDirectory  func(string) error
+	availableBytes func(string) (uint64, error)
+	loopBackings   func() ([]string, error)
+	// spillRoot receives an upload that does not fit on the release volume so
+	// it can be verified before any image is deleted. Tests set it. Production
+	// leaves it empty and searches a mounted FESDATA3 filesystem instead.
+	spillRoot string
+	// spillCandidates overrides that search. Nil uses the production paths.
+	spillCandidates func() []string
 }
 type Status struct {
 	ConfirmedBootID string `json:"confirmed_boot_id,omitempty"`
@@ -83,7 +102,14 @@ func New(root string, factory release.Manifest) (*Store, error) {
 			return nil, fmt.Errorf("release directory is not a real directory: %s", p)
 		}
 	}
-	return &Store{root: root, factory: factory, syncFile: (*os.File).Sync, syncDirectory: syncDir}, nil
+	return &Store{
+		root:           root,
+		factory:        factory,
+		syncFile:       (*os.File).Sync,
+		syncDirectory:  syncDir,
+		availableBytes: statAvailable,
+		loopBackings:   loopBackingFiles,
+	}, nil
 }
 func (s *Store) ImagePath(hash string) (string, error) {
 	if !release.ValidHash(hash) {
@@ -494,6 +520,17 @@ func verifyImage(ctx context.Context, f *os.File, m release.Manifest) error {
 
 // Stage publishes only complete verified raw images. It never changes selection
 // and never replaces an existing content-addressed image, including corrupt ones.
+// When the release volume has room for the image plus a 1 MiB margin, Stage
+// writes and verifies it there and does not delete anything. Otherwise it
+// verifies the upload on a different, non-memory filesystem before deleting
+// anything. A truncated or corrupt upload removes only that temporary file.
+// After verification, Stage deletes other release images oldest first until
+// the image and the margin fit, then copies the verified file into this store.
+// It keeps factory, known-good, previous, pending, trial, the boot.json image,
+// and every image in this store that backs a loop device. It does not remove
+// boot files. If no qualifying filesystem can hold the upload, or the retained
+// images still leave too little room, Stage returns ErrInsufficientStorage and
+// deletes nothing.
 func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.Reader) error {
 	if e := m.Compatible(s.factory.KernelSHA256); e != nil {
 		return e
@@ -541,13 +578,36 @@ func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return e
 	}
-	var fs unix.Statfs_t
-	if e = unix.Statfs(s.root, &fs); e != nil {
+	free, e := s.availableBytes(s.root)
+	if e != nil {
 		return e
 	}
-	if uint64(size)+(1<<20) > uint64(fs.Bavail)*uint64(fs.Bsize) {
-		return errors.New("insufficient release storage")
+	if free >= uint64(size)+releaseHeadroom {
+		return s.publishNewImage(ctx, m, path, r, size)
 	}
+	// Retention is resolved before the upload is admitted so an unreadable
+	// boot ticket, corrupt selection, or failed loop scan still refuses
+	// without reading or deleting.
+	if _, e = s.protectedImages(); e != nil {
+		return e
+	}
+	spilled, e := s.admitUpload(ctx, m, size, r)
+	if e != nil {
+		return e
+	}
+	defer os.Remove(spilled)
+	if e = s.ensureSpace(ctx, size); e != nil {
+		return e
+	}
+	in, e := regularOpen(spilled)
+	if e != nil {
+		return e
+	}
+	defer in.Close()
+	return s.publishNewImage(ctx, m, path, in, size)
+}
+
+func (s *Store) publishNewImage(ctx context.Context, m release.Manifest, path string, r io.Reader, size int64) error {
 	f, e := os.CreateTemp(filepath.Join(s.root, "images"), ".stage-")
 	if e != nil {
 		return e
@@ -594,6 +654,449 @@ func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.
 	}
 	return atomicWrite(filepath.Join(s.root, "manifests", m.ImageSHA256+".json"), append(b, '\n'))
 }
+
+// admitUpload writes the upload to a filesystem other than the release volume
+// and verifies it there. The returned file is complete. The caller removes it.
+func (s *Store) admitUpload(ctx context.Context, m release.Manifest, size int64, r io.Reader) (string, error) {
+	f, e := s.openSpill(size)
+	if e != nil {
+		return "", e
+	}
+	tmp := f.Name()
+	defer f.Close()
+	remove := true
+	defer func() {
+		if remove {
+			_ = os.Remove(tmp)
+		}
+	}()
+	n, e := io.Copy(f, io.LimitReader(contextReader{ctx, r}, size+1))
+	if e != nil {
+		return "", e
+	}
+	if n != size {
+		return "", errors.New("upload size mismatch")
+	}
+	if e = verifyImage(ctx, f, m); e != nil {
+		return "", e
+	}
+	if e = f.Sync(); e != nil {
+		return "", e
+	}
+	if e = f.Close(); e != nil {
+		return "", e
+	}
+	if e = ctx.Err(); e != nil {
+		return "", e
+	}
+	remove = false
+	return tmp, nil
+}
+
+func (s *Store) openSpill(size int64) (*os.File, error) {
+	if s.spillRoot != "" {
+		if e := spillInsideRelease(s.root, s.spillRoot); e != nil {
+			return nil, e
+		}
+		if e := removeStaleSpillFiles(s.spillRoot); e != nil {
+			return nil, e
+		}
+		return os.CreateTemp(s.spillRoot, spillFilePrefix)
+	}
+	candidates := releaseSpillCandidates
+	if s.spillCandidates != nil {
+		candidates = s.spillCandidates
+	}
+	for _, dir := range candidates() {
+		if !s.spillUsable(dir, size) {
+			continue
+		}
+		// One directory per release root. Stage holds this store's lock, so a
+		// file left here belongs to a process that exited before removing it.
+		// Another store's in-progress upload lives in its own directory.
+		staging := filepath.Join(dir, ".release-stage", spillOwner(s.root))
+		if e := os.MkdirAll(staging, 0700); e != nil {
+			continue
+		}
+		if e := removeStaleSpillFiles(staging); e != nil {
+			continue
+		}
+		if !s.spillUsable(staging, size) {
+			continue
+		}
+		f, e := os.CreateTemp(staging, spillFilePrefix)
+		if e != nil {
+			continue
+		}
+		return f, nil
+	}
+	return nil, ErrInsufficientStorage
+}
+
+const spillFilePrefix = ".stage-spill-"
+
+func spillOwner(root string) string {
+	sum := sha256.Sum256([]byte(filepath.Clean(root)))
+	return fmt.Sprintf("%x", sum[:8])
+}
+
+// removeStaleSpillFiles deletes regular spill files left by a crashed Stage.
+// The caller holds the store lock. Symlinks and other names are left in place.
+func removeStaleSpillFiles(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	removed := false
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), spillFilePrefix) {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		info, err := os.Lstat(path)
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		if err = os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+		removed = true
+	}
+	if !removed {
+		return nil
+	}
+	return syncDir(dir)
+}
+
+func (s *Store) spillUsable(dir string, size int64) bool {
+	if spillInsideRelease(s.root, dir) != nil {
+		return false
+	}
+	rootDev, e := deviceID(s.root)
+	if e != nil {
+		return false
+	}
+	dev, e := deviceID(dir)
+	if e != nil {
+		return false
+	}
+	var fs unix.Statfs_t
+	if unix.Statfs(dir, &fs) != nil {
+		return false
+	}
+	return admissionFilesystem(fs, dev, rootDev, uint64(size)+releaseHeadroom)
+}
+
+func admissionFilesystem(fs unix.Statfs_t, dev, rootDev, need uint64) bool {
+	if dev == 0 || dev == rootDev {
+		return false
+	}
+	// Statfs_t.Type is int32 on ARM. RAMFS_MAGIC does not fit in int32, so
+	// compare the 32-bit kind. fes-boot is built for that architecture.
+	if memoryFilesystem(uint32(fs.Type)) {
+		return false
+	}
+	if fs.Flags&unix.ST_RDONLY != 0 {
+		return false
+	}
+	if fs.Bsize <= 0 {
+		return false
+	}
+	return fs.Bavail*uint64(fs.Bsize) >= need
+}
+
+func memoryFilesystem(kind uint32) bool {
+	return kind == uint32(unix.TMPFS_MAGIC) || kind == uint32(unix.RAMFS_MAGIC)
+}
+
+func spillInsideRelease(root, dir string) error {
+	rel, e := filepath.Rel(filepath.Clean(root), filepath.Clean(dir))
+	if e != nil {
+		return e
+	}
+	if rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return errors.New("release admission spill is inside the release root")
+	}
+	return nil
+}
+
+func deviceID(path string) (uint64, error) {
+	var st unix.Stat_t
+	if e := unix.Stat(path, &st); e != nil {
+		return 0, e
+	}
+	return uint64(st.Dev), nil
+}
+
+func releaseSpillCandidates() []string {
+	return []string{
+		"/run/fogcast/fesdata3",
+		"/media/fat/fogcast/evidence",
+		"/media/fat/fogcast/cache",
+		"/media/fat/fogcast/launcher-cache",
+		"/media/fat/fogcast/saves",
+		"/media/fat/fogcast/core-data",
+	}
+}
+
+func statAvailable(root string) (uint64, error) {
+	var fs unix.Statfs_t
+	if err := unix.Statfs(root, &fs); err != nil {
+		return 0, err
+	}
+	return uint64(fs.Bavail) * uint64(fs.Bsize), nil
+}
+
+// ensureSpace frees unreferenced images until size plus the staging margin
+// fits. Protected identities are resolved before the first deletion. Callers
+// verify the incoming image before this runs, so a failed upload never reaches it.
+func (s *Store) ensureSpace(ctx context.Context, size int64) error {
+	if size < 0 {
+		return errors.New("invalid image size")
+	}
+	need := uint64(size) + releaseHeadroom
+	free, err := s.availableBytes(s.root)
+	if err != nil {
+		return err
+	}
+	if free >= need {
+		return nil
+	}
+	keep, err := s.protectedImages()
+	if err != nil {
+		return err
+	}
+	for {
+		if err = ctx.Err(); err != nil {
+			return err
+		}
+		removed, err := s.removeOldestUnreferenced(keep)
+		if err != nil {
+			return err
+		}
+		if !removed {
+			return ErrInsufficientStorage
+		}
+		free, err = s.availableBytes(s.root)
+		if err != nil {
+			return err
+		}
+		if free >= need {
+			return nil
+		}
+	}
+}
+
+func (s *Store) protectedImages() (map[string]struct{}, error) {
+	st, corrupt, err := s.readState()
+	if err != nil {
+		return nil, err
+	}
+	if corrupt {
+		return nil, ErrCorruptState
+	}
+	keep := map[string]struct{}{}
+	add := func(hash string) {
+		if release.ValidHash(hash) {
+			keep[hash] = struct{}{}
+		}
+	}
+	add(s.factory.ImageSHA256)
+	add(st.Good)
+	add(st.Previous)
+	add(st.Pending)
+	add(st.TrialImage)
+	add(st.ConfirmedImage)
+	boot, err := s.bootImage()
+	if err != nil {
+		return nil, err
+	}
+	add(boot)
+	paths, err := s.loopBackings()
+	if err != nil {
+		return nil, fmt.Errorf("refusing to prune releases: %w", err)
+	}
+	imagesDir := filepath.Join(s.root, "images")
+	for _, path := range paths {
+		if hash, ok := imageHashFromBacking(imagesDir, path); ok {
+			add(hash)
+		}
+	}
+	return keep, nil
+}
+
+func (s *Store) bootImage() (string, error) {
+	f, err := regularOpen(filepath.Join(s.root, "boot.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, 4097))
+	if err != nil {
+		return "", err
+	}
+	if len(b) > 4096 {
+		return "", errUnreadableBootTicket
+	}
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+	var ticket struct {
+		BootID      string `json:"boot_id"`
+		ImageSHA256 string `json:"image_sha256"`
+		Trial       bool   `json:"trial"`
+	}
+	if dec.Decode(&ticket) != nil || !release.ValidHash(ticket.ImageSHA256) {
+		return "", errUnreadableBootTicket
+	}
+	if err = dec.Decode(&struct{}{}); err != io.EOF {
+		return "", errUnreadableBootTicket
+	}
+	return ticket.ImageSHA256, nil
+}
+
+func (s *Store) removeOldestUnreferenced(keep map[string]struct{}) (bool, error) {
+	dir := filepath.Join(s.root, "images")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, err
+	}
+	type candidate struct {
+		hash string
+		mod  time.Time
+	}
+	var stale []candidate
+	for _, entry := range entries {
+		hash, ok := publishedImageHash(entry.Name())
+		if !ok {
+			continue
+		}
+		if _, protected := keep[hash]; protected {
+			continue
+		}
+		info, err := os.Lstat(filepath.Join(dir, entry.Name()))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return false, err
+		}
+		if !info.Mode().IsRegular() {
+			continue
+		}
+		stale = append(stale, candidate{hash: hash, mod: info.ModTime()})
+	}
+	if len(stale) == 0 {
+		return false, nil
+	}
+	sort.Slice(stale, func(i, j int) bool {
+		if !stale[i].mod.Equal(stale[j].mod) {
+			return stale[i].mod.Before(stale[j].mod)
+		}
+		return stale[i].hash < stale[j].hash
+	})
+	hash := stale[0].hash
+	if err = os.Remove(filepath.Join(dir, hash+".img")); err != nil {
+		return false, err
+	}
+	if err = s.syncDirectory(dir); err != nil {
+		return false, err
+	}
+	manifestDir := filepath.Join(s.root, "manifests")
+	manifest := filepath.Join(manifestDir, hash+".json")
+	info, err := os.Lstat(manifest)
+	if errors.Is(err, os.ErrNotExist) {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if !info.Mode().IsRegular() {
+		return false, errors.New("release manifest is not a regular file")
+	}
+	if err = os.Remove(manifest); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	if err = s.syncDirectory(manifestDir); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func publishedImageHash(name string) (string, bool) {
+	hash, ok := strings.CutSuffix(name, ".img")
+	if !ok || !release.ValidHash(hash) {
+		return "", false
+	}
+	return hash, true
+}
+
+func imageHashFromBacking(imagesDir, backing string) (string, bool) {
+	backing = strings.TrimSpace(backing)
+	backing = strings.TrimSuffix(backing, " (deleted)")
+	if backing == "" {
+		return "", false
+	}
+	cleaned := filepath.Clean(backing)
+	hash, ok := publishedImageHash(filepath.Base(cleaned))
+	if !ok || filepath.Dir(cleaned) != filepath.Clean(imagesDir) {
+		return "", false
+	}
+	return hash, true
+}
+
+func loopBackingFiles() ([]string, error) {
+	entries, err := os.ReadDir("/sys/block")
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var paths []string
+	for _, entry := range entries {
+		if !loopDeviceName(entry.Name()) {
+			continue
+		}
+		backing, err := os.ReadFile(filepath.Join("/sys/block", entry.Name(), "loop", "backing_file"))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		path := strings.TrimSpace(string(backing))
+		if path != "" {
+			paths = append(paths, path)
+		}
+	}
+	return paths, nil
+}
+
+func loopDeviceName(name string) bool {
+	rest, ok := strings.CutPrefix(name, "loop")
+	if !ok || rest == "" {
+		return false
+	}
+	for _, r := range rest {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Store) activate(ctx context.Context, st diskState, hash string) error {
 	if st.Pending == hash {
 		return nil

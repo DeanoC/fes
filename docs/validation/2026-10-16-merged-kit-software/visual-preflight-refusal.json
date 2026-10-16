@@ -1,0 +1,12 @@
+{
+  "captures": 0,
+  "events": 0,
+  "private_host_exit": null,
+  "reason": "literal-address helper guard rejected the configured target alias",
+  "source_sha256": {
+    "failure.json": "c862cc6e6e2434afd0bbea40432eaeffef67df82dc46e1ecf7a9d0fcda3d5fa6",
+    "visual.json": "a73384e929a91adea066c4a1332eaaa3b43110bbee94000f9d84e5f42cce30e6"
+  },
+  "stage": "preflight",
+  "success": false
+}

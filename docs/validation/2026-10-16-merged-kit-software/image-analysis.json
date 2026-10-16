@@ -1,0 +1,47 @@
+{
+  "baseline_black": true,
+  "measurements": {
+    "baseline_left": {
+      "row_count": 0,
+      "y_max": null,
+      "y_min": null
+    },
+    "baseline_right": {
+      "row_count": 0,
+      "y_max": null,
+      "y_min": null
+    },
+    "down_left": {
+      "row_count": 143,
+      "y_max": 1079,
+      "y_min": 937
+    },
+    "down_right": {
+      "row_count": 143,
+      "y_max": 611,
+      "y_min": 469
+    },
+    "up_left": {
+      "row_count": 144,
+      "y_max": 143,
+      "y_min": 0
+    },
+    "up_right": {
+      "row_count": 143,
+      "y_max": 611,
+      "y_min": 469
+    }
+  },
+  "method": "White pixel rows within fixed paddle x windows on original 1920x1080 capture; all RGB channels >180 in at least12/18 columns. PNG decoded with FFmpeg.",
+  "scope": "Software-injected directional input changed left paddle; no physical USB input claim.",
+  "windows": {
+    "left": [
+      295,
+      312
+    ],
+    "right": [
+      1608,
+      1625
+    ]
+  }
+}

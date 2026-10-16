@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
 )
@@ -110,7 +111,8 @@ func TestProtocolAdmissionBeforeMutationAndDiscoveryAdoption(t *testing.T) {
 
 func TestV1DifferentBuildRevisionsRemainCompatible(t *testing.T) {
 	artifacts := &protocol.Artifacts{RuntimeCommit: strings.Repeat("b", 40), AgentRevision: strings.Repeat("c", 40)}
-	health := protocol.Health{APIVersion: "v1", Ready: true, Artifacts: artifacts}
+	software := &softwarecontrol.Status{ActiveBundle: strings.Repeat("d", 64), BaseIdentity: strings.Repeat("e", 64)}
+	health := protocol.Health{APIVersion: "v1", Ready: true, Artifacts: artifacts, Software: software}
 	peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v1/stop":
@@ -132,6 +134,9 @@ func TestV1DifferentBuildRevisionsRemainCompatible(t *testing.T) {
 	got, err := s.Health(context.Background())
 	if err != nil {
 		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got.Software, software) {
+		t.Fatal("active software identity lost")
 	}
 	if !reflect.DeepEqual(got.Artifacts, artifacts) {
 		t.Fatal("provenance changed")

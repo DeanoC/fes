@@ -36,6 +36,7 @@ help:
 	@printf '%s\n' 'make package-acceptance PACKAGE_ACCEPTANCE_ARGS="--help": one sealed package, explicit hardware opt-in, no image rebuild.'
 	@printf '%s\n' 'make package-acceptance-isolated PACKAGE_ACCEPTANCE_ISOLATED_ARGS="--help": private host catalog and restart diagnostic; explicit hardware opt-in.'
 	@printf '%s\n' 'make core-dev CORE_DEV_ARGS="--help": prepare one HIP package without building an image.' 'make core-dev-accept CORE_DEV_ACCEPT_ARGS="--help": explicit isolated acceptance of a frozen candidate.'
+	@printf '%s\n' 'make kit-software KIT_SOFTWARE_BASE=/absolute/linux.img KIT_SOFTWARE_BASE_SHA256=SHA256 KIT_SOFTWARE_VERSION=VERSION: build compatible kit userspace without an OS rebuild.'
 doctor build host image verify rebuild dev:
 	IMAGE_PASSES="$(IMAGE_PASSES)" $(PYTHON) scripts/build.py $@ --profile "$(PROFILE)"
 platform-provision:
@@ -117,3 +118,11 @@ status:
 .PHONY: core-catalog
 core-catalog:
 	$(PYTHON) scripts/core_catalog.py $(CORE_CATALOG_ARGS)
+
+.PHONY: kit-software
+KIT_SOFTWARE_OUTPUT ?= out/kit-software/$(KIT_SOFTWARE_VERSION)
+kit-software:
+	$(if $(strip $(KIT_SOFTWARE_BASE)),,$(error kit-software requires KIT_SOFTWARE_BASE=/absolute/linux.img))
+	$(if $(strip $(KIT_SOFTWARE_BASE_SHA256)),,$(error kit-software requires KIT_SOFTWARE_BASE_SHA256=<reviewed image SHA-256>))
+	$(if $(strip $(KIT_SOFTWARE_VERSION)),,$(error kit-software requires KIT_SOFTWARE_VERSION=<release version>))
+	$(PYTHON) scripts/kit_software.py --base "$(KIT_SOFTWARE_BASE)" --base-sha256 "$(KIT_SOFTWARE_BASE_SHA256)" --version "$(KIT_SOFTWARE_VERSION)" --output "$(KIT_SOFTWARE_OUTPUT)"

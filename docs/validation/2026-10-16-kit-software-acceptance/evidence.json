@@ -1,0 +1,63 @@
+{
+  "class": "kit-software API lifecycle hardware diagnostic",
+  "equivalent_file_sha256": {
+    "README.md": "0b15fcc8ab2c3ca13582231921d102017437fdb314f50b2847bc7edbe9700da4",
+    "docs/kit-software-acceptance.md": "644aeb46f59b9ad9e530598f6221e53c091034e758ac82187715476721091dae",
+    "scripts/kit_software_acceptance.py": "f45f5389ed171ee057eb4254ee09d853c60530558ea6627f40206e81a59cde3c",
+    "tests/test_kit_software_acceptance.py": "86e6451a8e20ae5500c7aa2cce36d29c363deca319b4371bd5f1d6f176a8afd4"
+  },
+  "format": 1,
+  "hardware_runner_exit": 0,
+  "hardware_source_commit": "509d6fbbe6b91c0b13742ef88731831b7934fb65",
+  "host_checks": {
+    "final_focused": {
+      "origin": "coordinating-agent execution result",
+      "outcome": "passed",
+      "seconds": 15.002,
+      "source": "509d6fbbe6b91c0b13742ef88731831b7934fb65",
+      "tests": 24
+    },
+    "parent_test_changed": {
+      "commands": 6,
+      "origin": "coordinating-agent execution result",
+      "outcome": "passed",
+      "seconds": 242.393,
+      "skipped": 1,
+      "source": "1d762cbf",
+      "tests": 898
+    },
+    "rebased_make_check": {
+      "log_sha256": "7a1776db34913e75a5f9671b00560d84fc90991debaf5e6df46340dc35170c88",
+      "outcome": "passed",
+      "source": "7cb817ab52c56b904c24f87c8ab884356293427c"
+    }
+  },
+  "limits": [
+    "Skipped input and HDMI are not passing hardware acceptance.",
+    "Core inventory checks identities/selections through the supported API, not stored bytes or core execution.",
+    "Local probe is busy-admission evidence, not successful local launch.",
+    "Observed durable receipts/phases do not count every process start."
+  ],
+  "operator_cleanup": {
+    "temporary_local_probe_absent_after_reboot": true,
+    "verification": "coordinating-agent read-only SSH observation"
+  },
+  "original_dependency_base": "211fa7c8",
+  "overall_hardware_acceptance": false,
+  "public_records": {
+    "baseline.json": {
+      "sha256": "7f14753fc13631bbea920e967b1d6551773f58d35158f75bddc99a1f71241c5c",
+      "source_file": "003-baseline.json"
+    },
+    "final-ready.json": {
+      "sha256": "c869703b3cd9f3189ce0c1f62d8b1c1421cb2634001150fa51b2a8e155e88b39",
+      "source_file": "128-transition.json"
+    },
+    "result.json": {
+      "sha256": "2482a36a44029fb18233de7167ba8831ef2ad2a42855cd79b6a72f1c156bb48e",
+      "source_file": "129-result.json"
+    }
+  },
+  "rebased_equivalent_commit": "7cb817ab52c56b904c24f87c8ab884356293427c",
+  "rebased_onto": "99dfe38186540a1683c505c6aa7f787abd24506e"
+}

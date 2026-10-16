@@ -1,0 +1,19 @@
+{
+  "attempt_evidence": "one durable recovered receipt; monotonic observed phases; no observed replay",
+  "base_identity": "32f16cd2eba9befefaef7f6c94ee70f5c830b3c231e859222df7c7aee7b3b993",
+  "boot_id": "e9c755b2-b341-479c-b2dc-5b295f33f26d",
+  "candidate": "b69e84c035760b1a5ee89fe2b22cbb280abeb0ab062e58e256f2bd0e9eda4a81",
+  "evidence_class": "API lifecycle hardware diagnostic",
+  "generation": 6,
+  "observed_phases": [
+    "queued",
+    "recovering"
+  ],
+  "observed_recovery_phase_entries": 1,
+  "operation_id": "644b8a6f8584bc443ff299365c116e12c4a02cedbfa96952250543c02f17db05",
+  "outcome": "pass",
+  "owned_release_confirmed": true,
+  "recovery_receipt_count": 1,
+  "selected": "7d71e90f32da8d0ff7ce26472539bc067648abb0c5fc865654dc4aec8f1c04d0",
+  "stable_recovered_seconds": 15
+}

@@ -433,6 +433,7 @@ type App struct {
 	roomsDir                string
 	homeRooms               bool
 	homeRoom                string
+	gfxBackend              string
 	pinnedRooms             []string
 	reducedMotion           bool
 	homeRecents             []hostclient.Game
@@ -547,10 +548,13 @@ type App struct {
 	localPhase                 string
 	localReconcileAfterFailure bool
 	localReconcileDeadline     time.Time
+	localUnownedRun            bool
 	localTitle                 string
 	localStartedAt             time.Time
 	localStatus                string
 	localGen                   uint64
+	localLeaseGeneration       string
+	localPackageID             string
 	localPresentsPaused        bool
 	localLateAdopt             bool
 	localRedraw                uint64

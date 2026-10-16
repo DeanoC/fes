@@ -83,7 +83,7 @@ historical Menu tests. Sequence prose:
 native idle admission.
 
 Kit HDMI after Stop is still `/usr/sbin/fogcast-kit`
-([`S60fogcast-kit`](../image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S60fogcast-kit)).
+(started by [`S40fes-kit-software`](../image/buildroot/board/fogcast-target/native-rootfs-overlay/etc/init.d/S40fes-kit-software)).
 [`ui/kitlauncher/run.go`](../sources/FogCast/ui/kitlauncher/run.go)
 skips `present` while a session is active, and after confirmed idle when
 that idle has no HPS framebuffer (`0x002f`). FPGA splash pixels stay on

@@ -27,6 +27,9 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from diagnostic_identity import (
+    observe_health, active_manifest, expected_identity, INVENTORY_RESPONSE_LIMIT,
+)
 from input_diagnostic import load_diagnostic, run_diagnostic, validate_timeout
 
 
@@ -34,7 +37,7 @@ PACKAGE_ID_RE = re.compile(r"^[0-9a-f]{64}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 CORE_ID_RE = re.compile(r"^[a-z][a-z0-9_.-]{0,95}$")
 GAME_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]{0,127}$")
-REVISION_MAX = 256
+STRING_MAX = 256
 MAX_ARCHIVE_BYTES = 65 * 1024 * 1024
 MAX_MEDIA_BYTES = 32 * 1024 * 1024
 EXPECTED_LAUNCH_EXECUTION = "fpga_native"
@@ -103,6 +106,8 @@ class Api:
         path: str,
         body: bytes | None = None,
         headers: dict[str, str] | None = None,
+        *,
+        limit: int = HTTP_RESPONSE_BODY_LIMIT,
     ) -> Any:
         request = urllib.request.Request(
             self.origin + path,
@@ -112,13 +117,13 @@ class Api:
         )
         try:
             with urllib.request.build_opener(NoRedirect).open(request, timeout=self.timeout) as response:
-                raw = response.read(HTTP_RESPONSE_BODY_LIMIT + 1)
+                raw = response.read(limit + 1)
         except urllib.error.HTTPError as exc:
             raise AcceptanceError(f"{method} {path}: {_http_error_detail(exc)}") from exc
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             detail = getattr(exc, "reason", exc)
             raise AcceptanceError(f"{method} {path}: {_safe_error_field(detail)}") from exc
-        if len(raw) > HTTP_RESPONSE_BODY_LIMIT:
+        if len(raw) > limit:
             raise AcceptanceError(f"{method} {path}: response exceeded the bounded size")
         if not raw:
             return {}
@@ -127,8 +132,8 @@ class Api:
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise AcceptanceError(f"{method} {path}: response was not JSON") from exc
 
-    def get(self, path: str) -> Any:
-        return self.request("GET", path)
+    def get(self, path: str, *, limit: int = HTTP_RESPONSE_BODY_LIMIT) -> Any:
+        return self.request("GET", path, limit=limit)
 
     def post_empty(self, path: str) -> Any:
         return self.request("POST", path, headers={"Accept": "application/json"})
@@ -162,6 +167,7 @@ class Api:
 class SessionIdentity:
     session_id: str
     target_id: str
+    target_name: str
     flight_id: str
     game_id: str
     package_id: str
@@ -169,7 +175,7 @@ class SessionIdentity:
     parts_composition: str = ""
 
 
-def _require_string(value: Any, name: str, maximum: int = REVISION_MAX) -> str:
+def _require_string(value: Any, name: str, maximum: int = STRING_MAX) -> str:
     if not isinstance(value, str) or not value or len(value) > maximum or any(ord(char) < 32 for char in value):
         raise AcceptanceError(f"{name} must be a bounded non-empty string")
     return value
@@ -249,6 +255,7 @@ def _session_identity(value: Any, context: str) -> SessionIdentity:
     return SessionIdentity(
         session_id=_require_string(value.get("id"), f"{context} session ID"),
         target_id=_require_string(value.get("target_id"), f"{context} target_id"),
+        target_name=_require_string(value.get("target"), f"{context} target name"),
         flight_id=_require_string(value.get("flight_id"), f"{context} flight ID"),
         game_id=_require_game_id(value.get("game_id"), f"{context} game ID"),
         package_id=_require_package_id(package.get("package_id"), f"{context} package ID"),
@@ -348,7 +355,8 @@ class Runner:
         self.expected_selected_package = args.expected_selected_package
         self.archive: bytes = b""
         self.archive_sha256 = ""
-        self.last_revisions: dict[str, str] = {}
+        self.provenance: dict[str, Any] = {}
+        self.bundle_manifest = None
         self.owned: SessionIdentity | None = None
         self.stop_attempted = False
         self.video: VideoParts | None = None
@@ -369,46 +377,36 @@ class Runner:
 
     def check_health(self) -> dict[str, Any]:
         value = self.api.get("/api/v1/health")
-        if not isinstance(value, dict) or value.get("ready") is not True:
-            raise AcceptanceError("host is not ready")
-        target = value.get("target")
-        if not isinstance(target, dict) or target.get("reachable") is not True or target.get("ready") is not True:
-            raise AcceptanceError("target is not ready through the host")
-        connection = target.get("connection")
-        observed_target_id = connection.get("target_id") if isinstance(connection, dict) else None
-        if observed_target_id != self.target_id:
-            raise AcceptanceError(
-                f"target_id does not match expected target {self.target_id!r}; "
-                f"observed {observed_target_id!r}"
-            )
-        artifacts = target.get("artifacts")
-        if not isinstance(artifacts, dict):
-            raise AcceptanceError("target health has no sealed artifact identity")
-        actual = {
-            "host": (value.get("host") or {}).get("revision"),
-            "agent": artifacts.get("agent_revision"),
-            "runtime": artifacts.get("runtime_commit"),
-        }
-        expected = {
-            "host": self.args.expected_host_revision,
-            "agent": self.args.expected_agent_revision,
-            "runtime": self.args.expected_runtime_revision,
-        }
-        for name in ("host", "agent", "runtime"):
-            if actual[name] != expected[name]:
-                raise AcceptanceError(
-                    f"{name} revision changed: expected {expected[name]!r}, observed {actual[name]!r}"
-                )
-        self.last_revisions = actual
+        try:
+            self.provenance = observe_health(value, self.target_id, self.args.expected_bundle_id,
+                                             self.args.expected_base_image_sha256)
+            if self.bundle_manifest is None:
+                self.bundle_manifest = active_manifest(
+                    self.api.get("/api/v1/kit/software/releases", limit=INVENTORY_RESPONSE_LIMIT),
+                    self.args.expected_bundle_id)
+                # Inventory may be slow; recheck the live selection before mutation.
+                return self.check_health()
+        except ValueError as exc:
+            raise AcceptanceError(str(exc)) from exc
         return value
 
-    def session(self) -> dict[str, Any]:
-        value = self.api.get("/api/v1/session")
+    def session(self, target: str | None = None) -> dict[str, Any]:
+        path = "/api/v1/session"
+        if target is not None:
+            path += "?" + urllib.parse.urlencode({"target": target})
+        value = self.api.get(path)
         if not isinstance(value, dict):
             raise AcceptanceError("session response is not an object")
         return value
 
     def session_identity(self, value: Any, context: str) -> SessionIdentity:
+        if context == "input diagnostic":
+            try:
+                observe_health(self.api.get("/api/v1/health"), self.target_id,
+                               self.args.expected_bundle_id, self.args.expected_base_image_sha256,
+                               require_ready=False)
+            except ValueError as exc:
+                raise AcceptanceError(str(exc)) from exc
         identity = _session_identity(value, context)
         if identity.target_id != self.target_id:
             raise AcceptanceError(
@@ -530,12 +528,12 @@ class Runner:
                 time.sleep(self.args.poll_interval)
         raise AcceptanceError(f"owned launch was not confirmed: {last_error}")
 
-    def wait_for_clean_idle(self, context: str) -> dict[str, Any]:
+    def wait_for_clean_idle(self, context: str, target: str | None = None) -> dict[str, Any]:
         last_error = ""
         for attempt in range(self.args.poll_attempts):
             try:
                 return _require_session_target(
-                    _require_clean_idle(self.session(), context), self.target_id, context
+                    _require_clean_idle(self.session(target), context), self.target_id, context
                 )
             except AcceptanceError as exc:
                 last_error = str(exc)
@@ -547,6 +545,12 @@ class Runner:
         if self.stop_attempted:
             raise AcceptanceError("Stop was already attempted")
         self.stop_attempted = True
+        try:
+            observe_health(self.api.get("/api/v1/health"), self.target_id,
+                           self.args.expected_bundle_id, self.args.expected_base_image_sha256,
+                           require_ready=False)
+        except ValueError as exc:
+            raise AcceptanceError(str(exc)) from exc
         current = self.session_identity(self.session(), "pre-Stop")
         if not _same_identity(current, expected):
             raise AcceptanceError(
@@ -558,9 +562,16 @@ class Runner:
         response_id = response.get("id") if isinstance(response, dict) else None
         if response_id != expected.session_id:
             raise AcceptanceError("Stop response session ID does not match the owned host session")
-        confirmed = self.wait_for_clean_idle("Stop")
+        if response.get("target") != expected.target_name:
+            raise AcceptanceError("Stop response target name does not match the owned host session")
+        # Explicit Stop clears foreground ownership. An unscoped read now uses
+        # the host's root idle coordinator, whose ID differs from this target's
+        # coordinator. Keep confirming the exact coordinator that we stopped.
+        confirmed = self.wait_for_clean_idle("Stop", expected.target_name)
         if confirmed.get("id") != expected.session_id:
             raise AcceptanceError("Stop confirmation session ID does not match the owned host session")
+        if confirmed.get("target") != expected.target_name:
+            raise AcceptanceError("Stop confirmation target name does not match the owned host session")
         return {"response": response, "confirmed": confirmed}
 
     def observe_ambiguous_launch(self, operation_error: AcceptanceError) -> None:
@@ -741,7 +752,9 @@ class Runner:
             "package_id": self.package_id,
             "core_id": self.core_id,
             "target_id": self.target_id,
-            "revisions": dict(self.last_revisions),
+            "software_identity": expected_identity(self.args),
+            "provenance": {**self.provenance, "active_bundle": self.bundle_manifest["provenance"]},
+            "provided_interfaces": self.bundle_manifest["interfaces"],
             "selection": {
                 "game_id": game_id,
                 "package_id": selected_now.get("package_id", self.package_id),
@@ -788,14 +801,8 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--expected-package-id", required=True)
     result.add_argument("--expected-core-id", required=True)
     result.add_argument("--expected-target-id", required=True)
-    result.add_argument("--expected-host-revision", required=True)
-    result.add_argument("--expected-agent-revision", required=True)
-    result.add_argument(
-        "--expected-runtime-revision",
-        "--expected-runtime-commit",
-        dest="expected_runtime_revision",
-        required=True,
-    )
+    result.add_argument("--expected-bundle-id", required=True)
+    result.add_argument("--expected-base-image-sha256", required=True)
     result.add_argument("--receipt", required=True, help="new JSON receipt path; existing files are refused")
     selection = result.add_mutually_exclusive_group(required=True)
     selection.add_argument("--game-id", help="existing library entry to update with compare-and-swap")
@@ -854,13 +861,9 @@ def validate_args(args: argparse.Namespace) -> None:
     _require_sha256(args.expected_archive_sha256, "expected archive sha256")
     _require_package_id(args.expected_package_id, "expected package ID")
     _require_core_id(args.expected_core_id)
-    for name, value in (
-        ("expected target ID", args.expected_target_id),
-        ("expected host revision", args.expected_host_revision),
-        ("expected agent revision", args.expected_agent_revision),
-        ("expected runtime revision", args.expected_runtime_revision),
-    ):
-        _require_string(value, name)
+    _require_string(args.expected_target_id, "expected target ID")
+    _require_sha256(args.expected_bundle_id, "expected active bundle")
+    _require_sha256(args.expected_base_image_sha256, "expected base image SHA-256")
     if args.game_id:
         _require_game_id(args.game_id)
         _require_package_id(args.expected_selected_package, "expected selected package")

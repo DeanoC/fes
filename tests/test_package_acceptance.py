@@ -11,7 +11,7 @@ import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest import mock
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,8 +34,12 @@ ARCHIVE_SHA256 = hashlib.sha256(ARCHIVE).hexdigest()
 HOST_REVISION = "host-revision-1"
 AGENT_REVISION = "agent-revision-1"
 RUNTIME_REVISION = "runtime-revision-1"
+BUNDLE_ID = "e" * 64
+BASE_ID = "f" * 64
+INTERFACES = {"runtime-protocol":"2", "maintenance":"fes-kit-maintenance-v1", "software-admission":"fes-kit-software-v1"}
 SERVER_ID = "server-instance-1"
 TARGET_ID = "target-1"
+TARGET_NAME = "kit-a"
 FLIGHT_ID = "launch-flight-1"
 GAME_ID = "sg1000-game"
 NEW_GAME_ID = "sg1000-new-game"
@@ -60,6 +64,7 @@ def _active_identity(
     return {
         "id": SERVER_ID,
         "target_id": target_id,
+        "target": TARGET_NAME,
         "flight_id": flight_id,
         "game_id": game_id,
         "package_id": package_id,
@@ -77,6 +82,8 @@ def _state():
         "launch_target_id": TARGET_ID,
         "stop_response_target_id": TARGET_ID,
         "stop_confirmation_target_id": TARGET_ID,
+        "stop_response_target": TARGET_NAME,
+        "stop_confirmation_target": TARGET_NAME,
         "session_state": "idle",
         "server_id": SERVER_ID,
         "flight_id": FLIGHT_ID,
@@ -119,7 +126,9 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
         return self.rfile.read(length)
 
     def _write(self, value, status=200):
-        body = json.dumps(value, separators=(",", ":")).encode("utf-8")
+        self._write_bytes(json.dumps(value, separators=(",", ":")).encode("utf-8"), status)
+
+    def _write_bytes(self, body, status=200):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -132,10 +141,11 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
     def _health(self):
         self.state["health_calls"] += 1
         runtime_revision = self.state["runtime_revision"]
+        bundle = self.state.get("active_bundle", BUNDLE_ID)
         if self.state.get("flip_runtime_after_upload") and self.state["uploaded"]:
-            runtime_revision = "runtime-revision-changed"
+            bundle = "0" * 64
         if self.state.get("flip_revision_after_stop") and self.state["stops"]:
-            runtime_revision = "runtime-revision-after-stop"
+            bundle = "0" * 64
         connection = {}
         if self.state["health_target_id"] is not None:
             connection["target_id"] = self.state["health_target_id"]
@@ -143,6 +153,8 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
             "ready": True,
             "host": {"revision": HOST_REVISION},
             "target": {
+                "api_version": self.state.get("target_api", "v1"),
+                "software": self.state.get("software", {"active_bundle":bundle,"base_identity":self.state.get("base_identity", BASE_ID), "pending":self.state.get("pending")}),
                 "reachable": True,
                 "ready": True,
                 "connection": connection,
@@ -162,6 +174,12 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
                 return
         if self.state["session_state"] == "idle":
             payload = {"id": self.state["server_id"], "state": "idle"}
+            query = dict(parse_qsl(urlsplit(self.path).query))
+            self.state.setdefault("idle_session_queries", []).append(query)
+            if self.state["stops"] and not query.get("target"):
+                payload["id"] = self.state.get("unscoped_idle_id", payload["id"])
+            payload["target"] = (self.state["stop_confirmation_target"]
+                                 if self.state["stops"] else TARGET_NAME)
             target_id = (
                 self.state["stop_confirmation_target_id"]
                 if self.state["stops"]
@@ -184,6 +202,7 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
         self.state["active_reads"] += 1
         response = {
             "id": identity["id"],
+            "target": identity["target"],
             "flight_id": identity["flight_id"],
             "state": "active",
             "game_id": identity["game_id"],
@@ -204,6 +223,14 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path == "/api/v1/kit/software/releases":
+            self.state["inventory_calls"] = self.state.get("inventory_calls", 0) + 1
+            raw = self.state.get("inventory_raw")
+            if raw is not None:
+                self._write_bytes(raw)
+                return
+            self._write([{"id":BUNDLE_ID, "manifest":{"interfaces":self.state.get("interfaces", INTERFACES), "provenance":{"fogcast":"new-agent-source","runtime":"new-runtime-source"}}}])
+            return
         if path == "/api/v1/health":
             self._health()
         elif path == "/api/v1/session":
@@ -368,6 +395,7 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
             self.state["active_reads"] = 0
             response = {
                 "id": identity["id"],
+                "target": identity["target"],
                 "flight_id": identity["flight_id"],
                 "state": "active",
                 "game_id": identity["game_id"],
@@ -391,6 +419,7 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
                 return
             self.state["session_state"] = "idle"
             response = {"id": self.state["server_id"], "state": "idle"}
+            response["target"] = self.state["stop_response_target"]
             if self.state["stop_response_target_id"] is not None:
                 response["target_id"] = self.state["stop_response_target_id"]
             if self.state["omit_stop_response_id"]:
@@ -469,12 +498,8 @@ def _command(server, archive, receipt, *extra):
         CORE_ID,
         "--expected-target-id",
         TARGET_ID,
-        "--expected-host-revision",
-        HOST_REVISION,
-        "--expected-agent-revision",
-        AGENT_REVISION,
-        "--expected-runtime-revision",
-        RUNTIME_REVISION,
+        "--expected-bundle-id", BUNDLE_ID,
+        "--expected-base-image-sha256", BASE_ID,
         "--receipt",
         str(receipt),
         "--poll-attempts",
@@ -764,6 +789,50 @@ class LibraryMediaAcceptanceTests(unittest.TestCase):
 
 
 class PackageAcceptanceTests(unittest.TestCase):
+    def test_stop_confirms_original_target_after_foreground_is_cleared(self):
+        state = _state()
+        state["unscoped_idle_id"] = "host-root-idle-coordinator"
+        with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            result, receipt = _run_command(server, directory)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(receipt.exists())
+            self.assertIn({"target": TARGET_NAME}, state["idle_session_queries"])
+            self.assertEqual(state["stops"], 1)
+
+    def test_stop_target_name_changes_are_rejected(self):
+        for field in ("stop_response_target", "stop_confirmation_target"):
+            for target in (None, "another-kit"):
+                with self.subTest(field=field, target=target):
+                    state = _state()
+                    state[field] = target
+                    with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+                        result, receipt = _run_command(server, directory)
+                        self.assertNotEqual(result.returncode, 0)
+                        self.assertIn("target name", result.stderr)
+                        self.assertFalse(receipt.exists())
+                        self.assertEqual(state["stops"], 1)
+
+    def test_pre_stop_target_name_change_refuses_stop(self):
+        state = _state()
+        state["change_identity_before_stop"] = True
+        state["changed_identity"] = {"target": "another-kit"}
+        with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            result, receipt = _run_command(server, directory)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("identity", result.stderr)
+            self.assertFalse(receipt.exists())
+            self.assertEqual(state["stops"], 0)
+
+    def test_target_scoped_idle_still_requires_original_session_id(self):
+        state = _state()
+        state["idle_fields"] = {"id": "foreign-target-session"}
+        with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            result, receipt = _run_command(server, directory)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("session ID", result.stderr)
+            self.assertFalse(receipt.exists())
+            self.assertEqual(state["stops"], 1)
+
     def test_accepts_new_core_without_image_selection_files_and_receipts_owned_flight(self):
         state = _state()
         state["entries"] = {}
@@ -785,11 +854,10 @@ class PackageAcceptanceTests(unittest.TestCase):
             self.assertEqual(value["package_id"], PACKAGE_ID)
             self.assertEqual(value["core_id"], CORE_ID)
             self.assertEqual(value["target_id"], TARGET_ID)
-            self.assertEqual(value["revisions"], {
-                "host": HOST_REVISION,
-                "agent": AGENT_REVISION,
-                "runtime": RUNTIME_REVISION,
-            })
+            self.assertEqual(value["software_identity"]["active_bundle"], BUNDLE_ID)
+            self.assertEqual(value["software_identity"]["base_identity"], BASE_ID)
+            self.assertEqual(value["provenance"]["host_revision"], HOST_REVISION)
+            self.assertEqual(value["provenance"]["base_artifacts"]["runtime_commit"], RUNTIME_REVISION)
             self.assertEqual(value["diagnostics"], [])
             self.assertEqual(value["session"]["flight_id"], FLIGHT_ID)
             self.assertEqual(value["session"]["generation"], 7)
@@ -1193,7 +1261,7 @@ class PackageAcceptanceTests(unittest.TestCase):
         self.assertEqual(state["launch_bodies"], [])
         self.assertEqual(state["stops"], 0)
 
-    def test_revision_change_aborts_before_selection(self):
+    def test_bundle_change_aborts_before_selection(self):
         state = _state()
         state["flip_runtime_after_upload"] = True
         with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
@@ -1214,7 +1282,7 @@ class PackageAcceptanceTests(unittest.TestCase):
             )
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("revision", result.stderr.lower())
+        self.assertIn("bundle", result.stderr.lower())
         self.assertEqual(state["selection_puts"], [])
         self.assertEqual(state["launch_bodies"], [])
         self.assertEqual(state["stops"], 0)
@@ -1381,7 +1449,7 @@ class PackageAcceptanceTests(unittest.TestCase):
         self.assertEqual(state["stops"], 1)
         self.assertFalse(receipt.exists())
 
-    def test_post_stop_revision_change_prevents_success_receipt(self):
+    def test_post_stop_bundle_change_prevents_success_receipt(self):
         state = _state()
         state["flip_revision_after_stop"] = True
         with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
@@ -1403,7 +1471,7 @@ class PackageAcceptanceTests(unittest.TestCase):
             )
 
         self.assertNotEqual(result.returncode, 0)
-        self.assertIn("revision", result.stderr.lower())
+        self.assertIn("bundle", result.stderr.lower())
         self.assertEqual(state["stops"], 1)
         self.assertFalse(receipt.exists())
 
@@ -1707,3 +1775,147 @@ class InputDiagnosticAcceptanceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class ActiveSoftwareContractTests(unittest.TestCase):
+    def run_lane(self, state):
+        with fixture(state) as server, tempfile.TemporaryDirectory() as directory:
+            receipt = Path(directory) / "receipt.json"
+            command = _command(server, _write_archive(directory), receipt,
+                               "--game-id", GAME_ID, "--expected-selected-package", OLD_PACKAGE_ID)
+            result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
+            return result, json.loads(receipt.read_text()) if receipt.exists() else None
+
+    def test_wrong_live_identity_or_contract_fails_before_any_mutation(self):
+        for field, value in (("software", None), ("active_bundle", "0"*64), ("active_bundle", None),
+                             ("base_identity", "0"*64), ("base_identity", "invalid"),
+                             ("target_api", "v2"), ("target_api", None),
+                             ("interfaces", {**INTERFACES, "runtime-protocol":"3"}),
+                             ("interfaces", {})):
+            with self.subTest(field=field, value=value):
+                state = _state()
+                state[field] = value
+                result, receipt = self.run_lane(state)
+                self.assertNotEqual(result.returncode, 0, result.stdout)
+                self.assertIsNone(receipt)
+                self.assertFalse(state["uploaded"])
+                self.assertEqual(state["selection_puts"], [])
+                self.assertEqual(state["launch_bodies"], [])
+
+    def test_mixed_source_metadata_is_provenance_not_compatibility(self):
+        state = _state()
+        state["runtime_revision"] = "unrelated-base-runtime-source"
+        result, receipt = self.run_lane(state)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(receipt["software_identity"]["active_bundle"], BUNDLE_ID)
+        self.assertEqual(receipt["provided_interfaces"], INTERFACES)
+        self.assertEqual(receipt["provenance"]["base_artifacts"]["runtime_commit"], "unrelated-base-runtime-source")
+        self.assertEqual(receipt["provenance"]["active_bundle"]["runtime"], "new-runtime-source")
+
+    def test_pending_update_does_not_change_active_identity_or_repeat_inventory(self):
+        state = _state()
+        state["pending"] = {"candidate":"0"*64,"phase":"queued"}
+        result, receipt = self.run_lane(state)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(state["inventory_calls"], 1)
+        self.assertEqual(receipt["software_identity"]["active_bundle"], BUNDLE_ID)
+
+    def test_retained_inventory_above_health_limit_still_imports(self):
+        raw = _retained_inventory()
+        self.assertGreater(len(raw), package_acceptance.HTTP_RESPONSE_BODY_LIMIT)
+        self.assertLessEqual(len(raw), package_acceptance.INVENTORY_RESPONSE_LIMIT)
+        state = _state()
+        state["inventory_raw"] = raw
+        result, receipt = self.run_lane(state)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(state["uploaded"])
+        self.assertEqual(len(state["launch_bodies"]), 1)
+        self.assertEqual(state["inventory_calls"], 1)
+        self.assertEqual(receipt["software_identity"]["active_bundle"], BUNDLE_ID)
+        self.assertEqual(receipt["provided_interfaces"], INTERFACES)
+
+
+def _retained_inventory():
+    """Two installed releases whose JSON exceeds the ordinary 1 MiB body limit."""
+    retained = "x" * (package_acceptance.HTTP_RESPONSE_BODY_LIMIT + 4096)
+    inventory = [
+        {"id": BUNDLE_ID, "manifest": {
+            "interfaces": INTERFACES,
+            "provenance": {"fogcast": "new-agent-source", "runtime": "new-runtime-source"},
+        }},
+        {"id": "1" * 64, "manifest": {"retained": retained}},
+    ]
+    return json.dumps(inventory, separators=(",", ":")).encode("utf-8")
+
+
+def _health_body():
+    return json.dumps({
+        "ready": True,
+        "host": {"revision": HOST_REVISION},
+        "target": {
+            "api_version": "v1",
+            "reachable": True,
+            "ready": True,
+            "connection": {"target_id": TARGET_ID},
+            "software": {"active_bundle": BUNDLE_ID, "base_identity": BASE_ID},
+        },
+    }, separators=(",", ":")).encode("utf-8")
+
+
+class _BoundBodyHandler(BaseHTTPRequestHandler):
+    def log_message(self, *_args):
+        return
+
+    def do_GET(self):
+        body = self.server.bodies[urlsplit(self.path).path]
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        view = memoryview(body)
+        while view:
+            written = self.wfile.write(view[:65536])
+            if written <= 0:
+                break
+            view = view[written:]
+
+
+@contextlib.contextmanager
+def bound_server(bodies):
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _BoundBodyHandler)
+    server.bodies = bodies
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+class InventoryResponseLimitTests(unittest.TestCase):
+    def test_inventory_uses_verified_bound_and_health_stays_small(self):
+        self.assertEqual(package_acceptance.HTTP_RESPONSE_BODY_LIMIT, 1 << 20)
+        self.assertEqual(package_acceptance.INVENTORY_RESPONSE_LIMIT, 32 << 20)
+        inventory = _retained_inventory()
+        ordinary = package_acceptance.HTTP_RESPONSE_BODY_LIMIT
+        verified = package_acceptance.INVENTORY_RESPONSE_LIMIT
+        with bound_server({
+            "/api/v1/health": _health_body(),
+            "/api/v1/health-large": b"x" * (ordinary + 1),
+            "/api/v1/kit/software/releases": inventory,
+            "/api/v1/kit/software/releases-over": b"x" * (verified + 1),
+        }) as server:
+            api = package_acceptance.Api(f"http://127.0.0.1:{server.server_port}", 10)
+            self.assertTrue(api.get("/api/v1/health")["ready"])
+            manifest = package_acceptance.active_manifest(
+                api.get("/api/v1/kit/software/releases", limit=verified), BUNDLE_ID)
+            self.assertEqual(manifest["interfaces"], INTERFACES)
+            with self.assertRaises(package_acceptance.AcceptanceError) as health_error:
+                api.get("/api/v1/health-large")
+            self.assertIn("GET /api/v1/health-large: response exceeded the bounded size", str(health_error.exception))
+            with self.assertRaises(package_acceptance.AcceptanceError) as inventory_error:
+                api.get("/api/v1/kit/software/releases-over", limit=verified)
+            self.assertIn(
+                "GET /api/v1/kit/software/releases-over: response exceeded the bounded size",
+                str(inventory_error.exception))

@@ -1,0 +1,47 @@
+{
+  "evidence_class": "operator-assisted exact-bundle physical-controller diagnostic",
+  "active_bundle": "67afde612b5d12cd18aa68485e81b524a56c0b55fc7c06b05dd81bf8906de080",
+  "bundle_source": "d0ca0f3e8f49f0dbef1af32acd21b728e09a4d09",
+  "selection_generation": 12,
+  "operator_reports": [
+    "Its working",
+    "return back the menu we can from"
+  ],
+  "controller_model": "not recorded",
+  "actions_requested": [
+    "A / Cross to launch FES Pong from Installed cores",
+    "D-pad Up, release, Down, release",
+    "Select + Start held for one second to return"
+  ],
+  "observations": {
+    "installed_core_ready": true,
+    "pong_visible": true,
+    "paddle_motion_recorded": true,
+    "sampled_left_paddle_y_min_range": [
+      73,
+      757
+    ],
+    "return_to_same_menu": true,
+    "final_runtime_idle": true,
+    "final_lease_free": true
+  },
+  "limitations": [
+    "Individual button electrical events and precise hold timing were not instrumented.",
+    "The recording does not independently isolate both directional presses.",
+    "No stale-local-Stop concurrency test was performed."
+  ],
+  "video": {
+    "sha256": "84cd042edb8f27bed0f2465583726f82a651b46535b03d9c2e80eae7e3189840",
+    "duration_seconds": 45.019,
+    "retained_path": "out/validation/physical-controller/physical-launch-input.mkv"
+  },
+  "files": {
+    "final-ready.json": "db7712987f5b0fd0494d0b6db6e1c45850cbe6aadb8c2a7e216e9e38d8b5fc8d",
+    "installed-cores.png": "64deb535fc109e7579cfb3815fada28489ee4e1949bd17beeba8c6d168749c14",
+    "paddle-lower.png": "e30f67da6a61d6b215788b9373cea2791f5b103debb33055c4b0d54256ced928",
+    "paddle-upper.png": "4c86e09184cfdb85412a018503ef587b9e92f63fbf124b94d71fcd08fa2e08a5",
+    "physical-video-analysis.json": "17bc6a60f7835f7280b09b85fe121ac184ff7c52367046ad1d1d67a8a7d08039",
+    "pong-launch-failed.png": "1d3e6e3f752b42c680a955598acf24900cfa4340138d64e480d012e8f2f9fea4",
+    "returned-menu.png": "b70f13b45941c9706ef135fdef84bce6c825b72f4e79548fc6cac700287b694c"
+  }
+}

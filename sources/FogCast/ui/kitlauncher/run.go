@@ -24,34 +24,34 @@ type Pad interface {
 	Close() error
 }
 type observation struct {
-	epoch           uint64
-	session         Session
-	health          hostclient.HealthResult
-	kitLease        kitlease.Status
-	games           []hostclient.Game
-	strip           []hostclient.Game
-	stripLabel      string
-	recents         []hostclient.Game
-	haveStrip       bool
-	attract         hostclient.AttractPlaylist
-	haveAttract     bool
-	hydrateAttract  bool
-	coreStatuses    []hostclient.CoreAvailability
-	haveCoreStatus  bool
-	coreStatusErr   bool
-	detailID        string
-	presentation    hostclient.Presentation
-	haveDetail      bool
-	cache           hostclient.LibraryCache
-	haveCache       bool
-	err             error
-	mutation        bool
-	message         string
-	hostAbsent      bool
-	localAction     string
-	localErr        error
-	localStatus     localcores.RunStatus
-	haveLocalStatus bool
+	epoch          uint64
+	session        Session
+	health         hostclient.HealthResult
+	kitLease       kitlease.Status
+	games          []hostclient.Game
+	strip          []hostclient.Game
+	stripLabel     string
+	recents        []hostclient.Game
+	haveStrip      bool
+	attract        hostclient.AttractPlaylist
+	haveAttract    bool
+	hydrateAttract bool
+	coreStatuses   []hostclient.CoreAvailability
+	haveCoreStatus bool
+	coreStatusErr  bool
+	detailID       string
+	presentation   hostclient.Presentation
+	haveDetail     bool
+	cache          hostclient.LibraryCache
+	haveCache      bool
+	err            error
+	mutation       bool
+	message        string
+	hostAbsent     bool
+	localAction    string
+	localErr       error
+	localResult    localcores.LaunchResult
+	localStatus    localcores.RunStatus
 }
 
 const hostUnavailableMessage = "Host unavailable"
@@ -175,6 +175,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 	}
 	m.LocalPlayEnabled = c.LocalCores != nil
 	localRunning := false
+	localGeneration := ""
+	localUncertain := false
 	localPending := false
 	localStopRequested := false
 	localSawLaunching := false
@@ -416,9 +418,14 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 		}()
 	}
 	mutate := func(action string) {
+		if action == "stop" && localUncertain {
+			m.Message = "Cannot identify the local run; waiting for idle"
+			paintKitHDMI(m)
+			return
+		}
 		// A timed-out local request still owns an unresolved runtime launch.
 		// Keep its epoch and identity until status reaches running or idle.
-		if (action == "launch" || action == "local-launch") && (localPending || localTimedOut) {
+		if (action == "launch" || action == "local-launch") && (localPending || localTimedOut || localUncertain) {
 			m.Message = "Still checking whether the previous game started"
 			paintKitHDMI(m)
 			return
@@ -457,6 +464,8 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			if action == "local-launch" {
 				localSawLaunching = false
 				localRequestReturned = false
+				// A finished launch must not make this run look like a replacement.
+				localGeneration = ""
 			}
 			m.LoadPhase = "Launching"
 			m.Message = "Loading game"
@@ -515,32 +524,30 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					cachedDigest = c.Cache.ROMHash(id)
 				}
 			}
+			expectedGeneration := localGeneration
 			go func() {
 				o := observation{epoch: e, mutation: true, localAction: action}
+				recorder := &launchRecorder{LocalCoreClient: c.LocalCores}
 				if action == "local-launch" {
 					var fetch func(context.Context, string) (string, error)
 					if c.Library != nil {
 						fetch = c.Library.GameROMHash
 					}
-					learned, err := launchMatchedLocalGame(ctx, c.LocalCores, online, kitRow, cachedDigest, fetch, localPath, localGames, matcher, hostGame)
+					learned, err := launchMatchedLocalGame(ctx, recorder, online, kitRow, cachedDigest, fetch, localPath, localGames, matcher, hostGame)
 					if learned != "" && c.Cache != nil {
 						_ = c.Cache.RememberROMHash(hostGame.ID, learned)
 					}
 					o.localErr = err
+					o.localResult = recorder.result
 					if o.localErr != nil {
 						log.Printf("kit local cartridge launch failed game_id=%q", boundedSessionText(id, 160))
 					}
 				} else {
-					o.localErr = dispatchLocalAction(ctx, c.LocalCores, localPath, localGames, action, id)
+					o.localErr = dispatchLocalAction(ctx, c.LocalCores, localPath, localGames, action, id, expectedGeneration)
 				}
 				if o.localErr != nil {
 					o.message = localCoreMessage(o.localErr)
-					if action == "local-launch" {
-						// The agent may have completed a load after our request timed out.
-						if status, err := c.LocalCores.Status(ctx); err == nil {
-							o.localStatus, o.haveLocalStatus = status, true
-						}
-					}
+
 				}
 				log.Printf("kit local result epoch=%d action=%s game_id=%q error=%t", e, action, boundedSessionText(id, 160), o.localErr != nil)
 				send(o)
@@ -609,7 +616,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				// Adopt only while the core is still observed bound (#474's one-second
 				// probe cache); a recovery answer that arrives after the probe
 				// expired must not resurrect a run the shell has already left.
-				if o.epoch == epoch && !localPending && !localRunning && o.localErr == nil && localRunInProgress(o.localStatus) && coreBound.bound(time.Now()) {
+				if o.epoch == epoch && !localPending && !localRunning && !localUncertain && o.localErr == nil && localRunInProgress(o.localStatus) && o.localStatus.Generation != "" && coreBound.bound(time.Now()) {
 					if c.menuDisplay {
 						if !menuPaused {
 							pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
@@ -623,16 +630,36 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						menuPaused = true
 					}
 					localRunning = true
+					localGeneration = o.localStatus.Generation
+					m.ResetControls()
 					m.Session.State = "active"
 				}
 				continue
 			}
 			if o.localAction == "status" {
 				localStatusBusy = false
+				if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "idle" && localUncertain {
+					localUncertain = false
+					localGeneration = ""
+					m.Session.State = "idle"
+					resumeMenu()
+				}
+				if o.epoch == epoch && o.localErr == nil && localGeneration != "" && o.localStatus.Generation != "" && o.localStatus.Generation != localGeneration {
+					localGeneration = ""
+					localStopRequested = false
+					localPending = false
+					localRunning = false
+					localTimedOut = false
+					localUncertain = true
+					m.ResetControls()
+					m.Busy = false
+					m.Message = "The local run changed; waiting for idle"
+					continue
+				}
 				if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "launching" && (localPending || m.Session.State == "launching") {
 					localSawLaunching = true
 					m.LoadPhase = "Launching"
-				} else if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "running" && (localPending || localTimedOut || m.Session.State == "launching") {
+				} else if o.epoch == epoch && o.localErr == nil && o.localStatus.Phase == "running" && localGeneration != "" && o.localStatus.Generation == localGeneration && (localPending || localTimedOut || m.Session.State == "launching") {
 					wasTimedOut := localTimedOut
 					if wasTimedOut && c.menuDisplay {
 						pauseCtx, pauseCancel := context.WithTimeout(ctx, 5*time.Second)
@@ -663,6 +690,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					elapsed := launcherNow().Sub(m.LoadStarted)
 					localPending = false
 					localStopRequested = false
+					localGeneration = ""
 					m.Busy = false
 					m.Session.State = "idle"
 					m.LoadStarted = time.Time{}
@@ -676,6 +704,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					}
 				} else if o.epoch == epoch && localRunning && o.localErr == nil && o.localStatus.Phase == "idle" {
 					localRunning = false
+					localGeneration = ""
 					m.Session.State = "idle"
 					m.Session.GameID = ""
 					m.LoadStarted = time.Time{}
@@ -698,22 +727,22 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					localPending = false
 					if o.localAction == "local-launch" {
 						localRequestReturned = true
+						localUncertain = o.localErr != nil && errors.Is(o.localErr, localcores.ErrUnavailable)
 					}
 					if o.localAction == "local-launch" && o.localErr == nil {
 						// GET /v1/local/status, not request completion, owns
 						// the transition to running.
 						localPending = true
-					} else if o.localAction == "local-launch" && o.localErr != nil && (!o.haveLocalStatus || localRunInProgress(o.localStatus)) {
-						// The load may still be in flight after an ambiguous reply.
-						localPending = true
-						m.Busy = false
-						o.message = ""
+						localGeneration = o.localResult.Generation
 					} else if o.localAction == "stop" && errors.Is(o.localErr, localcores.ErrInUse) {
 						o.message = localCoreMessage(o.localErr)
 					} else if (o.localAction == "stop" && o.localErr == nil) || (o.localAction == "local-launch" && o.localErr != nil) {
 						elapsed := launcherNow().Sub(m.LoadStarted)
 						localTimedOut = false
 						localRunning = false
+						localGeneration = ""
+						localStopRequested = false
+						m.ResetControls()
 						localPending = false
 						m.Session.State = "idle"
 						m.LoadStarted = time.Time{}
@@ -734,7 +763,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					m.LoadPhase = ""
 				}
 				m.Message = o.message
-				if c.menuDisplay && !localRunning && !localPending && m.Session.State != "launching" {
+				if c.menuDisplay && !localRunning && !localPending && !localUncertain && m.Session.State != "launching" {
 					resumeMenu()
 				}
 				nextPoll = time.Time{}
@@ -795,7 +824,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 				Owner:   o.kitLease.Owner,
 				Purpose: o.kitLease.Purpose,
 			})
-			if !localRunning && !localPending {
+			if !localRunning && !localPending && !localUncertain {
 				wasLoading := m.Session.State == "launching"
 				// After a visible launch timeout the host may still say
 				// launching. That observation is quiet reconciliation, not a
@@ -960,7 +989,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					resumeMenu()
 				}
 			}
-			if (localRunning || localPending || localTimedOut) && !localStatusBusy && now.After(localStatusNext) {
+			if (localRunning || localPending || localTimedOut || localUncertain) && !localStatusBusy && now.After(localStatusNext) {
 				localStatusNext = now.Add(launcherStatusInterval)
 				localStatusBusy = true
 				go func(e uint64) {
@@ -983,7 +1012,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 			// local control socket, or by a shell that restarted after its own
 			// startup check) binds the core without this shell knowing. Adopt
 			// it so Select+Start can stop it and the menu resumes afterwards.
-			if bound && m.LocalPlayEnabled && !localRunning && !localPending && !localAdoptBusy && !m.Busy && now.After(localAdoptNext) {
+			if bound && m.LocalPlayEnabled && !localUncertain && !localRunning && !localPending && !localAdoptBusy && !m.Busy && now.After(localAdoptNext) {
 				localAdoptNext = now.Add(time.Second)
 				localAdoptBusy = true
 				go func(e uint64) {
@@ -1165,10 +1194,11 @@ func launchLocalGame(ctx context.Context, client LocalCoreClient, resolve func(c
 	if err != nil || !strings.HasPrefix(path, "/") {
 		return errCartridgeMissing
 	}
-	return client.LaunchROM(ctx, packageID, path)
+	_, err = client.LaunchROM(ctx, packageID, path)
+	return err
 }
 
-func dispatchLocalAction(ctx context.Context, client LocalCoreClient, resolve func(context.Context, string) (string, error), games []hostclient.Game, action, id string) error {
+func dispatchLocalAction(ctx context.Context, client LocalCoreClient, resolve func(context.Context, string) (string, error), games []hostclient.Game, action, id, expectedGeneration string) error {
 	if client == nil {
 		return localcores.ErrUnavailable
 	}
@@ -1176,7 +1206,7 @@ func dispatchLocalAction(ctx context.Context, client LocalCoreClient, resolve fu
 		return launchLocalGame(ctx, client, resolve, games, id)
 	}
 	if action == "stop" {
-		return client.Stop(ctx)
+		return client.Stop(ctx, expectedGeneration)
 	}
 	return localcores.ErrUnavailable
 }
@@ -1357,4 +1387,19 @@ func persistPack(c *Client, pack string) {
 	if err := SaveConfig(cfg); err == nil {
 		c.config.Theme = pack
 	}
+}
+
+// launchRecorder retains the exact grant returned by this launch, independently
+// of later status reads which may describe a replacement session.
+type launchRecorder struct {
+	LocalCoreClient
+	result localcores.LaunchResult
+}
+
+func (c *launchRecorder) LaunchROM(ctx context.Context, packageID, path string) (localcores.LaunchResult, error) {
+	result, err := c.LocalCoreClient.LaunchROM(ctx, packageID, path)
+	if err == nil {
+		c.result = result
+	}
+	return result, err
 }

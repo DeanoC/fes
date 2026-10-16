@@ -215,6 +215,7 @@ class NativeDevTest(unittest.TestCase):
 
             with patch.object(native_dev, 'base_key', return_value='base'), \
                  patch.object(native_dev, 'seed_base'), \
+                 patch.object(native_dev.platform, 'build_kit_software'), \
                  patch.object(native_dev, 'git', return_value='a' * 40), \
                  patch.object(native_dev.subprocess, 'run',
                               return_value=subprocess.CompletedProcess([], 0)), \
@@ -302,6 +303,7 @@ class NativeDevTest(unittest.TestCase):
 
             with patch.object(native_dev, 'base_key', return_value='base'), \
                  patch.object(native_dev, 'seed_base'), \
+                 patch.object(native_dev.platform, 'build_kit_software'), \
                  patch.object(native_dev, 'git', return_value='a' * 40), \
                  patch.object(native_dev.subprocess, 'run',
                               return_value=subprocess.CompletedProcess([], 0)), \

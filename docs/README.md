@@ -88,3 +88,5 @@ diagnostic, sealed video parts, and the unresolved physical byte-write failure.
 Ownership that has already landed is [component boundaries](component-boundaries.md)
 and the [project map](project-map.md). [Structure](fes-structure.md) only
 points at those. It is not a second roadmap.
+
+- [Kit software releases](kit-software-releases.md): persistent userspace bundles, queued activation and scoped recovery.

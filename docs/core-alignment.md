@@ -88,7 +88,7 @@ is that case.
 | `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3. Product lock is `toolchain.lock`. | The 1.2.0 kit audio note does not qualify 1.3.0 or a shared-pin seal. |
 | `fes.spectrum` 0.2.0 | In the image. Library standing is experimental. Open diagnostic firmware only; no Sinclair ROM is shipped. | `fes_z80_nmos` by default, sync M10K, format 3. Product lock is `toolchain.lock`. | The 28 Sep notes do not accept a shared-pin seal. The 56 MHz build is documented-only. No card, keyboard or tape kit check of this shell. |
 | `fes.ramtest` 1.1.0 | SDRAM and HPS DDR tester. Factory ships 100 MHz. | Shared pin. | 130 MHz remains open. No exact-image hardware acceptance. |
-| `fes.atari-st` 0.2.0 | In the image. GEM, mouse, writable geometry-aware disks and video parts have passed on named artifacts. Not a compatible ST. | Video parts, sync M10K, format 3, HIP. | Own lock: Yosys `886afa63`, nextpnr `3d4a5b35`. Built-in Direct fallback remains. Borders, later demo sections, menu flash, audio fidelity and full current-image acceptance are open. |
+| `fes.atari-st` 0.2.0 | In the image. GEM, mouse, writable geometry-aware disks and video parts have passed on named artifacts. Not a compatible ST. | Video parts, sync M10K, format 3. Product lock is `toolchain.lock`. | The October kit notes do not accept a shared-pin seal. Built-in Direct fallback remains. Borders, later demo sections, menu flash, audio fidelity and full current-image acceptance are open. |
 
 | Package | Usable as | Matches | Does not match |
 | --- | --- | --- | --- |
@@ -131,7 +131,7 @@ fix it in nextpnr, then delete the dedicated lock. Do not add another lock.
 | Order | Core | nextpnr now | Why this order |
 | --- | --- | --- | --- |
 | 1 | `fes.c64` | `0c5ed400` | Same Yosys and Mistral as the shared pin. Package-only. Closest requalification. |
-| 2 | `fes.atari-st` | `3d4a5b35` | Factory, and its Yosys pin is also private. Do not keep this pin because an older seed missed pixel. |
+| 2 | `fes.atari-st` | `toolchain.lock` | Factory. The October kit notes do not accept a shared-pin seal. |
 | 3 | `fes.coleco` | `toolchain.lock` | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `toolchain.lock` | Same multi-region cart support. Both now select `toolchain.lock`. |
 | 5 | `fes.sms`, `fes.sg1000` | `toolchain.lock` | Both now select `toolchain.lock`. The old Coleco producer selects the same shared lock. |

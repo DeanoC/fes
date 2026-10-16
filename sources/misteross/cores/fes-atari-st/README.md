@@ -508,6 +508,16 @@ python3 scripts/atari_st_io_diagnostic.py --output out/validation/atari-st/io-me
 python3 scripts/sim_atari_st_io_diagnostic.py \
   --rom sources/misteross/build/roms/emutos-1.4/etos192us.img \
   --output out/validation/atari-st/io-guest --seconds 10 --audio-phase-ticks 20
+```
+
+`make build-fes-atari-st` authenticates the shared `toolchain.lock`. The
+factory recipe stays HIP. `--gpu-router CUDA` builds a separate package.
+The [2026-10-04 private-pin record](../../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
+qualifies the earlier read-only shell and does not qualify this shared-pin
+seal. The October kit notes do not accept these bytes. Video parts and slot
+cards take the same `--gpu-router` and `--toolchain-root` as the shell.
+
+```sh
 make -C sources/misteross build-fes-atari-st CACHE_ROOT=/absolute/toolchain-cache
 make -C sources/misteross sim-fes-atari-st-video-parts
 make -C sources/misteross build-fes-atari-st-video-part \

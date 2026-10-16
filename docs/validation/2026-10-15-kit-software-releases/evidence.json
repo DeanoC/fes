@@ -1,0 +1,188 @@
+{
+  "format": 1,
+  "status": "complete for recorded diagnostic scope",
+  "source_commit": "b70dcbebba9ac13792321492f9c5f53f3a16329b",
+  "evidence_classes": {
+    "image": "exact-artifact build, structural and QEMU packaging verification",
+    "software_lifecycle": "API lifecycle hardware diagnostic on designated kit",
+    "display": "HDMI launcher frame inspected by parent agent",
+    "input": "isolated lifecycle input diagnostic; acknowledgements and input frame counters, not physical controller or hardware consumption acceptance",
+    "host": "separate host-only test evidence"
+  },
+  "artifacts": {
+    "appliance_release_id": "8078e6c27a74ad6c4c26a7002d60c32dc7880df96068e5121c4a3f1a7f7bb25d",
+    "appliance_version": "0.2.0-kit-software.20261015.2",
+    "image_sha256": "dfc57838105da5f2d9518929df8b43099722300059e60e9bd5fac7e916f240d2",
+    "image_size": 201326592,
+    "kernel_sha256": "a6c7b1be0da9ba24a91bc1816737915d6a6cfba27c6c3025caded95167dc8dae",
+    "factory_bundle_id": "9f718437d3d4e87786590936e307e183bee16842107fc2bf6cab06a16d01c4d7",
+    "base_contract": "fes-kit-base-v1-4bdcca8a7ad3927f3de68a658ef625285e12165f025ac989700eb83631edaa0d",
+    "bundles": {
+      "acceptance": {
+        "id": "151467b978f159cfb145599872f997c5b2d2f5eb2be679009e0800951241c9d3",
+        "sha256": "7c2c9e4c108d1beb47452069c2deec2e46293fbba51967e093d8a9bc26564bc4",
+        "size": 50616320,
+        "version": "acceptance-b70dcbebb",
+        "provenance": {
+          "fogcast": "b70dcbebba9ac13792321492f9c5f53f3a16329b",
+          "runtime": "b70dcbebba9ac13792321492f9c5f53f3a16329b"
+        }
+      },
+      "recovery-test": {
+        "id": "b69e84c035760b1a5ee89fe2b22cbb280abeb0ab062e58e256f2bd0e9eda4a81",
+        "sha256": "d97d910c78d81f36839cacbda4d5a52af9675bb62bb249c61fffcc912bc9e325",
+        "size": 41652224,
+        "version": "recovery-test-b70dcbebb",
+        "provenance": {
+          "fogcast": "b70dcbebba9ac13792321492f9c5f53f3a16329b",
+          "runtime": "b70dcbebba9ac13792321492f9c5f53f3a16329b"
+        }
+      }
+    }
+  },
+  "image_verification": {
+    "two_pass_reproducibility": "pass",
+    "structural": "pass",
+    "qemu_packaging": "pass"
+  },
+  "hardware_lifecycle": {
+    "boot_id": "0c44db4f-7de1-4c75-a2ef-9043e35dc8e0",
+    "same_boot_before_install_after_acceptance_and_after_recovery": true,
+    "base_image_unchanged": true,
+    "held_install": {
+      "installed_bundle": "151467b978f159cfb145599872f997c5b2d2f5eb2be679009e0800951241c9d3",
+      "lease_remained_held_same_generation": true,
+      "selected_bundle_unchanged_during_install": true,
+      "diagnostic_limit": "Initial diagnostic later stopped at its five-second inventory-read timeout; install had succeeded. Subsequent activation was checked separately."
+    },
+    "good_activation": {
+      "result": "accepted",
+      "generation": 2,
+      "selected": "151467b978f159cfb145599872f997c5b2d2f5eb2be679009e0800951241c9d3",
+      "owned_release_confirmed": true,
+      "cancel_pending": "passed; pending cleared and cancelled receipt recorded",
+      "conflicts": {
+        "duplicate_id": {
+          "code": "KIT_SOFTWARE_CONFLICT",
+          "http": 409,
+          "detail": "same request identifier with modified requester; identical request replay is not this conflict case"
+        },
+        "competing_request": {
+          "code": "KIT_SOFTWARE_CONFLICT",
+          "http": 409
+        },
+        "stale_generation": {
+          "code": "KIT_SOFTWARE_CONFLICT",
+          "http": 409
+        }
+      },
+      "queued_after_soft_stop": "queued"
+    },
+    "failed_candidate_recovery": {
+      "result": "recovered",
+      "failed_candidate": "b69e84c035760b1a5ee89fe2b22cbb280abeb0ab062e58e256f2bd0e9eda4a81",
+      "selected_after_recovery": "151467b978f159cfb145599872f997c5b2d2f5eb2be679009e0800951241c9d3",
+      "generation_after_recovery": 2,
+      "recovered_receipts": 1,
+      "observed_phases": [
+        "queued",
+        "applying",
+        "recovering"
+      ],
+      "observed_recovery_phase_entries": 1,
+      "stable_recovered_seconds": 15,
+      "limit": "One durable recovered receipt and monotonic sampled phases; no observed replay. This is not a process restart-count measurement."
+    },
+    "installed_core_preservation": {
+      "verified_unchanged_files": 5,
+      "sha256_by_core_library_path": {
+        "archives/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337.fcore": "df8a5d7ee4ac42e1f2ba261f3c48536b59400294151b2eed075d4b00712c0b02",
+        "packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/core.rbf": "79e74f2cc1b01abd61eb986c1a93ead7684ebf88be499ff5f7b883bdb56cf6d3",
+        "packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/manifest.toml": "7890fe09cccfb15e12de53311d0ff53763261ae76299f0a93c0572e05998ac71",
+        "packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/rom-map.json": "d8c19066779510301e2b7f1ce49e4ccdd4e34452ba110258287ecc54e8559043",
+        "selections.json": "422cfac5e1a029c8d9a77d3a6f3571aa02f9d3551ad7e8e266d65c211376d04d"
+      }
+    }
+  },
+  "display_input": {
+    "launcher_hdmi": {
+      "status": "observed",
+      "evidence": "/tmp/fes-software-hdmi-frame25.png",
+      "inspection": "parent agent visually inspected"
+    },
+    "pong_input": {
+      "status": "passed",
+      "evidence": "/tmp/fes-software-pong-scoped-b70d/receipt.json",
+      "mode": "isolated-lifecycle-input-diagnostic",
+      "core_id": "fes.pong",
+      "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+      "revisions": {
+        "agent": "b70dcbebba9ac13792321492f9c5f53f3a16329b",
+        "host": "beeeb0b40f952f1d38f3cf2865e592c1d634637b",
+        "runtime": "b70dcbebba9ac13792321492f9c5f53f3a16329b"
+      },
+      "host_binary_sha256": "ab9473572974a419ad85cf0c425b55b6e76dcde8d090582082ccaedb83266797",
+      "input_interface": {
+        "id": "fes.gamepad",
+        "major": 1,
+        "minor": 0
+      },
+      "cycles": [
+        {
+          "name": "initial",
+          "events_requested": 2,
+          "events_acknowledged": 2,
+          "input_frame_delta": 2,
+          "container_exit_code": 0,
+          "container_removed": true
+        },
+        {
+          "name": "restart",
+          "events_requested": 2,
+          "events_acknowledged": 2,
+          "input_frame_delta": 2,
+          "container_exit_code": 0,
+          "container_removed": true
+        }
+      ],
+      "scope": "Explicit event acknowledgements and input frame-counter increases in both cycles are required for success; not hardware consumption, HDMI or physical controller acceptance."
+    }
+  },
+  "host_only_tests": {
+    "parent_python": {
+      "tests": 934,
+      "skipped": 39,
+      "result": "passed",
+      "source_log": "/tmp/fes-software-test-changed-head.log"
+    },
+    "remaining_commands": {
+      "commands": 19,
+      "result": "all return codes zero",
+      "source_receipt": "/tmp/fes-software-remaining-tests.json",
+      "execution_heads": [
+        "4ce261418aaeab20eb390dc281d651c0d420e36d",
+        "d30d39c89862360d4e1bfe9c530f625af656c50c"
+      ],
+      "source_identity": {
+        "sources/misteross": "d8e927bfb67f2176cf0f51ad8ac892f5de2f2edb",
+        "sources/mister-packages": "3170071cfc5bb5f8742e01a5b0506bf353e5a697",
+        "scripts/test_changed.py": "91b3b38ecd6ad777cc141a96d8bda3d3dd4cf770",
+        "scripts/affected.py": "c372348703d0950227ea16c35247cf286427ab88"
+      }
+    },
+    "aggregate_limit": "The original make test-changed invocation remained failed; missing downstream commands were completed separately. These host tests do not establish hardware acceptance.",
+    "diagnostic_wrapper_fix": {
+      "commit": "2305a7b1f",
+      "change": "Scopes stop confirmation to the selected target",
+      "focused_tests": 60,
+      "result": "passed; reported by parent agent"
+    }
+  },
+  "sources": {
+    "build_receipt": "/tmp/fes-software-accept-b70dcbebb.3OPygG/receipt.json",
+    "good_activation": "/tmp/fes-software-good-activation-b70d/074-result.json",
+    "recovery": "/tmp/fes-software-recovery-b70d/140-result.json",
+    "core_baseline": "/tmp/fes-software-core-after-adoption.txt",
+    "core_after": "/tmp/fes-software-core-after-recovery.txt"
+  }
+}

@@ -26,14 +26,13 @@ require_fogcast = @test -n "$(FOGCAST_DIR)" || { echo 'image: FOGCAST_DIR is req
 	target-kernel-test target-kernel target-kernel-verify
 
 test:
+	python3 scripts/tests/kit-software_test.py
 	sh scripts/tests/native-package-only_test.sh
 	sh scripts/tests/native-video-parts_test.sh
 	sh scripts/tests/native-runtime-inputs_test.sh
 	sh scripts/tests/native-development-rbf-support-truth_test.sh
 	sh scripts/tests/target-image-sources_test.sh
-	sh scripts/tests/kit-init_test.sh
-	sh scripts/tests/native-menu-init_test.sh
-	sh scripts/tests/mister-supervise_test.sh
+	sh scripts/tests/software-init_test.sh
 	sh scripts/tests/reboot-backstop_test.sh
 	sh scripts/tests/shutdown-budget_test.sh
 	sh scripts/tests/ethaddr-init_test.sh

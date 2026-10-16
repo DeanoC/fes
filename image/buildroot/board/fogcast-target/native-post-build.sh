@@ -123,9 +123,12 @@ if [ "$native_mode" = package-only ]; then
   /bin/mkdir -p "$target/usr/share/mister-runtime"
   /usr/bin/install -m 0644 "$idle_input" \
     "$target/usr/share/mister-runtime/idle.rbf"
-  /bin/chmod 0755 "$target/etc/init.d/S40mister-runtime" \
-    "$target/etc/init.d/S50mister-agent" \
-    "$target/etc/init.d/S60fogcast-kit"
+  /bin/chmod 0755 "$target/etc/init.d/S40fes-kit-software"
+  # The stable supervisor and storage bootstrap are base-image components.
+  for helper in fes-kit-data fes-kit-software; do
+    /usr/bin/install -m 0755 "$fogcast/bin/$helper-linux-armv7" "$target/usr/sbin/$helper"
+  done
+  /bin/rm -f "$target/etc/init.d/S40mister-runtime" "$target/etc/init.d/S50mister-agent" "$target/etc/init.d/S60fogcast-kit"
 
   # The stable FES bootstrap retains its root here after pivot_root. This must
   # exist in the immutable candidate; boot cannot create it on a read-only image.
@@ -155,5 +158,7 @@ if [ "$native_mode" = package-only ]; then
     printf 'native-post-build: installed RBF count differs from package-only inputs, found %s\n' "$rbf_count" >&2
     exit 1
   }
+  /usr/bin/python3 "$repo/scripts/kit-software.py" --target "$target" \
+    --fogcast "$fogcast" --runtime-revision "$runtime_commit"
   exit 0
 fi

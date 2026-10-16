@@ -545,6 +545,14 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 	}, leaseOptions...)
 	defer leases.Close()
 	options = append(options, httpapi.WithKitLease(leases), httpapi.WithDiagnostics(diagnostics))
+	softwareFence, err := startSoftwareAdmission(ctx, leases, coordinator, localUpdater)
+	if err != nil {
+		return err
+	}
+	if softwareFence != nil {
+		options = append(options, httpapi.WithKitSoftware("/run/fogcast/software.sock"))
+	}
+
 	if dependencies.localControlSocket != "" {
 		native, ok := runtime.(*misterruntime.Runtime)
 		if !ok {
@@ -556,6 +564,24 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		})
 		if localUpdater != nil {
 			cores.SetAdmission(localUpdater.BeginOperation)
+		}
+
+		if softwareFence != nil {
+			cores.SetAdmission(func(ctx context.Context) (context.Context, func(), error) {
+				admitted, done, err := softwareFence.Begin(ctx)
+				if err != nil {
+					return nil, nil, err
+				}
+				if localUpdater == nil {
+					return admitted, done, nil
+				}
+				updateCtx, updateDone, err := localUpdater.BeginOperation(admitted)
+				if err != nil {
+					done()
+					return nil, nil, err
+				}
+				return updateCtx, func() { updateDone(); done() }, nil
+			})
 		}
 		if read := localCoreInventory(ctx, packages, coreLibraryError); read != nil {
 			cores.SetInventory(read)
@@ -581,6 +607,9 @@ func runWithDependencies(ctx context.Context, configPath string, logger *slog.Lo
 		}()
 	}
 	handler := httpapi.New(coordinator, cfg.Token, version.Version, logger, options...)
+	if softwareFence != nil {
+		handler = softwareFence.Guard(handler)
+	}
 	server := &http.Server{
 		Addr:              cfg.ListenAddress,
 		Handler:           handler,

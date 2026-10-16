@@ -1,0 +1,173 @@
+{
+  "accepted": true,
+  "base_identity": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+  "before_bundle": "eaff152f182b69e1bcd867e4ec0c43931806e7dccf9b73cebe90250a4e560e65",
+  "before_generation": 11,
+  "boot_id": "14c05a47-1615-43f0-a084-a1dc8948c119",
+  "candidate": "67afde612b5d12cd18aa68485e81b524a56c0b55fc7c06b05dd81bf8906de080",
+  "candidate_archive_sha256": "d82b2003325efb4343c563d0e5eed1983aba93c67cec0f66798d9791b9b60498",
+  "failure_message": null,
+  "failure_type": null,
+  "final_generation": 12,
+  "host_sha256": "93e37aaa4ebd419dc7161c19ab4936af4ff2baf6fafb90c1a8f6b1b602d1fcc7",
+  "input_events": [
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024463.525242513,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024485.494934795,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024490.836476908,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024496.229052744,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024501.574283572,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024506.945783179,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024512.369185438,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024517.753636762,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024523.152847425,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024528.507251177,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024533.847814522,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024539.237436175,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024544.585209115,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024549.962882162,
+      "host": "A"
+    },
+    {
+      "acknowledgments": 2,
+      "at_monotonic": 3024627.517230243,
+      "host": "B"
+    }
+  ],
+  "observations": [
+    {
+      "bounded_body": true,
+      "code": "KIT_LEASE_DENIED",
+      "http_status": 403,
+      "path": "/api/v1/session/launch",
+      "scope": "host refusal; target admission not claimed",
+      "stage": "B-launch-refusal"
+    },
+    {
+      "bounded_body": true,
+      "code": "KIT_LEASE_DENIED",
+      "http_status": 403,
+      "path": "/api/v1/session/input/event",
+      "scope": "host refusal; target admission not claimed",
+      "stage": "B-input-refusal"
+    },
+    {
+      "input_http": 403,
+      "input_scope": "host refusal; target input admission not claimed",
+      "launch_http": 403,
+      "stage": "non-owning-refusal"
+    },
+    {
+      "input_session_id": "7ad9c3f9d30acae2",
+      "lease_generation": "2a8f56c75d7947ea35bbc568e81235bb745464c58d21b44fe5f30b9b9168140b",
+      "samples": 13,
+      "seconds": 65,
+      "session": {
+        "flight_id": "12972c40-290d-41e7-a302-66b052fe2da6",
+        "game_id": "fpga-pong-a-c8ef318fd688",
+        "generation": 5,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "77d3887d-48bc-43b0-8a2b-11146d6fccee",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "stage": "active-held-update"
+    },
+    {
+      "generation": 12,
+      "request": {
+        "candidate": "67afde612b5d12cd18aa68485e81b524a56c0b55fc7c06b05dd81bf8906de080",
+        "expected_generation": 11,
+        "id": "aa58acf6d20b327d122f3b3497691ae1342a101e2efc94fd1598aab2485aa5d3",
+        "requester": "multi-host-private-diagnostic"
+      },
+      "result": "accepted",
+      "stable_seconds": 10,
+      "stage": "accepted"
+    },
+    {
+      "active_bundle": "67afde612b5d12cd18aa68485e81b524a56c0b55fc7c06b05dd81bf8906de080",
+      "base_identity": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+      "generation": 12,
+      "host": "A",
+      "selected": "67afde612b5d12cd18aa68485e81b524a56c0b55fc7c06b05dd81bf8906de080",
+      "stage": "host-converged"
+    },
+    {
+      "active_bundle": "67afde612b5d12cd18aa68485e81b524a56c0b55fc7c06b05dd81bf8906de080",
+      "base_identity": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+      "generation": 12,
+      "host": "B",
+      "selected": "67afde612b5d12cd18aa68485e81b524a56c0b55fc7c06b05dd81bf8906de080",
+      "stage": "host-converged"
+    }
+  ],
+  "phase": "complete",
+  "retained_private_hosts": false,
+  "scope": "two independent private host processes on one physical workstation; software-injected input acknowledgments, no physical USB or HDMI effect claim",
+  "script_sha256": "6c772fea649bbf20e62857659306d5c7e8dce462190f2dde7346e6460cc9a5b7",
+  "source_hashes": {
+    "diagnostic_identity.py": "ea4bc21b777970b7fa9ccc2583ee2c69ebab4f84b8d12613b340c606ac297d36",
+    "input_diagnostic.py": "dcf3f6e4d61d97bde0d58f021468ccc3ecf0f964c13beac2de6fcebd06719cae",
+    "kit_software_acceptance.py": "67d301b14aa8d3a8fe1adfe19459d0ebbb08aac0429332edb813cc394662d942",
+    "package_acceptance.py": "6c7a688a4cadcf3f00aaebc65b2d15031aa0f3e2d06f3f71147d25797aa97c4b",
+    "package_acceptance_isolated.py": "bdf6bed442071c0f28d8454865fd1e560c8a8ba381f3a0487797425673458b43"
+  },
+  "source_result_sha256": "043264c75e7f84f6d1b55e7dd15928c0da5904507de28ae861f8253b835d9d58",
+  "success": true,
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+}

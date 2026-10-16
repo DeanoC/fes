@@ -136,7 +136,16 @@ func testService(t *testing.T, runtime *fakeRuntime) (*Service, *kitlease.Manage
 }
 
 func post(handler http.Handler, path string) *httptest.ResponseRecorder {
-	request := httptest.NewRequest(http.MethodPost, path, nil)
+	var body io.Reader
+	if path == "/v1/local/stop" {
+		status := httptest.NewRecorder()
+		handler.ServeHTTP(status, httptest.NewRequest(http.MethodGet, "/v1/local/status", nil))
+		var current RunStatus
+		_ = json.Unmarshal(status.Body.Bytes(), &current)
+		data, _ := json.Marshal(map[string]string{"expected_generation": current.Generation})
+		body = strings.NewReader(string(data))
+	}
+	request := httptest.NewRequest(http.MethodPost, path, body)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	return response
@@ -356,7 +365,7 @@ func TestLaunchRenewsLeasePastTTLUntilStop(t *testing.T) {
 		}
 		time.Sleep(ttl / 10)
 	}
-	if err := service.Stop(context.Background()); err != nil {
+	if err := service.Stop(context.Background(), service.RunStatus().Generation); err != nil {
 		t.Fatal(err)
 	}
 	waitFree(t, manager)
@@ -558,7 +567,7 @@ func TestClientCancelDoesNotAbortLoadOrStop(t *testing.T) {
 		request, cancel := context.WithCancel(context.Background())
 		done := make(chan error, 1)
 		go func() {
-			done <- service.Stop(request)
+			done <- service.Stop(request, service.RunStatus().Generation)
 		}()
 		select {
 		case <-entered:
@@ -972,7 +981,7 @@ func TestRunStatusLaunchingThenRunningThenIdle(t *testing.T) {
 	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"running":true`) || !strings.Contains(response.Body.String(), `"core_id":"`+pong.CoreID+`"`) {
 		t.Fatalf("status %d %s", response.Code, response.Body.String())
 	}
-	if err := service.Stop(context.Background()); err != nil {
+	if err := service.Stop(context.Background(), service.RunStatus().Generation); err != nil {
 		t.Fatal(err)
 	}
 	if st := service.RunStatus(); st.Phase != phaseIdle || st.Running || st.CoreID != "" || st.PackageID != "" {
@@ -1013,7 +1022,7 @@ func TestDurableSelectionChangesOnlyFutureLaunch(t *testing.T) {
 	if loads, stops := runtime.calls(); len(loads) != 1 || stops != 0 {
 		t.Fatal("selection mutated runtime")
 	}
-	if err := service.Stop(context.Background()); err != nil {
+	if err := service.Stop(context.Background(), service.RunStatus().Generation); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := service.Launch(context.Background(), factory.PackageID); !errors.Is(err, errNotFound) {
@@ -1026,7 +1035,7 @@ func TestDurableSelectionChangesOnlyFutureLaunch(t *testing.T) {
 	if len(loads) != 2 || loads[1][0] != upgraded.installPath || loads[1][1] != upgraded.PackageID {
 		t.Fatalf("wrong future launch: %+v", loads)
 	}
-	if err := service.Stop(context.Background()); err != nil {
+	if err := service.Stop(context.Background(), service.RunStatus().Generation); err != nil {
 		t.Fatal(err)
 	}
 	service.SetInventory(func() ([]Core, error) { return nil, errors.New("corrupt selection") })
@@ -1071,7 +1080,7 @@ func TestStopReturnsOnlyAfterLeaseIsFree(t *testing.T) {
 			t.Fatal(err)
 		}
 		stopped := make(chan error, 1)
-		go func() { stopped <- service.Stop(context.Background()) }()
+		go func() { stopped <- service.Stop(context.Background(), service.RunStatus().Generation) }()
 		select {
 		case <-entered:
 		case <-time.After(2 * time.Second):
@@ -1142,7 +1151,7 @@ func TestStopReturnsOnlyAfterLeaseIsFree(t *testing.T) {
 		if _, err := service.Launch(context.Background(), id); err != nil {
 			t.Fatal(err)
 		}
-		if err := service.Stop(context.Background()); !errors.Is(err, errUnavailable) {
+		if err := service.Stop(context.Background(), service.RunStatus().Generation); !errors.Is(err, errUnavailable) {
 			t.Fatalf("stop %v", err)
 		}
 		if manager.Status().State != "blocked" {

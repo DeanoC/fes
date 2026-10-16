@@ -570,3 +570,426 @@ func TestPartialFilesystemWriteFailureLeavesSelection(t *testing.T) {
 		t.Fatalf("storage failure child: %v\n%s", e, b)
 	}
 }
+
+func stageDistinct(t *testing.T, s *Store, raw []byte, mark byte) release.Manifest {
+	t.Helper()
+	raw = bytes.Clone(raw)
+	raw[0] = mark
+	m := manifest(raw)
+	if e := s.Stage(context.Background(), m, m.ImageSize, bytes.NewReader(raw)); e != nil {
+		t.Fatal(e)
+	}
+	return m
+}
+
+func confirmRelease(t *testing.T, s *Store, hash, bootID string) {
+	t.Helper()
+	if e := s.Activate(hash); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := s.BeginBoot(bootID); e != nil {
+		t.Fatal(e)
+	}
+	if e := s.Confirm(bootID, hash); e != nil {
+		t.Fatal(e)
+	}
+}
+
+func setAge(t *testing.T, path string, age time.Duration) {
+	t.Helper()
+	when := time.Now().Add(age)
+	if e := os.Chtimes(path, when, when); e != nil {
+		t.Fatal(e)
+	}
+}
+
+func mustExist(t *testing.T, path string) {
+	t.Helper()
+	if _, e := os.Lstat(path); e != nil {
+		t.Fatal(path, e)
+	}
+}
+
+func mustAbsent(t *testing.T, path string) {
+	t.Helper()
+	if _, e := os.Lstat(path); !errors.Is(e, os.ErrNotExist) {
+		t.Fatalf("%s still present: %v", path, e)
+	}
+}
+
+func releasePaths(t *testing.T, s *Store, hash string) (string, string) {
+	t.Helper()
+	image, e := s.ImagePath(hash)
+	if e != nil {
+		t.Fatal(e)
+	}
+	return image, filepath.Join(s.root, "manifests", hash+".json")
+}
+
+func TestStagePrunesOldestUnreferencedImageOnly(t *testing.T) {
+	s, factory, raw := fixture(t)
+	previous := stageDistinct(t, s, raw, 1)
+	good := stageDistinct(t, s, raw, 2)
+	confirmRelease(t, s, previous.ImageSHA256, "boot-a")
+	confirmRelease(t, s, good.ImageSHA256, "boot-b")
+	looped := stageDistinct(t, s, raw, 3)
+	booted := stageDistinct(t, s, raw, 4)
+	staleOld := stageDistinct(t, s, raw, 5)
+	staleNew := stageDistinct(t, s, raw, 6)
+	factoryImage, factoryManifest := releasePaths(t, s, factory.ImageSHA256)
+	previousImage, previousManifest := releasePaths(t, s, previous.ImageSHA256)
+	goodImage, goodManifest := releasePaths(t, s, good.ImageSHA256)
+	loopImage, loopManifest := releasePaths(t, s, looped.ImageSHA256)
+	bootImage, bootManifest := releasePaths(t, s, booted.ImageSHA256)
+	oldImage, oldManifest := releasePaths(t, s, staleOld.ImageSHA256)
+	newImage, newManifest := releasePaths(t, s, staleNew.ImageSHA256)
+	setAge(t, loopImage, -6*time.Hour)
+	setAge(t, bootImage, -5*time.Hour)
+	setAge(t, oldImage, -4*time.Hour)
+	setAge(t, newImage, -time.Hour)
+	ticket := fmt.Sprintf("{\"boot_id\":\"boot-kept\",\"image_sha256\":\"%s\",\"trial\":false}\n", booted.ImageSHA256)
+	if e := os.WriteFile(filepath.Join(s.root, "boot.json"), []byte(ticket), 0600); e != nil {
+		t.Fatal(e)
+	}
+	bootloader := filepath.Join(s.root, "u-boot.txt")
+	if e := os.WriteFile(bootloader, []byte("keep\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	note := filepath.Join(s.root, "images", "not-an-image.txt")
+	if e := os.WriteFile(note, []byte("keep\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	s.availableBytes = func(string) (uint64, error) {
+		if _, e := os.Lstat(oldImage); e == nil {
+			return 0, nil
+		}
+		return 1 << 30, nil
+	}
+	s.loopBackings = func() ([]string, error) { return []string{loopImage + " (deleted)"}, nil }
+	spill := t.TempDir()
+	s.spillRoot = spill
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); e != nil {
+		t.Fatal(e)
+	}
+	mustAbsent(t, oldImage)
+	mustAbsent(t, oldManifest)
+	for _, path := range []string{factoryImage, factoryManifest, previousImage, previousManifest, goodImage, goodManifest, loopImage, loopManifest, bootImage, bootManifest, newImage, newManifest, bootloader, note} {
+		mustExist(t, path)
+	}
+	if b, e := os.ReadFile(bootloader); e != nil || string(b) != "keep\n" {
+		t.Fatalf("bootloader changed: %q %v", b, e)
+	}
+	kept, _ := releasePaths(t, s, staged.ImageSHA256)
+	mustExist(t, kept)
+	entries, e := os.ReadDir(spill)
+	if e != nil || len(entries) != 0 {
+		t.Fatalf("spill residue %v %v", entries, e)
+	}
+}
+
+func TestStageKeepsUnreferencedImagesWhenSpaceRemains(t *testing.T) {
+	s, _, raw := fixture(t)
+	stale := stageDistinct(t, s, raw, 8)
+	image, manifestPath := releasePaths(t, s, stale.ImageSHA256)
+	incoming := bytes.Clone(raw)
+	incoming[0] = 9
+	staged := manifest(incoming)
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); e != nil {
+		t.Fatal(e)
+	}
+	mustExist(t, image)
+	mustExist(t, manifestPath)
+}
+
+func TestStageReportsInsufficientStorageWithoutDeletingRetainedImages(t *testing.T) {
+	s, factory, raw := fixture(t)
+	looped := stageDistinct(t, s, raw, 3)
+	booted := stageDistinct(t, s, raw, 4)
+	loopImage, loopManifest := releasePaths(t, s, looped.ImageSHA256)
+	bootImage, bootManifest := releasePaths(t, s, booted.ImageSHA256)
+	factoryImage, factoryManifest := releasePaths(t, s, factory.ImageSHA256)
+	ticket := fmt.Sprintf("{\"boot_id\":\"boot-kept\",\"image_sha256\":\"%s\",\"trial\":true}\n", booted.ImageSHA256)
+	if e := os.WriteFile(filepath.Join(s.root, "boot.json"), []byte(ticket), 0600); e != nil {
+		t.Fatal(e)
+	}
+	s.availableBytes = func(string) (uint64, error) { return 0, nil }
+	s.loopBackings = func() ([]string, error) { return []string{loopImage}, nil }
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); !errors.Is(e, ErrInsufficientStorage) {
+		t.Fatalf("got %v", e)
+	}
+	for _, path := range []string{factoryImage, factoryManifest, loopImage, loopManifest, bootImage, bootManifest} {
+		mustExist(t, path)
+	}
+}
+
+func TestStageRefusesToPruneWhenBootTicketIsUnreadable(t *testing.T) {
+	s, _, raw := fixture(t)
+	stale := stageDistinct(t, s, raw, 5)
+	image, _ := releasePaths(t, s, stale.ImageSHA256)
+	if e := os.WriteFile(filepath.Join(s.root, "boot.json"), []byte("nope"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	s.availableBytes = func(string) (uint64, error) { return 0, nil }
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); !errors.Is(e, errUnreadableBootTicket) {
+		t.Fatalf("got %v", e)
+	}
+	mustExist(t, image)
+}
+
+func TestStageRefusesToPruneWhenStateIsCorrupt(t *testing.T) {
+	s, _, raw := fixture(t)
+	stale := stageDistinct(t, s, raw, 5)
+	image, _ := releasePaths(t, s, stale.ImageSHA256)
+	if e := os.WriteFile(filepath.Join(s.root, "state.json"), []byte("not-json"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	s.availableBytes = func(string) (uint64, error) { return 0, nil }
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); !errors.Is(e, ErrCorruptState) {
+		t.Fatalf("got %v", e)
+	}
+	mustExist(t, image)
+}
+
+func TestStageRefusesToPruneWhenLoopScanFails(t *testing.T) {
+	s, _, raw := fixture(t)
+	stale := stageDistinct(t, s, raw, 5)
+	image, _ := releasePaths(t, s, stale.ImageSHA256)
+	s.availableBytes = func(string) (uint64, error) { return 0, nil }
+	s.loopBackings = func() ([]string, error) { return nil, errors.New("sysfs unavailable") }
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming))
+	if e == nil || !strings.Contains(e.Error(), "refusing to prune releases") || !strings.Contains(e.Error(), "sysfs unavailable") {
+		t.Fatalf("got %v", e)
+	}
+	mustExist(t, image)
+}
+
+func TestStageSkipsUnreferencedImageSymlink(t *testing.T) {
+	s, _, raw := fixture(t)
+	stale := stageDistinct(t, s, raw, 5)
+	staleImage, staleManifest := releasePaths(t, s, stale.ImageSHA256)
+	outside := filepath.Join(t.TempDir(), "u-boot.txt")
+	if e := os.WriteFile(outside, []byte("bootloader\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	link := filepath.Join(s.root, "images", strings.Repeat("e", 64)+".img")
+	if e := os.Symlink(outside, link); e != nil {
+		t.Fatal(e)
+	}
+	setAge(t, link, -8*time.Hour)
+	setAge(t, staleImage, -time.Hour)
+	s.availableBytes = func(string) (uint64, error) {
+		if _, e := os.Lstat(staleImage); e == nil {
+			return 0, nil
+		}
+		return 1 << 30, nil
+	}
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	s.spillRoot = t.TempDir()
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); e != nil {
+		t.Fatal(e)
+	}
+	mustAbsent(t, staleImage)
+	mustAbsent(t, staleManifest)
+	mustExist(t, link)
+	if b, e := os.ReadFile(outside); e != nil || string(b) != "bootloader\n" {
+		t.Fatalf("symlink target changed: %q %v", b, e)
+	}
+}
+
+func TestStageLowSpaceFailedUploadKeepsUnreferencedRelease(t *testing.T) {
+	s, _, raw := fixture(t)
+	stale := stageDistinct(t, s, raw, 5)
+	image, manifestPath := releasePaths(t, s, stale.ImageSHA256)
+	spill := t.TempDir()
+	s.spillRoot = spill
+	s.availableBytes = func(string) (uint64, error) { return 0, nil }
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	t.Run("truncated", func(t *testing.T) {
+		e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming[:len(incoming)/2]))
+		if e == nil || !strings.Contains(e.Error(), "upload size mismatch") {
+			t.Fatalf("got %v", e)
+		}
+		mustExist(t, image)
+		mustExist(t, manifestPath)
+		assertSpillEmpty(t, spill)
+	})
+	t.Run("corrupt", func(t *testing.T) {
+		bad := bytes.Clone(incoming)
+		bad[0] ^= 0xff
+		e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(bad))
+		if e == nil || !strings.Contains(e.Error(), "SHA-256") {
+			t.Fatalf("got %v", e)
+		}
+		mustExist(t, image)
+		mustExist(t, manifestPath)
+		assertSpillEmpty(t, spill)
+	})
+}
+
+func TestStageDropsAbandonedSpillFileBeforePrune(t *testing.T) {
+	s, _, raw := fixture(t)
+	stale := stageDistinct(t, s, raw, 5)
+	staleImage, _ := releasePaths(t, s, stale.ImageSHA256)
+	spill := t.TempDir()
+	abandoned := filepath.Join(spill, ".stage-spill-abandoned")
+	if e := os.WriteFile(abandoned, bytes.Repeat([]byte("x"), 64), 0600); e != nil {
+		t.Fatal(e)
+	}
+	keep := filepath.Join(spill, "keep.txt")
+	if e := os.WriteFile(keep, []byte("keep\n"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	link := filepath.Join(spill, ".stage-spill-link")
+	if e := os.Symlink(keep, link); e != nil {
+		t.Fatal(e)
+	}
+	nested := filepath.Join(spill, ".stage-spill-dir")
+	if e := os.Mkdir(nested, 0700); e != nil {
+		t.Fatal(e)
+	}
+	s.spillRoot = spill
+	s.availableBytes = func(string) (uint64, error) {
+		if _, e := os.Lstat(staleImage); e == nil {
+			return 0, nil
+		}
+		return 1 << 30, nil
+	}
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); e != nil {
+		t.Fatal(e)
+	}
+	mustAbsent(t, abandoned)
+	mustAbsent(t, staleImage)
+	mustExist(t, keep)
+	mustExist(t, link)
+	mustExist(t, nested)
+	if b, e := os.ReadFile(keep); e != nil || string(b) != "keep\n" {
+		t.Fatalf("spill neighbor changed: %q %v", b, e)
+	}
+	published, _ := releasePaths(t, s, staged.ImageSHA256)
+	mustExist(t, published)
+	entries, e := os.ReadDir(spill)
+	if e != nil {
+		t.Fatal(e)
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), ".stage-spill-") && entry.Type().IsRegular() {
+			t.Fatalf("abandoned spill file remains: %s", entry.Name())
+		}
+	}
+}
+
+func TestStageLowSpaceWithoutSpillDoesNotPrune(t *testing.T) {
+	s, _, raw := fixture(t)
+	stale := stageDistinct(t, s, raw, 5)
+	image, manifestPath := releasePaths(t, s, stale.ImageSHA256)
+	s.spillCandidates = func() []string { return nil }
+	s.availableBytes = func(string) (uint64, error) { return 0, nil }
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); !errors.Is(e, ErrInsufficientStorage) {
+		t.Fatalf("got %v", e)
+	}
+	mustExist(t, image)
+	mustExist(t, manifestPath)
+	published, _ := releasePaths(t, s, staged.ImageSHA256)
+	mustAbsent(t, published)
+}
+
+func TestStageRejectsSpillInsideReleaseRoot(t *testing.T) {
+	s, _, raw := fixture(t)
+	stale := stageDistinct(t, s, raw, 5)
+	image, _ := releasePaths(t, s, stale.ImageSHA256)
+	s.spillRoot = filepath.Join(s.root, "images")
+	s.availableBytes = func(string) (uint64, error) { return 0, nil }
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming))
+	if e == nil || !strings.Contains(e.Error(), "inside the release root") {
+		t.Fatalf("got %v", e)
+	}
+	mustExist(t, image)
+}
+
+func TestAdmissionFilesystemRejectsMemorySameDeviceAndShortVolumes(t *testing.T) {
+	need := uint64(releaseHeadroom + 10)
+	base := unix.Statfs_t{Type: unix.EXT4_SUPER_MAGIC, Bsize: 4096, Bavail: 1 << 20}
+	if !admissionFilesystem(base, 2, 1, need) {
+		t.Fatal("ext4 spill rejected")
+	}
+	if admissionFilesystem(base, 1, 1, need) {
+		t.Fatal("same device accepted")
+	}
+	if admissionFilesystem(base, 0, 1, need) {
+		t.Fatal("missing device accepted")
+	}
+	memory := base
+	memory.Type = unix.TMPFS_MAGIC
+	if admissionFilesystem(memory, 2, 1, need) {
+		t.Fatal("tmpfs accepted")
+	}
+	if !memoryFilesystem(uint32(unix.RAMFS_MAGIC)) {
+		t.Fatal("ramfs accepted")
+	}
+	readonly := base
+	readonly.Flags = unix.ST_RDONLY
+	if admissionFilesystem(readonly, 2, 1, need) {
+		t.Fatal("read-only filesystem accepted")
+	}
+	short := base
+	short.Bavail = 0
+	if admissionFilesystem(short, 2, 1, need) {
+		t.Fatal("short filesystem accepted")
+	}
+}
+
+func TestSpillUsableRejectsReleaseVolume(t *testing.T) {
+	s, _, _ := fixture(t)
+	if s.spillUsable(s.root, 4096) {
+		t.Fatal("release root usable as spill")
+	}
+	if s.spillUsable(filepath.Join(s.root, "images"), 4096) {
+		t.Fatal("release image directory usable as spill")
+	}
+	if s.spillUsable(t.TempDir(), 4096) {
+		t.Fatal("same-device directory usable as spill")
+	}
+}
+
+func assertSpillEmpty(t *testing.T, spill string) {
+	t.Helper()
+	entries, e := os.ReadDir(spill)
+	if e != nil || len(entries) != 0 {
+		t.Fatalf("spill residue %v %v", entries, e)
+	}
+}

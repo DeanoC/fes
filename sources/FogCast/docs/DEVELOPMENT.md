@@ -139,27 +139,26 @@ or fallback mechanism.
 
 ### Fast target iteration policy
 
-During active runtime or target debugging, do not rebuild the complete image
-for every source change. Run the narrow host tests, cross-build only the
-self-contained changed runtime artifact, and place it in a disposable copy of
-the last verified image. Deploy that derived image for a bounded diagnostic,
-preserving the verified source image and recording the derived hash. Derived
-image results are diagnostic only; they do not establish reproducibility,
-release readiness, or hardware acceptance.
+For active target/runtime development, run focused tests and build a compatible
+[kit software bundle](../../../docs/kit-software-releases.md) against a verified
+retained base image. Managed kits accept installation while busy and queue
+activation until execution ownership is released. Successful selections remain
+installed; neither binary/configuration overlays nor routine stock restoration
+are supported on managed images. Use a private host for branch diagnostics.
 
-When replacing a root image on the running kit, keep the old image under a
-backup filename until after reboot. Never overwrite its contents or rename a
-replacement directly over its last filename: the loop device still holds it
-open, and reboot can leave orphaned FAT allocation chains. Stage and verify the
-new image, rename the running image to an unused backup name, install the staged
-image, sync and reboot; delete the backup only after verifying the new boot.
-Keep power stable during the two renames.
+A core using an installed ABI follows package import/selection/launch. A host
+change uses its independent private-host build. Neither requires matching source
+revisions or a new kit image. Diagnostics pin the active bundle and base-image
+identities and check the advertised operation contracts; source revisions remain
+provenance.
 
-Use the FES two-pass `make build` / `make verify` after a change has
-stabilized and immediately before a major PR, merge, release, or formal
-hardware acceptance. The full image rebuild is also required for any change to
-Buildroot, init scripts, package contents, image configuration, or locked
-inputs, because a runtime-only replacement cannot validate those changes.
+Changes to the base supervisor, startup, system libraries, kernel, image
+configuration, factory-image packages or locked base inputs require a planned
+appliance-image update and the two-pass FES `make build` / `make verify` checks.
+Use the [appliance release workflow](../../../docs/appliance-releases.md) under
+the designated kit lease, preserving factory, known-good, previous and referenced
+images. Building an artifact does not authorize its deployment or establish its
+hardware acceptance.
 
 ## Dedicated fixture
 
@@ -205,28 +204,52 @@ launcher binds `*:8789`. `fogcast-kit` reconnects to
 Enable LaunchBox metadata there with `[metadata] provider = "launchbox"` and
 an absolute archive path; see [kit launcher HOW_TO_RUN](kit-launcher.md#how_to_run-launchbox-covers-on-the-kit-host).
 
-The designated kit runs the native appliance image. Init starts
-`mister-runtime` and `mister-agent` from `/usr/sbin`, then
-`fogcast-kit`. Agent configuration is `/media/fat/fogcast/agent.toml`. There
-is no Main process and no `/dev/MiSTer_cmd`. HDMI idle uses the locked idle
-RBF through the runtime. Health and lifecycle observations use runtime protocol 2. FAT holds agent config, launcher cache and content;
-the root filesystem is the immutable loop image.
+The designated kit runs a native appliance image. Managed images start the
+base-image `fes-kit-software` supervisor, which selects one immutable runtime,
+agent and launcher group. Software identities and pending updates are available
+through `fes-software --action status`; authenticated health reports them
+separately from base-image artifacts. Agent configuration remains
+`/media/fat/fogcast/agent.toml`. There is no Main process or `/dev/MiSTer_cmd`.
+HDMI idle uses the locked idle RBF through runtime protocol 2. The root filesystem
+is the immutable appliance loop image; installed software and core packages use
+verified FESDATA3 storage. A build does not establish which image or software is
+currently booted on the designated kit.
 
 The fixture uses the stock MiSTer login and changing SSH host keys after a
 rebuild is expected. Reflashing or replacing the image is normal. Do not use
 a soft board reboot to recover a running FPGA session.
 
-### Restarting target services
+### Updating target software
 
-Overlay swaps and init restarts stay on the current boot:
+On managed images, install an immutable bundle and queue its activation through
+[kit software releases](../../../docs/kit-software-releases.md). The existing
+execution owner keeps playing and renewing until explicit Stop/release. A soft
+Stop that retains the lease keeps the update queued. At the released idle
+boundary, target maintenance fences new sessions and the base supervisor replaces
+the complete group. Accepted updates remain selected. Startup failure permits one
+recorded attempt to recover the prior bundle; a failed recovery stays blocked.
 
-1. Stop the session to idle from the host (`fogcast stop` or the session Stop control).
-2. Confirm the kit lease is free.
-3. Restart `mister-runtime` and `mister-agent` with SIGTERM through `mister-supervise` (`/etc/init.d/S40mister-runtime restart` and `/etc/init.d/S50mister-agent restart`).
+Do not restart individual runtime, agent or launcher processes, kill them as a
+routine update, or invoke retired per-service init scripts. The supervisor must
+verify that the old processes exited before any replacement can control hardware.
+Temporary binary and configuration overlays are refused on managed images.
+Branch diagnostics use a private host and an explicitly installed bundle;
+returning to a prior bundle is another generation-checked activation.
 
-Do not use `/sbin/reboot`, `POST /v1/development/reboot`, or `kill -9` mid-session for an overlay swap. Killing the agent during a session makes startup cleanup fail and leaves the kit lease blocked. `POST /v1/development/reboot` is unsafe after FPGA or HPS activity: it asks the runtime to program idle first, and it runs `/sbin/reboot` only when that LoadIdle fails with `idle_failed`. If the agent still reports `reboot_required`, recover with a hard power-supply cycle. A front-panel reset does not replace that power cycle.
+An unmanaged maintenance-aware image retains the [file-overlay adoption
+workflow](../../../docs/kit-manifest.md) only until it is moved to the supporting
+base image. Its temporary swaps require target maintenance and explicit cleanup.
+They are not a second update path for managed images.
 
-Path B is that board-reboot arm. It is not part of the restart above. The arming rules and the held kit check are in the FES [soft-restart Path B](../../../docs/soft-restart-path-b.md) note. Do not run that kit check.
+A software update does not reboot the board. `/sbin/reboot` and
+`POST /v1/development/reboot` are not service-restart operations. If physical
+recovery reports `reboot_required`, keep execution fenced and arrange separately
+authorized board recovery. A software reboot can clear the observed HDMI I2C
+failure; verify the new boot, native idle and admission before resuming work.
+If the fault persists, use the designated kit's hard power-supply cycle; a
+front-panel reset does not replace that cycle. The separate
+[soft-restart Path B](../../../docs/soft-restart-path-b.md) note describes the
+board-reboot diagnostic and its arming rules. Do not run that kit check.
 
 After separately authorized deployment of the selected native image, exercise
 its installed package lifecycle through the running host:
@@ -258,16 +281,16 @@ controller, persistence or exact-image acceptance. Record those physical checks
 separately against the selected image/runtime/package digests;
 historical raw-core acceptance does not qualify the new artifacts.
 
-## Swap a kit file
+## Install software and core packages
 
-Change `mister-runtime`, `mister-agent`, `fogcast-kit`, `fogcast-tenfoot`,
-`launcher.json`, `agent.toml`, or a core-package file only through the FES
-[kit runtime manifest](../../../docs/kit-manifest.md). Record the temporary diagnostic hold, release
-the kit.py execution lease, and swap through the target maintenance API. Restore
-temporary overlays after testing. Each swap/restore reserves the target across
-service restart and ends maintenance only after idle cleanup. Do not copy those files onto the kit
-directly. The restart rules above still apply: swap and restore stop and start
-the affected init scripts, and they do not reboot the board.
+Use [kit software releases](../../../docs/kit-software-releases.md) for a runtime,
+agent or launcher change. Use the [durable core library](../../../docs/kit-core-library.md)
+for compatible core installation and future selection. Neither operation requires
+rebuilding the base OS, and core installation does not restart services. Retain
+the operator's shared host; branch diagnostics use private configurations, ports,
+catalogs and evidence. Configuration-only temporary kit overlays are currently
+unsupported on managed images. The file-overlay commands remain restricted to
+unmanaged bootstrap adoption as described above.
 
 ## Deploy and exercise the kit
 

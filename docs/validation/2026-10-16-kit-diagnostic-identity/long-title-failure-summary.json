@@ -1,0 +1,19 @@
+{
+  "success": false,
+  "completed_cycles": 0,
+  "before_launch": true,
+  "classification": "separate catalog entry ID rejection, not a passing diagnostic",
+  "observation": "GET /api/v1/library/core-entries for the long-title generated game ID returned HTTP400 BAD_REQUEST before launch",
+  "cleanup_errors": [],
+  "containers": [
+    {
+      "cycle": "cycle-1",
+      "exit_code": 0,
+      "removed": true,
+      "remove_error": null,
+      "stop_error": null
+    }
+  ],
+  "source_failure_sha256": "8664696c9c09494c37e7ebe8d0edcd7827178349afc17da52a7b91e4b9b0c175",
+  "source_stderr_sha256": "12d0da0d34ff81f58a05c9c7c6557810bf4b1d6850ec936a04b845ec0e2b56f8"
+}

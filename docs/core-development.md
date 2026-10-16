@@ -70,8 +70,8 @@ make core-dev-accept CORE_DEV_ACCEPT_ARGS='--prepared out/core-dev/pong-001/prep
   --host-config /absolute/path/private/config.toml \
   --evidence-dir /absolute/path/new-acceptance-run \
   --expected-target-id AUTHORIZED_TARGET_ID \
-  --expected-host-revision HOST_COMMIT --expected-agent-revision AGENT_COMMIT \
-  --expected-runtime-revision RUNTIME_COMMIT \
+  --expected-bundle-id ACTIVE_BUNDLE_ID \
+  --expected-base-image-sha256 BASE_IMAGE_SHA256 \
   --new-entry-title "FES Pong development" --execute'
 ```
 
@@ -85,13 +85,12 @@ digests in the preparation record describe the earlier preparation checks;
 the adapter does not independently re-attest build provenance. The existing
 host package reader validates the imported archive against the expected package ID.
 Target identity and software expectations are never discovered and blindly trusted.
-The host, agent and runtime revisions are independent artifact expectations:
-different full host and agent commits are accepted when the normal API, runtime
-protocol and package ABI/interface contracts support the requested operation.
-Do not update or restore kit software solely to make its commit match the host.
-An explicitly expected labelled diagnostic host still requires
-`--allow-development-host`; this does not relax agent/runtime identity or
-compatibility checks.
+Pin the expected active kit bundle and base-image digests. The diagnostic checks
+target API and the active bundle's provided interface contracts, then keeps those
+identities stable through launch and Stop. The host binary and container retain
+their independent digest pins. Source revisions are recorded as provenance;
+base-image runtime provenance does not identify the active bundle. Do not update
+or restore kit software solely to make its commit match the host.
 No `--execute` means no acceptance execution. The original
 [package acceptance guide](package-acceptance.md) defines the lease, version,
 failure, cleanup and Docker-image requirements; all still apply.

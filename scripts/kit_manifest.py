@@ -770,6 +770,7 @@ def parse_probe(text):
     release = load_object(blocks.get('RELEASEJSON'))
     image_sha = boot.get('image_sha256') or release.get('image_sha256') or ''
     return {
+        'software_managed': (blocks.get('SOFTWAREMANAGED') or '').strip() == '1',
         'boot_id': (blocks.get('BOOT') or '').strip(),
         'image': {
             'boot_id': (blocks.get('BOOT') or '').strip(),
@@ -968,6 +969,7 @@ class Session:
             return self._apply(lines)
 
     def _apply(self, lines):
+        self._require_unmanaged(parse_probe(self.transport.run(['probe'])))
         destructive = any(line.split()[0] in ('STOP', 'START', 'PLACE', 'CLEAR', 'UNMOUNT', 'REMOVE')
                           for line in lines)
         reservation = None
@@ -992,6 +994,12 @@ class Session:
 
     def show(self, path):
         return self.transport.run(['show', path])
+
+    @staticmethod
+    def _require_unmanaged(probe):
+        if probe.get('software_managed'):
+            raise KitError('managed kit software refuses file swaps/restores; '
+                           'use immutable bundle install and queued activation (fes-software)')
 
     def require_hold(self):
         found = held_files(self.name)
@@ -1023,6 +1031,7 @@ class Session:
             write_hold(path, who, why, task_id)
         try:
             probe = self.probe()
+            self._require_unmanaged(probe)
             manifest = probe['manifest'] or empty_manifest(self.name, probe['image'], None)
             holder = manifest.get('holder') or {}
             if holder and (holder.get('who') != who or holder.get('task_id') != task_id):
@@ -1051,6 +1060,7 @@ class Session:
         return f'claimed {self.name} by {who}'
 
     def _write_baseline(self, probe):
+        self._require_unmanaged(probe)
         hashes = {name: digest for name, digest in probe['hashes'].items()
                   if not name.startswith('stock-') and digest != 'MISSING'}
         document = {'format': 1, 'when': utc_stamp(), 'hashes': hashes}
@@ -1086,6 +1096,7 @@ class Session:
         payload = source_path.read_bytes()
         new_hash = sha256_bytes(payload)
         probe = self.probe(extra=[item])
+        self._require_unmanaged(probe)
         manifest = probe['manifest'] or empty_manifest(self.name, probe['image'], None)
         self._check_boot(probe, manifest)
         holder = manifest.get('holder') or {}
@@ -1163,6 +1174,7 @@ class Session:
 
     def _restore(self, hold, baseline, expected_boot_id=None, force=False, expected_manifest_sha256=None):
         probe = self.probe()
+        self._require_unmanaged(probe)
         if expected_boot_id is not None and expected_boot_id != probe['boot_id']:
             raise KitError('expected boot id does not match the inspected kit')
         manifest = probe['manifest'] or empty_manifest(self.name, probe['image'], None)
@@ -1320,6 +1332,7 @@ class Session:
         with path.open('r', encoding='utf-8') as handle:
             fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
             probe = self.probe()
+            self._require_unmanaged(probe)
             files = {}
             lines = [f'BOOT {probe["boot_id"]}']
             seen = set()
@@ -1366,13 +1379,14 @@ class Session:
             hold = {'who': 'conflict', 'why': 'multiple hold markers', 'file': ''}
         report = {
             'kit': self.name,
+            'software_managed': probe.get('software_managed', False),
             'host': self.host,
             'hold': hold,
             'image': probe['image'],
             'manifest_path': MANIFEST_PATH,
             'manifest': probe['manifest'],
             'manifest_sha256': probe['manifest_sha256'],
-            'components': component_rows(probe, main_hashes or {}),
+            'components': [] if probe.get('software_managed') else component_rows(probe, main_hashes or {}),
             'mounts': probe['mounts'],
         }
         try:
@@ -1456,6 +1470,8 @@ def format_status(report):
         f'maintenance: {report.get("maintenance", {}).get("state", "unavailable")}',
         '',
     ]
+    if report.get('software_managed'):
+        lines.append('software: managed immutable bundle; inspect with fes-software --action status')
     for row in report['components']:
         main = row['main'] or 'unknown'
         who = row['who'] or '-'
@@ -1498,6 +1514,8 @@ def format_finding(name, kind, component, detail, current, expected):
 
 def watch_kit(session, main_hashes, fail_stale):
     probe = session.probe()
+    if probe.get('software_managed'):
+        return 0, [f'{utc_stamp()} kit {session.name} MANAGED software; inspect with fes-software --action status']
     previous_path = drift_dir() / f'{session.name}.json'
     previous = previous_watch_hashes(session.name)
     findings = drift_findings(probe, main_hashes, previous)

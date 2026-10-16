@@ -64,6 +64,30 @@ client keeps a present `image_passes` value in the manifest it uploads.
 Uploads are raw ext4, with
 no archive paths or scripts to extract.
 
+`POST /v1/update/stage` returns `507` with code `UPDATE_NO_SPACE` and message
+`insufficient release storage` when the release volume cannot hold the image.
+`fes-update` prints that code and message. Other rejected uploads stay `422`
+`UPDATE_INVALID`. When the release volume already has room for the image plus
+a 1 MiB margin, staging writes and verifies it there and does not delete
+anything. When it does not, staging verifies the upload on another filesystem
+before deleting anything. That filesystem must be a different device from the
+release volume, must not be tmpfs or ramfs, and must have room for the image
+plus the same margin. The kit uses the mounted FESDATA3 volume
+(`/run/fogcast/fesdata3`) or a FogCast directory bind-mounted from it. A
+truncated or corrupt upload removes only that temporary file. A spill file left
+behind when that write is interrupted is removed on the next stage, before
+free space is measured. Only regular `.stage-spill-` files in that store's
+own staging directory are removed. After the
+upload passes the size, ext4, and digest checks, staging deletes unreferenced
+images oldest first, only until the image fits, then copies the verified file
+into the release store. It keeps the factory image, known-good, previous,
+pending, trial, the `boot.json` image, and every image in the release store
+that backs a loop device. It does not change the boot selection and does not
+touch `u-boot.txt` or other boot files. If no qualifying filesystem can hold
+the upload, or the retained images still leave too little free space, staging
+returns the storage error and deletes nothing. An unreadable `boot.json`,
+corrupt selection state, or a failed loop-device scan refuses the prune.
+
 If a response is lost, inspect status; do not blindly replay activation. A pending
 selection after a failed reboot request remains visible and is attempted on the
 next reboot. An unconfirmed trial blocks normal launch/input/cast and has a
@@ -106,7 +130,7 @@ again. Shutdown has three reset layers:
   deadline of 150 seconds while I/O keeps progressing. It first runs an explicit
   sync bounded to 10 seconds; sysrq `b` skips device shutdown, while `reboot -nf`
   avoids another sync if sysrq fails or returns. The capped stop
-  scripts wait at most 20 seconds without I/O in total, below the 30-second stall
+  scripts and software supervisor wait at most 29 seconds without I/O in total, below the 30-second stall
   trigger (`image/scripts/tests/shutdown-budget_test.sh`). This covers a stall
   inside rcK. BusyBox init has no kill-all omit list: after its synchronous
   `::shutdown` actions it sends SIGTERM and SIGKILL to every process except

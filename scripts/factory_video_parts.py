@@ -292,11 +292,14 @@ if mode == 'canonical':
     require(args['producer_options']==options, 'resolved video profile differs from selected factory recipe')
     _, revision = shell_producer._require_clean_source(root, **options)
     authenticate = shell_producer._authenticate_atari_st_tools if st else shell_producer.authenticate_tools
-    tools = authenticate(root, Path(args['toolchain_cache']))
+    tools = authenticate(root, Path(args['toolchain_cache']), gpu_router=args['gpu_router'])
     roots = source_roots_for_inputs(producer.NATIVE_INPUTS if native else producer.INPUTS)
     with tempfile.TemporaryDirectory(prefix='fes-video-canonical-') as home:
         paths = {name:tool.path for name,tool in tools.items()}
-        execution = execution_inputs(paths, execution_environment(Path(home), paths), 0)
+        env = execution_environment(Path(home), paths)
+        if args['gpu_router'] == 'CUDA':
+            env['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+        execution = execution_inputs(paths, env, 0)
     result = {'inputs':source_input_closure(root, roots, policy=POLICY),
               'source_roots':roots, 'source_closure_policy':POLICY,
               'tools':{name:tool.identity for name,tool in tools.items()},
@@ -317,7 +320,7 @@ else:
         summary = json.loads(bounded(shell/'build-summary.json'))
         require(fields['parameters']['gpu_backend']==expected_backend, 'frozen shell GPU backend differs from the authenticated router')
         if st:
-            tools = shell_producer._authenticate_atari_st_tools(root, Path(args['toolchain_cache']))
+            tools = shell_producer._authenticate_atari_st_tools(root, Path(args['toolchain_cache']), gpu_router=args['gpu_router'])
             database = rom_map.read_database(tools['mistral'].path.parents[2]/'src/mistral', shell_producer.ROM_DATABASE_SHA256)
             evidence = shell_producer.validate_build_evidence(shell, ram_database=database, gpu_backend=expected_backend)
             mapping, map_evidence = rom_map.build_rom_map(database, package.payload_bytes,
