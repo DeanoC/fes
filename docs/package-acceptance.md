@@ -288,7 +288,9 @@ checks. A queued update does not invalidate an unchanged active bundle. Source
 revisions are recorded as provenance; they are not compatibility requirements.
 Base-image `artifacts.runtime_commit` describes the sealed base record, not the
 running bundle. The isolated runner separately pins the exact host binary hash
-and container image digest. The former revision flags and development-label mode
+and container image digest. Its bounded `--timeout` also sets the private host
+request budget, rounded up to whole seconds, so verified inventory reads are not
+limited by a smaller hidden host timeout. The former revision flags and development-label mode
 are removed; use the explicit bundle and base identities.
 
 Logs, individual cycle receipts and a final diagnostic result are retained in

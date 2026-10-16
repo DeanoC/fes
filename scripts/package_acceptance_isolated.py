@@ -60,6 +60,7 @@ class PrivateTarget:
     agent: str
     target_id: str
     remote_input_enabled: bool = False
+    request_timeout_seconds: int = 30
 
 
 @dataclass
@@ -214,7 +215,7 @@ def _minimal_config(target: PrivateTarget) -> str:
             f"selected_target = {_toml_string(target.name)}",
             "libraries = []",
             "library_media = []",
-            "request_timeout_seconds = 30",
+            f"request_timeout_seconds = {target.request_timeout_seconds}",
             "upload_timeout_seconds = 60",
             "",
             "[[targets]]",
@@ -1153,7 +1154,8 @@ def validate_args(args: argparse.Namespace) -> PrivateTarget:
         raise AcceptanceError("container image must be an immutable sha256 image ID")
     config = _require_file(args.host_config, "host config")
     target = _load_private_target(config, target_id)
-    target = replace(target, remote_input_enabled=args.input_diagnostic is not None)
+    target = replace(target, remote_input_enabled=args.input_diagnostic is not None,
+                     request_timeout_seconds=math.ceil(args.timeout))
     _require_new_evidence_dir(args.evidence_dir)
     if not PACKAGE_ACCEPTANCE.is_file():
         raise AcceptanceError("existing package acceptance runner is missing")

@@ -672,6 +672,22 @@ class IsolatedInputDiagnosticTests(unittest.TestCase):
 
 
 class IsolatedPackageAcceptanceOfflineTests(unittest.TestCase):
+    def test_requested_timeout_reaches_private_host_and_cleanup(self):
+        for requested, expected in ((60.1, 61), (300, 300)):
+            with self.subTest(timeout=requested), tempfile.TemporaryDirectory() as directory:
+                paths = _write_inputs(directory)
+                evidence = Path(directory) / "evidence"
+                args = package_acceptance_isolated.parser().parse_args(
+                    _command(paths, evidence)[3:] + ["--timeout", str(requested)])
+                target = package_acceptance_isolated.validate_args(args)
+                self.assertEqual(target.request_timeout_seconds, expected)
+                evidence.mkdir()
+                home = package_acceptance_isolated.prepare_private_home(evidence, target)
+                config = tomllib.loads(home.config.read_text())
+                self.assertEqual(config["request_timeout_seconds"], expected)
+                package_acceptance_isolated.remove_private_config(home)
+                self.assertFalse(home.config.exists())
+
     def test_media_receipt_binding_is_required(self):
         args = SimpleNamespace(library_media="rom.bin", expected_media_sha256="e" * 64,
             library_media_bytes=32768, expected_host_sha256="f" * 64, container_image=IMAGE,
