@@ -67,8 +67,10 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   after feedback. CONTROL writes see all final phases. This software ordering
   is a compatibility target, not evidence of physical SID voice ordering. Audio follows the reference's
   default 6581 bias with bounded lookup approximations and signed-16 PCM
-  saturation. Other chip models and bias settings, noise-combined waveforms,
-  paddle reads, SID bus decay and physical audio fidelity remain open.
+  saturation. Noise-combined waveforms include MOS6581 pulse shaping, noise-register
+  writeback and TEST falling-edge exceptions from the same model. Other chip
+  models and bias settings, paddle reads, SID bus decay and physical audio
+  fidelity remain open.
   Unsupported waveform combinations
   retain the previous OR formula; their update timing is not qualified.
 - CIA1: keyboard matrix, joystick and IRQ. CIA2: IEC, the VIC bank and NMI.
@@ -617,13 +619,15 @@ no reference emulator, Commodore firmware or recordings:
   37,907 writes and 300,000 ENV3 reads. Its fixed 52-clock test schedule writes
   at offset 26 and reads at offset 43; constant pulse output isolates the
   envelope and signed linear-gain arithmetic.
-- `sim-fes-c64-sid-oscillator` checks 80 scenarios over 11,352,289 SYS edges,
-  9,822,034 Phi2 edges and 826,364 writes. It covers frequency extremes, noise
+- `sim-fes-c64-sid-oscillator` checks 614 scenarios over 11,793,999 SYS edges,
+  10,183,907 Phi2 edges and 887,119 writes. It covers frequency extremes, noise
   bit-19 pipeline timing, TEST rise/fall and long reset holds, pulse-width
   updates, each single waveform, floating-output decay, warm reset, all
   relative write phases and simultaneous clock/register events. CPU writes
   prepare all 4,096 table addresses for every non-noise combination, including
   both ring settings, delayed pulse levels, phase feedback and repeated CONTROL.
+  All seven noise combinations, all 256 selector-pair TEST falls and seeded
+  writes across all 16 selectors extend the original 80 scenarios.
 - `sim-fes-c64-sid-osc3` checks 1,200,010 SYS edges, 1,194,495 OSC3 reads and
   4,332 accepted writes across three voices, including deselected writes and
   warm resets. Its fractional 52.224 MHz / 985248 Hz clock uses 53/54 SYS
@@ -631,14 +635,15 @@ no reference emulator, Commodore firmware or recordings:
   with `cycle_clock==26` observes the old register value.
 
 - `sim-fes-c64-sid-coupling` compares all three digital oscillator states,
-  and pre-write audio waveforms over 2,529,783 SYS edges and 989,179 Phi2 edges.
+  and pre-write audio waveforms over 2,858,439 SYS edges and 1,234,963 Phi2 edges.
   It exercises all 64 simultaneous
   MSB-rise/SYNC masks, both source-MSB values for every triangle-ring voice,
   sync suppression, TEST-held edge latches, fractional 53/54 cadence,
   writes at every relative SYS phase, and simultaneous reset/clock/write.
   Combined-saw feedback covers every source/destination rotation, same-Phi
   CONTROL writes, last-idle phase preparation, native Phi+27 bus writes and
-  CS-blocked writes. Direct and prepared variants share the reference fixture.
+  CS-blocked writes. All 16 selectors are covered, including noise-selected
+  saw feedback. Direct and prepared variants share the reference fixture.
 
 The oscillator runs on `cpu_ce`, including VIC CPU stalls, rather than the
 BA-qualified CPU execution enable. A SYS edge first advances the oscillator
@@ -649,7 +654,12 @@ same upper eight bits. The noise shift register uses taps 22/17 and output
 bits 20/18/14/11/9/5/2/0; a rising accumulator bit 19 shifts it after two Phi2
 edges. TEST holds phase at zero, resets the noise register through the
 MOS6581 bit-fade sequence, and applies the falling-edge shift. Pulse output
-retains the reference's one-cycle comparator pipeline.
+retains the reference's one-cycle comparator pipeline. Noise combinations
+mask the selected non-noise waveform with the tapped noise output; noise/pulse
+also applies the pinned MOS6581 shaping function. With TEST clear, output bits
+feed back into the eight tapped shift-register cells except during shift phase
+one. A falling TEST edge applies the model's selector-dependent pre-writeback
+before shifting. These model checks do not qualify physical mixed-noise audio.
 
 Three-voice hard sync first advances every phase and noise pipeline using
 old registers, then clears the eligible destination phases, then calculates
@@ -727,14 +737,16 @@ compared. Power-up phase `$555555` and envelope `$AA` are deterministic
 reSID fixtures, not measured hardware startup values. Warm reset retains
 phase and the envelope counter while clearing their register/pipeline state.
 
-The qualified oscillator subset includes the single waveforms and all four
-non-noise combinations (selectors `$3`, `$5`, `$6` and `$7`), with three-voice
-hard sync and triangle ring modulation. Pulse/triangle applies ring index
+The qualified software-model oscillator subset includes all 16 waveform
+selectors, with three-voice hard sync and triangle ring modulation. Pulse/triangle applies ring index
 substitution; saw-selected combinations ignore ring, calculate output before
 accumulator-MSB feedback, and compare the next pulse level after feedback.
 The existing MSB-rise latch and noise clock are not recalculated after a clamp.
 CONTROL writes repeat waveform evaluation and feedback even when unchanged.
-Noise combinations retain the prior OR formula, whose fidelity is unqualified.
+Noise combinations apply the selected waveform mask, MOS6581 noise/pulse
+shaping and gated shift-register writeback. TEST falling applies the pinned
+selector-pair pre-writeback exceptions. This extends model coverage without
+qualifying physical combined-noise audio.
 Paddles and write-only bus decay remain unimplemented. The standalone SID
 defaults to the direct linear-volume audio path; the native motherboard enables
 the staged MOS6581 path described below. Host replay does not establish audible

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // MOS6581 digital oscillators and ADSR with optional staged analog filtering.
 // Direct fallback retains linear master volume. OSC3 and ENV3 are readable. Single-wave/TEST timing
-// follows reSID, including hard sync, ring modulation and non-noise combinations.
-// Noise combinations and analog hardware acceptance stay open.
+// follows reSID, including hard sync, ring modulation and noise combinations.
+// Analog hardware acceptance stays open.
 // See c64_sid.COPYING and ../README.md for source provenance and scope.
 module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
     parameter bit PREPARE_ENVELOPE = 1'b0,

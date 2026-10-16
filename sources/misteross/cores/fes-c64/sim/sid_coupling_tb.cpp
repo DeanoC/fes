@@ -121,7 +121,7 @@ int main(int argc,char **argv){
   for(unsigned v=0;v<3;++v){wr(v,4,0x18);freq(v,v==source?0x8000:0xffff);wr(v,4,0x17);}
   clocks(256);wr(source,4,0x1f);clocks(19);wr(source,4,0x17);clocks(19);
  }
- for(unsigned wave:{0u,0x10u,0x20u,0x40u,0x50u,0x80u})for(unsigned mask=0;mask<8;++mask){
+ for(unsigned wave:{0u,0x10u,0x20u,0x40u,0x50u,0x80u,0x90u,0xa0u,0xb0u,0xc0u,0xd0u,0xe0u,0xf0u})for(unsigned mask=0;mask<8;++mask){
   boundary("single waves/noise with asymmetric hard sync and ring");
   for(unsigned v=0;v<3;++v){freq(v,0xfff1-v*0x3311);wr(v,2,v*79);wr(v,3,2+v);wr(v,4,wave|((mask>>v)&1)*2|5);}
   clocks(3333);
@@ -130,18 +130,18 @@ int main(int argc,char **argv){
  boundary("fractional53/54 cadence, native write phase27");
  uint32_t fraction=0,rng=0x6581c064;unsigned since=0;
  auto random=[&](){rng^=rng<<13;rng^=rng>>17;rng^=rng<<5;return rng;};
- for(unsigned sys=0;sys<700000;++sys){fraction+=985248;bool phi=fraction>=52224000;if(phi){fraction-=52224000;since=0;}else ++since;unsigned r=random(),a=(r>>16)%21,d=r>>24;if(a%7==4){const unsigned waves[]={0,16,32,64,80,128};d=waves[(r>>8)%6]|(d&15);}step(phi,since==27&&(r&3)==0,a,d);}
+ for(unsigned sys=0;sys<700000;++sys){fraction+=985248;bool phi=fraction>=52224000;if(phi){fraction-=52224000;since=0;}else ++since;unsigned r=random(),a=(r>>16)%21,d=r>>24;if(a%7==4){const unsigned waves[]={0,16,32,48,64,80,96,112,128,144,160,176,192,208,224,240};d=waves[(r>>8)%16]|(d&15);}step(phi,since==27&&(r&3)==0,a,d);}
  boundary("control writes at every SYS phase around phi");
  for(unsigned offset=0;offset<54;++offset)for(unsigned v=0;v<3;++v)for(unsigned sys=0;sys<108;++sys)step(sys%54==0,sys==offset,v*7+4,0x11|((offset&7)<<1));
  boundary("dense simultaneous phi/register mutation");
- for(unsigned i=0;i<100000;++i){unsigned r=random(),a=(r>>16)%21,d=r>>24;if(a%7==4){const unsigned waves[]={0,16,32,64,80,128};d=waves[(r>>8)%6]|(d&15);}step((r&3)!=0,(r&15)<3,a,d);}
+ for(unsigned i=0;i<100000;++i){unsigned r=random(),a=(r>>16)%21,d=r>>24;if(a%7==4){const unsigned waves[]={0,16,32,48,64,80,96,112,128,144,160,176,192,208,224,240};d=waves[(r>>8)%16]|(d&15);}step((r&3)!=0,(r&15)<3,a,d);}
  // All original scenarios above remain; the source oracle also hashes the
  // post-Phi/pre-write waveform used by the audio pipeline.
  auto position=[&](unsigned v,unsigned phase){
   wr(v,4,0x28);freq(v,0xffff);wr(v,4,0x20);
   clocks(phase/0xffff);freq(v,phase%0xffff);clocks(1);freq(v,0);
  };
- for(unsigned source=0;source<3;++source)for(unsigned selected:{0x30u,0x60u,0x70u})for(unsigned ring_wave:{0x14u,0x54u})for(unsigned same_phi:{0u,1u})for(unsigned cadence:{2u,53u,54u,64u}){
+ for(unsigned source=0;source<3;++source)for(unsigned selected:{0x30u,0x60u,0x70u,0xa0u,0xb0u,0xe0u,0xf0u})for(unsigned ring_wave:{0x14u,0x54u})for(unsigned same_phi:{0u,1u})for(unsigned cadence:{2u,53u,54u,64u}){
   boundary("combined-saw feedback in every source/ring rotation and write view");
   for(unsigned v=0;v<3;++v){freq(v,0);wr(v,4,0x28);}
   unsigned dest=(source+1)%3;
@@ -159,17 +159,17 @@ int main(int argc,char **argv){
   wr(source,4,selected);step(true);step();step(true);
   wr(source,4,selected,true);step();step(true);
  }
- boundary("fractional53/54 native phase27 writes including all non-noise combinations");
+ boundary("fractional53/54 native phase27 writes including all16 waveform selectors");
  fraction=0;since=0;rng=0xc0640367;unsigned combined_seen=0;
  for(unsigned sys=0;sys<700000;++sys){
   fraction+=985248;bool phi=fraction>=52224000;if(phi){fraction-=52224000;since=0;}else ++since;
   unsigned r=random(),a=(r>>16)%21,d=r>>24;bool we=since==27&&(r&3)==0,selected=(r&15)!=0;
-  if(a%7==4){const unsigned waves[]={0,16,32,48,64,80,96,112,128};d=waves[(r>>8)%9]|(d&15);if(we&&selected)combined_seen|=1u<<(d>>4);}
+  if(a%7==4){const unsigned waves[]={0,16,32,48,64,80,96,112,128,144,160,176,192,208,224,240};d=waves[(r>>8)%16]|(d&15);if(we&&selected)combined_seen|=1u<<(d>>4);}
   step(phi,we,a,d,false,selected);
  }
  if((combined_seen&0xe8)!=0xe8||!blocked_writes){std::fprintf(stderr,"incomplete native combined/CS coverage mask=%x blocked=%llu\n",combined_seen,(unsigned long long)blocked_writes);return 1;}
- boundary("seeded all non-noise combinations, coupled sync/ring and same-Phi writes");
- for(unsigned i=0;i<200000;++i){unsigned r=random(),a=(r>>16)%21,d=r>>24;if(a%7==4){const unsigned waves[]={0,16,32,48,64,80,96,112,128};d=waves[(r>>8)%9]|(d&15);}step((r&3)!=0,(r&15)<3,a,d);}
+ boundary("seeded all16 waveform selectors, coupled sync/ring and same-Phi writes");
+ for(unsigned i=0;i<200000;++i){unsigned r=random(),a=(r>>16)%21,d=r>>24;if(a%7==4){const unsigned waves[]={0,16,32,48,64,80,96,112,128,144,160,176,192,208,224,240};d=waves[(r>>8)%16]|(d&15);}step((r&3)!=0,(r&15)<3,a,d);}
  }
  if(argc>1){
 #ifndef C64_COUPLING_LIVE

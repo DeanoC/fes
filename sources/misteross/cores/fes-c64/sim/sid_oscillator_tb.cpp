@@ -22,7 +22,7 @@ public:
 int main(int argc,char**argv){
 #ifdef C64_OSC_ORACLE
  Oracle model;model.set_chip_model(reSID::MOS6581);
- std::puts("// SPDX-License-Identifier: MIT\n// Unmodified VICE 3.10 reSID MOS6581 single-waveform digital state.\n#pragma once\n#include <cstdint>\nstruct OscExpected {uint64_t hash,edge; unsigned state[12];};\nstatic constexpr OscExpected expected[]={");
+ std::puts("// SPDX-License-Identifier: MIT\n// Unmodified VICE 3.10 reSID MOS6581 digital oscillator state.\n#pragma once\n#include <cstdint>\nstruct OscExpected {uint64_t hash,edge; unsigned state[12];};\nstatic constexpr OscExpected expected[]={");
 #else
  Verilated::commandArgs(argc,argv);Voscillator_sim_top model;
 #endif
@@ -115,6 +115,20 @@ int main(int argc,char**argv){
  }
  boundary("seeded combined-wave writes on Phi and idle SYS edges");
  for(unsigned i=0;i<100000;++i){unsigned r=random(),a=(r>>16)%5,d=r>>24;if(a==4){const unsigned waves[]={0,16,32,48,64,80,96,112,128};d=waves[(r>>8)%9]|(d&9);}step((r&3)!=0,(r&15)<3,a,d);}
+
+ for(unsigned select=9;select<16;++select)for(unsigned f:{0u,0x9b37u,0xffffu}){
+  boundary("noise-combination waveform/writeback through CPU controls");
+  step(false,false,0,0,true);freq(f);write(2,0x55);write(3,5);write(4,0x81);cycles(37);
+  write(4,(select<<4)|1);cycles(4096);write(4,0x81);cycles(27);
+  write(4,(select<<4)|9,true);cycles(13);write(4,(select<<4)|1,true);cycles(31);
+ }
+ for(unsigned before=0;before<16;++before)for(unsigned after=0;after<16;++after)for(unsigned same_phi:{0u,1u}){
+  boundary("all selector-pair TEST falling pre-writeback and repeated CONTROL");
+  step(false,false,0,0,true);freq(0xffff);write(2,0);write(3,0);write(4,0x81);cycles(79);
+  write(4,(before<<4)|8);cycles(3+(before%3));write(4,after<<4,same_phi);cycles(8);write(4,after<<4,same_phi);cycles(4);
+ }
+ boundary("seeded all16 selector and TEST/register timing mutations");
+ for(unsigned i=0;i<300000;++i){unsigned r=random(),a=(r>>16)%5,d=r>>24;step((r&3)!=0,(r&15)<3,a,d);}
  if(edges%8192 && !flush())return 1;
 #ifdef C64_OSC_ORACLE
  std::puts("};");

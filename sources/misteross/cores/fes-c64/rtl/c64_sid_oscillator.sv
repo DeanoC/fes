@@ -4,7 +4,7 @@
 // GPL version 2 or later; complete license: c64_sid.COPYING.
 // See ../README.md for pinned source, regeneration and hardware limits.
 // Single waveforms/TEST, three-voice hard sync and triangle ring modulation.
-// Non-noise combinations use pinned MOS6581 samples and phase feedback.
+// Combinations use pinned MOS6581 samples, noise writeback and phase feedback.
 module c64_sid_oscillator #(
     // The caller must guarantee a non-Phi edge between Phi edges.
     parameter bit PREPARE_PHASE = 1'b0
@@ -61,79 +61,98 @@ module c64_sid_oscillator #(
         noise_bits={sr[20],sr[18],sr[14],sr[11],sr[9],sr[5],sr[2],sr[0],4'b0};
     endfunction
     `include "c64_sid_combined_waves.vh"
-    function automatic [11:0] selected_wave(input state_t s, input source_high);
-        reg [7:0] legacy;
+    // One Phi of oscillator/noise preparation, before sync and waveform output.
+    function automatic state_t advance_clock(input state_t s,
+        input [23:0] advanced, input rising);
+        state_t t;
         begin
-            case(s.control[7:4])
-            4'h1:selected_wave={((s.phase[23] ^ (s.control[2] && !source_high)) ? ~s.phase[22:12] : s.phase[22:12]),1'b0};
-            4'h2:selected_wave=s.phase[23:12];
-            4'h3:selected_wave=combined_triangle_saw(s.phase[23:12]);
-            4'h6:selected_wave=combined_pulse_saw(s.phase[23:12]) & s.pulse;
-            4'h7:selected_wave=combined_pulse_triangle_saw(s.phase[23:12]) & s.pulse;
-            4'h4:selected_wave=s.pulse;
-            4'h8:selected_wave=noise_bits(s.lfsr);
-            4'h5:selected_wave=combined_pulse_triangle(s.phase[23:12] ^ ((s.control[2] && !source_high) ? 12'h800 : 12'h000)) & s.pulse;
-            default:begin
-                // Retain the old OR formula for the remaining unsupported combinations.
-                // Update timing and coupled-wave fidelity remain unqualified.
-                legacy=0;
-                if(s.control[6] && s.phase[23:12]>=s.pw) legacy=legacy|8'hff;
-                if(s.control[5]) legacy=legacy|s.phase[23:16];
-                if(s.control[4]) legacy=legacy|(s.phase[23] ? ~s.phase[22:15] : s.phase[22:15]);
-                if(s.control[7]) legacy=legacy|s.phase[7:0];
-                selected_wave={legacy,4'b0};
+            t=s;
+            if(s.control[3]) begin
+                if(t.reset_count!=0) begin
+                    t.reset_count=t.reset_count-1'b1;
+                    if(t.reset_count==0) begin
+                        t.lfsr=t.lfsr|23'd1;
+                        t.lfsr=t.lfsr|(t.lfsr<<1);
+                        if(t.lfsr!=23'h7fffff) t.reset_count=16'd1000;
+                    end
+                end
+                t.pulse=12'hfff;
+            end else begin
+                t.phase=advanced; t.msb_rising=rising;
+                if(!s.phase[19] && t.phase[19]) t.shift_pipe=2;
+                else if(t.shift_pipe!=0) begin
+                    t.shift_pipe=t.shift_pipe-1'b1;
+                    if(t.shift_pipe==0) t.lfsr={t.lfsr[21:0],t.lfsr[22]^t.lfsr[17]};
+                end
             end
+            advance_clock=t;
+        end
+    endfunction
+    wire state_t phi_base=advance_clock(q,phase_advanced,msb_rising);
+    function automatic [22:0] noise_writeback(input [22:0] shift, input [11:0] wave);
+        reg [22:0] result;
+        begin
+            result=shift;
+            result[20]=shift[20]&wave[11]; result[18]=shift[18]&wave[10];
+            result[14]=shift[14]&wave[9]; result[11]=shift[11]&wave[8];
+            result[9]=shift[9]&wave[7]; result[5]=shift[5]&wave[6];
+            result[2]=shift[2]&wave[5]; result[0]=shift[0]&wave[4];
+            noise_writeback=result;
+        end
+    endfunction
+    function automatic pre_writeback(input [3:0] before_wave, after_wave);
+        pre_writeback=before_wave>8 && before_wave!=12 &&
+            !((before_wave[1:0]==1 && after_wave[1:0]==2) ||
+              (before_wave[1:0]==2 && after_wave[1:0]==1));
+    endfunction
+    function automatic [11:0] selected_wave(input state_t s, input source_high);
+        begin
+            case(s.control[6:4])
+            1:selected_wave={((s.phase[23] ^ (s.control[2] && !source_high)) ? ~s.phase[22:12] : s.phase[22:12]),1'b0};
+            2:selected_wave=s.phase[23:12];
+            3:selected_wave=combined_triangle_saw(s.phase[23:12]);
+            4:selected_wave=s.pulse;
+            5:selected_wave=combined_pulse_triangle(s.phase[23:12] ^ ((s.control[2] && !source_high) ? 12'h800 : 12'h000)) & s.pulse;
+            6:selected_wave=combined_pulse_saw(s.phase[23:12]) & s.pulse;
+            7:selected_wave=combined_pulse_triangle_saw(s.phase[23:12]) & s.pulse;
+            default:selected_wave=12'hfff;
             endcase
+            if(s.control[7]) selected_wave=selected_wave & noise_bits(s.lfsr);
+            if(s.control[7:6]==2'b11)
+                selected_wave=selected_wave<12'hf00 ? 12'h000 :
+                    selected_wave & (selected_wave<<1) & (selected_wave<<2);
         end
     endfunction
     function automatic [23:0] feedback_phase(input [23:0] phase_value,
         input [3:0] selector, input [11:0] wave);
         feedback_phase=phase_value;
-        if(selector==3 || selector==6 || selector==7)
+        if(selector[1] && (selector[3] || selector[2] || selector[0]))
             feedback_phase[23]=phase_value[23] & wave[11];
     endfunction
     // Saw-selected feedback is independent of ring modulation. Expose this
     // local stage, not n, to preserve a finite cross-voice feed-forward path.
     wire [23:0] synced_phase=sync_clear ? 24'd0 : phase_advanced;
-    wire [11:0] phi_pulse=q.control[3] ? 12'hfff : q.pulse;
     reg [11:0] feedback_wave;
+    state_t feedback_state;
     always @* begin
-        case(q.control[7:4])
-        3:feedback_wave=combined_triangle_saw(synced_phase[23:12]);
-        6:feedback_wave=combined_pulse_saw(synced_phase[23:12]) & phi_pulse;
-        7:feedback_wave=combined_pulse_triangle_saw(synced_phase[23:12]) & phi_pulse;
-        default:feedback_wave=12'hfff;
-        endcase
+        feedback_state=phi_base;
+        feedback_state.phase=synced_phase;
+        // Saw-selected feedback ignores ring modulation.
+        feedback_wave=selected_wave(feedback_state,1'b0);
     end
     assign phase_feedback=feedback_phase(synced_phase,q.control[7:4],feedback_wave);
     always @* begin
         n=q;
         if(phi) begin
-            if(q.control[3]) begin
-                if(n.reset_count!=0) begin
-                    n.reset_count=n.reset_count-1'b1;
-                    if(n.reset_count==0) begin
-                        n.lfsr=n.lfsr|23'd1;
-                        n.lfsr=n.lfsr|(n.lfsr<<1);
-                        if(n.lfsr!=23'h7fffff) n.reset_count=16'd1000;
-                    end
-                end
-                n.pulse=12'hfff;
-            end else begin
-                n.phase=phase_advanced;
-                n.msb_rising=msb_rising;
-                if(!q.phase[19] && n.phase[19]) n.shift_pipe=2;
-                else if(n.shift_pipe!=0) begin
-                    n.shift_pipe=n.shift_pipe-1'b1;
-                    if(n.shift_pipe==0) n.lfsr={n.lfsr[21:0],n.lfsr[22]^n.lfsr[17]};
-                end
-            end
+            n=phi_base;
             // Synchronize only after every voice has advanced its phase.
             // Noise edge/shift behavior above observes the pre-sync phase.
             if(sync_clear)n.phase=0;
             if(n.control[7:4]!=0) begin
                 n.wave=selected_wave(n,source_msb);
                 n.phase=feedback_phase(n.phase,n.control[7:4],n.wave);
+                if(n.control[7:4]>8 && !n.control[3] && n.shift_pipe!=1)
+                    n.lfsr=noise_writeback(n.lfsr,n.wave);
             end
             else if(n.fade_count!=0) begin
                 n.fade_count=n.fade_count-1'b1;
@@ -156,12 +175,15 @@ module c64_sid_oscillator #(
             if(!q.control[3] && din[3]) begin
                 n.phase=0; n.shift_pipe=0; n.reset_count=16'd35000; n.pulse=12'hfff;
             end else if(q.control[3] && !din[3]) begin
-                // Coupled-noise pre-writeback is outside this prototype.
+                if(pre_writeback(q.control[7:4],din[7:4]))
+                    n.lfsr=noise_writeback(n.lfsr,n.wave);
                 n.lfsr={n.lfsr[21:0],~n.lfsr[17]};
             end
             if(din[7:4]!=0) begin
                 n.wave=selected_wave(n,source_write_msb);
                 n.phase=feedback_phase(n.phase,n.control[7:4],n.wave);
+                if(n.control[7:4]>8 && !n.control[3] && n.shift_pipe!=1)
+                    n.lfsr=noise_writeback(n.lfsr,n.wave);
                 n.pulse=n.phase[23:12]>=n.pw ? 12'hfff : 12'h000;
             end else if(q.control[7:4]!=0) n.fade_count=18'd182000;
         end

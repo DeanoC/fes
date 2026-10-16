@@ -1799,7 +1799,13 @@ The reference's edge latch remains held during TEST. The portable coupling
 oracle covers the complete simultaneous-rise/SYNC mask space, all voices,
 feedback/ring ordering and pre-write audio waveforms. It includes native
 fractional53/54 periods and Phi+27 writes, blocked writes and minimum preparation
-cadence. Noise-combined behavior remains unqualified.
+cadence. All seven noise combinations mask those waveforms with the noise taps;
+MOS6581 noise/pulse shaping precedes saw-selected phase feedback. Output feeds
+back into the eight tapped LFSR cells with TEST clear except during shift
+phase one. TEST falling applies the pinned selector-pair pre-writeback rules
+before the forced shift. The direct and prepared three-voice source-oracle
+checks include all 16 selectors and pre-write audio waveforms. This qualifies
+the selected software model, not physical mixed-noise SID behavior.
 
 At the native 53/54-SYS cadence, `c64_sid` enables the staged MOS6581 waveform
 and envelope DACs, nonlinear internal filter and external output network at
@@ -1821,8 +1827,8 @@ over 23,052 Phi clocks, including minimum 41-SYS cadence, native 53/54 periods,
 writes and reset/restart. It checks wide output, PCM, readback and done/busy.
 Its initial ENV3 exclusion lasts only until the first non-reset Phi; subsequent
 warm-reset samples remain checked. Other register reads follow the core's
-zero-read contract. Other models/bias, paddles, bus decay, noise-combined
-waveforms, physical audio and routed/hardware acceptance remain open.
+zero-read contract. Other models/bias, paddles, bus decay, physical audio and
+routed/hardware acceptance remain open.
 
 The additional offline oscillator and OSC3 tests replay the pinned VICE 3.10
 reSID source at native 53/54-SYS periods and other directed write phases;
