@@ -629,6 +629,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					}
 					localRunning = true
 					localGeneration = o.localStatus.Generation
+					m.ResetControls()
 					m.Session.State = "active"
 				}
 				continue
@@ -647,6 +648,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 					localRunning = false
 					localTimedOut = false
 					localUncertain = true
+					m.ResetControls()
 					m.Busy = false
 					m.Message = "The local run changed; waiting for idle"
 					continue
@@ -736,6 +738,7 @@ func Run(ctx context.Context, c *Client, present func(Model), openPad func() (Pa
 						localRunning = false
 						localGeneration = ""
 						localStopRequested = false
+						m.ResetControls()
 						localPending = false
 						m.Session.State = "idle"
 						m.LoadStarted = time.Time{}
