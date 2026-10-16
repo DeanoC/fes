@@ -56,11 +56,15 @@ type ProcessController struct {
 	mu                   sync.Mutex
 	children             []*child
 	active               string
+	prepared             *preparedRelease
 }
 
 func (c *ProcessController) Active() string { c.mu.Lock(); defer c.mu.Unlock(); return c.active }
 func (c *ProcessController) Verify(ctx context.Context, id string) error {
-	_, err := c.Resolve(ctx, id)
+	prepared, err := c.prepare(ctx, id)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.prepared = prepared // A failed verification invalidates every older preparation.
 	return err
 }
 func (c *ProcessController) Stop(ctx context.Context) error {
@@ -127,12 +131,22 @@ func (c *ProcessController) start(path string, args []string, env []string) erro
 	return nil
 }
 func (c *ProcessController) Start(ctx context.Context, id string, r Request) error {
+	// Factory trial startup calls Start directly. Engine paths always prepare
+	// before their bounded stop/start window; retries reuse that preparation.
+	c.mu.Lock()
+	missing := c.prepared == nil || c.prepared.id != id
+	c.mu.Unlock()
+	if missing {
+		if err := c.Verify(ctx, id); err != nil {
+			return err
+		}
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if len(c.children) != 0 {
 		return errors.New("old software processes have not been stopped")
 	}
-	root, err := c.Resolve(ctx, id)
+	root, err := c.preparedPath(ctx, id)
 	if err != nil {
 		return err
 	}

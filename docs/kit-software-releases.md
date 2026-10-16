@@ -87,6 +87,13 @@ not sufficient proof. It starts one selected bundle, checks the agent, runtime
 and launcher, and completes the matching maintenance reservation only after the
 startup checks pass. Accepted software remains selected and survives reboot.
 
+Bundle verification completes before the service startup clock begins, while
+the current group is still running. Each start checks that the verified tree
+has not changed. Stopping services, starting replacements and observing ten
+seconds of stable readiness share one sixty-second deadline, including startup
+retries. Factory trial startup follows the same rule. Verification and elapsed
+readiness do not require a working real-time clock on the kit.
+
 A failed startup permits one automatic attempt to restore the recorded prior
 bundle. That attempt is recorded durably before the prior bundle starts. A
 reboot cannot reset the attempt budget. Failed recovery or an unkillable old
@@ -101,6 +108,36 @@ and queued intent. A pending OS image change defers software activation. Softwar
 installation joins appliance-operation draining; the stable supervisor also
 serializes installation and activation and checks the appliance gate itself.
 Queue and cancellation remain available while execution is deferred.
+
+### Acknowledge a failed recovery
+
+A failed automatic recovery stays fenced. Rebooting or restarting the supervisor
+does not replenish its attempt budget. If the previous bundle's complete service
+group is already running, an operator can explicitly acknowledge that group
+without restarting it. Inspect the failed operation, selection generation, active
+bundle, base identity and boot ID first. On the kit, as root, use a fresh action
+identifier and those exact observed values:
+
+```sh
+fes-kit-software acknowledge \
+  --operation FAILED_OPERATION_ID --generation OBSERVED_GENERATION \
+  --selected ALREADY_RUNNING_PREVIOUS_BUNDLE_ID \
+  --base RUNNING_BASE_IMAGE_SHA256 --boot CURRENT_BOOT_ID \
+  --action FRESH_64_CHARACTER_LOWERCASE_HEX_ID
+```
+
+This command verifies the bundle, running supervisor and its complete service
+group, then requires ten seconds of native idle and launcher readiness. It resumes
+and completes only that operation's existing maintenance reservation. A separate
+durable acknowledgment retains the original failure and operator action identity;
+selection and generation remain unchanged. It neither starts a service nor
+retries the candidate. Missing services, changed identities, another operation or
+failed readiness leave execution blocked. Inspect status after an uncertain
+reply; repeat only the same action and exact identities to reconcile it.
+
+If the previous service group is absent or unhealthy, this command cannot repair
+it. Preserve the journal and plan a separate operator recovery rather than editing
+selection state or resetting the automatic recovery phase.
 
 ## API and evidence
 

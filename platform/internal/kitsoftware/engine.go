@@ -66,14 +66,22 @@ func (e *Engine) defaults() {
 	}
 }
 
-func (e *Engine) health(ctx context.Context, id string) error {
-	deadline := e.Now().Add(e.Deadline)
+func (e *Engine) health(ctx context.Context, id string, deadline time.Time) error {
 	var since time.Time
 	var last error
 	for e.Now().Before(deadline) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		probeCtx, cancel := context.WithTimeout(ctx, e.Poll*4)
 		err := e.Controller.Healthy(probeCtx, id)
 		cancel()
+		if contextErr := ctx.Err(); contextErr != nil {
+			return contextErr
+		}
+		if !e.Now().Before(deadline) {
+			break
+		}
 		if err == nil {
 			if since.IsZero() {
 				since = e.Now()
@@ -98,23 +106,32 @@ func (e *Engine) health(ctx context.Context, id string) error {
 }
 
 func (e *Engine) switchTo(ctx context.Context, id string, request Request) error {
-	ctx, cancel := context.WithTimeout(ctx, e.Deadline)
-	defer cancel()
+	// Hashing immutable release bytes is preparation, not service startup. Keep
+	// the existing group running while it completes and honor caller cancellation.
 	if err := e.Controller.Verify(ctx, id); err != nil {
 		return err
 	}
+	return e.switchPrepared(ctx, id, request)
+}
+
+func (e *Engine) switchPrepared(ctx context.Context, id string, request Request) error {
+	ctx, cancel := context.WithTimeout(ctx, e.Deadline)
+	defer cancel()
+	deadline := e.Now().Add(e.Deadline)
 	if err := e.Controller.Stop(ctx); err != nil {
 		return fmt.Errorf("old processes did not exit: %w", err)
 	}
 	// Restart only until the first accepted readiness window. An exit after
 	// health returns is left for ServiceFault so a lease is not interrupted.
-	deadline := e.Now().Add(e.Deadline)
 	var last error
 	for e.Now().Before(deadline) {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := e.Controller.Start(ctx, id, request); err != nil {
 			return err
 		}
-		last = e.health(ctx, id)
+		last = e.health(ctx, id, deadline)
 		if last == nil || !errors.Is(last, ErrProcessExited) {
 			return last
 		}
@@ -185,7 +202,7 @@ func (e *Engine) Run(ctx context.Context) error {
 		if err := transition(e.Repository, op, "queued", "applying", ""); err != nil {
 			return err
 		}
-		err = e.switchTo(ctx, op.Candidate, op.Request)
+		err = e.switchPrepared(ctx, op.Candidate, op.Request)
 		if err == nil {
 			if err = complete(e.Repository, op, "applying", "accepted", ""); err != nil {
 				return err
@@ -285,4 +302,12 @@ func (e *Engine) Boot(ctx context.Context, boot Request) error {
 		return nil
 	}
 	return e.Admission.Release(ctx, req)
+}
+
+// StartFactory uses the same verified preparation and bounded startup as a
+// selected release. Appliance-trial startup deliberately creates no software
+// maintenance reservation so the OS confirmation lease remains available.
+func (e *Engine) StartFactory(ctx context.Context, id string) error {
+	e.defaults()
+	return e.switchTo(ctx, id, Request{})
 }

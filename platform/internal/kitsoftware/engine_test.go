@@ -263,3 +263,107 @@ func TestStartupRestartsExitedProcessBeforeAcceptance(t *testing.T) {
 		t.Fatal(control.starts)
 	}
 }
+
+type slowVerifiedController struct {
+	fakeControl
+	t                 *testing.T
+	now               *time.Time
+	verificationCount map[string]int
+	startsAt          map[string][]time.Time
+	neverReady        bool
+}
+
+func (c *slowVerifiedController) Verify(ctx context.Context, id string) error {
+	if _, ok := ctx.Deadline(); ok {
+		c.t.Fatal("verification shares startup deadline")
+	}
+	c.verificationCount[id]++
+	*c.now = c.now.Add(2 * time.Minute)
+	return nil
+}
+func (c *slowVerifiedController) Start(ctx context.Context, id string, r Request) error {
+	if _, ok := ctx.Deadline(); !ok {
+		c.t.Fatal("startup has no deadline")
+	}
+	c.startsAt[id] = append(c.startsAt[id], *c.now)
+	*c.now = c.now.Add(15 * time.Second)
+	return c.fakeControl.Start(ctx, id, r)
+}
+func (c *slowVerifiedController) Healthy(ctx context.Context, id string) error {
+	if id == testCandidateID || c.neverReady {
+		return ErrProcessExited
+	}
+	return nil
+}
+func TestSlowPreparationDoesNotStarveSingleRecoveryReadiness(t *testing.T) {
+	for _, failRecovery := range []bool{false, true} {
+		t.Run(fmt.Sprint(failRecovery), func(t *testing.T) {
+			r, e, _, a := setup(t)
+			now := time.Unix(100, 0)
+			c := &slowVerifiedController{t: t, now: &now, verificationCount: map[string]int{}, startsAt: map[string][]time.Time{}, neverReady: failRecovery}
+			e.Controller = c
+			e.Deadline = time.Minute
+			e.Stable = 10 * time.Second
+			e.Poll = time.Second
+			e.Now = func() time.Time { return now }
+			e.Wait = func(ctx context.Context, d time.Duration) error { now = now.Add(d); return ctx.Err() }
+			if err := Queue(r, req()); err != nil {
+				t.Fatal(err)
+			}
+			err := e.Run(context.Background())
+			if (err != nil) != failRecovery {
+				t.Fatalf("failure=%v: %v", failRecovery, err)
+			}
+			state, _ := r.Read()
+			if state.Selected != testFactoryID || state.Generation != 0 {
+				t.Fatal("selection changed", state)
+			}
+			for _, id := range []string{testCandidateID, testFactoryID} {
+				if c.verificationCount[id] != 1 {
+					t.Fatalf("%s verified %d times", id, c.verificationCount[id])
+				}
+				starts := c.startsAt[id]
+				for _, started := range starts {
+					if started.Sub(starts[0]) >= time.Minute {
+						t.Fatal("retry reset startup deadline")
+					}
+				}
+			}
+			if failRecovery {
+				if state.Pending == nil || state.Pending.Phase != "blocked" || a.releases != 0 {
+					t.Fatal(state, a)
+				}
+			} else if state.Pending != nil || state.Receipts[req().ID].Result != "recovered" || a.releases != 1 {
+				t.Fatal(state, a)
+			}
+			starts := c.starts
+			_ = e.Run(context.Background())
+			if c.starts != starts {
+				t.Fatal("spent recovery retried")
+			}
+		})
+	}
+}
+
+func TestFactoryPreparationUsesSharedStartupDeadlineWithoutAdmission(t *testing.T) {
+	for _, neverReady := range []bool{false, true} {
+		t.Run(fmt.Sprint(neverReady), func(t *testing.T) {
+			now := time.Unix(100, 0)
+			c := &slowVerifiedController{t: t, now: &now, verificationCount: map[string]int{}, startsAt: map[string][]time.Time{}, neverReady: neverReady}
+			e := &Engine{Controller: c, Deadline: time.Minute, Stable: 10 * time.Second, Poll: time.Second, Now: func() time.Time { return now }, Wait: func(ctx context.Context, d time.Duration) error { now = now.Add(d); return ctx.Err() }}
+			err := e.StartFactory(context.Background(), testFactoryID)
+			if (err != nil) != neverReady {
+				t.Fatalf("neverReady=%v: %v", neverReady, err)
+			}
+			if c.verificationCount[testFactoryID] != 1 {
+				t.Fatal("factory retries reverified")
+			}
+			starts := c.startsAt[testFactoryID]
+			for _, start := range starts {
+				if start.Sub(starts[0]) >= time.Minute {
+					t.Fatal("factory retry reset deadline")
+				}
+			}
+		})
+	}
+}
