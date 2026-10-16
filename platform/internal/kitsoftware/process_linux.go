@@ -1181,10 +1181,12 @@ func (c *ProcessController) recoveryOwned(id string) bool {
 // observeGroupReady samples readiness once. The supervisor tick calls it again
 // until the stable window holds. New execution claims stay closed until that
 // window accepts the group, so a game cannot start and make the idle sample
-// fail. A runtime that is already in a session is accepted immediately. A
-// process exit returns to the restart path. When the budget expires first and
-// the group is neither idle-ready nor executing, the wedged group is stopped
-// and the next start waits out the backoff.
+// fail. A runtime that is already in a finished session is accepted once the
+// fence is confirmed. A confirmed session whose fence cannot be closed stays
+// running with claims closed; the next tick retries the fence and does not
+// stop the runtime. A process exit returns to the restart path. When the
+// budget expires first and the group is neither idle-ready nor executing, the
+// wedged group is stopped and the next start waits out the backoff.
 func (c *ProcessController) observeGroupReady(ctx context.Context, id string) error {
 	c.mu.Lock()
 	owned := c.recoveryOwned(id)
@@ -1216,14 +1218,22 @@ func (c *ProcessController) observeGroupReady(ctx context.Context, id string) er
 		c.mu.Unlock()
 		return nil
 	}
-	// A lost or rejected /fence leaves claims open. That sample is not ready,
-	// including when a session started because the fence was not closed.
-	// A nil error is the only confirmed close. Opening claims later uses the
-	// same rule: an uncertain or rejected clear does not accept the group.
+	// A lost or rejected /fence leaves claims open, so that sample is not
+	// accepted. A nil error is the only confirmed close. A finished session
+	// the runtime itself reports is kept: the fence is retried and the group
+	// is not stopped. Opening claims later uses the same rule: an uncertain
+	// or rejected clear does not accept the group.
+	executing := errors.Is(probeErr, errRecoveryExecuting)
+	if fenceErr != nil && executing {
+		c.mu.Lock()
+		c.groupReadySince = time.Time{}
+		c.mu.Unlock()
+		return nil
+	}
 	if fenceErr != nil {
 		probeErr = fenceErr
-	} else if probeErr == nil || errors.Is(probeErr, errRecoveryExecuting) {
-		return c.acceptReadyRecovery(ctx, id, errors.Is(probeErr, errRecoveryExecuting))
+	} else if probeErr == nil || executing {
+		return c.acceptReadyRecovery(ctx, id, executing)
 	}
 	if !expired {
 		c.mu.Lock()

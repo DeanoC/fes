@@ -1152,12 +1152,57 @@ func TestUnconfirmedFenceDoesNotAcceptSession(t *testing.T) {
 	c.mu.Lock()
 	c.groupReadyBy = time.Now().Add(-time.Millisecond)
 	c.mu.Unlock()
-	err := c.RecoverAcceptedExits(context.Background(), Request{}, true)
-	if err == nil || !strings.Contains(err.Error(), "not ready") {
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
 		t.Fatal(err)
 	}
-	if starts != 1 || len(c.children) != 0 || c.pendingGroup != "accepted" || c.Active() != "" {
-		t.Fatalf("expired unconfirmed fence left the group running starts=%d children=%d pending=%s active=%s", starts, len(c.children), c.pendingGroup, c.Active())
+	if starts != 1 || len(c.children) != 3 || c.pendingGroup != "accepted" || c.Active() != "accepted" {
+		t.Fatalf("fence failure stopped the live session starts=%d children=%d pending=%s active=%s", starts, len(c.children), c.pendingGroup, c.Active())
+	}
+	closeRecoveryClaims = func(*ProcessController, context.Context) error { return nil }
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if c.pendingGroup != "" || c.Active() != "accepted" || len(c.children) != 3 {
+		t.Fatalf("confirmed fence left the live session pending=%s active=%s children=%d", c.pendingGroup, c.Active(), len(c.children))
+	}
+}
+
+func TestLiveSessionSurvivesPersistentFenceFailure(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted", readyStable: time.Nanosecond, readyBudget: time.Millisecond}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	if err := c.children[1].cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-c.children[1].done
+	var starts, fences int
+	previousStart := groupRestartStart
+	previousProbe := groupReadyProbe
+	previousClose := closeRecoveryClaims
+	t.Cleanup(func() {
+		groupRestartStart = previousStart
+		groupReadyProbe = previousProbe
+		closeRecoveryClaims = previousClose
+	})
+	groupRestartStart = func(controller *ProcessController, _ context.Context, id string, request Request) error {
+		starts++
+		return replaceAcceptedGroup(controller, id, request)
+	}
+	groupReadyProbe = func(*ProcessController, context.Context, string) error {
+		return errRecoveryExecuting
+	}
+	closeRecoveryClaims = func(*ProcessController, context.Context) error {
+		fences++
+		return errors.New("execution fence was not confirmed")
+	}
+	deadline := time.Now().Add(50 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if starts != 1 || fences < 2 || len(c.children) != 3 || c.pendingGroup != "accepted" || c.Active() != "accepted" {
+		t.Fatalf("persistent fence failure stopped the session starts=%d fences=%d children=%d pending=%s active=%s", starts, fences, len(c.children), c.pendingGroup, c.Active())
 	}
 }
 

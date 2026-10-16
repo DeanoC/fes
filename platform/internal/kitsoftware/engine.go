@@ -127,9 +127,10 @@ func (e *Engine) switchPrepared(ctx context.Context, id string, request Request)
 	// restarts a dead launcher without stopping the runtime or agent, and
 	// restarts the whole group when the runtime or agent exits. The replacement
 	// stays in recovery until this same readiness check holds. A runtime that
-	// is already executing a session is accepted instead, and new execution
-	// claims stay closed until the group is accepted. Every other Start error
-	// ends the attempt unchanged.
+	// is already executing a finished session is accepted once the recovery
+	// fence is confirmed. A confirmed session whose fence cannot be closed
+	// stays running, and new execution claims stay closed until the group is
+	// accepted. Every other Start error ends the attempt unchanged.
 	var last error
 	for e.Now().Before(deadline) {
 		if err := ctx.Err(); err != nil {
