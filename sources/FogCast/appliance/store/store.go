@@ -27,8 +27,10 @@ const DefaultRoot = "/media/fat/fogcast/releases"
 var ErrCorruptState = errors.New("release selection state is corrupt; factory fallback only")
 var ErrBusy = errors.New("release trial or pending activation already exists")
 
-// ErrInsufficientStorage means the release volume cannot hold the image after
-// unreferenced images have been pruned.
+// ErrInsufficientStorage means the release volume cannot hold the image.
+// Staging also returns it, without deleting anything, when the only way to
+// make room is to prune and no filesystem outside the release volume can hold
+// the upload long enough to verify it.
 var ErrInsufficientStorage = errors.New("insufficient release storage")
 
 var errUnreadableBootTicket = errors.New("refusing to prune releases: boot ticket is unreadable")
@@ -44,6 +46,12 @@ type Store struct {
 	syncDirectory  func(string) error
 	availableBytes func(string) (uint64, error)
 	loopBackings   func() ([]string, error)
+	// spillRoot receives an upload that does not fit on the release volume so
+	// it can be verified before any image is deleted. Tests set it. Production
+	// leaves it empty and searches a mounted FESDATA3 filesystem instead.
+	spillRoot string
+	// spillCandidates overrides that search. Nil uses the production paths.
+	spillCandidates func() []string
 }
 type Status struct {
 	ConfirmedBootID string `json:"confirmed_boot_id,omitempty"`
@@ -512,10 +520,17 @@ func verifyImage(ctx context.Context, f *os.File, m release.Manifest) error {
 
 // Stage publishes only complete verified raw images. It never changes selection
 // and never replaces an existing content-addressed image, including corrupt ones.
-// When a new image does not fit, Stage deletes other release images oldest
-// first until the image and a 1 MiB margin fit. It keeps factory, known-good,
-// previous, pending, trial, the boot.json image, and every image in this store
-// that backs a loop device. It does not remove boot files.
+// When the release volume has room for the image plus a 1 MiB margin, Stage
+// writes and verifies it there and does not delete anything. Otherwise it
+// verifies the upload on a different, non-memory filesystem before deleting
+// anything. A truncated or corrupt upload removes only that temporary file.
+// After verification, Stage deletes other release images oldest first until
+// the image and the margin fit, then copies the verified file into this store.
+// It keeps factory, known-good, previous, pending, trial, the boot.json image,
+// and every image in this store that backs a loop device. It does not remove
+// boot files. If no qualifying filesystem can hold the upload, or the retained
+// images still leave too little room, Stage returns ErrInsufficientStorage and
+// deletes nothing.
 func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.Reader) error {
 	if e := m.Compatible(s.factory.KernelSHA256); e != nil {
 		return e
@@ -563,9 +578,36 @@ func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.
 	} else if !errors.Is(e, os.ErrNotExist) {
 		return e
 	}
+	free, e := s.availableBytes(s.root)
+	if e != nil {
+		return e
+	}
+	if free >= uint64(size)+releaseHeadroom {
+		return s.publishNewImage(ctx, m, path, r, size)
+	}
+	// Retention is resolved before the upload is admitted so an unreadable
+	// boot ticket, corrupt selection, or failed loop scan still refuses
+	// without reading or deleting.
+	if _, e = s.protectedImages(); e != nil {
+		return e
+	}
+	spilled, e := s.admitUpload(ctx, m, size, r)
+	if e != nil {
+		return e
+	}
+	defer os.Remove(spilled)
 	if e = s.ensureSpace(ctx, size); e != nil {
 		return e
 	}
+	in, e := regularOpen(spilled)
+	if e != nil {
+		return e
+	}
+	defer in.Close()
+	return s.publishNewImage(ctx, m, path, in, size)
+}
+
+func (s *Store) publishNewImage(ctx context.Context, m release.Manifest, path string, r io.Reader, size int64) error {
 	f, e := os.CreateTemp(filepath.Join(s.root, "images"), ".stage-")
 	if e != nil {
 		return e
@@ -613,6 +655,140 @@ func (s *Store) Stage(ctx context.Context, m release.Manifest, size int64, r io.
 	return atomicWrite(filepath.Join(s.root, "manifests", m.ImageSHA256+".json"), append(b, '\n'))
 }
 
+// admitUpload writes the upload to a filesystem other than the release volume
+// and verifies it there. The returned file is complete. The caller removes it.
+func (s *Store) admitUpload(ctx context.Context, m release.Manifest, size int64, r io.Reader) (string, error) {
+	f, e := s.openSpill(size)
+	if e != nil {
+		return "", e
+	}
+	tmp := f.Name()
+	defer f.Close()
+	remove := true
+	defer func() {
+		if remove {
+			_ = os.Remove(tmp)
+		}
+	}()
+	n, e := io.Copy(f, io.LimitReader(contextReader{ctx, r}, size+1))
+	if e != nil {
+		return "", e
+	}
+	if n != size {
+		return "", errors.New("upload size mismatch")
+	}
+	if e = verifyImage(ctx, f, m); e != nil {
+		return "", e
+	}
+	if e = f.Sync(); e != nil {
+		return "", e
+	}
+	if e = f.Close(); e != nil {
+		return "", e
+	}
+	if e = ctx.Err(); e != nil {
+		return "", e
+	}
+	remove = false
+	return tmp, nil
+}
+
+func (s *Store) openSpill(size int64) (*os.File, error) {
+	if s.spillRoot != "" {
+		if e := spillInsideRelease(s.root, s.spillRoot); e != nil {
+			return nil, e
+		}
+		return os.CreateTemp(s.spillRoot, ".stage-spill-")
+	}
+	candidates := releaseSpillCandidates
+	if s.spillCandidates != nil {
+		candidates = s.spillCandidates
+	}
+	for _, dir := range candidates() {
+		if !s.spillUsable(dir, size) {
+			continue
+		}
+		staging := filepath.Join(dir, ".release-stage")
+		if e := os.MkdirAll(staging, 0700); e != nil {
+			continue
+		}
+		if !s.spillUsable(staging, size) {
+			continue
+		}
+		f, e := os.CreateTemp(staging, ".stage-spill-")
+		if e != nil {
+			continue
+		}
+		return f, nil
+	}
+	return nil, ErrInsufficientStorage
+}
+
+func (s *Store) spillUsable(dir string, size int64) bool {
+	if spillInsideRelease(s.root, dir) != nil {
+		return false
+	}
+	rootDev, e := deviceID(s.root)
+	if e != nil {
+		return false
+	}
+	dev, e := deviceID(dir)
+	if e != nil {
+		return false
+	}
+	var fs unix.Statfs_t
+	if unix.Statfs(dir, &fs) != nil {
+		return false
+	}
+	return admissionFilesystem(fs, dev, rootDev, uint64(size)+releaseHeadroom)
+}
+
+func admissionFilesystem(fs unix.Statfs_t, dev, rootDev, need uint64) bool {
+	if dev == 0 || dev == rootDev {
+		return false
+	}
+	if fs.Type == unix.TMPFS_MAGIC || fs.Type == unix.RAMFS_MAGIC {
+		return false
+	}
+	if fs.Flags&unix.ST_RDONLY != 0 {
+		return false
+	}
+	if fs.Bsize <= 0 {
+		return false
+	}
+	return fs.Bavail*uint64(fs.Bsize) >= need
+}
+
+func spillInsideRelease(root, dir string) error {
+	rel, e := filepath.Rel(filepath.Clean(root), filepath.Clean(dir))
+	if e != nil {
+		return e
+	}
+	if rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return errors.New("release admission spill is inside the release root")
+	}
+	return nil
+}
+
+func deviceID(path string) (uint64, error) {
+	var st unix.Stat_t
+	if e := unix.Stat(path, &st); e != nil {
+		return 0, e
+	}
+	return uint64(st.Dev), nil
+}
+
+func releaseSpillCandidates() []string {
+	return []string{
+		"/run/fogcast/fesdata3",
+		"/media/fat/fogcast/evidence",
+		"/media/fat/fogcast/cache",
+		"/media/fat/fogcast/launcher-cache",
+		"/media/fat/fogcast/saves",
+		"/media/fat/fogcast/core-data",
+	}
+}
+
 func statAvailable(root string) (uint64, error) {
 	var fs unix.Statfs_t
 	if err := unix.Statfs(root, &fs); err != nil {
@@ -622,7 +798,8 @@ func statAvailable(root string) (uint64, error) {
 }
 
 // ensureSpace frees unreferenced images until size plus the staging margin
-// fits. Protected identities are resolved before the first deletion.
+// fits. Protected identities are resolved before the first deletion. Callers
+// verify the incoming image before this runs, so a failed upload never reaches it.
 func (s *Store) ensureSpace(ctx context.Context, size int64) error {
 	if size < 0 {
 		return errors.New("invalid image size")

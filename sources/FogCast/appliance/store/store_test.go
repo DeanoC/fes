@@ -666,6 +666,8 @@ func TestStagePrunesOldestUnreferencedImageOnly(t *testing.T) {
 		return 1 << 30, nil
 	}
 	s.loopBackings = func() ([]string, error) { return []string{loopImage + " (deleted)"}, nil }
+	spill := t.TempDir()
+	s.spillRoot = spill
 	incoming := bytes.Clone(raw)
 	incoming[0] = 7
 	staged := manifest(incoming)
@@ -682,6 +684,10 @@ func TestStagePrunesOldestUnreferencedImageOnly(t *testing.T) {
 	}
 	kept, _ := releasePaths(t, s, staged.ImageSHA256)
 	mustExist(t, kept)
+	entries, e := os.ReadDir(spill)
+	if e != nil || len(entries) != 0 {
+		t.Fatalf("spill residue %v %v", entries, e)
+	}
 }
 
 func TestStageKeepsUnreferencedImagesWhenSpaceRemains(t *testing.T) {
@@ -795,6 +801,7 @@ func TestStageSkipsUnreferencedImageSymlink(t *testing.T) {
 		return 1 << 30, nil
 	}
 	s.loopBackings = func() ([]string, error) { return nil, nil }
+	s.spillRoot = t.TempDir()
 	incoming := bytes.Clone(raw)
 	incoming[0] = 7
 	staged := manifest(incoming)
@@ -806,5 +813,128 @@ func TestStageSkipsUnreferencedImageSymlink(t *testing.T) {
 	mustExist(t, link)
 	if b, e := os.ReadFile(outside); e != nil || string(b) != "bootloader\n" {
 		t.Fatalf("symlink target changed: %q %v", b, e)
+	}
+}
+
+func TestStageLowSpaceFailedUploadKeepsUnreferencedRelease(t *testing.T) {
+	s, _, raw := fixture(t)
+	stale := stageDistinct(t, s, raw, 5)
+	image, manifestPath := releasePaths(t, s, stale.ImageSHA256)
+	spill := t.TempDir()
+	s.spillRoot = spill
+	s.availableBytes = func(string) (uint64, error) { return 0, nil }
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	t.Run("truncated", func(t *testing.T) {
+		e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming[:len(incoming)/2]))
+		if e == nil || !strings.Contains(e.Error(), "upload size mismatch") {
+			t.Fatalf("got %v", e)
+		}
+		mustExist(t, image)
+		mustExist(t, manifestPath)
+		assertSpillEmpty(t, spill)
+	})
+	t.Run("corrupt", func(t *testing.T) {
+		bad := bytes.Clone(incoming)
+		bad[0] ^= 0xff
+		e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(bad))
+		if e == nil || !strings.Contains(e.Error(), "SHA-256") {
+			t.Fatalf("got %v", e)
+		}
+		mustExist(t, image)
+		mustExist(t, manifestPath)
+		assertSpillEmpty(t, spill)
+	})
+}
+
+func TestStageLowSpaceWithoutSpillDoesNotPrune(t *testing.T) {
+	s, _, raw := fixture(t)
+	stale := stageDistinct(t, s, raw, 5)
+	image, manifestPath := releasePaths(t, s, stale.ImageSHA256)
+	s.spillCandidates = func() []string { return nil }
+	s.availableBytes = func(string) (uint64, error) { return 0, nil }
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	if e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming)); !errors.Is(e, ErrInsufficientStorage) {
+		t.Fatalf("got %v", e)
+	}
+	mustExist(t, image)
+	mustExist(t, manifestPath)
+	published, _ := releasePaths(t, s, staged.ImageSHA256)
+	mustAbsent(t, published)
+}
+
+func TestStageRejectsSpillInsideReleaseRoot(t *testing.T) {
+	s, _, raw := fixture(t)
+	stale := stageDistinct(t, s, raw, 5)
+	image, _ := releasePaths(t, s, stale.ImageSHA256)
+	s.spillRoot = filepath.Join(s.root, "images")
+	s.availableBytes = func(string) (uint64, error) { return 0, nil }
+	s.loopBackings = func() ([]string, error) { return nil, nil }
+	incoming := bytes.Clone(raw)
+	incoming[0] = 7
+	staged := manifest(incoming)
+	e := s.Stage(context.Background(), staged, staged.ImageSize, bytes.NewReader(incoming))
+	if e == nil || !strings.Contains(e.Error(), "inside the release root") {
+		t.Fatalf("got %v", e)
+	}
+	mustExist(t, image)
+}
+
+func TestAdmissionFilesystemRejectsMemorySameDeviceAndShortVolumes(t *testing.T) {
+	need := uint64(releaseHeadroom + 10)
+	base := unix.Statfs_t{Type: unix.EXT4_SUPER_MAGIC, Bsize: 4096, Bavail: 1 << 20}
+	if !admissionFilesystem(base, 2, 1, need) {
+		t.Fatal("ext4 spill rejected")
+	}
+	if admissionFilesystem(base, 1, 1, need) {
+		t.Fatal("same device accepted")
+	}
+	if admissionFilesystem(base, 0, 1, need) {
+		t.Fatal("missing device accepted")
+	}
+	memory := base
+	memory.Type = unix.TMPFS_MAGIC
+	if admissionFilesystem(memory, 2, 1, need) {
+		t.Fatal("tmpfs accepted")
+	}
+	memory.Type = unix.RAMFS_MAGIC
+	if admissionFilesystem(memory, 2, 1, need) {
+		t.Fatal("ramfs accepted")
+	}
+	readonly := base
+	readonly.Flags = unix.ST_RDONLY
+	if admissionFilesystem(readonly, 2, 1, need) {
+		t.Fatal("read-only filesystem accepted")
+	}
+	short := base
+	short.Bavail = 0
+	if admissionFilesystem(short, 2, 1, need) {
+		t.Fatal("short filesystem accepted")
+	}
+}
+
+func TestSpillUsableRejectsReleaseVolume(t *testing.T) {
+	s, _, _ := fixture(t)
+	if s.spillUsable(s.root, 4096) {
+		t.Fatal("release root usable as spill")
+	}
+	if s.spillUsable(filepath.Join(s.root, "images"), 4096) {
+		t.Fatal("release image directory usable as spill")
+	}
+	if s.spillUsable(t.TempDir(), 4096) {
+		t.Fatal("same-device directory usable as spill")
+	}
+}
+
+func assertSpillEmpty(t *testing.T, spill string) {
+	t.Helper()
+	entries, e := os.ReadDir(spill)
+	if e != nil || len(entries) != 0 {
+		t.Fatalf("spill residue %v %v", entries, e)
 	}
 }
