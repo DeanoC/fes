@@ -17,10 +17,12 @@
 // See c64_cia.COPYING for the complete license text.
 // Old MOS6526 timer and interrupt pipeline.
 // Timer/IFR transitions follow VICE 3.10 core/ciatimer.{c,h} and ciacore.c.
-// TOD, serial shifting and external CNT edges remain unsupported. CNT is high.
+// TOD follows the same VICE reference, including its BCD/write quirks.
+// Serial shifting and external CNT edges remain unsupported. CNT is high.
 module c64_cia (
     input  wire       clk,
     input  wire       phi,
+    input  wire       tod_tick, // One power-supply pulse, synchronous to clk.
     input  wire       reset,
     input  wire       cs,
     input  wire       we,
@@ -43,6 +45,117 @@ module c64_cia (
     reg [12:0] ta_state, tb_state;
     reg [15:0] ifr_delay;
     reg irq_pin, icr_d7, tb_read_bug;
+
+    reg [31:0] tod, tod_alarm, tod_latch;
+    reg tod_stopped, tod_latched;
+    reg [2:0] tod_divider;
+    reg [31:0] tod_d, tod_alarm_d;
+    reg tod_stopped_d;
+    reg [2:0] tod_divider_d;
+    reg tod_changed;
+    reg [7:0] tod_write;
+
+    // Nibble carries preserve the old 6526's behavior for illegal BCD values,
+    // too: a carry occurs on reaching ten/six, not on every value above it.
+    function automatic [31:0] tod_increment;
+        input [31:0] value;
+        reg [3:0] tenth, sl, ml, hl;
+        reg [2:0] sh, mh;
+        reg hh, pm;
+        begin
+            tenth = value[3:0] + 4'd1;
+            sl = value[11:8]; sh = value[14:12];
+            ml = value[19:16]; mh = value[22:20];
+            hl = value[27:24]; hh = value[28]; pm = value[31];
+            if (tenth == 10) begin
+                tenth = 0; sl = sl + 4'd1;
+                if (sl == 10) begin
+                    sl = 0; sh = sh + 3'd1;
+                    if (sh == 6) begin
+                        sh = 0; ml = ml + 4'd1;
+                        if (ml == 10) begin
+                            ml = 0; mh = mh + 3'd1;
+                            if (mh == 6) begin
+                                mh = 0;
+                                if ((hh && hl == 2) || (!hh && hl == 9)) begin
+                                    hl = {3'd0, hh}; hh = !hh;
+                                end else begin
+                                    hl = hl + 4'd1;
+                                    if (hh && hl == 2) pm = !pm;
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+            tod_increment = {pm, 2'd0, hh, hl, 1'b0, mh, ml,
+                             1'b0, sh, sl, 4'd0, tenth};
+        end
+    endfunction
+
+    always @* begin
+        tod_d = tod;
+        tod_alarm_d = tod_alarm;
+        tod_stopped_d = tod_stopped;
+        tod_divider_d = tod_divider;
+        tod_changed = 1'b0;
+        tod_write = din;
+        if (tod_tick && !tod_stopped) begin
+            if (tod_divider == (cra[7] ? 3'd4 : 3'd5)) begin
+                tod_divider_d = 0;
+                tod_d = tod_increment(tod);
+                tod_changed = 1'b1;
+            end else tod_divider_d = tod_divider == 5 ? 3'd0 : tod_divider + 3'd1;
+        end
+        if (write_reg && rs >= 8 && rs <= 11) begin
+            case (rs)
+                8: tod_write = din & 8'h0f;
+                9, 10: tod_write = din & 8'h7f;
+                11: begin
+                    tod_write = din & 8'h9f;
+                    if (!crb[7] && din[4:0] == 5'h12)
+                        tod_write = tod_write ^ 8'h80;
+                end
+                default: ;
+            endcase
+            if (crb[7]) begin
+                tod_changed = tod_changed || tod_alarm[(rs-8)*8 +: 8] != tod_write;
+                tod_alarm_d[(rs-8)*8 +: 8] = tod_write;
+            end else begin
+                tod_changed = tod_changed || tod[(rs-8)*8 +: 8] != tod_write;
+                tod_d[(rs-8)*8 +: 8] = tod_write;
+                if (rs == 11) tod_stopped_d = 1'b1;
+                if (rs == 8) begin
+                    if (tod_stopped) tod_divider_d = 0;
+                    tod_stopped_d = 1'b0;
+                end
+            end
+        end
+    end
+    wire tod_alarm_event = tod_changed && tod_d == tod_alarm_d;
+
+    always @(posedge clk) begin
+        if (reset) begin
+            tod <= 32'h01000000;
+            tod_alarm <= 0;
+            tod_latch <= 32'h01000000;
+            tod_stopped <= 1;
+            tod_latched <= 0;
+            tod_divider <= 0;
+        end else begin
+            tod <= tod_d;
+            tod_alarm <= tod_alarm_d;
+            tod_stopped <= tod_stopped_d;
+            tod_divider <= tod_divider_d;
+            if (cs && reading && read_sample && !write_reg) begin
+                if (rs == 11 && !tod_latched) begin
+                    tod_latch <= tod;
+                    tod_latched <= 1;
+                end
+                if (rs == 8) tod_latched <= 0;
+            end
+        end
+    end
 
     // Control bits and delayed timer state correspond to the VICE timer
     // equations. LOAD and UNDERFLOW describe the current guest cycle.
@@ -133,6 +246,8 @@ module c64_cia (
             4'h5: dout = ta_count[15:8];
             4'h6: dout = tb_count[7:0];
             4'h7: dout = tb_count[15:8];
+            4'h8, 4'h9, 4'ha, 4'hb:
+                dout = tod_latched ? tod_latch[(rs-8)*8 +: 8] : tod[(rs-8)*8 +: 8];
             4'hd: dout = {icr_d7, 2'b0, visible_flags};
             4'he: dout = {cra[7:1], ta_state[START_BIT]};
             4'hf: dout = {crb[7:1], tb_state[START_BIT]};
@@ -161,12 +276,15 @@ module c64_cia (
         pin_d = irq_pin;
         d7_d = icr_d7;
         bug_d = tb_read_bug;
-        new_flags = 5'd0;
+        new_flags = {2'b0, tod_alarm_event, 2'b0};
+        flags_d = flags_d | new_flags;
+        if (tod_alarm_event && icr_mask[2])
+            delay_d = delay_d | RAISE1 | D7SET1;
 
         if (phi) begin
             {ta_state_d, ta_count_d} = timer_step(ta_state, ta_count, ta_latch);
             {tb_state_d, tb_count_d} = timer_step(tb_state, tb_count, tb_latch);
-            new_flags = {3'b0, tb_state_d[UNDERFLOW_BIT], ta_state_d[UNDERFLOW_BIT]};
+            new_flags = new_flags | {3'b0, tb_state_d[UNDERFLOW_BIT], ta_state_d[UNDERFLOW_BIT]};
 
             // Both timers advance before A queues a step for B. CNT is high,
             // so both A-underflow input modes accept this event.

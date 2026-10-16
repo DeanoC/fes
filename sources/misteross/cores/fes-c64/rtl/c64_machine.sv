@@ -232,8 +232,21 @@ module c64_machine #(
     );
     wire [7:0] pb1_low = (cia1_ddrb & ~cia1_pb) | (~cia1_ddrb & key_rows) |
                          (~cia1_ddrb & {3'b000, joy1});
+    // The PAL power-supply TOD input is 50 Hz, independent of raster timing
+    // and CPU RDY stalls. Accumulating on the free-running Phi enable retains
+    // fractional periods at non-integral CPU clock rates.
+    localparam integer TOD_PHASE_BITS = $clog2(CPU_CLOCK_HZ + 50);
+    reg [TOD_PHASE_BITS-1:0] tod_phase;
+    wire tod_tick = cpu_ce && tod_phase >= CPU_CLOCK_HZ - 50;
+    always @(posedge clk_sys) begin
+        if (system_reset) tod_phase <= 0;
+        else if (cpu_ce)
+            tod_phase <= tod_tick ? TOD_PHASE_BITS'(tod_phase + 50 - CPU_CLOCK_HZ)
+                                 : TOD_PHASE_BITS'(tod_phase + 50);
+    end
+
     c64_cia cia1 (
-        .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_cia1),
+        .clk(clk_sys), .phi(cpu_ce), .tod_tick(tod_tick), .reset(system_reset), .cs(sel_cia1),
         .we(bus_strobe && bus_we && sel_cia1), .reading(!bus_we), .read_sample(bus_sample),
         .rs(bus_addr[3:0]), .din(bus_wdata),
         .dout(cia1_dout), .pa_pin(~pa1_low), .pb_pin(~pb1_low),
@@ -292,7 +305,7 @@ module c64_machine #(
     wire [7:0] pa2_pin = {~(cpu_data_low | dev_data_low), ~(cpu_clk_low | dev_clk_low),
                           (cia2_ddra[5:0] & cia2_pa[5:0]) | (~cia2_ddra[5:0] & 6'h3F)};
     c64_cia cia2 (
-        .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_cia2),
+        .clk(clk_sys), .phi(cpu_ce), .tod_tick(tod_tick), .reset(system_reset), .cs(sel_cia2),
         .we(bus_strobe && bus_we && sel_cia2), .reading(!bus_we), .read_sample(bus_sample),
         .rs(bus_addr[3:0]), .din(bus_wdata),
         .dout(cia2_dout), .pa_pin(pa2_pin), .pb_pin(8'hFF),

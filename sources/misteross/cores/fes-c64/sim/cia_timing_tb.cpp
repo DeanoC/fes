@@ -41,6 +41,7 @@ static void run_case(unsigned id, const Schedule &schedule) {
     top.clk = top.phi = top.cs = top.we = top.reading = top.read_sample = 0;
     top.rs = top.din = 0;
     top.pa_pin = top.pb_pin = 255;
+    top.tod_tick = 0;
     top.reset = 1;
     auto tick = [&]() {
         top.clk = 0;

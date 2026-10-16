@@ -12,6 +12,7 @@ struct Bench {
     Bench() {
         top.clk = 0;
         top.phi = 0;
+        top.tod_tick = 0;
         top.reset = 1;
         top.cs = 0;
         top.we = 0;
@@ -206,8 +207,73 @@ static void linked_timers(int mode) {
     b.expect("only TA remains active", b.read(13, true), 0x81);
 }
 
+// Independent register-level TOD expectations. No private RTL state is read.
+static void time_of_day() {
+    Bench b;
+    auto pulses = [&](int n) {
+        for (int i=0;i<n;++i) {
+            b.top.tod_tick=1; b.top.phi=1; b.tick();
+            b.top.tod_tick=0; b.top.phi=0; b.tick();
+        }
+    };
+    auto set = [&](int hour,int minute,int second,int tenth) {
+        b.write(11,hour); b.write(10,minute); b.write(9,second); b.write(8,tenth);
+    };
+    b.expect("TOD reset hour",b.read(11),1);
+    pulses(60); b.expect("TOD reset stopped",b.read(8),0);
+    b.write(14,0x80); // Divide the 50 Hz input by five.
+    set(1,0,0,0);
+    pulses(4); b.expect("50 Hz before fifth input",b.read(8),0);
+    pulses(1); b.expect("50 Hz fifth input",b.read(8),1);
+    b.write(14,0); // Same pulse input, divide by six.
+    pulses(5); b.expect("60 Hz before sixth input",b.read(8),1);
+    pulses(1); b.expect("60 Hz sixth input",b.read(8),2);
+    b.write(14,0x80);
+    set(1,0,0,0); pulses(250);
+    b.expect("PAL five-second game wait",b.read(9),5);
+    set(0x11,0x59,0x59,9); pulses(5);
+    b.expect("noon toggles PM",b.read(11),0x92);
+    b.expect("minute BCD carry",b.read(10),0);
+    b.expect("second BCD carry",b.read(9),0);
+    b.expect("tenth BCD carry",b.read(8),0);
+    set(0x91,0x59,0x59,9); pulses(5);
+    b.expect("midnight toggles AM",b.read(11),0x12);
+    set(0x12,0x59,0x59,9); pulses(5);
+    b.expect("12 write flips PM and wraps to one",b.read(11),0x81);
+    set(0x09,0x59,0x59,9); pulses(5);
+    b.expect("nine to ten BCD",b.read(11),0x10);
+    set(1,0,0,9);
+    b.expect("hour read latches",b.read(11,true),1);
+    pulses(5);
+    b.expect("latched seconds remain old",b.read(9,true),0);
+    b.expect("repeated hour read retains latch",b.read(11,true),1);
+    b.expect("tenths read returns latch then releases",b.read(8,true),9);
+    b.expect("live seconds after release",b.read(9,true),1);
+    set(1,0,0,0); pulses(4); b.write(11,2); pulses(50);
+    b.expect("hour write stops clock",b.read(8),0);
+    b.write(8,0); pulses(4);
+    b.expect("restart clears prescaler",b.read(8),0);
+    pulses(1); b.expect("restart fifth pulse",b.read(8),1);
+    b.write(15,0x80); // Alarm writes neither stop nor restart the clock.
+    b.write(11,1); b.write(10,0); b.write(9,1); b.write(8,0);
+    b.write(15,0); set(1,0,0,9);
+    b.write(13,0x84); pulses(5); b.phi(2);
+    b.expect("TOD alarm flag and IRQ",b.read(13,true),0x84);
+    b.expect("TOD IRQ read clears pin",b.top.irq,0);
+    b.phi(3); b.expect("TOD alarm not level retriggered",b.read(13,true),0);
+    // The alarm remains readable only through the clock bank; masked writes
+    // use the same BCD masks as the chip, including AM/PM on time-only writes.
+    b.write(15,0x80); b.write(11,0x12); b.write(15,0);
+    b.expect("alarm hour does not change clock",b.read(11),1);
+    b.write(11,0xff); b.expect("hour write masks bits 6/5",b.read(11),0x9f);
+    b.write(10,0xff); b.expect("minute mask",b.read(10),0x7f);
+    b.write(9,0xff); b.expect("second mask",b.read(9),0x7f);
+    b.write(8,0xff); b.expect("tenth mask",b.read(8),0x0f);
+}
+
 int main() {
     try {
+        time_of_day();
         ports();
         timer_a();
         timer_b();
@@ -216,6 +282,6 @@ int main() {
     } catch (const std::exception&) {
         return 1;
     }
-    std::puts("c64 CIA timer and interrupt register tests passed");
+    std::puts("c64 CIA TOD, timer and interrupt register tests passed");
     return 0;
 }

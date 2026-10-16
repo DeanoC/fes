@@ -2036,8 +2036,16 @@ The diagnostic checks both CPU vectors, including NMI with IRQ disabled.
 `make sim-fes-c64-cia-reference` replays 377 programs against unchanged pinned
 VICE 3.10 sources at three bus schedules, checking every cycle and ordered
 interrupt edges. [The reference contract](../cores/fes-c64/sim/cia_timing.md)
-records fixture regeneration, provenance and limits. External CNT edges,
-TOD, serial shifting, FLAG input and timer port outputs remain outside this slice.
+records fixture regeneration, provenance and limits. Its timer/IRQ fixtures
+do not qualify TOD. Directed CIA tests separately cover TOD BCD carry, noon
+and midnight, register masks, read latching, stop/restart, five/six-pulse input
+division and alarm IRQ acknowledgement. Both CIAs receive the same PAL 50 Hz
+power-supply pulse, derived from the free-running Phi enable without depending
+on CPU RDY or raster lengths. TOD time/alarm writes and illegal BCD carries
+follow the pinned VICE implementation, including the hour-12 write quirk.
+Exact analogue TOD input phase, write/tick collisions and physical-chip
+qualification remain open. External CNT edges, serial shifting, FLAG input
+and timer port outputs remain outside this slice.
 
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchains/c64.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this

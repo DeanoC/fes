@@ -83,8 +83,12 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   so CNT edge modes do not count and the gated timer A mode can count.
   The old MOS 6526 count-enable, force-load, one-shot and interrupt pipelines
   preserve delayed starts, pending counts after STOP and separate ICR flags,
-  bit 7 and interrupt-pin timing. TOD, serial shift, FLAG input and PB6/PB7
-  timer outputs remain unimplemented. Port 2 (CIA1 port A) is controller port 0.
+  bit 7 and interrupt-pin timing. Both CIAs receive a shared PAL 50 Hz
+  power-supply input for TOD, independent of CPU stalls and raster timing.
+  CRA bit 7 selects five/six-pulse division; the BCD clock supports AM/PM,
+  hour-read latching, tenth-read release, hour-write stop, tenth-write restart
+  and CRB-selected alarm writes with ICR bit 2. Serial shift, FLAG input and
+  PB6/PB7 timer outputs remain unimplemented. Port 2 (CIA1 port A) is controller port 0.
 - HDMI 720p60. The 384×272 PAL view is scaled into a centered 960×720
   viewport using rational nearest-neighbor sampling; side pillars are black.
   The fixed RGB lookup uses Philip Timmermann's
