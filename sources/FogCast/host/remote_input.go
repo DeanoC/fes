@@ -610,6 +610,13 @@ func (r *RemoteInput) reconnectLocked(ctx context.Context) error {
 		} else {
 			lastErr = err
 		}
+		// A refused grant cannot recover by redialing the old input handle.
+		// Release the input lock promptly so read-only ownership reconciliation
+		// can invalidate the stale session instead of exhausting its deadline.
+		var leaseErr *protocol.APIError
+		if errors.As(lastErr, &leaseErr) && (leaseErr.Code == protocol.CodeKitLeaseDenied || leaseErr.Code == protocol.CodeKitLeaseBusy) {
+			return lastErr
+		}
 		if r.now().After(deadline) {
 			if lastErr == nil {
 				lastErr = ErrRemoteInputInvalid
@@ -838,7 +845,12 @@ func (r *RemoteInput) heartbeatLoop(ctx context.Context) {
 				r.state = RemoteInputReconnecting
 				r.ready = false
 				if err := r.reconnectLocked(context.Background()); err != nil {
-					r.failLocked("reconnect_timeout")
+					reason := "reconnect_timeout"
+					var leaseErr *protocol.APIError
+					if errors.As(err, &leaseErr) && (leaseErr.Code == protocol.CodeKitLeaseDenied || leaseErr.Code == protocol.CodeKitLeaseBusy) {
+						reason = "lease_lost"
+					}
+					r.failLocked(reason)
 				}
 			} else {
 				r.readPongLocked()

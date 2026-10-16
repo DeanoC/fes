@@ -81,7 +81,12 @@ before issuing a new operation. Existing authenticated endpoint reconciliation
 uses read-only ownership/status observations to discard stale local authority;
 it never stops or releases the replacement owner's session. A subsequent
 explicit launch uses an ordinary claim, which still refuses a foreign holder.
-No mutation is automatically retried after lease loss.
+Input reconnect stops immediately on an explicit lease-denied or busy response;
+it does not redial the stale handle for the network reconnect grace period.
+This releases the input lock for ownership reconciliation. The heartbeat records
+`lease_lost` rather than a network reconnect timeout. Transient stream failures
+retain the bounded reconnect grace. No mutation is automatically retried after
+lease loss.
 
 Native FPGA Stop uses the
 mutation (`upload_timeout_seconds`) deadline, not the short status request
