@@ -553,12 +553,13 @@ includes this replay, the directed CIA register/port regression and the
 firmware's CPU interrupt checks. These are host simulations, with no sealed
 artifact or kit acceptance implied.
 
-The C64 development lane refreshes nextpnr to main `bd1c0909`, sampled on
-2026-10-14. New shell/card timing and hardware validation remain required;
+The C64 development lane refreshes nextpnr to main `1f857e51`, sampled on
+2026-10-16, including GPU route architecture checks and reserved-PIP fixes.
+New shell/card timing and hardware validation remain required;
 historical seals used the earlier pin.
 
 `build-fes-c64` authenticates `toolchains/c64.lock` (Yosys `4b971bb1`,
-Mistral `8fcc4cb4`, nextpnr `bd1c0909`). The socket check admits a compiler-inserted route-through
+Mistral `8fcc4cb4`, nextpnr `1f857e51`). The socket check admits a compiler-inserted route-through
 buffer only at a pinned boundary flip-flop's paired combinational half, with
 the exact physical pin map and a dedicated connection to that flip-flop;
 clock-coverage outputs stay unused and every other shell cell inside a socket
