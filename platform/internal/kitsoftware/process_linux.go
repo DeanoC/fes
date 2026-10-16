@@ -38,6 +38,13 @@ const (
 	// groupRestartTimeout bounds one accepted-group start. Native initialization
 	// shares this deadline; the supervisor tick retries with backoff after it.
 	groupRestartTimeout = 60 * time.Second
+	// groupReadyStable is the uninterrupted agent, runtime and launcher
+	// readiness window. It is the same interval Engine.health requires before
+	// an activation is accepted.
+	groupReadyStable = 10 * time.Second
+	// groupReadyBudget is how long a replacement may stay up without that
+	// window before the supervisor stops it and retries with backoff.
+	groupReadyBudget = 60 * time.Second
 	// launcherGroupReapPoll is how long one restart attempt waits for init to
 	// reap a just-signaled descendant. The supervisor tick retries after that.
 	launcherGroupReapPoll = 200 * time.Millisecond
@@ -83,22 +90,44 @@ type ProcessController struct {
 	groupRestart    time.Time
 	groupDelay      time.Duration
 	// pendingGroup is the accepted bundle waiting to be started again after an
-	// agent or runtime exit. It survives Stop, which clears active.
+	// agent or runtime exit. It survives Stop, which clears active, and stays
+	// set until the replacement has been ready.
 	pendingGroup string
-	// reapPID is the exited child whose process group is still being
-	// terminated. Zero means no reap is in progress.
-	reapPID  int
-	reapTerm time.Time
-	reapKill time.Time
+	// reaps tracks SIGTERM and SIGKILL deadlines per exited process group.
+	// Probing one group must not reset another group's deadline.
+	reaps map[int]groupReap
+	// recoveryID is the bundle whose replacement is waiting for readiness.
+	// recoveryPIDs are the processes that belong to that attempt. A later
+	// activation that replaces those processes ends the wait.
+	recoveryID      string
+	recoveryPIDs    []int
+	groupReadyBy    time.Time
+	groupReadySince time.Time
+	// readyStable and readyBudget override the readiness window in tests.
+	readyStable time.Duration
+	readyBudget time.Duration
+}
+
+type groupReap struct {
+	term time.Time
+	kill time.Time
 }
 
 // groupRestartStart launches a replacement group after an accepted agent or
-// runtime exit. The default is Start with an empty admission request, so a
-// recovered agent does not replay the boot credential. Tests replace it.
+// runtime exit. request is a durable queued activation, or the zero request
+// when none is queued. The zero request does not replay the boot credential.
+// Tests replace it.
 var groupRestartStart = func(c *ProcessController, ctx context.Context, id string, request Request) error {
 	startCtx, cancel := context.WithTimeout(ctx, groupRestartTimeout)
 	defer cancel()
 	return c.Start(startCtx, id, request)
+}
+
+// groupReadyProbe is one readiness sample for a replacement group. The default
+// is Healthy, which requires agent and native idle plus the launcher readiness
+// file. Tests replace it.
+var groupReadyProbe = func(c *ProcessController, ctx context.Context, id string) error {
+	return c.Healthy(ctx, id)
 }
 
 func (c *ProcessController) Active() string { c.mu.Lock(); defer c.mu.Unlock(); return c.active }
@@ -663,52 +692,57 @@ func exitedLauncher(children []*child) *child {
 }
 
 func (c *ProcessController) clearLauncherReap() {
-	c.reapPID = 0
-	c.reapTerm = time.Time{}
-	c.reapKill = time.Time{}
+	c.reaps = nil
+}
+
+func (c *ProcessController) clearReap(pid int) {
+	delete(c.reaps, pid)
 }
 
 // confirmLauncherGroup signals an exited child's process group and returns nil
 // only after that group is gone. The direct child is already reaped; descendants
 // that inherited the group are not visible to a later Stop once this child is
-// dropped. Launcher and group restarts both use it.
+// dropped. Launcher and group restarts both use it. Each process group keeps
+// its own term and kill deadline, so a group that is already gone does not
+// restart the clock on a descendant that is still alive.
 func (c *ProcessController) confirmLauncherGroup(p *child) error {
 	pid := p.cmd.Process.Pid
 	if pid <= 1 {
 		return fmt.Errorf("invalid process group %d", pid)
 	}
-	if c.reapPID != pid {
-		c.reapPID = pid
-		c.reapTerm = time.Time{}
-		c.reapKill = time.Time{}
-	}
 	err := syscall.Kill(-pid, 0)
 	if errors.Is(err, syscall.ESRCH) {
-		c.clearLauncherReap()
+		c.clearReap(pid)
 		return nil
 	}
 	if err != nil {
 		return err
 	}
+	if c.reaps == nil {
+		c.reaps = make(map[int]groupReap)
+	}
+	state := c.reaps[pid]
 	now := time.Now()
-	if c.reapTerm.IsZero() {
-		c.reapTerm = now
+	if state.term.IsZero() {
+		state.term = now
+		c.reaps[pid] = state
 		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
 			return err
 		}
 		return c.awaitLauncherGroup(pid)
 	}
-	if now.Sub(c.reapTerm) < StopTermGrace {
+	if now.Sub(state.term) < StopTermGrace {
 		return fmt.Errorf("process group %d still exists", pid)
 	}
-	if c.reapKill.IsZero() {
-		c.reapKill = now
+	if state.kill.IsZero() {
+		state.kill = now
+		c.reaps[pid] = state
 	}
 	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
 		return err
 	}
 	if err := c.awaitLauncherGroup(pid); err != nil {
-		if now.Sub(c.reapKill) < StopKillGrace {
+		if now.Sub(state.kill) < StopKillGrace {
 			return fmt.Errorf("process group %d still exists", pid)
 		}
 		return err
@@ -721,7 +755,7 @@ func (c *ProcessController) awaitLauncherGroup(pid int) error {
 	for {
 		err := syscall.Kill(-pid, 0)
 		if errors.Is(err, syscall.ESRCH) {
-			c.clearLauncherReap()
+			c.clearReap(pid)
 			return nil
 		}
 		if err != nil {
@@ -734,14 +768,33 @@ func (c *ProcessController) awaitLauncherGroup(pid int) error {
 	}
 }
 
+// GroupRestartRequest is the startup admission for a replacement agent.
+// A queued activation is installed before that agent accepts claims. Applying,
+// recovering and blocked phases already have a maintenance reservation, which
+// the new agent reloads, so this returns the zero request for those phases.
+// A repository read error makes known false and the supervisor defers the
+// group start instead of opening claims first.
+func GroupRestartRequest(state State, readErr error) (Request, bool) {
+	if readErr != nil {
+		return Request{}, false
+	}
+	if state.Pending != nil && state.Pending.Phase == "queued" {
+		return state.Pending.Request, true
+	}
+	return Request{}, true
+}
+
 // RecoverAcceptedExits restarts an accepted launcher when the runtime and agent
 // are still alive. An accepted agent or runtime exit stops the remaining group,
 // confirms every exited process group is gone, and starts the bundle again.
 // A replacement that dies quickly backs off from one second to thirty seconds.
-// The new agent is started without the original admission request. Called with
-// no controller lock held.
-func (c *ProcessController) RecoverAcceptedExits(ctx context.Context) error {
+// pending is the durable queued activation, or the zero request when none is
+// queued. queueKnown is false when that queue could not be read. The replacement
+// stays in recovery until it is ready; a later activation that replaces its
+// processes ends that wait. Called with no controller lock held.
+func (c *ProcessController) RecoverAcceptedExits(ctx context.Context, pending Request, queueKnown bool) error {
 	c.mu.Lock()
+	c.abandonReplacedRecoveryLocked()
 	if c.pendingGroup == "" {
 		if c.active == "" || !acceptedServiceFailed(c.children) {
 			err := c.restartExitedLauncherLocked()
@@ -750,9 +803,18 @@ func (c *ProcessController) RecoverAcceptedExits(ctx context.Context) error {
 		}
 		c.pendingGroup = c.active
 	}
+	if c.recoveryOwnedLocked() && !acceptedServiceFailed(c.children) {
+		id := c.pendingGroup
+		c.mu.Unlock()
+		return c.observeGroupReady(ctx, id)
+	}
 	if err := c.reapExitedGroupsLocked(); err != nil {
 		c.mu.Unlock()
 		return err
+	}
+	if !queueKnown {
+		c.mu.Unlock()
+		return errors.New("software queue unavailable; service group restart deferred")
 	}
 	reason := c.groupFailureReasonLocked()
 	lived := c.failedServiceLifeLocked()
@@ -773,7 +835,7 @@ func (c *ProcessController) RecoverAcceptedExits(ctx context.Context) error {
 			return err
 		}
 	}
-	return c.finishGroupStart(ctx, id, lived)
+	return c.finishGroupStart(ctx, id, lived, pending)
 }
 
 func acceptedServiceFailed(children []*child) bool {
@@ -869,11 +931,11 @@ func (c *ProcessController) noteGroupRestartLocked(lived time.Duration) {
 	}
 }
 
-func (c *ProcessController) finishGroupStart(ctx context.Context, id string, lived time.Duration) error {
+func (c *ProcessController) finishGroupStart(ctx context.Context, id string, lived time.Duration, pending Request) error {
 	c.mu.Lock()
 	c.noteGroupRestartLocked(lived)
 	c.mu.Unlock()
-	err := groupRestartStart(c, ctx, id, Request{})
+	err := groupRestartStart(c, ctx, id, pending)
 	if err != nil {
 		stopCtx, cancel := context.WithTimeout(context.Background(), StopGroupTimeout)
 		stopErr := c.Stop(stopCtx)
@@ -884,10 +946,137 @@ func (c *ProcessController) finishGroupStart(ctx context.Context, id string, liv
 		return err
 	}
 	c.mu.Lock()
-	c.pendingGroup = ""
-	c.clearLauncherReap()
+	c.armRecoveryLocked(id)
 	c.mu.Unlock()
-	return nil
+	return c.observeGroupReady(ctx, id)
+}
+
+func (c *ProcessController) readyStableDuration() time.Duration {
+	if c.readyStable > 0 {
+		return c.readyStable
+	}
+	return groupReadyStable
+}
+
+func (c *ProcessController) readyBudgetDuration() time.Duration {
+	if c.readyBudget > 0 {
+		return c.readyBudget
+	}
+	return groupReadyBudget
+}
+
+func (c *ProcessController) armRecoveryLocked(id string) {
+	c.recoveryID = id
+	c.groupReadyBy = time.Now().Add(c.readyBudgetDuration())
+	c.groupReadySince = time.Time{}
+	c.recoveryPIDs = c.recoveryPIDs[:0]
+	for _, p := range c.children {
+		if p.cmd != nil && p.cmd.Process != nil {
+			c.recoveryPIDs = append(c.recoveryPIDs, p.cmd.Process.Pid)
+		}
+	}
+}
+
+func (c *ProcessController) acceptRecoveryLocked() {
+	c.pendingGroup = ""
+	c.recoveryID = ""
+	c.groupReadyBy = time.Time{}
+	c.groupReadySince = time.Time{}
+	c.recoveryPIDs = nil
+	c.clearLauncherReap()
+}
+
+func (c *ProcessController) recoveryOwnedLocked() bool {
+	if c.recoveryID == "" || c.groupReadyBy.IsZero() || c.active != c.recoveryID || len(c.recoveryPIDs) == 0 || len(c.children) != len(c.recoveryPIDs) {
+		return false
+	}
+	for i, p := range c.children {
+		if p.cmd == nil || p.cmd.Process == nil || p.cmd.Process.Pid != c.recoveryPIDs[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// abandonReplacedRecoveryLocked drops a readiness wait whose processes are no
+// longer the replacement. A healthy group with different processes was started
+// by a later activation, so the queued restart is finished. A dead group keeps
+// pendingGroup and the normal restart path.
+func (c *ProcessController) abandonReplacedRecoveryLocked() {
+	if c.recoveryID == "" || len(c.recoveryPIDs) == 0 || c.recoveryOwnedLocked() {
+		return
+	}
+	replaced := c.active != "" && !acceptedServiceFailed(c.children)
+	if replaced && c.pendingGroup == c.recoveryID {
+		c.pendingGroup = ""
+	}
+	c.recoveryID = ""
+	c.groupReadyBy = time.Time{}
+	c.groupReadySince = time.Time{}
+	c.recoveryPIDs = nil
+}
+
+// observeGroupReady samples readiness once. The supervisor tick calls it again
+// until the stable window holds. A process exit returns to the restart path.
+// When the budget expires first, the wedged group is stopped and the next
+// start waits out the backoff.
+func (c *ProcessController) observeGroupReady(ctx context.Context, id string) error {
+	probeCtx, cancel := context.WithTimeout(ctx, time.Second)
+	probeErr := groupReadyProbe(c, probeCtx, id)
+	cancel()
+
+	c.mu.Lock()
+	owned := c.recoveryOwnedLocked() && c.recoveryID == id && c.pendingGroup == id
+	expired := owned && !time.Now().Before(c.groupReadyBy)
+	c.mu.Unlock()
+	if !owned {
+		return nil
+	}
+	if probeErr == nil {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		if !c.recoveryOwnedLocked() || c.recoveryID != id || c.pendingGroup != id {
+			return nil
+		}
+		if c.groupReadySince.IsZero() {
+			c.groupReadySince = time.Now()
+		}
+		if time.Since(c.groupReadySince) >= c.readyStableDuration() {
+			c.acceptRecoveryLocked()
+		}
+		return nil
+	}
+	if errors.Is(probeErr, ErrProcessExited) {
+		c.mu.Lock()
+		c.recoveryID = ""
+		c.groupReadyBy = time.Time{}
+		c.groupReadySince = time.Time{}
+		c.recoveryPIDs = nil
+		c.mu.Unlock()
+		return nil
+	}
+	if !expired {
+		c.mu.Lock()
+		c.groupReadySince = time.Time{}
+		c.mu.Unlock()
+		return nil
+	}
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), StopGroupTimeout)
+	stopErr := c.Stop(stopCtx)
+	stopCancel()
+	c.mu.Lock()
+	c.recoveryID = ""
+	c.groupReadyBy = time.Time{}
+	c.groupReadySince = time.Time{}
+	c.recoveryPIDs = nil
+	if c.groupRestartDueLocked() {
+		c.noteGroupRestartLocked(0)
+	}
+	c.mu.Unlock()
+	if stopErr != nil {
+		return fmt.Errorf("service group not ready: %v; cleanup: %w", probeErr, stopErr)
+	}
+	return fmt.Errorf("service group not ready: %w", probeErr)
 }
 
 func processStartTime(pid int) (string, error) {

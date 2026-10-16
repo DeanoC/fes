@@ -150,7 +150,7 @@ func TestRestartExitedLauncherRestartsOnlyTheLauncher(t *testing.T) {
 	if !strings.Contains(c.ServiceFault(), "restarting the launcher") {
 		t.Fatal(c.ServiceFault())
 	}
-	if err := c.RecoverAcceptedExits(context.Background()); err != nil {
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
 		t.Fatal(err)
 	}
 	if c.children[2] == launcher {
@@ -158,7 +158,7 @@ func TestRestartExitedLauncherRestartsOnlyTheLauncher(t *testing.T) {
 	}
 	replaced := c.children[2]
 	<-replaced.done
-	if err := c.RecoverAcceptedExits(context.Background()); err != nil {
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
 		t.Fatal(err)
 	}
 	if c.children[2] != replaced {
@@ -174,7 +174,7 @@ func TestRestartExitedLauncherRestartsOnlyTheLauncher(t *testing.T) {
 		t.Fatal(c.ServiceFault())
 	}
 	starts := installGroupRestart(t, c)
-	if err := c.RecoverAcceptedExits(context.Background()); err != nil {
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
 		t.Fatal(err)
 	}
 	if starts() != 1 || len(c.children) != 3 {
@@ -214,7 +214,7 @@ func TestRestartExitedLauncherReapsDescendantsBeforeReplacement(t *testing.T) {
 		t.Fatal("descendant exited with the launcher", err)
 	}
 	oldPID := launcher.cmd.Process.Pid
-	if err := c.RecoverAcceptedExits(context.Background()); err != nil {
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
 		t.Fatal(err)
 	}
 	if len(c.children) != 3 || c.children[2] == launcher || c.children[2].cmd.Process.Pid == oldPID {
@@ -266,7 +266,7 @@ func TestRestartExitedLauncherKeepsOwnershipUntilGroupExits(t *testing.T) {
 		t.Fatal(err)
 	}
 	<-launcher.done
-	if err := c.RecoverAcceptedExits(context.Background()); err == nil || !strings.Contains(err.Error(), "still exists") {
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err == nil || !strings.Contains(err.Error(), "still exists") {
 		t.Fatal("replacement started while a descendant was still in the launcher group", err)
 	}
 	if len(c.children) != 3 || c.children[2] != launcher {
@@ -283,11 +283,12 @@ func TestRestartExitedLauncherKeepsOwnershipUntilGroupExits(t *testing.T) {
 	if len(c.children) != 3 || c.children[2] != launcher {
 		t.Fatal("failed stop cleared ownership while the launcher group existed")
 	}
-	if c.reapTerm.IsZero() {
+	reap, ok := c.reaps[launcher.cmd.Process.Pid]
+	if !ok || reap.term.IsZero() {
 		t.Fatal("group cleanup did not record a retry deadline")
 	}
-	time.Sleep(time.Until(c.reapTerm.Add(StopTermGrace)) + 20*time.Millisecond)
-	if err := c.RecoverAcceptedExits(context.Background()); err != nil {
+	time.Sleep(time.Until(reap.term.Add(StopTermGrace)) + 20*time.Millisecond)
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
 		t.Fatal(err)
 	}
 	if c.children[2] == launcher {
@@ -308,7 +309,7 @@ func TestAcceptedAgentOrRuntimeExitRestartsTheGroup(t *testing.T) {
 			defer killChildren(c)
 			_ = startSleepTrio(t, c)
 			starts := installGroupRestart(t, c)
-			if err := c.RecoverAcceptedExits(context.Background()); err != nil {
+			if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
 				t.Fatal(err)
 			}
 			if starts() != 0 {
@@ -323,7 +324,7 @@ func TestAcceptedAgentOrRuntimeExitRestartsTheGroup(t *testing.T) {
 			if !strings.Contains(c.ServiceFault(), "restarting the service group") {
 				t.Fatal(c.ServiceFault())
 			}
-			if err := c.RecoverAcceptedExits(context.Background()); err != nil {
+			if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
 				t.Fatal(err)
 			}
 			if starts() != 1 || len(c.children) != 3 || c.Active() != "accepted" || c.pendingGroup != "" {
@@ -339,7 +340,7 @@ func TestAcceptedAgentOrRuntimeExitRestartsTheGroup(t *testing.T) {
 				t.Fatal(err)
 			}
 			<-c.children[index].done
-			if err := c.RecoverAcceptedExits(context.Background()); err != nil {
+			if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
 				t.Fatal(err)
 			}
 			if starts() != 1 {
@@ -372,6 +373,7 @@ func TestAgentExitReapsDescendantsBeforeGroupRestart(t *testing.T) {
 		<-memberDone
 	}()
 	memberPID := member.Process.Pid
+	acceptReplacementReadiness(t, c)
 	var starts int
 	previous := groupRestartStart
 	t.Cleanup(func() { groupRestartStart = previous })
@@ -384,7 +386,7 @@ func TestAgentExitReapsDescendantsBeforeGroupRestart(t *testing.T) {
 		t.Fatal(err)
 	}
 	<-agent.done
-	if err := c.RecoverAcceptedExits(context.Background()); err != nil {
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
 		t.Fatal(err)
 	}
 	if starts != 1 || len(c.children) != 3 {
@@ -438,7 +440,7 @@ func TestAgentExitKeepsOwnershipUntilDescendantsExit(t *testing.T) {
 	}
 	<-agent.done
 	starts := installGroupRestart(t, c)
-	if err := c.RecoverAcceptedExits(context.Background()); err == nil || !strings.Contains(err.Error(), "still exists") {
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err == nil || !strings.Contains(err.Error(), "still exists") {
 		t.Fatal("replacement started while an agent descendant was still in the group", err)
 	}
 	if starts() != 0 || len(c.children) != 3 || c.children[1] != agent || c.pendingGroup != "accepted" {
@@ -449,11 +451,12 @@ func TestAgentExitKeepsOwnershipUntilDescendantsExit(t *testing.T) {
 		t.Fatal("descendant exited before the group was confirmed gone")
 	default:
 	}
-	if c.reapTerm.IsZero() {
+	reap, ok := c.reaps[agent.cmd.Process.Pid]
+	if !ok || reap.term.IsZero() {
 		t.Fatal("group cleanup did not record a retry deadline")
 	}
-	time.Sleep(time.Until(c.reapTerm.Add(StopTermGrace)) + 20*time.Millisecond)
-	if err := c.RecoverAcceptedExits(context.Background()); err != nil {
+	time.Sleep(time.Until(reap.term.Add(StopTermGrace)) + 20*time.Millisecond)
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
 		t.Fatal(err)
 	}
 	if starts() != 1 || c.children[1] == agent {
@@ -491,14 +494,14 @@ func TestGroupRestartFailureDoesNotLeaveProcesses(t *testing.T) {
 		}
 		return errors.New("native initialization timed out")
 	}
-	err := c.RecoverAcceptedExits(context.Background())
+	err := c.RecoverAcceptedExits(context.Background(), Request{}, true)
 	if err == nil || !strings.Contains(err.Error(), "timed out") {
 		t.Fatal(err)
 	}
 	if len(c.children) != 0 || c.pendingGroup != "accepted" || c.Active() != "" {
 		t.Fatal("failed restart left a process or dropped the bundle", len(c.children), c.pendingGroup, c.Active())
 	}
-	if err := c.RecoverAcceptedExits(context.Background()); err != nil {
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
 		t.Fatal(err)
 	}
 	if starts != 1 {
@@ -538,6 +541,369 @@ func TestGroupRestartBackoffCapsAndResets(t *testing.T) {
 	}
 }
 
+func TestGroupRestartRequestPreservesMaintenance(t *testing.T) {
+	queued := Request{ID: strings.Repeat("ab", 32), Candidate: strings.Repeat("cd", 32), Requester: "host"}
+	got, ok := GroupRestartRequest(State{Pending: &Operation{Request: queued, Phase: "queued"}}, nil)
+	if !ok || got != queued {
+		t.Fatalf("queued activation was not carried into the restart: %+v ok=%v", got, ok)
+	}
+	for _, phase := range []string{"applying", "recovering", "blocked"} {
+		got, ok = GroupRestartRequest(State{Pending: &Operation{Request: queued, Phase: phase}}, nil)
+		if !ok || got != (Request{}) {
+			t.Fatalf("phase %s replaced an in-progress reservation: %+v ok=%v", phase, got, ok)
+		}
+	}
+	got, ok = GroupRestartRequest(State{}, nil)
+	if !ok || got != (Request{}) {
+		t.Fatalf("idle restart invented an admission: %+v ok=%v", got, ok)
+	}
+	if _, ok = GroupRestartRequest(State{Pending: &Operation{Request: queued, Phase: "queued"}}, errors.New("disk")); ok {
+		t.Fatal("unreadable queue was treated as empty")
+	}
+}
+
+func TestQueuedActivationIsPassedToReplacementAgent(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted"}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	if err := c.children[1].cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-c.children[1].done
+	want := Request{ID: strings.Repeat("ab", 32), Candidate: strings.Repeat("cd", 32), Requester: "host"}
+	var got Request
+	previous := groupRestartStart
+	t.Cleanup(func() { groupRestartStart = previous })
+	groupRestartStart = func(controller *ProcessController, _ context.Context, id string, request Request) error {
+		got = request
+		for _, role := range []string{roleRuntime, roleAgent, roleLauncher} {
+			if err := controller.start("/bin/sleep", []string{"60"}, nil, role); err != nil {
+				return err
+			}
+		}
+		controller.active = id
+		return nil
+	}
+	acceptReplacementReadiness(t, c)
+	if err := c.RecoverAcceptedExits(context.Background(), want, true); err != nil {
+		t.Fatal(err)
+	}
+	if got != want || c.pendingGroup != "" || c.Active() != "accepted" {
+		t.Fatalf("restart request %+v pending %q active %q", got, c.pendingGroup, c.Active())
+	}
+}
+
+func TestUnreadableQueueDefersGroupRestart(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted"}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	agent := c.children[1]
+	if err := agent.cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-agent.done
+	starts := installGroupRestart(t, c)
+	err := c.RecoverAcceptedExits(context.Background(), Request{}, false)
+	if err == nil || !strings.Contains(err.Error(), "queue unavailable") {
+		t.Fatal(err)
+	}
+	if starts() != 0 || c.pendingGroup != "accepted" || len(c.children) != 3 || c.children[1] != agent {
+		t.Fatal("unreadable queue started a replacement or dropped the dead agent", starts(), c.pendingGroup, len(c.children))
+	}
+}
+
+func TestAlreadyGoneGroupDoesNotResetAnotherReapDeadline(t *testing.T) {
+	dir := t.TempDir()
+	c := &ProcessController{RunDir: dir, active: "accepted"}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	runtime := c.children[0]
+	agent := c.children[1]
+	member, memberDone := startTermIgnoringMember(t, agent.cmd.Process.Pid)
+	defer func() {
+		_ = member.Process.Kill()
+		<-memberDone
+	}()
+	if err := runtime.cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-runtime.done
+	if err := agent.cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-agent.done
+	starts := installGroupRestart(t, c)
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err == nil || !strings.Contains(err.Error(), "still exists") {
+		t.Fatal(err)
+	}
+	reap, ok := c.reaps[agent.cmd.Process.Pid]
+	if !ok || reap.term.IsZero() {
+		t.Fatal("agent group has no reap deadline", c.reaps)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err == nil || !strings.Contains(err.Error(), "still exists") {
+		t.Fatal(err)
+	}
+	if got := c.reaps[agent.cmd.Process.Pid].term; !got.Equal(reap.term) {
+		t.Fatal("probing the exited runtime group reset the agent reap deadline", reap.term, got)
+	}
+	if starts() != 0 {
+		t.Fatal("restarted before the agent group was killed")
+	}
+	time.Sleep(time.Until(reap.term.Add(StopTermGrace)) + 20*time.Millisecond)
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts() != 1 || c.children[1] == agent {
+		t.Fatal("group did not restart after the agent deadline", starts())
+	}
+	select {
+	case <-memberDone:
+	case <-time.After(time.Second):
+		t.Fatal("agent descendant survived the group kill")
+	}
+}
+
+func TestLiveGroupsKeepIndependentReapDeadlines(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted"}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	runtime := c.children[0]
+	agent := c.children[1]
+	runtimeMember, runtimeDone := startTermIgnoringMember(t, runtime.cmd.Process.Pid)
+	agentMember, agentDone := startTermIgnoringMember(t, agent.cmd.Process.Pid)
+	defer func() {
+		_ = runtimeMember.Process.Kill()
+		_ = agentMember.Process.Kill()
+		<-runtimeDone
+		<-agentDone
+	}()
+	for _, proc := range []*child{runtime, agent} {
+		if err := proc.cmd.Process.Signal(syscall.SIGKILL); err != nil {
+			t.Fatal(err)
+		}
+		<-proc.done
+	}
+	previous := groupRestartStart
+	t.Cleanup(func() { groupRestartStart = previous })
+	groupRestartStart = func(*ProcessController, context.Context, string, Request) error {
+		t.Fatal("replacement started while both groups were still alive")
+		return nil
+	}
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err == nil || !strings.Contains(err.Error(), "still exists") {
+		t.Fatal(err)
+	}
+	runtimeReap, ok := c.reaps[runtime.cmd.Process.Pid]
+	if !ok || runtimeReap.term.IsZero() {
+		t.Fatal("runtime group has no reap deadline", c.reaps)
+	}
+	if _, ok := c.reaps[agent.cmd.Process.Pid]; ok {
+		t.Fatal("agent reap started before the runtime group was cleared")
+	}
+	time.Sleep(50 * time.Millisecond)
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err == nil || !strings.Contains(err.Error(), "still exists") {
+		t.Fatal(err)
+	}
+	if got := c.reaps[runtime.cmd.Process.Pid].term; !got.Equal(runtimeReap.term) {
+		t.Fatal("second tick reset the runtime reap deadline", runtimeReap.term, got)
+	}
+}
+
+func TestUnreadyReplacementRestartsAfterReadinessBudget(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted", readyStable: time.Hour, readyBudget: time.Hour}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	agent := c.children[1]
+	if err := agent.cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-agent.done
+	var starts int
+	previousStart := groupRestartStart
+	previousProbe := groupReadyProbe
+	t.Cleanup(func() {
+		groupRestartStart = previousStart
+		groupReadyProbe = previousProbe
+	})
+	groupRestartStart = func(controller *ProcessController, _ context.Context, id string, request Request) error {
+		starts++
+		return replaceAcceptedGroup(controller, id, request)
+	}
+	groupReadyProbe = func(*ProcessController, context.Context, string) error {
+		return errors.New("launcher readiness does not identify selected process")
+	}
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || c.pendingGroup != "accepted" || len(c.children) != 3 || c.Active() != "accepted" {
+		t.Fatalf("unready group was accepted starts=%d pending=%s children=%d active=%s", starts, c.pendingGroup, len(c.children), c.Active())
+	}
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || len(c.children) != 3 {
+		t.Fatal("readiness budget restarted early", starts, len(c.children))
+	}
+	c.mu.Lock()
+	c.groupReadyBy = time.Now().Add(-time.Millisecond)
+	c.mu.Unlock()
+	err := c.RecoverAcceptedExits(context.Background(), Request{}, true)
+	if err == nil || !strings.Contains(err.Error(), "not ready") {
+		t.Fatal(err)
+	}
+	if starts != 1 || len(c.children) != 0 || c.pendingGroup != "accepted" || c.Active() != "" {
+		t.Fatalf("expired readiness left the group accepted starts=%d children=%d pending=%s active=%s", starts, len(c.children), c.pendingGroup, c.Active())
+	}
+	c.mu.Lock()
+	c.groupRestart = time.Now().Add(-c.groupDelay - time.Millisecond)
+	c.mu.Unlock()
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 2 || len(c.children) != 3 || c.pendingGroup != "accepted" {
+		t.Fatalf("backoff did not allow another attempt starts=%d children=%d pending=%s", starts, len(c.children), c.pendingGroup)
+	}
+}
+
+func TestReplacementAcceptedAfterUninterruptedReadiness(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted", readyStable: 30 * time.Millisecond, readyBudget: time.Minute}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	if err := c.children[0].cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-c.children[0].done
+	var starts int
+	var probes int
+	previousStart := groupRestartStart
+	previousProbe := groupReadyProbe
+	t.Cleanup(func() {
+		groupRestartStart = previousStart
+		groupReadyProbe = previousProbe
+	})
+	groupRestartStart = func(controller *ProcessController, _ context.Context, id string, request Request) error {
+		starts++
+		return replaceAcceptedGroup(controller, id, request)
+	}
+	groupReadyProbe = func(*ProcessController, context.Context, string) error {
+		probes++
+		if probes == 2 {
+			return errors.New("not ready")
+		}
+		return nil
+	}
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || c.pendingGroup != "accepted" || c.groupReadySince.IsZero() {
+		t.Fatal("first ready sample accepted the group or skipped the streak", starts, c.pendingGroup, c.groupReadySince)
+	}
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if c.pendingGroup != "accepted" || !c.groupReadySince.IsZero() {
+		t.Fatal("failed sample kept the readiness streak", c.pendingGroup, c.groupReadySince)
+	}
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if c.pendingGroup != "accepted" || c.groupReadySince.IsZero() {
+		t.Fatal("ready sample did not start a new streak", c.pendingGroup, c.groupReadySince)
+	}
+	time.Sleep(40 * time.Millisecond)
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || c.pendingGroup != "" || c.Active() != "accepted" || len(c.children) != 3 {
+		t.Fatalf("stable readiness did not accept the replacement starts=%d pending=%s active=%s children=%d", starts, c.pendingGroup, c.Active(), len(c.children))
+	}
+}
+
+func TestLaterActivationEndsGroupReadinessWait(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted", readyStable: time.Hour, readyBudget: time.Hour}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	if err := c.children[1].cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-c.children[1].done
+	var starts int
+	previousStart := groupRestartStart
+	previousProbe := groupReadyProbe
+	t.Cleanup(func() {
+		groupRestartStart = previousStart
+		groupReadyProbe = previousProbe
+	})
+	groupRestartStart = func(controller *ProcessController, _ context.Context, id string, request Request) error {
+		starts++
+		return replaceAcceptedGroup(controller, id, request)
+	}
+	groupReadyProbe = func(*ProcessController, context.Context, string) error {
+		return errors.New("not ready")
+	}
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || c.pendingGroup != "accepted" {
+		t.Fatal("replacement was not waiting for readiness", starts, c.pendingGroup)
+	}
+	if err := c.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	for _, role := range []string{roleRuntime, roleAgent, roleLauncher} {
+		if err := c.start("/bin/sleep", []string{"60"}, nil, role); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c.active = "accepted"
+	c.mu.Lock()
+	c.groupReadyBy = time.Now().Add(-time.Millisecond)
+	c.mu.Unlock()
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || c.pendingGroup != "" || len(c.children) != 3 || c.Active() != "accepted" {
+		t.Fatalf("readiness wait restarted a group activation had replaced starts=%d pending=%s children=%d active=%s", starts, c.pendingGroup, len(c.children), c.Active())
+	}
+}
+
+func startTermIgnoringMember(t *testing.T, pgid int) (*exec.Cmd, <-chan struct{}) {
+	t.Helper()
+	ready := filepath.Join(t.TempDir(), "ready")
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	member := exec.Command(binary, "-test.run=^TestTermIgnoringProcessFixture$")
+	member.Env = append(os.Environ(), "FES_TEST_IGNORE_TERM_READY="+ready)
+	member.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pgid: pgid}
+	if err := member.Start(); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		_ = member.Wait()
+		close(done)
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(ready); err == nil {
+			return member, done
+		}
+		select {
+		case <-done:
+			t.Fatal("signal fixture exited before it was ready")
+		default:
+		}
+		if time.Now().After(deadline) {
+			_ = member.Process.Kill()
+			<-done
+			t.Fatal("signal fixture did not initialize")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 func startSleepTrio(t *testing.T, c *ProcessController) *child {
 	t.Helper()
 	for _, role := range []string{roleRuntime, roleAgent} {
@@ -553,6 +919,7 @@ func startSleepTrio(t *testing.T, c *ProcessController) *child {
 
 func installGroupRestart(t *testing.T, c *ProcessController) func() int {
 	t.Helper()
+	acceptReplacementReadiness(t, c)
 	var starts int
 	previous := groupRestartStart
 	groupRestartStart = func(controller *ProcessController, _ context.Context, id string, request Request) error {
@@ -561,6 +928,14 @@ func installGroupRestart(t *testing.T, c *ProcessController) func() int {
 	}
 	t.Cleanup(func() { groupRestartStart = previous })
 	return func() int { return starts }
+}
+
+func acceptReplacementReadiness(t *testing.T, c *ProcessController) {
+	t.Helper()
+	c.readyStable = time.Nanosecond
+	previous := groupReadyProbe
+	groupReadyProbe = func(*ProcessController, context.Context, string) error { return nil }
+	t.Cleanup(func() { groupReadyProbe = previous })
 }
 
 func replaceAcceptedGroup(c *ProcessController, id string, request Request) error {

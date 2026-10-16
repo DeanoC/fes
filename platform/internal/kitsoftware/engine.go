@@ -125,7 +125,8 @@ func (e *Engine) switchPrepared(ctx context.Context, id string, request Request)
 	// native initialization and an exit observed by health share this deadline.
 	// An exit after health returns is left for the supervisor tick. That tick
 	// restarts a dead launcher without stopping the runtime or agent, and
-	// restarts the whole group when the runtime or agent exits. Every other
+	// restarts the whole group when the runtime or agent exits. The replacement
+	// stays in recovery until this same readiness check holds. Every other
 	// Start error ends the attempt unchanged.
 	var last error
 	for e.Now().Before(deadline) {

@@ -340,7 +340,13 @@ func supervise(ctx context.Context, output io.Writer) error {
 				server.Mu.Unlock()
 				continue
 			}
-			if err := controller.RecoverAcceptedExits(ctx); err != nil {
+			pending := kitsoftware.Request{}
+			queueKnown := true
+			if repo != nil {
+				state, readErr := repo.Read()
+				pending, queueKnown = kitsoftware.GroupRestartRequest(state, readErr)
+			}
+			if err := controller.RecoverAcceptedExits(ctx, pending, queueKnown); err != nil {
 				log.Printf("service restart: %v", err)
 			}
 			if repo == nil && startupErr == nil && trialHold == nil {
