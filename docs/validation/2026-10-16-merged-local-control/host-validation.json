@@ -1,0 +1,28 @@
+{
+  "source_commit": "521ca23e45e09371597cbd0da74c50703f3b3bba",
+  "check": "python3 scripts/consistency.py\nconsistency: package YAML valid; 18 generated consumers, 37 fixture copies and 0 copied source pins match",
+  "race_suites": {
+    "localcores": "passed 30.030s",
+    "rooms": "passed 3.200s",
+    "kitlauncher": "passed 87.203s",
+    "tenfoot_repeat": "passed 52.468s",
+    "appliance_store": "passed 2.092s"
+  },
+  "initial_failure": {
+    "package": "ui/tenfoot",
+    "test": "TestAppHidesAttractWhenVideoOnlyFailsWithoutStill",
+    "assertion": "failed video-only playlist activated attract",
+    "duration_seconds": 49.339
+  },
+  "follow_up": {
+    "isolated_race_repetitions": 10,
+    "result": "passed 5.151s",
+    "full_tenfoot_race_repeat": "passed 52.468s",
+    "attract_implementation_and_test_unchanged_from": "4a9e4ad500bc1be6c963e195f7f32030845d660b",
+    "production_or_test_edits": false
+  },
+  "limits": [
+    "No claim of an independently diagnosed attract failure cause",
+    "No appliance-image rebuild; compatible base contract unchanged"
+  ]
+}
