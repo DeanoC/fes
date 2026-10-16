@@ -1,0 +1,19 @@
+{
+  "ready": true,
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "boot_id": "14c05a47-1615-43f0-a084-a1dc8948c119",
+  "lease_state": "free",
+  "native_state": "idle",
+  "software": {
+    "active_bundle": "0b6b7d8138f2147bc5f3a7b18a3117209365994550aa530b52d2bef819b5602f",
+    "base_identity": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+    "selected": "0b6b7d8138f2147bc5f3a7b18a3117209365994550aa530b52d2bef819b5602f",
+    "generation": 15,
+    "pending": null,
+    "unreleased": null,
+    "service_fault": null,
+    "storage_error": null
+  },
+  "final_menu_sha256": "a885cda9d39f2853fe1d7945d4dae99b4547782bcea620e19586f2985f9c502f",
+  "ssh_chip_reverified_after_cleanup": true
+}
