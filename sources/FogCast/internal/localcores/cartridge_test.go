@@ -99,7 +99,7 @@ func TestLaunchCartridgeDeliversROMWithoutLoadingTheBareCore(t *testing.T) {
 	if err := os.Symlink(romPath, link); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.Stop(t.Context()); err != nil {
+	if err := service.Stop(t.Context(), service.RunStatus().Generation); err != nil {
 		t.Fatal(err)
 	}
 	linkBody := []byte(`{"rom_path":"` + link + `"}`)

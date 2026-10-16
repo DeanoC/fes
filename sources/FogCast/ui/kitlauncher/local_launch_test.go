@@ -17,17 +17,22 @@ type fakeLocalCore struct {
 	launchID, launchPath string
 	launchErr            error
 	stops                int
+	stopGeneration       string
 }
 
 func (f *fakeLocalCore) List(context.Context) ([]localcores.Core, error) { return f.cores, nil }
-func (f *fakeLocalCore) LaunchROM(_ context.Context, id, path string) error {
+func (f *fakeLocalCore) LaunchROM(_ context.Context, id, path string) (localcores.LaunchResult, error) {
 	f.launchID, f.launchPath = id, path
-	return f.launchErr
+	return localcores.LaunchResult{Generation: strings.Repeat("b", 64)}, f.launchErr
 }
 func (f *fakeLocalCore) Status(context.Context) (localcores.RunStatus, error) {
 	return localcores.RunStatus{Phase: "running", Running: true}, nil
 }
-func (f *fakeLocalCore) Stop(context.Context) error { f.stops++; return nil }
+func (f *fakeLocalCore) Stop(_ context.Context, generation string) error {
+	f.stops++
+	f.stopGeneration = generation
+	return nil
+}
 
 func smsRow() hostclient.Game {
 	return hostclient.Game{ID: "data", Title: "Data Storm", System: "sms", State: "available", RootOnline: true}
@@ -68,13 +73,13 @@ func TestHostlessLocalSMSPaths(t *testing.T) {
 	}
 	f := &fakeLocalCore{cores: []localcores.Core{{CoreID: "fes.sms", PackageID: strings.Repeat("a", 64)}}}
 	resolve := func(context.Context, string) (string, error) { return "/media/fat/games/sms/datastorm.sms", nil }
-	if err := dispatchLocalAction(context.Background(), f, resolve, []hostclient.Game{row}, "local-launch", row.ID); err != nil {
+	if err := dispatchLocalAction(context.Background(), f, resolve, []hostclient.Game{row}, "local-launch", row.ID, ""); err != nil {
 		t.Fatal(err)
 	}
 	if f.launchID != strings.Repeat("a", 64) || f.launchPath != "/media/fat/games/sms/datastorm.sms" {
 		t.Fatalf("launch %q %q", f.launchID, f.launchPath)
 	}
-	if err := dispatchLocalAction(context.Background(), f, resolve, nil, "stop", row.ID); err != nil || f.stops != 1 {
+	if err := dispatchLocalAction(context.Background(), f, resolve, nil, "stop", row.ID, strings.Repeat("b", 64)); err != nil || f.stops != 1 || f.stopGeneration != strings.Repeat("b", 64) {
 		t.Fatalf("stop %d %v", f.stops, err)
 	}
 }
@@ -108,5 +113,20 @@ func TestLocalLaunchFailuresAndHostRoute(t *testing.T) {
 	host := Model{Games: []hostclient.Game{{ID: "pong", State: "available", RootOnline: true, Launchable: true}}, Connected: true, TargetReady: true, LocalPlayEnabled: true}
 	if action := host.Input(pressA(), time.Now()); action != "launch" {
 		t.Fatal(action)
+	}
+}
+
+func TestLaunchRecorderRetainsReplyGeneration(t *testing.T) {
+	core := &fakeLocalCore{}
+	recorder := &launchRecorder{LocalCoreClient: core}
+	result, err := recorder.LaunchROM(context.Background(), strings.Repeat("a", 64), "/games/test.sms")
+	if err != nil || result.Generation != strings.Repeat("b", 64) || recorder.result.Generation != result.Generation {
+		t.Fatalf("result=%+v recorded=%+v err=%v", result, recorder.result, err)
+	}
+	core.launchErr = localcores.ErrUnavailable
+	recorder = &launchRecorder{LocalCoreClient: core}
+	_, err = recorder.LaunchROM(context.Background(), strings.Repeat("a", 64), "/games/test.sms")
+	if err == nil || recorder.result.Generation != "" {
+		t.Fatalf("failed launch retained identity: %+v err=%v", recorder.result, err)
 	}
 }

@@ -49,13 +49,22 @@ func Handler(service *Service) http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, struct {
-			OK        bool   `json:"ok"`
-			PackageID string `json:"package_id"`
-			CoreID    string `json:"core_id"`
-		}{true, core.PackageID, core.CoreID})
+			OK         bool   `json:"ok"`
+			PackageID  string `json:"package_id"`
+			CoreID     string `json:"core_id"`
+			Generation string `json:"generation"`
+		}{true, core.PackageID, core.CoreID, core.Generation})
 	})
 	mux.HandleFunc("POST /v1/local/stop", func(w http.ResponseWriter, r *http.Request) {
-		if err := service.Stop(r.Context()); err != nil {
+		var body struct {
+			ExpectedGeneration string `json:"expected_generation"`
+		}
+		data, readErr := io.ReadAll(io.LimitReader(r.Body, 4097))
+		if readErr != nil || len(data) > 4096 || json.Unmarshal(data, &body) != nil || !sha256Hex(body.ExpectedGeneration) {
+			writeLocalError(w, http.StatusConflict, "in_use")
+			return
+		}
+		if err := service.Stop(r.Context(), body.ExpectedGeneration); err != nil {
 			writeServiceError(w, err)
 			return
 		}
@@ -69,10 +78,10 @@ func Handler(service *Service) http.Handler {
 // launchFromRequest keeps an empty body on the package launch. A JSON
 // rom_path reads that local file and launches the cartridge. It does not
 // open a network connection.
-func launchFromRequest(service *Service, r *http.Request) (Core, error) {
+func launchFromRequest(service *Service, r *http.Request) (LaunchResult, error) {
 	data, err := io.ReadAll(io.LimitReader(r.Body, 4096))
 	if err != nil {
-		return Core{}, errUnavailable
+		return LaunchResult{}, errUnavailable
 	}
 	if len(bytes.TrimSpace(data)) == 0 {
 		return service.Launch(r.Context(), r.PathValue("package_id"))
@@ -81,14 +90,14 @@ func launchFromRequest(service *Service, r *http.Request) (Core, error) {
 		ROMPath string `json:"rom_path"`
 	}
 	if json.Unmarshal(data, &body) != nil {
-		return Core{}, errUnavailable
+		return LaunchResult{}, errUnavailable
 	}
 	if strings.TrimSpace(body.ROMPath) == "" {
 		return service.Launch(r.Context(), r.PathValue("package_id"))
 	}
 	rom, err := readCartridgeFile(body.ROMPath)
 	if err != nil {
-		return Core{}, err
+		return LaunchResult{}, err
 	}
 	return service.LaunchCartridge(r.Context(), r.PathValue("package_id"), rom)
 }

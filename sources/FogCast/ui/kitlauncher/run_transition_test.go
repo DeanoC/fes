@@ -77,7 +77,7 @@ type transitionCore struct {
 func (*transitionCore) List(context.Context) ([]localcores.Core, error) {
 	return []localcores.Core{{CoreID: "fes.sms", PackageID: strings.Repeat("a", 64)}}, nil
 }
-func (f *transitionCore) LaunchROM(context.Context, string, string) error {
+func (f *transitionCore) LaunchROM(context.Context, string, string) (localcores.LaunchResult, error) {
 	f.mu.Lock()
 	f.launches++
 	err := f.launchErr
@@ -89,15 +89,19 @@ func (f *transitionCore) LaunchROM(context.Context, string, string) error {
 	if gate != nil {
 		<-gate
 	}
-	return err
+	return localcores.LaunchResult{Generation: strings.Repeat("b", 64)}, err
 }
 func (f *transitionCore) Status(context.Context) (localcores.RunStatus, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.reads++
-	return f.status, nil
+	status := f.status
+	if status.Phase != "idle" && status.Generation == "" {
+		status.Generation = strings.Repeat("b", 64)
+	}
+	return status, nil
 }
-func (f *transitionCore) Stop(context.Context) error {
+func (f *transitionCore) Stop(context.Context, string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stops++
@@ -143,6 +147,7 @@ func TestRunLocalStateTransitions(t *testing.T) {
 		name, phase                         string
 		timeout, lateIdle, stop, launchFail bool
 		pauseRetry, retryLaunch             bool
+		replacement                         bool
 	}{
 		{name: "running", phase: "running"}, {name: "failure", phase: "error"},
 		{name: "timeout_then_running", phase: "running", timeout: true},
@@ -150,6 +155,7 @@ func TestRunLocalStateTransitions(t *testing.T) {
 		{name: "timeout_blocks_second_launch", phase: "running", timeout: true, retryLaunch: true},
 		{name: "timeout_then_idle", phase: "idle", timeout: true, lateIdle: true},
 		{name: "deferred_stop", phase: "running", stop: true},
+		{name: "replacement_cannot_inherit_stop", phase: "running", stop: true, replacement: true},
 		{name: "deferred_stop_launch_failure", phase: "idle", stop: true, launchFail: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -239,6 +245,14 @@ func TestRunLocalStateTransitions(t *testing.T) {
 				if tc.phase == "running" && !tc.stop && !tc.timeout && m.Session.State == "active" {
 					cancel()
 				}
+				if tc.replacement && launches > 0 {
+					f.mu.Lock()
+					f.status = localcores.RunStatus{Phase: "running", Running: true, Generation: strings.Repeat("c", 64)}
+					f.mu.Unlock()
+					if strings.Contains(m.Message, "local run changed") {
+						cancel()
+					}
+				}
 				if tc.stop && stops > 0 && m.Session.State == "idle" {
 					cancel()
 				}
@@ -273,6 +287,10 @@ func TestRunLocalStateTransitions(t *testing.T) {
 			case "timeout_then_idle":
 				if !sawTimeout || last.Session.State != "idle" || !last.LoadStarted.IsZero() || !strings.Contains(last.Message, "took too long") || resumes != 1 {
 					t.Fatalf("late idle model=%+v resumes=%d", last, resumes)
+				}
+			case "replacement_cannot_inherit_stop":
+				if stops != 0 || !strings.Contains(last.Message, "local run changed") {
+					t.Fatalf("replacement inherited stop: stops=%d model=%+v", stops, last)
 				}
 			case "deferred_stop":
 				if !pad.chordSent || stops != 1 {

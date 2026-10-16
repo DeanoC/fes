@@ -18,8 +18,8 @@ const localCoresWarmRetry = 200 * time.Millisecond
 // A host session leaves it nil. Status is GET /v1/local/status.
 type LocalCores interface {
 	List(ctx context.Context) ([]localcores.Core, error)
-	Launch(ctx context.Context, packageID string) error
-	Stop(ctx context.Context) error
+	Launch(ctx context.Context, packageID string) (localcores.LaunchResult, error)
+	Stop(ctx context.Context, expectedGeneration string) error
 	Status(ctx context.Context) (localcores.RunStatus, error)
 }
 
@@ -100,7 +100,7 @@ func (r *Instance) ActivateDestination(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	err := r.opts.Local.Launch(ctx, r.dest.PackageID)
+	_, err := r.opts.Local.Launch(ctx, r.dest.PackageID)
 	if err != nil {
 		r.dest.Availability = AvailUnavailable
 		r.dest.Status = err.Error()

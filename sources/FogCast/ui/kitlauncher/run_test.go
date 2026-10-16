@@ -806,11 +806,13 @@ func attractTestHandler(handle string) http.HandlerFunc {
 type idleLocalCore struct{}
 
 func (idleLocalCore) List(context.Context) ([]localcores.Core, error) { return nil, nil }
-func (idleLocalCore) LaunchROM(context.Context, string, string) error { return nil }
+func (idleLocalCore) LaunchROM(context.Context, string, string) (localcores.LaunchResult, error) {
+	return localcores.LaunchResult{}, nil
+}
 func (idleLocalCore) Status(context.Context) (localcores.RunStatus, error) {
 	return localcores.RunStatus{Phase: "idle"}, nil
 }
-func (idleLocalCore) Stop(context.Context) error { return nil }
+func (idleLocalCore) Stop(context.Context, string) error { return nil }
 
 func attractItemNamed(m Model, title string) bool {
 	for _, item := range m.attractItems {

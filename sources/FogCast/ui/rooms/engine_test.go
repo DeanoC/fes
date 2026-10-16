@@ -1010,14 +1010,14 @@ func (f *fakeLocalCores) List(context.Context) ([]localcores.Core, error) {
 	return append([]localcores.Core(nil), f.cores...), nil
 }
 
-func (f *fakeLocalCores) Launch(_ context.Context, packageID string) error {
+func (f *fakeLocalCores) Launch(_ context.Context, packageID string) (localcores.LaunchResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.launched = append(f.launched, packageID)
-	return f.launchErr
+	return localcores.LaunchResult{Generation: strings.Repeat("a", 64)}, f.launchErr
 }
 
-func (f *fakeLocalCores) Stop(context.Context) error { return nil }
+func (f *fakeLocalCores) Stop(context.Context, string) error { return nil }
 
 func (f *fakeLocalCores) Status(context.Context) (localcores.RunStatus, error) {
 	return localcores.RunStatus{}, nil
@@ -1110,9 +1110,11 @@ func (f *warmThenCores) List(context.Context) ([]localcores.Core, error) {
 	return append([]localcores.Core(nil), f.cores...), nil
 }
 
-func (f *warmThenCores) Launch(context.Context, string) error { return nil }
+func (f *warmThenCores) Launch(context.Context, string) (localcores.LaunchResult, error) {
+	return localcores.LaunchResult{Generation: strings.Repeat("a", 64)}, nil
+}
 
-func (f *warmThenCores) Stop(context.Context) error { return nil }
+func (f *warmThenCores) Stop(context.Context, string) error { return nil }
 
 func (f *warmThenCores) Status(context.Context) (localcores.RunStatus, error) {
 	return localcores.RunStatus{}, nil

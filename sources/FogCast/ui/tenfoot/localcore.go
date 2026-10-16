@@ -174,6 +174,8 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 	a.localGen++
 	gen := a.localGen
 	a.localPhase = localPhaseLaunching
+	a.localLeaseGeneration = ""
+	a.localPackageID = ""
 	a.localTitle = title
 	a.localStartedAt = time.Now()
 	a.localStatus = "Starting " + title + "…"
@@ -193,10 +195,11 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 	launch := func() {
 		go func() {
 			var err error
+			var result localcores.LaunchResult
 			if client == nil {
 				err = rooms.ErrNoLocalCores
 			} else {
-				err = client.Launch(context.Background(), packageID)
+				result, err = client.Launch(context.Background(), packageID)
 			}
 			a.mu.Lock()
 			defer a.mu.Unlock()
@@ -211,6 +214,12 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 				}
 				return
 			}
+			if !validLocalGeneration(result.Generation) {
+				a.reconcileLocalLaunchErrorLocked(localcores.ErrUnavailable, "")
+				return
+			}
+			a.localLeaseGeneration = result.Generation
+			a.localPackageID = result.PackageID
 			a.localPhase = localPhaseRunning
 			a.localStartedAt = time.Time{}
 			if a.status == a.localStatus {
@@ -235,12 +244,12 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 // localTitleLauncher is an optional test double. The production client
 // resolves the cartridge and calls LaunchROM instead.
 type localTitleLauncher interface {
-	LaunchTitle(context.Context, hostclient.Game) error
+	LaunchTitle(context.Context, hostclient.Game) (localcores.LaunchResult, error)
 }
 
 type localROMLauncher interface {
 	List(context.Context) ([]localcores.Core, error)
-	LaunchROM(context.Context, string, string) error
+	LaunchROM(context.Context, string, string) (localcores.LaunchResult, error)
 }
 
 // startLocalTitleLocked plays one catalog row through the local socket.
@@ -264,6 +273,8 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 	a.localGen++
 	gen := a.localGen
 	a.localPhase = localPhaseLaunching
+	a.localLeaseGeneration = ""
+	a.localPackageID = ""
 	a.localTitle = title
 	a.localStartedAt = time.Now()
 	a.localStatus = "Starting " + title + "…"
@@ -277,7 +288,7 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 	resolve := a.localContent
 	launch := func() {
 		go func() {
-			err := launchLocalTitle(context.Background(), client, resolve, game)
+			result, err := launchLocalTitle(context.Background(), client, resolve, game)
 			a.mu.Lock()
 			defer a.mu.Unlock()
 			if a.localGen != gen {
@@ -291,6 +302,12 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 				}
 				return
 			}
+			if !validLocalGeneration(result.Generation) {
+				a.reconcileLocalLaunchErrorLocked(localcores.ErrUnavailable, "")
+				return
+			}
+			a.localLeaseGeneration = result.Generation
+			a.localPackageID = result.PackageID
 			a.localPhase = localPhaseRunning
 			a.localStartedAt = time.Time{}
 			if a.status == a.localStatus {
@@ -337,7 +354,8 @@ func (a *App) completeLocalLaunchHandoff(err error) {
 
 func (a *App) reconcileLocalLaunchErrorLocked(err error, block string) {
 	// Even a rejected response can follow a completed runtime mutation.
-	// Retain ownership until status says running or idle.
+	// Keep launch admission fenced until status confirms idle; a running
+	// response cannot establish ownership of the failed request.
 	a.localReconcileAfterFailure = true
 	a.localReconcileDeadline = time.Now().Add(localReconcileTimeout)
 	a.localStatus = localCoreFailureCopy(err, block)
@@ -345,28 +363,28 @@ func (a *App) reconcileLocalLaunchErrorLocked(err error, block string) {
 	a.localStatusNext = time.Time{}
 }
 
-func launchLocalTitle(ctx context.Context, client rooms.LocalCores, resolve func(context.Context, string) (string, error), game hostclient.Game) error {
+func launchLocalTitle(ctx context.Context, client rooms.LocalCores, resolve func(context.Context, string) (string, error), game hostclient.Game) (localcores.LaunchResult, error) {
 	if titled, ok := client.(localTitleLauncher); ok {
 		return titled.LaunchTitle(ctx, game)
 	}
 	if client == nil || resolve == nil {
-		return localcores.ErrUnavailable
+		return localcores.LaunchResult{}, localcores.ErrUnavailable
 	}
 	romPath, err := resolve(ctx, game.ID)
 	if err != nil || strings.TrimSpace(romPath) == "" {
-		return localcores.ErrUnavailable
+		return localcores.LaunchResult{}, localcores.ErrUnavailable
 	}
 	rommer, ok := client.(localROMLauncher)
 	if !ok {
-		return localcores.ErrUnavailable
+		return localcores.LaunchResult{}, localcores.ErrUnavailable
 	}
 	want := localCartridgeCore(game.System)
 	if want == "" {
-		return localcores.ErrUnavailable
+		return localcores.LaunchResult{}, localcores.ErrUnavailable
 	}
 	cores, err := rommer.List(ctx)
 	if err != nil {
-		return err
+		return localcores.LaunchResult{}, err
 	}
 	var packageID string
 	for _, core := range cores {
@@ -376,7 +394,7 @@ func launchLocalTitle(ctx context.Context, client rooms.LocalCores, resolve func
 		}
 	}
 	if packageID == "" {
-		return localcores.ErrUnavailable
+		return localcores.LaunchResult{}, localcores.ErrUnavailable
 	}
 	return rommer.LaunchROM(ctx, packageID, romPath)
 }
@@ -422,7 +440,7 @@ func localCoreFailureCopy(err error, block string) string {
 }
 
 func (a *App) beginLocalStopLocked() {
-	if a.localPhase != localPhaseRunning {
+	if a.localPhase != localPhaseRunning || !validLocalGeneration(a.localLeaseGeneration) {
 		return
 	}
 	a.localStatusEpoch++
@@ -435,6 +453,7 @@ func (a *App) beginLocalStopLocked() {
 	a.status = a.localStatus
 	a.localPresentsPaused = true
 	gen := a.localGen
+	leaseGeneration := a.localLeaseGeneration
 	client := a.localCores
 	go func() {
 		var err error
@@ -442,12 +461,12 @@ func (a *App) beginLocalStopLocked() {
 			err = rooms.ErrNoLocalCores
 		} else {
 			ctx, cancel := context.WithTimeout(context.Background(), localStopBudget)
-			err = client.Stop(ctx)
+			err = client.Stop(ctx, leaseGeneration)
 			cancel()
 		}
 		a.mu.Lock()
 		defer a.mu.Unlock()
-		if a.localGen != gen || a.localPhase != localPhaseStopping {
+		if a.localGen != gen || a.localLeaseGeneration != leaseGeneration || a.localPhase != localPhaseStopping {
 			return
 		}
 		// Unavailable can mean the core is still up, or that stop's response
@@ -469,7 +488,13 @@ func (a *App) beginLocalStopLocked() {
 	}()
 }
 
+func validLocalGeneration(id string) bool {
+	return len(id) == 64 && strings.Trim(id, "0123456789abcdef") == ""
+}
+
 func (a *App) finishLocalCoreLocked() {
+	a.localLeaseGeneration = ""
+	a.localPackageID = ""
 	a.localLaunchPending = nil
 	a.localReconcileAfterFailure = false
 	a.localReconcileDeadline = time.Time{}
@@ -539,28 +564,16 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 		if err != nil || a.localGen != gen || a.localStatusEpoch != epoch || (a.localPhase != localPhaseRunning && !(a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == ""))) {
 			return
 		}
-		if status.Phase == "running" && a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == "") {
-			wasReturnedToMenu := a.localPhase == ""
-			a.localReconcileAfterFailure = false
-			a.localPhase = localPhaseRunning
-			if wasReturnedToMenu {
-				a.localPresentsPaused = true
-				a.localLateAdopt = true
-			}
-			a.localReconcileDeadline = time.Time{}
-			a.localStartedAt = time.Time{}
-			if a.status == a.localStatus {
-				a.status = ""
-			}
-			a.localStatus = ""
-			if a.localSelectDown && a.localStartDown {
-				a.localChordSince = time.Now()
-			}
-			if a.localStopAfterStart {
-				a.localStopAfterStart = false
-				a.localChordFired = true
-				a.beginLocalStopLocked()
-			}
+		// An unavailable launch has no grant identity. A later running status
+		// may belong to another local launch, even for the same package.
+		if status.Phase == "running" && a.localPhase == localPhaseRunning &&
+			(status.Generation != a.localLeaseGeneration || status.PackageID != a.localPackageID) {
+			a.localLeaseGeneration = ""
+			a.localStopAfterStart = false
+			a.localChordSince = time.Time{}
+			a.localChordFired = false
+			a.localPhase = localPhaseLaunching
+			a.reconcileLocalLaunchErrorLocked(localcores.ErrInUse, "")
 			return
 		}
 		if status.Phase == "idle" {

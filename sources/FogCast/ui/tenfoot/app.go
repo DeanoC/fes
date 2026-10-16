@@ -551,6 +551,8 @@ type App struct {
 	localStartedAt             time.Time
 	localStatus                string
 	localGen                   uint64
+	localLeaseGeneration       string
+	localPackageID             string
 	localPresentsPaused        bool
 	localLateAdopt             bool
 	localRedraw                uint64
