@@ -8,6 +8,11 @@ import re
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 INTERFACES = {"runtime-protocol": "2", "maintenance": "fes-kit-maintenance-v1",
               "software-admission": "fes-kit-software-v1"}
+# Same ceiling the host already verified: targetclient.maxKitSoftwareResponse
+# and the agent proxy maxSoftwareControlResponse. Each installed manifest may
+# approach software.MaxManifestSize (1 MiB), and the kit returns every retained
+# release, so this list is larger than an ordinary health or session body.
+INVENTORY_RESPONSE_LIMIT = 32 << 20
 
 
 def observe_health(value, target_id, bundle_id, base_id, *, require_ready=True):
