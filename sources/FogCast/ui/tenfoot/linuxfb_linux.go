@@ -901,7 +901,7 @@ func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 		}
 	}
 	feed := app.localFeed
-	forward := (app.localPhase == localPhaseRunning || app.session.State == "active") && !app.playHIDFailClosedLocked()
+	forward := (app.localPhase == localPhaseRunning || app.localUnownedRun || app.session.State == "active") && !app.playHIDFailClosedLocked()
 	if forward {
 		app.queuePlayHIDLocked(keyEvents)
 	}

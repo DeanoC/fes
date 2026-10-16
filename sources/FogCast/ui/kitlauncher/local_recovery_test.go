@@ -36,7 +36,7 @@ type recoveryCore struct {
 func (f *recoveryCore) List(context.Context) ([]localcores.Core, error) {
 	return []localcores.Core{{CoreID: "fes.sms", PackageID: strings.Repeat("a", 64)}}, nil
 }
-func (f *recoveryCore) LaunchROM(context.Context, string, string) error {
+func (f *recoveryCore) LaunchROM(context.Context, string, string) (localcores.LaunchResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.launches++
@@ -45,7 +45,7 @@ func (f *recoveryCore) LaunchROM(context.Context, string, string) error {
 	} else {
 		f.status = localcores.RunStatus{Phase: "running", Running: true}
 	}
-	return f.launchErr
+	return localcores.LaunchResult{Generation: strings.Repeat("b", 64)}, f.launchErr
 }
 func (f *recoveryCore) Status(context.Context) (localcores.RunStatus, error) {
 	f.mu.Lock()
@@ -55,9 +55,13 @@ func (f *recoveryCore) Status(context.Context) (localcores.RunStatus, error) {
 		f.status = f.statuses[0]
 		f.statuses = f.statuses[1:]
 	}
-	return f.status, f.statusErr
+	status := f.status
+	if status.Phase != "idle" {
+		status.Generation = strings.Repeat("b", 64)
+	}
+	return status, f.statusErr
 }
-func (f *recoveryCore) Stop(context.Context) error {
+func (f *recoveryCore) Stop(context.Context, string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stops++
@@ -302,7 +306,7 @@ func TestRunLaunchingReturnsToMenuOnlyAtIdle(t *testing.T) {
 	}
 }
 
-func TestRunAdoptsFailedLocalLaunchAfterStatus(t *testing.T) {
+func TestRunLostLaunchReplyCannotAdoptReplacement(t *testing.T) {
 	probe, err := net.Listen("unix", filepath.Join(t.TempDir(), "probe.sock"))
 	if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EINVAL) {
 		t.Skip("sandbox denies local catalog socket binding")
@@ -315,7 +319,7 @@ func TestRunAdoptsFailedLocalLaunchAfterStatus(t *testing.T) {
 		status:       localcores.RunStatus{Phase: "idle"},
 		statuses:     []localcores.RunStatus{{Phase: "idle"}, {Phase: "launching"}, {Phase: "running", Running: true}},
 		launchStatus: localcores.RunStatus{Phase: "launching"},
-		launchErr:    errors.New("response lost"),
+		launchErr:    localcores.ErrUnavailable,
 	}
 	client, hostStops := recoveryTestClient(t, f)
 	dir := t.TempDir()
@@ -342,7 +346,7 @@ func TestRunAdoptsFailedLocalLaunchAfterStatus(t *testing.T) {
 	var pauses atomic.Int64
 	var resumed atomic.Bool
 	client.SetMenuDisplayHandoff(func(context.Context) error { pauses.Add(1); return nil }, func() { resumed.Store(true) })
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	if err := Run(ctx, client, func(m Model) {
 		if len(m.Games) > 0 {
@@ -356,7 +360,7 @@ func TestRunAdoptsFailedLocalLaunchAfterStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 	launches, stops := f.counts()
-	if launches != 1 || stops != 1 || pauses.Load() == 0 || hostStops.Load() != 0 {
+	if launches != 1 || stops != 0 || pauses.Load() == 0 || hostStops.Load() != 0 {
 		t.Fatalf("launches=%d local stops=%d pauses=%d host stops=%d", launches, stops, pauses.Load(), hostStops.Load())
 	}
 }

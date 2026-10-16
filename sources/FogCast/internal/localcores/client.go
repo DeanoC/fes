@@ -105,21 +105,15 @@ func (c *Client) List(ctx context.Context) ([]Core, error) {
 	return cores, nil
 }
 
-// Launch posts one package id. Anything that is not a lowercase SHA-256
-// hex id is not_found and is not sent. The POST waits about 65s. If that
-// deadline fires and the caller did not cancel, Launch polls
-// GET /v1/local/status and returns nil when that package is already
-// running. It does not post launch a second time. A completed in_use,
-// blocked, not_found, unavailable, or warming response is returned as-is.
-// Warming means the catalog caches are still filling. It arrives without
-// waiting out the POST deadline, the same way List reports it, and the
-// caller retries. It is not a lost response and it is not an unavailable agent.
-func (c *Client) Launch(ctx context.Context, packageID string) error {
+// Launch returns the exact claim generation acknowledged by this launch.
+// A lost reply is unavailable: observing the same package cannot distinguish
+// this launch from a replacement session. No second launch is posted.
+func (c *Client) Launch(ctx context.Context, packageID string) (LaunchResult, error) {
 	if !sha256Hex(packageID) {
-		return ErrNotFound
+		return LaunchResult{}, ErrNotFound
 	}
 	if c == nil || c.http == nil || c.path == "" {
-		return ErrUnavailable
+		return LaunchResult{}, ErrUnavailable
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -129,27 +123,35 @@ func (c *Client) Launch(ctx context.Context, packageID string) error {
 		post = launchPostTimeout
 	}
 	postCtx, cancel := context.WithTimeout(ctx, post)
-	err := c.doRequest(postCtx, http.MethodPost, "/v1/local/cores/"+packageID+"/launch", nil, nil)
+	var result LaunchResult
+	err := c.doRequest(postCtx, http.MethodPost, "/v1/local/cores/"+packageID+"/launch", nil, &result)
 	cancel()
-	if err == nil || !timedOut(err) || ctx.Err() != nil {
-		return err
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInUse), errors.Is(err, ErrBlocked), errors.Is(err, ErrNotFound), errors.Is(err, ErrWarming):
+			return LaunchResult{}, err
+		}
+		return LaunchResult{}, ErrUnavailable
 	}
-	return c.reconcileRunning(ctx, packageID)
+	if !sha256Hex(result.Generation) || result.PackageID != packageID || result.CoreID == "" {
+		return LaunchResult{}, ErrUnavailable
+	}
+	return result, nil
 }
 
 // LaunchROM posts the same launch route with a local cartridge path.
 // The agent reads the file. An empty or relative path is not sent.
 // This does not call the host session.
-func (c *Client) LaunchROM(ctx context.Context, packageID, romPath string) error {
+func (c *Client) LaunchROM(ctx context.Context, packageID, romPath string) (LaunchResult, error) {
 	if !sha256Hex(packageID) {
-		return ErrNotFound
+		return LaunchResult{}, ErrNotFound
 	}
 	romPath = strings.TrimSpace(romPath)
 	if romPath == "" || !filepath.IsAbs(romPath) || strings.ContainsAny(romPath, "\r\n") {
-		return ErrUnavailable
+		return LaunchResult{}, ErrUnavailable
 	}
 	if c == nil || c.http == nil || c.path == "" {
-		return ErrUnavailable
+		return LaunchResult{}, ErrUnavailable
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -158,19 +160,27 @@ func (c *Client) LaunchROM(ctx context.Context, packageID, romPath string) error
 		ROMPath string `json:"rom_path"`
 	}{ROMPath: romPath})
 	if err != nil {
-		return ErrUnavailable
+		return LaunchResult{}, ErrUnavailable
 	}
 	post := c.launchPost
 	if post <= 0 {
 		post = launchPostTimeout
 	}
 	postCtx, cancel := context.WithTimeout(ctx, post)
-	err = c.doRequest(postCtx, http.MethodPost, "/v1/local/cores/"+packageID+"/launch", body, nil)
+	var result LaunchResult
+	err = c.doRequest(postCtx, http.MethodPost, "/v1/local/cores/"+packageID+"/launch", body, &result)
 	cancel()
-	if err == nil || !timedOut(err) || ctx.Err() != nil {
-		return err
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInUse), errors.Is(err, ErrBlocked), errors.Is(err, ErrNotFound), errors.Is(err, ErrWarming):
+			return LaunchResult{}, err
+		}
+		return LaunchResult{}, ErrUnavailable
 	}
-	return c.reconcileRunning(ctx, packageID)
+	if !sha256Hex(result.Generation) || result.PackageID != packageID || result.CoreID == "" {
+		return LaunchResult{}, ErrUnavailable
+	}
+	return result, nil
 }
 
 // Status reads the agent's launch phase. Running is true only after load
@@ -183,14 +193,17 @@ func (c *Client) Status(ctx context.Context) (RunStatus, error) {
 	return status, nil
 }
 
-// Stop asks the agent to return the kit to the menu when this process
-// holds the kit-local lease. The POST waits for the runtime stop and for
+// Stop returns only the caller-specified claim generation to the menu.
+// Missing or malformed generations are rejected without contacting the agent. The POST waits for the runtime stop and for
 // lease revocation to settle. If that deadline fires and the caller did
 // not cancel, Stop polls GET /v1/local/status. Idle means the lease is
 // claimable again. Running means the stop did not finish. Stopping keeps
 // polling until the reconcile budget ends, then returns ErrUnavailable.
 // It does not post stop a second time.
-func (c *Client) Stop(ctx context.Context) error {
+func (c *Client) Stop(ctx context.Context, expectedGeneration string) error {
+	if !sha256Hex(expectedGeneration) {
+		return ErrInUse
+	}
 	if c == nil || c.http == nil || c.path == "" {
 		return ErrUnavailable
 	}
@@ -202,12 +215,15 @@ func (c *Client) Stop(ctx context.Context) error {
 		post = stopPostTimeout
 	}
 	postCtx, cancel := context.WithTimeout(ctx, post)
-	err := c.doRequest(postCtx, http.MethodPost, "/v1/local/stop", nil, nil)
+	body, _ := json.Marshal(struct {
+		ExpectedGeneration string `json:"expected_generation"`
+	}{expectedGeneration})
+	err := c.doRequest(postCtx, http.MethodPost, "/v1/local/stop", body, nil)
 	cancel()
 	if err == nil || !timedOut(err) || ctx.Err() != nil {
 		return err
 	}
-	return c.reconcileStopped(ctx)
+	return c.reconcileStopped(ctx, expectedGeneration)
 }
 
 func (c *Client) do(ctx context.Context, method, path string, out any) error {
@@ -291,70 +307,10 @@ func classifyStatus(status int, body []byte) error {
 	}
 }
 
-func (c *Client) reconcileRunning(ctx context.Context, packageID string) error {
-	budget := c.reconcileFor
-	if budget <= 0 {
-		budget = launchReconcileTimeout
-	}
-	every := c.reconcileEvery
-	if every <= 0 {
-		every = launchReconcilePoll
-	}
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	deadline := time.Now().Add(budget)
-	if d, ok := ctx.Deadline(); ok && d.Before(deadline) {
-		deadline = d
-	}
-	timer := time.NewTimer(0)
-	if !timer.Stop() {
-		select {
-		case <-timer.C:
-		default:
-		}
-	}
-	defer timer.Stop()
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if !time.Now().Before(deadline) {
-			return ErrUnavailable
-		}
-		poll, cancel := context.WithTimeout(ctx, clientTimeout)
-		status, err := c.Status(poll)
-		cancel()
-		if err == nil {
-			if status.Running && status.PackageID == packageID {
-				return nil
-			}
-			if status.Phase == phaseIdle || status.Phase == "" {
-				return ErrUnavailable
-			}
-		} else if errors.Is(err, ErrUnavailable) {
-			return ErrUnavailable
-		}
-		wait := every
-		if remain := time.Until(deadline); remain < wait {
-			wait = remain
-		}
-		if wait <= 0 {
-			return ErrUnavailable
-		}
-		timer.Reset(wait)
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-timer.C:
-		}
-	}
-}
-
 // reconcileStopped reads status after a lost stop POST. Idle is published
 // only once the lease is claimable, so a menu that resumes on nil does not
 // launch into a revoking grant.
-func (c *Client) reconcileStopped(ctx context.Context) error {
+func (c *Client) reconcileStopped(ctx context.Context, expectedGeneration string) error {
 	budget := c.reconcileFor
 	if budget <= 0 {
 		budget = launchReconcileTimeout
@@ -389,8 +345,14 @@ func (c *Client) reconcileStopped(ctx context.Context) error {
 		status, err := c.Status(poll)
 		cancel()
 		if err == nil {
+			if status.Generation != "" && status.Generation != expectedGeneration {
+				return ErrInUse
+			}
 			switch status.Phase {
 			case phaseIdle, "":
+				if status.Generation != "" {
+					return ErrUnavailable
+				}
 				return nil
 			case phaseRunning:
 				return ErrUnavailable

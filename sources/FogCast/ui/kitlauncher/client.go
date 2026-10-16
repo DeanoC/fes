@@ -152,9 +152,9 @@ type Client struct {
 // LocalCoreClient is the kit-local control route; tests supply a fake.
 type LocalCoreClient interface {
 	List(context.Context) ([]localcores.Core, error)
-	LaunchROM(context.Context, string, string) error
+	LaunchROM(context.Context, string, string) (localcores.LaunchResult, error)
 	Status(context.Context) (localcores.RunStatus, error)
-	Stop(context.Context) error
+	Stop(context.Context, string) error
 }
 
 func (c *Client) SetLocalCores(client LocalCoreClient) { c.LocalCores = client }

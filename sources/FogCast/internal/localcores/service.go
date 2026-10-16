@@ -28,14 +28,21 @@ const (
 	warmListBound = 200 * time.Millisecond
 )
 
+// LaunchResult identifies the exact lease claim that loaded this core.
+type LaunchResult struct {
+	Core
+	Generation string `json:"generation"`
+}
+
 // RunStatus is GET /v1/local/status. Running is true only after load has
 // published the kit-local lease. Phase is idle, launching, running, or stopping.
 // CoreID is the installed core id, such as fes.sms, while a phase is in flight.
 type RunStatus struct {
-	Phase     string `json:"phase"`
-	PackageID string `json:"package_id"`
-	CoreID    string `json:"core_id,omitempty"`
-	Running   bool   `json:"running"`
+	Generation string `json:"generation,omitempty"`
+	Phase      string `json:"phase"`
+	PackageID  string `json:"package_id"`
+	CoreID     string `json:"core_id,omitempty"`
+	Running    bool   `json:"running"`
 }
 
 var (
@@ -97,6 +104,9 @@ type Service struct {
 
 	mu          sync.Mutex
 	token       string
+	generation  string
+	runContext  context.Context
+	renewToken  string
 	phase       string
 	runPackage  string
 	runCore     string
@@ -134,10 +144,11 @@ func (s *Service) RunStatus() RunStatus {
 		phase = phaseIdle
 	}
 	return RunStatus{
-		Phase:     phase,
-		PackageID: s.runPackage,
-		CoreID:    s.runCore,
-		Running:   phase == phaseRunning && s.token != "",
+		Phase:      phase,
+		Generation: s.generation,
+		PackageID:  s.runPackage,
+		CoreID:     s.runCore,
+		Running:    phase == phaseRunning && s.token != "",
 	}
 }
 
@@ -377,7 +388,7 @@ func (s *Service) SetAdmission(begin func(context.Context) (context.Context, fun
 // load. A failed load releases the lease; revocation stops the runtime.
 // A failed renew, or cancellation of that lease context, clears the
 // session so RunStatus is not running.
-func (s *Service) Launch(ctx context.Context, packageID string) (Core, error) {
+func (s *Service) Launch(ctx context.Context, packageID string) (LaunchResult, error) {
 	return s.launch(ctx, packageID, nil)
 }
 
@@ -385,22 +396,22 @@ func (s *Service) Launch(ctx context.Context, packageID string) (Core, error) {
 // cartridge bytes already read from a local file. An empty body, a core
 // that does not need media, or a runtime with no cartridge link is refused.
 // This does not dial a host.
-func (s *Service) LaunchCartridge(ctx context.Context, packageID string, rom []byte) (Core, error) {
+func (s *Service) LaunchCartridge(ctx context.Context, packageID string, rom []byte) (LaunchResult, error) {
 	if len(rom) == 0 || len(rom) > maxCartridgeBytes {
-		return Core{}, errUnavailable
+		return LaunchResult{}, errUnavailable
 	}
 	return s.launch(ctx, packageID, rom)
 }
 
-func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Core, error) {
+func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (LaunchResult, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if s == nil || s.leases == nil || s.runtime == nil {
-		return Core{}, errUnavailable
+		return LaunchResult{}, errUnavailable
 	}
 	if !sha256Hex(packageID) {
-		return Core{}, errNotFound
+		return LaunchResult{}, errNotFound
 	}
 	listed, err := s.list(ctx)
 	if err != nil {
@@ -408,9 +419,9 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 		// the same retryable warming a GET publishes. Folding it into
 		// unavailable makes a temporary catalog fill look like a failed agent.
 		if errors.Is(err, errWarming) {
-			return Core{}, err
+			return LaunchResult{}, err
 		}
-		return Core{}, errUnavailable
+		return LaunchResult{}, errUnavailable
 	}
 	var core Core
 	found := false
@@ -422,17 +433,17 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 		}
 	}
 	if !found {
-		return Core{}, errNotFound
+		return LaunchResult{}, errNotFound
 	}
 	if rom == nil {
 		if core.Needs != "none" || !core.Launchable {
-			return Core{}, errBlocked
+			return LaunchResult{}, errBlocked
 		}
 	} else if core.Needs != "media" {
-		return Core{}, errBlocked
+		return LaunchResult{}, errBlocked
 	}
 	if !leaseFree(s.leases.Status()) {
-		return Core{}, errInUse
+		return LaunchResult{}, errInUse
 	}
 	var updateCtx context.Context
 	if s.admission != nil {
@@ -442,13 +453,13 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 		// still cancels and drains this admitted operation before reboot.
 		updateCtx, done, err = s.admission(context.WithoutCancel(ctx))
 		if err != nil {
-			return Core{}, errInUse
+			return LaunchResult{}, errInUse
 		}
 		defer done()
 	}
 	requestID, err := newRequestID()
 	if err != nil {
-		return Core{}, errUnavailable
+		return LaunchResult{}, errUnavailable
 	}
 	grant, err := s.leases.Claim(contract.ClaimRequest{
 		RequestID: requestID,
@@ -456,21 +467,29 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 		Purpose:   contract.LocalCorePurpose,
 	})
 	if err != nil || grant.Token == "" {
-		return Core{}, errInUse
+		return LaunchResult{}, errInUse
 	}
 	if !contract.LocalCoreSession(grant.Status) {
 		_, _ = s.leases.Release(grant.Token)
-		return Core{}, errInUse
+		return LaunchResult{}, errInUse
 	}
 	leaseCtx, done, err := s.leases.Begin(grant.Token)
 	if err != nil {
 		_, _ = s.leases.Release(grant.Token)
-		return Core{}, errInUse
+		return LaunchResult{}, errInUse
 	}
-	// Renew during programming. The service token stays empty until load
-	// succeeds, so Stop cannot interrupt the in-flight program. Phase is
-	// published first so a revoke during startRenew cannot miss the session.
+	// Publish the exact grant before programming. Stop admits only running,
+	// so it cannot interrupt the in-flight load. Every completion is token scoped.
 	s.mu.Lock()
+	if s.closed || leaseCtx.Err() != nil || !sha256Hex(grant.Status.Generation) {
+		s.mu.Unlock()
+		done()
+		_, _ = s.leases.Release(grant.Token)
+		return LaunchResult{}, errInUse
+	}
+	s.token = grant.Token
+	s.generation = grant.Status.Generation
+	s.runContext = leaseCtx
 	s.phase = phaseLaunching
 	s.runPackage = core.PackageID
 	s.runCore = core.CoreID
@@ -488,34 +507,38 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 	if loadErr != nil {
 		_, _ = s.leases.Release(grant.Token)
 		s.mu.Lock()
-		if s.token == "" || s.token == grant.Token {
+		if s.token == grant.Token {
 			s.token = ""
+			s.generation = ""
 			s.phase = phaseIdle
 			s.runPackage = ""
 			s.runCore = ""
 		}
 		s.mu.Unlock()
-		s.stopRenew()
-		return Core{}, errUnavailable
+		s.stopRenew(grant.Token)
+		return LaunchResult{}, errUnavailable
 	}
 	s.mu.Lock()
 	// The renew loop may already have dropped a revoked session.
-	if s.phase != phaseLaunching || loadCtx.Err() != nil {
-		s.token = ""
-		s.phase = phaseIdle
-		s.runPackage = ""
-		s.runCore = ""
+	if s.token != grant.Token || s.phase != phaseLaunching || loadCtx.Err() != nil {
+		if s.token == grant.Token {
+			s.token = ""
+			s.generation = ""
+			s.phase = phaseIdle
+			s.runPackage = ""
+			s.runCore = ""
+		}
 		s.mu.Unlock()
 		_, _ = s.leases.Release(grant.Token)
-		s.stopRenew()
-		return Core{}, errUnavailable
+		s.stopRenew(grant.Token)
+		return LaunchResult{}, errUnavailable
 	}
 	s.token = grant.Token
 	s.phase = phaseRunning
 	s.runPackage = core.PackageID
 	s.runCore = core.CoreID
 	s.mu.Unlock()
-	return core, nil
+	return LaunchResult{Core: core, Generation: grant.Status.Generation}, nil
 }
 
 // Stop runs only while this process holds the kit-local lease. Any other
@@ -525,73 +548,43 @@ func (s *Service) launch(ctx context.Context, packageID string, rom []byte) (Cor
 // finishes, and a launch in that window is in use. Stop waits for that
 // revocation to settle before it returns, so the next launch can claim.
 // Disconnecting the caller does not abandon the wait.
-func (s *Service) Stop(ctx context.Context) error {
+func (s *Service) Stop(ctx context.Context, expectedGeneration string) error {
 	if s == nil || s.leases == nil || s.runtime == nil {
 		return errUnavailable
 	}
-	s.mu.Lock()
-	token := s.token
-	pkg := s.runPackage
-	coreID := s.runCore
-	markedStopping := false
-	if token != "" && s.phase == phaseRunning {
-		s.phase = phaseStopping
-		markedStopping = true
-	}
-	s.mu.Unlock()
-	if token == "" || !contract.LocalCoreSession(s.leases.Status()) {
-		if markedStopping {
-			s.mu.Lock()
-			if s.phase == phaseStopping {
-				s.phase = phaseRunning
-			}
-			s.mu.Unlock()
-		}
+	if !sha256Hex(expectedGeneration) {
 		return errInUse
 	}
+	s.mu.Lock()
+	if s.generation != expectedGeneration || s.token == "" || s.phase != phaseRunning {
+		s.mu.Unlock()
+		return errInUse
+	}
+	token := s.token
+	s.phase = phaseStopping
+	s.mu.Unlock()
 	leaseCtx, done, err := s.leases.Begin(token)
 	if err != nil {
+		s.reconcileRejectedStop(token, expectedGeneration)
 		return errInUse
 	}
 	stopErr := s.stop(ctx, leaseCtx)
 	done()
 	if stopErr != nil {
-		s.mu.Lock()
-		if s.token == token && s.phase == phaseStopping {
-			s.phase = phaseRunning
-		}
-		s.mu.Unlock()
+		s.reconcileRejectedStop(token, expectedGeneration)
 		return errUnavailable
 	}
 	if _, err := s.leases.Release(token); err != nil {
+		s.reconcileRejectedStop(token, expectedGeneration)
 		return errUnavailable
 	}
-	s.mu.Lock()
-	if s.token == token {
-		s.token = ""
-	}
-	// Stay stopping until revocation settles. Idle means the next launch
-	// can claim. Release cancels the lease, and the renew loop publishes
-	// idle for that cancellation; put stopping back after it exits.
-	s.phase = phaseStopping
-	s.runPackage = pkg
-	s.runCore = coreID
-	s.mu.Unlock()
-	s.stopRenew()
-	s.mu.Lock()
-	if s.token == "" && s.phase != phaseLaunching && s.phase != phaseRunning {
-		s.phase = phaseStopping
-		s.runPackage = pkg
-		s.runCore = coreID
-	}
-	s.mu.Unlock()
-	// The caller context can already be canceled. Cleanup still has to
-	// finish or the next launch observes the lease as in use.
+	// Detach only this grant's renewal. A replacement may already own the kit.
+	s.stopRenew(token)
 	status, err := s.leases.Settled(context.Background())
 	s.mu.Lock()
-	// Idle is published only when the grant can be claimed. A blocked
-	// cleanup stays stopping so a lost stop response is not treated as done.
-	if err == nil && status.State == "free" && s.token == "" && s.phase == phaseStopping {
+	if err == nil && status.State == "free" && s.token == token && s.generation == expectedGeneration && s.phase == phaseStopping {
+		s.token = ""
+		s.generation = ""
 		s.phase = phaseIdle
 		s.runPackage = ""
 		s.runCore = ""
@@ -604,6 +597,44 @@ func (s *Service) Stop(ctx context.Context) error {
 		return errInUse
 	}
 	return nil
+}
+
+// reconcileRejectedStop never modifies a replacement grant. A live grant
+// remains retryable; a revoked grant is forgotten only after its cleanup settled.
+func (s *Service) reconcileRejectedStop(token, generation string) {
+	for {
+		status := s.leases.Status()
+		if status.State == "revoking" {
+			if settled, err := s.leases.Settled(context.Background()); err == nil {
+				status = settled
+			}
+		}
+		s.mu.Lock()
+		if s.token != token || s.generation != generation || s.phase != phaseStopping {
+			s.mu.Unlock()
+			return
+		}
+		if status.Generation == generation && contract.LocalCoreSession(status) {
+			// A renew callback may already have observed cancellation while stopping.
+			// Never revive that grant from a status snapshot taken before revocation.
+			if s.runContext != nil && s.runContext.Err() != nil {
+				s.mu.Unlock()
+				continue
+			}
+			s.phase = phaseRunning
+			s.mu.Unlock()
+			return
+		}
+		if status.State == "free" || (status.Generation != "" && status.Generation != generation) {
+			s.token = ""
+			s.generation = ""
+			s.phase = phaseIdle
+			s.runPackage = ""
+			s.runCore = ""
+		}
+		s.mu.Unlock()
+		return
+	}
 }
 
 // Close stops lease renewal. It does not release the grant. Process shutdown
@@ -620,7 +651,7 @@ func (s *Service) Close() {
 	if cancel != nil {
 		cancel()
 	}
-	s.stopRenew()
+	s.stopRenew("")
 }
 
 // renewInterval is one quarter of the time still remaining. A 90s production
@@ -634,16 +665,17 @@ func renewInterval(remaining time.Duration) time.Duration {
 }
 
 func (s *Service) startRenew(token string, leaseCtx context.Context, remaining time.Duration) {
-	s.stopRenew()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	interval := renewInterval(remaining)
 	s.mu.Lock()
-	if s.closed {
+	if s.closed || s.token != token {
 		s.mu.Unlock()
 		cancel()
 		return
 	}
+	oldCancel, oldDone := s.renewCancel, s.renewDone
+	s.renewToken = token
 	s.renewCancel = cancel
 	s.renewDone = done
 	var leaseDone <-chan struct{}
@@ -684,9 +716,8 @@ func (s *Service) startRenew(token string, leaseCtx context.Context, remaining t
 				s.mu.Lock()
 				current := s.token
 				s.mu.Unlock()
-				// Empty while load is still in flight. A different token means
-				// this loop's grant is no longer the one Stop or Launch published.
-				if current != "" && current != token {
+				// A different token means this grant no longer owns the local run.
+				if current != token {
 					return
 				}
 				next := renewInterval(time.Duration(grant.Status.ExpiresInMS) * time.Millisecond)
@@ -695,6 +726,12 @@ func (s *Service) startRenew(token string, leaseCtx context.Context, remaining t
 		}
 	}()
 	s.mu.Unlock()
+	if oldCancel != nil {
+		oldCancel()
+	}
+	if oldDone != nil {
+		<-oldDone
+	}
 }
 
 func leaseLost(leaseCtx context.Context) bool {
@@ -709,21 +746,23 @@ func (s *Service) clearLostSession(token string) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.token != "" && s.token != token {
-		return
-	}
-	// An empty token is the in-flight launch. Anything else already moved on.
-	if s.token == "" && s.phase != phaseLaunching {
+	if s.token != token || s.phase == phaseStopping {
 		return
 	}
 	s.token = ""
+	s.generation = ""
 	s.phase = phaseIdle
 	s.runPackage = ""
 	s.runCore = ""
 }
 
-func (s *Service) stopRenew() {
+func (s *Service) stopRenew(token string) {
 	s.mu.Lock()
+	if token != "" && s.renewToken != token {
+		s.mu.Unlock()
+		return
+	}
+	s.renewToken = ""
 	cancel := s.renewCancel
 	done := s.renewDone
 	s.renewCancel = nil
