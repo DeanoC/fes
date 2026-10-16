@@ -58,8 +58,23 @@ module c64_drive1541 #(
     wire bus_access = cycle_clock == 43 && !cpu_reset;
     wire [7:0] data_in = bus_addr[15] ? rom_data : ram_cs ? ram_q :
                                via1_cs ? via1_q : via2_cs ? via2_q : 8'hff;
+    // The NMOS SO edge reaches V through two clock phases. Sample the pin
+    // at the end of Phi1, then present it at the following Phi1 boundary.
+    // Keep the VIA CA1 input on the raw BYTE READY signal: delaying that
+    // latch along with CPU overflow would change which byte is captured.
+    // This models half-cycle sampling, not the analogue setup-time margin.
+    reg sampled_so_n = 1'b1, cpu_so_n = 1'b1;
+    always @(posedge clk) begin
+        if (cpu_reset) begin
+            sampled_so_n <= byte_ready_n;
+            cpu_so_n <= byte_ready_n;
+        end else if (ref_ce) begin
+            if (cpu_div == 4'd7) sampled_so_n <= byte_ready_n;
+            if (cpu_div == 4'd0) cpu_so_n <= sampled_so_n;
+        end
+    end
     cpu6502 #(.ENABLE_SO(1)) cpu (.clk(clk), .reset(cpu_reset), .AB(ab), .DI(cpu_data),
-        .DO(data_out), .WE(we), .IRQ(irq1 || irq2), .NMI(1'b0), .RDY(phi), .SO(byte_ready_n));
+        .DO(data_out), .WE(we), .IRQ(irq1 || irq2), .NMI(1'b0), .RDY(phi), .SO(cpu_so_n));
     assign debug_pc = ab;
     assign rom_address = bus_addr[13:0];
     always @(posedge clk) begin

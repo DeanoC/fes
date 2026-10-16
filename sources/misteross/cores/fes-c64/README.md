@@ -594,10 +594,16 @@ Timer 1 exposes the underflow cycle and reloads in one-shot mode as observed in
 [VICE's VIA implementation](https://github.com/VICE-Team/svn-mirror/blob/main/vice/src/core/viacore.c).
 The drive's VIA access and CPU sample occur together near the end of the
 1 us bus cycle, retaining the input latch until its byte is sampled.
-The drive enables the shared CPU's optional SO input, connecting the external
-byte-ready pin to its overflow flag. `sim-fes-c64-so` checks both enabled and
-default-disabled modes. Serial shifting and NMOS subcycle behavior remain
-unimplemented. These same drive, VIA and GCR modules belong to the
+The drive samples byte-ready for CPU SO at the end of Phi1 and presents that
+level at the following Phi1 boundary. The VIA CA1 latch retains the raw pin.
+`sim-fes-c64-drive-so` checks 112 phase/pulse cases against observations from
+the original NMOS transistor netlist in
+[perfect6502](https://github.com/mist64/perfect6502/tree/09fc542877a84318291aa42dab143a3e2c3db974),
+including BVC polling, CLV under a held-low pin and the raw VIA path.
+The shared CPU's optional SO input retains its asynchronous edge interface;
+`sim-fes-c64-so` checks both enabled and default-disabled modes. Analogue SO
+setup-time margins, instruction-specific SO inhibit windows and VIA serial
+shifting remain unimplemented. These same drive, VIA and GCR modules belong to the
 production source closure.
 
 `make sim-fes-c64-drive-build` followed by
