@@ -126,7 +126,9 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
         return self.rfile.read(length)
 
     def _write(self, value, status=200):
-        body = json.dumps(value, separators=(",", ":")).encode("utf-8")
+        self._write_bytes(json.dumps(value, separators=(",", ":")).encode("utf-8"), status)
+
+    def _write_bytes(self, body, status=200):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -223,6 +225,10 @@ class _PackageAcceptanceHandler(BaseHTTPRequestHandler):
         path = urlsplit(self.path).path
         if path == "/api/v1/kit/software/releases":
             self.state["inventory_calls"] = self.state.get("inventory_calls", 0) + 1
+            raw = self.state.get("inventory_raw")
+            if raw is not None:
+                self._write_bytes(raw)
+                return
             self._write([{"id":BUNDLE_ID, "manifest":{"interfaces":self.state.get("interfaces", INTERFACES), "provenance":{"fogcast":"new-agent-source","runtime":"new-runtime-source"}}}])
             return
         if path == "/api/v1/health":
@@ -1812,3 +1818,104 @@ class ActiveSoftwareContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(state["inventory_calls"], 1)
         self.assertEqual(receipt["software_identity"]["active_bundle"], BUNDLE_ID)
+
+    def test_retained_inventory_above_health_limit_still_imports(self):
+        raw = _retained_inventory()
+        self.assertGreater(len(raw), package_acceptance.HTTP_RESPONSE_BODY_LIMIT)
+        self.assertLessEqual(len(raw), package_acceptance.INVENTORY_RESPONSE_LIMIT)
+        state = _state()
+        state["inventory_raw"] = raw
+        result, receipt = self.run_lane(state)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(state["uploaded"])
+        self.assertEqual(len(state["launch_bodies"]), 1)
+        self.assertEqual(state["inventory_calls"], 1)
+        self.assertEqual(receipt["software_identity"]["active_bundle"], BUNDLE_ID)
+        self.assertEqual(receipt["provided_interfaces"], INTERFACES)
+
+
+def _retained_inventory():
+    """Two installed releases whose JSON exceeds the ordinary 1 MiB body limit."""
+    retained = "x" * (package_acceptance.HTTP_RESPONSE_BODY_LIMIT + 4096)
+    inventory = [
+        {"id": BUNDLE_ID, "manifest": {
+            "interfaces": INTERFACES,
+            "provenance": {"fogcast": "new-agent-source", "runtime": "new-runtime-source"},
+        }},
+        {"id": "1" * 64, "manifest": {"retained": retained}},
+    ]
+    return json.dumps(inventory, separators=(",", ":")).encode("utf-8")
+
+
+def _health_body():
+    return json.dumps({
+        "ready": True,
+        "host": {"revision": HOST_REVISION},
+        "target": {
+            "api_version": "v1",
+            "reachable": True,
+            "ready": True,
+            "connection": {"target_id": TARGET_ID},
+            "software": {"active_bundle": BUNDLE_ID, "base_identity": BASE_ID},
+        },
+    }, separators=(",", ":")).encode("utf-8")
+
+
+class _BoundBodyHandler(BaseHTTPRequestHandler):
+    def log_message(self, *_args):
+        return
+
+    def do_GET(self):
+        body = self.server.bodies[urlsplit(self.path).path]
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        view = memoryview(body)
+        while view:
+            written = self.wfile.write(view[:65536])
+            if written <= 0:
+                break
+            view = view[written:]
+
+
+@contextlib.contextmanager
+def bound_server(bodies):
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _BoundBodyHandler)
+    server.bodies = bodies
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield server
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+class InventoryResponseLimitTests(unittest.TestCase):
+    def test_inventory_uses_verified_bound_and_health_stays_small(self):
+        self.assertEqual(package_acceptance.HTTP_RESPONSE_BODY_LIMIT, 1 << 20)
+        self.assertEqual(package_acceptance.INVENTORY_RESPONSE_LIMIT, 32 << 20)
+        inventory = _retained_inventory()
+        ordinary = package_acceptance.HTTP_RESPONSE_BODY_LIMIT
+        verified = package_acceptance.INVENTORY_RESPONSE_LIMIT
+        with bound_server({
+            "/api/v1/health": _health_body(),
+            "/api/v1/health-large": b"x" * (ordinary + 1),
+            "/api/v1/kit/software/releases": inventory,
+            "/api/v1/kit/software/releases-over": b"x" * (verified + 1),
+        }) as server:
+            api = package_acceptance.Api(f"http://127.0.0.1:{server.server_port}", 10)
+            self.assertTrue(api.get("/api/v1/health")["ready"])
+            manifest = package_acceptance.active_manifest(
+                api.get("/api/v1/kit/software/releases", limit=verified), BUNDLE_ID)
+            self.assertEqual(manifest["interfaces"], INTERFACES)
+            with self.assertRaises(package_acceptance.AcceptanceError) as health_error:
+                api.get("/api/v1/health-large")
+            self.assertIn("GET /api/v1/health-large: response exceeded the bounded size", str(health_error.exception))
+            with self.assertRaises(package_acceptance.AcceptanceError) as inventory_error:
+                api.get("/api/v1/kit/software/releases-over", limit=verified)
+            self.assertIn(
+                "GET /api/v1/kit/software/releases-over: response exceeded the bounded size",
+                str(inventory_error.exception))

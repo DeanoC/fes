@@ -28,7 +28,9 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
-from diagnostic_identity import observe_health, active_manifest, expected_identity
+from diagnostic_identity import (
+    observe_health, active_manifest, expected_identity, INVENTORY_RESPONSE_LIMIT,
+)
 
 PACKAGE_ACCEPTANCE = Path(__file__).with_name("package_acceptance.py")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -511,14 +513,14 @@ def _require_port_available(port: int) -> None:
         probe.close()
 
 
-def _get_json(origin: str, path: str, timeout: float) -> Any:
+def _get_json(origin: str, path: str, timeout: float, limit: int = MAX_HTTP_BODY) -> Any:
     request = urllib.request.Request(origin.rstrip("/") + path, method="GET")
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            raw = response.read(MAX_HTTP_BODY + 1)
+            raw = response.read(limit + 1)
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         raise AcceptanceError(f"isolated host readiness request failed: {type(exc).__name__}") from exc
-    if len(raw) > MAX_HTTP_BODY:
+    if len(raw) > limit:
         raise AcceptanceError("isolated host readiness response exceeded the bounded size")
     try:
         value = json.loads(raw)
@@ -533,8 +535,9 @@ def _probe_host(origin: str, args: argparse.Namespace, target: PrivateTarget) ->
         args.observed_provenance = observe_health(value, args.expected_target_id,
             args.expected_bundle_id, args.expected_base_image_sha256)
         if not getattr(args, "active_manifest", None):
-            args.active_manifest = active_manifest(_get_json(origin, "/api/v1/kit/software/releases", args.timeout),
-                                                  args.expected_bundle_id)
+            args.active_manifest = active_manifest(
+                _get_json(origin, "/api/v1/kit/software/releases", args.timeout, INVENTORY_RESPONSE_LIMIT),
+                args.expected_bundle_id)
     except ValueError as exc:
         raise AcceptanceError(str(exc)) from exc
 

@@ -27,7 +27,9 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from diagnostic_identity import observe_health, active_manifest, expected_identity
+from diagnostic_identity import (
+    observe_health, active_manifest, expected_identity, INVENTORY_RESPONSE_LIMIT,
+)
 from input_diagnostic import load_diagnostic, run_diagnostic, validate_timeout
 
 
@@ -104,6 +106,8 @@ class Api:
         path: str,
         body: bytes | None = None,
         headers: dict[str, str] | None = None,
+        *,
+        limit: int = HTTP_RESPONSE_BODY_LIMIT,
     ) -> Any:
         request = urllib.request.Request(
             self.origin + path,
@@ -113,13 +117,13 @@ class Api:
         )
         try:
             with urllib.request.build_opener(NoRedirect).open(request, timeout=self.timeout) as response:
-                raw = response.read(HTTP_RESPONSE_BODY_LIMIT + 1)
+                raw = response.read(limit + 1)
         except urllib.error.HTTPError as exc:
             raise AcceptanceError(f"{method} {path}: {_http_error_detail(exc)}") from exc
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             detail = getattr(exc, "reason", exc)
             raise AcceptanceError(f"{method} {path}: {_safe_error_field(detail)}") from exc
-        if len(raw) > HTTP_RESPONSE_BODY_LIMIT:
+        if len(raw) > limit:
             raise AcceptanceError(f"{method} {path}: response exceeded the bounded size")
         if not raw:
             return {}
@@ -128,8 +132,8 @@ class Api:
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise AcceptanceError(f"{method} {path}: response was not JSON") from exc
 
-    def get(self, path: str) -> Any:
-        return self.request("GET", path)
+    def get(self, path: str, *, limit: int = HTTP_RESPONSE_BODY_LIMIT) -> Any:
+        return self.request("GET", path, limit=limit)
 
     def post_empty(self, path: str) -> Any:
         return self.request("POST", path, headers={"Accept": "application/json"})
@@ -377,8 +381,9 @@ class Runner:
             self.provenance = observe_health(value, self.target_id, self.args.expected_bundle_id,
                                              self.args.expected_base_image_sha256)
             if self.bundle_manifest is None:
-                self.bundle_manifest = active_manifest(self.api.get("/api/v1/kit/software/releases"),
-                                                       self.args.expected_bundle_id)
+                self.bundle_manifest = active_manifest(
+                    self.api.get("/api/v1/kit/software/releases", limit=INVENTORY_RESPONSE_LIMIT),
+                    self.args.expected_bundle_id)
                 # Inventory may be slow; recheck the live selection before mutation.
                 return self.check_health()
         except ValueError as exc:

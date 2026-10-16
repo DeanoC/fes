@@ -1300,6 +1300,50 @@ class IsolatedPackageAcceptanceContainerTests(unittest.TestCase):
             self.assertEqual([record["kind"] for record in records if record["kind"] in {"stop", "rm"}], ["stop", "rm"])
 
 
+class IsolatedInventoryResponseLimitTests(unittest.TestCase):
+    def _args(self):
+        return SimpleNamespace(
+            timeout=10,
+            expected_target_id=TARGET_ID,
+            expected_bundle_id=package_acceptance_tests.BUNDLE_ID,
+            expected_base_image_sha256=package_acceptance_tests.BASE_ID,
+        )
+
+    def test_readiness_inventory_accepts_retained_releases(self):
+        self.assertEqual(package_acceptance_isolated.MAX_HTTP_BODY, 1 << 20)
+        self.assertEqual(package_acceptance_isolated.INVENTORY_RESPONSE_LIMIT, 32 << 20)
+        inventory = package_acceptance_tests._retained_inventory()
+        self.assertGreater(len(inventory), package_acceptance_isolated.MAX_HTTP_BODY)
+        verified = package_acceptance_isolated.INVENTORY_RESPONSE_LIMIT
+        target = package_acceptance_isolated.PrivateTarget(
+            name="dev", address="http://127.0.0.1:9", agent="agent-secret", target_id=TARGET_ID)
+        with package_acceptance_tests.bound_server({
+            "/api/v1/health": package_acceptance_tests._health_body(),
+            "/api/v1/kit/software/releases": inventory,
+            "/api/v1/kit/software/releases-over": b"x" * (verified + 1),
+        }) as server:
+            origin = f"http://127.0.0.1:{server.server_port}"
+            args = self._args()
+            package_acceptance_isolated._probe_host(origin, args, target)
+            self.assertEqual(args.active_manifest["interfaces"], package_acceptance_tests.INTERFACES)
+            with self.assertRaises(package_acceptance_isolated.AcceptanceError) as inventory_error:
+                package_acceptance_isolated._get_json(
+                    origin, "/api/v1/kit/software/releases-over", 10, verified)
+            self.assertEqual(
+                str(inventory_error.exception),
+                "isolated host readiness response exceeded the bounded size")
+        with package_acceptance_tests.bound_server({
+            "/api/v1/health": b"x" * (package_acceptance_isolated.MAX_HTTP_BODY + 1),
+        }) as server:
+            args = self._args()
+            with self.assertRaises(package_acceptance_isolated.AcceptanceError) as health_error:
+                package_acceptance_isolated._probe_host(
+                    f"http://127.0.0.1:{server.server_port}", args, target)
+            self.assertFalse(getattr(args, "active_manifest", None))
+            self.assertEqual(
+                str(health_error.exception),
+                "isolated host readiness response exceeded the bounded size")
+
 
 if __name__ == "__main__":
     unittest.main()
