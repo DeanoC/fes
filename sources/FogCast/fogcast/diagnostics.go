@@ -49,6 +49,9 @@ func SafeTargetDiagnostic(remote *protocol.APIError) (message, phase string) {
 	case protocol.CodeVersionMismatch:
 		return "target API version is missing or unsupported; expected v1", phase
 	case protocol.CodeKitLeaseDenied:
+		if phase == "recovery" {
+			return "This session does not own the kit; inspect current ownership before starting a new session.", phase
+		}
 		return "Another session owns the target; release it from that session before retrying.", phase
 	case protocol.CodeKitLeaseBusy:
 		return "Another session owns the kit; release it from that session before retrying.", phase

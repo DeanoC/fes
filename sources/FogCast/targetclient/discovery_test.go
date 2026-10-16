@@ -3,6 +3,8 @@ package targetclient
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"github.com/DeanoC/FogCast/protocol"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -167,5 +169,83 @@ func TestRebootInvalidatesGrantBeforeOwnershipProbeFailure(t *testing.T) {
 	}
 	if mutations.Load() != 0 {
 		t.Fatal("stale renewal or release")
+	}
+}
+
+// Exercise the same client across expiry, a replacement owner, and explicit
+// reacquisition. Observation must never dispatch cleanup or replay a mutation.
+func TestExpiredClientReconcilesWithoutDisturbingReplacementOwner(t *testing.T) {
+	var foreign atomic.Bool
+	var claims, launches, stops atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/kit/lease":
+			ownership := KitOwnership{State: "free"}
+			if foreign.Load() {
+				ownership = KitOwnership{State: "held", Generation: "replacement", Owner: "other-host"}
+			}
+			json.NewEncoder(w).Encode(ownership)
+		case "/v1/kit/claim":
+			claims.Add(1)
+			if foreign.Load() {
+				w.WriteHeader(http.StatusForbidden)
+				json.NewEncoder(w).Encode(protocol.ErrorEnvelope{Error: protocol.APIError{Code: protocol.CodeKitLeaseDenied, Message: "foreign lease"}})
+				return
+			}
+			json.NewEncoder(w).Encode(kitLeaseGrant{Token: "fresh-token", Status: kitLeaseStatus{State: "held", Generation: "fresh", ExpiresInMS: 60000}})
+		case "/v1/launch":
+			launches.Add(1)
+			if foreign.Load() || r.Header.Get(KitLeaseHeader) != "fresh-token" {
+				t.Error("mutation without current ownership")
+			}
+			json.NewEncoder(w).Encode(protocol.Status{State: protocol.StateActive})
+		case "/v1/stop", "/v1/kit/release", "/v1/kit/renew":
+			stops.Add(1)
+			t.Errorf("unexpected cleanup or renewal %s", r.URL.Path)
+			w.WriteHeader(http.StatusForbidden)
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	base, _ := url.Parse(srv.URL)
+	lease := NewKitLease(base, "secret", srv.Client(), "host-A", "test")
+	defer func() { lease.mu.Lock(); lease.invalidateLocked(); lease.mu.Unlock() }()
+	client := NewClient(base, "secret", srv.Client()).WithKitLease(lease)
+	// Model the local deadline after an old grant was held by this same client.
+	lease.grant = kitLeaseGrant{Token: "expired-token", Status: kitLeaseStatus{State: "held", Generation: "expired"}}
+	lease.localExpiry = time.Now().Add(-time.Second)
+	foreign.Store(true)
+	_, err := client.Stop(context.Background())
+	var api *protocol.APIError
+	if !errors.Is(err, ErrKitLeaseLost) || !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied {
+		t.Fatalf("expiry error=%v", err)
+	}
+	if claims.Load() != 0 || stops.Load() != 0 {
+		t.Fatal("expired Stop sent a mutation")
+	}
+	ownership, err := client.AdoptEndpoint(context.Background(), base, false)
+	if err != nil || ownership.Owned || ownership.Generation != "replacement" {
+		t.Fatalf("ownership=%+v error=%v", ownership, err)
+	}
+	if claims.Load() != 0 || stops.Load() != 0 {
+		t.Fatal("observation mutated replacement owner")
+	}
+	// Explicit launch may try one ordinary claim; it cannot take over B.
+	err = client.doJSON(context.Background(), http.MethodPost, "/v1/launch", nil, &protocol.Status{})
+	if !errors.As(err, &api) || api.Code != protocol.CodeKitLeaseDenied || launches.Load() != 0 || claims.Load() != 1 {
+		t.Fatalf("foreign launch=%v claims=%d launches=%d", err, claims.Load(), launches.Load())
+	}
+	foreign.Store(false)
+	if _, err = client.AdoptEndpoint(context.Background(), base, false); err != nil {
+		t.Fatal(err)
+	}
+	if claims.Load() != 1 || launches.Load() != 0 {
+		t.Fatal("reconciliation automatically claimed or launched")
+	}
+	err = client.doJSON(context.Background(), http.MethodPost, "/v1/launch", nil, &protocol.Status{})
+	if err != nil || claims.Load() != 2 || launches.Load() != 1 || stops.Load() != 0 {
+		t.Fatalf("fresh explicit launch=%v claims=%d launches=%d stops=%d", err, claims.Load(), launches.Load(), stops.Load())
 	}
 }
