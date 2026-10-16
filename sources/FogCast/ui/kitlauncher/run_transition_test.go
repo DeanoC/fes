@@ -72,6 +72,14 @@ type transitionCore struct {
 	launchErr              error
 	launchGate             <-chan struct{}
 	launches, stops, reads int
+	// firstIdle publishes idle before the first launch reply, so the shell
+	// can observe a finished run before any running poll.
+	firstIdle         bool
+	firstGeneration   string
+	secondGeneration  string
+	secondGate        <-chan struct{}
+	readsAtSecond     int
+	stoppedGeneration string
 }
 
 func (*transitionCore) List(context.Context) ([]localcores.Core, error) {
@@ -80,16 +88,43 @@ func (*transitionCore) List(context.Context) ([]localcores.Core, error) {
 func (f *transitionCore) LaunchROM(context.Context, string, string) (localcores.LaunchResult, error) {
 	f.mu.Lock()
 	f.launches++
+	n := f.launches
 	err := f.launchErr
 	gate := f.launchGate
-	if f.launchErr == nil {
-		f.status = localcores.RunStatus{Phase: "launching"}
+	if n >= 2 && f.secondGate != nil {
+		gate = f.secondGate
+	}
+	gen := strings.Repeat("b", 64)
+	if n == 1 && f.firstGeneration != "" {
+		gen = f.firstGeneration
+	}
+	if n >= 2 && f.secondGeneration != "" {
+		gen = f.secondGeneration
+	}
+	if err == nil {
+		if n == 1 && f.firstIdle {
+			f.status = localcores.RunStatus{Phase: "idle"}
+		} else {
+			status := localcores.RunStatus{Phase: "launching"}
+			if gen != strings.Repeat("b", 64) {
+				status.Generation = gen
+			}
+			f.status = status
+		}
+	}
+	if n == 2 {
+		f.readsAtSecond = f.reads
 	}
 	f.mu.Unlock()
 	if gate != nil {
 		<-gate
 	}
-	return localcores.LaunchResult{Generation: strings.Repeat("b", 64)}, err
+	if n >= 2 && f.secondGeneration != "" && err == nil {
+		f.mu.Lock()
+		f.status = localcores.RunStatus{Phase: "running", Running: true, Generation: gen}
+		f.mu.Unlock()
+	}
+	return localcores.LaunchResult{Generation: gen}, err
 }
 func (f *transitionCore) Status(context.Context) (localcores.RunStatus, error) {
 	f.mu.Lock()
@@ -101,10 +136,11 @@ func (f *transitionCore) Status(context.Context) (localcores.RunStatus, error) {
 	}
 	return status, nil
 }
-func (f *transitionCore) Stop(context.Context, string) error {
+func (f *transitionCore) Stop(_ context.Context, generation string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.stops++
+	f.stoppedGeneration = generation
 	f.status = localcores.RunStatus{Phase: "idle"}
 	return nil
 }
@@ -119,6 +155,12 @@ func (f *transitionCore) counts() (int, int) {
 	return f.launches, f.stops
 }
 func (f *transitionCore) readsCount() int { f.mu.Lock(); defer f.mu.Unlock(); return f.reads }
+
+func (f *transitionCore) sawStatusAfterSecondLaunch() bool {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.launches >= 2 && f.reads > f.readsAtSecond
+}
 
 func localTransitionClient(t *testing.T, f *transitionCore) *Client {
 	t.Helper()
@@ -302,6 +344,106 @@ func TestRunLocalStateTransitions(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Two A presses enter the shelf and launch. After the first run is confirmed
+// idle, one more A starts the next game, then Select+Start stops it.
+type idleThenRelaunchPad struct {
+	stage        int
+	gamesReady   func() bool
+	shelfOpen    func() bool
+	firstSettled func() bool
+	secondActive func() bool
+}
+
+func (p *idleThenRelaunchPad) Poll() ([]remoteinput.Event, error) {
+	switch p.stage {
+	case 0:
+		if p.gamesReady == nil || !p.gamesReady() {
+			return nil, nil
+		}
+		p.stage = 1
+		return []remoteinput.Event{pressA()}, nil
+	case 1:
+		if p.shelfOpen == nil || !p.shelfOpen() {
+			return nil, nil
+		}
+		p.stage = 2
+		return []remoteinput.Event{pressA()}, nil
+	case 2:
+		if p.firstSettled == nil || !p.firstSettled() {
+			return nil, nil
+		}
+		p.stage = 3
+		return []remoteinput.Event{pressA()}, nil
+	case 3:
+		if p.secondActive == nil || !p.secondActive() {
+			return nil, nil
+		}
+		p.stage = 4
+		selectPress, _ := remoteinput.NormalizeGamepad("select", true)
+		startPress, _ := remoteinput.NormalizeGamepad("start", true)
+		return []remoteinput.Event{selectPress, startPress}, nil
+	default:
+		return nil, nil
+	}
+}
+
+func (*idleThenRelaunchPad) Close() error { return nil }
+
+func TestIdleBeforeRunningDoesNotPoisonNextLaunch(t *testing.T) {
+	transitionClock(t)
+	genA := strings.Repeat("a", 64)
+	genB := strings.Repeat("c", 64)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	f := &transitionCore{
+		status:           localcores.RunStatus{Phase: "idle"},
+		firstIdle:        true,
+		firstGeneration:  genA,
+		secondGeneration: genB,
+		secondGate:       release,
+	}
+	c := localTransitionClient(t, f)
+	c.SetMenuDisplayHandoff(func(context.Context) error { return nil }, func() {})
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	var last Model
+	var poisoned atomic.Bool
+	var sawIdle atomic.Bool
+	var paintsAfterStatus atomic.Int32
+	launcherObserve = func(m Model) {
+		last = m
+		if strings.Contains(m.Message, "local run changed") {
+			poisoned.Store(true)
+		}
+		if launches, _ := f.counts(); launches >= 1 && m.Session.State == "idle" && strings.Contains(m.Message, "ended before") {
+			sawIdle.Store(true)
+		}
+		if f.sawStatusAfterSecondLaunch() && paintsAfterStatus.Add(1) >= 3 {
+			releaseOnce.Do(func() { close(release) })
+		}
+		launches, stops := f.counts()
+		if launches >= 2 && stops > 0 && m.Session.State == "idle" {
+			cancel()
+		}
+	}
+	pad := &idleThenRelaunchPad{
+		gamesReady:   func() bool { return len(last.Games) > 0 },
+		shelfOpen:    func() bool { return len(last.Games) > 0 && !last.WheelOpen },
+		firstSettled: func() bool { return sawIdle.Load() },
+		secondActive: func() bool { return last.Session.State == "active" },
+	}
+	if err := Run(ctx, c, func(Model) {}, func() (Pad, error) { return pad, nil }); err != nil {
+		t.Fatal(err)
+	}
+	launches, stops := f.counts()
+	f.mu.Lock()
+	stopped := f.stoppedGeneration
+	f.mu.Unlock()
+	if poisoned.Load() || !sawIdle.Load() || launches != 2 || stops != 1 || stopped != genB || last.Session.State != "idle" {
+		t.Fatalf("poisoned=%v idle=%v launches=%d stops=%d stopped=%q model=%+v", poisoned.Load(), sawIdle.Load(), launches, stops, stopped, last)
 	}
 }
 

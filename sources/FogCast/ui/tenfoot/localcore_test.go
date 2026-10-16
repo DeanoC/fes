@@ -1281,3 +1281,64 @@ func TestLocalStatusReplacementRevokesStopOwnership(t *testing.T) {
 		t.Fatal("replacement was stopped")
 	}
 }
+
+func TestReplacementRunKeepsPadUntilGenerationFreeIdle(t *testing.T) {
+	owned := strings.Repeat("a", 64)
+	replacement := strings.Repeat("b", 64)
+	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{
+		Phase: "running", Running: true, PackageID: tenfootPongID, Generation: replacement,
+	}}
+	feed := &fakePadFeed{}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	app.localFeed = feed
+	app.mu.Lock()
+	app.localPhase = localPhaseRunning
+	app.localLeaseGeneration = owned
+	app.localPackageID = tenfootPongID
+	app.localPresentsPaused = true
+	app.mu.Unlock()
+
+	base := time.Unix(1000, 0)
+	app.Tick(base)
+	waitFor(t, app, "replacement held", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseLaunching && s.LocalCorePresentsPaused && strings.Contains(s.Status, "In use")
+	})
+	app.Tick(base.Add(localReconcileTimeout + time.Second))
+	if snap := app.Snapshot(); snap.LocalCorePhase == "" || !snap.LocalCorePresentsPaused {
+		t.Fatalf("deadline released a running replacement: %+v", snap)
+	}
+	if !app.HandleLocalPad(padButton(remoteinput.ButtonA, true), base.Add(localReconcileTimeout+2*time.Second)) {
+		t.Fatal("menu took the replacement pad")
+	}
+	if feed.count(remoteinput.ButtonA, remoteinput.ActionPress) != 1 {
+		t.Fatal("replacement did not receive play input")
+	}
+	app.mu.Lock()
+	app.beginLocalStopLocked()
+	app.startLocalCoreLocked(rooms.Destination{Label: "Again", PackageID: tenfootPongID})
+	app.mu.Unlock()
+	if fake.stopCount() != 0 {
+		t.Fatal("unowned replacement was stopped")
+	}
+	if fake.launchCount() != 0 {
+		t.Fatal("replacement hold allowed another launch")
+	}
+
+	fake.setStatus(localcores.RunStatus{Phase: "idle", Generation: replacement})
+	polls := fake.statusCount()
+	app.Tick(base.Add(localReconcileTimeout + 3*time.Second))
+	waitFor(t, app, "generation-bearing idle observed", func(Snapshot) bool { return fake.statusCount() > polls })
+	if snap := app.Snapshot(); snap.LocalCorePhase == "" || !snap.LocalCorePresentsPaused {
+		t.Fatalf("idle with a generation resumed the menu: %+v", snap)
+	}
+
+	fake.setStatus(localcores.RunStatus{Phase: "idle"})
+	app.Tick(base.Add(localReconcileTimeout + 5*time.Second))
+	waitFor(t, app, "generation-free idle", func(s Snapshot) bool {
+		return s.LocalCorePhase == "" && !s.LocalCorePresentsPaused
+	})
+	if app.HandleLocalPad(padButton(remoteinput.ButtonA, true), base.Add(localReconcileTimeout+6*time.Second)) {
+		t.Fatal("menu did not regain the pad after idle")
+	}
+}
