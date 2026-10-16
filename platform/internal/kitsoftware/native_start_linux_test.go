@@ -2,10 +2,14 @@ package kitsoftware
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net"
+	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -77,7 +81,7 @@ func TestEarlyAgentFailureCannotInterruptNativeInitialization(t *testing.T) {
 		}
 		return nativeStatus{Protocol: 2, OK: true, State: "idle", Execution: "none"}, nil
 	}
-	if err := c.startAgentAfterNative(ctx, runtime, binary, []string{"-test.run=^TestEarlyAgentFailureFixture$"}, []string{"FES_TEST_AGENT_STARTED=" + agent}, "unused", probe); err != nil {
+	if err := c.startAgentAfterNativeInitialization(ctx, runtime, binary, []string{"-test.run=^TestEarlyAgentFailureFixture$"}, []string{"FES_TEST_AGENT_STARTED=" + agent}, "unused", probe); err != nil {
 		t.Fatal(err)
 	}
 	failed := c.children[1]
@@ -102,7 +106,7 @@ func TestEarlyAgentFailureCannotInterruptNativeInitialization(t *testing.T) {
 	}
 }
 func TestNativeStartupFailureDoesNotLaunchAgent(t *testing.T) {
-	for _, failure := range []string{"not-idle", "reboot-required", "wrong-peer", "timeout", "runtime-exit", "cancelled-success"} {
+	for _, failure := range []string{"not-idle", "reboot-required", "failed-not-ok", "failed-wrong-code", "failed-wrong-phase", "failed-executing", "wrong-peer", "timeout", "runtime-exit", "cancelled-success"} {
 		t.Run(failure, func(t *testing.T) {
 			c := &ProcessController{RunDir: t.TempDir()}
 			runtime := nativeChild(t, c, "/bin/sleep", []string{"60"}, nil)
@@ -134,6 +138,19 @@ func TestNativeStartupFailureDoesNotLaunchAgent(t *testing.T) {
 						return nativeStatus{Protocol: 2, OK: true, State: "running", Execution: "game"}, nil
 					case "reboot-required":
 						return nativeStatus{Protocol: 2, OK: true, State: "reboot_required", Execution: "none"}, nil
+					case "failed-not-ok", "failed-wrong-code", "failed-wrong-phase", "failed-executing":
+						status := nativeStatus{Protocol: 2, OK: true, State: "reboot_required", Execution: "none", Error: &nativeStatusError{Code: "idle_failed", Phase: "recovery"}}
+						switch failure {
+						case "failed-not-ok":
+							status.OK = false
+						case "failed-wrong-code":
+							status.Error.Code = "io_failed"
+						case "failed-wrong-phase":
+							status.Error.Phase = "request"
+						case "failed-executing":
+							status.Execution = "game"
+						}
+						return status, nil
 					case "runtime-exit":
 						_ = runtime.cmd.Process.Kill()
 						<-runtime.done
@@ -147,7 +164,7 @@ func TestNativeStartupFailureDoesNotLaunchAgent(t *testing.T) {
 				}
 			}
 			started := time.Now()
-			err := c.startAgentAfterNative(ctx, runtime, "/bin/false", nil, nil, "unused", probe)
+			err := c.startAgentAfterNativeInitialization(ctx, runtime, "/bin/false", nil, nil, "unused", probe)
 			if err == nil {
 				t.Fatal("failed native initialization admitted agent")
 			}
@@ -164,5 +181,67 @@ func TestNativeStartupFailureDoesNotLaunchAgent(t *testing.T) {
 				t.Fatal("native wait reset or ignored caller deadline")
 			}
 		})
+	}
+}
+
+// Only process launch is substituted here; health is the production controller's
+// exact process/agent readiness check, and transitions use the real journal.
+type diagnosticHealthControl struct {
+	fakeControl
+	process *ProcessController
+}
+
+func (c *diagnosticHealthControl) Start(ctx context.Context, id string, r Request) error {
+	c.process.active = id
+	return c.fakeControl.Start(ctx, id, r)
+}
+func (c *diagnosticHealthControl) Healthy(ctx context.Context, id string) error {
+	return c.process.Healthy(ctx, id)
+}
+func TestCompletedNativeFailureStartsDiagnosticsButCannotAccept(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir()}
+	runtime := nativeChild(t, c, "/bin/sleep", []string{"60"}, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	probe := func(context.Context, string, int, string, string) (nativeStatus, error) {
+		return nativeStatus{Protocol: 2, OK: true, State: "reboot_required", Execution: "none", Error: &nativeStatusError{Code: "idle_failed", Phase: "recovery"}}, nil
+	}
+	if err := c.startAgentAfterNativeInitialization(ctx, runtime, "/bin/sleep", []string{"60"}, nil, "unused", probe); err != nil {
+		t.Fatal(err)
+	}
+	agent := c.children[1]
+	t.Cleanup(func() { _ = agent.cmd.Process.Kill(); <-agent.done })
+	nativeChild(t, c, "/bin/sleep", []string{"60"}, nil)
+	checks := 0
+	c.Admission = &UnixAdmission{client: &http.Client{Transport: acknowledgmentTransport(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/status" {
+			t.Fatal("health mutated admission", r.URL.Path)
+		}
+		checks++
+		raw, _ := json.Marshal(AdmissionStatus{BundleID: c.active, RawIdleReady: false})
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(string(raw))), Header: make(http.Header)}, nil
+	})}}
+	repo, engine, _, admission := setup(t)
+	control := &diagnosticHealthControl{process: c}
+	engine.Controller = control
+	if err := Queue(repo, req()); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Run(context.Background()); err == nil {
+		t.Fatal("physical failure accepted")
+	}
+	state, err := repo.Read()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if checks == 0 || state.Pending == nil || state.Pending.Phase != "blocked" || state.Selected != testFactoryID || state.Generation != 0 || state.Unreleased != nil || admission.releases != 0 || control.starts != 2 {
+		t.Fatalf("diagnostic services admitted unhealthy selection: state=%+v checks=%d releases=%d starts=%d", state, checks, admission.releases, control.starts)
+	}
+	for _, p := range c.children {
+		select {
+		case <-p.done:
+			t.Fatal("diagnostic child exited")
+		default:
+		}
 	}
 }

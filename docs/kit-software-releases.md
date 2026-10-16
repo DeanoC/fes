@@ -93,9 +93,12 @@ has not changed. Stopping services, starting replacements and observing ten
 seconds of stable readiness share one sixty-second deadline, including startup
 retries. Factory trial startup follows the same rule. Verification and elapsed
 readiness do not require a working real-time clock on the kit.
-The runtime must finish native initialization and report idle through its own
-authenticated protocol socket before the agent or launcher starts. A dependent
-service failure therefore cannot terminate normal native initialization midway.
+The runtime must finish native initialization through its own authenticated
+protocol socket before the agent or launcher starts. Clean idle permits normal
+startup. The exact terminal `reboot_required` state with `idle_failed` in the
+`recovery` phase permits diagnostic services to start inside maintenance, but
+cannot pass readiness or reopen execution admission. A dependent service failure
+therefore cannot terminate normal native initialization midway.
 
 A failed startup permits one automatic attempt to restore the recorded prior
 bundle. That attempt is recorded durably before the prior bundle starts. A
