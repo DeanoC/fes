@@ -368,6 +368,46 @@ class AcceptanceTests(unittest.TestCase):
             self.assertFalse((private/'maintenance-grant.json').exists())
             self.assertEqual(sum(p == '/v1/kit/maintenance/start' for _,p,_ in state.calls),1)
 
+    def test_maintenance_cleanup_preserves_foreign_queue_before_and_after_own_cancel(self):
+        for when in ('before_own_queue', 'after_cancel', 'no_foreign_queue'):
+            with self.subTest(when=when), tempfile.TemporaryDirectory() as temporary, server() as (state, url):
+                foreign = {'id':'f'*64, 'candidate':'9'*64, 'requester':'other-host',
+                           'expected_generation':5, 'phase':'queued'}
+                def configure(runner):
+                    original = runner.queue
+                    def queue(request):
+                        if runner.phase != 'reboot-preparation':
+                            return original(request)
+                        if when == 'before_own_queue':
+                            state.software['pending'] = dict(foreign)
+                        else:
+                            original(request)
+                        raise accept.CheckError('injected pre-reboot failure')
+                    runner.queue = queue
+                def fault(method, path, status, value):
+                    cancelled = any(r['result'] == 'cancelled' and r['expected_generation'] == 5
+                                    for r in state.software['receipts'].values())
+                    if when == 'after_cancel' and path == '/v1/kit/maintenance' and cancelled:
+                        state.software['pending'] = dict(foreign)
+                    return status, value
+                state.fault = fault
+                command = {'argv':['/must-not-run'], 'sha256':'f'*64}
+                with patch.object(accept, 'external') as external:
+                    ok, _, records = self.run_suite(Path(temporary), url, state,
+                                                    reboot=command, configure=configure)
+                self.assertFalse(ok); external.assert_not_called()
+                ends = sum(p == '/v1/kit/maintenance/end' for _,p,_ in state.calls)
+                if when == 'no_foreign_queue':
+                    self.assertEqual(ends, 1)
+                    self.assertEqual(state.maintenance['state'], 'none')
+                else:
+                    self.assertEqual(ends, 0)
+                    self.assertEqual(state.software['pending'], foreign)
+                    self.assertEqual(state.maintenance['state'], 'ready')
+                    self.assertTrue(any('cleanup-unresolved' in p.name for p in records))
+                self.assertFalse(any(p == '/v1/kit/software/cancel' and v['id'] == foreign['id']
+                                     for _,p,v in state.calls))
+
     def test_bundle_hash_and_existing_evidence_refused_offline(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary); path, _ = bundle(root); evidence = accept.Evidence(root / 'evidence')

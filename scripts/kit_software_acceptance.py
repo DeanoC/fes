@@ -555,6 +555,11 @@ class Runner:
                 current = self.client.request('/v1/kit/maintenance')
                 require(current.get('state') == 'ready' and all(current.get(k) == self.maintenance.get(k)
                         for k in ('operation_id', 'generation', 'boot_id', 'owner')), 'cleanup maintenance changed')
+                latest = self.client.request('/v1/kit/software')
+                self.same_machine(latest, self.health())
+                require(latest['selected'] == self.selected and latest['active_bundle'] == self.selected and
+                        latest['generation'] == self.generation and not latest.get('pending') and
+                        not latest.get('unreleased'), 'cleanup refuses to end maintenance over changed software intent')
                 self.client.request('/v1/kit/maintenance/end',
                                     {'operation_id': current['operation_id'], 'expected_generation': current['generation']},
                                     token=self.maintenance_token)
