@@ -22,6 +22,8 @@ def main():
     parser.add_argument('--save-final-state', type=Path, help='also capture complete state at the observation endpoint')
     parser.add_argument('--save-at-cycles', type=int, default=0)
     parser.add_argument('--restore-state', type=Path)
+    parser.add_argument('--key-event', nargs=3, action='append', default=[], metavar=('CYCLE','HID','DOWN'), help='queue a raw HID key event at an absolute SYS cycle on cold boot')
+    parser.add_argument('--append-key-event', nargs=3, action='append', default=[], metavar=('CYCLE','HID','DOWN'), help='append a key event later than the restored checkpoint and no earlier than its queue tail')
     parser.add_argument('--disk-library', type=Path, action='append', default=[], help='additional immutable D64 available after checkpoint restore')
     parser.add_argument('--append-disk-change', nargs=2, action='append', default=[], metavar=('CYCLE','D64'), help='append a later insertion from the captured library after restore')
     parser.add_argument('--disk-change', nargs=2, action='append', default=[], metavar=('CYCLE','D64'))
@@ -58,6 +60,10 @@ def main():
         if args.cycles<=3*52224000 or (args.save_at_cycles and args.save_at_cycles<3*52224000):
             parser.error('PRG fixture budget/checkpoints must follow its three-second installation')
         if not args.restore_state and not args.type_command:args.type_command='RUN\n'
+    if args.restore_state and args.key_event:
+        parser.error('restore preserves keyboard queue; use --append-key-event')
+    if args.append_key_event and not args.restore_state:
+        parser.error('appended keys require a restored checkpoint')
     if args.restore_state and args.disk_change:
         parser.error('restore preserves queued disk changes; use --append-disk-change for later insertions')
     if args.append_disk_change and not args.restore_state:
@@ -200,6 +206,31 @@ def main():
             event_cycle += key_period
     if key_events and event_cycle >= args.cycles:
         parser.error('cycle budget must extend beyond the last typed key')
+    def normalize_keys(events, after=-1, tail=-1):
+        result=[]
+        for fields in events:
+            try:cycle,usage,down=(int(field) for field in fields)
+            except (ValueError,TypeError):parser.error('key event fields must be integers')
+            if not after<cycle<=1800*52224000 or cycle<tail:
+                parser.error('key events must follow checkpoint time and preserve queue order')
+            if not (0<=usage<128 or 0xe0<=usage<0xe8) or down not in (0,1):
+                parser.error('invalid HID usage or key down value')
+            result.append((cycle,usage,down));tail=cycle
+        return result
+    if restored_metadata:
+        key_events=normalize_keys(restored_metadata.get('key_events',[]))
+        if args.append_key_event and len(key_events)!=restored_metadata['key_event_count']:
+            parser.error('checkpoint lacks complete keyboard schedule; recapture before appending keys')
+    else:
+        key_events=sorted(key_events+normalize_keys(args.key_event),key=lambda event:event[0])
+    added_key_events=normalize_keys(args.append_key_event,
+        after=restored_metadata['system_cycle'] if restored_metadata else -1,
+        tail=key_events[-1][0] if key_events else -1)
+    all_key_events=key_events+added_key_events
+    key_event_count=len(all_key_events) if not restored_metadata or 'key_events' in restored_metadata else restored_metadata['key_event_count']
+    if len(all_key_events)>100000:parser.error('at most 100000 key events are supported')
+    if added_key_events:
+        (output/'append-keyboard.txt').write_text(''.join(f'{cycle} {usage} {down}\n' for cycle,usage,down in added_key_events))
     if key_events:
         (output / 'keyboard.txt').write_text(''.join(f'{cycle} {usage} {down}\n'
             for cycle, usage, down in key_events))
@@ -210,6 +241,8 @@ def main():
     if args.prg_fixture:
         command.append(f'+C64_PRG_FIXTURE={output / "prg-fixture.prg"}')
     command.append(f'+C64_DISK_LIBRARY={output / "disk-library.txt"}')
+    if added_key_events:
+        command.append(f'+C64_APPEND_KEY_EVENTS={output / "append-keyboard.txt"}')
     if added_disk_changes:
         command.append(f'+C64_APPEND_DISK_CHANGES={output / "append-disk-changes.txt"}')
     if disk_changes:
@@ -295,9 +328,9 @@ def main():
             'disk_changes':all_disk_changes, 'media_library':media_library,
             'typed_command':args.type_command, 'followup_command':args.then_command,
             'followup_cycle':args.then_at_cycles if args.then_command else None,
-            'key_event_count':len(key_events), 'initialization':'prg-fixture' if args.prg_fixture else 'cold-boot', 'evidence':'development simulation checkpoint'}
+            'key_event_count':key_event_count, 'key_events':all_key_events, 'initialization':'prg-fixture' if args.prg_fixture else 'cold-boot', 'evidence':'development simulation checkpoint'}
         if restored_metadata:
-            for name in ['typed_command','followup_command','followup_cycle','key_event_count']:
+            for name in ['typed_command','followup_command','followup_cycle']:
                 state_metadata[name]=restored_metadata[name]
         state_path.with_name(state_path.name+'.json').write_text(json.dumps(state_metadata,indent=2)+'\n')
     if args.prg_fixture:outputs_to_hash.append('prg-fixture.prg')
@@ -311,7 +344,7 @@ def main():
                'cpu_clock_hz': 985248, 'inputs': inputs, 'outputs': outputs,
                'simulator_sha256': simulator_sha256,
                'typed_command': args.type_command, 'followup_command': args.then_command,
-               'followup_cycle': args.then_at_cycles if args.then_command else None, 'key_event_count': len(key_events),
+               'followup_cycle': args.then_at_cycles if args.then_command else None, 'key_event_count': key_event_count, 'key_events':all_key_events, 'appended_key_events':added_key_events,
                'disk_changes':all_disk_changes, 'media_library':media_library,
                'appended_disk_changes':added_disk_changes,
                'medium_oracle': args.medium_oracle, 'late_video_capture':args.late_video,
@@ -320,7 +353,7 @@ def main():
                'saved_final_state':str(args.save_final_state) if args.save_final_state else None,
                'saved_state':str(args.save_state) if args.save_state else None, 'boot_acceptance': False, 'demo_acceptance': False}
     if restored_metadata:
-        for name in ['typed_command','followup_command','followup_cycle','key_event_count']:
+        for name in ['typed_command','followup_command','followup_cycle']:
             receipt[name]=restored_metadata[name]
     (output / 'observation.json').write_text(json.dumps(receipt, indent=2) + '\n')
     print((output / 'boot.log').read_text(), end='')

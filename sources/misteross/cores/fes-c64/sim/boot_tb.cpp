@@ -51,7 +51,7 @@ int main(int argc, char **argv) {
             if (!events) { std::fprintf(stderr,"cannot open key event file\n"); return 1; }
             KeyEvent event;
             while (events >> event.cycle >> event.usage >> event.down) {
-                if (event.usage >= 128 && (event.usage < 0xe0 || event.usage >= 0xe8)) return 1;
+                if ((event.usage >= 128 && (event.usage < 0xe0 || event.usage >= 0xe8)) || event.down > 1) return 1;
                 if (!keys.empty() && event.cycle < keys.back().cycle) return 1;
                 keys.push_back(event);
             }
@@ -172,6 +172,25 @@ int main(int argc, char **argv) {
         if(!stream.isOpen())return 2;
         archive(stream);stream.close();
         std::fprintf(stderr,"Restored at cycle %llu\n",static_cast<unsigned long long>(sys_edge/2));
+    }
+    const std::string append_keys_path=option("C64_APPEND_KEY_EVENTS=");
+    if(!append_keys_path.empty()) {
+        if(restore_path.empty())throw std::runtime_error("appended keys require restore");
+        std::ifstream input(append_keys_path);
+        if(!input)throw std::runtime_error("cannot open appended key events");
+        std::vector<KeyEvent> added;
+        KeyEvent event;
+        uint64_t tail=keys.empty()?0:keys.back().cycle;
+        while(input >> event.cycle) {
+            if(!(input >> event.usage >> event.down))throw std::runtime_error("malformed appended key events");
+            if(event.cycle<=sys_edge/2 || event.cycle>1800ull*52224000 || event.cycle<tail || event.down>1 ||
+               (event.usage>=128 && (event.usage<0xe0 || event.usage>=0xe8)) ||
+               keys.size()+added.size()>=100000)
+                throw std::runtime_error("invalid appended key event");
+            tail=event.cycle;added.push_back(event);
+        }
+        if(!input.eof())throw std::runtime_error("malformed appended key events");
+        keys.insert(keys.end(),added.begin(),added.end());
     }
     disk_changes.append(option("C64_APPEND_DISK_CHANGES="),sys_edge/2);
     auto save=[&](const std::string &path) {

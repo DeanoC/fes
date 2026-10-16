@@ -1959,6 +1959,17 @@ media-library hashes; a rebuild requires recapture. Scheduled insertions and
 the active media cursor are serialized with the host state. An explicit later
 insertion can be appended after restore, selecting a disk from the captured
 library without modifying earlier events or machine/drive state.
+Raw keyboard switches can be queued on cold boot with repeated
+`--key-event CYCLE HID DOWN` options (`DOWN` is 0 or 1). After restore,
+`--append-key-event CYCLE HID DOWN` adds events strictly after the saved clock
+and no earlier than the existing queue tail, preserving held keys and pending
+releases. Equal-cycle events allow chords. The observer records the complete
+accumulated schedule and the newly appended events; a subsequent restore needs
+no resubmission. Appending requires metadata with a complete keyboard schedule.
+Both the helper and simulator reject invalid HID usages, nonboolean values,
+past events and reordered queues. This allows trainer prompts and keyboard
+controls to be exercised from a proved loading checkpoint. The boot simulator
+still holds joystick buttons at zero, so this does not qualify joystick gameplay.
 `--save-final-state` retains an endpoint snapshot alongside an intermediate
 capture, and restores preserve the capture policy. The absolute observation
 endpoint can extend to 1800 machine seconds. Native LOAD must be verified before using a

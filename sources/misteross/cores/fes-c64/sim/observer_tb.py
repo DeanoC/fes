@@ -82,6 +82,40 @@ def run(medium_oracle):
         assert '87425 system cycles' in (p/'helper-overlapping-upload.log').read_text()
 
 
+    # Hold A across a checkpoint with its release already queued, then append
+    # B press/release after that queue tail. Compare with cold prequeued input.
+    key_state=p/'keys.state';key_branch=p/'keys appended';key_branch.mkdir(exist_ok=True)
+    hold=['--key-event','500000','4','1','--key-event','1300000','4','0']
+    press=['--key-event','1400000','5','1','--key-event','1500000','5','0']
+    common=['--late-video','--sid-trace','--audio-capture','--disk-change','1000000',str(p/'disk1.d64'),'--disk-change','1200000',str(p/'disk2.d64')]
+    with (p/'helper-key-split.log').open('w') as log:
+        subprocess.run(base+common+hold+['--output',str(original),'--save-state',str(key_state),'--save-at-cycles','1031119'],stdout=log,stderr=subprocess.STDOUT,check=True)
+    with (p/'helper-key-appended.log').open('w') as log:
+        subprocess.run(base+['--sid-trace','--audio-capture','--output',str(key_branch),'--restore-state',str(key_state),'--append-key-event','1400000','5','1','--append-key-event','1500000','5','0','--save-final-state',str(key_branch/'end.state')],stdout=log,stderr=subprocess.STDOUT,check=True)
+    with (p/'helper-key-reference.log').open('w') as log:
+        subprocess.run(base+common+hold+press+['--output',str(original),'--save-final-state',str(original/'end.state')],stdout=log,stderr=subprocess.STDOUT,check=True)
+    for name in ['boot-ram.bin','drive-ram.bin','boot.ppm','end.state']:
+        assert (key_branch/name).read_bytes()==(original/name).read_bytes(),name
+    assert stores(key_branch)==[row for row in stores(original)if int(row['sys_cycle'])>=1031119]
+    assert (key_branch/'audio.pcm').read_bytes()==(original/'audio.pcm').read_bytes()[2*(1031119//1088):]
+    key_receipt=json.loads((key_branch/'observation.json').read_text())
+    assert key_receipt['key_events']==[[500000,4,1],[1300000,4,0],[1400000,5,1],[1500000,5,0]]
+    assert key_receipt['appended_key_events']==[[1400000,5,1],[1500000,5,0]]
+    assert json.loads((key_branch/'end.state.json').read_text())['key_event_count']==4
+    for label,fields in [('past',['1031119','5','1']),('tail',['1200000','5','1']),('usage',['1400000','128','1']),('down',['1400000','5','2']),('negative',['-1','5','1'])]:
+        with (p/f'helper-key-rejected-{label}.log').open('w') as log:
+            result=subprocess.run(base+['--output',str(p/f'key-invalid-{label}'),'--restore-state',str(key_state),'--append-key-event']+fields,stdout=log,stderr=subprocess.STDOUT)
+        assert result.returncode!=0,label
+    # A second restore must retain the accumulated queue without resubmitting it.
+    twice=p/'keys restored twice';twice.mkdir(exist_ok=True)
+    longer=[str(1671168)if x=='1566720'else x for x in base]
+    for target,statefile in [(twice,key_branch/'end.state'),(original,original/'end.state')]:
+        with (p/('helper-key-twice-'+target.name+'.log')).open('w') as log:
+            subprocess.run(longer+['--output',str(target),'--restore-state',str(statefile),'--save-final-state',str(target/'long.state')],stdout=log,stderr=subprocess.STDOUT,check=True)
+    assert (twice/'long.state').read_bytes()==(original/'long.state').read_bytes()
+    assert json.loads((twice/'observation.json').read_text())['key_events']==key_receipt['key_events']
+    print('appended keyboard input preserves held keys, release queue, full state, PCM/SID and subsequent restores; invalid input rejected')
+
     with (p/'helper-past-save.log').open('w') as log:
      result=subprocess.run(base+['--output',str(p/'past-save'),'--restore-state',str(state),'--save-state',str(p/'invalid.state'),'--save-at-cycles','700000'],stdout=log,stderr=subprocess.STDOUT)
     assert result.returncode!=0,'checkpoint save time predates restored clock'

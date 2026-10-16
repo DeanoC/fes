@@ -139,6 +139,14 @@ def main():
             reason='invalid future disk-change schedule' if mode=='oracle' else 'invalid future D64 schedule'
             if result.returncode==0 or reason not in log_path.read_text():
                 raise AssertionError(f'{mode}: {label} insertion was not rejected by the schedule guard')
+        for label,event in [('key-past','731119 5 1\n'),('key-tail','900000 5 1\n'),('key-usage','1300000 128 1\n'),('key-down','1300000 5 2\n'),('key-partial','1300000 5\n')]:
+            event_path=output/f'{label}.txt';event_path.write_text(event)
+            log_path=paths['appended']/f'{label}.log'
+            with log_path.open('w') as log:
+                result=subprocess.run(base+[f'+C64_RESTORE={paths["split"]}/checkpoint.state',
+                                           f'+C64_APPEND_KEY_EVENTS={event_path}'],
+                                      cwd=paths['appended'],stdout=log,stderr=subprocess.STDOUT)
+            assert result.returncode!=0 and 'key event' in log_path.read_text(),label
         # Reject a different model/input identity before state restoration.
         wrong=[arg if not arg.startswith('+C64_STATE_ID=') else '+C64_STATE_ID='+'0'*64 for arg in base]
         with (paths['restored']/'mismatch.log').open('w') as log:
