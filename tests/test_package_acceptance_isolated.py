@@ -35,6 +35,7 @@ ARCHIVE_SHA256 = hashlib.sha256(ARCHIVE).hexdigest()
 PACKAGE_ID = "a" * 64
 CORE_ID = "fes.sg1000"
 TARGET_ID = "target-1"
+SOFTWARE_IDENTITY = {"active_bundle": package_acceptance_tests.BUNDLE_ID, "base_identity": package_acceptance_tests.BASE_ID, "host_api":"v1", "target_api":"v1"}
 IMAGE = "sha256:" + "b" * 64
 HOST_REVISION = "c" * 40
 RUNTIME_REVISION = "d" * 40
@@ -95,7 +96,6 @@ def _command(
     evidence: Path,
     *,
     execute: bool = True,
-    allow_development: bool = False,
     runtime: Path | None = None,
     **overrides,
 ):
@@ -104,9 +104,8 @@ def _command(
         "expected_package_id": PACKAGE_ID,
         "expected_core_id": CORE_ID,
         "expected_target_id": TARGET_ID,
-        "expected_host_revision": HOST_REVISION,
-        "expected_agent_revision": HOST_REVISION,
-        "expected_runtime_revision": RUNTIME_REVISION,
+        "expected_bundle_id": package_acceptance_tests.BUNDLE_ID,
+        "expected_base_image_sha256": package_acceptance_tests.BASE_ID,
     }
     values.update(overrides)
     command = [
@@ -133,12 +132,8 @@ def _command(
         values["expected_core_id"],
         "--expected-target-id",
         values["expected_target_id"],
-        "--expected-host-revision",
-        values["expected_host_revision"],
-        "--expected-agent-revision",
-        values["expected_agent_revision"],
-        "--expected-runtime-revision",
-        values["expected_runtime_revision"],
+        "--expected-bundle-id", values["expected_bundle_id"],
+        "--expected-base-image-sha256", values["expected_base_image_sha256"],
         "--new-entry-title",
         "isolated SG1000",
         "--container-runtime",
@@ -146,8 +141,6 @@ def _command(
     ]
     if execute:
         command.append("--execute")
-    if allow_development:
-        command.append("--allow-development-host")
     return command
 
 
@@ -292,20 +285,14 @@ def _isolated_command(
     container_timeout: str = "3",
     shutdown_timeout: str = "1",
     runner_timeout: str = "120",
-    allow_development: bool = True,
     **overrides,
 ):
-    values = {
-        "expected_host_revision": "diag-host-revision",
-        "expected_agent_revision": "a" * 40,
-        "expected_runtime_revision": "b" * 40,
-    }
+    values = {}
     values.update(overrides)
     command = _command(
         paths,
         evidence,
         runtime=runtime,
-        allow_development=allow_development,
         **values,
     )
     command.extend([
@@ -441,7 +428,7 @@ class IsolatedVideoPartsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             args, _, _, _ = self.arguments(directory)
             package_acceptance_isolated.validate_args(args)
-            value = {"success": True, "package_id": PACKAGE_ID, "core_id": "fes.coleco", "target_id": TARGET_ID,
+            value = {"success": True, "package_id": PACKAGE_ID, "core_id": "fes.coleco", "target_id": TARGET_ID, "software_identity": SOFTWARE_IDENTITY,
                      "selection": {"game_id": "native-entry", "package_id": PACKAGE_ID},
                      "video_parts": args.video_parts_snapshot.receipt(), "video_admission": "imported",
                      "video_composition": package_acceptance_tests._video_state()["video_composition"]}
@@ -477,7 +464,7 @@ class IsolatedInputDiagnosticTests(unittest.TestCase):
 
     def child_receipt(self, diagnostic):
         return {"success": True, "package_id": PACKAGE_ID, "core_id": CORE_ID,
-                "target_id": TARGET_ID, "selection": {"game_id": "same-entry"},
+                "target_id": TARGET_ID, "software_identity": SOFTWARE_IDENTITY, "selection": {"game_id": "same-entry"},
                 "mode": "lifecycle-input-diagnostic", "diagnostics": [{
                     "sha256": diagnostic.sha256, "interface": diagnostic.interface,
                     "events_requested": 2, "events_acknowledged": 2,
@@ -689,13 +676,13 @@ class IsolatedPackageAcceptanceOfflineTests(unittest.TestCase):
         args = SimpleNamespace(library_media="rom.bin", expected_media_sha256="e" * 64,
             library_media_bytes=32768, expected_host_sha256="f" * 64, container_image=IMAGE,
             expected_package_id=PACKAGE_ID, expected_core_id=CORE_ID, expected_target_id=TARGET_ID,
-            expected_host_revision=HOST_REVISION, expected_agent_revision=HOST_REVISION,
-            expected_runtime_revision=RUNTIME_REVISION, allow_development_host=False)
+            expected_bundle_id=package_acceptance_tests.BUNDLE_ID,
+            expected_base_image_sha256=package_acceptance_tests.BASE_ID)
         expected = {"media_id": "e" * 64, "sha256": "e" * 64, "size": 32768, "role": "blob"}
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "receipt.json"
             value = {"success": True, "package_id": PACKAGE_ID, "core_id": CORE_ID,
-                     "target_id": TARGET_ID, "library_media": expected, "media_admission": "imported",
+                     "target_id": TARGET_ID, "software_identity": package_acceptance_isolated.expected_identity(args), "library_media": expected, "media_admission": "imported",
                      "selection": {"game_id": "sms-title", "package_id": PACKAGE_ID,
                                    "media_id": "e" * 64, "media_role": "blob"}}
             path.write_text(json.dumps(value))
@@ -760,17 +747,11 @@ class IsolatedPackageAcceptanceOfflineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             paths = _write_inputs(directory)
             evidence = Path(directory) / "evidence"
-            args = package_acceptance_isolated.parser().parse_args(
-                _command(paths, evidence, expected_agent_revision="f" * 40)[3:]
-            )
+            args = package_acceptance_isolated.parser().parse_args(_command(paths, evidence)[3:])
             target = package_acceptance_isolated.validate_args(args)
             self.assertEqual(target.target_id, TARGET_ID)
-            self.assertFalse(args.allow_development_host)
             receipt = package_acceptance_isolated._receipt_base(args, True)
-            self.assertEqual(receipt["host_revision_policy"], "full-commit")
-            self.assertEqual(receipt["revisions"], {
-                "host": HOST_REVISION, "agent": "f" * 40, "runtime": RUNTIME_REVISION,
-            })
+            self.assertEqual(receipt["software_identity"]["active_bundle"], package_acceptance_tests.BUNDLE_ID)
             self.assertFalse(evidence.exists())
 
     def test_rejects_config_target_id_mismatch_before_evidence(self):
@@ -788,68 +769,14 @@ class IsolatedPackageAcceptanceOfflineTests(unittest.TestCase):
             self.assertIn("target", result.stderr.lower())
             self.assertFalse(evidence.exists())
 
-    def test_development_mode_still_requires_full_agent_and_runtime_commits(self):
-        for field in ("expected_agent_revision", "expected_runtime_revision"):
-            with self.subTest(field=field):
-                with tempfile.TemporaryDirectory() as directory:
-                    paths = _write_inputs(directory)
-                    evidence = Path(directory) / "evidence"
-                    result = subprocess.run(
-                        _command(
-                            paths,
-                            evidence,
-                            allow_development=True,
-                            expected_host_revision="diag-host-revision",
-                            **{field: "not-a-commit"},
-                        ),
-                        cwd=ROOT,
-                        text=True,
-                        capture_output=True,
-                    )
-
-                    self.assertNotEqual(result.returncode, 0)
-                    self.assertIn(field.removeprefix("expected_").replace("_", " "), result.stderr.lower())
-                    self.assertFalse(evidence.exists())
-
-    def test_host_labels_require_opt_in_and_diagnostic_prefix(self):
-        for revision, allow_development, message in (
-            ("diag-host-revision", False, "full 40-character"),
-            ("arbitrary-host", True, "diag-/dev-"),
-        ):
-            with self.subTest(revision=revision), tempfile.TemporaryDirectory() as directory:
-                paths = _write_inputs(directory)
-                evidence = Path(directory) / "evidence"
-                args = package_acceptance_isolated.parser().parse_args(
-                    _command(paths, evidence, allow_development=allow_development,
-                             expected_host_revision=revision)[3:]
-                )
-                with self.assertRaisesRegex(package_acceptance_isolated.AcceptanceError, message):
-                    package_acceptance_isolated.validate_args(args)
-                self.assertFalse(evidence.exists())
-
-    def test_mixed_revision_readiness_still_rejects_each_wrong_expected_identity(self):
+    def test_obsolete_revision_flags_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             paths = _write_inputs(directory)
-            args = package_acceptance_isolated.parser().parse_args(
-                _command(paths, Path(directory) / "evidence", expected_agent_revision="a" * 40)[3:]
-            )
-            target = package_acceptance_isolated.validate_args(args)
-            health = {
-                "ready": True, "host": {"revision": HOST_REVISION},
-                "target": {"reachable": True, "ready": True,
-                           "connection": {"target_id": TARGET_ID},
-                           "artifacts": {"agent_revision": "a" * 40,
-                                         "runtime_commit": RUNTIME_REVISION}},
-            }
-            with mock.patch.object(package_acceptance_isolated, "_get_json", return_value=health):
-                package_acceptance_isolated._probe_host("http://127.0.0.1:1", args, target)
-                for name in ("host", "agent", "runtime"):
-                    with self.subTest(identity=name), mock.patch.object(
-                        args, f"expected_{name}_revision", "f" * 40
-                    ):
-                        with self.assertRaisesRegex(package_acceptance_isolated.AcceptanceError,
-                                                    f"{name} identity"):
-                            package_acceptance_isolated._probe_host("http://127.0.0.1:1", args, target)
+            for flag in ("--expected-host-revision", "--expected-agent-revision", "--expected-runtime-revision", "--expected-runtime-commit", "--allow-development-host"):
+                command = _command(paths, Path(directory)/"evidence") + [flag]
+                result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("unrecognized arguments", result.stderr)
 
     def test_rejects_target_url_userinfo_before_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -886,22 +813,22 @@ class IsolatedPackageAcceptanceContainerTests(unittest.TestCase):
             runtime = _write_fake_runtime(directory)
             evidence = Path(directory) / "evidence"
             result = _run_isolated(
-                _isolated_command(paths, evidence, runtime, allow_development=False,
-                                  expected_host_revision=HOST_REVISION),
+                _isolated_command(paths, evidence, runtime),
                 Path(directory) / "runtime.log", Path(directory) / "runtime-state.json",
                 api_port=server.server_port,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             expected = {"host": HOST_REVISION, "agent": "a" * 40, "runtime": "b" * 40}
             receipt = json.loads((evidence / "receipt.json").read_text())
-            self.assertEqual(receipt["host_revision_policy"], "full-commit")
-            self.assertEqual(receipt["revisions"], expected)
+            self.assertEqual(receipt["provenance"]["host_revision"], HOST_REVISION)
+            self.assertEqual(receipt["software_identity"]["active_bundle"], package_acceptance_tests.BUNDLE_ID)
             self.assertEqual(len(state["launch_bodies"]), 2)
             self.assertEqual(state["stops"], 2)
             self.assertEqual(state["compatibility_calls"], 2)
             for cycle in ("cycle-1", "cycle-2"):
                 child_receipt = json.loads((evidence / cycle / "receipt.json").read_text())
-                self.assertEqual(child_receipt["revisions"], expected)
+                self.assertEqual(child_receipt["provenance"]["host_revision"], HOST_REVISION)
+                self.assertEqual(child_receipt["software_identity"]["active_bundle"], package_acceptance_tests.BUNDLE_ID)
             self.assertFalse((evidence / "container-home/.config/fogcast/config.toml").exists())
 
     def test_media_is_bound_across_restart_and_final_receipt(self):

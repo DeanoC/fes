@@ -81,7 +81,7 @@ mutations. Per-cycle receipts mark `media_admission` as `imported` or `retained`
 Per-cycle and final receipts record
 `library_media` with `media_id`, `sha256`, `size` and `role`; per-cycle selections
 also record `media_id` and `media_role`. The normal game-ID launch and owned
-Stop path, target/revision guards and cleanup remain unchanged.
+Stop path, target/software-identity guards and cleanup remain unchanged.
 
 These receipts bind observed catalog selection to the lifecycle run, not to a
 target-side media digest attestation. They do not prove execution of upper ROM
@@ -143,9 +143,8 @@ python3 scripts/package_acceptance.py \
   --expected-package-id PACKAGE_ID \
   --expected-core-id fes.sg1000 \
   --expected-target-id AUTHORIZED_TARGET_ID \
-  --expected-host-revision HOST_COMMIT \
-  --expected-agent-revision AGENT_COMMIT \
-  --expected-runtime-revision RUNTIME_COMMIT \
+  --expected-bundle-id ACTIVE_BUNDLE_ID \
+  --expected-base-image-sha256 BASE_IMAGE_SHA256 \
   --new-entry-title 'FES SG-1000' \
   --receipt /absolute/path/new-run-receipt.json \
   --execute
@@ -165,7 +164,7 @@ runs do not publish a success receipt; retain the command exit status and error
 output as failure evidence.
 
 Use an existing sealed archive and freeze its package ID, core ID and the
-host/agent/runtime revisions for a run. Do not rebuild or reseal the candidate
+active kit bundle and base-image digests for a run. Do not rebuild or reseal the candidate
 to follow a moving integration branch. A package's ID is derived from its exact
 manifest and payload, not its filename or human-readable version.
 
@@ -173,7 +172,7 @@ Provide the designated kit's independently established target ID, not a value
 blindly copied from whichever kit the host currently discovers. The runner checks
 health, compatibility and session target IDs, including cleanup, and records the
 authorized ID in its receipt. Missing or mismatched IDs fail closed even when
-software revisions match. These checks do not authenticate physical hardware or
+software digests match. These checks do not authenticate physical hardware or
 distinguish two devices provisioned with the same target ID; exclusive operator
 use and correct kit provisioning remain required.
 
@@ -253,9 +252,8 @@ python3 scripts/package_acceptance_isolated.py \
   --expected-package-id PACKAGE_ID \
   --expected-core-id CORE_ID \
   --expected-target-id AUTHORIZED_TARGET_ID \
-  --expected-host-revision HOST_COMMIT \
-  --expected-agent-revision AGENT_COMMIT \
-  --expected-runtime-revision RUNTIME_COMMIT \
+  --expected-bundle-id ACTIVE_BUNDLE_ID \
+  --expected-base-image-sha256 BASE_IMAGE_SHA256 \
   --new-entry-title 'Isolated package diagnostic' \
   --execute
 ```
@@ -278,20 +276,20 @@ in the existing acceptance runner. Ambiguous mutations are not automatically
 replayed. Exclusive kit use is still required; catalog isolation does not reserve
 hardware or permit takeover of another operator's lease.
 
-The host, agent and runtime must each advertise their explicitly expected
-revision. By default all three expectations are full Git commits; the host and
-agent commits may differ. Revisions identify the tested artifacts, while the
-normal target API admission, runtime protocol and package ABI/interface checks
-determine compatibility. A compatible new host can use the installed kit
-software without updating it merely to match source revisions.
+Both runners require the expected active bundle ID and base-image SHA-256.
+They check the authenticated target identity and API `v1` forwarded by the host,
+then resolve that bundle through the read-only host software inventory. Its
+manifest must provide runtime protocol `2`, `fes-kit-maintenance-v1` and
+`fes-kit-software-v1`. The normal package admission and per-operation interfaces
+remain additional checks. Missing or incompatible contracts fail before mutation.
 
-A labelled development host requires `--allow-development-host` and an exact
-`diag-`/`dev-` (or underscore) revision label. This permits that label rather
-than a full host commit; agent/runtime expectations remain full commits and all
-observed identities must still match. The final receipt records
-`host_revision_policy` as `full-commit` or `development-label` based on the host
-identity actually supplied. Neither mode disables compatibility or kit ownership
-checks. The wrapper never changes a binary's embedded revision.
+The active bundle and base image remain pinned through launch, input and Stop
+checks. A queued update does not invalidate an unchanged active bundle. Source
+revisions are recorded as provenance; they are not compatibility requirements.
+Base-image `artifacts.runtime_commit` describes the sealed base record, not the
+running bundle. The isolated runner separately pins the exact host binary hash
+and container image digest. The former revision flags and development-label mode
+are removed; use the explicit bundle and base identities.
 
 Logs, individual cycle receipts and a final diagnostic result are retained in
 the new evidence directory. Final success requires both lifecycle cycles,

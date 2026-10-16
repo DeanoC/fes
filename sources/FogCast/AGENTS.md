@@ -64,6 +64,9 @@ designated kit. Do not assume the same authorization for another device.
   Clean up only your host/session; follow FES `docs/kit-sharing.md`.
 - Check supported API/ABI contracts and record each exact artifact independently.
   Different source revisions alone do not require paired host/kit updates.
+  Reuse compatible installed kit software. Diagnostics pin its active bundle ID
+  and base-image identity; sealed base-image runtime provenance does not identify
+  the running bundle. Record source revisions separately, without aligning them.
 - Managed kits use immutable software bundles through the authenticated software
   API. Install without disrupting the owner; queue activation for a free lease.
   Successful selections remain installed. Restoring a prior bundle is a new

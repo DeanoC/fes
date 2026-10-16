@@ -28,10 +28,10 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
+from diagnostic_identity import observe_health, active_manifest, expected_identity
+
 PACKAGE_ACCEPTANCE = Path(__file__).with_name("package_acceptance.py")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
-DEVELOPMENT_HOST_RE = re.compile(r"^(?:diag|dev)[-_][A-Za-z0-9_.-]+$")
 IMAGE_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 CORE_ID_RE = re.compile(r"^[a-z][a-z0-9_.-]{0,95}$")
 PACKAGE_ID_RE = SHA256_RE
@@ -510,7 +510,7 @@ def _require_port_available(port: int) -> None:
         probe.close()
 
 
-def _get_json(origin: str, path: str, timeout: float) -> dict[str, Any]:
+def _get_json(origin: str, path: str, timeout: float) -> Any:
     request = urllib.request.Request(origin.rstrip("/") + path, method="GET")
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
@@ -523,40 +523,19 @@ def _get_json(origin: str, path: str, timeout: float) -> dict[str, Any]:
         value = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise AcceptanceError("isolated host readiness response was not JSON") from exc
-    if not isinstance(value, dict):
-        raise AcceptanceError("isolated host readiness response was not an object")
     return value
 
 
 def _probe_host(origin: str, args: argparse.Namespace, target: PrivateTarget) -> None:
     value = _get_json(origin, "/api/v1/health", args.timeout)
-    if value.get("ready") is not True:
-        raise AcceptanceError("isolated host is not ready")
-    target_value = value.get("target")
-    connection = target_value.get("connection") if isinstance(target_value, dict) else None
-    artifacts = target_value.get("artifacts") if isinstance(target_value, dict) else None
-    if (
-        not isinstance(target_value, dict)
-        or target_value.get("reachable") is not True
-        or target_value.get("ready") is not True
-        or not isinstance(connection, dict)
-        or connection.get("target_id") != args.expected_target_id
-        or not isinstance(artifacts, dict)
-    ):
-        raise AcceptanceError("isolated host target identity is not ready")
-    observed = {
-        "host": (value.get("host") or {}).get("revision"),
-        "agent": artifacts.get("agent_revision"),
-        "runtime": artifacts.get("runtime_commit"),
-    }
-    expected = {
-        "host": args.expected_host_revision,
-        "agent": args.expected_agent_revision,
-        "runtime": args.expected_runtime_revision,
-    }
-    for name in ("host", "agent", "runtime"):
-        if observed[name] != expected[name]:
-            raise AcceptanceError(f"isolated host {name} identity does not match the expected revision")
+    try:
+        args.observed_provenance = observe_health(value, args.expected_target_id,
+            args.expected_bundle_id, args.expected_base_image_sha256)
+        if not getattr(args, "active_manifest", None):
+            args.active_manifest = active_manifest(_get_json(origin, "/api/v1/kit/software/releases", args.timeout),
+                                                  args.expected_bundle_id)
+    except ValueError as exc:
+        raise AcceptanceError(str(exc)) from exc
 
 
 def wait_for_host(
@@ -616,12 +595,8 @@ def runner_command(
         args.expected_core_id,
         "--expected-target-id",
         args.expected_target_id,
-        "--expected-host-revision",
-        args.expected_host_revision,
-        "--expected-agent-revision",
-        args.expected_agent_revision,
-        "--expected-runtime-revision",
-        args.expected_runtime_revision,
+        "--expected-bundle-id", args.expected_bundle_id,
+        "--expected-base-image-sha256", args.expected_base_image_sha256,
         "--receipt",
         str(receipt),
         "--poll-attempts",
@@ -793,14 +768,6 @@ def _container_value(record: ContainerRecord) -> dict[str, Any]:
     }
 
 
-def _identity_value(args: argparse.Namespace) -> dict[str, str]:
-    return {
-        "host": args.expected_host_revision,
-        "agent": args.expected_agent_revision,
-        "runtime": args.expected_runtime_revision,
-    }
-
-
 def _receipt_base(args: argparse.Namespace, success: bool) -> dict[str, Any]:
     value = {
         "format": 1,
@@ -811,10 +778,10 @@ def _receipt_base(args: argparse.Namespace, success: bool) -> dict[str, Any]:
         "package_id": args.expected_package_id,
         "core_id": args.expected_core_id,
         "target_id": args.expected_target_id,
-        "revisions": _identity_value(args),
-        "host_revision_policy": (
-            "full-commit" if COMMIT_RE.fullmatch(args.expected_host_revision) else "development-label"
-        ),
+        "software_identity": expected_identity(args),
+        "provenance": {**getattr(args, "observed_provenance", {}),
+                       "active_bundle": (getattr(args, "active_manifest", None) or {}).get("provenance", {})},
+        "provided_interfaces": (getattr(args, "active_manifest", None) or {}).get("interfaces", {}),
     }
     if args.library_media:
         value["library_media"] = {"media_id": args.expected_media_sha256,
@@ -867,6 +834,8 @@ def _read_runner_receipt(path: Path, args: argparse.Namespace, retained_media: b
         raise AcceptanceError("package acceptance runner receipt identity does not match the request")
     if value.get("target_id") != args.expected_target_id:
         raise AcceptanceError("package acceptance runner receipt target identity does not match the request")
+    if value.get("software_identity") != expected_identity(args):
+        raise AcceptanceError("runner receipt active software identity differs from request")
     selection = value.get("selection")
     if not isinstance(selection, dict):
         raise AcceptanceError("package acceptance runner receipt has no selection")
@@ -1091,14 +1060,8 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--expected-package-id", required=True)
     result.add_argument("--expected-core-id", required=True)
     result.add_argument("--expected-target-id", required=True)
-    result.add_argument("--expected-host-revision", required=True)
-    result.add_argument("--expected-agent-revision", required=True)
-    result.add_argument(
-        "--expected-runtime-revision",
-        "--expected-runtime-commit",
-        dest="expected_runtime_revision",
-        required=True,
-    )
+    result.add_argument("--expected-bundle-id", required=True)
+    result.add_argument("--expected-base-image-sha256", required=True)
     result.add_argument("--new-entry-title", required=True)
     result.add_argument("--container-runtime", default=os.environ.get("CONTAINER_RUNTIME", "docker"))
     result.add_argument("--listen-port", type=int, default=0)
@@ -1108,10 +1071,6 @@ def parser() -> argparse.ArgumentParser:
     result.add_argument("--runner-timeout", type=float, default=120.0)
     result.add_argument("--poll-attempts", type=int, default=60)
     result.add_argument("--poll-interval", type=float, default=1.0)
-    result.add_argument(
-        "--allow-development-host", action="store_true",
-        help="permit an explicitly expected diag-/dev- host revision label; full commits need no opt-in",
-    )
     result.add_argument("--execute", action="store_true")
     return result
 
@@ -1169,24 +1128,8 @@ def validate_args(args: argparse.Namespace) -> PrivateTarget:
     _require_package_id(args.expected_package_id, "expected package ID")
     _require_core_id(args.expected_core_id)
     target_id = _require_string(args.expected_target_id, "expected target ID", 256)
-    revisions = (
-        ("expected host revision", args.expected_host_revision),
-        ("expected agent revision", args.expected_agent_revision),
-        ("expected runtime revision", args.expected_runtime_revision),
-    )
-    for name, value in revisions:
-        _require_string(value, name)
-    if COMMIT_RE.fullmatch(args.expected_agent_revision) is None:
-        raise AcceptanceError("expected agent revision must be a full 40-character commit")
-    if COMMIT_RE.fullmatch(args.expected_runtime_revision) is None:
-        raise AcceptanceError("expected runtime revision must be a full 40-character commit")
-    # Revisions bind this diagnostic to exact artifacts; supported API/ABI
-    # contracts, not source revision equality, decide runtime compatibility.
-    if COMMIT_RE.fullmatch(args.expected_host_revision) is None:
-        if not args.allow_development_host:
-            raise AcceptanceError("host acceptance requires a full 40-character host revision")
-        if DEVELOPMENT_HOST_RE.fullmatch(args.expected_host_revision) is None:
-            raise AcceptanceError("development host revision must be a diag-/dev- labelled value")
+    _require_digest(args.expected_bundle_id, "expected active bundle")
+    _require_digest(args.expected_base_image_sha256, "expected base image SHA-256")
     _require_string(args.new_entry_title, "new entry title")
     _require_string(args.container_runtime, "container runtime", 4096)
 

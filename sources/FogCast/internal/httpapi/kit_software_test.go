@@ -109,7 +109,7 @@ func TestSoftwareHealthSeparatesIdentityAndRestrictsStatus(t *testing.T) {
 		calls.Add(1)
 		_ = json.NewEncoder(w).Encode(softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Generation: 3, Selected: selected}, ActiveBundle: selected, BaseIdentity: "base-contract"})
 	}))
-	handler := httpapi.New(&fakeController{health: protocol.Health{APIVersion: "v1", Artifacts: &protocol.Artifacts{ImageSHA256: strings.Repeat("b", 64)}}}, "secret", "test", nil, httpapi.WithKitSoftware(socket))
+	handler := httpapi.New(&fakeController{health: protocol.Health{APIVersion: "v1", Artifacts: &protocol.Artifacts{ImageSHA256: strings.Repeat("b", 64)}, Software: &softwarecontrol.Status{StorageError: "private controller status"}}}, "secret", "test", nil, httpapi.WithKitSoftware(socket))
 	response := softwareAgentRequest(handler, "GET", "/v1/health", "", "", nil)
 	var health protocol.Health
 	if err := json.Unmarshal(response.Body.Bytes(), &health); err != nil {
