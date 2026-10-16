@@ -111,9 +111,12 @@ Focused Go race checks for lease, renewal, takeover, expiry, expected Stop,
 reconciliation, bridge, stream and reconnect paths passed on `dd4d4ba2`:
 `host` 1.114 s, `targetclient` 2.676 s, `fogcast` 5.135 s, `hostapi` 4.903 s.
 The Linux amd64 host build and ARMv7 cross-build passed. Parent `make check`
-passed (18 consumers, 37 fixture copies). The previous affected-suite run passed
-941 parent tests plus its host/UI lanes; a final run including the reconnect
-change is required before PR readiness.
+passed (18 consumers, 37 fixture copies). The final `make test-changed` passed with umask `022`: 16 affected-planner tests,
+26 test-driver tests, 941 parent tests (1123.434 seconds, including extended video
+evidence), consistency/whitespace checks, host functional and race lanes, and
+host UI/browser checks. The [software receipt](2026-10-17-expired-host-recovery/software-checks.json)
+records the selected lane results. The earlier affected-suite run also passed;
+readiness is based on this final run including the reconnect change.
 
 The first affected-suite attempt used the shell's umask `0002` and hit parent
 permission-fixture failures. Two representative failures reproduced on unchanged

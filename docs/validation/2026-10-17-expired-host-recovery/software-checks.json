@@ -7,9 +7,54 @@
   "make_check_passed": true,
   "generated_consumers": 18,
   "fixture_copies": 37,
-  "affected_suite_status": "pending-final-run",
+  "affected_suite_status": "passed",
   "umask": "022",
   "before_fix_dials_per_error": 20,
   "after_fix_dials_per_error": 1,
-  "before_fix_test_source": "c0911a94fc6e058ac6762746768c5d8d4bd6e856"
+  "before_fix_test_source": "c0911a94fc6e058ac6762746768c5d8d4bd6e856",
+  "affected_suite_results": [
+    {
+      "label": "test_affected.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "test_test_changed.py",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "committed whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "working whitespace",
+      "lane": "always",
+      "returncode": 0
+    },
+    {
+      "label": "parent Python regressions",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "working-tree generated consumer consistency",
+      "lane": "parent",
+      "returncode": 0
+    },
+    {
+      "label": "host Go tests",
+      "lane": "host",
+      "returncode": 0
+    },
+    {
+      "label": "host UI tests",
+      "lane": "host",
+      "returncode": 0
+    }
+  ],
+  "affected_suite_base": "5507af53a1755a091f0db9b1283ef380fcb8fc3e",
+  "parent_tests": 941,
+  "parent_tests_seconds": 1123.434
 }
