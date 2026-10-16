@@ -177,3 +177,140 @@ func TestRestartExitedLauncherRestartsOnlyTheLauncher(t *testing.T) {
 		t.Fatal(c.ServiceFault())
 	}
 }
+
+func TestRestartExitedLauncherReapsDescendantsBeforeReplacement(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted"}
+	defer killChildren(c)
+	launcher := startSleepTrio(t, c)
+	member := exec.Command("/bin/sleep", "60")
+	member.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pgid: launcher.cmd.Process.Pid}
+	if err := member.Start(); err != nil {
+		t.Fatal(err)
+	}
+	memberDone := make(chan struct{})
+	go func() {
+		_ = member.Wait()
+		close(memberDone)
+	}()
+	defer func() {
+		_ = member.Process.Kill()
+		<-memberDone
+	}()
+	if err := launcher.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	<-launcher.done
+	if err := member.Process.Signal(syscall.Signal(0)); err != nil {
+		t.Fatal("descendant exited with the launcher", err)
+	}
+	oldPID := launcher.cmd.Process.Pid
+	if err := c.RestartExitedLauncher(); err != nil {
+		t.Fatal(err)
+	}
+	if len(c.children) != 3 || c.children[2] == launcher || c.children[2].cmd.Process.Pid == oldPID {
+		t.Fatal("replacement did not start after the old launcher group exited")
+	}
+	select {
+	case <-memberDone:
+	case <-time.After(time.Second):
+		t.Fatal("descendant survived launcher replacement")
+	}
+}
+
+func TestRestartExitedLauncherKeepsOwnershipUntilGroupExits(t *testing.T) {
+	dir := t.TempDir()
+	ready := filepath.Join(dir, "ready")
+	binary, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &ProcessController{RunDir: dir, active: "accepted"}
+	defer killChildren(c)
+	launcher := startSleepTrio(t, c)
+	member := exec.Command(binary, "-test.run=^TestTermIgnoringProcessFixture$")
+	member.Env = append(os.Environ(), "FES_TEST_IGNORE_TERM_READY="+ready)
+	member.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pgid: launcher.cmd.Process.Pid}
+	if err := member.Start(); err != nil {
+		t.Fatal(err)
+	}
+	memberDone := make(chan struct{})
+	go func() {
+		_ = member.Wait()
+		close(memberDone)
+	}()
+	defer func() {
+		_ = member.Process.Kill()
+		<-memberDone
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if _, err := os.Stat(ready); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("signal fixture did not initialize")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if err := launcher.cmd.Process.Signal(syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	<-launcher.done
+	if err := c.RestartExitedLauncher(); err == nil || !strings.Contains(err.Error(), "still exists") {
+		t.Fatal("replacement started while a descendant was still in the launcher group", err)
+	}
+	if len(c.children) != 3 || c.children[2] != launcher {
+		t.Fatal("cleanup failure dropped launcher ownership")
+	}
+	select {
+	case <-memberDone:
+		t.Fatal("descendant exited before the group was confirmed gone")
+	default:
+	}
+	if err := c.Stop(context.Background()); err == nil || !strings.Contains(err.Error(), "still exists") {
+		t.Fatal("activation stop ignored the surviving launcher group", err)
+	}
+	if len(c.children) != 3 || c.children[2] != launcher {
+		t.Fatal("failed stop cleared ownership while the launcher group existed")
+	}
+	if c.reapTerm.IsZero() {
+		t.Fatal("group cleanup did not record a retry deadline")
+	}
+	time.Sleep(time.Until(c.reapTerm.Add(StopTermGrace)) + 20*time.Millisecond)
+	if err := c.RestartExitedLauncher(); err != nil {
+		t.Fatal(err)
+	}
+	if c.children[2] == launcher {
+		t.Fatal("launcher was not replaced after its process group was killed")
+	}
+	select {
+	case <-memberDone:
+	case <-time.After(time.Second):
+		t.Fatal("descendant survived group kill")
+	}
+}
+
+func startSleepTrio(t *testing.T, c *ProcessController) *child {
+	t.Helper()
+	for _, role := range []string{roleRuntime, roleAgent} {
+		if err := c.start("/bin/sleep", []string{"60"}, nil, role); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := c.start("/bin/sleep", []string{"60"}, nil, roleLauncher); err != nil {
+		t.Fatal(err)
+	}
+	return c.children[2]
+}
+
+func killChildren(c *ProcessController) {
+	for _, child := range c.children {
+		if child.cmd.Process != nil {
+			_ = child.cmd.Process.Kill()
+		}
+		select {
+		case <-child.done:
+		case <-time.After(2 * time.Second):
+		}
+	}
+}

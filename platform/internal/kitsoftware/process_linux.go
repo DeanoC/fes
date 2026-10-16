@@ -35,6 +35,9 @@ const (
 	launcherRestartMin   = time.Second
 	launcherRestartMax   = 30 * time.Second
 	launcherStableLife   = 2 * time.Second
+	// launcherGroupReapPoll is how long one restart attempt waits for init to
+	// reap a just-signaled descendant. The supervisor tick retries after that.
+	launcherGroupReapPoll = 200 * time.Millisecond
 )
 
 // ErrProcessExited reports that a supervised process ended before acceptance.
@@ -75,6 +78,11 @@ type ProcessController struct {
 	prepared        *preparedRelease
 	launcherRestart time.Time
 	launcherDelay   time.Duration
+	// reapPID is the exited launcher whose process group is still being
+	// terminated. Zero means no reap is in progress.
+	reapPID  int
+	reapTerm time.Time
+	reapKill time.Time
 }
 
 func (c *ProcessController) Active() string { c.mu.Lock(); defer c.mu.Unlock(); return c.active }
@@ -549,11 +557,21 @@ func launcherPeersAlive(children []*child) bool {
 // RestartExitedLauncher replaces a dead accepted launcher. The runtime and
 // agent stay up, so an execution lease is not dropped and the menu can return.
 // A dead runtime or agent still requires an explicit supervisor restart.
+// The exited launcher's process group is terminated and confirmed gone before
+// the replacement starts. If that group cannot be cleared, the launcher stays
+// owned so Stop refuses activation and the next call retries.
 // Called with no controller lock held.
 func (c *ProcessController) RestartExitedLauncher() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.active == "" || !launcherPeersAlive(c.children) {
+		// A dead runtime must not abandon descendants of the launcher that
+		// already exited. Keep ownership and retry until that group is gone.
+		if launcher := exitedLauncher(c.children); launcher != nil {
+			if err := c.confirmLauncherGroup(launcher); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 	launcher := c.children[2]
@@ -566,7 +584,11 @@ func (c *ProcessController) RestartExitedLauncher() error {
 		if time.Since(launcher.started) >= launcherStableLife {
 			c.launcherDelay = launcherRestartMin
 		}
+		c.clearLauncherReap()
 		return nil
+	}
+	if err := c.confirmLauncherGroup(launcher); err != nil {
+		return err
 	}
 	delay := c.launcherDelay
 	if delay < launcherRestartMin {
@@ -582,6 +604,7 @@ func (c *ProcessController) RestartExitedLauncher() error {
 		c.children = append(c.children, launcher)
 		return err
 	}
+	c.clearLauncherReap()
 	c.launcherRestart = time.Now()
 	if lived < launcherStableLife {
 		if c.launcherDelay < launcherRestartMin {
@@ -596,6 +619,93 @@ func (c *ProcessController) RestartExitedLauncher() error {
 		return err
 	}
 	return nil
+}
+
+func exitedLauncher(children []*child) *child {
+	for i := len(children) - 1; i >= 0; i-- {
+		p := children[i]
+		if p.role != roleLauncher {
+			continue
+		}
+		select {
+		case <-p.done:
+			return p
+		default:
+		}
+	}
+	return nil
+}
+
+func (c *ProcessController) clearLauncherReap() {
+	c.reapPID = 0
+	c.reapTerm = time.Time{}
+	c.reapKill = time.Time{}
+}
+
+// confirmLauncherGroup signals an exited launcher's process group and returns
+// nil only after that group is gone. The direct child is already reaped;
+// descendants that inherited the group are not visible to a later Stop once
+// this child is dropped.
+func (c *ProcessController) confirmLauncherGroup(p *child) error {
+	pid := p.cmd.Process.Pid
+	if pid <= 1 {
+		return fmt.Errorf("invalid process group %d", pid)
+	}
+	if c.reapPID != pid {
+		c.reapPID = pid
+		c.reapTerm = time.Time{}
+		c.reapKill = time.Time{}
+	}
+	err := syscall.Kill(-pid, 0)
+	if errors.Is(err, syscall.ESRCH) {
+		c.clearLauncherReap()
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	now := time.Now()
+	if c.reapTerm.IsZero() {
+		c.reapTerm = now
+		if err := syscall.Kill(-pid, syscall.SIGTERM); err != nil && !errors.Is(err, syscall.ESRCH) {
+			return err
+		}
+		return c.awaitLauncherGroup(pid)
+	}
+	if now.Sub(c.reapTerm) < StopTermGrace {
+		return fmt.Errorf("process group %d still exists", pid)
+	}
+	if c.reapKill.IsZero() {
+		c.reapKill = now
+	}
+	if err := syscall.Kill(-pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+		return err
+	}
+	if err := c.awaitLauncherGroup(pid); err != nil {
+		if now.Sub(c.reapKill) < StopKillGrace {
+			return fmt.Errorf("process group %d still exists", pid)
+		}
+		return err
+	}
+	return nil
+}
+
+func (c *ProcessController) awaitLauncherGroup(pid int) error {
+	deadline := time.Now().Add(launcherGroupReapPoll)
+	for {
+		err := syscall.Kill(-pid, 0)
+		if errors.Is(err, syscall.ESRCH) {
+			c.clearLauncherReap()
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if !time.Now().Before(deadline) {
+			return fmt.Errorf("process group %d still exists", pid)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func processStartTime(pid int) (string, error) {
