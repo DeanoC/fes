@@ -1,0 +1,137 @@
+{
+  "draft": false,
+  "pull_request": "https://github.com/DeanoC/fes/pull/735",
+  "source_commit": "0fc0f1f902d002b00ae1e1a543da2d26c284a9f7",
+  "evidence_class": "host health and diagnostic tooling hardware diagnostic against retained kit software",
+  "kit_state": {
+    "evidence_origin": "coordinating agent reported unchanged state after diagnostic",
+    "active_bundle": "7d71e90f32da8d0ff7ce26472539bc067648abb0c5fc865654dc4aec8f1c04d0",
+    "base_identity": "32f16cd2eba9befefaef7f6c94ee70f5c830b3c231e859222df7c7aee7b3b993",
+    "base_source_commit": "9af8dbb2b8d77f622a4414d8969efe5cb5f3cb5e",
+    "bundle_provenance": {
+      "fogcast": "b463f445b34eed9dbeabdbae5d92b63d5867a33d",
+      "runtime": "b463f445b34eed9dbeabdbae5d92b63d5867a33d"
+    },
+    "boot_id": "e9c755b2-b341-479c-b2dc-5b295f33f26d",
+    "selection_generation": 6,
+    "new_target_software_deployed": false
+  },
+  "checks": {
+    "python_focused": {
+      "result": "passed",
+      "counts": [
+        62,
+        35,
+        3
+      ],
+      "mixed_case_fixture": "corrected and passed",
+      "evidence_origin": "coordinating agent report"
+    },
+    "core_development": {
+      "result": "passed",
+      "tests": 16,
+      "earlier_failure": "mid-edit parser failures; rerun after flags stabilized passed",
+      "evidence_origin": "coordinating agent report"
+    },
+    "race_packages": {
+      "fogcast": {
+        "result": "passed",
+        "seconds": 477.348
+      },
+      "targetclient": {
+        "result": "passed",
+        "seconds": 7.277
+      },
+      "hostapi": {
+        "result": "passed on corrected rerun",
+        "seconds": 7.391
+      },
+      "httpapi": {
+        "result": "passed",
+        "seconds": 1.976
+      }
+    },
+    "original_combined_race": {
+      "exit_code": 1,
+      "reason": "new paired-listener test fixture omitted configured target; corrected and full hostapi rerun passed"
+    },
+    "focused_lock_regression": {
+      "result": "passed with race",
+      "seconds": 2.163,
+      "scope": "slow inventory releases foreground lifecycle while configured deadline remains bounded"
+    },
+    "arm_build": "passed mister-agent and fogcast-api, linux/arm GOARM7 CGO0",
+    "consistency": "passed after source commit; coordinating agent report",
+    "documentation_links": "passed; coordinating agent report",
+    "make_test_changed": {
+      "source_commit": "0fc0f1f902d002b00ae1e1a543da2d26c284a9f7",
+      "result": "passed",
+      "plan_commands": 8,
+      "exit_code": 0,
+      "parent_tests": 951,
+      "parent_skipped": 39,
+      "parent_seconds": 830.218,
+      "host_go": "passed",
+      "host_ui": "passed",
+      "log_sha256": "b25d4b05646cc4e903717e818c5eb05570ba96b84d9a8390f9d6373f77e6f81f"
+    },
+    "final_runner": {
+      "source_commit": "211fa7c8ac890e9c8a73c1e587d0a6bf51b57d6d",
+      "isolated_tests": 36,
+      "seconds": 21.752,
+      "result": "passed",
+      "core_development_tests": 16,
+      "consistency": "passed",
+      "evidence_origin": "coordinating agent report"
+    }
+  },
+  "evidence_sources": {
+    "hardware": {
+      "path": "/tmp/fes-diagnostic-identity-hardware/receipt.json",
+      "sha256": "0dee06bee5ba76aa524de93fd5743dd4a7c25865996ce311855795ce3017a744"
+    },
+    "bundle_build": {
+      "path": "/tmp/fes-diagnostic-identity-bundle/receipt.json",
+      "sha256": "e426cf2b17131db8ec40951c565062c0ef8f08e940b8f6180ece937a2a2b3b8d"
+    }
+  },
+  "pending": [],
+  "limits": [
+    "This diagnostic used newly built host software against retained active kit bundle7d; it did not install bundle4ae or deploy the new target agent.",
+    "Public target-health redaction change has host-test and ARM-build evidence only.",
+    "Input event acknowledgments and counter increments do not establish physical input consumption or HDMI output. No new HDMI claim.",
+    "Base artifact runtime revision9af is not the running bundle runtime provenanceb463. Source revisions remain provenance, not compatibility requirements.",
+    "Original failed combined race invocation remains failed despite passing corrected package rerun.",
+    "No kit calls or tracked edits were made to prepare this draft.",
+    "Final runner211 reused exact compiled host0fc: only four script/test/documentation files differ. Final60-second diagnostic passed independently of the earlier long-title failure."
+  ],
+  "validation_complete": true,
+  "compiled_host_source_commit": "0fc0f1f902d002b00ae1e1a543da2d26c284a9f7",
+  "final_runner_source_commit": "211fa7c8ac890e9c8a73c1e587d0a6bf51b57d6d",
+  "source_delta": {
+    "files": [
+      "docs/package-acceptance.md",
+      "scripts/package_acceptance_isolated.py",
+      "sources/FogCast/docs/DEVELOPMENT.md",
+      "tests/test_package_acceptance_isolated.py"
+    ],
+    "go_sources_changed": false,
+    "scope": "propagate bounded requested timeout into private host config; correct obsolete image/overlay guidance"
+  },
+  "receipts": {
+    "bundle-build-receipt.json": {
+      "sha256": "e426cf2b17131db8ec40951c565062c0ef8f08e940b8f6180ece937a2a2b3b8d"
+    },
+    "final-budget-hardware-receipt.json": {
+      "sha256": "16ec21aeb3d73d446a9d923456c3be33a8b3ee3f51c220e5ca6c77c8c22f186c"
+    },
+    "initial-hardware-receipt.json": {
+      "sha256": "0dee06bee5ba76aa524de93fd5743dd4a7c25865996ce311855795ce3017a744"
+    },
+    "long-title-failure-summary.json": {
+      "sha256": "998b95c341248e28fe8d429957d2dc3a63476dbc39012b7ef3f69ade6962d20d"
+    }
+  },
+  "hardware_budget_seconds": 60,
+  "bundle_deployment_boundary": "Bundle4ae built but not installed as of this PR735 evidence capture; later separately authorized testing may change kit selection."
+}
