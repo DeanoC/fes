@@ -1,0 +1,451 @@
+{
+  "bounded_read_only_postpreparation_monitor": {
+    "class": "read-only HTTP observation",
+    "coherent_snapshots": 48,
+    "duration_seconds": 1200.0,
+    "evidence": {
+      "file": "fes-workflow-power-cycle-monitor/result.json",
+      "sha256": "eaf6c7ee94b1887f7d3f36da1ac3efc6ff19bf4b1912cf6222fd5a1692e30f03"
+    },
+    "extended": false,
+    "observed_changed_boot_id": null,
+    "outcome": "observation-window-ended",
+    "physical_power_removal_confirmed": false,
+    "request_errors": 0
+  },
+  "captured_at": "2026-10-16T01:40:43.320395+00:00",
+  "evidence_manifest": {
+    "core_byte_comparison": {
+      "file": "fes-workflow-core-persistence.json",
+      "sha256": "0c3e709e344d58b08169e7a5ada8ebc14341288dad8b07dc60d7d1186cba811e"
+    },
+    "source_draft": {
+      "file": "fes-workflow-validation-draft.json",
+      "sha256": "2ffa452563ba4bc92b0ab8ad139cdea5b5dbf0691417f600fc9409f1e228855a"
+    },
+    "source_draft_text": {
+      "file": "fes-workflow-validation-draft.md",
+      "sha256": "b6a8e2dd0c28f354881a4b51205687b7643c603efeb7ba5d7d0d88a32e039655"
+    }
+  },
+  "failed_recovery": {
+    "acknowledgment": {
+      "acknowledgment_audit_written": false,
+      "outcome": "refused",
+      "reason": "resumed maintenance did not become ready"
+    },
+    "candidate": "b69e84c035760b1a5ee89fe2b22cbb280abeb0ab062e58e256f2bd0e9eda4a81",
+    "causality_limit": "Source trace proves an interruption hazard; observed physical fault cannot be attributed solely to hashing or this hazard.",
+    "class": "hardware failed-candidate recovery diagnostic",
+    "durable_reason": "candidate failed (context deadline exceeded); recovery failed: context deadline exceeded",
+    "evidence": [
+      {
+        "file": "fes-workflow-main-recovery/139-failure.json",
+        "sha256": "f276ae59eaf7d59dd4f06072ac62a15e5d5d31f15b734609b61d0b723e980c5d"
+      },
+      {
+        "file": "fes-workflow-main-recovery/140-terminal-failure.json",
+        "sha256": "8449a930d173e06140779e7a959e482be28927148f0ab3953484b4174573027b"
+      }
+    ],
+    "native_status": {
+      "error": {
+        "code": "idle_failed",
+        "message": "ADV7513 I2C device not found",
+        "phase": "recovery"
+      },
+      "execution": "none",
+      "ok": true,
+      "protocol": 2,
+      "state": "reboot_required"
+    },
+    "operation_id": "68bb223ced782e285a8c5fbf09e288cb0b048abec9e8f2303b3a1115cd157f18",
+    "outcome": "fail",
+    "previous": "7d71e90f32da8d0ff7ce26472539bc067648abb0c5fc865654dc4aec8f1c04d0",
+    "prior_process_presence_is_not_readiness": true,
+    "status_ok_meaning": "The status request succeeded; reboot_required and idle_failed indicate failed physical recovery."
+  },
+  "format": 1,
+  "host_validation": {
+    "ci": {
+      "evidence": {
+        "file": "fes-workflow-final-ci-checks.txt",
+        "sha256": "b472f6822a7d255ab632412deb5c32d0240a5884e4076cedd58ff5d5e75d9e8d"
+      },
+      "failed_checks": 0,
+      "passed_checks": 49,
+      "pending_checks": 0,
+      "source_commit": "9af8dbb2b8d77f622a4414d8969efe5cb5f3cb5e"
+    },
+    "class": "host-only tests, checks and simulations",
+    "documentation_links": {
+      "evidence": {
+        "file": "fes-workflow-terminal-doc-links.log",
+        "sha256": "2340d99047ab9f3985a7cc5dfa7048812a4914fda94647b2c081d514d1135dc0"
+      },
+      "outcome": "passed"
+    },
+    "final_armv7": {
+      "evidence_origin": "coordinating agent reported; separate executed helper receipt remains source095",
+      "result": "passed",
+      "source_commit": "9af8dbb2b8d77f622a4414d8969efe5cb5f3cb5e"
+    },
+    "final_consistency": {
+      "copied_source_pins": 0,
+      "evidence": {
+        "file": "fes-workflow-terminal-check.log",
+        "sha256": "7a1776db34913e75a5f9671b00560d84fc90991debaf5e6df46340dc35170c88"
+      },
+      "fixture_copies": 37,
+      "generated_consumers": 18,
+      "outcome": "passed",
+      "source_commit": "9af8dbb2b8d77f622a4414d8969efe5cb5f3cb5e"
+    },
+    "final_image": {
+      "build": "passed",
+      "class": "host-only exact-artifact qualification",
+      "image_passes": 2,
+      "logs": [
+        {
+          "file": "fes-workflow-terminal-fixed-build.log",
+          "sha256": "3a593edf49b2a09dab6a42751383ba0431e25898b74cebcd87e8580ce08a8e0e"
+        },
+        {
+          "file": "fes-workflow-terminal-fixed-verify.log",
+          "sha256": "53fa08bb259d6fc160d29167aea9ed63bdb5d198d8bed6b5a6f1301664d5d868"
+        },
+        {
+          "file": "fes-workflow-terminal-fixed-release.log",
+          "sha256": "81b23f94342096d43c08165f227b17cf9a3a8b087b7d9004999430168bd5b8b0"
+        }
+      ],
+      "release": "passed",
+      "release_id": "89151e352f12c985af47faf7355fedc7d6db44cb4c1da59c8ae4fcab4d8fd046",
+      "sha256": "32f16cd2eba9befefaef7f6c94ee70f5c830b3c231e859222df7c7aee7b3b993",
+      "source_commit": "9af8dbb2b8d77f622a4414d8969efe5cb5f3cb5e",
+      "verify": "structural and QEMU packaging checks passed; not FPGA emulation",
+      "version": "0.2.0-kit-software-workflow.20261016"
+    },
+    "final_platform": {
+      "evidence": {
+        "file": "fes-workflow-platform-terminal-frozen.log",
+        "sha256": "4d646caf826dc4dfebb28ec6d7399e1bf37f7a91109d78cbc977df9b7c3c1552"
+      },
+      "kitsoftware_seconds": 19.939,
+      "outcome": "passed",
+      "source_commit": "9af8dbb2b8d77f622a4414d8969efe5cb5f3cb5e"
+    },
+    "final_race": {
+      "evidence_origin": "coordinating agent reported final race lane passed; independent focused native-start race rerun passed in 1.408 seconds",
+      "result": "passed",
+      "source_commit": "9af8dbb2b8d77f622a4414d8969efe5cb5f3cb5e"
+    },
+    "fpga_downstream": {
+      "commands": 22,
+      "evidence": {
+        "file": "fes-workflow-fpga-b463f445/results.json",
+        "sha256": "59ee3d8e1fd5135d374b001ad32bfeb246d364fee8e7c02a1f48e63303ebb623"
+      },
+      "execution_heads": [
+        "b463f445b34eed9dbeabdbae5d92b63d5867a33d",
+        "69ebd9860ebcc52f5846c8cf6650785357821174"
+      ],
+      "outcome": "passed",
+      "protected_inputs_verified_equal_to_final_source": true,
+      "python_tests": 1144,
+      "skipped": 8
+    },
+    "manifest_rerun": {
+      "evidence": {
+        "file": "fes-workflow-manifest-rerun.log",
+        "sha256": "5c40f21dec85cfb31dda26cfeec1fae232e6f7dc868f57d947760209d0d45739"
+      },
+      "outcome": "passed",
+      "tests": 54,
+      "umask": "022"
+    },
+    "negative_cli": {
+      "cases": [
+        {
+          "case": "wrong-base-hash",
+          "expected_failure": "base image does not match reviewed SHA-256",
+          "prior_outputs_unchanged": true,
+          "returncode": 2
+        },
+        {
+          "case": "existing-output",
+          "expected_failure": "output already exists",
+          "prior_outputs_unchanged": true,
+          "returncode": 2
+        }
+      ],
+      "evidence": {
+        "file": "fes-workflow-cli-negative.json",
+        "sha256": "1eb593e8ca5878264f7102f11d5eb57d65ab47930322db9376005a1d86d6ee80"
+      },
+      "outcome": "passed expected refusals"
+    },
+    "nonfpga_downstream": {
+      "commands": 9,
+      "evidence": {
+        "file": "fes-workflow-nonfpga-results.json",
+        "sha256": "60dbf1f8b3726d3b84f3bc311be1cc0c2a5c095146372115f50f13dbc56418e7"
+      },
+      "outcome": "passed",
+      "source_commit": "b463f445b34eed9dbeabdbae5d92b63d5867a33d"
+    },
+    "original_make_test_changed": {
+      "errors": 4,
+      "failures": 2,
+      "outcome": "failed",
+      "parent_tests": 950,
+      "skipped": 38,
+      "subsequent_runs_do_not_change_original_outcome": true,
+      "umask": "0002"
+    },
+    "parent_rerun": {
+      "evidence": {
+        "file": "fes-workflow-parent-022.log",
+        "sha256": "13ab7781cd55a601fbfab80c69f402fc2f95aae7004b231a3b7a048a65024351"
+      },
+      "outcome": "passed",
+      "skipped": 38,
+      "tests": 950,
+      "umask": "022"
+    },
+    "reproducibility": {
+      "byte_identical": {
+        "bundle.tar": true,
+        "receipt.json": true
+      },
+      "method": "local byte comparison of independently produced archives and receipts"
+    }
+  },
+  "identities": {
+    "earlier_held_activation_base_sha256": "dfc57838105da5f2d9518929df8b43099722300059e60e9bd5fac7e916f240d2",
+    "earlier_qualified_adopted_image": {
+      "sha256": "a9b7718ca01cf7da38fb126c8c63c9a47090aa54e881be4985f61d6a6afddba8",
+      "source_commit": "011e647417af2a17a985b0ad8710208e9c3f71e1"
+    },
+    "final_startup_source_commit": "9af8dbb2b8d77f622a4414d8969efe5cb5f3cb5e",
+    "protected_fpga_input_trees_equal_at_workflow_and_final_source": {
+      ".gitignore": "ec29c397aec8c9c02e44f993e834ee5d9ef79a23",
+      "Makefile": "8c4da451f08d88204715b1427203426b351f92e9",
+      "boot-media.lock.toml": "23c6d1b428956d10e742f36825cecb0d3595439b",
+      "config": "5fdb1b30942703e8b5e50b1b6595a0a8f975dd12",
+      "image": "4c206deb5f3927036df4aa1d807773b1f2ceb506",
+      "profiles": "a167378e03aee5a00f2ea5eeed80a2c22fba9eed",
+      "scripts": "f5efb32b56ea9cb21e28bb2b7c9ad6213ccc2d04",
+      "sources": "3e8266313d274846bf5dfa66dfd79e8f0d411dfd"
+    },
+    "public_bundle": {
+      "archive": {
+        "sha256": "df9f49b216893d0707fe1ababd276bd67156588bc6796aa8303ce13267047bc4",
+        "size": 50616320
+      },
+      "executable_digests": {
+        "bin/fogcast-kit": "496917da9ab6f45fec12d34908ab93083d99949bd4760a2cb7675a8ff19037d5",
+        "bin/fogcast-tenfoot": "a23eabddd5c097b52b8d13833828231d31fc750d1f6435c8c3bcc1040a153111",
+        "bin/mister-agent": "69c076ab91bc1af9d35f32aa28c84dac0d44974edab5234743c9c5d5defa48e9",
+        "bin/mister-runtime": "52635f85dcb5880d170c1516f38f4baec0c185184ff98db33ca1bc8afdf75fda"
+      },
+      "id": "ad685e3894b22aaf355ffb18346eae140c34810eda8d4e45586452c79d8583d4"
+    },
+    "subsequently_selected_bundle": {
+      "archive": {
+        "sha256": "d692a1229337a6b1c0ba60370bf12f41895600826cf1441eb9aa9439ba5d4bfd",
+        "size": 50616320
+      },
+      "id": "7d71e90f32da8d0ff7ce26472539bc067648abb0c5fc865654dc4aec8f1c04d0",
+      "source_commit": "b463f445b34eed9dbeabdbae5d92b63d5867a33d"
+    },
+    "workflow_and_tested_bundle_source_commit": "b463f445b34eed9dbeabdbae5d92b63d5867a33d"
+  },
+  "limits": [
+    "Prior successful observations cover their recorded artifacts and do not accept final startup changes.",
+    "Earlier qualified image source011e differs from final source9af.",
+    "Boot-ID change alone does not prove removal of power.",
+    "Newer queued intent and selection must be respected; old operator actions must not overwrite them.",
+    "Host tests and QEMU/RTL simulations do not establish physical recovery or HDMI/input acceptance."
+  ],
+  "overall_acceptance": false,
+  "pending": {
+    "failed_candidate_recovery": {
+      "class": "hardware recovery acceptance on final image",
+      "status": "must repeat"
+    },
+    "final_image": {
+      "build_log_reference": "fes-workflow-terminal-fixed-build.log",
+      "class": "exact final-source image qualification and supported adoption/confirmation",
+      "source_commit": "9af8dbb2b8d77f622a4414d8969efe5cb5f3cb5e",
+      "status": "host qualification passed; supported hardware adoption and confirmation pending"
+    },
+    "hdmi_input": {
+      "class": "hardware HDMI/input acceptance on selected final artifacts",
+      "status": "pending"
+    },
+    "installed_core_acceptance": {
+      "class": "core launch and persistence acceptance on final artifacts",
+      "status": "pending"
+    },
+    "physical_recovery": {
+      "class": "operator-confirmed hard power removal plus fresh postboot observation",
+      "status": "not confirmed"
+    }
+  },
+  "power_cycle_preparation": {
+    "class": "explicit audited operator preparation, not recovery",
+    "evidence": [
+      {
+        "file": "fes-workflow-power-cycle-preparation/result.json",
+        "sha256": "bc6dc25dacd3a3ecc481363ccb896f5375840cde783ddb9e41da0eeb60fc5993"
+      },
+      {
+        "file": "fes-workflow-power-cycle-preparation/command-result.json",
+        "sha256": "84333fb53471330a506fada75992fda2bffe0e3c05a73abaf41d7c7af31f9fa0"
+      },
+      {
+        "file": "fes-workflow-power-build.json",
+        "sha256": "cf50d4fdce028e40d60571f107f1b6fe4cab760fa2c1392700495ca1bbeb5cb3"
+      }
+    ],
+    "helper_build_receipt": {
+      "appliance_sha256": "6c3953481063c276614bd216b306a3ec7150d8aac32a74890f38bca34d90b0aa",
+      "build_env": {
+        "CGO_ENABLED": "0",
+        "GOARCH": "arm",
+        "GOARM": "7",
+        "GOOS": "linux",
+        "GOPROXY": "off",
+        "GOSUMDB": "off",
+        "GOTOOLCHAIN": "local"
+      },
+      "build_flags": [
+        "-trimpath",
+        "-buildvcs=false",
+        "-ldflags=-s -w -buildid="
+      ],
+      "deployed": false,
+      "go_sha256": "8da5fd321795754b994c64e3eb8a5a14ff47bd285559a7e876f3c79abafc67f9",
+      "go_version": "go version go1.26.5 linux/amd64",
+      "helper_sha256": "8255dc723e05b3a9203ff1a3ccc69fec41c36f02f4a65209b09add069f7a1a45",
+      "platform_sha256": "346b107662aa38d7a9439a5be1cebf0184e5619ee632de1857cdb1a015a44367",
+      "source_commit": "095cf32b8a92c36a5e453e6f4b27a8e2d25c7495",
+      "static_arm_sha256": "8255dc723e05b3a9203ff1a3ccc69fec41c36f02f4a65209b09add069f7a1a45"
+    },
+    "helper_execution": "Temporary helper executed separately; build receipt deployed=false describes build step. Production binaries were not replaced.",
+    "observation": {
+      "action": "28e412d872ca30832a4800afdce72984047ce0fc3fbae25adae9f60fb405449c",
+      "base_identity": "a9b7718ca01cf7da38fb126c8c63c9a47090aa54e881be4985f61d6a6afddba8",
+      "boot_id": "c7505aea-2519-4355-bb24-7e5dff81f309",
+      "maintenance_state": "recovery-required",
+      "new_pending": null,
+      "operation": "68bb223ced782e285a8c5fbf09e288cb0b048abec9e8f2303b3a1115cd157f18",
+      "outcome": "prepared-awaiting-physical-cycle",
+      "power_cycle_observed": false,
+      "same_service_pids_before_after": true,
+      "selected": "7d71e90f32da8d0ff7ce26472539bc067648abb0c5fc865654dc4aec8f1c04d0",
+      "selection_generation": 5
+    },
+    "physical_power_removal_confirmed": false
+  },
+  "preparation_scope": "Sanitized evidence consolidation and host image qualification; final hardware deployment has not occurred.",
+  "successful_prior_hardware_observations": {
+    "cancellation": {
+      "class": "hardware API cancellation diagnostic",
+      "evidence": {
+        "file": "fes-workflow-main-cancel/020-result.json",
+        "sha256": "3fcd99562cd060a279da7d704e416a1adb14082f4c0a1d012aa4636db34c3892"
+      },
+      "observation": {
+        "base_identity": "a9b7718ca01cf7da38fb126c8c63c9a47090aa54e881be4985f61d6a6afddba8",
+        "boot_id": "d49ff271-0169-44c2-8090-eef52edd76c7",
+        "cancelled_request": "f13d99c1f1dc918cc182a849f69ef2ad54fc430fd69c50a2e126b359ff5575d4",
+        "generation": 5,
+        "selected": "7d71e90f32da8d0ff7ce26472539bc067648abb0c5fc865654dc4aec8f1c04d0"
+      },
+      "outcome": "pass"
+    },
+    "existing_core_bytes_unchanged": {
+      "class": "hardware stored core-library byte comparison",
+      "evidence": {
+        "file": "fes-workflow-core-persistence.json",
+        "sha256": "0c3e709e344d58b08169e7a5ada8ebc14341288dad8b07dc60d7d1186cba811e"
+      },
+      "limit": "Existing stored bytes only; no core launch, HDMI/input, post-power-cycle or final-image acceptance claim.",
+      "observation": {
+        "all_existing_core_library_bytes_unchanged": true,
+        "evidence_boundary": "After adoption, queued activation, two ordinary reboots and failed recovery; HDMI/input still pending.",
+        "files_after": 6,
+        "files_before": 6
+      },
+      "outcome": "pass"
+    },
+    "held_activation": {
+      "changed_executables": [
+        "bin/fogcast-kit",
+        "bin/fogcast-tenfoot",
+        "bin/mister-agent",
+        "bin/mister-runtime"
+      ],
+      "class": "hardware API lifecycle diagnostic",
+      "evidence": {
+        "file": "fes-workflow-held-update/079-result.json",
+        "sha256": "2d31c18632fe645d04588bf44506704824734927a9b17456e25a8bbeffd487eb"
+      },
+      "executable_change_evidence": {
+        "file": "fes-workflow-executable-diff.json",
+        "sha256": "edb850f295e5961f40a1c40708a782f40d4f45ae3129375afeba8c3314b8a167"
+      },
+      "observation": {
+        "base_identity": "dfc57838105da5f2d9518929df8b43099722300059e60e9bd5fac7e916f240d2",
+        "boot_id": "0c44db4f-7de1-4c75-a2ef-9043e35dc8e0",
+        "candidate": "ad685e3894b22aaf355ffb18346eae140c34810eda8d4e45586452c79d8583d4",
+        "operation_id": "7d7e701b3e9dd0658f4e10961a69a5710ca4ff5f9485bd47e8b4044e1b6f1ee1",
+        "owned_release_confirmed": true
+      },
+      "outcome": "pass",
+      "scope": "Installation while owned lease held; activation after owned release; no reboot."
+    },
+    "ordinary_reboot": {
+      "class": "hardware API selected release persistence across ordinary planned idle reboot",
+      "evidence": {
+        "file": "fes-workflow-selection-reboot/052-result.json",
+        "sha256": "20f712380608418d06195a04f83e4373cec949489b9568fb7a8ca9f503b03570"
+      },
+      "observation": {
+        "activation_receipts_added": 0,
+        "base_identity": "a9b7718ca01cf7da38fb126c8c63c9a47090aa54e881be4985f61d6a6afddba8",
+        "generation_after": 5,
+        "generation_before": 5,
+        "new_boot_id": "c7505aea-2519-4355-bb24-7e5dff81f309",
+        "old_boot_id": "d49ff271-0169-44c2-8090-eef52edd76c7",
+        "previous": "ad685e3894b22aaf355ffb18346eae140c34810eda8d4e45586452c79d8583d4",
+        "reboots_requested": 1,
+        "selected": "7d71e90f32da8d0ff7ce26472539bc067648abb0c5fc865654dc4aec8f1c04d0",
+        "stable_seconds": 10
+      },
+      "outcome": "pass"
+    },
+    "queued_reboot": {
+      "class": "hardware API queue persistence across planned idle reboot",
+      "evidence": {
+        "file": "fes-workflow-reboot-queue-60s/109-result.json",
+        "sha256": "35e8126c2608ee29b845c94766928e4ac5d7e2494af3410b8ebd841bd0cff54a"
+      },
+      "observation": {
+        "accepted_receipts": 1,
+        "base_identity": "a9b7718ca01cf7da38fb126c8c63c9a47090aa54e881be4985f61d6a6afddba8",
+        "candidate": "7d71e90f32da8d0ff7ce26472539bc067648abb0c5fc865654dc4aec8f1c04d0",
+        "generation_after": 5,
+        "generation_before": 4,
+        "new_boot_id": "d49ff271-0169-44c2-8090-eef52edd76c7",
+        "old_boot_id": "e73b0aae-4428-4e83-87ac-9d07b5b5cf43",
+        "previous": "ad685e3894b22aaf355ffb18346eae140c34810eda8d4e45586452c79d8583d4",
+        "reboots_requested": 1,
+        "stable_seconds": 10
+      },
+      "outcome": "pass"
+    }
+  }
+}
