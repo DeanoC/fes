@@ -237,6 +237,7 @@
       "capture_monotonic_end": 3051073.96948851,
       "capture_monotonic_start": 3051073.113945399,
       "file": "A-held-game.png",
+      "retained_file": "attempt-3-A-held-game.png",
       "sha256": "d331129df750112899fedcd904469b0fe349173bb64b59f28eae10ccc41d674c",
       "stage": "hdmi-capture"
     },

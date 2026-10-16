@@ -36,13 +36,22 @@ remained stable for another 90 seconds (nine sampled input pairs), then its
 owned Stop completed. A fresh private Powerboat process subsequently acquired
 a third lease, ran for 30 seconds (three sampled pairs), and stopped normally.
 This tests fresh-process reacquisition, not automatic same-process recovery.
+The Powerboat host record labels that fresh process A2. Its final process
+identity is pid 3399212, start ticks 305168362. The paused process remains
+pid 3387954, start ticks 305135470, on the A-private-process-paused event.
 
-The three fresh HDMI stills show Pong during
-[Powerboat's held session](2026-10-16-two-workstation-soak/A-held-game.png),
-[Chip after the stale Stop](2026-10-16-two-workstation-soak/B-after-A-reconnect.png)
-and [fresh Powerboat](2026-10-16-two-workstation-soak/A-fresh-game.png).
-Each game capture has exact session guards and monotonic timestamps in the
-result receipt. All retained images were visually inspected. Software-injected
+The retained HDMI stills show Pong during
+[Powerboat's held session](2026-10-16-two-workstation-soak/A-held-game.png)
+and the [fresh Powerboat run](2026-10-16-two-workstation-soak/A-fresh-game.png).
+Chip's HDMI capture is unavailable. The file previously stored as
+`B-after-A-reconnect.png` is byte-identical to Powerboat's held-session
+capture in [attempt 3](2026-10-16-two-workstation-soak/attempt-3.json)
+(SHA-256 `d331129df750112899fedcd904469b0fe349173bb64b59f28eae10ccc41d674c`)
+and is retained as
+[that capture](2026-10-16-two-workstation-soak/attempt-3-A-held-game.png).
+No Chip frame is present in this evidence or its git history. Powerboat's two
+game captures keep the session guards and monotonic timestamps recorded in
+the result receipt. All retained images were visually inspected. Software-injected
 input acknowledgment and increasing frame counters do not prove physical
 controller input or uninterrupted video. The
 [final still](2026-10-16-two-workstation-soak/final-menu.png) shows the populated
@@ -75,7 +84,10 @@ Three earlier attempts are preserved separately and are not passing runs:
   the stale Stop, then an expired Powerboat competing launch returned 503
   `TARGET_UNAVAILABLE`. That generic response is not proof of pre-dispatch
   refusal. The helper halted and retained private state rather than retrying the
-  mutation. Its exact Chip Stop succeeded. A separate ownership-checked
+  mutation. Its exact Chip Stop succeeded. Powerboat's held-session still from
+  this attempt is retained as
+  [attempt-3-A-held-game.png](2026-10-16-two-workstation-soak/attempt-3-A-held-game.png).
+  A separate ownership-checked
   [cleanup](2026-10-16-two-workstation-soak/attempt-3-cleanup.json) verified the kit
   ready/free/idle, stopped only the recorded private processes, removed their
   credentials/remote root, and verified unchanged kit state afterwards.

@@ -334,8 +334,8 @@
       },
       "capture_monotonic_end": 3051680.146033801,
       "capture_monotonic_start": 3051679.209833932,
-      "file": "B-after-A-reconnect.png",
-      "sha256": "d331129df750112899fedcd904469b0fe349173bb64b59f28eae10ccc41d674c",
+      "capture_status": "unavailable",
+      "note": "No Chip HDMI frame is retained. The bytes previously committed as B-after-A-reconnect.png are Powerboat's attempt-3 held capture, sha256 d331129df750112899fedcd904469b0fe349173bb64b59f28eae10ccc41d674c, retained as attempt-3-A-held-game.png. The before and after guards are Chip's session observations from this event.",
       "stage": "hdmi-capture"
     },
     {
@@ -452,7 +452,7 @@
         "pid": 3399212,
         "start_ticks": "305168362"
       },
-      "label": "A",
+      "label": "A2",
       "source": "d1a38ecfd1f1f461d207e0b88ea152475d7ac2e3",
       "workstation": "powerboat"
     },
