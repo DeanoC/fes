@@ -3,11 +3,15 @@ package kitsoftware
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -864,6 +868,187 @@ func TestLaterActivationEndsGroupReadinessWait(t *testing.T) {
 	}
 	if starts != 1 || c.pendingGroup != "" || len(c.children) != 3 || c.Active() != "accepted" {
 		t.Fatalf("readiness wait restarted a group activation had replaced starts=%d pending=%s children=%d active=%s", starts, c.pendingGroup, len(c.children), c.Active())
+	}
+}
+
+func TestRecoveryClaimsStayClosedUntilAccepted(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted", readyStable: 30 * time.Millisecond, readyBudget: time.Minute}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	if err := c.children[0].cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-c.children[0].done
+	var starts, closes, opens int
+	previousStart := groupRestartStart
+	previousProbe := groupReadyProbe
+	previousClose := closeRecoveryClaims
+	previousOpen := openRecoveryClaims
+	t.Cleanup(func() {
+		groupRestartStart = previousStart
+		groupReadyProbe = previousProbe
+		closeRecoveryClaims = previousClose
+		openRecoveryClaims = previousOpen
+	})
+	groupRestartStart = func(controller *ProcessController, _ context.Context, id string, request Request) error {
+		starts++
+		return replaceAcceptedGroup(controller, id, request)
+	}
+	groupReadyProbe = func(*ProcessController, context.Context, string) error { return nil }
+	closeRecoveryClaims = func(*ProcessController, context.Context) error { closes++; return nil }
+	openRecoveryClaims = func(*ProcessController, context.Context) error { opens++; return nil }
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || c.pendingGroup != "accepted" || closes != 1 || opens != 0 || len(c.children) != 3 {
+		t.Fatalf("first ready sample opened claims or accepted the group starts=%d pending=%s closes=%d opens=%d children=%d", starts, c.pendingGroup, closes, opens, len(c.children))
+	}
+	time.Sleep(40 * time.Millisecond)
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || c.pendingGroup != "" || c.Active() != "accepted" || closes != 2 || opens != 1 || len(c.children) != 3 {
+		t.Fatalf("stable readiness did not open claims starts=%d pending=%s active=%s closes=%d opens=%d children=%d", starts, c.pendingGroup, c.Active(), closes, opens, len(c.children))
+	}
+}
+
+func TestActiveExecutionIsNotFailedRecovery(t *testing.T) {
+	c := &ProcessController{RunDir: t.TempDir(), active: "accepted", readyStable: time.Hour, readyBudget: time.Hour}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	if err := c.children[1].cmd.Process.Signal(syscall.SIGKILL); err != nil {
+		t.Fatal(err)
+	}
+	<-c.children[1].done
+	var starts, opens int
+	var opened bool
+	previousStart := groupRestartStart
+	previousProbe := groupReadyProbe
+	previousOpen := openRecoveryClaims
+	t.Cleanup(func() {
+		groupRestartStart = previousStart
+		groupReadyProbe = previousProbe
+		openRecoveryClaims = previousOpen
+	})
+	groupRestartStart = func(controller *ProcessController, _ context.Context, id string, request Request) error {
+		starts++
+		return replaceAcceptedGroup(controller, id, request)
+	}
+	openRecoveryClaims = func(*ProcessController, context.Context) error {
+		if !opened {
+			return errors.New("execution fence stayed closed")
+		}
+		opens++
+		return nil
+	}
+	groupReadyProbe = func(*ProcessController, context.Context, string) error {
+		return errRecoveryExecuting
+	}
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || c.pendingGroup != "accepted" || len(c.children) != 3 || c.Active() != "accepted" || opens != 0 {
+		t.Fatalf("closed claims stopped or accepted the session starts=%d pending=%s children=%d active=%s opens=%d", starts, c.pendingGroup, len(c.children), c.Active(), opens)
+	}
+	c.mu.Lock()
+	c.groupReadyBy = time.Now().Add(-time.Millisecond)
+	c.mu.Unlock()
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || c.pendingGroup != "accepted" || len(c.children) != 3 || c.Active() != "accepted" {
+		t.Fatalf("expired budget stopped a live session starts=%d pending=%s children=%d active=%s", starts, c.pendingGroup, len(c.children), c.Active())
+	}
+	opened = true
+	if err := c.RecoverAcceptedExits(context.Background(), Request{}, true); err != nil {
+		t.Fatal(err)
+	}
+	if starts != 1 || c.pendingGroup != "" || c.Active() != "accepted" || len(c.children) != 3 || opens != 1 {
+		t.Fatalf("live session was not accepted starts=%d pending=%s active=%s children=%d opens=%d", starts, c.pendingGroup, c.Active(), len(c.children), opens)
+	}
+}
+
+func TestReadyProbeReportsRuntimeSession(t *testing.T) {
+	dir := t.TempDir()
+	admission, err := NewUnixAdmission(filepath.Join(dir, "missing.sock"), filepath.Join(dir, "admission.key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &ProcessController{RunDir: dir, Admission: admission, active: "accepted"}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	previous := recoveryExecution
+	t.Cleanup(func() { recoveryExecution = previous })
+	recoveryExecution = func(*ProcessController, context.Context, string) bool { return true }
+	err = groupReadyProbe(c, context.Background(), "accepted")
+	if !errors.Is(err, errRecoveryExecuting) {
+		t.Fatal(err)
+	}
+	recoveryExecution = func(*ProcessController, context.Context, string) bool { return false }
+	err = groupReadyProbe(c, context.Background(), "accepted")
+	if err == nil || errors.Is(err, errRecoveryExecuting) || errors.Is(err, ErrProcessExited) {
+		t.Fatal(err)
+	}
+}
+
+func TestNativeSessionActive(t *testing.T) {
+	if nativeSessionActive(nativeStatus{OK: true, Execution: "none", State: "idle"}) {
+		t.Fatal("idle runtime looked active")
+	}
+	if nativeSessionActive(nativeStatus{OK: true, State: "reboot_required", Execution: "none", Error: &nativeStatusError{Code: "idle_failed", Phase: "recovery"}}) {
+		t.Fatal("failed idle looked active")
+	}
+	if nativeSessionActive(nativeStatus{OK: false, Execution: "development", State: "running_development"}) {
+		t.Fatal("unsuccessful status looked active")
+	}
+	if !nativeSessionActive(nativeStatus{OK: true, Execution: "development", State: "running_development"}) {
+		t.Fatal("running session looked idle")
+	}
+}
+
+func TestRuntimeExecutingDistinguishesSessionFromIdle(t *testing.T) {
+	dir := t.TempDir()
+	socket := filepath.Join(dir, "admission.sock")
+	var bundle atomic.Value
+	bundle.Store("accepted")
+	listener, err := net.Listen("unix", socket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/status" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"maintenance":{"state":"none"},"raw_idle_ready":false,"update_blocked":false,"bundle_id":%q}`, bundle.Load().(string))
+	})}
+	go server.Serve(listener)
+	t.Cleanup(func() { _ = server.Close() })
+	admission, err := NewUnixAdmission(socket, filepath.Join(dir, "admission.key"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &ProcessController{RunDir: dir, Admission: admission, active: "accepted"}
+	defer killChildren(c)
+	_ = startSleepTrio(t, c)
+	var native nativeStatus
+	previous := readRecoveryStatus
+	t.Cleanup(func() { readRecoveryStatus = previous })
+	readRecoveryStatus = func(context.Context, string, int, string, string) (nativeStatus, error) {
+		return native, nil
+	}
+	native = nativeStatus{OK: true, Execution: "none", State: "idle"}
+	if c.runtimeExecuting(context.Background(), "accepted") {
+		t.Fatal("idle runtime looked like a session")
+	}
+	native = nativeStatus{OK: true, Execution: "development", State: "running_development"}
+	if !c.runtimeExecuting(context.Background(), "accepted") {
+		t.Fatal("live session was not executing")
+	}
+	bundle.Store("other")
+	if c.runtimeExecuting(context.Background(), "accepted") {
+		t.Fatal("another bundle's session was treated as this group")
 	}
 }
 

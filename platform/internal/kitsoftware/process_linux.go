@@ -42,8 +42,10 @@ const (
 	// readiness window. It is the same interval Engine.health requires before
 	// an activation is accepted.
 	groupReadyStable = 10 * time.Second
-	// groupReadyBudget is how long a replacement may stay up without that
-	// window before the supervisor stops it and retries with backoff.
+	// groupReadyBudget is how long a replacement may stay up without becoming
+	// ready before the supervisor stops it and retries with backoff. A runtime
+	// that is already executing a session is ready, so this budget does not
+	// stop that group.
 	groupReadyBudget = 60 * time.Second
 	// launcherGroupReapPoll is how long one restart attempt waits for init to
 	// reap a just-signaled descendant. The supervisor tick retries after that.
@@ -123,12 +125,55 @@ var groupRestartStart = func(c *ProcessController, ctx context.Context, id strin
 	return c.Start(startCtx, id, request)
 }
 
+// errRecoveryExecuting means the replacement processes are up and the runtime
+// is already in a session. That is a live game, not a failed start.
+var errRecoveryExecuting = errors.New("recovered runtime is executing")
+
 // groupReadyProbe is one readiness sample for a replacement group. The default
 // is Healthy, which requires agent and native idle plus the launcher readiness
-// file. Tests replace it.
+// file. When that fails because a session is already running, the sample is
+// errRecoveryExecuting. Tests replace it.
 var groupReadyProbe = func(c *ProcessController, ctx context.Context, id string) error {
-	return c.Healthy(ctx, id)
+	err := c.Healthy(ctx, id)
+	if err == nil || errors.Is(err, ErrProcessExited) {
+		return err
+	}
+	if recoveryExecution(c, ctx, id) {
+		return errRecoveryExecuting
+	}
+	return err
 }
+
+// closeRecoveryClaims blocks new execution claims while a replacement is still
+// waiting to be accepted. Without a queued activation the agent's own admission
+// fence is open, so a game could start before the idle window finishes and
+// make RawIdleReady false. The fence opens only once the group is accepted.
+// A nil admission is a test controller. Tests replace this.
+var closeRecoveryClaims = func(c *ProcessController, ctx context.Context) error {
+	if c == nil || c.Admission == nil {
+		return nil
+	}
+	return c.Admission.FenceExecution(ctx)
+}
+
+// openRecoveryClaims allows new execution claims after recovery is accepted.
+// An existing session is not revoked. Tests replace this.
+var openRecoveryClaims = func(c *ProcessController, ctx context.Context) error {
+	if c == nil || c.Admission == nil {
+		return nil
+	}
+	return c.Admission.ClearExecutionFence(ctx)
+}
+
+// recoveryExecution reports a live runtime session for this replacement.
+// Tests replace it.
+var recoveryExecution = func(c *ProcessController, ctx context.Context, id string) bool {
+	return c.runtimeExecuting(ctx, id)
+}
+
+// readRecoveryStatus is the runtime status read used to recognize a session.
+// Tests replace it.
+var readRecoveryStatus = readNativeStatus
 
 func (c *ProcessController) Active() string { c.mu.Lock(); defer c.mu.Unlock(); return c.active }
 func (c *ProcessController) Verify(ctx context.Context, id string) error {
@@ -790,8 +835,10 @@ func GroupRestartRequest(state State, readErr error) (Request, bool) {
 // A replacement that dies quickly backs off from one second to thirty seconds.
 // pending is the durable queued activation, or the zero request when none is
 // queued. queueKnown is false when that queue could not be read. The replacement
-// stays in recovery until it is ready; a later activation that replaces its
-// processes ends that wait. Called with no controller lock held.
+// stays in recovery until it is ready. New execution claims stay closed until
+// then. A runtime that is already executing a session is ready and is not
+// stopped. A later activation that replaces its processes ends that wait.
+// Called with no controller lock held.
 func (c *ProcessController) RecoverAcceptedExits(ctx context.Context, pending Request, queueKnown bool) error {
 	c.mu.Lock()
 	c.abandonReplacedRecoveryLocked()
@@ -1016,35 +1063,101 @@ func (c *ProcessController) abandonReplacedRecoveryLocked() {
 	c.recoveryPIDs = nil
 }
 
+// nativeSessionActive reports a runtime status that is already in a session.
+// Idle and a failed return to idle are not sessions. A development session is
+// the runtime's name for a running core, including a game.
+func nativeSessionActive(status nativeStatus) bool {
+	return status.OK && status.Execution != "" && status.Execution != "none"
+}
+
+// runtimeExecuting reports that this replacement's own runtime is in a session.
+// An admission status for a different bundle is not this group. An admission
+// status that cannot be read does not hide a session the runtime itself reports.
+func (c *ProcessController) runtimeExecuting(ctx context.Context, id string) bool {
+	c.mu.Lock()
+	children := append([]*child(nil), c.children...)
+	active := c.active
+	c.mu.Unlock()
+	if active != id || len(children) != 3 {
+		return false
+	}
+	var runtime *child
+	for _, p := range children {
+		if p.role == roleRuntime {
+			runtime = p
+		}
+		select {
+		case <-p.done:
+			return false
+		default:
+		}
+		if p.cmd == nil || p.cmd.Process == nil {
+			return false
+		}
+		actual, err := os.Stat("/proc/" + strconv.Itoa(p.cmd.Process.Pid) + "/exe")
+		if err != nil {
+			return false
+		}
+		expected, err := os.Stat(p.path)
+		if err != nil || !os.SameFile(actual, expected) {
+			return false
+		}
+	}
+	if runtime == nil || runtime.cmd == nil || runtime.cmd.Process == nil {
+		return false
+	}
+	if c.Admission != nil {
+		status, err := c.Admission.Status(ctx)
+		if err == nil && status.BundleID != id {
+			return false
+		}
+	}
+	identity, err := processStartTime(runtime.cmd.Process.Pid)
+	if err != nil {
+		return false
+	}
+	native, err := readRecoveryStatus(ctx, "/run/mister-runtime.sock", runtime.cmd.Process.Pid, identity, runtime.path)
+	if err != nil {
+		return false
+	}
+	return nativeSessionActive(native)
+}
+
+func (c *ProcessController) recoveryOwned(id string) bool {
+	return c.recoveryOwnedLocked() && c.recoveryID == id && c.pendingGroup == id
+}
+
 // observeGroupReady samples readiness once. The supervisor tick calls it again
-// until the stable window holds. A process exit returns to the restart path.
-// When the budget expires first, the wedged group is stopped and the next
-// start waits out the backoff.
+// until the stable window holds. New execution claims stay closed until that
+// window accepts the group, so a game cannot start and make the idle sample
+// fail. A runtime that is already in a session is accepted immediately. A
+// process exit returns to the restart path. When the budget expires first and
+// the group is neither idle-ready nor executing, the wedged group is stopped
+// and the next start waits out the backoff.
 func (c *ProcessController) observeGroupReady(ctx context.Context, id string) error {
+	c.mu.Lock()
+	owned := c.recoveryOwned(id)
+	c.mu.Unlock()
+	if !owned {
+		return nil
+	}
+	claimCtx, claimCancel := context.WithTimeout(ctx, time.Second)
+	_ = closeRecoveryClaims(c, claimCtx)
+	claimCancel()
+
 	probeCtx, cancel := context.WithTimeout(ctx, time.Second)
 	probeErr := groupReadyProbe(c, probeCtx, id)
 	cancel()
 
 	c.mu.Lock()
-	owned := c.recoveryOwnedLocked() && c.recoveryID == id && c.pendingGroup == id
+	owned = c.recoveryOwned(id)
 	expired := owned && !time.Now().Before(c.groupReadyBy)
 	c.mu.Unlock()
 	if !owned {
 		return nil
 	}
-	if probeErr == nil {
-		c.mu.Lock()
-		defer c.mu.Unlock()
-		if !c.recoveryOwnedLocked() || c.recoveryID != id || c.pendingGroup != id {
-			return nil
-		}
-		if c.groupReadySince.IsZero() {
-			c.groupReadySince = time.Now()
-		}
-		if time.Since(c.groupReadySince) >= c.readyStableDuration() {
-			c.acceptRecoveryLocked()
-		}
-		return nil
+	if probeErr == nil || errors.Is(probeErr, errRecoveryExecuting) {
+		return c.acceptReadyRecovery(ctx, id, errors.Is(probeErr, errRecoveryExecuting))
 	}
 	if errors.Is(probeErr, ErrProcessExited) {
 		c.mu.Lock()
@@ -1077,6 +1190,44 @@ func (c *ProcessController) observeGroupReady(ctx context.Context, id string) er
 		return fmt.Errorf("service group not ready: %v; cleanup: %w", probeErr, stopErr)
 	}
 	return fmt.Errorf("service group not ready: %w", probeErr)
+}
+
+// acceptReadyRecovery records an idle streak and accepts the group once that
+// streak holds, or immediately when the runtime is already executing. Claims
+// are opened before acceptance. A failed open leaves the group owned so the
+// next sample retries; it does not stop a ready or busy group.
+func (c *ProcessController) acceptReadyRecovery(ctx context.Context, id string, executing bool) error {
+	c.mu.Lock()
+	if !c.recoveryOwned(id) {
+		c.mu.Unlock()
+		return nil
+	}
+	if !executing {
+		if c.groupReadySince.IsZero() {
+			c.groupReadySince = time.Now()
+		}
+		if time.Since(c.groupReadySince) < c.readyStableDuration() {
+			c.mu.Unlock()
+			return nil
+		}
+	}
+	c.mu.Unlock()
+	openCtx, openCancel := context.WithTimeout(ctx, time.Second)
+	err := openRecoveryClaims(c, openCtx)
+	openCancel()
+	if err != nil {
+		return nil
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.recoveryOwned(id) {
+		return nil
+	}
+	if executing {
+		log.Printf("accepting recovered service group %s during runtime execution", id)
+	}
+	c.acceptRecoveryLocked()
+	return nil
 }
 
 func processStartTime(pid int) (string, error) {
