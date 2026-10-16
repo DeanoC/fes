@@ -431,17 +431,17 @@ func (s *sessionCoordinator) reconcileInput(ctx context.Context, st protocol.Sta
 		}
 		if input.State != host.RemoteInputDetached {
 			if err := s.detachInputNow(ctx, "session_reconcile"); err != nil {
-				return remoteInputError()
+				return remoteInputReconcileError(err)
 			}
 		}
 		if err := s.attachInputForStatus(ctx, st); err != nil {
-			return remoteInputError()
+			return remoteInputReconcileError(err)
 		}
 		return nil
 	}
 	if input.State == host.RemoteInputAttached || input.Ready || input.SessionID != "" {
 		if err := s.detachInputNow(ctx, "session_reconcile"); err != nil {
-			return remoteInputError()
+			return remoteInputReconcileError(err)
 		}
 	}
 	return nil
@@ -1841,6 +1841,16 @@ func busyError() error {
 
 func developmentMustStopError() error {
 	return &protocol.APIError{Code: protocol.CodeBusy, Message: "stop the development RBF before launching a game"}
+}
+
+// Preserve an ownership refusal during read-side input reconciliation. Other
+// bridge failures retain their existing sanitized unavailable response.
+func remoteInputReconcileError(err error) error {
+	var apiErr *protocol.APIError
+	if errors.As(err, &apiErr) && apiErr.Code == protocol.CodeKitLeaseDenied {
+		return err
+	}
+	return remoteInputError()
 }
 
 func remoteInputError() error {

@@ -196,6 +196,16 @@ func NewRemoteInput(config RemoteInputConfig) (*RemoteInput, error) {
 	}, nil
 }
 
+// Only an explicit ownership refusal survives input-start sanitization. Unknown
+// transport, parsing and bridge errors retain their existing generic failure.
+func remoteInputStartError(err error) error {
+	var api *protocol.APIError
+	if errors.As(err, &api) && api.Code == protocol.CodeKitLeaseDenied {
+		return &protocol.APIError{Code: protocol.CodeKitLeaseDenied, Message: "session does not own the kit lease", Phase: "recovery"}
+	}
+	return ErrRemoteInputInvalid
+}
+
 func (r *RemoteInput) Status() RemoteInputStatus {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -260,7 +270,7 @@ func (r *RemoteInput) attach(ctx context.Context, core string, keyboard, ports, 
 	bridge, err := r.starter.Start(ctx, BridgeSpec{Session: session, Token: append([]byte(nil), token...), Core: core})
 	if err != nil || bridge == nil {
 		r.failLocked("attach_failed")
-		return ErrRemoteInputInvalid
+		return remoteInputStartError(err)
 	}
 	r.bridge = bridge
 	if err := waitReady(ctx, bridge.Ready()); err != nil {
@@ -276,7 +286,7 @@ func (r *RemoteInput) attach(ctx context.Context, core string, keyboard, ports, 
 	if err := r.connectLocked(ctx); err != nil {
 		r.stopBridgeLocked(context.Background())
 		r.failLocked("attach_failed")
-		return ErrRemoteInputInvalid
+		return remoteInputStartError(err)
 	}
 	r.state = RemoteInputAttached
 	r.ready = true
@@ -1051,6 +1061,10 @@ func (r *RemoteInput) connectionLiveLocked() bool {
 }
 
 func streamDialError(err error) error {
+	var api *protocol.APIError
+	if errors.As(err, &api) && api.Code == protocol.CodeKitLeaseDenied {
+		return remoteInputStartError(err)
+	}
 	if err == nil || errors.Is(err, ErrRemoteInputNoStream) || errors.Is(err, context.Canceled) {
 		return err
 	}

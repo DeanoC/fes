@@ -69,6 +69,18 @@ platform, stay `launchable` even when a cartridge platform such as Coleco
 has no host-emulator mapping. Rooms treat those titles as Ready once
 composition flags such as `firmware_ready` pass; raw Coleco library carts
 remain browse-only.
+A locally expired or lost kit lease remains `KIT_LEASE_DENIED` through host
+service normalization, session reads, input reconciliation, Launch and Stop.
+The host API returns HTTP 403 for this ownership refusal, rather than treating
+it as a disconnected target or failed input bridge. Unclassified transport and
+bridge failures retain their unavailable responses. A refusal does not establish
+whether an earlier operation completed; clients must inspect current ownership
+before issuing a new operation. Existing authenticated endpoint reconciliation
+uses read-only ownership/status observations to discard stale local authority;
+it never stops or releases the replacement owner's session. A subsequent
+explicit launch uses an ordinary claim, which still refuses a foreign holder.
+No mutation is automatically retried after lease loss.
+
 Native FPGA Stop uses the
 mutation (`upload_timeout_seconds`) deadline, not the short status request
 timeout; programming idle can exceed a 5s health poll.

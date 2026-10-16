@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
 )
 
@@ -87,7 +88,10 @@ func (s *HTTPBridgeStarter) Start(ctx context.Context, spec BridgeSpec) (BridgeH
 		Ready bool `json:"ready"`
 	}
 	var sentKitToken string
-	if err := s.doJSONRequest(ctx, http.MethodPost, "/v1/input/attach", requestBody, &response, "", &sentKitToken); err != nil || !response.Ready {
+	if err := s.doJSONRequest(ctx, http.MethodPost, "/v1/input/attach", requestBody, &response, "", &sentKitToken); err != nil {
+		return nil, remoteInputStartError(err)
+	}
+	if !response.Ready {
 		return nil, ErrRemoteInputInvalid
 	}
 	handle := &httpBridgeHandle{
@@ -143,6 +147,10 @@ func (s *HTTPBridgeStarter) doJSONRequest(ctx context.Context, method, path stri
 		return ErrRemoteInputInvalid
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		var envelope protocol.ErrorEnvelope
+		if response.StatusCode == http.StatusForbidden && json.Unmarshal(data, &envelope) == nil && envelope.Error.Code == protocol.CodeKitLeaseDenied {
+			return remoteInputStartError(&envelope.Error)
+		}
 		return ErrRemoteInputInvalid
 	}
 	if err := json.Unmarshal(data, result); err != nil {
