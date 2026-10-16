@@ -902,8 +902,7 @@ func TestAdmissionFilesystemRejectsMemorySameDeviceAndShortVolumes(t *testing.T)
 	if admissionFilesystem(memory, 2, 1, need) {
 		t.Fatal("tmpfs accepted")
 	}
-	memory.Type = unix.RAMFS_MAGIC
-	if admissionFilesystem(memory, 2, 1, need) {
+	if !memoryFilesystem(uint32(unix.RAMFS_MAGIC)) {
 		t.Fatal("ramfs accepted")
 	}
 	readonly := base

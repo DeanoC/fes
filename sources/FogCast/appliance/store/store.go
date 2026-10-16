@@ -747,7 +747,9 @@ func admissionFilesystem(fs unix.Statfs_t, dev, rootDev, need uint64) bool {
 	if dev == 0 || dev == rootDev {
 		return false
 	}
-	if fs.Type == unix.TMPFS_MAGIC || fs.Type == unix.RAMFS_MAGIC {
+	// Statfs_t.Type is int32 on ARM. RAMFS_MAGIC does not fit in int32, so
+	// compare the 32-bit kind. fes-boot is built for that architecture.
+	if memoryFilesystem(uint32(fs.Type)) {
 		return false
 	}
 	if fs.Flags&unix.ST_RDONLY != 0 {
@@ -757,6 +759,10 @@ func admissionFilesystem(fs unix.Statfs_t, dev, rootDev, need uint64) bool {
 		return false
 	}
 	return fs.Bavail*uint64(fs.Bsize) >= need
+}
+
+func memoryFilesystem(kind uint32) bool {
+	return kind == uint32(unix.TMPFS_MAGIC) || kind == uint32(unix.RAMFS_MAGIC)
 }
 
 func spillInsideRelease(root, dir string) error {
