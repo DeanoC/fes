@@ -1,0 +1,15 @@
+{
+  "source": "dd4d4ba2a0e929bd3a948f77a2dea79ff9f6da8f",
+  "host_amd64_sha256": "55f51a56f23bbb8887ac99725bf0f12c01aff3df69c3f954d11cf1054b6b4c96",
+  "host_armv7_sha256": "908509f0f4352af4fd55ab53ac46bf4dec0fefa1db99e10f94dd1dc3f2a17605",
+  "focused_race_command": "go test -race ./host ./targetclient ./fogcast ./internal/hostapi -run 'Lease|Takeover|Renew|Expir|ExpectedStop|Reconcile|Bridge|Stream|SessionReadTransport|Reconnect' -timeout 180s",
+  "focused_race_passed": true,
+  "make_check_passed": true,
+  "generated_consumers": 18,
+  "fixture_copies": 37,
+  "affected_suite_status": "pending-final-run",
+  "umask": "022",
+  "before_fix_dials_per_error": 20,
+  "after_fix_dials_per_error": 1,
+  "before_fix_test_source": "c0911a94fc6e058ac6762746768c5d8d4bd6e856"
+}
