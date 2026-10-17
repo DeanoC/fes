@@ -23,6 +23,8 @@ import json
 import re
 from pathlib import Path
 
+from scripts import coleco_expansion
+
 
 SOCKET_CLOCK = "clk_sys"
 # Unnamed, so nextpnr calls this region "cart". Cart merge uses that default
@@ -140,44 +142,99 @@ def _bel_xy(bel: str) -> tuple[int, int] | None:
     return int(parts[1]), int(parts[2])
 
 
+def _top_cells(design: object) -> tuple[dict | None, dict]:
+    modules = design.get("modules") if isinstance(design, dict) else None
+    top = modules.get("top") if isinstance(modules, dict) else None
+    if not isinstance(top, dict):
+        return None, {}
+    cells = top.get("cells")
+    return top, cells if isinstance(cells, dict) else {}
+
+
+def _nextpnr_bel(cell: dict) -> str:
+    attributes = cell.get("attributes")
+    if not isinstance(attributes, dict):
+        return ""
+    bel = attributes.get("NEXTPNR_BEL")
+    return bel if isinstance(bel, str) else ""
+
+
+def _valid_boundary_ffs(cells: dict) -> dict[str, str]:
+    valid = {}
+    for name, bel in socket_bels().items():
+        cell = cells.get(name)
+        if isinstance(cell, dict) and cell.get("type") == "MISTRAL_FF" and _nextpnr_bel(cell) == bel:
+            valid[name] = bel
+    return valid
+
+
+def _admitted_boundary_names(top: dict, cells: dict) -> set[str]:
+    """Pinned boundary flip-flops plus route-throughs the shared checker admits.
+
+    A socket name is not enough. The flip-flop must be a ``MISTRAL_FF`` at its
+    ``socket_bels()`` site. A ``$ROUTETHRU`` is admitted only by
+    ``coleco_expansion.boundary_route_through_cells`` (type, paired BEL,
+    dedicated connection, and pin map). A malformed buffer stays unadmitted.
+    """
+    valid = _valid_boundary_ffs(cells)
+    admitted = set(valid)
+    if not valid:
+        return admitted
+    try:
+        admitted |= coleco_expansion.boundary_route_through_cells(top, valid)
+    except ValueError:
+        return admitted
+    return admitted
+
+
 def shell_cells_in_socket(design: object) -> list[tuple[str, str]]:
     """Shell cells placed in the cart interior or on the plug columns.
 
-    BEL-locked boundary flip-flops and their ``$ROUTETHRU`` data buffers may
-    occupy the plug columns. Nothing else may, and the cart interior stays
-    empty in the shell.
+    The cart interior stays empty. A plug column may hold a boundary
+    flip-flop at its pinned BEL, or the paired data buffer that the shared
+    route-through check admits. Nothing else may.
     """
-    modules = design.get("modules") if isinstance(design, dict) else None
-    top = modules.get("top") if isinstance(modules, dict) else None
-    cells = top.get("cells") if isinstance(top, dict) else None
-    if not isinstance(cells, dict):
+    top, cells = _top_cells(design)
+    if top is None:
         return []
     cart = _parse_rect(SOCKET_RECT)
     boundary = tuple(_parse_rect(spec) for spec in BOUNDARY_RECTS)
-    allowed = set(socket_bels())
+    allowed = _admitted_boundary_names(top, cells)
     intruders: list[tuple[str, str]] = []
     for name, cell in cells.items():
-        if not isinstance(name, str) or not isinstance(cell, dict):
+        if not isinstance(name, str) or not isinstance(cell, dict) or name in allowed:
             continue
-        attributes = cell.get("attributes")
-        if not isinstance(attributes, dict):
-            continue
-        bel = attributes.get("NEXTPNR_BEL") or attributes.get("BEL") or ""
-        if not isinstance(bel, str):
-            continue
+        bel = _nextpnr_bel(cell)
         xy = _bel_xy(bel)
         if xy is None:
             continue
-        on_boundary = any(_in_rect(rect, *xy) for rect in boundary)
-        in_cart = _in_rect(cart, *xy)
-        if not on_boundary and not in_cart:
-            continue
-        stem = name.removesuffix("$ROUTETHRU")
-        boundary_cell = stem in allowed and (name == stem or name.endswith("$ROUTETHRU"))
-        if in_cart or not (on_boundary and boundary_cell):
+        if any(_in_rect(rect, *xy) for rect in boundary) or _in_rect(cart, *xy):
             intruders.append((name, bel))
     intruders.sort()
     return intruders
+
+
+def socket_ff_problem(design: object) -> str | None:
+    """Reject a routed connector that is not the pinned socket flip-flops."""
+    _, cells = _top_cells(design)
+    problems: list[str] = []
+    for name, bel in socket_bels().items():
+        cell = cells.get(name)
+        if not isinstance(cell, dict):
+            problems.append(f"{name} is missing, required MISTRAL_FF at {bel}")
+            continue
+        actual_bel = _nextpnr_bel(cell) or "unplaced"
+        if cell.get("type") != "MISTRAL_FF" or actual_bel != bel:
+            problems.append(
+                f"{name} is {cell.get('type')} at {actual_bel}, required MISTRAL_FF at {bel}")
+    if not problems:
+        return None
+    shown = problems[:4]
+    details = "; ".join(shown)
+    extra = len(problems) - len(shown)
+    if extra:
+        details += f"; and {extra} more"
+    return f"socket boundary flip-flop moved: {details}"
 
 
 def socket_occupancy_message(intruders: list[tuple[str, str]]) -> str:
@@ -251,13 +308,23 @@ def blocked_plug_addr_message(blocked: list[tuple[int, str]]) -> str:
     return f"socket boundary leaves plug_addr unroutable: {details}"
 
 
-def socket_route_reason(routed: Path) -> str | None:
-    if not routed.is_file():
-        return "routed design is missing"
-    try:
-        design = json.loads(routed.read_text())
-    except (OSError, json.JSONDecodeError) as exc:
-        return f"routed design is unreadable: {exc}"
+def socket_design_reason(design: object) -> str | None:
+    """Reject a routed shell whose connector or socket floorplan is wrong.
+
+    Every boundary flip-flop must be a ``MISTRAL_FF`` at its pinned BEL. A
+    ``$ROUTETHRU`` must pass the shared paired-buffer check. Any other cell
+    in the cart interior or on the plug columns is shell logic, and a foreign
+    net on a request exit still makes that bit unroutable.
+    """
+    mismatch = socket_ff_problem(design)
+    if mismatch:
+        return mismatch
+    top, _cells = _top_cells(design)
+    if isinstance(top, dict):
+        try:
+            coleco_expansion.boundary_route_through_cells(top, socket_bels())
+        except ValueError as exc:
+            return str(exc)
     intruders = shell_cells_in_socket(design)
     if intruders:
         return socket_occupancy_message(intruders)
@@ -265,6 +332,16 @@ def socket_route_reason(routed: Path) -> str | None:
     if not blocked:
         return None
     return blocked_plug_addr_message(blocked)
+
+
+def socket_route_reason(routed: Path) -> str | None:
+    if not routed.is_file():
+        return "routed design is missing"
+    try:
+        design = json.loads(routed.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        return f"routed design is unreadable: {exc}"
+    return socket_design_reason(design)
 
 
 def accept_socket_route(candidate: object) -> str | None:

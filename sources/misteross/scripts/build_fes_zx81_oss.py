@@ -328,12 +328,9 @@ def validate_build_evidence(output: Path, source_root: Path=ROOT, *, gpu_backend
         raise BuildError('route log does not prove a complete routed design')
     if has_failed_route_arc(route_text):
         raise BuildError('route log contains a failed arc')
-    intruders = zx81_expansion.shell_cells_in_socket(routed)
-    if intruders:
-        raise BuildError(zx81_expansion.socket_occupancy_message(intruders))
-    blocked = zx81_expansion.blocked_plug_addr_exits(routed)
-    if blocked:
-        raise BuildError(zx81_expansion.blocked_plug_addr_message(blocked))
+    reason = zx81_expansion.socket_design_reason(routed)
+    if reason:
+        raise BuildError(reason)
     gpu_backend = _require_gpu_backend(route_text, gpu_backend)
     system_pll = '50 MHz -> 52.224 MHz' in route_text or (
         re.search(r"Info: PLL 'system_clock\.pll': 50\.000000 MHz -> VCO [0-9.]+ MHz, fractional-N,", route_text)
