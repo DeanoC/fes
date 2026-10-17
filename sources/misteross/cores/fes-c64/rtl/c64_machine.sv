@@ -362,18 +362,18 @@ module c64_machine #(
     );
     // One idle SYS edge prepares oscillator phase and the first envelope
     // state transition before Phi. Shorter ratios retain both direct paths.
-    // The three voice waveform lookup/finish stages run on Phi+1..Phi+6; CPU
-    // writes land at edge 26, outside that window, and finish on edge 27.
-    // Audio captures at Phi+7 and starts at Phi+8: the reSID chain completes
-    // 39 edges later and the default filter sooner, so require at least 49
-    // edges between Phi edges so that result and idle state precede the next
-    // transaction. Native PAL cadence is 53/54 SYS edges. Faster modes keep
-    // direct audio.
+    // The three voice waveform lookup/finish stages run on Phi+1..Phi+9; CPU
+    // writes land at edge 26, outside that window, and finish on edge 28.
+    // Audio captures at Phi+10 and starts at Phi+11: the reSID chain
+    // completes 39 edges later and the default filter sooner, so require at
+    // least 52 edges between Phi edges so that result and idle state precede
+    // the next transaction. Native PAL cadence is 53/54 SYS edges. Faster
+    // modes keep direct audio.
     c64_sid #(
         .PREPARE_PHASE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2),
         .PREPARE_ENVELOPE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2),
-        .SEQUENCE_VOICES(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 9),
-        .FILTER_AUDIO(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 49),
+        .SEQUENCE_VOICES(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 12),
+        .FILTER_AUDIO(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 52),
         .RESID_FILTER(1'b0)
     ) sid (
         .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_sid),

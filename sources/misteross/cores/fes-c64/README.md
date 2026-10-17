@@ -71,9 +71,10 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   routing, 3OFF and master volume. The exact reSID DAC, nonlinear filter and
   external output network translation (`c64_sid_audio`) remains available
   behind the `RESID_FILTER` parameter, which the package leaves off.
-  The three voices' waveform stages run as lookup/finish pairs on system
-  edges Phi+1..Phi+6 in reSID output order through one shared combined-wave
-  table unit, so no table lookup chains with another within one edge.
+  The three voices' waveform stages run as three-edge lookup/finish
+  sequences on system edges Phi+1..Phi+9 in reSID output order through one
+  shared combined-wave table unit, so no table lookup chains with other
+  logic within one edge.
   Single-wave digital timing, oscillator hard sync, triangle ring modulation
   and envelopes follow reSID's MOS6581 model. Non-noise combinations use its
   pinned 6581 samples, including saw-selected accumulator feedback and delayed
@@ -737,19 +738,20 @@ that direct calculation because they can produce adjacent Phi2 enables.
 `make sim-fes-c64-sid-phase` replays the same source fixture with physical idle
 edges between dense logical Phi2 calls and checks the sum at every Phi2.
 
-With `SEQUENCE_VOICES` (ratios of at least nine), each oscillator defers its
-waveform stage (output wave, saw-selected feedback, noise write-back, decay
-and pulse compare) from Phi2 to a lookup/finish pair of system edges: the
-lookup edge presents the voice's combined-wave table index and ring state to
-one shared, registered table unit (`c64_sid_wave_tables`), and the next edge
-finishes the stage from its output. Voice 0 looks up on Phi+1, voice 1 on
-Phi+3 and voice 2 on Phi+5. Phi2 still advances every accumulator, noise
+With `SEQUENCE_VOICES` (ratios of at least twelve), each oscillator defers
+its waveform stage (output wave, saw-selected feedback, noise write-back,
+decay and pulse compare) from Phi2 to a three-edge lookup/finish sequence:
+the lookup edge presents the voice's combined-wave table index and ring state
+to one shared table unit (`c64_sid_wave_tables`), which registers the index
+and then the four table values, and the second edge after the request
+finishes the stage from them. Voice 0 looks up on Phi+1, voice 1 on Phi+4
+and voice 2 on Phi+7. Phi2 still advances every accumulator, noise
 shift and hard sync. Each ring/sync source is then simply the source's current
 phase, which reproduces the pinned reSID order without chaining three
 combined-wave lookups in one system period. A CONTROL write that selects a
-waveform issues its own lookup on the write edge and finishes on the next; the
-prepared phase sum is refreshed on the following idle edge. The audio stage
-captures on Phi+7 and starts on Phi+8. CPU writes land on edge 26, outside the
+waveform issues its own lookup on the write edge and finishes two edges
+later; the prepared phase sum is refreshed on the following idle edge. The
+audio stage captures on Phi+10 and starts on Phi+11. CPU writes land on edge 26, outside the
 stage window. `make sim-fes-c64-sid-sequenced`, `sim-fes-c64-sid-sequenced-osc3`
 and `sim-fes-c64-sid-sequenced-mix` replay the unchanged coupling, OSC3 bus and
 ENV3/PCM fixtures with the stage, finish and idle edges folded into each

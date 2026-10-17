@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Shared MOS6581 combined-waveform lookup for the sequenced SID voices: one
-// registered read of the four pinned reSID sample tables per SYS edge. The
+// two-edge registered read of the four pinned reSID sample tables. The
 // pulse/triangle table is indexed with the requesting voice's ring XOR.
 // Table data and provenance: c64_sid_combined_waves.vh and c64_sid.COPYING.
 // mem2reg keeps the sparse tables in logic, bypassing the pinned Intel legacy
@@ -23,9 +23,14 @@ module c64_sid_wave_tables(
         pulse_saw_words[table_index]=combined_pulse_saw(12'(table_index));
         pulse_triangle_saw_words[table_index]=combined_pulse_triangle_saw(12'(table_index));
     end
-    always @(posedge clk)
-        lookup_tables<={triangle_saw_words[phase_index],
-                        pulse_triangle_words[phase_index ^ {ring_xor,11'b0}],
-                        pulse_saw_words[phase_index],
-                        pulse_triangle_saw_words[phase_index]};
+    // The index is registered first so the table cone starts at a register;
+    // the requesting voice finishes two edges after its request.
+    reg [11:0] index_q=0;reg ring_q=0;
+    always @(posedge clk) begin
+        index_q<=phase_index;ring_q<=ring_xor;
+        lookup_tables<={triangle_saw_words[index_q],
+                        pulse_triangle_words[index_q ^ {ring_q,11'b0}],
+                        pulse_saw_words[index_q],
+                        pulse_triangle_saw_words[index_q]};
+    end
 endmodule

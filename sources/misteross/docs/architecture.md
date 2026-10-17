@@ -1808,17 +1808,19 @@ checks include all 16 selectors and pre-write audio waveforms. This qualifies
 the selected software model, not physical mixed-noise SID behavior.
 
 At the native 53/54-SYS cadence, `c64_sid` sequences the three voices'
-waveform stages as lookup/finish pairs on Phi+1..Phi+6 (`SEQUENCE_VOICES`,
-ratio at least nine): Phi advances every accumulator, noise shift and hard
-sync; each voice then presents its combined-wave table index and ring state
-to the shared registered `c64_sid_wave_tables` unit on its lookup edge
-(Phi+1, Phi+3, Phi+5) and on the next edge produces its wave, saw-selected
-feedback, noise write-back, decay and pulse, in reSID output order, reading
-its ring/sync source's current phase. A waveform-selecting CONTROL write
-issues its own lookup on the write edge and finishes on the next, with the
-prepared phase sum refreshed on the following idle edge. CPU writes land on
-edge 26, outside the Phi stage window. The audio stage captures the final
-waveforms and old filter controls on Phi+7 and starts on Phi+8 with the
+waveform stages as three-edge lookup/finish sequences on Phi+1..Phi+9
+(`SEQUENCE_VOICES`, ratio at least twelve): Phi advances every accumulator,
+noise shift and hard sync; each voice then presents its combined-wave table
+index and ring state to the shared `c64_sid_wave_tables` unit on its lookup
+edge (Phi+1, Phi+4, Phi+7), which registers the index and then the four
+table values, and two edges after the request produces its wave,
+saw-selected feedback, noise write-back, decay and pulse, in reSID output
+order, reading its ring/sync source's current phase. A waveform-selecting
+CONTROL write issues its own lookup on the write edge and finishes two edges
+later, with the prepared phase sum refreshed on the following idle edge. CPU
+writes land on edge 26, outside the Phi stage window. The audio stage
+captures the final waveforms and old filter controls on Phi+10 and starts on
+Phi+11 with the
 updated envelope values; CPU writes on Phi therefore affect the next sample
 and reset cancels pending work. The default audio stage
 is `c64_sid_svf`: voice DAC/envelope products, a Chamberlin state-variable
@@ -1826,8 +1828,8 @@ filter with Q20 MOS6581-shaped cutoff and 1/Q tables from
 `scripts/c64_sid_svf_tables.py`, LP/BP/HP routing, 3OFF and master volume,
 evaluated by a sequencer with one shared nibble-serial multiplier within 26
 edges. The exact reSID DAC, nonlinear filter and external output network
-translation (`c64_sid_audio`, output at Phi+47) remains behind `RESID_FILTER`,
-off in the package. The static guard `SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 49`
+translation (`c64_sid_audio`, output at Phi+50) remains behind `RESID_FILTER`,
+off in the package. The static guard `SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 52`
 leaves time for either result and idle state before the next transaction.
 Shorter ratios and default standalone instances use the direct linear-volume
 path. Signed-32 output is saturated to signed-16 PCM before the unchanged

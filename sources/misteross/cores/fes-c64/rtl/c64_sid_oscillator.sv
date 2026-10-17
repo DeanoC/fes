@@ -11,9 +11,10 @@ module c64_sid_oscillator #(
     // Defer the waveform stage (wave, saw feedback, noise write-back, fade
     // and pulse) from the Phi edge to a two-edge lookup/finish sequence: the
     // caller's `stage` edge (or a CONTROL write selecting a waveform) issues
-    // `lookup_request` with the combined-wave table index, and the next edge
-    // finishes the stage from the caller's registered `lookup_tables`. The
-    // caller sequences the three voices two SYS edges apart in reSID output
+    // `lookup_request` with the combined-wave table index, and the second
+    // edge after it finishes the stage from the caller's registered
+    // `lookup_tables` (index registered, then tables registered). The
+    // caller sequences the three voices three SYS edges apart in reSID output
     // order, so the ring/sync source MSB is simply the source's current
     // phase and no table lookup chains with another within one SYS period.
     // Phi still advances the accumulator, noise shift and hard sync. The
@@ -61,7 +62,7 @@ module c64_sid_oscillator #(
         // Reset preserves the old phase and clears frequency, even on Phi.
         always @(posedge clk)
             if(reset) value <= q.phase;
-            else if(!phi && !(SEQUENCED && pending)) value <= n.phase+{8'd0,n.freq};
+            else if(!phi && !(SEQUENCED && pending[1])) value <= n.phase+{8'd0,n.freq};
         assign next_phase=value;
     end else begin : direct_phase
         assign next_phase=q.phase+{8'd0,q.freq};
@@ -196,11 +197,11 @@ module c64_sid_oscillator #(
             waveform_stage=t;
         end
     endfunction
-    // Sequenced lookup/finish bookkeeping: `pending` finishes the stage on
-    // the edge after a request; `pending_write` marks a CONTROL-write stage,
+    // Sequenced lookup/finish bookkeeping: `pending[1]` finishes the stage
+    // two edges after a request; `pending_write` marks a CONTROL-write stage,
     // which skips the floating-output decay; `ring_latched` is the ring
     // modulation state the lookup index was formed with.
-    reg pending=0, pending_write=0, ring_latched=0;
+    reg [1:0] pending=2'b00; reg pending_write=0, ring_latched=0;
     reg write_request;
     wire finish_ring_active=ring_latched;
     wire [11:0] finish_wave=select_wave(q,finish_ring_active,
@@ -217,7 +218,7 @@ module c64_sid_oscillator #(
         end
         // Deferred finish: q holds the advanced, synchronized (or written)
         // state and the caller's tables hold this voice's requested lookup.
-        if(SEQUENCED && pending) n=waveform_stage(n,finish_wave,!pending_write);
+        if(SEQUENCED && pending[1]) n=waveform_stage(n,finish_wave,!pending_write);
         clocked_waveform=n.wave;
         // CPU writes follow the old-register oscillator clock on this SYS edge.
         if(we) case(addr)
@@ -252,9 +253,9 @@ module c64_sid_oscillator #(
     assign lookup_index=n.phase[23:12];
     assign lookup_ring_xor=request_ring_active;
     always @(posedge clk) begin
-        if(reset) begin pending<=0; pending_write<=0; ring_latched<=0; end
+        if(reset) begin pending<=2'b00; pending_write<=0; ring_latched<=0; end
         else begin
-            pending<=lookup_request;
+            pending<={pending[0],lookup_request};
             if(lookup_request) begin pending_write<=write_request; ring_latched<=request_ring_active; end
         end
     end

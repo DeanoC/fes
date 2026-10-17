@@ -6,12 +6,12 @@
 // See c64_sid.COPYING and ../README.md for source provenance and scope.
 module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
     parameter bit PREPARE_ENVELOPE = 1'b0,
-    // Run the three voices' waveform stages as lookup/finish pairs on SYS
-    // edges Phi+1..Phi+6 in reSID output order, through one shared
-    // combined-wave table unit, instead of chaining them within the Phi
-    // edge. Requires at least nine SYS edges between Phi edges and no
-    // register write on edges Phi+1..Phi+7. Audio captures at Phi+7, and a
-    // CONTROL write finishes on the following edge.
+    // Run the three voices' waveform stages as three-edge lookup/finish
+    // sequences on SYS edges Phi+1..Phi+9 in reSID output order, through one
+    // shared combined-wave table unit, instead of chaining them within the
+    // Phi edge. Requires at least twelve SYS edges between Phi edges and no
+    // register write on edges Phi+1..Phi+10. Audio captures at Phi+10, and
+    // a CONTROL write finishes two edges later.
     parameter bit SEQUENCE_VOICES = 1'b0,
     parameter bit FILTER_AUDIO = 1'b0,
     // Opt-in exact reSID MOS6581 DAC/filter translation (c64_sid_audio) in
@@ -37,13 +37,13 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
     reg [7:0] wave0, wave1, wave2;
     reg signed [18:0] mixed;
     reg signed [23:0] volume_mix;
-    // Voice v requests its lookup on the edge where stage_pipe[2*v] is set
-    // (Phi+1, Phi+3, Phi+5) and finishes on the following edge.
-    reg [6:0] stage_pipe = 7'd0;
+    // Voice v requests its lookup on the edge where stage_pipe[3*v] is set
+    // (Phi+1, Phi+4, Phi+7) and finishes two edges later.
+    reg [9:0] stage_pipe = 10'd0;
     always @(posedge clk)
-        stage_pipe <= reset ? 7'd0 : {stage_pipe[5:0], phi};
+        stage_pipe <= reset ? 10'd0 : {stage_pipe[8:0], phi};
     // The edge on which every voice's output wave is final for this Phi.
-    wire audio_phi = SEQUENCE_VOICES ? stage_pipe[6] : phi;
+    wire audio_phi = SEQUENCE_VOICES ? stage_pipe[9] : phi;
     wire [2:0] lookup_request;
     wire [11:0] lookup_index [0:2];
     wire [2:0] lookup_ring_xor;
@@ -77,7 +77,7 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
         wire ad_write=addr==BASE+5'd5;
         wire sr_write=addr==BASE+5'd6;
         c64_sid_oscillator #(.PREPARE_PHASE(PREPARE_PHASE),.SEQUENCED(SEQUENCE_VOICES)) oscillator (
-            .clk(clk),.reset(reset),.phi(phi),.stage(SEQUENCE_VOICES && stage_pipe[2*v]),
+            .clk(clk),.reset(reset),.phi(phi),.stage(SEQUENCE_VOICES && stage_pipe[3*v]),
             .lookup_request(lookup_request[v]),.lookup_index(lookup_index[v]),
             .lookup_ring_xor(lookup_ring_xor[v]),.lookup_tables(lookup_tables),
             .we(we && cs && oscillator_addr<=5'd4),

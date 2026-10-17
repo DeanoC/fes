@@ -74,14 +74,14 @@ int main(int argc,char **argv){
   // One logical Phi is the Phi edge, the three voice stage edges and then
   // the write edge: the source oracle clocks before it writes, and the
   // stage window must be write-free. Audio captures on the third stage.
-  // Three lookup/finish pairs follow Phi (Phi+1..Phi+6); audio captures on
-  // Phi+7. A write finishes on its following edge and one more idle edge
-  // refreshes the prepared phase sum, as the motherboard cadence guarantees.
+  // Three three-edge lookup/finish stages follow Phi (Phi+1..Phi+9); audio
+  // captures on Phi+10. A write finishes two edges later and one more idle
+  // edge refreshes the prepared phase sum, as the motherboard guarantees.
   auto idle=[&](){rtl.clk=0;rtl.reset=0;rtl.phi=0;rtl.we=0;rtl.cs=0;rtl.eval();rtl.clk=1;rtl.eval();++prepared_idle;};
   if(phi){
    rtl.clk=0;rtl.reset=reset;rtl.phi=1;rtl.we=0;rtl.cs=0;rtl.addr=addr;rtl.din=data;rtl.eval();rtl.clk=1;rtl.eval();
    if(!reset){
-    for(unsigned stage=0;stage<6;++stage)idle();
+    for(unsigned stage=0;stage<9;++stage)idle();
     rtl.clk=0;rtl.reset=0;rtl.phi=0;rtl.we=0;rtl.cs=0;rtl.eval();
     for(unsigned v=0;v<3;++v)clocked[v]=rtl.clocked[v];
 #ifdef C64_COUPLING_LIVE
@@ -89,12 +89,12 @@ int main(int argc,char **argv){
 #endif
     rtl.clk=1;rtl.eval();++prepared_idle;
    }
-   if(we&&!reset){rtl.clk=0;rtl.reset=0;rtl.phi=0;rtl.we=1;rtl.cs=selected;rtl.addr=addr;rtl.din=data;rtl.eval();rtl.clk=1;rtl.eval();idle();idle();}
+   if(we&&!reset){rtl.clk=0;rtl.reset=0;rtl.phi=0;rtl.we=1;rtl.cs=selected;rtl.addr=addr;rtl.din=data;rtl.eval();rtl.clk=1;rtl.eval();idle();idle();idle();}
   }else{
    rtl.clk=0;rtl.reset=reset;rtl.phi=0;rtl.we=we;rtl.cs=we&&selected;rtl.addr=addr;rtl.din=data;rtl.eval();
    for(unsigned v=0;v<3;++v)clocked[v]=rtl.clocked[v];
    rtl.clk=1;rtl.eval();
-   if(we&&!reset){idle();idle();}
+   if(we&&!reset){idle();idle();idle();}
   }
 #else
   rtl.clk=0;rtl.reset=reset;rtl.phi=phi;rtl.we=we;rtl.cs=we&&selected;rtl.addr=addr;rtl.din=data;rtl.eval();
