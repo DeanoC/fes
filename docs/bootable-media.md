@@ -211,7 +211,7 @@ loop. That loop is what logs `timing out command, waited 180s`. Flag `u`
 stalls on the bulk-only command, and no other quirks letter skips the probe.
 Ignoring the id also hides a NVMe disk fitted in that bridge; the kits' slot
 is empty. Nothing in userspace rewrites this file. `S15fes-ethaddr` appends
-`ethaddr=` and leaves `v=` in place. A rootfs update does not replace FAT boot
+`ethaddr=` and leaves `v=` in place. `fes-update` must not rewrite FAT boot
 files, so a card keeps the `u-boot.txt` from the media it was flashed with.
 
 `/etc/init.d/S02fes-usb-quirk` writes the same id to
@@ -219,6 +219,28 @@ files, so a card keeps the `u-boot.txt` from the media it was flashed with.
 usb-storage and uas are built in, so a modprobe option would not be read. The
 sysfs write does not touch the FAT. `S11fes-block-admit` runs the same helper
 when that parameter file exists.
+
+A kit that already exists gets this quirk on the kernel command line only by
+reflashing media built from `image/boot/u-boot.txt`, or by a one-time manual
+edit of `/media/fat/linux/u-boot.txt`. `fes-update` does not write that file.
+On an image-updated kit whose `v=` line still lacks the token, S02 alone
+changes probes that have not started yet. The empty bridge is already inside
+`sd_probe` by then, so the 180 s boot stall remains until a boot whose command
+line contains `usb-storage.quirks=152d:0583:i`.
+
+The manual edit, run on the kit:
+
+1. Copy `/media/fat/linux/u-boot.txt` to a backup and record `sha256sum` of the
+   original.
+2. If the file has no `v=` line, add
+   `v=loglevel=4 usb-storage.quirks=152d:0583:i`. If a `v=` line already
+   exists, append `usb-storage.quirks=152d:0583:i` to that line. Leave the
+   `ethaddr=` line unchanged. A `bootargs=` line is not read.
+3. `sync`. Verify the file still has the original `ethaddr=` value, that the
+   `v=` line now contains `usb-storage.quirks=152d:0583:i`, and that the new
+   `sha256sum` differs from the recorded original.
+4. Reboot. The boot after that edit is the one that ignores `152d:0583` before
+   the sd probe.
 
 To use a NVMe disk fitted in the JMS583, remove flag `i` in both places and
 reboot. On the card, edit FAT `linux/u-boot.txt`
