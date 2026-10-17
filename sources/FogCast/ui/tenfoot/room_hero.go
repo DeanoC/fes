@@ -64,6 +64,12 @@ type heroCopy struct {
 // HDMI output, the screen this menu is on.
 const heroPlaysOnThisTV = "Plays on this TV"
 
+// heroStopCopy names every way to stop a kit-local core, before Play: the
+// menu cannot draw once the core owns HDMI. It is one line so the one-second
+// hold stays visible in the hero column at 1280×720 with the kit's default
+// 5% safe area, and at 1024×600.
+const heroStopCopy = "Stop: F12, Guide, or hold Select+Start for one second."
+
 // waitAckCopy answers a Confirm received while Checking.
 func waitAckCopy(kind InputKind) string {
 	return "Still checking. Press " + selectWord(kind) + " again once it has finished."
@@ -147,7 +153,7 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 		case rooms.ConfirmLaunchCore:
 			c.State = heroStateReady
 			c.Headline = heroPlaysOnThisTV
-			c.Explain = "To stop, hold Select and Start together for one second."
+			c.Explain = heroStopCopy
 			c.Primary, c.Filled = "Play", true
 			c.Secondary = "Details"
 		case rooms.ConfirmWait:
@@ -291,29 +297,50 @@ func heroButton(dev gfx.Device, labels map[string]gpuTexture, used map[string]st
 	return w
 }
 
+// pillStyle is the readiness pill's palette and size. The Lounge hero sits
+// on light paper; the Library Details pane is dark.
+type pillStyle struct {
+	px                     int
+	ready, onReady         gfx.Color
+	unavailable, bar, text gfx.Color
+	outline                gfx.Color
+}
+
+var heroPill = pillStyle{px: heroStatePx, ready: heroAccent, onReady: heroOnAccent,
+	unavailable: heroRaised, bar: heroText, text: heroText, outline: heroSecondary}
+
+// detailPill uses the dark seed roles in docs/ux/visual-language.md.
+var detailPill = pillStyle{px: 16, ready: gfx.RGBA(0xC8, 0xE3, 0xAC, 0xFF), onReady: gfx.RGBA(0x20, 0x37, 0x27, 0xFF),
+	unavailable: gfx.RGBA(0x30, 0x39, 0x36, 0xFF), bar: gfx.RGBA(0xED, 0xF3, 0xE9, 0xFF), text: gfx.RGBA(0xED, 0xF3, 0xE9, 0xFF),
+	outline: gfx.RGBA(0xB5, 0xC3, 0xB9, 0xFF)}
+
 // heroStatePill draws the readiness name. Ready is filled; the others are
 // outlined, and Unavailable carries a solid leading bar, so shape and text
 // carry the state as well as colour.
 func heroStatePill(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, x, y int, state string) (int, int) {
-	th := gfx.TextHeightWeight(heroStatePx, gfx.WeightBold)
-	h := th + 10
-	lead := 14
+	return statePill(dev, labels, used, x, y, state, heroPill)
+}
+
+func statePill(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, x, y int, state string, st pillStyle) (int, int) {
+	th := gfx.TextHeightWeight(st.px, gfx.WeightBold)
+	h := th + st.px/2
+	lead := st.px * 7 / 10
 	if state == heroStateUnavailable {
-		lead = 24
+		lead = st.px * 6 / 5
 	}
-	w := gfx.MeasureTextWeight(state, heroStatePx, gfx.WeightBold) + lead + 14
-	fg := heroText
+	w := gfx.MeasureTextWeight(state, st.px, gfx.WeightBold) + lead + st.px*7/10
+	fg := st.text
 	switch state {
 	case heroStateReady:
-		dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}, heroAccent)
-		fg = heroOnAccent
+		dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}, st.ready)
+		fg = st.onReady
 	case heroStateUnavailable:
-		dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}, heroRaised)
-		dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: 8, H: float32(h)}, heroText)
+		dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}, st.unavailable)
+		dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(st.px * 2 / 5), H: float32(h)}, st.bar)
 	default:
-		heroOutline(dev, x, y, w, h, 2, heroSecondary)
+		heroOutline(dev, x, y, w, h, 2, st.outline)
 	}
-	heroLine(dev, labels, used, x+lead, y+5, w-lead, heroStatePx, true, fg, state)
+	heroLine(dev, labels, used, x+lead, y+(h-th)/2, w-lead, st.px, true, fg, state)
 	return w, h
 }
 

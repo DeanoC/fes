@@ -201,15 +201,16 @@ func TestAffinityOverlayHintsFollowDevice(t *testing.T) {
 	app := pointerCatalog(6)
 	app.detailOpen = true
 	app.NoteInput(InputKeyboard, 1)
-	if got := app.Snapshot().Detail.Hint; !strings.Contains(got, "Enter launch") {
+	// Library Details says play, as Home does, and only for a playable title.
+	if got := app.Snapshot().Detail.Hint; !strings.Contains(got, "Enter play") {
 		t.Fatalf("detail keyboard = %q", got)
 	}
 	app.NoteInput(InputMouse, 2)
-	if got := app.Snapshot().Detail.Hint; got != "click launch  click empty back" {
+	if got := app.Snapshot().Detail.Hint; !strings.HasPrefix(got, "click play  click empty back") {
 		t.Fatalf("detail mouse = %q", got)
 	}
 	app.NoteInput(InputGamepad, 3)
-	if got := app.Snapshot().Detail.Hint; !strings.Contains(got, "A launch") {
+	if got := app.Snapshot().Detail.Hint; !strings.Contains(got, "A play") {
 		t.Fatalf("detail gamepad = %q", got)
 	}
 

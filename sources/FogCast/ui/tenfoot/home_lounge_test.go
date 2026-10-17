@@ -404,6 +404,54 @@ func TestHomeSaysCheckingWhileAFailedLaunchReconciles(t *testing.T) {
 	}
 }
 
+// TestHomeStopHintFitsTheHeroColumn checks the ready-core stop line at the
+// two Home sizes. 1280×720 on the kit is the room inside the default 5% safe
+// area, which is where a longer sentence lost the one-second hold. 1024×600
+// is the compact hero.
+func TestHomeStopHintFitsTheHeroColumn(t *testing.T) {
+	safe := insetsFromPct(1280, 720, DefaultSafeAreaPct)
+	sizes := []struct {
+		name string
+		w, h int
+	}{
+		{"1280x720", 1280, 720},
+		{"1280x720 safe", 1280 - safe.Left - safe.Right, 720 - safe.Top - safe.Bottom},
+		{"1024x600", 1024, 600},
+	}
+	cores := []rooms.Destination{
+		{Kind: rooms.KindCore, Label: "FES Pong", CoreLaunchable: true, Availability: rooms.AvailReady},
+		{Kind: rooms.KindCore, Label: "Zx81", CoreLaunchable: true, Availability: rooms.AvailReady, Inputs: []string{"keyboard"}},
+		{Kind: rooms.KindCore, Label: "FES ZX Spectrum 48K", CoreLaunchable: true, Availability: rooms.AvailReady, Inputs: []string{"keyboard"}},
+	}
+	if !strings.Contains(heroStopCopy, "one second") {
+		t.Fatalf("stop hint lost the hold: %q", heroStopCopy)
+	}
+	for _, size := range sizes {
+		layout, ok := rooms.HeroPanel(size.w, size.h)
+		if !ok {
+			t.Fatalf("%s has no hero", size.name)
+		}
+		for _, d := range cores {
+			snap := Snapshot{Room: RoomSnapshot{Open: true, Hero: true, Destination: d}}
+			c := heroDestinationCopy(snap)
+			avail := heroTextBudget(c, layout.Text.H)
+			plan := planHero(c, layout.Text.W, avail)
+			got := strings.Join(plan.explainLines, " ")
+			if got != heroStopCopy || strings.Contains(got, "...") {
+				t.Fatalf("%s %s stop hint %q, want %q", size.name, d.Label, got, heroStopCopy)
+			}
+			for _, line := range plan.explainLines {
+				if w := gfx.MeasureText(line, heroExplainPx); w > layout.Text.W {
+					t.Fatalf("%s %s line %q is %d px in a %d px column", size.name, d.Label, line, w, layout.Text.W)
+				}
+			}
+			if used := usedHeroPlan(c, plan); used > avail {
+				t.Fatalf("%s %s uses %d over %d", size.name, d.Label, used, avail)
+			}
+		}
+	}
+}
+
 func TestHomeHeroFitsLongTitlesAboveTheButtons(t *testing.T) {
 	long := "Sinclair ZX Spectrum 128K +2A Expanded Edition With A Long Name"
 	for _, size := range []struct{ w, h int }{{1280, 720}, {1024, 600}} {

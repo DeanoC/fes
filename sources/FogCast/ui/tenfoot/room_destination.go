@@ -569,10 +569,20 @@ func (a *App) queueRoomDetailWorkLocked(now time.Time, queue []pendingWork) []pe
 	if a.room == nil || !a.detailOpen || a.roomDetail.ID == "" || a.gpuParked {
 		return queue
 	}
+	return a.queueDetailGameWorkLocked(now, queue, a.roomDetail)
+}
+
+func (a *App) queueLibraryDetailWorkLocked(now time.Time, queue []pendingWork) []pendingWork {
+	if a.room != nil || !a.detailOpen || strings.TrimSpace(a.libraryDetail.ID) == "" || a.gpuParked {
+		return queue
+	}
+	return a.queueDetailGameWorkLocked(now, queue, a.libraryDetail)
+}
+
+func (a *App) queueDetailGameWorkLocked(now time.Time, queue []pendingWork, game hostclient.Game) []pendingWork {
 	if len(a.inflight) >= maxInflight {
 		return queue
 	}
-	game := a.roomDetail
 	slot := a.covers[game.ID]
 	if slot == nil {
 		slot = &coverSlot{phase: coverIdle}

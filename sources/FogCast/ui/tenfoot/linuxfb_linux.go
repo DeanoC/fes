@@ -356,6 +356,11 @@ devices:
 							if value != 0 {
 								app.NoteInput(InputGamepad, in.fd)
 							}
+							// Guide is a launcher button, never sent to a core:
+							// on a kit-local core it is the one-press Stop.
+							if value == 1 {
+								app.RequestLocalStop()
+							}
 						} else if value == 1 {
 							app.NoteInput(InputGamepad, in.fd)
 							in.setButton(316, CmdSettings, true)
@@ -592,7 +597,19 @@ func nativeDirectionButton(cmd Command) Button {
 		return ButtonNone
 	}
 }
+
+// nativeKeyF12 is the keyboard Stop for a kit-local core (MiSTer's menu key).
+const nativeKeyF12 = 88
+
 func (in *nativeInput) key(app *App, code uint16, value int32, now time.Time) bool {
+	if code == nativeKeyF12 && app.localCoreOwnsInput() {
+		// F12 is never forwarded to a running core; a press stops it.
+		if value == 1 {
+			app.NoteInput(InputKeyboard, in.fd)
+			app.RequestLocalStop()
+		}
+		return false
+	}
 	name := nativeKeyName(code)
 	if in.keysHeld == nil {
 		in.keysHeld = make(map[uint16]string)
