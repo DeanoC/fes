@@ -566,9 +566,10 @@ class ZX81PlugAddrExitTests(unittest.TestCase):
         self.assertIn("and 1 more", message)
 
     def test_shell_logic_on_the_plug_columns_is_rejected(self) -> None:
-        def placed(name: str, bel: str) -> dict:
+        def placed(name: str, bel: str, cell_type: str | None = None) -> dict:
             return {"modules": {"top": {"cells": {
-                name: {"type": "MISTRAL_COMB", "attributes": {"NEXTPNR_BEL": bel}},
+                name: {"type": cell_type or bel.split(".", 1)[0],
+                       "attributes": {"NEXTPNR_BEL": bel}},
             }}}}
 
         intruders = expansion.shell_cells_in_socket(placed("video.vsync", "MISTRAL_COMB.24.2.0"))
@@ -583,7 +584,23 @@ class ZX81PlugAddrExitTests(unittest.TestCase):
             expansion.shell_cells_in_socket(placed("plug_addr_ff_0", "MISTRAL_FF.24.1.2")), [])
         self.assertEqual(
             expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0", "MISTRAL_COMB.24.2.0")),
+            [("plug_addr_ff_0", "MISTRAL_COMB.24.2.0")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0", "MISTRAL_FF.24.2.2")),
+            [("plug_addr_ff_0", "MISTRAL_FF.24.2.2")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0", "MISTRAL_FF.24.1.2", "MISTRAL_COMB")),
+            [("plug_addr_ff_0", "MISTRAL_FF.24.1.2")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
                 placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.1.0")), [])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.2.0")),
+            [("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.2.0")])
         self.assertEqual(
             expansion.shell_cells_in_socket(
                 placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.26.1.0")),

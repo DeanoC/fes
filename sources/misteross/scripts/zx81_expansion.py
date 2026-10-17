@@ -140,12 +140,40 @@ def _bel_xy(bel: str) -> tuple[int, int] | None:
     return int(parts[1]), int(parts[2])
 
 
+def paired_route_through_bels(ff_bel: str) -> set[str]:
+    """The combinational half paired with one pinned socket flip-flop."""
+    parts = ff_bel.split(".")
+    if len(parts) != 4 or parts[0] != "MISTRAL_FF" or not all(part.isdigit() for part in parts[1:]):
+        return set()
+    z = int(parts[3])
+    if z % 6 not in (2, 4):
+        return set()
+    half = 0 if z % 6 == 2 else 1
+    paired = f"{parts[1]}.{parts[2]}.{(z // 6) * 6 + half}"
+    return {f"MISTRAL_COMB.{paired}", f"MISTRAL_MCOMB.{paired}", f"MISTRAL_BUF.{paired}"}
+
+
+def _pinned_socket_cell(name: str, cell: dict, bel: str, expected: dict[str, str]) -> bool:
+    if name in expected:
+        return cell.get("type") == "MISTRAL_FF" and bel == expected[name]
+    if not name.endswith("$ROUTETHRU"):
+        return False
+    stem = name.removesuffix("$ROUTETHRU")
+    return (
+        stem in expected
+        and cell.get("type") in {"MISTRAL_COMB", "MISTRAL_MCOMB", "MISTRAL_BUF"}
+        and bel in paired_route_through_bels(expected[stem])
+    )
+
+
 def shell_cells_in_socket(design: object) -> list[tuple[str, str]]:
     """Shell cells placed in the cart interior or on the plug columns.
 
-    BEL-locked boundary flip-flops and their ``$ROUTETHRU`` data buffers may
-    occupy the plug columns. Nothing else may, and the cart interior stays
-    empty in the shell.
+    A socket flip-flop may sit on its plug column only as ``MISTRAL_FF`` at
+    the BEL from ``socket_bels``. Its ``$ROUTETHRU`` buffer may sit only on
+    that flip-flop's paired combinational half. A matching name elsewhere is
+    still shell logic. Nothing else may occupy the plug columns, and the cart
+    interior stays empty in the shell.
     """
     modules = design.get("modules") if isinstance(design, dict) else None
     top = modules.get("top") if isinstance(modules, dict) else None
@@ -154,27 +182,27 @@ def shell_cells_in_socket(design: object) -> list[tuple[str, str]]:
         return []
     cart = _parse_rect(SOCKET_RECT)
     boundary = tuple(_parse_rect(spec) for spec in BOUNDARY_RECTS)
-    allowed = set(socket_bels())
+    expected = socket_bels()
     intruders: list[tuple[str, str]] = []
     for name, cell in cells.items():
         if not isinstance(name, str) or not isinstance(cell, dict):
             continue
         attributes = cell.get("attributes")
-        if not isinstance(attributes, dict):
-            continue
-        bel = attributes.get("NEXTPNR_BEL") or attributes.get("BEL") or ""
-        if not isinstance(bel, str):
+        bel = ""
+        if isinstance(attributes, dict):
+            raw = attributes.get("NEXTPNR_BEL") or attributes.get("BEL") or ""
+            if isinstance(raw, str):
+                bel = raw
+        stem = name.removesuffix("$ROUTETHRU") if name.endswith("$ROUTETHRU") else ""
+        if name in expected or stem in expected:
+            if _pinned_socket_cell(name, cell, bel, expected):
+                continue
+            intruders.append((name, bel or "<unplaced>"))
             continue
         xy = _bel_xy(bel)
         if xy is None:
             continue
-        on_boundary = any(_in_rect(rect, *xy) for rect in boundary)
-        in_cart = _in_rect(cart, *xy)
-        if not on_boundary and not in_cart:
-            continue
-        stem = name.removesuffix("$ROUTETHRU")
-        boundary_cell = stem in allowed and (name == stem or name.endswith("$ROUTETHRU"))
-        if in_cart or not (on_boundary and boundary_cell):
+        if _in_rect(cart, *xy) or any(_in_rect(rect, *xy) for rect in boundary):
             intruders.append((name, bel))
     intruders.sort()
     return intruders
