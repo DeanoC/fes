@@ -258,11 +258,35 @@ idle or until that run is running again. The idle menu plane cannot scan out
 over a running core.
 `TestLauncherStartupAdoptsActiveRunShowsInUseAndStops` and
 `TestLauncherStartupReturnsToMenuWhenAdoptedRunEnds` simulate that restart.
-The next kit check should repeat the launcher kill during Pong. This host test
-is not that hardware result.
+The host tests are not the hardware result. The kit recheck is below.
 
 Launcher re-adoption is separate from supervisor adoption of the base image.
 The In use panel is launcher state. It is not scanned out over a running core
 (#769). Two other HIL notes are filed and not fixed here: Installed cores stays
 unresolved after health is ready (#764), and focus returns to the first tile
 after a launcher restart (#765).
+
+## Kit A recheck of 29c98e76
+
+The operator re-ran the checklist on kit A against head `29c98e76`, including
+the launcher kill during Pong and a supervisor restart. No reimage. The base
+image stayed `06066d29`. Checks 1–5 passed. Check 6 passed: SIGKILL of
+`fogcast-tenfoot` during menu-launched Pong left the agent on that generation,
+HDMI kept showing Pong, and Select+Start on the replacement launcher stopped
+that generation and returned to the menu. Check 7a, a detached supervisor
+restart, and a restart during Pong passed. A second Select+Start while the
+launcher did not own an out-of-band run quit the launcher from the menu; the
+replacement then adopted that run. That menu chord is outside this change.
+
+Check 7b failed. `ssh` of `/etc/init.d/S40fes-kit-software restart` returned
+success, then the supervisor and its children were gone. `start` handed `run`
+the caller's stderr. The log mirror writes that fd. When the SSH pipe closed,
+SIGPIPE on stderr killed the supervisor, and `Pdeathsig` killed the children.
+The same restart with stdio on `/dev/null` survived. The image supervisor is
+still the `06066d29` binary; `platform/cmd/fes-kit-software` had not changed
+since `6641b58f`. This source change is not on that image.
+
+`start` now opens `/dev/null` for the run process stdin, stdout and stderr and
+keeps the new session. `run` ignores SIGPIPE, so a closed stderr returns
+EPIPE. The tmpfs supervisor log is unchanged. Host tests cover the detach and
+the ignored signal. Kit A has not been rerun with this source.
