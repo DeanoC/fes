@@ -316,5 +316,37 @@ func (s Snapshot) HeaderHint() string {
 		}
 		return detailHintFor(kind, s.Detail.Count)
 	}
+	if to := strings.TrimSpace(s.LibraryBackTo); to != "" {
+		// Back replaces the Home shortcut in the prompt so it still fits at
+		// 1024 wide; Home itself still works.
+		hint := browseHint(kind)
+		back := backWord(kind) + " back to " + to
+		if home := homeWord(kind) + " home"; strings.Contains(hint, home) {
+			return strings.Replace(hint, home, back, 1)
+		}
+		return back + "  " + hint
+	}
 	return browseHint(kind)
+}
+
+// libraryDetailHint offers A only for what Confirm will do on this title.
+func libraryDetailHint(kind InputKind, count int, d rooms.Destination) string {
+	parts := []string{}
+	switch d.Confirm() {
+	case rooms.ConfirmLaunch, rooms.ConfirmLaunchKit:
+		parts = append(parts, selectWord(kind)+" play")
+	case rooms.ConfirmImportFirmware:
+		parts = append(parts, selectWord(kind)+" import BIOS")
+	}
+	parts = append(parts, backWord(kind)+" back")
+	if count > 1 {
+		switch kind {
+		case InputKeyboard, InputMouse:
+			parts = append(parts, "Left/Right screenshots")
+		default:
+			parts = append(parts, "LEFT/RIGHT screenshots")
+		}
+	}
+	parts = append(parts, settingsWord(kind)+" settings")
+	return strings.Join(parts, "  ")
 }

@@ -379,6 +379,39 @@ Hardware journeys H1–H9 remain pending.
   three routes before Play. A press during loading stops the core once it is
   running, as the hold does. Hardware check of the new routes is pending.
 
+## Library and Details: second-slice decisions
+
+**Status:** implemented for review (#789). Evidence is host-only; L1/L2 on a
+kit are pending.
+
+- **Back returns to its origin.** The Library opened from Home, a room or the
+  Home overlay keeps that room suspended, so Back (and the Home key) returns to
+  the same room and selection rather than reloading it. A blocked Confirm in
+  the Library is not replayed as a launch failure on that room. A Coleco BIOS
+  import refreshes that suspended room's cached titles, so the resumed room
+  shows the updated readiness.
+- **Same rules as Home.** Library Details uses the same readiness pill and
+  wording family as the Home hero, on the dark pane's seed roles. The block's
+  short name is the headline and the launcher's sentence is the explanation,
+  for example "Needs BIOS" with "Coleco BIOS required. Import household
+  firmware before Play." Ready shows the pill alone; the host launch path
+  names no destination here. An unknown paired-kit status keeps the title's
+  own block empty and uses "Can't tell if this machine is free." as the
+  headline.
+- **Actions follow Confirm.** Details offers A only when Confirm will play or
+  import. A blocked Confirm opens Details for the title that was refused,
+  including a Home recent that is not the focused Library row, instead of
+  only changing header text. Favorite, pointer confirm, and presentation
+  follow that title. Cancelling the BIOS picker returns to that
+  Details.
+- **Creator.** `Studio` appears as "by …" beside the title.
+- **Cells.** A title that cannot play carries a labelled tag on a solid plate
+  with a leading bar ("Needs BIOS", "Browse only", "Offline", "Needs a
+  cartridge"). Missing art names the platform instead of showing initials.
+- **Not yet.** The grid, list and header chrome keep their dark sofa styling
+  and debug-font prompts. The browse prompt still says "launch". Edition choice
+  stays in rooms because Library rows are single editions.
+
 ## Decisions still to validate
 
 - Native typography, spacing, safe margins and comfortable TV reading distance
