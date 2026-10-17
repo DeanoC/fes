@@ -289,4 +289,43 @@ since `6641b58f`. This source change is not on that image.
 `start` now opens `/dev/null` for the run process stdin, stdout and stderr and
 keeps the new session. `run` ignores SIGPIPE, so a closed stderr returns
 EPIPE. The tmpfs supervisor log is unchanged. Host tests cover the detach and
-the ignored signal. Kit A has not been rerun with this source.
+the ignored signal. The full-image retest of that source is below.
+
+## Kit A full image of fd70b258
+
+The operator built image `d31196b0a7a47174584ddadc42bc7d46181d2c5c968d183287dbff02390e60da`
+from a clean worktree at `fd70b258` (release `0.2.0-hil757-fd70b258-1p`, one
+image pass; fes, FogCast and runtime revisions are that head) and installed it
+on kit A with `fes-update -action update`, then trial-confirmed it. The image
+supervisor `/usr/sbin/fes-kit-software` is `4d21d16d…`, distinct from
+`12305944…` on `06066d29`. Bundle `f58144d1ccee23a022b41a00991c12b8eeaf872c42ea2997723b5b467632c72b`
+(version `kit-2026.10.17-hil757-fd70b258`, base `d31196b0`) activated at
+generation 30. Kit B was not touched. One unreferenced release image,
+`32f16cd2…`, was removed from the card to make room and is backed up on the
+operator host. Retained on the card: `06066d29`, `d31196b0`, `ed721b84`,
+`dfc57838`.
+
+Every kit check passed, including the two earlier failures. Check 6: SIGKILL
+of `fogcast-tenfoot` during menu-launched Pong (generation `3dcc3ba4…`)
+replaced only the launcher, the agent stayed `phase: running`, and Select+Start
+on the replacement launcher stopped that generation and returned to the menu.
+Check 7b, a plain non-interactive SSH
+`/etc/init.d/S40fes-kit-software restart`, passed at idle and during
+menu-launched Pong. The new supervisor stayed in its own session with
+stdin, stdout and stderr on `/dev/null` for six minutes after the SSH session
+closed. There was no SIGPIPE death. Duplicate start, SIGKILL of the
+supervisor followed by a plain SSH `start`, and an init restart during Pong
+also passed. An out-of-band launch was rejected, and the first Select+Start
+did not stop it; that chord still quits a launcher that does not own the run
+(#772), and the replacement launcher then adopts it. Installed cores stays
+unresolved for about 15–20 seconds after ready (#764). Focus returns to the
+first tile after a launcher restart (#765). Host attract was not exercised
+on the kit.
+
+The bundle was restored to `354da55d` and the image was rolled back with
+`fes-update -action rollback` to `06066d29` (previous slot `d31196b0`),
+confirmed with `trial: false` and no extra reboot. Final software generation
+is 32, health ready, local idle, one supervisor and one group, menu lease
+free. Boot after rollback is `e2f2e28a…`. The `ed721b84` image file remains
+on the card. This is exact-artifact acceptance of image `d31196b0` from
+source `fd70b258`, not of the restored `06066d29` image.
