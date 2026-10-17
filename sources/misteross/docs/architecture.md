@@ -2094,11 +2094,13 @@ raster activity with CPU/video memory latency. Neither the digital SDRAM
 model nor injected callback waits establish electrical FPGA behavior. FX68K source bytes remain immutable; a
 compiler compatibility input may normalize its two simulation-only legacy
 translate-off/on comments without changing RTL assignments or microcode.
-The board producer authenticates the shared `toolchain.lock`. When every
-finished route misses timing it writes `build/fes-core-unavailable.json`
-(version 1, the requested seeds, and per-clock achieved and constraint
-figures) and exits nonzero. A router crash or timeout writes no report. A
-passing build does not leave the file behind. The parent image reads it
+The board producer authenticates the shared `toolchain.lock`. When at least
+one route finishes and every finished route misses timing, it writes
+`build/fes-core-unavailable.json` (version 1, the requested seeds, and the
+finished routes' per-clock achieved and constraint figures) and exits
+nonzero. A route that crashed or timed out is left out of those figures. The
+file is absent when no route finishes. A passing build does not leave it
+behind. The parent image reads it
 only after that nonzero exit. The factory
 recipe stays HIP; a CUDA route is a different package. The build record uses
 the audited closure in `scripts/source_closures.json`. The
