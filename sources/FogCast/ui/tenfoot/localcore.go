@@ -170,6 +170,7 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 	// This process is about to launch. End the startup probe first so a
 	// rejected launch cannot later adopt, and stop, a run it did not start.
 	a.localStartupStatusChecked = true
+	a.localWatchStartup = false
 	title := strings.TrimSpace(dest.Label)
 	if title == "" {
 		title = "core"
@@ -271,6 +272,7 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 	}
 	// Same probe retirement as startLocalCoreLocked.
 	a.localStartupStatusChecked = true
+	a.localWatchStartup = false
 	title := strings.TrimSpace(game.Title)
 	if title == "" {
 		title = "game"
@@ -362,6 +364,7 @@ func (a *App) completeLocalLaunchHandoff(err error) {
 // status is idle with an empty generation. There is no time limit.
 func (a *App) holdUnownedLocalRunLocked() {
 	a.localUnownedRun = true
+	a.localWatchStartup = false
 	a.localLeaseGeneration = ""
 	a.localPackageID = ""
 	a.localStopAfterStart = false
@@ -441,6 +444,7 @@ func (a *App) failLocalCoreLocked(err error, block string) {
 	a.localReconcileAfterFailure = false
 	a.localReconcileDeadline = time.Time{}
 	a.localUnownedRun = false
+	a.localWatchStartup = false
 	a.localPhase = ""
 	a.localStartedAt = time.Time{}
 	a.localPresentsPaused = false
@@ -528,6 +532,7 @@ func (a *App) finishLocalCoreLocked() {
 	a.localReconcileAfterFailure = false
 	a.localReconcileDeadline = time.Time{}
 	a.localUnownedRun = false
+	a.localWatchStartup = false
 	a.localPhase = ""
 	a.localPresentsPaused = false
 	a.localLateAdopt = false
@@ -572,13 +577,17 @@ func (a *App) tickLocalCoreLocked(now time.Time) {
 }
 
 // localStatusPollWantedLocked is true while this process owns a running
-// core, while a failed launch still needs a status read, or until startup
-// has observed one successful status.
+// core, while a startup launching or stopping generation is still unsettled,
+// while a failed launch still needs a status read, or until startup has
+// observed one successful status.
 func (a *App) localStatusPollWantedLocked() bool {
 	if a.localStatusBusy || a.localCores == nil {
 		return false
 	}
 	if a.localPhase == localPhaseRunning {
+		return true
+	}
+	if a.localWatchStartup && (a.localPhase == localPhaseLaunching || a.localPhase == localPhaseStopping) {
 		return true
 	}
 	if a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == "") {
@@ -587,23 +596,51 @@ func (a *App) localStatusPollWantedLocked() bool {
 	return !a.localStartupStatusChecked && a.localPhase == "" && !a.localUnownedRun
 }
 
-// localStatusAdoptable reports an agent run this process can stop. Idle and
-// stopping stay on the menu: stopping is already on its way out, and a
-// generation we cannot name cannot be stopped.
-func localStatusAdoptable(status localcores.RunStatus) bool {
-	switch status.Phase {
-	case "launching", "running":
-	default:
-		return false
-	}
-	return validLocalGeneration(status.Generation)
+// localStatusStoppable reports a running generation this process can stop.
+// Launching is not stoppable: the agent refuses Stop until the phase is
+// running, and that refusal drops the claim.
+func localStatusStoppable(status localcores.RunStatus) bool {
+	return status.Phase == "running" && validLocalGeneration(status.Generation)
 }
 
-// adoptStartupLocalRunLocked takes the agent's current generation as this
-// launcher's run. The In use screen stays up, Select+Start stops that
-// generation, and a later idle status returns to the menu. It does not
-// claim this process started the run.
+// adoptStartupLocalRunLocked takes a running generation as this launcher's
+// session. Menu presents stay paused, and late adopt skips the stray menu
+// frame, because the core already owns HDMI. Select+Start stops that
+// generation. The In use copy is the session status. It does not claim this
+// process started the run.
 func (a *App) adoptStartupLocalRunLocked(status localcores.RunStatus) {
+	a.applyStartupClaimLocked(status, localPhaseRunning)
+	a.localWatchStartup = false
+	a.localStopAfterStart = false
+	a.localChordSince = time.Time{}
+	a.localChordFired = false
+	a.localSelectDown = false
+	a.localStartDown = false
+	a.localStatus = localInUseCopy
+	a.status = a.localStatus
+}
+
+// observeStartupPendingLocked remembers a launching or stopping generation
+// and keeps reading status. Stop waits until that generation is running.
+func (a *App) observeStartupPendingLocked(status localcores.RunStatus) {
+	phase := localPhaseLaunching
+	label := "Starting "
+	if status.Phase == "stopping" {
+		phase = localPhaseStopping
+		label = "Stopping "
+	}
+	a.applyStartupClaimLocked(status, phase)
+	a.localWatchStartup = true
+	a.localStopAfterStart = false
+	a.localChordSince = time.Time{}
+	a.localChordFired = false
+	a.localSelectDown = false
+	a.localStartDown = false
+	a.localStatus = label + a.localTitle + "…"
+	a.status = a.localStatus
+}
+
+func (a *App) applyStartupClaimLocked(status localcores.RunStatus, phase string) {
 	title := strings.TrimSpace(status.CoreID)
 	if title == "" {
 		title = "core"
@@ -611,30 +648,110 @@ func (a *App) adoptStartupLocalRunLocked(status localcores.RunStatus) {
 	a.localTitle = title
 	a.localLeaseGeneration = status.Generation
 	a.localPackageID = status.PackageID
-	a.localPhase = localPhaseRunning
+	a.localPhase = phase
 	a.localUnownedRun = false
 	a.localReconcileAfterFailure = false
 	a.localReconcileDeadline = time.Time{}
-	a.localPresentsPaused = false
-	a.localLateAdopt = false
+	a.localPresentsPaused = true
+	a.localLateAdopt = true
 	a.localStartedAt = time.Time{}
-	a.localChordSince = time.Time{}
-	a.localChordFired = false
-	a.localStopAfterStart = false
-	a.localSelectDown = false
-	a.localStartDown = false
 	a.localSent = nil
-	a.localStatus = localInUseCopy
-	a.status = a.localStatus
 	a.localStatusNext = time.Time{}
 	a.localRedraw++
 }
 
+// promoteWatchedStartupLocked is the running answer for a generation this
+// process is already watching. A Select+Start that arrived while the agent
+// was still launching posts Stop now.
+func (a *App) promoteWatchedStartupLocked(status localcores.RunStatus) {
+	stopNow := a.localStopAfterStart
+	a.applyStartupClaimLocked(status, localPhaseRunning)
+	a.localWatchStartup = false
+	a.localStatus = localInUseCopy
+	a.status = a.localStatus
+	if a.localSelectDown && a.localStartDown && a.localChordSince.IsZero() {
+		a.localChordSince = time.Now()
+	}
+	if stopNow {
+		a.localStopAfterStart = false
+		a.localChordFired = true
+		a.beginLocalStopLocked()
+	}
+}
+
+func (a *App) startupClaimMatchesLocked(status localcores.RunStatus) bool {
+	return validLocalGeneration(status.Generation) &&
+		status.Generation == a.localLeaseGeneration &&
+		status.PackageID == a.localPackageID
+}
+
+func (a *App) settleStartupStatusLocked(status localcores.RunStatus) {
+	switch status.Phase {
+	case "launching", "stopping":
+		if validLocalGeneration(status.Generation) {
+			a.localStartupStatusChecked = true
+			a.observeStartupPendingLocked(status)
+			return
+		}
+	case "running":
+		if localStatusStoppable(status) {
+			a.localStartupStatusChecked = true
+			a.adoptStartupLocalRunLocked(status)
+			return
+		}
+	}
+	a.localStartupStatusChecked = true
+}
+
+func (a *App) settleWatchedStartupLocked(status localcores.RunStatus) {
+	switch status.Phase {
+	case "idle":
+		if status.Generation == "" {
+			a.localWatchStartup = false
+			a.finishLocalCoreLocked()
+		}
+		return
+	case "running":
+		if !validLocalGeneration(status.Generation) {
+			return
+		}
+		if !a.startupClaimMatchesLocked(status) {
+			a.localWatchStartup = false
+			a.holdUnownedLocalRunLocked()
+			return
+		}
+		a.promoteWatchedStartupLocked(status)
+		return
+	case "launching", "stopping":
+		if !validLocalGeneration(status.Generation) {
+			return
+		}
+		if !a.startupClaimMatchesLocked(status) {
+			a.localWatchStartup = false
+			a.holdUnownedLocalRunLocked()
+			return
+		}
+		if status.Phase == "stopping" && a.localPhase != localPhaseStopping {
+			a.localPhase = localPhaseStopping
+			a.localStatus = "Stopping " + a.localTitle + "…"
+			a.status = a.localStatus
+			a.localRedraw++
+		}
+		if status.Phase == "launching" && a.localPhase != localPhaseLaunching {
+			a.localPhase = localPhaseLaunching
+			a.localStatus = "Starting " + a.localTitle + "…"
+			a.status = a.localStatus
+			a.localRedraw++
+		}
+	}
+}
+
 // pollLocalStatusLocked reads GET /v1/local/status while a core is running,
-// while a failed launch is still unreconciled, and once at startup before
-// this process has observed status. At most one poll is in flight, and it
-// is not called under a.mu: Status can take the client's 3s timeout. Only
-// an explicit idle phase resumes presents.
+// while a startup launching or stopping generation is still unsettled, while
+// a failed launch is still unreconciled, and once at startup before this
+// process has observed status. At most one poll is in flight, and it is not
+// called under a.mu: Status can take the client's 3s timeout. Only an
+// explicit idle phase resumes presents.
 func (a *App) pollLocalStatusLocked(now time.Time) {
 	if !a.localStatusPollWantedLocked() {
 		return
@@ -658,14 +775,16 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 		ownsRunning := a.localPhase == localPhaseRunning
 		reconciling := a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == "")
 		startup := !a.localStartupStatusChecked && a.localPhase == "" && !a.localReconcileAfterFailure && !a.localUnownedRun
-		if !ownsRunning && !reconciling && !startup {
+		watching := a.localWatchStartup && (a.localPhase == localPhaseLaunching || a.localPhase == localPhaseStopping)
+		if !ownsRunning && !reconciling && !startup && !watching {
 			return
 		}
-		a.localStartupStatusChecked = true
 		if startup {
-			if localStatusAdoptable(status) {
-				a.adoptStartupLocalRunLocked(status)
-			}
+			a.settleStartupStatusLocked(status)
+			return
+		}
+		if watching {
+			a.settleWatchedStartupLocked(status)
 			return
 		}
 		// An unavailable launch has no grant identity. A later running status
