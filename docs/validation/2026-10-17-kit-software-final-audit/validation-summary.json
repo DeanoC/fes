@@ -1,0 +1,20 @@
+{
+  "base_commit": "1f1316c5584e35192987745a49b65511d162e036",
+  "image_source_commit": "6641b58fa36754e629d3e9666f35b8674178b2b6",
+  "instrumented_bundle_source_commit": "57677f6699be3d81005cf9b8372d0e9ad6fa0c5f",
+  "final_test_changed": {
+    "exit_code": 0,
+    "parent_tests": 945,
+    "parent_seconds": 308.015,
+    "skipped": 38,
+    "component_race_and_host_ui_checks": "passed"
+  },
+  "generated_consumers": 18,
+  "fixture_copies": 37,
+  "journal_sigkill_cases": 104,
+  "hardware_scope": "designated-kit image adoption, child faults, software update/recovery and injected-input HDMI; no power-loss or fresh physical USB qualification",
+  "unresolved_followups": [
+    761,
+    762
+  ]
+}

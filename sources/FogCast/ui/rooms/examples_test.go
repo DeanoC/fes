@@ -3,7 +3,9 @@ package rooms
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -371,13 +373,27 @@ func TestMushroomKingdomPlayedIsNotCompleted(t *testing.T) {
 }
 
 // This fixture can run unchanged on ARM under an operator's maintenance lease.
-// It uses the real embedded Lua room and a single in-memory installed core;
+// It uses the real embedded Lua room and one or eight in-memory installed cores;
 // there are no sockets, launch calls, rendering devices or physical transitions.
 func TestInstalledCoreRoomDefaultBudgetDwell(t *testing.T) {
 	if os.Getenv("FES_ROOMS_DIAGNOSTIC_DWELL") != "1" {
 		t.Skip("manual wall-clock diagnostic: set FES_ROOMS_DIAGNOSTIC_DWELL=1 under the kit lease")
 	}
-	fake := &fakeLocalCores{cores: []localcores.Core{{PackageID: coreColecoID, CoreID: "fes.coleco", Name: "ColecoVision", Needs: "media", Block: "Needs a cartridge"}}}
+	count := 1
+	if raw := os.Getenv("FES_ROOMS_DIAGNOSTIC_CORE_COUNT"); raw != "" {
+		var err error
+		count, err = strconv.Atoi(raw)
+		if err != nil || (count != 1 && count != 8) {
+			t.Fatal("diagnostic core count must be 1 or 8")
+		}
+	}
+	cores := []localcores.Core{{PackageID: coreColecoID, CoreID: "fes.coleco", Name: "ColecoVision", Needs: "media", Block: "Needs a cartridge"}}
+	// Synthetic identities: exercise eight rows/six visible tiles without
+	// claiming hardware acceptance of any factory package.
+	for i := 1; i < count; i++ {
+		cores = append(cores, localcores.Core{PackageID: fmt.Sprintf("%064x", i), CoreID: fmt.Sprintf("fes.fixture%d", i), Name: fmt.Sprintf("Installed core fixture %d", i), Needs: "media", Block: "Needs a cartridge"})
+	}
+	fake := &fakeLocalCores{cores: cores}
 	r := newRoom(t, examplePack(t, "example.fes-cores"), Options{Local: fake, Width: 1280, Height: 720, Budget: DefaultBudget()})
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
@@ -397,7 +413,7 @@ func TestInstalledCoreRoomDefaultBudgetDwell(t *testing.T) {
 			t.Fatalf("frame=%d elapsed=%s max=%s mean=%s: %v", i, elapsed, maximum, total/time.Duration(i+1), err)
 		}
 	}
-	t.Logf("frames=%d max_step=%s mean_step=%s soft_budget=%s hard_budget=%s", frames, maximum, total/frames, r.budget.Frame, r.budget.Frame*callbackHardLimitFactor)
+	t.Logf("cores=%d viewport=1280x720 frames=%d max_step=%s mean_step=%s soft_budget=%s hard_budget=%s", count, frames, maximum, total/frames, r.budget.Frame, r.budget.Frame*callbackHardLimitFactor)
 	if got := fake.launchedIDs(); len(got) != 0 {
 		t.Fatalf("fixture unexpectedly launched %v", got)
 	}

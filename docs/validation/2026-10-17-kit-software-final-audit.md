@@ -12,7 +12,7 @@ update workflow has designated-kit evidence. The original three implementation
 slices and subsequent integration fixes are merged. The follow-up adds process-crash tests and qualifies the base-supervisor
 hardening from [PR #746](https://github.com/DeanoC/fes/pull/746). The working
 bundle remains installed; tests do not restore a stock selection. The final
-update and failed-candidate recovery passed on the new base. Pong HDMI/input passed, but the settled launcher exposed an Installed cores script-budget failure; its correction is in progress.
+update and failed-candidate recovery passed on the new base. Subsequent instrumented-bundle qualification passed startup, Pong input/HDMI, settled menu return and repeated managed-child recovery. An earlier room watchdog failure remains an explicitly unresolved follow-up; instrumentation is not a claimed fix.
 
 ## Requirement and evidence map
 
@@ -138,8 +138,49 @@ software-delivered up/down input and completed owned Stop. Captured frames show
 the left paddle at the top after up and at the bottom after down. No physical USB
 controller claim follows. The immediate launch and post-Stop frames were blank; the settled launcher frame instead showed “Installed cores: script
 exceeded 48ms budget”. API status was ready/idle/free at generation 19, but that
-is not successful menu acceptance. This newly exposed failure is being corrected
-before the PR is made ready.
+is not successful menu acceptance. This failure is retained as an unresolved follow-up; the diagnostic and later successful runs do not establish its cause or a fix.
+
+
+## Instrumented application follow-up
+
+Source `57677f6699be3d81005cf9b8372d0e9ad6fa0c5f` adds callback labels and
+elapsed wall time to watchdog errors, preserving every budget and failure rule.
+A deterministic regression confirms deadline expiry still retires the room.
+The full rooms race suite passed in 3.169 seconds. The 10,000-frame dwell test is
+explicitly opt-in, rather than a scheduler-sensitive normal CI assertion.
+
+The first leased ARM fixture used one synthetic installed-core row: 10,000
+frames passed in 11.33 seconds (mean 1.126910 ms, max 20.813460 ms). The real menu
+contains eight entries, including factory cores, so a subsequent eight-row fixture
+was used: 10,000 frames passed in 53.00 seconds (mean 5.291528 ms, max
+30.970890 ms). Both use the embedded Lua room and the default 12/48 ms soft/hard
+budgets. They exclude framebuffer rendering, sockets and physical transitions;
+neither reproduces or explains the earlier failure.
+
+The compatible instrumented bundle
+`2b7928328a1dba1aaf556b6b6e7d9203ace936764981e07a0351dddc7c81f38c`
+was built against the same confirmed image, installed through the supported API
+and accepted at generation 20 without reboot. Fresh HDMI captures show a healthy
+eight-entry Installed cores screen at startup and after exact Pong launch,
+software-injected up/down movement and owned Stop. Its private host exited
+cleanly and removed its credential configuration.
+
+The accepted-child diagnostic was repeated on this bundle: launcher-only failure
+replaced only the launcher; agent/runtime failures replaced all three children;
+the same supervisor and boot survived. Exact maintenance reservations persisted
+and were resumed explicitly where required. Ten-second stable checks passed,
+followed by queued reselection at generation 21. The final state is
+ready/native-idle/lease-free, with no pending or unreleased software operation,
+maintenance, storage error or service fault. A fresh settled HDMI capture shows
+the healthy Installed cores menu. The six original persistent core files remain
+byte-identical. These bounded successes qualify this artifact; they do not erase
+the earlier watchdog failure or constitute physical USB-controller/power-loss
+qualification.
+
+Two usability follow-ups remain: [the unexplained earlier 48 ms room watchdog
+failure](https://github.com/DeanoC/fes/issues/761), now diagnosable by callback/elapsed time, and [release-list latency](https://github.com/DeanoC/fes/issues/762)
+(77 seconds for 18 retained payloads). No speculative budget increase, automatic
+room retry or removal of corruption verification was introduced.
 
 No broader legacy purge is required for this slice. Host auto-update, independent
 per-service updates, unrelated compatibility cleanup, additional core execution
@@ -155,8 +196,13 @@ make image rebuilds part of routine compatible bundle development.
 - Appliance software/store, kit lease, HTTP and target-client race suites: pass.
 - Recovery-fence agent tests: race pass (1.172 s, 1.076 s).
 - Static ARMv7 supervisor and both immutable application bundles: built.
-- Final `make test-changed --base 1f1316c5`: pass, including 945 parent tests
+- Earlier full `make test-changed --base 1f1316c5`: pass, including 945 parent tests
   in 281.940 seconds with 38 skips, policy checks and whitespace checks.
+- The post-instrumentation aggregate recorded 945 passing parent tests in
+  295.523 seconds (38 skips), generated checks and passing component race
+  results, but the outer command exited 143. The final cached aggregate rerun exited zero, including 945 parent tests in
+  308.015 seconds (38 skips), component race suites, host UI tests and parent
+  checks. The interrupted invocation is not counted as an aggregate pass.
 - `make check`: 18 generated consumers and 37 fixture copies matched.
 
 Earlier aggregate attempts failed first for an absent pinned media-tool
