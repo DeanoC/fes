@@ -338,6 +338,41 @@ func TestHomeHeroIsTheTapTargetAndFitsTheRoom(t *testing.T) {
 	}
 }
 
+func TestHomeSkipsAnOmittedCoreAndHidesItsPackage(t *testing.T) {
+	id := func(n byte) string { return strings.Repeat(string("0123456789abcdef"[n]), 64) }
+	st := localcores.Core{PackageID: id(8), CoreID: "fes.atari-st", Name: "Atari ST", Needs: "unavailable", Launchable: false, Block: "Hardware unavailable"}
+	pong := localcores.Core{PackageID: id(1), CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true}
+	zx := localcores.Core{PackageID: id(2), CoreID: "fes.zx81", Name: "ZX81", Needs: "firmware", Launchable: false, Block: "Needs firmware"}
+	app := startHomeLounge(t, &fakeLocalCores{cores: []localcores.Core{st, pong, zx}}, 1280, 720)
+	snap := waitFor(t, app, "first installed", func(s Snapshot) bool {
+		return s.Room.Destination.Label == "FES Pong" && roomTextHas(s, "2 installed")
+	})
+	if snap.Room.Destination.CoreID == "fes.atari-st" || roomTextHas(snap, "3 installed") {
+		t.Fatalf("Home opened on the omitted core: %+v", snap.Room.Destination)
+	}
+	app.HandleCommand(CmdLeft, time.Now())
+	snap = waitFor(t, app, "omitted core", func(s Snapshot) bool { return s.Room.Destination.Label == "Atari ST" })
+	app.HandleCommand(CmdSelect, time.Now())
+	snap = app.Snapshot()
+	joined := strings.Join(heroDestinationCopy(snap).Details, "\n")
+	if !snap.Room.CoreDetail || strings.Contains(joined, "Package:") || strings.Contains(joined, st.PackageID[:12]) {
+		t.Fatalf("omitted Details showed a package id: detail=%v %q", snap.Room.CoreDetail, joined)
+	}
+	if !strings.Contains(joined, "Core: fes.atari-st") || !strings.Contains(joined, "Kit says: Hardware unavailable") {
+		t.Fatalf("omitted Details %q", joined)
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	app.HandleCommand(CmdRight, time.Now())
+	app.HandleCommand(CmdRight, time.Now())
+	snap = waitFor(t, app, "firmware core", func(s Snapshot) bool { return s.Room.Destination.Label == "ZX81" })
+	app.HandleCommand(CmdSelect, time.Now())
+	snap = app.Snapshot()
+	joined = strings.Join(heroDestinationCopy(snap).Details, "\n")
+	if !snap.Room.CoreDetail || !strings.Contains(joined, "Package: "+zx.PackageID[:12]+"…") || !strings.Contains(joined, "Kit says: Needs firmware") {
+		t.Fatalf("installed Details %q", joined)
+	}
+}
+
 func TestHomeCoreDetailsOpenInTheHeroAndBackClosesThem(t *testing.T) {
 	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
 	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
