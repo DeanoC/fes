@@ -118,8 +118,9 @@ pages 348–349. `sim-fes-c64` includes the directed CIA regression and the
 firmware's CPU interrupt checks. These are host simulations, with no sealed
 artifact or kit acceptance implied.
 
-`build-fes-c64` authenticates `toolchains/c64.lock` (Yosys `4b971bb1`,
-Mistral `8fcc4cb4`, nextpnr `0c5ed400`). The socket check admits a compiler-inserted route-through
+`build-fes-c64` authenticates `toolchain.lock` (Yosys `5391eeb1`,
+Mistral `8fcc4cb4`, nextpnr `9128800f`). The 6 Oct kit diagnostic used
+nextpnr `0c5ed400` and does not accept this pin. The socket check admits a compiler-inserted route-through
 buffer only at a pinned boundary flip-flop's paired combinational half, with
 the exact physical pin map and a dedicated connection to that flip-flop;
 clock-coverage outputs stay unused and every other shell cell inside a socket

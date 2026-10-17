@@ -1695,7 +1695,7 @@ NMI. The diagnostic checks both CPU vectors, including NMI with IRQ disabled;
 `make sim-fes-c64-cia` adds directed register/timer coverage. External CNT edges,
 TOD, serial shifting and timer port outputs remain outside this slice.
 
-`make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchains/c64.lock`,
+`make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchain.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this
 pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
 `c64-firmware`, 16,384 bytes, on the blank column-5 lanes at rows 32–47.

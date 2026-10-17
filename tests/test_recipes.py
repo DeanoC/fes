@@ -167,7 +167,7 @@ class RecipeRegistryTest(unittest.TestCase):
             "fes.c64": {
                 "producer_script": "scripts/build_fes_c64_oss.py",
                 "producer_module": "scripts.build_fes_c64_oss",
-                "lock_path": "toolchains/c64.lock",
+                "lock_path": "toolchain.lock",
                 "selection_filename": "fes-c64.package-selection.toml",
                 "authenticate": "_authenticate_c64_tools",
                 "package_dir_env": "FES_C64_PACKAGE_DIR",
