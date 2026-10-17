@@ -614,3 +614,279 @@ func TestLibraryBackHintFitsAt1024(t *testing.T) {
 		t.Fatalf("hint %q (%d px)", hint, 24+8*len(hint))
 	}
 }
+
+func TestLibraryHeaderListAndDetailsShareOneClassifier(t *testing.T) {
+	app := libraryHomeApp(t)
+	app.HandleCommand(CmdSelect, time.Now())
+	snap := waitFor(t, app, "library", func(s Snapshot) bool { return !s.Room.Open && len(s.Games) > 0 })
+	focus := snap.Games[snap.Grid.Focus]
+	app.mu.Lock()
+	app.client.paired = true
+	app.kitLeaseHave = true
+	app.kitLease = KitLeaseStatus{Unavailable: true}
+	app.mu.Unlock()
+	snap = app.Snapshot()
+	header := snap.ChromeLine()
+	row := classifyLibraryGame(focus, snap.KitPlay)
+	if !snap.KitPlay.Unknown || row.Availability != snap.DetailPlay.Availability || strings.Contains(header, "Ready") {
+		t.Fatalf("unknown kit: header %q, row %v, details %v", header, row.Availability, snap.DetailPlay.Availability)
+	}
+}
+
+func TestReadyDetailsSaysWhereAPairedLaunchPlays(t *testing.T) {
+	kit := availableGame("pong", "Pong", "pong")
+	host := availableGame("emu-pong", "Pong", "pong")
+	host.Execution = hostclient.ExecutionHostOnly
+	paired := kitPlayState{Paired: true}
+	if c := detailReadiness(classifyLibraryGame(kit, paired)); c.State != heroStateReady || c.Headline != heroPlaysOnThisTV {
+		t.Fatalf("paired kit title %+v", c)
+	}
+	// A host-only title plays on the host; no picture claim.
+	if c := detailReadiness(classifyLibraryGame(host, paired)); c.State != heroStateReady || c.Headline != "" {
+		t.Fatalf("host-only title %+v", c)
+	}
+	// An unpaired launcher does not know where the host will send it.
+	if c := detailReadiness(classifyLibraryGame(kit, kitPlayState{})); c.Headline != "" {
+		t.Fatalf("unpaired title %+v", c)
+	}
+}
+
+// One Back from the Library resumes Home even while the kit's status is
+// unknown; only a second Back at the Home root opens the Home picker.
+func TestOneBackFromTheLibraryNeverOpensTheHomePicker(t *testing.T) {
+	app := libraryHomeApp(t)
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "library", func(s Snapshot) bool { return !s.Room.Open && len(s.Games) > 0 })
+	app.mu.Lock()
+	app.client.paired = true
+	app.kitLeaseHave = true
+	app.kitLease = KitLeaseStatus{Unavailable: true}
+	app.mu.Unlock()
+	app.HandleCommand(CmdDetails, time.Now())
+	if !app.Snapshot().Detail.Open {
+		t.Fatal("Details did not open while the kit status is unknown")
+	}
+	app.HandleCommand(CmdBack, time.Now()) // closes Details
+	app.HandleCommand(CmdBack, time.Now()) // leaves the Library
+	snap := app.Snapshot()
+	if !snap.Room.Open || snap.RoomPicker.Open {
+		t.Fatalf("Back from the Library: room=%v picker=%v", snap.Room.Open, snap.RoomPicker.Open)
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	if !app.Snapshot().RoomPicker.Open {
+		t.Fatal("Back at the Home root no longer opens the Home picker")
+	}
+}
+
+// coverReadinessApp is a cover grid with one playable title and one that
+// needs a BIOS. Kit state is applied by the caller.
+func coverReadinessApp(t *testing.T, games ...hostclient.Game) *App {
+	t.Helper()
+	app := NewApp(nil, 1280, 720, 100)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	app.ctx = ctx
+	app.attractDisabled = true
+	app.games = append([]hostclient.Game(nil), games...)
+	app.grid.SetCount(len(games))
+	app.grid.Focus = 0
+	app.SetLayout(LayoutGrid)
+	return app
+}
+
+func renderLibraryFrame(t *testing.T, snap Snapshot) (map[string]gpuTexture, *image.RGBA) {
+	t.Helper()
+	dev, err := gfx.NewSoftware(snap.Grid.Width, snap.Grid.Height)
+	if err != nil {
+		t.Fatal(err)
+	}
+	labels := map[string]gpuTexture{}
+	presentFrame(dev, snap, map[string]gpuTexture{}, labels, false)
+	return labels, dev.Snapshot()
+}
+
+// paintedCellTags are the 14px bold plates drawCellBlockTag rasterizes.
+func paintedCellTags(labels map[string]gpuTexture) []string {
+	var out []string
+	for key := range labels {
+		rest, ok := strings.CutPrefix(key, "room-text|")
+		if !ok {
+			continue
+		}
+		text, rest, ok := strings.Cut(rest, "|")
+		if !ok {
+			continue
+		}
+		size, rest, ok := strings.Cut(rest, "|")
+		if !ok || size != "14" {
+			continue
+		}
+		weight, _, ok := strings.Cut(rest, "|")
+		if ok && weight == "b" {
+			out = append(out, text)
+		}
+	}
+	return out
+}
+
+func cellTagPainted(labels map[string]gpuTexture, want string) bool {
+	for _, got := range paintedCellTags(labels) {
+		if got == want {
+			return true
+		}
+		if trimmed, ok := strings.CutSuffix(got, "..."); ok && len(trimmed) > 0 && strings.HasPrefix(want, trimmed) {
+			return true
+		}
+	}
+	return false
+}
+
+func coverPlatePixels(img *image.RGBA, grid Grid, index int, tag string) int {
+	x, y, ok := grid.CellOrigin(index)
+	if !ok || tag == "" || img == nil {
+		return 0
+	}
+	const px = 14
+	maxW := grid.CellW - 16
+	w := min(maxW, gfx.MeasureTextWeight(tag, px, gfx.WeightBold)+22)
+	h := gfx.TextHeightWeight(px, gfx.WeightBold) + 8
+	left := x + 8
+	bottom := y + grid.CellH - 44
+	plate := detailPill.unavailable
+	n := 0
+	for py := bottom - h; py < bottom; py++ {
+		for px0 := left; px0 < left+w; px0++ {
+			c := img.RGBAAt(px0, py)
+			if c.R == plate.R && c.G == plate.G && c.B == plate.B && c.A == plate.A {
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func listMetaSource(labels map[string]gpuTexture, id string) string {
+	prefix := "lm:" + id + "\x1f"
+	for key, tex := range labels {
+		if strings.HasPrefix(key, prefix) {
+			return tex.labelSource
+		}
+	}
+	return ""
+}
+
+// TestCoverLayoutShowsKitReadiness paints the cover grid for an unknown kit
+// status and a foreign lease. The playable title's plate matches the Details
+// headline, Needs BIOS stays a catalog tag, and the list and header use the
+// same Unavailable classification.
+func TestCoverLayoutShowsKitReadiness(t *testing.T) {
+	play := availableGame("pong", "Pong", "pong")
+	bios := availableGame("coleco-dk", "Donkey Kong", "coleco")
+	bios.FirmwareRequired = true
+	cases := []struct {
+		name  string
+		apply func(*App)
+		want  string
+	}{
+		{
+			name: "unknown status",
+			apply: func(app *App) {
+				app.client = &Client{paired: true}
+				app.mu.Lock()
+				app.kitLeaseHave = true
+				app.kitLease = KitLeaseStatus{Unavailable: true}
+				app.mu.Unlock()
+			},
+			want: machineStatusUnknown,
+		},
+		{
+			name: "foreign lease",
+			apply: func(app *App) {
+				app.client = &Client{paired: true}
+				app.mu.Lock()
+				app.kitLeaseHave = true
+				app.kitLease = KitLeaseStatus{State: "held", Owner: "another-shell", Purpose: "playing"}
+				app.mu.Unlock()
+			},
+			want: rooms.InUseStatus,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			app := coverReadinessApp(t, play, bios)
+			tc.apply(app)
+			snap := app.Snapshot()
+			if snap.Grid.Mode != LayoutGrid {
+				t.Fatalf("layout %s", snap.Grid.Mode)
+			}
+			row := classifyLibraryGame(play, snap.KitPlay)
+			detail := detailReadiness(snap.DetailPlay)
+			header := snap.ChromeLine()
+			tag := libraryCellTag(play, snap.KitPlay)
+			biosClass := classifyLibraryGame(bios, snap.KitPlay)
+			biosTag := libraryCellTag(bios, snap.KitPlay)
+			if row.Availability != rooms.AvailUnavailable || snap.DetailPlay.Availability != row.Availability || tag != tc.want || tag != detail.Headline || detail.State != heroStateUnavailable {
+				t.Fatalf("playable title header %q row %+v detail %+v tag %q", header, row, detail, tag)
+			}
+			if !strings.Contains(header, row.Availability.Label()) || strings.Contains(header, "Ready") {
+				t.Fatalf("header %q", header)
+			}
+			if biosTag != "Needs BIOS" || detailReadiness(biosClass).Headline != "Needs BIOS" || biosClass.Availability != rooms.AvailUnavailable {
+				t.Fatalf("catalog tag under kit state: tag %q class %+v", biosTag, biosClass)
+			}
+			labels, img := renderLibraryFrame(t, snap)
+			if !cellTagPainted(labels, tag) || !cellTagPainted(labels, "Needs BIOS") {
+				t.Fatalf("cover tags %q, want %q and Needs BIOS", paintedCellTags(labels), tag)
+			}
+			if n := coverPlatePixels(img, snap.Grid, 0, tag); n < 20 {
+				t.Fatalf("playable cover plate pixels %d", n)
+			}
+			if n := coverPlatePixels(img, snap.Grid, 1, "Needs BIOS"); n < 20 {
+				t.Fatalf("BIOS cover plate pixels %d", n)
+			}
+
+			app.mu.Lock()
+			app.grid.Focus = 1
+			app.mu.Unlock()
+			biosSnap := app.Snapshot()
+			biosDetail := detailReadiness(biosSnap.DetailPlay)
+			if biosDetail.Headline != "Needs BIOS" || biosSnap.DetailPlay.Availability != biosClass.Availability || !strings.Contains(biosSnap.ChromeLine(), "Unavailable") {
+				t.Fatalf("BIOS header %q detail %+v", biosSnap.ChromeLine(), biosDetail)
+			}
+
+			app.SetLayout(LayoutList)
+			listSnap := app.Snapshot()
+			listLabels, _ := renderLibraryFrame(t, listSnap)
+			meta := listMetaSource(listLabels, play.ID)
+			if !strings.Contains(meta, row.Availability.Label()) {
+				t.Fatalf("list meta %q, want %q", meta, row.Availability.Label())
+			}
+		})
+	}
+
+	t.Run("ready stays untagged", func(t *testing.T) {
+		app := coverReadinessApp(t, play, bios)
+		app.client = &Client{paired: true}
+		app.mu.Lock()
+		app.kitLeaseHave = true
+		app.kitLease = KitLeaseStatus{State: "free"}
+		app.mu.Unlock()
+		snap := app.Snapshot()
+		if tag := libraryCellTag(play, snap.KitPlay); tag != "" || snap.DetailPlay.Availability != rooms.AvailReady || !strings.Contains(snap.ChromeLine(), "Ready") {
+			t.Fatalf("ready title tagged %q header %q play %+v", tag, snap.ChromeLine(), snap.DetailPlay)
+		}
+		if libraryCellTag(bios, snap.KitPlay) != "Needs BIOS" {
+			t.Fatal("ready kit dropped Needs BIOS")
+		}
+		labels, img := renderLibraryFrame(t, snap)
+		if cellTagPainted(labels, machineStatusUnknown) || cellTagPainted(labels, rooms.InUseStatus) || !cellTagPainted(labels, "Needs BIOS") {
+			t.Fatalf("ready cover tags %q", paintedCellTags(labels))
+		}
+		if n := coverPlatePixels(img, snap.Grid, 0, "Unavailable"); n != 0 {
+			t.Fatalf("ready cover plate pixels %d", n)
+		}
+		if n := coverPlatePixels(img, snap.Grid, 1, "Needs BIOS"); n < 20 {
+			t.Fatalf("BIOS cover plate pixels %d", n)
+		}
+	})
+}

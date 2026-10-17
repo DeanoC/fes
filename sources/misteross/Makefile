@@ -119,6 +119,7 @@ help:
 		"  build-fes-spectrum  Seal FES ZX Spectrum (format 3 firmware map, four edge sockets) with HIP (CACHE_ROOT=)" \
 		"  c64-diagnostic  Generate the open C64 firmware, font and synthetic D64" \
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
+		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
 		"  build-fes-atari-st-card  Seal a probe in ST_SHELL/ST_PACKAGE socket 1" \
@@ -1855,3 +1856,13 @@ sim-fes-atari-st-mfp-iack-timing:
 		$(ST_CORE)/rtl/st_system.sv \
 		"$(CURDIR)/$(ST_CORE)/sim/mfp_iack_timing_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-mfp-iack-timing/Vst_mfp_iack_timing
+
+.PHONY: sim-fes-pcxt
+sim-fes-pcxt:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pcxt.py --verilator "$(VERILATOR)"
+
+.PHONY: synth-fes-pcxt-isa
+synth-fes-pcxt-isa:
+	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pcxt.py --cache-root "$(CACHE_ROOT)"
