@@ -1,0 +1,501 @@
+<style>
+#fes-room-concepts {
+  --fes-bg: light-dark(#f4f0e8, #141918);
+  --fes-surface: light-dark(#fffcf5, #202725);
+  --fes-soft: light-dark(#e9e6dc, #303936);
+  --fes-ink: light-dark(#243631, #edf3e9);
+  --fes-muted: light-dark(#53625a, #b5c3b9);
+  --fes-line: light-dark(#cecfc0, #4a5650);
+  --fes-accent: light-dark(#235a46, #c8e3ac);
+  --fes-on-accent: light-dark(#fcfcf3, #203727);
+  --fes-gold: light-dark(#efd48d, #e6c882);
+  --fes-on-gold: light-dark(#3b3929, #343226);
+  --fes-warm: light-dark(#efb899, #89523e);
+  --fes-paper: light-dark(#f5e8ce, #413d30);
+  --fes-shadow: light-dark(#24363118, #00000045);
+  --fes-art-ink: light-dark(#24342e, #24342e);
+  --fes-art-paper: light-dark(#f4e8c8, #f4e8c8);
+  --fes-art-green: light-dark(#60795d, #60795d);
+  --fes-art-mint: light-dark(#b8d39f, #b8d39f);
+  --fes-art-orange: light-dark(#df8c65, #df8c65);
+  --fes-art-blue: light-dark(#7199aa, #7199aa);
+  --fes-art-dark: light-dark(#282d36, #282d36);
+  --fes-art-purple: light-dark(#9390b7, #9390b7);
+  --fes-stage: 820px;
+  color-scheme: light dark;
+}
+#fes-room-concepts .fes-shell, #fes-room-concepts .fes-shell * { box-sizing: border-box; }
+#fes-room-concepts .fes-shell {
+  min-height: var(--fes-stage); width: 100%; display: flex; flex-direction: column;
+  background: var(--fes-bg); color: var(--fes-ink); border: 1px solid var(--fes-line);
+  border-radius: 22px; font: 400 15px/1.45 ui-sans-serif, system-ui, sans-serif;
+  text-align: left; overflow-wrap: anywhere;
+}
+#fes-room-concepts [hidden] { display: none !important; }
+#fes-room-concepts .fes-announcement { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+#fes-room-concepts .fes-shell h1, #fes-room-concepts .fes-shell h2, #fes-room-concepts .fes-shell h3,
+#fes-room-concepts .fes-shell p { margin: 0; color: inherit; }
+#fes-room-concepts .fes-shell h1 { font-size: clamp(30px, 4.4vw, 47px); line-height: 1.05; font-weight: 500; letter-spacing: -.045em; }
+#fes-room-concepts .fes-shell h2 { font-size: 25px; line-height: 1.17; font-weight: 500; letter-spacing: -.025em; }
+#fes-room-concepts .fes-shell h3 { font-size: 17px; font-weight: 500; }
+#fes-room-concepts .fes-shell button, #fes-room-concepts .fes-shell select {
+  font: inherit; color: inherit; min-height: 44px; border: 1px solid var(--fes-line);
+  border-radius: 10px; background: var(--fes-surface); padding: 9px 13px;
+}
+#fes-room-concepts .fes-shell button:disabled { opacity: .48; }
+#fes-room-concepts .fes-shell button:hover:not(:disabled) { background: var(--fes-soft); }
+#fes-room-concepts .fes-shell .fes-primary { background: var(--fes-accent); color: var(--fes-on-accent); border-color: var(--fes-accent); font-weight: 500; }
+#fes-room-concepts .fes-shell .fes-primary:hover:not(:disabled) { background: var(--fes-accent); filter: brightness(.94); }
+#fes-room-concepts .fes-shell .fes-plain { border-color: transparent; background: transparent; }
+#fes-room-concepts .fes-top {
+  padding: 20px 25px; display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; border-bottom: 1px solid var(--fes-line);
+}
+#fes-room-concepts .fes-brand-group, #fes-room-concepts .fes-inline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#fes-room-concepts .fes-brand { display: flex; align-items: center; gap: 9px; font-size: 23px; font-weight: 500; letter-spacing: -.07em; }
+#fes-room-concepts .fes-mark { width: 19px; height: 20px; display: block; background: linear-gradient(to bottom, var(--fes-accent) 0 28%, transparent 28% 36%, var(--fes-accent) 36% 65%, transparent 65% 72%, var(--fes-accent) 72%); clip-path: polygon(0 0,100% 0,100% 65%,40% 65%,40% 100%,0 100%); }
+#fes-room-concepts .fes-room-label { margin-left: 12px; padding-left: 19px; border-left: 1px solid var(--fes-line); font-size: 14px; }
+#fes-room-concepts .fes-output { display: flex; align-items: center; gap: 10px; justify-content: flex-end; flex-wrap: wrap; font-size: 12px; color: var(--fes-muted); }
+#fes-room-concepts .fes-output button { min-height: 36px; padding: 6px 10px; font-size: 12px; }
+#fes-room-concepts .fes-output-label { display: flex; align-items: center; gap: 7px; }
+#fes-room-concepts .fes-output-label i, #fes-room-concepts .fes-footer i { width: 16px; height: 16px; }
+#fes-room-concepts .fes-main { flex: 1; padding: 28px; }
+#fes-room-concepts .fes-eyebrow { text-transform: uppercase; letter-spacing: .14em; font-size: 11px; font-weight: 500; color: var(--fes-muted); }
+#fes-room-concepts .fes-muted { color: var(--fes-muted); }
+#fes-room-concepts .fes-tiny { font-size: 12px; }
+#fes-room-concepts .fes-stack { display: grid; gap: 13px; }
+#fes-room-concepts .fes-action-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+#fes-room-concepts .fes-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; font-size: 12px; border-radius: 20px; background: var(--fes-soft); flex-shrink: 0; white-space: nowrap; }
+#fes-room-concepts .fes-dot { width: 6px; height: 6px; display: inline-block; border-radius: 50%; background: currentColor; }
+#fes-room-concepts .fes-footer {
+  margin-top: auto; padding: 12px 23px; border-top: 1px solid var(--fes-line);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+}
+#fes-room-concepts .fes-footer .fes-actions { display: flex; align-items: center; gap: 5px; }
+#fes-room-concepts .fes-footer button { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; font-size: 12px; padding: 7px 10px; }
+#fes-room-concepts .fes-footer .fes-hint { color: var(--fes-muted); font-size: 11px; }
+#fes-room-concepts .fes-note { color: var(--fes-muted); font-size: 12px; min-height: 18px; }
+#fes-room-concepts .fes-hero {
+  display: grid; grid-template-columns: 1.05fr 1fr; align-items: center;
+  background: var(--fes-surface); border-radius: 17px; border: 1px solid var(--fes-line);
+}
+#fes-room-concepts .fes-hero-copy { padding: 30px; display: grid; gap: 17px; }
+#fes-room-concepts .fes-hero-desc { max-width: 30ch; color: var(--fes-muted); }
+#fes-room-concepts .fes-hero .fes-art { height: 290px; margin: 10px; border-radius: 12px; }
+#fes-room-concepts .fes-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 24px 0 13px; }
+#fes-room-concepts .fes-section-head h2 { font-size: 18px; }
+#fes-room-concepts .fes-shelf { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+#fes-room-concepts .fes-game {
+  padding: 0 !important; background: var(--fes-surface); text-align: left;
+  display: grid; gap: 0; border: 1px solid var(--fes-line); border-radius: 12px;
+}
+#fes-room-concepts .fes-game[data-selected="true"] { box-shadow: 0 0 0 3px var(--fes-accent); }
+#fes-room-concepts .fes-game .fes-art { height: 86px; border-radius: 10px 10px 0 0; }
+#fes-room-concepts .fes-game-copy { display: grid; gap: 2px; padding: 10px 12px; }
+#fes-room-concepts .fes-game-title { font-size: 15px; font-weight: 500; }
+#fes-room-concepts .fes-game-sub { color: var(--fes-muted); font-size: 11px; }
+#fes-room-concepts .fes-art { position: relative; isolation: isolate; overflow: hidden; }
+#fes-room-concepts .fes-art span { position: absolute; display: block; }
+#fes-room-concepts .fes-art-orchard { background: var(--fes-art-ink); }
+#fes-room-concepts .fes-art-orchard .fes-sun { width: 35%; aspect-ratio: 1; border-radius: 50%; left: 14%; top: 10%; background: var(--fes-art-paper); }
+#fes-room-concepts .fes-art-orchard .fes-hill-a { width: 115%; height: 80%; left: -30%; bottom: -40%; border-radius: 50%; transform: rotate(15deg); background: var(--fes-art-green); }
+#fes-room-concepts .fes-art-orchard .fes-hill-b { width: 95%; height: 65%; right: -26%; bottom: -26%; border-radius: 50%; background: var(--fes-art-mint); }
+#fes-room-concepts .fes-art-orchard .fes-tree-a, #fes-room-concepts .fes-art-orchard .fes-tree-b { width: 18%; height: 39%; border-radius: 50% 50% 42% 42%; background: var(--fes-art-orange); top: 23%; left: 62%; }
+#fes-room-concepts .fes-art-orchard .fes-tree-b { width: 14%; height: 29%; left: 44%; top: 45%; background: var(--fes-art-purple); }
+#fes-room-concepts .fes-art-orchard .fes-tree-a::after, #fes-room-concepts .fes-art-orchard .fes-tree-b::after { content: ''; position: absolute; width: 8%; height: 75%; background: var(--fes-art-dark); left: 47%; top: 58%; }
+#fes-room-concepts .fes-art-orchard .fes-walker { width: 6%; height: 9%; left: 32%; bottom: 23%; background: var(--fes-art-paper); box-shadow: 4px 7px 0 -1px var(--fes-art-dark); }
+#fes-room-concepts .fes-art-orchard .fes-walker::before { content: ''; position: absolute; width: 80%; height: 60%; background: var(--fes-art-orange); left: 5%; top: -55%; }
+#fes-room-concepts .fes-art-orbit { background: var(--fes-art-purple); }
+#fes-room-concepts .fes-art-orbit::before { content:''; position:absolute; border: 2px solid var(--fes-art-paper); width: 65%; height: 40%; top: 29%; left: 17%; border-radius: 50%; transform: rotate(-32deg); }
+#fes-room-concepts .fes-art-orbit::after { content:''; position:absolute; width: 29%; aspect-ratio: 1; border-radius: 50%; background: var(--fes-art-paper); left: 36%; top: 16%; }
+#fes-room-concepts .fes-art-orbit .fes-planet { width: 15%; aspect-ratio: 1; border-radius: 50%; left: 20%; top: 60%; background: var(--fes-art-orange); z-index: 2; }
+#fes-room-concepts .fes-art-tide { background: var(--fes-art-blue); }
+#fes-room-concepts .fes-art-tide::before, #fes-room-concepts .fes-art-tide::after { content:''; position: absolute; width: 130%; height: 90%; left: -10%; top: 50%; border-radius: 44%; background: var(--fes-art-mint); transform: rotate(-13deg); }
+#fes-room-concepts .fes-art-tide::after { background: var(--fes-art-ink); top: 74%; transform: rotate(6deg); }
+#fes-room-concepts .fes-art-tide .fes-boat { width: 26%; height: 12%; background: var(--fes-art-paper); left: 43%; top: 45%; clip-path: polygon(0 0,100% 0,72% 100%,20% 100%); }
+#fes-room-concepts .fes-art-signal { background: var(--fes-art-orange); }
+#fes-room-concepts .fes-art-signal::before { content:''; position: absolute; width: 48%; height: 140%; top: -25%; left: 27%; border: 9px solid var(--fes-art-paper); border-radius: 50%; transform: rotate(25deg); }
+#fes-room-concepts .fes-art-signal::after { content:''; position: absolute; width: 30%; height: 90%; top: 0; left: 35%; border: 6px solid var(--fes-art-dark); border-radius: 50%; transform: rotate(25deg); }
+#fes-room-concepts .fes-cover-label { z-index: 4; left: 16px; bottom: 13px; color: var(--fes-art-paper); text-transform: uppercase; letter-spacing: .2em; font-size: 11px; }
+#fes-room-concepts .fes-club-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 24px; }
+#fes-room-concepts .fes-club-heading h1 { font-family: Georgia, serif; font-size: clamp(36px, 4.7vw, 52px); letter-spacing: -.035em; margin-top: 6px; }
+#fes-room-concepts .fes-club-heading .fes-club-stamp { border: 1px solid var(--fes-line); border-radius: 50%; width: 88px; height: 88px; display: grid; place-content: center; text-align: center; transform: rotate(9deg); font-size: 11px; flex-shrink: 0; background: var(--fes-gold); color: var(--fes-on-gold); }
+#fes-room-concepts .fes-club-grid { display: grid; grid-template-columns: 1.2fr 1fr .84fr; gap: 17px; align-items: stretch; }
+#fes-room-concepts .fes-club-feature { background: var(--fes-paper); padding: 17px; border: 1px solid var(--fes-line); border-radius: 3px; display: flex; flex-direction: column; gap: 13px; }
+#fes-room-concepts .fes-club-feature .fes-art { height: 190px; border-radius: 2px; }
+#fes-room-concepts .fes-club-feature h2 { font-family: Georgia, serif; font-size: 29px; }
+#fes-room-concepts .fes-club-feature .fes-primary { margin-top: auto; }
+#fes-room-concepts .fes-club-center { display: flex; flex-direction: column; gap: 16px; }
+#fes-room-concepts .fes-club-pick { text-align: left; padding: 15px !important; border-radius: 3px !important; display: grid; grid-template-columns: 65px 1fr; gap: 12px; align-items: center; }
+#fes-room-concepts .fes-club-pick .fes-art { height: 78px; }
+#fes-room-concepts .fes-club-pick[data-selected="true"] { box-shadow: 0 0 0 3px var(--fes-accent); }
+#fes-room-concepts .fes-club-pick .fes-game-copy { padding: 0; }
+#fes-room-concepts .fes-club-letter { padding: 19px; border-radius: 3px; border: 1px solid var(--fes-line); background: var(--fes-surface); display: grid; gap: 14px; flex: 1; }
+#fes-room-concepts .fes-club-letter h3 { font-family: Georgia, serif; font-size: 24px; }
+#fes-room-concepts .fes-club-shortcuts { display: flex; flex-direction: column; gap: 12px; }
+#fes-room-concepts .fes-shortcut { padding: 17px !important; text-align: left; display: grid; gap: 13px; flex: 1; }
+#fes-room-concepts .fes-shortcut i { width: 23px; height: 23px; }
+#fes-room-concepts .fes-shortcut strong { font-size: 16px; font-weight: 500; }
+#fes-room-concepts .fes-shortcut span { font-size: 12px; color: var(--fes-muted); }
+#fes-room-concepts .fes-club-footnote { margin-top: 17px; display: flex; align-items: center; justify-content: space-between; gap: 14px; color: var(--fes-muted); font-size: 12px; }
+#fes-room-concepts .fes-machine-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+#fes-room-concepts .fes-machine-head h1 { font-size: 37px; margin-top: 5px; }
+#fes-room-concepts .fes-machine-grid { display: grid; grid-template-columns: 1.35fr 1fr; gap: 22px; }
+#fes-room-concepts .fes-workbench { background: var(--fes-soft); border: 1px solid var(--fes-line); border-radius: 14px; padding: 19px; display: grid; gap: 12px; align-content: start; }
+#fes-room-concepts .fes-bench-top { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--fes-muted); }
+#fes-room-concepts .fes-machine-picture { position: relative; min-height: 240px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 10px 0 0; }
+#fes-room-concepts .fes-expansion { width: 33%; height: 58px; background: var(--fes-art-dark); color: var(--fes-art-paper); display: grid; place-content: center; border-radius: 5px 5px 0 0; font-size: 11px; text-align: center; border: 3px solid var(--fes-art-ink); margin-bottom: -1px; position: relative; z-index: 2; }
+#fes-room-concepts .fes-expansion[data-empty="true"] { background: transparent; color: var(--fes-muted); border: 1px dashed var(--fes-line); margin-bottom: 9px; height: 48px; }
+#fes-room-concepts .fes-connector { width: 17%; height: 7px; background: var(--fes-gold); border: 2px solid var(--fes-art-ink); }
+#fes-room-concepts .fes-zx81 { width: 82%; border-radius: 8px 8px 12px 12px; padding: 15px 16px; background: var(--fes-art-dark); color: var(--fes-art-paper); box-shadow: 0 7px 0 var(--fes-art-ink), 0 15px 16px var(--fes-shadow); transform: perspective(700px) rotateX(8deg); }
+#fes-room-concepts .fes-zx-label { display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 14px; }
+#fes-room-concepts .fes-zx-label strong { font-size: 26px; font-weight: 500; letter-spacing: -.05em; }
+#fes-room-concepts .fes-zx-label span { font-size: 11px; letter-spacing: .08em; }
+#fes-room-concepts .fes-keys { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+#fes-room-concepts .fes-keys span { min-height: 21px; display: grid; place-content: center; background: var(--fes-art-paper); color: var(--fes-art-dark); font-size: 11px; border-radius: 1px; }
+#fes-room-concepts .fes-bench-caption { text-align: center; font-size: 11px; color: var(--fes-muted); margin-top: 8px; }
+#fes-room-concepts .fes-config { display: grid; gap: 13px; align-content: start; }
+#fes-room-concepts .fes-config-state { border-bottom: 1px solid var(--fes-line); padding-bottom: 12px; display: grid; gap: 5px; }
+#fes-room-concepts .fes-state-line { display: flex; justify-content: space-between; gap: 14px; align-items: start; font-size: 13px; }
+#fes-room-concepts .fes-state-line span:first-child { color: var(--fes-muted); }
+#fes-room-concepts .fes-state-line strong { font-weight: 500; text-align: right; }
+#fes-room-concepts .fes-config label { display: grid; gap: 6px; font-size: 12px; }
+#fes-room-concepts .fes-config select { width: 100%; min-width: 0; }
+#fes-room-concepts .fes-change-note { border-radius: 8px; background: var(--fes-paper); padding: 10px 12px; display: grid; gap: 3px; font-size: 12px; }
+#fes-room-concepts .fes-machine-shelf { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+#fes-room-concepts .fes-machine-shelf .fes-game { grid-template-columns: 68px 1fr; align-items: stretch; }
+#fes-room-concepts .fes-machine-shelf .fes-art { height: 74px; border-radius: 10px 0 0 10px; }
+#fes-room-concepts .fes-panel { max-width: 780px; margin: 0 auto; display: grid; gap: 23px; }
+#fes-room-concepts .fes-panel-head { display: flex; justify-content: space-between; gap: 14px; align-items: center; }
+#fes-room-concepts .fes-panel-head button { min-height: 36px; }
+#fes-room-concepts .fes-detail-grid { display: grid; grid-template-columns: .85fr 1.2fr; gap: 24px; align-items: start; }
+#fes-room-concepts .fes-detail-grid .fes-art { min-height: 295px; border-radius: 13px; }
+#fes-room-concepts .fes-detail-info { display: grid; gap: 17px; }
+#fes-room-concepts .fes-detail-info h1 { font-size: 39px; }
+#fes-room-concepts .fes-facts { margin: 0; display: grid; gap: 10px; }
+#fes-room-concepts .fes-facts div { display: grid; grid-template-columns: 90px 1fr; gap: 8px; border-bottom: 1px solid var(--fes-line); padding-bottom: 9px; font-size: 13px; }
+#fes-room-concepts .fes-facts dt { color: var(--fes-muted); }
+#fes-room-concepts .fes-facts dd { margin: 0; }
+#fes-room-concepts .fes-screen-list { display: grid; gap: 11px; }
+#fes-room-concepts .fes-screen-option { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 15px; text-align: left; padding: 18px !important; }
+#fes-room-concepts .fes-screen-option[aria-pressed="true"] { border-color: var(--fes-accent); box-shadow: inset 0 0 0 1px var(--fes-accent); }
+#fes-room-concepts .fes-screen-option i { width: 22px; height: 22px; }
+#fes-room-concepts .fes-screen-option .fes-screen-copy { display: grid; gap: 4px; }
+#fes-room-concepts .fes-screen-option strong { font-weight: 500; }
+#fes-room-concepts .fes-screen-option small { font-size: 12px; color: var(--fes-muted); }
+#fes-room-concepts .fes-screen-unavailable { background: var(--fes-soft); padding: 15px 19px; border-radius: 10px; font-size: 13px; display: grid; gap: 5px; }
+#fes-room-concepts .fes-launch-card { padding: 28px; background: var(--fes-surface); border: 1px solid var(--fes-line); border-radius: 15px; display: grid; gap: 21px; }
+#fes-room-concepts .fes-launch-card h2 { font-size: 32px; }
+#fes-room-concepts .fes-launch-route { padding: 15px; border-radius: 9px; background: var(--fes-soft); display: grid; gap: 7px; }
+#fes-room-concepts .fes-library-panel-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 15px; }
+#fes-room-concepts .fes-library-panel-grid .fes-art { height: 130px; }
+#fes-room-concepts .fes-room-list { display: grid; gap: 10px; }
+#fes-room-concepts .fes-room-list button { text-align: left; display: flex; align-items: center; justify-content: space-between; padding: 16px 18px; }
+#fes-room-concepts .fes-room-list button span { display: grid; gap: 3px; }
+#fes-room-concepts .fes-room-list small { font-size: 12px; color: var(--fes-muted); }
+#fes-room-concepts .fes-learn-block { background: var(--fes-surface); border: 1px solid var(--fes-line); border-radius: 14px; padding: 23px; display: grid; gap: 17px; }
+#fes-room-concepts .fes-learn-steps { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+#fes-room-concepts .fes-learn-step { padding: 15px; background: var(--fes-soft); border-radius: 8px; display: grid; gap: 7px; }
+@media (min-width: 801px) and (max-width: 999px) { #fes-room-concepts { --fes-stage: 940px; } }
+@media (max-width: 800px) {
+  #fes-room-concepts { --fes-stage: 1100px; }
+  #fes-room-concepts .fes-top { padding: 17px 20px; flex-wrap: wrap; }
+  #fes-room-concepts .fes-output { width: 100%; justify-content: space-between; }
+  #fes-room-concepts .fes-main { padding: 23px; }
+  #fes-room-concepts .fes-hero-copy { padding: 22px; }
+  #fes-room-concepts .fes-hero .fes-art { height: 270px; }
+  #fes-room-concepts .fes-shelf { grid-template-columns: repeat(2,1fr); }
+  #fes-room-concepts .fes-shelf .fes-art { height: 105px; }
+  #fes-room-concepts .fes-club-grid { grid-template-columns: 1.15fr 1fr; }
+  #fes-room-concepts .fes-club-shortcuts { grid-column: 1 / -1; flex-direction: row; }
+  #fes-room-concepts .fes-shortcut { grid-template-columns: auto 1fr; gap: 9px 13px; align-items: center; }
+  #fes-room-concepts .fes-shortcut span { grid-column: 2; }
+  #fes-room-concepts .fes-machine-grid { gap: 16px; grid-template-columns: 1.1fr 1fr; }
+  #fes-room-concepts .fes-zx81 { width: 97%; padding: 14px 10px; }
+  #fes-room-concepts .fes-expansion { width: 49%; }
+}
+@media (max-width: 520px) {
+  #fes-room-concepts { --fes-stage: 1600px; }
+  #fes-room-concepts .fes-shell { border-radius: 15px; }
+  #fes-room-concepts .fes-top { padding: 15px; gap: 13px; }
+  #fes-room-concepts .fes-brand { font-size: 22px; }
+  #fes-room-concepts .fes-room-label { font-size: 12px; margin-left: 2px; padding-left: 11px; }
+  #fes-room-concepts .fes-main { padding: 19px 15px; }
+  #fes-room-concepts .fes-output { gap: 5px; font-size: 11px; }
+  #fes-room-concepts .fes-output button { font-size: 11px; padding: 5px 7px; }
+  #fes-room-concepts .fes-output-label { gap: 5px; }
+  #fes-room-concepts .fes-hero { grid-template-columns: 1fr; }
+  #fes-room-concepts .fes-hero-copy { padding: 24px 22px; gap: 16px; }
+  #fes-room-concepts .fes-hero .fes-art { height: 242px; margin-top: 0; }
+  #fes-room-concepts .fes-shell h1 { font-size: 37px; }
+  #fes-room-concepts .fes-shelf { gap: 12px; }
+  #fes-room-concepts .fes-shelf .fes-art { height: 108px; }
+  #fes-room-concepts .fes-game-copy { padding: 10px; }
+  #fes-room-concepts .fes-game-title { font-size: 14px; }
+  #fes-room-concepts .fes-footer { padding: 10px; gap: 7px; }
+  #fes-room-concepts .fes-footer .fes-hint { width: 100%; padding-left: 8px; }
+  #fes-room-concepts .fes-club-heading { display: block; }
+  #fes-room-concepts .fes-club-heading h1 { font-size: 36px; overflow-wrap: normal; }
+  #fes-room-concepts .fes-club-heading .fes-club-stamp { display: none; }
+  #fes-room-concepts .fes-club-grid { grid-template-columns: 1fr; }
+  #fes-room-concepts .fes-club-feature .fes-art { height: 195px; }
+  #fes-room-concepts .fes-club-center { gap: 12px; }
+  #fes-room-concepts .fes-club-letter { gap: 12px; }
+  #fes-room-concepts .fes-club-shortcuts { grid-column: auto; flex-direction: column; gap: 10px; }
+  #fes-room-concepts .fes-shortcut { display: grid; grid-template-columns: 26px 1fr; gap: 4px 12px; align-items: center; padding: 13px !important; }
+  #fes-room-concepts .fes-shortcut strong, #fes-room-concepts .fes-shortcut span { grid-column: 2; }
+  #fes-room-concepts .fes-shortcut .fes-symbol { grid-column: 1; grid-row: 1 / 3; }
+  #fes-room-concepts .fes-club-footnote { flex-wrap: wrap; }
+  #fes-room-concepts .fes-machine-head { display: block; }
+  #fes-room-concepts .fes-machine-head h1 { overflow-wrap: normal; }
+  #fes-room-concepts .fes-machine-head .fes-pill { margin-top: 12px; }
+  #fes-room-concepts .fes-machine-grid { grid-template-columns: 1fr; }
+  #fes-room-concepts .fes-workbench { padding: 16px; }
+  #fes-room-concepts .fes-machine-picture { min-height: 230px; }
+  #fes-room-concepts .fes-zx81 { width: 92%; }
+  #fes-room-concepts .fes-config { gap: 16px; }
+  #fes-room-concepts .fes-machine-shelf { grid-template-columns: 1fr; }
+  #fes-room-concepts .fes-detail-grid { grid-template-columns: 1fr; }
+  #fes-room-concepts .fes-detail-grid .fes-art { min-height: 240px; }
+  #fes-room-concepts .fes-screen-option { grid-template-columns: auto 1fr; padding: 16px !important; gap: 10px; }
+  #fes-room-concepts .fes-screen-option > .fes-tiny { grid-column: 2; }
+  #fes-room-concepts .fes-launch-card { padding: 21px; }
+  #fes-room-concepts .fes-learn-steps { grid-template-columns: 1fr; }
+  #fes-room-concepts .fes-section-head { align-items: flex-start; }
+  #fes-room-concepts .fes-section-head .fes-tiny { text-align: right; max-width: 13ch; }
+}
+</style>
+<div id="fes-room-concepts" class="viz-carousel" aria-label="FES Room design directions">
+  <section data-variant="Cartridge Lounge" aria-label="Cartridge Lounge design">
+    <div class="fes-shell" data-room="lounge">
+      <header class="fes-top">
+        <div class="fes-brand-group"><div class="fes-brand"><span class="fes-mark" aria-hidden="true"></span>FES</div><span class="fes-room-label">Cartridge Lounge</span></div>
+        <div class="fes-output"><span class="fes-output-label"><i data-lucide="monitor" aria-hidden="true"></i><span data-output>Living-room TV · FPGA</span></span><button type="button" class="cursor-interaction" data-action="screen">Change screen</button></div>
+      </header>
+      <main class="fes-main">
+        <div data-home-view>
+          <div class="fes-section-head" style="margin-top:0"><span class="fes-eyebrow">A room for your next favourite</span><span class="fes-tiny fes-muted">Your library, close at hand</span></div>
+          <section class="fes-hero" aria-label="Selected game">
+            <div class="fes-hero-copy"><span class="fes-eyebrow">Tonight's small adventure</span><h1 data-selected-title>Tiny Tide</h1><p class="fes-hero-desc" data-selected-desc>One little boat. One enormous sea. Find your way home.</p><div class="fes-inline fes-tiny"><span data-selected-creator>Soft Harbour</span><span class="fes-pill">Homebrew</span></div><span class="fes-tiny fes-muted" data-selected-ready>Ready to play · Built-in memory</span><div class="fes-action-row"><button class="fes-primary cursor-interaction" type="button" data-action="play" data-selected-action>Play</button><button class="cursor-interaction" type="button" data-action="details">About the game</button></div></div>
+            <div class="fes-art fes-art-tide" data-selected-art role="img" aria-label="Illustrated Tiny Tide cover: a small boat on a wide sea"><span class="fes-boat"></span></div>
+          </section>
+          <div class="fes-section-head"><h2>On your shelf</h2><button class="fes-plain cursor-interaction fes-tiny" type="button" data-action="library">See all games <span aria-hidden="true">↗</span></button></div>
+          <div class="fes-shelf" aria-label="Game shelf">
+            <button class="fes-game cursor-interaction" type="button" data-game="orchard" aria-pressed="false"><span class="fes-art fes-art-orchard" aria-hidden="true"><span class="fes-sun"></span><span class="fes-hill-a"></span><span class="fes-hill-b"></span><span class="fes-tree-a"></span></span><span class="fes-game-copy"><span class="fes-game-title">Night Orchard</span><span class="fes-game-sub">Needs 16K RAM pack</span></span></button>
+            <button class="fes-game cursor-interaction" type="button" data-game="orbit" aria-pressed="false"><span class="fes-art fes-art-orbit" aria-hidden="true"><span class="fes-planet"></span></span><span class="fes-game-copy"><span class="fes-game-title">Orbit Post</span><span class="fes-game-sub">Needs 16K RAM pack</span></span></button>
+            <button class="fes-game cursor-interaction" type="button" data-game="tide" data-selected="true" aria-pressed="true"><span class="fes-art fes-art-tide" aria-hidden="true"><span class="fes-boat"></span></span><span class="fes-game-copy"><span class="fes-game-title">Tiny Tide</span><span class="fes-game-sub">Soft Harbour · ZX81</span></span></button>
+            <button class="fes-game cursor-interaction" type="button" data-game="signal" aria-pressed="false"><span class="fes-art fes-art-signal" aria-hidden="true"></span><span class="fes-game-copy"><span class="fes-game-title">Signal 81</span><span class="fes-game-sub">North Window · ZX81</span></span></button>
+          </div>
+        </div>
+        <div data-panel-view hidden></div>
+      </main>
+      <footer class="fes-footer"><div class="fes-actions"><button type="button" class="fes-plain cursor-interaction" data-action="home"><i data-lucide="house" aria-hidden="true"></i>FES Home</button><button type="button" class="fes-plain cursor-interaction" data-action="back"><i data-lucide="arrow-left" aria-hidden="true"></i>Back</button><button type="button" class="fes-plain cursor-interaction" data-action="details"><i data-lucide="info" aria-hidden="true"></i>Details</button></div><span class="fes-hint" data-hint>D-pad browse · A select · B back</span></footer>
+      <div class="fes-announcement" data-announcement aria-live="polite"></div>
+    </div>
+  </section>
+  <section data-variant="Homebrew Club" aria-label="Homebrew Club design" hidden>
+    <div class="fes-shell" data-room="club">
+      <header class="fes-top"><div class="fes-brand-group"><div class="fes-brand"><span class="fes-mark" aria-hidden="true"></span>FES</div><span class="fes-room-label">Homebrew Club</span></div><div class="fes-output"><span class="fes-output-label"><i data-lucide="monitor" aria-hidden="true"></i><span data-output>Living-room TV · FPGA</span></span><button type="button" class="cursor-interaction" data-action="screen">Change screen</button></div></header>
+      <main class="fes-main">
+        <div data-home-view>
+          <div class="fes-club-heading"><div><span class="fes-eyebrow">Good games. Open doors.</span><h1>Small machines.<br>Big imaginations.</h1></div><div class="fes-club-stamp" aria-label="Homebrew Club, open to everyone">HOME<br>BREW<br>CLUB</div></div>
+          <div class="fes-club-grid">
+            <article class="fes-club-feature"><span class="fes-eyebrow">The club pick</span><div class="fes-art fes-art-orchard" role="img" aria-label="Night Orchard illustrated cover"><span class="fes-sun"></span><span class="fes-hill-a"></span><span class="fes-hill-b"></span><span class="fes-tree-a"></span><span class="fes-tree-b"></span><span class="fes-walker"></span></div><div><h2>Night Orchard</h2><p class="fes-tiny fes-muted">A quiet little world by Bramble Works</p><p class="fes-tiny fes-muted">Needs 16K RAM pack</p></div><button type="button" class="fes-primary cursor-interaction" data-action="details" data-explicit-game="orchard">See requirements</button></article>
+            <div class="fes-club-center"><button type="button" class="fes-club-pick cursor-interaction" data-game="orbit" aria-pressed="false"><span class="fes-art fes-art-orbit" aria-hidden="true"><span class="fes-planet"></span></span><span class="fes-game-copy"><span class="fes-eyebrow">Just landed</span><span class="fes-game-title">Orbit Post</span><span class="fes-game-sub">Special delivery from Mira Byte</span></span></button><article class="fes-club-letter"><span class="fes-eyebrow">Inside a tiny game</span><h3>A whole sea<br>in a little memory.</h3><p class="fes-tiny fes-muted">Soft Harbour opens the notebook behind Tiny Tide.</p><button type="button" class="cursor-interaction" data-action="learn" data-explicit-game="tide">Take a look inside <span aria-hidden="true">↗</span></button></article></div>
+            <nav class="fes-club-shortcuts" aria-label="Room shortcuts"><button type="button" class="fes-shortcut cursor-interaction" data-action="library"><i data-lucide="library" aria-hidden="true"></i><strong>The game shelf</strong><span>Find something to play</span></button><button type="button" class="fes-shortcut cursor-interaction" data-action="projects"><i data-lucide="pencil-ruler" aria-hidden="true"></i><strong>The workshop</strong><span>Make a small change</span></button><button type="button" class="fes-shortcut cursor-interaction" data-action="roommap"><i data-lucide="signpost" aria-hidden="true"></i><strong>Room shortcuts</strong><span>Always one press away</span></button></nav>
+          </div>
+          <div class="fes-club-footnote"><span>An FES Room · Curated by its maker</span><span>Selected: <span data-selected-title>Tiny Tide</span></span></div>
+        </div>
+        <div data-panel-view hidden></div>
+      </main>
+      <footer class="fes-footer"><div class="fes-actions"><button type="button" class="fes-plain cursor-interaction" data-action="home"><i data-lucide="house" aria-hidden="true"></i>FES Home</button><button type="button" class="fes-plain cursor-interaction" data-action="back"><i data-lucide="arrow-left" aria-hidden="true"></i>Back</button><button type="button" class="fes-plain cursor-interaction" data-action="details"><i data-lucide="info" aria-hidden="true"></i>Details</button></div><span class="fes-hint" data-hint>D-pad browse · A select · B back</span></footer><div class="fes-announcement" data-announcement aria-live="polite"></div>
+    </div>
+  </section>
+  <section data-variant="Retro Workshop" aria-label="Retro Workshop design" hidden>
+    <div class="fes-shell" data-room="machine">
+      <header class="fes-top"><div class="fes-brand-group"><div class="fes-brand"><span class="fes-mark" aria-hidden="true"></span>FES</div><span class="fes-room-label">Retro Workshop</span></div><div class="fes-output"><span class="fes-output-label"><i data-lucide="monitor" aria-hidden="true"></i><span data-output>Living-room TV · FPGA</span></span><button type="button" class="cursor-interaction" data-action="screen">Change screen</button></div></header>
+      <main class="fes-main">
+        <div data-home-view>
+          <div class="fes-machine-head"><div><span class="fes-eyebrow">The ZX81 workbench</span><h1>Small. But expandable.</h1></div><span class="fes-pill"><span class="fes-dot" aria-hidden="true"></span>Machine</span></div>
+          <div class="fes-machine-grid">
+            <section class="fes-workbench" aria-label="ZX81 setup preview"><div class="fes-bench-top"><span>Setup preview</span><span>1 rear connector</span></div><div class="fes-machine-picture" role="img" aria-label="Stylized ZX81 computer with one rear expansion connector"><div class="fes-expansion" data-expansion-preview data-empty="true">No expansion</div><div class="fes-connector" aria-hidden="true"></div><div class="fes-zx81"><div class="fes-zx-label"><strong>ZX81</strong><span>PERSONAL COMPUTER</span></div><div class="fes-keys" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span><span>0</span><span>Q</span><span>W</span><span>E</span><span>R</span><span>T</span><span>Y</span><span>U</span><span>I</span><span>O</span><span>P</span><span>A</span><span>S</span><span>D</span><span>F</span><span>G</span><span>H</span><span>J</span><span>K</span><span>L</span><span>↵</span><span>⇧</span><span>Z</span><span>X</span><span>C</span><span>V</span><span>B</span><span>N</span><span>M</span><span>.</span><span>␣</span></div></div></div><p class="fes-bench-caption">A saved setup remembers the machine, not its running memory.</p></section>
+            <section class="fes-config" aria-label="Machine setup"><div class="fes-config-state"><div class="fes-state-line"><span>Running</span><strong>No expansion</strong></div><div class="fes-state-line"><span>Next start</span><strong data-next-start>No changes saved</strong></div></div><label>Rear connector · one fitted expansion<select data-expansion-select class="cursor-interaction"><option value="none">No expansion</option><option value="ram16">16K RAM pack</option></select></label><p class="fes-tiny fes-muted" data-expansion-description>Uses the ZX81's built-in memory.</p><button type="button" class="fes-primary cursor-interaction" data-action="fit" disabled>Fit &amp; save setup</button><div class="fes-change-note"><strong style="font-weight:500" data-restart-status>Changing the setup needs a restart</strong><span>Stopping clears running memory.</span></div><button type="button" class="fes-plain cursor-interaction" data-action="machine-details">About this machine <span aria-hidden="true">↗</span></button><p class="fes-note" data-setup-note aria-live="polite"></p></section>
+          </div>
+          <div class="fes-section-head"><h2>Games for this machine</h2><span class="fes-tiny fes-muted">Each game keeps its own requirements</span></div>
+          <div class="fes-machine-shelf" aria-label="ZX81 game shelf"><button type="button" class="fes-game cursor-interaction" data-game="tide" data-selected="true" aria-pressed="true"><span class="fes-art fes-art-tide" aria-hidden="true"><span class="fes-boat"></span></span><span class="fes-game-copy"><span class="fes-game-title">Tiny Tide</span><span class="fes-game-sub">Game · Built-in memory</span></span></button><button type="button" class="fes-game cursor-interaction" data-game="orchard" aria-pressed="false"><span class="fes-art fes-art-orchard" aria-hidden="true"><span class="fes-sun"></span><span class="fes-hill-a"></span><span class="fes-hill-b"></span></span><span class="fes-game-copy"><span class="fes-game-title">Night Orchard</span><span class="fes-game-sub">Game · Needs 16K RAM pack</span></span></button></div>
+        </div>
+        <div data-panel-view hidden></div>
+      </main>
+      <footer class="fes-footer"><div class="fes-actions"><button type="button" class="fes-plain cursor-interaction" data-action="home"><i data-lucide="house" aria-hidden="true"></i>FES Home</button><button type="button" class="fes-plain cursor-interaction" data-action="back"><i data-lucide="arrow-left" aria-hidden="true"></i>Back</button><button type="button" class="fes-plain cursor-interaction" data-action="details"><i data-lucide="info" aria-hidden="true"></i>Details</button></div><span class="fes-hint" data-hint>D-pad browse · A select · B back</span></footer><div class="fes-announcement" data-announcement aria-live="polite"></div>
+    </div>
+  </section>
+</div>
+<script>
+(() => {
+  const root = document.getElementById('fes-room-concepts');
+  if (!root) return;
+  const games = {
+    orchard: { title: 'Night Orchard', creator: 'Bramble Works', desc: 'Find the lights. Wake the orchard. Be home before the moon sets.', memory: '16K RAM pack', source: false, controls: 'Directional keys + action', art: 'orchard' },
+    orbit: { title: 'Orbit Post', creator: 'Mira Byte', desc: 'A pocket-sized postal route at the far edge of the solar system.', memory: '16K RAM pack', source: false, controls: 'Directional keys + action', art: 'orbit' },
+    tide: { title: 'Tiny Tide', creator: 'Soft Harbour', desc: 'One little boat. One enormous sea. Find your way home.', memory: 'Built-in memory', source: true, controls: 'Left, right and action', art: 'tide' },
+    signal: { title: 'Signal 81', creator: 'North Window', desc: 'Tune in to the strange signals that arrive after midnight.', memory: 'Built-in memory', source: false, controls: 'Keyboard', art: 'signal' }
+  };
+  const state = { selected: 'tide', output: 'tv', savedExpansion: 'none' };
+  const outputNames = { tv: 'Living-room TV · FPGA', local: 'This screen · Local preview' };
+  const coverParts = '<span class="fes-sun"></span><span class="fes-hill-a"></span><span class="fes-hill-b"></span><span class="fes-tree-a"></span><span class="fes-tree-b"></span><span class="fes-walker"></span><span class="fes-planet"></span><span class="fes-boat"></span>';
+  const shells = Array.from(root.querySelectorAll('.fes-shell'));
+  const panelHistory = new WeakMap();
+  const label = (s) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const icons = () => { if (globalThis.lucide) globalThis.lucide.createIcons({attrs:{width:16,height:16}}); };
+  const art = key => `<div class="fes-art fes-art-${games[key].art}" role="img" aria-label="${label(games[key].title)} illustrated cover">${coverParts}</div>`;
+  const action = (name, text, primary = false) => `<button type="button" class="${primary ? 'fes-primary ' : ''}cursor-interaction" data-action="${name}">${text}</button>`;
+  function openRoom(roomId) {
+    const target = shells.find(shell => shell.dataset.room === roomId);
+    if (!target) return;
+    shells.forEach(shell => { shell.closest('[data-variant]').hidden = shell !== target; });
+    showHome(target);
+    document.querySelectorAll('[data-room-navigation] [data-open-room]').forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.openRoom === roomId));
+    });
+    const navButton = document.querySelector(`[data-room-navigation] [data-open-room="${roomId}"]`);
+    if (navButton) navButton.focus();
+  }
+  function selectGame(key) {
+    if (!games[key]) return;
+    state.selected = key;
+    const game = games[key];
+    root.querySelectorAll('[data-game]').forEach(button => {
+      const selected = button.dataset.game === key;
+      button.dataset.selected = String(selected);
+      button.setAttribute('aria-pressed', String(selected));
+    });
+    const needsSetup = state.output === 'tv' && game.memory === '16K RAM pack';
+    root.querySelectorAll('[data-selected-title]').forEach(el => el.textContent = game.title);
+    root.querySelectorAll('[data-selected-ready]').forEach(el => el.textContent = needsSetup ? 'Needs 16K RAM pack · Restart required' : `Ready to play · ${game.memory}`);
+    root.querySelectorAll('[data-selected-action]').forEach(el => { el.textContent = needsSetup ? 'See requirements' : 'Play'; el.dataset.action = needsSetup ? 'details' : 'play'; });
+    root.querySelectorAll('[data-selected-desc]').forEach(el => el.textContent = game.desc);
+    root.querySelectorAll('[data-selected-creator]').forEach(el => el.textContent = game.creator);
+    root.querySelectorAll('[data-announcement]').forEach(el => el.textContent = `${game.title}. ${needsSetup ? 'Needs 16K RAM pack. Restart required.' : 'Ready to play.'}`);
+    root.querySelectorAll('[data-selected-art]').forEach(el => {
+      el.className = `fes-art fes-art-${game.art}`;
+      el.setAttribute('aria-label', `${game.title} illustrated cover`);
+      el.innerHTML = coverParts;
+    });
+  }
+  function showHome(shell) {
+    shell.querySelector('[data-home-view]').hidden = false;
+    shell.querySelector('[data-panel-view]').hidden = true;
+    panelHistory.set(shell, []);
+    shell.querySelector('[data-hint]').textContent = 'D-pad browse · A select · B back';
+  }
+  function openPanel(shell, name, push = true) {
+    const view = shell.querySelector('[data-panel-view]');
+    const history = panelHistory.get(shell) || [];
+    if (push) history.push(name);
+    panelHistory.set(shell, history);
+    const game = games[state.selected];
+    const needsSetup = state.output === 'tv' && game.memory === '16K RAM pack';
+    const titles = { details: 'Game details', screen: 'Change screen', play: 'Launch preview', library: 'Your game shelf', home: 'FES Home', roommap: 'Room shortcuts', learn: 'Inside Tiny Tide', projects: 'The workshop', settings: 'Settings', utilities: 'Utilities', 'utility-preview': 'Utility preview', 'machine-details': 'About the ZX81' };
+    const header = `<div class="fes-panel-head"><span class="fes-eyebrow">${titles[name] || 'FES'}</span>${action('back','← Back')}</div>`;
+    let content = '';
+    if (name === 'details') content = `<div class="fes-detail-grid">${art(state.selected)}<div class="fes-detail-info"><span class="fes-eyebrow">Homebrew game</span><h1>${game.title}</h1><p class="fes-muted">By ${game.creator}</p><p>${game.desc}</p><dl class="fes-facts"><div><dt>Machine</dt><dd>ZX81</dd></div><div><dt>Memory</dt><dd>${game.memory}</dd></div><div><dt>Controls</dt><dd>${game.controls}</dd></div><div><dt>Project</dt><dd>${game.source ? 'Creator-shared starter project' : 'Source not shared'}</dd></div></dl><p class="fes-tiny fes-muted">${needsSetup ? 'Needs 16K RAM pack · Restart required' : 'Ready on the selected screen'}</p><div class="fes-action-row">${needsSetup ? action('open-workbench','Open Retro Workshop',true) : action('play','Play',true)}${game.source ? action('learn','How it was made') : ''}</div></div></div>`;
+    if (name === 'screen') content = `<div class="fes-stack"><h1>Where should<br>the picture appear?</h1><p class="fes-muted">Choose a screen. Your room and selected game stay with you.</p></div><div class="fes-screen-list"><button type="button" class="fes-screen-option cursor-interaction" data-output-choice="tv" aria-pressed="${state.output === 'tv'}"><i data-lucide="tv" aria-hidden="true"></i><span class="fes-screen-copy"><strong>Living-room TV · FPGA</strong><small>Picture on the TV. This device is the remote.</small></span><span class="fes-tiny">${state.output === 'tv' ? 'Selected' : 'Choose'}</span></button><button type="button" class="fes-screen-option cursor-interaction" data-output-choice="local" aria-pressed="${state.output === 'local'}"><i data-lucide="laptop" aria-hidden="true"></i><span class="fes-screen-copy"><strong>This screen · Local preview</strong><small>Compatible local player ready. Picture and controls stay here.</small></span><span class="fes-tiny">${state.output === 'local' ? 'Selected' : 'Choose'}</span></button><div class="fes-screen-unavailable"><strong style="font-weight:500">Study Pi · Offline</strong><span class="fes-muted">Turn it on to use its display.</span></div></div><div class="fes-launch-route"><span class="fes-tiny">Remote control does not stream the TV's picture here.</span><span class="fes-tiny fes-muted">The selected screen is used for your next launch.</span></div><div class="fes-action-row">${action('done-screen','Use selected screen',true)}</div>`;
+    if (name === 'play') {
+      const needsPack = state.output === 'tv' && game.memory === '16K RAM pack';
+      content = `<div class="fes-launch-card"><span class="fes-eyebrow">Homebrew game · ZX81</span><h2>${game.title}</h2><p class="fes-muted">By ${game.creator}</p><div class="fes-launch-route"><strong style="font-weight:500">${outputNames[state.output]}</strong><span>${state.output === 'tv' ? 'The game picture appears on the TV. This screen remains a remote.' : 'The picture and controls stay on this screen.'}</span></div>${needsPack ? `<div class="fes-change-note"><strong style="font-weight:500">Needs the 16K RAM pack setup</strong><span>${state.savedExpansion === 'ram16' ? 'Saved for next start. The running ZX81 still has no expansion.' : 'Choose the pack and save the setup in Retro Workshop.'}</span><span>Restarting clears running memory.</span></div>` : '<p>Compatible with the selected memory setup.</p>'}<div class="fes-action-row">${action('details','Back to game',true)}${action('screen','Change screen')}</div></div>`;
+    }
+    if (name === 'library') content = `<div class="fes-stack"><h1>Your game shelf</h1><p class="fes-muted">4 homebrew games · The same library in every Room</p></div><div class="fes-library-panel-grid">${Object.keys(games).map(key => `<button type="button" class="fes-game cursor-interaction" data-library-game="${key}">${art(key)}<span class="fes-game-copy"><span class="fes-game-title">${games[key].title}</span><span class="fes-game-sub">${games[key].creator}</span><span class="fes-game-sub">ZX81 · ${games[key].memory}</span></span></button>`).join('')}</div>`;
+    if (name === 'home' || name === 'roommap') content = `<div class="fes-stack"><h1>${name === 'home' ? 'Make yourself at home.' : 'Everywhere, one press away.'}</h1><p class="fes-muted">FES Rooms are authored places to play and explore.</p></div><div class="fes-room-list"><button type="button" class="cursor-interaction" data-action="return-room"><span>This Room<small>${shell.closest('[data-variant]').dataset.variant}</small></span><span aria-hidden="true">↗</span></button><button type="button" class="cursor-interaction" data-action="library"><span>Game shelf<small>All games, wherever they live</small></span><span aria-hidden="true">↗</span></button><button type="button" class="cursor-interaction" data-action="projects"><span>Workshop<small>Starter projects and your own ideas</small></span><span aria-hidden="true">↗</span></button>${name === 'home' ? '<button type="button" class="cursor-interaction" data-action="roommap"><span>Rooms<small>Room shortcuts and destinations</small></span><span aria-hidden="true">↗</span></button>' : ''}<button type="button" class="cursor-interaction" data-action="settings"><span>Settings<small>Screen, controls and connected devices</small></span><span aria-hidden="true">↗</span></button><button type="button" class="cursor-interaction" data-action="utilities"><span>Utilities<small>Test and inspect your setup</small></span><span aria-hidden="true">↗</span></button></div>`;
+    if (name === 'roommap') content = `<div class="fes-stack"><h1>Choose a Room.</h1><p class="fes-muted">One library, three places to explore it.</p></div><div class="fes-room-list"><button type="button" class="cursor-interaction" data-open-room="lounge"><span>Cartridge Lounge<small>Your games, artwork and a clear next play</small></span><span aria-hidden="true">↗</span></button><button type="button" class="cursor-interaction" data-open-room="club"><span>Homebrew Club<small>Creator stories, discoveries and starter projects</small></span><span aria-hidden="true">↗</span></button><button type="button" class="cursor-interaction" data-open-room="machine"><span>Retro Workshop<small>The ZX81 and its saved expansion setup</small></span><span aria-hidden="true">↗</span></button></div>`;
+    if (name === 'settings') content = `<div class="fes-stack"><h1>Settings</h1><p class="fes-muted">Your controls stay within reach in every Room.</p></div><div class="fes-learn-block"><h2>Screen &amp; controls</h2><dl class="fes-facts"><div><dt>Picture</dt><dd>${outputNames[state.output]}</dd></div><div><dt>This device</dt><dd>${state.output === 'tv' ? 'Remote control' : 'Local preview'}</dd></div><div><dt>Navigation</dt><dd>Home · Back · Details</dd></div></dl><div class="fes-action-row">${action('screen','Choose screen',true)}${action('utilities','Open utilities')}</div><p class="fes-note">Choose the destination before starting a game or utility.</p></div>`;
+    if (name === 'utilities') content = `<div class="fes-stack"><h1>Utilities</h1><p class="fes-muted">Tools for the machine and its controls.</p></div><div class="fes-room-list"><button type="button" class="cursor-interaction" data-action="utility-preview" data-utility="RAM tester"><span>RAM tester<small>Utility · Check the selected memory setup</small></span><span aria-hidden="true">↗</span></button><button type="button" class="cursor-interaction" data-action="utility-preview" data-utility="Input check"><span>Input check<small>Utility · Inspect controller and keyboard input</small></span><span aria-hidden="true">↗</span></button></div>`;
+    if (name === 'utility-preview') content = `<div class="fes-launch-card"><span class="fes-eyebrow">Utility</span><h2>${label(shell.dataset.utility || 'RAM tester')}</h2><div class="fes-launch-route"><span>Output: ${outputNames[state.output]}</span><span>Machine setup: ${state.savedExpansion === 'ram16' ? '16K RAM pack saved for next start' : 'No expansion'}</span></div><p class="fes-note">Utilities stay separate from your game shelf.</p><div class="fes-action-row">${action('utilities','Back to utilities',true)}${action('screen','Change screen')}</div></div>`;
+    if (name === 'learn' || name === 'projects') content = `<div class="fes-stack"><span class="fes-eyebrow">Creator-shared starter</span><h1>${name === 'projects' ? 'Start with something small.' : 'A whole sea in a little memory.'}</h1><p class="fes-muted">Tiny Tide · A starter project from Soft Harbour</p></div><div class="fes-learn-block"><h2>Make the first island yours.</h2><div class="fes-learn-steps"><div class="fes-learn-step"><span class="fes-eyebrow">Play</span><span>Explore the original game.</span></div><div class="fes-learn-step"><span class="fes-eyebrow">Change</span><span>Edit one island in your own copy.</span></div><div class="fes-learn-step"><span class="fes-eyebrow">Try</span><span>Preview, then test on a named device.</span></div></div><p class="fes-tiny fes-muted">Project sharing and remix permission are shown separately from the playable game.</p><div class="fes-action-row"><button type="button" class="fes-primary cursor-interaction" data-action="play" data-explicit-game="tide">Play Tiny Tide</button>${action('project-preview','Preview your project copy')}</div><p class="fes-note" data-project-result aria-live="polite"></p></div>`;
+    if (name === 'machine-details') content = `<div class="fes-stack"><span class="fes-eyebrow">Machine · ZX81</span><h1>One computer.<br>One rear connector.</h1></div><div class="fes-learn-block"><dl class="fes-facts"><div><dt>Running</dt><dd>No expansion · Built-in memory</dd></div><div><dt>Next start</dt><dd>${state.savedExpansion === 'ram16' ? '16K RAM pack' : 'No expansion'}</dd></div><div><dt>Expansion</dt><dd>One selected and fitted setup</dd></div><div><dt>Saved</dt><dd>Machine configuration only</dd></div></dl><p>Changing the setup requires a restart. Stopping the machine clears its running memory; saving a setup does not take a RAM snapshot.</p><div class="fes-action-row">${action('return-room','Back to workbench',true)}</div></div>`;
+    view.innerHTML = `<section class="fes-panel">${header}${content}</section>`;
+    shell.querySelector('[data-home-view]').hidden = true;
+    view.hidden = false;
+    shell.querySelector('[data-hint]').textContent = `${titles[name] || 'FES'} · B back`;
+    icons();
+  }
+  function goBack(shell) {
+    const history = panelHistory.get(shell) || [];
+    if (!history.length) { openPanel(shell, 'home'); return; }
+    history.pop();
+    if (history.length) { panelHistory.set(shell, history); openPanel(shell, history[history.length - 1], false); }
+    else showHome(shell);
+  }
+  root.addEventListener('click', event => {
+    const button = event.target.closest('button');
+    if (!button || !root.contains(button)) return;
+    const shell = button.closest('.fes-shell');
+    if (!shell) return;
+    if (button.dataset.openRoom) { openRoom(button.dataset.openRoom); return; }
+    if (button.dataset.explicitGame) selectGame(button.dataset.explicitGame);
+    if (button.dataset.utility) shell.dataset.utility = button.dataset.utility;
+    if (button.dataset.game) { selectGame(button.dataset.game); return; }
+    if (button.dataset.libraryGame) { selectGame(button.dataset.libraryGame); openPanel(shell, 'details'); return; }
+    if (button.dataset.outputChoice) {
+      state.output = button.dataset.outputChoice;
+      selectGame(state.selected);
+      root.querySelectorAll('[data-output]').forEach(el => el.textContent = outputNames[state.output]);
+      openPanel(shell, 'screen', false);
+      return;
+    }
+    const name = button.dataset.action;
+    if (!name) return;
+    if (name === 'open-workbench') {
+      openRoom('machine');
+      const expansionSelect = root.querySelector('[data-room="machine"] [data-expansion-select]');
+      if (expansionSelect) expansionSelect.focus();
+      return;
+    }
+    if (name === 'back') { goBack(shell); return; }
+    if (name === 'return-room' || name === 'done-screen') { showHome(shell); return; }
+    if (name === 'fit') {
+      const choice = shell.querySelector('[data-expansion-select]').value;
+      state.savedExpansion = choice;
+      shell.querySelector('[data-next-start]').textContent = choice === 'ram16' ? '16K RAM pack' : 'No expansion';
+      shell.querySelector('[data-restart-status]').textContent = choice === 'ram16' ? 'Restart needed' : 'Matches the running setup';
+      shell.querySelector('[data-setup-note]').textContent = choice === 'ram16' ? 'Setup saved for next start. The running machine is unchanged.' : 'Next start saved with built-in memory.';
+      button.disabled = true;
+      return;
+    }
+    if (name === 'project-preview') {
+      shell.querySelector('[data-project-result]').textContent = 'My Tiny Tide · Private project · Original credit retained';
+      return;
+    }
+    openPanel(shell, name);
+  });
+  root.addEventListener('change', event => {
+    const select = event.target.closest('[data-expansion-select]');
+    if (!select) return;
+    const shell = select.closest('.fes-shell');
+    const pack = select.value === 'ram16';
+    const preview = shell.querySelector('[data-expansion-preview]');
+    preview.textContent = pack ? '16K RAM PACK' : 'No expansion';
+    preview.dataset.empty = String(!pack);
+    shell.querySelector('[data-expansion-description]').textContent = pack ? 'Fits the rear connector. Saves a 16K setup for the next start.' : "Uses the ZX81's built-in memory.";
+    shell.querySelector('[data-action="fit"]').disabled = select.value === state.savedExpansion;
+    shell.querySelector('[data-setup-note]').textContent = select.value === state.savedExpansion ? '' : 'Selected only · Fit & save to keep this setup.';
+  });
+  root.addEventListener('keydown', event => {
+    const shell = event.target.closest('.fes-shell');
+    if (!shell) return;
+    if (event.key === 'Escape') { event.preventDefault(); goBack(shell); return; }
+    if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key) || !event.target.matches('[data-game]')) return;
+    const list = Array.from(event.target.parentElement.querySelectorAll('[data-game]'));
+    const index = list.indexOf(event.target);
+    if (list.length < 2) return;
+    const shift = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
+    const next = list[(index + shift + list.length) % list.length];
+    event.preventDefault(); next.focus(); selectGame(next.dataset.game);
+  });
+  shells.forEach(shell => panelHistory.set(shell, []));
+  const navigation = document.querySelector('[data-room-navigation]');
+  if (navigation) navigation.addEventListener('click', event => {
+    const button = event.target.closest('[data-open-room]');
+    if (button) openRoom(button.dataset.openRoom);
+  });
+})();
+</script>
