@@ -34,8 +34,17 @@ module pcxt_cpu (
     wire [2:0] status;
     wire data_phase, lock_n, cpu_ready;
     wire [7:0] cpu_rdata;
+    // Status 011 is only the halt bus cycle. The bus unit may prefetch
+    // (status 100) while the execution unit waits. The next other active
+    // status is the wakeup.
+    reg cpu_halted;
+    assign halted = cpu_halted;
+    always @(posedge clk) begin
+        if (reset) cpu_halted <= 0;
+        else if (status == 3'b011) cpu_halted <= 1;
+        else if (status != 3'b111 && status != 3'b100) cpu_halted <= 0;
+    end
     /* verilator lint_off PINCONNECTEMPTY */
-    assign halted = status == 3'b011;
     i8088 cpu (
         .CORE_CLK(clk), .CLK(pin_clock), .RESET(reset), .READY(cpu_ready),
         .INTR(intr), .NMI(nmi), .ad_out(ad), .dout(), .din(cpu_rdata),

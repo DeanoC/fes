@@ -15,7 +15,10 @@ mode, with a four-byte prefetch queue, original reserved FLAGS behavior and
 byte-wide external transfers. The fabric clock must be 100 MHz; the synchronous
 fractional pin clock is nominally 4.772727 MHz. `pcxt_cpu_bus.sv` translates its
 address/data phases to byte transactions and holds READY/data until sampled.
-It propagates LOCK and stops on a latched fabric fault until reset. There is no
+It propagates LOCK, reports both interrupt-acknowledge bytes as locked, and
+stops on a latched fabric fault until reset. `halted` stays asserted from the
+halt bus cycle, including later prefetches, until the next non-fetch bus
+status. There is no
 8086 selector, turbo setting, 80186 extension or fake-286 FLAGS mode in FES.
 DMA ownership and HOLD/HLDA remain unimplemented.
 
@@ -80,7 +83,8 @@ checks integer arithmetic, multiply/divide, CALL/RET, REP word strings at odd
 addresses, segment and 20-bit address wrap, LOCK, native FLAGS, ISA word I/O,
 port-FFFF wrap, partial decode, option memory and unmapped reads. Probe counters
 check exactly-once side effects with 160 fabric clocks of card wait. Software
-INT/IRET, two INTA cycles, HLT wakeup and NMI use a testbench vector source;
+INT/IRET, two locked INTA cycles, a halt that stays asserted until wakeup, and
+NMI use a testbench vector source;
 this is not an implemented 8259. Port 80h is a testbench progress sink.
 Seven complete runs vary memory latency/backpressure and recover from reset
 during an outstanding fetch and an ISA conflict. No BIOS calls are intercepted.

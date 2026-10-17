@@ -32,6 +32,7 @@ struct Bench {
     unsigned wait_limit=0;
     uint8_t marker=0;
     bool saw_reset_fetch=false, saw_io_ffff=false, saw_io_zero=false;
+    bool halt_seen=false, halt_held=false;
 
     explicit Bench(const std::vector<uint8_t>& image): rom(image) {}
     uint32_t random() { rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5; return rng; }
@@ -44,6 +45,7 @@ struct Bench {
         ticks=transfers=inta=locked_memory=interrupt_delay=nmi_ticks=ce_count=0;
         marker=0; rng=seed; wait_limit=waits;
         saw_reset_fetch=saw_io_ffff=saw_io_zero=false;
+        halt_seen=halt_held=false;
         dut.reset=1; dut.intr=0; dut.nmi=0; dut.inject=0;
         dut.memory_done=0; dut.memory_ready=0; dut.memory_rdata=0xff;
         for (unsigned i=0;i<32;i++) { dut.clk=0; dut.eval(); dut.clk=1; dut.eval(); }
@@ -76,9 +78,16 @@ struct Bench {
                 local_pending=false;
             }
         }
-        if ((marker==0x40 || marker==0x41) && dut.halted && !interrupt_delay)
+        if ((marker==0x40 || marker==0x41) && dut.halted && !interrupt_delay) {
             interrupt_delay=ticks+100;
+            halt_seen=true;
+            halt_held=true;
+        }
+        if (halt_seen && interrupt_delay && ticks<interrupt_delay && !dut.halted)
+            halt_held=false;
         if (interrupt_delay && ticks==interrupt_delay) {
+            require(halt_seen && halt_held && dut.halted,
+                    "halted dropped while the CPU was still waiting");
             if (marker==0x40) dut.intr=1;
             else { dut.nmi=1; nmi_ticks=ticks+100; }
         }
@@ -95,6 +104,7 @@ struct Bench {
                 saw_reset_fetch=true;
             }
             if (current.kind==0 && current.lock) ++locked_memory;
+            if (current.kind==2) require(current.lock, "INTA acknowledge was not locked");
             if (current.kind==1 && current.address==0xffff && current.write) {
                 require(current.data==0x76, "word I/O low byte"); saw_io_ffff=true;
             }
@@ -116,6 +126,7 @@ struct Bench {
         require(!dut.fault, "CPU stopped on fabric fault");
         require(passed, "diagnostic timeout at marker " + std::to_string(marker));
         require(inta==2, "INTR must produce exactly two INTA transactions");
+        require(!dut.halted, "halted stayed set after interrupt wakeup");
         require(locked_memory>=2, "LOCK prefix missing from memory read/write");
         require(saw_reset_fetch && saw_io_ffff && saw_io_zero, "missing bus coverage");
         require(memory[0x500]==2 && memory[0x501]==1, "interrupt handlers/IRET");

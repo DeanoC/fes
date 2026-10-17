@@ -56,7 +56,10 @@ module pcxt_cpu_bus (
                     state <= LOCK;
                 end
                 LOCK: begin
-                    cycle_lock <= !lock_n;
+                    // The BIU drops its INTA lock at the second acknowledge's
+                    // data phase. Report both bytes of the pair as locked so
+                    // a later arbiter cannot split them.
+                    cycle_lock <= !lock_n || cycle_kind == 2'(`FES_PCXT_ISA_KIND_INTA);
                     state <= ISSUE;
                 end
                 ISSUE: begin
