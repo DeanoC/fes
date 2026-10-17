@@ -1,0 +1,13 @@
+{
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "active_bundle": "0b6b7d8138f2147bc5f3a7b18a3117209365994550aa530b52d2bef819b5602f",
+  "boot_id": "fe3774a0-6fa0-4aaa-9bf1-5eaec17962d5",
+  "requested_steps": [
+    "From Installed cores select FES Pong and press A/Cross",
+    "Move paddle with physical controller",
+    "Hold Select+Start for one second to return to Installed cores"
+  ],
+  "operator_reply": "all work",
+  "evidence_class": "operator-reported physical-controller acceptance for these steps on this installed bundle",
+  "automated_actions": "Read-only health, lease and native status before and after; no automated launch/input/Stop, software update or reboot"
+}
