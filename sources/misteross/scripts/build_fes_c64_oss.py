@@ -93,7 +93,6 @@ RTL_SOURCES = (
     "cores/fes-c64/rtl/top.v",
     "cores/fes-c64/rtl/c64_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
-    "cores/fes-common/rtl/fes_computer_mailbox_core.v",
     "cores/fes-common/rtl/fes_computer_mailbox.v",
     "cores/fes-common/rtl/fes_audio_output.v",
     "cores/fes-common/rtl/fes_audio_i2s.v",
