@@ -21,6 +21,14 @@ FES_GPU_ARCHITECTURES = "gfx1100;gfx1201"
 FES_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={FES_GPU_ROUTER}; hip-architectures={FES_GPU_ARCHITECTURES}"
 )
+# Default CUDA lane: native sm_86 code. See FES_TOOLCHAIN_CUDA_ARCHITECTURES in
+# docs/architecture.md. This must equal toolchain_cache.DEFAULT_CUDA_ARCHITECTURES.
+# Package producers call cuda_toolchain_configuration(), which follows that
+# variable and records the selection in the nextpnr tool identity.
+FES_CUDA_ARCHITECTURES = "86"
+FES_CUDA_TOOLCHAIN_CONFIGURATION = (
+    f"gpu-router=CUDA; hip-architectures=unused; cuda-architectures={FES_CUDA_ARCHITECTURES}"
+)
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
@@ -33,6 +41,44 @@ EXPECTED_TOOL_COMMITS = {
 
 class BuildError(ValueError):
     """Raised when the build cannot produce authenticated passing evidence."""
+
+
+def cuda_toolchain_configuration(architectures: str | None = None) -> str:
+    """Return the nextpnr attestation for the selected CUDA package lane.
+
+    An omitted list reads ``FES_TOOLCHAIN_CUDA_ARCHITECTURES`` and otherwise
+    uses ``FES_CUDA_ARCHITECTURES``. Shared authentication requests this same
+    list, and the string is stored on the nextpnr tool identity, so the
+    package build id records the selection.
+    """
+
+    from scripts import toolchain_cache
+
+    if architectures is None:
+        architectures = os.environ.get(
+            "FES_TOOLCHAIN_CUDA_ARCHITECTURES", FES_CUDA_ARCHITECTURES
+        )
+    try:
+        selected = toolchain_cache.validated_cuda_architectures(architectures)
+    except toolchain_cache.CacheError as exc:
+        raise BuildError(str(exc)) from exc
+    return toolchain_cache.configuration_text(
+        {
+            "gpu-router": "CUDA",
+            "hip-architectures": "unused",
+            "cuda-architectures": selected,
+        }
+    )
+
+
+def _cuda_architectures_from_configuration(configuration: str) -> str | None:
+    """Return the CUDA architecture list attested in a lane configuration."""
+
+    marker = "cuda-architectures="
+    for field in configuration.split("; "):
+        if field.startswith(marker):
+            return field[len(marker):]
+    return None
 
 
 def gpu_backend_for_router(gpu_router: str) -> str:
@@ -189,6 +235,12 @@ def _authenticate_shared_tools(
 ) -> dict[str, AuthenticatedTool]:
     """Resolve immutable shared tools through the verified cache manifest."""
 
+    nextpnr_configuration = expected_configuration.get("nextpnr")
+    cuda_architectures = (
+        _cuda_architectures_from_configuration(nextpnr_configuration)
+        if isinstance(nextpnr_configuration, str)
+        else None
+    )
     try:
         from scripts import toolchain_cache
 
@@ -198,6 +250,7 @@ def _authenticate_shared_tools(
             cache_root=cache_root,
             gpu_router=gpu_router,
             hip_architectures=hip_architectures,
+            cuda_architectures=cuda_architectures,
         )
         manifest = toolchain_cache.resolve_ready(request)
     except toolchain_cache.CacheError as exc:
@@ -232,9 +285,8 @@ def _authenticate_shared_tools(
         configuration = expected_configuration.get(lock_name)
         if configuration is not None:
             try:
-                manifest_configuration = (
-                    f"gpu-router={manifest.configuration['gpu-router']}; "
-                    f"hip-architectures={manifest.configuration['hip-architectures']}"
+                manifest_configuration = toolchain_cache.configuration_text(
+                    manifest.configuration
                 )
             except (KeyError, TypeError) as exc:
                 raise BuildError(
