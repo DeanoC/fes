@@ -1342,11 +1342,11 @@ LAB and leaves the restored pin map in place. For each seed it tries heap
 timing weights 300 then 1000, then sweeps the same seeds at weights 2000, 100
 and 10 if needed (at most 70 attempts). It stops at the first route that meets
 timing and leaves every plug_addr request flip-flop's fabric exit free. A
-timing-passing route is rejected when another net occupies that column-24 GIN,
-or when any shell cell other than a boundary flip-flop at its frozen
-`MISTRAL_FF` BEL, or that flip-flop's dedicated paired `$ROUTETHRU` buffer,
-sits in the socket, and the search continues. A socket name at the wrong
-type or BEL is rejected too.
+timing-passing route is rejected when a socket flip-flop is missing or is not
+a `MISTRAL_FF` at its pinned BEL, when a `$ROUTETHRU` fails the shared
+paired-buffer check (type, paired combinational BEL, dedicated data
+connection, and pin map), when any other shell cell sits in the socket, or
+when another net occupies that column-24 GIN. The search continues.
 The shell QSF keeps the cart interior `25 1 27 32` as the unnamed `cart`
 region. Cart merge targets that region, and the CRAM fence stays
 `1769,32,2806,7024`. The request and response flip-flops sit on columns 24

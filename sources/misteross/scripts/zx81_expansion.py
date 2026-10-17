@@ -23,6 +23,8 @@ import json
 import re
 from pathlib import Path
 
+from scripts import coleco_expansion
+
 
 SOCKET_CLOCK = "clk_sys"
 # Unnamed, so nextpnr calls this region "cart". Cart merge uses that default
@@ -140,87 +142,99 @@ def _bel_xy(bel: str) -> tuple[int, int] | None:
     return int(parts[1]), int(parts[2])
 
 
-def _cell_bel(cell: dict) -> str:
+def _top_cells(design: object) -> tuple[dict | None, dict]:
+    modules = design.get("modules") if isinstance(design, dict) else None
+    top = modules.get("top") if isinstance(modules, dict) else None
+    if not isinstance(top, dict):
+        return None, {}
+    cells = top.get("cells")
+    return top, cells if isinstance(cells, dict) else {}
+
+
+def _nextpnr_bel(cell: dict) -> str:
     attributes = cell.get("attributes")
     if not isinstance(attributes, dict):
         return ""
-    bel = attributes.get("NEXTPNR_BEL") or attributes.get("BEL") or ""
+    bel = attributes.get("NEXTPNR_BEL")
     return bel if isinstance(bel, str) else ""
 
 
-def _top_cells(design: object) -> dict:
-    modules = design.get("modules") if isinstance(design, dict) else None
-    top = modules.get("top") if isinstance(modules, dict) else None
-    cells = top.get("cells") if isinstance(top, dict) else None
-    return cells if isinstance(cells, dict) else {}
-
-
-def _admitted_socket_cells(cells: dict) -> set[str]:
-    """Frozen socket flip-flops, plus a dedicated paired route-through.
-
-    A socket name is not enough. The flip-flop must be ``MISTRAL_FF`` at the
-    BEL from ``socket_bels()``. ``$ROUTETHRU`` is admitted only by the shared
-    Coleco boundary check: buffer type, paired BEL, connections and pin map.
-    """
-    from scripts.coleco_expansion import boundary_route_through_cells
-
-    admitted: set[str] = set()
+def _valid_boundary_ffs(cells: dict) -> dict[str, str]:
+    valid = {}
     for name, bel in socket_bels().items():
         cell = cells.get(name)
-        if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_FF" or _cell_bel(cell) != bel:
-            continue
-        admitted.add(name)
-        if name + "$ROUTETHRU" not in cells:
-            continue
-        try:
-            admitted.update(boundary_route_through_cells(
-                {"cells": cells, "ports": {}}, {name: bel}))
-        except ValueError:
-            continue
+        if isinstance(cell, dict) and cell.get("type") == "MISTRAL_FF" and _nextpnr_bel(cell) == bel:
+            valid[name] = bel
+    return valid
+
+
+def _admitted_boundary_names(top: dict, cells: dict) -> set[str]:
+    """Pinned boundary flip-flops plus route-throughs the shared checker admits.
+
+    A socket name is not enough. The flip-flop must be a ``MISTRAL_FF`` at its
+    ``socket_bels()`` site. A ``$ROUTETHRU`` is admitted only by
+    ``coleco_expansion.boundary_route_through_cells`` (type, paired BEL,
+    dedicated connection, and pin map). A malformed buffer stays unadmitted.
+    """
+    valid = _valid_boundary_ffs(cells)
+    admitted = set(valid)
+    if not valid:
+        return admitted
+    try:
+        admitted |= coleco_expansion.boundary_route_through_cells(top, valid)
+    except ValueError:
+        return admitted
     return admitted
 
 
 def shell_cells_in_socket(design: object) -> list[tuple[str, str]]:
     """Shell cells placed in the cart interior or on the plug columns.
 
-    A boundary flip-flop may occupy its frozen BEL. Its ``$ROUTETHRU`` may
-    occupy the paired buffer site only when that buffer is the dedicated
-    data route-through. Nothing else may, and the cart interior stays empty
-    in the shell. A cell that claims a socket name at the wrong type or BEL
-    is an intruder even outside those columns.
+    The cart interior stays empty. A plug column may hold a boundary
+    flip-flop at its pinned BEL, or the paired data buffer that the shared
+    route-through check admits. Nothing else may.
     """
-    cells = _top_cells(design)
-    if not cells:
+    top, cells = _top_cells(design)
+    if top is None:
         return []
     cart = _parse_rect(SOCKET_RECT)
     boundary = tuple(_parse_rect(spec) for spec in BOUNDARY_RECTS)
-    allowed = set(socket_bels())
-    admitted = _admitted_socket_cells(cells)
+    allowed = _admitted_boundary_names(top, cells)
     intruders: list[tuple[str, str]] = []
     for name, cell in cells.items():
-        if not isinstance(name, str) or not isinstance(cell, dict) or name in admitted:
+        if not isinstance(name, str) or not isinstance(cell, dict) or name in allowed:
             continue
-        bel = _cell_bel(cell)
+        bel = _nextpnr_bel(cell)
         xy = _bel_xy(bel)
-        on_boundary = xy is not None and any(_in_rect(rect, *xy) for rect in boundary)
-        in_cart = xy is not None and _in_rect(cart, *xy)
-        stem = name.removesuffix("$ROUTETHRU")
-        claims_socket = stem in allowed and (name == stem or name.endswith("$ROUTETHRU"))
-        if claims_socket or on_boundary or in_cart:
+        if xy is None:
+            continue
+        if any(_in_rect(rect, *xy) for rect in boundary) or _in_rect(cart, *xy):
             intruders.append((name, bel))
     intruders.sort()
     return intruders
 
 
-def missing_socket_flip_flops(design: object) -> list[str]:
-    """Socket flip-flops absent from the route or not at their frozen BEL."""
-    cells = _top_cells(design)
-    missing = []
+def socket_ff_problem(design: object) -> str | None:
+    """Reject a routed connector that is not the pinned socket flip-flops."""
+    _, cells = _top_cells(design)
+    problems: list[str] = []
     for name, bel in socket_bels().items():
         cell = cells.get(name)
-        if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_FF" or _cell_bel(cell) != bel:
-            missing.append(name)
-    return missing
+        if not isinstance(cell, dict):
+            problems.append(f"{name} is missing, required MISTRAL_FF at {bel}")
+            continue
+        actual_bel = _nextpnr_bel(cell) or "unplaced"
+        if cell.get("type") != "MISTRAL_FF" or actual_bel != bel:
+            problems.append(
+                f"{name} is {cell.get('type')} at {actual_bel}, required MISTRAL_FF at {bel}")
+    if not problems:
+        return None
+    shown = problems[:4]
+    details = "; ".join(shown)
+    extra = len(problems) - len(shown)
+    if extra:
+        details += f"; and {extra} more"
+    return f"socket boundary flip-flop moved: {details}"
 
 
 def socket_occupancy_message(intruders: list[tuple[str, str]]) -> str:
@@ -294,27 +308,30 @@ def blocked_plug_addr_message(blocked: list[tuple[int, str]]) -> str:
     return f"socket boundary leaves plug_addr unroutable: {details}"
 
 
-def socket_missing_message(missing: list[str]) -> str:
-    shown = missing[:4]
-    details = ", ".join(shown)
-    extra = len(missing) - len(shown)
-    if extra:
-        details += f", and {extra} more"
-    return f"socket boundary flip-flop is missing or moved: {details}"
-
-
 def socket_design_reason(design: object) -> str | None:
-    """Why a routed shell cannot be sealed, or None when the socket held."""
+    """Reject a routed shell whose connector or socket floorplan is wrong.
+
+    Every boundary flip-flop must be a ``MISTRAL_FF`` at its pinned BEL. A
+    ``$ROUTETHRU`` must pass the shared paired-buffer check. Any other cell
+    in the cart interior or on the plug columns is shell logic, and a foreign
+    net on a request exit still makes that bit unroutable.
+    """
+    mismatch = socket_ff_problem(design)
+    if mismatch:
+        return mismatch
+    top, _cells = _top_cells(design)
+    if isinstance(top, dict):
+        try:
+            coleco_expansion.boundary_route_through_cells(top, socket_bels())
+        except ValueError as exc:
+            return str(exc)
     intruders = shell_cells_in_socket(design)
     if intruders:
         return socket_occupancy_message(intruders)
     blocked = blocked_plug_addr_exits(design)
-    if blocked:
-        return blocked_plug_addr_message(blocked)
-    missing = missing_socket_flip_flops(design)
-    if missing:
-        return socket_missing_message(missing)
-    return None
+    if not blocked:
+        return None
+    return blocked_plug_addr_message(blocked)
 
 
 def socket_route_reason(routed: Path) -> str | None:

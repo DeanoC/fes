@@ -177,9 +177,10 @@ class BuildFesZx81OssTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             (output / 'synth.json').write_text('{"modules":{"top":{}}}')
-            routed = {"modules": {"top": {"netnames": {
-                "video.vsync": {"attributes": {"ROUTING": "WIRE.24.2.COMBOUT[19].GIN.24.2.38"}},
-            }}}}
+            from tests.test_build_fes_zx81_expansion import legal_socket_design
+            routed = legal_socket_design(routes={
+                "video.vsync": "WIRE.24.2.COMBOUT[19].GIN.24.2.38",
+            })
             (output / 'routed.json').write_text(json.dumps(routed))
             (output / 'nextpnr.log').write_text("Info: Program finished normally.\n")
             with patch.object(build_fes_zx81_oss, '_i2c_evidence'), patch.object(
@@ -197,10 +198,11 @@ class BuildFesZx81OssTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             (output / 'synth.json').write_text('{"modules":{"top":{}}}')
-            routed = {"modules": {"top": {"cells": {
+            from tests.test_build_fes_zx81_expansion import legal_socket_design
+            routed = legal_socket_design(extra_cells={
                 "video.vsync": {"type": "MISTRAL_COMB",
                                 "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.24.2.0"}},
-            }}}}
+            })
             (output / 'routed.json').write_text(json.dumps(routed))
             (output / 'nextpnr.log').write_text("Info: Program finished normally.\n")
             with patch.object(build_fes_zx81_oss, '_i2c_evidence'), patch.object(
