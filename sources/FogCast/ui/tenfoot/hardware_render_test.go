@@ -65,7 +65,7 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 		Session: &hostclient.SessionResult{State: "idle"},
 	}
 	for _, size := range []struct{ w, h int }{{1280, 720}, {1024, 600}} {
-		for _, scene := range []string{"idle", "running", "no-artwork"} {
+		for _, scene := range []string{"idle", "running", "no-artwork", "preview"} {
 			t.Run(fmt.Sprintf("%s-%dx%d", scene, size.w, size.h), func(t *testing.T) {
 				data := snapshot
 				selectedPack := pack
@@ -114,6 +114,21 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 						time.Sleep(time.Millisecond)
 						app.Tick(time.Now())
 					}
+				}
+				if scene == "preview" {
+					// Inspect an unsaved card: only the preview changes.
+					app.mu.Lock()
+					inst.Hover("card:2")
+					inst.Input("select")
+					app.mu.Unlock()
+					waitFor(t, app, "preview", func(s Snapshot) bool {
+						for _, op := range s.Room.Frame.Ops {
+							if op.Kind == rooms.OpText && strings.Contains(op.Text, "(not saved)") {
+								return true
+							}
+						}
+						return false
+					})
 				}
 				snap := app.Snapshot()
 				for _, hit := range snap.Room.Frame.Hits {

@@ -412,6 +412,28 @@ kit are pending.
   and debug-font prompts. The browse prompt still says "launch". Edition choice
   stays in rooms because Library rows are single editions.
 
+## ZX81 Workshop: third-slice decisions
+
+**Status:** implemented for review (#797). Evidence is host-only; Z1–Z3 on a
+kit are pending.
+
+- **The workbench is restyled, not rebuilt.** `example.hardware` keeps its
+  host-owned setup, guarded saves, live tape, Stop and session-display
+  behaviour. Only its layout and styling change, in the Lounge palette with
+  accent-outline focus.
+- **Three states together.** The setup column reads "Running: …", "Next start:
+  …" and, while an unsaved card is inspected, "Previewing: … (not saved)".
+  "Restart needed" says what to do.
+- **Preview is not fitted.** The illustration draws the saved card solid
+  ("Fitted for next start") and an inspected card outlined ("Preview").
+- **Consequences beside the change.** A warm box under Fit & save says that a
+  setup change needs a restart, that stopping clears memory, and that saving
+  never saves RAM.
+- **Grouped actions.** The machine row holds Start/Stop, cassette/tape, Return
+  to play and Next setup; setup tools hold Set up ZX81, Import expansion,
+  Refresh, More cards and Library. Control IDs and guards are unchanged.
+- **Not yet.** "Games for this machine" needs its own focus and launch design.
+
 ## Decisions still to validate
 
 - Native typography, spacing, safe margins and comfortable TV reading distance

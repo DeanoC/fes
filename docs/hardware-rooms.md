@@ -11,6 +11,12 @@ library is empty. The Amiga-themed `example.workbench` remains a separate room.
 
 ## Use the workbench
 
+The room follows the Retro Workshop direction in [the UX brief](ux/README.md).
+The setup column shows **Running**, **Next start** and, while an unsaved card is
+inspected, **Previewing … (not saved)** together. The machine illustration
+draws the saved card solid and an inspected card outlined with a **Preview**
+label. The restart and memory consequences sit beside **Fit & save setup**.
+
 Choose a card on the shelf to inspect its description, then **Fit & save
 setup**. **Remove & save setup** clears the connector. Both actions save the
 core entry on the host, so another LAN client reads the same choice. **Next

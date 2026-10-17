@@ -136,10 +136,11 @@ func TestHardwareRoomRestoresFocusAndUsesOrdinaryLaunch(t *testing.T) {
 		t.Fatalf("focus/launch lost on return: %+v", acts)
 	}
 	// A direction route reaches another control; pointer isn't required.
-	r.Input("right")
-	r.Input("right")
-	r.Input("right")
-	r.Input("right")
+	// The machine row runs Start, cassette, Return to play, Next setup,
+	// then the setup tools Set up ZX81 and Library.
+	for i := 0; i < 5; i++ {
+		r.Input("right")
+	}
 	r.Input("select")
 	if acts = r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionOpenLibrary {
 		t.Fatalf("direction navigation failed: %+v", acts)
