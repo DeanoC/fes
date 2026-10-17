@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build and seal the OSS HIP nextpnr/Mistral FES Commodore 64 package.
 
-The package is format 3: the sixteen blank 1024x10 firmware lanes (column 5,
-rows 32-47) are described by a sealed ROM map for the 16,384-byte
+The package is format 3: the thirty-six blank 1024x10 firmware lanes (column 5,
+rows 32-51 and column 14, rows 32-47) are described by a sealed ROM map for the 36,864-byte
 `c64-firmware` image that FogCast links at download time. The shell reserves
 the two named cartridge-socket rectangles of `fes.c64-bus.sockets/1` and pins
 each socket's boundary flip-flops and their verified route-throughs; no other
@@ -79,17 +79,29 @@ ROM_DATABASE_SHA256 = {
     "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
     "libmistral/cyclonev.h": "185c24e2b75385d8e62a7144f12488eb68f7d8159af0a8a603cc4a3de1749ee9",
 }
-FIRMWARE_LANE_ROWS = tuple(range(32, 48))
+FIRMWARE_LANE_ROWS = (*range(32, 52), *((14, row) for row in range(32, 48)))
+CHARACTER_ROM_LANES = tuple(range(16, 20))
 FIRMWARE_ID = "c64-firmware"
-FIRMWARE_BYTES = 16384
+FIRMWARE_BYTES = 36864
 ABI_DEFINITION = "cores/fes-common/generated/fes_computer.vh"
 QSF = "cores/fes-c64/constraints-oss.qsf"
 SDC = "cores/fes-c64/clocks-oss.sdc"
 RTL_INCLUDES = (
+    "cores/fes-c64/rtl/c64_sid_filter_coefficients.vh",
+    "cores/fes-c64/rtl/c64_sid_filter_pages.vh",
+    "cores/fes-c64/rtl/c64_sid_vcr_data.vh",
+    "cores/fes-c64/rtl/c64_sid_combined_waves.vh",
     "cores/fes-c64/rtl/c64_bus.vh",
-    "cores/fes-c64/rtl/c64_font.vh",
 )
 RTL_SOURCES = (
+    "cores/fes-c64/rtl/c64_sid_filter_rom.sv",
+    "cores/fes-c64/rtl/c64_sid_filter_table.sv",
+    "cores/fes-c64/rtl/c64_sid_vcr_shared.sv",
+    "cores/fes-c64/rtl/c64_sid_integrator.sv",
+    "cores/fes-c64/rtl/c64_sid_filter.sv",
+    "cores/fes-c64/rtl/c64_sid_output_filter.sv",
+    "cores/fes-c64/rtl/c64_sid_dac.sv",
+    "cores/fes-c64/rtl/c64_sid_audio.sv",
     "cores/fes-c64/rtl/top.v",
     "cores/fes-c64/rtl/c64_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
@@ -101,9 +113,20 @@ RTL_SOURCES = (
     "cores/fes-c64/rtl/c64_color_ram.v",
     "cores/fes-c64/rtl/c64_rom.v",
     "cores/fes-c64/rtl/c64_vic.v",
+    "cores/fes-c64/rtl/c64_vic_graphics_pixels.sv",
+    "cores/fes-c64/rtl/c64_vic_sprite_pixels.sv",
+    "cores/fes-c64/rtl/c64_vic_collisions.sv",
+    "cores/fes-c64/rtl/c64_vic_fetch.sv",
+    "cores/fes-c64/rtl/c64_vic_sprite_fetch.sv",
+    "cores/fes-c64/rtl/c64_frame_store.sv",
+    "cores/fes-c64/rtl/c64_sid_envelope.sv",
+    "cores/fes-c64/rtl/c64_sid_oscillator.sv",
     "cores/fes-c64/rtl/c64_sid.v",
     "cores/fes-c64/rtl/c64_cia.v",
-    "cores/fes-c64/rtl/c64_iec.sv",
+    "cores/fes-c64/rtl/c64_drive1541.sv",
+    "cores/fes-c64/rtl/c64_via.v",
+    "cores/fes-c64/rtl/c64_gcr_read.v",
+    "cores/fes-c64/rtl/c64_d64_medium.sv",
     "cores/fes-c64/rtl/c64_disk_store.v",
     "cores/fes-c64/rtl/c64_keyboard.v",
     "cores/fes-c64/rtl/c64_slot_sockets.v",
@@ -115,6 +138,8 @@ PINNED_INPUTS = (
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
     ABI_DEFINITION, C64_TOOLCHAIN_LOCK, QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
+    "cores/fes-c64/rtl/c64_cia.COPYING",
+    "cores/fes-c64/rtl/c64_sid.COPYING",
 )
 BUILD_OUTPUTS = (
     "synth.json", "routed.json", "core.rbf", "timing.json", "yosys.log", "nextpnr.log",
@@ -175,41 +200,19 @@ def _authenticate_c64_tools(root: Path, cache_root: Path | None = None,
     )
 
 
-def clock_read_only_memories(path: Path) -> None:
-    """Give inferred read-only M10Ks a live, otherwise unused port-A clock."""
-    design = _read_json(path, "C64 synthesized design")
-    reject_async_m10k_reads(design)
-    cells = design["modules"][TOP]["cells"]
-    expected = ("machine.iec.file_track_", "machine.vic.code_q_")
-    found = set()
+def validate_memory_clocks(cells: dict) -> None:
+    """Reject disconnected clocks; the native drive needs no netlist clock patch."""
     for name, cell in cells.items():
-        if cell["type"] != "MISTRAL_M10K":
+        if cell.get("type") not in {"MISTRAL_M10K", "MISTRAL_M10K_TDP"}:
             continue
-        pins = cell["connections"]
-        if pins.get("CLK1") != ["x"]:
-            continue
-        match = next((prefix for prefix in expected if name.startswith(prefix)), None)
-        # Autoname runs after ABC and can name either read-only ROM from a
-        # connected net instead of its RTL prefix. The VIC glyph ROM has been
-        # named from a main_ram address net; the IEC track ROM can lose
-        # machine.iec.file_track_ the same way. A disconnected read-only M10K
-        # is accepted as whichever of those two roles no other disconnected
-        # cell still claims by name.
-        if match is None:
-            match = next((prefix for prefix in expected
-                          if prefix not in found and not any(
-                              n.startswith(prefix) and c["type"] == "MISTRAL_M10K"
-                              and c["connections"].get("CLK1") == ["x"]
-                              for n, c in cells.items())), None)
-        if (match is None or match in found or pins.get("A1EN") != ["0"]
-                or pins.get("B1EN") != ["1"] or len(pins.get("CLK2", [])) != 1
-                or not isinstance(pins["CLK2"][0], int)):
-            raise BuildError(f"unexpected disconnected C64 M10K clock: {name}")
-        pins["CLK1"] = pins["CLK2"][:]
-        found.add(match)
-    if found != set(expected):
-        raise BuildError(f"C64 read-only M10K clock set changed: {sorted(found)}")
-    _write_atomic(path, (json.dumps(design, separators=(",", ":")) + "\n").encode())
+        pins = cell.get("connections", {})
+        ports = {"CLK1"}
+        if cell["type"] == "MISTRAL_M10K_TDP" or "CLK2" in pins:
+            ports.add("CLK2")
+        for port in ports:
+            clock = pins.get(port)
+            if not isinstance(clock, list) or len(clock) != 1 or type(clock[0]) is not int:
+                raise BuildError(f"C64 memory {name} needs a live {port}")
 
 
 def _require_clean_source(root: Path, *, identity_version: int = 2) -> tuple[str, str]:
@@ -393,25 +396,34 @@ def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, floa
 
 
 def validate_firmware_ports(cells: dict) -> None:
-    """Require a shared live read clock, enabled reads and disabled ROM writes."""
-    clocks = set()
+    """Require native system-clock CPU/VIC/drive reads with all writes disabled."""
+    cpu_clocks = set()
+    video_clocks = set()
     for lane in range(len(FIRMWARE_LANE_ROWS)):
         name = f"machine.rom.lane{lane}"
-        pins = cells.get(name, {}).get("connections", {})
+        cell = cells.get(name, {})
+        pins = cell.get("connections", {})
         clock = pins.get("CLK1")
         if (not isinstance(clock, list) or len(clock) != 1 or type(clock[0]) is not int or
                 pins.get("A1EN") != ["1"] or pins.get("B1EN") != ["1"] or
-                pins.get("ACLR0") != ["0"] or pins.get("ACLR1") != ["0"] or
-                pins.get("A1BE") or pins.get("CLK2")):
-            raise BuildError(f"firmware lane {name} must have one live clock, enabled reads, "
-                             "disabled writes, inactive clears and no optional ports")
-        clocks.add(clock[0])
-    if len(clocks) != 1:
-        raise BuildError("firmware lanes must share the system read clock")
+                pins.get("ACLR0") != ["0"] or pins.get("ACLR1") != ["0"]):
+            raise BuildError(f"firmware lane {name} needs live clock, enabled reads and inactive clears")
+        cpu_clocks.add(clock[0])
+        if lane in CHARACTER_ROM_LANES:
+            video = pins.get("CLK2")
+            if (cell.get("type") != "MISTRAL_M10K_TDP" or not isinstance(video, list) or
+                    len(video) != 1 or type(video[0]) is not int or pins.get("A1WE") != ["0"] or
+                    pins.get("B1WE") != ["0"] or pins.get("A1BE") or pins.get("B1BE")):
+                raise BuildError(f"character lane {name} needs live native read clocks, disabled writes and omitted byte enables")
+            video_clocks.add(video[0])
+        elif cell.get("type") != "MISTRAL_M10K" or pins.get("A1BE") or pins.get("CLK2"):
+            raise BuildError(f"single-port ROM lane {name} has unexpected ports or primitive")
+    if len(cpu_clocks) != 1 or len(video_clocks) != 1 or cpu_clocks != video_clocks:
+        raise BuildError("ROM lanes require one CPU clock and the same native character read clock")
 
 
 def validate_color_ram(cells: dict) -> None:
-    """Require the C64 color store to remain one synchronous dual-clock M10K."""
+    """Require the C64 color store to remain one synchronous dual-port M10K on the native clock."""
     name = "machine.vic.color_ram.ram.0.0"
     memories = sorted(cell_name for cell_name, cell in cells.items()
                       if cell_name.startswith("machine.vic.color_ram.ram.")
@@ -424,26 +436,61 @@ def validate_color_ram(cells: dict) -> None:
     pins = cell.get("connections", {})
     clocks = (pins.get("CLK1"), pins.get("CLK2"))
     if (any(not isinstance(clock, list) or len(clock) != 1 or type(clock[0]) is not int
-            for clock in clocks) or clocks[0] == clocks[1] or
+            for clock in clocks) or clocks[0] != clocks[1] or
             pins.get("A1EN") != ["1"] or pins.get("B1EN") != ["1"] or
             pins.get("B1WE") != ["0"] or not isinstance(pins.get("A1WE"), list) or
             len(pins["A1WE"]) != 1 or type(pins["A1WE"][0]) is not int):
-        raise BuildError("color RAM must have live independent clocks, enabled reads, "
-                         "one live system write port and a disabled video write port")
+        raise BuildError("color RAM must have one live native clock, enabled reads, "
+                         "one live system write port and a disabled VIC write port")
+
+
+def validate_frame_store(cells: dict) -> None:
+    """Require three dense native-color pages with live system/HDMI clocks."""
+    expected = {f"machine.vic.frame_store.pages[{page}].banks[{bank}].ram"
+                for page in range(3) for bank in range(51)}
+    found = {name for name, cell in cells.items()
+             if name.startswith("machine.vic.frame_store.") and
+             cell.get("type") in {"MISTRAL_M10K", "MISTRAL_M10K_TDP"}}
+    if found != expected:
+        raise BuildError("native frame store requires exactly 153 dense M10K banks")
+    system_clock = cells["machine.rom.lane0"]["connections"]["CLK1"]
+    video_clocks = set()
+    for name in sorted(expected):
+        cell = cells[name]
+        parameters = cell.get("parameters", {})
+        pins = cell.get("connections", {})
+        if cell.get("type") != "MISTRAL_M10K" or any(
+                parameters.get(key) not in (value, f"{value:032b}")
+                for key, value in (("CFG_ABITS", 11), ("CFG_DBITS", 5),
+                                   ("CFG_DUAL_CLOCK", 1), ("CFG_ASYNC_READ", 0))):
+            raise BuildError(f"native frame bank {name} needs registered dual-clock 2048x5")
+        clock = pins.get("CLK2")
+        enable = pins.get("A1EN")
+        if (pins.get("CLK1") != system_clock or not isinstance(clock, list) or
+                len(clock) != 1 or type(clock[0]) is not int or clock == system_clock or
+                pins.get("B1EN") != ["1"] or pins.get("ACLR0") != ["0"] or
+                pins.get("ACLR1") != ["0"] or not isinstance(enable, list) or
+                len(enable) != 1 or type(enable[0]) is not int):
+            raise BuildError(f"native frame bank {name} needs live SYS writes and independent HDMI reads")
+        video_clocks.add(clock[0])
+    if len(video_clocks) != 1:
+        raise BuildError("native frame banks must share one HDMI read clock")
 
 
 def validate_synth_evidence(output: Path) -> dict:
     synthesis = _read_json(output / "synth.json", "synthesis evidence")
     reject_async_m10k_reads(synthesis)
     cells = synthesis["modules"][TOP]["cells"]
+    validate_memory_clocks(cells)
     validate_firmware_ports(cells)
     validate_color_ram(cells)
+    validate_frame_store(cells)
     _i2c_evidence(synthesis, "synthesized")
     counts = _cell_counts(synthesis)
     for name, expected in REQUIRED_RESOURCES.items():
         if counts.get(name, 0) != expected:
             raise BuildError(f"synthesis must contain exactly {expected} {name}, got {counts.get(name, 0)}")
-    # Firmware lanes are sixteen explicit M10Ks and color RAM is one checked
+    # Firmware uses thirty-two single-port and four true-dual-port M10Ks; color RAM is one checked
     # M10K_TDP. Other memories retain synthesis-selected totals.
     for name in FORBIDDEN_RESOURCES:
         if counts.get(name, 0):
@@ -513,9 +560,9 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
         "core": {
             "id": "fes.c64",
             "name": "FES Commodore 64",
-            "description": "Commodore 64 pathfinder with a linked 16 KiB firmware image, "
+            "description": "Commodore 64 pathfinder with a linked 36 KiB C64/1541 firmware image, "
                            "a read-only 1541 and two cartridge sockets",
-            "version": "0.1.0",
+            "version": "0.4.0",
         },
         "target": {"platform": "de10_nano", "device": TARGET, "programming_profile": "fes-gp-v1"},
         "payload": {"file": "core.rbf", "size": rbf["size"], "sha256": rbf["sha256"]},
@@ -565,7 +612,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                   audit_source_root=root, output_relative=OUTPUT_RELATIVE)
         if not (output / "synth.json").is_file():
             raise BuildError("Yosys did not produce synthesis evidence")
-        clock_read_only_memories(output / "synth.json")
+        validate_synth_evidence(output)
         try:
             winner = route_after_synth(
                 nextpnr=authenticated["nextpnr-mistral"].path,
@@ -586,6 +633,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             database, (output / "core.rbf").read_bytes(),
             routed=_read_json(output / "routed.json", "routed firmware design"),
             lane_rows=FIRMWARE_LANE_ROWS, expected_async_read=0,
+            true_dual_port_lanes=CHARACTER_ROM_LANES,
         )
         check_firmware_outside_sockets(mapping)
         map_bytes = (json.dumps(mapping, sort_keys=True, separators=(",", ":")) + "\n").encode()

@@ -1548,7 +1548,8 @@ retaining II/II+ video, annunciator and language-card switches. Host execution
 reset initializes them. The machine regression installs an alternate reset
 vector in language-card RAM and checks both reset paths through the real CPU.
 Shared RTL it adds to `cores/fes-common`: the vendored NMOS 6502
-`rtl/cpu6502` (Arlet Ottens, module names only changed) and the generic
+`rtl/cpu6502` (Arlet Ottens, renamed modules and an optional SO input) and
+the generic
 `rtl/fes_computer_mailbox.v` endpoint, which replays the mister-packages
 `computer-exchanges.json` golden exchanges in `make sim-fes-apple2-mailbox`.
 The endpoint owns no storage: accepted media words appear on a write port for
@@ -1678,22 +1679,375 @@ checks, and tape checks remain open.
 
 ## FES Commodore 64
 
-`cores/fes-c64` is `fes.c64` 0.1.0, a package-only Commodore 64 pathfinder on
+`cores/fes-c64` is `fes.c64` 0.4.0, a package-only Commodore 64 pathfinder on
 the same `fes.computer` 1.0 mailbox as Apple II. The machine contract is
 [its README](../cores/fes-c64/README.md). `make sim-fes-c64` boots the open
 diagnostic: RAM, firmware signature, VIC text, both cartridge sockets,
-joystick, keyboard, a SID sample and a read-only D64 LOAD of `BOOT`.
+joystick, keyboard, a SID sample and a native drive sector read over IEC.
 The diagnostic waits at stages 7/8 for joystick Up and HID A. A hardware
 runner confirms the live disk is ready before sending those inputs; it uses
 launch's existing ready input stream instead of attaching twice. This is an
 operator-gated diagnostic, not pre-release initial-disk mounting or write-back
 support. Atari ST's startup and durable writable-disk contract remains separate.
+A separate `make sim-fes-c64-boot-build` harness leaves cartridge sockets
+vacant and observes external BASIC/KERNAL/character/1541 firmware on the real machine RTL.
+`scripts/c64_boot_observe.py` validates exact input lengths, supplies simulation-only
+firmware/disk memory paths and retains hashes, RAM, a complete HDMI frame and
+screen-code output and recent CPU cycles with the production clock ratio.
+The default three-second observation budget is configurable.
+`--prg-fixture` is an explicit development launch for an `$0801` BASIC PRG
+whose genuine disk LOAD has already been checked. Fresh firmware must reach
+BASIC READY before the three-second installation. The harness sets the
+program/variable end pointers and device 8, then types RUN by default. The
+receipt labels this path as a PRG fixture and binds its bytes into checkpoint
+identity. Whole-state restores still require the original executable and
+inputs; fixture installation does not migrate or patch an older model's state.
+Both medium variants continue to run native drive firmware and guest
+fastloaders. This simulation shortcut does not qualify cold loading or runtime
+persistence.
+`--type-command` optionally types native C64 text through HID states after
+three seconds, with 50 ms press/release intervals. `--then-command` adds a
+later command and retains the RAM snapshot taken immediately before it.
+Per-second CPU/drive bus and load-pointer observations are flushed during execution.
+The observation makes no boot/demo acceptance assertion. Version 0.4.0 links
+36 KiB: BASIC (8 KiB), KERNAL (8 KiB), character ROM (4 KiB), then 1541 firmware
+(16 KiB). Lanes 0–19 occupy column 5, rows 32–51; drive lanes 20–35 occupy
+column 14, rows 32–47. Character lanes 16–19 have registered CPU/VIC ports on
+the native clock. CPU reads take two clocks; VIC and independent drive reads
+one. Each source block appears once in the format-3 ROM map. CPU/VIC character
+visibility follows separate banking rules.
+Routed ROM validation checks nextpnr's normalized `MISTRAL_M10K` cells;
+character lanes require `CFG_TDP=1`, while the other lanes require it disabled.
+Fixed BELs, registered read mode, dimensions and blank INIT remain mandatory.
+`c64_vic_fetch` schedules native matrix/color and glyph reads. VC, VCBASE, RC
+and the matrix latch support badlines, late DMA, FLI, FLD and linecrunch;
+BA stops CPU reads while pending writes finish. CPU bus strobes occur at
+cycle 26 and reads are sampled at cycle 43. The native 384×272 PAL view, including borders,
+is stored in three frame buffers, each using 51 explicit 2048×5 M10Ks.
+`c64_vic_sprite_fetch` supplies PAL pointer/three-byte accesses, DMA/display,
+MC/MCBASE, expansion flips and cycle-15 crunch. Its requests arbitrate with
+the matrix/glyph engine on the native video port without overlap. Combined
+BA stalls CPU reads; pending writes retain the three-cycle warning window.
+The write exemption follows the latched active bus direction, not the CPU's
+prepared next direction. This prevents a prepared store from retiring its
+stalled operand read. `make sim-fes-c64-ready` runs the actual motherboard's
+raster-read stabilizer across 51 VIC phases against pinned transistor-model
+write timings; its unit setup installs an open RAM program and aligns DMA.
+Late unowned accesses use the current CPU read/write bus value. The directed
+sprite test covers 21/42 rows, all slots/banks, byte ordering, late ownership
+and sustained crunch. The motherboard diagnostic enables eight expanded
+sprites and requires CPU read stalls alongside IRQs and its PASS frame.
+`c64_vic_graphics_pixels` loads prefetched glyph/matrix/color metadata at the
+scroll slot and shifts the remaining bits across byte boundaries. It applies
+PAL 6569R3 mode changes through the dot4/dot6/dot7 stages. A late scroll write
+therefore affects the next byte, and a scroll increase can expose exhausted
+bits before the next load. Scroll latching is enabled in cycles15–54;
+blank graphics retain the last visible matrix/color metadata. Each frame
+page has its own read-bank mux, avoiding cross-page connections for invalid
+bank indices while retaining153denseM10Ks and the existing handoff.
+The isolated source-oracle replay checks 800,000
+dots; coupled tests cover late writes, carry, all banks and five valid modes.
+The 38-column border edges are X31/335, rather than the following byte edges.
+CPU palette-write latency and every fetch-mode/subphase combination remain
+unqualified.
+`c64_sid_envelope` supplies one eight-bit digital ADSR pipeline per voice.
+Its rate comparator, exponential divider, gate transitions, zero hold and
+ADSR delay behavior follow reSID's single-cycle model. AD/SR writes update
+only the selected voice; `$D41C` and SID mirrors expose the sampled ENV3 value
+through the motherboard's existing late read phase. The direct fallback mixer centers the
+voice codes, sums their signed envelope products, applies linear four-bit
+master gain and scales into signed 16-bit PCM. The offline source-oracle
+regression exercises 15.6 million system-clock edges. Each voice also has a
+`c64_sid_oscillator`: single triangle/saw/pulse/noise waveforms, 23-bit noise
+with a two-Phi2 shift pipeline, TEST transitions and floating-output decay.
+`$D41B` exposes voice 3's upper eight waveform bits. The oscillator uses the
+unstalled Phi2 enable; a SYS edge advances old oscillator state before a bus
+write, with reset taking priority. Warm reset retains phase, while power-up
+uses reSID's deterministic `$555555` fixture, not a hardware startup claim.
+All three oscillators advance before hard-sync clear decisions. The source
+MSB-rise flags and old SYNC bits determine clears, including suppression
+when a source is itself synced. Output uses post-sync phases, then saw-selected
+combinations may clear the local phase MSB without recalculating the rise latch.
+To reproduce the pinned reSID loop, voice 0's ring input observes source 2 before
+feedback; voices 1 and 2 observe their sources after feedback. Same-Phi CONTROL
+writes see all final source phases, while idle writes use committed phases.
+This is software-model ordering, not a physical SID ordering claim.
+The motherboard enables prepared phase sums when the system-to-CPU clock
+ratio is at least two, ensuring an idle SYS edge between Phi2 enables.
+The sum forwards final idle phase and frequency, including TEST and combined-wave clears;
+reset uses the retained phase and cleared frequency. The SID component defaults
+to direct calculation, which also handles ratios with adjacent Phi2 enables.
+The phase replay adds physical idle edges to the existing source-oracle inputs
+and checks the prepared value at Phi2 without changing their logical sequence.
+The same guard enables a 20-bit envelope helper containing the result of only
+the first state-pipeline transition: state-pipeline count, state, rate period
+and zero-hold flag. On idle edges it computes that transition from the state
+after any register write; on Phi2 it supplies those four fields before the
+remaining envelope/exponential/rate logic. CPU writes still follow Phi2 and
+reset remains last, retaining the old envelope value and ENV3 sample. The
+component defaults to the direct transition for dense standalone use.
+Prepared envelope and three-voice PCM tests reuse the original source-oracle
+fixtures; adding idle edges leaves their logical observations unchanged.
+All four non-noise combinations use the pinned reSID MOS6581 4,096-entry
+sample tables. Pulse/triangle substitutes the ring index; saw-selected
+combinations disable that substitution. Pulse combinations use the delayed
+pulse mask. Output precedes phase feedback, then the next pulse level compares
+the final phase. CONTROL writes repeat this evaluation after any TEST change,
+even if the register value is unchanged. The generator reproduces all sparse
+RTL lookups exactly; their header is in the producer's pinned source closure.
+The reference's edge latch remains held during TEST. The portable coupling
+oracle covers the complete simultaneous-rise/SYNC mask space, all voices,
+feedback/ring ordering and pre-write audio waveforms. It includes native
+fractional53/54 periods and Phi+27 writes, blocked writes and minimum preparation
+cadence. All seven noise combinations mask those waveforms with the noise taps;
+MOS6581 noise/pulse shaping precedes saw-selected phase feedback. Output feeds
+back into the eight tapped LFSR cells with TEST clear except during shift
+phase one. TEST falling applies the pinned selector-pair pre-writeback rules
+before the forced shift. The direct and prepared three-voice source-oracle
+checks include all 16 selectors and pre-write audio waveforms. This qualifies
+the selected software model, not physical mixed-noise SID behavior.
+
+At the native 53/54-SYS cadence, `c64_sid` enables the staged MOS6581 waveform
+and envelope DACs, nonlinear internal filter and external output network at
+the pinned reSID default bias. External input is zero. It captures post-Phi,
+pre-write waveforms and old filter controls, then starts one SYS later with
+the updated envelope values. CPU writes on Phi therefore affect the next
+sample; reset cancels pending work. Output completes at Phi+39 SYS edges.
+The static guard `SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 41` leaves time for that
+result and idle state before the next transaction. Shorter ratios and default
+standalone instances use the direct linear-volume path. Signed-32 output is
+saturated to signed-16 PCM before the unchanged shared I2S transport.
+
+VCR current and cutoff tables are exact. Generated piecewise interpolation
+bounds individual gain/summer table errors to 4 integer units, mixer to 16,
+and reverse-opamp/kVg to 1; these are not final-PCM error bounds. The generators
+verify pinned, unchanged VICE dependencies. The portable audio regression
+compares the configured reference with both direct and prepared digital state
+over 23,052 Phi clocks, including minimum 41-SYS cadence, native 53/54 periods,
+writes and reset/restart. It checks wide output, PCM, readback and done/busy.
+Its initial ENV3 exclusion lasts only until the first non-reset Phi; subsequent
+warm-reset samples remain checked. Other register reads follow the core's
+zero-read contract. Other models/bias, paddles, bus decay, physical audio and
+routed/hardware acceptance remain open.
+
+The additional offline oscillator and OSC3 tests replay the pinned VICE 3.10
+reSID source at native 53/54-SYS periods and other directed write phases;
+native bus writes arrive 27 SYS edges after Phi2. Source, licensing,
+regeneration and the explicit host-integer noise-state normalization are in
+the core README. All compiled reference dependencies are hash checked.
+Unsupported combinations retain the old OR formula without a claim that
+its update timing is unchanged. Host checks establish the stated model and
+lookup policy, not complete SID, audible HDMI or routed-core fidelity.
+`c64_vic_sprite_pixels` supplies per-dot shifts, multicolor/X expansion,
+foreground priority and collision masks. Sprite X and pointer/row/display
+events use the same PAL cycle. The registered final DMA byte is captured at
+dot5, after its SYS30 read and before the dot7 halt release. An offline
+100,800-dot replay checks unchanged VICE sprite-renderer output with the PAL
+cycle table, reload-edge positions and late final-byte arrival. `c64_vic_collisions` commits collision
+masks at the following cycle boundary, defers read clearing and latches IRQ
+sources independently of their enable mask. The motherboard supplies the
+existing cycle-43 read sample for `$D01E/F`; writes to those masks are ignored.
+The collision test replays 500,000 source-oracle ticks, while full-frame tests
+cover mixed sprites and borders across all banks. Register readback tests cover
+unused bits and write-protected light-pen result registers.
+The beam's sprite X coordinate and deterministic pointer, row and pending
+controls are registered one SYS edge before each dot. Guest-controlled sprite
+inputs retain their original dot sampling. The original framebuffer address,
+direct color and border/background source tags travel together for three native
+dots; D020/D021 are resolved then, and the complete write packet reaches memory one SYS later.
+Collision and sprite shift state remain on their original edges. Reset clears
+all pending stages. Shifting through blank dots drains the last visible pixels
+before frame publication. D022-D024 and sprite-color write latencies
+remain unqualified.
+`make sim-fes-c64-vic-timing` checks all PAL cycle/dot pairs, the fractional
+cadence, adjacent-dot register writes and the delayed transaction contract.
+`c64_frame_store` publishes complete frames to HDMI with a bundled-data
+mailbox; reader and queued complete buffers remain protected while the
+private buffer is written. The native clock runs independently of HDMI.
+HDMI presents the PAL view in a centered 960×720 viewport at fixed 720p60.
+Small rational accumulators select native floor(x×2/5), floor(y×17/45)
+coordinates without dividers. Light-pen capture, exact mode-transition quirks,
+physical subpixel phases and fresh route/seal/hardware acceptance remain open.
+HDMI maps the 16 indices through the fixed Colodore PAL RGB lookup: common
+VIC-II luma revision, brightness/contrast/saturation 50/100/50 and gamma
+2.8 to 2.2. Full-frame graphics tests calculate the expected RGB values from
+the published model and cover every colour at the HDMI pins. This does not
+simulate composite chroma mixing, scanlines or adjustable monitor controls.
+The D64 media mailbox is unchanged.
+See the core README.
+The production `c64_drive1541` runs the shared 6502 at 1 MHz from a divided
+16 MHz reference, with 2 KiB mirrored RAM, two `c64_via` slices and IEC
+inverter/ATN logic. Its independent ROM port reads the final 16 KiB of the
+linked firmware, retaining the $8000 mirror. Drive VIA access and CPU sampling
+share the late bus-cycle edge so input latches are acknowledged after sampling.
+`c64_gcr_read` recovers bits, sync and byte ready from nominal flux transitions.
+
+The existing D64 store feeds `c64_d64_medium`, which builds one 8 KiB GCR track
+cache. Nominal 300 rpm rotation, halftrack movement and physical density follow
+the drive VIA pins. Flux is hidden during media loading, ejection and the bounded
+track rebuild. Swapping media preserves both CPUs, RAM, head position and spindle
+angle. The write-protect input remains fixed, so general DOS disk-change
+sensing is unqualified. The standard 174,848-byte read-only D64 mailbox remains unchanged.
+`make sim-fes-c64-medium` compares all 35 tracks with an independent flux model;
+`make sim-fes-c64-medium-mailbox` covers actual upload, CRC/commit, replacement
+and ejection. The open diagnostic drive seeks and decodes an original sector,
+then sends six bytes through a diagnostic IEC handshake. No general DOS ROM is
+bundled. The standalone drive/VIA checks retain RAM aliases, both IRQ vectors,
+ports, edge latches, IFR/IER and timer behavior.
+The drive enables the CPU's active-low SO input: falling edges set V, while
+instruction writes occur on CPU enables and a held-low pin does not retrigger.
+Apple II and the C64 motherboard retain the default CPU mode with SO tied high. The shared NMOS
+CPU also writes the original operand during memory RMW's first store cycle,
+then the modified operand. This preserves hardware-visible register effects
+such as `INC $D019` acknowledging VIC IRQs. The C64 diagnostic uses that
+instruction, and its directed CPU test covers all 24 documented memory RMW
+opcode/address modes with CPU enable gaps.
+JSR performs a dummy stack read, pushes the return address, then reads the
+target high operand. A separate target-low latch preserves this NMOS bus
+order across RDY stalls and operands overlapping the stack page.
+`make sim-fes-c64-jsr` checks transistor-reference bus sequences and call/write
+timings through the motherboard's PAL badline arbitration.
+PHP/PHA also keep the NMOS bus order: dummy read, stack write, then the next
+opcode fetch. Delaying that fetch preserves stack/code aliasing and prevents
+the preceding write's BA exemption from retiring a prefetched instruction.
+`make sim-fes-c64-push` checks transistor-reference bus/state results and
+motherboard badline timings without changing their unstalled three-cycle length.
+The stable undocumented SAX family stores `A & X` in zero-page, zero-page,Y,
+absolute and (zero-page,X) modes without changing registers or flags. Its
+four opcodes use the corresponding NMOS store bus sequence, including wrapping.
+`make sim-fes-c64-sax` covers all modes, enabled cycle counts and register/flag
+preservation. Other undocumented instructions remain incomplete.
+AXS/SBX immediate (`$CB`) consumes two enabled read cycles and writes
+`(A & X) - operand` to X, with binary no-borrow C and result N/Z. Incoming
+carry and decimal mode do not affect the subtraction; A, Y, S, D, I and V
+remain unchanged. `make sim-fes-c64-axs` covers every subtraction input pair,
+independent A/X masks, status preservation and CPU enable gaps.
+`make sim-fes-c64-axs-oracle` independently checks 396 transistor-reference
+bus/state cases and 144 IRQ/NMI entry/stack cases from checked-in vectors.
+This opcode proof does not establish whole-demo completion.
+The shared CPU samples IRQ and its I mask through the enabled-cycle prefetch
+pipeline, including taken-branch polling and instructions following PLP.
+I updates require RDY, and latched hardware entry preserves the pushed B bit
+when IRQ is withdrawn. `make sim-fes-c64-irq` compares entry time and stack
+bytes with pinned transistor-model vectors across 40 arrival phases, mask
+changes, branches, RMW and enable gaps. NMI hijacking, every interrupt
+subphase and complete external bus equivalence remain unqualified.
+NMI edges survive CPU-enable gaps and use the instruction polling pipeline,
+including taken-branch timing, before entering the handler. NMI takes
+priority over simultaneous IRQ. `make sim-fes-c64-nmi` checks 7,840 entry
+and stack cases against pinned transistor-model results, including short
+pulses entirely between CPU enables. NMI hijacking and subphase behavior
+remain unqualified.
+
+`make sim-fes-c64-boot-build` observes the production drive and RTL medium.
+The helper requires external BASIC, KERNAL, character and 1541 firmware.
+The optional `--medium-oracle` lane replaces only the medium with the independent
+C++ rotation/flux model, built by `make sim-fes-c64-boot-oracle-build`.
+Both lanes run native drive firmware and guest fastloaders through the same
+6502, VIAs and digital reader. `make sim-fes-c64-gcr` checks all density zones.
+VIA serial shifting, disk writes, raw/protected tracks, analogue noise and NMOS
+SO subphases remain unqualified or unsupported.
+Both boot diagnostic builds use Verilator save/restore. A Verilator control
+file exposes only the read-only fields needed by the observer, allowing
+optimization of unused debug state. `C64_BOOT_FULL_VISIBILITY=1` selects the
+full writable variant. Executable/layout checks remain strict across modes. The helper's
+`--save-state`, optional `--save-at-cycles` and `--restore-state` preserve the
+complete RTL model, host clock counters, pending keyboard/capture events,
+partial frame collection, in-flight D64 uploads and the medium's angle/head position.
+Checkpoint metadata requires the same executable, firmware and immutable
+media-library hashes; a rebuild requires recapture. Scheduled insertions and
+the active media cursor are serialized with the host state. An explicit later
+insertion can be appended after restore, selecting a disk from the captured
+library without modifying earlier events or machine/drive state.
+Raw keyboard switches can be queued on cold boot with repeated
+`--key-event CYCLE HID DOWN` options (`DOWN` is 0 or 1). After restore,
+`--append-key-event CYCLE HID DOWN` adds events strictly after the saved clock
+and no earlier than the existing queue tail, preserving held keys and pending
+releases. Equal-cycle events allow chords. The observer records the complete
+accumulated schedule and the newly appended events; a subsequent restore needs
+no resubmission. Appending requires metadata with a complete keyboard schedule.
+Both the helper and simulator reject invalid HID usages, nonboolean values,
+past events and reordered queues. This allows trainer prompts and keyboard
+controls to be exercised from a proved loading checkpoint. The boot simulator
+still holds joystick buttons at zero, so this does not qualify joystick gameplay.
+`--save-final-state` retains an endpoint snapshot alongside an intermediate
+capture, and restores preserve the capture policy. The absolute observation
+endpoint can extend to 1800 machine seconds. Native LOAD must be verified before using a
+post-load checkpoint. This is development simulation, not runtime persistence.
+`--late-video` holds the independent HDMI renderer until the final five frames
+without qualifying continuous HDMI presentation. Native VIC rendering continues.
+The observer optionally records accepted SID stores with `--sid-trace` and
+post-pipeline PCM16 with `--audio-capture`. Store capture samples the pre-eval
+write strobe, banking and reset qualifiers, preserving identical stores and
+read-modify-write pairs. PCM uses post-eval point sampling at the absolute
+48 kHz phase (one sample every 1088 SYS clocks), independently of the HDMI
+renderer. It adds no anti-alias filter and excludes CDC/I2S transport. Capture
+defaults off; either sink can be changed after restore. Host Phi/store counters
+and the absolute clock preserve stream continuity across v4 checkpoints, while
+output sinks remain outside serialization. Older private formats require a
+fresh capture. Metadata identifies and hashes each enabled stream; the original
+CPU fixture checks store values/timestamps and cold-versus-restored stream
+concatenation, including complete-state equivalence with capture disabled.
+The HID keyboard maps all 64 native switches with CIA1 PA columns/PB rows,
+correcting the former transposed diagnostic mapping. A is PA1/PB2 and Return
+is PA0/PB1. `make sim-fes-c64-keyboard`, included in `sim-fes-c64`, checks every
+switch across all scan columns plus release, chords and modifier aliases.
+Reverse scanning and electrical ghosting remain unimplemented.
+The VIC bank follows CIA2 PA0/PA1 physical pin levels, including input
+pull-ups. The open diagnostic clears the output latch and makes those bank
+pins inputs before its checked PASS frame, verifying selection of bank zero.
+The fractional CPU enable predicts the following system tick into a register,
+preserving the original phase and pulse sequence while removing the phase
+adder from CPU RDY. Rates at or above half the system clock retain the direct
+comparison for adjacent pulses. `make sim-fes-c64-clock` checks the actual
+motherboard enable against an independent fractional reference through a full
+PAL second, including boundary/adjacent/full-rate parameter cases.
+The CPU BA input is registered only when the minimum Phi2 interval is at
+least 29 system clocks. The last relevant guest write is accepted at old
+cycle counter 26, changing BA after edge 27; registration captures it on
+edge 28, so edge 29 is the earliest safe retirement. Earlier beam and DMA
+changes settle before this point. Shorter and adjacent-enable parameter
+modes keep direct BA, while the active bus-write exemption remains live.
+Raw VIC BA/AEC and DMA outputs are unchanged. `make sim-fes-c64-ba-timing`
+checks enabled-edge retirement across native fractional cadence, guard
+boundaries, faster fallbacks, late writes and every reset phase.
+The machine uses a 985,248 Hz PAL Phi2 enable. Its VIC beam spans 312 lines
+of 63 Phi2 cycles; HDMI rendering still runs independently at 720p60. The
+open machine test checks the fractional Phi2 count on every system tick, and
+the VIC test checks the final PAL line, exact line length and frame wrap.
+The VIC raster compare is writable through `$D011.7`/`$D012`, independently
+of the beam position returned by reads. `$D019` retains the raster event until
+write-one acknowledgement; `$D01A` enables its level IRQ, ORed with CIA1 and
+cartridge IRQ at the CPU. A source can fire once per line, including an immediate
+compare write on an unfired line. Automatic line-zero comparison waits one
+Phi2 after wrap. `make sim-fes-c64-vic` checks the register/line behavior; the
+open firmware checks CPU vector delivery and acknowledgement at stage 12.
+Light-pen capture, exact mode-transition quirks, full native overscan and
+physical subcycle timing remain outside this implementation.
 Both CIA timers expose their live counters, load stopped counters on high-byte
 writes, treat force-load as a strobe, and implement continuous/one-shot counting.
 Timer B can count Phi2 or timer A underflows. CIA1 asserts IRQ and CIA2 asserts
-NMI. The diagnostic checks both CPU vectors, including NMI with IRQ disabled;
-`make sim-fes-c64-cia` adds directed register/timer coverage. External CNT edges,
-TOD, serial shifting and timer port outputs remain outside this slice.
+NMI. The old MOS 6526 model retains count-enable, force-load and one-shot
+pipelines; STOP leaves pending pipeline work intact. ICR source flags, bit 7
+and the physical interrupt pin have separate state, including delayed
+assertion/acknowledgement and the old timer-B read suppression corner.
+The diagnostic checks both CPU vectors, including NMI with IRQ disabled.
+`make sim-fes-c64-cia` adds directed register/port coverage, and
+`make sim-fes-c64-cia-reference` replays 385 programs against unchanged pinned
+VICE 3.10 sources at three bus schedules, checking every cycle and ordered
+interrupt edges. [The reference contract](../cores/fes-c64/sim/cia_timing.md)
+records fixture regeneration, provenance and limits. Eight TOD alarm programs
+cover both input-divider modes, masked flags, later mask enable and IRQ
+acknowledgement at the declared Phi2 pulse boundary. Directed CIA tests
+separately cover TOD BCD carry, noon
+and midnight, register masks, read latching, stop/restart, five/six-pulse input
+division and alarm IRQ acknowledgement. Both CIAs receive the same PAL 50 Hz
+power-supply pulse, derived from the free-running Phi enable without depending
+on CPU RDY or raster lengths. TOD time/alarm writes and illegal BCD carries
+follow the pinned VICE implementation, including the hour-12 write quirk.
+Exact analogue TOD input phase, write/tick collisions and physical-chip
+qualification remain open. External CNT edges, serial shifting, FLAG input
+and timer port outputs remain outside this slice.
 
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchain.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. The registered recipe selects
@@ -1704,17 +2058,21 @@ HIP only adds GPUs. The build record uses the audited static closure in
 `scripts/source_closures.json`: pinned inputs, the scripts they import, the
 toolchain recipe files, and the Commodore 64 core tree, excluding simulation,
 tests and markdown. That replaces the broad `scripts` and `cores/fes-common`
-roots. A compiler-read derive of this static closure is still open; this
-closure is not that trace. The seal does not pin synthesized M10K totals. The ROM is
-`c64-firmware`, 16,384 bytes, on the blank column-5 lanes at rows 32–47.
-Those lanes use synchronous M10K reads (`CFG_ASYNC_READ=0`) with the bank
+roots. A compiler-read derive of this static closure, and during the product
+HIP seal, is still open; this closure is not that trace. The seal is not run as
+part of this pathfinder slice, and it does not pin synthesized M10K totals. The
+ROM is
+`c64-firmware`, 36,864 bytes, with twenty column-5 lanes at rows 32–51
+and sixteen column-14 drive lanes at rows 32–47. Character lanes 16–19 use
+CPU/VIC read ports on the native system clock;
+all writes are disabled. Those lanes use synchronous M10K reads (`CFG_ASYNC_READ=0`) with the bank
 selector delayed one clock so the CPU-facing byte is still two system clocks
 behind the registered address. `c64_machine` samples that byte at
-`cycle_clock == 16`, sixteen 52.224 MHz clocks after the phi2 address
+`cycle_clock == 43`, forty-three 52.224 MHz clocks after the phi2 address
 capture. The ROM-map producer requires `CFG_ASYNC_READ=0`, and the shared
 netlist check rejects every other async M10K. Color RAM is a synchronous
-dual-port M10K, with independent system and pixel clocks; the CPU samples its
-registered read at cycle 16 and the VIC aligns its result with main RAM.
+dual-port M10K, with two native system-clock ports; the CPU samples its
+registered read at cycle 43 and the VIC fetches its matrix/color line.
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
 frozen shell. It takes the same `--gpu-router` and `--toolchain-root` as the
 shell: HIP masks the selected device, and CUDA sets `CUDA_DEVICE_ORDER=PCI_BUS_ID`
@@ -1728,7 +2086,8 @@ has a separate identity ALUT2 so the pinned merger cannot discard constant
 outputs or collapse aliased response sinks. The probe drives only read cycles.
 No Commodore ROM is in the tree, and the core is not in the
 factory image. The shell uses Yosys `5391eeb1`, Mistral `8fcc4cb4` and nextpnr
-`9128800f` from `toolchain.lock`; its
+`9128800f` from `toolchain.lock`; fresh routed and hardware validation
+remain required. Its
 socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`
 companion of a pinned boundary flip-flop, using the shared
 `coleco_expansion` check described for the Spectrum sockets.
