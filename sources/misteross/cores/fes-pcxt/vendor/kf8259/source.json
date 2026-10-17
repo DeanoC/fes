@@ -1,0 +1,53 @@
+{
+  "repository": "https://github.com/spark2k06/PCXT_MiSTer",
+  "commit": "af4f8a98ae562af0e3f9b86cc3a59673f999d0f6",
+  "license": "MIT",
+  "local_changes": [
+    "Replace package imports with explicitly qualified function calls for the locked Yosys Verilog frontend; function bodies and behavior unchanged."
+  ],
+  "files": [
+    {
+      "path": "LICENSE",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8259/LICENSE",
+      "sha256": "feeb1264c8ea426ed6815c4830ba8b12947d6e8090062f334cb651f8b3860ae6"
+    },
+    {
+      "path": "KF8259.sv",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259.sv",
+      "sha256": "c5ee6e8ce7223204745370af7007541083da10e88974a3d3804c999914896f03"
+    },
+    {
+      "path": "KF8259_Bus_Control_Logic.sv",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Bus_Control_Logic.sv",
+      "sha256": "8a79e4708b4f68da13626b8c88672978ba364ba548dfe2d54fad49412dfc8d1c"
+    },
+    {
+      "path": "KF8259_Common_Package.svh",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Common_Package.svh",
+      "sha256": "bb75b6998dce9138725c5fcc3a00811eae1950a30708c875584225195031b005"
+    },
+    {
+      "path": "KF8259_Control_Logic.sv",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Control_Logic.sv",
+      "sha256": "257e2110516d89a3d2b0b6faf0b82ed7e08fc92e077f09439ef4e5a5e3a092b0",
+      "upstream_sha256": "9802ee1f01ec74c0cc5b6b33ad2ed15ef51a5ea37c47eebbec497e5729074442"
+    },
+    {
+      "path": "KF8259_In_Service.sv",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_In_Service.sv",
+      "sha256": "6b451d49a82da444f932f13fc7dcde17d74b14573ecc3cddd9193715edb0d71f",
+      "upstream_sha256": "e717b23aa1de8a817203ff934c8f86cdcc3959ddb0c62211857c0be9ca65d5e0"
+    },
+    {
+      "path": "KF8259_Interrupt_Request.sv",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Interrupt_Request.sv",
+      "sha256": "b4fb1634a6721b83a2dd926d102d943e0655cced14f960a73938f06ef3821cca"
+    },
+    {
+      "path": "KF8259_Priority_Resolver.sv",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Priority_Resolver.sv",
+      "sha256": "1b276df7d2bbac58faf27ef16962ef4c28ab5e3d4fefcc287963d8a341d93804",
+      "upstream_sha256": "25e38c4c84a697a4a1adfc7151179074cf50df796d47e8dcfc5c6096fc1296da"
+    }
+  ]
+}
