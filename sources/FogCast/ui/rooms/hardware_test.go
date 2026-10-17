@@ -423,18 +423,26 @@ func exactText(f Frame, s string) bool {
 }
 
 // Solid saved cards are the filled connector body. Shelf cards sit much lower.
-func connectorCardMarks(f Frame) (solid int, outlined bool) {
+// An unavailable saved card uses the shelf's muted fill on the connector.
+func connectorCardMarks(f Frame) (solid int, outlined bool, unavailable int) {
 	for _, op := range f.Ops {
-		if op.Kind != OpRect || FormatHexColor(op.Color) != "#5c7a6b" || op.Y > 320 {
+		if op.Kind != OpRect || op.Y > 320 {
 			continue
 		}
-		if op.W >= 20 && op.H >= 20 {
-			solid++
-		} else if op.W <= 8 || op.H <= 8 {
-			outlined = true
+		switch FormatHexColor(op.Color) {
+		case "#5c7a6b":
+			if op.W >= 20 && op.H >= 20 {
+				solid++
+			} else if op.W <= 8 || op.H <= 8 {
+				outlined = true
+			}
+		case "#53625a":
+			if op.W >= 20 && op.H >= 20 {
+				unavailable++
+			}
 		}
 	}
-	return solid, outlined
+	return solid, outlined, unavailable
 }
 
 func TestHardwareRoomPreviewKeepsTheSavedCard(t *testing.T) {
@@ -448,32 +456,59 @@ func TestHardwareRoomPreviewKeepsTheSavedCard(t *testing.T) {
 	}
 	r := loadHardware(t, s, examplePack(t, "example.hardware"))
 	f := r.Step(time.Unix(50, 0))
-	solid, outlined := connectorCardMarks(f)
-	if solid != 1 || outlined || !exactText(f, "Next start") || exactText(f, "Preview") {
-		t.Fatalf("saved card before preview: solid=%d outlined=%v next=%v preview=%v", solid, outlined, exactText(f, "Next start"), exactText(f, "Preview"))
+	solid, outlined, unavailable := connectorCardMarks(f)
+	if solid != 1 || outlined || unavailable != 0 || !exactText(f, "Next start") || exactText(f, "Preview") {
+		t.Fatalf("saved card before preview: solid=%d outlined=%v unavailable=%d next=%v preview=%v", solid, outlined, unavailable, exactText(f, "Next start"), exactText(f, "Preview"))
 	}
 	r.Activate("card:2")
 	f = stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Previewing: Sound expansion") })
-	solid, outlined = connectorCardMarks(f)
-	if solid != 1 || !outlined || !exactText(f, "Next start") || !exactText(f, "Preview") || !frameHas(f, "Next start: 16K RAM pack") {
-		t.Fatalf("preview hid the saved card: solid=%d outlined=%v", solid, outlined)
+	solid, outlined, unavailable = connectorCardMarks(f)
+	if solid != 1 || !outlined || unavailable != 0 || !exactText(f, "Next start") || !exactText(f, "Preview") || !frameHas(f, "Next start: 16K RAM pack") {
+		t.Fatalf("preview hid the saved card: solid=%d outlined=%v unavailable=%d", solid, outlined, unavailable)
 	}
 	r.Activate("card:3")
 	f = stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Previewing: Expansion unavailable") })
-	solid, outlined = connectorCardMarks(f)
-	if solid != 1 || outlined || !exactText(f, "Next start") || exactText(f, "Preview") || !frameHas(f, "Install its matching package") {
-		t.Fatalf("unavailable preview drawn on the connector: solid=%d outlined=%v previewLabel=%v", solid, outlined, exactText(f, "Preview"))
+	solid, outlined, unavailable = connectorCardMarks(f)
+	if solid != 1 || outlined || unavailable != 0 || !exactText(f, "Next start") || exactText(f, "Preview") || !frameHas(f, "Install its matching package") {
+		t.Fatalf("unavailable preview drawn on the connector: solid=%d outlined=%v unavailable=%d previewLabel=%v", solid, outlined, unavailable, exactText(f, "Preview"))
 	}
 }
 
-func cassetteLabel(t *testing.T, name string) Op {
+// The host can retain a saved expansion after admission fails. That card
+// stays named as Next start, and it is drawn muted rather than fitted.
+// A ready preview still appears beside it.
+func TestHardwareRoomUnavailableSavedCardIsNotFitted(t *testing.T) {
+	saved, sound := strings.Repeat("b", 64), strings.Repeat("c", 64)
+	s := hardwareData(false)
+	s.value.Machines[0].Ready = false
+	s.value.Machines[0].UnavailableReason = "The saved expansion is unavailable for this machine package."
+	s.value.Machines[0].DraftExpansionID = saved
+	s.value.Machines[0].Choices = []hostclient.HardwareExpansion{
+		{ExpansionID: saved, Label: "16K RAM pack", Description: "Saved, then rejected for this package.", Ready: false, UnavailableReason: "This expansion is unavailable or does not fit this exact machine package."},
+		{ExpansionID: sound, Label: "Sound expansion", Description: "A ready card being inspected.", Ready: true},
+	}
+	r := loadHardware(t, s, examplePack(t, "example.hardware"))
+	f := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Next start: 16K RAM pack") })
+	solid, outlined, unavailable := connectorCardMarks(f)
+	if solid != 0 || outlined || unavailable != 1 || !exactText(f, "Next start") || exactText(f, "Preview") {
+		t.Fatalf("unavailable saved card looked fitted: solid=%d outlined=%v unavailable=%d", solid, outlined, unavailable)
+	}
+	r.Activate("card:2")
+	f = stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Previewing: Sound expansion") })
+	solid, outlined, unavailable = connectorCardMarks(f)
+	if solid != 0 || !outlined || unavailable != 1 || !exactText(f, "Next start") || !exactText(f, "Preview") || !frameHas(f, "Next start: 16K RAM pack") {
+		t.Fatalf("unavailable saved card fitted beside a ready preview: solid=%d outlined=%v unavailable=%d", solid, outlined, unavailable)
+	}
+}
+
+func cassetteLabel(t *testing.T, name, fragment string) Op {
 	t.Helper()
 	s := hardwareData(false)
 	s.value.Machines[0].MediaName = name
 	r := loadHardware(t, s, examplePack(t, "example.hardware"))
 	f := r.Step(time.Unix(50, 0))
 	for _, op := range f.Ops {
-		if op.Kind == OpText && strings.Contains(op.Text, "part-") {
+		if op.Kind == OpText && strings.Contains(op.Text, fragment) {
 			return op
 		}
 	}
@@ -490,8 +525,18 @@ func textWithin(op Op) bool {
 }
 
 func TestHardwareRoomCassetteNamesStayDistinct(t *testing.T) {
+	// hardwareTapeName supplies a starter display name, or "Imported cassette"
+	// plus eight digest characters. The filename is not on the machine record.
+	// Those host labels fit the row unchanged. The longer strings only check
+	// that an overflowing label keeps its start and its end.
+	for _, name := range []string{"Guess the Number", "Imported cassette abcdef01", "Imported cassette 1234abcd", "No cassette"} {
+		got := cassetteLabel(t, name, name)
+		if got.Text != name || strings.Contains(got.Text, "…") || got.MaxW < 900 || !textWithin(got) {
+			t.Fatalf("host cassette label rewritten: %q max %d", got.Text, got.MaxW)
+		}
+	}
 	one, two := "zx81-workshop-demo-part-one.p", "zx81-workshop-demo-part-two.p"
-	left, right := cassetteLabel(t, one), cassetteLabel(t, two)
+	left, right := cassetteLabel(t, one, "part-"), cassetteLabel(t, two, "part-")
 	if left.Text != one || right.Text != two || left.Text == right.Text {
 		t.Fatalf("shared prefix clipped: %q vs %q", left.Text, right.Text)
 	}
@@ -499,7 +544,7 @@ func TestHardwareRoomCassetteNamesStayDistinct(t *testing.T) {
 		t.Fatalf("cassette row still narrow: max %d %d within %v %v", left.MaxW, right.MaxW, textWithin(left), textWithin(right))
 	}
 	prefix := strings.Repeat("zx81-workshop-demo-", 40)
-	longLeft, longRight := cassetteLabel(t, prefix+"part-one.p"), cassetteLabel(t, prefix+"part-two.p")
+	longLeft, longRight := cassetteLabel(t, prefix+"part-one.p", "part-"), cassetteLabel(t, prefix+"part-two.p", "part-")
 	if longLeft.Text == longRight.Text || !strings.HasSuffix(longLeft.Text, "part-one.p") || !strings.HasSuffix(longRight.Text, "part-two.p") {
 		t.Fatalf("long names lost their endings: %q vs %q", longLeft.Text, longRight.Text)
 	}

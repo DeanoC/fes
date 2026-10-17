@@ -16,8 +16,8 @@ local function rect(x,y,w,h,c) gfx.rect(ox+x*scale,oy+y*scale,w*scale,h*scale,c)
 local function text(s,x,y,size,c,w,bold)
   gfx.text(s,ox+x*scale,oy+y*scale,{size=math.max(12,math.floor(size*scale)),color=c or C.ink,max_w=(w or 0)*scale,bold=bold or false})
 end
--- Keep a filename inside w logical pixels. A name that does not fit keeps
--- its start and its end, so two tapes that share a long prefix stay distinct.
+-- Keep a host cassette label inside w logical pixels. A label that does
+-- not fit keeps its start and its end, so two long labels stay distinct.
 local function fit_name(s, size, w, bold)
   s = s or ""
   local px = math.max(12, math.floor(size * scale))
@@ -192,11 +192,14 @@ function on_input(cmd)
   return true
 end
 
--- A card on the rear connector: solid when saved, outlined and labelled
--- when it is only being previewed.
-local function connector_card(x,y,saved)
-  if saved then
+-- A card on the rear connector. "fitted" is a ready saved card. "unavailable"
+-- is a saved selection the host will not admit, in the shelf's muted colour.
+-- "preview" is an unsaved ready card, outlined and labelled.
+local function connector_card(x,y,style)
+  if style == "fitted" then
     rect(x,y,30,32,C.card) rect(x+4,y+27,22,6,C.brass)
+  elseif style == "unavailable" then
+    rect(x,y,30,32,C.muted) rect(x+4,y+27,22,6,C.brass)
   else
     outline(x,y,30,32,2,C.card) rect(x+4,y+27,22,6,C.raised)
   end
@@ -244,18 +247,26 @@ function draw()
   -- The ZX81 has one rear connector, not numbered internal slots.
   rect(314,198,48,3,C.accent)
   rect(308,195,10,10,C.accent)
-  -- An unavailable card cannot be fitted, so only a ready preview is drawn.
+  -- Solid means the host still admits the saved card. An unavailable saved
+  -- selection keeps its Next start label and uses the muted shelf colour.
+  -- Only a ready preview is drawn beside it.
   local preview_ready=previewing and c and c.ready
+  local saved_ready=false
+  if machine and saved_id ~= "" then
+    for _,item in ipairs(machine.choices or {}) do
+      if item.expansion_id == saved_id and item.ready then saved_ready=true end
+    end
+  end
   if saved_id ~= "" then
-    connector_card(276,180,true)
+    connector_card(276,180,saved_ready and "fitted" or "unavailable")
     text("Next start",preview_ready and 276 or 236,166,13,C.ink,preview_ready and 96 or 120,true)
   end
   if preview_ready then
     if saved_id ~= "" then
-      connector_card(228,180,false)
+      connector_card(228,180,"preview")
       text("Preview",164,188,13,C.ink,60,true)
     else
-      connector_card(276,180,false)
+      connector_card(276,180,"preview")
       text("Preview",236,166,13,C.ink,120,true)
     end
   end
@@ -324,8 +335,10 @@ function draw()
   button("refresh",loading and "Checking..." or "Refresh",938,480,158,28,not loading and not saving,function() read() end)
   button("import_card","Import expansion",776,514,150,28,machine and machine.socket.supported and not running() and not stale,function() hardware.import_expansion{game_id=machine.game_id,package_id=machine.package_id} end)
 
-  -- Cassette name on its own row. The machine controls sit below it, so a
-  -- long imported filename has the width of the row rather than the corner.
+  -- The host cassette label, on its own row above the machine controls.
+  -- A starter uses its display name. An import is "Imported cassette" plus
+  -- a digest prefix; the filename is not on this record. A long label
+  -- keeps its start and its end.
   rect(24,546,1072,2,C.line)
   local tape_name=machine and machine.media_name ~= "" and machine.media_name or "No cassette"
   text("Cassette",24,552,13,C.muted,84)

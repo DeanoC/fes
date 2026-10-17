@@ -44,11 +44,18 @@ Both sizes are captured for every scene.
   - an unavailable card drawn as a preview
 
   All are fixed.
-- Devin Review: the saved card stays visible during preview, and the cassette
-  name is a wide row that keeps the end of a long filename. The after images
-  were regenerated with `TestHardwareRoomNativeRender`. Preview still occupies
-  the status line Restart needed would use; the warm box keeps that warning.
-  An unavailable choice stays text and is not drawn on the connector.
+- Devin Review: the saved card stays visible during preview. A ready saved
+  card is solid. A saved card the host marks unavailable keeps the Next start
+  label and uses the shelf's unavailable colour, including while a ready
+  preview is outlined beside it. An unavailable preview stays text and is
+  not drawn on the connector.
+- The cassette row shows the host label. A starter uses its display name.
+  An import is "Imported cassette" plus a digest prefix; the filename is
+  not on the machine record (#801). A label that does not fit keeps its start and
+  its end. The published scenes use a ready saved card and no cassette, so
+  their pixels are unchanged by the unavailable-saved drawing. Preview still
+  occupies the status line Restart needed would use; the warm box keeps
+  that warning.
 
 ## Not covered
 
