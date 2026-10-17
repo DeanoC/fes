@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -983,6 +984,74 @@ func TestSpillUsableRejectsReleaseVolume(t *testing.T) {
 	}
 	if s.spillUsable(t.TempDir(), 4096) {
 		t.Fatal("same-device directory usable as spill")
+	}
+}
+
+func TestLoopBackingSkipsEmptyOptical(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"sda", "sdb", "mmcblk0", "loop0"} {
+		if e := os.MkdirAll(filepath.Join(root, name, "device"), 0o700); e != nil {
+			t.Fatal(e)
+		}
+	}
+	write := func(name, size, removable, scsi string) {
+		t.Helper()
+		base := filepath.Join(root, name)
+		if e := os.WriteFile(filepath.Join(base, "size"), []byte(size+"\n"), 0o600); e != nil {
+			t.Fatal(e)
+		}
+		if e := os.WriteFile(filepath.Join(base, "removable"), []byte(removable+"\n"), 0o600); e != nil {
+			t.Fatal(e)
+		}
+		if scsi != "" {
+			if e := os.WriteFile(filepath.Join(base, "device", "type"), []byte(scsi+"\n"), 0o600); e != nil {
+				t.Fatal(e)
+			}
+		}
+	}
+	write("sda", "0", "1", "5")
+	write("sdb", "15633408", "1", "0")
+	write("mmcblk0", "62333952", "1", "")
+	write("loop0", "2048", "0", "")
+	if e := syscall.Mkfifo(filepath.Join(root, "sda", "loop", "backing_file"), 0o600); e != nil {
+		// loop/ does not exist yet.
+		if e = os.MkdirAll(filepath.Join(root, "sda", "loop"), 0o700); e != nil {
+			t.Fatal(e)
+		}
+		if e = syscall.Mkfifo(filepath.Join(root, "sda", "loop", "backing_file"), 0o600); e != nil {
+			t.Fatal(e)
+		}
+	}
+	if e := os.MkdirAll(filepath.Join(root, "loop0", "loop"), 0o700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(root, "loop0", "loop", "backing_file"), []byte("/media/fat/fogcast/releases/images/abc.img\n"), 0o600); e != nil {
+		t.Fatal(e)
+	}
+	// FESDATA partition is not a loop and must not be opened.
+	if e := os.MkdirAll(filepath.Join(root, "mmcblk0", "mmcblk0p3"), 0o700); e != nil {
+		t.Fatal(e)
+	}
+	if e := os.WriteFile(filepath.Join(root, "mmcblk0", "mmcblk0p3", "size"), []byte("41943040\n"), 0o600); e != nil {
+		t.Fatal(e)
+	}
+	done := make(chan struct{})
+	var paths []string
+	var err error
+	go func() {
+		defer close(done)
+		paths, err = loopBackingFilesFrom(root)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("loop scan blocked on the empty optical device")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 1 || paths[0] != "/media/fat/fogcast/releases/images/abc.img" {
+		t.Fatalf("backing = %v", paths)
 	}
 }
 

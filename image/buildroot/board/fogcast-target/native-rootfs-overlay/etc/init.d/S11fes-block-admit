@@ -1,0 +1,17 @@
+#!/bin/sh
+# Run after mdev has created nodes for disks that are already attached.
+# Hotplug of a later dock DVD is handled by /etc/mdev.conf.
+# FES_BLOCK_ADMIT overrides the helper path in tests.
+set -eu
+case "${1:-start}" in
+start)
+  admit=${FES_BLOCK_ADMIT:-/usr/sbin/fes-block-admit}
+  "$admit"
+  ;;
+stop)
+  ;;
+*)
+  printf '%s\n' "usage: $0 start|stop" >&2
+  exit 2
+  ;;
+esac

@@ -200,6 +200,14 @@ flashed from one image would collide on the LAN. The rootfs init script
 runs after `S10mdev` and before `S20mister-network` starts DHCP; the FES
 bootstrap has already moved the writable FAT to `/media/fat`.
 
+`/etc/init.d/S11fes-block-admit` and `/etc/mdev.conf` run
+`/usr/sbin/fes-block-admit` for `sd*` and `sr*` nodes. The helper reads sysfs
+`size`, `removable` and `device/type` and, for an optical device, a removable
+device with no media, or any other zero-capacity disk, sets that device's SCSI
+timeout to one second. It does not open or mount the device. `fstab` has no
+`sd*` or `sr*` entries, so an empty SuperStation dock DVD is not automounted.
+USB sticks and the SD/FESDATA partitions are not changed.
+
 - If FAT `linux/u-boot.txt` already has an `ethaddr=` line, with any value, the
   script changes nothing. That is the manual override: write
   `ethaddr=<mac>` there yourself and it wins forever.

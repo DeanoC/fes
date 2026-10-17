@@ -1,7 +1,9 @@
 #!/bin/sh
 # Read-only diagnostics for a BusyBox DE10-Nano kit.
 # Prints schema fogcast.kit-diagnostics.v1 as key=value on stdout.
-# Reads /proc, a few identity files, and `df -P -k`. Does not create files,
+# Reads /proc, a few identity files, and `df -P -k` of /, /media/fat and /tmp.
+# Those three mounts are skipped when sysfs says the backing disk is optical,
+# removable with no media, or zero-capacity. Does not create files,
 # restart services, or write /media/fat or u-boot.txt.
 #
 # The output contract is sources/FogCast/docs/kit-resource-limits.md.
@@ -813,6 +815,107 @@ fs_tmp_used=
 fs_tmp_free=
 fs_tmp_pct=
 
+# Same cheap sysfs decision as fes-block-admit: size, removable, device/type.
+# A missing attribute is not treated as zero. sr* and SCSI type 5 are optical.
+kit_attr() {
+  if [ -f "$1" ]; then
+    tr -d ' \t\r\n' < "$1"
+  fi
+}
+
+kit_mount_source() {
+  want=$1
+  [ -r /proc/self/mountinfo ] || return 1
+  best_src=
+  best_len=0
+  while IFS= read -r line || [ -n "$line" ]; do
+    [ -n "$line" ] || continue
+    set -f
+    # shellcheck disable=SC2086
+    set -- $line
+    set +f
+    [ "$#" -ge 10 ] || continue
+    point=$5
+    src=
+    shift 6
+    while [ "$#" -gt 0 ]; do
+      if [ "$1" = "-" ]; then
+        shift
+        [ "$#" -ge 2 ] || break
+        src=$2
+        break
+      fi
+      shift
+    done
+    # "/" covers every absolute path. "$point"/ would be "//" and match nothing.
+    if [ "$want" = "$point" ] || [ "$point" = / ] || [ "${want#"$point"/}" != "$want" ]; then
+      n=${#point}
+      if [ "$n" -gt "$best_len" ]; then
+        best_len=$n
+        best_src=$src
+      fi
+    fi
+  done < /proc/self/mountinfo
+  [ -n "$best_src" ] || return 1
+  printf '%s\n' "$best_src"
+}
+
+kit_parent() {
+  name=$1
+  case $name in
+    mmcblk*p[0-9]*|nvme*p[0-9]*)
+      printf '%s\n' "${name%p[0-9]*}"
+      ;;
+    *[0-9])
+      base=$name
+      while :; do
+        case $base in
+          *[0-9]) base=${base%?} ;;
+          *) break ;;
+        esac
+      done
+      case $base in
+        ''|sd|sr|hd|vd|xvd|loop) ;;
+        *) printf '%s\n' "$base" ;;
+      esac
+      ;;
+  esac
+}
+
+kit_block_skipped() {
+  name=$1
+  case $name in
+    sr[0-9]|sr[0-9][0-9]|sr[0-9][0-9][0-9]) return 0 ;;
+  esac
+  dir=/sys/class/block/$name
+  [ -d "$dir" ] || dir=/sys/block/$name
+  [ -d "$dir" ] || return 1
+  type=$(kit_attr "$dir/device/type")
+  if [ -z "$type" ]; then
+    parent=$(kit_parent "$name")
+    if [ -n "$parent" ]; then
+      parent_dir=/sys/class/block/$parent
+      [ -d "$parent_dir" ] || parent_dir=/sys/block/$parent
+      type=$(kit_attr "$parent_dir/device/type")
+    fi
+  fi
+  [ "$type" = 5 ] && return 0
+  size=$(kit_attr "$dir/size")
+  removable=$(kit_attr "$dir/removable")
+  [ "$size" = 0 ] && [ "$removable" = 1 ] && return 0
+  [ "$size" = 0 ] && return 0
+  return 1
+}
+
+kit_mount_skipped() {
+  src=$(kit_mount_source "$1") || return 1
+  case $src in
+    /dev/*) ;;
+    *) return 1 ;;
+  esac
+  kit_block_skipped "${src##*/}"
+}
+
 if [ -n "$root" ]; then
   df_file=$(kit_path df.txt)
   [ -f "$df_file" ] || die 'fixture df.txt is missing'
@@ -822,7 +925,15 @@ if [ -n "$root" ]; then
 else
   df_path=$(command -v df || true)
   [ -n "$df_path" ] || die 'df is missing'
-  df_text=$(df -P -k) || die 'df failed'
+  df_text=
+  for df_target in / /media/fat /tmp; do
+    if kit_mount_skipped "$df_target"; then
+      continue
+    fi
+    [ -e "$df_target" ] || continue
+    df_part=$(df -P -k "$df_target") || die 'df failed'
+    df_text=$df_text$df_part$nl
+  done
 fi
 parse_df_text "$df_text"
 
