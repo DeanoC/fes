@@ -631,8 +631,20 @@ class ZX81PlugAddrExitTests(unittest.TestCase):
             [("plug_addr_ff_0", "MISTRAL_COMB.24.2.0")])
         self.assertEqual(
             expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0", "MISTRAL_FF.24.2.2", "MISTRAL_FF")),
+            [("plug_addr_ff_0", "MISTRAL_FF.24.2.2")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0", "MISTRAL_FF.24.1.2", "MISTRAL_COMB")),
+            [("plug_addr_ff_0", "MISTRAL_FF.24.1.2")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
                 placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.1.0")),
             [("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.1.0")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.2.0")),
+            [("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.2.0")])
         self.assertEqual(
             expansion.shell_cells_in_socket(
                 placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.26.1.0")),
