@@ -213,7 +213,7 @@ func drawCoverCells(dev gfx.Device, snap Snapshot, textures, labels map[string]g
 			fillRect(dev, float32(x+8), float32(y+8), float32(snap.Grid.CellW-16), float32(snap.Grid.CellH-52), r, g, b, 255)
 			// Missing art names the platform, not an acronym; the full
 			// title is the label under the art.
-			drawLabel(dev, labels, used, "i:"+game.ID, x+16, y+24, snap.Grid.CellW-32, 18, placeholderSystem(game))
+			drawLabel(dev, labels, used, "i:"+game.ID, x+16, y+24, snap.Grid.CellW-32, 18, placeholderSystem(snap, game))
 		}
 		drawCellBlockTag(dev, labels, used, x+8, y+snap.Grid.CellH-44, snap.Grid.CellW-16, game)
 		drawLabel(dev, labels, used, "t:"+game.ID, x+6, y+snap.Grid.CellH-28, snap.Grid.CellW-12, 16, game.Title)
@@ -542,7 +542,7 @@ func drawDetail(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, use
 		maxChars = 20
 	}
 	for i, line := range wrapWords(detail.Summary, maxChars, summaryLines) {
-		if lineY+i*20+16 > y+h {
+		if lineY+i*20+16 > y+h-8 {
 			break
 		}
 		drawLabel(dev, labels, used, fmt.Sprintf("d-sum-%d", i), x+pad, lineY+i*20, textW, 16, line)

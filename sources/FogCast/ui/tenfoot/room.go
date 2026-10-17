@@ -280,8 +280,16 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 	}
 	// Home from the Library reclaims the suspended home room, keeping its
 	// selection, rather than loading a new instance.
-	a.restoreLibraryOriginLocked()
+	restored := a.restoreLibraryOriginLocked()
+	origin := a.room
 	if a.reclaimHomeRoomLocked(id) {
+		// Reclaim resumes a room it switches to. When the restored origin
+		// is itself the home room, resume it here so on_resume runs.
+		if restored && a.room == origin {
+			a.postUIEventLocked("ui.nav", map[string]string{"reason": "room-resume", "view": "room:" + origin.ID()})
+			origin.Resume()
+			a.applyRoomActionsLocked()
+		}
 		return true
 	}
 	prevStatus := a.status

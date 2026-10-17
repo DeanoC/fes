@@ -2048,15 +2048,37 @@ func (a *App) Selected() (hostclient.Game, bool) {
 // the room's own destination; in the Library it is the focused row with the
 // kit lease applied, as Confirm would see it.
 func (a *App) detailPlayLocked() rooms.Destination {
-	if a.room != nil {
+	var game hostclient.Game
+	switch {
+	case a.room != nil && strings.TrimSpace(a.roomDetail.ID) != "":
+		// Details for one chosen edition describes that edition.
+		game = a.roomDetail
+	case a.room != nil:
 		return a.roomDestinationLocked()
-	}
-	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
+	case a.grid.Focus < 0 || a.grid.Focus >= len(a.games):
 		return rooms.Destination{}
+	default:
+		game = a.games[a.grid.Focus]
 	}
-	game := a.games[a.grid.Focus]
+	return a.gamePlayDestinationLocked(game)
+}
+
+// gamePlayDestinationLocked classifies one title as startLaunchGameLocked
+// will treat it: a paired kit whose status is unknown, or that another
+// session holds, refuses before the catalog block or host-only exemption is
+// considered.
+func (a *App) gamePlayDestinationLocked(game hostclient.Game) rooms.Destination {
 	d := libraryPlayDestination(game)
-	if a.foreignKitLeaseLocked() && !game.HostOnly() && d.Availability == rooms.AvailReady {
+	if d.Availability != rooms.AvailReady || missingFirmwareGame(game) {
+		return d
+	}
+	paired := a.client != nil && a.client.paired
+	switch {
+	case paired && a.pairedKitStatusUnavailableLocked():
+		d.Availability = rooms.AvailUnavailable
+		d.Status = machineStatusUnknown
+		d.Action = "Wait for the kit to answer before starting anything."
+	case a.foreignKitLeaseLocked() && (paired || !game.HostOnly()):
 		d.Availability = rooms.AvailUnavailable
 		d.LeaseHeld = true
 		d.Status = rooms.InUseStatus
@@ -2216,6 +2238,8 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		a.launchLeaseRefusal = a.statusLeaseRefusal
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
+		} else {
+			a.openDetailLocked()
 		}
 		return
 	}

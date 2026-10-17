@@ -13,6 +13,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/shared"
 )
 
@@ -130,6 +131,12 @@ func TestLibraryNativeRender(t *testing.T) {
 		app.HandleCommand(CmdDetails, now)
 		writeLibraryScreenshot(t, app, "details")
 	})
+	t.Run("details-blocked-1024", func(t *testing.T) {
+		app := libraryRenderApp(t, 1024, 600, true)
+		app.HandleCommand(CmdRight, now)
+		app.HandleCommand(CmdDetails, now)
+		writeLibraryScreenshot(t, app, "details-blocked")
+	})
 	t.Run("details-blocked", func(t *testing.T) {
 		app := libraryRenderApp(t, 1280, 720, true)
 		app.HandleCommand(CmdRight, now)
@@ -234,5 +241,90 @@ func TestLibraryCellTagsNameEachBlock(t *testing.T) {
 		if w, ok := want[g.ID]; ok && libraryBlockTag(g.LaunchBlock()) != w {
 			t.Fatalf("%s tag %q, want %q", g.ID, libraryBlockTag(g.LaunchBlock()), w)
 		}
+	}
+}
+
+// libraryHomeApp runs a home room that counts on_resume and offers the
+// Library, over a fixture host.
+func libraryHomeApp(t *testing.T) *App {
+	t.Helper()
+	h := newRoomHost(t)
+	pack := testRoomPack(t, "lib-home", `
+local resumed = 0
+function on_resume() resumed = resumed + 1 end
+function draw()
+  gfx.clear("#000000")
+  gfx.text("resumed-" .. resumed, 10, 10)
+  destination.set{ kind = "library", label = "Library" }
+end
+`)
+	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), t.TempDir())
+	app.SetHomeRooms(true)
+	app.SetHomeRoom("lib-home")
+	app.Start(t.Context())
+	t.Cleanup(app.Stop)
+	waitFor(t, app, "home", func(s Snapshot) bool { return s.Room.Open && roomTextHas(s, "resumed-0") })
+	return app
+}
+
+func TestLibraryHomeKeyClosesLibraryOverlaysAndResumesHome(t *testing.T) {
+	app := libraryHomeApp(t)
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "library", func(s Snapshot) bool { return !s.Room.Open && len(s.Games) > 0 })
+	app.HandleCommand(CmdDetails, time.Now())
+	if !app.Snapshot().Detail.Open {
+		t.Fatal("Library Details did not open")
+	}
+	app.HandleCommand(CmdHome, time.Now())
+	snap := waitFor(t, app, "home resumed", func(s Snapshot) bool { return s.Room.Open && roomTextHas(s, "resumed-1") })
+	if snap.Detail.Open || snap.Filters.Open || snap.ViewPicker {
+		t.Fatalf("Library overlays followed Home: detail=%v filters=%v view=%v", snap.Detail.Open, snap.Filters.Open, snap.ViewPicker)
+	}
+}
+
+func TestLibraryBackResumesHomeOnce(t *testing.T) {
+	app := libraryHomeApp(t)
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "library", func(s Snapshot) bool { return !s.Room.Open })
+	app.HandleCommand(CmdBack, time.Now())
+	waitFor(t, app, "home resumed", func(s Snapshot) bool { return s.Room.Open && roomTextHas(s, "resumed-1") })
+	for i := 0; i < 5; i++ {
+		app.Tick(time.Now())
+	}
+	if !roomTextHas(app.Snapshot(), "resumed-1") {
+		t.Fatal("Back resumed Home more than once")
+	}
+}
+
+func TestDetailsClassifyTheChosenEditionAndPairedLease(t *testing.T) {
+	app := libraryHomeApp(t)
+	blocked := availableGame("snes-mario-jp", "Super Mario World (JP)", "snes")
+	blocked.Launchable = false
+	app.mu.Lock()
+	app.roomDetail = blocked
+	d := app.detailPlayLocked()
+	app.roomDetail = hostclient.Game{}
+	host := availableGame("emu-pong", "Pong", "pong")
+	host.Execution = hostclient.ExecutionHostOnly
+	app.client.paired = true
+	app.kitLeaseHave = true
+	app.kitLease = KitLeaseStatus{State: "held", Owner: "another-shell", Purpose: "playing"}
+	leased := app.gamePlayDestinationLocked(host)
+	app.mu.Unlock()
+	if c := detailReadiness(d); c.Headline != "Browse only" {
+		t.Fatalf("edition Details described the room destination: %+v", c)
+	}
+	if leased.Availability != rooms.AvailUnavailable || !leased.LeaseHeld || libraryDetailHint(InputGamepad, 0, leased) != "B back  GUIDE settings" {
+		t.Fatalf("paired foreign lease left a host-only title Ready: %+v", leased)
+	}
+}
+
+func TestLibraryBackHintFitsAt1024(t *testing.T) {
+	snap := Snapshot{Affinity: InputGamepad, LibraryBackTo: "Home"}
+	hint := snap.HeaderHint()
+	if !strings.Contains(hint, "B back to Home") || 24+8*len(hint) > 1024 {
+		t.Fatalf("hint %q (%d px)", hint, 24+8*len(hint))
 	}
 }

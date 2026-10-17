@@ -23,7 +23,7 @@ FES_ROOM_SCREENSHOT_DIR=/tmp/lib go test ./ui/tenfoot/ -run TestLibraryNativeRen
 | Blocked title focused | [before](before-blocked-1280x720.png) | [after](after-blocked-1280x720.png): Donkey Kong shows "Unavailable · Needs BIOS" |
 | A on a browse-only title | [before](before-blocked-confirm-1280x720.png): header text only | [after](after-blocked-confirm-1280x720.png): Details opens with the reason; no Play offered |
 | Details, ready | [before](before-details-1280x720.png) | [after](after-details-1280x720.png): "by Homebrew Collective" beside the title; Ready pill |
-| Details, needs BIOS | [before](before-details-blocked-1280x720.png): no reason | [after](after-details-blocked-1280x720.png): pill, headline, the import sentence and "A import BIOS" |
+| Details, needs BIOS | [before](before-details-blocked-1280x720.png): no reason | [after](after-details-blocked-1280x720.png): pill, headline, the import sentence and "A import BIOS" ([1024×600](after-details-blocked-1024x600.png)) |
 
 ## Focused checks
 
@@ -34,6 +34,11 @@ FES_ROOM_SCREENSHOT_DIR=/tmp/lib go test ./ui/tenfoot/ -run TestLibraryNativeRen
 - A blocked Confirm opens Details with the reason, and the hint does not offer Play.
 - Cancelling the BIOS picker returns to Details on the same title.
 - Each block's cell tag.
+- After an independent agent review: Home from the Library closes Library
+  overlays and runs the home room's `on_resume`; Back resumes once; Details
+  for a chosen edition classifies that edition; a paired foreign lease makes
+  a host-only title Unavailable (as Confirm does) and Details opens on that
+  refusal; the Back prompt fits at 1024 wide.
 
 ## Not covered
 

@@ -136,9 +136,15 @@ func drawCellBlockTag(dev gfx.Device, labels map[string]gpuTexture, used map[str
 }
 
 // placeholderSystem is the missing-art label: the platform as the catalog
-// names it.
-func placeholderSystem(game hostclient.Game) string {
-	if s := strings.ToUpper(strings.TrimSpace(game.System)); s != "" {
+// names it, else its id.
+func placeholderSystem(snap Snapshot, game hostclient.Game) string {
+	id := strings.TrimSpace(game.System)
+	for _, p := range snap.Platforms {
+		if p.ID == id && strings.TrimSpace(p.Label) != "" {
+			return strings.TrimSpace(p.Label)
+		}
+	}
+	if s := strings.ToUpper(id); s != "" {
 		return s
 	}
 	return strings.TrimSpace(game.Title)

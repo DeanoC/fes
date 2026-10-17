@@ -317,7 +317,14 @@ func (s Snapshot) HeaderHint() string {
 		return detailHintFor(kind, s.Detail.Count)
 	}
 	if to := strings.TrimSpace(s.LibraryBackTo); to != "" {
-		return backWord(kind) + " back to " + to + "  " + browseHint(kind)
+		// Back replaces the Home shortcut in the prompt so it still fits at
+		// 1024 wide; Home itself still works.
+		hint := browseHint(kind)
+		back := backWord(kind) + " back to " + to
+		if home := homeWord(kind) + " home"; strings.Contains(hint, home) {
+			return strings.Replace(hint, home, back, 1)
+		}
+		return back + "  " + hint
 	}
 	return browseHint(kind)
 }

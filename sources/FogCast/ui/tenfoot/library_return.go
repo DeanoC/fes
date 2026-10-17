@@ -14,6 +14,10 @@ type libraryOrigin struct {
 // suspendRoomsForLibraryLocked leaves the open room for the Library. A room
 // that has failed is closed instead: there is nothing to return to.
 func (a *App) suspendRoomsForLibraryLocked() {
+	if a.room == nil && a.libraryReturn != nil {
+		// Already in the Library: keep where it was opened from.
+		return
+	}
 	a.discardLibraryOriginLocked()
 	if a.room == nil || a.room.Err() != nil {
 		a.closeAllRoomsLocked()
@@ -31,14 +35,19 @@ func (a *App) suspendRoomsForLibraryLocked() {
 	a.postUIEventLocked("ui.nav", map[string]string{"reason": "room-suspend", "view": "room:" + id})
 }
 
-// restoreLibraryOriginLocked puts the suspended rooms back without resuming
-// them, so Home can reclaim an existing home-room instance.
+// restoreLibraryOriginLocked puts the suspended rooms back, closing Library
+// overlays, so Back or Home can resume or reclaim them. The caller resumes.
 func (a *App) restoreLibraryOriginLocked() bool {
 	o := a.libraryReturn
 	if o == nil || a.room != nil {
 		return false
 	}
 	a.libraryReturn = nil
+	// Library overlays belong to the Library, not to the room coming back.
+	a.closeDetailLocked()
+	a.closeFiltersLocked()
+	a.closeCollectionOverlaysLocked()
+	a.searchOpen = false
 	a.room = o.room
 	a.roomStack = o.stack
 	a.roomWasParked = a.gpuParked
@@ -52,7 +61,6 @@ func (a *App) returnFromLibraryLocked() bool {
 	if a.sessionStopOfferedLocked() || !a.restoreLibraryOriginLocked() {
 		return false
 	}
-	a.closeDetailLocked()
 	a.postUIEventLocked("ui.nav", map[string]string{"reason": "room-resume", "view": "room:" + a.room.ID()})
 	a.room.Resume()
 	a.applyRoomActionsLocked()
@@ -81,4 +89,18 @@ func (a *App) libraryBackToLocked() string {
 		return ""
 	}
 	return a.libraryReturn.room.Title()
+}
+
+// setSuspendedReducedMotionLocked keeps the suspended origin in step with a
+// Settings change made in the Library.
+func (a *App) setSuspendedReducedMotionLocked(on bool) {
+	if a.libraryReturn == nil {
+		return
+	}
+	a.libraryReturn.room.SetReducedMotion(on)
+	for _, parent := range a.libraryReturn.stack {
+		if parent != nil {
+			parent.SetReducedMotion(on)
+		}
+	}
 }
