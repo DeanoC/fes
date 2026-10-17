@@ -1826,7 +1826,7 @@ and reset cancels pending work. The default audio stage
 is `c64_sid_svf`: voice DAC/envelope products, a Chamberlin state-variable
 filter with Q20 MOS6581-shaped cutoff and 1/Q tables from
 `scripts/c64_sid_svf_tables.py`, LP/BP/HP routing, 3OFF and master volume,
-evaluated by a sequencer with one shared nibble-serial multiplier within 28
+evaluated by a sequencer with one shared radix-8 serial multiplier within 32
 edges. The exact reSID DAC, nonlinear filter and external output network
 translation (`c64_sid_audio`, output at Phi+50) remains behind `RESID_FILTER`,
 off in the package. The static guard `SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 52`

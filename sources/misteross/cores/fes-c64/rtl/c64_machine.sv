@@ -82,9 +82,12 @@ module c64_machine #(
     reg [3:0] cia2_rs = 4'd0;
     reg [7:0] cia1_din = 8'd0;
     reg [7:0] cia2_din = 8'd0;
+    reg sid_we = 1'b0;
+    wire sel_sid_q;
     always @(posedge clk_sys) begin
         cia1_we <= cycle_clock == 6'd25 && !cpu_ce && bus_we && sel_cia1_q;
         cia2_we <= cycle_clock == 6'd25 && !cpu_ce && bus_we && sel_cia2_q;
+        sid_we <= cycle_clock == 6'd25 && !cpu_ce && bus_we && sel_sid_q;
         cia1_rs <= bus_addr[3:0];
         cia2_rs <= bus_addr[3:0];
         cia1_din <= bus_wdata;
@@ -190,6 +193,7 @@ module c64_machine #(
     reg show_io = 1'b0, show_char = 1'b0, show_basic = 1'b0, show_kernal = 1'b0;
     reg sel_vic = 1'b0, sel_sid = 1'b0, sel_color = 1'b0, sel_cia1 = 1'b0, sel_cia2 = 1'b0;
     assign sel_cia1_q = sel_cia1;
+    assign sel_sid_q = sel_sid;
     assign sel_cia2_q = sel_cia2;
     reg sel_port = 1'b0, basic_window = 1'b0, ultimax_open = 1'b0;
     always @(posedge clk_sys) begin
@@ -415,7 +419,7 @@ module c64_machine #(
         .RESID_FILTER(1'b0)
     ) sid (
         .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_sid),
-        .we(bus_strobe && bus_we && sel_sid), .addr(bus_addr[4:0]), .din(bus_wdata),
+        .we(sid_we), .addr(bus_addr[4:0]), .din(bus_wdata),
         .dout(sid_dout), .sample(sid_sample)
     );
     assign audio_sample = sid_sample;
