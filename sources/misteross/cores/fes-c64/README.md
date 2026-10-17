@@ -39,6 +39,10 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   Color RAM is one synchronous dual-port M10K, 1024×4 at `$D800–$DBFF`;
   native DMA can read the final 24 scratch locations when VC wraps.
   CPU bus strobes occur at system cycle 26 and reads are sampled at cycle 43.
+  The address decode, the main RAM block-select output and the cartridge
+  socket responses are each registered one further system edge; every
+  consumer samples them at edge 26 or later, so the bus-level timing is
+  unchanged and those paths stay out of the device read mux.
   Three indexed-color buffers retain complete 384×272 PAL frames, including borders for HDMI.
   Each buffer uses 51 explicit 2048×5 M10Ks, with a mailbox handoff across the
   system and HDMI clocks. Only complete frames reach the reader; an unconsumed
@@ -62,17 +66,23 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   physical subpixel phase remain open.
 - MOS6581 SID model: three digital oscillators with triangle, saw, delayed pulse,
   23-bit noise, TEST transitions and floating waveform decay; OSC3 and ENV3
-  readback; eight-bit pipelined ADSR, waveform/envelope DACs, nonlinear internal
-  filter with cutoff, resonance and routing, and the external output network.
+  readback; eight-bit pipelined ADSR; and a fixed-point state-variable filter
+  (`c64_sid_svf`) with MOS6581-shaped cutoff and resonance tables, LP/BP/HP
+  routing, 3OFF and master volume. The exact reSID DAC, nonlinear filter and
+  external output network translation (`c64_sid_audio`) remains available
+  behind the `RESID_FILTER` parameter, which the package leaves off.
+  The three voices' waveform stages run as lookup/finish pairs on system
+  edges Phi+1..Phi+6 in reSID output order through one shared combined-wave
+  table unit, so no table lookup chains with another within one edge.
   Single-wave digital timing, oscillator hard sync, triangle ring modulation
   and envelopes follow reSID's MOS6581 model. Non-noise combinations use its
   pinned 6581 samples, including saw-selected accumulator feedback and delayed
   pulse comparison. Three-voice output follows the pinned reference's 0, 1, 2
   loop: voice 0 reads source 2 before feedback; voices 1 and 2 read their sources
   after feedback. CONTROL writes see all final phases. This software ordering
-  is a compatibility target, not evidence of physical SID voice ordering. Audio follows the reference's
-  default 6581 bias with bounded lookup approximations and signed-16 PCM
-  saturation. Noise-combined waveforms include MOS6581 pulse shaping, noise-register
+  is a compatibility target, not evidence of physical SID voice ordering. The
+  default filter is a listening approximation with signed-16 PCM saturation;
+  only the opt-in reSID chain follows the reference's default 6581 bias. Noise-combined waveforms include MOS6581 pulse shaping, noise-register
   writeback and TEST falling-edge exceptions from the same model. Other chip
   models and bias settings, paddle reads, SID bus decay and physical audio
   fidelity remain open.
@@ -128,6 +138,8 @@ floppy uses; a core declares one of them). The image is an exact 174,848-byte
 16 MHz digital GCR read channel. Its CPU handles DOS and uploaded fastloaders.
 CIA2 CLK/DATA inputs read high when the open-collector wires are released.
 
+The drive's 16 MHz reference enable is predicted one system edge ahead into a
+register, as the motherboard does for Phi2, with the same pulse sequence.
 `c64_d64_medium` converts the selected D64 into one cached GCR track. It
 models nominal 300 rpm rotation, motor gating, halftrack stepping and the
 physical track's density zone. Rebuilding a track takes at most 29,705 system
@@ -725,6 +737,29 @@ that direct calculation because they can produce adjacent Phi2 enables.
 `make sim-fes-c64-sid-phase` replays the same source fixture with physical idle
 edges between dense logical Phi2 calls and checks the sum at every Phi2.
 
+With `SEQUENCE_VOICES` (ratios of at least nine), each oscillator defers its
+waveform stage (output wave, saw-selected feedback, noise write-back, decay
+and pulse compare) from Phi2 to a lookup/finish pair of system edges: the
+lookup edge presents the voice's combined-wave table index and ring state to
+one shared, registered table unit (`c64_sid_wave_tables`), and the next edge
+finishes the stage from its output. Voice 0 looks up on Phi+1, voice 1 on
+Phi+3 and voice 2 on Phi+5. Phi2 still advances every accumulator, noise
+shift and hard sync. Each ring/sync source is then simply the source's current
+phase, which reproduces the pinned reSID order without chaining three
+combined-wave lookups in one system period. A CONTROL write that selects a
+waveform issues its own lookup on the write edge and finishes on the next; the
+prepared phase sum is refreshed on the following idle edge. The audio stage
+captures on Phi+7 and starts on Phi+8. CPU writes land on edge 26, outside the
+stage window. `make sim-fes-c64-sid-sequenced`, `sim-fes-c64-sid-sequenced-osc3`
+and `sim-fes-c64-sid-sequenced-mix` replay the unchanged coupling, OSC3 bus and
+ENV3/PCM fixtures with the stage, finish and idle edges folded into each
+logical Phi2 or write step. Standalone instances default to the single-edge
+evaluation with per-instance table lookups.
+`make sim-fes-c64-sid-svf` checks the default filter sequencer and its shared
+nibble-serial multiplier bit-exactly against the same fixed-point equations over
+1,480,000 random register states, plus DC response and table monotonicity.
+`scripts/c64_sid_svf_tables.py` regenerates `rtl/c64_sid_svf_tables.vh`.
+
 The same cadence guard prepares the envelope's first state-pipeline transition
 on idle SYS edges. Its 20-bit helper holds only the next state-pipeline count,
 state, rate period and zero-hold flag. Gate and attack/decay/sustain/release
@@ -821,7 +856,8 @@ portable fixture using the same documented table policy. Both accept
 `--vice-source /path/to/vice-3.10 --check`.
 
 `make sim-fes-c64-sid-audio` checks direct and prepared digital implementations
-with the filter enabled over 23,052 Phi2 clocks and 1,257,472 SYS edges each.
+with the opt-in reSID chain (`RESID_FILTER`) enabled over 23,052 Phi2 clocks and
+1,257,472 SYS edges each.
 It checks complete signed-32 output, PCM, OSC3, ENV3, bus reads and done/busy,
 including writes, reset/restart and 41/53/54/64-SYS cadence. Only the reference's
 indeterminate initial ENV3 sample is excluded until the first non-reset Phi2;

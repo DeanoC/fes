@@ -1019,7 +1019,7 @@ sim-fes-spectrum-board: spectrum-diagnostic
 		"$(CURDIR)/cores/fes-spectrum/sim/board_tb.cpp"
 	@build/sim/fes-spectrum-board/Vtop
 
-C64_SID_AUDIO_SOURCES := cores/fes-c64/rtl/c64_sid_filter_rom.sv cores/fes-c64/rtl/c64_sid_filter_table.sv cores/fes-c64/rtl/c64_sid_vcr_shared.sv cores/fes-c64/rtl/c64_sid_integrator.sv cores/fes-c64/rtl/c64_sid_filter.sv cores/fes-c64/rtl/c64_sid_output_filter.sv cores/fes-c64/rtl/c64_sid_dac.sv cores/fes-c64/rtl/c64_sid_audio.sv
+C64_SID_AUDIO_SOURCES := cores/fes-c64/rtl/c64_sid_svf.sv cores/fes-c64/rtl/c64_sid_filter_rom.sv cores/fes-c64/rtl/c64_sid_filter_table.sv cores/fes-c64/rtl/c64_sid_vcr_shared.sv cores/fes-c64/rtl/c64_sid_integrator.sv cores/fes-c64/rtl/c64_sid_filter.sv cores/fes-c64/rtl/c64_sid_output_filter.sv cores/fes-c64/rtl/c64_sid_dac.sv cores/fes-c64/rtl/c64_sid_audio.sv
 C64_DIAGNOSTIC := build/diagnostics/fes-c64
 C64_VERILATOR_FLAGS := -DFES_SIMULATION -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAND \
 	-Wno-WIDTHTRUNC -Wno-CASEX -Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM \
@@ -1031,7 +1031,7 @@ C64_BOOT_VISIBILITY := $(if $(filter 1,$(C64_BOOT_FULL_VISIBILITY)),--public-fla
 C64_RTL := cores/fes-c64/rtl/c64_machine.sv cores/fes-c64/rtl/c64_ram.v \
 	cores/fes-c64/rtl/c64_color_ram.v \
 	cores/fes-c64/rtl/c64_rom.v cores/fes-c64/rtl/c64_vic.v cores/fes-c64/rtl/c64_vic_graphics_pixels.sv cores/fes-c64/rtl/c64_vic_sprite_pixels.sv cores/fes-c64/rtl/c64_vic_collisions.sv \
-	cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv cores/fes-c64/rtl/c64_frame_store.sv cores/fes-c64/rtl/c64_sid_envelope.sv cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid.v $(C64_SID_AUDIO_SOURCES) \
+	cores/fes-c64/rtl/c64_vic_fetch.sv cores/fes-c64/rtl/c64_vic_sprite_fetch.sv cores/fes-c64/rtl/c64_frame_store.sv cores/fes-c64/rtl/c64_sid_envelope.sv cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid.v $(C64_SID_AUDIO_SOURCES) \
 	cores/fes-c64/rtl/c64_cia.v cores/fes-c64/rtl/c64_disk_store.v \
 	cores/fes-c64/rtl/c64_drive1541.sv cores/fes-c64/rtl/c64_via.v cores/fes-c64/rtl/c64_gcr_read.v cores/fes-c64/rtl/c64_d64_medium.sv \
 	cores/fes-c64/rtl/c64_keyboard.v cores/fes-c64/rtl/c64_slot_sockets.v \
@@ -2350,7 +2350,7 @@ sim-fes-c64-sid-audio:
 			--top-module sid_audio_sim_top -GPREPARED=$$prepared \
 			--Mdir "$(CURDIR)/build/sim/fes-c64-sid-audio-$$prepared" \
 			cores/fes-c64/sim/sid_audio_sim_top.sv \
-			cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv \
+			cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv \
 			cores/fes-c64/rtl/c64_sid_envelope.sv $(C64_SID_AUDIO_SOURCES) \
 			"$(CURDIR)/cores/fes-c64/sim/sid_audio_tb.cpp" || exit $$?; \
 		build/sim/fes-c64-sid-audio-$$prepared/Vsid_audio_sim_top || exit $$?; \
@@ -2358,12 +2358,12 @@ sim-fes-c64-sid-audio:
 
 
 .PHONY: sim-fes-c64-sid
-sim-fes-c64-sid: sim-fes-c64-sid-audio sim-fes-c64-sid-envelope-prepared sim-fes-c64-sid-prepared sim-fes-c64-sid-envelope sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3 sim-fes-c64-sid-coupling sim-fes-c64-sid-phase
+sim-fes-c64-sid: sim-fes-c64-sid-audio sim-fes-c64-sid-envelope-prepared sim-fes-c64-sid-prepared sim-fes-c64-sid-envelope sim-fes-c64-sid-oscillator sim-fes-c64-sid-osc3 sim-fes-c64-sid-coupling sim-fes-c64-sid-phase sim-fes-c64-sid-sequenced sim-fes-c64-sid-sequenced-osc3 sim-fes-c64-sid-sequenced-mix sim-fes-c64-sid-svf
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-c64-sid
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid" \
-		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sid_tb.cpp"
 	@build/sim/fes-c64-sid/Vc64_sid_sim_top
 
@@ -2374,7 +2374,7 @@ sim-fes-c64-sid-oscillator:
 	$(VERILATOR) --cc --exe --build -O2 --top-module oscillator_sim_top $(C64_VERILATOR_FLAGS) \
 		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-oscillator" \
-		cores/fes-c64/sim/sid_oscillator_sim_top.sv cores/fes-c64/rtl/c64_sid_oscillator.sv \
+		cores/fes-c64/sim/sid_oscillator_sim_top.sv cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sid_oscillator_tb.cpp"
 	@build/sim/fes-c64-sid-oscillator/Voscillator_sim_top
 
@@ -2385,7 +2385,7 @@ sim-fes-c64-sid-osc3:
 		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-osc3" \
 		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
-		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sid_oscillator_bus_tb.cpp"
 	@build/sim/fes-c64-sid-osc3/Vc64_sid_sim_top
 
@@ -2397,7 +2397,7 @@ sim-fes-c64-sid-coupling:
 		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-coupling" \
 		cores/fes-c64/sim/sid_coupling_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
-		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sid_coupling_tb.cpp"
 	@build/sim/fes-c64-sid-coupling/Vsid_coupling_sim_top
 
@@ -2409,10 +2409,57 @@ sim-fes-c64-sid-phase:
 		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-phase" \
 		cores/fes-c64/sim/sid_coupling_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
-		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sid_coupling_tb.cpp"
 	@build/sim/fes-c64-sid-phase/Vsid_coupling_sim_top
 
+
+.PHONY: sim-fes-c64-sid-svf
+sim-fes-c64-sid-svf:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-svf
+	$(VERILATOR) --cc --exe --build -O2 --top-module sid_svf_sim_top $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-svf" \
+		cores/fes-c64/sim/sid_svf_sim_top.sv cores/fes-c64/rtl/c64_sid_svf.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_svf_tb.cpp"
+	@build/sim/fes-c64-sid-svf/Vsid_svf_sim_top
+
+.PHONY: sim-fes-c64-sid-sequenced sim-fes-c64-sid-sequenced-osc3 sim-fes-c64-sid-sequenced-mix
+# Sequenced voices: the same pinned reSID coupling, OSC3 and mix fixtures with
+# each voice's waveform stage one SYS edge after Phi (the motherboard build).
+sim-fes-c64-sid-sequenced:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-sequenced
+	$(VERILATOR) --cc --exe --build -O2 --top-module sid_coupling_sim_top -GPREPARE_PHASE=1 -GSEQUENCE_VOICES=1 $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-DC64_PREPARED_PHASE -DC64_SEQUENCED_VOICES" \
+		-CFLAGS "-O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-sequenced" \
+		cores/fes-c64/sim/sid_coupling_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
+		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_coupling_tb.cpp"
+	@build/sim/fes-c64-sid-sequenced/Vsid_coupling_sim_top
+
+sim-fes-c64-sid-sequenced-osc3:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-sequenced-osc3
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 -GSEQUENCE_VOICES=1 $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-DC64_SEQUENCED_VOICES -O3" -MAKEFLAGS "OPT_FAST=-O3 OPT_SLOW=-O3 OPT_GLOBAL=-O3" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-sequenced-osc3" \
+		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v \
+		cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_oscillator_bus_tb.cpp"
+	@build/sim/fes-c64-sid-sequenced-osc3/Vc64_sid_sim_top
+
+sim-fes-c64-sid-sequenced-mix:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-c64-sid-sequenced-mix
+	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 -GSEQUENCE_VOICES=1 $(C64_VERILATOR_FLAGS) \
+		-CFLAGS "-DC64_SEQUENCED_VOICES" \
+		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-sequenced-mix" \
+		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		"$(CURDIR)/cores/fes-c64/sim/sid_tb.cpp"
+	@build/sim/fes-c64-sid-sequenced-mix/Vc64_sid_sim_top
 
 .PHONY: sim-fes-c64-sid-envelope
 sim-fes-c64-sid-envelope:
@@ -2437,7 +2484,7 @@ sim-fes-c64-sid-prepared:
 	@mkdir -p build/sim/fes-c64-sid-prepared
 	$(VERILATOR) --cc --exe --build -O2 --top-module c64_sid_sim_top -GPREPARE_PHASE=1 -GPREPARE_ENVELOPE=1 $(C64_VERILATOR_FLAGS) \
 		--Mdir "$(CURDIR)/build/sim/fes-c64-sid-prepared" \
-		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
+		cores/fes-c64/sim/sid_sim_top.sv cores/fes-c64/rtl/c64_sid.v cores/fes-c64/rtl/c64_sid_oscillator.sv cores/fes-c64/rtl/c64_sid_wave_tables.sv cores/fes-c64/rtl/c64_sid_envelope.sv \
 		"$(CURDIR)/cores/fes-c64/sim/sid_tb.cpp"
 	@build/sim/fes-c64-sid-prepared/Vc64_sid_sim_top
 

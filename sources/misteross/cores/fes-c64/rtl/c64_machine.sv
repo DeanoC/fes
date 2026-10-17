@@ -121,31 +121,63 @@ module c64_machine #(
     wire hiram = port_eff[1];
     wire charen = port_eff[2];
 
-    wire exrom = slot1_response[`C64_BUS_EXROM] | slot2_response[`C64_BUS_EXROM];
-    wire game = slot1_response[`C64_BUS_GAME] | slot2_response[`C64_BUS_GAME];
+    // The sockets are frozen in reserved rectangles far from the machine, so
+    // their registered responses are sampled once more here, beside the
+    // consumers. One extra SYS edge is invisible at the bus level: a response
+    // to the strobe at edge 26 is read at edge 43, and the cartridge control
+    // and interrupt lines only change in reply to a strobe.
+    reg [`C64_BUS_RSP-1:0] slot1_rsp = 0;
+    reg [`C64_BUS_RSP-1:0] slot2_rsp = 0;
+    always @(posedge clk_sys) begin
+        slot1_rsp <= slot1_response;
+        slot2_rsp <= slot2_response;
+    end
+    wire exrom = slot1_rsp[`C64_BUS_EXROM] | slot2_rsp[`C64_BUS_EXROM];
+    wire game = slot1_rsp[`C64_BUS_GAME] | slot2_rsp[`C64_BUS_GAME];
     wire ultimax = game && !exrom;
     wire cart16 = game && exrom;
     wire cart8 = !game && exrom;
-    wire cart_irq = slot1_response[`C64_BUS_IRQ] | slot2_response[`C64_BUS_IRQ];
-    wire cart_nmi = slot1_response[`C64_BUS_NMI] | slot2_response[`C64_BUS_NMI];
-    wire [7:0] cart_data = slot1_response[`C64_BUS_DRIVE] ? slot1_response[`C64_BUS_RD]
-                                                          : slot2_response[`C64_BUS_RD];
-    wire cart_hit = slot1_response[`C64_BUS_DRIVE] | slot2_response[`C64_BUS_DRIVE];
+    wire cart_irq = slot1_rsp[`C64_BUS_IRQ] | slot2_rsp[`C64_BUS_IRQ];
+    wire cart_nmi = slot1_rsp[`C64_BUS_NMI] | slot2_rsp[`C64_BUS_NMI];
+    wire [7:0] cart_data = slot1_rsp[`C64_BUS_DRIVE] ? slot1_rsp[`C64_BUS_RD]
+                                                     : slot2_rsp[`C64_BUS_RD];
+    wire cart_hit = slot1_rsp[`C64_BUS_DRIVE] | slot2_rsp[`C64_BUS_DRIVE];
 
-    wire a000 = bus_addr[15:13] == 3'b101;
-    wire e000 = bus_addr[15:13] == 3'b111;
-    wire roml = bus_addr[15:13] == 3'b100;
-    wire d000 = bus_addr[15:12] == 4'hD;
-    wire show_io = d000 && (ultimax || (!ultimax && charen && (loram || hiram)));
-    wire show_char = d000 && !ultimax && !show_io && (loram || hiram);
-    wire show_basic = a000 && hiram && loram && !cart16 && !ultimax;
-    wire show_kernal = e000 && hiram && !ultimax;
-    wire sel_vic = show_io && bus_addr[11:10] == 2'b00;
-    wire sel_sid = show_io && bus_addr[11:10] == 2'b01;
-    wire sel_color = show_io && bus_addr[11:10] == 2'b10;
-    wire sel_cia1 = show_io && bus_addr[15:8] == 8'hDC;
-    wire sel_cia2 = show_io && bus_addr[15:8] == 8'hDD;
-    wire sel_port = bus_addr[15:1] == 15'h0000;
+    // The address decode is registered one system edge after the bus address
+    // changes at the CPU enable. Every consumer samples it at edge 26 or
+    // later, or reads data that is itself sampled at edge 27 or later, so the
+    // registered decode is invisible at the bus level and keeps the port,
+    // cartridge-map and address compare out of the device read mux path.
+    wire a000_c = bus_addr[15:13] == 3'b101;
+    wire e000_c = bus_addr[15:13] == 3'b111;
+    wire roml_c = bus_addr[15:13] == 3'b100;
+    wire d000_c = bus_addr[15:12] == 4'hD;
+    wire show_io_c = d000_c && (ultimax || (!ultimax && charen && (loram || hiram)));
+    wire show_char_c = d000_c && !ultimax && !show_io_c && (loram || hiram);
+    wire show_basic_c = a000_c && hiram && loram && !cart16 && !ultimax;
+    wire show_kernal_c = e000_c && hiram && !ultimax;
+    reg a000 = 1'b0, e000 = 1'b0, roml = 1'b0, d000 = 1'b0;
+    reg show_io = 1'b0, show_char = 1'b0, show_basic = 1'b0, show_kernal = 1'b0;
+    reg sel_vic = 1'b0, sel_sid = 1'b0, sel_color = 1'b0, sel_cia1 = 1'b0, sel_cia2 = 1'b0;
+    reg sel_port = 1'b0, basic_window = 1'b0, ultimax_open = 1'b0;
+    always @(posedge clk_sys) begin
+        a000 <= a000_c;
+        e000 <= e000_c;
+        roml <= roml_c;
+        d000 <= d000_c;
+        show_io <= show_io_c;
+        show_char <= show_char_c;
+        show_basic <= show_basic_c;
+        show_kernal <= show_kernal_c;
+        sel_vic <= show_io_c && bus_addr[11:10] == 2'b00;
+        sel_sid <= show_io_c && bus_addr[11:10] == 2'b01;
+        sel_color <= show_io_c && bus_addr[11:10] == 2'b10;
+        sel_cia1 <= show_io_c && bus_addr[15:8] == 8'hDC;
+        sel_cia2 <= show_io_c && bus_addr[15:8] == 8'hDD;
+        sel_port <= bus_addr[15:1] == 15'h0000;
+        basic_window <= a000_c;
+        ultimax_open <= ultimax && !roml_c && !e000_c && !d000_c && bus_addr >= 16'h1000;
+    end
     wire ram_we = bus_strobe && bus_we && !show_io && !sel_port;
 
     reg [`C64_BUS_REQ-1:0] request = 0;
@@ -207,7 +239,6 @@ module c64_machine #(
         .clk_a(clk_sys), .addr_a(bus_addr), .wdata_a(bus_wdata), .we_a(ram_we), .q_a(ram_q),
         .clk_b(clk_sys), .addr_b(video_ram_addr), .q_b(video_ram_q)
     );
-    wire basic_window = bus_addr[15:13] == 3'b101;
     wire [14:0] rom_address = show_char ? {3'b100,bus_addr[11:0]} :
         basic_window ? {2'b00,bus_addr[12:0]} : {2'b01,bus_addr[12:0]};
     c64_rom rom (
@@ -331,13 +362,19 @@ module c64_machine #(
     );
     // One idle SYS edge prepares oscillator phase and the first envelope
     // state transition before Phi. Shorter ratios retain both direct paths.
-    // Filter output completes at Phi+39 SYS edges; require at least 41 between
-    // Phi edges so that result and idle state precede the next transaction.
-    // Native PAL cadence is 53/54 SYS edges. Faster modes keep direct audio.
+    // The three voice waveform lookup/finish stages run on Phi+1..Phi+6; CPU
+    // writes land at edge 26, outside that window, and finish on edge 27.
+    // Audio captures at Phi+7 and starts at Phi+8: the reSID chain completes
+    // 39 edges later and the default filter sooner, so require at least 49
+    // edges between Phi edges so that result and idle state precede the next
+    // transaction. Native PAL cadence is 53/54 SYS edges. Faster modes keep
+    // direct audio.
     c64_sid #(
         .PREPARE_PHASE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2),
         .PREPARE_ENVELOPE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2),
-        .FILTER_AUDIO(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 41)
+        .SEQUENCE_VOICES(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 9),
+        .FILTER_AUDIO(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 49),
+        .RESID_FILTER(1'b0)
     ) sid (
         .clk(clk_sys), .phi(cpu_ce), .reset(system_reset), .cs(sel_sid),
         .we(bus_strobe && bus_we && sel_sid), .addr(bus_addr[4:0]), .din(bus_wdata),
@@ -358,7 +395,7 @@ module c64_machine #(
         cart_hit ? cart_data :
         show_char ? rom_q :
         (show_basic || show_kernal) ? rom_q :
-        (ultimax && !roml && !e000 && !d000 && bus_addr >= 16'h1000) ? 8'hFF :
+        ultimax_open ? 8'hFF :
         ram_q;
 
     always @(posedge clk_sys)
