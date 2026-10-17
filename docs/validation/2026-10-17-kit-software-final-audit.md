@@ -260,6 +260,7 @@ The next kit check should repeat the launcher kill during Pong. This host test
 is not that hardware result.
 
 Launcher re-adoption is separate from supervisor adoption of the base image.
-Two other HIL notes are filed and not fixed here: Installed cores stays
+The In use panel is launcher state. It is not scanned out over a running core
+(#769). Two other HIL notes are filed and not fixed here: Installed cores stays
 unresolved after health is ready (#764), and focus returns to the first tile
 after a launcher restart (#765).
