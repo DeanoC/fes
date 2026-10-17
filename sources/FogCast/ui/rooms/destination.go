@@ -120,7 +120,9 @@ type Destination struct {
 	CoreLaunchable bool
 	CoreBlock      string
 	// CoreNeeds is the kit inventory's requirement class for a core
-	// ("none", "media", "firmware", "parts", "unsupported").
+	// ("none", "media", "firmware", "parts", "unsupported", "unavailable").
+	// "unavailable" is an omitted optional core. It has a synthetic package
+	// id and no package in the image.
 	CoreNeeds string
 	// Inputs are input devices the selected item requires, from package
 	// metadata ("keyboard", "mouse"). A pad is not listed: its presence does

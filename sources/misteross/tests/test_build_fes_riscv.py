@@ -44,14 +44,24 @@ class RiscvProducerTests(unittest.TestCase):
         def run(*args, **options):
             seed = options["seed"]
             attempted.append(seed)
+            # A finished route that misses timing still has a clock report.
+            # Empty fmax is a crash or timeout, which is not a timing miss.
             passing = seed != 1
+            achieved = 80.0 if passing else 70.0
+            ratio = achieved / riscv.PIXEL_CLOCK_MHZ
             return placer.Candidate(seed, options["weight"], options["critexp"],
-                                    passing, 1.1 if passing else .9, 1.1 if passing else .9, {}, "")
+                                    passing, ratio, ratio,
+                                    {"pixel_clk": (achieved, riscv.PIXEL_CLOCK_MHZ)}, "")
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             with patch.object(placer, "_run_nextpnr", side_effect=run):
-                with self.assertRaisesRegex(placer.SearchError, "no placement met timing"):
+                with self.assertRaisesRegex(placer.SearchError, "no placement met timing") as caught:
                     riscv.route_placement(ROOT, output, Path("/nextpnr"), invocation, 0, single_seed=1)
+            error = caught.exception
+            self.assertEqual(error.reason, "timing-not-met")
+            self.assertEqual(error.seeds, (1,))
+            self.assertEqual(error.figures[0]["clocks"]["pixel_clk"],
+                             {"achieved_mhz": 70.0, "constraint_mhz": riscv.PIXEL_CLOCK_MHZ})
             ranking = json.loads((output / "qor-ranking.json").read_text())
             self.assertEqual(ranking["seeds"], [1])
             self.assertEqual(ranking["budget"], 1)

@@ -1282,7 +1282,7 @@ supervisor creates the directory when `/media/fat/fogcast` is already present
 and sets `XDG_CONFIG_HOME` and `XDG_STATE_HOME` to it for the runtime, agent
 and launcher. Tenfoot writes `FogCast/tenfoot.json` and
 `FogCast/rooms/<room-id>.state.json` there. Home's last selected package is
-`package_id` in `FogCast/rooms/example.fes-cores.state.json`. The directory is
+`package_id` in `FogCast/rooms/example.fes-cores.state.json`, restored when that package is still installed. A fresh visit, or a saved id that is missing or unavailable, focuses the first installed core. Selecting an omitted core does not replace the saved id. The directory is
 not a FESDATA3 bind mount. Tenfoot keeps the user config directory
 (`XDG_CONFIG_HOME`, otherwise `$HOME/.config`) when that directory is
 writable, when a missing path can be created because its nearest existing
@@ -2404,9 +2404,15 @@ payload digest, and a map full inspection would reject is omitted. Only the
 manifest and the running hashes are kept. Checking one map holds a fixed CRAM
 destination bitmap for that package and does not retain the encoded map or its
 decoded blocks. A finished factory catalog is cached until its stat fingerprint changes:
-selection and member size, mtime, inode, and directory entries. Opening a
+selection and member size, mtime, inode, and directory entries, plus the
+size, mtime, and inode of `unavailable-cores.json` beside the selections
+directory (or the line `unavailable absent`). Opening a
 selection file does not change that key, so a durable selection read does not
-start another factory scan. After the durable store opens, the agent warms
+start another factory scan. An optional core recorded in that manifest is
+listed with block `Hardware unavailable` and a synthetic package id, and a
+launch of that id is refused. It is not installed: Home does not open on it,
+the shelf count excludes it, and Details does not show that package id. An installed package for the same core id stays
+the listed row. A malformed manifest is ignored. After the durable store opens, the agent warms
 that factory cache and the durable verification cache on a background goroutine.
 The warm returns before the control socket and the bearer listener accept
 requests, so it does not delay agent readiness. Durable verification runs, then

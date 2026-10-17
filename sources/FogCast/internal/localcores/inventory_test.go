@@ -578,6 +578,77 @@ func TestInstalledIdentityAndHyphenatedCoreID(t *testing.T) {
 	}
 }
 
+func TestUnavailableCoreIsListedUntilInstalled(t *testing.T) {
+	root := t.TempDir()
+	packages, selections := filepath.Join(root, "pkgs"), filepath.Join(root, "sel")
+	if err := os.Mkdir(packages, 0o755); err != nil || os.Mkdir(selections, 0o755) != nil {
+		t.Fatal(err)
+	}
+	before := factoryFingerprint(selections, packages)
+	if !strings.Contains(before, "unavailable absent\n") {
+		t.Fatalf("fingerprint %q", before)
+	}
+	manifest := filepath.Join(root, "unavailable-cores.json")
+	body := []byte(`{"version":1,"cores":[{"core_id":"fes.atari-st","name":"Atari ST","reason":"timing-not-met","seeds":[4],"figures":[]}]}` + "\n")
+	if err := os.WriteFile(manifest, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	after := factoryFingerprint(selections, packages)
+	if after == before || !strings.Contains(after, "unavailable ") {
+		t.Fatalf("fingerprint did not observe the manifest\nbefore %s\nafter %s", before, after)
+	}
+	got := ReadInstalledCores(selections, packages)
+	if len(got) != 1 || got[0].CoreID != "fes.atari-st" || got[0].Name != "Atari ST" || got[0].Needs != "unavailable" || got[0].Launchable || got[0].Block != "Hardware unavailable" || got[0].PackageID != unavailablePackageID("fes.atari-st") {
+		t.Fatalf("%+v", got)
+	}
+	if err := os.WriteFile(manifest, []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if cores := ReadInstalledCores(selections, packages); len(cores) != 0 {
+		t.Fatalf("corrupt manifest changed the catalog: %+v", cores)
+	}
+	if err := os.Remove(manifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("missing", manifest); err != nil {
+		t.Fatal(err)
+	}
+	if cores := ReadInstalledCores(selections, packages); len(cores) != 0 {
+		t.Fatalf("symlink manifest changed the catalog: %+v", cores)
+	}
+	if err := os.Remove(manifest); err != nil {
+		t.Fatal(err)
+	}
+	body = []byte(`{"version":2,"cores":[{"core_id":"fes.atari-st","name":"Atari ST"}]}` + "\n")
+	if err := os.WriteFile(manifest, body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if cores := ReadInstalledCores(selections, packages); len(cores) != 0 {
+		t.Fatalf("wrong version changed the catalog: %+v", cores)
+	}
+	if err := os.Remove(manifest); err != nil {
+		t.Fatal(err)
+	}
+	forged := []byte(`{"version":1,"cores":[{"core_id":"fes.pong","name":"Pong"},{"core_id":"fes.atari-st","name":"Atari ST","reason":"forged"}]}` + "\n")
+	if err := os.WriteFile(manifest, forged, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if cores := ReadInstalledCores(selections, packages); len(cores) != 0 {
+		t.Fatalf("forged manifest changed the catalog: %+v", cores)
+	}
+	if err := os.Remove(manifest); err != nil {
+		t.Fatal(err)
+	}
+	installed := installCore(t, packages, selections, "fes.atari-st", "Atari ST", "fes.computer", coreOpts{})
+	if err := os.WriteFile(manifest, []byte(`{"version":1,"cores":[{"core_id":"fes.atari-st","name":"Atari ST","reason":"timing-not-met"}]}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got = ReadInstalledCores(selections, packages)
+	if len(got) != 1 || got[0].PackageID != installed || got[0].PackageID == unavailablePackageID("fes.atari-st") {
+		t.Fatalf("installed package lost to the omission row: %+v", got)
+	}
+}
+
 func requiredIfaces(ids ...string) []corepackage.Interface {
 	out := make([]corepackage.Interface, len(ids))
 	for i, id := range ids {

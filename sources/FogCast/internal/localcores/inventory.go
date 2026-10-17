@@ -2,6 +2,9 @@ package localcores
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +13,7 @@ import (
 	"sort"
 	"strings"
 	"syscall"
+	"unicode"
 
 	"github.com/DeanoC/FogCast/corepackage"
 	"github.com/DeanoC/FogCast/protocol"
@@ -17,6 +21,12 @@ import (
 )
 
 const maxSelectionBytes = 16 << 10
+
+const (
+	unavailableManifestName = "unavailable-cores.json"
+	hardwareUnavailable     = "Hardware unavailable"
+	maxUnavailableBytes     = 64 << 10
+)
 
 // Core is one installed package the kit can show. Name is the manifest
 // [core] name, copied verbatim. Block is empty when Launchable is true.
@@ -101,6 +111,16 @@ func readInstalledCores(ctx context.Context, selectionDir, packageRoot string) (
 		seen[selection.PackageID] = struct{}{}
 		cores = append(cores, FromInspection(inspection, install))
 	}
+	installedIDs := map[string]struct{}{}
+	for _, core := range cores {
+		installedIDs[core.CoreID] = struct{}{}
+	}
+	for _, core := range readUnavailableCores(selectionDir) {
+		if _, present := installedIDs[core.CoreID]; present {
+			continue
+		}
+		cores = append(cores, core)
+	}
 	sort.Slice(cores, func(i, j int) bool {
 		if cores[i].CoreID == cores[j].CoreID {
 			return cores[i].PackageID < cores[j].PackageID
@@ -116,6 +136,8 @@ func readInstalledCores(ctx context.Context, selectionDir, packageRoot string) (
 // is size, mtime, inode, mode, and directory entry names. It does not read
 // core.rbf or rom-map.json. Opening a selection file to resolve its package
 // does not change the key, so a durable selection read cannot force a rescan.
+// unavailable-cores.json, beside the selections directory, contributes its
+// size, mtime, and inode, or the line "unavailable absent".
 func factoryFingerprint(selectionDir, packageRoot string) string {
 	if !realDir(selectionDir) || !realDir(packageRoot) {
 		return "absent"
@@ -162,7 +184,126 @@ func factoryFingerprint(selectionDir, packageRoot string) string {
 			fmt.Fprintf(&b, "ent %s %s %d %d %d %d\n", selection.PackageID, member.Name(), meta.Size(), meta.ModTime().UnixNano(), meta.Mode(), statInode(meta))
 		}
 	}
+	appendUnavailableFingerprint(&b, selectionDir)
 	return b.String()
+}
+
+func unavailableManifestPath(selectionDir string) string {
+	return filepath.Join(filepath.Dir(selectionDir), unavailableManifestName)
+}
+
+func appendUnavailableFingerprint(b *strings.Builder, selectionDir string) {
+	info, err := os.Lstat(unavailableManifestPath(selectionDir))
+	if err != nil {
+		fmt.Fprintf(b, "unavailable absent\n")
+		return
+	}
+	fmt.Fprintf(b, "unavailable %d %d %d\n", info.Size(), info.ModTime().UnixNano(), statInode(info))
+}
+
+// unavailablePackageID is a stable package id for a core with no installed
+// package. The menu can address the tile; launch stays blocked.
+func unavailablePackageID(coreID string) string {
+	sum := sha256.Sum256(append([]byte("fes-unavailable\x00"), coreID...))
+	return hex.EncodeToString(sum[:])
+}
+
+func validUnavailableCoreID(coreID string) bool {
+	if !strings.HasPrefix(coreID, "fes.") {
+		return false
+	}
+	stem := strings.TrimPrefix(coreID, "fes.")
+	if stem == "" || strings.Contains(stem, ".") {
+		return false
+	}
+	for _, c := range stem {
+		switch {
+		case c >= 'a' && c <= 'z', c >= '0' && c <= '9', c == '-', c == '_':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func unavailableDisplayName(name, coreID string) string {
+	if name == "" || len(name) > 80 {
+		return coreID
+	}
+	for _, r := range name {
+		if r < 32 || r == 127 || !unicode.IsPrint(r) {
+			return coreID
+		}
+	}
+	return name
+}
+
+type unavailableDocument struct {
+	Version int `json:"version"`
+	Cores   []struct {
+		CoreID string `json:"core_id"`
+		Name   string `json:"name"`
+		Reason string `json:"reason"`
+	} `json:"cores"`
+}
+
+// unavailableReasons are the parent omission reasons. A row without one is
+// ignored. Launchability is not read from the file.
+var unavailableReasons = map[string]struct{}{
+	"timing-not-met": {},
+	"build-failed":   {},
+	"skipped":        {},
+}
+
+// readUnavailableCores lists omitted optional cores from the parent manifest.
+// A missing, symlink, oversized, or malformed file is ignored so a bad
+// manifest cannot blank the installed catalog.
+func readUnavailableCores(selectionDir string) []Core {
+	path := unavailableManifestPath(selectionDir)
+	info, err := os.Lstat(path)
+	if err != nil || info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() < 1 || info.Size() > maxUnavailableBytes {
+		return nil
+	}
+	file, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+	opened, err := file.Stat()
+	if err != nil || !os.SameFile(info, opened) {
+		return nil
+	}
+	data, err := io.ReadAll(io.LimitReader(file, maxUnavailableBytes+1))
+	if err != nil || int64(len(data)) != info.Size() {
+		return nil
+	}
+	var document unavailableDocument
+	if json.Unmarshal(data, &document) != nil || document.Version != 1 {
+		return nil
+	}
+	cores := []Core{}
+	seen := map[string]struct{}{}
+	for _, row := range document.Cores {
+		if !validUnavailableCoreID(row.CoreID) {
+			continue
+		}
+		if _, known := unavailableReasons[row.Reason]; !known {
+			continue
+		}
+		if _, duplicate := seen[row.CoreID]; duplicate {
+			continue
+		}
+		seen[row.CoreID] = struct{}{}
+		cores = append(cores, Core{
+			CoreID:     row.CoreID,
+			PackageID:  unavailablePackageID(row.CoreID),
+			Name:       unavailableDisplayName(row.Name, row.CoreID),
+			Needs:      "unavailable",
+			Launchable: false,
+			Block:      hardwareUnavailable,
+		})
+	}
+	return cores
 }
 
 func statInode(info os.FileInfo) uint64 {
