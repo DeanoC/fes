@@ -590,7 +590,7 @@ func TestUnavailableCoreIsListedUntilInstalled(t *testing.T) {
 	}
 	manifest := filepath.Join(root, "unavailable-cores.json")
 	body := []byte(`{"version":1,"cores":[{"core_id":"fes.atari-st","name":"Atari ST","reason":"timing-not-met","seeds":[4],"figures":[]}]}` + "\n")
-	if err := os.WriteFile(manifest, body, 0o444); err != nil {
+	if err := os.WriteFile(manifest, body, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	after := factoryFingerprint(selections, packages)
@@ -601,7 +601,7 @@ func TestUnavailableCoreIsListedUntilInstalled(t *testing.T) {
 	if len(got) != 1 || got[0].CoreID != "fes.atari-st" || got[0].Name != "Atari ST" || got[0].Needs != "unavailable" || got[0].Launchable || got[0].Block != "Hardware unavailable" || got[0].PackageID != unavailablePackageID("fes.atari-st") {
 		t.Fatalf("%+v", got)
 	}
-	if err := os.WriteFile(manifest, []byte("{"), 0o444); err != nil {
+	if err := os.WriteFile(manifest, []byte("{"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if cores := ReadInstalledCores(selections, packages); len(cores) != 0 {
@@ -620,7 +620,7 @@ func TestUnavailableCoreIsListedUntilInstalled(t *testing.T) {
 		t.Fatal(err)
 	}
 	body = []byte(`{"version":2,"cores":[{"core_id":"fes.atari-st","name":"Atari ST"}]}` + "\n")
-	if err := os.WriteFile(manifest, body, 0o444); err != nil {
+	if err := os.WriteFile(manifest, body, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if cores := ReadInstalledCores(selections, packages); len(cores) != 0 {
@@ -630,7 +630,7 @@ func TestUnavailableCoreIsListedUntilInstalled(t *testing.T) {
 		t.Fatal(err)
 	}
 	installed := installCore(t, packages, selections, "fes.atari-st", "Atari ST", "fes.computer", coreOpts{})
-	if err := os.WriteFile(manifest, []byte(`{"version":1,"cores":[{"core_id":"fes.atari-st","name":"Atari ST"}]}`+"\n"), 0o444); err != nil {
+	if err := os.WriteFile(manifest, []byte(`{"version":1,"cores":[{"core_id":"fes.atari-st","name":"Atari ST"}]}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	got = ReadInstalledCores(selections, packages)

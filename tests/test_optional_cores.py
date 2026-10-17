@@ -172,15 +172,16 @@ class OptionalCoreTests(unittest.TestCase):
              patch.object(bundle, "_plain_directory"), \
              patch.object(bundle, "_matching_package_candidates", side_effect=candidates), \
              patch.object(bundle, "_build_package", side_effect=fail), \
+             patch.object(bundle.artifact_cache, "store_for", return_value=Path(temporary)), \
              patch.object(bundle.artifact_cache, "publish") as publish:
             with self.assertRaises(ValueError) as caught:
                 bundle.resolve_core_package(
                     temporary, "b" * 40, Path(temporary) / "selection.toml",
                     recipe=recipe_for("fes.atari-st"))
-        self.assertEqual(calls["build"], 1)
-        self.assertEqual(calls["candidates"], 2)
-        publish.assert_not_called()
-        self.assertEqual(caught.exception.unavailable["reason"], "timing-not-met")
+            self.assertEqual(calls["build"], 1)
+            self.assertEqual(calls["candidates"], 2)
+            publish.assert_not_called()
+            self.assertEqual(caught.exception.unavailable["reason"], "timing-not-met")
 
     def test_producer_report_is_read_once_and_removed(self):
         source = None
@@ -240,7 +241,8 @@ class OptionalCoreTests(unittest.TestCase):
                     build.resolve_packages_for_action(
                         REVISIONS, output, {"FES_REQUIRE_ALL_CORES": "1"}, "verify",
                         ("fes.pong", "fes.atari-st"))
-            self.assertEqual(resolved, [("verify", "fes.pong")])
+            self.assertEqual(resolved, [("verify", "fes.pong"), ("verify", "fes.pong")])
+            self.assertNotIn(("verify", "fes.atari-st"), resolved)
             self.assertEqual(unavailable[0]["reason"], "timing-not-met")
             lines = optional_cores.warning_lines(unavailable)
             self.assertTrue(lines[0].startswith("WARNING:"))

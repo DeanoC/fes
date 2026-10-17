@@ -552,7 +552,7 @@ class CoreBuildTest(unittest.TestCase):
                     patch.object(build, 'run', side_effect=fake_run),
                     patch.object(build, 'locked_diagnostics', no_diagnostics),
                     patch.object(build, 'resolve_packages_for_action',
-                                 return_value=packages),
+                                 return_value=(packages, ())),
                     patch.object(build, 'build_fingerprint',
                                  return_value=('base-fingerprint', {'sources': {}})),
                     patch.object(build, 'host_fingerprint',
