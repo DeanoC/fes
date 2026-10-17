@@ -89,19 +89,30 @@ local function text_height(px, bold)
   heights[key] = measured
   return measured
 end
--- Keep a host cassette label inside w logical pixels. A label that does
--- not fit keeps its start and its end, so two long labels stay distinct.
+-- Keep a host cassette label inside w logical pixels. The width is the
+-- measured face, not a byte count: narrow letters are thinner than one em,
+-- so a long name can still fit. A label that does not fit keeps its start
+-- and its end, so two long labels stay distinct. The last result is reused
+-- so a dirty frame does not measure the same label again.
+local fit_seen_s, fit_seen_px, fit_seen_limit, fit_seen_bold, fit_seen
 local function fit_name(s, size, w, bold)
   s = s or ""
   local px = math.max(12, math.floor(size * scale))
   local limit = w * scale
-  if #s * px <= limit then return s end
+  if s == fit_seen_s and px == fit_seen_px and limit == fit_seen_limit and bold == fit_seen_bold then
+    return fit_seen
+  end
+  local function remember(result)
+    fit_seen_s, fit_seen_px, fit_seen_limit, fit_seen_bold, fit_seen = s, px, limit, bold, result
+    return result
+  end
+  if gfx.measure(s, px, bold) <= limit then return remember(s) end
   local key = s .. "\0" .. px .. "\0" .. math.floor(limit) .. (bold and "b" or "n")
   local cached = fit_cache[key]
-  if cached then return cached end
+  if cached then return remember(cached) end
   local chars = {}
   for ch in s:gmatch("[%z\1-\127\194-\244][\128-\191]*") do chars[#chars+1] = ch end
-  if #chars < 2 then fit_cache[key] = s return s end
+  if #chars < 2 then fit_cache[key] = s return remember(s) end
   local ell = "…"
   local function piece(i, j) return table.concat(chars, "", i, j) end
   local function width(candidate) return gfx.measure(candidate, px, bold) end
@@ -116,7 +127,7 @@ local function fit_name(s, size, w, bold)
     best = candidate
   end
   fit_cache[key] = best
-  return best
+  return remember(best)
 end
 local function lines(s,x,y,w,size,max_lines,c)
   s = s or ""

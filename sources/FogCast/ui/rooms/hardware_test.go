@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"math"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -550,6 +551,37 @@ func TestHardwareRoomCassetteNamesStayDistinct(t *testing.T) {
 	}
 	if !textWithin(longLeft) || !textWithin(longRight) || !strings.Contains(longLeft.Text, "…") {
 		t.Fatalf("long cassette name still clipped by max width: %q max %d", longLeft.Text, longLeft.MaxW)
+	}
+}
+
+// TestHardwareRoomNarrowCassetteNameStaysWhole checks a label the old
+// `#s * px` estimate would shorten. Narrow letters are thinner than one em,
+// so the name is longer than that estimate and still fits the measured row.
+func TestHardwareRoomNarrowCassetteNameStaysWhole(t *testing.T) {
+	const tail = "narrow"
+	// cassetteLabel opens the room at newRoom's default 1280x720.
+	scale := math.Min(1280.0/1120.0, 720.0/630.0)
+	px := int(math.Max(12, math.Floor(14*scale)))
+	limit := 980.0 * scale
+	var name string
+	for n := 1; n < 400; n++ {
+		candidate := strings.Repeat("i", n) + tail
+		if float64(len(candidate))*float64(px) <= limit {
+			continue
+		}
+		width := gfx.MeasureTextWeight(candidate, px, gfx.WeightBold)
+		if float64(width) > limit {
+			t.Fatalf("narrow name overflowed before the byte estimate failed: %q is %dpx, limit %.1f", candidate, width, limit)
+		}
+		name = candidate
+		break
+	}
+	if name == "" {
+		t.Fatal("could not build a narrow cassette name that fits")
+	}
+	got := cassetteLabel(t, name, tail)
+	if got.Text != name || strings.Contains(got.Text, "…") || !textWithin(got) {
+		t.Fatalf("fitting narrow name shortened: %q max %d", got.Text, got.MaxW)
 	}
 }
 
