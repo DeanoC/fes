@@ -20,7 +20,7 @@ from scripts.cyclonev_rbf import LoadedRbf, SX120F, cram_set
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def frozen_shell(*, direct_inputs: bool = False) -> dict:
+def frozen_shell() -> dict:
     pins = {name: [0, name] for name in ("locked", "outclk", "outclk[0]", "outclk[1]", "refclk", "rst")}
     cells = {
         "system_clock.pll": {"type": "altera_pll",
@@ -41,35 +41,10 @@ def frozen_shell(*, direct_inputs: bool = False) -> dict:
             "connections": {"A": [1000 + index], "Q": [2000 + index]},
             "port_directions": {"A": "input", "Q": "output"},
             "attributes": {"NEXTPNR_BEL": card.shell_recipe.boundary_route_buffer_bel(bel)}}
-        if direct_inputs:
-            del cells[socket.instance + name + "$ROUTETHRU"]
-            ff = cells[socket.instance + name]
-            mapping = {"count": 8, "pins": {port: [value, port] for port, value in
-                (("ACLR", 2), ("CLK", 0), ("DATAIN", 0), ("ENA", 2),
-                 ("Q", 0), ("SCLR", 1), ("SDATA", 0), ("SLOAD", 1))}}
-            ff["attributes"]["FES_PINMAP_V1"] = json.dumps(mapping).encode().hex()
-            ff["connections"].update({"Q": [3000 + index], "ACLR": [], "ENA": [],
-                                      "SCLR": [], "SDATA": [], "SLOAD": []})
-            ff["port_directions"] = {port: "output" if port == "Q" else "input"
-                                     for port in mapping["pins"]}
     netnames = {"system_clock.pll_outclk_1": {"bits": [20]},
                 "system_clock.clocks[1]": {"bits": [21]}, "pixel_clk": {"bits": [30]},
                 card.SLOT_CLOCK: {"bits": [10], "attributes": {"ROUTING": "frozen clock branches"}}}
-    top = {"cells": cells, "netnames": netnames}
-    if direct_inputs:
-        top["ports"] = {"request": {"direction": "input", "bits": list(range(2000, 2056))}}
-        cells["$PACKER_GND_DRV"] = {"type": "MISTRAL_CONST", "parameters": {"LUT": "0" * 32},
-            "connections": {"Q": [4000]}, "port_directions": {"Q": "output"}}
-        for name in atari_st_slot.boundary_bels(socket):
-            role, bit = name.rsplit("_", 1)
-            ff = cells[socket.instance + name]
-            alias = {"plug_request_ff": f"expansion_plug_request[{bit}]",
-                     "plug_response_ff": f"expansion.response[{bit}]",
-                     "clock_coverage_ff": f"expansion.clock_coverage_unused[{bit}]"}[role]
-            netnames[alias] = {"bits": ff["connections"]["Q"][:]}
-            if role != "plug_request_ff":
-                ff["connections"]["DATAIN"] = [4000]
-    return {"modules": {"top": top}}
+    return {"modules": {"top": {"cells": cells, "netnames": netnames}}}
 
 
 def good_timing() -> dict:
@@ -140,25 +115,6 @@ class BuildFixture:
 
 
 class AtariSTSlotCardTests(unittest.TestCase):
-    def test_scaffold_accepts_native_direct_inputs_without_inventing_buffers(self):
-        source = frozen_shell(direct_inputs=True)
-        prepared = json.loads(card.prepare_scaffold(json.dumps(source).encode(), 1))["modules"]["top"]
-        cells = prepared["cells"]
-        for prefix, old, count in (("plug_addr_ff_", "plug_request_ff_", 56),
-                                   ("plug_rdata_ff_", "plug_response_ff_", 32)):
-            for bit in range(count):
-                self.assertEqual(cells[f"{prefix}{bit}"],
-                                 source["modules"]["top"]["cells"][f"expansion.{old}{bit}"])
-        self.assertFalse(any(name.startswith("expansion.") or "$ROUTETHRU" in name for name in cells))
-        self.assertIn("machine.keep", cells)
-        self.assertIn("$PACKER_GND_DRV", cells)
-
-    def test_scaffold_rejects_undriven_direct_datain(self):
-        source = frozen_shell(direct_inputs=True)
-        source["modules"]["top"]["cells"]["expansion.plug_request_ff_0"]["connections"]["DATAIN"] = [999999]
-        with self.assertRaisesRegex(ValueError, "exactly one driver"):
-            card.prepare_scaffold(json.dumps(source).encode(), 1)
-
     def test_source_closure_includes_probe_header_and_locked_tools(self):
         inputs = card.card_inputs("probe")
         for name in (*card.CARDS["probe"], *card.CARD_INCLUDES, card.shell_recipe.ST_TOOLCHAIN_LOCK):
@@ -245,12 +201,8 @@ class AtariSTSlotCardTests(unittest.TestCase):
         top = design["modules"]["top"]
         pll = top["cells"]["system_clock.pll"]
         before = json.loads(json.dumps(pll))
-        atari_st_slot.validate_current_system_pll(top)
+        atari_st_slot.repair_split_system_pll(top)
         self.assertEqual(pll, before)
-        untouched = json.loads(json.dumps(design))
-        with self.assertRaisesRegex(ValueError, "legacy repair requires the six-pin map"):
-            atari_st_slot.repair_split_system_pll(top)
-        self.assertEqual(design, untouched)
         self.assertEqual(pll["connections"]["outclk[1]"], [20])
         self.assertEqual(pll["connections"]["outclk"], [10])
         self.assertNotIn("outclk[0]", pll["connections"])
@@ -273,7 +225,7 @@ class AtariSTSlotCardTests(unittest.TestCase):
                 rejected = shell(**kwargs)
                 snapshot = json.loads(json.dumps(rejected))
                 with self.assertRaisesRegex(ValueError, pattern):
-                    atari_st_slot.validate_current_system_pll(rejected["modules"]["top"])
+                    atari_st_slot.repair_split_system_pll(rejected["modules"]["top"])
                 self.assertEqual(rejected, snapshot)
                 with self.assertRaisesRegex(ValueError, pattern):
                     card.prepare_scaffold(json.dumps(rejected).encode(), 1)
@@ -289,8 +241,7 @@ class AtariSTSlotCardTests(unittest.TestCase):
             "locked": [0, "locked"], "outclk[0]": [0, "C6"], "outclk[1]": [0, "C7"],
             "refclk": [0, "refclk"], "rst": [0, "rst"]}}
         reject(indexed)
-        for name, value in (("outclk", [0, "C5"]), ("outclk[1]", [0, "C8"]),
-                            ("outclk[1]", [0, "outclk[1]"]),
+        for name, value in (("outclk", [0, "C5"]), ("outclk[1]", [0, "outclk[1]"]),
                             ("outclk", [1, "C6"]), ("outclk[0]", [0, "outclk[0]"])):
             mutated = json.loads(json.dumps(routed))
             mutated["pins"][name] = value

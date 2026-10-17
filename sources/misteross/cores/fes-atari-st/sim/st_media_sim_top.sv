@@ -20,10 +20,6 @@ module st_media_sim_top #(parameter bit GEOMETRY = 0) (
     wire [15:0] unused_controller;
     wire [34:0] unused_mouse;
     wire [21:0] unused_snapshot;
-    wire unused_display_request;
-    wire [6:0] unused_display_opcode;
-    wire [7:0] unused_display_index;
-    wire [15:0] unused_display_argument;
     fes_computer_mailbox #(
         .ENABLE_ATARI_ST_FLOPPY(1), .ENABLE_ATARI_ST_FLOPPY_GEOMETRY(GEOMETRY), .ENABLE_ATARI_ST_FLOPPY_WRITE(GEOMETRY), .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(20),
         .UNIT0_MIN(GEOMETRY ? 368640 : 737280), .UNIT0_MAX(GEOMETRY ? 839680 : 737280)
@@ -35,11 +31,7 @@ module st_media_sim_top #(parameter bit GEOMETRY = 0) (
         .media_read_req(unused_snapshot[1]), .media_read_addr(unused_snapshot[21:2]), .media_read_ready(1'b0), .media_read_data(8'd0),
         .media_write_addr(source_addr), .media_write_data(source_data),
         .media_write_enable(source_enable), .media_write_ready(source_ready),
-        .unit0_state(unit0_state), .unit0_size(unit0_size),
-        .display_request(unused_display_request), .display_opcode(unused_display_opcode),
-        .display_index(unused_display_index), .display_argument(unused_display_argument),
-        .display_response_valid(1'b0), .display_response_error(1'b0),
-        .display_response_data(16'd0), .display_quiesced(1'b1)
+        .unit0_state(unit0_state), .unit0_size(unit0_size)
     );
     st_media_writer writer (.*);
 endmodule

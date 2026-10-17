@@ -173,9 +173,8 @@ freeze-scaffold pass 2. `fes.menu` and both OSS `fes.ramtest` rates use the same
 against `toolchain.lock`. SMS uses
 `make toolchain-fes-sms` against `toolchain.lock`. ZX81 uses
 `make toolchain-fes-zx81` against `toolchain.lock`. Atari ST uses
-`make toolchain-fes-atari-st` against `toolchains/atari-st.lock`: Yosys and
-Mistral match the shared pin, and nextpnr is `b7ba9b6e`. The factory recipe
-stays HIP. The October kit notes do not accept this pin. Those
+`make toolchain-fes-atari-st` against `toolchain.lock`. The factory recipe
+stays HIP. The October kit notes do not accept a shared-pin seal. Those
 install under their own prefixes unless `CACHE_ROOT` selects the shared
 cache. See [Cores](docs/cores.md).
 
@@ -211,8 +210,7 @@ This path does not seal `fes.zx81`.
 | `cores/fes-common/` | RTL shared by more than one core |
 | `scripts/experiment_policy.py` | Closed experiment list and checks |
 | `scripts/build_fes_*.py` | Core producers |
-| `toolchain.lock` | Shared OSS tools and the FES HIP slot used by every described recipe except Atari ST |
-| `toolchains/` | Private lock still selected by Atari ST |
+| `toolchain.lock` | Shared OSS tools and the FES HIP slot used by every described recipe |
 | `boards/de10nano/` | Shared device and pin constraints |
 | `sealed/` | Tracked splash/idle RBF |
 | `build/` | Generated tools and RBFs, not source |

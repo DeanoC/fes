@@ -104,7 +104,7 @@ module top #(
     wire [6:0] display_opcode;
     wire [7:0] display_index;
     wire [15:0] display_argument, display_response_data;
-    fes_computer_mailbox #(
+    fes_computer_mailbox_core #(
         .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1),
         .ENABLE_ZX81_TAPE(1), .ENABLE_SESSION_DISPLAY(1), .MEDIA_AW(14),
         .UNIT0_MIN(`FES_COMPUTER_ZX81_TAPE_MIN_BYTES),

@@ -471,15 +471,6 @@ prefetched before DE confirms opening. The remaining mode samples are approximat
 does not reproduce exact MMU/shifter arbitration, mid-line base writes,
 horizontal or top-border opening.
 
-The CPU expansion socket retains 119 pinned boundary/clock FFs. Current nextpnr
-routes these locked FFs through their native E/F inputs; the producer validates
-their exact pin map, system clock, inactive control ports, one cell-output or
-module-input driver on each data net, and the request, response and clock-anchor
-output aliases. Vacant response and clock anchors require a packed zero driver.
-Legacy shells
-retain their paired LUT buffers and the corresponding strict wiring checks.
-Both forms preserve the CPU socket BELs and exclusion fence.
-
 Video uses the existing [RGB888 part contract](../../../mister-packages/docs/video-parts.md)
 and shared direct/scanline implementations through two registered boundaries.
 `st_video_socket.sv` provides the optional frozen raster socket
@@ -519,15 +510,12 @@ python3 scripts/sim_atari_st_io_diagnostic.py \
   --output out/validation/atari-st/io-guest --seconds 10 --audio-phase-ticks 20
 ```
 
-`make build-fes-atari-st` authenticates `toolchains/atari-st.lock`. Yosys and
-Mistral match the shared pin. nextpnr is `b7ba9b6e`, which bounds GPU-router
-architecture-rejection retries. The factory recipe stays HIP. `--gpu-router CUDA`
-builds a separate package. The shell and both exact-shell parts must be rebuilt
-together on this pin. The
-[2026-10-04 private-pin record](../../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
-qualifies the earlier read-only shell and does not qualify this pin. The
-October kit notes do not accept these bytes. Video parts and slot cards take
-the same `--gpu-router` and `--toolchain-root` as the shell.
+`make build-fes-atari-st` authenticates the shared `toolchain.lock`. The
+factory recipe stays HIP. `--gpu-router CUDA` builds a separate package.
+The [2026-10-04 private-pin record](../../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
+qualifies the earlier read-only shell and does not qualify this shared-pin
+seal. The October kit notes do not accept these bytes. Video parts and slot
+cards take the same `--gpu-router` and `--toolchain-root` as the shell.
 
 ```sh
 make -C sources/misteross build-fes-atari-st CACHE_ROOT=/absolute/toolchain-cache

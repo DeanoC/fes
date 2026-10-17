@@ -42,7 +42,7 @@
     "scripts/source_provenance.py",
     "scripts/source_repository.py",
     "scripts/toolchain_cache.py",
-    "toolchains/atari-st.lock"
+    "toolchain.lock"
   ],
   "build_fes_apple2_oss": [
     "cores/fes-apple2/clocks-oss.sdc",

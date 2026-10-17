@@ -83,10 +83,7 @@ module top #(
         .media_write_busy(floppy_write_busy), .media_changed(floppy_changed), .media_frozen(media_frozen),
         .media_read_req(snapshot_req), .media_read_addr(snapshot_addr),
         .media_read_ready(snapshot_ready), .media_read_data(snapshot_data),
-        .unit0_state(unit0_state), .unit0_size(unit0_size),
-        .display_request(), .display_opcode(), .display_index(), .display_argument(),
-        .display_response_valid(1'b0), .display_response_error(1'b0),
-        .display_response_data(16'd0), .display_quiesced(1'b1)
+        .unit0_state(unit0_state), .unit0_size(unit0_size)
     );
 
     wire initialized;
