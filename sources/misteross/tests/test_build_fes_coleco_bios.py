@@ -24,7 +24,10 @@ class PrivateBiosTests(unittest.TestCase):
         cls.root = repo / 'sources/misteross'
         cls.root.mkdir(parents=True)
         for name in ('scripts', 'cores', 'boards', 'toolchains'):
-            shutil.copytree(ROOT / name, cls.root / name, ignore=shutil.ignore_patterns('__pycache__'))
+            source_path = ROOT / name
+            # The private-lock directory is absent once the last dedicated lock is deleted.
+            if source_path.is_dir():
+                shutil.copytree(source_path, cls.root / name, ignore=shutil.ignore_patterns('__pycache__'))
         # Coleco authenticates the shared root lock. Copy the bytes so the
         # fixture pin is a regular file even when the checkout entry is a link.
         shutil.copyfile(ROOT / 'toolchain.lock', cls.root / 'toolchain.lock')

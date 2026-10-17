@@ -1696,8 +1696,15 @@ NMI. The diagnostic checks both CPU vectors, including NMI with IRQ disabled;
 TOD, serial shifting and timer port outputs remain outside this slice.
 
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchain.lock`,
-`make toolchain-fes-c64`) is the format-3 seal. It is not run as part of this
-pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
+`make toolchain-fes-c64`) is the format-3 seal. The registered recipe selects
+HIP. `--gpu-router CUDA` with `--toolchain-root` builds a separate package.
+The build record uses the audited static closure in
+`scripts/source_closures.json`: pinned inputs, the scripts they import, the
+toolchain recipe files, and the Commodore 64 core tree, excluding simulation,
+tests and markdown. That replaces the broad `scripts` and `cores/fes-common`
+roots. A compiler-read derive during the product HIP seal is the remaining
+tightening; this closure is not that trace. The seal is not run as part of
+this pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
 `c64-firmware`, 16,384 bytes, on the blank column-5 lanes at rows 32–47.
 Those lanes use synchronous M10K reads (`CFG_ASYNC_READ=0`) with the bank
 selector delayed one clock so the CPU-facing byte is still two system clocks
@@ -1708,15 +1715,19 @@ netlist check rejects every other async M10K. Color RAM is a synchronous
 dual-port M10K, with independent system and pixel clocks; the CPU samples its
 registered read at cycle 16 and the VIC aligns its result with main RAM.
 `scripts/build_c64_slot_card.py` builds one card for socket 1 or 2 against a
-frozen shell. The producer chooses probe mode from the socket and validates
+frozen shell. It takes the same `--gpu-router` and `--toolchain-root` as the
+shell: HIP masks the selected device, and CUDA sets `CUDA_DEVICE_ORDER=PCI_BUS_ID`
+and passes `--gpu-device`. The card route must prove that backend, and the
+backend must be the one recorded on the frozen shell. The producer chooses
+probe mode from the socket and validates
 both legacy and physical PLL output maps. Frozen clocks are constrained by
 net; admission requires final analogue setup and hold on all three clocks
 independently of routing legality and CRAM containment. Each response output
 has a separate identity ALUT2 so the pinned merger cannot discard constant
 outputs or collapse aliased response sinks. The probe drives only read cycles.
 No Commodore ROM is in the tree, and the core is not in the
-factory image. The shell uses Yosys `4b971bb1`, Mistral `8fcc4cb4` and nextpnr
-`0c5ed400`; its
+factory image. The shell uses Yosys `5391eeb1`, Mistral `8fcc4cb4` and nextpnr
+`9128800f` from `toolchain.lock`; its
 socket check admits a `MISTRAL_BUF` only as the verified `$ROUTETHRU`
 companion of a pinned boundary flip-flop, using the shared
 `coleco_expansion` check described for the Spectrum sockets.

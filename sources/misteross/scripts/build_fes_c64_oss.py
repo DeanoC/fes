@@ -37,7 +37,7 @@ from scripts.fes_build_common import (
     reject_async_m10k_reads, validate_timing_resources,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
-from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.search_placer_qor import SearchError, route_after_synth
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -147,6 +147,15 @@ def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
     if gpu_router == "CUDA":
         return "cuda", "unused", "gpu-router=CUDA; hip-architectures=unused"
     raise BuildError(f"unsupported Commodore 64 GPU router {gpu_router}")
+
+
+def execution_extra(gpu_router: str) -> dict[str, str] | None:
+    """Environment shared by the shell seal and its slot cards."""
+
+    gpu_choice(gpu_router)
+    if gpu_router == "CUDA":
+        return {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"}
+    return None
 
 
 def _authenticate_c64_tools(root: Path, cache_root: Path | None = None,
@@ -260,8 +269,9 @@ def create_build_record(
             "expansion_sockets": ",".join(s.placement for s in c64_slots.SOCKETS),
         },
     }
-    fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS),
-                                      execution, pinned_inputs=PINNED_INPUTS)
+    fields = functional_record_fields(
+        root, fields, source_roots_for_producer(__name__, PINNED_INPUTS, root),
+        execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
 
 
@@ -539,7 +549,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
     identities = {name: tool.identity for name, tool in authenticated.items()}
     database_root = authenticated["mistral"].path.parents[2] / "src/mistral"
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
-    extra_env = {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"} if gpu_router == "CUDA" else None
+    extra_env = execution_extra(gpu_router)
     invocation = FunctionalInvocation(authenticated, gpu_device, extra_env=extra_env)
     record = create_build_record(root, repository, revision, identities,
                                  identity_version=identity_version, execution=invocation.inputs,

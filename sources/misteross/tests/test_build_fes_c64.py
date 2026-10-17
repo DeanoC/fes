@@ -53,6 +53,37 @@ class BuildFesC64Tests(unittest.TestCase):
         for name, commit in producer.C64_TOOL_COMMITS.items():
             self.assertEqual(commits[name], commit)
 
+    def test_cuda_lane_uses_pci_bus_order(self) -> None:
+        self.assertIsNone(producer.execution_extra("HIP"))
+        self.assertEqual(producer.execution_extra("CUDA"), {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"})
+        self.assertEqual(producer.gpu_choice("CUDA")[0], "cuda")
+        with self.assertRaises(BuildError):
+            producer.execution_extra("OFF")
+
+    def test_source_closure_is_the_audited_static_set(self) -> None:
+        from scripts.closure_tools.manifest import static
+        from scripts.functional_execution import AuditedRoots, source_roots_for_inputs, source_roots_for_producer
+        roots = source_roots_for_producer("build_fes_c64_oss", producer.PINNED_INPUTS, ROOT)
+        derived = static("build_fes_c64_oss")
+        self.assertIsInstance(roots, AuditedRoots)
+        self.assertEqual(list(roots), derived)
+        broad = source_roots_for_inputs(producer.PINNED_INPUTS)
+        self.assertIn("scripts", broad)
+        self.assertIn("cores/fes-common", broad)
+        self.assertNotIn("scripts", roots)
+        self.assertNotIn("cores/fes-common", roots)
+        for path in producer.PINNED_INPUTS:
+            self.assertTrue(any(path == item or path.startswith(item + "/") for item in roots), path)
+        self.assertNotIn("scripts/build_fes_pong.py", roots)
+        record = json.loads(producer.create_build_record(
+            ROOT, "https://example.invalid/fes.git", "a" * 40, {"yosys": "fixture"},
+            execution={"gpu_device": 0, "version": 1}))
+        self.assertEqual(record["parameters"]["source_closure_mode"], "audited-v1")
+        self.assertEqual(record["source_roots"], derived)
+        self.assertIn("scripts/c64_slots.py", record["source_inputs"])
+        self.assertIn("toolchain.lock", record["source_inputs"])
+        self.assertNotIn("scripts/build_fes_pong.py", record["source_inputs"])
+
     def test_pinned_inputs_cover_every_rtl_file_and_exist(self) -> None:
         for relative in producer.PINNED_INPUTS:
             self.assertTrue((ROOT / relative).is_file(), relative)
