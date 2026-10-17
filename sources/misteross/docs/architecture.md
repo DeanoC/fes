@@ -1105,9 +1105,11 @@ one effect per toggle and error isolation.
 ## FES ZX81 mailbox
 
 The sealed shell is `fes.computer` 1.0. `top.v` instantiates
-`fes_computer_mailbox_core` with the ZX81 tape unit and the session-display plane.
-Shells that leave the plane off keep the `fes_computer_mailbox` port list; that
-wrapper ties the plane response inputs idle.
+`fes_computer_mailbox_core` (`cores/fes-common/rtl/fes_computer_mailbox_core.v`)
+with the ZX81 tape unit and the session-display plane.
+Shells that leave the plane off keep the `fes_computer_mailbox` port list in
+`cores/fes-common/rtl/fes_computer_mailbox.v`; that wrapper ties the plane
+response inputs idle.
 `cores/fes-zx81/rtl/fes_computer_gp.v` remains the session-harness mailbox on
 the older `fes.simple-computer` 1.0 transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
@@ -1555,8 +1557,10 @@ reset initializes them. The machine regression installs an alternate reset
 vector in language-card RAM and checks both reset paths through the real CPU.
 Shared RTL it adds to `cores/fes-common`: the vendored NMOS 6502
 `rtl/cpu6502` (Arlet Ottens, module names only changed) and the generic
-`rtl/fes_computer_mailbox.v` endpoint, which replays the mister-packages
-`computer-exchanges.json` golden exchanges in `make sim-fes-apple2-mailbox`.
+`rtl/fes_computer_mailbox_core.v` endpoint. Shells that leave the
+session-display plane off instantiate the `rtl/fes_computer_mailbox.v` wrapper.
+`make sim-fes-apple2-mailbox` replays the mister-packages
+`computer-exchanges.json` golden exchanges.
 The endpoint owns no storage: accepted media words appear on a write port for
 their acknowledging clock and `unit0_state` gates presentation of unit 0.
 
@@ -1636,7 +1640,8 @@ the normal Verilator branch alone does not test primitive wiring.
 `fes.computer` 1.0 mailbox as the Apple II. The machine, ULA port `$FE`,
 built-in Kempston port, `.tap` player and four edge sockets are described in
 [its README](../cores/fes-spectrum/README.md). It reuses
-`rtl/fes_computer_mailbox.v` with `ENABLE_SPECTRUM_TAPE` and selects the
+`rtl/fes_computer_mailbox.v` (wrapping `rtl/fes_computer_mailbox_core.v`) with
+`ENABLE_SPECTRUM_TAPE` and selects the
 first-party NMOS CPU at native 3.5 MHz cadence by default. The explicit
 `--cpu fast` producer / `make build-fes-spectrum-fast` development lane uses
 the documented-only transaction CPU at 56 MHz, a registered memory/socket

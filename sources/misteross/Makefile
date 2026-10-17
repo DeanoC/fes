@@ -902,12 +902,12 @@ sim-fes-apple2-mailbox:
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_mailbox -Wall -Wno-DECLFILENAME \
 		-Icores/fes-common/generated -GENABLE_KEYBOARD=1\'b1 -GENABLE_PORTS=1\'b1 -GENABLE_AUDIO=1\'b1 \
 		--Mdir "$(CURDIR)/build/sim/fes-computer-mailbox-input" \
-		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/cores/fes-common/sim/computer_mailbox_tb.cpp"
+		cores/fes-common/rtl/fes_computer_mailbox_core.v cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/cores/fes-common/sim/computer_mailbox_tb.cpp"
 	@build/sim/fes-computer-mailbox-input/Vfes_computer_mailbox cores/fes-common/generated/computer-exchanges.json 0
 	$(VERILATOR) --cc --exe --build --top-module fes_computer_mailbox -Wall -Wno-DECLFILENAME \
 		-Icores/fes-common/generated -GENABLE_APPLE2_FLOPPY=1\'b1 -GUNIT0_MIN=1 -GUNIT0_MAX=1030 \
 		--Mdir "$(CURDIR)/build/sim/fes-computer-mailbox-media" \
-		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/cores/fes-common/sim/computer_mailbox_tb.cpp"
+		cores/fes-common/rtl/fes_computer_mailbox_core.v cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/cores/fes-common/sim/computer_mailbox_tb.cpp"
 	@build/sim/fes-computer-mailbox-media/Vfes_computer_mailbox cores/fes-common/generated/computer-exchanges.json 1
 
 sim-fes-apple2-machine: apple2-diagnostic
@@ -927,7 +927,7 @@ sim-fes-apple2-board: apple2-diagnostic
 	$(VERILATOR) --cc --exe --build -O2 --top-module top $(APPLE2_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-apple2-board" \
 		cores/fes-apple2/sim/board_models.v cores/fes-apple2/rtl/top.v $(APPLE2_RTL) \
-		cores/fes-common/rtl/fes_computer_mailbox.v cores/fes-common/rtl/fes_audio_output.v \
+		cores/fes-common/rtl/fes_computer_mailbox_core.v cores/fes-common/rtl/fes_computer_mailbox.v cores/fes-common/rtl/fes_audio_output.v \
 		cores/fes-common/rtl/fes_audio_i2s.v cores/fes-apple2/rtl/apple2_disk_store.v \
 		cores/fes-apple2/rtl/apple2_keyboard.v cores/fes-apple2/rtl/apple2_audio.v \
 		cores/fes-apple2/rtl/apple2_slot_sockets.v \
@@ -993,7 +993,7 @@ sim-fes-spectrum-board: spectrum-diagnostic
 	$(VERILATOR) --cc --exe --build -O2 --top-module top $(SPECTRUM_VERILATOR_FLAGS) --public-flat-rw \
 		--Mdir "$(CURDIR)/build/sim/fes-spectrum-board" \
 		cores/fes-spectrum/sim/board_models.v cores/fes-spectrum/rtl/top.v $(SPECTRUM_RTL) \
-		cores/fes-common/rtl/fes_computer_mailbox.v cores/fes-common/rtl/fes_audio_output.v \
+		cores/fes-common/rtl/fes_computer_mailbox_core.v cores/fes-common/rtl/fes_computer_mailbox.v cores/fes-common/rtl/fes_audio_output.v \
 		cores/fes-common/rtl/fes_audio_i2s.v \
 		"$(CURDIR)/cores/fes-spectrum/sim/board_tb.cpp"
 	@build/sim/fes-spectrum-board/Vtop
@@ -1568,7 +1568,7 @@ sim-fes-computer-interaction:
 	$(require_local_sim)
 	$(VERILATOR) --cc --exe --build --top-module computer_interaction_sim_top -Wall -Wno-DECLFILENAME \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/computer-interaction" \
-		cores/fes-common/sim/computer_interaction_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox.v \
+		cores/fes-common/sim/computer_interaction_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox_core.v cores/fes-common/rtl/fes_computer_mailbox.v \
 		$(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_acia.sv \
 		"$(CURDIR)/cores/fes-common/sim/computer_interaction_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/computer-interaction/Vcomputer_interaction_sim_top
@@ -1584,7 +1584,7 @@ sim-fes-atari-st-media-lifecycle:
 	$(require_local_sim)
 	$(VERILATOR) --cc --exe --build --top-module st_media_lifecycle_sim_top -Wall \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media-lifecycle" \
-		$(ST_CORE)/sim/st_media_lifecycle_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox.v \
+		$(ST_CORE)/sim/st_media_lifecycle_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox_core.v cores/fes-common/rtl/fes_computer_mailbox.v \
 		$(ST_CORE)/rtl/st_floppy_writer.sv $(ST_CORE)/rtl/st_media_writer.sv $(ST_CORE)/rtl/st_media_port.sv \
 		"$(CURDIR)/$(ST_CORE)/sim/media_lifecycle_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-media-lifecycle/Vst_media_lifecycle_sim_top
@@ -1693,7 +1693,7 @@ sim-fes-atari-st-media:
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_media_sim_top -Wall \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media" \
 		$(ST_CORE)/sim/st_media_sim_top.sv $(ST_CORE)/rtl/st_media_writer.sv \
-		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
+		cores/fes-common/rtl/fes_computer_mailbox_core.v cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-media/Vst_media_sim_top
 
 sim-fes-atari-st-media-geometry:
@@ -1702,7 +1702,7 @@ sim-fes-atari-st-media-geometry:
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_media_sim_top -Wall "-GGEOMETRY=1'b1" \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media-geometry" \
 		$(ST_CORE)/sim/st_media_sim_top.sv $(ST_CORE)/rtl/st_media_writer.sv \
-		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
+		cores/fes-common/rtl/fes_computer_mailbox_core.v cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-media-geometry/Vst_media_sim_top geometry
 
 .PHONY: fetch-fes-atari-st-emutos sim-fes-atari-st-io sim-fes-atari-st-emutos-memory build-fes-atari-st
