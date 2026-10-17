@@ -522,6 +522,33 @@ def _routed(routes: dict[str, str]) -> dict:
     }}}}
 
 
+def _complete_socket() -> dict:
+    cells = {
+        name: {"type": "MISTRAL_FF", "attributes": {"NEXTPNR_BEL": bel}}
+        for name, bel in expansion.socket_bels().items()
+    }
+    return {"modules": {"top": {"cells": cells}}}
+
+
+def _paired_route_through() -> dict:
+    """plug_addr_ff_0 at MISTRAL_FF.24.1.2 and its dedicated half-0 buffer."""
+    pinmap = json.dumps({"count": 2, "pins": {"A": [0, "C"], "Q": [0, "COMBOUT"]}}).encode().hex()
+    return {"modules": {"top": {"cells": {
+        "plug_addr_ff_0": {
+            "type": "MISTRAL_FF",
+            "attributes": {"NEXTPNR_BEL": "MISTRAL_FF.24.1.2"},
+            "connections": {"DATAIN": [10002], "Q": [10003], "CLK": [1]},
+        },
+        "plug_addr_ff_0$ROUTETHRU": {
+            "type": "MISTRAL_BUF",
+            "parameters": {},
+            "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.24.1.0", "FES_PINMAP_V1": pinmap},
+            "connections": {"A": [10001], "Q": [10002]},
+            "port_directions": {"A": "input", "Q": "output"},
+        },
+    }}}}
+
+
 class ZX81PlugAddrExitTests(unittest.TestCase):
     def test_fabric_exit_follows_the_socket_row(self) -> None:
         self.assertEqual(expansion.plug_addr_fabric_exit(0), "GIN.24.1.0")
@@ -567,8 +594,9 @@ class ZX81PlugAddrExitTests(unittest.TestCase):
 
     def test_shell_logic_on_the_plug_columns_is_rejected(self) -> None:
         def placed(name: str, bel: str) -> dict:
+            kind = bel.split(".", 1)[0]
             return {"modules": {"top": {"cells": {
-                name: {"type": "MISTRAL_COMB", "attributes": {"NEXTPNR_BEL": bel}},
+                name: {"type": kind, "attributes": {"NEXTPNR_BEL": bel}},
             }}}}
 
         intruders = expansion.shell_cells_in_socket(placed("video.vsync", "MISTRAL_COMB.24.2.0"))
@@ -581,9 +609,19 @@ class ZX81PlugAddrExitTests(unittest.TestCase):
         self.assertEqual(response, [("cpu.reg", "MISTRAL_FF.28.20.4")])
         self.assertEqual(
             expansion.shell_cells_in_socket(placed("plug_addr_ff_0", "MISTRAL_FF.24.1.2")), [])
+        moved = expansion.shell_cells_in_socket(
+            placed("plug_addr_ff_0", "MISTRAL_COMB.24.2.0"))
+        self.assertEqual(moved, [("plug_addr_ff_0", "MISTRAL_COMB.24.2.0")])
         self.assertEqual(
             expansion.shell_cells_in_socket(
-                placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.1.0")), [])
+                placed("plug_addr_ff_0", "MISTRAL_FF.10.1.2")),
+            [("plug_addr_ff_0", "MISTRAL_FF.10.1.2")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.1.0")),
+            [("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.1.0")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(_paired_route_through()), [])
         self.assertEqual(
             expansion.shell_cells_in_socket(
                 placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.26.1.0")),
@@ -612,6 +650,9 @@ class ZX81PlugAddrExitTests(unittest.TestCase):
             reason = expansion.accept_socket_route(missing)
             self.assertIn("plug_addr[39] exit used by video.vsync", reason or "")
             (run_dir / "routed.json").write_text(json.dumps(_routed({})))
+            reason = expansion.accept_socket_route(missing)
+            self.assertIn("socket boundary flip-flop is missing or moved", reason or "")
+            (run_dir / "routed.json").write_text(json.dumps(_complete_socket()))
             self.assertIsNone(expansion.accept_socket_route(missing))
 
 

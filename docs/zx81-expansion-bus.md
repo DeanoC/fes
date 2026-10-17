@@ -111,7 +111,9 @@ the process exits zero, and clears old outputs before each attempt.
 It checks timing and rejects any non-CRC change outside the
 fixed socket. The timing check names the pixel clock `display.control.clk`,
 the net nextpnr reports. The shell search rejects a seed when shell logic is placed in the cart
-interior or on the plug columns, and when another net occupies a plug_addr
+interior or on the plug columns, when a socket flip-flop is not the frozen
+`MISTRAL_FF` at its pinned BEL, when a `$ROUTETHRU` is not that flip-flop's
+dedicated paired buffer, and when another net occupies a plug_addr
 request flip-flop's only fabric exit. The cart interior stays
 `25 1 27 32` (region `cart`, CRAM unchanged). Columns 24 and 28, rows 1–32,
 are separate keep-outs so the shell placer cannot fill the connector LABs. The host and target use the Go linker rather than trusting a

@@ -140,44 +140,87 @@ def _bel_xy(bel: str) -> tuple[int, int] | None:
     return int(parts[1]), int(parts[2])
 
 
-def shell_cells_in_socket(design: object) -> list[tuple[str, str]]:
-    """Shell cells placed in the cart interior or on the plug columns.
+def _cell_bel(cell: dict) -> str:
+    attributes = cell.get("attributes")
+    if not isinstance(attributes, dict):
+        return ""
+    bel = attributes.get("NEXTPNR_BEL") or attributes.get("BEL") or ""
+    return bel if isinstance(bel, str) else ""
 
-    BEL-locked boundary flip-flops and their ``$ROUTETHRU`` data buffers may
-    occupy the plug columns. Nothing else may, and the cart interior stays
-    empty in the shell.
-    """
+
+def _top_cells(design: object) -> dict:
     modules = design.get("modules") if isinstance(design, dict) else None
     top = modules.get("top") if isinstance(modules, dict) else None
     cells = top.get("cells") if isinstance(top, dict) else None
-    if not isinstance(cells, dict):
+    return cells if isinstance(cells, dict) else {}
+
+
+def _admitted_socket_cells(cells: dict) -> set[str]:
+    """Frozen socket flip-flops, plus a dedicated paired route-through.
+
+    A socket name is not enough. The flip-flop must be ``MISTRAL_FF`` at the
+    BEL from ``socket_bels()``. ``$ROUTETHRU`` is admitted only by the shared
+    Coleco boundary check: buffer type, paired BEL, connections and pin map.
+    """
+    from scripts.coleco_expansion import boundary_route_through_cells
+
+    admitted: set[str] = set()
+    for name, bel in socket_bels().items():
+        cell = cells.get(name)
+        if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_FF" or _cell_bel(cell) != bel:
+            continue
+        admitted.add(name)
+        if name + "$ROUTETHRU" not in cells:
+            continue
+        try:
+            admitted.update(boundary_route_through_cells(
+                {"cells": cells, "ports": {}}, {name: bel}))
+        except ValueError:
+            continue
+    return admitted
+
+
+def shell_cells_in_socket(design: object) -> list[tuple[str, str]]:
+    """Shell cells placed in the cart interior or on the plug columns.
+
+    A boundary flip-flop may occupy its frozen BEL. Its ``$ROUTETHRU`` may
+    occupy the paired buffer site only when that buffer is the dedicated
+    data route-through. Nothing else may, and the cart interior stays empty
+    in the shell. A cell that claims a socket name at the wrong type or BEL
+    is an intruder even outside those columns.
+    """
+    cells = _top_cells(design)
+    if not cells:
         return []
     cart = _parse_rect(SOCKET_RECT)
     boundary = tuple(_parse_rect(spec) for spec in BOUNDARY_RECTS)
     allowed = set(socket_bels())
+    admitted = _admitted_socket_cells(cells)
     intruders: list[tuple[str, str]] = []
     for name, cell in cells.items():
-        if not isinstance(name, str) or not isinstance(cell, dict):
+        if not isinstance(name, str) or not isinstance(cell, dict) or name in admitted:
             continue
-        attributes = cell.get("attributes")
-        if not isinstance(attributes, dict):
-            continue
-        bel = attributes.get("NEXTPNR_BEL") or attributes.get("BEL") or ""
-        if not isinstance(bel, str):
-            continue
+        bel = _cell_bel(cell)
         xy = _bel_xy(bel)
-        if xy is None:
-            continue
-        on_boundary = any(_in_rect(rect, *xy) for rect in boundary)
-        in_cart = _in_rect(cart, *xy)
-        if not on_boundary and not in_cart:
-            continue
+        on_boundary = xy is not None and any(_in_rect(rect, *xy) for rect in boundary)
+        in_cart = xy is not None and _in_rect(cart, *xy)
         stem = name.removesuffix("$ROUTETHRU")
-        boundary_cell = stem in allowed and (name == stem or name.endswith("$ROUTETHRU"))
-        if in_cart or not (on_boundary and boundary_cell):
+        claims_socket = stem in allowed and (name == stem or name.endswith("$ROUTETHRU"))
+        if claims_socket or on_boundary or in_cart:
             intruders.append((name, bel))
     intruders.sort()
     return intruders
+
+
+def missing_socket_flip_flops(design: object) -> list[str]:
+    """Socket flip-flops absent from the route or not at their frozen BEL."""
+    cells = _top_cells(design)
+    missing = []
+    for name, bel in socket_bels().items():
+        cell = cells.get(name)
+        if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_FF" or _cell_bel(cell) != bel:
+            missing.append(name)
+    return missing
 
 
 def socket_occupancy_message(intruders: list[tuple[str, str]]) -> str:
@@ -251,6 +294,29 @@ def blocked_plug_addr_message(blocked: list[tuple[int, str]]) -> str:
     return f"socket boundary leaves plug_addr unroutable: {details}"
 
 
+def socket_missing_message(missing: list[str]) -> str:
+    shown = missing[:4]
+    details = ", ".join(shown)
+    extra = len(missing) - len(shown)
+    if extra:
+        details += f", and {extra} more"
+    return f"socket boundary flip-flop is missing or moved: {details}"
+
+
+def socket_design_reason(design: object) -> str | None:
+    """Why a routed shell cannot be sealed, or None when the socket held."""
+    intruders = shell_cells_in_socket(design)
+    if intruders:
+        return socket_occupancy_message(intruders)
+    blocked = blocked_plug_addr_exits(design)
+    if blocked:
+        return blocked_plug_addr_message(blocked)
+    missing = missing_socket_flip_flops(design)
+    if missing:
+        return socket_missing_message(missing)
+    return None
+
+
 def socket_route_reason(routed: Path) -> str | None:
     if not routed.is_file():
         return "routed design is missing"
@@ -258,13 +324,7 @@ def socket_route_reason(routed: Path) -> str | None:
         design = json.loads(routed.read_text())
     except (OSError, json.JSONDecodeError) as exc:
         return f"routed design is unreadable: {exc}"
-    intruders = shell_cells_in_socket(design)
-    if intruders:
-        return socket_occupancy_message(intruders)
-    blocked = blocked_plug_addr_exits(design)
-    if not blocked:
-        return None
-    return blocked_plug_addr_message(blocked)
+    return socket_design_reason(design)
 
 
 def accept_socket_route(candidate: object) -> str | None:
