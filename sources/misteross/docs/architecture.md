@@ -1132,6 +1132,17 @@ The sealed shell is `fes.computer` 1.0. `top.v` instantiates
 with the ZX81 tape unit and the session-display plane.
 Shells that leave the plane off keep the `fes_computer_mailbox` port list in
 that same file; that wrapper ties the plane response inputs idle.
+Atari ST instantiates `fes_computer_mailbox_direct` from
+`fes_computer_mailbox_direct.v` in that directory. The accepting edge assigns
+`acknowledged_toggle` from the synchronized request and does not elaborate
+the display-wait hold. The command payload is registered with that request
+synchronizer, and reflected CRC-32 is a parallel XOR of the registered word,
+so the sys-clock path does not start at the HPS GP port and run through a
+16-step serial CRC. Relative mouse samples and the write-data word stay on
+the live GPO. `make sim-fes-atari-st-mailbox-direct` replays the shared
+mailbox vectors and the commands ST uses, including a completed snapshot
+read, against both endpoints and fails if they diverge. Other shells keep
+`fes_computer_mailbox` or the core.
 `cores/fes-zx81/rtl/fes_computer_gp.v` remains the session-harness mailbox on
 the older `fes.simple-computer` 1.0 transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
