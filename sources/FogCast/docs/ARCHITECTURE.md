@@ -1289,8 +1289,9 @@ writable, when a missing path can be created because its nearest existing
 ancestor is writable, or when it already contains readable settings or room
 state. A read-only directory with those files is still loaded. The FAT
 directory is used when the user directory cannot be read and cannot be
-created, including a read-only directory that has no saved state. A save
-that cannot be written is logged once and the menu keeps running.
+created, including `HOME=/` on the read-only root and a read-only directory
+that has no saved state. A save that cannot be written is logged once and
+the menu keeps running.
 
 The kernel loop-mounts the bootstrap as before. Its PID 1 verifies the selected
 image, consumes a pending trial durably, attaches another read-only loop, and uses
