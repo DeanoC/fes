@@ -634,6 +634,7 @@ class ZX81PlugAddrExitTests(unittest.TestCase):
         }}}}
         self.assertEqual(expansion.shell_cells_in_socket(companion), [])
         self.assertIn("plug_addr_ff_0", expansion.socket_design_reason(companion) or "")
+        self.assertIn("missing", expansion.socket_design_reason(companion) or "")
         seated = legal_socket_design(extra_cells=companion["modules"]["top"]["cells"])
         self.assertIsNone(expansion.socket_design_reason(seated))
         for cell_type, bel in (
@@ -679,9 +680,7 @@ class ZX81PlugAddrExitTests(unittest.TestCase):
             reason = expansion.accept_socket_route(missing)
             self.assertIn("plug_addr[39] exit used by video.vsync", reason or "")
             (run_dir / "routed.json").write_text(json.dumps(_routed({})))
-            self.assertIn(
-                "socket boundary flip-flop missing",
-                expansion.accept_socket_route(missing) or "")
+            self.assertIn("socket boundary flip-flop is missing", expansion.accept_socket_route(missing) or "")
             (run_dir / "routed.json").write_text(json.dumps(legal_socket_design()))
             self.assertIsNone(expansion.accept_socket_route(missing))
 
