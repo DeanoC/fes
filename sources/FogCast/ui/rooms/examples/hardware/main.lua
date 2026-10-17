@@ -16,6 +16,31 @@ local function rect(x,y,w,h,c) gfx.rect(ox+x*scale,oy+y*scale,w*scale,h*scale,c)
 local function text(s,x,y,size,c,w,bold)
   gfx.text(s,ox+x*scale,oy+y*scale,{size=math.max(12,math.floor(size*scale)),color=c or C.ink,max_w=(w or 0)*scale,bold=bold or false})
 end
+-- Keep a filename inside w logical pixels. A name that does not fit keeps
+-- its start and its end, so two tapes that share a long prefix stay distinct.
+local function fit_name(s, size, w, bold)
+  s = s or ""
+  local px = math.max(12, math.floor(size * scale))
+  local limit = w * scale
+  if gfx.measure(s, px, bold) <= limit then return s end
+  local chars = {}
+  for ch in s:gmatch("[%z\1-\127\194-\244][\128-\191]*") do chars[#chars+1] = ch end
+  if #chars < 2 then return s end
+  local ell = "…"
+  local function piece(i, j) return table.concat(chars, "", i, j) end
+  local function width(candidate) return gfx.measure(candidate, px, bold) end
+  local keep = 1
+  while keep < #chars and width(ell .. piece(#chars - keep, #chars)) <= limit do keep = keep + 1 end
+  local best = ell .. piece(#chars - keep + 1, #chars)
+  local head = 0
+  while head < #chars - keep do
+    local candidate = piece(1, head + 1) .. ell .. piece(#chars - keep + 1, #chars)
+    if width(candidate) > limit then break end
+    head = head + 1
+    best = candidate
+  end
+  return best
+end
 local function lines(s,x,y,w,size,max_lines,c)
   local line, n = "", 0
   for word in (s or ""):gmatch("%S+") do
@@ -202,7 +227,8 @@ function draw()
   -- Status stays under the title so lifecycle consequences never disappear.
   text(info,24,122,15,C.muted,1072)
 
-  -- Machine card: the illustration shows the setup being looked at.
+  -- Machine card: the saved next start stays on the connector. A ready
+  -- preview is outlined beside it and never replaces the saved card.
   rect(24,144,576,296,C.raised)
   text("Setup preview",40,154,15,C.muted,300)
   text("1 rear connector",440,154,15,C.muted,144)
@@ -218,11 +244,20 @@ function draw()
   -- The ZX81 has one rear connector, not numbered internal slots.
   rect(314,198,48,3,C.accent)
   rect(308,195,10,10,C.accent)
-  local shown=previewing and inspected or saved_id
-  -- An unavailable card cannot be fitted, so it is not drawn on the machine.
-  if shown ~= "" and not (previewing and c and not c.ready) then
-    connector_card(276,180,not previewing)
-    text(previewing and "Preview" or "Next start",236,166,13,C.ink,120,true)
+  -- An unavailable card cannot be fitted, so only a ready preview is drawn.
+  local preview_ready=previewing and c and c.ready
+  if saved_id ~= "" then
+    connector_card(276,180,true)
+    text("Next start",preview_ready and 276 or 236,166,13,C.ink,preview_ready and 96 or 120,true)
+  end
+  if preview_ready then
+    if saved_id ~= "" then
+      connector_card(228,180,false)
+      text("Preview",164,188,13,C.ink,60,true)
+    else
+      connector_card(276,180,false)
+      text("Preview",236,166,13,C.ink,120,true)
+    end
   end
   button("socket","Rear expansion",372,182,200,40,machine and machine.socket.supported,function() focus="card:1" end)
   text("A saved setup remembers the machine, not its running memory.",40,412,15,C.muted,544)
@@ -289,21 +324,23 @@ function draw()
   button("refresh",loading and "Checking..." or "Refresh",938,480,158,28,not loading and not saving,function() read() end)
   button("import_card","Import expansion",776,514,150,28,machine and machine.socket.supported and not running() and not stale,function() hardware.import_expansion{game_id=machine.game_id,package_id=machine.package_id} end)
 
-  -- Machine row, then setup tools.
-  rect(24,552,1072,2,C.line)
-  text("Cassette:",928,566,14,C.muted,168)
-  text(machine and machine.media_name ~= "" and machine.media_name or "No cassette",928,586,15,C.ink,168,true)
+  -- Cassette name on its own row. The machine controls sit below it, so a
+  -- long imported filename has the width of the row rather than the corner.
+  rect(24,546,1072,2,C.line)
+  local tape_name=machine and machine.media_name ~= "" and machine.media_name or "No cassette"
+  text("Cassette",24,552,13,C.muted,84)
+  text(fit_name(tape_name,14,980,true),112,550,14,C.ink,980,true)
   local can_control=not stale and not loading and data and data.session_error == ""
   local can_play=machine and machine.ready and not stale and not loading and not saving and data and data.session and data.session.state == "idle" and data.session_error == ""
-  button("power",running() and (current() and "Stop machine" or "Machine in use") or "Start machine",24,566,186,48,(current() and can_control and current_session().hardware_known) or can_play,function()
+  button("power",running() and (current() and "Stop machine" or "Machine in use") or "Start machine",24,576,186,48,(current() and can_control and current_session().hardware_known) or can_play,function()
     if running() then session.stop(current_session()) else session.launch(machine.game_id) end
   end,true)
-  button("tape",running() and "Choose / eject tape" or "Choose cassette",222,566,196,48,(current() and can_control and current_session().tape_available) or (machine and machine.ready and data and data.session and data.session.state == "idle" and data.session_error == "" and not stale and not loading and not saving),function()
+  button("tape",running() and "Choose / eject tape" or "Choose cassette",222,576,196,48,(current() and can_control and current_session().tape_available) or (machine and machine.ready and data and data.session and data.session.state == "idle" and data.session_error == "" and not stale and not loading and not saving),function()
     if running() then session.open_tape(current_session())
     else hardware.open_tapes{game_id=machine.game_id,package_id=machine.package_id,expected_media_id=machine.media_id or ""} end
   end)
-  button("resume","Return to play",430,566,164,48,running(),function() session.resume() end)
-  button("setup","Next setup",606,566,128,48,data and #data.machines > 1,function() next_machine() end)
-  button("setup_library","Set up ZX81",746,566,170,48,not running(),function() hardware.setup() end)
+  button("resume","Return to play",430,576,164,48,running(),function() session.resume() end)
+  button("setup","Next setup",606,576,128,48,data and #data.machines > 1,function() next_machine() end)
+  button("setup_library","Set up ZX81",746,576,170,48,not running(),function() hardware.setup() end)
   button("library","Library",938,514,158,28,not running(),function() rooms.open_library{platform="zx81"} end)
 end

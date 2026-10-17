@@ -14,8 +14,9 @@ library is empty. The Amiga-themed `example.workbench` remains a separate room.
 The room follows the Retro Workshop direction in [the UX brief](ux/README.md).
 The setup column shows **Running**, **Next start** and, while an unsaved card is
 inspected, **Previewing … (not saved)** together. The machine illustration
-draws the saved card solid and an inspected card outlined with a **Preview**
-label. Without a session reading, **Running** says unknown rather than not
+draws the saved card solid and keeps it there while a ready inspected card is
+outlined beside it with a **Preview** label. An unavailable choice stays in
+the text column and is not drawn on the connector. Without a session reading, **Running** says unknown rather than not
 running. The restart and memory consequences sit beside **Fit & save setup**.
 
 Choose a card on the shelf to inspect its description, then **Fit & save

@@ -13,6 +13,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/ui/gfx"
 )
 
 type hardwareFixture struct {
@@ -409,5 +410,100 @@ func TestHardwareRoomRunningIsUnknownWithoutASessionReading(t *testing.T) {
 	f := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Running: unknown") })
 	if frameHas(f, "Running: not running") || frameHas(f, "Running: Not running") {
 		t.Fatal("unknown session shown as not running")
+	}
+}
+
+func exactText(f Frame, s string) bool {
+	for _, op := range f.Ops {
+		if op.Kind == OpText && op.Text == s {
+			return true
+		}
+	}
+	return false
+}
+
+// Solid saved cards are the filled connector body. Shelf cards sit much lower.
+func connectorCardMarks(f Frame) (solid int, outlined bool) {
+	for _, op := range f.Ops {
+		if op.Kind != OpRect || FormatHexColor(op.Color) != "#5c7a6b" || op.Y > 320 {
+			continue
+		}
+		if op.W >= 20 && op.H >= 20 {
+			solid++
+		} else if op.W <= 8 || op.H <= 8 {
+			outlined = true
+		}
+	}
+	return solid, outlined
+}
+
+func TestHardwareRoomPreviewKeepsTheSavedCard(t *testing.T) {
+	saved, sound, missing := strings.Repeat("b", 64), strings.Repeat("c", 64), strings.Repeat("d", 64)
+	s := hardwareData(false)
+	s.value.Machines[0].DraftExpansionID = saved
+	s.value.Machines[0].Choices = []hostclient.HardwareExpansion{
+		{ExpansionID: saved, Label: "16K RAM pack", Description: "Saved memory for the next start.", Ready: true},
+		{ExpansionID: sound, Label: "Sound expansion", Description: "A ready card being inspected.", Ready: true},
+		{ExpansionID: missing, Label: "Expansion unavailable", Description: "Retained for inspection.", Ready: false, UnavailableReason: "Install its matching package before fitting it."},
+	}
+	r := loadHardware(t, s, examplePack(t, "example.hardware"))
+	f := r.Step(time.Unix(50, 0))
+	solid, outlined := connectorCardMarks(f)
+	if solid != 1 || outlined || !exactText(f, "Next start") || exactText(f, "Preview") {
+		t.Fatalf("saved card before preview: solid=%d outlined=%v next=%v preview=%v", solid, outlined, exactText(f, "Next start"), exactText(f, "Preview"))
+	}
+	r.Activate("card:2")
+	f = stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Previewing: Sound expansion") })
+	solid, outlined = connectorCardMarks(f)
+	if solid != 1 || !outlined || !exactText(f, "Next start") || !exactText(f, "Preview") || !frameHas(f, "Next start: 16K RAM pack") {
+		t.Fatalf("preview hid the saved card: solid=%d outlined=%v", solid, outlined)
+	}
+	r.Activate("card:3")
+	f = stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Previewing: Expansion unavailable") })
+	solid, outlined = connectorCardMarks(f)
+	if solid != 1 || outlined || !exactText(f, "Next start") || exactText(f, "Preview") || !frameHas(f, "Install its matching package") {
+		t.Fatalf("unavailable preview drawn on the connector: solid=%d outlined=%v previewLabel=%v", solid, outlined, exactText(f, "Preview"))
+	}
+}
+
+func cassetteLabel(t *testing.T, name string) Op {
+	t.Helper()
+	s := hardwareData(false)
+	s.value.Machines[0].MediaName = name
+	r := loadHardware(t, s, examplePack(t, "example.hardware"))
+	f := r.Step(time.Unix(50, 0))
+	for _, op := range f.Ops {
+		if op.Kind == OpText && strings.Contains(op.Text, "part-") {
+			return op
+		}
+	}
+	t.Fatalf("cassette name %q not drawn", name)
+	return Op{}
+}
+
+func textWithin(op Op) bool {
+	weight := gfx.WeightRegular
+	if op.Bold {
+		weight = gfx.WeightBold
+	}
+	return op.MaxW > 0 && gfx.MeasureTextWeight(op.Text, op.Size, weight) <= op.MaxW
+}
+
+func TestHardwareRoomCassetteNamesStayDistinct(t *testing.T) {
+	one, two := "zx81-workshop-demo-part-one.p", "zx81-workshop-demo-part-two.p"
+	left, right := cassetteLabel(t, one), cassetteLabel(t, two)
+	if left.Text != one || right.Text != two || left.Text == right.Text {
+		t.Fatalf("shared prefix clipped: %q vs %q", left.Text, right.Text)
+	}
+	if left.MaxW < 900 || !textWithin(left) || !textWithin(right) {
+		t.Fatalf("cassette row still narrow: max %d %d within %v %v", left.MaxW, right.MaxW, textWithin(left), textWithin(right))
+	}
+	prefix := strings.Repeat("zx81-workshop-demo-", 40)
+	longLeft, longRight := cassetteLabel(t, prefix+"part-one.p"), cassetteLabel(t, prefix+"part-two.p")
+	if longLeft.Text == longRight.Text || !strings.HasSuffix(longLeft.Text, "part-one.p") || !strings.HasSuffix(longRight.Text, "part-two.p") {
+		t.Fatalf("long names lost their endings: %q vs %q", longLeft.Text, longRight.Text)
+	}
+	if !textWithin(longLeft) || !textWithin(longRight) || !strings.Contains(longLeft.Text, "…") {
+		t.Fatalf("long cassette name still clipped by max width: %q max %d", longLeft.Text, longLeft.MaxW)
 	}
 }

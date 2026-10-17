@@ -116,18 +116,29 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 					}
 				}
 				if scene == "preview" {
-					// Inspect an unsaved card: only the preview changes.
+					// Inspect an unsaved card. The saved card stays marked
+					// while the outlined preview appears beside it.
 					app.mu.Lock()
 					inst.Hover("card:2")
 					inst.Input("select")
 					app.mu.Unlock()
 					waitFor(t, app, "preview", func(s Snapshot) bool {
+						var saved, preview, caption bool
 						for _, op := range s.Room.Frame.Ops {
-							if op.Kind == rooms.OpText && strings.Contains(op.Text, "(not saved)") {
-								return true
+							if op.Kind != rooms.OpText {
+								continue
+							}
+							switch op.Text {
+							case "Next start":
+								saved = true
+							case "Preview":
+								preview = true
+							}
+							if strings.Contains(op.Text, "(not saved)") {
+								caption = true
 							}
 						}
-						return false
+						return saved && preview && caption
 					})
 				}
 				snap := app.Snapshot()
