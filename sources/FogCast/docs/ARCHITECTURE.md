@@ -2694,17 +2694,19 @@ GET /v1/local/status until one read succeeds. A running answer with a valid
 generation is re-adopted as this launcher's run: menu presents stay paused,
 and late adopt skips the stray menu frame, because that core already owns
 HDMI. The session status is the In use copy, Select+Start calls
-generation-checked stop, and idle status returns to the menu. A launching
-answer with a valid generation is watched rather than stopped: the phase stays
-launching, presents stay paused, and Select+Start posts Stop only after a
-later status says that same generation is running. The agent refuses Stop
-while the phase is still launching, and that refusal would drop the claim.
-A stopping answer with a valid generation is watched until generation-free
-idle, which returns to the menu, or until that generation is running again,
-which becomes the stoppable session. A failed read is retried. Idle, and a
-running or launching answer with no generation, leave the menu alone.
-Starting a launch in this process ends that probe, so a rejected launch does
-not take stop ownership of a run already on the agent.
+generation-checked stop, and idle status returns to the menu. The idle menu
+plane cannot scan out over a running core, so this panel is launcher state
+and not a second HDMI picture while that core owns the display. A launching
+answer with a valid generation stays in the launching phase, presents stay
+paused, and Select+Start posts Stop only after a later status says that same
+generation is running. The agent refuses Stop while the phase is still
+launching, and that refusal would drop the claim. A stopping answer with a
+valid generation is watched, with the pad held and presents paused, until
+generation-free idle, which returns to the menu, or until that generation is
+running again, which becomes the stoppable session. A failed read is retried.
+Idle, and a running or launching answer with no generation, leave the menu
+alone. Starting a launch in this process ends that probe, so a rejected
+launch does not take stop ownership of a run already on the agent.
 This is the launcher noticing a run the agent already reports.
 It is not a claim that this process started the run, and it is not supervisor
 adoption of a base image. A restarted supervisor stops leftover children and

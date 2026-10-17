@@ -248,15 +248,21 @@ the new launcher never read that status. There was no In use screen, Select+Star
 reached the menu as quit, and the launcher exited. Recovery was
 `POST /v1/local/stop`. See the HIL comment on PR #757.
 
-A restarted tenfoot now reads `GET /v1/local/status` on startup. A launching or
-running answer with a valid generation is re-adopted: the In use screen stays
-up, Select+Start stops that generation, and idle status returns to the menu.
+A restarted tenfoot now reads `GET /v1/local/status` on startup. A running
+answer with a valid generation is re-adopted: menu presents stay paused and
+late adopt skips a stray menu frame, the In use copy is the session status,
+Select+Start stops that generation, and idle status returns to the menu.
+A launching answer keeps that phase and defers stop until the agent reports
+running. A stopping answer holds the pad and presents until generation-free
+idle or until that run is running again. The idle menu plane cannot scan out
+over a running core.
 `TestLauncherStartupAdoptsActiveRunShowsInUseAndStops` and
 `TestLauncherStartupReturnsToMenuWhenAdoptedRunEnds` simulate that restart.
 The next kit check should repeat the launcher kill during Pong. This host test
 is not that hardware result.
 
 Launcher re-adoption is separate from supervisor adoption of the base image.
-Two other HIL notes are filed and not fixed here: Installed cores stays
+The In use panel is launcher state. It is not scanned out over a running core
+(#769). Two other HIL notes are filed and not fixed here: Installed cores stays
 unresolved after health is ready (#764), and focus returns to the first tile
 after a launcher restart (#765).
