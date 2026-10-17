@@ -32,7 +32,7 @@ Rooms live one directory each under the rooms directory:
 | `-rooms DIR` flag | |
 | `FOGCAST_ROOMS` env | |
 | `tenfoot.json` `rooms_dir` | |
-| default | `<UserConfigDir>/FogCast/rooms` (next to `tenfoot.json`) |
+| default | `<UserConfigDir>/FogCast/rooms` (next to `tenfoot.json`). On a kit this is `/media/fat/fogcast/state/FogCast/rooms` |
 
 The embedded examples (`ui/rooms/examples`, ids `example.*`) are always
 listed. A user pack with the same id replaces an embedded one.
@@ -370,7 +370,11 @@ An older agent omits `inputs`.
   library browser with those filters applied.
 - `store.get(key[, default])` / `store.set(key, value)` persist strings,
   numbers, booleans and plain tables per room in
-  `<config>/FogCast/rooms/<id>.state.json`.
+  `<config>/FogCast/rooms/<id>.state.json`. On a kit, config is
+  `/media/fat/fogcast/state` (`XDG_CONFIG_HOME`, or that directory when
+  `HOME` cannot hold a config directory). A config directory that already
+  holds readable state or a room pack is still loaded when it is read-only.
+  A failed write is logged once and the room keeps running.
 
 ### `hardware` (optional host services)
 
@@ -433,7 +437,7 @@ is not a gate unless the room script adds that mechanic itself. See
 | `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
 | `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved by `library.query` search; missing titles are skipped; publishes the focused game |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
-| `example.fes-cores` | kit **Home** in the `hero` layout: a shelf of installed cores (manifest names verbatim, fallback motifs chosen from the core id and required inputs), the FES hero for the selection, and Library / Rooms / Settings routes one Up away in the hero and on one compact row. A stacked compact column walks Down and Up through those routes and then the cores. Checking while `kit.cores` resolves; the last selected package is restored on a later visit; an empty or unlistable kit focuses the Library route. Blocked cores do not launch: a blocked tile shows "Needs a cartridge", "Needs firmware", "Display setup incomplete", or "Hardware unavailable". An optional core omitted from the image is listed from `unavailable-cores.json` with that hardware block. With no kit socket the room and the compact strip both say cores are not available here. Tenfoot on `-gfx menu-display` launches a core through the local-control socket |
+| `example.fes-cores` | kit **Home** in the `hero` layout: a shelf of installed cores (manifest names verbatim, fallback motifs chosen from the core id and required inputs), the FES hero for the selection, and Library / Rooms / Settings routes one Up away in the hero and on one compact row. A stacked compact column walks Down and Up through those routes and then the cores. Checking while `kit.cores` resolves; the last selected package is restored on a later visit from `package_id` in the room state file (`/media/fat/fogcast/state/FogCast/rooms/example.fes-cores.state.json` on a kit); an empty or unlistable kit focuses the Library route. Blocked cores do not launch: a blocked tile shows "Needs a cartridge", "Needs firmware", "Display setup incomplete", or "Hardware unavailable". An optional core omitted from the image is listed from `unavailable-cores.json` with that hardware block. With no kit socket the room and the compact strip both say cores are not available here. Tenfoot on `-gfx menu-display` launches a core through the local-control socket |
 
 Run them against a host:
 
