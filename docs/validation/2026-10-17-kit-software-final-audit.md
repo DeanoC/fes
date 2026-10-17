@@ -217,3 +217,17 @@ upstream-history clone was stopped; no kit mutation was repeated.
 
 No shared ABI, REST schema, base compatibility contract, kernel, bootloader,
 host autostart or installed-core selection was changed by this follow-up.
+
+
+## Subsequent physical-controller acceptance
+
+After the automated qualification, the operator confirmed that all three requested
+checks on kit A (192.168.10.84) worked: selecting FES Pong in Installed cores and
+launching with A/Cross, moving the paddle with the physical controller, and holding
+Select+Start for one second to return to the menu.
+
+This is operator-reported physical-controller acceptance. The last automated
+identity observation was bundle `2b792832…`, generation 21, base `06066d29…`,
+boot `457a8b1a-54af-46c0-9e6e-351c08467496`; those identities were not independently
+resampled during the operator's check. This supplements the earlier automated
+HDMI/input evidence and does not resolve watchdog issue #761 or listing issue #762.
