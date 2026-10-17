@@ -13,7 +13,9 @@
 // Shells that leave the session-display plane off instantiate fes_computer_mailbox,
 // which ties these response inputs idle. Verilator rejects ranged input defaults,
 // so the idle tie lives in that wrapper. ZX81 instantiates this module and
-// connects the plane.
+// connects the plane. Verilator -Wall rejects a first module whose name
+// differs from the filename, so that check is off for the core only.
+/* verilator lint_off DECLFILENAME */
 module fes_computer_mailbox_core #(
     parameter bit ENABLE_KEYBOARD = 0,
     parameter bit ENABLE_PORTS = 0,
@@ -596,6 +598,7 @@ module fes_computer_mailbox_core #(
         end
     end
 endmodule
+/* verilator lint_on DECLFILENAME */
 
 // Port list used by shells that leave the session-display plane off.
 // Response inputs are tied idle here because Verilator rejects ranged defaults.
