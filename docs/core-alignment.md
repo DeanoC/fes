@@ -30,8 +30,9 @@ These are the choices already in the tree at `6d9939c2`.
    says so. A failed HIP route does not fall back to Quartus. Quartus never
    programs a kit.
 2. One compiler pin: `sources/misteross/toolchain.lock`. At this base that is
-   Yosys `5391eeb1`, Mistral `8fcc4cb4`, nextpnr `9128800f`, deliberately
-   before nextpnr #172. HIP architectures are `gfx1100;gfx1201`. A recipe on
+   Yosys `5391eeb1`, Mistral `8fcc4cb4`, nextpnr `d2697327`. That pin includes
+   nextpnr #172; [DeanoC/nextpnr#174](https://github.com/DeanoC/nextpnr/issues/174)
+   is still open, and this pin does not claim timing closure. HIP architectures are `gfx1100;gfx1201`. A recipe on
    that lock is current. A dedicated lock is not, even if it still routes.
    A dedicated lock is allowed only while its rationale names a capability the
    shared pin lacks. When the shared pin has that capability, delete the
@@ -135,7 +136,7 @@ fix it in nextpnr, then delete the dedicated lock. Do not add another lock.
 
 | Order | Core | nextpnr now | Why this order |
 | --- | --- | --- | --- |
-| 1 | `fes.c64` | `9128800f` | Complete. Recipe is `toolchain.lock` and the private lock is deleted. The recorded seal is CUDA package `1d599353eaef5502…` (build `6f865fddebe62184…`). Supporting evidence: a HIP build of [#749](https://github.com/DeanoC/fes/pull/749) head `8b713d5d5716f47bfbc58582957e77ade4878565` on this lock (Yosys `5391eeb1`, Mistral `8fcc4cb4`, nextpnr `9128800f`), on Powerboat's RX 7900 XTX, package `22ecf46827b3f57b55f7b5e5187167c7177bf29dc931870721aba629639a9dbf`, build `4c90ff27c072d8fbfa81366f2bd7d9a1`, timing system 54.51/52.22, pixel 82.79/74.25, audio 215.33/12.29. The [kit B HIL](https://github.com/DeanoC/fes/pull/749#issuecomment-6229821313) showed BASIC READY and clean video. The 6 Oct kit note does not accept the CUDA bytes. Keyboard transposition ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated. |
+| 1 | `fes.c64` | `d2697327` | Complete. Recipe is `toolchain.lock` and the private lock is deleted. The recorded seal is CUDA package `1d599353eaef5502…` (build `6f865fddebe62184…`). Supporting evidence: a HIP build of [#749](https://github.com/DeanoC/fes/pull/749) head `8b713d5d5716f47bfbc58582957e77ade4878565` on the previous pin (Yosys `5391eeb1`, Mistral `8fcc4cb4`, nextpnr `9128800f`), on Powerboat's RX 7900 XTX, package `22ecf46827b3f57b55f7b5e5187167c7177bf29dc931870721aba629639a9dbf`, build `4c90ff27c072d8fbfa81366f2bd7d9a1`, timing system 54.51/52.22, pixel 82.79/74.25, audio 215.33/12.29. The [kit B HIL](https://github.com/DeanoC/fes/pull/749#issuecomment-6229821313) showed BASIC READY and clean video. The 6 Oct kit note does not accept the CUDA bytes. Keyboard transposition ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated. This pin does not repeat that seal. |
 | 2 | `fes.atari-st` | `toolchain.lock` | Factory. The October kit notes do not accept a shared-pin seal. |
 | 3 | `fes.coleco` | `toolchain.lock` | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `toolchain.lock` | Same multi-region cart support. Both now select `toolchain.lock`. |

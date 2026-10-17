@@ -120,10 +120,10 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
 def cart_clock_constraints(root: Path) -> bytes:
     # --no-pack restores routed nets but does not derive PLL constraints. These
     # are the declared shell frequencies, never its achieved Fmax.
-    # The scaffold has no top-level port in the SDC context, so the shell's
-    # [get_ports {FPGA_CLK1_50}] collection is empty and nextpnr rejects that
-    # create_clock as a virtual clock (DeanoC/nextpnr#198). Keep the same
-    # name, 20.000 ns period and default 50% waveform on the physical input net.
+    # Point the reference clock at the routed input net. An explicit
+    # create_clock target that matches nothing is an error on this pin
+    # (DeanoC/nextpnr#209). Keep the same name, 20.000 ns period and default
+    # 50% waveform.
     shell = (root / shell_recipe.SDC).read_text()
     port = "[get_ports {FPGA_CLK1_50}]"
     if shell.count(port) != 1:

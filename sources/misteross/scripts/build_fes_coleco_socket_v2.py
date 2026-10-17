@@ -41,7 +41,7 @@ PLACER_TIMEOUT_SECONDS = 600
 TOOL_COMMITS = {
     "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
+    "nextpnr": "d26973276e7094b5c27c7f9719fde367dc0895f7",
 }
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",

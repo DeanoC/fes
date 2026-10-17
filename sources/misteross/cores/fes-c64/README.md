@@ -128,7 +128,7 @@ firmware's CPU interrupt checks. These are host simulations, with no sealed
 artifact or kit acceptance implied.
 
 `build-fes-c64` authenticates `toolchain.lock` (Yosys `5391eeb1`,
-Mistral `8fcc4cb4`, nextpnr `9128800f`). The build record uses the audited
+Mistral `8fcc4cb4`, nextpnr `d2697327`). The build record uses the audited
 static closure in `scripts/source_closures.json`. `--gpu-router CUDA` with
 `--toolchain-root` is a separate package; slot cards take those same flags.
 The 6 Oct kit diagnostic used
