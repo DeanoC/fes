@@ -2349,7 +2349,15 @@ Production opening verifies that volume against the block device
 `appliancedata.Prepare` selects: `/dev/disk/by-label/FESDATA3` when the label
 is present, including a labelled USB partition, otherwise labelled
 `/dev/mmcblk0p3`. It also requires writable ext4 and exact mount identity
-before mkdir. Subsequent operations recheck the mount and pinned store
+before mkdir. Before any of those paths open a block device, and before a
+catalog scan or tape/firmware listing states a mount, `appliance/blockprobe`
+reads only sysfs `size`, `device/type`, `device/state` and
+`device/access_state`. Optical nodes (`sr*` or SCSI type 5) are skipped. Any
+other device whose size is missing, unreadable or zero, or whose SCSI state
+is not ready, is skipped as no-media and is never classified ok. A USB stick
+with a readable size above zero and the SD card, including FESDATA3, stay
+eligible. An open that is still required is bounded by a short
+timeout. Subsequent operations recheck the mount and pinned store
 directories. An absent FESDATA3 volume, a preparation error, a skipped
 appliance update gate, or a failed open after successful preparation leaves
 storage unavailable. That failure blocks kit-local inventory and withholds

@@ -30,6 +30,10 @@ DISK_SIZE = 528384 * SECTOR_SIZE
 # Entire 512-byte dosfstools 4.2 boot sector for this locked geometry/identity.
 # This also binds the OEM string, flags, boot code/message, and reserved bytes.
 FAT_BOOT_SHA256 = "48aecc331306e46ace816aab028fa9640682da537ab1feafe7ce3d2fc14f8507"
+# FAT linux/u-boot.txt. U-Boot imports it and mmcboot expands $v into bootargs.
+# Flag i ignores USB 152d:0583 before sd_probe. The running system must not
+# rewrite this file; S15fes-ethaddr only appends ethaddr=.
+BOOT_CONFIG = b"v=loglevel=4 usb-storage.quirks=152d:0583:i\n"
 ENV = {**os.environ, "TZ": "UTC", "SOURCE_DATE_EPOCH": str(SOURCE_DATE_EPOCH), "LC_ALL": "C",
        "MTOOLSRC": "/dev/null"}
 
@@ -185,6 +189,13 @@ def copy_region(image, output, offset, length):
             length -= len(block)
 
 
+def boot_config_path():
+    path = Path(__file__).resolve().parents[1] / "image" / "boot" / "u-boot.txt"
+    if not path.is_file() or path.read_bytes() != BOOT_CONFIG:
+        raise ValueError("image/boot/u-boot.txt must ignore USB id 152d:0583")
+    return path
+
+
 def require_zero(stream, start, length, label):
     stream.seek(start)
     while length:
@@ -239,6 +250,10 @@ def _assemble_once(image, inputs, lock, scratch):
     run("mmd", "-i", device, "::/linux")
     run("mcopy", "-m", "-i", device, staged / "zImage_dtb", "::/linux/zImage_dtb")
     run("mcopy", "-m", "-i", device, staged / "linux.img", "::/linux/linux.img")
+    config = staged / "u-boot.txt"
+    shutil.copyfile(boot_config_path(), config)
+    os.utime(config, (SOURCE_DATE_EPOCH, SOURCE_DATE_EPOCH))
+    run("mcopy", "-m", "-i", device, config, "::/linux/u-boot.txt")
     run("mmd", "-i", device, "::/fogcast")
     if inputs.agent_config is not None:
         config = staged / "agent.toml"
@@ -452,7 +467,8 @@ def _verify_fat_unused(fat, fat_sectors, clusters, has_config, has_launcher=Fals
             "/linux": [dot, dotdot,
                        (bytes.fromhex("417a0049006d00610067000f008465005f0064007400620000000000ffffffff"), "lfn"),
                        (b"ZIMAGE~1   \x20\x00", "/linux/zImage_dtb"),
-                       (b"LINUX   IMG\x20\x18", "/linux/linux.img")],
+                       (b"LINUX   IMG\x20\x18", "/linux/linux.img"),
+                       (b"U-BOOT  TXT\x20\x18", "/linux/u-boot.txt")],
             "/fogcast": [dot, dotdot],
         }
         # agent.toml has a four-character extension, so mtools uses a VFAT alias.
@@ -561,7 +577,7 @@ def verify_image(image, manifest, inputs, lock, agent_config_sha256=None, *, roo
         listing = run("mdir", "-a", "-b", "-s", "-i", device, "::/")
         paths = tuple(sorted(line.removeprefix("::").rstrip("/") for line in listing.splitlines() if line))
         owned = {"/idle.rbf": inputs.splash_payload(), "/linux/zImage_dtb": inputs.kernel,
-                 "/linux/linux.img": inputs.rootfs}
+                 "/linux/linux.img": inputs.rootfs, "/linux/u-boot.txt": boot_config_path()}
         expected_paths = set(owned) | {"/linux", "/fogcast"}
         if agent_config_sha256:
             expected_paths.add("/fogcast/agent.toml")

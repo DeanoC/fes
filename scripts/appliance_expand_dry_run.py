@@ -9,6 +9,7 @@ formats it as ext4; it never grows FAT or moves the A2 boot partition.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -23,9 +24,11 @@ import time
 
 try:
     from .appliance_media_inside import LAYOUT_ID, appliance_layout
+    from .block_probe import UnsafeDevice, open_binary, reason_for, require
     from .media_inputs import MediaLock
 except ImportError:
     from appliance_media_inside import LAYOUT_ID, appliance_layout
+    from block_probe import UnsafeDevice, open_binary, reason_for, require
     from media_inputs import MediaLock
 
 SECTOR = 512
@@ -97,8 +100,17 @@ def unpack_partition(entry):
     }
 
 
+def _open_path(path, mode):
+    try:
+        return open_binary(str(path), mode)
+    except UnsafeDevice as error:
+        raise ExpandError(f'refusing to open {error}') from error
+    except TimeoutError as error:
+        raise ExpandError(str(error)) from error
+
+
 def read_mbr(path):
-    with Path(path).open('rb') as stream:
+    with _open_path(path, 'rb') as stream:
         mbr = stream.read(512)
     if len(mbr) != 512:
         raise ExpandError('image is shorter than one MBR sector')
@@ -118,7 +130,7 @@ def write_mbr(path, disk_id, partitions):
         mbr[offset:offset + 16] = pack_partition(part['active'], part['type'],
                                                  part['start_sector'], part['sector_count'])
     mbr[510:512] = b'\x55\xaa'
-    with Path(path).open('r+b') as stream:
+    with _open_path(path, 'r+b') as stream:
         stream.write(mbr)
         stream.flush()
         os.fsync(stream.fileno())
@@ -357,6 +369,9 @@ def verify_usb_device(path, write=False):
             f'got {sectors} sectors')
     if removable != '1':
         raise ExpandError('USB target is not marked removable')
+    skip = reason_for(resolved)
+    if skip:
+        raise ExpandError(f'refusing to open {skip} block device {device_name}')
     properties = _udev_properties(path)
     expected = {
         'DEVNAME': resolved,
@@ -436,12 +451,12 @@ def _sha256_stream(stream, length=None, offset=0):
 
 
 def sha256_path(path):
-    with Path(path).open('rb') as stream:
+    with _open_path(path, 'rb') as stream:
         return _sha256_stream(stream)
 
 
 def sha256_region(path, length, offset=0):
-    with Path(path).open('rb') as stream:
+    with _open_path(path, 'rb') as stream:
         return _sha256_stream(stream, length=length, offset=offset)
 
 
@@ -543,7 +558,7 @@ def format_ext4(partition):
 
 
 def read_ext4_superblock(partition):
-    with Path(partition).open('rb') as stream:
+    with _open_path(partition, 'rb') as stream:
         stream.seek(1024)
         superblock = stream.read(1024)
     if len(superblock) != 1024:
@@ -613,8 +628,17 @@ def write_base_image(path, layout, base_image, expected_sha256=None, env=None):
     target_info = verify_usb_device(target, write=True)
     require_unmounted(target_info['resolved_path'])
     try:
-        fd = os.open(target, os.O_WRONLY)
+        require(target)
+    except UnsafeDevice as error:
+        raise ExpandError(f'refusing to open {error}') from error
+    fd = -1
+    try:
+        fd = os.open(target, os.O_WRONLY | os.O_NONBLOCK)
+        flags = fcntl.fcntl(fd, fcntl.F_GETFL)
+        fcntl.fcntl(fd, fcntl.F_SETFL, flags & ~os.O_NONBLOCK)
     except OSError as error:
+        if fd >= 0:
+            os.close(fd)
         raise ExpandError(f'cannot open admitted USB for base write: {error}') from error
     try:
         if os.fstat(fd).st_rdev != os.stat(target).st_rdev:
@@ -749,7 +773,7 @@ def apply_plan(path, layout, mode, card_bytes=None, env=None):
     a2_offset = layout.partition_2.start_sector * SECTOR
     a2_size = layout.partition_2.sector_count * SECTOR
     dest = plan['moved_a2']['start_sector'] * SECTOR
-    with Path(path).open('r+b') as stream:
+    with _open_path(path, 'r+b') as stream:
         stream.seek(0, os.SEEK_END)
         if stream.tell() < dest + a2_size:
             stream.truncate(dest + a2_size)

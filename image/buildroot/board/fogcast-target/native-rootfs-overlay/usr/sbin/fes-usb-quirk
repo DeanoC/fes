@@ -1,0 +1,49 @@
+#!/bin/sh
+# Tell the built-in usb-storage driver to ignore the empty JMicron JMS583.
+#
+# USB id 152d:0583 with an empty M.2 slot returns Unit Not Ready (ASC 0x44,
+# not medium-not-present 0x3A) and then never completes READ CAPACITY. The sd
+# driver submits that command from sd_probe with its compiled-in 30s timeout
+# and 5 retries, which the kernel logs as "timing out command, waited 180s".
+# Writing the queue timeout cannot shorten a request that already captured 30s.
+#
+# On the MiSTer 5.15 kernel the only quirks letter that stops that probe is
+# i (US_FL_IGNORE_DEVICE): usb-storage returns -ENODEV before scsi_add_host.
+# Letter u (US_FL_IGNORE_UAS) only forces bulk-only. This host already refuses
+# UAS, and the bridge still stalls on the bulk-only READ CAPACITY, so u does
+# not remove the 180s line. No other letter skips the command. Ignoring the
+# id also hides a NVMe disk later fitted in that bridge.
+#
+# The command line that applies before the driver probes is image/boot/u-boot.txt,
+# copied onto FAT linux/u-boot.txt when the disk image is assembled. This
+# helper only writes /sys/module/usb_storage/parameters/quirks. It does not
+# open or rewrite the FAT boot config.
+#
+# FES_USB_STORAGE_QUIRKS overrides the parameter path in tests. A missing
+# parameter file is skipped. This script does not fail the boot.
+set -u
+
+spec=152d:0583:i
+quirks_param=${FES_USB_STORAGE_QUIRKS:-/sys/module/usb_storage/parameters/quirks}
+
+if [ -f "$quirks_param" ]; then
+  current=$(tr -d ' \t\r\n' < "$quirks_param" 2>/dev/null) || current=
+  case $current in
+    *152d:0583:*)
+      ;;
+    '')
+      printf '%s\n' "$spec" > "$quirks_param" 2>/dev/null || :
+      ;;
+    *)
+      next=$current,$spec
+      # drivers/usb/storage/usb.c declares quirks[128], including the terminator.
+      if [ "${#next}" -le 127 ]; then
+        printf '%s\n' "$next" > "$quirks_param" 2>/dev/null || :
+      else
+        printf '%s\n' 'fes-usb-quirk: quirks parameter is full' >&2
+      fi
+      ;;
+  esac
+fi
+printf '%s\n' "fes-usb-quirk: usb-storage.quirks=${spec}"
+exit 0
