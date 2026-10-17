@@ -3,10 +3,27 @@ package tenfoot
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
+
+	"golang.org/x/sys/unix"
+)
+
+// kitPersistentStateDir is the writable FAT directory the kit software
+// supervisor also publishes as XDG_CONFIG_HOME and XDG_STATE_HOME.
+// launcher.json stays beside it. Preferences and room state live under
+// FogCast/ inside it. Tests replace it with a temporary directory.
+var kitPersistentStateDir = "/media/fat/fogcast/state"
+
+var (
+	stateWarnMu      sync.Mutex
+	stateWarnWriter  io.Writer
+	stateDirWarned   bool
+	stateWriteLogged sync.Map
 )
 
 const (
@@ -121,11 +138,82 @@ func parseHomePref(s string) (rooms bool, ok bool) {
 }
 
 func defaultPrefsPath() string {
-	dir, err := os.UserConfigDir()
-	if err != nil || dir == "" {
+	dir := persistentConfigDir()
+	if dir == "" {
 		return ""
 	}
 	return filepath.Join(dir, "FogCast", "tenfoot.json")
+}
+
+// persistentConfigDir is where tenfoot.json and the sibling rooms directory
+// are stored. os.UserConfigDir supplies that directory, which on Linux is
+// XDG_CONFIG_HOME when the kit supervisor sets it. A kit whose HOME config
+// directory is not writable uses kitPersistentStateDir instead.
+func persistentConfigDir() string {
+	user, userErr := os.UserConfigDir()
+	if userErr == nil && configDirUsable(user) {
+		return user
+	}
+	if dir := strings.TrimSpace(kitPersistentStateDir); configDirUsable(dir) && dir != user {
+		return dir
+	}
+	noteStateDirUnavailable()
+	return ""
+}
+
+// configDirUsable reports whether dir is a writable directory, or does not
+// exist yet while its parent directory is writable. It does not create dir.
+func configDirUsable(dir string) bool {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return false
+	}
+	info, err := os.Stat(dir)
+	if err == nil {
+		return info.IsDir() && unix.Access(dir, unix.W_OK) == nil
+	}
+	if !os.IsNotExist(err) {
+		return false
+	}
+	parent, err := os.Stat(filepath.Dir(dir))
+	if err != nil || !parent.IsDir() {
+		return false
+	}
+	return unix.Access(filepath.Dir(dir), unix.W_OK) == nil
+}
+
+func noteStateDirUnavailable() {
+	stateWarnMu.Lock()
+	defer stateWarnMu.Unlock()
+	if stateDirWarned {
+		return
+	}
+	stateDirWarned = true
+	stateWarnLocked("tenfoot: state directory is not writable; settings and room state will not be saved\n")
+}
+
+func warnPrefsWrite(path string, err error) {
+	if err == nil || path == "" {
+		return
+	}
+	if _, loaded := stateWriteLogged.LoadOrStore(path, struct{}{}); loaded {
+		return
+	}
+	stateWarn("tenfoot: could not save settings %s: %v\n", path, err)
+}
+
+func stateWarn(format string, args ...any) {
+	stateWarnMu.Lock()
+	defer stateWarnMu.Unlock()
+	stateWarnLocked(format, args...)
+}
+
+func stateWarnLocked(format string, args ...any) {
+	w := stateWarnWriter
+	if w == nil {
+		w = os.Stderr
+	}
+	fmt.Fprintf(w, format, args...)
 }
 
 func loadTenfootPrefs(path string) (tenfootPrefs, error) {

@@ -167,7 +167,8 @@ Default overscan inset is **5% of each edge** (`-safe-area 0.05`). Windowed debu
 can pass `-safe-area 0`. `-` / `=` nudge the inset by 0.5 percentage points
 (clamped 0–20%) and persist to `tenfoot.json` under the user config dir
 (`~/Library/Application Support/FogCast/` on Mac;
-`$XDG_CONFIG_HOME/FogCast/` or `~/.config/FogCast/` on Linux). Inner cover
+`$XDG_CONFIG_HOME/FogCast/` or `~/.config/FogCast/` on Linux). A kit uses
+`/media/fat/fogcast/state/FogCast/`. Inner cover
 padding is unchanged and sits inside that gutter.
 
 Sofa layout defaults to **grid**. `-layout shelf` or `-layout list` override

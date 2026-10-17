@@ -272,6 +272,36 @@ func TestGoodRoomFrameAndActions(t *testing.T) {
 	}
 }
 
+func TestStoreWriteFailureLogsOnceAndKeepsRoom(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(parent, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(parent, "example.fes-cores.state.json")
+	r := newRoom(t, memPack(t, "persist", `
+function load()
+  store.set("package_id", "abc")
+end
+function draw() end
+`, nil), Options{StorePath: path})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	r.Step(time.Unix(10, 0))
+	r.Step(time.Unix(12, 0))
+	r.Close()
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+	text := r.opts.Stderr.(*bytes.Buffer).String()
+	if strings.Count(text, "could not save room state") != 1 {
+		t.Fatalf("log count:\n%s", text)
+	}
+	if _, err := os.Stat(path); err == nil {
+		t.Fatal("state file was created under an unwritable parent")
+	}
+}
+
 func TestDeadlineStopsRunawayScript(t *testing.T) {
 	for _, src := range []string{
 		"function update(dt) while true do end end\nfunction draw() end",

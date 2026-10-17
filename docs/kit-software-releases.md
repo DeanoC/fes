@@ -91,7 +91,16 @@ The supervisor appends its own log and the stdout and stderr of the runtime,
 agent and launcher to `/run/fogcast/software/supervisor.log`. The file rotates
 once, at 2 MiB, to `supervisor.log.1`. The directory is root-only tmpfs, so a
 stalled data disk cannot block the log or drop it. The same bytes are copied to
-the supervisor's original stderr. An accepted launcher that exits is restarted
+the supervisor's original stderr.
+
+Each service in the group receives `XDG_CONFIG_HOME=/media/fat/fogcast/state`
+and `XDG_STATE_HOME=/media/fat/fogcast/state`. The supervisor creates that
+directory when `/media/fat/fogcast` is already present. `launcher.json`,
+`agent.toml` and `target-id` stay beside it. Tenfoot stores
+`FogCast/tenfoot.json` and `FogCast/rooms/<id>.state.json` underneath it.
+Home's last selected package is `package_id` in
+`FogCast/rooms/example.fes-cores.state.json`. A state directory that cannot
+be written is logged once; the launcher keeps running. An accepted launcher that exits is restarted
 without stopping the runtime or agent, so a menu crash does not leave a frozen
 frame or drop an execution lease. An accepted agent or runtime exit restarts
 the whole group automatically, including when an execution lease was active:

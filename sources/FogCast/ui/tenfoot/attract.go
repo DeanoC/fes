@@ -124,7 +124,9 @@ func (a *App) persistPrefsLocked(field string) {
 	default:
 		return
 	}
-	_ = saveTenfootPrefs(path, existing)
+	if err := saveTenfootPrefs(path, existing); err != nil {
+		warnPrefsWrite(path, err)
+	}
 }
 
 func (a *App) SetPrefsPath(path string) {

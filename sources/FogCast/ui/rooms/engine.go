@@ -200,7 +200,7 @@ func New(pack Pack, opts Options) (*Instance, error) {
 		loading: map[string]bool{},
 		games:   map[string]hostclient.Game{},
 		images:  map[string]*Image{},
-		store:   newStore(opts.StorePath),
+		store:   newStore(opts.StorePath, opts.Stderr),
 	}
 	r.L = lua.NewState(lua.Options{
 		SkipOpenLibs:        true,
