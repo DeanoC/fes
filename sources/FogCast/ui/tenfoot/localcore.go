@@ -167,6 +167,9 @@ func (a *App) startLocalCoreLocked(dest rooms.Destination) {
 	if a.localCoreBusyLocked() {
 		return
 	}
+	// This process is about to launch. End the startup probe first so a
+	// rejected launch cannot later adopt, and stop, a run it did not start.
+	a.localStartupStatusChecked = true
 	title := strings.TrimSpace(dest.Label)
 	if title == "" {
 		title = "core"
@@ -266,6 +269,8 @@ func (a *App) startLocalTitleLocked(game hostclient.Game) {
 	if a.localCoreBusyLocked() {
 		return
 	}
+	// Same probe retirement as startLocalCoreLocked.
+	a.localStartupStatusChecked = true
 	title := strings.TrimSpace(game.Title)
 	if title == "" {
 		title = "game"

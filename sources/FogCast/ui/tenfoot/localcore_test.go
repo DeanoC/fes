@@ -1493,6 +1493,43 @@ func TestLauncherStartupRetriesStatusThenAdopts(t *testing.T) {
 	waitFor(t, app, "adopted after retry", func(s Snapshot) bool { return adoptedInUseScreen(s) })
 }
 
+func TestRejectedLaunchDoesNotAdoptExistingRun(t *testing.T) {
+	generation := strings.Repeat("b", 64)
+	fake := &fakeLocalCores{
+		err:       localcores.ErrInUse,
+		statusSet: true,
+		status: localcores.RunStatus{
+			Phase: "running", Running: true, PackageID: tenfootPongID, CoreID: "fes.pong", Generation: generation,
+		},
+	}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	t.Cleanup(app.Stop)
+	app.mu.Lock()
+	app.startLocalCoreLocked(rooms.Destination{Label: "Pong", PackageID: tenfootPongID})
+	app.mu.Unlock()
+	waitFor(t, app, "rejected launch", func(s Snapshot) bool {
+		return s.LocalCorePhase == "" && s.Status == localInUseCopy
+	})
+	app.mu.Lock()
+	app.localStatusNext = time.Time{}
+	app.mu.Unlock()
+	app.Tick(time.Unix(30, 0))
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		app.mu.Lock()
+		phase, generation, checked := app.localPhase, app.localLeaseGeneration, app.localStartupStatusChecked
+		app.mu.Unlock()
+		if phase != "" || generation != "" || !checked {
+			t.Fatalf("rejected launch adopted phase=%q generation=%q checked=%v", phase, generation, checked)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if fake.statusCount() != 0 || fake.stopCount() != 0 {
+		t.Fatalf("rejected launch polled=%d stopped=%d", fake.statusCount(), fake.stopCount())
+	}
+}
+
 func TestLauncherStartupIgnoresIdleStoppingAndUnnamedRuns(t *testing.T) {
 	for _, status := range []localcores.RunStatus{
 		{Phase: "idle"},

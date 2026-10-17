@@ -2694,7 +2694,9 @@ GET /v1/local/status until one read succeeds. A launching or running answer
 with a valid generation is re-adopted as this launcher's run: the In use
 screen stays up, Select+Start calls generation-checked stop, and idle status
 returns to the menu. A failed read is retried; idle and stopping answers leave
-the menu alone. This is the launcher noticing a run the agent already reports.
+the menu alone. Starting a launch in this process ends that probe, so a
+rejected launch does not take stop ownership of a run already on the agent.
+This is the launcher noticing a run the agent already reports.
 It is not a claim that this process started the run, and it is not supervisor
 adoption of a base image. A restarted supervisor stops leftover children and
 starts a fresh group; a supervisor lock file blocks a second start. It does
