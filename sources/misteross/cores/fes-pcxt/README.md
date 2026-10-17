@@ -1,13 +1,26 @@
 # FES PC/XT development
 
-This development slice implements the byte-transaction side of an eight-slot
-virtual ISA backplane. The [machine design](../../docs/architecture.md#proposed-fes-ibm-pcxt-core)
+This development slice runs an original diagnostic ROM on an 8088 CPU through
+an eight-slot virtual ISA backplane. The [machine design](../../docs/architecture.md#proposed-fes-ibm-pcxt-core)
 targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
-linkable-card mechanism. This slice has no CPU, motherboard chipset, graphics,
+linkable-card mechanism. This slice has no motherboard chipset, graphics,
 disk controller, BIOS, board top, physical socket map or package producer.
-It cannot boot PC/XT software yet.
+It cannot boot DOS or PC/XT games yet. Conventional RAM and ROM are testbench
+models; no physical SDRAM controller is connected.
 
 ## Implemented path
+
+`pcxt_cpu.sv` selects the pinned [MCL86 import](vendor/mcl86/README.md) in 8088
+mode, with a four-byte prefetch queue, original reserved FLAGS behavior and
+byte-wide external transfers. The fabric clock must be 100 MHz; the synchronous
+fractional pin clock is nominally 4.772727 MHz. `pcxt_cpu_bus.sv` translates its
+address/data phases to byte transactions and holds READY/data until sampled.
+It propagates LOCK, reports both interrupt-acknowledge bytes as locked, and
+stops on a latched fabric fault until reset. `halted` stays asserted from the
+halt bus cycle, including later prefetches, until the next non-fetch bus
+status. There is no
+8086 selector, turbo setting, 80186 extension or fake-286 FLAGS mode in FES.
+DMA ownership and HOLD/HLDA remain unimplemented.
 
 `pcxt_isa_bridge.sv` latches a byte transaction, collects registered card decode
 responses, waits for READY and sends one commit. `pcxt_isa_boundary.sv` supplies
@@ -64,7 +77,22 @@ transfer. Each position checks that a commit already pending at the card does
 not pulse on the reset edge, and that reset clears pending operations without
 a phantom completion.
 
-Outputs live under `build/sim/fes-pcxt/`. The parent affected-test planner and
+The CPU suite assembles the original `sim/diagnostic.S` with GNU binutils
+(`as` and `ld`, x86 target, `.arch i8086`). It starts at physical `FFFF0` and
+checks integer arithmetic, multiply/divide, CALL/RET, REP word strings at odd
+addresses, segment and 20-bit address wrap, LOCK, native FLAGS, ISA word I/O,
+port-FFFF wrap, partial decode, option memory and unmapped reads. Probe counters
+check exactly-once side effects with 160 fabric clocks of card wait. Software
+INT/IRET, two locked INTA cycles, a halt that stays asserted until wakeup, and
+NMI use a testbench vector source;
+this is not an implemented 8259. Port 80h is a testbench progress sink.
+Seven complete runs vary memory latency/backpressure and recover from reset
+during an outstanding fetch and an ISA conflict. No BIOS calls are intercepted.
+
+Verilator lint is fatal; `sim/cpu.vlt` scopes width and unused-wire exceptions
+to imported CPU files. Run either suite alone with
+`python3 scripts/sim_fes_pcxt.py --suite isa` or `--suite cpu`.
+Outputs live under `build/sim/fes-pcxt/{isa,cpu}/`. The parent affected-test planner and
 CI simulation matrix include this simulation-only family. Passing these tests
 is host evidence only. Physical socket placement/routing, exact-shell archives,
 firmware composition and hardware acceptance remain required before a linkable
@@ -75,10 +103,14 @@ as the existing Coleco producer:
 
 ```sh
 make synth-fes-pcxt-isa CACHE_ROOT=/absolute/misteross-toolchains
+python3 scripts/synth_fes_pcxt.py --suite cpu --cache-root /absolute/misteross-toolchains
 ```
 
 It synthesizes the simulation fixture (two probe cards, eight portable slots,
 fault-injection controls) and writes `build/synth/fes-pcxt/synth.json`,
 `yosys.log` and `diagnostic.json` with source hashes and compiler identity.
-The cell counts describe that fixture only. This command performs no placement,
+The CPU variant includes the CPU and external memory ports, writing the same
+files beneath `build/synth/fes-pcxt/cpu/`. It does not synthesize the testbench
+RAM or diagnostic system ROM. The cell counts describe these fixtures only.
+These commands perform no placement,
 routing, package sealing or deployment.
