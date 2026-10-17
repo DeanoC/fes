@@ -29,9 +29,21 @@ Both sizes are captured for every scene.
 
 ## Checks
 
-The existing hardware-room tests pass unchanged, except one Direction count:
-the regrouped machine row puts Set up ZX81 between Next setup and Library.
-That test still proves Direction alone reaches Library.
+- The existing hardware-room tests pass. One Direction route changed with the
+  regrouped controls; that test still proves Direction alone reaches Library.
+- New: every control is reachable by Direction from Start, and the setup tools
+  form a grid (Import under More cards, Library under Refresh).
+- New: without a session reading the room says "Running: unknown", never
+  "not running".
+- An independent agent review of the first commit found:
+  - the unknown-session claim
+  - Import expansion reachable only from Back
+  - a clipped tag at 1024 wide
+  - narrowed info and description text
+  - a stale doc label
+  - an unavailable card drawn as a preview
+
+  All are fixed.
 
 ## Not covered
 

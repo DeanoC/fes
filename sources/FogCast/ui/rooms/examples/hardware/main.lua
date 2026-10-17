@@ -21,9 +21,13 @@ local function lines(s,x,y,w,size,max_lines,c)
   for word in (s or ""):gmatch("%S+") do
     local next_line = line == "" and word or line.." "..word
     if gfx.measure(next_line,math.floor(size*scale)) > w*scale and line ~= "" then
+      if n + 1 >= max_lines then
+        -- Last allowed line: say that the text continues.
+        text(line.." …",x,y+n*(size+5),size,c,w)
+        return
+      end
       text(line,x,y+n*(size+5),size,c,w)
       n = n + 1
-      if n >= max_lines then return end
       line = word
     else line = next_line end
   end
@@ -196,7 +200,7 @@ function draw()
   local info=read_error ~= "" and read_error or (data and data.session_error ~= "" and "Session unavailable. Refresh before controlling the machine." or message)
   if machine and not machine.ready and read_error == "" then info=machine.unavailable_reason end
   -- Status stays under the title so lifecycle consequences never disappear.
-  text(info,24,122,15,C.muted,580)
+  text(info,24,122,15,C.muted,1072)
 
   -- Machine card: the illustration shows the setup being looked at.
   rect(24,144,576,296,C.raised)
@@ -215,17 +219,26 @@ function draw()
   rect(314,198,48,3,C.accent)
   rect(308,195,10,10,C.accent)
   local shown=previewing and inspected or saved_id
-  if shown ~= "" then
+  -- An unavailable card cannot be fitted, so it is not drawn on the machine.
+  if shown ~= "" and not (previewing and c and not c.ready) then
     connector_card(276,180,not previewing)
-    text(previewing and "Preview" or "Fitted for next start",230,170,13,C.ink,120,true)
+    text(previewing and "Preview" or "Next start",236,166,13,C.ink,120,true)
   end
   button("socket","Rear expansion",372,182,200,40,machine and machine.socket.supported,function() focus="card:1" end)
   text("A saved setup remembers the machine, not its running memory.",40,412,15,C.muted,544)
 
   -- Setup column: the three states together, then the change and its cost.
-  local running_line="Running: Not running"
-  if current() then running_line="Running: "..(current_session().hardware_known and label(current_session().expansion_id) or "Hardware unavailable")
-  elseif running() then running_line="Running: another title" end
+  -- Running is an observation. Without a session reading it is unknown,
+  -- never "not running".
+  local running_line
+  local s=current_session()
+  if not data then running_line="Running: checking…"
+  elseif data.session_error ~= "" or not s then running_line="Running: unknown"
+  elseif current() then running_line="Running: "..(s.hardware_known and label(s.expansion_id) or "Hardware unavailable")
+  elseif running() then running_line="Running: another title"
+  elseif s.state == "idle" then running_line="Running: not running"
+  else running_line="Running: "..(s.state ~= "" and s.state or "unknown") end
+  if stale and data then running_line=running_line.." (may be out of date)" end
   text(running_line,620,146,17,C.ink,476,true)
   text(machine and ("Next start: "..label(saved_id)) or "Next start: no machine setup",620,170,17,C.ink,476,true)
   if previewing then text("Previewing: "..label(inspected).." (not saved)",620,194,16,C.muted,476)
@@ -238,7 +251,7 @@ function draw()
   local can_edit=machine and machine.socket.supported and not stale and not loading and not saving
   local fit=c and c.ready and c.expansion_id ~= saved_id
   button("fit","Fit & save setup",620,338,300,40,can_edit and fit,function() save(inspected) end,true)
-  button("remove","Remove & save",932,338,164,40,can_edit and saved_id ~= "",function() save("") end)
+  button("remove","Remove & save",932,338,164,40,can_edit and saved_id ~= "",function() inspected="" save("") end)
   rect(620,388,476,52,C.warm)
   rect(620,388,5,52,C.warm_edge)
   text(pending() and "Restart needed: the running machine still uses its old setup." or "Changing the setup needs a restart.",634,394,15,C.ink,456,true)
@@ -271,13 +284,15 @@ function draw()
     text(machine and "RAM, Zon X and QS expansions supported." or "Add a Sinclair ZX81 setup in the FPGA library to begin.",24,486,19,C.muted,720)
     text("Import a card archive to add it to this shelf.",24,512,15,C.muted,720)
   end
+  -- Setup tools: two columns so Direction moves straight between them.
   button("shelf_page","More cards",776,480,150,28,#choices > 3,function() page=page % math.ceil(#choices/3)+1 remember() end)
   button("refresh",loading and "Checking..." or "Refresh",938,480,158,28,not loading and not saving,function() read() end)
-  button("import_card","Import expansion",776,514,320,28,machine and machine.socket.supported and not running() and not stale,function() hardware.import_expansion{game_id=machine.game_id,package_id=machine.package_id} end)
+  button("import_card","Import expansion",776,514,150,28,machine and machine.socket.supported and not running() and not stale,function() hardware.import_expansion{game_id=machine.game_id,package_id=machine.package_id} end)
 
   -- Machine row, then setup tools.
   rect(24,552,1072,2,C.line)
-  text("Cassette: "..(machine and machine.media_name ~= "" and machine.media_name or "No cassette"),776,562,15,C.muted,320)
+  text("Cassette:",928,566,14,C.muted,168)
+  text(machine and machine.media_name ~= "" and machine.media_name or "No cassette",928,586,15,C.ink,168,true)
   local can_control=not stale and not loading and data and data.session_error == ""
   local can_play=machine and machine.ready and not stale and not loading and not saving and data and data.session and data.session.state == "idle" and data.session_error == ""
   button("power",running() and (current() and "Stop machine" or "Machine in use") or "Start machine",24,566,186,48,(current() and can_control and current_session().hardware_known) or can_play,function()
@@ -289,6 +304,6 @@ function draw()
   end)
   button("resume","Return to play",430,566,164,48,running(),function() session.resume() end)
   button("setup","Next setup",606,566,128,48,data and #data.machines > 1,function() next_machine() end)
-  button("setup_library","Set up ZX81",746,584,170,30,not running(),function() hardware.setup() end)
-  button("library","Library",928,584,168,30,not running(),function() rooms.open_library{platform="zx81"} end)
+  button("setup_library","Set up ZX81",746,566,170,48,not running(),function() hardware.setup() end)
+  button("library","Library",938,514,158,28,not running(),function() rooms.open_library{platform="zx81"} end)
 end

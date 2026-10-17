@@ -136,10 +136,10 @@ func TestHardwareRoomRestoresFocusAndUsesOrdinaryLaunch(t *testing.T) {
 		t.Fatalf("focus/launch lost on return: %+v", acts)
 	}
 	// A direction route reaches another control; pointer isn't required.
-	// The machine row runs Start, cassette, Return to play, Next setup,
-	// then the setup tools Set up ZX81 and Library.
-	for i := 0; i < 5; i++ {
-		r.Input("right")
+	// Along the machine row to Set up ZX81, up into the setup tools to
+	// Import expansion, then right to Library.
+	for _, dir := range []string{"right", "right", "right", "right", "up", "right"} {
+		r.Input(dir)
 	}
 	r.Input("select")
 	if acts = r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionOpenLibrary {
@@ -336,5 +336,78 @@ func TestKitHardwareRoomHidesComputerTapeWithoutPlane(t *testing.T) {
 	r.Activate("tape")
 	if acts := r.TakeActions(); len(acts) != 0 {
 		t.Fatalf("computer tape without session display opened the picker: %+v", acts)
+	}
+}
+
+func hardwareFocus(t *testing.T, r *Instance) string {
+	t.Helper()
+	nav, _ := r.store.values["navigation"].(map[string]any)
+	if nav == nil {
+		// store.set keeps Lua tables as converted Go values.
+		if m, ok := r.store.values["navigation"].(map[any]any); ok {
+			if f, ok := m["focus"].(string); ok {
+				return f
+			}
+		}
+		t.Fatalf("no navigation in store: %#v", r.store.values["navigation"])
+	}
+	f, _ := nav["focus"].(string)
+	return f
+}
+
+// Every control is reachable with Direction alone, and each tool sits next
+// to its neighbours, so nothing depends on a pointer or on Tab order.
+func TestHardwareRoomEveryControlReachableByDirection(t *testing.T) {
+	r := loadHardware(t, hardwareData(false), examplePack(t, "example.hardware"))
+	f := r.Step(time.Unix(50, 0))
+	var ids []string
+	for _, hit := range f.Hits {
+		ids = append(ids, hit.ID)
+	}
+	edges := map[string][]string{}
+	for _, id := range ids {
+		for _, dir := range []string{"up", "down", "left", "right"} {
+			r.Hover(id)
+			r.Input(dir)
+			edges[id] = append(edges[id], hardwareFocus(t, r))
+		}
+	}
+	seen := map[string]bool{"power": true}
+	queue := []string{"power"}
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		for _, next := range edges[id] {
+			if !seen[next] {
+				seen[next] = true
+				queue = append(queue, next)
+			}
+		}
+	}
+	for _, id := range ids {
+		if !seen[id] {
+			t.Fatalf("%s is not reachable by Direction from Start: %v", id, edges)
+		}
+	}
+	// The tools are a grid: Import sits under More cards, Library under Refresh.
+	step := func(from, dir string) string { r.Hover(from); r.Input(dir); return hardwareFocus(t, r) }
+	if got := step("shelf_page", "down"); got != "import_card" {
+		t.Fatalf("Down from More cards = %s", got)
+	}
+	if got := step("refresh", "down"); got != "library" {
+		t.Fatalf("Down from Refresh = %s", got)
+	}
+}
+
+// Without a session reading the room says Running is unknown, never that
+// the machine is not running.
+func TestHardwareRoomRunningIsUnknownWithoutASessionReading(t *testing.T) {
+	s := hardwareData(false)
+	s.value.Session = nil
+	s.value.SessionError = "target unreachable"
+	r := loadHardware(t, s, examplePack(t, "example.hardware"))
+	f := stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Running: unknown") })
+	if frameHas(f, "Running: not running") || frameHas(f, "Running: Not running") {
+		t.Fatal("unknown session shown as not running")
 	}
 }

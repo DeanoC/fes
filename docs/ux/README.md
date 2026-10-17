@@ -423,7 +423,8 @@ kit are pending.
   accent-outline focus.
 - **Three states together.** The setup column reads "Running: …", "Next start:
   …" and, while an unsaved card is inspected, "Previewing: … (not saved)".
-  "Restart needed" says what to do.
+  "Restart needed" says what to do. Without a session reading, Running is
+  "unknown", and a stale reading is marked "may be out of date".
 - **Preview is not fitted.** The illustration draws the saved card solid
   ("Fitted for next start") and an inspected card outlined ("Preview").
 - **Consequences beside the change.** A warm box under Fit & save says that a
