@@ -22,7 +22,7 @@ module d021_sim_top(
  assign active_reset=machine.system_reset;
  assign ce=machine.cpu_ce;assign run_ce=machine.cpu_run_ce;
  assign phase=machine.cycle_clock;assign address=machine.bus_addr;
- assign data=machine.bus_wdata;assign bus_we=machine.bus_we;assign show_io=machine.show_io;
+ assign data=machine.bus_wdata;assign bus_we=machine.bus_we;assign show_io=machine.show_io_c;
  assign pc=machine.cpu.PC;
  assign raster=machine.vic.raster;assign native_cycle=machine.vic.native_cycle;
  assign x=machine.vic.write_x;assign strobe=machine.vic.pixel_strobe;

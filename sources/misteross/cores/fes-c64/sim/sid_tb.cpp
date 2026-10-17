@@ -56,6 +56,14 @@ int main(int argc,char**argv){
 #else
   rtl.clk=0;rtl.reset=reset;rtl.phi=phi;rtl.cs=cs;rtl.we=we;rtl.addr=addr;rtl.din=data;rtl.eval();
   rtl.clk=1;rtl.eval();levels[0]=rtl.e0;levels[1]=rtl.e1;levels[2]=rtl.e2;dout=rtl.dout;sample=rtl.sample;
+#ifdef C64_SEQUENCED_VOICES
+  // The three voice stage edges belong to the Phi step. The direct mix
+  // register was read above, one edge after Phi, as in the direct build.
+  for(unsigned extra=0;extra<((phi&&!reset)?10u:(cs&&we&&!reset)?3u:0u);++extra){
+   rtl.clk=0;rtl.reset=0;rtl.phi=0;rtl.cs=0;rtl.we=0;rtl.eval();rtl.clk=1;rtl.eval();
+  }
+  levels[0]=rtl.e0;levels[1]=rtl.e1;levels[2]=rtl.e2;dout=rtl.dout;
+#endif
 #endif
   // PCM stimulus uses constant pulse output (frequency/width zero). This tests
   // envelope/gain arithmetic, not a claim about SID waveform or filter fidelity.

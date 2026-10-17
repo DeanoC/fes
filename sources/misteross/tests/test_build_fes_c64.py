@@ -345,17 +345,14 @@ class C64YosysM10kTests(unittest.TestCase):
         async_cells = [line for line in sections["ASYNC"] if line.startswith("top/")]
         lanes = sorted(line.removeprefix("top/") for line in sections["LANES"] if line.startswith("top/"))
         self.assertEqual(async_cells, [])
-        self.assertEqual(objects("SDP"), "209 objects.")
-        self.assertEqual(objects("TDP"), "296 objects.")
-        filter_lanes = [f"machine.sid.filtered_audio.audio.filter.shared_vcr.bank[{bank}].rom"
-                        for bank in range(14)]
-        filter_lanes += [f"machine.sid.filtered_audio.audio.filter.{rom}.bank[{bank}].block_rom.rom"
-                         for rom, banks in (("fc_rom", 4), ("summer_rom.descriptor_rom", 10))
-                         for bank in range(banks)]
+        # The default SID audio stage keeps its tables in logic; the opt-in
+        # reSID chain's VCR/cutoff/summer ROM lanes are not in the package.
+        self.assertEqual(objects("SDP"), "195 objects.")
+        self.assertEqual(objects("TDP"), "240 objects.")
         self.assertEqual(lanes, sorted(
             [f"machine.rom.lane{index}" for index in range(36)] +
             [f"machine.vic.frame_store.pages[{page}].banks[{bank}].ram"
-             for page in range(3) for bank in range(51)] + filter_lanes))
+             for page in range(3) for bank in range(51)]))
 
     def test_full_synth_has_live_memory_clocks(self) -> None:
         """The native drive synthesizes without repairing disconnected memory clocks."""

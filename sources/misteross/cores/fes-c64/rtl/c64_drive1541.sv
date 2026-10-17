@@ -21,7 +21,17 @@ module c64_drive1541 #(
 );
     reg [26:0] phase = 0;
     wire [27:0] phase_next = {1'b0,phase} + 28'd16_000_000;
-    assign ref_ce = phase_next >= SYSTEM_CLOCK_HZ;
+    generate if (SYSTEM_CLOCK_HZ > 2 * 16_000_000) begin : registered_ref_ce
+        // Predict the next 16 MHz tick one system edge ahead, as the
+        // motherboard does for Phi: the same pulse sequence and startup
+        // phase, without the phase adder in the drive CPU's RDY path.
+        reg enable = 0;
+        always @(posedge clk)
+            enable <= !enable && phase >= SYSTEM_CLOCK_HZ - 2 * 16_000_000;
+        assign ref_ce = enable;
+    end else begin : direct_ref_ce
+        assign ref_ce = phase_next >= SYSTEM_CLOCK_HZ;
+    end endgenerate
     reg [3:0] cpu_div = 0;
     always @(posedge clk) if (ref_ce) cpu_div <= cpu_div + 4'd1;
     assign phi = ref_ce && cpu_div == 4'd15;

@@ -7,9 +7,27 @@
 // Combinations use pinned MOS6581 samples, noise writeback and phase feedback.
 module c64_sid_oscillator #(
     // The caller must guarantee a non-Phi edge between Phi edges.
-    parameter bit PREPARE_PHASE = 1'b0
+    parameter bit PREPARE_PHASE = 1'b0,
+    // Defer the waveform stage (wave, saw feedback, noise write-back, fade
+    // and pulse) from the Phi edge to a two-edge lookup/finish sequence: the
+    // caller's `stage` edge (or a CONTROL write selecting a waveform) issues
+    // `lookup_request` with the combined-wave table index, and the second
+    // edge after it finishes the stage from the caller's registered
+    // `lookup_tables` (index registered, then tables registered). The
+    // caller sequences the three voices three SYS edges apart in reSID output
+    // order, so the ring/sync source MSB is simply the source's current
+    // phase and no table lookup chains with another within one SYS period.
+    // Phi still advances the accumulator, noise shift and hard sync. The
+    // caller must keep writes and the next Phi out of the stage window and
+    // leave one idle edge after every finish before the next Phi.
+    parameter bit SEQUENCED = 1'b0
 ) (
-    input wire clk, reset, phi, we,
+    input wire clk, reset, phi, we, stage,
+    output wire lookup_request,
+    output wire [11:0] lookup_index,
+    output wire lookup_ring_xor,
+    // {triangle_saw, pulse_triangle, pulse_saw, pulse_triangle_saw}
+    input wire [47:0] lookup_tables,
     input wire [2:0] addr,
     input wire [7:0] din,
     input wire sync_clear, source_msb, source_write_msb,
@@ -42,9 +60,19 @@ module c64_sid_oscillator #(
         // The final idle state includes FREQ, TEST and combined-wave feedback.
         // Forward even a repeated CONTROL write on the last idle edge.
         // Reset preserves the old phase and clears frequency, even on Phi.
+        // Sequenced voices only change phase or frequency on an idle edge
+        // through a register write (TEST set clears the phase); feedback is
+        // applied on finish edges, after which an idle edge recomputes the
+        // sum from q. The explicit write mux keeps the full next-state logic
+        // out of the adder path. Direct mode forwards the complete n.
+        wire write_test_set=we && addr==3'd4 && !q.control[3] && din[3];
+        wire [23:0] idle_phase=write_test_set ? 24'd0 : q.phase;
+        wire [15:0] idle_freq=(we && addr==3'd0) ? {q.freq[15:8],din} :
+                              (we && addr==3'd1) ? {din,q.freq[7:0]} : q.freq;
         always @(posedge clk)
             if(reset) value <= q.phase;
-            else if(!phi) value <= n.phase+{8'd0,n.freq};
+            else if(!phi && !(SEQUENCED && pending[1]))
+                value <= SEQUENCED ? idle_phase+{8'd0,idle_freq} : n.phase+{8'd0,n.freq};
         assign next_phase=value;
     end else begin : direct_phase
         assign next_phase=q.phase+{8'd0,q.freq};
@@ -105,22 +133,37 @@ module c64_sid_oscillator #(
             !((before_wave[1:0]==1 && after_wave[1:0]==2) ||
               (before_wave[1:0]==2 && after_wave[1:0]==1));
     endfunction
-    function automatic [11:0] selected_wave(input state_t s, input source_high);
+    // Waveform selection from the combined-wave table values for this
+    // state's phase (pulse_triangle already indexed with the ring XOR).
+    function automatic [11:0] select_wave(input state_t s, input ring_active,
+        input [11:0] triangle_saw, pulse_triangle, pulse_saw, pulse_triangle_saw);
         begin
             case(s.control[6:4])
-            1:selected_wave={((s.phase[23] ^ (s.control[2] && !source_high)) ? ~s.phase[22:12] : s.phase[22:12]),1'b0};
-            2:selected_wave=s.phase[23:12];
-            3:selected_wave=combined_triangle_saw(s.phase[23:12]);
-            4:selected_wave=s.pulse;
-            5:selected_wave=combined_pulse_triangle(s.phase[23:12] ^ ((s.control[2] && !source_high) ? 12'h800 : 12'h000)) & s.pulse;
-            6:selected_wave=combined_pulse_saw(s.phase[23:12]) & s.pulse;
-            7:selected_wave=combined_pulse_triangle_saw(s.phase[23:12]) & s.pulse;
-            default:selected_wave=12'hfff;
+            1:select_wave={((s.phase[23] ^ ring_active) ? ~s.phase[22:12] : s.phase[22:12]),1'b0};
+            2:select_wave=s.phase[23:12];
+            3:select_wave=triangle_saw;
+            4:select_wave=s.pulse;
+            5:select_wave=pulse_triangle & s.pulse;
+            6:select_wave=pulse_saw & s.pulse;
+            7:select_wave=pulse_triangle_saw & s.pulse;
+            default:select_wave=12'hfff;
             endcase
-            if(s.control[7]) selected_wave=selected_wave & noise_bits(s.lfsr);
+            if(s.control[7]) select_wave=select_wave & noise_bits(s.lfsr);
             if(s.control[7:6]==2'b11)
-                selected_wave=selected_wave<12'hf00 ? 12'h000 :
-                    selected_wave & (selected_wave<<1) & (selected_wave<<2);
+                select_wave=select_wave<12'hf00 ? 12'h000 :
+                    select_wave & (select_wave<<1) & (select_wave<<2);
+        end
+    endfunction
+    // Single-edge selection with local table lookups (direct mode).
+    function automatic [11:0] selected_wave(input state_t s, input source_high);
+        reg ring_active;
+        begin
+            ring_active=s.control[2] && !source_high;
+            selected_wave=select_wave(s,ring_active,
+                combined_triangle_saw(s.phase[23:12]),
+                combined_pulse_triangle(s.phase[23:12] ^ (ring_active ? 12'h800 : 12'h000)),
+                combined_pulse_saw(s.phase[23:12]),
+                combined_pulse_triangle_saw(s.phase[23:12]));
         end
     endfunction
     function automatic [23:0] feedback_phase(input [23:0] phase_value,
@@ -141,28 +184,51 @@ module c64_sid_oscillator #(
         feedback_wave=selected_wave(feedback_state,1'b0);
     end
     assign phase_feedback=feedback_phase(synced_phase,q.control[7:4],feedback_wave);
+    // The waveform stage of one Phi: output wave, saw-selected accumulator
+    // feedback, noise write-back, floating-output decay and pulse compare.
+    function automatic state_t waveform_stage(input state_t s, input [11:0] wave, input fade);
+        state_t t;
+        begin
+            t=s;
+            if(t.control[7:4]!=0) begin
+                t.wave=wave;
+                t.phase=feedback_phase(t.phase,t.control[7:4],t.wave);
+                if(t.control[7:4]>8 && !t.control[3] && t.shift_pipe!=1)
+                    t.lfsr=noise_writeback(t.lfsr,t.wave);
+            end
+            else if(fade && t.fade_count!=0) begin
+                t.fade_count=t.fade_count-1'b1;
+                if(t.fade_count==0) begin
+                    t.wave=t.wave&(t.wave>>1);
+                    if(t.wave!=0) t.fade_count=18'd1500;
+                end
+            end
+            t.pulse=t.phase[23:12]>=t.pw ? 12'hfff : 12'h000;
+            waveform_stage=t;
+        end
+    endfunction
+    // Sequenced lookup/finish bookkeeping: `pending[1]` finishes the stage
+    // two edges after a request; `pending_write` marks a CONTROL-write stage,
+    // which skips the floating-output decay; `ring_latched` is the ring
+    // modulation state the lookup index was formed with.
+    reg [1:0] pending=2'b00; reg pending_write=0, ring_latched=0;
+    reg write_request;
+    wire finish_ring_active=ring_latched;
+    wire [11:0] finish_wave=select_wave(q,finish_ring_active,
+        lookup_tables[47:36],lookup_tables[35:24],lookup_tables[23:12],lookup_tables[11:0]);
     always @* begin
         n=q;
+        write_request=0;
         if(phi) begin
             n=phi_base;
             // Synchronize only after every voice has advanced its phase.
             // Noise edge/shift behavior above observes the pre-sync phase.
             if(sync_clear)n.phase=0;
-            if(n.control[7:4]!=0) begin
-                n.wave=selected_wave(n,source_msb);
-                n.phase=feedback_phase(n.phase,n.control[7:4],n.wave);
-                if(n.control[7:4]>8 && !n.control[3] && n.shift_pipe!=1)
-                    n.lfsr=noise_writeback(n.lfsr,n.wave);
-            end
-            else if(n.fade_count!=0) begin
-                n.fade_count=n.fade_count-1'b1;
-                if(n.fade_count==0) begin
-                    n.wave=n.wave&(n.wave>>1);
-                    if(n.wave!=0) n.fade_count=18'd1500;
-                end
-            end
-            n.pulse=n.phase[23:12]>=n.pw ? 12'hfff : 12'h000;
+            if(!SEQUENCED) n=waveform_stage(n,selected_wave(n,source_msb),1'b1);
         end
+        // Deferred finish: q holds the advanced, synchronized (or written)
+        // state and the caller's tables hold this voice's requested lookup.
+        if(SEQUENCED && pending[1]) n=waveform_stage(n,finish_wave,!pending_write);
         clocked_waveform=n.wave;
         // CPU writes follow the old-register oscillator clock on this SYS edge.
         if(we) case(addr)
@@ -180,11 +246,8 @@ module c64_sid_oscillator #(
                 n.lfsr={n.lfsr[21:0],~n.lfsr[17]};
             end
             if(din[7:4]!=0) begin
-                n.wave=selected_wave(n,source_write_msb);
-                n.phase=feedback_phase(n.phase,n.control[7:4],n.wave);
-                if(n.control[7:4]>8 && !n.control[3] && n.shift_pipe!=1)
-                    n.lfsr=noise_writeback(n.lfsr,n.wave);
-                n.pulse=n.phase[23:12]>=n.pw ? 12'hfff : 12'h000;
+                if(SEQUENCED) write_request=1;
+                else n=waveform_stage(n,selected_wave(n,source_write_msb),1'b0);
             end else if(q.control[7:4]!=0) n.fade_count=18'd182000;
         end
         default:;
@@ -194,4 +257,16 @@ module c64_sid_oscillator #(
         end
     end
     always @(posedge clk) q<=n;
+    // Lookup request: the index is the state the finish edge will see.
+    wire request_ring_active=n.control[2] && !(write_request ? source_write_msb : source_msb);
+    assign lookup_request=SEQUENCED && !reset && (stage || write_request);
+    assign lookup_index=n.phase[23:12];
+    assign lookup_ring_xor=request_ring_active;
+    always @(posedge clk) begin
+        if(reset) begin pending<=2'b00; pending_write<=0; ring_latched<=0; end
+        else begin
+            pending<={pending[0],lookup_request};
+            if(lookup_request) begin pending_write<=write_request; ring_latched<=request_ring_active; end
+        end
+    end
 endmodule

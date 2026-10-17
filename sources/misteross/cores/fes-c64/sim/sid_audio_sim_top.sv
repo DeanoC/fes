@@ -10,7 +10,7 @@ module sid_audio_sim_top #(parameter bit PREPARED=1'b0) (
     output wire done, busy
 );
     c64_sid #(.PREPARE_PHASE(PREPARED), .PREPARE_ENVELOPE(PREPARED),
-              .FILTER_AUDIO(1'b1)) dut (
+              .FILTER_AUDIO(1'b1), .RESID_FILTER(1'b1)) dut (
         .clk(clk), .reset(reset), .phi(phi), .cs(cs), .we(we),
         .addr(addr), .din(din), .dout(dout), .sample(sample)
     );

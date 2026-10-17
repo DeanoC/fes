@@ -35,7 +35,12 @@ int main(int argc,char**argv){
  }
  dout=addr==27?ref[2].readOSC():0;
 #else
- rtl.clk=0;rtl.reset=reset;rtl.phi=phi;rtl.cs=cs;rtl.we=we;rtl.addr=addr;rtl.din=data;rtl.eval();rtl.clk=1;rtl.eval();dout=rtl.dout;
+ rtl.clk=0;rtl.reset=reset;rtl.phi=phi;rtl.cs=cs;rtl.we=we;rtl.addr=addr;rtl.din=data;rtl.eval();rtl.clk=1;rtl.eval();
+#ifdef C64_SEQUENCED_VOICES
+ // The three voice stage edges belong to the Phi step; OSC3 is read after them.
+ for(unsigned extra=0;extra<((phi&&!reset)?10u:(cs&&we&&!reset)?3u:0u);++extra){rtl.clk=0;rtl.reset=0;rtl.phi=0;rtl.cs=0;rtl.we=0;rtl.eval();rtl.clk=1;rtl.eval();}
+#endif
+ dout=rtl.dout;
 #endif
  hash^=dout;hash*=1099511628211ull;++edges;if(addr==27)++reads;if(cs&&we&&!reset)++writes;if(edges%8192==0)flush();
  };

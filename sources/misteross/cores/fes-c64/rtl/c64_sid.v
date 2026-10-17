@@ -6,7 +6,20 @@
 // See c64_sid.COPYING and ../README.md for source provenance and scope.
 module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
     parameter bit PREPARE_ENVELOPE = 1'b0,
-    parameter bit FILTER_AUDIO = 1'b0) (
+    // Run the three voices' waveform stages as three-edge lookup/finish
+    // sequences on SYS edges Phi+1..Phi+9 in reSID output order, through one
+    // shared combined-wave table unit, instead of chaining them within the
+    // Phi edge. The voice pipeline needs twelve SYS edges and no register
+    // write on Phi+1..Phi+10. A CONTROL write finishes two edges later, and
+    // the prepared phase sum needs one idle edge after that finish before
+    // the next Phi. The motherboard samples writes at edge 27, so it enables
+    // this mode only when every Phi gap is at least 31 edges. Audio captures
+    // at Phi+10.
+    parameter bit SEQUENCE_VOICES = 1'b0,
+    parameter bit FILTER_AUDIO = 1'b0,
+    // Opt-in exact reSID MOS6581 DAC/filter translation (c64_sid_audio) in
+    // place of the default state-variable filter (c64_sid_svf).
+    parameter bit RESID_FILTER = 1'b0) (
     input  wire               clk,
     input  wire               phi,
     input  wire               reset,
@@ -27,6 +40,25 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
     reg [7:0] wave0, wave1, wave2;
     reg signed [18:0] mixed;
     reg signed [23:0] volume_mix;
+    // Voice v requests its lookup on the edge where stage_pipe[3*v] is set
+    // (Phi+1, Phi+4, Phi+7) and finishes two edges later.
+    reg [9:0] stage_pipe = 10'd0;
+    always @(posedge clk)
+        stage_pipe <= reset ? 10'd0 : {stage_pipe[8:0], phi};
+    // The edge on which every voice's output wave is final for this Phi.
+    wire audio_phi = SEQUENCE_VOICES ? stage_pipe[9] : phi;
+    wire [2:0] lookup_request;
+    wire [11:0] lookup_index [0:2];
+    wire [2:0] lookup_ring_xor;
+    wire [47:0] lookup_tables;
+    generate if(SEQUENCE_VOICES) begin : shared_tables
+        c64_sid_wave_tables tables(.clk(clk),
+            .phase_index(lookup_request[0] ? lookup_index[0] : lookup_request[1] ? lookup_index[1] : lookup_index[2]),
+            .ring_xor(lookup_request[0] ? lookup_ring_xor[0] : lookup_request[1] ? lookup_ring_xor[1] : lookup_ring_xor[2]),
+            .lookup_tables(lookup_tables));
+    end else begin : no_tables
+        assign lookup_tables=48'd0;
+    end endgenerate
     genvar v;
     generate for(v=0;v<3;v=v+1) begin: envelopes
         localparam [4:0] BASE=5'(v*7);
@@ -37,15 +69,20 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
         // Match the pinned reSID output loop: voice0 observes source2 before
         // feedback; voices1/2 observe the preceding voice after feedback.
         // CONTROL writes occur after every voice's Phi output stage.
+        // Sequenced voices see the source's current phase: voice 0 runs
+        // before voice 2's feedback and voices 1 and 2 after their source's.
         wire source_before_feedback=sync_clear[SOURCE] ? 1'b0 : phase_advanced[SOURCE][23];
-        wire ring_source_msb=phi ? (v==0 ? source_before_feedback : phase_feedback[SOURCE][23]) : phase_now[SOURCE][23];
-        wire write_source_msb=phi ? phase_feedback[SOURCE][23] : phase_now[SOURCE][23];
+        wire ring_source_msb=SEQUENCE_VOICES ? phase_now[SOURCE][23] :
+            phi ? (v==0 ? source_before_feedback : phase_feedback[SOURCE][23]) : phase_now[SOURCE][23];
+        wire write_source_msb=(phi && !SEQUENCE_VOICES) ? phase_feedback[SOURCE][23] : phase_now[SOURCE][23];
         wire [4:0] oscillator_addr=addr-BASE;
         wire control_write=addr==BASE+5'd4;
         wire ad_write=addr==BASE+5'd5;
         wire sr_write=addr==BASE+5'd6;
-        c64_sid_oscillator #(.PREPARE_PHASE(PREPARE_PHASE)) oscillator (
-            .clk(clk),.reset(reset),.phi(phi),
+        c64_sid_oscillator #(.PREPARE_PHASE(PREPARE_PHASE),.SEQUENCED(SEQUENCE_VOICES)) oscillator (
+            .clk(clk),.reset(reset),.phi(phi),.stage(SEQUENCE_VOICES && stage_pipe[3*v]),
+            .lookup_request(lookup_request[v]),.lookup_index(lookup_index[v]),
+            .lookup_ring_xor(lookup_ring_xor[v]),.lookup_tables(lookup_tables),
             .we(we && cs && oscillator_addr<=5'd4),
             .addr(oscillator_addr[2:0]),.din(din),
             .sync_clear(sync_clear[v]),.source_msb(ring_source_msb),.source_write_msb(write_source_msb),
@@ -77,8 +114,8 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
                 captured_wave0<=0;captured_wave1<=0;captured_wave2<=0;
                 captured_cutoff<=0;captured_routing<=0;captured_mode<=0;
             end else begin
-                pending<=phi;
-                if(phi) begin
+                pending<=audio_phi;
+                if(audio_phi) begin
                     captured_wave0<=clocked_wave[0];captured_wave1<=clocked_wave[1];captured_wave2<=clocked_wave[2];
                     captured_cutoff<=cutoff;captured_routing<=routing;captured_mode<=mode_volume;
                 end
@@ -91,12 +128,20 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
                 endcase
             end
         end
+        if(RESID_FILTER) begin : resid
         c64_sid_audio audio(.clk(clk),.reset(reset),.start(pending),
             .wave0(captured_wave0),.wave1(captured_wave1),.wave2(captured_wave2),
             .env0(env[0]),.env1(env[1]),.env2(env[2]),
             .fc(captured_cutoff),.res_filt(captured_routing),.mode_vol(captured_mode),
             .done(done),.busy(busy),.sample(wide_sample),.internal_sample(),
             .hp(),.bp(),.lp(),.bpx(),.bpc(),.lpx(),.lpc(),.external_low(),.external_high());
+        end else begin : svf
+        c64_sid_svf audio(.clk(clk),.reset(reset),.start(pending),
+            .wave0(captured_wave0),.wave1(captured_wave1),.wave2(captured_wave2),
+            .env0(env[0]),.env1(env[1]),.env2(env[2]),
+            .fc(captured_cutoff),.res_filt(captured_routing),.mode_vol(captured_mode),
+            .done(done),.busy(busy),.sample(wide_sample));
+        end
         // External-filter transients are wide; saturate at the PCM boundary.
         always @* begin
             if(wide_sample>32'sd32767)sample=16'sh7fff;
