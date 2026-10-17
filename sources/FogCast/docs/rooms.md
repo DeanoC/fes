@@ -369,8 +369,8 @@ or `unsupported`. `block` is empty when `launchable` is true. `inputs` lists
   `<config>/FogCast/rooms/<id>.state.json`. On a kit, config is
   `/media/fat/fogcast/state` (`XDG_CONFIG_HOME`, or that directory when
   `HOME` cannot hold a config directory). A config directory that already
-  holds readable state is still loaded when it is read-only. A failed write
-  is logged once and the room keeps running.
+  holds readable state or a room pack is still loaded when it is read-only.
+  A failed write is logged once and the room keeps running.
 
 ### `hardware` (optional host services)
 

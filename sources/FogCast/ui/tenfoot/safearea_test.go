@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/DeanoC/FogCast/ui/rooms"
 )
 
 func TestClampSafeAreaPct(t *testing.T) {
@@ -390,6 +392,80 @@ func TestPersistentConfigDirKeepsReadableReadOnlyState(t *testing.T) {
 	}
 	if !strings.Contains(string(kitData), "\"layout\": \"list\"") {
 		t.Fatalf("kit prefs changed: %s", kitData)
+	}
+}
+
+// TestPersistentConfigDirKeepsReadOnlyRoomPack keeps a directory whose only
+// saved content is a room pack, so the default room search path still finds
+// that pack when the directory cannot be written.
+func TestPersistentConfigDirKeepsReadOnlyRoomPack(t *testing.T) {
+	root := t.TempDir()
+	user := filepath.Join(root, "xdg")
+	kit := filepath.Join(root, "kit")
+	pack := filepath.Join(user, "FogCast", "rooms", "my-room")
+	if err := os.MkdirAll(pack, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(kit, "FogCast", "rooms", "other-room"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := "id = \"my-room\"\ntitle = \"My Room\"\nmain = \"main.lua\"\n"
+	if err := os.WriteFile(filepath.Join(pack, rooms.ManifestName), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pack, "main.lua"), []byte("function on_enter() end\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	other := filepath.Join(kit, "FogCast", "rooms", "other-room", rooms.ManifestName)
+	if err := os.WriteFile(other, []byte("id = \"other-room\"\ntitle = \"Other\"\nmain = \"main.lua\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	makeTreeReadOnly(t, user)
+	t.Setenv("XDG_CONFIG_HOME", user)
+	t.Setenv("HOME", filepath.Join(root, "home"))
+	useKitStateDir(t, kit)
+	captureStateWarn(t)
+
+	if got := persistentConfigDir(); got != user {
+		t.Fatalf("config dir = %q, want read-only %q", got, user)
+	}
+	opts := Options{}.normalized()
+	wantRooms := filepath.Join(user, "FogCast", "rooms")
+	if opts.RoomsDir != wantRooms {
+		t.Fatalf("rooms dir = %q, want %q", opts.RoomsDir, wantRooms)
+	}
+	found, err := rooms.LoadDir(opts.RoomsDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(found) != 1 || found[0].ID != "my-room" || !found[0].Valid() {
+		t.Fatalf("packs = %+v", found)
+	}
+}
+
+// TestPersistentConfigDirIgnoresReadOnlyRoomsWithoutPack falls back when the
+// rooms directory has no state file and no room pack.
+func TestPersistentConfigDirIgnoresReadOnlyRoomsWithoutPack(t *testing.T) {
+	root := t.TempDir()
+	user := filepath.Join(root, "xdg")
+	kit := filepath.Join(root, "kit")
+	notes := filepath.Join(user, "FogCast", "rooms", "notes")
+	if err := os.MkdirAll(notes, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(kit, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(notes, "readme.txt"), []byte("not a pack"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	makeTreeReadOnly(t, user)
+	t.Setenv("XDG_CONFIG_HOME", user)
+	useKitStateDir(t, kit)
+	captureStateWarn(t)
+
+	if got := persistentConfigDir(); got != kit {
+		t.Fatalf("config dir = %q, want kit %q", got, kit)
 	}
 }
 

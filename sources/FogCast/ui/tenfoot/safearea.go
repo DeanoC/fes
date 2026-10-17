@@ -10,6 +10,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DeanoC/FogCast/ui/rooms"
 	"golang.org/x/sys/unix"
 )
 
@@ -148,8 +149,9 @@ func defaultPrefsPath() string {
 // persistentConfigDir is where tenfoot.json and the sibling rooms directory
 // are stored. os.UserConfigDir supplies that directory, which on Linux is
 // XDG_CONFIG_HOME when set and $HOME/.config otherwise. A directory that
-// already holds readable settings or room state is kept even when it is
-// read-only, so a temporarily read-only volume does not hide them. A
+// already holds readable settings, room state, or a room pack is kept even
+// when it is read-only, so a temporarily read-only volume does not hide
+// them. A
 // directory that does not exist yet is used when its nearest existing
 // ancestor is writable, so the save can create missing parents. The kit FAT
 // directory is the fallback when the user directory cannot be read and
@@ -171,15 +173,16 @@ func persistentConfigDir() string {
 }
 
 // chooseConfigDir reports dir when tenfoot should load and save state there.
-// Readable settings or room state win even when the directory cannot be
-// written. Otherwise dir is used only when it is writable, or when it does
-// not exist yet and its nearest existing ancestor is a writable directory.
+// Readable settings, room state, or a room pack win even when the directory
+// cannot be written. Otherwise dir is used only when it is writable, or when
+// it does not exist yet and its nearest existing ancestor is a writable
+// directory.
 func chooseConfigDir(dir string) (string, bool) {
 	dir = strings.TrimSpace(dir)
 	if dir == "" {
 		return "", false
 	}
-	if configDirHasState(dir) {
+	if configDirHasContent(dir) {
 		if !configDirWritable(dir) {
 			noteStateDirUnavailable()
 		}
@@ -225,9 +228,11 @@ func ancestorWritable(dir string) bool {
 	}
 }
 
-// configDirHasState reports whether dir already holds a readable tenfoot.json
-// or a room state file. An unreadable file does not count.
-func configDirHasState(dir string) bool {
+// configDirHasContent reports whether dir already holds a readable
+// tenfoot.json, a room state file, or a room pack. An unreadable file does
+// not count. Packs are immediate FogCast/rooms subdirectories with a
+// readable room.toml, the same discovery rule as rooms.LoadDir.
+func configDirHasContent(dir string) bool {
 	base := filepath.Join(dir, "FogCast")
 	if readableFile(filepath.Join(base, "tenfoot.json")) {
 		return true
@@ -238,10 +243,18 @@ func configDirHasState(dir string) bool {
 		return false
 	}
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".state.json") {
+		name := entry.Name()
+		if name == "" || strings.HasPrefix(name, ".") {
 			continue
 		}
-		if readableFile(filepath.Join(roomsDir, entry.Name())) {
+		path := filepath.Join(roomsDir, name)
+		if entry.IsDir() {
+			if readableFile(filepath.Join(path, rooms.ManifestName)) {
+				return true
+			}
+			continue
+		}
+		if strings.HasSuffix(name, ".state.json") && readableFile(path) {
 			return true
 		}
 	}
