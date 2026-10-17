@@ -202,8 +202,8 @@ RBF and the ordered `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
 `fes.sg1000`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set
 from [the default profile](../profiles/native-integration-dev.toml); use the
 media command above for the complete flashable layout. The selector also supports
-`fes.c64`, which has a frozen HIP seal but stays out of the factory image until
-it has image acceptance; see [core status](core-status.md). The image has no legacy
+`fes.c64`. Its shared-pin retirement is complete, and it stays out of the
+factory image until it has image acceptance; see [core status](core-status.md). The image has no legacy
 bundle lane.
 The `make build`, `make dev`, `make verify` and `make media` paths use the
 same closed package set.

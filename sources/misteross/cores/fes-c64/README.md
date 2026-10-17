@@ -3,7 +3,12 @@
 `fes.c64` 0.1.0 is a package-only Commodore 64 pathfinder on `fes.computer`
 1.0. It follows the Apple II pattern: late-bound firmware, a live removable
 disk, and linkable expansion cards. It is not in the factory image. No
-Commodore ROM is in this tree. HIP seal and kit acceptance are still open.
+Commodore ROM is in this tree. The shared-pin seal is recorded: CUDA package
+`1d599353eaef5502…` (build `6f865fddebe62184…`) on `toolchain.lock`, seed 5,
+final signoff system 54.29/52.224, pixel 75.10/74.25, audio 229.67/12.288.
+A CUDA seal is valid on its own (Deano, 2026-10-13); HIP only adds GPUs.
+Kit acceptance of those bytes is still open. The keyboard transposition in
+[#750](https://github.com/DeanoC/fes/issues/750) is unrelated.
 
 The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
 [home-computer I/O](../../../mister-packages/docs/computer-io.md).
@@ -109,7 +114,7 @@ C64 and is not implied by a successful C64 LOAD.
 ```sh
 make -C sources/misteross sim-fes-c64
 make -C sources/misteross sim-fes-c64-cia # directed timer/register checks
-make -C sources/misteross build-fes-c64   # HIP seal; not part of the sim gate
+make -C sources/misteross build-fes-c64   # default HIP lane; not part of the sim gate
 ```
 
 The CIA register behavior follows the MOS/Commodore
@@ -127,7 +132,18 @@ Mistral `8fcc4cb4`, nextpnr `9128800f`). The build record uses the audited
 static closure in `scripts/source_closures.json`. `--gpu-router CUDA` with
 `--toolchain-root` is a separate package; slot cards take those same flags.
 The 6 Oct kit diagnostic used
-nextpnr `0c5ed400` and does not accept this pin. The socket check admits a compiler-inserted route-through
+nextpnr `0c5ed400` and does not accept this pin. Supporting evidence from a
+HIP build of [#749](https://github.com/DeanoC/fes/pull/749) head
+`8b713d5d5716f47bfbc58582957e77ade4878565` on this lock, on Powerboat's
+RX 7900 XTX: package
+`22ecf46827b3f57b55f7b5e5187167c7177bf29dc931870721aba629639a9dbf`, build
+`4c90ff27c072d8fbfa81366f2bd7d9a1`, timing system 54.51/52.22, pixel
+82.79/74.25, audio 215.33/12.29. The
+[kit B HIL](https://github.com/DeanoC/fes/pull/749#issuecomment-6229821313)
+showed BASIC READY and clean video. The recorded seal is the CUDA package
+above.
+
+The socket check admits a compiler-inserted route-through
 buffer only at a pinned boundary flip-flop's paired combinational half, with
 the exact physical pin map and a dedicated connection to that flip-flop;
 clock-coverage outputs stay unused and every other shell cell inside a socket

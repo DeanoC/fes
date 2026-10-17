@@ -1563,13 +1563,13 @@ their acknowledging clock and `unit0_state` gates presentation of unit 0.
 product lane. The registered recipe selects HIP. Backend identity is part of
 the build record, so a CUDA route of the same sources is a different package.
 The shared-pin clocks that closed on this lock move were a CUDA exploratory
-seal; that seal is not HIP closure, and product HIP seal evidence is still
-open. The September kit notes do not accept those bytes. The build record
+route and are not a recorded seal, so this pin is still open. The September
+kit notes do not accept those bytes. The build record
 uses the audited static closure in `scripts/source_closures.json`: pinned
 inputs, the scripts they import, the toolchain recipe files, and the Apple II
 core tree, excluding simulation, tests and markdown. That replaces the broad
 `scripts` and `cores/fes-common` roots. A compiler-read derive during the
-product HIP seal is the remaining tightening; this closure is not that trace.
+recorded seal is the remaining tightening; this closure is not that trace.
 Its single ROM is `apple2-firmware`,
 role `firmware`, 16,384 bytes on the blank column-5 lanes at rows 32–47.
 The shell QSF adds the four named `FES_RESERVED_RECT` regions of
@@ -1702,13 +1702,14 @@ TOD, serial shifting and timer port outputs remain outside this slice.
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchain.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. The registered recipe selects
 HIP. `--gpu-router CUDA` with `--toolchain-root` builds a separate package.
-The build record uses the audited static closure in
+The recorded shared-pin seal is the CUDA package `1d599353eaef5502…` (build
+`6f865fddebe62184…`). A CUDA seal is valid on its own (Deano, 2026-10-13);
+HIP only adds GPUs. The build record uses the audited static closure in
 `scripts/source_closures.json`: pinned inputs, the scripts they import, the
 toolchain recipe files, and the Commodore 64 core tree, excluding simulation,
 tests and markdown. That replaces the broad `scripts` and `cores/fes-common`
-roots. A compiler-read derive during the product HIP seal is the remaining
-tightening; this closure is not that trace. The seal is not run as part of
-this pathfinder slice, and it does not pin synthesized M10K totals. The ROM is
+roots. A compiler-read derive of this static closure is still open; this
+closure is not that trace. The seal does not pin synthesized M10K totals. The ROM is
 `c64-firmware`, 16,384 bytes, on the blank column-5 lanes at rows 32–47.
 Those lanes use synchronous M10K reads (`CFG_ASYNC_READ=0`) with the bank
 selector delayed one clock so the CPU-facing byte is still two system clocks
