@@ -439,7 +439,7 @@ func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...
 	r.L.Pop(1)
 	elapsed := time.Since(start)
 	if elapsed > hardBudget {
-		return lua.LNil, fmt.Errorf("script exceeded %s hard callback budget", hardBudget)
+		return lua.LNil, fmt.Errorf("script exceeded %s hard callback budget (elapsed %s)", hardBudget, elapsed)
 	}
 	if elapsed > budget {
 		return v, errSoftOverrun
@@ -454,7 +454,7 @@ func (r *Instance) callSoft(fn *lua.LFunction, budget time.Duration, nret int, a
 	}
 	elapsed := time.Since(start)
 	if elapsed > budget*callbackHardLimitFactor {
-		return fmt.Errorf("script exceeded %s hard callback budget", budget*callbackHardLimitFactor)
+		return fmt.Errorf("script exceeded %s hard callback budget (elapsed %s)", budget*callbackHardLimitFactor, elapsed)
 	}
 	if elapsed > budget {
 		return errSoftOverrun

@@ -1534,3 +1534,46 @@ func TestCallbackDeadlineReportsNameAndElapsed(t *testing.T) {
 		t.Fatal("fatal room resumed")
 	}
 }
+
+// gopher-lua checks cancellation between Lua instructions, so a Go callback can
+// return successfully after its context deadline. The post-return watchdog must
+// still report elapsed time, matching the deadline error.
+func TestHardOverrunReportsElapsed(t *testing.T) {
+	budget := 5 * time.Millisecond
+	hard := budget * callbackHardLimitFactor
+	r := newRoom(t, memPack(t, "hard-overrun", "function draw() end", nil), Options{Budget: Budget{Load: time.Second, Frame: budget, Input: budget}})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	block := r.L.NewFunction(func(L *lua.LState) int {
+		time.Sleep(hard + 40*time.Millisecond)
+		L.Push(lua.LTrue)
+		return 1
+	})
+	assertHardOverrunElapsed(t, r.callSoft(block, budget, 0), hard)
+	value, err := r.callRetSoft(block, budget)
+	if value != lua.LNil {
+		t.Fatalf("hard return overrun value: %v", value)
+	}
+	assertHardOverrunElapsed(t, err, hard)
+}
+
+func assertHardOverrunElapsed(t *testing.T, err error, hard time.Duration) {
+	t.Helper()
+	if err == nil || errors.Is(err, errSoftOverrun) {
+		t.Fatalf("hard overrun: %v", err)
+	}
+	prefix := "script exceeded " + hard.String() + " hard callback budget (elapsed "
+	msg := err.Error()
+	i := strings.Index(msg, prefix)
+	if i < 0 || !strings.HasSuffix(msg, ")") {
+		t.Fatalf("hard overrun diagnostic: %v", err)
+	}
+	elapsed, parseErr := time.ParseDuration(strings.TrimSuffix(msg[i+len(prefix):], ")"))
+	if parseErr != nil {
+		t.Fatalf("elapsed in %q: %v", msg, parseErr)
+	}
+	if elapsed <= hard {
+		t.Fatalf("elapsed %s did not exceed hard budget %s (%s)", elapsed, hard, msg)
+	}
+}
