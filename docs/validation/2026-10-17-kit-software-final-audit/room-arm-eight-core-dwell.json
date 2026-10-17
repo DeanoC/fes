@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "frames": 10000,
+  "fixture_core_count": 8,
+  "visible_tile_count": 6,
+  "viewport": "1280x720",
+  "max_step_ms": 30.97089,
+  "mean_step_ms": 5.291528,
+  "elapsed_seconds": 53,
+  "soft_budget_ms": 12,
+  "hard_budget_ms": 48,
+  "binary_sha256": "7b644ca2ea36d082450cd63f98c165d619da3db5c74bd79122b8c352cdbef915",
+  "scope": "Actual embedded room with eight synthetic blocked rows, six visible. No raster rendering, socket calls, physical transitions or concurrent production workload reproduced. No root-cause or fix claim."
+}

@@ -1,0 +1,22 @@
+{
+  "update": {
+    "confirmed_boot_id": "457a8b1a-54af-46c0-9e6e-351c08467496",
+    "confirmed_image": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+    "good": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+    "previous": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+    "boot_id": "457a8b1a-54af-46c0-9e6e-351c08467496",
+    "image_sha256": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+    "trial": false,
+    "raw_idle_ready": true,
+    "corrupt": false
+  },
+  "software": {
+    "selected": "00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb",
+    "base_identity": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+    "active_bundle": "00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb",
+    "generation": 17,
+    "service_fault": null,
+    "storage_error": null
+  },
+  "scope": "whitelisted post-confirmation observation; full raw response excluded"
+}

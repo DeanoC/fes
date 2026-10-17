@@ -766,6 +766,12 @@ func TestAppShowsStillRowAfterFailedVideoOnly(t *testing.T) {
 
 func TestAppHidesAttractWhenVideoOnlyFailsWithoutStill(t *testing.T) {
 	video := strings.Repeat("cd", 32)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	gotHandle := make(chan string, 1)
+	var releaseOnce sync.Once
+	releaseOpen := func() { releaseOnce.Do(func() { close(release) }) }
+	var opens atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
@@ -792,19 +798,68 @@ func TestAppHidesAttractWhenVideoOnlyFailsWithoutStill(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 10)
+	app.openAttractVideo = func(ctx context.Context, _ *Client, handle string) (attractPlayer, error) {
+		if opens.Add(1) == 1 {
+			gotHandle <- handle
+			close(started)
+		}
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		return nil, errAttractVideoUnavailable
+	}
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
+	t.Cleanup(releaseOpen)
 	waitSnapshot(t, app, 3*time.Second, func(snap Snapshot) bool {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
-	deadline := time.Now().Add(400 * time.Millisecond)
+	// Attract is armed before the clip open returns. Sampling Active during
+	// that gap fails a loaded race run even though the failed open, with no
+	// still, then hides it. Hold the open so the hide is the assertion.
+	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
+		app.Tick(time.Now())
+		select {
+		case <-started:
+			deadline = time.Time{}
+		default:
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	select {
+	case <-started:
+	default:
+		t.Fatal("video-only attract open did not start")
+	}
+	if got := <-gotHandle; got != video {
+		t.Fatalf("video handle = %q", got)
+	}
+	releaseOpen()
+	deadline = time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		app.Tick(time.Now())
+		if !app.Snapshot().Attract.Active {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if app.Snapshot().Attract.Active {
+		t.Fatal("failed video-only playlist left attract active")
+	}
+	spin := time.Now().Add(400 * time.Millisecond)
+	for time.Now().Before(spin) {
 		app.Tick(time.Now())
 		if app.Snapshot().Attract.Active {
 			t.Fatal("failed video-only playlist activated attract")
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+	if got := opens.Load(); got != 1 {
+		t.Fatalf("video opens = %d, want 1", got)
 	}
 }
 

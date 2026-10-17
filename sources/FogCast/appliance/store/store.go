@@ -19,6 +19,7 @@ import (
 	"time"
 
 	release "github.com/DeanoC/FogCast/appliance"
+	"github.com/DeanoC/FogCast/appliance/blockprobe"
 	"golang.org/x/sys/unix"
 )
 
@@ -1057,7 +1058,11 @@ func imageHashFromBacking(imagesDir, backing string) (string, bool) {
 }
 
 func loopBackingFiles() ([]string, error) {
-	entries, err := os.ReadDir("/sys/block")
+	return loopBackingFilesFrom("/sys/block")
+}
+
+func loopBackingFilesFrom(blockDir string) ([]string, error) {
+	entries, err := os.ReadDir(blockDir)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, nil
@@ -1066,10 +1071,15 @@ func loopBackingFiles() ([]string, error) {
 	}
 	var paths []string
 	for _, entry := range entries {
+		// Optical devices and disks with no usable media are ignored before any
+		// further sysfs read. Loop backing files are read only for the rest.
+		if decision, ok := blockprobe.Decide(blockDir, entry.Name()); ok && !decision.Allow {
+			continue
+		}
 		if !loopDeviceName(entry.Name()) {
 			continue
 		}
-		backing, err := os.ReadFile(filepath.Join("/sys/block", entry.Name(), "loop", "backing_file"))
+		backing, err := os.ReadFile(filepath.Join(blockDir, entry.Name(), "loop", "backing_file"))
 		if errors.Is(err, os.ErrNotExist) {
 			continue
 		}

@@ -1020,7 +1020,7 @@ rejected. Neither is a kit mutation.
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
 attract on/off gate, reduced motion, the look name, the optional debug HUD, and Home
 (`home` start screen, optional `home_room` id, plus `pinned_rooms`) are local to the tenfoot process (CLI `-safe-area` /
-`-layout` / `-no-attract` / `-theme` / `-debug-hud` / `-home` / `-home-room` and optional `tenfoot.json` prefs). When `home` is `rooms` and `home_room` names a pack that can be opened, start and Home open that room as the root; otherwise the Home overlay lists pinned rooms, recently played games, installed rooms, and the library. On `menu-display`, a rooms home with no room selected by flag, saved preferences or `FOGCAST_HOME_ROOM` defaults to kit Home (`example.fes-cores`, titled Home). That room uses `destination_panel = "hero"`: tenfoot draws the selected core's title, required inputs, readiness, "Plays on this TV" and its actions in a large FES-owned panel (`ui/tenfoot/room_hero.go`, geometry `rooms.HeroPanel`), the room draws the shelf, artwork motifs and the Library / Rooms / Settings routes, and the footer shows full-size prompts and only actionable status. Details keeps the kit's verbatim block when the column has to drop lines to fit. On a content box under 480×360, `room.hero` is nil and the room draws a compact list of the visible cores and those same routes above the destination strip, each with a pointer hit. When those routes do not fit on one row they stack, and Direction walks Library, Rooms, Settings and then the cores; Up from the first core returns to Settings. A compact row that fits, and the hero, keep Left and Right along the routes and the shelf. Confirm while the core list is still Checking is acknowledged and not queued. Changing Home from Library to Rooms in Settings applies that same default for the rest of the session. The implicit room stays out of `tenfoot.json`. An already selected room stays selected. Library home is unchanged. Installed-core listing retries transient startup socket/time-out and catalog-warming failures for up to 60 seconds; leaving the room cancels those reads. Back opens the Home overlay, retaining library navigation. Other backends keep their existing defaults. A room may publish an allowlisted `settings` action; Confirm opens Settings when the launcher can, and otherwise shows a short status. There is no host
+`-layout` / `-no-attract` / `-theme` / `-debug-hud` / `-home` / `-home-room` and optional `tenfoot.json` prefs). When `home` is `rooms` and `home_room` names a pack that can be opened, start and Home open that room as the root; otherwise the Home overlay lists pinned rooms, recently played games, installed rooms, and the library. On `menu-display`, a rooms home with no room selected by flag, saved preferences or `FOGCAST_HOME_ROOM` defaults to kit Home (`example.fes-cores`, titled Home). That room uses `destination_panel = "hero"`: tenfoot draws the selected core's title, required inputs, readiness, "Plays on this TV" and its actions in a large FES-owned panel (`ui/tenfoot/room_hero.go`, geometry `rooms.HeroPanel`), the room draws the shelf, artwork motifs and the Library / Rooms / Settings routes, and the footer shows full-size prompts and only actionable status. Details keeps the kit's verbatim block when the column has to drop lines to fit. On a content box under 480×360, `room.hero` is nil and the room draws a compact list of the visible cores and those same routes above the destination strip, each with a pointer hit. When those routes do not fit on one row they stack, and Direction walks Library, Rooms, Settings and then the cores; Up from the first core returns to Settings. A compact row that fits, and the hero, keep Left and Right along the routes and the shelf. Confirm while the core list is still Checking is acknowledged and not queued. Changing Home from Library to Rooms in Settings applies that same default for the rest of the session. The implicit room stays out of `tenfoot.json`. An already selected room stays selected. Library home is unchanged. Load/update/draw and asynchronous room callback errors identify their callback; deadline-expiry errors also report elapsed wall time. Scheduler pauses count against the unchanged callback deadline. Installed-core listing retries transient startup socket/time-out and catalog-warming failures for up to 60 seconds; leaving the room cancels those reads. Back opens the Home overlay, retaining library navigation. Other backends keep their existing defaults. A room may publish an allowlisted `settings` action; Confirm opens Settings when the launcher can, and otherwise shows a short status. There is no host
 safe-area or layout API. Host attract idle, preferred regions, selected target, library roots, and
 targets use the existing public library settings endpoints. Tenfoot can add,
 edit, and remove targets from the sofa settings overlay. Agent secrets are
@@ -2368,7 +2368,15 @@ Production opening verifies that volume against the block device
 `appliancedata.Prepare` selects: `/dev/disk/by-label/FESDATA3` when the label
 is present, including a labelled USB partition, otherwise labelled
 `/dev/mmcblk0p3`. It also requires writable ext4 and exact mount identity
-before mkdir. Subsequent operations recheck the mount and pinned store
+before mkdir. Before any of those paths open a block device, and before a
+catalog scan or tape/firmware listing states a mount, `appliance/blockprobe`
+reads only sysfs `size`, `device/type`, `device/state` and
+`device/access_state`. Optical nodes (`sr*` or SCSI type 5) are skipped. Any
+other device whose size is missing, unreadable or zero, or whose SCSI state
+is not ready, is skipped as no-media and is never classified ok. A USB stick
+with a readable size above zero and the SD card, including FESDATA3, stay
+eligible. An open that is still required is bounded by a short
+timeout. Subsequent operations recheck the mount and pinned store
 directories. An absent FESDATA3 volume, a preparation error, a skipped
 appliance update gate, or a failed open after successful preparation leaves
 storage unavailable. That failure blocks kit-local inventory and withholds
@@ -2708,6 +2716,29 @@ press, so the core sees at most a brief tap of the button that went down first.
 The one-second mark is the next pad event or the existing frame tick, not a new
 loop. The event that reaches that mark is not forwarded. Stop returns the runtime
 to fes.menu; tenfoot resumes presents and redraws on that new menu generation.
+On startup, with a local-control client and no local run yet, that tick reads
+GET /v1/local/status until one read succeeds. A running answer with a valid
+generation is re-adopted as this launcher's run: menu presents stay paused,
+and late adopt skips the stray menu frame, because that core already owns
+HDMI. The session status is the In use copy, Select+Start calls
+generation-checked stop, and idle status returns to the menu. The idle menu
+plane cannot scan out over a running core, so this panel is launcher state
+and not a second HDMI picture while that core owns the display. A launching
+answer with a valid generation stays in the launching phase, presents stay
+paused, and Select+Start posts Stop only after a later status says that same
+generation is running. The agent refuses Stop while the phase is still
+launching, and that refusal would drop the claim. A stopping answer with a
+valid generation is watched, with the pad held and presents paused, until
+generation-free idle, which returns to the menu, or until that generation is
+running again, which becomes the stoppable session. A failed read is retried.
+Idle, and a running or launching answer with no generation, leave the menu
+alone. Starting a launch in this process ends that probe, so a rejected
+launch does not take stop ownership of a run already on the agent.
+This is the launcher noticing a run the agent already reports.
+It is not a claim that this process started the run, and it is not supervisor
+adoption of a base image. A restarted supervisor stops leftover children and
+starts a fresh group; a supervisor lock file blocks a second start. It does
+not take over running processes.
 While the phase is running, that same tick polls GET /v1/local/status at most
 about once a second, off the app lock and single-flight. If the agent reports
 idle or not running, tenfoot resumes the same way. A running status whose

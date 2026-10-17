@@ -1,0 +1,70 @@
+{
+  "captures": [
+    {
+      "at_monotonic": 3092063.603706882,
+      "file": "launch.png",
+      "sha256": "35fa14a01382c5a8ac2f2a9fb02704dbb4e582c1183ab44941aac5ac149c2f51"
+    },
+    {
+      "at_monotonic": 3092065.100577458,
+      "file": "up.png",
+      "sha256": "5b403441b32ac220178c92e5b325e7b594cdf6d4579fe8e3be41446d7ab55284"
+    },
+    {
+      "at_monotonic": 3092066.705540564,
+      "file": "down.png",
+      "sha256": "bd9f8f0c158c3ae14d0846de30bdd99d2a465909049360ed14ce38e88bc6b893"
+    },
+    {
+      "at_monotonic": 3092071.140387667,
+      "file": "final-menu.png",
+      "sha256": "35fa14a01382c5a8ac2f2a9fb02704dbb4e582c1183ab44941aac5ac149c2f51"
+    }
+  ],
+  "cleanup": [],
+  "events": [
+    {
+      "acknowledged": true,
+      "action": 1,
+      "at_monotonic": 3092063.773671213,
+      "code": 100
+    },
+    {
+      "acknowledged": true,
+      "action": 0,
+      "at_monotonic": 3092064.44688827,
+      "code": 100
+    },
+    {
+      "acknowledged": true,
+      "action": 1,
+      "at_monotonic": 3092065.254944458,
+      "code": 101
+    },
+    {
+      "acknowledged": true,
+      "action": 0,
+      "at_monotonic": 3092065.898204779,
+      "code": 101
+    }
+  ],
+  "expected_base": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+  "expected_boot": "457a8b1a-54af-46c0-9e6e-351c08467496",
+  "expected_bundle": "c2d732ccb23363424f3bdcef0daf6a5e9d99e75835b6864aa3591d855f40ea95",
+  "expected_generation": 19,
+  "host_sha256": "ffd5e479db22aea6c32e89b895911630b9e0e2059a35f935a6afbb71515c7ffd",
+  "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+  "private_host_exit": 0,
+  "scope": "software-injected input and captured HDMI; paddle displacement requires independent image review; no physical USB-controller claim",
+  "script_sha256": "f835c70e923e50e615811e39111a4e0300e0c82519ce8a2d08c6375664807fdb",
+  "source_hashes": {
+    "diagnostic_identity.py": "ea4bc21b777970b7fa9ccc2583ee2c69ebab4f84b8d12613b340c606ac297d36",
+    "input_diagnostic.py": "dcf3f6e4d61d97bde0d58f021468ccc3ecf0f964c13beac2de6fcebd06719cae",
+    "kit_software_acceptance.py": "67d301b14aa8d3a8fe1adfe19459d0ebbb08aac0429332edb813cc394662d942",
+    "package_acceptance.py": "6c7a688a4cadcf3f00aaebc65b2d15031aa0f3e2d06f3f71147d25797aa97c4b",
+    "package_acceptance_isolated.py": "bdf6bed442071c0f28d8454865fd1e560c8a8ba381f3a0487797425673458b43",
+    "sources/misteross/scripts/kit.py": "b900b7a1b9e51771bc357fc6b83a8b3a0a90d0f6dc5436767117fb04f0334d55"
+  },
+  "success": true,
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+}

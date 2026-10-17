@@ -1,0 +1,14 @@
+{
+  "pid": 654,
+  "process": {
+    "pid": 654,
+    "parent": 1,
+    "start": "2202",
+    "exe": "/usr/sbin/fes-kit-software"
+  },
+  "expected_sha256": "12305944bc1666ea2106ee9fa8ff01e8e0e1ffa0b8ee7a3135cfa041fb0381d6",
+  "running_executable_sha256": "12305944bc1666ea2106ee9fa8ff01e8e0e1ffa0b8ee7a3135cfa041fb0381d6",
+  "installed_executable_sha256": "12305944bc1666ea2106ee9fa8ff01e8e0e1ffa0b8ee7a3135cfa041fb0381d6",
+  "base": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+  "boot": "457a8b1a-54af-46c0-9e6e-351c08467496"
+}

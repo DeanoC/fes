@@ -1,0 +1,7 @@
+{
+  "healthy_eight_core_menu_observed": true,
+  "visible_tiles": 6,
+  "software_generation": 21,
+  "menu_png_sha256": "bfb8a94fdb183b2738700f3c7b4c97ed3c334c59b51c39bb5fb07df3dd29c224",
+  "scope": "Independent inspection after repeated accepted-child faults. Earlier48ms room deadline failure not reproduced; no root-cause or fix claim."
+}
