@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 `include "fes_computer.vh"
 
-// One-request-at-a-time HPS GPO/GPI mailbox for fes.computer 1.0
-// (mister-packages docs/computer-io.md). The endpoint implements identity,
-// execution, USB HID key rows, two controller ports and media unit 0. The
-// core owns media storage: accepted data words appear on the write port for
-// exactly the clock they are acknowledged (low byte at addr, high byte at
-// addr+1), and unit0_state tells the core whether the unit's image may be
-// presented to the machine. Media requests are valid while execution runs.
-// ENABLE_APPLE2_FLOPPY, ENABLE_C64_DISK and ENABLE_SPECTRUM_TAPE each occupy
-// unit 0; a core sets one of them. UNIT0_MIN/MAX must match that interface.
+// Frozen Atari ST-only copy of the pre-#717 mailbox. Do not edit it to
+// follow fes_computer_mailbox.v. The display-wait acknowledge added in #717
+// changed the shared elaboration, and a wrapper or parameter around this
+// body changes the synthesized Atari ST netlist. The shell instantiates
+// this module directly. Other shells keep fes_computer_mailbox. Remove this
+// file only after a cold ST synth on the pinned Yosys matches the pre-#717
+// cell counts with the shared mailbox alone. sim-fes-atari-st-mailbox-direct
+// fails if opcodes, acknowledgement, or the media and input behaviour ST
+// uses drift between this endpoint and fes_computer_mailbox.
 module fes_computer_mailbox_direct #(
     parameter bit ENABLE_KEYBOARD = 0,
     parameter bit ENABLE_PORTS = 0,
@@ -540,9 +540,3 @@ module fes_computer_mailbox_direct #(
         end
     end
 endmodule
-
-// This module is the pre-session-display mailbox, kept line-for-line so Atari ST
-// synthesis sees the same accept path: acknowledged_toggle is assigned from the
-// synchronized request on the accepting edge, and the display-wait hold from #717
-// is not elaborated. The shell instantiates it directly. Other shells use
-// fes_computer_mailbox in fes_computer_mailbox.v.

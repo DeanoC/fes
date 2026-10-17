@@ -1110,10 +1110,14 @@ with the ZX81 tape unit and the session-display plane.
 Shells that leave the plane off keep the `fes_computer_mailbox` port list in
 that same file; that wrapper ties the plane response inputs idle.
 Atari ST instantiates `fes_computer_mailbox_direct` from
-`fes_computer_mailbox_direct.v` in that directory. That module is the
-pre-session-display mailbox: the accepting edge assigns `acknowledged_toggle`
+`fes_computer_mailbox_direct.v` in that directory. That file is a frozen
+pre-session-display copy: the accepting edge assigns `acknowledged_toggle`
 from the synchronized request and does not elaborate the display-wait hold.
-Other shells keep `fes_computer_mailbox` or the core.
+`make sim-fes-atari-st-mailbox-direct` replays the shared mailbox vectors and
+the commands ST uses against both endpoints and fails if they diverge. Remove
+the copy only after a cold ST synth on the pinned Yosys matches the pre-#717
+cell counts from the shared mailbox alone. Other shells keep
+`fes_computer_mailbox` or the core.
 `cores/fes-zx81/rtl/fes_computer_gp.v` remains the session-harness mailbox on
 the older `fes.simple-computer` 1.0 transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
