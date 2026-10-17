@@ -3,9 +3,9 @@ package appliancedata
 import (
 	"encoding/binary"
 	"errors"
-	"io"
-	"os"
 	"strings"
+
+	"github.com/DeanoC/FogCast/appliance/blockprobe"
 )
 
 const (
@@ -17,13 +17,8 @@ const (
 )
 
 func readExt4Label(path string) (string, error) {
-	f, err := os.OpenFile(path, os.O_RDONLY, 0)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
 	buf := make([]byte, ext4SuperOffset+ext4LabelOffset+ext4LabelLength)
-	if _, err := io.ReadFull(f, buf); err != nil {
+	if err := blockprobe.ReadFullAt(path, buf, 0, blockprobe.OpenTimeout); err != nil {
 		return "", err
 	}
 	return ext4LabelFromSuperblock(buf)

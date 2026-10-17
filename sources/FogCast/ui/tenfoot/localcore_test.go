@@ -293,19 +293,24 @@ func TestLocalStatusIdleWhileRunningResumes(t *testing.T) {
 	waitFor(t, app, "pong tile", func(s Snapshot) bool {
 		return s.Room.Open && s.Room.Destination.Label == "FES Pong"
 	})
+	waitFor(t, app, "startup status", func(Snapshot) bool { return fake.statusCount() >= 1 })
+	if snap := app.Snapshot(); snap.LocalCorePhase != "" || snap.Status == localInUseCopy {
+		t.Fatalf("idle startup adopted a run: %+v", snap)
+	}
+	polled := fake.statusCount()
 	base := time.Now()
 	for i := 0; i < 4; i++ {
-		app.Tick(base.Add(time.Duration(i) * time.Second))
+		app.Tick(base.Add(time.Duration(i+1) * time.Second))
 	}
-	if fake.statusCount() != 0 {
-		t.Fatalf("polled while idle: %d", fake.statusCount())
+	if fake.statusCount() != polled {
+		t.Fatalf("kept polling after idle startup: %d -> %d", polled, fake.statusCount())
 	}
 	app.HandleCommand(CmdSelect, base)
 	for i := 0; i < 4; i++ {
 		app.Tick(base.Add(time.Duration(i) * time.Second))
 	}
-	if fake.statusCount() != 0 {
-		t.Fatalf("polled while launching: %d", fake.statusCount())
+	if fake.statusCount() != polled {
+		t.Fatalf("polled while launching: %d -> %d", polled, fake.statusCount())
 	}
 	close(hold)
 	waitFor(t, app, "running", func(s Snapshot) bool {
@@ -321,7 +326,7 @@ func TestLocalStatusIdleWhileRunningResumes(t *testing.T) {
 	if fake.statusCount() < 1 {
 		t.Fatal("running phase never polled status")
 	}
-	polled := fake.statusCount()
+	polled = fake.statusCount()
 	after := time.Now()
 	for i := 0; i < 4; i++ {
 		app.Tick(after.Add(time.Duration(i) * time.Second))
@@ -1150,6 +1155,7 @@ func (f *fakeLocalCores) Status(context.Context) (localcores.RunStatus, error) {
 	set := f.statusSet
 	status := f.status
 	err := f.statusErr
+	launched := f.err == nil && len(f.launches) > 0
 	f.mu.Unlock()
 	if block != nil {
 		<-block
@@ -1161,7 +1167,12 @@ func (f *fakeLocalCores) Status(context.Context) (localcores.RunStatus, error) {
 		return localcores.RunStatus{}, err
 	}
 	if !set {
-		return localcores.RunStatus{Generation: strings.Repeat("a", 64), Phase: "running", Running: true, PackageID: tenfootPongID}, nil
+		// An explicit status is the agent's answer. Otherwise a launch this
+		// fake accepted is still running, and a fresh launcher sees idle.
+		if launched {
+			return localcores.RunStatus{Generation: strings.Repeat("a", 64), Phase: "running", Running: true, PackageID: tenfootPongID}, nil
+		}
+		return localcores.RunStatus{Phase: "idle"}, nil
 	}
 	return status, nil
 }
@@ -1259,6 +1270,52 @@ func TestLocalStopUsesSuccessfulLaunchGeneration(t *testing.T) {
 	}
 }
 
+func TestFreshLauncherAdoptsSurvivingLocalRunAndChordStopsIt(t *testing.T) {
+	generation := strings.Repeat("b", 64)
+	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{
+		Phase: "running", Running: true, PackageID: tenfootPongID, CoreID: "fes.pong", Generation: generation,
+	}}
+	feed := &fakePadFeed{}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	app.localFeed = feed
+	t.Cleanup(app.Stop)
+
+	base := time.Unix(4000, 0)
+	app.Tick(base)
+	waitFor(t, app, "surviving run adopted", func(s Snapshot) bool {
+		return adoptedInUseScreen(s) && s.LocalCoreTitle == "fes.pong" && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt
+	})
+	app.mu.Lock()
+	gotGen := app.localLeaseGeneration
+	app.mu.Unlock()
+	if gotGen != generation {
+		t.Fatalf("generation = %q", gotGen)
+	}
+	if !app.HandleLocalPad(padButton(remoteinput.ButtonA, true), base.Add(time.Second)) {
+		t.Fatal("menu took the surviving core's pad")
+	}
+	if feed.count(remoteinput.ButtonA, remoteinput.ActionPress) != 1 {
+		t.Fatal("surviving core did not receive play input")
+	}
+
+	t1 := base.Add(2 * time.Second)
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t1)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t1.Add(10*time.Millisecond))
+	app.Tick(t1.Add(10*time.Millisecond + localChordHold))
+	waitFor(t, app, "chord stopped surviving run", func(s Snapshot) bool {
+		return s.LocalCorePhase == "" && !s.LocalCorePresentsPaused
+	})
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.stopGenerations) != 1 || fake.stopGenerations[0] != generation {
+		t.Fatalf("Stop generations = %v", fake.stopGenerations)
+	}
+	if feed.saw(remoteinput.ButtonStart, remoteinput.ActionPress) {
+		t.Fatal("stop chord forwarded Start")
+	}
+}
+
 func TestLocalStatusReplacementRevokesStopOwnership(t *testing.T) {
 	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{Phase: "running", Running: true, PackageID: tenfootPongID, Generation: strings.Repeat("b", 64)}}
 	app := NewApp(nil, 1280, 720, 50)
@@ -1340,5 +1397,376 @@ func TestReplacementRunKeepsPadUntilGenerationFreeIdle(t *testing.T) {
 	})
 	if app.HandleLocalPad(padButton(remoteinput.ButtonA, true), base.Add(localReconcileTimeout+6*time.Second)) {
 		t.Fatal("menu did not regain the pad after idle")
+	}
+}
+
+func startupRunningStatus(generation string) localcores.RunStatus {
+	return localcores.RunStatus{
+		Phase: "running", Running: true, CoreID: "fes.pong", PackageID: tenfootPongID, Generation: generation,
+	}
+}
+
+// A new launcher process, with the agent already running a core, is the
+// restart the supervisor performs after the old launcher is killed.
+func TestLauncherStartupAdoptsActiveRunShowsInUseAndStops(t *testing.T) {
+	generation := strings.Repeat("c", 64)
+	fake := &fakeLocalCores{statusSet: true, status: startupRunningStatus(generation)}
+	feed := &fakePadFeed{}
+	app := startCoreRoom(t, fake, feed, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
+	snap := waitFor(t, app, "in use screen", func(s Snapshot) bool {
+		return s.Room.Open && adoptedInUseScreen(s) && launchOverlayCopy(s).Visible && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt
+	})
+	copy := launchOverlayCopy(snap)
+	if copy.Heading != rooms.InUseStatus || copy.Phase != rooms.InUseDetail || !strings.Contains(copy.Hint, "Select+Start") || copy.Title != "fes.pong" {
+		t.Fatalf("in use screen %+v", copy)
+	}
+	if fake.launchCount() != 0 {
+		t.Fatal("adoption launched a core")
+	}
+	now := time.Unix(50, 0)
+	if !app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), now) ||
+		!app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), now.Add(time.Millisecond)) {
+		t.Fatal("menu received the stop chord")
+	}
+	app.Tick(now.Add(time.Millisecond + localChordHold))
+	waitFor(t, app, "stopped", func(s Snapshot) bool {
+		return fake.stopCount() == 1 && s.LocalCorePhase == "" && !adoptedInUseScreen(s)
+	})
+	fake.mu.Lock()
+	got := append([]string(nil), fake.stopGenerations...)
+	fake.mu.Unlock()
+	if len(got) != 1 || got[0] != generation {
+		t.Fatalf("stop generations %v", got)
+	}
+	if app.HandleLocalPad(padButton(remoteinput.ButtonA, true), now.Add(5*time.Second)) {
+		t.Fatal("menu did not regain the pad")
+	}
+}
+
+func TestLauncherStartupReturnsToMenuWhenAdoptedRunEnds(t *testing.T) {
+	generation := strings.Repeat("d", 64)
+	fake := &fakeLocalCores{statusSet: true, status: startupRunningStatus(generation)}
+	app := startCoreRoom(t, fake, &fakePadFeed{}, coreRoomScript(tenfootPongID, "FES Pong", true, ""))
+	waitFor(t, app, "in use screen", func(s Snapshot) bool {
+		return adoptedInUseScreen(s) && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt
+	})
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		app.mu.Lock()
+		busy := app.localStatusBusy
+		app.mu.Unlock()
+		if !busy || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+	fake.setStatus(localcores.RunStatus{Phase: "idle"})
+	app.mu.Lock()
+	app.localStatusNext = time.Time{}
+	app.mu.Unlock()
+	app.Tick(time.Now().Add(2 * time.Second))
+	waitFor(t, app, "menu after idle", func(s Snapshot) bool {
+		return s.LocalCorePhase == "" && !s.LocalCorePresentsPaused && !adoptedInUseScreen(s)
+	})
+	if fake.stopCount() != 0 || fake.launchCount() != 0 {
+		t.Fatalf("idle adopted run launched=%d stopped=%d", fake.launchCount(), fake.stopCount())
+	}
+}
+
+func TestLauncherStartupRetriesStatusThenAdopts(t *testing.T) {
+	generation := strings.Repeat("e", 64)
+	fake := &fakeLocalCores{statusErr: errors.New("status unavailable")}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	app.Tick(time.Unix(10, 0))
+	waitFor(t, app, "failed startup status", func(Snapshot) bool { return fake.statusCount() >= 1 })
+	if snap := app.Snapshot(); snap.LocalCorePhase != "" || snap.Status == localInUseCopy {
+		t.Fatalf("failed status adopted a run: %+v", snap)
+	}
+	fake.mu.Lock()
+	fake.statusErr = nil
+	fake.status = startupRunningStatus(generation)
+	fake.statusSet = true
+	fake.mu.Unlock()
+	app.mu.Lock()
+	app.localStatusNext = time.Time{}
+	app.mu.Unlock()
+	app.Tick(time.Unix(12, 0))
+	waitFor(t, app, "adopted after retry", func(s Snapshot) bool {
+		return adoptedInUseScreen(s) && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt
+	})
+}
+
+func TestRejectedLaunchDoesNotAdoptExistingRun(t *testing.T) {
+	generation := strings.Repeat("b", 64)
+	fake := &fakeLocalCores{
+		err:       localcores.ErrInUse,
+		statusSet: true,
+		status: localcores.RunStatus{
+			Phase: "running", Running: true, PackageID: tenfootPongID, CoreID: "fes.pong", Generation: generation,
+		},
+	}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	t.Cleanup(app.Stop)
+	app.mu.Lock()
+	app.startLocalCoreLocked(rooms.Destination{Label: "Pong", PackageID: tenfootPongID})
+	app.mu.Unlock()
+	waitFor(t, app, "rejected launch", func(s Snapshot) bool {
+		return s.LocalCorePhase == "" && s.Status == localInUseCopy
+	})
+	app.mu.Lock()
+	app.localStatusNext = time.Time{}
+	app.mu.Unlock()
+	app.Tick(time.Unix(30, 0))
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		app.mu.Lock()
+		phase, generation, checked := app.localPhase, app.localLeaseGeneration, app.localStartupStatusChecked
+		app.mu.Unlock()
+		if phase != "" || generation != "" || !checked {
+			t.Fatalf("rejected launch adopted phase=%q generation=%q checked=%v", phase, generation, checked)
+		}
+		time.Sleep(time.Millisecond)
+	}
+	if fake.statusCount() != 0 || fake.stopCount() != 0 {
+		t.Fatalf("rejected launch polled=%d stopped=%d", fake.statusCount(), fake.stopCount())
+	}
+}
+
+func TestLauncherStartupIgnoresIdleAndUnnamedRuns(t *testing.T) {
+	for _, status := range []localcores.RunStatus{
+		{Phase: "idle"},
+		{Phase: "running", Running: true, PackageID: tenfootPongID, CoreID: "fes.pong"},
+		{Phase: "launching", PackageID: tenfootPongID, CoreID: "fes.pong"},
+		{Phase: "stopping", PackageID: tenfootPongID, CoreID: "fes.pong"},
+	} {
+		t.Run(status.Phase, func(t *testing.T) {
+			fake := &fakeLocalCores{statusSet: true, status: status}
+			app := NewApp(nil, 1280, 720, 50)
+			app.localCores = fake
+			app.Tick(time.Unix(10, 0))
+			deadline := time.Now().Add(2 * time.Second)
+			var phase, generation, gotStatus string
+			var checked bool
+			for {
+				app.mu.Lock()
+				phase, generation, gotStatus = app.localPhase, app.localLeaseGeneration, app.localStatus
+				checked = app.localStartupStatusChecked
+				app.mu.Unlock()
+				if checked || time.Now().After(deadline) {
+					break
+				}
+				time.Sleep(time.Millisecond)
+			}
+			if !checked || phase != "" || generation != "" || gotStatus == localInUseCopy {
+				t.Fatalf("startup adopted %+v phase=%q generation=%q status=%q checked=%v", status, phase, generation, gotStatus, checked)
+			}
+		})
+	}
+}
+
+func TestLauncherStartupDefersStopUntilRunning(t *testing.T) {
+	generation := strings.Repeat("c", 64)
+	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{
+		Phase: "launching", CoreID: "fes.pong", PackageID: tenfootPongID, Generation: generation,
+	}}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	t.Cleanup(app.Stop)
+	app.Tick(time.Unix(10, 0))
+	waitFor(t, app, "launching generation watched", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseLaunching && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt && strings.Contains(s.Status, "Starting fes.pong")
+	})
+	if fake.stopCount() != 0 {
+		t.Fatal("watched launch was stopped")
+	}
+	now := time.Unix(20, 0)
+	if !app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), now) ||
+		!app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), now.Add(time.Millisecond)) {
+		t.Fatal("menu received the stop chord")
+	}
+	app.Tick(now.Add(time.Millisecond + localChordHold))
+	app.mu.Lock()
+	deferred := app.localStopAfterStart && app.localPhase == localPhaseLaunching
+	app.mu.Unlock()
+	if !deferred || fake.stopCount() != 0 {
+		t.Fatalf("stop was posted while launching: deferred=%v stops=%d", deferred, fake.stopCount())
+	}
+	fake.setStatus(startupRunningStatus(generation))
+	app.mu.Lock()
+	app.localStatusNext = time.Time{}
+	app.mu.Unlock()
+	app.Tick(now.Add(2 * time.Second))
+	waitFor(t, app, "deferred stop", func(s Snapshot) bool {
+		return fake.stopCount() == 1 && s.LocalCorePhase == ""
+	})
+	fake.mu.Lock()
+	got := append([]string(nil), fake.stopGenerations...)
+	fake.mu.Unlock()
+	if len(got) != 1 || got[0] != generation {
+		t.Fatalf("stop generations %v", got)
+	}
+}
+
+func TestLauncherStartupChordRestartsWhenLaunchBecomesRunning(t *testing.T) {
+	generation := strings.Repeat("a", 64)
+	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{
+		Phase: "launching", CoreID: "fes.pong", PackageID: tenfootPongID, Generation: generation,
+	}}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	t.Cleanup(app.Stop)
+	app.Tick(time.Unix(10, 0))
+	waitFor(t, app, "launching generation watched", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseLaunching && s.LocalCorePresentsPaused
+	})
+	press := time.Now()
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), press)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), press)
+	time.Sleep(200 * time.Millisecond)
+	partial := time.Now()
+	app.Tick(partial)
+	if fake.stopCount() != 0 || partial.Sub(press) >= localChordHold {
+		t.Fatalf("partial hold stopped the launch or ran too long: stops=%d held=%s", fake.stopCount(), partial.Sub(press))
+	}
+	fake.setStatus(startupRunningStatus(generation))
+	app.mu.Lock()
+	app.localStatusNext = time.Time{}
+	app.mu.Unlock()
+	app.Tick(time.Now())
+	waitFor(t, app, "running after partial hold", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseRunning && fake.stopCount() == 0
+	})
+	app.mu.Lock()
+	since := app.localChordSince
+	app.mu.Unlock()
+	if !since.After(press.Add(100 * time.Millisecond)) {
+		t.Fatalf("chord clock kept the loading press: since=%s press=%s", since, press)
+	}
+	app.Tick(since.Add(localChordHold - time.Millisecond))
+	if fake.stopCount() != 0 {
+		t.Fatal("running chord fired before a full second of play")
+	}
+	app.Tick(since.Add(localChordHold))
+	waitFor(t, app, "full play hold stopped", func(Snapshot) bool { return fake.stopCount() == 1 })
+}
+
+func TestLauncherStartupLaunchingIdleDoesNotStop(t *testing.T) {
+	generation := strings.Repeat("d", 64)
+	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{
+		Phase: "launching", CoreID: "fes.pong", PackageID: tenfootPongID, Generation: generation,
+	}}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	t.Cleanup(app.Stop)
+	app.Tick(time.Unix(10, 0))
+	waitFor(t, app, "launching watched", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseLaunching && s.LocalCorePresentsPaused
+	})
+	now := time.Unix(20, 0)
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), now)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), now.Add(time.Millisecond))
+	app.Tick(now.Add(time.Millisecond + localChordHold))
+	fake.setStatus(localcores.RunStatus{Phase: "idle", Generation: generation})
+	app.mu.Lock()
+	app.localStatusNext = time.Time{}
+	app.mu.Unlock()
+	app.Tick(now.Add(2 * time.Second))
+	deadline := time.Now().Add(300 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		snap := app.Snapshot()
+		if snap.LocalCorePhase == "" || !snap.LocalCorePresentsPaused || fake.stopCount() != 0 {
+			t.Fatalf("generation-bearing idle resumed phase=%q paused=%v stops=%d", snap.LocalCorePhase, snap.LocalCorePresentsPaused, fake.stopCount())
+		}
+		time.Sleep(5 * time.Millisecond)
+		app.Tick(time.Now())
+	}
+	fake.setStatus(localcores.RunStatus{Phase: "idle"})
+	app.mu.Lock()
+	app.localStatusNext = time.Time{}
+	app.mu.Unlock()
+	app.Tick(now.Add(4 * time.Second))
+	waitFor(t, app, "menu after launch idle", func(s Snapshot) bool {
+		return s.LocalCorePhase == "" && !s.LocalCorePresentsPaused
+	})
+	if fake.stopCount() != 0 {
+		t.Fatal("generation-free idle posted Stop")
+	}
+}
+
+func TestLauncherStartupStoppingResumesThenChordStops(t *testing.T) {
+	generation := strings.Repeat("e", 64)
+	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{
+		Phase: "stopping", Running: false, CoreID: "fes.pong", PackageID: tenfootPongID, Generation: generation,
+	}}
+	feed := &fakePadFeed{}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	app.localFeed = feed
+	t.Cleanup(app.Stop)
+	app.Tick(time.Unix(10, 0))
+	waitFor(t, app, "stopping generation watched", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseStopping && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt && strings.Contains(s.Status, "Stopping fes.pong")
+	})
+	if !app.HandleLocalPad(padButton(remoteinput.ButtonA, true), time.Unix(11, 0)) {
+		t.Fatal("menu took the pad while stop was in progress")
+	}
+	if feed.count(remoteinput.ButtonA, remoteinput.ActionPress) != 0 {
+		t.Fatal("stopping forwarded play input")
+	}
+	fake.setStatus(startupRunningStatus(generation))
+	app.mu.Lock()
+	app.localStatusNext = time.Time{}
+	app.mu.Unlock()
+	app.Tick(time.Unix(12, 0))
+	waitFor(t, app, "resumed run adopted", func(s Snapshot) bool {
+		return adoptedInUseScreen(s) && s.LocalCorePresentsPaused && s.LocalCoreLateAdopt
+	})
+	if fake.stopCount() != 0 {
+		t.Fatal("resume posted Stop on its own")
+	}
+	now := time.Unix(13, 0)
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), now)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), now.Add(time.Millisecond))
+	app.Tick(now.Add(time.Millisecond + localChordHold))
+	waitFor(t, app, "chord stopped resumed run", func(s Snapshot) bool {
+		return fake.stopCount() == 1 && s.LocalCorePhase == "" && !s.LocalCorePresentsPaused
+	})
+	fake.mu.Lock()
+	got := append([]string(nil), fake.stopGenerations...)
+	fake.mu.Unlock()
+	if len(got) != 1 || got[0] != generation {
+		t.Fatalf("stop generations %v", got)
+	}
+}
+
+func TestLauncherStartupStoppingIdleReturnsToMenu(t *testing.T) {
+	generation := strings.Repeat("f", 64)
+	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{
+		Phase: "stopping", CoreID: "fes.pong", PackageID: tenfootPongID, Generation: generation,
+	}}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	t.Cleanup(app.Stop)
+	app.Tick(time.Unix(10, 0))
+	waitFor(t, app, "stopping watched", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseStopping && s.LocalCorePresentsPaused
+	})
+	app.mu.Lock()
+	checked := app.localStartupStatusChecked
+	watching := app.localWatchStartup
+	app.localStatusNext = time.Time{}
+	app.mu.Unlock()
+	if !checked || !watching {
+		t.Fatalf("stopping probe checked=%v watching=%v", checked, watching)
+	}
+	fake.setStatus(localcores.RunStatus{Phase: "idle"})
+	app.Tick(time.Unix(12, 0))
+	waitFor(t, app, "menu after stop settled", func(s Snapshot) bool {
+		return s.LocalCorePhase == "" && !s.LocalCorePresentsPaused
+	})
+	if fake.stopCount() != 0 || fake.launchCount() != 0 {
+		t.Fatalf("settled stop launched=%d stopped=%d", fake.launchCount(), fake.stopCount())
 	}
 }

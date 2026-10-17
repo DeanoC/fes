@@ -1,0 +1,193 @@
+#!/bin/sh
+# Shorten SCSI timeouts for optical drives and disks with no usable media.
+#
+# The decision reads only sysfs size, device/type, device/state and
+# device/access_state. It never opens the device node and never reads
+# inquiry. A missing, empty, non-numeric or zero size is no-media, as is a
+# SCSI state that is not ready. Unit Not Ready on this kernel shows up as an
+# unreadable size (the empty JMS583 bridge). That device is never "ok".
+# A USB stick with size greater than 0 and the SD/FESDATA card are left alone.
+# This helper does not shorten the in-probe READ CAPACITY. That command is
+# submitted before the block device exists. The image ignores USB id
+# 152d:0583 (usb-storage flag i) so the empty JMS583 is not bound. A disk
+# fitted in that bridge stays hidden until the quirk is removed.
+#
+#   fes-block-admit              scan /sys and set timeout to 1s on skips
+#   fes-block-admit --reason NAME  print optical, no-media or ok
+#
+# FES_SYSFS overrides /sys for tests.
+set -eu
+
+sysfs=${FES_SYSFS:-/sys}
+
+read_attr() {
+  if [ -f "$1" ]; then
+    tr -d ' \t\r\n' < "$1"
+  fi
+}
+
+parent_of() {
+  name=$1
+  case $name in
+    mmcblk*p[0-9]*|nvme*p[0-9]*)
+      printf '%s\n' "${name%p[0-9]*}"
+      ;;
+    *[0-9])
+      base=$name
+      while :; do
+        case $base in
+          *[0-9]) base=${base%?} ;;
+          *) break ;;
+        esac
+      done
+      # sd0/sr0/loop0 are whole devices. sda10's parent is sda, not sda1.
+      case $base in
+        ''|sd|sr|hd|vd|xvd|loop) ;;
+        *) printf '%s\n' "$base" ;;
+      esac
+      ;;
+  esac
+}
+
+device_dir() {
+  name=$1
+  if [ -d "$sysfs/class/block/$name" ]; then
+    printf '%s\n' "$sysfs/class/block/$name"
+    return 0
+  fi
+  if [ -d "$sysfs/block/$name" ]; then
+    printf '%s\n' "$sysfs/block/$name"
+    return 0
+  fi
+  parent=$(parent_of "$name")
+  if [ -n "$parent" ] && [ -d "$sysfs/class/block/$parent/$name" ]; then
+    printf '%s\n' "$sysfs/class/block/$parent/$name"
+    return 0
+  fi
+  if [ -n "$parent" ] && [ -d "$sysfs/block/$parent/$name" ]; then
+    printf '%s\n' "$sysfs/block/$parent/$name"
+    return 0
+  fi
+  return 1
+}
+
+# state_bad and access_bad match the SCSI sysfs names that mean "do not open".
+state_bad() {
+  case $1 in
+    offline|transport-offline|blocked|created-blocked|cancel|deleted|quiesce) return 0 ;;
+  esac
+  return 1
+}
+
+access_bad() {
+  case $1 in
+    offline|unavailable|standby) return 0 ;;
+  esac
+  return 1
+}
+
+# not_ready is true when this device, or its parent disk, is not ready.
+not_ready() {
+  dir=$1
+  name=$2
+  if state_bad "$(read_attr "$dir/device/state")" || access_bad "$(read_attr "$dir/device/access_state")"; then
+    return 0
+  fi
+  parent=$(parent_of "$name")
+  [ -n "$parent" ] || return 1
+  parent_dir=$(device_dir "$parent") || return 1
+  state_bad "$(read_attr "$parent_dir/device/state")" || access_bad "$(read_attr "$parent_dir/device/access_state")"
+}
+
+# reason_of prints a skip reason and returns 0, or returns 1 when the device
+# may be opened. A name that is not in sysfs, other than sr*, returns 1.
+reason_of() {
+  name=$1
+  case $name in
+    sr[0-9]|sr[0-9][0-9]|sr[0-9][0-9][0-9])
+      printf '%s\n' optical
+      return 0
+      ;;
+  esac
+  dir=$(device_dir "$name") || return 1
+  type=$(read_attr "$dir/device/type")
+  if [ -z "$type" ]; then
+    parent=$(parent_of "$name")
+    if [ -n "$parent" ]; then
+      parent_dir=$(device_dir "$parent") || parent_dir=
+      if [ -n "$parent_dir" ]; then
+        type=$(read_attr "$parent_dir/device/type")
+      fi
+    fi
+  fi
+  if [ "$type" = 5 ]; then
+    printf '%s\n' optical
+    return 0
+  fi
+  if not_ready "$dir" "$name"; then
+    printf '%s\n' no-media
+    return 0
+  fi
+  if [ ! -f "$dir/size" ]; then
+    printf '%s\n' no-media
+    return 0
+  fi
+  size=$(read_attr "$dir/size")
+  case $size in
+    ''|*[!0-9]*)
+      printf '%s\n' no-media
+      return 0
+      ;;
+  esac
+  if [ "$size" = 0 ]; then
+    printf '%s\n' no-media
+    return 0
+  fi
+  return 1
+}
+
+shorten() {
+  name=$1
+  case $name in
+    sd[a-z]|sd[a-z][a-z]|sr[0-9]|sr[0-9][0-9]|sr[0-9][0-9][0-9]) ;;
+    *) return 0 ;;
+  esac
+  reason_of "$name" >/dev/null || return 0
+  for timeout in "$sysfs/class/block/$name/device/timeout" "$sysfs/block/$name/device/timeout"; do
+    if [ -f "$timeout" ]; then
+      printf '%s\n' 1 > "$timeout" 2>/dev/null || :
+      return 0
+    fi
+  done
+}
+
+scan() {
+  for dir in "$sysfs/class/block" "$sysfs/block"; do
+    [ -d "$dir" ] || continue
+    for node in "$dir"/*; do
+      [ -e "$node" ] || continue
+      shorten "${node##*/}"
+    done
+  done
+}
+
+if [ "${1:-}" = --reason ]; then
+  [ -n "${2:-}" ] || {
+    printf '%s\n' 'usage: fes-block-admit --reason NAME' >&2
+    exit 2
+  }
+  if reason=$(reason_of "$2"); then
+    printf '%s\n' "$reason"
+  else
+    printf '%s\n' ok
+  fi
+  exit 0
+fi
+
+if [ -n "${1:-}" ]; then
+  shorten "$1"
+elif [ -n "${MDEV:-}" ]; then
+  shorten "$MDEV"
+else
+  scan
+fi

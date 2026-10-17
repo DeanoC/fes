@@ -107,6 +107,7 @@ def check_inputs(inputs,lock,scratch):
 def owned_files(inputs,manifest):
     image=manifest['image_sha256']
     owned={'/idle.rbf':inputs.splash_payload(),'/linux/zImage_dtb':inputs.kernel,'/linux/linux.img':inputs.bootstrap,
+        '/linux/u-boot.txt':base.boot_config_path(),
         f'/fogcast/releases/images/{image}.img':inputs.factory,
         f'/fogcast/releases/manifests/{image}.json':inputs.manifest}
     if inputs.agent_config:owned['/fogcast/agent.toml']=inputs.agent_config

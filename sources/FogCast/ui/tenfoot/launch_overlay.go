@@ -26,7 +26,7 @@ func launchOverlayVisible(snap Snapshot) bool {
 	if !snap.Room.Open || snap.GPUParked {
 		return false
 	}
-	if snap.LocalCorePhase == localPhaseLaunching {
+	if snap.LocalCorePhase == localPhaseLaunching || adoptedInUseScreen(snap) {
 		return true
 	}
 	switch snap.Launch.Phase {
@@ -42,6 +42,10 @@ func launchOverlayCopy(snap Snapshot) LaunchOverlayCopy {
 		return LaunchOverlayCopy{}
 	}
 	failed := snap.Launch.Phase == "error" || snap.Launch.Phase == "host"
+	if adoptedInUseScreen(snap) {
+		return LaunchOverlayCopy{Visible: true, Heading: rooms.InUseStatus, Title: snap.LocalCoreTitle,
+			Phase: rooms.InUseDetail, Hint: "Select+Start returns to the menu"}
+	}
 	if snap.LocalCorePhase == localPhaseLaunching {
 		return LaunchOverlayCopy{Visible: true, Heading: "Launching", Title: snap.LocalCoreTitle,
 			Phase: "Starting core", Elapsed: localLaunchElapsed(snap),
@@ -63,6 +67,12 @@ func launchOverlayCopy(snap Snapshot) LaunchOverlayCopy {
 		copy.Hint = launchOverlayBusyHint(snap.Affinity)
 	}
 	return copy
+}
+
+// adoptedInUseScreen is the panel a restarted launcher shows for a run the
+// agent already reports. It stays up until that run is idle.
+func adoptedInUseScreen(snap Snapshot) bool {
+	return snap.LocalCorePhase == localPhaseRunning && snap.Status == localInUseCopy
 }
 
 func localLaunchElapsed(snap Snapshot) string {

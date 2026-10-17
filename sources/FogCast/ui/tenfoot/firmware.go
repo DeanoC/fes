@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/DeanoC/FogCast/appliance/blockprobe"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/shared"
@@ -93,7 +94,7 @@ func firmwarePickerRoots(home string, libraries []hostclient.LibraryRoot) []Firm
 	seen := map[string]bool{}
 	addRoot := func(name, path string) {
 		path = filepath.Clean(strings.TrimSpace(path))
-		if path == "" || path == "." || seen[path] {
+		if path == "" || path == "." || seen[path] || blockprobe.Skips(path) {
 			return
 		}
 		info, err := os.Stat(path)
@@ -151,6 +152,9 @@ func listFirmwarePickerDir(path string) ([]FirmwarePickerRow, error) {
 			continue
 		}
 		full := filepath.Join(path, name)
+		if blockprobe.Skips(full) {
+			continue
+		}
 		info, err := entry.Info()
 		if err != nil {
 			continue

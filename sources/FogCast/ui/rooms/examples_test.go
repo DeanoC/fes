@@ -3,7 +3,10 @@ package rooms
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -812,4 +815,89 @@ func TestMushroomKingdomPlayedIsNotCompleted(t *testing.T) {
 		t.Fatalf("resume should stay Played: %+v", d.History)
 	}
 	assertNodeFill("after resume")
+}
+
+// This fixture can run unchanged on ARM under an operator's maintenance lease.
+// It uses the real embedded Lua room and one or eight in-memory installed cores;
+// there are no sockets, launch calls, rendering devices or physical transitions.
+func TestInstalledCoreRoomDefaultBudgetDwell(t *testing.T) {
+	if os.Getenv("FES_ROOMS_DIAGNOSTIC_DWELL") != "1" {
+		t.Skip("manual wall-clock diagnostic: set FES_ROOMS_DIAGNOSTIC_DWELL=1 under the kit lease")
+	}
+	count := 1
+	if raw := os.Getenv("FES_ROOMS_DIAGNOSTIC_CORE_COUNT"); raw != "" {
+		var err error
+		count, err = strconv.Atoi(raw)
+		if err != nil || (count != 1 && count != 8) {
+			t.Fatal("diagnostic core count must be 1 or 8")
+		}
+	}
+	cores := []localcores.Core{{PackageID: coreColecoID, CoreID: "fes.coleco", Name: "ColecoVision", Needs: "media", Block: "Needs a cartridge"}}
+	// Synthetic identities: exercise eight rows/six visible tiles without
+	// claiming hardware acceptance of any factory package.
+	for i := 1; i < count; i++ {
+		cores = append(cores, localcores.Core{PackageID: fmt.Sprintf("%064x", i), CoreID: fmt.Sprintf("fes.fixture%d", i), Name: fmt.Sprintf("Installed core fixture %d", i), Needs: "media", Block: "Needs a cartridge"})
+	}
+	fake := &fakeLocalCores{cores: cores}
+	r := newRoom(t, examplePack(t, "example.fes-cores"), Options{Local: fake, Width: 1280, Height: 720, Budget: DefaultBudget()})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool { return strings.Contains(frameText(f), "ColecoVision") })
+	const frames = 10000
+	var total, maximum time.Duration
+	for i := 0; i < frames; i++ {
+		start := time.Now()
+		r.Step(start)
+		elapsed := time.Since(start)
+		total += elapsed
+		if elapsed > maximum {
+			maximum = elapsed
+		}
+		if err := r.Err(); err != nil {
+			t.Fatalf("frame=%d elapsed=%s max=%s mean=%s: %v", i, elapsed, maximum, total/time.Duration(i+1), err)
+		}
+	}
+	t.Logf("cores=%d viewport=1280x720 frames=%d max_step=%s mean_step=%s soft_budget=%s hard_budget=%s", count, frames, maximum, total/frames, r.budget.Frame, r.budget.Frame*callbackHardLimitFactor)
+	if got := fake.launchedIDs(); len(got) != 0 {
+		t.Fatalf("fixture unexpectedly launched %v", got)
+	}
+}
+
+func BenchmarkInstalledCoreRoomOneTile(b *testing.B) {
+	var pack Pack
+	for _, candidate := range Examples() {
+		if candidate.ID == "example.fes-cores" {
+			pack = candidate
+			break
+		}
+	}
+	fake := &fakeLocalCores{cores: []localcores.Core{{PackageID: coreColecoID, CoreID: "fes.coleco", Name: "ColecoVision", Needs: "media", Block: "Needs a cartridge"}}}
+	r, err := New(pack, Options{Local: fake, Width: 1280, Height: 720, Budget: DefaultBudget()})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer r.Close()
+	if err = r.Load(); err != nil {
+		b.Fatal(err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for r.Destination().Kind != KindCore {
+		r.Step(time.Now())
+		if r.Err() != nil {
+			b.Fatal(r.Err())
+		}
+		if time.Now().After(deadline) {
+			b.Fatal("fixture unavailable")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.Step(time.Now())
+		if r.Err() != nil {
+			b.Fatal(r.Err())
+		}
+	}
 }

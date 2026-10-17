@@ -332,6 +332,13 @@ test -x "$target/etc/init.d/S40fes-kit-software"
 grep -Fq "fogcast_tenfoot_sha256=$(sha256sum "$target/usr/share/fes/software/bin/fogcast-tenfoot" | awk '{print $1}')" \
   "$target/usr/share/mister-runtime/build-inputs"
 test -x "$target/etc/init.d/S15fes-ethaddr"
+test -x "$target/etc/init.d/S02fes-usb-quirk"
+test -x "$target/etc/init.d/S11fes-block-admit"
+test -x "$target/usr/sbin/fes-block-admit"
+test -x "$target/usr/sbin/fes-usb-quirk"
+grep -Fq '152d:0583:i' "$target/usr/sbin/fes-usb-quirk"
+! grep -Fq '/media/fat' "$target/usr/sbin/fes-usb-quirk"
+test -f "$target/etc/mdev.conf"
 test "$(stat -c %a "$target/usr/share/mister-runtime/idle.rbf")" = 644
 package_count=$(printf '%s' "$FES_PACKAGE_IDS" | awk -F, '{print NF}')
 test "$(find "$target" -type f -iname '*.rbf' | wc -l | tr -d ' ')" -eq "$((package_count + 1))"

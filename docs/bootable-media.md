@@ -200,6 +200,85 @@ flashed from one image would collide on the LAN. The rootfs init script
 runs after `S10mdev` and before `S20mister-network` starts DHCP; the FES
 bootstrap has already moved the writable FAT to `/media/fat`.
 
+Media assembly copies `image/boot/u-boot.txt` to FAT `linux/u-boot.txt`. U-Boot
+imports that file and `mmcboot` then expands `$v` into `bootargs`. A `bootargs=`
+line in the file is discarded. The shipped line is
+`v=loglevel=4 usb-storage.quirks=152d:0583:i`. Flag `i` is
+`US_FL_IGNORE_DEVICE`: usb-storage returns before it registers a SCSI host, so
+the empty JMicron JMS583 never reaches the sd driver's READ CAPACITY retry
+loop. That loop is what logs `timing out command, waited 180s`. Flag `u`
+(`US_FL_IGNORE_UAS`) does not stop it. This host already refuses UAS and still
+stalls on the bulk-only command, and no other quirks letter skips the probe.
+Ignoring the id also hides a NVMe disk fitted in that bridge; the kits' slot
+is empty. Nothing in userspace rewrites this file. `S15fes-ethaddr` appends
+`ethaddr=` and leaves `v=` in place. `fes-update` must not rewrite FAT boot
+files, so a card keeps the `u-boot.txt` from the media it was flashed with.
+
+`/etc/init.d/S02fes-usb-quirk` writes the same id to
+`/sys/module/usb_storage/parameters/quirks` when that file already exists.
+usb-storage and uas are built in, so a modprobe option would not be read. The
+sysfs write does not touch the FAT. `S11fes-block-admit` runs the same helper
+when that parameter file exists.
+
+A kit that already exists gets this quirk on the kernel command line only by
+reflashing media built from `image/boot/u-boot.txt`, or by a one-time manual
+edit of `/media/fat/linux/u-boot.txt`. `fes-update` does not write that file.
+On an image-updated kit whose `v=` line still lacks the token, S02 alone
+changes probes that have not started yet. The empty bridge is already inside
+`sd_probe` by then, so the 180 s boot stall remains until a boot whose command
+line contains `usb-storage.quirks=152d:0583:i`.
+
+The manual edit, run on the kit:
+
+1. Copy `/media/fat/linux/u-boot.txt` to a backup and record `sha256sum` of the
+   original.
+2. If the file has no `v=` line, add
+   `v=loglevel=4 usb-storage.quirks=152d:0583:i`. If a `v=` line already
+   exists, append `usb-storage.quirks=152d:0583:i` to that line. Leave the
+   `ethaddr=` line unchanged. A `bootargs=` line is not read.
+3. `sync`. Verify the file still has the original `ethaddr=` value, that the
+   `v=` line now contains `usb-storage.quirks=152d:0583:i`, and that the new
+   `sha256sum` differs from the recorded original.
+4. Reboot. The boot after that edit is the one that ignores `152d:0583` before
+   the sd probe.
+
+To use a NVMe disk fitted in the JMS583, remove flag `i` in both places and
+reboot. On the card, edit FAT `linux/u-boot.txt`
+(`/media/fat/linux/u-boot.txt`). The shipped `v=` line is
+`v=loglevel=4 usb-storage.quirks=152d:0583:i`. Delete
+`usb-storage.quirks=152d:0583:i` from that line and leave `v=loglevel=4` plus
+any `ethaddr=` line. `S15fes-ethaddr` does not change `v=`, and a `bootargs=`
+line is not read. Then make the same change in `/usr/sbin/fes-usb-quirk`: its
+`spec=152d:0583:i` assignment is what S02 writes into
+`/sys/module/usb_storage/parameters/quirks` whenever that parameter does not
+already contain `152d:0583:`. Delete `152d:0583:i` from `spec=` as well. A
+probe that has not started yet, including a replug, is ignored again while
+that assignment remains. To override the flag and keep the id, replace `i` on
+the `v=` quirks token and make the same replacement in `spec=`. S02 leaves a
+parameter that already contains `152d:0583:` as the kernel loaded it from
+`v=`. A later rootfs update restores the helper, and a later media flash
+restores `image/boot/u-boot.txt`, which is the file copied to the FAT.
+
+`/etc/init.d/S11fes-block-admit` and `/etc/mdev.conf` run
+`/usr/sbin/fes-block-admit` for `sd*` and `sr*` nodes. The helper reads sysfs
+`size`, `device/type`, `device/state` and `device/access_state`. An optical
+device, a device whose size is missing, unreadable or zero, or a device whose
+SCSI state is not ready, gets a one-second queue timeout. Unit Not Ready on
+this kernel leaves size unpublished; that device is no-media and is never
+reported ok. The helper does not open or mount the device. S11 also writes
+`/sbin/mdev` to `/proc/sys/kernel/hotplug`, which Buildroot's `S10mdev` has
+already set, so an optical drive or USB stick that appears after boot reaches
+the same rule. `fstab` has no `sd*` or `sr*` entries, so an empty optical
+drive is not automounted. A USB stick whose size is greater than zero, and
+the SD/FESDATA partitions, are not changed. The queue timeout does not shorten
+the in-probe READ CAPACITY that already captured the compiled-in 30s timeout.
+That command is avoided because the image ignores USB id `152d:0583`. Kit B
+confirmed that boot argument on the baseline image: FAT `linux/u-boot.txt`
+with `v=loglevel=4 usb-storage.quirks=152d:0583:i` produces `device ignored`
+for `152d:0583` and no `timing out command` line, while the USB stick, the
+optical drive, and FESDATA still come up. That boot did not install the PR
+image or run `S02fes-usb-quirk`. #778 records the result.
+
 - If FAT `linux/u-boot.txt` already has an `ethaddr=` line, with any value, the
   script changes nothing. That is the manual override: write
   `ethaddr=<mac>` there yourself and it wins forever.

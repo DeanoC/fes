@@ -91,7 +91,10 @@ The supervisor appends its own log and the stdout and stderr of the runtime,
 agent and launcher to `/run/fogcast/software/supervisor.log`. The file rotates
 once, at 2 MiB, to `supervisor.log.1`. The directory is root-only tmpfs, so a
 stalled data disk cannot block the log or drop it. The same bytes are copied to
-the supervisor's original stderr. An accepted launcher that exits is restarted
+the supervisor process stderr. `start` puts that process in a new session and
+points stdin, stdout and stderr at `/dev/null`, so a closed caller pipe cannot
+deliver SIGPIPE. `run` ignores SIGPIPE for the same reason when stderr is a
+pipe that closes. An accepted launcher that exits is restarted
 without stopping the runtime or agent, so a menu crash does not leave a frozen
 frame or drop an execution lease. An accepted agent or runtime exit restarts
 the whole group automatically, including when an execution lease was active:

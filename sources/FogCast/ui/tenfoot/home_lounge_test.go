@@ -249,9 +249,18 @@ func TestHomeConfirmDuringCheckingIsAcknowledgedAndNeverQueued(t *testing.T) {
 func TestHomeLaunchReturnsToTheSameSelection(t *testing.T) {
 	fake := &fakeLocalCores{cores: homeFixtureCores()}
 	zx81 := homeFixtureCores()[1]
-	fake.setStatus(localcores.RunStatus{Generation: strings.Repeat("a", 64), Phase: "running", Running: true, PackageID: zx81.PackageID})
 	app := startHomeLounge(t, fake, 1280, 720)
-	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
+	// Startup reads status once and adopts a running generation. This launch
+	// is a new selection, so the probe has to see idle first. The explicit
+	// running answer is only for the poll after Play, which must name this
+	// package rather than the fake's default.
+	waitFor(t, app, "startup idle", func(s Snapshot) bool {
+		app.mu.Lock()
+		checked, phase := app.localStartupStatusChecked, app.localPhase
+		app.mu.Unlock()
+		return checked && phase == "" && s.Room.Open && s.Room.Destination.Label == "FES Pong"
+	})
+	fake.setStatus(localcores.RunStatus{Generation: strings.Repeat("a", 64), Phase: "running", Running: true, PackageID: zx81.PackageID})
 	app.HandleCommand(CmdRight, time.Now())
 	snap := waitFor(t, app, "zx81", func(s Snapshot) bool { return s.Room.Destination.Label == zx81.Name })
 	if c := heroDestinationCopy(snap); c.Meta != "Needs a keyboard" {
