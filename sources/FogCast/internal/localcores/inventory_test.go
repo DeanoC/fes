@@ -638,3 +638,22 @@ func TestUnavailableCoreIsListedUntilInstalled(t *testing.T) {
 		t.Fatalf("installed package lost to the omission row: %+v", got)
 	}
 }
+
+func TestDescriptorInputsNamesRequiredKeyboardAndMouse(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		interfaces []corepackage.Interface
+		want       string
+	}{
+		{"pad only", []corepackage.Interface{{ID: "fes.gamepad.ports", Major: 1, Required: true}}, ""},
+		{"hid keyboard", []corepackage.Interface{{ID: "fes.keyboard.hid", Major: 1, Required: true}, {ID: "fes.gamepad.ports", Major: 1, Required: true}}, "keyboard"},
+		{"keyboard and mouse", []corepackage.Interface{{ID: "fes.mouse.relative", Major: 1, Required: true}, {ID: "fes.keyboard", Major: 1, Required: true}}, "keyboard,mouse"},
+		{"optional mouse", []corepackage.Interface{{ID: "fes.mouse.relative", Major: 1}}, ""},
+		{"prefix only", []corepackage.Interface{{ID: "fes.keyboardish", Major: 1, Required: true}}, ""},
+	} {
+		got := strings.Join(descriptorInputs(corepackage.Descriptor{Interfaces: tc.interfaces}), ",")
+		if got != tc.want {
+			t.Fatalf("%s: inputs %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}

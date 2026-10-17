@@ -308,11 +308,73 @@ demonstration and the evidence class it actually earned. Concept/browser checks,
 host checks, hardware diagnostics and exact-artifact acceptance are distinct.
 The design package alone establishes none of the latter. See [acceptance](acceptance.md).
 
+## Native Home: first-slice decisions
+
+**Status:** implemented for review in FogCast on the kit path
+(`fogcast-tenfoot -gfx menu-display`, rooms home `example.fes-cores`). The
+evidence so far is host-only: native software-renderer captures and focused
+tests, recorded in
+[the 17 October host record](../validation/2026-10-17-ux-lounge-home/README.md).
+Hardware journeys H1–H9 remain pending.
+
+- **Entry path.** The kit already opens tenfoot's rooms Home on
+  `menu-display`, which defaults to `example.fes-cores`. The Lounge applies to
+  that room; the retiring grid launcher (#728) is untouched. A
+  `launcher.json` without `kit_ui = "tenfoot"` still boots the grid until #728
+  lands.
+- **Ownership split.** The room manifest selects
+  `destination_panel = "hero"`. FES draws the selected item's title,
+  required inputs, readiness name, consequence, destination and actions from
+  the launcher's own classification (lease and unknown-status included). The
+  room draws only the card, artwork motif, shelf and header routes, so a room
+  cannot claim Ready.
+- **Content.** The shelf is the kit's installed cores, names verbatim.
+  Missing art is a deliberate motif chosen from the core id (colour) and
+  required inputs (keyboard motif); titles stay outside the art. Creator is
+  not shown because packages carry no creator. The shelf never says Ready.
+- **Input requirements.** A required `fes.keyboard*` or `fes.mouse*`
+  interface becomes "Needs a keyboard" / "Needs a mouse" before Play. Pads
+  are not listed.
+- **Destination.** A kit-local core plays on the kit's own HDMI output, so
+  the hero says "Plays on this TV". No chooser is shown: this path has one
+  destination.
+- **Readiness copy.** Checking, Ready, Needs a choice and Unavailable appear
+  as a labelled pill whose shape also differs (filled, outlined, outlined with
+  a solid bar). Opaque blocks become consequences: `parts` is "Display setup
+  incomplete" with "Start it from the FogCast library instead". Details
+  (Y, or A on a blocked core) shows the core id, short package id and the
+  kit's verbatim block in the hero; Back closes it. After an ambiguous local
+  launch the core shows Checking, not Ready, until the agent reports idle.
+- **Confirm during Checking.** Acknowledged ("Still checking. Press A again
+  once it has finished.") and not queued, so a press can never start an item
+  the player has not seen. This is the reviewed policy for #764's warm-up
+  window.
+- **Routes.** Library, Rooms (the lobby) and Settings sit one Up from the
+  shelf in the hero and when the compact routes share a row, so Direction
+  and Confirm reach the system menu on a pad without a Guide button. On a
+  content box under 480×360 the same routes sit above the destination strip;
+  when they stack, Down and Up walk that column and then the cores, and Up
+  from the first core lands on Settings. Settings holds the system tools.
+  Back at Home still opens the FES Home overlay.
+- **Return.** The room instance is suspended during play, so Stop returns to
+  the same selection; a later visit restores the last selected package from
+  room `store`. Launch failure keeps the selection and shows the reason in the
+  footer.
+- **Type and layout at 1280×720.** Title 36 px bold, readiness and headline
+  20–22 px, supporting lines 20 px, footer prompts 18 px in full words. The
+  card takes 42% of the height, the shelf shows four cards at 1280 and three
+  at 1024. A long title, explanation or Details list shrinks (one-line
+  explanation, one-line title, no kicker) before it can reach the buttons.
+- **Known gap.** Gameplay exit from a kit-local core is still only the
+  Select+Start one-second hold. The menu cannot draw while the core owns HDMI,
+  so a tap exit needs its own input change and hardware check. The hero states
+  the hold before Play. This does not pass H2.
+
 ## Decisions still to validate
 
-- Native typography, spacing, safe margins and comfortable TV reading distance.
-- The exact Home composition for the actual catalog, including its empty state.
-- A dependable system-menu route on the intended sparse retro controllers.
+- Native typography, spacing, safe margins and comfortable TV reading distance
+  on the real HDMI output (host captures exist; the TV check is pending).
+- A non-chord gameplay exit for kit-local cores.
 - The first acceptance baseline is 1280x720 HDMI. CRT modes require an
   explicitly added scope and their own layout and hardware evidence.
 - Which existing offline and alternate-destination capabilities can be exposed
