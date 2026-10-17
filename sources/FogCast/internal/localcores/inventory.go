@@ -243,7 +243,16 @@ type unavailableDocument struct {
 	Cores   []struct {
 		CoreID string `json:"core_id"`
 		Name   string `json:"name"`
+		Reason string `json:"reason"`
 	} `json:"cores"`
+}
+
+// unavailableReasons are the parent omission reasons. A row without one is
+// ignored. Launchability is not read from the file.
+var unavailableReasons = map[string]struct{}{
+	"timing-not-met": {},
+	"build-failed":   {},
+	"skipped":        {},
 }
 
 // readUnavailableCores lists omitted optional cores from the parent manifest.
@@ -276,6 +285,9 @@ func readUnavailableCores(selectionDir string) []Core {
 	seen := map[string]struct{}{}
 	for _, row := range document.Cores {
 		if !validUnavailableCoreID(row.CoreID) {
+			continue
+		}
+		if _, known := unavailableReasons[row.Reason]; !known {
 			continue
 		}
 		if _, duplicate := seen[row.CoreID]; duplicate {

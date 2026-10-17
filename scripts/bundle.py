@@ -230,7 +230,7 @@ def _build_package(source, recipe=None, env=None):
         _discard_producer_report(report_path)
         if report is not None and report.get("core_id") not in (None, recipe.core_id):
             report = None
-        failure = ValueError(f"selected {recipe.core_id} recipe failed")
+        failure = optional_cores.OptionalBuildFailure(f"selected {recipe.core_id} recipe failed")
         failure.unavailable = report
         raise failure from error
     _discard_producer_report(report_path)

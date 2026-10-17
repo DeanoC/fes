@@ -110,7 +110,7 @@ class OptionalCoreTests(unittest.TestCase):
         def fake_resolve(revisions, output, env, action, recipe):
             calls.append(recipe.core_id)
             if recipe.core_id == "fes.atari-st":
-                failure = ValueError("selected fes.atari-st recipe failed")
+                failure = optional_cores.OptionalBuildFailure("selected fes.atari-st recipe failed")
                 failure.unavailable = {
                     "core_id": "fes.atari-st",
                     "reason": "timing-not-met",
@@ -139,7 +139,7 @@ class OptionalCoreTests(unittest.TestCase):
     def test_missing_report_and_strict_release_are_build_failures(self):
         def fail(revisions, output, env, action, recipe):
             if recipe.core_id == "fes.atari-st":
-                raise ValueError("selected fes.atari-st recipe failed")
+                raise optional_cores.OptionalBuildFailure("selected fes.atari-st recipe failed")
             return _package(recipe.core_id)
 
         with patch.object(build, "resolve_package_for_action", side_effect=fail):
@@ -270,6 +270,29 @@ class OptionalCoreTests(unittest.TestCase):
                          ["fes.pong"])
         self.assertEqual(unavailable[0]["reason"], "build-failed")
         self.assertEqual(unavailable[0]["figures"], [])
+
+    def test_verify_ignores_an_unknown_skip_list(self):
+        def fake_resolve(revisions, output, env, action, recipe):
+            return _package(recipe.core_id)
+
+        with patch.object(build, "resolve_package_for_action", side_effect=fake_resolve):
+            packages, unavailable = build.resolve_packages_for_action(
+                REVISIONS, Path("/out"), {"FES_SKIP_CORES": "fes.unknown"}, "verify",
+                ("fes.pong", "fes.atari-st"))
+        self.assertEqual(unavailable, ())
+        self.assertEqual([package["inputs"]["selection"]["core_id"] for package in packages],
+                         ["fes.pong", "fes.atari-st"])
+
+    def test_cache_validation_failure_is_not_an_omission(self):
+        def fake_resolve(revisions, output, env, action, recipe):
+            if recipe.core_id == "fes.atari-st":
+                raise ValueError("video artifact is not sealed with the required mode: /cache/direct")
+            return _package(recipe.core_id)
+
+        with patch.object(build, "resolve_package_for_action", side_effect=fake_resolve):
+            with self.assertRaisesRegex(ValueError, "not sealed"):
+                build.resolve_packages_for_action(
+                    REVISIONS, Path("/out"), {}, "build", ("fes.pong", "fes.atari-st"))
 
     def test_atari_st_clock_names_round_trip(self):
         figure = {

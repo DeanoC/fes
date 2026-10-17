@@ -538,6 +538,43 @@ print("Info: Program finished normally.")
                              {"achieved_mhz": 40.0, "constraint_mhz": 52.0})
             self.assertEqual(error.figures[0]["clocks"]["pixel_clk"]["constraint_mhz"], 74.25)
 
+    def test_route_after_synth_does_not_call_a_router_crash_a_timing_miss(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            dest = Path(directory)
+
+            def run(seed: int, weight: int) -> Candidate:
+                base = _candidate(seed, weight, 0.0)
+                return Candidate(**{
+                    **base.__dict__,
+                    "passing": False,
+                    "worst_ratio": 0.0,
+                    "sum_ratio": 0.0,
+                    "fmax": {},
+                })
+
+            with self.assertRaisesRegex(
+                SearchError,
+                r"^placer QoR search produced no timing report \(best seed=4 weight=10\)$",
+            ) as caught:
+                route_after_synth(
+                    nextpnr=Path("nextpnr"),
+                    fixture=dest / "synth.json",
+                    dest=dest,
+                    device="5CSEBA6U23I7",
+                    qsf=Path("x.qsf"),
+                    sdc=None,
+                    freq=None,
+                    seeds=(4,),
+                    weights=(10,),
+                    critexp=5,
+                    budget=1,
+                    mode="first-pass",
+                    extra=(),
+                    run_one=run,
+                )
+            self.assertIsNone(caught.exception.reason)
+            self.assertEqual(caught.exception.figures, ())
+
 
 if __name__ == "__main__":
     unittest.main()

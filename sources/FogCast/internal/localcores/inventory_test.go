@@ -629,8 +629,18 @@ func TestUnavailableCoreIsListedUntilInstalled(t *testing.T) {
 	if err := os.Remove(manifest); err != nil {
 		t.Fatal(err)
 	}
+	forged := []byte(`{"version":1,"cores":[{"core_id":"fes.pong","name":"Pong"},{"core_id":"fes.atari-st","name":"Atari ST","reason":"forged"}]}` + "\n")
+	if err := os.WriteFile(manifest, forged, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if cores := ReadInstalledCores(selections, packages); len(cores) != 0 {
+		t.Fatalf("forged manifest changed the catalog: %+v", cores)
+	}
+	if err := os.Remove(manifest); err != nil {
+		t.Fatal(err)
+	}
 	installed := installCore(t, packages, selections, "fes.atari-st", "Atari ST", "fes.computer", coreOpts{})
-	if err := os.WriteFile(manifest, []byte(`{"version":1,"cores":[{"core_id":"fes.atari-st","name":"Atari ST"}]}`+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(manifest, []byte(`{"version":1,"cores":[{"core_id":"fes.atari-st","name":"Atari ST","reason":"timing-not-met"}]}`+"\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	got = ReadInstalledCores(selections, packages)

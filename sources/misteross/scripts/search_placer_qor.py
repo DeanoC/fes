@@ -598,12 +598,21 @@ def route_after_synth(
         raise SearchError("placer QoR search produced no candidates")
     winner = ranked[0]
     if not winner.passing:
+        # A crash or timeout is a candidate with no clock report. That is a
+        # build failure. timing-not-met is only a finished route that missed.
+        measured = [item for item in ranked if item.fmax]
+        if not measured:
+            raise SearchError(
+                "placer QoR search produced no timing report "
+                f"(best seed={winner.seed} weight={winner.weight})"
+            )
+        best = max(measured, key=lambda item: item.key())
         raise SearchError(
-            f"no placement met timing (best seed={winner.seed} weight={winner.weight} "
-            f"worst_ratio={winner.worst_ratio:.4f}){_rejection_note(winner)}",
+            f"no placement met timing (best seed={best.seed} weight={best.weight} "
+            f"worst_ratio={best.worst_ratio:.4f}){_rejection_note(best)}",
             reason="timing-not-met",
             seeds=tuple(seeds),
-            figures=tuple(_timing_figure(item) for item in ranked[:32]),
+            figures=tuple(_timing_figure(item) for item in measured[:32]),
         )
     promote_candidate(winner, dest)
     return winner

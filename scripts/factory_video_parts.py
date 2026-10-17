@@ -18,8 +18,10 @@ import tempfile
 
 if __package__:
     from . import recipes
+    from .optional_cores import OptionalBuildFailure
 else:
     import recipes
+    from optional_cores import OptionalBuildFailure
 
 PROFILES = ("direct", "scanlines")
 # Atari ST seed 5 routes both profiles against the current sealed shell.
@@ -435,7 +437,7 @@ def _build_part(source, shell, package, profile, recipe, env):
                                 cwd=source, env=recipes.producer_environment(env, recipe=recipe),
                                 stdout=subprocess.PIPE, check=True, text=True)
     except subprocess.CalledProcessError as error:
-        raise ValueError(f"video part producer failed with status {error.returncode}") from error
+        raise OptionalBuildFailure(f"video part producer failed with status {error.returncode}") from error
     path = Path(result.stdout.strip().splitlines()[-1])
     _plain(path)
     if not path.is_relative_to(source / ("build/atari-st-video-parts" if recipe.core_id == "fes.atari-st" else "build/video-parts") / profile):

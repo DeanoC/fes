@@ -1645,7 +1645,7 @@ def resolve_selected_package(revisions, selection_path, env, force=False, recipe
                 "cached package has no frozen video shell; rerun with an explicit rebuild"
             ) from error
         except subprocess.CalledProcessError as error:
-            raise ValueError(
+            raise optional_cores.OptionalBuildFailure(
                 f"video part producer failed with status {error.returncode}") from error
         package['video_parts'] = video
         package['inputs']['video_parts'] = video['inputs']
@@ -1668,7 +1668,9 @@ def resolve_packages_for_action(revisions, output, env, action, package_ids):
     producer is not replaced from a different functional key.
     """
     recipes = tuple(recipe_for(package_id) for package_id in package_ids)
-    skip_ids = optional_cores.parse_skip_list(env, recipes)
+    # Verify reuses the recorded image and does not interpret skip flags,
+    # including an ambient value that names an unknown core.
+    skip_ids = frozenset() if action == "verify" else optional_cores.parse_skip_list(env, recipes)
     recorded = optional_cores.recorded_cores(output) if action == "verify" else {}
     packages = []
     unavailable = []
@@ -1685,7 +1687,7 @@ def resolve_packages_for_action(revisions, output, env, action, package_ids):
         try:
             packages.append(resolve_package_for_action(
                 revisions, output, env, action, recipe))
-        except ValueError as error:
+        except optional_cores.OptionalBuildFailure as error:
             if not recipe.optional or optional_cores.require_all(env):
                 raise
             unavailable.append(optional_cores.failure_record(recipe.core_id, error))

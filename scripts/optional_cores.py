@@ -19,6 +19,14 @@ from recipes import recipe_for
 PRODUCER_REPORT_NAME = "fes-core-unavailable.json"
 MANIFEST_NAME = "unavailable-cores.json"
 REASONS = frozenset({"timing-not-met", "build-failed", "skipped"})
+
+
+class OptionalBuildFailure(ValueError):
+    """A producer or video-part run failed and an optional core may be omitted.
+
+    Cache and seal errors stay ordinary ``ValueError`` so a corrupt artifact
+    still fails the image instead of publishing a build without that core.
+    """
 MAX_BYTES = 65536
 DISPLAY_NAMES = {"fes.atari-st": "Atari ST"}
 _CORE_ID = re.compile(r"fes\.[a-z0-9]+(?:[._-][a-z0-9]+)*\Z")
