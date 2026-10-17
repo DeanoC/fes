@@ -26,7 +26,14 @@ module pcxt_motherboard (
     input wire [7:0] isa_rdata,
     input wire [1:0] isa_fault,
     input wire [7:2] isa_irq,
-    input wire keyboard_irq, pit_gate2,
+    input wire [7:0] switches,
+    input wire parity_error, channel_error,
+    output wire parity_enable, channel_check_enable,
+    input wire keyboard_clock, keyboard_data,
+    output wire keyboard_clock_low, keyboard_data_low,
+    output wire keyboard_irq, speaker,
+    output wire audio_valid,
+    output wire signed [15:0] audio_sample,
     output wire intr,
     output wire [2:0] pit_out,
     output wire pit_clock
@@ -35,13 +42,14 @@ module pcxt_motherboard (
                ISA_SEND=3'd3, ISA_WAIT=3'd4, LOCAL=3'd5, DONE=3'd6;
     reg [2:0] state;
     reg [4:0] phase;
-    reg select_pic, select_pit, select_inta;
+    reg select_pic, select_pit, select_ppi, select_inta;
     reg [1:0] pit_divider;
     wire ram = cycle_kind == 0 && cycle_address < 20'ha0000;
     wire rom = cycle_kind == 0 && cycle_address >= 20'hf0000;
-    // XT motherboard ignores A15:10. PIC uses A0; PIT uses A1:0.
+    // XT motherboard ignores A15:10. PIC uses A0; PIT/PPI use A1:0.
     wire pic = cycle_kind == 1 && cycle_address[9:5] == 5'b00001;
     wire pit = cycle_kind == 1 && cycle_address[9:5] == 5'b00010;
+    wire ppi = cycle_kind == 1 && cycle_address[9:5] == 5'b00011;
     wire inta = cycle_kind == 2;
     wire local_active = state == LOCAL && !reset;
     // Setup, eight active clocks, then nine release clocks. Keeping CS and
@@ -50,8 +58,8 @@ module pcxt_motherboard (
     wire strobe = local_active && phase >= 1 && phase <= 8;
     wire rd_n = !(strobe && !write_cycle && !select_inta);
     wire wr_n = !(strobe && write_cycle && !select_inta);
-    wire [7:0] pic_data, pit_data;
-    wire pic_bus_input;
+    wire [7:0] pic_data, pit_data, ppi_data;
+    wire pic_bus_input, pit_gate2;
 
     assign cycle_ready = state == IDLE && !reset;
     assign cycle_done = state == DONE && !reset;
@@ -67,7 +75,7 @@ module pcxt_motherboard (
         if (reset) begin
             state <= IDLE;
             phase <= 0;
-            select_pic <= 0; select_pit <= 0; select_inta <= 0;
+            select_pic <= 0; select_pit <= 0; select_ppi <= 0; select_inta <= 0;
             address <= 0; wdata <= 0; kind <= 0;
             write_cycle <= 0; locked <= 0;
             cycle_rdata <= 8'hff; cycle_fault <= 0;
@@ -76,11 +84,11 @@ module pcxt_motherboard (
                 address <= cycle_address; wdata <= cycle_wdata;
                 kind <= cycle_kind; write_cycle <= cycle_write;
                 locked <= cycle_lock;
-                select_pic <= pic; select_pit <= pit; select_inta <= inta;
+                select_pic <= pic; select_pit <= pit; select_ppi <= ppi; select_inta <= inta;
                 phase <= 0; cycle_rdata <= 8'hff; cycle_fault <= 0;
                 if (rom && cycle_write) state <= DONE;
                 else if (ram || rom) state <= MEMORY_SEND;
-                else if (pic || pit || inta) state <= LOCAL;
+                else if (pic || pit || ppi || inta) state <= LOCAL;
                 else state <= ISA_SEND;
             end
             MEMORY_SEND: if (memory_ready) begin
@@ -102,7 +110,8 @@ module pcxt_motherboard (
             LOCAL: begin
                 phase <= phase + 1'b1;
                 if (phase == 8 && !write_cycle) begin
-                    if (select_pit) cycle_rdata <= pit_data;
+                    if (select_ppi) cycle_rdata <= ppi_data;
+                    else if (select_pit) cycle_rdata <= pit_data;
                     else cycle_rdata <= pic_bus_input ? 8'hff : pic_data;
                 end
                 if (phase == 17) state <= DONE;
@@ -110,6 +119,22 @@ module pcxt_motherboard (
             default: state <= IDLE;
         endcase
     end
+
+    pcxt_xtio xtio (
+        .clk(clk), .reset(reset), .chip_select_n(!(local_active && select_ppi)),
+        .read_enable_n(rd_n), .write_enable_n(wr_n), .address(address[1:0]),
+        .wdata(wdata), .rdata(ppi_data), .switches(switches),
+        .parity_error(parity_error), .channel_error(channel_error),
+        .parity_enable(parity_enable), .channel_check_enable(channel_check_enable),
+        .keyboard_clock(keyboard_clock), .keyboard_data(keyboard_data),
+        .keyboard_clock_low(keyboard_clock_low), .keyboard_data_low(keyboard_data_low),
+        .keyboard_irq(keyboard_irq), .pit_out2(pit_out[2]),
+        .pit_gate2(pit_gate2), .speaker(speaker)
+    );
+    pcxt_speaker audio (
+        .clk(clk), .reset(reset), .speaker(speaker),
+        .sample_valid(audio_valid), .sample(audio_sample)
+    );
 
     /* verilator lint_off PINCONNECTEMPTY */
     KF8259 pic_device (

@@ -35,8 +35,8 @@ struct Bench {
     }
     void idle(unsigned n=30) { while(n--) tick(); }
     void reset() {
-        d.reset=1; d.cycle_valid=0; d.external_irq=0; d.keyboard_irq=0;
-        d.pit_gate2=0; d.inject=0; pending=false; d.memory_done=0;
+        d.reset=1; d.cycle_valid=0; d.external_irq=0; d.keyboard_clock=1;d.keyboard_data=0;
+        d.switches=0x2d;d.parity_error=0;d.channel_error=0; d.inject=0; pending=false; d.memory_done=0;
         idle(); d.reset=0; idle();
     }
     uint8_t bus(unsigned kind, unsigned address, bool wr=false, unsigned data=0, unsigned fault=0) {
@@ -59,7 +59,18 @@ struct Bench {
     uint8_t ack() { check(bus(2,0)==0xff,"first INTA must float"); return bus(2,0); }
     uint8_t isr() { out(0x20,0x0b);return in(0x20); }
     uint8_t irr() { out(0x20,0x0a);return in(0x20); }
-    void irq(unsigned bits) { d.external_irq=bits>>2; d.keyboard_irq=(bits>>1)&1; idle(); }
+    void irq(unsigned bits) { d.external_irq=bits>>2; idle(); }
+    void keyboard_bit(bool data) {
+        d.keyboard_clock=1;d.keyboard_data=data;idle(4000);
+        d.keyboard_clock=0;idle(4000);
+    }
+    void key(unsigned code) {
+        keyboard_bit(false); // RTS, ignored before start
+        keyboard_bit(true);
+        for(unsigned i=0;i<8;i++)keyboard_bit((code>>i)&1);
+        d.keyboard_clock=1;d.keyboard_data=0;idle(30);
+    }
+    void clear_key() { out(0x61,0xc0);out(0x61,0x40); }
     unsigned latch(unsigned ch) {
         out(0x43,ch<<6); unsigned lo=in(0x40+ch); return lo | (unsigned(in(0x40+ch))<<8);
     }
@@ -84,11 +95,11 @@ int main(int argc,char** argv) {
         b.bus(0,0xc8000,true,0x42);check(b.bus(0,0xc8000)==0x42,"option memory");
         b.out(0x300,0x67);check(b.in(0x700)==0x67,"ISA alias");
         b.init_pic();check(b.in(0x21)==0xff,"PIC mask");
-        b.out(0x43f,0xdd);check(b.in(0x21)==0xdd,"PIC aliases");
+        b.out(0x43f,0xdb);check(b.in(0x21)==0xdb,"PIC aliases");
         check(b.in(0x121)==0xff,"PIC A8 decode");b.out(0x21,0xff);
-        b.irq(0x22);check(!b.d.intr,"masked interrupt");check((b.irr()&0x22)==0x22,"masked IRR");
-        b.out(0x21,0xdd);b.idle();check(b.d.intr,"unmasked IRQ");
-        check(b.ack()==9,"IRQ1 priority/vector");check(b.isr()==2,"IRQ1 ISR");
+        b.irq(0x24);check(!b.d.intr,"masked interrupt");check((b.irr()&0x24)==0x24,"masked IRR");
+        b.out(0x21,0xdb);b.idle();check(b.d.intr,"unmasked IRQ");
+        check(b.ack()==10,"IRQ2 priority/vector");check(b.isr()==4,"IRQ2 ISR");
         check(!b.d.intr,"lower priority blocked in service");b.irq(0x20);
         b.out(0x20,0x20);b.idle();check(b.d.intr,"EOI releases pending IRQ5");
         check(b.ack()==13,"IRQ5 vector");check(b.isr()==0x20,"IRQ5 ISR");b.irq(0);
@@ -104,20 +115,57 @@ int main(int argc,char** argv) {
         b.init_pic(0x1b,1);b.out(0x21,0xdf);b.irq(0x20);
         check(b.ack()==13,"level vector");b.out(0x20,0x20);b.idle();check(b.d.intr,"held level retrigger");
         b.irq(0);b.reset();
-        b.init_pic();b.out(0x21,0xdd);b.out(0x20,0xc1);b.irq(0x22);
-        check(b.ack()==13,"rotated priority");b.irq(2);b.out(0x20,0x20);
-        check(b.ack()==9,"rotated pending IRQ1");b.irq(0);b.out(0x20,0x20);
+        b.init_pic();b.out(0x21,0xdb);b.out(0x20,0xc2);b.irq(0x24);
+        check(b.ack()==13,"rotated priority");b.irq(4);b.out(0x20,0x20);
+        check(b.ack()==10,"rotated pending IRQ2");b.irq(0);b.out(0x20,0x20);
         b.init_pic();b.out(0x21,0xdf);b.irq(0x20);b.out(0x20,0x0c);
         check(b.in(0x20)==0x85,"poll interrupt number");check(b.isr()==0x20,"poll enters service");
         b.irq(0);b.out(0x20,0x20);b.out(0x20,0x0c);check(b.in(0x20)==0,"empty poll");
         b.reset();
-        b.timer=false;b.d.pit_gate2=1;b.pit(2,0,1000);b.timer=true;b.idle(1000);
+        // PPI mode 0, switch multiplexer, aliases and direction changes.
+        check(b.in(0x61)==0xff && b.d.keyboard_clock_low,"PPI reset/input state");
+        check(!b.d.parity_enable && !b.d.channel_check_enable,"reset check enables");
+        b.out(0x63,0x99);b.out(0x61,0x40);
+        check(b.in(0x47d)==0x40 && (b.in(0x62)&15)==13,"PPI alias/low switches");
+        b.out(0x47d,0x48);check((b.in(0x47e)&15)==2,"high switches");
+        check(b.in(0x162)==0xff,"PPI A8 decode");
+        b.d.parity_error=1;b.d.channel_error=1;b.idle();
+        check((b.in(0x62)&0xc0)==0xc0,"PPI error status");
+        check(b.d.parity_enable && b.d.channel_check_enable,"active low enables");
+        b.out(0x61,0x70);check(!b.d.parity_enable && !b.d.channel_check_enable,"disable checks");
+        b.d.parity_error=0;b.d.channel_error=0;
+        b.out(0x63,0x80);b.out(0x60,0xa5);b.out(0x62,0x55);
+        check(b.in(0x60)==0xa5 && b.in(0x62)==0x55,"diagnostic PPI outputs");
+        b.out(0x63,0x0f);check(b.in(0x62)==0xd5,"BSR set PC7");
+        b.out(0x63,0x00);check(b.in(0x62)==0xd4,"BSR clear PC0");
+        b.out(0x63,0x80);check(b.in(0x60)==0 && b.in(0x62)==0,"repeated mode clears output latches");
+        b.out(0x63,0x99);b.out(0x61,0x40);b.out(0x63,0x99);
+        check(b.in(0x61)==0 && b.d.keyboard_clock_low,"repeated mode clears port B");
+        b.out(0x61,0x40);b.init_pic();b.out(0x21,0xfd);
+        for(unsigned code: {0x1eu,0x9eu,0u,0xffu}) {
+            b.key(code);check(b.d.keyboard_irq && b.d.keyboard_data_low,"keyboard busy/IRQ");
+            check(!b.d.keyboard_clock_low,"keyboard busy must not inhibit clock");
+            check(b.in(0x60)==code && b.in(0x460)==code,"scan code readback");
+            check(b.d.keyboard_irq,"port A read cleared IRQ");
+            b.key(code^0xff);check(b.in(0x60)==code,"busy keyboard overwrite");
+            check(b.ack()==9 && b.isr()==2,"keyboard IRQ1 vector");
+            b.out(0x61,0xc0);check(!b.d.keyboard_irq && !b.d.keyboard_data_low,"keyboard acknowledge");
+            check(b.in(0x60)==0xff,"disabled scan data");
+            b.out(0x61,0x40);b.out(0x20,0x20);b.idle();check(!b.d.intr,"acknowledged keyboard retrigger");
+        }
+        b.out(0x61,0);b.key(0x55);check(!b.d.keyboard_irq,"inhibited keyboard received byte");
+        b.out(0x61,0x40);b.key(0xaa);check(b.in(0x60)==0xaa,"keyboard resumes after inhibit");
+        b.clear_key();b.keyboard_bit(true);b.keyboard_bit(true);b.reset();
+        b.out(0x63,0x99);b.out(0x61,0x40);b.key(0x69);
+        check(b.in(0x60)==0x69 && b.d.keyboard_irq,"reset partial keyboard frame");
+        b.clear_key();b.reset();
+        b.out(0x63,0x99);b.out(0x61,0x41);b.timer=false;b.pit(2,0,1000);b.timer=true;b.idle(1000);
         unsigned count=b.latch(2);check(count<1000 && count>900,"PIT mode0 count");
         // Latch must hold both bytes despite time passing between reads.
         b.out(0x43,0x80);unsigned lo=b.in(0x42);b.idle(3000);unsigned hi=b.in(0x42);
         check((lo|(hi<<8))>b.latch(2)+20,"PIT latched read");
-        b.d.pit_gate2=0;b.idle(200);count=b.latch(2);b.idle(2000);check(b.latch(2)==count,"PIT gate stops mode0");
-        b.d.pit_gate2=1;b.idle(90000);check(b.d.pit_out&4,"PIT mode0 terminal output");
+        b.out(0x61,0x40);b.idle(200);count=b.latch(2);b.idle(2000);check(b.latch(2)==count,"PIT gate stops mode0");
+        b.out(0x61,0x41);b.idle(90000);check(b.d.pit_out&4,"PIT mode0 terminal output");
         b.pit(2,0,0);b.idle(500);check(b.latch(2)>65000,"PIT zero means 65536");
         b.pit(2,0,0x0100,true);b.idle(1000);count=b.latch(2);check(count<0x100 && (count&15)<=9,"BCD borrow");
         // Mode 2/3 periodic outputs, including odd reload; clocks keep running
@@ -140,9 +188,9 @@ int main(int argc,char** argv) {
         }
         // Hardware one-shot and software/hardware strobes, all on channel 2.
         for(unsigned mode: {1u,4u,5u}) {
-            b.d.pit_gate2=0;b.pit(2,mode,10);b.idle(500);
+            b.out(0x61,0x40);b.pit(2,mode,10);b.idle(500);
             check(b.d.pit_out&4,"triggered mode idle output");
-            b.d.pit_gate2=1;
+            b.out(0x61,0x41);
             unsigned low=0,fall=0,rise=0;
             for(unsigned i=0;i<3000;i++) {
                 b.tick();
@@ -151,6 +199,32 @@ int main(int argc,char** argv) {
             }
             check(low==(mode==1?840u:84u) && rise>fall,"PIT one-shot/strobe pulse");
         }
+        // Speaker is the AND of port B data and PIT OUT2; verify the same
+        // raw signal feeds integrated 48 kHz audio, including DC removal.
+        b.pit(2,3,1194);b.out(0x61,0x43);
+        unsigned samples=0,last_sample=0;int minimum=32767,maximum=-32768;
+        for(unsigned i=0;i<1000000;i++) {
+            b.tick();check(bool(b.d.speaker)==bool(b.d.pit_out&4),"speaker PIT gating");
+            if(b.d.audio_valid) {
+                if(last_sample)check(i-last_sample==2083 || i-last_sample==2084,"audio cadence");
+                last_sample=i;++samples;
+                int value=int16_t(b.d.audio_sample);minimum=std::min(minimum,value);maximum=std::max(maximum,value);
+            }
+        }
+        check(samples==480 && maximum-minimum>7000,"speaker tone/audio rate");
+        b.timer=false;
+        check(((b.in(0x62)>>5)&1)==((b.d.pit_out>>2)&1),"PIT2 port C feedback");b.timer=true;
+        b.out(0x61,0x40);check(!b.d.speaker,"speaker mute");
+        b.idle(5000000);check(std::abs(int16_t(b.d.audio_sample))<4,"muted DC tail");
+        b.out(0x61,0x42);b.idle(5000000);
+        check(b.d.speaker && std::abs(int16_t(b.d.audio_sample))<6,"static speaker DC removal");
+        // A sub-sample-period square wave should integrate to near DC,
+        // rather than alias to full-scale audio at the sample instants.
+        b.pit(2,3,2);b.out(0x61,0x43);b.idle(4000000);
+        for(unsigned i=0;i<1000000;i++) {
+            b.tick();if(b.d.audio_valid)check(std::abs(int16_t(b.d.audio_sample))<400,"rapid speaker integration");
+        }
+        b.reset();check(!b.d.audio_valid && b.d.audio_sample==0,"audio reset silence");
         b.pit(1,2,100);b.idle(500);unsigned refresh=b.latch(1);
         check(refresh>0 && refresh<=100,"refresh channel count");
         b.init_pic();b.out(0x21,0xfe);b.pit(0,2,20);b.wait=5000;
@@ -180,6 +254,6 @@ int main(int argc,char** argv) {
             check(!b.d.cycle_done && !b.d.intr,"reset phantom completion/IRQ");
             check(b.in(0x21)==0xff,"reset phantom write");
         }
-        std::cout<<"PASS motherboard: "<<b.transactions<<" transactions, memory/PIC/PIT/ISA, "<<b.ticks<<" fabric clocks\n";
+        std::cout<<"PASS motherboard: "<<b.transactions<<" transactions, memory/PIC/PIT/PPI/keyboard/speaker/ISA, "<<b.ticks<<" fabric clocks\n";
     } catch(const std::exception& e) {std::cerr<<"FAIL motherboard: "<<e.what()<<"\n";return 1;}
 }

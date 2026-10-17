@@ -19,7 +19,13 @@ module motherboard_top (
     input wire memory_ready, memory_done,
     input wire [7:0] memory_rdata,
     input wire [7:2] external_irq,
-    input wire keyboard_irq, pit_gate2,
+    input wire [7:0] switches,
+    input wire parity_error, channel_error,
+    output wire parity_enable, channel_check_enable,
+    input wire keyboard_clock, keyboard_data,
+    output wire keyboard_clock_low, keyboard_data_low, keyboard_irq,
+    output wire speaker, audio_valid,
+    output wire signed [15:0] audio_sample,
     input wire [2:0] inject,
     output wire intr,
     output wire [2:0] pit_out,
@@ -40,7 +46,12 @@ module motherboard_top (
         .memory_done(memory_done), .memory_rdata(memory_rdata),
         .isa_valid(isa_valid), .isa_ready(isa_ready), .isa_done(isa_done),
         .isa_rdata(isa_rdata), .isa_fault(isa_fault), .isa_irq(irq[7:2] | external_irq),
-        .keyboard_irq(keyboard_irq), .pit_gate2(pit_gate2), .intr(intr),
+        .switches(switches), .parity_error(parity_error), .channel_error(channel_error),
+        .parity_enable(parity_enable), .channel_check_enable(channel_check_enable),
+        .keyboard_clock(keyboard_clock), .keyboard_data(keyboard_data),
+        .keyboard_clock_low(keyboard_clock_low), .keyboard_data_low(keyboard_data_low),
+        .keyboard_irq(keyboard_irq), .speaker(speaker),
+        .audio_valid(audio_valid), .audio_sample(audio_sample), .intr(intr),
         .pit_out(pit_out), .pit_clock(pit_clock)
     );
     /* verilator lint_off PINCONNECTEMPTY */

@@ -18,8 +18,9 @@ int main(int argc,char** argv) {
             std::copy(rom.begin(),rom.end(),mem.begin()+0xf0000);
             bool pending=false,passed=false,saw_halt=false,ack_pending=false;
             unsigned pa=0,pd=0,delay=0,ticks=0,acks=0,timer_vectors=0,card_vectors=0;
-            unsigned transactions=0,ce=0;bool pw=false;
-            d.reset=1;d.memory_done=0;d.memory_ready=0;
+            unsigned transactions=0,ce=0,keys=0,keyboard_vectors=0,audio_samples=0;
+            int audio_min=32767,audio_max=-32768;bool pw=false;
+            d.reset=1;d.code_valid=0;d.code=0;d.memory_done=0;d.memory_ready=0;
             for(unsigned i=0;i<32;i++){d.clk=0;d.eval();d.clk=1;d.eval();}d.reset=0;
             while(ticks++<6000000 && !passed) {
                 d.memory_done=0;d.memory_ready=!pending && (!waits || ticks%4!=0);
@@ -31,7 +32,14 @@ int main(int argc,char** argv) {
                         check(pd==0xaa,"invalid success marker");passed=true;
                     }
                 }
+                d.code_valid=mem[0x601]==4 && keys<2;
+                d.code=keys==0 ? 0x1e : 0x9e;
                 d.clk=0;d.eval();
+                if(d.code_valid && d.code_ready)++keys;
+                if(d.audio_valid && mem[0x601]==4) {
+                    ++audio_samples;int value=int16_t(d.audio_sample);
+                    audio_min=std::min(audio_min,value);audio_max=std::max(audio_max,value);
+                }
                 if(d.guest_ce)++ce;
                 if(d.halted)saw_halt=true;
                 check(!d.fault,"CPU fabric fault");
@@ -42,6 +50,7 @@ int main(int argc,char** argv) {
                 if(d.completed && ack_pending) {
                     if((acks++&1)==0) check(d.cycle_rdata==0xff,"first INTA drove data");
                     else if(d.cycle_rdata==8)++timer_vectors;
+                    else if(d.cycle_rdata==9)++keyboard_vectors;
                     else if(d.cycle_rdata==13)++card_vectors;
                     else throw std::runtime_error("unexpected PIC vector");
                     ack_pending=false;
@@ -55,11 +64,14 @@ int main(int argc,char** argv) {
                 d.clk=1;d.eval();
             }
             check(passed,"machine diagnostic timeout");check(saw_halt,"HLT not exercised");
-            check(timer_vectors>=3 && card_vectors==1 && !(acks&1),"IRQ coverage");
+            check(timer_vectors>=3 && card_vectors==1 && keyboard_vectors==2 && !(acks&1),"IRQ coverage");
             check(mem[0x610]>=3 && mem[0x612]==1,"interrupt handlers did not execute");
+            check(keys==2 && mem[0x614]==2 && mem[0x616]==0x1e && mem[0x617]==0x9e,"keyboard make/break handlers");
+            check(audio_samples>50 && audio_max-audio_min>7000,"CPU programmed speaker tone");
+            check(!d.speaker,"ROM did not mute speaker");
             check(ce>ticks/22 && ce<ticks/20,"CPU clock cadence");
             std::cout<<"PASS machine waits="<<waits<<": "<<transactions<<" transactions, "
-                     <<timer_vectors<<" timer vectors, "<<card_vectors<<" ISA vector, "<<ticks<<" fabric clocks\n";
+                     <<timer_vectors<<" timer vectors, "<<card_vectors<<" ISA vector, "<<keyboard_vectors<<" keyboard vectors, "<<ticks<<" fabric clocks\n";
         }
     }catch(const std::exception& e){std::cerr<<"FAIL machine: "<<e.what()<<"\n";return 1;}
 }

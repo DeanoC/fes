@@ -1,0 +1,46 @@
+{
+  "repository": "https://github.com/spark2k06/PCXT_MiSTer",
+  "commit": "af4f8a98ae562af0e3f9b86cc3a59673f999d0f6",
+  "license": "MIT",
+  "local_changes": [
+    "KF8255_Group: reset output/status latches on every mode-set command, including repeated control values."
+  ],
+  "files": [
+    {
+      "path": "LICENSE",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8255/LICENSE",
+      "sha256": "0647c67d2f0ed1f8e79e75febff0906cefa085b1f7418dd1f39efa18406306fc"
+    },
+    {
+      "path": "KF8255.sv",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255.sv",
+      "sha256": "de4c680b800c878619c268afdcd378b0204ff12a3fb6e2ac01284628c5b81d65"
+    },
+    {
+      "path": "KF8255_Control_Logic.sv",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255_Control_Logic.sv",
+      "sha256": "ab6f130d75939ccfcad9b4552502b71ea8d526f5bc6cfc233c52b17252c4fb91"
+    },
+    {
+      "path": "KF8255_Definitions.svh",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255_Definitions.svh",
+      "sha256": "923353e1efb107d521a95a91dd3f36156eab51518e2c8089303376463f142511"
+    },
+    {
+      "path": "KF8255_Group.sv",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255_Group.sv",
+      "sha256": "efdfcd7ad874d23bfa98291d8926aef041e072902776fdedddb5e2411456bfdf",
+      "upstream_sha256": "91686f26dfd111262228a0a569bf00461947738d0d1a0ca2d8c2ea1911532266"
+    },
+    {
+      "path": "KF8255_Port.sv",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255_Port.sv",
+      "sha256": "b055610eb0b629be7b85ce5a42c7aa22c4494b9c8bbe42dee7547e23bd508deb"
+    },
+    {
+      "path": "KF8255_Port_C.sv",
+      "upstream_path": "rtl/KFPC-XT/HDL/KF8255/HDL/KF8255_Port_C.sv",
+      "sha256": "06e8fe6b914549b01257ea7ce2da9b6d79042eac09ea1528ada563432b4f5af2"
+    }
+  ]
+}
