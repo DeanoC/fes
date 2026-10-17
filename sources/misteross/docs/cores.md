@@ -165,7 +165,8 @@ for the new bytes.
 `make sim-fes-pcxt` runs the [PC/XT transaction fabric](../cores/fes-pcxt/README.md)
 through eight portable registered slot boundaries with diagnostic cards in slots
 1 and 8. It tests wait-state side effects, memory and I/O decode, interrupt and
-DMA wiring, conflict rejection and reset during transfers. This is a simulation
+DMA wiring, conflict rejection, a lost commit acknowledgement, and reset during
+transfers including a commit already pending at the card. This is a simulation
 family, not a package producer. CPU, motherboard, graphics, media and physical
 socket routing are still required; no `build-fes-pcxt` target exists.
 

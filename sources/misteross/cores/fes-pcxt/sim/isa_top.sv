@@ -16,15 +16,24 @@ module isa_top (
     output wire [7:0] irq,
     output wire [2:0] drq,
     input wire [2:0] inject,
-    output wire [47:0] observed_request
+    output wire [47:0] observed_request,
+    output reg reset_side_effect
 );
     wire [47:0] request;
     wire [255:0] responses;
     wire [47:0] card_request [0:7];
     wire [31:0] card_response [0:7];
     wire [31:0] boundary_response [0:7];
+    wire [7:0] slot_commit;
     pcxt_isa_bridge bridge (.*);
     assign observed_request = request;
+    // The boundary register still holds COMMIT on the edge reset rises.
+    // Card endpoints must see that reset themselves; RESET in the register
+    // arrives one cycle later.
+    always @(posedge clk) begin
+        if (!reset) reset_side_effect <= 0;
+        else reset_side_effect <= reset_side_effect | (|slot_commit);
+    end
     genvar n;
     generate for (n=0; n<8; n=n+1) begin: slots
         pcxt_isa_boundary boundary (
@@ -38,10 +47,11 @@ module isa_top (
                 .IO_MASK(n == 0 ? 16'h03f8 : 16'hfff8),
                 .MEMORY_BASE(n == 0 ? 20'hc8000 : 20'hc9000),
                 .IRQ_LINE(n == 0 ? 5 : 6), .DMA_CHANNEL(n == 0 ? 2 : 3)
-            ) probe (.clk(clk), .reset(1'b0), .request(card_request[n]),
-                     .response(card_response[n]));
+            ) probe (.clk(clk), .reset(reset), .request(card_request[n]),
+                     .response(card_response[n]), .commit_pulse(slot_commit[n]));
         end else begin: vacant
             assign card_response[n] = 0;
+            assign slot_commit[n] = 1'b0;
         end
         // Invalid cards are simulation fault injection only. Production vacant
         // sockets return zero and cannot contribute IRQ, DMA, claim or READY.

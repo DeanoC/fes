@@ -33,7 +33,7 @@ module pcxt_isa_bridge #(
     reg tag;
     reg [SLOTS-1:0] owner;
     reg [SLOTS-1:0] claims, decoded;
-    reg all_seen, all_ready, all_done;
+    reg all_seen, all_ready, all_done, owner_valid;
     reg [7:0] selected_data;
     reg [31:0] rsp;
     integer i;
@@ -50,6 +50,7 @@ module pcxt_isa_bridge #(
         all_seen = 1;
         all_ready = 1;
         all_done = 1;
+        owner_valid = 1;
         selected_data = 8'hff;
         rsp = 0;
         for (i=0; i<SLOTS; i=i+1) begin
@@ -67,9 +68,17 @@ module pcxt_isa_bridge #(
                     if (!rsp[`FES_PCXT_ISA_READY_BIT]) all_ready = 0;
                 end
             end
-            if (owner[i] && (!rsp[`FES_PCXT_ISA_PRESENT_BIT] ||
-                !rsp[`FES_PCXT_ISA_SEEN_BIT] || rsp[`FES_PCXT_ISA_RESPONSE_TAG_BIT] != tag ||
-                !rsp[`FES_PCXT_ISA_DONE_BIT])) all_done = 0;
+            if (owner[i]) begin
+                // PRESENT, SEEN and the tag must still describe this transaction.
+                // DONE may lag by the response-register delay, so it does not
+                // by itself make the owner invalid.
+                if (!rsp[`FES_PCXT_ISA_PRESENT_BIT] || !rsp[`FES_PCXT_ISA_SEEN_BIT] ||
+                    rsp[`FES_PCXT_ISA_RESPONSE_TAG_BIT] != tag || rsp[31:25] != 0)
+                    owner_valid = 0;
+                if (!rsp[`FES_PCXT_ISA_PRESENT_BIT] || !rsp[`FES_PCXT_ISA_SEEN_BIT] ||
+                    rsp[`FES_PCXT_ISA_RESPONSE_TAG_BIT] != tag ||
+                    !rsp[`FES_PCXT_ISA_DONE_BIT]) all_done = 0;
+            end
         end
     end
 
@@ -138,11 +147,22 @@ module pcxt_isa_bridge #(
                         state <= COMMIT;
                     end
                 end
-                COMMIT: if (all_done) begin
-                    request[`FES_PCXT_ISA_VALID_BIT] <= 0;
-                    request[`FES_PCXT_ISA_COMMIT_BIT] <= 0;
-                    delay_count <= 0;
-                    state <= DRAIN;
+                COMMIT: begin
+                    // COMMIT is already on the fabric. A lost owner faults and
+                    // drains; clearing COMMIT here does not recall a pulse the
+                    // card has already accepted, and it is not reissued.
+                    if (!owner_valid) begin
+                        cycle_fault <= 2'(`FES_PCXT_ISA_FAULT_PROTOCOL);
+                        request[`FES_PCXT_ISA_VALID_BIT] <= 0;
+                        request[`FES_PCXT_ISA_COMMIT_BIT] <= 0;
+                        delay_count <= 0;
+                        state <= DRAIN;
+                    end else if (all_done) begin
+                        request[`FES_PCXT_ISA_VALID_BIT] <= 0;
+                        request[`FES_PCXT_ISA_COMMIT_BIT] <= 0;
+                        delay_count <= 0;
+                        state <= DRAIN;
+                    end
                 end
                 DRAIN: begin
                     if (delay_count == 4'(`FES_PCXT_ISA_DRAIN_CYCLES-1)) begin

@@ -14,8 +14,9 @@ responses, waits for READY and sends one commit. `pcxt_isa_boundary.sv` supplies
 one request and one response register, matching the existing linkable-slot
 pipeline model. `pcxt_isa_endpoint.sv` separates device preparation from side
 effects and acknowledges a commit exactly once. Vacant slots read as `FF`;
-conflicting or stale card responses fault before commit. IRQ and DRQ remain
-live while the CPU is waiting.
+conflicting or stale card responses fault before commit. An owner that
+withdraws after COMMIT also faults and drains, without a second commit. IRQ
+and DRQ remain live while the CPU is waiting.
 
 The [shared fabric contract](../../../mister-packages/docs/pcxt-isa.md) defines
 the wire fields and timing. It is emitted from mister-packages, not duplicated
@@ -56,9 +57,12 @@ Verilator runs the bridge, all eight boundaries and real probe endpoints in
 slots 1 and 8. The C++ driver checks I/O aliases, full 16-bit I/O decode, AEN,
 memory, unmapped accesses, delayed READY, held VALID, IRQ/DRQ, DMA direction and
 terminal count. Fault injection checks duplicate claims, stale transaction tags
-and missing decode acknowledgements and a claimant disappearing during a wait. A deterministic randomized memory test
+and missing decode acknowledgements, a claimant disappearing during a wait, and
+the selected owner disappearing after COMMIT. A deterministic randomized memory test
 uses an independent scoreboard. Reset is swept across 60 positions in a delayed
-transfer to check pending operations and response draining.
+transfer. Each position checks that a commit already pending at the card does
+not pulse on the reset edge, and that reset clears pending operations without
+a phantom completion.
 
 Outputs live under `build/sim/fes-pcxt/`. The parent affected-test planner and
 CI simulation matrix include this simulation-only family. Passing these tests

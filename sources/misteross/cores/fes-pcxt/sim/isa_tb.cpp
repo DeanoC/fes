@@ -28,7 +28,8 @@ static void reset() {
 struct Result { uint8_t data; unsigned cycles; };
 static Result transfer(unsigned kind, unsigned address, bool write=false,
                        uint8_t data=0, bool aen=false, unsigned channel=0,
-                       bool tc=false, unsigned fault=0, bool lock=false, unsigned drop_after=0) {
+                       bool tc=false, unsigned fault=0, bool lock=false, unsigned drop_after=0,
+                       bool drop_on_commit=false) {
     require(top.cycle_ready, "bridge not ready for a new transfer");
     top.cycle_kind=kind; top.cycle_address=address; top.cycle_write=write;
     top.cycle_wdata=data; top.cycle_aen=aen; top.cycle_dma_channel=channel;
@@ -46,8 +47,10 @@ static Result transfer(unsigned kind, unsigned address, bool write=false,
         uint64_t(lock)<<36 | uint64_t(channel)<<37 | uint64_t(tc)<<39);
     // Tag, valid and commit are bridge-owned. Guest CE is deliberately live.
     const uint64_t stableMask=mask & ~((uint64_t(7)<<31));
+    bool commit_seen=false;
     while(!top.cycle_done && ticks-start<1000) {
-        if(drop_after && ticks-start==drop_after) top.inject=5;
+        if(drop_on_commit && ((top.observed_request >> 33) & 1)) commit_seen=true;
+        if(commit_seen || (drop_after && ticks-start==drop_after)) top.inject=5;
         if ((top.observed_request >> 31)&1)
             require((top.observed_request & stableMask) == (controls & stableMask),
                     "request mutated while waiting");
@@ -57,7 +60,7 @@ static Result transfer(unsigned kind, unsigned address, bool write=false,
     require(top.cycle_fault == fault, "unexpected bus fault");
     require(top.cycle_ready, "done before drain finished");
     ++transfers;
-    if(drop_after) top.inject=0;
+    if(drop_after || drop_on_commit) top.inject=0;
     return {uint8_t(top.cycle_rdata), unsigned(ticks-start)};
 }
 static uint8_t rd(unsigned port) { return transfer(1,port).data; }
@@ -143,6 +146,16 @@ int main(int argc,char **argv) {
             for(unsigned off=0;off<16;off++)
                 require(transfer(0,(card ? 0xc9000:0xc8000)+off).data==expected[card][off],"full memory compare");
 
+        // Withdraw the owner once COMMIT is on the fabric. The boundary
+        // delivers that commit once. The bridge must fault, drain, and accept
+        // a later transfer without repeating the write.
+        const auto ack_writes=rd(0x303);
+        transfer(1,0x300,true,0x3c,false,0,false,2,false,0,true);
+        require(rd(0x300)==0x3c, "in-flight commit was lost or repeated");
+        require(rd(0x303)==uint8_t(ack_writes+1), "lost commit acknowledgement repeated the write");
+        wr(0x300,0x3d);
+        require(rd(0x300)==0x3d, "bridge stayed busy after a lost commit acknowledgement");
+
         // Reset at every phase of a long cycle, including commit/return/drain.
         // No pre-reset response may complete a fresh transaction with a reused tag.
         for(unsigned phase=0;phase<60;phase++) {
@@ -150,7 +163,12 @@ int main(int argc,char **argv) {
             top.cycle_address=0x300; top.cycle_kind=1; top.cycle_write=1;
             top.cycle_wdata=0xab; top.cycle_aen=0; top.cycle_dma_channel=0;
             top.cycle_valid=1; tick(); top.cycle_valid=0; idle(phase);
-            reset();
+            top.reset=1; tick();
+            require(!top.reset_side_effect, "reset committed a pending card operation");
+            idle(4);
+            require(top.irq == 0 && top.drq == 0, "reset must suppress IRQ and DRQ");
+            top.reset=0; idle(5);
+            require(top.cycle_ready && !top.cycle_done, "reset drain completed a phantom transfer");
             require(rd(0x300)==0 && rd(0x303)==0,"reset retained a pending side effect");
             wr(0x300,uint8_t(phase));
             require(rd(0x300)==phase,"fresh transaction after reset");
