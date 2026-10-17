@@ -147,27 +147,54 @@ func defaultPrefsPath() string {
 
 // persistentConfigDir is where tenfoot.json and the sibling rooms directory
 // are stored. os.UserConfigDir supplies that directory, which on Linux is
-// XDG_CONFIG_HOME when the kit supervisor sets it. A kit whose HOME config
-// directory is not writable uses kitPersistentStateDir instead.
+// XDG_CONFIG_HOME when set and $HOME/.config otherwise. A directory that
+// already holds readable settings or room state is kept even when it is
+// read-only, so a temporarily read-only volume does not hide them. A
+// directory that does not exist yet is used when its nearest existing
+// ancestor is writable, so the save can create missing parents. The kit FAT
+// directory is the fallback when the user directory cannot be read and
+// cannot be created.
 func persistentConfigDir() string {
 	user, userErr := os.UserConfigDir()
-	if userErr == nil && configDirUsable(user) {
-		return user
+	if userErr == nil {
+		if dir, ok := chooseConfigDir(user); ok {
+			return dir
+		}
 	}
-	if dir := strings.TrimSpace(kitPersistentStateDir); configDirUsable(dir) && dir != user {
-		return dir
+	if dir := strings.TrimSpace(kitPersistentStateDir); dir != "" && (userErr != nil || dir != user) {
+		if chosen, ok := chooseConfigDir(dir); ok {
+			return chosen
+		}
 	}
 	noteStateDirUnavailable()
 	return ""
 }
 
-// configDirUsable reports whether dir is a writable directory, or does not
-// exist yet while its parent directory is writable. It does not create dir.
-func configDirUsable(dir string) bool {
+// chooseConfigDir reports dir when tenfoot should load and save state there.
+// Readable settings or room state win even when the directory cannot be
+// written. Otherwise dir is used only when it is writable, or when it does
+// not exist yet and its nearest existing ancestor is a writable directory.
+func chooseConfigDir(dir string) (string, bool) {
 	dir = strings.TrimSpace(dir)
 	if dir == "" {
-		return false
+		return "", false
 	}
+	if configDirHasState(dir) {
+		if !configDirWritable(dir) {
+			noteStateDirUnavailable()
+		}
+		return dir, true
+	}
+	if configDirWritable(dir) {
+		return dir, true
+	}
+	return "", false
+}
+
+// configDirWritable reports whether dir is a writable directory, or does not
+// exist yet while its nearest existing ancestor is a writable directory.
+// It does not create dir.
+func configDirWritable(dir string) bool {
 	info, err := os.Stat(dir)
 	if err == nil {
 		return info.IsDir() && unix.Access(dir, unix.W_OK) == nil
@@ -175,11 +202,63 @@ func configDirUsable(dir string) bool {
 	if !os.IsNotExist(err) {
 		return false
 	}
-	parent, err := os.Stat(filepath.Dir(dir))
-	if err != nil || !parent.IsDir() {
+	return ancestorWritable(dir)
+}
+
+// ancestorWritable reports whether the nearest existing ancestor of dir is a
+// writable directory. dir itself is absent.
+func ancestorWritable(dir string) bool {
+	cur := filepath.Clean(dir)
+	for {
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return false
+		}
+		info, err := os.Stat(parent)
+		if err == nil {
+			return info.IsDir() && unix.Access(parent, unix.W_OK) == nil
+		}
+		if !os.IsNotExist(err) {
+			return false
+		}
+		cur = parent
+	}
+}
+
+// configDirHasState reports whether dir already holds a readable tenfoot.json
+// or a room state file. An unreadable file does not count.
+func configDirHasState(dir string) bool {
+	base := filepath.Join(dir, "FogCast")
+	if readableFile(filepath.Join(base, "tenfoot.json")) {
+		return true
+	}
+	roomsDir := filepath.Join(base, "rooms")
+	entries, err := os.ReadDir(roomsDir)
+	if err != nil {
 		return false
 	}
-	return unix.Access(filepath.Dir(dir), unix.W_OK) == nil
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".state.json") {
+			continue
+		}
+		if readableFile(filepath.Join(roomsDir, entry.Name())) {
+			return true
+		}
+	}
+	return false
+}
+
+func readableFile(path string) bool {
+	info, err := os.Stat(path)
+	if err != nil || !info.Mode().IsRegular() {
+		return false
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		return false
+	}
+	f.Close()
+	return true
 }
 
 func noteStateDirUnavailable() {
