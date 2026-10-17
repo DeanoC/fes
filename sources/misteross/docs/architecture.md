@@ -2112,8 +2112,10 @@ registered slot boundaries, card endpoints and a diagnostic I/O/memory/DMA
 probe. `make sim-fes-pcxt` exercises eight logical slots through the real RTL
 and boots an original diagnostic ROM on a pinned MCL86 CPU. The CPU wrapper
 fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
-4.772727 MHz guest clock. It handles READY, split byte cycles, LOCK and INTA;
-memory storage and interrupt-vector delivery are testbench services. See the
+4.772727 MHz guest clock. It handles READY, split byte cycles, LOCK and INTA.
+The motherboard router decodes RAM/ROM and integrates a pinned KF8259 PIC and KF8253 PIT: the machine
+diagnostic receives timer and ISA interrupts through the real two-INTA path.
+Memory storage remains a testbench service. See the
 [CPU import](../cores/fes-pcxt/vendor/mcl86/README.md) for provenance and limits.
 The shared `fes.fabric.pcxt-isa` 1.0 constants are generated from mister-packages;
 its [wire contract](../../mister-packages/docs/pcxt-isa.md) defines handshakes,
@@ -2121,8 +2123,9 @@ reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
 **The complete machine below remains a proposal.** `fes.pcxt` is the proposed
-package identity. There is no integrated chipset, graphics, disk controller, physical
-socket layout, producer or sealed PC/XT package yet. The fabric does not enable
+package identity. The remaining chipset (DMA/PPI/keyboard), graphics, disk
+controller, physical socket layout, producer and sealed PC/XT package are not
+implemented yet. The fabric does not enable
 runtime activation or claim a linkable RBF. Existing linker layout admission
 remains closed until an exact shell and its physical sockets are qualified.
 
@@ -2204,7 +2207,7 @@ mode is selected before reset, never switched during execution. Qualify the
 
 ### Memory and motherboard
 
-| Physical address | Proposed decode |
+| Physical address | Decode / intended storage |
 | --- | --- |
 | `00000–9FFFF` | 640 KiB conventional RAM in addon SDRAM |
 | `A0000–AFFFF` | Unclaimed baseline; reserved for a later EGA adapter |
@@ -2221,11 +2224,23 @@ map; validate option ROM placement, headers, length and checksum. Supply an
 original diagnostic ROM first. A legally supplied IBM-compatible BIOS and
 DOS image are later boot-test inputs; neither is bundled implicitly.
 
-Motherboard blocks are an 8259A interrupt controller, 8253 timer, 8237A DMA
+The implemented byte router holds one accepted request through downstream
+completion. It suppresses system-ROM writes, routes the video/option windows
+to ISA, and leaves physical RAM/ROM storage external. Local PIC (`20–3F`, A0)
+and PIT (`40–5F`, A1:0) decode ignores A15:10. INTA selects the PIC independently
+of address. The adapter supplies one setup, eight active and nine release
+100 MHz clocks; address/CS remain stable through retirement of chip bus side
+effects. This latency is not yet an original-board bus-timing qualification.
+PIT pins advance from CPU guest enables divided by four through READY waits
+and HLT. PIC inputs are PIT0, external keyboard IRQ1 and ISA IRQ2–7. Channel 1
+output and channel 2 gate/output are exposed for later refresh/PPI integration.
+Reset must cancel requests in the router and its downstream storage/ISA.
+
+The remaining motherboard work includes an 8237A DMA
 controller with XT page registers, and 8255-compatible PPI. Implement the
 selected board's decode aliases, initialization, readback and unused bits.
-PIT channel 0 drives IRQ0, channel 1 requests DMA refresh, and channel 2 feeds
-the speaker through port 61h gating. DMA must implement address/count, shared
+PIT channel 0 already drives IRQ0; planned channel 1 wiring requests DMA
+refresh, and channel 2 will feed the speaker through port 61h gating. DMA must implement address/count, shared
 byte pointer, page-boundary behavior, terminal count, masks and required
 transfer modes. Do not replace floppy DMA with BIOS-level interception.
 
