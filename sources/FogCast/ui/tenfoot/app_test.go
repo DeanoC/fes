@@ -268,19 +268,28 @@ func TestAppRejectsUnavailableTitlesWithoutHostLaunch(t *testing.T) {
 			app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 			app.Start(t.Context())
 			t.Cleanup(app.Stop)
+			// The shelf can list the title before the load finishes. Confirm
+			// during that window is ignored. A settled blocked title records
+			// the refusal, opens Details, and does not post a host launch.
 			deadline := time.Now().Add(2 * time.Second)
+			var settled bool
 			for time.Now().Before(deadline) {
 				app.Tick(time.Now())
-				if len(app.Snapshot().Games) == 1 {
+				snap := app.Snapshot()
+				if !snap.Loading && len(snap.Games) == 1 {
+					settled = true
 					break
 				}
 				time.Sleep(5 * time.Millisecond)
 			}
+			if !settled {
+				t.Fatal("catalog did not settle")
+			}
 			app.Press(CmdSelect, time.Now())
 			app.Tick(time.Now())
 			snap := app.Snapshot()
-			if snap.Launch.Phase != "error" || snap.Launch.Message != tc.want || snap.Launch.HTTPStatus != 0 {
-				t.Fatalf("launch = %#v", snap.Launch)
+			if snap.Launch.Phase != "error" || snap.Launch.Message != tc.want || snap.Launch.HTTPStatus != 0 || !snap.Detail.Open {
+				t.Fatalf("launch = %#v detailOpen=%v", snap.Launch, snap.Detail.Open)
 			}
 			if launches != 0 {
 				t.Fatalf("host launch called %d times", launches)
