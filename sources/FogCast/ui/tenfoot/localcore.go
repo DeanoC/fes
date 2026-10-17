@@ -566,11 +566,72 @@ func (a *App) tickLocalCoreLocked(now time.Time) {
 	}
 }
 
-// pollLocalStatusLocked reads GET /v1/local/status while a core is running.
-// At most one poll is in flight, and it is not called under a.mu: Status can
-// take the client's 3s timeout. Only an explicit idle phase resumes presents.
+// localStatusPollWantedLocked is true while this process owns a running
+// core, while a failed launch still needs a status read, or until startup
+// has observed one successful status.
+func (a *App) localStatusPollWantedLocked() bool {
+	if a.localStatusBusy || a.localCores == nil {
+		return false
+	}
+	if a.localPhase == localPhaseRunning {
+		return true
+	}
+	if a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == "") {
+		return true
+	}
+	return !a.localStartupStatusChecked && a.localPhase == "" && !a.localUnownedRun
+}
+
+// localStatusAdoptable reports an agent run this process can stop. Idle and
+// stopping stay on the menu: stopping is already on its way out, and a
+// generation we cannot name cannot be stopped.
+func localStatusAdoptable(status localcores.RunStatus) bool {
+	switch status.Phase {
+	case "launching", "running":
+	default:
+		return false
+	}
+	return validLocalGeneration(status.Generation)
+}
+
+// adoptStartupLocalRunLocked takes the agent's current generation as this
+// launcher's run. The In use screen stays up, Select+Start stops that
+// generation, and a later idle status returns to the menu. It does not
+// claim this process started the run.
+func (a *App) adoptStartupLocalRunLocked(status localcores.RunStatus) {
+	title := strings.TrimSpace(status.CoreID)
+	if title == "" {
+		title = "core"
+	}
+	a.localTitle = title
+	a.localLeaseGeneration = status.Generation
+	a.localPackageID = status.PackageID
+	a.localPhase = localPhaseRunning
+	a.localUnownedRun = false
+	a.localReconcileAfterFailure = false
+	a.localReconcileDeadline = time.Time{}
+	a.localPresentsPaused = false
+	a.localLateAdopt = false
+	a.localStartedAt = time.Time{}
+	a.localChordSince = time.Time{}
+	a.localChordFired = false
+	a.localStopAfterStart = false
+	a.localSelectDown = false
+	a.localStartDown = false
+	a.localSent = nil
+	a.localStatus = localInUseCopy
+	a.status = a.localStatus
+	a.localStatusNext = time.Time{}
+	a.localRedraw++
+}
+
+// pollLocalStatusLocked reads GET /v1/local/status while a core is running,
+// while a failed launch is still unreconciled, and once at startup before
+// this process has observed status. At most one poll is in flight, and it
+// is not called under a.mu: Status can take the client's 3s timeout. Only
+// an explicit idle phase resumes presents.
 func (a *App) pollLocalStatusLocked(now time.Time) {
-	if (a.localPhase != localPhaseRunning && !(a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == ""))) || a.localStatusBusy || a.localCores == nil {
+	if !a.localStatusPollWantedLocked() {
 		return
 	}
 	if !a.localStatusNext.IsZero() && now.Before(a.localStatusNext) {
@@ -586,7 +647,20 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 		a.mu.Lock()
 		defer a.mu.Unlock()
 		a.localStatusBusy = false
-		if err != nil || a.localGen != gen || a.localStatusEpoch != epoch || (a.localPhase != localPhaseRunning && !(a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == ""))) {
+		if err != nil || a.localGen != gen || a.localStatusEpoch != epoch {
+			return
+		}
+		ownsRunning := a.localPhase == localPhaseRunning
+		reconciling := a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == "")
+		startup := !a.localStartupStatusChecked && a.localPhase == "" && !a.localReconcileAfterFailure && !a.localUnownedRun
+		if !ownsRunning && !reconciling && !startup {
+			return
+		}
+		a.localStartupStatusChecked = true
+		if startup {
+			if localStatusAdoptable(status) {
+				a.adoptStartupLocalRunLocked(status)
+			}
 			return
 		}
 		// An unavailable launch has no grant identity. A later running status

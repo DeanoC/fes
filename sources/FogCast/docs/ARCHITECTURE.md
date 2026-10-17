@@ -2666,6 +2666,16 @@ press, so the core sees at most a brief tap of the button that went down first.
 The one-second mark is the next pad event or the existing frame tick, not a new
 loop. The event that reaches that mark is not forwarded. Stop returns the runtime
 to fes.menu; tenfoot resumes presents and redraws on that new menu generation.
+On startup, with a local-control client and no local run yet, that tick reads
+GET /v1/local/status until one read succeeds. A launching or running answer
+with a valid generation is re-adopted as this launcher's run: the In use
+screen stays up, Select+Start calls generation-checked stop, and idle status
+returns to the menu. A failed read is retried; idle and stopping answers leave
+the menu alone. This is the launcher noticing a run the agent already reports.
+It is not a claim that this process started the run, and it is not supervisor
+adoption of a base image. A restarted supervisor stops leftover children and
+starts a fresh group; a supervisor lock file blocks a second start. It does
+not take over running processes.
 While the phase is running, that same tick polls GET /v1/local/status at most
 about once a second, off the app lock and single-flight. If the agent reports
 idle or not running, tenfoot resumes the same way. A running status whose

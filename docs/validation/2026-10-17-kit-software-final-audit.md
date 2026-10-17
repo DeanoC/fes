@@ -231,3 +231,32 @@ identity observation was bundle `2b792832…`, generation 21, base `06066d29…`
 boot `457a8b1a-54af-46c0-9e6e-351c08467496`; those identities were not independently
 resampled during the operator's check. This supplements the earlier automated
 HDMI/input evidence and does not resolve watchdog issue #761 or listing issue #762.
+
+## Launcher kill during an active core
+
+In this record, "adoption" means adopting and confirming the rebuilt base image
+`06066d29`. A supervisor restart does not take over running processes. It stops
+leftover children, then starts a fresh runtime, agent and launcher. A
+`supervisor.lock` flock blocks a second start.
+
+The child-fault diagnostics above kill processes at idle or under a maintenance
+reservation. They do not cover killing the launcher while a core is running.
+Kit A HIL of `93d31ae7` passed idle launcher, agent and runtime kills, then
+failed SIGKILL of `fogcast-tenfoot` during menu-launched Pong: the supervisor
+replaced only the launcher, the agent kept `phase: running` for `fes.pong`, and
+the new launcher never read that status. There was no In use screen, Select+Start
+reached the menu as quit, and the launcher exited. Recovery was
+`POST /v1/local/stop`. See the HIL comment on PR #757.
+
+A restarted tenfoot now reads `GET /v1/local/status` on startup. A launching or
+running answer with a valid generation is re-adopted: the In use screen stays
+up, Select+Start stops that generation, and idle status returns to the menu.
+`TestLauncherStartupAdoptsActiveRunShowsInUseAndStops` and
+`TestLauncherStartupReturnsToMenuWhenAdoptedRunEnds` simulate that restart.
+The next kit check should repeat the launcher kill during Pong. This host test
+is not that hardware result.
+
+Launcher re-adoption is separate from supervisor adoption of the base image.
+Two other HIL notes are filed and not fixed here: Installed cores stays
+unresolved after health is ready (#764), and focus returns to the first tile
+after a launcher restart (#765).
