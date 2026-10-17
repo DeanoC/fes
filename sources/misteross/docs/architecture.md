@@ -1809,7 +1809,7 @@ the selected software model, not physical mixed-noise SID behavior.
 
 At the native 53/54-SYS cadence, `c64_sid` sequences the three voices'
 waveform stages as three-edge lookup/finish sequences on Phi+1..Phi+9
-(`SEQUENCE_VOICES`, ratio at least twelve): Phi advances every accumulator,
+(`SEQUENCE_VOICES`, motherboard ratio at least thirty-one): Phi advances every accumulator,
 noise shift and hard sync; each voice then presents its combined-wave table
 index and ring state to the shared `c64_sid_wave_tables` unit on its lookup
 edge (Phi+1, Phi+4, Phi+7), which registers the index and then the four
@@ -1817,8 +1817,11 @@ table values, and two edges after the request produces its wave,
 saw-selected feedback, noise write-back, decay and pulse, in reSID output
 order, reading its ring/sync source's current phase. A waveform-selecting
 CONTROL write issues its own lookup on the write edge and finishes two edges
-later, with the prepared phase sum refreshed on the following idle edge. CPU
-writes land on edge 26, outside the Phi stage window. The audio stage
+later, with the prepared phase sum refreshed on the following idle edge. The
+voice pipeline needs twelve SYS edges. The motherboard samples SID writes at
+edge 27, so a CONTROL write finishes at edge 29 and the refresh needs edge 30
+before the next Phi; ratios below 31 stay on the direct path because a 30-edge
+gap consumes the pre-feedback sum. The audio stage
 captures the final waveforms and old filter controls on Phi+10 and starts on
 Phi+11 with the
 updated envelope values; CPU writes on Phi therefore affect the next sample
@@ -2066,7 +2069,10 @@ separately cover TOD BCD carry, noon
 and midnight, register masks, read latching, stop/restart, five/six-pulse input
 division and alarm IRQ acknowledgement. Both CIAs receive the same PAL 50 Hz
 power-supply pulse, derived from the free-running Phi enable without depending
-on CPU RDY or raster lengths. TOD time/alarm writes and illegal BCD carries
+on CPU RDY or raster lengths. The threshold compare is registered only when
+the system clock is more than twice the Phi rate, so an idle edge refreshes
+it; adjacent enables compare the current accumulator and cannot double-tick
+a wrap. TOD time/alarm writes and illegal BCD carries
 follow the pinned VICE implementation, including the hour-12 write quirk.
 Exact analogue TOD input phase, write/tick collisions and physical-chip
 qualification remain open. External CNT edges, serial shifting, FLAG input

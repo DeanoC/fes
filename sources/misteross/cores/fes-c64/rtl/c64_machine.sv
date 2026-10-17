@@ -300,13 +300,21 @@ module c64_machine #(
     // fractional periods at non-integral CPU clock rates.
     localparam integer TOD_PHASE_BITS = $clog2(CPU_CLOCK_HZ + 50);
     reg [TOD_PHASE_BITS-1:0] tod_phase;
-    // The accumulator only moves on Phi, so its compare is registered on
-    // the edges in between and the tick is the same pulse without the
-    // compare in the CIA alarm/interrupt paths.
-    reg tod_due = 1'b0;
-    always @(posedge clk_sys)
-        tod_due <= tod_phase >= CPU_CLOCK_HZ - 50;
-    wire tod_tick = cpu_ce && tod_due;
+    // The accumulator only moves on Phi. When an idle SYS edge always follows
+    // Phi, the compare is registered between enables and the tick stays the
+    // same pulse without the compare in the CIA alarm/interrupt paths.
+    // Adjacent enables have no such edge: a wrap would leave the registered
+    // compare high and the next Phi would emit a second tick.
+    wire tod_compare = tod_phase >= CPU_CLOCK_HZ - 50;
+    wire tod_tick;
+    generate if (SYSTEM_CLOCK_HZ > 2 * CPU_CLOCK_HZ) begin : registered_tod
+        reg tod_due = 1'b0;
+        always @(posedge clk_sys)
+            tod_due <= tod_compare;
+        assign tod_tick = cpu_ce && tod_due;
+    end else begin : direct_tod
+        assign tod_tick = cpu_ce && tod_compare;
+    end endgenerate
     always @(posedge clk_sys) begin
         if (system_reset) tod_phase <= 0;
         else if (cpu_ce)
@@ -400,17 +408,21 @@ module c64_machine #(
     );
     // One idle SYS edge prepares oscillator phase and the first envelope
     // state transition before Phi. Shorter ratios retain both direct paths.
-    // The three voice waveform lookup/finish stages run on Phi+1..Phi+9; CPU
-    // writes land at edge 26, outside that window, and finish on edge 28.
-    // Audio captures at Phi+10 and starts at Phi+11: the reSID chain
-    // completes 39 edges later and the default filter sooner, so require at
-    // least 52 edges between Phi edges so that result and idle state precede
-    // the next transaction. Native PAL cadence is 53/54 SYS edges. Faster
-    // modes keep direct audio.
+    // The three voice waveform lookup/finish stages run on Phi+1..Phi+9.
+    // The motherboard samples a SID write at edge 27. A sequenced CONTROL
+    // write finishes two edges later (edge 29) and needs one idle edge
+    // (edge 30) to refresh the prepared phase before the next Phi, so
+    // sequencing requires a minimum interval of 31. A 30-edge gap consumes
+    // the pre-feedback sum and can false-sync another voice. Audio captures
+    // at Phi+10 and starts at Phi+11: the reSID chain completes 39 edges
+    // later and the default filter sooner, so require at least 52 edges
+    // between Phi edges so that result and idle state precede the next
+    // transaction. Native PAL cadence is 53/54 SYS edges. Faster modes keep
+    // direct audio.
     c64_sid #(
         .PREPARE_PHASE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2),
         .PREPARE_ENVELOPE(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 2),
-        .SEQUENCE_VOICES(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 12),
+        .SEQUENCE_VOICES(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 31),
         .FILTER_AUDIO(SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ >= 52),
         .RESID_FILTER(1'b0)
     ) sid (

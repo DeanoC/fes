@@ -746,7 +746,7 @@ that direct calculation because they can produce adjacent Phi2 enables.
 `make sim-fes-c64-sid-phase` replays the same source fixture with physical idle
 edges between dense logical Phi2 calls and checks the sum at every Phi2.
 
-With `SEQUENCE_VOICES` (ratios of at least twelve), each oscillator defers
+With `SEQUENCE_VOICES`, each oscillator defers
 its waveform stage (output wave, saw-selected feedback, noise write-back,
 decay and pulse compare) from Phi2 to a three-edge lookup/finish sequence:
 the lookup edge presents the voice's combined-wave table index and ring state
@@ -758,8 +758,14 @@ shift and hard sync. Each ring/sync source is then simply the source's current
 phase, which reproduces the pinned reSID order without chaining three
 combined-wave lookups in one system period. A CONTROL write that selects a
 waveform issues its own lookup on the write edge and finishes two edges
-later; the prepared phase sum is refreshed on the following idle edge. The
-audio stage captures on Phi+10 and starts on Phi+11. CPU writes land on edge 26, outside the
+later; the prepared phase sum is refreshed on the following idle edge.
+The voice pipeline needs twelve SYS edges. The motherboard samples SID writes
+at edge 27, so that finish falls on edge 29 and the refresh needs edge 30
+before the next Phi. Sequencing is enabled only when
+`SYSTEM_CLOCK_HZ / CPU_CLOCK_HZ` is at least 31, which leaves that idle edge
+on every Phi gap, including the longer gap of a non-integer ratio. A 30-edge
+gap would advance from the pre-feedback sum. The
+audio stage captures on Phi+10 and starts on Phi+11. Those writes sit outside the
 stage window. `make sim-fes-c64-sid-sequenced`, `sim-fes-c64-sid-sequenced-osc3`
 and `sim-fes-c64-sid-sequenced-mix` replay the unchanged coupling, OSC3 bus and
 ENV3/PCM fixtures with the stage, finish and idle edges folded into each

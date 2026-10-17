@@ -9,9 +9,12 @@ module c64_sid #(parameter bit PREPARE_PHASE = 1'b0,
     // Run the three voices' waveform stages as three-edge lookup/finish
     // sequences on SYS edges Phi+1..Phi+9 in reSID output order, through one
     // shared combined-wave table unit, instead of chaining them within the
-    // Phi edge. Requires at least twelve SYS edges between Phi edges and no
-    // register write on edges Phi+1..Phi+10. Audio captures at Phi+10, and
-    // a CONTROL write finishes two edges later.
+    // Phi edge. The voice pipeline needs twelve SYS edges and no register
+    // write on Phi+1..Phi+10. A CONTROL write finishes two edges later, and
+    // the prepared phase sum needs one idle edge after that finish before
+    // the next Phi. The motherboard samples writes at edge 27, so it enables
+    // this mode only when every Phi gap is at least 31 edges. Audio captures
+    // at Phi+10.
     parameter bit SEQUENCE_VOICES = 1'b0,
     parameter bit FILTER_AUDIO = 1'b0,
     // Opt-in exact reSID MOS6581 DAC/filter translation (c64_sid_audio) in
