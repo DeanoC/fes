@@ -184,8 +184,8 @@ simulations, not an RBF, timing or kit result.
 `make build-fes-apple2` authenticates `toolchain.lock`. The registered recipe
 selects HIP. Backend identity is part of the build record, so a CUDA route is
 a different package. The shared-pin clocks that closed on this lock move were
-a CUDA exploratory seal and are not HIP closure. Product HIP seal evidence is
-still open. The September kit notes do not accept those bytes.
+a CUDA exploratory route and are not a recorded seal, so this pin is still
+open. The September kit notes do not accept those bytes.
 
 The shell admits a route-through buffer only when it is the paired
 `$ROUTETHRU` companion of a pinned boundary flip-flop: matching combinational
@@ -193,7 +193,7 @@ BEL, physical pin map, and a dedicated connection into that flip-flop.
 Clock-coverage outputs stay unused. The build record uses the audited static
 source closure in `scripts/source_closures.json` rather than the broad
 `scripts` and `cores/fes-common` roots. A compiler-read derive of that closure
-during the product HIP seal is still open.
+during the recorded seal is still open.
 
 ## Not implemented
 

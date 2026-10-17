@@ -93,8 +93,8 @@ is that case.
 | Package | Usable as | Matches | Does not match |
 | --- | --- | --- | --- |
 | `fes.riscv` 0.1.0 | Original RV32I demo. No historical machine, no audio, no user programs. | Shared pin. Qualified ALU package `c6c11fcd…` (build `a7118693…`, [receipt](validation/riscv-timing-alu-2026-10-11.json)) closed 74.25 MHz. Its both-kit loads showed the scene, timer colour and Stop. | Not in the image. Those ALU loads did not test the gamepad. The [11 Oct video diagnostic](validation/2026-10-11-riscv-video-diagnostic.md) of baseline `72f3b2be…` (build `39ccdf04…`) is a static-scene and Stop check; candidate `85bf8676…` there is a video comparison only. Neither is a gamepad check. The [4 Oct kit A load](validation/2026-10-04-riscv-kit-a.md) of `e5c4bd79…` (build `55de600f…`) observed dpad-right. No seal accepts another package. |
-| `fes.c64` 0.1.0 | Package-only pathfinder. The [6 Oct Kit A diagnostic](validation/2026-10-06-c64-functional-closure.md) passed firmware, both probes, input and a read-only D64 on that package. | Sync M10K, format 3. Recipe authenticates `toolchain.lock`. Audited static source closure. | The 6 Oct diagnostic used nextpnr `0c5ed400` and does not accept this pin. Shared-pin HIP seal is the remaining gate. The static closure is not a compiler-read derive. No disk writes. Not in the image. |
-| `fes.apple2` 0.1.0 | Package-only pathfinder. A Sept 27 kit diagnostic covered linked firmware, four cards and a live disk swap. | Sync M10K, format 3. Product lock is `toolchain.lock`. Audited static source closure. | The Sept 27 note does not accept a shared-pin seal. The shared-pin route reported with the lock move was CUDA exploratory and is not HIP closure; the product default remains HIP and HIP seal evidence is still open. A recorded compiler-read derive of the source closure waits on that HIP seal. No writes. No Apple ROM. No image acceptance. |
+| `fes.c64` 0.1.0 | Package-only pathfinder. The [6 Oct Kit A diagnostic](validation/2026-10-06-c64-functional-closure.md) passed firmware, both probes, input and a read-only D64 on that package. | Sync M10K, format 3. Shared-pin retirement is complete. Sealed on `toolchain.lock`: package `1d599353eaef5502…` (build `6f865fddebe62184…`), seed 5, CUDA lane on the 3090, final signoff system 54.29/52.224, pixel 75.10/74.25, audio 229.67/12.288. That CUDA seal is the recorded pin result. Audited static source closure. | The 6 Oct diagnostic used nextpnr `0c5ed400` and does not accept this pin. No kit evidence exists for these bytes. The static closure is not a compiler-read derive. No disk writes. Not in the image. Keyboard transposition ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated to the pin. |
+| `fes.apple2` 0.1.0 | Package-only pathfinder. A Sept 27 kit diagnostic covered linked firmware, four cards and a live disk swap. | Sync M10K, format 3. Product lock is `toolchain.lock`. Audited static source closure. | The Sept 27 note does not accept a shared-pin seal. Product default remains HIP. The shared-pin route reported with the lock move was exploratory and is not a recorded seal, so this pin is still open. A recorded compiler-read derive of the source closure waits on that seal. No writes. No Apple ROM. No image acceptance. |
 | `fes.catch` 1.0.0 | Registered ROM-less paddle demo. | Shared pin. Sims cover the optimizer scaler. | Not in the image. No separate kit acceptance. |
 
 `fes.demo`, `fes.demo-media` and `fes.demo-audio` are references. Catch is the
@@ -107,14 +107,18 @@ What a person can use, with those evidence limits: Pong, then ZX81 inside its
 not cartridge-compatible machines. Spectrum is a pathfinder in the image.
 Atari ST boots GEM and moves disks on named builds. RISC-V is the core most
 aligned with the current pin, and it is not in the appliance image. C64 is
-the strongest package-only computer diagnostic.
+the strongest package-only computer diagnostic. Its shared-pin retirement
+is complete. Keyboard transposition
+([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated to that pin.
 
 ## Retirement order
 
 Do not batch a pin move and a CPU swap in one seal unless the task says so.
-Each step ends with a clean-tree HIP seal of that core on the target pin and
-the focused simulation. Kit evidence is a separate task. It does not ride
-along. An older kit note does not accept the new bytes.
+Each step ends with a clean-tree seal of that core on the target pin and
+the focused simulation. HIP and CUDA lanes are equivalent for that pin
+result (Deano, 2026-10-13): a CUDA seal is valid on its own, and HIP only
+adds GPUs. Kit evidence is a separate task. It does not ride along. An
+older kit note does not accept the new bytes.
 
 ### 1. Stop new forks
 
@@ -130,7 +134,7 @@ fix it in nextpnr, then delete the dedicated lock. Do not add another lock.
 
 | Order | Core | nextpnr now | Why this order |
 | --- | --- | --- | --- |
-| 1 | `fes.c64` | `9128800f` | Recipe moved to `toolchain.lock`. Shared-pin HIP seal is the remaining gate. The 6 Oct kit note does not accept the new bytes. |
+| 1 | `fes.c64` | `9128800f` | Complete. Recipe is `toolchain.lock` and the private lock is deleted. The recorded seal is CUDA package `1d599353eaef5502…` (build `6f865fddebe62184…`). Supporting evidence: a HIP build of [#749](https://github.com/DeanoC/fes/pull/749) head `8b713d5d5716f47bfbc58582957e77ade4878565` on this lock (Yosys `5391eeb1`, Mistral `8fcc4cb4`, nextpnr `9128800f`), on Powerboat's RX 7900 XTX, package `22ecf46827b3f57b55f7b5e5187167c7177bf29dc931870721aba629639a9dbf`, build `4c90ff27c072d8fbfa81366f2bd7d9a1`, timing system 54.51/52.22, pixel 82.79/74.25, audio 215.33/12.29. The [kit B HIL](https://github.com/DeanoC/fes/pull/749#issuecomment-6229821313) showed BASIC READY and clean video. The 6 Oct kit note does not accept the CUDA bytes. Keyboard transposition ([#750](https://github.com/DeanoC/fes/issues/750)) is unrelated. |
 | 2 | `fes.atari-st` | `toolchain.lock` | Factory. The October kit notes do not accept a shared-pin seal. |
 | 3 | `fes.coleco` | `toolchain.lock` | Factory, cart fence, native video. `toolchains/coleco-expansion.lock` moved onto the shared pin with the socket diagnostic and is not a second lock. |
 | 4 | `fes.apple2`, `fes.spectrum` | `toolchain.lock` | Same multi-region cart support. Both now select `toolchain.lock`. |
@@ -138,8 +142,8 @@ fix it in nextpnr, then delete the dedicated lock. Do not add another lock.
 | 6 | `fes.zx81` | `toolchain.lock` | Bus 2.0 and session display. The 2 Oct note does not accept a shared-pin seal. |
 
 Completion: the recipe `lock_path` is `toolchain.lock`, the producer
-authenticates that file, the HIP seal meets the core's existing clock gates,
-and the old lock is deleted if nothing else selects it.
+authenticates that file, the seal meets the core's existing clock gates on
+either GPU lane, and the old lock is deleted if nothing else selects it.
 
 The 130 MHz timing diagnostic uses `toolchain.lock`. OSS has not closed 130 MHz.
 The shared-pin seed-2 route reached 110.91 MHz on `ram_clock.clocks[0]`. That
