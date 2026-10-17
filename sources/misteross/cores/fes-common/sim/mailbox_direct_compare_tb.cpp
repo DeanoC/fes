@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Same host vectors against fes_computer_mailbox and fes_computer_mailbox_direct.
 // The golden exchanges must still match, and the Atari ST parameter set must
-// agree on acknowledgement, opcodes, keyboard, mouse, and media.
+// agree on acknowledgement, opcodes, keyboard, mouse, media, and a completed
+// snapshot read.
 #include "Vmailbox_direct_compare_top.h"
 #include "verilated.h"
 
@@ -88,7 +89,26 @@ int main(int argc, char** argv) {
     dut.media_read_data = 0;
     dut.eval();
 
+    std::vector<uint8_t> snap_memory(16, 0);
+    bool read_seen = false;
+    unsigned read_delay = 0;
     auto tick = [&](const std::string& where) {
+        dut.clk = 0;
+        dut.eval();
+        if (dut.media_write_enable_snap & 1)
+            snap_memory.at(dut.media_write_addr_snap & 15) = uint8_t(dut.media_write_data_snap);
+        if (dut.media_write_enable_snap & 2)
+            snap_memory.at((dut.media_write_addr_snap + 1) & 15) = uint8_t(dut.media_write_data_snap >> 8);
+        if (!dut.media_read_req_snap) {
+            read_seen = false;
+            read_delay = 0;
+            dut.media_read_ready = 0;
+        } else if (!read_seen && ++read_delay == 3) {
+            read_seen = true;
+            dut.media_read_ready = 1;
+            dut.media_read_data = snap_memory.at(dut.media_read_addr_snap & 15);
+        }
+        dut.eval();
         dut.clk = 1;
         dut.eval();
         dut.clk = 0;
@@ -244,6 +264,62 @@ int main(int argc, char** argv) {
     issue("snapshot before ready", 0x0d, 0, 0, true, 4, true);
     issue("eject partial image", 0x0a, 0, 0, false, 0, true);
     require(dut.unit0_state_st == 1 && dut.unit0_size_st == 0, "final eject");
+
+    // Completed snapshot against both endpoints. Bytes 01 02 03 04 have CRC
+    // b63cfbcd. The shell-sized pair rejects this short image; the snap pair
+    // is the writable disk that can finish the read.
+    auto snap_ack = [&]() { return (dut.gpi_snap >> 23) & 1u; };
+    auto snap_issue = [&](const std::string& name, uint32_t opcode, uint32_t index, uint32_t argument,
+                          bool expect_error, uint32_t data, bool check_data, int limit) {
+        const uint32_t toggle = snap_ack() ^ 1u;
+        dut.gpo = (toggle << 31) | (opcode << 24) | (index << 16) | (argument & 0xffffu);
+        bool acknowledged = false;
+        for (int i = 0; i < limit && !acknowledged; ++i) {
+            tick(name);
+            acknowledged = snap_ack() == toggle;
+        }
+        require(acknowledged, name + ": no acknowledgement");
+        const uint32_t gpi = dut.gpi_snap;
+        if (((gpi >> 22) & 1u) != (expect_error ? 1u : 0u)) {
+            std::ostringstream message;
+            message << name << ": error bit, gpi 0x" << std::hex << gpi;
+            fail(message.str());
+        }
+        if (check_data && (gpi & 0xffffu) != data) {
+            std::ostringstream message;
+            message << name << ": response 0x" << std::hex << (gpi & 0xffffu) << " want 0x" << data;
+            fail(message.str());
+        }
+        require((gpi & 0xff000000u) == 0xf5000000u, name + ": signature");
+        return gpi & 0xffffu;
+    };
+    snap_issue("snapshot begin 0", 0x06, 0, 4, false, 0, false, 8);
+    snap_issue("snapshot begin 1", 0x06, 1, 0, false, 0, false, 8);
+    snap_issue("snapshot begin 2", 0x06, 2, 0xfbcd, false, 0, false, 8);
+    snap_issue("snapshot begin 3", 0x06, 3, 0xb63c, false, 0, false, 8);
+    snap_issue("snapshot chunk 0", 0x07, 0, 0, false, 0, false, 8);
+    snap_issue("snapshot chunk 1", 0x07, 1, 0, false, 0, false, 8);
+    snap_issue("snapshot chunk 2", 0x07, 2, 4, false, 0, false, 8);
+    snap_issue("snapshot data 0", 0x08, 0, 0x0201, false, 0, false, 8);
+    snap_issue("snapshot data 1", 0x08, 1, 0x0403, false, 0, false, 8);
+    snap_issue("snapshot commit", 0x09, 0, 0, false, 0, false, 8);
+    require(dut.unit0_state_snap == 3 && dut.unit0_size_snap == 4, "snapshot image not ready");
+    require(snap_memory[0] == 1 && snap_memory[1] == 2 && snap_memory[2] == 3 && snap_memory[3] == 4,
+            "uploaded snapshot bytes");
+    dut.media_changed = 1;
+    tick("snapshot dirty");
+    dut.media_changed = 0;
+    snap_issue("snapshot freeze", 0x0d, 0, 0, false, 0, false, 16);
+    require(dut.media_frozen_snap == 1, "snapshot did not freeze");
+    snap_issue("snapshot header 0", 0x0e, 0, 0, false, 0, false, 8);
+    snap_issue("snapshot header 1", 0x0e, 1, 0, false, 0, false, 8);
+    snap_issue("snapshot header 2", 0x0e, 2, 4, false, 0, false, 8);
+    require(snap_issue("snapshot word 0", 0x0f, 0, 0, false, 0x0201, true, 40) == 0x0201,
+            "first snapshot word");
+    require(snap_issue("snapshot word 1", 0x0f, 1, 0, false, 0x0403, true, 40) == 0x0403,
+            "second snapshot word");
+    snap_issue("snapshot save", 0x0d, 0, 2, false, 0, false, 8);
+    require(dut.media_frozen_snap == 1, "save cleared the freeze");
 
     std::cout << "mailbox direct compare: golden exchanges and Atari ST commands match\n";
     return 0;

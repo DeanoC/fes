@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// Lockstep of fes_computer_mailbox and the frozen Atari ST copy. The three
+// Lockstep of fes_computer_mailbox and the Atari ST direct mailbox. The
 // profiles share one host request so a protocol edit has to land in both
 // endpoints. input_ replays the keyboard fixture, media_ the floppy fixture,
-// and st_ the parameters the Atari ST shell actually sets.
+// st_ the parameters the Atari ST shell actually sets, and snap_ a small
+// writable disk that can finish a snapshot read.
 module mailbox_direct_compare_top (
     input  wire         clk,
     input  wire [31:0]  gpo,
@@ -13,7 +14,7 @@ module mailbox_direct_compare_top (
     input  wire         media_changed,
     input  wire         media_read_ready,
     input  wire [7:0]   media_read_data,
-    output wire [2:0]   diverge,
+    output wire [3:0]   diverge,
     output wire [31:0]  gpi_input,
     output wire [31:0]  gpi_media,
     output wire [31:0]  gpi_st,
@@ -35,7 +36,16 @@ module mailbox_direct_compare_top (
     output wire [1:0]   media_write_enable_st,
     output wire         mouse_valid_st,
     output wire signed [15:0] mouse_dx_st,
-    output wire signed [15:0] mouse_dy_st
+    output wire signed [15:0] mouse_dy_st,
+    output wire [31:0]  gpi_snap,
+    output wire [1:0]   unit0_state_snap,
+    output wire [31:0]  unit0_size_snap,
+    output wire         media_frozen_snap,
+    output wire [19:0]  media_write_addr_snap,
+    output wire [15:0]  media_write_data_snap,
+    output wire [1:0]   media_write_enable_snap,
+    output wire         media_read_req_snap,
+    output wire [19:0]  media_read_addr_snap
 );
     wire [31:0] gpi_input_d, gpi_media_d, gpi_st_d;
     wire exec_reset_input_d, exec_reset_media, exec_reset_media_d, exec_reset_st_d;
@@ -164,6 +174,59 @@ module mailbox_direct_compare_top (
         .unit0_state(unit0_state_st_d), .unit0_size(unit0_size_st_d)
     );
 
+    // Small writable disk so a completed snapshot can be compared without
+    // uploading a geometry-sized image. The shell-sized st_ pair above still
+    // covers the geometry the Atari ST core elaborates.
+    wire [31:0] gpi_snap_d;
+    wire exec_reset_snap, exec_reset_snap_d;
+    wire [143:0] keyboard_snap, keyboard_snap_d;
+    wire [15:0] controller_snap, controller_snap_d;
+    wire [1:0] unit0_state_snap_d;
+    wire [31:0] unit0_size_snap_d;
+    wire [19:0] media_addr_snap_d;
+    wire [15:0] media_data_snap_d;
+    wire [1:0] media_enable_snap_d;
+    wire mouse_valid_snap, mouse_valid_snap_d;
+    wire signed [15:0] mouse_dx_snap, mouse_dx_snap_d, mouse_dy_snap, mouse_dy_snap_d;
+    wire [1:0] mouse_buttons_snap, mouse_buttons_snap_d;
+    wire media_frozen_snap_d;
+    wire media_read_req_snap_d;
+    wire [19:0] media_read_addr_snap_d;
+    fes_computer_mailbox #(
+        .ENABLE_ATARI_ST_FLOPPY(1), .ENABLE_ATARI_ST_FLOPPY_WRITE(1),
+        .MEDIA_AW(20), .UNIT0_MIN(4), .UNIT0_MAX(16)
+    ) snap_shared (
+        .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi_snap),
+        .exec_reset(exec_reset_snap), .keyboard_rows(keyboard_snap),
+        .controller_buttons(controller_snap),
+        .mouse_valid(mouse_valid_snap), .mouse_dx(mouse_dx_snap), .mouse_dy(mouse_dy_snap),
+        .mouse_buttons(mouse_buttons_snap), .mouse_ready(mouse_ready),
+        .media_write_addr(media_write_addr_snap), .media_write_data(media_write_data_snap),
+        .media_write_enable(media_write_enable_snap), .media_write_ready(media_write_ready),
+        .media_write_busy(media_write_busy), .media_changed(media_changed),
+        .media_frozen(media_frozen_snap),
+        .media_read_req(media_read_req_snap), .media_read_addr(media_read_addr_snap),
+        .media_read_ready(media_read_ready), .media_read_data(media_read_data),
+        .unit0_state(unit0_state_snap), .unit0_size(unit0_size_snap)
+    );
+    fes_computer_mailbox_direct #(
+        .ENABLE_ATARI_ST_FLOPPY(1), .ENABLE_ATARI_ST_FLOPPY_WRITE(1),
+        .MEDIA_AW(20), .UNIT0_MIN(4), .UNIT0_MAX(16)
+    ) snap_direct (
+        .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi_snap_d),
+        .exec_reset(exec_reset_snap_d), .keyboard_rows(keyboard_snap_d),
+        .controller_buttons(controller_snap_d),
+        .mouse_valid(mouse_valid_snap_d), .mouse_dx(mouse_dx_snap_d), .mouse_dy(mouse_dy_snap_d),
+        .mouse_buttons(mouse_buttons_snap_d), .mouse_ready(mouse_ready),
+        .media_write_addr(media_addr_snap_d), .media_write_data(media_data_snap_d),
+        .media_write_enable(media_enable_snap_d), .media_write_ready(media_write_ready),
+        .media_write_busy(media_write_busy), .media_changed(media_changed),
+        .media_frozen(media_frozen_snap_d),
+        .media_read_req(media_read_req_snap_d), .media_read_addr(media_read_addr_snap_d),
+        .media_read_ready(media_read_ready), .media_read_data(media_read_data),
+        .unit0_state(unit0_state_snap_d), .unit0_size(unit0_size_snap_d)
+    );
+
     wire input_diff = gpi_input !== gpi_input_d || exec_reset_input !== exec_reset_input_d
         || keyboard_rows_input !== keyboard_input_d || controller_input !== controller_input_d
         || unit0_state_input !== unit0_state_input_d || unit0_size_input !== unit0_size_input_d
@@ -195,5 +258,16 @@ module mailbox_direct_compare_top (
         || media_frozen_st !== media_frozen_st_d
         || media_read_req_st !== media_read_req_st_d
         || media_read_addr_st !== media_read_addr_st_d;
-    assign diverge = {st_diff, media_diff, input_diff};
+    wire snap_diff = gpi_snap !== gpi_snap_d || exec_reset_snap !== exec_reset_snap_d
+        || keyboard_snap !== keyboard_snap_d || controller_snap !== controller_snap_d
+        || unit0_state_snap !== unit0_state_snap_d || unit0_size_snap !== unit0_size_snap_d
+        || media_write_addr_snap !== media_addr_snap_d
+        || media_write_data_snap !== media_data_snap_d
+        || media_write_enable_snap !== media_enable_snap_d
+        || mouse_valid_snap !== mouse_valid_snap_d || mouse_dx_snap !== mouse_dx_snap_d
+        || mouse_dy_snap !== mouse_dy_snap_d || mouse_buttons_snap !== mouse_buttons_snap_d
+        || media_frozen_snap !== media_frozen_snap_d
+        || media_read_req_snap !== media_read_req_snap_d
+        || media_read_addr_snap !== media_read_addr_snap_d;
+    assign diverge = {snap_diff, st_diff, media_diff, input_diff};
 endmodule

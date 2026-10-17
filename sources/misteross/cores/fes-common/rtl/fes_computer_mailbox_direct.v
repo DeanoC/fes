@@ -1,15 +1,17 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 `include "fes_computer.vh"
 
-// Frozen Atari ST-only copy of the pre-#717 mailbox. Do not edit it to
-// follow fes_computer_mailbox.v. The display-wait acknowledge added in #717
-// changed the shared elaboration, and a wrapper or parameter around this
-// body changes the synthesized Atari ST netlist. The shell instantiates
-// this module directly. Other shells keep fes_computer_mailbox. Remove this
-// file only after a cold ST synth on the pinned Yosys matches the pre-#717
-// cell counts with the shared mailbox alone. sim-fes-atari-st-mailbox-direct
-// fails if opcodes, acknowledgement, or the media and input behaviour ST
-// uses drift between this endpoint and fes_computer_mailbox.
+// Atari ST mailbox. The accepting edge assigns acknowledged_toggle from the
+// synchronized request and does not elaborate the display-wait hold. The
+// command payload is captured in that same synchronizer. GPO stays stable
+// until ACK, so the registered opcode, index and argument are the command
+// the shared mailbox decodes from the live port, and the sys-clock path does
+// not start at the HPS GP block and run through the accept cone. Reflected
+// CRC-32 is a parallel XOR of that registered word, not the 16-step serial
+// recurrence. Relative mouse samples and the write-data word stay on the
+// live GPO so a held command still matches the shared mailbox before the
+// synchronizer fires. sim-fes-atari-st-mailbox-direct fails if opcodes,
+// acknowledgement, or the media and input behaviour ST uses drift.
 module fes_computer_mailbox_direct #(
     parameter bit ENABLE_KEYBOARD = 0,
     parameter bit ENABLE_PORTS = 0,
@@ -77,28 +79,35 @@ module fes_computer_mailbox_direct #(
     localparam [1:0] READY = 2'(`FES_COMPUTER_MEDIA_STATE_READY);
     localparam [31:0] CHUNK_MAX = `FES_COMPUTER_MEDIA_CHUNK_MAX_BYTES;
     localparam [31:0] CRC_INIT = `FES_COMPUTER_MEDIA_CRC32_INITIAL;
-    localparam [31:0] CRC_POLY = `FES_COMPUTER_MEDIA_CRC32_POLYNOMIAL;
     localparam [31:0] CRC_XOR = `FES_COMPUTER_MEDIA_CRC32_FINAL_XOR;
 
     (* async_reg = "true" *) reg request_meta;
     (* async_reg = "true" *) reg request_sync;
+    // Payload travels with the request toggle. Both stages are synchronizer
+    // registers so the HPS GP port ends at a flip-flop instead of the accept
+    // cone and the CRC XOR tree.
+    (* async_reg = "true" *) reg [30:0] payload_meta;
+    (* async_reg = "true" *) reg [30:0] payload_sync;
     reg acknowledged_toggle;
     reg response_error;
     reg [15:0] response_data;
 
     wire request_toggle = (gpo & `FES_COMPUTER_REQUEST_MASK) != 32'h00000000;
-    wire [6:0] opcode = gpo[30:24];
-    wire [7:0] index = gpo[23:16];
-    wire [15:0] argument = gpo[15:0];
+    wire [6:0] opcode = payload_sync[30:24];
+    wire [7:0] index = payload_sync[23:16];
+    wire [15:0] argument = payload_sync[15:0];
+    wire [15:0] gpo_argument = gpo[15:0];
     wire request = request_sync != acknowledged_toggle;
     wire mouse_ok = request && ENABLE_MOUSE && !exec_reset &&
                     opcode == 7'(`FES_COMPUTER_OPCODE_MOUSE_RELATIVE) && index[7:2] == 6'd0;
     // GPO remains stable until ACK. The consumer and mailbox accept on the
     // same edge; keeping GPO held afterwards cannot repeat relative motion.
+    // Motion and the write word follow the live port. The registered payload
+    // is the same value once the request synchronizer has fired.
     assign mouse_valid = mouse_ok;
-    assign mouse_dx = {{8{argument[7]}}, argument[7:0]};
-    assign mouse_dy = {{8{argument[15]}}, argument[15:8]};
-    assign mouse_buttons = index[1:0];
+    assign mouse_dx = {{8{gpo_argument[7]}}, gpo_argument[7:0]};
+    assign mouse_dy = {{8{gpo_argument[15]}}, gpo_argument[15:8]};
+    assign mouse_buttons = gpo[17:16];
 
     assign gpi = `FES_COMPUTER_SIGNATURE |
                  (acknowledged_toggle ? `FES_COMPUTER_ACK_MASK : 32'h00000000) |
@@ -153,7 +162,7 @@ module fes_computer_mailbox_direct #(
                    !(remaining == 10'd1 && argument[15:8] != 8'h00);
 
     assign media_write_addr = received[MEDIA_AW-1:0];
-    assign media_write_data = argument;
+    assign media_write_data = gpo_argument;
     assign media_write_enable = {data_ok && remaining != 10'd1, data_ok};
 
     function [15:0] identity_word;
@@ -181,16 +190,84 @@ module fes_computer_mailbox_direct #(
         end
     endfunction
 
+    // Parallel reflected CRC-32 (polynomial 0xEDB88320). Same residue as the
+    // serial byte recurrence. A pair folds both bytes in one XOR tree so a
+    // media word does not stack sixteen dependent shift-mux stages.
     function automatic [31:0] crc32_byte;
-        input [31:0] value;
+        input [31:0] crc_in;
         input [7:0] data;
-        integer i;
-        reg [31:0] c;
         begin
-            c = value ^ {24'h000000, data};
-            for (i = 0; i < 8; i = i + 1)
-                c = c[0] ? ((c >> 1) ^ CRC_POLY) : (c >> 1);
-            crc32_byte = c;
+            crc32_byte[0] = crc_in[2] ^ crc_in[8] ^ data[2];
+            crc32_byte[1] = crc_in[0] ^ crc_in[3] ^ crc_in[9] ^ data[0] ^ data[3];
+            crc32_byte[2] = crc_in[0] ^ crc_in[1] ^ crc_in[4] ^ crc_in[10] ^ data[0] ^ data[1] ^ data[4];
+            crc32_byte[3] = crc_in[1] ^ crc_in[2] ^ crc_in[5] ^ crc_in[11] ^ data[1] ^ data[2] ^ data[5];
+            crc32_byte[4] = crc_in[0] ^ crc_in[2] ^ crc_in[3] ^ crc_in[6] ^ crc_in[12] ^ data[0] ^ data[2] ^ data[3] ^ data[6];
+            crc32_byte[5] = crc_in[1] ^ crc_in[3] ^ crc_in[4] ^ crc_in[7] ^ crc_in[13] ^ data[1] ^ data[3] ^ data[4] ^ data[7];
+            crc32_byte[6] = crc_in[4] ^ crc_in[5] ^ crc_in[14] ^ data[4] ^ data[5];
+            crc32_byte[7] = crc_in[0] ^ crc_in[5] ^ crc_in[6] ^ crc_in[15] ^ data[0] ^ data[5] ^ data[6];
+            crc32_byte[8] = crc_in[1] ^ crc_in[6] ^ crc_in[7] ^ crc_in[16] ^ data[1] ^ data[6] ^ data[7];
+            crc32_byte[9] = crc_in[7] ^ crc_in[17] ^ data[7];
+            crc32_byte[10] = crc_in[2] ^ crc_in[18] ^ data[2];
+            crc32_byte[11] = crc_in[3] ^ crc_in[19] ^ data[3];
+            crc32_byte[12] = crc_in[0] ^ crc_in[4] ^ crc_in[20] ^ data[0] ^ data[4];
+            crc32_byte[13] = crc_in[0] ^ crc_in[1] ^ crc_in[5] ^ crc_in[21] ^ data[0] ^ data[1] ^ data[5];
+            crc32_byte[14] = crc_in[1] ^ crc_in[2] ^ crc_in[6] ^ crc_in[22] ^ data[1] ^ data[2] ^ data[6];
+            crc32_byte[15] = crc_in[2] ^ crc_in[3] ^ crc_in[7] ^ crc_in[23] ^ data[2] ^ data[3] ^ data[7];
+            crc32_byte[16] = crc_in[0] ^ crc_in[2] ^ crc_in[3] ^ crc_in[4] ^ crc_in[24] ^ data[0] ^ data[2] ^ data[3] ^ data[4];
+            crc32_byte[17] = crc_in[0] ^ crc_in[1] ^ crc_in[3] ^ crc_in[4] ^ crc_in[5] ^ crc_in[25] ^ data[0] ^ data[1] ^ data[3] ^ data[4] ^ data[5];
+            crc32_byte[18] = crc_in[0] ^ crc_in[1] ^ crc_in[2] ^ crc_in[4] ^ crc_in[5] ^ crc_in[6] ^ crc_in[26] ^ data[0] ^ data[1] ^ data[2] ^ data[4] ^ data[5] ^ data[6];
+            crc32_byte[19] = crc_in[1] ^ crc_in[2] ^ crc_in[3] ^ crc_in[5] ^ crc_in[6] ^ crc_in[7] ^ crc_in[27] ^ data[1] ^ data[2] ^ data[3] ^ data[5] ^ data[6] ^ data[7];
+            crc32_byte[20] = crc_in[3] ^ crc_in[4] ^ crc_in[6] ^ crc_in[7] ^ crc_in[28] ^ data[3] ^ data[4] ^ data[6] ^ data[7];
+            crc32_byte[21] = crc_in[2] ^ crc_in[4] ^ crc_in[5] ^ crc_in[7] ^ crc_in[29] ^ data[2] ^ data[4] ^ data[5] ^ data[7];
+            crc32_byte[22] = crc_in[2] ^ crc_in[3] ^ crc_in[5] ^ crc_in[6] ^ crc_in[30] ^ data[2] ^ data[3] ^ data[5] ^ data[6];
+            crc32_byte[23] = crc_in[3] ^ crc_in[4] ^ crc_in[6] ^ crc_in[7] ^ crc_in[31] ^ data[3] ^ data[4] ^ data[6] ^ data[7];
+            crc32_byte[24] = crc_in[0] ^ crc_in[2] ^ crc_in[4] ^ crc_in[5] ^ crc_in[7] ^ data[0] ^ data[2] ^ data[4] ^ data[5] ^ data[7];
+            crc32_byte[25] = crc_in[0] ^ crc_in[1] ^ crc_in[2] ^ crc_in[3] ^ crc_in[5] ^ crc_in[6] ^ data[0] ^ data[1] ^ data[2] ^ data[3] ^ data[5] ^ data[6];
+            crc32_byte[26] = crc_in[0] ^ crc_in[1] ^ crc_in[2] ^ crc_in[3] ^ crc_in[4] ^ crc_in[6] ^ crc_in[7] ^ data[0] ^ data[1] ^ data[2] ^ data[3] ^ data[4] ^ data[6] ^ data[7];
+            crc32_byte[27] = crc_in[1] ^ crc_in[3] ^ crc_in[4] ^ crc_in[5] ^ crc_in[7] ^ data[1] ^ data[3] ^ data[4] ^ data[5] ^ data[7];
+            crc32_byte[28] = crc_in[0] ^ crc_in[4] ^ crc_in[5] ^ crc_in[6] ^ data[0] ^ data[4] ^ data[5] ^ data[6];
+            crc32_byte[29] = crc_in[0] ^ crc_in[1] ^ crc_in[5] ^ crc_in[6] ^ crc_in[7] ^ data[0] ^ data[1] ^ data[5] ^ data[6] ^ data[7];
+            crc32_byte[30] = crc_in[0] ^ crc_in[1] ^ crc_in[6] ^ crc_in[7] ^ data[0] ^ data[1] ^ data[6] ^ data[7];
+            crc32_byte[31] = crc_in[1] ^ crc_in[7] ^ data[1] ^ data[7];
+        end
+    endfunction
+
+    function automatic [31:0] crc32_pair;
+        input [31:0] crc_in;
+        input [15:0] data;
+        begin
+            crc32_pair[0] = crc_in[0] ^ crc_in[4] ^ crc_in[6] ^ crc_in[7] ^ crc_in[10] ^ crc_in[16] ^ data[0] ^ data[4] ^ data[6] ^ data[7] ^ data[10];
+            crc32_pair[1] = crc_in[1] ^ crc_in[5] ^ crc_in[7] ^ crc_in[8] ^ crc_in[11] ^ crc_in[17] ^ data[1] ^ data[5] ^ data[7] ^ data[8] ^ data[11];
+            crc32_pair[2] = crc_in[2] ^ crc_in[6] ^ crc_in[8] ^ crc_in[9] ^ crc_in[12] ^ crc_in[18] ^ data[2] ^ data[6] ^ data[8] ^ data[9] ^ data[12];
+            crc32_pair[3] = crc_in[3] ^ crc_in[7] ^ crc_in[9] ^ crc_in[10] ^ crc_in[13] ^ crc_in[19] ^ data[3] ^ data[7] ^ data[9] ^ data[10] ^ data[13];
+            crc32_pair[4] = crc_in[4] ^ crc_in[8] ^ crc_in[10] ^ crc_in[11] ^ crc_in[14] ^ crc_in[20] ^ data[4] ^ data[8] ^ data[10] ^ data[11] ^ data[14];
+            crc32_pair[5] = crc_in[5] ^ crc_in[9] ^ crc_in[11] ^ crc_in[12] ^ crc_in[15] ^ crc_in[21] ^ data[5] ^ data[9] ^ data[11] ^ data[12] ^ data[15];
+            crc32_pair[6] = crc_in[0] ^ crc_in[4] ^ crc_in[7] ^ crc_in[12] ^ crc_in[13] ^ crc_in[22] ^ data[0] ^ data[4] ^ data[7] ^ data[12] ^ data[13];
+            crc32_pair[7] = crc_in[1] ^ crc_in[5] ^ crc_in[8] ^ crc_in[13] ^ crc_in[14] ^ crc_in[23] ^ data[1] ^ data[5] ^ data[8] ^ data[13] ^ data[14];
+            crc32_pair[8] = crc_in[0] ^ crc_in[2] ^ crc_in[6] ^ crc_in[9] ^ crc_in[14] ^ crc_in[15] ^ crc_in[24] ^ data[0] ^ data[2] ^ data[6] ^ data[9] ^ data[14] ^ data[15];
+            crc32_pair[9] = crc_in[1] ^ crc_in[3] ^ crc_in[4] ^ crc_in[6] ^ crc_in[15] ^ crc_in[25] ^ data[1] ^ data[3] ^ data[4] ^ data[6] ^ data[15];
+            crc32_pair[10] = crc_in[2] ^ crc_in[5] ^ crc_in[6] ^ crc_in[10] ^ crc_in[26] ^ data[2] ^ data[5] ^ data[6] ^ data[10];
+            crc32_pair[11] = crc_in[3] ^ crc_in[6] ^ crc_in[7] ^ crc_in[11] ^ crc_in[27] ^ data[3] ^ data[6] ^ data[7] ^ data[11];
+            crc32_pair[12] = crc_in[0] ^ crc_in[4] ^ crc_in[7] ^ crc_in[8] ^ crc_in[12] ^ crc_in[28] ^ data[0] ^ data[4] ^ data[7] ^ data[8] ^ data[12];
+            crc32_pair[13] = crc_in[0] ^ crc_in[1] ^ crc_in[5] ^ crc_in[8] ^ crc_in[9] ^ crc_in[13] ^ crc_in[29] ^ data[0] ^ data[1] ^ data[5] ^ data[8] ^ data[9] ^ data[13];
+            crc32_pair[14] = crc_in[1] ^ crc_in[2] ^ crc_in[6] ^ crc_in[9] ^ crc_in[10] ^ crc_in[14] ^ crc_in[30] ^ data[1] ^ data[2] ^ data[6] ^ data[9] ^ data[10] ^ data[14];
+            crc32_pair[15] = crc_in[2] ^ crc_in[3] ^ crc_in[7] ^ crc_in[10] ^ crc_in[11] ^ crc_in[15] ^ crc_in[31] ^ data[2] ^ data[3] ^ data[7] ^ data[10] ^ data[11] ^ data[15];
+            crc32_pair[16] = crc_in[0] ^ crc_in[3] ^ crc_in[6] ^ crc_in[7] ^ crc_in[8] ^ crc_in[10] ^ crc_in[11] ^ crc_in[12] ^ data[0] ^ data[3] ^ data[6] ^ data[7] ^ data[8] ^ data[10] ^ data[11] ^ data[12];
+            crc32_pair[17] = crc_in[0] ^ crc_in[1] ^ crc_in[4] ^ crc_in[7] ^ crc_in[8] ^ crc_in[9] ^ crc_in[11] ^ crc_in[12] ^ crc_in[13] ^ data[0] ^ data[1] ^ data[4] ^ data[7] ^ data[8] ^ data[9] ^ data[11] ^ data[12] ^ data[13];
+            crc32_pair[18] = crc_in[1] ^ crc_in[2] ^ crc_in[5] ^ crc_in[8] ^ crc_in[9] ^ crc_in[10] ^ crc_in[12] ^ crc_in[13] ^ crc_in[14] ^ data[1] ^ data[2] ^ data[5] ^ data[8] ^ data[9] ^ data[10] ^ data[12] ^ data[13] ^ data[14];
+            crc32_pair[19] = crc_in[0] ^ crc_in[2] ^ crc_in[3] ^ crc_in[6] ^ crc_in[9] ^ crc_in[10] ^ crc_in[11] ^ crc_in[13] ^ crc_in[14] ^ crc_in[15] ^ data[0] ^ data[2] ^ data[3] ^ data[6] ^ data[9] ^ data[10] ^ data[11] ^ data[13] ^ data[14] ^ data[15];
+            crc32_pair[20] = crc_in[0] ^ crc_in[1] ^ crc_in[3] ^ crc_in[6] ^ crc_in[11] ^ crc_in[12] ^ crc_in[14] ^ crc_in[15] ^ data[0] ^ data[1] ^ data[3] ^ data[6] ^ data[11] ^ data[12] ^ data[14] ^ data[15];
+            crc32_pair[21] = crc_in[1] ^ crc_in[2] ^ crc_in[6] ^ crc_in[10] ^ crc_in[12] ^ crc_in[13] ^ crc_in[15] ^ data[1] ^ data[2] ^ data[6] ^ data[10] ^ data[12] ^ data[13] ^ data[15];
+            crc32_pair[22] = crc_in[2] ^ crc_in[3] ^ crc_in[4] ^ crc_in[6] ^ crc_in[10] ^ crc_in[11] ^ crc_in[13] ^ crc_in[14] ^ data[2] ^ data[3] ^ data[4] ^ data[6] ^ data[10] ^ data[11] ^ data[13] ^ data[14];
+            crc32_pair[23] = crc_in[3] ^ crc_in[4] ^ crc_in[5] ^ crc_in[7] ^ crc_in[11] ^ crc_in[12] ^ crc_in[14] ^ crc_in[15] ^ data[3] ^ data[4] ^ data[5] ^ data[7] ^ data[11] ^ data[12] ^ data[14] ^ data[15];
+            crc32_pair[24] = crc_in[0] ^ crc_in[5] ^ crc_in[7] ^ crc_in[8] ^ crc_in[10] ^ crc_in[12] ^ crc_in[13] ^ crc_in[15] ^ data[0] ^ data[5] ^ data[7] ^ data[8] ^ data[10] ^ data[12] ^ data[13] ^ data[15];
+            crc32_pair[25] = crc_in[1] ^ crc_in[4] ^ crc_in[7] ^ crc_in[8] ^ crc_in[9] ^ crc_in[10] ^ crc_in[11] ^ crc_in[13] ^ crc_in[14] ^ data[1] ^ data[4] ^ data[7] ^ data[8] ^ data[9] ^ data[10] ^ data[11] ^ data[13] ^ data[14];
+            crc32_pair[26] = crc_in[2] ^ crc_in[5] ^ crc_in[8] ^ crc_in[9] ^ crc_in[10] ^ crc_in[11] ^ crc_in[12] ^ crc_in[14] ^ crc_in[15] ^ data[2] ^ data[5] ^ data[8] ^ data[9] ^ data[10] ^ data[11] ^ data[12] ^ data[14] ^ data[15];
+            crc32_pair[27] = crc_in[0] ^ crc_in[3] ^ crc_in[4] ^ crc_in[7] ^ crc_in[9] ^ crc_in[11] ^ crc_in[12] ^ crc_in[13] ^ crc_in[15] ^ data[0] ^ data[3] ^ data[4] ^ data[7] ^ data[9] ^ data[11] ^ data[12] ^ data[13] ^ data[15];
+            crc32_pair[28] = crc_in[0] ^ crc_in[1] ^ crc_in[5] ^ crc_in[6] ^ crc_in[7] ^ crc_in[8] ^ crc_in[12] ^ crc_in[13] ^ crc_in[14] ^ data[0] ^ data[1] ^ data[5] ^ data[6] ^ data[7] ^ data[8] ^ data[12] ^ data[13] ^ data[14];
+            crc32_pair[29] = crc_in[1] ^ crc_in[2] ^ crc_in[6] ^ crc_in[7] ^ crc_in[8] ^ crc_in[9] ^ crc_in[13] ^ crc_in[14] ^ crc_in[15] ^ data[1] ^ data[2] ^ data[6] ^ data[7] ^ data[8] ^ data[9] ^ data[13] ^ data[14] ^ data[15];
+            crc32_pair[30] = crc_in[2] ^ crc_in[3] ^ crc_in[4] ^ crc_in[6] ^ crc_in[8] ^ crc_in[9] ^ crc_in[14] ^ crc_in[15] ^ data[2] ^ data[3] ^ data[4] ^ data[6] ^ data[8] ^ data[9] ^ data[14] ^ data[15];
+            crc32_pair[31] = crc_in[3] ^ crc_in[5] ^ crc_in[6] ^ crc_in[9] ^ crc_in[15] ^ data[3] ^ data[5] ^ data[6] ^ data[9] ^ data[15];
         end
     endfunction
 
@@ -217,6 +294,8 @@ module fes_computer_mailbox_direct #(
     initial begin
         request_meta = 1'b0;
         request_sync = 1'b0;
+        payload_meta = 31'd0;
+        payload_sync = 31'd0;
         acknowledged_toggle = 1'b0;
         response_error = 1'b0;
         response_data = 16'h0000;
@@ -258,7 +337,9 @@ module fes_computer_mailbox_direct #(
 
     always @(posedge clk) begin
         request_meta <= request_toggle;
+        payload_meta <= gpo[30:0];
         request_sync <= request_meta;
+        payload_sync <= payload_meta;
         if (WRITABLE && media_changed) begin
             snapshot_dirty <= 1'b1;
             saved_authorized <= 1'b0;
@@ -413,7 +494,7 @@ module fes_computer_mailbox_direct #(
                         chunk_received <= 10'd0;
                         ordinal <= 8'd0;
                     end else begin
-                        crc <= crc32_byte(crc32_byte(crc, argument[7:0]), argument[15:8]);
+                        crc <= crc32_pair(crc, argument);
                         received <= received + 32'd2;
                         if (remaining == 10'd2) begin
                             chunk_length <= 10'd0;
