@@ -272,8 +272,12 @@ the same rule. `fstab` has no `sd*` or `sr*` entries, so an empty optical
 drive is not automounted. A USB stick whose size is greater than zero, and
 the SD/FESDATA partitions, are not changed. The queue timeout does not shorten
 the in-probe READ CAPACITY that already captured the compiled-in 30s timeout.
-That command is avoided because the image ignores USB id `152d:0583`. #778
-tracks the kit confirmation of that boot.
+That command is avoided because the image ignores USB id `152d:0583`. Kit B
+confirmed that boot argument on the baseline image: FAT `linux/u-boot.txt`
+with `v=loglevel=4 usb-storage.quirks=152d:0583:i` produces `device ignored`
+for `152d:0583` and no `timing out command` line, while the USB stick, the
+optical drive, and FESDATA still come up. That boot did not install the PR
+image or run `S02fes-usb-quirk`. #778 records the result.
 
 - If FAT `linux/u-boot.txt` already has an `ethaddr=` line, with any value, the
   script changes nothing. That is the manual override: write
