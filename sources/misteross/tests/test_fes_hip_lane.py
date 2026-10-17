@@ -427,10 +427,108 @@ class CudaLaneConfigurationTests(unittest.TestCase):
         )
         self.assertEqual(expected, "gpu-router=CUDA; hip-architectures=unused; cuda-architectures=86")
         self.assertEqual(fes_build_common.FES_CUDA_TOOLCHAIN_CONFIGURATION, expected)
-        for name in CUDA_PRODUCERS:
-            with self.subTest(producer=name):
-                producer = importlib.import_module(f"scripts.{name}")
-                self.assertEqual(producer.gpu_choice("CUDA"), ("cuda", "unused", expected))
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("FES_TOOLCHAIN_CUDA_ARCHITECTURES", None)
+            self.assertEqual(fes_build_common.cuda_toolchain_configuration(), expected)
+            for name in CUDA_PRODUCERS:
+                with self.subTest(producer=name):
+                    producer = importlib.import_module(f"scripts.{name}")
+                    self.assertEqual(producer.gpu_choice("CUDA"), ("cuda", "unused", expected))
+
+    def test_custom_cuda_slot_authenticates_and_changes_build_identity(self) -> None:
+        import importlib
+
+        from scripts import fes_build_common
+        from scripts.build_fes_spectrum_oss import create_build_record
+        from scripts.export_core_package import build_identity
+
+        selected = "89"
+        configuration = fes_build_common.cuda_toolchain_configuration(selected)
+        self.assertEqual(
+            configuration,
+            "gpu-router=CUDA; hip-architectures=unused; cuda-architectures=89",
+        )
+        with patch.dict(os.environ, {"FES_TOOLCHAIN_CUDA_ARCHITECTURES": "75;86"}, clear=False):
+            multi = fes_build_common.cuda_toolchain_configuration()
+        self.assertEqual(
+            multi,
+            "gpu-router=CUDA; hip-architectures=unused; cuda-architectures=75;86",
+        )
+        self.assertEqual(
+            fes_build_common._cuda_architectures_from_configuration(multi),
+            "75;86",
+        )
+        with patch.dict(os.environ, {"FES_TOOLCHAIN_CUDA_ARCHITECTURES": "native"}, clear=False):
+            with self.assertRaises(BuildError):
+                fes_build_common.cuda_toolchain_configuration()
+
+        host = {"system": "Linux", "release": "test", "machine": "x86_64"}
+        compiler = {"commands": {"cc": {"path": "/test/cc"}}}
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            request, _manifest = publish_shared_toolchain(
+                base, gpu_router="CUDA", cuda_architectures=selected
+            )
+            spectrum = importlib.import_module("scripts.build_fes_spectrum_oss")
+            with patch.dict(
+                os.environ,
+                {"FES_TOOLCHAIN_CUDA_ARCHITECTURES": selected, "PATH": "/bin"},
+                clear=True,
+            ), patch.object(toolchain_cache, "host_identity", return_value=host), patch.object(
+                toolchain_cache, "compiler_inventory", return_value=compiler
+            ):
+                for name in CUDA_PRODUCERS:
+                    with self.subTest(producer=name):
+                        producer = importlib.import_module(f"scripts.{name}")
+                        self.assertEqual(
+                            producer.gpu_choice("CUDA"),
+                            ("cuda", "unused", configuration),
+                        )
+                authenticated = spectrum._authenticate_spectrum_tools(
+                    ROOT, cache_root=request.cache_root, gpu_router="CUDA"
+                )
+            identity = authenticated["nextpnr-mistral"].identity
+            self.assertIn(configuration, identity)
+            self.assertEqual(authenticated["nextpnr-mistral"].path.parent.name, "bin")
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            publish_shared_toolchain(base, gpu_router="CUDA", cuda_architectures="86")
+            with patch.dict(
+                os.environ,
+                {"FES_TOOLCHAIN_CUDA_ARCHITECTURES": selected, "PATH": "/bin"},
+                clear=True,
+            ), patch.object(toolchain_cache, "host_identity", return_value=host), patch.object(
+                toolchain_cache, "compiler_inventory", return_value=compiler
+            ):
+                with self.assertRaises(BuildError):
+                    spectrum._authenticate_spectrum_tools(
+                        ROOT, cache_root=base / "shared-cache", gpu_router="CUDA"
+                    )
+
+        def record(tool_identity: str) -> bytes:
+            return create_build_record(
+                ROOT,
+                "https://example.invalid/m.git",
+                "a" * 40,
+                {
+                    "yosys": "commit=y; sha256=" + "b" * 64,
+                    "mistral": "commit=m; sha256=" + "c" * 64,
+                    "nextpnr-mistral": tool_identity,
+                },
+                execution=EXECUTION,
+                gpu_backend="cuda",
+                gpu_architectures="unused",
+            )
+
+        default_identity = "commit=n; sha256=" + "d" * 64 + "; " + fes_build_common.FES_CUDA_TOOLCHAIN_CONFIGURATION
+        custom_identity = "commit=n; sha256=" + "d" * 64 + "; " + configuration
+        default_bytes = record(default_identity)
+        custom_bytes = record(custom_identity)
+        custom_record = json.loads(custom_bytes)
+        self.assertIn(configuration, custom_record["tools"]["nextpnr-mistral"])
+        self.assertNotEqual(build_identity(default_bytes), build_identity(custom_bytes))
+        self.assertNotEqual(json.loads(default_bytes)["tools"], custom_record["tools"])
 
 
 if __name__ == "__main__":

@@ -229,8 +229,11 @@ def _normalise_configuration(request: ToolchainRequest) -> dict[str, Any]:
         "gpu-router": router,
         "hip-architectures": architectures if router == "HIP" else "unused",
     }
-    # Only the CUDA lane carries this field, so HIP and OFF identities (and
-    # their published slots) are unchanged.
+    # Only the CUDA lane carries this field. HIP and OFF configuration
+    # identities omit it, so a CUDA architecture list does not fork their
+    # slots. Every lane's key still hashes scripts/bootstrap.sh,
+    # scripts/lockfile.py and scripts/toolchain_cache.py; editing those
+    # recipes selects a new slot even when the configuration is unchanged.
     if router == "CUDA":
         configuration["cuda-architectures"] = validated_cuda_architectures(
             request.cuda_architectures

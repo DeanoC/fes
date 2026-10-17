@@ -28,7 +28,7 @@ from scripts.export_core_package import (
     build_identity, encode_build_record, export_package, functional_record_fields,
 )
 from scripts.fes_build_common import (
-    FES_CUDA_TOOLCHAIN_CONFIGURATION,
+    cuda_toolchain_configuration,
     BuildError, _authenticate_tools, _cell_counts, _i2c_evidence, _prepare_output,
     _read_json, _regular_input, _require_gpu_backend, _run_tool, _sha256, _write_atomic,
     reject_async_m10k_reads, validate_timing_resources,
@@ -143,7 +143,7 @@ def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
     if gpu_router == "HIP":
         return ST_GPU_BACKEND, ST_GPU_ARCHITECTURES, ST_TOOLCHAIN_CONFIGURATION
     if gpu_router == "CUDA":
-        return "cuda", "unused", FES_CUDA_TOOLCHAIN_CONFIGURATION
+        return "cuda", "unused", cuda_toolchain_configuration()
     raise BuildError(f"unsupported Atari ST GPU router {gpu_router}")
 
 

@@ -250,7 +250,7 @@ class ToolchainCacheContractTests(unittest.TestCase):
         )
 
     def test_hip_and_off_identities_are_unchanged_by_cuda_architectures(self):
-        """Published HIP/OFF slots keep the keys they had before CUDA lanes carried architectures."""
+        """HIP/OFF configuration identity ignores CUDA architectures when recipe bytes are fixed."""
 
         with tempfile.TemporaryDirectory() as directory:
             base = Path(directory)
@@ -280,6 +280,53 @@ class ToolchainCacheContractTests(unittest.TestCase):
                         self._fixed_request(base, lane, cuda_architectures="75;89")
                     ),
                 )
+
+    def test_hip_and_off_keys_follow_recipe_bytes(self):
+        """A CUDA architecture list does not fork HIP/OFF slots; recipe bytes do.
+
+        cache_key hashes scripts/bootstrap.sh, scripts/lockfile.py and
+        scripts/toolchain_cache.py on every lane. verify_ready rejects a slot
+        whose recipe digest does not match those bytes, so an edit to the
+        shared recipes selects a new HIP or OFF slot even though the lane
+        configuration is unchanged.
+        """
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "checkout"
+            scripts = root / "scripts"
+            scripts.mkdir(parents=True)
+            lock = root / "toolchain.lock"
+            lock.write_text("lock\n", encoding="utf-8")
+            for name in ("bootstrap.sh", "lockfile.py", "toolchain_cache.py"):
+                (scripts / name).write_text(f"{name}\n", encoding="utf-8")
+
+            def request(lane: str, **fields):
+                return toolchain_cache.ToolchainRequest(
+                    root=root,
+                    lock_path=lock,
+                    cache_root=base / "cache",
+                    gpu_router=lane,
+                    host_identity={"system": "Linux", "machine": "x86_64", "libc": "glibc-test"},
+                    compiler_identity={"commands": {"cc": {"path": "/usr/bin/cc", "sha256": "cc"}}},
+                    environment={},
+                    **fields,
+                )
+
+            self.assertEqual(
+                toolchain_cache._recipe_paths(request("HIP")),
+                tuple(scripts / name for name in ("bootstrap.sh", "lockfile.py", "toolchain_cache.py")),
+            )
+            for lane in ("HIP", "OFF"):
+                self.assertEqual(
+                    toolchain_cache.cache_key(request(lane)),
+                    toolchain_cache.cache_key(request(lane, cuda_architectures="89")),
+                )
+            hip_key = toolchain_cache.cache_key(request("HIP"))
+            off_key = toolchain_cache.cache_key(request("OFF"))
+            (scripts / "bootstrap.sh").write_text("bootstrap.sh\n# cuda lane only\n", encoding="utf-8")
+            self.assertNotEqual(hip_key, toolchain_cache.cache_key(request("HIP", cuda_architectures="89")))
+            self.assertNotEqual(off_key, toolchain_cache.cache_key(request("OFF")))
 
     def test_cuda_identity_includes_architectures(self):
         with tempfile.TemporaryDirectory() as directory:

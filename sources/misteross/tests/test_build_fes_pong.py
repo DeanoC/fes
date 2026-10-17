@@ -76,6 +76,7 @@ def publish_shared_toolchain(
     lock_path: Path | None = None,
     gpu_router: str = "OFF",
     hip_architectures: str = toolchain_cache.DEFAULT_HIP_ARCHITECTURES,
+    cuda_architectures: str | None = None,
     mistral_target: bool = True,
     mutate_after_probe: bool = False,
 ) -> tuple[toolchain_cache.ToolchainRequest, toolchain_cache.ToolchainManifest]:
@@ -91,6 +92,8 @@ def publish_shared_toolchain(
         "FES_TOOLCHAIN_GPU_ROUTER": gpu_router,
         "FES_TOOLCHAIN_HIP_ARCHITECTURES": hip_architectures,
     }
+    if cuda_architectures is not None:
+        environment["FES_TOOLCHAIN_CUDA_ARCHITECTURES"] = cuda_architectures
     with patch.dict(os.environ, environment, clear=True), patch.object(
         toolchain_cache, "host_identity", return_value=host
     ), patch.object(toolchain_cache, "compiler_inventory", return_value=compiler):
@@ -99,6 +102,7 @@ def publish_shared_toolchain(
             selected_lock,
             gpu_router=gpu_router,
             hip_architectures=hip_architectures,
+            cuda_architectures=cuda_architectures,
         )
 
     cache.mkdir(mode=0o700)

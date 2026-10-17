@@ -16,7 +16,7 @@ if __package__ in (None, ""):
 
 from scripts.source_repository import canonical_repository
 from scripts.fes_build_common import (
-    FES_CUDA_TOOLCHAIN_CONFIGURATION,
+    cuda_toolchain_configuration,
     BuildError,
     _authenticate_tools,
     _cell_counts,
@@ -156,7 +156,7 @@ def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
     if gpu_router == "HIP":
         return SMS_GPU_BACKEND, SMS_GPU_ARCHITECTURES, SMS_TOOLCHAIN_CONFIGURATION
     if gpu_router == "CUDA":
-        return "cuda", "unused", FES_CUDA_TOOLCHAIN_CONFIGURATION
+        return "cuda", "unused", cuda_toolchain_configuration()
     raise BuildError(f"unsupported SMS GPU router {gpu_router}")
 
 

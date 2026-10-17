@@ -461,7 +461,9 @@ evidence before any tool path is used.
 `--hip-architectures` / `--cuda-architectures`. A CUDA slot records
 `gpu-router=CUDA; hip-architectures=unused; cuda-architectures=86`, and its
 key covers the architecture list. HIP and OFF configurations carry no CUDA
-field, so their keys do not depend on it. The default builds native sm_86 code
+field, so their keys do not depend on it. Those keys still include the bytes
+of `scripts/bootstrap.sh`, `scripts/lockfile.py` and `scripts/toolchain_cache.py`,
+so editing any of those scripts selects a new slot on every lane. The default builds native sm_86 code
 (RTX 3070/3090), so routing never JIT-compiles PTX; that JIT fails with "the
 provided PTX was compiled with an unsupported toolchain" when the NVIDIA
 driver is older than the CUDA toolkit. The list takes explicit CMake entries
@@ -470,7 +472,9 @@ they do not name a reproducible identity. The shared lane rejects the CMake
 environment selectors `CUDAARCHS` and `HIPARCHS` unless the router matches and
 the value equals the selected list, because CMake would otherwise build a
 different binary under the same key. CUDA producers (`gpu_choice("CUDA")`)
-authenticate the default `86` slot.
+authenticate the slot named by `FES_TOOLCHAIN_CUDA_ARCHITECTURES` (default
+`86`). That configuration is the nextpnr tool identity, so the package build
+id records the selection.
 
 A failed or interrupted build leaves a partial slot and no ready manifest.
 The resolver reports that slot and refuses to retry until an operator performs
