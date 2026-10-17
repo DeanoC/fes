@@ -186,6 +186,24 @@ func TestCompositionShellColecoBus(t *testing.T) {
 	}
 }
 
+func TestCompositionShellComputerZX81(t *testing.T) {
+	base := Inspection{Descriptor: Descriptor{ABI: Contract{ID: "fes.computer", Major: 1},
+		Interfaces: []Interface{{ID: expansion.Slot, Major: 2}}}}
+	shell, err := compositionShell(base, nil)
+	if err != nil || shell.Slot != expansion.Slot || shell.SlotMajor != 2 {
+		t.Fatalf("fes.computer ZX81 socket rejected: %#v, %v", shell, err)
+	}
+	legacy := base
+	legacy.Descriptor.ABI.ID = "fes.simple-computer"
+	if _, err := compositionShell(legacy, nil); err != nil {
+		t.Fatal(err)
+	}
+	base.Descriptor.ABI.ID = "fes.application"
+	if _, err := compositionShell(base, nil); err == nil {
+		t.Fatal("accepted ZX81 bus under the application ABI")
+	}
+}
+
 func TestCompositionShellZX81V2(t *testing.T) {
 	base := Inspection{Descriptor: Descriptor{ABI: Contract{ID: "fes.simple-computer", Major: 1},
 		Interfaces: []Interface{{ID: expansion.Slot, Major: 2}}}}

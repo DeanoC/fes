@@ -241,7 +241,7 @@ func (a *App) openValidRoomLocked(pack rooms.Pack) bool {
 	a.roomErr = ""
 	a.roomWasParked = a.gpuParked
 	inst.SetSessionState(a.session.State)
-	inst.SetLiveControls(a.sessionDisplayOfferedLocked())
+	inst.SetLiveControls(a.liveControlsOfferedLocked())
 	a.postUIEventLocked("ui.nav", map[string]string{"reason": "room", "view": "room:" + pack.ID})
 	if err := inst.Load(); err != nil {
 		a.roomErr = err.Error()
@@ -555,7 +555,7 @@ func (a *App) tickRoomLocked(now time.Time) {
 		return
 	}
 	a.room.SetSessionState(a.session.State)
-	a.room.SetLiveControls(a.sessionDisplayOfferedLocked())
+	a.room.SetLiveControls(a.liveControlsOfferedLocked())
 	if a.gpuParked || a.localPresentsPaused {
 		a.roomWasParked = true
 		return

@@ -1165,6 +1165,7 @@ func TestAppFallsBackWhenAttractArtworkFails(t *testing.T) {
 func TestAppBacksOffWhenAttractArtworkExhausted(t *testing.T) {
 	handle := strings.Repeat("ab", 32)
 	var attractCalls atomic.Int32
+	var artworkCalls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
@@ -1184,6 +1185,7 @@ func TestAppBacksOffWhenAttractArtworkExhausted(t *testing.T) {
 				}},
 			})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/presentation/artwork/"):
+			artworkCalls.Add(1)
 			http.NotFound(w, r)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/session":
 			_, _ = io.WriteString(w, `{"state":"idle"}`)
@@ -1200,13 +1202,18 @@ func TestAppBacksOffWhenAttractArtworkExhausted(t *testing.T) {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
+	// The playlist returns before attract is armed. Backoff is the later
+	// still request: that 404 marks the only handle tried and hides attract.
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
-		if attractCalls.Load() >= 1 && !app.Snapshot().Attract.Active {
+		if artworkCalls.Load() >= 1 && !app.Snapshot().Attract.Active {
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+	if artworkCalls.Load() < 1 {
+		t.Fatal("did not request exhausted artwork")
 	}
 	if app.Snapshot().Attract.Active {
 		t.Fatal("exhausted artwork left attract active")

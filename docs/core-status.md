@@ -54,7 +54,7 @@ path and not a fallback.
 | --- | --- | --- | --- | --- | --- | --- |
 | `fes.ramtest` | 1.1.0 | Factory | `fes.application` 1.0 | `fes.gamepad` 1.0, `fes.video.fixed-720p60` 1.0, `fes.memory.hps-ddr` 1.0 | — | ROM-less RAM testing utility for the SDRAM addon and all three HPS DDR ports. Ships the OSS 100 MHz variant using shared `toolchain.lock`; 130 MHz timing closure remains open (#264). No exact-image hardware acceptance is claimed. |
 | `fes.pong` | 1.1.0 | Factory | `fes.simple-game` 1.0 | `fes.gamepad` 1.0, `fes.video.fixed-720p60` 1.0, `fes.persistence.words` 1.0, `fes.pong.progress` 1.0 | — | ROM-less Pong. Paddle speed and best rally persist. Lock `toolchain.lock`. |
-| `fes.zx81` | 1.5.0 | Factory | `fes.simple-computer` 1.0 | `fes.keyboard` 1.0, `fes.video.fixed-720p60` 1.0, `fes.media.blob` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0 | `fes.expansion.zx81-bus` 2.0 | Sinclair ZX81. 1 KiB RAM, 40-key matrix, live `.p` blob, sealed ROM link and in-session HDMI controls. The [frozen image diagnostic](validation/2026-10-02-zx81-session-display.md) records visible cassette swap/eject with preserved BASIC state. Physical operator input and expansion/audio acceptance of this shell remain separate. Bus 2.0 retains CPU clock/reset, exact-average 3.25 MHz CPU and 1.625 MHz AY. Historical shell/cart evidence does not qualify 1.5.0. Lock `toolchain.lock` (shared pin). |
+| `fes.zx81` | 1.5.0 | Factory | `fes.computer` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.keyboard.hid` 1.0, `fes.gamepad.ports` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.media.zx81-tape` 1.0, `fes.memory.hps-ddr` 1.0, `fes.video.session-display` 1.0 | `fes.expansion.zx81-bus` 2.0 | Sinclair ZX81. 1 KiB RAM, HID keyboard mapped to the 40-key matrix, exact 8192-byte `machine-rom` linked before download, and a 1..16384-byte `.p` media unit. The session-display plane presents launcher frames on HDMI and restores machine pixels on close. The 2 Oct note does not accept these bytes. Still the first-party NMOS Z80. Lock `toolchain.lock`. |
 | `fes.coleco` | 1.2.0 | Factory | `fes.application` 1.0 | `fes.audio.pcm-s16-stereo-48k` 1.0, `fes.gamepad.ports` 1.0, `fes.keypad.ports` 1.0, `fes.video.fixed-720p60` 1.0 | `fes.expansion.coleco-bus` 2.0, `fes.fabric.video.native-pixels` 1.0 | Format 3 ColecoVision. One exact 16 KiB `cartridge-rom`, mirrored at `0x8000`; pad a shorter cart with `0xff`. Two gamepads, two 12-key keypads, SN76489, and an optional SGM socket. No blob, stream, or firmware mailbox. The factory shell is the native-pixel video lane and requires a linked part. Not a retail-complete core. Lock `toolchain.lock` (shared pin). |
 | `fes.sms` | 1.4.0 | Factory | `fes.simple-computer` 1.0 | `fes.keyboard` 1.0, `fes.video.fixed-720p60` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0 | — | Sega Master System slice. Do not use `fes.mastersystem`. Exact 32 KiB `cartridge-rom` is linked through a sealed ROM map before download; pad shorter fixed-map images with `0xff`. 8 KiB RAM at `0xc000`, Mode 4 VDP, SN76489 on `0x7E`/`0x7F`, shared PCM-to-I2S into the ADV7513. No host audio-stream mailbox or Sega mapper. Lock `toolchain.lock` (shared pin). |
 | `fes.catch` | 1.0.0 | Package-only | `fes.application` 1.0 | `fes.video.fixed-720p60` 1.0, `fes.gamepad` 1.0, `fes.audio.pcm-s16-stereo-48k` 1.0 | — | ROM-less paddle game on the shared application shell. No BIOS, cartridge, or factory-image entry. Lock `toolchain.lock`. |
@@ -252,22 +252,20 @@ to ordinary 320×200, and later demo sections/audio fidelity remain unqualified.
 
 ## Not implemented, or not this package
 
-- ZX81 mid-session tape replace and eject use the same `fes.media.blob`
-  mailbox without a hold-reset reboot. The runtime path and the host
-  `live-media` / `change-tape` API are in. The kit's visible picker has a
-  [dated HDMI diagnostic](validation/2026-10-02-zx81-session-display.md).
-  See [FES ZX81](fes-zx81.md) and
+- ZX81 mid-session tape replace and eject use `fes.media.zx81-tape` unit 0
+  without a hold-reset reboot. The runtime path and the host
+  `live-media` / `change-tape` API are in. The
+  [2 Oct HDMI diagnostic](validation/2026-10-02-zx81-session-display.md)
+  accepts an older simple-computer shell. It does not accept these
+  `fes.computer` bytes. See [FES ZX81](fes-zx81.md) and
   [ZX81 tape media](zx81-tape-media.md). Launch-time ROM splice and
   expansion-cart selection are separate; the expansion bus guide is
   [ZX81 expansion bus](zx81-expansion-bus.md).
-- ZX81 source includes an in-session launcher plane with observed
-  `fes.video.session-display` and HPS DDR capabilities. Opening/closing it
-  preserves CPU, RAM and the active core generation; kit tenfoot enables live
-  tape routes only on that capable path. The sealed 1.5.0 package, verified
-  image and designated-kit observations are recorded in the
-  [session-display validation](validation/2026-10-02-zx81-session-display.md).
-  Physical operator input and expansion/audio acceptance remain separate.
-  See [the hardware room](hardware-rooms.md).
+- The ZX81 shell includes an in-session launcher plane on required
+  `fes.video.session-display` and `fes.memory.hps-ddr`. Opening and closing
+  it preserves CPU, RAM and the active core generation. The 2 Oct note does
+  not accept these bytes. Physical operator input and expansion/audio
+  acceptance remain separate. See [the hardware room](hardware-rooms.md).
 - Idle rooms and attract are not the splash bitstream. The splash is board
   firmware. The rooms design is [idle MENU → rooms](idle-menu-rooms.md).
 - There is no NES, SNES, or Mega Drive package in the factory set. Old

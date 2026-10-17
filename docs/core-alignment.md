@@ -40,7 +40,8 @@ These are the choices already in the tree at `6d9939c2`.
    sets `CFG_ASYNC_READ(1)`. Do not reintroduce it.
 4. The Z80 product CPU is `fes_z80_nmos` at native cadence. `fes_z80_fast` is
    not a second product CPU. TV80/T80 is the historical selection still
-   instantiated by Coleco, SMS and ZX81. A sibling already on the first-party
+   instantiated by Coleco and SMS. ZX81, SG-1000 and the default Spectrum
+   producer select `fes_z80_nmos`. A sibling already on the first-party
    CPU does not qualify the others. There is no newer first-party 6502 or
    68000; `cpu6502` and `fx68k` stay until a replacement exists. Do not add a
    third Z80.
@@ -82,7 +83,7 @@ is that case.
 | --- | --- | --- | --- |
 | `fes.menu` | Idle scanout. Not a game. Splash is still the product idle fallback. | Shared pin. | No factory-image acceptance of this bitstream. |
 | `fes.pong` 1.1.0 | ROM-less game. Settings and best rally persist. The [10 Oct kit B load](validation/2026-10-10-optimizer-video-area.md) showed the field and Stop. | Shared pin, single-PLL gate, optimizer scaler. | That note is a bounded video/Stop check, not gameplay or image acceptance. |
-| `fes.zx81` 1.5.0 | Most complete 8-bit machine in the image: live `.p` tape, session display, bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | Sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. The 2 Oct note does not accept a shared-pin seal. Physical keyboard, expansion and audio of 1.5.0 are not accepted. |
+| `fes.zx81` 1.5.0 | Most complete 8-bit machine in the image: live `.p` tape, session display, bus 2.0. The [2 Oct image diagnostic](validation/2026-10-02-zx81-session-display.md) showed cassette swap with BASIC kept. | `fes.computer` 1.0, `fes_z80_nmos`, sync M10K, format 3. Product lock is `toolchain.lock`. | The 2 Oct note does not accept a shared-pin seal. Physical keyboard, expansion and audio of 1.5.0 are not accepted. |
 | `fes.coleco` 1.2.0 | Reduced ColecoVision. Native video parts are mandatory. Optional SGM. One exact 16 KiB cartridge, padded with `0xff`. | Native video parts, sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. Not retail-complete. The 3 Oct note does not accept these bytes. |
 | `fes.sms` 1.4.0 | 32 KiB Master System slice. No mapper. Do not use `fes.mastersystem`. | Sync M10K, format 3. Product lock is `toolchain.lock`. | Still TV80. Named kit audio is artifact-scoped and does not accept a shared-pin seal. |
 | `fes.sg1000` 1.3.0 | 16 KiB slice. | `fes_z80_nmos`, sync M10K, format 3. Product lock is `toolchain.lock`. | The 1.2.0 kit audio note does not qualify 1.3.0 or a shared-pin seal. |
@@ -151,11 +152,11 @@ miss is known and is not a private pin.
 
 ### 3. One Z80
 
-SG-1000 is the pattern. It is not evidence for the others.
+SG-1000 is the pattern. ZX81 and the default Spectrum producer also select
+`fes_z80_nmos`. That does not qualify a sibling still on TV80.
 
 1. SMS. Fixed cartridge, no expansion bus.
 2. Coleco. Clock enable, VDP NMI, bus 2.0.
-3. ZX81. Exact-average 3.25 MHz CPU, 1.625 MHz AY, session display.
 
 Preserve each machine's existing cadence and interrupt wiring. Do not switch
 a product recipe to `fes_z80_fast` to make timing easier.

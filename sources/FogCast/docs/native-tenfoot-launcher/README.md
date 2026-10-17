@@ -88,9 +88,13 @@ start** cassette. Menu frames also pin that captured package and core generation
 and reject changed display generations. A lost open response keeps Back/Esc/B
 available for a guarded return and Home/Select for retry. A failed return retains
 room input until another return succeeds. Shell exit attempts that return without
-stopping the machine. Packages without the observed display contracts retain
-pre-launch cassette selection; the independent host window keeps its live tape
-controls.
+stopping the machine. A `fes.computer` generation that reports `fes.media.zx81-tape` 1.0
+uses the same display request when it also reports the session-display plane
+and HPS DDR. Opening binds launcher frames to that package generation; closing
+quiesces the plane and restores ZX81 video. Without those interfaces the kit
+routes stay closed. Other packages without the observed display
+contracts retain pre-launch cassette selection. The independent host window
+keeps its live tape controls.
 
 ## CPU profiling and optimization
 

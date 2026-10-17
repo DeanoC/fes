@@ -1,6 +1,8 @@
 # TV80
 
-Verilog Z80 used by FES ZX81 simulation and later OSS synthesis.
+Upstream Verilog Z80 kept beside the ZX81 machine. Simulation, the OSS shell,
+and the Quartus oracle instantiate `fes_z80_nmos` from `zx81_machine.sv`.
+These files are not on either ZX81 producer source list.
 
 Source: https://github.com/hutch31/tv80
 Commit: `66a131c38d05ef58b3d8c4f1507a72e6e4aa5d65`

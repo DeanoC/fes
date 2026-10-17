@@ -291,7 +291,9 @@ public:
     return Invalid("session display package or generation changed");
    bool capable=false;
    for(const auto& interface:status_.capabilities.active_interfaces)
-    if(interface.id==native::generated::FesSimpleComputerInterfaceVideoSessionDisplayID&&interface.major==1&&interface.minor==0)
+    if((interface.id==native::generated::FesSimpleComputerInterfaceVideoSessionDisplayID||
+     interface.id==native::generated::FesComputerInterfaceVideoSessionDisplayID)&&
+     interface.major==1&&interface.minor==0)
      capable=true;
    if(!capable)return {ErrorCode::unsupported_interface,"session display is unavailable","menu"};
    if(visible&&status_.menu_display.available)return {};
@@ -914,6 +916,9 @@ public:
 				FesComputerInterfaceKeyboardHidID))
 				return {ErrorCode::unsupported_interface,
 					"keyboard HID requires fes.computer with fes.keyboard.hid", "compatibility"};
+			bool neutral = true;
+			for (const std::uint16_t row : rows) if (row != 0) neutral = false;
+			if (session_display_focused_ && !neutral) return {};
 			busy_ = true;
 		}
 		const Error error = hardware_.SetKeyboardHid(rows);

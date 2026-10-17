@@ -512,7 +512,10 @@ accepted. `fes.c64` uses the same firmware binding for `c64-firmware` (16 KiB)
 and role `disk` for `fes.media.c64-disk` 1.0: exactly 174,848 bytes, `.d64`,
 media unit 0, read only. `fes.spectrum` uses firmware id `spectrum-firmware`
 (16 KiB) and role `cassette` for `fes.media.spectrum-tape` 1.0: 1..65,536
-bytes, `.tap`, media unit 0. Persist that selection with role `cassette`:
+bytes, `.tap`, media unit 0. `fes.zx81` on `fes.computer` uses the same
+role `cassette` for `fes.media.zx81-tape` 1.0: 1..16,384 bytes, `.p`, media
+unit 0. A previously saved `blob` selection for that package still launches.
+Persist a Spectrum or ZX81 selection with role `cassette`:
 
 ```sh
 fogcast --api http://127.0.0.1:8787 --json core-media-select GAME_ID PACKAGE_ID none MEDIA_ID cassette

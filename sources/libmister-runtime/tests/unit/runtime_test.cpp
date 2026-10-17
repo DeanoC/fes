@@ -1556,6 +1556,68 @@ void StartSessionDisplayFixture(Fixture& f,const std::string& id)
  assert(f.runtime.Start().ok());assert(f.runtime.LoadCore("/zx81",id).ok());
 }
 
+void StartComputerSessionDisplayFixture(Fixture& f, const std::string& id)
+{
+	f.hardware.core_info.descriptor.core.id = "fes.zx81";
+	f.hardware.core_info.declared_core = "fes.zx81";
+	f.hardware.core_info.descriptor.abi = {"fes.computer", 1, 0};
+	f.hardware.core_info.descriptor.interfaces = {
+		{"fes.keyboard.hid", 1, 0, true}, {"fes.video.fixed-720p60", 1, 0, true},
+		{"fes.media.zx81-tape", 1, 0, true}, {"fes.memory.hps-ddr", 1, 0, true},
+		{"fes.video.session-display", 1, 0, true}};
+	f.hardware.supported.abis.push_back({"fes.computer", 1, 0, {
+		{"fes.keyboard.hid", 1, 0}, {"fes.video.fixed-720p60", 1, 0},
+		{"fes.media.zx81-tape", 1, 0}, {"fes.memory.hps-ddr", 1, 0},
+		{"fes.video.session-display", 1, 0}}});
+	assert(f.runtime.Start().ok());
+	assert(f.runtime.LoadCore("/zx81", id).ok());
+}
+
+void TestComputerSessionDisplayPresentsFramesAndRestoresVideo()
+{
+	Fixture f;
+	const std::string id(64, 'a');
+	StartComputerSessionDisplayFixture(f, id);
+	const auto loaded = f.runtime.status();
+	const auto generation = loaded.generation;
+	assert(loaded.state == State::running_development);
+	assert(loaded.menu_display.session && !loaded.menu_display.available);
+	assert(loaded.menu_display.generation == 0);
+	assert(loaded.menu_display.package_id == id);
+	assert(loaded.menu_display.core_generation == generation);
+	mister::KeyboardHidRows rows{};
+	rows[2] = 1;
+	assert(f.runtime.SetKeyboardHid(id, generation, rows).ok());
+	assert(f.hardware.keyboard_hid_calls == 1);
+	const auto idle_before = f.hardware.idle_calls;
+	const auto core_before = f.hardware.core_calls;
+	assert(f.runtime.SetSessionDisplay(id, generation, true).ok());
+	const auto opened = f.runtime.status().menu_display;
+	assert(opened.available && opened.session && opened.generation != 0);
+	assert(opened.package_id == id && opened.core_generation == generation);
+	assert(f.runtime.status().generation == generation);
+	assert(f.hardware.idle_calls == idle_before && f.hardware.core_calls == core_before);
+	assert(f.runtime.SetKeyboardHid(id, generation, rows).ok());
+	assert(f.hardware.keyboard_hid_calls == 1);
+	assert(f.runtime.SetKeyboardHid(id, generation, {}).ok());
+	assert(f.hardware.keyboard_hid_calls == 2);
+	std::unique_ptr<mister::MenuFrame> frame;
+	SealMenuFrame(f.runtime, opened.generation, &frame);
+	mister::MenuDisplayInfo info;
+	assert(f.runtime.PresentMenuFrame(opened.generation, *frame, &info).ok());
+	assert(f.hardware.menu_present_calls == 1);
+	assert(f.runtime.SetSessionDisplay(id, generation, false).ok());
+	const auto closed = f.runtime.status();
+	assert(closed.state == State::running_development && closed.generation == generation);
+	assert(closed.menu_display.session && !closed.menu_display.available);
+	assert(closed.menu_display.generation == 0);
+	assert(f.hardware.idle_calls == idle_before && f.hardware.core_calls == core_before);
+	assert(!f.runtime.PresentMenuFrame(opened.generation, *frame, &info).ok());
+	assert(f.hardware.menu_present_calls == 1);
+	assert(f.runtime.SetKeyboardHid(id, generation, rows).ok());
+	assert(f.hardware.keyboard_hid_calls == 3);
+}
+
 void TestSessionDisplayBindingsFocusAndFrameRevocation()
 {
  Fixture f;const std::string id(64,'a');StartSessionDisplayFixture(f,id);
@@ -1662,6 +1724,7 @@ void TestSessionCloseAndStopWaitForInFlightFrame()
 
 int main()
 {
+ TestComputerSessionDisplayPresentsFramesAndRestoresVideo();
  TestSessionDisplayBindingsFocusAndFrameRevocation();
  TestSessionDisplayFailuresNeverReloadIdleOrRetireCore();
  TestSessionCloseAndStopWaitForInFlightFrame();

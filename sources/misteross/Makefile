@@ -305,21 +305,20 @@ sim-fes-zx81-expansion: sim-fes-zx81-bus
 	@for cart in 0 1; do \
 		mkdir -p build/sim/fes-zx81-expansion-$$cart; \
 		$(VERILATOR) --cc --exe --build --top-module expansion_machine -Wall \
-		-GCART_PRESENT=$$cart -DTV80_REFRESH=1 \
+		-GCART_PRESENT=$$cart \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_SIMILARNAME) $(VERILATOR_PROCASSINIT) \
-		-Icores/fes-zx81/rtl -Icores/fes-zx81/rtl/tv80 \
+		-Icores/fes-zx81/rtl -Icores/fes-common/rtl/z80 \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-expansion-$$cart" \
 		cores/fes-zx81/sim/expansion_machine.v \
 		cores/fes-zx81/expansions/ram16k.v \
 		experiments/901_plugged_base/sim/mistral_ff_model.v \
-		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv cores/fes-zx81/rtl/t80pa.v \
+		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
+		$(FES_Z80_NMOS_RTL) \
 		cores/fes-zx81/rtl/zx81_dpram.v cores/fes-zx81/rtl/zx81_expansion_socket.v \
-		cores/fes-zx81/rtl/zx81_ram_pack.v cores/fes-zx81/rtl/tv80/tv80_core.v \
-		cores/fes-zx81/rtl/tv80/tv80_alu.v cores/fes-zx81/rtl/tv80/tv80_mcode.v \
-		cores/fes-zx81/rtl/tv80/tv80_reg.v \
+		cores/fes-zx81/rtl/zx81_ram_pack.v \
 		"$(CURDIR)/cores/fes-zx81/sim/expansion_tb.cpp" || exit $$?; \
 		if [ $$cart = 0 ]; then ramtop=0x4400; else ramtop=0x8000; fi; \
 		build/sim/fes-zx81-expansion-$$cart/Vexpansion_machine $$ramtop || exit $$?; \
@@ -338,37 +337,19 @@ sim-fes-zx81-rom:
 		"$(CURDIR)/cores/fes-zx81/sim/rom_init_tb.cpp"
 	@build/sim/fes-zx81-rom/Vrom_init_window "$(CURDIR)/cores/fes-zx81/rtl/zx8x.hex"
 
-sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion sim-fes-zx81-session
+sim-fes-zx81: sim-fes-zx81-rom sim-fes-zx81-expansion
 	$(require_local_sim)
-	@mkdir -p build/sim/fes-zx81-gp
-	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
-		-Wno-PINCONNECTEMPTY \
-		-Icores/fes-zx81/generated \
-		--Mdir "$(CURDIR)/build/sim/fes-zx81-gp" \
-		cores/fes-zx81/rtl/fes_computer_gp.v cores/fes-zx81/rtl/zx81_dpram.v \
-		"$(CURDIR)/cores/fes-zx81/sim/gp_tb.cpp"
-	@build/sim/fes-zx81-gp/Vfes_computer_gp "$(CURDIR)/cores/fes-zx81/generated/exchanges.json"
-	@mkdir -p build/sim/fes-zx81-gp-audio
-	$(VERILATOR) --cc --exe --build --top-module fes_computer_gp -Wall \
-		-GENABLE_AUDIO=1 -CFLAGS -DZX81_AUDIO_TEST -Wno-PINCONNECTEMPTY \
-		-Icores/fes-zx81/generated \
-		--Mdir "$(CURDIR)/build/sim/fes-zx81-gp-audio" \
-		cores/fes-zx81/rtl/fes_computer_gp.v cores/fes-zx81/rtl/zx81_dpram.v \
-		"$(CURDIR)/cores/fes-zx81/sim/gp_tb.cpp"
-	@build/sim/fes-zx81-gp-audio/Vfes_computer_gp "$(CURDIR)/cores/fes-zx81/generated/exchanges.json"
 	@mkdir -p build/sim/fes-zx81-machine
 	$(VERILATOR) --cc --exe --build --top-module zx81_machine -Wall \
-		-DTV80_REFRESH=1 \
 		-Wno-UNUSEDSIGNAL -Wno-UNOPTFLAT -Wno-CASEINCOMPLETE -Wno-WIDTHTRUNC \
 		-Wno-WIDTHEXPAND -Wno-SYNCASYNCNET -Wno-PINCONNECTEMPTY \
 		-Wno-DECLFILENAME -Wno-IMPLICITSTATIC -Wno-VARHIDDEN -Wno-UNUSEDPARAM \
 		-Wno-CASEX -Wno-BLKSEQ $(VERILATOR_PROCASSINIT) \
-		-Icores/fes-zx81/generated -Icores/fes-zx81/rtl/tv80 \
+		-Icores/fes-zx81/generated -Icores/fes-common/rtl/z80 \
 		--Mdir "$(CURDIR)/build/sim/fes-zx81-machine" \
-		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv cores/fes-zx81/rtl/t80pa.v \
-		cores/fes-zx81/rtl/zx81_dpram.v cores/fes-zx81/rtl/tv80/tv80_core.v \
-		cores/fes-zx81/rtl/tv80/tv80_alu.v cores/fes-zx81/rtl/tv80/tv80_mcode.v \
-		cores/fes-zx81/rtl/tv80/tv80_reg.v \
+		cores/fes-zx81/rtl/zx81_machine_clock.v cores/fes-zx81/rtl/zx81_machine.sv \
+		$(FES_Z80_NMOS_RTL) \
+		cores/fes-zx81/rtl/zx81_dpram.v \
 		"$(CURDIR)/cores/fes-zx81/sim/machine_tb.cpp"
 	@build/sim/fes-zx81-machine/Vzx81_machine
 	@mkdir -p build/sim/fes-zx81-video

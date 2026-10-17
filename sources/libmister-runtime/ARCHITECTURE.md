@@ -269,14 +269,19 @@ Physical controller acceptance remains pending.
 
 `fes.computer` 1.0 uses the same lifecycle and GP transport with identity
 tag 4. Admission requires fixed video; `fes.keyboard.hid`, `fes.gamepad.ports`,
-`fes.audio.pcm-s16-stereo-48k` and the Apple II, C64, Spectrum and Atari ST
-media interfaces are independent and must be required when declared. A shell
-declares at most one unit-0 medium. Recognized expansion buses must be
+`fes.audio.pcm-s16-stereo-48k` and the Apple II, C64, Spectrum, ZX81 tape and
+Atari ST media interfaces are independent and must be required when declared.
+Required `fes.memory.hps-ddr` 1.0 is admitted and advertised whenever the boot
+core latched the port layout, including a kit without presentation adapters.
+Required `fes.video.session-display` 1.0 is the in-core launcher plane: it is
+rejected without DDR, and a kit admits and advertises it only when that layout
+and both presentation adapters are present. A shell declares at most one
+unit-0 medium. Recognized expansion buses must be
 optional, unknown optional declarations are ignored and `core.system`
 is rejected. Format 2 and format 3 firmware ROM packages are admitted; linked
 cartridges and format 4 are not, because nothing holds execution for them.
 
-Identity requires registered live capability bits 0 through 7 to equal the declared set,
+Identity requires the registered live capability mask, including HPS DDR and session display, to equal the declared set,
 then discovery reads MediaInfo for each declared unit, which must be present
 and empty. Audio packets follow the declaration as for applications. Start
 only releases execution: there is no media gate, no neutral write and no evdev
