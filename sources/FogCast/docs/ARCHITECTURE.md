@@ -1277,6 +1277,23 @@ files are copied onto p3 first and never overwritten there. Releases,
 run from the fixed bootstrap. Bind is refused while `GET /v1/update` shows trial,
 pending, or corrupt; the agent still starts and keeps those trees on FAT.
 
+Kit UI state stays on that FAT tree at `/media/fat/fogcast/state`. The software
+supervisor creates the directory when `/media/fat/fogcast` is already present
+and sets `XDG_CONFIG_HOME` and `XDG_STATE_HOME` to it for the runtime, agent
+and launcher. Tenfoot writes `FogCast/tenfoot.json` and
+`FogCast/rooms/<room-id>.state.json` there. Home's last selected package is
+`package_id` in `FogCast/rooms/example.fes-cores.state.json`. The directory is
+not a FESDATA3 bind mount. Tenfoot keeps the user config directory
+(`XDG_CONFIG_HOME`, otherwise `$HOME/.config`) when that directory is
+writable, when a missing path can be created because its nearest existing
+ancestor is writable, or when it already contains readable settings, room
+state, or a room pack (`FogCast/rooms/<id>/room.toml`). A read-only
+directory with those files is still loaded, so the default room search path
+stays beside them. The FAT directory is used when the user directory cannot
+be read and cannot be created, including `HOME=/` on the read-only root and
+a read-only directory that has no saved state and no room pack. A save that
+cannot be written is logged once and the menu keeps running.
+
 The kernel loop-mounts the bootstrap as before. Its PID 1 verifies the selected
 image, consumes a pending trial durably, attaches another read-only loop, and uses
 `pivot_root` followed by exec of the selected `/sbin/init`. The old bootstrap
@@ -2307,7 +2324,9 @@ supervisor persists queue and activation state across reboot; the lease manager
 does not persist its pending queue.
 
 The supervisor waits up to 30 seconds for `/media/fat/fogcast/agent.toml` before
-starting the agent, and bounds the launcher selection probe. A process that
+starting the agent, and bounds the launcher selection probe. That startup also
+publishes `/media/fat/fogcast/state` as `XDG_CONFIG_HOME` and `XDG_STATE_HOME`
+for the service group. A process that
 exits before the readiness window is accepted is restarted within that startup
 deadline. After acceptance, a launcher exit is restarted on its own while the
 runtime and agent stay up. An accepted agent or runtime exit stops the whole
