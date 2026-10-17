@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"image"
 	"image/png"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -404,6 +408,125 @@ func TestBIOSCancelReturnsToTheRefusedTitle(t *testing.T) {
 	snap = app.Snapshot()
 	if snap.FirmwarePicker.Open || !snap.Detail.Open || snap.FocusDetail.Title != "Donkey Kong" || snap.Grid.Focus != 0 {
 		t.Fatalf("cancel returned to the focused row: picker=%v detail=%v title=%q focus=%d", snap.FirmwarePicker.Open, snap.Detail.Open, snap.FocusDetail.Title, snap.Grid.Focus)
+	}
+}
+
+func TestRecentDetailFavoriteAndClickStayOnThatTitle(t *testing.T) {
+	var mu sync.Mutex
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		paths = append(paths, r.Method+" "+r.URL.Path)
+		mu.Unlock()
+		if strings.HasPrefix(r.URL.Path, "/api/v1/library/favorites/") {
+			_, _ = io.WriteString(w, `{"id":"snes-mario","favorite":true}`)
+			return
+		}
+		if r.URL.Path == "/api/v1/session/launch" {
+			http.Error(w, `{"error":{"code":"BAD_REQUEST","message":"no"}}`, http.StatusBadRequest)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+
+	app := libraryRenderApp(t, 1280, 720, false)
+	app.client = NewClient(server.URL, server.Client())
+	app.ctx = context.Background()
+	focused := app.games[0]
+	recent := availableGame("snes-mario", "Super Mario World", "snes")
+	recent.Launchable = false
+	app.homeRecents = []hostclient.Game{recent}
+	app.libraryDetail = recent
+	app.detailOpen = true
+
+	app.HandleCommand(CmdFavorite, time.Now())
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		snap := app.Snapshot()
+		app.mu.Lock()
+		busy := app.favoriteBusy
+		app.mu.Unlock()
+		if !busy && snap.FocusDetail.Favorite {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("favorite did not settle: busy=%v detail=%+v status=%q", busy, snap.FocusDetail, snap.Status)
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	snap := app.Snapshot()
+	if snap.FocusDetail.Title != "Super Mario World" || snap.Games[0].ID != focused.ID || snap.Games[0].Favorite {
+		t.Fatalf("favorite moved to the focused row: title=%q games=%+v", snap.FocusDetail.Title, snap.Games[0])
+	}
+	app.mu.Lock()
+	recentFav := len(app.homeRecents) == 1 && app.homeRecents[0].Favorite
+	app.mu.Unlock()
+	if !recentFav {
+		t.Fatal("recent favorite flag was not stored")
+	}
+	mu.Lock()
+	got := append([]string(nil), paths...)
+	mu.Unlock()
+	if len(got) != 1 || got[0] != "PUT /api/v1/library/favorites/snes-mario" {
+		t.Fatalf("favorite request = %#v", got)
+	}
+
+	app.mu.Lock()
+	app.activatePointerHitLocked(PointerHit{Kind: PointerDetail}, time.Now())
+	id, phase, title, open := app.launch.GameID, app.launch.Phase, app.focusDetailLocked().Title, app.detailOpen
+	app.mu.Unlock()
+	if id != recent.ID || phase == "launching" || title != "Super Mario World" || !open {
+		t.Fatalf("Details click left the recent: id=%s phase=%s title=%q open=%v", id, phase, title, open)
+	}
+
+	app.mu.Lock()
+	app.launch = LaunchSnapshot{}
+	hit := PointerHit{Kind: PointerCatalog, Index: 0}
+	app.applyPointerFocusLocked(hit)
+	app.activatePointerHitLocked(hit, time.Now())
+	id, open = app.launch.GameID, app.detailOpen
+	app.mu.Unlock()
+	if open || id != focused.ID {
+		t.Fatalf("catalog click stayed on the recent: open=%v id=%s", open, id)
+	}
+}
+
+func TestRecentDetailQueuesItsOwnPresentation(t *testing.T) {
+	app := libraryRenderApp(t, 1280, 720, false)
+	recent := availableGame("recent-mario", "Mario", "snes")
+	app.games = nil
+	app.grid.SetCount(0)
+	app.grid.Focus = -1
+	app.libraryDetail = recent
+	app.detailOpen = true
+	app.shotIDs[recent.ID] = []string{"recent-shot"}
+	app.mu.Lock()
+	queue := app.queueLibraryDetailWorkLocked(time.Now(), nil)
+	if _, ok := app.covers[recent.ID]; !ok {
+		t.Fatal("recent cover slot was not created")
+	}
+	app.evictCoversLocked()
+	_, kept := app.covers[recent.ID]
+	queue = app.queueFocusedScreenshotsLocked(queue)
+	app.mu.Unlock()
+	if !kept {
+		t.Fatal("empty Library evicted the recent cover")
+	}
+	var sawPresentation, sawShot bool
+	for _, item := range queue {
+		if item.item.gameID != recent.ID {
+			t.Fatalf("queued work for %s", item.item.gameID)
+		}
+		switch item.item.kind {
+		case workPresentation:
+			sawPresentation = true
+		case workScreenshot:
+			sawShot = item.item.handle == "recent-shot"
+		}
+	}
+	if !sawPresentation || !sawShot {
+		t.Fatalf("recent work presentation=%v shot=%v queue=%+v", sawPresentation, sawShot, queue)
 	}
 }
 

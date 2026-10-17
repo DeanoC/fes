@@ -1446,11 +1446,11 @@ func (a *App) toggleFavoriteLocked() {
 	if a.favoriteBusy {
 		return
 	}
-	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
+	game, ok := a.favoriteTargetLocked()
+	if !ok {
 		a.status = "no title selected"
 		return
 	}
-	game := a.games[a.grid.Focus]
 	want := !game.Favorite
 	a.setGameFavoriteLocked(game.ID, want)
 	a.favoriteBusy = true
@@ -1461,7 +1461,27 @@ func (a *App) toggleFavoriteLocked() {
 	go a.doFavorite(ctx, game.ID, want)
 }
 
+// favoriteTargetLocked is the title Favorite changes. Open Details for a
+// title that is not the focused row, such as a Home recent, owns the action.
+func (a *App) favoriteTargetLocked() (hostclient.Game, bool) {
+	if a.room == nil && strings.TrimSpace(a.libraryDetail.ID) != "" {
+		return a.libraryDetail, true
+	}
+	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
+		return hostclient.Game{}, false
+	}
+	return a.games[a.grid.Focus], true
+}
+
 func (a *App) setGameFavoriteLocked(gameID string, favorite bool) {
+	if a.libraryDetail.ID == gameID {
+		a.libraryDetail.Favorite = favorite
+	}
+	for i := range a.homeRecents {
+		if a.homeRecents[i].ID == gameID {
+			a.homeRecents[i].Favorite = favorite
+		}
+	}
 	idx := -1
 	for i, game := range a.games {
 		if game.ID == gameID {
@@ -3862,6 +3882,7 @@ func (a *App) queueVisibleWork(now time.Time) {
 		}
 	}
 	queue = a.queueRoomDetailWorkLocked(now, queue)
+	queue = a.queueLibraryDetailWorkLocked(now, queue)
 	queue = a.queueFocusedScreenshotsLocked(queue)
 	a.evictCoversLocked()
 	a.evictShotsLocked()
@@ -3892,6 +3913,9 @@ func (a *App) inPrefetchLocked(gameID string) bool {
 	if a.room != nil && a.detailOpen && a.roomDetail.ID == gameID {
 		return true
 	}
+	if a.room == nil && a.detailOpen && a.libraryDetail.ID == gameID {
+		return true
+	}
 	start, end := a.prefetchSpanLocked()
 	for i := start; i < end; i++ {
 		if a.games[i].ID == gameID {
@@ -3909,6 +3933,9 @@ func (a *App) evictCoversLocked() {
 	}
 	if a.room != nil && a.detailOpen && a.roomDetail.ID != "" {
 		keep[a.roomDetail.ID] = struct{}{}
+	}
+	if a.room == nil && a.detailOpen && strings.TrimSpace(a.libraryDetail.ID) != "" {
+		keep[a.libraryDetail.ID] = struct{}{}
 	}
 	for id := range a.covers {
 		if _, ok := keep[id]; ok {

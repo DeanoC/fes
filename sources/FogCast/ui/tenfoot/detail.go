@@ -325,6 +325,22 @@ func (a *App) applyScreenshotResultLocked(result workResult) {
 	slot.message = ""
 }
 
+// detailSubjectIDLocked is the title whose presentation and screenshots
+// Details is showing: a chosen room edition, an off-grid Library subject,
+// or the focused row.
+func (a *App) detailSubjectIDLocked() string {
+	if a.room != nil && strings.TrimSpace(a.roomDetail.ID) != "" {
+		return a.roomDetail.ID
+	}
+	if a.room == nil && strings.TrimSpace(a.libraryDetail.ID) != "" {
+		return a.libraryDetail.ID
+	}
+	if a.grid.Focus >= 0 && a.grid.Focus < len(a.games) {
+		return a.games[a.grid.Focus].ID
+	}
+	return ""
+}
+
 func (a *App) queueFocusedScreenshotsLocked(queue []pendingWork) []pendingWork {
 	if a.gpuParked || a.attractActive || !a.detailOpen {
 		return queue
@@ -332,10 +348,9 @@ func (a *App) queueFocusedScreenshotsLocked(queue []pendingWork) []pendingWork {
 	if len(a.inflight) >= maxInflight {
 		return queue
 	}
-	if a.room == nil || a.roomDetail.ID == "" {
-		if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
-			return queue
-		}
+	gameID := a.detailSubjectIDLocked()
+	if gameID == "" {
+		return queue
 	}
 	ids := a.focusDetailLocked().ScreenshotIDs
 	if len(ids) == 0 {
@@ -370,12 +385,6 @@ func (a *App) queueFocusedScreenshotsLocked(queue []pendingWork) []pendingWork {
 			continue
 		}
 		slot.phase = coverArtwork
-		gameID := ""
-		if a.room != nil && a.roomDetail.ID != "" {
-			gameID = a.roomDetail.ID
-		} else if a.grid.Focus >= 0 && a.grid.Focus < len(a.games) {
-			gameID = a.games[a.grid.Focus].ID
-		}
 		a.screenshotContextLocked()
 		a.inflight[key] = workScreenshot
 		queue = append(queue, pendingWork{

@@ -391,7 +391,8 @@ kit are pending.
 - **Actions follow Confirm.** Details offers A only when Confirm will play or
   import. A blocked Confirm opens Details for the title that was refused,
   including a Home recent that is not the focused Library row, instead of
-  only changing header text. Cancelling the BIOS picker returns to that
+  only changing header text. Favorite, pointer confirm, and presentation
+  follow that title. Cancelling the BIOS picker returns to that
   Details.
 - **Creator.** `Studio` appears as "by …" beside the title.
 - **Cells.** A title that cannot play carries a labelled tag on a solid plate
