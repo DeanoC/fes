@@ -1,0 +1,18 @@
+{
+  "instrumented_source": "c0911a94fc6e058ac6762746768c5d8d4bd6e856",
+  "trace_counts": {
+    "lease-diag input-start type=*protocol.APIError code=\"KIT_LEASE_DENIED\" phase=\"recovery\"": 241,
+    "lease-diag reset elapsed=2.885537761s": 1,
+    "lease-diag status type=*protocol.APIError code=\"MISTER_UNAVAILABLE\" phase=\"\"": 1,
+    "lease-diag reset elapsed=1.663\u00b5s": 1
+  },
+  "overlay_files_sha256": {
+    "sources/FogCast/internal/hostapi/server.go": "fe2d1b4b78be26edc027c591e5d7fc6ffe4130ba24367cc36fb255e73ce546bd",
+    "sources/FogCast/internal/hostapi/session.go": "de8b835368efd82eb8c16eb932aaaf7c5810bf4253f30693910d23d92a6f6c8a",
+    "sources/FogCast/host/remote_input.go": "e60f752b9663d8634832558ca6b60fbeb19480f5215f16f18141f7d73d336255",
+    "sources/FogCast/host/target_bridge_starter.go": "4f1aaa8e22603864a3af131f8ea27cfa3741c7db41788791e3c588272b4e4dde",
+    "sources/FogCast/fogcast/discovery.go": "76c316bb11e843fd1971f2b5a2d7d97b5f6161c92dd20d4d4793952511ffe59a"
+  },
+  "scope": "Bounded instrumented diagnostic, not production-artifact acceptance; raw private logs excluded",
+  "observation": "241 denied reconnect attempts and a 2.885537761-second input reset; generic unavailable session response followed. Exact discovery error branch not logged."
+}

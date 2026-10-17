@@ -1,0 +1,146 @@
+{
+  "acceptance_scope": "Exact merged userspace bundle install/activation, two Pong lifecycle/input-API cycles, software-injected paddle displacement visible over HDMI, return to menu and original installed-core byte persistence.",
+  "base_contract_matches": true,
+  "bundle_id": "eaff152f182b69e1bcd867e4ec0c43931806e7dccf9b73cebe90250a4e560e65",
+  "class": "merged-source kit software validation",
+  "format": 1,
+  "host": {
+    "sha256": "93e37aaa4ebd419dc7161c19ab4936af4ff2baf6fafb90c1a8f6b1b602d1fcc7",
+    "source_commit": "d1a38ecfd1f1f461d207e0b88ea152475d7ac2e3",
+    "source_evidence": "coordinating-agent selected build"
+  },
+  "host_checks": {
+    "make_check": {
+      "log_sha256": "7a1776db34913e75a5f9671b00560d84fc90991debaf5e6df46340dc35170c88",
+      "outcome": "passed"
+    },
+    "runner_focused": {
+      "log_sha256": "6c94bdbe1bbae75f31ea8e36992cfd922f7c84ff810918021a16154508c01a89",
+      "outcome": "passed",
+      "seconds": 15.993,
+      "tests": 27
+    },
+    "test_changed_evidence_only": {
+      "base": "d1a38ecfd1f1f461d207e0b88ea152475d7ac2e3",
+      "log_sha256": "db4bf5a4822629b5f64e0575693c6f4a17a86a71798274ea44ad8e20488de475",
+      "origin": "coordinating-agent execution result",
+      "outcome": "passed",
+      "scope": "four always commands plus policy tests; no execution-source change"
+    }
+  },
+  "initial_preflight": {
+    "expected_base": "32f16cd2eba9befefaef7f6c94ee70f5c830b3c231e859222df7c7aee7b3b993",
+    "origin": "coordinating-agent observation",
+    "outcome": "rejected before selection change; actual running base differs"
+  },
+  "not_claimed": [
+    "Physical USB-controller button path",
+    "Coleco execution",
+    "New core/profile acceptance",
+    "Reboot or failed-candidate recovery on this merged bundle"
+  ],
+  "overall_hardware_acceptance": false,
+  "package_input": {
+    "container_cleanup": "both exited zero and removed",
+    "core_id": "fes.pong",
+    "cycles": 2,
+    "events_acknowledged_each": 2,
+    "events_requested_each": 2,
+    "frame_delta_each": 3,
+    "limits": "Explicit event acknowledgements and input frame-counter increases in both cycles are required for success; not hardware consumption, HDMI or physical controller acceptance.",
+    "outcome": "passed",
+    "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87"
+  },
+  "pending": [],
+  "records": {
+    "activation": {
+      "file": "activation-result.json",
+      "sha256": "7ca9f26641c6fee3de4e9b4af32b47bb482f2699d669b3c3a369e63e1e8b36bc"
+    },
+    "base_contract": {
+      "file": "running-base-contract.json",
+      "sha256": "9aeebddd30fea246609d6c5083b8ba3da4bc8138d0583622350888d004770f89"
+    },
+    "baseline": {
+      "file": "activation-baseline.json",
+      "sha256": "94727a6f93addd37b66f185466f5ee4156b6aa76076f6a6c4bc253f54ba9a432"
+    },
+    "bundle_receipt": {
+      "file": "bundle-receipt.json",
+      "sha256": "98de17c1082ad990252fe3aa27397f23ba275147a6223fb1a094c003a2993e48"
+    },
+    "core_bytes": {
+      "file": "core-persistence-after-activation.json",
+      "sha256": "f48f622411262409743ed8a3cda63ad3e77c70bd2459857f188427c800bd621e"
+    },
+    "final_core_bytes": {
+      "file": "core-persistence-final.json",
+      "sha256": "cfb1d1e877640d2eda15e3a0031c029c8e4f2d3c0008efc59092e27f74aa1055"
+    },
+    "final_menu": {
+      "file": "final-menu.png",
+      "sha256": "0b15fa6e985a836f9e9b6bb9e410305a7be989060af530dd513d3edced5456aa"
+    },
+    "final_ready": {
+      "file": "final-ready.json",
+      "sha256": "c4eb055453e0038da64bec6596ba2352ec01adb8d92eb300d5451a3f0eda2520"
+    },
+    "image_analysis": {
+      "file": "image-analysis.json",
+      "sha256": "6aea6afa4432f41a1d796447a7611e51cff49c142f97fba03aa0c9a857a349c0"
+    },
+    "image_baseline.png": {
+      "file": "baseline.png",
+      "sha256": "35fa14a01382c5a8ac2f2a9fb02704dbb4e582c1183ab44941aac5ac149c2f51"
+    },
+    "image_down.png": {
+      "file": "down.png",
+      "sha256": "bd9f8f0c158c3ae14d0846de30bdd99d2a465909049360ed14ce38e88bc6b893"
+    },
+    "image_up.png": {
+      "file": "up.png",
+      "sha256": "5b403441b32ac220178c92e5b325e7b594cdf6d4579fe8e3be41446d7ab55284"
+    },
+    "package_input": {
+      "file": "package-input-receipt.json",
+      "sha256": "ced0dd9e9a599dfc9decc44d9a2a0907695af6df4f47f5ae701d9666ffea85bc"
+    },
+    "public_health": {
+      "file": "public-health-check.json",
+      "sha256": "c0f038e9a17a12f0610fac2c6e0651aa555d9023fc322fc1442b1ac4048a497e"
+    },
+    "visual": {
+      "file": "visual.json",
+      "sha256": "fe04bda5a9b09db50daebc1221463cd21738d7124e7e28da268450a4c44f0a60"
+    },
+    "visual_preflight": {
+      "file": "visual-preflight-refusal.json",
+      "sha256": "f42ee1e55cd921b5d814e96b64309a7ae3aee69f4f494f9b31be36b08938b7cc"
+    }
+  },
+  "retained_build_base_sha256": "32f16cd2eba9befefaef7f6c94ee70f5c830b3c231e859222df7c7aee7b3b993",
+  "retained_bundle_artifacts": {
+    "archive_sha256": "160654d2be813d9e50aaf953e70081dd6f33deb6e7b1559af378cb9de6275121",
+    "directory": "out/kit-software/kit-2026.10.16-merged-main"
+  },
+  "running_base_image_sha256": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+  "source_commit": "d1a38ecfd1f1f461d207e0b88ea152475d7ac2e3",
+  "status": "passed for recorded merged bundle/host lifecycle and software-input-to-HDMI diagnostic",
+  "visual": {
+    "baseline": "Black; no usable pre-input paddle position and no asserted cause.",
+    "comparison": "Left paddle after up y0..143, after down y937..1079; right paddle y469..611 in both.",
+    "events_acknowledged": 4,
+    "outcome": "passed",
+    "private_host_exit": 0,
+    "scope": "Software-injected directional input caused observed left-paddle displacement in captured FPGA HDMI output; no physical USB controller claim.",
+    "script_sha256": "086d417454625638d8029f17c3555c6e01fa78dc469092d4933025b820eefe29"
+  },
+  "visual_preflight": {
+    "captures": 0,
+    "events": 0,
+    "host_started": false,
+    "origin": "coordinating-agent observation; corrected helper subsequently validates DNS resolution to designated .84",
+    "outcome": "refused before mutation",
+    "reason": "private target alias did not match an old literal-address helper guard"
+  }
+}

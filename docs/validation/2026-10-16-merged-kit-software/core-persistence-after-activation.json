@@ -1,0 +1,33 @@
+{
+  "after_inventory_sha256": "f53833661a55a96ce6c5b598bd5394295e146c64028e36927bca175bf3516377",
+  "all_bytes_unchanged": true,
+  "before_inventory_sha256": "f53833661a55a96ce6c5b598bd5394295e146c64028e36927bca175bf3516377",
+  "files": [
+    {
+      "path": "selections.json",
+      "sha256": "422cfac5e1a029c8d9a77d3a6f3571aa02f9d3551ad7e8e266d65c211376d04d"
+    },
+    {
+      "path": "packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/manifest.toml",
+      "sha256": "7890fe09cccfb15e12de53311d0ff53763261ae76299f0a93c0572e05998ac71"
+    },
+    {
+      "path": "packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/core.rbf",
+      "sha256": "79e74f2cc1b01abd61eb986c1a93ead7684ebf88be499ff5f7b883bdb56cf6d3"
+    },
+    {
+      "path": "packages/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337/rom-map.json",
+      "sha256": "d8c19066779510301e2b7f1ce49e4ccdd4e34452ba110258287ecc54e8559043"
+    },
+    {
+      "path": "archives/cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337.fcore",
+      "sha256": "df8a5d7ee4ac42e1f2ba261f3c48536b59400294151b2eed075d4b00712c0b02"
+    },
+    {
+      "path": ".lock",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  ],
+  "files_compared": 6,
+  "scope": "After software activation only; no core execution claim."
+}

@@ -3,13 +3,20 @@
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
+from contextlib import ExitStack
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from scripts import c64_slots
 from scripts import build_c64_slot_card as card
+from scripts.cyclonev_rbf import LoadedRbf, SX120F, cram_set
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -207,6 +214,160 @@ class C64SlotCardTests(unittest.TestCase):
         source["modules"]["cart"]["cells"].pop("ob_0")
         with self.assertRaises(ValueError):
             card.materialize_response_drivers(json.dumps(source).encode())
+
+
+def good_timing() -> dict:
+    timing = {"fmax": {name: {"constraint": mhz, "achieved": mhz + 1}
+                       for name, mhz in card.REQUIRED_CLOCKS_MHZ.items()}}
+    timing["timing_summary"] = {"final_analogue_model": True, "clocks": {
+        name: {"setup_wns_ns": 0.0, "hold_wns_ns": 0.1} for name in card.REQUIRED_CLOCKS_MHZ}}
+    return timing
+
+
+class CardBuildFixture:
+    """Mock the compilers and retain real hashing, scaffold, timing and CRAM checks."""
+
+    def __init__(self, root: Path, backend: str = "hip"):
+        self.root, self.shell, self.backend = root, root / "shell", backend
+        self.shell.mkdir()
+        for relative in card.card_inputs("probe"):
+            path = root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / relative, path)
+        self.package = SimpleNamespace(
+            manifest_bytes=b"manifest", payload_bytes=b"shell", rom_map_bytes=b"rom-map",
+            package_id="a" * 64,
+            fields={"build": {"id": "b" * 32}, "interfaces": [{
+                "id": c64_slots.INTERFACE, "major": 1, "minor": 0, "required": False}]})
+        for name, data in (("manifest.toml", b"manifest"), ("core.rbf", b"shell"),
+                           ("rom-map.json", b"rom-map"),
+                           ("socket.qsf", b'FES_RESERVED_RECT "slot1 24 1 28 18"\n'),
+                           ("routed.json", json.dumps(frozen_shell()).encode())):
+            (self.shell / name).write_bytes(data)
+        self.write_backend(backend)
+        self.tools = {name: SimpleNamespace(path=root / name, identity=name + "-authenticated")
+                      for name in ("yosys", "nextpnr-mistral", "mistral")}
+        die = SimpleNamespace(cram_sx=4096, cram_sy=2048, x_to_bx=SX120F.x_to_bx,
+                              ecc_columns=SX120F.ecc_columns)
+        self.base = LoadedRbf(die, b"same-header", bytearray(4096 * 2048 // 8), True)
+        self.placed = LoadedRbf(die, b"same-header", bytearray(self.base.cram), True)
+        cram_set(self.placed.cram, die, 1770, 33, 1)
+        self.route_text = f"Info: backend {backend}:fixture ready\nInfo: Program finished normally.\n"
+        self.commands, self.envs = [], []
+
+    def write_backend(self, route: str, recorded: str | None = None) -> None:
+        (self.shell / "build-summary.json").write_text(json.dumps({"route": {"gpu_backend": route}}))
+        (self.shell / "build-inputs.json").write_text(
+            json.dumps({"parameters": {"gpu_backend": route if recorded is None else recorded}}))
+
+    def compiler(self, command, **kwargs):
+        self.commands.append(command)
+        self.envs.append(kwargs.get("env"))
+        if Path(command[0]).name == "yosys":
+            script = command[2]
+            Path(script.split("write_json ", 1)[1].strip()).write_text("{}")
+        else:
+            output = Path(command[command.index("--rbf") + 1]).parent
+            (output / "cart.rbf").write_bytes(b"placed-card")
+            (output / "timing.json").write_text(json.dumps(good_timing()))
+            routed = {"modules": {"top": {
+                "cells": {"fes_cart$probe": {"type": "MISTRAL_LUT", "connections": {}}},
+                "netnames": {card.SLOT_CLOCK: {"bits": [10]}}}}}
+            (output / "cart-routed.json").write_text(json.dumps(routed))
+            kwargs["stdout"].write(self.route_text)
+
+    def build(self, *, gpu: int = 0, **options):
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(card, "_require_clean_source", return_value=("repo", "d" * 40)))
+            stack.enter_context(patch.object(card, "read_package", return_value=self.package))
+            self.authenticate = stack.enter_context(patch.object(
+                card.shell_recipe, "_authenticate_c64_tools", side_effect=[self.tools, self.tools]))
+            stack.enter_context(patch.object(card, "materialize_response_drivers", side_effect=lambda data: data))
+            stack.enter_context(patch.object(card.subprocess, "run", side_effect=self.compiler))
+            stack.enter_context(patch.object(card, "rbf_load", side_effect=[self.base, self.placed]))
+            stack.enter_context(patch.object(card, "overlay_cram", return_value=self.placed))
+            stack.enter_context(patch.object(card, "rbf_save", return_value=b"linked-card"))
+            return card.build(self.root, self.shell, self.root / "package", 1, "probe", gpu, **options)
+
+
+class C64CardGpuLaneTests(unittest.TestCase):
+    def test_cli_exposes_the_shell_gpu_lane(self) -> None:
+        result = subprocess.run([sys.executable, "scripts/build_c64_slot_card.py", "--help"],
+                                cwd=ROOT, text=True, capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--gpu-router", result.stdout)
+        self.assertIn("--toolchain-root", result.stdout)
+
+    def test_invalid_gpu_rejected_before_source_or_tools(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for gpu in (-1, True, False, "1", 1.5, None):
+                with self.subTest(gpu=gpu), \
+                     patch.object(card, "_require_clean_source") as source, \
+                     patch.object(card.shell_recipe, "_authenticate_c64_tools") as tools:
+                    with self.assertRaisesRegex(ValueError, "nonnegative integer"):
+                        card.build(root, root, root, 1, "probe", gpu)
+                    source.assert_not_called()
+                    tools.assert_not_called()
+
+    def test_cuda_shell_rejects_the_hip_default_before_authentication(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = CardBuildFixture(Path(directory), backend="cuda")
+            with self.assertRaisesRegex(ValueError, "does not match the frozen shell backend cuda"):
+                fixture.build()
+            fixture.authenticate.assert_not_called()
+
+    def test_inconsistent_shell_backend_evidence_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = CardBuildFixture(Path(directory), backend="cuda")
+            fixture.write_backend("cuda", recorded="hip")
+            with self.assertRaisesRegex(ValueError, "inconsistent"):
+                fixture.build(gpu_router="CUDA")
+            fixture.authenticate.assert_not_called()
+            for name in ("build-summary.json", "build-inputs.json"):
+                (fixture.shell / name).unlink()
+            with self.assertRaisesRegex(ValueError, "no GPU backend evidence"):
+                fixture.build(gpu_router="CUDA")
+
+    def test_cuda_router_authenticates_matching_backend_and_toolchain(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = CardBuildFixture(Path(directory), backend="cuda")
+            toolchain = Path("/tmp/c64-cuda")
+            with patch.dict(os.environ, {"HIP_VISIBLE_DEVICES": "0", "CUDA_VISIBLE_DEVICES": "0",
+                                          "CUDA_DEVICE_ORDER": "FASTEST_FIRST"}):
+                result = fixture.build(gpu=1, gpu_router="CUDA", toolchain_root=toolchain)
+            self.assertEqual(fixture.authenticate.call_count, 2)
+            for call in fixture.authenticate.call_args_list:
+                self.assertEqual(call.args, (fixture.root.resolve(), None))
+                self.assertEqual(call.kwargs, {"toolchain_root": toolchain, "gpu_router": "CUDA"})
+            for env in fixture.envs:
+                self.assertEqual(env["CUDA_DEVICE_ORDER"], "PCI_BUS_ID")
+                self.assertNotIn("HIP_VISIBLE_DEVICES", env)
+                self.assertNotIn("CUDA_VISIBLE_DEVICES", env)
+            route = fixture.commands[1]
+            self.assertEqual(route[route.index("--gpu-device") + 1], "1")
+            recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
+            self.assertEqual(recipe["gpu_device"], 1)
+
+    def test_hip_route_masks_requested_gpu_without_nextpnr_device_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = CardBuildFixture(Path(directory))
+            with patch.dict(os.environ, {"HIP_VISIBLE_DEVICES": "9", "CUDA_VISIBLE_DEVICES": "3"}):
+                result = fixture.build(gpu=1)
+            route = fixture.commands[1]
+            self.assertNotIn("--gpu-device", route)
+            for env in fixture.envs:
+                self.assertEqual(env["HIP_VISIBLE_DEVICES"], "1")
+            recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
+            self.assertNotIn("gpu_device", recipe)
+            self.assertEqual(fixture.authenticate.call_args.kwargs["gpu_router"], "HIP")
+
+    def test_route_backend_must_match_the_selected_lane(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = CardBuildFixture(Path(directory), backend="cuda")
+            fixture.route_text += "Info: falling back to the CPU reference backend\n"
+            with self.assertRaisesRegex(ValueError, "CPU reference"):
+                fixture.build(gpu_router="CUDA", toolchain_root=Path("/tmp/c64-cuda"))
 
 
 if __name__ == "__main__":

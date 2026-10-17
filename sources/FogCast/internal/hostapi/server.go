@@ -138,7 +138,18 @@ type targetHealth struct {
 	Connection *fogcast.TargetConnection `json:"connection,omitempty"`
 	Reachable  bool                      `json:"reachable"`
 	Ready      bool                      `json:"ready"`
+	APIVersion string                    `json:"api_version,omitempty"`
 	Artifacts  *protocol.Artifacts       `json:"artifacts,omitempty"`
+	Software   *targetSoftwareIdentity   `json:"software,omitempty"`
+}
+
+// Host health exposes release identity, not the authenticated supervisor's
+// operation journal, requester labels or diagnostic error strings.
+type targetSoftwareIdentity struct {
+	ActiveBundle string `json:"active_bundle"`
+	BaseIdentity string `json:"base_identity"`
+	Selected     string `json:"selected"`
+	Generation   uint64 `json:"generation"`
 }
 
 type errorResult struct {
@@ -269,6 +280,7 @@ func New(service Service, options ...ServerOption) http.Handler {
 	}
 	mux := http.NewServeMux()
 	registerCoreLibrary(mux, service)
+	registerKitSoftwareInventory(mux, service)
 	registerCoreData(mux, service)
 	registerMeshHostContent(mux, service)
 	registerLibraryTitles(mux, service)
@@ -286,6 +298,11 @@ func New(service Service, options ...ServerOption) http.Handler {
 		coordinator := requestSessionCoordinator(session, service, r, target, true)
 		result, err := coordinator.status(r.Context())
 		if err != nil {
+			var apiErr *protocol.APIError
+			if errors.As(err, &apiErr) && (apiErr.Code == protocol.CodeKitLeaseDenied || apiErr.Code == protocol.CodeKitLeaseBusy) {
+				writeSessionError(w, err)
+				return
+			}
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service)})
 			return
 		}
@@ -534,7 +551,14 @@ func New(service Service, options ...ServerOption) http.Handler {
 			result.Target.Connection = &fogcast.TargetConnection{TargetID: targetID, State: state}
 		}
 		if err == nil {
+			result.Target.APIVersion = target.APIVersion
 			result.Target.Artifacts = target.Artifacts
+			if software := target.Software; software != nil {
+				result.Target.Software = &targetSoftwareIdentity{
+					ActiveBundle: software.ActiveBundle, BaseIdentity: software.BaseIdentity,
+					Selected: software.Selected, Generation: software.Generation,
+				}
+			}
 		}
 		writeJSON(w, http.StatusOK, result)
 	})

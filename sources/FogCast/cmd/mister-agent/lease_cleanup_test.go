@@ -350,7 +350,7 @@ func TestExplicitStopReleasesWithoutASecondRuntimeStop(t *testing.T) {
 	if _, err := service.Launch(context.Background(), id); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.Stop(context.Background()); err != nil {
+	if err := service.Stop(context.Background(), service.RunStatus().Generation); err != nil {
 		t.Fatal(err)
 	}
 	waitLease(t, fixture.manager, "free")

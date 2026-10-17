@@ -139,27 +139,26 @@ or fallback mechanism.
 
 ### Fast target iteration policy
 
-During active runtime or target debugging, do not rebuild the complete image
-for every source change. Run the narrow host tests, cross-build only the
-self-contained changed runtime artifact, and place it in a disposable copy of
-the last verified image. Deploy that derived image for a bounded diagnostic,
-preserving the verified source image and recording the derived hash. Derived
-image results are diagnostic only; they do not establish reproducibility,
-release readiness, or hardware acceptance.
+For active target/runtime development, run focused tests and build a compatible
+[kit software bundle](../../../docs/kit-software-releases.md) against a verified
+retained base image. Managed kits accept installation while busy and queue
+activation until execution ownership is released. Successful selections remain
+installed; neither binary/configuration overlays nor routine stock restoration
+are supported on managed images. Use a private host for branch diagnostics.
 
-When replacing a root image on the running kit, keep the old image under a
-backup filename until after reboot. Never overwrite its contents or rename a
-replacement directly over its last filename: the loop device still holds it
-open, and reboot can leave orphaned FAT allocation chains. Stage and verify the
-new image, rename the running image to an unused backup name, install the staged
-image, sync and reboot; delete the backup only after verifying the new boot.
-Keep power stable during the two renames.
+A core using an installed ABI follows package import/selection/launch. A host
+change uses its independent private-host build. Neither requires matching source
+revisions or a new kit image. Diagnostics pin the active bundle and base-image
+identities and check the advertised operation contracts; source revisions remain
+provenance.
 
-Use the FES two-pass `make build` / `make verify` after a change has
-stabilized and immediately before a major PR, merge, release, or formal
-hardware acceptance. The full image rebuild is also required for any change to
-Buildroot, init scripts, package contents, image configuration, or locked
-inputs, because a runtime-only replacement cannot validate those changes.
+Changes to the base supervisor, startup, system libraries, kernel, image
+configuration, factory-image packages or locked base inputs require a planned
+appliance-image update and the two-pass FES `make build` / `make verify` checks.
+Use the [appliance release workflow](../../../docs/appliance-releases.md) under
+the designated kit lease, preserving factory, known-good, previous and referenced
+images. Building an artifact does not authorize its deployment or establish its
+hardware acceptance.
 
 ## Dedicated fixture
 
@@ -244,8 +243,11 @@ They are not a second update path for managed images.
 
 A software update does not reboot the board. `/sbin/reboot` and
 `POST /v1/development/reboot` are not service-restart operations. If physical
-recovery reports `reboot_required`, use the designated kit's documented hard
-power-supply cycle; a front-panel reset does not replace that cycle. The separate
+recovery reports `reboot_required`, keep execution fenced and arrange separately
+authorized board recovery. A software reboot can clear the observed HDMI I2C
+failure; verify the new boot, native idle and admission before resuming work.
+If the fault persists, use the designated kit's hard power-supply cycle; a
+front-panel reset does not replace that cycle. The separate
 [soft-restart Path B](../../../docs/soft-restart-path-b.md) note describes the
 board-reboot diagnostic and its arming rules. Do not run that kit check.
 

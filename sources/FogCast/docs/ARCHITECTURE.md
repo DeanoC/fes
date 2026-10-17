@@ -69,6 +69,29 @@ platform, stay `launchable` even when a cartridge platform such as Coleco
 has no host-emulator mapping. Rooms treat those titles as Ready once
 composition flags such as `firmware_ready` pass; raw Coleco library carts
 remain browse-only.
+A locally expired or lost kit lease remains `KIT_LEASE_DENIED` through host
+service normalization, session reads, input reconciliation, Launch and Stop.
+The host API returns HTTP 403 for this ownership refusal. An ordinary claim
+refused by a foreign holder remains HTTP 409 `KIT_LEASE_BUSY`, including during
+input reconciliation after endpoint adoption. Neither becomes a disconnected
+target or failed input bridge. Unclassified transport and
+bridge failures retain their unavailable responses. A refusal does not establish
+whether an earlier operation completed; clients must inspect current ownership
+before issuing a new operation. Existing authenticated endpoint reconciliation
+uses read-only ownership/status observations to discard stale local authority;
+it never stops or releases the replacement owner's session. A subsequent
+explicit launch uses an ordinary claim, which still refuses a foreign holder.
+Input reconnect stops immediately on an explicit lease-denied or busy response.
+A CONNECT `/v1/input/stream` refusal of 403 `KIT_LEASE_REQUIRED` — the kit has
+already revoked, expired, or superseded the grant — is read from a bounded
+response and mapped to the same sanitized `KIT_LEASE_DENIED` before reconnect
+sees it. The host does not redial that stale handle for the network reconnect
+grace period. This releases the input lock for ownership reconciliation.
+Heartbeat and event-driven reconnect both record `lease_lost` rather than a
+network reconnect timeout, and event delivery keeps the sanitized refusal.
+Transient stream failures retain the bounded reconnect grace. No mutation is
+automatically retried after lease loss.
+
 Native FPGA Stop uses the
 mutation (`upload_timeout_seconds`) deadline, not the short status request
 timeout; programming idle can exceed a 5s health poll.
@@ -338,8 +361,24 @@ optional sealed package ID, and on an appliance boot the bootstrap ticket
 `image_sha256`. The agent does not hash live binaries on each poll. Missing
 fields mean there is no sealed record (for example an unsealed diagnostic image), not
 that identity was rewritten. Host `GET /api/v1/health` adds a `host` identity
-(`version`, `revision`, `os`, `arch`) and forwards `target.artifacts` when the
-target is reachable. These identities describe provenance, not runtime
+(`version`, `revision`, `os`, `arch`) and forwards `target.artifacts` and
+`target.api_version` when the target is reachable. Authenticated target health
+also reports managed software independently of that sealed base-image record.
+The host projects only `target.software.active_bundle`, `base_identity`,
+`selected` and `generation`; it omits the operation journal, requester labels
+and diagnostic error strings. Unmanaged targets omit `target.software`, and
+failed health does not retain a previous identity. Public unauthenticated target
+health never exposes software status.
+
+`GET /api/v1/kit/software/releases` reads the selected target's immutable release
+inventory through the authenticated target client, without acquiring a lease or
+changing selection. The response is an array of `{id, manifest}` records with
+verified manifest IDs. Paired launcher requests read their authenticated kit,
+not another host-selected target. Diagnostics can match `active_bundle` to a
+manifest and inspect its declared interface contracts; inventory is not fetched
+on the health polling path. Activation and runtime readiness remain independent
+requirements. The base record's runtime commit does not identify a running
+replacement bundle. Source revisions describe provenance, not runtime
 compatibility. FES retains exact component pins, native input locks, hashes and
 release receipts for reproducibility and exact-artifact acceptance.
 
@@ -981,7 +1020,7 @@ rejected. Neither is a kit mutation.
 TV overscan insets, sofa layout (`grid`, `shelf`, or `list`), the local
 attract on/off gate, reduced motion, the look name, the optional debug HUD, and Home
 (`home` start screen, optional `home_room` id, plus `pinned_rooms`) are local to the tenfoot process (CLI `-safe-area` /
-`-layout` / `-no-attract` / `-theme` / `-debug-hud` / `-home` / `-home-room` and optional `tenfoot.json` prefs). When `home` is `rooms` and `home_room` names a pack that can be opened, start and Home open that room as the root; otherwise the Home overlay lists pinned rooms, recently played games, installed rooms, and the library. A room may publish an allowlisted `settings` action; Confirm opens Settings when the launcher can, and otherwise shows a short status. There is no host
+`-layout` / `-no-attract` / `-theme` / `-debug-hud` / `-home` / `-home-room` and optional `tenfoot.json` prefs). When `home` is `rooms` and `home_room` names a pack that can be opened, start and Home open that room as the root; otherwise the Home overlay lists pinned rooms, recently played games, installed rooms, and the library. On `menu-display`, a rooms home with no room selected by flag, saved preferences or `FOGCAST_HOME_ROOM` defaults to Installed cores (`example.fes-cores`). Changing Home from Library to Rooms in Settings applies that same default for the rest of the session. The implicit room stays out of `tenfoot.json`. An already selected room stays selected. Library home is unchanged. Installed-core listing retries transient startup socket/time-out and catalog-warming failures for up to 60 seconds; leaving the room cancels those reads. Back opens the Home overlay, retaining library navigation. Other backends keep their existing defaults. A room may publish an allowlisted `settings` action; Confirm opens Settings when the launcher can, and otherwise shows a short status. There is no host
 safe-area or layout API. Host attract idle, preferred regions, selected target, library roots, and
 targets use the existing public library settings endpoints. Tenfoot can add,
 edit, and remove targets from the sofa settings overlay. Agent secrets are
@@ -1137,7 +1176,7 @@ is separate from the broader SDL smoke.
 | FPGA | `gfx.NewFPGA` (`ui/gfx/fpga_device.go`) | Records the versioned FC2D command stream (`ui/gfx/fpga_protocol.md`) and rasters through Software. `BackendName` is `fpga`. `IsStub` is true until a programmed 2D core exists; this slice has no mailbox/RBF and is not HDMI FPGA UI. Timed still/crossfade and sprite helpers live in `ui/anim`. |
 | FPGA stub | `gfx.NewFPGAStub` (`ui/gfx/fpga.go`) | Thin Software wrapper without a command stream, kept as `fpga-stub`. `IsStub` is true. Does not talk to kit, runtime, or RBF. |
 | linuxfb | `gfx.OpenLinuxFB` / `gfx.NewLinuxFB` (`ui/gfx/linuxfb.go`) | Software rasterizer whose `Present` blits RGBA8 to a 32bpp Linux framebuffer (`/dev/fb0`) with destination stride and BGRX byte order. CGO-free ARMv7 spike: `cmd/tenfoot-linuxfb-spike`, which reads evdev/joystick via `ui/linuxinput` and moves a cursor (Start/ESC/Q quit). Sibling `cmd/tenfoot-linuxfb-grid` paints a hardcoded cover-grid on the same Present + linuxinput path (highlight, confirm, quit; no catalog). Shared remap and multi-device merge live in `ui/inputmap`; linuxinput can apply a `Remapper` to gamepad records. Look tokens live in `ui/theme` and are consumed by `fbgrid.Paint` and the sofa `Clear` sites. Kit chrome uses typography roles `title_px` / `body_px` / `caption_px` / `status_px` through `Theme.TitlePx` and siblings; when a role is unset, `header_scale` / `label_scale` / `status_scale` still map to pixel size `8*scale`. Title and chrome header use Go Bold when `title_bold` / `header_bold` are set (built-ins default true); body, caption, and status stay Regular. `DebugText` stays the FPGA/debug path. |
-| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` uses rendered revisions and change-driven presents: known scene changes and animations redraw immediately, while an unchanged render key skips rasterization until a one-second fallback refresh. Idle ticks still service menu generation probes, retries and Resume with the existing revision; linuxfb idle ticks skip presentation. The fallback refresh captures presentation fields outside the render key, and the final settled animation frame always redraws. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend each launcher submits one indeterminate loading frame with phase and elapsed time, waits for its runtime transaction, pauses presents, then dispatches the launch so the core owns HDMI. On the HPS framebuffer, loading overlays continue animating and show elapsed time. Launches return to the menu after the local 60 second load bound plus five seconds grace, while status reconciliation continues for late adoption. Select+Start during local loading defers stop until the runtime publishes the running lease. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
+| menu-display | `gfx.NewMenuDisplay` (`ui/gfx/menu_display.go`) | Software rasterizer that submits full 1280×720 frames on the runtime menu socket. `fogcast-kit` uses rendered revisions and change-driven presents: known scene changes and animations redraw immediately, while an unchanged render key skips rasterization until a one-second fallback refresh. Idle ticks still service menu generation probes, retries and Resume with the existing revision; linuxfb idle ticks skip presentation. The fallback refresh captures presentation fields outside the render key, and the final settled animation frame always redraws. `fogcast-tenfoot` settings dims only the backdrop outside its opaque panel, avoiding hidden alpha overdraw. `fogcast-tenfoot -gfx menu-display` uses `FrameCache`, rendered revisions and `SetChangeDriven(true)`: an unchanged rendered revision that has not failed or been dropped is skipped. Callers without revisions compare framebuffer bytes. Once a second after a successful present, that skip still reads menu status. A new menu generation is submitted in full; the same generation presents nothing. The first frame is submitted because nothing has been queued yet. Status errors, scanout underflow, and present failures wait 250ms, doubling up to 5s. An unavailable menu uses that schedule but never waits longer than the 1s probe, so a Stop redraws within about a second. A generation mismatch does not start a new wait. The next present after a wait is submitted. The menu-display backend takes no kit lease and only talks to the runtime menu socket; the tenfoot app keeps its existing host session client and existing status reads (for example the kit-lease status read). The image starts `fogcast-tenfoot` on this socket only when `kit_ui` is `tenfoot`; otherwise it starts `fogcast-kit`. On this backend each launcher submits one indeterminate loading frame with phase and elapsed time, waits for its runtime transaction, pauses presents, then dispatches the launch so the core owns HDMI. On the HPS framebuffer, loading overlays continue animating and show elapsed time. Launches return to the menu after the local 60 second load bound plus five seconds grace, without adopting a later same-package session after a lost launch reply. Select+Start during local loading defers stop until the exact launch reply supplies its claim generation. A capable library ZX81 can open a generation-bound full-screen launcher plane through the leased session display operation while execution continues. |
 
 `gfx.Recorder` remains a call-order test double and does not draw pixels.
 `gfx.Replay` / `ReplayBytes` apply a decoded FC2D stream to any Device.
@@ -1259,7 +1298,15 @@ and selected image permits magic-close. Failure, deadline, or process death
 leaves reset armed. Known-good boots do not require the host to be online.
 
 `appliance/store` owns bounded raw-image admission, immutable publication,
-cross-process locking, checksummed state, and consumed-trial selection.
+cross-process locking, checksummed state, consumed-trial selection, and
+removal of unreferenced images after an upload has been verified. When the
+release volume is short, the upload is verified on the mounted FESDATA3
+volume, or a directory bind-mounted from it, before any image is deleted.
+tmpfs and ramfs are not used. Factory, known-good, previous, pending, trial,
+the `boot.json` image, and loop-backed images in the release store stay. A
+volume that is still too small, or that has nowhere outside itself to verify
+the upload, fails the stage with HTTP 507 `UPDATE_NO_SPACE`
+(`insufficient release storage`) and deletes nothing.
 `internal/appliancedata` owns the optional FESDATA3 bind at agent startup.
 The FES bootstrap owns fallback ordering, Linux mounts, loops, and the
 watchdog. The bootstrap records its selected image in
@@ -2262,8 +2309,17 @@ does not persist its pending queue.
 The supervisor waits up to 30 seconds for `/media/fat/fogcast/agent.toml` before
 starting the agent, and bounds the launcher selection probe. A process that
 exits before the readiness window is accepted is restarted within that startup
-deadline. An exit after acceptance is reported and is not restarted behind a
-lease. The supervisor verifies process exit before replacement, pins every service to
+deadline. After acceptance, a launcher exit is restarted on its own while the
+runtime and agent stay up. An accepted agent or runtime exit stops the whole
+group, confirms every process group is gone, and starts it again, backing off
+from one second to thirty seconds when the replacement dies quickly. The
+replacement agent closes new execution claims before it listens. The supervisor
+confirms that fence before probing the launcher and opens it only after the
+group is accepted. A core that has reached `running_development` is accepted
+once the fence is confirmed. A finished session whose fence cannot be closed
+stays running with claims closed, and the next tick retries the fence. A load
+still in `starting`, and an idle sample whose fence was not confirmed, stay on
+the readiness budget. The supervisor verifies process exit before replacement, pins every service to
 one bundle, checks startup and finishes the exact maintenance generation.
 Accepted bundles remain selected. Failed startup permits one durably recorded
 prior-bundle recovery attempt; failed recovery remains blocked. Appliance trials
@@ -2612,7 +2668,20 @@ pauses menu presents when the core owns HDMI. "In use. Someone else is playing o
 play when they're done." is the busy lease. A blocked tile keeps its block line
 ("Needs a cartridge", "Needs firmware") and does not call the runtime. Anything
 else the socket cannot launch says "This core isn't available right now."
-Select+Start held for one second calls stop. A lone Select or Start is forwarded.
+Every successful local launch returns its opaque kit-lease `generation`, captured
+from that launch's claim. Local status includes the same generation throughout
+launching, running and stopping, and clears it at idle. `POST /v1/local/stop`
+requires JSON `{"expected_generation":"<64 lowercase hex characters>"}`.
+Missing, malformed and stale generations return `409 in_use` without calling
+the runtime. There is no unconditional or empty-body Stop path. The service
+compares generation under its state lock and dispatches through that claim's
+lease token; old renewal and Stop completions cannot clear a replacement run.
+Clients retain the launch-returned generation instead of fetching whichever
+claim happens to be current when Stop is pressed. A lost launch response is
+unavailable, even when status shows the same package: package identity does
+not prove session ownership. An explicit observation/adoption of a current run
+is separate from completing an earlier launch.
+Select+Start held for one second calls generation-checked stop. A lone Select or Start is forwarded.
 When the second of that pair goes down, tenfoot releases whichever of the pair
 it already sent and suppresses both until one is released. Releasing either
 before the second elapses cancels the stop and does not replay the swallowed
@@ -2622,7 +2691,11 @@ loop. The event that reaches that mark is not forwarded. Stop returns the runtim
 to fes.menu; tenfoot resumes presents and redraws on that new menu generation.
 While the phase is running, that same tick polls GET /v1/local/status at most
 about once a second, off the app lock and single-flight. If the agent reports
-idle or not running, tenfoot resumes the same way. Stop that returns in_use
+idle or not running, tenfoot resumes the same way. A running status whose
+generation or package differs from the launch claim is not adopted and is not
+stopped. Tenfoot keeps menu presents paused and delivers pad input on the local
+feed, without Select+Start stop, until status is idle with an empty generation.
+That hold has no timeout. Stop that returns in_use
 resumes too; only unavailable is retried, because the core may still be up.
 Packages declaring firmware stay in that class: the local socket does not
 link firmware ROMs. A cartridge for an installed core is linked by
@@ -2647,9 +2720,10 @@ the next launch can claim. Release returns while cleanup is still running, and
 a launch during revocation is in use. Cleanup that fails makes Stop return
 unavailable. Disconnecting the local client does not abandon that wait. The
 kit client gives the stop POST the runtime stop budget plus the lease cleanup
-budget. A lost response is reconciled from local status: idle resumes, and
-stopping or running stays unavailable so the menu does not offer another launch
-while the grant is still revoking. Tenfoot's stop budget outlives that POST.
+budget. A lost Stop response is reconciled from local status: generation-free idle
+resumes, the same generation still stopping or running remains unavailable, and
+a different generation is refused. Reconciliation never posts another Stop or
+adopts a replacement merely because it runs the same package. Tenfoot's stop budget outlives that POST.
 Bearer `GET /v1/status` still reads that coordinator record. While the record
 is idle and a kit-local core is launching, running, or stopping, the response
 reports state `launching`, `local`, or `stopping` and sets `observed_core` to
@@ -2720,7 +2794,11 @@ for this host's active or failed session. For a kit-local run it goes to local
 control `POST /v1/local/stop` instead, including a run the grid did not start:
 while a core is bound and no local run is known, the grid reads
 `GET /v1/local/status` at most once a second (single-flight) and adopts a
-launching or running answer as its active session. A foreign-owned core accepts
+launching or running answer as its active session. A local launch that is
+confirmed idle before it is observed running forgets its generation, and the
+next local launch starts without that identity, so the new run is not treated
+as a replacement. A successful launch reply owns the returned generation and
+clears uncertainty left by an earlier run. A foreign-owned core accepts
 local play controls, but this launcher cannot stop it. With no core bound, the
 same pad drives browse. Stop and kit menu actions stay on the kit. If the
 socket is not listening, play input reports

@@ -1,0 +1,14 @@
+{
+  "active_bundle": "eaff152f182b69e1bcd867e4ec0c43931806e7dccf9b73cebe90250a4e560e65",
+  "base_identity": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+  "boot_id": "14c05a47-1615-43f0-a084-a1dc8948c119",
+  "fault_present": false,
+  "generation": 11,
+  "lease_state": "free",
+  "pending_present": false,
+  "ready": true,
+  "runtime_state": "idle",
+  "selected": "eaff152f182b69e1bcd867e4ec0c43931806e7dccf9b73cebe90250a4e560e65",
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "unreleased_present": false
+}

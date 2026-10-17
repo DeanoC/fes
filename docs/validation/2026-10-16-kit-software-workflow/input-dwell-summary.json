@@ -1,0 +1,35 @@
+{
+  "class": "exact owned-active session diagnostic before ordinary input/Stop",
+  "cycles": [
+    {
+      "container_exit_code": 0,
+      "container_removed": true,
+      "dwell_evidence": {
+        "file": "fes-workflow-final32f-input/cycle-1/active-dwell.json",
+        "sha256": "d81f1f700774ebacd0b87f191ef1d6eaff1c33171fa0bc46738363bfee867275"
+      },
+      "dwell_seconds": 15.000268,
+      "events_acknowledged": 2,
+      "events_requested": 2,
+      "exact_identity_checks": 52,
+      "input_frame_delta": 2,
+      "name": "initial"
+    },
+    {
+      "container_exit_code": 0,
+      "container_removed": true,
+      "dwell_evidence": {
+        "file": "fes-workflow-final32f-input/cycle-2/active-dwell.json",
+        "sha256": "b4fea325db705c6f9d3f0a4ba83c877c80e0d64b04f8da9f3ec47f5132a7a84e"
+      },
+      "dwell_seconds": 15.000282,
+      "events_acknowledged": 2,
+      "events_requested": 2,
+      "exact_identity_checks": 51,
+      "input_frame_delta": 2,
+      "name": "restart"
+    }
+  ],
+  "limit": "Private diagnostic only: 15-second exact owned-active host-session observation, before the ordinary input/Stop sequence. No HDMI, audio, physical input consumption or new package acceptance claim.",
+  "private_helper_sha256": "2dd279e5a8070419404545ab187bf5b6bbf69172631d5e60372e7e0ce72b6427"
+}

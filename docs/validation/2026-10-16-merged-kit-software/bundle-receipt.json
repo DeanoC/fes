@@ -1,0 +1,69 @@
+{
+  "artifacts": {
+    "bundle.tar": {
+      "sha256": "160654d2be813d9e50aaf953e70081dd6f33deb6e7b1559af378cb9de6275121",
+      "size": 50681856
+    }
+  },
+  "base_contract": "fes-kit-base-v1-4bdcca8a7ad3927f3de68a658ef625285e12165f025ac989700eb83631edaa0d",
+  "base_factory_manifest_sha256": "05e2266d7baa4dfb3d486899bd8e636879b75fe602713c3e73f0b3f443ce8491",
+  "base_image_sha256": "32f16cd2eba9befefaef7f6c94ee70f5c830b3c231e859222df7c7aee7b3b993",
+  "bundle": {
+    "id": "eaff152f182b69e1bcd867e4ec0c43931806e7dccf9b73cebe90250a4e560e65",
+    "manifest": {
+      "architecture": "armv7",
+      "base_contract": "fes-kit-base-v1-4bdcca8a7ad3927f3de68a658ef625285e12165f025ac989700eb83631edaa0d",
+      "board": "de10-nano",
+      "files": [
+        {
+          "mode": 365,
+          "path": "bin/fogcast-kit",
+          "sha256": "a29a55e5369fe9237e396a1fb4caf302b1c3584397b6a6e299d8db90e676aff2",
+          "size": 17957026
+        },
+        {
+          "mode": 365,
+          "path": "bin/fogcast-tenfoot",
+          "sha256": "2f58274de47e6ff0637e1345e4f086e0ebfb5f8558f5e12f5a531fb6817cebc6",
+          "size": 21364898
+        },
+        {
+          "mode": 365,
+          "path": "bin/mister-agent",
+          "sha256": "f4c452d2952fb43e3ee505e2f79deb1fcaa0f53b3655530aceb7669bd6f8e7e8",
+          "size": 10158242
+        },
+        {
+          "mode": 365,
+          "path": "bin/mister-runtime",
+          "sha256": "c79b2da52ff65c040584db05ec4860e6053b38715a768759df24981acdd18c13",
+          "size": 1194268
+        },
+        {
+          "mode": 292,
+          "path": "share/fogcast/config.toml",
+          "sha256": "c8dae986367e7a4562446512d6133e6d687786b732b1bafc60420ef936323dbc",
+          "size": 432
+        }
+      ],
+      "format": 1,
+      "interfaces": {
+        "maintenance": "fes-kit-maintenance-v1",
+        "runtime-protocol": "2",
+        "software-admission": "fes-kit-software-v1"
+      },
+      "provenance": {
+        "fogcast": "d1a38ecfd1f1f461d207e0b88ea152475d7ac2e3",
+        "runtime": "d1a38ecfd1f1f461d207e0b88ea152475d7ac2e3"
+      },
+      "version": "kit-2026.10.16-merged-main"
+    }
+  },
+  "source_commit": "d1a38ecfd1f1f461d207e0b88ea152475d7ac2e3",
+  "source_trees": {
+    "image": "4c206deb5f3927036df4aa1d807773b1f2ceb506",
+    "sources/FogCast": "e5cb01a9ace19f8bc2bec9fc758fa8c277c76716",
+    "sources/libmister-runtime": "903bd446a55d92603b676c4db3d995f2d099498f"
+  },
+  "workflow_sha256": "c1abc4075a6f98d74cd4b07885ee2761f835469382d5d468a0ad938b5b6c3bf4"
+}

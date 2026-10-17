@@ -37,7 +37,7 @@ from scripts.fes_build_common import (
     reject_async_m10k_reads, validate_timing_resources,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
-from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
+from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.search_placer_qor import SearchError, route_after_synth
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,8 +46,8 @@ TOP = "top"
 ROUTER = "gpu"
 RECIPE = "scripts/build_fes_c64_oss.py"
 OUTPUT_RELATIVE = Path("build/fes-c64-oss")
-C64_TOOLCHAIN_LOCK = "toolchains/c64.lock"
-C64_TOOLCHAIN_ROOT = "build/toolchain/fes-c64"
+C64_TOOLCHAIN_LOCK = "toolchain.lock"
+C64_TOOLCHAIN_ROOT = "build/toolchain"
 C64_GPU_BACKEND = "hip"
 C64_GPU_ROUTER = "HIP"
 C64_GPU_ARCHITECTURES = "gfx1100;gfx1201"
@@ -56,11 +56,11 @@ C64_TOOLCHAIN_CONFIGURATION = (
 )
 C64_TOOL_COMMITS = {
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "0c5ed400f003fbd0d8c4cc71491b68e4323e1a13",
-    "yosys": "4b971bb131a6d806bf14ded95f169d29838ade66",
+    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
+    "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
 }
-# First passing route wins; the order is part of the build identity. This
-# core has not been sealed, so the search starts with the Apple II order.
+# First passing route wins; the order is part of the build identity.
+# The 0c5ed400 seal used this order. The shared-pin move does not reorder it.
 PLACER_SEEDS = (5, 4, 2, 1, 3, 6, 7, 8, 9, 10)
 PLACER_WEIGHT = 2000
 PLACER_CRITICALITY_EXPONENT = 5
@@ -139,15 +139,38 @@ HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 BEL_RE = re.compile(r"[A-Z0-9_]+\.(\d+)\.(\d+)\.")
 
 
-def _authenticate_c64_tools(root: Path, cache_root: Path | None = None):
+def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
+    """Return backend name, architecture string, and toolchain configuration."""
+
+    if gpu_router == "HIP":
+        return C64_GPU_BACKEND, C64_GPU_ARCHITECTURES, C64_TOOLCHAIN_CONFIGURATION
+    if gpu_router == "CUDA":
+        return "cuda", "unused", "gpu-router=CUDA; hip-architectures=unused"
+    raise BuildError(f"unsupported Commodore 64 GPU router {gpu_router}")
+
+
+def execution_extra(gpu_router: str) -> dict[str, str] | None:
+    """Environment shared by the shell seal and its slot cards."""
+
+    gpu_choice(gpu_router)
+    if gpu_router == "CUDA":
+        return {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"}
+    return None
+
+
+def _authenticate_c64_tools(root: Path, cache_root: Path | None = None,
+                            toolchain_root: Path | None = None,
+                            gpu_router: str = C64_GPU_ROUTER):
+    _backend, architectures, configuration = gpu_choice(gpu_router)
+    root_path = root / C64_TOOLCHAIN_ROOT if toolchain_root is None else Path(toolchain_root)
     return _authenticate_tools(
         root,
         lock_path=root / C64_TOOLCHAIN_LOCK,
-        toolchain_root=root / C64_TOOLCHAIN_ROOT,
+        toolchain_root=root_path,
         expected_commits=C64_TOOL_COMMITS,
-        expected_configuration={"nextpnr": C64_TOOLCHAIN_CONFIGURATION},
-        gpu_router=C64_GPU_ROUTER,
-        hip_architectures=C64_GPU_ARCHITECTURES,
+        expected_configuration={"nextpnr": configuration},
+        gpu_router=gpu_router,
+        hip_architectures=architectures,
         cache_root=cache_root,
     )
 
@@ -204,6 +227,8 @@ def create_build_record(
     *,
     identity_version: int = 2,
     execution: dict | None = None,
+    gpu_backend: str = C64_GPU_BACKEND,
+    gpu_architectures: str = C64_GPU_ARCHITECTURES,
 ) -> bytes:
     if identity_version != 2:
         raise BuildError("unsupported build identity version")
@@ -221,8 +246,8 @@ def create_build_record(
             "device": TARGET,
             "top": TOP,
             "router": ROUTER,
-            "gpu_backend": C64_GPU_BACKEND,
-            "gpu_architectures": C64_GPU_ARCHITECTURES,
+            "gpu_backend": gpu_backend,
+            "gpu_architectures": gpu_architectures,
             "sys_clock_hz": 52_224_000,
             "pixel_clock_hz": 74_250_000,
             "audio_clock_hz": 12_288_000,
@@ -244,8 +269,9 @@ def create_build_record(
             "expansion_sockets": ",".join(s.placement for s in c64_slots.SOCKETS),
         },
     }
-    fields = functional_record_fields(root, fields, source_roots_for_inputs(PINNED_INPUTS),
-                                      execution, pinned_inputs=PINNED_INPUTS)
+    fields = functional_record_fields(
+        root, fields, source_roots_for_producer(__name__, PINNED_INPUTS, root),
+        execution, pinned_inputs=PINNED_INPUTS)
     return encode_build_record(fields)
 
 
@@ -425,7 +451,7 @@ def validate_synth_evidence(output: Path) -> dict:
     return {"status": "pass", "synthesis_cells": {name: counts[name] for name in sorted(counts)}}
 
 
-def validate_build_evidence(output: Path) -> dict:
+def validate_build_evidence(output: Path, *, gpu_backend: str = C64_GPU_BACKEND) -> dict:
     routed = _read_json(output / "routed.json", "routed design")
     if not isinstance(routed.get("modules"), dict) or not isinstance(routed["modules"].get(TOP), dict):
         raise BuildError("routed design does not contain the top module")
@@ -436,7 +462,7 @@ def validate_build_evidence(output: Path) -> dict:
     route_text = (output / "nextpnr.log").read_text(encoding="utf-8", errors="replace")
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
-    gpu_backend = _require_gpu_backend(route_text, C64_GPU_BACKEND)
+    gpu_backend = _require_gpu_backend(route_text, gpu_backend)
     if not re.search(SYSTEM_PLL_ROUTE_RE, route_text) or not re.search(SYSTEM_PLL_OUTPUT_RE, route_text):
         raise BuildError("route log does not contain the 50-to-52.224 MHz system PLL")
     if not re.search(AUDIO_PLL_OUTPUT_RE, route_text):
@@ -510,19 +536,24 @@ def _manifest(record: bytes, evidence: dict, repository: str, revision: str,
 
 @guard_functional_source
 def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: Path | None = None,
-          identity_version: int = 2, gpu_device: int = 0) -> Path:
+          identity_version: int = 2, gpu_device: int = 0, gpu_router: str = C64_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> Path:
     root = Path(root).resolve()
     package_store = (root / "build/packages" if package_store is None else Path(package_store)).resolve()
     if package_store != root / "build/packages":
         raise BuildError(f"FES Commodore 64 package store must be {root / 'build/packages'}")
+    backend, architectures, _configuration = gpu_choice(gpu_router)
     repository, revision = _require_clean_source(root, identity_version=identity_version)
-    authenticated = _authenticate_c64_tools(root, cache_root=cache_root)
+    authenticated = _authenticate_c64_tools(
+        root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in authenticated.items()}
     database_root = authenticated["mistral"].path.parents[2] / "src/mistral"
     database = rom_map.read_database(database_root, ROM_DATABASE_SHA256)
-    invocation = FunctionalInvocation(authenticated, gpu_device)
+    extra_env = execution_extra(gpu_router)
+    invocation = FunctionalInvocation(authenticated, gpu_device, extra_env=extra_env)
     record = create_build_record(root, repository, revision, identities,
-                                 identity_version=identity_version, execution=invocation.inputs)
+                                 identity_version=identity_version, execution=invocation.inputs,
+                                 gpu_backend=backend, gpu_architectures=architectures)
     output = _prepare_output(root, relative=OUTPUT_RELATIVE, build_outputs=BUILD_OUTPUTS)
     _write_atomic(output / "build-inputs.json", record)
     _write_atomic(output / "socket.qsf", socket_qsf((root / QSF).read_text()).encode())
@@ -548,7 +579,7 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
-        evidence = validate_build_evidence(output)
+        evidence = validate_build_evidence(output, gpu_backend=backend)
         evidence["route"].update(placer_seed=winner.seed, placer_heap_timingweight=winner.weight,
                                  placer_qor_mode="first-pass")
         mapping, map_evidence = rom_map.build_rom_map(
@@ -572,7 +603,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                       (json.dumps(evidence, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode())
         manifest = _manifest(record, evidence, repository, revision, identities)
         _write_atomic(output / "manifest.toml", manifest)
-        final_tools = _authenticate_c64_tools(root, cache_root=cache_root)
+        final_tools = _authenticate_c64_tools(
+            root, cache_root=cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
         if {name: tool.identity for name, tool in final_tools.items()} != identities:
             raise BuildError("authenticated tool identity changed during build")
         if _require_clean_source(root, identity_version=identity_version) != (repository, revision):
@@ -581,7 +613,8 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
         if rom_map.read_database(database_root, ROM_DATABASE_SHA256) != database:
             raise BuildError("ROM database changed during build")
         if create_build_record(root, repository, revision, identities,
-                               identity_version=identity_version, execution=invocation.inputs) != record:
+                               identity_version=identity_version, execution=invocation.inputs,
+                               gpu_backend=backend, gpu_architectures=architectures) != record:
             raise BuildError("functional source inputs changed during build")
         return export_package(manifest, output / "core.rbf", package_store,
                               rom_map=output / "rom-map.json")
@@ -622,6 +655,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     parser.add_argument("--gpu-device", type=int, default=0)
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=C64_GPU_ROUTER)
+    parser.add_argument("--toolchain-root", type=Path)
     parser.add_argument("--synth-only", action="store_true",
                         help="run Yosys only; skip the clean-tree seal and nextpnr")
     arguments = parser.parse_args(argv)
@@ -633,7 +668,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                   f"MISTRAL_FF={cells.get('MISTRAL_FF', 0)}")
             return 0
         print(build(arguments.root, arguments.package_output, cache_root=arguments.cache_root,
-                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device))
+                    identity_version=arguments.identity_version, gpu_device=arguments.gpu_device,
+                    gpu_router=arguments.gpu_router, toolchain_root=arguments.toolchain_root))
     except (BuildError, OSError, ValueError) as exc:
         print(f"build-fes-c64-oss: {exc}", file=sys.stderr)
         return 1

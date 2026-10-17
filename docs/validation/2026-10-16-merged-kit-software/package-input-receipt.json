@@ -1,0 +1,115 @@
+{
+  "container_image": "sha256:ab62ac5ca21cff3313f41a3f62ece2d42b76627045ff47d1384139969012c4f5",
+  "core_id": "fes.pong",
+  "created_at_utc": "2026-10-16T11:42:18.948046+00:00",
+  "cycles": [
+    {
+      "container": {
+        "cycle": "cycle-1",
+        "exit_code": 0,
+        "forced_remove_error": null,
+        "listen_port": 36635,
+        "name": "fes-package-acceptance-35272cd9ed81b3c3",
+        "remove_attempts": 1,
+        "remove_error": null,
+        "removed": true,
+        "status": "exited",
+        "stop_error": null
+      },
+      "diagnostics": [
+        {
+          "events_acknowledged": 2,
+          "events_requested": 2,
+          "frame_delta": 3,
+          "frames_after": 3,
+          "frames_before": 0,
+          "input_session_id": "bebb981fe70b2ecf",
+          "interface": {
+            "id": "fes.gamepad",
+            "major": 1,
+            "minor": 0
+          },
+          "sha256": "3d80d5f5f2ce7991af1f623b8e51630a027cd534a6478e5c86577d177b446460"
+        }
+      ],
+      "game_id": "fpga-merged-pong-cccbbd78914e",
+      "name": "initial"
+    },
+    {
+      "container": {
+        "cycle": "cycle-2",
+        "exit_code": 0,
+        "forced_remove_error": null,
+        "listen_port": 43009,
+        "name": "fes-package-acceptance-b0236388e6d3946b",
+        "remove_attempts": 1,
+        "remove_error": null,
+        "removed": true,
+        "status": "exited",
+        "stop_error": null
+      },
+      "diagnostics": [
+        {
+          "events_acknowledged": 2,
+          "events_requested": 2,
+          "frame_delta": 3,
+          "frames_after": 3,
+          "frames_before": 0,
+          "input_session_id": "2d99575615c09526",
+          "interface": {
+            "id": "fes.gamepad",
+            "major": 1,
+            "minor": 0
+          },
+          "sha256": "3d80d5f5f2ce7991af1f623b8e51630a027cd534a6478e5c86577d177b446460"
+        }
+      ],
+      "game_id": "fpga-merged-pong-cccbbd78914e",
+      "name": "restart"
+    }
+  ],
+  "diagnostic_scope": "Explicit event acknowledgements and input frame-counter increases in both cycles are required for success; not hardware consumption, HDMI or physical controller acceptance.",
+  "format": 1,
+  "host_binary_sha256": "93e37aaa4ebd419dc7161c19ab4936af4ff2baf6fafb90c1a8f6b1b602d1fcc7",
+  "input_diagnostic": {
+    "events_requested": 2,
+    "interface": {
+      "id": "fes.gamepad",
+      "major": 1,
+      "minor": 0
+    },
+    "sha256": "3d80d5f5f2ce7991af1f623b8e51630a027cd534a6478e5c86577d177b446460"
+  },
+  "mode": "isolated-lifecycle-input-diagnostic",
+  "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+  "provenance": {
+    "active_bundle": {
+      "fogcast": "d1a38ecfd1f1f461d207e0b88ea152475d7ac2e3",
+      "runtime": "d1a38ecfd1f1f461d207e0b88ea152475d7ac2e3"
+    },
+    "base_artifacts": {
+      "agent_revision": "d1a38ecfd1f1f461d207e0b88ea152475d7ac2e3",
+      "agent_sha256": "712a14d9a3034489551b9ed7965cc941cc0686ff0568ed3d03043175723dc5ee",
+      "idle_sha256": "64f1f16daedba4ed19179bd5d7c6f3eb3058a688d15441c8c8d89e113060f182",
+      "image_sha256": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+      "kit_sha256": "ac12b57dbe01e851024f9f60762dac1cbb12117e9e606d5876d81bcf540c04ec",
+      "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+      "record_sha256": "dcf9ebefc2d76d96be77e76d30b0f2c1a302e2a1e2aed58a8cf954f1994408b7",
+      "runtime_commit": "6b6137d915588d949cd40b6282f584c2a2eef9fd"
+    },
+    "host_revision": "d1a38ecfd1f1f461d207e0b88ea152475d7ac2e3"
+  },
+  "provided_interfaces": {
+    "maintenance": "fes-kit-maintenance-v1",
+    "runtime-protocol": "2",
+    "software-admission": "fes-kit-software-v1"
+  },
+  "software_identity": {
+    "active_bundle": "eaff152f182b69e1bcd867e4ec0c43931806e7dccf9b73cebe90250a4e560e65",
+    "base_identity": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+    "host_api": "v1",
+    "target_api": "v1"
+  },
+  "success": true,
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+}

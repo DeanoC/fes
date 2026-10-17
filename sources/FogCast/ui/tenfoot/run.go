@@ -79,7 +79,9 @@ type Options struct {
 	HomeSet bool
 	// HomeRoom is a room id opened as the root room at start and for Home
 	// when Home is rooms. Empty falls back to tenfoot.json home_room, then
-	// FOGCAST_HOME_ROOM. A missing or invalid id falls back to the picker.
+	// FOGCAST_HOME_ROOM. On menu-display, a rooms home that is still empty
+	// uses Installed cores, including after Settings switches Home to rooms.
+	// A missing or invalid id falls back to the picker.
 	HomeRoom string
 	// CatalogConfig is a FogCast config.toml. menu-display boots
 	// BootLocalCatalog from it so the shelf works with the remote host
@@ -207,6 +209,7 @@ func (o Options) normalized() Options {
 	if o.HomeRoom == "" {
 		o.HomeRoom = strings.TrimSpace(os.Getenv("FOGCAST_HOME_ROOM"))
 	}
+	o.HomeRoom = menuDisplayInstalledHome(o.GFX, o.Home, o.HomeRoom)
 	if envTruthy(os.Getenv("FOGCAST_TENFOOT_REDUCED_MOTION")) || envTruthy(os.Getenv("FOGCAST_REDUCED_MOTION")) {
 		o.ReducedMotion = true
 		o.ReducedMotionSet = true
@@ -215,6 +218,24 @@ func (o Options) normalized() Options {
 		o.ReducedMotion = prefs.ReducedMotion
 	}
 	return o
+}
+
+// installedCoresHomeID is the embedded Installed cores room.
+const installedCoresHomeID = "example.fes-cores"
+
+// menuDisplayInstalledHome returns Installed cores when a menu-display
+// rooms home has no selected room. A selected room, Library home, and
+// every other backend stay as given.
+func menuDisplayInstalledHome(gfxName, home, homeRoom string) string {
+	homeRoom = strings.TrimSpace(homeRoom)
+	if homeRoom != "" || home != "rooms" {
+		return homeRoom
+	}
+	backend, err := gfx.ParseBackend(gfxName)
+	if err != nil || backend != gfx.BackendMenuDisplay {
+		return homeRoom
+	}
+	return installedCoresHomeID
 }
 
 // loadRoomIndex discovers room packs for opts, merging the embedded
@@ -297,6 +318,9 @@ func configuredApp(opts Options) (*App, error) {
 	homeRooms, _ := parseHomePref(opts.Home)
 	app.SetHomeRooms(homeRooms)
 	app.SetHomeRoom(opts.HomeRoom)
+	// Settings applies the menu-display Installed cores default from this
+	// backend when Home later changes to rooms.
+	app.gfxBackend = opts.GFX
 	app.SetDebugHUD(opts.DebugHUD)
 	app.SetPrefsPath(opts.prefsPath())
 	app.SetLayout(parseLayout(opts.Layout))

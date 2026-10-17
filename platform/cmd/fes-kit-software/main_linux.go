@@ -49,10 +49,14 @@ func main() {
 		err = stop()
 	case "status":
 		err = status()
+	case "acknowledge":
+		err = acknowledge(os.Args[2:])
+	case "prepare-power-cycle":
+		err = preparePowerCycle(os.Args[2:])
 	case "run":
 		err = run()
 	default:
-		err = errors.New("usage: fes-kit-software start|stop|run|status")
+		err = errors.New("usage: fes-kit-software start|stop|run|status|acknowledge|prepare-power-cycle")
 	}
 	if err != nil {
 		log.Print(err)
@@ -114,12 +118,19 @@ func run() error {
 	if err := os.MkdirAll(runDir, 0700); err != nil {
 		return err
 	}
+	logs, err := kitsoftware.OpenSupervisorLog(filepath.Join(runDir, kitsoftware.SupervisorLogName), os.Stderr)
+	if err != nil {
+		return err
+	}
+	defer logs.Close()
+	log.SetOutput(logs)
 	lock, err := os.OpenFile(filepath.Join(runDir, "supervisor.lock"), os.O_CREATE|os.O_RDWR, 0600)
 	if err != nil {
 		return err
 	}
 	defer lock.Close()
 	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); errors.Is(err, unix.EWOULDBLOCK) {
+		log.Print("software supervisor already running")
 		return nil
 	} else if err != nil {
 		return err
@@ -129,6 +140,28 @@ func run() error {
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
+	return kitsoftware.SuperviseUntilSignal(ctx, func(ctx context.Context) error {
+		return supervise(ctx, logs)
+	}, waitSupervisorBackoff)
+}
+func waitSupervisorBackoff(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+func supervise(ctx context.Context, output io.Writer) error {
+	log.Print("software supervisor starting")
+	var repo *kitsoftware.FileRepository
+	defer func() {
+		if repo != nil {
+			_ = repo.Close()
+		}
+	}()
 	if err := kitsoftware.StopOrphans(ctx); err != nil {
 		return err
 	}
@@ -166,25 +199,11 @@ func run() error {
 	}
 	server := &kitsoftware.Server{BaseIdentity: baseIdentity, Factory: &factory}
 	var store *software.Store
-	var repo *kitsoftware.FileRepository
 	var admission *kitsoftware.UnixAdmission
-	controller := &kitsoftware.ProcessController{RunDir: runDir, BaseIdentity: baseIdentity}
+	controller := &kitsoftware.ProcessController{RunDir: runDir, BaseIdentity: baseIdentity, Output: output}
 	server.Controller = controller
 	controller.Resolve = func(ctx context.Context, id string) (string, error) {
-		if id == factory.ID {
-			verified, err := software.VerifyDirectory(ctx, factoryPath)
-			if err != nil {
-				return "", err
-			}
-			if verified.ID != id {
-				return "", errors.New("factory software identity changed")
-			}
-			return factoryPath, verified.Manifest.Compatible(base)
-		}
-		if store == nil {
-			return "", errors.New("durable release storage unavailable")
-		}
-		return store.Path(ctx, id)
+		return kitsoftware.ResolveRelease(ctx, id, factoryPath, factory, base, store)
 	}
 	// The helper refuses trial/pending/corrupt images and absent/mismounted p3.
 	// Never create a durable state directory on the temporary mountpoint.
@@ -253,20 +272,21 @@ func run() error {
 	defer httpServer.Close()
 	engine := &kitsoftware.Engine{Repository: repo, Controller: controller, Admission: admission, Gate: gate}
 	var startupErr error
+	var startupDelay time.Duration
+	var startupRetryAt time.Time
 	server.Mu.Lock()
 	if repo != nil {
 		startupErr = engine.Boot(ctx, bootRequest)
 	} else {
 		controller.PermitUpdateBlocked = true
-		startupErr = controller.Start(ctx, factory.ID, kitsoftware.Request{})
-		if startupErr == nil {
-			startupErr = waitFactory(ctx, controller, factory.ID)
-		}
+		startupErr = engine.StartFactory(ctx, factory.ID)
 		controller.PermitUpdateBlocked = false
 	}
 	if startupErr != nil {
 		log.Printf("software startup blocked: %v", startupErr)
 		server.StorageError = startupErr.Error()
+		startupDelay = kitsoftware.NextSupervisorBackoff(0)
+		startupRetryAt = time.Now().Add(startupDelay)
 	}
 	server.PublishStatus()
 	server.Mu.Unlock()
@@ -293,6 +313,42 @@ func run() error {
 			}
 		case <-ticker.C:
 			server.Mu.Lock()
+			if startupErr != nil {
+				if !time.Now().Before(startupRetryAt) {
+					if err := controller.Stop(ctx); err != nil {
+						log.Printf("software startup cleanup: %v", err)
+						startupErr = err
+					} else if repo != nil {
+						startupErr = engine.Boot(ctx, bootRequest)
+					} else {
+						controller.PermitUpdateBlocked = true
+						startupErr = engine.StartFactory(ctx, factory.ID)
+						controller.PermitUpdateBlocked = false
+					}
+					if startupErr != nil {
+						log.Printf("software startup blocked: %v", startupErr)
+						server.StorageError = startupErr.Error()
+						startupDelay = kitsoftware.NextSupervisorBackoff(startupDelay)
+						startupRetryAt = time.Now().Add(startupDelay)
+					} else {
+						log.Print("software startup recovered")
+						server.StorageError = ""
+						startupDelay = 0
+					}
+				}
+				server.PublishStatus()
+				server.Mu.Unlock()
+				continue
+			}
+			pending := kitsoftware.Request{}
+			queueKnown := true
+			if repo != nil {
+				state, readErr := repo.Read()
+				pending, queueKnown = kitsoftware.GroupRestartRequest(state, readErr)
+			}
+			if err := controller.RecoverAcceptedExits(ctx, pending, queueKnown); err != nil {
+				log.Printf("service restart: %v", err)
+			}
 			if repo == nil && startupErr == nil && trialHold == nil {
 				// Confirmed trials reconcile through the ordinary queue. The
 				// factory session is never stopped outside atomic admission.
@@ -361,38 +417,6 @@ func run() error {
 	}
 }
 func readOptional(path string) string { b, _ := os.ReadFile(path); return string(b) }
-func waitFactory(ctx context.Context, c *kitsoftware.ProcessController, id string) error {
-	deadline := time.Now().Add(60 * time.Second)
-	var since time.Time
-	for time.Now().Before(deadline) {
-		err := c.Healthy(ctx, id)
-		if err == nil {
-			if since.IsZero() {
-				since = time.Now()
-			}
-			if time.Since(since) >= 10*time.Second {
-				return nil
-			}
-		} else {
-			since = time.Time{}
-			if errors.Is(err, kitsoftware.ErrProcessExited) {
-				if stopErr := c.Stop(ctx); stopErr != nil {
-					return stopErr
-				}
-				if startErr := c.Start(ctx, id, kitsoftware.Request{}); startErr != nil {
-					return startErr
-				}
-			}
-		}
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(250 * time.Millisecond):
-		}
-	}
-	return errors.New("factory software readiness deadline exceeded")
-}
-
 func operationID(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return hex.EncodeToString(sum[:])

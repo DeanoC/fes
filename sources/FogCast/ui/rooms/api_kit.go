@@ -3,6 +3,7 @@ package rooms
 import (
 	"context"
 	"errors"
+	"net"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/localcores"
@@ -13,13 +14,15 @@ import (
 // still filling the catalog caches. The list call itself returns immediately.
 const localCoresWarmRetry = 200 * time.Millisecond
 
+const localCoresStartupRetry = 60 * time.Second
+
 // LocalCores is the kit-local control socket. A nil value leaves the kit
 // table unset. Tenfoot passes *localcores.Client only for -gfx menu-display.
 // A host session leaves it nil. Status is GET /v1/local/status.
 type LocalCores interface {
 	List(ctx context.Context) ([]localcores.Core, error)
-	Launch(ctx context.Context, packageID string) error
-	Stop(ctx context.Context) error
+	Launch(ctx context.Context, packageID string) (localcores.LaunchResult, error)
+	Stop(ctx context.Context, expectedGeneration string) error
 	Status(ctx context.Context) (localcores.RunStatus, error)
 }
 
@@ -48,17 +51,7 @@ func (r *Instance) kitCores(L *lua.LState) int {
 		return 0
 	}
 	go func() {
-		cores, err := client.List(r.ctx)
-		for errors.Is(err, localcores.ErrWarming) {
-			timer := time.NewTimer(localCoresWarmRetry)
-			select {
-			case <-r.ctx.Done():
-				timer.Stop()
-				return
-			case <-timer.C:
-			}
-			cores, err = client.List(r.ctx)
-		}
+		cores, err := listLocalCores(r.ctx, client, localCoresStartupRetry)
 		if err != nil {
 			r.deliver(asyncResult{cb: cb, err: err})
 			return
@@ -69,6 +62,34 @@ func (r *Instance) kitCores(L *lua.LState) int {
 		r.deliver(asyncResult{cb: cb, cores: cores})
 	}()
 	return 0
+}
+
+// Listing is read-only. A socket that is not listening yet, or a timed-out
+// catalog read, may recover during startup. Permanent errors stay visible;
+// closing the room cancels both the read and the retry wait.
+func listLocalCores(ctx context.Context, client LocalCores, budget time.Duration) ([]localcores.Core, error) {
+	ctx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		requestCtx, requestCancel := context.WithTimeout(ctx, 3*time.Second)
+		cores, err := client.List(requestCtx)
+		requestCancel()
+		var timeout net.Error
+		transient := errors.Is(err, localcores.ErrUnavailable) || errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &timeout) && timeout.Timeout())
+		if err == nil || (!errors.Is(err, localcores.ErrWarming) && !transient) {
+			return cores, err
+		}
+		timer := time.NewTimer(localCoresWarmRetry)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
 }
 
 func (r *Instance) coresTable(cores []localcores.Core) *lua.LTable {
@@ -100,7 +121,7 @@ func (r *Instance) ActivateDestination(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	err := r.opts.Local.Launch(ctx, r.dest.PackageID)
+	_, err := r.opts.Local.Launch(ctx, r.dest.PackageID)
 	if err != nil {
 		r.dest.Availability = AvailUnavailable
 		r.dest.Status = err.Error()

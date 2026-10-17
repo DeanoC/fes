@@ -211,8 +211,8 @@ This path does not seal `fes.zx81`.
 | `cores/fes-common/` | RTL shared by more than one core |
 | `scripts/experiment_policy.py` | Closed experiment list and checks |
 | `scripts/build_fes_*.py` | Core producers |
-| `toolchain.lock` | Generic OSS tools and the shared FES HIP slot |
-| `toolchains/` | Private locks still selected by C64 and Atari ST |
+| `toolchain.lock` | Shared OSS tools and the FES HIP slot used by every described recipe except Atari ST |
+| `toolchains/` | Private lock still selected by Atari ST |
 | `boards/de10nano/` | Shared device and pin constraints |
 | `sealed/` | Tracked splash/idle RBF |
 | `build/` | Generated tools and RBFs, not source |

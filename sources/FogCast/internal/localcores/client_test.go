@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -42,7 +43,7 @@ func TestClientListLaunchStopOnUnixSocket(t *testing.T) {
 			mu.Unlock()
 			switch id {
 			case clientPongID:
-				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "package_id": id, "core_id": "fes.pong"})
+				writeJSON(w, http.StatusOK, map[string]any{"ok": true, "package_id": id, "core_id": "fes.pong", "generation": clientPongID})
 			case clientColecoID:
 				writeJSON(w, http.StatusConflict, map[string]string{"error": "blocked"})
 			case clientInUseID:
@@ -83,19 +84,19 @@ func TestClientListLaunchStopOnUnixSocket(t *testing.T) {
 	if cores[1].Name != "ColecoVision" || cores[1].Block != "Needs a cartridge" || cores[1].Needs != "media" || cores[1].Launchable {
 		t.Fatalf("blocked row %+v", cores[1])
 	}
-	if err := client.Launch(context.Background(), clientPongID); err != nil {
+	if _, err := client.Launch(context.Background(), clientPongID); err != nil {
 		t.Fatal(err)
 	}
-	if err := client.Launch(context.Background(), clientColecoID); !errors.Is(err, ErrBlocked) {
+	if _, err := client.Launch(context.Background(), clientColecoID); !errors.Is(err, ErrBlocked) {
 		t.Fatalf("blocked err %v", err)
 	}
-	if err := client.Launch(context.Background(), clientInUseID); !errors.Is(err, ErrInUse) {
+	if _, err := client.Launch(context.Background(), clientInUseID); !errors.Is(err, ErrInUse) {
 		t.Fatalf("in_use err %v", err)
 	}
-	if err := client.Launch(context.Background(), clientMissing); !errors.Is(err, ErrNotFound) {
+	if _, err := client.Launch(context.Background(), clientMissing); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("missing err %v", err)
 	}
-	if err := client.Stop(context.Background()); err != nil {
+	if err := client.Stop(context.Background(), clientPongID); err != nil {
 		t.Fatal(err)
 	}
 	mu.Lock()
@@ -123,7 +124,7 @@ func TestClientRejectsUnsafePackageIDWithoutDial(t *testing.T) {
 
 	client := NewClient(ln.Addr().String())
 	for _, id := range []string{"", "pong", "../" + clientPongID, strings.Repeat("A", 64), strings.Repeat("g", 64)} {
-		if err := client.Launch(context.Background(), id); !errors.Is(err, ErrNotFound) {
+		if _, err := client.Launch(context.Background(), id); !errors.Is(err, ErrNotFound) {
 			t.Fatalf("id %q err %v", id, err)
 		}
 	}
@@ -137,10 +138,10 @@ func TestClientNilAndEmptyAreUnavailable(t *testing.T) {
 	if _, err := client.List(context.Background()); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("nil list %v", err)
 	}
-	if err := client.Launch(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
+	if _, err := client.Launch(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("nil launch %v", err)
 	}
-	if err := client.Stop(context.Background()); !errors.Is(err, ErrUnavailable) {
+	if err := client.Stop(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("nil stop %v", err)
 	}
 	empty := NewClient("")
@@ -226,14 +227,14 @@ func TestClientLaunchWarmingReturnsWithoutReconcile(t *testing.T) {
 
 	client := NewClient(path)
 	started := time.Now()
-	err = client.Launch(context.Background(), clientPongID)
+	_, err = client.Launch(context.Background(), clientPongID)
 	if !errors.Is(err, ErrWarming) {
 		t.Fatalf("launch %v", err)
 	}
 	if time.Since(started) >= time.Second {
 		t.Fatalf("warming launch waited %s", time.Since(started))
 	}
-	romErr := client.LaunchROM(context.Background(), clientPongID, "/tmp/cart.rom")
+	_, romErr := client.LaunchROM(context.Background(), clientPongID, "/tmp/cart.rom")
 	if !errors.Is(romErr, ErrWarming) {
 		t.Fatalf("cartridge launch %v", romErr)
 	}
@@ -247,10 +248,10 @@ func TestClientMissingAndRefusedSocketsAreUnavailable(t *testing.T) {
 	if _, err := missing.List(context.Background()); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("missing list %v", err)
 	}
-	if err := missing.Launch(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
+	if _, err := missing.Launch(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("missing launch %v", err)
 	}
-	if err := missing.Stop(context.Background()); !errors.Is(err, ErrUnavailable) {
+	if err := missing.Stop(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("missing stop %v", err)
 	}
 
@@ -276,7 +277,7 @@ func refuseSock(t *testing.T) string {
 	return path
 }
 
-func TestLaunchTimeoutThenRunningIsNotASecondLaunch(t *testing.T) {
+func TestLaunchLostReplyCannotAdoptSamePackageReplacement(t *testing.T) {
 	path := shortSock(t)
 	var posts atomic.Int32
 	running := atomic.Bool{}
@@ -294,6 +295,7 @@ func TestLaunchTimeoutThenRunningIsNotASecondLaunch(t *testing.T) {
 				t.Errorf("launch posted %d times", posts.Load())
 			}
 			running.Store(true)
+			_, _ = io.Copy(io.Discard, r.Body)
 			<-r.Context().Done()
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
@@ -307,7 +309,7 @@ func TestLaunchTimeoutThenRunningIsNotASecondLaunch(t *testing.T) {
 	client.launchPost = 2 * time.Second
 	client.reconcileFor = time.Second
 	client.reconcileEvery = 20 * time.Millisecond
-	if err := client.Launch(context.Background(), clientPongID); err != nil {
+	if _, err := client.Launch(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
 		t.Fatal(err)
 	}
 	if posts.Load() != 1 {
@@ -324,6 +326,7 @@ func TestLaunchTimeoutThenIdleStaysFailed(t *testing.T) {
 			writeJSON(w, http.StatusOK, RunStatus{Phase: phaseIdle, Running: false})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/launch"):
 			posts.Add(1)
+			_, _ = io.Copy(io.Discard, r.Body)
 			<-r.Context().Done()
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
@@ -334,7 +337,7 @@ func TestLaunchTimeoutThenIdleStaysFailed(t *testing.T) {
 	// Same accept margin as the running-after-timeout case.
 	client.launchPost = 2 * time.Second
 	client.reconcileFor = time.Second
-	if err := client.Launch(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
+	if _, err := client.Launch(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("idle after timeout %v", err)
 	}
 	if posts.Load() != 1 {
@@ -356,6 +359,7 @@ func TestStopTimeoutThenIdleIsClaimable(t *testing.T) {
 				t.Errorf("stop posted %d times", posts.Load())
 			}
 			phase.Store(phaseIdle)
+			_, _ = io.Copy(io.Discard, r.Body)
 			<-r.Context().Done()
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
@@ -369,7 +373,7 @@ func TestStopTimeoutThenIdleIsClaimable(t *testing.T) {
 	client.stopPost = 2 * time.Second
 	client.reconcileFor = time.Second
 	client.reconcileEvery = 20 * time.Millisecond
-	if err := client.Stop(context.Background()); err != nil {
+	if err := client.Stop(context.Background(), clientPongID); err != nil {
 		t.Fatal(err)
 	}
 	if posts.Load() != 1 {
@@ -386,6 +390,7 @@ func TestStopTimeoutThenRunningStaysUnavailable(t *testing.T) {
 			writeJSON(w, http.StatusOK, RunStatus{Phase: phaseRunning, PackageID: clientPongID, Running: true})
 		case r.Method == http.MethodPost && r.URL.Path == "/v1/local/stop":
 			posts.Add(1)
+			_, _ = io.Copy(io.Discard, r.Body)
 			<-r.Context().Done()
 		default:
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
@@ -395,7 +400,7 @@ func TestStopTimeoutThenRunningStaysUnavailable(t *testing.T) {
 	client := NewClient(path)
 	client.stopPost = 2 * time.Second
 	client.reconcileFor = time.Second
-	if err := client.Stop(context.Background()); !errors.Is(err, ErrUnavailable) {
+	if err := client.Stop(context.Background(), clientPongID); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("running after timeout %v", err)
 	}
 	if posts.Load() != 1 {
@@ -419,4 +424,54 @@ func serveUnix(t *testing.T, path string, handler http.Handler) {
 	srv.Listener = ln
 	srv.Start()
 	t.Cleanup(srv.Close)
+}
+
+func TestLaunchAmbiguousRepliesHaveNoGeneration(t *testing.T) {
+	for _, body := range []string{"", `{"ok":true,`, `{"ok":true,"package_id":"` + clientPongID + `","core_id":"fes.pong"}`} {
+		t.Run(body, func(t *testing.T) {
+			path := shortSock(t)
+			var posts atomic.Int32
+			serveUnix(t, path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodPost {
+					t.Error("ambiguous launch performed status adoption")
+				}
+				posts.Add(1)
+				_, _ = io.Copy(io.Discard, r.Body)
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(body))
+			}))
+			c := NewClient(path)
+			result, err := c.Launch(t.Context(), clientPongID)
+			if !errors.Is(err, ErrUnavailable) || result.Generation != "" || posts.Load() != 1 {
+				t.Fatalf("ambiguous launch: %+v %v posts%d", result, err, posts.Load())
+			}
+		})
+	}
+}
+
+func TestLostStopReplyCannotAdoptReplacementGeneration(t *testing.T) {
+	path := shortSock(t)
+	var posts atomic.Int32
+	serveUnix(t, path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			var request struct {
+				ExpectedGeneration string `json:"expected_generation"`
+			}
+			if json.NewDecoder(r.Body).Decode(&request) != nil || request.ExpectedGeneration != clientPongID {
+				t.Error("wrong stop identity")
+			}
+			posts.Add(1)
+			<-r.Context().Done()
+			return
+		}
+		writeJSON(w, http.StatusOK, RunStatus{Phase: phaseRunning, Running: true, PackageID: clientPongID, Generation: clientColecoID})
+	}))
+	c := NewClient(path)
+	c.stopPost = 250 * time.Millisecond
+	if err := c.Stop(t.Context(), clientPongID); !errors.Is(err, ErrInUse) {
+		t.Fatalf("replacement: %v", err)
+	}
+	if posts.Load() != 1 {
+		t.Fatalf("posts%d", posts.Load())
+	}
 }

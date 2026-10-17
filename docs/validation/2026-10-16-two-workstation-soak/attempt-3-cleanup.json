@@ -1,0 +1,36 @@
+{
+  "after": {
+    "boot_id": "14c05a47-1615-43f0-a084-a1dc8948c119",
+    "bundle": "0b6b7d8138f2147bc5f3a7b18a3117209365994550aa530b52d2bef819b5602f",
+    "lease_state": "free",
+    "native_state": "idle",
+    "ready": true,
+    "software_generation": 15
+  },
+  "before": {
+    "boot_id": "14c05a47-1615-43f0-a084-a1dc8948c119",
+    "bundle": "0b6b7d8138f2147bc5f3a7b18a3117209365994550aa530b52d2bef819b5602f",
+    "lease_state": "free",
+    "native_state": "idle",
+    "ready": true,
+    "software_generation": 15
+  },
+  "original_result_unchanged": true,
+  "private_configs_removed": true,
+  "private_hosts_stopped": true,
+  "remote": {
+    "architecture": "x86_64",
+    "binary_sha256": "11eafc0e103ae15e7d3bef231d2747e22fe21bde0d58118b4251d8854f446da1",
+    "exe": "/tmp/fes-host-soak.a0819958f79bb0cbe6f57c90a5bec4ad5795aa5fd4614c6e63c3f28350a03b05/host",
+    "hostname": "chip-30x0-ai-dev",
+    "local_api_port": 47955,
+    "pid": 3269417,
+    "remote_api_port": 35423,
+    "root": "/tmp/fes-host-soak.a0819958f79bb0cbe6f57c90a5bec4ad5795aa5fd4614c6e63c3f28350a03b05",
+    "start_ticks": "38811704",
+    "state": "stopped-removed",
+    "tunnel_pid": 3377532,
+    "uid": 1001
+  },
+  "uncertain_launch_dispatch_not_classified": true
+}

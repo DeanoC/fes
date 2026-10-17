@@ -64,6 +64,9 @@ packages and publishes a structurally checked diagnostic image under
 seed that cache; otherwise the first run builds the base once. See
 [the incremental workflow](docs/development.md#incremental-native-image).
 
+For compatible kit software updates, use `make kit-software` with a retained
+verified base image; see [kit software releases](docs/kit-software-releases.md).
+
 For clean integration and release verification:
 
 ```sh
@@ -163,6 +166,7 @@ artifacts they name.
 | `make dev` | Incremental diagnostic native image with retained compiler/base |
 | `make package-acceptance PACKAGE_ACCEPTANCE_ARGS='...'` | Explicit opt-in single-package lifecycle diagnostic; no image rebuild ([guide](docs/package-acceptance.md)) |
 | `make package-acceptance-isolated PACKAGE_ACCEPTANCE_ISOLATED_ARGS='...'` | Private-host package lifecycle and restart diagnostic; live library is not mounted ([guide](docs/package-acceptance.md)) |
+| `python3 scripts/kit_software_acceptance.py --help` | Explicit leased software install/queue/cancel/activation diagnostic; successful selections remain installed ([guide](docs/kit-software-acceptance.md)) |
 | `make build` | Host and two-pass native image, reusing matching checked outputs |
 | `make image` | Image only with structural checks |
 | `make verify` | Require host/image receipts, verify image, two-pass hashes and QEMU packaging |

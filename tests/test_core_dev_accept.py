@@ -206,9 +206,8 @@ class PreparedAcceptanceTest(unittest.TestCase):
         return ["--host-binary", "/host", "--expected-host-sha256", "e" * 64,
                 "--container-image", "sha256:" + "f" * 64, "--host-config", "/private",
                 "--evidence-dir", "/new", "--expected-target-id", "authorized",
-                "--expected-host-revision", self.revision,
-                "--expected-agent-revision", self.revision,
-                "--expected-runtime-revision", self.revision,
+                "--expected-bundle-id", "a" * 64,
+                "--expected-base-image-sha256", "b" * 64,
                 "--new-entry-title", "Pong diagnostic"]
 
     def test_abbreviated_override_rejected(self):
