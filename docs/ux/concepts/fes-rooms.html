@@ -322,8 +322,8 @@
           </section>
           <div class="fes-section-head"><h2>On your shelf</h2><button class="fes-plain fes-interactive fes-tiny" type="button" data-action="library">See all games <span aria-hidden="true">↗</span></button></div>
           <div class="fes-shelf" aria-label="Game shelf">
-            <button class="fes-game fes-interactive" type="button" data-game="orchard" aria-pressed="false"><span class="fes-art fes-art-orchard" aria-hidden="true"><span class="fes-sun"></span><span class="fes-hill-a"></span><span class="fes-hill-b"></span><span class="fes-tree-a"></span></span><span class="fes-game-copy"><span class="fes-game-title">Night Orchard</span><span class="fes-game-sub">Needs 16K RAM pack</span></span></button>
-            <button class="fes-game fes-interactive" type="button" data-game="orbit" aria-pressed="false"><span class="fes-art fes-art-orbit" aria-hidden="true"><span class="fes-planet"></span></span><span class="fes-game-copy"><span class="fes-game-title">Orbit Post</span><span class="fes-game-sub">Needs 16K RAM pack</span></span></button>
+            <button class="fes-game fes-interactive" type="button" data-game="orchard" aria-pressed="false"><span class="fes-art fes-art-orchard" aria-hidden="true"><span class="fes-sun"></span><span class="fes-hill-a"></span><span class="fes-hill-b"></span><span class="fes-tree-a"></span></span><span class="fes-game-copy"><span class="fes-game-title">Night Orchard</span><span class="fes-game-sub" data-requirement>Needs 16K RAM pack</span></span></button>
+            <button class="fes-game fes-interactive" type="button" data-game="orbit" aria-pressed="false"><span class="fes-art fes-art-orbit" aria-hidden="true"><span class="fes-planet"></span></span><span class="fes-game-copy"><span class="fes-game-title">Orbit Post</span><span class="fes-game-sub" data-requirement>Needs 16K RAM pack</span></span></button>
             <button class="fes-game fes-interactive" type="button" data-game="tide" data-selected="true" aria-pressed="true"><span class="fes-art fes-art-tide" aria-hidden="true"><span class="fes-boat"></span></span><span class="fes-game-copy"><span class="fes-game-title">Tiny Tide</span><span class="fes-game-sub">Soft Harbour · ZX81</span></span></button>
             <button class="fes-game fes-interactive" type="button" data-game="signal" aria-pressed="false"><span class="fes-art fes-art-signal" aria-hidden="true"></span><span class="fes-game-copy"><span class="fes-game-title">Signal 81</span><span class="fes-game-sub">North Window · ZX81</span></span></button>
           </div>
@@ -363,7 +363,7 @@
             <section class="fes-config" aria-label="Machine setup"><div class="fes-config-state"><div class="fes-state-line"><span>Running</span><strong>No expansion</strong></div><div class="fes-state-line"><span>Next start</span><strong data-next-start>No changes saved</strong></div></div><label>Rear connector · one fitted expansion<select data-expansion-select class="fes-interactive"><option value="none">No expansion</option><option value="ram16">16K RAM pack</option></select></label><p class="fes-tiny fes-muted" data-expansion-description>Uses the ZX81's built-in memory.</p><button type="button" class="fes-primary fes-interactive" data-action="fit" disabled>Fit &amp; save setup</button><div class="fes-change-note"><strong style="font-weight:500" data-restart-status>Changing the setup needs a restart</strong><span>Stopping clears running memory.</span></div><button type="button" class="fes-plain fes-interactive" data-action="machine-details">About this machine <span aria-hidden="true">↗</span></button><p class="fes-note" data-setup-note aria-live="polite"></p></section>
           </div>
           <div class="fes-section-head"><h2>Games for this machine</h2><span class="fes-tiny fes-muted">Each game keeps its own requirements</span></div>
-          <div class="fes-machine-shelf" aria-label="ZX81 game shelf"><button type="button" class="fes-game fes-interactive" data-game="tide" data-selected="true" aria-pressed="true"><span class="fes-art fes-art-tide" aria-hidden="true"><span class="fes-boat"></span></span><span class="fes-game-copy"><span class="fes-game-title">Tiny Tide</span><span class="fes-game-sub">Game · Built-in memory</span></span></button><button type="button" class="fes-game fes-interactive" data-game="orchard" aria-pressed="false"><span class="fes-art fes-art-orchard" aria-hidden="true"><span class="fes-sun"></span><span class="fes-hill-a"></span><span class="fes-hill-b"></span></span><span class="fes-game-copy"><span class="fes-game-title">Night Orchard</span><span class="fes-game-sub">Game · Needs 16K RAM pack</span></span></button></div>
+          <div class="fes-machine-shelf" aria-label="ZX81 game shelf"><button type="button" class="fes-game fes-interactive" data-game="tide" data-selected="true" aria-pressed="true"><span class="fes-art fes-art-tide" aria-hidden="true"><span class="fes-boat"></span></span><span class="fes-game-copy"><span class="fes-game-title">Tiny Tide</span><span class="fes-game-sub">Game · Built-in memory</span></span></button><button type="button" class="fes-game fes-interactive" data-game="orchard" aria-pressed="false"><span class="fes-art fes-art-orchard" aria-hidden="true"><span class="fes-sun"></span><span class="fes-hill-a"></span><span class="fes-hill-b"></span></span><span class="fes-game-copy"><span class="fes-game-title">Night Orchard</span><span class="fes-game-sub" data-requirement="Game">Game · Needs 16K RAM pack</span></span></button></div>
         </div>
         <div data-panel-view hidden></div>
       </main>
@@ -386,18 +386,32 @@
   const coverParts = '<span class="fes-sun"></span><span class="fes-hill-a"></span><span class="fes-hill-b"></span><span class="fes-tree-a"></span><span class="fes-tree-b"></span><span class="fes-walker"></span><span class="fes-planet"></span><span class="fes-boat"></span>';
   const shells = Array.from(root.querySelectorAll('.fes-shell'));
   const panelHistory = new WeakMap();
+  let roomOrigin = null;
   const label = (s) => s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const icons = () => {}; // Icons are local text symbols in this export.
   const art = key => `<div class="fes-art fes-art-${games[key].art}" role="img" aria-label="${label(games[key].title)} illustrated cover">${coverParts}</div>`;
   const action = (name, text, primary = false) => `<button type="button" class="${primary ? 'fes-primary ' : ''}fes-interactive" data-action="${name}">${text}</button>`;
-  function openRoom(roomId) {
-    const target = shells.find(shell => shell.dataset.room === roomId);
-    if (!target) return;
-    shells.forEach(shell => { shell.closest('[data-variant]').hidden = shell !== target; });
-    showHome(target);
+  function visibleShell() {
+    return shells.find(shell => !shell.closest('[data-variant]').hidden);
+  }
+  function setNavPressed(roomId) {
     document.querySelectorAll('[data-room-navigation] [data-open-room]').forEach(button => {
       button.setAttribute('aria-pressed', String(button.dataset.openRoom === roomId));
     });
+  }
+  function requirementNote(prefix) {
+    const body = state.output === 'tv' ? 'Needs 16K RAM pack' : 'Ready · 16K RAM pack';
+    return prefix ? `${prefix} · ${body}` : body;
+  }
+  function openRoom(roomId, options = {}) {
+    const target = shells.find(shell => shell.dataset.room === roomId);
+    if (!target) return;
+    if (!options.keepOrigin) roomOrigin = null;
+    shells.forEach(shell => { shell.closest('[data-variant]').hidden = shell !== target; });
+    showHome(target);
+    setNavPressed(roomId);
+    const focusTarget = options.focus ? target.querySelector(options.focus) : null;
+    if (focusTarget) { focusTarget.focus(); return; }
     const navButton = document.querySelector(`[data-room-navigation] [data-open-room="${roomId}"]`);
     if (navButton) navButton.focus();
   }
@@ -422,6 +436,7 @@
       el.setAttribute('aria-label', `${game.title} illustrated cover`);
       el.innerHTML = coverParts;
     });
+    root.querySelectorAll('[data-requirement]').forEach(el => { el.textContent = requirementNote(el.dataset.requirement); });
   }
   function showHome(shell) {
     shell.querySelector('[data-home-view]').hidden = false;
@@ -459,12 +474,31 @@
     shell.querySelector('[data-hint]').textContent = `${titles[name] || 'FES'} · B back`;
     icons();
   }
+  function restoreOrigin() {
+    const origin = roomOrigin;
+    roomOrigin = null;
+    if (!origin) return;
+    const target = shells.find(shell => shell.dataset.room === origin.roomId);
+    if (!target) return;
+    shells.forEach(shell => { shell.closest('[data-variant]').hidden = shell !== target; });
+    setNavPressed(origin.roomId);
+    const history = panelHistory.get(target) || [];
+    const panel = history.length ? history[history.length - 1] : origin.panel;
+    if (panel) openPanel(target, panel, false);
+    else showHome(target);
+    const focusTarget = target.querySelector('[data-panel-view] [data-action="back"]') || target.querySelector('[data-action="back"]');
+    if (focusTarget) focusTarget.focus();
+  }
   function goBack(shell) {
     const history = panelHistory.get(shell) || [];
-    if (!history.length) { openPanel(shell, 'home'); return; }
-    history.pop();
-    if (history.length) { panelHistory.set(shell, history); openPanel(shell, history[history.length - 1], false); }
-    else showHome(shell);
+    if (history.length) {
+      history.pop();
+      if (history.length) { panelHistory.set(shell, history); openPanel(shell, history[history.length - 1], false); }
+      else showHome(shell);
+      return;
+    }
+    if (roomOrigin && shell.dataset.room === roomOrigin.returnFrom) { restoreOrigin(); return; }
+    openPanel(shell, 'home');
   }
   root.addEventListener('click', event => {
     const button = event.target.closest('button');
@@ -486,9 +520,9 @@
     const name = button.dataset.action;
     if (!name) return;
     if (name === 'open-workbench') {
-      openRoom('machine');
-      const expansionSelect = root.querySelector('[data-room="machine"] [data-expansion-select]');
-      if (expansionSelect) expansionSelect.focus();
+      const history = panelHistory.get(shell) || [];
+      roomOrigin = { roomId: shell.dataset.room, panel: history[history.length - 1] || 'details', returnFrom: 'machine' };
+      openRoom('machine', { keepOrigin: true, focus: '[data-expansion-select]' });
       return;
     }
     if (name === 'back') { goBack(shell); return; }
@@ -520,10 +554,11 @@
     shell.querySelector('[data-action="fit"]').disabled = select.value === state.savedExpansion;
     shell.querySelector('[data-setup-note]').textContent = select.value === state.savedExpansion ? '' : 'Selected only · Fit & save to keep this setup.';
   });
-  root.addEventListener('keydown', event => {
-    const shell = event.target.closest('.fes-shell');
-    if (!shell) return;
+  function onConceptKeydown(event) {
+    const shell = event.target.closest('.fes-shell') || (event.target.closest('[data-room-navigation]') ? visibleShell() : null);
+    if (!shell || !root.contains(shell)) return;
     if (event.key === 'Escape') { event.preventDefault(); goBack(shell); return; }
+    if (!event.target.closest('.fes-shell')) return;
     if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key) || !event.target.matches('[data-game]')) return;
     const list = Array.from(event.target.parentElement.querySelectorAll('[data-game]'));
     const index = list.indexOf(event.target);
@@ -531,13 +566,17 @@
     const shift = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
     const next = list[(index + shift + list.length) % list.length];
     event.preventDefault(); next.focus(); selectGame(next.dataset.game);
-  });
+  }
+  root.addEventListener('keydown', onConceptKeydown);
   shells.forEach(shell => panelHistory.set(shell, []));
   const navigation = document.querySelector('[data-room-navigation]');
-  if (navigation) navigation.addEventListener('click', event => {
-    const button = event.target.closest('[data-open-room]');
-    if (button) openRoom(button.dataset.openRoom);
-  });
+  if (navigation) {
+    navigation.addEventListener('keydown', onConceptKeydown);
+    navigation.addEventListener('click', event => {
+      const button = event.target.closest('[data-open-room]');
+      if (button) openRoom(button.dataset.openRoom);
+    });
+  }
 })();
 </script>
 
