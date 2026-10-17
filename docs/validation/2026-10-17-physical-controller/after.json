@@ -1,0 +1,22 @@
+{
+  "ready": true,
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "boot_id": "fe3774a0-6fa0-4aaa-9bf1-5eaec17962d5",
+  "lease": {
+    "state": "free",
+    "generation": "f79450b8b1b2bb262908784b4af4f4c9949e3da7e1e4277d6ed694533e51e092",
+    "owner": null,
+    "purpose": null
+  },
+  "native_state": "idle",
+  "software": {
+    "active_bundle": "0b6b7d8138f2147bc5f3a7b18a3117209365994550aa530b52d2bef819b5602f",
+    "selected": "0b6b7d8138f2147bc5f3a7b18a3117209365994550aa530b52d2bef819b5602f",
+    "generation": 15,
+    "base_identity": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+    "pending": null,
+    "unreleased": null,
+    "service_fault": null,
+    "storage_error": null
+  }
+}

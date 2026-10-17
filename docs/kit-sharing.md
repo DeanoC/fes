@@ -84,7 +84,23 @@ cleanup. Sofa Soft-stop (tenfoot now-playing B, with `retain_lease: true`)
 keeps the grant after that cleanup. Stop used when replacing a game retains
 it. A client without ownership cannot claim merely to Stop another
 session. Losing renewal disables that client's mutations rather than taking
-the kit back automatically; restart the client after resolving ownership.
+the kit back automatically. Keep the host running and inspect current ownership
+with `GET /v1/kit/lease`; host health (`GET /api/v1/health`) reconciles the
+selected target identity and discards stale local authority without stopping
+or releasing the replacement owner's session.
+
+While another session holds the kit, leave it running. Lease-denied/busy
+responses are not a reason to restart services, restore software or take over.
+Once the kit is free, reconcile health/session status and issue one new explicit
+Launch. The same host process can claim a new lease and create a new flight and
+input stream; it does not replay the expired launch. A host restart is not a
+normal lease-recovery step. Supported API/ABI contracts, rather than matching
+host/kit source commits, determine software compatibility.
+
+Keep the old session/flight/generation binding on delayed Stop requests. They
+must not be rebound to a newer play. If a mutation's outcome is unknown, inspect
+current session and ownership before deciding the next action; do not blindly
+retry the mutation or infer ownership from the package ID alone.
 
 ## Expiry and operator override
 
@@ -161,6 +177,11 @@ hosts; no second lock service or misteross ownership database is introduced.
 
 ## Validation
 
+The [same-process recovery diagnostic](validation/2026-10-17-same-process-host-recovery.md)
+records the current explicit-relaunch workflow on its named host binaries and
+installed bundle. Earlier lease diagnostics below apply to their recorded
+artifacts; they do not identify the currently selected kit software.
+
 The state-machine, HTTP, input, agent, host and public session tests include
 concurrent claims, expiry with an admitted operation, stale cleanup/takeover,
 failed cleanup, retained input neutralization, stalled uploads, real TCP input
@@ -180,9 +201,9 @@ Exact diagnostic binaries, source archives, test logs and hardware results are
 retained in `out/kit-lease-diagnostic/`. Hardware classification is diagnostic;
 it does not select or publish parent component revisions.
 
-The installed target diagnostic image SHA-256 is
+Those earlier diagnostics used target image SHA-256
 `80f6d37dfcae4c05dc615367200352defe1df3900e1e4b20e8415e0df38a316d`.
-The final host binary SHA-256 is
+Their final host binary SHA-256 is
 `7004094ae2bb74a7f4c70259b684f78fcd5f42203140d391dd71b114e4e6ae39`.
 The initial and reviewed host binaries in the evidence directory were superseded
 by `fogcast-api-final`; `host-final.json` identifies the tested source snapshot.
