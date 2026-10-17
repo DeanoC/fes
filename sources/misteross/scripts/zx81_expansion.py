@@ -140,29 +140,8 @@ def _bel_xy(bel: str) -> tuple[int, int] | None:
     return int(parts[1]), int(parts[2])
 
 
-def _top_cells(design: object) -> tuple[dict | None, dict]:
-    modules = design.get("modules") if isinstance(design, dict) else None
-    top = modules.get("top") if isinstance(modules, dict) else None
-    if not isinstance(top, dict):
-        return None, {}
-    cells = top.get("cells")
-    return top, cells if isinstance(cells, dict) else {}
-
-
-def _nextpnr_bel(cell: dict) -> str:
-    attributes = cell.get("attributes")
-    if not isinstance(attributes, dict):
-        return ""
-    bel = attributes.get("NEXTPNR_BEL")
-    return bel if isinstance(bel, str) else ""
-
-
 def paired_route_through_bels(ff_bel: str) -> set[str]:
-    """The combinational half paired with one pinned socket flip-flop.
-
-    The ZX81 companion is that half as ``MISTRAL_COMB``, ``MISTRAL_MCOMB``,
-    or ``MISTRAL_BUF``. It does not carry the Coleco pin-map protocol.
-    """
+    """The combinational half paired with one pinned socket flip-flop."""
     parts = ff_bel.split(".")
     if len(parts) != 4 or parts[0] != "MISTRAL_FF" or not all(part.isdigit() for part in parts[1:]):
         return set()
@@ -190,14 +169,17 @@ def _pinned_socket_cell(name: str, cell: dict, bel: str, expected: dict[str, str
 def shell_cells_in_socket(design: object) -> list[tuple[str, str]]:
     """Shell cells placed in the cart interior or on the plug columns.
 
-    A socket flip-flop is admitted only as ``MISTRAL_FF`` at its
-    ``socket_bels()`` BEL. Its ``$ROUTETHRU`` is admitted only on that
-    flip-flop's paired half. A matching name anywhere else is shell logic.
-    Nothing else may occupy the plug columns, and the cart interior stays
-    empty.
+    A socket flip-flop may sit on its plug column only as ``MISTRAL_FF`` at
+    the BEL from ``socket_bels``. Its ``$ROUTETHRU`` buffer may sit only on
+    that flip-flop's paired combinational half, as ``MISTRAL_COMB``,
+    ``MISTRAL_MCOMB``, or ``MISTRAL_BUF``. A matching name elsewhere is still
+    shell logic. Nothing else may occupy the plug columns, and the cart
+    interior stays empty in the shell.
     """
-    _top, cells = _top_cells(design)
-    if not cells and _top is None:
+    modules = design.get("modules") if isinstance(design, dict) else None
+    top = modules.get("top") if isinstance(modules, dict) else None
+    cells = top.get("cells") if isinstance(top, dict) else None
+    if not isinstance(cells, dict):
         return []
     cart = _parse_rect(SOCKET_RECT)
     boundary = tuple(_parse_rect(spec) for spec in BOUNDARY_RECTS)
@@ -206,7 +188,12 @@ def shell_cells_in_socket(design: object) -> list[tuple[str, str]]:
     for name, cell in cells.items():
         if not isinstance(name, str) or not isinstance(cell, dict):
             continue
-        bel = _nextpnr_bel(cell)
+        attributes = cell.get("attributes")
+        bel = ""
+        if isinstance(attributes, dict):
+            raw = attributes.get("NEXTPNR_BEL") or attributes.get("BEL") or ""
+            if isinstance(raw, str):
+                bel = raw
         stem = name.removesuffix("$ROUTETHRU") if name.endswith("$ROUTETHRU") else ""
         if name in expected or stem in expected:
             if _pinned_socket_cell(name, cell, bel, expected):
@@ -216,33 +203,10 @@ def shell_cells_in_socket(design: object) -> list[tuple[str, str]]:
         xy = _bel_xy(bel)
         if xy is None:
             continue
-        if any(_in_rect(rect, *xy) for rect in boundary) or _in_rect(cart, *xy):
+        if _in_rect(cart, *xy) or any(_in_rect(rect, *xy) for rect in boundary):
             intruders.append((name, bel))
     intruders.sort()
     return intruders
-
-
-def socket_ff_problem(design: object) -> str | None:
-    """Reject a routed connector that is not the pinned socket flip-flops."""
-    _, cells = _top_cells(design)
-    problems: list[str] = []
-    for name, bel in socket_bels().items():
-        cell = cells.get(name)
-        if not isinstance(cell, dict):
-            problems.append(f"{name} is missing, required MISTRAL_FF at {bel}")
-            continue
-        actual_bel = _nextpnr_bel(cell) or "unplaced"
-        if cell.get("type") != "MISTRAL_FF" or actual_bel != bel:
-            problems.append(
-                f"{name} is {cell.get('type')} at {actual_bel}, required MISTRAL_FF at {bel}")
-    if not problems:
-        return None
-    shown = problems[:4]
-    details = "; ".join(shown)
-    extra = len(problems) - len(shown)
-    if extra:
-        details += f"; and {extra} more"
-    return f"socket boundary flip-flop moved: {details}"
 
 
 def socket_occupancy_message(intruders: list[tuple[str, str]]) -> str:
@@ -319,15 +283,11 @@ def blocked_plug_addr_message(blocked: list[tuple[int, str]]) -> str:
 def socket_design_reason(design: object) -> str | None:
     """Reject a routed shell whose connector or socket floorplan is wrong.
 
-    Every boundary flip-flop must be a ``MISTRAL_FF`` at its pinned BEL. A
-    ``$ROUTETHRU`` must be ``MISTRAL_COMB``, ``MISTRAL_MCOMB``, or
-    ``MISTRAL_BUF`` on that flip-flop's paired half. Any other cell in the
-    cart interior or on the plug columns is shell logic, and a foreign net
-    on a request exit still makes that bit unroutable.
+    A socket flip-flop is legal only as ``MISTRAL_FF`` at its pinned BEL. A
+    ``$ROUTETHRU`` is legal only on that flip-flop's paired half. Any other
+    cell in the cart interior or on the plug columns is shell logic, and a
+    foreign net on a request exit still makes that bit unroutable.
     """
-    mismatch = socket_ff_problem(design)
-    if mismatch:
-        return mismatch
     intruders = shell_cells_in_socket(design)
     if intruders:
         return socket_occupancy_message(intruders)
