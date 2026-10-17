@@ -60,6 +60,7 @@ func (r *Instance) installRoom() *lua.LTable {
 	colors.RawSetString("cover_frame", lua.LString(FormatHexColor(th.CoverFrame)))
 	t.RawSetString("theme", colors)
 	r.roomTable = t
+	r.setHeroTable()
 	return t
 }
 

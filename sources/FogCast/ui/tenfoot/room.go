@@ -38,6 +38,11 @@ type RoomSnapshot struct {
 	// DuringPlay means the room owns local navigation while the core runs.
 	DuringPlay bool
 	Notice     string
+	// Hero means the room asked for the large FES destination panel and the
+	// content box is big enough for it.
+	Hero bool
+	// WaitAck acknowledges a Confirm received while Checking.
+	WaitAck bool
 }
 
 // RoomPickerRow is one entry of the Home overlay.
@@ -358,6 +363,7 @@ func (a *App) closeRoomLocked() {
 	id := a.room.ID()
 	a.room.Close()
 	a.room = nil
+	a.roomWaitAck = false
 	a.roomErr = ""
 	a.roomFrame = rooms.Frame{}
 	a.closeRoomOverlaysLocked()
@@ -576,6 +582,9 @@ func (a *App) tickRoomLocked(now time.Time) {
 		return
 	}
 	a.roomFrame = a.room.Step(now)
+	if a.roomWaitAck && a.roomDestinationLocked().Confirm() != rooms.ConfirmWait {
+		a.roomWaitAck = false
+	}
 	a.applyRoomActionsLocked()
 	if a.room == nil {
 		return
@@ -653,6 +662,10 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		DuringPlay:    a.roomDuringPlay,
 		Notice:        a.roomSessionNotice,
 	}
+	if a.room.Hero() {
+		_, snap.Hero = rooms.HeroPanel(w, h)
+	}
+	snap.WaitAck = a.roomWaitAck && snap.Destination.Confirm() == rooms.ConfirmWait
 	if withImages {
 		snap.Images = a.room.Images()
 	}

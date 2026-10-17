@@ -352,10 +352,13 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 	}
 	switch dest.Confirm() {
 	case rooms.ConfirmWait:
+		// Acknowledge and wait. A queued Confirm could start whatever item
+		// the finished list focuses, which the player has not seen.
 		a.status = dest.Status
 		if a.status == "" {
 			a.status = rooms.CheckingStatus
 		}
+		a.roomWaitAck = true
 		return true
 	case rooms.ConfirmOpenLibrary:
 		a.status = dest.Status

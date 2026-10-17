@@ -3,6 +3,7 @@ package rooms
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -62,10 +63,13 @@ func frameText(f Frame) string {
 
 func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 	pack := examplePack(t, "example.fes-cores")
+	if pack.DestinationPanel != PanelHero {
+		t.Fatalf("Home panel %q", pack.DestinationPanel)
+	}
 	fake := &fakeLocalCores{cores: []localcores.Core{
 		{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
 		{PackageID: coreColecoID, CoreID: "fes.coleco", Name: "ColecoVision", Needs: "media", Launchable: false, Block: "Needs a cartridge"},
-		{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "firmware", Launchable: false, Block: "Needs firmware"},
+		{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "firmware", Launchable: false, Block: "Needs firmware", Inputs: []string{"keyboard"}},
 	}}
 	r := newRoom(t, pack, Options{Local: fake, Width: 1280, Height: 720})
 	if err := r.Load(); err != nil {
@@ -78,6 +82,9 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 	if strings.Contains(frameText(f), "FES.PONG") || strings.Contains(frameText(f), "fes.pong") {
 		t.Fatalf("tile renamed the manifest name:\n%s", frameText(f))
 	}
+	if strings.Contains(frameText(f), "Ready") {
+		t.Fatalf("the shelf claimed readiness; the launcher owns it:\n%s", frameText(f))
+	}
 	if err := r.ActivateDestination(context.Background()); err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +94,7 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 	if !r.Input("right") {
 		t.Fatal("right")
 	}
-	if got := r.Destination(); got.Label != "ColecoVision" || got.PackageID != coreColecoID || got.CoreLaunchable || got.Status != "Needs a cartridge" || got.Confirm() != ConfirmExplain {
+	if got := r.Destination(); got.Label != "ColecoVision" || got.PackageID != coreColecoID || got.CoreLaunchable || got.Status != "Needs a cartridge" || got.CoreNeeds != "media" || got.Confirm() != ConfirmExplain {
 		t.Fatalf("blocked dest %+v confirm %v", got, got.Confirm())
 	}
 	if err := r.ActivateDestination(context.Background()); err != nil {
@@ -96,7 +103,7 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 	if !r.Input("right") {
 		t.Fatal("right to firmware")
 	}
-	if got := r.Destination(); got.Label != "ZX81" || got.Status != "Needs firmware" {
+	if got := r.Destination(); got.Label != "ZX81" || got.Status != "Needs firmware" || len(got.Inputs) != 1 || got.Inputs[0] != "keyboard" {
 		t.Fatalf("firmware dest %+v", got)
 	}
 	if err := r.ActivateDestination(context.Background()); err != nil {
@@ -114,10 +121,11 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 		t.Fatal(err)
 	}
 	stepUntil(t, bare, func(f Frame) bool {
-		return strings.Contains(frameText(f), "Installed cores are not available here.")
+		return strings.Contains(frameText(f), "Installed machines appear here on an FES kit.")
 	})
-	if got := bare.Destination(); got.Kind == KindCore || got.Status != "Installed cores are not available here." || got.Action != got.Status {
-		t.Fatalf("unavailable strip %+v", got)
+	// Without a kit the routes stay reachable: focus starts on Library.
+	if got := bare.Destination(); got.Kind != KindLibrary || got.Confirm() != ConfirmOpenLibraryBrowse {
+		t.Fatalf("host Home dest %+v", got)
 	}
 	if err := bare.ActivateDestination(context.Background()); err != nil {
 		t.Fatal(err)
@@ -129,7 +137,7 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 		t.Fatal(err)
 	}
 	stepUntil(t, quiet, func(f Frame) bool {
-		return strings.Contains(frameText(f), "No installed cores.")
+		return strings.Contains(frameText(f), "Nothing is installed on this kit yet.")
 	})
 	if err := quiet.ActivateDestination(context.Background()); err != nil {
 		t.Fatal(err)
@@ -137,8 +145,8 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 	if got := empty.launchedIDs(); len(got) != 0 {
 		t.Fatalf("empty launched %v", got)
 	}
-	if got := quiet.Destination(); got.Status == "No installed cores." {
-		t.Fatalf("empty catalog changed the strip: %+v", got)
+	if got := quiet.Destination(); got.Kind != KindLibrary {
+		t.Fatalf("empty Home did not offer the Library: %+v", got)
 	}
 
 	broken := &fakeLocalCores{listErr: errors.New("invalid catalog response")}
@@ -147,13 +155,107 @@ func TestFesCoresRoomRendersTilesAndSkipsBlockedLaunch(t *testing.T) {
 		t.Fatal(err)
 	}
 	stepUntil(t, failed, func(f Frame) bool {
-		return strings.Contains(frameText(f), "Installed cores are not available here.")
+		return strings.Contains(frameText(f), "This kit's machines can't be listed right now.")
 	})
 	if failed.Err() != nil {
 		t.Fatal(failed.Err())
 	}
-	if got := failed.Destination(); got.Status != "Installed cores are not available here." || got.Action != got.Status {
-		t.Fatalf("refused socket strip %+v", got)
+	if got := failed.Destination(); got.Kind == KindCore || got.Confirm() == ConfirmLaunchCore {
+		t.Fatalf("refused socket offered a core %+v", got)
+	}
+}
+
+// blockingLocalCores holds List until released, like a warming catalog.
+type blockingLocalCores struct {
+	*fakeLocalCores
+	release chan struct{}
+}
+
+func (b blockingLocalCores) List(ctx context.Context) ([]localcores.Core, error) {
+	select {
+	case <-b.release:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	return b.fakeLocalCores.List(ctx)
+}
+
+func TestHomeChecksThenRestoresSelectionAndReachesRoutes(t *testing.T) {
+	pack := examplePack(t, "example.fes-cores")
+	cores := []localcores.Core{
+		{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
+		{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true, Inputs: []string{"keyboard"}},
+	}
+	store := filepath.Join(t.TempDir(), "home.json")
+	held := blockingLocalCores{fakeLocalCores: &fakeLocalCores{cores: cores}, release: make(chan struct{})}
+	r := newRoom(t, pack, Options{Local: held, StorePath: store, Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	r.Step(time.Unix(1, 0))
+	// While the list is pending, Home says Checking and Confirm waits.
+	if got := r.Destination(); got.Availability != AvailChecking || got.Confirm() != ConfirmWait || got.Status == "" {
+		t.Fatalf("pending Home %+v", got)
+	}
+	// Up reaches the routes during Checking, so Settings never waits on the kit.
+	r.Input("up")
+	r.Input("right")
+	r.Input("right")
+	if got := r.Destination(); got.Kind != KindAction || got.LauncherAction != "settings" {
+		t.Fatalf("settings route %+v", got)
+	}
+	r.Input("left")
+	if got := r.Destination(); got.Kind != KindRoom || got.RoomID == "" || got.Confirm() != ConfirmEnterRoom {
+		t.Fatalf("rooms route %+v", got)
+	}
+	r.Input("down")
+	close(held.release)
+	stepUntil(t, r, func(Frame) bool { return r.Destination().Kind == KindCore })
+	if got := r.Destination(); got.Label != "FES Pong" {
+		t.Fatalf("first visit focus %+v", got)
+	}
+	r.Input("right")
+	if got := r.Destination(); got.Label != "ZX81" {
+		t.Fatalf("moved focus %+v", got)
+	}
+	r.Close()
+
+	again := newRoom(t, pack, Options{Local: &fakeLocalCores{cores: cores}, StorePath: store, Width: 1280, Height: 720})
+	if err := again.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, again, func(Frame) bool { return again.Destination().Kind == KindCore })
+	if got := again.Destination(); got.Label != "ZX81" {
+		t.Fatalf("later visit did not restore the selection: %+v", got)
+	}
+}
+
+func TestDestinationPanelManifest(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		want  string
+		ok    bool
+	}{{"", PanelStrip, true}, {"strip", PanelStrip, true}, {"hero", PanelHero, true}, {"sidebar", "", false}} {
+		m, err := DecodeManifest([]byte("id = \"x\"\ndestination_panel = \"" + tc.value + "\"\n"))
+		if (err == nil) != tc.ok || (tc.ok && m.DestinationPanel != tc.want) {
+			t.Fatalf("%q: %+v %v", tc.value, m.DestinationPanel, err)
+		}
+	}
+	if _, ok := HeroPanel(400, 300); ok {
+		t.Fatal("a tiny room got the hero layout")
+	}
+	for _, size := range [][2]int{{1280, 720}, {1024, 600}, {1920, 1080}} {
+		l, ok := HeroPanel(size[0], size[1])
+		if !ok {
+			t.Fatalf("%v: no hero layout", size)
+		}
+		inside := func(a, b PanelRect) bool {
+			return a.X >= b.X && a.Y >= b.Y && a.X+a.W <= b.X+b.W && a.Y+a.H <= b.Y+b.H
+		}
+		room := PanelRect{W: size[0], H: size[1]}
+		if !inside(l.Text, l.Card) || !inside(l.Art, l.Card) || !inside(l.Card, room) || !inside(l.Shelf, room) || l.Text.X+l.Text.W > l.Art.X || l.Card.Y+l.Card.H > l.Shelf.Y || l.Shelf.Y+l.Shelf.H > l.Footer.Y {
+			t.Fatalf("%v: overlapping layout %+v", size, l)
+		}
 	}
 }
 

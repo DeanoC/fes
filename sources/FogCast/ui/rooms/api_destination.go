@@ -87,6 +87,7 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 		d.PackageID = packageID
 		d.CoreID = coreID
 		d.CoreBlock = optString(opts, "block")
+		d.CoreNeeds = optString(opts, "needs")
 		d.CoreLaunchable = coreLaunchable(opts, d.CoreBlock)
 		if d.CoreLaunchable {
 			d.Availability = AvailReady
@@ -134,6 +135,7 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 		// location (platform row, empty list). Leave availability empty so
 		// Confirm stays with the room.
 	}
+	d.Inputs = inputNames(opts.RawGetString("inputs"))
 	if d.Kind == KindGame && d.System == "" && d.Platform != "" {
 		d.System = d.Platform
 	}
@@ -146,6 +148,12 @@ func (r *Instance) destinationSet(L *lua.LState) int {
 		if status := optString(opts, "status"); status != "" {
 			d.Status = status
 			d.Action = status
+		}
+	}
+	// A room may say what it is checking. Confirm still waits.
+	if d.Kind == KindUnresolved && d.Availability == AvailChecking {
+		if status := optString(opts, "status"); status != "" {
+			d.Status = status
 		}
 	}
 	r.dest = d
@@ -225,11 +233,17 @@ func (r *Instance) destinationTable(d Destination) *lua.LTable {
 	t.RawSetString("game_id", lua.LString(d.GameID))
 	t.RawSetString("room_id", lua.LString(d.RoomID))
 	t.RawSetString("launcher_action", lua.LString(d.LauncherAction))
+	inputs := L.NewTable()
+	for _, name := range d.Inputs {
+		inputs.Append(lua.LString(name))
+	}
+	t.RawSetString("inputs", inputs)
 	if d.Kind == KindCore {
 		t.RawSetString("package_id", lua.LString(d.PackageID))
 		t.RawSetString("core_id", lua.LString(d.CoreID))
 		t.RawSetString("block", lua.LString(d.CoreBlock))
 		t.RawSetString("launchable", lua.LBool(d.CoreLaunchable))
+		t.RawSetString("needs", lua.LString(d.CoreNeeds))
 	}
 	t.RawSetString("availability", lua.LString(d.Availability))
 	t.RawSetString("state", lua.LString(d.Availability))
@@ -397,4 +411,29 @@ func parseAvailability(s string) Availability {
 	default:
 		return ""
 	}
+}
+
+// knownInputs are the input requirements a destination may name.
+var knownInputs = map[string]struct{}{"keyboard": {}, "mouse": {}}
+
+// inputNames keeps known input names from a Lua array, once each, in order.
+func inputNames(v lua.LValue) []string {
+	t, ok := v.(*lua.LTable)
+	if !ok {
+		return nil
+	}
+	var out []string
+	seen := map[string]struct{}{}
+	t.ForEach(func(_, value lua.LValue) {
+		name := strings.ToLower(strings.TrimSpace(value.String()))
+		if _, known := knownInputs[name]; !known {
+			return
+		}
+		if _, dup := seen[name]; dup {
+			return
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	})
+	return out
 }
