@@ -147,10 +147,10 @@ func TestHostModeLeavesKitUnset(t *testing.T) {
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
 	snap := waitFor(t, app, "cores unavailable", func(s Snapshot) bool {
-		return s.Room.Open && s.Room.Destination.Status == "Installed cores are not available here." && roomTextHas(s, "Installed cores are not available here.")
+		return s.Room.Open && roomTextHas(s, "Installed machines appear here on an FES kit.")
 	})
-	if snap.Room.Destination.Action != snap.Room.Destination.Status {
-		t.Fatalf("strip action %+v", snap.Room.Destination)
+	if snap.Room.Destination.Kind != rooms.KindLibrary {
+		t.Fatalf("host Home did not focus the Library route %+v", snap.Room.Destination)
 	}
 	if app.localCores != nil {
 		t.Fatal("home room on the host received a kit client")
