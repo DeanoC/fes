@@ -76,6 +76,14 @@ func detailReadiness(d rooms.Destination) readinessCopy {
 		switch {
 		case d.LeaseHeld || d.Status == rooms.InUseStatus:
 			c.Headline, c.Explain = rooms.InUseStatus, rooms.InUseDetail
+		case d.Status == machineStatusUnknown:
+			// The title itself can play. The headline names the unknown kit
+			// status; the remedy is the same sentence Confirm shows.
+			c.Headline = machineStatusUnknown
+			c.Explain = strings.TrimSpace(d.Action)
+			if c.Explain == "" || c.Explain == c.Headline {
+				c.Explain = "Wait for the kit to answer before starting anything."
+			}
 		case d.Availability == rooms.AvailMissing:
 			c.Headline, c.Explain = "Not in the library", strings.TrimSpace(d.Status)
 		default:

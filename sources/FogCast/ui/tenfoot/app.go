@@ -327,6 +327,7 @@ type App struct {
 	shots                  map[string]*shotSlot
 	shotIDs                map[string][]string
 	detailOpen             bool
+	libraryDetail          hostclient.Game
 	carouselIndex          int
 	shotGen                int
 	shotCtx                context.Context
@@ -2051,8 +2052,9 @@ func (a *App) Selected() (hostclient.Game, bool) {
 }
 
 // detailPlayLocked classifies the title Details describes. In a room it is
-// the room's own destination; in the Library it is the focused row with the
-// kit lease applied, as Confirm would see it.
+// the room's own destination. In the Library it is the refused launch when
+// that title is not the focused row, and otherwise the focused row, with the
+// kit lease applied as Confirm would see it.
 func (a *App) detailPlayLocked() rooms.Destination {
 	var game hostclient.Game
 	switch {
@@ -2061,6 +2063,8 @@ func (a *App) detailPlayLocked() rooms.Destination {
 		game = a.roomDetail
 	case a.room != nil:
 		return a.roomDestinationLocked()
+	case strings.TrimSpace(a.libraryDetail.ID) != "":
+		game = a.libraryDetail
 	case a.grid.Focus < 0 || a.grid.Focus >= len(a.games):
 		return rooms.Destination{}
 	default:
@@ -2096,6 +2100,9 @@ func (a *App) gamePlayDestinationLocked(game hostclient.Game) rooms.Destination 
 func (a *App) focusDetailLocked() shared.FocusDetail {
 	if a.room != nil && strings.TrimSpace(a.roomDetail.ID) != "" {
 		return a.detailForGameLocked(a.roomDetail)
+	}
+	if a.room == nil && strings.TrimSpace(a.libraryDetail.ID) != "" {
+		return a.detailForGameLocked(a.libraryDetail)
 	}
 	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
 		return shared.FocusDetail{}
@@ -2245,7 +2252,7 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
 		} else {
-			a.openDetailLocked()
+			a.openLibraryDetailLocked(game)
 		}
 		return
 	}
@@ -2256,7 +2263,7 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 			a.closeRoomOverlaysLocked()
 		} else {
 			// The reason and its remedy are in Details, not only the header.
-			a.openDetailLocked()
+			a.openLibraryDetailLocked(game)
 		}
 		return
 	}
@@ -2266,7 +2273,7 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
 		} else {
-			a.openDetailLocked()
+			a.openLibraryDetailLocked(game)
 		}
 		return
 	}

@@ -321,6 +321,107 @@ func TestDetailsClassifyTheChosenEditionAndPairedLease(t *testing.T) {
 	}
 }
 
+func TestBlockedRecentOpensItsOwnDetails(t *testing.T) {
+	browse := availableGame("snes-mario", "Super Mario World", "snes")
+	browse.Launchable = false
+	ready := availableGame("recent-pong", "Recent Pong", "pong")
+	busy := availableGame("recent-busy", "Recent Busy", "sms")
+
+	t.Run("catalog block", func(t *testing.T) {
+		app := libraryRenderApp(t, 1280, 720, false)
+		app.homeRecents = []hostclient.Game{browse}
+		app.launchRecentFromHomeLocked(browse.ID)
+		snap := app.Snapshot()
+		c := detailReadiness(snap.DetailPlay)
+		if snap.Grid.Focus != 0 || snap.FocusDetail.Title != "Super Mario World" || !snap.Detail.Open || c.Headline != "Browse only" {
+			t.Fatalf("recent details focus=%d title=%q open=%v readiness=%+v", snap.Grid.Focus, snap.FocusDetail.Title, snap.Detail.Open, c)
+		}
+		if strings.Contains(snap.HeaderHint(), "play") {
+			t.Fatalf("blocked recent offers Play: %q", snap.HeaderHint())
+		}
+	})
+
+	t.Run("empty library", func(t *testing.T) {
+		app := libraryRenderApp(t, 1280, 720, false)
+		app.games = nil
+		app.grid.SetCount(0)
+		app.grid.Focus = -1
+		app.homeRecents = []hostclient.Game{browse}
+		app.launchRecentFromHomeLocked(browse.ID)
+		snap := app.Snapshot()
+		if !snap.Detail.Open || snap.FocusDetail.Title != "Super Mario World" || detailReadiness(snap.DetailPlay).Headline != "Browse only" {
+			t.Fatalf("empty library recent: open=%v title=%q play=%+v", snap.Detail.Open, snap.FocusDetail.Title, snap.DetailPlay)
+		}
+	})
+
+	t.Run("unknown kit status", func(t *testing.T) {
+		app := libraryRenderApp(t, 1280, 720, false)
+		app.client = &Client{paired: true}
+		app.homeRecents = []hostclient.Game{ready}
+		app.launchRecentFromHomeLocked(ready.ID)
+		snap := app.Snapshot()
+		c := detailReadiness(snap.DetailPlay)
+		if snap.Grid.Focus != 0 || snap.FocusDetail.Title != "Recent Pong" || c.Headline != machineStatusUnknown || !strings.Contains(c.Explain, "Wait for the kit") {
+			t.Fatalf("unknown status details focus=%d title=%q readiness=%+v", snap.Grid.Focus, snap.FocusDetail.Title, c)
+		}
+		if strings.Contains(snap.HeaderHint(), "play") || snap.Launch.GameID != ready.ID {
+			t.Fatalf("unknown recent hint %q launch %+v", snap.HeaderHint(), snap.Launch)
+		}
+	})
+
+	t.Run("foreign lease", func(t *testing.T) {
+		app := libraryRenderApp(t, 1280, 720, false)
+		app.healthHave = true
+		app.health.Connection = hostclient.TargetConnection{State: "busy", Owner: "other-shell"}
+		app.homeRecents = []hostclient.Game{busy}
+		app.launchRecentFromHomeLocked(busy.ID)
+		snap := app.Snapshot()
+		c := detailReadiness(snap.DetailPlay)
+		if snap.Grid.Focus != 0 || snap.FocusDetail.Title != "Recent Busy" || c.Headline != rooms.InUseStatus || snap.Launch.GameID != busy.ID {
+			t.Fatalf("lease recent focus=%d title=%q readiness=%+v launch=%+v", snap.Grid.Focus, snap.FocusDetail.Title, c, snap.Launch)
+		}
+		app.HandleCommand(CmdSelect, time.Now())
+		snap = app.Snapshot()
+		if snap.Launch.Phase == "launching" || snap.Launch.GameID != busy.ID || snap.FocusDetail.Title != "Recent Busy" {
+			t.Fatalf("A launched the focused row: %+v title=%q", snap.Launch, snap.FocusDetail.Title)
+		}
+	})
+}
+
+func TestBIOSCancelReturnsToTheRefusedTitle(t *testing.T) {
+	app := libraryRenderApp(t, 1280, 720, false)
+	coleco := app.games[1]
+	app.openLibraryDetailLocked(coleco)
+	snap := app.Snapshot()
+	if snap.Grid.Focus != 0 || snap.FocusDetail.Title != "Donkey Kong" || detailReadiness(snap.DetailPlay).Headline != "Needs BIOS" {
+		t.Fatalf("BIOS details focus=%d title=%q play=%+v", snap.Grid.Focus, snap.FocusDetail.Title, snap.DetailPlay)
+	}
+	app.HandleCommand(CmdSelect, time.Now())
+	if !app.Snapshot().FirmwarePicker.Open {
+		t.Fatal("A did not open the BIOS picker for the refused title")
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	snap = app.Snapshot()
+	if snap.FirmwarePicker.Open || !snap.Detail.Open || snap.FocusDetail.Title != "Donkey Kong" || snap.Grid.Focus != 0 {
+		t.Fatalf("cancel returned to the focused row: picker=%v detail=%v title=%q focus=%d", snap.FirmwarePicker.Open, snap.Detail.Open, snap.FocusDetail.Title, snap.Grid.Focus)
+	}
+}
+
+func TestUnknownKitStatusNamesTheHeadline(t *testing.T) {
+	app := libraryRenderApp(t, 1280, 720, false)
+	app.client = &Client{paired: true}
+	app.mu.Lock()
+	d := app.gamePlayDestinationLocked(app.games[0])
+	app.mu.Unlock()
+	c := detailReadiness(d)
+	if d.Status != machineStatusUnknown || c.Headline != machineStatusUnknown || c.Headline == "Can't play here" || !strings.Contains(c.Explain, "Wait for the kit") {
+		t.Fatalf("unknown headline dest=%+v readiness=%+v", d, c)
+	}
+	if libraryDetailHint(InputGamepad, 0, d) != "B back  GUIDE settings" {
+		t.Fatalf("unknown status offers an action: %q", libraryDetailHint(InputGamepad, 0, d))
+	}
+}
+
 func TestLibraryBackHintFitsAt1024(t *testing.T) {
 	snap := Snapshot{Affinity: InputGamepad, LibraryBackTo: "Home"}
 	hint := snap.HeaderHint()

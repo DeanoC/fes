@@ -3,8 +3,10 @@ package tenfoot
 import (
 	"context"
 	"fmt"
-	"github.com/DeanoC/FogCast/hostclient"
 	"image"
+	"strings"
+
+	"github.com/DeanoC/FogCast/hostclient"
 )
 
 const (
@@ -122,11 +124,34 @@ func (a *App) openDetailLocked() {
 	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
 		return
 	}
+	a.libraryDetail = hostclient.Game{}
+	a.detailOpen = true
+	a.carouselIndex = skipFailedCarousel(a.focusDetailLocked().ScreenshotIDs, a.shotFailedLocked, a.carouselIndex)
+}
+
+// openLibraryDetailLocked opens Details for the title a launch refused.
+// The focused Library row keeps the grid path. Any other title, including a
+// Home recent and an empty grid, is the Details subject itself.
+func (a *App) openLibraryDetailLocked(game hostclient.Game) {
+	if a.room != nil {
+		return
+	}
+	focused := ""
+	if a.grid.Focus >= 0 && a.grid.Focus < len(a.games) {
+		focused = a.games[a.grid.Focus].ID
+	}
+	if id := strings.TrimSpace(game.ID); id == "" || id == focused {
+		a.libraryDetail = hostclient.Game{}
+		a.openDetailLocked()
+		return
+	}
+	a.libraryDetail = game
 	a.detailOpen = true
 	a.carouselIndex = skipFailedCarousel(a.focusDetailLocked().ScreenshotIDs, a.shotFailedLocked, a.carouselIndex)
 }
 
 func (a *App) closeDetailLocked() {
+	a.libraryDetail = hostclient.Game{}
 	if !a.detailOpen {
 		return
 	}
@@ -169,6 +194,15 @@ func (a *App) screenshotContextLocked() context.Context {
 	return ctx
 }
 
+// confirmOpenDetailLocked runs Confirm for the title Details is showing.
+func (a *App) confirmOpenDetailLocked() {
+	if a.room == nil && strings.TrimSpace(a.libraryDetail.ID) != "" {
+		a.startLaunchGameLocked(a.libraryDetail)
+		return
+	}
+	a.startLaunchLocked()
+}
+
 func (a *App) handleDetailLocked(cmd Command) bool {
 	if !a.detailOpen {
 		return false
@@ -186,13 +220,13 @@ func (a *App) handleDetailLocked(cmd Command) bool {
 		a.stepCarouselLocked(1)
 		return true
 	case CmdSelect:
-		a.startLaunchLocked()
+		a.confirmOpenDetailLocked()
 		return true
 	case CmdTab:
 		if len(a.focusDetailLocked().ScreenshotIDs) > 1 {
 			a.stepCarouselLocked(1)
 		} else {
-			a.startLaunchLocked()
+			a.confirmOpenDetailLocked()
 		}
 		return true
 	case CmdTabPrev:
