@@ -719,3 +719,118 @@ func fdsFor(path string) int {
 	}
 	return n
 }
+
+// runningLocalApp is a kit app whose local core is running with a known
+// generation, as after a successful kit-local launch.
+func runningLocalApp(t *testing.T) (*App, *fakeLocalCores) {
+	t.Helper()
+	fake := &fakeLocalCores{}
+	a := NewApp(nil, 1280, 720, 10)
+	a.mu.Lock()
+	a.localCores = fake
+	a.localPhase = localPhaseRunning
+	a.localLeaseGeneration = strings.Repeat("a", 64)
+	a.localPackageID = tenfootPongID
+	a.mu.Unlock()
+	return a, fake
+}
+
+func pollNative(t *testing.T, events ...[]byte) (*nativeInputs, func(*App)) {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { reader.Close(); writer.Close() })
+	fd := int(reader.Fd())
+	if err := unix.SetNonblock(fd, true); err != nil {
+		t.Fatal(err)
+	}
+	inputs := &nativeInputs{devices: []*nativeInput{{fd: fd}}}
+	return inputs, func(a *App) {
+		for _, e := range events {
+			writer.Write(e)
+		}
+		if _, err := inputs.poll(a, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func waitStops(t *testing.T, fake *fakeLocalCores, want int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for fake.stopCount() < want && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := fake.stopCount(); got != want {
+		t.Fatalf("stops %d, want %d", got, want)
+	}
+}
+
+func TestKitLocalCoreStopsOnOnePressOfF12OrGuide(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		code uint16
+	}{{"F12", nativeKeyF12}, {"Guide", 316}} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, fake := runningLocalApp(t)
+			_, poll := pollNative(t, nativeTestEvent(1, tc.code, 1), nativeTestEvent(1, tc.code, 0))
+			poll(a)
+			waitStops(t, fake, 1)
+			a.mu.Lock()
+			gens := append([]string(nil), fake.stopGenerations...)
+			a.mu.Unlock()
+			if len(gens) != 1 || gens[0] != strings.Repeat("a", 64) {
+				t.Fatalf("stop was not generation-checked: %v", gens)
+			}
+			if a.Snapshot().Settings.Open {
+				t.Fatal("the stop press also reached the menu")
+			}
+		})
+	}
+}
+
+func TestKitLocalStopRepeatWhileStoppingIsNotASecondStop(t *testing.T) {
+	a, fake := runningLocalApp(t)
+	a.mu.Lock()
+	a.localPhase = localPhaseStopping
+	a.mu.Unlock()
+	if !a.RequestLocalStop() {
+		t.Fatal("stopping core did not own the press")
+	}
+	time.Sleep(20 * time.Millisecond)
+	if fake.stopCount() != 0 {
+		t.Fatalf("repeat press sent another Stop: %d", fake.stopCount())
+	}
+}
+
+func TestKitLocalStopDuringLoadWaitsForTheRunningCore(t *testing.T) {
+	a := NewApp(nil, 1280, 720, 10)
+	a.mu.Lock()
+	a.localCores = &fakeLocalCores{}
+	a.localPhase = localPhaseLaunching
+	a.mu.Unlock()
+	if !a.RequestLocalStop() {
+		t.Fatal("loading core did not own the press")
+	}
+	a.mu.Lock()
+	deferred := a.localStopAfterStart
+	phase := a.localPhase
+	a.mu.Unlock()
+	if !deferred || phase != localPhaseLaunching {
+		t.Fatalf("stop during load: deferred=%v phase=%q", deferred, phase)
+	}
+}
+
+func TestGuideAndF12LeaveTheMenuAloneWithNoCore(t *testing.T) {
+	a := NewApp(nil, 1280, 720, 10)
+	if a.RequestLocalStop() {
+		t.Fatal("idle menu claimed a stop press")
+	}
+	_, poll := pollNative(t, nativeTestEvent(1, 316, 1), nativeTestEvent(1, 316, 0))
+	poll(a)
+	if !a.Snapshot().Settings.Open {
+		t.Fatal("Guide no longer opens Settings in the menu")
+	}
+}

@@ -145,6 +145,37 @@ func (a *App) localLaunchBlockedLocked() bool {
 	return a.localReconcileAfterFailure
 }
 
+// RequestLocalStop is the single-press exit from a kit-local core: keyboard
+// F12 or a pad's Guide button. Neither is ever forwarded to a core, so no
+// game loses a control. The menu cannot draw while the core owns HDMI, so
+// there is no confirmation. It matches the Select+Start hold: during the
+// load the stop waits until the core is running, and repeats do nothing.
+// It reports whether a kit-local core owned the press.
+func (a *App) RequestLocalStop() bool {
+	if a == nil {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.localUnownedRun {
+		// Another launch owns this core; this shell has no generation to stop.
+		return true
+	}
+	switch a.localPhase {
+	case localPhaseLaunching:
+		a.localStopAfterStart = true
+		return true
+	case localPhaseRunning:
+		a.localChordFired = true
+		a.beginLocalStopLocked()
+		return true
+	case localPhaseStopping:
+		return true
+	default:
+		return false
+	}
+}
+
 // localCoreOwnsInput reports that menu commands must not see the pad.
 // Launching, running, and stopping all own it.
 func (a *App) localCoreOwnsInput() bool {

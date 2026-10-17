@@ -189,9 +189,11 @@ func FromInspection(inspection corepackage.Inspection, path string) Core {
 }
 
 // descriptorInputs names the input devices a package requires: "keyboard"
-// for a required fes.keyboard or fes.keyboard.hid interface and "mouse" for
-// a required fes.mouse interface. Pads are not listed; a connected pad does
-// not establish how a core maps it.
+// for a required fes.keyboard.hid interface and "mouse" for a required
+// fes.mouse interface. Plain fes.keyboard 1.0 is not a keyboard requirement:
+// on fes.simple-computer it is the input matrix that also carries the pad
+// (Master System, ColecoVision, SG-1000). Pads are not listed; a connected
+// pad does not establish how a core maps it.
 func descriptorInputs(d corepackage.Descriptor) []string {
 	var keyboard, mouse bool
 	for _, iface := range d.Interfaces {
@@ -199,7 +201,7 @@ func descriptorInputs(d corepackage.Descriptor) []string {
 			continue
 		}
 		switch {
-		case iface.ID == "fes.keyboard" || strings.HasPrefix(iface.ID, "fes.keyboard."):
+		case iface.ID == "fes.keyboard.hid":
 			keyboard = true
 		case iface.ID == "fes.mouse" || strings.HasPrefix(iface.ID, "fes.mouse."):
 			mouse = true

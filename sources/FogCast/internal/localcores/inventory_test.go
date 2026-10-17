@@ -586,7 +586,9 @@ func TestDescriptorInputsNamesRequiredKeyboardAndMouse(t *testing.T) {
 	}{
 		{"pad only", []corepackage.Interface{{ID: "fes.gamepad.ports", Major: 1, Required: true}}, ""},
 		{"hid keyboard", []corepackage.Interface{{ID: "fes.keyboard.hid", Major: 1, Required: true}, {ID: "fes.gamepad.ports", Major: 1, Required: true}}, "keyboard"},
-		{"keyboard and mouse", []corepackage.Interface{{ID: "fes.mouse.relative", Major: 1, Required: true}, {ID: "fes.keyboard", Major: 1, Required: true}}, "keyboard,mouse"},
+		{"keyboard and mouse", []corepackage.Interface{{ID: "fes.mouse.relative", Major: 1, Required: true}, {ID: "fes.keyboard.hid", Major: 1, Required: true}}, "keyboard,mouse"},
+		// fes.sms, fes.coleco and fes.sg1000 receive the pad through this matrix.
+		{"simple-computer input matrix", []corepackage.Interface{{ID: "fes.keyboard", Major: 1, Required: true}, {ID: "fes.video.fixed-720p60", Major: 1, Required: true}}, ""},
 		{"optional mouse", []corepackage.Interface{{ID: "fes.mouse.relative", Major: 1}}, ""},
 		{"prefix only", []corepackage.Interface{{ID: "fes.keyboardish", Major: 1, Required: true}}, ""},
 	} {
