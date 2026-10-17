@@ -80,9 +80,10 @@ closed package set `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`,
 `fes.sg1000`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st`. SMS, SG-1000, Spectrum and Atari ST are
 sealed and included. ST firmware remains separately selected by the user; no ROM
 is bundled in the image. Coleco and ST each include independently sealed Direct
-and Scanlines video parts. C64 has a timing-passing frozen HIP seal and a
-[functional package diagnostic](docs/validation/2026-10-06-c64-functional-closure.md),
-but remains package-only without factory-image acceptance. The 192 MiB rootfs
+and Scanlines video parts. C64's shared-pin retirement is complete on the
+recorded CUDA seal. It remains package-only without factory-image acceptance;
+the [6 Oct diagnostic](docs/validation/2026-10-06-c64-functional-closure.md)
+does not accept those bytes. See [core status](docs/core-status.md). The 192 MiB rootfs
 holds the selected set.
 Menu (`fes.menu`) is the idle display, not a playable library entry. Each selected
 package is independently resolved, cached, installed and recorded; this is the

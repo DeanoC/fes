@@ -19,9 +19,9 @@ producers. The default target-image selector installs the ordered closed
 SMS, SG-1000, Spectrum and Atari ST passed timing and are in that image.
 Coleco and ST include their independently sealed Direct and Scanlines video parts. The 192 MiB
 rootfs holds them. `fes.apple2`,
-`fes.catch` and `fes.riscv` remain package-only. `fes.c64` has a timing-passing
-frozen HIP seal and functional diagnostic, but remains package-only without
-factory-image acceptance.
+`fes.catch` and `fes.riscv` remain package-only. `fes.c64` shared-pin
+retirement is complete on the recorded CUDA seal. It remains package-only
+without factory-image acceptance. See [core status](core-status.md).
 Package IDs and payload digests are recorded in generated per-core selection
 files, including `fes-sms.package-selection.toml`,
 `fes-sg1000.package-selection.toml` and `fes-spectrum.package-selection.toml`.
