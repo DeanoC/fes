@@ -419,6 +419,10 @@ func (a *App) activatePointerHitLocked(hit PointerHit, now time.Time) {
 			a.applyRoomDestinationConfirmLocked()
 			return
 		}
+		if a.detailOpen && hit.Kind == PointerDetail {
+			a.confirmOpenDetailLocked()
+			return
+		}
 		if a.detailOpen && hit.Kind == PointerCatalog {
 			a.closeDetailLocked()
 		}

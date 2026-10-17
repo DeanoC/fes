@@ -1794,6 +1794,7 @@ func (a *App) setReducedMotionLocked(on bool, persist bool) {
 			parent.SetReducedMotion(on)
 		}
 	}
+	a.setSuspendedReducedMotionLocked(on)
 	if on {
 		a.status = "reduced motion on"
 		return
