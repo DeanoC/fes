@@ -260,7 +260,7 @@ func drawListRows(dev gfx.Device, snap Snapshot, textures, labels map[string]gpu
 				meta = year
 			}
 		}
-		if play := libraryPlayDestination(game).Availability.Label(); play != "" {
+		if play := classifyLibraryGame(game, snap.KitPlay).Availability.Label(); play != "" {
 			if meta != "" {
 				meta += "  ·  " + play
 			} else {

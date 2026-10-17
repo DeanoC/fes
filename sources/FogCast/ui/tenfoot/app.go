@@ -233,6 +233,9 @@ type Snapshot struct {
 	// DetailPlay is the focused title's classified play destination: the
 	// same readiness, reason and Confirm the launcher acts on.
 	DetailPlay rooms.Destination
+	// KitPlay is the kit state Library rows and the header classify with,
+	// the same as Details and Confirm.
+	KitPlay kitPlayState
 	// LibraryBackTo names the room Back returns to from the Library.
 	LibraryBackTo   string
 	Collection      string
@@ -1707,6 +1710,7 @@ func (a *App) Snapshot() Snapshot {
 		SearchOpen:              a.searchOpen,
 		FocusDetail:             a.focusDetailLocked(),
 		DetailPlay:              a.detailPlayLocked(),
+		KitPlay:                 a.kitPlayStateLocked(),
 		LibraryBackTo:           a.libraryBackToLocked(),
 		Collection:              a.collectionID,
 		ViewLabel:               a.viewLabelLocked(),
@@ -1971,7 +1975,7 @@ func (s Snapshot) chromeBody() string {
 	parts = append(parts, filterSummaryParts(s.Genre, s.Year, s.Region, s.HidePrerelease, s.HideHacks)...)
 	parts = append(parts, search)
 	if s.Grid.Focus >= 0 && s.Grid.Focus < len(s.Games) {
-		play := libraryPlayDestination(s.Games[s.Grid.Focus])
+		play := classifyLibraryGame(s.Games[s.Grid.Focus], s.KitPlay)
 		if label := play.Availability.Label(); label != "" {
 			parts = append(parts, label)
 		}
@@ -2093,28 +2097,19 @@ func (a *App) detailPlayLocked() rooms.Destination {
 	return a.gamePlayDestinationLocked(game)
 }
 
-// gamePlayDestinationLocked classifies one title as startLaunchGameLocked
-// will treat it: a paired kit whose status is unknown, or that another
-// session holds, refuses before the catalog block or host-only exemption is
-// considered.
+// gamePlayDestinationLocked classifies one title as Confirm will treat it.
 func (a *App) gamePlayDestinationLocked(game hostclient.Game) rooms.Destination {
-	d := libraryPlayDestination(game)
-	if d.Availability != rooms.AvailReady || missingFirmwareGame(game) {
-		return d
-	}
+	return classifyLibraryGame(game, a.kitPlayStateLocked())
+}
+
+// kitPlayStateLocked is the kit state every Library classification shares.
+func (a *App) kitPlayStateLocked() kitPlayState {
 	paired := a.client != nil && a.client.paired
-	switch {
-	case paired && a.pairedKitStatusUnavailableLocked():
-		d.Availability = rooms.AvailUnavailable
-		d.Status = machineStatusUnknown
-		d.Action = "Wait for the kit to answer before starting anything."
-	case a.foreignKitLeaseLocked() && (paired || !game.HostOnly()):
-		d.Availability = rooms.AvailUnavailable
-		d.LeaseHeld = true
-		d.Status = rooms.InUseStatus
-		d.Action = rooms.InUseDetail
+	return kitPlayState{
+		Paired:  paired,
+		Unknown: paired && a.pairedKitStatusUnavailableLocked(),
+		Foreign: a.foreignKitLeaseLocked(),
 	}
-	return d
 }
 
 func (a *App) focusDetailLocked() shared.FocusDetail {

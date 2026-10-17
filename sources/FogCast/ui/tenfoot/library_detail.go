@@ -66,7 +66,11 @@ func detailReadiness(d rooms.Destination) readinessCopy {
 	}
 	switch c.State {
 	case heroStateReady:
-		// The pill says it; the host path names no destination here.
+		// Only a paired kit's own launch has a known picture: the
+		// classifier says so in Status. Elsewhere the pill stands alone.
+		if d.Status == heroPlaysOnThisTV {
+			c.Headline = heroPlaysOnThisTV
+		}
 	case heroStateChecking:
 		c.Headline = strings.TrimSpace(d.Status)
 	case heroStateNeedsChoice:
@@ -156,4 +160,42 @@ func placeholderSystem(snap Snapshot, game hostclient.Game) string {
 		return s
 	}
 	return strings.TrimSpace(game.Title)
+}
+
+// kitPlayState is what the launcher knows about the kit for a Library
+// launch: a paired client, whether that kit's status is unknown, and
+// whether another session holds it.
+type kitPlayState struct {
+	Paired  bool
+	Unknown bool
+	Foreign bool
+}
+
+// classifyLibraryGame classifies one title as startLaunchGameLocked treats
+// it: a paired kit whose status is unknown, or that another session holds,
+// refuses before the catalog block or host-only exemption is considered.
+// The header, list rows, Details and Confirm all use it.
+//
+// A paired client launches on its own target, so a Ready title that is not
+// host-only plays on this kit's HDMI output; Status then says so. A
+// host-only title plays on the host and makes no claim about the picture.
+func classifyLibraryGame(game hostclient.Game, k kitPlayState) rooms.Destination {
+	d := libraryPlayDestination(game)
+	if d.Availability != rooms.AvailReady || missingFirmwareGame(game) {
+		return d
+	}
+	switch {
+	case k.Unknown:
+		d.Availability = rooms.AvailUnavailable
+		d.Status = machineStatusUnknown
+		d.Action = "Wait for the kit to answer before starting anything."
+	case k.Foreign && (k.Paired || !game.HostOnly()):
+		d.Availability = rooms.AvailUnavailable
+		d.LeaseHeld = true
+		d.Status = rooms.InUseStatus
+		d.Action = rooms.InUseDetail
+	case k.Paired && !game.HostOnly():
+		d.Status = heroPlaysOnThisTV
+	}
+	return d
 }

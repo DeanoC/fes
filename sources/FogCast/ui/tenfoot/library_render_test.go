@@ -614,3 +614,66 @@ func TestLibraryBackHintFitsAt1024(t *testing.T) {
 		t.Fatalf("hint %q (%d px)", hint, 24+8*len(hint))
 	}
 }
+
+func TestLibraryHeaderListAndDetailsShareOneClassifier(t *testing.T) {
+	app := libraryHomeApp(t)
+	app.HandleCommand(CmdSelect, time.Now())
+	snap := waitFor(t, app, "library", func(s Snapshot) bool { return !s.Room.Open && len(s.Games) > 0 })
+	focus := snap.Games[snap.Grid.Focus]
+	app.mu.Lock()
+	app.client.paired = true
+	app.kitLeaseHave = true
+	app.kitLease = KitLeaseStatus{Unavailable: true}
+	app.mu.Unlock()
+	snap = app.Snapshot()
+	header := snap.ChromeLine()
+	row := classifyLibraryGame(focus, snap.KitPlay)
+	if !snap.KitPlay.Unknown || row.Availability != snap.DetailPlay.Availability || strings.Contains(header, "Ready") {
+		t.Fatalf("unknown kit: header %q, row %v, details %v", header, row.Availability, snap.DetailPlay.Availability)
+	}
+}
+
+func TestReadyDetailsSaysWhereAPairedLaunchPlays(t *testing.T) {
+	kit := availableGame("pong", "Pong", "pong")
+	host := availableGame("emu-pong", "Pong", "pong")
+	host.Execution = hostclient.ExecutionHostOnly
+	paired := kitPlayState{Paired: true}
+	if c := detailReadiness(classifyLibraryGame(kit, paired)); c.State != heroStateReady || c.Headline != heroPlaysOnThisTV {
+		t.Fatalf("paired kit title %+v", c)
+	}
+	// A host-only title plays on the host; no picture claim.
+	if c := detailReadiness(classifyLibraryGame(host, paired)); c.State != heroStateReady || c.Headline != "" {
+		t.Fatalf("host-only title %+v", c)
+	}
+	// An unpaired launcher does not know where the host will send it.
+	if c := detailReadiness(classifyLibraryGame(kit, kitPlayState{})); c.Headline != "" {
+		t.Fatalf("unpaired title %+v", c)
+	}
+}
+
+// One Back from the Library resumes Home even while the kit's status is
+// unknown; only a second Back at the Home root opens the Home picker.
+func TestOneBackFromTheLibraryNeverOpensTheHomePicker(t *testing.T) {
+	app := libraryHomeApp(t)
+	app.HandleCommand(CmdSelect, time.Now())
+	waitFor(t, app, "library", func(s Snapshot) bool { return !s.Room.Open && len(s.Games) > 0 })
+	app.mu.Lock()
+	app.client.paired = true
+	app.kitLeaseHave = true
+	app.kitLease = KitLeaseStatus{Unavailable: true}
+	app.mu.Unlock()
+	app.HandleCommand(CmdDetails, time.Now())
+	if !app.Snapshot().Detail.Open {
+		t.Fatal("Details did not open while the kit status is unknown")
+	}
+	app.HandleCommand(CmdBack, time.Now()) // closes Details
+	app.HandleCommand(CmdBack, time.Now()) // leaves the Library
+	snap := app.Snapshot()
+	if !snap.Room.Open || snap.RoomPicker.Open {
+		t.Fatalf("Back from the Library: room=%v picker=%v", snap.Room.Open, snap.RoomPicker.Open)
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	if !app.Snapshot().RoomPicker.Open {
+		t.Fatal("Back at the Home root no longer opens the Home picker")
+	}
+}
