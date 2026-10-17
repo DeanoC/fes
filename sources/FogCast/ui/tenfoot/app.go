@@ -585,7 +585,13 @@ type App struct {
 	localStatusBusy            bool
 	localStatusNext            time.Time
 	localStatusEpoch           uint64
-	localLaunchPending         func()
+	// localStartupStatusChecked is set after the first successful local
+	// status read. A later idle menu does not keep polling.
+	localStartupStatusChecked bool
+	// localWatchStartup keeps polling a launching or stopping generation
+	// seen at startup until that generation is running or generation-free idle.
+	localWatchStartup  bool
+	localLaunchPending func()
 }
 
 // SetRemapper installs a shared input profile. A nil remapper is identity.

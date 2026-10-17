@@ -25,6 +25,8 @@ type FileRepository struct {
 	dir      *os.File
 	identity os.FileInfo
 	mu       sync.Mutex
+	// writeCheckpoint is an instance-local test observer; production leaves it nil.
+	writeCheckpoint func(string, State)
 }
 
 func OpenRepository(root, factory string) (*FileRepository, error) {
@@ -215,6 +217,12 @@ func (r *FileRepository) read() (State, error) {
 	}
 	return s, validateState(s)
 }
+func (r *FileRepository) checkpoint(stage string, s State) {
+	if r.writeCheckpoint != nil {
+		r.writeCheckpoint(stage, s)
+	}
+}
+
 func (r *FileRepository) write(s State) error {
 	if err := validateState(s); err != nil {
 		return err
@@ -226,6 +234,7 @@ func (r *FileRepository) write(s State) error {
 	if len(b) > maxStateSize {
 		return errors.New("software state exceeds size limit")
 	}
+	r.checkpoint("before-create", s)
 	fd, err := unix.Openat(int(r.dir.Fd()), "state.tmp", unix.O_WRONLY|unix.O_CREAT|unix.O_EXCL|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0600)
 	if errors.Is(err, unix.EEXIST) {
 		if err = unix.Unlinkat(int(r.dir.Fd()), "state.tmp", 0); err != nil {
@@ -237,18 +246,25 @@ func (r *FileRepository) write(s State) error {
 		return err
 	}
 	f := os.NewFile(uintptr(fd), "state.tmp")
+	r.checkpoint("after-create", s)
 	_, writeErr := io.Copy(f, bytes.NewReader(b))
+	r.checkpoint("after-write", s)
 	syncErr := f.Sync()
+	r.checkpoint("after-file-sync", s)
 	closeErr := f.Close()
+	r.checkpoint("after-close", s)
 	if err := errors.Join(writeErr, syncErr, closeErr); err != nil {
 		return err
 	}
+	r.checkpoint("before-rename", s)
 	if err := unix.Renameat(int(r.dir.Fd()), "state.tmp", int(r.dir.Fd()), "state.json"); err != nil {
 		return err
 	}
+	r.checkpoint("after-rename", s)
 	if err := r.dir.Sync(); err != nil {
 		return fmt.Errorf("sync software state directory: %w", err)
 	}
+	r.checkpoint("after-directory-sync", s)
 	return nil
 }
 func (r *FileRepository) Read() (s State, err error) {

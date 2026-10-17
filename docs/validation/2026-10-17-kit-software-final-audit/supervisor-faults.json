@@ -1,0 +1,154 @@
+{
+  "success": true,
+  "phase": "complete",
+  "source": "6641b58fa36754e629d3e9666f35b8674178b2b6",
+  "base": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+  "boot": "457a8b1a-54af-46c0-9e6e-351c08467496",
+  "bundle": "00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb",
+  "initial_generation": 17,
+  "helper_sha256": "993deff6cc913d953303dc0edbca9d4fa5afcb490df8238880e028669f862420",
+  "script_sha256": "98b7c66944f296e930b504fc0d2a88028d29b06cfeae08752158f45695da42ac",
+  "signal_source_sha256": "9499667e631e0c356fc3840dba411a4643267870ee2cb45e486e608bb2cef97c",
+  "faults": [
+    {
+      "role": "launcher",
+      "before": {
+        "agent": {
+          "pid": 1254,
+          "parent": 654,
+          "start": "11212",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/mister-agent"
+        },
+        "launcher": {
+          "pid": 1266,
+          "parent": 654,
+          "start": "11220",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/fogcast-tenfoot"
+        },
+        "runtime": {
+          "pid": 1251,
+          "parent": 654,
+          "start": "10801",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/mister-runtime"
+        }
+      },
+      "after": {
+        "agent": {
+          "pid": 1254,
+          "parent": 654,
+          "start": "11212",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/mister-agent"
+        },
+        "launcher": {
+          "pid": 1682,
+          "parent": 654,
+          "start": "19428",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/fogcast-tenfoot"
+        },
+        "runtime": {
+          "pid": 1251,
+          "parent": 654,
+          "start": "10801",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/mister-runtime"
+        }
+      },
+      "stable_seconds": 10,
+      "maintenance_preserved": true
+    },
+    {
+      "role": "agent",
+      "before": {
+        "agent": {
+          "pid": 1254,
+          "parent": 654,
+          "start": "11212",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/mister-agent"
+        },
+        "launcher": {
+          "pid": 1682,
+          "parent": 654,
+          "start": "19428",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/fogcast-tenfoot"
+        },
+        "runtime": {
+          "pid": 1251,
+          "parent": 654,
+          "start": "10801",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/mister-runtime"
+        }
+      },
+      "after": {
+        "agent": {
+          "pid": 1841,
+          "parent": 654,
+          "start": "21126",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/mister-agent"
+        },
+        "launcher": {
+          "pid": 1868,
+          "parent": 654,
+          "start": "23409",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/fogcast-tenfoot"
+        },
+        "runtime": {
+          "pid": 1838,
+          "parent": 654,
+          "start": "20730",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/mister-runtime"
+        }
+      },
+      "stable_seconds": 10,
+      "maintenance_preserved": true
+    },
+    {
+      "role": "runtime",
+      "before": {
+        "agent": {
+          "pid": 1841,
+          "parent": 654,
+          "start": "21126",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/mister-agent"
+        },
+        "launcher": {
+          "pid": 1868,
+          "parent": 654,
+          "start": "23409",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/fogcast-tenfoot"
+        },
+        "runtime": {
+          "pid": 1838,
+          "parent": 654,
+          "start": "20730",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/mister-runtime"
+        }
+      },
+      "after": {
+        "agent": {
+          "pid": 2177,
+          "parent": 654,
+          "start": "26153",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/mister-agent"
+        },
+        "launcher": {
+          "pid": 2203,
+          "parent": 654,
+          "start": "28429",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/fogcast-tenfoot"
+        },
+        "runtime": {
+          "pid": 2169,
+          "parent": 654,
+          "start": "25732",
+          "exe": "/run/fogcast/fesdata3/software-releases/releases/00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb/bin/mister-runtime"
+        }
+      },
+      "stable_seconds": 10,
+      "maintenance_preserved": true
+    }
+  ],
+  "queue_reselection_requested": true,
+  "priority_sample": "held_owner_refusal",
+  "atomic_free_boundary_proven": false,
+  "scope": "accepted managed child death only; supervisor never signalled; idle maintenance; queued activation separate; competing claim sampled under held owner only, atomic priority requires focused tests; no physical input claim",
+  "inspect_required": false
+}
