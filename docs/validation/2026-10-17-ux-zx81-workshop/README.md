@@ -22,7 +22,7 @@ FES_ROOM_SCREENSHOT_DIR=/tmp/ws go test ./ui/tenfoot/ -run TestHardwareRoomNativ
 | --- | --- | --- |
 | Idle | [before](before-idle-1280x720.png) | [after](after-idle-1280x720.png): Running and Next start together, consequence box beside Fit & save |
 | Running, restart needed | [before](before-running-1280x720.png): states in a footer line | [after](after-running-1280x720.png): "Running: Empty socket", "Next start: 16K RAM pack", "Restart needed: Stop, then Start" |
-| Previewing an unsaved card | not shown before | [after 1280×720](after-preview-1280x720.png), [1024×600](after-preview-1024x600.png): outlined "Preview" card, "Previewing: Sound expansion (not saved)" |
+| Previewing an unsaved card | not shown before | [after 1280×720](after-preview-1280x720.png), [1024×600](after-preview-1024x600.png): solid "Next start" card stays, outlined "Preview" card beside it, "Previewing: Sound expansion (not saved)" |
 | Missing artwork | [before](before-no-artwork-1280x720.png) | [after](after-no-artwork-1280x720.png): labelled machine silhouette |
 
 Both sizes are captured for every scene.
@@ -44,6 +44,11 @@ Both sizes are captured for every scene.
   - an unavailable card drawn as a preview
 
   All are fixed.
+- Devin Review: the saved card stays visible during preview, and the cassette
+  name is a wide row that keeps the end of a long filename. The after images
+  were regenerated with `TestHardwareRoomNativeRender`. Preview still occupies
+  the status line Restart needed would use; the warm box keeps that warning.
+  An unavailable choice stays text and is not drawn on the connector.
 
 ## Not covered
 

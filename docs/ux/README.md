@@ -432,8 +432,10 @@ kit are pending.
   setup change needs a restart, that stopping clears memory, and that saving
   never saves RAM.
 - **Grouped actions.** The machine row holds Start/Stop, cassette/tape, Return
-  to play and Next setup; setup tools hold Set up ZX81, Import expansion,
-  Refresh, More cards and Library. Control IDs and guards are unchanged.
+  to play, Next setup and Set up ZX81. The selected cassette name is a wide
+  row above those controls; a name that does not fit keeps its start and its
+  end. Setup tools hold Import expansion, Refresh, More cards and Library.
+  Control IDs and guards are unchanged.
 - **Not yet.** "Games for this machine" needs its own focus and launch design.
 
 ## Decisions still to validate
