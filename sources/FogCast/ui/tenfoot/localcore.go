@@ -581,15 +581,21 @@ func (a *App) localStatusPollWantedLocked() bool {
 	if a.localPhase == localPhaseRunning {
 		return true
 	}
+	// A startup launch keeps its generation and is polled until the agent
+	// reports running or generation-free idle. This process's own launch has
+	// no generation yet, so it does not poll here.
+	if a.localPhase == localPhaseLaunching && validLocalGeneration(a.localLeaseGeneration) && !a.localReconcileAfterFailure && !a.localUnownedRun {
+		return true
+	}
 	if a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == "") {
 		return true
 	}
 	return !a.localStartupStatusChecked && a.localPhase == "" && !a.localUnownedRun
 }
 
-// localStatusAdoptable reports an agent run this process can stop. Idle and
-// stopping stay on the menu: stopping is already on its way out, and a
-// generation we cannot name cannot be stopped.
+// localStatusAdoptable reports an agent run this process can take. Idle stays
+// on the menu. Stopping is watched separately until it settles. A generation
+// we cannot name cannot be stopped.
 func localStatusAdoptable(status localcores.RunStatus) bool {
 	switch status.Phase {
 	case "launching", "running":
@@ -600,9 +606,10 @@ func localStatusAdoptable(status localcores.RunStatus) bool {
 }
 
 // adoptStartupLocalRunLocked takes the agent's current generation as this
-// launcher's run. The In use screen stays up, Select+Start stops that
-// generation, and a later idle status returns to the menu. It does not
-// claim this process started the run.
+// launcher's run. A running answer shows the In use panel and Select+Start
+// stops that generation. A launching answer stays launching so stop waits
+// until the agent will accept it. A later idle status returns to the menu.
+// It does not claim this process started the run.
 func (a *App) adoptStartupLocalRunLocked(status localcores.RunStatus) {
 	title := strings.TrimSpace(status.CoreID)
 	if title == "" {
@@ -611,11 +618,9 @@ func (a *App) adoptStartupLocalRunLocked(status localcores.RunStatus) {
 	a.localTitle = title
 	a.localLeaseGeneration = status.Generation
 	a.localPackageID = status.PackageID
-	a.localPhase = localPhaseRunning
 	a.localUnownedRun = false
 	a.localReconcileAfterFailure = false
 	a.localReconcileDeadline = time.Time{}
-	a.localPresentsPaused = false
 	a.localLateAdopt = false
 	a.localStartedAt = time.Time{}
 	a.localChordSince = time.Time{}
@@ -624,10 +629,53 @@ func (a *App) adoptStartupLocalRunLocked(status localcores.RunStatus) {
 	a.localSelectDown = false
 	a.localStartDown = false
 	a.localSent = nil
-	a.localStatus = localInUseCopy
-	a.status = a.localStatus
 	a.localStatusNext = time.Time{}
+	if status.Phase == "launching" {
+		// Stop is refused until the agent reports running. Keep the launching
+		// phase so Select+Start defers that call.
+		a.localPhase = localPhaseLaunching
+		a.localPresentsPaused = true
+		a.localStatus = "Starting " + title + "…"
+	} else {
+		a.localPhase = localPhaseRunning
+		a.localPresentsPaused = false
+		a.localStatus = localInUseCopy
+	}
+	a.status = a.localStatus
 	a.localRedraw++
+}
+
+// followAdoptedLaunchLocked advances a startup launch this process is
+// watching. Stop waits until the same generation is running. Idle with an
+// empty generation returns to the menu. A different generation is not ours.
+func (a *App) followAdoptedLaunchLocked(status localcores.RunStatus) {
+	same := status.Generation == a.localLeaseGeneration && (a.localPackageID == "" || status.PackageID == "" || status.PackageID == a.localPackageID)
+	switch status.Phase {
+	case "running":
+		if !same {
+			a.holdUnownedLocalRunLocked()
+			return
+		}
+		a.localPhase = localPhaseRunning
+		a.localPresentsPaused = false
+		a.localLateAdopt = false
+		a.localStatus = localInUseCopy
+		a.status = a.localStatus
+		a.localRedraw++
+		if a.localStopAfterStart {
+			a.localStopAfterStart = false
+			a.localChordFired = true
+			a.beginLocalStopLocked()
+		}
+	case "idle":
+		if status.Generation == "" {
+			a.finishLocalCoreLocked()
+		}
+	case "launching", "stopping":
+		if status.Generation != "" && !same {
+			a.holdUnownedLocalRunLocked()
+		}
+	}
 }
 
 // pollLocalStatusLocked reads GET /v1/local/status while a core is running,
@@ -656,9 +704,15 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 			return
 		}
 		ownsRunning := a.localPhase == localPhaseRunning
+		adoptedLaunch := a.localPhase == localPhaseLaunching && validLocalGeneration(a.localLeaseGeneration) && !a.localReconcileAfterFailure && !a.localUnownedRun
 		reconciling := a.localReconcileAfterFailure && (a.localPhase == localPhaseLaunching || a.localPhase == "")
 		startup := !a.localStartupStatusChecked && a.localPhase == "" && !a.localReconcileAfterFailure && !a.localUnownedRun
-		if !ownsRunning && !reconciling && !startup {
+		if !ownsRunning && !adoptedLaunch && !reconciling && !startup {
+			return
+		}
+		// A failed stop returns the same generation to running. Keep reading
+		// until that happens or the run is idle.
+		if startup && status.Phase == "stopping" && validLocalGeneration(status.Generation) {
 			return
 		}
 		a.localStartupStatusChecked = true
@@ -666,6 +720,10 @@ func (a *App) pollLocalStatusLocked(now time.Time) {
 			if localStatusAdoptable(status) {
 				a.adoptStartupLocalRunLocked(status)
 			}
+			return
+		}
+		if adoptedLaunch {
+			a.followAdoptedLaunchLocked(status)
 			return
 		}
 		// An unavailable launch has no grant identity. A later running status

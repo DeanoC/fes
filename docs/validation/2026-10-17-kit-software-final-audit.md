@@ -248,9 +248,12 @@ the new launcher never read that status. There was no In use screen, Select+Star
 reached the menu as quit, and the launcher exited. Recovery was
 `POST /v1/local/stop`. See the HIL comment on PR #757.
 
-A restarted tenfoot now reads `GET /v1/local/status` on startup. A launching or
-running answer with a valid generation is re-adopted: the In use screen stays
-up, Select+Start stops that generation, and idle status returns to the menu.
+A restarted tenfoot now reads `GET /v1/local/status` on startup. A running
+answer with a valid generation is re-adopted: the In use panel stays in the
+launcher, Select+Start stops that generation, and idle status returns to the
+menu. A launching answer keeps that phase and defers stop until the agent
+reports running. A stopping answer is read again until idle or until it
+returns to running. The idle menu plane cannot scan out over a running core.
 `TestLauncherStartupAdoptsActiveRunShowsInUseAndStops` and
 `TestLauncherStartupReturnsToMenuWhenAdoptedRunEnds` simulate that restart.
 The next kit check should repeat the launcher kill during Pong. This host test

@@ -2690,12 +2690,19 @@ The one-second mark is the next pad event or the existing frame tick, not a new
 loop. The event that reaches that mark is not forwarded. Stop returns the runtime
 to fes.menu; tenfoot resumes presents and redraws on that new menu generation.
 On startup, with a local-control client and no local run yet, that tick reads
-GET /v1/local/status until one read succeeds. A launching or running answer
-with a valid generation is re-adopted as this launcher's run: the In use
-screen stays up, Select+Start calls generation-checked stop, and idle status
-returns to the menu. A failed read is retried; idle and stopping answers leave
-the menu alone. Starting a launch in this process ends that probe, so a
-rejected launch does not take stop ownership of a run already on the agent.
+GET /v1/local/status until one read succeeds. A running answer with a valid
+generation is re-adopted as this launcher's run: the In use panel stays in the
+launcher, Select+Start calls generation-checked stop, and idle status returns
+to the menu. A launching answer with a valid generation stays in the launching
+phase and keeps that generation. Select+Start during the load defers stop
+until status is running, because the agent refuses Stop before then. A stopping
+answer with a valid generation is read again until generation-free idle or
+until it returns to running, which is then re-adopted. A failed read is
+retried; idle and unnamed answers leave the menu alone. Starting a launch in
+this process ends that probe, so a rejected launch does not take stop
+ownership of a run already on the agent. The idle menu plane cannot scan out
+over a running core, so this panel is not a second HDMI picture while that
+core owns the display.
 This is the launcher noticing a run the agent already reports.
 It is not a claim that this process started the run, and it is not supervisor
 adoption of a base image. A restarted supervisor stops leftover children and
