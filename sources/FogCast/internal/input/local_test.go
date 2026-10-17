@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -636,6 +637,30 @@ func TestKeyboardSourcesMerge(t *testing.T) {
 	}
 	if matrix != held {
 		t.Fatalf("remote release cleared local key: %#x want %#x", matrix, held)
+	}
+}
+
+func TestListenLocalInputRestoresUmask(t *testing.T) {
+	before := syscall.Umask(0)
+	syscall.Umask(before)
+	t.Cleanup(func() { syscall.Umask(before) })
+	path := localSocketPath(t, "umask.sock")
+	listener, err := listenLocalInput(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("socket mode = %o, want 600", info.Mode().Perm())
+	}
+	after := syscall.Umask(0)
+	syscall.Umask(after)
+	if after != before {
+		t.Fatalf("umask = %#o, want %#o", after, before)
 	}
 }
 
