@@ -160,6 +160,30 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 		}
 		writeHomeScreenshot(t, snap, "in-use")
 	})
+	for _, size := range []struct{ w, h int }{{1280, 720}, {1024, 600}} {
+		t.Run(fmt.Sprintf("long-%dx%d", size.w, size.h), func(t *testing.T) {
+			cores := homeFixtureCores()
+			cores[3].Name = "Sinclair ZX Spectrum 128K +2A Expanded Edition With A Long Name"
+			cores[3].Inputs = []string{"keyboard"}
+			app := startHomeLounge(t, &fakeLocalCores{cores: cores}, size.w, size.h)
+			waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
+			for i := 0; i < 3; i++ {
+				app.HandleCommand(CmdRight, time.Now())
+			}
+			snap := waitFor(t, app, "long", func(s Snapshot) bool { return s.Room.Destination.Label == cores[3].Name })
+			writeHomeScreenshot(t, snap, "long")
+		})
+	}
+	t.Run("details", func(t *testing.T) {
+		app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
+		waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
+		for i := 0; i < 3; i++ {
+			app.HandleCommand(CmdRight, time.Now())
+		}
+		waitFor(t, app, "coleco", func(s Snapshot) bool { return s.Room.Destination.Label == "FES ColecoVision" })
+		app.HandleCommand(CmdSelect, time.Now())
+		writeHomeScreenshot(t, app.Snapshot(), "details")
+	})
 	t.Run("no-kit", func(t *testing.T) {
 		app := startHomeLounge(t, nil, 1280, 720)
 		snap := waitFor(t, app, "no kit", func(s Snapshot) bool { return s.Room.Open && s.Room.Destination.Set() })
@@ -302,5 +326,101 @@ func TestHomeHeroIsTheTapTargetAndFitsTheRoom(t *testing.T) {
 	}
 	if hint := heroFooterHint(snap); !strings.Contains(hint, "details") || !strings.Contains(hint, "settings") {
 		t.Fatalf("footer hint %q", hint)
+	}
+}
+
+func TestHomeCoreDetailsOpenInTheHeroAndBackClosesThem(t *testing.T) {
+	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
+	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
+	for i := 0; i < 3; i++ {
+		app.HandleCommand(CmdRight, time.Now())
+	}
+	waitFor(t, app, "coleco", func(s Snapshot) bool { return s.Room.Destination.Label == "FES ColecoVision" })
+	// A on a blocked core opens Details; it never does nothing.
+	app.HandleCommand(CmdSelect, time.Now())
+	snap := app.Snapshot()
+	c := heroDestinationCopy(snap)
+	if !snap.Room.CoreDetail || len(c.Details) == 0 || !strings.Contains(strings.Join(c.Details, "\n"), "Kit says: Needs a video part") {
+		t.Fatalf("blocked core Details %+v", c)
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	snap = app.Snapshot()
+	if snap.Room.CoreDetail || !snap.Room.Open || snap.Room.ID != installedCoresHomeID || snap.RoomPicker.Open {
+		t.Fatalf("Back did not just close Details: detail=%v room=%s picker=%v", snap.Room.CoreDetail, snap.Room.ID, snap.RoomPicker.Open)
+	}
+	// Moving away closes Details too.
+	app.HandleCommand(CmdDetails, time.Now())
+	if !app.Snapshot().Room.CoreDetail {
+		t.Fatal("Y did not open Details")
+	}
+	app.HandleCommand(CmdLeft, time.Now())
+	snap = waitFor(t, app, "moved", func(s Snapshot) bool { return s.Room.Destination.Label != "FES ColecoVision" })
+	if snap.Room.CoreDetail {
+		t.Fatal("Details followed focus to another core")
+	}
+}
+
+func TestHomeHeroButtonsDoWhatTheySayWithAPointer(t *testing.T) {
+	fake := &fakeLocalCores{cores: homeFixtureCores()}
+	app := startHomeLounge(t, fake, 1280, 720)
+	snap := waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
+	pane, _ := roomDestGeom(snap)
+	primary, secondary := heroButtonRects(snap, pane)
+	if primary.W == 0 || secondary.W == 0 || primary.contains(secondary.X+1, secondary.Y+1) {
+		t.Fatalf("buttons %+v %+v", primary, secondary)
+	}
+	app.PointerClick(secondary.X+secondary.W/2, secondary.Y+secondary.H/2, time.Now())
+	if !app.Snapshot().Room.CoreDetail || fake.launchCount() != 0 {
+		t.Fatalf("Details button: detail=%v launches=%d", app.Snapshot().Room.CoreDetail, fake.launchCount())
+	}
+	app.PointerClick(primary.X+primary.W/2, primary.Y+primary.H/2, time.Now())
+	waitFor(t, app, "launch", func(s Snapshot) bool { return fake.launchCount() == 1 })
+}
+
+func TestHomeSaysCheckingWhileAFailedLaunchReconciles(t *testing.T) {
+	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
+	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
+	app.mu.Lock()
+	app.localReconcileAfterFailure = true
+	app.mu.Unlock()
+	snap := app.Snapshot()
+	if c := heroDestinationCopy(snap); c.State != heroStateChecking || c.Primary == "Play" || snap.Room.Destination.Confirm() != rooms.ConfirmWait {
+		t.Fatalf("reconciling core offered Play: %+v confirm=%v", c, snap.Room.Destination.Confirm())
+	}
+	app.mu.Lock()
+	app.localReconcileAfterFailure = false
+	app.mu.Unlock()
+	if c := heroDestinationCopy(app.Snapshot()); c.State != heroStateReady {
+		t.Fatalf("did not return to Ready: %+v", c)
+	}
+}
+
+func TestHomeHeroFitsLongTitlesAboveTheButtons(t *testing.T) {
+	long := "Sinclair ZX Spectrum 128K +2A Expanded Edition With A Long Name"
+	for _, size := range []struct{ w, h int }{{1280, 720}, {1024, 600}} {
+		for _, d := range []rooms.Destination{
+			{Kind: rooms.KindCore, Label: long, PackageID: strings.Repeat("a", 64), CoreLaunchable: true, Availability: rooms.AvailReady, Inputs: []string{"keyboard", "mouse"}},
+			{Kind: rooms.KindCore, Label: long, PackageID: strings.Repeat("a", 64), CoreNeeds: "parts", CoreBlock: "Needs a video part", Availability: rooms.AvailUnavailable, Inputs: []string{"keyboard"}},
+		} {
+			layout, _ := rooms.HeroPanel(size.w, size.h)
+			snap := Snapshot{Room: RoomSnapshot{Open: true, Hero: true, WaitAck: true, Destination: d}}
+			c := heroDestinationCopy(snap)
+			c.Ack = waitAckCopy(InputGamepad)
+			avail := layout.Text.H - heroButtonH - 8
+			plan := planHero(c, layout.Text.W, avail)
+			fixed := gfx.TextHeight(heroMetaPx) + 12 +
+				max(gfx.TextHeight(heroLinePx), gfx.TextHeightWeight(heroStatePx, gfx.WeightBold)+10) + 8
+			used := fixed + len(plan.titleLines)*lineStep(heroTitlePx, gfx.WeightBold) +
+				(len(plan.explainLines)+len(plan.details))*lineStep(heroExplainPx, gfx.WeightRegular)
+			if plan.ack {
+				used += lineStep(heroExplainPx, gfx.WeightBold) + 4
+			}
+			if plan.kicker {
+				used += gfx.TextHeightWeight(heroKickerPx, gfx.WeightBold) + 6
+			}
+			if !plan.ack || used > avail || len(plan.titleLines) == 0 {
+				t.Fatalf("%dx%d %s: text %d px over %d px available", size.w, size.h, d.CoreNeeds, used, avail)
+			}
+		}
 	}
 }

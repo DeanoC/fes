@@ -277,8 +277,12 @@ still dropped. `core_id`, when set, must be a safe token (`fes.pong`).
 A non-empty `block`, or `launchable = false`, does not launch; the block
 line is the status ("Needs a cartridge", "Needs firmware"). The hero
 panel turns `needs` into a consequence and the remedy available from this
-screen ("Display setup incomplete" for `parts`), keeping the verbatim
-block for Details. Activating a
+screen ("Display setup incomplete" for `parts`). Details (Y / `i`, or A
+on a blocked core) shows the core id, a short package id and the verbatim
+block inside the hero; Back or moving focus closes it. With a pointer, the
+hero's Play and Details buttons do what they say; the rest of the hero is
+Details. While an ambiguous earlier local launch is still being
+reconciled, a launchable core is Checking rather than Ready. Activating a
 launchable core calls the injected local-control client's Launch. With no
 client that activation returns an error and does not panic. `in_use` and
 `blocked` from the socket are returned the same way and do not fail the
@@ -300,8 +304,8 @@ and an allowlisted action runs or explains why it cannot. Needs a choice
 opens an edition list unless a household edition preference
 is saved for that query and platform, Missing opens the library, Checking
 and Unavailable show honest copy (Unavailable also opens Details). Confirm
-during Checking is acknowledged ("Still checking. Press A again once this
-says Ready.") and is not queued: a queued Confirm could start whatever the
+during Checking is acknowledged ("Still checking. Press A again once it
+has finished.") and is not queued: a queued Confirm could start whatever the
 finished list focuses, which the player has not seen. The acknowledgement
 clears when the destination stops Checking. A kit
 lease held by another session is applied to each candidate before viable

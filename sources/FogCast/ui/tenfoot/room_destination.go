@@ -52,6 +52,13 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 			d.Action = machineStatusUnknown
 		}
 	}
+	// After an ambiguous local launch, Confirm is refused until the agent
+	// reports idle; say Checking rather than Ready.
+	if d.Kind == rooms.KindCore && d.CoreLaunchable && !d.LeaseHeld && a.localLaunchBlockedLocked() {
+		d.Availability = rooms.AvailChecking
+		d.Status = localLaunchCheckingCopy
+		d.Action = rooms.CheckingAction
+	}
 	return a.applyKitDirectLocked(d)
 }
 
@@ -271,6 +278,10 @@ func (a *App) handleRoomLocked(cmd Command) {
 		if a.applyRoomDestinationConfirmLocked() {
 			return
 		}
+	}
+	if cmd == CmdBack && a.roomCoreDetail != "" {
+		a.roomCoreDetail = ""
+		return
 	}
 	if cmd == CmdBack {
 		if a.launch.Phase == "launching" {
@@ -494,6 +505,11 @@ func (a *App) openRoomDetailsLocked() {
 	}
 	if game, ok := dest.Game(); ok {
 		a.openRoomDetailsForLocked(game)
+		return
+	}
+	if dest.Kind == rooms.KindCore && a.room != nil && a.room.Hero() {
+		// The hero shows the package's identity and verbatim local status.
+		a.roomCoreDetail = dest.PackageID
 		return
 	}
 	if dest.LeaseHeld || dest.Status == rooms.InUseStatus {

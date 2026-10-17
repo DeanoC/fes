@@ -54,6 +54,7 @@ type heroCopy struct {
 	Headline  string
 	Explain   string
 	Ack       string
+	Details   []string
 	Primary   string
 	Filled    bool
 	Secondary string
@@ -65,7 +66,7 @@ const heroPlaysOnThisTV = "Plays on this TV"
 
 // waitAckCopy answers a Confirm received while Checking.
 func waitAckCopy(kind InputKind) string {
-	return "Still checking. Press " + selectWord(kind) + " again once this says Ready."
+	return "Still checking. Press " + selectWord(kind) + " again once it has finished."
 }
 
 // heroInputsLine names required input devices before Play.
@@ -142,15 +143,29 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 	case rooms.KindCore:
 		c.Kicker = "On this kit"
 		c.Meta = heroInputsLine(d.Inputs)
-		if d.Confirm() == rooms.ConfirmLaunchCore {
+		switch d.Confirm() {
+		case rooms.ConfirmLaunchCore:
 			c.State = heroStateReady
 			c.Headline = heroPlaysOnThisTV
 			c.Explain = "To stop, hold Select and Start together for one second."
 			c.Primary, c.Filled = "Play", true
-		} else {
+			c.Secondary = "Details"
+		case rooms.ConfirmWait:
+			c.State = heroStateChecking
+			c.Headline = strings.TrimSpace(d.Status)
+		default:
 			c.State = heroStateUnavailable
 			c.Headline, c.Explain = heroCoreBlocked(d)
 			c.Primary = "Details"
+		}
+		if snap.Room.CoreDetail {
+			c.Kicker = "Details"
+			c.Explain = ""
+			c.Details = heroCoreDetails(d)
+			if c.Primary == "Details" {
+				c.Primary = ""
+			}
+			c.Secondary = ""
 		}
 	case rooms.KindRoom:
 		c.Kicker = "Room"
@@ -182,6 +197,7 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 		switch d.Confirm() {
 		case rooms.ConfirmLaunch, rooms.ConfirmLaunchKit:
 			c.Primary, c.Filled = "Play", true
+			c.Secondary = "Details"
 		case rooms.ConfirmChoose:
 			c.Primary = "Choose"
 		case rooms.ConfirmOpenLibrary:
@@ -201,10 +217,30 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 	if snap.Room.WaitAck {
 		c.Ack = waitAckCopy(kind)
 	}
-	if c.Filled && (d.Kind == rooms.KindCore || d.Kind == rooms.KindGame || d.Kind == "") {
-		c.Secondary = "Details"
-	}
 	return c
+}
+
+// heroCoreDetails is the inspectable identity of an installed package:
+// its core id, a short package id and the kit's verbatim local status.
+func heroCoreDetails(d rooms.Destination) []string {
+	var lines []string
+	if id := strings.TrimSpace(d.CoreID); id != "" {
+		lines = append(lines, "Core: "+id)
+	}
+	if pkg := strings.TrimSpace(d.PackageID); pkg != "" {
+		if len(pkg) > 12 {
+			pkg = pkg[:12] + "…"
+		}
+		lines = append(lines, "Package: "+pkg)
+	}
+	status := strings.TrimSpace(d.CoreBlock)
+	if status == "" {
+		status = strings.TrimSpace(d.Status)
+	}
+	if status != "" {
+		lines = append(lines, "Kit says: "+status)
+	}
+	return lines
 }
 
 // heroLine draws one line of text in colour and returns its height.
@@ -226,20 +262,6 @@ func heroLine(dev gfx.Device, labels map[string]gpuTexture, used map[string]stru
 	return tex.h
 }
 
-func heroWrapped(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, x, y, maxW, size, lines int, bold bool, color gfx.Color, text string) int {
-	weight := gfx.WeightRegular
-	if bold {
-		weight = gfx.WeightBold
-	}
-	step := gfx.TextHeightWeight(size, weight) + size/6
-	h := 0
-	for _, line := range gfx.WrapTextWeight(text, size, maxW, lines, weight) {
-		heroLine(dev, labels, used, x, y+h, maxW, size, bold, color, line)
-		h += step
-	}
-	return h
-}
-
 func heroOutline(dev gfx.Device, x, y, w, h, t int, c gfx.Color) {
 	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(t)}, c)
 	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y + h - t), W: float32(w), H: float32(t)}, c)
@@ -251,7 +273,7 @@ func heroOutline(dev gfx.Device, x, y, w, h, t int, c gfx.Color) {
 // Filled is the primary action; an outline is a secondary one.
 func heroButton(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, x, y, h int, prompt, label string, filled bool) int {
 	text := strings.TrimSpace(prompt + "  " + label)
-	w := gfx.MeasureTextWeight(text, heroButtonPx, gfx.WeightBold) + 40
+	w := heroButtonWidth(prompt, label)
 	fg := heroText
 	if filled {
 		dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(h)}, heroAccent)
@@ -291,6 +313,94 @@ func heroStatePill(dev gfx.Device, labels map[string]gpuTexture, used map[string
 	return w, h
 }
 
+// Pointer keys for the hero's buttons.
+const (
+	heroPrimaryKey   = "hero-primary"
+	heroSecondaryKey = "hero-secondary"
+	heroButtonH      = 48
+	heroButtonGap    = 14
+)
+
+func heroButtonWidth(prompt, label string) int {
+	return gfx.MeasureTextWeight(strings.TrimSpace(prompt+"  "+label), heroButtonPx, gfx.WeightBold) + 40
+}
+
+// heroButtonRects is where the primary and secondary actions are drawn;
+// pointer hit-testing uses the same rectangles.
+func heroButtonRects(snap Snapshot, pane rectI) (primary, secondary rectI) {
+	c := heroDestinationCopy(snap)
+	kind := snap.Affinity
+	y := pane.Y + pane.H - heroButtonH
+	x := pane.X
+	if c.Primary != "" {
+		primary = rectI{X: x, Y: y, W: heroButtonWidth(selectWord(kind), c.Primary), H: heroButtonH}
+		x += primary.W + heroButtonGap
+	}
+	if c.Secondary != "" {
+		secondary = rectI{X: x, Y: y, W: heroButtonWidth(detailsWord(kind), c.Secondary), H: heroButtonH}
+	}
+	return primary, secondary
+}
+
+// heroPlan fits the text column above the buttons. Long titles and
+// explanations shrink before anything can run into an action.
+type heroPlan struct {
+	kicker       bool
+	titleLines   []string
+	explainLines []string
+	details      []string
+	ack          bool
+}
+
+func lineStep(size int, w gfx.Weight) int { return gfx.TextHeightWeight(size, w) + size/6 }
+
+func planHero(c heroCopy, w, avail int) heroPlan {
+	fixed := 0
+	kickerH := gfx.TextHeightWeight(heroKickerPx, gfx.WeightBold) + 6
+	if c.Meta != "" {
+		fixed += gfx.TextHeight(heroMetaPx)
+	}
+	fixed += 12
+	if c.State != "" || c.Headline != "" {
+		fixed += max(gfx.TextHeight(heroLinePx), gfx.TextHeightWeight(heroStatePx, gfx.WeightBold)+10) + 8
+	}
+	p := heroPlan{
+		titleLines:   gfx.WrapTextWeight(c.Title, heroTitlePx, w, 2, gfx.WeightBold),
+		explainLines: gfx.WrapTextWeight(c.Explain, heroExplainPx, w, 2, gfx.WeightRegular),
+		details:      c.Details,
+		ack:          c.Ack != "",
+		kicker:       c.Kicker != "",
+	}
+	need := func() int {
+		h := fixed
+		if p.kicker {
+			h += kickerH
+		}
+		h += len(p.titleLines) * lineStep(heroTitlePx, gfx.WeightBold)
+		h += (len(p.explainLines) + len(p.details)) * lineStep(heroExplainPx, gfx.WeightRegular)
+		if p.ack {
+			h += lineStep(heroExplainPx, gfx.WeightBold) + 4
+		}
+		return h
+	}
+	if need() > avail && len(p.explainLines) > 1 {
+		p.explainLines = gfx.WrapTextWeight(c.Explain, heroExplainPx, w, 1, gfx.WeightRegular)
+	}
+	if need() > avail && len(p.titleLines) > 1 {
+		p.titleLines = gfx.WrapTextWeight(c.Title, heroTitlePx, w, 1, gfx.WeightBold)
+	}
+	if need() > avail {
+		p.kicker = false
+	}
+	for need() > avail && len(p.details) > 0 {
+		p.details = p.details[:len(p.details)-1]
+	}
+	if need() > avail {
+		p.explainLines = nil
+	}
+	return p
+}
+
 // drawHeroDestination is the FES-owned selected-destination panel of a
 // hero room. Readiness, destination and actions come from the launcher's
 // classification, never from the room script's drawing.
@@ -299,11 +409,16 @@ func drawHeroDestination(dev gfx.Device, snap Snapshot, pane rectI, labels map[s
 	kind := snap.Affinity
 	x, y, w := pane.X, pane.Y, pane.W
 	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(pane.H)}, heroSurface)
+	buttonY := y + pane.H - heroButtonH
+	plan := planHero(c, w, buttonY-8-y)
 	cursor := y
-	if c.Kicker != "" {
+	if plan.kicker {
 		cursor += heroLine(dev, labels, used, x, cursor, w, heroKickerPx, true, heroSecondary, strings.ToUpper(c.Kicker)) + 6
 	}
-	cursor += heroWrapped(dev, labels, used, x, cursor, w, heroTitlePx, 2, true, heroText, c.Title)
+	for _, line := range plan.titleLines {
+		heroLine(dev, labels, used, x, cursor, w, heroTitlePx, true, heroText, line)
+		cursor += lineStep(heroTitlePx, gfx.WeightBold)
+	}
 	if c.Meta != "" {
 		cursor += heroLine(dev, labels, used, x, cursor, w, heroMetaPx, false, heroSecondary, c.Meta)
 	}
@@ -320,21 +435,19 @@ func drawHeroDestination(dev gfx.Device, snap Snapshot, pane rectI, labels map[s
 		heroLine(dev, labels, used, lineX, lineY, x+w-lineX, heroLinePx, false, heroText, c.Headline)
 		cursor += rowH + 8
 	}
-	buttonH := 48
-	buttonY := y + pane.H - buttonH
-	if c.Explain != "" {
-		cursor += heroWrapped(dev, labels, used, x, cursor, w, heroExplainPx, 2, false, heroSecondary, c.Explain)
+	for _, line := range append(append([]string{}, plan.explainLines...), plan.details...) {
+		heroLine(dev, labels, used, x, cursor, w, heroExplainPx, false, heroSecondary, line)
+		cursor += lineStep(heroExplainPx, gfx.WeightRegular)
 	}
-	if c.Ack != "" {
-		ackY := min(cursor+4, buttonY-gfx.TextHeightWeight(heroExplainPx, gfx.WeightBold)-8)
-		heroLine(dev, labels, used, x, ackY, w, heroExplainPx, true, heroAccent, c.Ack)
+	if plan.ack {
+		heroLine(dev, labels, used, x, cursor+4, w, heroExplainPx, true, heroAccent, c.Ack)
 	}
-	bx := x
+	primary, secondary := heroButtonRects(snap, pane)
 	if c.Primary != "" {
-		bx += heroButton(dev, labels, used, bx, buttonY, buttonH, selectWord(kind), c.Primary, c.Filled) + 14
+		heroButton(dev, labels, used, primary.X, primary.Y, primary.H, selectWord(kind), c.Primary, c.Filled)
 	}
 	if c.Secondary != "" {
-		heroButton(dev, labels, used, bx, buttonY, buttonH, detailsWord(kind), c.Secondary, false)
+		heroButton(dev, labels, used, secondary.X, secondary.Y, secondary.H, detailsWord(kind), c.Secondary, false)
 	}
 }
 
@@ -380,6 +493,12 @@ func heroFooterHint(snap Snapshot) string {
 		move = "Arrows move"
 	case InputMouse:
 		move = "Click to choose"
+	}
+	if snap.Room.CoreDetail {
+		if snap.Room.Destination.Confirm() == rooms.ConfirmLaunchCore {
+			return fmt.Sprintf("%s play  ·  %s close details", selectWord(kind), backWord(kind))
+		}
+		return backWord(kind) + " close details"
 	}
 	return fmt.Sprintf("%s  ·  %s select  ·  %s details  ·  %s back  ·  %s settings",
 		move, selectWord(kind), detailsWord(kind), backWord(kind), settingsWord(kind))

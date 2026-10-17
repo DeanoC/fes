@@ -650,6 +650,9 @@ func (d Destination) Confirm() ConfirmIntent {
 		if d.LeaseHeld {
 			return ConfirmExplain
 		}
+		if d.Availability == AvailChecking {
+			return ConfirmWait
+		}
 		if d.CoreLaunchable {
 			return ConfirmLaunchCore
 		}

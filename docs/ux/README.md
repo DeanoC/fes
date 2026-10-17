@@ -341,10 +341,12 @@ Hardware journeys H1–H9 remain pending.
 - **Readiness copy.** Checking, Ready, Needs a choice and Unavailable appear
   as a labelled pill whose shape also differs (filled, outlined, outlined with
   a solid bar). Opaque blocks become consequences: `parts` is "Display setup
-  incomplete" with "Start it from the FogCast library instead"; the verbatim
-  block stays in Details.
+  incomplete" with "Start it from the FogCast library instead". Details
+  (Y, or A on a blocked core) shows the core id, short package id and the
+  kit's verbatim block in the hero; Back closes it. After an ambiguous local
+  launch the core shows Checking, not Ready, until the agent reports idle.
 - **Confirm during Checking.** Acknowledged ("Still checking. Press A again
-  once this says Ready.") and not queued, so a press can never start an item
+  once it has finished.") and not queued, so a press can never start an item
   the player has not seen. This is the reviewed policy for #764's warm-up
   window.
 - **Routes.** Library, Rooms (the lobby) and Settings sit one Up from the
@@ -358,7 +360,8 @@ Hardware journeys H1–H9 remain pending.
 - **Type and layout at 1280×720.** Title 36 px bold, readiness and headline
   20–22 px, supporting lines 20 px, footer prompts 18 px in full words. The
   card takes 42% of the height, the shelf shows four cards at 1280 and three
-  at 1024.
+  at 1024. A long title, explanation or Details list shrinks (one-line
+  explanation, one-line title, no kicker) before it can reach the buttons.
 - **Known gap.** Gameplay exit from a kit-local core is still only the
   Select+Start one-second hold. The menu cannot draw while the core owns HDMI,
   so a tap exit needs its own input change and hardware check. The hero states

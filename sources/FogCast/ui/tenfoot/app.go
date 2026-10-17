@@ -452,7 +452,9 @@ type App struct {
 	// roomWaitAck is a Confirm received while the selected destination was
 	// still Checking. It is shown, never queued, and clears once the
 	// destination is no longer Checking.
-	roomWaitAck             bool
+	roomWaitAck bool
+	// roomCoreDetail is the package whose Details the hero is showing.
+	roomCoreDetail          string
 	menuDisplay             *gfx.MenuDisplay
 	sessionDisplayBusy      bool
 	sessionDisplayVisible   bool

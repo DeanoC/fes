@@ -36,6 +36,8 @@ FES_ROOM_SCREENSHOT_DIR=/tmp/home go test ./ui/tenfoot/ -run TestHomeLoungeNativ
 | [ready 1280×720](after-ready-1280x720.png) | Pong selected: Ready, "Plays on this TV", the stop hold stated before Play, A Play / Y Details |
 | [ready 1024×600](after-ready-1024x600.png) | Same at the smaller layout; three shelf cards |
 | [blocked](after-blocked-1280x720.png) | ColecoVision: Unavailable, "Display setup incomplete" with the remedy; A opens Details |
+| [details](after-details-1280x720.png) | A on ColecoVision: core id, package id and the kit's verbatim block in the hero; B closes |
+| [long 1280×720](after-long-1280x720.png) / [1024×600](after-long-1024x600.png) | A 60-character name: the title shortens to one line and nothing reaches the buttons |
 | [checking + Confirm](after-checking-confirm-1280x720.png) | Checking with the acknowledgement after A; no launch |
 | [settings](after-settings-1280x720.png) | Up from the shelf: Settings reached with Direction and Confirm |
 | [launching](after-launching-1280x720.png) | Existing FES launch overlay over the hero; title stays visible |
@@ -47,7 +49,14 @@ FES_ROOM_SCREENSHOT_DIR=/tmp/home go test ./ui/tenfoot/ -run TestHomeLoungeNativ
 ## Focused checks
 
 - `go test -race ./ui/rooms/ ./ui/tenfoot/ ./internal/localcores/`: pass.
+- An independent agent review found that core Details and the hero buttons
+  did nothing visible, that Ready could show during launch reconciliation,
+  and that long titles overlapped the buttons. These were fixed with tests
+  before the PR.
 - New tests: Confirm during Checking is acknowledged and never queued;
+  core Details opens in the hero and Back closes only Details; pointer
+  clicks on the hero's Play and Details buttons; Checking during launch
+  reconciliation; long titles fit above the buttons at both sizes;
   launch → Select+Start stop → return keeps the room and selected package;
   hero copy for each `needs` class and a foreign lease; hero geometry stays
   inside the room; later visit restores the selected package; required

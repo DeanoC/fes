@@ -43,6 +43,8 @@ type RoomSnapshot struct {
 	Hero bool
 	// WaitAck acknowledges a Confirm received while Checking.
 	WaitAck bool
+	// CoreDetail shows the selected installed package's Details in the hero.
+	CoreDetail bool
 }
 
 // RoomPickerRow is one entry of the Home overlay.
@@ -364,6 +366,7 @@ func (a *App) closeRoomLocked() {
 	a.room.Close()
 	a.room = nil
 	a.roomWaitAck = false
+	a.roomCoreDetail = ""
 	a.roomErr = ""
 	a.roomFrame = rooms.Frame{}
 	a.closeRoomOverlaysLocked()
@@ -582,8 +585,14 @@ func (a *App) tickRoomLocked(now time.Time) {
 		return
 	}
 	a.roomFrame = a.room.Step(now)
-	if a.roomWaitAck && a.roomDestinationLocked().Confirm() != rooms.ConfirmWait {
-		a.roomWaitAck = false
+	if a.roomWaitAck || a.roomCoreDetail != "" {
+		dest := a.roomDestinationLocked()
+		if dest.Confirm() != rooms.ConfirmWait {
+			a.roomWaitAck = false
+		}
+		if dest.Kind != rooms.KindCore || dest.PackageID != a.roomCoreDetail {
+			a.roomCoreDetail = ""
+		}
 	}
 	a.applyRoomActionsLocked()
 	if a.room == nil {
@@ -666,6 +675,7 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		_, snap.Hero = rooms.HeroPanel(w, h)
 	}
 	snap.WaitAck = a.roomWaitAck && snap.Destination.Confirm() == rooms.ConfirmWait
+	snap.CoreDetail = snap.Hero && a.roomCoreDetail != "" && snap.Destination.Kind == rooms.KindCore && snap.Destination.PackageID == a.roomCoreDetail
 	if withImages {
 		snap.Images = a.room.Images()
 	}

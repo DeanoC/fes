@@ -122,12 +122,35 @@ local function keep_visible()
   local n = visible_cards()
   if shelf_i < first then first = shelf_i end
   if shelf_i > first + n - 1 then first = shelf_i - n + 1 end
+  if cores and #cores > 0 then
+    -- A wider shelf after a resize must not leave an empty slot at the end.
+    first = math.min(first, math.max(1, #cores - n + 1))
+  end
   if first < 1 then first = 1 end
 end
 
+-- The selection is saved once browsing settles: store.set writes a file,
+-- and the kit's storage should not see one write per Left/Right press.
+local pending_save = nil
+local SAVE_AFTER = 1.0
+
 local function remember()
   local core = selected_core()
-  if core then store.set("package_id", core.package_id) end
+  if core then pending_save = { id = core.package_id, wait = SAVE_AFTER } end
+end
+
+function update(dt)
+  if pending_save then
+    pending_save.wait = pending_save.wait - dt
+    if pending_save.wait <= 0 then
+      store.set("package_id", pending_save.id)
+      pending_save = nil
+    end
+  end
+end
+
+function unload()
+  if pending_save then store.set("package_id", pending_save.id) end
 end
 
 function load()
@@ -216,6 +239,7 @@ local function focus_hit(id)
 end
 
 function on_hover(id) focus_hit(id) end
+function on_resize() keep_visible() end
 function on_activate(id) focus_hit(id) end
 
 -- Drawing ------------------------------------------------------------
