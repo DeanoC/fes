@@ -8,6 +8,7 @@ GENERATED = (
     ('emit-verilog', 'packages/fabric/fes_fabric_video_raster_rgb888.yaml', 'misteross', 'cores/fes-common/generated/fes_video_part.vh'),
     ('emit-verilog', 'packages/fabric/fes_fabric_video_native_pixels.yaml', 'misteross', 'cores/fes-common/generated/fes_native_video.vh'),
     ('emit-verilog', 'packages/fabric/fes_fabric_atari_st_bus.yaml', 'misteross', 'cores/fes-common/generated/fes_atari_st_bus.vh'),
+    ('emit-verilog', 'packages/fabric/fes_fabric_pcxt_isa.yaml', 'misteross', 'cores/fes-common/generated/fes_pcxt_isa.vh'),
     ('emit-cpp', 'packages/platform/de10_nano.yaml', 'libmister-runtime', 'src/native/generated/de10_nano.hpp'),
     ('emit-cpp', 'packages/abi/fes_simple_game.yaml', 'libmister-runtime', 'src/native/generated/fes_gp.hpp'),
     ('emit-cpp', 'packages/abi/fes_application.yaml', 'libmister-runtime', 'src/native/generated/fes_application.hpp'),

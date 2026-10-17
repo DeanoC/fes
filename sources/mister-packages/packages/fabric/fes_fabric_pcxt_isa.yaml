@@ -1,0 +1,89 @@
+schema: mister-packages.v1
+kind: fabric
+id: fes.fabric.pcxt-isa
+description: >-
+  Internal registered PC/XT byte-transaction bus for independently linkable
+  ISA cards. Two-phase prepare/commit prevents repeated peripheral effects
+  during waits. This logical fabric is not an electrical ISA pin interface,
+  physical socket layout, GP capability or package activation declaration.
+major: 1
+minor: 0
+constants:
+  - name: FesPcxtIsaMajor
+    value: 1
+  - name: FesPcxtIsaMinor
+    value: 0
+  - name: FesPcxtIsaRequestBits
+    value: 48
+  - name: FesPcxtIsaResponseBits
+    value: 32
+  - name: FesPcxtIsaMaxSlots
+    value: 8
+  - name: FesPcxtIsaAddressLow
+    value: 0
+  - name: FesPcxtIsaAddressBits
+    value: 20
+  - name: FesPcxtIsaWriteDataLow
+    value: 20
+  - name: FesPcxtIsaKindLow
+    value: 28
+  - name: FesPcxtIsaWriteBit
+    value: 30
+  - name: FesPcxtIsaValidBit
+    value: 31
+  - name: FesPcxtIsaTagBit
+    value: 32
+  - name: FesPcxtIsaCommitBit
+    value: 33
+  - name: FesPcxtIsaResetBit
+    value: 34
+  - name: FesPcxtIsaAenBit
+    value: 35
+  - name: FesPcxtIsaLockBit
+    value: 36
+  - name: FesPcxtIsaDmaChannelLow
+    value: 37
+  - name: FesPcxtIsaTerminalCountBit
+    value: 39
+  - name: FesPcxtIsaGuestCeBit
+    value: 40
+  - name: FesPcxtIsaReadDataLow
+    value: 0
+  - name: FesPcxtIsaSeenBit
+    value: 8
+  - name: FesPcxtIsaResponseTagBit
+    value: 9
+  - name: FesPcxtIsaClaimBit
+    value: 10
+  - name: FesPcxtIsaReadyBit
+    value: 11
+  - name: FesPcxtIsaDoneBit
+    value: 12
+  - name: FesPcxtIsaPresentBit
+    value: 13
+  - name: FesPcxtIsaIrqLow
+    value: 14
+  - name: FesPcxtIsaDrqLow
+    value: 22
+  - name: FesPcxtIsaKindMemory
+    value: 0
+  - name: FesPcxtIsaKindIo
+    value: 1
+  - name: FesPcxtIsaKindInta
+    value: 2
+  - name: FesPcxtIsaKindDma
+    value: 3
+  - name: FesPcxtIsaBoundaryLatencyCycles
+    value: 2
+  - name: FesPcxtIsaDecodeSettleCycles
+    value: 6
+  - name: FesPcxtIsaDrainCycles
+    value: 4
+  - name: FesPcxtIsaFaultNone
+    value: 0
+  - name: FesPcxtIsaFaultConflict
+    value: 1
+  - name: FesPcxtIsaFaultProtocol
+    value: 2
+  - name: FesPcxtIsaFaultRequest
+    value: 3

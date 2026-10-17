@@ -394,10 +394,12 @@ kit are pending.
   wording family as the Home hero, on the dark pane's seed roles. The block's
   short name is the headline and the launcher's sentence is the explanation,
   for example "Needs BIOS" with "Coleco BIOS required. Import household
-  firmware before Play." Ready shows the pill alone; the host launch path
-  names no destination here. An unknown paired-kit status keeps the title's
-  own block empty and uses "Can't tell if this machine is free." as the
-  headline.
+  firmware before Play." Ready on a paired kit says "Plays on this TV": a
+  paired client launches on its own target. A host-only title, or an unpaired
+  launcher, shows the pill alone because the picture is elsewhere or
+  unknown. An unknown paired-kit status keeps the title's own block empty and
+  uses "Can't tell if this machine is free." as the headline; the Library
+  header's readiness word, list rows and cover cells use the same classifier.
 - **Actions follow Confirm.** Details offers A only when Confirm will play or
   import. A blocked Confirm opens Details for the title that was refused,
   including a Home recent that is not the focused Library row, instead of
@@ -407,7 +409,10 @@ kit are pending.
 - **Creator.** `Studio` appears as "by …" beside the title.
 - **Cells.** A title that cannot play carries a labelled tag on a solid plate
   with a leading bar ("Needs BIOS", "Browse only", "Offline", "Needs a
-  cartridge"). Missing art names the platform instead of showing initials.
+  cartridge"). A playable title the classifier refuses for an unknown kit
+  status or a foreign lease carries that same Details headline. A catalog
+  reason such as Needs BIOS stays. Missing art names the platform instead of
+  showing initials.
 - **Not yet.** The grid, list and header chrome keep their dark sofa styling
   and debug-font prompts. The browse prompt still says "launch". Edition choice
   stays in rooms because Library rows are single editions.

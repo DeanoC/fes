@@ -45,3 +45,7 @@ Required `fes.media.atari-st-floppy-geometry` 1.0 adds capability 10 for bounded
 80–82 track, one/two-head, nine/ten-sector raw ST disks with 512-byte sectors.
 Legacy 720 KiB behavior and durable record bytes remain unchanged; nonlegacy
 saved records use layout 1.1. See [computer I/O](docs/computer-io.md).
+
+[PC/XT ISA fabric](docs/pcxt-isa.md) defines the internal byte-transaction
+prepare/commit boundary for PC/XT expansion development. Its generated Verilog
+consumer adds no GP capability, physical layout or activation support.
