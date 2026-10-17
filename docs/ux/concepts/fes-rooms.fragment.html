@@ -300,7 +300,7 @@
         <div data-home-view>
           <div class="fes-club-heading"><div><span class="fes-eyebrow">Good games. Open doors.</span><h1>Small machines.<br>Big imaginations.</h1></div><div class="fes-club-stamp" aria-label="Homebrew Club, open to everyone">HOME<br>BREW<br>CLUB</div></div>
           <div class="fes-club-grid">
-            <article class="fes-club-feature"><span class="fes-eyebrow">The club pick</span><div class="fes-art fes-art-orchard" role="img" aria-label="Night Orchard illustrated cover"><span class="fes-sun"></span><span class="fes-hill-a"></span><span class="fes-hill-b"></span><span class="fes-tree-a"></span><span class="fes-tree-b"></span><span class="fes-walker"></span></div><div><h2>Night Orchard</h2><p class="fes-tiny fes-muted">A quiet little world by Bramble Works</p><p class="fes-tiny fes-muted">Needs 16K RAM pack</p></div><button type="button" class="fes-primary cursor-interaction" data-action="details" data-explicit-game="orchard">See requirements</button></article>
+            <article class="fes-club-feature"><span class="fes-eyebrow">The club pick</span><div class="fes-art fes-art-orchard" role="img" aria-label="Night Orchard illustrated cover"><span class="fes-sun"></span><span class="fes-hill-a"></span><span class="fes-hill-b"></span><span class="fes-tree-a"></span><span class="fes-tree-b"></span><span class="fes-walker"></span></div><div><h2>Night Orchard</h2><p class="fes-tiny fes-muted">A quiet little world by Bramble Works</p><p class="fes-tiny fes-muted" data-requirement>Needs 16K RAM pack</p></div><button type="button" class="fes-primary cursor-interaction" data-action="details" data-explicit-game="orchard" data-readiness-game="orchard">See requirements</button></article>
             <div class="fes-club-center"><button type="button" class="fes-club-pick cursor-interaction" data-game="orbit" aria-pressed="false"><span class="fes-art fes-art-orbit" aria-hidden="true"><span class="fes-planet"></span></span><span class="fes-game-copy"><span class="fes-eyebrow">Just landed</span><span class="fes-game-title">Orbit Post</span><span class="fes-game-sub">Special delivery from Mira Byte</span></span></button><article class="fes-club-letter"><span class="fes-eyebrow">Inside a tiny game</span><h3>A whole sea<br>in a little memory.</h3><p class="fes-tiny fes-muted">Soft Harbour opens the notebook behind Tiny Tide.</p><button type="button" class="cursor-interaction" data-action="learn" data-explicit-game="tide">Take a look inside <span aria-hidden="true">↗</span></button></article></div>
             <nav class="fes-club-shortcuts" aria-label="Room shortcuts"><button type="button" class="fes-shortcut cursor-interaction" data-action="library"><i data-lucide="library" aria-hidden="true"></i><strong>The game shelf</strong><span>Find something to play</span></button><button type="button" class="fes-shortcut cursor-interaction" data-action="projects"><i data-lucide="pencil-ruler" aria-hidden="true"></i><strong>The workshop</strong><span>Make a small change</span></button><button type="button" class="fes-shortcut cursor-interaction" data-action="roommap"><i data-lucide="signpost" aria-hidden="true"></i><strong>Room shortcuts</strong><span>Always one press away</span></button></nav>
           </div>
@@ -396,6 +396,13 @@
       el.innerHTML = coverParts;
     });
     root.querySelectorAll('[data-requirement]').forEach(el => { el.textContent = requirementNote(el.dataset.requirement); });
+    root.querySelectorAll('[data-readiness-game]').forEach(el => {
+      const fixed = games[el.dataset.readinessGame];
+      if (!fixed) return;
+      const blocked = state.output === 'tv' && fixed.memory === '16K RAM pack';
+      el.textContent = blocked ? 'See requirements' : 'Play';
+      el.dataset.action = blocked ? 'details' : 'play';
+    });
   }
   function showHome(shell) {
     shell.querySelector('[data-home-view]').hidden = false;

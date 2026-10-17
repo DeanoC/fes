@@ -46,6 +46,12 @@ built-in memory setup. Selecting **Night Orchard** or **Orbit Post** shows the
 game details; **Open Retro Workshop** then reaches the usable expansion
 selector, rather than an explanatory page with a misleading return route.
 
+The Homebrew Club pick for Night Orchard uses that same destination readiness,
+not a fixed hardware caption. On the living-room TV the line reads **Needs 16K
+RAM pack** and the action is **See requirements**. On the ready local player it
+reads **Ready · 16K RAM pack**, matching the shelf, and the action becomes
+**Play**. The fixture still requires a 16K RAM pack on the FPGA destination.
+
 The game shelf, game details, local launch view, creator notes, project-copy
 preview, Settings and Utilities each have working local navigation. A utility
 is labeled as a utility and kept separate from the game shelf.
@@ -155,6 +161,10 @@ Browser checks completed for this export:
 - Checked that opening the output chooser retains the TV, selecting the ready
   local player changes the output/readiness state, and the offline destination
   remains noninteractive.
+- Checked that the Homebrew Club Night Orchard line follows that same
+  destination: **Needs 16K RAM pack** and **See requirements** on the TV,
+  **Ready · 16K RAM pack** and **Play** on the local player, including while
+  another game stays selected.
 - Checked that fitting the 16K setup changes **Next start**, preserves
   **Running**, and retains the restart/memory-loss message.
 - Checked narrow game details, output choice and saved-setup states, plus dark
