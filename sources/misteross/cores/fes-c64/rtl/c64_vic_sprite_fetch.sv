@@ -37,7 +37,7 @@ module c64_vic_sprite_fetch(input wire clk,reset,phi1,phi2,
    default:slot=0;
   endcase
  end
- assign ba_n=other_ba_n && !|(mask&(dma|start_mask));
+ assign ba_n=other_ba_n && !(|(mask&(dma|start_mask)));
  assign aec_n=!(slot&&dma[sprite]&&lead==4);
  for(genvar n=0;n<8;n=n+1)begin : state_outputs
   assign counters[n*6+:6]=mc[n];assign bases[n*6+:6]=mcbase[n];

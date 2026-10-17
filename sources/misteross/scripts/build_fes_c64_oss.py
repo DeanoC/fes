@@ -91,6 +91,7 @@ RTL_INCLUDES = (
     "cores/fes-c64/rtl/c64_sid_filter_pages.vh",
     "cores/fes-c64/rtl/c64_sid_vcr_data.vh",
     "cores/fes-c64/rtl/c64_sid_combined_waves.vh",
+    "cores/fes-c64/rtl/c64_sid_svf_tables.vh",
     "cores/fes-c64/rtl/c64_bus.vh",
 )
 RTL_SOURCES = (
@@ -102,6 +103,7 @@ RTL_SOURCES = (
     "cores/fes-c64/rtl/c64_sid_output_filter.sv",
     "cores/fes-c64/rtl/c64_sid_dac.sv",
     "cores/fes-c64/rtl/c64_sid_audio.sv",
+    "cores/fes-c64/rtl/c64_sid_svf.sv",
     "cores/fes-c64/rtl/top.v",
     "cores/fes-c64/rtl/c64_system_pll.v",
     "cores/fes-common/rtl/pixel_pll.v",
@@ -121,6 +123,7 @@ RTL_SOURCES = (
     "cores/fes-c64/rtl/c64_frame_store.sv",
     "cores/fes-c64/rtl/c64_sid_envelope.sv",
     "cores/fes-c64/rtl/c64_sid_oscillator.sv",
+    "cores/fes-c64/rtl/c64_sid_wave_tables.sv",
     "cores/fes-c64/rtl/c64_sid.v",
     "cores/fes-c64/rtl/c64_cia.v",
     "cores/fes-c64/rtl/c64_drive1541.sv",
