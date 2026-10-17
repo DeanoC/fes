@@ -39,7 +39,9 @@ or a manual `ethaddr=` override.
 Build with `make build-fogcast-kit`. The native image installs the command and
 supervises it after runtime and agent startup. Its default configuration is
 `/media/fat/fogcast/launcher.json`; FES generates and embeds that file through
-its launcher setup/media workflow. Missing configuration causes a readable
+its launcher setup/media workflow. Tenfoot preferences and per-room state are
+not stored in `launcher.json`. They live under `/media/fat/fogcast/state/FogCast/`
+(`tenfoot.json` and `rooms/<id>.state.json`). Missing configuration causes a readable
 service error and retry. A successful host catalog fetch also writes
 `/media/fat/fogcast/launcher-cache/` (catalog snapshot plus cover files keyed by
 artwork handle). That tree lives on FAT beside `launcher.json` and the ROM cache;

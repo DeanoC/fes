@@ -3,6 +3,8 @@ package rooms
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -19,10 +21,12 @@ type store struct {
 	values map[string]any
 	dirty  bool
 	last   time.Time
+	stderr io.Writer
+	logged bool
 }
 
-func newStore(path string) *store {
-	s := &store{path: path, values: map[string]any{}}
+func newStore(path string, stderr io.Writer) *store {
+	s := &store{path: path, values: map[string]any{}, stderr: stderr}
 	if path == "" {
 		return s
 	}
@@ -59,15 +63,35 @@ func (s *store) flush() {
 		s.dirty = false
 		return
 	}
-	s.dirty = false
 	data, err := json.MarshalIndent(s.values, "", "  ")
 	if err != nil {
+		s.dirty = false
+		s.noteWriteError(err)
 		return
 	}
 	if err := os.MkdirAll(filepath.Dir(s.path), 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+		s.noteWriteError(err)
 		return
 	}
-	_ = os.WriteFile(s.path, append(data, '\n'), 0o644)
+	if err := os.WriteFile(s.path, append(data, '\n'), 0o644); err != nil {
+		s.noteWriteError(err)
+		return
+	}
+	s.dirty = false
+}
+
+// noteWriteError logs the first failed save for this room and leaves the
+// value in memory. Later flushes stay quiet and the script keeps running.
+func (s *store) noteWriteError(err error) {
+	if s.logged || err == nil {
+		return
+	}
+	s.logged = true
+	w := s.stderr
+	if w == nil {
+		w = os.Stderr
+	}
+	fmt.Fprintf(w, "tenfoot: could not save room state %s: %v\n", s.path, err)
 }
 
 const maxStoreDepth = 8
