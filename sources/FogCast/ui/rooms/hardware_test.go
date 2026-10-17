@@ -129,7 +129,7 @@ func TestHardwareRoomRestoresFocusAndUsesOrdinaryLaunch(t *testing.T) {
 	r := loadHardware(t, s, examplePack(t, "example.hardware"))
 	r.Hover("power")
 	r.Resume()
-	stepUntil(t, r, func(f Frame) bool { return !r.hardwareReading })
+	stepUntil(t, r, func(f Frame) bool { return !r.hardwareReading && frameHas(f, "Import expansion") })
 	if !r.Input("select") {
 		t.Fatal("controller/keyboard Confirm was not consumed")
 	}
@@ -268,7 +268,7 @@ func TestHardwareRoomSelectsCassetteBeforeLaunchAndGatesLiveHDMIControls(t *test
 	if err = r.Load(); err != nil {
 		t.Fatal(err)
 	}
-	stepUntil(t, r, func(Frame) bool { return !r.hardwareReading })
+	stepUntil(t, r, func(f Frame) bool { return !r.hardwareReading && frameHas(f, "Import expansion") })
 	r.Activate("tape")
 	if acts = r.TakeActions(); len(acts) != 0 {
 		t.Fatalf("offered invisible live controls: %+v", acts)
@@ -288,7 +288,7 @@ func TestKitHardwareRoomOffersTapeForObservedSessionDisplay(t *testing.T) {
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
 	}
-	stepUntil(t, r, func(Frame) bool { return !r.hardwareReading })
+	stepUntil(t, r, func(f Frame) bool { return !r.hardwareReading && frameHas(f, "Import expansion") })
 	r.Activate("tape")
 	acts := r.TakeActions()
 	if len(acts) != 1 || acts[0].Kind != ActionOpenTape || acts[0].SessionID != s.value.Session.ID || acts[0].MediaBinding.Generation != s.value.Session.CorePackage.Generation {
@@ -313,7 +313,7 @@ func TestKitHardwareRoomOffersTapeForComputerTapeUnit(t *testing.T) {
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
 	}
-	stepUntil(t, r, func(Frame) bool { return !r.hardwareReading })
+	stepUntil(t, r, func(f Frame) bool { return !r.hardwareReading && frameHas(f, "Import expansion") })
 	r.Activate("tape")
 	acts := r.TakeActions()
 	if len(acts) != 1 || acts[0].Kind != ActionOpenTape || acts[0].SessionID != s.value.Session.ID || acts[0].MediaBinding.Generation != s.value.Session.CorePackage.Generation {
@@ -334,7 +334,7 @@ func TestKitHardwareRoomHidesComputerTapeWithoutPlane(t *testing.T) {
 	if err := r.Load(); err != nil {
 		t.Fatal(err)
 	}
-	stepUntil(t, r, func(Frame) bool { return !r.hardwareReading })
+	stepUntil(t, r, func(f Frame) bool { return !r.hardwareReading && frameHas(f, "Import expansion") })
 	r.Activate("tape")
 	if acts := r.TakeActions(); len(acts) != 0 {
 		t.Fatalf("computer tape without session display opened the picker: %+v", acts)
@@ -639,6 +639,64 @@ func assertLabelsFit(t *testing.T, f Frame, shown string, extras ...string) {
 			}
 		}
 	}
+}
+
+// The cold open must not draw the finished workshop in its first callback.
+// The kit's hard budget is 48ms; the first live open was failing at 48.33ms.
+func TestHardwareRoomColdOpenIsStaged(t *testing.T) {
+	w, h := workshopKitSize(1280, 720)
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Width: w, Height: h, Services: hardwareData(true),
+		StorePath: filepath.Join(t.TempDir(), "room.json"),
+		Budget:    Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second},
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(3000, 0)
+	first := r.Step(now)
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+	if len(first.Ops) > 8 || frameHas(first, "Import expansion") || frameHas(first, "Setup preview") || !frameHas(first, "ZX81 Workshop") {
+		t.Fatalf("cold first draw built the workshop: ops=%d", len(first.Ops))
+	}
+	var sawUpper bool
+	var upperOps int
+	var steps int
+	for steps = 1; steps <= 24; steps++ {
+		now = now.Add(16 * time.Millisecond)
+		start := time.Now()
+		f := r.Step(now)
+		elapsed := time.Since(start)
+		if r.Err() != nil {
+			t.Fatal(r.Err())
+		}
+		upper := frameHas(f, "Setup preview")
+		full := frameHas(f, "Import expansion")
+		if upper && !full {
+			sawUpper = true
+			upperOps = len(f.Ops)
+			t.Logf("upper half ops=%d step=%s", upperOps, elapsed)
+		}
+		if !upper && !full && len(f.Ops) > 8 {
+			t.Fatalf("prep draw recorded %d ops", len(f.Ops))
+		}
+		if full {
+			if !sawUpper {
+				t.Fatal("Import expansion arrived in the same draw as the first setup preview")
+			}
+			if upperOps > 55 {
+				t.Fatalf("upper half is still most of the picture: %d ops", upperOps)
+			}
+			if !frameHas(f, "Setup preview") || !exactText(f, "Import expansion") {
+				t.Fatal("staged lower half dropped the upper picture or the import label")
+			}
+			t.Logf("full picture after %d draws, upper ops=%d final ops=%d step=%s", steps+1, upperOps, len(f.Ops), elapsed)
+			return
+		}
+	}
+	t.Fatalf("workshop did not finish staging (upper-only=%v)", sawUpper)
 }
 
 func TestHardwareRoomToolLabelsFitAtKitSize(t *testing.T) {

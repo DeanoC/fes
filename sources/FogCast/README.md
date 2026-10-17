@@ -224,7 +224,9 @@ and content selection; the MiSTer is a small, directly controlled target.
   session client and existing status reads (for example the kit-lease status
   read). With a running ZX81 that advertises the session display and HPS DDR
   interfaces, Home or Select opens the hardware room on the same HDMI output.
-  An unchanged workshop setup reuses the last presented frame. Live cassette
+  An unchanged workshop setup reuses the last presented frame. Its first
+  picture is built over several frames so a cold open stays inside the draw
+  budget. Live cassette
   replace/eject preserves the core generation and RAM. Other
   packages keep prelaunch controls. Opening/closing is a leased host session
   operation; frame submission stays on the local runtime socket. Host tests cover the backend. The kit image starts this renderer only

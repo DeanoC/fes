@@ -380,6 +380,31 @@ end
 	}
 }
 
+func TestGfxExtendAppendsToThePresentedFrame(t *testing.T) {
+	r := newRoom(t, memPack(t, "extend", `
+stage = 1
+function draw()
+  if stage == 1 then
+    gfx.paint({{"c", "#112233"}, {"t", "upper", 1, 1, 18, "#ffffff", 0, false, "left"}})
+    stage = 2
+    return
+  end
+  gfx.extend({{"t", "lower", 1, 30, 18, "#ffffff", 0, false, "left"}})
+end
+`, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	upper := r.Step(time.Unix(1, 0))
+	if FormatHexColor(upper.Clear) != "#112233" || !frameHas(upper, "upper") || frameHas(upper, "lower") {
+		t.Fatalf("upper frame = %+v", upper)
+	}
+	both := r.Step(time.Unix(2, 0))
+	if FormatHexColor(both.Clear) != "#112233" || !frameHas(both, "upper") || !frameHas(both, "lower") {
+		t.Fatalf("extend dropped a half: clear %s upper %v lower %v", FormatHexColor(both.Clear), frameHas(both, "upper"), frameHas(both, "lower"))
+	}
+}
+
 func TestSlowPaintIsPresentedAndReuseClearsTheStreak(t *testing.T) {
 	r := newRoom(t, memPack(t, "slow-paint", `
 function draw()

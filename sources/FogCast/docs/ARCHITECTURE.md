@@ -956,9 +956,11 @@ focus and selection, not hardware configuration or running RAM.
 Lua room callbacks run on the launcher thread under per-callback soft budgets.
 A slow update, or a slow draw that did not finish a `gfx.paint`, keeps the
 previous frame and counts toward eight consecutive frame overruns. A finished
-`gfx.paint` that misses only the soft budget is presented, so the next
-unchanged draw can call `gfx.reuse` and keep that frame. Eight consecutive
-slow paints still retire the room. Slow input, pointer, lifecycle, and
+`gfx.paint` or `gfx.extend` that misses only the soft budget is presented, so
+the next unchanged draw can call `gfx.reuse` and keep that frame. `gfx.extend`
+appends to the presented frame. The ZX81 workshop's first picture is spread
+over several draws: a short opening frame, cached text metrics, then the upper
+and lower halves. Eight consecutive slow paints still retire the room. Slow input, pointer, lifecycle, and
 asynchronous result callbacks count in their own group, so successful frames
 do not hide repeated input overruns. Eight overruns in either group retire the
 room. Each callback still has a 4x hard deadline for runaway scripts. PCall

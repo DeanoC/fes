@@ -122,12 +122,19 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 					if s.Room.Err != "" {
 						t.Fatalf("room failed: %s", s.Room.Err)
 					}
+					var shelf, tools bool
 					for _, op := range s.Room.Frame.Ops {
-						if op.Kind == rooms.OpText && op.Text == "16K RAM pack" {
-							return true
+						if op.Kind != rooms.OpText {
+							continue
+						}
+						if op.Text == "16K RAM pack" {
+							shelf = true
+						}
+						if op.Text == "Import expansion" {
+							tools = true
 						}
 					}
-					return false
+					return shelf && tools
 				})
 				// Async image load is independent of the host read. Give its result
 				// a frame to arrive, while the no-artwork case proves the fallback.

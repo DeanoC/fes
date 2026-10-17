@@ -43,7 +43,12 @@ local function recycle()
     cmds[i] = nil
   end
 end
-local function push(row) cmds[#cmds+1] = row end
+-- sink is set while the lower half is appended to a picture already presented.
+local sink
+local function push(row)
+  local dest = sink or cmds
+  dest[#dest+1] = row
+end
 local function clear_row(c)
   local row = take()
   row[1], row[2] = "c", c
@@ -129,32 +134,35 @@ local function fit_name(s, size, w, bold)
   fit_cache[key] = best
   return remember(best)
 end
-local function lines(s,x,y,w,size,max_lines,c)
+local function wrapped(s, size, max_lines, w)
   s = s or ""
   local px = math.floor(size*scale)
   local limit = w*scale
   local key = s .. "\0" .. px .. "\0" .. math.floor(limit*100) .. "\0" .. max_lines
   local cached = wrap_cache[key]
-  if not cached then
-    cached = {}
-    local line, n, done = "", 0, false
-    for word in s:gmatch("%S+") do
-      local next_line = line == "" and word or line.." "..word
-      if gfx.measure(next_line, px) > limit and line ~= "" then
-        if n + 1 >= max_lines then
-          -- Last allowed line: say that the text continues.
-          cached[#cached+1] = line.." …"
-          done = true
-          break
-        end
-        cached[#cached+1] = line
-        n = n + 1
-        line = word
-      else line = next_line end
-    end
-    if not done and line ~= "" then cached[#cached+1] = line end
-    wrap_cache[key] = cached
+  if cached then return cached end
+  cached = {}
+  local line, n, done = "", 0, false
+  for word in s:gmatch("%S+") do
+    local next_line = line == "" and word or line.." "..word
+    if gfx.measure(next_line, px) > limit and line ~= "" then
+      if n + 1 >= max_lines then
+        -- Last allowed line: say that the text continues.
+        cached[#cached+1] = line.." …"
+        done = true
+        break
+      end
+      cached[#cached+1] = line
+      n = n + 1
+      line = word
+    else line = next_line end
   end
+  if not done and line ~= "" then cached[#cached+1] = line end
+  wrap_cache[key] = cached
+  return cached
+end
+local function lines(s,x,y,w,size,max_lines,c)
+  local cached = wrapped(s, size, max_lines, w)
   for i, line in ipairs(cached) do text(line, x, y+(i-1)*(size+5), size, c, w) end
 end
 local function outline(x,y,w,h,t,c)
@@ -332,19 +340,71 @@ local function connector_card(x,y,style)
   end
 end
 
-function draw()
-  -- The kit draw callback has a 12ms soft budget and a 48ms hard budget.
-  -- Rebuild the picture only when its inputs change; otherwise reuse the
-  -- frame already presented. Text measurement happens on that rebuild.
-  if scene_same() and room.presented and gfx.reuse() then return end
-  scale=math.min(room.width/1120,room.height/630)
-  ox=(room.width-1120*scale)/2 oy=(room.height-630*scale)/2
-  controls={}
+-- Cold opens used to build this whole picture inside the first draw, which
+-- sat on the kit's 48ms hard budget. boot spreads that work:
+-- 0 opening frame, 1 row cache and text metrics, 2 upper half, 3 lower half.
+local boot = 0
+local boot_data, boot_machine, boot_art
+local warm_px, warm_at, desc_warm
+local pool_rows = 160
+local function warm_done()
+  return desc_warm and warm_px and warm_at > #warm_px
+end
+local function warm_more()
+  if not warm_px then
+    warm_px = {}
+    warm_at = 1
+    local seen = {}
+    local function add(px, bold)
+      px = math.max(12, math.floor(px))
+      local key = px..(bold and "b" or "n")
+      if seen[key] then return end
+      seen[key] = true
+      warm_px[#warm_px+1] = {px, bold and true or false}
+    end
+    for _, s in ipairs({12, 13, 14, 15, 16, 17, 19, 22, 24, 30}) do
+      add(s * scale, false)
+      add(s * scale, true)
+    end
+  end
+  local n = 0
+  while warm_at <= #warm_px and n < 4 do
+    local job = warm_px[warm_at]
+    text_height(job[1], job[2])
+    warm_at = warm_at + 1
+    n = n + 1
+  end
+  -- Wrapping the standing description is its own frame, after the face heights.
+  if n == 0 and warm_at > #warm_px and not desc_warm then
+    wrapped("Choose an expansion on the shelf. The host checks that it fits this exact machine.", 15, 2, 470)
+    desc_warm = true
+  end
+end
+local function paint_opening()
+  controls = {}
   recycle()
   clear_row(C.paper)
+  rect(24,18,18,5,C.accent)
+  text("FES",50,14,24,C.ink,80,true)
+  text("ZX81 Workshop",118,17,19,C.ink,400)
+  text("Opening the workshop…",24,84,22,C.muted,700)
+  gfx.paint(cmds)
+end
+local function picture(part)
+  if part ~= "lower" then
+    controls = {}
+    recycle()
+    sink = nil
+    clear_row(C.paper)
+  else
+    -- The upper half is already presented. Recycle its rows, then append.
+    recycle()
+    sink = {}
+  end
   local c=choice()
   local saved_id=machine and machine.draft_expansion_id or ""
   local previewing=machine and inspected ~= "" and inspected ~= saved_id
+  if part ~= "lower" then
 
   -- Header: FES identity, this room, and the routes out.
   rect(24,18,18,5,C.accent) rect(24,26,18,5,C.accent) rect(24,34,10,5,C.accent)
@@ -371,9 +431,12 @@ function draw()
     blit(art,120,186,330,220)
   else
     -- A labelled machine silhouette keeps the room usable without artwork.
+    -- One body, screen and keyboard bar: a grid of keys made the cold open
+    -- miss the kit's draw budget.
     rect(120,238,360,150,C.ink)
-    for row=0,3 do for col=0,9 do rect(140+col*33,276+row*25,28,20,C.panel) end end
-    text("ZX81",402,246,24,C.light,70,true)
+    rect(148,256,196,64,C.panel)
+    rect(148,336,300,28,C.raised)
+    text("ZX81",360,268,24,C.light,100,true)
     text("Machine illustration unavailable",130,206,15,C.muted,400)
   end
   -- The ZX81 has one rear connector, not numbered internal slots.
@@ -434,6 +497,8 @@ function draw()
   rect(620,388,5,52,C.warm_edge)
   text(pending() and "Restart needed: the running machine still uses its old setup." or "Changing the setup needs a restart.",634,394,15,C.ink,456,true)
   text("Stopping clears memory. Saving a setup never saves RAM.",634,416,15,C.ink,456)
+  end
+  if part == "upper" then return end
 
   -- Expansion shelf: inspecting a card changes only the preview.
   text("Expansion shelf",24,452,19,C.ink,400,true)
@@ -490,6 +555,61 @@ function draw()
   button("setup","Next setup",606,576,128,48,data and #data.machines > 1,function() next_machine() end)
   button("setup_library","Set up ZX81",746,576,170,48,not running(),function() hardware.setup() end)
   button("library","Library",976,514,120,28,not running(),function() rooms.open_library{platform="zx81"} end)
+  if part == "lower" then
+    gfx.extend(sink)
+    for i = 1, #sink do cmds[#cmds+1] = sink[i] end
+    sink = nil
+  end
+end
+local function boot_step()
+  if boot == 0 then
+    paint_opening()
+    boot = 1
+    return
+  end
+  if boot == 1 then
+    if #pool < pool_rows then
+      recycle()
+      local add = math.min(40, pool_rows - #pool)
+      for _ = 1, add do pool[#pool+1] = {} end
+    elseif not warm_done() then
+      warm_more()
+    else
+      boot = 2
+    end
+    if room.presented and gfx.reuse() then return end
+    paint_opening()
+    return
+  end
+  if boot == 2 then
+    boot_data, boot_machine = data, machine
+    boot_art = art and art.ready and true or false
+    picture("upper")
+    gfx.paint(cmds)
+    boot = 3
+    return
+  end
+  local ready = art and art.ready and true or false
+  if data ~= boot_data or machine ~= boot_machine or ready ~= boot_art then
+    boot = 2
+    if room.presented and gfx.reuse() then return end
+    return
+  end
+  picture("lower")
+  boot = 4
+  remember_scene()
+end
+function draw()
+  -- The kit draw callback has a 12ms soft budget and a 48ms hard budget.
+  -- After the first picture, rebuild only when its inputs change.
+  scale=math.min(room.width/1120,room.height/630)
+  ox=(room.width-1120*scale)/2 oy=(room.height-630*scale)/2
+  if boot == 4 and scene_same() and room.presented and gfx.reuse() then return end
+  if boot < 4 then
+    boot_step()
+    return
+  end
+  picture("all")
   gfx.paint(cmds)
   remember_scene()
 end

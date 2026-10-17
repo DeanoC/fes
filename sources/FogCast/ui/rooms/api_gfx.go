@@ -22,6 +22,7 @@ func (r *Instance) installGfx() *lua.LTable {
 		"hit":     r.gfxHit,
 		"blend":   r.gfxBlend,
 		"paint":   r.gfxPaint,
+		"extend":  r.gfxExtend,
 		"reuse":   r.gfxReuse,
 	})
 	return t
@@ -194,8 +195,34 @@ func (r *Instance) gfxReuse(L *lua.LState) int {
 // A finished paint is still presented when the draw misses the soft budget.
 func (r *Instance) gfxPaint(L *lua.LState) int {
 	f := r.drawing(L, "paint")
-	cmds := L.CheckTable(1)
 	r.keepSlowFrame = true
+	r.applyPaint(L, f, L.CheckTable(1))
+	return 0
+}
+
+// gfx.extend(commands) appends commands to the frame already presented.
+// The script pays only for the new commands; the previous ops are copied.
+func (r *Instance) gfxExtend(L *lua.LState) int {
+	f := r.drawing(L, "extend")
+	if !r.frameReady {
+		L.ArgError(1, "gfx.extend needs a presented frame")
+	}
+	if len(f.Ops) == 0 && len(f.Hits) == 0 && !f.HasClear {
+		ops := make([]Op, len(r.frame.Ops))
+		copy(ops, r.frame.Ops)
+		hits := make([]Hit, len(r.frame.Hits))
+		copy(hits, r.frame.Hits)
+		f.Ops = ops
+		f.Hits = hits
+		f.Clear = r.frame.Clear
+		f.HasClear = r.frame.HasClear
+	}
+	r.keepSlowFrame = true
+	r.applyPaint(L, f, L.CheckTable(1))
+	return 0
+}
+
+func (r *Instance) applyPaint(L *lua.LState, f *Frame, cmds *lua.LTable) {
 	n := cmds.Len()
 	for i := 1; i <= n; i++ {
 		row, ok := cmds.RawGetInt(i).(*lua.LTable)
@@ -270,7 +297,6 @@ func (r *Instance) gfxPaint(L *lua.LState) int {
 			L.ArgError(1, "unknown paint command")
 		}
 	}
-	return 0
 }
 
 func (r *Instance) paintOp(L *lua.LState, f *Frame, op Op) {
