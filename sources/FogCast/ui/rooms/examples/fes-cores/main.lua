@@ -9,6 +9,10 @@
 -- a Guide button still reaches the system menu with Direction and Confirm.
 -- The list arrives once; it never moves the player's focus, and the last
 -- selected package is restored on a later visit.
+--
+-- Under 480×360, room.hero is nil and the launcher keeps its destination
+-- strip. A compact list above that strip still offers the visible cores
+-- and the three routes, with the same pointer hits and focus mark.
 
 local C = {
   background = "#F4F0E8",
@@ -112,9 +116,15 @@ local function publish()
   end
 end
 
+local compact_layout
+
 local function visible_cards()
   local h = layout()
-  if not h then return 3 end
+  if not h then
+    local rows = compact_layout().rows
+    if rows < 1 then return 1 end
+    return rows
+  end
   return math.max(1, math.floor((h.shelf.w + 20) / 300))
 end
 
@@ -441,6 +451,130 @@ local function draw_shelf(h)
   end
 end
 
+-- roomDestGeom in ui/tenfoot/overlay_layout.go draws the compact strip
+-- over this band and its hit wins, so navigation hits stay above it.
+local COMPACT_MARGIN = 12
+local COMPACT_MENU_H = 36
+local COMPACT_ROW = 32
+local COMPACT_GAP = 6
+
+local function compact_limit()
+  if room.width < 152 then return room.height end
+  local y = room.height - 118 - 8
+  if y < 48 then y = 48 end
+  if room.height - 8 - y < 72 then return room.height end
+  return y
+end
+
+local function menu_row_fits()
+  local w = 0
+  for i, item in ipairs(MENU) do
+    w = w + gfx.measure(item.label, 18, true) + 28
+    if i < #MENU then w = w + 8 end
+  end
+  return w <= room.width - COMPACT_MARGIN * 2
+end
+
+compact_layout = function()
+  local limit = compact_limit()
+  local stacked = not menu_row_fits()
+  local menu_h = COMPACT_MENU_H
+  if stacked then
+    menu_h = #MENU * COMPACT_MENU_H + (#MENU - 1) * COMPACT_GAP
+  end
+  local y = 8 + menu_h + 8
+  local label = false
+  if y + 22 + COMPACT_ROW <= limit - 4 then
+    label = true
+    y = y + 22
+  end
+  local step = COMPACT_ROW + COMPACT_GAP
+  local rows = math.floor((limit - 4 - y) / step)
+  if rows < 0 then rows = 0 end
+  return { limit = limit, stacked = stacked, list_y = y, rows = rows, label = label }
+end
+
+local function draw_menu_button(i, x, y, w, h)
+  local item = MENU[i]
+  local focused = row == "menu" and menu_i == i
+  gfx.rect(x, y, w, h, C.surface)
+  if focused then
+    outline(x - 3, y - 3, w + 6, h + 6, 3, C.accent)
+  else
+    outline(x, y, w, h, 1, C.divider)
+  end
+  local _, lh = gfx.measure(item.label, 18, focused)
+  gfx.text(item.label, x + 14, y + (h - lh) / 2, {
+    size = 18, bold = focused, color = C.text, max_w = math.max(1, w - 28),
+  })
+  gfx.hit("menu:" .. i, x, y, w, h)
+end
+
+local function draw_compact_menu(lay)
+  local m = COMPACT_MARGIN
+  local bh = COMPACT_MENU_H
+  local by = 8
+  if lay.stacked then
+    for i = 1, #MENU do
+      draw_menu_button(i, m, by + (i - 1) * (bh + COMPACT_GAP), room.width - m * 2, bh)
+    end
+    return
+  end
+  local right = room.width - m
+  for i = #MENU, 1, -1 do
+    local focused = row == "menu" and menu_i == i
+    local bw = gfx.measure(MENU[i].label, 18, focused) + 28
+    right = right - bw
+    draw_menu_button(i, right, by, bw, bh)
+    right = right - 8
+  end
+  local title = room.title or "Home"
+  local tw, th = gfx.measure(title, 22, true)
+  if m + tw + 12 < right then
+    gfx.text(title, m, by + (bh - th) / 2, { size = 22, bold = true, color = C.text })
+  end
+end
+
+local function draw_compact()
+  local lay = compact_layout()
+  local m = COMPACT_MARGIN
+  draw_compact_menu(lay)
+  if lay.label then
+    gfx.text("On this kit", m, lay.list_y - 22, { size = 18, bold = true, color = C.text })
+  end
+  if not cores or #cores == 0 then
+    if lay.list_y + 20 <= lay.limit then
+      gfx.text(status, m, lay.list_y, { size = 18, color = C.text, max_w = room.width - m * 2 })
+    end
+    return
+  end
+  local step = COMPACT_ROW + COMPACT_GAP
+  local cw = room.width - m * 2
+  for slot = 0, lay.rows - 1 do
+    local i = first + slot
+    local core = cores[i]
+    if not core then break end
+    local y = lay.list_y + slot * step
+    local focused = row == "shelf" and shelf_i == i
+    gfx.rect(m, y, cw, COMPACT_ROW, C.surface)
+    if focused then
+      outline(m - 3, y - 2, cw + 6, COMPACT_ROW + 4, 3, C.accent)
+    else
+      outline(m, y, cw, COMPACT_ROW, 1, C.divider)
+    end
+    gfx.text(core.name or "", m + 12, y + 6, {
+      size = 18, bold = focused, color = C.text, max_w = math.max(1, cw - 24),
+    })
+    gfx.hit("core:" .. i, m, y, cw, COMPACT_ROW)
+  end
+  if first > 1 then
+    gfx.rect(room.width - 8, lay.list_y, 3, 16, C.accent)
+  end
+  if first + lay.rows - 1 < #cores then
+    gfx.rect(room.width - 8, lay.list_y + math.max(0, lay.rows * step - 16), 3, 16, C.accent)
+  end
+end
+
 function draw()
   gfx.clear(C.background)
   local h = layout()
@@ -449,9 +583,7 @@ function draw()
     draw_hero(h)
     draw_shelf(h)
   else
-    gfx.text(room.title, 24, 20, { size = 28, bold = true, color = C.text })
-    local core = selected_core()
-    gfx.text(core and core.name or status, 24, 64, { size = 20, color = C.text, max_w = room.width - 48 })
+    draw_compact()
   end
   publish()
 end

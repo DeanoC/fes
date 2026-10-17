@@ -220,6 +220,10 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 	return c
 }
 
+// kitSaysPrefix marks the Details line that quotes the kit. planHero drops
+// the identity lines ahead of it before this one.
+const kitSaysPrefix = "Kit says: "
+
 // heroCoreDetails is the inspectable identity of an installed package:
 // its core id, a short package id and the kit's verbatim local status.
 func heroCoreDetails(d rooms.Destination) []string {
@@ -238,7 +242,7 @@ func heroCoreDetails(d rooms.Destination) []string {
 		status = strings.TrimSpace(d.Status)
 	}
 	if status != "" {
-		lines = append(lines, "Kit says: "+status)
+		lines = append(lines, kitSaysPrefix+status)
 	}
 	return lines
 }
@@ -392,13 +396,52 @@ func planHero(c heroCopy, w, avail int) heroPlan {
 	if need() > avail {
 		p.kicker = false
 	}
-	for need() > avail && len(p.details) > 0 {
-		p.details = p.details[:len(p.details)-1]
-	}
+	// The kit's block is why Details was opened. Identity lines (core id,
+	// package id) go before it does; the explanation goes before it too.
+	trimHeroDetails(&p, need, avail, true)
 	if need() > avail {
 		p.explainLines = nil
 	}
+	trimHeroDetails(&p, need, avail, false)
 	return p
+}
+
+// trimHeroDetails drops detail lines while they overflow. keepKit retains
+// the kitSaysPrefix line until a later pass.
+func trimHeroDetails(p *heroPlan, need func() int, avail int, keepKit bool) {
+	for need() > avail && len(p.details) > 0 {
+		kit := -1
+		for i, line := range p.details {
+			if strings.HasPrefix(line, kitSaysPrefix) {
+				kit = i
+				break
+			}
+		}
+		switch {
+		case kit >= 0 && kit < len(p.details)-1:
+			p.details = p.details[:len(p.details)-1]
+		case kit > 0:
+			p.details = p.details[1:]
+		case kit == 0 && keepKit:
+			return
+		default:
+			p.details = p.details[:len(p.details)-1]
+		}
+	}
+}
+
+// heroTextBudget is the height planHero may use inside the text column.
+// The button row is reserved only when a button is drawn, so a Details
+// view with no actions can use that space for the kit's block.
+func heroTextBudget(c heroCopy, paneH int) int {
+	bottom := 8
+	if c.Primary != "" || c.Secondary != "" {
+		bottom += heroButtonH
+	}
+	if paneH <= bottom {
+		return 0
+	}
+	return paneH - bottom
 }
 
 // drawHeroDestination is the FES-owned selected-destination panel of a
@@ -409,8 +452,7 @@ func drawHeroDestination(dev gfx.Device, snap Snapshot, pane rectI, labels map[s
 	kind := snap.Affinity
 	x, y, w := pane.X, pane.Y, pane.W
 	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y), W: float32(w), H: float32(pane.H)}, heroSurface)
-	buttonY := y + pane.H - heroButtonH
-	plan := planHero(c, w, buttonY-8-y)
+	plan := planHero(c, w, heroTextBudget(c, pane.H))
 	cursor := y
 	if plan.kicker {
 		cursor += heroLine(dev, labels, used, x, cursor, w, heroKickerPx, true, heroSecondary, strings.ToUpper(c.Kicker)) + 6

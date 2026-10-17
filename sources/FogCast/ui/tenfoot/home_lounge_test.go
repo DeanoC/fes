@@ -424,3 +424,133 @@ func TestHomeHeroFitsLongTitlesAboveTheButtons(t *testing.T) {
 		}
 	}
 }
+
+func TestHomeHeroDetailsKeepTheBlockWhenLinesAreDropped(t *testing.T) {
+	block := "Kit says: Needs a video part"
+	c := heroCopy{
+		Title:    "ColecoVision",
+		State:    heroStateUnavailable,
+		Headline: "Display setup incomplete",
+		Details:  []string{"Core: fes.coleco", "Package: abcdefghijkl…", block},
+	}
+	fixed := 12 + max(gfx.TextHeight(heroLinePx), gfx.TextHeightWeight(heroStatePx, gfx.WeightBold)+10) + 8
+	titleH := lineStep(heroTitlePx, gfx.WeightBold)
+	detailH := lineStep(heroExplainPx, gfx.WeightRegular)
+	plan := planHero(c, 480, fixed+titleH+detailH)
+	if len(plan.details) != 1 || plan.details[0] != block {
+		t.Fatalf("truncated details %q", plan.details)
+	}
+	if used := usedHeroPlan(c, plan); used > fixed+titleH+detailH {
+		t.Fatalf("truncated plan uses %d", used)
+	}
+	plan = planHero(c, 480, fixed+titleH+3*detailH)
+	if len(plan.details) != 3 || plan.details[2] != block {
+		t.Fatalf("untruncated details %q", plan.details)
+	}
+}
+
+func TestHomeHeroDetailsKeepTheBlockOnACompactScreen(t *testing.T) {
+	long := "Sinclair ZX Spectrum 128K +2A Expanded Edition With A Long Name"
+	block := "Needs a video part"
+	for _, tc := range []struct {
+		label  string
+		inputs []string
+	}{
+		{label: "FES ColecoVision"},
+		{label: long, inputs: []string{"keyboard"}},
+	} {
+		layout, ok := rooms.HeroPanel(1024, 600)
+		if !ok {
+			t.Fatal("1024x600 has no hero")
+		}
+		d := rooms.Destination{
+			Kind: rooms.KindCore, Label: tc.label,
+			PackageID: strings.Repeat("a", 64), CoreID: "fes.coleco",
+			CoreNeeds: "parts", CoreBlock: block,
+			Availability: rooms.AvailUnavailable, Inputs: tc.inputs,
+		}
+		snap := Snapshot{Room: RoomSnapshot{Open: true, Hero: true, CoreDetail: true, Destination: d}}
+		c := heroDestinationCopy(snap)
+		avail := heroTextBudget(c, layout.Text.H)
+		plan := planHero(c, layout.Text.W, avail)
+		if !strings.Contains(strings.Join(plan.details, "\n"), kitSaysPrefix+block) {
+			t.Fatalf("%q details %q", tc.label, plan.details)
+		}
+		if used := usedHeroPlan(c, plan); used > avail || len(plan.titleLines) == 0 {
+			t.Fatalf("%q uses %d over %d", tc.label, used, avail)
+		}
+	}
+}
+
+func usedHeroPlan(c heroCopy, plan heroPlan) int {
+	h := 12
+	if c.Meta != "" {
+		h += gfx.TextHeight(heroMetaPx)
+	}
+	if c.State != "" || c.Headline != "" {
+		h += max(gfx.TextHeight(heroLinePx), gfx.TextHeightWeight(heroStatePx, gfx.WeightBold)+10) + 8
+	}
+	if plan.kicker {
+		h += gfx.TextHeightWeight(heroKickerPx, gfx.WeightBold) + 6
+	}
+	h += len(plan.titleLines) * lineStep(heroTitlePx, gfx.WeightBold)
+	h += (len(plan.explainLines) + len(plan.details)) * lineStep(heroExplainPx, gfx.WeightRegular)
+	if plan.ack {
+		h += lineStep(heroExplainPx, gfx.WeightBold) + 4
+	}
+	return h
+}
+
+func TestHomeSmallLayoutPointerReachesCoresAndRoutes(t *testing.T) {
+	fake := &fakeLocalCores{cores: homeFixtureCores()}
+	app := startHomeLounge(t, fake, 470, 350)
+	snap := waitFor(t, app, "compact hits", func(s Snapshot) bool {
+		return s.Room.Open && !s.Room.Hero && s.Room.Destination.Label == "FES Pong" &&
+			roomHit(s, "core:2").ID != "" && roomHit(s, "menu:1").ID != "" && roomHit(s, "menu:3").ID != ""
+	})
+	pane, ok := roomDestGeom(snap)
+	if !ok {
+		t.Fatal("compact destination strip missing")
+	}
+	core := roomHitCenter(snap, "core:2")
+	library := roomHitCenter(snap, "menu:1")
+	settings := roomHitCenter(snap, "menu:3")
+	for _, pt := range [][2]int{core, library, settings} {
+		if pane.contains(pt[0], pt[1]) {
+			t.Fatalf("hit %v sits on the strip %+v", pt, pane)
+		}
+	}
+	if got := HitTest(snap, core[0], core[1]); got.Kind != PointerRoom || got.KeyID != "core:2" {
+		t.Fatalf("core pointer %+v", got)
+	}
+	now := time.Now()
+	app.PointerMove(core[0], core[1], now)
+	if got := app.Snapshot().Room.Destination; got.Label != "Zx81" || fake.launchCount() != 0 {
+		t.Fatalf("pointer focus %+v launches=%d", got, fake.launchCount())
+	}
+	app.PointerMove(library[0], library[1], now)
+	if got := app.Snapshot().Room.Destination; got.Kind != rooms.KindLibrary {
+		t.Fatalf("library pointer %+v", got)
+	}
+	if got := HitTest(snap, settings[0], settings[1]); got.Kind != PointerRoom || got.KeyID != "menu:3" {
+		t.Fatalf("settings pointer %+v", got)
+	}
+	app.PointerClick(settings[0], settings[1], now)
+	if snap = app.Snapshot(); !snap.Settings.Open || fake.launchCount() != 0 {
+		t.Fatalf("settings click open=%v launches=%d dest=%+v", snap.Settings.Open, fake.launchCount(), snap.Room.Destination)
+	}
+}
+
+func roomHit(s Snapshot, id string) rooms.Hit {
+	for _, h := range s.Room.Frame.Hits {
+		if h.ID == id {
+			return h
+		}
+	}
+	return rooms.Hit{}
+}
+
+func roomHitCenter(s Snapshot, id string) [2]int {
+	h := roomHit(s, id)
+	return [2]int{s.Room.OffsetX + int(h.X+h.W/2), s.Room.OffsetY + int(h.Y+h.H/2)}
+}

@@ -126,7 +126,9 @@ artwork, shelf and header around it, using `room.hero` for the shared
 geometry. The hero uses the light seed roles in
 [the FES visual language](../../../docs/ux/visual-language.md); the room
 should paint the card in the same surface colour (`#FFFCF5`). A room too
-small for the hero (under 480×360) keeps the strip.
+small for the hero (under 480×360) keeps the strip. Kit Home
+(`example.fes-cores`) still draws the Library, Rooms and Settings routes
+and the visible cores above that strip, with pointer hits and a focus mark.
 
 ## Script lifecycle
 

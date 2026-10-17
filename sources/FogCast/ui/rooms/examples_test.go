@@ -230,6 +230,95 @@ func TestHomeChecksThenRestoresSelectionAndReachesRoutes(t *testing.T) {
 	}
 }
 
+func TestFesCoresSmallLayoutKeepsPointerRoutes(t *testing.T) {
+	if _, ok := HeroPanel(470, 350); ok {
+		t.Fatal("470x350 used the hero layout")
+	}
+	pack := examplePack(t, "example.fes-cores")
+	fake := &fakeLocalCores{cores: []localcores.Core{
+		{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
+		{PackageID: coreColecoID, CoreID: "fes.coleco", Name: "ColecoVision", Needs: "media", Launchable: false, Block: "Needs a cartridge"},
+		{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "firmware", Launchable: false, Block: "Needs firmware"},
+	}}
+	r := newRoom(t, pack, Options{Local: fake, Width: 470, Height: 350})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	f := stepUntil(t, r, func(f Frame) bool {
+		return hitByID(f, "core:2").ID != "" && hitByID(f, "menu:3").ID != "" && strings.Contains(frameText(f), "ColecoVision")
+	})
+	limit := compactStripTop(470, 350)
+	accent, err := ParseHexColor("#235A46")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var focusedBold, accentMark bool
+	for _, op := range f.Ops {
+		if op.Kind == OpText && op.Text == "FES Pong" && op.Bold {
+			focusedBold = true
+		}
+		if op.Kind == OpRect && op.Color == accent {
+			accentMark = true
+		}
+	}
+	if !focusedBold || !accentMark {
+		t.Fatal("compact list has no visible focus")
+	}
+	for _, id := range []string{"core:1", "core:2", "core:3", "menu:1", "menu:2", "menu:3"} {
+		h := hitByID(f, id)
+		if h.ID == "" || h.W < 1 || h.H < 1 {
+			t.Fatalf("missing hit %s in %+v", id, f.Hits)
+		}
+		if h.X < 0 || h.Y < 0 || h.X+h.W > 471 || h.Y+h.H > float32(limit)+1 {
+			t.Fatalf("hit %s %+v crosses the strip at %d", id, h, limit)
+		}
+	}
+	r.Hover("core:2")
+	if got := r.Destination(); got.Label != "ColecoVision" || got.PackageID != coreColecoID {
+		t.Fatalf("core hit %+v", got)
+	}
+	r.Hover("menu:1")
+	if got := r.Destination(); got.Kind != KindLibrary {
+		t.Fatalf("library hit %+v", got)
+	}
+	r.Hover("menu:2")
+	if got := r.Destination(); got.Kind != KindRoom || got.RoomID == "" {
+		t.Fatalf("rooms hit %+v", got)
+	}
+	r.Activate("menu:3")
+	if got := r.Destination(); got.Kind != KindAction || got.LauncherAction != "settings" {
+		t.Fatalf("settings hit %+v", got)
+	}
+	if got := fake.launchedIDs(); len(got) != 0 {
+		t.Fatalf("pointer navigation launched %v", got)
+	}
+}
+
+func hitByID(f Frame, id string) Hit {
+	for _, h := range f.Hits {
+		if h.ID == id {
+			return h
+		}
+	}
+	return Hit{}
+}
+
+// compactStripTop mirrors roomDestGeom's reserved band. Hits have to stay
+// above it or the strip takes the click.
+func compactStripTop(w, h int) int {
+	if w < 152 {
+		return h
+	}
+	y := h - 118 - 8
+	if y < 48 {
+		y = 48
+	}
+	if h-8-y < 72 {
+		return h
+	}
+	return y
+}
+
 func TestDestinationPanelManifest(t *testing.T) {
 	for _, tc := range []struct {
 		value string

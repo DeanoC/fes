@@ -121,6 +121,9 @@ func launchOverlayPanel(snap Snapshot) (rectI, bool) {
 	return rectI{X: x, Y: y, W: panelW, H: panelH}, true
 }
 
+// roomDestGeom is the compact destination strip. example.fes-cores
+// compact_limit copies the 118×8 band and the 48/72/152 fallbacks so its
+// pointer hits stay above this pane. Change both together.
 func roomDestGeom(snap Snapshot) (rectI, bool) {
 	if !snap.Room.Open || snap.Room.Err != "" || snap.Detail.Open || snap.Room.Choice.Open || snap.CoreLibrary.Open || snap.FirmwarePicker.Open || snap.TapePicker.Open || launchOverlayVisible(snap) {
 		return rectI{}, false
