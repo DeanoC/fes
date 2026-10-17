@@ -30,7 +30,7 @@ module pcxt_motherboard (
     input wire parity_error, channel_error,
     output wire parity_enable, channel_check_enable,
     input wire keyboard_clock, keyboard_data,
-    output wire keyboard_clock_low, keyboard_data_low,
+    output wire keyboard_clock_low, keyboard_data_low, keyboard_clear,
     output wire keyboard_irq, speaker,
     output wire audio_valid,
     output wire signed [15:0] audio_sample,
@@ -128,6 +128,7 @@ module pcxt_motherboard (
         .parity_enable(parity_enable), .channel_check_enable(channel_check_enable),
         .keyboard_clock(keyboard_clock), .keyboard_data(keyboard_data),
         .keyboard_clock_low(keyboard_clock_low), .keyboard_data_low(keyboard_data_low),
+        .keyboard_clear(keyboard_clear),
         .keyboard_irq(keyboard_irq), .pit_out2(pit_out[2]),
         .pit_gate2(pit_gate2), .speaker(speaker)
     );

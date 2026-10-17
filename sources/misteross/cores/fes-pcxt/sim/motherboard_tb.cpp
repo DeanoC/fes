@@ -14,7 +14,9 @@ struct Bench {
     unsigned ticks=0, memory_requests=0, transactions=0, delay=0, wait=3;
     unsigned pending_address=0, pending_data=0;
     bool pending=false, pending_write=false, timer=true;
+    bool watch_accept=false, accepted_code=false;
     void tick() {
+        bool ready = watch_accept && d.code_valid && d.code_ready;
         d.memory_done=0;
         d.memory_ready=!pending && ticks%3!=0;
         if (pending && delay--==0) {
@@ -32,10 +34,12 @@ struct Bench {
             ++memory_requests;
         }
         d.clk=1; d.eval(); ++ticks;
+        if (ready && !d.code_ready) accepted_code=true;
     }
     void idle(unsigned n=30) { while(n--) tick(); }
     void reset() {
         d.reset=1; d.cycle_valid=0; d.external_irq=0; d.keyboard_clock=1;d.keyboard_data=0;
+        d.external_keyboard=1; d.code_valid=0; d.code=0; watch_accept=false; accepted_code=false;
         d.switches=0x2d;d.parity_error=0;d.channel_error=0; d.inject=0; pending=false; d.memory_done=0;
         idle(); d.reset=0; idle();
     }
@@ -159,6 +163,26 @@ int main(int argc,char** argv) {
         b.out(0x63,0x99);b.out(0x61,0x40);b.key(0x69);
         check(b.in(0x60)==0x69 && b.d.keyboard_irq,"reset partial keyboard frame");
         b.clear_key();b.reset();
+        // Firmware writes 0xC0 and leaves PB7 set. Clock and data stay released,
+        // so a cable keyboard would shift 0x1E into the cleared receiver and lose
+        // it. The serializer must keep the byte until PB7 drops, then deliver it.
+        b.out(0x63,0x99);b.out(0x61,0xc0);
+        check(b.d.keyboard_clear && !b.d.keyboard_clock_low && !b.d.keyboard_data_low,
+              "held PB7 clears the receiver without clamping clock or data");
+        b.d.external_keyboard=0;b.d.code=0x1e;b.d.code_valid=1;b.d.eval();
+        check(!b.d.code_ready,"READY while the receiver is held clear");
+        for(unsigned i=0;i<100000;i++) {
+            check(!b.d.code_ready,"accepted scan code during receiver clear");
+            b.tick();
+            check(!b.d.keyboard_irq,"IRQ1 during receiver clear");
+        }
+        check(b.in(0x60)==0xff,"scan data while the receiver is held clear");
+        b.accepted_code=false;b.watch_accept=true;b.out(0x61,0x40);
+        unsigned deadline=b.ticks+120000;
+        while(b.ticks<deadline && !b.d.keyboard_irq) b.tick();
+        check(b.accepted_code && b.d.keyboard_irq && b.in(0x60)==0x1e,
+              "0x1E delivered after PB7 release");
+        b.d.code_valid=0;b.reset();
         b.out(0x63,0x99);b.out(0x61,0x41);b.timer=false;b.pit(2,0,1000);b.timer=true;b.idle(1000);
         unsigned count=b.latch(2);check(count<1000 && count>900,"PIT mode0 count");
         // Latch must hold both bytes despite time passing between reads.

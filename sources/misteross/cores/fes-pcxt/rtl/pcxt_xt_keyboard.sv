@@ -7,7 +7,7 @@ module pcxt_xt_keyboard (
     input wire code_valid,
     input wire [7:0] code,
     output wire code_ready,
-    input wire clock_low, data_low,
+    input wire clock_low, data_low, keyboard_clear,
     output reg keyboard_clock, keyboard_data
 );
     // 40 us high + 40 us low, within IBM's 25..50 us active-clock range.
@@ -17,7 +17,11 @@ module pcxt_xt_keyboard (
     reg [12:0] phase;
     reg [8:0] frame;
     reg [3:0] index;
-    assign code_ready = !reset && state == IDLE && !clock_low && !data_low;
+    // READY means the frontend may retire the byte. PB7 (keyboard_clear) resets
+    // the receiver without clamping clock or data, so a cable keyboard can still
+    // shift a byte that never raises IRQ1. Do not accept while that reset is held.
+    // A byte already accepted still finishes its frame.
+    assign code_ready = !reset && state == IDLE && !clock_low && !data_low && !keyboard_clear;
     always @(posedge clk) begin
         if (reset) begin
             state <= IDLE; phase <= 0; frame <= 0; index <= 0;

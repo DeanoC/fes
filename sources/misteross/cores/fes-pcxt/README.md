@@ -60,8 +60,13 @@ Imported handshake modes are outside this slice's qualification.
 | `62` | PC0–3: selected switch nibble; PC4: zero; PC5: PIT2 output; PC6/7: external channel/parity status. |
 | `63` | Mode control or port-C BSR write; reads are unspecified. |
 
-Switch levels are an eight-bit profile input; the machine fixture uses `2D`
-(normal POST, no coprocessor, 640 KiB, CGA 80-column, one floppy). Error status
+Switch levels are an eight-bit profile input, SW1 in bit 0. Bit 0 set is SW1
+released (normal POST). Bit 1 set is SW2 released (8087 installed). Bits 3:2
+are SW4/SW3 (`11` is 640 KiB and `00` is 256 KiB on a 256/640K board). Bits
+5:4 are SW6/SW5 (`10` is CGA 80-column, `11` is MDA). Bits 7:6 are SW8/SW7
+(`00` is one floppy, `01` is two). The machine fixture executes `2D` on every
+memory-wait run and `73` once (normal POST, 8087, 256 KiB, MDA, two floppies).
+Error status
 inputs and checking-enable outputs are wiring hooks: parity generation,
 error latches and NMI integration remain unimplemented. PPI reset selects all
 inputs; the wrapper then mutes the speaker, disables checking and inhibits the
@@ -72,10 +77,15 @@ The receiver synchronizes clock/data into 100 MHz fabric and samples falling
 clock edges: a start one followed by eight LSB-first bits, without parity.
 Leading zero RTS pulses are ignored. IRQ1 remains asserted until PB7 clears
 it; the receiver pulls the **data** line low for busy/CTS and holds the byte
-against overwrite. PB6 controls clock inhibit independently. The companion
+against overwrite. PB6 controls clock inhibit independently. PB7 itself does
+not clamp clock or data: a cable keyboard that only watches those lines can
+still shift a byte into a cleared receiver, and that byte raises no IRQ1.
+The companion
 `pcxt_xt_keyboard.sv` accepts a set-1 byte using VALID/READY, waits 80 us after
 CTS, and clocks bits with 40 us high/low phases and at least 3 us data hold.
-Clock inhibit pauses transmission. Reset cancels a partial frame. This is a
+Clock inhibit pauses transmission. READY also stays low while PB7 holds the
+receiver clear, so the frontend does not retire a byte the receiver cannot
+collect. A byte already accepted still finishes its frame. Reset cancels a partial frame. This is a
 single-byte transport: HID mapping, extended-key policy, typematic generation,
 keyboard reset/BAT responses and event queues remain future frontend work.
 It is not an AT 8042 or a PS/2 protocol endpoint.
@@ -165,7 +175,8 @@ strobes. Channel 1 counts and channel 0 continues during a long storage wait.
 PPI tests cover mode/direction/BSR writes, repeated-mode latch reset, switch
 selection, port aliases, check-status hooks, keyboard make/break and all-zero/
 all-one bytes, busy overwrite rejection, acknowledge, clock inhibit and partial
-frame reset. Speaker tests cover PIT gating, port-C feedback, 48 kHz cadence,
+frame reset. Holding port `61` at `C0` while offering scan code `1E` must not
+assert READY or IRQ1; releasing PB7 then delivers that byte. Speaker tests cover PIT gating, port-C feedback, 48 kHz cadence,
 DC removal and integration of modulation faster than the sample rate.
 The separate keyboard transport suite checks independent bit order and
 setup/hold timing, CTS backpressure, mid-frame clock inhibit and reset phases.
@@ -179,7 +190,9 @@ services ISA IRQ5 and clears its source. It programs the PPI, reads both switch
 nibbles, plays/mutes a PIT2 speaker tone and handles make/break bytes via two
 IRQ1 handlers with port-61 acknowledgement. The testbench supplies RAM/ROM and
 set-1 bytes to the timed serializer, checks both locked INTA cycles and their vectors, and observes success in RAM.
-Three runs vary storage latency/backpressure; no host-supplied vectors or I/O
+Three runs vary storage latency/backpressure on switch profile `2D`. A fourth
+run reads profile `73` with no added memory wait. Switch selection does not
+depend on that wait. No host-supplied vectors or I/O
 shortcuts participate in this fixture.
 
 Verilator lint is fatal. `sim/cpu.vlt` and `sim/chipset.vlt` scope exceptions to

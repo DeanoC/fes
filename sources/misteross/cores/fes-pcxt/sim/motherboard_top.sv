@@ -23,7 +23,13 @@ module motherboard_top (
     input wire parity_error, channel_error,
     output wire parity_enable, channel_check_enable,
     input wire keyboard_clock, keyboard_data,
-    output wire keyboard_clock_low, keyboard_data_low, keyboard_irq,
+    // Raw cable pins are used when external_keyboard is set. Otherwise the
+    // integrated serializer drives them and may retire code_valid.
+    input wire external_keyboard,
+    input wire code_valid,
+    input wire [7:0] code,
+    output wire code_ready,
+    output wire keyboard_clock_low, keyboard_data_low, keyboard_irq, keyboard_clear,
     output wire speaker, audio_valid,
     output wire signed [15:0] audio_sample,
     input wire [2:0] inject,
@@ -34,6 +40,16 @@ module motherboard_top (
     wire isa_valid, isa_ready, isa_done;
     wire [7:0] isa_rdata, irq;
     wire [1:0] isa_fault;
+    wire ser_clock, ser_data;
+    wire board_clock = external_keyboard ? keyboard_clock : ser_clock;
+    wire board_data = external_keyboard ? keyboard_data : ser_data;
+    pcxt_xt_keyboard serializer (
+        .clk(clk), .reset(reset),
+        .code_valid(code_valid && !external_keyboard), .code(code), .code_ready(code_ready),
+        .clock_low(keyboard_clock_low), .data_low(keyboard_data_low),
+        .keyboard_clear(keyboard_clear),
+        .keyboard_clock(ser_clock), .keyboard_data(ser_data)
+    );
     pcxt_motherboard board (
         .clk(clk), .reset(reset), .guest_ce(guest_ce),
         .cycle_valid(cycle_valid), .cycle_ready(cycle_ready),
@@ -48,8 +64,9 @@ module motherboard_top (
         .isa_rdata(isa_rdata), .isa_fault(isa_fault), .isa_irq(irq[7:2] | external_irq),
         .switches(switches), .parity_error(parity_error), .channel_error(channel_error),
         .parity_enable(parity_enable), .channel_check_enable(channel_check_enable),
-        .keyboard_clock(keyboard_clock), .keyboard_data(keyboard_data),
+        .keyboard_clock(board_clock), .keyboard_data(board_data),
         .keyboard_clock_low(keyboard_clock_low), .keyboard_data_low(keyboard_data_low),
+        .keyboard_clear(keyboard_clear),
         .keyboard_irq(keyboard_irq), .speaker(speaker),
         .audio_valid(audio_valid), .audio_sample(audio_sample), .intr(intr),
         .pit_out(pit_out), .pit_clock(pit_clock)

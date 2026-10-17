@@ -2260,10 +2260,15 @@ mutes speaker/check enables until configured. Disabled PA reads use `FF`.
 The XT receiver synchronizes external clock/data, ignores leading-zero RTS,
 then samples start-one and eight LSB-first data bits on falling clock edges.
 It holds IRQ1 and pulls DATA low for busy/CTS until PB7 acknowledges; reads of
-port 60h leave IRQ1 asserted. PB6 separately releases/inhibits CLOCK. The
+port 60h leave IRQ1 asserted. PB6 separately releases/inhibits CLOCK. PB7
+clears the receiver without clamping those cable lines. The
 single-byte VALID/READY serializer supplies 80 us CTS-to-clock setup, 40 us
 high/low phases and at least 3 us data hold; clock inhibit pauses the frame.
-Tests independently check timing, ordering, busy handling and reset. FES HID
+READY stays low while PB7 holds the receiver clear, so an on-fabric producer
+does not retire a byte that cannot raise IRQ1. A byte already accepted still
+finishes its frame. Tests check timing, ordering, busy handling, held-clear
+admission and reset. Integrated CPU runs read switch profiles `2D` and `73`.
+FES HID
 translation, extended-key policy, typematic, keyboard reset/BAT responses and
 event queues remain unimplemented. This is an XT interface, not an AT 8042.
 

@@ -12,7 +12,7 @@ module pcxt_xtio (
     input wire parity_error, channel_error,
     output wire parity_enable, channel_check_enable,
     input wire keyboard_clock, keyboard_data,
-    output wire keyboard_clock_low, keyboard_data_low,
+    output wire keyboard_clock_low, keyboard_data_low, keyboard_clear,
     output reg keyboard_irq,
     input wire pit_out2,
     output wire pit_gate2, speaker
@@ -24,6 +24,7 @@ module pcxt_xtio (
     wire [7:0] pb = pb_input ? 8'b0 : pb_out;
     wire unused_spare = pb[2];
     wire clear_keyboard = pb[7];
+    assign keyboard_clear = clear_keyboard;
     reg [7:0] shift_data;
     reg [3:0] bits_received;
     reg [2:0] clock_sync;

@@ -11,7 +11,7 @@ struct Bench {
     void tick() {d.clk=0;d.eval();d.clk=1;d.eval();++ticks;}
     void idle(unsigned n) {while(n--)tick();}
     void reset() {
-        d.reset=1;d.code_valid=0;d.clock_low=0;d.data_low=0;idle(10);
+        d.reset=1;d.code_valid=0;d.clock_low=0;d.data_low=0;d.keyboard_clear=0;idle(10);
         d.reset=0;tick();check(d.code_ready && d.keyboard_clock && !d.keyboard_data,"reset idle");
     }
     void start(unsigned code) {
@@ -64,18 +64,19 @@ int main(int argc,char** argv) {
         check(!b.d.keyboard_clock && !b.d.code_ready,"busy CTS allowed frame");
         b.d.data_low=0;b.idle(7999);check(!b.d.keyboard_clock,"short RTS after CTS");
         b.tick();check(b.d.keyboard_clock,"CTS resume timeout");b.reset();
-        // No byte is accepted while either host line inhibits admission.
-        for(unsigned line=0;line<2;line++) {
-            b.d.clock_low=line==0;b.d.data_low=line==1;b.tick();
-            b.d.code_valid=1;b.d.code=0xaa;b.idle(90000);
+        // No byte is accepted while clock, data, or receiver clear inhibits admission.
+        // Clear matches port 61h = 0xC0: PB7 held, PB6 released, cable lines free.
+        for(unsigned line=0;line<3;line++) {
+            b.d.clock_low=line==0;b.d.data_low=line==1;b.d.keyboard_clear=line==2;b.tick();
+            b.d.code_valid=1;b.d.code=line==2?0x1e:0xaa;b.idle(90000);
             check(!b.d.code_ready && b.d.keyboard_clock && !b.d.keyboard_data,"busy admission");
-            b.d.code_valid=0;b.d.clock_low=0;b.d.data_low=0;b.tick();
+            b.d.code_valid=0;b.d.clock_low=0;b.d.data_low=0;b.d.keyboard_clear=0;b.tick();
             check(b.d.code_ready,"admission did not resume");
         }
         // Reset cancels an accepted byte at RTS, high, low and final-bit phases.
         for(unsigned phase: {1u,8001u,12001u,74000u}) {
             b.start(0xff);b.idle(phase);b.reset();b.frame(0x96);
         }
-        std::cout<<"PASS keyboard: bit timing, CTS, inhibit, ordering and reset, "<<b.ticks<<" clocks\n";
+        std::cout<<"PASS keyboard: bit timing, CTS, inhibit, receiver clear, ordering and reset, "<<b.ticks<<" clocks\n";
     }catch(const std::exception& e){std::cerr<<"FAIL keyboard: "<<e.what()<<"\n";return 1;}
 }

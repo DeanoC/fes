@@ -85,14 +85,17 @@ wait_timer:
     testb %al,%al
     jne fail
     movb $4,0x601
-    /* PPI mode 0; read both switch nibbles and start a PIT2 speaker tone. */
+    /* PPI mode 0; read both switch nibbles and start a PIT2 speaker tone.
+     * The testbench preloads the expected high nibble at 0620 and the low
+     * nibble at 0621. Observed nibbles are stored at 0619 and 0618. */
     movb $0x99,%al
     outb %al,$0x63
     movb $0x48,%al
     outb %al,$0x61
     inb $0x62,%al
     andb $0x0f,%al
-    cmpb $2,%al
+    movb %al,0x619
+    cmpb 0x620,%al
     jne fail
     movb $0xb6,%al
     outb %al,$0x43
@@ -104,7 +107,8 @@ wait_timer:
     outb %al,$0x61
     inb $0x62,%al
     andb $0x0f,%al
-    cmpb $13,%al
+    movb %al,0x618
+    cmpb 0x621,%al
     jne fail
     movb $0xfd,%al
     outb %al,$0x21

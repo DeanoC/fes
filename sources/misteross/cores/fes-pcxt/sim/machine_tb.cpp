@@ -13,14 +13,17 @@ int main(int argc,char** argv) {
         check(argc==2,"ROM path required");std::ifstream f(argv[1],std::ios::binary);
         std::vector<uint8_t> rom((std::istreambuf_iterator<char>(f)),{});
         check(rom.size()==65536,"ROM size");
-        for(unsigned waits: {0u,31u,173u}) {
+        struct Profile { unsigned waits, switches; };
+        for(Profile profile: {Profile{0,0x2d},Profile{31,0x2d},Profile{173,0x2d},Profile{0,0x73}}) {
+            unsigned waits=profile.waits, switches=profile.switches;
             Vmachine_top d;std::array<uint8_t,1<<20> mem{};
             std::copy(rom.begin(),rom.end(),mem.begin()+0xf0000);
+            mem[0x620]=switches>>4; mem[0x621]=switches&0x0f;
             bool pending=false,passed=false,saw_halt=false,ack_pending=false;
             unsigned pa=0,pd=0,delay=0,ticks=0,acks=0,timer_vectors=0,card_vectors=0;
             unsigned transactions=0,ce=0,keys=0,keyboard_vectors=0,audio_samples=0;
             int audio_min=32767,audio_max=-32768;bool pw=false;
-            d.reset=1;d.code_valid=0;d.code=0;d.memory_done=0;d.memory_ready=0;
+            d.reset=1;d.code_valid=0;d.code=0;d.switches=switches;d.memory_done=0;d.memory_ready=0;
             for(unsigned i=0;i<32;i++){d.clk=0;d.eval();d.clk=1;d.eval();}d.reset=0;
             while(ticks++<6000000 && !passed) {
                 d.memory_done=0;d.memory_ready=!pending && (!waits || ticks%4!=0);
@@ -67,10 +70,12 @@ int main(int argc,char** argv) {
             check(timer_vectors>=3 && card_vectors==1 && keyboard_vectors==2 && !(acks&1),"IRQ coverage");
             check(mem[0x610]>=3 && mem[0x612]==1,"interrupt handlers did not execute");
             check(keys==2 && mem[0x614]==2 && mem[0x616]==0x1e && mem[0x617]==0x9e,"keyboard make/break handlers");
+            check(mem[0x619]==(switches>>4) && mem[0x618]==(switches&0x0f),"equipment switch profile");
             check(audio_samples>50 && audio_max-audio_min>7000,"CPU programmed speaker tone");
             check(!d.speaker,"ROM did not mute speaker");
             check(ce>ticks/22 && ce<ticks/20,"CPU clock cadence");
-            std::cout<<"PASS machine waits="<<waits<<": "<<transactions<<" transactions, "
+            std::cout<<"PASS machine waits="<<waits<<" switches="<<std::hex<<switches<<std::dec
+                     <<": "<<transactions<<" transactions, "
                      <<timer_vectors<<" timer vectors, "<<card_vectors<<" ISA vector, "<<keyboard_vectors<<" keyboard vectors, "<<ticks<<" fabric clocks\n";
         }
     }catch(const std::exception& e){std::cerr<<"FAIL machine: "<<e.what()<<"\n";return 1;}
