@@ -273,6 +273,68 @@ end
 	return app
 }
 
+func TestBlockedLibraryConfirmDoesNotFailTheResumedHome(t *testing.T) {
+	block := func(app *App) {
+		t.Helper()
+		app.HandleCommand(CmdSelect, time.Now())
+		waitFor(t, app, "library", func(s Snapshot) bool { return !s.Room.Open && !s.Loading })
+		blocked := availableGame("sms-datastorm", "Data Storm", "sms")
+		blocked.Launchable = false
+		app.mu.Lock()
+		app.games = []hostclient.Game{blocked}
+		app.grid.SetCount(1)
+		app.grid.Focus = 0
+		app.mu.Unlock()
+		app.HandleCommand(CmdSelect, time.Now())
+		snap := app.Snapshot()
+		if !snap.Detail.Open || snap.Launch.Phase != "error" || snap.Launch.Message == "" {
+			t.Fatalf("blocked confirm: detail=%v launch=%+v", snap.Detail.Open, snap.Launch)
+		}
+	}
+	resumed := func(snap Snapshot) {
+		t.Helper()
+		copy := launchOverlayCopy(snap)
+		if !snap.Room.Open || copy.Visible || snap.Launch.Phase == "error" || snap.Launch.Phase == "host" {
+			t.Fatalf("resumed home showed a launch failure: open=%v phase=%q copy=%+v", snap.Room.Open, snap.Launch.Phase, copy)
+		}
+	}
+
+	t.Run("back", func(t *testing.T) {
+		app := libraryHomeApp(t)
+		block(app)
+		app.HandleCommand(CmdBack, time.Now())
+		if app.Snapshot().Detail.Open {
+			t.Fatal("Details stayed open")
+		}
+		app.HandleCommand(CmdBack, time.Now())
+		resumed(waitFor(t, app, "home", func(s Snapshot) bool { return s.Room.Open }))
+	})
+
+	t.Run("home key", func(t *testing.T) {
+		app := libraryHomeApp(t)
+		block(app)
+		app.mu.Lock()
+		app.client.paired = true
+		ready := availableGame("pong", "FES Pong", "pong")
+		app.games = []hostclient.Game{ready}
+		app.grid.SetCount(1)
+		app.grid.Focus = 0
+		app.launch = LaunchSnapshot{}
+		app.detailOpen = false
+		app.mu.Unlock()
+		app.HandleCommand(CmdSelect, time.Now())
+		snap := app.Snapshot()
+		if !snap.Detail.Open || snap.Launch.Message != machineStatusUnknown {
+			t.Fatalf("unknown confirm: detail=%v launch=%+v", snap.Detail.Open, snap.Launch)
+		}
+		app.HandleCommand(CmdHome, time.Now())
+		resumed(waitFor(t, app, "home", func(s Snapshot) bool { return s.Room.Open && !s.Detail.Open }))
+		if snap := app.Snapshot(); snap.Status == machineStatusUnknown {
+			t.Fatalf("home kept the library refusal: %q", snap.Status)
+		}
+	})
+}
+
 func TestLibraryHomeKeyClosesLibraryOverlaysAndResumesHome(t *testing.T) {
 	app := libraryHomeApp(t)
 	app.HandleCommand(CmdSelect, time.Now())

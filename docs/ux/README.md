@@ -377,9 +377,10 @@ kit are pending.
 
 - **Back returns to its origin.** The Library opened from Home, a room or the
   Home overlay keeps that room suspended, so Back (and the Home key) returns to
-  the same room and selection rather than reloading it. A Coleco BIOS import
-  refreshes that suspended room's cached titles, so the resumed room shows the
-  updated readiness.
+  the same room and selection rather than reloading it. A blocked Confirm in
+  the Library is not replayed as a launch failure on that room. A Coleco BIOS
+  import refreshes that suspended room's cached titles, so the resumed room
+  shows the updated readiness.
 - **Same rules as Home.** Library Details uses the same readiness pill and
   wording family as the Home hero, on the dark pane's seed roles. The block's
   short name is the headline and the launcher's sentence is the explanation,

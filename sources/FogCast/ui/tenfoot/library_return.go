@@ -48,6 +48,15 @@ func (a *App) restoreLibraryOriginLocked() bool {
 	a.closeFiltersLocked()
 	a.closeCollectionOverlaysLocked()
 	a.searchOpen = false
+	// A Library refusal never started this room's launch. Leaving the error
+	// set replays it as "Launch failed" over the resumed room, and offers
+	// retry for a Confirm that already refused.
+	if a.launch.Phase == "error" || a.launch.Phase == "host" {
+		if a.status == a.launch.Message {
+			a.status = ""
+		}
+		a.dismissLaunchOverlayLocked()
+	}
 	a.room = o.room
 	a.roomStack = o.stack
 	a.roomWasParked = a.gpuParked
