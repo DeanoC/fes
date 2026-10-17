@@ -72,6 +72,11 @@ producer is `make build-fes-atari-st`. The factory image selects its firmware
 shell and sealed Direct/Scanlines companions. Firmware remains a separate user
 input; the image does not bundle EmuTOS or Atari ROMs.
 
+The PC/XT development slice implements a registered ISA transaction fabric and
+probe cards. `make sim-fes-pcxt` checks it on the host; see the
+[core README](cores/fes-pcxt/README.md). The complete 8088 machine and physically
+linkable PC/XT sockets remain unimplemented.
+
 ## What builds now
 
 Run the commands below from `sources/misteross/`. Preparing one registered
