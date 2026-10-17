@@ -21,7 +21,7 @@ func TestFakeSysfsSkipsOpticalAndZeroKeepsUSBAndSD(t *testing.T) {
 	writeDev(t, block, "sr1", "2048", "1", "5")
 	// Removable disk with no media, reported as SCSI type 0 (the JMicron case).
 	writeDev(t, block, "sdc", "0", "1", "0")
-	// Non-removable zero-capacity disk.
+	// Non-removable zero-size disk. Size 0 is no-media, the same as an empty stick.
 	writeDev(t, block, "sdd", "0", "0", "0")
 	// Ordinary USB stick.
 	writeDev(t, block, "sdb", "15633408", "1", "0")
@@ -64,8 +64,95 @@ func TestFakeSysfsSkipsOpticalAndZeroKeepsUSBAndSD(t *testing.T) {
 		if decision, _ := Decide(block, "sdc"); decision.Reason != ReasonNoMedia {
 			t.Errorf("sdc reason = %s", decision.Reason)
 		}
-		if decision, _ := Decide(block, "sdd"); decision.Reason != ReasonZero {
+		if decision, _ := Decide(block, "sdd"); decision.Reason != ReasonNoMedia {
 			t.Errorf("sdd reason = %s", decision.Reason)
+		}
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("classification blocked while reading sysfs")
+	}
+}
+
+func TestMissingOrNotReadySizeIsNoMedia(t *testing.T) {
+	block := t.TempDir()
+	// HIL kit B: General UDisk on sda, empty JMS583 bridge on sdb (size not
+	// published while the kernel logs Unit Not Ready), optical on sr0, SD card.
+	writeDev(t, block, "sda", "15728640", "1", "0")
+	if err := os.WriteFile(filepath.Join(block, "sda", "device", "state"), []byte("running\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	bridge := filepath.Join(block, "sdb", "device")
+	if err := os.MkdirAll(bridge, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(block, "sdb", "removable"), []byte("1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bridge, "type"), []byte("0\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bridge, "state"), []byte("running\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeDev(t, block, "sr0", "2097151", "1", "5")
+	writeDev(t, block, "mmcblk0", "62333952", "1", "")
+	writeDev(t, block, "mmcblk0p3", "41943040", "1", "")
+	empty := filepath.Join(block, "sdc")
+	if err := os.MkdirAll(filepath.Join(empty, "device"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(empty, "size"), []byte("\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeDev(t, block, "sdd", "nope", "1", "0")
+	writeDev(t, block, "sde", "15633408", "1", "0")
+	if err := os.WriteFile(filepath.Join(block, "sde", "device", "state"), []byte("offline\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	writeDev(t, block, "sdf", "15633408", "1", "0")
+	if err := os.WriteFile(filepath.Join(block, "sdf", "device", "access_state"), []byte("unavailable\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	part := filepath.Join(block, "sde", "sde1")
+	if err := os.MkdirAll(part, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(part, "size"), []byte("15633376\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	inquiry := filepath.Join(bridge, "inquiry")
+	if err := syscall.Mkfifo(inquiry, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for _, name := range []string{"sdb", "sdc", "sdd", "sde", "sde1", "sdf"} {
+			decision, ok := Decide(block, name)
+			if !ok || decision.Allow || decision.Reason != ReasonNoMedia {
+				t.Errorf("%s = %+v ok=%v, want no-media", name, decision, ok)
+			}
+		}
+		for _, name := range []string{"sda", "mmcblk0", "mmcblk0p3"} {
+			decision, ok := Decide(block, name)
+			if !ok || !decision.Allow || decision.Reason != "" {
+				t.Errorf("%s = %+v ok=%v, want ok", name, decision, ok)
+			}
+		}
+		if decision, ok := Decide(block, "sr0"); !ok || decision.Allow || decision.Reason != ReasonOptical {
+			t.Errorf("sr0 = %+v ok=%v, want optical", decision, ok)
+		}
+		usable, err := Usable(block)
+		if err != nil {
+			t.Errorf("usable: %v", err)
+			return
+		}
+		want := []string{"mmcblk0", "mmcblk0p3", "sda"}
+		if !reflect.DeepEqual(usable, want) {
+			t.Errorf("usable = %v, want %v", usable, want)
 		}
 	}()
 	select {

@@ -200,16 +200,33 @@ flashed from one image would collide on the LAN. The rootfs init script
 runs after `S10mdev` and before `S20mister-network` starts DHCP; the FES
 bootstrap has already moved the writable FAT to `/media/fat`.
 
+`/etc/init.d/S02fes-usb-quirk` and `S11fes-block-admit` run
+`/usr/sbin/fes-usb-quirk`. usb-storage and uas are built into the kernel, so a
+modprobe option would not be read. U-Boot imports FAT `linux/u-boot.txt` and
+then builds `bootargs` by expanding `$v`; the helper adds
+`usb-storage.quirks=152d:0583:u` to `v` and, when the parameter file already
+exists, to `/sys/module/usb_storage/parameters/quirks`. Flag `u` is
+`US_FL_IGNORE_UAS`: the empty JMicron JMS583 NVMe bridge stops using the UAS
+status path that never completes, which is what turns the sd driver's 30s
+timeout and 5 retries into the `waited 180s` line. A disk fitted in that
+bridge still enumerates through usb-storage. Flag `i` (`IGNORE_DEVICE`) is
+not used, because it would hide that disk. A `bootargs=` line in `u-boot.txt`
+is not the knob: `mmcboot` overwrites `bootargs` after the import.
+
 `/etc/init.d/S11fes-block-admit` and `/etc/mdev.conf` run
 `/usr/sbin/fes-block-admit` for `sd*` and `sr*` nodes. The helper reads sysfs
-`size`, `removable` and `device/type` and, for an optical device, a removable
-device with no media, or any other zero-capacity disk, sets that device's SCSI
-timeout to one second. It does not open or mount the device. S11 also writes
+`size`, `device/type`, `device/state` and `device/access_state`. An optical
+device, a device whose size is missing, unreadable or zero, or a device whose
+SCSI state is not ready, gets a one-second queue timeout. Unit Not Ready on
+this kernel leaves size unpublished; that device is no-media and is never
+reported ok. The helper does not open or mount the device. S11 also writes
 `/sbin/mdev` to `/proc/sys/kernel/hotplug`, which Buildroot's `S10mdev` has
-already set, so a dock DVD or USB stick that appears after boot reaches the
-same rule. `fstab` has no `sd*` or `sr*` entries, so an empty SuperStation
-dock DVD is not automounted. USB sticks and the SD/FESDATA partitions are not
-changed.
+already set, so an optical drive or USB stick that appears after boot reaches
+the same rule. `fstab` has no `sd*` or `sr*` entries. A USB stick whose size
+is greater than zero, and the SD/FESDATA partitions, are not changed. The
+queue timeout does not shorten the in-probe READ CAPACITY that already
+captured the compiled-in 30s timeout; the quirk above is what keeps that
+probe off the 180s path.
 
 - If FAT `linux/u-boot.txt` already has an `ethaddr=` line, with any value, the
   script changes nothing. That is the manual override: write

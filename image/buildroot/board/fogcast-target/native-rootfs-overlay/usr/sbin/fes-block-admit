@@ -1,13 +1,15 @@
 #!/bin/sh
-# Shorten SCSI timeouts for optical, empty-removable and zero-capacity disks.
+# Shorten SCSI timeouts for optical drives and disks with no usable media.
 #
-# The decision reads only sysfs size, removable and device/type. It never
-# opens the device node. USB sticks and the SD/FESDATA card are left alone.
-# An empty SuperStation dock DVD (often sda, 0 bytes) therefore cannot make a
-# later directory listing or blkid wait out a 180s SCSI command.
+# The decision reads only sysfs size, device/type, device/state and
+# device/access_state. It never opens the device node and never reads
+# inquiry. A missing, empty, non-numeric or zero size is no-media, as is a
+# SCSI state that is not ready. Unit Not Ready on this kernel shows up as an
+# unreadable size (the empty JMS583 bridge). That device is never "ok".
+# A USB stick with size greater than 0 and the SD/FESDATA card are left alone.
 #
 #   fes-block-admit              scan /sys and set timeout to 1s on skips
-#   fes-block-admit --reason NAME  print optical, no-media, zero-capacity or ok
+#   fes-block-admit --reason NAME  print optical, no-media or ok
 #
 # FES_SYSFS overrides /sys for tests.
 set -eu
@@ -65,8 +67,36 @@ device_dir() {
   return 1
 }
 
+# state_bad and access_bad match the SCSI sysfs names that mean "do not open".
+state_bad() {
+  case $1 in
+    offline|transport-offline|blocked|created-blocked|cancel|deleted|quiesce) return 0 ;;
+  esac
+  return 1
+}
+
+access_bad() {
+  case $1 in
+    offline|unavailable|standby) return 0 ;;
+  esac
+  return 1
+}
+
+# not_ready is true when this device, or its parent disk, is not ready.
+not_ready() {
+  dir=$1
+  name=$2
+  if state_bad "$(read_attr "$dir/device/state")" || access_bad "$(read_attr "$dir/device/access_state")"; then
+    return 0
+  fi
+  parent=$(parent_of "$name")
+  [ -n "$parent" ] || return 1
+  parent_dir=$(device_dir "$parent") || return 1
+  state_bad "$(read_attr "$parent_dir/device/state")" || access_bad "$(read_attr "$parent_dir/device/access_state")"
+}
+
 # reason_of prints a skip reason and returns 0, or returns 1 when the device
-# may be opened.
+# may be opened. A name that is not in sysfs, other than sr*, returns 1.
 reason_of() {
   name=$1
   case $name in
@@ -90,23 +120,23 @@ reason_of() {
     printf '%s\n' optical
     return 0
   fi
-  size=$(read_attr "$dir/size")
-  removable=$(read_attr "$dir/removable")
-  if [ -z "$removable" ]; then
-    parent=$(parent_of "$name")
-    if [ -n "$parent" ]; then
-      parent_dir=$(device_dir "$parent") || parent_dir=
-      if [ -n "$parent_dir" ]; then
-        removable=$(read_attr "$parent_dir/removable")
-      fi
-    fi
-  fi
-  if [ "$size" = 0 ] && [ "$removable" = 1 ]; then
+  if not_ready "$dir" "$name"; then
     printf '%s\n' no-media
     return 0
   fi
+  if [ ! -f "$dir/size" ]; then
+    printf '%s\n' no-media
+    return 0
+  fi
+  size=$(read_attr "$dir/size")
+  case $size in
+    ''|*[!0-9]*)
+      printf '%s\n' no-media
+      return 0
+      ;;
+  esac
   if [ "$size" = 0 ]; then
-    printf '%s\n' zero-capacity
+    printf '%s\n' no-media
     return 0
   fi
   return 1

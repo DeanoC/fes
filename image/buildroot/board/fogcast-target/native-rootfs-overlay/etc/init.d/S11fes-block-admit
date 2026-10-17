@@ -1,13 +1,24 @@
 #!/bin/sh
 # Run after mdev has created nodes for disks that are already attached.
-# Hotplug of a later dock DVD or USB stick is handled by /etc/mdev.conf.
+# Hotplug of a later optical drive or USB stick is handled by /etc/mdev.conf.
 # Buildroot's S10mdev points the kernel hotplug helper at mdev; repeat that
 # here so the sd/sr rules still run if a device appears after this script.
+# The JMS583 quirk is applied again in case S02 ran before FAT was mounted.
 # FES_BLOCK_ADMIT overrides the helper path in tests.
+# FES_USB_QUIRK overrides the quirk helper in tests.
 # FES_HOTPLUG overrides the hotplug file in tests.
 set -eu
 case "${1:-start}" in
 start)
+  quirk=${FES_USB_QUIRK:-}
+  if [ -z "$quirk" ]; then
+    if [ -e /sys/module/usb_storage/parameters/quirks ] || [ -d /media/fat ]; then
+      quirk=/usr/sbin/fes-usb-quirk
+    fi
+  fi
+  if [ -n "$quirk" ]; then
+    "$quirk" || :
+  fi
   hotplug=${FES_HOTPLUG:-/proc/sys/kernel/hotplug}
   if [ -n "${FES_HOTPLUG:-}" ] || [ -w /proc/sys/kernel/hotplug ]; then
     printf '%s\n' /sbin/mdev > "$hotplug" 2>/dev/null || :

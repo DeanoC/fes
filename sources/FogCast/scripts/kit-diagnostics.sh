@@ -2,8 +2,9 @@
 # Read-only diagnostics for a BusyBox DE10-Nano kit.
 # Prints schema fogcast.kit-diagnostics.v1 as key=value on stdout.
 # Reads /proc, a few identity files, and `df -P -k` of /, /media/fat and /tmp.
-# Those three mounts are skipped when sysfs says the backing disk is optical,
-# removable with no media, or zero-capacity. Does not create files,
+# Those three mounts are skipped when sysfs says the backing disk is optical
+# or has no usable media (size missing, unreadable or zero, or SCSI state
+# not ready). Does not create files,
 # restart services, or write /media/fat or u-boot.txt.
 #
 # The output contract is sources/FogCast/docs/kit-resource-limits.md.
@@ -815,8 +816,8 @@ fs_tmp_used=
 fs_tmp_free=
 fs_tmp_pct=
 
-# Same cheap sysfs decision as fes-block-admit: size, removable, device/type.
-# A missing attribute is not treated as zero. sr* and SCSI type 5 are optical.
+# Same cheap sysfs decision as fes-block-admit: size, device/type and state.
+# A missing or unreadable size is no-media. sr* and SCSI type 5 are optical.
 kit_attr() {
   if [ -f "$1" ]; then
     tr -d ' \t\r\n' < "$1"
@@ -900,10 +901,37 @@ kit_block_skipped() {
     fi
   fi
   [ "$type" = 5 ] && return 0
+  kit_state_bad "$(kit_attr "$dir/device/state")" && return 0
+  kit_access_bad "$(kit_attr "$dir/device/access_state")" && return 0
+  parent=$(kit_parent "$name")
+  if [ -n "$parent" ]; then
+    parent_dir=/sys/class/block/$parent
+    [ -d "$parent_dir" ] || parent_dir=/sys/block/$parent
+    if [ -d "$parent_dir" ]; then
+      kit_state_bad "$(kit_attr "$parent_dir/device/state")" && return 0
+      kit_access_bad "$(kit_attr "$parent_dir/device/access_state")" && return 0
+    fi
+  fi
+  [ -f "$dir/size" ] || return 0
   size=$(kit_attr "$dir/size")
-  removable=$(kit_attr "$dir/removable")
-  [ "$size" = 0 ] && [ "$removable" = 1 ] && return 0
+  case $size in
+    ''|*[!0-9]*) return 0 ;;
+  esac
   [ "$size" = 0 ] && return 0
+  return 1
+}
+
+kit_state_bad() {
+  case $1 in
+    offline|transport-offline|blocked|created-blocked|cancel|deleted|quiesce) return 0 ;;
+  esac
+  return 1
+}
+
+kit_access_bad() {
+  case $1 in
+    offline|unavailable|standby) return 0 ;;
+  esac
   return 1
 }
 

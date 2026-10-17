@@ -1,9 +1,13 @@
 // Package blockprobe decides whether a Linux block device may be opened.
 //
-// The decision uses only the sysfs attributes size, removable and device/type.
-// It does not open the device node. Optical devices (sr* or SCSI type 5),
-// removable devices with no media, and any other zero-capacity device are
-// refused so callers do not block in SCSI command timeouts.
+// The decision uses only sysfs size, device/type, device/state and
+// device/access_state. It does not open the device node and does not read
+// inquiry or any other attribute that can issue a SCSI command. Optical
+// devices (sr* or SCSI type 5) are refused. Any other device whose size is
+// missing, empty, not a number, or zero, or whose SCSI state is not ready,
+// is refused as no-media. An empty bridge reports Unit Not Ready and never
+// publishes a readable size; that device must not be classified as ok.
+// Callers therefore do not block in SCSI command timeouts.
 package blockprobe
 
 import (
@@ -23,10 +27,9 @@ import (
 const (
 	// ReasonOptical is an sr* node or SCSI peripheral type 5.
 	ReasonOptical = "optical"
-	// ReasonNoMedia is a removable device whose size is zero.
+	// ReasonNoMedia is a device with no usable media: size is missing,
+	// unreadable or zero, or the SCSI device is not ready.
 	ReasonNoMedia = "no-media"
-	// ReasonZero is any other device whose size is zero.
-	ReasonZero = "zero-capacity"
 
 	// OpenTimeout bounds an open and read that passed the sysfs check.
 	OpenTimeout = 3 * time.Second
@@ -42,7 +45,7 @@ type Decision struct {
 	Reason string
 }
 
-// Decide reads size, removable and device/type for name under blockDir.
+// Decide reads size, device/type and device state for name under blockDir.
 // blockDir is either /sys/class/block or /sys/block. The boolean is false when
 // name is not present there and is not an sr* node.
 func Decide(blockDir, name string) (Decision, bool) {
@@ -231,22 +234,55 @@ func classify(blockDir, dir, name string) Decision {
 	if opticalName(name) || scsiType(blockDir, dir, name) == 5 {
 		return Decision{Name: name, Allow: false, Reason: ReasonOptical}
 	}
-	size, sizeOK := readUint(filepath.Join(dir, "size"))
-	removable := readTrim(filepath.Join(dir, "removable")) == "1"
-	if !removable {
-		if parent := parentDisk(name); parent != "" {
-			if parentDir, ok := deviceDir(blockDir, parent); ok {
-				removable = readTrim(filepath.Join(parentDir, "removable")) == "1"
-			}
-		}
-	}
-	if sizeOK && size == 0 && removable {
+	if notReady(blockDir, dir, name) {
 		return Decision{Name: name, Allow: false, Reason: ReasonNoMedia}
 	}
-	if sizeOK && size == 0 {
-		return Decision{Name: name, Allow: false, Reason: ReasonZero}
+	// A missing, empty or non-numeric size is not a present disk. The empty
+	// JMS583 bridge is in this state while the kernel is still reporting
+	// Unit Not Ready; treating it as ok left the 180s probe timeout in place.
+	size, sizeOK := readUint(filepath.Join(dir, "size"))
+	if !sizeOK || size == 0 {
+		return Decision{Name: name, Allow: false, Reason: ReasonNoMedia}
 	}
 	return Decision{Name: name, Allow: true}
+}
+
+// notReady reports a SCSI state or ALUA access state that means the device
+// must not be opened. Unit Not Ready itself is not a sysfs attribute on this
+// kernel; the probe leaves size unreadable, which classify also refuses.
+func notReady(blockDir, dir, name string) bool {
+	if badState(readTrim(filepath.Join(dir, "device", "state"))) ||
+		badAccess(readTrim(filepath.Join(dir, "device", "access_state"))) {
+		return true
+	}
+	parent := parentDisk(name)
+	if parent == "" {
+		return false
+	}
+	parentDir, ok := deviceDir(blockDir, parent)
+	if !ok {
+		return false
+	}
+	return badState(readTrim(filepath.Join(parentDir, "device", "state"))) ||
+		badAccess(readTrim(filepath.Join(parentDir, "device", "access_state")))
+}
+
+func badState(state string) bool {
+	switch state {
+	case "offline", "transport-offline", "blocked", "created-blocked", "cancel", "deleted", "quiesce":
+		return true
+	default:
+		return false
+	}
+}
+
+func badAccess(state string) bool {
+	switch state {
+	case "offline", "unavailable", "standby":
+		return true
+	default:
+		return false
+	}
 }
 
 func scsiType(blockDir, dir, name string) int {

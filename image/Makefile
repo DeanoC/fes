@@ -37,6 +37,7 @@ test:
 	sh scripts/tests/shutdown-budget_test.sh
 	sh scripts/tests/ethaddr-init_test.sh
 	sh scripts/tests/block-admit_test.sh
+	sh scripts/tests/usb-quirk_test.sh
 	sh scripts/tests/target-image-rootfs_test.sh
 	sh scripts/tests/rootfs-package-cleanup_test.sh
 	sh scripts/tests/verify-target-image-cleanup_test.sh

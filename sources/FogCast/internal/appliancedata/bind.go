@@ -96,7 +96,7 @@ type Config struct {
 	EvaluateGate  func() (Gate, error)
 	DevicePresent func(string) bool
 	// Probe refuses a candidate before it is opened. Nil uses the sysfs check
-	// that skips optical, empty-removable and zero-capacity devices.
+	// that skips optical devices and disks with no usable media.
 	Probe     func(string) error
 	ReadLabel func(string) (string, error)
 	Mounted   func(string) bool

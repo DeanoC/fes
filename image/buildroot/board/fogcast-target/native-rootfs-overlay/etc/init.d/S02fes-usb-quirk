@@ -1,0 +1,17 @@
+#!/bin/sh
+# Run before mdev. The JMS583 probe can start later in boot; the quirk has
+# to be installed before that probe, and again from S11 if FAT was not
+# mounted yet. FES_USB_QUIRK overrides the helper in tests.
+set -u
+case "${1:-start}" in
+start)
+  quirk=${FES_USB_QUIRK:-/usr/sbin/fes-usb-quirk}
+  "$quirk" || :
+  ;;
+stop)
+  ;;
+*)
+  printf '%s\n' "usage: $0 start|stop" >&2
+  exit 2
+  ;;
+esac

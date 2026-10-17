@@ -1071,7 +1071,7 @@ func loopBackingFilesFrom(blockDir string) ([]string, error) {
 	}
 	var paths []string
 	for _, entry := range entries {
-		// Optical, empty and zero-capacity devices are ignored before any
+		// Optical devices and disks with no usable media are ignored before any
 		// further sysfs read. Loop backing files are read only for the rest.
 		if decision, ok := blockprobe.Decide(blockDir, entry.Name()); ok && !decision.Allow {
 			continue
