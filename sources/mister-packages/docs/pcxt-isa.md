@@ -77,6 +77,12 @@ between idle cards.
 5. The shell asserts COMMIT. The endpoint emits exactly one `device_commit`
    pulse and records DONE on that edge. The card performs its operation only
    on that pulse. The shell waits for DONE before dropping VALID and COMMIT.
+   If the selected owner drops PRESENT or SEEN, echoes a different tag, or
+   sets a reserved response bit before DONE, the bridge reports a protocol
+   fault and drains. It does not issue another COMMIT. A pulse already
+   accepted by the card is not rolled back. A present owner that still
+   matches the tag continues to wait for DONE; that wait is the registered
+   response path, not a timeout.
 6. Four drain edges clear boundary and endpoint state before `cycle_done` pulses
    and `cycle_ready` admits another request. Held master VALID is an ordinary
    ready/valid stream and can request another transfer on a later ready edge.
@@ -89,9 +95,13 @@ internal faults into its machine diagnostic policy; no CPU integration exists ye
 
 Reset dominates commit. The boundary sends RESET to cards and clears responses;
 the bridge drains old pipeline state without a phantom completion. Devices
-clear their pending operations and IRQ/DRQ. Reset after a completed commit is
-not a rollback of an external side effect. The CPU/8237 arbiter must establish
-its own reset and persistence semantics when integrated.
+clear their pending operations and IRQ/DRQ. Each card endpoint also receives
+the shell reset directly. The boundary register can still hold COMMIT on the
+edge reset is asserted, and the registered RESET bit does not update until
+the next edge, so the endpoint reset is what suppresses `device_commit` on
+that edge. Reset after a completed commit is not a rollback of an external
+side effect. The CPU/8237 arbiter must establish its own reset and
+persistence semantics when integrated.
 
 DMA here is only the peripheral byte handshake. A future 8237 master must
 arbitrate ownership, perform the RAM half of the transfer, and advance address,

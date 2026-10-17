@@ -165,7 +165,8 @@ for the new bytes.
 `make sim-fes-pcxt` runs the [PC/XT transaction fabric](../cores/fes-pcxt/README.md)
 through eight portable registered slot boundaries with diagnostic cards in slots
 1 and 8. It tests wait-state side effects, memory and I/O decode, interrupt and
-DMA wiring, conflict rejection and reset during transfers. It also executes an
+DMA wiring, conflict rejection, a lost commit acknowledgement, and reset during
+transfers including a commit already pending at the card. It also executes an
 original diagnostic ROM on the pinned MCL86 8088 through the fabric with variable
 memory waits, interrupts, word I/O and fault recovery. GNU x86 `as` and `ld` are
 required alongside Verilator. This is a simulation

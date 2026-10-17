@@ -50,7 +50,7 @@ module cpu_top (
         .cycle_lock(locked), .cycle_dma_channel(2'b0), .cycle_terminal_count(1'b0),
         .guest_ce(guest_ce), .cycle_done(isa_done), .cycle_rdata(isa_rdata),
         .cycle_fault(isa_fault), .irq(irq), .drq(drq), .inject(inject),
-        .observed_request()
+        .observed_request(), .reset_side_effect()
     );
     /* verilator lint_on PINCONNECTEMPTY */
 endmodule

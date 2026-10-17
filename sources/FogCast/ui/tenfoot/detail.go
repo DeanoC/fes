@@ -3,8 +3,10 @@ package tenfoot
 import (
 	"context"
 	"fmt"
-	"github.com/DeanoC/FogCast/hostclient"
 	"image"
+	"strings"
+
+	"github.com/DeanoC/FogCast/hostclient"
 )
 
 const (
@@ -122,11 +124,34 @@ func (a *App) openDetailLocked() {
 	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
 		return
 	}
+	a.libraryDetail = hostclient.Game{}
+	a.detailOpen = true
+	a.carouselIndex = skipFailedCarousel(a.focusDetailLocked().ScreenshotIDs, a.shotFailedLocked, a.carouselIndex)
+}
+
+// openLibraryDetailLocked opens Details for the title a launch refused.
+// The focused Library row keeps the grid path. Any other title, including a
+// Home recent and an empty grid, is the Details subject itself.
+func (a *App) openLibraryDetailLocked(game hostclient.Game) {
+	if a.room != nil {
+		return
+	}
+	focused := ""
+	if a.grid.Focus >= 0 && a.grid.Focus < len(a.games) {
+		focused = a.games[a.grid.Focus].ID
+	}
+	if id := strings.TrimSpace(game.ID); id == "" || id == focused {
+		a.libraryDetail = hostclient.Game{}
+		a.openDetailLocked()
+		return
+	}
+	a.libraryDetail = game
 	a.detailOpen = true
 	a.carouselIndex = skipFailedCarousel(a.focusDetailLocked().ScreenshotIDs, a.shotFailedLocked, a.carouselIndex)
 }
 
 func (a *App) closeDetailLocked() {
+	a.libraryDetail = hostclient.Game{}
 	if !a.detailOpen {
 		return
 	}
@@ -169,6 +194,15 @@ func (a *App) screenshotContextLocked() context.Context {
 	return ctx
 }
 
+// confirmOpenDetailLocked runs Confirm for the title Details is showing.
+func (a *App) confirmOpenDetailLocked() {
+	if a.room == nil && strings.TrimSpace(a.libraryDetail.ID) != "" {
+		a.startLaunchGameLocked(a.libraryDetail)
+		return
+	}
+	a.startLaunchLocked()
+}
+
 func (a *App) handleDetailLocked(cmd Command) bool {
 	if !a.detailOpen {
 		return false
@@ -186,13 +220,13 @@ func (a *App) handleDetailLocked(cmd Command) bool {
 		a.stepCarouselLocked(1)
 		return true
 	case CmdSelect:
-		a.startLaunchLocked()
+		a.confirmOpenDetailLocked()
 		return true
 	case CmdTab:
 		if len(a.focusDetailLocked().ScreenshotIDs) > 1 {
 			a.stepCarouselLocked(1)
 		} else {
-			a.startLaunchLocked()
+			a.confirmOpenDetailLocked()
 		}
 		return true
 	case CmdTabPrev:
@@ -291,6 +325,22 @@ func (a *App) applyScreenshotResultLocked(result workResult) {
 	slot.message = ""
 }
 
+// detailSubjectIDLocked is the title whose presentation and screenshots
+// Details is showing: a chosen room edition, an off-grid Library subject,
+// or the focused row.
+func (a *App) detailSubjectIDLocked() string {
+	if a.room != nil && strings.TrimSpace(a.roomDetail.ID) != "" {
+		return a.roomDetail.ID
+	}
+	if a.room == nil && strings.TrimSpace(a.libraryDetail.ID) != "" {
+		return a.libraryDetail.ID
+	}
+	if a.grid.Focus >= 0 && a.grid.Focus < len(a.games) {
+		return a.games[a.grid.Focus].ID
+	}
+	return ""
+}
+
 func (a *App) queueFocusedScreenshotsLocked(queue []pendingWork) []pendingWork {
 	if a.gpuParked || a.attractActive || !a.detailOpen {
 		return queue
@@ -298,10 +348,9 @@ func (a *App) queueFocusedScreenshotsLocked(queue []pendingWork) []pendingWork {
 	if len(a.inflight) >= maxInflight {
 		return queue
 	}
-	if a.room == nil || a.roomDetail.ID == "" {
-		if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
-			return queue
-		}
+	gameID := a.detailSubjectIDLocked()
+	if gameID == "" {
+		return queue
 	}
 	ids := a.focusDetailLocked().ScreenshotIDs
 	if len(ids) == 0 {
@@ -336,12 +385,6 @@ func (a *App) queueFocusedScreenshotsLocked(queue []pendingWork) []pendingWork {
 			continue
 		}
 		slot.phase = coverArtwork
-		gameID := ""
-		if a.room != nil && a.roomDetail.ID != "" {
-			gameID = a.roomDetail.ID
-		} else if a.grid.Focus >= 0 && a.grid.Focus < len(a.games) {
-			gameID = a.games[a.grid.Focus].ID
-		}
 		a.screenshotContextLocked()
 		a.inflight[key] = workScreenshot
 		queue = append(queue, pendingWork{
@@ -372,11 +415,15 @@ func (a *App) evictShotsLocked() {
 func (a *App) detailSnapshotLocked() DetailSnapshot {
 	ids := a.focusDetailLocked().ScreenshotIDs
 	index := clampCarouselIndex(a.carouselIndex, len(ids))
+	hint := detailHintFor(a.affinity.current.Kind, len(ids))
+	if a.room == nil {
+		hint = libraryDetailHint(a.affinity.current.Kind, len(ids), a.detailPlayLocked())
+	}
 	return DetailSnapshot{
 		Open:  a.detailOpen,
 		Index: index,
 		Count: len(ids),
-		Hint:  detailHintFor(a.affinity.current.Kind, len(ids)),
+		Hint:  hint,
 	}
 }
 

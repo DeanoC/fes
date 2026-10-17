@@ -13,7 +13,8 @@ module pcxt_isa_probe #(
     input wire clk,
     input wire reset,
     input wire [`FES_PCXT_ISA_REQUEST_BITS-1:0] request,
-    output wire [`FES_PCXT_ISA_RESPONSE_BITS-1:0] response
+    output wire [`FES_PCXT_ISA_RESPONSE_BITS-1:0] response,
+    output wire commit_pulse
 );
     wire active, commit;
     wire [`FES_PCXT_ISA_REQUEST_BITS-1:0] access_request;
@@ -46,6 +47,7 @@ module pcxt_isa_probe #(
         .device_ready(waited >= wait_cycles), .device_rdata(rdata),
         .device_commit(commit), .irq(irq), .drq(drq)
     );
+    assign commit_pulse = commit;
 
     always @* begin
         rdata = 8'hff;
