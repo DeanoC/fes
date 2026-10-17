@@ -128,20 +128,20 @@ firmware's CPU interrupt checks. These are host simulations, with no sealed
 artifact or kit acceptance implied.
 
 `build-fes-c64` authenticates `toolchain.lock` (Yosys `5391eeb1`,
-Mistral `8fcc4cb4`, nextpnr `9128800f`). The build record uses the audited
+Mistral `8fcc4cb4`, nextpnr `d2697327`). The build record uses the audited
 static closure in `scripts/source_closures.json`. `--gpu-router CUDA` with
 `--toolchain-root` is a separate package; slot cards take those same flags.
 The 6 Oct kit diagnostic used
 nextpnr `0c5ed400` and does not accept this pin. Supporting evidence from a
 HIP build of [#749](https://github.com/DeanoC/fes/pull/749) head
-`8b713d5d5716f47bfbc58582957e77ade4878565` on this lock, on Powerboat's
-RX 7900 XTX: package
+`8b713d5d5716f47bfbc58582957e77ade4878565` on the previous pin (nextpnr
+`9128800f`), on Powerboat's RX 7900 XTX: package
 `22ecf46827b3f57b55f7b5e5187167c7177bf29dc931870721aba629639a9dbf`, build
 `4c90ff27c072d8fbfa81366f2bd7d9a1`, timing system 54.51/52.22, pixel
 82.79/74.25, audio 215.33/12.29. The
 [kit B HIL](https://github.com/DeanoC/fes/pull/749#issuecomment-6229821313)
-showed BASIC READY and clean video. The recorded seal is the CUDA package
-above.
+showed BASIC READY and clean video. This pin does not repeat that seal.
+The recorded seal remains the CUDA package named at the top of this file.
 
 The socket check admits a compiler-inserted route-through
 buffer only at a pinned boundary flip-flop's paired combinational half, with
