@@ -60,9 +60,19 @@ module c64_sid_oscillator #(
         // The final idle state includes FREQ, TEST and combined-wave feedback.
         // Forward even a repeated CONTROL write on the last idle edge.
         // Reset preserves the old phase and clears frequency, even on Phi.
+        // Sequenced voices only change phase or frequency on an idle edge
+        // through a register write (TEST set clears the phase); feedback is
+        // applied on finish edges, after which an idle edge recomputes the
+        // sum from q. The explicit write mux keeps the full next-state logic
+        // out of the adder path. Direct mode forwards the complete n.
+        wire write_test_set=we && addr==3'd4 && !q.control[3] && din[3];
+        wire [23:0] idle_phase=write_test_set ? 24'd0 : q.phase;
+        wire [15:0] idle_freq=(we && addr==3'd0) ? {q.freq[15:8],din} :
+                              (we && addr==3'd1) ? {din,q.freq[7:0]} : q.freq;
         always @(posedge clk)
             if(reset) value <= q.phase;
-            else if(!phi && !(SEQUENCED && pending[1])) value <= n.phase+{8'd0,n.freq};
+            else if(!phi && !(SEQUENCED && pending[1]))
+                value <= SEQUENCED ? idle_phase+{8'd0,idle_freq} : n.phase+{8'd0,n.freq};
         assign next_phase=value;
     end else begin : direct_phase
         assign next_phase=q.phase+{8'd0,q.freq};

@@ -59,8 +59,37 @@ module c64_machine #(
     always @(posedge clk_sys)
         if (cpu_ce) cycle_clock <= 6'd0;
         else if (cycle_clock != 6'd63) cycle_clock <= cycle_clock + 6'd1;
-    wire bus_strobe = cycle_clock == 6'd26;
-    wire bus_sample = cycle_clock == 6'd43;
+    // The bus strobe (cycle 26) and read sample (cycle 43) pulses are
+    // predicted one edge ahead into registers, like the Phi enable: the same
+    // pulses, without the cycle counter compare in the device write, read
+    // and interrupt paths. A Phi enable never follows cycles 25 or 42.
+    reg bus_strobe = 1'b0;
+    reg bus_sample = 1'b0;
+    always @(posedge clk_sys) begin
+        bus_strobe <= cycle_clock == 6'd25 && !cpu_ce;
+        bus_sample <= cycle_clock == 6'd42 && !cpu_ce;
+    end
+    // Each CIA gets its own predicted write strobe: the same edge-26 pulse,
+    // already qualified by direction and chip select, so the register sits
+    // beside the CIA instead of at the end of the shared strobe's fanout.
+    wire bus_we;
+    reg cia1_we = 1'b0;
+    reg cia2_we = 1'b0;
+    wire sel_cia1_q, sel_cia2_q;
+    // The register select and write data are also copied beside each CIA:
+    // they change at the CPU enable and are consumed at edge 26 or 43.
+    reg [3:0] cia1_rs = 4'd0;
+    reg [3:0] cia2_rs = 4'd0;
+    reg [7:0] cia1_din = 8'd0;
+    reg [7:0] cia2_din = 8'd0;
+    always @(posedge clk_sys) begin
+        cia1_we <= cycle_clock == 6'd25 && !cpu_ce && bus_we && sel_cia1_q;
+        cia2_we <= cycle_clock == 6'd25 && !cpu_ce && bus_we && sel_cia2_q;
+        cia1_rs <= bus_addr[3:0];
+        cia2_rs <= bus_addr[3:0];
+        cia1_din <= bus_wdata;
+        cia2_din <= bus_wdata;
+    end
 
     reg [3:0] reset_hold = 4'hf;
     always @(posedge clk_sys)
@@ -75,7 +104,8 @@ module c64_machine #(
     wire [15:0] cpu_ab;
     wire [7:0] cpu_do;
     wire cpu_we;
-    reg bus_we = 1'b0;
+    reg bus_we_q = 1'b0;
+    assign bus_we = bus_we_q;
     wire vic_ba_n;
     // The synchronous CPU prepares the following bus cycle. Only a write
     // already on the bus can finish under BA; a prepared write must not
@@ -106,8 +136,8 @@ module c64_machine #(
         if (cpu_run_ce) begin
             bus_addr <= cpu_ab;
             bus_wdata <= cpu_do;
-            bus_we <= cpu_we && reset_writes == 2'd0 && !system_reset;
-        end else if(cpu_ce) bus_we <= 0;
+            bus_we_q <= cpu_we && reset_writes == 2'd0 && !system_reset;
+        end else if(cpu_ce) bus_we_q <= 0;
 
     reg [7:0] ddr = 8'h00;
     reg [7:0] pr = 8'h00;
@@ -159,6 +189,8 @@ module c64_machine #(
     reg a000 = 1'b0, e000 = 1'b0, roml = 1'b0, d000 = 1'b0;
     reg show_io = 1'b0, show_char = 1'b0, show_basic = 1'b0, show_kernal = 1'b0;
     reg sel_vic = 1'b0, sel_sid = 1'b0, sel_color = 1'b0, sel_cia1 = 1'b0, sel_cia2 = 1'b0;
+    assign sel_cia1_q = sel_cia1;
+    assign sel_cia2_q = sel_cia2;
     reg sel_port = 1'b0, basic_window = 1'b0, ultimax_open = 1'b0;
     always @(posedge clk_sys) begin
         a000 <= a000_c;
@@ -268,7 +300,13 @@ module c64_machine #(
     // fractional periods at non-integral CPU clock rates.
     localparam integer TOD_PHASE_BITS = $clog2(CPU_CLOCK_HZ + 50);
     reg [TOD_PHASE_BITS-1:0] tod_phase;
-    wire tod_tick = cpu_ce && tod_phase >= CPU_CLOCK_HZ - 50;
+    // The accumulator only moves on Phi, so its compare is registered on
+    // the edges in between and the tick is the same pulse without the
+    // compare in the CIA alarm/interrupt paths.
+    reg tod_due = 1'b0;
+    always @(posedge clk_sys)
+        tod_due <= tod_phase >= CPU_CLOCK_HZ - 50;
+    wire tod_tick = cpu_ce && tod_due;
     always @(posedge clk_sys) begin
         if (system_reset) tod_phase <= 0;
         else if (cpu_ce)
@@ -278,8 +316,8 @@ module c64_machine #(
 
     c64_cia cia1 (
         .clk(clk_sys), .phi(cpu_ce), .tod_tick(tod_tick), .reset(system_reset), .cs(sel_cia1),
-        .we(bus_strobe && bus_we && sel_cia1), .reading(!bus_we), .read_sample(bus_sample),
-        .rs(bus_addr[3:0]), .din(bus_wdata),
+        .we(cia1_we), .reading(!bus_we), .read_sample(bus_sample),
+        .rs(cia1_rs), .din(cia1_din),
         .dout(cia1_dout), .pa_pin(~pa1_low), .pb_pin(~pb1_low),
         .pa_reg(cia1_pa), .pb_reg(cia1_pb), .pa_ddr(cia1_ddra), .pb_ddr(cia1_ddrb),
         .irq(cia1_irq)
@@ -337,8 +375,8 @@ module c64_machine #(
                           (cia2_ddra[5:0] & cia2_pa[5:0]) | (~cia2_ddra[5:0] & 6'h3F)};
     c64_cia cia2 (
         .clk(clk_sys), .phi(cpu_ce), .tod_tick(tod_tick), .reset(system_reset), .cs(sel_cia2),
-        .we(bus_strobe && bus_we && sel_cia2), .reading(!bus_we), .read_sample(bus_sample),
-        .rs(bus_addr[3:0]), .din(bus_wdata),
+        .we(cia2_we), .reading(!bus_we), .read_sample(bus_sample),
+        .rs(cia2_rs), .din(cia2_din),
         .dout(cia2_dout), .pa_pin(pa2_pin), .pb_pin(8'hFF),
         .pa_reg(cia2_pa), .pb_reg(cia2_pb), .pa_ddr(cia2_ddra), .pb_ddr(cia2_ddrb),
         .irq(cia2_irq)

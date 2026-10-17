@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Default C64 SID audio stage: voice DAC/envelope products, a Chamberlin
 // state-variable filter and the master volume, evaluated once per Phi by a
-// small sequencer with one shared nibble-serial multiplier. Routing follows
+// small sequencer with one shared nibble-serial multiplier (28 edges). Routing follows
 // the MOS6581 registers: RES/FILT selects the filtered voices, MODE/VOL
 // selects LP/BP/HP outputs, the 3OFF bit mutes an unfiltered voice 3 and the
 // external input is absent. Coefficients come from c64_sid_svf_tables.vh.
@@ -11,10 +11,11 @@ module c64_sid_svf(input wire clk,reset,start,
  input wire [10:0] fc,input wire [7:0] res_filt,mode_vol,
  output reg done=0,output wire busy,output reg signed [31:0] sample);
  `include "c64_sid_svf_tables.vh"
- localparam [3:0] IDLE=0,DAMP=1,HIGH=2,BAND_MUL=3,BAND=4,LOW_MUL=5,LOW=6,MIX=7,MUL=8;
+ localparam [3:0] IDLE=0,DAMP=1,HIGH=2,BAND_MUL=3,BAND=4,LOW_MUL=5,LOW=6,MIX=7,MUL=8,SUM=9,SCALE=10;
  reg [3:0] state=IDLE,after=IDLE;
- reg signed [27:0] lp=0,bp=0,hp=0,filtered=0,direct=0;
- reg [7:0] mode=0;reg [3:0] volume=0;
+ reg signed [27:0] lp=0,bp=0,hp=0,filtered=0,direct=0,mixed=0;
+ reg signed [27:0] v0=0,v1=0,v2=0;
+ reg [7:0] mode=0;reg [3:0] volume=0;reg [2:0] filt=0;
  // Registered coefficient lookups (synchronous ROM reads). fc and res_filt
  // are held by the caller from capture until the next Phi, so the values are
  // valid from the second edge after a change; the sequencer uses them later.
@@ -47,18 +48,20 @@ module c64_sid_svf(input wire clk,reset,start,
    voice=28'(centered*$signed({1'b0,envelope}));
   end
  endfunction
- wire signed [27:0] v0=voice(wave0,env0),v1=voice(wave1,env1),v2=voice(wave2,env2);
- wire signed [27:0] mixed=direct+(mode[4]?lp:28'sd0)+(mode[5]?bp:28'sd0)+(mode[6]?hp:28'sd0);
  wire signed [31:0] scaled=(mixed*$signed({1'b0,volume}))>>>10;
  always @(posedge clk)begin
   done<=0;
   if(reset)begin
-   state<=IDLE;lp<=0;bp<=0;hp<=0;filtered<=0;direct<=0;mode<=0;volume<=0;sample<=0;product<=0;mul_step<=0;
+   state<=IDLE;lp<=0;bp<=0;hp<=0;filtered<=0;direct<=0;mixed<=0;mode<=0;volume<=0;filt<=0;sample<=0;product<=0;mul_step<=0;
   end else case(state)
    IDLE:if(start)begin
-    filtered<=(res_filt[0]?v0:28'sd0)+(res_filt[1]?v1:28'sd0)+(res_filt[2]?v2:28'sd0);
-    direct<=(res_filt[0]?28'sd0:v0)+(res_filt[1]?28'sd0:v1)+((res_filt[2]||mode_vol[7])?28'sd0:v2);
-    mode<=mode_vol;volume<=mode_vol[3:0];state<=DAMP;
+    v0<=voice(wave0,env0);v1<=voice(wave1,env1);v2<=voice(wave2,env2);
+    filt<=res_filt[2:0];mode<=mode_vol;volume<=mode_vol[3:0];state<=SUM;
+   end
+   SUM:begin
+    filtered<=(filt[0]?v0:28'sd0)+(filt[1]?v1:28'sd0)+(filt[2]?v2:28'sd0);
+    direct<=(filt[0]?28'sd0:v0)+(filt[1]?28'sd0:v1)+((filt[2]||mode[7])?28'sd0:v2);
+    state<=DAMP;
    end
    DAMP:begin mul_a<=bp;mul_b<={3'd0,damping};product<=0;mul_step<=0;after<=HIGH;state<=MUL;end
    HIGH:begin hp<=filtered-lp-product_q20;state<=BAND_MUL;end
@@ -66,7 +69,8 @@ module c64_sid_svf(input wire clk,reset,start,
    BAND:begin bp<=bp+product_q20;state<=LOW_MUL;end
    LOW_MUL:begin mul_a<=bp;mul_b<={6'd0,cutoff};product<=0;mul_step<=0;after<=LOW;state<=MUL;end
    LOW:begin lp<=lp+product_q20;state<=MIX;end
-   MIX:begin
+   MIX:begin mixed<=direct+(mode[4]?lp:28'sd0)+(mode[5]?bp:28'sd0)+(mode[6]?hp:28'sd0);state<=SCALE;end
+   SCALE:begin
     if(scaled>32'sd32767)sample<=32'sd32767;
     else if(scaled< -32'sd32768)sample<= -32'sd32768;
     else sample<=scaled;

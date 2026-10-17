@@ -38,7 +38,8 @@ The core lane is [docs/cores.md](../../docs/cores.md). The mailbox contract is
   CPU CHAREN. CPU CHAREN=0 uses the same character ROM.
   Color RAM is one synchronous dual-port M10K, 1024×4 at `$D800–$DBFF`;
   native DMA can read the final 24 scratch locations when VC wraps.
-  CPU bus strobes occur at system cycle 26 and reads are sampled at cycle 43.
+  CPU bus strobes occur at system cycle 26 and reads are sampled at cycle 43;
+  both pulses are predicted one edge ahead into registers.
   The address decode, the main RAM block-select output and the cartridge
   socket responses are each registered one further system edge; every
   consumer samples them at edge 26 or later, so the bus-level timing is
