@@ -17,6 +17,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/DeanoC/FogCast/appliance/blockprobe"
 	"github.com/DeanoC/FogCast/appliance/store"
 )
 
@@ -94,9 +95,12 @@ type Config struct {
 	ReleaseRoot   string
 	EvaluateGate  func() (Gate, error)
 	DevicePresent func(string) bool
-	ReadLabel     func(string) (string, error)
-	Mounted       func(string) bool
-	Mounter       Mounter
+	// Probe refuses a candidate before it is opened. Nil uses the sysfs check
+	// that skips optical devices and disks with no usable media.
+	Probe     func(string) error
+	ReadLabel func(string) (string, error)
+	Mounted   func(string) bool
+	Mounter   Mounter
 }
 
 func ProductionConfig() Config {
@@ -240,6 +244,9 @@ func applyDefaults(cfg Config) Config {
 	if cfg.DevicePresent == nil {
 		cfg.DevicePresent = pathExists
 	}
+	if cfg.Probe == nil {
+		cfg.Probe = productionProbe
+	}
 	if cfg.ReadLabel == nil {
 		cfg.ReadLabel = readExt4Label
 	}
@@ -260,9 +267,16 @@ func applyDefaults(cfg Config) Config {
 	return cfg
 }
 
+func productionProbe(path string) error {
+	return blockprobe.RejectsDevice("/sys", path)
+}
+
 func findDevice(cfg Config) (string, bool) {
 	for _, path := range cfg.Devices {
 		if !cfg.DevicePresent(path) {
+			continue
+		}
+		if err := cfg.Probe(path); errors.Is(err, blockprobe.ErrSkip) {
 			continue
 		}
 		if strings.HasSuffix(path, "/"+cfg.Label) {

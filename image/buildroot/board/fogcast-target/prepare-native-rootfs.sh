@@ -112,10 +112,14 @@ fi
 /bin/rm -rf "$target/var/log"
 /bin/mkdir -p "$target/var/log"
 
-/bin/chmod 0755 "$target/etc/init.d"/S15fes-ethaddr \
+/bin/chmod 0755 "$target/etc/init.d"/S02fes-usb-quirk \
+  "$target/etc/init.d"/S11fes-block-admit \
+  "$target/etc/init.d"/S15fes-ethaddr \
   "$target/etc/init.d"/S20mister-network \
   "$target/etc/init.d"/S30mister-dropbear \
   "$target/etc/init.d"/S49fogcast-target-smoke \
+  "$target/usr/sbin/fes-block-admit" \
+  "$target/usr/sbin/fes-usb-quirk" \
   "$target/usr/sbin/fes-reboot-backstop"
 
 /bin/rm -rf "$target/etc/dropbear"
