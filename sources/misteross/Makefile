@@ -1024,6 +1024,7 @@ C64_DIAGNOSTIC := build/diagnostics/fes-c64
 C64_VERILATOR_FLAGS := -DFES_SIMULATION -Wall -Wno-UNUSEDSIGNAL -Wno-DECLFILENAME -Wno-WIDTHEXPAND \
 	-Wno-WIDTHTRUNC -Wno-CASEX -Wno-PINCONNECTEMPTY -Wno-UNUSEDPARAM \
 	-Wno-CASEINCOMPLETE -Wno-CASEOVERLAP -Wno-SYNCASYNCNET -Wno-UNOPTFLAT \
+	$(VERILATOR_PROCASSINIT) \
 	-Icores/fes-c64/rtl -Icores/fes-c64/expansions -Icores/fes-common/generated
 # Full writable visibility remains available for deep internal diagnostics.
 C64_BOOT_FULL_VISIBILITY ?= 0
