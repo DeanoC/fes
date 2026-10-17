@@ -68,9 +68,8 @@ module top #(
     wire snapshot_req, snapshot_ready;
     wire [19:0] snapshot_addr;
     wire [7:0] snapshot_data;
-    fes_computer_mailbox #(
+    fes_computer_mailbox_direct #(
         .ENABLE_KEYBOARD(1), .ENABLE_PORTS(1), .ENABLE_AUDIO(1), .ENABLE_MOUSE(1),
-        .ENABLE_SESSION_DISPLAY(0), .DIRECT_ACCEPT_ACK(1),
         .ENABLE_ATARI_ST_FLOPPY(1), .ENABLE_ATARI_ST_FLOPPY_WRITE(1), .ENABLE_ATARI_ST_FLOPPY_GEOMETRY(1), .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(20),
         .UNIT0_MIN(`FES_COMPUTER_ATARI_ST_FLOPPY_GEOMETRY_MIN_BYTES),
         .UNIT0_MAX(`FES_COMPUTER_ATARI_ST_FLOPPY_GEOMETRY_MAX_BYTES)

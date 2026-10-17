@@ -11,10 +11,9 @@
 // ENABLE_APPLE2_FLOPPY, ENABLE_C64_DISK, ENABLE_SPECTRUM_TAPE and
 // ENABLE_ZX81_TAPE each occupy unit 0; a core sets one of them. UNIT0_MIN/MAX must match that interface.
 // Shells that leave the session-display plane off instantiate fes_computer_mailbox,
-// which ties these response inputs idle. Atari ST also sets DIRECT_ACCEPT_ACK so
-// its accept path matches the pre-session-display acknowledge. Verilator rejects
-// ranged input defaults, so the idle tie lives in that wrapper. ZX81 instantiates
-// this module and connects the plane. Verilator -Wall rejects a first module whose name
+// which ties these response inputs idle. Verilator rejects ranged input defaults,
+// so the idle tie lives in that wrapper. ZX81 instantiates this module and
+// connects the plane. Verilator -Wall rejects a first module whose name
 // differs from the filename, so that check is off for the core only.
 /* verilator lint_off DECLFILENAME */
 module fes_computer_mailbox_core #(
@@ -27,9 +26,6 @@ module fes_computer_mailbox_core #(
     parameter bit ENABLE_SPECTRUM_TAPE = 0,
     parameter bit ENABLE_ZX81_TAPE = 0,
     parameter bit ENABLE_SESSION_DISPLAY = 0,
-    // Atari ST sets this so accept assigns acknowledged_toggle directly.
-    // Shells that leave it 0 keep the session-display acknowledge mux.
-    parameter bit DIRECT_ACCEPT_ACK = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_WRITE = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_GEOMETRY = 0,
@@ -287,304 +283,6 @@ module fes_computer_mailbox_core #(
         display_wait = 1'b0;
     end
 
-    // DIRECT_ACCEPT_ACK is the pre-session-display accept path: the
-    // accepting edge assigns acknowledged_toggle from request_sync, and
-    // the display_wait hold is not elaborated. Atari ST sets it with the
-    // plane off. Every other shell leaves it 0, so the held acknowledge
-    // below stays the one they synthesize today.
-    generate
-        if (DIRECT_ACCEPT_ACK && !ENABLE_SESSION_DISPLAY) begin : direct_accept
-        always @(posedge clk) begin
-            request_meta <= request_toggle;
-            request_sync <= request_meta;
-            if (WRITABLE && media_changed) begin
-                snapshot_dirty <= 1'b1;
-                saved_authorized <= 1'b0;
-                snapshot_epoch <= snapshot_epoch + 16'd1;
-            end
-            if (freeze_ok) media_frozen <= 1'b1;
-            if (snapshot_data_ok && read_phase == 2'd0 && media_read_ready) begin
-                read_low <= media_read_data;
-                read_phase <= 2'd2; // electrical gap before the second byte request
-            end else if (snapshot_data_ok && read_phase == 2'd2) read_phase <= 2'd1;
-            if (request && (!ENABLE_MEDIA_BACKPRESSURE || !data_ok || media_write_ready) &&
-                (!mouse_ok || mouse_ready) && (!freeze_ok || (media_frozen && !media_write_busy)) &&
-                (!snapshot_data_ok || snapshot_complete)) begin
-                acknowledged_toggle <= request_sync;
-                response_error <= 1'b0;
-                response_data <= 16'h0000;
-                case (opcode)
-                    7'(`FES_COMPUTER_OPCODE_IDENTITY): begin
-                        if (index >= 8'd16) reject(E_INDEX);
-                        else if (argument != 16'd0) reject(E_ARGUMENT);
-                        else response_data <= identity_word(index, build_id);
-                    end
-                    7'(`FES_COMPUTER_OPCODE_EXECUTION): begin
-                        if (index != 8'd0) reject(E_INDEX);
-                        else if (argument > 16'd1) reject(E_ARGUMENT);
-                        else if (argument == 16'd0) begin
-                            exec_reset <= 1'b1;
-                            keyboard_rows <= 144'd0;
-                            controller_buttons <= 16'd0;
-                        end else begin
-                            exec_reset <= 1'b0;
-                        end
-                    end
-                    7'(`FES_COMPUTER_OPCODE_KEYBOARD_HID): begin
-                        if (!ENABLE_KEYBOARD) reject(E_OPCODE);
-                        else if (index > 8'd8) reject(E_INDEX);
-                        else if ((index == 8'd0 && argument[3:0] != 4'd0) ||
-                                 (index == 8'd8 && argument[15:8] != 8'd0)) reject(E_ARGUMENT);
-                        else keyboard_rows[index * 16 +: 16] <= argument;
-                    end
-                    7'(`FES_COMPUTER_OPCODE_CONTROLLER_BUTTONS): begin
-                        if (!ENABLE_PORTS) reject(E_OPCODE);
-                        else if (index > 8'd1) reject(E_INDEX);
-                        else if (argument[15:8] != 8'd0) reject(E_ARGUMENT);
-                        else if (index == 8'd0) controller_buttons[7:0] <= argument[7:0];
-                        else controller_buttons[15:8] <= argument[7:0];
-                    end
-                    7'(`FES_COMPUTER_OPCODE_MOUSE_RELATIVE): begin
-                        if (!ENABLE_MOUSE) reject(E_OPCODE);
-                        else if (index[7:2] != 6'd0) reject(E_INDEX);
-                        else if (exec_reset) reject(E_STATE);
-                    end
-                    7'(`FES_COMPUTER_OPCODE_MEDIA_INFO): begin
-                        if (!MEDIA) reject(E_OPCODE);
-                        else if (unit8 >= 5'd8 || field > 3'd5) reject(E_INDEX);
-                        else if (argument != 16'd0) reject(E_ARGUMENT);
-                        else if (unit8 == 5'd0) begin
-                            case (field)
-                                3'd0: response_data <= UNIT0_MIN[15:0];
-                                3'd1: response_data <= UNIT0_MIN[31:16];
-                                3'd2: response_data <= UNIT0_MAX[15:0];
-                                3'd3: response_data <= UNIT0_MAX[31:16];
-                                3'd4: response_data <= CHUNK_MAX[15:0];
-                                default: response_data <= {14'd0, unit0_state};
-                            endcase
-                        end
-                    end
-                    7'(`FES_COMPUTER_OPCODE_MEDIA_BEGIN): begin
-                        if (!MEDIA) reject(E_OPCODE);
-                        else if (unit4 != 6'd0) reject(E_INDEX);
-                        // Collection and accepted sector commits retain the old
-                        // image even for volatile loads. Never overlap a new host
-                        // upload with a writer draining through job withdrawal.
-                        else if (WRITABLE && media_write_busy) reject(E_STATE);
-                        else if (media_frozen && !saved_authorized) reject(E_STATE);
-                        else if (active) reject(E_STATE);
-                        else if (!begin_staged ? word != 2'd0 : word != begin_next) reject(E_INDEX);
-                        else if (word == 2'd3) begin
-                            if (begin_total < UNIT0_MIN || begin_total > UNIT0_MAX ||
-                                (GEOMETRY && begin_total != 32'd368640 &&
-                                begin_total != 32'd409600 &&
-                                begin_total != 32'd737280 &&
-                                begin_total != 32'd819200 &&
-                                begin_total != 32'd373248 &&
-                                begin_total != 32'd414720 &&
-                                begin_total != 32'd746496 &&
-                                begin_total != 32'd829440 &&
-                                begin_total != 32'd377856 &&
-                                begin_total != 32'd419840 &&
-                                begin_total != 32'd755712 &&
-                                begin_total != 32'd839680)) reject(E_ARGUMENT);
-                            else begin
-                                active <= 1'b1;
-                                total <= begin_total;
-                                expected_crc <= {argument, begin2};
-                                received <= 32'd0;
-                                crc <= CRC_INIT;
-                                begin_staged <= 1'b0;
-                                begin_next <= 2'd0;
-                                chunk_next <= 2'd0;
-                                chunk_length <= 10'd0;
-                                chunk_received <= 10'd0;
-                                ordinal <= 8'd0;
-                            end
-                        end else begin
-                            begin_next <= begin_next + 2'd1;
-                            case (word)
-                                2'd0: begin
-                                    begin0 <= argument;
-                                    begin_staged <= 1'b1;
-                                    unit0_state <= LOADING;
-                                    media_frozen <= 1'b0;
-                                    saved_authorized <= 1'b0;
-                                    snapshot_dirty <= 1'b0;
-                                    snapshot_length <= 10'd0;
-                                end
-                                2'd1: begin1 <= argument;
-                                default: begin2 <= argument;
-                            endcase
-                        end
-                    end
-                    7'(`FES_COMPUTER_OPCODE_MEDIA_CHUNK): begin
-                        if (!MEDIA) reject(E_OPCODE);
-                        else if (!active) reject(E_STATE);
-                        else if (unit4 != 6'd0 || word != chunk_next || word == 2'd3) reject(E_INDEX);
-                        else if (chunk_length != 10'd0) reject(E_STATE);
-                        else if (word == 2'd2) begin
-                            if (chunk_offset != received || argument == 16'd0 ||
-                                {16'd0, argument} > CHUNK_MAX || {16'd0, argument} > total - received)
-                                reject(E_ARGUMENT);
-                            else begin
-                                chunk_length <= argument[9:0];
-                                chunk_received <= 10'd0;
-                                ordinal <= 8'd0;
-                                chunk_next <= 2'd0;
-                            end
-                        end else begin
-                            chunk_next <= chunk_next + 2'd1;
-                            if (word == 2'd0) chunk0 <= argument;
-                            else chunk1 <= argument;
-                        end
-                    end
-                    7'(`FES_COMPUTER_OPCODE_MEDIA_DATA): begin
-                        if (!MEDIA) reject(E_OPCODE);
-                        else if (!active || chunk_length == 10'd0) reject(E_STATE);
-                        else if (index != ordinal) reject(E_INDEX);
-                        else if (remaining == 10'd1 && argument[15:8] != 8'd0) reject(E_ARGUMENT);
-                        else if (remaining == 10'd1) begin
-                            crc <= crc32_byte(crc, argument[7:0]);
-                            received <= received + 32'd1;
-                            chunk_length <= 10'd0;
-                            chunk_received <= 10'd0;
-                            ordinal <= 8'd0;
-                        end else begin
-                            crc <= crc32_byte(crc32_byte(crc, argument[7:0]), argument[15:8]);
-                            received <= received + 32'd2;
-                            if (remaining == 10'd2) begin
-                                chunk_length <= 10'd0;
-                                chunk_received <= 10'd0;
-                                ordinal <= 8'd0;
-                            end else begin
-                                chunk_received <= chunk_received + 10'd2;
-                                ordinal <= ordinal + 8'd1;
-                            end
-                        end
-                    end
-                    7'(`FES_COMPUTER_OPCODE_MEDIA_COMMIT): begin
-                        if (!MEDIA) reject(E_OPCODE);
-                        else if (index != 8'd0) reject(E_INDEX);
-                        else if (argument != 16'd0) reject(E_ARGUMENT);
-                        else if (!active || begin_staged) reject(E_STATE);
-                        else if (chunk_length != 10'd0 || received != total) reject(E_STATE);
-                        else if ((crc ^ CRC_XOR) != expected_crc) reject(E_ARGUMENT);
-                        else begin
-                            unit0_state <= READY;
-                            unit0_size <= total;
-                            cancel_transfer;
-                        end
-                    end
-                    7'(`FES_COMPUTER_OPCODE_MEDIA_EJECT): begin
-                        if (!MEDIA) reject(E_OPCODE);
-                        else if (index != 8'd0) reject(E_INDEX);
-                        else if (argument != 16'd0) reject(E_ARGUMENT);
-                        else if (WRITABLE && media_write_busy) reject(E_STATE);
-                        else if (media_frozen && !saved_authorized) reject(E_STATE);
-                        else begin
-                            cancel_transfer;
-                            unit0_state <= EMPTY;
-                            media_frozen <= 1'b0;
-                            saved_authorized <= 1'b0;
-                            snapshot_dirty <= 1'b0;
-                            snapshot_length <= 10'd0;
-                            unit0_size <= 32'd0;
-                        end
-                    end
-                    7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_INFO): begin
-                        if (!WRITABLE) reject(E_OPCODE);
-                        else if (unit8 != 5'd0) reject(E_INDEX);
-                        else if (argument != 16'd0) reject(E_ARGUMENT);
-                        else case (field)
-                            3'd0: response_data <= snapshot_flags;
-                            3'd1, 3'd2: response_data <= 16'd1;
-                            3'd3: response_data <= GEOMETRY && unit0_size != 32'd737280 ? 16'd1 : 16'd0;
-                            3'd4: response_data <= unit0_size[15:0];
-                            3'd5: response_data <= unit0_size[31:16];
-                            3'd6: response_data <= 16'd512;
-                            default: response_data <= snapshot_epoch;
-                        endcase
-                    end
-                    7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_CONTROL): begin
-                        if (!WRITABLE) reject(E_OPCODE);
-                        else if (index != 8'd0) reject(E_INDEX);
-                        else if (argument > 16'd2) reject(E_ARGUMENT);
-                        else if (argument == 16'd0) begin
-                            if (unit0_state != READY) reject(E_STATE);
-                            else begin
-                                media_frozen <= 1'b1;
-                                saved_authorized <= 1'b0;
-                                snapshot_received <= 32'd0;
-                                snapshot_next <= 2'd0;
-                                snapshot_length <= 10'd0;
-                                snapshot_cursor <= 10'd0;
-                                snapshot_ordinal <= 8'd0;
-                                read_phase <= 2'd0;
-                            end
-                        end else if (argument == 16'd1) begin
-                            media_frozen <= 1'b0;
-                            saved_authorized <= 1'b0;
-                            snapshot_length <= 10'd0;
-                            snapshot_next <= 2'd0;
-                            read_phase <= 2'd0;
-                        end else if (!media_frozen || media_write_busy || media_changed) reject(E_STATE);
-                        else begin
-                            snapshot_dirty <= 1'b0;
-                            saved_authorized <= 1'b1;
-                        end
-                    end
-                    7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_CHUNK): begin
-                        if (!WRITABLE) reject(E_OPCODE);
-                        else if (!media_frozen || unit0_state != READY || snapshot_length != 10'd0) reject(E_STATE);
-                        else if (unit4 != 6'd0 || word != snapshot_next || word == 2'd3) reject(E_INDEX);
-                        else if (word == 2'd2) begin
-                            if (snapshot_offset != snapshot_received || argument == 16'd0 || argument[0] ||
-                                argument > 16'd512 || {16'd0,argument} > unit0_size - snapshot_received) reject(E_ARGUMENT);
-                            else begin
-                                snapshot_length <= argument[9:0];
-                                snapshot_cursor <= 10'd0;
-                                snapshot_ordinal <= 8'd0;
-                                snapshot_next <= 2'd0;
-                                read_phase <= 2'd0;
-                            end
-                        end else begin
-                            snapshot_next <= snapshot_next + 2'd1;
-                            if (word == 2'd0) snapshot0 <= argument;
-                            else snapshot1 <= argument;
-                        end
-                    end
-                    7'(`FES_COMPUTER_OPCODE_MEDIA_SNAPSHOT_DATA): begin
-                        if (!WRITABLE) reject(E_OPCODE);
-                        else if (!media_frozen || unit0_state != READY || snapshot_length == 10'd0) reject(E_STATE);
-                        else if (index != snapshot_ordinal) reject(E_INDEX);
-                        else if (argument != 16'd0) reject(E_ARGUMENT);
-                        else begin
-                            response_data <= {media_read_data,read_low};
-                            read_phase <= 2'd0;
-                            if (snapshot_cursor + 10'd2 == snapshot_length) begin
-                                snapshot_received <= snapshot_received + {22'd0,snapshot_length};
-                                snapshot_length <= 10'd0;
-                                snapshot_cursor <= 10'd0;
-                                snapshot_ordinal <= 8'd0;
-                            end else begin
-                                snapshot_cursor <= snapshot_cursor + 10'd2;
-                                snapshot_ordinal <= snapshot_ordinal + 8'd1;
-                            end
-                        end
-                    end
-                    default: reject(E_OPCODE);
-                endcase
-            end
-        end
-`ifdef VERILATOR
-            /* verilator lint_off UNUSEDSIGNAL */
-            wire unused_direct_display = display_wait ^ display_request ^ display_response_valid
-                ^ display_response_error ^ display_quiesced ^ (|display_opcode) ^ (|display_index)
-                ^ (|display_argument) ^ (|display_response_data);
-            /* verilator lint_on UNUSEDSIGNAL */
-`endif
-        end else begin : session_accept
     always @(posedge clk) begin
         request_meta <= request_toggle;
         request_sync <= request_meta;
@@ -899,9 +597,6 @@ module fes_computer_mailbox_core #(
             end
         end
     end
-        end
-    endgenerate
-
 endmodule
 /* verilator lint_on DECLFILENAME */
 
@@ -917,9 +612,6 @@ module fes_computer_mailbox #(
     parameter bit ENABLE_SPECTRUM_TAPE = 0,
     parameter bit ENABLE_ZX81_TAPE = 0,
     parameter bit ENABLE_SESSION_DISPLAY = 0,
-    // Atari ST sets this so accept assigns acknowledged_toggle directly.
-    // Shells that leave it 0 keep the session-display acknowledge mux.
-    parameter bit DIRECT_ACCEPT_ACK = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_WRITE = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_GEOMETRY = 0,
@@ -970,7 +662,6 @@ module fes_computer_mailbox #(
         .ENABLE_SPECTRUM_TAPE(ENABLE_SPECTRUM_TAPE),
         .ENABLE_ZX81_TAPE(ENABLE_ZX81_TAPE),
         .ENABLE_SESSION_DISPLAY(ENABLE_SESSION_DISPLAY),
-        .DIRECT_ACCEPT_ACK(DIRECT_ACCEPT_ACK),
         .ENABLE_ATARI_ST_FLOPPY(ENABLE_ATARI_ST_FLOPPY),
         .ENABLE_ATARI_ST_FLOPPY_WRITE(ENABLE_ATARI_ST_FLOPPY_WRITE),
         .ENABLE_ATARI_ST_FLOPPY_GEOMETRY(ENABLE_ATARI_ST_FLOPPY_GEOMETRY),
