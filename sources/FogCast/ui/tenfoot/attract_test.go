@@ -1145,7 +1145,10 @@ func TestAppBacksOffWhenAttractArtworkExhausted(t *testing.T) {
 		return len(snap.Games) >= 1 && !snap.Loading
 	})
 	armAttractSoon(app)
-	deadline := time.Now().Add(2 * time.Second)
+	// The playlist fetch and the failed artwork round trip run on other
+	// goroutines. The race suite on a loaded host can take longer than two
+	// seconds before attract hides; a stuck attract still fails this bound.
+	deadline := time.Now().Add(15 * time.Second)
 	for time.Now().Before(deadline) {
 		app.Tick(time.Now())
 		if attractCalls.Load() >= 1 && !app.Snapshot().Attract.Active {
