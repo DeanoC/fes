@@ -3,8 +3,10 @@
 #
 # The decision reads only sysfs size, removable and device/type. It never
 # opens the device node. USB sticks and the SD/FESDATA card are left alone.
-# An empty SuperStation dock DVD (often sda, 0 bytes) therefore cannot make a
-# later directory listing or blkid wait out a 180s SCSI command.
+# An empty optical drive is skipped by name or SCSI type. A removable or other
+# device whose size is already 0 is skipped too. The dock's empty JMS583 NVMe
+# bridge can still block inside the kernel sd probe before size exists; that
+# case is issue 778, not this helper.
 #
 #   fes-block-admit              scan /sys and set timeout to 1s on skips
 #   fes-block-admit --reason NAME  print optical, no-media, zero-capacity or ok
