@@ -109,7 +109,8 @@ misteross HIP/nextpnr tools before selecting the ordered
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
 `fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set in
 [the default profile](../profiles/native-integration-dev.toml). The image selector
-also supports `fes.c64`. C64 remains package-only while its HIP seal is unresolved.
+also supports `fes.c64`. C64 remains package-only. Its shared-pin retirement
+is complete; see [core alignment](core-alignment.md).
 See [described FPGA core
 packages](core-packages.md) for first-checkout setup and the inspect/load/Stop
 workflow. Host-only builds do not require those tools.
