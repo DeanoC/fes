@@ -267,6 +267,36 @@ func TestSymlinkedSysfsClassifiesOpticalAndUSB(t *testing.T) {
 	}
 }
 
+func TestUsableListsSymlinkedPartitionOnce(t *testing.T) {
+	root := t.TempDir()
+	devices := filepath.Join(root, "devices")
+	writeDev(t, devices, "sdb", "15633408", "1", "0")
+	part := filepath.Join(devices, "sdb", "sdb1")
+	if err := os.MkdirAll(part, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(part, "size"), []byte("15633376\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	block := filepath.Join(root, "class", "block")
+	if err := os.MkdirAll(block, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(devices, "sdb"), filepath.Join(block, "sdb")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(part, filepath.Join(block, "sdb1")); err != nil {
+		t.Fatal(err)
+	}
+	usable, err := Usable(block)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(usable, []string{"sdb", "sdb1"}) {
+		t.Fatalf("usable = %v", usable)
+	}
+}
+
 func TestReadFullAtClosesFileAfterTimeout(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "stick")

@@ -82,7 +82,8 @@ func RejectsName(sysfs, name string) error {
 }
 
 // Usable returns sorted device names under blockDir that Decide allows.
-// Nested partition directories one level down are included.
+// Nested partition directories one level down are included. A partition that
+// is both a top-level entry and a child of its disk is returned once.
 func Usable(blockDir string) ([]string, error) {
 	entries, err := os.ReadDir(blockDir)
 	if err != nil {
@@ -91,11 +92,11 @@ func Usable(blockDir string) ([]string, error) {
 		}
 		return nil, err
 	}
-	var names []string
+	allowed := map[string]struct{}{}
 	for _, entry := range entries {
 		name := entry.Name()
 		if decision, ok := Decide(blockDir, name); ok && decision.Allow {
-			names = append(names, name)
+			allowed[name] = struct{}{}
 		}
 		// /sys/block and /sys/class/block entries are symlinks on current
 		// kernels. Stat follows them; DirEntry.IsDir does not.
@@ -114,9 +115,13 @@ func Usable(blockDir string) ([]string, error) {
 				continue
 			}
 			if decision, ok := Decide(blockDir, childName); ok && decision.Allow {
-				names = append(names, childName)
+				allowed[childName] = struct{}{}
 			}
 		}
+	}
+	names := make([]string, 0, len(allowed))
+	for name := range allowed {
+		names = append(names, name)
 	}
 	sort.Strings(names)
 	return names, nil
