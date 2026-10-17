@@ -2107,16 +2107,21 @@ for maps, commands and the remaining original-ST timing/device limits.
 
 ## Proposed FES IBM PC/XT core
 
-`cores/fes-pcxt` currently implements the ISA transaction fabric, portable
+`cores/fes-pcxt` currently implements an 8088 development frontend, ISA transaction fabric, portable
 registered slot boundaries, card endpoints and a diagnostic I/O/memory/DMA
-probe. `make sim-fes-pcxt` exercises eight logical slots through the real RTL.
+probe. `make sim-fes-pcxt` exercises eight logical slots through the real RTL
+and boots an original diagnostic ROM on a pinned MCL86 CPU. The CPU wrapper
+fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
+4.772727 MHz guest clock. It handles READY, split byte cycles, LOCK and INTA;
+memory storage and interrupt-vector delivery are testbench services. See the
+[CPU import](../cores/fes-pcxt/vendor/mcl86/README.md) for provenance and limits.
 The shared `fes.fabric.pcxt-isa` 1.0 constants are generated from mister-packages;
 its [wire contract](../../mister-packages/docs/pcxt-isa.md) defines handshakes,
 reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
 **The complete machine below remains a proposal.** `fes.pcxt` is the proposed
-package identity. There is no CPU, chipset, graphics, disk controller, physical
+package identity. There is no integrated chipset, graphics, disk controller, physical
 socket layout, producer or sealed PC/XT package yet. The fabric does not enable
 runtime activation or claim a linkable RBF. Existing linker layout admission
 remains closed until an exact shell and its physical sockets are qualified.
@@ -2174,9 +2179,11 @@ fetches, memory/I/O transfers, DMA, interrupt acknowledge and video contention.
 ### CPU implementation contract
 
 Use one shared instruction engine with separate 8088 and 8086 bus units.
-Audit reusable RTL for licensing, instruction coverage, prefetch behavior and
-synthesizability before selecting it; no suitable existing CPU is established
-by this proposal. An instruction-only interpreter with arbitrary cycle counts
+The development frontend selects MCL86 following a source/license audit,
+focused instruction/bus tests and locked Cyclone V diagnostic synthesis.
+Full instruction and silicon timing qualification remain open; the diagnostic
+ROM does not establish game compatibility. The FES wrapper currently exposes
+8088 only; 8086 needs separate bus-path qualification. An instruction-only interpreter with arbitrary cycle counts
 is insufficient for the intended game compatibility.
 
 The architectural model includes 16-bit registers, segment:offset addressing,

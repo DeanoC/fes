@@ -72,8 +72,9 @@ producer is `make build-fes-atari-st`. The factory image selects its firmware
 shell and sealed Direct/Scanlines companions. Firmware remains a separate user
 input; the image does not bundle EmuTOS or Atari ROMs.
 
-The PC/XT development slice implements a registered ISA transaction fabric and
-probe cards. `make sim-fes-pcxt` checks it on the host; see the
+The PC/XT development slice runs an original diagnostic ROM on an 8088 CPU
+through a registered ISA transaction fabric and probe cards.
+`make sim-fes-pcxt` checks it on the host; see the
 [core README](cores/fes-pcxt/README.md). The complete 8088 machine and physically
 linkable PC/XT sockets remain unimplemented.
 

@@ -1,0 +1,2 @@
+# Preserve the pinned upstream file's one trailing space.
+mcl86_biu_max.sv -whitespace

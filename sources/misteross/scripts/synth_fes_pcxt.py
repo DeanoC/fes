@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 
 from build_fes_coleco_socket_v2 import authenticate_tools
-from sim_fes_pcxt import SOURCES
+from sim_fes_pcxt import SOURCES, CPU_SOURCES, verify_cpu_sources
 
 ROOT = Path(__file__).resolve().parents[1]
 RTL = tuple(source for source in SOURCES if source.endswith('.sv'))
@@ -17,28 +17,43 @@ INPUTS = (*RTL, 'cores/fes-common/generated/fes_pcxt_isa.vh')
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cache-root', type=Path, required=True)
+    parser.add_argument('--suite', choices=('isa', 'cpu'), default='isa')
     args = parser.parse_args()
     tools = authenticate_tools(ROOT, args.cache_root)
-    sources = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in INPUTS}
+    rtl = RTL
+    inputs = INPUTS
     output = ROOT / 'build/synth/fes-pcxt'
+    if args.suite == 'cpu':
+        verify_cpu_sources()
+        rtl += tuple(source for source in CPU_SOURCES if source.endswith('.sv'))
+        inputs = (*rtl, 'cores/fes-common/generated/fes_pcxt_isa.vh',
+                  'cores/fes-pcxt/vendor/mcl86/source.json',
+                  'cores/fes-pcxt/vendor/mcl86/mcl86_ucode.mem')
+        output /= 'cpu'
+    sources = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in inputs}
     output.mkdir(parents=True, exist_ok=True)
-    program = ('read_verilog -sv -I cores/fes-common/generated ' + ' '.join(RTL) + '; '
-               'synth_intel_alm -nolutram -nodsp -top isa_top; check -assert; stat; '
+    if args.suite == 'cpu':
+        (output / 'mcl86_ucode.mem').write_bytes((ROOT / inputs[-1]).read_bytes())
+    top = args.suite + '_top'
+    program = ('read_verilog -sv -I ' + str(ROOT / 'cores/fes-common/generated') + ' ' +
+               ' '.join(str(ROOT / source) for source in rtl) + '; '
+               'synth_intel_alm -nolutram -nodsp -top ' + top + '; check -assert; stat; '
                'write_json ' + json.dumps(str(output / 'synth.json')))
     with (output / 'yosys.log').open('w') as log:
-        subprocess.run([str(tools['yosys'].path), '-p', program], cwd=ROOT,
+        subprocess.run([str(tools['yosys'].path), '-p', program], cwd=output,
                        stdout=log, stderr=subprocess.STDOUT, check=True)
-    netlist = json.loads((output / 'synth.json').read_text())['modules']['isa_top']
+    netlist = json.loads((output / 'synth.json').read_text())['modules'][top]
     counts = {}
     for cell in netlist['cells'].values():
         kind = cell['type']
         counts[kind] = counts.get(kind, 0) + 1
-    if sources != {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in INPUTS}:
-        raise ValueError('ISA sources changed during diagnostic synthesis')
+    if sources != {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in inputs}:
+        raise ValueError('PC/XT sources changed during diagnostic synthesis')
     receipt = {'format': 1, 'classification': 'diagnostic-synthesis-only',
                'yosys': tools['yosys'].identity, 'sources': sources, 'cells': counts,
                'limits': ['portable eight-slot fixture with two probe cards',
-                          'no CPU or motherboard', 'no placement or timing',
+                          '8088 with external memory ports; no motherboard' if args.suite == 'cpu' else 'no CPU or motherboard',
+                          'no placement or timing',
                           'no physical socket containment', 'no sealed package',
                           'no hardware acceptance']}
     (output / 'diagnostic.json').write_text(json.dumps(receipt, sort_keys=True, indent=2) + '\n')
