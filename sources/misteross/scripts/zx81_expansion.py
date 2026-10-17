@@ -280,21 +280,56 @@ def blocked_plug_addr_message(blocked: list[tuple[int, str]]) -> str:
     return f"socket boundary leaves plug_addr unroutable: {details}"
 
 
+def _cell_bel(cell: dict) -> str:
+    attributes = cell.get("attributes")
+    if not isinstance(attributes, dict):
+        return ""
+    bel = attributes.get("NEXTPNR_BEL") or attributes.get("BEL") or ""
+    return bel if isinstance(bel, str) else ""
+
+
+def missing_socket_flip_flops(design: object) -> list[str]:
+    """Socket flip-flops absent from the route or not at their frozen BEL."""
+    modules = design.get("modules") if isinstance(design, dict) else None
+    top = modules.get("top") if isinstance(modules, dict) else None
+    cells = top.get("cells") if isinstance(top, dict) else None
+    if not isinstance(cells, dict):
+        cells = {}
+    missing = []
+    for name, bel in socket_bels().items():
+        cell = cells.get(name)
+        if not isinstance(cell, dict) or cell.get("type") != "MISTRAL_FF" or _cell_bel(cell) != bel:
+            missing.append(name)
+    return missing
+
+
+def socket_missing_message(missing: list[str]) -> str:
+    shown = missing[:4]
+    details = ", ".join(shown)
+    extra = len(missing) - len(shown)
+    if extra:
+        details += f", and {extra} more"
+    return f"socket boundary flip-flop is missing: {details}"
+
+
 def socket_design_reason(design: object) -> str | None:
     """Reject a routed shell whose connector or socket floorplan is wrong.
 
-    A socket flip-flop is legal only as ``MISTRAL_FF`` at its pinned BEL. A
-    ``$ROUTETHRU`` is legal only on that flip-flop's paired half. Any other
-    cell in the cart interior or on the plug columns is shell logic, and a
-    foreign net on a request exit still makes that bit unroutable.
+    Every socket flip-flop must be present as ``MISTRAL_FF`` at its pinned
+    BEL. A ``$ROUTETHRU`` is legal only on that flip-flop's paired half. Any
+    other cell in the cart interior or on the plug columns is shell logic,
+    and a foreign net on a request exit still makes that bit unroutable.
     """
     intruders = shell_cells_in_socket(design)
     if intruders:
         return socket_occupancy_message(intruders)
     blocked = blocked_plug_addr_exits(design)
-    if not blocked:
-        return None
-    return blocked_plug_addr_message(blocked)
+    if blocked:
+        return blocked_plug_addr_message(blocked)
+    missing = missing_socket_flip_flops(design)
+    if missing:
+        return socket_missing_message(missing)
+    return None
 
 
 def socket_route_reason(routed: Path) -> str | None:
