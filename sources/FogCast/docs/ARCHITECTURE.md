@@ -2667,7 +2667,11 @@ The one-second mark is the next pad event or the existing frame tick, not a new
 loop. The event that reaches that mark is not forwarded. Stop returns the runtime
 to fes.menu; tenfoot resumes presents and redraws on that new menu generation.
 While the phase is running, that same tick polls GET /v1/local/status at most
-about once a second, off the app lock and single-flight. If the agent reports
+about once a second, off the app lock and single-flight. A fresh launcher
+whose phase is still empty uses that poll until the first answer. A launching,
+running, or stopping answer that carries a generation becomes this launcher's
+session: menu presents stay paused and Select+Start stops that generation.
+Idle ends the probe. If the agent reports
 idle or not running, tenfoot resumes the same way. A running status whose
 generation or package differs from the launch claim is not adopted and is not
 stopped. Tenfoot keeps menu presents paused and delivers pad input on the local

@@ -567,7 +567,13 @@ type App struct {
 	localStatusBusy            bool
 	localStatusNext            time.Time
 	localStatusEpoch           uint64
-	localLaunchPending         func()
+	// localStartupChecked is set once an empty phase has seen local status.
+	// A surviving core is adopted then; idle does not keep polling.
+	localStartupChecked bool
+	// localObserved is a startup adoption still in launching or stopping.
+	// Status keeps polling until that run is running or idle.
+	localObserved      bool
+	localLaunchPending func()
 }
 
 // SetRemapper installs a shared input profile. A nil remapper is identity.
