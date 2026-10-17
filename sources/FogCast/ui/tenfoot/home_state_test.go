@@ -2,14 +2,18 @@ package tenfoot
 
 import (
 	"bytes"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/localcores"
 	"github.com/DeanoC/FogCast/ui/rooms"
+	"golang.org/x/sys/unix"
 )
 
 func unwritableHomeFile(t *testing.T) (homeFile, stateDir string) {
@@ -107,6 +111,117 @@ func restoreHomeSelection(t *testing.T, homeFile, stateDir string) {
 	waitFor(t, again, "restored core", func(s Snapshot) bool {
 		return s.Room.Destination.Label == "Zx81" && s.Room.Destination.PackageID == wantID
 	})
+}
+
+// TestHomeRestoresSelectionFromReadOnlyConfig keeps a Home selection that
+// was already saved when that config directory is later mounted read-only.
+// A different writable kit directory must not replace it.
+func TestHomeRestoresSelectionFromReadOnlyConfig(t *testing.T) {
+	homeFile, kitDir := unwritableHomeFile(t)
+	config := mountTmpfs(t)
+	cores := homeFixtureCores()
+	wantID := cores[1].PackageID
+	stateFile := filepath.Join(config, "FogCast", "rooms", "example.fes-cores.state.json")
+	if err := os.MkdirAll(filepath.Dir(stateFile), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := "{\n  \"package_id\": \"" + wantID + "\"\n}\n"
+	if err := os.WriteFile(stateFile, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	remountReadOnly(t, config)
+	if err := os.WriteFile(filepath.Join(config, "probe"), []byte("x"), 0o644); err == nil {
+		t.Fatal("read-only config accepted a write")
+	}
+	t.Setenv("XDG_CONFIG_HOME", config)
+	t.Setenv("XDG_STATE_HOME", config)
+	useKitStateDir(t, kitDir)
+
+	app := startHomeState(t, cores)
+	waitFor(t, app, "read-only restored core", func(s Snapshot) bool {
+		return s.Room.Destination.Label == "Zx81" && s.Room.Destination.PackageID == wantID
+	})
+	if _, err := os.Lstat(filepath.Join(kitDir, "FogCast")); !os.IsNotExist(err) {
+		t.Fatalf("read-only config fell back to the kit directory: %v", err)
+	}
+	if _, err := os.Lstat(filepath.Join(homeFile, ".config")); err == nil {
+		t.Fatal("state was written under HOME")
+	}
+}
+
+// TestHomeRestoresSelectionWhenHomeDirectoryIsReadOnly is the kit case:
+// HOME is a directory on a read-only filesystem and XDG_CONFIG_HOME is unset.
+// The selection is stored under the configured kit state directory.
+func TestHomeRestoresSelectionWhenHomeDirectoryIsReadOnly(t *testing.T) {
+	home := mountTmpfs(t)
+	remountReadOnly(t, home)
+	if err := os.WriteFile(filepath.Join(home, "probe"), []byte("x"), 0o644); err == nil {
+		t.Fatal("read-only home accepted a write")
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("XDG_STATE_HOME", "")
+	stateDir := filepath.Join(t.TempDir(), "state")
+	if err := os.MkdirAll(stateDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	useKitStateDir(t, stateDir)
+	restoreHomeSelection(t, home, stateDir)
+}
+
+// TestHomeRestoresSelectionFromNestedConfigDir keeps an explicit config
+// directory whose parents do not exist yet. Tenfoot creates them there
+// instead of moving the selection to the kit directory.
+func TestHomeRestoresSelectionFromNestedConfigDir(t *testing.T) {
+	homeFile, kitDir := unwritableHomeFile(t)
+	xdg := filepath.Join(t.TempDir(), "a", "b", "config")
+	t.Setenv("XDG_CONFIG_HOME", xdg)
+	t.Setenv("XDG_STATE_HOME", xdg)
+	useKitStateDir(t, kitDir)
+	restoreHomeSelection(t, homeFile, xdg)
+	if _, err := os.Lstat(filepath.Join(kitDir, "FogCast")); err == nil {
+		t.Fatal("nested config directory was redirected to the kit directory")
+	}
+}
+
+func mountTmpfs(t *testing.T) string {
+	t.Helper()
+	if runtime.GOOS != "linux" {
+		t.Skip("read-only mount requires linux")
+	}
+	dir := filepath.Join(t.TempDir(), "mnt")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err := unix.Mount("tmpfs", dir, "tmpfs", 0, "mode=1777")
+	if err == nil {
+		t.Cleanup(func() { _ = unix.Unmount(dir, unix.MNT_DETACH) })
+		return dir
+	}
+	if !errors.Is(err, unix.EPERM) && !errors.Is(err, unix.EACCES) {
+		t.Fatalf("tmpfs mount: %v", err)
+	}
+	out, serr := exec.Command("sudo", "-n", "mount", "-t", "tmpfs", "-o", "mode=1777", "tmpfs", dir).CombinedOutput()
+	if serr != nil {
+		t.Skipf("tmpfs mount: %v (%s)", serr, out)
+	}
+	t.Cleanup(func() { _ = exec.Command("sudo", "-n", "umount", dir).Run() })
+	return dir
+}
+
+func remountReadOnly(t *testing.T, dir string) {
+	t.Helper()
+	err := unix.Mount("", dir, "", unix.MS_REMOUNT|unix.MS_RDONLY, "")
+	if err == nil {
+		return
+	}
+	if !errors.Is(err, unix.EPERM) && !errors.Is(err, unix.EACCES) {
+		t.Fatalf("remount ro: %v", err)
+	}
+	out, serr := exec.Command("sudo", "-n", "mount", "-o", "remount,ro", dir).CombinedOutput()
+	if serr != nil {
+		t.Fatalf("remount ro: %v (%s)", serr, out)
+	}
 }
 
 func TestHomeKeepsWorkingWhenStateDirIsUnwritable(t *testing.T) {

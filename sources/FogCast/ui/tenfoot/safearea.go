@@ -147,39 +147,68 @@ func defaultPrefsPath() string {
 
 // persistentConfigDir is where tenfoot.json and the sibling rooms directory
 // are stored. os.UserConfigDir supplies that directory, which on Linux is
-// XDG_CONFIG_HOME when the kit supervisor sets it. A kit whose HOME config
-// directory is not writable uses kitPersistentStateDir instead.
+// XDG_CONFIG_HOME when the kit supervisor sets it. An existing readable
+// directory is kept even when it cannot be written, so a read-only volume
+// still restores saved preferences and Home selection. The kit FAT directory
+// is used only when that configured directory has no saved state and cannot
+// be created, which is HOME=/ on the read-only root.
 func persistentConfigDir() string {
 	user, userErr := os.UserConfigDir()
-	if userErr == nil && configDirUsable(user) {
+	if userErr == nil && (configHasState(user) || configDirCreatable(user)) {
 		return user
 	}
-	if dir := strings.TrimSpace(kitPersistentStateDir); configDirUsable(dir) && dir != user {
+	if dir := strings.TrimSpace(kitPersistentStateDir); dir != user && (configHasState(dir) || configDirCreatable(dir)) {
 		return dir
+	}
+	if userErr == nil && configDirReadable(user) {
+		return user
 	}
 	noteStateDirUnavailable()
 	return ""
 }
 
-// configDirUsable reports whether dir is a writable directory, or does not
-// exist yet while its parent directory is writable. It does not create dir.
-func configDirUsable(dir string) bool {
-	dir = strings.TrimSpace(dir)
-	if dir == "" {
+// configHasState reports saved tenfoot preferences or room files under dir.
+func configHasState(dir string) bool {
+	base := filepath.Join(strings.TrimSpace(dir), "FogCast")
+	if base == "FogCast" {
 		return false
 	}
-	info, err := os.Stat(dir)
-	if err == nil {
-		return info.IsDir() && unix.Access(dir, unix.W_OK) == nil
+	if _, err := os.Stat(filepath.Join(base, "tenfoot.json")); err == nil {
+		return true
 	}
-	if !os.IsNotExist(err) {
+	info, err := os.Stat(filepath.Join(base, "rooms"))
+	return err == nil && info.IsDir()
+}
+
+// configDirReadable reports an existing directory that can be listed.
+func configDirReadable(dir string) bool {
+	info, err := os.Stat(strings.TrimSpace(dir))
+	return err == nil && info.IsDir() && unix.Access(dir, unix.R_OK) == nil
+}
+
+// configDirCreatable reports a directory saveTenfootPrefs can create with
+// MkdirAll. Missing parents are fine when the nearest existing ancestor is
+// a writable directory. It does not create anything.
+func configDirCreatable(dir string) bool {
+	dir = filepath.Clean(strings.TrimSpace(dir))
+	if dir == "" || dir == "." {
 		return false
 	}
-	parent, err := os.Stat(filepath.Dir(dir))
-	if err != nil || !parent.IsDir() {
-		return false
+	current := dir
+	for {
+		info, err := os.Stat(current)
+		if err == nil {
+			return info.IsDir() && unix.Access(current, unix.W_OK) == nil
+		}
+		if !os.IsNotExist(err) {
+			return false
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return false
+		}
+		current = parent
 	}
-	return unix.Access(filepath.Dir(dir), unix.W_OK) == nil
 }
 
 func noteStateDirUnavailable() {

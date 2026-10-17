@@ -1283,10 +1283,11 @@ and sets `XDG_CONFIG_HOME` and `XDG_STATE_HOME` to it for the runtime, agent
 and launcher. Tenfoot writes `FogCast/tenfoot.json` and
 `FogCast/rooms/<room-id>.state.json` there. Home's last selected package is
 `package_id` in `FogCast/rooms/example.fes-cores.state.json`. The directory is
-not a FESDATA3 bind mount. When `XDG_CONFIG_HOME` is unset or not writable and
-the `HOME` config directory is not writable, tenfoot uses
-`/media/fat/fogcast/state` directly. A save that still cannot be written is
-logged once and the menu keeps running.
+not a FESDATA3 bind mount. Tenfoot reads a configured directory that has
+become read-only when that directory already holds saved state. It uses
+`/media/fat/fogcast/state` when the configured directory has no saved state
+and cannot be created, including `HOME=/` on the read-only root. A save that
+cannot be written is logged once and the menu keeps running.
 
 The kernel loop-mounts the bootstrap as before. Its PID 1 verifies the selected
 image, consumes a pending trial durably, attaches another read-only loop, and uses
