@@ -22,8 +22,11 @@ class FunctionalColecoTests(unittest.TestCase):
             source = Path(__file__).resolve().parents[1]
             shutil.copy2(source / "toolchain.lock", root / "toolchain.lock")
             for relative in ("scripts", "cores/fes-coleco", "cores/fes-common", "toolchains"):
-                shutil.copytree(source / relative, root / relative,
-                                ignore=shutil.ignore_patterns("__pycache__"))
+                source_path = source / relative
+                # The private-lock directory is absent once the last dedicated lock is deleted.
+                if source_path.is_dir():
+                    shutil.copytree(source_path, root / relative,
+                                    ignore=shutil.ignore_patterns("__pycache__"))
             def git(*args):
                 return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
             git("init", "-q")
@@ -70,7 +73,10 @@ class FunctionalColecoTests(unittest.TestCase):
             root = Path(temporary)
             source = Path(__file__).resolve().parents[1]
             for relative in ("scripts", "cores", "boards", "toolchains"):
-                shutil.copytree(source / relative, root / relative, ignore=shutil.ignore_patterns("__pycache__"))
+                source_path = source / relative
+                # The private-lock directory is absent once the last dedicated lock is deleted.
+                if source_path.is_dir():
+                    shutil.copytree(source_path, root / relative, ignore=shutil.ignore_patterns("__pycache__"))
             shutil.copy2(source / "toolchain.lock", root / "toolchain.lock")
             def git(*args):
                 return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
@@ -86,7 +92,9 @@ class FunctionalColecoTests(unittest.TestCase):
             module = root / "sources/misteross"
             module.mkdir(parents=True)
             for name in ("scripts", "cores", "boards", "toolchains", "toolchain.lock"):
-                (root / name).rename(module / name)
+                path = root / name
+                if path.exists():
+                    path.rename(module / name)
             git("add", "-A")
             git("commit", "-qm", "import")
             (root / "unrelated-user-work").write_text("preserve")

@@ -9,6 +9,8 @@ CRAM rectangle while the other sockets stay untouched. The result is a
 two-member expansion archive (canonical `manifest.json` with `slot_index`, and
 the placed `cart.rbf`) bound to the exact shell. Launch-time composition of
 any set of cards uses the misteross Go linker, not this script.
+The card selects the shell's GPU lane (`--gpu-router`, `--toolchain-root`),
+authenticates that lane, and refuses a lane the frozen shell did not record.
 """
 from __future__ import annotations
 
@@ -30,7 +32,7 @@ from scripts import c64_slots
 from scripts import build_fes_c64_oss as shell_recipe
 from scripts.core_package import read_package
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
-from scripts.fes_build_common import _prepare_output, _require_clean_source
+from scripts.fes_build_common import _prepare_output, _require_clean_source, _require_gpu_backend
 
 ROOT = Path(__file__).resolve().parents[1]
 CARDS = {
@@ -254,8 +256,29 @@ def materialize_response_drivers(source: bytes) -> bytes:
     return (json.dumps(design, separators=(",", ":")) + "\n").encode()
 
 
+def frozen_shell_backend(shell: Path) -> str:
+    """GPU backend recorded by the sealed shell's producer evidence."""
+
+    try:
+        summary = json.loads((shell / "build-summary.json").read_text())
+        record = json.loads((shell / "build-inputs.json").read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ValueError("frozen shell has no GPU backend evidence") from exc
+    route_fields = summary.get("route") if isinstance(summary, dict) else None
+    route = route_fields.get("gpu_backend") if isinstance(route_fields, dict) else None
+    parameters = record.get("parameters") if isinstance(record, dict) else None
+    recorded = parameters.get("gpu_backend") if isinstance(parameters, dict) else None
+    if route not in {"hip", "cuda"} or recorded != route:
+        raise ValueError("frozen shell GPU backend evidence is inconsistent")
+    return route
+
+
 def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu: int, *,
-          cache_root: Path | None = None) -> Path:
+          cache_root: Path | None = None, gpu_router: str = shell_recipe.C64_GPU_ROUTER,
+          toolchain_root: Path | None = None) -> Path:
+    if type(gpu) is not int or gpu < 0:
+        raise ValueError("card GPU device must be a nonnegative integer")
+    backend = shell_recipe.gpu_choice(gpu_router)[0]
     root, shell = root.resolve(), shell.resolve()
     inputs = card_inputs(card)
     socket = socket_for(slot)
@@ -268,8 +291,13 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     bus = [i for i in package.fields["interfaces"] if i["id"] == c64_slots.INTERFACE]
     if len(bus) != 1 or (bus[0]["major"], bus[0]["minor"], bus[0]["required"]) != (1, 0, False):
         raise ValueError("shell must declare the optional Commodore 64 cartridge bus 1.0")
-    shell_members = ("routed.json", "socket.qsf", "manifest.toml", "core.rbf", "rom-map.json")
-    tools = shell_recipe._authenticate_c64_tools(root, cache_root)
+    shell_backend = frozen_shell_backend(shell)
+    if shell_backend != backend:
+        raise ValueError(f"card GPU lane {gpu_router} does not match the frozen shell backend {shell_backend}")
+    shell_members = ("routed.json", "socket.qsf", "manifest.toml", "core.rbf", "rom-map.json",
+                     "build-summary.json", "build-inputs.json")
+    tools = shell_recipe._authenticate_c64_tools(
+        root, cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router)
     identities = {name: tool.identity for name, tool in tools.items()}
     closure = {path: digest((root / path).read_bytes()) for path in inputs}
     closure.update({"shell/" + name: digest((shell / name).read_bytes()) for name in shell_members})
@@ -278,6 +306,9 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
               "region": socket.region, "cram_region": list(socket.cram), "map": c64_slots.LAYOUT,
               "slot_clock": SLOT_CLOCK, "probe_mode": slot - 1, "placer_seed": PLACER_SEED,
               "required_clocks_mhz": REQUIRED_CLOCKS_MHZ, "clock_constraints_sha256": digest(clocks)}
+    extra = shell_recipe.execution_extra(gpu_router)
+    if gpu_router == "CUDA":
+        recipe["gpu_device"] = gpu
     recipe_sha = digest(json.dumps(recipe, sort_keys=True, separators=(",", ":")).encode())
     output = root / "build/c64-cards" / recipe_sha
     publications = tuple(path.name for path in output.glob("*.tar"))
@@ -289,7 +320,16 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     (output / "cart.qsf").write_bytes(qsf)
     scaffold = prepare_scaffold((shell / "routed.json").read_bytes(), slot)
     (output / "scaffold.json").write_bytes(scaffold)
-    env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
+    env = dict(os.environ)
+    # HIP remaps the selected device to index 0. CUDA keeps PCI bus order and
+    # selects that index with nextpnr --gpu-device, as the shell producer does.
+    # An inherited visibility mask would renumber that index.
+    if extra:
+        env.pop("HIP_VISIBLE_DEVICES", None)
+        env.pop("CUDA_VISIBLE_DEVICES", None)
+        env.update(extra)
+    else:
+        env["HIP_VISIBLE_DEVICES"] = str(gpu)
     commands = [
         [str(tools["yosys"].path), "-p", card_synthesis_script(card, slot, output)],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"),
@@ -297,7 +337,9 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
          "--freq", "52.224", "--fes-scaffold", "--fes-cart", str(output / "cart.json"),
          "--fes-cart-region", socket.region, "--fes-slot-clock", SLOT_CLOCK,
          "--fes-cram-region", ",".join(str(v) for v in socket.cram),
-         "--no-pack", "--seed", str(PLACER_SEED), "--router", "gpu", "--placer-heap-timingweight", "300",
+         "--no-pack", "--seed", str(PLACER_SEED), "--router", "gpu",
+         *(["--gpu-device", str(gpu)] if extra else []),
+         "--placer-heap-timingweight", "300",
          "--rbf", str(output / "cart.rbf"), "--compress-rbf",
          "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")],
     ]
@@ -322,6 +364,10 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
             mapped = output / "cart.json"
             (output / "cart-synthesized.json").write_bytes(mapped.read_bytes())
             mapped.write_bytes(materialize_response_drivers(mapped.read_bytes()))
+    route_text = (output / "route.log").read_text(errors="replace")
+    if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
+        raise ValueError("card route log does not prove a complete routed design")
+    _require_gpu_backend(route_text, backend)
     achieved = validate_cart_timing(json.loads((output / "timing.json").read_text()))
     validate_cart_clocks(json.loads((output / "cart-routed.json").read_text()),
                          allow_combinational=card == "probe" and slot == 1)
@@ -347,7 +393,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
         raise ValueError("source changed during card build")
     if any(digest((shell / name).read_bytes()) != closure["shell/" + name] for name in shell_members):
         raise ValueError("frozen shell changed during card build")
-    if {n: t.identity for n, t in shell_recipe._authenticate_c64_tools(root, cache_root).items()} != identities:
+    if {n: t.identity for n, t in shell_recipe._authenticate_c64_tools(
+            root, cache_root, toolchain_root=toolchain_root, gpu_router=gpu_router).items()} != identities:
         raise ValueError("authenticated compiler changed during card build")
     destination = output / (expansion_id + ".tar")
     with tarfile.open(destination, "w", format=tarfile.USTAR_FORMAT) as archive:
@@ -370,10 +417,13 @@ if __name__ == "__main__":
     parser.add_argument("--card", default="probe", choices=sorted(CARDS))
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument("--gpu-router", choices=("HIP", "CUDA"), default=shell_recipe.C64_GPU_ROUTER)
+    parser.add_argument("--toolchain-root", type=Path)
     args = parser.parse_args()
     try:
         print(build(args.root, args.shell, args.package, args.slot, args.card, args.gpu,
-                    cache_root=args.cache_root))
+                    cache_root=args.cache_root, gpu_router=args.gpu_router,
+                    toolchain_root=args.toolchain_root))
     except (ValueError, OSError) as exc:
         print(f"build-c64-slot-card: {exc}", file=sys.stderr)
         raise SystemExit(1)
