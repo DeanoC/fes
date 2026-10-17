@@ -49,7 +49,7 @@ func launchOverlayCopy(snap Snapshot) LaunchOverlayCopy {
 	if snap.LocalCorePhase == localPhaseLaunching {
 		return LaunchOverlayCopy{Visible: true, Heading: "Launching", Title: snap.LocalCoreTitle,
 			Phase: "Starting core", Elapsed: localLaunchElapsed(snap),
-			Hint: "Select+Start stops after the core is ready"}
+			Hint: "F12, Guide or Select+Start stops it once it is running"}
 	}
 	copy := LaunchOverlayCopy{
 		Visible: true,

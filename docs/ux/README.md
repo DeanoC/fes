@@ -332,9 +332,13 @@ Hardware journeys H1–H9 remain pending.
   Missing art is a deliberate motif chosen from the core id (colour) and
   required inputs (keyboard motif); titles stay outside the art. Creator is
   not shown because packages carry no creator. The shelf never says Ready.
-- **Input requirements.** A required `fes.keyboard*` or `fes.mouse*`
-  interface becomes "Needs a keyboard" / "Needs a mouse" before Play. Pads
-  are not listed.
+- **Input requirements.** A required `fes.keyboard.hid` or `fes.mouse*`
+  interface becomes "Needs a keyboard" / "Needs a mouse" before Play. Plain
+  `fes.keyboard` 1.0 is shown only when the package also requires
+  `fes.video.session-display` 1.0 and has no cartridge ROM, which is the
+  ZX81 bring-up computer. Master System, SG-1000 and the earlier
+  ColecoVision package use that matrix as a joystick and are not shown.
+  Pads are not listed.
 - **Destination.** A kit-local core plays on the kit's own HDMI output, so
   the hero says "Plays on this TV". No chooser is shown: this path has one
   destination.
@@ -362,19 +366,25 @@ Hardware journeys H1–H9 remain pending.
   footer.
 - **Type and layout at 1280×720.** Title 36 px bold, readiness and headline
   20–22 px, supporting lines 20 px, footer prompts 18 px in full words. The
-  card takes 42% of the height, the shelf shows four cards at 1280 and three
-  at 1024. A long title, explanation or Details list shrinks (one-line
+  card takes 42% of the height. The shelf shows four cards at a full 1280
+  content width and three with the default 5% TV safe area (as on the kit)
+  or at 1024. A long title, explanation or Details list shrinks (one-line
   explanation, one-line title, no kicker) before it can reach the buttons.
-- **Known gap.** Gameplay exit from a kit-local core is still only the
-  Select+Start one-second hold. The menu cannot draw while the core owns HDMI,
-  so a tap exit needs its own input change and hardware check. The hero states
-  the hold before Play. This does not pass H2.
+- **Gameplay exit.** A kit-local core stops with one press of keyboard F12
+  (MiSTer's menu key) or a pad's Guide button. Neither is forwarded to a
+  core, and the menu cannot draw while the core owns HDMI, so neither asks
+  for confirmation. The Select+Start one-second hold remains, and it is the
+  only route on a pad without Guide; that is an accepted limit for sparse
+  pads, since every other button belongs to the game. The hero names all
+  three routes before Play. A press during loading stops the core once it is
+  running, as the hold does. Hardware check of the new routes is pending.
 
 ## Decisions still to validate
 
 - Native typography, spacing, safe margins and comfortable TV reading distance
   on the real HDMI output (host captures exist; the TV check is pending).
-- A non-chord gameplay exit for kit-local cores.
+- The F12 and Guide gameplay exits on the kit with a physical keyboard and a
+  Guide-equipped pad.
 - The first acceptance baseline is 1280x720 HDMI. CRT modes require an
   explicitly added scope and their own layout and hardware evidence.
 - Which existing offline and alternate-destination capabilities can be exposed
