@@ -34,14 +34,17 @@ func ValidRoomID(id string) bool {
 
 // Manifest is the decoded room.toml.
 type Manifest struct {
-	ID          string        `toml:"id"`
-	Title       string        `toml:"title"`
-	Author      string        `toml:"author"`
-	Description string        `toml:"description"`
-	Version     int           `toml:"version"`
-	Main        string        `toml:"main"`
-	Icon        string        `toml:"icon"`
-	Theme       ManifestTheme `toml:"theme"`
+	ID          string `toml:"id"`
+	Title       string `toml:"title"`
+	Author      string `toml:"author"`
+	Description string `toml:"description"`
+	Version     int    `toml:"version"`
+	Main        string `toml:"main"`
+	Icon        string `toml:"icon"`
+	// DestinationPanel places the FES selected-destination panel: "strip"
+	// (default, along the bottom) or "hero" (large, near the top).
+	DestinationPanel string        `toml:"destination_panel"`
+	Theme            ManifestTheme `toml:"theme"`
 }
 
 // ManifestTheme carries optional colour overrides exposed to the script as
@@ -92,6 +95,14 @@ func DecodeManifest(data []byte) (Manifest, error) {
 		if _, err := cleanPackPath(m.Icon); err != nil {
 			return Manifest{}, fmt.Errorf("icon: %w", err)
 		}
+	}
+	switch strings.TrimSpace(m.DestinationPanel) {
+	case "", PanelStrip:
+		m.DestinationPanel = PanelStrip
+	case PanelHero:
+		m.DestinationPanel = PanelHero
+	default:
+		return Manifest{}, fmt.Errorf("destination_panel %q must be %q or %q", m.DestinationPanel, PanelStrip, PanelHero)
 	}
 	if m.Theme.Background != "" {
 		if _, err := ParseHexColor(m.Theme.Background); err != nil {

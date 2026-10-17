@@ -427,6 +427,9 @@ class RecipeResolverTest(unittest.TestCase):
                     "ROCM_PATH": "/opt/rocm/core-7.14",
                     "HIPCC": "/opt/rocm/core-7.14/lib/llvm/bin/clang++",
                     "FES_TOOLCHAIN_GPU_ROUTER": "OFF",
+                    "CUDAARCHS": "75",
+                    "HIPARCHS": "gfx1030",
+                    "FES_TOOLCHAIN_CUDA_ARCHITECTURES": "75",
                 }
                 with patch.object(module.subprocess, "run", return_value=completed) as run:
                     module._build_package(source, recipe=recipe, env=caller)
@@ -442,6 +445,8 @@ class RecipeResolverTest(unittest.TestCase):
                 self.assertNotIn("MAKEFLAGS", env)
                 self.assertNotIn("CC", env)
                 self.assertNotIn("TOOLCHAIN_ROOT", env)
+                for selector in ("CUDAARCHS", "HIPARCHS", "FES_TOOLCHAIN_CUDA_ARCHITECTURES"):
+                    self.assertNotIn(selector, env)
                 self.assertEqual(env["FES_TOOLCHAIN_GPU_ROUTER"], "HIP")
                 self.assertEqual(env["FES_TOOLCHAIN_HIP_ARCHITECTURES"], "gfx1100;gfx1201")
                 self.assertEqual(env["ROCM_PATH"], "/opt/rocm/core-7.14")

@@ -106,6 +106,7 @@ description = "shown in the picker"
 version = 1
 main = "main.lua"           # default main.lua
 icon = "assets/icon.png"    # optional
+destination_panel = "strip" # optional: "strip" (default) or "hero"
 
 [theme]                     # optional overrides for room.theme
 background = "#5c94fc"
@@ -114,6 +115,23 @@ accent = "#ffd300"
 
 Paths are relative to the pack and may not escape it (`..` and absolute
 paths are rejected). Source files are capped at 2 MiB, assets at 16 MiB.
+
+`destination_panel` places the FES selected-destination panel. `strip` is
+the compact strip along the bottom of the room. `hero` is the Cartridge
+Lounge layout used by kit Home (`example.fes-cores`): FES draws the
+selected item's title, required inputs, readiness, destination and actions
+in a large text column near the top, and replaces the debug-font footer
+with a full-size status and prompt line. The room draws its own card,
+artwork, shelf and header around it, using `room.hero` for the shared
+geometry. The hero uses the light seed roles in
+[the FES visual language](../../../docs/ux/visual-language.md); the room
+should paint the card in the same surface colour (`#FFFCF5`). A room too
+small for the hero (under 480×360) keeps the strip. Kit Home
+(`example.fes-cores`) still draws the Library, Rooms and Settings routes
+and the visible cores above that strip, with pointer hits and a focus mark.
+When those routes do not fit on one row they stack, and Direction follows
+that column into the shelf. A row that fits keeps Left and Right, as the
+hero does.
 
 ## Script lifecycle
 
@@ -147,7 +165,10 @@ safe content area; `0,0` is its top-left), `room.time` (seconds since
 load), `room.reduced_motion` (boolean; the launcher reduced-motion
 preference), `room.theme` (hex strings: `background`, `accent`, `highlight`,
 `flash`, `label`, `label_bar`, `status`, `header`, `header_bar`,
-`footer_bar`, `cover_frame`).
+`footer_bar`, `cover_frame`). A `hero` room also gets `room.hero`, with
+`header`, `card`, `text`, `art`, `shelf` and `footer` rectangles
+(`{x, y, w, h}`); FES draws over `text` and the footer band. It is
+recomputed before `on_resize`.
 
 ### `gfx` (inside `draw` only, except `measure`)
 
@@ -204,8 +225,13 @@ TMS9918 Family publish too, so the strip is present in those rooms as well
 as Mushroom Kingdom.
 
 `destination.set{kind, label, system, game_id, room_id, action, package_id,
-core_id, launchable, block, query, platform, matches, resolving, missing,
-note, note_by}` publishes one location.
+core_id, launchable, block, needs, inputs, query, platform, matches,
+resolving, missing, status, note, note_by}` publishes one location.
+`inputs` lists required input devices (`keyboard`, `mouse`; anything else
+is ignored) so FES can say so before Play. A pad is not listed: its
+presence does not establish a mapping. With `resolving=true`, `status`
+replaces the generic Checking sentence (for example "Looking for this
+kit's machines…"); Confirm still waits.
 `kind` is `game`, `room`, `library`, `action`, `core`, or `unresolved`. Omit availability to
 let the host classify `matches` into Checking / Missing / Needs a choice /
 Unavailable / Ready. `resolving=true` is Checking. Unresolved without a
@@ -245,6 +271,8 @@ destination.set{
   label = row.name,
   launchable = row.launchable,
   block = row.block,
+  needs = row.needs,
+  inputs = row.inputs,
 }
 ```
 
@@ -252,11 +280,18 @@ destination.set{
 or unsafe id raises a Lua error and is not stored. An unknown `kind` is
 still dropped. `core_id`, when set, must be a safe token (`fes.pong`).
 A non-empty `block`, or `launchable = false`, does not launch; the block
-line is the status ("Needs a cartridge", "Needs firmware"). Activating a
+line is the status ("Needs a cartridge", "Needs firmware"). The hero
+panel turns `needs` into a consequence and the remedy available from this
+screen ("Display setup incomplete" for `parts`). Details (Y / `i`, or A
+on a blocked core) shows the core id, a short package id and the verbatim
+block inside the hero; Back or moving focus closes it. With a pointer, the
+hero's Play and Details buttons do what they say; the rest of the hero is
+Details. While an ambiguous earlier local launch is still being
+reconciled, a launchable core is Checking rather than Ready. Activating a
 launchable core calls the injected local-control client's Launch. With no
 client that activation returns an error and does not panic. `in_use` and
 `blocked` from the socket are returned the same way and do not fail the
-room. Tenfoot connects the socket when it is started with `-gfx menu-display`. A host session leaves it unset. The compact strip uses the same "Installed cores are not available here." line as the room body when no client is present.
+room. Tenfoot connects the socket when it is started with `-gfx menu-display`. A host session leaves it unset. Kit Home says "Installed machines appear here on an FES kit." when no client is present and focuses its Library route.
 
 `destination.classify(games, {q=})` returns that result without changing
 focus. `matches` is the viable play rows when any can play. `candidates`
@@ -273,7 +308,11 @@ Confirm never silently no-ops: Ready plays, a room destination enters,
 and an allowlisted action runs or explains why it cannot. Needs a choice
 opens an edition list unless a household edition preference
 is saved for that query and platform, Missing opens the library, Checking
-and Unavailable show honest copy (Unavailable also opens Details). A kit
+and Unavailable show honest copy (Unavailable also opens Details). Confirm
+during Checking is acknowledged ("Still checking. Press A again once it
+has finished.") and is not queued: a queued Confirm could start whatever the
+finished list focuses, which the player has not seen. The acknowledgement
+clears when the destination stops Checking. A kit
 lease held by another session is applied to each candidate before viable
 choices are counted. A leased FPGA beside a playable host emulator leaves
 that emulator Ready, with no choice. A lone leased option is Unavailable
@@ -297,9 +336,11 @@ a launch is not Completed.
 
 On a host launcher `kit` is nil. When the launcher injects a client,
 `kit.cores(function(rows, err) end)` lists installed cores on a later tick.
-Each row is `{package_id, core_id, name, needs, launchable, block}`. `name`
-is the manifest name. `needs` is `none`, `media`, or `firmware`. `block` is
-empty when `launchable` is true.
+Each row is `{package_id, core_id, name, needs, launchable, block, inputs}`.
+`name` is the manifest name. `needs` is `none`, `media`, `firmware`, `parts`
+or `unsupported`. `block` is empty when `launchable` is true. `inputs` lists
+`keyboard` and/or `mouse` when the package requires a `fes.keyboard*` or
+`fes.mouse*` interface; an older agent omits it.
 
 ### `session`, `rooms`, `store`, `log`
 
@@ -388,7 +429,7 @@ is not a gate unless the room script adds that mechanic itself. See
 | `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
 | `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved by `library.query` search; missing titles are skipped; publishes the focused game |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
-| `example.fes-cores` | one tile per installed core, manifest name verbatim; a blocked tile shows "Needs a cartridge", "Needs firmware", or "Hardware unavailable" and does not launch. An optional core omitted from the image is listed from `unavailable-cores.json` with that hardware block. Listed from the lobby like every other room. With no kit socket the room and the compact strip both say cores are not available here. Tenfoot on `-gfx menu-display` launches a tile through the local-control socket |
+| `example.fes-cores` | kit **Home** in the `hero` layout: a shelf of installed cores (manifest names verbatim, fallback motifs chosen from the core id and required inputs), the FES hero for the selection, and Library / Rooms / Settings routes one Up away in the hero and on one compact row. A stacked compact column walks Down and Up through those routes and then the cores. Checking while `kit.cores` resolves; the last selected package is restored on a later visit; an empty or unlistable kit focuses the Library route. Blocked cores do not launch. An optional core omitted from the image is listed from `unavailable-cores.json` with block "Hardware unavailable". Tenfoot on `-gfx menu-display` launches a core through the local-control socket |
 
 Run them against a host:
 

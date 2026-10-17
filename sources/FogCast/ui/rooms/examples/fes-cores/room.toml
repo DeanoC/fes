@@ -1,10 +1,11 @@
 id = "fes-cores"
-title = "Installed cores"
+title = "Home"
 author = "FogCast"
-description = "Cores installed on this kit. Names are the manifest names."
-version = 1
+description = "This kit's installed machines and games, with Library, Rooms and Settings close at hand."
+version = 2
 main = "main.lua"
+destination_panel = "hero"
 
 [theme]
-background = "#1c2430"
-accent = "#7ec8ff"
+background = "#F4F0E8"
+accent = "#235A46"

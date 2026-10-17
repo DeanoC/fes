@@ -209,6 +209,12 @@ func drawRoom(dev gfx.Device, snap Snapshot, textures, labels map[string]gpuText
 }
 
 func drawRoomDestination(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, used map[string]struct{}) {
+	if pane, ok := heroDestGeom(snap); ok {
+		// The hero is part of the room's composition, so it stays under
+		// FES overlays and keeps the selected identity visible.
+		drawHeroDestination(dev, snap, pane, labels, used)
+		return
+	}
 	pane, ok := roomDestGeom(snap)
 	if !ok {
 		return
@@ -254,6 +260,9 @@ func drawRoomDestination(dev gfx.Device, snap Snapshot, labels map[string]gpuTex
 		drawLabel(dev, labels, used, "rd-status", x+pad, y+66, w-2*pad, 16, status)
 	}
 	action := strings.TrimSpace(d.Action)
+	if snap.Room.WaitAck {
+		action = waitAckCopy(snap.Affinity)
+	}
 	if action != "" {
 		drawLabel(dev, labels, used, "rd-action", x+pad, y+88, w-2*pad, 16, action)
 	}
@@ -401,6 +410,10 @@ func drawRoomChrome(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture,
 		fillRect(dev, float32(x), float32(y), float32(snap.Room.Width), hardwareRoomFooterHeight, 37, 48, 45, 255)
 		drawLabel(dev, labels, used, "hardware-status", x+16, y+6, snap.Room.Width-32, 15, hardwareRoomStatus(snap))
 		drawLabel(dev, labels, used, "hardware-hint", x+16, y+29, snap.Room.Width-32, 14, snap.HeaderHint())
+		return
+	}
+	if snap.Room.Hero {
+		drawHeroChrome(dev, snap, labels, used)
 		return
 	}
 	g := snap.Grid
