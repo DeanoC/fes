@@ -343,8 +343,9 @@ end
 -- Cold opens used to build this whole picture inside the first draw, which
 -- sat on the kit's 48ms hard budget. boot spreads that work:
 -- 0 opening frame, 1 row cache and text metrics, 2 upper half, 3 lower half.
+-- Focus, size, status or selection can change between those halves. The
+-- upper half is painted again before the lower half is appended.
 local boot = 0
-local boot_data, boot_machine, boot_art
 local warm_px, warm_at, desc_warm
 local pool_rows = 160
 local function warm_done()
@@ -582,15 +583,15 @@ local function boot_step()
     return
   end
   if boot == 2 then
-    boot_data, boot_machine = data, machine
-    boot_art = art and art.ready and true or false
     picture("upper")
     gfx.paint(cmds)
+    -- remember_scene records the inputs this half used. The next draw
+    -- appends the lower half only while those inputs still match.
+    remember_scene()
     boot = 3
     return
   end
-  local ready = art and art.ready and true or false
-  if data ~= boot_data or machine ~= boot_machine or ready ~= boot_art then
+  if not scene_same() then
     boot = 2
     if room.presented and gfx.reuse() then return end
     return

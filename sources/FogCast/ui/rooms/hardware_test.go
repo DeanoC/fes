@@ -699,6 +699,111 @@ func TestHardwareRoomColdOpenIsStaged(t *testing.T) {
 	t.Fatalf("workshop did not finish staging (upper-only=%v)", sawUpper)
 }
 
+// Focus and room size can change after the upper half is presented. The
+// lower half must not be appended onto that stale picture, and the draw
+// that follows must reuse the rebuilt one.
+func TestHardwareRoomStagingRebuildsTheUpperHalf(t *testing.T) {
+	w, h := workshopKitSize(1280, 720)
+	nw, nh := workshopKitSize(1024, 600)
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Width: w, Height: h, Services: hardwareData(true),
+		StorePath: filepath.Join(t.TempDir(), "room.json"),
+		Budget:    Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second},
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Unix(3100, 0)
+	var stale Frame
+	for steps := 0; steps < 24; steps++ {
+		now = now.Add(16 * time.Millisecond)
+		f := r.Step(now)
+		if r.Err() != nil {
+			t.Fatal(r.Err())
+		}
+		if frameHas(f, "Import expansion") {
+			t.Fatal("lower half arrived before the scene could change")
+		}
+		if frameHas(f, "Setup preview") {
+			stale = f
+			break
+		}
+	}
+	if !frameHas(stale, "Setup preview") {
+		t.Fatal("upper half did not appear")
+	}
+	if workshopText(t, stale, "Back").Bold {
+		t.Fatal("Back started focused")
+	}
+	r.Resize(nw, nh)
+	r.Hover("back")
+	wantX, wantY := workshopPoint(nw, nh, 40, 154)
+	var rebuilt bool
+	var full Frame
+	for steps := 0; steps < 8; steps++ {
+		now = now.Add(16 * time.Millisecond)
+		f := r.Step(now)
+		if r.Err() != nil {
+			t.Fatal(r.Err())
+		}
+		if frameHas(f, "Setup preview") && !frameHas(f, "Import expansion") {
+			preview := workshopText(t, f, "Setup preview")
+			if nearPoint(preview.X, preview.Y, wantX, wantY) && workshopText(t, f, "Back").Bold {
+				rebuilt = true
+			}
+			continue
+		}
+		if frameHas(f, "Import expansion") {
+			if !rebuilt {
+				t.Fatal("lower half was appended without rebuilding the upper half")
+			}
+			full = f
+			break
+		}
+	}
+	if !frameHas(full, "Import expansion") {
+		t.Fatal("workshop did not finish after the scene change")
+	}
+	preview := workshopText(t, full, "Setup preview")
+	if !nearPoint(preview.X, preview.Y, wantX, wantY) {
+		t.Fatalf("full picture kept the old layout: got (%.2f,%.2f) want (%.2f,%.2f)", preview.X, preview.Y, wantX, wantY)
+	}
+	if !workshopText(t, full, "Back").Bold || workshopText(t, full, "Rear expansion").Bold {
+		t.Fatal("focus stayed on the upper half's old control")
+	}
+	now = now.Add(16 * time.Millisecond)
+	again := r.Step(now)
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+	againPreview := workshopText(t, again, "Setup preview")
+	if againPreview.X != preview.X || againPreview.Y != preview.Y || !workshopText(t, again, "Back").Bold || !frameHas(again, "Import expansion") {
+		t.Fatal("the following draw did not reuse the rebuilt picture")
+	}
+}
+
+func workshopText(t *testing.T, f Frame, label string) Op {
+	t.Helper()
+	for _, op := range f.Ops {
+		if op.Kind == OpText && op.Text == label {
+			return op
+		}
+	}
+	t.Fatalf("missing %q", label)
+	return Op{}
+}
+
+func workshopPoint(w, h int, x, y float64) (float32, float32) {
+	scale := math.Min(float64(w)/1120, float64(h)/630)
+	ox := (float64(w) - 1120*scale) / 2
+	oy := (float64(h) - 630*scale) / 2
+	return float32(ox + x*scale), float32(oy + y*scale)
+}
+
+func nearPoint(x, y, wantX, wantY float32) bool {
+	return math.Abs(float64(x-wantX)) < 0.75 && math.Abs(float64(y-wantY)) < 0.75
+}
+
 func TestHardwareRoomToolLabelsFitAtKitSize(t *testing.T) {
 	for _, display := range [][2]int{{1280, 720}, {1024, 600}} {
 		w, h := workshopKitSize(display[0], display[1])

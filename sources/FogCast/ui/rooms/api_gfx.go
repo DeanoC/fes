@@ -201,21 +201,31 @@ func (r *Instance) gfxPaint(L *lua.LState) int {
 }
 
 // gfx.extend(commands) appends commands to the frame already presented.
-// The script pays only for the new commands; the previous ops are copied.
+// Ops and hits already recorded in this draw stay after the copied frame,
+// in the order they were recorded. A clear recorded before this call
+// replaces the presented clear, and a clear in commands replaces that.
+// Another extend in the same draw appends again and does not copy the
+// presented frame a second time. The script pays for the new commands;
+// the copy is the previous picture.
 func (r *Instance) gfxExtend(L *lua.LState) int {
 	f := r.drawing(L, "extend")
 	if !r.frameReady {
 		L.ArgError(1, "gfx.extend needs a presented frame")
 	}
-	if len(f.Ops) == 0 && len(f.Hits) == 0 && !f.HasClear {
-		ops := make([]Op, len(r.frame.Ops))
+	if !r.extendCopied {
+		ops := make([]Op, len(r.frame.Ops)+len(f.Ops))
 		copy(ops, r.frame.Ops)
-		hits := make([]Hit, len(r.frame.Hits))
+		copy(ops[len(r.frame.Ops):], f.Ops)
+		hits := make([]Hit, len(r.frame.Hits)+len(f.Hits))
 		copy(hits, r.frame.Hits)
+		copy(hits[len(r.frame.Hits):], f.Hits)
+		if !f.HasClear {
+			f.Clear = r.frame.Clear
+			f.HasClear = r.frame.HasClear
+		}
 		f.Ops = ops
 		f.Hits = hits
-		f.Clear = r.frame.Clear
-		f.HasClear = r.frame.HasClear
+		r.extendCopied = true
 	}
 	r.keepSlowFrame = true
 	r.applyPaint(L, f, L.CheckTable(1))

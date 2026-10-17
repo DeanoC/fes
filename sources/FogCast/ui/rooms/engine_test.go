@@ -405,6 +405,81 @@ end
 	}
 }
 
+func TestGfxExtendKeepsDrawingRecordedBeforeIt(t *testing.T) {
+	r := newRoom(t, memPack(t, "extend-after-draw", `
+stage = 1
+function draw()
+  if stage == 1 then
+    gfx.paint({{"c", "#112233"}, {"t", "kept", 1, 1, 18, "#ffffff", 0, false, "left"}, {"h", "old", 1, 1, 8, 8}})
+    stage = 2
+    return
+  end
+  if stage == 2 then
+    gfx.text("before", 1, 20)
+    gfx.hit("before", 1, 20, 8, 8)
+    gfx.extend({{"t", "added", 1, 40, 18, "#ffffff", 0, false, "left"}, {"h", "added", 1, 40, 8, 8}})
+    gfx.extend({{"t", "again", 1, 60, 18, "#ffffff", 0, false, "left"}})
+    stage = 3
+    return
+  end
+  gfx.clear("#abcdef")
+  gfx.rect(2, 2, 3, 4, "#ffffff")
+  gfx.extend({{"c", "#445566"}, {"t", "late", 1, 80, 18, "#ffffff", 0, false, "left"}})
+end
+`, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	first := r.Step(time.Unix(1, 0))
+	if FormatHexColor(first.Clear) != "#112233" || texts(first) != "kept" || hitIDs(first) != "old" {
+		t.Fatalf("presented frame = clear %s texts %q hits %q", FormatHexColor(first.Clear), texts(first), hitIDs(first))
+	}
+	appended := r.Step(time.Unix(2, 0))
+	if FormatHexColor(appended.Clear) != "#112233" {
+		t.Fatalf("clear = %s, want the presented clear", FormatHexColor(appended.Clear))
+	}
+	if got := texts(appended); got != "kept before added again" {
+		t.Fatalf("texts = %q", got)
+	}
+	if got := hitIDs(appended); got != "old before added" {
+		t.Fatalf("hits = %q", got)
+	}
+	replaced := r.Step(time.Unix(3, 0))
+	if FormatHexColor(replaced.Clear) != "#445566" {
+		t.Fatalf("clear = %s, want the clear inside extend", FormatHexColor(replaced.Clear))
+	}
+	if got := texts(replaced); got != "kept before added again late" {
+		t.Fatalf("texts = %q", got)
+	}
+	var rect bool
+	for _, op := range replaced.Ops {
+		if op.Kind == OpRect && op.X == 2 && op.Y == 2 && op.W == 3 && op.H == 4 {
+			rect = true
+		}
+	}
+	if !rect {
+		t.Fatal("rect drawn before extend was dropped")
+	}
+}
+
+func texts(f Frame) string {
+	var parts []string
+	for _, op := range f.Ops {
+		if op.Kind == OpText {
+			parts = append(parts, op.Text)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+func hitIDs(f Frame) string {
+	var parts []string
+	for _, hit := range f.Hits {
+		parts = append(parts, hit.ID)
+	}
+	return strings.Join(parts, " ")
+}
+
 func TestSlowPaintIsPresentedAndReuseClearsTheStreak(t *testing.T) {
 	r := newRoom(t, memPack(t, "slow-paint", `
 function draw()

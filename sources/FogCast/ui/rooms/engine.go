@@ -138,11 +138,14 @@ type Instance struct {
 	frameReady    bool
 	reuseFrame    bool
 	keepSlowFrame bool
-	actions       []Action
-	games         map[string]hostclient.Game
-	images        map[string]*Image
-	store         *store
-	logs          []string
+	// extendCopied is set once gfx.extend has copied the presented frame
+	// into this draw. A later extend appends without copying it again.
+	extendCopied bool
+	actions      []Action
+	games        map[string]hostclient.Game
+	images       map[string]*Image
+	store        *store
+	logs         []string
 
 	started         time.Time
 	last            time.Time
@@ -330,6 +333,7 @@ func (r *Instance) Step(now time.Time) Frame {
 	r.inDraw = true
 	r.reuseFrame = false
 	r.keepSlowFrame = false
+	r.extendCopied = false
 	err := r.callGlobalSoft("draw", r.budget.Frame)
 	r.inDraw = false
 	built := r.building
