@@ -1517,3 +1517,20 @@ func TestKitCoresStartupRetryCancelsDuringWait(t *testing.T) {
 		t.Fatalf("listed again after cancellation: %d", fake.calls)
 	}
 }
+
+// A delayed Go callback demonstrates the existing wall-clock watchdog: even
+// without a busy Lua loop, elapsed scheduling/blocking time consumes the budget.
+func TestCallbackDeadlineReportsNameAndElapsed(t *testing.T) {
+	r := newRoom(t, memPack(t, "deadline-label", "function draw() wait() gfx.clear('#123456') end", nil), Options{Budget: Budget{Load: time.Second, Frame: time.Millisecond, Input: time.Second}})
+	r.L.SetGlobal("wait", r.L.NewFunction(func(*lua.LState) int { time.Sleep(20 * time.Millisecond); return 0 }))
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	r.Step(time.Now())
+	if err := r.Err(); err == nil || !strings.Contains(err.Error(), "draw callback:") || !strings.Contains(err.Error(), "elapsed") {
+		t.Fatalf("deadline diagnostic: %v", err)
+	}
+	if got := r.Step(time.Now()); len(got.Ops) != 0 {
+		t.Fatal("fatal room resumed")
+	}
+}

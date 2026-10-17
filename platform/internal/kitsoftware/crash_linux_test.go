@@ -21,6 +21,9 @@ func crashPhase(s State) string {
 	if s.Unreleased != nil {
 		return s.Receipts[s.Unreleased.ID].Result
 	}
+	if len(s.Receipts) == 1 && s.Receipts[req().ID].Result == "cancelled" {
+		return "cancelled"
+	}
 	if len(s.Receipts) != 0 {
 		return "released"
 	}
@@ -106,21 +109,35 @@ func TestCrashJournalChild(t *testing.T) {
 	if root == "" {
 		t.Skip("subprocess only")
 	}
-	r, e := crashEngine(t, root, os.Getenv("FES_CRASH_TEST_POINT"), os.Getenv("FES_CRASH_TEST_FAIL") == "1")
+	mode := os.Getenv("FES_CRASH_TEST_MODE")
+	r, e := crashEngine(t, root, os.Getenv("FES_CRASH_TEST_POINT"), mode == "recover" || mode == "block")
+	if mode == "block" {
+		e.Controller.(*crashControl).fail[testFactoryID] = true
+	}
 	if err := Queue(r, req()); err != nil {
 		t.Fatal(err)
 	}
-	if err := e.Run(context.Background()); err != nil {
+	if mode == "cancel" {
+		if err := Cancel(r, req().ID, 0); err != nil {
+			t.Fatal(err)
+		}
+	} else if err := e.Run(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	t.Fatal("crash point not reached")
 }
 func TestProcessCrashAtJournalAndStartBoundaries(t *testing.T) {
 	stages := []string{"before-create", "after-create", "after-write", "after-file-sync", "after-close", "before-rename", "after-rename", "after-directory-sync"}
-	for _, mode := range []string{"accept", "recover"} {
+	for _, mode := range []string{"accept", "recover", "cancel", "block"} {
 		phases := []string{"queued", "applying", "accepted", "released"}
 		if mode == "recover" {
 			phases = []string{"queued", "applying", "recovering", "recovered", "released"}
+		}
+		if mode == "cancel" {
+			phases = []string{"cancelled"}
+		}
+		if mode == "block" {
+			phases = []string{"blocked"}
 		}
 		var points []string
 		for _, phase := range phases {
@@ -128,7 +145,9 @@ func TestProcessCrashAtJournalAndStartBoundaries(t *testing.T) {
 				points = append(points, phase+":"+stage)
 			}
 		}
-		points = append(points, "before-start:candidate", "after-start:candidate", "before-stop:candidate", "after-stop:candidate", "before-release", "after-release")
+		if mode == "accept" || mode == "recover" {
+			points = append(points, "before-start:candidate", "after-start:candidate", "before-stop:candidate", "after-stop:candidate", "before-release", "after-release")
+		}
 		if mode == "recover" {
 			points = append(points, "before-start:previous", "after-start:previous", "before-stop:previous", "after-stop:previous")
 		}
@@ -143,11 +162,7 @@ func TestProcessCrashAtJournalAndStartBoundaries(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
 				cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestCrashJournalChild$")
-				fail := "0"
-				if mode == "recover" {
-					fail = "1"
-				}
-				cmd.Env = append(os.Environ(), "FES_CRASH_TEST_ROOT="+root, "FES_CRASH_TEST_POINT="+point, "FES_CRASH_TEST_FAIL="+fail)
+				cmd.Env = append(os.Environ(), "FES_CRASH_TEST_ROOT="+root, "FES_CRASH_TEST_POINT="+point, "FES_CRASH_TEST_MODE="+mode)
 				output, err := cmd.CombinedOutput()
 				if ctx.Err() != nil {
 					t.Fatalf("checkpoint timed out instead of firing: %v %s", ctx.Err(), output)
@@ -167,7 +182,7 @@ func TestProcessCrashAtJournalAndStartBoundaries(t *testing.T) {
 				}
 				startsBefore, _ := os.ReadFile(filepath.Join(root, "starts"))
 				var runErr error
-				if before.Pending != nil && (before.Pending.Phase == "applying" || before.Pending.Phase == "recovering") {
+				if before.Pending != nil && (before.Pending.Phase == "applying" || before.Pending.Phase == "recovering" || before.Pending.Phase == "blocked") {
 					runErr = e.Boot(context.Background(), Request{})
 				} else {
 					runErr = e.Run(context.Background())
@@ -183,12 +198,15 @@ func TestProcessCrashAtJournalAndStartBoundaries(t *testing.T) {
 				if strings.Count(string(startsAfter), "previous\n") > 1 {
 					t.Fatal("multiple recovery attempts")
 				}
-				if before.Pending != nil && before.Pending.Phase == "recovering" {
+				if before.Pending != nil && (before.Pending.Phase == "recovering" || before.Pending.Phase == "blocked") {
 					if runErr == nil || after.Pending == nil || after.Pending.Phase != "blocked" {
 						t.Fatalf("spent recovery reopened: %+v %v", after, runErr)
 					}
 					if strings.Count(string(startsAfter), "previous\n") != strings.Count(string(startsBefore), "previous\n") {
 						t.Fatal("spent recovery restarted")
+					}
+					if after.Selected != before.Selected || after.Previous != before.Previous || after.Generation != before.Generation || after.Pending.Request != before.Pending.Request {
+						t.Fatal("blocked recovery changed selection or request identity")
 					}
 					return
 				}
@@ -201,11 +219,14 @@ func TestProcessCrashAtJournalAndStartBoundaries(t *testing.T) {
 				if after.Pending != nil || after.Unreleased != nil {
 					t.Fatalf("not reconciled: %+v", after)
 				}
+				if before.Receipts[req().ID].Result == "cancelled" && string(startsAfter) != string(startsBefore) {
+					t.Fatal("durably cancelled operation started services")
+				}
 				wantResult := ""
 				wantSelected, wantGeneration := before.Selected, before.Generation
 				if before.Pending != nil {
 					wantResult = "recovered"
-					if before.Pending.Phase == "queued" && mode == "accept" {
+					if before.Pending.Phase == "queued" && mode != "recover" {
 						wantResult, wantSelected, wantGeneration = "accepted", testCandidateID, uint64(1)
 					}
 				} else if receipt, ok := before.Receipts[req().ID]; ok {

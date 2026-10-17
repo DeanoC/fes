@@ -1,0 +1,18 @@
+{
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+  "boot_id": "457a8b1a-54af-46c0-9e6e-351c08467496",
+  "ready": true,
+  "native_state": "idle",
+  "lease_state": "free",
+  "maintenance_state": "none",
+  "software": {
+    "base_identity": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+    "active_bundle": "00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb",
+    "selected": "00160c4824cef18977b9c58eefbd7669287e1f8b4dea639fe8df234054d75ccb",
+    "generation": 18,
+    "pending": null,
+    "unreleased": null,
+    "service_fault": null,
+    "storage_error": null
+  }
+}

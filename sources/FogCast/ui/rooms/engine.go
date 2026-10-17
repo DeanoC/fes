@@ -421,7 +421,10 @@ func (r *Instance) callGlobalSoft(name string, budget time.Duration, args ...lua
 	if !ok {
 		return nil
 	}
-	return r.callSoft(fn, budget, 0, args...)
+	if err := r.callSoft(fn, budget, 0, args...); err != nil {
+		return fmt.Errorf("%s callback: %w", name, err)
+	}
+	return nil
 }
 
 func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
@@ -654,7 +657,10 @@ func (r *Instance) callGlobal(name string, budget time.Duration, args ...lua.LVa
 	if !ok {
 		return nil
 	}
-	return r.call(fn, budget, 0, args...)
+	if err := r.call(fn, budget, 0, args...); err != nil {
+		return fmt.Errorf("%s callback: %w", name, err)
+	}
+	return nil
 }
 
 func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
@@ -669,6 +675,7 @@ func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.
 }
 
 func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) error {
+	start := time.Now()
 	L := r.L
 	top := L.GetTop()
 	ctx, cancel := context.WithTimeout(r.ctx, budget)
@@ -682,7 +689,7 @@ func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args 
 	if err := L.PCall(len(args), nret, nil); err != nil {
 		L.SetTop(top)
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return fmt.Errorf("script exceeded %s budget", budget)
+			return fmt.Errorf("script exceeded %s budget (elapsed %s)", budget, time.Since(start))
 		}
 		return errors.New(strings.TrimSpace(err.Error()))
 	}
@@ -743,6 +750,7 @@ func (r *Instance) applyResult(res asyncResult) {
 		errVal = lua.LString(res.err.Error())
 	}
 	if err := r.callSoft(res.cb, r.budget.Frame, 0, payload, errVal); err != nil {
+		err = fmt.Errorf("async callback: %w", err)
 		if errors.Is(err, errSoftOverrun) {
 			r.overrunInput(err)
 		} else {

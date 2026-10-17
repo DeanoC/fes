@@ -1,0 +1,33 @@
+{
+  "source_commit": "6641b58fa36754e629d3e9666f35b8674178b2b6",
+  "evidence_class": "qualified appliance build and designated-kit managed-child fault diagnostic",
+  "image_sha256": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+  "persistent_core_files_equal_from_baseline_through_child_faults": true,
+  "persistent_core_file_count": 6,
+  "limits": [
+    "Child-fault hardware exercise targets launcher, agent and runtime only; supervisor was not signalled.",
+    "Queued competing claim sampled while own lease held; no hardware proof of atomic free-boundary priority.",
+    "Bundle deployed:false fields describe build-time state, not subsequent hardware deployment.",
+    "Initial fence API result uses prior base ed721, not newly qualified base06066.",
+    "No HDMI, physical USB input, or broader core execution claim from these files.",
+    "Final activation/recovery passed on qualified base06066 at generation19; all six persistent core files still identical after activation/recovery; successful visual evidence pending.",
+    "Release evidence hardware:not-run is the immutable build-time receipt; subsequent adoption and diagnostics are separate files."
+  ],
+  "qualified_activation_recovery": {
+    "selected": "c2d732ccb23363424f3bdcef0daf6a5e9d99e75835b6864aa3591d855f40ea95",
+    "generation": 19,
+    "boot_id": "457a8b1a-54af-46c0-9e6e-351c08467496",
+    "base_identity": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+    "recovery_receipt_result": "recovered",
+    "process_start_count_proven": false
+  },
+  "initial_visual_attempt": {
+    "success": false,
+    "visual_attempted": false,
+    "event_count": 0,
+    "capture_count": 0,
+    "private_host_exit": 0,
+    "scope": "failed before launch; no physical or input evidence"
+  },
+  "persistent_core_files_equal_through_qualified_activation_recovery": true
+}
