@@ -92,7 +92,7 @@ class RecipeRegistryTest(unittest.TestCase):
         recipe = recipes.recipe_for("fes.atari-st")
         self.assertEqual(recipe.producer_module, "scripts.build_fes_atari_st_oss")
         self.assertEqual(recipe.authenticate, "_authenticate_atari_st_tools")
-        self.assertEqual(recipe.lock_path, "toolchain.lock")
+        self.assertEqual(recipe.lock_path, "toolchains/atari-st.lock")
         self.assertEqual(recipe.selection_filename, "fes-atari-st.package-selection.toml")
         self.assertEqual(recipe.package_dir_env, "FES_ATARI_ST_PACKAGE_DIR")
         self.assertEqual(build.selected_packages(

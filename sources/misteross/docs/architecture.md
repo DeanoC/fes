@@ -1837,6 +1837,16 @@ CPU RESET resets the devices. The optional expansion exports a wide stable
 request and response through pinned registered boundaries in
 `fes.atari-st-bus.socket/1`; the existing Go linker admits only socket 1 and
 confines its CRAM writes to the shared rectangle.
+The CPU socket keeps 119 pinned boundary/clock FFs. Older routes include a
+dedicated LUT buffer at each FF's paired site; current nextpnr instead uses
+the locked FF's native E/F direct input. Admission checks that form's exact
+eight-port pin map, system clock, single data/output wires and empty control
+ports. Each data net needs exactly one cell-output or module-input driver;
+vacant responses and clock anchors require an explicit packed zero driver.
+The request/response and clock-anchor output aliases must match their FFs.
+A missing legacy buffer alone never qualifies a boundary. Both forms
+retain the same BEL and socket exclusion checks; card preparation renames
+only buffers that actually exist.
 
 `st_memory.sv` fairly arbitrates CPU, video, floppy DMA and both media paths
 over the existing addon SDRAM controller at 52.224 MHz. That controller now
@@ -2073,6 +2083,16 @@ the 20.000 ns period and the default 50% waveform, and points that
 the reference clock. The shell's own `clocks-oss.sdc` stays a port
 `create_clock`, which the core build can apply to the physical pin.
 
+The shell authenticates `toolchains/atari-st.lock`. Yosys `5391eeb1` and Mistral
+`8fcc4cb4` match `toolchain.lock`. nextpnr is `b7ba9b6e`, current main, because
+the shared pin `9128800f` lacks the bounded GPU-router architecture-rejection
+retries from nextpnr #196. That compiler rejects a shell frozen on the older
+pin with `Invalid frozen physical pin for video_clock.outclk`, so the shell and
+both exact-shell parts have to be rebuilt together. The scaffold repair above
+still accepts the physical five-pin PLL map and still repairs the six-pin
+legacy map. Shell evidence requires the solver's requested and achieved
+52.224 MHz and 12.288 MHz outputs. The October kit notes do not accept this pin.
+
 `scripts/build_atari_st_video_part.py` compares the frozen shell directory with
 the sealed package for `manifest.toml`, `core.rbf` and `rom-map.json`.
 `routed.json` and `socket.qsf` are producer outputs, not package members; a
@@ -2094,12 +2114,12 @@ raster activity with CPU/video memory latency. Neither the digital SDRAM
 model nor injected callback waits establish electrical FPGA behavior. FX68K source bytes remain immutable; a
 compiler compatibility input may normalize its two simulation-only legacy
 translate-off/on comments without changing RTL assignments or microcode.
-The board producer authenticates the shared `toolchain.lock`. The factory
+The board producer authenticates `toolchains/atari-st.lock`. The factory
 recipe stays HIP; a CUDA route is a different package. The build record uses
 the audited closure in `scripts/source_closures.json`. The
 [2026-10-04 private-pin record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
-qualifies the earlier read-only shell and does not qualify this shared-pin
-seal. The October kit notes do not accept these bytes. The producer must
+qualifies the earlier read-only shell and does not qualify this nextpnr pin.
+The October kit notes do not accept these bytes. The producer must
 still qualify the locked Slang/Yosys frontend, the selected GPU route, all
 clocks and sealed ROM/socket maps. Host simulation does not confer kit
 or appliance hardware acceptance. See [the core README](../cores/fes-atari-st/README.md)

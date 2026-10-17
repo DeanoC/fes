@@ -81,7 +81,8 @@ class AtariSTProducerTests(unittest.TestCase):
         self.assertIsInstance(roots, AuditedRoots)
         self.assertIn("scripts", broad)
         self.assertNotIn("scripts", roots)
-        self.assertIn("toolchain.lock", roots)
+        self.assertIn("toolchains/atari-st.lock", roots)
+        self.assertNotIn("toolchain.lock", roots)
         self.assertNotIn("scripts/build_fes_pong.py", roots)
         for path in st.PINNED_INPUTS:
             self.assertTrue(any(path == root or path.startswith(root + "/") for root in roots), path)
@@ -90,9 +91,10 @@ class AtariSTProducerTests(unittest.TestCase):
             ROOT, "https://example.invalid/fes", "a" * 40, {"yosys": "test"},
             execution={"gpu_device": 0, "version": 1, "environment": {"LANG": "C"}}))
         self.assertEqual(record["parameters"]["source_closure_mode"], "audited-v1")
-        self.assertEqual(record["parameters"]["toolchain_lock"], "toolchain.lock")
+        self.assertEqual(record["parameters"]["toolchain_lock"], "toolchains/atari-st.lock")
         self.assertNotIn("scripts/build_fes_pong.py", record["source_inputs"])
-        self.assertIn("toolchain.lock", record["source_inputs"])
+        self.assertIn("toolchains/atari-st.lock", record["source_inputs"])
+        self.assertEqual(st.ST_TOOL_COMMITS["nextpnr"], "b7ba9b6e3d67737c77aaea6bb23ac8d1b6c76cd2")
 
     def test_synth_only_forwards_gpu_router_and_toolchain_root(self):
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
@@ -130,6 +132,97 @@ class AtariSTProducerTests(unittest.TestCase):
             authenticate.assert_called_once_with(
                 ROOT.resolve(), cache_root=None, toolchain_root=None, gpu_router="HIP")
             functional.assert_called_once_with(auth, 0, extra_env=None)
+
+    def test_solver_log_requires_both_achieved_system_pll_outputs(self):
+        log = ("Info: PLL 'system_clock.pll': fractional-N requested 52224000.000000 Hz (output 0), "
+               "achieved 52224000.000569507 Hz, error 1.09050546e-05 ppm.\n"
+               "Info: PLL 'system_clock.pll': fractional-N requested 12288000.000000 Hz (output 1), "
+               "achieved 12288000.000134002 Hz, error 1.09050546e-05 ppm.\n"
+               "Info: PLL 'system_clock.pll': 50.000000 MHz -> VCO 417.792000 MHz, fractional-N, "
+               "M=8 N=1 K=1528321163, counters C6,7, bel altera_pll.0.31.0\n")
+        st.validate_pll_log(log)
+        for bad in (log.replace("(output 1)", "(output 0)"),
+                    log.replace("12288000.000134002", "12000000.000000000"),
+                    log.replace("50.000000 MHz", "48.000000 MHz"),
+                    "50 MHz -> 52.224 MHz; second output 12.288 MHz"):
+            with self.assertRaises(BuildError):
+                st.validate_pll_log(bad)
+
+    def test_build_evidence_admits_only_the_current_system_pll(self):
+        def top(*, pin="C7", direction="output", connection=None, audio=True, legacy=False):
+            if legacy:
+                pins = {name: [0, name] for name in
+                        ("locked", "outclk", "outclk[0]", "outclk[1]", "refclk", "rst")}
+                connections = {"outclk": [10], "refclk": [11], "locked": [12]}
+                directions = {"outclk": "output", "refclk": "input", "locked": "output"}
+                mapping = {"count": 6, "pins": pins}
+            else:
+                pins = {"locked": [0, "locked"], "outclk": [0, "C6"], "outclk[1]": [0, pin],
+                        "refclk": [0, "refclk"], "rst": [0, "rst"]}
+                connected = [20] if connection is None else list(connection)
+                connections = {"outclk": [10], "outclk[1]": connected, "refclk": [11], "locked": [12]}
+                directions = {"outclk": "output", "outclk[1]": direction,
+                              "refclk": "input", "locked": "output"}
+                mapping = {"count": 5, "pins": pins}
+            cells = {"system_clock.pll": {
+                "type": "altera_pll", "connections": connections, "port_directions": directions,
+                "attributes": {"FES_PINMAP_V1": json.dumps(mapping).encode().hex()}}}
+            if audio:
+                cells["audio_buf"] = {"type": "MISTRAL_CLKBUF", "connections": {"A": [20], "Q": [21]}}
+            return {"cells": cells, "netnames": {
+                "system_clock.pll_outclk_1": {"bits": [20]},
+                "system_clock.clocks[1]": {"bits": [21]}}}
+
+        current = top()
+        before = copy.deepcopy(current)
+        atari_st_slot.validate_current_system_pll(current)
+        self.assertEqual(current, before)
+        for label, kwargs, pattern in (
+                ("c8", {"pin": "C8"}, "frozen pin map changed"),
+                ("legacy", {"legacy": True}, "frozen pin map changed"),
+                ("direction", {"direction": "input"}, "physical port directions changed"),
+                ("connection", {"connection": [999]}, "frozen audio PLL connection changed"),
+                ("branch", {"audio": False}, "frozen audio PLL net changed")):
+            with self.subTest(label=label):
+                rejected = top(**kwargs)
+                snapshot = copy.deepcopy(rejected)
+                with self.assertRaisesRegex(ValueError, pattern):
+                    atari_st_slot.validate_current_system_pll(rejected)
+                self.assertEqual(rejected, snapshot)
+
+        log = ("Info: backend hip: device ready\n"
+               "Info: PLL 'system_clock.pll': fractional-N requested 52224000.000000 Hz (output 0), "
+               "achieved 52224000.000569507 Hz, error 1.09050546e-05 ppm.\n"
+               "Info: PLL 'system_clock.pll': fractional-N requested 12288000.000000 Hz (output 1), "
+               "achieved 12288000.000134002 Hz, error 1.09050546e-05 ppm.\n"
+               "Info: PLL 'system_clock.pll': 50.000000 MHz -> VCO 417.792000 MHz, fractional-N, "
+               "M=8 N=1 K=1528321163, counters C6,7, bel altera_pll.0.31.0\n"
+               "Info: Program finished normally.\n")
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output / "nextpnr.log").write_text(log)
+            routed = output / "routed.json"
+
+            def evidence(module):
+                routed.write_text(json.dumps({"modules": {"top": module}}))
+                with patch.object(st, "validate_synth_evidence", return_value={"synthesis_cells": {}}), \
+                     patch.object(st, "reject_async_m10k_reads"), \
+                     patch.object(st, "_i2c_evidence"), \
+                     patch.object(st, "validate_routed_shell", return_value={}), \
+                     patch.object(st, "validate_cache_placements", return_value={}), \
+                     patch.object(st, "validate_m10k_configurations", return_value={}), \
+                     patch.object(st, "validate_sector_memory", return_value={}), \
+                     patch.object(st.atari_st_video_parts, "validate_boundary"):
+                    return st.validate_build_evidence(output, ram_database={})
+
+            rejected = top(pin="C8")
+            with self.assertRaisesRegex(BuildError, "frozen pin map changed"):
+                evidence(rejected)
+            self.assertEqual(json.loads(routed.read_text())["modules"]["top"], rejected)
+            with self.assertRaisesRegex(BuildError, "frozen pin map changed"):
+                evidence(top(legacy=True))
+            with self.assertRaisesRegex(BuildError, "missing nonempty timing report"):
+                evidence(top())
 
     def test_vendor_cpu_adapter_preserves_all_functional_bytes(self):
         original = (ROOT / st.CPU_VENDOR / 'fx68k.sv').read_bytes()
@@ -264,6 +357,84 @@ class AtariSTProducerTests(unittest.TestCase):
         cells['expansion.plug_response_ff_0']['attributes']['NEXTPNR_BEL'] = 'MISTRAL_FF.24.4.2'
         with self.assertRaisesRegex(BuildError, 'boundary cell'):
             st.validate_routed_shell(routed)
+
+    def test_native_boundary_requires_plain_dff_pin_map_clock_and_empty_controls(self):
+        from tests.test_atari_st_slot_card import frozen_shell
+        routed = frozen_shell(direct_inputs=True)
+        evidence = st.validate_routed_shell(routed)
+        self.assertEqual(evidence['pinned_boundary_cells'], 119)
+        self.assertEqual(evidence['pinned_boundary_route_buffers'], 0)
+        self.assertEqual(evidence['pinned_boundary_direct_inputs'], 119)
+        for mutation in ('pinmap', 'pinmap_absent', 'clock', 'clock_net', 'control',
+                         'direction', 'datain', 'q', 'feedback', 'extra_port', 'fake_buffer'):
+            with self.subTest(mutation=mutation):
+                changed = copy.deepcopy(routed)
+                top = changed['modules']['top']
+                ff = top['cells']['expansion.plug_request_ff_0']
+                if mutation == 'pinmap':
+                    mapping = json.loads(bytes.fromhex(ff['attributes']['FES_PINMAP_V1']))
+                    mapping['pins']['DATAIN'] = [0, 'SDATA']
+                    ff['attributes']['FES_PINMAP_V1'] = json.dumps(mapping).encode().hex()
+                elif mutation == 'pinmap_absent': del ff['attributes']['FES_PINMAP_V1']
+                elif mutation == 'clock': ff['connections']['CLK'] = [99]
+                elif mutation == 'clock_net': del top['netnames']['system_clock.clocks[0]']
+                elif mutation == 'control': ff['connections']['ENA'] = [99]
+                elif mutation == 'direction': ff['port_directions']['DATAIN'] = 'output'
+                elif mutation == 'datain': ff['connections']['DATAIN'] = []
+                elif mutation == 'q': ff['connections']['Q'] = [True]
+                elif mutation == 'feedback': ff['connections']['DATAIN'] = ff['connections']['Q']
+                elif mutation == 'extra_port': ff['connections']['D'] = [99]
+                elif mutation == 'fake_buffer': top['cells']['expansion.plug_request_ff_0$ROUTETHRU'] = {}
+                with self.assertRaisesRegex(BuildError, 'route buffer'):
+                    st.validate_routed_shell(changed)
+        top = routed['modules']['top']
+        top['cells']['rogue'] = {'type': 'MISTRAL_ALUT6',
+            'attributes': {'NEXTPNR_BEL': st.boundary_route_buffer_bel('MISTRAL_FF.24.1.2')}}
+        with self.assertRaisesRegex(BuildError, 'inside the slot'):
+            st.validate_routed_shell(routed)
+
+    def test_native_boundary_rejects_undriven_multiple_and_wrong_constant_sources(self):
+        from tests.test_atari_st_slot_card import frozen_shell
+        for mutation in ('undriven', 'multiple', 'output_alias', 'output_driver', 'response_alias',
+                         'anchor_alias', 'constant_missing', 'constant_high', 'constant_malformed',
+                         'constant_ports', 'response_nonconstant', 'anchor_nonconstant'):
+            with self.subTest(mutation=mutation):
+                routed = frozen_shell(direct_inputs=True)
+                top = routed['modules']['top']
+                cells = top['cells']
+                ff = cells['expansion.plug_request_ff_0']
+                if mutation == 'undriven': ff['connections']['DATAIN'] = [999999]
+                elif mutation == 'multiple':
+                    cells['another_driver'] = {'type': 'MISTRAL_ALUT2',
+                        'connections': {'Q': ff['connections']['DATAIN']}, 'port_directions': {'Q': 'output'}}
+                elif mutation == 'output_alias': top['netnames']['expansion_plug_request[0]']['bits'] = [999999]
+                elif mutation == 'output_driver':
+                    cells['another_driver'] = {'type': 'MISTRAL_ALUT2',
+                        'connections': {'Q': ff['connections']['Q']}, 'port_directions': {'Q': 'output'}}
+                elif mutation == 'response_alias': del top['netnames']['expansion.response[0]']
+                elif mutation == 'anchor_alias': del top['netnames']['expansion.clock_coverage_unused[0]']
+                elif mutation == 'constant_missing': del cells['$PACKER_GND_DRV']
+                elif mutation == 'constant_high': cells['$PACKER_GND_DRV']['parameters']['LUT'] = f'{1:032b}'
+                elif mutation == 'constant_malformed': cells['$PACKER_GND_DRV']['parameters']['LUT'] = 'x' * 32
+                elif mutation == 'constant_ports': cells['$PACKER_GND_DRV']['connections']['Q'].append(4001)
+                elif mutation == 'response_nonconstant': cells['expansion.plug_response_ff_0']['connections']['DATAIN'] = [2000]
+                elif mutation == 'anchor_nonconstant': cells['expansion.clock_coverage_ff_0']['connections']['DATAIN'] = [2000]
+                with self.assertRaisesRegex(BuildError, 'driver|alias'):
+                    st.validate_routed_shell(routed)
+        # A request input can be driven by logic, a module input or a packed
+        # constant; response/clock-only D inputs must remain tied low.
+        routed = frozen_shell(direct_inputs=True)
+        cells = routed['modules']['top']['cells']
+        cells['expansion.plug_request_ff_0']['connections']['DATAIN'] = [4000]
+        st.validate_routed_shell(routed)
+        cells['request_logic'] = {'type': 'MISTRAL_ALUT2',
+            'connections': {'Q': [5000]}, 'port_directions': {'Q': 'output'}}
+        cells['expansion.plug_request_ff_0']['connections']['DATAIN'] = [5000]
+        st.validate_routed_shell(routed)
+        cells['request_high'] = {'type': 'MISTRAL_CONST', 'parameters': {'LUT': f'{1:032b}'},
+            'connections': {'Q': [6000]}, 'port_directions': {'Q': 'output'}}
+        cells['expansion.plug_request_ff_0']['connections']['DATAIN'] = [6000]
+        st.validate_routed_shell(routed)
 
     def test_ram_bel_outside_video_still_rejects_overlapping_configuration(self):
         database = ram_database()
