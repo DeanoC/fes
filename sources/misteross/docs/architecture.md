@@ -2252,10 +2252,29 @@ bytes, in addition to guest RAM and adapter VRAM.
 
 The backplane represents eight logical XT slots. These are virtual connectors;
 this design does not drive physical ISA cards or supply 5 V electrical signals.
-A logical slot does not imply a place-and-route socket. Initially compile card
-instances into the machine. Independently linked FPGA cards require a new
-shell-specific fabric definition, physical reservations and containment proof.
-Do not reuse another machine's expansion ABI by renaming it.
+The preferred implementation extends the existing linkable multi-socket
+expansion mechanism used by Apple II, Spectrum and C64. Independently built
+ISA cards are composed into an exact frozen PC/XT shell before programming;
+this is a full-chip RBF composition, not live partial reconfiguration. A
+compile-in card is a simulation/bring-up option, not the intended expansion
+product model. Changing cards follows the normal Stop, compose and Play path.
+
+Reuse `expansion.ComposeSlotsContext`, exact-shell archive admission, sorted
+`slot_index` composition identity and per-socket CRAM containment. Extend their
+closed supported-target policies with proposed bus `fes.expansion.pcxt-isa`
+1.0 and layout `fes.pcxt-isa.sockets/1`; these identifiers are not registered
+today. Keep existing bus contracts unchanged. The Apple II request word cannot
+carry ISA addressing, READY or DMA semantics; define and generate a PC/XT
+request/response packing through mister-packages, then extend its consumers.
+
+Eight logical XT slots do not guarantee eight physical link regions. Qualify
+an initial layout with a small number of independently linkable sockets after
+CPU, SDRAM and video placement budgets are known. Record exactly which logical
+slot indices have physical regions; reject cards targeting any other index.
+Reserve larger regions for graphics or sound only when demonstrated necessary.
+Do not copy another core's rectangles or advertise eight routable sockets
+without evidence. A layout change requires a new layout identity and rebuilt
+cards against the newly sealed shell.
 
 Proposed internal transaction interface:
 
@@ -2281,6 +2300,61 @@ decoders before reset and assert against multiple runtime read claims. Combine
 IRQ/DRQ wires, not register data. Unclaimed I/O reads return `FF`. Preserve the
 16-bit CPU I/O address while allowing each historical card's actual decode
 mask; never globally truncate all I/O addresses to ten bits.
+
+#### Linkable ISA card boundary
+
+Keep the CPU, RAM controller, BIOS, PIC/PIT/DMA/PPI, shared media transport,
+PCM mixer and output timing in the frozen shell. Put card-specific decode,
+registers and device state inside each card's fence. Use the Apple II card
+producer's frozen scaffold and named cart-region pattern, with PC-specific
+pinned boundary registers and clock coverage. Shell routes and other socket
+regions must remain unchanged when any one card is built.
+
+The shared registered request carries a transaction identifier or toggle, held
+until completion. Each response echoes that identifier with claim/ready/data;
+the shell ignores stale responses after reset or a preceding transaction.
+Allow the known request/response register latency before deciding that an
+address is unclaimed. A claiming slow card holds completion pending; it must
+not receive a repeated write when the CPU remains in a wait state. Propagate
+commit/retire back to the card so side effects occur exactly once. Idle socket
+responses are zero, hence inactive claim/IRQ/DRQ, not a permanent CPU wait.
+Guest bus phase enables remain distinct from fabric boundary pipeline cycles.
+
+DMA requests and acknowledgements, terminal count, interrupts and audio cross
+registered, explicitly versioned ports. Card audio goes to a shell mixer;
+cards never own the HDMI or audio PLL. A graphics card additionally needs a
+qualified pixel stream and bounded VRAM/SDRAM service at the socket boundary.
+A storage card uses a bounded shell-owned block-buffer service. Both services
+must reserve their interface and routing before the shell freezes. Begin
+linkable-card qualification with an I/O/IRQ probe, then a DMA loopback card;
+keep inline CGA/floppy bring-up available until those wider service boundaries
+are qualified. The preferred endpoint is separately linked graphics, disk and
+sound cards, subject to demonstrated resource fit.
+
+Existing expansion manifests authenticate shell identity and payload but do
+not describe ISA resource assignments. Add a versioned canonical card resource
+descriptor, covered by archive identity, for memory/I/O decode masks, IRQ/DMA
+routing and required shell services. Extend parsing/admission in the shared
+linker and runtime, and selection in FogCast, before accepting those archives.
+Validate conflicts against motherboard devices, built-in adapters and all
+selected cards before composing; enforce the same constraints in RTL assertions.
+Do not put unauthenticated resource sidecars beside an otherwise valid archive.
+
+Reuse `ComposeSlotsROM` where its existing firmware mapping fits. Card-local
+option ROMs require an explicit authenticated destination map and composition
+order: the current generic ROM path rejects destinations inside socket fences.
+Extend that contract deliberately if ROM splicing into card regions is needed;
+never bypass it. Firmware linking must preserve every selected card's unrelated
+bits, and card linking must preserve the system firmware map and other cards.
+Graphics and output-part composition must also reject overlapping reservations.
+
+Each new layout needs Python/Go agreement on socket regions and generated RTL
+packing, exact-shell mismatch and duplicate-slot rejection, permutation-stable
+composition IDs, unclaimed-slot behavior and outside-fence corruption tests.
+Then route probe and DMA cards independently against the same shell and verify
+combined timing, all-card containment and whole-RBF readback. Rebuilding the
+shell invalidates its old cards. No PC/XT slot support is implemented by this
+design-only change.
 
 Proposed baseline assignments, with exact aliases governed by device models:
 
@@ -2326,7 +2400,7 @@ Keep RTL under the proposed `cores/fes-pcxt/`, with a reusable CPU under
 the shared locked HIP lane and authenticate firmware, character ROM, CPU mode,
 adapter set, RAM geometry and disk-controller configuration. Resource estimates
 must account for CPU microcode/prefetch, adapter VRAM, SDRAM arbitration, frame
-capture, audio and future physical socket fences. No fit or frequency is claimed.
+capture, audio and reserved linkable socket fences. No fit or frequency is claimed.
 
 Acceptance requires independent instruction/flag and bus traces for each CPU
 mode, directed chipset/ISA tests with delayed acknowledgements, DMA boundary
