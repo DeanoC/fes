@@ -10,8 +10,9 @@
 -- The hero and a compact route row use Left and Right along that header.
 -- When the compact routes stack, Down and Up follow the column and then
 -- the cores, and Left and Right stay put. The list arrives once; it never
--- moves the player's focus, and the last selected package is restored on
--- a later visit.
+-- moves the player's focus. The last selected installed package is restored
+-- on a later visit. An omitted core is not that selection, so Home opens on
+-- an installed core, or on Library when every row is an omission.
 --
 -- Under 480×360, room.hero is nil and the launcher keeps its destination
 -- strip. A compact list above that strip still offers the visible cores
@@ -88,6 +89,40 @@ local function selected_core()
   return cores[shelf_i]
 end
 
+-- An omitted optional core is listed, but it is not an installed package.
+local function omitted(core)
+  return core and core.needs == "unavailable"
+end
+
+local function installed_count()
+  local n = 0
+  for _, core in ipairs(cores or {}) do
+    if not omitted(core) then n = n + 1 end
+  end
+  return n
+end
+
+-- Open on the saved installed package, else the first installed core.
+-- An omitted core stays on the shelf and is not the opening selection.
+local function choose_opening()
+  local want = store.get("package_id", "")
+  local saved, first_installed = 0, 0
+  for i, core in ipairs(cores) do
+    if not omitted(core) then
+      if first_installed == 0 then first_installed = i end
+      if want ~= "" and core.package_id == want then saved = i end
+    end
+  end
+  if saved ~= 0 then
+    shelf_i = saved
+  elseif first_installed ~= 0 then
+    shelf_i = first_installed
+  else
+    row = "menu"
+    menu_i = 1
+  end
+end
+
 local function publish()
   if row == "menu" then
     local item = MENU[menu_i]
@@ -149,7 +184,9 @@ local SAVE_AFTER = 1.0
 
 local function remember()
   local core = selected_core()
-  if core then pending_save = { id = core.package_id, wait = SAVE_AFTER } end
+  if core and not omitted(core) then
+    pending_save = { id = core.package_id, wait = SAVE_AFTER }
+  end
 end
 
 function update(dt)
@@ -192,10 +229,7 @@ function load()
       publish()
       return
     end
-    local want = store.get("package_id", "")
-    for i, core in ipairs(cores) do
-      if core.package_id == want then shelf_i = i end
-    end
+    choose_opening()
     keep_visible()
     publish()
   end)
@@ -461,8 +495,11 @@ local function draw_shelf(h)
   local label = "On this kit"
   gfx.text(label, s.x, s.y, { size = 24, bold = true, color = C.text })
   local count = ""
-  if cores and #cores > 0 then
-    count = #cores == 1 and "1 installed" or (#cores .. " installed")
+  local installed = installed_count()
+  if installed == 1 then
+    count = "1 installed"
+  elseif installed > 1 then
+    count = installed .. " installed"
   end
   if count ~= "" then
     gfx.text(count, s.x, s.y + 4, { size = 18, color = C.secondary, max_w = s.w, align = "right" })

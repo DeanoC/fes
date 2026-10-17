@@ -237,7 +237,9 @@ func heroCoreDetails(d rooms.Destination) []string {
 	if id := strings.TrimSpace(d.CoreID); id != "" {
 		lines = append(lines, "Core: "+id)
 	}
-	if pkg := strings.TrimSpace(d.PackageID); pkg != "" {
+	// An omitted core's package id is synthetic. It is not in the image, so
+	// Details names the core and the kit's block without a package line.
+	if pkg := strings.TrimSpace(d.PackageID); pkg != "" && d.CoreNeeds != "unavailable" {
 		if len(pkg) > 12 {
 			pkg = pkg[:12] + "…"
 		}

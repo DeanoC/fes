@@ -482,6 +482,25 @@ func TestHomeHeroFitsLongTitlesAboveTheButtons(t *testing.T) {
 	}
 }
 
+func TestHomeHeroDetailsOmitAPackageForAnOmittedCore(t *testing.T) {
+	omitted := rooms.Destination{
+		Kind: rooms.KindCore, Label: "Atari ST",
+		PackageID: strings.Repeat("b", 64), CoreID: "fes.atari-st",
+		CoreNeeds: "unavailable", CoreBlock: "Hardware unavailable",
+		Availability: rooms.AvailUnavailable,
+	}
+	lines := strings.Join(heroCoreDetails(omitted), "\n")
+	if strings.Contains(lines, "Package:") || !strings.Contains(lines, "Core: fes.atari-st") || !strings.Contains(lines, "Kit says: Hardware unavailable") {
+		t.Fatalf("omitted details %q", lines)
+	}
+	installed := omitted
+	installed.CoreNeeds = "media"
+	installed.CoreBlock = "Needs a cartridge"
+	if !strings.Contains(strings.Join(heroCoreDetails(installed), "\n"), "Package: ") {
+		t.Fatal("an installed block lost its package line")
+	}
+}
+
 func TestHomeHeroDetailsKeepTheBlockWhenLinesAreDropped(t *testing.T) {
 	block := "Kit says: Needs a video part"
 	c := heroCopy{
