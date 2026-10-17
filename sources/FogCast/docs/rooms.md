@@ -339,11 +339,12 @@ On a host launcher `kit` is nil. When the launcher injects a client,
 Each row is `{package_id, core_id, name, needs, launchable, block, inputs}`.
 `name` is the manifest name. `needs` is `none`, `media`, `firmware`, `parts`
 or `unsupported`. `block` is empty when `launchable` is true. `inputs` lists
-`keyboard` when the package requires `fes.keyboard.hid` and `mouse` when it
-requires a `fes.mouse*` interface. Plain `fes.keyboard` 1.0 is the
-simple-computer input matrix that also carries the pad (Master System,
-ColecoVision, SG-1000), so it is not a keyboard requirement. An older agent
-omits `inputs`.
+`keyboard` when the package requires `fes.keyboard.hid`, or when it requires
+plain `fes.keyboard` 1.0 together with `fes.video.session-display` 1.0 and
+has no cartridge ROM. That pair is the ZX81 bring-up computer. The same
+matrix on Master System, SG-1000 and the earlier ColecoVision package is the
+joystick and is not listed. `mouse` is a required `fes.mouse*` interface.
+An older agent omits `inputs`.
 
 ### `session`, `rooms`, `store`, `log`
 

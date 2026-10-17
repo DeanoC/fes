@@ -2668,7 +2668,11 @@ Installed-core control is a separate root-only HTTP socket at
 packages and, when the kit lease is free, launches one that needs no cartridge
 or firmware under owner `kit-hostless` purpose `kit-local-core`. The rooms
 engine can list and launch through that socket when a `localcores` client is
-injected (`kit.cores`, destination kind `core`). `fogcast-tenfoot -gfx menu-display`
+injected (`kit.cores`, destination kind `core`). A listed core names `keyboard`
+when its package requires `fes.keyboard.hid`, or plain `fes.keyboard` 1.0 with
+`fes.video.session-display` 1.0 and no cartridge ROM (the ZX81 bring-up
+computer). Master System, SG-1000 and earlier ColecoVision reuse that matrix
+as a joystick, so it is not a keyboard requirement. `fogcast-tenfoot -gfx menu-display`
 connects that socket and, while the core runs, writes pad frames through the
 shared `ui/localfeed` socket. A host session, and any other tenfoot gfx backend,
 leaves `kit` unset. Confirm shows the room launch overlay while loading, then

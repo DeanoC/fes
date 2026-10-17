@@ -334,9 +334,11 @@ Hardware journeys H1–H9 remain pending.
   not shown because packages carry no creator. The shelf never says Ready.
 - **Input requirements.** A required `fes.keyboard.hid` or `fes.mouse*`
   interface becomes "Needs a keyboard" / "Needs a mouse" before Play. Plain
-  `fes.keyboard` 1.0 is the simple-computer input matrix that also carries
-  the pad (Master System, ColecoVision, SG-1000) and is not shown. Pads are
-  not listed.
+  `fes.keyboard` 1.0 is shown only when the package also requires
+  `fes.video.session-display` 1.0 and has no cartridge ROM, which is the
+  ZX81 bring-up computer. Master System, SG-1000 and the earlier
+  ColecoVision package use that matrix as a joystick and are not shown.
+  Pads are not listed.
 - **Destination.** A kit-local core plays on the kit's own HDMI output, so
   the hero says "Plays on this TV". No chooser is shown: this path has one
   destination.

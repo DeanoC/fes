@@ -578,6 +578,98 @@ func TestInstalledIdentityAndHyphenatedCoreID(t *testing.T) {
 	}
 }
 
+func requiredIfaces(ids ...string) []corepackage.Interface {
+	out := make([]corepackage.Interface, len(ids))
+	for i, id := range ids {
+		out[i] = corepackage.Interface{ID: id, Major: 1, Required: true}
+	}
+	return out
+}
+
+// TestDescriptorInputsDistinguishesTypingKeyboardsFromJoypadMatrices covers
+// the installed-package shapes for ZX81, Spectrum, ColecoVision, Master
+// System and SG-1000. The Quartus ZX81 (build_fes_zx81.py) types on plain
+// fes.keyboard and also requires the session-display plane. Spectrum types
+// on fes.keyboard.hid. The console packages reuse plain fes.keyboard as a
+// joystick, or declare gamepad ports instead.
+func TestDescriptorInputsDistinguishesTypingKeyboardsFromJoypadMatrices(t *testing.T) {
+	cart := &corepackage.ROM{Role: "cartridge"}
+	for _, tc := range []struct {
+		name string
+		d    corepackage.Descriptor
+		want string
+	}{
+		{
+			name: "zx81",
+			d: corepackage.Descriptor{Interfaces: requiredIfaces(
+				"fes.keyboard", "fes.video.fixed-720p60", "fes.memory.hps-ddr",
+				"fes.video.session-display", "fes.media.blob", "fes.audio.pcm-s16-stereo-48k",
+			)},
+			want: "keyboard",
+		},
+		{
+			name: "spectrum",
+			d: corepackage.Descriptor{Interfaces: requiredIfaces(
+				"fes.video.fixed-720p60", "fes.keyboard.hid", "fes.gamepad.ports",
+				"fes.audio.pcm-s16-stereo-48k", "fes.media.spectrum-tape",
+			)},
+			want: "keyboard",
+		},
+		{
+			name: "coleco",
+			d: corepackage.Descriptor{
+				ROM: cart,
+				Interfaces: requiredIfaces(
+					"fes.audio.pcm-s16-stereo-48k", "fes.gamepad.ports", "fes.keypad.ports",
+					"fes.video.fixed-720p60",
+				),
+			},
+			want: "",
+		},
+		{
+			name: "coleco keyboard matrix",
+			d:    corepackage.Descriptor{Interfaces: requiredIfaces("fes.keyboard", "fes.video.fixed-720p60")},
+			want: "",
+		},
+		{
+			name: "sms",
+			d: corepackage.Descriptor{
+				ROM:        cart,
+				Interfaces: requiredIfaces("fes.keyboard", "fes.video.fixed-720p60", "fes.audio.pcm-s16-stereo-48k"),
+			},
+			want: "",
+		},
+		{
+			name: "sg-1000",
+			d: corepackage.Descriptor{
+				ROM:        cart,
+				Interfaces: requiredIfaces("fes.keyboard", "fes.video.fixed-720p60", "fes.audio.pcm-s16-stereo-48k"),
+			},
+			want: "",
+		},
+		{
+			name: "sms bring-up",
+			d: corepackage.Descriptor{Interfaces: requiredIfaces(
+				"fes.keyboard", "fes.video.fixed-720p60", "fes.media.blob",
+				"fes.media.blob-stream", "fes.audio.pcm-s16-stereo-48k",
+			)},
+			want: "",
+		},
+		{
+			name: "sg-1000 bring-up",
+			d: corepackage.Descriptor{Interfaces: requiredIfaces(
+				"fes.keyboard", "fes.video.fixed-720p60", "fes.media.blob", "fes.audio.pcm-s16-stereo-48k",
+			)},
+			want: "",
+		},
+	} {
+		got := strings.Join(descriptorInputs(tc.d), ",")
+		if got != tc.want {
+			t.Fatalf("%s: inputs %q, want %q", tc.name, got, tc.want)
+		}
+	}
+}
+
 func TestDescriptorInputsNamesRequiredKeyboardAndMouse(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
@@ -587,7 +679,7 @@ func TestDescriptorInputsNamesRequiredKeyboardAndMouse(t *testing.T) {
 		{"pad only", []corepackage.Interface{{ID: "fes.gamepad.ports", Major: 1, Required: true}}, ""},
 		{"hid keyboard", []corepackage.Interface{{ID: "fes.keyboard.hid", Major: 1, Required: true}, {ID: "fes.gamepad.ports", Major: 1, Required: true}}, "keyboard"},
 		{"keyboard and mouse", []corepackage.Interface{{ID: "fes.mouse.relative", Major: 1, Required: true}, {ID: "fes.keyboard.hid", Major: 1, Required: true}}, "keyboard,mouse"},
-		// fes.sms, fes.coleco and fes.sg1000 receive the pad through this matrix.
+		// A matrix with no computer plane is the joystick, not a typing keyboard.
 		{"simple-computer input matrix", []corepackage.Interface{{ID: "fes.keyboard", Major: 1, Required: true}, {ID: "fes.video.fixed-720p60", Major: 1, Required: true}}, ""},
 		{"optional mouse", []corepackage.Interface{{ID: "fes.mouse.relative", Major: 1}}, ""},
 		{"prefix only", []corepackage.Interface{{ID: "fes.keyboardish", Major: 1, Required: true}}, ""},
