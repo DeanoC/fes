@@ -1109,6 +1109,10 @@ The sealed shell is `fes.computer` 1.0. `top.v` instantiates
 with the ZX81 tape unit and the session-display plane.
 Shells that leave the plane off keep the `fes_computer_mailbox` port list in
 that same file; that wrapper ties the plane response inputs idle.
+Atari ST sets `DIRECT_ACCEPT_ACK` on that wrapper. With the session-display
+plane off, the accepting edge assigns `acknowledged_toggle` from the
+synchronized request and does not elaborate the display-wait hold. Other
+shells leave `DIRECT_ACCEPT_ACK` at 0.
 `cores/fes-zx81/rtl/fes_computer_gp.v` remains the session-harness mailbox on
 the older `fes.simple-computer` 1.0 transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
