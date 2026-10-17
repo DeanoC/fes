@@ -97,10 +97,14 @@ func Usable(blockDir string) ([]string, error) {
 		if decision, ok := Decide(blockDir, name); ok && decision.Allow {
 			names = append(names, name)
 		}
-		if !entry.IsDir() {
+		// /sys/block and /sys/class/block entries are symlinks on current
+		// kernels. Stat follows them; DirEntry.IsDir does not.
+		target := filepath.Join(blockDir, name)
+		info, statErr := os.Stat(target)
+		if statErr != nil || !info.IsDir() {
 			continue
 		}
-		children, readErr := os.ReadDir(filepath.Join(blockDir, name))
+		children, readErr := os.ReadDir(target)
 		if readErr != nil {
 			continue
 		}
@@ -143,7 +147,9 @@ func SkipsRoot(sysfs, mountinfo, path string) bool {
 
 // ReadFullAt reads len(buf) bytes at off. A refused device returns ErrSkip
 // without being opened. An allowed open or read that exceeds timeout returns
-// an error while the stuck call is abandoned.
+// an error. The worker reads into its own buffer and closes the file before
+// publishing, including when the caller has already returned. A read stuck in
+// the kernel is closed once that call returns; it cannot be cancelled sooner.
 func ReadFullAt(path string, buf []byte, off int64, timeout time.Duration) error {
 	if err := RejectsDevice("/sys", path); err != nil {
 		return err
@@ -152,7 +158,7 @@ func ReadFullAt(path string, buf []byte, off int64, timeout time.Duration) error
 		timeout = OpenTimeout
 	}
 	type result struct {
-		file *os.File
+		data []byte
 		err  error
 	}
 	done := make(chan result, 1)
@@ -162,29 +168,38 @@ func ReadFullAt(path string, buf []byte, off int64, timeout time.Duration) error
 			done <- result{err: err}
 			return
 		}
+		defer file.Close()
 		// The open was non-blocking. The read of an admitted device is the
 		// same blocking read callers used before, still bounded by timeout.
 		_ = unix.SetNonblock(int(file.Fd()), false)
-		_, err = file.ReadAt(buf, off)
+		tmp := make([]byte, len(buf))
+		_, err = readDeviceAt(file, tmp, off)
 		if err != nil && !errors.Is(err, io.EOF) {
-			done <- result{file: file, err: err}
+			done <- result{err: err}
 			return
 		}
 		if err != nil {
-			done <- result{file: file, err: io.ErrUnexpectedEOF}
+			done <- result{err: io.ErrUnexpectedEOF}
 			return
 		}
-		done <- result{file: file}
+		done <- result{data: tmp}
 	}()
 	select {
 	case got := <-done:
-		if got.file != nil {
-			_ = got.file.Close()
+		if got.err != nil {
+			return got.err
 		}
-		return got.err
+		copy(buf, got.data)
+		return nil
 	case <-time.After(timeout):
 		return fmt.Errorf("reading %s timed out after %s", path, timeout)
 	}
+}
+
+// readDeviceAt is the read used after a successful open. Tests replace it to
+// stall a read that has already opened the file.
+var readDeviceAt = func(file *os.File, buf []byte, off int64) (int, error) {
+	return file.ReadAt(buf, off)
 }
 
 func rejectName(sysfs, name string) error {
@@ -249,16 +264,22 @@ func scsiType(blockDir, dir, name string) int {
 
 func deviceDir(blockDir, name string) (string, bool) {
 	direct := filepath.Join(blockDir, name)
-	if info, err := os.Lstat(direct); err == nil && info.IsDir() {
+	if isDir(direct) {
 		return direct, true
 	}
 	if parent := parentDisk(name); parent != "" {
 		nested := filepath.Join(blockDir, parent, name)
-		if info, err := os.Lstat(nested); err == nil && info.IsDir() {
+		if isDir(nested) {
 			return nested, true
 		}
 	}
 	return "", false
+}
+
+// isDir follows symlinks. Sysfs block entries point at the device directory.
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 func opticalName(name string) bool {

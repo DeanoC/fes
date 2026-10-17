@@ -1,11 +1,13 @@
 """Fake sysfs trees for optical, empty, USB and SD/FESDATA classification."""
 
-from pathlib import Path
 import os
 import tempfile
+import time
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
-from scripts.block_probe import NO_MEDIA, OPTICAL, ZERO, reason, reason_for
+from scripts.block_probe import NO_MEDIA, OPTICAL, ZERO, _open_timeout, reason, reason_for
 
 
 def write_dev(block: Path, name: str, size: str, removable: str, scsi_type: str) -> None:
@@ -52,6 +54,31 @@ class BlockProbeTests(unittest.TestCase):
             self.assertEqual(reason_for("/dev/sda", sysfs=str(root)), OPTICAL)
             self.assertEqual(reason_for("/dev/mmcblk0p3", sysfs=str(root)), "")
             self.assertEqual(reason_for(str(root / "card.img"), sysfs=str(root)), "")
+
+            devices = root / "devices"
+            write_dev(devices, "optical", "0", "1", "5")
+            write_dev(devices, "stick", "15633408", "1", "0")
+            (block / "optical").symlink_to(devices / "optical")
+            (block / "stick").symlink_to(devices / "stick")
+            self.assertEqual(reason(block, "optical"), OPTICAL)
+            self.assertEqual(reason(block, "stick"), "")
+
+    def test_timed_out_open_closes_the_descriptor(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "stick"
+            path.write_bytes(b"usb")
+            real_open = os.open
+
+            def slow_open(target, flags, mode=0o777):
+                time.sleep(0.4)
+                return real_open(target, flags, mode)
+
+            before = len(os.listdir("/proc/self/fd"))
+            with patch("scripts.block_probe.os.open", slow_open):
+                with self.assertRaises(TimeoutError):
+                    _open_timeout(str(path), "rb", 0.05)
+            time.sleep(0.6)
+            self.assertLessEqual(len(os.listdir("/proc/self/fd")), before)
 
 
 if __name__ == "__main__":

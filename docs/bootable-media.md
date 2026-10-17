@@ -204,9 +204,12 @@ bootstrap has already moved the writable FAT to `/media/fat`.
 `/usr/sbin/fes-block-admit` for `sd*` and `sr*` nodes. The helper reads sysfs
 `size`, `removable` and `device/type` and, for an optical device, a removable
 device with no media, or any other zero-capacity disk, sets that device's SCSI
-timeout to one second. It does not open or mount the device. `fstab` has no
-`sd*` or `sr*` entries, so an empty SuperStation dock DVD is not automounted.
-USB sticks and the SD/FESDATA partitions are not changed.
+timeout to one second. It does not open or mount the device. S11 also writes
+`/sbin/mdev` to `/proc/sys/kernel/hotplug`, which Buildroot's `S10mdev` has
+already set, so a dock DVD or USB stick that appears after boot reaches the
+same rule. `fstab` has no `sd*` or `sr*` entries, so an empty SuperStation
+dock DVD is not automounted. USB sticks and the SD/FESDATA partitions are not
+changed.
 
 - If FAT `linux/u-boot.txt` already has an `ethaddr=` line, with any value, the
   script changes nothing. That is the manual override: write

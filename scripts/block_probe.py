@@ -146,21 +146,35 @@ def _open_timeout(path: str, mode: str, timeout: float):
     elif "w" in mode or "a" in mode or "+" in mode:
         flags |= os.O_RDWR if "+" in mode or "r" in mode else os.O_WRONLY
     outcome: dict = {}
+    state = {"abandoned": False}
+    lock = threading.Lock()
 
     def run() -> None:
         try:
-            outcome["fd"] = os.open(path, flags | os.O_NONBLOCK)
+            opened = os.open(path, flags | os.O_NONBLOCK)
         except OSError as error:
-            outcome["err"] = error
+            with lock:
+                outcome["err"] = error
+            return
+        with lock:
+            if state["abandoned"]:
+                os.close(opened)
+                return
+            outcome["fd"] = opened
 
     worker = threading.Thread(target=run, daemon=True)
     worker.start()
     worker.join(timeout)
-    if worker.is_alive():
-        raise TimeoutError(f"opening {path} timed out after {timeout}s")
-    if "err" in outcome:
-        raise outcome["err"]
-    fd = outcome["fd"]
+    with lock:
+        if worker.is_alive():
+            state["abandoned"] = True
+            late = outcome.pop("fd", None)
+            if late is not None:
+                os.close(late)
+            raise TimeoutError(f"opening {path} timed out after {timeout}s")
+        if "err" in outcome:
+            raise outcome["err"]
+        fd = outcome["fd"]
     try:
         # The open used O_NONBLOCK so a not-ready node cannot stall the
         # caller. Later reads and writes of an admitted USB stick must block

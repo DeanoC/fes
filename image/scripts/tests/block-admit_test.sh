@@ -87,8 +87,13 @@ timeout_of() {
 [ "$(timeout_of mmcblk0)" = 180 ] || fail 'SD timeout changed'
 [ "$(timeout_of mmcblk0p3)" = 180 ] || fail 'FESDATA timeout changed'
 
-FES_SYSFS=$fixture/sys FES_BLOCK_ADMIT=$script "$init" start
+FES_SYSFS=$fixture/sys FES_BLOCK_ADMIT=$script FES_HOTPLUG=$fixture/hotplug "$init" start
 [ "$(timeout_of sdb)" = 180 ] || fail 'init changed the USB stick'
 [ "$(timeout_of mmcblk0p3)" = 180 ] || fail 'init changed FESDATA'
+[ "$(tr -d ' \t\r\n' < "$fixture/hotplug")" = /sbin/mdev ] || fail 'hotplug helper was not mdev'
+
+# Sysfs block entries are symlinks. The helper must follow them.
+ln -s sda "$fixture/sys/class/block/dock"
+expect dock optical
 
 printf '%s\n' 'block-admit_test: passed'

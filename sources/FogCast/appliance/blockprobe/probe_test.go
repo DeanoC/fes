@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -231,6 +232,93 @@ func TestReadFullAtReadsAllowedFile(t *testing.T) {
 	if string(buf) != string(payload) {
 		t.Fatalf("read %q", buf)
 	}
+}
+
+func TestSymlinkedSysfsClassifiesOpticalAndUSB(t *testing.T) {
+	root := t.TempDir()
+	devices := filepath.Join(root, "devices")
+	writeDev(t, devices, "sda", "0", "1", "5")
+	writeDev(t, devices, "sdb", "15633408", "1", "0")
+	for _, base := range []string{
+		filepath.Join(root, "class", "block"),
+		filepath.Join(root, "block"),
+	} {
+		if err := os.MkdirAll(base, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		for _, name := range []string{"sda", "sdb"} {
+			if err := os.Symlink(filepath.Join(devices, name), filepath.Join(base, name)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := RejectsName(root, "sda"); !errors.Is(err, ErrSkip) {
+		t.Fatalf("symlink optical: %v", err)
+	}
+	if err := RejectsName(root, "sdb"); err != nil {
+		t.Fatalf("symlink usb: %v", err)
+	}
+	usable, err := Usable(filepath.Join(root, "class", "block"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(usable, []string{"sdb"}) {
+		t.Fatalf("usable = %v", usable)
+	}
+}
+
+func TestReadFullAtClosesFileAfterTimeout(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "stick")
+	payload := []byte("abcd")
+	if err := os.WriteFile(path, payload, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	original := readDeviceAt
+	readDeviceAt = func(file *os.File, buf []byte, off int64) (int, error) {
+		close(started)
+		<-release
+		return file.ReadAt(buf, off)
+	}
+	t.Cleanup(func() { readDeviceAt = original })
+
+	before := openFDCount(t)
+	finished := make(chan error, 1)
+	go func() {
+		finished <- ReadFullAt(path, make([]byte, len(payload)), 0, 50*time.Millisecond)
+	}()
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		t.Fatal("read did not start")
+	}
+	select {
+	case err := <-finished:
+		if err == nil || !strings.Contains(err.Error(), "timed out") {
+			t.Fatalf("expected a timeout, got %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("caller did not time out")
+	}
+	close(release)
+	deadline := time.Now().Add(2 * time.Second)
+	for openFDCount(t) > before {
+		if time.Now().After(deadline) {
+			t.Fatalf("open fds %d, before %d", openFDCount(t), before)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
+func openFDCount(t *testing.T) int {
+	t.Helper()
+	entries, err := os.ReadDir("/proc/self/fd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(entries)
 }
 
 func writeDev(t *testing.T, block, name, size, removable, scsiType string) {
