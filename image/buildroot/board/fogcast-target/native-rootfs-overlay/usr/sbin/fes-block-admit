@@ -7,6 +7,8 @@
 # SCSI state that is not ready. Unit Not Ready on this kernel shows up as an
 # unreadable size (the empty JMS583 bridge). That device is never "ok".
 # A USB stick with size greater than 0 and the SD/FESDATA card are left alone.
+# This helper does not shorten the in-probe READ CAPACITY (issue 778). That
+# stall is fes-usb-quirk, which must not ignore USB id 152d:0583.
 #
 #   fes-block-admit              scan /sys and set timeout to 1s on skips
 #   fes-block-admit --reason NAME  print optical, no-media or ok

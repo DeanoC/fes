@@ -222,11 +222,12 @@ this kernel leaves size unpublished; that device is no-media and is never
 reported ok. The helper does not open or mount the device. S11 also writes
 `/sbin/mdev` to `/proc/sys/kernel/hotplug`, which Buildroot's `S10mdev` has
 already set, so an optical drive or USB stick that appears after boot reaches
-the same rule. `fstab` has no `sd*` or `sr*` entries. A USB stick whose size
-is greater than zero, and the SD/FESDATA partitions, are not changed. The
-queue timeout does not shorten the in-probe READ CAPACITY that already
-captured the compiled-in 30s timeout; the quirk above is what keeps that
-probe off the 180s path.
+the same rule. `fstab` has no `sd*` or `sr*` entries, so an empty optical
+drive is not automounted. A USB stick whose size is greater than zero, and
+the SD/FESDATA partitions, are not changed. The queue timeout does not shorten
+the in-probe READ CAPACITY that already captured the compiled-in 30s timeout.
+That stall is issue 778. The quirk above is what keeps it off the 180s path,
+and it does not ignore USB id `152d:0583`.
 
 - If FAT `linux/u-boot.txt` already has an `ethaddr=` line, with any value, the
   script changes nothing. That is the manual override: write
