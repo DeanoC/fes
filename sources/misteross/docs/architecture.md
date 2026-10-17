@@ -1105,9 +1105,10 @@ one effect per toggle and error isolation.
 ## FES ZX81 mailbox
 
 The sealed shell is `fes.computer` 1.0. `top.v` instantiates
-`fes_computer_mailbox_core` with the ZX81 tape unit and the session-display plane.
-Shells that leave the plane off keep the `fes_computer_mailbox` port list; that
-wrapper ties the plane response inputs idle.
+`fes_computer_mailbox_core` in `cores/fes-common/rtl/fes_computer_mailbox.v`
+with the ZX81 tape unit and the session-display plane.
+Shells that leave the plane off keep the `fes_computer_mailbox` port list in
+that same file; that wrapper ties the plane response inputs idle.
 `cores/fes-zx81/rtl/fes_computer_gp.v` remains the session-harness mailbox on
 the older `fes.simple-computer` 1.0 transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
