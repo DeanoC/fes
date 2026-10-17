@@ -26,6 +26,22 @@ func startSoftwareAdmission(ctx context.Context, leases *kitlease.Manager, coord
 			return nil, fmt.Errorf("invalid managed software startup admission")
 		}
 	}
+	fence, admission, err := prepareSoftwareAdmission(ctx, leases, coordinator, updater, id, pending, request)
+	if err != nil || admission == nil {
+		return fence, err
+	}
+	go func() {
+		if err := localcores.Serve(ctx, softwareagent.Socket, admission.Handler()); err != nil && ctx.Err() == nil {
+			slog.Error("software admission socket failed", "error", err)
+		}
+	}()
+	return fence, nil
+}
+
+// prepareSoftwareAdmission builds the admission fence before any socket is
+// served. A recovery restart sets FES_SOFTWARE_RECOVERY_FENCE so execution
+// claims are rejected before the admission socket listens.
+func prepareSoftwareAdmission(ctx context.Context, leases *kitlease.Manager, coordinator *agent.Coordinator, updater *applianceupdate.Service, id, pending string, request softwareagent.Request) (*softwareagent.Fence, *softwareagent.Admission, error) {
 	fence := softwareagent.NewFence(pending != "")
 	admission := &softwareagent.Admission{Leases: leases, Fence: fence, BundleID: id, Ready: coordinator.RawIdleReady, UpdateBlocked: func(ctx context.Context) bool {
 		if updater == nil {
@@ -34,16 +50,15 @@ func startSoftwareAdmission(ctx context.Context, leases *kitlease.Manager, coord
 		status, err := updater.Status(ctx)
 		return err != nil || status.Trial || status.Pending != "" || status.Corrupt
 	}}
+	if os.Getenv("FES_SOFTWARE_RECOVERY_FENCE") == "1" {
+		if err := leases.SetExecutionFence(true); err != nil {
+			return nil, nil, err
+		}
+	}
 	// The local and HTTP fences are installed before any external launch path.
 	// Queue registration waits for the existing startup cleanup to settle.
 	if pending != "" {
 		admission.QueueStartup(ctx, request)
 	}
-
-	go func() {
-		if err := localcores.Serve(ctx, softwareagent.Socket, admission.Handler()); err != nil && ctx.Err() == nil {
-			slog.Error("software admission socket failed", "error", err)
-		}
-	}()
-	return fence, nil
+	return fence, admission, nil
 }

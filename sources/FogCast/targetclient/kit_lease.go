@@ -17,7 +17,13 @@ import (
 
 const KitLeaseHeader = "X-FogCast-Kit-Lease"
 
-var ErrKitLeaseLost = errors.New("kit lease unavailable; inspect target ownership before starting a new session")
+// ErrKitLeaseLost supports errors.Is at the client boundary. Its public ownership
+// code survives service normalization; lease loss is not a transport failure.
+var ErrKitLeaseLost = &protocol.APIError{
+	Code:    protocol.CodeKitLeaseDenied,
+	Message: "kit lease unavailable; inspect target ownership before starting a new session",
+	Phase:   "recovery",
+}
 
 type kitLeaseStatus = kitlease.Status
 type kitLeaseGrant = kitlease.Grant

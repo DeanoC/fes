@@ -1,0 +1,621 @@
+{
+  "archive_sha256": "98523690318e389bf70ce5db28a653642fb57b56d7764fab324c7d67bb36fe80",
+  "base_identity": "ed721b84074b039daf66bad2aa24276b88dd8cd713b5cfcdb2c2f25489be4ad2",
+  "boot_id": "14c05a47-1615-43f0-a084-a1dc8948c119",
+  "bundle": "0b6b7d8138f2147bc5f3a7b18a3117209365994550aa530b52d2bef819b5602f",
+  "elapsed_seconds": 300.587,
+  "events": [
+    {
+      "host": "A",
+      "host_revision": "c0911a94fc6e058ac6762746768c5d8d4bd6e856",
+      "stage": "host-provenance"
+    },
+    {
+      "host": "B",
+      "host_revision": "521ca23e45e09371597cbd0da74c50703f3b3bba",
+      "stage": "host-provenance"
+    },
+    {
+      "host": "A",
+      "identity": {
+        "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+        "game_id": "fpga-soak-pong-a-9ee4f148d720",
+        "generation": 14,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "stage": "launch"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 75.09,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-launch"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 75.348,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-input"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 86.592,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-launch"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 86.922,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-input"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 98.071,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-launch"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 98.339,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-input"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 109.556,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-launch"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 109.865,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-input"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 121.076,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-launch"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 121.351,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-input"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 132.548,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-launch"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 132.891,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-input"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 144.107,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-launch"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 144.407,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-input"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 155.727,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-launch"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 155.981,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-input"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 167.15,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-launch"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 167.408,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-input"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 178.676,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-launch"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 178.99,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-input"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 190.129,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-launch"
+    },
+    {
+      "code": "KIT_LEASE_DENIED",
+      "elapsed_seconds": 190.421,
+      "host": "B",
+      "http_status": 403,
+      "stage": "competing-input"
+    },
+    {
+      "host": "A",
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "samples": 11,
+      "seconds": 120.0,
+      "stage": "held-dwell"
+    },
+    {
+      "after": {
+        "elapsed_seconds": 195.424,
+        "frames_sent": 508,
+        "host": "A",
+        "identity": {
+          "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+          "game_id": "fpga-soak-pong-a-9ee4f148d720",
+          "generation": 14,
+          "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+          "parts_composition": "",
+          "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+          "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+          "target_name": "dev"
+        },
+        "input_session_id": "462967dc740d77df",
+        "lease_expires_in_ms": 84370,
+        "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+        "lease_owner": "fogcast@powerboat",
+        "native_state": "active",
+        "state_resyncs": 0
+      },
+      "before": {
+        "elapsed_seconds": 194.498,
+        "frames_sent": 504,
+        "host": "A",
+        "identity": {
+          "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+          "game_id": "fpga-soak-pong-a-9ee4f148d720",
+          "generation": 14,
+          "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+          "parts_composition": "",
+          "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+          "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+          "target_name": "dev"
+        },
+        "input_session_id": "462967dc740d77df",
+        "lease_expires_in_ms": 85298,
+        "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+        "lease_owner": "fogcast@powerboat",
+        "native_state": "active",
+        "state_resyncs": 0
+      },
+      "capture_monotonic_end": 3053113.334770799,
+      "capture_monotonic_start": 3053112.409064663,
+      "file": "A-held-game.png",
+      "sha256": "403ea188c1e8b2794e3d5f2333ecbf0410bb11d1a89b66e08bf495e815687388",
+      "stage": "hdmi-capture"
+    },
+    {
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "process_identity": {
+        "exe": "/tmp/fes-expired-host-hardware-final/A/host-binary",
+        "pid": 4059862,
+        "start_ticks": "305297971"
+      },
+      "stage": "A-private-process-paused"
+    },
+    {
+      "old_lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "seconds_to_free": 91.581,
+      "stage": "expiry-complete"
+    },
+    {
+      "host": "B",
+      "identity": {
+        "flight_id": "f469779e-68d7-48ab-bc94-1481656693e0",
+        "game_id": "fpga-soak-pong-b-5cc78fbddd2b",
+        "generation": 15,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "e0b7ad53-7f8f-409d-80e9-070e7e44dc41",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "lease_generation": "9e029e85e86171f6d5fd5497f826c337042ffc41fb274c290e4e2fe5514d3378",
+      "stage": "launch"
+    },
+    {
+      "code": "TARGET_UNAVAILABLE",
+      "http_status": 503,
+      "outcome": "http-response",
+      "stage": "resumed-A-observation"
+    },
+    {
+      "host": "B",
+      "identity": {
+        "flight_id": "f469779e-68d7-48ab-bc94-1481656693e0",
+        "game_id": "fpga-soak-pong-b-5cc78fbddd2b",
+        "generation": 15,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "e0b7ad53-7f8f-409d-80e9-070e7e44dc41",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "stage": "owned-stop"
+    }
+  ],
+  "failure": {
+    "check": "resumed A ownership classification missing",
+    "stage": "A-resumes-stale-session",
+    "type": "RuntimeError"
+  },
+  "hosts": [
+    {
+      "binary_sha256": "90dc442ac32e780a6984e547d7047673312c86878b2b7e30cdc308ac4e545062",
+      "final_process_identity": {
+        "exe": "/tmp/fes-expired-host-hardware-final/A/host-binary",
+        "pid": 4059862,
+        "start_ticks": "305297971"
+      },
+      "label": "A",
+      "source": "c0911a94fc6e058ac6762746768c5d8d4bd6e856",
+      "workstation": "powerboat"
+    },
+    {
+      "binary_sha256": "11eafc0e103ae15e7d3bef231d2747e22fe21bde0d58118b4251d8854f446da1",
+      "label": "B",
+      "remote": {
+        "architecture": "x86_64",
+        "binary_sha256": "11eafc0e103ae15e7d3bef231d2747e22fe21bde0d58118b4251d8854f446da1",
+        "exe": "/tmp/fes-host-soak.6572059180c810ce220507bfddfd727d148d93f052eb212c7c7134561d475594/host",
+        "hostname": "chip-30x0-ai-dev",
+        "local_api_port": 38895,
+        "pid": 3298475,
+        "remote_api_port": 40903,
+        "root": "/tmp/fes-host-soak.6572059180c810ce220507bfddfd727d148d93f052eb212c7c7134561d475594",
+        "start_ticks": "39015571",
+        "state": "stopped-removed",
+        "tunnel_pid": 4060242,
+        "uid": 1001
+      },
+      "source": "521ca23e45e09371597cbd0da74c50703f3b3bba",
+      "workstation": "chip-30x0-ai-dev"
+    }
+  ],
+  "remote_helper_sha256": "dcdbf0d8d35bc1109309d7f5cd2c8868dfd83cde85974d44866bdae8e53d37b9",
+  "retained_private_state": false,
+  "samples": [
+    {
+      "elapsed_seconds": 74.77,
+      "frames_sent": 5,
+      "host": "A",
+      "identity": {
+        "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+        "game_id": "fpga-soak-pong-a-9ee4f148d720",
+        "generation": 14,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "input_session_id": "462967dc740d77df",
+      "lease_expires_in_ms": 85020,
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "lease_owner": "fogcast@powerboat",
+      "native_state": "active",
+      "state_resyncs": 0
+    },
+    {
+      "elapsed_seconds": 86.271,
+      "frames_sent": 53,
+      "host": "A",
+      "identity": {
+        "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+        "game_id": "fpga-soak-pong-a-9ee4f148d720",
+        "generation": 14,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "input_session_id": "462967dc740d77df",
+      "lease_expires_in_ms": 73521,
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "lease_owner": "fogcast@powerboat",
+      "native_state": "active",
+      "state_resyncs": 0
+    },
+    {
+      "elapsed_seconds": 97.73,
+      "frames_sent": 101,
+      "host": "A",
+      "identity": {
+        "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+        "game_id": "fpga-soak-pong-a-9ee4f148d720",
+        "generation": 14,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "input_session_id": "462967dc740d77df",
+      "lease_expires_in_ms": 82064,
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "lease_owner": "fogcast@powerboat",
+      "native_state": "active",
+      "state_resyncs": 0
+    },
+    {
+      "elapsed_seconds": 109.266,
+      "frames_sent": 149,
+      "host": "A",
+      "identity": {
+        "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+        "game_id": "fpga-soak-pong-a-9ee4f148d720",
+        "generation": 14,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "input_session_id": "462967dc740d77df",
+      "lease_expires_in_ms": 70529,
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "lease_owner": "fogcast@powerboat",
+      "native_state": "active",
+      "state_resyncs": 0
+    },
+    {
+      "elapsed_seconds": 120.757,
+      "frames_sent": 197,
+      "host": "A",
+      "identity": {
+        "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+        "game_id": "fpga-soak-pong-a-9ee4f148d720",
+        "generation": 14,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "input_session_id": "462967dc740d77df",
+      "lease_expires_in_ms": 79041,
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "lease_owner": "fogcast@powerboat",
+      "native_state": "active",
+      "state_resyncs": 0
+    },
+    {
+      "elapsed_seconds": 132.223,
+      "frames_sent": 245,
+      "host": "A",
+      "identity": {
+        "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+        "game_id": "fpga-soak-pong-a-9ee4f148d720",
+        "generation": 14,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "input_session_id": "462967dc740d77df",
+      "lease_expires_in_ms": 87572,
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "lease_owner": "fogcast@powerboat",
+      "native_state": "active",
+      "state_resyncs": 0
+    },
+    {
+      "elapsed_seconds": 143.834,
+      "frames_sent": 294,
+      "host": "A",
+      "identity": {
+        "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+        "game_id": "fpga-soak-pong-a-9ee4f148d720",
+        "generation": 14,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "input_session_id": "462967dc740d77df",
+      "lease_expires_in_ms": 75960,
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "lease_owner": "fogcast@powerboat",
+      "native_state": "active",
+      "state_resyncs": 0
+    },
+    {
+      "elapsed_seconds": 155.308,
+      "frames_sent": 342,
+      "host": "A",
+      "identity": {
+        "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+        "game_id": "fpga-soak-pong-a-9ee4f148d720",
+        "generation": 14,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "input_session_id": "462967dc740d77df",
+      "lease_expires_in_ms": 84487,
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "lease_owner": "fogcast@powerboat",
+      "native_state": "active",
+      "state_resyncs": 0
+    },
+    {
+      "elapsed_seconds": 166.879,
+      "frames_sent": 390,
+      "host": "A",
+      "identity": {
+        "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+        "game_id": "fpga-soak-pong-a-9ee4f148d720",
+        "generation": 14,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "input_session_id": "462967dc740d77df",
+      "lease_expires_in_ms": 72916,
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "lease_owner": "fogcast@powerboat",
+      "native_state": "active",
+      "state_resyncs": 0
+    },
+    {
+      "elapsed_seconds": 178.331,
+      "frames_sent": 438,
+      "host": "A",
+      "identity": {
+        "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+        "game_id": "fpga-soak-pong-a-9ee4f148d720",
+        "generation": 14,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "input_session_id": "462967dc740d77df",
+      "lease_expires_in_ms": 81463,
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "lease_owner": "fogcast@powerboat",
+      "native_state": "active",
+      "state_resyncs": 0
+    },
+    {
+      "elapsed_seconds": 189.848,
+      "frames_sent": 486,
+      "host": "A",
+      "identity": {
+        "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+        "game_id": "fpga-soak-pong-a-9ee4f148d720",
+        "generation": 14,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "input_session_id": "462967dc740d77df",
+      "lease_expires_in_ms": 89947,
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "lease_owner": "fogcast@powerboat",
+      "native_state": "active",
+      "state_resyncs": 0
+    },
+    {
+      "elapsed_seconds": 196.052,
+      "frames_sent": 513,
+      "host": "A",
+      "identity": {
+        "flight_id": "d775ee84-94d9-415b-bedb-57e44972db70",
+        "game_id": "fpga-soak-pong-a-9ee4f148d720",
+        "generation": 14,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "5b91cac9-fcd4-494a-b931-6bc7c6a6134b",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "input_session_id": "462967dc740d77df",
+      "lease_expires_in_ms": 83742,
+      "lease_generation": "e770b6bda195bdc6a251e46d05805749ed1de4b65dc3e038867ee42a8dfc86de",
+      "lease_owner": "fogcast@powerboat",
+      "native_state": "active",
+      "state_resyncs": 0
+    },
+    {
+      "elapsed_seconds": 293.062,
+      "frames_sent": 6,
+      "host": "B",
+      "identity": {
+        "flight_id": "f469779e-68d7-48ab-bc94-1481656693e0",
+        "game_id": "fpga-soak-pong-b-5cc78fbddd2b",
+        "generation": 15,
+        "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+        "parts_composition": "",
+        "session_id": "e0b7ad53-7f8f-409d-80e9-070e7e44dc41",
+        "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+        "target_name": "dev"
+      },
+      "input_session_id": "2f70d53c7dcee9ec",
+      "lease_expires_in_ms": 84944,
+      "lease_generation": "9e029e85e86171f6d5fd5497f826c337042ffc41fb274c290e4e2fe5514d3378",
+      "lease_owner": "fogcast@chip-30x0-ai-dev",
+      "native_state": "active",
+      "state_resyncs": 0
+    }
+  ],
+  "scope": "two physical workstations; software-injected input acknowledgments and frame progress; no physical-controller claim",
+  "script_sha256": "af8f36a15aad1833f9687b1394fd7bf27703714af6caf778444ec8b7de220ec6",
+  "software_generation": 15,
+  "software_update_or_reboot_performed": false,
+  "source_hashes": {
+    "diagnostic_identity.py": "ea4bc21b777970b7fa9ccc2583ee2c69ebab4f84b8d12613b340c606ac297d36",
+    "kit_software_acceptance.py": "67d301b14aa8d3a8fe1adfe19459d0ebbb08aac0429332edb813cc394662d942",
+    "package_acceptance.py": "6c7a688a4cadcf3f00aaebc65b2d15031aa0f3e2d06f3f71147d25797aa97c4b",
+    "package_acceptance_isolated.py": "bdf6bed442071c0f28d8454865fd1e560c8a8ba381f3a0487797425673458b43"
+  },
+  "stage": "A-resumes-stale-session",
+  "success": false,
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+}

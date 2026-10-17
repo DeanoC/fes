@@ -69,6 +69,29 @@ platform, stay `launchable` even when a cartridge platform such as Coleco
 has no host-emulator mapping. Rooms treat those titles as Ready once
 composition flags such as `firmware_ready` pass; raw Coleco library carts
 remain browse-only.
+A locally expired or lost kit lease remains `KIT_LEASE_DENIED` through host
+service normalization, session reads, input reconciliation, Launch and Stop.
+The host API returns HTTP 403 for this ownership refusal. An ordinary claim
+refused by a foreign holder remains HTTP 409 `KIT_LEASE_BUSY`, including during
+input reconciliation after endpoint adoption. Neither becomes a disconnected
+target or failed input bridge. Unclassified transport and
+bridge failures retain their unavailable responses. A refusal does not establish
+whether an earlier operation completed; clients must inspect current ownership
+before issuing a new operation. Existing authenticated endpoint reconciliation
+uses read-only ownership/status observations to discard stale local authority;
+it never stops or releases the replacement owner's session. A subsequent
+explicit launch uses an ordinary claim, which still refuses a foreign holder.
+Input reconnect stops immediately on an explicit lease-denied or busy response.
+A CONNECT `/v1/input/stream` refusal of 403 `KIT_LEASE_REQUIRED` — the kit has
+already revoked, expired, or superseded the grant — is read from a bounded
+response and mapped to the same sanitized `KIT_LEASE_DENIED` before reconnect
+sees it. The host does not redial that stale handle for the network reconnect
+grace period. This releases the input lock for ownership reconciliation.
+Heartbeat and event-driven reconnect both record `lease_lost` rather than a
+network reconnect timeout, and event delivery keeps the sanitized refusal.
+Transient stream failures retain the bounded reconnect grace. No mutation is
+automatically retried after lease loss.
+
 Native FPGA Stop uses the
 mutation (`upload_timeout_seconds`) deadline, not the short status request
 timeout; programming idle can exceed a 5s health poll.
@@ -2264,8 +2287,17 @@ does not persist its pending queue.
 The supervisor waits up to 30 seconds for `/media/fat/fogcast/agent.toml` before
 starting the agent, and bounds the launcher selection probe. A process that
 exits before the readiness window is accepted is restarted within that startup
-deadline. An exit after acceptance is reported and is not restarted behind a
-lease. The supervisor verifies process exit before replacement, pins every service to
+deadline. After acceptance, a launcher exit is restarted on its own while the
+runtime and agent stay up. An accepted agent or runtime exit stops the whole
+group, confirms every process group is gone, and starts it again, backing off
+from one second to thirty seconds when the replacement dies quickly. The
+replacement agent closes new execution claims before it listens. The supervisor
+confirms that fence before probing the launcher and opens it only after the
+group is accepted. A core that has reached `running_development` is accepted
+once the fence is confirmed. A finished session whose fence cannot be closed
+stays running with claims closed, and the next tick retries the fence. A load
+still in `starting`, and an idle sample whose fence was not confirmed, stay on
+the readiness budget. The supervisor verifies process exit before replacement, pins every service to
 one bundle, checks startup and finishes the exact maintenance generation.
 Accepted bundles remain selected. Failed startup permits one durably recorded
 prior-bundle recovery attempt; failed recovery remains blocked. Appliance trials

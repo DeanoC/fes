@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/targetclient"
 )
 
@@ -87,7 +88,10 @@ func (s *HTTPBridgeStarter) Start(ctx context.Context, spec BridgeSpec) (BridgeH
 		Ready bool `json:"ready"`
 	}
 	var sentKitToken string
-	if err := s.doJSONRequest(ctx, http.MethodPost, "/v1/input/attach", requestBody, &response, "", &sentKitToken); err != nil || !response.Ready {
+	if err := s.doJSONRequest(ctx, http.MethodPost, "/v1/input/attach", requestBody, &response, "", &sentKitToken); err != nil {
+		return nil, remoteInputStartError(err)
+	}
+	if !response.Ready {
 		return nil, ErrRemoteInputInvalid
 	}
 	handle := &httpBridgeHandle{
@@ -143,6 +147,10 @@ func (s *HTTPBridgeStarter) doJSONRequest(ctx context.Context, method, path stri
 		return ErrRemoteInputInvalid
 	}
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		var envelope protocol.ErrorEnvelope
+		if json.Unmarshal(data, &envelope) == nil && ((response.StatusCode == http.StatusForbidden && envelope.Error.Code == protocol.CodeKitLeaseDenied) || (response.StatusCode == http.StatusConflict && envelope.Error.Code == protocol.CodeKitLeaseBusy)) {
+			return remoteInputStartError(&envelope.Error)
+		}
 		return ErrRemoteInputInvalid
 	}
 	if err := json.Unmarshal(data, result); err != nil {
@@ -227,18 +235,72 @@ func (h *httpBridgeHandle) Dial(ctx context.Context) (net.Conn, error) {
 		_ = conn.Close()
 		return nil, ErrRemoteInputInvalid
 	}
-	response, err := http.ReadResponse(bufio.NewReader(conn), request)
-	if err != nil || response.StatusCode != http.StatusOK {
+	// A revoked grant answers before the stream is hijacked. Bound the read so
+	// a non-200 body cannot stall the input lock for the reconnect grace.
+	deadline := time.Now().Add(h.starter.dialTimeout)
+	if ctxDeadline, ok := ctx.Deadline(); ok && ctxDeadline.Before(deadline) {
+		deadline = ctxDeadline
+	}
+	if err := conn.SetDeadline(deadline); err != nil {
 		_ = conn.Close()
-		if err == nil {
-			return nil, ErrRemoteInputNoStream
-		}
 		return nil, ErrRemoteInputInvalid
+	}
+	response, err := http.ReadResponse(bufio.NewReader(conn), request)
+	if err != nil {
+		_ = conn.Close()
+		return nil, ErrRemoteInputInvalid
+	}
+	if response.StatusCode != http.StatusOK {
+		ownership := connectOwnershipError(response)
+		closeConnectResponse(conn, response)
+		if ownership != nil {
+			return nil, ownership
+		}
+		return nil, ErrRemoteInputNoStream
 	}
 	if response.Body != nil {
 		_ = response.Body.Close()
 	}
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		_ = conn.Close()
+		return nil, ErrRemoteInputInvalid
+	}
 	return conn, nil
+}
+
+// connectOwnershipError reads a bounded non-200 CONNECT body. A kit that has
+// already revoked or expired the grant returns 403 KIT_LEASE_REQUIRED; that
+// is the same sanitized ownership refusal as a local lease loss. Any other
+// status, code, or oversized body stays a generic stream failure.
+func connectOwnershipError(response *http.Response) error {
+	if response == nil || response.Body == nil {
+		return nil
+	}
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxBridgeRequestBytes+1))
+	if err != nil || len(data) > maxBridgeRequestBytes {
+		return nil
+	}
+	var envelope protocol.ErrorEnvelope
+	if json.Unmarshal(data, &envelope) != nil {
+		return nil
+	}
+	switch {
+	case response.StatusCode == http.StatusForbidden && (envelope.Error.Code == protocol.CodeKitLeaseDenied || envelope.Error.Code == "KIT_LEASE_REQUIRED"):
+		return remoteInputStartError(&protocol.APIError{Code: protocol.CodeKitLeaseDenied})
+	case response.StatusCode == http.StatusConflict && envelope.Error.Code == protocol.CodeKitLeaseBusy:
+		return remoteInputStartError(&protocol.APIError{Code: protocol.CodeKitLeaseBusy})
+	default:
+		return nil
+	}
+}
+
+func closeConnectResponse(conn net.Conn, response *http.Response) {
+	// Close the socket before the body. Body.Close drains a keep-alive
+	// response, which would wait out a stalled or oversized payload.
+	_ = conn.Close()
+	if response != nil && response.Body != nil {
+		_ = response.Body.Close()
+	}
 }
 
 func (h *httpBridgeHandle) Stop(ctx context.Context) error {

@@ -87,6 +87,29 @@ not sufficient proof. It starts one selected bundle, checks the agent, runtime
 and launcher, and completes the matching maintenance reservation only after the
 startup checks pass. Accepted software remains selected and survives reboot.
 
+The supervisor appends its own log and the stdout and stderr of the runtime,
+agent and launcher to `/run/fogcast/software/supervisor.log`. The file rotates
+once, at 2 MiB, to `supervisor.log.1`. The directory is root-only tmpfs, so a
+stalled data disk cannot block the log or drop it. The same bytes are copied to
+the supervisor's original stderr. An accepted launcher that exits is restarted
+without stopping the runtime or agent, so a menu crash does not leave a frozen
+frame or drop an execution lease. An accepted agent or runtime exit restarts
+the whole group automatically, including when an execution lease was active:
+those processes are already gone, so the supervisor stops what remains, confirms
+each exited process group on its own term and kill deadline, and starts the
+runtime, agent and launcher again. The replacement does not replay the boot
+admission credential. A durable activation that is still queued is passed into
+the new agent's startup admission, so claims stay behind it. Applying,
+recovering, or blocked maintenance stays on the reservation the new agent
+reloads. The replacement remains in recovery until the agent and runtime are
+idle and the launcher has been ready for ten uninterrupted seconds. If that
+window does not arrive within sixty seconds, the supervisor stops the group and
+retries with the same backoff. A group that dies quickly backs off from one
+second to thirty seconds. If startup itself
+fails, the supervisor stays up, records the error in that log, and retries with
+backoff instead of exiting. A failure before the status socket is open retries
+the whole startup; a failure after it is open keeps the socket serving the error.
+
 Bundle verification completes before the service startup clock begins, while
 the current group is still running. Each start checks that the verified tree
 has not changed. Stopping services, starting replacements and observing ten

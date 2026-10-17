@@ -298,6 +298,11 @@ func New(service Service, options ...ServerOption) http.Handler {
 		coordinator := requestSessionCoordinator(session, service, r, target, true)
 		result, err := coordinator.status(r.Context())
 		if err != nil {
+			var apiErr *protocol.APIError
+			if errors.As(err, &apiErr) && (apiErr.Code == protocol.CodeKitLeaseDenied || apiErr.Code == protocol.CodeKitLeaseBusy) {
+				writeSessionError(w, err)
+				return
+			}
 			writeJSON(w, http.StatusServiceUnavailable, map[string]any{"error": apiError{Code: "TARGET_UNAVAILABLE", Message: "target status is unavailable"}, "connection": targetConnection(service)})
 			return
 		}
