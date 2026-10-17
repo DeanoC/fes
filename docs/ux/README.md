@@ -350,9 +350,12 @@ Hardware journeys H1–H9 remain pending.
   the player has not seen. This is the reviewed policy for #764's warm-up
   window.
 - **Routes.** Library, Rooms (the lobby) and Settings sit one Up from the
-  shelf, so Direction and Confirm reach the system menu on a pad without a
-  Guide button. Settings holds the system tools. Back at Home still opens the
-  FES Home overlay.
+  shelf in the hero and when the compact routes share a row, so Direction
+  and Confirm reach the system menu on a pad without a Guide button. On a
+  content box under 480×360 the same routes sit above the destination strip;
+  when they stack, Down and Up walk that column and then the cores, and Up
+  from the first core lands on Settings. Settings holds the system tools.
+  Back at Home still opens the FES Home overlay.
 - **Return.** The room instance is suspended during play, so Stop returns to
   the same selection; a later visit restores the last selected package from
   room `store`. Launch failure keeps the selection and shows the reason in the

@@ -7,8 +7,11 @@
 --
 -- Up reaches Library, Rooms and Settings from the shelf, so a pad without
 -- a Guide button still reaches the system menu with Direction and Confirm.
--- The list arrives once; it never moves the player's focus, and the last
--- selected package is restored on a later visit.
+-- The hero and a compact route row use Left and Right along that header.
+-- When the compact routes stack, Down and Up follow the column and then
+-- the cores, and Left and Right stay put. The list arrives once; it never
+-- moves the player's focus, and the last selected package is restored on
+-- a later visit.
 --
 -- Under 480×360, room.hero is nil and the launcher keeps its destination
 -- strip. A compact list above that strip still offers the visible cores
@@ -198,7 +201,62 @@ function load()
   end)
 end
 
+-- The core directly under a stacked route column. A later selection that
+-- sits further down the list is not between Settings and this row.
+local function focus_shelf_top()
+  if not cores or #cores == 0 then return end
+  keep_visible()
+  if first < 1 or first > #cores then first = 1 end
+  shelf_i = first
+  keep_visible()
+  remember()
+end
+
+local function move_stacked(dx, dy)
+  if row == "menu" then
+    if dy > 0 then
+      if menu_i < #MENU then
+        menu_i = menu_i + 1
+      elseif cores == nil or #cores > 0 then
+        -- The shelf stays reachable while kit.cores is still listing.
+        row = "shelf"
+        focus_shelf_top()
+      end
+      return true
+    end
+    if dy < 0 then
+      if menu_i > 1 then menu_i = menu_i - 1 end
+      return true
+    end
+    return dx ~= 0
+  end
+  if dy < 0 then
+    if not cores or #cores == 0 or shelf_i <= 1 then
+      row = "menu"
+      menu_i = #MENU
+    else
+      shelf_i = shelf_i - 1
+      keep_visible()
+      remember()
+    end
+    return true
+  end
+  if dy > 0 then
+    if cores and #cores > 0 and shelf_i < #cores then
+      shelf_i = shelf_i + 1
+      keep_visible()
+      remember()
+    end
+    return true
+  end
+  return dx ~= 0
+end
+
 local function move(dx, dy)
+  -- Stacked compact routes are a column. Hero and a single route row stay horizontal.
+  if not layout() and compact_layout().stacked then
+    return move_stacked(dx, dy)
+  end
   if dy < 0 and row == "shelf" then
     row = "menu"
     return true

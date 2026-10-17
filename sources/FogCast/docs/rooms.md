@@ -129,6 +129,9 @@ should paint the card in the same surface colour (`#FFFCF5`). A room too
 small for the hero (under 480×360) keeps the strip. Kit Home
 (`example.fes-cores`) still draws the Library, Rooms and Settings routes
 and the visible cores above that strip, with pointer hits and a focus mark.
+When those routes do not fit on one row they stack, and Direction follows
+that column into the shelf. A row that fits keeps Left and Right, as the
+hero does.
 
 ## Script lifecycle
 
@@ -426,7 +429,7 @@ is not a gate unless the room script adds that mechanic itself. See
 | `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
 | `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved by `library.query` search; missing titles are skipped; publishes the focused game |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
-| `example.fes-cores` | kit **Home** in the `hero` layout: a shelf of installed cores (manifest names verbatim, fallback motifs chosen from the core id and required inputs), the FES hero for the selection, and Library / Rooms / Settings routes one Up away. Checking while `kit.cores` resolves; the last selected package is restored on a later visit; an empty or unlistable kit focuses the Library route. Blocked cores do not launch. Tenfoot on `-gfx menu-display` launches a core through the local-control socket |
+| `example.fes-cores` | kit **Home** in the `hero` layout: a shelf of installed cores (manifest names verbatim, fallback motifs chosen from the core id and required inputs), the FES hero for the selection, and Library / Rooms / Settings routes one Up away in the hero and on one compact row. A stacked compact column walks Down and Up through those routes and then the cores. Checking while `kit.cores` resolves; the last selected package is restored on a later visit; an empty or unlistable kit focuses the Library route. Blocked cores do not launch. Tenfoot on `-gfx menu-display` launches a core through the local-control socket |
 
 Run them against a host:
 

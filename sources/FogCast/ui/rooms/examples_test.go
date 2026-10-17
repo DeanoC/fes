@@ -294,6 +294,228 @@ func TestFesCoresSmallLayoutKeepsPointerRoutes(t *testing.T) {
 	}
 }
 
+// Direction on a stacked compact column follows the rows on screen.
+// Library, Rooms and Settings sit on top of each other, so Down walks
+// that column and only then enters the shelf. The hero and a compact
+// row that still fits keep Left and Right.
+func TestFesCoresDirectionFollowsStackedRoutes(t *testing.T) {
+	pack := examplePack(t, "example.fes-cores")
+	cores := []localcores.Core{
+		{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
+		{PackageID: coreColecoID, CoreID: "fes.coleco", Name: "ColecoVision", Needs: "media", Launchable: false, Block: "Needs a cartridge"},
+		{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "firmware", Launchable: false, Block: "Needs firmware"},
+	}
+
+	t.Run("stacked column", func(t *testing.T) {
+		r := newRoom(t, pack, Options{Local: &fakeLocalCores{cores: cores}, Width: 300, Height: 350})
+		if err := r.Load(); err != nil {
+			t.Fatal(err)
+		}
+		f := stepUntil(t, r, func(f Frame) bool {
+			return hitByID(f, "core:1").ID != "" && hitByID(f, "menu:3").ID != "" && r.Destination().Label == "FES Pong"
+		})
+		library, rooms, settings := hitByID(f, "menu:1"), hitByID(f, "menu:2"), hitByID(f, "menu:3")
+		shelf := hitByID(f, "core:1")
+		if !(library.Y < rooms.Y && rooms.Y < settings.Y && settings.Y+settings.H <= shelf.Y) {
+			t.Fatalf("routes are not stacked above the shelf: library %+v rooms %+v settings %+v shelf %+v", library, rooms, settings, shelf)
+		}
+		// Devin's 300×350 case: Down from Library must reach Rooms, not the core underneath the column.
+		r.Hover("menu:1")
+		if got := r.Destination(); got.Kind != KindLibrary {
+			t.Fatalf("library %+v", got)
+		}
+		if !r.Input("right") || r.Destination().Kind != KindLibrary {
+			t.Fatalf("right left the stacked column for %+v", r.Destination())
+		}
+		if !r.Input("down") {
+			t.Fatal("down from library")
+		}
+		if got := r.Destination(); got.Kind != KindRoom || got.RoomID == "" {
+			t.Fatalf("down from Library skipped to %+v", got)
+		}
+		if !r.Input("down") {
+			t.Fatal("down to settings")
+		}
+		if got := r.Destination(); got.Kind != KindAction || got.LauncherAction != "settings" {
+			t.Fatalf("settings %+v", got)
+		}
+		if !r.Input("left") || r.Destination().LauncherAction != "settings" {
+			t.Fatalf("left left Settings for %+v", r.Destination())
+		}
+		if !r.Input("down") {
+			t.Fatal("down into the shelf")
+		}
+		if got := r.Destination(); got.Label != "FES Pong" {
+			t.Fatalf("shelf under the column %+v", got)
+		}
+		if !r.Input("down") {
+			t.Fatal("down the shelf")
+		}
+		if got := r.Destination(); got.Label != "ColecoVision" {
+			t.Fatalf("next core %+v", got)
+		}
+		if !r.Input("right") || r.Destination().Label != "ColecoVision" {
+			t.Fatalf("right moved the stacked shelf to %+v", r.Destination())
+		}
+		if !r.Input("up") || r.Destination().Label != "FES Pong" {
+			t.Fatalf("up the shelf %+v", r.Destination())
+		}
+		if !r.Input("up") {
+			t.Fatal("up to the column")
+		}
+		if got := r.Destination(); got.Kind != KindAction || got.LauncherAction != "settings" {
+			t.Fatalf("up from the first core %+v", got)
+		}
+		if !r.Input("up") || r.Destination().Kind != KindRoom {
+			t.Fatalf("up the column %+v", r.Destination())
+		}
+	})
+
+	// A taller stacked screen shows several cores. Down from Settings
+	// enters the core directly under the column, not a later selection.
+	t.Run("stacked shelf boundary", func(t *testing.T) {
+		r := newRoom(t, pack, Options{Local: &fakeLocalCores{cores: cores}, Width: 300, Height: 500})
+		if err := r.Load(); err != nil {
+			t.Fatal(err)
+		}
+		f := stepUntil(t, r, func(f Frame) bool {
+			return hitByID(f, "core:1").ID != "" && hitByID(f, "core:3").ID != "" && hitByID(f, "menu:3").ID != ""
+		})
+		top, mid, last := hitByID(f, "core:1"), hitByID(f, "core:2"), hitByID(f, "core:3")
+		settings := hitByID(f, "menu:3")
+		if !(settings.Y+settings.H <= top.Y && top.Y < mid.Y && mid.Y < last.Y) {
+			t.Fatalf("shelf is not under the column: settings %+v cores %+v %+v %+v", settings, top, mid, last)
+		}
+		r.Hover("core:3")
+		r.Hover("menu:3")
+		if got := r.Destination(); got.LauncherAction != "settings" {
+			t.Fatalf("settings %+v", got)
+		}
+		if !r.Input("down") || r.Destination().Label != "FES Pong" {
+			t.Fatalf("down from Settings skipped to %+v", r.Destination())
+		}
+		if !r.Input("down") || r.Destination().Label != "ColecoVision" {
+			t.Fatalf("second core %+v", r.Destination())
+		}
+		if !r.Input("up") || r.Destination().Label != "FES Pong" {
+			t.Fatalf("up skipped to %+v", r.Destination())
+		}
+	})
+
+	t.Run("stacked while listing", func(t *testing.T) {
+		held := blockingLocalCores{fakeLocalCores: &fakeLocalCores{cores: cores}, release: make(chan struct{})}
+		r := newRoom(t, pack, Options{Local: held, Width: 300, Height: 350})
+		if err := r.Load(); err != nil {
+			t.Fatal(err)
+		}
+		r.Step(time.Unix(1, 0))
+		if got := r.Destination(); got.Availability != AvailChecking {
+			t.Fatalf("pending %+v", got)
+		}
+		if !r.Input("up") {
+			t.Fatal("up")
+		}
+		if got := r.Destination(); got.Kind != KindAction || got.LauncherAction != "settings" {
+			t.Fatalf("up from the checking shelf %+v", got)
+		}
+		if !r.Input("down") {
+			t.Fatal("down")
+		}
+		if got := r.Destination(); got.Kind != KindUnresolved || got.Availability != AvailChecking {
+			t.Fatalf("return to the checking shelf %+v", got)
+		}
+		close(held.release)
+		stepUntil(t, r, func(Frame) bool { return r.Destination().Label == "FES Pong" })
+	})
+
+	t.Run("stacked empty kit stays on the column", func(t *testing.T) {
+		r := newRoom(t, pack, Options{Width: 300, Height: 350})
+		if err := r.Load(); err != nil {
+			t.Fatal(err)
+		}
+		stepUntil(t, r, func(f Frame) bool {
+			return strings.Contains(frameText(f), "Installed machines appear here on an FES kit.") && hitByID(f, "menu:3").ID != ""
+		})
+		if got := r.Destination(); got.Kind != KindLibrary {
+			t.Fatalf("empty focus %+v", got)
+		}
+		r.Input("down")
+		r.Input("down")
+		if got := r.Destination(); got.Kind != KindAction || got.LauncherAction != "settings" {
+			t.Fatalf("settings %+v", got)
+		}
+		r.Input("down")
+		r.Input("right")
+		if got := r.Destination(); got.Kind != KindAction || got.LauncherAction != "settings" {
+			t.Fatalf("empty shelf took focus %+v", got)
+		}
+	})
+
+	t.Run("unstacked row stays horizontal", func(t *testing.T) {
+		r := newRoom(t, pack, Options{Local: &fakeLocalCores{cores: cores}, Width: 470, Height: 350})
+		if err := r.Load(); err != nil {
+			t.Fatal(err)
+		}
+		f := stepUntil(t, r, func(f Frame) bool {
+			return hitByID(f, "menu:3").ID != "" && r.Destination().Label == "FES Pong"
+		})
+		library, rooms, settings := hitByID(f, "menu:1"), hitByID(f, "menu:2"), hitByID(f, "menu:3")
+		if library.Y != rooms.Y || rooms.Y != settings.Y || !(library.X < rooms.X && rooms.X < settings.X) {
+			t.Fatalf("routes are not one row: %+v %+v %+v", library, rooms, settings)
+		}
+		r.Hover("menu:1")
+		if !r.Input("down") || r.Destination().Label != "FES Pong" {
+			t.Fatalf("down from the row %+v", r.Destination())
+		}
+		r.Hover("menu:1")
+		if !r.Input("right") || r.Destination().Kind != KindRoom {
+			t.Fatalf("right %+v", r.Destination())
+		}
+		if !r.Input("right") || r.Destination().LauncherAction != "settings" {
+			t.Fatalf("settings %+v", r.Destination())
+		}
+		if !r.Input("left") || r.Destination().Kind != KindRoom {
+			t.Fatalf("left %+v", r.Destination())
+		}
+		if !r.Input("down") || r.Destination().Label != "FES Pong" {
+			t.Fatalf("down to the shelf %+v", r.Destination())
+		}
+		if !r.Input("right") || r.Destination().Label != "ColecoVision" {
+			t.Fatalf("shelf right %+v", r.Destination())
+		}
+		if !r.Input("up") || r.Destination().Kind != KindRoom {
+			t.Fatalf("up restored the route %+v", r.Destination())
+		}
+	})
+
+	t.Run("hero stays horizontal", func(t *testing.T) {
+		r := newRoom(t, pack, Options{Local: &fakeLocalCores{cores: cores}, Width: 1280, Height: 720})
+		if err := r.Load(); err != nil {
+			t.Fatal(err)
+		}
+		f := stepUntil(t, r, func(f Frame) bool {
+			return hitByID(f, "menu:2").ID != "" && r.Destination().Label == "FES Pong"
+		})
+		library, rooms := hitByID(f, "menu:1"), hitByID(f, "menu:2")
+		if library.Y != rooms.Y || !(library.X < rooms.X) {
+			t.Fatalf("hero routes are not one row: %+v %+v", library, rooms)
+		}
+		r.Hover("menu:1")
+		if !r.Input("right") || r.Destination().Kind != KindRoom {
+			t.Fatalf("hero right %+v", r.Destination())
+		}
+		if !r.Input("down") || r.Destination().Label != "FES Pong" {
+			t.Fatalf("hero down %+v", r.Destination())
+		}
+		if !r.Input("right") || r.Destination().Label != "ColecoVision" {
+			t.Fatalf("hero shelf %+v", r.Destination())
+		}
+		if !r.Input("up") || r.Destination().Kind != KindRoom {
+			t.Fatalf("hero up %+v", r.Destination())
+		}
+	})
+}
+
 func hitByID(f Frame, id string) Hit {
 	for _, h := range f.Hits {
 		if h.ID == id {

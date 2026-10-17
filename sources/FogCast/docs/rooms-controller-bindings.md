@@ -145,7 +145,10 @@ binding drive-by:
 3. **Pads without a GUIDE button** have no gamepad System menu. Keyboard
    `o` is the tap fallback. Start remains Quit. Kit Home
    (`example.fes-cores`) puts Library, Rooms and Settings one Up away
-   from its shelf, so Direction and Confirm reach Settings there. Other
+   from its shelf in the hero layout and when the compact routes share a
+   row, so Direction and Confirm reach Settings there. When the compact
+   routes stack, Down and Up walk that column and then the cores, and Up
+   from the first core lands on Settings. Other
    rooms still depend on GUIDE, `o`, or their own Settings destination.
    During kit-local play, holding Select and Start for one second is still
    the only gamepad exit; the menu cannot draw while the core owns HDMI.
