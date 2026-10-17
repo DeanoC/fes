@@ -330,17 +330,25 @@ func FromInspection(inspection corepackage.Inspection, path string) Core {
 }
 
 // descriptorInputs names the input devices a package requires: "keyboard"
-// for a required fes.keyboard or fes.keyboard.hid interface and "mouse" for
-// a required fes.mouse interface. Pads are not listed; a connected pad does
-// not establish how a core maps it.
+// when a physical keyboard is required and "mouse" for a required fes.mouse
+// interface. fes.keyboard.hid is a USB keyboard. Exact fes.keyboard 1.0 is
+// the simple-computer matrix. That matrix is a typing keyboard when the
+// package also requires fes.video.session-display 1.0, the computer plane
+// the ZX81 bring-up package declares with it, and the package is not a
+// cartridge. Master System, SG-1000 and the earlier ColecoVision matrix
+// reuse fes.keyboard as a joystick and do not declare that plane. Pads are
+// not listed; a connected pad does not establish how a core maps it.
 func descriptorInputs(d corepackage.Descriptor) []string {
 	var keyboard, mouse bool
+	typing := plainKeyboardTypes(d)
 	for _, iface := range d.Interfaces {
 		if !iface.Required {
 			continue
 		}
 		switch {
-		case iface.ID == "fes.keyboard" || strings.HasPrefix(iface.ID, "fes.keyboard."):
+		case iface.ID == "fes.keyboard.hid":
+			keyboard = true
+		case typing && iface.ID == "fes.keyboard" && iface.Major == 1 && iface.Minor == 0:
 			keyboard = true
 		case iface.ID == "fes.mouse" || strings.HasPrefix(iface.ID, "fes.mouse."):
 			mouse = true
@@ -354,6 +362,28 @@ func descriptorInputs(d corepackage.Descriptor) []string {
 		inputs = append(inputs, "mouse")
 	}
 	return inputs
+}
+
+// plainKeyboardTypes reports that exact fes.keyboard 1.0 is the machine's
+// typing keyboard rather than a joystick matrix. The ZX81 bring-up package
+// (build_fes_zx81.py) requires the in-session computer plane with that
+// matrix and has no cartridge. A cartridge ROM keeps the matrix a pad even
+// if a later package also declares the plane.
+func plainKeyboardTypes(d corepackage.Descriptor) bool {
+	if d.ROM != nil && d.ROM.Role == "cartridge" {
+		return false
+	}
+	for _, rom := range d.ROMs {
+		if rom.Role == "cartridge" {
+			return false
+		}
+	}
+	for _, iface := range d.Interfaces {
+		if iface.Required && iface.ID == "fes.video.session-display" && iface.Major == 1 && iface.Minor == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func descriptorNeeds(d corepackage.Descriptor) (needs, block string, launchable bool) {

@@ -64,6 +64,12 @@ type heroCopy struct {
 // HDMI output, the screen this menu is on.
 const heroPlaysOnThisTV = "Plays on this TV"
 
+// heroStopCopy names every way to stop a kit-local core, before Play: the
+// menu cannot draw once the core owns HDMI. It is one line so the one-second
+// hold stays visible in the hero column at 1280×720 with the kit's default
+// 5% safe area, and at 1024×600.
+const heroStopCopy = "Stop: F12, Guide, or hold Select+Start for one second."
+
 // waitAckCopy answers a Confirm received while Checking.
 func waitAckCopy(kind InputKind) string {
 	return "Still checking. Press " + selectWord(kind) + " again once it has finished."
@@ -147,7 +153,7 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 		case rooms.ConfirmLaunchCore:
 			c.State = heroStateReady
 			c.Headline = heroPlaysOnThisTV
-			c.Explain = "To stop, hold Select and Start together for one second."
+			c.Explain = heroStopCopy
 			c.Primary, c.Filled = "Play", true
 			c.Secondary = "Details"
 		case rooms.ConfirmWait:
