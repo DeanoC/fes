@@ -21,13 +21,14 @@ const maxSelectionBytes = 16 << 10
 // Core is one installed package the kit can show. Name is the manifest
 // [core] name, copied verbatim. Block is empty when Launchable is true.
 type Core struct {
-	CoreID      string `json:"core_id"`
-	PackageID   string `json:"package_id"`
-	Name        string `json:"name"`
-	ABI         string `json:"abi"`
-	Needs       string `json:"needs"`
-	Launchable  bool   `json:"launchable"`
-	Block       string `json:"block,omitempty"`
+	CoreID      string   `json:"core_id"`
+	PackageID   string   `json:"package_id"`
+	Name        string   `json:"name"`
+	ABI         string   `json:"abi"`
+	Needs       string   `json:"needs"`
+	Launchable  bool     `json:"launchable"`
+	Block       string   `json:"block,omitempty"`
+	Inputs      []string `json:"inputs,omitempty"`
 	installPath string
 }
 
@@ -183,7 +184,35 @@ func FromInspection(inspection corepackage.Inspection, path string) Core {
 	d := inspection.Descriptor
 	needs, block, launchable := descriptorNeeds(d)
 	return Core{CoreID: d.Core.ID, PackageID: inspection.PackageID, Name: d.Core.Name,
-		ABI: d.ABI.ID, Needs: needs, Block: block, Launchable: launchable, installPath: path}
+		ABI: d.ABI.ID, Needs: needs, Block: block, Launchable: launchable,
+		Inputs: descriptorInputs(d), installPath: path}
+}
+
+// descriptorInputs names the input devices a package requires: "keyboard"
+// for a required fes.keyboard or fes.keyboard.hid interface and "mouse" for
+// a required fes.mouse interface. Pads are not listed; a connected pad does
+// not establish how a core maps it.
+func descriptorInputs(d corepackage.Descriptor) []string {
+	var keyboard, mouse bool
+	for _, iface := range d.Interfaces {
+		if !iface.Required {
+			continue
+		}
+		switch {
+		case iface.ID == "fes.keyboard" || strings.HasPrefix(iface.ID, "fes.keyboard."):
+			keyboard = true
+		case iface.ID == "fes.mouse" || strings.HasPrefix(iface.ID, "fes.mouse."):
+			mouse = true
+		}
+	}
+	var inputs []string
+	if keyboard {
+		inputs = append(inputs, "keyboard")
+	}
+	if mouse {
+		inputs = append(inputs, "mouse")
+	}
+	return inputs
 }
 
 func descriptorNeeds(d corepackage.Descriptor) (needs, block string, launchable bool) {

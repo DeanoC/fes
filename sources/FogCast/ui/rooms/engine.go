@@ -513,6 +513,7 @@ func (r *Instance) Resize(width, height int) {
 	r.opts.Width, r.opts.Height = width, height
 	r.roomTable.RawSetString("width", lua.LNumber(width))
 	r.roomTable.RawSetString("height", lua.LNumber(height))
+	r.setHeroTable()
 	if r.fatal != nil || !r.loaded {
 		return
 	}

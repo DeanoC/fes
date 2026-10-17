@@ -211,59 +211,61 @@ func layoutDetailMeta(d shared.FocusDetail, x, maxWidth, sizePx int) (facts stri
 
 // Snapshot is a frame-loop readable copy of launcher state.
 type Snapshot struct {
-	Games                   []hostclient.Game
-	Grid                    Grid
-	Status                  string
-	LoadErr                 string
-	Loading                 bool
-	Covers                  map[string]*image.RGBA
-	Launch                  LaunchSnapshot
-	Gamepads                int
-	Keyboards               int
-	Mice                    int
-	Affinity                InputKind
-	AffinityID              int
-	CoverHits               int
-	Platforms               []hostclient.Platform
-	PlatformID              string
-	Sort                    string
-	Query                   string
-	SearchOpen              bool
-	FocusDetail             shared.FocusDetail
-	Collection              string
-	ViewLabel               string
-	ViewPicker              bool
-	ViewPickerIndex         int
-	Views                   []LibraryView
-	PickerRows              []LibraryView
-	CollectionMenu          CollectionMenuSnapshot
-	Session                 SessionSnapshot
-	GPUParked               bool
-	Attract                 AttractSnapshot
-	SafeAreaPct             float64
-	Settings                SettingsSnapshot
-	Filters                 FilterSnapshot
-	Genre                   string
-	Year                    string
-	Region                  string
-	HidePrerelease          bool
-	HideHacks               bool
-	OSK                     shared.OSKSnapshot
-	Health                  HealthSnapshot
-	KitLease                KitLeaseSnapshot
-	Detail                  DetailSnapshot
-	Screenshots             map[string]*image.RGBA
-	Preview                 PreviewSnapshot
-	Theme                   theme.Theme
-	DebugHUD                DebugHUDSnapshot
-	Room                    RoomSnapshot
-	RoomPicker              RoomPickerSnapshot
-	CoreLibrary             FirmwarePickerSnapshot
-	FirmwarePicker          FirmwarePickerSnapshot
-	TapePicker              TapePickerSnapshot
-	ReducedMotion           bool
-	LocalCorePhase          string
-	LocalCoreTitle          string
+	Games           []hostclient.Game
+	Grid            Grid
+	Status          string
+	LoadErr         string
+	Loading         bool
+	Covers          map[string]*image.RGBA
+	Launch          LaunchSnapshot
+	Gamepads        int
+	Keyboards       int
+	Mice            int
+	Affinity        InputKind
+	AffinityID      int
+	CoverHits       int
+	Platforms       []hostclient.Platform
+	PlatformID      string
+	Sort            string
+	Query           string
+	SearchOpen      bool
+	FocusDetail     shared.FocusDetail
+	Collection      string
+	ViewLabel       string
+	ViewPicker      bool
+	ViewPickerIndex int
+	Views           []LibraryView
+	PickerRows      []LibraryView
+	CollectionMenu  CollectionMenuSnapshot
+	Session         SessionSnapshot
+	GPUParked       bool
+	Attract         AttractSnapshot
+	SafeAreaPct     float64
+	Settings        SettingsSnapshot
+	Filters         FilterSnapshot
+	Genre           string
+	Year            string
+	Region          string
+	HidePrerelease  bool
+	HideHacks       bool
+	OSK             shared.OSKSnapshot
+	Health          HealthSnapshot
+	KitLease        KitLeaseSnapshot
+	Detail          DetailSnapshot
+	Screenshots     map[string]*image.RGBA
+	Preview         PreviewSnapshot
+	Theme           theme.Theme
+	DebugHUD        DebugHUDSnapshot
+	Room            RoomSnapshot
+	RoomPicker      RoomPickerSnapshot
+	CoreLibrary     FirmwarePickerSnapshot
+	FirmwarePicker  FirmwarePickerSnapshot
+	TapePicker      TapePickerSnapshot
+	ReducedMotion   bool
+	LocalCorePhase  string
+	LocalCoreTitle  string
+	// LocalCoreStatus is the latest kit-local launch or failure sentence.
+	LocalCoreStatus         string
 	LocalCoreStartedAt      time.Time
 	LocalCorePresentsPaused bool
 	LocalCoreLateAdopt      bool
@@ -429,24 +431,30 @@ type App struct {
 	devLoadPhase       string
 	devLoadMessage     string
 
-	roomsIndex              *rooms.Index
-	roomsDir                string
-	homeRooms               bool
-	homeRoom                string
-	gfxBackend              string
-	pinnedRooms             []string
-	reducedMotion           bool
-	homeRecents             []hostclient.Game
-	homeRecentsErr          string
-	homeRecentsLoaded       bool
-	homeRecentsGen          int
-	room                    *rooms.Instance
-	roomStack               []*rooms.Instance
-	roomFrame               rooms.Frame
-	roomErr                 string
-	roomWasParked           bool
-	roomDuringPlay          bool
-	roomSessionNotice       string
+	roomsIndex        *rooms.Index
+	roomsDir          string
+	homeRooms         bool
+	homeRoom          string
+	gfxBackend        string
+	pinnedRooms       []string
+	reducedMotion     bool
+	homeRecents       []hostclient.Game
+	homeRecentsErr    string
+	homeRecentsLoaded bool
+	homeRecentsGen    int
+	room              *rooms.Instance
+	roomStack         []*rooms.Instance
+	roomFrame         rooms.Frame
+	roomErr           string
+	roomWasParked     bool
+	roomDuringPlay    bool
+	roomSessionNotice string
+	// roomWaitAck is a Confirm received while the selected destination was
+	// still Checking. It is shown, never queued, and clears once the
+	// destination is no longer Checking.
+	roomWaitAck bool
+	// roomCoreDetail is the package whose Details the hero is showing.
+	roomCoreDetail          string
 	menuDisplay             *gfx.MenuDisplay
 	sessionDisplayBusy      bool
 	sessionDisplayVisible   bool
@@ -1698,6 +1706,7 @@ func (a *App) Snapshot() Snapshot {
 		ReducedMotion:           a.reducedMotion,
 		LocalCorePhase:          a.localPhase,
 		LocalCoreTitle:          a.localTitle,
+		LocalCoreStatus:         a.localStatus,
 		LocalCoreStartedAt:      a.localStartedAt,
 		LocalCorePresentsPaused: a.localPresentsPaused,
 		LocalCoreLateAdopt:      a.localLateAdopt,

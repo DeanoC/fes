@@ -10,7 +10,7 @@ from typing import Mapping, Sequence
 if __package__ in (None, ''):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts.source_repository import canonical_repository
-from scripts.fes_build_common import BuildError, FES_GPU_ARCHITECTURES, FES_GPU_BACKEND, FES_TOOLCHAIN_CONFIGURATION, _authenticate_tools as _authenticate_oss_tools, _cell_counts, _git, _i2c_evidence, _read_json, _require_gpu_backend, _run_tool, _sha256, _write_atomic, reject_async_m10k_reads, validate_timing_resources
+from scripts.fes_build_common import BuildError, cuda_toolchain_configuration, FES_GPU_ARCHITECTURES, FES_GPU_BACKEND, FES_TOOLCHAIN_CONFIGURATION, _authenticate_tools as _authenticate_oss_tools, _cell_counts, _git, _i2c_evidence, _read_json, _require_gpu_backend, _run_tool, _sha256, _write_atomic, reject_async_m10k_reads, validate_timing_resources
 from scripts.compiler_read_audit import guard_functional_source
 from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
@@ -63,7 +63,7 @@ def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
     if gpu_router == 'HIP':
         return FES_GPU_BACKEND, FES_GPU_ARCHITECTURES, FES_TOOLCHAIN_CONFIGURATION
     if gpu_router == 'CUDA':
-        return 'cuda', 'unused', 'gpu-router=CUDA; hip-architectures=unused'
+        return 'cuda', 'unused', cuda_toolchain_configuration()
     raise BuildError(f'unsupported ZX81 GPU router {gpu_router}')
 
 def _authenticate_tools(root: Path, **kwargs):
