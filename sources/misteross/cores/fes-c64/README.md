@@ -154,6 +154,10 @@ builds one card into one socket of a frozen shell.
 The producer selects probe mode 0 for socket 1 and mode 1 for socket 2;
 it authenticates both the legacy PLL output aliases and current physical
 C6/C7 pin layout, preserving an already-correct physical layout.
+`--gpu-router` and `--toolchain-root` select the shell's GPU lane. HIP is
+the default and masks the selected device. CUDA sets
+`CUDA_DEVICE_ORDER=PCI_BUS_ID` and passes `--gpu-device`. The route must
+prove that backend, and it must match the backend recorded on the frozen shell.
 Each synthesized response is lowered to an independent identity ALUT2 before
 the frozen merge: constants and aliased output signals must not be lost by the
 pinned cart merger. Clock-pin checks, final analogue setup/hold on all required
@@ -557,13 +561,14 @@ includes this replay, the directed CIA register/port regression and the
 firmware's CPU interrupt checks. These are host simulations, with no sealed
 artifact or kit acceptance implied.
 
-The C64 development lane refreshes nextpnr to main `1f857e51`, sampled on
-2026-10-16, including GPU route architecture checks and reserved-PIP fixes.
-New shell/card timing and hardware validation remain required;
-historical seals used the earlier pin.
-
-`build-fes-c64` authenticates `toolchains/c64.lock` (Yosys `4b971bb1`,
-Mistral `8fcc4cb4`, nextpnr `1f857e51`). The socket check admits a compiler-inserted route-through
+`build-fes-c64` authenticates `toolchain.lock` (Yosys `5391eeb1`,
+Mistral `8fcc4cb4`, nextpnr `9128800f`). The build record uses the audited
+static closure in `scripts/source_closures.json`. `--gpu-router CUDA` with
+`--toolchain-root` is a separate package; slot cards take those same flags.
+The 6 Oct kit diagnostic used
+nextpnr `0c5ed400` and does not accept this pin. New shell/card timing and
+hardware validation remain required; historical seals used the earlier pin.
+The socket check admits a compiler-inserted route-through
 buffer only at a pinned boundary flip-flop's paired combinational half, with
 the exact physical pin map and a dedicated connection to that flip-flop;
 clock-coverage outputs stay unused and every other shell cell inside a socket

@@ -143,7 +143,7 @@ func TestBootInterruptedCandidateConsumesRecovery(t *testing.T) {
 func TestStopConfirmsProcessExit(t *testing.T) {
 	dir := t.TempDir()
 	c := &ProcessController{RunDir: dir}
-	if err := c.start("/bin/sleep", []string{"60"}, nil); err != nil {
+	if err := c.start("/bin/sleep", []string{"60"}, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	if err := c.Stop(context.Background()); err != nil {
@@ -166,7 +166,7 @@ func TestReleaseDoesNotIgnoreCorruptGrant(t *testing.T) {
 
 func TestAcceptedProcessDeathReportsFaultWithoutRestart(t *testing.T) {
 	c := &ProcessController{RunDir: t.TempDir()}
-	if err := c.start("/bin/true", nil, nil); err != nil {
+	if err := c.start("/bin/true", nil, nil, ""); err != nil {
 		t.Fatal(err)
 	}
 	c.active = "accepted"
