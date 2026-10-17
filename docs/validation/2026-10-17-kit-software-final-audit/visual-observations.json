@@ -1,0 +1,34 @@
+{
+  "software_input_hdmi_effect_observed": true,
+  "observations": [
+    "Pong left paddle is at top in up.png and bottom in down.png; four software input press/release acknowledgments recorded.",
+    "Immediate launch and final-menu captures were blank frames; their cause was not established; they do not prove healthy menu.",
+    "Settled menu shows Installed cores room failed: script exceeded48ms budget. Error may predate Pong; timing/cause not established."
+  ],
+  "physical_usb_input_proven": false,
+  "healthy_menu_proven": false,
+  "initial_attempts": [
+    {
+      "attempt": 1,
+      "result": "failed before launch",
+      "timeout_seconds": 60,
+      "input_events": 0,
+      "captures": 0,
+      "private_host_exit": 0
+    },
+    {
+      "attempt": 2,
+      "result": "failed before launch; private detail confirms timeout",
+      "timeout_seconds": 60,
+      "input_events": 0,
+      "captures": 0,
+      "private_host_exit": 0
+    }
+  ],
+  "inventory_finding": "Full verified release inventory took77.276s for18 releases, exceeding both initial60s diagnostic budgets. Usability finding; no inventory redesign in this slice.",
+  "images": {
+    "pong-up.png": "5b403441b32ac220178c92e5b325e7b594cdf6d4579fe8e3be41446d7ab55284",
+    "pong-down.png": "bd9f8f0c158c3ae14d0846de30bdd99d2a465909049360ed14ce38e88bc6b893",
+    "settled-menu-error.png": "dc0e2bfafc3c2eea6135dc5f3f748fa6f4fb114370ee1b3f7e3a31c2162e4b33"
+  }
+}

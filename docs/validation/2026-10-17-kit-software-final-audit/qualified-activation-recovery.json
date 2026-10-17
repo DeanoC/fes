@@ -1,0 +1,95 @@
+{
+  "base_identity": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+  "boot_id": "457a8b1a-54af-46c0-9e6e-351c08467496",
+  "evidence_class": "kit-software API lifecycle diagnostic",
+  "generation": 19,
+  "overall_hardware_acceptance": false,
+  "selected": "c2d732ccb23363424f3bdcef0daf6a5e9d99e75835b6864aa3591d855f40ea95",
+  "stages": {
+    "activation": {
+      "activation_kind": "change_selected",
+      "attempt_evidence": "one matching durable receipt; no process-start count claim",
+      "boot_id": "457a8b1a-54af-46c0-9e6e-351c08467496",
+      "generation": 19,
+      "observed_phases": [
+        "queued",
+        "applying"
+      ],
+      "operation_id": "5e0ebf52db2c28c8e1d513743205bef80a3d20e21de112927f6a2a036fdab9fc",
+      "result": "accepted",
+      "selected": "c2d732ccb23363424f3bdcef0daf6a5e9d99e75835b6864aa3591d855f40ea95",
+      "stable_seconds": 10,
+      "status": "passed"
+    },
+    "competing_client": {
+      "claim_http_status": 409,
+      "scope": "independent HTTP client request; not two physical workstations",
+      "status": "passed"
+    },
+    "core_inventory": {
+      "inventory": {
+        "package_ids": [
+          "cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337"
+        ],
+        "selections": [
+          [
+            "fes.coleco",
+            "cf41dc16f28ab450ff52cc8f4e38d01d3d0f93b3e17ff207249f5a543321f337"
+          ]
+        ]
+      },
+      "scope": "supported API inventory identities and selections; no byte/launch proof",
+      "status": "passed"
+    },
+    "hdmi": {
+      "status": "skipped"
+    },
+    "held_install": {
+      "candidate": "c2d732ccb23363424f3bdcef0daf6a5e9d99e75835b6864aa3591d855f40ea95",
+      "selection_unchanged_while_held": true,
+      "status": "passed"
+    },
+    "input": {
+      "status": "skipped"
+    },
+    "local_busy": {
+      "status": "skipped"
+    },
+    "queue_cancel": {
+      "conflicting_requests_rejected": true,
+      "duplicate_idempotent": true,
+      "stale_generation_rejected": true,
+      "status": "passed"
+    },
+    "reboot": {
+      "status": "skipped"
+    },
+    "recovery": {
+      "attempt_evidence": "one matching durable receipt; no process-start count claim",
+      "boot_id": "457a8b1a-54af-46c0-9e6e-351c08467496",
+      "generation": 19,
+      "observed_phases": [
+        "queued",
+        "recovering"
+      ],
+      "operation_id": "a40cb0b2a128d277e70cc0d9e91829254c3df1e69f8f9a682017fb304cabcde9",
+      "result": "recovered",
+      "selected": "c2d732ccb23363424f3bdcef0daf6a5e9d99e75835b6864aa3591d855f40ea95",
+      "stable_seconds": 10,
+      "status": "passed"
+    },
+    "requester_exit": {
+      "process_exit": 0,
+      "request_persisted_after_exit": true,
+      "status": "passed"
+    },
+    "retained_stop": {
+      "execution_lease_retained": true,
+      "scope": "idle Stop under an owned grant; no game launch claim",
+      "status": "passed"
+    }
+  },
+  "success": true,
+  "successful_selection_retained": true,
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+}

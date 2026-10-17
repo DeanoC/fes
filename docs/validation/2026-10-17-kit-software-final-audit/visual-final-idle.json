@@ -1,0 +1,9 @@
+{
+  "base": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+  "boot_id": "457a8b1a-54af-46c0-9e6e-351c08467496",
+  "bundle": "c2d732ccb23363424f3bdcef0daf6a5e9d99e75835b6864aa3591d855f40ea95",
+  "generation": 19,
+  "lease_state": "free",
+  "native_state": "idle",
+  "ready": true
+}
