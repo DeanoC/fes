@@ -132,10 +132,28 @@ func drawDetailReadiness(dev gfx.Device, labels map[string]gpuTexture, used map[
 	return height
 }
 
+// libraryCellTag is the cover-cell plate. It uses classifyLibraryGame, the
+// same classification as the header, list rows and Details. A catalog
+// reason such as Needs BIOS stays that short name. A playable title the
+// classifier refuses because the kit status is unknown, or another session
+// holds the lease, uses the Details headline.
+func libraryCellTag(game hostclient.Game, k kitPlayState) string {
+	d := classifyLibraryGame(game, k)
+	if tag := libraryBlockTag(game.LaunchBlock()); tag != "" {
+		return tag
+	}
+	switch d.Availability {
+	case rooms.AvailUnavailable, rooms.AvailMissing:
+		return strings.TrimSpace(detailReadiness(d).Headline)
+	default:
+		return ""
+	}
+}
+
 // cellBlockTag labels a library cell whose title cannot play: text on a
 // solid plate with a leading bar, so it does not rely on colour.
-func drawCellBlockTag(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, x, y, maxW int, game hostclient.Game) {
-	tag := libraryBlockTag(game.LaunchBlock())
+func drawCellBlockTag(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, x, y, maxW int, game hostclient.Game, k kitPlayState) {
+	tag := libraryCellTag(game, k)
 	if tag == "" {
 		return
 	}
@@ -174,7 +192,7 @@ type kitPlayState struct {
 // classifyLibraryGame classifies one title as startLaunchGameLocked treats
 // it: a paired kit whose status is unknown, or that another session holds,
 // refuses before the catalog block or host-only exemption is considered.
-// The header, list rows, Details and Confirm all use it.
+// The header, list rows, cover cells, Details and Confirm all use it.
 //
 // A paired client launches on its own target, so a Ready title that is not
 // host-only plays on this kit's HDMI output; Status then says so. A

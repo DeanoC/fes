@@ -215,7 +215,7 @@ func drawCoverCells(dev gfx.Device, snap Snapshot, textures, labels map[string]g
 			// title is the label under the art.
 			drawLabel(dev, labels, used, "i:"+game.ID, x+16, y+24, snap.Grid.CellW-32, 18, placeholderSystem(snap, game))
 		}
-		drawCellBlockTag(dev, labels, used, x+8, y+snap.Grid.CellH-44, snap.Grid.CellW-16, game)
+		drawCellBlockTag(dev, labels, used, x+8, y+snap.Grid.CellH-44, snap.Grid.CellW-16, game, snap.KitPlay)
 		drawLabel(dev, labels, used, "t:"+game.ID, x+6, y+snap.Grid.CellH-28, snap.Grid.CellW-12, 16, game.Title)
 	}
 }

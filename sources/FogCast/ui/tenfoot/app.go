@@ -233,8 +233,8 @@ type Snapshot struct {
 	// DetailPlay is the focused title's classified play destination: the
 	// same readiness, reason and Confirm the launcher acts on.
 	DetailPlay rooms.Destination
-	// KitPlay is the kit state Library rows and the header classify with,
-	// the same as Details and Confirm.
+	// KitPlay is the kit state Library rows, cover cells and the header
+	// classify with, the same as Details and Confirm.
 	KitPlay kitPlayState
 	// LibraryBackTo names the room Back returns to from the Library.
 	LibraryBackTo   string
