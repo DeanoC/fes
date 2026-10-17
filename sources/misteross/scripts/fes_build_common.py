@@ -21,6 +21,12 @@ FES_GPU_ARCHITECTURES = "gfx1100;gfx1201"
 FES_TOOLCHAIN_CONFIGURATION = (
     f"gpu-router={FES_GPU_ROUTER}; hip-architectures={FES_GPU_ARCHITECTURES}"
 )
+# CUDA lanes compile native sm_86 code; see FES_TOOLCHAIN_CUDA_ARCHITECTURES in
+# docs/architecture.md.  This must equal toolchain_cache.DEFAULT_CUDA_ARCHITECTURES.
+FES_CUDA_ARCHITECTURES = "86"
+FES_CUDA_TOOLCHAIN_CONFIGURATION = (
+    f"gpu-router=CUDA; hip-architectures=unused; cuda-architectures={FES_CUDA_ARCHITECTURES}"
+)
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
 HEX64_RE = re.compile(r"[0-9a-f]{64}\Z")
@@ -232,9 +238,8 @@ def _authenticate_shared_tools(
         configuration = expected_configuration.get(lock_name)
         if configuration is not None:
             try:
-                manifest_configuration = (
-                    f"gpu-router={manifest.configuration['gpu-router']}; "
-                    f"hip-architectures={manifest.configuration['hip-architectures']}"
+                manifest_configuration = toolchain_cache.configuration_text(
+                    manifest.configuration
                 )
             except (KeyError, TypeError) as exc:
                 raise BuildError(

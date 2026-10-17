@@ -57,6 +57,10 @@ class BuildFesC64Tests(unittest.TestCase):
         self.assertIsNone(producer.execution_extra("HIP"))
         self.assertEqual(producer.execution_extra("CUDA"), {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"})
         self.assertEqual(producer.gpu_choice("CUDA")[0], "cuda")
+        self.assertEqual(
+            producer.gpu_choice("CUDA")[2],
+            "gpu-router=CUDA; hip-architectures=unused; cuda-architectures=86",
+        )
         with self.assertRaises(BuildError):
             producer.execution_extra("OFF")
 

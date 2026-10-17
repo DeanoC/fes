@@ -20,6 +20,7 @@ from scripts.export_core_package import (
     build_identity, encode_build_record, export_package, functional_record_fields,
 )
 from scripts.fes_build_common import (
+    FES_CUDA_TOOLCHAIN_CONFIGURATION,
     BuildError, _authenticate_tools, _prepare_output,
     _require_clean_source as require_clean_source,
     _run_tool, _sha256, _write_atomic,
@@ -109,7 +110,7 @@ def gpu_choice(gpu_router: str) -> tuple[str, str, str]:
         return (factory.COLECO_GPU_BACKEND, factory.COLECO_GPU_ARCHITECTURES,
                 factory.COLECO_TOOLCHAIN_CONFIGURATION)
     if gpu_router == "CUDA":
-        return "cuda", "unused", "gpu-router=CUDA; hip-architectures=unused"
+        return "cuda", "unused", FES_CUDA_TOOLCHAIN_CONFIGURATION
     raise BuildError(f"unsupported Coleco GPU router {gpu_router}")
 
 

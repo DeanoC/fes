@@ -128,9 +128,11 @@ def publish_shared_toolchain(
             f"fake {lock_name} identity\n", encoding="utf-8"
         )
         if lock_name == "nextpnr":
-            lane_architectures = hip_architectures if gpu_router.upper() == "HIP" else "unused"
+            lane_configuration = toolchain_cache.configuration_text(
+                toolchain_cache._normalise_configuration(request)
+            )
             (tool_evidence / f".config-{commit}.txt").write_text(
-                f"gpu-router={gpu_router.upper()}; hip-architectures={lane_architectures}\n",
+                f"{lane_configuration}\n",
                 encoding="utf-8",
             )
         tools[lock_name] = {

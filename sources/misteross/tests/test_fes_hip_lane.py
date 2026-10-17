@@ -37,6 +37,16 @@ LIVE_HIP_LOG = (
     "Info: Program finished normally.\n"
 )
 OFF_CONFIGURATION = "gpu-router=OFF; hip-architectures=unused"
+CUDA_PRODUCERS = (
+    "build_fes_apple2_oss",
+    "build_fes_atari_st_oss",
+    "build_fes_c64_oss",
+    "build_fes_coleco_socket_v2",
+    "build_fes_sg1000_oss",
+    "build_fes_sms_oss",
+    "build_fes_spectrum_oss",
+    "build_fes_zx81_oss",
+)
 
 
 def _write_local_root_tools(root: Path, *, nextpnr_config: str | None) -> Path:
@@ -396,6 +406,31 @@ class FesHipLaneTests(unittest.TestCase):
                     f'python3 {script} --root "{ROOT}"',
                 )
                 self.assertNotIn("--cache-root", result.stdout)
+
+
+class CudaLaneConfigurationTests(unittest.TestCase):
+    def test_cuda_producers_authenticate_the_default_cuda_architectures(self) -> None:
+        import importlib
+
+        from scripts import fes_build_common
+
+        self.assertEqual(
+            fes_build_common.FES_CUDA_ARCHITECTURES,
+            toolchain_cache.DEFAULT_CUDA_ARCHITECTURES,
+        )
+        expected = toolchain_cache.configuration_text(
+            {
+                "gpu-router": "CUDA",
+                "hip-architectures": "unused",
+                "cuda-architectures": toolchain_cache.DEFAULT_CUDA_ARCHITECTURES,
+            }
+        )
+        self.assertEqual(expected, "gpu-router=CUDA; hip-architectures=unused; cuda-architectures=86")
+        self.assertEqual(fes_build_common.FES_CUDA_TOOLCHAIN_CONFIGURATION, expected)
+        for name in CUDA_PRODUCERS:
+            with self.subTest(producer=name):
+                producer = importlib.import_module(f"scripts.{name}")
+                self.assertEqual(producer.gpu_choice("CUDA"), ("cuda", "unused", expected))
 
 
 if __name__ == "__main__":
