@@ -73,8 +73,9 @@ shell and sealed Direct/Scanlines companions. Firmware remains a separate user
 input; the image does not bundle EmuTOS or Atari ROMs.
 
 The PC/XT development slice runs an original diagnostic ROM on an 8088 CPU
-through a memory router, 8259 PIC, 8253 PIT and registered ISA probe cards.
-The integrated diagnostic handles timer and ISA interrupts; RAM/ROM storage
+through a memory router, 8259 PIC, 8253 PIT, 8255 PPI and registered ISA probe cards.
+The integrated diagnostic handles timer, ISA and timed XT keyboard interrupts
+and generates speaker PCM; RAM/ROM storage
 remains external to the synthesizable fixture.
 `make sim-fes-pcxt` checks it on the host; see the
 [core README](cores/fes-pcxt/README.md). The complete 8088 machine and physically

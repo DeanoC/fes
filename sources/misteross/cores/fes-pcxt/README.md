@@ -4,7 +4,8 @@ This development slice runs an original diagnostic ROM on an 8088 CPU through
 an eight-slot virtual ISA backplane. The [machine design](../../docs/architecture.md#proposed-fes-ibm-pcxt-core)
 targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
 linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
-PIC and an 8253 PIT. It has no PPI/keyboard, DMA controller, graphics, disk
+PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM. It has no
+HID keyboard frontend, DMA controller, graphics, disk
 controller, BIOS, board top, physical socket map or package producer.
 It cannot boot DOS or PC/XT games yet. Conventional RAM and ROM are testbench
 models; no physical SDRAM controller is connected.
@@ -32,19 +33,69 @@ pending work and must also reset the downstream storage and ISA participants.
 This is a storage interface, not an SDRAM implementation.
 
 The MIT-licensed [KF8259](vendor/kf8259/README.md) and
-[KF8253](vendor/kf8253/README.md) imports are pinned to the same upstream commit
-as the CPU. PIC ports `20–3F` use A0; PIT ports `40–5F` use A1:0. Both ignore
+[KF8253](vendor/kf8253/README.md) and [KF8255](vendor/kf8255/README.md) imports are pinned to the same upstream commit
+as the CPU. PIC ports `20–3F` use A0; PIT ports `40–5F` and PPI ports `60–7F`
+use A1:0. All ignore
 A15:10, matching the XT motherboard decode. INTA bypasses I/O decode and drives
 the real PIC's two-pulse sequence. IRQ0 comes from PIT channel 0, IRQ1 from the
-future keyboard input, and IRQ2–7 from ISA. The timer clock divides CPU guest
+XT keyboard receiver, and IRQ2–7 from ISA. The timer clock divides CPU guest
 clock enables by four (nominal 1.193182 MHz); it continues through CPU waits and
 HLT. All counter pins are synchronous data, not generated RTL clock domains.
-Channels 0/1 have gates tied high; channel 2 has an external gate and all three
-outputs are exposed. Refresh DMA and port-61h speaker control are not connected.
+Channels 0/1 have gates tied high; channel 2 uses PPI port B bit 0 and all three
+outputs are exposed. Refresh DMA remains unimplemented.
 Local reads/writes have one setup, eight active and nine release fabric clocks;
 CS/address remain stable through release so imported bus-edge detectors retire
 side effects before DONE. These timings are development integration choices,
 not a claim of original motherboard wait-state equivalence.
+
+`pcxt_xtio.sv` implements the IBM 5160 PPI wiring. Normal firmware writes `99`
+to port `63` for mode 0 (A/C inputs, B output). Mode-set writes clear output
+latches, including repeated values; port C also supports bit set/reset (BSR).
+Imported handshake modes are outside this slice's qualification.
+
+| Port | Mode-0 function |
+| --- | --- |
+| `60` | Received scan byte; reading does not clear IRQ1. Output mode reads the diagnostic output latch. |
+| `61` | PB0: PIT2 gate; PB1: speaker AND gate; PB2: spare; PB3: select switch high nibble; PB4/5: active-low parity/channel-check enables; PB6: release keyboard clock; PB7: clear keyboard receiver/IRQ1. |
+| `62` | PC0–3: selected switch nibble; PC4: zero; PC5: PIT2 output; PC6/7: external channel/parity status. |
+| `63` | Mode control or port-C BSR write; reads are unspecified. |
+
+Switch levels are an eight-bit profile input, SW1 in bit 0. Bit 0 set is SW1
+released (normal POST). Bit 1 set is SW2 released (8087 installed). Bits 3:2
+are SW4/SW3 (`11` is 640 KiB and `00` is 256 KiB on a 256/640K board). Bits
+5:4 are SW6/SW5 (`10` is CGA 80-column, `11` is MDA). Bits 7:6 are SW8/SW7
+(`00` is one floppy, `01` is two). The machine fixture executes `2D` on every
+memory-wait run and `73` once (normal POST, 8087, 256 KiB, MDA, two floppies).
+Error status
+inputs and checking-enable outputs are wiring hooks: parity generation,
+error latches and NMI integration remain unimplemented. PPI reset selects all
+inputs; the wrapper then mutes the speaker, disables checking and inhibits the
+keyboard clock. While PB7 is high, disabled keyboard data reads deterministic
+`FF`; this does not model floating-bus residue.
+
+The receiver synchronizes clock/data into 100 MHz fabric and samples falling
+clock edges: a start one followed by eight LSB-first bits, without parity.
+Leading zero RTS pulses are ignored. IRQ1 remains asserted until PB7 clears
+it; the receiver pulls the **data** line low for busy/CTS and holds the byte
+against overwrite. PB6 controls clock inhibit independently. PB7 itself does
+not clamp clock or data: a cable keyboard that only watches those lines can
+still shift a byte into a cleared receiver, and that byte raises no IRQ1.
+The companion
+`pcxt_xt_keyboard.sv` accepts a set-1 byte using VALID/READY, waits 80 us after
+CTS, and clocks bits with 40 us high/low phases and at least 3 us data hold.
+Clock inhibit pauses transmission. READY also stays low while PB7 holds the
+receiver clear, so the frontend does not retire a byte the receiver cannot
+collect. A byte already accepted still finishes its frame. Reset cancels a partial frame. This is a
+single-byte transport: HID mapping, extended-key policy, typematic generation,
+keyboard reset/BAT responses and event queues remain future frontend work.
+It is not an AT 8042 or a PS/2 protocol endpoint.
+
+`pcxt_speaker.sv` integrates the gated PIT2 waveform over each 48 kHz sample
+window (2083/2084 fabric clocks), then applies a roughly 30 Hz DC blocker.
+Its signed 16-bit mono sample/valid outputs are available to a future board
+adapter; they are not connected to the production audio shell. Fixed gain
+introduces at most four counts of window-length jitter. This development
+filter has no measured analog-speaker fidelity claim.
 
 `pcxt_isa_bridge.sv` latches a byte transaction, collects registered card decode
 responses, waits for READY and sends one commit. `pcxt_isa_boundary.sv` supplies
@@ -121,23 +172,35 @@ spurious IRQ7 and real ISA IRQ5 delivery. Timer tests cover all six modes:
 mode-0 gating, latched two-byte reads, zero reload (65536), BCD borrow,
 mode-2/3 frequency and odd/even duty cycles, mode-1 one-shot and mode-4/5
 strobes. Channel 1 counts and channel 0 continues during a long storage wait.
+PPI tests cover mode/direction/BSR writes, repeated-mode latch reset, switch
+selection, port aliases, check-status hooks, keyboard make/break and all-zero/
+all-one bytes, busy overwrite rejection, acknowledge, clock inhibit and partial
+frame reset. Holding port `61` at `C0` while offering scan code `1E` must not
+assert READY or IRQ1; releasing PB7 then delivers that byte. Speaker tests cover PIT gating, port-C feedback, 48 kHz cadence,
+DC removal and integration of modulation faster than the sample rate.
+The separate keyboard transport suite checks independent bit order and
+setup/hold timing, CTS backpressure, mid-frame clock inhibit and reset phases.
 Reset tests cancel an outstanding storage write and sweep all local bus phases.
 These are bounded integration tests; cascade, special mask mode, all counter
 reload/gate corner cases and exact original-silicon timing are not qualified.
 
 The integrated machine suite boots the original `sim/motherboard.S` ROM on the
 8088. It programs PIC/PIT, wakes from HLT for three timer IRQ0 handlers, then
-services ISA IRQ5 and clears its source. The testbench supplies only RAM/ROM,
-checks both locked INTA cycles and their vectors, and observes success in RAM.
-Three runs vary storage latency/backpressure; no host-supplied vectors or I/O
+services ISA IRQ5 and clears its source. It programs the PPI, reads both switch
+nibbles, plays/mutes a PIT2 speaker tone and handles make/break bytes via two
+IRQ1 handlers with port-61 acknowledgement. The testbench supplies RAM/ROM and
+set-1 bytes to the timed serializer, checks both locked INTA cycles and their vectors, and observes success in RAM.
+Three runs vary storage latency/backpressure on switch profile `2D`. A fourth
+run reads profile `73` with no added memory wait. Switch selection does not
+depend on that wait. No host-supplied vectors or I/O
 shortcuts participate in this fixture.
 
 Verilator lint is fatal. `sim/cpu.vlt` and `sim/chipset.vlt` scope exceptions to
 imported files and the fixtures' shared reset (asynchronous in imported chips,
 synchronous in FES RTL). Run a suite alone with
 `python3 scripts/sim_fes_pcxt.py --suite isa`, `--suite cpu`,
-`--suite motherboard` or `--suite machine`.
-Outputs live under `build/sim/fes-pcxt/{isa,cpu,motherboard,machine}/`. The parent affected-test planner and
+`--suite keyboard`, `--suite motherboard` or `--suite machine`.
+Outputs live under `build/sim/fes-pcxt/{isa,cpu,keyboard,motherboard,machine}/`. The parent affected-test planner and
 CI simulation matrix include this simulation-only family. Passing these tests
 is host evidence only. Physical socket placement/routing, exact-shell archives,
 firmware composition and hardware acceptance remain required before a linkable
@@ -157,9 +220,10 @@ fault-injection controls) and writes `build/synth/fes-pcxt/synth.json`,
 `yosys.log` and `diagnostic.json` with source hashes and compiler identity.
 The CPU variant includes the CPU and external memory ports, writing the same
 files beneath `build/synth/fes-pcxt/cpu/`. The machine variant adds the
-motherboard/PIC/PIT under `build/synth/fes-pcxt/machine/`; locked Yosys
-`5391eeb1e` maps that fixture to 1,993 FFs, 2,729 LUT/arithmetic cells and 20
-M10Ks. Neither variant synthesizes the testbench RAM or diagnostic system ROM.
+motherboard/PIC/PIT/PPI, keyboard serializer and speaker under
+`build/synth/fes-pcxt/machine/`. The receipt records the locked compiler identity
+and mapped cell counts.
+Neither variant synthesizes the testbench RAM or diagnostic system ROM.
 The cell counts describe these fixtures only.
 These commands perform no placement,
 routing, package sealing or deployment.

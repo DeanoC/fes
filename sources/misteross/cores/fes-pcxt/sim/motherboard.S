@@ -15,10 +15,14 @@ start:
     movb $1,0x601
     movw $timer_isr,0x20
     movw $0xf000,0x22
+    movw $keyboard_isr,0x24
+    movw $0xf000,0x26
     movw $card_isr,0x34
     movw $0xf000,0x36
     movw $0,0x610
     movb $0,0x612
+    movw $0,0x614
+    movw $0,0x616
     /* RAM top, ROM protection and expansion aperture. */
     movw $0x9000,%ax
     movw %ax,%es
@@ -80,6 +84,44 @@ wait_timer:
     inb $0x20,%al
     testb %al,%al
     jne fail
+    movb $4,0x601
+    /* PPI mode 0; read both switch nibbles and start a PIT2 speaker tone.
+     * The testbench preloads the expected high nibble at 0620 and the low
+     * nibble at 0621. Observed nibbles are stored at 0619 and 0618. */
+    movb $0x99,%al
+    outb %al,$0x63
+    movb $0x48,%al
+    outb %al,$0x61
+    inb $0x62,%al
+    andb $0x0f,%al
+    movb %al,0x619
+    cmpb 0x620,%al
+    jne fail
+    movb $0xb6,%al
+    outb %al,$0x43
+    movw $1194,%ax
+    outb %al,$0x42
+    movb %ah,%al
+    outb %al,$0x42
+    movb $0x43,%al
+    outb %al,$0x61
+    inb $0x62,%al
+    andb $0x0f,%al
+    movb %al,0x618
+    cmpb 0x621,%al
+    jne fail
+    movb $0xfd,%al
+    outb %al,$0x21
+    sti
+wait_keyboard:
+    hlt
+    cmpw $2,0x614
+    jb wait_keyboard
+    cli
+    cmpw $0x9e1e,0x616
+    jne fail
+    movb $0x40,%al
+    outb %al,$0x61
     movb $0xaa,0x600
 stop:
     hlt
@@ -105,6 +147,23 @@ card_isr:
     movb $0x20,%al
     outb %al,$0x20
     popw %dx
+    popw %ax
+    iret
+keyboard_isr:
+    pushw %ax
+    pushw %bx
+    movw 0x614,%bx
+    inb $0x60,%al
+    movb %al,0x616(%bx)
+    incw 0x614
+    inb $0x61,%al
+    orb $0x80,%al
+    outb %al,$0x61
+    andb $0x7f,%al
+    outb %al,$0x61
+    movb $0x20,%al
+    outb %al,$0x20
+    popw %bx
     popw %ax
     iret
 .org 0xfff0
