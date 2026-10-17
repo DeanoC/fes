@@ -2107,10 +2107,19 @@ for maps, commands and the remaining original-ST timing/device limits.
 
 ## Proposed FES IBM PC/XT core
 
-**Design proposal only.** `fes.pcxt` is the proposed package identity. There
-is no PC/XT RTL, simulation target, producer, registered interface or sealed
-package in this change. This section defines the intended implementation
-boundary; existing cores and factory selections are unchanged.
+`cores/fes-pcxt` currently implements the ISA transaction fabric, portable
+registered slot boundaries, card endpoints and a diagnostic I/O/memory/DMA
+probe. `make sim-fes-pcxt` exercises eight logical slots through the real RTL.
+The shared `fes.fabric.pcxt-isa` 1.0 constants are generated from mister-packages;
+its [wire contract](../../mister-packages/docs/pcxt-isa.md) defines handshakes,
+reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
+lists coverage and limitations.
+
+**The complete machine below remains a proposal.** `fes.pcxt` is the proposed
+package identity. There is no CPU, chipset, graphics, disk controller, physical
+socket layout, producer or sealed PC/XT package yet. The fabric does not enable
+runtime activation or claim a linkable RBF. Existing linker layout admission
+remains closed until an exact shell and its physical sockets are qualified.
 
 The target is software for an IBM 5160-class machine, including bootable
 floppy games and DOS games that access hardware directly. The baseline is an
@@ -2310,7 +2319,7 @@ producer's frozen scaffold and named cart-region pattern, with PC-specific
 pinned boundary registers and clock coverage. Shell routes and other socket
 regions must remain unchanged when any one card is built.
 
-The shared registered request carries a transaction identifier or toggle, held
+The implemented shared registered request carries a transaction toggle, held
 until completion. Each response echoes that identifier with claim/ready/data;
 the shell ignores stale responses after reset or a preceding transaction.
 Allow the known request/response register latency before deciding that an
@@ -2348,13 +2357,16 @@ never bypass it. Firmware linking must preserve every selected card's unrelated
 bits, and card linking must preserve the system firmware map and other cards.
 Graphics and output-part composition must also reject overlapping reservations.
 
-Each new layout needs Python/Go agreement on socket regions and generated RTL
-packing, exact-shell mismatch and duplicate-slot rejection, permutation-stable
+Each new layout needs Python/Go agreement on socket regions and the generated
+RTL packing, exact-shell mismatch and duplicate-slot rejection, permutation-stable
 composition IDs, unclaimed-slot behavior and outside-fence corruption tests.
 Then route probe and DMA cards independently against the same shell and verify
 combined timing, all-card containment and whole-RBF readback. Rebuilding the
-shell invalidates its old cards. No PC/XT slot support is implemented by this
-design-only change.
+shell invalidates its old cards. The portable fabric and diagnostic probe have
+host simulation and diagnostic synthesis coverage; physical linking and its
+admission remain unimplemented. `make synth-fes-pcxt-isa CACHE_ROOT=...` uses
+the shared authenticated tools, writes cell counts and source hashes under
+`build/synth/fes-pcxt/`, and does not route or seal a package.
 
 Proposed baseline assignments, with exact aliases governed by device models:
 
@@ -2395,7 +2407,7 @@ only after those operations drain. Stop mutes output and clears held host input;
 warm guest reset, cold machine reset and physical Stop have distinct semantics.
 FogCast owns selection and sessions; the runtime owns upload and FPGA lifecycle.
 
-Keep RTL under the proposed `cores/fes-pcxt/`, with a reusable CPU under
+The transaction RTL lives under `cores/fes-pcxt/`; put a reusable CPU under
 `cores/fes-common/rtl/x86/` only when implemented. A future producer must use
 the shared locked HIP lane and authenticate firmware, character ROM, CPU mode,
 adapter set, RAM geometry and disk-controller configuration. Resource estimates
