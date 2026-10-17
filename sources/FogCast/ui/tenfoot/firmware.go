@@ -224,6 +224,7 @@ func (a *App) firmwarePickerSnapshotLocked() FirmwarePickerSnapshot {
 }
 
 func (a *App) closeFirmwarePickerLocked() {
+	a.firmwarePickerFromDetail = false
 	a.firmwarePickerOpen = false
 	a.firmwarePickerBusy = false
 	a.firmwarePickerStatus = ""
@@ -237,6 +238,7 @@ func (a *App) closeFirmwarePickerLocked() {
 }
 
 func (a *App) openFirmwarePickerLocked(game hostclient.Game) {
+	a.firmwarePickerFromDetail = a.room == nil && a.detailOpen
 	a.closeDetailLocked()
 	a.roomChoiceOpen = false
 	a.roomChoice = nil
@@ -319,7 +321,12 @@ func (a *App) handleFirmwarePickerLocked(cmd Command) {
 
 func (a *App) firmwarePickerBackLocked() {
 	if a.firmwarePickerAtRoots {
+		reopen := a.firmwarePickerFromDetail
 		a.closeFirmwarePickerLocked()
+		// Cancel returns to the Library Details that asked for the BIOS.
+		if reopen && a.room == nil {
+			a.openDetailLocked()
+		}
 		return
 	}
 	path := a.firmwarePickerPath

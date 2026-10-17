@@ -211,25 +211,30 @@ func layoutDetailMeta(d shared.FocusDetail, x, maxWidth, sizePx int) (facts stri
 
 // Snapshot is a frame-loop readable copy of launcher state.
 type Snapshot struct {
-	Games           []hostclient.Game
-	Grid            Grid
-	Status          string
-	LoadErr         string
-	Loading         bool
-	Covers          map[string]*image.RGBA
-	Launch          LaunchSnapshot
-	Gamepads        int
-	Keyboards       int
-	Mice            int
-	Affinity        InputKind
-	AffinityID      int
-	CoverHits       int
-	Platforms       []hostclient.Platform
-	PlatformID      string
-	Sort            string
-	Query           string
-	SearchOpen      bool
-	FocusDetail     shared.FocusDetail
+	Games       []hostclient.Game
+	Grid        Grid
+	Status      string
+	LoadErr     string
+	Loading     bool
+	Covers      map[string]*image.RGBA
+	Launch      LaunchSnapshot
+	Gamepads    int
+	Keyboards   int
+	Mice        int
+	Affinity    InputKind
+	AffinityID  int
+	CoverHits   int
+	Platforms   []hostclient.Platform
+	PlatformID  string
+	Sort        string
+	Query       string
+	SearchOpen  bool
+	FocusDetail shared.FocusDetail
+	// DetailPlay is the focused title's classified play destination: the
+	// same readiness, reason and Confirm the launcher acts on.
+	DetailPlay rooms.Destination
+	// LibraryBackTo names the room Back returns to from the Library.
+	LibraryBackTo   string
 	Collection      string
 	ViewLabel       string
 	ViewPicker      bool
@@ -454,56 +459,61 @@ type App struct {
 	// destination is no longer Checking.
 	roomWaitAck bool
 	// roomCoreDetail is the package whose Details the hero is showing.
-	roomCoreDetail          string
-	menuDisplay             *gfx.MenuDisplay
-	sessionDisplayBusy      bool
-	sessionDisplayVisible   bool
-	sessionDisplayUncertain bool
-	sessionDisplayEpoch     uint64
-	sessionDisplayBinding   hostclient.SessionResult
-	sessionDisplayWait      chan struct{}
-	playKeyHeld             map[string]bool
-	playKeySuppressed       map[string]bool
-	playPadHeld             map[remoteinput.Code]remoteinput.Event
-	playPadSuppressed       map[remoteinput.Code]bool
-	playPadSelectDown       bool
-	playPadStartDown        bool
-	playPadChordSince       time.Time
-	playPadChordFired       bool
-	playHIDHeld             map[playHIDKey]remoteinput.Event
-	playMice                map[int]*playMouse
-	playHIDTail             chan struct{}
-	playHIDContext          context.Context
-	playHIDCancel           context.CancelFunc
-	playHIDEpoch            uint64
-	playHIDPending          int
-	roomPickerOpen          bool
-	roomPickerIndex         int
-	roomCoverSem            chan struct{}
-	roomDetail              hostclient.Game
-	roomChoiceOpen          bool
-	roomChoiceIndex         int
-	roomChoice              []hostclient.Game
-	roomPicks               map[string]string
-	firmwarePickerOpen      bool
-	firmwarePickerAtRoots   bool
-	firmwarePickerBusy      bool
-	firmwarePickerIndex     int
-	firmwarePickerGen       int
-	firmwarePickerPath      string
-	firmwarePickerStatus    string
-	firmwarePickerRows      []FirmwarePickerRow
-	firmwarePickerGame      hostclient.Game
-	tapePickerOpen          bool
-	tapePickerAtRoots       bool
-	tapePickerBusy          bool
-	tapePickerIndex         int
-	tapePickerGen           int
-	tapePickerPath          string
-	tapePickerStatus        string
-	tapePickerRows          []TapePickerRow
-	tapePickerSession       hostclient.SessionResult
-	tapePickerStarters      []hostclient.HardwareTape
+	roomCoreDetail string
+	// libraryReturn is the suspended room the Library was opened from.
+	libraryReturn *libraryOrigin
+	// firmwarePickerFromDetail reopens Library Details when the picker is
+	// cancelled, so the requirement stays in front of the player.
+	firmwarePickerFromDetail bool
+	menuDisplay              *gfx.MenuDisplay
+	sessionDisplayBusy       bool
+	sessionDisplayVisible    bool
+	sessionDisplayUncertain  bool
+	sessionDisplayEpoch      uint64
+	sessionDisplayBinding    hostclient.SessionResult
+	sessionDisplayWait       chan struct{}
+	playKeyHeld              map[string]bool
+	playKeySuppressed        map[string]bool
+	playPadHeld              map[remoteinput.Code]remoteinput.Event
+	playPadSuppressed        map[remoteinput.Code]bool
+	playPadSelectDown        bool
+	playPadStartDown         bool
+	playPadChordSince        time.Time
+	playPadChordFired        bool
+	playHIDHeld              map[playHIDKey]remoteinput.Event
+	playMice                 map[int]*playMouse
+	playHIDTail              chan struct{}
+	playHIDContext           context.Context
+	playHIDCancel            context.CancelFunc
+	playHIDEpoch             uint64
+	playHIDPending           int
+	roomPickerOpen           bool
+	roomPickerIndex          int
+	roomCoverSem             chan struct{}
+	roomDetail               hostclient.Game
+	roomChoiceOpen           bool
+	roomChoiceIndex          int
+	roomChoice               []hostclient.Game
+	roomPicks                map[string]string
+	firmwarePickerOpen       bool
+	firmwarePickerAtRoots    bool
+	firmwarePickerBusy       bool
+	firmwarePickerIndex      int
+	firmwarePickerGen        int
+	firmwarePickerPath       string
+	firmwarePickerStatus     string
+	firmwarePickerRows       []FirmwarePickerRow
+	firmwarePickerGame       hostclient.Game
+	tapePickerOpen           bool
+	tapePickerAtRoots        bool
+	tapePickerBusy           bool
+	tapePickerIndex          int
+	tapePickerGen            int
+	tapePickerPath           string
+	tapePickerStatus         string
+	tapePickerRows           []TapePickerRow
+	tapePickerSession        hostclient.SessionResult
+	tapePickerStarters       []hostclient.HardwareTape
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -697,6 +707,7 @@ func (a *App) Stop() {
 	a.stopPreviewLocked()
 	a.cancelPlayHIDLocked()
 	a.closeAllRoomsLocked()
+	a.discardLibraryOriginLocked()
 	a.attractClosed = true
 	feed := a.localFeed
 	a.localFeed = nil
@@ -1084,6 +1095,8 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	case CmdBack:
 		if a.launch.Phase == "launching" {
 			a.status = "launch in progress"
+		} else {
+			a.returnFromLibraryLocked()
 		}
 	case CmdFilterPrev:
 		a.cyclePlatformLocked(-1)
@@ -1666,6 +1679,8 @@ func (a *App) Snapshot() Snapshot {
 		Query:                   a.searchField.Buffer,
 		SearchOpen:              a.searchOpen,
 		FocusDetail:             a.focusDetailLocked(),
+		DetailPlay:              a.detailPlayLocked(),
+		LibraryBackTo:           a.libraryBackToLocked(),
 		Collection:              a.collectionID,
 		ViewLabel:               a.viewLabelLocked(),
 		ViewPicker:              a.viewPickerOpen,
@@ -2029,6 +2044,27 @@ func (a *App) Selected() (hostclient.Game, bool) {
 	return a.games[a.grid.Focus], true
 }
 
+// detailPlayLocked classifies the title Details describes. In a room it is
+// the room's own destination; in the Library it is the focused row with the
+// kit lease applied, as Confirm would see it.
+func (a *App) detailPlayLocked() rooms.Destination {
+	if a.room != nil {
+		return a.roomDestinationLocked()
+	}
+	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
+		return rooms.Destination{}
+	}
+	game := a.games[a.grid.Focus]
+	d := libraryPlayDestination(game)
+	if a.foreignKitLeaseLocked() && !game.HostOnly() && d.Availability == rooms.AvailReady {
+		d.Availability = rooms.AvailUnavailable
+		d.LeaseHeld = true
+		d.Status = rooms.InUseStatus
+		d.Action = rooms.InUseDetail
+	}
+	return d
+}
+
 func (a *App) focusDetailLocked() shared.FocusDetail {
 	if a.room != nil && strings.TrimSpace(a.roomDetail.ID) != "" {
 		return a.detailForGameLocked(a.roomDetail)
@@ -2188,6 +2224,9 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: reason}
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
+		} else {
+			// The reason and its remedy are in Details, not only the header.
+			a.openDetailLocked()
 		}
 		return
 	}
@@ -2196,6 +2235,8 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		a.launchLeaseRefusal = true
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
+		} else {
+			a.openDetailLocked()
 		}
 		return
 	}

@@ -263,7 +263,7 @@ func (a *App) activateHomeRowLocked(row RoomPickerRow) {
 	switch row.Kind {
 	case HomeKindLibrary:
 		a.roomPickerOpen = false
-		a.closeAllRoomsLocked()
+		a.suspendRoomsForLibraryLocked()
 		a.stampNavLocked("library")
 	case HomeKindRecents:
 		a.openRecentsFromHomeLocked()
@@ -282,7 +282,7 @@ func (a *App) activateHomeRowLocked(row RoomPickerRow) {
 }
 
 func (a *App) openRecentsFromHomeLocked() {
-	a.closeAllRoomsLocked()
+	a.suspendRoomsForLibraryLocked()
 	a.roomPickerOpen = false
 	a.collectionID = "recents"
 	a.normalizeSortForCollectionLocked()

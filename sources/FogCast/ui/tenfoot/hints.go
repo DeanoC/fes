@@ -316,5 +316,30 @@ func (s Snapshot) HeaderHint() string {
 		}
 		return detailHintFor(kind, s.Detail.Count)
 	}
+	if to := strings.TrimSpace(s.LibraryBackTo); to != "" {
+		return backWord(kind) + " back to " + to + "  " + browseHint(kind)
+	}
 	return browseHint(kind)
+}
+
+// libraryDetailHint offers A only for what Confirm will do on this title.
+func libraryDetailHint(kind InputKind, count int, d rooms.Destination) string {
+	parts := []string{}
+	switch d.Confirm() {
+	case rooms.ConfirmLaunch, rooms.ConfirmLaunchKit:
+		parts = append(parts, selectWord(kind)+" play")
+	case rooms.ConfirmImportFirmware:
+		parts = append(parts, selectWord(kind)+" import BIOS")
+	}
+	parts = append(parts, backWord(kind)+" back")
+	if count > 1 {
+		switch kind {
+		case InputKeyboard, InputMouse:
+			parts = append(parts, "Left/Right screenshots")
+		default:
+			parts = append(parts, "LEFT/RIGHT screenshots")
+		}
+	}
+	parts = append(parts, settingsWord(kind)+" settings")
+	return strings.Join(parts, "  ")
 }

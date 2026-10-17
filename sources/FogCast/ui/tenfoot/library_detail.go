@@ -1,0 +1,145 @@
+package tenfoot
+
+import (
+	"strings"
+
+	"github.com/DeanoC/FogCast/hostclient"
+	"github.com/DeanoC/FogCast/ui/gfx"
+	"github.com/DeanoC/FogCast/ui/rooms"
+)
+
+// libraryBlockTag is the short name of what stops a title playing, for a
+// cell tag and the Details headline. The full sentence stays
+// rooms.LaunchBlockCopy.
+func libraryBlockTag(block hostclient.LaunchBlock) string {
+	switch block {
+	case "":
+		return ""
+	case hostclient.LaunchBrowseOnly:
+		return "Browse only"
+	case hostclient.LaunchSourceOffline:
+		return "Offline"
+	case hostclient.LaunchUnreadable:
+		return "Can't be read"
+	case hostclient.LaunchMissingFirmware:
+		return "Needs BIOS"
+	case hostclient.LaunchMissingROM:
+		return "Needs a cartridge"
+	case hostclient.LaunchMissingExpansion:
+		return "Needs an expansion"
+	case hostclient.LaunchLeaseHeld:
+		return rooms.InUseStatus
+	case hostclient.LaunchDistant:
+		return "Not on this machine"
+	case hostclient.LaunchEnsureProgress:
+		return heroStateChecking
+	default:
+		return "Can't play here"
+	}
+}
+
+// readinessCopy is the readiness row of Details: the state name, a short
+// headline and the sentence that explains it or names the remedy.
+type readinessCopy struct {
+	State    string
+	Headline string
+	Explain  string
+}
+
+func detailReadiness(d rooms.Destination) readinessCopy {
+	c := readinessCopy{State: heroState(d.Availability)}
+	switch d.Kind {
+	case rooms.KindCore:
+		if d.Confirm() == rooms.ConfirmLaunchCore {
+			return readinessCopy{State: heroStateReady, Headline: heroPlaysOnThisTV}
+		}
+		if d.Confirm() == rooms.ConfirmWait {
+			return readinessCopy{State: heroStateChecking, Headline: strings.TrimSpace(d.Status)}
+		}
+		c.State = heroStateUnavailable
+		c.Headline, c.Explain = heroCoreBlocked(d)
+		return c
+	case rooms.KindRoom, rooms.KindLibrary, rooms.KindAction, rooms.KindUnresolved:
+		if d.Availability != rooms.AvailChecking {
+			return readinessCopy{}
+		}
+	}
+	switch c.State {
+	case heroStateReady:
+		// The pill says it; the host path names no destination here.
+	case heroStateChecking:
+		c.Headline = strings.TrimSpace(d.Status)
+	case heroStateNeedsChoice:
+		c.Headline = strings.TrimSpace(d.Status)
+		c.Explain = strings.TrimSpace(d.Action)
+	case heroStateUnavailable:
+		switch {
+		case d.LeaseHeld || d.Status == rooms.InUseStatus:
+			c.Headline, c.Explain = rooms.InUseStatus, rooms.InUseDetail
+		case d.Availability == rooms.AvailMissing:
+			c.Headline, c.Explain = "Not in the library", strings.TrimSpace(d.Status)
+		default:
+			block := hostclient.LaunchBlock("")
+			if len(d.Matches) > 0 {
+				block = d.Matches[0].LaunchBlock()
+			}
+			c.Headline = libraryBlockTag(block)
+			if c.Headline == "" {
+				c.Headline = "Can't play here"
+			}
+			c.Explain = strings.TrimSpace(d.Status)
+		}
+	}
+	return c
+}
+
+// drawDetailReadiness draws the readiness row on the dark Details pane and
+// returns the height it used. maxY keeps it inside a collapsed pane.
+func drawDetailReadiness(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, x, y, w, maxY int, d rooms.Destination) int {
+	c := detailReadiness(d)
+	if c.State == "" && c.Headline == "" {
+		return 0
+	}
+	text := gfx.RGBA(0xED, 0xF3, 0xE9, 0xFF)
+	secondary := gfx.RGBA(0xB5, 0xC3, 0xB9, 0xFF)
+	rowH := gfx.TextHeight(16)
+	lineX := x
+	if c.State != "" {
+		if y+gfx.TextHeightWeight(detailPill.px, gfx.WeightBold)+detailPill.px/2 > maxY {
+			return 0
+		}
+		pw, h := statePill(dev, labels, used, x, y, c.State, detailPill)
+		lineX += pw + 12
+		rowH = max(rowH, h)
+	}
+	heroLine(dev, labels, used, lineX, y+(rowH-gfx.TextHeight(16))/2, x+w-lineX, 16, false, text, c.Headline)
+	height := rowH + 6
+	if c.Explain != "" && y+height+gfx.TextHeight(16) <= maxY {
+		height += heroLine(dev, labels, used, x, y+height, w, 16, false, secondary, c.Explain) + 4
+	}
+	return height
+}
+
+// cellBlockTag labels a library cell whose title cannot play: text on a
+// solid plate with a leading bar, so it does not rely on colour.
+func drawCellBlockTag(dev gfx.Device, labels map[string]gpuTexture, used map[string]struct{}, x, y, maxW int, game hostclient.Game) {
+	tag := libraryBlockTag(game.LaunchBlock())
+	if tag == "" {
+		return
+	}
+	px := 14
+	w := min(maxW, gfx.MeasureTextWeight(tag, px, gfx.WeightBold)+22)
+	h := gfx.TextHeightWeight(px, gfx.WeightBold) + 8
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y - h), W: float32(w), H: float32(h)}, detailPill.unavailable)
+	dev.FillRect(gfx.Rect{X: float32(x), Y: float32(y - h), W: 5, H: float32(h)}, detailPill.bar)
+	heroLine(dev, labels, used, x+11, y-h+4, w-14, px, true, detailPill.text, tag)
+}
+
+// placeholderSystem is the missing-art label: the platform as the catalog
+// names it.
+func placeholderSystem(game hostclient.Game) string {
+	if s := strings.ToUpper(strings.TrimSpace(game.System)); s != "" {
+		return s
+	}
+	return strings.TrimSpace(game.Title)
+}

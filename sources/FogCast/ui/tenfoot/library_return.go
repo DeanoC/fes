@@ -1,0 +1,84 @@
+package tenfoot
+
+import "github.com/DeanoC/FogCast/ui/rooms"
+
+// libraryOrigin is the room, and its nested parents, that the Library was
+// opened from. It is suspended rather than closed, so Back from the Library
+// returns to the same room instance with its selection, as Back from a
+// nested room already does.
+type libraryOrigin struct {
+	room  *rooms.Instance
+	stack []*rooms.Instance
+}
+
+// suspendRoomsForLibraryLocked leaves the open room for the Library. A room
+// that has failed is closed instead: there is nothing to return to.
+func (a *App) suspendRoomsForLibraryLocked() {
+	a.discardLibraryOriginLocked()
+	if a.room == nil || a.room.Err() != nil {
+		a.closeAllRoomsLocked()
+		return
+	}
+	a.closeRoomOverlaysLocked()
+	a.libraryReturn = &libraryOrigin{room: a.room, stack: a.roomStack}
+	id := a.room.ID()
+	a.room = nil
+	a.roomStack = nil
+	a.roomErr = ""
+	a.roomFrame = rooms.Frame{}
+	a.roomWaitAck = false
+	a.roomCoreDetail = ""
+	a.postUIEventLocked("ui.nav", map[string]string{"reason": "room-suspend", "view": "room:" + id})
+}
+
+// restoreLibraryOriginLocked puts the suspended rooms back without resuming
+// them, so Home can reclaim an existing home-room instance.
+func (a *App) restoreLibraryOriginLocked() bool {
+	o := a.libraryReturn
+	if o == nil || a.room != nil {
+		return false
+	}
+	a.libraryReturn = nil
+	a.room = o.room
+	a.roomStack = o.stack
+	a.roomWasParked = a.gpuParked
+	a.resizeRoomsLocked()
+	return true
+}
+
+// returnFromLibraryLocked is Back from the Library: resume the room it was
+// opened from. It reports false when the Library has no origin.
+func (a *App) returnFromLibraryLocked() bool {
+	if a.sessionStopOfferedLocked() || !a.restoreLibraryOriginLocked() {
+		return false
+	}
+	a.closeDetailLocked()
+	a.postUIEventLocked("ui.nav", map[string]string{"reason": "room-resume", "view": "room:" + a.room.ID()})
+	a.room.Resume()
+	a.applyRoomActionsLocked()
+	return true
+}
+
+// discardLibraryOriginLocked closes a suspended origin that can no longer be
+// returned to, because another room or Home took its place.
+func (a *App) discardLibraryOriginLocked() {
+	o := a.libraryReturn
+	if o == nil {
+		return
+	}
+	a.libraryReturn = nil
+	o.room.Close()
+	for _, parent := range o.stack {
+		if parent != nil {
+			parent.Close()
+		}
+	}
+}
+
+// libraryBackToLocked names the room Back returns to, or "".
+func (a *App) libraryBackToLocked() string {
+	if a.libraryReturn == nil || a.room != nil {
+		return ""
+	}
+	return a.libraryReturn.room.Title()
+}

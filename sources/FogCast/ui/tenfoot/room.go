@@ -222,6 +222,7 @@ func (a *App) openRoomLocked(id string) {
 // false only when rooms.New fails; a script error still leaves the
 // instance up so the existing error panel can show it.
 func (a *App) openValidRoomLocked(pack rooms.Pack) bool {
+	a.discardLibraryOriginLocked()
 	a.closeRoomLocked()
 	a.closeRoomOverlaysLocked()
 	a.closeFiltersLocked()
@@ -277,6 +278,9 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 		a.noteHomeRoomFallbackLocked(id, reason)
 		return false
 	}
+	// Home from the Library reclaims the suspended home room, keeping its
+	// selection, rather than loading a new instance.
+	a.restoreLibraryOriginLocked()
 	if a.reclaimHomeRoomLocked(id) {
 		return true
 	}
@@ -491,7 +495,7 @@ func (a *App) openLibraryFromRoomLocked(act rooms.Action) {
 		a.status = "Stop the running machine before opening the library."
 		return
 	}
-	a.closeAllRoomsLocked()
+	a.suspendRoomsForLibraryLocked()
 	a.roomDuringPlay = false
 	a.syncGPUParkLocked()
 	a.roomPickerOpen = false

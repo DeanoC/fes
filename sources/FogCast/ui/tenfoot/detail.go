@@ -372,11 +372,15 @@ func (a *App) evictShotsLocked() {
 func (a *App) detailSnapshotLocked() DetailSnapshot {
 	ids := a.focusDetailLocked().ScreenshotIDs
 	index := clampCarouselIndex(a.carouselIndex, len(ids))
+	hint := detailHintFor(a.affinity.current.Kind, len(ids))
+	if a.room == nil {
+		hint = libraryDetailHint(a.affinity.current.Kind, len(ids), a.detailPlayLocked())
+	}
 	return DetailSnapshot{
 		Open:  a.detailOpen,
 		Index: index,
 		Count: len(ids),
-		Hint:  detailHintFor(a.affinity.current.Kind, len(ids)),
+		Hint:  hint,
 	}
 }
 
