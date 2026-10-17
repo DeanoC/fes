@@ -1342,7 +1342,17 @@ timing weights 300 then 1000, then sweeps the same seeds at weights 2000, 100
 and 10 if needed (at most 70 attempts). It stops at the first route that meets
 timing and leaves every plug_addr request flip-flop's fabric exit free. A
 timing-passing route is rejected when another net occupies that column-24 GIN,
-and the search continues.
+or when any shell cell other than a pinned boundary flip-flop or its data
+route-through sits in the socket, and the search continues.
+The shell QSF keeps the cart interior `25 1 27 32` as the unnamed `cart`
+region. Cart merge targets that region, and the CRAM fence stays
+`1769,32,2806,7024`. The request and response flip-flops sit on columns 24
+and 28, which that interior does not cover. The same QSF reserves
+`plug_addr 24 1 24 32` and `plug_rdata 28 1 28 32` as separate regions, the
+column span used by the sealed C64 and Spectrum sockets. Unconstrained shell
+cells cannot share those LABs, so their LUT outputs do not take the only
+column-24 GIN a request flip-flop can drive. BEL-locked socket flip-flops
+still place. Cart cells stay in the interior.
 The build record seals
 the effective weight order and budget. This fallback handles placement-sensitive
 netlists without changing the clock requirements. The recipe uses

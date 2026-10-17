@@ -172,7 +172,14 @@ class ZX81SocketProducerTests(unittest.TestCase):
         self.assertIn("-I cores/fes-zx81/rtl", shell[-1])
         self.assertIn("build/fes-zx81-oss/synth.json", shell[-1])
         self.assertIn("build/fes-zx81-oss/socket.qsf", route)
-        self.assertIn('FES_RESERVED_RECT "25 1 27 32"', expansion.shell_qsf("existing pins\n"))
+        qsf = expansion.shell_qsf("existing pins\n")
+        self.assertEqual(qsf.count("FES_RESERVED_RECT"), 3)
+        self.assertIn('FES_RESERVED_RECT "25 1 27 32"', qsf)
+        self.assertIn('FES_RESERVED_RECT "plug_addr 24 1 24 32"', qsf)
+        self.assertIn('FES_RESERVED_RECT "plug_rdata 28 1 28 32"', qsf)
+        # The interior stays unnamed so cart merge's default region remains "cart".
+        self.assertLess(qsf.index('FES_RESERVED_RECT "25 1 27 32"'),
+                        qsf.index('FES_RESERVED_RECT "plug_addr'))
 
     def test_standard_build_defaults_to_socketed_shell(self):
         root = ROOT
@@ -557,6 +564,43 @@ class ZX81PlugAddrExitTests(unittest.TestCase):
         self.assertIn("plug_addr[3] exit used by net3", message)
         self.assertNotIn("plug_addr[4]", message)
         self.assertIn("and 1 more", message)
+
+    def test_shell_logic_on_the_plug_columns_is_rejected(self) -> None:
+        def placed(name: str, bel: str) -> dict:
+            return {"modules": {"top": {"cells": {
+                name: {"type": "MISTRAL_COMB", "attributes": {"NEXTPNR_BEL": bel}},
+            }}}}
+
+        intruders = expansion.shell_cells_in_socket(placed("video.vsync", "MISTRAL_COMB.24.2.0"))
+        self.assertEqual(intruders, [("video.vsync", "MISTRAL_COMB.24.2.0")])
+        self.assertIn("video.vsync at MISTRAL_COMB.24.2.0",
+                      expansion.socket_occupancy_message(intruders))
+        interior = expansion.shell_cells_in_socket(placed("cpu.alu", "MISTRAL_COMB.26.4.0"))
+        self.assertEqual(interior, [("cpu.alu", "MISTRAL_COMB.26.4.0")])
+        response = expansion.shell_cells_in_socket(placed("cpu.reg", "MISTRAL_FF.28.20.4"))
+        self.assertEqual(response, [("cpu.reg", "MISTRAL_FF.28.20.4")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(placed("plug_addr_ff_0", "MISTRAL_FF.24.1.2")), [])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.1.0")), [])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(
+                placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.26.1.0")),
+            [("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.26.1.0")])
+        self.assertEqual(
+            expansion.shell_cells_in_socket(placed("rom.lane0", "MISTRAL_M10K.5.73.0")), [])
+
+    def test_accept_hook_rejects_shell_logic_before_a_free_exit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            run_dir = Path(directory)
+            candidate = SimpleNamespace(run_dir=str(run_dir))
+            (run_dir / "routed.json").write_text(json.dumps({"modules": {"top": {"cells": {
+                "video.vsync": {"attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.24.1.0"}},
+            }}}}))
+            reason = expansion.accept_socket_route(candidate)
+            self.assertIn("socket boundary contains shell logic", reason or "")
+            self.assertIn("video.vsync at MISTRAL_COMB.24.1.0", reason or "")
 
     def test_accept_hook_reads_the_candidate_routed_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -193,6 +193,27 @@ class BuildFesZx81OssTests(unittest.TestCase):
                 with self.assertRaisesRegex(BuildError, r'plug_addr\[39\] exit used by video.vsync'):
                     build_fes_zx81_oss.validate_build_evidence(output)
 
+    def test_signoff_rejects_shell_logic_on_the_plug_column(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output / 'synth.json').write_text('{"modules":{"top":{}}}')
+            routed = {"modules": {"top": {"cells": {
+                "video.vsync": {"type": "MISTRAL_COMB",
+                                "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.24.2.0"}},
+            }}}}
+            (output / 'routed.json').write_text(json.dumps(routed))
+            (output / 'nextpnr.log').write_text("Info: Program finished normally.\n")
+            with patch.object(build_fes_zx81_oss, '_i2c_evidence'), patch.object(
+                build_fes_zx81_oss, '_audio_synthesis_evidence'), patch.object(
+                build_fes_zx81_oss, '_audio_evidence'), patch.object(
+                build_fes_zx81_oss, '_cell_counts', return_value={
+                    **build_fes_zx81_oss.REQUIRED_RESOURCES,
+                    'MISTRAL_M10K': 1,
+                }
+            ):
+                with self.assertRaisesRegex(BuildError, r'video\.vsync at MISTRAL_COMB\.24\.2\.0'):
+                    build_fes_zx81_oss.validate_build_evidence(output)
+
     def test_build_exports_sealed_map_and_cleans_failed_database_recheck(self):
         import hashlib
         from types import SimpleNamespace
