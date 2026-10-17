@@ -552,3 +552,248 @@ func TestHardwareRoomCassetteNamesStayDistinct(t *testing.T) {
 		t.Fatalf("long cassette name still clipped by max width: %q max %d", longLeft.Text, longLeft.MaxW)
 	}
 }
+
+// workshopKitSize is the hardware-room content box at a kit menu resolution:
+// 5% safe area on each edge, then the 52px hardware footer.
+func workshopKitSize(displayW, displayH int) (int, int) {
+	inset := func(v int) int { return int(float64(v)*0.05 + 0.5) }
+	return displayW - 2*inset(displayW), displayH - 2*inset(displayH) - 52
+}
+
+func openWorkshop(t *testing.T, w, h int, active bool) *Instance {
+	t.Helper()
+	r := newRoom(t, examplePack(t, "example.hardware"), Options{
+		Width: w, Height: h, Services: hardwareData(active),
+		StorePath: filepath.Join(t.TempDir(), "room.json"),
+		Budget:    Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second},
+	})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Fits this machine") })
+	deadline := time.Now().Add(time.Second)
+	now := time.Unix(2000, 0)
+	for len(r.Images()) == 0 && time.Now().Before(deadline) {
+		now = now.Add(16 * time.Millisecond)
+		r.Step(now)
+		if r.Err() != nil {
+			t.Fatal(r.Err())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	r.Step(now.Add(16 * time.Millisecond))
+	r.Step(now.Add(32 * time.Millisecond))
+	return r
+}
+
+func assertLabelsFit(t *testing.T, f Frame, shown string, extras ...string) {
+	t.Helper()
+	var op Op
+	var found bool
+	for _, candidate := range f.Ops {
+		if candidate.Kind == OpText && candidate.Text == shown {
+			op = candidate
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("missing %q", shown)
+	}
+	for _, label := range append([]string{shown}, extras...) {
+		for _, weight := range []gfx.Weight{gfx.WeightRegular, gfx.WeightBold} {
+			if width := gfx.MeasureTextWeight(label, op.Size, weight); width > op.MaxW {
+				t.Fatalf("%q size %d is %dpx, button max %d", label, op.Size, width, op.MaxW)
+			}
+		}
+	}
+}
+
+func TestHardwareRoomToolLabelsFitAtKitSize(t *testing.T) {
+	for _, display := range [][2]int{{1280, 720}, {1024, 600}} {
+		w, h := workshopKitSize(display[0], display[1])
+		t.Run(fmt.Sprintf("%dx%d-content-%dx%d", display[0], display[1], w, h), func(t *testing.T) {
+			r := openWorkshop(t, w, h, true)
+			f := r.Step(time.Unix(3000, 0))
+			assertLabelsFit(t, f, "Import expansion")
+			assertLabelsFit(t, f, "Refresh", "Checking...")
+		})
+	}
+}
+
+// The kit's draw callback hard-stops at 48ms while a core is running. Host
+// wall time is not that budget. This guards the cost the workshop adds: a
+// settled frame reuses the presented picture, and a focus change does not
+// remeasure the layout.
+func TestHardwareRoomSettledDrawStaysCheap(t *testing.T) {
+	w, h := workshopKitSize(1280, 720)
+	r := openWorkshop(t, w, h, true)
+	before := r.measures
+	now := time.Unix(4000, 0)
+	for i := 0; i < 8; i++ {
+		now = now.Add(16 * time.Millisecond)
+		f := r.Step(now)
+		if r.Err() != nil {
+			t.Fatal(r.Err())
+		}
+		if !frameHas(f, "Import expansion") || !frameHas(f, "Running:") {
+			t.Fatal("reused frame lost the workshop")
+		}
+	}
+	if got := r.measures - before; got != 0 {
+		t.Fatalf("settled draw measured text %d times", got)
+	}
+	allocs := testing.AllocsPerRun(30, func() {
+		now = now.Add(16 * time.Millisecond)
+		r.Step(now)
+		if r.Err() != nil {
+			t.Fatalf("settled step: %v", r.Err())
+		}
+	})
+	t.Logf("settled allocs/step %.1f measures %d", allocs, r.measures-before)
+	if allocs > 80 {
+		t.Fatalf("settled draw allocs/step %.1f; reuse should stay far under the previous ~1350", allocs)
+	}
+	r.Hover("import_card")
+	measured := r.measures
+	focused := r.Step(now.Add(16 * time.Millisecond))
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+	if delta := r.measures - measured; delta > 6 {
+		t.Fatalf("focus redraw measured text %d times", delta)
+	}
+	if !exactText(focused, "Import expansion") {
+		t.Fatal("focus redraw dropped Import expansion")
+	}
+	// Flip a status string so each step rebuilds the picture at the same
+	// size. Layout, focus changes and store writes stay outside the count.
+	dirty, err := r.L.LoadString(`message = message == "bench-a" and "bench-b" or "bench-a"`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	redraw := testing.Benchmark(func(b *testing.B) {
+		b.ReportAllocs()
+		for i := 0; i < b.N; i++ {
+			r.L.Push(dirty)
+			if err := r.L.PCall(0, 0, nil); err != nil {
+				b.Fatal(err)
+			}
+			now = now.Add(16 * time.Millisecond)
+			r.Step(now)
+			if r.Err() != nil {
+				b.Fatal(r.Err())
+			}
+		}
+	})
+	t.Logf("scene-change redraw allocs/op %d ns/op %d", redraw.AllocsPerOp(), redraw.NsPerOp())
+	if redraw.AllocsPerOp() > 80 {
+		t.Fatalf("scene-change redraw allocs/op %d; rebuilding command tables was about 660", redraw.AllocsPerOp())
+	}
+}
+
+func BenchmarkHardwareRoomSettledDraw(b *testing.B) {
+	w, h := workshopKitSize(1280, 720)
+	var pack Pack
+	for _, candidate := range Examples() {
+		if candidate.ID == "example.hardware" {
+			pack = candidate
+			break
+		}
+	}
+	if !pack.Valid() {
+		b.Fatal("example.hardware missing")
+	}
+	r, err := New(pack, Options{
+		Width: w, Height: h, Services: hardwareData(true),
+		Budget: Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second},
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer r.Close()
+	if err = r.Load(); err != nil {
+		b.Fatal(err)
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	now := time.Unix(5000, 0)
+	for !frameHas(r.Step(now), "Fits this machine") {
+		now = now.Add(16 * time.Millisecond)
+		if r.Err() != nil {
+			b.Fatal(r.Err())
+		}
+		if time.Now().After(deadline) {
+			b.Fatal("workshop fixture did not draw")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	for len(r.Images()) == 0 && time.Now().Before(deadline) {
+		now = now.Add(16 * time.Millisecond)
+		r.Step(now)
+		time.Sleep(time.Millisecond)
+	}
+	r.Step(now.Add(16 * time.Millisecond))
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		now = now.Add(16 * time.Millisecond)
+		r.Step(now)
+		if r.Err() != nil {
+			b.Fatal(r.Err())
+		}
+	}
+}
+
+func BenchmarkHardwareRoomRedraw(b *testing.B) {
+	w, h := workshopKitSize(1280, 720)
+	var pack Pack
+	for _, candidate := range Examples() {
+		if candidate.ID == "example.hardware" {
+			pack = candidate
+			break
+		}
+	}
+	r, err := New(pack, Options{
+		Width: w, Height: h, Services: hardwareData(true),
+		Budget: Budget{Load: 2 * time.Second, Frame: 2 * time.Second, Input: 2 * time.Second},
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer r.Close()
+	if err = r.Load(); err != nil {
+		b.Fatal(err)
+	}
+	now := time.Unix(5000, 0)
+	deadline := time.Now().Add(2 * time.Second)
+	for !frameHas(r.Step(now), "Fits this machine") {
+		now = now.Add(16 * time.Millisecond)
+		if time.Now().After(deadline) {
+			b.Fatal(r.Err())
+		}
+		time.Sleep(time.Millisecond)
+	}
+	for len(r.Images()) == 0 && time.Now().Before(deadline) {
+		now = now.Add(16 * time.Millisecond)
+		r.Step(now)
+		time.Sleep(time.Millisecond)
+	}
+	r.Step(now)
+	dirty, err := r.L.LoadString(`message = message == "bench-a" and "bench-b" or "bench-a"`)
+	if err != nil {
+		b.Fatal(err)
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r.L.Push(dirty)
+		if err = r.L.PCall(0, 0, nil); err != nil {
+			b.Fatal(err)
+		}
+		now = now.Add(16 * time.Millisecond)
+		r.Step(now)
+		if r.Err() != nil {
+			b.Fatal(r.Err())
+		}
+	}
+}

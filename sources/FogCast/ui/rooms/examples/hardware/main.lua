@@ -2,7 +2,15 @@
 -- belongs in store. A saved setup is the next launch, never a RAM snapshot.
 -- Lounge seed roles (docs/ux/visual-language.md). "warm" carries setup
 -- consequences; focus is an accent outline, never colour alone.
-local C = {paper="#F4F0E8", panel="#FFFCF5", raised="#E9E6DC", ink="#243631", muted="#53625A", line="#CECFC0", accent="#235A46", light="#FCFCF3", warm="#F6EBCB", warm_edge="#D9B45A", card="#5C7A6B", brass="#B69252"}
+-- Colour tables, not hex strings: the draw callback parses a string on every
+-- coloured primitive, and that cost is inside the kit's frame budget.
+local function rgb(r, g, b) return {r = r, g = g, b = b} end
+local C = {
+  paper = rgb(244, 240, 232), panel = rgb(255, 252, 245), raised = rgb(233, 230, 220),
+  ink = rgb(36, 54, 49), muted = rgb(83, 98, 90), line = rgb(206, 207, 192),
+  accent = rgb(35, 90, 70), light = rgb(252, 252, 243), warm = rgb(246, 235, 203),
+  warm_edge = rgb(217, 180, 90), card = rgb(92, 122, 107), brass = rgb(182, 146, 82),
+}
 local data, machine, art
 local chosen, inspected = "", ""
 local focus = "socket"
@@ -11,10 +19,75 @@ local loading, saving, stale = false, false, true
 local message, read_error = "Finding your Sinclair ZX81 setups...", ""
 local last_read, page = 0, 1
 local scale, ox, oy = 1, 0, 0
+local cmds, pool = {}, {}
+local heights, fit_cache, wrap_cache = {}, {}, {}
+-- Last presented picture. draw() reuses it until one of these changes.
+local held_w, held_h = -1, -1
+local held_focus, held_page, held_inspected, held_chosen
+local held_loading, held_saving, held_stale
+local held_message, held_read_error
+local held_art, held_data, held_machine
 
-local function rect(x,y,w,h,c) gfx.rect(ox+x*scale,oy+y*scale,w*scale,h*scale,c) end
+-- Command rows are reused across pictures. A fresh open still fills them
+-- once; the refresh that follows a later visit writes into the same rows.
+local function take()
+  local n = #pool
+  if n == 0 then return {} end
+  local row = pool[n]
+  pool[n] = nil
+  return row
+end
+local function recycle()
+  for i = #cmds, 1, -1 do
+    pool[#pool+1] = cmds[i]
+    cmds[i] = nil
+  end
+end
+local function push(row) cmds[#cmds+1] = row end
+local function clear_row(c)
+  local row = take()
+  row[1], row[2] = "c", c
+  row[3], row[4], row[5], row[6], row[7], row[8], row[9] = nil, nil, nil, nil, nil, nil, nil
+  push(row)
+end
+local function rect(x,y,w,h,c)
+  local row = take()
+  row[1], row[2], row[3], row[4], row[5], row[6] = "r", ox+x*scale, oy+y*scale, w*scale, h*scale, c
+  row[7], row[8], row[9] = nil, nil, nil
+  push(row)
+end
 local function text(s,x,y,size,c,w,bold)
-  gfx.text(s,ox+x*scale,oy+y*scale,{size=math.max(12,math.floor(size*scale)),color=c or C.ink,max_w=(w or 0)*scale,bold=bold or false})
+  local row = take()
+  row[1], row[2], row[3], row[4] = "t", s, ox+x*scale, oy+y*scale
+  row[5], row[6], row[7], row[8], row[9] = math.max(12, math.floor(size*scale)), c or C.ink, (w or 0)*scale, bold or false, "left"
+  push(row)
+end
+local function hit(id,x,y,w,h)
+  local row = take()
+  row[1], row[2], row[3], row[4], row[5], row[6] = "h", id, ox+x*scale, oy+y*scale, w*scale, h*scale
+  row[7], row[8], row[9] = nil, nil, nil
+  push(row)
+end
+local function blit(img,x,y,w,h)
+  local row = take()
+  row[1], row[2], row[3], row[4], row[5], row[6] = "i", img, ox+x*scale, oy+y*scale, w*scale, h*scale
+  row[7], row[8], row[9] = nil, nil, nil
+  push(row)
+end
+local function label_at(s,x,y,size,c,w,bold,align)
+  local row = take()
+  row[1], row[2], row[3], row[4] = "t", s, x, y
+  row[5], row[6], row[7], row[8], row[9] = size, c, w, bold, align
+  push(row)
+end
+-- Glyph height depends on the size and weight, not the words. Measured once.
+local function text_height(px, bold)
+  local key = bold and -px or px
+  local h = heights[key]
+  if h then return h end
+  local _, measured = gfx.measure("Ag", px, bold)
+  heights[key] = measured
+  return measured
 end
 -- Keep a host cassette label inside w logical pixels. A label that does
 -- not fit keeps its start and its end, so two long labels stay distinct.
@@ -22,10 +95,13 @@ local function fit_name(s, size, w, bold)
   s = s or ""
   local px = math.max(12, math.floor(size * scale))
   local limit = w * scale
-  if gfx.measure(s, px, bold) <= limit then return s end
+  if #s * px <= limit then return s end
+  local key = s .. "\0" .. px .. "\0" .. math.floor(limit) .. (bold and "b" or "n")
+  local cached = fit_cache[key]
+  if cached then return cached end
   local chars = {}
   for ch in s:gmatch("[%z\1-\127\194-\244][\128-\191]*") do chars[#chars+1] = ch end
-  if #chars < 2 then return s end
+  if #chars < 2 then fit_cache[key] = s return s end
   local ell = "…"
   local function piece(i, j) return table.concat(chars, "", i, j) end
   local function width(candidate) return gfx.measure(candidate, px, bold) end
@@ -39,24 +115,36 @@ local function fit_name(s, size, w, bold)
     head = head + 1
     best = candidate
   end
+  fit_cache[key] = best
   return best
 end
 local function lines(s,x,y,w,size,max_lines,c)
-  local line, n = "", 0
-  for word in (s or ""):gmatch("%S+") do
-    local next_line = line == "" and word or line.." "..word
-    if gfx.measure(next_line,math.floor(size*scale)) > w*scale and line ~= "" then
-      if n + 1 >= max_lines then
-        -- Last allowed line: say that the text continues.
-        text(line.." …",x,y+n*(size+5),size,c,w)
-        return
-      end
-      text(line,x,y+n*(size+5),size,c,w)
-      n = n + 1
-      line = word
-    else line = next_line end
+  s = s or ""
+  local px = math.floor(size*scale)
+  local limit = w*scale
+  local key = s .. "\0" .. px .. "\0" .. math.floor(limit*100) .. "\0" .. max_lines
+  local cached = wrap_cache[key]
+  if not cached then
+    cached = {}
+    local line, n, done = "", 0, false
+    for word in s:gmatch("%S+") do
+      local next_line = line == "" and word or line.." "..word
+      if gfx.measure(next_line, px) > limit and line ~= "" then
+        if n + 1 >= max_lines then
+          -- Last allowed line: say that the text continues.
+          cached[#cached+1] = line.." …"
+          done = true
+          break
+        end
+        cached[#cached+1] = line
+        n = n + 1
+        line = word
+      else line = next_line end
+    end
+    if not done and line ~= "" then cached[#cached+1] = line end
+    wrap_cache[key] = cached
   end
-  if line ~= "" then text(line,x,y+n*(size+5),size,c,w) end
+  for i, line in ipairs(cached) do text(line, x, y+(i-1)*(size+5), size, c, w) end
 end
 local function outline(x,y,w,h,t,c)
   rect(x,y,w,t,c) rect(x,y+h-t,w,t,c) rect(x,y,t,h,c) rect(x+w-t,y,t,h,c)
@@ -64,14 +152,42 @@ end
 local function button(id,label,x,y,w,h,enabled,fn,accent)
   local selected = id == focus
   local filled = accent and enabled
-  rect(x,y,w,h,filled and C.accent or C.panel)
-  if selected then outline(x-4,y-4,w+8,h+8,3,C.accent) elseif not filled then outline(x,y,w,h,1,C.line) end
+  local fill = filled and C.accent or C.panel
+  if selected then
+    -- Accent ring just outside the control. Only the focused control pays
+    -- for four edges; every other button is a border rect plus its fill.
+    outline(x-4,y-4,w+8,h+8,3,C.accent)
+    rect(x,y,w,h,fill)
+  elseif not filled then
+    rect(x,y,w,h,C.line)
+    rect(x+1,y+1,w-2,h-2,fill)
+  else
+    rect(x,y,w,h,fill)
+  end
   local size=math.max(12,math.floor(math.min(19,h-10)*scale))
   local bold=selected or filled
-  local _,th=gfx.measure(label,size,bold)
-  gfx.text(label,ox+(x+8)*scale,oy+y*scale+(h*scale-th)/2,{size=size,bold=bold,color=filled and C.light or (enabled and C.ink or C.muted),max_w=(w-16)*scale,align="center"})
-  gfx.hit(id,ox+x*scale,oy+y*scale,w*scale,h*scale)
+  local th=text_height(size, bold)
+  local color=filled and C.light or (enabled and C.ink or C.muted)
+  label_at(label, ox+(x+8)*scale, oy+y*scale+(h*scale-th)/2, size, color, (w-16)*scale, bold, "center")
+  hit(id,x,y,w,h)
   controls[#controls+1] = {id=id,x=x+w/2,y=y+h/2,fn=fn,enabled=enabled}
+end
+local function scene_same()
+  if room.width ~= held_w or room.height ~= held_h or focus ~= held_focus or page ~= held_page then return false end
+  if loading ~= held_loading or saving ~= held_saving or stale ~= held_stale then return false end
+  if message ~= held_message or read_error ~= held_read_error or inspected ~= held_inspected or chosen ~= held_chosen then return false end
+  local ready = art and art.ready and true or false
+  if ready ~= held_art or data ~= held_data or machine ~= held_machine then return false end
+  return true
+end
+local function remember_scene()
+  held_w, held_h = room.width, room.height
+  held_focus, held_page = focus, page
+  held_inspected, held_chosen = inspected, chosen
+  held_loading, held_saving, held_stale = loading, saving, stale
+  held_message, held_read_error = message, read_error
+  held_art = art and art.ready and true or false
+  held_data, held_machine = data, machine
 end
 local function remember()
   store.set("navigation",{game_id=chosen,inspected=inspected,focus=focus,page=page})
@@ -206,10 +322,15 @@ local function connector_card(x,y,style)
 end
 
 function draw()
+  -- The kit draw callback has a 12ms soft budget and a 48ms hard budget.
+  -- Rebuild the picture only when its inputs change; otherwise reuse the
+  -- frame already presented. Text measurement happens on that rebuild.
+  if scene_same() and room.presented and gfx.reuse() then return end
   scale=math.min(room.width/1120,room.height/630)
   ox=(room.width-1120*scale)/2 oy=(room.height-630*scale)/2
   controls={}
-  gfx.clear(C.paper)
+  recycle()
+  clear_row(C.paper)
   local c=choice()
   local saved_id=machine and machine.draft_expansion_id or ""
   local previewing=machine and inspected ~= "" and inspected ~= saved_id
@@ -236,7 +357,7 @@ function draw()
   text("Setup preview",40,154,15,C.muted,300)
   text("1 rear connector",440,154,15,C.muted,144)
   if art and art.ready then
-    gfx.image(art,ox+120*scale,oy+186*scale,330*scale,220*scale)
+    blit(art,120,186,330,220)
   else
     -- A labelled machine silhouette keeps the room usable without artwork.
     rect(120,238,360,150,C.ink)
@@ -322,7 +443,7 @@ function draw()
       if inspected == item.expansion_id and item.expansion_id ~= saved_id then card_status="Previewing · "..card_status end
       if item.in_progress then card_status="In progress · "..card_status end
       text(card_status,x+50,514,13,C.muted,180)
-      gfx.hit(id,ox+x*scale,oy+480*scale,238*scale,62*scale)
+      hit(id,x,480,238,62)
       controls[#controls+1]={id=id,x=x+119,y=511,enabled=true,fn=function() inspected=item.expansion_id message=item.ready and "Previewing. Choose Fit & save setup to use it at the next start." or item.unavailable_reason remember() end}
     end
   end
@@ -331,9 +452,11 @@ function draw()
     text("Import a card archive to add it to this shelf.",24,512,15,C.muted,720)
   end
   -- Setup tools: two columns so Direction moves straight between them.
-  button("shelf_page","More cards",776,480,150,28,#choices > 3,function() page=page % math.ceil(#choices/3)+1 remember() end)
-  button("refresh",loading and "Checking..." or "Refresh",938,480,158,28,not loading and not saving,function() read() end)
-  button("import_card","Import expansion",776,514,150,28,machine and machine.socket.supported and not running() and not stale,function() hardware.import_expansion{game_id=machine.game_id,package_id=machine.package_id} end)
+  -- The left column is wide enough for "Import expansion" at kit size,
+  -- including the bolder focused face. Refresh and Library stay beside it.
+  button("shelf_page","More cards",776,480,188,28,#choices > 3,function() page=page % math.ceil(#choices/3)+1 remember() end)
+  button("refresh",loading and "Checking..." or "Refresh",976,480,120,28,not loading and not saving,function() read() end)
+  button("import_card","Import expansion",776,514,188,28,machine and machine.socket.supported and not running() and not stale,function() hardware.import_expansion{game_id=machine.game_id,package_id=machine.package_id} end)
 
   -- The host cassette label, on its own row above the machine controls.
   -- A starter uses its display name. An import is "Imported cassette" plus
@@ -355,5 +478,7 @@ function draw()
   button("resume","Return to play",430,576,164,48,running(),function() session.resume() end)
   button("setup","Next setup",606,576,128,48,data and #data.machines > 1,function() next_machine() end)
   button("setup_library","Set up ZX81",746,576,170,48,not running(),function() hardware.setup() end)
-  button("library","Library",938,514,158,28,not running(),function() rooms.open_library{platform="zx81"} end)
+  button("library","Library",976,514,120,28,not running(),function() rooms.open_library{platform="zx81"} end)
+  gfx.paint(cmds)
+  remember_scene()
 end

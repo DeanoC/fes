@@ -132,14 +132,17 @@ type Instance struct {
 	modules map[string]lua.LValue
 	loading map[string]bool
 
-	frame    Frame
-	building *Frame
-	inDraw   bool
-	actions  []Action
-	games    map[string]hostclient.Game
-	images   map[string]*Image
-	store    *store
-	logs     []string
+	frame         Frame
+	building      *Frame
+	inDraw        bool
+	frameReady    bool
+	reuseFrame    bool
+	keepSlowFrame bool
+	actions       []Action
+	games         map[string]hostclient.Game
+	images        map[string]*Image
+	store         *store
+	logs          []string
 
 	started         time.Time
 	last            time.Time
@@ -147,6 +150,7 @@ type Instance struct {
 	fatal           error
 	frameOverruns   int
 	inputOverruns   int
+	measures        int
 	loaded          bool
 	sessionState    string
 	roomTable       *lua.LTable
@@ -324,20 +328,65 @@ func (r *Instance) Step(now time.Time) Frame {
 	frame := Frame{Clear: r.opts.Theme.SofaBackground}
 	r.building = &frame
 	r.inDraw = true
+	r.reuseFrame = false
+	r.keepSlowFrame = false
 	err := r.callGlobalSoft("draw", r.budget.Frame)
 	r.inDraw = false
+	built := r.building
 	r.building = nil
+	// gfx.reuse() asks to keep the frame already presented. A slow check
+	// still counts, and the next unchanged draw can try again.
+	if r.reuseFrame {
+		r.reuseFrame = false
+		r.keepSlowFrame = false
+		if err != nil && !errors.Is(err, errSoftOverrun) {
+			r.fail(err)
+			return Frame{}
+		}
+		r.presentFrame(true)
+		if err != nil {
+			return r.overrunFrame(err)
+		}
+		r.frameOverruns = 0
+		r.store.maybeFlush(now)
+		return r.frame
+	}
+	// A finished gfx.paint is the picture the script built. Present it
+	// even when it missed the soft budget, so the next unchanged draw can
+	// reuse it instead of painting the same scene until the room is retired.
+	if err != nil && errors.Is(err, errSoftOverrun) && r.keepSlowFrame && built != nil && built.HasClear {
+		r.keepSlowFrame = false
+		r.frame = *built
+		r.frameReady = true
+		r.presentFrame(true)
+		r.recordFrameOverrun(err)
+		if r.fatal != nil {
+			return Frame{}
+		}
+		r.store.maybeFlush(now)
+		return r.frame
+	}
+	r.keepSlowFrame = false
 	if err != nil {
 		if errors.Is(err, errSoftOverrun) {
+			r.presentFrame(false)
 			return r.overrunFrame(err)
 		}
 		r.fail(err)
 		return Frame{}
 	}
 	r.frame = frame
+	r.frameReady = true
 	r.frameOverruns = 0
+	r.presentFrame(true)
 	r.store.maybeFlush(now)
 	return frame
+}
+
+func (r *Instance) presentFrame(ok bool) {
+	if r.roomTable != nil {
+		r.roomTable.RawSetString("presented", lua.LBool(ok))
+	}
 }
 
 // reservedRoomCommand is owned by FES. Scripts may style prompts; they must

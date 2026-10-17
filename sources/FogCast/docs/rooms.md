@@ -184,6 +184,10 @@ Colours are `"#rgb"`, `"#rrggbb"`, `"#rrggbbaa"` or `{r, g, b[, a]}` in 0..255.
 | `gfx.clip(x, y, w, h)` / `gfx.unclip()` | push/pop a clip rectangle (rects and images are cropped) |
 | `gfx.hit(id, x, y, w, h)` | register a pointer region; later regions win |
 | `gfx.blend("alpha"|"none")` | blend mode for following fills |
+| `gfx.paint(commands)` | record a whole frame in one call. Each command is `{"c", color}`, `{"r", x, y, w, h, color}`, `{"t", text, x, y, size, color, max_w, bold, align}`, `{"i", image, x, y, w, h}` or `{"h", id, x, y, w, h}` |
+| `gfx.reuse()` | keep the frame already presented and return true. Returns false until one has been presented. Call it before other drawing |
+
+`gfx.paint` records the frame in one call. Include a clear command (`{"c", color}`). A finished paint that misses only the soft budget is still presented, and `room.presented` becomes true, so the next unchanged draw can call `gfx.reuse` and return. Eight consecutive slow paints still retire the room. A draw that does not paint, and misses the soft budget, keeps the previous frame and sets `room.presented` false. The 4× hard deadline still retires the room on that callback.
 
 There are no lines, circles or rotation: the device has none. Draw paths as
 chains of small rects (see `widgets.nodemap`).

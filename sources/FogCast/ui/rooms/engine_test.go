@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -350,6 +351,98 @@ func TestTransientFrameOverrunsKeepPreviousFrame(t *testing.T) {
 	r.overrun(errSoftOverrun)
 	if r.Err() == nil || !strings.Contains(r.Err().Error(), "overruns") {
 		t.Fatalf("sustained overruns should fail the room, got %v", r.Err())
+	}
+}
+
+func TestGfxReuseKeepsThePresentedFrame(t *testing.T) {
+	r := newRoom(t, memPack(t, "reuse", `
+function draw()
+  if gfx.reuse() then
+    gfx.clear("#ffffff")
+    return
+  end
+  gfx.clear("#123456")
+end
+`, nil), Options{})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	first := r.Step(time.Unix(1, 0))
+	if got := FormatHexColor(first.Clear); got != "#123456" || !first.HasClear {
+		t.Fatalf("first draw did not paint: %+v", first.Clear)
+	}
+	second := r.Step(time.Unix(2, 0))
+	if got := FormatHexColor(second.Clear); got != "#123456" {
+		t.Fatalf("reuse replaced the presented frame with %s", got)
+	}
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+}
+
+func TestSlowPaintIsPresentedAndReuseClearsTheStreak(t *testing.T) {
+	r := newRoom(t, memPack(t, "slow-paint", `
+function draw()
+  if mode == "paint" then
+    gfx.paint({{"c", "#333333"}, {"t", "open", 1, 1, 18, "#ffffff", 0, false, "left"}})
+    wait()
+    return
+  end
+  if mode == "reuse" then
+    if gfx.reuse() then return end
+  end
+  if mode == "slow" then wait() end
+  gfx.clear("#111111")
+end
+`, nil), Options{Budget: Budget{Load: time.Second, Frame: 20 * time.Millisecond, Input: 20 * time.Millisecond}})
+	r.L.SetGlobal("wait", r.L.NewFunction(func(*lua.LState) int { time.Sleep(30 * time.Millisecond); return 0 }))
+	r.L.SetGlobal("mode", lua.LString("fast"))
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	fast := r.Step(time.Unix(1, 0))
+	if FormatHexColor(fast.Clear) != "#111111" {
+		t.Fatalf("fast clear %s", FormatHexColor(fast.Clear))
+	}
+	r.L.SetGlobal("mode", lua.LString("slow"))
+	kept := r.Step(time.Unix(2, 0))
+	if r.Err() != nil || FormatHexColor(kept.Clear) != "#111111" || r.frameOverruns != 1 {
+		t.Fatalf("non-paint slow draw presented a new frame: clear %s overruns %d err %v", FormatHexColor(kept.Clear), r.frameOverruns, r.Err())
+	}
+	r.L.SetGlobal("mode", lua.LString("paint"))
+	painted := r.Step(time.Unix(3, 0))
+	if r.Err() != nil || FormatHexColor(painted.Clear) != "#333333" || !frameHas(painted, "open") || r.frameOverruns != 2 {
+		t.Fatalf("slow paint was discarded: clear %s overruns %d err %v text %v", FormatHexColor(painted.Clear), r.frameOverruns, r.Err(), frameHas(painted, "open"))
+	}
+	r.L.SetGlobal("mode", lua.LString("reuse"))
+	reused := r.Step(time.Unix(4, 0))
+	if r.Err() != nil || FormatHexColor(reused.Clear) != "#333333" || r.frameOverruns != 0 {
+		t.Fatalf("reuse did not keep the paint or clear the streak: clear %s overruns %d err %v", FormatHexColor(reused.Clear), r.frameOverruns, r.Err())
+	}
+}
+
+func TestEightSlowPaintsRetireTheRoom(t *testing.T) {
+	r := newRoom(t, memPack(t, "eight-paints", `
+n = 0
+function draw()
+  n = n + 1
+  gfx.paint({{"c", "#445566"}, {"t", tostring(n), 1, 1, 18, "#ffffff", 0, false, "left"}})
+  wait()
+end
+`, nil), Options{Budget: Budget{Load: time.Second, Frame: 20 * time.Millisecond, Input: 20 * time.Millisecond}})
+	r.L.SetGlobal("wait", r.L.NewFunction(func(*lua.LState) int { time.Sleep(30 * time.Millisecond); return 0 }))
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < maxConsecutiveOverruns-1; i++ {
+		f := r.Step(time.Unix(int64(i+1), 0))
+		if r.Err() != nil || !frameHas(f, fmt.Sprintf("%d", i+1)) {
+			t.Fatalf("slow paint %d retired early: err %v", i+1, r.Err())
+		}
+	}
+	r.Step(time.Unix(int64(maxConsecutiveOverruns), 0))
+	if r.Err() == nil || !strings.Contains(r.Err().Error(), "overruns") {
+		t.Fatalf("eight slow paints left the room running: %v", r.Err())
 	}
 }
 
