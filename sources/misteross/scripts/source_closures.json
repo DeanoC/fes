@@ -415,7 +415,6 @@
     "scripts/bootstrap.sh",
     "scripts/build_fes_menu.py",
     "scripts/build_fes_zx81_oss.py",
-    "scripts/coleco_expansion.py",
     "scripts/compiler_read_audit.py",
     "scripts/core_package.py",
     "scripts/cyclonev_rbf.py",
