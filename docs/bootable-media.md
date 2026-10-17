@@ -217,7 +217,25 @@ files, so a card keeps the `u-boot.txt` from the media it was flashed with.
 `/etc/init.d/S02fes-usb-quirk` writes the same id to
 `/sys/module/usb_storage/parameters/quirks` when that file already exists.
 usb-storage and uas are built in, so a modprobe option would not be read. The
-sysfs write does not touch the FAT.
+sysfs write does not touch the FAT. `S11fes-block-admit` runs the same helper
+when that parameter file exists.
+
+To use a NVMe disk fitted in the JMS583, remove flag `i` in both places and
+reboot. On the card, edit FAT `linux/u-boot.txt`
+(`/media/fat/linux/u-boot.txt`). The shipped `v=` line is
+`v=loglevel=4 usb-storage.quirks=152d:0583:i`. Delete
+`usb-storage.quirks=152d:0583:i` from that line and leave `v=loglevel=4` plus
+any `ethaddr=` line. `S15fes-ethaddr` does not change `v=`, and a `bootargs=`
+line is not read. Then make the same change in `/usr/sbin/fes-usb-quirk`: its
+`spec=152d:0583:i` assignment is what S02 writes into
+`/sys/module/usb_storage/parameters/quirks` whenever that parameter does not
+already contain `152d:0583:`. Delete `152d:0583:i` from `spec=` as well. A
+probe that has not started yet, including a replug, is ignored again while
+that assignment remains. To override the flag and keep the id, replace `i` on
+the `v=` quirks token and make the same replacement in `spec=`. S02 leaves a
+parameter that already contains `152d:0583:` as the kernel loaded it from
+`v=`. A later rootfs update restores the helper, and a later media flash
+restores `image/boot/u-boot.txt`, which is the file copied to the FAT.
 
 `/etc/init.d/S11fes-block-admit` and `/etc/mdev.conf` run
 `/usr/sbin/fes-block-admit` for `sd*` and `sr*` nodes. The helper reads sysfs
