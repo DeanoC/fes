@@ -1,143 +1,49 @@
 #!/bin/sh
-# Stop the empty JMicron JMS583 (USB 152d:0583) from stalling boot for 180s.
+# Tell the built-in usb-storage driver to ignore the empty JMicron JMS583.
 #
-# The bridge enumerates with an empty M.2 slot. TEST UNIT READY returns Unit
-# Not Ready and the following READ CAPACITY never completes. The sd driver
-# submits that command with its compiled-in 30s timeout and 5 retries, so
-# the kernel logs "timing out command, waited 180s" ((5+1)*30). The command
-# starts inside sd_probe, before /sys/block/sdX exists. Writing the queue
-# timeout cannot shorten a request that already captured 30s.
+# USB id 152d:0583 with an empty M.2 slot returns Unit Not Ready (ASC 0x44,
+# not medium-not-present 0x3A) and then never completes READ CAPACITY. The sd
+# driver submits that command from sd_probe with its compiled-in 30s timeout
+# and 5 retries, which the kernel logs as "timing out command, waited 180s".
+# Writing the queue timeout cannot shorten a request that already captured 30s.
 #
-# usb-storage and uas are built into the MiSTer 5.15 kernel, so modprobe.d
-# is never consulted. No quirk letter changes that timeout. Flag u
-# (US_FL_IGNORE_UAS) forces bulk-only transport for this USB ID only. A
-# fitted NVMe disk still enumerates, through usb-storage instead of UAS.
-# Flag i (IGNORE_DEVICE) would also skip the probe and would hide that disk,
-# so it is not used.
+# On the MiSTer 5.15 kernel the only quirks letter that stops that probe is
+# i (US_FL_IGNORE_DEVICE): usb-storage returns -ENODEV before scsi_add_host.
+# Letter u (US_FL_IGNORE_UAS) only forces bulk-only. This host already refuses
+# UAS, and the bridge still stalls on the bulk-only READ CAPACITY, so u does
+# not remove the 180s line. No other letter skips the command. Ignoring the
+# id also hides a NVMe disk later fitted in that bridge.
 #
-# U-Boot imports linux/u-boot.txt, then mmcboot overwrites bootargs and
-# expands $v into it. The quirk therefore has to be added to v=. A bootargs=
-# line in that file is discarded by mmcboot. The sysfs parameter covers a
-# probe that has not started yet on this boot; v= covers the next boot,
-# before either USB driver runs.
+# The command line that applies before the driver probes is image/boot/u-boot.txt,
+# copied onto FAT linux/u-boot.txt when the disk image is assembled. This
+# helper only writes /sys/module/usb_storage/parameters/quirks. It does not
+# open or rewrite the FAT boot config.
 #
-# FES_UBOOT_TXT, FES_USB_STORAGE_QUIRKS, FES_MOUNTS, FES_FAT and FES_MOUNT
-# override paths in tests. Missing targets are skipped. This script does
-# not fail the boot.
+# FES_USB_STORAGE_QUIRKS overrides the parameter path in tests. A missing
+# parameter file is skipped. This script does not fail the boot.
 set -u
 
-spec=152d:0583:u
-uboot_txt=${FES_UBOOT_TXT:-/media/fat/linux/u-boot.txt}
+spec=152d:0583:i
 quirks_param=${FES_USB_STORAGE_QUIRKS:-/sys/module/usb_storage/parameters/quirks}
-mounts=${FES_MOUNTS:-/proc/mounts}
-fat_mount=${FES_FAT:-/media/fat}
-mount_cmd=${FES_MOUNT:-/bin/mount}
 
-merge_v() {
-  value=$1
-  case $value in
+if [ -f "$quirks_param" ]; then
+  current=$(tr -d ' \t\r\n' < "$quirks_param" 2>/dev/null) || current=
+  case $current in
     *152d:0583:*)
-      printf '%s\n' "$value"
-      return
-      ;;
-  esac
-  case $value in
-    *usb-storage.quirks=*)
-      prefix=${value%%usb-storage.quirks=*}
-      rest=${value#*usb-storage.quirks=}
-      listed=${rest%% *}
-      tail=${rest#"$listed"}
-      printf '%s\n' "${prefix}usb-storage.quirks=${listed},${spec}${tail}"
       ;;
     '')
-      printf '%s\n' "loglevel=4 usb-storage.quirks=${spec}"
+      printf '%s\n' "$spec" > "$quirks_param" 2>/dev/null || :
       ;;
     *)
-      printf '%s\n' "${value} usb-storage.quirks=${spec}"
+      next=$current,$spec
+      # drivers/usb/storage/usb.c declares quirks[128], including the terminator.
+      if [ "${#next}" -le 127 ]; then
+        printf '%s\n' "$next" > "$quirks_param" 2>/dev/null || :
+      else
+        printf '%s\n' 'fes-usb-quirk: quirks parameter is full' >&2
+      fi
       ;;
   esac
-}
-
-write_sysfs() {
-  [ -f "$quirks_param" ] || return 0
-  current=$(tr -d ' \t\r\n' < "$quirks_param" 2>/dev/null) || return 0
-  case $current in
-    *152d:0583:*) return 0 ;;
-  esac
-  if [ -z "$current" ]; then
-    next=$spec
-  else
-    next=$current,$spec
-  fi
-  # drivers/usb/storage/usb.c declares quirks[128], including the terminator.
-  if [ "${#next}" -gt 127 ]; then
-    printf '%s\n' 'fes-usb-quirk: quirks parameter is full' >&2
-    return 0
-  fi
-  printf '%s\n' "$next" > "$quirks_param" 2>/dev/null || :
-}
-
-fat_is_readonly() {
-  [ -r "$mounts" ] || return 1
-  options=$(awk -v path="$fat_mount" '$2 == path { opts = $4 } END { print opts }' "$mounts")
-  case ",$options," in
-    *,ro,*) return 0 ;;
-  esac
-  return 1
-}
-
-render_uboot() {
-  seen=0
-  if [ -f "$uboot_txt" ]; then
-    while IFS= read -r line || [ -n "$line" ]; do
-      trimmed=$(printf '%s' "$line" | sed 's/^[[:space:]]*//')
-      case $trimmed in
-        v=*)
-          seen=1
-          printf 'v=%s\n' "$(merge_v "${trimmed#v=}")"
-          ;;
-        *)
-          printf '%s\n' "$line"
-          ;;
-      esac
-    done < "$uboot_txt"
-  fi
-  if [ "$seen" -eq 0 ]; then
-    printf 'v=loglevel=4 usb-storage.quirks=%s\n' "$spec"
-  fi
-}
-
-write_uboot() {
-  dir=$(dirname "$uboot_txt")
-  if [ ! -d "$dir" ]; then
-    [ -d "$fat_mount" ] || return 1
-    mkdir -p "$dir" || return 1
-  fi
-  tmp=$dir/.u-boot.txt.fes-usb-quirk.$$
-  render_uboot > "$tmp" || { rm -f "$tmp"; return 1; }
-  if [ -f "$uboot_txt" ] && cmp -s "$tmp" "$uboot_txt"; then
-    rm -f "$tmp"
-    return 0
-  fi
-  sync
-  mv -f "$tmp" "$uboot_txt" || { rm -f "$tmp"; return 1; }
-  sync
-}
-
-persist_uboot() {
-  if fat_is_readonly; then
-    "$mount_cmd" -o remount,rw "$fat_mount" || return 1
-    write_uboot
-    status=$?
-    "$mount_cmd" -o remount,ro "$fat_mount" || :
-    return "$status"
-  fi
-  write_uboot
-}
-
-write_sysfs
-if ! persist_uboot; then
-  printf '%s\n' "fes-usb-quirk: could not update $uboot_txt" >&2
 fi
 printf '%s\n' "fes-usb-quirk: usb-storage.quirks=${spec}"
 exit 0

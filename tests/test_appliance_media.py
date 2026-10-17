@@ -102,6 +102,7 @@ class RealCardTests(unittest.TestCase):
             expected=f'/fogcast/releases/images/{appliance.digest(self.factory)}.img'
             self.assertIn(expected,first['paths'])
             self.assertIn('/fogcast/agent.toml',first['paths'])
+            self.assertIn('/linux/u-boot.txt',first['paths'])
             self.assertEqual(first['factory_sha256'],appliance.digest(self.factory))
             self.assertNotIn('private-agent-token',json.dumps(first))
             appliance_media_inside.verify(root/'first.img',self.inputs,self.lock)

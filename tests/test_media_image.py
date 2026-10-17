@@ -99,7 +99,10 @@ class RealImageTests(unittest.TestCase):
         result = self.verify()
         self.assertEqual(result.partition_types, (0x0c, 0xa2))
         self.assertEqual(result.fat_type, "FAT32")
-        self.assertEqual(result.paths, ("/fogcast", "/idle.rbf", "/linux", "/linux/linux.img", "/linux/zImage_dtb"))
+        self.assertEqual(result.paths, ("/fogcast", "/idle.rbf", "/linux", "/linux/linux.img",
+                                        "/linux/u-boot.txt", "/linux/zImage_dtb"))
+        self.assertEqual((ROOT / "image/boot/u-boot.txt").read_bytes(),
+                         b"v=loglevel=4 usb-storage.quirks=152d:0583:i\n")
         with self.image.open("rb") as f:
             mbr = f.read(512)
         self.assertEqual(mbr[:440], bytes(440))
