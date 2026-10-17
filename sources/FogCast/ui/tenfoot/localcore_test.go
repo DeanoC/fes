@@ -1270,6 +1270,52 @@ func TestLocalStopUsesSuccessfulLaunchGeneration(t *testing.T) {
 	}
 }
 
+func TestFreshLauncherAdoptsSurvivingLocalRunAndChordStopsIt(t *testing.T) {
+	generation := strings.Repeat("b", 64)
+	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{
+		Phase: "running", Running: true, PackageID: tenfootPongID, CoreID: "fes.pong", Generation: generation,
+	}}
+	feed := &fakePadFeed{}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	app.localFeed = feed
+	t.Cleanup(app.Stop)
+
+	base := time.Unix(4000, 0)
+	app.Tick(base)
+	waitFor(t, app, "surviving run adopted", func(s Snapshot) bool {
+		return adoptedInUseScreen(s) && s.LocalCoreTitle == "fes.pong"
+	})
+	app.mu.Lock()
+	gotGen := app.localLeaseGeneration
+	app.mu.Unlock()
+	if gotGen != generation {
+		t.Fatalf("generation = %q", gotGen)
+	}
+	if !app.HandleLocalPad(padButton(remoteinput.ButtonA, true), base.Add(time.Second)) {
+		t.Fatal("menu took the surviving core's pad")
+	}
+	if feed.count(remoteinput.ButtonA, remoteinput.ActionPress) != 1 {
+		t.Fatal("surviving core did not receive play input")
+	}
+
+	t1 := base.Add(2 * time.Second)
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), t1)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), t1.Add(10*time.Millisecond))
+	app.Tick(t1.Add(10*time.Millisecond + localChordHold))
+	waitFor(t, app, "chord stopped surviving run", func(s Snapshot) bool {
+		return s.LocalCorePhase == "" && !s.LocalCorePresentsPaused
+	})
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	if len(fake.stopGenerations) != 1 || fake.stopGenerations[0] != generation {
+		t.Fatalf("Stop generations = %v", fake.stopGenerations)
+	}
+	if feed.saw(remoteinput.ButtonStart, remoteinput.ActionPress) {
+		t.Fatal("stop chord forwarded Start")
+	}
+}
+
 func TestLocalStatusReplacementRevokesStopOwnership(t *testing.T) {
 	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{Phase: "running", Running: true, PackageID: tenfootPongID, Generation: strings.Repeat("b", 64)}}
 	app := NewApp(nil, 1280, 720, 50)
@@ -1458,11 +1504,21 @@ func TestLauncherStartupIgnoresIdleStoppingAndUnnamedRuns(t *testing.T) {
 			app := NewApp(nil, 1280, 720, 50)
 			app.localCores = fake
 			app.Tick(time.Unix(10, 0))
-			waitFor(t, app, "startup status", func(Snapshot) bool { return fake.statusCount() >= 1 })
-			app.mu.Lock()
-			defer app.mu.Unlock()
-			if app.localPhase != "" || app.localLeaseGeneration != "" || app.localStatus == localInUseCopy || !app.localStartupStatusChecked {
-				t.Fatalf("startup adopted %+v phase=%q generation=%q status=%q checked=%v", status, app.localPhase, app.localLeaseGeneration, app.localStatus, app.localStartupStatusChecked)
+			deadline := time.Now().Add(2 * time.Second)
+			var phase, generation, gotStatus string
+			var checked bool
+			for {
+				app.mu.Lock()
+				phase, generation, gotStatus = app.localPhase, app.localLeaseGeneration, app.localStatus
+				checked = app.localStartupStatusChecked
+				app.mu.Unlock()
+				if checked || time.Now().After(deadline) {
+					break
+				}
+				time.Sleep(time.Millisecond)
+			}
+			if !checked || phase != "" || generation != "" || gotStatus == localInUseCopy {
+				t.Fatalf("startup adopted %+v phase=%q generation=%q status=%q checked=%v", status, phase, generation, gotStatus, checked)
 			}
 		})
 	}
