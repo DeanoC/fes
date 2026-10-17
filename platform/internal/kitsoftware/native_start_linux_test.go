@@ -40,7 +40,7 @@ func TestEarlyAgentFailureFixture(t *testing.T) {
 }
 func nativeChild(t *testing.T, c *ProcessController, path string, args, env []string) *child {
 	t.Helper()
-	if err := c.start(path, args, env); err != nil {
+	if err := c.start(path, args, env, ""); err != nil {
 		t.Fatal(err)
 	}
 	p := c.children[len(c.children)-1]
