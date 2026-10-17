@@ -479,6 +479,23 @@ def _package_details(packages):
     return normalized, tuple(details)
 
 
+def unavailable_manifest_for_action(output, action, unavailable):
+    """Publish omission bytes for a build. Verify only names the retained file.
+
+    Verification must not create, replace, or delete unavailable-cores.json.
+    The image receipt hashes that file, so a failed verify has to leave it intact.
+    """
+    output = Path(output)
+    if action == "verify":
+        return output / optional_cores.MANIFEST_NAME if unavailable else None
+    if action not in ("build", "image", "rebuild"):
+        return None
+    if unavailable:
+        return optional_cores.publish_manifest(output, unavailable)
+    optional_cores.publish_manifest(output, ())
+    return None
+
+
 def package_arguments(packages, unavailable_path=None):
     normalized, details = _package_details(packages)
     if not normalized:
@@ -1627,6 +1644,9 @@ def resolve_selected_package(revisions, selection_path, env, force=False, recipe
             raise MissingVideoShell(
                 "cached package has no frozen video shell; rerun with an explicit rebuild"
             ) from error
+        except subprocess.CalledProcessError as error:
+            raise ValueError(
+                f"video part producer failed with status {error.returncode}") from error
         package['video_parts'] = video
         package['inputs']['video_parts'] = video['inputs']
     return package
@@ -1642,10 +1662,10 @@ def resolve_package_for_action(revisions, output, env, action, recipe):
 def resolve_packages_for_action(revisions, output, env, action, package_ids):
     """Resolve every selected format-2 recipe in profile order.
 
-    Optional cores that miss timing, fail their producer, or are skipped are
-    omitted. Verify reuses the omission recorded in inputs.json and does not
-    place-and-route that core again. A failed producer is not replaced from
-    a different functional key.
+    Optional cores that miss timing, fail their producer or video parts, or are
+    skipped are omitted. Verify reuses the omission recorded in inputs.json,
+    ignores skip flags, and does not place-and-route that core again. A failed
+    producer is not replaced from a different functional key.
     """
     recipes = tuple(recipe_for(package_id) for package_id in package_ids)
     skip_ids = optional_cores.parse_skip_list(env, recipes)
@@ -1653,14 +1673,14 @@ def resolve_packages_for_action(revisions, output, env, action, package_ids):
     packages = []
     unavailable = []
     for recipe in recipes:
-        if optional_cores.core_is_skipped(recipe, env, skip_ids):
-            unavailable.append(optional_cores.unavailable_record(recipe.core_id, "skipped"))
-            continue
         if action == "verify" and recipe.core_id in recorded:
             if optional_cores.require_all(env):
                 raise ValueError(
                     f"optional core {recipe.core_id} is unavailable and FES_REQUIRE_ALL_CORES=1")
             unavailable.append(recorded[recipe.core_id])
+            continue
+        if action != "verify" and optional_cores.core_is_skipped(recipe, env, skip_ids):
+            unavailable.append(optional_cores.unavailable_record(recipe.core_id, "skipped"))
             continue
         try:
             packages.append(resolve_package_for_action(
@@ -1780,10 +1800,8 @@ def main():
                               os_name=profile["host_os"], arch=profile["host_arch"])
             publish_host_inputs(output, host_fp, host_info)
         unavailable_manifest = None
-        if args.action in ("build", "image", "rebuild", "verify") and unavailable:
-            unavailable_manifest = optional_cores.publish_manifest(output, unavailable)
-        elif args.action in ("build", "image", "rebuild", "verify"):
-            optional_cores.publish_manifest(output, ())
+        if args.action in ("build", "image", "rebuild", "verify"):
+            unavailable_manifest = unavailable_manifest_for_action(output, args.action, unavailable)
         package_args = package_arguments(packages, unavailable_manifest)
         if args.action in ("build", "image", "rebuild"):
             image_hit, image_reason = (False, "forced rebuild") if (args.action == "rebuild" or env.get("TOOLCHAIN_REBUILD") == "1") else reuse_status(

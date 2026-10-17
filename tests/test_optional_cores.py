@@ -251,6 +251,117 @@ class OptionalCoreTests(unittest.TestCase):
             self.assertIn("FES_REQUIRE_ALL_CORES=1", "\n".join(lines))
             self.assertIn("FES_SKIP_OPTIONAL_CORES=1", "\n".join(lines))
 
+    def test_video_part_process_failure_omits_optional_core(self):
+        def fake_core(source, packages_revision, selection_path, force=False, env=None, recipe=None):
+            return _package(recipe.core_id)
+
+        def fail(*args, **kwargs):
+            raise subprocess.CalledProcessError(1, ["scripts/build_atari_st_video_part.py"])
+
+        with patch.object(build, "source_checkout", return_value=Path("/work/misteross")), \
+             patch.object(build.core_bundle, "resolve_core_package", side_effect=fake_core), \
+             patch("factory_video_parts.resolve_video_parts", side_effect=fail):
+            packages, unavailable = build.resolve_packages_for_action(
+                REVISIONS, Path("/out"), {}, "build", ("fes.pong", "fes.atari-st"))
+            with self.assertRaisesRegex(ValueError, "status 1"):
+                build.resolve_packages_for_action(
+                    REVISIONS, Path("/out"), {}, "build", ("fes.coleco",))
+        self.assertEqual([package["inputs"]["selection"]["core_id"] for package in packages],
+                         ["fes.pong"])
+        self.assertEqual(unavailable[0]["reason"], "build-failed")
+        self.assertEqual(unavailable[0]["figures"], [])
+
+    def test_atari_st_clock_names_round_trip(self):
+        figure = {
+            "seed": 4,
+            "weight": 10,
+            "passing": False,
+            "worst_ratio": 0.938,
+            "clocks": {
+                "system_clock.clocks[0]": {"achieved_mhz": 49, "constraint_mhz": 52.224},
+                "pixel_clk": {"achieved_mhz": 80, "constraint_mhz": 74.25},
+                "system_clock.clocks[1]": {"achieved_mhz": 13, "constraint_mhz": 12.288},
+            },
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / optional_cores.PRODUCER_REPORT_NAME
+            path.write_text(json.dumps({
+                "version": 1,
+                "core_id": "fes.atari-st",
+                "reason": "timing-not-met",
+                "seeds": [4],
+                "figures": [figure],
+            }))
+            report = optional_cores.read_producer_report(path)
+        self.assertIsNotNone(report)
+        clocks = report["figures"][0]["clocks"]
+        self.assertEqual(clocks["system_clock.clocks[0]"]["achieved_mhz"], 49)
+        self.assertEqual(clocks["system_clock.clocks[1]"]["constraint_mhz"], 12.288)
+        self.assertEqual(clocks["pixel_clk"]["achieved_mhz"], 80)
+        row = optional_cores.unavailable_record(
+            "fes.atari-st", "timing-not-met", seeds=(4,), figures=(figure,))
+        stored = json.loads(optional_cores.encode_document((row,)))
+        self.assertIn("system_clock.clocks[0]", stored["cores"][0]["figures"][0]["clocks"])
+        for name in ("clocks[0];rm", "foo[bar]", "system_clock.clocks[0][1]",
+                     "ram_clock.clocks[12345]", "../clk"):
+            broken = json.loads(json.dumps(figure))
+            broken["clocks"] = {name: figure["clocks"]["pixel_clk"]}
+            with self.assertRaises(ValueError):
+                optional_cores.canonical_cores([{
+                    "core_id": "fes.atari-st",
+                    "reason": "timing-not-met",
+                    "seeds": [4],
+                    "figures": [broken],
+                }])
+
+    def test_verify_keeps_a_recorded_timing_miss_when_skip_is_set(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            row = optional_cores.unavailable_record(
+                "fes.atari-st", "timing-not-met", seeds=(4,), figures=(FIGURE,))
+            path = optional_cores.publish_manifest(output, (row,))
+            original = path.read_bytes()
+            _, info = build.image_fingerprint(
+                "base", {"sources": {}}, (_package("fes.pong"),), (row,))
+            (output / "inputs.json").write_text(json.dumps(info) + "\n")
+            resolved = []
+
+            def fake_resolve(revisions, output_path, env, action, recipe):
+                resolved.append(recipe.core_id)
+                return _package(recipe.core_id)
+
+            with patch.object(build, "resolve_package_for_action", side_effect=fake_resolve):
+                _, unavailable = build.resolve_packages_for_action(
+                    REVISIONS, output, {"FES_SKIP_OPTIONAL_CORES": "1"}, "verify",
+                    ("fes.pong", "fes.atari-st"))
+                _, named_skip = build.resolve_packages_for_action(
+                    REVISIONS, output, {"FES_SKIP_CORES": "fes.atari-st"}, "verify",
+                    ("fes.pong", "fes.atari-st"))
+            self.assertEqual(resolved, ["fes.pong", "fes.pong"])
+            self.assertEqual(unavailable[0]["reason"], "timing-not-met")
+            self.assertEqual(unavailable[0]["seeds"], [4])
+            self.assertEqual(named_skip[0]["reason"], "timing-not-met")
+            named = build.unavailable_manifest_for_action(output, "verify", unavailable)
+            self.assertEqual(named, path)
+            self.assertEqual(path.read_bytes(), original)
+            self.assertIsNone(build.unavailable_manifest_for_action(output, "verify", ()))
+            self.assertEqual(path.read_bytes(), original)
+            included = output / "included"
+            included.mkdir()
+            (included / "inputs.json").write_text("{}\n")
+            resolved.clear()
+            with patch.object(build, "resolve_package_for_action", side_effect=fake_resolve):
+                packages, omitted = build.resolve_packages_for_action(
+                    REVISIONS, included, {"FES_SKIP_CORES": "fes.atari-st"}, "verify",
+                    ("fes.pong", "fes.atari-st"))
+            self.assertEqual(resolved, ["fes.pong", "fes.atari-st"])
+            self.assertEqual(omitted, ())
+            self.assertEqual(
+                [package["inputs"]["selection"]["core_id"] for package in packages],
+                ["fes.pong", "fes.atari-st"])
+            self.assertIsNone(build.unavailable_manifest_for_action(output, "image", ()))
+            self.assertFalse(path.exists())
+
     def test_symlink_report_is_ignored(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

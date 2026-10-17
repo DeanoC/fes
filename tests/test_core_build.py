@@ -13,7 +13,7 @@ import unittest
 from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import build
-from environment import build_environment
+from environment import build_environment, owned_package_environment_names
 
 
 def make_package_generation(root, label, package_ids):
@@ -246,6 +246,23 @@ class CoreBuildTest(unittest.TestCase):
         self.assertFalse('FES_SMS_PACKAGE_SELECTION' in env)
         self.assertFalse('FES_PACKAGE_IDS' in env)
         self.assertFalse('FES_TOOLCHAIN_CACHE_ROOT' in env)
+
+    def test_build_environment_drops_ambient_optional_package_inputs(self):
+        ambient = {
+            'FES_UNAVAILABLE_CORES': '/tmp/previous-unavailable-cores.json',
+            'FES_ATARI_ST_PACKAGE_DIR': '/tmp/previous-package',
+            'FES_ATARI_ST_PACKAGE_SELECTION': '/tmp/previous-selection',
+            'FES_RAMTEST_PACKAGE_DIR': '/tmp/previous-ramtest',
+            'FES_RAMTEST_PACKAGE_SELECTION': '/tmp/previous-ramtest-selection',
+            'CC': 'clang',
+        }
+        for name in owned_package_environment_names():
+            ambient.setdefault(name, '/tmp/ambient-' + name)
+        with patch.dict('os.environ', ambient, clear=False):
+            env = build_environment()
+        for name in owned_package_environment_names():
+            self.assertNotIn(name, env)
+        self.assertEqual(env['CC'], 'clang')
 
     def test_generic_build_environment_keeps_local_compiler_overrides(self):
         with patch.dict('os.environ', {'LD_LIBRARY_PATH': '/opt/rocm/lib', 'CC': 'clang',

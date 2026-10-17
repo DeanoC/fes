@@ -156,10 +156,10 @@ or `FES_SKIP_CORES=fes.atari-st` skips that producer before place-and-route,
 which is the fast path for an image of a pull request that does not change ST.
 `FES_REQUIRE_ALL_CORES=1` makes any optional miss fatal. Set it for a release
 or factory image that must contain every selected core, and on `make verify`
-when that image must be rejected if an optional core was left out. The same
-skip flags are unnecessary on verify: verify trusts the omission recorded in
-`inputs.json` and does not place-and-route the core again. The two skip forms
-conflict with `FES_REQUIRE_ALL_CORES=1`.
+when that image must be rejected if an optional core was left out. Verify
+ignores skip flags and does not rewrite `unavailable-cores.json`. It reuses
+the omission recorded in `inputs.json` and does not place-and-route that core
+again. The two skip forms conflict with `FES_REQUIRE_ALL_CORES=1`.
 
 CI simulations use Verilator 5.032 at source commit
 `8ff77e9d47351b0a59114929880687839a51840b`, selected by

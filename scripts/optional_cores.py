@@ -22,7 +22,9 @@ REASONS = frozenset({"timing-not-met", "build-failed", "skipped"})
 MAX_BYTES = 65536
 DISPLAY_NAMES = {"fes.atari-st": "Atari ST"}
 _CORE_ID = re.compile(r"fes\.[a-z0-9]+(?:[._-][a-z0-9]+)*\Z")
-_CLOCK = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]{0,63}\Z")
+# nextpnr names a PLL output system_clock.clocks[0]. The numeric index is a
+# bounded suffix; other punctuation stays rejected.
+_CLOCK = re.compile(r"[A-Za-z_][A-Za-z0-9_.-]{0,63}(?:\[[0-9]{1,4}\])?\Z")
 
 
 def _environment(env):

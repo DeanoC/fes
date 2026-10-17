@@ -428,11 +428,14 @@ def _inspect(source, mode, arguments, recipe, env):
 def _build_part(source, shell, package, profile, recipe, env):
     seed_arguments = (["--seed", str(ST_VIDEO_PART_SEED)]
                       if recipe.core_id == "fes.atari-st" else [])
-    result = subprocess.run([sys.executable, ("scripts/build_atari_st_video_part.py" if recipe.core_id == "fes.atari-st" else "scripts/build_video_part.py"), "--root", str(source),
-                             "--shell", str(shell), "--package", str(package),
-                             "--variant", profile, "--cache-root", str(recipe.cache_root), "--gpu", "0", *seed_arguments],
-                            cwd=source, env=recipes.producer_environment(env, recipe=recipe),
-                            stdout=subprocess.PIPE, check=True, text=True)
+    try:
+        result = subprocess.run([sys.executable, ("scripts/build_atari_st_video_part.py" if recipe.core_id == "fes.atari-st" else "scripts/build_video_part.py"), "--root", str(source),
+                                 "--shell", str(shell), "--package", str(package),
+                                 "--variant", profile, "--cache-root", str(recipe.cache_root), "--gpu", "0", *seed_arguments],
+                                cwd=source, env=recipes.producer_environment(env, recipe=recipe),
+                                stdout=subprocess.PIPE, check=True, text=True)
+    except subprocess.CalledProcessError as error:
+        raise ValueError(f"video part producer failed with status {error.returncode}") from error
     path = Path(result.stdout.strip().splitlines()[-1])
     _plain(path)
     if not path.is_relative_to(source / ("build/atari-st-video-parts" if recipe.core_id == "fes.atari-st" else "build/video-parts") / profile):

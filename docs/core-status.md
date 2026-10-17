@@ -43,7 +43,8 @@ runs. A failed producer is left out of the image. `FES_REQUIRE_ALL_CORES=1`
 makes that omission fail the build; use it for a release or factory image that
 must contain every selected core. `FES_SKIP_OPTIONAL_CORES=1`, or
 `FES_SKIP_CORES=fes.atari-st`, skips the producer before place-and-route for a
-fast image of an unrelated change. Verify reuses the recorded omission.
+fast image of an unrelated change. Verify reuses the recorded omission, ignores
+skip flags, and does not rewrite `unavailable-cores.json`.
 `FES_REQUIRE_ALL_CORES=1` on verify rejects an image that left an optional core
 out.
 
