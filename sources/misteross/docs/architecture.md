@@ -2113,8 +2113,9 @@ probe. `make sim-fes-pcxt` exercises eight logical slots through the real RTL
 and boots an original diagnostic ROM on a pinned MCL86 CPU. The CPU wrapper
 fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
 4.772727 MHz guest clock. It handles READY, split byte cycles, LOCK and INTA.
-The motherboard router decodes RAM/ROM and integrates a pinned KF8259 PIC and KF8253 PIT: the machine
-diagnostic receives timer and ISA interrupts through the real two-INTA path.
+The motherboard router decodes RAM/ROM and integrates pinned KF8259 PIC, KF8253
+PIT and KF8255 PPI imports. The machine diagnostic receives timer, ISA and
+keyboard interrupts through the real two-INTA path and generates speaker PCM.
 Memory storage remains a testbench service. See the
 [CPU import](../cores/fes-pcxt/vendor/mcl86/README.md) for provenance and limits.
 The shared `fes.fabric.pcxt-isa` 1.0 constants are generated from mister-packages;
@@ -2123,7 +2124,7 @@ reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
 **The complete machine below remains a proposal.** `fes.pcxt` is the proposed
-package identity. The remaining chipset (DMA/PPI/keyboard), graphics, disk
+package identity. The remaining DMA controller, HID keyboard frontend, graphics, disk
 controller, physical socket layout, producer and sealed PC/XT package are not
 implemented yet. The fabric does not enable
 runtime activation or claim a linkable RBF. Existing linker layout admission
@@ -2143,7 +2144,10 @@ Primary implementation references are the
 [IBM PC/XT Technical Reference, April 1984](https://www.bitsavers.org/pdf/ibm/pc/xt/6361459_PC_XT_Technical_Reference_Apr84.pdf)
 (system board, I/O channel and adapter descriptions) and the
 [Intel 8086 Family User's Manual, October 1979](https://bitsavers.org/components/intel/8086/9800722-03_The_8086_Family_Users_Manual_Oct79.pdf)
-(instruction semantics and bus operation). Adapter-specific manuals and chip
+(instruction semantics and bus operation). PPI/keyboard wiring and serial timing
+use the [IBM 5155/5160 Technical Reference, March 1986](https://sharktastica.co.uk/resources/docs/IBM_6139821_5155-5160-Tech-Ref_1986.pdf),
+printed pages 1-27/28, 4-5 and 4-32/33; PPI mode control follows the
+[Intel 8255A data sheet](https://deramp.com/downloads/intel/8255.pdf). Adapter-specific manuals and chip
 datasheets must accompany later peripheral implementations. These references
 define behavior to reproduce, not permission to redistribute firmware.
 
@@ -2226,30 +2230,52 @@ DOS image are later boot-test inputs; neither is bundled implicitly.
 
 The implemented byte router holds one accepted request through downstream
 completion. It suppresses system-ROM writes, routes the video/option windows
-to ISA, and leaves physical RAM/ROM storage external. Local PIC (`20–3F`, A0)
-and PIT (`40–5F`, A1:0) decode ignores A15:10. INTA selects the PIC independently
-of address. The adapter supplies one setup, eight active and nine release
+to ISA, and leaves physical RAM/ROM storage external. Local PIC (`20–3F`, A0),
+PIT (`40–5F`, A1:0) and PPI (`60–7F`, A1:0) decode ignores A15:10. INTA selects
+the PIC independently of address. The adapter supplies one setup, eight active and nine release
 100 MHz clocks; address/CS remain stable through retirement of chip bus side
 effects. This latency is not yet an original-board bus-timing qualification.
 PIT pins advance from CPU guest enables divided by four through READY waits
-and HLT. PIC inputs are PIT0, external keyboard IRQ1 and ISA IRQ2–7. Channel 1
-output and channel 2 gate/output are exposed for later refresh/PPI integration.
+and HLT. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
+output remains exposed for refresh integration; PPI PB0 gates channel 2.
 Reset must cancel requests in the router and its downstream storage/ISA.
 
 The remaining motherboard work includes an 8237A DMA
-controller with XT page registers, and 8255-compatible PPI. Implement the
-selected board's decode aliases, initialization, readback and unused bits.
+controller with XT page registers.
 PIT channel 0 already drives IRQ0; planned channel 1 wiring requests DMA
-refresh, and channel 2 will feed the speaker through port 61h gating. DMA must implement address/count, shared
+refresh, and channel 2 feeds the speaker through port 61h gating. DMA must implement address/count, shared
 byte pointer, page-boundary behavior, terminal count, masks and required
 transfer modes. Do not replace floppy DMA with BIOS-level interception.
 
-Translate FES HID keyboard events into XT scan-code set 1 through a timed XT
-keyboard/link model and IRQ1. Preserve make/break ordering, extended-key policy,
-keyboard inhibit and port-61h acknowledgement. This is an XT interface, not an
-AT 8042 at ports 60h/64h. BIOS equipment switches reflect configured RAM,
-displays and drives. Speaker transitions are integrated and filtered to the
-existing 48 kHz PCM output; tests must include rapid speaker modulation.
+The implemented PPI wrapper uses mode 0 (`99h`), with PA scan-code input,
+PB controls and PC equipment/status inputs. PB0 gates PIT2; PB1 ANDs PIT2 OUT
+into the speaker; PB3 selects the low/high nibble of profile-supplied switch
+levels; PB4/5 expose active-low parity/channel-check enables. PC5 reflects PIT2
+OUT; PC6/7 are external error status hooks. Error latches, parity generation
+and NMI routing are not implemented. Mode-set writes reset output latches;
+port-C BSR and diagnostic output-mode readback are covered by tests. Reset
+puts the PPI ports in input mode; the wrapper inhibits keyboard clock and
+mutes speaker/check enables until configured. Disabled PA reads use `FF`.
+
+The XT receiver synchronizes external clock/data, ignores leading-zero RTS,
+then samples start-one and eight LSB-first data bits on falling clock edges.
+It holds IRQ1 and pulls DATA low for busy/CTS until PB7 acknowledges; reads of
+port 60h leave IRQ1 asserted. PB6 separately releases/inhibits CLOCK. PB7
+clears the receiver without clamping those cable lines. The
+single-byte VALID/READY serializer supplies 80 us CTS-to-clock setup, 40 us
+high/low phases and at least 3 us data hold; clock inhibit pauses the frame.
+READY stays low while PB7 holds the receiver clear, so an on-fabric producer
+does not retire a byte that cannot raise IRQ1. A byte already accepted still
+finishes its frame. Tests check timing, ordering, busy handling, held-clear
+admission and reset. Integrated CPU runs read switch profiles `2D` and `73`.
+FES HID
+translation, extended-key policy, typematic, keyboard reset/BAT responses and
+event queues remain unimplemented. This is an XT interface, not an AT 8042.
+
+Speaker transitions are integrated at 100 MHz into signed mono 48 kHz PCM
+with a roughly 30 Hz DC blocker. Tests cover PIT tones, static-drive decay and
+rapid modulation above the sample rate. This is a development filter; the
+production shell audio connection and measured analog fidelity remain open.
 
 ### Graphics compatibility
 

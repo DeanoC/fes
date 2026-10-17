@@ -28,7 +28,7 @@ def main():
         rtl += tuple(source for source in CPU_SOURCES if source.endswith('.sv') and
                      (args.suite == 'cpu' or not source.endswith('/cpu_top.sv')))
         if args.suite == 'machine':
-            for name in ('kf8259', 'kf8253'):
+            for name in ('kf8259', 'kf8253', 'kf8255'):
                 verify_vendor(name)
             rtl += CHIPSET_SOURCES + ('cores/fes-pcxt/sim/machine_top.sv',)
         inputs = (*rtl, 'cores/fes-common/generated/fes_pcxt_isa.vh',
@@ -36,7 +36,7 @@ def main():
                   'cores/fes-pcxt/vendor/mcl86/mcl86_ucode.mem')
         output /= args.suite
         if args.suite == 'machine':
-            inputs += tuple(str(p.relative_to(ROOT)) for name in ('kf8259', 'kf8253')
+            inputs += tuple(str(p.relative_to(ROOT)) for name in ('kf8259', 'kf8253', 'kf8255')
                             for p in sorted((ROOT / 'cores/fes-pcxt/vendor' / name).iterdir())
                             if p.suffix in ('.svh', '.json'))
     sources = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in inputs}
@@ -46,7 +46,8 @@ def main():
     top = args.suite + '_top'
     program = ('read_verilog -sv -I ' + str(ROOT / 'cores/fes-common/generated') + ' ' +
                '-I ' + str(ROOT / 'cores/fes-pcxt/vendor/kf8259') + ' -I ' +
-               str(ROOT / 'cores/fes-pcxt/vendor/kf8253') + ' ' +
+               str(ROOT / 'cores/fes-pcxt/vendor/kf8253') + ' -I ' +
+               str(ROOT / 'cores/fes-pcxt/vendor/kf8255') + ' ' +
                ' '.join(str(ROOT / source) for source in rtl) + '; '
                'synth_intel_alm -nolutram -nodsp -top ' + top + '; check -assert; stat; '
                'write_json ' + json.dumps(str(output / 'synth.json')))
@@ -63,7 +64,7 @@ def main():
     receipt = {'format': 1, 'classification': 'diagnostic-synthesis-only',
                'yosys': tools['yosys'].identity, 'sources': sources, 'cells': counts,
                'limits': ['portable eight-slot fixture with two probe cards',
-                          '8088, PIC and PIT with external storage ports' if args.suite == 'machine' else
+                          '8088, PIC/PIT/PPI, XT keyboard transport and speaker; external storage ports' if args.suite == 'machine' else
                           '8088 with external memory ports; no motherboard' if args.suite == 'cpu' else 'no CPU or motherboard',
                           'no placement or timing',
                           'no physical socket containment', 'no sealed package',
