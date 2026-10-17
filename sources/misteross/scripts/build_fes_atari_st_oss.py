@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""Build and seal the Atari 520ST package on the shared toolchain lock.
+"""Build and seal the Atari 520ST package.
 
-The factory recipe is HIP. ``--gpu-router CUDA`` selects a separate package.
+Yosys and Mistral match the shared pin. nextpnr comes from
+``toolchains/atari-st.lock`` at current main, which bounds GPU-router
+architecture-rejection retries. The factory recipe is HIP.
+``--gpu-router CUDA`` selects a separate package.
 192 synchronous, blank 1024x10 M10K lanes describe the linked 192 KiB
 firmware. The ST expansion connector has a reserved, registered boundary.
 Synthesis diagnostics are unsealed and never export a package.
@@ -43,7 +46,7 @@ ROUTER = "gpu"
 RECIPE = "scripts/build_fes_atari_st_oss.py"
 OUTPUT_RELATIVE = Path("build/fes-atari-st-oss")
 DIAGNOSTIC_OUTPUT = Path("build/fes-atari-st-oss-diagnostic")
-ST_TOOLCHAIN_LOCK = "toolchain.lock"
+ST_TOOLCHAIN_LOCK = "toolchains/atari-st.lock"
 ST_TOOLCHAIN_ROOT = "build/toolchain/fes-atari-st"
 ST_GPU_BACKEND = "hip"
 ST_GPU_ROUTER = "HIP"
@@ -53,7 +56,7 @@ ST_TOOLCHAIN_CONFIGURATION = (
 )
 ST_TOOL_COMMITS = {
     "mistral": "8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f",
-    "nextpnr": "9128800fa6e77c4138088a7107a95376ba47ff15",
+    "nextpnr": "b7ba9b6e3d67737c77aaea6bb23ac8d1b6c76cd2",
     "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
 }
 # First passing route wins; the order is part of the build identity. Seed 4
@@ -387,8 +390,9 @@ def boundary_route_buffer_bel(flip_flop_bel: str) -> str:
 
 
 def validate_routed_shell(routed: dict) -> dict:
-    """Every socket holds its pinned boundary FFs and dedicated input buffers."""
-    cells = routed.get("modules", {}).get(TOP, {}).get("cells", {})
+    """Keep each pinned boundary FF's legacy buffer or native direct input."""
+    top = routed.get("modules", {}).get(TOP, {})
+    cells = top.get("cells", {})
     expected = {}
     for socket in atari_st_slot.SOCKETS:
         for name, bel in atari_st_slot.boundary_bels(socket).items():
@@ -400,8 +404,14 @@ def validate_routed_shell(routed: dict) -> dict:
             raise BuildError(f"slot boundary cell {name} is not at {bel}")
     buffers = set()
     outputs = set()
+    direct_inputs = 0
+    drivers = _routed_drivers(top)
     for name, bel in expected.items():
         buffer_name = name + "$ROUTETHRU"
+        if buffer_name not in cells:
+            _validate_direct_boundary_input(cells[name], top, name, drivers)
+            direct_inputs += 1
+            continue
         cell = cells.get(buffer_name)
         pins = cell.get("connections", {}) if isinstance(cell, dict) else {}
         input_bits, output_bits = pins.get("A"), pins.get("Q")
@@ -427,7 +437,75 @@ def validate_routed_shell(routed: dict) -> dict:
             if atari_st_slot.COLUMN <= x <= atari_st_slot.COLUMN + 4 and socket.first_row <= y <= socket.last_row:
                 raise BuildError(f"shell cell {name} is inside the slot {socket.slot} socket")
     return {"layout": atari_st_slot.LAYOUT, "sockets": [s.slot for s in atari_st_slot.SOCKETS],
-            "pinned_boundary_cells": len(expected), "pinned_boundary_route_buffers": len(buffers)}
+            "pinned_boundary_cells": len(expected), "pinned_boundary_route_buffers": len(buffers),
+            "pinned_boundary_direct_inputs": direct_inputs}
+
+
+def _routed_drivers(top: dict) -> dict:
+    """Census actual module inputs and cell outputs, including packed constants."""
+    drivers = {}
+    for name, port in top.get("ports", {}).items():
+        if port.get("direction") == "input":
+            for bit in port.get("bits", []):
+                if type(bit) is int:
+                    drivers.setdefault(bit, []).append((None, name))
+    for name, cell in top.get("cells", {}).items():
+        for port, direction in cell.get("port_directions", {}).items():
+            if direction == "output":
+                for bit in cell.get("connections", {}).get(port, []):
+                    if type(bit) is int:
+                        drivers.setdefault(bit, []).append((name, port))
+    return drivers
+
+
+def _validate_direct_boundary_input(cell: dict, top: dict, name: str, drivers: dict) -> None:
+    # Current nextpnr leaves user-locked FFs on their native E/F inputs instead
+    # of inserting a LUT route-through. Admit only the serialized plain DFF
+    # form observed on the pinned compiler; keep all socket BEL/exclusion checks.
+    pins = {port: [index, port] for port, index in
+            (("ACLR", 2), ("CLK", 0), ("DATAIN", 0), ("ENA", 2),
+             ("Q", 0), ("SCLR", 1), ("SDATA", 0), ("SLOAD", 1))}
+    try:
+        mapping = json.loads(bytes.fromhex(cell["attributes"]["FES_PINMAP_V1"]).decode())
+    except (KeyError, TypeError, ValueError, UnicodeError):
+        mapping = None
+    connections = cell.get("connections", {})
+    clock = top.get("netnames", {}).get("system_clock.clocks[0]", {}).get("bits")
+    def wire(bits):
+        return isinstance(bits, list) and len(bits) == 1 and type(bits[0]) is int and bits[0] >= 0
+
+    if (mapping != {"count": 8, "pins": pins} or
+            any(type(value[0]) is not int for value in mapping["pins"].values()) or
+            cell.get("port_directions") != {port: "output" if port == "Q" else "input" for port in pins} or
+            set(connections) != set(pins) or not wire(clock) or connections.get("CLK") != clock or
+            not wire(connections.get("DATAIN")) or not wire(connections.get("Q")) or
+            connections["DATAIN"] == connections["Q"] or
+            any(connections[port] != [] for port in ("ACLR", "ENA", "SCLR", "SDATA", "SLOAD"))):
+        raise BuildError(f"slot boundary route buffer missing without a native direct input: {name}")
+    sources = drivers.get(connections["DATAIN"][0], [])
+    if len(sources) != 1:
+        raise BuildError(f"slot boundary direct input {name} must have exactly one driver")
+    local = name.removeprefix("expansion.")
+    role, bit = local.rsplit("_", 1)
+    alias = {"plug_request_ff": f"expansion_plug_request[{bit}]",
+             "plug_response_ff": f"expansion.response[{bit}]",
+             "clock_coverage_ff": f"expansion.clock_coverage_unused[{bit}]"}[role]
+    if top.get("netnames", {}).get(alias, {}).get("bits") != connections["Q"] or \
+            drivers.get(connections["Q"][0]) != [(name, "Q")]:
+        raise BuildError(f"slot boundary direct output alias/driver changed: {name}")
+    source_name, source_port = sources[0]
+    source = top["cells"].get(source_name, {})
+    if role != "plug_request_ff" or source.get("type") == "MISTRAL_CONST":
+        # The vacant response and clock-only anchors are tied low by RTL.
+        # nextpnr serializes that tie as a driven integer net, not literal "0".
+        mask = source.get("parameters", {}).get("LUT")
+        if (source.get("type") != "MISTRAL_CONST" or source_port != "Q" or
+                source.get("port_directions") != {"Q": "output"} or
+                source.get("connections") != {"Q": connections["DATAIN"]} or
+                not isinstance(mask, str) or len(mask) != 32 or set(mask) - {"0", "1"} or
+                int(mask, 2) not in (0, 1) or
+                (role != "plug_request_ff" and int(mask, 2) != 0)):
+            raise BuildError(f"slot boundary constant driver changed: {name}")
 
 
 def _frequency_row(fmax: object, expected: float, label: str) -> tuple[str, float, float]:
@@ -680,6 +758,19 @@ def validate_m10k_configurations(routed: dict, database: Mapping[str, bytes]) ->
             "routing_coverage": "RAM-local BM_CRAM only; routing PIPs use the frozen shell/card containment contract"}
 
 
+def validate_pll_log(route_text: str) -> None:
+    """Check both achieved system-PLL outputs in the locked solver's log."""
+    if not re.search(r"PLL 'system_clock.pll': 50\.000000 MHz -> VCO ", route_text):
+        raise BuildError("route log does not contain the 50 MHz system PLL reference")
+    for index, hz in enumerate((52224000, 12288000)):
+        match = re.search(
+            rf"PLL 'system_clock.pll': fractional-N requested {hz}\.000000 Hz "
+            rf"\(output {index}\), achieved ([0-9.]+) Hz, error ([0-9.eE+-]+) ppm\.",
+            route_text)
+        if match is None or abs(float(match[1]) / hz - 1) > 1e-6 or abs(float(match[2])) > 1:
+            raise BuildError(f"route log must prove system PLL output {index} at {hz} Hz")
+
+
 def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes],
                             gpu_backend: str = ST_GPU_BACKEND) -> dict:
     routed = _read_json(output / "routed.json", "routed design")
@@ -697,15 +788,14 @@ def validate_build_evidence(output: Path, *, ram_database: Mapping[str, bytes],
     if "Info: Program finished normally." not in route_text or "unrouted" in route_text.lower():
         raise BuildError("route log does not prove a complete routed design")
     gpu_backend = _require_gpu_backend(route_text, gpu_backend)
-    system_pll = "50 MHz -> 52.224 MHz" in route_text or (
-        re.search(r"Info: PLL 'system_clock\.pll': 50\.000000 MHz -> VCO [0-9.]+ MHz, fractional-N,", route_text)
-        and re.search(r"Info: PLL 'system_clock\.pll': fractional-N requested 52224000\.000000 Hz \(output 0\)", route_text))
-    if not system_pll:
-        raise BuildError("route log does not contain the 50-to-52.224 MHz system PLL")
-    audio_pll = re.search(r"PLL 'system_clock\.pll': second output 12\.288 MHz", route_text) or re.search(
-        r"Info: PLL 'system_clock\.pll': fractional-N requested 12288000\.000000 Hz \(output 1\)", route_text)
-    if not audio_pll:
-        raise BuildError("route log must prove the 12.288 MHz audio PLL")
+    validate_pll_log(route_text)
+    # Frequency rows do not prove the routed PLL. Admit only the current
+    # compiler's connections, audio clock branch, directions and physical pin
+    # map. Legacy six-pin repair is not a publication path.
+    try:
+        atari_st_slot.validate_current_system_pll(routed["modules"][TOP])
+    except ValueError as exc:
+        raise BuildError(str(exc)) from exc
     timing = _read_json(output / "timing.json", "timing report")
     rows = {label: _frequency_row(timing.get("fmax"), mhz, label)
             for label, mhz in (("system", 52.224), ("pixel", 74.25), ("audio", 12.288))}

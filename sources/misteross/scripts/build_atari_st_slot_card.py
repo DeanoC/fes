@@ -73,14 +73,13 @@ def card_inputs(card: str) -> tuple[str, ...]:
 def prepare_scaffold(source: bytes, slot: int) -> bytes:
     """Frozen shell netlist with the chosen socket exposed as the cart plugs.
 
-    Legacy routed JSON omits the system PLL's second output. The repair
-    attaches that output to the frozen audio net and drops the obsolete
-    `outclk[0]` alias from the six-pin map. Shared-pin JSON already exposes
-    physical C6/C7 outputs. That shell is preserved when `outclk[1]` already
-    equals the frozen audio net and the port directions are output for
-    `outclk` and `outclk[1]`, input for `refclk`, and output for `locked`.
-    A missing, mismatched or input-direction physical output is rejected, as
-    is any other PLL port or pin map.
+    A current-compiler shell is admitted by the shared PLL check: connections,
+    the audio clock branch, port directions, and the physical C6/C7 pin map.
+    That admission does not rewrite the cell. Legacy routed JSON omits the
+    system PLL's second output; the separate repair attaches that output to
+    the frozen audio net and drops the obsolete `outclk[0]` alias. A missing,
+    mismatched or input-direction physical output is rejected, as is any other
+    PLL port or pin map.
     The socket's boundary must still be at its pinned BEL. The socket's
     request/response flip-flops are renamed plug_addr_ff_N / plug_rdata_ff_N
     and its clock-coverage flip-flops are removed (their routed clock
@@ -90,7 +89,7 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
     shell_recipe.validate_routed_shell(design)
     top = design["modules"]["top"]
     cells = top["cells"]
-    atari_st_slot.repair_split_system_pll(top)
+    atari_st_slot.adopt_system_pll(top)
 
     if any(name.startswith(("plug_addr_ff_", "plug_rdata_ff_")) for name in cells):
         raise ValueError("frozen shell already exposes canonical plug cells")
@@ -108,10 +107,14 @@ def prepare_scaffold(source: bytes, slot: int) -> bytes:
                 raise ValueError(f"frozen slot boundary clock changed: {socket.instance}{name}")
     for bit in range(atari_st_slot.REQUEST_BITS):
         cells[f"plug_addr_ff_{bit}"] = cells.pop(f"{target.instance}plug_request_ff_{bit}")
-        cells[f"plug_addr_ff_{bit}$ROUTETHRU"] = cells.pop(f"{target.instance}plug_request_ff_{bit}$ROUTETHRU")
+        buffer = f"{target.instance}plug_request_ff_{bit}$ROUTETHRU"
+        if buffer in cells:
+            cells[f"plug_addr_ff_{bit}$ROUTETHRU"] = cells.pop(buffer)
     for bit in range(atari_st_slot.RESPONSE_BITS):
         cells[f"plug_rdata_ff_{bit}"] = cells.pop(f"{target.instance}plug_response_ff_{bit}")
-        cells[f"plug_rdata_ff_{bit}$ROUTETHRU"] = cells.pop(f"{target.instance}plug_response_ff_{bit}$ROUTETHRU")
+        buffer = f"{target.instance}plug_response_ff_{bit}$ROUTETHRU"
+        if buffer in cells:
+            cells[f"plug_rdata_ff_{bit}$ROUTETHRU"] = cells.pop(buffer)
     for name in [n for n in cells if n.startswith(f"{target.instance}clock_coverage_ff_")]:
         del cells[name]
     return (json.dumps(design, separators=(",", ":")) + "\n").encode()
