@@ -1609,6 +1609,49 @@ func TestLauncherStartupDefersStopUntilRunning(t *testing.T) {
 	}
 }
 
+func TestLauncherStartupChordRestartsWhenLaunchBecomesRunning(t *testing.T) {
+	generation := strings.Repeat("a", 64)
+	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{
+		Phase: "launching", CoreID: "fes.pong", PackageID: tenfootPongID, Generation: generation,
+	}}
+	app := NewApp(nil, 1280, 720, 50)
+	app.localCores = fake
+	t.Cleanup(app.Stop)
+	app.Tick(time.Unix(10, 0))
+	waitFor(t, app, "launching generation watched", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseLaunching && s.LocalCorePresentsPaused
+	})
+	press := time.Now()
+	app.HandleLocalPad(padButton(remoteinput.ButtonSelect, true), press)
+	app.HandleLocalPad(padButton(remoteinput.ButtonStart, true), press)
+	time.Sleep(200 * time.Millisecond)
+	partial := time.Now()
+	app.Tick(partial)
+	if fake.stopCount() != 0 || partial.Sub(press) >= localChordHold {
+		t.Fatalf("partial hold stopped the launch or ran too long: stops=%d held=%s", fake.stopCount(), partial.Sub(press))
+	}
+	fake.setStatus(startupRunningStatus(generation))
+	app.mu.Lock()
+	app.localStatusNext = time.Time{}
+	app.mu.Unlock()
+	app.Tick(time.Now())
+	waitFor(t, app, "running after partial hold", func(s Snapshot) bool {
+		return s.LocalCorePhase == localPhaseRunning && fake.stopCount() == 0
+	})
+	app.mu.Lock()
+	since := app.localChordSince
+	app.mu.Unlock()
+	if !since.After(press.Add(100 * time.Millisecond)) {
+		t.Fatalf("chord clock kept the loading press: since=%s press=%s", since, press)
+	}
+	app.Tick(since.Add(localChordHold - time.Millisecond))
+	if fake.stopCount() != 0 {
+		t.Fatal("running chord fired before a full second of play")
+	}
+	app.Tick(since.Add(localChordHold))
+	waitFor(t, app, "full play hold stopped", func(Snapshot) bool { return fake.stopCount() == 1 })
+}
+
 func TestLauncherStartupLaunchingIdleDoesNotStop(t *testing.T) {
 	generation := strings.Repeat("d", 64)
 	fake := &fakeLocalCores{statusSet: true, status: localcores.RunStatus{

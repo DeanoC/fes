@@ -669,13 +669,16 @@ func (a *App) promoteWatchedStartupLocked(status localcores.RunStatus) {
 	a.localWatchStartup = false
 	a.localStatus = localInUseCopy
 	a.status = a.localStatus
-	if a.localSelectDown && a.localStartDown && a.localChordSince.IsZero() {
-		a.localChordSince = time.Now()
-	}
 	if stopNow {
 		a.localStopAfterStart = false
 		a.localChordFired = true
 		a.beginLocalStopLocked()
+		return
+	}
+	// Loading time does not count toward the one-second hold. A chord that
+	// already completed is stopNow above; a pair still held starts again.
+	if a.localSelectDown && a.localStartDown {
+		a.localChordSince = time.Now()
 	}
 }
 
