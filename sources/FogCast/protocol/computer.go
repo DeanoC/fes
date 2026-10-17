@@ -28,7 +28,7 @@ const (
 	Apple2FloppyBytes int64 = int64(generated.FesComputerApple2FloppyBytes)
 	// Apple2FloppyUnit is the media unit fes.media.apple2-floppy occupies.
 	Apple2FloppyUnit uint8 = uint8(generated.FesComputerApple2FloppyUnit)
-	// CassetteRole is the library media role of a ZX Spectrum .tap image.
+	// CassetteRole is the library media role of a Spectrum .tap or ZX81 .p image.
 	CassetteRole = "cassette"
 	// SpectrumTapeMinBytes is the smallest fes.media.spectrum-tape image.
 	SpectrumTapeMinBytes int64 = int64(generated.FesComputerSpectrumTapeMinBytes)
@@ -36,6 +36,12 @@ const (
 	SpectrumTapeMaxBytes int64 = int64(generated.FesComputerSpectrumTapeMaxBytes)
 	// SpectrumTapeUnit is the media unit fes.media.spectrum-tape occupies.
 	SpectrumTapeUnit uint8 = uint8(generated.FesComputerSpectrumTapeUnit)
+	// Zx81TapeMinBytes is the smallest fes.media.zx81-tape image.
+	Zx81TapeMinBytes int64 = int64(generated.FesComputerZx81TapeMinBytes)
+	// Zx81TapeMaxBytes is the largest fes.media.zx81-tape image.
+	Zx81TapeMaxBytes int64 = int64(generated.FesComputerZx81TapeMaxBytes)
+	// Zx81TapeUnit is the media unit fes.media.zx81-tape occupies.
+	Zx81TapeUnit uint8 = uint8(generated.FesComputerZx81TapeUnit)
 	// C64DiskBytes is the exact 35-track D64 image size.
 	C64DiskBytes int64 = int64(generated.FesComputerC64DiskBytes)
 	// C64DiskUnit is the media unit fes.media.c64-disk occupies.
@@ -73,6 +79,11 @@ func Apple2FloppyInterface() RuntimeContract {
 // SpectrumTapeInterface is the unit-0 ZX Spectrum .tap contract.
 func SpectrumTapeInterface() RuntimeContract {
 	return RuntimeContract{ID: generated.FesComputerInterfaceMediaSpectrumTapeID, Major: generated.FesComputerInterfaceMediaSpectrumTapeMajor, Minor: generated.FesComputerInterfaceMediaSpectrumTapeMinor}
+}
+
+// Zx81TapeInterface is the unit-0 ZX81 .p contract.
+func Zx81TapeInterface() RuntimeContract {
+	return RuntimeContract{ID: generated.FesComputerInterfaceMediaZx81TapeID, Major: generated.FesComputerInterfaceMediaZx81TapeMajor, Minor: generated.FesComputerInterfaceMediaZx81TapeMinor}
 }
 
 // C64DiskInterface is the unit-0 Commodore D64 contract.
@@ -176,6 +187,10 @@ func (u MediaUnitStatus) Valid() bool {
 		return u.Interface == SpectrumTapeInterface() && u.Unit == SpectrumTapeUnit &&
 			int64(u.MinBytes) == SpectrumTapeMinBytes && int64(u.MaxBytes) == SpectrumTapeMaxBytes
 	}
+	if u.Interface.ID == Zx81TapeInterface().ID {
+		return u.Interface == Zx81TapeInterface() && u.Unit == Zx81TapeUnit &&
+			int64(u.MinBytes) == Zx81TapeMinBytes && int64(u.MaxBytes) == Zx81TapeMaxBytes
+	}
 	return true
 }
 
@@ -235,6 +250,13 @@ func declaredComputerMedia(descriptor corepackage.Descriptor) []CoreMediaCapabil
 				MinBytes: SpectrumTapeMinBytes, MaxBytes: SpectrumTapeMaxBytes, Interface: tape,
 				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".tap"}})
 		}
+		zx81 := Zx81TapeInterface()
+		if contract.ID == zx81.ID && contract.Major == int64(zx81.Major) && contract.Minor == int64(zx81.Minor) {
+			unit := Zx81TapeUnit
+			result = append(result, CoreMediaCapability{Role: CassetteRole, Format: "zx81-p",
+				MinBytes: Zx81TapeMinBytes, MaxBytes: Zx81TapeMaxBytes, Interface: zx81,
+				Transport: ComputerMediaTransport, Unit: &unit, Extensions: []string{".p"}})
+		}
 	}
 	return result
 }
@@ -253,11 +275,41 @@ func DeclaresDiskMedia(descriptor corepackage.Descriptor) bool {
 // DeclaresSpectrumTape reports whether the descriptor has the Spectrum cassette unit.
 func DeclaresSpectrumTape(descriptor corepackage.Descriptor) bool {
 	for _, capability := range declaredComputerMedia(descriptor) {
-		if capability.Role == CassetteRole {
+		if capability.Format == "spectrum-tap" {
 			return true
 		}
 	}
 	return false
+}
+
+// DeclaresZx81Tape reports whether the descriptor has the ZX81 .p unit.
+func DeclaresZx81Tape(descriptor corepackage.Descriptor) bool {
+	for _, capability := range declaredComputerMedia(descriptor) {
+		if capability.Format == "zx81-p" {
+			return true
+		}
+	}
+	return false
+}
+
+// ZX81TapeSelectionRole is the library role for a .p file on this package.
+// A declared fes.media.zx81-tape unit uses cassette. A legacy fes.media.blob
+// declaration uses blob. The tape unit wins when a package declares both.
+func ZX81TapeSelectionRole(media []CoreMediaCapability) (string, bool) {
+	blob := RuntimeContract{ID: "fes.media.blob", Major: 1}
+	legacy := false
+	for _, cap := range media {
+		if cap.Role == CassetteRole && cap.Format == "zx81-p" && cap.Interface == Zx81TapeInterface() {
+			return CassetteRole, true
+		}
+		if cap.Role == "blob" && cap.Interface == blob {
+			legacy = true
+		}
+	}
+	if legacy {
+		return "blob", true
+	}
+	return "", false
 }
 
 // AdmitDiskMediaName accepts only DOS-order .dsk/.do basenames. ProDOS-order
@@ -285,6 +337,11 @@ func AdmitSpectrumTapeName(name string) bool {
 // AdmitSpectrumTapeSize reports whether a .tap image fits the unit.
 func AdmitSpectrumTapeSize(size int64) bool {
 	return size >= SpectrumTapeMinBytes && size <= SpectrumTapeMaxBytes
+}
+
+// AdmitZx81TapeSize reports whether a .p image fits the ZX81 tape unit.
+func AdmitZx81TapeSize(size int64) bool {
+	return size >= Zx81TapeMinBytes && size <= Zx81TapeMaxBytes
 }
 
 // AdmitC64DiskName accepts a Commodore D64 basename.

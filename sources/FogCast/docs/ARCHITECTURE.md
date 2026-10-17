@@ -438,8 +438,12 @@ identity is fixed, keeps that package id, and records `image_sha256` on the
 launch status after firmware and media binding. A selected cart is composed
 first and stays on the launch source, so the activated composition matches
 the selection. The ROM splice is last.
-Mid-session `.p` tape select/load while the core stays running is a
-separate product path from that ROM splice; see the FES design lock
+A selected `.p` tape on the current `fes.computer` ZX81 package is role
+`cassette` (`fes.media.zx81-tape` 1.0, 1..16384 bytes, unit 0) and is
+inserted after Start. A setup saved earlier with role `blob` still launches
+on that unit. An installed `fes.simple-computer` package keeps the mailbox
+blob path. Mid-session `.p` select/load while the core stays running is a
+separate product path from the ROM splice; see the FES design lock
 [ZX81 tape media](../../../docs/zx81-tape-media.md).
 The separate `native-dev`
 image packages this composition. Its idle, visible Sonic 2 launch, one-player
@@ -707,10 +711,22 @@ host-only evidence, not Coleco hardware acceptance.
 
 ### Session live media (ZX81 change-tape)
 
-Mid-session tape arming for an active `fes.simple-computer` generation uses the
-runtime `replace_live_media` / `clear_media` path (no hold-reset soft-reboot).
-It is distinct from launch-time `POST /api/v1/session/development-media`
-(`load_media`). See the FES lock
+Mid-session tape arming does not hold reset. On an active `fes.computer`
+generation that reports `fes.media.zx81-tape`, `change-tape` inserts the `.p`
+into unit 0 and `eject-tape` ejects that unit. An active `fes.simple-computer`
+generation with `fes.media.blob` still uses `replace_live_media` /
+`clear_media`. Live-media capability is that active tape interface or the
+legacy blob interface. The host session projection keeps those active
+interfaces and media units, so the tape picker and `change-tape` form a
+binding for either generation. On a menu-display kit, both that tape unit
+and a legacy blob session open the hardware room and the tape picker only
+when the running package reports `fes.video.session-display` 1.0 and
+`fes.memory.hps-ddr` 1.0. Home posts `visible: true`, the runtime makes menu
+presentation available, and `BindSession` authorizes the launcher frames.
+Back posts `visible: false`, which quiesces the plane and restores the
+machine's HDMI pixels. Library play is
+native, and `change-tape` accepts that execution. Both paths are distinct from
+launch-time `POST /api/v1/session/development-media` (`load_media`). See the FES lock
 [ZX81 tape media](../../../docs/zx81-tape-media.md).
 
 Operator/diagnostics CLI:
@@ -727,6 +743,10 @@ a `.p` / `.P` name. The host call is `POST /api/v1/session/live-media` with JSON
 `{"media_id","name"}` and the same session/package/generation/target binding
 headers as development media. `eject-tape` posts
 `POST /api/v1/session/live-media/clear` so the next empty `LOAD ""` is `0/0`.
+The CLI reads the session with a 30-second client. `change-tape` and
+`eject-tape` post through the mutation client, which does not impose that
+timeout, so an insert can finish inside the host's 150-second budget. A lost
+response is not replayed.
 The target agent uses `POST /v1/development/live-media` and
 `POST /v1/development/clear-media`. Busy-while-LOAD maps to retryable `BUSY`.
 A poisoned or unstable GP handshake is the same retryable `BUSY`. A hard MMIO
@@ -760,8 +780,9 @@ package and then insert their selected medium into unit 0. A failed insertion
 is a failed launch and follows existing library-slot Stop/recovery. The same session accepts later swaps:
 `POST /api/v1/session/live-media` with a `.dsk`/`.do`, `.d64` or `.st` name inserts a
 household disk, and `…/live-media/clear` ejects the unit-0 medium the active
-generation declares (Apple II floppy, C64 disk, Atari ST floppy, or Spectrum tape). `.p` names
-keep the ZX81 tape path. A `.tap` name inserts the Spectrum cassette on unit 0.
+generation declares (Apple II floppy, C64 disk, Atari ST floppy, Spectrum tape, or ZX81 tape). `.p` names
+insert `fes.media.zx81-tape` when that unit is active, and otherwise keep the
+legacy ZX81 blob path. A `.tap` name inserts the Spectrum cassette on unit 0.
 The CLI equivalents are `fogcast change-disk MEDIA_ID_OR_DISK_PATH` and
 `fogcast eject-disk` for a disk, and `fogcast change-cassette` and
 `fogcast eject-cassette` for a Spectrum `.tap`. A stored
@@ -1231,9 +1252,10 @@ a firmware-required title opens a local file picker and posts
 `POST /api/v1/core-media` plus `PUT /api/v1/library/firmware`, including while
 the selected kit is busy. That is not a development RBF load and does not
 claim the kit. Mid-session ZX81 Load-tape is another overlay: while an
-active `fes.simple-computer` session advertises `fes.media.blob`, Y opens a
-`.p` picker that arms or ejects through the session live-media API without
-relaunch or hold-reset `load_media`.
+active session can take a `.p` tape (`fes.media.zx81-tape` on `fes.computer`,
+or `fes.media.blob` on `fes.simple-computer`), Y opens a `.p` picker that
+arms or ejects through the session live-media API without relaunch or
+hold-reset `load_media`.
 
 ## FES appliance releases
 
@@ -2486,7 +2508,8 @@ physical socket, a recomputed `fes-composition-v2` identity and volatile
 persistence. With no card selected the load is the ordinary
 `load_rom_library_core`. Single-socket ZX81 and Coleco v1 tuples are unchanged.
 ZX81 single-socket composition admits optional `fes.expansion.zx81-bus`
-1.0 or 2.0, bound to `fes.zx81-bus.socket/1` or `/2` respectively. The
+1.0 or 2.0 on `fes.simple-computer` 1.0 and `fes.computer` 1.0, bound to
+`fes.zx81-bus.socket/1` or `/2` respectively. The
 v2 bus carries CPU clock and active-low reset within the same physical
 socket. Import, staging, adoption and runtime status checks retain exact
 shell and cart version binding; tuple identity domains are unchanged.
@@ -3263,16 +3286,18 @@ rows with setup disabled. App/renderer snapshots copy row data and pointer hit
 routing gives the systems overlay priority over room/catalog widgets.
 
 The Sinclair ZX81 room reuses that overlay for local installed-package/ROM setup,
-expansion import and prelaunch cassette selection. Installed setup uses existing
+expansion import and prelaunch cassette selection. The picker saves a `.p`
+selection as the role that package declares: `cassette` for `fes.media.zx81-tape`,
+and `blob` for a legacy `fes.media.blob` package. Installed setup uses existing
 package/library/ROM endpoints independently of publication. Media selection
 retains the captured package and previous media ID for compare-and-swap; expansion
 import does not fit the asset. Catalogue schema 16 adds optional `in_progress`
 presentation, without changing immutable admission or shared wire definitions.
 The attributed `internal/zx81tapes` assets enter the existing media store only
-after explicit selection. A menu-display kit enables live routes only when the
-observed simple-computer package advertises `fes.video.session-display` 1.0 and
-`fes.memory.hps-ddr` 1.0. Home/Select first requests
-`POST /api/v1/session/display` with `visible: true`, the captured session ID and
+after explicit selection. A menu-display kit enables live routes for a legacy
+`fes.simple-computer` package only when that package advertises
+`fes.video.session-display` 1.0 and `fes.memory.hps-ddr` 1.0. Home/Select first
+requests `POST /api/v1/session/display` with `visible: true`, the captured session ID and
 existing target/package/core-generation headers. The paired listener admits only
 that kit's captured session, hardware/starter reads, exact starter imports,
 bounded 1..16384-byte tape imports and live replace/clear/display operations.
@@ -3305,8 +3330,13 @@ reload or Stop.
 Media delivery can briefly reject a concurrent launcher frame as busy. A healthy
 probe clears that presentation error and its retry delay; the room removes the
 temporary HDMI notice while retaining the cassette operation's status.
-Older packages keep prelaunch controls and the separate host renderer keeps its
-live routes. The shared wire layout is in
+A running `fes.computer` generation that reports `fes.media.zx81-tape` 1.0 uses
+that same `POST /api/v1/session/display` when it also reports
+`fes.video.session-display` 1.0 and `fes.memory.hps-ddr` 1.0. The plane
+composites launcher frames over ZX81 video; closing it restores those pixels
+without reprogramming the core. A tape unit without the plane does not open
+the kit routes. Older packages keep prelaunch controls and the separate
+host renderer keeps its live routes. The shared wire layout is in
 [mister-packages session display](../../mister-packages/docs/session-display.md).
 
 The session service records every kit's game, development load, package

@@ -91,6 +91,15 @@ constants:
     value: 14
   - name: FesComputerOpcodeMediaSnapshotData
     value: 15
+  # Same opcode numbers as fes.application / fes.simple-computer menu display.
+  - name: FesComputerOpcodeMenuInfo
+    value: 18
+  - name: FesComputerOpcodeMenuConfigure
+    value: 19
+  - name: FesComputerOpcodeMenuControl
+    value: 20
+  - name: FesComputerOpcodeMenuSubmit
+    value: 21
   - name: FesComputerMouseButtonMask
     value: 3
   - name: FesComputerMediaSnapshotInfoStride
@@ -235,6 +244,14 @@ constants:
     value: 1
   - name: FesComputerSpectrumTapeMaxBytes
     value: 65536
+  # fes.media.zx81-tape 1.0: unit 0, one .p memory image.
+  # Capability bit 11. A shell still declares only one unit-0 medium.
+  - name: FesComputerZx81TapeUnit
+    value: 0
+  - name: FesComputerZx81TapeMinBytes
+    value: 1
+  - name: FesComputerZx81TapeMaxBytes
+    value: 16384
   # fes.media.c64-disk 1.0: unit 0, exactly one 35-track D64 image.
   # Capability bit 6. Bit 5 is the Spectrum tape.
   - name: FesComputerC64DiskUnit
@@ -311,3 +328,19 @@ interfaces:
     major: 1
     minor: 0
     capability_bit: 10
+  - id: fes.media.zx81-tape
+    major: 1
+    minor: 0
+    capability_bit: 11
+  # fes.memory.hps-ddr 1.0 and fes.video.session-display 1.0 reuse the
+  # application menu opcodes 18-21 and the reserved DDR slots. They are an
+  # in-session plane: open presents launcher frames, close restores machine
+  # pixels. Bits 12 and 13 stay clear on computers that do not implement them.
+  - id: fes.memory.hps-ddr
+    major: 1
+    minor: 0
+    capability_bit: 12
+  - id: fes.video.session-display
+    major: 1
+    minor: 0
+    capability_bit: 13

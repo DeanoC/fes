@@ -130,7 +130,11 @@ func (a *App) selectHardwareTapeLocked(tape *hostclient.HardwareTape) {
 			if err != nil {
 				return err
 			}
-			role, id = "blob", media.MediaID
+			role, err = a.zx81HardwareTapeRole(ctx, pkg)
+			if err != nil {
+				return err
+			}
+			id = media.MediaID
 		}
 		var err error
 		selected, err = a.client.SelectCoreEntryMedia(ctx, game, pkg, expected, role, id)
@@ -179,7 +183,11 @@ func (a *App) importHardwareFileLocked(path string) {
 		if err != nil {
 			return err
 		}
-		selected, err = a.client.SelectCoreEntryMedia(ctx, game, pkg, expected, "blob", media.MediaID)
+		role, err := a.zx81HardwareTapeRole(ctx, pkg)
+		if err != nil {
+			return err
+		}
+		selected, err = a.client.SelectCoreEntryMedia(ctx, game, pkg, expected, role, media.MediaID)
 		return err
 	}, func() {
 		s.PickID = ""
@@ -196,6 +204,18 @@ func (a *App) importHardwareFileLocked(path string) {
 			a.room.Resume()
 		}
 	})
+}
+
+func (a *App) zx81HardwareTapeRole(ctx context.Context, pkg string) (string, error) {
+	caps, err := a.client.PackageMediaCapabilities(ctx, pkg)
+	if err != nil {
+		return "", err
+	}
+	role, ok := protocol.ZX81TapeSelectionRole(caps.Media)
+	if !ok {
+		return "", fmt.Errorf("this Sinclair ZX81 package has no .p cassette")
+	}
+	return role, nil
 }
 
 func (a *App) openZX81SetupLocked() {

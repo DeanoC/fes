@@ -50,6 +50,40 @@ func computerSessionStatus(id string, generation uint64, state string) protocol.
 	}}
 }
 
+func TestLiveZx81TapeInsertAndEjectUseTheTapeUnit(t *testing.T) {
+	ctx := context.Background()
+	store, err := catalog.Open(t.TempDir() + "/catalog.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	tape := []byte("zx81-program")
+	media, _, err := store.ImportCoreMediaStream(ctx, int64(len(tape)), bytes.NewReader(tape))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strings.Repeat("a", 64)
+	iface := protocol.Zx81TapeInterface()
+	statusForState := func(state string) protocol.Status {
+		return protocol.Status{State: protocol.StateActive, Development: true, CorePackage: &protocol.CorePackageStatus{
+			PackageID: id, Generation: 4, ABI: protocol.RuntimeContract{ID: "fes.computer", Major: 1},
+			ActiveInterfaces: []protocol.RuntimeInterface{{ID: iface.ID, Major: 1}},
+			MediaUnits: []protocol.MediaUnitStatus{{Unit: 0, Interface: iface, MinBytes: 1, MaxBytes: 16384,
+				ChunkBytes: 512, State: state}},
+		}}
+	}
+	client := &mediaUnitServiceClient{fakeServiceClient: fakeServiceClient{statusResult: statusForState("empty")}, after: statusForState}
+	s := newService(Config{RequestTimeout: time.Second, UploadTimeout: time.Second}, Paths{}, store, &fakeServiceScanner{}, &fakeServicePreparer{}, client)
+	s.activeExecution = ExecutionFPGANative
+	b := protocol.DevelopmentMediaBinding{PackageID: id, Generation: 4, Target: "dev"}
+	if _, err := s.ReplaceLiveMedia(ctx, media.MediaID, "maze.p", b); err != nil || client.inserts != 1 || !bytes.Equal(client.inserted, tape) {
+		t.Fatalf("insert err=%v calls=%d bytes=%d", err, client.inserts, len(client.inserted))
+	}
+	if _, err := s.ClearLiveMedia(ctx, b); err != nil || client.ejects != 1 || client.binding.Unit != protocol.Zx81TapeUnit {
+		t.Fatalf("eject err=%v calls=%d binding=%+v", err, client.ejects, client.binding)
+	}
+}
+
 func TestLiveDiskInsertAndEjectUseTheFloppyUnit(t *testing.T) {
 	for _, disk := range []struct {
 		iface protocol.RuntimeContract

@@ -8,9 +8,15 @@
 // exactly the clock they are acknowledged (low byte at addr, high byte at
 // addr+1), and unit0_state tells the core whether the unit's image may be
 // presented to the machine. Media requests are valid while execution runs.
-// ENABLE_APPLE2_FLOPPY, ENABLE_C64_DISK and ENABLE_SPECTRUM_TAPE each occupy
-// unit 0; a core sets one of them. UNIT0_MIN/MAX must match that interface.
-module fes_computer_mailbox #(
+// ENABLE_APPLE2_FLOPPY, ENABLE_C64_DISK, ENABLE_SPECTRUM_TAPE and
+// ENABLE_ZX81_TAPE each occupy unit 0; a core sets one of them. UNIT0_MIN/MAX must match that interface.
+// Shells that leave the session-display plane off instantiate fes_computer_mailbox,
+// which ties these response inputs idle. Verilator rejects ranged input defaults,
+// so the idle tie lives in that wrapper. ZX81 instantiates this module and
+// connects the plane. Verilator -Wall rejects a first module whose name
+// differs from the filename, so that check is off for the core only.
+/* verilator lint_off DECLFILENAME */
+module fes_computer_mailbox_core #(
     parameter bit ENABLE_KEYBOARD = 0,
     parameter bit ENABLE_PORTS = 0,
     parameter bit ENABLE_MOUSE = 0,
@@ -18,6 +24,8 @@ module fes_computer_mailbox #(
     parameter bit ENABLE_APPLE2_FLOPPY = 0,
     parameter bit ENABLE_C64_DISK = 0,
     parameter bit ENABLE_SPECTRUM_TAPE = 0,
+    parameter bit ENABLE_ZX81_TAPE = 0,
+    parameter bit ENABLE_SESSION_DISPLAY = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_WRITE = 0,
     parameter bit ENABLE_ATARI_ST_FLOPPY_GEOMETRY = 0,
@@ -50,10 +58,20 @@ module fes_computer_mailbox #(
     input  wire        media_read_ready,
     input  wire [7:0]  media_read_data,
     output reg  [1:0]   unit0_state,
-    output reg  [31:0]  unit0_size
+    output reg  [31:0]  unit0_size,
+    // In-session launcher plane (fes.memory.hps-ddr and
+    // fes.video.session-display). A request is held until the pixel-domain reply.
+    output reg          display_request,
+    output reg  [6:0]   display_opcode,
+    output reg  [7:0]   display_index,
+    output reg  [15:0]  display_argument,
+    input  wire         display_response_valid,
+    input  wire         display_response_error,
+    input  wire [15:0]  display_response_data,
+    input  wire         display_quiesced
 );
     // Unit 0 is one drive. A shell enables one of the three media parameters.
-    localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_C64_DISK | ENABLE_SPECTRUM_TAPE | ENABLE_ATARI_ST_FLOPPY;
+    localparam bit MEDIA = ENABLE_APPLE2_FLOPPY | ENABLE_C64_DISK | ENABLE_SPECTRUM_TAPE | ENABLE_ZX81_TAPE | ENABLE_ATARI_ST_FLOPPY;
     localparam bit WRITABLE = ENABLE_ATARI_ST_FLOPPY_WRITE && ENABLE_ATARI_ST_FLOPPY;
     localparam bit GEOMETRY = ENABLE_ATARI_ST_FLOPPY && ENABLE_ATARI_ST_FLOPPY_GEOMETRY;
     localparam [15:0] CAPABILITIES =
@@ -65,9 +83,12 @@ module fes_computer_mailbox #(
         (ENABLE_APPLE2_FLOPPY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_APPLE2_FLOPPY_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_C64_DISK ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_C64_DISK_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_SPECTRUM_TAPE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_SPECTRUM_TAPE_CAPABILITY_MASK) : 16'd0) |
+        (ENABLE_ZX81_TAPE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ZX81_TAPE_CAPABILITY_MASK) : 16'd0) |
         (ENABLE_ATARI_ST_FLOPPY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_CAPABILITY_MASK) : 16'd0) |
         (GEOMETRY ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_GEOMETRY_CAPABILITY_MASK) : 16'd0) |
-        (WRITABLE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_WRITE_CAPABILITY_MASK) : 16'd0);
+        (WRITABLE ? 16'(`FES_COMPUTER_INTERFACE_MEDIA_ATARI_ST_FLOPPY_WRITE_CAPABILITY_MASK) : 16'd0) |
+        (ENABLE_SESSION_DISPLAY ? 16'(`FES_COMPUTER_INTERFACE_MEMORY_HPS_DDR_CAPABILITY_MASK) : 16'd0) |
+        (ENABLE_SESSION_DISPLAY ? 16'(`FES_COMPUTER_INTERFACE_VIDEO_SESSION_DISPLAY_CAPABILITY_MASK) : 16'd0);
     localparam [15:0] E_OPCODE = 16'(`FES_COMPUTER_ERROR_INVALID_OPCODE);
     localparam [15:0] E_INDEX = 16'(`FES_COMPUTER_ERROR_INVALID_INDEX);
     localparam [15:0] E_ARGUMENT = 16'(`FES_COMPUTER_ERROR_INVALID_ARGUMENT);
@@ -140,6 +161,7 @@ module fes_computer_mailbox #(
     reg [9:0] chunk_length;
     reg [9:0] chunk_received;
     reg [7:0] ordinal;
+    reg display_wait;
 
     wire [4:0] unit8 = index[7:3];
     wire [2:0] field = index[2:0];
@@ -254,6 +276,11 @@ module fes_computer_mailbox #(
         chunk_length = 10'd0;
         chunk_received = 10'd0;
         ordinal = 8'd0;
+        display_request = 1'b0;
+        display_opcode = 7'd0;
+        display_index = 8'd0;
+        display_argument = 16'd0;
+        display_wait = 1'b0;
     end
 
     always @(posedge clk) begin
@@ -269,12 +296,22 @@ module fes_computer_mailbox #(
             read_low <= media_read_data;
             read_phase <= 2'd2; // electrical gap before the second byte request
         end else if (snapshot_data_ok && read_phase == 2'd2) read_phase <= 2'd1;
-        if (request && (!ENABLE_MEDIA_BACKPRESSURE || !data_ok || media_write_ready) &&
+        if (display_wait) begin
+            if (display_response_valid) begin
+                acknowledged_toggle <= request_sync;
+                response_error <= display_response_error;
+                response_data <= display_response_data;
+                display_request <= 1'b0;
+                display_wait <= 1'b0;
+            end
+        end else if (request && (!ENABLE_MEDIA_BACKPRESSURE || !data_ok || media_write_ready) &&
             (!mouse_ok || mouse_ready) && (!freeze_ok || (media_frozen && !media_write_busy)) &&
             (!snapshot_data_ok || snapshot_complete)) begin
-            acknowledged_toggle <= request_sync;
             response_error <= 1'b0;
             response_data <= 16'h0000;
+            begin : acknowledge
+                reg defer_ack;
+                defer_ack = 1'b0;
             case (opcode)
                 7'(`FES_COMPUTER_OPCODE_IDENTITY): begin
                     if (index >= 8'd16) reject(E_INDEX);
@@ -284,6 +321,8 @@ module fes_computer_mailbox #(
                 7'(`FES_COMPUTER_OPCODE_EXECUTION): begin
                     if (index != 8'd0) reject(E_INDEX);
                     else if (argument > 16'd1) reject(E_ARGUMENT);
+                    else if (argument == 16'd0 && ENABLE_SESSION_DISPLAY && !display_quiesced)
+                        reject(E_STATE);
                     else if (argument == 16'd0) begin
                         exec_reset <= 1'b1;
                         keyboard_rows <= 144'd0;
@@ -332,7 +371,8 @@ module fes_computer_mailbox #(
                     // Collection and accepted sector commits retain the old
                     // image even for volatile loads. Never overlap a new host
                     // upload with a writer draining through job withdrawal.
-                    else if (WRITABLE && media_write_busy) reject(E_STATE);
+                    // Writable disks and an active ZX81 LOAD both hold this input.
+                    else if ((WRITABLE || ENABLE_ZX81_TAPE) && media_write_busy) reject(E_STATE);
                     else if (media_frozen && !saved_authorized) reject(E_STATE);
                     else if (active) reject(E_STATE);
                     else if (!begin_staged ? word != 2'd0 : word != begin_next) reject(E_INDEX);
@@ -442,7 +482,7 @@ module fes_computer_mailbox #(
                     if (!MEDIA) reject(E_OPCODE);
                     else if (index != 8'd0) reject(E_INDEX);
                     else if (argument != 16'd0) reject(E_ARGUMENT);
-                    else if (WRITABLE && media_write_busy) reject(E_STATE);
+                    else if ((WRITABLE || ENABLE_ZX81_TAPE) && media_write_busy) reject(E_STATE);
                     else if (media_frozen && !saved_authorized) reject(E_STATE);
                     else begin
                         cancel_transfer;
@@ -535,8 +575,116 @@ module fes_computer_mailbox #(
                         end
                     end
                 end
+                7'(`FES_COMPUTER_OPCODE_MENU_INFO),
+                7'(`FES_COMPUTER_OPCODE_MENU_CONFIGURE),
+                7'(`FES_COMPUTER_OPCODE_MENU_CONTROL),
+                7'(`FES_COMPUTER_OPCODE_MENU_SUBMIT): begin
+                    if (!ENABLE_SESSION_DISPLAY) reject(E_OPCODE);
+                    else begin
+                        // Hold the request until the pixel-domain plane replies.
+                        defer_ack = 1'b1;
+                        display_request <= 1'b1;
+                        display_opcode <= opcode;
+                        display_index <= index;
+                        display_argument <= argument;
+                        display_wait <= 1'b1;
+                    end
+                end
                 default: reject(E_OPCODE);
             endcase
+                if (!defer_ack)
+                    acknowledged_toggle <= request_sync;
+            end
         end
     end
+endmodule
+/* verilator lint_on DECLFILENAME */
+
+// Port list used by shells that leave the session-display plane off.
+// Response inputs are tied idle here because Verilator rejects ranged defaults.
+module fes_computer_mailbox #(
+    parameter bit ENABLE_KEYBOARD = 0,
+    parameter bit ENABLE_PORTS = 0,
+    parameter bit ENABLE_MOUSE = 0,
+    parameter bit ENABLE_AUDIO = 0,
+    parameter bit ENABLE_APPLE2_FLOPPY = 0,
+    parameter bit ENABLE_C64_DISK = 0,
+    parameter bit ENABLE_SPECTRUM_TAPE = 0,
+    parameter bit ENABLE_ZX81_TAPE = 0,
+    parameter bit ENABLE_SESSION_DISPLAY = 0,
+    parameter bit ENABLE_ATARI_ST_FLOPPY = 0,
+    parameter bit ENABLE_ATARI_ST_FLOPPY_WRITE = 0,
+    parameter bit ENABLE_ATARI_ST_FLOPPY_GEOMETRY = 0,
+    parameter bit ENABLE_MEDIA_BACKPRESSURE = 0,
+    parameter integer MEDIA_AW = 18,
+    parameter [31:0] UNIT0_MIN = `FES_COMPUTER_APPLE2_FLOPPY_BYTES,
+    parameter [31:0] UNIT0_MAX = `FES_COMPUTER_APPLE2_FLOPPY_BYTES
+) (
+    input  wire         clk,
+    input  wire [31:0]  gpo,
+    input  wire [127:0] build_id,
+    output wire [31:0]  gpi,
+    output wire         exec_reset,
+    output wire [143:0] keyboard_rows,
+    output wire [15:0]  controller_buttons,
+    output wire         mouse_valid,
+    output wire signed [15:0] mouse_dx,
+    output wire signed [15:0] mouse_dy,
+    output wire [1:0]    mouse_buttons,
+    input  wire         mouse_ready,
+    output wire [MEDIA_AW-1:0] media_write_addr,
+    output wire [15:0]  media_write_data,
+    output wire [1:0]   media_write_enable,
+    input  wire        media_write_ready,
+    input  wire        media_write_busy,
+    input  wire        media_changed,
+    output wire        media_frozen,
+    output wire        media_read_req,
+    output wire [19:0] media_read_addr,
+    input  wire        media_read_ready,
+    input  wire [7:0]  media_read_data,
+    output wire [1:0]   unit0_state,
+    output wire [31:0]  unit0_size
+);
+    /* verilator lint_off UNUSEDSIGNAL */
+    wire unused_display_request;
+    wire [6:0] unused_display_opcode;
+    wire [7:0] unused_display_index;
+    wire [15:0] unused_display_argument;
+    /* verilator lint_on UNUSEDSIGNAL */
+    fes_computer_mailbox_core #(
+        .ENABLE_KEYBOARD(ENABLE_KEYBOARD),
+        .ENABLE_PORTS(ENABLE_PORTS),
+        .ENABLE_MOUSE(ENABLE_MOUSE),
+        .ENABLE_AUDIO(ENABLE_AUDIO),
+        .ENABLE_APPLE2_FLOPPY(ENABLE_APPLE2_FLOPPY),
+        .ENABLE_C64_DISK(ENABLE_C64_DISK),
+        .ENABLE_SPECTRUM_TAPE(ENABLE_SPECTRUM_TAPE),
+        .ENABLE_ZX81_TAPE(ENABLE_ZX81_TAPE),
+        .ENABLE_SESSION_DISPLAY(ENABLE_SESSION_DISPLAY),
+        .ENABLE_ATARI_ST_FLOPPY(ENABLE_ATARI_ST_FLOPPY),
+        .ENABLE_ATARI_ST_FLOPPY_WRITE(ENABLE_ATARI_ST_FLOPPY_WRITE),
+        .ENABLE_ATARI_ST_FLOPPY_GEOMETRY(ENABLE_ATARI_ST_FLOPPY_GEOMETRY),
+        .ENABLE_MEDIA_BACKPRESSURE(ENABLE_MEDIA_BACKPRESSURE),
+        .MEDIA_AW(MEDIA_AW),
+        .UNIT0_MIN(UNIT0_MIN),
+        .UNIT0_MAX(UNIT0_MAX)
+    ) core (
+        .clk(clk), .gpo(gpo), .build_id(build_id), .gpi(gpi),
+        .exec_reset(exec_reset), .keyboard_rows(keyboard_rows),
+        .controller_buttons(controller_buttons),
+        .mouse_valid(mouse_valid), .mouse_dx(mouse_dx), .mouse_dy(mouse_dy),
+        .mouse_buttons(mouse_buttons), .mouse_ready(mouse_ready),
+        .media_write_addr(media_write_addr), .media_write_data(media_write_data),
+        .media_write_enable(media_write_enable), .media_write_ready(media_write_ready),
+        .media_write_busy(media_write_busy), .media_changed(media_changed),
+        .media_frozen(media_frozen),
+        .media_read_req(media_read_req), .media_read_addr(media_read_addr),
+        .media_read_ready(media_read_ready), .media_read_data(media_read_data),
+        .unit0_state(unit0_state), .unit0_size(unit0_size),
+        .display_request(unused_display_request), .display_opcode(unused_display_opcode),
+        .display_index(unused_display_index), .display_argument(unused_display_argument),
+        .display_response_valid(1'b0), .display_response_error(1'b0),
+        .display_response_data(16'd0), .display_quiesced(1'b1)
+    );
 endmodule

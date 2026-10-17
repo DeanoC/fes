@@ -57,6 +57,137 @@ func kitDisplayApp(t *testing.T, server *httptest.Server) (*App, *transitionPadF
 	return app, feed
 }
 
+func computerTapeKitSession() hostclient.SessionResult {
+	s := hardwareBoundSession()
+	s.CoreKeyboard = true
+	s.Input = &hostclient.SessionInput{State: "attached", Ready: true}
+	tape := protocol.Zx81TapeInterface()
+	s.CorePackage.ABI = hostclient.SessionCoreABI{ID: "fes.computer", Major: 1}
+	s.CorePackage.ActiveInterfaces = []hostclient.SessionCoreInterface{{ID: tape.ID, Major: tape.Major, Minor: tape.Minor}}
+	s.CorePackage.MediaUnits = []protocol.MediaUnitStatus{{
+		Unit: protocol.Zx81TapeUnit, Interface: tape, MinBytes: 1, MaxBytes: 16384, ChunkBytes: 512, State: "empty",
+	}}
+	return s
+}
+
+func computerTapeDisplaySession() hostclient.SessionResult {
+	s := computerTapeKitSession()
+	s.CorePackage.ActiveInterfaces = append(s.CorePackage.ActiveInterfaces,
+		hostclient.SessionCoreInterface{ID: "fes.memory.hps-ddr", Major: 1},
+		hostclient.SessionCoreInterface{ID: "fes.video.session-display", Major: 1})
+	return s
+}
+
+func TestKitComputerTapeWithoutPlaneStaysHidden(t *testing.T) {
+	var displays atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		displays.Add(1)
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.mu.Lock()
+	app.session = computerTapeKitSession()
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+	now := time.Now()
+	app.HandleCommand(CmdHome, now)
+	app.HandleCommand(CmdSearch, now)
+	if snap := app.Snapshot(); snap.Session.LoadTape || snap.Session.HardwareRoom || snap.Room.DuringPlay || snap.TapePicker.Open || displays.Load() != 0 {
+		t.Fatalf("computer tape without a plane opened controls: %+v displays=%d", snap.Session, displays.Load())
+	}
+}
+
+func TestKitComputerTapePresentsFramesAndRestoresVideo(t *testing.T) {
+	prior := computerTapeDisplaySession()
+	var mu sync.Mutex
+	var visible []bool
+	presenter := &countingSessionMenu{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/session/display" {
+			http.NotFound(w, r)
+			return
+		}
+		var req struct {
+			Visible bool `json:"visible"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		mu.Lock()
+		visible = append(visible, req.Visible)
+		mu.Unlock()
+		presenter.set(menudisplay.Status{
+			Available: req.Visible, Session: true, Generation: map[bool]uint64{true: 4}[req.Visible],
+			PackageID: prior.CorePackage.PackageID, CoreGeneration: prior.CorePackage.Generation,
+			Width: 1280, Height: 720, Stride: 5120, ByteCount: menudisplay.FrameBytes,
+		})
+		writeKitDisplaySession(w, prior)
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	display, err := gfx.NewMenuDisplayWithPresenter(presenter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(display.Close)
+	app.SetMenuDisplay(display)
+	app.mu.Lock()
+	app.session = prior
+	app.syncGPUParkLocked()
+	app.mu.Unlock()
+	now := time.Now()
+	app.HandleCommand(CmdHome, now)
+	waitFor(t, app, "computer HDMI room", func(s Snapshot) bool {
+		return s.Room.DuringPlay && !s.GPUParked && !s.TapePicker.Open
+	})
+	display.Present()
+	waitSessionMenuFrame(t, display)
+	if calls, n := presenter.snapshot(); calls != 1 || n != menudisplay.FrameBytes {
+		t.Fatalf("room frame was not submitted: calls=%d bytes=%d", calls, n)
+	}
+	app.mu.Lock()
+	app.openTapePickerLocked()
+	app.mu.Unlock()
+	waitFor(t, app, "computer tape picker", func(s Snapshot) bool { return s.TapePicker.Open && s.Room.DuringPlay })
+	display.Present()
+	waitSessionMenuFrame(t, display)
+	if calls, n := presenter.snapshot(); calls != 2 || n != menudisplay.FrameBytes {
+		t.Fatalf("tape picker frame was not submitted: calls=%d bytes=%d", calls, n)
+	}
+	app.HandleCommand(CmdBack, now)
+	waitFor(t, app, "picker closed on the plane", func(s Snapshot) bool {
+		return !s.TapePicker.Open && s.Room.DuringPlay && !s.GPUParked
+	})
+	app.HandleCommand(CmdBack, now)
+	waitFor(t, app, "computer video restored", func(s Snapshot) bool {
+		return !s.TapePicker.Open && !s.Room.DuringPlay && s.GPUParked
+	})
+	before, _ := presenter.snapshot()
+	display.Present()
+	waitSessionMenuFrame(t, display)
+	if calls, _ := presenter.snapshot(); calls != before {
+		t.Fatalf("return submitted another launcher frame: %d -> %d", before, calls)
+	}
+	app.HandleCommand(CmdSearch, now)
+	waitFor(t, app, "search reopens the plane", func(s Snapshot) bool {
+		return s.TapePicker.Open && s.Room.DuringPlay && !s.GPUParked
+	})
+	display.Present()
+	waitSessionMenuFrame(t, display)
+	if calls, n := presenter.snapshot(); calls != before+1 || n != menudisplay.FrameBytes {
+		t.Fatalf("search frame was not submitted: calls=%d bytes=%d", calls, n)
+	}
+	app.HandleCommand(CmdBack, now)
+	app.HandleCommand(CmdBack, now)
+	waitFor(t, app, "search return", func(s Snapshot) bool {
+		return !s.TapePicker.Open && !s.Room.DuringPlay && s.GPUParked
+	})
+	mu.Lock()
+	defer mu.Unlock()
+	if len(visible) != 4 || !visible[0] || visible[1] || !visible[2] || visible[3] {
+		t.Fatalf("display handoff = %v", visible)
+	}
+}
+
 func TestKitLiveControlsNeedObservedCapability(t *testing.T) {
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1); http.NotFound(w, r) }))
@@ -543,6 +674,39 @@ func TestKitStarterLiveTapeImportsThenArmsCapturedMachine(t *testing.T) {
 	if !samePlayHIDSession(app.session, prior) {
 		t.Fatal("starter arm replaced machine")
 	}
+}
+
+type countingSessionMenu struct {
+	mu     sync.Mutex
+	status menudisplay.Status
+	calls  int
+	lastN  int
+}
+
+func (c *countingSessionMenu) set(status menudisplay.Status) {
+	c.mu.Lock()
+	c.status = status
+	c.mu.Unlock()
+}
+
+func (c *countingSessionMenu) snapshot() (int, int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.calls, c.lastN
+}
+
+func (c *countingSessionMenu) Status(context.Context) (menudisplay.Status, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.status, nil
+}
+
+func (c *countingSessionMenu) Present(_ context.Context, generation uint64, pixels []byte) (menudisplay.Result, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.calls++
+	c.lastN = len(pixels)
+	return menudisplay.Result{Generation: generation}, nil
 }
 
 type transientSessionMenu struct {

@@ -1102,10 +1102,15 @@ The retained `exchanges.json` remains the original volatile fixture with bits
 verifies exact GPI words, varied host-to-FPGA edge placement, field holding,
 one effect per toggle and error isolation.
 
-## FES simple-computer mailbox
+## FES ZX81 mailbox
 
-`cores/fes-zx81/rtl/fes_computer_gp.v` implements `fes.simple-computer` 1.0 on
-the same GPO/GPI transport. It holds execution in reset, keeps eight active-low
+The sealed shell is `fes.computer` 1.0. `top.v` instantiates
+`fes_computer_mailbox_core` in `cores/fes-common/rtl/fes_computer_mailbox.v`
+with the ZX81 tape unit and the session-display plane.
+Shells that leave the plane off keep the `fes_computer_mailbox` port list in
+that same file; that wrapper ties the plane response inputs idle.
+`cores/fes-zx81/rtl/fes_computer_gp.v` remains the session-harness mailbox on
+the older `fes.simple-computer` 1.0 transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
 begin/data/commit. Hold reset clears in-flight media and the keyboard; a
 committed blob stays. Media begin with eject index and argument 0 clears
@@ -1133,10 +1138,11 @@ normal show/return does not use execution hold.
 MiSTer-devel/ZX81_MiSTer `ZX81.sv` at Release 20260603: 16 KB RAM, PAL, no
 CHROMA/QS/YM2149/joystick. Keyboard rows and `.p` tape bytes come from the GP
 mailbox. Character ROM bytes are `cores/fes-zx81/rtl/zx8x.hex`, converted from
-the pinned `rtl/zx8x.mif`. The Z80 is TV80 (`66a131c`) wrapped as `T80pa` with
-Sorgelig half-cycle `CEN_p`/`CEN_n` timing, WAIT via CEN gating, and
-`TV80_REFRESH`. NMI is sampled every clock, matching T80.vhd. `CEN_p` averages exactly
-3.25 MHz from the rational machine clock scheduler.
+the pinned `rtl/zx8x.mif`. The CPU is the shared first-party `fes_z80_nmos`,
+driven by positive and negative phase enables from the rational machine clock scheduler at an average
+3.25 MHz. The machine passes WAIT, INT and NMI to that CPU and uses its native
+refresh bus cycle. The Zon X firmware diagnostic uses the same NMOS CPU and
+expansion socket as the machine and expansion simulations.
 
 `make sim-fes-zx81` also runs `Vzx81_machine`, which waits until NEW has built
 a display file at `D_FILE` starting with `0x76`, the CPU has HALTed for slow
@@ -1166,12 +1172,13 @@ The existing BASIC and expansion simulations remain part of `make sim-fes-zx81`.
 `fes.zx81` 1.2.0 oracle package. It is not a Mistral/nextpnr payload
 and is not the standard socketed package. The board shell
 `cores/fes-zx81/rtl/top.v` uses two `altera_pll` cells from the 50 MHz V11
-reference: 52 MHz system (T80, ULA, mailbox) and 74.25 MHz pixel (HDMI
+reference: 52 MHz system (`fes_z80_nmos`, ULA, mailbox) and 74.25 MHz pixel (HDMI
 1650×750). HDMI RGB/HS/VS/CLK pins and U10/AA4 match FES Pong. The HPS I2C
 cell is at `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111`; `out_clk`/`out_data`
 pull SCL/SDA low and `scl`/`sda` read the pads (Quartus assign-to-Z in place
-of Pong's `MISTRAL_IO`). The Z80 is VHDL T80pa from ZX81_MiSTer Release
-20260603; Verilator keeps TV80.
+of Pong's `MISTRAL_IO`). The Quartus oracle compiles the same `zx81_machine.sv`
+as product simulation and the OSS shell. That module instantiates `fes_z80_nmos`
+with no Quartus-specific CPU.
 
 The compile defines `QUARTUS=1`. ROM, 16 KB RAM and the 16 KB media blob
 instantiate `zx81_dpram`. Its Quartus branch is `altsyncram` bidirectional
@@ -1220,7 +1227,7 @@ that read so one response word describes one request. The shell producer
 rejects every async M10K in `synth.json` and `routed.json`. The
 validation-cart and QS producers reject every async M10K in `cart.json` and
 `cart-routed.json`. The 720p capture buffer is a dual-clock M10K SDP with
-its read registered on `pixel_clk`. The Z80 is Verilog T80pa/TV80.
+its read registered on `pixel_clk`. The Z80 is `fes_z80_nmos`.
 HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 (`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.
 
@@ -1335,8 +1342,20 @@ LAB and leaves the restored pin map in place. For each seed it tries heap
 timing weights 300 then 1000, then sweeps the same seeds at weights 2000, 100
 and 10 if needed (at most 70 attempts). It stops at the first route that meets
 timing and leaves every plug_addr request flip-flop's fabric exit free. A
-timing-passing route is rejected when another net occupies that column-24 GIN,
-and the search continues.
+timing-passing route is rejected when a socket flip-flop is missing or is not a
+`MISTRAL_FF` at its pinned BEL, when a `$ROUTETHRU` is not a `MISTRAL_COMB`,
+`MISTRAL_MCOMB`, or `MISTRAL_BUF` on that flip-flop's paired half, when any
+other shell cell sits in the socket, or when another net occupies that
+column-24 GIN. The search continues.
+The shell QSF keeps the cart interior `25 1 27 32` as the unnamed `cart`
+region. Cart merge targets that region, and the CRAM fence stays
+`1769,32,2806,7024`. The request and response flip-flops sit on columns 24
+and 28, which that interior does not cover. The same QSF reserves
+`plug_addr 24 1 24 32` and `plug_rdata 28 1 28 32` as separate regions, the
+column span used by the sealed C64 and Spectrum sockets. Unconstrained shell
+cells cannot share those LABs, so their LUT outputs do not take the only
+column-24 GIN a request flip-flop can drive. BEL-locked socket flip-flops
+still place. Cart cells stay in the interior.
 The build record seals
 the effective weight order and budget. This fallback handles placement-sensitive
 netlists without changing the clock requirements. The recipe uses
@@ -1393,7 +1412,7 @@ matching workaround rather than keep both.
 
 What already works in this design, so a toolchain fix should not regress it: two independent `altera_pll` cells on PIN_V11; 8-bit 16 K `m10k_tdp` infers 16 `MISTRAL_M10K_TDP` cells in under a second; Pong-style `MISTRAL_IO` HDMI I2C at X52/Y60.
 
-Verilog T80pa/TV80 is an OSS language choice, not a nextpnr packing gap. Quartus keeps VHDL T80pa.
+The product OSS shell and the Quartus oracle both instantiate `fes_z80_nmos` from `zx81_machine.sv`. That selection is not a nextpnr packing gap, and the oracle has no separate VHDL T80pa CPU.
 
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
@@ -2241,9 +2260,8 @@ records routed timing from exact source/tool snapshots without producing an
 RBF. Its optional `--require-target` timing gate fails if any selected seed
 misses the requested clock, after preserving the reports. The CPU contract
 records the selected 56 MHz route and the limits of its 16-times clock ratio.
-SG-1000 and Spectrum now select the NMOS variant; Spectrum has a separate
-documented-fast development producer. Coleco, SMS and ZX81 retain their existing
-CPU selections. The synthetic raw-pin replay self-test is included in
+SG-1000, ZX81 and the default Spectrum producer select the NMOS variant; Spectrum has a separate
+documented-fast development producer. Coleco and SMS retain TV80. The synthetic raw-pin replay self-test is included in
 `make sim-fes-z80`; operator-supplied genuine-chip captures use the same
 strict half-edge comparator. No physical-chip equivalence is inferred from
 software vectors, synthetic waveforms or a timing-passing FPGA build.

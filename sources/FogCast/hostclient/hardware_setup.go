@@ -48,6 +48,21 @@ func (c *Client) ImportZX81Tape(ctx context.Context, tape HardwareTape) (CoreMed
 	return result, err
 }
 
+// PackageMediaCapabilities reads the installed package's declared media roles.
+func (c *Client) PackageMediaCapabilities(ctx context.Context, pkg string) (protocol.CoreMediaCapabilities, error) {
+	if protocol.ValidateDigest(pkg) != nil {
+		return protocol.CoreMediaCapabilities{}, fmt.Errorf("invalid package identity")
+	}
+	var result protocol.CoreMediaCapabilities
+	if err := c.getJSON(ctx, "/api/v1/core-packages/"+url.PathEscape(pkg)+"/media-capabilities", &result); err != nil {
+		return protocol.CoreMediaCapabilities{}, err
+	}
+	if result.PackageID != pkg {
+		return protocol.CoreMediaCapabilities{}, fmt.Errorf("media capabilities identity mismatch")
+	}
+	return result, nil
+}
+
 func (c *Client) SelectCoreEntryMedia(ctx context.Context, game, pkg, expected, role, id string) (CoreEntry, error) {
 	if protocol.ValidateGameID(game) != nil || protocol.ValidateDigest(pkg) != nil || (expected != "" && protocol.ValidateDigest(expected) != nil) || (id != "" && protocol.ValidateDigest(id) != nil) {
 		return CoreEntry{}, fmt.Errorf("invalid media selection identity")

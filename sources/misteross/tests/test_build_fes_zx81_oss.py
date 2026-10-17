@@ -29,63 +29,25 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildFesZx81OssTests(unittest.TestCase):
-    def test_session_display_evidence_rejects_layout_writes_and_async_fifo(self):
-        from tests.test_build_fes_splash import SplashProducerTests
-        cell = SplashProducerTests.layout_cell(cmd_data_0=['0']*60)
-        graph = {'modules': {'top': {'cells': {'ddr': cell}}}}
-        evidence = build_fes_zx81_oss._session_display_evidence(graph, 'test', ROOT)
-        self.assertTrue(evidence['read_only'])
-        for port in ('cmd_valid_1', 'wr_valid_0', 'wr_valid_3'):
-            cell['connections'][port] = ['1']
-            with self.assertRaisesRegex(BuildError, 'writes and unused ports'):
-                build_fes_zx81_oss._session_display_evidence(graph, 'test', ROOT)
-            cell['connections'][port] = ['0']
-        cell['connections']['cmd_data_0'][1] = '1'
-        with self.assertRaisesRegex(BuildError, 'writes and unused ports'):
-            build_fes_zx81_oss._session_display_evidence(graph, 'test', ROOT)
-        cell['connections']['cmd_data_0'][1] = '0'
-        cell['connections']['cfg_port_width'][0] = '0' if cell['connections']['cfg_port_width'][0] == '1' else '1'
-        with self.assertRaisesRegex(BuildError, 'layout'):
-            build_fes_zx81_oss._session_display_evidence(graph, 'test', ROOT)
-        graph['modules']['top']['cells']['ddr'] = SplashProducerTests.layout_cell(cmd_data_0=['0']*60)
-        graph['modules']['top']['cells']['display.video.reader.fifo'] = {
-            'type': 'MISTRAL_M10K', 'parameters': {'CFG_ASYNC_READ': '1'}}
-        with self.assertRaisesRegex(BuildError, 'synchronous M10K'):
-            build_fes_zx81_oss._session_display_evidence(graph, 'test', ROOT)
-
-    def test_session_display_routed_ground_driver_is_accepted_and_one_is_rejected(self):
-        from tests.test_build_fes_splash import SplashProducerTests
-        cell = SplashProducerTests.layout_cell(cmd_data_0=['0']*60)
-        ground = {'type': 'MISTRAL_CONST', 'parameters': {'LUT': '0'*32}, 'connections': {'Q': [123]}}
-        graph = {'modules': {'top': {'cells': {'ddr': cell, 'ground': ground}}}}
-        cell['connections']['cmd_valid_1'] = [123]
-        cell['connections']['wr_valid_0'] = [123]
-        cell['connections']['cmd_data_0'][1] = 123
-        build_fes_zx81_oss._session_display_evidence(graph, 'routed', ROOT)
-        ground['parameters']['LUT'] = '1'*32
-        with self.assertRaisesRegex(BuildError, 'writes and unused ports'):
-            build_fes_zx81_oss._session_display_evidence(graph, 'routed', ROOT)
-
-    def test_session_display_inputs_enter_functional_record(self):
+    def test_nmos_cpu_sources_enter_functional_record(self):
         from scripts.export_core_package import build_identity
-        paths = (build_fes_zx81_oss.DDR_ATOM, 'cores/fes-menu/rtl/fes_menu_reader.v',
-                 'cores/fes-zx81/rtl/zx81_session_display.v')
+        name = 'cores/fes-common/rtl/z80/fes_z80_nmos.sv'
+        self.assertIn(name, build_fes_zx81_oss.PINNED_INPUTS)
         record = build_fes_zx81_oss.create_build_record(ROOT, 'https://example.invalid/fes', 'a'*40,
                                                        {'yosys': 'x'}, execution=EXECUTION)
-        for name in paths:
-            self.assertIn(name, build_fes_zx81_oss.PINNED_INPUTS)
-            path = ROOT / name
-            original = path.read_bytes()
-            try:
-                path.write_bytes(original+b'\n// changed functional input\n')
-                changed = build_fes_zx81_oss.create_build_record(ROOT, 'https://example.invalid/fes', 'a'*40,
-                                                                {'yosys': 'x'}, execution=EXECUTION)
-                self.assertNotEqual(build_identity(record), build_identity(changed))
-            finally:
-                path.write_bytes(original)
+        path = ROOT / name
+        original = path.read_bytes()
+        try:
+            path.write_bytes(original+b'\n// changed functional input\n')
+            changed = build_fes_zx81_oss.create_build_record(ROOT, 'https://example.invalid/fes', 'a'*40,
+                                                            {'yosys': 'x'}, execution=EXECUTION)
+            self.assertNotEqual(build_identity(record), build_identity(changed))
+        finally:
+            path.write_bytes(original)
         program = build_commands(ROOT, ROOT/OUTPUT_RELATIVE, '0'*32,
             {'yosys': Path('/auth/yosys'), 'nextpnr-mistral': Path('/auth/nextpnr')})[0][-1]
-        self.assertTrue(program.startswith('read_verilog -lib '+build_fes_zx81_oss.DDR_ATOM+';'))
+        self.assertIn('fes_z80_nmos.sv', program)
+        self.assertNotIn('tv80_core.v', program)
 
     def test_shared_audio_sources_replace_local_serializer(self):
         self.assertNotIn('cores/fes-common/rtl/fes_audio_pll.v', RTL_SOURCES)
@@ -203,7 +165,6 @@ class BuildFesZx81OssTests(unittest.TestCase):
             with patch.object(build_fes_zx81_oss, '_i2c_evidence'), patch.object(
                 build_fes_zx81_oss, '_audio_synthesis_evidence'), patch.object(
                 build_fes_zx81_oss, '_audio_evidence'), patch.object(
-                build_fes_zx81_oss, '_session_display_evidence'), patch.object(
                 build_fes_zx81_oss, '_cell_counts', return_value={
                     **build_fes_zx81_oss.REQUIRED_RESOURCES,
                     'MISTRAL_M10K': 1,
@@ -216,21 +177,43 @@ class BuildFesZx81OssTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory)
             (output / 'synth.json').write_text('{"modules":{"top":{}}}')
-            routed = {"modules": {"top": {"netnames": {
-                "video.vsync": {"attributes": {"ROUTING": "WIRE.24.2.COMBOUT[19].GIN.24.2.38"}},
-            }}}}
+            from tests.test_build_fes_zx81_expansion import legal_socket_design
+            routed = legal_socket_design(routes={
+                "video.vsync": "WIRE.24.2.COMBOUT[19].GIN.24.2.38",
+            })
             (output / 'routed.json').write_text(json.dumps(routed))
             (output / 'nextpnr.log').write_text("Info: Program finished normally.\n")
             with patch.object(build_fes_zx81_oss, '_i2c_evidence'), patch.object(
                 build_fes_zx81_oss, '_audio_synthesis_evidence'), patch.object(
                 build_fes_zx81_oss, '_audio_evidence'), patch.object(
-                build_fes_zx81_oss, '_session_display_evidence'), patch.object(
                 build_fes_zx81_oss, '_cell_counts', return_value={
                     **build_fes_zx81_oss.REQUIRED_RESOURCES,
                     'MISTRAL_M10K': 1,
                 }
             ):
                 with self.assertRaisesRegex(BuildError, r'plug_addr\[39\] exit used by video.vsync'):
+                    build_fes_zx81_oss.validate_build_evidence(output)
+
+    def test_signoff_rejects_shell_logic_on_the_plug_column(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            (output / 'synth.json').write_text('{"modules":{"top":{}}}')
+            from tests.test_build_fes_zx81_expansion import legal_socket_design
+            routed = legal_socket_design(extra_cells={
+                "video.vsync": {"type": "MISTRAL_COMB",
+                                "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.24.2.0"}},
+            })
+            (output / 'routed.json').write_text(json.dumps(routed))
+            (output / 'nextpnr.log').write_text("Info: Program finished normally.\n")
+            with patch.object(build_fes_zx81_oss, '_i2c_evidence'), patch.object(
+                build_fes_zx81_oss, '_audio_synthesis_evidence'), patch.object(
+                build_fes_zx81_oss, '_audio_evidence'), patch.object(
+                build_fes_zx81_oss, '_cell_counts', return_value={
+                    **build_fes_zx81_oss.REQUIRED_RESOURCES,
+                    'MISTRAL_M10K': 1,
+                }
+            ):
+                with self.assertRaisesRegex(BuildError, r'video\.vsync at MISTRAL_COMB\.24\.2\.0'):
                     build_fes_zx81_oss.validate_build_evidence(output)
 
     def test_build_exports_sealed_map_and_cleans_failed_database_recheck(self):
@@ -403,7 +386,7 @@ class BuildFesZx81OssTests(unittest.TestCase):
                 manifest.install / "bin/nextpnr-mistral",
             )
 
-    def test_oss_commands_use_tv80_m10k_and_not_vhdl_t80(self) -> None:
+    def test_oss_commands_use_nmos_z80_and_not_tv80(self) -> None:
         yosys, nextpnr = build_commands(
             ROOT,
             ROOT / OUTPUT_RELATIVE,
@@ -411,8 +394,9 @@ class BuildFesZx81OssTests(unittest.TestCase):
             {"yosys": Path("/tmp/yosys"), "nextpnr-mistral": Path("/tmp/nextpnr-mistral")},
         )
         program = yosys[2]
-        self.assertIn("tv80_core.v", program)
-        self.assertIn("t80pa.v", program)
+        self.assertIn("fes_z80_nmos.sv", program)
+        self.assertNotIn("tv80_core.v", program)
+        self.assertNotIn("t80pa.v", program)
         self.assertIn("-DFES_ZX81_ROM_LINK=1", program)
         self.assertIn("zx81_rom_link.v", program)
         self.assertNotIn("zx8x.hex", program)
@@ -530,8 +514,15 @@ class BuildFesZx81OssTests(unittest.TestCase):
         self.assertTrue(next(item['required'] for item in fields['interfaces']
                              if item['id'] == 'fes.audio.pcm-s16-stereo-48k'))
         self.assertNotIn("fes.expansion.zx81-ram", interfaces)
-        for name in ('fes.memory.hps-ddr', 'fes.video.session-display'):
-            self.assertTrue(next(item['required'] for item in fields['interfaces'] if item['id'] == name))
+        self.assertEqual(fields["abi"]["id"], "fes.computer")
+        self.assertIn("fes.keyboard.hid", interfaces)
+        self.assertIn("fes.media.zx81-tape", interfaces)
+        self.assertNotIn("fes.media.blob", interfaces)
+        self.assertIn("fes.memory.hps-ddr", interfaces)
+        self.assertIn("fes.video.session-display", interfaces)
+        for item in fields["interfaces"]:
+            if item["id"] in ("fes.memory.hps-ddr", "fes.video.session-display"):
+                self.assertTrue(item["required"])
 
 
 class Zx81SyncM10kTests(unittest.TestCase):
@@ -584,7 +575,7 @@ class Zx81YosysM10kTests(unittest.TestCase):
         sources = " ".join(build_fes_zx81_oss.RTL_SOURCES)
         program = (
             f"read_verilog -lib {build_fes_zx81_oss.DDR_ATOM}; "
-            "read_verilog -sv -DTV80_REFRESH=1 -DFES_ZX81_ROM_LINK=1 "
+            "read_verilog -sv -DFES_ZX81_ROM_LINK=1 "
             "-I cores/fes-zx81/generated -I cores/fes-common/generated -I cores/fes-zx81/rtl "
             f"{sources}; "
             "chparam -set BUILD_ID 128'h" + "0" * 32 + " top; "
