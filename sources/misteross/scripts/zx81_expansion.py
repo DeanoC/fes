@@ -280,14 +280,43 @@ def blocked_plug_addr_message(blocked: list[tuple[int, str]]) -> str:
     return f"socket boundary leaves plug_addr unroutable: {details}"
 
 
+def missing_socket_ffs(design: object) -> list[str]:
+    """Boundary flip-flops absent from a routed shell.
+
+    ``prepare_shell_netlist`` requires them before routing. Signoff reads the
+    routed design, so a cell that the router dropped is still a failed socket.
+    A cell that is present at the wrong type or BEL is an intruder, not a
+    missing name.
+    """
+    modules = design.get("modules") if isinstance(design, dict) else None
+    top = modules.get("top") if isinstance(modules, dict) else None
+    cells = top.get("cells") if isinstance(top, dict) else None
+    if not isinstance(cells, dict):
+        cells = {}
+    return [name for name in socket_bels() if name not in cells]
+
+
+def missing_socket_ff_message(missing: list[str]) -> str:
+    shown = missing[:4]
+    details = "; ".join(shown)
+    extra = len(missing) - len(shown)
+    if extra:
+        details += f"; and {extra} more"
+    return f"socket boundary flip-flop missing: {details}"
+
+
 def socket_design_reason(design: object) -> str | None:
     """Reject a routed shell whose connector or socket floorplan is wrong.
 
-    A socket flip-flop is legal only as ``MISTRAL_FF`` at its pinned BEL. A
+    Every ``socket_bels()`` flip-flop must still be present. One that is
+    present is legal only as ``MISTRAL_FF`` at its pinned BEL. A
     ``$ROUTETHRU`` is legal only on that flip-flop's paired half. Any other
     cell in the cart interior or on the plug columns is shell logic, and a
     foreign net on a request exit still makes that bit unroutable.
     """
+    missing = missing_socket_ffs(design)
+    if missing:
+        return missing_socket_ff_message(missing)
     intruders = shell_cells_in_socket(design)
     if intruders:
         return socket_occupancy_message(intruders)

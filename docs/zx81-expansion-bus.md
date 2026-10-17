@@ -110,8 +110,9 @@ the same deterministic recipe. It rejects logged compiler errors even when
 the process exits zero, and clears old outputs before each attempt.
 It checks timing and rejects any non-CRC change outside the
 fixed socket. The timing check names the pixel clock `display.control.clk`,
-the net nextpnr reports. The shell search rejects a seed when a socket flip-flop is not a `MISTRAL_FF`
-at its pinned BEL, when a `$ROUTETHRU` is not a `MISTRAL_COMB`, `MISTRAL_MCOMB`,
+the net nextpnr reports. The shell search rejects a seed when a socket flip-flop is absent from the
+routed design, when one that is present is not a `MISTRAL_FF` at its pinned
+BEL, when a `$ROUTETHRU` is not a `MISTRAL_COMB`, `MISTRAL_MCOMB`,
 or `MISTRAL_BUF` on that flip-flop's paired half, when any other shell logic
 is placed in the cart interior or on the plug columns, and when another net
 occupies a plug_addr request flip-flop's only fabric exit. The cart interior stays
