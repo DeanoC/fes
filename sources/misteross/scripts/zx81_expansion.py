@@ -23,8 +23,6 @@ import json
 import re
 from pathlib import Path
 
-from scripts import coleco_expansion
-
 
 SOCKET_CLOCK = "clk_sys"
 # Unnamed, so nextpnr calls this region "cart". Cart merge uses that default
@@ -159,52 +157,62 @@ def _nextpnr_bel(cell: dict) -> str:
     return bel if isinstance(bel, str) else ""
 
 
-def _valid_boundary_ffs(cells: dict) -> dict[str, str]:
-    valid = {}
-    for name, bel in socket_bels().items():
-        cell = cells.get(name)
-        if isinstance(cell, dict) and cell.get("type") == "MISTRAL_FF" and _nextpnr_bel(cell) == bel:
-            valid[name] = bel
-    return valid
+def paired_route_through_bels(ff_bel: str) -> set[str]:
+    """The combinational half paired with one pinned socket flip-flop.
 
-
-def _admitted_boundary_names(top: dict, cells: dict) -> set[str]:
-    """Pinned boundary flip-flops plus route-throughs the shared checker admits.
-
-    A socket name is not enough. The flip-flop must be a ``MISTRAL_FF`` at its
-    ``socket_bels()`` site. A ``$ROUTETHRU`` is admitted only by
-    ``coleco_expansion.boundary_route_through_cells`` (type, paired BEL,
-    dedicated connection, and pin map). A malformed buffer stays unadmitted.
+    The ZX81 companion is that half as ``MISTRAL_COMB``, ``MISTRAL_MCOMB``,
+    or ``MISTRAL_BUF``. It does not carry the Coleco pin-map protocol.
     """
-    valid = _valid_boundary_ffs(cells)
-    admitted = set(valid)
-    if not valid:
-        return admitted
-    try:
-        admitted |= coleco_expansion.boundary_route_through_cells(top, valid)
-    except ValueError:
-        return admitted
-    return admitted
+    parts = ff_bel.split(".")
+    if len(parts) != 4 or parts[0] != "MISTRAL_FF" or not all(part.isdigit() for part in parts[1:]):
+        return set()
+    z = int(parts[3])
+    if z % 6 not in (2, 4):
+        return set()
+    half = 0 if z % 6 == 2 else 1
+    paired = f"{parts[1]}.{parts[2]}.{(z // 6) * 6 + half}"
+    return {f"MISTRAL_COMB.{paired}", f"MISTRAL_MCOMB.{paired}", f"MISTRAL_BUF.{paired}"}
+
+
+def _pinned_socket_cell(name: str, cell: dict, bel: str, expected: dict[str, str]) -> bool:
+    if name in expected:
+        return cell.get("type") == "MISTRAL_FF" and bel == expected[name]
+    if not name.endswith("$ROUTETHRU"):
+        return False
+    stem = name.removesuffix("$ROUTETHRU")
+    return (
+        stem in expected
+        and cell.get("type") in {"MISTRAL_COMB", "MISTRAL_MCOMB", "MISTRAL_BUF"}
+        and bel in paired_route_through_bels(expected[stem])
+    )
 
 
 def shell_cells_in_socket(design: object) -> list[tuple[str, str]]:
     """Shell cells placed in the cart interior or on the plug columns.
 
-    The cart interior stays empty. A plug column may hold a boundary
-    flip-flop at its pinned BEL, or the paired data buffer that the shared
-    route-through check admits. Nothing else may.
+    A socket flip-flop is admitted only as ``MISTRAL_FF`` at its
+    ``socket_bels()`` BEL. Its ``$ROUTETHRU`` is admitted only on that
+    flip-flop's paired half. A matching name anywhere else is shell logic.
+    Nothing else may occupy the plug columns, and the cart interior stays
+    empty.
     """
-    top, cells = _top_cells(design)
-    if top is None:
+    _top, cells = _top_cells(design)
+    if not cells and _top is None:
         return []
     cart = _parse_rect(SOCKET_RECT)
     boundary = tuple(_parse_rect(spec) for spec in BOUNDARY_RECTS)
-    allowed = _admitted_boundary_names(top, cells)
+    expected = socket_bels()
     intruders: list[tuple[str, str]] = []
     for name, cell in cells.items():
-        if not isinstance(name, str) or not isinstance(cell, dict) or name in allowed:
+        if not isinstance(name, str) or not isinstance(cell, dict):
             continue
         bel = _nextpnr_bel(cell)
+        stem = name.removesuffix("$ROUTETHRU") if name.endswith("$ROUTETHRU") else ""
+        if name in expected or stem in expected:
+            if _pinned_socket_cell(name, cell, bel, expected):
+                continue
+            intruders.append((name, bel or "<unplaced>"))
+            continue
         xy = _bel_xy(bel)
         if xy is None:
             continue
@@ -312,19 +320,14 @@ def socket_design_reason(design: object) -> str | None:
     """Reject a routed shell whose connector or socket floorplan is wrong.
 
     Every boundary flip-flop must be a ``MISTRAL_FF`` at its pinned BEL. A
-    ``$ROUTETHRU`` must pass the shared paired-buffer check. Any other cell
-    in the cart interior or on the plug columns is shell logic, and a foreign
-    net on a request exit still makes that bit unroutable.
+    ``$ROUTETHRU`` must be ``MISTRAL_COMB``, ``MISTRAL_MCOMB``, or
+    ``MISTRAL_BUF`` on that flip-flop's paired half. Any other cell in the
+    cart interior or on the plug columns is shell logic, and a foreign net
+    on a request exit still makes that bit unroutable.
     """
     mismatch = socket_ff_problem(design)
     if mismatch:
         return mismatch
-    top, _cells = _top_cells(design)
-    if isinstance(top, dict):
-        try:
-            coleco_expansion.boundary_route_through_cells(top, socket_bels())
-        except ValueError as exc:
-            return str(exc)
     intruders = shell_cells_in_socket(design)
     if intruders:
         return socket_occupancy_message(intruders)

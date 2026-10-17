@@ -639,8 +639,7 @@ class ZX81PlugAddrExitTests(unittest.TestCase):
             [("plug_addr_ff_0", "MISTRAL_FF.24.1.2")])
         self.assertEqual(
             expansion.shell_cells_in_socket(
-                placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.1.0")),
-            [("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.1.0")])
+                placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.1.0")), [])
         self.assertEqual(
             expansion.shell_cells_in_socket(
                 placed("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.2.0")),
@@ -667,11 +666,23 @@ class ZX81PlugAddrExitTests(unittest.TestCase):
             "plug_addr_ff_0 is MISTRAL_COMB at MISTRAL_COMB.24.2.0, "
             "required MISTRAL_FF at MISTRAL_FF.24.1.2",
             reason or "")
-        bad_buffer = _paired_route_through(legal_socket_design())
-        bad_buffer["modules"]["top"]["cells"]["plug_addr_ff_0$ROUTETHRU"]["type"] = "MISTRAL_COMB"
-        self.assertIn(
-            "boundary route-through",
-            expansion.socket_design_reason(bad_buffer) or "")
+        companion = legal_socket_design(extra_cells={
+            "plug_addr_ff_0$ROUTETHRU": {
+                "type": "MISTRAL_COMB",
+                "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.24.1.0"},
+            },
+        })
+        self.assertEqual(expansion.shell_cells_in_socket(companion), [])
+        self.assertIsNone(expansion.socket_design_reason(companion))
+        wrong_type = legal_socket_design(extra_cells={
+            "plug_addr_ff_0$ROUTETHRU": {
+                "type": "MISTRAL_LUT",
+                "attributes": {"NEXTPNR_BEL": "MISTRAL_COMB.24.1.0"},
+            },
+        })
+        self.assertEqual(
+            expansion.shell_cells_in_socket(wrong_type),
+            [("plug_addr_ff_0$ROUTETHRU", "MISTRAL_COMB.24.1.0")])
 
     def test_accept_hook_rejects_shell_logic_before_a_free_exit(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
