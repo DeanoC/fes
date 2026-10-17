@@ -3,9 +3,13 @@
 `fes.c64` 0.4.0 is a package-only Commodore 64 pathfinder on `fes.computer`
 1.0. It follows the Apple II pattern: late-bound firmware, a live removable
 disk, and linkable expansion cards. It is not in the factory image. No
-Commodore ROM is in this tree. The shared-pin seal is recorded: CUDA package
-`1d599353eaef5502…` (build `6f865fddebe62184…`) on `toolchain.lock`, seed 5,
-final signoff system 54.29/52.224, pixel 75.10/74.25, audio 229.67/12.288.
+Commodore ROM is in this tree. The current shared-pin seal of this native-drive
+shell with the default SID audio stage is CUDA package `e64ae33581d79e72…`
+(build `1a1ece4418c5a9e1…`) on `toolchain.lock`, seed 4 (seed 5 exceeded the
+route budget), final analogue signoff system 58.33/52.224 (setup slack
+2.00 ns, hold 0.73 ns), pixel 129.22/74.25, audio 208.46/12.288, from source
+`439cf060`. The earlier 0.4.0 seal was CUDA package `1d599353eaef5502…`
+(build `6f865fddebe62184…`), seed 5, system 54.29/52.224.
 A CUDA seal is valid on its own (Deano, 2026-10-13); HIP only adds GPUs.
 Kit acceptance of those bytes is still open. The keyboard transposition in
 [#750](https://github.com/DeanoC/fes/issues/750) is unrelated.
