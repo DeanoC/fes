@@ -16,6 +16,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shlex
 import shutil
 import stat
@@ -29,6 +30,13 @@ from typing import Any, Iterator, Mapping
 SCHEMA_VERSION = 1
 DEFAULT_GPU_ROUTER = "OFF"
 DEFAULT_HIP_ARCHITECTURES = "gfx1100;gfx1201"
+# Native sm_86 code (RTX 3070/3090) runs without PTX JIT.  JIT fails when the
+# installed driver is older than the CUDA toolkit that produced the PTX.
+DEFAULT_CUDA_ARCHITECTURES = "86"
+# One or more CMake CUDA_ARCHITECTURES entries such as ``86``, ``75;86`` or
+# ``86-real``.  ``native`` and ``all`` are not reproducible identities.
+_CUDA_ARCHITECTURE = r"[0-9]+[a-z]?(?:-real|-virtual)?"
+_CUDA_ARCHITECTURES_RE = re.compile(rf"{_CUDA_ARCHITECTURE}(?:;{_CUDA_ARCHITECTURE})*")
 TOOL_BINARY_NAMES = {
     "yosys": "yosys",
     "mistral": "mistral-cv",
@@ -109,6 +117,7 @@ class ToolchainRequest:
     cache_root: Path
     gpu_router: str = DEFAULT_GPU_ROUTER
     hip_architectures: str = DEFAULT_HIP_ARCHITECTURES
+    cuda_architectures: str = DEFAULT_CUDA_ARCHITECTURES
     host_identity: Mapping[str, Any] = dataclasses.field(default_factory=dict)
     compiler_identity: Mapping[str, Any] = dataclasses.field(default_factory=dict)
     environment: Mapping[str, Any] = dataclasses.field(default_factory=dict)
@@ -216,10 +225,44 @@ def _normalise_configuration(request: ToolchainRequest) -> dict[str, Any]:
     if router not in {"OFF", "HIP", "CUDA"}:
         raise CacheError(f"unsupported GPU router for shared cache: {router}")
     architectures = str(request.hip_architectures or DEFAULT_HIP_ARCHITECTURES)
-    return {
+    configuration = {
         "gpu-router": router,
         "hip-architectures": architectures if router == "HIP" else "unused",
     }
+    # Only the CUDA lane carries this field. HIP and OFF configuration
+    # identities omit it, so a CUDA architecture list does not fork their
+    # slots. Every lane's key still hashes scripts/bootstrap.sh,
+    # scripts/lockfile.py and scripts/toolchain_cache.py; editing those
+    # recipes selects a new slot even when the configuration is unchanged.
+    if router == "CUDA":
+        configuration["cuda-architectures"] = validated_cuda_architectures(
+            request.cuda_architectures
+        )
+    return configuration
+
+
+def validated_cuda_architectures(value: str | None) -> str:
+    """Return an explicit CMake CUDA architecture list or raise ``CacheError``."""
+
+    architectures = str(value or DEFAULT_CUDA_ARCHITECTURES)
+    if _CUDA_ARCHITECTURES_RE.fullmatch(architectures) is None:
+        raise CacheError(
+            "CUDA architectures must be explicit CMake CUDA_ARCHITECTURES entries "
+            f"such as 86 or 75;86, not {architectures!r}"
+        )
+    return architectures
+
+
+def configuration_text(configuration: Mapping[str, Any]) -> str:
+    """Return the nextpnr ``.config-*.txt`` attestation line for a lane."""
+
+    text = (
+        f"gpu-router={configuration['gpu-router']}; "
+        f"hip-architectures={configuration['hip-architectures']}"
+    )
+    if "cuda-architectures" in configuration:
+        text += f"; cuda-architectures={configuration['cuda-architectures']}"
+    return text
 
 
 def cache_key(request: ToolchainRequest) -> str:
@@ -1000,6 +1043,7 @@ def validate_shared_environment(
     *,
     gpu_router: str | None = None,
     hip_architectures: str | None = None,
+    cuda_architectures: str | None = None,
     allow_resolved_paths: bool = False,
 ) -> None:
     """Reject build-affecting overrides outside the v1 shared contract."""
@@ -1010,19 +1054,29 @@ def validate_shared_environment(
         hip_architectures
         or values.get("FES_TOOLCHAIN_HIP_ARCHITECTURES", DEFAULT_HIP_ARCHITECTURES)
     )
+    cuda_selected = str(
+        cuda_architectures
+        or values.get("FES_TOOLCHAIN_CUDA_ARCHITECTURES", DEFAULT_CUDA_ARCHITECTURES)
+    )
     for name, value in values.items():
         if not value or name in _RUNTIME_ENVIRONMENT:
             continue
         if name.startswith("LC_"):
             continue
-        if name in {"FES_TOOLCHAIN_CACHE_ROOT", "FES_TOOLCHAIN_LOCKFILE", "FES_TOOLCHAIN_ROOT", "FES_TOOLCHAIN_GPU_ROUTER", "FES_TOOLCHAIN_HIP_ARCHITECTURES", "FES_TOOLCHAIN_CACHE_RESOLVED"}:
+        if name in {"FES_TOOLCHAIN_CACHE_ROOT", "FES_TOOLCHAIN_LOCKFILE", "FES_TOOLCHAIN_ROOT", "FES_TOOLCHAIN_GPU_ROUTER", "FES_TOOLCHAIN_HIP_ARCHITECTURES", "FES_TOOLCHAIN_CUDA_ARCHITECTURES", "FES_TOOLCHAIN_CACHE_RESOLVED"}:
             continue
         if name in {"TOOLCHAIN_ROOT", "TOOLCHAIN_INSTALL", "TOOLCHAIN_BUILD"}:
             if allow_resolved_paths and name in {"TOOLCHAIN_ROOT", "TOOLCHAIN_INSTALL", "TOOLCHAIN_BUILD"}:
                 continue
             raise CacheError(f"shared cache rejects local toolchain override: {name}")
-        if name in {"CMAKE_HIP_ARCHITECTURES"} and router == "HIP" and value == architectures:
+        if name in {"CMAKE_HIP_ARCHITECTURES", "HIPARCHS"} and router == "HIP" and value == architectures:
             continue
+        if name in {"CMAKE_CUDA_ARCHITECTURES", "CUDAARCHS"} and router == "CUDA" and value == cuda_selected:
+            continue
+        if name in {"CUDAARCHS", "HIPARCHS"}:
+            # CMake reads these as architecture defaults, so any other value
+            # would build a different binary under the same slot key.
+            raise CacheError(f"shared cache v1 rejects unrequested CMake architecture selector: {name}")
         if name in {"ROCM_PATH", "HIPCC"} and router == "HIP":
             continue
         if name in {"CUDA_HOME", "CUDACXX", "CUDA_PATH"} and router == "CUDA":
@@ -1057,7 +1111,7 @@ def validate_shared_environment(
 
 def _request_environment(values: Mapping[str, str]) -> dict[str, str]:
     # Lane selectors are represented canonically by ToolchainRequest's
-    # ``gpu_router``/``hip_architectures`` fields and therefore must not also
+    # ``gpu_router``/``hip_architectures``/``cuda_architectures`` fields and therefore must not also
     # be keyed as raw environment presence.  Keeping them here would make an
     # omitted default (OFF or the default HIP list) differ from the explicit
     # spelling used by bootstrap's command line.  Backend roots and compiler
@@ -1494,10 +1548,11 @@ def request_from_environment(
     cache_root: Path | None = None,
     gpu_router: str | None = None,
     hip_architectures: str | None = None,
+    cuda_architectures: str | None = None,
 ) -> ToolchainRequest:
     """Build a request from the opt-in environment after host probing.
 
-    ``gpu_router`` and ``hip_architectures`` may be supplied by a consumer
+    ``gpu_router``, ``hip_architectures`` and ``cuda_architectures`` may be supplied by a consumer
     explicitly (Coleco's HIP lane does this) so selecting a lane does not
     require mutating the process environment.  Unspecified values retain the
     existing environment/default precedence.
@@ -1521,6 +1576,11 @@ def request_from_environment(
         if hip_architectures is not None
         else os.environ.get("FES_TOOLCHAIN_HIP_ARCHITECTURES", DEFAULT_HIP_ARCHITECTURES)
     )
+    cuda_selected = str(
+        cuda_architectures
+        if cuda_architectures is not None
+        else os.environ.get("FES_TOOLCHAIN_CUDA_ARCHITECTURES", DEFAULT_CUDA_ARCHITECTURES)
+    )
     # The resolver marker is internal plumbing for consumers after a manifest
     # has been selected.  It is never an authorization to accept a caller's
     # compiler/search-path overrides: the request must validate the original
@@ -1529,6 +1589,7 @@ def request_from_environment(
         os.environ,
         gpu_router=router,
         hip_architectures=architectures,
+        cuda_architectures=cuda_selected,
         allow_resolved_paths=False,
     )
     environment = _request_environment(os.environ)
@@ -1540,6 +1601,7 @@ def request_from_environment(
         cache_root=Path(selected_cache),
         gpu_router=router,
         hip_architectures=architectures,
+        cuda_architectures=cuda_selected,
         host_identity=host,
         compiler_identity=compiler,
         environment=environment,
@@ -1555,6 +1617,7 @@ def _load_request_arguments(argv: list[str]) -> ToolchainRequest:
     parser.add_argument("--cache", dest="cache_root", type=Path)
     parser.add_argument("--gpu-router", default=None)
     parser.add_argument("--hip-architectures", default=None)
+    parser.add_argument("--cuda-architectures", default=None)
     parser.add_argument("command", choices=("init", "plan", "verify", "stage-evidence", "publish"))
     parser.add_argument("--field", choices=("key", "slot", "source", "build", "install", "evidence", "lock"))
     parser.add_argument("--build-root", type=Path)
@@ -1571,6 +1634,8 @@ def _load_request_arguments(argv: list[str]) -> ToolchainRequest:
         environment["FES_TOOLCHAIN_GPU_ROUTER"] = args.gpu_router
     if args.hip_architectures is not None:
         environment["FES_TOOLCHAIN_HIP_ARCHITECTURES"] = args.hip_architectures
+    if args.cuda_architectures is not None:
+        environment["FES_TOOLCHAIN_CUDA_ARCHITECTURES"] = args.cuda_architectures
     with _temporary_environment(environment):
         request = request_from_environment(
             args.root,

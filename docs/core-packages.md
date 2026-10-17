@@ -202,6 +202,9 @@ is not a substitute for it. The `toolchain-fes`, `toolchain-fes-zx81` and
 their respective slots. `make toolchain` may compile the pinned tools into
 that shared slot and is intentionally separate from ordinary parent tests.
 `make host` remains independent of package and FPGA tool authentication.
+CUDA slots (`FES_TOOLCHAIN_GPU_ROUTER=CUDA`) also key on
+`FES_TOOLCHAIN_CUDA_ARCHITECTURES` (default `86`, native sm_86 code that needs
+no PTX JIT); see `sources/misteross/docs/architecture.md`.
 `make check` validates
 the shared ABI and programming definitions, their three real generated
 consumers, and all shared fixture copies without running synthesis.
