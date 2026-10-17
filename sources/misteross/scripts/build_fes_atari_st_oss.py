@@ -30,7 +30,7 @@ from scripts.export_core_package import (
 from scripts.fes_build_common import (
     BuildError, _authenticate_tools, _cell_counts, _i2c_evidence, _prepare_output,
     _read_json, _regular_input, _require_gpu_backend, _run_tool, _sha256, _write_atomic,
-    reject_async_m10k_reads, validate_timing_resources,
+    reject_async_m10k_reads, validate_timing_resources, write_core_unavailable_report,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
@@ -834,6 +834,14 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                 env=invocation.env, audit_source_root=root,
             )
         except SearchError as exc:
+            if exc.reason == "timing-not-met":
+                write_core_unavailable_report(root, {
+                    "version": 1,
+                    "core_id": "fes.atari-st",
+                    "reason": "timing-not-met",
+                    "seeds": list(exc.seeds),
+                    "figures": [dict(figure) for figure in exc.figures],
+                })
             raise BuildError(str(exc)) from exc
         evidence = validate_build_evidence(output, ram_database=database, gpu_backend=backend)
         evidence["cpu_rom_clock_repairs"] = repaired

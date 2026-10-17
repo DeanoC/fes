@@ -388,7 +388,7 @@ is not a gate unless the room script adds that mechanic itself. See
 | `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
 | `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved by `library.query` search; missing titles are skipped; publishes the focused game |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
-| `example.fes-cores` | one tile per installed core, manifest name verbatim; a blocked tile shows "Needs a cartridge" or "Needs firmware" and does not launch. Listed from the lobby like every other room. With no kit socket the room and the compact strip both say cores are not available here. Tenfoot on `-gfx menu-display` launches a tile through the local-control socket |
+| `example.fes-cores` | one tile per installed core, manifest name verbatim; a blocked tile shows "Needs a cartridge", "Needs firmware", or "Hardware unavailable" and does not launch. An optional core omitted from the image is listed from `unavailable-cores.json` with that hardware block. Listed from the lobby like every other room. With no kit socket the room and the compact strip both say cores are not available here. Tenfoot on `-gfx menu-display` launches a tile through the local-control socket |
 
 Run them against a host:
 

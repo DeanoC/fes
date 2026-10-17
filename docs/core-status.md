@@ -33,6 +33,20 @@ Direct and Scanlines parts in the separate video-part inventory. Menu (`fes.menu
 the idle display and is not a library core. Factory standing records image inclusion;
 playability and hardware acceptance depend on the exact-artifact kit evidence below.
 
+`fes.atari-st` is optional (`optional = true` in its recipe). Every other recipe
+stays required. When the Atari ST producer misses timing, the image build
+continues and writes `unavailable-cores.json` with reason `timing-not-met`, the
+seeds, and the per-seed clock figures. The kit lists that core as
+`Hardware unavailable` and does not launch it. A matching functional-key cache
+hit is still the source-derived package and is installed before a producer
+runs. A failed producer is left out of the image. `FES_REQUIRE_ALL_CORES=1`
+makes that omission fail the build; use it for a release or factory image that
+must contain every selected core. `FES_SKIP_OPTIONAL_CORES=1`, or
+`FES_SKIP_CORES=fes.atari-st`, skips the producer before place-and-route for a
+fast image of an unrelated change. Verify reuses the recorded omission.
+`FES_REQUIRE_ALL_CORES=1` on verify rejects an image that left an optional core
+out.
+
 The image selector supports ten IDs: `fes.menu`, `fes.pong`, `fes.zx81`,
 `fes.coleco`, `fes.sms`, `fes.sg1000`, `fes.c64`, `fes.spectrum`, `fes.ramtest`, `fes.atari-st`.
 `fes.riscv` is registered for `make core-dev` only.

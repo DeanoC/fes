@@ -346,6 +346,15 @@ FES_VIDEO_PARTS_DIR="$video_parts" FOGCAST_DIR="$selected_fogcast" LIBMISTER_RUN
   sh "$repo/scripts/target-image-container.sh" run /bin/true
 grep -Fxq "$video_parts:/fes-core-video-parts:ro" "$CONTAINER_ARGS" || fail 'video parts source tree was not mounted read-only'
 grep -Fxq 'FES_VIDEO_PARTS_DIR=/fes-core-video-parts' "$CONTAINER_ARGS" || fail 'video parts container path missing'
+grep -Fxq 'FES_UNAVAILABLE_CORES=' "$CONTAINER_ARGS" || fail 'unset unavailable cores env was not cleared'
+unavailable=$fixture/unavailable-cores.json
+printf '%s\n' '{"version":1,"cores":[]}' >"$unavailable"
+FES_UNAVAILABLE_CORES="$unavailable" FES_VIDEO_PARTS_DIR="$video_parts" FOGCAST_DIR="$selected_fogcast" LIBMISTER_RUNTIME_DIR= \
+  NATIVE_RUNTIME_INPUT_LOCK="$fixture/selected.lock" NATIVE_RUNTIME_IDLE_FILE="$cache/idle.rbf" \
+  TARGET_IMAGE_CONTAINER_RUNTIME="$fake_bin/container" \
+  sh "$repo/scripts/target-image-container.sh" run /bin/true
+grep -Fxq "$unavailable:/fes-unavailable-cores.json:ro" "$CONTAINER_ARGS" || fail 'unavailable cores manifest was not mounted read-only'
+grep -Fxq 'FES_UNAVAILABLE_CORES=/fes-unavailable-cores.json' "$CONTAINER_ARGS" || fail 'unavailable cores container path missing'
 if sh "$repo/scripts/verify-native-runtime-inputs.sh" \
   "$fixture/selected.lock" "$mono/other-runtime" "$cache/idle.rbf" "$cache/splash.rbf" \
   > /dev/null 2>&1; then

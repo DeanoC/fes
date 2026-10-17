@@ -58,6 +58,12 @@ from typing import Callable, Mapping, Sequence
 class SearchError(Exception):
     """No evaluated placement met every clock constraint."""
 
+    def __init__(self, message, *, reason=None, seeds=(), figures=()):
+        super().__init__(message)
+        self.reason = reason
+        self.seeds = tuple(seeds)
+        self.figures = tuple(figures)
+
 
 @dataclass(frozen=True)
 class Candidate:
@@ -492,6 +498,20 @@ def ranking_document(
     }
 
 
+def _timing_figure(item: Candidate) -> dict:
+    """One seed's clocks, capped so a miss report stays a small manifest row."""
+    clocks = {}
+    for name, (achieved, constraint) in list(item.fmax.items())[:16]:
+        clocks[str(name)] = {"achieved_mhz": achieved, "constraint_mhz": constraint}
+    return {
+        "seed": item.seed,
+        "weight": item.weight,
+        "passing": item.passing,
+        "worst_ratio": item.worst_ratio,
+        "clocks": clocks,
+    }
+
+
 def promote_candidate(candidate: Candidate, dest: Path) -> None:
     src = Path(candidate.run_dir)
     mapping = {
@@ -580,7 +600,10 @@ def route_after_synth(
     if not winner.passing:
         raise SearchError(
             f"no placement met timing (best seed={winner.seed} weight={winner.weight} "
-            f"worst_ratio={winner.worst_ratio:.4f}){_rejection_note(winner)}"
+            f"worst_ratio={winner.worst_ratio:.4f}){_rejection_note(winner)}",
+            reason="timing-not-met",
+            seeds=tuple(seeds),
+            figures=tuple(_timing_figure(item) for item in ranked[:32]),
         )
     promote_candidate(winner, dest)
     return winner

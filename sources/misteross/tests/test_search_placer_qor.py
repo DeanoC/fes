@@ -514,7 +514,7 @@ print("Info: Program finished normally.")
             with self.assertRaisesRegex(
                 SearchError,
                 r"^no placement met timing \(best seed=4 weight=10 worst_ratio=0\.7692\)$",
-            ):
+            ) as caught:
                 route_after_synth(
                     nextpnr=Path("nextpnr"),
                     fixture=dest / "synth.json",
@@ -531,6 +531,12 @@ print("Info: Program finished normally.")
                     extra=(),
                     run_one=run,
                 )
+            error = caught.exception
+            self.assertEqual(error.reason, "timing-not-met")
+            self.assertEqual(error.seeds, (4,))
+            self.assertEqual(error.figures[0]["clocks"]["clk_sys"],
+                             {"achieved_mhz": 40.0, "constraint_mhz": 52.0})
+            self.assertEqual(error.figures[0]["clocks"]["pixel_clk"]["constraint_mhz"], 74.25)
 
 
 if __name__ == "__main__":

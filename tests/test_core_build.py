@@ -350,7 +350,7 @@ class CoreBuildTest(unittest.TestCase):
             result = build.resolve_packages_for_action(
                 {'misteross': 'a' * 40, 'mister-packages': 'b' * 40},
                 Path('/out'), {'KEEP': '1'}, 'build', ('fes.zx81', 'fes.coleco'))
-        self.assertEqual(result, ({'recipe': 'fes.zx81'}, {'recipe': 'fes.coleco'}))
+        self.assertEqual(result, (({'recipe': 'fes.zx81'}, {'recipe': 'fes.coleco'}), ()))
         self.assertEqual(resolved, [
             (Path('/out'), 'build', 'fes.zx81'),
             (Path('/out'), 'build', 'fes.coleco'),

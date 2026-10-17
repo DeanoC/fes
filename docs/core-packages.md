@@ -17,6 +17,12 @@ producers. The default target-image selector installs the ordered closed
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
 `fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set.
 SMS, SG-1000, Spectrum and Atari ST passed timing and are in that image.
+Atari ST is the optional recipe. A timing miss or `FES_SKIP_OPTIONAL_CORES=1`
+omits its package and records the core in `unavailable-cores.json` on the
+image output and at `/usr/share/mister-runtime/unavailable-cores.json` in the
+rootfs. The omission is part of the image fingerprint. Set
+`FES_REQUIRE_ALL_CORES=1` when the image must contain every selected core,
+including a release build. Leave it unset for development and fast HIL images.
 Coleco and ST include their independently sealed Direct and Scanlines video parts. The 192 MiB
 rootfs holds them. `fes.apple2`,
 `fes.catch` and `fes.riscv` remain package-only. `fes.c64` shared-pin

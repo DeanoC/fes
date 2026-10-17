@@ -23,6 +23,7 @@ import bundle as core_bundle
 from build_diagnostics import BuildDiagnostics
 from environment import build_environment
 from recipes import FORMAT2_RECIPES, REGISTRY_PATH, recipe_for
+import optional_cores
 from image_passes import validate_image_passes
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -478,7 +479,7 @@ def _package_details(packages):
     return normalized, tuple(details)
 
 
-def package_arguments(packages):
+def package_arguments(packages, unavailable_path=None):
     normalized, details = _package_details(packages)
     if not normalized:
         return []
@@ -492,19 +493,26 @@ def package_arguments(packages):
         raise ValueError('factory video parts must use one merged selection')
     if roots:
         arguments.append('FES_VIDEO_PARTS_DIR=' + roots.pop())
+    if unavailable_path:
+        arguments.append("FES_UNAVAILABLE_CORES=" + str(unavailable_path))
     return arguments
 
 
-def image_fingerprint(base_fingerprint, info, packages):
+def image_fingerprint(base_fingerprint, info, packages, unavailable=()):
     normalized = _package_tuple(packages)
+    omitted = optional_cores.canonical_cores(unavailable)
     if not normalized:
         return base_fingerprint, dict(info)
     package_inputs = [package["inputs"] for package in normalized]
     _validate_package_input_records(package_inputs)
     data = {"base_fingerprint": base_fingerprint, "fpga_packages": package_inputs}
+    if omitted:
+        data["unavailable_cores"] = omitted
     fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
     enriched = dict(info, fpga_packages=package_inputs,
                     image_base_fingerprint=base_fingerprint, image_fingerprint=fingerprint)
+    if omitted:
+        enriched["unavailable_cores"] = omitted
     return fingerprint, enriched
 
 
@@ -517,9 +525,11 @@ def recorded_image_fingerprint(info):
     if type(base) is not str or type(packages) is not list or not packages:
         raise ValueError("invalid persisted package image inputs")
     _validate_package_input_records(packages)
-    fingerprint = hashlib.sha256(json.dumps({
-        "base_fingerprint": base, "fpga_packages": packages,
-    }, sort_keys=True).encode()).hexdigest()
+    data = {"base_fingerprint": base, "fpga_packages": packages}
+    omitted = info.get("unavailable_cores")
+    if omitted:
+        data["unavailable_cores"] = optional_cores.canonical_cores(omitted)
+    fingerprint = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
     if info.get("image_fingerprint") != fingerprint:
         raise ValueError("persisted package image fingerprint differs from its inputs")
     return fingerprint
@@ -681,11 +691,12 @@ def remove_stale_parent_outputs(output):
         path.unlink()
 
 
-def verify_package_only_outputs(output, packages):
+def verify_package_only_outputs(output, packages, unavailable=()):
     """Verify a package output has no stale top-level artifacts."""
     verify_package_outputs(output, packages)
     if stale_parent_outputs(output):
         raise ValueError('package output contains a stale top-level artifact')
+    optional_cores.verify_manifest(output, unavailable)
 
 
 def _format2_selection_paths(output):
@@ -1629,12 +1640,39 @@ def resolve_package_for_action(revisions, output, env, action, recipe):
 
 
 def resolve_packages_for_action(revisions, output, env, action, package_ids):
-    """Resolve every selected format-2 recipe in profile order."""
-    packages = tuple(resolve_package_for_action(
-        revisions, output, env, action, recipe_for(package_id))
-        for package_id in package_ids)
-    prepare_video_selection(packages, Path(output) / 'selected-video-parts')
-    return packages
+    """Resolve every selected format-2 recipe in profile order.
+
+    Optional cores that miss timing, fail their producer, or are skipped are
+    omitted. Verify reuses the omission recorded in inputs.json and does not
+    place-and-route that core again. A failed producer is not replaced from
+    a different functional key.
+    """
+    recipes = tuple(recipe_for(package_id) for package_id in package_ids)
+    skip_ids = optional_cores.parse_skip_list(env, recipes)
+    recorded = optional_cores.recorded_cores(output) if action == "verify" else {}
+    packages = []
+    unavailable = []
+    for recipe in recipes:
+        if optional_cores.core_is_skipped(recipe, env, skip_ids):
+            unavailable.append(optional_cores.unavailable_record(recipe.core_id, "skipped"))
+            continue
+        if action == "verify" and recipe.core_id in recorded:
+            if optional_cores.require_all(env):
+                raise ValueError(
+                    f"optional core {recipe.core_id} is unavailable and FES_REQUIRE_ALL_CORES=1")
+            unavailable.append(recorded[recipe.core_id])
+            continue
+        try:
+            packages.append(resolve_package_for_action(
+                revisions, output, env, action, recipe))
+        except ValueError as error:
+            if not recipe.optional or optional_cores.require_all(env):
+                raise
+            unavailable.append(optional_cores.failure_record(recipe.core_id, error))
+    if not packages:
+        raise ValueError("image resolved no core packages")
+    prepare_video_selection(tuple(packages), Path(output) / "selected-video-parts")
+    return tuple(packages), optional_cores.canonical_cores(unavailable)
 
 
 def main():
@@ -1694,11 +1732,14 @@ def main():
         fp, info = build_fingerprint(revisions, profile, toolchain)
         host_fp, host_info = host_fingerprint(revisions, profile, toolchain)
         packages = ()
+        unavailable = ()
         image_fp, image_info = fp, info
         if package_ids and args.action in ("build", "image", "verify", "rebuild", "dev"):
-            packages = resolve_packages_for_action(
+            packages, unavailable = resolve_packages_for_action(
                 revisions, output, env, args.action, package_ids)
-            image_fp, image_info = image_fingerprint(fp, info, packages)
+            image_fp, image_info = image_fingerprint(fp, info, packages, unavailable)
+            if unavailable:
+                optional_cores.warn(unavailable)
         env["TARGET_IMAGE_CONTAINER_RUNTIME"] = container
         env["TARGET_IMAGE_OUTPUT_VOLUME"] = output_volume(ROOT, args.profile)
         env["FOGCAST_DIR"] = str(fogcast)
@@ -1717,7 +1758,7 @@ def main():
             runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
             build_development(ROOT, IMAGE, fogcast, runtime, args.profile, profile, image_info,
                               image_fp, env, fogcast_make, image_make, packages=packages,
-                              diagnostics=diagnostics)
+                              unavailable=unavailable, diagnostics=diagnostics)
             return
         if args.action in ("build", "host", "rebuild"):
             host_hit, host_reason = (False, "forced rebuild") if args.action == "rebuild" else reuse_status(
@@ -1738,6 +1779,12 @@ def main():
                 write_receipt(output, "host", host_fp, ["fogcast", "fogcast-api"],
                               os_name=profile["host_os"], arch=profile["host_arch"])
             publish_host_inputs(output, host_fp, host_info)
+        unavailable_manifest = None
+        if args.action in ("build", "image", "rebuild", "verify") and unavailable:
+            unavailable_manifest = optional_cores.publish_manifest(output, unavailable)
+        elif args.action in ("build", "image", "rebuild", "verify"):
+            optional_cores.publish_manifest(output, ())
+        package_args = package_arguments(packages, unavailable_manifest)
         if args.action in ("build", "image", "rebuild"):
             image_hit, image_reason = (False, "forced rebuild") if (args.action == "rebuild" or env.get("TOOLCHAIN_REBUILD") == "1") else reuse_status(
                 output, "image", image_fp)
@@ -1751,7 +1798,7 @@ def main():
             if image_hit:
                 diagnostics.cache("image", "hit", image_reason)
                 print("Image: reusing verified output", flush=True)
-                verify_package_only_outputs(output, packages)
+                verify_package_only_outputs(output, packages, unavailable)
             else:
                 diagnostics.cache("image", "forced" if args.action == "rebuild" else "miss", image_reason)
                 runtime = source_checkout("libmister-runtime", revisions["libmister-runtime"])
@@ -1765,16 +1812,14 @@ def main():
                 platform.build_kit_software(ROOT, fogcast, env)
                 run_stage(diagnostics, "image subprocess", image_make + ["build-target-image-lock-container"], env=env)
                 fetch_env = dict(env)
-                fetch_env.update(dict(argument.split("=", 1)
-                                     for argument in package_arguments(packages)))
+                fetch_env.update(dict(argument.split("=", 1) for argument in package_args))
                 run_stage(diagnostics, "image subprocess", [IMAGE / "scripts/target-image-container.sh", "fetch",
                      "/work/scripts/fetch-target-image-sources.sh"], env=fetch_env)
                 run_stage(diagnostics, "image subprocess", image_make + ["target-image-native",
-                    "LIBMISTER_RUNTIME_DIR=" + str(runtime), *package_arguments(packages)], env=env)
+                    "LIBMISTER_RUNTIME_DIR=" + str(runtime), *package_args], env=env)
                 # Verification reads the runtime commit from the image/lock; no source mount required.
                 verify_env = dict(env, NATIVE_RUNTIME_MODE=mode,
-                                  **dict(argument.split("=", 1)
-                                        for argument in package_arguments(packages)))
+                                  **dict(argument.split("=", 1) for argument in package_args))
                 run_stage(diagnostics, "image subprocess", image_make + ["target-image-native-verify"],
                     env=verify_env)
                 built = IMAGE / "build/output/target-image/native-dev"
@@ -1795,9 +1840,11 @@ def main():
                 names.extend(publish_package_state(
                     packages, built_selections if packages else None, output))
                 remove_stale_parent_outputs(output)
-                verify_package_only_outputs(output, packages)
+                verify_package_only_outputs(output, packages, unavailable)
                 publish_action_inputs(output, args.action, image_info)
                 names.append("inputs.json")
+                if unavailable_manifest is not None:
+                    names.append(optional_cores.MANIFEST_NAME)
                 write_receipt(output, "image", image_fp, names)
         if args.action == "verify":
             host_hit, host_reason = reuse_status(output, "host", host_fp)
@@ -1806,18 +1853,16 @@ def main():
             diagnostics.cache("verify image", "hit" if image_hit else "miss", image_reason)
             if not host_hit or not image_hit:
                 raise ValueError("build outputs are missing, changed, or stale; run make build")
-            verify_package_only_outputs(output, packages)
+            verify_package_only_outputs(output, packages, unavailable)
             built = IMAGE / "build/output/target-image/native-dev/linux.img"
             if not built.is_file() or digest(built) != digest(output / "linux.img"):
                 raise ValueError("child image differs from published image; run make rebuild")
             run_stage(diagnostics, "verification subprocess", image_make + ["target-image-native-verify"],
                     env=dict(env, NATIVE_RUNTIME_MODE=mode,
-                             **dict(argument.split("=", 1)
-                                   for argument in package_arguments(packages))))
+                             **dict(argument.split("=", 1) for argument in package_args)))
             run_stage(diagnostics, "verification subprocess", image_make + ["target-image-native-qemu-smoke"],
                 env=dict(env, NATIVE_RUNTIME_MODE=mode,
-                         **dict(argument.split("=", 1)
-                               for argument in package_arguments(packages))))
+                         **dict(argument.split("=", 1) for argument in package_args)))
             shutil.copy2(IMAGE / "build/output/target-image/native-dev/qemu-smoke.log", output / "qemu-smoke.log")
             actual = digest(output / "linux.img")
             evidence = dict(line.split("=", 1) for line in (output / "reproducibility.txt").read_text().splitlines())
@@ -1834,6 +1879,8 @@ def main():
             (output / "verification.json").write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
             print(f"Image passes={passes}; structural and QEMU packaging checks passed.", flush=True)
             print(f"Baseline image hash match: {matches} (see README provenance note)", flush=True)
+        if unavailable and args.action in ("build", "image", "verify", "rebuild"):
+            optional_cores.warn(unavailable)
 if __name__ == "__main__":
     try:
         main()

@@ -632,6 +632,46 @@ func TestSealedZX81LaunchIsBlocked(t *testing.T) {
 	}
 }
 
+func TestUnavailableCoreLaunchIsBlocked(t *testing.T) {
+	runtime := &fakeRuntime{}
+	root := t.TempDir()
+	packages := filepath.Join(root, "pkgs")
+	selections := filepath.Join(root, "sel")
+	if err := os.Mkdir(packages, 0o755); err != nil || os.Mkdir(selections, 0o755) != nil {
+		t.Fatal(err)
+	}
+	body := []byte(`{"version":1,"cores":[{"core_id":"fes.atari-st","name":"Atari ST","reason":"timing-not-met"}]}` + "\n")
+	if err := os.WriteFile(filepath.Join(root, "unavailable-cores.json"), body, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	manager := kitlease.New(time.Minute, func(context.Context) error { return nil })
+	t.Cleanup(manager.Close)
+	waitFree(t, manager)
+	service := New(manager, runtime, Roots{Selections: selections, Packages: packages})
+	t.Cleanup(service.Close)
+	var id string
+	for _, core := range service.List() {
+		if core.CoreID != "fes.atari-st" {
+			continue
+		}
+		id = core.PackageID
+		if core.Needs != "unavailable" || core.Block != "Hardware unavailable" || core.Launchable || id != unavailablePackageID("fes.atari-st") {
+			t.Fatalf("classified %+v", core)
+		}
+	}
+	if id == "" {
+		t.Fatal("atari st missing")
+	}
+	response := post(Handler(service), "/v1/local/cores/"+id+"/launch")
+	if response.Code != http.StatusConflict || errorCode(t, response) != "blocked" {
+		t.Fatalf("launch %d %s", response.Code, response.Body.String())
+	}
+	loads, stops := runtime.calls()
+	if len(loads) != 0 || stops != 0 {
+		t.Fatalf("runtime calls loads=%v stops=%d", loads, stops)
+	}
+}
+
 func TestHostClaimDuringLoadIsBusy(t *testing.T) {
 	entered := make(chan struct{})
 	release := make(chan struct{})

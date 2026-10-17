@@ -168,6 +168,38 @@ func examplePack(t *testing.T, id string) Pack {
 	return Pack{}
 }
 
+func TestFesCoresRoomShowsHardwareUnavailable(t *testing.T) {
+	const atariID = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+	pack := examplePack(t, "example.fes-cores")
+	fake := &fakeLocalCores{cores: []localcores.Core{
+		{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
+		{PackageID: atariID, CoreID: "fes.atari-st", Name: "Atari ST", Needs: "unavailable", Launchable: false, Block: "Hardware unavailable"},
+	}}
+	r := newRoom(t, pack, Options{Local: fake, Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool {
+		text := frameText(f)
+		return strings.Contains(text, "Atari ST\n") && strings.Contains(text, "Hardware unavailable\n")
+	})
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !r.Input("right") {
+		t.Fatal("right")
+	}
+	if got := r.Destination(); got.Label != "Atari ST" || got.PackageID != atariID || got.CoreLaunchable || got.Status != "Hardware unavailable" {
+		t.Fatalf("unavailable dest %+v", got)
+	}
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.launchedIDs(); len(got) != 1 || got[0] != corePongID {
+		t.Fatalf("unavailable tile launched %v", got)
+	}
+}
+
 func TestLobbyWorkbenchTMSPublishDestination(t *testing.T) {
 	packs := Examples()
 	index := NewIndex(packs)

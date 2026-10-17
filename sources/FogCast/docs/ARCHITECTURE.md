@@ -2377,9 +2377,14 @@ payload digest, and a map full inspection would reject is omitted. Only the
 manifest and the running hashes are kept. Checking one map holds a fixed CRAM
 destination bitmap for that package and does not retain the encoded map or its
 decoded blocks. A finished factory catalog is cached until its stat fingerprint changes:
-selection and member size, mtime, inode, and directory entries. Opening a
+selection and member size, mtime, inode, and directory entries, plus the
+size, mtime, and inode of `unavailable-cores.json` beside the selections
+directory (or the line `unavailable absent`). Opening a
 selection file does not change that key, so a durable selection read does not
-start another factory scan. After the durable store opens, the agent warms
+start another factory scan. An optional core recorded in that manifest is
+listed with block `Hardware unavailable` and a synthetic package id, and a
+launch of that id is refused. An installed package for the same core id stays
+the listed row. A malformed manifest is ignored. After the durable store opens, the agent warms
 that factory cache and the durable verification cache on a background goroutine.
 The warm returns before the control socket and the bearer listener accept
 requests, so it does not delay agent readiness. Durable verification runs, then
