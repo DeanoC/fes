@@ -128,7 +128,8 @@ _GPU_LEASE_CONFIG_ENV = (
     "FES_GPU_LEASE_OWNER",
 )
 _GPU_LEASE_DISPATCH = (
-    "import sys; from scripts.fes_build_common import _exec_leased_nextpnr; "
+    "import os,sys; sys.path.insert(0, os.environ.pop('FES_MISTEROSS_PYTHONPATH')); "
+    "from scripts.fes_build_common import _exec_leased_nextpnr; "
     "raise SystemExit(_exec_leased_nextpnr(sys.argv[2:], "
     "None if sys.argv[1] == '-' else float(sys.argv[1])))"
 )
@@ -219,6 +220,7 @@ def _exec_leased_nextpnr(command: Sequence[str], timeout: float | None = None) -
     tool_env = os.environ.copy()
     for name in _GPU_LEASE_CONFIG_ENV:
         tool_env.pop(name, None)
+    tool_env.pop("FES_MISTEROSS_PYTHONPATH", None)
     try:
         result = subprocess.run(routed, env=tool_env, timeout=timeout, check=False)
     except subprocess.TimeoutExpired:
@@ -254,6 +256,7 @@ def _run_command(
             raise BuildError("invoke the producer outside gpu-run; GPU nextpnr calls acquire their own lease")
         if run_env is None:
             run_env = os.environ.copy()
+        run_env["FES_MISTEROSS_PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
         for name in _GPU_LEASE_CONFIG_ENV:
             if name not in run_env and name in os.environ:
                 run_env[name] = os.environ[name]

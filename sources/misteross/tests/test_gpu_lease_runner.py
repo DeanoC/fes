@@ -59,11 +59,11 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
             **extra,
         }
 
-    def run_gpu_route(self, *, timeout=None, **environment):
+    def run_gpu_route(self, *, timeout=None, cwd=ROOT, **environment):
         with patch.object(board, "_gpu_run_path", return_value=self.wrapper):
             return board._run_command(
                 (str(self.nextpnr), "--router", "gpu", "--gpu-device", "7"),
-                cwd=ROOT,
+                cwd=cwd,
                 env=self.environment(**environment),
                 timeout=timeout,
                 stdout=board.subprocess.PIPE,
@@ -87,12 +87,19 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
         self.assertEqual(captured["env"]["NEXTPNR_REQUIRE_GPU"], "1")
         self.assertNotIn("GPU_LEASE_MAX_PER_OWNER", captured["env"])
         self.assertNotIn("FES_GPU_LEASE_OWNER", captured["env"])
+        self.assertNotIn("FES_MISTEROSS_PYTHONPATH", captured["env"])
+
+    def test_dispatch_import_does_not_depend_on_working_directory(self):
+        result = self.run_gpu_route(cwd=self.directory)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        captured = json.loads(self.capture.read_text(encoding="utf-8"))
+        self.assertEqual(captured["env"]["CUDA_VISIBLE_DEVICES"], "7")
 
     def test_route_timeout_starts_after_the_lease_is_granted(self):
         result = self.run_gpu_route(
-            timeout=0.03,
-            FAKE_LEASE_DELAY="0.15",
-            FAKE_ROUTE_DELAY="0.3",
+            timeout=1.0,
+            FAKE_LEASE_DELAY="1.1",
+            FAKE_ROUTE_DELAY="2.0",
         )
         self.assertEqual(result.returncode, 124, result.stdout)
         self.assertIn(b"GPU lease already granted", result.stdout)
