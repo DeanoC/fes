@@ -39,6 +39,8 @@ type Status struct {
 	SlotBytes         int    `json:"slot_bytes"`
 	DisplayedSequence uint64 `json:"displayed_sequence"`
 	Underflows        uint64 `json:"underflows"`
+	// Damage means the runtime accepts damaged presents (PresentDamage).
+	Damage bool `json:"damage"`
 }
 type Result struct {
 	Generation        uint64 `json:"generation"`
@@ -60,6 +62,7 @@ type reply struct {
 			CopyUS        int64 `json:"copy_us"`
 			SubmitUS      int64 `json:"submit_us"`
 			ScanoutWaitUS int64 `json:"scanout_wait_us"`
+			StoredPixels  int64 `json:"stored_pixels"`
 		} `json:"timing"`
 	} `json:"menu_frame"`
 	Error struct {
@@ -211,6 +214,21 @@ func (c *Client) Status(ctx context.Context) (Status, error) {
 }
 
 func (c *Client) Present(ctx context.Context, generation uint64, pix []byte) (Result, error) {
+	return c.present(ctx, generation, pix, nil)
+}
+
+// PresentDamage presents pix, a complete frame, but stages only the damaged
+// rectangles. The runtime takes the rest from damage.BaseSequence, which must
+// be the frame it is showing; otherwise it rejects the present with
+// stale_revision and the caller should send a complete frame.
+func (c *Client) PresentDamage(ctx context.Context, generation uint64, pix []byte, damage Damage) (Result, error) {
+	if !damage.valid() {
+		return Result{}, errors.New("invalid menu damage")
+	}
+	return c.present(ctx, generation, pix, &damage)
+}
+
+func (c *Client) present(ctx context.Context, generation uint64, pix []byte, damage *Damage) (Result, error) {
 	if generation == 0 || len(pix) != FrameBytes {
 		return Result{}, errors.New("invalid menu frame")
 	}
@@ -249,7 +267,16 @@ func (c *Client) Present(ctx context.Context, generation uint64, pix []byte) (Re
 	if err != nil {
 		return Result{}, err
 	}
-	copy(mapped, pix)
+	if damage == nil {
+		copy(mapped, pix)
+	} else {
+		for _, r := range damage.Rects {
+			for y := r.Y; y < r.Y+r.H; y++ {
+				at := y*Stride + r.X*4
+				copy(mapped[at:at+r.W*4], pix[at:at+r.W*4])
+			}
+		}
+	}
 	if err := unix.Munmap(mapped); err != nil {
 		return Result{}, err
 	}
@@ -258,7 +285,18 @@ func (c *Client) Present(ctx context.Context, generation uint64, pix []byte) (Re
 	}
 	committed := time.Now()
 	timing.StageUS = committed.Sub(staged).Microseconds()
-	if err := send(conn, map[string]any{"protocol": 2, "operation": "menu_frame_commit", "generation": generation, "byte_count": FrameBytes}, fd); err != nil {
+	commit := map[string]any{"protocol": 2, "operation": "menu_frame_commit", "generation": generation, "byte_count": FrameBytes}
+	if damage != nil {
+		rects := make([][4]int, len(damage.Rects))
+		for i, r := range damage.Rects {
+			rects[i] = [4]int{r.X, r.Y, r.W, r.H}
+		}
+		commit["damage"] = map[string]any{"base_sequence": damage.BaseSequence, "rects": rects}
+		timing.StagedPixels = int64(damage.Pixels())
+	} else {
+		timing.StagedPixels = Width * Height
+	}
+	if err := send(conn, commit, fd); err != nil {
 		return Result{}, err
 	}
 	completed, extra, err := receive(conn)
@@ -274,6 +312,7 @@ func (c *Client) Present(ctx context.Context, generation uint64, pix []byte) (Re
 	timing.CommitUS = time.Since(committed).Microseconds()
 	if t := completed.MenuFrame.Timing; t != nil {
 		timing.RuntimeCopyUS, timing.RuntimeSubmitUS, timing.RuntimeScanoutWaitUS = t.CopyUS, t.SubmitUS, t.ScanoutWaitUS
+		timing.RuntimeStoredPixels = t.StoredPixels
 	}
 	return Result{Generation: generation, DisplayedSequence: *completed.MenuFrame.DisplayedSequence, Underflows: completed.MenuFrame.Underflows, Timing: timing}, nil
 }

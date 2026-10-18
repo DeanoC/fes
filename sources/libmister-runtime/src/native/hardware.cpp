@@ -1436,14 +1436,14 @@ HardwareResult NativeHardware::LoadCoreInternal(
     error={ErrorCode::io_failed,"menu initial state is not safe black","menu"};
    if(!error.ok()){menu_unsafe_=true;return {error,true,identified.observed_core};}
    menu_status_={};menu_status_.available=true;menu_status_.package_id=admitted->opened_.package_id;
-   menu_status_.geometry=info.geometry;menu_slot_=0;
+   menu_status_.geometry=info.geometry;menu_slot_=0;menu_status_.damage=true;
   } else if(session_display) {
    MenuDisplayInfo info;error=menu_display_->ReadInfo(Deadline(clock_,timeouts_.core_io_ms),&info);
    if(error.ok()&&(!info.configured||info.enabled||!info.quiesced||info.pending||info.faulted||info.displayed_sequence||info.underflows))
     error={ErrorCode::io_failed,"session display initial state is not drained","menu"};
    if(!error.ok())return {error,true,identified.observed_core};
    menu_status_={};menu_status_.session=true;menu_status_.core_generation=generation;
-   menu_status_.package_id=admitted->opened_.package_id;menu_status_.geometry=info.geometry;menu_slot_=0;
+   menu_status_.package_id=admitted->opened_.package_id;menu_status_.geometry=info.geometry;menu_slot_=0;menu_status_.damage=true;
   }
 		if (fes_gamepad) {
 			error = input_.Start(generation,
@@ -1617,6 +1617,11 @@ Error NativeHardware::FailMenuPresent(const Error& error)
  if(!menu_directory_.empty()&&MenuReactivationAllowed()){++menu_reactivations_;return error;}
  menu_unsafe_=true;menu_directory_.clear();menu_package_id_.clear();return error;
 }
+bool NativeHardware::AcceptsMenuDamage(std::uint32_t base_sequence) const
+{
+ return menu_status_.available&&!menu_unsafe_&&menu_memory_&&base_sequence!=0&&
+  base_sequence==menu_status_.displayed_sequence&&menu_memory_->HasShadow(base_sequence);
+}
 Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* output)
 {
  if(!output||!menu_status_.available||menu_unsafe_||!menu_display_||!menu_memory_)
@@ -1636,7 +1641,7 @@ Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* o
  const auto micros=[](Steady::time_point from,Steady::time_point to){
   return std::uint32_t(std::chrono::duration_cast<std::chrono::microseconds>(to-from).count());};
  const auto copy_start=Steady::now();
- if(error.ok())error=menu_memory_->CopyRgba(slot,frame);
+ if(error.ok())error=menu_memory_->CopyRgba(slot,frame,sequence);
  const auto submit_start=Steady::now();
  if(error.ok())error=menu_display_->Submit(slot,sequence,deadline);
  const auto wait_start=Steady::now();
@@ -1653,6 +1658,7 @@ Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* o
    else menu_underflow_streak_=0;
    menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=delta;info.underflows=delta;
    info.copy_us=micros(copy_start,submit_start);info.submit_us=micros(submit_start,wait_start);info.scanout_wait_us=micros(wait_start,Steady::now());
+   info.stored_pixels=std::uint32_t(menu_memory_->last_stored_pixels());
    *output=info;return {};
   }
   if(clock_.NowMs()>=deadline){error={ErrorCode::io_failed,"menu display completion timed out","menu"};break;}

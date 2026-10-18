@@ -548,8 +548,9 @@ The target package lifecycle uses runtime protocol 2. A read-only
 profiles before mutation. Protocol 1 is rejected without mutation; there is
 no negotiation fallback.
 The strict status decoder accepts the runtime's optional `menu_display`
-evidence, including a failed menu, so physical idle can still be confirmed for
-appliance maintenance. `underflows` on that object and on a frame completion
+evidence, including a failed menu and optional `"damage":true`, so physical
+idle can still be confirmed for appliance maintenance. Any other `damage`
+shape is rejected. `underflows` on that object and on a frame completion
 is the runtime's per-present delta. The kit painter and the Linux menu
 client accept a delta of at most one 720p scanline and refuse a larger one.
 The runtime and this agent must ship in the same image because decoding is
@@ -1225,7 +1226,13 @@ a second and is submitted again when the generation changes. Status errors,
 underflow, and present failures back off from 250ms to 5s. An unavailable
 menu backs off on that schedule but no longer than one second, so a Stop
 redraws within about a second. A generation mismatch does not start a new
-wait. The kit image starts that client only when `launcher.json` `kit_ui`
+wait. When the runtime advertises `damage`, a change-driven worker also skips
+the per-frame status read for up to a second after a successful present, and
+stages only the row bands that differ from the frame the runtime is showing
+(at most 16 rectangles). If the runtime refuses either shortcut, for example
+a new generation or a stale base, the frame is retried once with fresh status
+and complete pixels; Pause, Resume, rebinding and any failure drop both
+shortcuts. The kit image starts that client only when `launcher.json` `kit_ui`
 is `tenfoot` and the menu selection and `fogcast-tenfoot` binary are both
 present. Otherwise boot still runs `fogcast-kit`. On this backend tenfoot opens
 the kit-local control socket and submits one room launch overlay frame with

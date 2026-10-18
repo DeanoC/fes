@@ -303,6 +303,8 @@ struct MenuDisplayInfo {
  // diagnostics: the DDR copy, the slot submit, and the wait until scanout
  // shows the new slot. Zero when the hardware does not measure them.
  std::uint32_t copy_us=0,submit_us=0,scanout_wait_us=0;
+ // Pixels written into the DDR slot by that present.
+ std::uint32_t stored_pixels=0;
 };
 struct MenuDisplayStatus {
  bool available=false;
@@ -314,8 +316,22 @@ struct MenuDisplayStatus {
  std::uint64_t generation=0;
  MenuGeometry geometry;
  std::uint32_t displayed_sequence=0,underflows=0;
+ // This hardware accepts damaged commits (menu_frame_commit "damage").
+ bool damage=false;
  Error error;
 };
+// A changed region of a menu frame, in pixels.
+struct MenuRect {
+ std::uint16_t x=0,y=0,w=0,h=0;
+};
+// The only regions of a commit's staging file that differ from the frame
+// the runtime last displayed (base_sequence). Everything else in the file
+// is ignored.
+struct MenuDamage {
+ std::uint32_t base_sequence=0;
+ std::vector<MenuRect> rects;
+};
+constexpr std::size_t kMenuDamageMaxRects=16;
 class Runtime;
 class MenuFrame final {
 public:
@@ -327,6 +343,9 @@ public:
  int fd() const {return fd_;}
  Error ValidateImmutable(int received_fd) const;
  Error ReadOnlyData(const unsigned char**) const;
+ void SetDamage(MenuDamage damage) {damage_=std::move(damage);has_damage_=true;}
+ // Null for a full frame.
+ const MenuDamage* damage() const {return has_damage_?&damage_:nullptr;}
 private:
  friend class Runtime;
  explicit MenuFrame(int fd):fd_(fd){}
@@ -334,6 +353,8 @@ private:
  mutable void* mapping_=nullptr;
  std::shared_ptr<void> preparation_;
  std::uint64_t generation_=0;
+ MenuDamage damage_;
+ bool has_damage_=false;
 };
 
 struct Status {
@@ -415,6 +436,10 @@ public:
  virtual Error PresentMenuFrame(const MenuFrame&,MenuDisplayInfo*) {
   return {ErrorCode::unsupported_interface,"menu display unavailable"};
  }
+ // Whether a damaged commit against base_sequence can be presented: the
+ // hardware still holds exactly that frame. Checked before presenting, so a
+ // stale base is an ordinary refusal and never a display fault.
+ virtual bool AcceptsMenuDamage(std::uint32_t) const {return false;}
 	virtual Error FlushSave() { return {}; }
 	// Fault retirement revokes asynchronous input before capturing bound media.
 	virtual Error FlushFaultSave() { return FlushSave(); }

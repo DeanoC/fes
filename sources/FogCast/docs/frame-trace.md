@@ -24,6 +24,8 @@ Each JSON line has `kind`:
   - status round trip
   - the client's `menu_frame_begin`, staging copy and commit round trip
   - from the runtime's commit reply: the DDR copy, slot submit and scanout wait (`libmister-runtime/docs/menu-display.md`)
+  - `staged_pixels` and `runtime_stored_pixels`: pixels the client copied into staging and the runtime wrote to DDR
+  - `damage_rects` for a damaged present, `status_skipped` when an attempt trusted cached status (a refused shortcut still counts), and `retried` when a shortcut was refused and the frame went again whole
 
 The ring holds 16,384 records, which is several minutes at the 30 Hz loop. Each
 `SIGUSR1` writes a new `fogcast-frame-trace-<pid>-<n>-<utc>.jsonl` to
@@ -68,7 +70,9 @@ figures include only presents that reached the screen (`presented: true`). A
 rejected present is reported separately, with its own count and stage
 breakdown, so menu failures do not move the averages. It also reports each
 view's displayed-frame total and input→picture latency per command. Latency
-uses the first present that reached the screen.
+uses the first present that reached the screen. A `transport` line counts
+damaged, status-skipped and retried presents and the mean pixels staged and
+stored per displayed frame.
 
 ## Kit measurement run
 
@@ -105,9 +109,9 @@ image or boot file.
 
 - **`lua` dominates:** room scripts are the cost. Consider LuaJIT or a faster
   Lua VM, or less per-frame script work.
-- **`rt_copy`, `stage` or `frame_copy` dominate:** moving 3.6 MB per changed
-  frame is the cost. Changed-rectangle presents and a write-combining DDR
-  mapping are the next step.
+- **`rt_copy`, `stage` or `frame_copy` dominate:** moving pixels is the cost.
+  Check `transport`: if few presents are damaged, find why the shortcut is
+  refused; if most are, the remaining step is a write-combining DDR mapping.
 - **`raster` dominates and stays over budget after that:** that is the case for
   FPGA 2D acceleration.
 - **`rt_scanout` is the remainder:** the wait for the next vsync after submit.
