@@ -216,16 +216,35 @@ class GpuLeaseTests(unittest.TestCase):
         self._fake_process(proc_root_cuda, 200, '/tools/nextpnr-mistral',
                            fds=('/dev/nvidiactl', '/dev/nvidia1'))
         self.assertTrue(gpu_lease.process_tree_uses_gpu(
-            200, 'nvidia', '/dev/nvidia1', proc_root_cuda))
+            200, 'nvidia', ['/dev/nvidia0', '/dev/nvidia1'], proc_root_cuda))
         self.assertFalse(gpu_lease.process_tree_uses_gpu(
-            200, 'nvidia', '/dev/nvidia0', proc_root_cuda))
+            200, 'nvidia', ['/dev/nvidia0'], proc_root_cuda))
+
+        proc_root_sibling = self.root / 'proc-sibling'
+        self._fake_process(proc_root_sibling, 250, '/bin/bash replay.sh', children='251 252',
+                           fds=('/dev/kfd', '/dev/dri/renderD129'))
+        self._fake_process(proc_root_sibling, 251, '/tools/nextpnr-mistral --router gpu')
+        self._fake_process(proc_root_sibling, 252, '/bin/other-worker',
+                           fds=('/dev/kfd', '/dev/dri/renderD129'))
+        self.assertFalse(gpu_lease.process_tree_uses_gpu(
+            250, 'amd', ['/dev/dri/renderD129'], proc_root_sibling))
+
+        proc_root_second_amd = self.root / 'proc-second-amd'
+        self._fake_process(proc_root_second_amd, 260, '/tools/nextpnr-mistral --router gpu',
+                           fds=('/dev/kfd', '/dev/dri/renderD130'))
+        self.assertTrue(gpu_lease.process_tree_uses_gpu(
+            260, 'amd', ['/dev/dri/renderD129', '/dev/dri/renderD130'], proc_root_second_amd))
+        self.assertFalse(gpu_lease.process_tree_uses_gpu(
+            260, 'amd', ['/dev/dri/renderD129'], proc_root_second_amd))
 
         proc_root_cpu = self.root / 'proc-cpu'
         self._fake_process(proc_root_cpu, 300, '/tools/nextpnr-mistral --router heap')
         self.assertFalse(gpu_lease.process_tree_requires_gpu(300, proc_root_cpu))
         proc_root_help = self.root / 'proc-help'
-        self._fake_process(proc_root_help, 400, '/tools/nextpnr-mistral --help')
+        self._fake_process(proc_root_help, 400, '/tools/nextpnr-mistral --router gpu --help')
         self.assertFalse(gpu_lease.process_tree_requires_gpu(400, proc_root_help))
+        self._fake_process(proc_root_help, 401, '/tools/nextpnr-mistral --router gpu --version')
+        self.assertFalse(gpu_lease.process_tree_requires_gpu(401, proc_root_help))
 
     def test_nextpnr_without_gpu_access_fails_loudly(self):
         fd = os.open(self.root / 'lease-fd', os.O_CREAT | os.O_RDWR, 0o600)
@@ -239,13 +258,16 @@ class GpuLeaseTests(unittest.TestCase):
         self.assertIn('nextpnr never opened leased GPU device', output.getvalue())
         self.assertIn('/dev/kfd and /dev/dri/renderD129', output.getvalue())
 
-    def test_successful_nextpnr_help_does_not_require_gpu_access(self):
+    def test_nextpnr_help_and_version_with_gpu_flags_do_not_require_gpu_access(self):
         command = self.root / 'nextpnr-mistral'
         command.write_text('#!/bin/sh\nexit 0\n')
         command.chmod(0o755)
-        completed = self.run_tool(GPU_RUN, ['--no-wait', '--', str(command), '--help'])
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertNotIn('nextpnr never opened leased GPU device', completed.stderr)
+        for flag in ('--help', '--version'):
+            with self.subTest(flag=flag):
+                completed = self.run_tool(
+                    GPU_RUN, ['--no-wait', '--', str(command), '--router', 'gpu', flag])
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertNotIn('nextpnr never opened leased GPU device', completed.stderr)
 
     def test_lease_metadata_release_modes_and_child_exit(self):
         completed = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'alice', '--label', 'route', '--gpus', '2',

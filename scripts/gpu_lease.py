@@ -321,6 +321,8 @@ def process_tree_has_nextpnr(root_pid, proc_root=None):
 def nextpnr_requires_gpu(args):
     if not any('nextpnr-mistral' in argument for argument in args):
         return False
+    if any(argument in ('--help', '-h', '--version', '-V') for argument in args):
+        return False
     for index, argument in enumerate(args):
         if argument in ('--gpu-device', '--gpu-devices', '--require-gpu'):
             return True
@@ -342,31 +344,56 @@ def process_tree_fd_targets(root_pid, proc_root=None):
     proc_root = Path(proc_root) if proc_root is not None else PROC_ROOT
     targets = set()
     for pid in process_tree_pids(root_pid, proc_root):
-        fd_dir = proc_root / str(pid) / 'fd'
-        try:
-            entries = list(fd_dir.iterdir())
-        except OSError:
-            continue
-        for entry in entries:
-            try:
-                target = os.readlink(entry)
-            except OSError:
-                continue
-            if target.endswith(' (deleted)'):
-                target = target[:-10]
-            targets.add(target)
+        targets.update(process_fd_targets(pid, proc_root))
     return targets
 
 
-def process_tree_uses_gpu(root_pid, vendor, device_node, proc_root=None):
-    """Check that nextpnr's process tree opened the leased hardware node."""
-    targets = process_tree_fd_targets(root_pid, proc_root)
+def process_fd_targets(pid, proc_root=None):
+    proc_root = Path(proc_root) if proc_root is not None else PROC_ROOT
+    fd_dir = proc_root / str(pid) / 'fd'
+    try:
+        entries = list(fd_dir.iterdir())
+    except OSError:
+        return set()
+    targets = set()
+    for entry in entries:
+        try:
+            target = os.readlink(entry)
+        except OSError:
+            continue
+        if target.endswith(' (deleted)'):
+            target = target[:-10]
+        targets.add(target)
+    return targets
+
+
+def process_tree_nextpnr_fd_targets(root_pid, proc_root=None):
+    proc_root = Path(proc_root) if proc_root is not None else PROC_ROOT
+    targets = set()
+    for pid in process_tree_pids(root_pid, proc_root):
+        if 'nextpnr-mistral' in process_cmdline(pid, proc_root):
+            targets.update(process_fd_targets(pid, proc_root))
+    return targets
+
+
+def process_tree_uses_gpu(root_pid, vendor, device_nodes, proc_root=None):
+    """Check that nextpnr itself opened a leased hardware node."""
+    targets = process_tree_nextpnr_fd_targets(root_pid, proc_root)
+    if device_nodes is None:
+        expected_nodes = []
+    elif isinstance(device_nodes, str):
+        expected_nodes = [device_nodes]
+    else:
+        expected_nodes = list(device_nodes)
+    mapped_nodes = {node for node in expected_nodes if isinstance(node, str)}
+    first_node = expected_nodes[0] if expected_nodes else None
     if vendor == 'amd':
-        has_render_node = any(re.fullmatch(r'/dev/dri/renderD\d+', target) for target in targets)
-        return '/dev/kfd' in targets and has_render_node and (
-            device_node is None or device_node in targets)
+        render_nodes = {target for target in targets
+                        if re.fullmatch(r'/dev/dri/renderD\d+', target)}
+        return '/dev/kfd' in targets and bool(render_nodes) and (
+            first_node is None or bool(render_nodes & mapped_nodes))
     if vendor == 'nvidia':
-        return device_node is not None and device_node in targets
+        return bool(mapped_nodes & targets)
     return False
 
 
@@ -1227,7 +1254,8 @@ def execute(vendor, chosen, command):
     the child or any process the child started.
     """
     gpu_ids = [gpu_id for gpu_id, _ in chosen]
-    device_node = gpu_device_path(vendor, gpu_ids[0])
+    device_nodes = [gpu_device_path(vendor, gpu_id) for gpu_id in gpu_ids]
+    device_node = device_nodes[0]
     env = child_env(vendor, gpu_ids, device_node)
     previous_interrupt = signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
@@ -1245,7 +1273,7 @@ def execute(vendor, chosen, command):
             if not requires_gpu:
                 requires_gpu = process_tree_requires_gpu(pid)
             if requires_gpu and not opened_gpu:
-                opened_gpu = process_tree_uses_gpu(pid, vendor, device_node)
+                opened_gpu = process_tree_uses_gpu(pid, vendor, device_nodes)
             try:
                 waited, status = os.waitpid(pid, os.WNOHANG)
             except InterruptedError:
@@ -1257,7 +1285,12 @@ def execute(vendor, chosen, command):
         signal.signal(signal.SIGINT, previous_interrupt)
         release(chosen)
     if requires_gpu and not opened_gpu:
-        expected = device_node or ('a device node for %s GPU %s (mapping unavailable)' % (vendor, gpu_ids[0]))
+        mapped_nodes = [node for node in device_nodes if node]
+        if mapped_nodes:
+            expected = (mapped_nodes[0] if len(mapped_nodes) == 1 else
+                        'one of %s' % ', '.join(mapped_nodes))
+        else:
+            expected = 'a device node for %s GPU %s (mapping unavailable)' % (vendor, gpu_ids[0])
         if vendor == 'amd':
             opened = '/dev/kfd and %s' % expected
         else:

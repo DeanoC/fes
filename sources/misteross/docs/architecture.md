@@ -93,7 +93,10 @@ is preserved. Module relocation alone does not enter the functional projection.
 
 The functional lane supplies an explicit environment to synthesis and routing,
 using an empty private home instead of user configuration and omitting ambient
-loader, Yosys and GPU overrides. It records one explicit GPU device (default 0),
+loader and Yosys overrides. It preserves only the GPU routing variables set by
+`gpu-run` (`FES_GPU_IDS`, its visibility mask, `GPU_RUN_DEVICE`,
+`GPU_RUN_EXPECTED_DEVICE` and `NEXTPNR_REQUIRE_GPU`) and includes them in the
+functional input digest. It records one explicit GPU device (default 0),
 KFD topology, kernel, executable bytes (including the Yosys ABC9 helper
 `yosys-abc`), dynamic-library bytes and installed tool support data. Missing
 ABC or required Intel ALM support files reject the functional lane.
