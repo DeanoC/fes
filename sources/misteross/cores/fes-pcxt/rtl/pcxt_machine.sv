@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Real 8088 + motherboard + registered ISA display cards. Storage/font external.
-module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0) (
+module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0, parameter bit REGISTER_RESET = 0) (
     input wire clk, clk_rom, reset,
     output wire memory_valid,
     input wire memory_ready, memory_done,
@@ -20,6 +20,23 @@ module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0) (
     output wire dma_owner, refresh_done, audio_valid,
     output wire signed [15:0] audio_sample
 );
+    // System integration supplies the raw reset request and uses these
+    // simultaneous copies instead of one global execution-reset fanout.
+    // Standalone fixtures retain the direct-reset interface by default.
+    wire reset_cpu, reset_board, reset_isa;
+    generate if (REGISTER_RESET) begin: local_resets
+        reg cpu_q = 1'b1, board_q = 1'b1, isa_q = 1'b1;
+        (* keep *) always @(posedge clk) cpu_q <= reset;
+        (* keep *) always @(posedge clk) board_q <= reset;
+        (* keep *) always @(posedge clk) isa_q <= reset;
+        assign reset_cpu = cpu_q;
+        assign reset_board = board_q;
+        assign reset_isa = isa_q;
+    end else begin: direct_reset
+        assign reset_cpu = reset;
+        assign reset_board = reset;
+        assign reset_isa = reset;
+    end endgenerate
     wire [1:0] cpu_fault, dma_fault;
     assign fault = cpu_fault | dma_fault;
     wire cycle_valid, cycle_ready, cycle_done, cycle_write, cycle_lock, bus_locked, intr;
@@ -33,7 +50,7 @@ module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0) (
     assign accepted = cycle_valid && cycle_ready;
     assign completed = cycle_done;
     pcxt_cpu cpu (
-        .clk(clk), .clk_rom(clk_rom), .reset(reset), .intr(intr), .nmi(1'b0),
+        .clk(clk), .clk_rom(clk_rom), .reset(reset_cpu), .intr(intr), .nmi(1'b0),
         .cycle_valid(cycle_valid), .cycle_ready(cycle_ready),
         .cycle_address(cycle_address), .cycle_wdata(cycle_wdata),
         .cycle_kind(cycle_kind), .cycle_write(cycle_write), .cycle_lock(cycle_lock),
@@ -42,7 +59,7 @@ module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0) (
     );
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_motherboard board (
-        .clk(clk), .reset(reset), .guest_ce(guest_ce),
+        .clk(clk), .reset(reset_board), .guest_ce(guest_ce),
         .cycle_valid(cycle_valid), .cycle_ready(cycle_ready),
         .cycle_address(cycle_address), .cycle_wdata(cycle_wdata),
         .cycle_kind(cycle_kind), .cycle_write(cycle_write), .cycle_lock(cycle_lock),
@@ -62,7 +79,7 @@ module pcxt_machine #(parameter bit DIAGNOSTIC_PROBE = 0) (
         .speaker(), .audio_valid(audio_valid), .audio_sample(audio_sample), .intr(intr), .pit_out(), .pit_clock()
     );
     pcxt_display_bus #(.DIAGNOSTIC_PROBE(DIAGNOSTIC_PROBE)) isa (
-        .clk(clk), .reset(reset), .cycle_valid(isa_valid), .cycle_ready(isa_ready),
+        .clk(clk), .reset(reset_isa), .cycle_valid(isa_valid), .cycle_ready(isa_ready),
         .cycle_address(address), .cycle_wdata(wdata), .cycle_kind(kind),
         .cycle_write(write_cycle), .cycle_aen(aen), .cycle_lock(locked),
         .cycle_dma_channel(dma_channel), .cycle_terminal_count(terminal_count), .guest_ce(guest_ce),

@@ -223,6 +223,12 @@ firmware map is claimed.
 fabric input capture clock, inverted DDR SDRAM clock pin, bidirectional SDRAM
 pads, a separate 74.25 MHz fractional pixel PLL and HDMI RGB/sync. Loss of either
 PLL lock asserts both domain resets; each domain releases through two registers.
+The system captures its reset request into simultaneous kept CPU, motherboard
+and ISA copies in `pcxt_machine` (`REGISTER_RESET=1`), preserving the original
+registered release cycle while reducing execution-reset fanout. The master
+copy still gates storage/video. Standalone machine fixtures default to direct
+reset (`REGISTER_RESET=0`); both modes and actual bindings have an induction
+check.
 The retained `altddio_out` is passed to the locked nextpnr native output packer.
 The diagnostic synthesis applies `synth/rom_clock_map.v` after RAM inference:
 it connects a constant/undefined unused ROM write clock to the registered read
@@ -254,6 +260,11 @@ without changing the result or cycle. A changed image that needs the general
 AND/XOR source retains the original lookup. Symbolic ALU checks cover both
 this specialization and the general fallback, including the FLAGS override.
 
+
+The CRTC registers the next cursor-address minus next row-address each
+system edge, including simultaneous cursor writes and line/frame updates.
+Its horizontal cursor comparison therefore needs no MA addition. Whole-CRTC
+sequential equivalence checks all 238 original state/interface points.
 
 The PIC import uses formally checked parallel
 priority masks; the PIT uses direct one/two-step saturated binary/BCD decrements

@@ -2416,6 +2416,10 @@ start address, status polling and light-pen latching. MDA owns `B0000–B7FFF`
 with 4 KiB mirrors and `3B0–3BF` decode: 80×25 text with 9×14 cells, monochrome
 attributes/underline, ninth-column continuation, blink, cursor and raster status.
 Its printer interface is not implemented. Neither card generates IRQ/DRQ.
+The CRTC registers the next cursor-address minus next row-address each
+system edge, including simultaneous cursor writes and line/frame updates.
+Its horizontal cursor comparison therefore needs no MA addition. Whole-CRTC
+sequential equivalence checks all 238 original state/interface points.
 Both use a separately supplied normalized font ROM; no IBM glyph ROM is bundled.
 See the [core README](../cores/fes-pcxt/README.md#isa-display-cards) for the exact
 ports, font layout, primary references and simulation coverage.
@@ -2467,7 +2471,12 @@ release, SDRAM pads and inline HDMI. `pcxt_machine.sv` and `pcxt_system.sv`
 assemble CPU/motherboard, separate ISA cards, real storage and one video
 pipeline; `pcxt_boot.sv` copies the original assembled diagnostic firmware
 through the sequential 64 KiB loader before machine release. Warm reset/HOLD
-preserve storage/refresh; HOLD resets the machine and mutes video.
+preserve storage/refresh; HOLD resets the machine and mutes video. The system
+selects `REGISTER_RESET=1` in the machine, which captures three kept reset
+copies for CPU, motherboard and ISA on the same edge as the master storage/
+video reset. This preserves assertion/release cycles and reduces fanout. The
+default standalone-machine mode retains its direct-reset input contract;
+induction checks both modes and the actual system/consumer bindings.
 `make build-fes-pcxt CACHE_ROOT=/absolute/cache` retains each diagnostic
 synthesis/route attempt under `build/diagnostic/fes-pcxt/`; it exports no package.
 Its seed-1 route uses fixed timing weight 2000 and criticality exponent 5, with
