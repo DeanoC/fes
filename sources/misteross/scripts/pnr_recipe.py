@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import tomllib
-from functools import lru_cache
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -75,12 +75,71 @@ RECIPE_FIELDS = frozenset({
     "detailed_timing_report", "flags",
 })
 
+FLAG_BOOLEAN_FIELDS = frozenset({
+    "randomize_seed", "pack_only", "no_route", "no_place", "no_pack",
+    "ignore_loops", "ignore_rel_clk", "no_tmdriv", "sdf_cvc",
+    "no_print_critical_path_source", "placer_heap_no_ctrl_set",
+    "static_dump_density", "parallel_refine", "tmg_ripup",
+    "router2_tmg_ripup", "router2_alt_weights", "gpu_cpu", "gpu_perf",
+    "seed_racing_contract", "fes_scaffold", "mistral_ff4", "mistral_clkb",
+    "remap_optimize_pins", "remap_preserve_ffs",
+    "remap_lut_pair_compose_copy",
+})
+FLAG_INTEGER_FIELDS = frozenset({
+    "placer_heap_cell_placement_timeout", "timing_report_paths",
+    "replicate_enables", "remap_groups",
+})
+FLAG_INTEGER_OR_UNSET_FIELDS = frozenset({
+    "gpu_batches", "remap_comb_candidate", "remap_decompose_candidate",
+    "remap_lut_pair_candidate", "remap_lut_driver_candidate",
+    "remap_candidate",
+})
+FLAG_NUMBER_FIELDS = frozenset({
+    "cstrweight", "starttemp", "placer_heap_alpha", "placer_heap_beta",
+})
+FLAG_STRING_FIELDS = frozenset({
+    "placer", "router2_heatmap", "gpu_telemetry", "fes_cart",
+    "fes_cart_region", "fes_slot_clock", "fes_cram_region",
+    "remap_critical", "remap_plan", "remap_post_plan",
+    "remap_comb_critical", "remap_comb_plan", "remap_decompose_critical",
+    "remap_lut_pair_critical", "remap_lut_driver_critical",
+})
+FLAG_LIST_FIELDS = frozenset({"gpu_opt", "balance_reduction_root"})
+
+
+def _valid_flag_value(name: str, value: object) -> bool:
+    if name in FLAG_BOOLEAN_FIELDS:
+        return type(value) is bool
+    if name in FLAG_INTEGER_FIELDS:
+        return type(value) is int and value >= 0
+    if name in FLAG_INTEGER_OR_UNSET_FIELDS:
+        return value == "unset" or (type(value) is int and value >= 0)
+    if name in FLAG_NUMBER_FIELDS:
+        return value == "unset" or (
+            type(value) in (int, float) and math.isfinite(float(value))
+        )
+    if name in FLAG_STRING_FIELDS:
+        return isinstance(value, str) and bool(value) and not any(
+            ord(char) < 32 or ord(char) == 127 for char in value
+        )
+    if name in FLAG_LIST_FIELDS:
+        return isinstance(value, list) and all(
+            isinstance(item, str) and bool(item)
+            and not any(ord(char) < 32 or ord(char) == 127 for char in item)
+            for item in value
+        )
+    return False
+
+
+if (FLAG_BOOLEAN_FIELDS | FLAG_INTEGER_FIELDS | FLAG_INTEGER_OR_UNSET_FIELDS
+        | FLAG_NUMBER_FIELDS | FLAG_STRING_FIELDS | FLAG_LIST_FIELDS) != RECIPE_FLAGS:
+    raise RuntimeError("nextpnr recipe flag types do not cover the closed flag schema")
+
 
 class RecipeError(ValueError):
     """A registered producer disagrees with its pinned P&R recipe."""
 
 
-@lru_cache(maxsize=1)
 def _registry() -> tuple[dict, dict[str, dict]]:
     try:
         # The selected table is sealed into every registered producer record
@@ -102,10 +161,10 @@ def _registry() -> tuple[dict, dict[str, dict]]:
             raise RecipeError("every registered core must have a [recipes.pnr] table")
         if set(pnr) != RECIPE_FIELDS:
             raise RecipeError(f"{core_id}: P&R fields differ from the closed schema")
-        if set(pnr["flags"]) != RECIPE_FLAGS:
+        if not isinstance(pnr["flags"], dict) or set(pnr["flags"]) != RECIPE_FLAGS:
             raise RecipeError(f"{core_id}: every pinned nextpnr option must be classified")
-        if pnr["flags"] != CURRENT_FLAGS:
-            raise RecipeError(f"{core_id}: a nextpnr option differs from its reviewed pinned default")
+        if any(not _valid_flag_value(name, value) for name, value in pnr["flags"].items()):
+            raise RecipeError(f"{core_id}: invalid nextpnr option value")
         if (not all(isinstance(pnr[key], list) and pnr[key]
                     for key in ("seeds", "timing_weights", "search_weights", "clocks"))
                 or any(type(value) is not int or value < 0 for value in pnr["seeds"])
@@ -184,6 +243,25 @@ def lock_path(root: str | Path, core_id: str) -> Path:
 
 def _path(value: str | Path) -> str:
     return os.fspath(value)
+
+
+def _flag_arguments(flags: Mapping[str, object]) -> tuple[str, ...]:
+    """Serialize only explicitly nondefault options, preserving today's argv."""
+    arguments: list[str] = []
+    for name in sorted(RECIPE_FLAGS):
+        value = flags[name]
+        if value == CURRENT_FLAGS[name]:
+            continue
+        option = "--" + name.replace("_", "-")
+        if name in FLAG_BOOLEAN_FIELDS:
+            if value:
+                arguments.append(option)
+        elif name in FLAG_LIST_FIELDS:
+            for item in value:
+                arguments.extend((option, item))
+        else:
+            arguments.extend((option, str(value)))
+    return tuple(arguments)
 
 
 _GENERATED_SOCKET_QSF_CORES = frozenset({
@@ -296,13 +374,15 @@ def argv(
             command.append("--detailed-timing-report")
         if recipe["gpu_device"] == "lease":
             command.extend(("--gpu-device", str(gpu)))
+        command.extend(recipe["extra"])
     else:
         raise RecipeError(f"{core_id}: unknown argv style")
 
-    # Values kept at nextpnr's pinned defaults are represented in recipe.flags
-    # and checked by tests. Omitting them here preserves today's literal argv.
+    # Defaults stay recorded and golden-tested, but only nondefault values are
+    # emitted so the initial recipes retain their exact producer argv.
     if recipe["threads"] != 1 or flags["parallel_refine"]:
         command.extend(("--threads", str(recipe["threads"])))
+    command.extend(_flag_arguments(flags))
     return tuple(command)
 
 

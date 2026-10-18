@@ -69,7 +69,8 @@ either as the way to build or accept the tree you have open.
 
 The approved [cores-as-apps plan](cores-as-apps-plan.md) and its
 [per-core recipe option audit](recipe-option-audit.md) are design context for
-issue #843; the plan's later migration steps are not current build instructions.
+issue #843. This delivery covers migration steps 1–2; later steps remain
+proposals, not current build instructions.
 
 The [native video parts Kit 2 record](validation/2026-10-03-native-video-parts-kit2.md)
 binds its sealed shell, linked Direct/Scanlines parts and capture evidence.

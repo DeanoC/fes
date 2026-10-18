@@ -185,6 +185,7 @@ def _run_nextpnr(
     audit_source_root=None,
     core_id: str | None = None,
     gpu: int | None = None,
+    expected_recipe_digest: str | None = None,
 ) -> Candidate:
     run_dir = output / f"s{seed}-w{weight}-c{critexp}"
     if run_dir.exists():
@@ -215,6 +216,10 @@ def _run_nextpnr(
             qsf=qsf, sdc=sdc, weight=weight, critexp=critexp, extra=extra,
             env=env or {})
         recipe_sha = pnr_recipe.recipe_digest(core_id)
+        if expected_recipe_digest is not None and recipe_sha != expected_recipe_digest:
+            raise pnr_recipe.RecipeError(
+                f"{core_id}: P&R recipe changed during placement search"
+            )
         resolved = Path(nextpnr).resolve()
         slot = resolved.parents[2].name if len(resolved.parents) > 2 else "unknown"
 
@@ -426,21 +431,38 @@ def search(
     audit_source_root=None,
     accept: Callable[[Candidate], str | None] | None = None,
     core_id: str | None = None,
+    expected_recipe_digest: str | None = None,
 ) -> list[Candidate]:
+    if core_id is not None:
+        if expected_recipe_digest is None:
+            expected_recipe_digest = pnr_recipe.recipe_digest(core_id)
+        elif pnr_recipe.recipe_digest(core_id) != expected_recipe_digest:
+            raise pnr_recipe.RecipeError(
+                f"{core_id}: P&R recipe changed before placement search"
+            )
     gpu_pool: Queue[int | None] = Queue()
     assigned = list(gpu_devices) if gpu_devices else [None]
     for gpu in assigned:
         gpu_pool.put(gpu)
 
+    def verify_recipe(candidate: Candidate) -> Candidate:
+        if core_id is not None and (
+                pnr_recipe.recipe_digest(core_id) != expected_recipe_digest
+                or candidate.recipe_sha256 != expected_recipe_digest):
+            raise pnr_recipe.RecipeError(
+                f"{core_id}: P&R recipe changed during placement search"
+            )
+        return candidate
+
     def run(seed: int, weight: int) -> Candidate:
         if run_one is not None:
-            return run_one(seed, weight)
+            return verify_recipe(run_one(seed, weight))
         gpu = gpu_pool.get()
         try:
             extra_run = list(extra)
             if gpu is not None and core_id is None:
                 extra_run += ["--gpu-device", str(gpu)]
-            return _run_nextpnr(
+            candidate = _run_nextpnr(
                 nextpnr,
                 fixture,
                 output,
@@ -458,7 +480,9 @@ def search(
                 audit_source_root=audit_source_root,
                 core_id=core_id,
                 gpu=gpu,
+                expected_recipe_digest=expected_recipe_digest,
             )
+            return verify_recipe(candidate)
         finally:
             gpu_pool.put(gpu)
 
@@ -578,8 +602,16 @@ def route_after_synth(
     core_id: str | None = None,
 ) -> Candidate:
     """Place-and-route candidates after synth.json exists; promote the winner."""
+    route_extra = tuple(extra)
+    expected_recipe_digest = (
+        pnr_recipe.recipe_digest(core_id) if core_id is not None else None
+    )
     if core_id is not None:
         recipe = pnr_recipe.recipe_for(core_id)
+        if pnr_recipe.recipe_digest(core_id) != expected_recipe_digest:
+            raise pnr_recipe.RecipeError(
+                f"{core_id}: P&R recipe changed before placement search"
+            )
         if not set(seeds) <= set(recipe["seeds"]):
             raise pnr_recipe.RecipeError(f"{core_id}: producer seed is not recorded in its recipe")
         allowed_weights = set(recipe["timing_weights"]) | set(recipe["search_weights"])
@@ -594,8 +626,10 @@ def route_after_synth(
         if (required is not None
                 and not set(required) <= set(pnr_recipe.required_clocks(core_id))):
             raise pnr_recipe.RecipeError(f"{core_id}: producer clocks differ from its recipe")
-        if tuple(extra) != tuple(recipe["extra"]):
+        recipe_extra = tuple(recipe["extra"])
+        if route_extra and route_extra != recipe_extra:
             raise pnr_recipe.RecipeError(f"{core_id}: producer supplied an unrecorded nextpnr extra")
+        route_extra = recipe_extra
         if not gpu_devices and recipe["gpu_device"] == "lease":
             raise pnr_recipe.RecipeError(f"{core_id}: producer did not bind the leased GPU device")
     search_dir = dest / "qor-search"
@@ -615,7 +649,7 @@ def route_after_synth(
         critexp=critexp,
         budget=budget,
         mode=mode,
-        extra=extra,
+        extra=route_extra,
         timeout=timeout,
         required=required,
         gpu_devices=gpu_devices,
@@ -624,7 +658,13 @@ def route_after_synth(
         audit_source_root=audit_source_root,
         accept=accept,
         core_id=core_id,
+        expected_recipe_digest=expected_recipe_digest,
     )
+    if (core_id is not None
+            and pnr_recipe.recipe_digest(core_id) != expected_recipe_digest):
+        raise pnr_recipe.RecipeError(
+            f"{core_id}: P&R recipe changed during placement search"
+        )
     (dest / "qor-ranking.json").write_text(
         json.dumps(
             ranking_document(

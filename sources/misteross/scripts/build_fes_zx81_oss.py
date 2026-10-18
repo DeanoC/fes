@@ -73,7 +73,6 @@ def _authenticate_tools(root: Path, **kwargs):
     gpu_router = kwargs.pop('gpu_router', 'HIP')
     _backend, architectures, configuration = gpu_choice(gpu_router)
     kwargs.setdefault('lock_path', Path(root) / SOCKET_TOOLCHAIN_LOCK)
-    kwargs.setdefault('expected_commits', SOCKET_TOOL_COMMITS)
     kwargs.setdefault('toolchain_root', Path(root) / 'build/toolchain/zx81-expansion')
     kwargs['gpu_router'] = gpu_router
     kwargs['hip_architectures'] = architectures

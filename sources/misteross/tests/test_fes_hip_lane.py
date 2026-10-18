@@ -49,10 +49,22 @@ CUDA_PRODUCERS = (
 )
 
 
-def _write_local_root_tools(root: Path, *, nextpnr_config: str | None) -> Path:
+def _write_local_root_tools(
+    root: Path,
+    *,
+    nextpnr_config: str | None,
+    nextpnr_commit: str | None = None,
+) -> Path:
     lock = root / build_fes_pong.TOOLCHAIN_LOCK
     lock.parent.mkdir(parents=True, exist_ok=True)
-    lock.write_bytes((ROOT / build_fes_pong.TOOLCHAIN_LOCK).read_bytes())
+    lock_text = (ROOT / build_fes_pong.TOOLCHAIN_LOCK).read_text(encoding="utf-8")
+    if nextpnr_commit is not None:
+        original_commit = load_lock(ROOT / build_fes_pong.TOOLCHAIN_LOCK)["nextpnr"].commit
+        old = f'commit = "{original_commit}"'
+        if lock_text.count(old) != 1:
+            raise AssertionError("expected one nextpnr commit in the fixture lock")
+        lock_text = lock_text.replace(old, f'commit = "{nextpnr_commit}"', 1)
+    lock.write_text(lock_text, encoding="utf-8")
     install = root / "build/toolchain/install/bin"
     install.mkdir(parents=True)
     pins = load_lock(lock)
@@ -329,7 +341,6 @@ class FesHipLaneTests(unittest.TestCase):
                 authenticated = build_fes_zx81_oss._authenticate_tools(root)
                 self.assertEqual(authenticated["nextpnr-mistral"].path, install / "nextpnr-mistral")
                 self.assertIn(HIP_CONFIGURATION, authenticated["nextpnr-mistral"].identity)
-
             root = Path(directory) / "pong"
             root.mkdir()
             install = _write_local_root_tools(root, nextpnr_config=HIP_CONFIGURATION)
@@ -337,6 +348,20 @@ class FesHipLaneTests(unittest.TestCase):
                 authenticated = build_fes_pong._authenticate_tools(root)
                 self.assertEqual(authenticated["nextpnr-mistral"].path, install / "nextpnr-mistral")
                 self.assertIn(HIP_CONFIGURATION, authenticated["nextpnr-mistral"].identity)
+
+    def test_local_per_core_lock_commit_is_the_authentication_authority(self) -> None:
+        commit = "a" * 40
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            install = _write_local_root_tools(
+                root,
+                nextpnr_config=HIP_CONFIGURATION,
+                nextpnr_commit=commit,
+            )
+            with patch.dict(os.environ, {}, clear=True):
+                authenticated = build_fes_pong._authenticate_tools(root)
+            self.assertEqual(authenticated["nextpnr-mistral"].path, install / "nextpnr-mistral")
+            self.assertIn(f"commit={commit};", authenticated["nextpnr-mistral"].identity)
 
     def test_toolchain_fes_provisions_root_lock_hip_lane(self) -> None:
         result = subprocess.run(
@@ -355,7 +380,7 @@ class FesHipLaneTests(unittest.TestCase):
         self.assertNotIn("build/toolchain/fes-coleco", result.stdout)
         makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertRegex(makefile, r"\.PHONY:.*\btoolchain-fes\b")
-        self.assertIn("toolchain-fes  Build the repository-local HIP toolchain for FES Pong", makefile)
+        self.assertIn("toolchain-fes  Build the repository-local HIP toolchain from toolchain.lock", makefile)
         self.assertIn("toolchain-fes-zx81  Build the repository-local HIP toolchain for the standard FES ZX81 socket", makefile)
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("make toolchain-fes", readme)
@@ -370,9 +395,42 @@ class FesHipLaneTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(zx81.returncode, 0, zx81.stderr)
-        self.assertIn("toolchain.lock", zx81.stdout)
-        self.assertNotIn("toolchains/zx81-expansion.lock", zx81.stdout)
+        self.assertIn(str(ROOT / "cores/fes-zx81/toolchain.lock"), zx81.stdout)
+        self.assertNotIn(f'FES_TOOLCHAIN_LOCKFILE="{ROOT}/toolchain.lock"', zx81.stdout)
         self.assertIn("build/toolchain/zx81-expansion", zx81.stdout)
+
+    def test_each_registered_core_toolchain_target_selects_its_lock(self) -> None:
+        targets = {
+            "fes.menu": "toolchain-fes-menu",
+            "fes.catch": "toolchain-fes-catch",
+            "fes.pong": "toolchain-fes-pong",
+            "fes.zx81": "toolchain-fes-zx81",
+            "fes.coleco": "toolchain-fes-coleco",
+            "fes.sms": "toolchain-fes-sms",
+            "fes.sg1000": "toolchain-fes-sg1000",
+            "fes.apple2": "toolchain-fes-apple2",
+            "fes.c64": "toolchain-fes-c64",
+            "fes.spectrum": "toolchain-fes-spectrum",
+            "fes.riscv": "toolchain-fes-riscv",
+            "fes.ramtest": "toolchain-fes-ramtest",
+            "fes.atari-st": "toolchain-fes-atari-st",
+        }
+        for core_id, target in targets.items():
+            core = core_id.removeprefix("fes.")
+            with self.subTest(core=core_id, target=target):
+                result = subprocess.run(
+                    ["make", "-n", target],
+                    cwd=ROOT,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(
+                    str(ROOT / f"cores/fes-{core}/toolchain.lock"),
+                    result.stdout,
+                )
 
     def test_make_forwards_cache_root_to_fes_producers(self) -> None:
         cache = "/tmp/fes-explicit-cache"

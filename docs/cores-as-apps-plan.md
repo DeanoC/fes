@@ -1,6 +1,6 @@
 # Plan: treat FES cores as apps (per-core toolchain pins, nightly bumps, app-style packaging)
-**Status: approved by Deano with changes on 2026-10-18 (revision 2, adding change 1: the recipe captures ALL nextpnr options). Step 1 has NOT started.** Option audit: [recipe-option-audit.md](recipe-option-audit.md). AGENTS.md playbook text: [agents-md-timing-playbook.md](agents-md-timing-playbook.md).
-Lander, 2026-10-18 12:50 EEST. **PLAN ONLY. Nothing has been changed anywhere.** The gate proposal and the #213 revert are on hold, and fes stays pinned to nextpnr `9128800f`.
+**Status: approved by Deano with changes on 2026-10-18 (revision 2, adding change 1: the recipe captures all nextpnr options). Issue #843 delivers migration steps 1–2; later steps remain proposals.** Option audit: [recipe-option-audit.md](recipe-option-audit.md).
+Lander, 2026-10-18 12:50 EEST. This plan-only assessment predates the #843 implementation. The gate proposal and the #213 revert are on hold, and fes stays pinned to nextpnr `9128800f`.
 Sources: fes main `9b463dce` tree, `config/core-recipes.toml`, `config/core-library.toml`, `docs/kit-core-library.md`, `check.yml`, `gh run list`, and `/workspace/lander/791-STATUS.md`.
 
 ## Facts that shape the plan
@@ -37,7 +37,7 @@ On a miss, the driver and nightly don't just reroll seeds:
 - The nightly gets 1 matrix step per core per night inside its window. If nothing closes, the core stays pinned and its issue is updated.
 - Constraints and seals are never relaxed.
 - Long term: an alphamister-style automatic search over the same option space and budget.
-- AGENTS.md text: [agents-md-timing-playbook.md](agents-md-timing-playbook.md), proposed in a docs-only fes PR.
+- The timing-failure playbook above is design context. It does not change the current `AGENTS.md` instructions.
 
 ## 2. Nightly per-core bump job
 - **What it does:** each night, for each core, build a candidate slot from the tips of nextpnr, yosys and mistral main (once per night, shared by all cores), synthesise, and run that core's production recipe (its first-pass seed list, capped at production seed + 2) under `gpu-run --owner nightly`.
@@ -88,7 +88,7 @@ On a miss, the driver and nightly don't just reroll seeds:
 | 5 (after 1 week of nightly data) | nightly opens bump PRs; Bob merges by hand | medium | none extra |
 | 6 (with Deano's OK) | auto-merge for passing bumps | medium | none |
 | 7 (2–3 days) | image slimmed to menu, ramtest and Pong; library cores shipped by fes-update/bundle into the core library, with a kit HIL on A and B | medium (kit flow) | about 6 h agent; 2 kit sessions |
-Step 1 is the first deliverable and can land in about a day. It changes no behaviour.
+Steps 1–2 are the current #843 delivery scope and preserve the effective producer commands. Steps 3–7 remain proposed follow-up work.
 
 ## 6. Risks
 - **Lock skew:** cores on different toolchains mean more cached slots and disk space, and a core whose bump never passes ends up on a very old toolchain. Mitigations: show each core's pin age on a dashboard, and file an issue after 30 days unbumped.

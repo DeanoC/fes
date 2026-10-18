@@ -613,7 +613,7 @@ class CacheLocationTest(unittest.TestCase):
 
 
 class RamtestToolchainTargetTest(unittest.TestCase):
-    def test_toolchain_fes_ramtest_pins_shared_lock_against_env_overrides(self):
+    def test_toolchain_fes_ramtest_pins_its_core_lock_against_env_overrides(self):
         misteross = Path(__file__).resolve().parents[1] / 'sources/misteross'
         env = dict(os.environ, FES_TOOLCHAIN_LOCKFILE='/elsewhere.lock',
                    FES_TOOLCHAIN_ROOT='/elsewhere-root')
@@ -622,6 +622,7 @@ class RamtestToolchainTargetTest(unittest.TestCase):
             env.pop(key, None)
         out = subprocess.run(['make', '-n', '-s', 'toolchain-fes-ramtest'], cwd=misteross,
                              env=env, check=True, capture_output=True, text=True).stdout
-        self.assertIn(f'FES_TOOLCHAIN_LOCKFILE="{misteross}/toolchain.lock"', out)
-        self.assertIn(f'FES_TOOLCHAIN_ROOT="{misteross}/build/toolchain"', out)
+        self.assertIn(
+            f'FES_TOOLCHAIN_LOCKFILE="{misteross}/cores/fes-ramtest/toolchain.lock"', out)
+        self.assertIn(f'FES_TOOLCHAIN_ROOT="{misteross}/build/toolchain/fes-ramtest"', out)
         self.assertNotIn('elsewhere', out)

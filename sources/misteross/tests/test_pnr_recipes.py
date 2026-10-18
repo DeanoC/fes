@@ -2,9 +2,11 @@
 import ast
 import hashlib
 import json
+import tempfile
 import tomllib
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts import pnr_recipe
 
@@ -41,6 +43,25 @@ GOLDENS = {
     "fes.riscv": ("aae5ea738224669955f178252e48606f44b6d46dceb0767bd53bab43ce4e208b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
     "fes.ramtest": ("ede6474bf85ce45e0631d4edb375bc37ab9c1161aae0a265f3c5c34920947781", "ded346bda6c66889e7f08e994eb82964871784b747cbc24159782b25406da42e"),
     "fes.atari-st": ("fb2168507f5b08a1112ad6f5e90fd48b6ea2b69273073f7f7c32ef882133d05a", "31597590be7e868a81521a62ceaa190e7af72dfffc106b9c5898646ea56e040a"),
+}
+
+# Hashes of the frozen legacy producer argv matrix for every registered
+# seed/weight pair. These are independent of the recipe hash and protect the
+# migrated argv layout and each production combination.
+ARGV_MATRIX_GOLDENS = {
+    "fes.menu": "d356ffdf406928e2d588be6e41f92ef4a51dd6b02fce5e660f123c97d2cd7bcb",
+    "fes.catch": "79b8ac93741f11b180132307a0b3261e6e41839e89240c6363f0087e03e75bc4",
+    "fes.pong": "177f0476e55e89727fd172de68e2a08b4c684e2a0c99184e4330acfaa4efa85c",
+    "fes.zx81": "3e247618b00da0b097ab09f7851f721127e3598df58d7c3a7ca006c0cc032749",
+    "fes.coleco": "7bde18f0254f40a680638a4476839141eaf65ffbf2a0bf7069cec059332f9439",
+    "fes.sms": "f1c5c9118f716306b8493bccb3d24c1bec6ce5d20ea4c942b618c7aa728499bb",
+    "fes.sg1000": "e67b5e8e63cf0c3ba560d58c04167361d95e2cf3d653d1d1ff42524fdea9d7fb",
+    "fes.apple2": "9810f5f4a5870d854ad0e9c5d364d587e95f75ae9d7316f2772683ee1f8395fb",
+    "fes.c64": "ed1c7847679e3d9d18654e7e32892c2e585cc1317dd058a865668bb8860223f1",
+    "fes.spectrum": "e3836e041f0ebefcf4eeff1c8969849321ce5f9ada1ed30e499cc2064febe060",
+    "fes.riscv": "177f0476e55e89727fd172de68e2a08b4c684e2a0c99184e4330acfaa4efa85c",
+    "fes.ramtest": "159f755b9a023c72346c869160555cb102132b77c7ca714bd0b52980be3d4079",
+    "fes.atari-st": "36c86eaedd189ac95d79f18c08cd140d6def21d83613e863d6dae20567ab6d84",
 }
 
 
@@ -100,6 +121,7 @@ class PnrRecipeTests(unittest.TestCase):
                 weights = tuple(dict.fromkeys((*recipe["timing_weights"], *recipe["search_weights"])))
                 optional_env = {**ENV, **recipe["optional_env"]}
                 self.assertEqual(pnr_recipe.environment(core_id, optional_env), optional_env)
+                matrix = []
                 for seed in recipe["seeds"]:
                     for weight in weights:
                         command, environment = pnr_recipe.build(
@@ -108,9 +130,61 @@ class PnrRecipeTests(unittest.TestCase):
                         expected = _legacy_argv(core_id, recipe, seed=seed, weight=weight)
                         self.assertEqual(list(command), expected)
                         self.assertEqual(environment, ENV)
+                        matrix.append([seed, weight, expected])
                         if seed == recipe["seeds"][0] and weight == recipe["timing_weights"][0]:
                             self.assertEqual(hashlib.sha256(json.dumps(
                                 list(command), separators=(",", ":")).encode()).hexdigest(), argv_sha)
+                matrix_sha = hashlib.sha256(json.dumps(
+                    matrix, separators=(",", ":")).encode()).hexdigest()
+                self.assertEqual(matrix_sha, ARGV_MATRIX_GOLDENS[core_id])
+
+    def test_registry_edits_change_the_live_recipe_digest(self):
+        source = (ROOT / "config/core-recipes.toml").read_text(encoding="utf-8")
+        start = source.index('core_id = "fes.pong"')
+        end = source.index("[[recipes]]", start + 1)
+        pong = source[start:end]
+        old_seeds = "seeds = [1, 2, 3, 4, 5, 6, 7, 8]"
+        self.assertIn(old_seeds, pong)
+        changed = source[:start] + pong.replace(
+            old_seeds, "seeds = [1, 2, 3, 4, 5, 6, 7, 8, 9]", 1
+        ) + source[end:]
+        with tempfile.TemporaryDirectory() as directory:
+            registry = Path(directory) / "core-recipes.toml"
+            registry.write_text(source, encoding="utf-8")
+            with patch.object(pnr_recipe, "REGISTRY", registry):
+                initial = pnr_recipe.recipe_digest("fes.pong")
+                registry.write_text(changed, encoding="utf-8")
+                self.assertNotEqual(pnr_recipe.recipe_digest("fes.pong"), initial)
+
+    def test_nondefault_flags_and_recipe_extras_are_serialized(self):
+        import copy
+
+        for core_id in ("fes.pong", "fes.catch"):
+            with self.subTest(core=core_id):
+                recipe = copy.deepcopy(pnr_recipe.recipe_for(core_id))
+                recipe["extra"] = ["--router2-alt-weights"]
+                if core_id == "fes.pong":
+                    recipe["flags"]["parallel_refine"] = True
+                    recipe["flags"]["placer_heap_alpha"] = 0.2
+                    recipe["flags"]["remap_optimize_pins"] = True
+                with patch.object(pnr_recipe, "recipe_for", return_value=recipe):
+                    command = pnr_recipe.argv(
+                        core_id, SLOT, SYNTH, recipe["seeds"][0], 0, output=OUTPUT
+                    )
+                self.assertIn("--router2-alt-weights", command)
+                if core_id == "fes.pong":
+                    self.assertIn("--parallel-refine", command)
+                    self.assertIn("--threads", command)
+                    self.assertIn("--placer-heap-alpha", command)
+                    self.assertIn("0.2", command)
+                    self.assertIn("--remap-optimize-pins", command)
+
+    def test_menu_argv_uses_the_leased_gpu_device(self):
+        command = pnr_recipe.argv(
+            "fes.menu", SLOT, SYNTH, 5, 1, output=OUTPUT
+        )
+        device_index = command.index("--gpu-device")
+        self.assertEqual(command[device_index + 1], "1")
 
     def test_unrecorded_option_and_environment_are_rejected(self):
         recipe = pnr_recipe.recipe_for("fes.pong")

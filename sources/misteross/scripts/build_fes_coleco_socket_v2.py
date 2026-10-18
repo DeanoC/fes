@@ -127,7 +127,6 @@ def authenticate_tools(root: Path, cache_root: Path | None,
     return _authenticate_tools(
         root, lock_path=root / TOOLCHAIN_LOCK,
         toolchain_root=root_path,
-        expected_commits=TOOL_COMMITS,
         expected_configuration={"nextpnr": configuration},
         gpu_router=gpu_router,
         hip_architectures=architectures,
