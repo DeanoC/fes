@@ -588,3 +588,30 @@ func waitMenuForgotten(t *testing.T, d *MenuDisplay) {
 		}
 	}
 }
+
+func TestMenuDisplayTraceSinkReportsEachPresent(t *testing.T) {
+	client := &testMenuClient{generation: 3, ready: make(chan struct{}, 3)}
+	d, err := newMenuDisplayWithClient(client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	traces := make(chan MenuPresentTrace, 4)
+	d.SetTraceSink(func(tr MenuPresentTrace) { traces <- tr })
+	d.SetChangeDriven(true)
+	before := d.QueuedSeq()
+	d.BeginFrame()
+	d.Clear(RGB(1, 2, 3))
+	d.Present()
+	if d.QueuedSeq() == before {
+		t.Fatal("a changed frame did not advance QueuedSeq")
+	}
+	select {
+	case tr := <-traces:
+		if !tr.Presented || tr.Seq != d.QueuedSeq() || tr.Queued.IsZero() || tr.Err != "" {
+			t.Fatalf("trace %+v", tr)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no trace for the present")
+	}
+}

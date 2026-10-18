@@ -153,6 +153,8 @@ type Instance struct {
 	fatal         error
 	frameOverruns int
 	inputOverruns int
+	// lastStep is the Lua time of the most recent Step, for frame traces.
+	lastStep StepTiming
 	// frameStreak and inputStreak describe the current run of consecutive
 	// soft overruns, reported when that run retires the room.
 	frameStreak     overrunStreak
@@ -309,6 +311,7 @@ func (r *Instance) Load() error {
 // new frame. Steps after a fatal error return an empty frame.
 func (r *Instance) Step(now time.Time) Frame {
 	if r.fatal != nil || !r.loaded {
+		r.lastStep = StepTiming{}
 		return Frame{}
 	}
 	dt := now.Sub(r.last).Seconds()
@@ -321,11 +324,18 @@ func (r *Instance) Step(now time.Time) Frame {
 	r.last = now
 	r.elapsed += dt
 	r.roomTable.RawSetString("time", lua.LNumber(r.elapsed))
+	r.lastStep = StepTiming{}
+	asyncStart := time.Now()
 	r.drainResults()
+	updateStart := time.Now()
+	r.lastStep.Async = updateStart.Sub(asyncStart)
+	defer func() { r.lastStep.Total = time.Since(asyncStart) }()
 	if r.fatal != nil {
 		return Frame{}
 	}
-	if err := r.callGlobalSoft("update", r.budget.Frame, lua.LNumber(dt)); err != nil {
+	err := r.callGlobalSoft("update", r.budget.Frame, lua.LNumber(dt))
+	r.lastStep.Update = time.Since(updateStart)
+	if err != nil {
 		if errors.Is(err, errSoftOverrun) {
 			return r.overrunFrame(err)
 		}
@@ -338,7 +348,9 @@ func (r *Instance) Step(now time.Time) Frame {
 	r.reuseFrame = false
 	r.keepSlowFrame = false
 	r.extendCopied = false
-	err := r.callGlobalSoft("draw", r.budget.Frame)
+	drawStart := time.Now()
+	err = r.callGlobalSoft("draw", r.budget.Frame)
+	r.lastStep.Draw = time.Since(drawStart)
 	r.inDraw = false
 	built := r.building
 	r.building = nil
@@ -934,4 +946,18 @@ func (r *Instance) resolveModule(name string) ([]byte, string, error) {
 		return nil, "", fmt.Errorf("module not found in stdlib or room (%v)", err)
 	}
 	return data, r.pack.ID + "/" + rel, nil
+}
+
+// StepTiming is where one Step's time went: async result callbacks,
+// update, draw, and the whole Step including frame bookkeeping.
+type StepTiming struct {
+	Async, Update, Draw, Total time.Duration
+}
+
+// LastStep reports the most recent Step's timing.
+func (r *Instance) LastStep() StepTiming {
+	if r == nil {
+		return StepTiming{}
+	}
+	return r.lastStep
 }

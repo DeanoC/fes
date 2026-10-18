@@ -686,7 +686,13 @@ bool TryEncodeV2Response(bool ok, const Status& status, const std::string& versi
   output.Append(",\"byte_count\":");output.Append(std::to_string(native::generated::FesApplicationMenuFrameBytes));
   output.Append(",\"staging_format\":\"rgba8888\",\"displayed_sequence\":");
   if(menu_frame->prepared)output.Append("null");else output.Append(std::to_string(menu_frame->displayed_sequence));
-  output.Append(",\"underflows\":");output.Append(std::to_string(menu_frame->underflows));output.Append("}");
+  output.Append(",\"underflows\":");output.Append(std::to_string(menu_frame->underflows));
+  if(!menu_frame->prepared) {
+   output.Append(",\"timing\":{\"copy_us\":");output.Append(std::to_string(menu_frame->copy_us));
+   output.Append(",\"submit_us\":");output.Append(std::to_string(menu_frame->submit_us));
+   output.Append(",\"scanout_wait_us\":");output.Append(std::to_string(menu_frame->scanout_wait_us));output.Append("}");
+  }
+  output.Append("}");
  }
 	output.Append(",\"generation\":");
 	if (status.generation == 0) output.Append("null");
