@@ -3159,6 +3159,19 @@ binding. Video imports do not enter CPU expansion inventory.
 | Import a bounded binary archive for a profile | `POST /api/v1/library/video-parts/{profile}` |
 | Inspect the next launch for an entry | `GET /api/v1/library/core-entries/{game_id}/video` |
 
+`fogcast video-part-install direct|scanlines PATH` is the CLI for that import.
+It snapshots a regular `.fexp` within the same byte bound before opening HTTP.
+The local check accepts `fes.fabric.video.raster-rgb888` and
+`fes.fabric.video.native-pixels`; any other socket returns `BAD_REQUEST` and
+is not uploaded. The accepted bytes are posted as `application/octet-stream`
+to `POST /api/v1/library/video-parts/{profile}`.
+`fogcast.ImportCoreVideoPart` reads the body again, requires one of those
+sockets, loads the installed sealed shell named by the archive, and composes
+the part against that shell before `catalog.ImportCoreVideoPart` stores it.
+Storage still requires socket 1.0 and the matching closed native or raster
+map. A lost response is not replayed. Success requires the returned part
+identity, shell package and profile to match the snapshot.
+
 `fogcast/core_video.go` considers only parts for the entry's exact installed
 package and declared video socket. The closed Coleco shell contract, format 2
 or a format-3 16 KiB cartridge, rejects mixed markers and unsupported versions

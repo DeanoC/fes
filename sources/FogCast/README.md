@@ -13,6 +13,11 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Household video preference selects **Direct** or **Scanlines** for the next
   library launch. Browser Settings saves the preference; **Manage FPGA library**
   imports video parts and shows the resolved choice for the exact package.
+  `fogcast video-part-install direct|scanlines PATH` snapshots a raster
+  (`fes.fabric.video.raster-rgb888`) or native-pixel
+  (`fes.fabric.video.native-pixels`) `.fexp` and posts it to that same host
+  import; the host composes the archive against the installed sealed shell
+  before storage.
   A missing Scanlines part falls back to a matching Direct part. Native pixel
   shells require a linked video part; raster shells retain built-in Direct as
   their final fallback. An installed selected part that fails admission
