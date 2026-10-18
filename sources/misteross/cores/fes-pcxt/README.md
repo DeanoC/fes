@@ -6,8 +6,66 @@ targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
 linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
 PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. It has no
 HID keyboard frontend, disk controller, BIOS, board top, physical socket map or package producer.
-It cannot boot DOS or PC/XT games yet. Conventional RAM and ROM are testbench
-models; no physical SDRAM controller is connected.
+It cannot boot DOS or PC/XT games yet. The storage lane connects conventional RAM and firmware to the existing
+addon SDRAM controller and boots the display diagnostic through its physical
+command interface in host simulation. Board pads and clock phases remain unqualified.
+
+## SDRAM storage
+
+`rtl/pcxt_memory.sv` implements the motherboard's byte VALID/READY/DONE port
+at 100 MHz using the unchanged `fes-ramtest/rtl/sdram_addon_port.v` controller.
+CPU and DMA already share that port through the motherboard arbiter. Accepted
+payloads are retained independently of caller pins, with one completion and no
+repeat while VALID stays high. Reads select the requested halfword byte;
+DQM writes preserve its neighbour. Physical halfword offsets are guest byte
+addresses shifted right by one, interpreted in the controller's packed
+bank/row/column map. Only `00000–9FFFF` RAM and `F0000–FFFFF` firmware use
+storage. Defensive decode returns `FF` for ISA holes and suppresses ROM writes;
+video VRAM stays on the ISA cards.
+
+A separate firmware byte VALID/READY/DONE port writes the 64 KiB firmware
+window, with a 16-bit offset. It admits writes only while the machine's warm
+reset is asserted. The caller must wait for SDRAM `initialized`, load the
+complete firmware window and wait for the final DONE before releasing reset.
+There is no bundled BIOS, image validation, ROM sealing or production HPS
+loader in this slice. Shorter BIOS images need a separately specified mapping.
+
+`cold_reset` restarts controller initialization and cancels all responses. It
+must assert during startup; the caller holds the CPU/motherboard reset until
+initialization and firmware loading finish. Warm `reset` blocks CPU admission,
+drains an accepted physical operation and suppresses its remaining completion.
+An issued write may commit during reset and is never retried. RAM, firmware
+and physical SDRAM refresh remain live. A new CPU request waits for the drain;
+old motherboard VALID must be cancelled by that same reset. An accepted loader
+write retires independently of warm reset; keep reset asserted until it does.
+Cold reset does not establish a storage-retention guarantee.
+
+The controller uses its conservative CAS-2 100 MHz rate-3 path, single-rank
+refresh and the established additional fabric stage after input capture.
+`clk_pin` is the phase-0 controller clock used for the inverted SDRAM clock
+output. The future board supplies captured `dq_rise/dq_fall`, bidirectional
+pads, PLL phases and timing constraints. The diagnostic synthesis retains
+`altddio_out` as a technology primitive; it does not qualify a mapped pad or
+clock network. This is host-only evidence, with no routed timing or kit load.
+
+Run `python3 scripts/sim_fes_pcxt.py --suite memory` from `sources/misteross`
+for independent packed-address/command/CAS/DQM checks, 4,000 random neighbour
+pairs, RAM/ROM boundaries, a random scoreboard, blocked live firmware loading,
+held VALID/payload changes, physical refresh and 80 warm/40 cold reset phases.
+`--suite memory-machine` loads all 65,536 ROM bytes through the real loader,
+boots the 8088 from `FFFF0`, programs CGA/MDA through ISA, verifies complete
+raw frames and repeats a warm boot without reloading firmware. It checks new
+guest success writes on each boot. Both suites run with zero-, one- and two-cycle model DQM delays in the default
+matrix, checking neighbour preservation and boot behavior with delayed masks.
+The SDRAM model checks digital command timing at 100 MHz, not analog setup/hold,
+refresh retention or board routing. Other suites retain independent variable-
+latency testbench storage. Full CPU/DMA storage and Direct/Scanlines integration
+into one board shell remains a subsequent qualification step.
+
+`python3 scripts/synth_fes_pcxt.py --suite memory --cache-root /absolute/cache`
+runs the locked Cyclone V diagnostic frontend and `check -assert`, writing
+`build/synth/fes-pcxt/memory/diagnostic.json`. It covers the backend/controller,
+without the CPU, cards, framebuffer or board capture/pads.
 
 ## ISA display cards
 
@@ -147,7 +205,7 @@ ROM writes complete without reaching storage. Video/option-memory apertures
 remain on ISA; vacant slots return `FF`. Storage has VALID/READY admission and
 one DONE response, with stable address/data until completion. Reset cancels
 pending work and must also reset the downstream storage and ISA participants.
-This is a storage interface, not an SDRAM implementation.
+The optional `pcxt_memory.sv` backend above connects this port to SDRAM.
 
 The MIT-licensed [KF8259](vendor/kf8259/README.md) and
 [KF8253](vendor/kf8253/README.md) and [KF8255](vendor/kf8255/README.md) imports are pinned to the same upstream commit
@@ -259,7 +317,7 @@ PIT1 rising edges latch refresh requests until DMA0 acknowledges service.
 DMA0 read mode performs a memory read without an ISA peripheral packet;
 its auto-init single mode continues while the CPU waits or halts. Edges during
 a delayed refresh can latch one further request. This supplies the guest-visible
-refresh bus activity; a future physical SDRAM controller still owns its actual
+refresh bus activity; the separate physical SDRAM controller owns its actual
 SDRAM refresh commands and retention qualification.
 
 CGA and MDA are separate ISA expansion cards. Each owns its VRAM, memory
