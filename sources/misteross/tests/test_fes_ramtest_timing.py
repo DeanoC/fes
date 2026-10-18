@@ -19,19 +19,23 @@ class RamtestTimingDiagnosticTest(unittest.TestCase):
         self.assertEqual(lock["tool"]["yosys"]["commit"], timing.TOOL_COMMITS["yosys"])
         self.assertEqual(lock["tool"]["nextpnr"]["commit"], timing.TOOL_COMMITS["nextpnr"])
         self.assertEqual(timing.LOCK, ramtest.TOOLCHAIN_LOCK)
-        self.assertNotEqual(timing.OUTPUT, ramtest.OUTPUT_130)
+        self.assertNotEqual(timing.OUTPUT, ramtest.OUTPUT_100)
 
     def test_synthesis_writes_diagnostic_fixture_without_changing_normal_path(self):
         tools = {"yosys": Path("/tmp/yosys"), "nextpnr-mistral": Path("/tmp/nextpnr-mistral")}
         build_id = "1" * 32
-        normal = ramtest.build_commands(timing.ROOT, build_id, tools, memory_mhz=130)
+        normal = ramtest.build_commands(timing.ROOT, build_id, tools, memory_mhz=100)
         diagnostic = ramtest.build_commands(timing.ROOT, build_id, tools,
                                             memory_mhz=130, output_relative=timing.OUTPUT)
-        self.assertIn("build/fes-ramtest-130/synth.json", normal[0][2])
+        self.assertIn("build/fes-ramtest-100/synth.json", normal[0][2])
+        self.assertIn("RAM_100_ONLY=1", normal[0][2])
         self.assertIn("build/fes-ramtest-timing-130/synth.json", diagnostic[0][2])
         self.assertIn("RAM_130_ONLY=1", diagnostic[0][2])
-        self.assertIn("build/fes-ramtest-130/synth.json", normal[1])
+        self.assertIn("build/fes-ramtest-100/synth.json", normal[1])
         self.assertIn("build/fes-ramtest-timing-130/synth.json", diagnostic[1])
+        # The retired 130 MHz seal has no default output; only the diagnostic routes it.
+        with self.assertRaises(ramtest.board.BuildError):
+            ramtest.build_commands(timing.ROOT, build_id, tools, memory_mhz=130)
 
     def test_search_output_rejects_symlink_and_clears_stale_routes(self):
         with tempfile.TemporaryDirectory() as temporary:

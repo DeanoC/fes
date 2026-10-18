@@ -48,6 +48,7 @@ AUDIO_PLL_ROUTE_RE = (
     r"M=8 N=1 K=472790000, counters C6, bel altera_pll\.[0-9.]+"
 )
 # memory_clock_mhz -> exact #136 integer route-log prefix (bel is flexible).
+# Only sealed rates appear; the OSS 130 MHz RAM-tester seal is retired (#536).
 RAM_PLL_ROUTE_PREFIX = {
     100.0: (
         "Info: PLL 'ram_clock.pll': 50.000000 MHz -> VCO 300.000000 MHz, integer, "

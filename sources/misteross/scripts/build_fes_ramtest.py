@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""Seal the 100 or 130 MHz RAM tester through the authenticated HIP lane.
+"""Seal the 100 MHz RAM tester through the authenticated HIP lane.
 
 The core speaks fes.application 1.0 with fixed 720p, the gamepad and
 fes.memory.hps-ddr. It tests the SDRAM addon and all three HPS DDR ports at
 the memory clock. Memory traffic is local to the FPGA; the mailbox has no
 memory opcode. This recipe never programs a kit.
+
+The explicit OSS 130 MHz seal is retired (#536): the shared pin does not close
+130 MHz (#264, #718). The 130 MHz OSS synthesis remains available only to the
+host-only timing diagnostic, which supplies its own output directory and never
+validates or exports a package.
 """
 from __future__ import annotations
 
@@ -64,8 +69,9 @@ RTL_SOURCES = (
     "cores/fes-ramtest/rtl/top.v",
 )
 RAM_PLL = "cores/fes-ramtest/rtl/ram_pll.v"
-# Both rates share toolchain.lock and the common HIP compiler slot. Yosys
-# declares every fpga2sdram port and nextpnr times the HPS port paths.
+# The seal and the 130 MHz timing diagnostic share toolchain.lock and the
+# common HIP compiler slot. Yosys declares every fpga2sdram port and nextpnr
+# times the HPS port paths.
 TOOLCHAIN_LOCK = "toolchain.lock"
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
@@ -74,7 +80,6 @@ PINNED_INPUTS = (
     QSF, board_evidence.SDC, *RTL_SOURCES,
 )
 OUTPUT_100 = Path("build/fes-ramtest-100")
-OUTPUT_130 = Path("build/fes-ramtest-130")
 MEMORY_PLL_100 = {
     "duty_cycle0": "00000000000000000000000000110010",
     "duty_cycle1": "00000000000000000000000000110010",
@@ -87,15 +92,16 @@ MEMORY_PLL_100 = {
     "phase_shift1": "5000 ps",
     "reference_clock_frequency": "50.0 MHz",
 }
-MEMORY_PLL_130 = {**MEMORY_PLL_100,
-    "output_clock_frequency0": "130.0 MHz",
-    "output_clock_frequency1": "130.0 MHz",
-    "phase_shift1": "6538 ps",
-}
+# Synthesis rates: the sealed package and the diagnostic-only 130 MHz netlist.
+SEALED_MEMORY_MHZ = 100
+SYNTH_MEMORY_MHZ = (100, 130)
 
 
 def output_for(memory_mhz: int) -> Path:
-    return {100: OUTPUT_100, 130: OUTPUT_130}[memory_mhz]
+    if memory_mhz != SEALED_MEMORY_MHZ:
+        raise board.BuildError(f"OSS RAM tester seals only {SEALED_MEMORY_MHZ} MHz; "
+                               "130 MHz is a timing diagnostic (#536)")
+    return OUTPUT_100
 
 
 # The build ID hashes the source revision, so each commit synthesises a
@@ -160,6 +166,8 @@ def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, memory_
         raise board.BuildError("build ID must be 32 lowercase hexadecimal characters")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
         raise board.BuildError("build commands require authenticated tool paths")
+    if memory_mhz not in SYNTH_MEMORY_MHZ:
+        raise board.BuildError("OSS RAM tester synthesizes only 100 or 130 MHz")
     output = (output_for(memory_mhz) if output_relative is None else output_relative).as_posix()
     program = (
         "read_verilog -sv "
@@ -216,8 +224,9 @@ def build(root: Path = ROOT, package_store=None, *, memory_mhz=100, cache_root: 
     root = Path(root).resolve()
     if identity_version != 2:
         raise board.BuildError("unsupported build identity version")
-    if memory_mhz not in (100, 130):
-        raise board.BuildError("OSS RAM tester supports 100 or 130 MHz")
+    if memory_mhz != SEALED_MEMORY_MHZ:
+        raise board.BuildError(f"OSS RAM tester seals only {SEALED_MEMORY_MHZ} MHz; "
+                               "the explicit 130 MHz build is retired (#536)")
     pinned_inputs = inputs_for(memory_mhz)
     output_relative = output_for(memory_mhz)
     package_store = root / "build/packages" if package_store is None else Path(package_store).resolve()
@@ -249,7 +258,7 @@ def build(root: Path = ROOT, package_store=None, *, memory_mhz=100, cache_root: 
         evidence = board_evidence.validate_build_evidence(
             output, root, memory_clock_mhz=float(memory_mhz),
             capture_clock_mhz=float(memory_mhz),
-            memory_pll_parameters={100: MEMORY_PLL_100, 130: MEMORY_PLL_130}[memory_mhz],
+            memory_pll_parameters=MEMORY_PLL_100,
             ordinary_resources=ORDINARY_RESOURCES, required_resources=REQUIRED_RESOURCES,
             forbidden_resources=FORBIDDEN_RESOURCES, required_zero_resources=REQUIRED_ZERO_RESOURCES)
         evidence["hps_ddr"] = board_evidence.hps_ddr_layout_evidence(
@@ -285,7 +294,7 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--cache-root", type=Path)
     parser.add_argument("--gpu-device", type=int, default=0)
-    parser.add_argument("--memory-mhz", type=int, choices=(100, 130), default=100)
+    parser.add_argument("--memory-mhz", type=int, choices=(SEALED_MEMORY_MHZ,), default=SEALED_MEMORY_MHZ)
     parser.add_argument("--package-output", type=Path)
     parser.add_argument("--identity-version", type=int, choices=(2,), default=2)
     args = parser.parse_args()

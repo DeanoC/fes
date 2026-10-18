@@ -12,8 +12,8 @@ COMMON = ROOT / "cores" / "fes-common"
 
 
 class RamTestAbiTest(unittest.TestCase):
-    def test_parent_cli_selects_100_mhz_and_preserves_explicit_130(self):
-        for extra, expected in (([], 100), (["--memory-mhz", "130"], 130)):
+    def test_parent_cli_selects_100_mhz(self):
+        for extra, expected in (([], 100), (["--memory-mhz", "100"], 100)):
             with self.subTest(memory_mhz=expected), patch.object(producer, "build") as build:
                 with patch("sys.argv", ["build_fes_ramtest.py", "--root", str(ROOT),
                         "--package-output", str(ROOT / "build/packages"),
@@ -22,6 +22,22 @@ class RamTestAbiTest(unittest.TestCase):
                 self.assertEqual(build.call_args.kwargs["memory_mhz"], expected)
                 self.assertEqual(build.call_args.kwargs["package_store"], ROOT / "build/packages")
                 self.assertEqual(build.call_args.kwargs["identity_version"], 2)
+
+    def test_explicit_130_mhz_seal_is_retired(self):
+        with patch("sys.argv", ["build_fes_ramtest.py", "--memory-mhz", "130"]), \
+                patch("sys.stderr"), patch.object(producer, "build") as build:
+            with self.assertRaises(SystemExit):
+                producer.main()
+            build.assert_not_called()
+        with self.assertRaisesRegex(producer.board.BuildError, "retired"):
+            producer.build(ROOT, memory_mhz=130)
+        with self.assertRaisesRegex(producer.board.BuildError, "timing diagnostic"):
+            producer.output_for(130)
+        self.assertFalse(hasattr(producer, "OUTPUT_130"))
+        self.assertFalse(hasattr(producer, "MEMORY_PLL_130"))
+        tools = {"yosys": Path("/tmp/yosys"), "nextpnr-mistral": Path("/tmp/nextpnr-mistral")}
+        with self.assertRaisesRegex(producer.board.BuildError, "timing diagnostic"):
+            producer.build_commands(ROOT, "1" * 32, tools, memory_mhz=130)
 
     def test_parent_authentication_uses_shipped_rate_and_shared_cache(self):
         with patch.object(producer, "authenticate_for", return_value={}) as authenticate:

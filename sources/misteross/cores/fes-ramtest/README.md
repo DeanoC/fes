@@ -150,19 +150,19 @@ lists the full investigation.
 ```sh
 make toolchain-fes-ramtest
 make build-fes-ramtest-100
-make build-fes-ramtest-130
 ```
 
-Both OSS rates use the shared `toolchain.lock` HIP compiler slot. Its Yosys declares every
+The OSS seal uses the shared `toolchain.lock` HIP compiler slot. Its Yosys declares every
 fpga2sdram port, so all three ports reach the netlist; the pinned blackbox
 before it listed only command port 2 and data port 3. The OSS recipe checks
 that the synthesized fpga2sdram cell carries the generated layout constants.
-Each rate seals a package into `build/fes-ramtest-100/` or
-`build/fes-ramtest-130/`; its timing report covers the memory, capture and
-74.25 MHz video domains. FES registers and ships the OSS 100 MHz variant as a standard catalog
-utility. Direct recipe invocation defaults to `--memory-mhz 100`;
-`--memory-mhz 130` requests the separate higher-rate build. The default
-retains timing signoff; the open 130 MHz timing work does not block shipment.
+It seals a package into `build/fes-ramtest-100/`; its timing report covers
+the memory, capture and 74.25 MHz video domains. FES registers and ships the
+OSS 100 MHz variant as a standard catalog utility. The explicit OSS 130 MHz
+seal is retired (#536): the shared pin does not close 130 MHz (#264, #718), so
+`build_fes_ramtest.py` accepts only `--memory-mhz 100`. OSS 130 MHz remains a
+host-only measurement through the timing diagnostic below, and the Quartus
+build below remains the 130 MHz reference.
 
 The build ID hashes the source revision, so each commit synthesises a slightly
 different netlist. The seal therefore routes `PLACER_SEEDS` in turn and keeps
@@ -193,8 +193,8 @@ clock maxima and no final reported hold violations. A completed HIP route is
 reported even below 130 MHz; `passing` records whether all three frequency
 constraints were met. The hold screen covers final nextpnr warnings, not the
 full package evidence or hardware acceptance. The diagnostic RBF is not a
-sealed package. The normal 100 and 130 MHz package builds keep their existing
-lock and signoff gate. The historical 116.918 MHz route
+sealed package. The 100 MHz package build keeps its existing lock and
+signoff gate. The historical 116.918 MHz route
 also used two opt-in,
 cell-name-specific probes. Those probes no longer match the current RTL and
 remain disabled here; 116.918 MHz is not a result for the current source.
@@ -238,7 +238,7 @@ identity and the video, gamepad and HPS DDR capability bits, execution
 release, a green status glyph, the `ADDR` signature at three addresses per
 port, holds that land inside a write burst and during reads, and a button
 stop. The OSS 100 MHz package is registered in FES and included in the
-factory image and standard catalog. The 130 MHz build remains explicit.
+factory image and standard catalog. No OSS 130 MHz package is built.
 
 The RTL is GPL-2.0-or-later. The license text and corresponding-source notice
 are in [the FES release notices](../../../../image/licenses/fes.ramtest/SOURCE.md).
