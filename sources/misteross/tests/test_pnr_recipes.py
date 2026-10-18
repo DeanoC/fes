@@ -214,6 +214,58 @@ class PnrRecipeTests(unittest.TestCase):
         device = command.index("--gpu-device")
         self.assertEqual(command[device + 1], "1")
 
+    def test_amd_gpu_run_accepts_the_render_node_mapped_to_the_first_lease_id(self):
+        leased_env = {
+            **ENV,
+            "FES_GPU_IDS": "1,2",
+            "GPU_RUN_DEVICE": "0",
+            "GPU_RUN_EXPECTED_DEVICE": "/dev/dri/renderD129",
+            "NEXTPNR_REQUIRE_GPU": "1",
+            "ROCR_VISIBLE_DEVICES": "1,2",
+        }
+        gpu_lease = pnr_recipe._gpu_lease_module()
+        with patch.object(gpu_lease, "gpu_device_path", return_value="/dev/dri/renderD129") as resolve:
+            pnr_recipe.environment("fes.menu", leased_env, gpu=0)
+        resolve.assert_called_once_with("amd", "1")
+
+    def test_amd_gpu_run_rejects_a_render_node_for_another_leased_gpu(self):
+        leased_env = {
+            **ENV,
+            "FES_GPU_IDS": "1,2",
+            "GPU_RUN_DEVICE": "0",
+            "GPU_RUN_EXPECTED_DEVICE": "/dev/dri/renderD128",
+            "NEXTPNR_REQUIRE_GPU": "1",
+            "ROCR_VISIBLE_DEVICES": "1,2",
+        }
+        gpu_lease = pnr_recipe._gpu_lease_module()
+        with patch.object(gpu_lease, "gpu_device_path", return_value="/dev/dri/renderD129"):
+            with self.assertRaisesRegex(pnr_recipe.RecipeError, "expected device"):
+                pnr_recipe.environment("fes.menu", leased_env, gpu=0)
+
+    def test_amd_gpu_run_fails_closed_for_render_paths_without_kfd_topology(self):
+        render_node_env = {
+            **ENV,
+            "FES_GPU_IDS": "1,2",
+            "GPU_RUN_DEVICE": "0",
+            "GPU_RUN_EXPECTED_DEVICE": "/dev/dri/renderD129",
+            "NEXTPNR_REQUIRE_GPU": "1",
+            "ROCR_VISIBLE_DEVICES": "1,2",
+        }
+        gpu_lease = pnr_recipe._gpu_lease_module()
+        with patch.object(gpu_lease, "gpu_device_path", return_value=None) as resolve:
+            with self.assertRaisesRegex(pnr_recipe.RecipeError, "expected device"):
+                pnr_recipe.environment("fes.menu", render_node_env, gpu=0)
+
+            # gpu-run deliberately emits this physical-id marker when KFD has
+            # no render-node mapping. It remains valid because it names the
+            # first leased id exactly and contains no ambiguous device path.
+            fallback_env = {
+                **render_node_env,
+                "GPU_RUN_EXPECTED_DEVICE": "amd:1",
+            }
+            pnr_recipe.environment("fes.menu", fallback_env, gpu=0)
+        resolve.assert_called_once_with("amd", "1")
+
     def test_ambient_gpu_overrides_without_a_lease_are_rejected(self):
         recipe = pnr_recipe.recipe_for("fes.menu")
         for name in (

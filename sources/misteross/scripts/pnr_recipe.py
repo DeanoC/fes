@@ -7,6 +7,8 @@ import math
 import os
 import re
 import tomllib
+from functools import lru_cache
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Mapping, Sequence
 
@@ -449,9 +451,13 @@ def _gpu_run_environment(
 
     expected_device = source["GPU_RUN_EXPECTED_DEVICE"]
     if backend == "HIP":
-        device_matches = (expected_device == f"amd:{ids[0]}"
-                          or isinstance(expected_device, str)
-                          and _AMD_RENDER_NODE.fullmatch(expected_device) is not None)
+        if expected_device == f"amd:{ids[0]}":
+            device_matches = True
+        elif (isinstance(expected_device, str)
+              and _AMD_RENDER_NODE.fullmatch(expected_device) is not None):
+            device_matches = expected_device == _gpu_device_path("amd", ids[0])
+        else:
+            device_matches = False
     else:
         device_matches = (expected_device == f"nvidia:{ids[0]}"
                           or ids[0].isdigit()
@@ -459,6 +465,26 @@ def _gpu_run_environment(
     if not device_matches:
         raise RecipeError(f"{core_id}: gpu-run expected device does not match its lease")
     return set(_GPU_RUN_MARKERS) | {expected_mask}
+
+
+@lru_cache(maxsize=1)
+def _gpu_lease_module():
+    """Load the FES gpu-run helper shared with the module's P&R recipes."""
+    helper = FES_ROOT / "scripts" / "gpu_lease.py"
+    spec = spec_from_file_location("fes_gpu_lease", helper)
+    if spec is None or spec.loader is None:
+        raise RecipeError("cannot load the gpu-run device resolver")
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _gpu_device_path(vendor: str, gpu_id: str) -> str | None:
+    """Resolve a leased physical GPU id with gpu-run's KFD mapping."""
+    try:
+        return _gpu_lease_module().gpu_device_path(vendor, gpu_id)
+    except (AttributeError, ImportError, OSError) as error:
+        raise RecipeError("cannot resolve gpu-run leased device path") from error
 
 
 def environment(

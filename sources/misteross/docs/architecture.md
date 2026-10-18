@@ -145,8 +145,10 @@ visibility mask for the recipe backend. The physical ID list and mask must
 match, the logical device marker and expected device must be coherent, and
 the requested nextpnr device must be within the lease. Incomplete or
 inconsistent lease values fail; ambient GPU masks without a lease remain
-forbidden. The accepted lease values remain part of the functional execution
-identity.
+forbidden. For HIP, a render-node path must match the first leased ID's KFD
+mapping. If KFD cannot map that ID, only the exact `amd:<id>` fallback marker
+is accepted; an unmapped render-node path fails closed. The accepted lease
+values remain part of the functional execution identity.
 
 This binds host build behavior to the selected recipe. It is not route timing
 qualification or hardware acceptance; those remain separate evidence gates.
