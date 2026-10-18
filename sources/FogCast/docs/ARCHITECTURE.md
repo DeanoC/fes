@@ -2394,9 +2394,11 @@ Authenticated health reports `software` separately from sealed image artifacts.
 `targetclient` mutations have no implicit replay; `cmd/fes-software` records the
 operation ID and expected generation for later status reconciliation. That
 client dials with a 10 second connect timeout. Health, status, and list retry
-a network failure up to three times and fail within 30 seconds per attempt.
-Install, activate, and cancel are not retried. `--timeout` remains the
-whole-operation deadline. After a request body is written, the client waits
+transient network failures, including truncated response bodies, up to three
+times; each probe is bounded by 30 seconds. TLS certificate verification
+failures return immediately with a certificate error. Install, activate, and
+cancel are not retried. `--timeout` remains the whole-operation deadline. After
+a request body is written, the client waits
 at most five minutes for response headers.
 See [kit software releases](../../../docs/kit-software-releases.md) for commands,
 recovery boundaries and evidence limits.

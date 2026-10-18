@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -216,8 +217,23 @@ func softwareHTTPClient(operation time.Duration) *http.Client {
 }
 
 func retryableNet(err error) bool {
+	if err == nil || certificateVerificationFailure(err) {
+		return false
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return retryableNet(urlErr.Err)
+	}
 	var netErr net.Error
 	return errors.As(err, &netErr)
+}
+
+func certificateVerificationFailure(err error) bool {
+	var verificationErr *tls.CertificateVerificationError
+	return errors.As(err, &verificationErr)
 }
 
 // callReady retries a connect or read failure on an idempotent call. The
@@ -240,6 +256,9 @@ func callReady(ctx context.Context, fn func(context.Context) error) error {
 			return fmt.Errorf("kit is not ready to accept software commands: %w", context.Cause(ctx))
 		case <-timer.C:
 		}
+	}
+	if certificateVerificationFailure(err) {
+		return fmt.Errorf("target TLS certificate verification failed: %w", err)
 	}
 	if err != nil && (retryableNet(err) || errors.Is(err, context.DeadlineExceeded)) {
 		return fmt.Errorf("kit is not ready to accept software commands: %w", err)

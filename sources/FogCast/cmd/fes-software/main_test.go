@@ -208,6 +208,89 @@ func TestRunDoesNotRetryAnIdentityMismatch(t *testing.T) {
 	}
 }
 
+func TestRunRetriesTruncatedSoftwareStatusResponse(t *testing.T) {
+	var statuses atomic.Int32
+	want := softwarecontrol.Status{State: softwarecontrol.State{Version: 1, Generation: 9, Selected: "factory"}}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method + " " + r.URL.Path {
+		case "GET /v1/health":
+			_ = json.NewEncoder(w).Encode(protocol.Health{TargetID: testTargetID, APIVersion: "v1", Ready: true})
+		case "GET /v1/kit/software":
+			if statuses.Add(1) == 1 {
+				conn, _, err := w.(http.Hijacker).Hijack()
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				_, _ = io.WriteString(conn, "HTTP/1.1 200 OK\r\nContent-Length: 200\r\nContent-Type: application/json\r\n\r\n{\"generation\":")
+				_ = conn.Close()
+				return
+			}
+			_ = json.NewEncoder(w).Encode(want)
+		default:
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+			http.Error(w, "unexpected", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	var out bytes.Buffer
+	err := run(context.Background(), []string{
+		"--config", writeSoftwareConfig(t, server.URL),
+		"--action", "status",
+		"--timeout", "45s",
+	}, &out, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if statuses.Load() != 2 {
+		t.Fatalf("software status calls = %d", statuses.Load())
+	}
+	var got softwarecontrol.Status
+	if err := json.Unmarshal(out.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Generation != want.Generation {
+		t.Fatalf("generation = %d, want %d", got.Generation, want.Generation)
+	}
+}
+
+func TestCallReadyFailsFastOnInvalidTLSCertificate(t *testing.T) {
+	var connections atomic.Int32
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Errorf("unexpected request after invalid TLS certificate: %s %s", r.Method, r.URL.Path)
+	}))
+	server.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateNew {
+			connections.Add(1)
+		}
+	}
+	server.StartTLS()
+	defer server.Close()
+
+	client := softwareHTTPClient(20 * time.Second)
+	err := callReady(context.Background(), func(ctx context.Context) error {
+		request, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL, nil)
+		if err != nil {
+			return err
+		}
+		response, err := client.Do(request)
+		if err != nil {
+			return err
+		}
+		return response.Body.Close()
+	})
+	if err == nil || !strings.Contains(err.Error(), "target TLS certificate verification failed") {
+		t.Fatalf("error = %v", err)
+	}
+	if strings.Contains(err.Error(), "kit is not ready") {
+		t.Fatalf("certificate error was reported as kit unavailability: %v", err)
+	}
+	if connections.Load() != 1 {
+		t.Fatalf("TLS connections = %d, want 1", connections.Load())
+	}
+}
+
 func TestRunStatusAllowsABusyKit(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method + " " + r.URL.Path {
