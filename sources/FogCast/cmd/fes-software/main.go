@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -20,6 +21,13 @@ import (
 	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/fogcast"
 	"github.com/DeanoC/FogCast/targetclient"
+)
+
+const (
+	softwareConnectTimeout = 10 * time.Second
+	softwareHeaderTimeout  = 5 * time.Minute
+	softwareProbeTimeout   = 30 * time.Second
+	softwareReadyAttempts  = 3
 )
 
 func main() {
@@ -105,22 +113,35 @@ func run(parent context.Context, args []string, out, log io.Writer) error {
 	if err != nil || endpoint.Host == "" || (endpoint.Scheme != "http" && endpoint.Scheme != "https") {
 		return errors.New("invalid target address")
 	}
-	client := targetclient.NewClient(endpoint, target.Agent, &http.Client{Timeout: *timeout})
+	client := targetclient.NewClient(endpoint, target.Agent, softwareHTTPClient(*timeout))
 	ctx, cancel := context.WithTimeout(parent, *timeout)
 	defer cancel()
-	health, err := client.Health(ctx)
-	if err != nil {
+	if err := callReady(ctx, func(probe context.Context) error {
+		health, healthErr := client.Health(probe)
+		if healthErr != nil {
+			return healthErr
+		}
+		if health.TargetID != target.TargetID || health.APIVersion != "v1" {
+			return errors.New("configured target identity or API contract does not match")
+		}
+		return nil
+	}); err != nil {
 		return err
-	}
-	if health.TargetID != target.TargetID || health.APIVersion != "v1" {
-		return errors.New("configured target identity or API contract does not match")
 	}
 	var result any
 	switch *action {
 	case "status":
-		result, err = client.KitSoftwareStatus(ctx)
+		err = callReady(ctx, func(probe context.Context) error {
+			var statusErr error
+			result, statusErr = client.KitSoftwareStatus(probe)
+			return statusErr
+		})
 	case "list":
-		result, err = client.KitSoftwareReleases(ctx)
+		err = callReady(ctx, func(probe context.Context) error {
+			var listErr error
+			result, listErr = client.KitSoftwareReleases(probe)
+			return listErr
+		})
 	case "install":
 		var file *os.File
 		file, err = os.Open(*bundle)
@@ -151,11 +172,16 @@ func run(parent context.Context, args []string, out, log io.Writer) error {
 			}
 		})
 		if !provided {
-			status, statusErr := client.KitSoftwareStatus(ctx)
-			if statusErr != nil {
-				return statusErr
+			if err = callReady(ctx, func(probe context.Context) error {
+				status, statusErr := client.KitSoftwareStatus(probe)
+				if statusErr != nil {
+					return statusErr
+				}
+				*expected = status.Generation
+				return nil
+			}); err != nil {
+				return err
 			}
-			*expected = status.Generation
 		}
 		fmt.Fprintf(log, "software operation %s; expected generation %d\n", *requestID, *expected)
 		if *action == "activate" {
@@ -168,4 +194,55 @@ func run(parent context.Context, args []string, out, log io.Writer) error {
 		return fmt.Errorf("%w; inspect --action status and --action list before repeating a mutation", err)
 	}
 	return json.NewEncoder(out).Encode(result)
+}
+
+func softwareDialer() *net.Dialer {
+	return &net.Dialer{Timeout: softwareConnectTimeout, KeepAlive: 30 * time.Second}
+}
+
+func softwareHTTPClient(operation time.Duration) *http.Client {
+	dialer := softwareDialer()
+	return &http.Client{
+		Timeout: operation,
+		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           dialer.DialContext,
+			ForceAttemptHTTP2:     false,
+			TLSHandshakeTimeout:   softwareConnectTimeout,
+			ResponseHeaderTimeout: softwareHeaderTimeout,
+			ExpectContinueTimeout: time.Second,
+		},
+	}
+}
+
+func retryableNet(err error) bool {
+	var netErr net.Error
+	return errors.As(err, &netErr)
+}
+
+// callReady retries a connect or read failure on an idempotent call. The
+// probe context is shorter than the operation deadline so a stalled kit
+// fails instead of waiting out a long upload budget. Mutations are not
+// passed here.
+func callReady(ctx context.Context, fn func(context.Context) error) error {
+	var err error
+	for attempt := 1; attempt <= softwareReadyAttempts; attempt++ {
+		probe, cancel := context.WithTimeout(ctx, softwareProbeTimeout)
+		err = fn(probe)
+		cancel()
+		if err == nil || attempt == softwareReadyAttempts || !retryableNet(err) || ctx.Err() != nil {
+			break
+		}
+		timer := time.NewTimer(time.Duration(attempt) * time.Second)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("kit is not ready to accept software commands: %w", context.Cause(ctx))
+		case <-timer.C:
+		}
+	}
+	if err != nil && (retryableNet(err) || errors.Is(err, context.DeadlineExceeded)) {
+		return fmt.Errorf("kit is not ready to accept software commands: %w", err)
+	}
+	return err
 }
