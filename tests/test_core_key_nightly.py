@@ -1,11 +1,36 @@
 import unittest
-from scripts.core_key_nightly import AUDIT_PRIVATE_CACHE_MARKER, decide, run
+from scripts.core_key_nightly import (AUDIT_PRIVATE_CACHE_MARKER, decide, functional_manifest_sha256,
+                                      run)
 from pathlib import Path
 import json
 import subprocess
 import tempfile
 import os
 import sys
+
+
+MANIFEST = '''format = 3
+
+[core]
+id = "fes.zx81"
+
+[payload]
+file = "core.rbf"
+sha256 = "%s"
+
+[build]
+id = "0123456789abcdef0123456789abcdef"
+repository = "https://github.com/DeanoC/fes"
+revision = "%s"
+toolchain = "nextpnr"
+'''
+
+
+def package(sha='a', key='k', manifest='m', rom_map=None):
+    result = {'sha256': sha, 'key': key, 'manifest_functional_sha256': manifest}
+    if rom_map is not None:
+        result['rom_map_sha256'] = rom_map
+    return result
 
 
 class NightlyDecisionTests(unittest.TestCase):
@@ -25,18 +50,45 @@ class NightlyDecisionTests(unittest.TestCase):
         self.assertEqual(output.strip(), AUDIT_PRIVATE_CACHE_MARKER)
 
     def test_same_payload_and_covered_reads_pass(self):
-        self.assertTrue(decide({'sha256':'a', 'key':'k'}, {'sha256':'a', 'key':'k'},
+        self.assertTrue(decide(package(), package(),
                                [{'event':'read','path':'scripts/a.py'}], ['scripts/a.py'])['pass'])
 
     def test_different_payload_fails(self):
-        self.assertFalse(decide({'sha256':'a', 'key':'k'}, {'sha256':'b', 'key':'k'}, [], ['scripts/a.py'])['pass'])
+        self.assertFalse(decide(package(), package(sha='b'), [], ['scripts/a.py'])['pass'])
 
     def test_different_key_fails(self):
-        result = decide({'sha256':'a', 'key':'k'}, {'sha256':'a', 'key':'other'}, [], ['scripts/a.py'])
+        result = decide(package(), package(key='other'), [], ['scripts/a.py'])
         self.assertEqual(result['reasons'], ['functional key differs'])
 
+    def test_different_sealed_manifest_fails(self):
+        result = decide(package(), package(manifest='other'), [], ['scripts/a.py'])
+        self.assertEqual(result['reasons'], ['sealed manifest differs outside build provenance'])
+
+    def test_different_or_missing_rom_map_fails(self):
+        for narrow, rebuild in ((package(rom_map='r'), package(rom_map='other')),
+                                (package(rom_map='r'), package()), (package(), package(rom_map='r'))):
+            with self.subTest(narrow=narrow, rebuild=rebuild):
+                result = decide(narrow, rebuild, [], ['scripts/a.py'])
+                self.assertEqual(result['reasons'], ['sealed ROM map SHA256 differs'])
+        self.assertTrue(decide(package(rom_map='r'), package(rom_map='r'), [], [])['pass'])
+
+    def test_functional_manifest_ignores_only_build_provenance(self):
+        original = functional_manifest_sha256(MANIFEST % ('a' * 64, '1' * 40))
+        # An earlier commit's cached package differs only in build.revision/repository.
+        self.assertEqual(functional_manifest_sha256(MANIFEST % ('a' * 64, '2' * 40)), original)
+        self.assertEqual(functional_manifest_sha256(
+            (MANIFEST % ('a' * 64, '1' * 40)).replace('DeanoC/fes', 'DeanoC/misteross')), original)
+        for changed in (MANIFEST % ('b' * 64, '1' * 40),
+                        (MANIFEST % ('a' * 64, '1' * 40)).replace('format = 3', 'format = 2'),
+                        (MANIFEST % ('a' * 64, '1' * 40)).replace('0123456789abcdef', 'fedcba9876543210', 1),
+                        (MANIFEST % ('a' * 64, '1' * 40)).replace('nextpnr', 'quartus')):
+            with self.subTest(changed=changed):
+                self.assertNotEqual(functional_manifest_sha256(changed), original)
+        with self.assertRaisesRegex(ValueError, 'build provenance'):
+            functional_manifest_sha256((MANIFEST % ('a' * 64, '1' * 40)).replace('revision', 'commit'))
+
     def test_uncovered_read_fails(self):
-        result = decide({'sha256':'a', 'key':'k'}, {'sha256':'a', 'key':'k'},
+        result = decide(package(), package(),
                         [{'event':'read','path':'scripts/b.py'}], ['scripts/a.py'])
         self.assertFalse(result['pass'])
         self.assertEqual(result['uncovered_paths'], ['scripts/b.py'])
@@ -58,7 +110,7 @@ class NightlyDecisionTests(unittest.TestCase):
                         self.assertTrue((Path(env['FES_ARTIFACT_CACHE_ROOT']) / AUDIT_PRIVATE_CACHE_MARKER).is_file())
                         Path(env['FES_SOURCE_READ_RECORD']).write_text(
                             json.dumps({'event':'read', 'path':read_path}) + '\n')
-                    return {'sha256': rebuild_sha if force else 'a', 'key': 'narrow'}
+                    return package(sha=rebuild_sha if force else 'a', key='narrow')
                 report = run(repo, Path(temp) / 'reports', [('fes.pong', 'build_fes_pong')],
                              resolver=fake, manifest={'build_fes_pong':['scripts/a.py']})
                 self.assertEqual(report['pass'], expected)
@@ -76,11 +128,17 @@ class NightlyDecisionTests(unittest.TestCase):
                 'def resolve_core_package(source, revision, selection, force=False, recipe=None):\n'
                 '    print("python producer noise")\n'
                 '    subprocess.run(["echo", "child producer noise"], check=True)\n'
-                '    return {"inputs": {"core_rbf_sha256": "a" * 64,\n'
+                '    return {"directory": __import__("pathlib").Path(__file__).parent,\n'
+                '            "inputs": {"core_rbf_sha256": "a" * 64, "manifest_sha256": "c" * 64,\n'
+                '            "rom_map_sha256": "d" * 64, "selection": {"package_id": "e" * 64},\n'
                 '            "source_selection": {"functional_inputs_sha256": "b" * 64}}}\n')
+            manifest = MANIFEST % ('a' * 64, '1' * 40)
+            (repo / 'scripts/manifest.toml').write_text(manifest)
             subprocess.run(['git', 'init', '-q', str(repo)], check=True)
             subprocess.run(['git', '-C', str(repo), '-c', 'user.name=t', '-c', 'user.email=t@t',
                             'commit', '-q', '--allow-empty', '-m', 'x'], check=True)
             env = dict(os.environ, PYTHONPATH=str(repo))
             self.assertEqual(_resolve(repo, 'fes.pong', Path(temp) / 'sel.toml', env, False),
-                             {'sha256': 'a' * 64, 'key': 'b' * 64})
+                             {'sha256': 'a' * 64, 'key': 'b' * 64, 'manifest_sha256': 'c' * 64,
+                              'rom_map_sha256': 'd' * 64, 'package_id': 'e' * 64,
+                              'manifest_functional_sha256': functional_manifest_sha256(manifest)})
