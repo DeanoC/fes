@@ -91,6 +91,8 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout)
         lease = json.loads((self.directory / "lease.txt").read_text(encoding="utf-8"))
         self.assertEqual(lease["gpu_ids"], "7")
+        # This nextpnr has no GPU_LEASE_FD client, so it keeps the whole-route lease.
+        self.assertNotIn("--phase-lease", lease["argv"])
         self.assertIn("--gpus", lease["argv"])
         self.assertEqual(lease["argv"][lease["argv"].index("--gpus") + 1], "1")
         self.assertEqual(lease["argv"][lease["argv"].index("--owner") + 1], "lander")
@@ -306,6 +308,212 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
         with patch.dict(os.environ, {"GPU_RUN_DEVICE": "0"}):
             with self.assertRaisesRegex(board.BuildError, "invoke the producer outside gpu-run"):
                 self.run_gpu_route()
+        with patch.dict(os.environ, {"GPU_LEASE_FD": "9"}):
+            with self.assertRaisesRegex(board.BuildError, "invoke the producer outside gpu-run"):
+                self.run_gpu_route()
+
+
+# A nextpnr stand-in with the DeanoC/nextpnr#224 client: it routes on the CPU
+# first, asks for one GPU phase on GPU_LEASE_FD, then releases it.
+PHASE_NEXTPNR = """#!/usr/bin/env python3
+import json, os, signal, socket, sys, time
+time.sleep(float(os.environ.get('FAKE_CPU_DELAY', '0')))
+lease = socket.socket(fileno=int(os.environ['GPU_LEASE_FD']))
+
+def ask(line):
+    lease.sendall(line.encode() + b'\\n')
+    reply = b''
+    while not reply.endswith(b'\\n'):
+        chunk = lease.recv(1)
+        if not chunk:
+            return 'EOF'
+        reply += chunk
+    return reply.decode().strip()
+
+grant = ask('ACQUIRE 1')
+print('GPU lease: ' + grant, flush=True)
+if not grant.startswith('GRANT '):
+    sys.exit(3)
+print('Info: backend cuda:fixture ready', flush=True)
+if os.environ.get('FAKE_CRASH_IN_PHASE'):
+    os.kill(os.getpid(), signal.SIGKILL)
+time.sleep(float(os.environ.get('FAKE_ROUTE_DELAY', '0')))
+release = ask('RELEASE')
+with open(os.environ['CAPTURE'], 'w', encoding='utf-8') as stream:
+    json.dump({'argv': sys.argv[1:], 'env': dict(os.environ), 'grant': grant,
+               'release': release}, stream)
+print('Info: Program finished normally.', flush=True)
+"""
+
+
+class PhaseLeaseRouteTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.directory = Path(self.temporary.name)
+        tool_dir = self.directory / "phase-tool"
+        tool_dir.mkdir()
+        self.nextpnr = tool_dir / "nextpnr-mistral"
+        self.nextpnr.write_text(PHASE_NEXTPNR, encoding="utf-8")
+        self.nextpnr.chmod(0o755)
+        self.capture = self.directory / "nextpnr.json"
+        self.lease = self.directory / "leases"
+        self.gpu_run = board._gpu_run_path()
+
+    def environment(self, **extra):
+        return {
+            "PATH": os.environ["PATH"],
+            "CAPTURE": str(self.capture),
+            "GPU_LEASE_DIR": str(self.lease),
+            "GPU_LEASE_IDS": "7",
+            "GPU_LEASE_VENDOR": "nvidia",
+            "GPU_LEASE_MAX_PER_OWNER": "2",
+            "FES_GPU_LEASE_OWNER": "lander",
+            **extra,
+        }
+
+    def route(self, timeout=None, audit=False, **extra):
+        return board._run_command(
+            (str(self.nextpnr), "--router", "gpu", "--gpu-device", "7"),
+            cwd=ROOT,
+            env=self.environment(**extra),
+            timeout=timeout,
+            audit_source_root=ROOT if audit else None,
+            stdout=board.subprocess.PIPE,
+            stderr=board.subprocess.STDOUT,
+            gpu_label="phase-route",
+        )
+
+    def status(self):
+        result = subprocess.run(
+            [str(self.gpu_run.with_name("gpu-status")), "--json"], env=self.environment(),
+            check=True, capture_output=True, text=True,
+        )
+        return json.loads(result.stdout)
+
+    def hold_gpu(self):
+        """Hold GPU 7 with a whole-command lease until the returned callback runs."""
+        release = self.directory / "release-holder"
+        holder = subprocess.Popen(
+            [str(self.gpu_run), "--no-wait", "--owner", "blocker", "--", sys.executable, "-c",
+             "import pathlib,sys,time\nwhile not pathlib.Path(sys.argv[1]).exists(): time.sleep(0.01)",
+             str(release)],
+            env=self.environment(),
+        )
+
+        def stop():
+            release.write_text("release", encoding="utf-8")
+            holder.wait(timeout=10)
+        self.addCleanup(stop)
+        deadline = time.monotonic() + 5
+        while self.status()["gpus"][0]["state"] != "held":
+            self.assertLess(time.monotonic(), deadline, "the GPU 7 blocker did not acquire")
+            time.sleep(0.02)
+        return stop
+
+    def route_in_thread(self, **options):
+        outcome = {}
+
+        def run():
+            started = time.monotonic()
+            try:
+                outcome["result"] = self.route(**options)
+            except BaseException as error:  # reported by the test thread
+                outcome["error"] = error
+            outcome["seconds"] = time.monotonic() - started
+        thread = threading.Thread(target=run)
+        thread.start()
+        self.addCleanup(thread.join, 20)
+        return thread, outcome
+
+    def wait_for_phase_request(self):
+        deadline = time.monotonic() + 5
+        while not any(item["label"] == "phase-route" for item in self.status()["queue"]):
+            self.assertLess(time.monotonic(), deadline, "the route never asked for its GPU phase")
+            time.sleep(0.02)
+
+    def test_gate_detects_the_gpu_lease_fd_client(self):
+        self.assertTrue(board._nextpnr_supports_phase_lease(self.nextpnr))
+        plain = self.directory / "nextpnr-plain"
+        plain.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        self.assertFalse(board._nextpnr_supports_phase_lease(plain))
+        empty = self.directory / "nextpnr-empty"
+        empty.write_bytes(b"")
+        self.assertFalse(board._nextpnr_supports_phase_lease(empty))
+        self.assertFalse(board._nextpnr_supports_phase_lease(self.directory / "missing"))
+
+    def test_phase_route_leases_its_requested_physical_gpu_only_for_the_phase(self):
+        result = self.route(timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertIn(b"GPU lease: GRANT 7", result.stdout)
+        captured = json.loads(self.capture.read_text(encoding="utf-8"))
+        self.assertEqual((captured["grant"], captured["release"]), ("GRANT 7", "OK"))
+        # No mask: nextpnr keeps the physical id that gpu-run granted.
+        self.assertEqual(captured["argv"][captured["argv"].index("--gpu-device") + 1], "7")
+        env = captured["env"]
+        self.assertTrue(env["GPU_LEASE_FD"].isdigit())
+        self.assertEqual(env["NEXTPNR_REQUIRE_GPU"], "1")
+        self.assertEqual(env["CUDA_DEVICE_ORDER"], "PCI_BUS_ID")
+        for name in ("CUDA_VISIBLE_DEVICES", "FES_GPU_IDS", "GPU_RUN_DEVICE", "GPU_LEASE_IDS",
+                     "GPU_LEASE_MAX_PER_OWNER", "GPU_LEASE_MAX_JOBS_PER_OWNER",
+                     "FES_GPU_LEASE_OWNER", "FES_MISTEROSS_PYTHONPATH"):
+            self.assertNotIn(name, env)
+        holder = json.loads((self.lease / "gpu-7.lock").read_text(encoding="utf-8"))
+        self.assertEqual((holder["owner"], holder["label"]), ("lander", "phase-route"))
+        self.assertTrue((self.lease / "jobs" / "lander").is_dir())
+        self.assertEqual(self.status()["gpus"][0]["state"], "free")
+
+    def test_route_budget_excludes_gpu_lease_wait(self):
+        release_holder = self.hold_gpu()
+        thread, outcome = self.route_in_thread(timeout=1.0, FAKE_CPU_DELAY="0.1",
+                                               FAKE_ROUTE_DELAY="0.2")
+        self.wait_for_phase_request()
+        time.sleep(1.5)
+        release_holder()
+        thread.join(15)
+        self.assertNotIn("error", outcome)
+        result = outcome["result"]
+        self.assertEqual(result.returncode, 0, result.stdout)
+        self.assertGreater(outcome["seconds"], 1.5)
+
+    def test_route_budget_counts_cpu_phases_but_not_the_wait(self):
+        release_holder = self.hold_gpu()
+        thread, outcome = self.route_in_thread(timeout=1.0, FAKE_CPU_DELAY="0.6",
+                                               FAKE_ROUTE_DELAY="0.8")
+        self.wait_for_phase_request()
+        time.sleep(1.5)
+        release_holder()
+        thread.join(15)
+        self.assertNotIn("error", outcome)
+        result = outcome["result"]
+        self.assertEqual(result.returncode, 124, result.stdout)
+        self.assertRegex(result.stdout, rb"timed out after 1 seconds of its own run time \(\d+\.\d s of GPU lease wait excluded\)")
+        self.assertFalse(self.capture.exists())
+        self.assertEqual(self.status()["gpus"][0]["state"], "free")
+
+    def test_phase_route_crash_releases_its_gpu(self):
+        result = self.route(timeout=10, FAKE_CRASH_IN_PHASE="1")
+        self.assertEqual(result.returncode, 128 + 9, result.stdout)
+        self.assertEqual(self.status()["gpus"][0]["state"], "free")
+        again = subprocess.run(
+            [str(self.gpu_run), "--no-wait", "--owner", "other", "--", sys.executable, "-c",
+             "import os; print(os.environ['FES_GPU_IDS'])"],
+            env=self.environment(), check=False, capture_output=True, text=True, timeout=10,
+        )
+        self.assertEqual(again.returncode, 0, again.stderr)
+        self.assertEqual(again.stdout.strip(), "7")
+
+    @unittest.skipUnless(audit.TRACER.is_file(), "strace required for audited routes")
+    def test_audited_phase_route_has_no_outer_deadline_on_lease_wait(self):
+        release_holder = self.hold_gpu()
+        thread, outcome = self.route_in_thread(timeout=1.0, audit=True, FAKE_ROUTE_DELAY="0.1")
+        self.wait_for_phase_request()
+        time.sleep(1.5)
+        release_holder()
+        thread.join(15)
+        self.assertNotIn("error", outcome)
+        self.assertEqual(outcome["result"].returncode, 0, outcome["result"].stdout)
+        self.assertGreater(outcome["seconds"], 1.5)
 
 
 if __name__ == "__main__":
