@@ -97,7 +97,9 @@ module mcl86_ucode
     // the FES cpu_roms helper. Decode before the registered ROM boundary so
     // each select bit drives one register's 16 data bits, rather than a binary
     // select bit driving every operand mux. Address/read latency is unchanged.
-    logic [31:0] operand_select_mem[0:4095];
+    // Local flip-flops avoid the M10K-column-to-operand routing delay on
+    // these wide control outputs. Keep the original data ROM in block RAM.
+    (* mem2reg *) logic [31:0] operand_select_mem[0:4095];
     initial begin
         $readmemh("mcl86_operand_select.mem", operand_select_mem);
     end

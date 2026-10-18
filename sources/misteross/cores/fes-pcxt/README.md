@@ -230,6 +230,8 @@ clock only when writes are provably disabled. This supplies the native packer
 with a real clock without changing INIT, registered read latency or writable RAM.
 The CPU import uses registered predecoded operand controls generated from its
 unchanged microcode image; ROM latency and instruction timing are preserved.
+The derived control ROM maps to logic and local flip-flops while the original
+data ROM remains in block RAM.
 The PIC import uses formally checked parallel
 priority masks; the PIT uses direct one/two-step saturated binary/BCD decrements
 with parallel digit borrows. Both imports document the formally checked changes

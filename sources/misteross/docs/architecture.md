@@ -2152,7 +2152,8 @@ from the unchanged pinned microcode image. `cpu_roms` generates the raw copy
 and derived `mcl86_operand_select.mem` for simulation/synthesis. ROM read latency,
 the microcode sequencer lead and instruction timing are unchanged. Symbolic
 checks cover all ROM addresses and the real operand wiring for all register
-values against the imported selection equations.
+values against the imported selection equations. The derived control ROM maps
+into logic with local output flip-flops; the original data ROM uses block RAM.
 The motherboard router decodes RAM/ROM and integrates pinned KF8259 PIC, KF8253
 PIT and KF8255 PPI imports. The machine diagnostic receives timer, ISA and
 keyboard interrupts through the real two-INTA path and generates speaker PCM.

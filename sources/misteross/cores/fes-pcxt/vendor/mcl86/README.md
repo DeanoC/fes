@@ -25,6 +25,9 @@ use parallel selection instead of binary operand mux trees. `cpu_roms` in
 derives `mcl86_operand_select.mem` from its two four-bit select fields. The ROM
 module reads both images on the same clock/address, preserving the single-clock
 read latency and the EU's two-word sequencer lead. No instruction word changes.
+Only the derived control ROM requests logic mapping with local output
+flip-flops, avoiding the M10K-column route to the operand logic. The original
+data ROM retains block-RAM mapping.
 
 `tests/test_pcxt_cpu_selection.py` symbolically checks every ROM address with
 registered read alignment and compares the real operand wiring/selection against
