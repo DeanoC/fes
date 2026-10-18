@@ -57,6 +57,35 @@ REFERENCE = r"""
 
 @unittest.skipUnless(YOSYS, 'requires Yosys; set YOSYS to the locked executable')
 class CounterEquivalenceTest(unittest.TestCase):
+    def test_cpu_phase_pin_clock_and_guest_enable_are_cycle_exact(self):
+        source = (CORE / 'rtl/pcxt_cpu.sv').read_text()
+        gate = source[source.index('    reg [7:0] phase;'):source.index('    wire [19:0] ad;')]
+        gold = r"""
+          reg [7:0] phase;
+          reg pin_clock;
+          wire [8:0] phase_sum = {1'b0, phase} + 9'd21;
+          assign guest_ce = !reset && phase_sum >= 9'd220 && !pin_clock;
+          always @(posedge clk) begin
+            if (reset) begin phase <= 0; pin_clock <= 0; end
+            else if (phase_sum >= 9'd220) begin
+              phase <= 8'(phase_sum - 9'd220);
+              pin_clock <= !pin_clock;
+            end else phase <= phase_sum[7:0];
+          end
+        """
+        ports = '(input clk, reset, output guest_ce, output [7:0] phase_out, output pin_out);\n'
+        outputs = '\nassign phase_out = phase; assign pin_out = pin_clock; endmodule\n'
+        fixture = 'module gold' + ports + gold + outputs + 'module gate' + ports + gate + outputs
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            (work / 'proof.sv').write_text(fixture)
+            command = ('read_verilog -sv proof.sv; proc; opt; '
+                       'equiv_make gold gate proof; prep -top proof -flatten; '
+                       'equiv_simple; equiv_induct -seq 2; equiv_status -assert')
+            result = subprocess.run([YOSYS, '-Q', '-p', command], cwd=work,
+                                    capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def prove(self, fixture, parameters=''):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)

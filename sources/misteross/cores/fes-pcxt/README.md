@@ -267,7 +267,9 @@ redundant HIP mask, so leased physical GPU 1 remains visible as logical GPU 0.
 Independent visibility restrictions are preserved. The receipt records the
 route command, placement settings and effective GPU visibility. A completed
 route additionally writes `routed.json`, `timing.json`, `nextpnr.log` and
-`diagnostic.rbf`. A route is diagnostic: SDRAM pad setup/hold, retention,
+`diagnostic.rbf`. Timing reports retain up to 64 setup endpoint paths per
+clock-domain pair so remaining failures can be traced without rerouting.
+A route is diagnostic: SDRAM pad setup/hold, retention,
 physical containment, package sealing and hardware acceptance require separate
 qualification. There is no automatic Quartus fallback or kit programming.
 No factory package selection or shared contract changes are made.
@@ -288,7 +290,10 @@ selection against the imported equations;
 `cpu_roms` derives `mcl86_operand_select.mem` from the unchanged raw image. The display's fractional
 clock enable compares the current phase directly with its wrap threshold and
 updates with parallel add/subtract candidates. SAT proves this is cycle-exact
-for every phase value and both CGA/MDA rates:
+for every phase value and both CGA/MDA rates. The CPU pin-clock divider likewise
+compares its current phase with 199 before selecting `phase+21` or `phase-199`;
+sequential equivalence checks phase, pin clock and guest enable against the
+original add-then-compare logic, keeping those carry chains off DMA control:
 
 ```sh
 YOSYS=/absolute/locked/yosys python3 -m unittest discover -s tests -p 'test_pcxt_*.py' -v

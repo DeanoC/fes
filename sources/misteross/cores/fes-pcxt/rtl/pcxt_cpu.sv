@@ -19,16 +19,19 @@ module pcxt_cpu (
 );
     reg [7:0] phase;
     reg pin_clock;
-    wire [8:0] phase_sum = {1'b0, phase} + 9'd21;
-    assign guest_ce = !reset && phase_sum >= 9'd220 && !pin_clock;
+    // Compare before addition: keep two carry chains off guest_ce's DMA and
+    // bus-control fanout. Both phase candidates are computed in parallel.
+    wire phase_wrap = phase >= 8'd199;
+    wire [7:0] phase_next = phase_wrap ? phase - 8'd199 : phase + 8'd21;
+    assign guest_ce = !reset && phase_wrap && !pin_clock;
     always @(posedge clk) begin
         if (reset) begin
             phase <= 0;
             pin_clock <= 0;
-        end else if (phase_sum >= 9'd220) begin
-            phase <= 8'(phase_sum - 9'd220);
-            pin_clock <= !pin_clock;
-        end else phase <= phase_sum[7:0];
+        end else begin
+            phase <= phase_next;
+            if (phase_wrap) pin_clock <= !pin_clock;
+        end
     end
 
     wire [19:0] ad;

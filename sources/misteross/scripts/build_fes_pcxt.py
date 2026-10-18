@@ -99,7 +99,7 @@ def main():
                        '--placer-heap-timingweight', str(PLACER_TIMING_WEIGHT),
                        '--placer-heap-critexp', str(PLACER_CRITICALITY_EXPONENT),
                        '--rbf', 'diagnostic.rbf', '--compress-rbf', '--write', 'routed.json',
-                       '--report', 'timing.json', '--detailed-timing-report']
+                       '--report', 'timing.json', '--detailed-timing-report', '--timing-report-paths', '64']
             env = route_environment()
             receipt['route_command'] = command
             receipt['gpu_visibility'] = {key: env.get(key) for key in
