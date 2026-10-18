@@ -19,6 +19,9 @@ type Mapper struct {
 	mouseDirty, mouseFault bool
 	axes                   map[uint16]Range
 	suppressed             map[uint16]bool
+	// The left stick (ABS_X/Y) and D-pad hat (ABS_HAT0X/Y) share left-x/left-y
+	// but keep separate state, so stick jitter cannot cancel a held hat.
+	stick, hat [2]int32
 }
 
 func NewMapper(vendor, product uint16, axes map[uint16]Range) *Mapper {
@@ -70,15 +73,16 @@ func (m *Mapper) Map(typ, code uint16, value int32) (remoteinput.Event, bool) {
 	if typ != 3 {
 		return remoteinput.Event{}, false
 	}
-	name := ""
+	var axis int
 	switch code {
 	case 0, 16:
-		name = "left-x"
+		axis = 0
 	case 1, 17:
-		name = "left-y"
+		axis = 1
 	default:
 		return remoteinput.Event{}, false
 	}
+	name := [2]string{"left-x", "left-y"}[axis]
 	r, ok := m.axes[code]
 	if !ok || r.Max <= r.Min {
 		return remoteinput.Event{}, false
@@ -105,6 +109,19 @@ func (m *Mapper) Map(typ, code uint16, value int32) (remoteinput.Event, bool) {
 	normalized := v
 	if normalized > -8000 && normalized < 8000 {
 		normalized = 0
+	}
+	// A held hat direction owns the axis; the stick reports again once the
+	// hat returns to centre.
+	if code >= 16 {
+		m.hat[axis] = int32(normalized)
+		if normalized == 0 {
+			normalized = int64(m.stick[axis])
+		}
+	} else {
+		m.stick[axis] = int32(normalized)
+		if m.hat[axis] != 0 {
+			return remoteinput.Event{}, false
+		}
 	}
 	e, err := remoteinput.NormalizeAxis(name, int32(normalized))
 	return e, err == nil

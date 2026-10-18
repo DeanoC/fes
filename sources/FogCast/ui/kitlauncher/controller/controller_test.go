@@ -30,6 +30,41 @@ func TestFixtureUnsignedAxisAndButtons(t *testing.T) {
 	}
 }
 
+// A resting stick keeps reporting near centre; that jitter must not cancel a
+// held D-pad hat direction on the shared left-x axis (#473).
+func TestStickJitterDoesNotCancelHeldHat(t *testing.T) {
+	m := NewMapper(0x054c, 0x0ce6, map[uint16]Range{0: {Min: 0, Max: 255}, 16: {Min: -1, Max: 1}})
+	axis := func(code uint16, raw int32) (remoteinput.Event, bool) {
+		t.Helper()
+		e, ok := m.Map(3, code, raw)
+		if ok && e.Code != remoteinput.AxisLeftX {
+			t.Fatalf("code %d raw %d: %+v", code, raw, e)
+		}
+		return e, ok
+	}
+	if e, ok := axis(16, -1); !ok || e.Value != -32768 {
+		t.Fatalf("hat left: %+v %v", e, ok)
+	}
+	for _, raw := range []int32{127, 131, 124, 128, 255} {
+		if e, ok := axis(0, raw); ok {
+			t.Fatalf("stick %d overrode held hat: %+v", raw, e)
+		}
+	}
+	// Releasing the hat hands the axis back to the stick's latest position.
+	if e, ok := axis(16, 0); !ok || e.Value != 32767 {
+		t.Fatalf("hat release with stick right: %+v %v", e, ok)
+	}
+	if e, ok := axis(0, 128); !ok || e.Value != 0 {
+		t.Fatalf("stick centre: %+v %v", e, ok)
+	}
+	if e, ok := axis(16, 1); !ok || e.Value != 32767 {
+		t.Fatalf("hat right: %+v %v", e, ok)
+	}
+	if e, ok := axis(16, 0); !ok || e.Value != 0 {
+		t.Fatalf("hat release with stick centred: %+v %v", e, ok)
+	}
+}
+
 // The kit forwards physical keys as HID usages; mister-agent shapes them
 // for the bound core (HID, ZX81 matrix or native gamepad).
 func TestKeyboardMapperPostsHIDUsages(t *testing.T) {
