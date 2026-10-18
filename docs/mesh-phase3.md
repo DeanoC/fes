@@ -7,9 +7,11 @@ only from tests, so the sofa never placed. Slice 8 wires placement
 into the host behind `[mesh] placement`, default off. The Slice 6 kit
 HIL waits on Slice 8. Agents may run it on kit A or B without Deano
 present. Claim the kit in Powerboat `~/kit-status/kitA-STATUS.md` or
-`~/kit-status/kitB-STATUS.md`, use the non-destructive bundle
-install-then-restore flow, log what changes, restore the baseline and
-release the kit. Reimaging a kit, changing a kit image or boot config,
+`~/kit-status/kitB-STATUS.md`. If the HIL changes kit software, install
+the PR bundle on the running image; after use, activate and verify the
+baseline bundle named in the status file. A core-only HIL that leaves
+the bundle unchanged does not install one. Log the result and release
+the kit. Reimaging a kit, changing a kit image or boot config,
 killing other agents' processes, and closing PRs need Deano's OK via
 Bob ([kit sharing](kit-sharing.md)). On 2026-09-27 Deano locked
 Decision 7, the placement order, and set the tie-breaks: when several
@@ -100,9 +102,11 @@ Slices 1–5 do not touch the kit. Slice 6 does. Slice 8 reads each
 configured kit's node document and does not mutate a kit. Caster reviews that
 boundary. Agents may run the kit HIL on kit A or B without Deano
 present. Claim the kit in Powerboat `~/kit-status/kitA-STATUS.md` or
-`~/kit-status/kitB-STATUS.md`, use the non-destructive bundle
-install-then-restore flow, log what changes, restore the baseline and
-release the kit. Reimaging a kit, changing a kit image or boot config,
+`~/kit-status/kitB-STATUS.md`. If the HIL changes kit software, install
+the PR bundle on the running image; after use, activate and verify the
+baseline bundle named in the status file. A core-only HIL that leaves
+the bundle unchanged does not install one. Log the result and release
+the kit. Reimaging a kit, changing a kit image or boot config,
 killing other agents' processes, and closing PRs need Deano's OK via
 Bob ([kit sharing](kit-sharing.md)). Slice 7 applies the
 `native_emu` tie-break Deano set on 2026-09-27.
@@ -272,9 +276,11 @@ is Phase 4.
 
 **Kit HIL.** Agents may run it on kit A or B without Deano present.
 Claim the kit in Powerboat `~/kit-status/kitA-STATUS.md` or
-`~/kit-status/kitB-STATUS.md`, use the non-destructive bundle
-install-then-restore flow, log what changes, restore the baseline and
-release the kit. Reimaging a kit, changing a kit image or boot config,
+`~/kit-status/kitB-STATUS.md`. If the HIL changes kit software, install
+the PR bundle on the running image; after use, activate and verify the
+baseline bundle named in the status file. A core-only HIL that leaves
+the bundle unchanged does not install one. Log the result and release
+the kit. Reimaging a kit, changing a kit image or boot config,
 killing other agents' processes, and closing PRs need Deano's OK via
 Bob. Follow [kit sharing](kit-sharing.md) and the designated kit in the
 selected FogCast `docs/DEVELOPMENT.md`. Release the lease when the
@@ -327,9 +333,11 @@ remains a later slice. It is not a second kit lease and it is not
 Phase 5 host-as-Execute. If a chosen node is a kit, that follow-up
 needs Caster and a kit HIL. Agents may run that HIL on kit A or B
 without Deano present. Claim the kit in Powerboat
-`~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`, use the
-non-destructive bundle install-then-restore flow, log what changes,
-restore the baseline and release the kit. Reimaging a kit, changing a
+`~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. If the
+HIL changes kit software, install the PR bundle on the running image;
+after use, activate and verify the baseline bundle named in the status
+file. A core-only HIL that leaves the bundle unchanged does not install
+one. Log the result and release the kit. Reimaging a kit, changing a
 kit image or boot config, killing other agents' processes, and closing
 PRs need Deano's OK via Bob ([kit sharing](kit-sharing.md)).
 
