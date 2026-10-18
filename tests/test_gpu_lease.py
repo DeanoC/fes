@@ -986,6 +986,33 @@ class GpuLeaseTests(unittest.TestCase):
                                     env=self.env(GPU_LEASE_MAX_JOBS_PER_OWNER=value))
                 self.assertEqual(bad.returncode, 2, bad.stderr)
 
+    def test_phase_lease_job_slot_cap_counts_jobs_started_with_other_caps(self):
+        m = self.marker
+        wide = self.env(GPU_LEASE_MAX_JOBS_PER_OWNER='4')
+        first = self.phase('alice', self.root / 'a.log', '@touch:%s' % m('a-started'),
+                           '@wait:%s' % m('a-exit'), env=wide)
+        self.wait_for(lambda: m('a-started').exists())
+        second = self.phase('alice', self.root / 'b.log', '@touch:%s' % m('b-started'),
+                            '@wait:%s' % m('b-exit'), env=wide)
+        self.wait_for(lambda: m('b-started').exists())
+        m('a-exit').touch()
+        _out, err = first.communicate(timeout=10)
+        self.assertEqual(first.returncode, 0, err)
+        # Slot 0 is free again, but a job capped at one must still wait for
+        # the owner's other running job.
+        narrow = self.phase('alice', self.root / 'c.log', '@touch:%s' % m('c-started'),
+                            env=self.env(GPU_LEASE_MAX_JOBS_PER_OWNER='1'))
+        slots = gpu_lease.job_slot_directory(self.lease, 'alice')
+        self.wait_for(lambda: any(item['pid'] == narrow.pid
+                                  for item in gpu_lease.iter_tickets(slots)))
+        time.sleep(0.3)
+        self.assertFalse(m('c-started').exists())
+        m('b-exit').touch()
+        self.wait_for(lambda: m('c-started').exists())
+        for proc in (second, narrow):
+            _out, err = proc.communicate(timeout=10)
+            self.assertEqual(proc.returncode, 0, err)
+
     def test_lander_phase_yields_to_another_owner_when_a_gpu_frees(self):
         env = self.env(GPU_LEASE_IDS='0', GPU_LEASE_MAX_PER_OWNER='2')
         m = self.marker

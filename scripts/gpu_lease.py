@@ -1530,13 +1530,15 @@ def acquire_job_slot(directory, vendor, owner, label, command, slots):
     """Wait first come, first served for one of the owner's phase-lease job slots.
 
     A slot directory has the GPU lease layout with one lock file per slot, so
-    acquire() provides the flock, FIFO and crash behaviour. The job holds no
-    GPU while it waits here.
+    acquire() provides the flock, FIFO and crash behaviour. Passing the slot
+    count as the owner cap counts every held slot, so jobs started with
+    different caps still respect their own. The job holds no GPU while it
+    waits here.
     """
     ensure_private_subdir(Path(directory) / 'jobs')
     slot_directory = ensure_lease_dir(job_slot_directory(directory, owner))
     slot_ids = [str(index) for index in range(slots)]
-    return acquire(slot_directory, slot_ids, 1, vendor, owner, label, command, None, True, None)
+    return acquire(slot_directory, slot_ids, 1, vendor, owner, label, command, slots, True, None)
 
 
 def phase_child_env(vendor, lease_fd):
