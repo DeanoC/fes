@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 
 from build_fes_coleco_socket_v2 import authenticate_tools
-from sim_fes_pcxt import SOURCES, CPU_SOURCES, CHIPSET_SOURCES, verify_cpu_sources, verify_vendor
+from sim_fes_pcxt import SOURCES, CPU_SOURCES, CHIPSET_SOURCES, DISPLAY_SOURCES, verify_cpu_sources, verify_vendor
 
 ROOT = Path(__file__).resolve().parents[1]
 RTL = tuple(source for source in SOURCES if source.endswith('.sv'))
@@ -17,7 +17,7 @@ INPUTS = (*RTL, 'cores/fes-common/generated/fes_pcxt_isa.vh')
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--cache-root', type=Path, required=True)
-    parser.add_argument('--suite', choices=('isa', 'cpu', 'machine'), default='isa')
+    parser.add_argument('--suite', choices=('isa', 'cpu', 'machine', 'display'), default='isa')
     args = parser.parse_args()
     tools = authenticate_tools(ROOT, args.cache_root)
     rtl = RTL
@@ -39,6 +39,10 @@ def main():
             inputs += tuple(str(p.relative_to(ROOT)) for name in ('kf8259', 'kf8253', 'kf8255')
                             for p in sorted((ROOT / 'cores/fes-pcxt/vendor' / name).iterdir())
                             if p.suffix in ('.svh', '.json'))
+    if args.suite == 'display':
+        rtl = SOURCES[:3] + DISPLAY_SOURCES
+        inputs = (*rtl, 'cores/fes-common/generated/fes_pcxt_isa.vh')
+        output /= 'display'
     sources = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in inputs}
     output.mkdir(parents=True, exist_ok=True)
     if args.suite in ('cpu', 'machine'):
@@ -63,8 +67,8 @@ def main():
         raise ValueError('PC/XT sources changed during diagnostic synthesis')
     receipt = {'format': 1, 'classification': 'diagnostic-synthesis-only',
                'yosys': tools['yosys'].identity, 'sources': sources, 'cells': counts,
-               'limits': ['portable eight-slot fixture with two probe cards',
-                          '8088, PIC/PIT/PPI, XT keyboard transport and speaker; external storage ports' if args.suite == 'machine' else
+               'limits': ['portable eight-slot fixture with CGA and MDA cards' if args.suite == 'display' else 'portable eight-slot fixture with two probe cards',
+                          '8088, PIC/PIT/PPI, DMA/refresh, XT keyboard transport and speaker; external storage ports' if args.suite == 'machine' else
                           '8088 with external memory ports; no motherboard' if args.suite == 'cpu' else 'no CPU or motherboard',
                           'no placement or timing',
                           'no physical socket containment', 'no sealed package',

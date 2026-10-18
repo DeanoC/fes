@@ -34,13 +34,14 @@ module cpu_top (
     assign cycle_fault = local_target ? 2'b0 : isa_fault;
     assign accepted = cycle_valid && cycle_ready;
     assign completed = cycle_done;
+    wire unused_bus_locked;
     pcxt_cpu cpu (
         .clk(clk), .reset(reset), .intr(intr), .nmi(nmi),
         .cycle_valid(cycle_valid), .cycle_ready(cycle_ready),
         .cycle_address(address), .cycle_wdata(wdata), .cycle_kind(kind),
         .cycle_write(write_cycle), .cycle_lock(locked), .cycle_done(cycle_done),
         .cycle_rdata(rdata), .cycle_fault(cycle_fault), .fault(fault),
-        .guest_ce(guest_ce), .halted(halted)
+        .guest_ce(guest_ce), .halted(halted), .bus_locked(unused_bus_locked)
     );
     /* verilator lint_off PINCONNECTEMPTY */
     isa_top isa (

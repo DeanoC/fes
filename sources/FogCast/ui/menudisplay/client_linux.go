@@ -44,6 +44,8 @@ type Result struct {
 	Generation        uint64 `json:"generation"`
 	DisplayedSequence uint64 `json:"displayed_sequence"`
 	Underflows        uint64 `json:"underflows"`
+	// Timing is where this present's time went (diagnostics only).
+	Timing Timing `json:"-"`
 }
 type reply struct {
 	OK          bool    `json:"ok"`
@@ -54,6 +56,11 @@ type reply struct {
 		StagingFormat     string  `json:"staging_format"`
 		DisplayedSequence *uint64 `json:"displayed_sequence"`
 		Underflows        uint64  `json:"underflows"`
+		Timing            *struct {
+			CopyUS        int64 `json:"copy_us"`
+			SubmitUS      int64 `json:"submit_us"`
+			ScanoutWaitUS int64 `json:"scanout_wait_us"`
+		} `json:"timing"`
 	} `json:"menu_frame"`
 	Error struct {
 		Code    string `json:"code"`
@@ -207,6 +214,8 @@ func (c *Client) Present(ctx context.Context, generation uint64, pix []byte) (Re
 	if generation == 0 || len(pix) != FrameBytes {
 		return Result{}, errors.New("invalid menu frame")
 	}
+	var timing Timing
+	began := time.Now()
 	conn, err := c.dial(ctx)
 	if err != nil {
 		return Result{}, err
@@ -227,6 +236,8 @@ func (c *Client) Present(ctx context.Context, generation uint64, pix []byte) (Re
 	if prepared.MenuFrame == nil || prepared.MenuFrame.Generation != generation || prepared.MenuFrame.ByteCount != FrameBytes || prepared.MenuFrame.StagingFormat != "rgba8888" || prepared.MenuFrame.DisplayedSequence != nil {
 		return Result{}, errors.New("invalid menu staging response")
 	}
+	staged := time.Now()
+	timing.BeginUS = staged.Sub(began).Microseconds()
 	var stat unix.Stat_t
 	if err := unix.Fstat(fd, &stat); err != nil {
 		return Result{}, err
@@ -245,6 +256,8 @@ func (c *Client) Present(ctx context.Context, generation uint64, pix []byte) (Re
 	if _, err := unix.FcntlInt(uintptr(fd), unix.F_ADD_SEALS, unix.F_SEAL_WRITE|unix.F_SEAL_GROW|unix.F_SEAL_SHRINK|unix.F_SEAL_SEAL); err != nil {
 		return Result{}, err
 	}
+	committed := time.Now()
+	timing.StageUS = committed.Sub(staged).Microseconds()
 	if err := send(conn, map[string]any{"protocol": 2, "operation": "menu_frame_commit", "generation": generation, "byte_count": FrameBytes}, fd); err != nil {
 		return Result{}, err
 	}
@@ -258,5 +271,9 @@ func (c *Client) Present(ctx context.Context, generation uint64, pix []byte) (Re
 	if len(extra) != 0 || completed.MenuFrame == nil || completed.MenuFrame.Generation != generation || completed.MenuFrame.DisplayedSequence == nil || completed.MenuFrame.Underflows > TransientUnderflowCap {
 		return Result{}, errors.New("invalid menu frame completion")
 	}
-	return Result{Generation: generation, DisplayedSequence: *completed.MenuFrame.DisplayedSequence, Underflows: completed.MenuFrame.Underflows}, nil
+	timing.CommitUS = time.Since(committed).Microseconds()
+	if t := completed.MenuFrame.Timing; t != nil {
+		timing.RuntimeCopyUS, timing.RuntimeSubmitUS, timing.RuntimeScanoutWaitUS = t.CopyUS, t.SubmitUS, t.ScanoutWaitUS
+	}
+	return Result{Generation: generation, DisplayedSequence: *completed.MenuFrame.DisplayedSequence, Underflows: completed.MenuFrame.Underflows, Timing: timing}, nil
 }

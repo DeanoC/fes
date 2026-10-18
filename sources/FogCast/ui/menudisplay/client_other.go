@@ -25,7 +25,10 @@ type Status struct {
 	Width, Height, Stride, ByteCount, SlotBytes int
 	DisplayedSequence, Underflows               uint64
 }
-type Result struct{ Generation, DisplayedSequence, Underflows uint64 }
+type Result struct {
+	Generation, DisplayedSequence, Underflows uint64
+	Timing                                    Timing
+}
 
 func New(path string) *Client { return &Client{Path: path} }
 func (*Client) Status(context.Context) (Status, error) {

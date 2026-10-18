@@ -4,11 +4,67 @@ This development slice runs an original diagnostic ROM on an 8088 CPU through
 an eight-slot virtual ISA backplane. The [machine design](../../docs/architecture.md#proposed-fes-ibm-pcxt-core)
 targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
 linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
-PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM. It has no
-HID keyboard frontend, DMA controller, graphics, disk
-controller, BIOS, board top, physical socket map or package producer.
+PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. It has no
+HID keyboard frontend, disk controller, BIOS, board top, physical socket map or package producer.
 It cannot boot DOS or PC/XT games yet. Conventional RAM and ROM are testbench
 models; no physical SDRAM controller is connected.
+
+## ISA display cards
+
+`expansions/pcxt_cga_card.sv` and `pcxt_mda_card.sv` are separate registered ISA
+cards. Their common implementation owns VRAM and an original MC6845 timing/
+address subset; the motherboard has no video register or memory shortcuts.
+The display fixture puts CGA in logical slot 2 and MDA in slot 3. Both coexist
+without claims, IRQ or DRQ collisions; these are portable logical slots, not
+qualified physical link regions.
+
+| Card | Guest memory | I/O (A15:10 ignored) | Raster at IBM standard register values |
+| --- | --- | --- | --- |
+| CGA | 16 KiB, mirrored over `B8000–BFFFF` | `3D0–3D7` index/data aliases; `3D8` mode, `3D9` colour, `3DA` status, `3DB/3DC` light-pen clear/set | 912×262 master dots, 640×200 active; 40/80 text, 320 four-colour or 640 one-bit graphics |
+| MDA display | 4 KiB, mirrored over `B0000–B7FFF` | `3B0–3B7` index/data aliases; `3B8` mode, `3BA` status | 882×370 dots, 720×350 active; 80×25 text, 9×14 cells |
+
+CGA implements both RGBI graphics palettes, intensity, mode-5 RGBI cyan/red/
+white, interleaved 8 KiB graphics banks, text foreground/background, blink,
+border, start-address wrap, cursor and light-pen latch/readback. MDA implements
+normal, invisible, bright, underline and reverse attributes, blink and the
+ninth-dot continuation for characters `C0–DF`. Cursor start/end, steady/off and
+16/32-frame blinking use the CRTC registers. R0–R13, mode and colour registers
+are write-only; R14–R17 read back. Status is sampled from the running raster.
+VRAM is not cleared by reset; register and protocol reset blanks video and
+cancels pending transactions. Uninitialized memory contents are unspecified.
+The unused MDA printer ports return `FF`; a printer interface and Hercules
+graphics are not implemented.
+
+Each card exports an independent 100 MHz synchronous guest raster: `pixel_ce`,
+RGBI (`I,R,G,B` in bits 3..0), `de`, active-high `hs/vs`, `sof` and `eol`.
+All fields belong to the emitted dot when `pixel_ce=1`; `sof/eol` mark the first
+and last dots of the complete raster, including blanking. DE describes the
+active aperture even with video disabled. CGA uses 14.318180 MHz fractional
+master-dot enables; low-resolution pixels repeat on two dots. MDA uses
+16.257 MHz. They run independently of CPU READY, DMA and each other. This is a
+development egress, not a new shared video contract or a Coleco socket profile.
+A production shell still needs complete-frame CDC, scaling and display output.
+CGA RGBI is not RGB888: the consumer must perform the monitor's palette mapping,
+including brown, rather than directly wire nibble bits to HDMI.
+
+The shell supplies a combinational font ROM through `font_address/font_data`:
+4096 bytes, `character*16 + row`, MSB at the left. CGA uses rows 0–7; MDA rows
+0–13. Font data must settle before the next master-dot enable. This normalized
+layout does not accept a raw IBM ROM without conversion. No IBM glyph ROM is
+bundled. The simulations supply original diagnostic glyphs. A normal text
+session needs separately supplied, legally usable fonts.
+
+The CRTC implements standard non-interlaced IBM programming (`R8=02`), totals,
+adjust lines, start address, fixed 16-line VS and 1–15-character HS (zero disables
+HS). Interlace sets `unsupported_interlace`; it is not rendered as interlace.
+Original adapter contention/wait-state timing, CGA snow, composite NTSC/artifact
+colours, light-pen electrical timing and clone-specific CRTC behavior remain
+unqualified. These cards establish host simulation behavior, not DOS/game,
+physical socket, timing-closure or hardware acceptance.
+
+Behavior references: [IBM PC Technical Reference, April 1983](https://bitsavers.org/pdf/ibm/pc/pc/1502234_PC_Technical_Reference_Apr83.pdf),
+printed pages 1-123–128 and 1-135–154 (adapter programming and schematics), and
+[Motorola MC6845 datasheet](https://bitsavers.org/components/motorola/_dataSheets/6845.pdf).
 
 ## Implemented path
 
@@ -22,7 +78,9 @@ stops on a latched fabric fault until reset. `halted` stays asserted from the
 halt bus cycle, including later prefetches, until the next non-fetch bus
 status. There is no
 8086 selector, turbo setting, 80186 extension or fake-286 FLAGS mode in FES.
-DMA ownership and HOLD/HLDA remain unimplemented.
+DMA ownership uses transaction backpressure through READY. The live CPU
+`bus_locked` output protects instruction gaps; pin-level HOLD/HLDA timing
+is not emulated.
 
 `pcxt_motherboard.sv` latches one CPU byte request and routes it to conventional
 RAM (`00000–9FFFF`), read-only system ROM (`F0000–FFFFF`), a local device or ISA.
@@ -42,7 +100,7 @@ XT keyboard receiver, and IRQ2–7 from ISA. The timer clock divides CPU guest
 clock enables by four (nominal 1.193182 MHz); it continues through CPU waits and
 HLT. All counter pins are synchronous data, not generated RTL clock domains.
 Channels 0/1 have gates tied high; channel 2 uses PPI port B bit 0 and all three
-outputs are exposed. Refresh DMA remains unimplemented.
+outputs are exposed. Channel 1 requests DMA0 refresh through a latched edge.
 Local reads/writes have one setup, eight active and nine release fabric clocks;
 CS/address remain stable through release so imported bus-edge detectors retire
 side effects before DONE. These timings are development integration choices,
@@ -96,6 +154,61 @@ Its signed 16-bit mono sample/valid outputs are available to a future board
 adapter; they are not connected to the production audio shell. Fixed gain
 introduces at most four counts of window-length jitter. This development
 filter has no measured analog-speaker fidelity claim.
+
+`pcxt_dma.sv` is original transaction-native RTL implementing the XT subset
+of the [Intel 8237A](https://read.seas.harvard.edu/~kohler/class/04f-aos/ref/hardware/8237A.pdf).
+Controller registers occupy `00–1F` (A3:0), with A15:10 ignored. `80–9F`
+(A1:0) selects write-only four-bit XT page latches; reads return `FF`.
+Page index 1 selects DMA2, index 2 DMA3, and index 3 DMA1/refresh. Index 0
+is writable but unused. Low 16-bit address wrap never carries into the page.
+
+The controller implements shared low/high byte selection, current/base
+address and count, read-clear TC status, masks, command/disable, mode and
+software-request writes, increment/decrement, auto-init, and fixed/rotating
+priority. A new service resolves priority after CPU ownership is released,
+so a higher-priority request arriving during a CPU wait or LOCK can win.
+Demand rechecks DREQ before each byte; block runs to TC;
+single yields to a waiting CPU request between bytes. Software requests are
+serviced in block mode as Intel specifies. Count `FFFF` means 65,536 bytes.
+Verify advances address/count without memory or peripheral strobes. Master
+clear resets status, command, request, temporary, byte pointer and masks while
+preserving address/count/mode/page programming. Undefined register reads use
+`FF`; the temporary register reads zero because memory-to-memory is unsupported.
+
+DMA2/3 exercise real registered ISA endpoints; DMA1 uses the same contract
+(the current fixture has no DMA1 card). Memory-to-device first reads memory,
+then commits the peripheral write; device-to-memory commits the peripheral
+read before writing memory. AEN, channel and final-byte TC travel through the
+existing ISA contract. Both halves complete before address/count retirement.
+A byte receives at least five guest clock enables, plus transaction waits;
+this is a development timing model, not original 8237 pin timing. Compressed/
+extended-write and DACK polarity bits do not alter the abstract handshakes.
+DREQ polarity is the 8237 pin sense for every channel, applied before
+masking and priority resolution. Channel 0's pin is the refresh latch.
+
+The router grants DMA between completed CPU requests and preserves ownership
+for both halves of a byte. Continuous CPU LOCK and a separate two-INTA-pulse
+latch exclude grants. CPU completion never pulses for a DMA request. Faults
+halt DMA without advancing its address/count or retrying a committed device
+operation. Reset cancels outstanding work; master clear also clears a DMA
+fault. A previously committed device read or memory write is not rolled back.
+Memory-to-memory, cascade, illegal transfer type and DMA0 device-to-memory
+requests fail with diagnostic fault 3; external EOP and ISA bus mastering
+remain unimplemented.
+
+PIT1 rising edges latch refresh requests until DMA0 acknowledges service.
+DMA0 read mode performs a memory read without an ISA peripheral packet;
+its auto-init single mode continues while the CPU waits or halts. Edges during
+a delayed refresh can latch one further request. This supplies the guest-visible
+refresh bus activity; a future physical SDRAM controller still owns its actual
+SDRAM refresh commands and retention qualification.
+
+CGA and MDA are separate ISA expansion cards. Each owns its VRAM, memory
+and register decode, and raster state on the registered endpoint/commit
+boundary. The motherboard routes the `B8000–BFFFF` and `B0000–B7FFF`
+apertures to ISA and contains no display registers. See
+[ISA display cards](#isa-display-cards). Physical socket placement,
+production HDMI egress and kit hardware acceptance remain unqualified.
 
 `pcxt_isa_bridge.sv` latches a byte transaction, collects registered card decode
 responses, waits for READY and sends one commit. `pcxt_isa_boundary.sv` supplies
@@ -184,11 +297,25 @@ Reset tests cancel an outstanding storage write and sweep all local bus phases.
 These are bounded integration tests; cascade, special mask mode, all counter
 reload/gate corner cases and exact original-silicon timing are not qualified.
 
+The DMA suite checks both directions with delayed card/memory responses,
+all service modes, verify, all-mask and clear-mask writes, shared byte selection,
+page aliases/mappings and 64 KiB wrap, including an independent 65,536-byte
+memory scoreboard. It checks auto-init, fixed/rotating priority, software
+requests, DREQ polarity/withdrawal, LOCK and paired INTA exclusion, CPU fairness,
+refresh cadence, inverted DREQ sense on that latch and on external DRQ,
+a higher-priority request arriving before grant, DREQ
+withdrawal between demand bytes, first/second-half faults and reset across
+pending halves.
+Unsupported bus modes must fault without committing a byte.
+
 The integrated machine suite boots the original `sim/motherboard.S` ROM on the
 8088. It programs PIC/PIT, wakes from HLT for three timer IRQ0 handlers, then
 services ISA IRQ5 and clears its source. It programs the PPI, reads both switch
 nibbles, plays/mutes a PIT2 speaker tone and handles make/break bytes via two
-IRQ1 handlers with port-61 acknowledgement. The testbench supplies RAM/ROM and
+IRQ1 handlers with port-61 acknowledgement. It also transfers eight bytes
+from one ISA card to RAM and four distinct RAM bytes to the second card,
+checks TC, and executes 40 locked word increments while periodic DMA0 refresh
+competes with CPU instructions and interrupts. The testbench supplies RAM/ROM and
 set-1 bytes to the timed serializer, checks both locked INTA cycles and their vectors, and observes success in RAM.
 Three runs vary storage latency/backpressure on switch profile `2D`. A fourth
 run reads profile `73` with no added memory wait. Switch selection does not
@@ -199,8 +326,15 @@ Verilator lint is fatal. `sim/cpu.vlt` and `sim/chipset.vlt` scope exceptions to
 imported files and the fixtures' shared reset (asynchronous in imported chips,
 synchronous in FES RTL). Run a suite alone with
 `python3 scripts/sim_fes_pcxt.py --suite isa`, `--suite cpu`,
-`--suite keyboard`, `--suite motherboard` or `--suite machine`.
-Outputs live under `build/sim/fes-pcxt/{isa,cpu,keyboard,motherboard,machine}/`. The parent affected-test planner and
+`--suite keyboard`, `--suite motherboard`, `--suite dma`, `--suite machine`,
+`--suite display` or `--suite display-machine`.
+Outputs live under `build/sim/fes-pcxt/{isa,cpu,keyboard,motherboard,dma,machine,display,display-machine}/`. The display suite checks full raster geometry, cadence, sync widths and every
+pixel against independent byte-memory scoreboards, plus palette writes during a
+scan line, AEN, aliases, mirrors, blink, cursor, light pen and reset phases. The
+separate display-machine suite boots `sim/display.S` on the 8088 through the
+motherboard, programs CGA then MDA with split word I/O, fills/verifies both VRAMs,
+polls real status ports and verifies emitted frames with 0/137-clock storage waits.
+The parent affected-test planner and
 CI simulation matrix include this simulation-only family. Passing these tests
 is host evidence only. Physical socket placement/routing, exact-shell archives,
 firmware composition and hardware acceptance remain required before a linkable
@@ -213,6 +347,7 @@ as the existing Coleco producer:
 make synth-fes-pcxt-isa CACHE_ROOT=/absolute/misteross-toolchains
 python3 scripts/synth_fes_pcxt.py --suite cpu --cache-root /absolute/misteross-toolchains
 python3 scripts/synth_fes_pcxt.py --suite machine --cache-root /absolute/misteross-toolchains
+python3 scripts/synth_fes_pcxt.py --suite display --cache-root /absolute/misteross-toolchains
 ```
 
 It synthesizes the simulation fixture (two probe cards, eight portable slots,
@@ -220,10 +355,12 @@ fault-injection controls) and writes `build/synth/fes-pcxt/synth.json`,
 `yosys.log` and `diagnostic.json` with source hashes and compiler identity.
 The CPU variant includes the CPU and external memory ports, writing the same
 files beneath `build/synth/fes-pcxt/cpu/`. The machine variant adds the
-motherboard/PIC/PIT/PPI, keyboard serializer and speaker under
+motherboard/PIC/PIT/PPI, DMA/refresh, keyboard serializer and speaker under
 `build/synth/fes-pcxt/machine/`. The receipt records the locked compiler identity
 and mapped cell counts.
-Neither variant synthesizes the testbench RAM or diagnostic system ROM.
+The display variant synthesizes both ISA cards, their VRAM and the registered
+backplane into `build/synth/fes-pcxt/display/`, with external font ROM inputs.
+None of these variants synthesizes the testbench RAM or diagnostic system ROM.
 The cell counts describe these fixtures only.
 These commands perform no placement,
 routing, package sealing or deployment.

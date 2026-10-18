@@ -84,6 +84,8 @@ struct MenuFrameReply {
  std::uint64_t generation=0;
  bool prepared=false;
  std::uint32_t displayed_sequence=0,underflows=0;
+ // Present timing, encoded as menu_frame.timing on a commit reply.
+ std::uint32_t copy_us=0,submit_us=0,scanout_wait_us=0;
 };
 Error ParseRequest(const std::string& line, Request* request);
 // `ok` is the current request result.  Status::error is lifecycle evidence and

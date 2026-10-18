@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"io"
 	"net"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"github.com/DeanoC/FogCast/internal/testsock"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -48,7 +48,7 @@ func TestLostStopResponseObservesOutcomeWithoutReplay(t *testing.T) {
 }
 
 func TestLostStopResponseThroughUnixSocket(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "runtime.sock")
+	path := testsock.Path(t, "runtime.sock")
 	listener, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)

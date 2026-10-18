@@ -597,6 +597,7 @@ func (a *App) tickRoomLocked(now time.Time) {
 		return
 	}
 	a.roomFrame = a.room.Step(now)
+	a.frameLua = a.room.LastStep()
 	if a.roomWaitAck || a.roomCoreDetail != "" {
 		dest := a.roomDestinationLocked()
 		if dest.Confirm() != rooms.ConfirmWait {

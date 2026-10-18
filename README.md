@@ -37,7 +37,8 @@ systems.
 ## Start
 
 Use Linux amd64 with Git, GNU Make, Python 3.11+, Go and Docker. Go selects the
-version in the selected FogCast `go.mod` (currently 1.26.5). First-party sources
+version in the selected FogCast `go.mod` (currently 1.26.5). The affected-test
+command also needs Node.js 18+ and ripgrep for the host UI lane. First-party sources
 are included here; external build dependencies retain their own locks.
 
 ```sh

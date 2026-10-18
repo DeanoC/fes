@@ -21,7 +21,7 @@ module computer_interaction_sim_top (
  assign mouse_ready=allow_mouse&&ik_mouse_ready;
  initial mouse_accepts=0;
  always @(posedge clk) if(mouse_valid&&mouse_ready) mouse_accepts<=mouse_accepts+1;
- fes_computer_mailbox #(.ENABLE_MOUSE(1),.ENABLE_KEYBOARD(1),
+ fes_computer_mailbox_direct #(.ENABLE_MOUSE(1),.ENABLE_KEYBOARD(1),
  .ENABLE_ATARI_ST_FLOPPY(1),.ENABLE_ATARI_ST_FLOPPY_WRITE(1),
  .MEDIA_AW(20),.UNIT0_MIN(4),.UNIT0_MAX(737280)) endpoint (
  .clk(clk),.gpo(gpo),.gpi(gpi),.build_id(128'h00112233445566778899aabbccddeeff),

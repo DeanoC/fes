@@ -91,7 +91,9 @@ between idle cards.
 upstream request; it is valid with `cycle_done`. `cycle_rdata` is also valid then.
 A card which never becomes READY stalls until machine reset. The bridge does
 not invent an ISA bus-error interrupt or a timeout. The consumer must translate
-internal faults into its machine diagnostic policy; no CPU integration exists yet.
+internal faults into its machine diagnostic policy. The PC/XT development
+motherboard exposes DMA faults separately; the integrated fixture combines
+them with CPU faults.
 
 Reset dominates commit. The boundary sends RESET to cards and clears responses;
 the bridge drains old pipeline state without a phantom completion. Devices
@@ -100,12 +102,14 @@ the shell reset directly. The boundary register can still hold COMMIT on the
 edge reset is asserted, and the registered RESET bit does not update until
 the next edge, so the endpoint reset is what suppresses `device_commit` on
 that edge. Reset after a completed commit is not a rollback of an external
-side effect. The CPU/8237 arbiter must establish its own reset and
-persistence semantics when integrated.
+side effect. The motherboard arbiter cancels pending CPU/DMA requests on
+reset; it does not roll back already committed device or memory operations.
 
-DMA here is only the peripheral byte handshake. A future 8237 master must
-arbitrate ownership, perform the RAM half of the transfer, and advance address,
-count and terminal count once the full transfer completes. This fabric does
-not implement a DMA controller, ISA bus mastering, original T-state timing,
+DMA here defines only the peripheral byte handshake. The
+[misteross motherboard](../../misteross/cores/fes-pcxt/README.md) now supplies
+an 8237A-subset master which arbitrates ownership, performs the memory half
+and advances address/count once the full byte completes. Final-byte TC is
+prepared before peripheral commit and remains stable for that transaction.
+The fabric itself does not implement a DMA controller, ISA bus mastering, original T-state timing,
 video/memory services, audio transport or authenticated resource descriptors.
-Those additions must preserve this contract or declare a new version.
+Further additions must preserve this contract or declare a new version.

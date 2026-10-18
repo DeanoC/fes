@@ -1132,6 +1132,21 @@ The sealed shell is `fes.computer` 1.0. `top.v` instantiates
 with the ZX81 tape unit and the session-display plane.
 Shells that leave the plane off keep the `fes_computer_mailbox` port list in
 that same file; that wrapper ties the plane response inputs idle.
+Atari ST instantiates `fes_computer_mailbox_direct` from
+`fes_computer_mailbox_direct.v` in that directory. The accepting edge assigns
+`acknowledged_toggle` from the synchronized request and does not elaborate
+the display-wait hold. The command payload is registered beside that request
+synchronizer. Only the request toggle is an `async_reg` synchronizer; the
+payload registers are kept so the HPS GP port ends at a flip-flop and are not
+placed as a 31-bit synchronizer. Reflected CRC-32 is a parallel XOR of the
+accepted media word on the following clock, and the wide begin-size, alignment,
+bytes-remaining and commit compares are registered results. The next command
+cannot consume those results early: the host holds GPO until ACK, and the new
+request toggle crosses two synchronizer stages. Relative mouse samples and the
+write-data word stay on the live GPO. `make sim-fes-atari-st-mailbox-direct` replays the shared
+mailbox vectors and the commands ST uses, including a completed snapshot
+read, against both endpoints and fails if they diverge. Other shells keep
+`fes_computer_mailbox` or the core.
 `cores/fes-zx81/rtl/fes_computer_gp.v` remains the session-harness mailbox on
 the older `fes.simple-computer` 1.0 transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
@@ -2143,6 +2158,8 @@ fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
 The motherboard router decodes RAM/ROM and integrates pinned KF8259 PIC, KF8253
 PIT and KF8255 PPI imports. The machine diagnostic receives timer, ISA and
 keyboard interrupts through the real two-INTA path and generates speaker PCM.
+Original 8237A-subset RTL adds DMA ownership, both memory/peripheral transfer
+halves, XT pages and PIT1-triggered refresh.
 Memory storage remains a testbench service. See the
 [CPU import](../cores/fes-pcxt/vendor/mcl86/README.md) for provenance and limits.
 The shared `fes.fabric.pcxt-isa` 1.0 constants are generated from mister-packages;
@@ -2151,7 +2168,7 @@ reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
 **The complete machine below remains a proposal.** `fes.pcxt` is the proposed
-package identity. The remaining DMA controller, HID keyboard frontend, graphics, disk
+package identity. The remaining HID keyboard frontend, production video output, disk
 controller, physical socket layout, producer and sealed PC/XT package are not
 implemented yet. The fabric does not enable
 runtime activation or claim a linkable RBF. Existing linker layout admission
@@ -2264,15 +2281,41 @@ the PIC independently of address. The adapter supplies one setup, eight active a
 effects. This latency is not yet an original-board bus-timing qualification.
 PIT pins advance from CPU guest enables divided by four through READY waits
 and HLT. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
-output remains exposed for refresh integration; PPI PB0 gates channel 2.
+output requests DMA0 refresh; PPI PB0 gates channel 2.
 Reset must cancel requests in the router and its downstream storage/ISA.
 
-The remaining motherboard work includes an 8237A DMA
-controller with XT page registers.
-PIT channel 0 already drives IRQ0; planned channel 1 wiring requests DMA
-refresh, and channel 2 feeds the speaker through port 61h gating. DMA must implement address/count, shared
-byte pointer, page-boundary behavior, terminal count, masks and required
-transfer modes. Do not replace floppy DMA with BIOS-level interception.
+Original `pcxt_dma.sv` implements the XT subset of the
+[Intel 8237A](https://read.seas.harvard.edu/~kohler/class/04f-aos/ref/hardware/8237A.pdf).
+Ports `00–1F` select controller registers through A3:0; write-only four-bit page
+latches at `80–9F` use A1:0 (DMA2 index 1, DMA3 index 2, DMA1/refresh index 3).
+Both ranges ignore A15:10. The shared byte pointer, base/current address/count,
+TC status, masks, demand/single/block/verify, software block requests, DREQ sense,
+auto-init and fixed/rotating priority are implemented. New services resolve
+priority after CPU ownership is released; demand rechecks DREQ before each
+byte. Low-address wrap stays
+within the selected 64 KiB page. Master clear preserves address/count/mode/page
+programming; read-clear TC status changes only once per accepted register read.
+
+The motherboard grants ownership between completed requests, excludes live
+CPU LOCK and the entire INTA pair, and backpressures CPU requests through READY.
+A peripheral transaction and its RAM/ROM or ISA-memory half finish before
+address/count advance; single mode yields to a waiting CPU between bytes.
+AEN/channel/TC use the existing ISA fabric contract. DMA completion cannot
+retire a CPU request. Each byte has a minimum five guest-enable budget plus
+transaction waits. Pin-level HOLD/HLDA and original 8237 T-state timing remain
+unqualified; compressed/extended-write and DACK polarity controls do not change
+abstract handshakes. Memory-to-memory, cascade, illegal transfer type and DMA0
+memory-write requests fault visibly; external EOP and ISA bus mastering remain
+unimplemented. A fault stops the controller without advancing address/count or
+retrying a committed device operation. Reset cancels pending work but does not
+undo completed writes or peripheral reads.
+
+PIT1 edges latch DMA0 refresh until service starts; an edge during a delayed
+read can queue one further refresh. That latch output is the DREQ0 pin, so
+the command register's DREQ-sense bit applies to it with the external DRQ pins. Read mode performs a memory read without
+a DMA peripheral packet. This models guest-visible bus activity, not physical
+SDRAM retention. The eventual SDRAM controller must still refresh its own
+storage. Do not replace floppy DMA with BIOS-level interception.
 
 The implemented PPI wrapper uses mode 0 (`99h`), with PA scan-code input,
 PB controls and PC equipment/status inputs. PB0 gates PIT2; PB1 ANDs PIT2 OUT
@@ -2306,28 +2349,42 @@ production shell audio connection and measured analog fidelity remain open.
 
 ### Graphics compatibility
 
-CGA is the first playable configuration: text modes, 320×200 four-colour and
-640×200 monochrome graphics, character ROM, palette/mode registers, border,
-6845 programming, cursor, start address and status-port polling. The renderer
-reads live adapter memory according to guest raster timing; it must not
-reconstruct frames using BIOS calls. Preserve interleaved graphics addressing,
-text blink, mid-frame register changes and retrace visibility. CGA memory
-contention and snow need explicit modeling and qualification. Composite
-artifact colours require a separate NTSC decoder and reference captures;
-initial RGB output alone does not qualify composite-colour games.
+CGA and MDA are separate implemented ISA display cards under
+`cores/fes-pcxt/expansions`, using the registered endpoint and commit handshake.
+Each owns VRAM, register decode and a shared original MC6845 timing/address
+subset. The motherboard routes accesses through ISA with no graphics shortcuts.
+The display fixture assigns CGA to logical slot 2 and MDA to slot 3, testing
+coexistence; physical socket containment remains unqualified.
 
-MDA is a separately selected adapter with 80×25 text, its character cell,
-attributes, cursor, address decode and raster/status behavior. It does not
-provide CGA graphics or Hercules graphics. Permit CGA plus MDA only after
-resource and decode coexistence tests pass. A later EGA card requires planar
-VRAM, latches, write modes, sequencer, graphics/attribute controllers and its
-own BIOS; an 8088 CPU alone does not imply EGA game compatibility.
+CGA owns the `B8000–BFFFF` aperture with 16 KiB mirrors and ten-bit `3D0–3DF`
+I/O decode. It supports 40/80-column text, 320×200 four-colour and 640×200 one-bit
+RGBI graphics, interleaved banks, palette/intensity, border, blink, cursor,
+start address, status polling and light-pen latching. MDA owns `B0000–B7FFF`
+with 4 KiB mirrors and `3B0–3BF` decode: 80×25 text with 9×14 cells, monochrome
+attributes/underline, ninth-column continuation, blink, cursor and raster status.
+Its printer interface is not implemented. Neither card generates IRQ/DRQ.
+Both use a separately supplied normalized font ROM; no IBM glyph ROM is bundled.
+See the [core README](../cores/fes-pcxt/README.md#isa-display-cards) for the exact
+ports, font layout, primary references and simulation coverage.
+
+At 100 MHz the independent guest streams use fractional master-dot enables:
+14.318180 MHz CGA and 16.257 MHz MDA. With standard IBM register values the
+complete rasters are 912×262 and 882×370; active regions are 640×200 (low-res
+pixels repeated) and 720×350. RGBI, DE, active-high HS/VS, SOF/EOL are sampled
+with each pixel enable, including blanking. Live palette/VRAM/register accesses
+change the running raster without BIOS interception or frame reconstruction.
+This is development egress, not a newly registered shared fabric or a physical
+video socket. Non-interlaced IBM CRTC programming is supported; interlace is
+flagged. Original contention/wait-state timing, CGA snow and composite artifact
+colours need separate modeling and qualification. MDA supplies no Hercules
+graphics. A later EGA card requires planar VRAM, latches, write modes,
+sequencer, graphics/attribute controllers and its own BIOS.
 
 Guest raster generation remains independent of 720p60 HDMI. Use complete-frame
 publication across clock domains, preserve aspect ratio, and repeat/drop whole
 frames for cadence conversion. Do not force CGA/MDA register timing to 60 Hz.
 The current Coleco native socket's fixed geometry is not a PC video socket.
-Use an inline Direct output initially; qualify a versioned wider native-video
+A production inline Direct output remains to be implemented; qualify a versioned wider native-video
 contract and exact-shell parts separately. Budget framebuffer storage in SDRAM
 before routing; a double-buffered 640×400 indexed4 surface alone needs 256,000
 bytes, in addition to guest RAM and adapter VRAM.
