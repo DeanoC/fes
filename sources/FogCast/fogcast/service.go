@@ -2528,6 +2528,12 @@ func (s *Service) adoptObservedKit(target string, status protocol.Status) {
 	} else if status.State == protocol.StateActive {
 		play.execution = ExecutionFPGANative
 	}
+	if status.State == protocol.StateFailed {
+		// Development recovery keeps the kit's execution, not the game it was running.
+		play.gameID, play.system = "", ""
+		s.plays[target] = play
+		return
+	}
 	if status.GameID != nil {
 		play.gameID = *status.GameID
 	}

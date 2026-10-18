@@ -970,6 +970,21 @@ func TestServiceFailedKitStatusDropsStalePlayWithoutChangingHost(t *testing.T) {
 	}
 }
 
+func TestServiceFailedDevelopmentKitStatusDropsGameIdentity(t *testing.T) {
+	game, system := "stale", protocol.SystemSNES
+	client := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateFailed, Development: true, GameID: &game, System: &system}}
+	s := &Service{targets: []TargetConfig{{Name: "kit", Enabled: true}}, selectedTarget: "kit",
+		targetClients: map[string]serviceClient{"kit": client},
+		plays:         map[string]targetPlay{"kit": {execution: ExecutionFPGANative, gameID: "stale", system: protocol.SystemSNES}}}
+	if _, err := s.StatusTarget(context.Background(), "kit"); err != nil {
+		t.Fatal(err)
+	}
+	plays := s.PlaySessions()
+	if len(plays) != 1 || plays[0].Target != "kit" || plays[0].Execution != ExecutionFPGADevelopment || plays[0].GameID != "" || plays[0].System != "" {
+		t.Fatalf("plays=%+v", plays)
+	}
+}
+
 func TestServiceStopRejectedNamedKitKeepsHostAndOtherKit(t *testing.T) {
 	a := &fakeServiceClient{}
 	b := &fakeServiceClient{statusResult: protocol.Status{State: protocol.StateActive, Development: true}, stopResult: protocol.Status{State: protocol.StateIdle}}
