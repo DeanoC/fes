@@ -2,6 +2,7 @@
 #include "Vvideo_machine_top.h"
 #include "verilated.h"
 #include <array>
+#include <deque>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -21,6 +22,31 @@ int main(int argc,char**argv){
             t.reset=1;t.reset_pixel=1;t.hold=0;t.memory_ready=0;t.memory_done=0;
             unsigned pixel_phase=0;
             std::array<unsigned,2> outx{},outy{},outframes{},checked{};
+            // CGA is wired to Direct and MDA to Scanlines. Responses are the
+            // shared parts sampled two pixel clocks after each adapter request.
+            struct Effect {
+                std::deque<uint32_t> pipe;
+                unsigned line=0, checked=0;
+                bool known=false;
+            };
+            std::array<Effect,2> effect{};
+            auto check_effect=[&](unsigned c,uint32_t request,uint32_t response){
+                Effect& e=effect[c];
+                e.pipe.push_back(request);
+                if(e.pipe.size()<=2)return;
+                uint32_t old=e.pipe.front();e.pipe.pop_front();
+                uint32_t want=old&0x0fffffffu;
+                if((old>>30)&1)want&=0x0f000000u;
+                if(!(old&(1u<<24)))want&=0x0f000000u;
+                if(c==1){
+                    if(old&(1u<<28)){e.line=0;e.known=true;}
+                    if(!e.known)return;
+                    if(e.line&1)want=(want&0x0f000000u)|((want&0x00fefefeu)>>1);
+                    if(old&(1u<<29))++e.line;
+                }
+                check((response&0x0fffffffu)==want,c?"MDA Scanlines response":"CGA Direct response");
+                ++e.checked;
+            };
             auto step=[&](unsigned level){
                 t.clk=level;pixel_phase+=1485;bool edge=false;
                 if(pixel_phase>=2000){pixel_phase-=2000;t.clk_pixel=!t.clk_pixel;edge=t.clk_pixel;}
@@ -28,6 +54,7 @@ int main(int argc,char**argv){
                 if(!edge || t.reset_pixel || memory[0x600]!=0xaa)return;
                 for(unsigned c=0;c<2;c++){
                     uint32_t r=c?t.mda_video_request:t.cga_video_request;
+                    check_effect(c,r,c?t.mda_video_response:t.cga_video_response);
                     if(r&(1u<<28)){if(outframes[c]>3)check(outx[c]==0 && outy[c]==750,"HDMI frame geometry");
                         ++outframes[c];outx[c]=outy[c]=0;}
                     if(!outframes[c])continue;
@@ -87,7 +114,10 @@ int main(int argc,char**argv){
                 if(checked[0]>=2475000 && checked[1]>=2475000)break;
             }
             check(memory[0x600]==0xaa && checked[0]>=2475000 && checked[1]>=2475000,"8088 display timeout");
-            std::cout<<"8088 CGA then MDA: waits="<<waits<<", ticks="<<ticks<<", external storage cycles="<<transactions<<", guest and 720p frames verified\n";
+            check(effect[0].checked>=2000000 && effect[1].checked>=2000000,"Direct/Scanlines response coverage");
+            std::cout<<"8088 CGA then MDA: waits="<<waits<<", ticks="<<ticks<<", external storage cycles="<<transactions
+                     <<", direct="<<effect[0].checked<<", scanlines="<<effect[1].checked
+                     <<", guest and 720p frames verified\n";
         }
     }catch(const std::exception&e){std::cerr<<e.what()<<'\n';return 1;}
 }
