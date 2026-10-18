@@ -1,5 +1,40 @@
 # Working in FES
 
+## Shared kits and Powerboat (READ FIRST)
+
+Outside agent sessions have ignored these rules. Obey them.
+
+1. MUST claim the kit before you touch it, and log the result when you
+   finish. There is no separate Powerboat host claim. Record owner, PR,
+   and start time in that kit's Powerboat status file:
+   `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
+   log is the single source of truth. NEVER take a kit that is leased or
+   claimed by someone else. NEVER use a Slack reservation, and NEVER
+   require a person to be present. GPU jobs on Powerboat go through the
+   `gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows
+   the holders.
+2. Kits A and B are both designated test kits. They are interchangeable.
+3. When a task installs a bundle, install that PR bundle on the kit's
+   running image. A core-only run that does not change the bundle does not
+   install one. After use, restore the designated baseline image and bundle
+   the status file names, and log that restore. Activating the baseline
+   bundle does not change the booted image. If the booted image is not the
+   named baseline, restore that image, verify the boot, then activate a
+   compatible baseline bundle and verify it before logging the kit
+   restored. Confirm the kit is idle and lease-free before you release it.
+4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
+5. Destructive actions need Deano's explicit OK: reimage, an image or
+   boot-config change, killing other people's processes, and closing PRs.
+6. These stay pre-approved: deleting old images (keep the running image
+   and the previous one), SD reburn, and bundle install-then-restore.
+   Never delete a factory or known-good rollback image. Before an SD
+   reburn, verify the device path is that kit's SD card.
+7. NEVER use broad `pkill` or `killall` patterns on Powerboat (for example
+   `pkill -f run.sh`). Kill only PIDs you started. Give your scripts
+   distinctive names.
+8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
+   `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
+
 The four first-party modules develop only in this repository. Their former
 standalone repositories are archived; never send work or PRs there. Go import
 paths and dated provenance may keep the old names.
@@ -48,18 +83,30 @@ never infer persistence from a display name, package path or raw RBF.
 
 - Managed kits install immutable userspace bundles and queue activation at the next
   free lease boundary; see [kit software releases](docs/kit-software-releases.md).
-  Successful selections remain installed. Do not restore another task's release,
-  require matching host commits, or use file overlays on a managed kit.
-- A build never authorizes deployment. Use the designated kit only as the
-  selected FogCast `docs/DEVELOPMENT.md` and `AGENTS.md` authorize, holding a
-  session claimed through [kit sharing](docs/kit-sharing.md); never bypass
+  When the task installs a bundle, install that PR bundle on the kit's running
+  image. A core-only run that does not change the bundle does not install one.
+  After use, restore the designated baseline image and bundle named in the
+  status file and log that restore. Activating the baseline bundle does not
+  change the booted image. If the booted image is not the named baseline,
+  restore that image and verify the boot first, then activate a compatible
+  baseline bundle and verify it before logging the kit restored.
+  Bundle install-then-restore is pre-approved. A successful selection stays
+  installed, and nothing restores a stock bundle automatically; the return to
+  the baseline bundle is an explicit activation of the ID in the status file.
+  Do not put another task's release in place of that baseline, require matching
+  host commits, or use file overlays on a managed kit.
+- A build never authorizes deployment. Kits A and B are both designated test
+  kits and are interchangeable. Claim one in its status file and hold the
+  session described in [kit sharing](docs/kit-sharing.md). Never bypass
   another owner's lease with direct programming.
 - Report which kind of evidence you have: host-only check, hardware diagnostic,
   or exact-artifact hardware acceptance. A new profile inherits no acceptance.
 - `make media`, `make verify-media` and `make rollback-media` hold the media
   lease and never write a block device; see [bootable media](docs/bootable-media.md).
   Change `media/current` only through these leased commands. Writing a physical
-  card needs explicit device authorization plus the kit lease.
+  card needs an explicit device path plus the kit lease. An SD reburn of a
+  designated test kit is pre-approved. Verify the device path is that kit's
+  SD card before writing.
 - Versioned appliance images follow [appliance releases](docs/appliance-releases.md):
   preserve factory, known-good, previous and loop-referenced images, and verify
   the booted image identity after reboot.
