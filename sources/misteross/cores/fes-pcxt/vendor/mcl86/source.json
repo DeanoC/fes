@@ -6,7 +6,7 @@
     "mcl86_eu_core.sv: drive previously undriven system_signals[15:14,10] to zero",
     "Predecode operand selections into one-hot controls in a separately generated registered ROM from the unchanged 4096-word microcode; replace binary operand trees with one-hot selection without changing read or instruction latency.",
     "Read both CPU block ROMs on a dedicated 180-degree phase clock, then capture local rising-edge outputs. The CPU address is rising-edge registered, preserving original rising-edge read latency; both half-cycle paths require timing qualification.",
-    "Use the first-party portable pcxt_select16 combinational helper; native synthesis maps it into two LUT levels after ABC, with mapped-cell SAT equivalence against the portable helper."
+    "Generate ADD source masks and reserved jump-source usage from all control-ROM words; specialize only unobservable ADD inputs and unused jump-source hold paths. Factor jump conditions as parallel Boolean logic without changing their truth table."
   ],
   "files": [
     {
@@ -17,7 +17,7 @@
     {
       "path": "mcl86_eu_core.sv",
       "upstream_path": "rtl/8088/mcl86_eu_core.sv",
-      "sha256": "c92f1ffafeb3c4dd2000c345f6fe65096cee9d625407ede40f5e0177506d2337",
+      "sha256": "58742a9332d1372c285fdfca5142cf3d80a086de869e739b6f379809fb18f0a9",
       "upstream_sha256": "da02b6c6a8250f58dc893e5582089c6795ad923274c4f8c5d5e1f02582252b00"
     },
     {

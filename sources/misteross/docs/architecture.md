@@ -2158,11 +2158,14 @@ the existing 180-degree memory PLL clock and local output registers on the
 system clock. The EU address
 is rising-edge registered, so the visible rising-edge read latency is unchanged.
 The address-to-ROM and ROM-to-output half-cycle paths need routed qualification.
-The portable `pcxt_select16` helper preserves an operand-mux boundary through
-generic synthesis. CPU/machine/board recipes replace it after ABC with the
-two-level `onehot_mux_map.v` implementation. SAT checks its native LUT truth
-tables and complete wiring for arbitrary select masks and data, using the
-selected compiler's Intel ALM models. Both helper and map are producer inputs.
+
+The same generator emits `mcl86_facts.vh` from every control word. Separate ADD
+operand muxes retain only sources used by ADD words; other operations use the
+full muxes. The adder sum and carry flags are consumed only for ADD, so this
+specialization covers arbitrary guest firmware and register values. A reserved
+jump-source hold is retained automatically if the image uses it. Exhaustive
+table checks and symbolic operand/jump-condition checks cover these boundaries.
+
 The motherboard router decodes RAM/ROM and integrates pinned KF8259 PIC, KF8253
 PIT and KF8255 PPI imports. The machine diagnostic receives timer, ISA and
 keyboard interrupts through the real two-INTA path and generates speaker PCM.

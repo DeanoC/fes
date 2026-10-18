@@ -28,10 +28,14 @@ in local rising-edge output registers. The EU address is exclusively a
 rising-edge register, so the original rising-edge read latency and two-word
 sequencer lead are preserved. Both half-cycle paths need routed qualification.
 No instruction word changes.
-The operand lookups use the first-party portable `pcxt_select16` helper. Native
-recipes preserve that boundary until after ABC, then apply its fixed two-level
-LUT map. A separate SAT check covers all select masks and data values against
-the selected compiler's native cell models.
+
+The same generator emits `mcl86_facts.vh` from every control word. Separate ADD
+operand muxes retain only sources used by ADD words; other operations use the
+full muxes. The adder sum and carry flags are consumed only for ADD, so this
+specialization covers arbitrary guest firmware and register values. A reserved
+jump-source hold is retained automatically if the image uses it. Exhaustive
+table checks and symbolic operand/jump-condition checks cover these boundaries.
+
 
 `tests/test_pcxt_cpu_selection.py` exhaustively checks all 4096 generated ROM
 rows, then cuts the immutable lookup and symbolically checks the actual

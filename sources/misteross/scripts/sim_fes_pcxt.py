@@ -18,7 +18,6 @@ SOURCES = (
     'cores/fes-pcxt/sim/isa_tb.cpp',
 )
 CPU_SOURCES = (
-    'cores/fes-pcxt/rtl/pcxt_select16.sv',
     'cores/fes-pcxt/vendor/mcl86/mcl86_adder.sv',
     'cores/fes-pcxt/vendor/mcl86/mcl86_eu_core.sv',
     'cores/fes-pcxt/vendor/mcl86/mcl86_biu_max.sv',
@@ -29,8 +28,6 @@ CPU_SOURCES = (
     'cores/fes-pcxt/sim/cpu_top.sv',
     'cores/fes-pcxt/sim/cpu_tb.cpp',
 )
-
-CPU_MUX_MAP = 'cores/fes-pcxt/synth/onehot_mux_map.v'
 
 CHIPSET_SOURCES = (
     'cores/fes-pcxt/vendor/kf8259/KF8259.sv',
@@ -123,6 +120,23 @@ def cpu_roms(output):
     selects = [((1 << ((word >> 20) & 15)) << 16) | (1 << ((word >> 16) & 15))
                for word in words]
     (output / 'mcl86_operand_select.mem').write_text(''.join(f'{word:08x}\n' for word in selects))
+    # Conservative facts over every control-ROM word, independent of guest
+    # firmware/data. A different pinned image automatically expands the masks
+    # and retains the reserved jump-source hold behavior when it is used.
+    add_masks = [0, 0]
+    jump7 = False
+    for word in words:
+        kind = (word >> 28) & 7
+        if kind == 2:
+            for index, shift in enumerate((20, 16)):
+                add_masks[index] |= 1 << ((word >> shift) & 15)
+        jump7 |= kind == 1 and ((word >> 20) & 7) == 7
+    (output / 'mcl86_facts.vh').write_text(
+        '`line 1 "mcl86_facts.vh" 0\n'
+        '// Generated from the verified MCL86 control ROM.\n' +
+        ''.join(f"localparam [15:0] FES_MC_ADD_OP{i}_MASK = 16'h{mask:04x};\n"
+                for i, mask in enumerate(add_masks)) +
+        f"localparam FES_MC_JUMP7_USED = 1'b{int(jump7)};\n")
 
 
 def cpu_inputs(output, diagnostic="diagnostic"):
@@ -196,6 +210,7 @@ def main():
                         *(["-GSCANLINES=1'b1"] if suite == 'system-mda' else []),
                         '--top-module', top, '--Mdir', str(build),
                         '-I' + str(ROOT / 'cores/fes-common/generated'),
+                        '-I' + str(build),
                         '-CFLAGS', '-std=c++17 -O2',
                         *(['-I' + str(ROOT / 'cores/fes-pcxt/sim')] if suite in ('memory', 'memory-machine', 'system', 'system-mda') else []),
                         *[str(ROOT / source) for source in sources]], cwd=ROOT, check=True)

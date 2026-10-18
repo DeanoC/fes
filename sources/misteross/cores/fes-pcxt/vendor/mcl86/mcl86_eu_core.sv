@@ -217,6 +217,7 @@ module mcl86_eu_core
     //--------------------------------------------------------------------------
     // Internal Signals - ALU and Adder
     //--------------------------------------------------------------------------
+    wire [15:0] eu_add_operand0, eu_add_operand1;
     wire [15:0] eu_operand0;            // Operand 0 mux output
     wire [15:0] eu_operand1;            // Operand 1 mux output
     wire [15:0] eu_alu2;                // ADD result
@@ -295,6 +296,8 @@ module mcl86_eu_core
     // Head of the dataflow, so it stays here rather than down with the other
     // instantiations: everything below decodes what this ROM hands back. The
     // read is registered, which is where the sequencer's 2-word lead comes from.
+    `include "mcl86_facts.vh"
+
     mcl86_ucode u_ucode_rom (
         .clk_rom  ( CORE_CLK_ROM         ),
         .clk  ( CORE_CLK_INT         ),
@@ -328,6 +331,18 @@ module mcl86_eu_core
     assign eu_opcode_jump_cond = eu_rom_data[19:16];
 
     //--------------------------------------------------------------------------
+    // One-hot operand multiplexer
+    //--------------------------------------------------------------------------
+    function automatic [15:0] select16(input [15:0] sel, input [255:0] data);
+        integer i;
+        begin
+            select16 = 0;
+            for (i = 0; i < 16; i = i + 1)
+                select16 = select16 | (data[i*16 +: 16] & {16{sel[i]}});
+        end
+    endfunction
+
+    //--------------------------------------------------------------------------
     // Operand 0 Multiplexer - EU Register File and Control Signals
     //--------------------------------------------------------------------------
     // The EU-side operand: architectural registers, microcode scratch, the BIU
@@ -343,13 +358,14 @@ module mcl86_eu_core
                               (eu_opcode_op1_sel   == 4'hF) &&
                               (eu_opcode_immediate == 16'hF002);
 
-    // The portable helper preserves the one-hot routing. Native recipes map
-    // this boundary into two LUT levels after generic optimization.
-    pcxt_select16 operand0_mux (.sel(eu_op0_select), .data({
+    // Each decoded select serves one 16-bit source without adding cycles.
+    wire [255:0] eu_sources0 = {
         16'h0, system_signals, eu_biu_command, eu_register_r3,
         eu_register_r2, eu_register_r1, eu_register_r0, eu_flags,
         eu_register_di, eu_register_si, eu_register_bp, eu_register_sp,
-        eu_register_dx, eu_register_cx, eu_register_bx, eu_register_ax}), .out(eu_operand0));
+        eu_register_dx, eu_register_cx, eu_register_bx, eu_register_ax};
+    assign eu_operand0 = select16(eu_op0_select, eu_sources0);
+    assign eu_add_operand0 = select16(eu_op0_select & FES_MC_ADD_OP0_MASK, eu_sources0);
 
     //--------------------------------------------------------------------------
     // Operand 1 Multiplexer - BIU Interface and System Signals
@@ -358,11 +374,13 @@ module mcl86_eu_core
     // returned bus data, the prefetch queue, or the microword's own immediate.
     // Select 0x4 is how the microcode consumes an instruction byte - it pulls
     // the top of the prefetch queue in zero-extended.
-    pcxt_select16 operand1_mux (.sel(eu_op1_select), .data({
+    wire [255:0] eu_sources1 = {
         eu_opcode_immediate, system_signals, eu_alu_last_result, eu_register_r3,
         eu_register_r2, eu_register_r1, eu_register_r0, PFQ_ADDR_OUT,
         BIU_RETURN_DATA, BIU_REGISTER_REG, BIU_REGISTER_RM, {8'h00, PFQ_TOP_BYTE},
-        BIU_REGISTER_DS, BIU_REGISTER_CS, BIU_REGISTER_SS, BIU_REGISTER_ES}), .out(eu_operand1));
+        BIU_REGISTER_DS, BIU_REGISTER_CS, BIU_REGISTER_SS, BIU_REGISTER_ES};
+    assign eu_operand1 = select16(eu_op1_select, eu_sources1);
+    assign eu_add_operand1 = select16(eu_op1_select & FES_MC_ADD_OP1_MASK, eu_sources1);
 
     //--------------------------------------------------------------------------
     // Jump Condition Evaluation Logic
@@ -381,11 +399,15 @@ module mcl86_eu_core
     //   word IDIV (uPC 0x0F02): quotient overflows if DX is nonzero or AX[15] set
     //
     // Taking the jump vectors into the divide-overflow (INT 0) microcode.
-    assign eu_jump_boolean = ((idiv_opcode == 'h1) && (eu_rom_address == 'h0E76) && ( eu_register_ax[15:7] != 'h0))                                 ? 1'b1 :
-                             ((idiv_opcode == 'h1) && (eu_rom_address == 'h0F02) && ((eu_register_dx       != 'h0) || (eu_register_ax[15] != 'h0))) ? 1'b1 :
-                             (eu_opcode_jump_cond  == 4'h0)                                                                                         ? 1'b1 : // unconditional jump
-                             (eu_opcode_jump_cond  == 4'h1 && eu_alu_last_result != 16'h0)                                                          ? 1'b1 :
-                             (eu_opcode_jump_cond  == 4'h2 && eu_alu_last_result == 16'h0)                                                          ? 1'b1 : 1'b0 ;
+    wire eu_last_zero = eu_alu_last_result == 16'h0000;
+    wire eu_simple_jump = (eu_opcode_jump_cond[3:2] == 2'b00) &&
+        ((eu_opcode_jump_cond[1:0] == 2'b00) ||
+         ((eu_opcode_jump_cond[1] ^ eu_opcode_jump_cond[0]) &&
+          (eu_last_zero == eu_opcode_jump_cond[1])));
+    wire eu_divide_jump = (idiv_opcode == 'h1) &&
+        (((eu_rom_address == 'h0E76) && (eu_register_ax[15:7] != 'h0)) ||
+         ((eu_rom_address == 'h0F02) && ((eu_register_dx != 'h0) || eu_register_ax[15])));
+    assign eu_jump_boolean = eu_divide_jump || eu_simple_jump;
 
     //--------------------------------------------------------------------------
     // System Signals Consolidation
@@ -484,9 +506,13 @@ module mcl86_eu_core
     // clk_100 closed at 88 MHz against its 100 MHz constraint.
     // mcl86_adder computes the same function bit for bit, with the intermediate
     // carries recovered from the sum instead of produced ahead of it.
+    // The generated masks include every ADD-word source in the control ROM.
+    // Other operations retain the full operand lookup. The sum and carries
+    // are observed only by ADD writeback/flag updates, so unused ADD sources
+    // can leave this timing cone without restricting guest firmware or data.
     mcl86_adder u_adder (
-        .a      (eu_operand0),
-        .b      (eu_operand1),
+        .a      (eu_add_operand0),
+        .b      (eu_add_operand1),
         .sum    (adder_out),
         .carry  (carry)
     );
@@ -891,7 +917,11 @@ module mcl86_eu_core
                     3'h4: eu_rom_address <= {eu_opcode_immediate[7:0],  eu_biu_dataout[3:0], 1'b0};  // Jump table for EA register fetch decoding.  Jump Addresses decoded from biu_dataout.
                     3'h5: eu_rom_address <= {eu_opcode_immediate[6:0],  eu_biu_dataout[3:0], 2'b0};  // Jump table for EA register writeback decoding.  Jump Addresses decoded from biu_dataout.
                     3'h6: eu_rom_address <= {eu_opcode_immediate[12:3], eu_biu_dataout[5:3]};        // Jump table for instructions that share same opcode and decode using the REG field.
-                    default:;
+                    // Preserve source-7 hold behavior for any control image
+                    // that uses it. Otherwise remove its unreachable PC-enable
+                    // path; every word in the pinned image is checked at build.
+                    default: eu_rom_address <= FES_MC_JUMP7_USED ?
+                        eu_rom_address : eu_rom_address + 1'b1;
                 endcase
             end
             else begin

@@ -59,9 +59,14 @@ DATA_NAMES = ['BIU_REGISTER_CS', 'BIU_REGISTER_DS', 'BIU_REGISTER_ES', 'BIU_REGI
 class CpuSelectionTest(unittest.TestCase):
     def test_operand_values_for_every_selection_and_register_value(self):
         source = (VENDOR / 'mcl86_eu_core.sv').read_text()
-        instances = re.findall(r'pcxt_select16\s+\w+\s*\(.*?\);', source, re.S)
-        self.assertEqual(len(instances), 2)
-        expressions = '\n'.join(instances)
+        start = source.index('    function automatic [15:0] select16(')
+        function = source[start:source.index('    endfunction', start) + len('    endfunction')]
+        vectors = '\n'.join(re.search(r'    wire \[255:0\] eu_sources' + str(i) + r' = .*?;', source, re.S).group(0) for i in (0, 1))
+        adds = '\n'.join(re.search(r'    assign eu_add_operand' + str(i) + r' = .*?;', source, re.S).group(0) for i in (0, 1))
+        expressions = '\n'.join(re.search(r'    assign eu_operand' + str(i) + r' = select16\(.*?;',
+                                           source, re.S).group(0) for i in (0, 1))
+        adder = source[source.index('    mcl86_adder u_adder ('):source.index('    );', source.index('    mcl86_adder u_adder ('))]
+        actual_add = [re.search(r'\.' + port + r'\s*\(\s*(\w+)\s*\)', adder)[1] for port in ('a', 'b')]
         ports = ', '.join('input [' + ('7:0' if n == 'PFQ_TOP_BYTE' else '15:0') + '] ' + n
                           for n in DATA_NAMES)
         # Follow the real ROM-instance bindings as well as the real operand
@@ -71,19 +76,48 @@ class CpuSelectionTest(unittest.TestCase):
         controls = (f"wire [15:0] {bindings[0]} = 16'h1 << eu_rom_sel[7:4];\n"
                     f"wire [15:0] {bindings[1]} = 16'h1 << eu_rom_sel[3:0];\n")
         fixture = 'module proof(input [7:0] eu_rom_sel, ' + ports + ', output ok);\n' + controls + r"""
-          wire [15:0] eu_operand0, eu_operand1, expected0, expected1;
-        """ + REFERENCE + expressions + r"""
-          assign ok = eu_operand0 == expected0 && eu_operand1 == expected1;
+          `include "mcl86_facts.vh"
+          wire [15:0] eu_operand0, eu_operand1, eu_add_operand0, eu_add_operand1, expected0, expected1;
+        """ + function + vectors + REFERENCE + expressions + adds + f'wire [15:0] actual_add0 = {actual_add[0]}, actual_add1 = {actual_add[1]};\n' + r"""
+          wire valid_add = FES_MC_ADD_OP0_MASK[eu_rom_sel[7:4]] && FES_MC_ADD_OP1_MASK[eu_rom_sel[3:0]];
+          assign ok = eu_operand0 == expected0 && eu_operand1 == expected1 &&
+            (!valid_add || (actual_add0 == expected0 && actual_add1 == expected1));
         endmodule
+        """
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            inputs.cpu_roms(work)
+            (work / 'proof.sv').write_text(fixture)
+            result = subprocess.run([YOSYS, '-Q', '-p',
+                'read_verilog -sv proof.sv; prep -top proof -flatten; '
+                'sat -verify -prove ok 1 -show-inputs'], cwd=work, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_jump_boolean_for_all_states(self):
+        source = (VENDOR / 'mcl86_eu_core.sv').read_text()
+        start = source.index('    wire eu_last_zero')
+        end = source.index(';', source.index('    assign eu_jump_boolean', start)) + 1
+        fixture = r"""
+          module proof(input [15:0] eu_alu_last_result, eu_register_ax, eu_register_dx,
+                       input [12:0] eu_rom_address, input [7:0] idiv_opcode,
+                       input [3:0] eu_opcode_jump_cond, output ok);
+            wire eu_jump_boolean;
+        """ + source[start:end] + r"""
+            wire expected =
+              ((idiv_opcode == 'h1) && (eu_rom_address == 'h0E76) && (eu_register_ax[15:7] != 'h0)) ? 1'b1 :
+              ((idiv_opcode == 'h1) && (eu_rom_address == 'h0F02) && ((eu_register_dx != 'h0) || (eu_register_ax[15] != 'h0))) ? 1'b1 :
+              (eu_opcode_jump_cond == 4'h0) ? 1'b1 :
+              (eu_opcode_jump_cond == 4'h1 && eu_alu_last_result != 16'h0) ? 1'b1 :
+              (eu_opcode_jump_cond == 4'h2 && eu_alu_last_result == 16'h0) ? 1'b1 : 1'b0;
+            assign ok = eu_jump_boolean == expected;
+          endmodule
         """
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             (work / 'proof.sv').write_text(fixture)
             result = subprocess.run([YOSYS, '-Q', '-p',
-                'read_verilog -sv ' + str(ROOT / 'cores/fes-pcxt/rtl/pcxt_select16.sv') +
-                ' proof.sv; setattr -mod -unset keep_hierarchy pcxt_select16; '
-                'prep -top proof -flatten; check -assert; '
-                'sat -verify -prove ok 1 -show-inputs'], cwd=work, capture_output=True, text=True)
+                'read_verilog -sv proof.sv; prep -top proof -flatten; sat -verify -prove ok 1'],
+                cwd=work, capture_output=True, text=True, timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_rom_contents_and_two_phase_registered_read_alignment(self):
@@ -143,3 +177,24 @@ class CpuSelectionTest(unittest.TestCase):
             result = subprocess.run([YOSYS, '-Q', '-p', command], cwd=work,
                                     capture_output=True, text=True, timeout=90)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+
+class MicrocodeFactsTest(unittest.TestCase):
+    def test_facts_cover_every_control_word(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            inputs.cpu_roms(work)
+            self.assertEqual((work / 'mcl86_ucode.mem').read_bytes(),
+                             (VENDOR / 'mcl86_ucode.mem').read_bytes())
+            words = [int(s, 16) for s in (work / 'mcl86_ucode.mem').read_text().split()]
+            facts = (work / 'mcl86_facts.vh').read_text()
+            masks = [int(re.search(r'FES_MC_ADD_OP' + str(i) + r"_MASK = 16'h([0-9a-f]+)", facts)[1], 16) for i in (0, 1)]
+            expected = [0, 0]
+            for word in words:
+                if ((word >> 28) & 7) == 2:
+                    for i, shift in enumerate((20, 16)):
+                        expected[i] |= 1 << ((word >> shift) & 15)
+            self.assertEqual(masks, expected)
+            jump7 = any(((w >> 28) & 7) == 1 and ((w >> 20) & 7) == 7 for w in words)
+            self.assertIn("FES_MC_JUMP7_USED = 1'b" + str(int(jump7)), facts)
+            self.assertEqual(len(words), 4096)
