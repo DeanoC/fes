@@ -11,6 +11,7 @@ import tempfile
 import textwrap
 import time
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -61,21 +62,23 @@ class GpuLeaseTests(unittest.TestCase):
 
     def popen(self, args, env=None):
         proc = subprocess.Popen([sys.executable, str(GPU_RUN), *args], env=env or self.env(),
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                                start_new_session=True)
         self.addCleanup(self.stop, proc)
         return proc
 
     def stop(self, proc):
-        if proc.poll() is None:
-            try:
-                proc.kill()
-            except ProcessLookupError:
-                pass
+        # The wrapper is the session leader. Killing the session also stops the
+        # command it started; killing only the wrapper leaves that command
+        # holding the captured pipes.
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
         try:
             proc.communicate(timeout=5)
         except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.communicate()
+            proc.communicate(timeout=5)
 
     def status(self, env=None, json_output=True):
         args = ['--json'] if json_output else []
@@ -109,8 +112,11 @@ class GpuLeaseTests(unittest.TestCase):
         self.assertEqual(gpu_lease.parse_nvidia_smi_l(NVIDIA_LIST), ['0', '1'])
         self.assertEqual(gpu_lease.parse_rocm_smi(ROCM_SHOW), ['0', '1'])
         self.assertEqual(gpu_lease.parse_rocm_smi(ROCM_CONCISE), ['0', '1'])
-        self.assertEqual(gpu_lease.ids_from_render_names(
-            ['renderD129', 'card0', 'renderD128', 'renderD128']), ['0', '1'])
+        # The only GPU node is HIP 0 even when its DRM render minor is 129.
+        self.assertEqual(gpu_lease.ids_from_kfd_nodes([
+            (0, 'simd_count 0\ndrm_render_minor 128\n'),
+            (1, 'simd_count 120\ndrm_render_minor 129\n'),
+        ]), ['0'])
         self.assertEqual(gpu_lease.DEFAULT_LEASE_DIR, '/var/tmp/gpu-leases')
         self.assertIsNotNone(gpu_lease.process_starttime(os.getpid()))
         self.assertIsNone(gpu_lease.process_starttime(2 ** 30))
@@ -147,11 +153,10 @@ class GpuLeaseTests(unittest.TestCase):
         completed = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'alice', '--label', 'route', '--gpus', '2',
                                             '--', sys.executable, '-c', 'import sys; sys.exit(42)'])
         self.assertEqual(completed.returncode, 42, completed.stderr)
-        self.assertEqual(self.lease.stat().st_mode & 0o1777, 0o1777)
-        self.assertTrue(self.lease.stat().st_mode & stat.S_ISVTX)
-        self.assertEqual((self.lease / 'queue').stat().st_mode & 0o1777, 0o1777)
+        self.assertEqual(stat.S_IMODE(self.lease.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE((self.lease / 'queue').stat().st_mode), 0o700)
         for name in ('gpu-0.lock', 'gpu-1.lock', 'state.lock'):
-            self.assertEqual((self.lease / name).stat().st_mode & 0o777, 0o666, name)
+            self.assertEqual(stat.S_IMODE((self.lease / name).stat().st_mode), 0o600, name)
         raw = (self.lease / 'gpu-0.lock').read_text()
         self.assertIn('"owner": "alice"', raw)
         self.assertIn('"label": "route"', raw)
@@ -287,27 +292,101 @@ class GpuLeaseTests(unittest.TestCase):
         self.assertEqual(marker.read_text(), '0')
         self.assertEqual(out, '')
 
-    def test_sigkill_of_the_holder_releases_the_flock(self):
+    def child_pids(self, pid):
+        found = []
+        for entry in Path('/proc').iterdir():
+            if not entry.name.isdigit():
+                continue
+            try:
+                raw = (entry / 'stat').read_text()
+            except OSError:
+                continue
+            right = raw.rfind(')')
+            if right < 0:
+                continue
+            fields = raw[right + 2:].split()
+            if len(fields) > 2 and fields[1] == str(pid) and fields[0] != 'Z':
+                found.append(int(entry.name))
+        return found
+
+    def lease_fds(self, pid, inode):
+        root = Path('/proc/%d/fd' % pid)
+        if not root.is_dir():
+            return []
+        found = []
+        for entry in root.iterdir():
+            try:
+                if os.stat(entry).st_ino == inode:
+                    found.append(entry)
+            except OSError:
+                pass
+        return found
+
+    def sleeping_child_without_lease(self, proc, inode):
+        if proc.poll() is not None:
+            self.fail('supervisor exited %s' % proc.returncode)
+        kids = self.child_pids(proc.pid)
+        if len(kids) != 1:
+            return None
+        kid = kids[0]
+        try:
+            comm = Path('/proc/%d/comm' % kid).read_text().strip()
+        except OSError:
+            return None
+        if comm != 'sleep' or self.lease_fds(kid, inode) or not self.lease_fds(proc.pid, inode):
+            return None
+        return kid
+
+    def test_command_does_not_inherit_the_lease_fd(self):
+        proc = self.hold('--no-wait', '--owner', 'alice', '--label', 'held')
+        inode = (self.lease / 'gpu-0.lock').stat().st_ino
+        kid = self.wait_for(lambda: self.sleeping_child_without_lease(proc, inode))
+        os.kill(kid, signal.SIGTERM)
+        _out, err = proc.communicate(timeout=5)
+        self.assertEqual(proc.returncode, 128 + signal.SIGTERM, err)
+        self.wait_for(lambda: all(gpu['state'] == 'free' for gpu in self.status()['gpus']))
+
+    def test_sigkill_of_the_supervisor_releases_the_flock(self):
         proc = self.hold('--no-wait', '--owner', 'alice', '--label', 'held')
         lease = self.lease / 'gpu-0.lock'
         inode = lease.stat().st_ino
-        inherited = []
-        for entry in Path('/proc/%d/fd' % proc.pid).iterdir():
+        kid = self.wait_for(lambda: self.sleeping_child_without_lease(proc, inode))
+
+        def stop_child():
             try:
-                if os.stat(entry).st_ino == inode:
-                    inherited.append(entry)
-            except OSError:
+                os.kill(kid, signal.SIGKILL)
+            except ProcessLookupError:
                 pass
-        self.assertTrue(inherited)
-        self.assertEqual(Path('/proc/%d/comm' % proc.pid).read_text().strip(), 'sleep')
+        self.addCleanup(stop_child)
         os.kill(proc.pid, signal.SIGKILL)
         proc.wait(timeout=5)
+        self.assertTrue(Path('/proc/%d' % kid).exists())
         self.wait_for(lambda: all(gpu['state'] == 'free' for gpu in self.status()['gpus']))
         self.assertIn('alice', lease.read_text())
         again = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'bob', '--', sys.executable, '-c',
                                         'import os; print(os.environ["FES_GPU_IDS"])'])
         self.assertEqual(again.returncode, 0, again.stderr)
         self.assertEqual(again.stdout.strip(), '0')
+
+    def test_background_children_do_not_keep_a_finished_lease(self):
+        completed = self.run_tool(
+            GPU_RUN,
+            ['--no-wait', '--owner', 'alice', '--', '/bin/sh', '-c',
+             'sleep 30 >/dev/null 2>&1 & echo $!; exit 0'],
+            timeout=10)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        pid = int(completed.stdout.strip())
+
+        def stop_sleep():
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        self.addCleanup(stop_sleep)
+        self.assertTrue(Path('/proc/%d' % pid).exists())
+        self.assertEqual([gpu['state'] for gpu in self.status()['gpus']], ['free', 'free'])
+        again = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'bob', '--', '/bin/true'])
+        self.assertEqual(again.returncode, 0, again.stderr)
 
     def test_status_does_not_create_the_lease_directory(self):
         report = self.status()
@@ -327,7 +406,137 @@ class GpuLeaseTests(unittest.TestCase):
         self.assertNotIn('os.kill', source)
         self.assertNotIn('shell=True', source)
         self.assertNotIn('Popen', source)
-        self.assertNotRegex(source, r'\bsignal\.')
+        self.assertNotIn('SIGKILL', source)
+        self.assertNotRegex(source, r'signal\.kill\b')
+
+    def test_uncapped_job_does_not_wait_behind_a_capped_waiter(self):
+        alice_env = self.env(GPU_LEASE_MAX_PER_OWNER='1')
+        holder = self.hold('--no-wait', '--owner', 'alice', env=alice_env)
+        alice = self.popen(['--wait', '--timeout', '8', '--owner', 'alice', '--',
+                            sys.executable, '-c', 'import time; time.sleep(30)'], env=alice_env)
+        self.wait_for(lambda: any(item['pid'] == alice.pid for item in self.status()['queue']))
+        ticket = next((self.lease / 'queue').glob('*.json'))
+        self.assertEqual(json.loads(ticket.read_text())['cap'], 1)
+        self.assertEqual(stat.S_IMODE(ticket.stat().st_mode), 0o600)
+        bob_env = self.env()
+        self.assertNotIn('GPU_LEASE_MAX_PER_OWNER', bob_env)
+        bob = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'bob', '--', sys.executable, '-c',
+                                      'import os; print(os.environ["FES_GPU_IDS"])'], env=bob_env)
+        self.assertEqual(bob.returncode, 0, bob.stderr)
+        self.assertEqual(bob.stdout.strip(), '1')
+        self.assertTrue(any(item['pid'] == alice.pid for item in self.status()['queue']))
+        marker = self.root / 'bob-wait'
+        waiting = self.popen(['--wait', '--timeout', '8', '--owner', 'bob', '--', sys.executable, '-c',
+                              'import os,sys; open(sys.argv[1],"w").write(os.environ["FES_GPU_IDS"])',
+                              str(marker)], env=bob_env)
+        self.wait_for(lambda: marker.exists())
+        self.assertEqual(marker.read_text(), '1')
+        _out, err = waiting.communicate(timeout=8)
+        self.assertEqual(waiting.returncode, 0, err)
+        self.assertTrue(any(item['pid'] == alice.pid for item in self.status()['queue']))
+        self.assertIsNone(holder.poll())
+
+    def test_eligible_capped_waiter_still_blocks_an_uncapped_job(self):
+        self.hold('--no-wait', '--owner', 'holder')
+        alice_env = self.env(GPU_LEASE_MAX_PER_OWNER='2')
+        alice = self.popen(['--wait', '--timeout', '8', '--gpus', '2', '--owner', 'alice', '--',
+                            '/bin/sleep', '1'], env=alice_env)
+        self.wait_for(lambda: any(item['pid'] == alice.pid and item['gpus'] == 2
+                                  for item in self.status()['queue']))
+        bob = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'bob', '--', '/bin/true'], env=self.env())
+        self.assertEqual(bob.returncode, 75, bob.stderr)
+        states = {gpu['id']: gpu['state'] for gpu in self.status()['gpus']}
+        self.assertEqual(states['1'], 'free')
+        self.assertEqual(self.status()['queue'][0]['pid'], alice.pid)
+
+    def test_kfd_topology_maps_hip_order_and_drops_incomplete_nodes(self):
+        cpu = 'simd_count 0\ndrm_render_minor 128\n'
+        later = 'simd_count 64\ndrm_render_minor 129\n'
+        earlier = 'simd_count 32\ndrm_render_minor 130\n'
+        self.assertEqual(gpu_lease.ids_from_kfd_nodes([(3, later), (1, cpu), (2, earlier)]), ['0', '1'])
+        self.assertEqual(gpu_lease.ids_from_kfd_nodes([(1, 'drm_render_minor 129\n')]), [])
+        self.assertEqual(gpu_lease.ids_from_kfd_nodes([]), [])
+        root = self.root / 'kfd'
+        for name, text in (('0', cpu), ('1', later)):
+            node = root / name
+            node.mkdir(parents=True)
+            (node / 'properties').write_text(text)
+        self.assertEqual(gpu_lease.ids_from_kfd_sysfs(root), ['0'])
+        (root / '2').mkdir()
+        self.assertEqual(gpu_lease.ids_from_kfd_sysfs(root), [])
+        self.assertEqual(gpu_lease.ids_from_kfd_sysfs(self.root / 'missing'), [])
+
+    def test_redact_command_drops_secrets_and_bounds_length(self):
+        secret = 's3cret-value'
+        redacted = gpu_lease.redact_command([
+            'tool', '--password', secret, '--token=' + secret,
+            'https://alice:' + secret + '@host/x', 'ok', 'x' * 300,
+        ])
+        self.assertNotIn(secret, '\n'.join(redacted))
+        self.assertEqual(redacted[1], '--password')
+        self.assertEqual(redacted[2], '[redacted]')
+        self.assertEqual(redacted[3], '--token=[redacted]')
+        self.assertEqual(redacted[4], 'https://[redacted]@host/x')
+        self.assertEqual(redacted[5], 'ok')
+        self.assertTrue(redacted[6].endswith('...'))
+        self.assertLessEqual(len(redacted[6]), gpu_lease.COMMAND_ARGUMENT_LIMIT + 3)
+        many = gpu_lease.redact_command(['tool'] + ['a'] * 40)
+        self.assertEqual(many[-1], '...')
+        self.assertLessEqual(len(many), gpu_lease.COMMAND_ARGUMENT_COUNT + 1)
+
+    def test_lease_metadata_omits_secret_arguments(self):
+        secret = 'hunter2-secret-value'
+        completed = self.run_tool(GPU_RUN, ['--no-wait', '--', sys.executable, '-c', 'import sys; sys.exit(0)',
+                                            '--password', secret, '--token=' + secret, 'plain'])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        raw = (self.lease / 'gpu-0.lock').read_text()
+        self.assertNotIn(secret, raw)
+        self.assertIn('plain', raw)
+        self.assertIn('[redacted]', raw)
+        self.assertEqual([gpu['state'] for gpu in self.status()['gpus']], ['free', 'free'])
+
+    def test_existing_world_writable_lease_dir_is_tightened(self):
+        self.lease.mkdir()
+        os.chmod(self.lease, 0o1777)
+        queue = self.lease / 'queue'
+        queue.mkdir()
+        os.chmod(queue, 0o1777)
+        old = self.lease / 'gpu-0.lock'
+        old.write_text('stale')
+        os.chmod(old, 0o666)
+        completed = self.run_tool(GPU_RUN, ['--no-wait', '--', '/bin/true'])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(stat.S_IMODE(self.lease.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE(queue.stat().st_mode), 0o700)
+        self.assertEqual(stat.S_IMODE(old.stat().st_mode), 0o600)
+
+    def test_remote_lease_directory_is_rejected(self):
+        mounts = '\n'.join([
+            'host:/export / nfs4 rw 0 0',
+            '/dev/vdc /var/tmp ext4 rw 0 0',
+            'host:/other /mnt/my\\040disk nfs rw 0 0',
+            'tmpfs /run tmpfs rw 0 0',
+        ])
+        self.assertEqual(gpu_lease.mount_fstype('/var/tmp/gpu-leases', mounts), 'ext4')
+        self.assertEqual(gpu_lease.mount_fstype('/run/leases', mounts), 'tmpfs')
+        self.assertEqual(gpu_lease.mount_fstype('/mnt/my disk/leases', mounts), 'nfs')
+        self.assertEqual(gpu_lease.mount_fstype('/mnt', mounts), 'nfs4')
+        self.assertIsNone(gpu_lease.mount_fstype('/nowhere', 'not a mount table\n'))
+        gpu_lease.assert_local_filesystem('/var/tmp/gpu-leases', mounts)
+        remote = self.root / 'remote'
+        remote.mkdir()
+        remote_mounts = 'host:/export %s nfs4 rw 0 0\n/dev/vdc / ext4 rw 0 0\n' % os.path.realpath(remote)
+        with self.assertRaises(gpu_lease.LeaseError) as raised:
+            gpu_lease.assert_local_filesystem(remote / 'leases', remote_mounts)
+        self.assertIn('nfs4', str(raised.exception))
+        with patch.object(gpu_lease, 'read_mounts', return_value='host:/export / nfs4 rw 0 0\n'):
+            with self.assertRaises(gpu_lease.LeaseError):
+                gpu_lease.ensure_lease_dir(self.lease)
+        self.assertFalse(self.lease.exists())
+        with patch.object(gpu_lease, 'read_mounts', return_value=None):
+            created = gpu_lease.ensure_lease_dir(self.lease)
+        self.assertTrue(created.is_dir())
+        self.assertEqual(stat.S_IMODE(created.stat().st_mode), 0o700)
 
 
 if __name__ == '__main__':

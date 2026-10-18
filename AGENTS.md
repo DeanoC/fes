@@ -73,10 +73,15 @@ Lander uses `--owner lander` and `GPU_LEASE_MAX_PER_OWNER=2`, so Lander holds
 at most 2 GPUs at once. Nobody kills a GPU job. Deano's Codex harness jobs
 wait their turn like everyone else.
 
-`scripts/gpu-run` takes the lease and execs the command. The kernel drops the
-flock when that process exits, including on crash. `scripts/gpu-status` shows
-each GPU as free or held, the holder metadata and age, and the waiting queue.
-Leases live in `/var/tmp/gpu-leases` unless `GPU_LEASE_DIR` is set.
+`scripts/gpu-run` holds one flock per GPU in the wrapper and runs the command
+as a child. That child does not inherit the lock, so the lease ends when the
+command exits even if it backgrounded other processes, and the kernel drops
+it if the wrapper exits or crashes. `scripts/gpu-status` shows each GPU as
+free or held, the holder metadata and age, and the waiting queue. Leases live
+in `/var/tmp/gpu-leases` (directory mode `0700`, files mode `0600`) unless
+`GPU_LEASE_DIR` is set. The directory must be on a local filesystem. A waiter
+is admitted under the cap it started with, so a capped waiter already at its
+allowance does not block another job from taking a free GPU.
 
 Install on a host by symlinking the scripts into `~/bin` (the link target is
 the checkout, so the scripts keep finding each other):

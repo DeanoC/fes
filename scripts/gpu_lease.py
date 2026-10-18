@@ -1,9 +1,10 @@
 """Shared GPU leases for Powerboat and the CUDA box.
 
-One flock file per GPU. gpu-run execs the command with those descriptors
-still open, so the kernel releases the lease when that process exits,
-including after a crash. This module never terminates another process.
-Liveness of a waiter is read from /proc.
+One flock file per GPU. gpu-run keeps those descriptors in this process and
+runs the command as a child that does not inherit them, so the lease ends
+when that command exits even if it backgrounded other processes. The kernel
+also drops the flock if gpu-run itself exits or crashes. This module never
+terminates another process. Liveness of a waiter is read from /proc.
 """
 import argparse
 import errno
@@ -14,7 +15,9 @@ import os
 from pathlib import Path
 import re
 import shlex
+import signal
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -33,22 +36,29 @@ Hold a shared GPU lease and exec a command.
 Powerboat (AMD, HIP; GPU0 and GPU1) and chip-30x0-ai-dev (NVIDIA RTX 3070
 and RTX 3090) share GPUs through this tool. One flock file per GPU lives in
 GPU_LEASE_DIR (default /var/tmp/gpu-leases). The directory is created mode
-1777 when it is missing, and it must be a local filesystem. The flock is
-inherited by CMD and the kernel releases it when CMD exits, including on
-crash. This tool never terminates another process.
+0700 and the files mode 0600, which is enough for the one Unix user these
+agents share. The directory must be on a local filesystem. gpu-run holds the
+flock itself and does not pass that descriptor to CMD, so the lease ends
+when CMD exits even if CMD backgrounded other processes, and also if gpu-run
+exits or crashes. This tool never terminates another process.
 
-Device ids come from nvidia-smi -L, rocm-smi, or /dev/dri/renderD*.
-GPU_LEASE_IDS overrides detection. GPU_LEASE_VENDOR=amd|nvidia selects the
-variables exported to CMD:
+Device ids come from nvidia-smi -L or rocm-smi. If rocm-smi returns nothing,
+AMD ids are the HIP order of GPU nodes in KFD topology (simd_count > 0).
+DRM render minors are not HIP indices. GPU_LEASE_IDS overrides detection.
+GPU_LEASE_VENDOR=amd|nvidia selects the variables exported to CMD:
   amd:     HIP_VISIBLE_DEVICES, ROCR_VISIBLE_DEVICES, FES_GPU_IDS
   nvidia:  CUDA_VISIBLE_DEVICES, FES_GPU_IDS
 
 --wait (the default) queues first come, first served until enough GPUs are
 free. --no-wait exits 75 when they cannot be taken without cutting ahead of
-a waiter. --timeout S stops waiting after S seconds and exits 75.
+a waiter who can still acquire. --timeout S stops waiting after S seconds
+and exits 75.
 
 An owner holds at most GPU_LEASE_MAX_PER_OWNER GPUs at once (unset means
-unlimited). Lander uses --owner lander and GPU_LEASE_MAX_PER_OWNER=2.
+unlimited). That cap is recorded on the queue ticket and used only for that
+waiter, so a capped waiter already at its allowance does not block anyone
+else from taking a free GPU. Lander uses --owner lander and
+GPU_LEASE_MAX_PER_OWNER=2.
 """
 
 
@@ -136,15 +146,58 @@ def parse_rocm_smi(text):
     return unique(ids)
 
 
-def ids_from_render_names(names):
-    minors = []
-    for name in names:
-        match = re.search(r'renderD(\d+)\Z', os.path.basename(str(name)))
-        if match:
-            minor = int(match.group(1))
-            if minor >= 128:
-                minors.append(minor - 128)
-    return [str(minor) for minor in sorted(set(minors))]
+KFD_NODES = '/sys/class/kfd/kfd/topology/nodes'
+
+
+def parse_kfd_properties(text):
+    props = {}
+    for line in (text or '').splitlines():
+        parts = line.split()
+        if len(parts) >= 2:
+            props[parts[0]] = parts[1]
+    return props
+
+
+def ids_from_kfd_nodes(nodes):
+    """Return dense HIP ids in increasing KFD node order.
+
+    A node is a GPU when simd_count is greater than zero. DRM render minors
+    are not HIP indices: the only GPU node on a host can publish
+    drm_render_minor 129 and still be HIP device 0. If any node omits
+    simd_count, the mapping is incomplete and this returns no ids rather
+    than renumbering the rest.
+    """
+    ids = []
+    for _, text in sorted(nodes, key=lambda item: item[0]):
+        props = parse_kfd_properties(text)
+        raw = props.get('simd_count')
+        if raw is None:
+            return []
+        try:
+            simd_count = int(raw)
+        except ValueError:
+            return []
+        if simd_count > 0:
+            ids.append(str(len(ids)))
+    return ids
+
+
+def ids_from_kfd_sysfs(root=None):
+    root = Path(root) if root is not None else Path(KFD_NODES)
+    if not root.is_dir():
+        return []
+    try:
+        entries = [entry for entry in root.iterdir() if entry.name.isdigit()]
+    except OSError:
+        return []
+    nodes = []
+    for entry in sorted(entries, key=lambda item: int(item.name)):
+        try:
+            text = (entry / 'properties').read_text()
+        except OSError:
+            return []
+        nodes.append((int(entry.name), text))
+    return ids_from_kfd_nodes(nodes)
 
 
 def run_tool(argv):
@@ -166,14 +219,7 @@ def detect_amd_ids():
         ids = parse_rocm_smi(run_tool(argv))
         if ids:
             return ids
-    dri = Path('/dev/dri')
-    if not dri.is_dir():
-        return []
-    try:
-        names = [path.name for path in dri.iterdir()]
-    except OSError:
-        return []
-    return ids_from_render_names(names)
+    return ids_from_kfd_sysfs()
 
 
 def owner_cap():
@@ -236,50 +282,181 @@ def process_starttime(pid):
     return fields[19]
 
 
-def clear_cloexec(fd):
-    flags = fcntl.fcntl(fd, fcntl.F_GETFD)
-    fcntl.fcntl(fd, fcntl.F_SETFD, flags & ~fcntl.FD_CLOEXEC)
+PRIVATE_DIR_MODE = 0o700
+PRIVATE_FILE_MODE = 0o600
+REMOTE_FILESYSTEMS = frozenset({
+    '9p', 'afs', 'ceph', 'cifs', 'davfs', 'fuse.davfs', 'fuse.rclone', 'fuse.sshfs',
+    'gfs2', 'glusterfs', 'gpfs', 'lustre', 'ncpfs', 'nfs', 'nfs3', 'nfs4', 'ocfs2',
+    'panfs', 'smb', 'smb3', 'smbfs', 'sshfs',
+})
+SECRET_ARGUMENT = re.compile(
+    r'(?i)(^|[^a-z0-9])(pass(word|wd)?|passwd|secret|token|api[-_]?key|'
+    r'credential|authorization|auth[-_]?key)([^a-z0-9]|$)'
+)
+URL_USERINFO = re.compile(r'(?i)^([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@')
+COMMAND_ARGUMENT_LIMIT = 256
+COMMAND_ARGUMENT_COUNT = 32
 
 
-def open_shared(path):
-    old = os.umask(0)
+def mode_of(path):
+    return stat.S_IMODE(os.stat(path).st_mode)
+
+
+def restrict_path(path, mode):
     try:
-        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o666)
+        os.chmod(path, mode)
+        current = mode_of(path)
+    except OSError as error:
+        raise LeaseError('cannot restrict %s: %s' % (path, error.strerror)) from error
+    if current & 0o077:
+        raise LeaseError('%s is accessible to other users' % path)
+
+
+def open_private(path):
+    """Open a lock file that CMD and its children must not inherit."""
+    old = os.umask(0o077)
+    try:
+        fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, PRIVATE_FILE_MODE)
     finally:
         os.umask(old)
     try:
-        os.chmod(path, 0o666)
-    except OSError:
-        pass
-    clear_cloexec(fd)
+        os.fchmod(fd, PRIVATE_FILE_MODE)
+        current = stat.S_IMODE(os.fstat(fd).st_mode)
+    except OSError as error:
+        os.close(fd)
+        raise LeaseError('cannot restrict %s: %s' % (path, error.strerror)) from error
+    if current & 0o077:
+        os.close(fd)
+        raise LeaseError('%s is accessible to other users' % path)
     return fd
+
+
+def unescape_mount(value):
+    return re.sub(r'\\([0-7]{3})', lambda match: chr(int(match.group(1), 8)), value)
+
+
+def read_mounts():
+    try:
+        return Path('/proc/self/mounts').read_text()
+    except OSError:
+        return None
+
+
+def mount_fstype(path, mounts_text):
+    """Longest mountpoint match, or None when the table does not cover path."""
+    try:
+        resolved = os.path.realpath(path)
+    except OSError:
+        return None
+    resolved_key = resolved.rstrip('/') or '/'
+    best = None
+    best_len = -1
+    for line in (mounts_text or '').splitlines():
+        parts = line.split()
+        if len(parts) < 3:
+            continue
+        mount = unescape_mount(parts[1])
+        if not mount.startswith('/'):
+            continue
+        mount_key = mount.rstrip('/') or '/'
+        # The root mount is a prefix of every path, but "/" + "/" is "//".
+        if mount_key == '/':
+            matched = resolved_key.startswith('/')
+        else:
+            matched = resolved_key == mount_key or resolved_key.startswith(mount_key + '/')
+        if matched and len(mount_key) > best_len:
+            best = parts[2]
+            best_len = len(mount_key)
+    return best
+
+
+def existing_ancestor(path):
+    path = Path(path)
+    while not path.exists():
+        parent = path.parent
+        if parent == path:
+            break
+        path = parent
+    return path
+
+
+def assert_local_filesystem(path, mounts_text=None):
+    """Best-effort rejection of a lease directory on a network mount.
+
+    An unreadable mount table does not block a lease: the check is only as
+    strong as /proc/self/mounts. Unknown filesystem types are allowed.
+    """
+    if mounts_text is None:
+        mounts_text = read_mounts()
+    if mounts_text is None:
+        return
+    fstype = mount_fstype(existing_ancestor(path), mounts_text)
+    if fstype is None:
+        return
+    names = {fstype, fstype.split('.')[-1]}
+    if names & REMOTE_FILESYSTEMS:
+        raise LeaseError('%s is on %s, which is not a local filesystem' % (path, fstype))
+
+
+def redact_command(command):
+    """Drop secret-shaped arguments and bound what lease files retain."""
+    result = []
+    redact_next = False
+    for index, arg in enumerate(command):
+        if len(result) >= COMMAND_ARGUMENT_COUNT:
+            result.append('...')
+            break
+        text = arg if isinstance(arg, str) else str(arg)
+        if redact_next:
+            result.append('[redacted]')
+            redact_next = False
+            continue
+        text = URL_USERINFO.sub(r'\1[redacted]@', text)
+        if index > 0:
+            name, separator, _value = text.partition('=')
+            if separator and SECRET_ARGUMENT.search(name):
+                result.append(name + '=[redacted]')
+                continue
+            if SECRET_ARGUMENT.search(text):
+                if len(text) > COMMAND_ARGUMENT_LIMIT:
+                    text = text[:COMMAND_ARGUMENT_LIMIT] + '...'
+                result.append(text)
+                redact_next = True
+                continue
+        if len(text) > COMMAND_ARGUMENT_LIMIT:
+            text = text[:COMMAND_ARGUMENT_LIMIT] + '...'
+        result.append(text)
+    return result
 
 
 def ensure_lease_dir(path):
     path = Path(path)
+    assert_local_filesystem(path)
     if path.exists() and not path.is_dir():
         raise LeaseError(str(path) + ' is not a directory')
 
     def create(directory):
-        old = os.umask(0)
+        old = os.umask(0o077)
         try:
             try:
-                directory.mkdir(mode=0o1777)
+                directory.mkdir(mode=PRIVATE_DIR_MODE)
                 return True
             except FileExistsError:
                 return False
         finally:
             os.umask(old)
 
-    if not path.exists() and create(path):
-        os.chmod(path, 0o1777)
+    if not path.exists():
+        create(path)
     if not path.is_dir():
         raise LeaseError(str(path) + ' is not a directory')
+    restrict_path(path, PRIVATE_DIR_MODE)
     queue = path / 'queue'
-    if not queue.exists() and create(queue):
-        os.chmod(queue, 0o1777)
+    if not queue.exists():
+        create(queue)
     if not queue.is_dir():
         raise LeaseError(str(queue) + ' is not a directory')
+    restrict_path(queue, PRIVATE_DIR_MODE)
     return path
 
 
@@ -331,9 +508,10 @@ def write_atomic(path, payload):
     path = Path(path)
     data = (json.dumps(payload, sort_keys=True) + '\n').encode()
     temporary = path.with_name('.' + path.name + '.' + str(os.getpid()) + '.tmp')
-    old = os.umask(0)
+    old = os.umask(0o077)
     try:
-        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o666)
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                     PRIVATE_FILE_MODE)
     finally:
         os.umask(old)
     try:
@@ -343,6 +521,7 @@ def write_atomic(path, payload):
             if written <= 0:
                 raise LeaseError('failed to write ' + path.name)
             view = view[written:]
+        os.fchmod(fd, PRIVATE_FILE_MODE)
     except Exception:
         os.close(fd)
         os.unlink(temporary)
@@ -353,10 +532,7 @@ def write_atomic(path, payload):
     except Exception:
         os.unlink(temporary)
         raise
-    try:
-        os.chmod(path, 0o666)
-    except OSError:
-        pass
+    restrict_path(path, PRIVATE_FILE_MODE)
 
 
 def quiet_unlink(path):
@@ -428,7 +604,7 @@ def lock_gpus(directory, ids, count):
     chosen = []
     try:
         for gpu_id in ids:
-            fd = open_shared(lease_path(directory, gpu_id))
+            fd = open_private(lease_path(directory, gpu_id))
             try:
                 locked = try_lock(fd)
             except Exception:
@@ -448,7 +624,7 @@ def lock_gpus(directory, ids, count):
 
 
 def with_state_lock(directory, function):
-    fd = open_shared(Path(directory) / 'state.lock')
+    fd = open_private(Path(directory) / 'state.lock')
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
         return function()
@@ -519,23 +695,30 @@ def next_seq(directory):
             except ValueError:
                 pass
     seq = highest + 1
-    old = os.umask(0)
+    old = os.umask(0o077)
     try:
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o666)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW | os.O_CLOEXEC,
+                     PRIVATE_FILE_MODE)
     finally:
         os.umask(old)
     try:
         os.write(fd, (str(seq) + '\n').encode())
+        os.fchmod(fd, PRIVATE_FILE_MODE)
     finally:
         os.close(fd)
-    try:
-        os.chmod(path, 0o666)
-    except OSError:
-        pass
+    restrict_path(path, PRIVATE_FILE_MODE)
     return seq
 
 
-def enqueue(directory, owner, label, gpus, command):
+def ticket_cap(ticket):
+    """Cap recorded for this waiter, or None when that waiter was uncapped."""
+    cap = ticket.get('cap') if isinstance(ticket, dict) else None
+    if type(cap) is int and cap >= 1:
+        return cap
+    return None
+
+
+def enqueue(directory, owner, label, gpus, command, cap):
     def operation():
         seq = next_seq(directory)
         now = time.time()
@@ -547,10 +730,11 @@ def enqueue(directory, owner, label, gpus, command):
             'pid': pid,
             'host': socket.gethostname(),
             'gpus': gpus,
+            'cap': cap,
             'enqueued': iso(now),
             'enqueued_unix': now,
             'starttime': process_starttime(pid),
-            'command': list(command),
+            'command': redact_command(command),
         }
         path = Path(directory) / 'queue' / ('%08d.json' % seq)
         write_atomic(path, ticket)
@@ -558,9 +742,22 @@ def enqueue(directory, owner, label, gpus, command):
     return with_state_lock(directory, operation)
 
 
-def first_runnable(tickets, directory, ids, cap):
+def ticket_blocked_by_own_cap(directory, ids, ticket):
+    cap = ticket_cap(ticket)
+    if cap is None:
+        return False
+    return held_by_owner(directory, ids, ticket['owner'], ()) + ticket['gpus'] > cap
+
+
+def first_runnable(tickets, directory, ids):
+    """First live ticket that can still acquire under its own recorded cap.
+
+    A waiter blocked only by its own cap is not ahead of anyone. A waiter
+    that can still acquire keeps its place even when the free GPUs are not
+    enough for it yet.
+    """
     for ticket in tickets:
-        if cap is not None and held_by_owner(directory, ids, ticket['owner'], ()) + ticket['gpus'] > cap:
+        if ticket_blocked_by_own_cap(directory, ids, ticket):
             continue
         return ticket
     return None
@@ -569,7 +766,7 @@ def first_runnable(tickets, directory, ids, cap):
 def attempt(directory, ids, count, owner, label, command, cap, ticket_path, ticket):
     def operation():
         tickets = iter_tickets(directory)
-        runnable = first_runnable(tickets, directory, ids, cap)
+        runnable = first_runnable(tickets, directory, ids)
         if ticket is None:
             if runnable is not None:
                 return None
@@ -586,7 +783,7 @@ def attempt(directory, ids, count, owner, label, command, cap, ticket_path, tick
             now = time.time()
             for gpu_id, fd in chosen:
                 write_fd_json(fd, {
-                    'command': list(command),
+                    'command': redact_command(command),
                     'gpu': gpu_id,
                     'host': socket.gethostname(),
                     'label': label,
@@ -614,7 +811,7 @@ def acquire(directory, ids, count, owner, label, command, cap, wait, timeout):
     deadline = None if timeout is None else time.monotonic() + timeout
     try:
         if wait:
-            ticket_path, ticket = enqueue(directory, owner, label, count, command)
+            ticket_path, ticket = enqueue(directory, owner, label, count, command, cap)
         backoff = POLL_INITIAL
         while True:
             got = attempt(directory, ids, count, owner, label, command, cap, ticket_path, ticket)
@@ -773,14 +970,60 @@ def parse_run(argv):
     return args
 
 
-def execute(vendor, chosen, command):
-    env = child_env(vendor, [gpu_id for gpu_id, _ in chosen])
+def exec_command(chosen, command, env):
+    """Replace the forked child. Never returns."""
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    for _, fd in chosen:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
     try:
         os.execvpe(command[0], command, env)
     except OSError as error:
+        message = 'gpu-run: exec %s: %s\n' % (command[0], error.strerror or 'failed')
+        try:
+            os.write(2, message.encode())
+        except OSError:
+            pass
+        os._exit(127)
+    os._exit(127)
+
+
+def execute(vendor, chosen, command):
+    """Run command without the lease fds and release them when it exits.
+
+    The child closes the lease descriptors before exec, and they are also
+    close-on-exec, so a shell that backgrounds work cannot keep the flock.
+    This waits only for that direct child. SIGINT stays with the child so
+    this process keeps the lease until the child exits. It does not signal
+    the child or any process the child started.
+    """
+    env = child_env(vendor, [gpu_id for gpu_id, _ in chosen])
+    previous_interrupt = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        pid = os.fork()
+    except OSError:
+        signal.signal(signal.SIGINT, previous_interrupt)
         release(chosen)
-        print('gpu-run: exec %s: %s' % (command[0], error.strerror), file=sys.stderr)
-        return 127
+        raise
+    if pid == 0:
+        exec_command(chosen, command, env)
+    try:
+        while True:
+            try:
+                _waited, status = os.waitpid(pid, 0)
+            except InterruptedError:
+                continue
+            break
+    finally:
+        signal.signal(signal.SIGINT, previous_interrupt)
+        release(chosen)
+    if os.WIFEXITED(status):
+        return os.WEXITSTATUS(status)
+    if os.WIFSIGNALED(status):
+        return 128 + os.WTERMSIG(status)
+    return 1
 
 
 def main_run(argv=None):
