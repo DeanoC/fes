@@ -207,9 +207,12 @@ class PnrRecipeTests(unittest.TestCase):
             "NEXTPNR_REQUIRE_GPU": "1",
             "ROCR_VISIBLE_DEVICES": "1,2",
         }
-        command, environment = pnr_recipe.build(
-            "fes.menu", SLOT, SYNTH, recipe["seeds"][0], 1,
-            output=OUTPUT, env=leased_env)
+        gpu_lease = pnr_recipe._gpu_lease_module()
+        with patch.object(gpu_lease, "gpu_device_path", return_value=None) as resolve:
+            command, environment = pnr_recipe.build(
+                "fes.menu", SLOT, SYNTH, recipe["seeds"][0], 1,
+                output=OUTPUT, env=leased_env)
+        resolve.assert_called_once_with("amd", "1")
         self.assertEqual(environment, leased_env)
         device = command.index("--gpu-device")
         self.assertEqual(command[device + 1], "1")
@@ -242,7 +245,22 @@ class PnrRecipeTests(unittest.TestCase):
             with self.assertRaisesRegex(pnr_recipe.RecipeError, "expected device"):
                 pnr_recipe.environment("fes.menu", leased_env, gpu=0)
 
-    def test_amd_gpu_run_fails_closed_for_render_paths_without_kfd_topology(self):
+    def test_amd_gpu_run_rejects_the_fallback_marker_when_kfd_mapping_exists(self):
+        leased_env = {
+            **ENV,
+            "FES_GPU_IDS": "1,2",
+            "GPU_RUN_DEVICE": "0",
+            "GPU_RUN_EXPECTED_DEVICE": "amd:1",
+            "NEXTPNR_REQUIRE_GPU": "1",
+            "ROCR_VISIBLE_DEVICES": "1,2",
+        }
+        gpu_lease = pnr_recipe._gpu_lease_module()
+        with patch.object(gpu_lease, "gpu_device_path", return_value="/dev/dri/renderD129") as resolve:
+            with self.assertRaisesRegex(pnr_recipe.RecipeError, "expected device"):
+                pnr_recipe.environment("fes.menu", leased_env, gpu=0)
+        resolve.assert_called_once_with("amd", "1")
+
+    def test_amd_gpu_run_accepts_the_fallback_marker_without_kfd_topology(self):
         render_node_env = {
             **ENV,
             "FES_GPU_IDS": "1,2",
@@ -264,7 +282,8 @@ class PnrRecipeTests(unittest.TestCase):
                 "GPU_RUN_EXPECTED_DEVICE": "amd:1",
             }
             pnr_recipe.environment("fes.menu", fallback_env, gpu=0)
-        resolve.assert_called_once_with("amd", "1")
+        self.assertEqual(resolve.call_count, 2)
+        resolve.assert_called_with("amd", "1")
 
     def test_ambient_gpu_overrides_without_a_lease_are_rejected(self):
         recipe = pnr_recipe.recipe_for("fes.menu")

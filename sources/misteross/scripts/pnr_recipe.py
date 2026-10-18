@@ -452,7 +452,7 @@ def _gpu_run_environment(
     expected_device = source["GPU_RUN_EXPECTED_DEVICE"]
     if backend == "HIP":
         if expected_device == f"amd:{ids[0]}":
-            device_matches = True
+            device_matches = _gpu_device_path("amd", ids[0]) is None
         elif (isinstance(expected_device, str)
               and _AMD_RENDER_NODE.fullmatch(expected_device) is not None):
             device_matches = expected_device == _gpu_device_path("amd", ids[0])
