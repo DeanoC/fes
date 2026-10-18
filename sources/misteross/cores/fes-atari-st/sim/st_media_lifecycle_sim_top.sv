@@ -28,7 +28,7 @@ module st_media_lifecycle_sim_top (
     wire [1:0] unused_mouse_buttons;
     wire [19:0] unused_snapshot_addr;
     assign client_ready = ready;
-    fes_computer_mailbox #(
+    fes_computer_mailbox_direct #(
         .ENABLE_ATARI_ST_FLOPPY(1), .ENABLE_ATARI_ST_FLOPPY_WRITE(1),
         .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(20),
         .UNIT0_MIN(1024), .UNIT0_MAX(1024)
