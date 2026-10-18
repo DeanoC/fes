@@ -295,6 +295,9 @@ func formatSettingsRegions(selected []string, cursor int) string {
 	return strings.Join(parts, "  ")
 }
 
+// settingsHostManagedStatus is the paired kit launcher's settings footer.
+const settingsHostManagedStatus = "Host settings are managed on the FogCast computer"
+
 // settingsBlockedLocked is the silent refuse used by the settings key.
 // A room action entry uses the same conditions but must say so.
 func (a *App) settingsBlockedLocked() bool {
@@ -318,6 +321,13 @@ func (a *App) openSettingsLocked() {
 	a.settingsRegionIndex = 0
 	a.closeSettingsOSKLocked()
 	a.settingsGen++
+	if a.client != nil && a.client.paired {
+		// The kit launcher listener serves no library settings (hostapi
+		// launcherOperation), so the host rows stay unhydrated and inert.
+		a.settingsLoading = false
+		a.settingsStatus = settingsHostManagedStatus
+		return
+	}
 	gen := a.settingsGen
 	ctx := a.ctx
 	if ctx == nil {

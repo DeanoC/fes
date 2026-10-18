@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -2189,5 +2190,44 @@ func TestPrepareIdentityPreservesUnsavedTargetEdits(t *testing.T) {
 	}
 	if !app.settingsTargetsDirty || app.settingsDraftTargets[0].Name != "renamed" || app.settingsDraftTarget != "renamed" {
 		t.Fatal("preparation discarded target draft")
+	}
+}
+
+// #800: the kit launcher listener 404s GET /api/v1/library/settings, so a
+// paired launcher must not fetch it or report "settings failed".
+func TestAppSettingsPairedLauncherSkipsHostSettings(t *testing.T) {
+	var settingsGets atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/library/settings" {
+			settingsGets.Add(1)
+		}
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(server.Close)
+	app := NewApp(NewClient(server.URL, server.Client()), 1280, 720, 4)
+	app.client.paired = true
+	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
+	now := time.Now()
+	app.HandleCommand(CmdSettings, now)
+	snap := app.Snapshot()
+	if !snap.Settings.Open || snap.Settings.Loading || snap.Settings.Status != settingsHostManagedStatus {
+		t.Fatalf("settings = %#v", snap.Settings)
+	}
+	for _, row := range snap.Settings.Rows {
+		if row.ID == "idle" && row.Value != "—" {
+			t.Fatalf("host idle row hydrated without host settings: %q", row.Value)
+		}
+	}
+	app.mu.Lock()
+	app.settingsIndex = settingsRowReducedMotion
+	app.mu.Unlock()
+	app.HandleCommand(CmdSelect, now)
+	time.Sleep(50 * time.Millisecond)
+	snap = app.Snapshot()
+	if !snap.ReducedMotion || strings.Contains(snap.Status, "settings failed") || strings.Contains(snap.Settings.Status, "settings failed") {
+		t.Fatalf("local pref or status wrong: motion=%v status=%q settings=%q", snap.ReducedMotion, snap.Status, snap.Settings.Status)
+	}
+	if n := settingsGets.Load(); n != 0 {
+		t.Fatalf("paired launcher requested host settings %d times", n)
 	}
 }
