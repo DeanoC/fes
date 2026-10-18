@@ -5484,6 +5484,54 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 ),
             ),
         ),
+        "755_dsp_signed": ExperimentPolicy(
+            name="755_dsp_signed",
+            sources=("experiments/755_dsp_signed/rtl/top.v",),
+            top="top",
+            clock="FPGA_CLK1_50",
+            clock_mhz=50.0,
+            allowed_hard_blocks={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+                "MISTRAL_MUL9X9": 2,
+                "MISTRAL_MUL18X18": 1,
+                "MISTRAL_MUL27X27": 1,
+            },
+            forbidden_source_patterns=(
+                *(
+                    pattern
+                    for pattern in _COMMON_SOURCE_PATTERNS
+                    if pattern not in {"DSP", "MAC", "MUL"}
+                ),
+                "LED",
+                "GPIO",
+                "external_gpio",
+            ),
+            forbidden_resource_patterns=_COMMON_RESOURCE_PATTERNS,
+            required_source_identifiers={
+                "cyclonev_hps_interface_mpu_general_purpose": 1,
+            },
+            required_synth_cells={
+                "MISTRAL_MUL9X9": 2,
+                "MISTRAL_MUL18X18": 1,
+                "MISTRAL_MUL27X27": 1,
+            },
+            # The signed and the unsigned 9x9 product cannot share a block:
+            # the signed lane is sign-extended on lane 0 and owns its site.
+            required_packed_sites={"MISTRAL_MUL9X9": 2},
+            nodsp=False,
+            clock_evidence_names=("product.FPGA_CLK1_50",),
+            sim_jobs=(
+                SimJob(
+                    name="main",
+                    top="top",
+                    sources=(
+                        "experiments/755_dsp_signed/rtl/top.v",
+                        "experiments/020_linux_mailbox/sim/hps_gp_model.v",
+                    ),
+                    tb="experiments/755_dsp_signed/sim/tb.cpp",
+                ),
+            ),
+        ),
         "760_pll_52": ExperimentPolicy(
             name="760_pll_52",
             sources=("experiments/760_pll_52/rtl/top.v",),
