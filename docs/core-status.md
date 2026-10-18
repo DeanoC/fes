@@ -265,6 +265,17 @@ populated free menu are restored, and the private host/credential copy removed.
 Full current-image acceptance remains separate; opened-region RGB still crops
 to ordinary 320×200, and later demo sections/audio fidelity remain unqualified.
 
+## PC/XT development diagnostic
+
+PC/XT is outside the factory/package set. Its assembled 8088, motherboard,
+SDRAM, ISA CGA/MDA and one Direct/Scanlines pipeline have host simulation
+coverage, including DMA and refresh. The autonomous diagnostic board builder
+supplies PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts
+under `sources/misteross/build/diagnostic/fes-pcxt/`. Routed timing, SDRAM pad
+qualification, physically linkable ISA cards, a runtime ABI/sealed package,
+BIOS/DOS/game compatibility and hardware acceptance remain open. See the
+[PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
+
 ## Not implemented, or not this package
 
 - ZX81 mid-session tape replace and eject use `fes.media.zx81-tape` unit 0

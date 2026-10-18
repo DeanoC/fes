@@ -120,6 +120,7 @@ help:
 		"  c64-diagnostic  Generate the open C64 firmware, font and synthetic D64" \
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
 		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
+		"  build-fes-pcxt CACHE_ROOT=/absolute/cache  Autonomous PC/XT board diagnostic" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
 		"  build-fes-atari-st-card  Seal a probe in ST_SHELL/ST_PACKAGE socket 1" \
@@ -1877,3 +1878,8 @@ sim-fes-pcxt:
 synth-fes-pcxt-isa:
 	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
 	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pcxt.py --cache-root "$(CACHE_ROOT)"
+
+# Autonomous board diagnostic; no package export or programming.
+.PHONY: build-fes-pcxt
+build-fes-pcxt:
+	$(PYTHON) scripts/build_fes_pcxt.py --cache-root "$(CACHE_ROOT)" $(PCXT_BUILD_ARGS)

@@ -2160,8 +2160,8 @@ reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
 **The complete machine below remains a proposal.** `fes.pcxt` is the proposed
-package identity. The remaining HID keyboard frontend, board-level HDMI integration, disk
-controller, physical socket layout, producer and sealed PC/XT package are not
+package identity. The remaining HID keyboard frontend, disk
+controller, physical socket layout, package producer and sealed PC/XT package are not
 implemented yet. The fabric does not enable
 runtime activation or claim a linkable RBF. Existing linker layout admission
 remains closed until an exact shell and its physical sockets are qualified.
@@ -2399,13 +2399,23 @@ CGA 640×200 RGBI and MDA 720×350 luminance scale by rational nearest-neighbour
 DDA to a centered 960×720 viewport in the existing fixed 1280×720p60 raster.
 CGA brown correction and MDA normal/bright luminance are applied before the
 shared effect. CGA stores four bits/pixel; MDA stores two, preserving its three
-levels. Both elaborated profiles reserve three 64 KiB banks. The board shell
-will select one output profile; the two-output machine simulation is not a
+levels. Both elaborated profiles reserve three 64 KiB banks. The diagnostic board shell
+selects one output profile; the two-output machine simulation is not a
 whole-device resource qualification. See the [core README](../cores/fes-pcxt/README.md#shared-directscanlines-output)
 for exact control/reset semantics, focused suites and diagnostic synthesis.
 
 Physical containment and exact-shell Direct/Scanlines parts still require a
-PC/XT board producer, reserved regions, clock/HDMI wiring and routed timing.
+reserved regions and routed timing. The diagnostic `fes_pcxt_top.sv` supplies
+100 MHz controller/capture clocks, a 74.25 MHz pixel PLL, coordinated reset
+release, SDRAM pads and inline HDMI. `pcxt_machine.sv` and `pcxt_system.sv`
+assemble CPU/motherboard, separate ISA cards, real storage and one video
+pipeline; `pcxt_boot.sv` copies the original assembled diagnostic firmware
+through the sequential 64 KiB loader before machine release. Warm reset/HOLD
+preserve storage/refresh; HOLD resets the machine and mutes video.
+`make build-fes-pcxt CACHE_ROOT=/absolute/cache` retains each diagnostic
+synthesis/route attempt under `build/diagnostic/fes-pcxt/`; it exports no package.
+The [board diagnostic guide](../cores/fes-pcxt/README.md#assembled-board-diagnostic)
+defines the firmware, clock/capture choices, profiles and test coverage.
 The existing Coleco/ST physical layouts are not admitted as PC/XT layouts.
 The new inline output changes neither linker/runtime policies nor the shared
 fabric definitions, and has no sealed RBF or hardware acceptance yet.

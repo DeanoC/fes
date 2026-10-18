@@ -5,7 +5,7 @@ an eight-slot virtual ISA backplane. The [machine design](../../docs/architectur
 targets an 8088/8086 PC/XT with IBM graphics and extensions to the existing
 linkable-card mechanism. The motherboard slice adds memory decoding, an 8259A
 PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a transaction-native 8237A DMA subset. Separate ISA CGA and MDA display cards add guest raster output. It has no
-HID keyboard frontend, disk controller, BIOS, board top, physical socket map or package producer.
+HID keyboard frontend, disk controller, BIOS, physical socket map or package producer.
 It cannot boot DOS or PC/XT games yet. The storage lane connects conventional RAM and firmware to the existing
 addon SDRAM controller and boots the display diagnostic through its physical
 command interface in host simulation. Board pads and clock phases remain unqualified.
@@ -43,8 +43,8 @@ Cold reset does not establish a storage-retention guarantee.
 The controller uses its conservative CAS-2 100 MHz rate-3 path, single-rank
 refresh and the established additional fabric stage after input capture.
 `clk_pin` is the phase-0 controller clock used for the inverted SDRAM clock
-output. The future board supplies captured `dq_rise/dq_fall`, bidirectional
-pads, PLL phases and timing constraints. The diagnostic synthesis retains
+output. The board diagnostic supplies captured `dq_rise/dq_fall`, bidirectional
+pads and PLL phases; their physical setup/hold constraints remain unqualified. The diagnostic synthesis retains
 `altddio_out` as a technology primitive; it does not qualify a mapped pad or
 clock network. This is host-only evidence, with no routed timing or kit load.
 
@@ -59,8 +59,8 @@ guest success writes on each boot. Both suites run with zero-, one- and two-cycl
 matrix, checking neighbour preservation and boot behavior with delayed masks.
 The SDRAM model checks digital command timing at 100 MHz, not analog setup/hold,
 refresh retention or board routing. Other suites retain independent variable-
-latency testbench storage. Full CPU/DMA storage and Direct/Scanlines integration
-into one board shell remains a subsequent qualification step.
+latency testbench storage. The `system` and `system-mda` suites below integrate CPU/DMA storage and
+Direct/Scanlines in the reusable board system.
 
 `python3 scripts/synth_fes_pcxt.py --suite memory --cache-root /absolute/cache`
 runs the locked Cyclone V diagnostic frontend and `check -assert`, writing
@@ -160,9 +160,9 @@ as four two-bit pixels per byte. Each profile reserves three 64 KiB banks
 (192 KiB total). `MDA` and `SCANLINES` are elaboration-time selections. A future
 PC/XT shell selects one output profile; the simulation-only two-output machine
 fixture does not demonstrate that two full pipelines fit the FPGA. Fonts remain
-separate card inputs. Physical video sockets, clocks/HDMI pads, a PC/XT board
-producer, timing closure, sealed Direct/Scanlines archives and kit acceptance
-remain integration work. The inline path provides concrete raster output for
+separate card inputs. Physical video sockets, timing closure, sealed Direct/Scanlines archives and kit
+acceptance remain integration work. The autonomous diagnostic below supplies
+board clocks, SDRAM capture/pads and inline HDMI output. The inline path provides concrete raster output for
 that shell; it does not register another core's physical slot layout as PC/XT.
 
 Run `--suite video`, `--suite video-mda` or `--suite video-machine` with
@@ -182,6 +182,70 @@ with `--scanlines` selecting the second effect. Outputs and source/tool receipts
 are under `build/synth/fes-pcxt/video-{cga,mda}/{direct,scanlines}/`. These synthesize
 one adapter plus shared effect, not the CPU, ISA cards, font ROM or board shell.
 They provide no routed timing, physical containment or hardware acceptance.
+
+## Assembled board diagnostic
+
+`rtl/pcxt_machine.sv` owns the real 8088, motherboard and eight registered
+logical slots. `pcxt_display_bus.sv` keeps CGA and MDA in separate ISA cards;
+its diagnostic configuration also puts the DMA loopback probe in slot 1.
+The older display/memory/video fixtures now use this same machine wiring.
+`pcxt_system.sv` connects it to the real SDRAM backend and exactly one selected
+CGA or MDA capture/Direct/Scanlines pipeline. CPU firmware accesses and DMA
+storage share the motherboard byte port; video memory and registers stay on ISA.
+
+`pcxt_boot.sv` copies an original 64 KiB diagnostic image into SDRAM through
+the firmware port. `pcxt_system` admits sequential addresses starting at zero,
+counts completed writes and releases the machine only after the final DONE.
+Cold reset restarts initialization/loading; warm reset and HOLD drain storage
+without reinitializing it or reloading firmware. HOLD resets the machine and
+mutes the video, while the raster, complete framebuffer ownership and physical
+refresh continue. The two video domains receive coordinated cold resets.
+
+`firmware/diagnostic.S` is assembled with GNU x86 `as`/`ld` at build time.
+It programs both display cards, checks VRAM mirrors, transfers eight bytes
+from ISA to SDRAM and four distinct bytes back to the same probe, and enables
+PIT1/DMA0 refresh. A RAM success marker is checked by simulation. Each font
+address supplies the original diagnostic glyph byte `81` (two vertical strokes),
+so no IBM ROM/font is bundled. The reusable system retains an explicit firmware
+byte port for a later user-selected loader; no production HPS loader or sealed
+firmware map is claimed.
+
+`rtl/fes_pcxt_top.sv` supplies a 100 MHz controller clock, 180-degree 100 MHz
+fabric input capture clock, inverted DDR SDRAM clock pin, bidirectional SDRAM
+pads, a separate 74.25 MHz fractional pixel PLL and HDMI RGB/sync. Loss of either
+PLL lock asserts both domain resets; each domain releases through two registers.
+The retained `altddio_out` is mapped by the locked nextpnr native output packer.
+HDMI transmitter I2C uses the existing HPS peripheral bridge. This autonomous
+power-on diagnostic has no runtime ABI, host session control or audio pins.
+
+```sh
+# From sources/misteross; no shared compiler cache environment for simulations.
+python3 scripts/sim_fes_pcxt.py --suite system
+python3 scripts/sim_fes_pcxt.py --suite system-mda
+make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache
+make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--mda --scanlines'
+# Optional frontend/resource probe; no route:
+make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--synth-only'
+```
+
+Each invocation retains a separate directory beneath
+`build/diagnostic/fes-pcxt/{cga,mda}/{direct,scanlines}/<UTC-run>/`, including
+assembled firmware, microcode, synthesis/netlist/resource counts and a
+`diagnostic.json` source/tool receipt. The normal command attempts one seed-1
+HIP route with a bounded 1800-second timeout and retains failures. A completed
+route additionally writes `routed.json`, `timing.json`, `nextpnr.log` and
+`diagnostic.rbf`. A route is diagnostic: SDRAM pad setup/hold, retention,
+physical containment, package sealing and hardware acceptance require separate
+qualification. There is no automatic Quartus fallback or kit programming.
+No factory package selection or shared contract changes are made.
+
+Both system suites run in the default simulation family. They check interrupted
+cold loading, a pause near the end of loading, reset release, both real DMA
+directions, guest and physical refresh, two complete boots without firmware
+reload, HOLD/mute and every pixel of two 720p output frames after capture settles.
+CGA uses Direct and MDA uses Scanlines; each runs DQM delays 0/1/2. Existing
+video suites retain detailed frame-ownership, overrun/drop and malformed-source
+coverage. Digital SDRAM simulation does not establish pad timing or retention.
 
 ## Implemented path
 
