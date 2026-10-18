@@ -1135,11 +1135,15 @@ that same file; that wrapper ties the plane response inputs idle.
 Atari ST instantiates `fes_computer_mailbox_direct` from
 `fes_computer_mailbox_direct.v` in that directory. The accepting edge assigns
 `acknowledged_toggle` from the synchronized request and does not elaborate
-the display-wait hold. The command payload is registered with that request
-synchronizer, and reflected CRC-32 is a parallel XOR of the registered word,
-so the sys-clock path does not start at the HPS GP port and run through a
-16-step serial CRC. Relative mouse samples and the write-data word stay on
-the live GPO. `make sim-fes-atari-st-mailbox-direct` replays the shared
+the display-wait hold. The command payload is registered beside that request
+synchronizer. Only the request toggle is an `async_reg` synchronizer; the
+payload registers are kept so the HPS GP port ends at a flip-flop and are not
+placed as a 31-bit synchronizer. Reflected CRC-32 is a parallel XOR of the
+accepted media word on the following clock, and the wide begin-size, alignment,
+bytes-remaining and commit compares are registered results. The next command
+cannot consume those results early: the host holds GPO until ACK, and the new
+request toggle crosses two synchronizer stages. Relative mouse samples and the
+write-data word stay on the live GPO. `make sim-fes-atari-st-mailbox-direct` replays the shared
 mailbox vectors and the commands ST uses, including a completed snapshot
 read, against both endpoints and fails if they diverge. Other shells keep
 `fes_computer_mailbox` or the core.

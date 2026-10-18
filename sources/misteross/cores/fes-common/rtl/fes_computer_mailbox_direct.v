@@ -3,15 +3,22 @@
 
 // Atari ST mailbox. The accepting edge assigns acknowledged_toggle from the
 // synchronized request and does not elaborate the display-wait hold. The
-// command payload is captured in that same synchronizer. GPO stays stable
-// until ACK, so the registered opcode, index and argument are the command
-// the shared mailbox decodes from the live port, and the sys-clock path does
-// not start at the HPS GP block and run through the accept cone. Reflected
-// CRC-32 is a parallel XOR of that registered word, not the 16-step serial
-// recurrence. Relative mouse samples and the write-data word stay on the
-// live GPO so a held command still matches the shared mailbox before the
-// synchronizer fires. sim-fes-atari-st-mailbox-direct fails if opcodes,
-// acknowledgement, or the media and input behaviour ST uses drift.
+// command payload is captured beside that synchronizer, so the HPS GP port
+// ends at a flip-flop. Only the request toggle is an async_reg synchronizer.
+// The payload flops are ordinary registers: the bus is held stable while the
+// toggle crosses, and a synchronizer constraint would pin all 31 bits
+// together instead of letting them pack next to the decoder.
+//
+// The accept cone does not contain the wide compares or the CRC XOR. Begin
+// size, chunk and snapshot alignment, bytes remaining and the commit residue
+// are registers. Reflected CRC-32 of a media word is a parallel XOR that
+// runs on the following clock, into crc and crc_good. That clock is free:
+// the host holds GPO until ACK, and the next request toggle still crosses
+// two synchronizer stages before another command can be accepted. Relative
+// mouse samples and the write-data word stay on the live GPO so a held
+// command still matches the shared mailbox on the accept edge.
+// sim-fes-atari-st-mailbox-direct fails if opcodes, acknowledgement, or the
+// media and input behaviour ST uses drift.
 module fes_computer_mailbox_direct #(
     parameter bit ENABLE_KEYBOARD = 0,
     parameter bit ENABLE_PORTS = 0,
@@ -83,11 +90,10 @@ module fes_computer_mailbox_direct #(
 
     (* async_reg = "true" *) reg request_meta;
     (* async_reg = "true" *) reg request_sync;
-    // Payload travels with the request toggle. Both stages are synchronizer
-    // registers so the HPS GP port ends at a flip-flop instead of the accept
-    // cone and the CRC XOR tree.
-    (* async_reg = "true" *) reg [30:0] payload_meta;
-    (* async_reg = "true" *) reg [30:0] payload_sync;
+    // Same two edges as the request toggle. keep stops the pair collapsing
+    // into one flop or into the HPS port. They are not async_reg.
+    (* keep *) reg [30:0] payload_meta;
+    (* keep *) reg [30:0] payload_sync;
     reg acknowledged_toggle;
     reg response_error;
     reg [15:0] response_data;
@@ -149,6 +155,21 @@ module fes_computer_mailbox_direct #(
     reg [9:0] chunk_length;
     reg [9:0] chunk_received;
     reg [7:0] ordinal;
+    // Registered on the clock after the state they read. The request
+    // synchronizer gives the next command two clocks, so the accept edge
+    // sees these results and not the wide comparators or the CRC tree.
+    reg [9:0] remaining;
+    reg begin_argument_ok;
+    reg chunk_match;
+    reg snapshot_match;
+    reg commit_ready;
+    reg crc_good;
+    reg crc_pending;
+    reg crc_arm;
+    reg crc_single;
+    reg [15:0] crc_data;
+    reg [31:0] bytes_left;
+    reg [31:0] snapshot_left;
 
     wire [4:0] unit8 = index[7:3];
     wire [2:0] field = index[2:0];
@@ -156,7 +177,14 @@ module fes_computer_mailbox_direct #(
     wire [1:0] word = index[1:0];
     wire [31:0] begin_total = {begin1, begin0};
     wire [31:0] chunk_offset = {chunk1, chunk0};
-    wire [9:0] remaining = chunk_length - chunk_received;
+    wire begin_listed =
+        begin_total == 32'd368640 || begin_total == 32'd409600 ||
+        begin_total == 32'd737280 || begin_total == 32'd819200 ||
+        begin_total == 32'd373248 || begin_total == 32'd414720 ||
+        begin_total == 32'd746496 || begin_total == 32'd829440 ||
+        begin_total == 32'd377856 || begin_total == 32'd419840 ||
+        begin_total == 32'd755712 || begin_total == 32'd839680;
+    wire begin_in_range = begin_total >= UNIT0_MIN && begin_total <= UNIT0_MAX;
     wire data_ok = request && opcode == 7'(`FES_COMPUTER_OPCODE_MEDIA_DATA) && MEDIA &&
                    active && chunk_length != 10'd0 && index == ordinal &&
                    !(remaining == 10'd1 && argument[15:8] != 8'h00);
@@ -191,8 +219,8 @@ module fes_computer_mailbox_direct #(
     endfunction
 
     // Parallel reflected CRC-32 (polynomial 0xEDB88320). Same residue as the
-    // serial byte recurrence. A pair folds both bytes in one XOR tree so a
-    // media word does not stack sixteen dependent shift-mux stages.
+    // serial byte recurrence. The fold register below, not the accept case,
+    // absorbs this XOR tree.
     function automatic [31:0] crc32_byte;
         input [31:0] crc_in;
         input [7:0] data;
@@ -271,6 +299,8 @@ module fes_computer_mailbox_direct #(
         end
     endfunction
 
+    wire [31:0] crc_folded = crc_single ? crc32_byte(crc, crc_data[7:0]) : crc32_pair(crc, crc_data);
+
     task reject;
         input [15:0] code;
         begin
@@ -333,6 +363,18 @@ module fes_computer_mailbox_direct #(
         chunk_length = 10'd0;
         chunk_received = 10'd0;
         ordinal = 8'd0;
+        remaining = 10'd0;
+        begin_argument_ok = 1'b0;
+        chunk_match = 1'b1;
+        snapshot_match = 1'b1;
+        commit_ready = 1'b0;
+        crc_good = 1'b0;
+        crc_pending = 1'b0;
+        crc_arm = 1'b0;
+        crc_single = 1'b0;
+        crc_data = 16'd0;
+        bytes_left = 32'd0;
+        snapshot_left = 32'd0;
     end
 
     always @(posedge clk) begin
@@ -340,6 +382,22 @@ module fes_computer_mailbox_direct #(
         payload_meta <= gpo[30:0];
         request_sync <= request_meta;
         payload_sync <= payload_meta;
+        remaining <= chunk_length - chunk_received;
+        begin_argument_ok <= begin_in_range && (!GEOMETRY || begin_listed);
+        chunk_match <= chunk_offset == received;
+        snapshot_match <= snapshot_offset == snapshot_received;
+        commit_ready <= active && !begin_staged && chunk_length == 10'd0 && received == total;
+        bytes_left <= total - received;
+        snapshot_left <= unit0_size - snapshot_received;
+        if (crc_pending) begin
+            crc <= crc_folded;
+            crc_good <= (crc_folded ^ CRC_XOR) == expected_crc;
+            crc_pending <= 1'b0;
+        end else if (crc_arm) begin
+            crc <= CRC_INIT;
+            crc_good <= (CRC_INIT ^ CRC_XOR) == expected_crc;
+            crc_arm <= 1'b0;
+        end
         if (WRITABLE && media_changed) begin
             snapshot_dirty <= 1'b1;
             saved_authorized <= 1'b0;
@@ -418,25 +476,14 @@ module fes_computer_mailbox_direct #(
                     else if (active) reject(E_STATE);
                     else if (!begin_staged ? word != 2'd0 : word != begin_next) reject(E_INDEX);
                     else if (word == 2'd3) begin
-                        if (begin_total < UNIT0_MIN || begin_total > UNIT0_MAX ||
-                            (GEOMETRY && begin_total != 32'd368640 &&
-                            begin_total != 32'd409600 &&
-                            begin_total != 32'd737280 &&
-                            begin_total != 32'd819200 &&
-                            begin_total != 32'd373248 &&
-                            begin_total != 32'd414720 &&
-                            begin_total != 32'd746496 &&
-                            begin_total != 32'd829440 &&
-                            begin_total != 32'd377856 &&
-                            begin_total != 32'd419840 &&
-                            begin_total != 32'd755712 &&
-                            begin_total != 32'd839680)) reject(E_ARGUMENT);
+                        if (!begin_argument_ok) reject(E_ARGUMENT);
                         else begin
                             active <= 1'b1;
                             total <= begin_total;
                             expected_crc <= {argument, begin2};
                             received <= 32'd0;
-                            crc <= CRC_INIT;
+                            crc_pending <= 1'b0;
+                            crc_arm <= 1'b1;
                             begin_staged <= 1'b0;
                             begin_next <= 2'd0;
                             chunk_next <= 2'd0;
@@ -467,8 +514,8 @@ module fes_computer_mailbox_direct #(
                     else if (unit4 != 6'd0 || word != chunk_next || word == 2'd3) reject(E_INDEX);
                     else if (chunk_length != 10'd0) reject(E_STATE);
                     else if (word == 2'd2) begin
-                        if (chunk_offset != received || argument == 16'd0 ||
-                            {16'd0, argument} > CHUNK_MAX || {16'd0, argument} > total - received)
+                        if (!chunk_match || argument == 16'd0 ||
+                            {16'd0, argument} > CHUNK_MAX || {16'd0, argument} > bytes_left)
                             reject(E_ARGUMENT);
                         else begin
                             chunk_length <= argument[9:0];
@@ -488,13 +535,17 @@ module fes_computer_mailbox_direct #(
                     else if (index != ordinal) reject(E_INDEX);
                     else if (remaining == 10'd1 && argument[15:8] != 8'd0) reject(E_ARGUMENT);
                     else if (remaining == 10'd1) begin
-                        crc <= crc32_byte(crc, argument[7:0]);
+                        crc_data <= argument;
+                        crc_single <= 1'b1;
+                        crc_pending <= 1'b1;
                         received <= received + 32'd1;
                         chunk_length <= 10'd0;
                         chunk_received <= 10'd0;
                         ordinal <= 8'd0;
                     end else begin
-                        crc <= crc32_pair(crc, argument);
+                        crc_data <= argument;
+                        crc_single <= 1'b0;
+                        crc_pending <= 1'b1;
                         received <= received + 32'd2;
                         if (remaining == 10'd2) begin
                             chunk_length <= 10'd0;
@@ -510,9 +561,8 @@ module fes_computer_mailbox_direct #(
                     if (!MEDIA) reject(E_OPCODE);
                     else if (index != 8'd0) reject(E_INDEX);
                     else if (argument != 16'd0) reject(E_ARGUMENT);
-                    else if (!active || begin_staged) reject(E_STATE);
-                    else if (chunk_length != 10'd0 || received != total) reject(E_STATE);
-                    else if ((crc ^ CRC_XOR) != expected_crc) reject(E_ARGUMENT);
+                    else if (!commit_ready) reject(E_STATE);
+                    else if (!crc_good) reject(E_ARGUMENT);
                     else begin
                         unit0_state <= READY;
                         unit0_size <= total;
@@ -582,8 +632,8 @@ module fes_computer_mailbox_direct #(
                     else if (!media_frozen || unit0_state != READY || snapshot_length != 10'd0) reject(E_STATE);
                     else if (unit4 != 6'd0 || word != snapshot_next || word == 2'd3) reject(E_INDEX);
                     else if (word == 2'd2) begin
-                        if (snapshot_offset != snapshot_received || argument == 16'd0 || argument[0] ||
-                            argument > 16'd512 || {16'd0,argument} > unit0_size - snapshot_received) reject(E_ARGUMENT);
+                        if (!snapshot_match || argument == 16'd0 || argument[0] ||
+                            argument > 16'd512 || {16'd0,argument} > snapshot_left) reject(E_ARGUMENT);
                         else begin
                             snapshot_length <= argument[9:0];
                             snapshot_cursor <= 10'd0;
