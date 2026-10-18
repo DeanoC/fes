@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -55,6 +56,7 @@ from pathlib import Path
 from queue import Queue
 from typing import Callable, Mapping, Sequence
 from scripts import pnr_recipe
+from scripts.fes_build_common import gpu_device_index, gpu_run_active, nextpnr_gpu_command
 
 
 class SearchError(Exception):
@@ -223,6 +225,8 @@ def _run_nextpnr(
             )
         resolved = Path(nextpnr).resolve()
         slot = resolved.parents[2].name if len(resolved.parents) > 2 else "unknown"
+
+    command = nextpnr_gpu_command(command, run_env)
 
     run_metadata = {
         "argv": tuple(command), "environment": dict(run_env or {}),
@@ -446,6 +450,11 @@ def search(
             )
     gpu_pool: Queue[int | None] = Queue()
     assigned = list(gpu_devices) if gpu_devices else [None]
+    device_env = os.environ if env is None else env
+    if gpu_devices and gpu_run_active(device_env):
+        # A gpu-run lease exposes one device to the child. A multi-device
+        # offline search therefore becomes one worker on the leased index.
+        assigned = [gpu_device_index(gpu_devices[0], device_env)]
     for gpu in assigned:
         gpu_pool.put(gpu)
 

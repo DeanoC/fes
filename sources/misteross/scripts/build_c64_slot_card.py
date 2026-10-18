@@ -32,7 +32,10 @@ from scripts import c64_slots
 from scripts import build_fes_c64_oss as shell_recipe
 from scripts.core_package import read_package
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
-from scripts.fes_build_common import _prepare_output, _require_clean_source, _require_gpu_backend, _run_tool
+from scripts.fes_build_common import (
+    _prepare_output, _require_clean_source, _require_gpu_backend, _run_tool,
+    gpu_run_active, gpu_visibility_environment, nextpnr_gpu_command,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 CARDS = {
@@ -322,8 +325,16 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     (output / "scaffold.json").write_bytes(scaffold)
     env = dict(os.environ)
     env["GPU_LEASE_IDS"] = str(gpu)
-    if extra:
+    # gpu-run owns the mask and maps the leased physical device to its logical
+    # index. Outside that wrapper, retain the card producer's existing lane setup.
+    if gpu_run_active(env):
+        env.update(extra or {})
+    elif extra:
+        env.pop("HIP_VISIBLE_DEVICES", None)
+        env.pop("CUDA_VISIBLE_DEVICES", None)
         env.update(extra)
+    else:
+        env = gpu_visibility_environment(env, gpu, variable="HIP_VISIBLE_DEVICES")
     commands = [
         [str(tools["yosys"].path), "-p", card_synthesis_script(card, slot, output)],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"),
@@ -337,6 +348,7 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
          "--rbf", str(output / "cart.rbf"), "--compress-rbf",
          "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")],
     ]
+    commands[1] = nextpnr_gpu_command(commands[1], env)
     for name, command in zip(("synthesis", "route"), commands):
         log_path = output / (name + ".log")
         _run_tool(tuple(command), root, log_path, output_relative=output.relative_to(root),

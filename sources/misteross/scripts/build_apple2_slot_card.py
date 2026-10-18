@@ -29,7 +29,10 @@ from scripts import apple2_slots
 from scripts import build_fes_apple2_oss as shell_recipe
 from scripts.core_package import read_package
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
-from scripts.fes_build_common import _prepare_output, _require_clean_source, _run_tool, reject_async_m10k_reads
+from scripts.fes_build_common import (
+    _prepare_output, _require_clean_source, _run_tool,
+    gpu_visibility_environment, reject_async_m10k_reads,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 CARDS = {
@@ -228,7 +231,8 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     (output / "cart.qsf").write_bytes(qsf)
     scaffold = prepare_scaffold((shell / "routed.json").read_bytes(), slot)
     (output / "scaffold.json").write_bytes(scaffold)
-    env = dict(os.environ, GPU_LEASE_IDS=str(gpu))
+    env = gpu_visibility_environment(os.environ, gpu, variable="HIP_VISIBLE_DEVICES")
+    env["GPU_LEASE_IDS"] = str(gpu)
     sources = " ".join(CARDS[card])
     commands = [
         [str(tools["yosys"].path), "-p",

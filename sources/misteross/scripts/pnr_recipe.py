@@ -8,6 +8,7 @@ import os
 import tomllib
 from pathlib import Path
 from typing import Mapping, Sequence
+from scripts.fes_build_common import gpu_run_environment, nextpnr_gpu_command
 
 
 FES_ROOT = Path(__file__).resolve().parents[3]
@@ -399,7 +400,7 @@ def build(
 ) -> tuple[tuple[str, ...], dict[str, str]]:
     """Build nextpnr argv and validate its complete controlled environment."""
     command = argv(core_id, slot, synth, seed, gpu, output=output, **options)
-    return command, environment(core_id, env)
+    return nextpnr_gpu_command(command, env), environment(core_id, env)
 
 
 def environment(core_id: str, source: Mapping[str, str]) -> dict[str, str]:
@@ -408,14 +409,16 @@ def environment(core_id: str, source: Mapping[str, str]) -> dict[str, str]:
     required = recipe["env"]
     optional = recipe["optional_env"]
     allowed = set(required) | set(optional)
-    unexpected = set(source) - allowed
-    missing = set(required) - set(source)
+    lease = gpu_run_environment(source)
+    recipe_source = {name: value for name, value in source.items() if name not in lease}
+    unexpected = set(recipe_source) - allowed
+    missing = set(required) - set(recipe_source)
     if unexpected:
         raise RecipeError(f"{core_id}: unrecorded nextpnr environment names: {sorted(unexpected)}")
     if missing:
         raise RecipeError(f"{core_id}: required nextpnr environment names are missing: {sorted(missing)}")
     for name, expected in required.items():
-        actual = source[name]
+        actual = recipe_source[name]
         if name == "PATH":
             if not actual.endswith(":/usr/bin:/bin") or not Path(actual.split(":", 1)[0]).is_absolute():
                 raise RecipeError(f"{core_id}: PATH does not match the authenticated toolchain lane")
@@ -425,8 +428,8 @@ def environment(core_id: str, source: Mapping[str, str]) -> dict[str, str]:
         elif actual != expected:
             raise RecipeError(f"{core_id}: environment value for {name} differs from recipe")
     for name, expected in optional.items():
-        if name in source and source[name] != expected:
+        if name in recipe_source and recipe_source[name] != expected:
             raise RecipeError(f"{core_id}: environment value for {name} differs from recipe")
-    if set(source) & set(recipe["unset_env"]):
+    if (set(recipe_source) & set(recipe["unset_env"])):
         raise RecipeError(f"{core_id}: explicitly unset environment reached nextpnr")
-    return dict(source)
+    return dict(recipe_source, **lease)

@@ -385,14 +385,34 @@ class AtariSTSlotCardTests(unittest.TestCase):
             self.assertEqual(other.commands[1][other.commands[1].index("--gpu-device") + 1], "0")
             self.assertNotEqual(untouched.parent.name, selected.parent.name)
 
-    def test_hip_route_leases_requested_gpu_without_nextpnr_device_flag(self):
+    def test_cuda_route_preserves_gpu_run_mask_and_uses_logical_device(self):
+        for gpu in (0, 1):
+            with self.subTest(gpu=gpu), tempfile.TemporaryDirectory() as directory:
+                fixture = BuildFixture(Path(directory))
+                fixture.route_text = "Info: backend cuda:fixture ready\nInfo: Program finished normally.\n"
+                with patch.dict(os.environ, {
+                    "GPU_RUN_DEVICE": "0",
+                    "CUDA_VISIBLE_DEVICES": str(gpu),
+                    "CUDA_DEVICE_ORDER": "FASTEST_FIRST",
+                }):
+                    fixture.build(gpu=gpu, gpu_router="CUDA", toolchain_root=Path("/tmp/st-cuda"))
+                route = fixture.commands[1]
+                self.assertEqual(route[route.index("--gpu-device") + 1], "0")
+                for env in fixture.envs:
+                    self.assertEqual(env["CUDA_VISIBLE_DEVICES"], str(gpu))
+                    self.assertEqual(env["CUDA_DEVICE_ORDER"], "PCI_BUS_ID")
+                    self.assertNotIn("HIP_VISIBLE_DEVICES", env)
+
+    def test_hip_route_leases_and_masks_requested_gpu_without_nextpnr_device_flag(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = BuildFixture(Path(directory))
             with patch.dict(os.environ, {"HIP_VISIBLE_DEVICES": "9", "CUDA_VISIBLE_DEVICES": "3"}):
+                os.environ.pop("GPU_RUN_DEVICE", None)
                 result = fixture.build(gpu=1)
             route = fixture.commands[1]
             self.assertNotIn("--gpu-device", route)
             for env in fixture.envs:
+                self.assertEqual(env["HIP_VISIBLE_DEVICES"], "1")
                 self.assertEqual(env["GPU_LEASE_IDS"], "1")
             recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
             self.assertNotIn("gpu_device", recipe)

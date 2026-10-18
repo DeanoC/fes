@@ -189,6 +189,16 @@ class PnrRecipeTests(unittest.TestCase):
         )
         self.assertEqual(command[command.index("--gpu-device") + 1], "1")
 
+    def test_recipe_build_maps_gpu_run_device_and_preserves_hip_mask(self):
+        command, environment = pnr_recipe.build(
+            "fes.pong", SLOT, SYNTH, 1, 1, output=OUTPUT,
+            env={**ENV, "GPU_RUN_DEVICE": "0", "ROCR_VISIBLE_DEVICES": "1"},
+        )
+        device_index = command.index("--gpu-device")
+        self.assertEqual(command[device_index + 1], "0")
+        self.assertEqual(environment["GPU_RUN_DEVICE"], "0")
+        self.assertEqual(environment["ROCR_VISIBLE_DEVICES"], "1")
+
     def test_unrecorded_option_and_environment_are_rejected(self):
         recipe = pnr_recipe.recipe_for("fes.pong")
         with self.assertRaises(pnr_recipe.RecipeError):
