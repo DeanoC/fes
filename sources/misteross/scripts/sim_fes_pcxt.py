@@ -53,6 +53,15 @@ CHIPSET_SOURCES = (
 )
 
 
+DISPLAY_SOURCES = (
+    'cores/fes-pcxt/expansions/pcxt_6845.sv',
+    'cores/fes-pcxt/expansions/pcxt_display_card.sv',
+    'cores/fes-pcxt/expansions/pcxt_cga_card.sv',
+    'cores/fes-pcxt/expansions/pcxt_mda_card.sv',
+    'cores/fes-pcxt/sim/display_top.sv',
+)
+
+
 def verify_vendor(name):
     vendor = ROOT / 'cores/fes-pcxt/vendor' / name
     manifest = json.loads((vendor / 'source.json').read_text())
@@ -79,16 +88,18 @@ def cpu_inputs(output, diagnostic="diagnostic"):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
-    parser.add_argument('--suite', choices=('all', 'isa', 'cpu', 'keyboard', 'motherboard', 'dma', 'machine'), default='all')
+    parser.add_argument('--suite', choices=('all', 'isa', 'cpu', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'display-machine'), default='all')
     args = parser.parse_args()
     if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
         parser.error('simulation does not use the shared compiler cache')
     output = ROOT / 'build/sim/fes-pcxt'
     output.mkdir(parents=True, exist_ok=True)
-    for suite in ('isa', 'cpu', 'keyboard', 'motherboard', 'dma', 'machine') if args.suite == 'all' else (args.suite,):
+    for suite in ('isa', 'cpu', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'display-machine') if args.suite == 'all' else (args.suite,):
         build = output / suite
         build.mkdir(parents=True, exist_ok=True)
         sources = SOURCES if suite == 'isa' else tuple(s for s in SOURCES if s.endswith('.sv')) + CPU_SOURCES
+        if suite == 'display':
+            sources = SOURCES[:3] + DISPLAY_SOURCES + ('cores/fes-pcxt/sim/display_tb.cpp',)
         if suite == 'keyboard':
             sources = ('cores/fes-pcxt/rtl/pcxt_xt_keyboard.sv', 'cores/fes-pcxt/sim/keyboard_tb.cpp')
         if suite in ('motherboard', 'dma', 'machine'):
@@ -103,13 +114,19 @@ def main():
                        tuple(s for s in CPU_SOURCES
                              if s.endswith('.sv') and not s.endswith('/cpu_top.sv')) +
                        ('cores/fes-pcxt/sim/machine_top.sv', 'cores/fes-pcxt/sim/machine_tb.cpp'))
-        if suite in ('cpu', 'machine'):
-            cpu_inputs(build, 'motherboard' if suite == 'machine' else 'diagnostic')
-        top = 'pcxt_xt_keyboard' if suite == 'keyboard' else 'motherboard_top' if suite == 'dma' else suite + '_top'
+        if suite == 'display-machine':
+            for name in ('kf8259', 'kf8253', 'kf8255'):
+                verify_vendor(name)
+            sources = (SOURCES[:3] + DISPLAY_SOURCES + CHIPSET_SOURCES[:-1] +
+                       tuple(s for s in CPU_SOURCES if s.endswith('.sv') and not s.endswith('/cpu_top.sv')) +
+                       ('cores/fes-pcxt/sim/display_machine_top.sv', 'cores/fes-pcxt/sim/display_machine_tb.cpp'))
+        if suite in ('cpu', 'machine', 'display-machine'):
+            cpu_inputs(build, 'display' if suite == 'display-machine' else 'motherboard' if suite == 'machine' else 'diagnostic')
+        top = 'pcxt_xt_keyboard' if suite == 'keyboard' else 'motherboard_top' if suite == 'dma' else suite.replace('-', '_') + '_top'
         subprocess.run([args.verilator, '--cc', '--exe', '--build', '-Wall',
                         *(['--timescale-override', '1ns/1ps',
                            str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt')] if suite != 'isa' else []),
-                        *([str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt')] if suite in ('motherboard', 'dma', 'machine') else []),
+                        *([str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt')] if suite in ('motherboard', 'dma', 'machine', 'display-machine') else []),
                         '-I' + str(ROOT / 'cores/fes-pcxt/vendor/kf8259'),
                         '-I' + str(ROOT / 'cores/fes-pcxt/vendor/kf8253'),
                         '-I' + str(ROOT / 'cores/fes-pcxt/vendor/kf8255'),
@@ -118,7 +135,7 @@ def main():
                         '-CFLAGS', '-std=c++17 -O2',
                         *[str(ROOT / source) for source in sources]], cwd=ROOT, check=True)
         subprocess.run([str(build / ('V' + top)),
-                        *([str(build / 'diagnostic.bin')] if suite in ('cpu', 'machine') else [])],
+                        *([str(build / 'diagnostic.bin')] if suite in ('cpu', 'machine', 'display-machine') else [])],
                        cwd=build, check=True)
 
 

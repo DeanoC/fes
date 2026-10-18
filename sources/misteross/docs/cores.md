@@ -173,10 +173,14 @@ required alongside Verilator. The motherboard lane tests PIC/PIT/PPI, XT
 keyboard transport and speaker PCM; a second ROM receives real timer, ISA and
 keyboard interrupts. The DMA lane checks 8237 register behavior, real ISA/RAM
 transfers, refresh and LOCK/INTA arbitration; the ROM also programs both DMA
-directions while refresh runs. CGA remains a planned ISA card. This is a
-simulation family, not a package producer.
-Graphics, media, HID keyboard translation and physical
-socket routing are still required; no `build-fes-pcxt` target exists.
+directions while refresh runs. Separate ISA CGA and MDA cards own VRAM,
+register decode and independently timed RGBI guest rasters. The display
+suite checks those rasters in host simulation; the display-machine suite
+boots a diagnostic ROM that programs both cards through the motherboard.
+This is a simulation family, not a package producer.
+Media, HID keyboard translation, production video output, physical socket
+routing and kit hardware acceptance remain open; no `build-fes-pcxt` target
+exists.
 
 ## Original RV32I
 

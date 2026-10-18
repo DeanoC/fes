@@ -2133,7 +2133,7 @@ reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
 **The complete machine below remains a proposal.** `fes.pcxt` is the proposed
-package identity. The remaining HID keyboard frontend, graphics, disk
+package identity. The remaining HID keyboard frontend, production video output, disk
 controller, physical socket layout, producer and sealed PC/XT package are not
 implemented yet. The fabric does not enable
 runtime activation or claim a linkable RBF. Existing linker layout admission
@@ -2314,35 +2314,42 @@ production shell audio connection and measured analog fidelity remain open.
 
 ### Graphics compatibility
 
-CGA is an ISA expansion card under `cores/fes-pcxt/expansions`, using the
-registered ISA endpoint and commit handshake. The card owns VRAM, the
-`B8000–BFFFF` aperture with adapter mirrors, `3D0–3DF` register decode and raster
-state. Its video egress feeds a separate video service. The motherboard routes
-accesses through ISA; it does not contain CGA register shortcuts. Physical
-socket containment and video egress remain to be qualified.
+CGA and MDA are separate implemented ISA display cards under
+`cores/fes-pcxt/expansions`, using the registered endpoint and commit handshake.
+Each owns VRAM, register decode and a shared original MC6845 timing/address
+subset. The motherboard routes accesses through ISA with no graphics shortcuts.
+The display fixture assigns CGA to logical slot 2 and MDA to slot 3, testing
+coexistence; physical socket containment remains unqualified.
 
-CGA is the first playable configuration: text modes, 320×200 four-colour and
-640×200 monochrome graphics, character ROM, palette/mode registers, border,
-6845 programming, cursor, start address and status-port polling. The renderer
-reads live adapter memory according to guest raster timing; it must not
-reconstruct frames using BIOS calls. Preserve interleaved graphics addressing,
-text blink, mid-frame register changes and retrace visibility. CGA memory
-contention and snow need explicit modeling and qualification. Composite
-artifact colours require a separate NTSC decoder and reference captures;
-initial RGB output alone does not qualify composite-colour games.
+CGA owns the `B8000–BFFFF` aperture with 16 KiB mirrors and ten-bit `3D0–3DF`
+I/O decode. It supports 40/80-column text, 320×200 four-colour and 640×200 one-bit
+RGBI graphics, interleaved banks, palette/intensity, border, blink, cursor,
+start address, status polling and light-pen latching. MDA owns `B0000–B7FFF`
+with 4 KiB mirrors and `3B0–3BF` decode: 80×25 text with 9×14 cells, monochrome
+attributes/underline, ninth-column continuation, blink, cursor and raster status.
+Its printer interface is not implemented. Neither card generates IRQ/DRQ.
+Both use a separately supplied normalized font ROM; no IBM glyph ROM is bundled.
+See the [core README](../cores/fes-pcxt/README.md#isa-display-cards) for the exact
+ports, font layout, primary references and simulation coverage.
 
-MDA is a separately selected adapter with 80×25 text, its character cell,
-attributes, cursor, address decode and raster/status behavior. It does not
-provide CGA graphics or Hercules graphics. Permit CGA plus MDA only after
-resource and decode coexistence tests pass. A later EGA card requires planar
-VRAM, latches, write modes, sequencer, graphics/attribute controllers and its
-own BIOS; an 8088 CPU alone does not imply EGA game compatibility.
+At 100 MHz the independent guest streams use fractional master-dot enables:
+14.318180 MHz CGA and 16.257 MHz MDA. With standard IBM register values the
+complete rasters are 912×262 and 882×370; active regions are 640×200 (low-res
+pixels repeated) and 720×350. RGBI, DE, active-high HS/VS, SOF/EOL are sampled
+with each pixel enable, including blanking. Live palette/VRAM/register accesses
+change the running raster without BIOS interception or frame reconstruction.
+This is development egress, not a newly registered shared fabric or a physical
+video socket. Non-interlaced IBM CRTC programming is supported; interlace is
+flagged. Original contention/wait-state timing, CGA snow and composite artifact
+colours need separate modeling and qualification. MDA supplies no Hercules
+graphics. A later EGA card requires planar VRAM, latches, write modes,
+sequencer, graphics/attribute controllers and its own BIOS.
 
 Guest raster generation remains independent of 720p60 HDMI. Use complete-frame
 publication across clock domains, preserve aspect ratio, and repeat/drop whole
 frames for cadence conversion. Do not force CGA/MDA register timing to 60 Hz.
 The current Coleco native socket's fixed geometry is not a PC video socket.
-Use an inline Direct output initially; qualify a versioned wider native-video
+A production inline Direct output remains to be implemented; qualify a versioned wider native-video
 contract and exact-shell parts separately. Budget framebuffer storage in SDRAM
 before routing; a double-buffered 640×400 indexed4 surface alone needs 256,000
 bytes, in addition to guest RAM and adapter VRAM.
