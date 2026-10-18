@@ -45,9 +45,14 @@ target read, including `core-capture --target-url` and the update curls
 below. An older note that names only kit A, or that says a person must be
 present, does not apply. Follow the capture and login details in
 `sources/FogCast/docs/DEVELOPMENT.md`. Never deploy to an unknown device.
-The planner compares base image commit to the full PR head with
-`--no-renames`; `FULL_IMAGE` means stop and build a full image. A full image
-swap or reimage still needs Deano's explicit OK.
+`classify` decides from the pull request's own diff. It takes the merge
+base of `origin/main` (or local `main`, when that ref is not `--head`) and
+`--head`, then diffs that base through `--head` with `--no-renames`.
+Commits between `--base-image-commit` and the pull-request base are a
+warning. They do not change the decision. `--strict` classifies the image
+commit through `--head`, which is the previous behaviour. `FULL_IMAGE`
+means stop and build a full image. A full image swap or reimage still
+needs Deano's explicit OK.
 
 Kit file changes go through the [kit runtime manifest](kit-manifest.md):
 `python3 scripts/fes kit claim`, `swap`, and `restore`. Do not copy binaries,
@@ -66,7 +71,7 @@ required; follow the one-time adoption procedure in kit sharing.
 
 1. Authorize the designated kit and prepare a clean worktree at the exact full PR head. Build the affected binaries and cores from that head.
 2. For every SSH/SCP call create a throwaway known_hosts file and use `StrictHostKeyChecking=accept-new` (never `/dev/null`, the real known_hosts, or `StrictHostKeyChecking=no`).
-3. Classify against the commit that built the running image. Stop if the decision is `FULL_IMAGE`.
+3. Classify the pull request. Stop if the decision is `FULL_IMAGE`. An image-gap warning names commits the booted image has not caught up with; that warning alone does not require a full image. `--strict` folds that gap back into the decision.
 4. Create a component-scoped manifest. Kit binary destinations must be `/usr/sbin/{mister-runtime,mister-agent,fogcast-kit,fogcast-tenfoot}`; host/core development artifacts use absolute host paths.
 
 ```sh
