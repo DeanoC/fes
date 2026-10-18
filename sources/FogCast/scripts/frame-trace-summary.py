@@ -26,7 +26,11 @@ Stages:
 Input-to-picture latency is measured from each input record to the first
 present that reached the screen and was queued at or after it.
 
-Usage: frame-trace-summary.py TRACE.jsonl [--json]
+Every dump holds the whole ring, so consecutive dumps overlap. --after
+PREVIOUS.jsonl keeps only records newer than the last record in PREVIOUS,
+which isolates the interaction between two dumps.
+
+Usage: frame-trace-summary.py TRACE.jsonl [--after PREVIOUS.jsonl] [--json]
 """
 
 import argparse
@@ -42,6 +46,12 @@ STAGES = ["lua", "tick_other", "snapshot", "raster", "frame_copy", "queue", "sta
 def load(path):
     with open(path, encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]
+
+
+def after(records, previous):
+    """Records newer than the last record of an earlier dump of the same ring."""
+    cutoff = max((record.get("t_us", 0) for record in previous), default=0)
+    return [record for record in records if record.get("t_us", 0) > cutoff]
 
 
 def _latest_presents(records):
@@ -195,9 +205,13 @@ def render(summary):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("trace")
+    parser.add_argument("--after", metavar="PREVIOUS", help="keep only records newer than the earlier dump PREVIOUS")
     parser.add_argument("--json", action="store_true", help="print the summary as JSON")
     args = parser.parse_args(argv)
-    summary = summarise(load(args.trace))
+    records = load(args.trace)
+    if args.after:
+        records = after(records, load(args.after))
+    summary = summarise(records)
     print(json.dumps(summary, indent=2) if args.json else render(summary))
     return 0
 

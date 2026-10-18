@@ -41,7 +41,12 @@ From `sources/FogCast`, on the development host:
 ```sh
 python3 scripts/frame-trace-summary.py trace.jsonl          # table
 python3 scripts/frame-trace-summary.py trace.jsonl --json   # machine-readable
+python3 scripts/frame-trace-summary.py dump-2.jsonl --after dump-1.jsonl
 ```
+
+Each dump holds the whole ring, so a later dump repeats the frames of the
+earlier ones. `--after` keeps only the records newer than the last record of an
+earlier dump of the same process, which isolates what happened between them.
 
 It joins each tick that queued a frame with that frame's present and reports
 p50/p95/max and the mean share per stage. The stages are `lua`, `tick_other`,
@@ -75,7 +80,13 @@ image or boot file.
 
    Send `SIGUSR1` after each. Every signal writes a new file, and the
    process prints its path; the name includes the dump time.
-4. Copy the `fogcast-frame-trace-*.jsonl` files off the kit and run the summary on each.
+
+   Each dump is about 2.5 MB, and `/tmp` on the kit is tmpfs, so dumps use
+   kit RAM. Copy each file off the kit and delete it before the next
+   interaction.
+4. Summarise each interaction with `--after` the previous dump, for example
+   `frame-trace-summary.py home-shelf.jsonl --after startup.jsonl`. Without
+   `--after`, a summary covers every frame still in the ring.
 5. Re-activate the previous bundle.
 
 ## Reading the result
