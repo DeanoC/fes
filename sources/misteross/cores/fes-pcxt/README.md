@@ -214,7 +214,12 @@ firmware map is claimed.
 fabric input capture clock, inverted DDR SDRAM clock pin, bidirectional SDRAM
 pads, a separate 74.25 MHz fractional pixel PLL and HDMI RGB/sync. Loss of either
 PLL lock asserts both domain resets; each domain releases through two registers.
-The retained `altddio_out` is mapped by the locked nextpnr native output packer.
+The retained `altddio_out` is passed to the locked nextpnr native output packer.
+The diagnostic synthesis applies `synth/rom_clock_map.v` after RAM inference:
+it connects a constant/undefined unused ROM write clock to the registered read
+clock only when writes are provably disabled. This supplies the native packer
+with a real clock without changing INIT, registered read latency or writable RAM.
+Pinned CPU/vendor sources remain unchanged.
 HDMI transmitter I2C uses the existing HPS peripheral bridge. This autonomous
 power-on diagnostic has no runtime ABI, host session control or audio pins.
 
@@ -240,7 +245,8 @@ qualification. There is no automatic Quartus fallback or kit programming.
 No factory package selection or shared contract changes are made.
 
 Both system suites run in the default simulation family. They check interrupted
-cold loading, a pause near the end of loading, reset release, both real DMA
+cold loading, a pause near the end of loading, reset during an issued CPU
+SDRAM read, reset release, both real DMA
 directions, guest and physical refresh, two complete boots without firmware
 reload, HOLD/mute and every pixel of two 720p output frames after capture settles.
 CGA uses Direct and MDA uses Scanlines; each runs DQM delays 0/1/2. Existing

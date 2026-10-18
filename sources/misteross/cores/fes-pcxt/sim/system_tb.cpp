@@ -68,6 +68,15 @@ int main(int argc,char**argv) {
     d.load_enable=1;wait=0;
     while(!d.firmware_loaded && wait++<100000)step();
     require(d.firmware_loaded && d.initialized,"full firmware completion",cycles);
+    // Cancel a real issued CPU SDRAM read, rather than resetting only at HLT.
+    // The physical read drains while the motherboard/CPU cancel their request.
+    wait=0;
+    while(!(!d.sdram_ncs && d.sdram_nras && !d.sdram_ncas && d.sdram_nwe) && wait++<10000)step();
+    require(wait<10000,"CPU read before warm reset",cycles);
+    d.warm_reset=1;
+    for(unsigned i=0;i<32;++i)step();
+    require(d.firmware_loaded && d.initialized,"warm reset lost firmware/storage",cycles);
+    d.warm_reset=0;
     const auto modes=ram.mode_sets, writes=ram.writes;
     size_t seen=ram.ram_writes.size();
     for(unsigned boot=0;boot<2;++boot) {
