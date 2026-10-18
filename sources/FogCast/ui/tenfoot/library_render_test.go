@@ -250,7 +250,10 @@ func TestLibraryCellTagsNameEachBlock(t *testing.T) {
 
 // libraryHomeApp runs a home room that counts on_resume and offers the
 // Library, over a fixture host.
-func libraryHomeApp(t *testing.T) *App {
+// libraryHomeApp starts a Library Home. paired pairs the client before
+// Start; the host serves no paired lease, so the poller reports the kit
+// lease as unavailable.
+func libraryHomeApp(t *testing.T, paired ...bool) *App {
 	t.Helper()
 	h := newRoomHost(t)
 	pack := testRoomPack(t, "lib-home", `
@@ -262,7 +265,9 @@ function draw()
   destination.set{ kind = "library", label = "Library" }
 end
 `)
-	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	client := NewClient(h.server.URL, h.server.Client())
+	client.paired = len(paired) > 0 && paired[0]
+	app := NewApp(client, 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), t.TempDir())
 	app.SetHomeRooms(true)
@@ -311,10 +316,9 @@ func TestBlockedLibraryConfirmDoesNotFailTheResumedHome(t *testing.T) {
 	})
 
 	t.Run("home key", func(t *testing.T) {
-		app := libraryHomeApp(t)
+		app := libraryHomeApp(t, true)
 		block(app)
 		app.mu.Lock()
-		app.client.paired = true
 		ready := availableGame("pong", "FES Pong", "pong")
 		app.games = []hostclient.Game{ready}
 		app.grid.SetCount(1)
@@ -365,7 +369,7 @@ func TestLibraryBackResumesHomeOnce(t *testing.T) {
 }
 
 func TestDetailsClassifyTheChosenEditionAndPairedLease(t *testing.T) {
-	app := libraryHomeApp(t)
+	app := libraryHomeApp(t, true)
 	blocked := availableGame("snes-mario-jp", "Super Mario World (JP)", "snes")
 	blocked.Launchable = false
 	app.mu.Lock()
@@ -374,7 +378,6 @@ func TestDetailsClassifyTheChosenEditionAndPairedLease(t *testing.T) {
 	app.roomDetail = hostclient.Game{}
 	host := availableGame("emu-pong", "Pong", "pong")
 	host.Execution = hostclient.ExecutionHostOnly
-	app.client.paired = true
 	app.kitLeaseHave = true
 	app.kitLease = KitLeaseStatus{State: "held", Owner: "another-shell", Purpose: "playing"}
 	leased := app.gamePlayDestinationLocked(host)
@@ -616,12 +619,11 @@ func TestLibraryBackHintFitsAt1024(t *testing.T) {
 }
 
 func TestLibraryHeaderListAndDetailsShareOneClassifier(t *testing.T) {
-	app := libraryHomeApp(t)
+	app := libraryHomeApp(t, true)
 	app.HandleCommand(CmdSelect, time.Now())
 	snap := waitFor(t, app, "library", func(s Snapshot) bool { return !s.Room.Open && len(s.Games) > 0 })
 	focus := snap.Games[snap.Grid.Focus]
 	app.mu.Lock()
-	app.client.paired = true
 	app.kitLeaseHave = true
 	app.kitLease = KitLeaseStatus{Unavailable: true}
 	app.mu.Unlock()
@@ -654,11 +656,10 @@ func TestReadyDetailsSaysWhereAPairedLaunchPlays(t *testing.T) {
 // One Back from the Library resumes Home even while the kit's status is
 // unknown; only a second Back at the Home root opens the Home picker.
 func TestOneBackFromTheLibraryNeverOpensTheHomePicker(t *testing.T) {
-	app := libraryHomeApp(t)
+	app := libraryHomeApp(t, true)
 	app.HandleCommand(CmdSelect, time.Now())
 	waitFor(t, app, "library", func(s Snapshot) bool { return !s.Room.Open && len(s.Games) > 0 })
 	app.mu.Lock()
-	app.client.paired = true
 	app.kitLeaseHave = true
 	app.kitLease = KitLeaseStatus{Unavailable: true}
 	app.mu.Unlock()

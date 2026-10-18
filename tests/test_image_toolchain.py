@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
+import tomllib
 import unittest
 from unittest import mock
 
@@ -23,15 +24,18 @@ class ToolchainCacheTest(unittest.TestCase):
                      "buildroot/configs/fogcast_toolchain_only_defconfig",
                      "buildroot/configs/fogcast_target_native_dev_defconfig",
                      "build/target-image.sources.lock.toml",
-                     "build/target-image-container-packages.sha256"):
+                     "build/target-image-container-packages.sha256",
+                     *cache.BUILDER_CONTEXT):
             destination = self.image / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(ROOT / "image" / name, destination)
 
-    def test_key_uses_all_four_inputs(self):
+    def test_key_uses_toolchain_and_builder_inputs(self):
         original = cache.key(self.image)
         for name, replacement in ((cache.FRAGMENT, b"\n# changed options\n"),
-                                  ("build/target-image-container-packages.sha256", b"changed lock\n")):
+                                  ("build/target-image-container-packages.sha256", b"changed lock\n"),
+                                  ("containers/target-image/Dockerfile", b"\n# changed builder\n"),
+                                  ("containers/target-image/create-builder-user.sh", b"\n# changed user\n")):
             path = self.image / name
             old = path.read_bytes()
             path.write_bytes(old + replacement)
@@ -42,6 +46,15 @@ class ToolchainCacheTest(unittest.TestCase):
         lock.write_text(old.replace("004a792dcf10e6c474070c9571f7504411e786cc", "0" * 40))
         self.assertNotEqual(cache.key(self.image), original)
         lock.write_text(old)
+        container = tomllib.loads(old)["container"]
+        for field in cache.CONTAINER_FIELDS:
+            with self.subTest(field=field):
+                value = container[field]
+                self.assertEqual(old.count(f"'{value}'"), 1)
+                lock.write_text(old.replace(f"'{value}'", f"'{value}-changed'"))
+                self.assertNotEqual(cache.key(self.image), original)
+                lock.write_text(old)
+        self.assertEqual(cache.key(self.image), original)
         self.assertNotEqual(cache.key(self.image, cache.EPOCH + 1), original)
 
     def test_validated_hit_and_corruption(self):

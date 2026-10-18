@@ -76,6 +76,9 @@ cp "$repo/buildroot/configs/fogcast_toolchain_only_defconfig" "$fixture/recipe/b
 cp "$repo/buildroot/configs/fogcast_target_native_dev_defconfig" "$fixture/recipe/buildroot/configs/"
 cp "$repo/build/target-image.sources.lock.toml" "$fixture/recipe/build/"
 cp "$repo/build/target-image-container-packages.sha256" "$fixture/recipe/build/"
+mkdir -p "$fixture/recipe/containers/target-image"
+cp "$repo/containers/target-image/Dockerfile" "$repo/containers/target-image/create-builder-user.sh" \
+  "$fixture/recipe/containers/target-image/"
 cat > "$fixture/fake-toolchain" <<'TOOLCHAIN'
 #!/bin/sh
 set -eu

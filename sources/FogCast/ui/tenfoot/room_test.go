@@ -84,6 +84,8 @@ type roomHost struct {
 	prefs        map[string]hostclient.EditionPreference
 	uiPosts      []UIEvent
 	pairedLease  bool
+	// pairedLeaseBody is the paired kit-lease reply; empty means free.
+	pairedLeaseBody string
 	// inputs counts pad posts that must stay on the kit socket.
 	inputs int
 }
@@ -96,7 +98,11 @@ func newRoomHost(t *testing.T) *roomHost {
 	h.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/launcher/kit-lease" && h.pairedLease:
-			_, _ = io.WriteString(w, `{"state":"free"}`)
+			body := h.pairedLeaseBody
+			if body == "" {
+				body = `{"state":"free"}`
+			}
+			_, _ = io.WriteString(w, body)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/games":
 			if r.URL.Query().Get("collection") == "recents" {
 				h.mu.Lock()
