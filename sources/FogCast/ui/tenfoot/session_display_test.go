@@ -735,3 +735,71 @@ func waitSessionMenuFrame(t *testing.T, display *gfx.MenuDisplay) {
 		time.Sleep(time.Millisecond)
 	}
 }
+
+// #767: a host-side stop that lands while the room is returning to play drops
+// that return, and must not leave its "Returning to play…" copy behind.
+func TestKitHostStopClearsReturningToPlay(t *testing.T) {
+	prior := kitDisplaySession()
+	returning, gate := make(chan struct{}), make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/session/display" {
+			http.NotFound(w, r)
+			return
+		}
+		var req struct {
+			Visible bool `json:"visible"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		if !req.Visible {
+			close(returning)
+			<-gate
+		}
+		writeKitDisplaySession(w, prior)
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.HandleCommand(CmdHome, time.Now())
+	waitFor(t, app, "kit HDMI room", func(s Snapshot) bool { return s.Room.DuringPlay && !s.GPUParked })
+	app.HandleCommand(CmdBack, time.Now())
+	<-returning
+	if s := app.Snapshot().Status; s != sessionDisplayReturningStatus {
+		t.Fatalf("status during return = %q", s)
+	}
+	app.mu.Lock()
+	done := app.sessionDisplayWait
+	app.applySessionLocked(hostclient.SessionResult{State: "idle"}) // Stopped from the host.
+	app.mu.Unlock()
+	close(gate)
+	<-done
+	snap := app.Snapshot()
+	if snap.Status == sessionDisplayReturningStatus || snap.Session.State != "idle" || snap.Room.DuringPlay || snap.GPUParked {
+		t.Fatalf("host stop left stale return: status=%q state=%q room=%v parked=%v", snap.Status, snap.Session.State, snap.Room.DuringPlay, snap.GPUParked)
+	}
+}
+
+// A completed return clears its copy, so a later host-side stop shows idle.
+func TestKitReturnToPlayClearsStatus(t *testing.T) {
+	prior := kitDisplaySession()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/session/display" {
+			http.NotFound(w, r)
+			return
+		}
+		writeKitDisplaySession(w, prior)
+	}))
+	t.Cleanup(server.Close)
+	app, _ := kitDisplayApp(t, server)
+	app.HandleCommand(CmdHome, time.Now())
+	waitFor(t, app, "kit HDMI room", func(s Snapshot) bool { return s.Room.DuringPlay && !s.GPUParked })
+	app.HandleCommand(CmdBack, time.Now())
+	waitFor(t, app, "return to play", func(s Snapshot) bool { return !s.Room.DuringPlay && s.GPUParked && app.ForwardsPlayHID() })
+	if s := app.Snapshot().Status; s == sessionDisplayReturningStatus {
+		t.Fatal("completed return kept its transition copy")
+	}
+	app.mu.Lock()
+	app.applySessionLocked(hostclient.SessionResult{State: "idle"})
+	app.mu.Unlock()
+	if s := app.Snapshot().Status; s == sessionDisplayReturningStatus || s == playingHardwareRoomStatus {
+		t.Fatalf("host stop left play copy %q", s)
+	}
+}
