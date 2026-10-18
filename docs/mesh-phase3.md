@@ -5,7 +5,15 @@
 `SetMeshPlacementAsk` and the display preference setter were called
 only from tests, so the sofa never placed. Slice 8 wires placement
 into the host behind `[mesh] placement`, default off. The Slice 6 kit
-HIL waits on Slice 8 and on Deano. On 2026-09-27 Deano locked
+HIL waits on Slice 8. Agents may run it on kit A or B without Deano
+present. Claim the kit in Powerboat `~/kit-status/kitA-STATUS.md` or
+`~/kit-status/kitB-STATUS.md`. If the HIL changes kit software, install
+the PR bundle on the running image; after use, activate and verify the
+baseline bundle named in the status file. A core-only HIL that leaves
+the bundle unchanged does not install one. Log the result and release
+the kit. Reimaging a kit, changing a kit image or boot config,
+killing other agents' processes, and closing PRs need Deano's OK via
+Bob ([kit sharing](kit-sharing.md)). On 2026-09-27 Deano locked
 Decision 7, the placement order, and set the tie-breaks: when several
 kits or several `native_emu` nodes remain, the first candidate wins
 for now. Slice 7 applies them and lands with Slice 8. This brief is
@@ -92,7 +100,15 @@ Owners are component strawmen. Agree files before parallel edits
 
 Slices 1–5 do not touch the kit. Slice 6 does. Slice 8 reads each
 configured kit's node document and does not mutate a kit. Caster reviews that
-boundary, and the kit HIL needs Deano present. Slice 7 applies the
+boundary. Agents may run the kit HIL on kit A or B without Deano
+present. Claim the kit in Powerboat `~/kit-status/kitA-STATUS.md` or
+`~/kit-status/kitB-STATUS.md`. If the HIL changes kit software, install
+the PR bundle on the running image; after use, activate and verify the
+baseline bundle named in the status file. A core-only HIL that leaves
+the bundle unchanged does not install one. Log the result and release
+the kit. Reimaging a kit, changing a kit image or boot config,
+killing other agents' processes, and closing PRs need Deano's OK via
+Bob ([kit sharing](kit-sharing.md)). Slice 7 applies the
 `native_emu` tie-break Deano set on 2026-09-27.
 
 ---
@@ -258,8 +274,15 @@ does not change the default. Picture stays on that kit's HDMI. The
 pad that plays is that kit's local pad. A remote pad toward that HDMI
 is Phase 4.
 
-**Kit HIL, Deano present.** Do not start it from an unattended agent.
-Follow [kit sharing](kit-sharing.md) and the designated kit in the
+**Kit HIL.** Agents may run it on kit A or B without Deano present.
+Claim the kit in Powerboat `~/kit-status/kitA-STATUS.md` or
+`~/kit-status/kitB-STATUS.md`. If the HIL changes kit software, install
+the PR bundle on the running image; after use, activate and verify the
+baseline bundle named in the status file. A core-only HIL that leaves
+the bundle unchanged does not install one. Log the result and release
+the kit. Reimaging a kit, changing a kit image or boot config,
+killing other agents' processes, and closing PRs need Deano's OK via
+Bob. Follow [kit sharing](kit-sharing.md) and the designated kit in the
 selected FogCast `docs/DEVELOPMENT.md`. Release the lease when the
 check ends. The HIL needs Slice 8: before it, nothing in production
 asked for placement. Set `[mesh] placement = true` on the host under
@@ -308,7 +331,15 @@ than the bound executor is not applied. The protocol strawman's
 `native_emu` mesh claim, for the phase that places native play,
 remains a later slice. It is not a second kit lease and it is not
 Phase 5 host-as-Execute. If a chosen node is a kit, that follow-up
-needs Caster and a kit HIL with Deano present.
+needs Caster and a kit HIL. Agents may run that HIL on kit A or B
+without Deano present. Claim the kit in Powerboat
+`~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. If the
+HIL changes kit software, install the PR bundle on the running image;
+after use, activate and verify the baseline bundle named in the status
+file. A core-only HIL that leaves the bundle unchanged does not install
+one. Log the result and release the kit. Reimaging a kit, changing a
+kit image or boot config, killing other agents' processes, and closing
+PRs need Deano's OK via Bob ([kit sharing](kit-sharing.md)).
 
 **Does not:** rank native nodes by display facts. Add a native execute
 claim. Apply a native selection of another node. Prefer the selected

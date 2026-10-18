@@ -10,9 +10,7 @@ Outside agent sessions have ignored these rules. Obey them.
    `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
    log is the single source of truth. NEVER take a kit that is leased or
    claimed by someone else. NEVER use a Slack reservation, and NEVER
-   require a person to be present. GPU jobs on Powerboat go through the
-   `gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows
-   the holders.
+   require a person to be present.
 2. Kits A and B are both designated test kits. They are interchangeable.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
@@ -35,6 +33,8 @@ Outside agent sessions have ignored these rules. Obey them.
 8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
    `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
 
+GPU jobs follow the [Shared GPUs](../AGENTS.md#shared-gpus) section.
+
 ## Development host protocol
 
 Keep the operator-selected shared host and its autostart setting unchanged.
@@ -53,10 +53,10 @@ cleanup.
 
 Claim the kit in its Powerboat status file before use and log the result
 there when you finish. There is no separate Powerboat host claim. That
-file is the single source of truth. GPU jobs on Powerboat go through the
-`gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows the
-holders. Do not open a Slack reservation, and do not require a person to be
-present. The target lease remains the execution lock for ordinary use:
+file is the single source of truth. GPU jobs follow the
+[Shared GPUs](../AGENTS.md#shared-gpus) section. Do not open a Slack
+reservation, and do not require a person to be present. The target lease
+remains the execution lock for ordinary use:
 loading a core, supplying media/input, collecting diagnostics and stopping
 the session. It does not replace the status-file claim.
 
