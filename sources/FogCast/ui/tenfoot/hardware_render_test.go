@@ -27,6 +27,29 @@ func (s hardwareRenderServices) Hardware(context.Context) (hostclient.HardwareSn
 
 type hardwareMissingArtwork struct{ fs.FS }
 
+func assertWorkshopLabelFits(t *testing.T, f rooms.Frame, shown string, extras ...string) {
+	t.Helper()
+	var op rooms.Op
+	var found bool
+	for _, candidate := range f.Ops {
+		if candidate.Kind == rooms.OpText && candidate.Text == shown {
+			op = candidate
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("missing %q", shown)
+	}
+	for _, label := range append([]string{shown}, extras...) {
+		for _, weight := range []gfx.Weight{gfx.WeightRegular, gfx.WeightBold} {
+			if width := gfx.MeasureTextWeight(label, op.Size, weight); width > op.MaxW {
+				t.Fatalf("%q size %d is %dpx, button max %d", label, op.Size, width, op.MaxW)
+			}
+		}
+	}
+}
+
 func (f hardwareMissingArtwork) Open(name string) (fs.File, error) {
 	if strings.HasPrefix(name, "assets/") {
 		return nil, fs.ErrNotExist
@@ -65,7 +88,7 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 		Session: &hostclient.SessionResult{State: "idle"},
 	}
 	for _, size := range []struct{ w, h int }{{1280, 720}, {1024, 600}} {
-		for _, scene := range []string{"idle", "running", "no-artwork"} {
+		for _, scene := range []string{"idle", "running", "no-artwork", "preview"} {
 			t.Run(fmt.Sprintf("%s-%dx%d", scene, size.w, size.h), func(t *testing.T) {
 				data := snapshot
 				selectedPack := pack
@@ -99,12 +122,19 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 					if s.Room.Err != "" {
 						t.Fatalf("room failed: %s", s.Room.Err)
 					}
+					var shelf, tools bool
 					for _, op := range s.Room.Frame.Ops {
-						if op.Kind == rooms.OpText && op.Text == "16K RAM pack" {
-							return true
+						if op.Kind != rooms.OpText {
+							continue
+						}
+						if op.Text == "16K RAM pack" {
+							shelf = true
+						}
+						if op.Text == "Import expansion" {
+							tools = true
 						}
 					}
-					return false
+					return shelf && tools
 				})
 				// Async image load is independent of the host read. Give its result
 				// a frame to arrive, while the no-artwork case proves the fallback.
@@ -115,7 +145,35 @@ func TestHardwareRoomNativeRender(t *testing.T) {
 						app.Tick(time.Now())
 					}
 				}
+				if scene == "preview" {
+					// Inspect an unsaved card. The saved card stays marked
+					// while the outlined preview appears beside it.
+					app.mu.Lock()
+					inst.Hover("card:2")
+					inst.Input("select")
+					app.mu.Unlock()
+					waitFor(t, app, "preview", func(s Snapshot) bool {
+						var saved, preview, caption bool
+						for _, op := range s.Room.Frame.Ops {
+							if op.Kind != rooms.OpText {
+								continue
+							}
+							switch op.Text {
+							case "Next start":
+								saved = true
+							case "Preview":
+								preview = true
+							}
+							if strings.Contains(op.Text, "(not saved)") {
+								caption = true
+							}
+						}
+						return saved && preview && caption
+					})
+				}
 				snap := app.Snapshot()
+				assertWorkshopLabelFits(t, snap.Room.Frame, "Import expansion")
+				assertWorkshopLabelFits(t, snap.Room.Frame, "Refresh", "Checking...")
 				for _, hit := range snap.Room.Frame.Hits {
 					if hit.X < 0 || hit.Y < 0 || hit.X+hit.W > float32(snap.Room.Width)+1 || hit.Y+hit.H > float32(snap.Room.Height)+1 {
 						t.Fatalf("control %q outside safe room area: %+v", hit.ID, hit)

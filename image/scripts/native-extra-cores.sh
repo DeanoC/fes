@@ -156,6 +156,56 @@ validate_package_set() {
         ;;
     esac
   done
+  if [ -n "${FES_UNAVAILABLE_CORES:-}" ]; then
+    case "$FES_UNAVAILABLE_CORES" in
+      /*) : ;;
+      *) echo 'native-extra-cores: unavailable cores manifest must be absolute' >&2; exit 2 ;;
+    esac
+    [ -f "$FES_UNAVAILABLE_CORES" ] && [ ! -L "$FES_UNAVAILABLE_CORES" ] || {
+      echo 'native-extra-cores: unavailable cores manifest is not a regular file' >&2
+      exit 2
+    }
+    unavailable_bytes=$(stat -c %s "$FES_UNAVAILABLE_CORES")
+    if [ "$unavailable_bytes" -lt 1 ] || [ "$unavailable_bytes" -gt 65536 ]; then
+      echo 'native-extra-cores: unavailable cores manifest must be 1 to 65536 bytes' >&2
+      exit 2
+    fi
+  fi
+}
+install_or_remove_unavailable() {
+  installed_manifest=$target/usr/share/mister-runtime/unavailable-cores.json
+  if [ -e "$installed_manifest" ] || [ -L "$installed_manifest" ]; then
+    [ -f "$installed_manifest" ] && [ ! -L "$installed_manifest" ] || {
+      echo 'native-extra-cores: installed unavailable cores manifest is not a regular file' >&2
+      exit 1
+    }
+    rm -f "$installed_manifest"
+  fi
+  if [ -n "${FES_UNAVAILABLE_CORES:-}" ]; then
+    install -D -m 0444 "$FES_UNAVAILABLE_CORES" "$installed_manifest"
+  fi
+}
+validate_unavailable_manifest() {
+  installed_manifest=$target/usr/share/mister-runtime/unavailable-cores.json
+  if [ -n "${FES_UNAVAILABLE_CORES:-}" ]; then
+    [ -f "$installed_manifest" ] && [ ! -L "$installed_manifest" ] || {
+      echo 'native-extra-cores: installed unavailable cores manifest is missing' >&2
+      exit 1
+    }
+    [ "$(stat -c %a "$installed_manifest")" = 444 ] || {
+      echo 'native-extra-cores: installed unavailable cores manifest is not sealed' >&2
+      exit 1
+    }
+    cmp -s "$FES_UNAVAILABLE_CORES" "$installed_manifest" || {
+      echo 'native-extra-cores: installed unavailable cores manifest differs' >&2
+      exit 1
+    }
+  else
+    [ ! -e "$installed_manifest" ] && [ ! -L "$installed_manifest" ] || {
+      echo 'native-extra-cores: unavailable cores manifest is present without FES_UNAVAILABLE_CORES' >&2
+      exit 1
+    }
+  fi
 }
 validate_package_set
 if [ -n "${FES_VIDEO_PARTS_DIR:-}" ]; then
@@ -389,6 +439,7 @@ validate_installed_package_set() {
         ;;
     esac
   done
+  validate_unavailable_manifest
 }
 clean_package_cache() {
   if [ -e "$package_cache" ] || [ -L "$package_cache" ]; then
@@ -508,6 +559,7 @@ if [ "$native_mode" = package-only ]; then
         install -D -m 0444 "$package_record" "$installed_record"
       done
       ramtest_notices install
+      install_or_remove_unavailable
       validate_installed_package_set
       video_parts install
       ;;
