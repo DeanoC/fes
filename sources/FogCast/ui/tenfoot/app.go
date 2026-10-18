@@ -462,6 +462,8 @@ type App struct {
 	// still Checking. It is shown, never queued, and clears once the
 	// destination is no longer Checking.
 	roomWaitAck bool
+	// frameTrace records frame timings on the kit display loop (nil elsewhere).
+	frameTrace *frameTrace
 	// roomCoreDetail is the package whose Details the hero is showing.
 	roomCoreDetail string
 	// libraryReturn is the suspended room the Library was opened from.
@@ -903,6 +905,7 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	}
 	a.mu.Lock()
 	defer a.mu.Unlock()
+	a.traceInputLocked(cmd, now)
 	a.noteActivityLocked(now)
 	if a.localCoreBusyLocked() {
 		return

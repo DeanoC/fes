@@ -43,6 +43,11 @@ Commit returns its own `menu_frame` generation, displayed sequence and
 underflow count. Those completion fields remain bound to this frame even if
 current status changes concurrently. Begin's displayed sequence is null.
 `underflows` is the per-present delta, not the cumulative hardware counter.
+Commit also returns `menu_frame.timing` with `copy_us` (converting and writing
+the frame into its DDR slot), `submit_us` (submitting the slot) and
+`scanout_wait_us` (waiting until scanout shows it). These are diagnostics for
+frame-time measurement; clients must not depend on them, and older runtimes
+omit them.
 A healthy present, including one whose counter was already nonzero before
 the copy, reports 0. A tolerated glitch reports the pixels missed during
 that present, at most one 720p scanline (1280). The counter increments once

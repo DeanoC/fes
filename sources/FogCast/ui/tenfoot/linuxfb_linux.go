@@ -6,9 +6,12 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -89,6 +92,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 	parked := false
 	frames := 0
 	var hold presentHold
+	trace := startFrameTrace(ctx, app, dev, label)
 	for {
 		select {
 		case <-ctx.Done():
@@ -104,8 +108,11 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 			if quit {
 				return nil
 			}
+			polled := time.Now()
 			app.Tick(now)
+			ticked := time.Now()
 			snap := app.Snapshot()
+			snapped := time.Now()
 			skip, pauseErr := hold.skip(ctx, dev, snap)
 			if pauseErr != nil {
 				app.completeLocalLaunchHandoff(pauseErr)
@@ -118,7 +125,9 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 				app.completeLocalLaunchHandoff(nil)
 			}
 			if !skip {
+				before := menuQueuedSeq(dev)
 				parked = presentFrame(painter, snap, textures, labels, parked)
+				trace.tick(now, polled, ticked, snapped, time.Now(), before, menuQueuedSeq(dev))
 			}
 			frames++
 			if opts.Smoke {
@@ -928,4 +937,67 @@ func (ins *nativeInputs) releaseLostPlayInput(app *App, lost *nativeInput) {
 			_ = feed.Send(event, time.Now())
 		}
 	}
+}
+
+func menuQueuedSeq(dev gfx.Device) uint64 {
+	if display, ok := dev.(*gfx.MenuDisplay); ok {
+		return display.QueuedSeq()
+	}
+	return 0
+}
+
+// kitFrameTrace times each display-loop iteration into the app's frame
+// trace and dumps the trace to /tmp on SIGUSR1.
+type kitFrameTrace struct {
+	app   *App
+	trace *frameTrace
+}
+
+func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string) *kitFrameTrace {
+	trace := newFrameTrace()
+	app.mu.Lock()
+	app.frameTrace = trace
+	app.mu.Unlock()
+	if display, ok := dev.(*gfx.MenuDisplay); ok {
+		display.SetTraceSink(trace.present)
+	}
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, syscall.SIGUSR1)
+	go func() {
+		defer signal.Stop(signals)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-signals:
+				path, err := trace.dump(os.Getenv("FOGCAST_FRAME_TRACE_DIR"))
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "%s: frame trace dump failed: %v\n", label, err)
+					continue
+				}
+				fmt.Fprintf(os.Stderr, "%s: frame trace written to %s\n", label, path)
+			}
+		}
+	}()
+	return &kitFrameTrace{app: app, trace: trace}
+}
+
+// tick records one rendered loop iteration. now is the tick time; the
+// other times bound the poll, Tick, Snapshot and render phases.
+func (k *kitFrameTrace) tick(now, polled, ticked, snapped, rendered time.Time, seqBefore, seqAfter uint64) {
+	if k == nil {
+		return
+	}
+	async, update, draw, step, view := k.app.roomStepTiming()
+	r := frameTraceRecord{
+		T: now.UnixMicro(), Kind: "tick",
+		PollUS: polled.Sub(now).Microseconds(), TickUS: ticked.Sub(polled).Microseconds(),
+		LuaAsyncUS: async.Microseconds(), LuaUpdateUS: update.Microseconds(), LuaDrawUS: draw.Microseconds(), LuaStepUS: step.Microseconds(),
+		SnapshotUS: snapped.Sub(ticked).Microseconds(), RenderUS: rendered.Sub(snapped).Microseconds(),
+		View: view,
+	}
+	if seqAfter != seqBefore {
+		r.Queued, r.Seq = true, seqAfter
+	}
+	k.trace.add(r)
 }

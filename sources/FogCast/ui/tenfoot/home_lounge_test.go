@@ -424,8 +424,17 @@ func TestHomeHeroButtonsDoWhatTheySayWithAPointer(t *testing.T) {
 func TestHomeSaysCheckingWhileAFailedLaunchReconciles(t *testing.T) {
 	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
 	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
+	// The launcher's startup status poll answers idle, which rightly clears
+	// a reconcile. Let it settle, and hold later polls, so the flag set here
+	// is the state under test.
+	waitFor(t, app, "startup status", func(Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return app.localStartupStatusChecked && !app.localStatusBusy
+	})
 	app.mu.Lock()
 	app.localReconcileAfterFailure = true
+	app.localStatusNext = time.Now().Add(time.Hour)
 	app.mu.Unlock()
 	snap := app.Snapshot()
 	if c := heroDestinationCopy(snap); c.State != heroStateChecking || c.Primary == "Play" || snap.Room.Destination.Confirm() != rooms.ConfirmWait {
