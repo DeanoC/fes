@@ -142,6 +142,25 @@ ln -sfn "$HOME/fes/scripts/gpu-status" "$HOME/bin/gpu-status"
 `gpu-run --help` lists the flags. Waiting is the default; `--no-wait` exits 75
 when the GPUs are not free.
 
+## Timing-failure playbook (P&R misses)
+
+This applies when a factory build, sweep, replay or nightly run misses timing on any core. Don't just reroll seeds.
+
+1. **Confirm the miss is real.** Replay the core's production recipe (seed, weight, critexp, every flag, env, timeout) on the same frozen `synth.json`, the same binary and the same physical GPU. If the old binary is in question, run a paired old/new replay as well. Note whether the GPU was contended.
+2. **Never relax a constraint.** Don't edit the SDC/QSF clocks, add `--timing-allow-fail` to a signoff, loosen a seal, or lower a required clock. If closing would need any of these, stop and report.
+3. **Work through the core's option matrix in order, within the budget:**
+   1. the production seed list at the production weight (what the producer does already)
+   2. timing weight variants {production, 300, 1000, 2000} × critexp {production, 2, 5}
+   3. known-helpful fork flags, one at a time, on the best two weight/critexp pairs: `--arrival-pin-assignment`, `--isolated-lut-placement`, then both
+   4. any core-specific entries listed in that core's recipe `playbook` table
+   - **Seeds:** use the production seed + 2 per combination, unless the recipe says otherwise.
+4. **Budget:** at most 6 GPU-hours per core per incident (ST: 10). Route everything through `gpu-run`, at most 2 GPUs per owner, FIFO, never preempting anyone else's job. Heavy sweeps go to the CUDA box only as pre-screens. The winning combination must be confirmed on HIP on Powerboat.
+5. **Record every run**: core, fes SHA, synth hash, toolchain slot, full argv, env, seed, GPU, contended or not, per-clock fmax, route time. Keep it in `docs/validation/<date>-<core>-timing-playbook/` as `runs.jsonl` plus a summary table.
+6. **If a combination closes** on at least 2 of 3 seeds, open a recipe-change PR that touches only that core's recipe. Include the run table and the before/after per-clock fmax. A recipe change follows the normal merge bar, including HIL for cores that ship in the image. A flag that helps one core is never made a global default.
+7. **If nothing closes within budget**, the core stays on its current pin and recipe. File or update the core's timing issue with the run table and stop. Don't keep sweeping without Deano's OK.
+
+Long term this matrix becomes an automatic, alphamister-style search over the same option space, with the same budget and recording rules.
+
 ## Finish with a handoff
 
 State scope, base and result commit (or uncommitted diff), tests and results,
