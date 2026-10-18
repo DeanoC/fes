@@ -121,6 +121,8 @@ Lander uses `--owner lander` and `GPU_LEASE_MAX_PER_OWNER=2`, so Lander holds
 at most 2 GPUs at once. Nobody kills a GPU job. Deano's Codex harness jobs
 are legitimate and must not be killed; they wait their turn like everyone else.
 
+nextpnr routing on HIP, CUDA and CPU gives bit-identical results. HIP references, pins, seed results and replays are valid on CUDA and vice versa. Never require a separate HIP run or discount CUDA evidence; use whichever GPU is free via gpu-run. Never set GPU_LEASE_IDS per job (it is a box inventory override).
+
 `scripts/gpu-run` holds one flock per GPU in the wrapper and runs the command
 as a child. That child does not inherit the lock, so the lease ends when the
 command exits even if it backgrounded other processes, and the kernel drops
@@ -147,7 +149,9 @@ when the GPUs are not free.
 
 This applies when a factory build, sweep, replay or nightly run misses timing on any core. Don't just reroll seeds.
 
-1. **Confirm the miss is real.** Replay the core's production recipe (seed, weight, critexp, every flag, env, timeout) on the same frozen `synth.json`, the same binary and the same physical GPU. If the old binary is in question, run a paired old/new replay as well. Note whether the GPU was contended.
+A job must never patch a shared script or repro directory in place; each job works on its own private copy.
+
+1. **Confirm the miss is real.** Replay the core's production recipe (seed, weight, critexp, every flag, env, timeout) on the same frozen `synth.json` and the same binary, using whichever GPU is free via `gpu-run`. If the old binary is in question, run a paired old/new replay as well. Record the GPU backend/device and whether it was contended.
 2. **Never relax a constraint.** Don't edit the SDC/QSF clocks, add `--timing-allow-fail` to a signoff, loosen a seal, or lower a required clock. If closing would need any of these, stop and report.
 3. **Work through the core's option matrix in order, within the budget:**
    1. the production seed list at the production weight (what the producer does already)
@@ -155,7 +159,7 @@ This applies when a factory build, sweep, replay or nightly run misses timing on
    3. known-helpful fork flags, one at a time, on the best two weight/critexp pairs: `--arrival-pin-assignment`, `--isolated-lut-placement`, then both
    4. any core-specific entries listed in that core's recipe `playbook` table
    - **Seeds:** use the production seed + 2 per combination, unless the recipe says otherwise.
-4. **Budget:** at most 6 GPU-hours per core per incident (ST: 10). Route everything through `gpu-run`, at most 2 GPUs per owner, FIFO, never preempting anyone else's job. Heavy sweeps go to the CUDA box only as pre-screens. The winning combination must be confirmed on HIP on Powerboat.
+4. **Budget:** at most 6 GPU-hours per core per incident (ST: 10). Route everything through `gpu-run`, at most 2 GPUs per owner, FIFO, never preempting anyone else's job. Heavy sweeps and confirmation can use whichever GPU is free; HIP, CUDA and CPU routing results are interchangeable.
 5. **Record every run**: core, fes SHA, synth hash, toolchain slot, full argv, env, seed, GPU, contended or not, per-clock fmax, route time. Keep it in `docs/validation/<date>-<core>-timing-playbook/` as `runs.jsonl` plus a summary table.
 6. **If a combination closes** on at least 2 of 3 seeds, treat it as a candidate, not promotion evidence. Before promotion, rerun the full production build with the proposed recipe and require fresh timing evidence from that build, with its embedded `BUILD_ID` reflecting the new recipe; a frozen-`synth.json` sweep alone is insufficient. Record this build in the campaign evidence. The recipe-change PR contains only that core's recipe change plus the campaign evidence files: `runs.jsonl` and the summary table under `docs/validation/<date>-<core>-timing-playbook/`. Include the run table and before/after per-clock fmax in the PR body as well. A recipe change follows the normal merge bar, including HIL for cores that ship in the image. A flag that helps one core is never made a global default.
 7. **If nothing closes within budget**, the core stays on its current pin and recipe. File or update the core's timing issue with the run table and stop. Don't keep sweeping without Deano's OK.
