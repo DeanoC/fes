@@ -11,13 +11,25 @@ int main(int argc,char**argv) {
     Sdram<Vsystem_top> ram(std::stoul(argv[1]));
     uint64_t cycles=0, pixels=0;
     unsigned pixel_phase=0, x=0, y=0, frames=0, effect_line=0, effects=0;
-    bool check_video=false, effect_known=false;
+    bool check_video=false, effect_known=false, cold_dma_checkpoint=false;
     std::deque<uint32_t> pipe;
     auto edge=[&](unsigned level) {
         d.clk=level; pixel_phase+=1485; bool rising=false;
         if(pixel_phase>=2000) {pixel_phase-=2000; d.clk_pixel=!d.clk_pixel; rising=d.clk_pixel;}
         d.eval();
         if(!rising || d.reset_pixel) return;
+        // Independently observe the DMA target and CPU source in physical
+        // SDRAM before permitting a cold-start picture. The final success
+        // marker separately verifies both card transfers/checks returned.
+        // Warm HOLD may repeat the preceding complete frame.
+        if (!cold_dma_checkpoint) {
+            bool target=true;
+            for(unsigned a=0x3000;a<0x3008;++a)
+                target &= ((ram.words[a/2]>>((a&1)*8))&255)==0x6d;
+            cold_dma_checkpoint=target && ram.words[0x2000]==0x3231 && ram.words[0x2001]==0x3433;
+        }
+        require(cold_dma_checkpoint || !(d.video_response & 0xffffff),
+                "cold-start picture before DMA SDRAM activity",cycles);
         uint32_t r=d.video_request;
         pipe.push_back(r);
         if(pipe.size()>2) {

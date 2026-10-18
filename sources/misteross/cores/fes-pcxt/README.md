@@ -211,7 +211,9 @@ refresh continue. The two video domains receive coordinated cold resets.
 `firmware/diagnostic.S` is assembled with GNU x86 `as`/`ld` at build time.
 It programs both display cards, checks VRAM mirrors, transfers eight bytes
 from ISA to SDRAM and four distinct bytes back to the same probe, and enables
-PIT1/DMA0 refresh. A RAM success marker is checked by simulation. Each font
+PIT1/DMA0 refresh before enabling either display. The cold-start pattern thus
+requires DMA success; warm HOLD may still repeat the previous complete frame
+until new capture, as described above. A RAM success marker is checked by simulation. Each font
 address supplies the original diagnostic glyph byte `81` (two vertical strokes),
 so no IBM ROM/font is bundled. The reusable system retains an explicit firmware
 byte port for a later user-selected loader; no production HPS loader or sealed

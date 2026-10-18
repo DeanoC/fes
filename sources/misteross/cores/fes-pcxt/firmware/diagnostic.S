@@ -11,6 +11,10 @@ _start:
     movw %ax,%ss
     movw $0x8000,%sp
     movw %ax,%ds
+    /* Keep both reset-blanked adapters disabled until real SDRAM/DMA checks
+     * pass. A failed or stalled cold boot must not display the success pattern. */
+    call storage_dma
+    xorb %al,%al
     movb $1,0x601
     movw $0x3d8,%dx
     outb %al,%dx
@@ -73,7 +77,6 @@ wait_hblank:
     inb %dx,%al
     testb $1,%al
     jz wait_hblank
-    call storage_dma
     movb $0xaa,0x600
 stop:
     hlt
