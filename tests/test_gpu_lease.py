@@ -315,6 +315,8 @@ class GpuLeaseTests(unittest.TestCase):
         help_text = self.run_tool(GPU_RUN, ['--help'])
         self.assertEqual(help_text.returncode, 0, help_text.stderr)
         self.assertIn('GPU_LEASE_MAX_PER_OWNER=2', help_text.stdout)
+        self.assertIn('not a per-job pin', help_text.stdout)
+        self.assertIn('outside the eligible sets', help_text.stdout)
         self.assertIn('--owner lander', help_text.stdout)
         self.assertEqual(self.run_tool(GPU_STATUS, ['--help']).returncode, 0)
 
@@ -337,10 +339,15 @@ class GpuLeaseTests(unittest.TestCase):
         self.assertEqual([item['owner'] for item in queued['queue']], ['a', 'b'])
         self.assertEqual(queued['queue'][0]['label'], 'first')
         self.assertEqual(queued['queue'][0]['gpus'], 1)
+        self.assertEqual(queued['queue'][0]['eligible_ids'], ['0'])
+        self.assertEqual(queued['queue'][0]['vendor_mask'], 'ROCR_VISIBLE_DEVICES')
+        self.assertEqual(queued['queue'][0]['owner_pid'], first.pid)
         self.assertGreaterEqual(queued['queue'][0]['age_seconds'], 0)
         text = self.status(env, json_output=False)
         self.assertIn('waiting 1  owner=a', text)
         self.assertIn('waiting 2  owner=b', text)
+        self.assertIn('eligible=0 mask=ROCR_VISIBLE_DEVICES', text)
+        self.assertIn('owner_pid=%s' % first.pid, text)
         os.kill(holder.pid, signal.SIGKILL)
         holder.wait(timeout=5)
         first_out, first_err = first.communicate(timeout=10)
@@ -350,6 +357,90 @@ class GpuLeaseTests(unittest.TestCase):
         self.assertEqual(log.read_text().splitlines(), ['A 0', 'B 0'])
         self.assertEqual(first_out, '')
         self.assertEqual(second_out, '')
+
+    def test_pinned_head_allows_disjoint_gpu_backfill_and_rewrites_mask(self):
+        pinned_env = self.env(GPU_LEASE_IDS='0')
+        holder = self.hold('--no-wait', '--owner', 'holder', env=pinned_env)
+        head_marker = self.root / 'pinned-head'
+        record = ('import os,sys; open(sys.argv[1],"w").write("|".join('
+                  '[os.environ.get(name, "-") for name in ("FES_GPU_IDS", '
+                  '"ROCR_VISIBLE_DEVICES", "HIP_VISIBLE_DEVICES", '
+                  '"CUDA_VISIBLE_DEVICES", "GPU_RUN_DEVICE")]))')
+        head = self.popen(['--wait', '--timeout', '8', '--owner', 'pinned-head', '--',
+                           sys.executable, '-c', record, str(head_marker)], env=pinned_env)
+        self.wait_for(lambda: any(item['pid'] == head.pid for item in self.status(pinned_env)['queue']))
+        queued = self.status(pinned_env)['queue'][0]
+        self.assertEqual(queued['eligible_ids'], ['0'])
+        self.assertEqual(queued['owner_pid'], head.pid)
+
+        later_env = self.env(GPU_LEASE_IDS='0,1', ROCR_VISIBLE_DEVICES='0', HIP_VISIBLE_DEVICES='0')
+        later_marker = self.root / 'disjoint-later'
+        later = self.popen(['--wait', '--timeout', '8', '--owner', 'later', '--',
+                            sys.executable, '-c', record, str(later_marker)], env=later_env)
+        self.wait_for(lambda: later_marker.exists())
+        later_out, later_err = later.communicate(timeout=8)
+        self.assertEqual(later.returncode, 0, later_err)
+        self.assertEqual(later_marker.read_text(), '1|1|-|-|0')
+        self.assertEqual(later_out, '')
+        self.assertIsNone(head.poll())
+        self.assertFalse(head_marker.exists())
+
+        os.kill(holder.pid, signal.SIGKILL)
+        holder.wait(timeout=5)
+        head_out, head_err = head.communicate(timeout=8)
+        self.assertEqual(head.returncode, 0, head_err)
+        self.assertEqual(head_marker.read_text(), '0|0|-|-|0')
+        self.assertEqual(head_out, '')
+
+    def test_dead_or_reused_pid_tickets_are_skipped(self):
+        gpu_lease.ensure_lease_dir(self.lease)
+        queue_dir = self.lease / 'queue'
+        reused_starttime = gpu_lease.process_starttime(os.getpid())
+        wrong_starttime = '0' if reused_starttime != '0' else '1'
+        base = {
+            'owner': 'stale',
+            'label': '',
+            'host': socket.gethostname(),
+            'gpus': 1,
+            'eligible_ids': ['0'],
+            'vendor': 'amd',
+            'vendor_mask': 'ROCR_VISIBLE_DEVICES',
+            'cap': None,
+            'enqueued': '2026-10-18T00:00:00Z',
+            'enqueued_unix': time.time(),
+            'command': ['/bin/true'],
+        }
+        for number, pid, starttime in ((1, 2147483647, '1'),
+                                       (2, os.getpid(), wrong_starttime)):
+            ticket = dict(base, ticket=number, pid=pid, starttime=starttime)
+            gpu_lease.write_atomic(queue_dir / ('%08d.json' % number), ticket)
+
+        completed = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'after-stale', '--', '/bin/true'])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(self.status()['queue'], [])
+
+    def test_owner_cap_applies_across_disjoint_inventory_overrides(self):
+        alice_gpu0 = self.env(GPU_LEASE_IDS='0', GPU_LEASE_MAX_PER_OWNER='1')
+        holder = self.hold('--no-wait', '--owner', 'alice', env=alice_gpu0)
+        alice_gpu1 = self.env(GPU_LEASE_IDS='1', GPU_LEASE_MAX_PER_OWNER='1')
+        waiting = self.popen(['--wait', '--timeout', '8', '--owner', 'alice', '--',
+                              sys.executable, '-c',
+                              'import os; print(os.environ["FES_GPU_IDS"])'], env=alice_gpu1)
+        self.wait_for(lambda: any(item['pid'] == waiting.pid for item in self.status(alice_gpu1)['queue']))
+
+        bob_gpu1 = self.env(GPU_LEASE_IDS='1')
+        bob = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'bob', '--',
+                                      sys.executable, '-c',
+                                      'import os; print(os.environ["FES_GPU_IDS"])'], env=bob_gpu1)
+        self.assertEqual(bob.returncode, 0, bob.stderr)
+        self.assertEqual(bob.stdout.strip(), '1')
+        self.assertTrue(any(item['pid'] == waiting.pid for item in self.status(alice_gpu1)['queue']))
+
+        os.kill(holder.pid, signal.SIGKILL)
+        holder.wait(timeout=5)
+        waiting_out, waiting_err = waiting.communicate(timeout=8)
+        self.assertEqual(waiting.returncode, 0, waiting_err)
+        self.assertEqual(waiting_out.strip(), '1')
 
     def test_no_wait_does_not_cut_ahead_of_a_waiter(self):
         self.hold('--no-wait', '--owner', 'holder')
