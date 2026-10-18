@@ -18,8 +18,10 @@ to compile and package the complete software release from committed sources.
 
 The producer is `sources/FogCast/cmd/fes-kit-bundle`. Its metadata declares the
 board, architecture, required base contract, interface versions and provenance.
-Its payload includes `bin/mister-agent`, `bin/mister-runtime`, `bin/fogcast-kit`,
-`bin/fogcast-tenfoot` and the required assets beneath `share/`. The pack command
+Its payload includes `bin/mister-agent`, `bin/mister-runtime`,
+`bin/fogcast-tenfoot` and the required assets beneath `share/`. It also carries
+the `bin/fogcast-kit` stub, which answers `--print-kit-ui` with `tenfoot` for
+bases whose supervisor still probes it. The pack command
 fills the closed file inventory with sizes, executable modes and SHA-256 digests.
 A deterministic tar retains `manifest.json` and those exact members. Release
 identity covers the complete canonical manifest, including its file digests.

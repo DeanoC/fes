@@ -953,7 +953,7 @@ PR reopens that table.
 - Replacing `/run/mister-runtime.sock` or the target agent HTTP API
 - Putting the library or credentials in discovery advertisements
 - Redesign of `LoadIdle()`, splash, attract, or `reboot_required`
-- A second catalog protocol for `fogcast-kit`
+- A second catalog protocol for the kit UI
 
 ## Open questions
 

@@ -65,7 +65,7 @@ legacy `/fogcast` layout.
 
 The tracked `sources/FogCast` module owns:
 
-- `cmd/mister-agent` and `cmd/fogcast-kit` (installed ARM binaries)
+- `cmd/mister-agent`, `cmd/fogcast-tenfoot` and the `cmd/fogcast-kit` stub (installed ARM binaries)
 - `cmd/target-image-lock` (extra-core selector / lock verifier)
 - public `appliance` schema/store module consumed by FES `platform/`
 

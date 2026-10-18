@@ -199,7 +199,7 @@ The Powerboat kit host (`192.168.10.202:8789`, `fogcast-api-sofa` plus
 `launcher-host.json`) uses the same private `config.toml`. Run that binary
 with `--headless` so the kit listener stays up without DISPLAY, DRM, or
 V4L2/FFmpeg preview. On Powerboat the API binds `127.0.0.1:8787` and the
-launcher binds `*:8789`. `fogcast-kit` reconnects to
+launcher binds `*:8789`. Kit tenfoot reconnects to
 `http://192.168.10.202:8789` with the existing `launcher.json` API URL.
 Enable LaunchBox metadata there with `[metadata] provider = "launchbox"` and
 an absolute archive path; see [kit launcher HOW_TO_RUN](kit-launcher.md#how_to_run-launchbox-covers-on-the-kit-host).

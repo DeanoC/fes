@@ -177,13 +177,12 @@ before the host attestation command is run.
      --out /tmp/core-capture.json
    ```
 
-   **Launcher binaries:** S60 runs either `fogcast-tenfoot` or `fogcast-kit` as
-   the supervised child (`/run/fogcast-kit.pid`), depending on `launcher.json`.
-   Evidence requires the child's running hash to match the overlaid binary. If
-   only `fogcast-kit` is planned, the kit must be running the `fogcast-kit` child
-   (not tenfoot). If both launchers are planned, the child must be the overlaid
-   tenfoot, and the `kit_ui` line from `kit-command` must show that the overlaid
-   `fogcast-kit` completed `--print-kit-ui` and selected `tenfoot`.
+   **Launcher binaries:** the supervised launcher child is always
+   `fogcast-tenfoot`. Evidence requires the child's running hash to match the
+   overlaid binary. `fogcast-kit` is a stub that only answers `--print-kit-ui`
+   with `tenfoot` for bases whose supervisor still probes it; when it is
+   overlaid, the `kit_ui` line from `kit-command` must show that it completed
+   `--print-kit-ui` and selected `tenfoot`.
 
 9. Save `python3 scripts/fes kit status` for each kit in the run and pass
    those files to evidence as repeated `--kit-status` arguments. Then generate
