@@ -29,7 +29,8 @@ class CatchProducerTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         repo = Path(temporary.name)
         root = repo / "sources/misteross"
-        for relative in ("scripts", "boards", "cores/fes-demo", "cores/fes-common", "cores/fes-pong"):
+        for relative in ("scripts", "boards", "cores/fes-demo", "cores/fes-catch",
+                         "cores/fes-common", "cores/fes-pong"):
             shutil.copytree(ROOT / relative, root / relative, ignore=shutil.ignore_patterns("__pycache__"))
         shutil.copy(ROOT / "toolchain.lock", root / "toolchain.lock")
         def git(*args):

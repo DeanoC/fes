@@ -9,6 +9,33 @@ import (
 	"testing"
 )
 
+func TestHardwareClientDecodesExpansionSelection(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		body    string
+		present bool
+		value   bool
+	}{
+		{"omitted", `{"machines":[]}`, false, false},
+		{"unsupported", `{"machines":[],"expansion_selection":false}`, true, false},
+		{"supported", `{"machines":[],"expansion_selection":true}`, true, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				io.WriteString(w, tc.body)
+			}))
+			defer server.Close()
+			view, err := NewClient(server.URL, server.Client()).Hardware(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tc.present != (view.ExpansionSelection != nil) || (view.ExpansionSelection != nil && *view.ExpansionSelection != tc.value) {
+				t.Fatalf("expansion_selection = %v", view.ExpansionSelection)
+			}
+		})
+	}
+}
+
 func TestHardwareClientRefusesMalformedSession(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, `{"machines":[],"session":{"state":"maybe"}}`)

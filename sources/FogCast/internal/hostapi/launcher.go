@@ -312,6 +312,12 @@ func NewLauncherHandler(api http.Handler, config LauncherConfig) (http.Handler, 
 			a.routes.ServeHTTP(w, r)
 			return
 		}
+		if r.Method == http.MethodPut && launcherExpansionSelectionPath(r.URL.Path) {
+			// The body stays the caller's exact selection. This does not
+			// rewrite a target or move the foreground host selection.
+			a.routes.ServeHTTP(w, r)
+			return
+		}
 		switch r.Method + " " + r.URL.Path {
 		case "GET /api/v1/session":
 			if name == "" && headerID == a.sessionOwnerID() {
@@ -524,11 +530,30 @@ func launcherOperation(method, path string) bool {
 	if launcherLiveMutation(method, path) || method == http.MethodPost && launcherTapeImportPath(path) {
 		return true
 	}
+	if method == http.MethodPut && launcherExpansionSelectionPath(path) {
+		return true
+	}
 	switch method + " " + path {
 	case "GET /api/v1/kit/software/releases", "GET /api/v1/games", "GET /api/v1/platforms", "GET /api/v1/health", "GET /api/v1/launcher/kit-lease", "GET /api/v1/status", "GET /api/v1/session", "GET /api/v1/session/input", "GET /api/v1/library/attract", "GET /api/v1/library/cache", "GET /api/v1/library/collections", "GET /api/v1/library/facets", "GET /api/v1/library/hardware", "GET /api/v1/library/titles", "GET /api/v1/library/zx81-tapes", "GET /api/v1/mesh/content/source", "GET /api/v1/mesh/content/object", "POST /api/v1/session/launch", "POST /api/v1/session/stop", "POST /api/v1/core-media":
 		return true
 	}
 	return method == http.MethodGet && (launcherArtworkPath(path) || launcherPresentationGamePath(path) || launcherGamePath(path))
+}
+
+// launcherExpansionSelectionPath admits one next-start write: the
+// single-entry expansion selection. Slot writes, presentation edits and
+// any extra suffix stay outside the launcher.
+func launcherExpansionSelectionPath(path string) bool {
+	const prefix = "/api/v1/library/core-entries/"
+	const suffix = "/expansion"
+	if !strings.HasPrefix(path, prefix) || !strings.HasSuffix(path, suffix) {
+		return false
+	}
+	game := path[len(prefix) : len(path)-len(suffix)]
+	if game == "" || strings.Contains(game, "/") {
+		return false
+	}
+	return protocol.ValidateGameID(game) == nil
 }
 
 func launcherLiveMutation(method, path string) bool {

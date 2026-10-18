@@ -178,7 +178,7 @@ class ColecoSgmBuildTest(unittest.TestCase):
         self.assertIn("cores/fes-coleco/rtl/coleco_expansion_socket_v2.v", shell.PINNED_INPUTS)
         self.assertEqual(shell.TOOL_COMMITS["nextpnr"],
                          "9128800fa6e77c4138088a7107a95376ba47ff15")
-        self.assertEqual(shell.TOOLCHAIN_LOCK, "toolchain.lock")
+        self.assertEqual(shell.TOOLCHAIN_LOCK, "cores/fes-coleco/toolchain.lock")
         lock = tomllib.loads((shell.ROOT / shell.TOOLCHAIN_LOCK).read_text())
         for name, revision in shell.TOOL_COMMITS.items():
             self.assertEqual(lock["tool"][name]["commit"], revision)
