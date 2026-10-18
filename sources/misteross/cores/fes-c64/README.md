@@ -4,15 +4,16 @@
 1.0. It follows the Apple II pattern: late-bound firmware, a live removable
 disk, and linkable expansion cards. It is not in the factory image. No
 Commodore ROM is in this tree. The current shared-pin seal of this native-drive
-shell with the default SID audio stage is CUDA package `79148f4e2c5a08d5…`
-(build `699feb7d7c6622ac…`) on `toolchain.lock`, seed 5, final analogue
-signoff system 53.21/52.224 (setup slack 0.35 ns, hold 0.71 ns), pixel
-91.80/74.25, audio 218.01/12.288, from source `2955e343`. The same RTL up to
-one syntactic Verilator fix sealed as package `e64ae33581d79e72…` (build
-`1a1ece4418c5a9e1…`), seed 4, system 58.33/52.224 (setup 2.00 ns, hold
-0.73 ns), from source `439cf060`; seed results vary by several MHz. The
-earlier 0.4.0 seal was CUDA package `1d599353eaef5502…` (build
-`6f865fddebe62184…`), seed 5, system 54.29/52.224.
+shell with the default SID audio stage is CUDA package `99405f9cda6f4275…`
+(build `54ec0222b0e754f8…`) on `toolchain.lock`, seed 4 (seed 5 exceeded the
+route budget), final analogue signoff system 57.70/52.224 (setup slack
+1.82 ns, hold 0.72 ns), pixel 93.59/74.25, audio 179.05/12.288, from the
+merged source `0f22aeed`. Earlier samples of the same logic at the native
+ratio: package `79148f4e2c5a08d5…` (seed 5, system 53.21/52.224, setup
+0.35 ns) and package `e64ae33581d79e72…` (seed 4, system 58.33/52.224,
+setup 2.00 ns); seed results vary by several MHz. The earlier 0.4.0 seal was
+CUDA package `1d599353eaef5502…` (build `6f865fddebe62184…`), seed 5,
+system 54.29/52.224.
 A CUDA seal is valid on its own (Deano, 2026-10-13); HIP only adds GPUs.
 Kit acceptance of those bytes is still open. The keyboard transposition in
 [#750](https://github.com/DeanoC/fes/issues/750) is unrelated.
