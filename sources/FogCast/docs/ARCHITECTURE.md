@@ -2949,6 +2949,11 @@ the host session and catalog labels follow the ABI policy, not that flag.
 After a host restart, an in-progress recognized-ABI package session is
 reconstructed as `fpga_native` from that CorePackage ABI. A raw development
 RBF or unknown ABI still reconstructs as `fpga_development`.
+A failed development observation keeps that execution and the kit's package
+and recovery evidence. The host drops the reported game and system from the
+retained play and from the status it returns. `GET /api/v1/status` for a
+named target and for a paired kit copies that returned status, so the
+response omits the game the kit was recovering from.
 
 Media objects are immutable SHA-256-addressed bytes in the existing catalog
 database. Host storage accepts 1 byte through 32 MiB independently of target media capacity.
