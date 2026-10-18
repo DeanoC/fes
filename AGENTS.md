@@ -64,6 +64,32 @@ never infer persistence from a display name, package path or raw RBF.
   preserve factory, known-good, previous and loop-referenced images, and verify
   the booted image identity after reboot.
 
+## Shared GPUs
+
+Powerboat (AMD, HIP; GPU0 and GPU1) and the CUDA box `chip-30x0-ai-dev`
+(RTX 3070 and RTX 3090) are shared by agents and by Deano's Codex harness.
+All GPU work on those hosts goes through `gpu-run`. First come, first served.
+Lander uses `--owner lander` and `GPU_LEASE_MAX_PER_OWNER=2`, so Lander holds
+at most 2 GPUs at once. Nobody kills a GPU job. Deano's Codex harness jobs
+wait their turn like everyone else.
+
+`scripts/gpu-run` takes the lease and execs the command. The kernel drops the
+flock when that process exits, including on crash. `scripts/gpu-status` shows
+each GPU as free or held, the holder metadata and age, and the waiting queue.
+Leases live in `/var/tmp/gpu-leases` unless `GPU_LEASE_DIR` is set.
+
+Install on a host by symlinking the scripts into `~/bin` (the link target is
+the checkout, so the scripts keep finding each other):
+
+```sh
+mkdir -p "$HOME/bin"
+ln -sfn "$HOME/fes/scripts/gpu-run" "$HOME/bin/gpu-run"
+ln -sfn "$HOME/fes/scripts/gpu-status" "$HOME/bin/gpu-status"
+```
+
+`gpu-run --help` lists the flags. Waiting is the default; `--no-wait` exits 75
+when the GPUs are not free.
+
 ## Finish with a handoff
 
 State scope, base and result commit (or uncommitted diff), tests and results,
