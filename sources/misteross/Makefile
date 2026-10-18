@@ -62,7 +62,6 @@ help:
 		"  diagnose-fes-ramtest-timing  Measure the 130 MHz RAM tester on the shared toolchain" \
 		"  toolchain-fes-ramtest  Provision the shared FES HIP toolchain (toolchain.lock)" \
 		"  toolchain-fes-atari-st  Provision the Atari ST OSS toolchain (toolchain.lock)" \
-		"  toolchain-fes-ramtest-timing  Provision the shared FES HIP toolchain for the timing diagnostic" \
 		"  build-fes-ramtest-quartus  Quartus 17.0.2 SDRAM and HPS DDR tester at 130 MHz (RAMTEST_MHZ=100 for 100 MHz)" \
 		"  sim-fes-splash  Test HDMI splash logo, motion and ADV7513 I2C board path" \
 		"  build-fes-splash  Produce splash RBF + native-inputs provenance (OSS, not a play package)" \
@@ -1325,9 +1324,6 @@ toolchain-fes-ramtest:
 	@$(FES_SHARED_MAKE_ENV)$(FES_TOOLCHAIN_CACHE_ENV) FES_TOOLCHAIN_LOCKFILE="$(CURDIR)/toolchain.lock" $(if $(strip $(FES_TOOLCHAIN_CACHE_ROOT_EFFECTIVE)),,FES_TOOLCHAIN_ROOT="$(CURDIR)/build/toolchain") \
 	FES_TOOLCHAIN_GPU_ROUTER=HIP \
 	FES_TOOLCHAIN_HIP_ARCHITECTURES='gfx1100;gfx1201' scripts/bootstrap.sh
-
-.PHONY: toolchain-fes-ramtest-timing
-toolchain-fes-ramtest-timing: toolchain-fes-ramtest
 
 toolchain-fes-zx81: toolchain-zx81-expansion
 
