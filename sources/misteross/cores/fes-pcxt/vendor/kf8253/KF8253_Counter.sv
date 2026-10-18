@@ -319,7 +319,7 @@ module KF8253_Counter (
     // Saturating decrement by one or two, with independent BCD borrow
     // prefixes. Mode 3 must not place two complete decrementers in series.
     // The extra high bit represents 65536 (binary) or 10000 (BCD).
-    function logic [16:0] decrement(input [16:0] count, input is_bcd, input twice);
+    function automatic logic [16:0] decrement(input [16:0] count, input is_bcd, input twice);
         reg [16:0] result;
         integer step, i;
         begin
@@ -340,11 +340,31 @@ module KF8253_Counter (
         end
     endfunction
 
-    // Generate next count value.
-    logic   [16:0]  dec_count;
-    logic   [16:0]  dec2_count;
-    assign dec_count  = decrement(count, select_bcd, 1'b0);
-    assign dec2_count = decrement(count, select_bcd, 1'b1);
+    // Precompute both encodings between count edges. Falling input-clock
+    // edges cannot occur on consecutive fabric clocks. Count can therefore
+    // change at an edge, refresh these candidates on the following clock,
+    // and consume them at the next edge with the original visible timing.
+    // Keep binary and BCD candidates separate so a control write can select
+    // either encoding immediately. Clearing an inactive counter also clears
+    // the candidates, covering restart on the very next fabric clock.
+    logic [16:0] dec_binary_q, dec2_binary_q, dec_bcd_q, dec2_bcd_q;
+    always_ff @(posedge clock, posedge reset) begin
+        if (reset) begin
+            dec_binary_q <= 0; dec2_binary_q <= 0;
+            dec_bcd_q <= 0; dec2_bcd_q <= 0;
+        end else if (!start_counting) begin
+            dec_binary_q <= 0; dec2_binary_q <= 0;
+            dec_bcd_q <= 0; dec2_bcd_q <= 0;
+        end else begin
+            dec_binary_q <= decrement(count, 1'b0, 1'b0);
+            dec2_binary_q <= decrement(count, 1'b0, 1'b1);
+            dec_bcd_q <= decrement(count, 1'b1, 1'b0);
+            dec2_bcd_q <= decrement(count, 1'b1, 1'b1);
+        end
+    end
+    logic [16:0] dec_count, dec2_count;
+    assign dec_count = select_bcd ? dec_bcd_q : dec_binary_q;
+    assign dec2_count = select_bcd ? dec2_bcd_q : dec2_binary_q;
 
     always_comb begin
         count_next = dec_count;

@@ -13,3 +13,12 @@ register boundaries, zero reload, modes and bus timing are unchanged.
 `tests/test_pcxt_counter_equivalence.py` proves one/two-step results against
 the original equations for all 17-bit inputs, including non-decimal nibble
 patterns. `source.json` retains the upstream counter hash and the local hash.
+
+Internal registers precompute binary and BCD candidates in parallel between
+sampled falling count-clock edges. Such edges cannot be adjacent fabric
+clocks, so the candidates refresh after a count change before the next use.
+Reset/inactive counters clear both count and candidates; current BCD selection
+still applies immediately after a control write. The counter-equivalence test
+inductively proves candidate freshness at every consuming edge. Whole-chip
+sequential equivalence also checks the original timer registers and interface;
+internal combinational candidates may differ between consuming edges.

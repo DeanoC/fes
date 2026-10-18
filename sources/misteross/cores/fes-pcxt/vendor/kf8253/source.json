@@ -3,7 +3,8 @@
   "commit": "af4f8a98ae562af0e3f9b86cc3a59673f999d0f6",
   "license": "MIT",
   "local_changes": [
-    "Replace serial saturating one/two-step binary/BCD decrement with direct constant-step arithmetic and parallel BCD borrow prefixes; preserve all counter/register timing and behavior."
+    "Replace serial saturating one/two-step binary/BCD decrement with direct constant-step arithmetic and parallel BCD borrow prefixes; preserve all counter/register timing and behavior.",
+    "Precompute binary and BCD one/two-step decrements between falling count-clock edges. Preserve visible counter/output cycles; inactive/reset candidates clear with count, and selection uses current BCD configuration."
   ],
   "files": [
     {
@@ -24,7 +25,7 @@
     {
       "path": "KF8253_Counter.sv",
       "upstream_path": "rtl/KFPC-XT/HDL/KF8253/HDL/KF8253_Counter.sv",
-      "sha256": "990d3721e2f51b555a02af75b2a64d2e3bcd4ea675f98891116ec5a7ebac34d8",
+      "sha256": "e63e4ee36fbcf4e9aaf6e5b583fbe1c4c3c968459ab0254df77fc979da56d450",
       "upstream_sha256": "4c7ff9a11fe5d1207548bb3b67de46adb8defa6dd3541a0ab519d61a5b3ab660"
     },
     {

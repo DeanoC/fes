@@ -577,8 +577,9 @@ invalid token and retains the latest undelivered HOLD control. The generic
 `fes_native_video.v` owns packed double-buffer capture, complete-frame
 publication at output frame boundaries, centered 2x scaling, and optional
 scanlines. The scanout registers the packed read address before distributed M10K fanout,
-then registers the RAM read before palette selection. Every subpixel/raster field
-carries the same latency. Source pauses repeat the last complete frame. HOLD keeps HDMI
+then registers each 64 KiB bank's local RAM read before bank/palette selection.
+This removes the global three-bank read mux from the RAM-to-register path.
+Bank/subpixel/raster fields carry matching latency, preserving pixel timing. Source pauses repeat the last complete frame. HOLD keeps HDMI
 timing running, mutes RGB and aborts incoming/pending frames.
 
 `make sim-fes-native-video` exercises the consumer and clock crossing;
@@ -2287,7 +2288,11 @@ effects. This latency is not yet an original-board bus-timing qualification.
 PIT pins advance from CPU guest enables divided by four through READY waits
 and HLT. Its saturating one/two-step binary/BCD decrement uses direct constant-step
 arithmetic and parallel digit borrows. SAT checks every 17-bit input against the
-original serial equations; count/output register timing is unchanged. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
+original serial equations. Internal registers precompute both encodings between
+sampled falling count-clock edges; such edges cannot occur on adjacent fabric
+clocks. Reset/inactive counters clear these candidates, and current BCD selection
+applies at consumption. Induction checks candidate freshness at every consuming
+edge; original count/output register timing is unchanged. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
 output requests DMA0 refresh; PPI PB0 gates channel 2.
 Reset must cancel requests in the router and its downstream storage/ISA.
 The imported PIC resolves circular priority using parallel per-level masks;
@@ -2403,8 +2408,9 @@ only stable publication/acknowledgement tokens across the 100/74.25 MHz domains.
 Capture never writes the displayed or published bank. Complete surfaces swap
 at output SOF; a pending third surface waits for ownership, and backpressure
 skips a whole source frame. The scanout registers the packed read address before distributed M10K fanout,
-then registers the RAM read before palette selection. Every subpixel/raster field
-carries the same latency. Source pauses repeat the last complete frame.
+then registers each 64 KiB bank's local RAM read before bank/palette selection.
+This removes the global three-bank read mux from the RAM-to-register path.
+Bank/subpixel/raster fields carry matching latency, preserving pixel timing. Source pauses repeat the last complete frame.
 HOLD mutes RGB/aborts partial capture while raster timing and complete-bank
 ownership continue. Coordinated resets are required in both domains.
 

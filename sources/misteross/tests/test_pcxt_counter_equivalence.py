@@ -69,7 +69,7 @@ class CounterEquivalenceTest(unittest.TestCase):
 
     def test_saturating_binary_and_bcd_one_and_two_steps(self):
         source = (CORE / 'vendor/kf8253/KF8253_Counter.sv').read_text()
-        start = source.index('    function logic [16:0] decrement(')
+        start = source.index('    function automatic logic [16:0] decrement(')
         function = source[start:source.index('    endfunction', start) + len('    endfunction')]
         fixture = 'module proof(input [16:0] count, input bcd, output ok);\n' + REFERENCE + function + r"""
           wire [16:0] first = reference_decrement(count, bcd);
@@ -99,3 +99,27 @@ class CounterEquivalenceTest(unittest.TestCase):
         for mda in (0, 1):
             with self.subTest(mda=mda):
                 self.prove(fixture, f'chparam -set MDA {mda} proof; ')
+
+    def test_precomputed_decrements_are_current_at_every_count_edge(self):
+        vendor = CORE / 'vendor/kf8253'
+        source = (vendor / 'KF8253_Counter.sv').read_text()
+        assertions = r"""
+          always @(posedge clock) begin
+            if (!reset && start_counting && count_edge) begin
+              assert(dec_count == decrement(count, select_bcd, 1'b0));
+              assert(dec2_count == decrement(count, select_bcd, 1'b1));
+            end
+          end
+        """
+        source = source.replace('endmodule', assertions + '\nendmodule')
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory)
+            (work / 'counter.sv').write_text(source)
+            command = ('read_verilog -formal -sv -I ' + str(vendor) +
+                       ' counter.sv; prep -top KF8253_Counter -flatten; '
+                       'memory_map; async2sync; opt; '
+                       'sat -verify -seq 4 -tempinduct -maxsteps 20 '
+                       '-set-init-zero -prove-asserts -show-inputs')
+            result = subprocess.run([YOSYS, '-Q', '-p', command], cwd=work,
+                                    capture_output=True, text=True, timeout=30)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

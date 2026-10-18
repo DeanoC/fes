@@ -231,7 +231,9 @@ with a real clock without changing INIT, registered read latency or writable RAM
 The CPU import remains unchanged. The PIC import uses formally checked parallel
 priority masks; the PIT uses direct one/two-step saturated binary/BCD decrements
 with parallel digit borrows. Both imports document the formally checked changes
-in their vendor READMEs; register boundaries and bus timing are unchanged.
+in their vendor READMEs. The PIT precomputes both encodings between sampled
+falling count-clock edges; induction checks freshness whenever a candidate is
+consumed. Guest-visible count/output updates and bus timing are unchanged.
 HDMI transmitter I2C uses the existing HPS peripheral bridge. This autonomous
 power-on diagnostic has no runtime ABI, host session control or audio pins.
 
@@ -268,8 +270,10 @@ SDRAM read, reset release, both real DMA
 directions, guest and physical refresh, two complete boots without firmware
 reload, HOLD/mute and every pixel of two 720p output frames after capture settles.
 CGA uses Direct and MDA uses Scanlines; each runs DQM delays 0/1/2. The framebuffer
-registers its read address before M10K fanout and delays subpixel and raster
-fields together through that extra stage. PIC priority changes also have
+registers its read address before M10K fanout. Each of its three 64 KiB banks
+has a separate RAM read mux and local output register; bank selection then
+occurs alongside palette selection. Bank/subpixel/raster fields have matching
+latency, preserving the existing complete-frame ownership and pixel timing. PIC priority changes also have
 all-input Yosys SAT checks, as do the PIT decrements. The display's fractional
 clock enable compares the current phase directly with its wrap threshold and
 updates with parallel add/subtract candidates. SAT proves this is cycle-exact
