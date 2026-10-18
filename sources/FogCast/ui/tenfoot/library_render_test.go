@@ -249,10 +249,10 @@ func TestLibraryCellTagsNameEachBlock(t *testing.T) {
 }
 
 // libraryHomeApp runs a home room that counts on_resume and offers the
-// Library, over a fixture host.
-// libraryHomeApp starts a Library Home. paired pairs the client before
-// Start; the host serves no paired lease, so the poller reports the kit
-// lease as unavailable.
+// Library, over a fixture host. paired pairs the client before Start: the
+// health poller reads it without the app lock, so a test must not change it
+// while running. The host serves no paired lease, so the poller reports the
+// kit lease as unavailable.
 func libraryHomeApp(t *testing.T, paired ...bool) *App {
 	t.Helper()
 	h := newRoomHost(t)

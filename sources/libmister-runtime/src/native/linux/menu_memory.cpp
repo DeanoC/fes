@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "native/linux/menu_memory.hpp"
 #include "native/generated/fes_application.hpp"
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <cstring>
@@ -54,7 +55,7 @@ void StoreMenuWords(void* destination,const std::uint32_t* source,std::size_t wo
 }
 }
 MenuFrame::~MenuFrame(){if(mapping_)munmap(mapping_,kFrameBytes);if(fd_>=0)close(fd_);}
-MenuFrame::MenuFrame(MenuFrame&& other) noexcept : fd_(other.fd_),mapping_(other.mapping_),preparation_(std::move(other.preparation_)),generation_(other.generation_){other.fd_=-1;other.mapping_=nullptr;}
+MenuFrame::MenuFrame(MenuFrame&& other) noexcept : fd_(other.fd_),mapping_(other.mapping_),preparation_(std::move(other.preparation_)),generation_(other.generation_),damage_(std::move(other.damage_)),has_damage_(other.has_damage_){other.fd_=-1;other.mapping_=nullptr;other.has_damage_=false;}
 Error MenuFrame::Create(std::unique_ptr<MenuFrame>* output)
 {
  if(!output)return Invalid("missing staging output");
@@ -166,6 +167,7 @@ Error MenuMemory::EnsureMapped()
 }
 Error MenuMemory::InitializeBlack()
 {
+ DiscardShadow();
  Error error=EnsureMapped();if(!error.ok())return error;
  alignas(8) std::uint32_t zeros[FesApplicationMenuWidth]={};
  for(unsigned slot=0;slot<FesApplicationMenuSlotCount;++slot){
@@ -175,23 +177,73 @@ Error MenuMemory::InitializeBlack()
  }
  operations_->VisibilityBarrier();return {};
 }
-Error MenuMemory::CopyRgba(std::uint8_t slot,const MenuFrame& frame)
+void MenuMemory::DiscardShadow()
+{std::lock_guard<std::mutex> lock(shadow_mutex_);shadow_valid_=false;shadow_sequence_=0;stale_[0].clear();stale_[1].clear();}
+bool MenuMemory::HasShadow(std::uint32_t base_sequence) const
+{std::lock_guard<std::mutex> lock(shadow_mutex_);return shadow_valid_&&base_sequence!=0&&shadow_sequence_==base_sequence;}
+namespace {
+constexpr std::uint16_t kMenuWidth=FesApplicationMenuWidth,kMenuHeight=FesApplicationMenuHeight;
+// Slot stores are 32-byte bursts: widen a rect to whole 8-pixel groups.
+MenuRect AlignedForStore(MenuRect r)
+{
+ const unsigned x0=r.x&~7u,x1=std::min<unsigned>((unsigned(r.x)+r.w+7u)&~7u,kMenuWidth);
+ r.x=std::uint16_t(x0);r.w=std::uint16_t(x1-x0);return r;
+}
+MenuRect Bounding(const std::vector<MenuRect>& rects)
+{
+ unsigned x0=kMenuWidth,y0=kMenuHeight,x1=0,y1=0;
+ for(const auto& r:rects){x0=std::min<unsigned>(x0,r.x);y0=std::min<unsigned>(y0,r.y);x1=std::max<unsigned>(x1,r.x+r.w);y1=std::max<unsigned>(y1,r.y+r.h);}
+ return {std::uint16_t(x0),std::uint16_t(y0),std::uint16_t(x1-x0),std::uint16_t(y1-y0)};
+}
+void AddStale(std::vector<MenuRect>* stale,const std::vector<MenuRect>& rects)
+{
+ stale->insert(stale->end(),rects.begin(),rects.end());
+ if(stale->size()>kMenuDamageMaxRects){const MenuRect all=Bounding(*stale);stale->assign(1,all);}
+}
+}
+Error MenuMemory::CopyRgba(std::uint8_t slot,const MenuFrame& frame,std::uint32_t sequence)
 {
  if(slot>=FesApplicationMenuSlotCount)return Invalid("invalid menu DDR slot");
  const unsigned char* bytes=nullptr;Error error=frame.ReadOnlyData(&bytes);if(!error.ok())return error;
  error=EnsureMapped();if(!error.ok())return error;
- auto row=reinterpret_cast<std::uint32_t*>(static_cast<unsigned char*>(mapping_)+slot*FesApplicationMenuSlotBytes);
- // Cached staging, then aligned bursts. Do not memcpy onto the mapping.
- alignas(8) std::uint32_t staging[FesApplicationMenuWidth];
- for(std::size_t y=0;y<FesApplicationMenuHeight;++y,row+=FesApplicationMenuWidth){
-  if(y%kMenuCopyCancelRows==0&&CopyCancelled())return Invalid("menu frame copy cancelled");
-  const unsigned char* source=bytes+y*FesApplicationMenuWidth*4;
-  for(std::size_t x=0;x<FesApplicationMenuWidth;++x){
-   const auto offset=x*4;
-   staging[x]=std::uint32_t(source[offset+2])|std::uint32_t(source[offset+1])<<8|std::uint32_t(source[offset])<<16;
+ std::unique_lock<std::mutex> lock(shadow_mutex_);
+ const MenuDamage* damage=frame.damage();
+ if(damage&&(!shadow_valid_||shadow_sequence_!=damage->base_sequence))
+  return Invalid("menu damage base is not the shadowed frame");
+ // Mark the shadow invalid for the duration: a failure or cancel below
+ // leaves it, and the slot, unknown.
+ shadow_valid_=false;
+ if(shadow_.size()!=std::size_t(kMenuWidth)*kMenuHeight)shadow_.assign(std::size_t(kMenuWidth)*kMenuHeight,0);
+ const std::vector<MenuRect> full{{0,0,kMenuWidth,kMenuHeight}};
+ const std::vector<MenuRect>& changed=damage?damage->rects:full;
+ for(const auto& r:changed){
+  if(r.w==0||r.h==0||unsigned(r.x)+r.w>kMenuWidth||unsigned(r.y)+r.h>kMenuHeight)return Invalid("menu damage rect is outside the frame");
+  for(unsigned y=r.y;y<unsigned(r.y)+r.h;++y){
+   const unsigned char* source=bytes+(std::size_t(y)*kMenuWidth+r.x)*4;
+   std::uint32_t* row=shadow_.data()+std::size_t(y)*kMenuWidth+r.x;
+   for(unsigned x=0;x<r.w;++x,source+=4)
+    row[x]=std::uint32_t(source[2])|std::uint32_t(source[1])<<8|std::uint32_t(source[0])<<16;
   }
-  operations_->StoreAlignedWords(row,staging,FesApplicationMenuWidth);
  }
- operations_->VisibilityBarrier();return {};
+ // Store what changed plus what this slot missed. Overlap is stored twice.
+ std::vector<MenuRect> store;
+ if(damage){store=changed;store.insert(store.end(),stale_[slot].begin(),stale_[slot].end());}
+ else store=full;
+ auto* base=static_cast<unsigned char*>(mapping_)+slot*FesApplicationMenuSlotBytes;
+ std::size_t stored=0;unsigned rows=0;
+ for(const auto& wanted:store){
+  const MenuRect r=AlignedForStore(wanted);
+  for(unsigned y=r.y;y<unsigned(r.y)+r.h;++y,++rows){
+   if(rows%kMenuCopyCancelRows==0&&CopyCancelled())return Invalid("menu frame copy cancelled");
+   auto* row=reinterpret_cast<std::uint32_t*>(base+(std::size_t(y)*kMenuWidth+r.x)*4);
+   operations_->StoreAlignedWords(row,shadow_.data()+std::size_t(y)*kMenuWidth+r.x,r.w);
+   stored+=r.w;
+  }
+ }
+ operations_->VisibilityBarrier();
+ stale_[slot].clear();
+ if(damage)AddStale(&stale_[slot^1],changed);else stale_[slot^1]=full;
+ shadow_valid_=sequence!=0;shadow_sequence_=sequence;last_stored_pixels_=stored;
+ return {};
 }
 } }

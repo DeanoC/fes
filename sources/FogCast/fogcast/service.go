@@ -2306,8 +2306,7 @@ func (s *Service) statusPairedTarget(parent context.Context, targetID string) (p
 		}
 	}
 	s.executionMu.Unlock()
-	s.adoptObservedKit(name, status)
-	return status, nil
+	return s.adoptObservedKit(name, status), nil
 }
 
 func (s *Service) pairedTargetName(targetID string) string {
@@ -2453,7 +2452,7 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 		kitStatusTarget, _ = s.selectedKitPlayLocked()
 		s.executionMu.Unlock()
 	}
-	s.adoptObservedKit(kitStatusTarget, status)
+	status = s.adoptObservedKit(kitStatusTarget, status)
 	s.executionMu.Lock()
 	if target == "" && status.State != protocol.StateIdle && s.activeExecution != ExecutionHostOnly {
 		s.activeTarget = kitStatusTarget
@@ -2467,7 +2466,10 @@ func (s *Service) statusTarget(parent context.Context, target string) (protocol.
 	return status, nil
 }
 
-func (s *Service) adoptObservedKit(target string, status protocol.Status) {
+// adoptObservedKit records the kit observation. A failed development status
+// keeps the development execution and the kit's package and recovery evidence,
+// and the returned status drops the game the kit was recovering from.
+func (s *Service) adoptObservedKit(target string, status protocol.Status) protocol.Status {
 	s.executionMu.Lock()
 	defer s.executionMu.Unlock()
 	play := s.plays[target]
@@ -2487,7 +2489,7 @@ func (s *Service) adoptObservedKit(target string, status protocol.Status) {
 				s.boundKitTarget = ""
 			}
 		}
-		return
+		return status
 	}
 	if status.State == protocol.StateFailed && !status.Development {
 		if play.packageRejection != nil {
@@ -2505,7 +2507,7 @@ func (s *Service) adoptObservedKit(target string, status protocol.Status) {
 			s.selectedTargetReconciled = false
 			s.selectedTargetRepairAllowed = false
 		}
-		return
+		return status
 	}
 	if target == s.selectedTarget {
 		s.selectedTargetReconciled = false
@@ -2528,6 +2530,13 @@ func (s *Service) adoptObservedKit(target string, status protocol.Status) {
 	} else if status.State == protocol.StateActive {
 		play.execution = ExecutionFPGANative
 	}
+	if status.State == protocol.StateFailed {
+		// Development recovery keeps the kit's execution, not the game it was running.
+		play.gameID, play.system = "", ""
+		s.plays[target] = play
+		status.GameID, status.System = nil, nil
+		return status
+	}
 	if status.GameID != nil {
 		play.gameID = *status.GameID
 	}
@@ -2535,6 +2544,7 @@ func (s *Service) adoptObservedKit(target string, status protocol.Status) {
 		play.system = *status.System
 	}
 	s.plays[target] = play
+	return status
 }
 
 func (s *Service) allowSelectedTargetRepair(parent context.Context) {
