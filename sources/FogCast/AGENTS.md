@@ -77,8 +77,7 @@ designated kit. Do not assume the same authorization for another device.
   verify it before logging the kit restored. A core-only run that does not
   change the bundle does not install one. The bundle step is a
   generation-checked selection, not a file overlay and not an automatic
-  stock restore (`docs/kit-sharing.md`, `docs/kit-software-releases.md`).
-  Managed
+  stock restore (`docs/kit-sharing.md`, `docs/kit-software-releases.md`). Managed
   kits reject binary/configuration file overlays. Unmanaged adoption diagnostics
   still require target-enforced maintenance; never bypass it with SSH copying.
 - Use a branch or worktree for substantial work.
