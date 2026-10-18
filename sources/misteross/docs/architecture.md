@@ -2150,10 +2150,14 @@ fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
 CPU operand selectors are predecoded into a separate registered control ROM
 from the unchanged pinned microcode image. `cpu_roms` generates the raw copy
 and derived `mcl86_operand_select.mem` for simulation/synthesis. ROM read latency,
-the microcode sequencer lead and instruction timing are unchanged. Symbolic
-checks cover all ROM addresses and the real operand wiring for all register
-values against the imported selection equations. The derived control ROM maps
-into logic with local output flip-flops; the original data ROM uses block RAM.
+the microcode sequencer lead and instruction timing are unchanged. Exhaustive
+checks cover all 4096 generated ROM rows; symbolic checks cover the actual
+read/output stages for arbitrary registered-address payloads and the real operand
+wiring for all register values against the imported equations. Both ROMs use block RAM on
+the existing 180-degree memory PLL clock and local output registers on the
+system clock. The EU address
+is rising-edge registered, so the visible rising-edge read latency is unchanged.
+The address-to-ROM and ROM-to-output half-cycle paths need routed qualification.
 The motherboard router decodes RAM/ROM and integrates pinned KF8259 PIC, KF8253
 PIT and KF8255 PPI imports. The machine diagnostic receives timer, ISA and
 keyboard interrupts through the real two-INTA path and generates speaker PCM.

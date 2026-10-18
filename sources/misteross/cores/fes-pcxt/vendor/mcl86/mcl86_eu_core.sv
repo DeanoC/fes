@@ -111,6 +111,7 @@ module mcl86_eu_core
     (
         // System Interface
         input  wire        CORE_CLK_INT,          // High-speed core clock
+        input  wire        CORE_CLK_ROM,          // 180-degree ROM read clock
         input  wire        RESET_INT,             // Synchronous reset (active high)
         input  wire        TEST_N_INT,            // Test pin input (active low, can be tied high)
         input  wire        FAKE286_FLAGS,         // Make PUSHF expose 80286 reserved FLAGS bits
@@ -295,6 +296,7 @@ module mcl86_eu_core
     // instantiations: everything below decodes what this ROM hands back. The
     // read is registered, which is where the sequencer's 2-word lead comes from.
     mcl86_ucode u_ucode_rom (
+        .clk_rom  ( CORE_CLK_ROM         ),
         .clk  ( CORE_CLK_INT         ),
         .addr ( eu_rom_address[11:0] ),
         .dout     ( eu_rom_data          ),

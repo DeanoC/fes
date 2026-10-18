@@ -85,22 +85,60 @@ class CpuSelectionTest(unittest.TestCase):
                 'sat -verify -prove ok 1 -show-inputs'], cwd=work, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-    def test_all_rom_addresses_keep_contents_and_registered_select_latency(self):
+    def test_rom_contents_and_two_phase_registered_read_alignment(self):
         with tempfile.TemporaryDirectory() as directory:
             work = Path(directory)
             inputs.cpu_roms(work)
+            self.assertEqual((work / 'mcl86_ucode.mem').read_bytes(),
+                             (VENDOR / 'mcl86_ucode.mem').read_bytes())
+            words = [int(s, 16) for s in (work / 'mcl86_ucode.mem').read_text().split()]
+            controls = [int(s, 16) for s in (work / 'mcl86_operand_select.mem').read_text().split()]
+            self.assertEqual(len(words), 4096)
+            self.assertEqual(controls, [((1 << ((w >> 20) & 15)) << 16) |
+                                       (1 << ((w >> 16) & 15)) for w in words])
+            # Cut only the immutable table lookup, after exhaustively checking
+            # its contents above. Preserve the actual RTL clocks, read stages
+            # and output bindings. A symbolic 32-bit lookup value registered
+            # on clk models any pure ROM at the EU's registered address,
+            # including arbitrary changes between successive addresses.
+            source = (VENDOR / 'mcl86_ucode.sv').read_text()
+            source, count = re.subn(r'input\s+wire\s+clk,',
+                'input wire [31:0] rom_payload, input wire clk,', source)
+            self.assertEqual(count, 1)
+            for memory in ('operand_select_mem', 'mem'):
+                source, count = re.subn(r'logic \[31:0\] ' + memory + r'\[0:4095\];', '', source)
+                self.assertEqual(count, 1)
+                filename = 'mcl86_operand_select.mem' if memory == 'operand_select_mem' else 'mcl86_ucode.mem'
+                source, count = re.subn(r'initial begin\s*\$readmemh\("' + re.escape(filename) + r'", ' + memory + r'\);\s*end', '', source)
+                self.assertEqual(count, 1)
+                payload = ("{(16'h1 << rom_payload[23:20]), (16'h1 << rom_payload[19:16])}"
+                           if memory == 'operand_select_mem' else 'rom_payload')
+                source, count = re.subn(r'\b' + memory + r'\[addr\]', payload, source)
+                self.assertEqual(count, 1)
+            (work / 'rom.sv').write_text(source)
             (work / 'proof.sv').write_text(r"""
-              module proof(input clk, input [11:0] addr, output ok);
+              module proof(input clk, input [31:0] next_payload, output ok);
+                // The real EU drives this port exclusively from its
+                // rising-edge microcode-PC register. Inputs may otherwise
+                // change arbitrarily on every formal half-cycle.
+                reg [31:0] payload;
+                always @(posedge clk) payload <= next_payload;
+                reg [31:0] original_word;
+                always @(posedge clk) original_word <= payload;
                 wire [31:0] word;
                 wire [15:0] s0, s1;
-                mcl86_ucode dut(.clk(clk), .addr(addr), .dout(word),
+                mcl86_ucode dut(.rom_payload(payload), .clk(clk), .clk_rom(~clk), .addr(12'b0), .dout(word),
                     .operand_select0(s0), .operand_select1(s1));
-                assign ok = s0 == (16'h1 << word[23:20]) && s1 == (16'h1 << word[19:16]);
+                assign ok = word == original_word &&
+                            s0 == (16'h1 << original_word[23:20]) &&
+                            s1 == (16'h1 << original_word[19:16]);
               endmodule
             """)
-            command = ('read_verilog -sv ' + str(VENDOR / 'mcl86_ucode.sv') +
-                       ' proof.sv; prep -top proof -flatten; memory_map; opt; '
-                       'sat -verify -seq 2 -prove-skip 1 -prove ok 1 -show-inputs')
+            command = ('read_verilog -sv rom.sv proof.sv; prep -top proof -flatten; '
+                       'clk2fflogic; opt; '
+                       'sat -verify -seq 6 -set-init-zero -prove-skip 4 -prove ok 1 '
+                       + ' '.join(f'-set-at {step} clk {int(step % 2 == 0)}'
+                                  for step in range(1, 7)) + ' -show-inputs')
             result = subprocess.run([YOSYS, '-Q', '-p', command], cwd=work,
                                     capture_output=True, text=True, timeout=90)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)

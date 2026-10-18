@@ -2,7 +2,7 @@
 // Reusable complete diagnostic: byte loader, real motherboard/storage and one
 // selected video pipeline. Board pads and PLL/reset synchronizers are external.
 module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0) (
-    input wire clk, clk_pixel, clk_pin, cold_reset, reset_pixel, warm_reset, hold,
+    input wire clk, clk_rom, clk_pixel, clk_pin, cold_reset, reset_pixel, warm_reset, hold,
     input wire firmware_valid,
     output wire firmware_ready, firmware_done,
     input wire [15:0] firmware_address,
@@ -57,7 +57,7 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0) (
     end
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_machine #(.DIAGNOSTIC_PROBE(1)) machine (
-        .clk(clk), .reset(machine_reset), .memory_valid(memory_valid),
+        .clk(clk), .clk_rom(clk_rom), .reset(machine_reset), .memory_valid(memory_valid),
         .memory_ready(memory_ready), .memory_done(memory_done), .memory_rdata(memory_rdata),
         .address(address), .wdata(wdata), .write_cycle(write_cycle), .fault(fault),
         .guest_ce(), .halted(halted), .accepted(), .completed(), .cycle_kind(), .cycle_rdata(),

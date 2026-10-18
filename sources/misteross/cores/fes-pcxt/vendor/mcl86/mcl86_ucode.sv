@@ -63,6 +63,7 @@ module mcl86_ucode
     (
         // System Interface
         input  wire         clk,   // Core clock; read is registered on the rising edge
+        input  wire         clk_rom, // Same frequency, 180 degrees after clk
         // ROM Read Port
         input  wire  [11:0] addr,  // Microcode address (word address, 0..4095)
         output logic [31:0] dout,      // Microword, valid one clock after addr
@@ -86,8 +87,12 @@ module mcl86_ucode
     // ROM Read Port
     //--------------------------------------------------------------------------
     // Registered read - the EU's 2-word sequencer lead depends on this latency.
-    always_ff @(posedge clk) begin : read_mem
-        dout <= mem[addr];
+    logic [31:0] data_half;
+    always_ff @(posedge clk_rom) begin : read_mem
+        data_half <= mem[addr];
+    end
+    always_ff @(posedge clk) begin : read_data_output
+        dout <= data_half;
     end
 
     //--------------------------------------------------------------------------
@@ -97,14 +102,21 @@ module mcl86_ucode
     // the FES cpu_roms helper. Decode before the registered ROM boundary so
     // each select bit drives one register's 16 data bits, rather than a binary
     // select bit driving every operand mux. Address/read latency is unchanged.
-    // Local flip-flops avoid the M10K-column-to-operand routing delay on
-    // these wide control outputs. Keep the original data ROM in block RAM.
-    (* mem2reg *) logic [31:0] operand_select_mem[0:4095];
+    // The CPU address changes only on rising edges. Reading block RAM on
+    // the intervening falling edge and capturing its output on the next
+    // rising edge preserves the original rising-edge read latency. Local
+    // output flops separate ROM routing from operand/ALU/writeback logic.
+    // Both half-cycle paths require routed timing qualification.
+    logic [31:0] operand_select_mem[0:4095];
+    logic [31:0] select_half;
     initial begin
         $readmemh("mcl86_operand_select.mem", operand_select_mem);
     end
-    always_ff @(posedge clk) begin : read_operand_select
-        {operand_select0, operand_select1} <= operand_select_mem[addr];
+    always_ff @(posedge clk_rom) begin : read_operand_select
+        select_half <= operand_select_mem[addr];
+    end
+    always_ff @(posedge clk) begin : read_select_output
+        {operand_select0, operand_select1} <= select_half;
     end
 
 endmodule

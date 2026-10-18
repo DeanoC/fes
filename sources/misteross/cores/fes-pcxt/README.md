@@ -230,8 +230,10 @@ clock only when writes are provably disabled. This supplies the native packer
 with a real clock without changing INIT, registered read latency or writable RAM.
 The CPU import uses registered predecoded operand controls generated from its
 unchanged microcode image; ROM latency and instruction timing are preserved.
-The derived control ROM maps to logic and local flip-flops while the original
-data ROM remains in block RAM.
+Both ROMs read block RAM on the existing 180-degree memory PLL clock and capture
+local output registers on the system clock. The EU address changes only on rising edges; the original
+rising-edge read latency is preserved. Both half-cycle paths require routed
+timing qualification.
 The PIC import uses formally checked parallel
 priority masks; the PIT uses direct one/two-step saturated binary/BCD decrements
 with parallel digit borrows. Both imports document the formally checked changes
@@ -280,8 +282,9 @@ registers its read address before M10K fanout. Each of its three 64 KiB banks
 has a separate RAM read mux and local output register; bank selection then
 occurs alongside palette selection. Bank/subpixel/raster fields have matching
 latency, preserving the existing complete-frame ownership and pixel timing. PIC priority changes also have
-all-input Yosys SAT checks, as do the PIT decrements. CPU proofs check every
-control-ROM address and real operand selection against the imported equations;
+all-input Yosys SAT checks, as do the PIT decrements. CPU checks cover every
+generated control-ROM row, symbolic two-phase read alignment, and real operand
+selection against the imported equations;
 `cpu_roms` derives `mcl86_operand_select.mem` from the unchanged raw image. The display's fractional
 clock enable compares the current phase directly with its wrap threshold and
 updates with parallel add/subtract candidates. SAT proves this is cycle-exact
@@ -588,6 +591,9 @@ motherboard/PIC/PIT/PPI, DMA/refresh, keyboard serializer and speaker under
 and mapped cell counts.
 Both CPU and machine synthesis regenerate the original microcode and its
 derived operand-select ROM through the same verified helper as simulation.
+The CPU/machine synthesis fixtures expose a separate `clk_rom` input, which
+must be 100 MHz shifted 180 degrees from `clk`; simulation derives it from
+the opposite edge. Board builds supply the existing memory PLL phase.
 The display variant synthesizes both ISA cards, their VRAM and the registered
 backplane into `build/synth/fes-pcxt/display/`, with external font ROM inputs.
 None of these variants synthesizes the testbench RAM or diagnostic system ROM.

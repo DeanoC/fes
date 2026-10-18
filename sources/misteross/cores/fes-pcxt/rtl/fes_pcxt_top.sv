@@ -49,7 +49,7 @@ module top #(parameter bit MDA = 0, SCANLINES = 0) (
     wire dq_oe;
     /* verilator lint_off PINCONNECTEMPTY */
     pcxt_system #(.MDA(MDA), .SCANLINES(SCANLINES)) system (
-        .clk(clk), .clk_pixel(clk_pixel), .clk_pin(clk), .cold_reset(sys_reset[1]),
+        .clk(clk), .clk_rom(clk_capture), .clk_pixel(clk_pixel), .clk_pin(clk), .cold_reset(sys_reset[1]),
         .reset_pixel(pixel_reset[1]), .warm_reset(1'b0), .hold(1'b0),
         .firmware_valid(firmware_valid), .firmware_ready(firmware_ready),
         .firmware_done(firmware_done), .firmware_address(firmware_address), .firmware_data(firmware_data),

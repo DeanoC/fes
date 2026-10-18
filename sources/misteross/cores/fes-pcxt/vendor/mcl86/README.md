@@ -23,14 +23,16 @@ Local timing changes register predecoded operand controls in a separate ROM and
 use parallel selection instead of binary operand mux trees. `cpu_roms` in
 `scripts/sim_fes_pcxt.py` copies the original `mcl86_ucode.mem` unchanged and
 derives `mcl86_operand_select.mem` from its two four-bit select fields. The ROM
-module reads both images on the same clock/address, preserving the single-clock
-read latency and the EU's two-word sequencer lead. No instruction word changes.
-Only the derived control ROM requests logic mapping with local output
-flip-flops, avoiding the M10K-column route to the operand logic. The original
-data ROM retains block-RAM mapping.
+module reads both block-ROM images on the dedicated 180-degree clock and captures them
+in local rising-edge output registers. The EU address is exclusively a
+rising-edge register, so the original rising-edge read latency and two-word
+sequencer lead are preserved. Both half-cycle paths need routed qualification.
+No instruction word changes.
 
-`tests/test_pcxt_cpu_selection.py` symbolically checks every ROM address with
-registered read alignment and compares the real operand wiring/selection against
+`tests/test_pcxt_cpu_selection.py` exhaustively checks all 4096 generated ROM
+rows, then cuts the immutable lookup and symbolically checks the actual
+two-phase read/output stages for arbitrary 32-bit payload transitions at
+registered addresses, against the original rising-edge ROM. It also compares the real operand wiring/selection against
 the imported equations for all register values and select fields. The ROM-copy
 and selector files must both be beside the executable/netlist build; the normal
 simulation and synthesis helpers generate them. These are CPU control ROMs,

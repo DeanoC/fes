@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Development 8088 frontend. clk MUST be 100 MHz for the imported EU timing
 // table. The fractional pin clock is data, never a second RTL clock domain.
+// clk_rom is the same 100 MHz source shifted 180 degrees, not an independent clock.
 module pcxt_cpu (
-    input wire clk, reset, intr, nmi,
+    input wire clk, clk_rom, reset, intr, nmi,
     output wire cycle_valid,
     input wire cycle_ready,
     output wire [19:0] cycle_address,
@@ -47,7 +48,7 @@ module pcxt_cpu (
     end
     /* verilator lint_off PINCONNECTEMPTY */
     i8088 cpu (
-        .CORE_CLK(clk), .CLK(pin_clock), .RESET(reset), .READY(cpu_ready),
+        .CORE_CLK(clk), .CORE_CLK_ROM(clk_rom), .CLK(pin_clock), .RESET(reset), .READY(cpu_ready),
         .INTR(intr), .NMI(nmi), .ad_out(ad), .dout(), .din(cpu_rdata),
         .lock_n(lock_n), .s6_3_mux(data_phase), .s2_s0_out(status),
         .SEGMENT(), .biu_done(), .cycle_accrate(1'b1),
