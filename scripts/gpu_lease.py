@@ -1302,6 +1302,13 @@ def execute(vendor, chosen, command):
         selector.close()
         signal.signal(signal.SIGINT, previous_interrupt)
         release(chosen)
+    # FES-pinned DeanoC/nextpnr 9128800f passes cfg.device to
+    # create_device_backend() and logs "backend ... ready" only after
+    # backend->init() succeeds (common/route/gpurouter.cc:2709-2759). HIP and
+    # CUDA share DeviceBackend::init (common/route/gpu/gpuroute_kernel.cuh:
+    # 725-769); it selects device_ before querying/allocating state and
+    # synchronizes before success. CUDA's runtime aliases are in
+    # common/route/gpu/gpuroute_compat.h:26-54.
     backend_evidence = (
         output_pipes is not None
         and evidence.backend == evidence.expected_backend
