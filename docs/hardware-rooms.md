@@ -11,8 +11,17 @@ library is empty. The Amiga-themed `example.workbench` remains a separate room.
 
 ## Use the workbench
 
+The room follows the Retro Workshop direction in [the UX brief](ux/README.md).
+The setup column shows **Running**, **Next start** and, while an unsaved card is
+inspected, **Previewing … (not saved)** together. The machine illustration draws a ready saved card solid and keeps it there while a
+ready inspected card is outlined beside it with a **Preview** label. A saved
+card the host marks unavailable keeps its **Next start** label and is drawn in
+the shelf's unavailable colour, not as a fitted card. An unavailable preview
+stays in the text column and is not drawn on the connector.
+Without a session reading, **Running** says unknown rather than not running. The restart and memory consequences sit beside **Fit & save setup**.
+
 Choose a card on the shelf to inspect its description, then **Fit & save
-setup**. **Remove & save setup** clears the connector. Both actions save the
+setup**. **Remove & save** clears the connector. Both actions save the
 core entry on the host, so another LAN client reads the same choice. **Next
 setup** cycles existing ZX81 entries. These are saved hardware selections for
 the next start, not snapshots of running memory.
@@ -25,8 +34,13 @@ cards is outside this change. The selected family supplies household presentatio
 text, while the immutable archive and host admission decide compatibility.
 
 **Choose cassette** saves a `.p` import, an embedded starter tape, or no tape for
-the next launch. Selection compares both the package and previous media ID;
-another client's change requires a refresh. Opening the shelf imports nothing.
+the next launch. The host's cassette label is shown on its own row above the
+machine controls. A starter uses its display name. An import is labelled
+"Imported cassette" plus the first eight characters of its digest; the admitted
+filename is not stored on the machine record
+([#801](https://github.com/DeanoC/fes/issues/801)). A label that does not fit
+keeps its start and its end. Selection compares both the package and previous
+media ID; another client's change requires a refresh. Opening the shelf imports nothing.
 The three attributed starter tapes are Guess the Number (MIT, 1 KiB), Aritm
 (GPL-3.0-or-later, 16 KiB recommended), and Character Display (MIT, 16 KiB
 recommended). Their sources, licences, provenance and checksums are retained in

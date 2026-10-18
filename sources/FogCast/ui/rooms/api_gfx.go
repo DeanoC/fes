@@ -21,6 +21,9 @@ func (r *Instance) installGfx() *lua.LTable {
 		"unclip":  r.gfxUnclip,
 		"hit":     r.gfxHit,
 		"blend":   r.gfxBlend,
+		"paint":   r.gfxPaint,
+		"extend":  r.gfxExtend,
+		"reuse":   r.gfxReuse,
 	})
 	return t
 }
@@ -117,6 +120,7 @@ func (r *Instance) gfxText(L *lua.LState) int {
 
 // gfx.measure(str, size [, bold]) -> width, height
 func (r *Instance) gfxMeasure(L *lua.LState) int {
+	r.measures++
 	text := L.CheckString(1)
 	size := int(L.OptNumber(2, 18))
 	if size <= 0 {
@@ -168,4 +172,161 @@ func (r *Instance) gfxBlend(L *lua.LState) int {
 	}
 	f.Ops = append(f.Ops, Op{Kind: OpBlend, Blend: mode})
 	return 0
+}
+
+// gfx.reuse() keeps the frame already presented and ignores anything else
+// this draw records. It returns false until a frame has been presented.
+func (r *Instance) gfxReuse(L *lua.LState) int {
+	if !r.inDraw {
+		L.RaiseError("gfx.reuse may only be called inside draw()")
+	}
+	if !r.frameReady {
+		L.Push(lua.LFalse)
+		return 1
+	}
+	r.reuseFrame = true
+	L.Push(lua.LTrue)
+	return 1
+}
+
+// gfx.paint(commands) records a whole frame in one call. Each command is a
+// table: {"c", color}, {"r", x, y, w, h, color}, {"t", text, x, y, size,
+// color, max_w, bold, align}, {"i", image, x, y, w, h} or {"h", id, x, y, w, h}.
+// A finished paint is still presented when the draw misses the soft budget.
+func (r *Instance) gfxPaint(L *lua.LState) int {
+	f := r.drawing(L, "paint")
+	r.keepSlowFrame = true
+	r.applyPaint(L, f, L.CheckTable(1))
+	return 0
+}
+
+// gfx.extend(commands) appends commands to the frame already presented.
+// Ops and hits already recorded in this draw stay after the copied frame,
+// in the order they were recorded. A clear recorded before this call
+// replaces the presented clear, and a clear in commands replaces that.
+// Another extend in the same draw appends again and does not copy the
+// presented frame a second time. The script pays for the new commands;
+// the copy is the previous picture.
+func (r *Instance) gfxExtend(L *lua.LState) int {
+	f := r.drawing(L, "extend")
+	if !r.frameReady {
+		L.ArgError(1, "gfx.extend needs a presented frame")
+	}
+	if !r.extendCopied {
+		ops := make([]Op, len(r.frame.Ops)+len(f.Ops))
+		copy(ops, r.frame.Ops)
+		copy(ops[len(r.frame.Ops):], f.Ops)
+		hits := make([]Hit, len(r.frame.Hits)+len(f.Hits))
+		copy(hits, r.frame.Hits)
+		copy(hits[len(r.frame.Hits):], f.Hits)
+		if !f.HasClear {
+			f.Clear = r.frame.Clear
+			f.HasClear = r.frame.HasClear
+		}
+		f.Ops = ops
+		f.Hits = hits
+		r.extendCopied = true
+	}
+	r.keepSlowFrame = true
+	r.applyPaint(L, f, L.CheckTable(1))
+	return 0
+}
+
+func (r *Instance) applyPaint(L *lua.LState, f *Frame, cmds *lua.LTable) {
+	n := cmds.Len()
+	for i := 1; i <= n; i++ {
+		row, ok := cmds.RawGetInt(i).(*lua.LTable)
+		if !ok {
+			L.ArgError(1, "paint commands must be tables")
+		}
+		kind, ok := row.RawGetInt(1).(lua.LString)
+		if !ok {
+			L.ArgError(1, "paint command missing kind")
+		}
+		switch string(kind) {
+		case "c":
+			f.Clear = paintColor(L, row, 2)
+			f.HasClear = true
+		case "r":
+			r.paintOp(L, f, Op{
+				Kind: OpRect, X: paintNum(row, 2), Y: paintNum(row, 3), W: paintNum(row, 4), H: paintNum(row, 5),
+				Color: paintColor(L, row, 6),
+			})
+		case "t":
+			text, _ := row.RawGetInt(2).(lua.LString)
+			if strings.TrimSpace(string(text)) == "" {
+				continue
+			}
+			op := Op{
+				Kind: OpText, Text: string(text), X: paintNum(row, 3), Y: paintNum(row, 4),
+				Size: int(paintNum(row, 5)), Color: paintColor(L, row, 6), Align: "left",
+			}
+			if op.Size <= 0 {
+				op.Size = 18
+			}
+			if op.Size > 256 {
+				op.Size = 256
+			}
+			if w, ok := row.RawGetInt(7).(lua.LNumber); ok && w > 0 {
+				op.MaxW = int(w)
+			}
+			if b, ok := row.RawGetInt(8).(lua.LBool); ok {
+				op.Bold = bool(b)
+			}
+			if a, ok := row.RawGetInt(9).(lua.LString); ok {
+				switch strings.ToLower(string(a)) {
+				case "center", "right", "left":
+					op.Align = strings.ToLower(string(a))
+				default:
+					L.ArgError(1, "align must be left, center or right")
+				}
+			}
+			r.paintOp(L, f, op)
+		case "i":
+			L.Push(row.RawGetInt(2))
+			img := r.checkImage(L, L.GetTop())
+			L.Pop(1)
+			if !img.Ready || img.Err != "" {
+				continue
+			}
+			w, h := paintNum(row, 5), paintNum(row, 6)
+			if w == 0 && h == 0 {
+				w, h = float32(img.W), float32(img.H)
+			}
+			r.paintOp(L, f, Op{Kind: OpImage, Image: img.Key, X: paintNum(row, 3), Y: paintNum(row, 4), W: w, H: h})
+		case "h":
+			id, _ := row.RawGetInt(2).(lua.LString)
+			if id == "" {
+				L.ArgError(1, "hit id required")
+			}
+			if len(f.Hits) >= r.budget.MaxOps {
+				L.RaiseError("gfx.paint: frame exceeds %d hit regions", r.budget.MaxOps)
+			}
+			f.Hits = append(f.Hits, Hit{ID: string(id), X: paintNum(row, 3), Y: paintNum(row, 4), W: paintNum(row, 5), H: paintNum(row, 6)})
+		default:
+			L.ArgError(1, "unknown paint command")
+		}
+	}
+}
+
+func (r *Instance) paintOp(L *lua.LState, f *Frame, op Op) {
+	if len(f.Ops) >= r.budget.MaxOps {
+		L.RaiseError("gfx.paint: frame exceeds %d draw ops", r.budget.MaxOps)
+	}
+	f.Ops = append(f.Ops, op)
+}
+
+func paintNum(row *lua.LTable, idx int) float32 {
+	n, ok := row.RawGetInt(idx).(lua.LNumber)
+	if !ok {
+		return 0
+	}
+	return float32(n)
+}
+
+func paintColor(L *lua.LState, row *lua.LTable, idx int) gfx.Color {
+	L.Push(row.RawGetInt(idx))
+	c := checkColor(L, L.GetTop())
+	L.Pop(1)
+	return c
 }

@@ -417,6 +417,36 @@ kit are pending.
   and debug-font prompts. The browse prompt still says "launch". Edition choice
   stays in rooms because Library rows are single editions.
 
+## ZX81 Workshop: third-slice decisions
+
+**Status:** implemented for review (#797). Evidence is host-only; Z1–Z3 on a
+kit are pending.
+
+- **The workbench is restyled, not rebuilt.** `example.hardware` keeps its
+  host-owned setup, guarded saves, live tape, Stop and session-display
+  behaviour. Only its layout and styling change, in the Lounge palette with
+  accent-outline focus.
+- **Three states together.** The setup column reads "Running: …", "Next start:
+  …" and, while an unsaved card is inspected, "Previewing: … (not saved)".
+  "Restart needed" says what to do. Without a session reading, Running is
+  "unknown", and a stale reading is marked "may be out of date".
+- **Preview is not fitted.** The illustration draws a ready saved card solid
+  ("Next start") and a ready inspected card outlined ("Preview") beside it.
+  A saved card the host marks unavailable keeps the Next start label and uses
+  the shelf's unavailable colour. An unavailable preview is not drawn on the
+  connector.
+- **Consequences beside the change.** A warm box under Fit & save says that a
+  setup change needs a restart, that stopping clears memory, and that saving
+  never saves RAM.
+- **Grouped actions.** The machine row holds Start/Stop, cassette/tape, Return
+  to play, Next setup and Set up ZX81. The host cassette label is a wide row
+  above those controls. A starter uses its display name; an import is
+  "Imported cassette" plus a digest prefix, not the filename (#801). A label
+  that does not fit keeps its start and its end. Setup tools hold Import expansion,
+  Refresh, More cards and Library.
+  Control IDs and guards are unchanged.
+- **Not yet.** "Games for this machine" needs its own focus and launch design.
+
 ## Decisions still to validate
 
 - Native typography, spacing, safe margins and comfortable TV reading distance

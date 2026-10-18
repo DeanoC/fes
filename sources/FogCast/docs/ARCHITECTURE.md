@@ -953,14 +953,23 @@ hit-tested on both room and parked now-playing screens. Stop, failures and
 return still use the ordinary session lifecycle. Per-room state preserves
 focus and selection, not hardware configuration or running RAM.
 
-Lua room callbacks run on the launcher thread under per-callback soft budgets;
-one slow update or draw keeps the previous frame and counts toward eight
-consecutive frame overruns. Slow input, pointer, lifecycle, and asynchronous
-result callbacks count in their own group, so successful frames do not hide
-repeated input overruns. Eight overruns in either group retire the room.
-Each callback still has a 4x hard deadline for runaway scripts. PCall paths
-restore their Lua stack after errors and return-valued callbacks also restore
-it after success or soft overrun.
+Lua room callbacks run on the launcher thread under per-callback soft budgets.
+A slow update, or a slow draw that did not finish a `gfx.paint`, keeps the
+previous frame and counts toward eight consecutive frame overruns. A finished
+`gfx.paint` or `gfx.extend` that misses only the soft budget is presented, so
+the next unchanged draw can call `gfx.reuse` and keep that frame. `gfx.extend`
+appends to the presented frame, after any drawing already recorded in that
+draw. A clear recorded before the extend replaces the presented clear. The
+ZX81 workshop's first picture is spread over several draws: a short opening
+frame, cached text metrics, then the upper and lower halves. A change to
+focus, size, status or selection after the upper half paints that half again
+before the lower half is appended. Eight consecutive slow paints still retire
+the room. Slow input, pointer, lifecycle, and asynchronous result callbacks
+count in their own group, so successful frames do not hide repeated input
+overruns. Eight overruns in either group retire the
+room. Each callback still has a 4x hard deadline for runaway scripts. PCall
+paths restore their Lua stack after errors and return-valued callbacks also
+restore it after success or soft overrun.
 
 `cmd/fogcast-tenfoot` is a host-side 10-foot launcher with SDL3 and explicit Linux framebuffer shells (cover grid, shelf,
 and list). It is another client of the public host API, not a second launch
