@@ -38,9 +38,75 @@ EXPECTED_TOOL_COMMITS = {
     "yosys": "5391eeb1e91b38a3d0e96d04f24cf921743c9c78",
 }
 
+GPU_VISIBILITY_ENV = (
+    "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES",
+)
+GPU_RUN_ENV = ("GPU_RUN_DEVICE", *GPU_VISIBILITY_ENV)
+
 
 class BuildError(ValueError):
     """Raised when the build cannot produce authenticated passing evidence."""
+
+
+def gpu_run_active(env: Mapping[str, str] | None = None) -> bool:
+    """Return whether this process inherited a gpu-run logical device marker."""
+    source = os.environ if env is None else env
+    return "GPU_RUN_DEVICE" in source
+
+
+def gpu_device_index(device: int, env: Mapping[str, str] | None = None) -> int:
+    """Map a configured physical index to gpu-run's child-visible index."""
+    source = os.environ if env is None else env
+    if "GPU_RUN_DEVICE" not in source:
+        return device
+    value = source["GPU_RUN_DEVICE"]
+    if not isinstance(value, str) or not value.isdecimal():
+        raise BuildError("GPU_RUN_DEVICE must be a nonnegative integer")
+    return int(value)
+
+
+def nextpnr_gpu_command(
+    command: Sequence[str], env: Mapping[str, str] | None = None,
+) -> tuple[str, ...]:
+    """Rewrite explicit nextpnr GPU indices for gpu-run's masked device view."""
+    if not gpu_run_active(env):
+        return tuple(command)
+    device = str(gpu_device_index(0, env))
+    result = list(command)
+    index = 0
+    while index < len(result):
+        argument = result[index]
+        if argument == "--gpu-device":
+            if index + 1 >= len(result):
+                raise BuildError("nextpnr --gpu-device is missing its value")
+            result[index + 1] = device
+            index += 2
+            continue
+        if argument.startswith("--gpu-device="):
+            result[index] = f"--gpu-device={device}"
+        index += 1
+    return tuple(result)
+
+
+def gpu_run_environment(env: Mapping[str, str] | None = None) -> dict[str, str]:
+    """Copy the wrapper's device index and visibility mask into a controlled env."""
+    source = os.environ if env is None else env
+    if "GPU_RUN_DEVICE" not in source:
+        return {}
+    gpu_device_index(0, source)
+    return {name: source[name] for name in GPU_RUN_ENV if name in source}
+
+
+def gpu_visibility_environment(
+    env: Mapping[str, str], device: int, *, variable: str,
+) -> dict[str, str]:
+    """Set a producer's normal GPU mask while preserving an active gpu-run mask."""
+    result = dict(env)
+    if gpu_run_active(result):
+        gpu_device_index(device, result)
+    else:
+        result[variable] = str(device)
+    return result
 
 
 def cuda_toolchain_configuration(architectures: str | None = None) -> str:
@@ -484,6 +550,7 @@ def _prepare_output(root: Path, *, relative: Path, build_outputs: Sequence[str])
 
 def _run_tool(command: tuple[str, ...], cwd: Path, log: Path,
               *, output_relative: Path, env=None, audit_source_root=None) -> None:
+    command = nextpnr_gpu_command(command, env)
     try:
         from scripts.compiler_read_audit import audited_run
         runner = subprocess.run if audit_source_root is None else audited_run
