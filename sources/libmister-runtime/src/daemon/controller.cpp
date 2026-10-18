@@ -192,6 +192,7 @@ std::string Controller::CommitMenuFrame(const Request& request,MenuFrame& frame,
  Error error=frame.ValidateImmutable(descriptor);MenuDisplayInfo info;
  if(error.ok())error=runtime_.PresentMenuFrame(request.expected_generation,frame,&info);
  MenuFrameReply reply;reply.generation=request.expected_generation;reply.displayed_sequence=info.displayed_sequence;reply.underflows=info.underflows;
+ reply.copy_us=info.copy_us;reply.submit_us=info.submit_us;reply.scanout_wait_us=info.scanout_wait_us;
  return Respond(request.protocol,error,nullptr,nullptr,error.ok()?&reply:nullptr);
 }
 

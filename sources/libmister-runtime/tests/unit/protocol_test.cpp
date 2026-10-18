@@ -1046,6 +1046,13 @@ void TestMenuProtocolRequestsAndStatus()
  const auto response=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&reply);
  assert(response.find("\"menu_frame\":{\"generation\":1")!=std::string::npos);
  assert(response.find("\"displayed_sequence\":3")!=std::string::npos);
+ // A completed present reports where its time went; a prepared reply does not.
+ reply.copy_us=41000;reply.submit_us=12;reply.scanout_wait_us=9000;
+ const auto timed=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&reply);
+ assert(timed.find("\"timing\":{\"copy_us\":41000,\"submit_us\":12,\"scanout_wait_us\":9000}")!=std::string::npos);
+ mister::daemon::MenuFrameReply prepared;prepared.generation=1;prepared.prepared=true;
+ const auto begun=mister::daemon::EncodeResponse(2,true,status,"test",nullptr,nullptr,&prepared);
+ assert(begun.find("\"timing\"")==std::string::npos);
 
  Request request;
  assert(Parse(R"({"protocol":2,"operation":"menu_frame_begin","expected_generation":18446744073709551615,"byte_count":3686400})",&request).ok());
