@@ -44,9 +44,21 @@ python3 scripts/frame-trace-summary.py trace.jsonl --json   # machine-readable
 python3 scripts/frame-trace-summary.py dump-2.jsonl --after dump-1.jsonl
 ```
 
-Each dump holds the whole ring, so a later dump repeats the frames of the
-earlier ones. `--after` keeps only the records newer than the last record of an
-earlier dump of the same process, which isolates what happened between them.
+Each dump holds the whole ring, so a later dump repeats the earlier tail.
+`--after` matches that shared tail by record identity and keeps what the ring
+appended since the earlier dump. A clock step backward still leaves those new
+records in the interval: a kit has no RTC, and the trace stores Unix
+microseconds. When the ring has wrapped past every shared record, the later
+dump is the whole interval.
+
+A tick and its present are written apart. The tick is appended when the
+iteration finishes and carries that iteration's start time; the present is
+appended when the display worker finishes. A dump can hold either record
+while the other arrives later, including a present the worker appends during
+the iteration and a tick appended afterwards with an earlier timestamp.
+`--after` keeps the earlier half so the pair still joins, and counts the
+frame once, in the interval where both records are on disk. Input metrics
+include only commands appended since the earlier dump.
 
 It joins each tick that queued a frame with that frame's present and reports
 p50/p95/max and the mean share per stage. The stages are `lua`, `tick_other`,
