@@ -10,9 +10,7 @@ Outside agent sessions have ignored these rules. Obey them.
    `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
    log is the single source of truth. NEVER take a kit that is leased or
    claimed by someone else. NEVER use a Slack reservation, and NEVER
-   require a person to be present. GPU jobs on Powerboat go through the
-   `gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows
-   the holders.
+   require a person to be present.
 2. Kits A and B are both designated test kits. They are interchangeable.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
@@ -34,6 +32,8 @@ Outside agent sessions have ignored these rules. Obey them.
    distinctive names.
 8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
    `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
+
+GPU jobs follow the [Shared GPUs](#shared-gpus) section.
 
 The four first-party modules develop only in this repository. Their former
 standalone repositories are archived; never send work or PRs there. Go import
@@ -115,10 +115,11 @@ never infer persistence from a display name, package path or raw RBF.
 
 Powerboat (AMD, HIP; GPU0 and GPU1) and the CUDA box `chip-30x0-ai-dev`
 (RTX 3070 and RTX 3090) are shared by agents and by Deano's Codex harness.
-All GPU work on those hosts goes through `gpu-run`. First come, first served.
+All GPU jobs on those hosts go through `gpu-run`: one `flock` lease per GPU,
+first come, first served, and `gpu-status` shows the holders.
 Lander uses `--owner lander` and `GPU_LEASE_MAX_PER_OWNER=2`, so Lander holds
 at most 2 GPUs at once. Nobody kills a GPU job. Deano's Codex harness jobs
-wait their turn like everyone else.
+are legitimate and must not be killed; they wait their turn like everyone else.
 
 `scripts/gpu-run` holds one flock per GPU in the wrapper and runs the command
 as a child. That child does not inherit the lock, so the lease ends when the
@@ -141,6 +142,25 @@ ln -sfn "$HOME/fes/scripts/gpu-status" "$HOME/bin/gpu-status"
 
 `gpu-run --help` lists the flags. Waiting is the default; `--no-wait` exits 75
 when the GPUs are not free.
+
+## Timing-failure playbook (P&R misses)
+
+This applies when a factory build, sweep, replay or nightly run misses timing on any core. Don't just reroll seeds.
+
+1. **Confirm the miss is real.** Replay the core's production recipe (seed, weight, critexp, every flag, env, timeout) on the same frozen `synth.json`, the same binary and the same physical GPU. If the old binary is in question, run a paired old/new replay as well. Note whether the GPU was contended.
+2. **Never relax a constraint.** Don't edit the SDC/QSF clocks, add `--timing-allow-fail` to a signoff, loosen a seal, or lower a required clock. If closing would need any of these, stop and report.
+3. **Work through the core's option matrix in order, within the budget:**
+   1. the production seed list at the production weight (what the producer does already)
+   2. timing weight variants {production, 300, 1000, 2000} × critexp {production, 2, 5}
+   3. known-helpful fork flags, one at a time, on the best two weight/critexp pairs: `--arrival-pin-assignment`, `--isolated-lut-placement`, then both
+   4. any core-specific entries listed in that core's recipe `playbook` table
+   - **Seeds:** use the production seed + 2 per combination, unless the recipe says otherwise.
+4. **Budget:** at most 6 GPU-hours per core per incident (ST: 10). Route everything through `gpu-run`, at most 2 GPUs per owner, FIFO, never preempting anyone else's job. Heavy sweeps go to the CUDA box only as pre-screens. The winning combination must be confirmed on HIP on Powerboat.
+5. **Record every run**: core, fes SHA, synth hash, toolchain slot, full argv, env, seed, GPU, contended or not, per-clock fmax, route time. Keep it in `docs/validation/<date>-<core>-timing-playbook/` as `runs.jsonl` plus a summary table.
+6. **If a combination closes** on at least 2 of 3 seeds, treat it as a candidate, not promotion evidence. Before promotion, rerun the full production build with the proposed recipe and require fresh timing evidence from that build, with its embedded `BUILD_ID` reflecting the new recipe; a frozen-`synth.json` sweep alone is insufficient. Record this build in the campaign evidence. The recipe-change PR contains only that core's recipe change plus the campaign evidence files: `runs.jsonl` and the summary table under `docs/validation/<date>-<core>-timing-playbook/`. Include the run table and before/after per-clock fmax in the PR body as well. A recipe change follows the normal merge bar, including HIL for cores that ship in the image. A flag that helps one core is never made a global default.
+7. **If nothing closes within budget**, the core stays on its current pin and recipe. File or update the core's timing issue with the run table and stop. Don't keep sweeping without Deano's OK.
+
+Long term this matrix becomes an automatic, alphamister-style search over the same option space, with the same budget and recording rules.
 
 ## Finish with a handoff
 

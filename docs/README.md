@@ -7,7 +7,7 @@ a dated record. A dated record is not the schedule.
 
 | You want to… | Read |
 | --- | --- |
-| Design or implement the FES user experience | [FES UX design](ux/README.md), [concepts](ux/concepts/README.md), [acceptance](ux/acceptance.md) |
+| Design or implement the FES user experience | [FES UX design](ux/README.md), [native references and Library target](ux/references/README.md), [concepts](ux/concepts/README.md), [acceptance](ux/acceptance.md) |
 | See which cores exist, their ABI, interfaces and standing | [Core status](core-status.md) |
 | See whether cores match current FPGA choices, and the retirement order | [Core alignment](core-alignment.md) |
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
