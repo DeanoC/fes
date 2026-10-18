@@ -1557,9 +1557,12 @@ nineteenth Y bit for 18x18), so the signed and unsigned 9x9 occupy two DSP
 sites. `0x1FF * 0x1FF` reads `0x00001` signed and `0x3FC01` unsigned. Memory
 and PLL remain forbidden. This rung needs the Yosys `dsp_map.v` signedness fix
 and the matching nextpnr; the pinned tools configure every product as signed
-and fail the unsigned 9x9 and every wide product. Simulation is supported;
-OSS and kit diagnostics follow the toolchain bump. Quartus comparison is by
-decompiled DSP configuration only (`nextpnr/mistral/tests/fixtures/dsp-signedness`).
+and fail the unsigned 9x9 and every wide product. The OSS policy checks the
+expected `A_SIGNED`/`B_SIGNED` pattern in `synth.json` before routing, so the
+current lock fails before publishing an RBF. Simulation is supported; a valid
+OSS artifact and kit diagnostic still require the paired toolchain fixes.
+Quartus comparison uses decompiled DSP configuration only
+(`nextpnr/mistral/tests/fixtures/dsp-signedness`).
 See `experiments/755_dsp_signed/expected.md`.
 
 `760_pll_52` measures PIN_V11 50 MHz → 52 MHz through one `altera_pll`.

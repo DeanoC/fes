@@ -11,6 +11,16 @@ ROOT = Path(__file__).resolve().parents[1]
 NAME = "755_dsp_signed"
 
 
+def _mul_cell(cell_type: str, a_signed: int, b_signed: int) -> dict[str, object]:
+    return {
+        "type": cell_type,
+        "parameters": {
+            "A_SIGNED": f"{a_signed:032b}",
+            "B_SIGNED": f"{b_signed:032b}",
+        },
+    }
+
+
 class DspSignedLadderTests(unittest.TestCase):
     def test_sources_exist(self) -> None:
         for relative in ("rtl/top.v", "sim/tb.cpp", "expected.md", "hardware/probe.sh"):
@@ -45,6 +55,14 @@ class DspSignedLadderTests(unittest.TestCase):
             {"MISTRAL_MUL9X9": 2, "MISTRAL_MUL18X18": 1, "MISTRAL_MUL27X27": 1},
         )
         self.assertEqual(dict(policy.required_packed_sites), {"MISTRAL_MUL9X9": 2})
+        self.assertEqual(
+            dict(policy.required_synth_signedness),
+            {
+                "MISTRAL_MUL9X9": ((1, 1), (0, 0)),
+                "MISTRAL_MUL18X18": ((1, 1),),
+                "MISTRAL_MUL27X27": ((1, 1),),
+            },
+        )
         self.assertEqual(policy.clock_evidence_names, ("product.FPGA_CLK1_50",))
         resources = {
             "MISTRAL_COMB": {"used": 120, "available": 83820},
@@ -57,6 +75,43 @@ class DspSignedLadderTests(unittest.TestCase):
         policy.validate_resources(resources)
         with self.assertRaisesRegex(PolicyError, "MUL"):
             policy.validate_resources({**resources, "MISTRAL_MUL9X9": {"used": 1, "available": 336}})
+
+    def test_synth_json_accepts_expected_signedness_parameters(self) -> None:
+        policy = policy_for(NAME)
+        cells = {
+            "signed9": _mul_cell("MISTRAL_MUL9X9", 1, 1),
+            "unsigned9": _mul_cell("MISTRAL_MUL9X9", 0, 0),
+            "s18": _mul_cell("MISTRAL_MUL18X18", 1, 1),
+            "s27": _mul_cell("MISTRAL_MUL27X27", 1, 1),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            synth = Path(tmp) / "synth.json"
+            synth.write_text(
+                json.dumps({"modules": {"top": {"cells": cells}}}),
+                encoding="utf-8",
+            )
+            policy.validate_synth_json(synth)
+
+    def test_synth_json_rejects_missing_signedness_parameters(self) -> None:
+        policy = policy_for(NAME)
+        cells = {
+            "signed9": _mul_cell("MISTRAL_MUL9X9", 1, 1),
+            "unsigned9": {"type": "MISTRAL_MUL9X9"},
+            "s18": _mul_cell("MISTRAL_MUL18X18", 1, 1),
+            "s27": _mul_cell("MISTRAL_MUL27X27", 1, 1),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            synth = Path(tmp) / "synth.json"
+            synth.write_text(
+                json.dumps({"modules": {"top": {"cells": cells}}}),
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(
+                PolicyError, "missing parameters A_SIGNED/B_SIGNED"
+            ) as error:
+                policy.validate_synth_json(synth)
+        self.assertIn("DeanoC/yosys#25", str(error.exception))
+        self.assertIn("DeanoC/nextpnr#219", str(error.exception))
 
     def test_signed_and_unsigned_9x9_need_two_sites(self) -> None:
         policy = policy_for(NAME)

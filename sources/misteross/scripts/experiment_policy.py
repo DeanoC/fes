@@ -61,6 +61,19 @@ def json_bit_parameter(value: Any) -> int | None:
     return None
 
 
+def json_boolean_parameter(value: Any) -> int | None:
+    """Parse a known zero/one Yosys parameter, rejecting unknown bits."""
+
+    if isinstance(value, str):
+        text = value.strip().lower().replace("_", "")
+        if text.startswith("0x"):
+            text = text[2:]
+        if set(text) & {"x", "z"}:
+            return None
+    parsed = json_bit_parameter(value)
+    return parsed if parsed in (0, 1) else None
+
+
 def mlab_init_parameter(value: Any) -> int | None:
     """Parse a Yosys JSON INIT value as a 32-bit integer."""
 
@@ -231,6 +244,7 @@ class ExperimentPolicy:
     yosys_post_synth: str = ""
     sim_jobs: tuple[SimJob, ...] = ()
     required_synth_cells: Mapping[str, int] = MappingProxyType({})
+    required_synth_signedness: Mapping[str, tuple[tuple[int, int], ...]] = MappingProxyType({})
     required_packed_sites: Mapping[str, int] = MappingProxyType({})
     required_nextpnr_bels: Mapping[str, str] = MappingProxyType({})
     required_m10k_bels: tuple[str, ...] = ()
@@ -393,6 +407,32 @@ class ExperimentPolicy:
                 raise PolicyError(f"{self.name}: required synth cell count for {cell} must be non-negative")
             synth_cells[cell] = count
         object.__setattr__(self, "required_synth_cells", MappingProxyType(synth_cells))
+
+        signedness: dict[str, tuple[tuple[int, int], ...]] = {}
+        for cell, patterns in dict(self.required_synth_signedness).items():
+            if not isinstance(cell, str) or not cell:
+                raise PolicyError(f"{self.name}: signedness cell names must be non-empty strings")
+            if cell not in synth_cells:
+                raise PolicyError(
+                    f"{self.name}: signedness cell {cell} must also be a required synth cell"
+                )
+            normalized: list[tuple[int, int]] = []
+            for pattern in patterns:
+                if not isinstance(pattern, (tuple, list)) or len(pattern) != 2:
+                    raise PolicyError(
+                        f"{self.name}: signedness for {cell} must contain A/B pairs"
+                    )
+                if any(type(value) is not int or value not in (0, 1) for value in pattern):
+                    raise PolicyError(
+                        f"{self.name}: signedness for {cell} must use only zero/one values"
+                    )
+                normalized.append((pattern[0], pattern[1]))
+            if len(normalized) != synth_cells[cell]:
+                raise PolicyError(
+                    f"{self.name}: signedness patterns for {cell} must match its required synth cell count"
+                )
+            signedness[cell] = tuple(normalized)
+        object.__setattr__(self, "required_synth_signedness", MappingProxyType(signedness))
 
         packed: dict[str, int] = {}
         for cell, count in dict(self.required_packed_sites).items():
@@ -699,23 +739,50 @@ class ExperimentPolicy:
         if not isinstance(modules, Mapping):
             raise PolicyError("synth json has no modules")
         counts: dict[str, int] = {}
+        cells_by_type: dict[str, list[tuple[str, Mapping[str, Any]]]] = {}
         for module in modules.values():
             if not isinstance(module, Mapping):
                 continue
             cells = module.get("cells")
             if not isinstance(cells, Mapping):
                 continue
-            for cell in cells.values():
+            for cell_name, cell in cells.items():
                 if not isinstance(cell, Mapping):
                     continue
                 cell_type = cell.get("type")
                 if isinstance(cell_type, str) and cell_type:
                     counts[cell_type] = counts.get(cell_type, 0) + 1
+                    cells_by_type.setdefault(cell_type, []).append((str(cell_name), cell))
         for name, expected in self.required_synth_cells.items():
             actual = counts.get(name, 0)
             if actual != expected:
                 raise PolicyError(
                     f"synth cell {name} must occur exactly {expected} time(s), got {actual}"
+                )
+        for cell_type, expected_patterns in self.required_synth_signedness.items():
+            actual_patterns: list[tuple[int, int]] = []
+            for cell_name, cell in cells_by_type.get(cell_type, []):
+                parameters = cell.get("parameters")
+                if not isinstance(parameters, Mapping):
+                    raise self._dsp_signedness_error(
+                        f"synth cell {cell_name!r} ({cell_type}) is missing parameters A_SIGNED/B_SIGNED"
+                    )
+                values = tuple(
+                    json_boolean_parameter(parameters.get(name))
+                    for name in ("A_SIGNED", "B_SIGNED")
+                )
+                if any(value is None for value in values):
+                    raise self._dsp_signedness_error(
+                        f"synth cell {cell_name!r} ({cell_type}) must have known boolean "
+                        f"A_SIGNED/B_SIGNED parameters, got "
+                        f"A_SIGNED={parameters.get('A_SIGNED')!r}, "
+                        f"B_SIGNED={parameters.get('B_SIGNED')!r}"
+                    )
+                actual_patterns.append((values[0], values[1]))
+            if sorted(actual_patterns) != sorted(expected_patterns):
+                raise self._dsp_signedness_error(
+                    f"synth {cell_type} A_SIGNED/B_SIGNED modes must be "
+                    f"{sorted(expected_patterns)!r}, got {sorted(actual_patterns)!r}"
                 )
         if self.synth_json_mlab_init:
             self._require_mlab_init(design)
@@ -747,6 +814,14 @@ class ExperimentPolicy:
             self._require_m10k_selector_pair(design)
         if self.m10k_tdp_narrow_width:
             self._require_m10k_tdp_narrow(design)
+
+    @staticmethod
+    def _dsp_signedness_error(detail: str) -> PolicyError:
+        return PolicyError(
+            f"{detail}; 755_dsp_signed requires Yosys to preserve DSP signedness "
+            "parameters (DeanoC/yosys#25) and nextpnr-mistral to configure them "
+            "(DeanoC/nextpnr#219) before this RBF can be trusted"
+        )
 
     def _mlab_init_cells(self, design: Mapping[str, Any]) -> dict[int, dict[str, Any]]:
         modules = design.get("modules")
@@ -1984,6 +2059,16 @@ class ExperimentPolicy:
             "yosys_post_synth": self.yosys_post_synth,
             "sim_jobs": [job.as_dict() for job in self.sim_jobs],
             "required_synth_cells": dict(self.required_synth_cells),
+            **(
+                {
+                    "required_synth_signedness": {
+                        cell: [list(pattern) for pattern in patterns]
+                        for cell, patterns in self.required_synth_signedness.items()
+                    }
+                }
+                if self.required_synth_signedness
+                else {}
+            ),
             **({"required_packed_sites": dict(self.required_packed_sites)}
                if self.required_packed_sites else {}),
             **({"required_nextpnr_bels": dict(self.required_nextpnr_bels)}
@@ -5514,6 +5599,11 @@ _POLICIES: Mapping[str, ExperimentPolicy] = MappingProxyType(
                 "MISTRAL_MUL9X9": 2,
                 "MISTRAL_MUL18X18": 1,
                 "MISTRAL_MUL27X27": 1,
+            },
+            required_synth_signedness={
+                "MISTRAL_MUL9X9": ((1, 1), (0, 0)),
+                "MISTRAL_MUL18X18": ((1, 1),),
+                "MISTRAL_MUL27X27": ((1, 1),),
             },
             # The signed and the unsigned 9x9 product cannot share a block:
             # the signed lane is sign-extended on lane 0 and owns its site.

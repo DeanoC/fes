@@ -29,16 +29,21 @@ configurations:
 | `0x100` | `0x1FF` | `0x00000100` | `0x0001FF00` | `0x01FE0100` | `0x0DFA0100` |
 | `0x155` | `0x0AA` | `0x00038E72` | `0x0000E272` | `0x38E31C72` | `0x39C71C72` |
 
-Yosys emits two `MISTRAL_MUL9X9` cells (one signed, one unsigned), one
-`MISTRAL_MUL18X18` and one `MISTRAL_MUL27X27`, each with `A_SIGNED` and
-`B_SIGNED`. nextpnr-mistral mirrors the Quartus configuration: the signed 9x9
+Yosys must emit two `MISTRAL_MUL9X9` cells (one with `A_SIGNED/B_SIGNED=1/1`,
+one with `0/0`), one signed `MISTRAL_MUL18X18` and one signed
+`MISTRAL_MUL27X27`. The `make oss` policy checks those parameter values in
+`synth.json` before routing; missing or mismatched values fail the lane with a
+message naming the required Yosys and nextpnr fixes. nextpnr-mistral mirrors
+the Quartus configuration: the signed 9x9
 is sign-extended into DATAIN groups 1 and 3 on lane 0 of its own block with all
 four sign bits set, the unsigned 9x9 sets no sign bit, the 27x27 sets all four
 sign bits, and the 18x18 sets `AX_SIGNED`, `BX_SIGNED` and `BY_SIGNED` with the
 nineteenth Y bit on group 5. The two 9x9 cells therefore occupy two DSP sites.
 Memory and PLL stay unused. The pinned toolchain before the Yosys `dsp_map.v`
-signedness fix configures every product as signed and fails the unsigned 9x9
-and every wide product; this rung is the hardware check for that fix.
+signedness fix drops these parameters, and the pinned nextpnr predates the DSP
+signedness configuration fix. The current pins fail before routing; passing
+the synthesis check alone does not replace the paired toolchain fixes or the
+hardware check for this rung.
 
 `make sim EXP=755_dsp_signed` checks all four products through the HPS model.
 `make oss EXP=755_dsp_signed` produces compressed `build/oss/755_dsp_signed/top.rbf`
