@@ -191,8 +191,10 @@ is ever added without its pairing code, including the first kit on a
 new computer. Explicit-add under Advanced (multicast-blocked networks)
 is address **plus the TV's code**, the same PAKE run at a typed
 address; raw token entry is not a product path once pairing ships.
-**Locked (Q16):** one computer per machine; a paired kit refuses
-pairing with a second host (Q8).
+**Revised (Q16):** each kit runs its own FogCast host and is its own
+owner. Other computers are library and content sources, not owners;
+a paired kit still refuses a second owning host (Q8). See
+[#863](https://github.com/DeanoC/fes/issues/863).
 
 **UX (Foggy).** The TV says "machine", never "kit", "node", "target"
 or "executor". The main line shows no UUIDs, IPs, tokens, owner strings
@@ -319,7 +321,7 @@ state for clone checks. Adding TXT keys is not a byte freeze.
 | Stale address (#259) | Read ABIs and health at the reconciled endpoint; check token and id. | Nothing when reconcile works. Else: "Can't reach {name} at its last address. Looking for it…" |
 | Both hostnames `mister` | Never key off hostname; use `target_id` and MAC. | No copy. Label is the user's name, or "MiSTer …{MAC tail}". |
 | Config write fails | Fail closed; kit stays unpaired; no half-written token. | Host: "Couldn't save {name}. Nothing was changed. Try again." TV: "Pairing didn't finish." |
-| Paired to another host | Refuse (Q8; one computer per machine, Q16). Never take its token. | Host, greyed row: "Already paired with another computer." |
+| Paired to another host | Refuse ownership (Q8, Q16). Never take its token. The computer can still be added as a library source (#863). | Host, greyed row: "Already paired with another computer." |
 | Duplicate id or MAC | Refuse pair and place (§2.6). | Host: "Two machines are claiming to be the same one. This usually means an SD card was copied. Set one of them up fresh before playing." |
 | CID witness mismatch | Kit regenerates id, token, derived MAC and deletes `launcher.json` (§2.6); old row and its launcher bearer 401. | TV: "This card was copied from another machine, so it's being set up fresh." Then a code. Host's old row shows the reimage sentence. |
 
@@ -672,7 +674,7 @@ DECIDED items change only by editing this file.
 | Q13 | DECIDED (moot) | HIL2 ran GREEN on `.85` configs; #259 stays slice L1 with optional C0-stale. | Done. |
 | Q14 | DECIDED (Deano) | Interim onboarding: a host `[[targets]]` row with the card's **own** token via the settings UI or PATCH, not hand-edited TOML. Never clone tokens across cards; never log them. | Uses the private write path and redaction until pairing lands. |
 | Q15 | LOCKED (Deano, 2026-09-28) | Never add a machine without its pairing code, including the first kit on a new computer; explicit-add is address plus code. | No silent trust on the LAN. |
-| Q16 | LOCKED (Deano, 2026-09-28) | One computer per machine; no multi-host pairing. | One owner per kit; moving is the Q8 local re-pair. |
+| Q16 | REVISED (Deano, 2026-10-18; locked 2026-09-28 as "one computer per machine; no multi-host pairing") | Each kit runs its own FogCast host and is its own owner. Other computers are library and content sources, not owners; a remote launch goes through the kit's host. A second owning host is still refused. | One owner per kit still holds, and the kit-local vs host split goes away ([#863](https://github.com/DeanoC/fes/issues/863)). FES is a local-LAN game machine; this adds no security work. |
 | Q17 | LOCKED (Deano, 2026-09-28) | "Always play here" is household-wide: the single host `display_preference`. | Matches today's config; no per-seat state. |
 
 No questions are open.

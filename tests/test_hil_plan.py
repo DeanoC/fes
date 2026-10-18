@@ -71,6 +71,18 @@ class HilPlanTest(unittest.TestCase):
     def git(self, *args):
         return subprocess.check_output(['git', '-C', str(self.repo), *args], text=True).strip()
 
+    def start_repo(self):
+        self.repo = self.work / 'repo'
+        self.repo.mkdir()
+        self.git('init', '-q')
+        self.git('config', 'user.email', 'test@example.com')
+        self.git('config', 'user.name', 'Test')
+        (self.repo / 'README').write_text('base\n')
+        self.git('add', '.')
+        self.git('commit', '-m', 'base')
+        self.git('branch', '-M', 'main')
+        return self.git('rev-parse', 'HEAD')
+
     def git_repo(self, paths=None):
         if hasattr(self, 'repo') and self.repo.exists():
             shutil.rmtree(self.repo)
@@ -1345,6 +1357,200 @@ class HilPlanTest(unittest.TestCase):
         data = json.loads(result.stdout)
         self.assertIn('image/S50agent', [row['path'] for row in data['rows']])
         self.assertEqual(data['decision'], 'FULL_IMAGE')
+
+    def test_pr_diff_excludes_the_image_gap(self):
+        self.repo = self.work / 'repo'
+        self.repo.mkdir()
+        self.git('init', '-q')
+        self.git('config', 'user.email', 'test@example.com')
+        self.git('config', 'user.name', 'Test')
+        (self.repo / 'README').write_text('base')
+        self.git('add', '.')
+        self.git('commit', '-m', 'image')
+        self.git('branch', '-M', 'main')
+        image = self.git('rev-parse', 'HEAD')
+        (self.repo / 'image').mkdir()
+        (self.repo / 'image/config').write_text('drift')
+        self.git('add', '.')
+        self.git('commit', '-m', 'drift')
+        self.git('checkout', '-q', '-b', 'pr')
+        (self.repo / 'sources/libmister-runtime').mkdir(parents=True)
+        (self.repo / 'sources/libmister-runtime/change').write_text('code')
+        self.git('add', '.')
+        self.git('commit', '-m', 'overlay')
+        head = self.git('rev-parse', 'HEAD')
+        result = run('classify', '--repo', self.repo, '--base-image-commit', image,
+                     '--head', head, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['class'], 'overlay')
+        self.assertEqual([row['path'] for row in data['rows']],
+                         ['sources/libmister-runtime/change'])
+        self.assertEqual(data['image_gap']['relation'], 'behind')
+        self.assertGreaterEqual(data['image_gap']['commits'], 1)
+        self.assertIn('image/config', data['image_gap']['paths'])
+        text = run('classify', '--repo', self.repo, '--base-image-commit', image,
+                   '--head', head)
+        self.assertIn('WARNING:', text.stdout)
+        self.assertIn('not part of the decision', text.stdout)
+        self.assertIn('DECISION: OVERLAY', text.stdout)
+        strict = run('classify', '--repo', self.repo, '--base-image-commit', image,
+                     '--head', head, '--strict', '--json')
+        strict_data = json.loads(strict.stdout)
+        self.assertEqual(strict_data['decision'], 'FULL_IMAGE')
+        self.assertNotIn('image_gap', strict_data)
+
+    def test_evidence_accepts_overlay_with_image_gap_and_reports_gap(self):
+        image = self.start_repo()
+        self.base = image
+        (self.repo / 'image').mkdir()
+        (self.repo / 'image/config').write_text('updated on main\n')
+        self.git('add', '.')
+        self.git('commit', '-m', 'image config update')
+        pr_base = self.git('rev-parse', 'HEAD')
+        self.git('checkout', '-q', '-b', 'pr')
+        runtime = self.repo / 'sources/libmister-runtime/change.cpp'
+        runtime.parent.mkdir(parents=True)
+        runtime.write_text('overlay\n')
+        self.git('add', '.')
+        self.git('commit', '-m', 'runtime overlay')
+        self.head = self.git('rev-parse', 'HEAD')
+
+        planned = run('classify', '--repo', self.repo, '--base-image-commit', image,
+                      '--head', self.head, '--json')
+        self.assertEqual(planned.returncode, 0, planned.stderr)
+        self.assertEqual(json.loads(planned.stdout)['class'], 'overlay')
+
+        entries = [('mister-runtime', 'kit', '/usr/sbin/mister-runtime', b'runtime')]
+        manifest = self.make_manifest(entries)
+        output = self.work / 'evidence.md'
+        result = self.evidence(manifest, entries, output=output)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        report = output.read_text()
+        self.assertIn(f'- PR base commit: `{pr_base}`', report)
+        self.assertIn('not part of the overlay decision', report)
+        self.assertIn('`image/config`', report)
+
+    def test_disconnected_origin_main_falls_back_to_related_local_main(self):
+        image = self.start_repo()
+        (self.repo / 'image').mkdir()
+        (self.repo / 'image/config').write_text('already installed\n')
+        self.git('add', '.')
+        self.git('commit', '-m', 'image config')
+        local_main = self.git('rev-parse', 'HEAD')
+
+        self.git('checkout', '-q', '-b', 'pr')
+        runtime = self.repo / 'sources/libmister-runtime/change.cpp'
+        runtime.parent.mkdir(parents=True)
+        runtime.write_text('overlay\n')
+        self.git('add', '.')
+        self.git('commit', '-m', 'runtime overlay')
+        head = self.git('rev-parse', 'HEAD')
+
+        self.git('checkout', '-q', '--orphan', 'unrelated')
+        self.git('commit', '--allow-empty', '-m', 'unrelated origin main')
+        unrelated_main = self.git('rev-parse', 'HEAD')
+        self.git('update-ref', 'refs/remotes/origin/main', unrelated_main)
+        self.git('checkout', '-q', 'pr')
+
+        result = run('classify', '--repo', self.repo, '--base-image-commit', image,
+                     '--head', head, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['class'], 'overlay')
+        self.assertEqual(data['image_gap']['pr_base'], local_main)
+        self.assertEqual([row['path'] for row in data['rows']],
+                         ['sources/libmister-runtime/change.cpp'])
+
+    def test_merged_pr_head_falls_back_to_image_to_head_diff(self):
+        image = self.start_repo()
+        self.base = image
+        self.git('checkout', '-q', '-b', 'pr')
+        runtime = self.repo / 'sources/libmister-runtime/change.cpp'
+        runtime.parent.mkdir(parents=True)
+        runtime.write_text('overlay\n')
+        self.git('add', '.')
+        self.git('commit', '-m', 'runtime overlay')
+        self.head = self.git('rev-parse', 'HEAD')
+        self.git('checkout', '-q', 'main')
+        self.git('merge', '--no-ff', '--no-edit', 'pr')
+        main_tip = self.git('rev-parse', 'HEAD')
+        self.git('update-ref', 'refs/remotes/origin/main', main_tip)
+
+        result = run('classify', '--repo', self.repo, '--base-image-commit', image,
+                     '--head', self.head, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['class'], 'overlay')
+        self.assertIn('sources/libmister-runtime/change.cpp',
+                      [row['path'] for row in data['rows']])
+
+    def test_origin_main_at_head_does_not_fall_back_to_stale_local_main(self):
+        image = self.start_repo()
+        self.base = image
+        self.git('checkout', '-q', '-b', 'image-gap')
+        (self.repo / 'image').mkdir()
+        (self.repo / 'image/config').write_text('already installed\n')
+        self.git('add', '.')
+        self.git('commit', '-m', 'image config')
+        image_with_gap = self.git('rev-parse', 'HEAD')
+        self.git('checkout', '-q', '-b', 'pr')
+        runtime = self.repo / 'sources/libmister-runtime/change.cpp'
+        runtime.parent.mkdir(parents=True)
+        runtime.write_text('overlay\n')
+        self.git('add', '.')
+        self.git('commit', '-m', 'runtime overlay')
+        self.head = self.git('rev-parse', 'HEAD')
+        self.git('update-ref', 'refs/remotes/origin/main', self.head)
+
+        result = run('classify', '--repo', self.repo, '--base-image-commit', image_with_gap,
+                     '--head', self.head, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['class'], 'overlay')
+        self.assertEqual([row['path'] for row in data['rows']],
+                         ['sources/libmister-runtime/change.cpp'])
+
+    def test_diverged_image_is_a_warning_not_a_decision(self):
+        self.repo = self.work / 'repo'
+        self.repo.mkdir()
+        self.git('init', '-q')
+        self.git('config', 'user.email', 'test@example.com')
+        self.git('config', 'user.name', 'Test')
+        (self.repo / 'README').write_text('base')
+        self.git('add', '.')
+        self.git('commit', '-m', 'root')
+        self.git('branch', '-M', 'main')
+        self.git('checkout', '-q', '-b', 'kit')
+        (self.repo / 'image').mkdir()
+        (self.repo / 'image/config').write_text('kit')
+        self.git('add', '.')
+        self.git('commit', '-m', 'kit image')
+        image = self.git('rev-parse', 'HEAD')
+        self.git('checkout', '-q', 'main')
+        (self.repo / 'docs').mkdir()
+        (self.repo / 'docs/drift').write_text('main')
+        self.git('add', '.')
+        self.git('commit', '-m', 'main drift')
+        self.git('checkout', '-q', '-b', 'pr')
+        (self.repo / 'sources/libmister-runtime').mkdir(parents=True)
+        (self.repo / 'sources/libmister-runtime/change').write_text('code')
+        self.git('add', '.')
+        self.git('commit', '-m', 'overlay')
+        head = self.git('rev-parse', 'HEAD')
+        result = run('classify', '--repo', self.repo, '--base-image-commit', image,
+                     '--head', head, '--json')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        data = json.loads(result.stdout)
+        self.assertEqual(data['class'], 'overlay')
+        self.assertEqual([row['path'] for row in data['rows']],
+                         ['sources/libmister-runtime/change'])
+        self.assertEqual(data['image_gap']['relation'], 'diverged')
+        self.assertIn('docs/drift', data['image_gap']['paths'])
+        text = run('classify', '--repo', self.repo, '--base-image-commit', image,
+                   '--head', head)
+        self.assertIn('has diverged', text.stdout)
+        self.assertIn('DECISION: OVERLAY', text.stdout)
 
     def test_lease_record_appends_json(self):
         status = self.work / 'status.json'
