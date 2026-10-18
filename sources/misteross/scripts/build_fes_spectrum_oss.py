@@ -37,15 +37,17 @@ from scripts.fes_build_common import (
 from scripts.fes_build_common import _require_clean_source as require_clean_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.search_placer_qor import SearchError, route_after_synth
+from scripts import pnr_recipe
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = "5CSEBA6U23I7"
 TOP = "top"
-ROUTER = "gpu"
+PNR = pnr_recipe.recipe_for("fes.spectrum")
+ROUTER = PNR["router"]
 RECIPE = "scripts/build_fes_spectrum_oss.py"
 OUTPUT_RELATIVE = Path("build/fes-spectrum-oss")
 FAST_OUTPUT_RELATIVE = Path("build/fes-spectrum-fast-oss")
-SPECTRUM_TOOLCHAIN_LOCK = "toolchain.lock"
+SPECTRUM_TOOLCHAIN_LOCK = "cores/fes-spectrum/toolchain.lock"
 SPECTRUM_TOOLCHAIN_ROOT = "build/toolchain/fes-spectrum"
 SPECTRUM_GPU_BACKEND = "hip"
 SPECTRUM_GPU_ROUTER = "HIP"
@@ -61,10 +63,11 @@ SPECTRUM_TOOL_COMMITS = {
 # First passing route wins; the order is part of the build identity. This is
 # the same first-pass order as the Apple II shell until a Spectrum seal
 # records its own.
-PLACER_SEEDS = (5, 4, 2, 1, 3, 6, 7, 8, 9, 10)
-PLACER_WEIGHT = 2000
-PLACER_CRITICALITY_EXPONENT = 5
-PLACER_QOR_CLOCKS = ((None, 52.224), (None, 74.25), (None, 12.288))
+PLACER_SEEDS = tuple(PNR["seeds"])
+PLACER_WEIGHT = PNR["timing_weights"][0]
+PLACER_CRITICALITY_EXPONENT = PNR["critexp"]
+PLACER_QOR_CLOCKS = pnr_recipe.required_clocks("fes.spectrum")
+ROUTE_TIMEOUT_SECONDS = PNR["timeout_s"]
 ROM_DATABASE_SHA256 = {
     "data/m10k-mux.txt": "22bb99e4b9f2bbe6b8dc7122d8ebf212a8b5610d46e59ce72d5b58b4b05631fe",
     "libmistral/cvd-sx120f.cc": "e3be2df0ff77a628a7b31447897488bfb2bb70fbaa0f1ef550bc36c32094faf7",
@@ -106,7 +109,7 @@ PINNED_INPUTS = (
     RECIPE, "scripts/spectrum_slots.py", "scripts/coleco_expansion.py", "scripts/compiler_read_audit.py",
     "scripts/source_repository.py", "scripts/fes_build_common.py", "scripts/rom_map.py",
     "scripts/cyclonev_rbf.py", "scripts/search_placer_qor.py",
-    ABI_DEFINITION, SPECTRUM_TOOLCHAIN_LOCK, QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
+    ABI_DEFINITION, SPECTRUM_TOOLCHAIN_LOCK, "scripts/pnr_recipe.py", QSF, SDC, *RTL_INCLUDES, *RTL_SOURCES,
 )
 BUILD_OUTPUTS = (
     "synth.json", "routed.json", "core.rbf", "timing.json", "yosys.log", "nextpnr.log",
@@ -571,10 +574,10 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                 qsf=output / "socket.qsf", sdc=root / SDC, freq="74.25",
                 seeds=PLACER_SEEDS, weights=(PLACER_WEIGHT,),
                 critexp=PLACER_CRITICALITY_EXPONENT, budget=len(PLACER_SEEDS),
-                mode="first-pass", extra=("--router", ROUTER),
+                mode="first-pass", extra=(), timeout=ROUTE_TIMEOUT_SECONDS,
                 required=((None, sys_mhz), (None, 74.25)) + (((None, 12.288),) if cpu == "nmos" else ()),
                 gpu_devices=(gpu_device,),
-                env=invocation.env, audit_source_root=root,
+                env=invocation.env, audit_source_root=root, core_id="fes.spectrum",
             )
         except SearchError as exc:
             raise BuildError(str(exc)) from exc

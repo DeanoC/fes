@@ -24,6 +24,7 @@ from scripts import fes_de10nano_evidence as board_evidence
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 from scripts.search_placer_qor import SearchError, route_after_synth
+from scripts import pnr_recipe
 
 ROOT = Path(__file__).resolve().parents[1]
 RECIPE = "scripts/build_fes_riscv.py"
@@ -57,7 +58,7 @@ PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
     "scripts/functional_execution.py", "scripts/fes_build_common.py",
     "scripts/fes_de10nano_evidence.py", "scripts/search_placer_qor.py",
-    ABI_DEFINITION, "toolchain.lock", QSF, board_evidence.SDC,
+    ABI_DEFINITION, "cores/fes-riscv/toolchain.lock", "scripts/pnr_recipe.py", QSF, board_evidence.SDC,
     *RTL_SOURCES, FIRMWARE_SOURCE, FIRMWARE_ASSEMBLER, *FIRMWARE_IMAGES,
 )
 BUILD_OUTPUTS = (
@@ -78,19 +79,22 @@ FORBIDDEN_RESOURCES = frozenset(
      "MISTRAL_MUL18X19_COMBINED", "MISTRAL_MUL27X27", "cyclonev_hps_interface_fpga2sdram"}
 )
 REQUIRED_ZERO_RESOURCES = frozenset({"cyclonev_oscillator"})
-PIXEL_CLOCK_MHZ = 74.25
+PNR = pnr_recipe.recipe_for("fes.riscv")
+PIXEL_CLOCK_MHZ = float(PNR["freq"])
 # First placement that closes the pixel clock wins; the order is the recipe.
-PLACER_SEEDS = (1, 2, 3, 4, 5, 6, 7, 8)
-PLACER_TIMING_WEIGHT = 10
-PLACER_CRITICALITY_EXPONENT = 2
-PLACER_QOR_CLOCKS = ((None, PIXEL_CLOCK_MHZ),)
-ROUTE_TIMEOUT_SECONDS = 1800
+PLACER_SEEDS = tuple(PNR["seeds"])
+PLACER_TIMING_WEIGHT = PNR["timing_weights"][0]
+PLACER_CRITICALITY_EXPONENT = PNR["critexp"]
+PLACER_QOR_CLOCKS = pnr_recipe.required_clocks("fes.riscv")
+ROUTE_TIMEOUT_SECONDS = PNR["timeout_s"]
 CORE = {"id": "fes.riscv", "name": "FES RISC-V", "version": "0.1.0",
         "description": "Original RV32I system: 32 KiB RAM, 160x120 framebuffer, "
                        "gamepad and timer-interrupt demonstration firmware"}
 INTERFACES = ("fes.video.fixed-720p60", "fes.gamepad")
 
-_authenticate_tools = board._authenticate_tools
+def _authenticate_tools(root, *, cache_root=None):
+    return board._authenticate_tools(root, lock_path=pnr_recipe.lock_path(root, "fes.riscv"),
+                                     cache_root=cache_root)
 
 
 def require_clean_source(root, *, identity_version=2):
@@ -188,9 +192,9 @@ def route_placement(root: Path, output: Path, nextpnr: Path, invocation, gpu_dev
         qsf=root / QSF, sdc=root / board_evidence.SDC, freq=f"{PIXEL_CLOCK_MHZ:g}",
         seeds=seeds, weights=(PLACER_TIMING_WEIGHT,), critexp=PLACER_CRITICALITY_EXPONENT,
         budget=len(seeds), mode="first-pass",
-        extra=("--router", "gpu", "--gpu-device", str(gpu_device)),
+        extra=(), gpu_devices=(gpu_device,),
         required=PLACER_QOR_CLOCKS, timeout=ROUTE_TIMEOUT_SECONDS,
-        env=invocation.env, audit_source_root=root)
+        env=invocation.env, audit_source_root=root, core_id="fes.riscv")
 
 
 def manifest(record: bytes, evidence: dict, repository: str, revision: str, identities: dict[str, str]) -> bytes:

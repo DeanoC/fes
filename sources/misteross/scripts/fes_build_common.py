@@ -323,6 +323,19 @@ def _fes_hip_local_provision_hint(root: Path, lock_path: Path, configuration: st
         return ""
     target = {
         "toolchain.lock": "toolchain-fes",
+        "cores/fes-menu/toolchain.lock": "toolchain-fes",
+        "cores/fes-catch/toolchain.lock": "toolchain-fes",
+        "cores/fes-pong/toolchain.lock": "toolchain-fes",
+        "cores/fes-zx81/toolchain.lock": "toolchain-fes-zx81",
+        "cores/fes-coleco/toolchain.lock": "toolchain-fes-coleco",
+        "cores/fes-sms/toolchain.lock": "toolchain-fes-sms",
+        "cores/fes-sg1000/toolchain.lock": "toolchain-fes-sg1000",
+        "cores/fes-apple2/toolchain.lock": "toolchain-fes-apple2",
+        "cores/fes-c64/toolchain.lock": "toolchain-fes-c64",
+        "cores/fes-spectrum/toolchain.lock": "toolchain-fes-spectrum",
+        "cores/fes-atari-st/toolchain.lock": "toolchain-fes-atari-st",
+        "cores/fes-ramtest/toolchain.lock": "toolchain-fes-ramtest",
+        "cores/fes-riscv/toolchain.lock": "toolchain-fes",
     }.get(relative)
     return f"; run `make {target}` to provision the FES HIP local toolchain" if target else ""
 

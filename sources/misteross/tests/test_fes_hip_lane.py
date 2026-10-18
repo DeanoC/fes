@@ -50,10 +50,12 @@ CUDA_PRODUCERS = (
 
 
 def _write_local_root_tools(root: Path, *, nextpnr_config: str | None) -> Path:
-    (root / "toolchain.lock").write_bytes((ROOT / "toolchain.lock").read_bytes())
+    lock = root / build_fes_pong.TOOLCHAIN_LOCK
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    lock.write_bytes((ROOT / build_fes_pong.TOOLCHAIN_LOCK).read_bytes())
     install = root / "build/toolchain/install/bin"
     install.mkdir(parents=True)
-    pins = load_lock(root / "toolchain.lock")
+    pins = load_lock(lock)
     for lock_name, binary_name in (
         ("yosys", "yosys"),
         ("mistral", "mistral-cv"),
@@ -170,12 +172,14 @@ class FesHipLaneTests(unittest.TestCase):
             request, _ = publish_shared_toolchain(base, gpu_router=HIP)
             local = base / "local-tree"
             local.mkdir()
-            (local / "toolchain.lock").write_bytes((ROOT / "toolchain.lock").read_bytes())
+            lock = local / build_fes_pong.TOOLCHAIN_LOCK
+            lock.parent.mkdir(parents=True, exist_ok=True)
+            lock.write_bytes((ROOT / build_fes_pong.TOOLCHAIN_LOCK).read_bytes())
             install = local / "build/toolchain/install/bin"
             install.mkdir(parents=True)
             from tests.test_build_fes_pong import _write_fake_tool
             from scripts.lockfile import load_lock
-            pins = load_lock(local / "toolchain.lock")
+            pins = load_lock(lock)
             for lock_name, binary_name in (("yosys", "yosys"), ("mistral", "mistral-cv"),
                                            ("nextpnr", "nextpnr-mistral")):
                 binary = install / binary_name
@@ -312,7 +316,8 @@ class FesHipLaneTests(unittest.TestCase):
                         (_write_local_zx81_tools if module is build_fes_zx81_oss else _write_local_root_tools)(
                             root, nextpnr_config=stamp)
                         with patch.dict(os.environ, {}, clear=True):
-                            hint = r"make toolchain-fes"
+                            target = "toolchain-fes-zx81" if module is build_fes_zx81_oss else "toolchain-fes"
+                            hint = rf"make {target}"
                             with self.assertRaisesRegex(BuildError, hint):
                                 module._authenticate_tools(root)
 

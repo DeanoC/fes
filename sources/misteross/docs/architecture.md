@@ -119,6 +119,27 @@ Existing FES whole-record matching continues to distinguish
 commits until that coordinated change lands. No new hardware acceptance is
 claimed by these host-side identity and exporter tests.
 
+## Per-core place-and-route recipes
+
+Each registered core in `config/core-recipes.toml` owns a `[recipes.pnr]`
+table and a `cores/<core>/toolchain.lock`. The step-1 locks are byte copies
+of `toolchain.lock`, so they select the existing pinned nextpnr `9128800f`
+slot. Placement seeds and weights, clock checks, routing mode, GPU binding,
+timeouts, thread count, timing-failure policy, option defaults and the
+controlled environment are recorded with that core's recipe. Registered
+producer constants are read from this table.
+
+`scripts/pnr_recipe.py` builds the complete nextpnr argv and validates the
+producer's controlled environment. `search_placer_qor.py` uses it for every
+registered search route; Catch uses it for its direct route. A producer's
+seed, weight, clock, timeout or raw extra argument must be listed in its
+recipe. Candidate evidence carries the argv, environment, recipe digest and
+authenticated toolchain slot. The producer-argv regression test pins the
+effective command and option coverage without invoking the physical router.
+
+This binds host build behavior to the selected recipe. It is not route timing
+qualification or hardware acceptance; those remain separate evidence gates.
+
 ## Build lanes
 
 ### Composable application reference
