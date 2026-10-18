@@ -93,8 +93,10 @@ is preserved. Module relocation alone does not enter the functional projection.
 
 The functional lane supplies an explicit environment to synthesis and routing,
 using an empty private home instead of user configuration and omitting ambient
-loader, Yosys and GPU overrides. Under `gpu-run`, it retains only the wrapper's
-logical-device marker and visibility mask. It records one explicit GPU device (default 0),
+loader, Yosys and GPU overrides. It preserves only the GPU routing variables
+set by `gpu-run` (`FES_GPU_IDS`, its visibility mask, `GPU_RUN_DEVICE`,
+`GPU_RUN_EXPECTED_DEVICE` and `NEXTPNR_REQUIRE_GPU`) and includes them in the
+functional input digest. It records one explicit GPU device (default 0),
 KFD topology, kernel, executable bytes (including the Yosys ABC9 helper
 `yosys-abc`), dynamic-library bytes and installed tool support data. Missing
 ABC or required Intel ALM support files reject the functional lane.
@@ -141,6 +143,16 @@ When a producer runs under `gpu-run`, it retains the wrapper's visibility mask
 and maps an explicit physical `--gpu-device` selection to `GPU_RUN_DEVICE`, the
 logical index visible inside that mask. Multi-device searches use one worker
 for the leased view; runs outside `gpu-run` keep their configured indices.
+
+An active `gpu-run` lease adds only its complete marker set and the one
+visibility mask for the recipe backend. The physical ID list and mask must
+match, the logical device marker and expected device must be coherent, and
+the requested nextpnr device must be within the lease. Incomplete or
+inconsistent lease values fail; ambient GPU masks without a lease remain
+forbidden. For HIP, a render-node path must match the first leased ID's KFD
+mapping. If KFD cannot map that ID, only the exact `amd:<id>` fallback marker
+is accepted; an unmapped render-node path fails closed. The accepted lease
+values remain part of the functional execution identity.
 
 This binds host build behavior to the selected recipe. It is not route timing
 qualification or hardware acceptance; those remain separate evidence gates.

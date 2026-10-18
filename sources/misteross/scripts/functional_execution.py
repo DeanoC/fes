@@ -30,6 +30,11 @@ _REQUIRED_YOSYS_SUPPORT = (
     "intel_alm/common/mem_sim.v", "intel_alm/common/misc_sim.v",
     "intel_alm/common/megafunction_bb.v", "intel_alm/common/arith_alm_map.v",
 )
+_GPU_LEASE_ENVIRONMENT = (
+    "FES_GPU_IDS", "GPU_RUN_DEVICE", "GPU_RUN_EXPECTED_DEVICE",
+    "NEXTPNR_REQUIRE_GPU", "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES",
+    "CUDA_VISIBLE_DEVICES",
+)
 
 def execution_environment(home: Path, tools: dict[str, Path]) -> dict[str, str]:
     # No ambient loader, Yosys, GPU, Python-path or user rc/cache settings enter
@@ -144,6 +149,13 @@ class FunctionalInvocation:
         self.env.update(gpu_run_environment())
         if extra_env:
             self.env.update(extra_env)
+        # Keep the lease-selected GPU visible through the controlled build env.
+        # These values identify the physical device behind logical --gpu-device
+        # indices and participate in the functional input digest below.
+        if (os.environ.get("FES_GPU_IDS") and os.environ.get("GPU_RUN_DEVICE") is not None
+                and os.environ.get("NEXTPNR_REQUIRE_GPU") == "1"):
+            self.env.update({key: os.environ[key] for key in _GPU_LEASE_ENVIRONMENT
+                             if key in os.environ})
         try:
             self.inputs = execution_inputs(self.tools, self.env, gpu_device)
         except Exception:

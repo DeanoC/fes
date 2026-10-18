@@ -4,7 +4,11 @@ One flock file per GPU. gpu-run keeps those descriptors in this process and
 runs the command as a child that does not inherit them, so the lease ends
 when that command exits even if it backgrounded other processes. The kernel
 also drops the flock if gpu-run itself exits or crashes. This module never
-terminates another process. Liveness of a waiter is read from /proc.
+terminates another process. Liveness of a waiter is read from /proc, checking
+both PID and start time. Tickets record their eligible physical GPU ids and
+vendor mask variable. FIFO applies to overlapping eligible GPU sets; later
+tickets may backfill on disjoint GPUs. On grant, the mask value is rebuilt
+from the exact GPU ids locked for that command.
 """
 import argparse
 import errno
@@ -46,7 +50,12 @@ exits or crashes. This tool never terminates another process.
 
 Device ids come from nvidia-smi -L or rocm-smi. If rocm-smi returns nothing,
 AMD ids are the HIP order of GPU nodes in KFD topology (simd_count > 0).
-DRM render minors are not HIP indices. GPU_LEASE_IDS overrides detection.
+DRM render minors are not HIP indices. GPU_LEASE_IDS overrides host inventory
+detection; it is not a per-job pin. Queue tickets record this eligible id set
+and the vendor visibility variable that the grant will set. A later waiter
+may backfill only on GPUs disjoint from earlier eligible waiters, preserving
+FIFO for jobs that can use the same GPU. On grant the visibility mask is
+rebuilt from exactly the leased ids, overriding inherited CUDA/HIP masks.
 GPU_LEASE_VENDOR=amd|nvidia selects the variables exported to CMD:
   amd:     ROCR_VISIBLE_DEVICES, FES_GPU_IDS
   nvidia:  CUDA_VISIBLE_DEVICES, FES_GPU_IDS
@@ -59,10 +68,11 @@ builds that silently fall back to CPU fail. CPU-only and help invocations do
 not require GPU access. If AMD KFD topology cannot map a render node, the
 wrapper checks for /dev/kfd and an open DRM render node.
 
---wait (the default) queues first come, first served until enough GPUs are
-free. --no-wait exits 75 when they cannot be taken without cutting ahead of
-a waiter who can still acquire. --timeout S stops waiting after S seconds
-and exits 75.
+--wait (the default) queues first come, first served. A later waiter may
+backfill on GPUs outside the eligible sets of earlier runnable tickets;
+waiters competing for the same GPU keep strict FIFO. --no-wait exits 75 when
+its requested GPUs are busy or it would cut ahead of an earlier waiter for
+the same GPU. --timeout S stops waiting after S seconds and exits 75.
 
 An owner holds at most GPU_LEASE_MAX_PER_OWNER GPUs at once (unset means
 unlimited). That cap is recorded on the queue ticket and used only for that
@@ -311,6 +321,8 @@ def process_tree_has_nextpnr(root_pid, proc_root=None):
 def nextpnr_requires_gpu(args):
     if not any('nextpnr-mistral' in argument for argument in args):
         return False
+    if any(argument in ('--help', '-h', '--version', '-V') for argument in args):
+        return False
     for index, argument in enumerate(args):
         if argument in ('--gpu-device', '--gpu-devices', '--require-gpu'):
             return True
@@ -332,31 +344,56 @@ def process_tree_fd_targets(root_pid, proc_root=None):
     proc_root = Path(proc_root) if proc_root is not None else PROC_ROOT
     targets = set()
     for pid in process_tree_pids(root_pid, proc_root):
-        fd_dir = proc_root / str(pid) / 'fd'
-        try:
-            entries = list(fd_dir.iterdir())
-        except OSError:
-            continue
-        for entry in entries:
-            try:
-                target = os.readlink(entry)
-            except OSError:
-                continue
-            if target.endswith(' (deleted)'):
-                target = target[:-10]
-            targets.add(target)
+        targets.update(process_fd_targets(pid, proc_root))
     return targets
 
 
-def process_tree_uses_gpu(root_pid, vendor, device_node, proc_root=None):
-    """Check that nextpnr's process tree opened the leased hardware node."""
-    targets = process_tree_fd_targets(root_pid, proc_root)
+def process_fd_targets(pid, proc_root=None):
+    proc_root = Path(proc_root) if proc_root is not None else PROC_ROOT
+    fd_dir = proc_root / str(pid) / 'fd'
+    try:
+        entries = list(fd_dir.iterdir())
+    except OSError:
+        return set()
+    targets = set()
+    for entry in entries:
+        try:
+            target = os.readlink(entry)
+        except OSError:
+            continue
+        if target.endswith(' (deleted)'):
+            target = target[:-10]
+        targets.add(target)
+    return targets
+
+
+def process_tree_nextpnr_fd_targets(root_pid, proc_root=None):
+    proc_root = Path(proc_root) if proc_root is not None else PROC_ROOT
+    targets = set()
+    for pid in process_tree_pids(root_pid, proc_root):
+        if 'nextpnr-mistral' in process_cmdline(pid, proc_root):
+            targets.update(process_fd_targets(pid, proc_root))
+    return targets
+
+
+def process_tree_uses_gpu(root_pid, vendor, device_nodes, proc_root=None):
+    """Check that nextpnr itself opened a leased hardware node."""
+    targets = process_tree_nextpnr_fd_targets(root_pid, proc_root)
+    if device_nodes is None:
+        expected_nodes = []
+    elif isinstance(device_nodes, str):
+        expected_nodes = [device_nodes]
+    else:
+        expected_nodes = list(device_nodes)
+    mapped_nodes = {node for node in expected_nodes if isinstance(node, str)}
+    first_node = expected_nodes[0] if expected_nodes else None
     if vendor == 'amd':
-        has_render_node = any(re.fullmatch(r'/dev/dri/renderD\d+', target) for target in targets)
-        return '/dev/kfd' in targets and has_render_node and (
-            device_node is None or device_node in targets)
+        render_nodes = {target for target in targets
+                        if re.fullmatch(r'/dev/dri/renderD\d+', target)}
+        return '/dev/kfd' in targets and bool(render_nodes) and (
+            first_node is None or bool(render_nodes & mapped_nodes))
     if vendor == 'nvidia':
-        return device_node is not None and device_node in targets
+        return bool(mapped_nodes & targets)
     return False
 
 
@@ -421,6 +458,10 @@ def resolve_inventory():
     if not ids:
         raise LeaseError('no GPUs detected; set GPU_LEASE_IDS and GPU_LEASE_VENDOR')
     return vendor, sorted(ids, key=id_key)
+
+
+def vendor_mask_variable(vendor):
+    return 'ROCR_VISIBLE_DEVICES' if vendor == 'amd' else 'CUDA_VISIBLE_DEVICES'
 
 
 def iso(timestamp):
@@ -814,12 +855,12 @@ def ticket_live(ticket):
         return False
     if ticket['host'] != socket.gethostname():
         return True
+    expected = ticket.get('starttime')
+    if not isinstance(expected, str) or not expected.isdigit():
+        return False
     identity = process_starttime(ticket['pid'])
     if identity is None:
         return False
-    expected = ticket.get('starttime')
-    if expected is None:
-        return True
     return str(expected) == identity
 
 
@@ -878,11 +919,14 @@ def ticket_cap(ticket):
     return None
 
 
-def enqueue(directory, owner, label, gpus, command, cap):
+def enqueue(directory, owner, label, gpus, eligible_ids, vendor, command, cap):
     def operation():
         seq = next_seq(directory)
         now = time.time()
         pid = os.getpid()
+        starttime = process_starttime(pid)
+        if starttime is None:
+            raise LeaseError('cannot read the current process start time')
         ticket = {
             'ticket': seq,
             'owner': owner,
@@ -890,10 +934,13 @@ def enqueue(directory, owner, label, gpus, command, cap):
             'pid': pid,
             'host': socket.gethostname(),
             'gpus': gpus,
+            'eligible_ids': list(eligible_ids),
+            'vendor': vendor,
+            'vendor_mask': vendor_mask_variable(vendor),
             'cap': cap,
             'enqueued': iso(now),
             'enqueued_unix': now,
-            'starttime': process_starttime(pid),
+            'starttime': starttime,
             'command': redact_command(command),
         }
         path = Path(directory) / 'queue' / ('%08d.json' % seq)
@@ -909,35 +956,67 @@ def ticket_blocked_by_own_cap(directory, ids, ticket):
     return held_by_owner(directory, ids, ticket['owner'], ()) + ticket['gpus'] > cap
 
 
-def first_runnable(tickets, directory, ids):
-    """First live ticket that can still acquire under its own recorded cap.
+def ticket_eligible_ids(ticket, vendor, fallback_ids):
+    """Return recorded eligibility, conservatively falling back for old tickets."""
+    eligible = ticket.get('eligible_ids')
+    if ticket.get('vendor') != vendor or ticket.get('vendor_mask') != vendor_mask_variable(vendor):
+        return list(fallback_ids)
+    if not isinstance(eligible, list) or not eligible or not all(
+            isinstance(gpu_id, str) and ID_RE.fullmatch(gpu_id) for gpu_id in eligible):
+        return list(fallback_ids)
+    if len(eligible) != len(set(eligible)):
+        return list(fallback_ids)
+    return eligible
 
-    A waiter blocked only by its own cap is not ahead of anyone. A waiter
-    that can still acquire keeps its place even when the free GPUs are not
-    enough for it yet.
-    """
+
+def known_gpu_ids(directory, requested_ids, tickets):
+    """Return ids known to this lease directory for owner-cap checks."""
+    known = set(requested_ids)
     for ticket in tickets:
-        if ticket_blocked_by_own_cap(directory, ids, ticket):
+        eligible = ticket.get('eligible_ids')
+        if isinstance(eligible, list):
+            known.update(gpu_id for gpu_id in eligible
+                         if isinstance(gpu_id, str) and ID_RE.fullmatch(gpu_id))
+    try:
+        for path in Path(directory).glob('gpu-*.lock'):
+            gpu_id = path.name[len('gpu-'):-len('.lock')]
+            if ID_RE.fullmatch(gpu_id):
+                known.add(gpu_id)
+    except OSError:
+        pass
+    return sorted(known, key=id_key)
+
+
+def earlier_ticket_gpu_ids(directory, tickets, ids, vendor, ticket):
+    """Reserve eligible GPUs for earlier tickets that are not cap-blocked."""
+    own_ticket = ticket.get('ticket') if ticket is not None else None
+    cap_ids = known_gpu_ids(directory, ids, tickets)
+    reserved = set()
+    for earlier in tickets:
+        if own_ticket is not None and earlier['ticket'] >= own_ticket:
+            break
+        if ticket_blocked_by_own_cap(directory, cap_ids, earlier):
             continue
-        return ticket
-    return None
+        reserved.update(ticket_eligible_ids(earlier, vendor, ids))
+    return reserved
 
 
-def attempt(directory, ids, count, owner, label, command, cap, ticket_path, ticket):
+def attempt(directory, ids, count, vendor, owner, label, command, cap, ticket_path, ticket):
     def operation():
         tickets = iter_tickets(directory)
-        runnable = first_runnable(tickets, directory, ids)
-        if ticket is None:
-            if runnable is not None:
-                return None
-        elif runnable is None or runnable['ticket'] != ticket['ticket']:
+        if ticket is not None and not any(item['ticket'] == ticket['ticket'] for item in tickets):
             return None
-        chosen = lock_gpus(directory, ids, count)
+        reserved = earlier_ticket_gpu_ids(directory, tickets, ids, vendor, ticket)
+        available_ids = [gpu_id for gpu_id in ids if gpu_id not in reserved]
+        if len(available_ids) < count:
+            return None
+        chosen = lock_gpus(directory, available_ids, count)
         if chosen is None:
             return None
         try:
             skip = {gpu_id for gpu_id, _ in chosen}
-            if cap is not None and held_by_owner(directory, ids, owner, skip) + count > cap:
+            cap_ids = known_gpu_ids(directory, ids, tickets)
+            if cap is not None and held_by_owner(directory, cap_ids, owner, skip) + count > cap:
                 release(chosen)
                 return None
             now = time.time()
@@ -964,17 +1043,19 @@ def attempt(directory, ids, count, owner, label, command, cap, ticket_path, tick
     return with_state_lock(directory, operation)
 
 
-def acquire(directory, ids, count, owner, label, command, cap, wait, timeout):
+def acquire(directory, ids, count, vendor, owner, label, command, cap, wait, timeout):
     ticket_path = None
     ticket = None
     got = None
     deadline = None if timeout is None else time.monotonic() + timeout
     try:
         if wait:
-            ticket_path, ticket = enqueue(directory, owner, label, count, command, cap)
+            ticket_path, ticket = enqueue(directory, owner, label, count, ids, vendor,
+                                          command, cap)
         backoff = POLL_INITIAL
         while True:
-            got = attempt(directory, ids, count, owner, label, command, cap, ticket_path, ticket)
+            got = attempt(directory, ids, count, vendor, owner, label, command, cap,
+                          ticket_path, ticket)
             if got is not None:
                 return got
             if not wait:
@@ -1037,13 +1118,20 @@ def public_ticket(ticket):
     age = 0
     if type(start) in (int, float):
         age = max(0, int(time.time() - start))
+    eligible = ticket.get('eligible_ids')
+    if not isinstance(eligible, list) or not all(
+            isinstance(gpu_id, str) and ID_RE.fullmatch(gpu_id) for gpu_id in eligible):
+        eligible = None
     return {
         'ticket': ticket['ticket'],
         'owner': ticket['owner'],
         'label': ticket.get('label') if isinstance(ticket.get('label'), str) else '',
         'pid': ticket['pid'],
+        'owner_pid': ticket['pid'],
         'host': ticket['host'],
         'gpus': ticket['gpus'],
+        'eligible_ids': eligible,
+        'vendor_mask': ticket.get('vendor_mask') if isinstance(ticket.get('vendor_mask'), str) else None,
         'enqueued': ticket.get('enqueued') if isinstance(ticket.get('enqueued'), str) else None,
         'age_seconds': age,
         'command': string_list(ticket.get('command')) or [],
@@ -1091,9 +1179,11 @@ def format_status(payload):
         lines.append('queue empty')
     for item in payload['queue']:
         command = shlex.join(item['command']) if item.get('command') else '-'
-        lines.append('waiting %s  owner=%s gpus=%s label=%s pid=%s host=%s age=%s command=%s' % (
-            item['ticket'], item['owner'], item['gpus'], item.get('label') or '-',
-            item['pid'], item['host'], format_age(item['age_seconds']), command))
+        eligible = ','.join(item['eligible_ids']) if item.get('eligible_ids') else '?'
+        lines.append('waiting %s  owner=%s gpus=%s eligible=%s mask=%s label=%s owner_pid=%s host=%s age=%s command=%s' % (
+            item['ticket'], item['owner'], item['gpus'], eligible,
+            item.get('vendor_mask') or '?', item.get('label') or '-', item['pid'], item['host'],
+            format_age(item['age_seconds']), command))
     return '\n'.join(lines) + '\n'
 
 
@@ -1164,7 +1254,8 @@ def execute(vendor, chosen, command):
     the child or any process the child started.
     """
     gpu_ids = [gpu_id for gpu_id, _ in chosen]
-    device_node = gpu_device_path(vendor, gpu_ids[0])
+    device_nodes = [gpu_device_path(vendor, gpu_id) for gpu_id in gpu_ids]
+    device_node = device_nodes[0]
     env = child_env(vendor, gpu_ids, device_node)
     previous_interrupt = signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
@@ -1182,7 +1273,7 @@ def execute(vendor, chosen, command):
             if not requires_gpu:
                 requires_gpu = process_tree_requires_gpu(pid)
             if requires_gpu and not opened_gpu:
-                opened_gpu = process_tree_uses_gpu(pid, vendor, device_node)
+                opened_gpu = process_tree_uses_gpu(pid, vendor, device_nodes)
             try:
                 waited, status = os.waitpid(pid, os.WNOHANG)
             except InterruptedError:
@@ -1194,7 +1285,12 @@ def execute(vendor, chosen, command):
         signal.signal(signal.SIGINT, previous_interrupt)
         release(chosen)
     if requires_gpu and not opened_gpu:
-        expected = device_node or ('a device node for %s GPU %s (mapping unavailable)' % (vendor, gpu_ids[0]))
+        mapped_nodes = [node for node in device_nodes if node]
+        if mapped_nodes:
+            expected = (mapped_nodes[0] if len(mapped_nodes) == 1 else
+                        'one of %s' % ', '.join(mapped_nodes))
+        else:
+            expected = 'a device node for %s GPU %s (mapping unavailable)' % (vendor, gpu_ids[0])
         if vendor == 'amd':
             opened = '/dev/kfd and %s' % expected
         else:
@@ -1222,7 +1318,7 @@ def main_run(argv=None):
         owner = die_text(args.owner if args.owner is not None else default_owner(), 'owner', 64)
         label = die_text(args.label, 'label', 200, allow_empty=True)
         directory = ensure_lease_dir(lease_directory())
-        chosen = acquire(directory, ids, args.gpus, owner, label, args.cmd, cap,
+        chosen = acquire(directory, ids, args.gpus, vendor, owner, label, args.cmd, cap,
                          args.wait_for_lease, args.timeout)
         if chosen is None:
             if args.wait_for_lease:
