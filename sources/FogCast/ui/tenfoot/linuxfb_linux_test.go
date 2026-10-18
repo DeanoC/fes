@@ -16,9 +16,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -123,6 +125,117 @@ func TestFramebufferControllerBackAndSettings(t *testing.T) {
 	inputs.applyButtons(a, time.Now())
 	if a.Snapshot().Settings.Open {
 		t.Fatal("controller back did not close settings")
+	}
+}
+
+func TestFramebufferLoopDropsTraceWhenItReturns(t *testing.T) {
+	app := NewApp(nil, 320, 240, 4)
+	dev, err := gfx.NewSoftware(320, 240)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+	dir := t.TempDir()
+	t.Setenv("FOGCAST_FRAME_TRACE_DIR", dir)
+	signals := make(chan os.Signal, 4)
+	signal.Notify(signals, syscall.SIGUSR1)
+	defer signal.Stop(signals)
+
+	polls := 0
+	err = framebufferLoop(context.Background(), Options{}, app, dev, func(*App, time.Time) (bool, error) {
+		polls++
+		if polls == 1 {
+			if err := syscall.Kill(os.Getpid(), syscall.SIGUSR1); err != nil {
+				return true, err
+			}
+			deadline := time.Now().Add(time.Second)
+			for time.Now().Before(deadline) {
+				entries, readErr := os.ReadDir(dir)
+				if readErr != nil {
+					return true, readErr
+				}
+				if len(entries) > 0 {
+					return false, nil
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
+			return true, nil
+		}
+		return true, nil
+	}, "trace-stop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("dumps while the loop ran = %d, want 1", len(entries))
+	}
+	app.mu.Lock()
+	leftover := app.frameTrace
+	app.mu.Unlock()
+	if leftover != nil {
+		t.Fatal("display loop left the frame trace attached")
+	}
+	if err := syscall.Kill(os.Getpid(), syscall.SIGUSR1); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-signals:
+	case <-time.After(time.Second):
+		t.Fatal("SIGUSR1 was not delivered after the loop returned")
+	}
+	time.Sleep(50 * time.Millisecond)
+	entries, err = os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("exited loop wrote another dump (%d files)", len(entries))
+	}
+}
+
+func TestLateDisplayTickDoesNotCountSchedulerDelayAsPoll(t *testing.T) {
+	app := NewApp(nil, 320, 240, 4)
+	dev, err := gfx.NewSoftware(320, 240)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+	polls := 0
+	var first, second frameTraceRecord
+	err = framebufferLoop(context.Background(), Options{}, app, dev, func(*App, time.Time) (bool, error) {
+		polls++
+		switch polls {
+		case 1:
+			time.Sleep(80 * time.Millisecond)
+			return false, nil
+		case 2:
+			time.Sleep(2 * time.Millisecond)
+			return false, nil
+		default:
+			app.mu.Lock()
+			records := app.frameTrace.records()
+			app.mu.Unlock()
+			if len(records) >= 2 {
+				first, second = records[0], records[1]
+			}
+			return true, nil
+		}
+	}, "late-tick")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Kind != "tick" || second.Kind != "tick" {
+		t.Fatalf("ticks = %+v %+v", first, second)
+	}
+	if first.PollUS < 50_000 {
+		t.Fatalf("first poll = %d us, want the overrun that makes the next tick late", first.PollUS)
+	}
+	if second.PollUS > 20_000 {
+		t.Fatalf("late tick poll = %d us, want the poll itself and not the ticker delay", second.PollUS)
 	}
 }
 

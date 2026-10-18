@@ -33,8 +33,10 @@ it is `$XDG_STATE_HOME/fes-kit` when `XDG_STATE_HOME` is set, then
 `~/.local/state/fes-kit`. The directory is created mode `0700`. It is used
 only when the current user owns it, it is not a symlink, and neither it nor
 an ancestor is group- or world-writable. A sticky ancestor such as `/tmp` is
-allowed when this user owns the next component. An explicit path that fails
-these checks is an error. A default candidate that fails is skipped.
+allowed when this user owns the next component. A selected path that fails
+these checks is an error, including `$XDG_STATE_HOME/fes-kit`; the tool never
+falls back to `~/.local/state/fes-kit`, so a scratch run cannot write markers
+into the shared hold directory.
 
 Temporary storage is not the hold directory, so a workstation reboot does
 not drop the maintenance credential. A private journal and task marker left

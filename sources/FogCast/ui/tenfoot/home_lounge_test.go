@@ -33,10 +33,19 @@ func homeFixtureCores() []localcores.Core {
 	}
 }
 
-func startHomeLounge(t *testing.T, cores rooms.LocalCores, w, h int) *App {
+// startHomeLounge starts the lounge Home. A pairedLease body pairs the
+// client before Start and makes the host serve that kit lease, so the
+// session poller observes it instead of racing an injected one.
+func startHomeLounge(t *testing.T, cores rooms.LocalCores, w, h int, pairedLease ...string) *App {
 	t.Helper()
 	host := newRoomHost(t)
-	app := NewApp(NewClient(host.server.URL, host.server.Client()), w, h, 50)
+	client := NewClient(host.server.URL, host.server.Client())
+	if len(pairedLease) > 0 {
+		host.pairedLease = true
+		host.pairedLeaseBody = pairedLease[0]
+		client.paired = true
+	}
+	app := NewApp(client, w, h, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
 	app.SetHomeRooms(true)
@@ -147,17 +156,11 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 		writeHomeScreenshot(t, snap, "launch-failed")
 	})
 	t.Run("in-use", func(t *testing.T) {
-		app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
-		waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
-		app.mu.Lock()
-		app.client.paired = true
-		app.kitLeaseHave = true
-		app.kitLease = KitLeaseStatus{State: "held", Owner: "another-shell", Purpose: "playing"}
-		app.mu.Unlock()
-		snap := app.Snapshot()
-		if c := heroDestinationCopy(snap); c.Headline != rooms.InUseStatus {
-			t.Fatalf("in-use hero %+v", c)
-		}
+		app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720,
+			`{"state":"held","owner":"another-shell","purpose":"playing"}`)
+		snap := waitFor(t, app, "in use", func(s Snapshot) bool {
+			return s.Room.Destination.Label == "FES Pong" && heroDestinationCopy(s).Headline == rooms.InUseStatus
+		})
 		writeHomeScreenshot(t, snap, "in-use")
 	})
 	for _, size := range []struct{ w, h int }{{1280, 720}, {1024, 600}} {
@@ -424,8 +427,17 @@ func TestHomeHeroButtonsDoWhatTheySayWithAPointer(t *testing.T) {
 func TestHomeSaysCheckingWhileAFailedLaunchReconciles(t *testing.T) {
 	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
 	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
+	// The launcher's startup status poll answers idle, which rightly clears
+	// a reconcile. Let it settle, and hold later polls, so the flag set here
+	// is the state under test.
+	waitFor(t, app, "startup status", func(Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return app.localStartupStatusChecked && !app.localStatusBusy
+	})
 	app.mu.Lock()
 	app.localReconcileAfterFailure = true
+	app.localStatusNext = time.Now().Add(time.Hour)
 	app.mu.Unlock()
 	snap := app.Snapshot()
 	if c := heroDestinationCopy(snap); c.State != heroStateChecking || c.Primary == "Play" || snap.Room.Destination.Confirm() != rooms.ConfirmWait {

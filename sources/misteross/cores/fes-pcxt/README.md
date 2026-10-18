@@ -169,10 +169,13 @@ Run `--suite video`, `--suite video-mda` or `--suite video-machine` with
 `scripts/sim_fes_pcxt.py`. Both synthetic profiles check 32 output frames under
 unrelated clocks, every displayed pixel, scaling and bars, CGA palette/MDA
 luminance, frame ownership/cadence, malformed capture, pauses, HOLD, coordinated
-reset and exact Direct/Scanlines response alignment. The machine suite runs the
-original 8088 display ROM through both ISA cards and checks guest and 720p pixels
-with 0/137-clock external storage waits. All three suites run in the default
-PC/XT family, including the parent affected-test and hosted simulation lanes.
+reset and exact Direct/Scanlines response alignment. Each profile then repeats
+at twice the guest pixel rate: a completed third bank stays queued and the next
+whole source frame is dropped, while every published frame stays intact. The
+machine suite runs the original 8088 display ROM through both ISA cards and
+checks guest and 720p pixels, the CGA Direct response and the MDA Scanlines
+response, with 0/137-clock external storage waits. All three suites run in the
+default PC/XT family, including the parent affected-test and hosted simulation lanes.
 
 Diagnostic locked synthesis supports `--suite video-cga` and `--suite video-mda`,
 with `--scanlines` selecting the second effect. Outputs and source/tool receipts
