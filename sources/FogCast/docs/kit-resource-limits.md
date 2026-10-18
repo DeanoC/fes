@@ -1,12 +1,12 @@
 # Kit resource limits
 
 The local host and shell on a DE10-Nano share one small board with the runtime.
-This note records the idle baseline from 2026-10-02, the proposed budgets for
-that host and shell, and the read-only collector that measures them again.
+This note records the idle baseline from 2026-10-02, the collector
+measurements on kit B from 2026-10-04, the proposed budgets for that host and
+shell, and the read-only collector that measures them again.
 
-The baseline was read on the kits at about 07:10 Europe/Sofia. This change did
-not contact either kit. Later comparisons should use the collector so the units
-match the definitions below.
+The baseline was read on the kits at about 07:10 Europe/Sofia. Later
+comparisons should use the collector so the units match the definitions below.
 
 ## Baseline
 
@@ -21,6 +21,49 @@ with `sync`. `/tmp` is a 246 MiB tmpfs.
 | CPU | 95% idle; `fogcast-tenfoot` 2% of one core | `fogcast-kit` 45% of one core while idle |
 | Memory | MemAvailable 410 MiB | MemAvailable 434 MiB |
 | `/media/fat` | 75% used, 248 MiB free | 17% used |
+
+## Kit B measurements, 2026-10-04
+
+Kit B (`192.168.10.85`) ran image `24c93192…` (0.2.0-main-84dcb29f.1) with the
+grid shell `fogcast-kit --menu-display`. The collector was
+`scripts/kit-diagnostics-ssh.sh` from main. Times are Europe/Sofia (EEST).
+Each column has two runs.
+
+| | Idle (09:00:48, 09:01:18) | Data Storm playing (09:02:20, 09:02:36) |
+| --- | --- | --- |
+| `load_1` | 0.40 / 0.55 | 1.02 / 0.91 |
+| `cpu_idle_percent` | 58 / 59 | 75 / 74 |
+| `fogcast-kit` CPU (% of one core) / RSS | 37 / 42%, about 67 MiB | 13%, 65–70 MiB |
+| MemAvailable | 408 / 409 MiB | 357 / 358 MiB |
+| `/` (read-only ext4 loop) | 83% used by `df`, 18.7 MiB free | same |
+| `/media/fat` | 66% used, 342 MiB free | same |
+| `/tmp` | 4 KiB used | same |
+
+Earlier runs on images `5af41062` (idle) and `1e7485f2` (idle and play) are in
+[#359](https://github.com/DeanoC/fes/issues/359#issuecomment-5966189267) and
+[its follow-up](https://github.com/DeanoC/fes/issues/359#issuecomment-5967709655).
+
+Against the proposed budgets below, at idle:
+
+| Budget | Result |
+| --- | --- |
+| CPU: `cpu_idle_percent` ≥ 80, `load_1` < 0.50, no `fogcast-*` > 15% | Miss: 58–59% idle, `fogcast-kit` at 37–42%; `load_1` 0.40 and 0.55 ([#389](https://github.com/DeanoC/fes/issues/389)) |
+| Memory: MemAvailable ≥ 256 MiB | Pass: 408 MiB idle, 357 MiB during play |
+| `/media/fat`: ≥ 128 MiB free | Pass: 342 MiB free |
+| `/tmp`: scratch < 32 MiB | Pass: 4 KiB used |
+
+The image id above comes from `/media/fat/fogcast/releases/boot.json`. The
+collector on that image reported the factory bootstrap image instead; see
+[#504](https://github.com/DeanoC/fes/issues/504).
+
+**Root percentage.** The build reported rootfs use at 78.41%, while `df`
+reports 83% on the kit. They measure different things. The build check
+(`image/scripts/check-rootfs-headroom.sh`) divides used blocks, block count
+minus `dumpe2fs` free blocks, by the configured 128 MiB image size. `df`
+reports Capacity as used / (used + available), rounded up. Its Size leaves out
+ext4 metadata, and its Available leaves out the blocks reserved for root. The
+smaller denominator gives the higher `df` figure. The root is read-only, so
+neither figure is space the host can write.
 
 ## Collector units
 
@@ -108,6 +151,10 @@ showed load 1.5. `fogcast-kit` was at 45% of one core, which is under half a
 core. Kit A on the newer image, running tenfoot, was at 95% idle. That idle
 load is open and is filed as [#389](https://github.com/DeanoC/fes/issues/389).
 This collector does not change the launcher.
+
+On 2026-10-04, with image `24c93192…` and the grid shell, kit B's idle load
+fell to 0.40–0.55. `fogcast-kit` still used 37–42% of one core and the board
+was 58–59% idle, so the CPU budget still misses.
 
 ## Run
 
