@@ -78,6 +78,12 @@ never infer persistence from a display name, package path or raw RBF.
   keep cold `make build` / `make verify` and Quartus for stabilized integration.
 - Parent builds use committed module bytes. Never claim a build tested edits it
   did not select.
+- Delete superseded code; don't keep it. When a replacement lands, remove the
+  old path, its tests, build targets and docs in the same or the next PR. Don't
+  add compatibility shims, fallbacks or "kept for older kits" branches: both kits
+  are test kits and an SD reburn is pre-approved. Removal needs no special
+  justification. Keeping legacy code does. [#871](https://github.com/DeanoC/fes/issues/871)
+  tracks the current list.
 
 ## Hardware, media and releases
 
