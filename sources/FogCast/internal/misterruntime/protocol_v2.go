@@ -38,20 +38,23 @@ type Protocol2Error struct {
 }
 
 type Protocol2MenuDisplay struct {
-	Available         bool            `json:"available"`
-	Session           bool            `json:"session,omitempty"`
-	CoreGeneration    uint64          `json:"core_generation,omitempty"`
-	PackageID         *string         `json:"package_id"`
-	Generation        uint64          `json:"generation"`
-	Width             uint64          `json:"width"`
-	Height            uint64          `json:"height"`
-	Stride            uint64          `json:"stride"`
-	ByteCount         uint64          `json:"byte_count"`
-	SlotBytes         uint64          `json:"slot_bytes"`
-	StagingFormat     string          `json:"staging_format"`
-	DisplayedSequence uint64          `json:"displayed_sequence"`
-	Underflows        uint64          `json:"underflows"`
-	Error             *Protocol2Error `json:"error"`
+	Available         bool    `json:"available"`
+	Session           bool    `json:"session,omitempty"`
+	CoreGeneration    uint64  `json:"core_generation,omitempty"`
+	PackageID         *string `json:"package_id"`
+	Generation        uint64  `json:"generation"`
+	Width             uint64  `json:"width"`
+	Height            uint64  `json:"height"`
+	Stride            uint64  `json:"stride"`
+	ByteCount         uint64  `json:"byte_count"`
+	SlotBytes         uint64  `json:"slot_bytes"`
+	StagingFormat     string  `json:"staging_format"`
+	DisplayedSequence uint64  `json:"displayed_sequence"`
+	Underflows        uint64  `json:"underflows"`
+	// Damage is the runtime's optional damaged-present capability. It is
+	// emitted only as true; absence means the runtime does not accept damage.
+	Damage bool            `json:"damage,omitempty"`
+	Error  *Protocol2Error `json:"error"`
 }
 
 type Protocol2Response struct {
@@ -624,7 +627,7 @@ func validateProtocol2Shape(line []byte) error {
 }
 
 func validateMenuDisplayShape(raw json.RawMessage) error {
-	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "staging_format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation"})
+	menu, err := exactRawObject(raw, []string{"available", "package_id", "generation", "width", "height", "stride", "byte_count", "slot_bytes", "staging_format", "displayed_sequence", "underflows", "error"}, []string{"session", "core_generation", "damage"})
 	if err != nil {
 		return err
 	}
@@ -646,6 +649,9 @@ func validateMenuDisplayShape(raw json.RawMessage) error {
 			return errInvalidRuntimeResponse
 		}
 	} else if _, present := menu["core_generation"]; present {
+		return errInvalidRuntimeResponse
+	}
+	if damage, present := menu["damage"]; present && !bytes.Equal(bytes.TrimSpace(damage), []byte("true")) {
 		return errInvalidRuntimeResponse
 	}
 	if !isNull(menu["error"]) {

@@ -51,8 +51,15 @@ type frameTraceRecord struct {
 	RTCopyUS    int64  `json:"runtime_copy_us,omitempty"`
 	RTSubmitUS  int64  `json:"runtime_submit_us,omitempty"`
 	RTWaitUS    int64  `json:"runtime_scanout_wait_us,omitempty"`
-	Presented   bool   `json:"presented,omitempty"`
-	Err         string `json:"err,omitempty"`
+	// Pixels staged by the client and stored to DDR by the runtime, and the
+	// shortcuts the worker took (docs/frame-trace.md).
+	StagedPixels   int64  `json:"staged_pixels,omitempty"`
+	RTStoredPixels int64  `json:"runtime_stored_pixels,omitempty"`
+	DamageRects    int    `json:"damage_rects,omitempty"`
+	StatusSkipped  bool   `json:"status_skipped,omitempty"`
+	Retried        bool   `json:"retried,omitempty"`
+	Presented      bool   `json:"presented,omitempty"`
+	Err            string `json:"err,omitempty"`
 }
 
 // frameTrace is an always-on ring of recent frame timings for the kit
@@ -96,6 +103,8 @@ func (f *frameTrace) present(p gfx.MenuPresentTrace) {
 		FrameCopyUS: p.FrameCopyUS, QueueWaitUS: p.QueueWaitUS, StatusUS: p.StatusUS, PresentUS: p.PresentUS,
 		BeginUS: p.Timing.BeginUS, StageUS: p.Timing.StageUS, CommitUS: p.Timing.CommitUS,
 		RTCopyUS: p.Timing.RuntimeCopyUS, RTSubmitUS: p.Timing.RuntimeSubmitUS, RTWaitUS: p.Timing.RuntimeScanoutWaitUS,
+		StagedPixels: p.Timing.StagedPixels, RTStoredPixels: p.Timing.RuntimeStoredPixels,
+		DamageRects: p.DamageRects, StatusSkipped: p.StatusSkipped, Retried: p.Retried,
 		Presented: p.Presented, Err: p.Err,
 	})
 }

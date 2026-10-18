@@ -110,7 +110,11 @@ ZX81 matrix or native gamepad keys for the other cores. The virtual FogCast devi
 without gamepad buttons, and duplicate `/dev/input/js*` joystick interfaces are
 excluded. Standard Linux gamepad buttons and the kit's 081f:e401 USB pad are
 normalized. Axis range comes from EVIOCGABS, including unsigned 0–255 fixture
-axes. Buttons held on opening are suppressed until release. Unplug drops that
+axes. Left stick (`ABS_X`/`ABS_Y`) and D-pad hat (`ABS_HAT0X`/`ABS_HAT0Y`)
+share `left-x`/`left-y`. A held hat owns that axis: stick reports are dropped
+until the hat returns to centre, and that centre report restores the stick's
+latest position. The framebuffer tenfoot shell uses this same mapper.
+Buttons held on opening are suppressed until release. Unplug drops that
 pad and keeps any remaining pads; a one-second rescan from the 16ms loop picks
 up a newly plugged pad without blocking present. When the last pad disconnects,
 the launcher reopens as before.

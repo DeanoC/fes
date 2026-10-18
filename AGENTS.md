@@ -1,5 +1,40 @@
 # Working in FES
 
+## Shared kits and Powerboat (READ FIRST)
+
+Outside agent sessions have ignored these rules. Obey them.
+
+1. MUST claim the kit before you touch it, and log the result when you
+   finish. There is no separate Powerboat host claim. Record owner, PR,
+   and start time in that kit's Powerboat status file:
+   `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
+   log is the single source of truth. NEVER take a kit that is leased or
+   claimed by someone else. NEVER use a Slack reservation, and NEVER
+   require a person to be present. GPU jobs on Powerboat go through the
+   `gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows
+   the holders.
+2. Kits A and B are both designated test kits. They are interchangeable.
+3. When a task installs a bundle, install that PR bundle on the kit's
+   running image. A core-only run that does not change the bundle does not
+   install one. After use, restore the designated baseline image and bundle
+   the status file names, and log that restore. Activating the baseline
+   bundle does not change the booted image. If the booted image is not the
+   named baseline, restore that image, verify the boot, then activate a
+   compatible baseline bundle and verify it before logging the kit
+   restored. Confirm the kit is idle and lease-free before you release it.
+4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
+5. Destructive actions need Deano's explicit OK: reimage, an image or
+   boot-config change, killing other people's processes, and closing PRs.
+6. These stay pre-approved: deleting old images (keep the running image
+   and the previous one), SD reburn, and bundle install-then-restore.
+   Never delete a factory or known-good rollback image. Before an SD
+   reburn, verify the device path is that kit's SD card.
+7. NEVER use broad `pkill` or `killall` patterns on Powerboat (for example
+   `pkill -f run.sh`). Kill only PIDs you started. Give your scripts
+   distinctive names.
+8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
+   `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
+
 The four first-party modules develop only in this repository. Their former
 standalone repositories are archived; never send work or PRs there. Go import
 paths and dated provenance may keep the old names.
@@ -48,21 +83,64 @@ never infer persistence from a display name, package path or raw RBF.
 
 - Managed kits install immutable userspace bundles and queue activation at the next
   free lease boundary; see [kit software releases](docs/kit-software-releases.md).
-  Successful selections remain installed. Do not restore another task's release,
-  require matching host commits, or use file overlays on a managed kit.
-- A build never authorizes deployment. Use the designated kit only as the
-  selected FogCast `docs/DEVELOPMENT.md` and `AGENTS.md` authorize, holding a
-  session claimed through [kit sharing](docs/kit-sharing.md); never bypass
+  When the task installs a bundle, install that PR bundle on the kit's running
+  image. A core-only run that does not change the bundle does not install one.
+  After use, restore the designated baseline image and bundle named in the
+  status file and log that restore. Activating the baseline bundle does not
+  change the booted image. If the booted image is not the named baseline,
+  restore that image and verify the boot first, then activate a compatible
+  baseline bundle and verify it before logging the kit restored.
+  Bundle install-then-restore is pre-approved. A successful selection stays
+  installed, and nothing restores a stock bundle automatically; the return to
+  the baseline bundle is an explicit activation of the ID in the status file.
+  Do not put another task's release in place of that baseline, require matching
+  host commits, or use file overlays on a managed kit.
+- A build never authorizes deployment. Kits A and B are both designated test
+  kits and are interchangeable. Claim one in its status file and hold the
+  session described in [kit sharing](docs/kit-sharing.md). Never bypass
   another owner's lease with direct programming.
 - Report which kind of evidence you have: host-only check, hardware diagnostic,
   or exact-artifact hardware acceptance. A new profile inherits no acceptance.
 - `make media`, `make verify-media` and `make rollback-media` hold the media
   lease and never write a block device; see [bootable media](docs/bootable-media.md).
   Change `media/current` only through these leased commands. Writing a physical
-  card needs explicit device authorization plus the kit lease.
+  card needs an explicit device path plus the kit lease. An SD reburn of a
+  designated test kit is pre-approved. Verify the device path is that kit's
+  SD card before writing.
 - Versioned appliance images follow [appliance releases](docs/appliance-releases.md):
   preserve factory, known-good, previous and loop-referenced images, and verify
   the booted image identity after reboot.
+
+## Shared GPUs
+
+Powerboat (AMD, HIP; GPU0 and GPU1) and the CUDA box `chip-30x0-ai-dev`
+(RTX 3070 and RTX 3090) are shared by agents and by Deano's Codex harness.
+All GPU work on those hosts goes through `gpu-run`. First come, first served.
+Lander uses `--owner lander` and `GPU_LEASE_MAX_PER_OWNER=2`, so Lander holds
+at most 2 GPUs at once. Nobody kills a GPU job. Deano's Codex harness jobs
+wait their turn like everyone else.
+
+`scripts/gpu-run` holds one flock per GPU in the wrapper and runs the command
+as a child. That child does not inherit the lock, so the lease ends when the
+command exits even if it backgrounded other processes, and the kernel drops
+it if the wrapper exits or crashes. `scripts/gpu-status` shows each GPU as
+free or held, the holder metadata and age, and the waiting queue. Leases live
+in `/var/tmp/gpu-leases` (directory mode `0700`, files mode `0600`) unless
+`GPU_LEASE_DIR` is set. The directory must be on a local filesystem. A waiter
+is admitted under the cap it started with, so a capped waiter already at its
+allowance does not block another job from taking a free GPU.
+
+Install on a host by symlinking the scripts into `~/bin` (the link target is
+the checkout, so the scripts keep finding each other):
+
+```sh
+mkdir -p "$HOME/bin"
+ln -sfn "$HOME/fes/scripts/gpu-run" "$HOME/bin/gpu-run"
+ln -sfn "$HOME/fes/scripts/gpu-status" "$HOME/bin/gpu-status"
+```
+
+`gpu-run --help` lists the flags. Waiting is the default; `--no-wait` exits 75
+when the GPUs are not free.
 
 ## Finish with a handoff
 
