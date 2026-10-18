@@ -152,6 +152,8 @@ last complete frame. Guest clocks and CRTC timing are never stretched to 60 Hz.
 Malformed active geometry or an early EOL aborts capture until the next source
 SOF. HOLD aborts partial capture and mutes RGB, preserving complete banks and
 output timing; releasing it may repeat the last complete frame until new capture.
+Capture registers retain write address, data and enable together before the
+framebuffer; the last byte commits before a published frame can be adopted.
 A pixel-clock register separates the framebuffer read mux from subpixel/palette
 conversion; all raster fields receive that same extra cycle. System and pixel
 resets must be asserted together and released synchronously

@@ -115,11 +115,25 @@ module pcxt_video #(parameter bit MDA = 0) (
     wire [18:0] image_index = row_base + {9'b0,image_x};
     wire [ABITS-1:0] read_address = {read_bank,{BANK_BITS{1'b0}}} +
                                                   (image ? ABITS'(image_index >> SHIFT) : {ABITS{1'b0}});
+    // Keep capture geometry/decode out of the M10K write setup path. Retain
+    // address, data and enable together. The final byte commits no later than
+    // publication; the synchronized mailbox cannot expose an unwritten byte.
+    reg [ABITS-1:0] write_address_q;
+    reg [7:0] packed_data_q;
+    reg write_enable_q;
+    always @(posedge clk_sys) begin
+        if (reset_sys) begin write_address_q <= 0; packed_data_q <= 0; write_enable_q <= 0; end
+        else begin
+            write_address_q <= write_address;
+            packed_data_q <= packed_data;
+            write_enable_q <= store && packed_last;
+        end
+    end
     wire [7:0] pair;
     /* verilator lint_off PINCONNECTEMPTY */
     coleco_video_dpram #(.DATAWIDTH(8), .ADDRWIDTH(ABITS), .NUMWORDS(STRIDE*3)) framebuffer (
-        .clock_a(clk_sys), .address_a(write_address), .data_a(packed_data),
-        .wren_a(store && packed_last), .q_a(), .clock_b(clk_pixel), .address_b(read_address),
+        .clock_a(clk_sys), .address_a(write_address_q), .data_a(packed_data_q),
+        .wren_a(write_enable_q), .q_a(), .clock_b(clk_pixel), .address_b(read_address),
         .data_b(8'b0), .wren_b(1'b0), .q_b(pair)
     );
     /* verilator lint_on PINCONNECTEMPTY */
