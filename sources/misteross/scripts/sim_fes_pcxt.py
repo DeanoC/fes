@@ -161,10 +161,12 @@ def main():
                         '-CFLAGS', '-std=c++17 -O2',
                         *(['-I' + str(ROOT / 'cores/fes-pcxt/sim')] if suite in ('memory', 'memory-machine') else []),
                         *[str(ROOT / source) for source in sources]], cwd=ROOT, check=True)
-        subprocess.run([str(build / ('V' + top)),
-                        *(['mda'] if suite == 'video-mda' else []),
-                        *([str(build / 'diagnostic.bin')] if suite in ('cpu', 'machine', 'display-machine', 'video-machine', 'memory-machine') else [])],
-                       cwd=build, check=True)
+        for delay in (0, 1, 2) if suite in ('memory', 'memory-machine') else (None,):
+            subprocess.run([str(build / ('V' + top)),
+                            *(['mda'] if suite == 'video-mda' else []),
+                            *([str(build / 'diagnostic.bin')] if suite in ('cpu', 'machine', 'display-machine', 'video-machine', 'memory-machine') else []),
+                            *([str(delay)] if delay is not None else [])],
+                           cwd=build, check=True)
 
 
 if __name__ == '__main__':

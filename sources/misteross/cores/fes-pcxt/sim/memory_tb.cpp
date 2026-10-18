@@ -8,7 +8,7 @@ struct Simulation {
     Vmemory_top d;
     Sdram<Vmemory_top> ram;
     uint64_t cycles=0;
-    Simulation() {
+    explicit Simulation(unsigned delay) : ram(delay) {
         d.memory_valid=0; d.firmware_valid=0; d.cold_reset=1; d.reset=1;
         idle(8); d.cold_reset=0;
         for(unsigned i=0; !d.initialized && i<20000; ++i) step();
@@ -45,7 +45,8 @@ struct Simulation {
 };
 int main(int argc,char** argv) {
     Verilated::commandArgs(argc,argv);
-    Simulation s;
+    const unsigned delay=argc>1?std::stoul(argv[1]):0;
+    Simulation s(delay);
     auto &d=s.d;
     d.reset=0; s.step();
     std::vector<uint8_t> reference(0xa0000,0);
@@ -121,6 +122,6 @@ int main(int argc,char** argv) {
         s.request(0x7000,true,0x69); require(s.request(0x7000)==0x69,"cold reset progress",s.cycles);
         require(s.request(0xfffff)==0xa5,"model firmware retention",s.cycles);
     }
-    std::cout<<"PASS memory: "<<s.ram.reads<<" reads, "<<s.ram.writes<<" writes, "<<s.ram.refreshes
+    std::cout<<"PASS memory mask-delay="<<delay<<": "<<s.ram.reads<<" reads, "<<s.ram.writes<<" writes, "<<s.ram.refreshes
              <<" refreshes, 80 warm/40 cold-reset phases, "<<s.cycles<<" clocks\n";
 }

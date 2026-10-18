@@ -55,7 +55,8 @@ held VALID/payload changes, physical refresh and 80 warm/40 cold reset phases.
 `--suite memory-machine` loads all 65,536 ROM bytes through the real loader,
 boots the 8088 from `FFFF0`, programs CGA/MDA through ISA, verifies complete
 raw frames and repeats a warm boot without reloading firmware. It checks new
-guest success writes on each boot. Both suites are in the default matrix.
+guest success writes on each boot. Both suites run with zero-, one- and two-cycle model DQM delays in the default
+matrix, checking neighbour preservation and boot behavior with delayed masks.
 The SDRAM model checks digital command timing at 100 MHz, not analog setup/hold,
 refresh retention or board routing. Other suites retain independent variable-
 latency testbench storage. Full CPU/DMA storage and Direct/Scanlines integration

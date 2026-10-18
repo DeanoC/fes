@@ -6,12 +6,13 @@
 #include <iterator>
 int main(int argc,char** argv) {
     Verilated::commandArgs(argc,argv);
-    require(argc==2,"ROM argument required",0);
+    require(argc==3,"ROM argument required",0);
     std::ifstream file(argv[1],std::ios::binary);
     std::vector<uint8_t> rom{std::istreambuf_iterator<char>(file),{}};
     require(rom.size()==65536,"diagnostic ROM size",0);
     Vmemory_machine_top d;
-    Sdram<Vmemory_machine_top> ram;
+    const unsigned delay=std::stoul(argv[2]);
+    Sdram<Vmemory_machine_top> ram(delay);
     uint64_t cycles=0;
     auto step=[&] {
         d.clk=0; d.eval(); d.dq_sample=ram.tick(d); d.eval();
@@ -77,7 +78,7 @@ int main(int argc,char** argv) {
         }
         require(success && frames[0] && frames[1],"SDRAM display boot timeout",cycles);
         require(ram.mode_sets==modes,"warm boot reinitialized SDRAM",cycles);
-        std::cout<<"PASS SDRAM 8088 CGA/MDA boot "<<boot<<": "<<ticks<<" fabric clocks, full frames verified\n";
+        std::cout<<"PASS SDRAM mask-delay="<<delay<<" 8088 CGA/MDA boot "<<boot<<": "<<ticks<<" fabric clocks, full frames verified\n";
     }
     require(ram.max_refresh_gap<=850,"refresh under firmware/CPU load",cycles);
     std::cout<<"Physical command model: "<<ram.reads<<" reads, "<<ram.writes<<" writes, "<<ram.refreshes<<" refreshes\n";
