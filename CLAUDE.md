@@ -35,4 +35,23 @@ Outside agent sessions have ignored these rules. Obey them.
 
 GPU jobs follow the [Shared GPUs](AGENTS.md#shared-gpus) section.
 
+nextpnr routing on HIP, CUDA and CPU gives bit-identical route outcomes. HIP and CUDA
+timing and route evidence are interchangeable: references, pins, seed results and
+replays from either backend remain valid on the other. This is route-result
+equivalence only; production builds, promotion and seal evidence still require an
+authenticated live HIP or CUDA backend as producer validators require. Registered
+producers reject CPU-reference fallback (`NEXTPNR_REQUIRE_GPU=1`), so CPU replays
+can inform experiments only. HIP and CUDA builds keep distinct `BUILD_ID`s and
+artifact identities because backend is part of functional execution identity, even
+though their timing and route evidence is interchangeable. Among current core
+package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS,
+Spectrum and ZX81 accept `--gpu-router {HIP,CUDA}`. Catch, Menu, Pong, RAM Tester
+and RISC-V accept only `--gpu-device`; their authenticated toolchain determines
+the backend. On a CUDA host, select CUDA and its matching toolchain for a
+router-selectable producer; a device-only producer can use CUDA only with an
+authenticated CUDA-built toolchain. `gpu-run` leases a device, not a backend;
+record the backend in the build record. Never require a separate HIP run or
+discount CUDA evidence. Never set `GPU_LEASE_IDS` per job (it is a box inventory
+override).
+
 Read [AGENTS.md](AGENTS.md) for every other working rule.
