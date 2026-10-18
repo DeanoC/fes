@@ -304,10 +304,12 @@ selection against the imported equations;
 `cpu_roms` derives `mcl86_operand_select.mem` from the unchanged raw image. The display's fractional
 clock enable compares the current phase directly with its wrap threshold and
 updates with parallel add/subtract candidates. SAT proves this is cycle-exact
-for every phase value and both CGA/MDA rates. The CPU pin-clock divider likewise
-compares its current phase with 199 before selecting `phase+21` or `phase-199`;
-sequential equivalence checks phase, pin clock and guest enable against the
-original add-then-compare logic, keeping those carry chains off DMA control:
+for every phase value and both CGA/MDA rates. The CPU pin-clock divider decodes its wrap threshold directly from phase bits
+before selecting `phase+21` or `phase-199`. It predicts the next enable from
+phase 178..198 and registers it on the phase-update edge. This preserves the
+original enable cycle while removing the comparator from DMA control fanout.
+Sequential equivalence checks phase, pin clock and guest enable against the
+original add-then-compare logic:
 
 ```sh
 YOSYS=/absolute/locked/yosys python3 -m unittest discover -s tests -p 'test_pcxt_*.py' -v

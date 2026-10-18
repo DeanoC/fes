@@ -2172,6 +2172,10 @@ all four circular priority masks in parallel; whole-DMA sequential equivalence
 checks its state and interface against the original indexed priority loop.
 
 
+The CPU guest enable is predicted from phase 178..198 and registered on the
+phase-update edge, preserving its original cycle while removing divider
+comparison logic from DMA control fanout. Sequential equivalence checks phase,
+pin clock and enable against the original divider.
 The motherboard router decodes RAM/ROM and integrates pinned KF8259 PIC, KF8253
 PIT and KF8255 PPI imports. The machine diagnostic receives timer, ISA and
 keyboard interrupts through the real two-INTA path and generates speaker PCM.

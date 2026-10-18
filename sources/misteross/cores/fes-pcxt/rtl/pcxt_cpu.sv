@@ -19,17 +19,26 @@ module pcxt_cpu (
 );
     reg [7:0] phase;
     reg pin_clock;
-    // Compare before addition: keep two carry chains off guest_ce's DMA and
-    // bus-control fanout. Both phase candidates are computed in parallel.
-    wire phase_wrap = phase >= 8'd199;
+    // Decode the wrap threshold as bits, independently of the arithmetic
+    // candidates. The guest enable is predicted and registered below.
+    wire phase_wrap = phase[7] && phase[6] &&
+        (phase[5] || phase[4] || phase[3] || (&phase[2:0]));
     wire [7:0] phase_next = phase_wrap ? phase - 8'd199 : phase + 8'd21;
-    assign guest_ce = !reset && phase_wrap && !pin_clock;
+    reg guest_pulse;
+    // Next phase wraps precisely when the current phase is 178..198. A
+    // wrapping current phase becomes 0..56, so it cannot wrap again next
+    // cycle. Predict the enable before the edge and register it on the same
+    // edge that advances phase; this preserves the original pulse cycle and
+    // keeps the phase comparator off the DMA/control fanout.
+    assign guest_ce = !reset && guest_pulse;
     always @(posedge clk) begin
         if (reset) begin
             phase <= 0;
             pin_clock <= 0;
+            guest_pulse <= 0;
         end else begin
             phase <= phase_next;
+            guest_pulse <= !pin_clock && phase >= 8'd178 && !phase_wrap;
             if (phase_wrap) pin_clock <= !pin_clock;
         end
     end
