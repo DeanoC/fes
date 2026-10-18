@@ -3,7 +3,10 @@ import os
 from pathlib import Path
 import stat
 import subprocess
+import sys
 import tempfile
+import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -171,6 +174,110 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
         fallback = run_real_route(FAKE_CPU_FALLBACK="1")
         self.assertEqual(fallback.returncode, 70, fallback.stdout)
         self.assertIn(b"CPU reference backend", fallback.stdout)
+
+    def test_pinned_route_lease_backfills_a_disjoint_gpu(self):
+        gpu_run = board._gpu_run_path()
+        gpu_status = gpu_run.with_name("gpu-status")
+        lease_env = self.environment(
+            GPU_LEASE_DIR=str(self.real_lease),
+            GPU_LEASE_IDS="7,8",
+        )
+        release_holder = self.directory / "release-holder"
+        holder_code = (
+            "import pathlib,sys,time; release=pathlib.Path(sys.argv[1]); "
+            "\nwhile not release.exists(): time.sleep(0.01)"
+        )
+        holder = subprocess.Popen(
+            [str(gpu_run), "--no-wait", "--owner", "blocker", "--label", "gpu-7-holder",
+             "--", sys.executable, "-c", holder_code, str(release_holder)],
+            env=lease_env,
+        )
+        route_result = {}
+
+        def status():
+            result = subprocess.run(
+                [str(gpu_status), "--json"], env=lease_env, check=True,
+                capture_output=True, text=True,
+            )
+            return json.loads(result.stdout)
+
+        def wait_for(predicate, message):
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                current = status()
+                if predicate(current):
+                    return current
+                time.sleep(0.02)
+            self.fail(message)
+
+        def run_route():
+            try:
+                route_result["result"] = board._run_command(
+                    (str(self.nextpnr), "--router", "gpu", "--gpu-device", "7"),
+                    cwd=ROOT,
+                    env=self.environment(
+                        GPU_LEASE_DIR=str(self.real_lease),
+                        GPU_LEASE_IDS="7,8",
+                        FAKE_BACKEND_READY="1",
+                    ),
+                    timeout=8,
+                    stdout=board.subprocess.PIPE,
+                    stderr=board.subprocess.STDOUT,
+                    gpu_label="per-invocation-pinned-route",
+                )
+            except BaseException as error:
+                route_result["error"] = error
+
+        route_thread = None
+        try:
+            held = wait_for(
+                lambda payload: payload["gpus"][0]["state"] == "held",
+                "the GPU 7 blocker did not acquire its lease",
+            )
+            self.assertEqual(held["gpus"][0]["owner"], "blocker")
+
+            route_thread = threading.Thread(target=run_route)
+            route_thread.start()
+            queued = wait_for(
+                lambda payload: any(
+                    item["label"] == "per-invocation-pinned-route"
+                    for item in payload["queue"]
+                ),
+                "the pinned nextpnr invocation did not enter the queue",
+            )
+            route_ticket = next(
+                item for item in queued["queue"]
+                if item["label"] == "per-invocation-pinned-route"
+            )
+            self.assertEqual(route_ticket["eligible_ids"], ["7"])
+
+            later = subprocess.run(
+                [str(gpu_run), "--wait", "--timeout", "5", "--owner", "backfill",
+                 "--label", "disjoint-backfill", "--", sys.executable, "-c",
+                 "import os; print(os.environ['FES_GPU_IDS'])"],
+                env=lease_env, check=False, capture_output=True, text=True, timeout=7,
+            )
+            self.assertEqual(later.returncode, 0, later.stderr)
+            self.assertEqual(later.stdout.strip(), "8")
+            remaining = status()
+            self.assertTrue(any(
+                item["label"] == "per-invocation-pinned-route"
+                for item in remaining["queue"]
+            ))
+
+            release_holder.write_text("release", encoding="utf-8")
+            holder.wait(timeout=5)
+            route_thread.join(timeout=9)
+            self.assertFalse(route_thread.is_alive(), "the per-invocation route did not finish")
+            self.assertNotIn("error", route_result)
+            self.assertEqual(route_result["result"].returncode, 0, route_result["result"].stdout)
+            self.assertIn(b"backend cuda:fixture ready", route_result["result"].stdout)
+        finally:
+            release_holder.write_text("release", encoding="utf-8")
+            if holder.poll() is None:
+                holder.wait(timeout=5)
+            if route_thread is not None:
+                route_thread.join(timeout=9)
 
     def test_non_gpu_nextpnr_does_not_acquire_a_lease(self):
         with patch.object(board, "_gpu_run_path", side_effect=AssertionError("unexpected lease")):
