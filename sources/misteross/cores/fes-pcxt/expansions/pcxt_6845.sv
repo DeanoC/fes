@@ -33,21 +33,11 @@ module pcxt_6845 (
     assign unsupported_interlace = registers[8][0]; // IBM's standard 02h is non-interlaced.
     wire cursor_blink = registers[10][6:5] == 0 ||
                         (registers[10][6] && !(registers[10][5] ? frames[5] : frames[4]));
-    // Predict the next row/target values before their update edge. The
-    // registered difference is exact even for a cursor write at line/frame
-    // wrap, and removes the MA carry chain from the pixel cursor comparison.
-    wire [13:0] next_cursor_address = data_write && index == 14 ?
-        {wdata[5:0], registers[15]} : data_write && index == 15 ?
-        {registers[14][5:0], wdata} : cursor_address;
-    wire [13:0] next_row_address = char_ce && line_end && frame_end ? start_address :
-        char_ce && line_end && !adjusting && scan == registers[9][4:0] ?
-        row_address + {6'b0, registers[1]} : row_address;
-    reg [13:0] cursor_offset;
-    always @(posedge clk) begin
-        if (reset) cursor_offset <= 0;
-        else cursor_offset <= next_cursor_address - next_row_address;
-    end
-    assign cursor = display_enable && cursor_offset == {6'b0, horizontal} && cursor_blink &&
+    // Compare the horizontal position with the row-relative cursor address.
+    // The modular difference is exact across the 14-bit MA wrap and keeps
+    // horizontal out of the address-adder/pixel critical path without state.
+    wire [13:0] cursor_offset = cursor_address - row_address;
+    assign cursor = display_enable && {6'b0, horizontal} == cursor_offset && cursor_blink &&
                     scan >= registers[10][4:0] && scan <= registers[11][4:0];
     integer i;
     // MC6845 R0..R13 are write-only; cursor and light-pen addresses read back.

@@ -261,10 +261,10 @@ AND/XOR source retains the original lookup. Symbolic ALU checks cover both
 this specialization and the general fallback, including the FLAGS override.
 
 
-The CRTC registers the next cursor-address minus next row-address each
-system edge, including simultaneous cursor writes and line/frame updates.
-Its horizontal cursor comparison therefore needs no MA addition. Whole-CRTC
-sequential equivalence checks all 238 original state/interface points.
+The CRTC compares horizontal position with the 14-bit modular difference
+between cursor address and row address, keeping horizontal out of the MA
+addition path without extra state or latency. Whole-CRTC equivalence checks
+all 238 original state/interface points, including cursor writes and wrap.
 
 The PIC import uses formally checked parallel
 priority masks; the PIT uses direct one/two-step saturated binary/BCD decrements

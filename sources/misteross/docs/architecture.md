@@ -2416,10 +2416,10 @@ start address, status polling and light-pen latching. MDA owns `B0000–B7FFF`
 with 4 KiB mirrors and `3B0–3BF` decode: 80×25 text with 9×14 cells, monochrome
 attributes/underline, ninth-column continuation, blink, cursor and raster status.
 Its printer interface is not implemented. Neither card generates IRQ/DRQ.
-The CRTC registers the next cursor-address minus next row-address each
-system edge, including simultaneous cursor writes and line/frame updates.
-Its horizontal cursor comparison therefore needs no MA addition. Whole-CRTC
-sequential equivalence checks all 238 original state/interface points.
+The CRTC compares horizontal position with the 14-bit modular difference
+between cursor address and row address, keeping horizontal out of the MA
+addition path without extra state or latency. Whole-CRTC equivalence checks
+all 238 original state/interface points, including cursor writes and wrap.
 Both use a separately supplied normalized font ROM; no IBM glyph ROM is bundled.
 See the [core README](../cores/fes-pcxt/README.md#isa-display-cards) for the exact
 ports, font layout, primary references and simulation coverage.

@@ -1,4 +1,4 @@
-"""Prove the cursor-offset retiming against the original whole CRTC."""
+"""Prove the row-relative cursor comparison against the original whole CRTC."""
 import os
 from pathlib import Path
 import shutil
@@ -13,7 +13,7 @@ YOSYS = os.environ.get('YOSYS') or shutil.which('yosys')
 class CrtcEquivalenceTest(unittest.TestCase):
     def test_all_state_and_outputs_including_simultaneous_cursor_writes_and_wrap(self):
         actual = (ROOT / 'cores/fes-pcxt/expansions/pcxt_6845.sv').read_text()
-        start = actual.index('    // Predict the next row/target values')
+        start = actual.index('    // Compare the horizontal position')
         end = actual.index('    integer i;', start)
         original = actual[:start] + '''    assign cursor = display_enable && ma == cursor_address && cursor_blink &&
                     scan >= registers[10][4:0] && scan <= registers[11][4:0];
