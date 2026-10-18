@@ -202,12 +202,12 @@ a delayed refresh can latch one further request. This supplies the guest-visible
 refresh bus activity; a future physical SDRAM controller still owns its actual
 SDRAM refresh commands and retention qualification.
 
-CGA is planned as an **ISA expansion card**, owning its VRAM, `B8000–BFFFF`
-memory decode, `3D0–3DF` register decode and raster state. It will use the same
-registered endpoint/commit boundary and feed a separate video service. The
-motherboard routes that aperture to ISA; it will not contain CGA registers or
-intercept BIOS calls. Physical socket placement and video egress still need
-qualification.
+CGA and MDA are separate ISA expansion cards. Each owns its VRAM, memory
+and register decode, and raster state on the registered endpoint/commit
+boundary. The motherboard routes the `B8000–BFFFF` and `B0000–B7FFF`
+apertures to ISA and contains no display registers. See
+[ISA display cards](#isa-display-cards). Physical socket placement,
+production HDMI egress and kit hardware acceptance remain unqualified.
 
 `pcxt_isa_bridge.sv` latches a byte transaction, collects registered card decode
 responses, waits for READY and sends one commit. `pcxt_isa_boundary.sv` supplies
