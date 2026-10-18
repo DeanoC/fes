@@ -390,6 +390,19 @@ class GpuLeaseTests(unittest.TestCase):
         self.assertEqual(marker.read_text(), '0')
         self.assertEqual(out, '')
 
+    def test_owner_cap_counts_holds_across_narrowed_gpu_inventories(self):
+        gpu0 = self.env(GPU_LEASE_IDS='0', GPU_LEASE_MAX_PER_OWNER='1')
+        holder = self.hold('--no-wait', '--owner', 'alice', env=gpu0)
+        gpu1 = dict(gpu0, GPU_LEASE_IDS='1')
+
+        denied = self.run_tool(
+            GPU_RUN,
+            ['--no-wait', '--owner', 'alice', '--', '/bin/true'],
+            env=gpu1,
+        )
+        self.assertEqual(denied.returncode, 75, denied.stderr)
+        self.assertIsNone(holder.poll())
+
     def child_pids(self, pid):
         found = []
         for entry in Path('/proc').iterdir():

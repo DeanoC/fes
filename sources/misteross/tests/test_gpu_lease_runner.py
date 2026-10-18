@@ -2,11 +2,13 @@ import json
 import os
 from pathlib import Path
 import stat
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from scripts import fes_build_common as board
+from scripts import compiler_read_audit as audit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,6 +39,15 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
         self.nextpnr.write_text(
             "#!/usr/bin/env python3\n"
             "import json, os, sys, time\n"
+            "if os.environ.get('FAKE_BACKEND_READY'):\n"
+            "    print('Info: backend cuda:fixture ready', flush=True)\n"
+            "if os.environ.get('FAKE_CPU_FALLBACK'):\n"
+            "    print('Warning: falling back to the CPU reference backend', flush=True)\n"
+            "if os.environ.get('FAKE_CHILD_PID_FILE'):\n"
+            "    import subprocess\n"
+            "    child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])\n"
+            "    with open(os.environ['FAKE_CHILD_PID_FILE'], 'w', encoding='utf-8') as stream:\n"
+            "        stream.write(str(child.pid))\n"
             "with open(os.environ['CAPTURE'], 'w', encoding='utf-8') as stream:\n"
             "    json.dump({'argv': sys.argv[1:], 'env': dict(os.environ)}, stream)\n"
             "time.sleep(float(os.environ.get('FAKE_ROUTE_DELAY', '0')))\n",
@@ -44,6 +55,7 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
         )
         self.nextpnr.chmod(self.nextpnr.stat().st_mode | stat.S_IXUSR)
         self.capture = self.directory / "nextpnr.json"
+        self.real_lease = self.directory / "real-leases"
 
     def tearDown(self):
         self.temporary.cleanup()
@@ -95,15 +107,70 @@ class PerInvocationGpuLeaseTests(unittest.TestCase):
         captured = json.loads(self.capture.read_text(encoding="utf-8"))
         self.assertEqual(captured["env"]["CUDA_VISIBLE_DEVICES"], "7")
 
-    def test_route_timeout_starts_after_the_lease_is_granted(self):
-        result = self.run_gpu_route(
-            timeout=1.0,
-            FAKE_LEASE_DELAY="1.1",
-            FAKE_ROUTE_DELAY="2.0",
-        )
-        self.assertEqual(result.returncode, 124, result.stdout)
-        self.assertIn(b"GPU lease already granted", result.stdout)
-        self.assertTrue(self.capture.is_file(), "route did not start after the fake lease wait")
+    @unittest.skipUnless(audit.TRACER.is_file(), "strace required for audited timeout cancellation")
+    def test_audited_timeout_covers_lease_wait_and_cancels_route_children(self):
+        child_pid_file = self.directory / "route-child.pid"
+        with patch.object(board, "_gpu_run_path", return_value=self.wrapper):
+            with self.assertRaises(subprocess.TimeoutExpired):
+                board._run_command(
+                    (str(self.nextpnr), "--router", "gpu", "--gpu-device", "7"),
+                    cwd=ROOT,
+                    env=self.environment(FAKE_LEASE_DELAY="0.5"),
+                    timeout=0.2,
+                    audit_source_root=ROOT,
+                    stdout=board.subprocess.PIPE,
+                    stderr=board.subprocess.STDOUT,
+                )
+            self.assertFalse(self.capture.exists(), "nextpnr started after the total deadline")
+
+            with self.assertRaises(subprocess.TimeoutExpired):
+                board._run_command(
+                    (str(self.nextpnr), "--router", "gpu", "--gpu-device", "7"),
+                    cwd=ROOT,
+                    env=self.environment(
+                        FAKE_LEASE_DELAY="0.15",
+                        FAKE_ROUTE_DELAY="30.0",
+                        FAKE_CHILD_PID_FILE=str(child_pid_file),
+                    ),
+                    timeout=0.5,
+                    audit_source_root=ROOT,
+                    stdout=board.subprocess.PIPE,
+                    stderr=board.subprocess.STDOUT,
+                )
+        self.assertTrue(child_pid_file.is_file(), "route did not start before the total deadline")
+        child_pid = int(child_pid_file.read_text(encoding="utf-8"))
+        with self.assertRaises(ProcessLookupError):
+            os.kill(child_pid, 0)
+
+    def test_real_gpu_run_wrapper_handles_short_routes_and_rejects_fallback(self):
+        def run_real_route(**extra):
+            return board._run_command(
+                (str(self.nextpnr), "--router", "gpu", "--gpu-device", "7"),
+                cwd=ROOT,
+                env=self.environment(
+                    GPU_LEASE_DIR=str(self.real_lease),
+                    GPU_LEASE_IDS="7",
+                    FAKE_BACKEND_READY="1",
+                    **extra,
+                ),
+                timeout=3.0,
+                stdout=board.subprocess.PIPE,
+                stderr=board.subprocess.STDOUT,
+                gpu_label="real-wrapper-test",
+            )
+
+        passed = run_real_route()
+        self.assertEqual(passed.returncode, 0, passed.stdout)
+        self.assertIn(b"backend cuda:fixture ready", passed.stdout)
+        lease = json.loads((self.real_lease / "gpu-7.lock").read_text(encoding="utf-8"))
+        self.assertEqual(lease["owner"], "lander")
+        captured = json.loads(self.capture.read_text(encoding="utf-8"))
+        device = captured["argv"].index("--gpu-device")
+        self.assertEqual(captured["argv"][device + 1], "0")
+
+        fallback = run_real_route(FAKE_CPU_FALLBACK="1")
+        self.assertEqual(fallback.returncode, 70, fallback.stdout)
+        self.assertIn(b"CPU reference backend", fallback.stdout)
 
     def test_non_gpu_nextpnr_does_not_acquire_a_lease(self):
         with patch.object(board, "_gpu_run_path", side_effect=AssertionError("unexpected lease")):

@@ -14,6 +14,7 @@ import json
 import os
 from pathlib import Path
 import re
+import selectors
 import shlex
 import signal
 import socket
@@ -54,10 +55,11 @@ FES_GPU_IDS retains the physical leased ids. GPU_RUN_DEVICE is the logical
 index to pass to nextpnr (0 after masking), and GPU_RUN_EXPECTED_DEVICE names
 the selected device node when it can be mapped. NEXTPNR_REQUIRE_GPU=1 requests
 strict GPU routing from newer nextpnr builds. For nextpnr GPU routes, this
-wrapper also checks the process tree for the leased device nodes, so older
-builds that silently fall back to CPU fail. CPU-only and help invocations do
-not require GPU access. If AMD KFD topology cannot map a render node, the
-wrapper checks for /dev/kfd and an open DRM render node.
+wrapper checks the process tree for the leased device nodes and accepts
+nextpnr's backend-ready log when a short route closes those nodes between
+polls. It rejects explicit CPU-reference fallback output. CPU-only and help
+invocations do not require GPU access. If AMD KFD topology cannot map a render
+node, the wrapper checks for /dev/kfd and an open DRM render node.
 
 --wait (the default) queues first come, first served until enough GPUs are
 free. --no-wait exits 75 when they cannot be taken without cutting ahead of
@@ -750,8 +752,16 @@ def read_holder(directory, gpu_id):
 
 
 def held_by_owner(directory, ids, owner, skip):
+    # GPU_LEASE_IDS can be narrowed to one physical device by a per-route
+    # caller. Owner limits still apply across every GPU leased through this
+    # shared directory, so include lock files created by other inventories.
+    inventory = set(ids)
+    for path in Path(directory).glob('gpu-*.lock'):
+        gpu_id = path.name[len('gpu-'):-len('.lock')]
+        if ID_RE.fullmatch(gpu_id):
+            inventory.add(gpu_id)
     count = 0
-    for gpu_id in ids:
+    for gpu_id in inventory:
         if gpu_id in skip:
             continue
         meta = read_holder(directory, gpu_id)
@@ -1154,6 +1164,60 @@ def exec_command(chosen, command, env):
     os._exit(127)
 
 
+GPU_BACKEND_READY_RE = re.compile(rb'\bbackend\s+(hip|cuda):[^\n]*\bready\b', re.I)
+GPU_CPU_FALLBACK_MARKERS = (
+    b'falling back to the cpu reference backend',
+    b'backend cpu-reference',
+)
+
+
+class GpuRouteOutput:
+    """Track nextpnr backend evidence while forwarding output unchanged."""
+
+    def __init__(self, vendor):
+        self.expected_backend = 'hip' if vendor == 'amd' else 'cuda'
+        self.tail = b''
+        self.backend = None
+        self.cpu_fallback = False
+
+    def consume(self, chunk):
+        combined = self.tail + chunk.lower()
+        if any(marker in combined for marker in GPU_CPU_FALLBACK_MARKERS):
+            self.cpu_fallback = True
+        if self.backend is None:
+            match = GPU_BACKEND_READY_RE.search(combined)
+            if match is not None:
+                self.backend = match.group(1).decode('ascii').lower()
+        self.tail = combined[-8192:]
+
+
+def drain_route_output(selector, evidence):
+    for key, _mask in selector.select(0):
+        fd = key.fd
+        target_fd = key.data
+        while True:
+            try:
+                chunk = os.read(fd, 65536)
+            except BlockingIOError:
+                break
+            except OSError:
+                chunk = b''
+            if not chunk:
+                selector.unregister(fd)
+                os.close(fd)
+                break
+            evidence.consume(chunk)
+            view = memoryview(chunk)
+            while view:
+                try:
+                    written = os.write(target_fd, view)
+                except OSError:
+                    break
+                if written <= 0:
+                    break
+                view = view[written:]
+
+
 def execute(vendor, chosen, command):
     """Run command without the lease fds and release them when it exits.
 
@@ -1166,16 +1230,42 @@ def execute(vendor, chosen, command):
     gpu_ids = [gpu_id for gpu_id, _ in chosen]
     device_node = gpu_device_path(vendor, gpu_ids[0])
     env = child_env(vendor, gpu_ids, device_node)
+    requires_gpu = nextpnr_requires_gpu(command)
+    output_pipes = None
+    if requires_gpu:
+        stdout_read, stdout_write = os.pipe()
+        stderr_read, stderr_write = os.pipe()
+        os.set_blocking(stdout_read, False)
+        os.set_blocking(stderr_read, False)
+        output_pipes = (stdout_read, stdout_write, stderr_read, stderr_write)
     previous_interrupt = signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
         pid = os.fork()
     except OSError:
         signal.signal(signal.SIGINT, previous_interrupt)
+        if output_pipes is not None:
+            for fd in output_pipes:
+                os.close(fd)
         release(chosen)
         raise
     if pid == 0:
+        if output_pipes is not None:
+            stdout_read, stdout_write, stderr_read, stderr_write = output_pipes
+            os.close(stdout_read)
+            os.close(stderr_read)
+            os.dup2(stdout_write, 1)
+            os.dup2(stderr_write, 2)
+            os.close(stdout_write)
+            os.close(stderr_write)
         exec_command(chosen, command, env)
-    requires_gpu = nextpnr_requires_gpu(command)
+    selector = selectors.DefaultSelector()
+    evidence = GpuRouteOutput(vendor)
+    if output_pipes is not None:
+        stdout_read, stdout_write, stderr_read, stderr_write = output_pipes
+        os.close(stdout_write)
+        os.close(stderr_write)
+        selector.register(stdout_read, selectors.EVENT_READ, 1)
+        selector.register(stderr_read, selectors.EVENT_READ, 2)
     opened_gpu = False
     try:
         while True:
@@ -1183,24 +1273,52 @@ def execute(vendor, chosen, command):
                 requires_gpu = process_tree_requires_gpu(pid)
             if requires_gpu and not opened_gpu:
                 opened_gpu = process_tree_uses_gpu(pid, vendor, device_node)
+            if output_pipes is not None:
+                selector.select(GPU_MONITOR_INTERVAL)
+                drain_route_output(selector, evidence)
             try:
                 waited, status = os.waitpid(pid, os.WNOHANG)
             except InterruptedError:
                 continue
             if waited == pid:
                 break
-            time.sleep(GPU_MONITOR_INTERVAL)
+            if output_pipes is None:
+                time.sleep(GPU_MONITOR_INTERVAL)
+        if output_pipes is not None:
+            while selector.get_map():
+                if not selector.select(0):
+                    break
+                drain_route_output(selector, evidence)
     finally:
+        for key in list(selector.get_map().values()):
+            try:
+                selector.unregister(key.fd)
+            except (KeyError, ValueError):
+                pass
+            try:
+                os.close(key.fd)
+            except OSError:
+                pass
+        selector.close()
         signal.signal(signal.SIGINT, previous_interrupt)
         release(chosen)
-    if requires_gpu and not opened_gpu:
-        expected = device_node or ('a device node for %s GPU %s (mapping unavailable)' % (vendor, gpu_ids[0]))
-        if vendor == 'amd':
-            opened = '/dev/kfd and %s' % expected
+    backend_evidence = (
+        output_pipes is not None
+        and evidence.backend == evidence.expected_backend
+        and not evidence.cpu_fallback
+    )
+    if requires_gpu and (evidence.cpu_fallback or not (opened_gpu or backend_evidence)):
+        if evidence.cpu_fallback:
+            print('gpu-run: nextpnr reported the CPU reference backend; refusing silent CPU fallback',
+                  file=sys.stderr)
         else:
-            opened = expected
-        print('gpu-run: nextpnr never opened leased GPU device %s; refusing silent CPU fallback' % opened,
-              file=sys.stderr)
+            expected = device_node or ('a device node for %s GPU %s (mapping unavailable)' % (vendor, gpu_ids[0]))
+            if vendor == 'amd':
+                opened = '/dev/kfd and %s' % expected
+            else:
+                opened = expected
+            print('gpu-run: nextpnr never opened leased GPU device %s and did not prove a live backend; refusing silent CPU fallback' % opened,
+                  file=sys.stderr)
         if os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0:
             return 70
     if os.WIFEXITED(status):

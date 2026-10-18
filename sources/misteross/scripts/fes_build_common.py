@@ -286,7 +286,11 @@ def _run_command(
         invocation.extend(("--label", label, "--", sys.executable, "-c", _GPU_LEASE_DISPATCH,
                            "-" if timeout is None else str(float(timeout)), *command))
         command = tuple(invocation)
-        run_timeout = None  # The dispatcher starts route timing after gpu-run grants.
+        # The dispatcher starts route timing after gpu-run grants, while this
+        # deadline bounds the complete invocation including time in the queue.
+        # For audited producers, audited_run cancels the private process group
+        # if either phase exceeds the producer's budget.
+        run_timeout = timeout
 
     try:
         from scripts.compiler_read_audit import audited_run

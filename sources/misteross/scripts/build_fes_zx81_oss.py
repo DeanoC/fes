@@ -448,7 +448,7 @@ def main(argv: Sequence[str] | None=None) -> int:
     parser.add_argument('--identity-version', type=int, choices=(2,), default=2)
     parser.add_argument('--best-fmax', action='store_true', help='after synthesis, search HeAP weight and seed for the best Fmax instead of first-to-pass')
     parser.add_argument('--gpu-devices', default=None,
-                        help='comma-separated physical GPU ids assigned to route workers (default 0)')
+                        help='single physical GPU id used for ZX81 routes (default 0)')
     parser.add_argument('--gpu-router', choices=('HIP', 'CUDA'), default='HIP')
     parser.add_argument('--toolchain-root', type=Path)
     arguments = parser.parse_args(argv)
