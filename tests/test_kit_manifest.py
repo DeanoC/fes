@@ -266,12 +266,22 @@ class KitManifestTests(unittest.TestCase):
                 os.environ['XDG_STATE_HOME'] = str(root / 'xdg')
                 xdg = kit_manifest.hold_dir()
                 self.assertEqual(xdg, root / 'xdg' / 'fes-kit')
+                # A refused XDG_STATE_HOME is an error; it must not fall
+                # back to the shared default hold directory (#731).
                 os.environ['XDG_STATE_HOME'] = str(blocked)
                 tempfile.tempdir = None
-                fallback = kit_manifest.hold_dir()
-                self.assertEqual(fallback, durable)
+                marker = durable / 'KITA-HELD-BY-sentinel'
+                with self.assertRaises(kit_manifest.KitError):
+                    kit_manifest.hold_dir()
+                self.assertFalse(marker.exists())
                 self.assertFalse((root / 'tmp' / f'fes-kit-{os.getuid()}').exists())
-                self.assertTrue(Path(fallback).is_relative_to(self.work), fallback)
+                group = root / 'xdg-group'
+                group.mkdir(mode=0o700)
+                group.chmod(0o770)
+                os.environ['XDG_STATE_HOME'] = str(group)
+                with self.assertRaises(kit_manifest.KitError):
+                    kit_manifest.hold_dir()
+                self.assertFalse((group / 'fes-kit').exists())
                 os.environ['FES_KIT_HOLD_DIR'] = str(root / 'override')
                 self.assertEqual(kit_manifest.hold_dir(), root / 'override')
                 # Drift stays on the canonical directory so a timer that does
