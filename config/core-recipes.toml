@@ -186,3 +186,4 @@ selection_filename = "fes-atari-st.package-selection.toml"
 package_dir_env = "FES_ATARI_ST_PACKAGE_DIR"
 package_selection_env = "FES_ATARI_ST_PACKAGE_SELECTION"
 quartus_role = "no oracle required"
+optional = true

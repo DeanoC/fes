@@ -88,8 +88,10 @@ holds the selected set.
 Menu (`fes.menu`) is the idle display, not a playable library entry. Each selected
 package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
-missing, extra or misidentified packages. The FES image has no legacy bundle
-lane.
+a missing required package, an extra package, or a misidentified package. Atari
+ST is optional. A timing miss is recorded in `unavailable-cores.json` and that
+core is left out of the package set. `FES_REQUIRE_ALL_CORES=1` keeps a release
+build strict. The FES image has no legacy bundle lane.
 
 The Coleco factory recipe selects its native 256×192 indexed-pixel shell and
 builds matching Direct and Scanlines parts, which own frame capture and 720p

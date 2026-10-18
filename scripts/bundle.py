@@ -15,6 +15,7 @@ if str(_SCRIPTS) not in sys.path:
 from recipes import (FORMAT2_RECIPES, TOOLCHAIN_CACHE_ROOT, ARTIFACT_CACHE_ROOT, producer_environment,
                      recipe_for, require_private_audit_cache)
 import artifact_cache
+import optional_cores
 from module_sources import normalize_known_origin
 
 MISTEROSS_REPOSITORY = "https://github.com/DeanoC/misteross.git"
@@ -203,8 +204,20 @@ print(json.dumps(inspected, sort_keys=True))
     return inspected
 
 
+def _discard_producer_report(path):
+    """Remove a producer miss report without following a symlink."""
+    path = Path(path)
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return
+    path.unlink()
+
+
 def _build_package(source, recipe=None, env=None):
     recipe = recipe_for("fes.pong") if recipe is None else recipe
+    report_path = Path(source) / "build" / optional_cores.PRODUCER_REPORT_NAME
+    _discard_producer_report(report_path)
     try:
         subprocess.run(
             [sys.executable, recipe.producer_script, "--root", str(source),
@@ -213,7 +226,14 @@ def _build_package(source, recipe=None, env=None):
              "--identity-version", "2", *recipe.producer_arguments],
             cwd=source, check=True, env=package_build_environment(env, recipe=recipe))
     except (OSError, subprocess.CalledProcessError) as error:
-        raise ValueError(f"selected {recipe.core_id} recipe failed") from error
+        report = optional_cores.read_producer_report(report_path)
+        _discard_producer_report(report_path)
+        if report is not None and report.get("core_id") not in (None, recipe.core_id):
+            report = None
+        failure = optional_cores.OptionalBuildFailure(f"selected {recipe.core_id} recipe failed")
+        failure.unavailable = report
+        raise failure from error
+    _discard_producer_report(report_path)
 
 
 def _build_fes_pong(source, env=None):
@@ -308,6 +328,7 @@ def resolve_core_package(source, mister_packages_revision, selection_path, force
         candidates = _matching_package_candidates(source, record, recipe=recipe,
             store_override=artifact_cache.store_for(ARTIFACT_CACHE_ROOT, record))
     if not candidates and not force:
+        # A failed producer raises. Do not search a different functional key.
         _build_package(source, recipe=recipe, **produce)
         candidates = _matching_package_candidates(source, record, recipe=recipe)
     if not candidates:

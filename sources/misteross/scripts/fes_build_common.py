@@ -416,6 +416,22 @@ def _authenticate_tools(
     return authenticated
 
 
+UNAVAILABLE_REPORT = "fes-core-unavailable.json"
+MAX_UNAVAILABLE_REPORT = 65536
+
+
+def write_core_unavailable_report(root: Path, report: dict) -> None:
+    """Record a timing miss under the producer build directory.
+
+    The parent image reads this file only after the producer exits nonzero.
+    A passing build never publishes it.
+    """
+    payload = (json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n").encode()
+    if len(payload) > MAX_UNAVAILABLE_REPORT:
+        raise BuildError("core unavailable report exceeds 65536 bytes")
+    _write_atomic(Path(root) / "build" / UNAVAILABLE_REPORT, payload)
+
+
 def _write_atomic(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.is_symlink() or (path.exists() and not path.is_file()):

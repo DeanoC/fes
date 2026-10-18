@@ -230,14 +230,18 @@ func heroDestinationCopy(snap Snapshot) heroCopy {
 // the identity lines ahead of it before this one.
 const kitSaysPrefix = "Kit says: "
 
-// heroCoreDetails is the inspectable identity of an installed package:
-// its core id, a short package id and the kit's verbatim local status.
+// heroCoreDetails is the inspectable identity of a selected core: its
+// core id and the kit's verbatim local status. An installed package also
+// shows a short package id. An omitted optional core has only a synthetic
+// id and no package in the image, so that line is left out.
 func heroCoreDetails(d rooms.Destination) []string {
 	var lines []string
 	if id := strings.TrimSpace(d.CoreID); id != "" {
 		lines = append(lines, "Core: "+id)
 	}
-	if pkg := strings.TrimSpace(d.PackageID); pkg != "" {
+	// An omitted core's package id is synthetic. It is not in the image, so
+	// Details names the core and the kit's block without a package line.
+	if pkg := strings.TrimSpace(d.PackageID); pkg != "" && d.CoreNeeds != "unavailable" {
 		if len(pkg) > 12 {
 			pkg = pkg[:12] + "…"
 		}
