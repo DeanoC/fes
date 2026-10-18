@@ -24,7 +24,7 @@ if __package__ in (None, ""):
 from scripts import build_fes_coleco_socket_dev as shell_recipe
 from scripts import build_fes_coleco_oss as factory, coleco_expansion
 from scripts.core_package import read_package
-from scripts.fes_build_common import _prepare_output, _require_clean_source
+from scripts.fes_build_common import _prepare_output, _require_clean_source, gpu_visibility_environment
 from scripts.cyclonev_rbf import (
     rbf_load, rbf_save, overlay_cram, classify_cram_diff, CramRect,
     cram_get, cram_set,
@@ -239,7 +239,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     qsf = cart_qsf((shell / "socket.qsf").read_bytes())
     (output / "cart.qsf").write_bytes(qsf)
     scaffold = prepare_scaffold(shell / "routed.json", output / "scaffold.json")
-    env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
+    env = gpu_visibility_environment(os.environ, gpu, variable="HIP_VISIBLE_DEVICES")
     commands = [
         [str(tools["yosys"].path), "-p", f"read_verilog -sv -I cores/fes-coleco/rtl {' '.join(SOURCES)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"), "--device", "5CSEBA6U23I7",

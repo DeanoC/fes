@@ -11,6 +11,7 @@ from functools import lru_cache
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Mapping, Sequence
+from scripts.fes_build_common import nextpnr_gpu_command
 
 
 FES_ROOT = Path(__file__).resolve().parents[3]
@@ -415,7 +416,7 @@ def build(
 ) -> tuple[tuple[str, ...], dict[str, str]]:
     """Build nextpnr argv and validate its complete controlled environment."""
     command = argv(core_id, slot, synth, seed, gpu, output=output, **options)
-    return command, environment(core_id, env, gpu=gpu)
+    return nextpnr_gpu_command(command, env), environment(core_id, env, gpu=gpu)
 
 
 def _gpu_run_environment(
@@ -498,15 +499,17 @@ def environment(
     required = recipe["env"]
     optional = recipe["optional_env"]
     lease_names = _gpu_run_environment(core_id, recipe, source, gpu)
-    allowed = set(required) | set(optional) | lease_names
-    unexpected = set(source) - allowed
-    missing = set(required) - set(source)
+    allowed = set(required) | set(optional)
+    recipe_source = {name: value for name, value in source.items()
+                     if name not in lease_names}
+    unexpected = set(recipe_source) - allowed
+    missing = set(required) - set(recipe_source)
     if unexpected:
         raise RecipeError(f"{core_id}: unrecorded nextpnr environment names: {sorted(unexpected)}")
     if missing:
         raise RecipeError(f"{core_id}: required nextpnr environment names are missing: {sorted(missing)}")
     for name, expected in required.items():
-        actual = source[name]
+        actual = recipe_source[name]
         if name == "PATH":
             if not actual.endswith(":/usr/bin:/bin") or not Path(actual.split(":", 1)[0]).is_absolute():
                 raise RecipeError(f"{core_id}: PATH does not match the authenticated toolchain lane")
@@ -516,8 +519,9 @@ def environment(
         elif actual != expected:
             raise RecipeError(f"{core_id}: environment value for {name} differs from recipe")
     for name, expected in optional.items():
-        if name in source and source[name] != expected:
+        if name in recipe_source and recipe_source[name] != expected:
             raise RecipeError(f"{core_id}: environment value for {name} differs from recipe")
-    if (set(source) & set(recipe["unset_env"])) - lease_names:
+    if (set(recipe_source) & set(recipe["unset_env"])):
         raise RecipeError(f"{core_id}: explicitly unset environment reached nextpnr")
-    return dict(source)
+    lease = {name: source[name] for name in lease_names}
+    return dict(recipe_source, **lease)

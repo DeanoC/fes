@@ -93,8 +93,8 @@ is preserved. Module relocation alone does not enter the functional projection.
 
 The functional lane supplies an explicit environment to synthesis and routing,
 using an empty private home instead of user configuration and omitting ambient
-loader and Yosys overrides. It preserves only the GPU routing variables set by
-`gpu-run` (`FES_GPU_IDS`, its visibility mask, `GPU_RUN_DEVICE`,
+loader, Yosys and GPU overrides. It preserves only the GPU routing variables
+set by `gpu-run` (`FES_GPU_IDS`, its visibility mask, `GPU_RUN_DEVICE`,
 `GPU_RUN_EXPECTED_DEVICE` and `NEXTPNR_REQUIRE_GPU`) and includes them in the
 functional input digest. It records one explicit GPU device (default 0),
 KFD topology, kernel, executable bytes (including the Yosys ABC9 helper
@@ -139,6 +139,10 @@ seed, weight, clock, timeout or raw extra argument must be listed in its
 recipe. Candidate evidence carries the argv, environment, recipe digest and
 authenticated toolchain slot. The producer-argv regression test pins the
 effective command and option coverage without invoking the physical router.
+When a producer runs under `gpu-run`, it retains the wrapper's visibility mask
+and maps an explicit physical `--gpu-device` selection to `GPU_RUN_DEVICE`, the
+logical index visible inside that mask. Multi-device searches use one worker
+for the leased view; runs outside `gpu-run` keep their configured indices.
 
 An active `gpu-run` lease adds only its complete marker set and the one
 visibility mask for the recipe backend. The physical ID list and mask must

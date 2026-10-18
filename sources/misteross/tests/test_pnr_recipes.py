@@ -186,6 +186,26 @@ class PnrRecipeTests(unittest.TestCase):
         device_index = command.index("--gpu-device")
         self.assertEqual(command[device_index + 1], "1")
 
+    def test_recipe_build_maps_gpu_run_device_and_preserves_hip_mask(self):
+        leased_env = {
+            **ENV,
+            "FES_GPU_IDS": "1,2",
+            "GPU_RUN_DEVICE": "0",
+            "GPU_RUN_EXPECTED_DEVICE": "amd:1",
+            "NEXTPNR_REQUIRE_GPU": "1",
+            "ROCR_VISIBLE_DEVICES": "1,2",
+        }
+        gpu_lease = pnr_recipe._gpu_lease_module()
+        with patch.object(gpu_lease, "gpu_device_path", return_value=None):
+            command, environment = pnr_recipe.build(
+                "fes.pong", SLOT, SYNTH, 1, 1, output=OUTPUT,
+                env=leased_env,
+            )
+        device_index = command.index("--gpu-device")
+        self.assertEqual(command[device_index + 1], "0")
+        self.assertEqual(environment["GPU_RUN_DEVICE"], "0")
+        self.assertEqual(environment["ROCR_VISIBLE_DEVICES"], "1,2")
+
     def test_unrecorded_option_and_environment_are_rejected(self):
         recipe = pnr_recipe.recipe_for("fes.pong")
         with self.assertRaises(pnr_recipe.RecipeError):
@@ -215,7 +235,7 @@ class PnrRecipeTests(unittest.TestCase):
         resolve.assert_called_once_with("amd", "1")
         self.assertEqual(environment, leased_env)
         device = command.index("--gpu-device")
-        self.assertEqual(command[device + 1], "1")
+        self.assertEqual(command[device + 1], "0")
 
     def test_amd_gpu_run_accepts_the_render_node_mapped_to_the_first_lease_id(self):
         leased_env = {
