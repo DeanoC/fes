@@ -52,9 +52,12 @@ GPU_LEASE_VENDOR=amd|nvidia selects the variables exported to CMD:
   nvidia:  CUDA_VISIBLE_DEVICES, FES_GPU_IDS
 FES_GPU_IDS retains the physical leased ids. GPU_RUN_DEVICE is the logical
 index to pass to nextpnr (0 after masking), and GPU_RUN_EXPECTED_DEVICE names
-the selected device node. NEXTPNR_REQUIRE_GPU=1 requests strict GPU routing
-from newer nextpnr builds. This wrapper also checks nextpnr's process tree for
-the leased device nodes, so older builds that silently fall back to CPU fail.
+the selected device node when it can be mapped. NEXTPNR_REQUIRE_GPU=1 requests
+strict GPU routing from newer nextpnr builds. For nextpnr GPU routes, this
+wrapper also checks the process tree for the leased device nodes, so older
+builds that silently fall back to CPU fail. CPU-only and help invocations do
+not require GPU access. If AMD KFD topology cannot map a render node, the
+wrapper checks for /dev/kfd and an open DRM render node.
 
 --wait (the default) queues first come, first served until enough GPUs are
 free. --no-wait exits 75 when they cannot be taken without cutting ahead of
@@ -291,8 +294,37 @@ def process_cmdline(pid, proc_root=None):
         return ''
 
 
+def process_cmdline_args(pid, proc_root=None):
+    proc_root = Path(proc_root) if proc_root is not None else PROC_ROOT
+    try:
+        raw = (proc_root / str(pid) / 'cmdline').read_bytes()
+    except OSError:
+        return []
+    return [part.decode('utf-8', errors='replace') for part in raw.split(b'\0') if part]
+
+
 def process_tree_has_nextpnr(root_pid, proc_root=None):
     return any('nextpnr-mistral' in process_cmdline(pid, proc_root)
+               for pid in process_tree_pids(root_pid, proc_root))
+
+
+def nextpnr_requires_gpu(args):
+    if not any('nextpnr-mistral' in argument for argument in args):
+        return False
+    for index, argument in enumerate(args):
+        if argument in ('--gpu-device', '--gpu-devices', '--require-gpu'):
+            return True
+        if argument.startswith('--gpu-device=') or argument.startswith('--gpu-devices='):
+            return True
+        if argument == '--router' and index + 1 < len(args) and args[index + 1].lower() == 'gpu':
+            return True
+        if argument.startswith('--router=') and argument.split('=', 1)[1].lower() == 'gpu':
+            return True
+    return False
+
+
+def process_tree_requires_gpu(root_pid, proc_root=None):
+    return any(nextpnr_requires_gpu(process_cmdline_args(pid, proc_root))
                for pid in process_tree_pids(root_pid, proc_root))
 
 
@@ -318,13 +350,13 @@ def process_tree_fd_targets(root_pid, proc_root=None):
 
 def process_tree_uses_gpu(root_pid, vendor, device_node, proc_root=None):
     """Check that nextpnr's process tree opened the leased hardware node."""
-    if not device_node:
-        return False
     targets = process_tree_fd_targets(root_pid, proc_root)
     if vendor == 'amd':
-        return '/dev/kfd' in targets and device_node in targets
+        has_render_node = any(re.fullmatch(r'/dev/dri/renderD\d+', target) for target in targets)
+        return '/dev/kfd' in targets and has_render_node and (
+            device_node is None or device_node in targets)
     if vendor == 'nvidia':
-        return device_node in targets
+        return device_node is not None and device_node in targets
     return False
 
 
@@ -1143,13 +1175,13 @@ def execute(vendor, chosen, command):
         raise
     if pid == 0:
         exec_command(chosen, command, env)
-    saw_nextpnr = any('nextpnr-mistral' in argument for argument in command)
+    requires_gpu = nextpnr_requires_gpu(command)
     opened_gpu = False
     try:
         while True:
-            if not saw_nextpnr:
-                saw_nextpnr = process_tree_has_nextpnr(pid)
-            if saw_nextpnr and not opened_gpu:
+            if not requires_gpu:
+                requires_gpu = process_tree_requires_gpu(pid)
+            if requires_gpu and not opened_gpu:
                 opened_gpu = process_tree_uses_gpu(pid, vendor, device_node)
             try:
                 waited, status = os.waitpid(pid, os.WNOHANG)
@@ -1161,7 +1193,7 @@ def execute(vendor, chosen, command):
     finally:
         signal.signal(signal.SIGINT, previous_interrupt)
         release(chosen)
-    if saw_nextpnr and not opened_gpu:
+    if requires_gpu and not opened_gpu:
         expected = device_node or ('a device node for %s GPU %s (mapping unavailable)' % (vendor, gpu_ids[0]))
         if vendor == 'amd':
             opened = '/dev/kfd and %s' % expected
