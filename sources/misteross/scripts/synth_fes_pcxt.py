@@ -64,7 +64,7 @@ def main():
     receipt = {'format': 1, 'classification': 'diagnostic-synthesis-only',
                'yosys': tools['yosys'].identity, 'sources': sources, 'cells': counts,
                'limits': ['portable eight-slot fixture with two probe cards',
-                          '8088, PIC/PIT/PPI, XT keyboard transport and speaker; external storage ports' if args.suite == 'machine' else
+                          '8088, PIC/PIT/PPI, DMA/refresh, XT keyboard transport and speaker; external storage ports' if args.suite == 'machine' else
                           '8088 with external memory ports; no motherboard' if args.suite == 'cpu' else 'no CPU or motherboard',
                           'no placement or timing',
                           'no physical socket containment', 'no sealed package',

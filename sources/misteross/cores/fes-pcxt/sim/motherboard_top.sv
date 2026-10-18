@@ -7,7 +7,14 @@ module motherboard_top (
     input wire [19:0] cycle_address,
     input wire [7:0] cycle_wdata,
     input wire [1:0] cycle_kind,
-    input wire cycle_write, cycle_lock,
+    input wire cycle_write, cycle_lock, cpu_bus_lock,
+    input wire [3:1] external_drq,
+    output wire [1:0] dma_fault,
+    output wire dma_owner, refresh_done,
+    output wire aen,
+    output wire [1:0] dma_channel,
+    output wire terminal_count,
+    output wire [47:0] observed_request,
     output wire cycle_done,
     output wire [7:0] cycle_rdata,
     output wire [1:0] cycle_fault,
@@ -40,6 +47,7 @@ module motherboard_top (
     wire isa_valid, isa_ready, isa_done;
     wire [7:0] isa_rdata, irq;
     wire [1:0] isa_fault;
+    wire [3:1] drq;
     wire ser_clock, ser_data;
     wire board_clock = external_keyboard ? keyboard_clock : ser_clock;
     wire board_data = external_keyboard ? keyboard_data : ser_data;
@@ -54,10 +62,12 @@ module motherboard_top (
         .clk(clk), .reset(reset), .guest_ce(guest_ce),
         .cycle_valid(cycle_valid), .cycle_ready(cycle_ready),
         .cycle_address(cycle_address), .cycle_wdata(cycle_wdata),
-        .cycle_kind(cycle_kind), .cycle_write(cycle_write), .cycle_lock(cycle_lock),
+        .cycle_kind(cycle_kind), .cycle_write(cycle_write), .cycle_lock(cycle_lock), .cpu_bus_lock(cpu_bus_lock),
         .cycle_done(cycle_done), .cycle_rdata(cycle_rdata), .cycle_fault(cycle_fault),
         .address(address), .wdata(wdata), .kind(kind),
-        .write_cycle(write_cycle), .locked(locked),
+        .write_cycle(write_cycle), .locked(locked), .aen(aen),
+        .dma_channel(dma_channel), .terminal_count(terminal_count),
+        .isa_drq(drq | external_drq), .dma_fault(dma_fault), .refresh_done(refresh_done), .dma_owner(dma_owner),
         .memory_valid(memory_valid), .memory_ready(memory_ready),
         .memory_done(memory_done), .memory_rdata(memory_rdata),
         .isa_valid(isa_valid), .isa_ready(isa_ready), .isa_done(isa_done),
@@ -75,10 +85,10 @@ module motherboard_top (
     isa_top isa (
         .clk(clk), .reset(reset), .cycle_valid(isa_valid), .cycle_ready(isa_ready),
         .cycle_address(address), .cycle_wdata(wdata), .cycle_kind(kind),
-        .cycle_write(write_cycle), .cycle_aen(1'b0), .cycle_lock(locked),
-        .cycle_dma_channel(2'b0), .cycle_terminal_count(1'b0), .guest_ce(guest_ce),
+        .cycle_write(write_cycle), .cycle_aen(aen), .cycle_lock(locked),
+        .cycle_dma_channel(dma_channel), .cycle_terminal_count(terminal_count), .guest_ce(guest_ce),
         .cycle_done(isa_done), .cycle_rdata(isa_rdata), .cycle_fault(isa_fault),
-        .irq(irq), .drq(), .inject(inject), .observed_request(), .reset_side_effect()
+        .irq(irq), .drq(drq), .inject(inject), .observed_request(observed_request), .reset_side_effect()
     );
     /* verilator lint_on PINCONNECTEMPTY */
     // Slot IRQ0/1 are deliberately not connected to the motherboard PIC.

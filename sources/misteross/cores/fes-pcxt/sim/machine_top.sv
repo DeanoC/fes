@@ -19,8 +19,12 @@ module machine_top (
     output wire [1:0] cycle_kind,
     output wire [7:0] cycle_rdata,
     output wire cycle_lock,
-    output wire [2:0] pit_out
+    output wire [2:0] pit_out,
+    output wire dma_owner, refresh_done, bus_locked,
+    output wire [47:0] observed_request
 );
+    wire [1:0] cpu_fault, dma_fault;
+    assign fault = cpu_fault | dma_fault;
     wire cycle_valid, cycle_ready, cycle_done, cycle_write;
     wire [19:0] cycle_address;
     wire [7:0] cycle_wdata;
@@ -33,7 +37,7 @@ module machine_top (
         .cycle_address(cycle_address), .cycle_wdata(cycle_wdata),
         .cycle_kind(cycle_kind), .cycle_write(cycle_write), .cycle_lock(cycle_lock),
         .cycle_done(cycle_done), .cycle_rdata(cycle_rdata), .cycle_fault(cycle_fault),
-        .fault(fault), .guest_ce(guest_ce), .halted(halted)
+        .fault(cpu_fault), .guest_ce(guest_ce), .halted(halted), .bus_locked(bus_locked)
     );
     /* verilator lint_off PINCONNECTEMPTY */
     motherboard_top motherboard (
@@ -45,6 +49,9 @@ module machine_top (
         .address(address), .wdata(wdata), .kind(), .write_cycle(write_cycle), .locked(),
         .memory_valid(memory_valid), .memory_ready(memory_ready),
         .memory_done(memory_done), .memory_rdata(memory_rdata),
+        .cpu_bus_lock(bus_locked), .external_drq(3'b0), .dma_fault(dma_fault),
+        .dma_owner(dma_owner), .refresh_done(refresh_done), .aen(), .dma_channel(),
+        .terminal_count(), .observed_request(observed_request),
         .external_irq(6'b0), .inject(3'b0), .switches(switches),
         .parity_error(1'b0), .channel_error(1'b0), .parity_enable(), .channel_check_enable(),
         .keyboard_clock(1'b1), .keyboard_data(1'b0), .external_keyboard(1'b0),

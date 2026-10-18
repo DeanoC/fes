@@ -22,6 +22,8 @@ int main(int argc,char** argv) {
             bool pending=false,passed=false,saw_halt=false,ack_pending=false;
             unsigned pa=0,pd=0,delay=0,ticks=0,acks=0,timer_vectors=0,card_vectors=0;
             unsigned transactions=0,ce=0,keys=0,keyboard_vectors=0,audio_samples=0;
+            unsigned refreshes=0,dma2=0,dma3=0,locked_memory=0,terminal_bytes=0;
+            bool previous_owner=false,previous_commit=false;
             int audio_min=32767,audio_max=-32768;bool pw=false;
             d.reset=1;d.code_valid=0;d.code=0;d.switches=switches;d.memory_done=0;d.memory_ready=0;
             for(unsigned i=0;i<32;i++){d.clk=0;d.eval();d.clk=1;d.eval();}d.reset=0;
@@ -44,10 +46,26 @@ int main(int argc,char** argv) {
                     audio_min=std::min(audio_min,value);audio_max=std::max(audio_max,value);
                 }
                 if(d.guest_ce)++ce;
+                if(d.refresh_done)++refreshes;
+                if(d.dma_owner && !previous_owner)check(!d.bus_locked && !(acks&1),"DMA grant split LOCK/INTA");
+                previous_owner=d.dma_owner;
+                bool commit=(d.observed_request>>33)&1;
+                if(commit && !previous_commit && ((d.observed_request>>28)&3)==3) {
+                    unsigned channel=(d.observed_request>>37)&3;
+                    check((d.observed_request>>35)&1,"DMA AEN absent");
+                    if(channel==2) {check(!((d.observed_request>>30)&1),"DMA2 direction");++dma2;}
+                    else if(channel==3) {
+                        check((d.observed_request>>30)&1,"DMA3 direction");
+                        check(((d.observed_request>>20)&255)==0x31+dma3,"DMA3 byte ordering");++dma3;
+                    } else throw std::runtime_error("unexpected DMA channel");
+                    if((d.observed_request>>39)&1)++terminal_bytes;
+                }
+                previous_commit=commit;
                 if(d.halted)saw_halt=true;
                 check(!d.fault,"CPU fabric fault");
                 if(d.accepted) {
                     ++transactions;
+                    if(d.cycle_kind==0 && d.cycle_lock)++locked_memory;
                     if(d.cycle_kind==2){check(d.cycle_lock,"INTA not locked");ack_pending=true;}
                 }
                 if(d.completed && ack_pending) {
@@ -73,10 +91,13 @@ int main(int argc,char** argv) {
             check(mem[0x619]==(switches>>4) && mem[0x618]==(switches&0x0f),"equipment switch profile");
             check(audio_samples>50 && audio_max-audio_min>7000,"CPU programmed speaker tone");
             check(!d.speaker,"ROM did not mute speaker");
+            check(dma2==8 && dma3==4 && terminal_bytes==2,"DMA byte/TC coverage");
+            check(refreshes>1000 && locked_memory>=160 && mem[0x5100]==40,"refresh/LOCK coverage");
+            for(unsigned a=0x3000;a<0x3008;a++)check(mem[a]==0x6d,"DMA RAM result");
             check(ce>ticks/22 && ce<ticks/20,"CPU clock cadence");
             std::cout<<"PASS machine waits="<<waits<<" switches="<<std::hex<<switches<<std::dec
                      <<": "<<transactions<<" transactions, "
-                     <<timer_vectors<<" timer vectors, "<<card_vectors<<" ISA vector, "<<keyboard_vectors<<" keyboard vectors, "<<ticks<<" fabric clocks\n";
+                     <<timer_vectors<<" timer vectors, "<<card_vectors<<" ISA vector, "<<keyboard_vectors<<" keyboard vectors, "<<refreshes<<" refresh cycles, "<<ticks<<" fabric clocks\n";
         }
     }catch(const std::exception& e){std::cerr<<"FAIL machine: "<<e.what()<<"\n";return 1;}
 }

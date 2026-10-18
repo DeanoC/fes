@@ -9,7 +9,7 @@ module pcxt_motherboard (
     input wire [19:0] cycle_address,
     input wire [7:0] cycle_wdata,
     input wire [1:0] cycle_kind,
-    input wire cycle_write, cycle_lock,
+    input wire cycle_write, cycle_lock, cpu_bus_lock,
     output wire cycle_done,
     output reg [7:0] cycle_rdata,
     output reg [1:0] cycle_fault,
@@ -17,7 +17,13 @@ module pcxt_motherboard (
     output reg [19:0] address,
     output reg [7:0] wdata,
     output reg [1:0] kind,
-    output reg write_cycle, locked,
+    output reg write_cycle, locked, aen,
+    output reg [1:0] dma_channel,
+    output reg terminal_count,
+    input wire [3:1] isa_drq,
+    output wire [1:0] dma_fault,
+    output wire refresh_done,
+    output reg dma_owner,
     output wire memory_valid,
     input wire memory_ready, memory_done,
     input wire [7:0] memory_rdata,
@@ -42,15 +48,32 @@ module pcxt_motherboard (
                ISA_SEND=3'd3, ISA_WAIT=3'd4, LOCAL=3'd5, DONE=3'd6;
     reg [2:0] state;
     reg [4:0] phase;
-    reg select_pic, select_pit, select_ppi, select_inta;
+    reg select_pic, select_pit, select_ppi, select_dma, select_page, select_inta;
+    reg source_dma, inta_pending;
     reg [1:0] pit_divider;
-    wire ram = cycle_kind == 0 && cycle_address < 20'ha0000;
-    wire rom = cycle_kind == 0 && cycle_address >= 20'hf0000;
-    // XT motherboard ignores A15:10. PIC uses A0; PIT/PPI use A1:0.
-    wire pic = cycle_kind == 1 && cycle_address[9:5] == 5'b00001;
-    wire pit = cycle_kind == 1 && cycle_address[9:5] == 5'b00010;
-    wire ppi = cycle_kind == 1 && cycle_address[9:5] == 5'b00011;
-    wire inta = cycle_kind == 2;
+    wire dma_valid, dma_ready, dma_done, dma_write, dma_tc, dma_hold;
+    wire [19:0] dma_address;
+    wire [7:0] dma_wdata, dma_reg_data;
+    wire [1:0] dma_kind, dma_ch;
+    // Grant only between completed requests. Continuous CPU LOCK protects
+    // instruction gaps; inta_pending protects the entire two-ack sequence.
+    wire grant_dma = state == IDLE && !dma_owner && dma_hold && !cpu_bus_lock &&
+                     !inta_pending && !(cycle_valid && cycle_lock);
+    wire request_valid = dma_owner ? dma_valid : cycle_valid && !grant_dma;
+    wire [19:0] request_address = dma_owner ? dma_address : cycle_address;
+    wire [7:0] request_wdata = dma_owner ? dma_wdata : cycle_wdata;
+    wire [1:0] request_kind = dma_owner ? dma_kind : cycle_kind;
+    wire request_write = dma_owner ? dma_write : cycle_write;
+    wire ram = request_kind == 0 && request_address < 20'ha0000;
+    wire rom = request_kind == 0 && request_address >= 20'hf0000;
+    // XT motherboard ignores A15:10. PIC uses A0; PIT/PPI use A1:0;
+    // DMA uses A3:0 and the write-only page latch uses A1:0.
+    wire pic = !dma_owner && request_kind == 1 && request_address[9:5] == 1;
+    wire pit = !dma_owner && request_kind == 1 && request_address[9:5] == 2;
+    wire ppi = !dma_owner && request_kind == 1 && request_address[9:5] == 3;
+    wire dma = !dma_owner && request_kind == 1 && request_address[9:5] == 0;
+    wire page_select = !dma_owner && request_kind == 1 && request_address[9:5] == 4;
+    wire inta = !dma_owner && request_kind == 2;
     wire local_active = state == LOCAL && !reset;
     // Setup, eight active clocks, then nine release clocks. Keeping CS and
     // address stable through release lets the imported edge detectors retire
@@ -61,8 +84,10 @@ module pcxt_motherboard (
     wire [7:0] pic_data, pit_data, ppi_data;
     wire pic_bus_input, pit_gate2;
 
-    assign cycle_ready = state == IDLE && !reset;
-    assign cycle_done = state == DONE && !reset;
+    assign cycle_ready = state == IDLE && !dma_owner && !grant_dma && !reset;
+    assign dma_ready = state == IDLE && dma_owner && !reset;
+    assign dma_done = state == DONE && source_dma && !reset;
+    assign cycle_done = state == DONE && !source_dma && !reset;
     assign memory_valid = state == MEMORY_SEND && !reset;
     assign isa_valid = state == ISA_SEND && !reset;
     assign pit_clock = pit_divider[1];
@@ -72,23 +97,47 @@ module pcxt_motherboard (
     end
 
     always @(posedge clk) begin
+        if (reset) begin dma_owner<=0; inta_pending<=0; end
+        else begin
+            if (grant_dma) dma_owner<=1;
+            else if (state == IDLE && dma_owner && !dma_hold) dma_owner<=0;
+            if (cycle_done && kind == 2) inta_pending<=!inta_pending;
+        end
+    end
+    pcxt_dma dma_device (
+        .clk(clk), .reset(reset), .guest_ce(guest_ce),
+        .reg_read(local_active && select_dma && phase == 8 && !write_cycle),
+        .reg_write(local_active && select_dma && phase == 8 && write_cycle),
+        .page_write(local_active && select_page && phase == 8 && write_cycle),
+        .reg_address(address[3:0]), .reg_wdata(wdata), .reg_rdata(dma_reg_data),
+        .drq(isa_drq), .refresh_clock(pit_out[1]), .hold_request(dma_hold), .granted(dma_owner),
+        .cpu_waiting(cycle_valid), .cpu_done(cycle_done),
+        .cycle_valid(dma_valid), .cycle_ready(dma_ready), .cycle_done(dma_done),
+        .cycle_address(dma_address), .cycle_wdata(dma_wdata), .cycle_kind(dma_kind),
+        .cycle_channel(dma_ch), .cycle_write(dma_write), .cycle_tc(dma_tc),
+        .cycle_rdata(cycle_rdata), .cycle_fault(cycle_fault), .fault(dma_fault), .refresh_done(refresh_done)
+    );
+    always @(posedge clk) begin
         if (reset) begin
+            source_dma<=0; aen<=0; dma_channel<=0; terminal_count<=0;
             state <= IDLE;
             phase <= 0;
-            select_pic <= 0; select_pit <= 0; select_ppi <= 0; select_inta <= 0;
+            select_pic <= 0; select_pit <= 0; select_ppi <= 0; select_dma <= 0; select_page <= 0; select_inta <= 0;
             address <= 0; wdata <= 0; kind <= 0;
             write_cycle <= 0; locked <= 0;
             cycle_rdata <= 8'hff; cycle_fault <= 0;
         end else case (state)
-            IDLE: if (cycle_valid) begin
-                address <= cycle_address; wdata <= cycle_wdata;
-                kind <= cycle_kind; write_cycle <= cycle_write;
-                locked <= cycle_lock;
-                select_pic <= pic; select_pit <= pit; select_ppi <= ppi; select_inta <= inta;
+            IDLE: if (request_valid) begin
+                source_dma<=dma_owner; aen<=dma_owner;
+                dma_channel<=dma_owner ? dma_ch : 2'b0; terminal_count<=dma_owner && dma_tc;
+                address <= request_address; wdata <= request_wdata;
+                kind <= request_kind; write_cycle <= request_write;
+                locked <= !dma_owner && cycle_lock;
+                select_pic <= pic; select_pit <= pit; select_ppi <= ppi; select_dma <= dma; select_page <= page_select; select_inta <= inta;
                 phase <= 0; cycle_rdata <= 8'hff; cycle_fault <= 0;
-                if (rom && cycle_write) state <= DONE;
+                if (rom && request_write) state <= DONE;
                 else if (ram || rom) state <= MEMORY_SEND;
-                else if (pic || pit || ppi || inta) state <= LOCAL;
+                else if (pic || pit || ppi || dma || page_select || inta) state <= LOCAL;
                 else state <= ISA_SEND;
             end
             MEMORY_SEND: if (memory_ready) begin
@@ -110,7 +159,9 @@ module pcxt_motherboard (
             LOCAL: begin
                 phase <= phase + 1'b1;
                 if (phase == 8 && !write_cycle) begin
-                    if (select_ppi) cycle_rdata <= ppi_data;
+                    if (select_dma) cycle_rdata <= dma_reg_data;
+                    else if (select_page) cycle_rdata <= 8'hff;
+                    else if (select_ppi) cycle_rdata <= ppi_data;
                     else if (select_pit) cycle_rdata <= pit_data;
                     else cycle_rdata <= pic_bus_input ? 8'hff : pic_data;
                 end

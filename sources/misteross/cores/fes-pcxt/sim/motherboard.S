@@ -51,6 +51,27 @@ start:
     inb $0x21,%al
     cmpb $0xff,%al
     jne fail
+    /* DMA0 refresh: auto-init single memory reads, PIT1 requests each 18
+     * timer clocks. This continues throughout the interrupt diagnostic. */
+    xorb %al,%al
+    outb %al,$0x0d
+    outb %al,$0x0c
+    outb %al,$0x00
+    movb $0x50,%al
+    outb %al,$0x00
+    movb $0xff,%al
+    outb %al,$0x01
+    outb %al,$0x01
+    movb $0x58,%al
+    outb %al,$0x0b
+    xorb %al,%al
+    outb %al,$0x0a
+    movb $0x74,%al
+    outb %al,$0x43
+    movb $18,%al
+    outb %al,$0x41
+    xorb %al,%al
+    outb %al,$0x41
     movb $2,0x601
     /* 100 Hz nominal timer, mode 2; PIT continues while CPU is halted. */
     movb $0x34,%al
@@ -122,6 +143,99 @@ wait_keyboard:
     jne fail
     movb $0x40,%al
     outb %al,$0x61
+    movb $5,0x601
+    /* ISA probe -> conventional RAM, eight-byte block transfer. */
+    movb $6,%al
+    outb %al,$0x0a
+    xorb %al,%al
+    outb %al,$0x0c
+    outb %al,$0x04
+    movb $0x30,%al
+    outb %al,$0x04
+    movb $7,%al
+    outb %al,$0x05
+    xorb %al,%al
+    outb %al,$0x05
+    movb $0x86,%al
+    outb %al,$0x0b
+    movb $2,%al
+    outb %al,$0x0a
+    movw $0x305,%dx
+    movb $0x6d,%al
+    outb %al,%dx
+    movw $0x301,%dx
+    movb $2,%al
+    outb %al,%dx
+    movw $0x3000,%bx
+    movw $8,%cx
+check_dma_ram:
+    cmpb $0x6d,(%bx)
+    jne fail
+    incw %bx
+    loop check_dma_ram
+    xorb %al,%al
+    outb %al,%dx
+    inb $8,%al
+    testb $4,%al
+    jz fail
+    movw $0x307,%dx
+    inb %dx,%al
+    cmpb $1,%al
+    jne fail
+    /* Conventional RAM -> second ISA probe, four distinct bytes. */
+    movw $0x3231,0x4000
+    movw $0x3433,0x4002
+    movb $7,%al
+    outb %al,$0x0a
+    xorb %al,%al
+    outb %al,$0x0c
+    outb %al,$0x06
+    movb $0x40,%al
+    outb %al,$0x06
+    movb $3,%al
+    outb %al,$0x07
+    xorb %al,%al
+    outb %al,$0x07
+    movb $0x8b,%al
+    outb %al,$0x0b
+    movb $3,%al
+    outb %al,$0x0a
+    movw $0x309,%dx
+    movb $2,%al
+    outb %al,%dx
+    xorb %al,%al
+    outb %al,%dx
+    movw $0x30d,%dx
+    inb %dx,%al
+    cmpb $0x34,%al
+    jne fail
+    incw %dx
+    inb %dx,%al
+    cmpb $4,%al
+    jne fail
+    incw %dx
+    inb %dx,%al
+    cmpb $1,%al
+    jne fail
+    /* Refresh requests compete with real LOCK-prefixed memory operations.
+     * No refresh may split either locked word RMW or interrupt acknowledge. */
+    movw $0,0x5100
+    movw $40,%cx
+locked_refresh:
+    lock incw 0x5100
+    loop locked_refresh
+    cmpw $40,0x5100
+    jne fail
+    movb $4,%al
+    outb %al,$0x0a
+    xorb %al,%al
+    outb %al,$0x0c
+    inb $1,%al
+    movb %al,0x624
+    inb $1,%al
+    movb %al,0x625
+    cmpw $0xffff,0x624
+    je fail
     movb $0xaa,0x600
 stop:
     hlt
