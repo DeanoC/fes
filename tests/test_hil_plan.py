@@ -54,6 +54,13 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def go_build_info(command):
+    # The runtime/debug.modinfo layout `go build` embeds: sentinel, then the main package path.
+    return (bytes.fromhex('3077af0c9274080241e1c107e6d618e6') +
+            f'path\tgithub.com/DeanoC/FogCast/cmd/{command}\n'
+            'mod\tgithub.com/DeanoC/FogCast\t(devel)\t\n'.encode())
+
+
 class HilPlanTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -87,10 +94,12 @@ class HilPlanTest(unittest.TestCase):
         self.head = self.git('rev-parse', 'HEAD')
         return self.base, self.head
 
-    def write_artifact(self, name, content=b'artifact', head='a' * 40, stamp=True):
+    def write_artifact(self, name, content=b'artifact', head='a' * 40, stamp=True, component=None):
         # Binaries embed the head: Go via version.Revision, runtime via git-<12 hex>.
         if stamp:
             content = content + b'\0' + head.encode() + b'\0git-' + head[:12].encode() + b'\0'
+        if component in ('host:fogcast', 'host:fogcast-api'):
+            content += go_build_info(component.removeprefix('host:'))
         path = self.work / name
         path.write_bytes(content)
         return path
@@ -99,7 +108,8 @@ class HilPlanTest(unittest.TestCase):
         result = self.work / 'manifest.json'
         payload = []
         for component, side, target, content in entries:
-            local = self.write_artifact(component.replace(':', '_'), content, head or self.head)
+            local = self.write_artifact(component.replace(':', '_'), content, head or self.head,
+                                        component=component)
             content = local.read_bytes()
             self.artifact_bytes[component] = content
             row = {'component': component, 'side': side, 'target': target,
@@ -569,6 +579,45 @@ class HilPlanTest(unittest.TestCase):
                 result = run(*args, f'mister-runtime={runtime}=kit:/usr/sbin/mister-runtime')
                 self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_host_binaries_are_bound_to_their_command(self):
+        head = 'a' * 40
+        args = ['manifest', '--head', head, '--out', self.work / 'm.json']
+        api = self.write_artifact('fogcast-api', b'api', head, component='host:fogcast-api')
+        cli = self.write_artifact('fogcast', b'cli', head, component='host:fogcast')
+        unbuilt = self.write_artifact('unbuilt', b'no build info', head)
+        cases = [
+            # fogcast-api bytes labelled host:fogcast, with a matching or mismatching target.
+            (f'host:fogcast={api}=host:/tmp/fogcast', 'does not name main package'),
+            (f'host:fogcast={cli}=host:/tmp/fogcast-api', 'must match target basename'),
+            (f'host:fogcast-api={cli}=host:/tmp/fogcast-api', 'does not name main package'),
+            (f'host:fogcast-api={unbuilt}=host:/tmp/fogcast-api', 'does not name main package'),
+            (f'host:fogcast-api={api}=host:/tmp/api', 'must match target basename'),
+        ]
+        for spec, reason in cases:
+            with self.subTest(spec=spec):
+                result = run(*args, spec)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn(reason, result.stderr)
+        result = run(*args, f'host:fogcast-api={api}=host:/tmp/fogcast-api',
+                     f'host:fogcast={cli}=host:/tmp/fogcast')
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+        # Evidence re-reads the bytes: a re-hashed fogcast-api binary under host:fogcast fails.
+        self.git_repo(['sources/FogCast/cmd/fogcast/change.go'])
+        entries = [('host:fogcast', 'host', '/home/test/fogcast', b'cli')]
+        manifest = self.make_manifest(entries)
+        data = json.loads(manifest.read_text())
+        local = Path(data['entries'][0]['local'])
+        wrong = self.write_artifact('wrong', b'api', self.head, component='host:fogcast-api').read_bytes()
+        local.write_bytes(wrong)
+        data['entries'][0].update(sha256=digest(wrong), size=len(wrong))
+        manifest.write_text(json.dumps(data))
+        self.artifact_bytes['host:fogcast'] = wrong
+        output = self.work / 'wrong.md'
+        result = self.evidence(manifest, entries, output=output)
+        self.assert_refused_without_evidence(result, output)
+        self.assertIn('does not name main package', result.stderr)
+
     def test_runtime_versions_from_the_real_build_recipes_are_accepted(self):
         head = subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', 'HEAD'], text=True).strip()
         args = ['manifest', '--head', head, '--out', self.work / 'm.json']
@@ -770,7 +819,7 @@ class HilPlanTest(unittest.TestCase):
         entries = [('mister-agent', 'kit', '/usr/sbin/mister-agent', b'a'),
                    ('fogcast-kit', 'kit', '/usr/sbin/fogcast-kit', b'k'),
                    ('fogcast-tenfoot', 'kit', '/usr/sbin/fogcast-tenfoot', b't'),
-                   ('host:fogcast-api', 'host', '/home/test/api', b'api'),
+                   ('host:fogcast-api', 'host', '/home/test/fogcast-api', b'api'),
                    ('host:fogcast', 'host', '/home/test/fogcast', b'host')]
         manifest = self.make_manifest(entries)
         result = self.evidence(manifest, entries)
@@ -800,7 +849,7 @@ class HilPlanTest(unittest.TestCase):
     def test_host_hash_mismatch_missing_hash_and_unplanned_component_refuse(self):
         self.git_repo(['sources/libmister-runtime/change.cpp'])
         entries = [('mister-runtime', 'kit', '/usr/sbin/mister-runtime', b'rt'),
-                   ('host:extra', 'host', '/home/test/api', b'api')]
+                   ('host:extra', 'host', '/home/test/extra', b'api')]
         manifest = self.make_manifest(entries)
         output = self.work / 'evidence.md'
         result = self.evidence(manifest, entries, output=output)
@@ -809,7 +858,7 @@ class HilPlanTest(unittest.TestCase):
 
         # Valid planned host component exercises missing and mismatched host sums.
         self.git_repo(['sources/FogCast/cmd/fogcast-api/change.go'])
-        entries = [('host:fogcast-api', 'host', '/home/test/api', b'api')]
+        entries = [('host:fogcast-api', 'host', '/home/test/fogcast-api', b'api')]
         manifest = self.make_manifest(entries)
         output = self.work / 'missing.md'
         result = run('evidence', '--repo', self.repo, '--base-image-commit', self.base,
@@ -1006,14 +1055,14 @@ class HilPlanTest(unittest.TestCase):
 
     def test_host_only_update_without_kit_hash_skips_boot_comparison(self):
         self.git_repo(['sources/FogCast/cmd/fogcast-api/change.go'])
-        entries = [('host:fogcast-api', 'host', '/home/test/api', b'api')]
+        entries = [('host:fogcast-api', 'host', '/home/test/fogcast-api', b'api')]
         manifest = self.make_manifest(entries)
         result = self.evidence(manifest, entries, update=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_host_server_executable_attestation_and_one_shot_cli(self):
         self.git_repo(['sources/FogCast/cmd/fogcast-api/change.go'])
-        entries = [('host:fogcast-api', 'host', '/home/test/api', b'api')]
+        entries = [('host:fogcast-api', 'host', '/home/test/fogcast-api', b'api')]
         manifest = self.make_manifest(entries)
         for value in ('0' * 64, 'MISSING'):
             output = self.work / 'refused.md'
@@ -1034,7 +1083,7 @@ class HilPlanTest(unittest.TestCase):
         self.assertEqual(cli_result.returncode, 0, cli_result.stderr)
 
     def test_host_command_scans_proc_for_api_server(self):
-        binary = self.write_artifact('api', b'api')
+        binary = self.write_artifact('api', b'api', component='host:fogcast-api')
         manifest = self.work / 'manifest.json'
         run('manifest', '--head', 'a' * 40, '--out', manifest,
             f'host:fogcast-api={binary}=host:/home/test/fogcast-api')
