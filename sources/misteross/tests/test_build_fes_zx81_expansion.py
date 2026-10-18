@@ -286,15 +286,17 @@ class ZX81CartPublicationTests(unittest.TestCase):
                             ("overlay_cram", object()), ("rbf_save", b"linked")):
             self.stack.enter_context(patch.object(cart_producer, name, return_value=value))
         self.stack.enter_context(patch.object(cart_producer, 'prepare_scaffold', return_value=b'scaffold'))
-        self.stack.enter_context(patch.object(cart_producer.subprocess, "run", side_effect=self.run_tool))
+        self.stack.enter_context(patch.object(cart_producer, "_run_tool", side_effect=self.run_tool))
         self.mode = "valid"
         self.timing = {"fmax": {"clk_sys": {"achieved": 60, "constraint": 52.224},
                                 "display.control.clk": {"achieved": 100, "constraint": 74.250068664550781},
                                 "audio_clk": {"achieved": 20, "constraint": 12.288}}}
         self.calls = []
+        self.commands = []
         self.output = None
 
-    def run_tool(self, command, **kwargs):
+    def run_tool(self, command, cwd, log, **kwargs):
+        self.commands.append(command)
         synthesis = Path(command[0]).name == "yosys"
         name = "synthesis" if synthesis else "route"
         self.calls.append(name)
@@ -329,11 +331,10 @@ class ZX81CartPublicationTests(unittest.TestCase):
             (self.output / "timing.json").write_text(json.dumps(self.timing))
             if self.mode == 'scaffold_mutation':
                 (self.output / 'scaffold.json').write_bytes(b'changed')
-        log = kwargs["stdout"]
         if self.mode == name + "_error":
-            log.write("ERROR: physical route is invalid\nInfo: Program finished normally.\n")
+            log.write_text("ERROR: physical route is invalid\nInfo: Program finished normally.\n")
         else:
-            log.write("Info: 0 errors, 1 warning\nInfo: Program finished normally.\n")
+            log.write_text("Info: 0 errors, 1 warning\nInfo: Program finished normally.\n")
         if self.mode == "nonzero_route" and not synthesis:
             raise subprocess.CalledProcessError(1, command)
         return subprocess.CompletedProcess(command, 0)
@@ -374,7 +375,7 @@ class ZX81CartPublicationTests(unittest.TestCase):
         self.assertEqual(recipe['cart_kind'], 'zonx')
         self.assertIn('cores/fes-zx81/expansions/zonx.v', recipe['inputs'])
         self.assertNotIn('cores/fes-zx81/expansions/ram16k.v', recipe['inputs'])
-        self.assertIn('-DSYNTHESIS=1', cart_producer.subprocess.run.call_args_list[0].args[0][-1])
+        self.assertIn('-DSYNTHESIS=1', self.commands[0][-1])
         cart_producer.classify_cram_diff.return_value = {'bits_outside_slot': 2}
         with self.assertRaisesRegex(ValueError, 'outside reserved slot'):
             cart_producer.build(self.root, self.shell, self.root / 'package', 0, cart_kind='zonx')
@@ -417,11 +418,11 @@ class ZX81CartPublicationTests(unittest.TestCase):
             self.build()
         self.assertEqual(self.calls, [])
         path.write_bytes(self.package.rom_map_bytes)
-        def mutate_during_compile(command, **kwargs):
-            result = self.run_tool(command, **kwargs)
+        def mutate_during_compile(command, cwd, log, **kwargs):
+            result = self.run_tool(command, cwd, log, **kwargs)
             path.write_bytes(b"changed map")
             return result
-        with patch.object(cart_producer.subprocess, "run", side_effect=mutate_during_compile):
+        with patch.object(cart_producer, "_run_tool", side_effect=mutate_during_compile):
             with self.assertRaisesRegex(ValueError, "frozen shell changed"):
                 self.build()
         self.assertFalse(list(self.output.glob("*.tar")))

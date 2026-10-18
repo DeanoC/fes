@@ -24,7 +24,7 @@ if __package__ in (None, ""):
 from scripts import build_fes_coleco_socket_dev as shell_recipe
 from scripts import build_fes_coleco_oss as factory, coleco_expansion
 from scripts.core_package import read_package
-from scripts.fes_build_common import _prepare_output, _require_clean_source
+from scripts.fes_build_common import _prepare_output, _require_clean_source, _run_tool
 from scripts.cyclonev_rbf import (
     rbf_load, rbf_save, overlay_cram, classify_cram_diff, CramRect,
     cram_get, cram_set,
@@ -239,7 +239,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     qsf = cart_qsf((shell / "socket.qsf").read_bytes())
     (output / "cart.qsf").write_bytes(qsf)
     scaffold = prepare_scaffold(shell / "routed.json", output / "scaffold.json")
-    env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
+    env = dict(os.environ, GPU_LEASE_IDS=str(gpu))
     commands = [
         [str(tools["yosys"].path), "-p", f"read_verilog -sv -I cores/fes-coleco/rtl {' '.join(SOURCES)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"), "--device", "5CSEBA6U23I7",
@@ -251,8 +251,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     ]
     for name, command in zip(("synthesis", "route"), commands):
         log_path = output / (name + ".log")
-        with log_path.open("w") as log:
-            subprocess.run(command, cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+        _run_tool(tuple(command), root, log_path, output_relative=output.relative_to(root), env=env)
         # Some nextpnr failures return zero. Exit status alone cannot admit an
         # artifact; keep the failing log but never publish its output.
         if re.search(r"^\s*(?:ERROR|FATAL)\b", log_path.read_text(errors="replace"), re.MULTILINE | re.IGNORECASE):

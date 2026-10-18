@@ -32,7 +32,7 @@ from scripts import c64_slots
 from scripts import build_fes_c64_oss as shell_recipe
 from scripts.core_package import read_package
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
-from scripts.fes_build_common import _prepare_output, _require_clean_source, _require_gpu_backend
+from scripts.fes_build_common import _prepare_output, _require_clean_source, _require_gpu_backend, _run_tool
 
 ROOT = Path(__file__).resolve().parents[1]
 CARDS = {
@@ -321,15 +321,9 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
     scaffold = prepare_scaffold((shell / "routed.json").read_bytes(), slot)
     (output / "scaffold.json").write_bytes(scaffold)
     env = dict(os.environ)
-    # HIP remaps the selected device to index 0. CUDA keeps PCI bus order and
-    # selects that index with nextpnr --gpu-device, as the shell producer does.
-    # An inherited visibility mask would renumber that index.
+    env["GPU_LEASE_IDS"] = str(gpu)
     if extra:
-        env.pop("HIP_VISIBLE_DEVICES", None)
-        env.pop("CUDA_VISIBLE_DEVICES", None)
         env.update(extra)
-    else:
-        env["HIP_VISIBLE_DEVICES"] = str(gpu)
     commands = [
         [str(tools["yosys"].path), "-p", card_synthesis_script(card, slot, output)],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"),
@@ -338,21 +332,15 @@ def build(root: Path, shell: Path, package_path: Path, slot: int, card: str, gpu
          "--fes-cart-region", socket.region, "--fes-slot-clock", SLOT_CLOCK,
          "--fes-cram-region", ",".join(str(v) for v in socket.cram),
          "--no-pack", "--seed", str(PLACER_SEED), "--router", "gpu",
-         *(["--gpu-device", str(gpu)] if extra else []),
+         *( ["--gpu-device", str(gpu)] if extra else [] ),
          "--placer-heap-timingweight", "300",
          "--rbf", str(output / "cart.rbf"), "--compress-rbf",
          "--write", str(output / "cart-routed.json"), "--report", str(output / "timing.json")],
     ]
     for name, command in zip(("synthesis", "route"), commands):
         log_path = output / (name + ".log")
-        with log_path.open("w") as log:
-            try:
-                subprocess.run(command, cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT,
-                               check=True, timeout=900)
-            except subprocess.TimeoutExpired as exc:
-                raise ValueError(f"{name} timed out; see {log_path}") from exc
-            except subprocess.CalledProcessError as exc:
-                raise ValueError(f"{name} failed; see {log_path}") from exc
+        _run_tool(tuple(command), root, log_path, output_relative=output.relative_to(root),
+                  env=env, timeout=900)
         if re.search(r"^\s*(?:ERROR|FATAL)\b", log_path.read_text(errors="replace"), re.MULTILINE | re.IGNORECASE):
             raise ValueError(f"{name} reported an error; see {log_path}")
         required = ("cart.json",) if name == "synthesis" else ("cart.rbf", "cart-routed.json", "timing.json")

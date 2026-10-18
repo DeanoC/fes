@@ -20,7 +20,7 @@ if __package__ in (None, ""):
 from scripts import build_fes_zx81_oss as shell
 from scripts import build_zx81_bus_validation_cart as cart
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
-from scripts.fes_build_common import FES_GPU_BACKEND, _require_gpu_backend, reject_async_m10k_reads
+from scripts.fes_build_common import FES_GPU_BACKEND, _require_gpu_backend, _run_command, reject_async_m10k_reads
 from scripts.hip_zx81_bus_socket import validate_overlay_timing
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,8 +43,9 @@ def run(command: list[str], log: Path, env: dict[str, str] | None = None) -> Non
     log.parent.mkdir(parents=True, exist_ok=True)
     print("+", " ".join(command), flush=True)
     with log.open("w") as handle:
-        result = subprocess.run(
-            command, cwd=ROOT, env=env, stdout=handle, stderr=subprocess.STDOUT, check=False
+        result = _run_command(
+            command, cwd=ROOT, env=env, stdout=handle, stderr=subprocess.STDOUT, check=False,
+            gpu_label=f"zx81-cart-{log.parent.name}",
         )
     text = log.read_text(errors="replace")
     if result.returncode != 0 or "ERROR" in text.split("Program finished", 1)[0]:
@@ -86,7 +87,6 @@ def compose_cart(name: str, tools: dict[str, Path], env: dict[str, str]) -> None
             "--no-pack",
             "--seed", str(cart.PLACER_SEED),
             "--router", "gpu",
-            "--gpu-device", "0",
             "--rbf", str(out / "cart.rbf"),
             "--compress-rbf",
             "--write", str(out / "cart-routed.json"),
@@ -133,7 +133,7 @@ def main() -> int:
     if not (SHELL_OUT / "routed.json").is_file() or not (SHELL_OUT / "core.rbf").is_file():
         raise SystemExit(f"missing routed ZX81 bus shell in {SHELL_OUT}")
     env = dict(os.environ)
-    env["HIP_VISIBLE_DEVICES"] = "0"
+    env["GPU_LEASE_IDS"] = "0"
     env.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
     env.pop("CACHE_ROOT", None)
     for name in names:

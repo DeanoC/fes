@@ -140,6 +140,17 @@ effective command and option coverage without invoking the physical router.
 This binds host build behavior to the selected recipe. It is not route timing
 qualification or hardware acceptance; those remain separate evidence gates.
 
+Each GPU-routed `nextpnr-mistral` invocation acquires one lease through the
+repository's `scripts/gpu-run`; synthesis, producer loops and non-GPU tools run
+outside that lease. A producer's requested physical GPU id, from its
+`--gpu-device` argument or `GPU_LEASE_IDS`, constrains the lease; the
+dispatcher then passes `GPU_RUN_DEVICE` to nextpnr after gpu-run applies its
+visibility mask. Producers must run outside an outer
+gpu-run so a lease cannot span synthesis or multiple routes. Route timeout
+budgets start after the lease is granted, so queue wait does not turn a valid
+route into a timeout. Search workers still use their producer concurrency
+limits, and each worker releases its GPU before starting another route.
+
 ## Build lanes
 
 ### Composable application reference

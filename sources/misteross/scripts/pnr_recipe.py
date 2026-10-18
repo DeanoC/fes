@@ -320,7 +320,7 @@ def argv(
     if critexp is not None and critexp != recipe["critexp"]:
         raise RecipeError(f"{core_id}: producer critexp disagrees with its recipe")
     if recipe["gpu_device"] == "lease" and (type(gpu) is not int or gpu < 0):
-        raise RecipeError(f"{core_id}: leased GPU device is required")
+        raise RecipeError(f"{core_id}: leased GPU slot is required")
 
     qsf_value = qsf if qsf is not None else recipe["qsf"]
     sdc_value = sdc if sdc is not None else recipe["sdc"]
