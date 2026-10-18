@@ -33,7 +33,10 @@ Every binary must embed the head. FogCast Go binaries need the full revision
 from the Makefile's `-X internal/version.Revision=$(REVISION)`, and
 `mister-runtime` needs `git-<40 hex>` (image recipe) or `git-<12 hex>`, with or
 without `-dirty` (component Makefile, whose dirty probe currently always
-appends `-dirty`). Evidence re-reads each local artifact, so generate it on the machine
+appends `-dirty`). A `host:<command>` component must target a file named
+`<command>`, and its Go build info must name the main package
+`github.com/DeanoC/FogCast/cmd/<command>`, so a `fogcast-api` binary cannot
+stand in for `host:fogcast`. Evidence re-reads each local artifact, so generate it on the machine
 where the manifest was built. For each `core:*` archive, the planner reads the local archive and derives its
 package ID and core ID. The archive must identify the requested core, and its
 embedded `build.revision` must equal the full PR head. A changed file under
