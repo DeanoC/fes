@@ -56,14 +56,20 @@ The image id above comes from `/media/fat/fogcast/releases/boot.json`. The
 collector on that image reported the factory bootstrap image instead; see
 [#504](https://github.com/DeanoC/fes/issues/504).
 
-**Root percentage.** The build reported rootfs use at 78.41%, while `df`
-reports 83% on the kit. They measure different things. The build check
+**Root percentage.** `df` reports 83% used on the 2026-10-04 kit measurement
+of image `24c93192…` (0.2.0-main-84dcb29f.1). The 78.41% build figure is
+rootfs use for a different image, `0.2.0-pr404-de32b3d0.1` (FES
+`de32b3d083e98ba7f387ec16da1204cdd05f4284`, rootfs SHA-256
+`cbb6d172f7ef28af8d435861b4a4356888c4a21b735a09d92144ae8c39769a27`), recorded
+in the [2026-10-03 Kit B factory Coleco acceptance](../../../docs/validation/2026-10-03-video-factory-kitb-de32b3d0.md)
+and its [`rootfs-capacity.json`](../../../docs/validation/video-factory-kitb-2026-10-03-de32b3d0/rootfs-capacity.json).
+
+The build check and `df` measure different things. The build check
 (`image/scripts/check-rootfs-headroom.sh`) divides used blocks, block count
 minus `dumpe2fs` free blocks, by the configured 128 MiB image size. `df`
 reports Capacity as used / (used + available), rounded up. Its Size leaves out
 ext4 metadata, and its Available leaves out the blocks reserved for root. The
-smaller denominator gives the higher `df` figure. The root is read-only, so
-neither figure is space the host can write.
+root is read-only, so neither figure is space the host can write.
 
 ## Collector units
 
