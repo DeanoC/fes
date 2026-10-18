@@ -20,7 +20,7 @@ module st_media_sim_top #(parameter bit GEOMETRY = 0) (
     wire [15:0] unused_controller;
     wire [34:0] unused_mouse;
     wire [21:0] unused_snapshot;
-    fes_computer_mailbox #(
+    fes_computer_mailbox_direct #(
         .ENABLE_ATARI_ST_FLOPPY(1), .ENABLE_ATARI_ST_FLOPPY_GEOMETRY(GEOMETRY), .ENABLE_ATARI_ST_FLOPPY_WRITE(GEOMETRY), .ENABLE_MEDIA_BACKPRESSURE(1), .MEDIA_AW(20),
         .UNIT0_MIN(GEOMETRY ? 368640 : 737280), .UNIT0_MAX(GEOMETRY ? 839680 : 737280)
     ) gp_endpoint (
