@@ -576,7 +576,9 @@ MHz machine clock to the 74.25 MHz output clock. It reports an overrun as an
 invalid token and retains the latest undelivered HOLD control. The generic
 `fes_native_video.v` owns packed double-buffer capture, complete-frame
 publication at output frame boundaries, centered 2x scaling, and optional
-scanlines. Source pauses repeat the last complete frame. HOLD keeps HDMI
+scanlines. The scanout registers the packed read address before distributed M10K fanout,
+then registers the RAM read before palette selection. Every subpixel/raster field
+carries the same latency. Source pauses repeat the last complete frame. HOLD keeps HDMI
 timing running, mutes RGB and aborts incoming/pending frames.
 
 `make sim-fes-native-video` exercises the consumer and clock crossing;
@@ -2286,6 +2288,10 @@ PIT pins advance from CPU guest enables divided by four through READY waits
 and HLT. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
 output requests DMA0 refresh; PPI PB0 gates channel 2.
 Reset must cancel requests in the router and its downstream storage/ISA.
+The imported PIC resolves circular priority using parallel per-level masks;
+Yosys SAT checks equivalence against its original rotation equations for
+arbitrary requests, service/mask vectors and nested modes. Register boundaries
+and the motherboard's bus setup/active/release timing are unchanged.
 
 Original `pcxt_dma.sv` implements the XT subset of the
 [Intel 8237A](https://read.seas.harvard.edu/~kohler/class/04f-aos/ref/hardware/8237A.pdf).
@@ -2391,7 +2397,9 @@ three packed banks in the existing dual-clock framebuffer helper and transfers
 only stable publication/acknowledgement tokens across the 100/74.25 MHz domains.
 Capture never writes the displayed or published bank. Complete surfaces swap
 at output SOF; a pending third surface waits for ownership, and backpressure
-skips a whole source frame. Source pauses repeat the last complete frame.
+skips a whole source frame. The scanout registers the packed read address before distributed M10K fanout,
+then registers the RAM read before palette selection. Every subpixel/raster field
+carries the same latency. Source pauses repeat the last complete frame.
 HOLD mutes RGB/aborts partial capture while raster timing and complete-bank
 ownership continue. Coordinated resets are required in both domains.
 

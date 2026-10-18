@@ -3,7 +3,8 @@
   "commit": "af4f8a98ae562af0e3f9b86cc3a59673f999d0f6",
   "license": "MIT",
   "local_changes": [
-    "Replace package imports with explicitly qualified function calls for the locked Yosys Verilog frontend; function bodies and behavior unchanged."
+    "Replace package imports with explicitly qualified function calls for the locked Yosys Verilog frontend; function bodies and behavior unchanged.",
+    "Resolve circular priority with parallel per-level masks instead of rotate/priority/rotate chains; combinational equivalence covers arbitrary masks, rotation and fully nested inputs, with unchanged register boundaries."
   ],
   "files": [
     {
@@ -24,7 +25,8 @@
     {
       "path": "KF8259_Common_Package.svh",
       "upstream_path": "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Common_Package.svh",
-      "sha256": "bb75b6998dce9138725c5fcc3a00811eae1950a30708c875584225195031b005"
+      "sha256": "6ab9c79329f4f701fa74fcdeb38ffb69e3d0310628534a0758e99d68cf94783d",
+      "upstream_sha256": "bb75b6998dce9138725c5fcc3a00811eae1950a30708c875584225195031b005"
     },
     {
       "path": "KF8259_Control_Logic.sv",
@@ -35,7 +37,7 @@
     {
       "path": "KF8259_In_Service.sv",
       "upstream_path": "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_In_Service.sv",
-      "sha256": "6b451d49a82da444f932f13fc7dcde17d74b14573ecc3cddd9193715edb0d71f",
+      "sha256": "c6991c3fea4647db02ad07e78ca4c7a99f0126c050137e8b624b663820b4ec92",
       "upstream_sha256": "e717b23aa1de8a817203ff934c8f86cdcc3959ddb0c62211857c0be9ca65d5e0"
     },
     {
@@ -46,7 +48,7 @@
     {
       "path": "KF8259_Priority_Resolver.sv",
       "upstream_path": "rtl/KFPC-XT/HDL/KF8259/HDL/KF8259_Priority_Resolver.sv",
-      "sha256": "1b276df7d2bbac58faf27ef16962ef4c28ab5e3d4fefcc287963d8a341d93804",
+      "sha256": "e55c15c6aa487c6b0c69af72c767b1fd2bd10f498b6567f88de3120feef3c5d7",
       "upstream_sha256": "25e38c4c84a697a4a1adfc7151179074cf50df796d47e8dcfc5c6096fc1296da"
     }
   ]

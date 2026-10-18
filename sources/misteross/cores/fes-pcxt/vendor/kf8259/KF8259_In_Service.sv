@@ -42,10 +42,8 @@ module KF8259_In_Service (
     logic   [7:0]   next_highest_level_in_service;
 
     always_comb begin
-        next_highest_level_in_service = next_in_service_register & ~interrupt_special_mask;
-        next_highest_level_in_service = KF8259_Common_Package::rotate_right(next_highest_level_in_service, priority_rotate);
-        next_highest_level_in_service = KF8259_Common_Package::resolv_priority(next_highest_level_in_service);
-        next_highest_level_in_service = KF8259_Common_Package::rotate_left(next_highest_level_in_service, priority_rotate);
+        next_highest_level_in_service = KF8259_Common_Package::resolve_rotated_priority(
+            next_in_service_register & ~interrupt_special_mask, priority_rotate);
     end
 
     always_ff @(posedge clock, posedge reset) begin

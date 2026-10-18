@@ -228,7 +228,8 @@ The diagnostic synthesis applies `synth/rom_clock_map.v` after RAM inference:
 it connects a constant/undefined unused ROM write clock to the registered read
 clock only when writes are provably disabled. This supplies the native packer
 with a real clock without changing INIT, registered read latency or writable RAM.
-Pinned CPU/vendor sources remain unchanged.
+The CPU import remains unchanged. The PIC import uses formally checked parallel
+priority masks, documented in its vendor README; its register boundaries are unchanged.
 HDMI transmitter I2C uses the existing HPS peripheral bridge. This autonomous
 power-on diagnostic has no runtime ABI, host session control or audio pins.
 
@@ -236,8 +237,8 @@ power-on diagnostic has no runtime ABI, host session control or audio pins.
 # From sources/misteross; no shared compiler cache environment for simulations.
 python3 scripts/sim_fes_pcxt.py --suite system
 python3 scripts/sim_fes_pcxt.py --suite system-mda
-make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache
-make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--mda --scanlines'
+gpu-run --owner pcxt-agent --label pcxt-cga-direct -- make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache
+gpu-run --owner pcxt-agent --label pcxt-mda-scanlines -- make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--mda --scanlines'
 # Optional frontend/resource probe; no route:
 make build-fes-pcxt CACHE_ROOT=/absolute/toolchain-cache PCXT_BUILD_ARGS='--synth-only'
 ```
@@ -258,7 +259,15 @@ cold loading, a pause near the end of loading, reset during an issued CPU
 SDRAM read, reset release, both real DMA
 directions, guest and physical refresh, two complete boots without firmware
 reload, HOLD/mute and every pixel of two 720p output frames after capture settles.
-CGA uses Direct and MDA uses Scanlines; each runs DQM delays 0/1/2. Existing
+CGA uses Direct and MDA uses Scanlines; each runs DQM delays 0/1/2. The framebuffer
+registers its read address before M10K fanout and delays subpixel and raster
+fields together through that extra stage. PIC priority changes also have an
+all-input Yosys SAT check:
+
+```sh
+YOSYS=/absolute/locked/yosys python3 -m unittest discover -s tests -p test_pcxt_pic_priority.py -v
+```
+ Existing
 video suites retain detailed frame-ownership, overrun/drop and malformed-source
 coverage. Digital SDRAM simulation does not establish pad timing or retention.
 
