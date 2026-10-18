@@ -58,8 +58,8 @@ type MenuPresentTrace struct {
 	StatusUS    int64
 	PresentUS   int64
 	Timing      menudisplay.Timing
-	// StatusSkipped means the worker trusted its status from a recent
-	// present instead of asking the runtime.
+	// StatusSkipped means an attempt trusted cached status instead of
+	// asking the runtime. A retried frame still counts that refused skip.
 	StatusSkipped bool
 	// DamageRects is how many rectangles a damaged present staged; zero
 	// for a complete frame.
@@ -460,11 +460,16 @@ func (d *MenuDisplay) run() {
 			var result menudisplay.Result
 			var statusUS, presentUS int64
 			presented, genChanged, cached, retried := false, false, false, false
+			statusSkipped := false
 			damageRects := 0
 			for attempt := 0; ; attempt++ {
 				d.mu.Lock()
-				status, cached = d.cachedStatusLocked(frame)
+				var attemptCached bool
+				status, attemptCached = d.cachedStatusLocked(frame)
 				d.mu.Unlock()
+				cached = attemptCached
+				// A refused shortcut still skipped status on that attempt.
+				statusSkipped = statusSkipped || cached
 				err = nil
 				if !cached {
 					statusStart := time.Now()
@@ -542,7 +547,7 @@ func (d *MenuDisplay) run() {
 				trace := MenuPresentTrace{Seq: frame.seq, Queued: frame.queuedAt, Presented: presented,
 					FrameCopyUS: frame.copyUS, QueueWaitUS: started.Sub(frame.queuedAt).Microseconds(),
 					StatusUS: statusUS, PresentUS: presentUS, Timing: result.Timing,
-					StatusSkipped: cached, DamageRects: damageRects, Retried: retried}
+					StatusSkipped: statusSkipped, DamageRects: damageRects, Retried: retried}
 				if err != nil {
 					trace.Err = err.Error()
 				}

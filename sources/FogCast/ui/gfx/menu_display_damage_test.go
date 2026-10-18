@@ -156,7 +156,7 @@ func TestMenuDisplayDamageFallsBackToCompleteFrame(t *testing.T) {
 	h.r.seq++
 	h.r.mu.Unlock()
 	stale := h.frame(40, 40, RGB(1, 2, 3))
-	if !stale.Retried || stale.DamageRects != 0 || !stale.Presented {
+	if !stale.Retried || !stale.StatusSkipped || stale.DamageRects != 0 || !stale.Presented {
 		t.Fatalf("stale base %+v", stale)
 	}
 	// A new generation while status is cached is found by the retry. As
@@ -166,7 +166,7 @@ func TestMenuDisplayDamageFallsBackToCompleteFrame(t *testing.T) {
 	h.r.generation = 4
 	h.r.mu.Unlock()
 	moved := h.submit(80, 80, RGB(4, 5, 6))
-	if !moved.Retried || moved.Presented {
+	if !moved.Retried || !moved.StatusSkipped || moved.Presented {
 		t.Fatalf("new generation %+v", moved)
 	}
 	redrawn := h.frame(80, 80, RGB(4, 5, 6))

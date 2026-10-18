@@ -25,7 +25,7 @@ Each JSON line has `kind`:
   - the client's `menu_frame_begin`, staging copy and commit round trip
   - from the runtime's commit reply: the DDR copy, slot submit and scanout wait (`libmister-runtime/docs/menu-display.md`)
   - `staged_pixels` and `runtime_stored_pixels`: pixels the client copied into staging and the runtime wrote to DDR
-  - `damage_rects` for a damaged present, `status_skipped` when the worker trusted its cached status, and `retried` when a shortcut was refused and the frame went again whole
+  - `damage_rects` for a damaged present, `status_skipped` when an attempt trusted cached status (a refused shortcut still counts), and `retried` when a shortcut was refused and the frame went again whole
 
 The ring holds 16,384 records, which is several minutes at the 30 Hz loop. Each
 `SIGUSR1` writes a new `fogcast-frame-trace-<pid>-<n>-<utc>.jsonl` to

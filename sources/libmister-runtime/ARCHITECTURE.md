@@ -131,8 +131,14 @@ staging bytes, validation requires the same device/inode, 3,686,400-byte size
 and WRITE/GROW/SHRINK/SEAL seals. A client must remove writable mappings before
 sealing. The runtime reads sealed staging through a private, read-only mapping;
 the selected kit kernel rejects a shared mapping after `F_SEAL_WRITE`.
-`MenuMemory` converts RGBA to B,G,R,0 in a cached row buffer, then writes
-either fixed 4 MiB slot with naturally aligned word stores. Host builds use
+`MenuMemory` keeps an XRGB8888 shadow of the last copied frame and converts
+RGBA to B,G,R,0 into that shadow. A full copy converts every pixel and stores
+the whole slot. A damaged copy converts only the changed rectangles, then
+stores those rectangles plus the pixels that slot still lacks, widened to
+8-pixel groups, so the slot matches a full present. The other slot records
+the rectangles it missed. The shadow is trusted only for the displayed
+sequence it was copied for; a failed or cancelled copy, black fill, or
+reconfiguration discards it. Stores are naturally aligned words. Host builds use
 volatile words. ARMv7 uses `ldmia`/`stmia` of eight words, which stays inside
 one 4KB page because a row and the slot are 32-byte aligned. The mapping
 stays `O_SYNC` (strongly ordered on the qualified kernel); it is not
