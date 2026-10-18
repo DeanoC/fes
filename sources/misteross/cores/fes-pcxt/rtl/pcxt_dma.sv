@@ -39,6 +39,9 @@ module pcxt_dma (
     reg [1:0] minimum_wait;
     reg refresh_pending, refresh_previous, yield_served;
     wire refresh_edge = refresh_clock && !refresh_previous;
+    // refresh_pending is the XT DREQ0 pin: a 74LS74 Q set by the PIT1 rising
+    // edge and cleared when service starts. Command bit 6 is the 8237 sense
+    // of every DREQ pin, so an idle low latch is a request when sense is low.
     wire [3:0] hardware_request = {drq, refresh_pending} ^ {4{command[6]}};
     wire [3:0] requests = hardware_request | software_request;
     // Intel specifies software requests only in block mode. Keep their

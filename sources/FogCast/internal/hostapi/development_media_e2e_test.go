@@ -25,6 +25,7 @@ import (
 	"github.com/DeanoC/FogCast/internal/httpapi"
 	"github.com/DeanoC/FogCast/internal/kitlease"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"github.com/DeanoC/FogCast/internal/testsock"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -109,13 +110,8 @@ func testMediaEndToEnd(t *testing.T, stream bool) {
 		}
 		return result + "\n"
 	}
-	// Use a short socket directory to stay within sockaddr_un on every test host.
-	socketDir, err := os.MkdirTemp("", "fc-media-wire-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(socketDir)
-	socket := filepath.Join(socketDir, "runtime.sock")
+	// A short socket path stays within sockaddr_un whatever TMPDIR is.
+	socket := testsock.Path(t, "runtime.sock")
 	listener, err := net.Listen("unix", socket)
 	if err != nil {
 		t.Fatal(err)

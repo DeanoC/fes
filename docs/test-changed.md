@@ -158,6 +158,14 @@ not install them. Such failures stop the run and remain failures. It clears
 `GOOS`, `GOARCH` and `GOARM` from the test environment so a prior cross-build shell
 does not redirect native tests to the target architecture.
 
+The suites do not depend on the caller's umask, `TMPDIR` length or location,
+an inherited `GOTOOLCHAIN`, or the system Go version. Unix-socket tests take
+their path from FogCast `internal/testsock`, which stays under the kernel's
+`sun_path` limit. Kit-state tests fix their own umask and choose a temp base
+without a shared writable ancestor; their path checks stay inside that fixture.
+The module-source build test probes the Go toolchain FogCast selects with
+`GOTOOLCHAIN=auto`.
+
 Commands use argument arrays without a shell. The first failed command stops
 execution and reports the remaining commands as not started. The command runs
 against the working tree, so do not concurrently change selected sources or run

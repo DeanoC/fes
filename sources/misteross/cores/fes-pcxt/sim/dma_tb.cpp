@@ -151,6 +151,22 @@ int main(int argc,char** argv) {
         b.reset();program(b,0,0x0100,0xffff,0x58);b.out(0x0a,0);b.pit(1,2,18);settled(b,30000);
         check(b.refreshes>=18 && b.refreshes<=22 && b.dma_bytes.empty(),"PIT1 refresh cadence");
         b.out(0x0a,4);check(word(b,0)==0x100+b.refreshes,"refresh address progress");
+        // Command bit 6 is the sense of every DREQ pin. The refresh latch is
+        // DREQ0: idle low, set by a PIT1 rising edge. Active-low sense therefore
+        // requests while the latch is idle and stops once an edge sets it.
+        // External DRQ[3:1] still uses that same sense bit.
+        b.reset();program(b,0,0x0100,0xffff,0x58);b.out(8,0x40);b.out(0x0a,0);
+        b.idle(8000);
+        check(b.refreshes>=10 && b.dma_bytes.empty(),"inverted DREQ idle latch requests DMA0");
+        unsigned during=b.refreshes;
+        b.pit(1,2,18);b.idle(4000);
+        unsigned after=b.refreshes;
+        b.idle(20000);
+        check(b.refreshes==after && after>=during,"inverted DREQ latched edge is inactive");
+        program(b,2,0x2000,0,0x44);b.d.external_drq=2;b.out(0x0a,2);b.idle(500);
+        check(b.dma_bytes.empty() && b.refreshes==after,"inverted external DREQ idle");
+        b.d.external_drq=0;settled(b);
+        check(b.dma_bytes.size()==1 && b.refreshes==after,"inverted external DREQ service");
         // Faults halt before count retirement, including after the RAM half.
         for(bool to_device: {false,true}) {
             b.reset();program(b,2,0x2000,1,to_device?0x48:0x44);b.out(0x0a,2);

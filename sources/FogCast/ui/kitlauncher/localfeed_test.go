@@ -7,12 +7,11 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/testsock"
 	"github.com/DeanoC/FogCast/internal/zx81keys"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/remoteinput"
@@ -50,12 +49,7 @@ func listenLocalInput(t *testing.T, frames chan<- protocol.InputFrame) (net.List
 // name is long. Only this short directory holds the socket, not test data.
 func localInputTestPath(t *testing.T, name string) string {
 	t.Helper()
-	dir, err := os.MkdirTemp("/tmp", "fc-li-")
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.RemoveAll(dir) })
-	return filepath.Join(dir, name)
+	return testsock.Path(t, name)
 }
 
 func TestLocalFeedKeepsPlayerAndRawKeyboard(t *testing.T) {

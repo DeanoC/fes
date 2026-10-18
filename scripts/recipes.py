@@ -91,10 +91,12 @@ class Format2Recipe:
     producer_arguments: tuple[str, ...] = ()
     producer_options: tuple[tuple[str, object], ...] = ()
     video_profiles: tuple[str, ...] = ()
+    optional: bool = False
 
 
 REGISTRY_PATH = Path(__file__).resolve().parents[1] / "config/core-recipes.toml"
-_OPTIONAL_RECIPE_FIELDS = frozenset({"producer_arguments", "producer_options", "video_profiles"})
+_OPTIONAL_RECIPE_FIELDS = frozenset({
+    "producer_arguments", "producer_options", "video_profiles", "optional"})
 _VIDEO_ARGUMENT = {
     "--native-video-socket": ("native_video", True),
     "--video-socket": ("video_socket", True),
@@ -209,6 +211,8 @@ def load_recipes(path=REGISTRY_PATH):
         if core_id in result or selection in selections or any(
                 name in environment_names for name in names) or names[0] == names[1]:
             raise ValueError("duplicate core ID, selection filename or environment variable")
+        if "optional" in entry and type(entry["optional"]) is not bool:
+            raise ValueError("optional must be a boolean")
         result[core_id] = Format2Recipe(**entry)
         selections.add(selection)
         environment_names.update(names)

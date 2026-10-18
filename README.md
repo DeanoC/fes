@@ -37,7 +37,8 @@ systems.
 ## Start
 
 Use Linux amd64 with Git, GNU Make, Python 3.11+, Go and Docker. Go selects the
-version in the selected FogCast `go.mod` (currently 1.26.5). First-party sources
+version in the selected FogCast `go.mod` (currently 1.26.5). The affected-test
+command also needs Node.js 18+ and ripgrep for the host UI lane. First-party sources
 are included here; external build dependencies retain their own locks.
 
 ```sh
@@ -88,8 +89,10 @@ holds the selected set.
 Menu (`fes.menu`) is the idle display, not a playable library entry. Each selected
 package is independently resolved, cached, installed and recorded; this is the
 closed package set for the default image, and package-only verification rejects
-missing, extra or misidentified packages. The FES image has no legacy bundle
-lane.
+a missing required package, an extra package, or a misidentified package. Atari
+ST is optional. A timing miss is recorded in `unavailable-cores.json` and that
+core is left out of the package set. `FES_REQUIRE_ALL_CORES=1` keeps a release
+build strict. The FES image has no legacy bundle lane.
 
 The Coleco factory recipe selects its native 256×192 indexed-pixel shell and
 builds matching Direct and Scanlines parts, which own frame capture and 720p

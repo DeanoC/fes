@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/bridge"
@@ -53,7 +54,14 @@ func listenLocalInput(path string) (net.Listener, error) {
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
+	// Umask is process-wide. Restore it as soon as Listen returns so the
+	// socket is created 0600 and later files keep the caller's mask.
+	// A chmod after Listen is too late: Dial succeeds as soon as the socket
+	// exists. umask 0177 makes that first mode 0600; 0077 would leave 0700
+	// until chmod, which the concurrent dial can still observe.
+	oldMask := syscall.Umask(0o177)
 	listener, err := net.Listen("unix", path)
+	syscall.Umask(oldMask)
 	if err != nil {
 		return nil, err
 	}

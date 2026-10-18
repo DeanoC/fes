@@ -183,7 +183,8 @@ existing ISA contract. Both halves complete before address/count retirement.
 A byte receives at least five guest clock enables, plus transaction waits;
 this is a development timing model, not original 8237 pin timing. Compressed/
 extended-write and DACK polarity bits do not alter the abstract handshakes.
-DREQ polarity is applied before masking and priority resolution.
+DREQ polarity is the 8237 pin sense for every channel, applied before
+masking and priority resolution. Channel 0's pin is the refresh latch.
 
 The router grants DMA between completed CPU requests and preserves ownership
 for both halves of a byte. Continuous CPU LOCK and a separate two-INTA-pulse
@@ -301,7 +302,8 @@ all service modes, verify, all-mask and clear-mask writes, shared byte selection
 page aliases/mappings and 64 KiB wrap, including an independent 65,536-byte
 memory scoreboard. It checks auto-init, fixed/rotating priority, software
 requests, DREQ polarity/withdrawal, LOCK and paired INTA exclusion, CPU fairness,
-refresh cadence, a higher-priority request arriving before grant, DREQ
+refresh cadence, inverted DREQ sense on that latch and on external DRQ,
+a higher-priority request arriving before grant, DREQ
 withdrawal between demand bytes, first/second-half faults and reset across
 pending halves.
 Unsupported bus modes must fault without committing a byte.

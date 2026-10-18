@@ -2094,7 +2094,14 @@ raster activity with CPU/video memory latency. Neither the digital SDRAM
 model nor injected callback waits establish electrical FPGA behavior. FX68K source bytes remain immutable; a
 compiler compatibility input may normalize its two simulation-only legacy
 translate-off/on comments without changing RTL assignments or microcode.
-The board producer authenticates the shared `toolchain.lock`. The factory
+The board producer authenticates the shared `toolchain.lock`. When at least
+one route finishes and every finished route misses timing, it writes
+`build/fes-core-unavailable.json` (version 1, the requested seeds, and the
+finished routes' per-clock achieved and constraint figures) and exits
+nonzero. A route that crashed or timed out is left out of those figures. The
+file is absent when no route finishes. A passing build does not leave it
+behind. The parent image reads it
+only after that nonzero exit. The factory
 recipe stays HIP; a CUDA route is a different package. The build record uses
 the audited closure in `scripts/source_closures.json`. The
 [2026-10-04 private-pin record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
@@ -2269,7 +2276,8 @@ retrying a committed device operation. Reset cancels pending work but does not
 undo completed writes or peripheral reads.
 
 PIT1 edges latch DMA0 refresh until service starts; an edge during a delayed
-read can queue one further refresh. Read mode performs a memory read without
+read can queue one further refresh. That latch output is the DREQ0 pin, so
+the command register's DREQ-sense bit applies to it with the external DRQ pins. Read mode performs a memory read without
 a DMA peripheral packet. This models guest-visible bus activity, not physical
 SDRAM retention. The eventual SDRAM controller must still refresh its own
 storage. Do not replace floppy DMA with BIOS-level interception.
