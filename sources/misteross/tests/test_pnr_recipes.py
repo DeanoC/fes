@@ -22,7 +22,7 @@ ENV = {
     "LC_ALL": "C",
     "TZ": "UTC",
 }
-LOCK_SHA256 = "dc1617a1f2e33e2a13d20cec630b1f1b1fb1729fb8eeab61ac7c26ffb00265a3"
+LOCK_SHA256 = "6adb0ae08c2c24f117e9bf3eaf0fac0e14287b58fc480cd38950db5cf0c31ca8"
 FLAGS_SHA256 = "6d60ed8e921f893f4fc3db7faf7c71473e493c99fee7f503c6f96cc38fd20c3f"
 
 # Stable digest of each complete recipe, plus the old producer command's
