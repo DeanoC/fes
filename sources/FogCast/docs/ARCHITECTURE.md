@@ -1166,7 +1166,11 @@ Benchmark recipes and measurement limits are in
 
 The framebuffer shell reads native-width evdev records for US keyboard text
 and gamepad buttons plus range-normalized stick/hat axes, merges held commands across devices,
-and uses the shared remapper and hold gate. Automatic discovery filters keyboard
+and uses the shared remapper and hold gate. `nativeInputs.poll` takes those
+axes from `ui/kitlauncher/controller.Mapper`. A held D-pad hat owns each shared
+left axis: stick reports on that axis are dropped until the hat returns to
+centre, which restores the stick's latest position. The kit grid's `Device.Poll`
+uses the same mapper. Automatic discovery filters keyboard
 capabilities and physical gamepad identity, excluding virtual-bus devices and
 the FogCast virtual gamepad, and seeds startup affinity. Zero supported devices is not
 fatal: the UI paints, and automatic mode rescans evdev about once a second
@@ -2296,7 +2300,12 @@ kit pad does not fall back onto the host route.
 Kit input discovers every eligible USB gamepad (`event*` only) plus
 physical USB keyboards for that local feed, merges
 polls in stable device-id order through `ui/inputmap`, and remaps
-logical codes with a JSON profile (default identity). Hotplug rescan runs from
+logical codes with a JSON profile (default identity). The grid's `Device.Poll`
+and the framebuffer shell's `nativeInputs.poll` share
+`ui/kitlauncher/controller.Mapper`: left stick (`ABS_X`/`ABS_Y`) and D-pad hat
+(`ABS_HAT0X`/`ABS_HAT0Y`) share `left-x`/`left-y`, and a held hat owns that
+axis. Stick reports on the axis are dropped while the hat is held; the hat's
+return to centre restores the stick's latest position. Hotplug rescan runs from
 the existing 16ms poll on a one-second interval. The native runtime enables the
 idle framebuffer and restores it after Stop.
 The launcher only paints memory and suspends rendering during gameplay; the
