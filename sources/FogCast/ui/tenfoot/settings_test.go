@@ -2231,3 +2231,67 @@ func TestAppSettingsPairedLauncherSkipsHostSettings(t *testing.T) {
 		t.Fatalf("paired launcher requested host settings %d times", n)
 	}
 }
+
+// -api-host wraps the client in configuredApp. That wrap must keep the
+// paired launcher, or Settings fetches host settings and shows "settings failed".
+func TestConfiguredAppAPIHostKeepsPairedSettings(t *testing.T) {
+	settingsHit := make(chan struct{}, 1)
+	var sessionHost atomic.Value
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/library/settings":
+			select {
+			case settingsHit <- struct{}{}:
+			default:
+			}
+			http.NotFound(w, r)
+		case "/api/v1/session":
+			sessionHost.Store(r.Host)
+			_, _ = io.WriteString(w, `{"state":"idle"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	const apiHost = "127.0.0.1:8789"
+	app, err := configuredApp(Options{
+		GFX:       "software",
+		APIBase:   server.URL,
+		APIToken:  "launcher-token",
+		TargetID:  "kit-a",
+		APIHost:   apiHost,
+		PrefsPath: filepath.Join(t.TempDir(), "tenfoot.json"),
+		Width:     1280,
+		Height:    720,
+		MaxGames:  4,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if app.client == nil || !app.client.paired {
+		t.Fatal("-api-host dropped the paired launcher")
+	}
+
+	app.HandleCommand(CmdSettings, time.Now())
+	snap := app.Snapshot()
+	if !snap.Settings.Open || snap.Settings.Loading || snap.Settings.Status != settingsHostManagedStatus {
+		t.Fatalf("settings = %#v", snap.Settings)
+	}
+	select {
+	case <-settingsHit:
+		t.Fatal("paired launcher with -api-host requested host settings")
+	case <-time.After(50 * time.Millisecond):
+	}
+	if _, err := app.client.Session(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := sessionHost.Load().(string); got != apiHost {
+		t.Fatalf("Host = %q, want %s", got, apiHost)
+	}
+	select {
+	case <-settingsHit:
+		t.Fatal("settings request arrived after the session read")
+	default:
+	}
+}
