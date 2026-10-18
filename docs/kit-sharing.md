@@ -4,21 +4,27 @@
 
 Outside agent sessions have ignored these rules. Obey them.
 
-1. MUST claim the kit in its Powerboat status file before you touch it,
-   and log the result there when you finish. Record owner, PR, and start
-   time. The files are `~/kit-status/kitA-STATUS.md` and
-   `~/kit-status/kitB-STATUS.md`. That log is the single source of truth.
-   NEVER take a kit that is leased or claimed by someone else. NEVER use a
-   Slack reservation, and NEVER require a person to be present.
+1. MUST claim the kit before you touch it, and log the result when you
+   finish. There is no separate Powerboat host claim. Record owner, PR,
+   and start time in that kit's Powerboat status file:
+   `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
+   log is the single source of truth. NEVER take a kit that is leased or
+   claimed by someone else. NEVER use a Slack reservation, and NEVER
+   require a person to be present. GPU jobs on Powerboat go through the
+   `gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows
+   the holders.
 2. Kits A and B are both designated test kits. They are interchangeable.
-3. MUST, after use, restore the kit's designated baseline image and bundle.
-   The status file names those IDs. Confirm the kit is idle and lease-free
-   before you release it.
+3. MUST install a PR bundle on the kit's running image. After use, restore
+   the designated baseline image and bundle the status file names, and log
+   that restore. Confirm the kit is idle and lease-free before you release
+   it.
 4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
 5. Destructive actions need Deano's explicit OK: reimage, an image or
    boot-config change, killing other people's processes, and closing PRs.
 6. These stay pre-approved: deleting old images (keep the running image
    and the previous one), SD reburn, and bundle install-then-restore.
+   Never delete a factory or known-good rollback image. Before an SD
+   reburn, verify the device path is that kit's SD card.
 7. NEVER use broad `pkill` or `killall` patterns on Powerboat (for example
    `pkill -f run.sh`). Kill only PIDs you started. Give your scripts
    distinctive names.
@@ -42,28 +48,38 @@ managed image use a bundle update; do not disable the shared host as routine
 cleanup.
 
 Claim the kit in its Powerboat status file before use and log the result
-there when you finish. That file is the single source of truth. Do not open
-a Slack reservation, and do not require a person to be present. The target
-lease remains the execution lock for ordinary use: loading a core, supplying
-media/input, collecting diagnostics and stopping the session. It does not
-replace the status-file claim.
+there when you finish. There is no separate Powerboat host claim. That
+file is the single source of truth. GPU jobs on Powerboat go through the
+`gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows the
+holders. Do not open a Slack reservation, and do not require a person to be
+present. The target lease remains the execution lock for ordinary use:
+loading a core, supplying media/input, collecting diagnostics and stopping
+the session. It does not replace the status-file claim.
 
 Reimage, an image or boot-config change, killing other people's processes,
 and closing PRs need Deano's explicit OK. Deleting old images (keep the
 running image and the previous one), an SD reburn, and bundle
-install-then-restore are already approved. Coordinate disruptive maintenance
-such as replacing or restarting shared services. Coordinate the managing
+install-then-restore are already approved. Never delete a factory or
+known-good rollback image. Before an SD reburn, verify the device path is
+that kit's SD card. Coordinate disruptive maintenance such as replacing or
+restarting shared services. Coordinate the managing
 service, not just its PID: restart policies can undo a process kill. Slack
 is not a push notification channel for this harness; poll a thread when a
 reply is needed. Coordination does not replace the status-file claim or the
 lease, and it does not authorize another device.
 
 Managed kit software is installed as an [immutable bundle](kit-software-releases.md)
-and activated at the next released idle boundary. Use private hosts for branch
-diagnostics. Managed images reject temporary binary/configuration swaps.
-After use, select the designated baseline bundle the status file names.
-Bundle install-then-restore is pre-approved. That selection is an explicit
-operation against the current generation. The stable supervisor owns the
+and activated at the next released idle boundary. Install the PR bundle on the
+kit's running image; a userspace bundle does not replace that image. Use
+private hosts for branch diagnostics. Managed images reject temporary
+binary/configuration swaps. After use, restore the designated baseline image
+and bundle the status file names: activate that baseline against the current
+generation, then log the restore in the status file. Bundle
+install-then-restore is pre-approved. [Kit software releases](kit-software-releases.md)
+keep a successful selection installed and do not restore a stock bundle
+automatically. This post-use step is that explicit activation of the baseline
+named in the status file. It is not a file-swap restore, and it does not
+cancel another owner's pending activation. The stable supervisor owns the
 complete service group.
 
 On an unmanaged maintenance-aware image, replacing binaries or configuration
