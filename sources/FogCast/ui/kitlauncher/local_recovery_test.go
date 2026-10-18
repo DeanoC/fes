@@ -17,6 +17,7 @@ import (
 
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/internal/localcores"
+	"github.com/DeanoC/FogCast/internal/testsock"
 	"github.com/DeanoC/FogCast/remoteinput"
 )
 
@@ -307,7 +308,7 @@ func TestRunLaunchingReturnsToMenuOnlyAtIdle(t *testing.T) {
 }
 
 func TestRunLostLaunchReplyCannotAdoptReplacement(t *testing.T) {
-	probe, err := net.Listen("unix", filepath.Join(t.TempDir(), "probe.sock"))
+	probe, err := net.Listen("unix", testsock.Path(t, "probe.sock"))
 	if errors.Is(err, syscall.EPERM) || errors.Is(err, syscall.EINVAL) {
 		t.Skip("sandbox denies local catalog socket binding")
 	}

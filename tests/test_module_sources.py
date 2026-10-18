@@ -14,6 +14,28 @@ module_sources = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module_sources)
 
 
+REPO = Path(__file__).resolve().parents[1]
+
+
+def selected_go():
+    """The go binary FES selects, not whatever is first on PATH.
+
+    The FogCast go.mod pins its toolchain; GOTOOLCHAIN=auto resolves it. The
+    test then runs that binary with GOTOOLCHAIN=local, so a host whose
+    system Go is older than the fixture's go line still exercises the real
+    build instead of failing on the version gate.
+    """
+    try:
+        root = subprocess.check_output(['go', 'env', 'GOROOT'], cwd=REPO / 'sources/FogCast',
+                                       text=True, stderr=subprocess.PIPE).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise AssertionError(f'cannot resolve the FogCast Go toolchain: {exc}') from exc
+    go = Path(root) / 'bin' / 'go'
+    if not go.is_file():
+        raise AssertionError(f'selected Go toolchain has no go binary: {go}')
+    return str(go)
+
+
 def git(root, *args):
     return subprocess.check_output(["git", "-C", str(root), *args], text=True,
                                    stderr=subprocess.PIPE).strip()
@@ -95,12 +117,13 @@ class ModuleSourcesTest(unittest.TestCase):
         library.write_text('this uncommitted sibling is not valid Go\n')
         module = self.materialize(revision=selected)
         self.assertIn('"committed"', (module.parent / 'misteross/expansion/asset.go').read_text())
+        go = selected_go()
         for arch, machine in (('amd64', 62), ('arm', 40)):
             with self.subTest(arch=arch):
                 output = self.root / 'out' / ('host-' + arch)
                 env = dict(os.environ, GOWORK='off', GOPROXY='off', GOSUMDB='off',
                            CGO_ENABLED='0', GOTOOLCHAIN='local', GOOS='linux', GOARCH=arch, GOARM='7')
-                subprocess.run(['go', 'build', '-trimpath', '-o', str(output), '.'], cwd=module,
+                subprocess.run([go, 'build', '-trimpath', '-o', str(output), '.'], cwd=module,
                                env=env, capture_output=True, check=True)
                 header = output.read_bytes()[:20]
                 self.assertEqual(header[:4], b'\x7fELF')
