@@ -218,6 +218,7 @@ module mcl86_eu_core
     // Internal Signals - ALU and Adder
     //--------------------------------------------------------------------------
     wire [15:0] eu_add_operand0, eu_add_operand1;
+    wire [15:0] eu_logic_operand1;
     wire [15:0] eu_add_select0, eu_add_select1;
     wire [15:0] eu_operand0;            // Operand 0 mux output
     wire [15:0] eu_operand1;            // Operand 1 mux output
@@ -383,6 +384,12 @@ module mcl86_eu_core
         BIU_RETURN_DATA, BIU_REGISTER_REG, BIU_REGISTER_RM, {8'h00, PFQ_TOP_BYTE},
         BIU_REGISTER_DS, BIU_REGISTER_CS, BIU_REGISTER_SS, BIU_REGISTER_ES};
     assign eu_operand1 = select16(eu_op1_select, eu_sources1);
+    // The complete control image uses BIU return data only for OR among
+    // operations that consume this mux. Factor that late source into the
+    // final result below. A control image with AND/XOR source 7 automatically
+    // retains the general mux instead; no guest data assumption is made.
+    assign eu_logic_operand1 = FES_MC_FAST_RETURN ?
+        select16(eu_op1_select & 16'hff7f, eu_sources1) : eu_operand1;
     assign eu_add_operand1 = select16(eu_add_select1 & FES_MC_ADD_OP1_MASK, eu_sources1);
 
     //--------------------------------------------------------------------------
@@ -466,15 +473,15 @@ module mcl86_eu_core
     // eu_alu1 = JUMP (control transfer, handled separately)
     assign eu_alu2 = adder_out;                              // ADD
     assign eu_alu3 = {eu_operand0[7:0], eu_operand0[15:8]};  // BYTESWAP
-    assign eu_alu4 = eu_operand0 & eu_operand1;              // AND
+    assign eu_alu4 = eu_operand0 & eu_logic_operand1;              // AND
     // Fake 286 PUSHF: the serialising microword is FLAGS | F002. Substitute
     // {4'b0000, FLAGS[11:0]} | 0002 here, on the OR result only, instead of in
     // the operand multiplexers. The 31-bit microword compare then stays off the
     // ROM -> operand -> adder -> writeback critical path of the core clock.
     assign eu_alu5 = (FAKE286_FLAGS && eu_pushf_serialize) ?
                          {4'b0000, eu_flags[11:2], 1'b1, eu_flags[0]} :
-                         (eu_operand0 | eu_operand1);                // OR
-    assign eu_alu6 = eu_operand0 ^ eu_operand1;              // XOR
+                         (eu_operand0 | eu_logic_operand1);                // OR
+    assign eu_alu6 = eu_operand0 ^ eu_logic_operand1;              // XOR
     assign eu_alu7 = {1'b0, eu_operand0[15:1]};              // SHR
 
     //--------------------------------------------------------------------------
@@ -493,7 +500,10 @@ module mcl86_eu_core
                         : (eu_opcode_type == 3'h6) ? eu_alu6
                         :                            eu_alu7;
 
-    assign eu_alu_out = (eu_opcode_type == 3'h2) ? eu_alu2 : eu_alu_logic;
+    wire [15:0] eu_return_term =
+        (FES_MC_FAST_RETURN && eu_opcode_type == 3'h5 && eu_op1_select[7] &&
+         !(FAKE286_FLAGS && eu_pushf_serialize)) ? BIU_RETURN_DATA : 16'h0000;
+    assign eu_alu_out = (eu_opcode_type == 3'h2) ? eu_alu2 : (eu_alu_logic | eu_return_term);
 
     //--------------------------------------------------------------------------
     // 16-bit Adder

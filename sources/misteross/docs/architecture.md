@@ -2171,6 +2171,13 @@ symbolic read-alignment checks include both copies. DMA arbitration evaluates
 all four circular priority masks in parallel; whole-DMA sequential equivalence
 checks its state and interface against the original indexed priority loop.
 
+The control-image facts also check whether AND/XOR ever select BIU return
+data. When they do not, the OR return-data term joins the final result after
+the generic logic mux. This removes the late bus-data source from that mux
+without changing the result or cycle. A changed image that needs the general
+AND/XOR source retains the original lookup. Symbolic ALU checks cover both
+this specialization and the general fallback, including the FLAGS override.
+
 
 The CPU guest enable is predicted from phase 178..198 and registered on the
 phase-update edge, preserving its original cycle while removing divider

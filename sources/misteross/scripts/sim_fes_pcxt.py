@@ -125,18 +125,21 @@ def cpu_roms(output):
     # and retains the reserved jump-source hold behavior when it is used.
     add_masks = [0, 0]
     jump7 = False
+    return_only_or = True
     for word in words:
         kind = (word >> 28) & 7
         if kind == 2:
             for index, shift in enumerate((20, 16)):
                 add_masks[index] |= 1 << ((word >> shift) & 15)
         jump7 |= kind == 1 and ((word >> 20) & 7) == 7
+        return_only_or &= not (kind in (4, 6) and ((word >> 16) & 15) == 7)
     (output / 'mcl86_facts.vh').write_text(
         '`line 1 "mcl86_facts.vh" 0\n'
         '// Generated from the verified MCL86 control ROM.\n' +
         ''.join(f"localparam [15:0] FES_MC_ADD_OP{i}_MASK = 16'h{mask:04x};\n"
                 for i, mask in enumerate(add_masks)) +
-        f"localparam FES_MC_JUMP7_USED = 1'b{int(jump7)};\n")
+        f"localparam FES_MC_JUMP7_USED = 1'b{int(jump7)};\n" +
+        f"localparam FES_MC_FAST_RETURN = 1'b{int(return_only_or)};\n")
 
 
 def cpu_inputs(output, diagnostic="diagnostic"):
