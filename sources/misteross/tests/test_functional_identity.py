@@ -53,7 +53,7 @@ class FunctionalColecoTests(unittest.TestCase):
             self.assertEqual(build_identity(before), build_identity(record()))
             for relative in ("scripts/fes_build_common.py", "cores/fes-common/rtl/fes_application_gp.v",
                              "cores/fes-coleco/rtl/top.v", "cores/fes-coleco/clocks-oss.sdc",
-                             "toolchain.lock"):
+                             "cores/fes-coleco/toolchain.lock"):
                 with self.subTest(relative=relative):
                     path = root / relative
                     original = path.read_bytes()
@@ -110,13 +110,13 @@ class FunctionalColecoTests(unittest.TestCase):
                     self.assertEqual(producer._require_clean_source(module), (repository, revision))
                     if producer is build_fes_sms_oss:
                         relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
-                                     "toolchain.lock")
+                                     "cores/fes-sms/toolchain.lock")
                     elif producer is build_fes_sg1000_oss:
                         relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
-                                     "toolchain.lock")
+                                     "cores/fes-sg1000/toolchain.lock")
                     elif producer is coleco:
                         relatives = ("scripts/fes_build_common.py", "cores/fes-common/rtl/tv80/tv80_core.v",
-                                     "toolchain.lock")
+                                     "cores/fes-coleco/toolchain.lock")
                     else:
                         relatives = ("scripts/fes_build_common.py",)
                     for relative in relatives:

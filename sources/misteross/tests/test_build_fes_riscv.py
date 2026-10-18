@@ -131,7 +131,8 @@ class RiscvProducerTests(unittest.TestCase):
         self.assertEqual(options["required"], ((None, 74.25),))
         self.assertEqual(options["budget"], len(riscv.PLACER_SEEDS))
         self.assertEqual(options["weights"], (riscv.PLACER_TIMING_WEIGHT,))
-        self.assertIn("--router", options["extra"])
+        self.assertEqual(options["extra"], ())
+        self.assertEqual(options["core_id"], "fes.riscv")
 
     def test_real_source_identity_and_manifest(self):
         temporary = tempfile.TemporaryDirectory(ignore_cleanup_errors=True)

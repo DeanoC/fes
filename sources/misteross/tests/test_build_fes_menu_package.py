@@ -19,10 +19,13 @@ class MenuPackageProducerTest(unittest.TestCase):
         self.assertIn('fes_application_gp.v',synth)
         self.assertIn('fes_menu_control.v',synth)
         self.assertIn("BUILD_ID 128'h0123456789abcdef0123456789abcdef",synth)
-        self.assertIn('toolchain.lock',p.INPUTS)
+        self.assertIn(p.MENU_TOOLCHAIN_LOCK, p.INPUTS)
         self.assertIn('--gpu-device',commands[1]); self.assertEqual(commands[1][commands[1].index('--gpu-device')+1],'0')
         default_route = p.build_commands('0'*32, {'yosys':Path('/yosys'),'nextpnr-mistral':Path('/nextpnr')})[1]
         self.assertEqual(default_route[default_route.index('--seed')+1], '5')
+        leased_route = p.build_commands('0'*32, {'yosys':Path('/yosys'),'nextpnr-mistral':Path('/nextpnr')},
+                                        gpu_device=1)[1]
+        self.assertEqual(leased_route[leased_route.index('--gpu-device')+1], '1')
         self.assertEqual(p.PLACER_SEEDS, (5, 1, 2, 3, 4, 6, 7, 8))
         self.assertEqual(p.seed_order(4), (4, 5, 1, 2, 3, 6, 7, 8))
         self.assertEqual(p.PLACER_QOR_CLOCKS, ((None, 74.25),))
@@ -45,7 +48,7 @@ class MenuPackageProducerTest(unittest.TestCase):
 
     def test_package_routes_first_pass_ladder(self):
         p = self.producer
-        invocation = type('Invocation', (), {'env': {}})()
+        invocation = type('Invocation', (), {'env': {}, 'gpu_device': 0})()
         with patch.object(p, 'route_after_synth') as route:
             p._route_placement(p.ROOT, p.ROOT/p.OUTPUT, Path('/nextpnr'), invocation, 5)
         options = route.call_args.kwargs
@@ -54,6 +57,7 @@ class MenuPackageProducerTest(unittest.TestCase):
         self.assertEqual(options['required'], ((None, 74.25),))
         self.assertEqual(options['budget'], 8)
         self.assertEqual(options['timeout'], 1800)
+        self.assertEqual(options['core_id'], 'fes.menu')
 
     def test_package_requires_gp_without_weakening_diagnostics(self):
         from scripts import build_fes_menu as menu

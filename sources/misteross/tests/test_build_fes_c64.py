@@ -93,7 +93,7 @@ class BuildFesC64Tests(unittest.TestCase):
         self.assertEqual(record["parameters"]["source_closure_mode"], "audited-v1")
         self.assertEqual(record["source_roots"], derived)
         self.assertIn("scripts/c64_slots.py", record["source_inputs"])
-        self.assertIn("toolchain.lock", record["source_inputs"])
+        self.assertIn(producer.C64_TOOLCHAIN_LOCK, record["source_inputs"])
         self.assertNotIn("scripts/build_fes_pong.py", record["source_inputs"])
 
     def test_pinned_inputs_cover_every_rtl_file_and_exist(self) -> None:

@@ -19,6 +19,7 @@ from scripts.compiler_read_audit import guard_functional_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_inputs
 from scripts import fes_build_common as board
 from scripts import fes_de10nano_evidence as board_evidence
+from scripts import pnr_recipe
 from scripts.core_package import encode_manifest
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 
@@ -136,7 +137,8 @@ def create_build_record(root, repository, revision, identities, *, media=False, 
         source_roots_for_inputs(inputs), execution, pinned_inputs=inputs))
 
 
-def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, media: bool = False, audio: bool = False, catch: bool = False):
+def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, media: bool = False,
+                   audio: bool = False, catch: bool = False, gpu_device: int = 0, env=None):
     if board.HEX32_RE.fullmatch(build_id) is None:
         raise board.BuildError("build ID must be 32 lowercase hexadecimal characters")
     if set(tools) != {"yosys", "nextpnr-mistral"}:
@@ -158,15 +160,21 @@ def build_commands(root: Path, build_id: str, tools: dict[str, Path], *, media: 
         "synth_intel_alm -nobram -nolutram -nodsp -top top; "
         f"stat; write_json {output}/synth.json"
     )
-    return (
-        (str(tools["yosys"]), "-p", program),
-        (str(tools["nextpnr-mistral"]), "--json", f"{output}/synth.json",
-         "--device", board.TARGET, "--qsf", AUDIO_QSF if audio else QSF, "--sdc", board_evidence.SDC,
-         "--freq", "74.25", "--seed", "1", "--router", "gpu",
-         "--rbf", f"{output}/core.rbf", "--compress-rbf",
-         "--write", f"{output}/routed.json", "--report", f"{output}/timing.json",
-         "--detailed-timing-report"),
-    )
+    if catch:
+        builder = pnr_recipe.argv if env is None else pnr_recipe.build
+        built = builder(
+            "fes.catch", tools["nextpnr-mistral"], f"{output}/synth.json", 1,
+            gpu_device, output=output, qsf=AUDIO_QSF, sdc=board_evidence.SDC,
+            **({} if env is None else {"env": env}), device=board.TARGET)
+        route = built[0] if env is not None else built
+    else:
+        route = (str(tools["nextpnr-mistral"]), "--json", f"{output}/synth.json",
+            "--device", board.TARGET, "--qsf", AUDIO_QSF if audio else QSF,
+            "--sdc", board_evidence.SDC, "--freq", "74.25", "--seed", "1",
+            "--router", "gpu", "--rbf", f"{output}/core.rbf", "--compress-rbf",
+            "--write", f"{output}/routed.json", "--report", f"{output}/timing.json",
+            "--detailed-timing-report")
+    return ((str(tools["yosys"]), "-p", program), route)
 
 def manifest(record: bytes, evidence: dict, repository: str, revision: str,
              identities: dict[str, str], *, media: bool = False, audio: bool = False) -> bytes:
