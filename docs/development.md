@@ -57,7 +57,8 @@ owner's job slots (`GPU_LEASE_MAX_JOBS_PER_OWNER`, default 4), the command
 asks for a GPU on `GPU_LEASE_FD` at each GPU phase and releases it afterwards;
 `gpu-run --help` gives the protocol. The owner cap then counts active GPU
 phases. Phase requests from owner `lander` wait in a separate queue that every
-runnable main-queue ticket goes ahead of whenever a GPU frees. Producers use
+runnable main-queue ticket goes ahead of whenever a GPU frees. `gpu-status`
+also lists phase-lease jobs running in or waiting for a job slot. Producers use
 this mode automatically when their nextpnr binary supports `GPU_LEASE_FD`.
 
 ## Isolate component work

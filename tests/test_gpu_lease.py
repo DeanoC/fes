@@ -971,7 +971,16 @@ class GpuLeaseTests(unittest.TestCase):
         time.sleep(0.3)
         self.assertFalse(m('b-started').exists())
         self.assertEqual(self.held_by(env), {})
-        self.assertEqual(self.status(env)['queue'], [])
+        report = self.status(env)
+        self.assertEqual(report['queue'], [])
+        # gpu-status still shows the running job and the one waiting for a slot.
+        jobs = {(job['state'], job['pid']): job for job in report['jobs']}
+        self.assertEqual(set(jobs), {('running', first.pid), ('waiting', second.pid)})
+        self.assertEqual(jobs[('running', first.pid)]['owner'], 'alice')
+        self.assertEqual(jobs[('waiting', second.pid)]['label'], 'phase-alice')
+        text = self.status(env, json_output=False)
+        self.assertIn('phase job running  owner=alice slot=0 label=phase-alice pid=%d' % first.pid, text)
+        self.assertRegex(text, r'phase job waiting \d+  owner=alice label=phase-alice owner_pid=%d' % second.pid)
         m('a-exit').touch()
         self.wait_for(lambda: m('b-started').exists())
         for proc in (first, second):
@@ -1076,6 +1085,7 @@ class GpuLeaseTests(unittest.TestCase):
         self.assertEqual(len(json.loads(lines[2])), 1)  # only listdir's own descriptor
         self.assertFalse((self.lease / 'jobs').exists())
         self.assertFalse((self.lease / gpu_lease.YIELD_QUEUE).exists())
+        self.assertNotIn('jobs', self.status())
 
     def test_phase_lease_command_gets_only_the_lease_fd_and_no_mask(self):
         code = ('import os,socket; fd=int(os.environ["GPU_LEASE_FD"]); '

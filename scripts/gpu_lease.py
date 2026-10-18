@@ -11,8 +11,9 @@ tickets may backfill on disjoint GPUs. On grant, the mask value is rebuilt
 from the exact GPU ids locked for that command.
 
 gpu-run --phase-lease takes no GPU up front. Its command asks for a GPU on
-GPU_LEASE_FD for each GPU phase, and each request waits in the same queue
-through acquire(), so a job on CPU holds no GPU.
+GPU_LEASE_FD for each GPU phase, and each request waits through acquire(), so
+a job on CPU holds no GPU. Requests from yielding owners (lander) wait in a
+separate queue that is served only after every runnable main-queue ticket.
 """
 import argparse
 import errno
@@ -1076,6 +1077,9 @@ def attempt(directory, ids, count, vendor, owner, label, command, cap, ticket_pa
         if queue_name == YIELD_QUEUE:
             # Every runnable main-queue ticket is served first, whatever its
             # number, so a yielding phase takes only GPUs none of them can use.
+            # A main-queue waiter that needs more GPUs than are free keeps its
+            # reservation, as it does against later main-queue tickets;
+            # otherwise phases taking each GPU as it frees could starve it.
             reserved |= earlier_ticket_gpu_ids(directory, iter_tickets(directory), ids, vendor, None)
         available_ids = [gpu_id for gpu_id in ids if gpu_id not in reserved]
         if len(available_ids) < count:
@@ -1231,7 +1235,42 @@ def report(directory, vendor, ids):
         # Yielding phase requests are served after the main queue, so list them last.
         queue.extend(dict(public_ticket(ticket), yields=True)
                      for ticket in iter_tickets(directory, YIELD_QUEUE))
-    return {'lease_dir': str(directory), 'vendor': vendor, 'gpus': gpus, 'queue': queue}
+    payload = {'lease_dir': str(directory), 'vendor': vendor, 'gpus': gpus, 'queue': queue}
+    jobs = job_report(directory) if directory.is_dir() else None
+    if jobs is not None:
+        payload['jobs'] = jobs
+    return payload
+
+
+def job_report(directory):
+    """Phase-lease jobs in a job slot or waiting for one, or None if none ever ran."""
+    root = Path(directory) / 'jobs'
+    if not root.is_dir():
+        return None
+    try:
+        slot_directories = sorted(entry for entry in root.iterdir() if entry.is_dir())
+    except OSError:
+        return []
+    jobs = []
+    for slot_directory in slot_directories:
+        slot_ids = []
+        for path in slot_directory.glob('gpu-*.lock'):
+            slot_id = path.name[len('gpu-'):-len('.lock')]
+            if ID_RE.fullmatch(slot_id):
+                slot_ids.append(slot_id)
+        for slot_id in sorted(slot_ids, key=id_key):
+            meta = read_holder(slot_directory, slot_id)
+            if meta is not None:
+                job = public_held(slot_id, meta)
+                job['slot'] = job.pop('id')
+                job['state'] = 'running'
+                jobs.append(job)
+        for ticket in iter_tickets(slot_directory):
+            waiting = public_ticket(ticket)
+            jobs.append({'state': 'waiting', 'ticket': waiting['ticket'], 'owner': waiting['owner'],
+                         'label': waiting['label'], 'pid': waiting['pid'], 'host': waiting['host'],
+                         'age_seconds': waiting['age_seconds'], 'command': waiting['command']})
+    return jobs
 
 
 def format_age(seconds):
@@ -1267,6 +1306,17 @@ def format_status(payload):
             item['ticket'], item['owner'], ' yields' if item.get('yields') else '', item['gpus'], eligible,
             item.get('vendor_mask') or '?', item.get('label') or '-', item['pid'], item['host'],
             format_age(item['age_seconds']), command))
+    for job in payload.get('jobs', ()):
+        command = shlex.join(job['command']) if job.get('command') else '-'
+        if job['state'] == 'running':
+            lines.append('phase job running  owner=%s slot=%s label=%s pid=%s host=%s age=%s command=%s' % (
+                job.get('owner') or '-', job['slot'], job.get('label') or '-',
+                job.get('pid') if job.get('pid') is not None else '-', job.get('host') or '-',
+                format_age(job.get('age_seconds')), command))
+        else:
+            lines.append('phase job waiting %s  owner=%s label=%s owner_pid=%s host=%s age=%s command=%s' % (
+                job['ticket'], job['owner'], job.get('label') or '-', job['pid'], job['host'],
+                format_age(job['age_seconds']), command))
     return '\n'.join(lines) + '\n'
 
 
@@ -1855,7 +1905,8 @@ def main_run(argv=None):
 def main_status(argv=None):
     try:
         parser = argparse.ArgumentParser(prog='gpu-status',
-                                         description='Show GPU lease holders, ages, and the waiting queue.')
+                                         description='Show GPU lease holders, ages, the waiting queue, '
+                                                     'and phase-lease jobs.')
         parser.add_argument('--json', action='store_true', help='print a JSON object')
         args = parser.parse_args(sys.argv[1:] if argv is None else argv)
         vendor, ids = resolve_inventory()
