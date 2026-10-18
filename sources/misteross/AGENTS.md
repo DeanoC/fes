@@ -21,12 +21,16 @@ authenticated live HIP or CUDA backend as producer validators require. Registere
 producers reject CPU-reference fallback (`NEXTPNR_REQUIRE_GPU=1`), so CPU replays
 can inform experiments only. HIP and CUDA builds keep distinct `BUILD_ID`s and
 artifact identities because backend is part of functional execution identity, even
-though their timing and route evidence is interchangeable. Use whichever GPU is
-free by selecting the free host and its matching toolchain and producer
-`--gpu-router` (HIP on Powerboat, CUDA on the CUDA box), and record the backend in
-the build record. `gpu-run` leases a device; it does not change the producer's
-compiled backend. Never require a separate HIP run or discount CUDA evidence. Never
-set `GPU_LEASE_IDS` per job (it is a box inventory override).
+though their timing and route evidence is interchangeable. Among current core
+package producers, Apple II, Atari ST, C64, Coleco socket-v2, SG-1000, SMS,
+Spectrum and ZX81 accept `--gpu-router {HIP,CUDA}`. Catch, Menu, Pong, RAM Tester
+and RISC-V accept only `--gpu-device`; their authenticated toolchain determines
+the backend. On a CUDA host, select CUDA and its matching toolchain for a
+router-selectable producer; a device-only producer can use CUDA only with an
+authenticated CUDA-built toolchain. `gpu-run` leases a device, not a backend;
+record the backend in the build record. Never require a separate HIP run or
+discount CUDA evidence. Never set `GPU_LEASE_IDS` per job (it is a box inventory
+override).
 
 Apple II evidence note: the producer's statement that a CUDA seal is not HIP closure refers to backend-specific `BUILD_ID` and artifact identity, not route outcomes. The CUDA result was exploratory as seal evidence only and is not a recorded seal; HIP and CUDA route outcomes remain interchangeable. See the Apple II row in `docs/core-status.md` for the current seal boundary.
 
