@@ -12,10 +12,13 @@ import (
 
 // HardwareSnapshot keeps saved library setups separate from the current
 // target-reported session. A nil Session means its state could not be read.
+// ExpansionSelection is whether this listener accepts the single-entry
+// next-start PUT. Nil means an older host did not advertise it.
 type HardwareSnapshot struct {
-	Machines     []HardwareMachine `json:"machines"`
-	Session      *SessionResult    `json:"session,omitempty"`
-	SessionError string            `json:"session_error,omitempty"`
+	Machines           []HardwareMachine `json:"machines"`
+	Session            *SessionResult    `json:"session,omitempty"`
+	SessionError       string            `json:"session_error,omitempty"`
+	ExpansionSelection *bool             `json:"expansion_selection,omitempty"`
 }
 
 type HardwareMachine struct {
@@ -64,14 +67,15 @@ type CoreExpansionPresentation struct {
 // host request. Local setup readiness does not assert target readiness.
 func (c *Client) Hardware(ctx context.Context) (HardwareSnapshot, error) {
 	var wire struct {
-		Machines     []HardwareMachine `json:"machines"`
-		Session      json.RawMessage   `json:"session"`
-		SessionError string            `json:"session_error"`
+		Machines           []HardwareMachine `json:"machines"`
+		Session            json.RawMessage   `json:"session"`
+		SessionError       string            `json:"session_error"`
+		ExpansionSelection *bool             `json:"expansion_selection"`
 	}
 	if err := c.getJSON(ctx, "/api/v1/library/hardware", &wire); err != nil {
 		return HardwareSnapshot{}, err
 	}
-	result := HardwareSnapshot{Machines: wire.Machines, SessionError: wire.SessionError}
+	result := HardwareSnapshot{Machines: wire.Machines, SessionError: wire.SessionError, ExpansionSelection: wire.ExpansionSelection}
 	if result.Machines == nil {
 		result.Machines = []HardwareMachine{}
 	}

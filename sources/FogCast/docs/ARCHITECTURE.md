@@ -914,7 +914,11 @@ stall its menu poll. The host listener keeps selected-target health and cache
 semantics. Cache snapshots are isolated per target.
 
 The launcher allowlist also admits `GET /api/v1/games/{id}` for strict game
-IDs so uncached room selections can load their detail row. It does not expose
+IDs so uncached room selections can load their detail row. It admits one
+library write: `PUT /api/v1/library/core-entries/{game_id}/expansion` for a
+strict game ID. The body is the existing compare-and-swap selection and is
+forwarded unchanged; the foreground target is not replaced. Slot writes,
+presentation edits, other library PUTs and settings stay denied. It does not expose
 full `/api/v1/library/settings`, which contains host filesystem roots. Tenfoot
 and `fogcast-kit` use `GET /api/v1/launcher/kit-lease` for an authenticated,
 target-ID-scoped status projection. It returns only that enabled kit's lease
@@ -934,8 +938,11 @@ setups through `GET /api/v1/library/hardware`. Optional rear-socket bus 1.0 and
 2.0 are supported; expansion readiness uses the same exact-package/version
 admission as library selection and launch. The projection validates each
 expansion against its exact installed shell, and includes ordinary session
-status separately. Fit/remove use the existing compare-and-swap expansion
-selection API. Catalogue schema 14 adds optional household expansion labels
+status separately. `expansion_selection` on that response says whether this
+listener accepts the single-entry next-start PUT. Fit/remove use the existing
+compare-and-swap expansion selection API, including from a paired kit when
+the flag is true. An older paired host omits the flag and the kit stays
+inspect-only. Catalogue schema 14 adds optional household expansion labels
 and descriptions; these never influence admission. The session receipt's
 composition identifies running hardware independently of the saved setup.
 Missing or mismatched composition receipts remain unknown. Bound Stop checks

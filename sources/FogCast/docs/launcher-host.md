@@ -109,6 +109,14 @@ Allowed operations are:
   bearer and `X-FogCast-Target-ID` admission as `GET /api/v1/games`. It is
   not a mesh content read. The body is the combined library projection.
   A missing bearer is 401 and a token for another kit is 403.
+- `GET /api/v1/library/hardware` includes `expansion_selection` when this
+  listener's service accepts the single-entry next-start write.
+- `PUT /api/v1/library/core-entries/{game_id}/expansion` saves that one
+  selection. The game ID is a strict slug. The JSON body keeps
+  `package_id`, `expected_expansion_id` and `expansion_id`, and the
+  listener forwards it unchanged after the bearer and paired-target checks.
+  A `target` query must name this kit. Slot writes, presentation edits and
+  every other library PUT stay unavailable.
 - `GET /api/v1/library/attract` for idle stills and kit-safe motion preview rows
   (video handles are not decoded on kit).
 - `GET /api/v1/presentation/games/{id}` for a validated catalog game ID (cover
