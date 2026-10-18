@@ -448,7 +448,8 @@ def search(
     def verify_recipe(candidate: Candidate) -> Candidate:
         if core_id is not None and (
                 pnr_recipe.recipe_digest(core_id) != expected_recipe_digest
-                or candidate.recipe_sha256 != expected_recipe_digest):
+                or (candidate.recipe_sha256
+                    and candidate.recipe_sha256 != expected_recipe_digest)):
             raise pnr_recipe.RecipeError(
                 f"{core_id}: P&R recipe changed during placement search"
             )
