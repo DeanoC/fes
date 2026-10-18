@@ -466,10 +466,71 @@ def repo_paths(repo, base, head):
     return result.stdout.splitlines()
 
 
+def optional_commit(repo, rev):
+    """Return a commit SHA, or None when rev does not resolve."""
+    result = subprocess.run(['git', '-C', str(repo), 'rev-parse', '--verify', '--quiet',
+                             '--end-of-options', rev + '^{commit}'],
+                            text=True, capture_output=True)
+    if result.returncode:
+        return None
+    return result.stdout.strip()
+
+
+def pull_request_base(repo, head):
+    """Return merge-base(origin/main or main, head) when that ref is another commit.
+
+    A checkout whose HEAD is main has no separate pull-request range. Callers
+    then classify the image commit through head, which is the previous behaviour.
+    """
+    head = git_commit(repo, head)
+    for ref in ('origin/main', 'main'):
+        resolved = optional_commit(repo, ref)
+        if resolved is None or resolved == head:
+            continue
+        result = subprocess.run(['git', '-C', str(repo), 'merge-base', resolved, head],
+                                text=True, capture_output=True)
+        if result.returncode or not result.stdout.strip():
+            continue
+        return result.stdout.strip()
+    return None
+
+
+def image_gap(repo, image, pr_base):
+    """Describe commits between the booted image and the pull-request base."""
+    image = git_commit(repo, image)
+    pr_base = git_commit(repo, pr_base)
+    if image == pr_base:
+        return None
+    count = subprocess.run(['git', '-C', str(repo), 'rev-list', '--count',
+                            image + '..' + pr_base],
+                           text=True, capture_output=True, check=True)
+    ancestor = subprocess.run(['git', '-C', str(repo), 'merge-base', '--is-ancestor',
+                               image, pr_base],
+                              text=True, capture_output=True)
+    commits = int(count.stdout.strip() or '0')
+    paths = repo_paths(repo, image, pr_base)
+    if commits == 0 and not paths:
+        return None
+    return {'base_image_commit': image, 'pr_base': pr_base, 'commits': commits,
+            'relation': 'behind' if ancestor.returncode == 0 else 'diverged',
+            'paths': paths}
+
+
 def show(plan_data, as_json=False):
     if as_json:
         print(json.dumps(plan_data, indent=2))
         return
+    gap = plan_data.get('image_gap')
+    if gap:
+        if gap['relation'] == 'behind':
+            print(f"WARNING: kit image {gap['base_image_commit']} is {gap['commits']} "
+                  f"commit(s) behind PR base {gap['pr_base']}; these paths differ "
+                  f"and are not part of the decision:")
+        else:
+            print(f"WARNING: kit image {gap['base_image_commit']} has diverged from "
+                  f"PR base {gap['pr_base']}; these paths differ and are not part of the decision:")
+        for path in gap['paths']:
+            print('  ' + path)
     for row in plan_data['rows']:
         print(f"{row['class']:7} {row['component'] or '-':22} "
               f"{row['path']} [{row['rule']}]")
@@ -1076,6 +1137,8 @@ def parser():
     classify.add_argument('--base-image-commit')
     classify.add_argument('--head')
     classify.add_argument('--paths-file')
+    classify.add_argument('--strict', action='store_true',
+                          help='classify --base-image-commit through --head, including commits before the PR base')
     classify.add_argument('--json', action='store_true')
     manifest_parser = sub.add_parser('manifest',
                                      help='derive core identity from each local archive')
@@ -1155,14 +1218,26 @@ def main(argv=None):
     try:
         if args.command == 'classify':
             texts = None
+            gap = None
             if args.paths_file:
                 paths = Path(args.paths_file).read_text().splitlines()
             elif args.repo and args.base_image_commit and args.head:
-                paths = repo_paths(args.repo, args.base_image_commit, args.head)
-                texts = script_texts(args.repo, git_commit(args.repo, args.head))
+                head = git_commit(args.repo, args.head)
+                image = git_commit(args.repo, args.base_image_commit)
+                base = image
+                if not args.strict:
+                    pr_base = pull_request_base(args.repo, head)
+                    if pr_base is not None:
+                        base = pr_base
+                        gap = image_gap(args.repo, image, pr_base)
+                paths = repo_paths(args.repo, base, head)
+                texts = script_texts(args.repo, head)
             else:
                 raise ValueError('provide --paths-file or all of --repo, --base-image-commit, --head')
-            show(plan(paths, texts), args.json)
+            data = plan(paths, texts)
+            if gap:
+                data['image_gap'] = gap
+            show(data, args.json)
             return 0
         if args.command == 'manifest':
             manifest(args.head, args.out, args.artifacts)
