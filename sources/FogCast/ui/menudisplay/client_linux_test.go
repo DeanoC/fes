@@ -12,11 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/testsock"
 	"golang.org/x/sys/unix"
 )
 
 func TestStatusAndSealedPresentation(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "runtime.sock")
+	path := testsock.Path(t, "runtime.sock")
 	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 	if err != nil {
 		t.Fatal(err)
@@ -107,7 +108,7 @@ func TestStatusAndSealedPresentation(t *testing.T) {
 			done <- errUnexpected
 			return
 		}
-		_, _, err = conn.WriteMsgUnix([]byte(`{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"displayed_sequence":4,"underflows":0}}`+"\n"), nil, nil)
+		_, _, err = conn.WriteMsgUnix([]byte(`{"protocol":2,"ok":true,"menu_frame":{"generation":7,"byte_count":3686400,"displayed_sequence":4,"underflows":0,"timing":{"copy_us":41000,"submit_us":12,"scanout_wait_us":9000}}}`+"\n"), nil, nil)
 		done <- err
 	}()
 	client := New(path)
@@ -122,6 +123,10 @@ func TestStatusAndSealedPresentation(t *testing.T) {
 	result, err := client.Present(ctx, status.Generation, pix)
 	if err != nil || result.DisplayedSequence != 4 {
 		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	// The runtime's timing is passed through; the client's phases are measured.
+	if tm := result.Timing; tm.RuntimeCopyUS != 41000 || tm.RuntimeSubmitUS != 12 || tm.RuntimeScanoutWaitUS != 9000 || tm.BeginUS <= 0 || tm.StageUS <= 0 || tm.CommitUS <= 0 {
+		t.Fatalf("timing=%+v", tm)
 	}
 	if err = <-done; err != nil {
 		t.Fatal(err)
@@ -138,7 +143,7 @@ func TestPresentUnderflowCap(t *testing.T) {
 		{TransientUnderflowCap + 1, false},
 	} {
 		t.Run(u64(tc.underflows), func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "runtime.sock")
+			path := testsock.Path(t, "runtime.sock")
 			listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 			if err != nil {
 				t.Fatal(err)

@@ -1632,8 +1632,14 @@ Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* o
   error={ErrorCode::io_failed,"menu sequence exhausted","menu"};
  const auto slot=std::uint8_t(menu_slot_^1);
  const auto sequence=info.displayed_sequence+1;
+ using Steady=std::chrono::steady_clock;
+ const auto micros=[](Steady::time_point from,Steady::time_point to){
+  return std::uint32_t(std::chrono::duration_cast<std::chrono::microseconds>(to-from).count());};
+ const auto copy_start=Steady::now();
  if(error.ok())error=menu_memory_->CopyRgba(slot,frame);
+ const auto submit_start=Steady::now();
  if(error.ok())error=menu_display_->Submit(slot,sequence,deadline);
+ const auto wait_start=Steady::now();
  while(error.ok()) {
   error=menu_display_->ReadInfo(deadline,&info);if(!error.ok())break;
   if(!info.enabled||!info.configured||info.quiesced||info.faulted||
@@ -1645,7 +1651,9 @@ Error NativeHardware::PresentMenuFrame(const MenuFrame& frame,MenuDisplayInfo* o
    if(delta>kMenuUnderflowPresentCap){error={ErrorCode::io_failed,"menu underflow exceeded the per-present cap","menu"};break;}
    if(delta>0){if(++menu_underflow_streak_>=kMenuUnderflowSustainPresents){error={ErrorCode::io_failed,"menu underflow persisted across presents","menu"};break;}}
    else menu_underflow_streak_=0;
-   menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=delta;info.underflows=delta;*output=info;return {};
+   menu_slot_=slot;menu_status_.displayed_sequence=sequence;menu_status_.underflows=delta;info.underflows=delta;
+   info.copy_us=micros(copy_start,submit_start);info.submit_us=micros(submit_start,wait_start);info.scanout_wait_us=micros(wait_start,Steady::now());
+   *output=info;return {};
   }
   if(clock_.NowMs()>=deadline){error={ErrorCode::io_failed,"menu display completion timed out","menu"};break;}
   std::this_thread::sleep_for(std::chrono::milliseconds(1));

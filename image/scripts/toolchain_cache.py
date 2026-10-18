@@ -14,6 +14,8 @@ import tomllib
 IMAGE = Path(__file__).resolve().parents[1]
 EPOCH = 1751459412
 FRAGMENT = "buildroot/configs/fogcast_toolchain.fragment"
+CONTAINER_FIELDS = ("image", "platform", "digest")
+BUILDER_CONTEXT = ("containers/target-image/Dockerfile", "containers/target-image/create-builder-user.sh")
 PREFIX = "arm-buildroot-linux-gnueabihf"
 EXTERNAL_PATH = "/target-image-output/external-toolchain/host"
 SHARED_CONTAINER_PATH = "/target-image-shared-cache"
@@ -33,9 +35,12 @@ def file_sha(path):
 def key(image=IMAGE, epoch=EPOCH):
     image = Path(image)
     lock = tomllib.loads((image / "build/target-image.sources.lock.toml").read_text())
+    # The SDK is built inside the target-image builder, so its whole context is part of the key.
+    container = tuple(lock["container"][field].encode() for field in CONTAINER_FIELDS)
+    context = tuple((image / name).read_bytes() for name in BUILDER_CONTEXT)
     inputs = (lock["buildroot"]["commit"].encode(), (image / FRAGMENT).read_bytes(),
               sha((image / "build/target-image-container-packages.sha256").read_bytes()).encode(),
-              str(epoch).encode())
+              str(epoch).encode(), *container, *context)
     return sha(b"".join(len(value).to_bytes(8, "big") + value for value in inputs))
 
 

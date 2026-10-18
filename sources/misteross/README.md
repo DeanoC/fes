@@ -72,6 +72,22 @@ producer is `make build-fes-atari-st`. The factory image selects its firmware
 shell and sealed Direct/Scanlines companions. Firmware remains a separate user
 input; the image does not bundle EmuTOS or Atari ROMs.
 
+The PC/XT development slice runs an original diagnostic ROM on an 8088 CPU
+through a memory router, 8259 PIC, 8253 PIT, 8255 PPI and registered ISA probe cards.
+The integrated diagnostic handles timer, ISA and timed XT keyboard interrupts
+and generates speaker PCM. An original 8237A subset transfers ISA/RAM bytes
+and services PIT1 refresh with CPU LOCK/INTA arbitration; the storage lane loads its
+firmware through a reset-only byte loader and boots the ISA display diagnostic
+through the existing physical SDRAM controller in host simulation. Board
+capture/pads and routed memory timing remain unqualified. Separate ISA CGA and MDA cards
+produce independently timed RGBI guest rasters in host simulation; fonts and
+board-level HDMI wiring remain external. A PC/XT frame adapter now feeds the
+existing shared RGB888 Direct/Scanlines effects in host simulation; the board
+producer, routed shell and exact-shell parts are still unimplemented.
+`make sim-fes-pcxt` checks it on the host; see the
+[core README](cores/fes-pcxt/README.md). The complete 8088 machine and physically
+linkable PC/XT sockets remain unimplemented.
+
 ## What builds now
 
 Run the commands below from `sources/misteross/`. Preparing one registered

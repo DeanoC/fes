@@ -1,0 +1,5 @@
+`verilator_config
+// Preserve upstream bytes. These waivers apply only to the pinned CPU files:
+// implicit zero extension/truncation and unused internal debug/decode wires.
+lint_off -rule WIDTH -file "*/vendor/mcl86/*.sv"
+lint_off -rule UNUSEDSIGNAL -file "*/vendor/mcl86/*.sv"

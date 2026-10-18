@@ -31,7 +31,7 @@ from scripts.fes_build_common import (
     cuda_toolchain_configuration,
     BuildError, _authenticate_tools, _cell_counts, _i2c_evidence, _prepare_output,
     _read_json, _regular_input, _require_gpu_backend, _run_tool, _sha256, _write_atomic,
-    reject_async_m10k_reads, validate_timing_resources,
+    reject_async_m10k_reads, validate_timing_resources, write_core_unavailable_report,
 )
 from scripts.fes_build_common import _require_clean_source as require_clean_source
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
@@ -95,7 +95,7 @@ RTL_SOURCES = (
     f"{CPU_VENDOR}/fx68k.sv", f"{CPU_VENDOR}/fx68kAlu.sv", f"{CPU_VENDOR}/uaddrPla.sv",
     "cores/fes-atari-st/rtl/fes_atari_st_top.v",
     "cores/fes-c64/rtl/c64_system_pll.v",
-    "cores/fes-common/rtl/fes_computer_mailbox.v",
+    "cores/fes-common/rtl/fes_computer_mailbox_direct.v",
     "cores/fes-common/rtl/fes_audio_output.v",
     "cores/fes-common/rtl/fes_audio_i2s.v",
     "cores/fes-common/rtl/fes_video_part_direct.v",
@@ -339,7 +339,7 @@ def build_commands(root: Path, output: Path, build_id: str,
     verilog_sources = {
         "cores/fes-atari-st/rtl/fes_atari_st_top.v",
         "cores/fes-c64/rtl/c64_system_pll.v",
-        "cores/fes-common/rtl/fes_computer_mailbox.v",
+        "cores/fes-common/rtl/fes_computer_mailbox_direct.v",
         "cores/fes-common/rtl/fes_audio_output.v", "cores/fes-common/rtl/fes_audio_i2s.v",
         "cores/fes-common/rtl/fes_video_part_direct.v",
         "cores/fes-common/rtl/fes_video_part_scanlines.v",
@@ -835,6 +835,14 @@ def build(root: Path = ROOT, package_store: Path | None = None, *, cache_root: P
                 env=invocation.env, audit_source_root=root,
             )
         except SearchError as exc:
+            if exc.reason == "timing-not-met":
+                write_core_unavailable_report(root, {
+                    "version": 1,
+                    "core_id": "fes.atari-st",
+                    "reason": "timing-not-met",
+                    "seeds": list(exc.seeds),
+                    "figures": [dict(figure) for figure in exc.figures],
+                })
             raise BuildError(str(exc)) from exc
         evidence = validate_build_evidence(output, ram_database=database, gpu_backend=backend)
         evidence["cpu_rom_clock_repairs"] = repaired

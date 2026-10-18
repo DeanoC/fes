@@ -21,6 +21,7 @@ import tomllib
 import uuid
 
 import build as cold_build
+import optional_cores
 from environment import build_environment
 from media_container import ensure_media_container
 from media_inputs import MediaLock, digest, resolve_payloads, verify_file
@@ -362,13 +363,20 @@ def published_packages(output, configuration, profile):
     try:
         inputs = json.loads((Path(output) / 'inputs.json').read_text())
         package_inputs = inputs['fpga_packages']
-        if type(package_inputs) is not list or len(package_inputs) != len(selected):
+        if type(package_inputs) is not list:
             raise ValueError
-        packages = []
-        for core_id, package_input in zip(selected, package_inputs):
-            selection = package_input['selection']
-            if selection['core_id'] != core_id:
+        unavailable = optional_cores.canonical_cores(inputs.get('unavailable_cores') or [])
+        omitted = {row['core_id'] for row in unavailable}
+        expected = [core_id for core_id in selected if core_id not in omitted]
+        if [package_input['selection']['core_id'] for package_input in package_inputs] != expected:
+            raise ValueError
+        for core_id in omitted:
+            if not cold_build.recipe_for(core_id).optional or core_id not in selected:
                 raise ValueError
+        packages = []
+        for package_input in package_inputs:
+            selection = package_input['selection']
+            core_id = selection['core_id']
             recipe = cold_build.recipe_for(core_id)
             packages.append({
                 'directory': Path(output) / 'core-packages' / selection['package_id'],
@@ -376,7 +384,7 @@ def published_packages(output, configuration, profile):
                 'inputs': package_input,
             })
         packages = tuple(packages)
-        cold_build.verify_package_only_outputs(output, packages)
+        cold_build.verify_package_only_outputs(output, packages, unavailable)
         return packages
     except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError):
         raise ValueError('published FES package output is missing or stale; run make build and make verify') from None
@@ -459,7 +467,9 @@ def prepare(root, profile):
     for recipe in cold_build.FORMAT2_RECIPES.values():
         env.pop(recipe.package_dir_env, None)
         env.pop(recipe.package_selection_env, None)
-    env.update(dict(argument.split('=', 1) for argument in cold_build.package_arguments(packages)))
+    manifest = output / optional_cores.MANIFEST_NAME
+    env.update(dict(argument.split('=', 1) for argument in cold_build.package_arguments(
+        packages, manifest if manifest.is_file() else None)))
     return cold, fogcast, image, env, inputs, lock
 
 

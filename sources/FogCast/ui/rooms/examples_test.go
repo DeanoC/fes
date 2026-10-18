@@ -584,6 +584,168 @@ func examplePack(t *testing.T, id string) Pack {
 	return Pack{}
 }
 
+func TestFesCoresRoomShowsHardwareUnavailable(t *testing.T) {
+	const atariID = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+	pack := examplePack(t, "example.fes-cores")
+	fake := &fakeLocalCores{cores: []localcores.Core{
+		{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
+		{PackageID: atariID, CoreID: "fes.atari-st", Name: "Atari ST", Needs: "unavailable", Launchable: false, Block: "Hardware unavailable"},
+	}}
+	r := newRoom(t, pack, Options{Local: fake, Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	stepUntil(t, r, func(f Frame) bool {
+		text := frameText(f)
+		return strings.Contains(text, "Atari ST\n") && strings.Contains(text, "Hardware unavailable\n")
+	})
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if !r.Input("right") {
+		t.Fatal("right")
+	}
+	if got := r.Destination(); got.Label != "Atari ST" || got.PackageID != atariID || got.CoreLaunchable || got.Status != "Hardware unavailable" {
+		t.Fatalf("unavailable dest %+v", got)
+	}
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.launchedIDs(); len(got) != 1 || got[0] != corePongID {
+		t.Fatalf("unavailable tile launched %v", got)
+	}
+}
+
+func writeRoomPackage(t *testing.T, id string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "home.json")
+	if err := os.WriteFile(path, []byte("{\n  \"package_id\": \""+id+"\"\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// TestHomeFocusesTheFirstInstalledCore is the fresh-image case: the omitted
+// Atari ST sorts first, and Home must not open on it. A saved available
+// package is still restored, including after the omitted tile is selected.
+func TestHomeFocusesTheFirstInstalledCore(t *testing.T) {
+	const atariID = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+	pack := examplePack(t, "example.fes-cores")
+	cores := []localcores.Core{
+		{PackageID: atariID, CoreID: "fes.atari-st", Name: "Atari ST", Needs: "unavailable", Launchable: false, Block: "Hardware unavailable"},
+		{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
+		{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "none", Launchable: true},
+	}
+	open := func(t *testing.T, store string) *Instance {
+		t.Helper()
+		r := newRoom(t, pack, Options{Local: &fakeLocalCores{cores: cores}, StorePath: store, Width: 1280, Height: 720})
+		if err := r.Load(); err != nil {
+			t.Fatal(err)
+		}
+		return r
+	}
+	fresh := open(t, "")
+	f := stepUntil(t, fresh, func(Frame) bool {
+		return strings.Contains(frameText(fresh.Frame()), "2 installed") && fresh.Destination().Label == "FES Pong"
+	})
+	if strings.Contains(frameText(f), "3 installed") || fresh.Destination().CoreID == "fes.atari-st" {
+		t.Fatalf("fresh Home opened on the omitted core:\n%s\n%+v", frameText(f), fresh.Destination())
+	}
+	fresh.Close()
+
+	saved := writeRoomPackage(t, coreZXID)
+	again := open(t, saved)
+	stepUntil(t, again, func(Frame) bool { return again.Destination().Label == "ZX81" })
+	again.Activate("core:1")
+	if got := again.Destination(); got.Label != "Atari ST" || got.CoreNeeds != "unavailable" {
+		t.Fatalf("could not inspect the omitted core %+v", got)
+	}
+	again.Close()
+	kept := open(t, saved)
+	stepUntil(t, kept, func(Frame) bool { return kept.Destination().Kind == KindCore })
+	if got := kept.Destination(); got.Label != "ZX81" || got.PackageID != coreZXID {
+		t.Fatalf("selecting the omitted core replaced the saved package: %+v", got)
+	}
+	kept.Close()
+
+	miss := open(t, writeRoomPackage(t, atariID))
+	stepUntil(t, miss, func(Frame) bool { return miss.Destination().Kind == KindCore })
+	if got := miss.Destination(); got.Label != "FES Pong" || strings.Contains(frameText(miss.Frame()), "3 installed") {
+		t.Fatalf("saved omitted core stayed focused: %+v\n%s", got, frameText(miss.Frame()))
+	}
+
+	only := newRoom(t, pack, Options{Local: &fakeLocalCores{cores: cores[:1]}, Width: 1280, Height: 720})
+	if err := only.Load(); err != nil {
+		t.Fatal(err)
+	}
+	of := stepUntil(t, only, func(f Frame) bool { return strings.Contains(frameText(f), "Atari ST\n") })
+	if got := only.Destination(); got.Kind != KindLibrary || strings.Contains(frameText(of), "installed") {
+		t.Fatalf("only omitted cores still opened as installed: %+v\n%s", got, frameText(of))
+	}
+
+	firmwareFirst := []localcores.Core{
+		{PackageID: coreZXID, CoreID: "fes.zx81", Name: "ZX81", Needs: "firmware", Launchable: false, Block: "Needs firmware"},
+		cores[0],
+	}
+	blocked := newRoom(t, pack, Options{Local: &fakeLocalCores{cores: firmwareFirst}, Width: 1280, Height: 720})
+	if err := blocked.Load(); err != nil {
+		t.Fatal(err)
+	}
+	bf := stepUntil(t, blocked, func(Frame) bool { return blocked.Destination().Kind == KindCore })
+	if got := blocked.Destination(); got.Label != "ZX81" || !strings.Contains(frameText(bf), "1 installed") {
+		t.Fatalf("an installed blocked core was skipped: %+v\n%s", got, frameText(bf))
+	}
+}
+
+func TestFesCoresRoomOpensPastAnOmittedCore(t *testing.T) {
+	const atariID = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789"
+	pack := examplePack(t, "example.fes-cores")
+	fake := &fakeLocalCores{cores: []localcores.Core{
+		{PackageID: atariID, CoreID: "fes.atari-st", Name: "Atari ST", Needs: "unavailable", Launchable: false, Block: "Hardware unavailable"},
+		{PackageID: corePongID, CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true},
+	}}
+	r := newRoom(t, pack, Options{Local: fake, Width: 1280, Height: 720})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	f := stepUntil(t, r, func(f Frame) bool {
+		text := frameText(f)
+		return strings.Contains(text, "Atari ST\n") && strings.Contains(text, "1 installed")
+	})
+	if strings.Contains(frameText(f), "2 installed") {
+		t.Fatalf("omitted core counted as installed:\n%s", frameText(f))
+	}
+	if got := r.Destination(); got.Label != "FES Pong" || got.PackageID != corePongID || !got.CoreLaunchable {
+		t.Fatalf("opened on the omitted core: %+v", got)
+	}
+	if !r.Input("left") {
+		t.Fatal("left")
+	}
+	if got := r.Destination(); got.Label != "Atari ST" || got.CoreNeeds != "unavailable" || got.CoreLaunchable || got.Status != "Hardware unavailable" {
+		t.Fatalf("omitted dest %+v", got)
+	}
+	if err := r.ActivateDestination(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := fake.launchedIDs(); len(got) != 0 {
+		t.Fatalf("omitted tile launched %v", got)
+	}
+
+	only := newRoom(t, pack, Options{Local: &fakeLocalCores{cores: []localcores.Core{
+		{PackageID: atariID, CoreID: "fes.atari-st", Name: "Atari ST", Needs: "unavailable", Launchable: false, Block: "Hardware unavailable"},
+	}}, Width: 1280, Height: 720})
+	if err := only.Load(); err != nil {
+		t.Fatal(err)
+	}
+	onlyFrame := stepUntil(t, only, func(f Frame) bool { return strings.Contains(frameText(f), "Atari ST\n") })
+	if got := only.Destination(); got.Kind != KindLibrary {
+		t.Fatalf("omission-only Home opened on %+v", got)
+	}
+	if strings.Contains(frameText(onlyFrame), "1 installed") {
+		t.Fatal("an omission-only shelf counted an install")
+	}
+}
+
 func TestLobbyWorkbenchTMSPublishDestination(t *testing.T) {
 	packs := Examples()
 	index := NewIndex(packs)

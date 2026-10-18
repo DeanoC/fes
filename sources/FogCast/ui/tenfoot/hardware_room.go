@@ -40,6 +40,8 @@ func (a *App) playingHardwareRoomAvailableLocked() bool {
 
 // openPlayingHardwareRoomLocked changes only launcher presentation. The live
 // room instance, session and kit lease survive both visits and tape changes.
+const playingHardwareRoomStatus = "Hardware room · the machine is still running"
+
 func (a *App) openPlayingHardwareRoomLocked() {
 	if !a.playingHardwareRoomAvailableLocked() {
 		return
@@ -68,7 +70,7 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	a.roomDuringPlay = true
 	a.roomWasParked = false // This visit already loaded or resumed the room.
 	a.syncGPUParkLocked()
-	a.status = "Hardware room · the machine is still running"
+	a.status = playingHardwareRoomStatus
 }
 
 func (a *App) resumeRoomSessionLocked() {

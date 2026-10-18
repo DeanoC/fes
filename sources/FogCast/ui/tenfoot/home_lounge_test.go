@@ -33,10 +33,19 @@ func homeFixtureCores() []localcores.Core {
 	}
 }
 
-func startHomeLounge(t *testing.T, cores rooms.LocalCores, w, h int) *App {
+// startHomeLounge starts the lounge Home. A pairedLease body pairs the
+// client before Start and makes the host serve that kit lease, so the
+// session poller observes it instead of racing an injected one.
+func startHomeLounge(t *testing.T, cores rooms.LocalCores, w, h int, pairedLease ...string) *App {
 	t.Helper()
 	host := newRoomHost(t)
-	app := NewApp(NewClient(host.server.URL, host.server.Client()), w, h, 50)
+	client := NewClient(host.server.URL, host.server.Client())
+	if len(pairedLease) > 0 {
+		host.pairedLease = true
+		host.pairedLeaseBody = pairedLease[0]
+		client.paired = true
+	}
+	app := NewApp(client, w, h, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex(rooms.Examples()), t.TempDir())
 	app.SetHomeRooms(true)
@@ -147,17 +156,11 @@ func TestHomeLoungeNativeRender(t *testing.T) {
 		writeHomeScreenshot(t, snap, "launch-failed")
 	})
 	t.Run("in-use", func(t *testing.T) {
-		app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
-		waitFor(t, app, "first core", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
-		app.mu.Lock()
-		app.client.paired = true
-		app.kitLeaseHave = true
-		app.kitLease = KitLeaseStatus{State: "held", Owner: "another-shell", Purpose: "playing"}
-		app.mu.Unlock()
-		snap := app.Snapshot()
-		if c := heroDestinationCopy(snap); c.Headline != rooms.InUseStatus {
-			t.Fatalf("in-use hero %+v", c)
-		}
+		app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720,
+			`{"state":"held","owner":"another-shell","purpose":"playing"}`)
+		snap := waitFor(t, app, "in use", func(s Snapshot) bool {
+			return s.Room.Destination.Label == "FES Pong" && heroDestinationCopy(s).Headline == rooms.InUseStatus
+		})
 		writeHomeScreenshot(t, snap, "in-use")
 	})
 	for _, size := range []struct{ w, h int }{{1280, 720}, {1024, 600}} {
@@ -338,6 +341,41 @@ func TestHomeHeroIsTheTapTargetAndFitsTheRoom(t *testing.T) {
 	}
 }
 
+func TestHomeSkipsAnOmittedCoreAndHidesItsPackage(t *testing.T) {
+	id := func(n byte) string { return strings.Repeat(string("0123456789abcdef"[n]), 64) }
+	st := localcores.Core{PackageID: id(8), CoreID: "fes.atari-st", Name: "Atari ST", Needs: "unavailable", Launchable: false, Block: "Hardware unavailable"}
+	pong := localcores.Core{PackageID: id(1), CoreID: "fes.pong", Name: "FES Pong", Needs: "none", Launchable: true}
+	zx := localcores.Core{PackageID: id(2), CoreID: "fes.zx81", Name: "ZX81", Needs: "firmware", Launchable: false, Block: "Needs firmware"}
+	app := startHomeLounge(t, &fakeLocalCores{cores: []localcores.Core{st, pong, zx}}, 1280, 720)
+	snap := waitFor(t, app, "first installed", func(s Snapshot) bool {
+		return s.Room.Destination.Label == "FES Pong" && roomTextHas(s, "2 installed")
+	})
+	if snap.Room.Destination.CoreID == "fes.atari-st" || roomTextHas(snap, "3 installed") {
+		t.Fatalf("Home opened on the omitted core: %+v", snap.Room.Destination)
+	}
+	app.HandleCommand(CmdLeft, time.Now())
+	snap = waitFor(t, app, "omitted core", func(s Snapshot) bool { return s.Room.Destination.Label == "Atari ST" })
+	app.HandleCommand(CmdSelect, time.Now())
+	snap = app.Snapshot()
+	joined := strings.Join(heroDestinationCopy(snap).Details, "\n")
+	if !snap.Room.CoreDetail || strings.Contains(joined, "Package:") || strings.Contains(joined, st.PackageID[:12]) {
+		t.Fatalf("omitted Details showed a package id: detail=%v %q", snap.Room.CoreDetail, joined)
+	}
+	if !strings.Contains(joined, "Core: fes.atari-st") || !strings.Contains(joined, "Kit says: Hardware unavailable") {
+		t.Fatalf("omitted Details %q", joined)
+	}
+	app.HandleCommand(CmdBack, time.Now())
+	app.HandleCommand(CmdRight, time.Now())
+	app.HandleCommand(CmdRight, time.Now())
+	snap = waitFor(t, app, "firmware core", func(s Snapshot) bool { return s.Room.Destination.Label == "ZX81" })
+	app.HandleCommand(CmdSelect, time.Now())
+	snap = app.Snapshot()
+	joined = strings.Join(heroDestinationCopy(snap).Details, "\n")
+	if !snap.Room.CoreDetail || !strings.Contains(joined, "Package: "+zx.PackageID[:12]+"…") || !strings.Contains(joined, "Kit says: Needs firmware") {
+		t.Fatalf("installed Details %q", joined)
+	}
+}
+
 func TestHomeCoreDetailsOpenInTheHeroAndBackClosesThem(t *testing.T) {
 	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
 	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
@@ -389,8 +427,17 @@ func TestHomeHeroButtonsDoWhatTheySayWithAPointer(t *testing.T) {
 func TestHomeSaysCheckingWhileAFailedLaunchReconciles(t *testing.T) {
 	app := startHomeLounge(t, &fakeLocalCores{cores: homeFixtureCores()}, 1280, 720)
 	waitFor(t, app, "pong", func(s Snapshot) bool { return s.Room.Destination.Label == "FES Pong" })
+	// The launcher's startup status poll answers idle, which rightly clears
+	// a reconcile. Let it settle, and hold later polls, so the flag set here
+	// is the state under test.
+	waitFor(t, app, "startup status", func(Snapshot) bool {
+		app.mu.Lock()
+		defer app.mu.Unlock()
+		return app.localStartupStatusChecked && !app.localStatusBusy
+	})
 	app.mu.Lock()
 	app.localReconcileAfterFailure = true
+	app.localStatusNext = time.Now().Add(time.Hour)
 	app.mu.Unlock()
 	snap := app.Snapshot()
 	if c := heroDestinationCopy(snap); c.State != heroStateChecking || c.Primary == "Play" || snap.Room.Destination.Confirm() != rooms.ConfirmWait {
@@ -401,6 +448,54 @@ func TestHomeSaysCheckingWhileAFailedLaunchReconciles(t *testing.T) {
 	app.mu.Unlock()
 	if c := heroDestinationCopy(app.Snapshot()); c.State != heroStateReady {
 		t.Fatalf("did not return to Ready: %+v", c)
+	}
+}
+
+// TestHomeStopHintFitsTheHeroColumn checks the ready-core stop line at the
+// two Home sizes. 1280×720 on the kit is the room inside the default 5% safe
+// area, which is where a longer sentence lost the one-second hold. 1024×600
+// is the compact hero.
+func TestHomeStopHintFitsTheHeroColumn(t *testing.T) {
+	safe := insetsFromPct(1280, 720, DefaultSafeAreaPct)
+	sizes := []struct {
+		name string
+		w, h int
+	}{
+		{"1280x720", 1280, 720},
+		{"1280x720 safe", 1280 - safe.Left - safe.Right, 720 - safe.Top - safe.Bottom},
+		{"1024x600", 1024, 600},
+	}
+	cores := []rooms.Destination{
+		{Kind: rooms.KindCore, Label: "FES Pong", CoreLaunchable: true, Availability: rooms.AvailReady},
+		{Kind: rooms.KindCore, Label: "Zx81", CoreLaunchable: true, Availability: rooms.AvailReady, Inputs: []string{"keyboard"}},
+		{Kind: rooms.KindCore, Label: "FES ZX Spectrum 48K", CoreLaunchable: true, Availability: rooms.AvailReady, Inputs: []string{"keyboard"}},
+	}
+	if !strings.Contains(heroStopCopy, "one second") {
+		t.Fatalf("stop hint lost the hold: %q", heroStopCopy)
+	}
+	for _, size := range sizes {
+		layout, ok := rooms.HeroPanel(size.w, size.h)
+		if !ok {
+			t.Fatalf("%s has no hero", size.name)
+		}
+		for _, d := range cores {
+			snap := Snapshot{Room: RoomSnapshot{Open: true, Hero: true, Destination: d}}
+			c := heroDestinationCopy(snap)
+			avail := heroTextBudget(c, layout.Text.H)
+			plan := planHero(c, layout.Text.W, avail)
+			got := strings.Join(plan.explainLines, " ")
+			if got != heroStopCopy || strings.Contains(got, "...") {
+				t.Fatalf("%s %s stop hint %q, want %q", size.name, d.Label, got, heroStopCopy)
+			}
+			for _, line := range plan.explainLines {
+				if w := gfx.MeasureText(line, heroExplainPx); w > layout.Text.W {
+					t.Fatalf("%s %s line %q is %d px in a %d px column", size.name, d.Label, line, w, layout.Text.W)
+				}
+			}
+			if used := usedHeroPlan(c, plan); used > avail {
+				t.Fatalf("%s %s uses %d over %d", size.name, d.Label, used, avail)
+			}
+		}
 	}
 }
 
@@ -431,6 +526,25 @@ func TestHomeHeroFitsLongTitlesAboveTheButtons(t *testing.T) {
 				t.Fatalf("%dx%d %s: text %d px over %d px available", size.w, size.h, d.CoreNeeds, used, avail)
 			}
 		}
+	}
+}
+
+func TestHomeHeroDetailsOmitAPackageForAnOmittedCore(t *testing.T) {
+	omitted := rooms.Destination{
+		Kind: rooms.KindCore, Label: "Atari ST",
+		PackageID: strings.Repeat("b", 64), CoreID: "fes.atari-st",
+		CoreNeeds: "unavailable", CoreBlock: "Hardware unavailable",
+		Availability: rooms.AvailUnavailable,
+	}
+	lines := strings.Join(heroCoreDetails(omitted), "\n")
+	if strings.Contains(lines, "Package:") || !strings.Contains(lines, "Core: fes.atari-st") || !strings.Contains(lines, "Kit says: Hardware unavailable") {
+		t.Fatalf("omitted details %q", lines)
+	}
+	installed := omitted
+	installed.CoreNeeds = "media"
+	installed.CoreBlock = "Needs a cartridge"
+	if !strings.Contains(strings.Join(heroCoreDetails(installed), "\n"), "Package: ") {
+		t.Fatal("an installed block lost its package line")
 	}
 }
 

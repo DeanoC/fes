@@ -120,12 +120,15 @@ func (c *Client) PairedKitLease(ctx context.Context) (KitLeaseStatus, error) {
 }
 
 // withAPIHost returns a client that sends Host: host on every request.
-// The connection URL is unchanged. Empty host is a no-op.
+// The connection URL is unchanged. Empty host is a no-op. Paired and every
+// other tenfoot client field are kept; only the host API client is wrapped.
 func (c *Client) withAPIHost(host string) *Client {
 	if c == nil || c.Client == nil || strings.TrimSpace(host) == "" {
 		return c
 	}
-	return &Client{Client: c.Client.WithAPIHost(host)}
+	next := *c
+	next.Client = c.Client.WithAPIHost(host)
+	return &next
 }
 
 func apiURLIsLoopback(baseURL string) bool {

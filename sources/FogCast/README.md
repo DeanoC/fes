@@ -13,6 +13,11 @@ and content selection; the MiSTer is a small, directly controlled target.
 - Household video preference selects **Direct** or **Scanlines** for the next
   library launch. Browser Settings saves the preference; **Manage FPGA library**
   imports video parts and shows the resolved choice for the exact package.
+  `fogcast video-part-install direct|scanlines PATH` snapshots a raster
+  (`fes.fabric.video.raster-rgb888`) or native-pixel
+  (`fes.fabric.video.native-pixels`) `.fexp` and posts it to that same host
+  import; the host composes the archive against the installed sealed shell
+  before storage.
   A missing Scanlines part falls back to a matching Direct part. Native pixel
   shells require a linked video part; raster shells retain built-in Direct as
   their final fallback. An installed selected part that fails admission
@@ -223,8 +228,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   talks to the runtime menu socket; the tenfoot app keeps its existing host
   session client and existing status reads (for example the kit-lease status
   read). With a running ZX81 that advertises the session display and HPS DDR
-  interfaces, Home or Select opens the hardware room on the same HDMI output;
-  live cassette replace/eject preserves the core generation and RAM. Other
+  interfaces, Home or Select opens the hardware room on the same HDMI output.
+  An unchanged workshop setup reuses the last presented frame. Its first
+  picture is built over several frames so a cold open stays inside the draw
+  budget. Live cassette
+  replace/eject preserves the core generation and RAM. Other
   packages keep prelaunch controls. Opening/closing is a leased host session
   operation; frame submission stays on the local runtime socket. Host tests cover the backend. The kit image starts this renderer only
   when `launcher.json` sets `kit_ui` to `tenfoot`, the sealed menu selection is

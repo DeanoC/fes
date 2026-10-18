@@ -32,7 +32,7 @@ Rooms live one directory each under the rooms directory:
 | `-rooms DIR` flag | |
 | `FOGCAST_ROOMS` env | |
 | `tenfoot.json` `rooms_dir` | |
-| default | `<UserConfigDir>/FogCast/rooms` (next to `tenfoot.json`) |
+| default | `<UserConfigDir>/FogCast/rooms` (next to `tenfoot.json`). On a kit this is `/media/fat/fogcast/state/FogCast/rooms` |
 
 The embedded examples (`ui/rooms/examples`, ids `example.*`) are always
 listed. A user pack with the same id replaces an embedded one.
@@ -184,6 +184,11 @@ Colours are `"#rgb"`, `"#rrggbb"`, `"#rrggbbaa"` or `{r, g, b[, a]}` in 0..255.
 | `gfx.clip(x, y, w, h)` / `gfx.unclip()` | push/pop a clip rectangle (rects and images are cropped) |
 | `gfx.hit(id, x, y, w, h)` | register a pointer region; later regions win |
 | `gfx.blend("alpha"|"none")` | blend mode for following fills |
+| `gfx.paint(commands)` | record a whole frame in one call. Each command is `{"c", color}`, `{"r", x, y, w, h, color}`, `{"t", text, x, y, size, color, max_w, bold, align}`, `{"i", image, x, y, w, h}` or `{"h", id, x, y, w, h}` |
+| `gfx.extend(commands)` | append those commands to the frame already presented, after any drawing recorded earlier in this draw. A clear already recorded in this draw replaces the presented clear |
+| `gfx.reuse()` | keep the frame already presented and return true. Returns false until one has been presented. Call it before other drawing |
+
+`gfx.paint` records the frame in one call. Include a clear command (`{"c", color}`). `gfx.extend` copies the presented frame, keeps ops and hits already recorded in this draw after that copy, then appends its commands. A clear recorded before the call replaces the presented clear, and a clear inside the commands replaces that. A second `gfx.extend` in the same draw appends more commands and does not copy the presented frame again, so a picture can be filled in over several draws. A finished paint or extend that misses only the soft budget is still presented, and `room.presented` becomes true, so the next unchanged draw can call `gfx.reuse` and return. Eight consecutive slow paints still retire the room. A draw that does not paint, and misses the soft budget, keeps the previous frame and sets `room.presented` false. The 4× hard deadline still retires the room on that callback.
 
 There are no lines, circles or rotation: the device has none. Draw paths as
 chains of small rects (see `widgets.nodemap`).
@@ -339,8 +344,12 @@ On a host launcher `kit` is nil. When the launcher injects a client,
 Each row is `{package_id, core_id, name, needs, launchable, block, inputs}`.
 `name` is the manifest name. `needs` is `none`, `media`, `firmware`, `parts`
 or `unsupported`. `block` is empty when `launchable` is true. `inputs` lists
-`keyboard` and/or `mouse` when the package requires a `fes.keyboard*` or
-`fes.mouse*` interface; an older agent omits it.
+`keyboard` when the package requires `fes.keyboard.hid`, or when it requires
+plain `fes.keyboard` 1.0 together with `fes.video.session-display` 1.0 and
+has no cartridge ROM. That pair is the ZX81 bring-up computer. The same
+matrix on Master System, SG-1000 and the earlier ColecoVision package is the
+joystick and is not listed. `mouse` is a required `fes.mouse*` interface.
+An older agent omits `inputs`.
 
 ### `session`, `rooms`, `store`, `log`
 
@@ -366,7 +375,11 @@ or `unsupported`. `block` is empty when `launchable` is true. `inputs` lists
   library browser with those filters applied.
 - `store.get(key[, default])` / `store.set(key, value)` persist strings,
   numbers, booleans and plain tables per room in
-  `<config>/FogCast/rooms/<id>.state.json`.
+  `<config>/FogCast/rooms/<id>.state.json`. On a kit, config is
+  `/media/fat/fogcast/state` (`XDG_CONFIG_HOME`, or that directory when
+  `HOME` cannot hold a config directory). A config directory that already
+  holds readable state or a room pack is still loaded when it is read-only.
+  A failed write is logged once and the room keeps running.
 
 ### `hardware` (optional host services)
 
@@ -429,7 +442,7 @@ is not a gate unless the room script adds that mechanic itself. See
 | `example.tms-vdp` | platform tags → two-pane platform/game browser; unresolved platform rows and game destinations on the compact strip |
 | `example.coleco-arcade` | curated Coleco arcade ports (Donkey Kong, Carnival, Zaxxon, Congo Bongo, Frogger) resolved by `library.query` search; missing titles are skipped; publishes the focused game |
 | `example.workbench` | AmigaOS 1.3 desktop drawn from rects; collection with genre fallback; publishes the focused drawer title |
-| `example.fes-cores` | kit **Home** in the `hero` layout: a shelf of installed cores (manifest names verbatim, fallback motifs chosen from the core id and required inputs), the FES hero for the selection, and Library / Rooms / Settings routes one Up away in the hero and on one compact row. A stacked compact column walks Down and Up through those routes and then the cores. Checking while `kit.cores` resolves; the last selected package is restored on a later visit; an empty or unlistable kit focuses the Library route. Blocked cores do not launch. Tenfoot on `-gfx menu-display` launches a core through the local-control socket |
+| `example.fes-cores` | kit **Home** in the `hero` layout: a shelf of installed cores (manifest names verbatim, fallback motifs chosen from the core id and required inputs), the FES hero for the selection, and Library / Rooms / Settings routes one Up away in the hero and on one compact row. A stacked compact column walks Down and Up through those routes and then the cores. Checking while `kit.cores` resolves; the last selected installed package is restored on a later visit from `package_id` in the room state file (`/media/fat/fogcast/state/FogCast/rooms/example.fes-cores.state.json` on a kit). A fresh visit, or a saved package that is missing or unavailable, opens on the first installed core. Selecting an omitted core does not replace that saved package. An empty or unlistable kit, and a shelf whose every row is an omission, focuses the Library route. The shelf count is installed packages. Blocked cores do not launch: a blocked tile shows "Needs a cartridge", "Needs firmware", "Display setup incomplete", or "Hardware unavailable". An optional core omitted from the image is listed from `unavailable-cores.json` with that hardware block, and its Details name the core and the block without a package id. With no kit socket the room and the compact strip both say cores are not available here. Tenfoot on `-gfx menu-display` launches a core through the local-control socket |
 
 Run them against a host:
 

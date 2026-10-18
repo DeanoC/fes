@@ -31,6 +31,48 @@ type queuedMenuFrame struct {
 	probe      bool
 	binding    menuSessionBinding
 	epoch      uint64
+	// queuedAt and copyUS feed the frame trace.
+	queuedAt time.Time
+	copyUS   int64
+}
+
+// MenuPresentTrace is where one submitted menu frame's time went, for
+// frame-time diagnostics. Durations are microseconds. Status probes of an
+// unchanged frame are not traced.
+type MenuPresentTrace struct {
+	Seq       uint64
+	Queued    time.Time
+	Presented bool
+	Err       string
+	// FrameCopyUS is copying the rendered frame for the worker, on the
+	// render thread. The rest happens on the worker.
+	FrameCopyUS int64
+	QueueWaitUS int64
+	StatusUS    int64
+	PresentUS   int64
+	Timing      menudisplay.Timing
+}
+
+// QueuedSeq is the sequence of the last frame queued for presentation, so a
+// caller can tell whether a render produced a new frame.
+func (d *MenuDisplay) QueuedSeq() uint64 {
+	if d == nil {
+		return 0
+	}
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.nextSeq
+}
+
+// SetTraceSink receives one MenuPresentTrace per frame the worker handles.
+// It is called on the worker goroutine and must not block. nil disables it.
+func (d *MenuDisplay) SetTraceSink(sink func(MenuPresentTrace)) {
+	if d == nil {
+		return
+	}
+	d.mu.Lock()
+	d.traceSink = sink
+	d.mu.Unlock()
 }
 
 type menuSessionBinding struct {
@@ -69,6 +111,7 @@ const (
 // frame while a previous display acknowledgment is in flight.
 type MenuDisplay struct {
 	*Software
+	traceSink    func(MenuPresentTrace)
 	client       MenuPresenter
 	frames       chan queuedMenuFrame
 	ctx          context.Context
@@ -248,6 +291,7 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 		seq = d.nextSeq
 	}
 	var buffer *menuPixels
+	var copyUS int64
 	if probe {
 		buffer = d.submitted.buffer
 		if buffer == nil {
@@ -256,9 +300,11 @@ func (d *MenuDisplay) present(revision uint64, revisionKnown bool) {
 			buffer.refs++
 		}
 	} else {
+		copyStart := time.Now()
 		buffer = d.copyFrameLocked(pix)
+		copyUS = time.Since(copyStart).Microseconds()
 	}
-	frame := queuedMenuFrame{pixels: buffer.pixels, buffer: buffer, generation: d.generation, known: d.known, seq: seq, probe: probe, binding: d.binding, epoch: d.bindingEpoch}
+	frame := queuedMenuFrame{pixels: buffer.pixels, buffer: buffer, generation: d.generation, known: d.known, seq: seq, probe: probe, binding: d.binding, epoch: d.bindingEpoch, queuedAt: time.Now(), copyUS: copyUS}
 	if d.changeDriven && !probe {
 		d.forgetSubmissionLocked()
 		buffer.refs++
@@ -376,7 +422,11 @@ func (d *MenuDisplay) run() {
 				d.mu.Unlock()
 				continue
 			}
+			started := time.Now()
 			status, err := d.client.Status(d.ctx)
+			statusUS := time.Since(started).Microseconds()
+			var result menudisplay.Result
+			var presentUS int64
 			if err == nil {
 				d.mu.Lock()
 				err = d.acceptStatusLocked(frame, status)
@@ -391,7 +441,9 @@ func (d *MenuDisplay) run() {
 					err = errors.New("menu generation changed before presentation")
 					genChanged = true
 				} else {
-					_, err = d.client.Present(d.ctx, status.Generation, frame.pixels)
+					presentStart := time.Now()
+					result, err = d.client.Present(d.ctx, status.Generation, frame.pixels)
+					presentUS = time.Since(presentStart).Microseconds()
 					presented = err == nil
 				}
 			}
@@ -418,7 +470,17 @@ func (d *MenuDisplay) run() {
 			d.pending--
 			d.flight = nil
 			close(flight)
+			sink := d.traceSink
 			d.mu.Unlock()
+			if sink != nil {
+				trace := MenuPresentTrace{Seq: frame.seq, Queued: frame.queuedAt, Presented: presented,
+					FrameCopyUS: frame.copyUS, QueueWaitUS: started.Sub(frame.queuedAt).Microseconds(),
+					StatusUS: statusUS, PresentUS: presentUS, Timing: result.Timing}
+				if err != nil {
+					trace.Err = err.Error()
+				}
+				sink(trace)
+			}
 		}
 	}
 }

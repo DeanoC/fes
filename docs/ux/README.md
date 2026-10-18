@@ -332,9 +332,13 @@ Hardware journeys H1–H9 remain pending.
   Missing art is a deliberate motif chosen from the core id (colour) and
   required inputs (keyboard motif); titles stay outside the art. Creator is
   not shown because packages carry no creator. The shelf never says Ready.
-- **Input requirements.** A required `fes.keyboard*` or `fes.mouse*`
-  interface becomes "Needs a keyboard" / "Needs a mouse" before Play. Pads
-  are not listed.
+- **Input requirements.** A required `fes.keyboard.hid` or `fes.mouse*`
+  interface becomes "Needs a keyboard" / "Needs a mouse" before Play. Plain
+  `fes.keyboard` 1.0 is shown only when the package also requires
+  `fes.video.session-display` 1.0 and has no cartridge ROM, which is the
+  ZX81 bring-up computer. Master System, SG-1000 and the earlier
+  ColecoVision package use that matrix as a joystick and are not shown.
+  Pads are not listed.
 - **Destination.** A kit-local core plays on the kit's own HDMI output, so
   the hero says "Plays on this TV". No chooser is shown: this path has one
   destination.
@@ -362,19 +366,93 @@ Hardware journeys H1–H9 remain pending.
   footer.
 - **Type and layout at 1280×720.** Title 36 px bold, readiness and headline
   20–22 px, supporting lines 20 px, footer prompts 18 px in full words. The
-  card takes 42% of the height, the shelf shows four cards at 1280 and three
-  at 1024. A long title, explanation or Details list shrinks (one-line
+  card takes 42% of the height. The shelf shows four cards at a full 1280
+  content width and three with the default 5% TV safe area (as on the kit)
+  or at 1024. A long title, explanation or Details list shrinks (one-line
   explanation, one-line title, no kicker) before it can reach the buttons.
-- **Known gap.** Gameplay exit from a kit-local core is still only the
-  Select+Start one-second hold. The menu cannot draw while the core owns HDMI,
-  so a tap exit needs its own input change and hardware check. The hero states
-  the hold before Play. This does not pass H2.
+- **Gameplay exit.** A kit-local core stops with one press of keyboard F12
+  (MiSTer's menu key) or a pad's Guide button. Neither is forwarded to a
+  core, and the menu cannot draw while the core owns HDMI, so neither asks
+  for confirmation. The Select+Start one-second hold remains, and it is the
+  only route on a pad without Guide; that is an accepted limit for sparse
+  pads, since every other button belongs to the game. The hero names all
+  three routes before Play. A press during loading stops the core once it is
+  running, as the hold does. Hardware check of the new routes is pending.
+
+## Library and Details: second-slice decisions
+
+**Status:** implemented for review (#789). Evidence is host-only; L1/L2 on a
+kit are pending.
+
+- **Back returns to its origin.** The Library opened from Home, a room or the
+  Home overlay keeps that room suspended, so Back (and the Home key) returns to
+  the same room and selection rather than reloading it. A blocked Confirm in
+  the Library is not replayed as a launch failure on that room. A Coleco BIOS
+  import refreshes that suspended room's cached titles, so the resumed room
+  shows the updated readiness.
+- **Same rules as Home.** Library Details uses the same readiness pill and
+  wording family as the Home hero, on the dark pane's seed roles. The block's
+  short name is the headline and the launcher's sentence is the explanation,
+  for example "Needs BIOS" with "Coleco BIOS required. Import household
+  firmware before Play." Ready on a paired kit says "Plays on this TV": a
+  paired client launches on its own target. A host-only title, or an unpaired
+  launcher, shows the pill alone because the picture is elsewhere or
+  unknown. An unknown paired-kit status keeps the title's own block empty and
+  uses "Can't tell if this machine is free." as the headline; the Library
+  header's readiness word, list rows and cover cells use the same classifier.
+- **Actions follow Confirm.** Details offers A only when Confirm will play or
+  import. A blocked Confirm opens Details for the title that was refused,
+  including a Home recent that is not the focused Library row, instead of
+  only changing header text. Favorite, pointer confirm, and presentation
+  follow that title. Cancelling the BIOS picker returns to that
+  Details.
+- **Creator.** `Studio` appears as "by …" beside the title.
+- **Cells.** A title that cannot play carries a labelled tag on a solid plate
+  with a leading bar ("Needs BIOS", "Browse only", "Offline", "Needs a
+  cartridge"). A playable title the classifier refuses for an unknown kit
+  status or a foreign lease carries that same Details headline. A catalog
+  reason such as Needs BIOS stays. Missing art names the platform instead of
+  showing initials.
+- **Not yet.** The grid, list and header chrome keep their dark sofa styling
+  and debug-font prompts. The browse prompt still says "launch". Edition choice
+  stays in rooms because Library rows are single editions.
+
+## ZX81 Workshop: third-slice decisions
+
+**Status:** implemented for review (#797). Evidence is host-only; Z1–Z3 on a
+kit are pending.
+
+- **The workbench is restyled, not rebuilt.** `example.hardware` keeps its
+  host-owned setup, guarded saves, live tape, Stop and session-display
+  behaviour. Only its layout and styling change, in the Lounge palette with
+  accent-outline focus.
+- **Three states together.** The setup column reads "Running: …", "Next start:
+  …" and, while an unsaved card is inspected, "Previewing: … (not saved)".
+  "Restart needed" says what to do. Without a session reading, Running is
+  "unknown", and a stale reading is marked "may be out of date".
+- **Preview is not fitted.** The illustration draws a ready saved card solid
+  ("Next start") and a ready inspected card outlined ("Preview") beside it.
+  A saved card the host marks unavailable keeps the Next start label and uses
+  the shelf's unavailable colour. An unavailable preview is not drawn on the
+  connector.
+- **Consequences beside the change.** A warm box under Fit & save says that a
+  setup change needs a restart, that stopping clears memory, and that saving
+  never saves RAM.
+- **Grouped actions.** The machine row holds Start/Stop, cassette/tape, Return
+  to play, Next setup and Set up ZX81. The host cassette label is a wide row
+  above those controls. A starter uses its display name; an import is
+  "Imported cassette" plus a digest prefix, not the filename (#801). A label
+  that does not fit keeps its start and its end. Setup tools hold Import expansion,
+  Refresh, More cards and Library.
+  Control IDs and guards are unchanged.
+- **Not yet.** "Games for this machine" needs its own focus and launch design.
 
 ## Decisions still to validate
 
 - Native typography, spacing, safe margins and comfortable TV reading distance
   on the real HDMI output (host captures exist; the TV check is pending).
-- A non-chord gameplay exit for kit-local cores.
+- The F12 and Guide gameplay exits on the kit with a physical keyboard and a
+  Guide-equipped pad.
 - The first acceptance baseline is 1280x720 HDMI. CRT modes require an
   explicitly added scope and their own layout and hardware evidence.
 - Which existing offline and alternate-destination capabilities can be exposed

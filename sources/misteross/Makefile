@@ -119,6 +119,7 @@ help:
 		"  build-fes-spectrum  Seal FES ZX Spectrum (format 3 firmware map, four edge sockets) with HIP (CACHE_ROOT=)" \
 		"  c64-diagnostic  Generate the open C64 firmware, font and synthetic D64" \
 		"  sim-fes-c64  Boot the open C64 diagnostic: cartridges, keyboard, joystick and D64" \
+		"  sim-fes-pcxt  Test the PC/XT ISA fabric, waits, IRQ and DMA transactions" \
 		"  sim-fes-atari-st  Test the Atari 520ST CPU, memory, peripherals, media and video" \
 		"  build-fes-atari-st  Seal the Atari 520ST with HIP nextpnr (ST_VIDEO_OUTPUT=direct|scanlines)" \
 		"  build-fes-atari-st-card  Seal a probe in ST_SHELL/ST_PACKAGE socket 1" \
@@ -1507,7 +1508,7 @@ atari-st-sources:
 atari-st-diagnostic: atari-st-sources
 	$(PYTHON) $(ST_CORE)/diagnostic/firmware.py --out $(ST_DIAGNOSTIC)
 
-sim-fes-atari-st: sim-fes-atari-st-ym-counter sim-fes-atari-st-ym-filter sim-fes-atari-st-ym-mixer sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-mfp-iack-timing sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-psg-wait sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-cache-write-coherence sim-fes-atari-st-native-border sim-fes-atari-st-shifter-output sim-fes-atari-st-short-line-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
+sim-fes-atari-st: sim-fes-atari-st-ym-counter sim-fes-atari-st-ym-filter sim-fes-atari-st-ym-mixer sim-fes-atari-st-machine sim-fes-atari-st-video sim-fes-atari-st-mfp sim-fes-atari-st-mfp-bus sim-fes-atari-st-mfp-iack-timing sim-fes-atari-st-ram-bus sim-fes-atari-st-input-audio sim-fes-atari-st-io sim-fes-atari-st-psg-wait sim-fes-atari-st-floppy sim-fes-atari-st-floppy-write sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle sim-fes-computer-interaction sim-fes-atari-st-mailbox-direct sim-fes-atari-st-memory sim-fes-atari-st-video-adapter sim-fes-atari-st-native-video sim-fes-atari-st-cache-write-coherence sim-fes-atari-st-native-border sim-fes-atari-st-shifter-output sim-fes-atari-st-short-line-video sim-fes-atari-st-media sim-fes-atari-st-media-geometry
 
 sim-fes-atari-st-machine: atari-st-diagnostic
 	$(require_local_sim)
@@ -1554,7 +1555,7 @@ sim-fes-atari-st-floppy:
 		$(ST_CORE)/rtl/st_floppy.sv $(ST_CORE)/rtl/st_floppy_writer.sv "$(CURDIR)/$(ST_CORE)/sim/floppy_tb.cpp" -CFLAGS '-std=c++17'
 	@build/sim/fes-atari-st-floppy/Vst_floppy
 
-.PHONY: sim-fes-atari-st-floppy-write sim-fes-computer-interaction sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle
+.PHONY: sim-fes-atari-st-floppy-write sim-fes-computer-interaction sim-fes-atari-st-mailbox-direct sim-fes-atari-st-media-port sim-fes-atari-st-media-lifecycle
 sim-fes-atari-st-floppy-write:
 	$(require_local_sim)
 	@mkdir -p build/sim/fes-atari-st-floppy-write
@@ -1568,10 +1569,21 @@ sim-fes-computer-interaction:
 	$(require_local_sim)
 	$(VERILATOR) --cc --exe --build --top-module computer_interaction_sim_top -Wall -Wno-DECLFILENAME \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/computer-interaction" \
-		cores/fes-common/sim/computer_interaction_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox.v \
+		cores/fes-common/sim/computer_interaction_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox_direct.v \
 		$(ST_CORE)/rtl/st_ikbd.sv $(ST_CORE)/rtl/st_acia.sv \
 		"$(CURDIR)/cores/fes-common/sim/computer_interaction_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/computer-interaction/Vcomputer_interaction_sim_top
+
+sim-fes-atari-st-mailbox-direct:
+	$(require_local_sim)
+	@mkdir -p build/sim/fes-atari-st-mailbox-direct
+	$(VERILATOR) --cc --exe --build --top-module mailbox_direct_compare_top -Wall -Wno-DECLFILENAME \
+		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-mailbox-direct" \
+		cores/fes-common/sim/mailbox_direct_compare_top.sv \
+		cores/fes-common/rtl/fes_computer_mailbox.v cores/fes-common/rtl/fes_computer_mailbox_direct.v \
+		"$(CURDIR)/cores/fes-common/sim/mailbox_direct_compare_tb.cpp" -CFLAGS '-O2 -std=c++17'
+	@build/sim/fes-atari-st-mailbox-direct/Vmailbox_direct_compare_top \
+		"$(CURDIR)/cores/fes-common/generated/computer-exchanges.json"
 
 sim-fes-atari-st-media-port:
 	$(require_local_sim)
@@ -1584,7 +1596,7 @@ sim-fes-atari-st-media-lifecycle:
 	$(require_local_sim)
 	$(VERILATOR) --cc --exe --build --top-module st_media_lifecycle_sim_top -Wall \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media-lifecycle" \
-		$(ST_CORE)/sim/st_media_lifecycle_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox.v \
+		$(ST_CORE)/sim/st_media_lifecycle_sim_top.sv cores/fes-common/rtl/fes_computer_mailbox_direct.v \
 		$(ST_CORE)/rtl/st_floppy_writer.sv $(ST_CORE)/rtl/st_media_writer.sv $(ST_CORE)/rtl/st_media_port.sv \
 		"$(CURDIR)/$(ST_CORE)/sim/media_lifecycle_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-media-lifecycle/Vst_media_lifecycle_sim_top
@@ -1693,7 +1705,7 @@ sim-fes-atari-st-media:
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_media_sim_top -Wall \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media" \
 		$(ST_CORE)/sim/st_media_sim_top.sv $(ST_CORE)/rtl/st_media_writer.sv \
-		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
+		cores/fes-common/rtl/fes_computer_mailbox_direct.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-media/Vst_media_sim_top
 
 sim-fes-atari-st-media-geometry:
@@ -1702,7 +1714,7 @@ sim-fes-atari-st-media-geometry:
 	$(VERILATOR) --cc --exe --build -O2 --top-module st_media_sim_top -Wall "-GGEOMETRY=1'b1" \
 		-Icores/fes-common/generated --Mdir "$(CURDIR)/build/sim/fes-atari-st-media-geometry" \
 		$(ST_CORE)/sim/st_media_sim_top.sv $(ST_CORE)/rtl/st_media_writer.sv \
-		cores/fes-common/rtl/fes_computer_mailbox.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
+		cores/fes-common/rtl/fes_computer_mailbox_direct.v "$(CURDIR)/$(ST_CORE)/sim/media_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-media-geometry/Vst_media_sim_top geometry
 
 .PHONY: fetch-fes-atari-st-emutos sim-fes-atari-st-io sim-fes-atari-st-emutos-memory build-fes-atari-st
@@ -1855,3 +1867,13 @@ sim-fes-atari-st-mfp-iack-timing:
 		$(ST_CORE)/rtl/st_system.sv \
 		"$(CURDIR)/$(ST_CORE)/sim/mfp_iack_timing_tb.cpp" -CFLAGS '-O2 -std=c++17'
 	@build/sim/fes-atari-st-mfp-iack-timing/Vst_mfp_iack_timing
+
+.PHONY: sim-fes-pcxt
+sim-fes-pcxt:
+	$(require_local_sim)
+	$(PYTHON) scripts/sim_fes_pcxt.py --verilator "$(VERILATOR)"
+
+.PHONY: synth-fes-pcxt-isa
+synth-fes-pcxt-isa:
+	@test -n "$(CACHE_ROOT)" || { echo 'Set CACHE_ROOT to the authenticated compiler cache'; exit 1; }
+	$(SHARED_MAKE_ENV)$(PYTHON) scripts/synth_fes_pcxt.py --cache-root "$(CACHE_ROOT)"

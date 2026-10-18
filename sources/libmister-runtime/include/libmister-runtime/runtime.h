@@ -299,6 +299,10 @@ struct MenuDisplayInfo {
  MenuGeometry geometry;
  bool configured=false,enabled=false,pending=false,quiesced=false,faulted=false;
  std::uint32_t displayed_sequence=0,underflows=0;
+ // Timing of the present that produced this info, for frame-time
+ // diagnostics: the DDR copy, the slot submit, and the wait until scanout
+ // shows the new slot. Zero when the hardware does not measure them.
+ std::uint32_t copy_us=0,submit_us=0,scanout_wait_us=0;
 };
 struct MenuDisplayStatus {
  bool available=false;

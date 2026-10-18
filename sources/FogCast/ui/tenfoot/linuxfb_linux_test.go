@@ -16,9 +16,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -123,6 +125,117 @@ func TestFramebufferControllerBackAndSettings(t *testing.T) {
 	inputs.applyButtons(a, time.Now())
 	if a.Snapshot().Settings.Open {
 		t.Fatal("controller back did not close settings")
+	}
+}
+
+func TestFramebufferLoopDropsTraceWhenItReturns(t *testing.T) {
+	app := NewApp(nil, 320, 240, 4)
+	dev, err := gfx.NewSoftware(320, 240)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+	dir := t.TempDir()
+	t.Setenv("FOGCAST_FRAME_TRACE_DIR", dir)
+	signals := make(chan os.Signal, 4)
+	signal.Notify(signals, syscall.SIGUSR1)
+	defer signal.Stop(signals)
+
+	polls := 0
+	err = framebufferLoop(context.Background(), Options{}, app, dev, func(*App, time.Time) (bool, error) {
+		polls++
+		if polls == 1 {
+			if err := syscall.Kill(os.Getpid(), syscall.SIGUSR1); err != nil {
+				return true, err
+			}
+			deadline := time.Now().Add(time.Second)
+			for time.Now().Before(deadline) {
+				entries, readErr := os.ReadDir(dir)
+				if readErr != nil {
+					return true, readErr
+				}
+				if len(entries) > 0 {
+					return false, nil
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
+			return true, nil
+		}
+		return true, nil
+	}, "trace-stop")
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("dumps while the loop ran = %d, want 1", len(entries))
+	}
+	app.mu.Lock()
+	leftover := app.frameTrace
+	app.mu.Unlock()
+	if leftover != nil {
+		t.Fatal("display loop left the frame trace attached")
+	}
+	if err := syscall.Kill(os.Getpid(), syscall.SIGUSR1); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-signals:
+	case <-time.After(time.Second):
+		t.Fatal("SIGUSR1 was not delivered after the loop returned")
+	}
+	time.Sleep(50 * time.Millisecond)
+	entries, err = os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("exited loop wrote another dump (%d files)", len(entries))
+	}
+}
+
+func TestLateDisplayTickDoesNotCountSchedulerDelayAsPoll(t *testing.T) {
+	app := NewApp(nil, 320, 240, 4)
+	dev, err := gfx.NewSoftware(320, 240)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dev.Close()
+	polls := 0
+	var first, second frameTraceRecord
+	err = framebufferLoop(context.Background(), Options{}, app, dev, func(*App, time.Time) (bool, error) {
+		polls++
+		switch polls {
+		case 1:
+			time.Sleep(80 * time.Millisecond)
+			return false, nil
+		case 2:
+			time.Sleep(2 * time.Millisecond)
+			return false, nil
+		default:
+			app.mu.Lock()
+			records := app.frameTrace.records()
+			app.mu.Unlock()
+			if len(records) >= 2 {
+				first, second = records[0], records[1]
+			}
+			return true, nil
+		}
+	}, "late-tick")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Kind != "tick" || second.Kind != "tick" {
+		t.Fatalf("ticks = %+v %+v", first, second)
+	}
+	if first.PollUS < 50_000 {
+		t.Fatalf("first poll = %d us, want the overrun that makes the next tick late", first.PollUS)
+	}
+	if second.PollUS > 20_000 {
+		t.Fatalf("late tick poll = %d us, want the poll itself and not the ticker delay", second.PollUS)
 	}
 }
 
@@ -718,4 +831,119 @@ func fdsFor(path string) int {
 		}
 	}
 	return n
+}
+
+// runningLocalApp is a kit app whose local core is running with a known
+// generation, as after a successful kit-local launch.
+func runningLocalApp(t *testing.T) (*App, *fakeLocalCores) {
+	t.Helper()
+	fake := &fakeLocalCores{}
+	a := NewApp(nil, 1280, 720, 10)
+	a.mu.Lock()
+	a.localCores = fake
+	a.localPhase = localPhaseRunning
+	a.localLeaseGeneration = strings.Repeat("a", 64)
+	a.localPackageID = tenfootPongID
+	a.mu.Unlock()
+	return a, fake
+}
+
+func pollNative(t *testing.T, events ...[]byte) (*nativeInputs, func(*App)) {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { reader.Close(); writer.Close() })
+	fd := int(reader.Fd())
+	if err := unix.SetNonblock(fd, true); err != nil {
+		t.Fatal(err)
+	}
+	inputs := &nativeInputs{devices: []*nativeInput{{fd: fd}}}
+	return inputs, func(a *App) {
+		for _, e := range events {
+			writer.Write(e)
+		}
+		if _, err := inputs.poll(a, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func waitStops(t *testing.T, fake *fakeLocalCores, want int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for fake.stopCount() < want && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := fake.stopCount(); got != want {
+		t.Fatalf("stops %d, want %d", got, want)
+	}
+}
+
+func TestKitLocalCoreStopsOnOnePressOfF12OrGuide(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		code uint16
+	}{{"F12", nativeKeyF12}, {"Guide", 316}} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, fake := runningLocalApp(t)
+			_, poll := pollNative(t, nativeTestEvent(1, tc.code, 1), nativeTestEvent(1, tc.code, 0))
+			poll(a)
+			waitStops(t, fake, 1)
+			a.mu.Lock()
+			gens := append([]string(nil), fake.stopGenerations...)
+			a.mu.Unlock()
+			if len(gens) != 1 || gens[0] != strings.Repeat("a", 64) {
+				t.Fatalf("stop was not generation-checked: %v", gens)
+			}
+			if a.Snapshot().Settings.Open {
+				t.Fatal("the stop press also reached the menu")
+			}
+		})
+	}
+}
+
+func TestKitLocalStopRepeatWhileStoppingIsNotASecondStop(t *testing.T) {
+	a, fake := runningLocalApp(t)
+	a.mu.Lock()
+	a.localPhase = localPhaseStopping
+	a.mu.Unlock()
+	if !a.RequestLocalStop() {
+		t.Fatal("stopping core did not own the press")
+	}
+	time.Sleep(20 * time.Millisecond)
+	if fake.stopCount() != 0 {
+		t.Fatalf("repeat press sent another Stop: %d", fake.stopCount())
+	}
+}
+
+func TestKitLocalStopDuringLoadWaitsForTheRunningCore(t *testing.T) {
+	a := NewApp(nil, 1280, 720, 10)
+	a.mu.Lock()
+	a.localCores = &fakeLocalCores{}
+	a.localPhase = localPhaseLaunching
+	a.mu.Unlock()
+	if !a.RequestLocalStop() {
+		t.Fatal("loading core did not own the press")
+	}
+	a.mu.Lock()
+	deferred := a.localStopAfterStart
+	phase := a.localPhase
+	a.mu.Unlock()
+	if !deferred || phase != localPhaseLaunching {
+		t.Fatalf("stop during load: deferred=%v phase=%q", deferred, phase)
+	}
+}
+
+func TestGuideAndF12LeaveTheMenuAloneWithNoCore(t *testing.T) {
+	a := NewApp(nil, 1280, 720, 10)
+	if a.RequestLocalStop() {
+		t.Fatal("idle menu claimed a stop press")
+	}
+	_, poll := pollNative(t, nativeTestEvent(1, 316, 1), nativeTestEvent(1, 316, 0))
+	poll(a)
+	if !a.Snapshot().Settings.Open {
+		t.Fatal("Guide no longer opens Settings in the menu")
+	}
 }

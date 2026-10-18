@@ -129,7 +129,11 @@ artifact or kit acceptance implied.
 
 `build-fes-c64` authenticates `toolchain.lock` (Yosys `5391eeb1`,
 Mistral `8fcc4cb4`, nextpnr `d2697327`). The build record uses the audited
-static closure in `scripts/source_closures.json`. `--gpu-router CUDA` with
+static closure in `scripts/source_closures.json`. The seal also requires both
+achieved system-PLL outputs within 1 Hz of 52,224,000 Hz and 12,288,000 Hz.
+The [C64 build contract](../../docs/architecture.md#fes-commodore-64) states
+the packed M/N/K coefficients that fix those frequencies before the placer
+seed runs. `--gpu-router CUDA` with
 `--toolchain-root` is a separate package; slot cards take those same flags.
 The 6 Oct kit diagnostic used
 nextpnr `0c5ed400` and does not accept this pin. Supporting evidence from a

@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -15,12 +14,13 @@ import (
 	"github.com/DeanoC/FogCast/appliance/software"
 	"github.com/DeanoC/FogCast/appliance/softwarecontrol"
 	"github.com/DeanoC/FogCast/internal/httpapi"
+	"github.com/DeanoC/FogCast/internal/testsock"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
 func softwareSocket(t *testing.T, handler http.Handler) string {
 	t.Helper()
-	socket := filepath.Join(t.TempDir(), "software.sock")
+	socket := testsock.Path(t, "software.sock")
 	listener, err := net.Listen("unix", socket)
 	if err != nil {
 		t.Fatal(err)

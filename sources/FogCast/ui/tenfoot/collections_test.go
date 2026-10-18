@@ -765,8 +765,10 @@ func TestAppRemoveFromCustomCollectionReloadsView(t *testing.T) {
 	app := NewApp(NewClient(server.URL, server.Client()), 800, 600, 10)
 	app.Start(t.Context())
 	t.Cleanup(app.Stop)
+	// Six steps from All land on the custom collection only after it has
+	// joined the view cycle. Without that, the steps wrap back to All.
 	waitSnapshot(t, app, 10*time.Second, func(snap Snapshot) bool {
-		return !snap.Loading && len(snap.Games) == 1
+		return !snap.Loading && len(snap.Games) == 1 && len(snap.Views) == 7
 	})
 	for i := 0; i < 6; i++ {
 		app.Press(CmdViewNext, time.Now())
