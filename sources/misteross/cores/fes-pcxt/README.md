@@ -234,6 +234,11 @@ Both ROMs read block RAM on the existing 180-degree memory PLL clock and capture
 local output registers on the system clock. The EU address changes only on rising edges; the original
 rising-edge read latency is preserved. Both half-cycle paths require routed
 timing qualification.
+The portable `pcxt_select16.sv` operand helper stays separate through generic
+synthesis. CPU, machine and board recipes then apply `onehot_mux_map.v`, fixing
+the mask/OR lookup at two native LUT levels. SAT compares the mapped cells with
+the portable helper for every select mask and data value; the CPU wiring proof
+still compares against the original binary selection equations.
 The PIC import uses formally checked parallel
 priority masks; the PIT uses direct one/two-step saturated binary/BCD decrements
 with parallel digit borrows. Both imports document the formally checked changes

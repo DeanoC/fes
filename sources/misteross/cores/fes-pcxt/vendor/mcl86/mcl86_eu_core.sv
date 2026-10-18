@@ -328,18 +328,6 @@ module mcl86_eu_core
     assign eu_opcode_jump_cond = eu_rom_data[19:16];
 
     //--------------------------------------------------------------------------
-    // One-hot operand multiplexer
-    //--------------------------------------------------------------------------
-    function automatic [15:0] select16(input [15:0] sel, input [255:0] data);
-        integer i;
-        begin
-            select16 = 0;
-            for (i = 0; i < 16; i = i + 1)
-                select16 = select16 | (data[i*16 +: 16] & {16{sel[i]}});
-        end
-    endfunction
-
-    //--------------------------------------------------------------------------
     // Operand 0 Multiplexer - EU Register File and Control Signals
     //--------------------------------------------------------------------------
     // The EU-side operand: architectural registers, microcode scratch, the BIU
@@ -355,13 +343,13 @@ module mcl86_eu_core
                               (eu_opcode_op1_sel   == 4'hF) &&
                               (eu_opcode_immediate == 16'hF002);
 
-    // Each decoded select serves one 16-bit source. The associative OR maps
-    // as a balanced tree; no priority chain or instruction-cycle delay.
-    assign eu_operand0 = select16(eu_op0_select, {
+    // The portable helper preserves the one-hot routing. Native recipes map
+    // this boundary into two LUT levels after generic optimization.
+    pcxt_select16 operand0_mux (.sel(eu_op0_select), .data({
         16'h0, system_signals, eu_biu_command, eu_register_r3,
         eu_register_r2, eu_register_r1, eu_register_r0, eu_flags,
         eu_register_di, eu_register_si, eu_register_bp, eu_register_sp,
-        eu_register_dx, eu_register_cx, eu_register_bx, eu_register_ax});
+        eu_register_dx, eu_register_cx, eu_register_bx, eu_register_ax}), .out(eu_operand0));
 
     //--------------------------------------------------------------------------
     // Operand 1 Multiplexer - BIU Interface and System Signals
@@ -370,11 +358,11 @@ module mcl86_eu_core
     // returned bus data, the prefetch queue, or the microword's own immediate.
     // Select 0x4 is how the microcode consumes an instruction byte - it pulls
     // the top of the prefetch queue in zero-extended.
-    assign eu_operand1 = select16(eu_op1_select, {
+    pcxt_select16 operand1_mux (.sel(eu_op1_select), .data({
         eu_opcode_immediate, system_signals, eu_alu_last_result, eu_register_r3,
         eu_register_r2, eu_register_r1, eu_register_r0, PFQ_ADDR_OUT,
         BIU_RETURN_DATA, BIU_REGISTER_REG, BIU_REGISTER_RM, {8'h00, PFQ_TOP_BYTE},
-        BIU_REGISTER_DS, BIU_REGISTER_CS, BIU_REGISTER_SS, BIU_REGISTER_ES});
+        BIU_REGISTER_DS, BIU_REGISTER_CS, BIU_REGISTER_SS, BIU_REGISTER_ES}), .out(eu_operand1));
 
     //--------------------------------------------------------------------------
     // Jump Condition Evaluation Logic

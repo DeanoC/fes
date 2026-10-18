@@ -59,10 +59,9 @@ DATA_NAMES = ['BIU_REGISTER_CS', 'BIU_REGISTER_DS', 'BIU_REGISTER_ES', 'BIU_REGI
 class CpuSelectionTest(unittest.TestCase):
     def test_operand_values_for_every_selection_and_register_value(self):
         source = (VENDOR / 'mcl86_eu_core.sv').read_text()
-        start = source.index('    function automatic [15:0] select16(')
-        function = source[start:source.index('    endfunction', start) + len('    endfunction')]
-        expressions = '\n'.join(re.search(r'    assign eu_operand' + str(i) + r' = select16\(.*?;',
-                                           source, re.S).group(0) for i in (0, 1))
+        instances = re.findall(r'pcxt_select16\s+\w+\s*\(.*?\);', source, re.S)
+        self.assertEqual(len(instances), 2)
+        expressions = '\n'.join(instances)
         ports = ', '.join('input [' + ('7:0' if n == 'PFQ_TOP_BYTE' else '15:0') + '] ' + n
                           for n in DATA_NAMES)
         # Follow the real ROM-instance bindings as well as the real operand
@@ -73,7 +72,7 @@ class CpuSelectionTest(unittest.TestCase):
                     f"wire [15:0] {bindings[1]} = 16'h1 << eu_rom_sel[3:0];\n")
         fixture = 'module proof(input [7:0] eu_rom_sel, ' + ports + ', output ok);\n' + controls + r"""
           wire [15:0] eu_operand0, eu_operand1, expected0, expected1;
-        """ + function + REFERENCE + expressions + r"""
+        """ + REFERENCE + expressions + r"""
           assign ok = eu_operand0 == expected0 && eu_operand1 == expected1;
         endmodule
         """
@@ -81,7 +80,9 @@ class CpuSelectionTest(unittest.TestCase):
             work = Path(directory)
             (work / 'proof.sv').write_text(fixture)
             result = subprocess.run([YOSYS, '-Q', '-p',
-                'read_verilog -sv proof.sv; prep -top proof -flatten; '
+                'read_verilog -sv ' + str(ROOT / 'cores/fes-pcxt/rtl/pcxt_select16.sv') +
+                ' proof.sv; setattr -mod -unset keep_hierarchy pcxt_select16; '
+                'prep -top proof -flatten; check -assert; '
                 'sat -verify -prove ok 1 -show-inputs'], cwd=work, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 

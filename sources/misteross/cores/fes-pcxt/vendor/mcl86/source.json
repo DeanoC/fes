@@ -5,7 +5,8 @@
   "local_changes": [
     "mcl86_eu_core.sv: drive previously undriven system_signals[15:14,10] to zero",
     "Predecode operand selections into one-hot controls in a separately generated registered ROM from the unchanged 4096-word microcode; replace binary operand trees with one-hot selection without changing read or instruction latency.",
-    "Read both CPU block ROMs on a dedicated 180-degree phase clock, then capture local rising-edge outputs. The CPU address is rising-edge registered, preserving original rising-edge read latency; both half-cycle paths require timing qualification."
+    "Read both CPU block ROMs on a dedicated 180-degree phase clock, then capture local rising-edge outputs. The CPU address is rising-edge registered, preserving original rising-edge read latency; both half-cycle paths require timing qualification.",
+    "Use the first-party portable pcxt_select16 combinational helper; native synthesis maps it into two LUT levels after ABC, with mapped-cell SAT equivalence against the portable helper."
   ],
   "files": [
     {
@@ -16,7 +17,7 @@
     {
       "path": "mcl86_eu_core.sv",
       "upstream_path": "rtl/8088/mcl86_eu_core.sv",
-      "sha256": "c01f80fe1a40dc92f578a12276d8975aeef683882bbd54d257cae11eeb3f5b9f",
+      "sha256": "c92f1ffafeb3c4dd2000c345f6fe65096cee9d625407ede40f5e0177506d2337",
       "upstream_sha256": "da02b6c6a8250f58dc893e5582089c6795ad923274c4f8c5d5e1f02582252b00"
     },
     {

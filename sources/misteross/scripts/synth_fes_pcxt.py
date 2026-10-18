@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 
 from build_fes_coleco_socket_v2 import authenticate_tools
-from sim_fes_pcxt import SOURCES, CPU_SOURCES, CHIPSET_SOURCES, DISPLAY_SOURCES, VIDEO_SOURCES, MEMORY_SOURCES, verify_cpu_sources, verify_vendor, cpu_roms
+from sim_fes_pcxt import SOURCES, CPU_SOURCES, CPU_MUX_MAP, CHIPSET_SOURCES, DISPLAY_SOURCES, VIDEO_SOURCES, MEMORY_SOURCES, verify_cpu_sources, verify_vendor, cpu_roms
 
 ROOT = Path(__file__).resolve().parents[1]
 RTL = tuple(source for source in SOURCES if source.endswith('.sv'))
@@ -35,7 +35,7 @@ def main():
         inputs = (*rtl, 'cores/fes-common/generated/fes_pcxt_isa.vh',
                   'cores/fes-pcxt/vendor/mcl86/source.json',
                   'cores/fes-pcxt/vendor/mcl86/mcl86_ucode.mem',
-                  'scripts/sim_fes_pcxt.py', 'scripts/synth_fes_pcxt.py')
+                  'scripts/sim_fes_pcxt.py', 'scripts/synth_fes_pcxt.py', CPU_MUX_MAP)
         output /= args.suite
         if args.suite == 'machine':
             inputs += tuple(str(p.relative_to(ROOT)) for name in ('kf8259', 'kf8253', 'kf8255')
@@ -68,7 +68,9 @@ def main():
                str(ROOT / 'cores/fes-pcxt/vendor/kf8253') + ' -I ' +
                str(ROOT / 'cores/fes-pcxt/vendor/kf8255') + ' ' +
                ' '.join(str(ROOT / source) for source in rtl) + '; '
-               + configure + 'synth_intel_alm -nolutram -nodsp -top ' + top + '; check -assert; stat; '
+               + configure + 'synth_intel_alm -nolutram -nodsp -top ' + top + '; ' +
+               ('techmap -map ' + str(ROOT / CPU_MUX_MAP) + '; hierarchy -top ' + top + '; opt_clean; '
+                if args.suite in ('cpu', 'machine') else '') + 'check -assert; stat; '
                'write_json ' + json.dumps(str(output / 'synth.json')))
     with (output / 'yosys.log').open('w') as log:
         subprocess.run([str(tools['yosys'].path), '-p', program], cwd=output,
