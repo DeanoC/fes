@@ -1,5 +1,30 @@
 # Sharing a development kit
 
+## Shared kits and Powerboat (READ FIRST)
+
+Outside agent sessions have ignored these rules. Obey them.
+
+1. MUST claim the kit in its Powerboat status file before you touch it,
+   and log the result there when you finish. Record owner, PR, and start
+   time. The files are `~/kit-status/kitA-STATUS.md` and
+   `~/kit-status/kitB-STATUS.md`. That log is the single source of truth.
+   NEVER take a kit that is leased or claimed by someone else. NEVER use a
+   Slack reservation, and NEVER require a person to be present.
+2. Kits A and B are both designated test kits. They are interchangeable.
+3. MUST, after use, restore the kit's designated baseline image and bundle.
+   The status file names those IDs. Confirm the kit is idle and lease-free
+   before you release it.
+4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
+5. Destructive actions need Deano's explicit OK: reimage, an image or
+   boot-config change, killing other people's processes, and closing PRs.
+6. These stay pre-approved: deleting old images (keep the running image
+   and the previous one), SD reburn, and bundle install-then-restore.
+7. NEVER use broad `pkill` or `killall` patterns on Powerboat (for example
+   `pkill -f run.sh`). Kill only PIDs you started. Give your scripts
+   distinctive names.
+8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
+   `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
+
 ## Development host protocol
 
 Keep the operator-selected shared host and its autostart setting unchanged.
@@ -16,21 +41,30 @@ menu available between probes and during long builds. Launcher changes on a
 managed image use a bundle update; do not disable the shared host as routine
 cleanup.
 
-The target lease is sufficient coordination for ordinary kit use: loading a
-core, supplying media/input, collecting diagnostics and stopping the session.
-No separate Slack reservation or acknowledgement is required for those operations.
+Claim the kit in its Powerboat status file before use and log the result
+there when you finish. That file is the single source of truth. Do not open
+a Slack reservation, and do not require a person to be present. The target
+lease remains the execution lock for ordinary use: loading a core, supplying
+media/input, collecting diagnostics and stopping the session. It does not
+replace the status-file claim.
 
-Coordinate disruptive maintenance such as replacing/restarting shared services,
-rebooting or changing the installed image. Coordinate the managing service, not
-just its PID: restart policies can undo a process kill. Slack is not a push
-notification channel for this harness; poll a thread when a reply is needed.
-Coordination does not replace the existing lease or authorize another device.
+Reimage, an image or boot-config change, killing other people's processes,
+and closing PRs need Deano's explicit OK. Deleting old images (keep the
+running image and the previous one), an SD reburn, and bundle
+install-then-restore are already approved. Coordinate disruptive maintenance
+such as replacing or restarting shared services. Coordinate the managing
+service, not just its PID: restart policies can undo a process kill. Slack
+is not a push notification channel for this harness; poll a thread when a
+reply is needed. Coordination does not replace the status-file claim or the
+lease, and it does not authorize another device.
 
 Managed kit software is installed as an [immutable bundle](kit-software-releases.md)
 and activated at the next released idle boundary. Use private hosts for branch
-diagnostics. Managed images reject temporary binary/configuration swaps and
-stock restoration; selecting an earlier bundle is an explicit operation against
-the current generation. The stable supervisor owns the complete service group.
+diagnostics. Managed images reject temporary binary/configuration swaps.
+After use, select the designated baseline bundle the status file names.
+Bundle install-then-restore is pre-approved. That selection is an explicit
+operation against the current generation. The stable supervisor owns the
+complete service group.
 
 On an unmanaged maintenance-aware image, replacing binaries or configuration
 uses the [kit runtime manifest](kit-manifest.md) commands. Each swap/restore acquires a
@@ -50,8 +84,9 @@ supported. Diagnostics pin the active bundle and base-image digests; sealed
 base-image runtime provenance does not identify the active bundle. Record each
 exact artifact independently. A new core using a supported
 ABI uses package import/selection/launch rather than a kit-file swap or OS update.
-An accepted appliance update remains installed; unmanaged temporary overlay diagnostics
-retain their explicit restore procedure. Managed software releases stay installed.
+An appliance update is the designated baseline only when the status file names
+it. Unmanaged temporary overlay diagnostics retain their explicit restore
+procedure. After use, restore the baseline image and bundle that file names.
 
 ## Claim a development session
 
@@ -129,7 +164,8 @@ cannot affect the replacement lease.
 
 Cleanup failure leaves status `blocked` with a recovery reason. Repair the
 underlying problem, then use explicit takeover to retry cleanup. Reboot remains
-an operator maintenance option for the designated disposable kit. Agent restart
+an operator maintenance option for either designated test kit. Kits A and B
+are interchangeable. Agent restart
 invalidates old credentials and reconciles/cleans hardware before accepting a
 new claim. An abandoned takeover request does not reserve a successfully
 cleaned, free kit forever.

@@ -1,6 +1,38 @@
 # Overlay HIL planner
 
-Use this procedure only on the designated kit A (`192.168.10.84`), under the dedicated fixture rules in `sources/FogCast/docs/DEVELOPMENT.md`. Never deploy to an unknown device. The planner compares base image commit to the full PR head with `--no-renames`; `FULL_IMAGE` means stop and build a full image.
+## Shared kits and Powerboat (READ FIRST)
+
+Outside agent sessions have ignored these rules. Obey them.
+
+1. MUST claim the kit in its Powerboat status file before you touch it,
+   and log the result there when you finish. Record owner, PR, and start
+   time. The files are `~/kit-status/kitA-STATUS.md` and
+   `~/kit-status/kitB-STATUS.md`. That log is the single source of truth.
+   NEVER take a kit that is leased or claimed by someone else. NEVER use a
+   Slack reservation, and NEVER require a person to be present.
+2. Kits A and B are both designated test kits. They are interchangeable.
+3. MUST, after use, restore the kit's designated baseline image and bundle.
+   The status file names those IDs. Confirm the kit is idle and lease-free
+   before you release it.
+4. MUST keep Kit B's `u-boot.txt` line `usb-storage.quirks=152d:0583:i`.
+5. Destructive actions need Deano's explicit OK: reimage, an image or
+   boot-config change, killing other people's processes, and closing PRs.
+6. These stay pre-approved: deleting old images (keep the running image
+   and the previous one), SD reburn, and bundle install-then-restore.
+7. NEVER use broad `pkill` or `killall` patterns on Powerboat (for example
+   `pkill -f run.sh`). Kill only PIDs you started. Give your scripts
+   distinctive names.
+8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
+   `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
+
+Use this procedure on either designated test kit. Kits A and B are
+interchangeable (`192.168.10.84` and `192.168.10.85`). An older note that
+names only kit A, or that says a person must be present, does not apply.
+Follow the capture and login details in
+`sources/FogCast/docs/DEVELOPMENT.md`. Never deploy to an unknown device.
+The planner compares base image commit to the full PR head with
+`--no-renames`; `FULL_IMAGE` means stop and build a full image. A full image
+swap or reimage still needs Deano's explicit OK.
 
 Kit file changes go through the [kit runtime manifest](kit-manifest.md):
 `python3 scripts/fes kit claim`, `swap`, and `restore`. Do not copy binaries,
@@ -142,9 +174,13 @@ before the host attestation command is run.
    executable hashes, core package identity and state, image identity, boot
    identity, supervisor counts, and exact lease order.
 
-10. Release the kit.py lease, then run `python3 scripts/fes kit restore <kit>`
-    under that same release-before-restart discipline. The kit files must match
-    stock again and the boot id must be unchanged.
+10. Release the kit.py lease, then restore the kit's designated baseline
+    image and bundle. The status file names those IDs. Bundle
+    install-then-restore is pre-approved. Confirm the kit is idle and
+    lease-free, and log the result in that status file. On an unmanaged
+    overlay, `python3 scripts/fes kit restore <kit>` returns swapped files
+    under the same release-before-restart discipline, and the boot id must
+    be unchanged. That file restore does not replace the baseline restore.
 
 ```sh
 python3 scripts/hil_plan.py evidence --repo . --base-image-commit "$BASE_IMAGE_COMMIT" \
