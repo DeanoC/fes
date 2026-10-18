@@ -171,8 +171,11 @@ original diagnostic ROM on the pinned MCL86 8088 through the fabric with variabl
 memory waits, interrupts, word I/O and fault recovery. GNU x86 `as` and `ld` are
 required alongside Verilator. The motherboard lane tests PIC/PIT/PPI, XT
 keyboard transport and speaker PCM; a second ROM receives real timer, ISA and
-keyboard interrupts. This is a simulation family, not a package producer.
-DMA, graphics, media, HID keyboard translation and physical
+keyboard interrupts. The DMA lane checks 8237 register behavior, real ISA/RAM
+transfers, refresh and LOCK/INTA arbitration; the ROM also programs both DMA
+directions while refresh runs. CGA remains a planned ISA card. This is a
+simulation family, not a package producer.
+Graphics, media, HID keyboard translation and physical
 socket routing are still required; no `build-fes-pcxt` target exists.
 
 ## Original RV32I

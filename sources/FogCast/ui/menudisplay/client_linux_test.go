@@ -12,11 +12,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DeanoC/FogCast/internal/testsock"
 	"golang.org/x/sys/unix"
 )
 
 func TestStatusAndSealedPresentation(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "runtime.sock")
+	path := testsock.Path(t, "runtime.sock")
 	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 	if err != nil {
 		t.Fatal(err)
@@ -142,7 +143,7 @@ func TestPresentUnderflowCap(t *testing.T) {
 		{TransientUnderflowCap + 1, false},
 	} {
 		t.Run(u64(tc.underflows), func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "runtime.sock")
+			path := testsock.Path(t, "runtime.sock")
 			listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
 			if err != nil {
 				t.Fatal(err)

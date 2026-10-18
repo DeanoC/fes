@@ -43,9 +43,30 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def private_test_base():
+    """A temp base the kit state checks accept, whatever the caller's TMPDIR.
+
+    kit_manifest refuses a state directory below a group- or world-writable
+    ancestor that is not sticky. A developer or agent TMPDIR can sit under
+    such a directory, so fixtures fall back to /tmp (sticky) there.
+    """
+    base = os.path.realpath(tempfile.gettempdir())
+    current = Path(base)
+    for part in [current, *current.parents]:
+        mode = part.stat().st_mode
+        if (stat.S_IMODE(mode) & (stat.S_IWGRP | stat.S_IWOTH)) and not mode & stat.S_ISVTX:
+            return os.path.realpath('/tmp')
+    return base
+
+
 class KitManifestTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
+        # Fixture directories are created with explicit expectations; a
+        # caller's group-writable umask must not make them "shared". Tests
+        # that exercise a group umask set it themselves.
+        previous_umask = os.umask(0o022)
+        self.addCleanup(os.umask, previous_umask)
+        self.temp = tempfile.TemporaryDirectory(dir=private_test_base())
         self.addCleanup(self.temp.cleanup)
         self.work = Path(self.temp.name)
         self.root = self.work / 'kit'
@@ -236,11 +257,11 @@ class KitManifestTests(unittest.TestCase):
                 durable = home / '.local' / 'state' / 'fes-kit'
                 self.assertEqual(path, durable)
                 self.assertFalse((root / 'tmp' / f'fes-kit-{os.getuid()}').exists())
-                self.assertNotIn('/home/deano', str(path))
+                self.assertTrue(Path(path).is_relative_to(self.work), path)
                 self.assertEqual(stat.S_IMODE(path.stat().st_mode) & 0o077, 0)
                 session = kit_manifest.Session('A', kit_manifest.LocalTransport(self.root), 'local')
                 self.assertEqual(session.maintenance.journal, path / '.fes-kit-maintenance' / 'KITA.json')
-                self.assertNotIn('/home/deano', str(session.maintenance.journal))
+                self.assertTrue(Path(session.maintenance.journal).is_relative_to(self.work), session.maintenance.journal)
                 self.assertEqual(kit_manifest.drift_dir(), durable / 'fes-kit-drift')
                 os.environ['XDG_STATE_HOME'] = str(root / 'xdg')
                 xdg = kit_manifest.hold_dir()
@@ -250,7 +271,7 @@ class KitManifestTests(unittest.TestCase):
                 fallback = kit_manifest.hold_dir()
                 self.assertEqual(fallback, durable)
                 self.assertFalse((root / 'tmp' / f'fes-kit-{os.getuid()}').exists())
-                self.assertNotIn('/home/deano', str(fallback))
+                self.assertTrue(Path(fallback).is_relative_to(self.work), fallback)
                 os.environ['FES_KIT_HOLD_DIR'] = str(root / 'override')
                 self.assertEqual(kit_manifest.hold_dir(), root / 'override')
                 # Drift stays on the canonical directory so a timer that does
@@ -258,7 +279,7 @@ class KitManifestTests(unittest.TestCase):
                 self.assertEqual(kit_manifest.drift_dir(), durable / 'fes-kit-drift')
                 os.environ['FES_KIT_DRIFT_DIR'] = str(root / 'drift-override')
                 self.assertEqual(kit_manifest.drift_dir(), root / 'drift-override')
-                self.assertNotIn('/home/deano', str(kit_manifest.drift_dir()))
+                self.assertTrue(Path(kit_manifest.drift_dir()).is_relative_to(self.work), kit_manifest.drift_dir())
         finally:
             tempfile.tempdir = saved_temp
 
@@ -536,7 +557,7 @@ class KitManifestTests(unittest.TestCase):
         self.assertIn('UNVERIFIED', first.stdout)
         snapshot = home / '.local/state/fes-kit/fes-kit-drift/A.json'
         self.assertTrue(snapshot.is_file(), first.stdout)
-        self.assertNotIn('/home/deano', str(snapshot))
+        self.assertTrue(snapshot.is_relative_to(self.work), snapshot)
         self.assertFalse((self.work / 'manual-tmp').exists())
         (self.root / PATHS['mister-agent']).write_bytes(b'hand-made')
         shared = self.fes('watch', '--once', '--kits', 'A', env=manual)

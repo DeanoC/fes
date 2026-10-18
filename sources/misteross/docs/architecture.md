@@ -2123,6 +2123,8 @@ fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
 The motherboard router decodes RAM/ROM and integrates pinned KF8259 PIC, KF8253
 PIT and KF8255 PPI imports. The machine diagnostic receives timer, ISA and
 keyboard interrupts through the real two-INTA path and generates speaker PCM.
+Original 8237A-subset RTL adds DMA ownership, both memory/peripheral transfer
+halves, XT pages and PIT1-triggered refresh.
 Memory storage remains a testbench service. See the
 [CPU import](../cores/fes-pcxt/vendor/mcl86/README.md) for provenance and limits.
 The shared `fes.fabric.pcxt-isa` 1.0 constants are generated from mister-packages;
@@ -2131,7 +2133,7 @@ reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
 **The complete machine below remains a proposal.** `fes.pcxt` is the proposed
-package identity. The remaining DMA controller, HID keyboard frontend, graphics, disk
+package identity. The remaining HID keyboard frontend, graphics, disk
 controller, physical socket layout, producer and sealed PC/XT package are not
 implemented yet. The fabric does not enable
 runtime activation or claim a linkable RBF. Existing linker layout admission
@@ -2244,15 +2246,41 @@ the PIC independently of address. The adapter supplies one setup, eight active a
 effects. This latency is not yet an original-board bus-timing qualification.
 PIT pins advance from CPU guest enables divided by four through READY waits
 and HLT. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
-output remains exposed for refresh integration; PPI PB0 gates channel 2.
+output requests DMA0 refresh; PPI PB0 gates channel 2.
 Reset must cancel requests in the router and its downstream storage/ISA.
 
-The remaining motherboard work includes an 8237A DMA
-controller with XT page registers.
-PIT channel 0 already drives IRQ0; planned channel 1 wiring requests DMA
-refresh, and channel 2 feeds the speaker through port 61h gating. DMA must implement address/count, shared
-byte pointer, page-boundary behavior, terminal count, masks and required
-transfer modes. Do not replace floppy DMA with BIOS-level interception.
+Original `pcxt_dma.sv` implements the XT subset of the
+[Intel 8237A](https://read.seas.harvard.edu/~kohler/class/04f-aos/ref/hardware/8237A.pdf).
+Ports `00–1F` select controller registers through A3:0; write-only four-bit page
+latches at `80–9F` use A1:0 (DMA2 index 1, DMA3 index 2, DMA1/refresh index 3).
+Both ranges ignore A15:10. The shared byte pointer, base/current address/count,
+TC status, masks, demand/single/block/verify, software block requests, DREQ sense,
+auto-init and fixed/rotating priority are implemented. New services resolve
+priority after CPU ownership is released; demand rechecks DREQ before each
+byte. Low-address wrap stays
+within the selected 64 KiB page. Master clear preserves address/count/mode/page
+programming; read-clear TC status changes only once per accepted register read.
+
+The motherboard grants ownership between completed requests, excludes live
+CPU LOCK and the entire INTA pair, and backpressures CPU requests through READY.
+A peripheral transaction and its RAM/ROM or ISA-memory half finish before
+address/count advance; single mode yields to a waiting CPU between bytes.
+AEN/channel/TC use the existing ISA fabric contract. DMA completion cannot
+retire a CPU request. Each byte has a minimum five guest-enable budget plus
+transaction waits. Pin-level HOLD/HLDA and original 8237 T-state timing remain
+unqualified; compressed/extended-write and DACK polarity controls do not change
+abstract handshakes. Memory-to-memory, cascade, illegal transfer type and DMA0
+memory-write requests fault visibly; external EOP and ISA bus mastering remain
+unimplemented. A fault stops the controller without advancing address/count or
+retrying a committed device operation. Reset cancels pending work but does not
+undo completed writes or peripheral reads.
+
+PIT1 edges latch DMA0 refresh until service starts; an edge during a delayed
+read can queue one further refresh. That latch output is the DREQ0 pin, so
+the command register's DREQ-sense bit applies to it with the external DRQ pins. Read mode performs a memory read without
+a DMA peripheral packet. This models guest-visible bus activity, not physical
+SDRAM retention. The eventual SDRAM controller must still refresh its own
+storage. Do not replace floppy DMA with BIOS-level interception.
 
 The implemented PPI wrapper uses mode 0 (`99h`), with PA scan-code input,
 PB controls and PC equipment/status inputs. PB0 gates PIT2; PB1 ANDs PIT2 OUT
@@ -2285,6 +2313,13 @@ rapid modulation above the sample rate. This is a development filter; the
 production shell audio connection and measured analog fidelity remain open.
 
 ### Graphics compatibility
+
+CGA is an ISA expansion card under `cores/fes-pcxt/expansions`, using the
+registered ISA endpoint and commit handshake. The card owns VRAM, the
+`B8000–BFFFF` aperture with adapter mirrors, `3D0–3DF` register decode and raster
+state. Its video egress feeds a separate video service. The motherboard routes
+accesses through ISA; it does not contain CGA register shortcuts. Physical
+socket containment and video egress remain to be qualified.
 
 CGA is the first playable configuration: text modes, 320×200 four-colour and
 640×200 monochrome graphics, character ROM, palette/mode registers, border,

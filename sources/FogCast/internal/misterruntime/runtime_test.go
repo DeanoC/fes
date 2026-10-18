@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"github.com/DeanoC/FogCast/internal/testsock"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -1182,7 +1183,7 @@ func TestRecoverIdleMapsMissingOperationToUnsupported(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "runtime.sock")
+			path := testsock.Path(t, "runtime.sock")
 			listener, err := net.Listen("unix", path)
 			if err != nil {
 				t.Fatal(err)
@@ -1441,7 +1442,7 @@ type lostResponseSocketServer struct {
 
 func newLostResponseSocketServer(t *testing.T, cancel context.CancelFunc, statuses ...string) *lostResponseSocketServer {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "mister-runtime.sock")
+	path := testsock.Path(t, "mister-runtime.sock")
 	listener, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)

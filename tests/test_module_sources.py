@@ -1,6 +1,7 @@
 import importlib.util
 import os
 from pathlib import Path
+import shlex
 import shutil
 import struct
 import subprocess
@@ -12,6 +13,30 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts/module_sources.py"
 spec = importlib.util.spec_from_file_location("module_sources", SCRIPT)
 module_sources = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module_sources)
+
+
+REPO = Path(__file__).resolve().parents[1]
+
+
+def selected_go():
+    """The go binary FES selects, not whatever is first on PATH.
+
+    The FogCast go.mod pins its toolchain. The probe forces GOTOOLCHAIN=auto
+    so an inherited GOTOOLCHAIN=local cannot keep an older system Go. The
+    test then runs that binary with GOTOOLCHAIN=local, satisfying the
+    fixture's go line with the selected toolchain.
+    """
+    try:
+        root = subprocess.check_output(
+            ['go', 'env', 'GOROOT'], cwd=REPO / 'sources/FogCast',
+            env=dict(os.environ, GOTOOLCHAIN='auto'),
+            text=True, stderr=subprocess.PIPE).strip()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise AssertionError(f'cannot resolve the FogCast Go toolchain: {exc}') from exc
+    go = Path(root) / 'bin' / 'go'
+    if not go.is_file():
+        raise AssertionError(f'selected Go toolchain has no go binary: {go}')
+    return str(go)
 
 
 def git(root, *args):
@@ -95,17 +120,52 @@ class ModuleSourcesTest(unittest.TestCase):
         library.write_text('this uncommitted sibling is not valid Go\n')
         module = self.materialize(revision=selected)
         self.assertIn('"committed"', (module.parent / 'misteross/expansion/asset.go').read_text())
+        go = selected_go()
         for arch, machine in (('amd64', 62), ('arm', 40)):
             with self.subTest(arch=arch):
                 output = self.root / 'out' / ('host-' + arch)
                 env = dict(os.environ, GOWORK='off', GOPROXY='off', GOSUMDB='off',
                            CGO_ENABLED='0', GOTOOLCHAIN='local', GOOS='linux', GOARCH=arch, GOARM='7')
-                subprocess.run(['go', 'build', '-trimpath', '-o', str(output), '.'], cwd=module,
+                subprocess.run([go, 'build', '-trimpath', '-o', str(output), '.'], cwd=module,
                                env=env, capture_output=True, check=True)
                 header = output.read_bytes()[:20]
                 self.assertEqual(header[:4], b'\x7fELF')
                 self.assertEqual(struct.unpack('<H', header[18:20])[0], machine)
         self.assertEqual(library.read_text(), 'this uncommitted sibling is not valid Go\n')
+
+    @unittest.skipUnless(shutil.which('go'), 'Go required for toolchain selection')
+    def test_selected_go_ignores_inherited_gotoolchain_local(self):
+        real = shutil.which('go')
+        bindir = self.root / 'old-go' / 'bin'
+        bindir.mkdir(parents=True)
+        fake = bindir / 'go'
+        fake.write_text(
+            '#!/bin/sh\n'
+            'if [ "$1" = env ] && [ "$2" = GOROOT ] && [ "$GOTOOLCHAIN" = local ]; then\n'
+            '  cd "$(dirname "$0")/.." && pwd\n'
+            '  exit 0\n'
+            'fi\n'
+            f'exec {shlex.quote(real)} "$@"\n')
+        fake.chmod(0o755)
+        previous_path = os.environ.get('PATH')
+        previous_toolchain = os.environ.get('GOTOOLCHAIN')
+
+        def restore():
+            if previous_path is None:
+                os.environ.pop('PATH', None)
+            else:
+                os.environ['PATH'] = previous_path
+            if previous_toolchain is None:
+                os.environ.pop('GOTOOLCHAIN', None)
+            else:
+                os.environ['GOTOOLCHAIN'] = previous_toolchain
+
+        self.addCleanup(restore)
+        os.environ['PATH'] = str(bindir) + os.pathsep + (previous_path or '')
+        os.environ['GOTOOLCHAIN'] = 'local'
+        chosen = Path(selected_go())
+        self.assertNotEqual(chosen.resolve(), fake.resolve())
+        self.assertTrue(chosen.is_file(), chosen)
 
     def test_module_staged_unstaged_and_untracked_changes_are_rejected(self):
         for kind in ("unstaged", "staged", "untracked"):
