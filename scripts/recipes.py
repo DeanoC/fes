@@ -186,7 +186,8 @@ def load_recipes(path=REGISTRY_PATH):
             "remap_decompose_candidate", "remap_lut_pair_critical", "remap_lut_pair_candidate",
             "remap_lut_pair_compose_copy", "remap_lut_driver_critical",
             "remap_lut_driver_candidate", "remap_candidate", "remap_groups",
-            "balance_reduction_root",
+            "balance_reduction_root", "arrival_pin_assignment",
+            "isolated_lut_placement",
         }
         if set(pnr) != pnr_fields or not isinstance(pnr.get("flags"), dict) or set(pnr["flags"]) != pnr_flags:
             raise ValueError("P&R recipe fields or nextpnr option coverage are incomplete")

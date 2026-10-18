@@ -36,6 +36,7 @@ CURRENT_FLAGS = {
     "remap_lut_pair_candidate": "unset", "remap_lut_pair_compose_copy": False,
     "remap_lut_driver_critical": "unset", "remap_lut_driver_candidate": "unset",
     "remap_candidate": "unset", "remap_groups": 1, "balance_reduction_root": [],
+    "arrival_pin_assignment": False, "isolated_lut_placement": False,
 }
 
 # These are the Mistral/FES switches available at PINNED_NEXTPNR. Keep every
@@ -52,6 +53,7 @@ FORK_FLAGS = frozenset({
     "remap_lut_pair_candidate", "remap_lut_pair_compose_copy",
     "remap_lut_driver_critical", "remap_lut_driver_candidate",
     "remap_candidate", "remap_groups", "balance_reduction_root",
+    "arrival_pin_assignment", "isolated_lut_placement",
 })
 
 # Result-affecting non-fork switches whose values also need to stay reviewed.
@@ -84,6 +86,7 @@ FLAG_BOOLEAN_FIELDS = frozenset({
     "seed_racing_contract", "fes_scaffold", "mistral_ff4", "mistral_clkb",
     "remap_optimize_pins", "remap_preserve_ffs",
     "remap_lut_pair_compose_copy",
+    "arrival_pin_assignment", "isolated_lut_placement",
 })
 FLAG_INTEGER_FIELDS = frozenset({
     "placer_heap_cell_placement_timeout", "timing_report_paths",

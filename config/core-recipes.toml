@@ -96,6 +96,8 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
 
 [[recipes]]
 core_id = "fes.catch"
@@ -192,6 +194,8 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
 
 [[recipes]]
 core_id = "fes.pong"
@@ -288,6 +292,8 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
 
 [[recipes]]
 core_id = "fes.zx81"
@@ -384,6 +390,8 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
 
 [[recipes]]
 core_id = "fes.coleco"
@@ -482,6 +490,8 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
 
 [[recipes]]
 core_id = "fes.sms"
@@ -578,6 +588,8 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
 
 [[recipes]]
 core_id = "fes.sg1000"
@@ -674,6 +686,8 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
 
 [[recipes]]
 core_id = "fes.apple2"
@@ -771,6 +785,8 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
 
 [[recipes]]
 core_id = "fes.c64"
@@ -867,6 +883,8 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
 
 [[recipes]]
 core_id = "fes.spectrum"
@@ -963,6 +981,8 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
 
 [[recipes]]
 core_id = "fes.riscv"
@@ -1059,6 +1079,8 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
 
 [[recipes]]
 core_id = "fes.ramtest"
@@ -1155,6 +1177,8 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false
 
 [[recipes]]
 core_id = "fes.atari-st"
@@ -1252,3 +1276,5 @@ remap_lut_driver_candidate = "unset"
 remap_candidate = "unset"
 remap_groups = 1
 balance_reduction_root = []
+arrival_pin_assignment = false
+isolated_lut_placement = false

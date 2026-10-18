@@ -133,7 +133,10 @@ producer constants are read from this table.
 producer's controlled environment. `search_placer_qor.py` uses it for every
 registered search route; Catch uses it for its direct route. A producer's
 seed, weight, clock, timeout or raw extra argument must be listed in its
-recipe. Candidate evidence carries the argv, environment, recipe digest and
+recipe. `--arrival-pin-assignment` and `--isolated-lut-placement` are
+recorded off in every recipe. A recipe that turns one on emits it; the
+default does not, so today's commands stay unchanged. The timing-failure
+playbook selects them only through that recorded flag. Candidate evidence carries the argv, environment, recipe digest and
 authenticated toolchain slot. The producer-argv regression test pins the
 effective command and option coverage without invoking the physical router.
 

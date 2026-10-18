@@ -23,26 +23,26 @@ ENV = {
     "TZ": "UTC",
 }
 LOCK_SHA256 = "d12e4f3d46eb87df4ee8a5d321700f6d8c150ffad622e0be263bc9d7e9dc0044"
-FLAGS_SHA256 = "6d60ed8e921f893f4fc3db7faf7c71473e493c99fee7f503c6f96cc38fd20c3f"
+FLAGS_SHA256 = "1c05352c44610d6dc79f7609085c7d4c90d82dbf82f03aed4fc91c3f7b09cf02"
 
 # Stable digest of each complete recipe, plus the old producer command's
 # normalized argv digest (slot, synth, output and GPU are fixed test values).
 # The search vectors follow the former search_placer_qor._run_nextpnr order;
 # Catch follows build_fes_demo.build_commands plus its former GPU suffix.
 GOLDENS = {
-    "fes.menu": ("2dab30da3b734c32b1ff52bfd0cdc035cca4bfe1fcc3989461bf3432be25e958", "b840cd3425c9582751f1a7847d988db554f889f0a27f7a234ad25077ccd473df"),
-    "fes.catch": ("2ca8900a129a4b954198e400c5939b8ff28ec3043302ce111f5fabfc9b5c5431", "2e741531aae85de2e7a8796342603dd261b4a025ae564f0575ef1b9caa1dd863"),
-    "fes.pong": ("aae5ea738224669955f178252e48606f44b6d46dceb0767bd53bab43ce4e208b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
-    "fes.zx81": ("ede61b2a6cad88cd5d1b4fe75495914d91873d6072f52ddb03acf44e92c3606a", "1c0a67c9024ace96c56d7270c64a43b562745dd12696d5f8614723a4de083c70"),
-    "fes.coleco": ("36aea678cbf9d9df26f0b7bfd6dc409c96c36c7c7c740d737c50b49688819c90", "93de0822ff64f833c8e571cf08b0b7d312f005bde176ad43d308c3f7ec2142af"),
-    "fes.sms": ("aaa419748321cab16db125a53dd74b54c0240bb5a021b32a3db417b56543bfe5", "9f5b6f7ee3c682d7927ee0ceb03bd307f891431c209d88aa12ac20004cf97126"),
-    "fes.sg1000": ("0faae72f9ba02b06832ddf7b537823c87bc61acf31672e43bb9da36a6abd66e1", "abe6012bd8052f8814e813182b95509c08ff3c906e3f926a1c0edb49f4982b85"),
-    "fes.apple2": ("57406311d69ef2e121f002c7cf0afbbbfb7b1c26d114acf88e1664a4b482ddd3", "66f49fb8cf973ded993aff3540cba1c3dc01c5d58c2e1c8353eb10003aaee65b"),
-    "fes.c64": ("6373cfbc3a68996ad89efbba3af45fcf0d477466e1b4a45eca5b8c38ebd5ff37", "86b9d7ef13b01b2ff5c1f2cc2e979d117e8e1470aeaf88ce85483163048b6134"),
-    "fes.spectrum": ("780de931801b08dcc4df525763a573165a6baf3a3241c6161fd8cdc6d312938a", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
-    "fes.riscv": ("aae5ea738224669955f178252e48606f44b6d46dceb0767bd53bab43ce4e208b", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
-    "fes.ramtest": ("ede6474bf85ce45e0631d4edb375bc37ab9c1161aae0a265f3c5c34920947781", "ded346bda6c66889e7f08e994eb82964871784b747cbc24159782b25406da42e"),
-    "fes.atari-st": ("fb2168507f5b08a1112ad6f5e90fd48b6ea2b69273073f7f7c32ef882133d05a", "31597590be7e868a81521a62ceaa190e7af72dfffc106b9c5898646ea56e040a"),
+    "fes.menu": ("ac373eb67bc9a2fbf7ba9a039cc3dc49962eddc2229c91760f41d12323fe0eb4", "b840cd3425c9582751f1a7847d988db554f889f0a27f7a234ad25077ccd473df"),
+    "fes.catch": ("5e8330ea435fc2637783cdc28d7caae1c7abb12e538f58439fcdf854b1fe4250", "2e741531aae85de2e7a8796342603dd261b4a025ae564f0575ef1b9caa1dd863"),
+    "fes.pong": ("294b57583b68a73f02fa0a1ae9ea6f0e567ba8e359fbec849879141497505aa4", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
+    "fes.zx81": ("72cb922704df3677a513add21c0e292fe93f3c11df7fe5fbceca0ffa19529d14", "1c0a67c9024ace96c56d7270c64a43b562745dd12696d5f8614723a4de083c70"),
+    "fes.coleco": ("219f9c42c6983fba5a6051f143581a816579914d8a07a85a445e9b2609dfebce", "93de0822ff64f833c8e571cf08b0b7d312f005bde176ad43d308c3f7ec2142af"),
+    "fes.sms": ("e56a34842b5a216d9177f4374b8ab8df8eb8761675a163799a5c285177b2a85d", "9f5b6f7ee3c682d7927ee0ceb03bd307f891431c209d88aa12ac20004cf97126"),
+    "fes.sg1000": ("cf9b3f09b1d53c90229d32ef19aa956f03d569630a1733ecb4f492b044722e9a", "abe6012bd8052f8814e813182b95509c08ff3c906e3f926a1c0edb49f4982b85"),
+    "fes.apple2": ("a874e3c758501fca8c590c2c819b7339c87fec1aa526876a85d2ef9ec0e8eacb", "66f49fb8cf973ded993aff3540cba1c3dc01c5d58c2e1c8353eb10003aaee65b"),
+    "fes.c64": ("8052aee1bcb6884c7bf5caa9bf58f67169bcbe1ae81c86e617aed2910e328fe4", "86b9d7ef13b01b2ff5c1f2cc2e979d117e8e1470aeaf88ce85483163048b6134"),
+    "fes.spectrum": ("3d1382b3323e6c7a3f6a943fc669459d35943a04acc49ea0d370fe1d06fffc52", "df1e8572d39b1baa8febcd96bee550765c2d5451b27baea60682e52a5d87f21d"),
+    "fes.riscv": ("294b57583b68a73f02fa0a1ae9ea6f0e567ba8e359fbec849879141497505aa4", "213407fd4fd731c94a022df86b5460388dd691a54d5f7cb390cd2e5c0e80126a"),
+    "fes.ramtest": ("79520a9825ed8dcb924172abec161a33927713c9e3e468a8677f1ec4fd75e277", "ded346bda6c66889e7f08e994eb82964871784b747cbc24159782b25406da42e"),
+    "fes.atari-st": ("16f82e4f164fb5b0906552040a110db432262980031d7f4b45cbdc0d7095c719", "31597590be7e868a81521a62ceaa190e7af72dfffc106b9c5898646ea56e040a"),
 }
 
 # Hashes of the frozen legacy producer argv matrix for every registered
@@ -167,6 +167,8 @@ class PnrRecipeTests(unittest.TestCase):
                     recipe["flags"]["parallel_refine"] = True
                     recipe["flags"]["placer_heap_alpha"] = 0.2
                     recipe["flags"]["remap_optimize_pins"] = True
+                    recipe["flags"]["arrival_pin_assignment"] = True
+                    recipe["flags"]["isolated_lut_placement"] = True
                 with patch.object(pnr_recipe, "recipe_for", return_value=recipe):
                     command = pnr_recipe.argv(
                         core_id, SLOT, SYNTH, recipe["seeds"][0], 0, output=OUTPUT
@@ -178,6 +180,11 @@ class PnrRecipeTests(unittest.TestCase):
                     self.assertIn("--placer-heap-alpha", command)
                     self.assertIn("0.2", command)
                     self.assertIn("--remap-optimize-pins", command)
+                    self.assertIn("--arrival-pin-assignment", command)
+                    self.assertIn("--isolated-lut-placement", command)
+                else:
+                    self.assertNotIn("--arrival-pin-assignment", command)
+                    self.assertNotIn("--isolated-lut-placement", command)
 
     def test_menu_argv_uses_the_leased_gpu_device(self):
         command = pnr_recipe.argv(
