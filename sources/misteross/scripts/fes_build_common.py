@@ -67,10 +67,10 @@ def gpu_device_index(device: int, env: Mapping[str, str] | None = None) -> int:
 
 def nextpnr_gpu_command(
     command: Sequence[str], env: Mapping[str, str] | None = None,
-) -> tuple[str, ...]:
+) -> Sequence[str]:
     """Rewrite explicit nextpnr GPU indices for gpu-run's masked device view."""
     if not gpu_run_active(env):
-        return tuple(command)
+        return command
     device = str(gpu_device_index(0, env))
     result = list(command)
     index = 0
@@ -85,7 +85,7 @@ def nextpnr_gpu_command(
         if argument.startswith("--gpu-device="):
             result[index] = f"--gpu-device={device}"
         index += 1
-    return tuple(result)
+    return tuple(result) if isinstance(command, tuple) else result
 
 
 def gpu_run_environment(env: Mapping[str, str] | None = None) -> dict[str, str]:
