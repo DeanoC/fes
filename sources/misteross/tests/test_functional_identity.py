@@ -199,9 +199,8 @@ class FunctionalColecoTests(unittest.TestCase):
         lease_env = {
             "FES_GPU_IDS": "1,2",
             "GPU_RUN_DEVICE": "0",
-            "GPU_RUN_EXPECTED_DEVICE": "/dev/nvidia1",
+            "GPU_RUN_EXPECTED_DEVICE": "amd:1",
             "NEXTPNR_REQUIRE_GPU": "1",
-            "CUDA_VISIBLE_DEVICES": "1,2",
             "ROCR_VISIBLE_DEVICES": "1,2",
             "LD_PRELOAD": "ambient-loader",
             "YOSYS_DATDIR": "ambient-yosys",
@@ -212,15 +211,16 @@ class FunctionalColecoTests(unittest.TestCase):
              patch("scripts.functional_execution.execution_inputs",
                    return_value={"environment": "captured"}) as inputs:
             invocation = FunctionalInvocation(
-                tools, gpu_device=1,
+                tools, gpu_device=0,
                 extra_env={"NEXTPNR_REQUIRE_GPU": "0", "RECIPE_VALUE": "kept"})
             self.addCleanup(invocation.close)
             self.assertEqual(invocation.env["FES_GPU_IDS"], "1,2")
             self.assertEqual(invocation.env["GPU_RUN_DEVICE"], "0")
-            self.assertEqual(invocation.env["GPU_RUN_EXPECTED_DEVICE"], "/dev/nvidia1")
+            self.assertEqual(invocation.env["GPU_RUN_EXPECTED_DEVICE"], "amd:1")
             self.assertEqual(invocation.env["NEXTPNR_REQUIRE_GPU"], "1")
-            self.assertEqual(invocation.env["CUDA_VISIBLE_DEVICES"], "1,2")
             self.assertEqual(invocation.env["ROCR_VISIBLE_DEVICES"], "1,2")
+            self.assertNotIn("HIP_VISIBLE_DEVICES", invocation.env)
+            self.assertNotIn("CUDA_VISIBLE_DEVICES", invocation.env)
             self.assertEqual(invocation.env["RECIPE_VALUE"], "kept")
             self.assertNotIn("LD_PRELOAD", invocation.env)
             self.assertNotIn("YOSYS_DATDIR", invocation.env)

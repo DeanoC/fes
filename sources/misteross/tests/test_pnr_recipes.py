@@ -197,6 +197,57 @@ class PnrRecipeTests(unittest.TestCase):
         self.assertIn("CUDA_DEVICE_ORDER", pnr_recipe.recipe_for("fes.sms")["optional_env"])
         pnr_recipe.environment("fes.sms", {**ENV, "CUDA_DEVICE_ORDER": "PCI_BUS_ID"})
 
+    def test_registered_build_accepts_the_exact_active_gpu_run_lease(self):
+        recipe = pnr_recipe.recipe_for("fes.menu")
+        leased_env = {
+            **ENV,
+            "FES_GPU_IDS": "1,2",
+            "GPU_RUN_DEVICE": "0",
+            "GPU_RUN_EXPECTED_DEVICE": "amd:1",
+            "NEXTPNR_REQUIRE_GPU": "1",
+            "ROCR_VISIBLE_DEVICES": "1,2",
+        }
+        command, environment = pnr_recipe.build(
+            "fes.menu", SLOT, SYNTH, recipe["seeds"][0], 1,
+            output=OUTPUT, env=leased_env)
+        self.assertEqual(environment, leased_env)
+        device = command.index("--gpu-device")
+        self.assertEqual(command[device + 1], "1")
+
+    def test_ambient_gpu_overrides_without_a_lease_are_rejected(self):
+        recipe = pnr_recipe.recipe_for("fes.menu")
+        for name in (
+            "FES_GPU_IDS", "GPU_RUN_DEVICE", "GPU_RUN_EXPECTED_DEVICE",
+            "NEXTPNR_REQUIRE_GPU", "HIP_VISIBLE_DEVICES",
+            "ROCR_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES",
+        ):
+            with self.subTest(name=name), self.assertRaises(pnr_recipe.RecipeError):
+                pnr_recipe.build(
+                    "fes.menu", SLOT, SYNTH, recipe["seeds"][0], 0,
+                    output=OUTPUT, env={**ENV, name: "0"})
+
+    def test_gpu_run_lease_rejects_masks_or_markers_that_do_not_match(self):
+        recipe = pnr_recipe.recipe_for("fes.menu")
+        leased_env = {
+            **ENV,
+            "FES_GPU_IDS": "1,2",
+            "GPU_RUN_DEVICE": "0",
+            "GPU_RUN_EXPECTED_DEVICE": "amd:1",
+            "NEXTPNR_REQUIRE_GPU": "1",
+            "ROCR_VISIBLE_DEVICES": "1,2",
+        }
+        for changes in (
+            {"ROCR_VISIBLE_DEVICES": "0"},
+            {"GPU_RUN_EXPECTED_DEVICE": "amd:9"},
+            {"GPU_RUN_DEVICE": "2"},
+            {"HIP_VISIBLE_DEVICES": "1,2"},
+            {"CUDA_VISIBLE_DEVICES": "1,2"},
+        ):
+            with self.subTest(changes=changes), self.assertRaises(pnr_recipe.RecipeError):
+                pnr_recipe.build(
+                    "fes.menu", SLOT, SYNTH, recipe["seeds"][0], 0,
+                    output=OUTPUT, env={**leased_env, **changes})
+
     def test_search_producers_bind_to_the_registered_recipe(self):
         entries = tomllib.loads((ROOT / "config/core-recipes.toml").read_text())["recipes"]
         for entry in entries:

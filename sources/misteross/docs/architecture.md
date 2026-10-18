@@ -140,6 +140,14 @@ recipe. Candidate evidence carries the argv, environment, recipe digest and
 authenticated toolchain slot. The producer-argv regression test pins the
 effective command and option coverage without invoking the physical router.
 
+An active `gpu-run` lease adds only its complete marker set and the one
+visibility mask for the recipe backend. The physical ID list and mask must
+match, the logical device marker and expected device must be coherent, and
+the requested nextpnr device must be within the lease. Incomplete or
+inconsistent lease values fail; ambient GPU masks without a lease remain
+forbidden. The accepted lease values remain part of the functional execution
+identity.
+
 This binds host build behavior to the selected recipe. It is not route timing
 qualification or hardware acceptance; those remain separate evidence gates.
 
