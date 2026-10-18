@@ -3,7 +3,11 @@
 
 A trace is the JSON Lines file tenfoot writes on SIGUSR1 (see
 docs/frame-trace.md). Each tick that queued a new menu frame is joined with
-that frame's present record, giving one row per changed frame:
+that frame's present record. A present that reached the screen is one changed
+frame. A present the worker rejected is counted on its own and left out of
+the changed-frame averages.
+
+Stages:
 
   lua        room Lua: async callbacks + update + draw (inside Tick)
   tick_other the rest of Tick (host polling, state, non-Lua work)
@@ -20,7 +24,7 @@ that frame's present record, giving one row per changed frame:
   commit_io  commit round trip not accounted for by the runtime fields
 
 Input-to-picture latency is measured from each input record to the first
-present that was queued at or after it.
+present that reached the screen and was queued at or after it.
 
 Usage: frame-trace-summary.py TRACE.jsonl [--json]
 """
@@ -40,47 +44,70 @@ def load(path):
         return [json.loads(line) for line in handle if line.strip()]
 
 
+def _latest_presents(records):
+    """Last non-probe present for each seq. A later record replaces an earlier one."""
+    presents = {}
+    for record in records:
+        if record.get("kind") != "present" or not record.get("seq") or record.get("probe"):
+            continue
+        presents[record["seq"]] = record
+    return presents
+
+
+def _frame_row(tick, present):
+    """One changed or failed frame, with each stage in milliseconds."""
+    us = lambda record, key: record.get(key, 0) or 0
+    lua = us(tick, "lua_step_us")
+    rt = us(present, "runtime_copy_us") + us(present, "runtime_submit_us") + us(present, "runtime_scanout_wait_us")
+    row = {
+        "view": tick.get("view", ""),
+        "lua": lua,
+        "tick_other": max(0, us(tick, "tick_us") - lua),
+        "snapshot": us(tick, "snapshot_us"),
+        "raster": max(0, us(tick, "render_us") - us(present, "frame_copy_us")),
+        "frame_copy": us(present, "frame_copy_us"),
+        "queue": us(present, "queue_wait_us"),
+        "status": us(present, "status_us"),
+        "begin": us(present, "begin_us"),
+        "stage": us(present, "stage_us"),
+        "rt_copy": us(present, "runtime_copy_us"),
+        "rt_submit": us(present, "runtime_submit_us"),
+        "rt_scanout": us(present, "runtime_scanout_wait_us"),
+        "commit_io": max(0, us(present, "commit_us") - rt),
+        "presented": bool(present.get("presented")),
+        "t_us": tick["t_us"],
+        "done_us": present["t_us"],
+    }
+    for key in STAGES:
+        row[key] = row[key] / 1000.0
+    row["total"] = (row["done_us"] - row["t_us"]) / 1000.0
+    return row
+
+
 def frames(records):
-    """One dict per changed frame, with each stage in milliseconds."""
-    presents = {r["seq"]: r for r in records if r.get("kind") == "present" and r.get("seq") and not r.get("probe")}
-    rows = []
+    """Displayed frames, then failed attempts. Both are stage rows in milliseconds.
+
+    A present with presented false never reached the screen, so it is not a
+    displayed frame. Probes are ignored.
+    """
+    presents = _latest_presents(records)
+    displayed, failed = [], []
     for tick in records:
         if tick.get("kind") != "tick" or not tick.get("queued"):
             continue
         present = presents.get(tick.get("seq"))
         if present is None:
             continue
-        us = lambda record, key: record.get(key, 0) or 0
-        lua = us(tick, "lua_step_us")
-        rt = us(present, "runtime_copy_us") + us(present, "runtime_submit_us") + us(present, "runtime_scanout_wait_us")
-        row = {
-            "view": tick.get("view", ""),
-            "lua": lua,
-            "tick_other": max(0, us(tick, "tick_us") - lua),
-            "snapshot": us(tick, "snapshot_us"),
-            "raster": max(0, us(tick, "render_us") - us(present, "frame_copy_us")),
-            "frame_copy": us(present, "frame_copy_us"),
-            "queue": us(present, "queue_wait_us"),
-            "status": us(present, "status_us"),
-            "begin": us(present, "begin_us"),
-            "stage": us(present, "stage_us"),
-            "rt_copy": us(present, "runtime_copy_us"),
-            "rt_submit": us(present, "runtime_submit_us"),
-            "rt_scanout": us(present, "runtime_scanout_wait_us"),
-            "commit_io": max(0, us(present, "commit_us") - rt),
-            "presented": bool(present.get("presented")),
-            "t_us": tick["t_us"],
-            "done_us": present["t_us"],
-        }
-        for key in STAGES:
-            row[key] = row[key] / 1000.0
-        row["total"] = (row["done_us"] - row["t_us"]) / 1000.0
-        rows.append(row)
-    return rows
+        row = _frame_row(tick, present)
+        if row["presented"]:
+            displayed.append(row)
+        else:
+            failed.append(row)
+    return displayed, failed
 
 
 def latencies(records):
-    """Input command -> ms until the first present queued at or after it."""
+    """Input command -> ms until the first on-screen present queued at or after it."""
     presents = sorted((r for r in records if r.get("kind") == "present" and r.get("presented") and not r.get("probe")),
                       key=lambda r: r.get("queued_t_us", 0))
     out = defaultdict(list)
@@ -102,13 +129,19 @@ def pct(values, p):
     return ordered[index]
 
 
-def summarise(records):
-    rows = frames(records)
-    summary = {"frames": len(rows), "stages": {}, "views": {}, "inputs": {}, "dominant": None}
+def stage_stats(rows):
+    stats = {}
     for key in STAGES + ["total"]:
         values = [row[key] for row in rows]
-        summary["stages"][key] = {"p50": pct(values, 50), "p95": pct(values, 95), "max": max(values, default=0.0),
-                                  "mean": statistics.fmean(values) if values else 0.0}
+        stats[key] = {"p50": pct(values, 50), "p95": pct(values, 95), "max": max(values, default=0.0),
+                      "mean": statistics.fmean(values) if values else 0.0}
+    return stats
+
+
+def summarise(records):
+    rows, failed = frames(records)
+    summary = {"frames": len(rows), "stages": stage_stats(rows), "views": {}, "inputs": {}, "dominant": None,
+               "failed": {"frames": len(failed), "stages": stage_stats(failed)}}
     if rows:
         means = {key: summary["stages"][key]["mean"] for key in STAGES}
         summary["dominant"] = max(means, key=means.get)
@@ -122,28 +155,40 @@ def summarise(records):
     return summary
 
 
+def _stage_table(stats):
+    total_mean = stats["total"]["mean"] or 1.0
+    lines = [f"{'stage':<11} {'p50 ms':>8} {'p95 ms':>8} {'max ms':>8} {'share':>6}"]
+    for key in STAGES + ["total"]:
+        stage = stats[key]
+        share = "" if key == "total" else f"{100.0 * stage['mean'] / total_mean:5.1f}%"
+        lines.append(f"{key:<11} {stage['p50']:8.2f} {stage['p95']:8.2f} {stage['max']:8.2f} {share:>6}")
+    return lines
+
+
 def render(summary):
+    failed = summary.get("failed") or {"frames": 0}
     lines = [f"changed frames: {summary['frames']}"]
+    if failed["frames"]:
+        lines.append(f"failed presents: {failed['frames']}")
     if not summary["frames"]:
         lines.append("no changed frames with a matching present record")
-        return "\n".join(lines)
-    total_mean = summary["stages"]["total"]["mean"] or 1.0
-    lines.append(f"{'stage':<11} {'p50 ms':>8} {'p95 ms':>8} {'max ms':>8} {'share':>6}")
-    for key in STAGES + ["total"]:
-        s = summary["stages"][key]
-        share = "" if key == "total" else f"{100.0 * s['mean'] / total_mean:5.1f}%"
-        lines.append(f"{key:<11} {s['p50']:8.2f} {s['p95']:8.2f} {s['max']:8.2f} {share:>6}")
-    lines.append(f"dominant stage (by mean): {summary['dominant']}")
-    if summary["views"]:
+    else:
+        lines.extend(_stage_table(summary["stages"]))
+        lines.append(f"dominant stage (by mean): {summary['dominant']}")
+        if summary["views"]:
+            lines.append("")
+            lines.append("frame total by view:")
+            for view, stage in sorted(summary["views"].items()):
+                lines.append(f"  {view:<32} n={stage['frames']:<5} p50={stage['p50']:.1f} ms  p95={stage['p95']:.1f} ms")
+    if failed["frames"]:
         lines.append("")
-        lines.append("frame total by view:")
-        for view, s in sorted(summary["views"].items()):
-            lines.append(f"  {view:<32} n={s['frames']:<5} p50={s['p50']:.1f} ms  p95={s['p95']:.1f} ms")
+        lines.append("failed present breakdown:")
+        lines.extend(_stage_table(failed["stages"]))
     if summary["inputs"]:
         lines.append("")
         lines.append("input -> picture:")
-        for cmd, s in sorted(summary["inputs"].items()):
-            lines.append(f"  {cmd:<12} n={s['count']:<5} p50={s['p50']:.1f} ms  p95={s['p95']:.1f} ms  max={s['max']:.1f} ms")
+        for cmd, stage in sorted(summary["inputs"].items()):
+            lines.append(f"  {cmd:<12} n={stage['count']:<5} p50={stage['p50']:.1f} ms  p95={stage['p95']:.1f} ms  max={stage['max']:.1f} ms")
     return "\n".join(lines)
 
 

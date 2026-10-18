@@ -307,6 +307,7 @@ func (r *Instance) Load() error {
 // new frame. Steps after a fatal error return an empty frame.
 func (r *Instance) Step(now time.Time) Frame {
 	if r.fatal != nil || !r.loaded {
+		r.lastStep = StepTiming{}
 		return Frame{}
 	}
 	dt := now.Sub(r.last).Seconds()

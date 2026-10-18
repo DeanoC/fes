@@ -60,10 +60,11 @@ type frameTraceRecord struct {
 // until a dump is requested (SIGUSR1), so it needs no configuration change
 // on a managed kit and no budget or behaviour depends on it.
 type frameTrace struct {
-	mu   sync.Mutex
-	ring []frameTraceRecord
-	next int
-	full bool
+	mu    sync.Mutex
+	ring  []frameTraceRecord
+	next  int
+	full  bool
+	dumps int
 }
 
 func newFrameTrace() *frameTrace {
@@ -102,26 +103,36 @@ func (f *frameTrace) present(p gfx.MenuPresentTrace) {
 func (f *frameTrace) records() []frameTraceRecord {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	return f.snapshotLocked()
+}
+
+func (f *frameTrace) snapshotLocked() []frameTraceRecord {
 	if !f.full {
 		return append([]frameTraceRecord(nil), f.ring[:f.next]...)
 	}
 	return append(append([]frameTraceRecord(nil), f.ring[f.next:]...), f.ring[:f.next]...)
 }
 
-// dump writes the ring as JSON Lines to dir/fogcast-frame-trace-<pid>.jsonl
-// and returns the path. The ring is kept, so repeated dumps overlap.
+// dump writes the ring as JSON Lines to
+// dir/fogcast-frame-trace-<pid>-<n>-<utc>.jsonl and returns the path.
+// Each call uses a new file, so earlier dumps stay on disk. The ring is kept.
 func (f *frameTrace) dump(dir string) (string, error) {
 	if dir == "" {
 		dir = os.TempDir()
 	}
-	path := filepath.Join(dir, fmt.Sprintf("fogcast-frame-trace-%d.jsonl", os.Getpid()))
+	f.mu.Lock()
+	f.dumps++
+	stamp := time.Now().UTC().Format("20060102T150405.000000000Z")
+	path := filepath.Join(dir, fmt.Sprintf("fogcast-frame-trace-%d-%d-%s.jsonl", os.Getpid(), f.dumps, stamp))
+	recs := f.snapshotLocked()
+	f.mu.Unlock()
 	tmp := path + ".tmp"
 	file, err := os.Create(tmp)
 	if err != nil {
 		return "", err
 	}
 	enc := json.NewEncoder(file)
-	for _, r := range f.records() {
+	for _, r := range recs {
 		if err := enc.Encode(r); err != nil {
 			_ = file.Close()
 			return "", err
@@ -140,13 +151,25 @@ func (a *App) traceInputLocked(cmd Command, now time.Time) {
 	}
 }
 
-// roomStepTiming is the open room's last Step, or zero.
-func (a *App) roomStepTiming() (async, update, draw, total time.Duration, view string) {
+// frameLuaTiming is the room Step that ran during the current Tick.
+// Tick clears it, and a Tick that does not step the room leaves it zero.
+func (a *App) frameLuaTiming() (async, update, draw, total time.Duration) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.room == nil {
-		return 0, 0, 0, 0, "library"
+	s := a.frameLua
+	return s.Async, s.Update, s.Draw, s.Total
+}
+
+// traceView names the frame presentFrame drew from snap.
+func traceView(snap Snapshot) string {
+	if snap.Attract.Active {
+		return "attract"
 	}
-	s := a.room.LastStep()
-	return s.Async, s.Update, s.Draw, s.Total, "room:" + a.room.ID()
+	if snap.GPUParked {
+		return "now-playing"
+	}
+	if snap.Room.Open && snap.Room.ID != "" {
+		return "room:" + snap.Room.ID
+	}
+	return "library"
 }

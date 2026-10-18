@@ -464,6 +464,9 @@ type App struct {
 	roomWaitAck bool
 	// frameTrace records frame timings on the kit display loop (nil elsewhere).
 	frameTrace *frameTrace
+	// frameLua is the room Step from the Tick in progress. Tick clears it,
+	// and only a Step that actually ran this iteration fills it again.
+	frameLua rooms.StepTiming
 	// roomCoreDetail is the package whose Details the hero is showing.
 	roomCoreDetail string
 	// libraryReturn is the suspended room the Library was opened from.
@@ -1600,6 +1603,7 @@ func (a *App) Tick(now time.Time) Command {
 	a.drainResults()
 	a.drainAttractResults()
 	a.mu.Lock()
+	a.frameLua = rooms.StepTiming{}
 	a.flushSearchLocked(now)
 	a.tickAttractLocked(now)
 	a.syncPreviewLocked()

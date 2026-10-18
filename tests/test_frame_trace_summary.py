@@ -40,6 +40,37 @@ class FrameTraceSummaryTest(unittest.TestCase):
         self.assertEqual(summary["dominant"], "rt_copy")
         self.assertAlmostEqual(summary["inputs"]["right"]["p50"], 100.0)
         self.assertIn("dominant stage (by mean): rt_copy", summary_tool.render(summary))
+        self.assertEqual(summary["failed"]["frames"], 0)
+
+    def test_failed_presents_stay_out_of_displayed_frames(self):
+        records = [
+            {"t_us": 1_000_000, "kind": "input", "cmd": "right"},
+            {"t_us": 1_005_000, "kind": "tick", "tick_us": 9000, "lua_step_us": 6000, "snapshot_us": 500,
+             "render_us": 24000, "queued": True, "seq": 1, "view": "room:example.fes-cores"},
+            {"t_us": 1_100_000, "kind": "present", "seq": 1, "queued_t_us": 1_034_000, "frame_copy_us": 4000,
+             "queue_wait_us": 100, "status_us": 2000, "present_us": 60000, "begin_us": 1000, "stage_us": 8000,
+             "commit_us": 51000, "runtime_copy_us": 40000, "runtime_submit_us": 50, "runtime_scanout_wait_us": 9000,
+             "presented": True},
+            {"t_us": 1_900_000, "kind": "input", "cmd": "left"},
+            {"t_us": 2_000_000, "kind": "tick", "tick_us": 1000, "lua_step_us": 800000, "render_us": 1000,
+             "queued": True, "seq": 2, "view": "room:example.fes-cores"},
+            {"t_us": 2_500_000, "kind": "present", "seq": 2, "queued_t_us": 2_010_000, "presented": False,
+             "err": "menu unavailable", "status_us": 500000},
+        ]
+        summary = summary_tool.summarise(records)
+        self.assertEqual(summary["frames"], 1)
+        self.assertEqual(summary["failed"]["frames"], 1)
+        self.assertAlmostEqual(summary["stages"]["lua"]["p50"], 6.0)
+        self.assertEqual(summary["dominant"], "rt_copy")
+        self.assertEqual(summary["views"]["room:example.fes-cores"]["frames"], 1)
+        self.assertAlmostEqual(summary["failed"]["stages"]["lua"]["p50"], 800.0)
+        self.assertAlmostEqual(summary["failed"]["stages"]["status"]["p50"], 500.0)
+        self.assertNotIn("left", summary["inputs"])
+        self.assertAlmostEqual(summary["inputs"]["right"]["p50"], 100.0)
+        text = summary_tool.render(summary)
+        self.assertIn("failed presents: 1", text)
+        self.assertIn("failed present breakdown:", text)
+        self.assertIn("dominant stage (by mean): rt_copy", text)
 
 
 if __name__ == "__main__":

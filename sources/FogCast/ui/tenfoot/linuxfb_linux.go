@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -92,7 +93,8 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 	parked := false
 	frames := 0
 	var hold presentHold
-	trace := startFrameTrace(ctx, app, dev, label)
+	trace, stopTrace := startFrameTrace(ctx, app, dev, label)
+	defer stopTrace()
 	for {
 		select {
 		case <-ctx.Done():
@@ -100,8 +102,12 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 				return fmt.Errorf("%s smoke: %w", label, ctx.Err())
 			}
 			return nil
-		case now := <-ticker.C:
-			quit, err := poll(app, now)
+		case scheduled := <-ticker.C:
+			// The ticker delivers its scheduled time, which is already in
+			// the past when this iteration starts late. Trace from the
+			// moment work begins; App timing still uses the schedule.
+			started := time.Now()
+			quit, err := poll(app, scheduled)
 			if err != nil {
 				return err
 			}
@@ -109,7 +115,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 				return nil
 			}
 			polled := time.Now()
-			app.Tick(now)
+			app.Tick(scheduled)
 			ticked := time.Now()
 			snap := app.Snapshot()
 			snapped := time.Now()
@@ -127,7 +133,7 @@ func framebufferLoop(ctx context.Context, opts Options, app *App, dev gfx.Device
 			if !skip {
 				before := menuQueuedSeq(dev)
 				parked = presentFrame(painter, snap, textures, labels, parked)
-				trace.tick(now, polled, ticked, snapped, time.Now(), before, menuQueuedSeq(dev))
+				trace.tick(started, polled, ticked, snapped, time.Now(), before, menuQueuedSeq(dev), snap)
 			}
 			frames++
 			if opts.Smoke {
@@ -953,7 +959,11 @@ type kitFrameTrace struct {
 	trace *frameTrace
 }
 
-func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string) *kitFrameTrace {
+// startFrameTrace begins recording and returns a stop function. stop
+// detaches the sink, drops the signal handler, and waits for an in-progress
+// dump to finish. The caller must call it when the display loop returns,
+// including when the loop ends without canceling ctx.
+func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string) (*kitFrameTrace, func()) {
 	trace := newFrameTrace()
 	app.mu.Lock()
 	app.frameTrace = trace
@@ -963,11 +973,14 @@ func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string
 	}
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGUSR1)
+	traceCtx, cancel := context.WithCancel(ctx)
+	stopped := make(chan struct{})
 	go func() {
+		defer close(stopped)
 		defer signal.Stop(signals)
 		for {
 			select {
-			case <-ctx.Done():
+			case <-traceCtx.Done():
 				return
 			case <-signals:
 				path, err := trace.dump(os.Getenv("FOGCAST_FRAME_TRACE_DIR"))
@@ -979,22 +992,39 @@ func startFrameTrace(ctx context.Context, app *App, dev gfx.Device, label string
 			}
 		}
 	}()
-	return &kitFrameTrace{app: app, trace: trace}
+	var once sync.Once
+	stop := func() {
+		once.Do(func() {
+			cancel()
+			<-stopped
+			if display, ok := dev.(*gfx.MenuDisplay); ok {
+				display.SetTraceSink(nil)
+			}
+			app.mu.Lock()
+			if app.frameTrace == trace {
+				app.frameTrace = nil
+			}
+			app.mu.Unlock()
+		})
+	}
+	return &kitFrameTrace{app: app, trace: trace}, stop
 }
 
-// tick records one rendered loop iteration. now is the tick time; the
-// other times bound the poll, Tick, Snapshot and render phases.
-func (k *kitFrameTrace) tick(now, polled, ticked, snapped, rendered time.Time, seqBefore, seqAfter uint64) {
+// tick records one rendered loop iteration. started is when this iteration
+// began work, which can be later than the ticker's scheduled time. The
+// other times bound the poll, Tick, Snapshot and render phases. snap is the
+// frame that was drawn.
+func (k *kitFrameTrace) tick(started, polled, ticked, snapped, rendered time.Time, seqBefore, seqAfter uint64, snap Snapshot) {
 	if k == nil {
 		return
 	}
-	async, update, draw, step, view := k.app.roomStepTiming()
+	async, update, draw, step := k.app.frameLuaTiming()
 	r := frameTraceRecord{
-		T: now.UnixMicro(), Kind: "tick",
-		PollUS: polled.Sub(now).Microseconds(), TickUS: ticked.Sub(polled).Microseconds(),
+		T: started.UnixMicro(), Kind: "tick",
+		PollUS: polled.Sub(started).Microseconds(), TickUS: ticked.Sub(polled).Microseconds(),
 		LuaAsyncUS: async.Microseconds(), LuaUpdateUS: update.Microseconds(), LuaDrawUS: draw.Microseconds(), LuaStepUS: step.Microseconds(),
 		SnapshotUS: snapped.Sub(ticked).Microseconds(), RenderUS: rendered.Sub(snapped).Microseconds(),
-		View: view,
+		View: traceView(snap),
 	}
 	if seqAfter != seqBefore {
 		r.Queued, r.Seq = true, seqAfter

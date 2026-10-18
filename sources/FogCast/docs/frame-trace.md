@@ -10,11 +10,12 @@ on it.
 
 Each JSON line has `kind`:
 
-- **`tick`**, one loop iteration that rendered:
+- **`tick`**, one loop iteration that rendered. `t_us` is when that iteration began work, not the ticker's scheduled time, so a late tick does not count the wait as poll or frame work:
   - poll
-  - `Tick`, with the open room's Lua time: async callbacks, `update`, `draw` and the whole Step
+  - `Tick`, with the room Step that ran on this iteration: async callbacks, `update`, `draw` and the whole Step. These stay zero when the room did not step
   - `Snapshot`
   - render
+  - `view`: `attract`, `now-playing`, `room:<id>`, or `library`, matching the frame that was drawn
   - `queued`/`seq`, when it produced a new menu frame
 - **`input`:** a command (`cmd`) as `HandleCommand` received it.
 - **`present`:** one frame the menu-display worker handled:
@@ -24,9 +25,11 @@ Each JSON line has `kind`:
   - the client's `menu_frame_begin`, staging copy and commit round trip
   - from the runtime's commit reply: the DDR copy, slot submit and scanout wait (`libmister-runtime/docs/menu-display.md`)
 
-The ring holds 16,384 records, which is several minutes at the 30 Hz loop. A
-dump writes `fogcast-frame-trace-<pid>.jsonl` to `$FOGCAST_FRAME_TRACE_DIR`
-(default the temp directory, `/tmp` on a kit) and keeps the ring.
+The ring holds 16,384 records, which is several minutes at the 30 Hz loop. Each
+`SIGUSR1` writes a new `fogcast-frame-trace-<pid>-<n>-<utc>.jsonl` to
+`$FOGCAST_FRAME_TRACE_DIR` (default the temp directory, `/tmp` on a kit) and
+prints that path on stderr. Earlier dumps stay on disk. The ring is kept, so
+consecutive files overlap in time.
 
 **Send `SIGUSR1` only to a tenfoot that includes this trace.** Older binaries
 have no handler, and the signal ends the process.
@@ -43,8 +46,12 @@ python3 scripts/frame-trace-summary.py trace.jsonl --json   # machine-readable
 It joins each tick that queued a frame with that frame's present and reports
 p50/p95/max and the mean share per stage. The stages are `lua`, `tick_other`,
 `snapshot`, `raster`, `frame_copy`, `queue`, `status`, `begin`, `stage`,
-`rt_copy`, `rt_submit`, `rt_scanout` and `commit_io`. It also reports each
-view's frame total and input→picture latency per command.
+`rt_copy`, `rt_submit`, `rt_scanout` and `commit_io`. Those changed-frame
+figures include only presents that reached the screen (`presented: true`). A
+rejected present is reported separately, with its own count and stage
+breakdown, so menu failures do not move the averages. It also reports each
+view's displayed-frame total and input→picture latency per command. Latency
+uses the first present that reached the screen.
 
 ## Kit measurement run
 
@@ -66,8 +73,9 @@ image or boot file.
    - Settings open/close
    - the ZX81 Workshop shelf
 
-   Dump after each, noting the dump time and the interaction.
-4. Copy the dumps off the kit and run the summary on each.
+   Send `SIGUSR1` after each. Every signal writes a new file, and the
+   process prints its path; the name includes the dump time.
+4. Copy the `fogcast-frame-trace-*.jsonl` files off the kit and run the summary on each.
 5. Re-activate the previous bundle.
 
 ## Reading the result
