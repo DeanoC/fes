@@ -13,6 +13,7 @@ import subprocess
 import tomllib
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts import c64_slots
 from scripts import build_fes_c64_oss as producer
@@ -57,13 +58,13 @@ class BuildFesC64Tests(unittest.TestCase):
         self.assertIsNone(producer.execution_extra("HIP"))
         self.assertEqual(producer.execution_extra("CUDA"), {"CUDA_DEVICE_ORDER": "PCI_BUS_ID"})
         self.assertEqual(producer.gpu_choice("CUDA")[0], "cuda")
-        with unittest.mock.patch.dict(os.environ, {}, clear=False):
+        with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("FES_TOOLCHAIN_CUDA_ARCHITECTURES", None)
             self.assertEqual(
                 producer.gpu_choice("CUDA")[2],
                 "gpu-router=CUDA; hip-architectures=unused; cuda-architectures=86",
             )
-        with unittest.mock.patch.dict(os.environ, {"FES_TOOLCHAIN_CUDA_ARCHITECTURES": "89"}):
+        with patch.dict(os.environ, {"FES_TOOLCHAIN_CUDA_ARCHITECTURES": "89"}):
             self.assertEqual(
                 producer.gpu_choice("CUDA")[2],
                 "gpu-router=CUDA; hip-architectures=unused; cuda-architectures=89",
