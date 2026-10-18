@@ -146,7 +146,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-atari-st/sim/machine_tb.cpp': {'atari-st'},
             'cores/fes-c64/rtl/c64_system_pll.v': {'c64', 'atari-st'},
             'cores/fes-zx81/expansions/zonx_ay.v': {'zx81', 'atari-st'},
-            'cores/fes-ramtest/rtl/sdram_addon_port.v': {'ramtest', 'atari-st'},
+            'cores/fes-ramtest/rtl/sdram_addon_port.v': {'ramtest', 'atari-st', 'pcxt'},
             'cores/fes-pong/rtl/pixel_pll.v': {'demo', 'pong', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/riscv/fes_rv32_cpu.sv': {'riscv'},
             'cores/fes-pcxt/rtl/pcxt_isa_bridge.sv': {'pcxt'},

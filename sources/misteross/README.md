@@ -76,8 +76,10 @@ The PC/XT development slice runs an original diagnostic ROM on an 8088 CPU
 through a memory router, 8259 PIC, 8253 PIT, 8255 PPI and registered ISA probe cards.
 The integrated diagnostic handles timer, ISA and timed XT keyboard interrupts
 and generates speaker PCM. An original 8237A subset transfers ISA/RAM bytes
-and services PIT1 refresh with CPU LOCK/INTA arbitration; RAM/ROM storage
-remains external to the synthesizable fixture. Separate ISA CGA and MDA cards
+and services PIT1 refresh with CPU LOCK/INTA arbitration; the storage lane loads its
+firmware through a reset-only byte loader and boots the ISA display diagnostic
+through the existing physical SDRAM controller in host simulation. Board
+capture/pads and routed memory timing remain unqualified. Separate ISA CGA and MDA cards
 produce independently timed RGBI guest rasters in host simulation; fonts and
 board-level HDMI wiring remain external. A PC/XT frame adapter now feeds the
 existing shared RGB888 Direct/Scanlines effects in host simulation; the board

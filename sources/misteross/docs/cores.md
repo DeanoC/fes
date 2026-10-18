@@ -177,6 +177,12 @@ directions while refresh runs. Separate ISA CGA and MDA cards own VRAM,
 register decode and independently timed RGBI guest rasters. The display
 suite checks those rasters in host simulation; the display-machine suite
 boots a diagnostic ROM that programs both cards through the motherboard.
+The memory and memory-machine suites exercise the existing addon SDRAM
+controller at 100 MHz, reset-only firmware loading, byte preservation, reset
+cancellation, physical refresh and two 8088 ISA display boots without a second
+firmware load. `synth_fes_pcxt.py --suite memory --cache-root /absolute/cache`
+emits a diagnostic backend/controller netlist; capture/pads are external and
+its DDR clock primitive remains unmapped.
 This is a simulation family, not a package producer.
 Media, HID keyboard translation, production video output, physical socket
 routing and kit hardware acceptance remain open; no `build-fes-pcxt` target

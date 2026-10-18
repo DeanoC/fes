@@ -2125,7 +2125,10 @@ PIT and KF8255 PPI imports. The machine diagnostic receives timer, ISA and
 keyboard interrupts through the real two-INTA path and generates speaker PCM.
 Original 8237A-subset RTL adds DMA ownership, both memory/peripheral transfer
 halves, XT pages and PIT1-triggered refresh.
-Memory storage remains a testbench service. See the
+The storage lane connects conventional RAM and a reset-only 64 KiB firmware
+loader through the existing addon SDRAM controller. Its diagnostic loads and
+boots the 8088 display ROM through physical SDRAM commands, including a warm
+reboot without firmware reload; other fixtures retain independent storage models. See the
 [CPU import](../cores/fes-pcxt/vendor/mcl86/README.md) for provenance and limits.
 The shared `fes.fabric.pcxt-isa` 1.0 constants are generated from mister-packages;
 its [wire contract](../../mister-packages/docs/pcxt-isa.md) defines handshakes,
@@ -2239,7 +2242,18 @@ DOS image are later boot-test inputs; neither is bundled implicitly.
 
 The implemented byte router holds one accepted request through downstream
 completion. It suppresses system-ROM writes, routes the video/option windows
-to ISA, and leaves physical RAM/ROM storage external. Local PIC (`20–3F`, A0),
+to ISA, and exposes one byte storage port. `pcxt_memory.sv` connects that
+port to the unchanged addon SDRAM controller using its CAS-2 100 MHz rate-3
+path and one fabric stage after board input capture. Physical halfwords use
+guest byte addresses shifted right by one; DQM preserves the other byte.
+A separate reset-only loader writes the 64 KiB F0000 firmware window. The caller
+holds motherboard reset through initialization and the last loader DONE. Warm
+reset drains issued operations, suppresses stale CPU responses and preserves
+physical refresh; cold reset restarts initialization. Board capture registers,
+PLL phases, pads and routed setup/hold remain unqualified. See the
+[storage interface and tests](../cores/fes-pcxt/README.md#sdram-storage).
+
+Local PIC (`20–3F`, A0),
 PIT (`40–5F`, A1:0) and PPI (`60–7F`, A1:0) decode ignores A15:10. INTA selects
 the PIC independently of address. The adapter supplies one setup, eight active and nine release
 100 MHz clocks; address/CS remain stable through retirement of chip bus side
@@ -2279,8 +2293,8 @@ PIT1 edges latch DMA0 refresh until service starts; an edge during a delayed
 read can queue one further refresh. That latch output is the DREQ0 pin, so
 the command register's DREQ-sense bit applies to it with the external DRQ pins. Read mode performs a memory read without
 a DMA peripheral packet. This models guest-visible bus activity, not physical
-SDRAM retention. The eventual SDRAM controller must still refresh its own
-storage. Do not replace floppy DMA with BIOS-level interception.
+SDRAM retention. The storage backend separately refreshes its own
+SDRAM, including during warm reset. Do not replace floppy DMA with BIOS-level interception.
 
 The implemented PPI wrapper uses mode 0 (`99h`), with PA scan-code input,
 PB controls and PC equipment/status inputs. PB0 gates PIT2; PB1 ANDs PIT2 OUT

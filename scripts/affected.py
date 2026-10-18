@@ -114,6 +114,8 @@ def fpga_cores(path):
     parts = relative.parts
     if relative.as_posix() == 'cores/fes-pong/rtl/pixel_pll.v':
         return ('demo', 'pong', 'ramtest', 'riscv'), 'shared fixed-raster clock consumers'
+    if relative.as_posix() == 'cores/fes-ramtest/rtl/sdram_addon_port.v':
+        return ('ramtest', 'atari-st', 'pcxt'), 'shared SDRAM controller consumers'
     if relative.as_posix() in ATARI_ST_SHARED_INPUTS:
         original = CORE_DIRECTORIES.get(parts[1], CORES)
         return tuple(dict.fromkeys((*original, 'atari-st'))), 'shared ST motherboard input'
