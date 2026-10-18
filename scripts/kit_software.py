@@ -45,6 +45,7 @@ def build_go(snapshot, version, revision, env):
         ('mister-agent', 'arm', 'mister-agent-linux-armv7'),
         ('fogcast-kit', 'arm', 'fogcast-kit-linux-armv7'),
         ('fogcast-tenfoot', 'arm', 'fogcast-tenfoot-linux-armv7'),
+        ('fogcast-api', 'arm', 'fogcast-api-linux-armv7'),
         ('fes-kit-bundle', 'amd64', 'fes-kit-bundle-linux-amd64'),
     ):
         run(['go', 'build', '-buildvcs=false', '-trimpath', '-ldflags', flags,
@@ -201,7 +202,7 @@ def publish(root, base, base_sha, version, output):
         fogcast = snapshot / 'sources/FogCast'
         payload = Path(scratch) / 'payload'
         (payload / 'bin').mkdir(parents=True)
-        for name in ('mister-agent', 'fogcast-kit', 'fogcast-tenfoot'):
+        for name in ('mister-agent', 'fogcast-kit', 'fogcast-tenfoot', 'fogcast-api'):
             shutil.copyfile(fogcast / ('bin/' + name + '-linux-armv7'), payload / 'bin' / name)
         shutil.copyfile(image / 'build/software/runtime/build/mister-runtime', payload / 'bin/mister-runtime')
         shutil.copytree(image / 'buildroot/board/fogcast-target/native-rootfs-overlay/usr/share/fogcast',
