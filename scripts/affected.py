@@ -77,7 +77,7 @@ SHARED_RTL = {
     'fes_native_video_cart.v': ('coleco',),
     'coleco_vdp.sv': COLECO_CONSUMERS,
     'coleco_dpram.v': COLECO_CONSUMERS,
-    'coleco_video_dpram.v': COLECO_CONSUMERS,
+    'coleco_video_dpram.v': (*COLECO_CONSUMERS, 'pcxt'),
     'coleco_video_720p.v': COLECO_CONSUMERS,
     'fes_computer_gp.v': COLECO_CONSUMERS,
     'fes_application_gp.v': ('demo', 'coleco', 'menu', 'ramtest', 'riscv'),
@@ -89,8 +89,8 @@ SHARED_RTL = {
     'fes_z80_ce.sv': COLECO_CONSUMERS,
     'fes_computer_mailbox.v': ('apple2', 'c64', 'spectrum', 'atari-st', 'zx81'),
     't80pa.v': ('coleco', 'sms'),
-    'fes_video_part_direct.v': ('coleco', 'atari-st'),
-    'fes_video_part_scanlines.v': ('coleco', 'atari-st'),
+    'fes_video_part_direct.v': ('coleco', 'atari-st', 'pcxt'),
+    'fes_video_part_scanlines.v': ('coleco', 'atari-st', 'pcxt'),
 }
 # Apple II socket generator and card producer regenerate or build its RTL.
 APPLE2_SCRIPTS = frozenset({'apple2_slots.py', 'build_apple2_slot_card.py'})

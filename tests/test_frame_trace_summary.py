@@ -1,7 +1,9 @@
 import importlib.util
+import io
 import json
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -90,6 +92,125 @@ class FrameTraceSummaryTest(unittest.TestCase):
         self.assertEqual((moved["damaged"], moved["status_skipped"], moved["retried"]), (2, 2, 1))
         self.assertAlmostEqual(moved["staged_pixels"], (921600 + 3200 + 3200) / 3)
         self.assertIn("transport: damaged=2 status_skipped=2 retried=1", summary_tool.render(summary))
+
+    def test_after_keeps_the_tick_when_the_present_completes_in_the_next_dump(self):
+        # Dump taken after the tick was queued and before the worker wrote the present.
+        tick = {"t_us": 1000, "kind": "tick", "tick_us": 100, "queued": True, "seq": 7, "view": "library"}
+        previous = [{"t_us": 900, "kind": "input", "cmd": "left"}, tick]
+        present = {"t_us": 1050, "kind": "present", "seq": 7, "queued_t_us": 1040, "presented": True,
+                   "frame_copy_us": 10}
+        sliced = summary_tool.after(previous + [present], previous)
+        self.assertEqual([record["kind"] for record in sliced], ["tick", "present"])
+        self.assertTrue(sliced[0]["_join_only"])
+        summary = summary_tool.summarise(sliced)
+        self.assertEqual(summary["frames"], 1)
+        self.assertEqual(summary["inputs"], {})
+        self.assertAlmostEqual(summary["stages"]["total"]["p50"], 0.05)
+
+    def test_after_keeps_a_tick_appended_after_a_concurrent_present(self):
+        # The worker appends the present during the iteration. tick() then
+        # appends the tick with the iteration's earlier start time.
+        present = {"t_us": 1050, "kind": "present", "seq": 7, "queued_t_us": 1040, "presented": True}
+        tick = {"t_us": 1000, "kind": "tick", "tick_us": 100, "queued": True, "seq": 7, "view": "library"}
+        stepped = {"t_us": 400, "kind": "input", "cmd": "down"}
+        sliced = summary_tool.after([present, tick, stepped], [present])
+        self.assertEqual([record["kind"] for record in sliced], ["present", "tick", "input"])
+        self.assertTrue(sliced[0]["_join_only"])
+        summary = summary_tool.summarise(sliced)
+        self.assertEqual(summary["frames"], 1)
+        self.assertEqual([record["cmd"] for record in sliced if record["kind"] == "input"], ["down"])
+        self.assertEqual(summary["inputs"], {})
+
+    def test_after_keeps_new_records_when_the_clock_steps_backward(self):
+        previous = [
+            {"t_us": 1_000_000, "kind": "input", "cmd": "left"},
+            {"t_us": 1_000_100, "kind": "tick", "tick_us": 100, "queued": True, "seq": 1, "view": "library"},
+            {"t_us": 1_000_200, "kind": "present", "seq": 1, "queued_t_us": 1_000_150, "presented": True},
+        ]
+        fresh = [
+            {"t_us": 500_000, "kind": "input", "cmd": "right"},
+            {"t_us": 500_100, "kind": "tick", "tick_us": 1000, "lua_step_us": 1000, "queued": True,
+             "seq": 2, "view": "room:example"},
+            {"t_us": 500_200, "kind": "present", "seq": 2, "queued_t_us": 500_150, "presented": True},
+        ]
+        summary = summary_tool.summarise(summary_tool.after(previous + fresh, previous))
+        self.assertEqual(summary["frames"], 1)
+        self.assertEqual(summary["views"]["room:example"]["frames"], 1)
+        self.assertEqual(set(summary["inputs"]), {"right"})
+        self.assertAlmostEqual(summary["inputs"]["right"]["p50"], 0.2)
+
+    def test_after_uses_the_later_dump_when_the_ring_has_wrapped(self):
+        previous = [
+            {"t_us": 1_000_000, "kind": "tick", "queued": True, "seq": 1, "view": "library"},
+            {"t_us": 1_000_100, "kind": "present", "seq": 1, "queued_t_us": 1_000_050, "presented": True},
+        ]
+        later = [
+            {"t_us": 30, "kind": "input", "cmd": "right"},
+            {"t_us": 40, "kind": "tick", "queued": True, "seq": 9, "view": "library"},
+            {"t_us": 80, "kind": "present", "seq": 9, "queued_t_us": 50, "presented": True},
+        ]
+        self.assertEqual(summary_tool.after(later, previous), later)
+        summary = summary_tool.summarise(summary_tool.after(later, previous))
+        self.assertEqual(summary["frames"], 1)
+        self.assertEqual(set(summary["inputs"]), {"right"})
+
+    def test_after_drops_a_rotated_prefix_and_keeps_the_shared_tail(self):
+        dropped = {"t_us": 1, "kind": "input", "cmd": "up"}
+        tick = {"t_us": 2, "kind": "tick", "tick_us": 10, "queued": True, "seq": 4, "view": "library"}
+        present = {"t_us": 50, "kind": "present", "seq": 4, "queued_t_us": 40, "presented": True}
+        summary = summary_tool.summarise(summary_tool.after([tick, present], [dropped, tick]))
+        self.assertEqual(summary["frames"], 1)
+        self.assertEqual(summary["inputs"], {})
+
+    def test_after_matches_a_shared_tail_when_the_last_record_is_not_unique(self):
+        # The ring dropped the older A and then appended a new A, B. The last
+        # record of the earlier dump also occurs at the end of the later one.
+        old_a = {"t_us": 1, "kind": "input", "cmd": "a"}
+        old_b = {"t_us": 2, "kind": "input", "cmd": "b"}
+        new_a = {"t_us": 3, "kind": "input", "cmd": "a"}
+        new_b = {"t_us": 4, "kind": "input", "cmd": "b"}
+        self.assertEqual(summary_tool.after([old_b, new_a, new_b], [old_a, old_b]), [new_a, new_b])
+
+    def test_after_does_not_repeat_a_frame_already_in_the_earlier_dump(self):
+        tick = {"t_us": 100, "kind": "tick", "queued": True, "seq": 1, "view": "library"}
+        present = {"t_us": 200, "kind": "present", "seq": 1, "queued_t_us": 150, "presented": True}
+        added = {"t_us": 300, "kind": "input", "cmd": "right"}
+        previous = [tick, present]
+        self.assertEqual(summary_tool.after(previous, previous), [])
+        self.assertEqual(summary_tool.after(previous + [added], previous), [added])
+        self.assertEqual(summary_tool.summarise(summary_tool.after(previous + [added], previous))["frames"], 0)
+
+    def test_cli_after_isolates_the_second_interaction(self):
+        first = [
+            {"t_us": 1_000, "kind": "input", "cmd": "left"},
+            {"t_us": 1_100, "kind": "tick", "tick_us": 2000, "lua_step_us": 2000, "queued": True,
+             "seq": 1, "view": "library"},
+            {"t_us": 1_400, "kind": "present", "seq": 1, "queued_t_us": 1_200, "presented": True},
+        ]
+        second = [
+            {"t_us": 2_000, "kind": "input", "cmd": "right"},
+            {"t_us": 2_100, "kind": "tick", "tick_us": 3000, "lua_step_us": 3000, "queued": True,
+             "seq": 2, "view": "room:example"},
+            {"t_us": 2_500, "kind": "present", "seq": 2, "queued_t_us": 2_200, "presented": True},
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            previous = Path(tmp) / "dump-1.jsonl"
+            later = Path(tmp) / "dump-2.jsonl"
+            previous.write_text("".join(json.dumps(record) + "\n" for record in first))
+            later.write_text("".join(json.dumps(record) + "\n" for record in first + second))
+            whole = io.StringIO()
+            with redirect_stdout(whole):
+                self.assertEqual(summary_tool.main([str(later), "--json"]), 0)
+            interval = io.StringIO()
+            with redirect_stdout(interval):
+                self.assertEqual(summary_tool.main([str(later), "--after", str(previous), "--json"]), 0)
+        whole_summary = json.loads(whole.getvalue())
+        interval_summary = json.loads(interval.getvalue())
+        self.assertEqual(whole_summary["frames"], 2)
+        self.assertEqual(set(whole_summary["inputs"]), {"left", "right"})
+        self.assertEqual(interval_summary["frames"], 1)
+        self.assertEqual(set(interval_summary["inputs"]), {"right"})
+        self.assertEqual(interval_summary["views"]["room:example"]["frames"], 1)
 
 
 if __name__ == "__main__":

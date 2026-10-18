@@ -31,7 +31,15 @@ by the client and stored to DDR by the runtime per frame.
 Input-to-picture latency is measured from each input record to the first
 present that reached the screen and was queued at or after it.
 
-Usage: frame-trace-summary.py TRACE.jsonl [--json]
+Every dump holds the whole ring, so consecutive dumps overlap. --after
+PREVIOUS.jsonl keeps the records appended since that dump. The cut is the
+shared ring tail, matched by record identity, so a backward clock step still
+leaves new records in the interval. A tick and its present can fall on
+opposite sides of the cut; the earlier half is kept and the frame is counted
+in the interval where the pair becomes complete. Input metrics include only
+commands appended since the earlier dump.
+
+Usage: frame-trace-summary.py TRACE.jsonl [--after PREVIOUS.jsonl] [--json]
 """
 
 import argparse
@@ -47,6 +55,94 @@ STAGES = ["lua", "tick_other", "snapshot", "raster", "frame_copy", "queue", "sta
 def load(path):
     with open(path, encoding="utf-8") as handle:
         return [json.loads(line) for line in handle if line.strip()]
+
+
+def _identity(record):
+    return json.dumps(record, sort_keys=True, separators=(",", ":"))
+
+
+def _overlap_len(previous, records):
+    """How many leading records of `records` repeat the tail of `previous`.
+
+    The ring drops the oldest records and appends new ones, so the records
+    still shared are a suffix of the earlier dump and a prefix of the later
+    one. The border of `records + sentinel + previous` is that length. Zero
+    means the ring has wrapped past every shared record.
+    """
+    if not previous or not records:
+        return 0
+    prev_ids = [_identity(record) for record in previous]
+    rec_ids = [_identity(record) for record in records]
+    sentinel = object()
+    sequence = rec_ids + [sentinel] + prev_ids
+    border = [0] * len(sequence)
+    matched = 0
+    for index in range(1, len(sequence)):
+        while matched and sequence[index] != sequence[matched]:
+            matched = border[matched - 1]
+        if sequence[index] == sequence[matched]:
+            matched += 1
+        border[index] = matched
+    return border[-1]
+
+
+def _join_seq(record):
+    """Sequence of a tick that queued a frame, or of a non-probe present."""
+    if record.get("probe") or not record.get("seq"):
+        return None
+    kind = record.get("kind")
+    if kind == "present" or (kind == "tick" and record.get("queued")):
+        return record["seq"]
+    return None
+
+
+def _join_only(record):
+    marked = dict(record)
+    marked["_join_only"] = True
+    return marked
+
+
+def after(records, previous):
+    """Interval since an earlier dump of the same ring.
+
+    The cut is the shared tail, matched by record identity. `t_us` is Unix
+    wall-clock microseconds, so a clock step backward must still leave the
+    appended records in the interval. When the dumps share nothing, the ring
+    has wrapped and the whole later dump is the interval.
+
+    The tick is appended when the iteration finishes and carries the
+    iteration's start time. The present is appended when the display worker
+    finishes, which can be before that tick is written. Whichever half is
+    already in the earlier dump is kept, marked `_join_only`, so the pair
+    joins once: in the interval where both records are on disk. Input metrics
+    skip those join records and include only commands appended since the dump.
+    """
+    if not previous:
+        return list(records)
+    overlap = _overlap_len(previous, records)
+    if overlap == 0:
+        return list(records)
+    fresh = list(records[overlap:])
+    fresh_present = set()
+    fresh_tick = set()
+    for record in fresh:
+        seq = _join_seq(record)
+        if seq is None:
+            continue
+        if record.get("kind") == "present":
+            fresh_present.add(seq)
+        else:
+            fresh_tick.add(seq)
+    kept = []
+    for record in records[:overlap]:
+        seq = _join_seq(record)
+        if seq is None:
+            continue
+        if record.get("kind") == "tick" and seq in fresh_present:
+            kept.append(_join_only(record))
+        elif record.get("kind") == "present" and seq in fresh_tick:
+            kept.append(_join_only(record))
+    return kept + fresh
 
 
 def _latest_presents(records):
@@ -117,12 +213,20 @@ def frames(records):
 
 
 def latencies(records):
-    """Input command -> ms until the first on-screen present queued at or after it."""
-    presents = sorted((r for r in records if r.get("kind") == "present" and r.get("presented") and not r.get("probe")),
+    """Input command -> ms until the first on-screen present queued at or after it.
+
+    A record kept only to finish a frame that straddles two dumps is not an
+    input, and its present is not a picture for this interval.
+    """
+    def in_interval(record):
+        return not record.get("_join_only")
+
+    presents = sorted((r for r in records if in_interval(r) and r.get("kind") == "present"
+                       and r.get("presented") and not r.get("probe")),
                       key=lambda r: r.get("queued_t_us", 0))
     out = defaultdict(list)
     for record in records:
-        if record.get("kind") != "input":
+        if record.get("kind") != "input" or not in_interval(record):
             continue
         for present in presents:
             if present.get("queued_t_us", 0) >= record["t_us"]:
@@ -216,9 +320,14 @@ def render(summary):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("trace")
+    parser.add_argument("--after", metavar="PREVIOUS",
+                        help="keep the interval since the earlier dump PREVIOUS")
     parser.add_argument("--json", action="store_true", help="print the summary as JSON")
     args = parser.parse_args(argv)
-    summary = summarise(load(args.trace))
+    records = load(args.trace)
+    if args.after:
+        records = after(records, load(args.after))
+    summary = summarise(records)
     print(json.dumps(summary, indent=2) if args.json else render(summary))
     return 0
 

@@ -160,8 +160,8 @@ class AffectedTests(unittest.TestCase):
             'scripts/fetch_atari_st_emutos.py': {'atari-st'},
             'cores/fes-common/rtl/fx68k/fx68k.sv': {'atari-st'},
             'cores/fes-common/rtl/fx68k/microrom.mem': {'atari-st'},
-            'cores/fes-common/rtl/fes_video_part_direct.v': {'coleco', 'atari-st'},
-            'cores/fes-common/rtl/fes_video_part_scanlines.v': {'coleco', 'atari-st'},
+            'cores/fes-common/rtl/fes_video_part_direct.v': {'coleco', 'atari-st', 'pcxt'},
+            'cores/fes-common/rtl/fes_video_part_scanlines.v': {'coleco', 'atari-st', 'pcxt'},
             'scripts/test_fes_z80_pin_trace.py': {'z80'},
             'scripts/sim_fes_spectrum_turbo.py': {'spectrum'},
         }
