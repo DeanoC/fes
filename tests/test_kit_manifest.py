@@ -557,7 +557,7 @@ class KitManifestTests(unittest.TestCase):
         self.assertIn('UNVERIFIED', first.stdout)
         snapshot = home / '.local/state/fes-kit/fes-kit-drift/A.json'
         self.assertTrue(snapshot.is_file(), first.stdout)
-        self.assertNotIn('/home/deano', str(snapshot))
+        self.assertTrue(snapshot.is_relative_to(self.work), snapshot)
         self.assertFalse((self.work / 'manual-tmp').exists())
         (self.root / PATHS['mister-agent']).write_bytes(b'hand-made')
         shared = self.fes('watch', '--once', '--kits', 'A', env=manual)

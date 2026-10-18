@@ -1,6 +1,7 @@
 import importlib.util
 import os
 from pathlib import Path
+import shlex
 import shutil
 import struct
 import subprocess
@@ -20,14 +21,16 @@ REPO = Path(__file__).resolve().parents[1]
 def selected_go():
     """The go binary FES selects, not whatever is first on PATH.
 
-    The FogCast go.mod pins its toolchain; GOTOOLCHAIN=auto resolves it. The
-    test then runs that binary with GOTOOLCHAIN=local, so a host whose
-    system Go is older than the fixture's go line still exercises the real
-    build instead of failing on the version gate.
+    The FogCast go.mod pins its toolchain. The probe forces GOTOOLCHAIN=auto
+    so an inherited GOTOOLCHAIN=local cannot keep an older system Go. The
+    test then runs that binary with GOTOOLCHAIN=local, satisfying the
+    fixture's go line with the selected toolchain.
     """
     try:
-        root = subprocess.check_output(['go', 'env', 'GOROOT'], cwd=REPO / 'sources/FogCast',
-                                       text=True, stderr=subprocess.PIPE).strip()
+        root = subprocess.check_output(
+            ['go', 'env', 'GOROOT'], cwd=REPO / 'sources/FogCast',
+            env=dict(os.environ, GOTOOLCHAIN='auto'),
+            text=True, stderr=subprocess.PIPE).strip()
     except (OSError, subprocess.CalledProcessError) as exc:
         raise AssertionError(f'cannot resolve the FogCast Go toolchain: {exc}') from exc
     go = Path(root) / 'bin' / 'go'
@@ -129,6 +132,40 @@ class ModuleSourcesTest(unittest.TestCase):
                 self.assertEqual(header[:4], b'\x7fELF')
                 self.assertEqual(struct.unpack('<H', header[18:20])[0], machine)
         self.assertEqual(library.read_text(), 'this uncommitted sibling is not valid Go\n')
+
+    @unittest.skipUnless(shutil.which('go'), 'Go required for toolchain selection')
+    def test_selected_go_ignores_inherited_gotoolchain_local(self):
+        real = shutil.which('go')
+        bindir = self.root / 'old-go' / 'bin'
+        bindir.mkdir(parents=True)
+        fake = bindir / 'go'
+        fake.write_text(
+            '#!/bin/sh\n'
+            'if [ "$1" = env ] && [ "$2" = GOROOT ] && [ "$GOTOOLCHAIN" = local ]; then\n'
+            '  cd "$(dirname "$0")/.." && pwd\n'
+            '  exit 0\n'
+            'fi\n'
+            f'exec {shlex.quote(real)} "$@"\n')
+        fake.chmod(0o755)
+        previous_path = os.environ.get('PATH')
+        previous_toolchain = os.environ.get('GOTOOLCHAIN')
+
+        def restore():
+            if previous_path is None:
+                os.environ.pop('PATH', None)
+            else:
+                os.environ['PATH'] = previous_path
+            if previous_toolchain is None:
+                os.environ.pop('GOTOOLCHAIN', None)
+            else:
+                os.environ['GOTOOLCHAIN'] = previous_toolchain
+
+        self.addCleanup(restore)
+        os.environ['PATH'] = str(bindir) + os.pathsep + (previous_path or '')
+        os.environ['GOTOOLCHAIN'] = 'local'
+        chosen = Path(selected_go())
+        self.assertNotEqual(chosen.resolve(), fake.resolve())
+        self.assertTrue(chosen.is_file(), chosen)
 
     def test_module_staged_unstaged_and_untracked_changes_are_rejected(self):
         for kind in ("unstaged", "staged", "untracked"):
