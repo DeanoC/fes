@@ -2276,7 +2276,8 @@ retrying a committed device operation. Reset cancels pending work but does not
 undo completed writes or peripheral reads.
 
 PIT1 edges latch DMA0 refresh until service starts; an edge during a delayed
-read can queue one further refresh. Read mode performs a memory read without
+read can queue one further refresh. That latch output is the DREQ0 pin, so
+the command register's DREQ-sense bit applies to it with the external DRQ pins. Read mode performs a memory read without
 a DMA peripheral packet. This models guest-visible bus activity, not physical
 SDRAM retention. The eventual SDRAM controller must still refresh its own
 storage. Do not replace floppy DMA with BIOS-level interception.
