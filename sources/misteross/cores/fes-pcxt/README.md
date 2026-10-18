@@ -8,7 +8,8 @@ PIC, 8253 PIT, 8255 PPI, XT keyboard byte transport and speaker PCM, and a trans
 HID keyboard frontend, disk controller, BIOS, physical socket map or package producer.
 It cannot boot DOS or PC/XT games yet. The storage lane connects conventional RAM and firmware to the existing
 addon SDRAM controller and boots the display diagnostic through its physical
-command interface in host simulation. Board pads and clock phases remain unqualified.
+command interface in host simulation. The CGA Direct board diagnostic has
+passing routed internal clocks; SDRAM pad timing and hardware remain unqualified.
 
 ## SDRAM storage
 
@@ -309,6 +310,25 @@ A route is diagnostic: SDRAM pad setup/hold, retention,
 physical containment, package sealing and hardware acceptance require separate
 qualification. There is no automatic Quartus fallback or kit programming.
 No factory package selection or shared contract changes are made.
+
+The CGA Direct build from committed `6df7e982d6e72e6d9d172d56d5a12e5899f46ad5`
+passes final analogue setup and hold with the pinned native-HIP tools and the
+unchanged constraints above. It uses 6,280 routed `MISTRAL_COMB` cells, 3,628 FFs,
+333 of 553 M10Ks, two PLLs and no DSPs. Its retained run is
+`build/diagnostic/fes-pcxt/cga/direct/20261018T204544Z-89efeae9/`.
+
+| Domain | Required MHz | Achieved MHz | Setup WNS ns | Hold WNS ns |
+| --- | ---: | ---: | ---: | ---: |
+| System | 100 | 100.412 | +0.041 | +0.756 |
+| Pixel | 74.25 | 78.119 | +0.667 | +0.721 |
+| Capture/ROM phase | 100 | 119.190 | +0.805 | +5.940 |
+
+RBF SHA-256: `92277530eeb51924e54ed57e231f34aac7fee0c362086294757c7ed1922820d3`.
+Timing-report SHA-256: `195393ce0ed5591951a48ae8f5b68a555861c9c4c301cd328f5083a0e37ea751`.
+The receipt records clean source inputs and the HIP backend; all input hashes
+match this source revision. The narrow system margin qualifies this exact
+artifact only. Other display profiles, SDRAM pad timing/retention, package
+sealing and hardware acceptance remain open.
 
 Both system suites run in the default simulation family. They check interrupted
 cold loading, a pause near the end of loading, reset during an issued CPU

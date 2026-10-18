@@ -271,8 +271,10 @@ PC/XT is outside the factory/package set. Its assembled 8088, motherboard,
 SDRAM, ISA CGA/MDA and one Direct/Scanlines pipeline have host simulation
 coverage, including DMA and refresh. The autonomous diagnostic board builder
 supplies PLL/reset, SDRAM capture/pads and HDMI, with separate retained attempts
-under `sources/misteross/build/diagnostic/fes-pcxt/`. Routed timing, SDRAM pad
-qualification, physically linkable ISA cards, a runtime ABI/sealed package,
+under `sources/misteross/build/diagnostic/fes-pcxt/`. The CGA Direct diagnostic
+at `6df7e982` passes final native routed setup/hold at 100 MHz system/phase
+and 74.25 MHz pixel clocks; system setup margin is 0.041 ns. Other profiles,
+SDRAM pad qualification, physically linkable ISA cards, a runtime ABI/sealed package,
 BIOS/DOS/game compatibility and hardware acceptance remain open. See the
 [PC/XT diagnostic guide](../sources/misteross/cores/fes-pcxt/README.md#assembled-board-diagnostic).
 

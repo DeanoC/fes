@@ -576,10 +576,11 @@ MHz machine clock to the 74.25 MHz output clock. It reports an overrun as an
 invalid token and retains the latest undelivered HOLD control. The generic
 `fes_native_video.v` owns packed double-buffer capture, complete-frame
 publication at output frame boundaries, centered 2x scaling, and optional
-scanlines. The scanout registers the packed read address before distributed M10K fanout,
-then registers each 64 KiB bank's local RAM read before bank/palette selection.
-This removes the global three-bank read mux from the RAM-to-register path.
-Bank/subpixel/raster fields carry matching latency, preserving pixel timing. Source pauses repeat the last complete frame. HOLD keeps HDMI
+scanlines. Its packed RAM read address is combinational; scanout registers the
+returned pixel and matching raster metadata. The separate PC/XT adapter uses
+three banks and registers both the packed address and each bank's local RAM
+read before bank/palette selection, with matching metadata latency.
+Source pauses repeat the last complete frame. HOLD keeps HDMI
 timing running, mutes RGB and aborts incoming/pending frames.
 
 `make sim-fes-native-video` exercises the consumer and clock crossing;

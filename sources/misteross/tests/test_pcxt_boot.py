@@ -27,13 +27,19 @@ module tb;
     function [7:0] expected(input integer index);
         expected = 8'(index ^ (index >> 8));
     endfunction
+    // Observe before nonblocking updates, just as the receiving port does.
+    // This catches a stale first offer even when load() resumes after a later
+    // edge, by which time a delayed ROM read could have corrected its output.
+    always @(posedge clk)
+        if (!cold_reset && valid && data !== expected(int'(address)))
+            $fatal(1, "stale data at receiver edge: address=%h data=%h", address, data);
     task load(input integer limit);
         for (integer i = 0; i < limit; i++) begin
             enable = (i % 7 != 0);
             repeat (2) tick();
             enable = 1;
             while (!valid) tick();
-            // No stale read may be offered, including on the first valid edge.
+            // Also check the offered address and stability between accepts.
             if (address != 16'(i) || data != expected(i)) $fatal(1, "offer %d", i);
             repeat (i % 5) begin
                 tick();
