@@ -170,8 +170,8 @@ the first seed that meets every clock at analogue signoff.
 `qor-ranking.json` lists the seeds it tried, and `build-summary.json`
 records the winning seed.
 
-For the 130 MHz timing diagnostic, use the shared toolchain and run the
-paired seed-2 routes:
+For the 130 MHz timing diagnostic, provision the per-core RAM Tester toolchain
+and run the paired seed-2 routes:
 
 ```sh
 make toolchain-fes-ramtest
@@ -193,8 +193,9 @@ clock maxima and no final reported hold violations. A completed HIP route is
 reported even below 130 MHz; `passing` records whether all three frequency
 constraints were met. The hold screen covers final nextpnr warnings, not the
 full package evidence or hardware acceptance. The diagnostic RBF is not a
-sealed package. The normal 100 and 130 MHz package builds keep the shared
-`toolchain.lock` and their signoff gate. The historical 116.918 MHz route
+sealed package. The normal 100 and 130 MHz package builds use
+`cores/fes-ramtest/toolchain.lock` and keep their signoff gate. The historical
+116.918 MHz route
 also used two opt-in,
 cell-name-specific probes. Those probes no longer match the current RTL and
 remain disabled here; 116.918 MHz is not a result for the current source.
