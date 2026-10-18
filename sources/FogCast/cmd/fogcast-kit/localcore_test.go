@@ -8,6 +8,7 @@ import (
 
 	"github.com/DeanoC/FogCast/internal/input"
 	"github.com/DeanoC/FogCast/internal/misterruntime"
+	"github.com/DeanoC/FogCast/internal/testsock"
 	"github.com/DeanoC/FogCast/ui/kitlauncher"
 )
 
@@ -107,7 +108,7 @@ func TestRuntimeMenuIdleRequiresCompletedIdleMenu(t *testing.T) {
 }
 
 func TestProbeRuntimeCoreReadsIdleStatus(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "runtime.sock")
+	path := testsock.Path(t, "runtime.sock")
 	ln, err := net.Listen("unix", path)
 	if err != nil {
 		t.Fatal(err)
