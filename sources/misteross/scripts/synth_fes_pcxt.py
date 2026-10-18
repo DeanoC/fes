@@ -57,8 +57,7 @@ def main():
     sources = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in inputs}
     output.mkdir(parents=True, exist_ok=True)
     if args.suite in ('cpu', 'machine'):
-        (output / 'mcl86_ucode.mem').write_bytes((ROOT / 'cores/fes-pcxt/vendor/mcl86/mcl86_ucode.mem',
-                  'scripts/sim_fes_pcxt.py', 'scripts/synth_fes_pcxt.py').read_bytes())
+        cpu_roms(output)
     top = 'pcxt_video_output' if args.suite.startswith('video-') else args.suite + '_top'
     if args.suite == 'memory':
         top = 'pcxt_memory'

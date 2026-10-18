@@ -128,3 +128,65 @@ class CounterEquivalenceTest(unittest.TestCase):
             result = subprocess.run([YOSYS, '-Q', '-p', command], cwd=work,
                                     capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_terminal_flags_preserve_next_count_period_and_mode2_output(self):
+        vendor = CORE / 'vendor/kf8253'
+        source = (vendor / 'KF8253_Counter.sv').read_text()
+        logic = source[source.index('    wire preset_zero ='):source.index('    // Update Count')]
+        # Freshness at consumption is proved separately above. Here supply
+        # exact candidates and prove the real mux/flag equations for arbitrary
+        # counts, presets and controls, including all non-decimal BCD patterns.
+        fixture = (vendor / 'KF8253_Definitions.svh').read_text() + r"""
+          module proof(input [16:0] count, count_preset_load,
+            input [2:0] select_mode,
+            input select_bcd, counter_gate, load_edge, gate_edge,
+                  first_count_edge, counter_out, output ok);
+        """ + REFERENCE + r"""
+          wire [16:0] dec_count = reference_decrement(count, select_bcd);
+          wire [16:0] dec2_count = reference_decrement(dec_count, select_bcd);
+          wire count_zero_q = count == 0;
+          wire count_le_one_q = count <= 1;
+          wire count_le_two_q = count <= 2;
+          wire count_le_three_q = count <= 3;
+          wire count_two_q = count == 2;
+          reg [16:0] count_next, expected_next;
+          reg count_period, expected_period;
+        """ + logic + r"""
+          always_comb begin
+            expected_next = dec_count;
+            expected_period = 0;
+            casez (select_mode)
+              `KF8253_CONTROL_MODE_0, `KF8253_CONTROL_MODE_4: begin
+                if (!counter_gate) expected_next = count;
+                if (load_edge) expected_next = count_preset_load;
+              end
+              `KF8253_CONTROL_MODE_1, `KF8253_CONTROL_MODE_5:
+                if (gate_edge) expected_next = count_preset_load;
+              `KF8253_CONTROL_MODE_2: begin
+                if (!counter_gate) expected_next = count;
+                if (expected_next == 0) expected_next = count_preset_load;
+                if (gate_edge) expected_next = count_preset_load;
+              end
+              `KF8253_CONTROL_MODE_3: begin
+                if (count[0]) begin
+                  if (!counter_out) expected_next = {dec2_count[16:1], 1'b0};
+                end else expected_next = dec2_count;
+                if (!counter_gate) expected_next = count;
+                if (expected_next == 0) begin
+                  expected_period = !first_count_edge;
+                  expected_next = count_preset_load;
+                end
+                if (gate_edge) expected_next = count_preset_load;
+              end
+              default: begin end
+            endcase
+            if (expected_next == 0) expected_period = 1;
+          end
+          // Mode-2 output consults the one flag only while the gate is high.
+          assign ok = count_next == expected_next &&
+                      count_period == expected_period &&
+                      (!((select_mode & 3) == 2 && counter_gate) ||
+                       mode2_next_one == (expected_next == 1));
+          endmodule
+        """
+        self.prove(fixture)

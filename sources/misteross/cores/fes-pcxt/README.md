@@ -584,6 +584,8 @@ files beneath `build/synth/fes-pcxt/cpu/`. The machine variant adds the
 motherboard/PIC/PIT/PPI, DMA/refresh, keyboard serializer and speaker under
 `build/synth/fes-pcxt/machine/`. The receipt records the locked compiler identity
 and mapped cell counts.
+Both CPU and machine synthesis regenerate the original microcode and its
+derived operand-select ROM through the same verified helper as simulation.
 The display variant synthesizes both ISA cards, their VRAM and the registered
 backplane into `build/synth/fes-pcxt/display/`, with external font ROM inputs.
 None of these variants synthesizes the testbench RAM or diagnostic system ROM.
