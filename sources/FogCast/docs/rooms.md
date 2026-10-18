@@ -385,7 +385,11 @@ An older agent omits `inputs`.
 
 `hardware.read(function(snapshot, err) ... end)` asynchronously returns
 `machines` and `session`, plus `session_error` when the running state is
-unavailable. Machines expose `game_id`, `title`, `core_id`, `package_id`,
+unavailable. `expansion_selection` is present when the host advertises
+whether this listener accepts the single-entry next-start save. It is
+separate from socket and card readiness. False means inspect only. An
+omitted field is an older host: a paired kit projects false, and an
+unpaired host keeps the existing save. Machines expose `game_id`, `title`, `core_id`, `package_id`,
 `package_ready`, `firmware_ready`, `ready`, `unavailable_reason`,
 `draft_expansion_id`, `socket = {id, label, supported}`, and
 `choices = {{expansion_id, label, description, ready, unavailable_reason}}`.

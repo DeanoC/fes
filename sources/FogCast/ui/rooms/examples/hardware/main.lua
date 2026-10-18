@@ -490,14 +490,19 @@ local function picture(part)
   text(c and c.label or "Empty socket",620,248,22,C.ink,476,true)
   lines(c and c.description or "Choose an expansion on the shelf. The host checks that it fits this exact machine.",620,278,470,15,2,C.muted)
   if c and not c.ready then text(c.unavailable_reason,620,318,14,C.ink,476,true) end
-  local can_edit=machine and machine.socket.supported and not stale and not loading and not saving
+  -- expansion_selection is this listener's save permission. Content
+  -- readiness stays on the socket and the card. An omitted field is an
+  -- older unpaired host and keeps the existing save.
+  local save_here=not data or data.expansion_selection ~= false
+  local can_edit=machine and machine.socket.supported and save_here and not stale and not loading and not saving
   local fit=c and c.ready and c.expansion_id ~= saved_id
   button("fit","Fit & save setup",620,338,300,40,can_edit and fit,function() save(inspected) end,true)
   button("remove","Remove & save",932,338,164,40,can_edit and saved_id ~= "",function() inspected="" save("") end)
   rect(620,388,476,52,C.warm)
   rect(620,388,5,52,C.warm_edge)
-  text(pending() and "Restart needed: the running machine still uses its old setup." or "Changing the setup needs a restart.",634,394,15,C.ink,456,true)
-  text("Stopping clears memory. Saving a setup never saves RAM.",634,416,15,C.ink,456)
+  local readonly=data and data.expansion_selection == false
+  text(readonly and "Inspect only. Save Next start on the host computer." or (pending() and "Restart needed: the running machine still uses its old setup." or "Changing the setup needs a restart."),634,394,15,C.ink,456,true)
+  text(readonly and "Open the ZX81 Workshop there and choose Fit & save." or "Stopping clears memory. Saving a setup never saves RAM.",634,416,15,C.ink,456)
   end
   if part == "upper" then return end
 
@@ -521,7 +526,9 @@ local function picture(part)
       if item.in_progress then card_status="In progress · "..card_status end
       text(card_status,x+50,514,13,C.muted,180)
       hit(id,x,480,238,62)
-      controls[#controls+1]={id=id,x=x+119,y=511,enabled=true,fn=function() inspected=item.expansion_id message=item.ready and "Previewing. Choose Fit & save setup to use it at the next start." or item.unavailable_reason remember() end}
+      local preview_note="Previewing. Choose Fit & save setup to use it at the next start."
+      if data and data.expansion_selection == false then preview_note="Previewing. This kit cannot save it." end
+      controls[#controls+1]={id=id,x=x+119,y=511,enabled=true,fn=function() inspected=item.expansion_id message=item.ready and preview_note or item.unavailable_reason remember() end}
     end
   end
   if #choices == 0 then

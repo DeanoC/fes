@@ -20,7 +20,17 @@ func (s roomServices) Hardware(ctx context.Context) (hostclient.HardwareSnapshot
 	if s.client == nil {
 		return hostclient.HardwareSnapshot{}, fmt.Errorf("host API is unavailable")
 	}
-	return s.client.Hardware(ctx)
+	snap, err := s.client.Hardware(ctx)
+	if err != nil {
+		return snap, err
+	}
+	if snap.ExpansionSelection == nil {
+		// Older hosts omit the advertisement. A paired kit must not offer a
+		// save the listener will reject. An unpaired host keeps saving.
+		allowed := !s.client.paired
+		snap.ExpansionSelection = &allowed
+	}
+	return snap, nil
 }
 
 func (s roomServices) SelectCoreEntryExpansion(ctx context.Context, gameID, packageID, expectedID, expansionID string) (hostclient.CoreEntryExpansion, error) {

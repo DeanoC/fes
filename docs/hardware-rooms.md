@@ -102,6 +102,10 @@ not optimistically stopped or ejected.
 operation. It requires the exact `package_id`, `expected_expansion_id` and new
 `expansion_id` (empty removes). The host verifies the immutable expansion
 against the selected shell and compares the old selection before writing.
+`GET /api/v1/library/hardware` advertises that write as `expansion_selection`.
+The paired launcher admits this one PUT after the bearer and paired-target
+checks and forwards the body unchanged. It does not admit slot writes,
+presentation edits, other library writes, or a different foreground target.
 Stale clients refresh instead of overwriting another client's setup. A failed
 or ambiguous save is not replayed by the room.
 
@@ -127,7 +131,12 @@ path.
 
 The sandbox exposes `hardware.read(callback)` and
 `hardware.select_expansion(selection, callback)` through optional typed
-services. `hardware.setup()`, `hardware.open_tapes(selection)` and
+services. The snapshot's `expansion_selection` is save permission and is
+separate from socket or card readiness. An explicit false keeps the shelf
+inspectable and tells the operator to save Next start on the host computer's
+ZX81 Workshop. An omitted field means an older host: a paired kit treats it
+as read-only, and an unpaired host keeps the existing save.
+`hardware.setup()`, `hardware.open_tapes(selection)` and
 `hardware.import_expansion(selection)` dispatch typed launcher actions. Lua has
 no network API. `GET /api/v1/library/zx81-tapes` lists starter metadata;
 `POST /api/v1/library/zx81-tapes/{tape_id}/import` imports only that exact embedded
@@ -143,8 +152,9 @@ the existing kit lease. The runtime admits immutable full frames only while the
 plane is open and revokes their separate display generation on close, replacement
 or Stop. A display fault disables only that plane; idle recovery cannot replace
 the running core. Paired launchers have access to hardware/starter reads, exact
-starter imports, tape imports of 1..16384 bytes and captured live operations;
-next-start library writes and host filesystem settings remain host operations.
+starter imports, tape imports of 1..16384 bytes, captured live operations, and
+the single-entry next-start expansion PUT. Other library writes and host
+filesystem settings remain host operations.
 
 ## Design provenance and next families
 
