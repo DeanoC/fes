@@ -1,5 +1,6 @@
 """GPU lease behavior with a private directory and fake device ids."""
 import json
+import io
 import os
 from pathlib import Path
 import signal
@@ -11,6 +12,7 @@ import tempfile
 import textwrap
 import time
 import unittest
+from contextlib import redirect_stderr
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,7 +50,8 @@ class GpuLeaseTests(unittest.TestCase):
         base = os.environ.copy()
         for key in ('GPU_LEASE_DIR', 'GPU_LEASE_IDS', 'GPU_LEASE_VENDOR',
                     'GPU_LEASE_MAX_PER_OWNER', 'HIP_VISIBLE_DEVICES',
-                    'ROCR_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES', 'FES_GPU_IDS'):
+                    'ROCR_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES', 'FES_GPU_IDS',
+                    'GPU_RUN_DEVICE', 'GPU_RUN_EXPECTED_DEVICE', 'NEXTPNR_REQUIRE_GPU'):
             base.pop(key, None)
         base['GPU_LEASE_DIR'] = str(self.lease)
         base['GPU_LEASE_IDS'] = '0,1'
@@ -117,6 +120,11 @@ class GpuLeaseTests(unittest.TestCase):
             (0, 'simd_count 0\ndrm_render_minor 128\n'),
             (1, 'simd_count 120\ndrm_render_minor 129\n'),
         ]), ['0'])
+        self.assertEqual(gpu_lease.render_nodes_from_kfd_nodes([
+            (0, 'simd_count 0\ndrm_render_minor 128\n'),
+            (1, 'simd_count 120\ndrm_render_minor 129\n'),
+            (2, 'simd_count 80\ndrm_render_minor 130\n'),
+        ]), {'0': '129', '1': '130'})
         self.assertEqual(gpu_lease.DEFAULT_LEASE_DIR, '/var/tmp/gpu-leases')
         self.assertIsNotNone(gpu_lease.process_starttime(os.getpid()))
         self.assertIsNone(gpu_lease.process_starttime(2 ** 30))
@@ -132,7 +140,10 @@ class GpuLeaseTests(unittest.TestCase):
         code = ('import os; print(os.environ.get("CUDA_VISIBLE_DEVICES", "unset"));'
                 'print(os.environ.get("HIP_VISIBLE_DEVICES", "unset"));'
                 'print(os.environ.get("ROCR_VISIBLE_DEVICES", "unset"));'
-                'print(os.environ["FES_GPU_IDS"])')
+                'print(os.environ["FES_GPU_IDS"]);'
+                'print(os.environ["GPU_RUN_DEVICE"]);'
+                'print(os.environ["GPU_RUN_EXPECTED_DEVICE"]);'
+                'print(os.environ["NEXTPNR_REQUIRE_GPU"])')
         nvidia = self.env(GPU_LEASE_IDS='', GPU_LEASE_VENDOR='')
         nvidia.pop('GPU_LEASE_IDS')
         nvidia.pop('GPU_LEASE_VENDOR')
@@ -140,14 +151,84 @@ class GpuLeaseTests(unittest.TestCase):
         nvidia['LIST'] = NVIDIA_LIST
         completed = self.run_tool(GPU_RUN, ['--no-wait', '--', sys.executable, '-c', code], env=nvidia)
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertEqual(completed.stdout.splitlines(), ['0', 'unset', 'unset', '0'])
+        self.assertEqual(completed.stdout.splitlines(), [
+            '0', 'unset', 'unset', '0', '0', '/dev/nvidia0', '1',
+        ])
 
         (binary / 'nvidia-smi').write_text('#!/bin/sh\nexit 1\n')
         amd = dict(nvidia)
         amd['LIST'] = ROCM_SHOW
         completed = self.run_tool(GPU_RUN, ['--no-wait', '--gpus', '2', '--', sys.executable, '-c', code], env=amd)
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertEqual(completed.stdout.splitlines(), ['unset', '0,1', '0,1', '0,1'])
+        lines = completed.stdout.splitlines()
+        self.assertEqual(lines[:5], ['unset', 'unset', '0,1', '0,1', '0'])
+        self.assertTrue(lines[5].startswith('/dev/dri/renderD') or lines[5] == 'amd:0')
+        self.assertEqual(lines[6], '1')
+
+    def test_child_env_uses_one_mask_and_logical_zero_for_each_backend(self):
+        with patch.dict(os.environ, {
+                'HIP_VISIBLE_DEVICES': '77',
+                'ROCR_VISIBLE_DEVICES': '88',
+                'CUDA_VISIBLE_DEVICES': '99',
+        }, clear=False):
+            hip = gpu_lease.child_env('amd', ['1'], '/dev/dri/renderD129')
+            self.assertNotIn('HIP_VISIBLE_DEVICES', hip)
+            self.assertNotIn('CUDA_VISIBLE_DEVICES', hip)
+            self.assertEqual(hip['ROCR_VISIBLE_DEVICES'], '1')
+            self.assertEqual(hip['FES_GPU_IDS'], '1')
+            self.assertEqual(hip['GPU_RUN_DEVICE'], '0')
+            self.assertEqual(hip['GPU_RUN_EXPECTED_DEVICE'], '/dev/dri/renderD129')
+            self.assertEqual(hip['NEXTPNR_REQUIRE_GPU'], '1')
+
+            cuda = gpu_lease.child_env('nvidia', ['1'], '/dev/nvidia1')
+            self.assertNotIn('HIP_VISIBLE_DEVICES', cuda)
+            self.assertNotIn('ROCR_VISIBLE_DEVICES', cuda)
+            self.assertEqual(cuda['CUDA_VISIBLE_DEVICES'], '1')
+            self.assertEqual(cuda['FES_GPU_IDS'], '1')
+            self.assertEqual(cuda['GPU_RUN_DEVICE'], '0')
+            self.assertEqual(cuda['GPU_RUN_EXPECTED_DEVICE'], '/dev/nvidia1')
+            self.assertEqual(cuda['NEXTPNR_REQUIRE_GPU'], '1')
+
+    def _fake_process(self, proc_root, pid, command, children='', fds=()):
+        task = proc_root / str(pid) / 'task' / str(pid)
+        task.mkdir(parents=True)
+        (task / 'children').write_text(children)
+        (proc_root / str(pid) / 'cmdline').write_bytes(command.replace(' ', '\0').encode())
+        fd_dir = proc_root / str(pid) / 'fd'
+        fd_dir.mkdir()
+        for number, target in enumerate(fds, 3):
+            os.symlink(target, fd_dir / str(number))
+
+    def test_fallback_detection_checks_nextpnr_tree_and_leased_device_nodes(self):
+        proc_root = self.root / 'proc'
+        self._fake_process(proc_root, 100, '/bin/bash replay.sh', children='101')
+        self._fake_process(proc_root, 101, '/tools/nextpnr-mistral --router gpu',
+                           fds=('/dev/kfd', '/dev/dri/renderD129'))
+        self.assertTrue(gpu_lease.process_tree_has_nextpnr(100, proc_root))
+        self.assertTrue(gpu_lease.process_tree_uses_gpu(
+            100, 'amd', '/dev/dri/renderD129', proc_root))
+        self.assertFalse(gpu_lease.process_tree_uses_gpu(
+            100, 'amd', '/dev/dri/renderD128', proc_root))
+
+        proc_root_cuda = self.root / 'proc-cuda'
+        self._fake_process(proc_root_cuda, 200, '/tools/nextpnr-mistral',
+                           fds=('/dev/nvidiactl', '/dev/nvidia1'))
+        self.assertTrue(gpu_lease.process_tree_uses_gpu(
+            200, 'nvidia', '/dev/nvidia1', proc_root_cuda))
+        self.assertFalse(gpu_lease.process_tree_uses_gpu(
+            200, 'nvidia', '/dev/nvidia0', proc_root_cuda))
+
+    def test_nextpnr_without_gpu_access_fails_loudly(self):
+        fd = os.open(self.root / 'lease-fd', os.O_CREAT | os.O_RDWR, 0o600)
+        output = io.StringIO()
+        with patch.object(gpu_lease, 'gpu_device_path', return_value='/dev/dri/renderD129'), \
+             patch.object(gpu_lease, 'process_tree_has_nextpnr', return_value=True), \
+             patch.object(gpu_lease, 'process_tree_uses_gpu', return_value=False), \
+             redirect_stderr(output):
+            status = gpu_lease.execute('amd', [('1', fd)], ['/bin/true'])
+        self.assertEqual(status, 70)
+        self.assertIn('nextpnr never opened leased GPU device', output.getvalue())
+        self.assertIn('/dev/kfd and /dev/dri/renderD129', output.getvalue())
 
     def test_lease_metadata_release_modes_and_child_exit(self):
         completed = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'alice', '--label', 'route', '--gpus', '2',

@@ -28,6 +28,8 @@ NVIDIA_RE = re.compile(r'^GPU\s+(\d+)\s*:', re.M)
 ROCM_RE = re.compile(r'^GPU\s*\[(\d+)\]|^GPU\s+(\d+)\s*:', re.M)
 POLL_INITIAL = 0.05
 POLL_MAX = 0.5
+GPU_MONITOR_INTERVAL = 0.05
+PROC_ROOT = Path('/proc')
 METADATA_LIMIT = 65536
 
 RUN_HELP = """\
@@ -46,8 +48,13 @@ Device ids come from nvidia-smi -L or rocm-smi. If rocm-smi returns nothing,
 AMD ids are the HIP order of GPU nodes in KFD topology (simd_count > 0).
 DRM render minors are not HIP indices. GPU_LEASE_IDS overrides detection.
 GPU_LEASE_VENDOR=amd|nvidia selects the variables exported to CMD:
-  amd:     HIP_VISIBLE_DEVICES, ROCR_VISIBLE_DEVICES, FES_GPU_IDS
+  amd:     ROCR_VISIBLE_DEVICES, FES_GPU_IDS
   nvidia:  CUDA_VISIBLE_DEVICES, FES_GPU_IDS
+FES_GPU_IDS retains the physical leased ids. GPU_RUN_DEVICE is the logical
+index to pass to nextpnr (0 after masking), and GPU_RUN_EXPECTED_DEVICE names
+the selected device node. NEXTPNR_REQUIRE_GPU=1 requests strict GPU routing
+from newer nextpnr builds. This wrapper also checks nextpnr's process tree for
+the leased device nodes, so older builds that silently fall back to CPU fail.
 
 --wait (the default) queues first come, first served until enough GPUs are
 free. --no-wait exits 75 when they cannot be taken without cutting ahead of
@@ -198,6 +205,127 @@ def ids_from_kfd_sysfs(root=None):
             return []
         nodes.append((int(entry.name), text))
     return ids_from_kfd_nodes(nodes)
+
+
+def render_nodes_from_kfd_nodes(nodes):
+    """Map dense HIP ids to DRM render minors from KFD topology."""
+    render_nodes = {}
+    gpu_id = 0
+    for _, text in sorted(nodes, key=lambda item: item[0]):
+        props = parse_kfd_properties(text)
+        raw = props.get('simd_count')
+        if raw is None:
+            return {}
+        try:
+            simd_count = int(raw)
+        except ValueError:
+            return {}
+        if simd_count <= 0:
+            continue
+        minor = props.get('drm_render_minor')
+        if minor is not None and minor.isdigit():
+            render_nodes[str(gpu_id)] = str(int(minor))
+        gpu_id += 1
+    return render_nodes
+
+
+def render_nodes_from_kfd_sysfs(root=None):
+    root = Path(root) if root is not None else Path(KFD_NODES)
+    if not root.is_dir():
+        return {}
+    try:
+        entries = [entry for entry in root.iterdir() if entry.name.isdigit()]
+    except OSError:
+        return {}
+    nodes = []
+    for entry in sorted(entries, key=lambda item: int(item.name)):
+        try:
+            text = (entry / 'properties').read_text()
+        except OSError:
+            return {}
+        nodes.append((int(entry.name), text))
+    return render_nodes_from_kfd_nodes(nodes)
+
+
+def gpu_device_path(vendor, gpu_id):
+    """Return the device node for a physical lease id, if it can be mapped."""
+    if vendor == 'nvidia' and gpu_id.isdigit():
+        return '/dev/nvidia' + gpu_id
+    if vendor == 'amd':
+        minor = render_nodes_from_kfd_sysfs().get(gpu_id)
+        if minor is not None:
+            return '/dev/dri/renderD' + minor
+    return None
+
+
+def process_tree_pids(root_pid, proc_root=None):
+    """Yield root_pid and its live descendants using procfs task children."""
+    proc_root = Path(proc_root) if proc_root is not None else PROC_ROOT
+    pending = [int(root_pid)]
+    visited = set()
+    while pending:
+        pid = pending.pop()
+        if pid in visited:
+            continue
+        visited.add(pid)
+        yield pid
+        tasks = proc_root / str(pid) / 'task'
+        try:
+            task_entries = list(tasks.iterdir())
+        except OSError:
+            continue
+        for task in task_entries:
+            try:
+                children = (task / 'children').read_text().split()
+            except OSError:
+                continue
+            pending.extend(int(child) for child in children if child.isdigit())
+
+
+def process_cmdline(pid, proc_root=None):
+    proc_root = Path(proc_root) if proc_root is not None else PROC_ROOT
+    try:
+        return (proc_root / str(pid) / 'cmdline').read_bytes().replace(b'\0', b' ').decode(
+            'utf-8', errors='replace')
+    except OSError:
+        return ''
+
+
+def process_tree_has_nextpnr(root_pid, proc_root=None):
+    return any('nextpnr-mistral' in process_cmdline(pid, proc_root)
+               for pid in process_tree_pids(root_pid, proc_root))
+
+
+def process_tree_fd_targets(root_pid, proc_root=None):
+    proc_root = Path(proc_root) if proc_root is not None else PROC_ROOT
+    targets = set()
+    for pid in process_tree_pids(root_pid, proc_root):
+        fd_dir = proc_root / str(pid) / 'fd'
+        try:
+            entries = list(fd_dir.iterdir())
+        except OSError:
+            continue
+        for entry in entries:
+            try:
+                target = os.readlink(entry)
+            except OSError:
+                continue
+            if target.endswith(' (deleted)'):
+                target = target[:-10]
+            targets.add(target)
+    return targets
+
+
+def process_tree_uses_gpu(root_pid, vendor, device_node, proc_root=None):
+    """Check that nextpnr's process tree opened the leased hardware node."""
+    if not device_node:
+        return False
+    targets = process_tree_fd_targets(root_pid, proc_root)
+    if vendor == 'amd':
+        return '/dev/kfd' in targets and device_node in targets
+    if vendor == 'nvidia':
+        return device_node in targets
+    return False
 
 
 def run_tool(argv):
@@ -832,12 +960,16 @@ def acquire(directory, ids, count, owner, label, command, cap, wait, timeout):
             quiet_unlink(ticket_path)
 
 
-def child_env(vendor, ids):
+def child_env(vendor, ids, device_node=None):
     env = os.environ.copy()
     joined = ','.join(ids)
+    for key in ('HIP_VISIBLE_DEVICES', 'ROCR_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES'):
+        env.pop(key, None)
     env['FES_GPU_IDS'] = joined
+    env['GPU_RUN_DEVICE'] = '0'
+    env['GPU_RUN_EXPECTED_DEVICE'] = device_node or ('%s:%s' % (vendor, ids[0]))
+    env['NEXTPNR_REQUIRE_GPU'] = '1'
     if vendor == 'amd':
-        env['HIP_VISIBLE_DEVICES'] = joined
         env['ROCR_VISIBLE_DEVICES'] = joined
     else:
         env['CUDA_VISIBLE_DEVICES'] = joined
@@ -999,7 +1131,9 @@ def execute(vendor, chosen, command):
     this process keeps the lease until the child exits. It does not signal
     the child or any process the child started.
     """
-    env = child_env(vendor, [gpu_id for gpu_id, _ in chosen])
+    gpu_ids = [gpu_id for gpu_id, _ in chosen]
+    device_node = gpu_device_path(vendor, gpu_ids[0])
+    env = child_env(vendor, gpu_ids, device_node)
     previous_interrupt = signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
         pid = os.fork()
@@ -1009,16 +1143,34 @@ def execute(vendor, chosen, command):
         raise
     if pid == 0:
         exec_command(chosen, command, env)
+    saw_nextpnr = any('nextpnr-mistral' in argument for argument in command)
+    opened_gpu = False
     try:
         while True:
+            if not saw_nextpnr:
+                saw_nextpnr = process_tree_has_nextpnr(pid)
+            if saw_nextpnr and not opened_gpu:
+                opened_gpu = process_tree_uses_gpu(pid, vendor, device_node)
             try:
-                _waited, status = os.waitpid(pid, 0)
+                waited, status = os.waitpid(pid, os.WNOHANG)
             except InterruptedError:
                 continue
-            break
+            if waited == pid:
+                break
+            time.sleep(GPU_MONITOR_INTERVAL)
     finally:
         signal.signal(signal.SIGINT, previous_interrupt)
         release(chosen)
+    if saw_nextpnr and not opened_gpu:
+        expected = device_node or ('a device node for %s GPU %s (mapping unavailable)' % (vendor, gpu_ids[0]))
+        if vendor == 'amd':
+            opened = '/dev/kfd and %s' % expected
+        else:
+            opened = expected
+        print('gpu-run: nextpnr never opened leased GPU device %s; refusing silent CPU fallback' % opened,
+              file=sys.stderr)
+        if os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0:
+            return 70
     if os.WIFEXITED(status):
         return os.WEXITSTATUS(status)
     if os.WIFSIGNALED(status):
