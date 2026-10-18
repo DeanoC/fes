@@ -232,8 +232,18 @@ The supervisor owns the entire group lifecycle. Managed diagnostics use a privat
 bundle. File-swap, baseline and restore commands refuse managed images before
 staging files, taking maintenance or stopping services. Returning to an earlier
 installed bundle is another explicit activation with the current generation;
-there is no automatic stock restoration after a successful update. Temporary
-configuration-only overlays are not supported on managed images. [Kit sharing](kit-sharing.md) describes execution ownership;
+there is no automatic stock restoration after a successful update. On a shared
+kit, when the task installs a bundle, install the PR bundle on the running
+image. After use, if the booted image is not the baseline named in the
+Powerboat status file, restore that image through the appliance update or
+rollback path and verify the boot before activating software. Then explicitly
+activate the designated baseline bundle against the current generation, as
+[kit sharing](kit-sharing.md) requires. That activation does not change the
+booted image and leaves the successful selection installed. Verify the active
+bundle before logging the kit restored. A core-only run that does not
+change the bundle does not install one. Do not cancel another owner's pending activation to
+clean up. Temporary configuration-only overlays are not supported on managed
+images. [Kit sharing](kit-sharing.md) describes execution ownership;
 [appliance releases](appliance-releases.md) cover OS changes and boot identity.
 Software tests establish host behavior. They do not establish card power-loss
 behavior, physical startup, HDMI/input/media behavior or exact-artifact kit

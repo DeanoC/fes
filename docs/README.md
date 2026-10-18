@@ -7,7 +7,7 @@ a dated record. A dated record is not the schedule.
 
 | You want to… | Read |
 | --- | --- |
-| Design or implement the FES user experience | [FES UX design](ux/README.md), [concepts](ux/concepts/README.md), [acceptance](ux/acceptance.md) |
+| Design or implement the FES user experience | [FES UX design](ux/README.md), [native references and Library target](ux/references/README.md), [concepts](ux/concepts/README.md), [acceptance](ux/acceptance.md) |
 | See which cores exist, their ABI, interfaces and standing | [Core status](core-status.md) |
 | See whether cores match current FPGA choices, and the retirement order | [Core alignment](core-alignment.md) |
 | Set up a checkout and run the host | [Getting started](getting-started.md) |
@@ -66,6 +66,11 @@ records both cartridge probes, input, SID, read-only D64 LOAD and CIA checks;
 it does not promote C64 into a factory image or add disk writes.
 [superpowers/](superpowers/) holds old design and task plans. Do not treat
 either as the way to build or accept the tree you have open.
+
+The approved [cores-as-apps plan](cores-as-apps-plan.md) and its
+[per-core recipe option audit](recipe-option-audit.md) are design context for
+issue #843. This delivery covers migration steps 1–2; later steps remain
+proposals, not current build instructions.
 
 The [native video parts Kit 2 record](validation/2026-10-03-native-video-parts-kit2.md)
 binds its sealed shell, linked Direct/Scanlines parts and capture evidence.

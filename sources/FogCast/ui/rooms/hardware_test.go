@@ -19,11 +19,12 @@ import (
 
 type hardwareFixture struct {
 	fakeServices
-	lock    sync.Mutex
-	value   hostclient.HardwareSnapshot
-	err     error
-	saveErr error
-	saves   [][4]string
+	lock             sync.Mutex
+	value            hostclient.HardwareSnapshot
+	err              error
+	saveErr          error
+	readErrAfterSave error
+	saves            [][4]string
 }
 
 func (s *hardwareFixture) Hardware(context.Context) (hostclient.HardwareSnapshot, error) {
@@ -41,6 +42,9 @@ func (s *hardwareFixture) SelectCoreEntryExpansion(_ context.Context, game, pkg,
 		return hostclient.CoreEntryExpansion{}, s.saveErr
 	}
 	s.value.Machines[0].DraftExpansionID = id
+	if s.readErrAfterSave != nil {
+		s.err = s.readErrAfterSave
+	}
 	return hostclient.CoreEntryExpansion{GameID: game, ExpansionID: id}, nil
 }
 func hardwareData(active bool) *hardwareFixture {
@@ -146,6 +150,76 @@ func TestHardwareRoomRestoresFocusAndUsesOrdinaryLaunch(t *testing.T) {
 	r.Input("select")
 	if acts = r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionOpenLibrary {
 		t.Fatalf("direction navigation failed: %+v", acts)
+	}
+}
+
+func TestHardwareRoomReadOnlyHostKeepsInspection(t *testing.T) {
+	unsupported := false
+	s := hardwareData(true)
+	s.value.ExpansionSelection = &unsupported
+	s.value.Session.CorePackage.Composition.ExpansionID = strings.Repeat("b", 64)
+	r := loadHardware(t, s, examplePack(t, "example.hardware"))
+	f := r.Step(time.Now())
+	if !frameHas(f, "Restart needed: the running machine still uses its old setup.") || !frameHas(f, "Open the ZX81 Workshop on the host computer to choose Fit & save.") {
+		t.Fatal("read-only setup did not name the host computer")
+	}
+	if !frameHas(f, "Stopping clears memory") || !frameHas(f, "Stop machine") {
+		t.Fatal("read-only running machine hid its Stop consequence or control")
+	}
+	r.Activate("card:1")
+	f = r.Step(time.Now())
+	if !frameHas(f, "Previewing. This kit cannot save it.") || !frameHas(f, "Previewing: Test memory pack (not saved)") {
+		t.Fatal("inspection did not stay a preview")
+	}
+	r.Activate("fit")
+	r.Activate("remove")
+	if acts := r.TakeActions(); len(acts) != 0 {
+		t.Fatalf("read-only setup actions changed the machine: %+v", acts)
+	}
+	r.Activate("power")
+	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionStop {
+		t.Fatalf("read-only running machine could not be stopped: %+v", acts)
+	}
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if len(s.saves) != 0 || s.value.Machines[0].DraftExpansionID != "" {
+		t.Fatalf("read-only room wrote a setup: %+v", s.saves)
+	}
+}
+
+func TestHardwareRoomSupportedSaveAcknowledgesOnce(t *testing.T) {
+	supported := true
+	s := hardwareData(false)
+	s.value.ExpansionSelection = &supported
+	r := loadHardware(t, s, examplePack(t, "example.hardware"))
+	r.Activate("card:1")
+	r.Step(time.Now())
+	r.Activate("fit")
+	r.Activate("fit")
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Setup saved on the host") && !r.hardwareReading })
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if len(s.saves) != 1 || s.saves[0] != [4]string{"zx81-workbench", strings.Repeat("a", 64), "", strings.Repeat("b", 64)} {
+		t.Fatalf("save count or payload: %+v", s.saves)
+	}
+	if acts := r.TakeActions(); len(acts) != 0 || s.value.Session.State != "idle" {
+		t.Fatalf("save changed the session: %+v %+v", acts, s.value.Session)
+	}
+}
+
+func TestHardwareRoomFailedReadAfterSaveIsStale(t *testing.T) {
+	s := hardwareData(false)
+	s.readErrAfterSave = errors.New("host offline")
+	r := loadHardware(t, s, examplePack(t, "example.hardware"))
+	r.Activate("card:1")
+	r.Step(time.Now())
+	r.Activate("fit")
+	stepUntil(t, r, func(f Frame) bool { return frameHas(f, "Cannot refresh the host") })
+	r.Activate("fit")
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if len(s.saves) != 1 || s.value.Machines[0].DraftExpansionID != strings.Repeat("b", 64) {
+		t.Fatalf("failed read replayed or dropped the save: %+v draft=%q", s.saves, s.value.Machines[0].DraftExpansionID)
 	}
 }
 

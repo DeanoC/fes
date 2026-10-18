@@ -79,11 +79,11 @@ Simulation targets refuse the shared toolchain cache.
 From a clean committed `sources/misteross` tree:
 
 ```sh
-make toolchain-fes
+make toolchain-fes-riscv
 make build-fes-riscv CACHE_ROOT=/absolute/cache
 ```
 
-`scripts/build_fes_riscv.py` authenticates `toolchain.lock`, synthesises with
+`scripts/build_fes_riscv.py` authenticates `cores/fes-riscv/toolchain.lock`, synthesises with
 `synth_intel_alm -nolutram -nodsp` (M10K is used; MLAB, DSP and the HPS
 SDRAM bridge are forbidden), routes with the HIP router through a bounded
 first-pass seed search (seeds 1–8, HeAP timing weight 10) that stops at the

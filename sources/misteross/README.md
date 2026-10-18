@@ -181,18 +181,14 @@ make toolchain
 ```
 
 `make toolchain` is the generic OSS lane (GPU router off), including splash.
-`make toolchain-fes` is the shared HIP lane for FES Pong, menu, RAM Tester and
-freeze-scaffold pass 2. `fes.menu` and both OSS `fes.ramtest` rates use the same
-`toolchain.lock` HIP compiler slot (also provisioned by
-`make toolchain-fes-ramtest`). Coleco uses `make toolchain-fes-coleco` against
-`toolchain.lock`. SG-1000 uses `make toolchain-fes-sg1000`
-against `toolchain.lock`. SMS uses
-`make toolchain-fes-sms` against `toolchain.lock`. ZX81 uses
-`make toolchain-fes-zx81` against `toolchain.lock`. Atari ST uses
-`make toolchain-fes-atari-st` against `toolchain.lock`. The factory recipe
-stays HIP. The October kit notes do not accept a shared-pin seal. Those
-install under their own prefixes unless `CACHE_ROOT` selects the shared
-cache. See [Cores](docs/cores.md).
+`make toolchain-fes` provisions the repository-level `toolchain.lock` HIP
+lane for consumers that still select that lock. Every registered core has a
+matching `toolchain-fes-<core>` target that provisions its
+`cores/fes-<core>/toolchain.lock`: menu, Catch, Pong, ZX81, Coleco, SMS,
+SG-1000, Apple II, C64, Spectrum, RISC-V, RAM Tester and Atari ST. The locks
+currently share identical compiler pins, so a shared `CACHE_ROOT` reuses one
+cached slot. The factory recipe stays HIP. The October kit notes do not accept
+a shared-pin seal. See [Cores](docs/cores.md).
 
 ## Freeze-scaffold cartridges
 

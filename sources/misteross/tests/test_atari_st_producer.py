@@ -81,7 +81,7 @@ class AtariSTProducerTests(unittest.TestCase):
         self.assertIsInstance(roots, AuditedRoots)
         self.assertIn("scripts", broad)
         self.assertNotIn("scripts", roots)
-        self.assertIn("toolchain.lock", roots)
+        self.assertIn(st.ST_TOOLCHAIN_LOCK, roots)
         self.assertNotIn("scripts/build_fes_pong.py", roots)
         for path in st.PINNED_INPUTS:
             self.assertTrue(any(path == root or path.startswith(root + "/") for root in roots), path)
@@ -90,9 +90,9 @@ class AtariSTProducerTests(unittest.TestCase):
             ROOT, "https://example.invalid/fes", "a" * 40, {"yosys": "test"},
             execution={"gpu_device": 0, "version": 1, "environment": {"LANG": "C"}}))
         self.assertEqual(record["parameters"]["source_closure_mode"], "audited-v1")
-        self.assertEqual(record["parameters"]["toolchain_lock"], "toolchain.lock")
+        self.assertEqual(record["parameters"]["toolchain_lock"], st.ST_TOOLCHAIN_LOCK)
         self.assertNotIn("scripts/build_fes_pong.py", record["source_inputs"])
-        self.assertIn("toolchain.lock", record["source_inputs"])
+        self.assertIn(st.ST_TOOLCHAIN_LOCK, record["source_inputs"])
 
     def test_synth_only_forwards_gpu_router_and_toolchain_root(self):
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
@@ -568,7 +568,8 @@ class AtariSTProducerTests(unittest.TestCase):
                 self.assertEqual(route.call_args.kwargs['seeds'], (4, 5, 2, 1, 3, 6, 7, 8, 9, 10))
                 self.assertEqual(route.call_args.kwargs['required'],
                                  ((None, 52.224), (None, 74.25), (None, 12.288)))
-                self.assertEqual(route.call_args.kwargs['extra'], ('--router', 'gpu'))
+                self.assertEqual(route.call_args.kwargs['extra'], ())
+                self.assertEqual(route.call_args.kwargs['core_id'], 'fes.atari-st')
                 export.assert_not_called()
             invocation.close.assert_called_once()
             self.assertFalse((root / st.OUTPUT_RELATIVE / 'core.rbf').exists())

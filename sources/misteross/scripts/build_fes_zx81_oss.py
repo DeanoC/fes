@@ -16,13 +16,14 @@ from scripts.core_package import MAX_PAYLOAD_SIZE, encode_manifest
 from scripts.functional_execution import FunctionalInvocation, source_roots_for_producer
 from scripts.export_core_package import build_identity, encode_build_record, export_package, functional_record_fields
 from scripts.search_placer_qor import SearchError, _parse_ints, has_failed_route_arc, route_after_synth
+from scripts import pnr_recipe
 from scripts import zx81_expansion, rom_map
 ROOT = Path(__file__).resolve().parents[1]
 TARGET = '5CSEBA6U23I7'
 TOP = 'top'
 OUTPUT_RELATIVE = Path('build/fes-zx81-oss')
 SOCKET_OUTPUT_RELATIVE = OUTPUT_RELATIVE
-SOCKET_TOOLCHAIN_LOCK = 'toolchain.lock'
+SOCKET_TOOLCHAIN_LOCK = 'cores/fes-zx81/toolchain.lock'
 SOCKET_TOOL_COMMITS = {'yosys': '5391eeb1e91b38a3d0e96d04f24cf921743c9c78', 'mistral': '8fcc4cb41c51f8918f1d3ad70def2febcbf20d8f', 'nextpnr': 'e2f1e02943f9292f68a8a551a6a934d5fb0f52c7'}
 # SHA256 of Git blobs at SOCKET_TOOL_COMMITS['mistral']; source checkouts are
 # mutable and are not part of FunctionalInvocation's installed support closure.
@@ -40,15 +41,16 @@ SDC = 'cores/fes-zx81/clocks-oss.sdc'
 # user-BEL socket flip-flop on a fresh route. A scaffold reload locks those
 # cells and does not rewrite the restored pin map. Seed 10 stays first.
 # Qualify the exact sealed winner on hardware after every build.
-PLACER_SEEDS = (10, 5, 12, 2, 7, 1, 3, 4, 6, 8, 9, 11, 13, 34)
-PLACER_TIMING_WEIGHT = 300
-PLACER_CRITICALITY_EXPONENT = 5
-PLACER_WEIGHTS = (10, 100, 300, 1000, 2000)
-PLACER_FIRST_PASS_WEIGHTS = (PLACER_TIMING_WEIGHT, 1000, 2000, 100, 10)
+PNR = pnr_recipe.recipe_for('fes.zx81')
+PLACER_SEEDS = tuple(PNR['seeds'])
+PLACER_TIMING_WEIGHT = PNR['timing_weights'][0]
+PLACER_CRITICALITY_EXPONENT = PNR['critexp']
+PLACER_WEIGHTS = tuple(PNR['search_weights'])
+PLACER_FIRST_PASS_WEIGHTS = tuple(PNR['timing_weights'])
 PLACER_QOR_BUDGET = 24
-PLACER_QOR_CLOCKS = (('clk_sys', 52.224), (None, 74.25), (None, 12.288))
+PLACER_QOR_CLOCKS = pnr_recipe.required_clocks('fes.zx81')
 RTL_SOURCES = ('cores/fes-zx81/rtl/sys_pll.v', 'cores/fes-zx81/rtl/pixel_pll.v', 'cores/fes-common/rtl/fes_audio_i2s.v', 'cores/fes-common/rtl/fes_audio_output.v', 'cores/fes-common/rtl/fes_computer_mailbox.v', 'cores/fes-zx81/rtl/zx81_keyboard.v', 'cores/fes-zx81/rtl/zx81_tape_store.v', 'cores/fes-zx81/rtl/zx81_dpram.v', 'cores/fes-zx81/rtl/zx81_rom_link.v', 'cores/fes-zx81/rtl/zx81_expansion_socket.v', 'cores/fes-zx81/rtl/zx81_bus_pack.vh', 'cores/fes-zx81/rtl/zx81_video_720p.v', 'cores/fes-zx81/rtl/zx81_display_cdc.v', 'cores/fes-zx81/rtl/zx81_session_display.v', 'cores/fes-menu/rtl/fes_menu_control.v', 'cores/fes-menu/rtl/fes_menu_video.v', 'cores/fes-menu/rtl/fes_menu_reader.v', 'cores/fes-common/rtl/fes_hps_ddr.v', 'cores/fes-common/rtl/fes_hps_ddr_guard.v', 'cores/fes-zx81/rtl/zx81_machine_clock.v', 'cores/fes-zx81/rtl/zx81_machine.sv', 'cores/fes-common/rtl/z80/fes_z80_alu.sv', 'cores/fes-common/rtl/z80/fes_z80_engine.sv', 'cores/fes-common/rtl/z80/fes_z80_bus.sv', 'cores/fes-common/rtl/z80/fes_z80_nmos.sv', 'cores/fes-zx81/rtl/top.v')
-PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, 'cores/fes-zx81/generated/fes_simple_computer.vh', DDR_ATOM, 'cores/fes-common/generated/fes_application.vh', 'scripts/fes_de10nano_evidence.py', 'scripts/build_fes_menu.py', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
+PINNED_INPUTS = (RECIPE, 'scripts/compiler_read_audit.py', 'scripts/source_repository.py', 'scripts/fes_build_common.py', 'scripts/pnr_recipe.py', 'scripts/zx81_expansion.py', 'scripts/rom_map.py', 'scripts/cyclonev_rbf.py', ABI_DEFINITION, 'cores/fes-zx81/generated/fes_simple_computer.vh', DDR_ATOM, 'cores/fes-common/generated/fes_application.vh', 'scripts/fes_de10nano_evidence.py', 'scripts/build_fes_menu.py', SOCKET_TOOLCHAIN_LOCK, QSF, SDC, *RTL_SOURCES)
 BUILD_OUTPUTS = ('synth.json', 'routed.json', 'core.rbf', 'timing.json', 'yosys.log', 'nextpnr.log', 'build-summary.json', 'manifest.toml', 'qor-ranking.json', 'rom-map.json')
 ORDINARY_RESOURCES = frozenset({'MISTRAL_BUF', 'MISTRAL_CLKENA', 'MISTRAL_COMB', 'MISTRAL_FF', 'MISTRAL_IO', 'MISTRAL_M10K', 'MISTRAL_M10K_TDP'})
 REQUIRED_RESOURCES = {'altera_pll': 2, 'cyclonev_hps_interface_mpu_general_purpose': 1, 'cyclonev_hps_interface_peripheral_i2c': 1, 'cyclonev_hps_interface_fpga2sdram': 1}
@@ -71,7 +73,6 @@ def _authenticate_tools(root: Path, **kwargs):
     gpu_router = kwargs.pop('gpu_router', 'HIP')
     _backend, architectures, configuration = gpu_choice(gpu_router)
     kwargs.setdefault('lock_path', Path(root) / SOCKET_TOOLCHAIN_LOCK)
-    kwargs.setdefault('expected_commits', SOCKET_TOOL_COMMITS)
     kwargs.setdefault('toolchain_root', Path(root) / 'build/toolchain/zx81-expansion')
     kwargs['gpu_router'] = gpu_router
     kwargs['hip_architectures'] = architectures
@@ -397,7 +398,7 @@ def build(root: Path=ROOT, package_store: Path | None=None, *, cache_root: Path 
             raise BuildError('Yosys did not produce synthesis evidence')
         zx81_expansion.prepare_shell_netlist(output / 'synth.json')
         try:
-            winner = route_after_synth(nextpnr=authenticated['nextpnr-mistral'].path, fixture=output / 'synth.json', dest=output, device=TARGET, qsf=output / 'socket.qsf', sdc=root / SDC, freq='74.25', seeds=PLACER_SEEDS, weights=qor_weights, critexp=PLACER_CRITICALITY_EXPONENT, budget=qor_budget, mode=qor_mode, extra=('--router', 'gpu'), required=PLACER_QOR_CLOCKS, gpu_devices=gpu_devices, accept=zx81_expansion.accept_socket_route, **{'env': invocation.env, 'audit_source_root': root})
+            winner = route_after_synth(nextpnr=authenticated['nextpnr-mistral'].path, fixture=output / 'synth.json', dest=output, device=TARGET, qsf=output / 'socket.qsf', sdc=root / SDC, freq=PNR['freq'], seeds=PLACER_SEEDS, weights=qor_weights, critexp=PLACER_CRITICALITY_EXPONENT, budget=qor_budget, mode=qor_mode, extra=(), required=PLACER_QOR_CLOCKS, timeout=PNR['timeout_s'], gpu_devices=gpu_devices, accept=zx81_expansion.accept_socket_route, core_id='fes.zx81', **{'env': invocation.env, 'audit_source_root': root})
         except SearchError as exc:
             raise BuildError(str(exc)) from exc
         evidence = validate_build_evidence(output, root, gpu_backend=backend)

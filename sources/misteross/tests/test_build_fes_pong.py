@@ -27,6 +27,7 @@ from scripts.lockfile import load_lock
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SOURCE_ROOT = ROOT
 PLL_PARAMETERS = {
     "duty_cycle0": "00000000000000000000000000110010",
     "fractional_vco_multiplier": "true",
@@ -83,7 +84,7 @@ def publish_shared_toolchain(
     """Publish a complete five-tool lane through the real cache API."""
 
     cache = base / "shared-cache"
-    selected_lock = ROOT / "toolchain.lock" if lock_path is None else Path(lock_path)
+    selected_lock = SOURCE_ROOT / "toolchain.lock" if lock_path is None else Path(lock_path)
     host = {"system": "Linux", "release": "test", "machine": "x86_64"}
     compiler = {"commands": {"cc": {"path": "/test/cc"}}}
     environment = {
@@ -98,7 +99,7 @@ def publish_shared_toolchain(
         toolchain_cache, "host_identity", return_value=host
     ), patch.object(toolchain_cache, "compiler_inventory", return_value=compiler):
         request = toolchain_cache.request_from_environment(
-            ROOT,
+            SOURCE_ROOT,
             selected_lock,
             gpu_router=gpu_router,
             hip_architectures=hip_architectures,
@@ -287,7 +288,9 @@ class BuildFesPongTests(unittest.TestCase):
         self.assertEqual(fields["abi_definition"], "cores/fes-pong/generated/fes_gp.vh")
         self.assertEqual(fields["tools"], identities)
         self.assertEqual(
-            {k: v for k, v in fields["parameters"].items() if k not in ("execution_sha256", "gpu_device", "source_closure_policy", "source_closure_mode")},
+            {k: v for k, v in fields["parameters"].items() if k not in (
+                "execution_sha256", "gpu_device", "source_closure_policy",
+                "source_closure_mode", "pnr_recipe_sha256")},
             {
                 "device": "5CSEBA6U23I7",
                 "gpu_architectures": "gfx1100;gfx1201",
@@ -301,6 +304,9 @@ class BuildFesPongTests(unittest.TestCase):
                 "top": "top",
             },
         )
+        from scripts import pnr_recipe
+        self.assertEqual(fields["parameters"]["pnr_recipe_sha256"],
+                         pnr_recipe.recipe_digest("fes.pong"))
 
     def test_shared_lane_uses_verified_direct_tools_without_local_or_path_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -461,7 +467,9 @@ class BuildFesPongTests(unittest.TestCase):
     def test_local_lane_keeps_legacy_paths_when_shared_opt_in_is_absent(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "toolchain.lock").write_bytes((ROOT / "toolchain.lock").read_bytes())
+            lock_path = root / build_fes_pong.TOOLCHAIN_LOCK
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+            lock_path.write_bytes((ROOT / build_fes_pong.TOOLCHAIN_LOCK).read_bytes())
             install = root / "build/toolchain/install/bin"
             build_root = root / "build/toolchain/build"
             install.mkdir(parents=True)
@@ -470,7 +478,7 @@ class BuildFesPongTests(unittest.TestCase):
                 "mistral": ("mistral-cv", "models"),
                 "nextpnr": ("nextpnr-mistral", "--version"),
             }
-            pins = load_lock(root / "toolchain.lock")
+            pins = load_lock(lock_path)
             for lock_name, (binary_name, _) in definitions.items():
                 binary = install / binary_name
                 _write_fake_tool(binary, lock_name)

@@ -181,7 +181,7 @@ simulations, not an RBF, timing or kit result.
 
 ## OSS seal
 
-`make build-fes-apple2` authenticates `toolchain.lock`. The registered recipe
+`make build-fes-apple2` authenticates `cores/fes-apple2/toolchain.lock`. The registered recipe
 selects HIP. Backend identity is part of the build record, so a CUDA route is
 a different package. The shared-pin clocks that closed on this lock move were
 a CUDA exploratory route and are not a recorded seal, so this pin is still

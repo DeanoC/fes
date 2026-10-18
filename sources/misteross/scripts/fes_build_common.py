@@ -323,6 +323,19 @@ def _fes_hip_local_provision_hint(root: Path, lock_path: Path, configuration: st
         return ""
     target = {
         "toolchain.lock": "toolchain-fes",
+        "cores/fes-menu/toolchain.lock": "toolchain-fes-menu",
+        "cores/fes-catch/toolchain.lock": "toolchain-fes-catch",
+        "cores/fes-pong/toolchain.lock": "toolchain-fes-pong",
+        "cores/fes-zx81/toolchain.lock": "toolchain-fes-zx81",
+        "cores/fes-coleco/toolchain.lock": "toolchain-fes-coleco",
+        "cores/fes-sms/toolchain.lock": "toolchain-fes-sms",
+        "cores/fes-sg1000/toolchain.lock": "toolchain-fes-sg1000",
+        "cores/fes-apple2/toolchain.lock": "toolchain-fes-apple2",
+        "cores/fes-c64/toolchain.lock": "toolchain-fes-c64",
+        "cores/fes-spectrum/toolchain.lock": "toolchain-fes-spectrum",
+        "cores/fes-atari-st/toolchain.lock": "toolchain-fes-atari-st",
+        "cores/fes-ramtest/toolchain.lock": "toolchain-fes-ramtest",
+        "cores/fes-riscv/toolchain.lock": "toolchain-fes-riscv",
     }.get(relative)
     return f"; run `make {target}` to provision the FES HIP local toolchain" if target else ""
 
@@ -345,7 +358,14 @@ def _authenticate_tools(
     toolchain_root = root / "build/toolchain" if toolchain_root is None else Path(toolchain_root)
     if not toolchain_root.is_absolute():
         toolchain_root = root / toolchain_root
-    expected_commits = EXPECTED_TOOL_COMMITS if expected_commits is None else expected_commits
+    try:
+        pins = load_lock(lock_path)
+    except (OSError, LockfileError, ValueError) as exc:
+        raise BuildError(f"cannot load pinned toolchain: {exc}") from exc
+    if expected_commits is None:
+        # The selected lock is the pin authority. Per-core locks may diverge
+        # independently; hard-coded global SHAs would silently defeat that.
+        expected_commits = {name: pins[name].commit for name in EXPECTED_TOOL_COMMITS}
     gpu_router = FES_GPU_ROUTER if gpu_router is None else gpu_router
     hip_architectures = FES_GPU_ARCHITECTURES if hip_architectures is None else hip_architectures
     expected_configuration = (
@@ -368,10 +388,6 @@ def _authenticate_tools(
             hip_architectures=hip_architectures,
             cache_root=Path(cache_root),
         )
-    try:
-        pins = load_lock(lock_path)
-    except (OSError, LockfileError, ValueError) as exc:
-        raise BuildError(f"cannot load pinned toolchain: {exc}") from exc
     install = toolchain_root / "install/bin"
     build_root = toolchain_root / "build"
     authenticated: dict[str, AuthenticatedTool] = {}

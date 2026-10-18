@@ -18,7 +18,15 @@ slices, #280 Codex findings) are marked where they change a decision.
 for setup and pairing; §2.4, §2.7 and §3 carry Foggy's copy
 (2026-09-28); *[tech fix]* marks Caster's corrections to it. Bob
 coordinates and reviews. Deano approves and merges.
-Kit HIL needs Deano present. An unattended agent does not start it.
+Agents may run kit HIL on kit A or B without Deano present. Claim the
+kit in Powerboat `~/kit-status/kitA-STATUS.md` or
+`~/kit-status/kitB-STATUS.md`. If the HIL changes kit software, install
+the PR bundle on the running image; after use, activate and verify the
+baseline bundle named in the status file. A core-only HIL that leaves
+the bundle unchanged does not install one. Log the result and release
+the kit. Reimaging a kit, changing a kit image or boot config,
+killing other agents' processes, and closing PRs need Deano's OK via
+Bob. The full rules are in [kit sharing](kit-sharing.md).
 Audience: FogCast host and agent, FES image, rooms UX. See
 [phase 1](mesh-phase1.md), [phase 2](mesh-phase2.md),
 [kit sharing](kit-sharing.md), [bootable media](bootable-media.md),
@@ -414,7 +422,16 @@ lease via the lease API (#281); #163 inside the Q11 budget; pairing shipped; clo
 dependency), #175 (`mesh_content = false` must not open and register
 an empty mesh store the host can dial), #178 (dial the explicit `LaunchOn`
 target when the selected target is offline), and a separate ensure
-HIL with Deano. HIL2 leaves `ensure` unset, so it does not count.
+HIL. Agents may run that HIL on kit A or B without Deano present.
+Claim the kit in Powerboat `~/kit-status/kitA-STATUS.md` or
+`~/kit-status/kitB-STATUS.md`. If the HIL changes kit software, install
+the PR bundle on the running image; after use, activate and verify the
+baseline bundle named in the status file. A core-only HIL that leaves
+the bundle unchanged does not install one. Log the result and release
+the kit. Reimaging a kit, changing a kit image or boot config,
+killing other agents' processes, and closing PRs need Deano's OK via
+Bob ([kit sharing](kit-sharing.md)). HIL2 leaves `ensure` unset, so it
+does not count.
 #174 is not a gate: pass the `LaunchOn` context into
 `activateMeshExecutor` (callers use `context.Background()`; the nearby
 probe timeout is 5 seconds).
@@ -423,8 +440,16 @@ probe timeout is 5 seconds).
 
 ## 4. Implementation slices (ordered)
 
-One small PR each. No PR flips a default or writes media. Kit HIL
-waits for Deano.
+One small PR each. No PR flips a default or writes media. Agents may
+run kit HIL on kit A or B without Deano present. Claim the kit in
+Powerboat `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`.
+If the HIL changes kit software, install the PR bundle on the running
+image; after use, activate and verify the baseline bundle named in the
+status file. A core-only HIL that leaves the bundle unchanged does not
+install one. Log the result and release the kit. Reimaging a kit,
+changing a kit image or boot config, killing other agents' processes,
+and closing PRs need Deano's OK via Bob
+([kit sharing](kit-sharing.md)).
 
 | # | Slice | Scope | Depends on | Tests / acceptance |
 | --- | --- | --- | --- | --- |
@@ -533,7 +558,7 @@ Slice 6 acceptance.
 | C0 | Host up. Labelling launch names kit A. | Yes |
 | C1b | Foreign claim on B fails closed. No-target launch returns 403 `KIT_LEASE_DENIED`. | Yes |
 | C1 | No-target launch rebinds to B. B held by `fogcast@powerboat`, renewing. A free. | Yes |
-| C1-pad | Deano moves kit B's own pad. | Optional, chosen |
+| C1-pad | A person moves kit B's own pad in an attended session. | Optional; deferred from unattended HIL |
 | C2 | Second claim on B is 409 `KIT_LEASE_BUSY`. | Yes |
 | C3 | Soft-stop `{"retain_lease":true}`. B stays held. | Yes |
 | C3b | Relaunch reuses the lease. | Optional |
@@ -572,8 +597,16 @@ designated, so this does not accept P4a on hardware.
 
 ### P-pair, after pairing exists
 
-Deano present. Scratch host config, mode `0600`, outside the repo.
-Remove `kit2` only from that file. Do not print tokens.
+Agents may run this HIL on kit A or B without Deano present. Claim the
+kit in Powerboat `~/kit-status/kitA-STATUS.md` or
+`~/kit-status/kitB-STATUS.md`. If the HIL changes kit software, install
+the PR bundle on the running image; after use, activate and verify the
+baseline bundle named in the status file. A core-only HIL that leaves
+the bundle unchanged does not install one. Log the result and release
+the kit. Reimaging a kit, changing a kit image or boot config,
+killing other agents' processes, and closing PRs need Deano's OK via
+Bob ([kit sharing](kit-sharing.md)). Scratch host config, mode `0600`,
+outside the repo. Remove `kit2` only from that file. Do not print tokens.
 
 1. Pair kit B with the new flow.
 2. The row's id and token are kit B's, not kit A's.
@@ -581,7 +614,8 @@ Remove `kit2` only from that file. Do not print tokens.
 4. A second scratch row that repeats B's `target_id` is refused.
 5. Re-run C1 on the paired row, not the hand-written token.
 6. Kit B's menu leaves "Offline" and browses the host (P4a, then P4b).
-7. Run the deferred C1-pad in the same session.
+7. C1-pad is deferred from this unattended HIL; run it when someone is
+   present to move kit B's pad.
 
 HIL2 without P-pair does not close §2.
 
@@ -645,7 +679,8 @@ No questions are open.
 
 ### Sequence
 
-Relative weeks, not dates. Kit steps wait for Deano. IMG-2/IMG-3
+Relative weeks, not dates. Agents run kit HIL on kit A or B without
+Deano present, under [kit sharing](kit-sharing.md). IMG-2/IMG-3
 and the first-boot script land before P-pair. #278 does not block HIL2.
 
 | When | What | Does not include |
@@ -654,5 +689,5 @@ and the first-boot script land before P-pair. #278 does not block HIL2.
 | Week 0–1 | L1 #259 (in progress) and R1 #281; Foggy review of this copy. | A default flip. |
 | Done | P4a multi-kit launcher listener (#287); kit B bearer migration (§4) pending. | Pairing. |
 | Weeks 1–3 | P1 → P2 → P3/P4b (in parallel); IMG-2/IMG-3 alongside P1. | `placement` default on. |
-| Week 3–4 | P-pair HIL with Deano (incl. deferred C1-pad). | Ensure default. |
+| Week 3–4 | P-pair HIL on kit A or B without Deano present. Claim `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md` on Powerboat. If the HIL changes kit software, install the PR bundle on the running image and then activate and verify the status-file baseline bundle; a core-only HIL with no bundle change does not install one. Log the result and release the kit ([kit sharing](kit-sharing.md)). Reimage, image or boot-config changes, killing other agents' processes, and closing PRs need Deano's OK via Bob. C1-pad is excluded until someone can move kit B's pad in an attended session. | Ensure default. |
 | Then | L2–L6 in order; gates review; flip a default only in a follow-up showing every gate green, plus an ensure HIL. | A silent switch. |
