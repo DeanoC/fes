@@ -337,6 +337,11 @@ if not grant.startswith('GRANT '):
 print('Info: backend cuda:fixture ready', flush=True)
 if os.environ.get('FAKE_CRASH_IN_PHASE'):
     os.kill(os.getpid(), signal.SIGKILL)
+if os.environ.get('FAKE_CHILD_PID_FILE'):
+    import subprocess
+    child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'])
+    with open(os.environ['FAKE_CHILD_PID_FILE'], 'w', encoding='utf-8') as stream:
+        stream.write(str(child.pid))
 time.sleep(float(os.environ.get('FAKE_ROUTE_DELAY', '0')))
 release = ask('RELEASE')
 with open(os.environ['CAPTURE'], 'w', encoding='utf-8') as stream:
@@ -437,6 +442,10 @@ class PhaseLeaseRouteTests(unittest.TestCase):
         plain = self.directory / "nextpnr-plain"
         plain.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         self.assertFalse(board._nextpnr_supports_phase_lease(plain))
+        # Naming the variable is not enough; the client also sends ACQUIRE.
+        mention = self.directory / "nextpnr-mention"
+        mention.write_text("#!/bin/sh\necho GPU_LEASE_FD is ignored\n", encoding="utf-8")
+        self.assertFalse(board._nextpnr_supports_phase_lease(mention))
         empty = self.directory / "nextpnr-empty"
         empty.write_bytes(b"")
         self.assertFalse(board._nextpnr_supports_phase_lease(empty))
@@ -489,6 +498,21 @@ class PhaseLeaseRouteTests(unittest.TestCase):
         self.assertEqual(result.returncode, 124, result.stdout)
         self.assertRegex(result.stdout, rb"timed out after 1 seconds of its own run time \(\d+\.\d s of GPU lease wait excluded\)")
         self.assertFalse(self.capture.exists())
+        self.assertEqual(self.status()["gpus"][0]["state"], "free")
+
+    @unittest.skipUnless(audit.TRACER.is_file(), "strace required for audited routes")
+    def test_route_budget_expiry_stops_the_route_and_its_children(self):
+        child_pid_file = self.directory / "route-child.pid"
+        started = time.monotonic()
+        result = self.route(timeout=1.0, audit=True, FAKE_ROUTE_DELAY="30",
+                            FAKE_CHILD_PID_FILE=str(child_pid_file))
+        # The child inherited the captured output; the audited run must not
+        # wait for it after the budget expires.
+        self.assertLess(time.monotonic() - started, 15)
+        self.assertEqual(result.returncode, 124, result.stdout)
+        child_pid = int(child_pid_file.read_text(encoding="utf-8"))
+        with self.assertRaises(ProcessLookupError):
+            os.kill(child_pid, 0)
         self.assertEqual(self.status()["gpus"][0]["state"], "free")
 
     def test_phase_route_crash_releases_its_gpu(self):

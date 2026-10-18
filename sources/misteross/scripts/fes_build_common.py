@@ -9,6 +9,7 @@ import os
 import re
 import select
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -212,9 +213,10 @@ _GPU_PHASE_LEASE_DISPATCH = (
     "raise SystemExit(_exec_phase_leased_nextpnr(sys.argv[2:], "
     "None if sys.argv[1] == '-' else float(sys.argv[1])))"
 )
-# A nextpnr that reads this variable runs the GPU_LEASE_FD client from
-# DeanoC/nextpnr#224, so gpu-run can grant it a GPU per GPU phase.
-_GPU_PHASE_LEASE_MARKER = b"GPU_LEASE_FD"
+# A nextpnr with the GPU_LEASE_FD client from DeanoC/nextpnr#224 reads that
+# variable and sends the protocol's ACQUIRE request, so gpu-run can grant it a
+# GPU per GPU phase. gpu-run still fails a GPU route that never asks.
+_GPU_PHASE_LEASE_MARKERS = (b"GPU_LEASE_FD", b"ACQUIRE 1")
 
 
 def _is_gpu_nextpnr(command: Sequence[str]) -> bool:
@@ -330,15 +332,15 @@ def _nextpnr_supports_phase_lease(path: Path) -> bool:
     except OSError:
         return False
     return _binary_contains(str(path), info.st_dev, info.st_ino, info.st_size,
-                            info.st_mtime_ns, _GPU_PHASE_LEASE_MARKER)
+                            info.st_mtime_ns, _GPU_PHASE_LEASE_MARKERS)
 
 
 @functools.lru_cache(maxsize=16)
 def _binary_contains(path: str, _device: int, _inode: int, _size: int, _mtime_ns: int,
-                     marker: bytes) -> bool:
+                     markers: tuple[bytes, ...]) -> bool:
     try:
         with open(path, "rb") as stream, mmap.mmap(stream.fileno(), 0, access=mmap.ACCESS_READ) as view:
-            return view.find(marker) >= 0
+            return all(view.find(marker) >= 0 for marker in markers)
     except (OSError, ValueError):
         return False
 
@@ -449,7 +451,10 @@ def _exec_phase_leased_nextpnr(command: Sequence[str], timeout: float | None = N
     tool_env.pop("FES_MISTEROSS_PYTHONPATH", None)
     tool_env["GPU_LEASE_FD"] = str(theirs.fileno())
     try:
-        process = subprocess.Popen(command, env=tool_env, pass_fds=(theirs.fileno(),))
+        # Its own process group, so expiry stops whatever nextpnr started too:
+        # with no outer deadline, audited_run no longer cancels the route group.
+        process = subprocess.Popen(command, env=tool_env, pass_fds=(theirs.fileno(),),
+                                   start_new_session=True)
     except OSError as exc:
         relay.close()
         print(f"cannot execute leased nextpnr: {exc}", file=sys.stderr)
@@ -460,8 +465,7 @@ def _exec_phase_leased_nextpnr(command: Sequence[str], timeout: float | None = N
     try:
         while True:
             if timeout is not None and relay.own_seconds(started) >= timeout:
-                process.kill()
-                process.wait()
+                _stop_route_group(process)
                 print(f"nextpnr route timed out after {timeout:g} seconds of its own run time "
                       f"({relay.waited:.1f} s of GPU lease wait excluded)", file=sys.stderr)
                 return 124
@@ -470,13 +474,24 @@ def _exec_phase_leased_nextpnr(command: Sequence[str], timeout: float | None = N
             if returncode is not None:
                 break
     except BaseException:
-        if process.poll() is None:
-            process.kill()
-            process.wait()
+        _stop_route_group(process)
         raise
     finally:
         relay.close()
     return returncode if returncode >= 0 else 128 - returncode
+
+
+def _stop_route_group(process: subprocess.Popen) -> None:
+    """Kill the route's own process group, then reap nextpnr.
+
+    Until nextpnr is reaped its pid, which is the group id, cannot be reused.
+    """
+    if process.returncode is None:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    process.wait()
 
 
 def _run_command(
