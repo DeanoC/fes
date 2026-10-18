@@ -1755,6 +1755,15 @@ TOD, serial shifting and timer port outputs remain outside this slice.
 `make build-fes-c64` (`scripts/build_fes_c64_oss.py`, `toolchain.lock`,
 `make toolchain-fes-c64`) is the format-3 seal. The registered recipe selects
 HIP. `--gpu-router CUDA` with `--toolchain-root` builds a separate package.
+The route log must show `system_clock.pll` as a 50.000000 MHz reference into
+a 417.792000 MHz fractional-N VCO with M=8, N=1, K=1528321163 and counters
+C6,7. `validate_pll_outputs` accepts that route only when both achieved
+outputs are within 1 Hz of their requests: 52,224,000 Hz on output 0 and
+12,288,000 Hz on output 1. nextpnr prints those achieved frequencies during
+packing, as the rational VCO divided by each output counter, before the
+placer seed runs. The seed selects which timing-closed route is promoted;
+the same packed coefficients fix the achieved frequencies on every seed, so
+the seal checks them once on that promoted route.
 The recorded shared-pin seal is the CUDA package `1d599353eaef5502…` (build
 `6f865fddebe62184…`). A CUDA seal is valid on its own (Deano, 2026-10-13);
 HIP only adds GPUs. The build record uses the audited static closure in
