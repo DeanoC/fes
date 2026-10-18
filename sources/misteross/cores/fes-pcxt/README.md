@@ -229,7 +229,9 @@ it connects a constant/undefined unused ROM write clock to the registered read
 clock only when writes are provably disabled. This supplies the native packer
 with a real clock without changing INIT, registered read latency or writable RAM.
 The CPU import remains unchanged. The PIC import uses formally checked parallel
-priority masks, documented in its vendor README; its register boundaries are unchanged.
+priority masks; the PIT uses direct one/two-step saturated binary/BCD decrements
+with parallel digit borrows. Both imports document the formally checked changes
+in their vendor READMEs; register boundaries and bus timing are unchanged.
 HDMI transmitter I2C uses the existing HPS peripheral bridge. This autonomous
 power-on diagnostic has no runtime ABI, host session control or audio pins.
 
@@ -247,7 +249,13 @@ Each invocation retains a separate directory beneath
 `build/diagnostic/fes-pcxt/{cga,mda}/{direct,scanlines}/<UTC-run>/`, including
 assembled firmware, microcode, synthesis/netlist/resource counts and a
 `diagnostic.json` source/tool receipt. The normal command attempts one seed-1
-HIP route with a bounded 1800-second timeout and retains failures. A completed
+HIP route with a bounded 1800-second timeout and retains failures. Placement
+uses fixed timing weight 2000 and criticality exponent 5, as in the existing
+Coleco socket lane; there is no placement-parameter or seed search. For `gpu-run`
+leases, the producer retains the ROCr physical-device mask and removes a matching
+redundant HIP mask, so leased physical GPU 1 remains visible as logical GPU 0.
+Independent visibility restrictions are preserved. The receipt records the
+route command, placement settings and effective GPU visibility. A completed
 route additionally writes `routed.json`, `timing.json`, `nextpnr.log` and
 `diagnostic.rbf`. A route is diagnostic: SDRAM pad setup/hold, retention,
 physical containment, package sealing and hardware acceptance require separate
@@ -261,14 +269,17 @@ directions, guest and physical refresh, two complete boots without firmware
 reload, HOLD/mute and every pixel of two 720p output frames after capture settles.
 CGA uses Direct and MDA uses Scanlines; each runs DQM delays 0/1/2. The framebuffer
 registers its read address before M10K fanout and delays subpixel and raster
-fields together through that extra stage. PIC priority changes also have an
-all-input Yosys SAT check:
+fields together through that extra stage. PIC priority changes also have
+all-input Yosys SAT checks, as do the PIT decrements. The display's fractional
+clock enable compares the current phase directly with its wrap threshold and
+updates with parallel add/subtract candidates. SAT proves this is cycle-exact
+for every phase value and both CGA/MDA rates:
 
 ```sh
-YOSYS=/absolute/locked/yosys python3 -m unittest discover -s tests -p test_pcxt_pic_priority.py -v
+YOSYS=/absolute/locked/yosys python3 -m unittest discover -s tests -p 'test_pcxt_*.py' -v
 ```
- Existing
-video suites retain detailed frame-ownership, overrun/drop and malformed-source
+
+Existing video suites retain detailed frame-ownership, overrun/drop and malformed-source
 coverage. Digital SDRAM simulation does not establish pad timing or retention.
 
 ## Implemented path

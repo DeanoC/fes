@@ -9,6 +9,7 @@ from collections import Counter
 from datetime import datetime, timezone
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import uuid
@@ -22,6 +23,20 @@ RTL = SYSTEM_SOURCES + ('cores/fes-pcxt/rtl/fes_pcxt_top.sv',)
 QSF = 'cores/fes-ramtest/constraints.qsf'
 SDC = 'boards/de10nano/clocks.sdc'
 ROM_CLOCK_MAP = 'cores/fes-pcxt/synth/rom_clock_map.v'
+PLACER_TIMING_WEIGHT = 2000
+PLACER_CRITICALITY_EXPONENT = 5
+
+
+def route_environment():
+    env = dict(os.environ)
+    leased = env.get('FES_GPU_IDS')
+    # gpu-run exports both masks. ROCr first restricts the physical list;
+    # HIP then indexes that restricted list, so a second mask of "1" hides
+    # leased physical GPU 1. Retain the exact lease restriction at ROCr and
+    # remove only a redundant HIP mask, never an independent restriction.
+    if leased and env.get('ROCR_VISIBLE_DEVICES') == leased and env.get('HIP_VISIBLE_DEVICES') == leased:
+        del env['HIP_VISIBLE_DEVICES']
+    return env
 
 
 def main():
@@ -55,6 +70,8 @@ def main():
                'working_tree_changes': subprocess.check_output(['git', 'status', '--porcelain', '--', '.'], cwd=ROOT, text=True).splitlines(),
                'sources': sources, 'tools': {k: v.identity for k, v in tools.items()},
                'mda': args.mda, 'scanlines': args.scanlines, 'seed': 1,
+               'placement': {'timing_weight': PLACER_TIMING_WEIGHT,
+                             'criticality_exponent': PLACER_CRITICALITY_EXPONENT},
                'limits': ['no SDRAM pad setup/hold or retention qualification',
                           'no physical ISA containment', 'no sealed package or runtime ABI',
                           'no hardware acceptance']}
@@ -79,11 +96,18 @@ def main():
             command = [str(tools['nextpnr-mistral'].path), '--json', 'synth.json',
                        '--device', '5CSEBA6U23I7', '--qsf', str(ROOT / QSF), '--sdc', str(ROOT / SDC),
                        '--freq', '100', '--seed', '1', '--router', 'gpu',
+                       '--placer-heap-timingweight', str(PLACER_TIMING_WEIGHT),
+                       '--placer-heap-critexp', str(PLACER_CRITICALITY_EXPONENT),
                        '--rbf', 'diagnostic.rbf', '--compress-rbf', '--write', 'routed.json',
                        '--report', 'timing.json', '--detailed-timing-report']
+            env = route_environment()
+            receipt['route_command'] = command
+            receipt['gpu_visibility'] = {key: env.get(key) for key in
+                                        ('FES_GPU_IDS', 'ROCR_VISIBLE_DEVICES', 'HIP_VISIBLE_DEVICES')}
+            save()
             with (output / 'nextpnr.log').open('w') as log:
                 subprocess.run(command, cwd=output, stdout=log, stderr=subprocess.STDOUT,
-                               check=True, timeout=args.route_timeout)
+                               check=True, timeout=args.route_timeout, env=env)
             receipt['gpu_backend'] = _require_gpu_backend((output / 'nextpnr.log').read_text(), 'hip')
             receipt['status'] = 'routed-diagnostic-unqualified'
             receipt['timing'] = json.loads((output / 'timing.json').read_text())

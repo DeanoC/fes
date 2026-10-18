@@ -2285,7 +2285,9 @@ the PIC independently of address. The adapter supplies one setup, eight active a
 100 MHz clocks; address/CS remain stable through retirement of chip bus side
 effects. This latency is not yet an original-board bus-timing qualification.
 PIT pins advance from CPU guest enables divided by four through READY waits
-and HLT. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
+and HLT. Its saturating one/two-step binary/BCD decrement uses direct constant-step
+arithmetic and parallel digit borrows. SAT checks every 17-bit input against the
+original serial equations; count/output register timing is unchanged. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
 output requests DMA0 refresh; PPI PB0 gates channel 2.
 Reset must cancel requests in the router and its downstream storage/ISA.
 The imported PIC resolves circular priority using parallel per-level masks;
@@ -2377,7 +2379,10 @@ See the [core README](../cores/fes-pcxt/README.md#isa-display-cards) for the exa
 ports, font layout, primary references and simulation coverage.
 
 At 100 MHz the independent guest streams use fractional master-dot enables:
-14.318180 MHz CGA and 16.257 MHz MDA. With standard IBM register values the
+14.318180 MHz CGA and 16.257 MHz MDA. Their clock-enable decode compares the
+current accumulator phase against the wrap threshold, without an addition on
+the CRTC enable path. SAT checks phase and enable equivalence at every phase
+value for both rates. With standard IBM register values the
 complete rasters are 912×262 and 882×370; active regions are 640×200 (low-res
 pixels repeated) and 720×350. RGBI, DE, active-high HS/VS, SOF/EOL are sampled
 with each pixel enable, including blanking. Live palette/VRAM/register accesses
@@ -2422,6 +2427,10 @@ through the sequential 64 KiB loader before machine release. Warm reset/HOLD
 preserve storage/refresh; HOLD resets the machine and mutes video.
 `make build-fes-pcxt CACHE_ROOT=/absolute/cache` retains each diagnostic
 synthesis/route attempt under `build/diagnostic/fes-pcxt/`; it exports no package.
+Its seed-1 route uses fixed timing weight 2000 and criticality exponent 5, with
+unchanged 100/74.25 MHz constraints. The producer preserves `gpu-run`'s ROCr
+lease mask while removing only an identical redundant HIP mask; route settings
+and visibility are recorded in the diagnostic receipt.
 The [board diagnostic guide](../cores/fes-pcxt/README.md#assembled-board-diagnostic)
 defines the firmware, clock/capture choices, profiles and test coverage.
 The existing Coleco/ST physical layouts are not admitted as PC/XT layouts.

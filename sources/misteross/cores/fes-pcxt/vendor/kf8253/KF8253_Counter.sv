@@ -316,51 +316,35 @@ module KF8253_Counter (
             first_count_edge    <= first_count_edge;
     end
 
-    // Decrement counter
-    function logic [16:0] decrement (input [16:0] count, input is_bcd);
-        if (count == 17'b0_0000_0000_0000_0000)
-            decrement = 17'b0_0000_0000_0000_0000;
-        else
-            if (is_bcd == 1'b0)
-                decrement = count - 17'b0_0000_0000_0000_0001;
+    // Saturating decrement by one or two, with independent BCD borrow
+    // prefixes. Mode 3 must not place two complete decrementers in series.
+    // The extra high bit represents 65536 (binary) or 10000 (BCD).
+    function logic [16:0] decrement(input [16:0] count, input is_bcd, input twice);
+        reg [16:0] result;
+        integer step, i;
+        begin
+            step = twice ? 2 : 1;
+            if (!is_bcd)
+                result = count - 17'(step);
             else begin
-                if (count[3:0] == 4'b0000) begin
-                    if (count[7:4] == 4'b0000) begin
-                        if (count[11:8] == 4'b0000) begin
-                            if (count[15:12] == 4'b0000) begin
-                                decrement[16]    = 1'b0;
-                                decrement[15:12] = 4'd9;
-                            end
-                            else begin
-                                decrement[16]    = count[16];
-                                decrement[15:12] = count[15:12] - 4'd1;
-                            end
-                            decrement[11:8]  = 4'd9;
-                        end
-                        else begin
-                            decrement[16:12] = count[16:12];
-                            decrement[11:8]  = count[11:8]  - 4'd1;
-                        end
-                        decrement[7:4]  = 4'd9;
-                    end
-                    else begin
-                        decrement[16:8] = count[16:8];
-                        decrement[7:4]  = count[7:4] - 4'd1;
-                    end
-                    decrement[3:0]  = 4'd9;
+                result[3:0] = count[3:0] < 4'(step) ?
+                    count[3:0] + 4'(10-step) : count[3:0] - 4'(step);
+                for (i = 1; i < 4; i = i + 1) begin
+                    if ((count & 17'((1 << (4*i))-1)) < 17'(step))
+                        result[4*i +: 4] = count[4*i +: 4] == 0 ? 4'd9 : count[4*i +: 4] - 4'd1;
+                    else result[4*i +: 4] = count[4*i +: 4];
                 end
-                else begin
-                    decrement[16:4] = count[16:4];
-                    decrement[3:0]  = count[3:0] - 4'd1;
-                end
+                result[16] = count[16] && count[15:0] >= 16'(step);
             end
+            decrement = count < 17'(step) ? 17'b0 : result;
+        end
     endfunction
 
     // Generate next count value.
     logic   [16:0]  dec_count;
     logic   [16:0]  dec2_count;
-    assign dec_count  = decrement(count, select_bcd);
-    assign dec2_count = decrement(dec_count, select_bcd);
+    assign dec_count  = decrement(count, select_bcd, 1'b0);
+    assign dec2_count = decrement(count, select_bcd, 1'b1);
 
     always_comb begin
         count_next = dec_count;
