@@ -43,7 +43,8 @@ active aperture even with video disabled. CGA uses 14.318180 MHz fractional
 master-dot enables; low-resolution pixels repeat on two dots. MDA uses
 16.257 MHz. They run independently of CPU READY, DMA and each other. This is a
 development egress, not a new shared video contract or a Coleco socket profile.
-A production shell still needs complete-frame CDC, scaling and display output.
+`pcxt_video.sv` now adapts this egress to the existing RGB888 raster fabric,
+with the shared Direct/Scanlines modules described below.
 CGA RGBI is not RGB888: the consumer must perform the monitor's palette mapping,
 including brown, rather than directly wire nibble bits to HDMI.
 
@@ -65,6 +66,64 @@ physical socket, timing-closure or hardware acceptance.
 Behavior references: [IBM PC Technical Reference, April 1983](https://bitsavers.org/pdf/ibm/pc/pc/1502234_PC_Technical_Reference_Apr83.pdf),
 printed pages 1-123–128 and 1-135–154 (adapter programming and schematics), and
 [Motorola MC6845 datasheet](https://bitsavers.org/components/motorola/_dataSheets/6845.pdf).
+
+## Shared Direct/Scanlines output
+
+`rtl/pcxt_video.sv` captures a selected card's standard active surface at
+100 MHz and emits `fes.fabric.video.raster-rgb888` 1.0 at a separately supplied
+74.25 MHz pixel clock. `pcxt_video_output.sv` uses the existing
+`fes_video_part_direct.v` or `fes_video_part_scanlines.v`, with the existing
+two-register raster boundary. No shared definitions or other cores' effects are
+changed. The fixed Coleco native-pixel contract is not used for PC geometry.
+
+The output is 1650×750 total / 1280×720 active, with a centered 960×720 (4:3)
+viewport and 160-pixel side bars. Rational nearest-neighbour DDA scaling retains
+all 640×200 CGA or 720×350 MDA source pixels without a variable divider in the
+RAM lookup path. CGA converts the sixteen RGBI values to RGB888, including brown
+(`6` → `AA5500`). MDA uses black, normal (`AAAAAA`) and bright (`FFFFFF`)
+luminance. Scanlines use the existing part's half-bright odd output lines.
+This is digital presentation, not composite artifact or analog monitor fidelity.
+
+Three packed frame banks separate capture, pending publication and current
+scanout. A stable bank/toggle mailbox crosses the clock boundary; pixel data
+stays in the existing dual-clock `coleco_video_dpram`. A bank is adopted only
+at output SOF and remains immutable until released. One completed third bank
+may wait while the preceding publication is acknowledged. If all banks are
+occupied, the next entire source frame is skipped; a source stall repeats the
+last complete frame. Guest clocks and CRTC timing are never stretched to 60 Hz.
+Malformed active geometry or an early EOL aborts capture until the next source
+SOF. HOLD aborts partial capture and mutes RGB, preserving complete banks and
+output timing; releasing it may repeat the last complete frame until new capture.
+System and pixel resets must be asserted together and released synchronously
+in their respective domains. Independent in-flight domain resets are unsupported.
+
+CGA packs two four-bit pixels per byte; MDA losslessly packs its three levels
+as four two-bit pixels per byte. Each profile reserves three 64 KiB banks
+(192 KiB total). `MDA` and `SCANLINES` are elaboration-time selections. A future
+PC/XT shell selects one output profile; the simulation-only two-output machine
+fixture does not demonstrate that two full pipelines fit the FPGA. Fonts remain
+separate card inputs. Physical video sockets, clocks/HDMI pads, a PC/XT board
+producer, timing closure, sealed Direct/Scanlines archives and kit acceptance
+remain integration work. The inline path provides concrete raster output for
+that shell; it does not register another core's physical slot layout as PC/XT.
+
+Run `--suite video`, `--suite video-mda` or `--suite video-machine` with
+`scripts/sim_fes_pcxt.py`. Both synthetic profiles check 32 output frames under
+unrelated clocks, every displayed pixel, scaling and bars, CGA palette/MDA
+luminance, frame ownership/cadence, malformed capture, pauses, HOLD, coordinated
+reset and exact Direct/Scanlines response alignment. Each profile then repeats
+at twice the guest pixel rate: a completed third bank stays queued and the next
+whole source frame is dropped, while every published frame stays intact. The
+machine suite runs the original 8088 display ROM through both ISA cards and
+checks guest and 720p pixels, the CGA Direct response and the MDA Scanlines
+response, with 0/137-clock external storage waits. All three suites run in the
+default PC/XT family, including the parent affected-test and hosted simulation lanes.
+
+Diagnostic locked synthesis supports `--suite video-cga` and `--suite video-mda`,
+with `--scanlines` selecting the second effect. Outputs and source/tool receipts
+are under `build/synth/fes-pcxt/video-{cga,mda}/{direct,scanlines}/`. These synthesize
+one adapter plus shared effect, not the CPU, ISA cards, font ROM or board shell.
+They provide no routed timing, physical containment or hardware acceptance.
 
 ## Implemented path
 

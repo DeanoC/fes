@@ -79,7 +79,9 @@ and generates speaker PCM. An original 8237A subset transfers ISA/RAM bytes
 and services PIT1 refresh with CPU LOCK/INTA arbitration; RAM/ROM storage
 remains external to the synthesizable fixture. Separate ISA CGA and MDA cards
 produce independently timed RGBI guest rasters in host simulation; fonts and
-production video output remain external.
+board-level HDMI wiring remain external. A PC/XT frame adapter now feeds the
+existing shared RGB888 Direct/Scanlines effects in host simulation; the board
+producer, routed shell and exact-shell parts are still unimplemented.
 `make sim-fes-pcxt` checks it on the host; see the
 [core README](cores/fes-pcxt/README.md). The complete 8088 machine and physically
 linkable PC/XT sockets remain unimplemented.

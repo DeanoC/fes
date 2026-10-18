@@ -2148,7 +2148,7 @@ reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
 lists coverage and limitations.
 
 **The complete machine below remains a proposal.** `fes.pcxt` is the proposed
-package identity. The remaining HID keyboard frontend, production video output, disk
+package identity. The remaining HID keyboard frontend, board-level HDMI integration, disk
 controller, physical socket layout, producer and sealed PC/XT package are not
 implemented yet. The fabric does not enable
 runtime activation or claim a linkable RBF. Existing linker layout admission
@@ -2353,21 +2353,39 @@ complete rasters are 912×262 and 882×370; active regions are 640×200 (low-res
 pixels repeated) and 720×350. RGBI, DE, active-high HS/VS, SOF/EOL are sampled
 with each pixel enable, including blanking. Live palette/VRAM/register accesses
 change the running raster without BIOS interception or frame reconstruction.
-This is development egress, not a newly registered shared fabric or a physical
-video socket. Non-interlaced IBM CRTC programming is supported; interlace is
-flagged. Original contention/wait-state timing, CGA snow and composite artifact
-colours need separate modeling and qualification. MDA supplies no Hercules
-graphics. A later EGA card requires planar VRAM, latches, write modes,
+The card stream feeds `pcxt_video.sv`, a shell-owned adapter into the existing
+`fes.fabric.video.raster-rgb888` 1.0 interface. `pcxt_video_output.sv` selects the
+unchanged shared Direct or Scanlines part behind the existing two-register
+raster boundary. The Coleco-only native-pixel geometry/encoding stays unchanged.
+Non-interlaced IBM CRTC programming is supported; interlace is flagged. Original
+contention/wait-state timing, CGA snow and composite artifact colours need
+separate modeling and qualification. MDA supplies no Hercules graphics.
+A later EGA card requires planar VRAM, latches, write modes,
 sequencer, graphics/attribute controllers and its own BIOS.
 
-Guest raster generation remains independent of 720p60 HDMI. Use complete-frame
-publication across clock domains, preserve aspect ratio, and repeat/drop whole
-frames for cadence conversion. Do not force CGA/MDA register timing to 60 Hz.
-The current Coleco native socket's fixed geometry is not a PC video socket.
-A production inline Direct output remains to be implemented; qualify a versioned wider native-video
-contract and exact-shell parts separately. Budget framebuffer storage in SDRAM
-before routing; a double-buffered 640×400 indexed4 surface alone needs 256,000
-bytes, in addition to guest RAM and adapter VRAM.
+Guest raster generation remains independent of 720p60 output. The adapter uses
+three packed banks in the existing dual-clock framebuffer helper and transfers
+only stable publication/acknowledgement tokens across the 100/74.25 MHz domains.
+Capture never writes the displayed or published bank. Complete surfaces swap
+at output SOF; a pending third surface waits for ownership, and backpressure
+skips a whole source frame. Source pauses repeat the last complete frame.
+HOLD mutes RGB/aborts partial capture while raster timing and complete-bank
+ownership continue. Coordinated resets are required in both domains.
+
+CGA 640×200 RGBI and MDA 720×350 luminance scale by rational nearest-neighbour
+DDA to a centered 960×720 viewport in the existing fixed 1280×720p60 raster.
+CGA brown correction and MDA normal/bright luminance are applied before the
+shared effect. CGA stores four bits/pixel; MDA stores two, preserving its three
+levels. Both elaborated profiles reserve three 64 KiB banks. The board shell
+will select one output profile; the two-output machine simulation is not a
+whole-device resource qualification. See the [core README](../cores/fes-pcxt/README.md#shared-directscanlines-output)
+for exact control/reset semantics, focused suites and diagnostic synthesis.
+
+Physical containment and exact-shell Direct/Scanlines parts still require a
+PC/XT board producer, reserved regions, clock/HDMI wiring and routed timing.
+The existing Coleco/ST physical layouts are not admitted as PC/XT layouts.
+The new inline output changes neither linker/runtime policies nor the shared
+fabric definitions, and has no sealed RBF or hardware acceptance yet.
 
 ### Emulated ISA expansion ports
 
