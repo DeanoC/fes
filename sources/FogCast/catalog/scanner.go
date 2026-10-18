@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DeanoC/FogCast/appliance/blockprobe"
 	"github.com/DeanoC/FogCast/protocol"
 )
 
@@ -297,6 +298,9 @@ func isRemoteUNCPath(path string) bool {
 func openScannerRoot(path string) (*scannerRoot, error) {
 	if isRemoteUNCPath(path) {
 		return nil, errRemoteRootUnmounted
+	}
+	if blockprobe.Skips(path) {
+		return nil, errors.New("catalog root is on an optical or no-media block device")
 	}
 	entryInfo, err := os.Lstat(path)
 	if err != nil || entryInfo.Mode()&fs.ModeSymlink != 0 || !entryInfo.IsDir() {

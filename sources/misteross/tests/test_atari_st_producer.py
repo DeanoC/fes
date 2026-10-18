@@ -743,6 +743,49 @@ class AtariSTProducerTests(unittest.TestCase):
                 export.assert_not_called()
             invocation.close.assert_called_once()
             self.assertFalse((root / st.OUTPUT_RELATIVE / 'core.rbf').exists())
+            self.assertFalse((root / 'build' / 'fes-core-unavailable.json').exists())
+
+    def test_timing_miss_records_unavailable_report_and_withdraws_rbf(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / st.QSF).parent.mkdir(parents=True)
+            (root / st.QSF).write_text('# board pins\n')
+            authenticated = {name: SimpleNamespace(identity='test', path=Path('/auth/install/bin') / name)
+                             for name in ('mistral', 'yosys', 'nextpnr-mistral')}
+            invocation = SimpleNamespace(inputs={}, env={}, close=Mock())
+
+            def synth(*args, **kwargs):
+                (root / st.OUTPUT_RELATIVE / 'synth.json').write_text('{}')
+
+            def fail_timing(**kwargs):
+                (root / st.OUTPUT_RELATIVE / 'core.rbf').write_bytes(b'unqualified')
+                raise st.SearchError(
+                    'no placement met timing (best seed=4 weight=10 worst_ratio=0.7692)',
+                    reason='timing-not-met', seeds=(4, 5),
+                    figures=({'seed': 4, 'weight': 10, 'passing': False, 'worst_ratio': 0.7692,
+                              'clocks': {'clk_sys': {'achieved_mhz': 40.0, 'constraint_mhz': 52.0}}},))
+
+            with patch.object(st, '_require_clean_source', return_value=('repo', 'a'*40)), \
+                 patch.object(st, '_authenticate_atari_st_tools', return_value=authenticated), \
+                 patch.object(st.rom_map, 'read_database', return_value={}), \
+                 patch.object(st, 'FunctionalInvocation', return_value=invocation), \
+                 patch.object(st, 'create_build_record', return_value=b'{}'), \
+                 patch.object(st, 'prepare_cpu_inputs'), \
+                 patch.object(st, 'build_identity', return_value='0'*32), \
+                 patch.object(st, '_run_tool', side_effect=synth), \
+                 patch.object(st, 'clock_read_only_memories', return_value=[]), \
+                 patch.object(st, 'validate_synth_evidence'), \
+                 patch.object(st, 'route_after_synth', side_effect=fail_timing), \
+                 patch.object(st, 'export_package') as export:
+                with self.assertRaisesRegex(BuildError, 'no placement met timing'):
+                    st.build(root)
+                export.assert_not_called()
+            self.assertFalse((root / st.OUTPUT_RELATIVE / 'core.rbf').exists())
+            report = json.loads((root / 'build' / 'fes-core-unavailable.json').read_text())
+            self.assertEqual(report['reason'], 'timing-not-met')
+            self.assertEqual(report['core_id'], 'fes.atari-st')
+            self.assertEqual(report['seeds'], [4, 5])
+            self.assertEqual(report['figures'][0]['clocks']['clk_sys']['achieved_mhz'], 40.0)
 
     def test_ram_overlap_rejects_seal_even_after_a_timing_winner(self):
         database = ram_database()

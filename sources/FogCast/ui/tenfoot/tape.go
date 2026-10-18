@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DeanoC/FogCast/appliance/blockprobe"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
 	"github.com/DeanoC/FogCast/ui/shared"
@@ -100,7 +101,7 @@ func tapePickerRoots(home string, libraries []hostclient.LibraryRoot) []TapePick
 	seen := map[string]bool{}
 	addRoot := func(name, path string) {
 		path = filepath.Clean(strings.TrimSpace(path))
-		if path == "" || path == "." || seen[path] {
+		if path == "" || path == "." || seen[path] || blockprobe.Skips(path) {
 			return
 		}
 		info, err := os.Stat(path)
@@ -158,6 +159,9 @@ func listTapePickerDir(path string) ([]TapePickerRow, error) {
 			continue
 		}
 		full := filepath.Join(path, name)
+		if blockprobe.Skips(full) {
+			continue
+		}
 		info, err := entry.Info()
 		if err != nil {
 			continue
@@ -250,7 +254,7 @@ func (a *App) closeTapePickerLocked() {
 }
 
 func (a *App) sessionLiveMediaOfferedLocked() bool {
-	return a.session.State == "active" && hostclient.LiveMediaCapable(a.session.CorePackage) && a.sessionDisplayOfferedLocked()
+	return a.session.State == "active" && hostclient.LiveMediaCapable(a.session.CorePackage) && a.liveControlsOfferedLocked()
 }
 
 func (a *App) openTapePickerLocked() {
@@ -262,7 +266,7 @@ func (a *App) openTapePickerLocked() {
 	if a.tapePickerBusy {
 		return
 	}
-	if a.needsSessionDisplayLocked() && !a.sessionDisplayVisible {
+	if a.kitSessionDisplayPlaneLocked() && !a.sessionDisplayVisible {
 		a.beginSessionDisplayLocked(true, true)
 		return
 	}

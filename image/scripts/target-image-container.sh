@@ -161,6 +161,12 @@ docker_run() {
   else
     set -- --env FES_VIDEO_PARTS_DIR= "$@"
   fi
+  if [ -n "${FES_UNAVAILABLE_CORES:-}" ]; then
+    set -- --volume "$FES_UNAVAILABLE_CORES:/fes-unavailable-cores.json:ro" \
+      --env FES_UNAVAILABLE_CORES=/fes-unavailable-cores.json "$@"
+  else
+    set -- --env FES_UNAVAILABLE_CORES= "$@"
+  fi
   for package_core in $package_ids_reverse; do
     case "$package_core" in
       menu)

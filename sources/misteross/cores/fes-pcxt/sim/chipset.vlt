@@ -1,0 +1,10 @@
+`verilator_config
+// Vendor-scoped waivers only; handwritten wrappers remain under fatal lint.
+lint_off -rule WIDTH -file "*/vendor/kf825*/*.sv"
+lint_off -rule UNUSEDSIGNAL -file "*/vendor/kf825*/*.sv"
+lint_off -rule COMBDLY -file "*/vendor/kf825*/*.sv"
+lint_off -rule VARHIDDEN -file "*/vendor/kf8253/*.sv"
+// Imported chips assert reset asynchronously; the fixture drives the shared
+// reset synchronously and holds it for multiple fabric clocks.
+lint_off -rule SYNCASYNCNET -file "*/sim/motherboard_top.sv" -match "*reset*"
+lint_off -rule SYNCASYNCNET -file "*/sim/machine_top.sv" -match "*reset*"

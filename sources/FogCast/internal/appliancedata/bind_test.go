@@ -6,7 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
+
+	"github.com/DeanoC/FogCast/appliance/blockprobe"
 )
 
 type recordingMounter struct {
@@ -358,6 +362,103 @@ func TestExt4LabelFromSuperblock(t *testing.T) {
 	}
 	if _, err := ext4LabelFromSuperblock(make([]byte, 64)); err == nil {
 		t.Fatal("truncated superblock accepted")
+	}
+}
+
+func TestSelectedDeviceSkipsEmptyOpticalAndKeepsUSBAndFESDATA(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	sysfs := filepath.Join(root, "sys")
+	block := filepath.Join(sysfs, "class", "block")
+	writeBlock(t, block, "sda", "0", "1", "5")
+	writeBlock(t, block, "sdb", "15633408", "1", "0")
+	writeBlock(t, block, "mmcblk0p3", "41943040", "1", "")
+
+	optical := filepath.Join(root, "sda")
+	if err := syscall.Mkfifo(optical, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	stick := filepath.Join(root, "sdb")
+	data := filepath.Join(root, "mmcblk0p3")
+	if err := os.WriteFile(stick, ext4Superblock(DefaultLabel), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(data, ext4Superblock(DefaultLabel), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	probe := func(path string) error {
+		return blockprobe.RejectsName(sysfs, filepath.Base(path))
+	}
+	opened := make(chan string, 3)
+	readLabel := func(path string) (string, error) {
+		opened <- filepath.Base(path)
+		return readExt4Label(path)
+	}
+
+	done := make(chan struct{})
+	var got string
+	var ok bool
+	go func() {
+		defer close(done)
+		got, ok = SelectedDevice(Config{
+			Devices:   []string{optical, stick, data},
+			Label:     DefaultLabel,
+			Probe:     probe,
+			ReadLabel: readLabel,
+		})
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("FESDATA selection blocked on the empty optical device")
+	}
+	if !ok || got != stick {
+		t.Fatalf("selected %q ok=%v, want the USB stick", got, ok)
+	}
+	select {
+	case name := <-opened:
+		if name != "sdb" {
+			t.Fatalf("first device read was %s", name)
+		}
+	default:
+		t.Fatal("USB stick label was not read")
+	}
+
+	got, ok = SelectedDevice(Config{
+		Devices:   []string{optical, data},
+		Label:     DefaultLabel,
+		Probe:     probe,
+		ReadLabel: readLabel,
+	})
+	if !ok || got != data {
+		t.Fatalf("selected %q ok=%v, want FESDATA", got, ok)
+	}
+	select {
+	case name := <-opened:
+		if name != "mmcblk0p3" {
+			t.Fatalf("FESDATA read was %s", name)
+		}
+	default:
+		t.Fatal("FESDATA label was not read")
+	}
+}
+
+func writeBlock(t *testing.T, block, name, size, removable, scsiType string) {
+	t.Helper()
+	dir := filepath.Join(block, name, "device")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(block, name, "size"), []byte(size+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(block, name, "removable"), []byte(removable+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if scsiType != "" {
+		if err := os.WriteFile(filepath.Join(dir, "type"), []byte(scsiType+"\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

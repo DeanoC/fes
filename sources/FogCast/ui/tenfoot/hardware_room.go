@@ -31,7 +31,7 @@ func (s roomServices) SelectCoreEntryExpansion(ctx context.Context, gameID, pack
 }
 
 func (a *App) playingHardwareRoomAvailableLocked() bool {
-	if !a.sessionDisplayOfferedLocked() || a.session.State != "active" || a.sessionDisplayBusy || a.stopPhase == "stopping" || a.retryStopLock || a.roomsIndex == nil {
+	if !a.liveControlsOfferedLocked() || a.session.State != "active" || a.sessionDisplayBusy || a.stopPhase == "stopping" || a.retryStopLock || a.roomsIndex == nil {
 		return false
 	}
 	pack, ok := a.roomsIndex.Find(hardwareRoomID)
@@ -44,7 +44,7 @@ func (a *App) openPlayingHardwareRoomLocked() {
 	if !a.playingHardwareRoomAvailableLocked() {
 		return
 	}
-	if a.needsSessionDisplayLocked() && !a.sessionDisplayVisible {
+	if a.kitSessionDisplayPlaneLocked() && !a.sessionDisplayVisible {
 		a.beginSessionDisplayLocked(true, false)
 		return
 	}
@@ -75,7 +75,7 @@ func (a *App) resumeRoomSessionLocked() {
 	if !a.roomDuringPlay || a.tapePickerBusy {
 		return
 	}
-	if a.needsSessionDisplayLocked() && a.sessionDisplayVisible {
+	if a.kitSessionDisplayPlaneLocked() && a.sessionDisplayVisible {
 		a.beginSessionDisplayLocked(false, false)
 		return
 	}

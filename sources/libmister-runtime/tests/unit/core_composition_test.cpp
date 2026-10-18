@@ -104,6 +104,8 @@ void ZX81V2BusAdmission() {
 	f.base.descriptor.interfaces[0].required=true;assert(!f.Open(&out).ok());
 	f.base.descriptor.interfaces[0].required=false;
 	f.base.descriptor.abi.id="fes.application";assert(!f.Open(&out).ok());
+	f.base.descriptor.abi.id="fes.computer";assert(f.Open(&out).ok());
+	f.base.descriptor.abi.id="fes.simple-computer";assert(f.Open(&out).ok());
 }
 void ColecoBoundaryPatchAdmission() {
 	const std::string patch="\"boundary_patch\":{\"bits\":[{\"value\":0,\"x\":3332,\"y\":803},"

@@ -12,12 +12,20 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-// LiveMediaCapable reports whether the session package can arm mid-session
-// ZX81 /.p mailbox tape (fes.simple-computer + fes.media.blob).
+// LiveMediaCapable reports whether the session can change a mid-session .p
+// tape. The projection keeps the active interfaces and media units so the
+// shared predicate can see fes.media.blob or fes.media.zx81-tape.
 func LiveMediaCapable(p *SessionCorePackage) bool {
-	if p == nil {
-		return false
-	}
+	return p != nil && protocol.LiveMediaCapable(sessionPackageStatus(p))
+}
+
+// ComputerTapeCapable reports an active fes.computer 1.0 ZX81 tape unit.
+// A menu-display kit presents that unit through fes.video.session-display.
+func ComputerTapeCapable(p *SessionCorePackage) bool {
+	return p != nil && protocol.ComputerZx81TapeCapable(sessionPackageStatus(p))
+}
+
+func sessionPackageStatus(p *SessionCorePackage) *protocol.CorePackageStatus {
 	status := &protocol.CorePackageStatus{
 		PackageID:  p.PackageID,
 		Generation: p.Generation,
@@ -28,7 +36,10 @@ func LiveMediaCapable(p *SessionCorePackage) bool {
 			ID: i.ID, Major: i.Major, Minor: i.Minor,
 		})
 	}
-	return protocol.LiveMediaCapable(status)
+	if len(p.MediaUnits) > 0 {
+		status.MediaUnits = protocol.CloneMediaUnits(p.MediaUnits)
+	}
+	return status
 }
 
 // LiveMediaBinding builds the host change-tape / eject binding headers from a

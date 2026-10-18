@@ -12,12 +12,13 @@
 //
 // zx81_machine_clock spaces ce_6m5 by eight or nine 52.224 MHz clocks and
 // toggles the Z80 edge every other pulse, so a half-cycle is about sixteen
-// host clocks. T80pa samples DI on CEN_n at T3, and the address is held
-// across that window. Two clocks of ROM latency are stable at the sample.
+// host clocks. fes_z80_nmos samples an opcode fetch on ce_p at the end of
+// T2 and samples operand reads on ce_n during T3. The address is held
+// across that window. Two clocks of ROM latency are stable at either sample.
 // During /RFSH the glyph address is held for that same half-cycle while
 // rfsh_chr is rewritten every clk_sys, so the first two clocks of stale
 // data are overwritten before shifter_start. Do not fold /RFSH into the
-// CPU mem_out mux: that is still a combinational loop through T80.
+// CPU mem_out mux: that is still a combinational loop through the CPU.
 // The tape loader substitutes tape_loader_patch and does not read these
 // lanes for the patched bytes. The Verilator model uses the same two stages.
 

@@ -7,3 +7,5 @@ tmpfs /dev/shm tmpfs nosuid,nodev,mode=1777 0 0
 tmpfs /run tmpfs nosuid,nodev,mode=0755 0 0
 tmpfs /tmp tmpfs nosuid,nodev,mode=1777 0 0
 tmpfs /var/log tmpfs nosuid,nodev,noexec,mode=0755 0 0
+# sd* and sr* are not mounted. An empty optical drive or empty USB bridge
+# stays out of automount.

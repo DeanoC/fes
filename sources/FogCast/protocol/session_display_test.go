@@ -27,4 +27,20 @@ func TestSessionDisplayRequiresObservedCapabilityAndExactLiveBinding(t *testing.
 	if SessionDisplayCapable(p) {
 		t.Fatal("unknown display version admitted")
 	}
+	tape := Zx81TapeInterface()
+	computer := &CorePackageStatus{PackageID: b.PackageID, Generation: b.Generation,
+		ABI: RuntimeContract{ID: "fes.computer", Major: 1},
+		ActiveInterfaces: []RuntimeInterface{
+			{ID: tape.ID, Major: tape.Major, Minor: tape.Minor},
+			{ID: "fes.memory.hps-ddr", Major: 1},
+			{ID: "fes.video.session-display", Major: 1},
+		}}
+	cs := Status{State: StateActive, Development: true, CorePackage: computer}
+	if !SessionDisplayCapable(computer) || !b.MatchesSessionDisplay(cs) {
+		t.Fatal("fes.computer ZX81 plane was not admitted")
+	}
+	computer.ActiveInterfaces = computer.ActiveInterfaces[:1]
+	if SessionDisplayCapable(computer) || b.MatchesSessionDisplay(cs) {
+		t.Fatal("tape unit alone granted launcher display")
+	}
 }

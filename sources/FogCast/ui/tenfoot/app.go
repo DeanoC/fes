@@ -211,59 +211,69 @@ func layoutDetailMeta(d shared.FocusDetail, x, maxWidth, sizePx int) (facts stri
 
 // Snapshot is a frame-loop readable copy of launcher state.
 type Snapshot struct {
-	Games                   []hostclient.Game
-	Grid                    Grid
-	Status                  string
-	LoadErr                 string
-	Loading                 bool
-	Covers                  map[string]*image.RGBA
-	Launch                  LaunchSnapshot
-	Gamepads                int
-	Keyboards               int
-	Mice                    int
-	Affinity                InputKind
-	AffinityID              int
-	CoverHits               int
-	Platforms               []hostclient.Platform
-	PlatformID              string
-	Sort                    string
-	Query                   string
-	SearchOpen              bool
-	FocusDetail             shared.FocusDetail
-	Collection              string
-	ViewLabel               string
-	ViewPicker              bool
-	ViewPickerIndex         int
-	Views                   []LibraryView
-	PickerRows              []LibraryView
-	CollectionMenu          CollectionMenuSnapshot
-	Session                 SessionSnapshot
-	GPUParked               bool
-	Attract                 AttractSnapshot
-	SafeAreaPct             float64
-	Settings                SettingsSnapshot
-	Filters                 FilterSnapshot
-	Genre                   string
-	Year                    string
-	Region                  string
-	HidePrerelease          bool
-	HideHacks               bool
-	OSK                     shared.OSKSnapshot
-	Health                  HealthSnapshot
-	KitLease                KitLeaseSnapshot
-	Detail                  DetailSnapshot
-	Screenshots             map[string]*image.RGBA
-	Preview                 PreviewSnapshot
-	Theme                   theme.Theme
-	DebugHUD                DebugHUDSnapshot
-	Room                    RoomSnapshot
-	RoomPicker              RoomPickerSnapshot
-	CoreLibrary             FirmwarePickerSnapshot
-	FirmwarePicker          FirmwarePickerSnapshot
-	TapePicker              TapePickerSnapshot
-	ReducedMotion           bool
-	LocalCorePhase          string
-	LocalCoreTitle          string
+	Games       []hostclient.Game
+	Grid        Grid
+	Status      string
+	LoadErr     string
+	Loading     bool
+	Covers      map[string]*image.RGBA
+	Launch      LaunchSnapshot
+	Gamepads    int
+	Keyboards   int
+	Mice        int
+	Affinity    InputKind
+	AffinityID  int
+	CoverHits   int
+	Platforms   []hostclient.Platform
+	PlatformID  string
+	Sort        string
+	Query       string
+	SearchOpen  bool
+	FocusDetail shared.FocusDetail
+	// DetailPlay is the focused title's classified play destination: the
+	// same readiness, reason and Confirm the launcher acts on.
+	DetailPlay rooms.Destination
+	// KitPlay is the kit state Library rows, cover cells and the header
+	// classify with, the same as Details and Confirm.
+	KitPlay kitPlayState
+	// LibraryBackTo names the room Back returns to from the Library.
+	LibraryBackTo   string
+	Collection      string
+	ViewLabel       string
+	ViewPicker      bool
+	ViewPickerIndex int
+	Views           []LibraryView
+	PickerRows      []LibraryView
+	CollectionMenu  CollectionMenuSnapshot
+	Session         SessionSnapshot
+	GPUParked       bool
+	Attract         AttractSnapshot
+	SafeAreaPct     float64
+	Settings        SettingsSnapshot
+	Filters         FilterSnapshot
+	Genre           string
+	Year            string
+	Region          string
+	HidePrerelease  bool
+	HideHacks       bool
+	OSK             shared.OSKSnapshot
+	Health          HealthSnapshot
+	KitLease        KitLeaseSnapshot
+	Detail          DetailSnapshot
+	Screenshots     map[string]*image.RGBA
+	Preview         PreviewSnapshot
+	Theme           theme.Theme
+	DebugHUD        DebugHUDSnapshot
+	Room            RoomSnapshot
+	RoomPicker      RoomPickerSnapshot
+	CoreLibrary     FirmwarePickerSnapshot
+	FirmwarePicker  FirmwarePickerSnapshot
+	TapePicker      TapePickerSnapshot
+	ReducedMotion   bool
+	LocalCorePhase  string
+	LocalCoreTitle  string
+	// LocalCoreStatus is the latest kit-local launch or failure sentence.
+	LocalCoreStatus         string
 	LocalCoreStartedAt      time.Time
 	LocalCorePresentsPaused bool
 	LocalCoreLateAdopt      bool
@@ -320,6 +330,7 @@ type App struct {
 	shots                  map[string]*shotSlot
 	shotIDs                map[string][]string
 	detailOpen             bool
+	libraryDetail          hostclient.Game
 	carouselIndex          int
 	shotGen                int
 	shotCtx                context.Context
@@ -429,73 +440,84 @@ type App struct {
 	devLoadPhase       string
 	devLoadMessage     string
 
-	roomsIndex              *rooms.Index
-	roomsDir                string
-	homeRooms               bool
-	homeRoom                string
-	gfxBackend              string
-	pinnedRooms             []string
-	reducedMotion           bool
-	homeRecents             []hostclient.Game
-	homeRecentsErr          string
-	homeRecentsLoaded       bool
-	homeRecentsGen          int
-	room                    *rooms.Instance
-	roomStack               []*rooms.Instance
-	roomFrame               rooms.Frame
-	roomErr                 string
-	roomWasParked           bool
-	roomDuringPlay          bool
-	roomSessionNotice       string
-	menuDisplay             *gfx.MenuDisplay
-	sessionDisplayBusy      bool
-	sessionDisplayVisible   bool
-	sessionDisplayUncertain bool
-	sessionDisplayEpoch     uint64
-	sessionDisplayBinding   hostclient.SessionResult
-	sessionDisplayWait      chan struct{}
-	playKeyHeld             map[string]bool
-	playKeySuppressed       map[string]bool
-	playPadHeld             map[remoteinput.Code]remoteinput.Event
-	playPadSuppressed       map[remoteinput.Code]bool
-	playPadSelectDown       bool
-	playPadStartDown        bool
-	playPadChordSince       time.Time
-	playPadChordFired       bool
-	playHIDHeld             map[playHIDKey]remoteinput.Event
-	playMice                map[int]*playMouse
-	playHIDTail             chan struct{}
-	playHIDContext          context.Context
-	playHIDCancel           context.CancelFunc
-	playHIDEpoch            uint64
-	playHIDPending          int
-	roomPickerOpen          bool
-	roomPickerIndex         int
-	roomCoverSem            chan struct{}
-	roomDetail              hostclient.Game
-	roomChoiceOpen          bool
-	roomChoiceIndex         int
-	roomChoice              []hostclient.Game
-	roomPicks               map[string]string
-	firmwarePickerOpen      bool
-	firmwarePickerAtRoots   bool
-	firmwarePickerBusy      bool
-	firmwarePickerIndex     int
-	firmwarePickerGen       int
-	firmwarePickerPath      string
-	firmwarePickerStatus    string
-	firmwarePickerRows      []FirmwarePickerRow
-	firmwarePickerGame      hostclient.Game
-	tapePickerOpen          bool
-	tapePickerAtRoots       bool
-	tapePickerBusy          bool
-	tapePickerIndex         int
-	tapePickerGen           int
-	tapePickerPath          string
-	tapePickerStatus        string
-	tapePickerRows          []TapePickerRow
-	tapePickerSession       hostclient.SessionResult
-	tapePickerStarters      []hostclient.HardwareTape
+	roomsIndex        *rooms.Index
+	roomsDir          string
+	homeRooms         bool
+	homeRoom          string
+	gfxBackend        string
+	pinnedRooms       []string
+	reducedMotion     bool
+	homeRecents       []hostclient.Game
+	homeRecentsErr    string
+	homeRecentsLoaded bool
+	homeRecentsGen    int
+	room              *rooms.Instance
+	roomStack         []*rooms.Instance
+	roomFrame         rooms.Frame
+	roomErr           string
+	roomWasParked     bool
+	roomDuringPlay    bool
+	roomSessionNotice string
+	// roomWaitAck is a Confirm received while the selected destination was
+	// still Checking. It is shown, never queued, and clears once the
+	// destination is no longer Checking.
+	roomWaitAck bool
+	// roomCoreDetail is the package whose Details the hero is showing.
+	roomCoreDetail string
+	// libraryReturn is the suspended room the Library was opened from.
+	libraryReturn *libraryOrigin
+	// firmwarePickerFromDetail reopens Library Details when the picker is
+	// cancelled, so the requirement stays in front of the player.
+	firmwarePickerFromDetail bool
+	menuDisplay              *gfx.MenuDisplay
+	sessionDisplayBusy       bool
+	sessionDisplayVisible    bool
+	sessionDisplayUncertain  bool
+	sessionDisplayEpoch      uint64
+	sessionDisplayBinding    hostclient.SessionResult
+	sessionDisplayWait       chan struct{}
+	playKeyHeld              map[string]bool
+	playKeySuppressed        map[string]bool
+	playPadHeld              map[remoteinput.Code]remoteinput.Event
+	playPadSuppressed        map[remoteinput.Code]bool
+	playPadSelectDown        bool
+	playPadStartDown         bool
+	playPadChordSince        time.Time
+	playPadChordFired        bool
+	playHIDHeld              map[playHIDKey]remoteinput.Event
+	playMice                 map[int]*playMouse
+	playHIDTail              chan struct{}
+	playHIDContext           context.Context
+	playHIDCancel            context.CancelFunc
+	playHIDEpoch             uint64
+	playHIDPending           int
+	roomPickerOpen           bool
+	roomPickerIndex          int
+	roomCoverSem             chan struct{}
+	roomDetail               hostclient.Game
+	roomChoiceOpen           bool
+	roomChoiceIndex          int
+	roomChoice               []hostclient.Game
+	roomPicks                map[string]string
+	firmwarePickerOpen       bool
+	firmwarePickerAtRoots    bool
+	firmwarePickerBusy       bool
+	firmwarePickerIndex      int
+	firmwarePickerGen        int
+	firmwarePickerPath       string
+	firmwarePickerStatus     string
+	firmwarePickerRows       []FirmwarePickerRow
+	firmwarePickerGame       hostclient.Game
+	tapePickerOpen           bool
+	tapePickerAtRoots        bool
+	tapePickerBusy           bool
+	tapePickerIndex          int
+	tapePickerGen            int
+	tapePickerPath           string
+	tapePickerStatus         string
+	tapePickerRows           []TapePickerRow
+	tapePickerSession        hostclient.SessionResult
+	tapePickerStarters       []hostclient.HardwareTape
 
 	safeAreaPct        float64
 	prefsPath          string
@@ -567,7 +589,13 @@ type App struct {
 	localStatusBusy            bool
 	localStatusNext            time.Time
 	localStatusEpoch           uint64
-	localLaunchPending         func()
+	// localStartupStatusChecked is set after the first successful local
+	// status read. A later idle menu does not keep polling.
+	localStartupStatusChecked bool
+	// localWatchStartup keeps polling a launching or stopping generation
+	// seen at startup until that generation is running or generation-free idle.
+	localWatchStartup  bool
+	localLaunchPending func()
 }
 
 // SetRemapper installs a shared input profile. A nil remapper is identity.
@@ -689,6 +717,7 @@ func (a *App) Stop() {
 	a.stopPreviewLocked()
 	a.cancelPlayHIDLocked()
 	a.closeAllRoomsLocked()
+	a.discardLibraryOriginLocked()
 	a.attractClosed = true
 	feed := a.localFeed
 	a.localFeed = nil
@@ -1076,6 +1105,8 @@ func (a *App) HandleCommand(cmd Command, now time.Time) {
 	case CmdBack:
 		if a.launch.Phase == "launching" {
 			a.status = "launch in progress"
+		} else {
+			a.returnFromLibraryLocked()
 		}
 	case CmdFilterPrev:
 		a.cyclePlatformLocked(-1)
@@ -1418,11 +1449,11 @@ func (a *App) toggleFavoriteLocked() {
 	if a.favoriteBusy {
 		return
 	}
-	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
+	game, ok := a.favoriteTargetLocked()
+	if !ok {
 		a.status = "no title selected"
 		return
 	}
-	game := a.games[a.grid.Focus]
 	want := !game.Favorite
 	a.setGameFavoriteLocked(game.ID, want)
 	a.favoriteBusy = true
@@ -1433,7 +1464,27 @@ func (a *App) toggleFavoriteLocked() {
 	go a.doFavorite(ctx, game.ID, want)
 }
 
+// favoriteTargetLocked is the title Favorite changes. Open Details for a
+// title that is not the focused row, such as a Home recent, owns the action.
+func (a *App) favoriteTargetLocked() (hostclient.Game, bool) {
+	if a.room == nil && strings.TrimSpace(a.libraryDetail.ID) != "" {
+		return a.libraryDetail, true
+	}
+	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
+		return hostclient.Game{}, false
+	}
+	return a.games[a.grid.Focus], true
+}
+
 func (a *App) setGameFavoriteLocked(gameID string, favorite bool) {
+	if a.libraryDetail.ID == gameID {
+		a.libraryDetail.Favorite = favorite
+	}
+	for i := range a.homeRecents {
+		if a.homeRecents[i].ID == gameID {
+			a.homeRecents[i].Favorite = favorite
+		}
+	}
 	idx := -1
 	for i, game := range a.games {
 		if game.ID == gameID {
@@ -1658,6 +1709,9 @@ func (a *App) Snapshot() Snapshot {
 		Query:                   a.searchField.Buffer,
 		SearchOpen:              a.searchOpen,
 		FocusDetail:             a.focusDetailLocked(),
+		DetailPlay:              a.detailPlayLocked(),
+		KitPlay:                 a.kitPlayStateLocked(),
+		LibraryBackTo:           a.libraryBackToLocked(),
 		Collection:              a.collectionID,
 		ViewLabel:               a.viewLabelLocked(),
 		ViewPicker:              a.viewPickerOpen,
@@ -1692,6 +1746,7 @@ func (a *App) Snapshot() Snapshot {
 		ReducedMotion:           a.reducedMotion,
 		LocalCorePhase:          a.localPhase,
 		LocalCoreTitle:          a.localTitle,
+		LocalCoreStatus:         a.localStatus,
 		LocalCoreStartedAt:      a.localStartedAt,
 		LocalCorePresentsPaused: a.localPresentsPaused,
 		LocalCoreLateAdopt:      a.localLateAdopt,
@@ -1920,7 +1975,7 @@ func (s Snapshot) chromeBody() string {
 	parts = append(parts, filterSummaryParts(s.Genre, s.Year, s.Region, s.HidePrerelease, s.HideHacks)...)
 	parts = append(parts, search)
 	if s.Grid.Focus >= 0 && s.Grid.Focus < len(s.Games) {
-		play := libraryPlayDestination(s.Games[s.Grid.Focus])
+		play := classifyLibraryGame(s.Games[s.Grid.Focus], s.KitPlay)
 		if label := play.Availability.Label(); label != "" {
 			parts = append(parts, label)
 		}
@@ -2020,9 +2075,49 @@ func (a *App) Selected() (hostclient.Game, bool) {
 	return a.games[a.grid.Focus], true
 }
 
+// detailPlayLocked classifies the title Details describes. In a room it is
+// the room's own destination. In the Library it is the refused launch when
+// that title is not the focused row, and otherwise the focused row, with the
+// kit lease applied as Confirm would see it.
+func (a *App) detailPlayLocked() rooms.Destination {
+	var game hostclient.Game
+	switch {
+	case a.room != nil && strings.TrimSpace(a.roomDetail.ID) != "":
+		// Details for one chosen edition describes that edition.
+		game = a.roomDetail
+	case a.room != nil:
+		return a.roomDestinationLocked()
+	case strings.TrimSpace(a.libraryDetail.ID) != "":
+		game = a.libraryDetail
+	case a.grid.Focus < 0 || a.grid.Focus >= len(a.games):
+		return rooms.Destination{}
+	default:
+		game = a.games[a.grid.Focus]
+	}
+	return a.gamePlayDestinationLocked(game)
+}
+
+// gamePlayDestinationLocked classifies one title as Confirm will treat it.
+func (a *App) gamePlayDestinationLocked(game hostclient.Game) rooms.Destination {
+	return classifyLibraryGame(game, a.kitPlayStateLocked())
+}
+
+// kitPlayStateLocked is the kit state every Library classification shares.
+func (a *App) kitPlayStateLocked() kitPlayState {
+	paired := a.client != nil && a.client.paired
+	return kitPlayState{
+		Paired:  paired,
+		Unknown: paired && a.pairedKitStatusUnavailableLocked(),
+		Foreign: a.foreignKitLeaseLocked(),
+	}
+}
+
 func (a *App) focusDetailLocked() shared.FocusDetail {
 	if a.room != nil && strings.TrimSpace(a.roomDetail.ID) != "" {
 		return a.detailForGameLocked(a.roomDetail)
+	}
+	if a.room == nil && strings.TrimSpace(a.libraryDetail.ID) != "" {
+		return a.detailForGameLocked(a.libraryDetail)
 	}
 	if a.grid.Focus < 0 || a.grid.Focus >= len(a.games) {
 		return shared.FocusDetail{}
@@ -2171,6 +2266,8 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		a.launchLeaseRefusal = a.statusLeaseRefusal
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
+		} else {
+			a.openLibraryDetailLocked(game)
 		}
 		return
 	}
@@ -2179,6 +2276,9 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		a.launch = LaunchSnapshot{GameID: game.ID, Phase: "error", Message: reason}
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
+		} else {
+			// The reason and its remedy are in Details, not only the header.
+			a.openLibraryDetailLocked(game)
 		}
 		return
 	}
@@ -2187,6 +2287,8 @@ func (a *App) startLaunchGameLocked(game hostclient.Game) {
 		a.launchLeaseRefusal = true
 		if a.room != nil {
 			a.closeRoomOverlaysLocked()
+		} else {
+			a.openLibraryDetailLocked(game)
 		}
 		return
 	}
@@ -3775,6 +3877,7 @@ func (a *App) queueVisibleWork(now time.Time) {
 		}
 	}
 	queue = a.queueRoomDetailWorkLocked(now, queue)
+	queue = a.queueLibraryDetailWorkLocked(now, queue)
 	queue = a.queueFocusedScreenshotsLocked(queue)
 	a.evictCoversLocked()
 	a.evictShotsLocked()
@@ -3805,6 +3908,9 @@ func (a *App) inPrefetchLocked(gameID string) bool {
 	if a.room != nil && a.detailOpen && a.roomDetail.ID == gameID {
 		return true
 	}
+	if a.room == nil && a.detailOpen && a.libraryDetail.ID == gameID {
+		return true
+	}
 	start, end := a.prefetchSpanLocked()
 	for i := start; i < end; i++ {
 		if a.games[i].ID == gameID {
@@ -3822,6 +3928,9 @@ func (a *App) evictCoversLocked() {
 	}
 	if a.room != nil && a.detailOpen && a.roomDetail.ID != "" {
 		keep[a.roomDetail.ID] = struct{}{}
+	}
+	if a.room == nil && a.detailOpen && strings.TrimSpace(a.libraryDetail.ID) != "" {
+		keep[a.libraryDetail.ID] = struct{}{}
 	}
 	for id := range a.covers {
 		if _, ok := keep[id]; ok {

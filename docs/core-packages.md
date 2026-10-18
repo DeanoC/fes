@@ -17,6 +17,12 @@ producers. The default target-image selector installs the ordered closed
 `fes.menu`, `fes.pong`, `fes.zx81`, `fes.coleco`, `fes.sms`, `fes.sg1000`,
 `fes.spectrum`, `fes.ramtest`, `fes.atari-st` package set.
 SMS, SG-1000, Spectrum and Atari ST passed timing and are in that image.
+Atari ST is the optional recipe. A timing miss or `FES_SKIP_OPTIONAL_CORES=1`
+omits its package and records the core in `unavailable-cores.json` on the
+image output and at `/usr/share/mister-runtime/unavailable-cores.json` in the
+rootfs. The omission is part of the image fingerprint. Set
+`FES_REQUIRE_ALL_CORES=1` when the image must contain every selected core,
+including a release build. Leave it unset for development and fast HIL images.
 Coleco and ST include their independently sealed Direct and Scanlines video parts. The 192 MiB
 rootfs holds them. `fes.apple2`,
 `fes.catch` and `fes.riscv` remain package-only. `fes.c64` shared-pin
@@ -196,6 +202,9 @@ is not a substitute for it. The `toolchain-fes`, `toolchain-fes-zx81` and
 their respective slots. `make toolchain` may compile the pinned tools into
 that shared slot and is intentionally separate from ordinary parent tests.
 `make host` remains independent of package and FPGA tool authentication.
+CUDA slots (`FES_TOOLCHAIN_GPU_ROUTER=CUDA`) also key on
+`FES_TOOLCHAIN_CUDA_ARCHITECTURES` (default `86`, native sm_86 code that needs
+no PTX JIT); see `sources/misteross/docs/architecture.md`.
 `make check` validates
 the shared ABI and programming definitions, their three real generated
 consumers, and all shared fixture copies without running synthesis.

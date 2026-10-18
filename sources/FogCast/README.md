@@ -90,10 +90,16 @@ and content selection; the MiSTer is a small, directly controlled target.
   Library FES Pong packages with the
   persistence interfaces retain paddle speed and best rally on the target;
   [settings/progress APIs and CLI](docs/core-package-library.md#persistent-settings-and-progress)
-  expose durable data. Library FES ZX81 is a volatile `fes.simple-computer`
-  entry (`fes.keyboard`, no gamepad); `POST /api/v1/session/launch` with its
+  expose durable data. Library FES ZX81 is a volatile `fes.computer` 1.0
+  entry (`fes.keyboard.hid`, `fes.media.zx81-tape`). A selected `.p` uses the
+  role that package declares: `cassette` on the tape unit, inserted into unit 0
+  after Start, or `blob` on an installed `fes.simple-computer` package. On a
+  menu-display kit, ZX81 HDMI controls use `fes.video.session-display` and
+  restore machine video on return. A setup
+  saved earlier as `blob` still launches on the tape unit when the current
+  package declares only cassette. `POST /api/v1/session/launch` with its
   `game_id` programs the package and attaches keyboard input. Library FES
-  cores with a recognized play ABI (including ZX81 `fes.simple-computer` 1.0
+  cores with a recognized play ABI (including ZX81 `fes.computer` 1.0
   and Coleco `fes.application` 1.0) are ordinary `fpga_native` play sessions, not
   Diagnostic `fpga_development`. That development label is the no-ABI
   fallback and the explicit LoadDevelopmentRBF path. Development package
@@ -217,8 +223,11 @@ and content selection; the MiSTer is a small, directly controlled target.
   talks to the runtime menu socket; the tenfoot app keeps its existing host
   session client and existing status reads (for example the kit-lease status
   read). With a running ZX81 that advertises the session display and HPS DDR
-  interfaces, Home or Select opens the hardware room on the same HDMI output;
-  live cassette replace/eject preserves the core generation and RAM. Other
+  interfaces, Home or Select opens the hardware room on the same HDMI output.
+  An unchanged workshop setup reuses the last presented frame. Its first
+  picture is built over several frames so a cold open stays inside the draw
+  budget. Live cassette
+  replace/eject preserves the core generation and RAM. Other
   packages keep prelaunch controls. Opening/closing is a leased host session
   operation; frame submission stays on the local runtime socket. Host tests cover the backend. The kit image starts this renderer only
   when `launcher.json` sets `kit_ui` to `tenfoot`, the sealed menu selection is

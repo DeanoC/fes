@@ -17,6 +17,41 @@ import (
 	"time"
 )
 
+func TestOverlayEnvReplacesInheritedStateDir(t *testing.T) {
+	got := overlayEnv(
+		[]string{"HOME=/", "XDG_CONFIG_HOME=/.config", "PATH=/bin"},
+		"FES_SOFTWARE_MANAGED=1",
+		"XDG_CONFIG_HOME="+PersistentStateDir,
+		"XDG_STATE_HOME="+PersistentStateDir,
+	)
+	want := map[string]string{
+		"HOME":                 "/",
+		"PATH":                 "/bin",
+		"FES_SOFTWARE_MANAGED": "1",
+		"XDG_CONFIG_HOME":      PersistentStateDir,
+		"XDG_STATE_HOME":       PersistentStateDir,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("env = %#v", got)
+	}
+	seen := map[string]int{}
+	for _, kv := range got {
+		key, value, ok := strings.Cut(kv, "=")
+		if !ok {
+			t.Fatalf("env entry %q", kv)
+		}
+		seen[key]++
+		if want[key] != value {
+			t.Fatalf("%s=%s, want %s", key, value, want[key])
+		}
+	}
+	for key := range want {
+		if seen[key] != 1 {
+			t.Fatalf("%s seen %d times in %#v", key, seen[key], got)
+		}
+	}
+}
+
 func TestTermIgnoringProcessFixture(t *testing.T) {
 	ready := os.Getenv("FES_TEST_IGNORE_TERM_READY")
 	if ready == "" {

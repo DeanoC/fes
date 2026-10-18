@@ -121,7 +121,7 @@ if [ "$1" = --install ]; then
     "$(dirname "$0")/fake-install" "$(basename "$build")" "$prefix"
     exit 0
 fi
-src= build= prefix= router=OFF architectures=
+src= build= prefix= router=OFF architectures= cuda_architectures=
 while [ $# -gt 0 ]; do
     case "$1" in
         -S) src=$2; shift 2; continue ;;
@@ -129,6 +129,7 @@ while [ $# -gt 0 ]; do
         -DCMAKE_INSTALL_PREFIX=*) prefix=$(printf '%s' "$1" | sed 's/^-DCMAKE_INSTALL_PREFIX=//') ;;
         -DGPU_ROUTER=*) router=$(printf '%s' "$1" | sed 's/^-DGPU_ROUTER=//') ;;
         -DCMAKE_HIP_ARCHITECTURES=*) architectures=$(printf '%s' "$1" | sed 's/^-DCMAKE_HIP_ARCHITECTURES=//') ;;
+        -DCMAKE_CUDA_ARCHITECTURES=*) cuda_architectures=$(printf '%s' "$1" | sed 's/^-DCMAKE_CUDA_ARCHITECTURES=//') ;;
     esac
     shift
 done
@@ -150,6 +151,7 @@ if [ "$router" = HIP ]; then
     printf 'CMAKE_HIP_ARCHITECTURES:UNINITIALIZED=%s\n' "$architectures" >>"$build/CMakeCache.txt"
     printf 'DEFINES = -DNPNR_GPU_ROUTER_DEVICE=1 -D__HIP_PLATFORM_AMD__=1\n' >"$build/build.ninja"
 elif [ "$router" = CUDA ]; then
+    printf 'CMAKE_CUDA_ARCHITECTURES:STRING=%s\n' "$cuda_architectures" >>"$build/CMakeCache.txt"
     printf 'DEFINES = -DNPNR_GPU_ROUTER_DEVICE=1 -D__CUDACC__=1\n' >"$build/build.ninja"
 else
     printf 'DEFINES = -DCPU_REFERENCE_BACKEND=1\n' >"$build/build.ninja"

@@ -232,6 +232,175 @@ class ToolchainCacheContractTests(unittest.TestCase):
             hip_architectures="gfx1100;gfx1201",
         )
 
+    def _fixed_request(self, base: Path, lane: str, **fields):
+        lock = base / "toolchain.lock"
+        recipe = base / "bootstrap.sh"
+        lock.write_text("lock\n", encoding="utf-8")
+        recipe.write_text("recipe\n", encoding="utf-8")
+        return toolchain_cache.ToolchainRequest(
+            root=base,
+            lock_path=lock,
+            cache_root=base / "cache",
+            gpu_router=lane,
+            host_identity={"system": "Linux", "machine": "x86_64", "libc": "glibc-test"},
+            compiler_identity={"commands": {"cc": {"path": "/usr/bin/cc", "sha256": "cc"}}},
+            environment={},
+            recipe_paths=(recipe,),
+            **fields,
+        )
+
+    def test_hip_and_off_identities_are_unchanged_by_cuda_architectures(self):
+        """HIP/OFF configuration identity ignores CUDA architectures when recipe bytes are fixed."""
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            hip = self._fixed_request(base, "HIP")
+            off = self._fixed_request(base, "OFF")
+            self.assertEqual(
+                toolchain_cache._normalise_configuration(hip),
+                {"gpu-router": "HIP", "hip-architectures": "gfx1100;gfx1201"},
+            )
+            self.assertEqual(
+                toolchain_cache._normalise_configuration(off),
+                {"gpu-router": "OFF", "hip-architectures": "unused"},
+            )
+            # Keys computed by the toolchain_cache.py that predates the field.
+            self.assertEqual(
+                toolchain_cache.cache_key(hip),
+                "ed1064eb0b46867e74cc295ec9d9103b55472ce9adb2f4337838ff477802f2bb",
+            )
+            self.assertEqual(
+                toolchain_cache.cache_key(off),
+                "1218b5c647d71100e5d8643394c50fe0000758bdd894d35780b083ba45f6458d",
+            )
+            for lane in ("HIP", "OFF"):
+                self.assertEqual(
+                    toolchain_cache.cache_key(self._fixed_request(base, lane)),
+                    toolchain_cache.cache_key(
+                        self._fixed_request(base, lane, cuda_architectures="75;89")
+                    ),
+                )
+
+    def test_hip_and_off_keys_follow_recipe_bytes(self):
+        """A CUDA architecture list does not fork HIP/OFF slots; recipe bytes do.
+
+        cache_key hashes scripts/bootstrap.sh, scripts/lockfile.py and
+        scripts/toolchain_cache.py on every lane. verify_ready rejects a slot
+        whose recipe digest does not match those bytes, so an edit to the
+        shared recipes selects a new HIP or OFF slot even though the lane
+        configuration is unchanged.
+        """
+
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "checkout"
+            scripts = root / "scripts"
+            scripts.mkdir(parents=True)
+            lock = root / "toolchain.lock"
+            lock.write_text("lock\n", encoding="utf-8")
+            for name in ("bootstrap.sh", "lockfile.py", "toolchain_cache.py"):
+                (scripts / name).write_text(f"{name}\n", encoding="utf-8")
+
+            def request(lane: str, **fields):
+                return toolchain_cache.ToolchainRequest(
+                    root=root,
+                    lock_path=lock,
+                    cache_root=base / "cache",
+                    gpu_router=lane,
+                    host_identity={"system": "Linux", "machine": "x86_64", "libc": "glibc-test"},
+                    compiler_identity={"commands": {"cc": {"path": "/usr/bin/cc", "sha256": "cc"}}},
+                    environment={},
+                    **fields,
+                )
+
+            self.assertEqual(
+                toolchain_cache._recipe_paths(request("HIP")),
+                tuple(scripts / name for name in ("bootstrap.sh", "lockfile.py", "toolchain_cache.py")),
+            )
+            for lane in ("HIP", "OFF"):
+                self.assertEqual(
+                    toolchain_cache.cache_key(request(lane)),
+                    toolchain_cache.cache_key(request(lane, cuda_architectures="89")),
+                )
+            hip_key = toolchain_cache.cache_key(request("HIP"))
+            off_key = toolchain_cache.cache_key(request("OFF"))
+            (scripts / "bootstrap.sh").write_text("bootstrap.sh\n# cuda lane only\n", encoding="utf-8")
+            self.assertNotEqual(hip_key, toolchain_cache.cache_key(request("HIP", cuda_architectures="89")))
+            self.assertNotEqual(off_key, toolchain_cache.cache_key(request("OFF")))
+
+    def test_cuda_identity_includes_architectures(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            default = self._fixed_request(base, "CUDA")
+            self.assertEqual(
+                toolchain_cache._normalise_configuration(default),
+                {"gpu-router": "CUDA", "hip-architectures": "unused", "cuda-architectures": "86"},
+            )
+            self.assertEqual(
+                toolchain_cache.configuration_text(toolchain_cache._normalise_configuration(default)),
+                "gpu-router=CUDA; hip-architectures=unused; cuda-architectures=86",
+            )
+            keys = {
+                toolchain_cache.cache_key(self._fixed_request(base, "CUDA", cuda_architectures=value))
+                for value in ("86", "75;86", "86-real", "89")
+            }
+            self.assertEqual(len(keys), 4)
+            self.assertIn(toolchain_cache.cache_key(default), keys)
+            for value in ("native", "all", "all-major", "sm_86", "86;", "86 ", "86,89", "compute_86"):
+                with self.subTest(value=value), self.assertRaises(toolchain_cache.CacheError):
+                    toolchain_cache.cache_key(
+                        self._fixed_request(base, "CUDA", cuda_architectures=value)
+                    )
+
+    def test_cuda_architectures_are_read_from_cli_and_environment(self):
+        host = {"system": "Linux", "machine": "x86_64", "libc": "glibc-test"}
+        compiler = {"commands": {"cc": {"path": "/usr/bin/cc", "sha256": "cc"}}}
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            clean = {"PATH": os.environ.get("PATH", ""), "FES_TOOLCHAIN_CACHE_ROOT": str(base / "cache")}
+            with mock.patch.object(toolchain_cache, "host_identity", return_value=host), mock.patch.object(
+                toolchain_cache, "compiler_inventory", return_value=compiler
+            ), mock.patch.dict(os.environ, clean, clear=True):
+                request, _ = toolchain_cache._load_request_arguments(
+                    ["--root", str(base), "--gpu-router", "CUDA", "--cuda-architectures", "75;86", "plan"]
+                )
+                self.assertEqual(request.cuda_architectures, "75;86")
+                os.environ["FES_TOOLCHAIN_CUDA_ARCHITECTURES"] = "89"
+                request = toolchain_cache.request_from_environment(base, gpu_router="CUDA")
+                self.assertEqual(request.cuda_architectures, "89")
+                os.environ.pop("FES_TOOLCHAIN_CUDA_ARCHITECTURES")
+                request = toolchain_cache.request_from_environment(base, gpu_router="CUDA")
+                self.assertEqual(request.cuda_architectures, toolchain_cache.DEFAULT_CUDA_ARCHITECTURES)
+                os.environ["CUDAARCHS"] = "75"
+                with self.assertRaises(toolchain_cache.CacheError):
+                    toolchain_cache.request_from_environment(base, gpu_router="CUDA")
+
+    def test_cmake_architecture_selectors_must_match_the_requested_lane(self):
+        toolchain_cache.validate_shared_environment(
+            {
+                "FES_TOOLCHAIN_GPU_ROUTER": "CUDA",
+                "FES_TOOLCHAIN_CUDA_ARCHITECTURES": "75;86",
+                "CUDAARCHS": "75;86",
+                "CMAKE_CUDA_ARCHITECTURES": "75;86",
+            }
+        )
+        toolchain_cache.validate_shared_environment({"CUDAARCHS": "86"}, gpu_router="CUDA")
+        toolchain_cache.validate_shared_environment({"HIPARCHS": "gfx1100;gfx1201"}, gpu_router="HIP")
+        rejected = (
+            ({"CUDAARCHS": "75"}, {"gpu_router": "CUDA"}),
+            ({"CUDAARCHS": "86", "FES_TOOLCHAIN_CUDA_ARCHITECTURES": "89"}, {"gpu_router": "CUDA"}),
+            ({"CUDAARCHS": "86"}, {"gpu_router": "HIP"}),
+            ({"CUDAARCHS": "86"}, {"gpu_router": "OFF"}),
+            ({"CMAKE_CUDA_ARCHITECTURES": "75"}, {"gpu_router": "CUDA"}),
+            ({"HIPARCHS": "gfx1030"}, {"gpu_router": "HIP"}),
+            ({"HIPARCHS": "gfx1100;gfx1201"}, {"gpu_router": "CUDA"}),
+        )
+        for values, selection in rejected:
+            with self.subTest(values=values, selection=selection), self.assertRaises(
+                toolchain_cache.CacheError
+            ):
+                toolchain_cache.validate_shared_environment(values, **selection)
+
     def test_lane_selector_defaults_are_canonical(self):
         """Implicit and explicit defaults select one semantic cache lane."""
 

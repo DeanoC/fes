@@ -1,0 +1,15 @@
+{
+  "bundle_id": "2b7928328a1dba1aaf556b6b6e7d9203ace936764981e07a0351dddc7c81f38c",
+  "source_commit": "57677f6699be3d81005cf9b8372d0e9ad6fa0c5f",
+  "software_generation": 20,
+  "startup_menu_observed": true,
+  "return_menu_observed": true,
+  "installed_count_label": 8,
+  "visible_tiles": 6,
+  "room_error_visible": false,
+  "scope": "Independent inspection of settled startup/return captures on instrumented bundle; earlier48ms error remains unexplained, instrumentation does not change budgets or claim a fix. Blank immediate captures have no established cause.",
+  "images": {
+    "room-instrumented-startup.png": "9c1caeadd3261c702ea3d6aec5dc90739f64a6e3eec4ca8b81b79fa235970b23",
+    "room-instrumented-return.png": "5ec78b6952edf0cf77f70c0a733e7770eccffe395fb0032fbd71f3b0d973ddfb"
+  }
+}

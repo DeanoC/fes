@@ -593,5 +593,19 @@ class STResolverTransactionTests(ResolverTransactionTests):
         self.assertEqual(self.builder.call_count, 2)
 
 
+class VideoPartProducerFailureTests(unittest.TestCase):
+    def test_process_failure_is_a_value_error(self):
+        def fail(args, **kwargs):
+            raise subprocess.CalledProcessError(1, args)
+
+        with patch.object(video.subprocess, "run", side_effect=fail):
+            with self.assertRaises(ValueError) as caught:
+                video._build_part(
+                    Path("/src"), Path("/shell"), Path("/pkg"), "scanlines",
+                    video.recipes.recipe_for("fes.atari-st"), {})
+        self.assertRegex(str(caught.exception), "status 1")
+        self.assertIsInstance(caught.exception.__cause__, subprocess.CalledProcessError)
+
+
 if __name__ == "__main__":
     unittest.main()

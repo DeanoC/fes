@@ -148,6 +148,19 @@ accept an optional positive `image_passes` integer when a manifest already
 contains it. CI and cold media/appliance paths keep two
 passes and omit the evidence field.
 
+An optional core, currently Atari ST, can miss timing without failing
+`make image`, `make build`, or `make dev`. The build prints a `WARNING:` block
+naming the core, the reason (`timing-not-met`, `build-failed`, or `skipped`),
+and any seeds and clock figures, then continues. `FES_SKIP_OPTIONAL_CORES=1`
+or `FES_SKIP_CORES=fes.atari-st` skips that producer before place-and-route,
+which is the fast path for an image of a pull request that does not change ST.
+`FES_REQUIRE_ALL_CORES=1` makes any optional miss fatal. Set it for a release
+or factory image that must contain every selected core, and on `make verify`
+when that image must be rejected if an optional core was left out. Verify
+ignores skip flags and does not rewrite `unavailable-cores.json`. It reuses
+the omission recorded in `inputs.json` and does not place-and-route that core
+again. The two skip forms conflict with `FES_REQUIRE_ALL_CORES=1`.
+
 CI simulations use Verilator 5.032 at source commit
 `8ff77e9d47351b0a59114929880687839a51840b`, selected by
 [`scripts/ci_verilator.sh`](../scripts/ci_verilator.sh). This simulation baseline

@@ -132,14 +132,20 @@ type Instance struct {
 	modules map[string]lua.LValue
 	loading map[string]bool
 
-	frame    Frame
-	building *Frame
-	inDraw   bool
-	actions  []Action
-	games    map[string]hostclient.Game
-	images   map[string]*Image
-	store    *store
-	logs     []string
+	frame         Frame
+	building      *Frame
+	inDraw        bool
+	frameReady    bool
+	reuseFrame    bool
+	keepSlowFrame bool
+	// extendCopied is set once gfx.extend has copied the presented frame
+	// into this draw. A later extend appends without copying it again.
+	extendCopied bool
+	actions      []Action
+	games        map[string]hostclient.Game
+	images       map[string]*Image
+	store        *store
+	logs         []string
 
 	started         time.Time
 	last            time.Time
@@ -147,6 +153,7 @@ type Instance struct {
 	fatal           error
 	frameOverruns   int
 	inputOverruns   int
+	measures        int
 	loaded          bool
 	sessionState    string
 	roomTable       *lua.LTable
@@ -200,7 +207,7 @@ func New(pack Pack, opts Options) (*Instance, error) {
 		loading: map[string]bool{},
 		games:   map[string]hostclient.Game{},
 		images:  map[string]*Image{},
-		store:   newStore(opts.StorePath),
+		store:   newStore(opts.StorePath, opts.Stderr),
 	}
 	r.L = lua.NewState(lua.Options{
 		SkipOpenLibs:        true,
@@ -324,20 +331,66 @@ func (r *Instance) Step(now time.Time) Frame {
 	frame := Frame{Clear: r.opts.Theme.SofaBackground}
 	r.building = &frame
 	r.inDraw = true
+	r.reuseFrame = false
+	r.keepSlowFrame = false
+	r.extendCopied = false
 	err := r.callGlobalSoft("draw", r.budget.Frame)
 	r.inDraw = false
+	built := r.building
 	r.building = nil
+	// gfx.reuse() asks to keep the frame already presented. A slow check
+	// still counts, and the next unchanged draw can try again.
+	if r.reuseFrame {
+		r.reuseFrame = false
+		r.keepSlowFrame = false
+		if err != nil && !errors.Is(err, errSoftOverrun) {
+			r.fail(err)
+			return Frame{}
+		}
+		r.presentFrame(true)
+		if err != nil {
+			return r.overrunFrame(err)
+		}
+		r.frameOverruns = 0
+		r.store.maybeFlush(now)
+		return r.frame
+	}
+	// A finished gfx.paint is the picture the script built. Present it
+	// even when it missed the soft budget, so the next unchanged draw can
+	// reuse it instead of painting the same scene until the room is retired.
+	if err != nil && errors.Is(err, errSoftOverrun) && r.keepSlowFrame && built != nil && built.HasClear {
+		r.keepSlowFrame = false
+		r.frame = *built
+		r.frameReady = true
+		r.presentFrame(true)
+		r.recordFrameOverrun(err)
+		if r.fatal != nil {
+			return Frame{}
+		}
+		r.store.maybeFlush(now)
+		return r.frame
+	}
+	r.keepSlowFrame = false
 	if err != nil {
 		if errors.Is(err, errSoftOverrun) {
+			r.presentFrame(false)
 			return r.overrunFrame(err)
 		}
 		r.fail(err)
 		return Frame{}
 	}
 	r.frame = frame
+	r.frameReady = true
 	r.frameOverruns = 0
+	r.presentFrame(true)
 	r.store.maybeFlush(now)
 	return frame
+}
+
+func (r *Instance) presentFrame(ok bool) {
+	if r.roomTable != nil {
+		r.roomTable.RawSetString("presented", lua.LBool(ok))
+	}
 }
 
 // reservedRoomCommand is owned by FES. Scripts may style prompts; they must
@@ -421,7 +474,10 @@ func (r *Instance) callGlobalSoft(name string, budget time.Duration, args ...lua
 	if !ok {
 		return nil
 	}
-	return r.callSoft(fn, budget, 0, args...)
+	if err := r.callSoft(fn, budget, 0, args...); err != nil {
+		return fmt.Errorf("%s callback: %w", name, err)
+	}
+	return nil
 }
 
 func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
@@ -436,7 +492,7 @@ func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...
 	r.L.Pop(1)
 	elapsed := time.Since(start)
 	if elapsed > hardBudget {
-		return lua.LNil, fmt.Errorf("script exceeded %s hard callback budget", hardBudget)
+		return lua.LNil, fmt.Errorf("script exceeded %s hard callback budget (elapsed %s)", hardBudget, elapsed)
 	}
 	if elapsed > budget {
 		return v, errSoftOverrun
@@ -451,7 +507,7 @@ func (r *Instance) callSoft(fn *lua.LFunction, budget time.Duration, nret int, a
 	}
 	elapsed := time.Since(start)
 	if elapsed > budget*callbackHardLimitFactor {
-		return fmt.Errorf("script exceeded %s hard callback budget", budget*callbackHardLimitFactor)
+		return fmt.Errorf("script exceeded %s hard callback budget (elapsed %s)", budget*callbackHardLimitFactor, elapsed)
 	}
 	if elapsed > budget {
 		return errSoftOverrun
@@ -510,6 +566,7 @@ func (r *Instance) Resize(width, height int) {
 	r.opts.Width, r.opts.Height = width, height
 	r.roomTable.RawSetString("width", lua.LNumber(width))
 	r.roomTable.RawSetString("height", lua.LNumber(height))
+	r.setHeroTable()
 	if r.fatal != nil || !r.loaded {
 		return
 	}
@@ -654,7 +711,10 @@ func (r *Instance) callGlobal(name string, budget time.Duration, args ...lua.LVa
 	if !ok {
 		return nil
 	}
-	return r.call(fn, budget, 0, args...)
+	if err := r.call(fn, budget, 0, args...); err != nil {
+		return fmt.Errorf("%s callback: %w", name, err)
+	}
+	return nil
 }
 
 func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
@@ -669,6 +729,7 @@ func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.
 }
 
 func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) error {
+	start := time.Now()
 	L := r.L
 	top := L.GetTop()
 	ctx, cancel := context.WithTimeout(r.ctx, budget)
@@ -682,7 +743,7 @@ func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args 
 	if err := L.PCall(len(args), nret, nil); err != nil {
 		L.SetTop(top)
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return fmt.Errorf("script exceeded %s budget", budget)
+			return fmt.Errorf("script exceeded %s budget (elapsed %s)", budget, time.Since(start))
 		}
 		return errors.New(strings.TrimSpace(err.Error()))
 	}
@@ -743,6 +804,7 @@ func (r *Instance) applyResult(res asyncResult) {
 		errVal = lua.LString(res.err.Error())
 	}
 	if err := r.callSoft(res.cb, r.budget.Frame, 0, payload, errVal); err != nil {
+		err = fmt.Errorf("async callback: %w", err)
 		if errors.Is(err, errSoftOverrun) {
 			r.overrunInput(err)
 		} else {

@@ -453,6 +453,29 @@ compiled-in absolute prefix and is consumed in place; its ready manifest
 authenticates the complete install/support-file closure, internal links, and
 evidence before any tool path is used.
 
+`FES_TOOLCHAIN_GPU_ROUTER` (default `OFF`) selects the lane.
+`FES_TOOLCHAIN_HIP_ARCHITECTURES` (default `gfx1100;gfx1201`) and
+`FES_TOOLCHAIN_CUDA_ARCHITECTURES` (default `86`) select the device targets;
+`scripts/bootstrap.sh` passes them to nextpnr as `CMAKE_HIP_ARCHITECTURES` or
+`CMAKE_CUDA_ARCHITECTURES` and to `scripts/toolchain_cache.py` as
+`--hip-architectures` / `--cuda-architectures`. A CUDA slot records
+`gpu-router=CUDA; hip-architectures=unused; cuda-architectures=86`, and its
+key covers the architecture list. HIP and OFF configurations carry no CUDA
+field, so their keys do not depend on it. Those keys still include the bytes
+of `scripts/bootstrap.sh`, `scripts/lockfile.py` and `scripts/toolchain_cache.py`,
+so editing any of those scripts selects a new slot on every lane. The default builds native sm_86 code
+(RTX 3070/3090), so routing never JIT-compiles PTX; that JIT fails with "the
+provided PTX was compiled with an unsupported toolchain" when the NVIDIA
+driver is older than the CUDA toolkit. The list takes explicit CMake entries
+such as `86`, `75;86` or `86-real`; `native` and `all` are rejected because
+they do not name a reproducible identity. The shared lane rejects the CMake
+environment selectors `CUDAARCHS` and `HIPARCHS` unless the router matches and
+the value equals the selected list, because CMake would otherwise build a
+different binary under the same key. CUDA producers (`gpu_choice("CUDA")`)
+authenticate the slot named by `FES_TOOLCHAIN_CUDA_ARCHITECTURES` (default
+`86`). That configuration is the nextpnr tool identity, so the package build
+id records the selection.
+
 A failed or interrupted build leaves a partial slot and no ready manifest.
 The resolver reports that slot and refuses to retry until an operator performs
 manual recovery. The legacy sourced `scripts/env.sh`, `scripts/run_sim.sh`,
@@ -1102,10 +1125,15 @@ The retained `exchanges.json` remains the original volatile fixture with bits
 verifies exact GPI words, varied host-to-FPGA edge placement, field holding,
 one effect per toggle and error isolation.
 
-## FES simple-computer mailbox
+## FES ZX81 mailbox
 
-`cores/fes-zx81/rtl/fes_computer_gp.v` implements `fes.simple-computer` 1.0 on
-the same GPO/GPI transport. It holds execution in reset, keeps eight active-low
+The sealed shell is `fes.computer` 1.0. `top.v` instantiates
+`fes_computer_mailbox_core` in `cores/fes-common/rtl/fes_computer_mailbox.v`
+with the ZX81 tape unit and the session-display plane.
+Shells that leave the plane off keep the `fes_computer_mailbox` port list in
+that same file; that wrapper ties the plane response inputs idle.
+`cores/fes-zx81/rtl/fes_computer_gp.v` remains the session-harness mailbox on
+the older `fes.simple-computer` 1.0 transport. It holds execution in reset, keeps eight active-low
 keyboard rows at `0x1f`, and accepts a 1..16384-byte media blob through
 begin/data/commit. Hold reset clears in-flight media and the keyboard; a
 committed blob stays. Media begin with eject index and argument 0 clears
@@ -1133,10 +1161,11 @@ normal show/return does not use execution hold.
 MiSTer-devel/ZX81_MiSTer `ZX81.sv` at Release 20260603: 16 KB RAM, PAL, no
 CHROMA/QS/YM2149/joystick. Keyboard rows and `.p` tape bytes come from the GP
 mailbox. Character ROM bytes are `cores/fes-zx81/rtl/zx8x.hex`, converted from
-the pinned `rtl/zx8x.mif`. The Z80 is TV80 (`66a131c`) wrapped as `T80pa` with
-Sorgelig half-cycle `CEN_p`/`CEN_n` timing, WAIT via CEN gating, and
-`TV80_REFRESH`. NMI is sampled every clock, matching T80.vhd. `CEN_p` averages exactly
-3.25 MHz from the rational machine clock scheduler.
+the pinned `rtl/zx8x.mif`. The CPU is the shared first-party `fes_z80_nmos`,
+driven by positive and negative phase enables from the rational machine clock scheduler at an average
+3.25 MHz. The machine passes WAIT, INT and NMI to that CPU and uses its native
+refresh bus cycle. The Zon X firmware diagnostic uses the same NMOS CPU and
+expansion socket as the machine and expansion simulations.
 
 `make sim-fes-zx81` also runs `Vzx81_machine`, which waits until NEW has built
 a display file at `D_FILE` starting with `0x76`, the CPU has HALTed for slow
@@ -1166,12 +1195,13 @@ The existing BASIC and expansion simulations remain part of `make sim-fes-zx81`.
 `fes.zx81` 1.2.0 oracle package. It is not a Mistral/nextpnr payload
 and is not the standard socketed package. The board shell
 `cores/fes-zx81/rtl/top.v` uses two `altera_pll` cells from the 50 MHz V11
-reference: 52 MHz system (T80, ULA, mailbox) and 74.25 MHz pixel (HDMI
+reference: 52 MHz system (`fes_z80_nmos`, ULA, mailbox) and 74.25 MHz pixel (HDMI
 1650×750). HDMI RGB/HS/VS/CLK pins and U10/AA4 match FES Pong. The HPS I2C
 cell is at `HPSINTERFACEPERIPHERALI2C_X52_Y60_N111`; `out_clk`/`out_data`
 pull SCL/SDA low and `scl`/`sda` read the pads (Quartus assign-to-Z in place
-of Pong's `MISTRAL_IO`). The Z80 is VHDL T80pa from ZX81_MiSTer Release
-20260603; Verilator keeps TV80.
+of Pong's `MISTRAL_IO`). The Quartus oracle compiles the same `zx81_machine.sv`
+as product simulation and the OSS shell. That module instantiates `fes_z80_nmos`
+with no Quartus-specific CPU.
 
 The compile defines `QUARTUS=1`. ROM, 16 KB RAM and the 16 KB media blob
 instantiate `zx81_dpram`. Its Quartus branch is `altsyncram` bidirectional
@@ -1220,7 +1250,7 @@ that read so one response word describes one request. The shell producer
 rejects every async M10K in `synth.json` and `routed.json`. The
 validation-cart and QS producers reject every async M10K in `cart.json` and
 `cart-routed.json`. The 720p capture buffer is a dual-clock M10K SDP with
-its read registered on `pixel_clk`. The Z80 is Verilog T80pa/TV80.
+its read registered on `pixel_clk`. The Z80 is `fes_z80_nmos`.
 HDMI I2C uses Pong-style `MISTRAL_IO` open-drain pads at BEL X52/Y60
 (`QUARTUS` is not defined). Place-and-route uses `constraints-oss.qsf` and `clocks-oss.sdc`.
 
@@ -1335,8 +1365,20 @@ LAB and leaves the restored pin map in place. For each seed it tries heap
 timing weights 300 then 1000, then sweeps the same seeds at weights 2000, 100
 and 10 if needed (at most 70 attempts). It stops at the first route that meets
 timing and leaves every plug_addr request flip-flop's fabric exit free. A
-timing-passing route is rejected when another net occupies that column-24 GIN,
-and the search continues.
+timing-passing route is rejected when a socket flip-flop is missing or is not a
+`MISTRAL_FF` at its pinned BEL, when a `$ROUTETHRU` is not a `MISTRAL_COMB`,
+`MISTRAL_MCOMB`, or `MISTRAL_BUF` on that flip-flop's paired half, when any
+other shell cell sits in the socket, or when another net occupies that
+column-24 GIN. The search continues.
+The shell QSF keeps the cart interior `25 1 27 32` as the unnamed `cart`
+region. Cart merge targets that region, and the CRAM fence stays
+`1769,32,2806,7024`. The request and response flip-flops sit on columns 24
+and 28, which that interior does not cover. The same QSF reserves
+`plug_addr 24 1 24 32` and `plug_rdata 28 1 28 32` as separate regions, the
+column span used by the sealed C64 and Spectrum sockets. Unconstrained shell
+cells cannot share those LABs, so their LUT outputs do not take the only
+column-24 GIN a request flip-flop can drive. BEL-locked socket flip-flops
+still place. Cart cells stay in the interior.
 The build record seals
 the effective weight order and budget. This fallback handles placement-sensitive
 netlists without changing the clock requirements. The recipe uses
@@ -1393,7 +1435,7 @@ matching workaround rather than keep both.
 
 What already works in this design, so a toolchain fix should not regress it: two independent `altera_pll` cells on PIN_V11; 8-bit 16 K `m10k_tdp` infers 16 `MISTRAL_M10K_TDP` cells in under a second; Pong-style `MISTRAL_IO` HDMI I2C at X52/Y60.
 
-Verilog T80pa/TV80 is an OSS language choice, not a nextpnr packing gap. Quartus keeps VHDL T80pa.
+The product OSS shell and the Quartus oracle both instantiate `fes_z80_nmos` from `zx81_machine.sv`. That selection is not a nextpnr packing gap, and the oracle has no separate VHDL T80pa CPU.
 
 The format-2 package is `fes.pong` version 1.1.0 and requires
 `fes.persistence.words` 1.0 and `fes.pong.progress` 1.0 in addition to gamepad
@@ -2072,7 +2114,14 @@ raster activity with CPU/video memory latency. Neither the digital SDRAM
 model nor injected callback waits establish electrical FPGA behavior. FX68K source bytes remain immutable; a
 compiler compatibility input may normalize its two simulation-only legacy
 translate-off/on comments without changing RTL assignments or microcode.
-The board producer authenticates `toolchains/atari-st.lock`. The factory
+The board producer authenticates `toolchains/atari-st.lock`. When at least
+one route finishes and every finished route misses timing, it writes
+`build/fes-core-unavailable.json` (version 1, the requested seeds, and the
+finished routes' per-clock achieved and constraint figures) and exits
+nonzero. A route that crashed or timed out is left out of those figures. The
+file is absent when no route finishes. A passing build does not leave it
+behind. The parent image reads it
+only after that nonzero exit. The factory
 recipe stays HIP; a CUDA route is a different package. The build record uses
 the audited closure in `scripts/source_closures.json`. The
 [2026-10-04 private-pin record](../../../docs/validation/2026-10-04-atari-st-nextpnr-head.md)
@@ -2082,6 +2131,379 @@ still qualify the locked Slang/Yosys frontend, the selected GPU route, all
 clocks and sealed ROM/socket maps. Host simulation does not confer kit
 or appliance hardware acceptance. See [the core README](../cores/fes-atari-st/README.md)
 for maps, commands and the remaining original-ST timing/device limits.
+
+## Proposed FES IBM PC/XT core
+
+`cores/fes-pcxt` currently implements an 8088 development frontend, ISA transaction fabric, portable
+registered slot boundaries, card endpoints and a diagnostic I/O/memory/DMA
+probe. `make sim-fes-pcxt` exercises eight logical slots through the real RTL
+and boots an original diagnostic ROM on a pinned MCL86 CPU. The CPU wrapper
+fixes 8088 mode and native FLAGS, with a 100 MHz fabric clock and nominal
+4.772727 MHz guest clock. It handles READY, split byte cycles, LOCK and INTA.
+The motherboard router decodes RAM/ROM and integrates pinned KF8259 PIC, KF8253
+PIT and KF8255 PPI imports. The machine diagnostic receives timer, ISA and
+keyboard interrupts through the real two-INTA path and generates speaker PCM.
+Memory storage remains a testbench service. See the
+[CPU import](../cores/fes-pcxt/vendor/mcl86/README.md) for provenance and limits.
+The shared `fes.fabric.pcxt-isa` 1.0 constants are generated from mister-packages;
+its [wire contract](../../mister-packages/docs/pcxt-isa.md) defines handshakes,
+reset and side-effect ordering. The [core README](../cores/fes-pcxt/README.md)
+lists coverage and limitations.
+
+**The complete machine below remains a proposal.** `fes.pcxt` is the proposed
+package identity. The remaining DMA controller, HID keyboard frontend, graphics, disk
+controller, physical socket layout, producer and sealed PC/XT package are not
+implemented yet. The fabric does not enable
+runtime activation or claim a linkable RBF. Existing linker layout admission
+remains closed until an exact shell and its physical sockets are qualified.
+
+The target is software for an IBM 5160-class machine, including bootable
+floppy games and DOS games that access hardware directly. The baseline is an
+8088 at nominal 4.77 MHz, 640 KiB conventional RAM, CGA, PC speaker and an
+8-bit ISA backplane implemented inside the FPGA. An alternative 8086 CPU
+configuration shares the instruction engine but has its own bus timing.
+Neither configuration includes 80186 instructions, 286 protected mode, AT
+chipset services or an 8087. IBM MDA is an alternative display configuration;
+EGA is a subsequent graphics implementation for 8088-compatible software.
+VGA, Hercules and Tandy graphics are outside the initial compatibility claim.
+
+Primary implementation references are the
+[IBM PC/XT Technical Reference, April 1984](https://www.bitsavers.org/pdf/ibm/pc/xt/6361459_PC_XT_Technical_Reference_Apr84.pdf)
+(system board, I/O channel and adapter descriptions) and the
+[Intel 8086 Family User's Manual, October 1979](https://bitsavers.org/components/intel/8086/9800722-03_The_8086_Family_Users_Manual_Oct79.pdf)
+(instruction semantics and bus operation). PPI/keyboard wiring and serial timing
+use the [IBM 5155/5160 Technical Reference, March 1986](https://sharktastica.co.uk/resources/docs/IBM_6139821_5155-5160-Tech-Ref_1986.pdf),
+printed pages 1-27/28, 4-5 and 4-32/33; PPI mode control follows the
+[Intel 8255A data sheet](https://deramp.com/downloads/intel/8255.pdf). Adapter-specific manuals and chip
+datasheets must accompany later peripheral implementations. These references
+define behavior to reproduce, not permission to redistribute firmware.
+
+### Machine partition and timing
+
+```mermaid
+flowchart LR
+    CPU[8088 / 8086 execution and bus units] --> BUS[Memory / I/O / INTA fabric]
+    BUS --> RAM[SDRAM arbiter and conventional RAM]
+    BUS --> ROM[Linked BIOS and option ROMs]
+    BUS --> MB[PIC / PIT / DMA / PPI / XT keyboard]
+    BUS --> ISA[Virtual 8-bit ISA backplane]
+    ISA --> VIDEO[CGA or MDA adapter]
+    ISA --> FDC[Floppy controller and disk buffer]
+    ISA --> CARDS[Serial / parallel / game port / optional cards]
+    DMA[8237 DMA master] --> BUS
+    VIDEO --> OUT[Frame capture and 720p output]
+    MB --> AUDIO[Speaker and PCM output]
+```
+
+Keep the CPU, chipset and virtual backplane synchronous to one fabric clock.
+Generate guest clock enables from the nominal 14.31818 MHz master reference:
+CPU /3 and PIT /12. Use a PLL-derived reference where feasible, otherwise
+specify and measure fractional-enable jitter. Fabric frequency and PLL choices
+remain subject to synthesis and routed timing; they are not guest speed knobs.
+CPU stalls must not stop PIT, keyboard, video, floppy rotation or refresh.
+
+The bus unit models T states, READY waits, prefetch and DMA ownership. Fabric
+RAM latency must fit inside guest cycles or introduce the waits that a real
+selected device would impose. Reserve memory bandwidth for video and refresh;
+bound worst-case CPU and DMA latency with all clients active. Start with an
+uncached CPU path. Caching that changes observable execution timing needs a
+separate compatibility configuration. Provide a cycle trace for instruction
+fetches, memory/I/O transfers, DMA, interrupt acknowledge and video contention.
+
+### CPU implementation contract
+
+Use one shared instruction engine with separate 8088 and 8086 bus units.
+The development frontend selects MCL86 following a source/license audit,
+focused instruction/bus tests and locked Cyclone V diagnostic synthesis.
+Full instruction and silicon timing qualification remain open; the diagnostic
+ROM does not establish game compatibility. The FES wrapper currently exposes
+8088 only; 8086 needs separate bus-path qualification. An instruction-only interpreter with arbitrary cycle counts
+is insufficient for the intended game compatibility.
+
+The architectural model includes 16-bit registers, segment:offset addressing,
+20-bit physical address wrap, flags, byte/word operands, all original integer
+instructions, string/repeat operations and segment overrides. Reset fetches at
+physical `FFFF0`. Include divide errors, traps, NMI, INTR/INTA, interrupt
+inhibition after relevant instructions, HLT wakeup and interruptible REP.
+Specify original-silicon behavior for undefined opcodes and flags using CPU
+tests rather than silently adopting later x86 behavior.
+
+8088 mode uses an 8-bit external bus and four-byte prefetch queue. 8086 mode
+uses a 16-bit memory path and six-byte queue; odd words split correctly.
+Both serialize ISA transfers into byte cycles, including word IN/OUT. Branches,
+interrupts and segment changes flush prefetch where required; self-modifying
+code must observe queued bytes. Model HOLD/HLDA and LOCK arbitration. CPU
+mode is selected before reset, never switched during execution. Qualify the
+8088 configuration first; 8086 mode is not timing-equivalent to an IBM XT.
+
+### Memory and motherboard
+
+| Physical address | Decode / intended storage |
+| --- | --- |
+| `00000–9FFFF` | 640 KiB conventional RAM in addon SDRAM |
+| `A0000–AFFFF` | Unclaimed baseline; reserved for a later EGA adapter |
+| `B0000–B7FFF` | MDA aperture when selected, with adapter-defined mirroring |
+| `B8000–BFFFF` | CGA aperture when selected, with adapter-defined mirroring |
+| `C0000–EFFFF` | Selected option ROMs or expansion memory; holes remain unclaimed |
+| `F0000–FFFFF` | System firmware window, reset vector included |
+
+BIOS size and decode aliases are explicit profile inputs. Unclaimed reads return
+`FF`; unclaimed writes have no effect. This deterministic choice is a fidelity
+limit where actual bus residue matters. No hidden RAM or modern BIOS shortcuts
+may occupy holes. Link user-selected firmware through an authenticated ROM
+map; validate option ROM placement, headers, length and checksum. Supply an
+original diagnostic ROM first. A legally supplied IBM-compatible BIOS and
+DOS image are later boot-test inputs; neither is bundled implicitly.
+
+The implemented byte router holds one accepted request through downstream
+completion. It suppresses system-ROM writes, routes the video/option windows
+to ISA, and leaves physical RAM/ROM storage external. Local PIC (`20–3F`, A0),
+PIT (`40–5F`, A1:0) and PPI (`60–7F`, A1:0) decode ignores A15:10. INTA selects
+the PIC independently of address. The adapter supplies one setup, eight active and nine release
+100 MHz clocks; address/CS remain stable through retirement of chip bus side
+effects. This latency is not yet an original-board bus-timing qualification.
+PIT pins advance from CPU guest enables divided by four through READY waits
+and HLT. PIC inputs are PIT0, the XT receiver IRQ1 and ISA IRQ2–7. Channel 1
+output remains exposed for refresh integration; PPI PB0 gates channel 2.
+Reset must cancel requests in the router and its downstream storage/ISA.
+
+The remaining motherboard work includes an 8237A DMA
+controller with XT page registers.
+PIT channel 0 already drives IRQ0; planned channel 1 wiring requests DMA
+refresh, and channel 2 feeds the speaker through port 61h gating. DMA must implement address/count, shared
+byte pointer, page-boundary behavior, terminal count, masks and required
+transfer modes. Do not replace floppy DMA with BIOS-level interception.
+
+The implemented PPI wrapper uses mode 0 (`99h`), with PA scan-code input,
+PB controls and PC equipment/status inputs. PB0 gates PIT2; PB1 ANDs PIT2 OUT
+into the speaker; PB3 selects the low/high nibble of profile-supplied switch
+levels; PB4/5 expose active-low parity/channel-check enables. PC5 reflects PIT2
+OUT; PC6/7 are external error status hooks. Error latches, parity generation
+and NMI routing are not implemented. Mode-set writes reset output latches;
+port-C BSR and diagnostic output-mode readback are covered by tests. Reset
+puts the PPI ports in input mode; the wrapper inhibits keyboard clock and
+mutes speaker/check enables until configured. Disabled PA reads use `FF`.
+
+The XT receiver synchronizes external clock/data, ignores leading-zero RTS,
+then samples start-one and eight LSB-first data bits on falling clock edges.
+It holds IRQ1 and pulls DATA low for busy/CTS until PB7 acknowledges; reads of
+port 60h leave IRQ1 asserted. PB6 separately releases/inhibits CLOCK. PB7
+clears the receiver without clamping those cable lines. The
+single-byte VALID/READY serializer supplies 80 us CTS-to-clock setup, 40 us
+high/low phases and at least 3 us data hold; clock inhibit pauses the frame.
+READY stays low while PB7 holds the receiver clear, so an on-fabric producer
+does not retire a byte that cannot raise IRQ1. A byte already accepted still
+finishes its frame. Tests check timing, ordering, busy handling, held-clear
+admission and reset. Integrated CPU runs read switch profiles `2D` and `73`.
+FES HID
+translation, extended-key policy, typematic, keyboard reset/BAT responses and
+event queues remain unimplemented. This is an XT interface, not an AT 8042.
+
+Speaker transitions are integrated at 100 MHz into signed mono 48 kHz PCM
+with a roughly 30 Hz DC blocker. Tests cover PIT tones, static-drive decay and
+rapid modulation above the sample rate. This is a development filter; the
+production shell audio connection and measured analog fidelity remain open.
+
+### Graphics compatibility
+
+CGA is the first playable configuration: text modes, 320×200 four-colour and
+640×200 monochrome graphics, character ROM, palette/mode registers, border,
+6845 programming, cursor, start address and status-port polling. The renderer
+reads live adapter memory according to guest raster timing; it must not
+reconstruct frames using BIOS calls. Preserve interleaved graphics addressing,
+text blink, mid-frame register changes and retrace visibility. CGA memory
+contention and snow need explicit modeling and qualification. Composite
+artifact colours require a separate NTSC decoder and reference captures;
+initial RGB output alone does not qualify composite-colour games.
+
+MDA is a separately selected adapter with 80×25 text, its character cell,
+attributes, cursor, address decode and raster/status behavior. It does not
+provide CGA graphics or Hercules graphics. Permit CGA plus MDA only after
+resource and decode coexistence tests pass. A later EGA card requires planar
+VRAM, latches, write modes, sequencer, graphics/attribute controllers and its
+own BIOS; an 8088 CPU alone does not imply EGA game compatibility.
+
+Guest raster generation remains independent of 720p60 HDMI. Use complete-frame
+publication across clock domains, preserve aspect ratio, and repeat/drop whole
+frames for cadence conversion. Do not force CGA/MDA register timing to 60 Hz.
+The current Coleco native socket's fixed geometry is not a PC video socket.
+Use an inline Direct output initially; qualify a versioned wider native-video
+contract and exact-shell parts separately. Budget framebuffer storage in SDRAM
+before routing; a double-buffered 640×400 indexed4 surface alone needs 256,000
+bytes, in addition to guest RAM and adapter VRAM.
+
+### Emulated ISA expansion ports
+
+The backplane represents eight logical XT slots. These are virtual connectors;
+this design does not drive physical ISA cards or supply 5 V electrical signals.
+The preferred implementation extends the existing linkable multi-socket
+expansion mechanism used by Apple II, Spectrum and C64. Independently built
+ISA cards are composed into an exact frozen PC/XT shell before programming;
+this is a full-chip RBF composition, not live partial reconfiguration. A
+compile-in card is a simulation/bring-up option, not the intended expansion
+product model. Changing cards follows the normal Stop, compose and Play path.
+
+Reuse `expansion.ComposeSlotsContext`, exact-shell archive admission, sorted
+`slot_index` composition identity and per-socket CRAM containment. Extend their
+closed supported-target policies with proposed bus `fes.expansion.pcxt-isa`
+1.0 and layout `fes.pcxt-isa.sockets/1`; these identifiers are not registered
+today. Keep existing bus contracts unchanged. The Apple II request word cannot
+carry ISA addressing, READY or DMA semantics; define and generate a PC/XT
+request/response packing through mister-packages, then extend its consumers.
+
+Eight logical XT slots do not guarantee eight physical link regions. Qualify
+an initial layout with a small number of independently linkable sockets after
+CPU, SDRAM and video placement budgets are known. Record exactly which logical
+slot indices have physical regions; reject cards targeting any other index.
+Reserve larger regions for graphics or sound only when demonstrated necessary.
+Do not copy another core's rectangles or advertise eight routable sockets
+without evidence. A layout change requires a new layout identity and rebuilt
+cards against the newly sealed shell.
+
+Proposed internal transaction interface:
+
+| Signal group | Contract |
+| --- | --- |
+| Request | `valid`, memory/I/O/INTA kind, 20-bit address, byte write data, read/write, `aen`, `lock` |
+| Response | Per-card `claim`, byte read data and `ready`; sampled only on accepted completion |
+| Interrupt | Per-card IRQ requests routed to configured XT PIC lines |
+| DMA | DRQ/DACK for channels 1–3, direction, byte handshake and terminal count; channel 0 reserved for refresh |
+| Timing | Guest clock enable, ALE/strobe phases, reset and guest-cycle counter |
+
+Hold requests stable through waits. Commit each write/read side effect once,
+at completion; the INTA sequence is distinct from ordinary reads. AEN prevents
+I/O devices from decoding DMA address cycles. Memory-to-device DMA reads RAM
+then acknowledges the device; device-to-memory DMA latches the device byte
+before committing RAM. Advance counts only after the entire transfer finishes.
+Return DMA ownership at the specified guest boundary, respecting locked CPU
+operations. Initial bus mastering is limited to the CPU and motherboard DMA.
+
+Each card declares memory/I/O decode masks (including partial address decode),
+IRQ and DMA wiring, ROM windows and wait behavior. Reject overlapping exclusive
+decoders before reset and assert against multiple runtime read claims. Combine
+IRQ/DRQ wires, not register data. Unclaimed I/O reads return `FF`. Preserve the
+16-bit CPU I/O address while allowing each historical card's actual decode
+mask; never globally truncate all I/O addresses to ten bits.
+
+#### Linkable ISA card boundary
+
+Keep the CPU, RAM controller, BIOS, PIC/PIT/DMA/PPI, shared media transport,
+PCM mixer and output timing in the frozen shell. Put card-specific decode,
+registers and device state inside each card's fence. Use the Apple II card
+producer's frozen scaffold and named cart-region pattern, with PC-specific
+pinned boundary registers and clock coverage. Shell routes and other socket
+regions must remain unchanged when any one card is built.
+
+The implemented shared registered request carries a transaction toggle, held
+until completion. Each response echoes that identifier with claim/ready/data;
+the shell ignores stale responses after reset or a preceding transaction.
+Allow the known request/response register latency before deciding that an
+address is unclaimed. A claiming slow card holds completion pending; it must
+not receive a repeated write when the CPU remains in a wait state. Propagate
+commit/retire back to the card so side effects occur exactly once. Idle socket
+responses are zero, hence inactive claim/IRQ/DRQ, not a permanent CPU wait.
+Guest bus phase enables remain distinct from fabric boundary pipeline cycles.
+
+DMA requests and acknowledgements, terminal count, interrupts and audio cross
+registered, explicitly versioned ports. Card audio goes to a shell mixer;
+cards never own the HDMI or audio PLL. A graphics card additionally needs a
+qualified pixel stream and bounded VRAM/SDRAM service at the socket boundary.
+A storage card uses a bounded shell-owned block-buffer service. Both services
+must reserve their interface and routing before the shell freezes. Begin
+linkable-card qualification with an I/O/IRQ probe, then a DMA loopback card;
+keep inline CGA/floppy bring-up available until those wider service boundaries
+are qualified. The preferred endpoint is separately linked graphics, disk and
+sound cards, subject to demonstrated resource fit.
+
+Existing expansion manifests authenticate shell identity and payload but do
+not describe ISA resource assignments. Add a versioned canonical card resource
+descriptor, covered by archive identity, for memory/I/O decode masks, IRQ/DMA
+routing and required shell services. Extend parsing/admission in the shared
+linker and runtime, and selection in FogCast, before accepting those archives.
+Validate conflicts against motherboard devices, built-in adapters and all
+selected cards before composing; enforce the same constraints in RTL assertions.
+Do not put unauthenticated resource sidecars beside an otherwise valid archive.
+
+Reuse `ComposeSlotsROM` where its existing firmware mapping fits. Card-local
+option ROMs require an explicit authenticated destination map and composition
+order: the current generic ROM path rejects destinations inside socket fences.
+Extend that contract deliberately if ROM splicing into card regions is needed;
+never bypass it. Firmware linking must preserve every selected card's unrelated
+bits, and card linking must preserve the system firmware map and other cards.
+Graphics and output-part composition must also reject overlapping reservations.
+
+Each new layout needs Python/Go agreement on socket regions and the generated
+RTL packing, exact-shell mismatch and duplicate-slot rejection, permutation-stable
+composition IDs, unclaimed-slot behavior and outside-fence corruption tests.
+Then route probe and DMA cards independently against the same shell and verify
+combined timing, all-card containment and whole-RBF readback. Rebuilding the
+shell invalidates its old cards. The portable fabric and diagnostic probe have
+host simulation and diagnostic synthesis coverage; physical linking and its
+admission remain unimplemented. `make synth-fes-pcxt-isa CACHE_ROOT=...` uses
+the shared authenticated tools, writes cell counts and source hashes under
+`build/synth/fes-pcxt/`, and does not route or seal a package.
+
+Proposed baseline assignments, with exact aliases governed by device models:
+
+| Device | Conventional ports | Interrupt / DMA |
+| --- | --- | --- |
+| Motherboard DMA / PIC / PIT / PPI | `000–00F`, `020–021`, `040–043`, `060–063` | IRQ0 timer, IRQ1 keyboard; DMA0 refresh |
+| DMA page registers / NMI control | Board-specific decode around `080–08F` / `0A0` | NMI mask and parity behavior |
+| Game adapter | `201` | Timed analogue-axis discharge and button bits |
+| MDA / printer | `3B0–3BF` | Display plus configured printer IRQ7 |
+| CGA | `3D0–3DF` | No vertical-retrace IRQ shortcut |
+| Floppy adapter | `3F0–3F7` selected registers | IRQ6 / DMA2 |
+| COM1 / COM2 | `3F8–3FF` / `2F8–2FF` | IRQ4 / IRQ3 |
+| Parallel adapter | `378–37F` | Configurable IRQ7 |
+| Optional XT hard disk | Card-specific, commonly `320–323` | IRQ5 / DMA3, option ROM |
+
+Baseline cards are CGA, a 765-compatible floppy adapter, 8250 UART, parallel
+port and game adapter. UART and printer need bounded host queues and explicit
+absent/offline status when no backend is attached. Joystick timing must use
+guest time, not host polling intervals. An optional XT hard disk adapter is a
+separate controller model; an IDE register bank is not an emulated IBM XT disk
+controller. Later AdLib or 8-bit Sound Blaster cards are useful game extensions
+but require their own sound, IRQ and DMA qualification. Base audio is PC speaker.
+
+### FES integration and acceptance boundary
+
+Use `fes.computer` and implemented keyboard/audio/video services where their
+contracts fit. PC floppy and hard-disk transports need new versioned shared
+media definitions and runtime support before a package advertises them. Media
+uploads populate bounded buffers while the CPU is held; rotating-media events
+and sector transfers subsequently follow guest time. Start with 360 KiB raw
+floppies and explicit geometry. Model seek, motor spin-up, command/result phases,
+IRQ6, DMA2, terminal count and write protection. Raw sector images cannot express
+all copy protection; such games need a later flux/track representation.
+
+Writable images follow FES's explicit library binding and persistence contract.
+Serialize snapshots with in-flight DMA/controller operations; acknowledge eject
+only after those operations drain. Stop mutes output and clears held host input;
+warm guest reset, cold machine reset and physical Stop have distinct semantics.
+FogCast owns selection and sessions; the runtime owns upload and FPGA lifecycle.
+
+The transaction RTL lives under `cores/fes-pcxt/`; put a reusable CPU under
+`cores/fes-common/rtl/x86/` only when implemented. A future producer must use
+the shared locked HIP lane and authenticate firmware, character ROM, CPU mode,
+adapter set, RAM geometry and disk-controller configuration. Resource estimates
+must account for CPU microcode/prefetch, adapter VRAM, SDRAM arbitration, frame
+capture, audio and reserved linkable socket fences. No fit or frequency is claimed.
+
+Acceptance requires independent instruction/flag and bus traces for each CPU
+mode, directed chipset/ISA tests with delayed acknowledgements, DMA boundary
+and collision cases, and whole-machine firmware boots through actual SDRAM.
+Graphics tests compare memory layouts, programmed timings, polling and pixel
+captures; storage tests include boot, read/write, terminal-count errors and
+complete saved-image byte comparisons. Use a legally supplied game matrix
+covering booters, DOS CGA games, keyboard, joystick, speaker modulation and
+raster effects; record exact versions and failures instead of claiming all
+PC/XT games work. EGA and composite titles remain separate entries.
+
+Host simulations establish only simulated behavior. A clean-source package
+must subsequently pass synthesis, full routed setup/hold and clock checks on
+the selected FPGA. Hardware diagnostics then verify the exact package's BIOS
+boot, game input, HDMI, audio, disk persistence and Stop/relaunch under the kit
+lease. Factory-image selection and exact-image acceptance are later FES decisions.
 
 ## FES RISC-V
 
@@ -2261,9 +2683,8 @@ records routed timing from exact source/tool snapshots without producing an
 RBF. Its optional `--require-target` timing gate fails if any selected seed
 misses the requested clock, after preserving the reports. The CPU contract
 records the selected 56 MHz route and the limits of its 16-times clock ratio.
-SG-1000 and Spectrum now select the NMOS variant; Spectrum has a separate
-documented-fast development producer. Coleco, SMS and ZX81 retain their existing
-CPU selections. The synthetic raw-pin replay self-test is included in
+SG-1000, ZX81 and the default Spectrum producer select the NMOS variant; Spectrum has a separate
+documented-fast development producer. Coleco and SMS retain TV80. The synthetic raw-pin replay self-test is included in
 `make sim-fes-z80`; operator-supplied genuine-chip captures use the same
 strict half-edge comparator. No physical-chip equivalence is inferred from
 software vectors, synthetic waveforms or a timing-passing FPGA build.

@@ -196,6 +196,20 @@ for core_id in $package_words; do
   test "$(stat -c %a "$target/usr/share/mister-runtime/selections/fes-$core.package.toml")" = 444
 done
 "$repo/scripts/native-extra-cores.sh" verify-image "$cache" "$target"
+unavailable=$fixture/unavailable-cores.json
+printf '%s\n' '{"version":1,"cores":[{"core_id":"fes.atari-st","reason":"skipped"}]}' >"$unavailable"
+FES_UNAVAILABLE_CORES=$unavailable "$repo/scripts/native-extra-cores.sh" install "$cache" "$target"
+FES_UNAVAILABLE_CORES=$unavailable "$repo/scripts/native-extra-cores.sh" verify-image "$cache" "$target"
+cmp "$unavailable" "$target/usr/share/mister-runtime/unavailable-cores.json"
+test "$(stat -c %a "$target/usr/share/mister-runtime/unavailable-cores.json")" = 444
+"$repo/scripts/native-extra-cores.sh" install "$cache" "$target"
+test ! -e "$target/usr/share/mister-runtime/unavailable-cores.json"
+printf '%s\n' leftover >"$target/usr/share/mister-runtime/unavailable-cores.json"
+if "$repo/scripts/native-extra-cores.sh" verify-image "$cache" "$target"; then
+  echo 'leftover unavailable manifest was accepted' >&2
+  exit 1
+fi
+rm -f "$target/usr/share/mister-runtime/unavailable-cores.json"
 # Buildroot puts its Python 3.9 ahead of the container's Python 3.11.
 mkdir "$fixture/old-python"
 printf '#!/bin/sh\nexit 99\n' >"$fixture/old-python/python3"

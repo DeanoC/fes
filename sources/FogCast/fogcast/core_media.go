@@ -123,10 +123,26 @@ func (s *Service) validateCoreEntryMedia(ctx context.Context, descriptor corepac
 	return media.Close()
 }
 
+// savedZx81TapeRole keeps setups saved as blob launchable after the ZX81
+// package moved to the cassette unit. A descriptor that still declares blob
+// keeps that role.
+func savedZx81TapeRole(descriptor corepackage.Descriptor, role string) string {
+	if role != "blob" || !protocol.DeclaresZx81Tape(descriptor) {
+		return role
+	}
+	for _, declared := range protocol.DeclaredCoreMediaCapabilities(descriptor) {
+		if declared.Role == "blob" {
+			return role
+		}
+	}
+	return protocol.CassetteRole
+}
+
 func (s *Service) readCoreEntryMedia(ctx context.Context, descriptor corepackage.Descriptor, role, id string) (*coreEntryMedia, error) {
 	if role == "" && id == "" {
 		return nil, nil
 	}
+	role = savedZx81TapeRole(descriptor, role)
 	if (role != "blob" && role != protocol.DiskRole && role != protocol.CassetteRole) || protocol.ValidateDigest(id) != nil {
 		return nil, canonicalError(protocol.CodeBadRequest, nil)
 	}

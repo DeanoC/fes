@@ -1,0 +1,87 @@
+{
+  "archive_bytes": 1977344,
+  "archive_path": "/tmp/fes-software-pong.fcore",
+  "archive_sha256": "98523690318e389bf70ce5db28a653642fb57b56d7764fab324c7d67bb36fe80",
+  "compatibility": {
+    "compatible": true,
+    "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+    "state": "compatible"
+  },
+  "core_id": "fes.pong",
+  "created_at_utc": "2026-10-17T07:39:16.540489+00:00",
+  "diagnostics": [],
+  "format": 1,
+  "mode": "lifecycle-only",
+  "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+  "provenance": {
+    "active_bundle": {
+      "fogcast": "6641b58fa36754e629d3e9666f35b8674178b2b6",
+      "runtime": "6641b58fa36754e629d3e9666f35b8674178b2b6"
+    },
+    "base_artifacts": {
+      "agent_revision": "6641b58fa36754e629d3e9666f35b8674178b2b6",
+      "agent_sha256": "50aa235bf538a978db6f165d5afbc2b128e75e8f46f24ff4c6e656e27d8d0b11",
+      "idle_sha256": "64f1f16daedba4ed19179bd5d7c6f3eb3058a688d15441c8c8d89e113060f182",
+      "image_sha256": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+      "kit_sha256": "7f2a3ab42bff9c8e6b48a39b21c8a0f81e38f32f8e7cc2cf101830bb77a3f6f9",
+      "package_id": "a2077b66705d9e343eb4ae466d5bc1a4370800bd558aee23bce1cf2d85f3d657",
+      "record_sha256": "bb418e33e8bf82ca7294d445bfbf83b1571a65d1537ca87db4a3b91779867d68",
+      "runtime_commit": "6641b58fa36754e629d3e9666f35b8674178b2b6"
+    },
+    "host_revision": "6641b58fa36754e629d3e9666f35b8674178b2b6"
+  },
+  "provided_interfaces": {
+    "maintenance": "fes-kit-maintenance-v1",
+    "runtime-protocol": "2",
+    "software-admission": "fes-kit-software-v1"
+  },
+  "selection": {
+    "game_id": "fpga-visual-pong-2231a762bd05",
+    "mode": "new",
+    "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87"
+  },
+  "session": {
+    "flight_id": "2e398f59-2326-4e3e-b7b5-c040a13fcd32",
+    "game_id": "fpga-visual-pong-2231a762bd05",
+    "generation": 1,
+    "id": "80bca7fa-40ba-4ea8-bfcc-7215e0fd6d14",
+    "package_id": "6efd4054c7ca662204c7f58a647918f76f7bbbac249705e19763b0d1c74f7c87",
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+  },
+  "software_identity": {
+    "active_bundle": "c2d732ccb23363424f3bdcef0daf6a5e9d99e75835b6864aa3591d855f40ea95",
+    "base_identity": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+    "host_api": "v1",
+    "target_api": "v1"
+  },
+  "stop": {
+    "connection": {
+      "address": "http://fes-kit-a:8182",
+      "boot_id": "457a8b1a-54af-46c0-9e6e-351c08467496",
+      "state": "ready",
+      "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+    },
+    "flight_id": "2e398f59-2326-4e3e-b7b5-c040a13fcd32",
+    "id": "80bca7fa-40ba-4ea8-bfcc-7215e0fd6d14",
+    "input": {
+      "metrics": {
+        "bridge_to_uinput_measurable": false,
+        "bridge_to_uinput_p95_ms": 0,
+        "capture_to_bridge_p95_ms": 0.052536,
+        "frames_sent": 22,
+        "releases": 1,
+        "rtt_ms": 1.413614,
+        "sequence_gaps": 0,
+        "shutdown_reason": "target_changed",
+        "state_resyncs": 0
+      },
+      "ready": false,
+      "state": "detached"
+    },
+    "state": "idle",
+    "target": "dev",
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+  },
+  "success": true,
+  "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a"
+}

@@ -28,7 +28,7 @@ A producer in this module does not put a package on that image.
 | --- | --- | --- | --- | --- | --- |
 | `fes.menu` | `cores/fes-menu` | `fes.application` with menu display and HPS DDR | `toolchain.lock` (shared FES HIP lane) | `make build-fes-menu-package` | yes; idle display, not playable |
 | `fes.pong` | `cores/fes-pong` | `fes.simple-game` | `toolchain.lock` | `make build-fes-pong` | yes |
-| `fes.zx81` | `cores/fes-zx81` | `fes.simple-computer` with session display and HPS DDR | `toolchain.lock` | `make build-fes-zx81` | yes |
+| `fes.zx81` | `cores/fes-zx81` | `fes.computer` with session display and HPS DDR; `fes_z80_nmos` | `toolchain.lock` | `make build-fes-zx81` | yes |
 | `fes.coleco` | `cores/fes-coleco` | `fes.application` | `toolchain.lock` | `make build-fes-coleco-native-video` (FES selects the native variant) | yes; optional Coleco bus 2.0 and mandatory linked native video; Direct and Scanlines parts ship alongside |
 | `fes.sms` | `cores/fes-sms` | `fes.simple-computer` | `toolchain.lock` | `make build-fes-sms` | yes |
 | `fes.sg1000` | `cores/fes-sg1000` | `fes.simple-computer` | `toolchain.lock` | `make build-fes-sg1000` | yes |
@@ -160,6 +160,21 @@ A new `BUILD_ID` changes placement. An older sealed package, parent pin, or
 kit note does not accept the bitstream you just built. Record new evidence
 for the new bytes.
 
+## PC/XT CPU and ISA fabric development
+
+`make sim-fes-pcxt` runs the [PC/XT transaction fabric](../cores/fes-pcxt/README.md)
+through eight portable registered slot boundaries with diagnostic cards in slots
+1 and 8. It tests wait-state side effects, memory and I/O decode, interrupt and
+DMA wiring, conflict rejection, a lost commit acknowledgement, and reset during
+transfers including a commit already pending at the card. It also executes an
+original diagnostic ROM on the pinned MCL86 8088 through the fabric with variable
+memory waits, interrupts, word I/O and fault recovery. GNU x86 `as` and `ld` are
+required alongside Verilator. The motherboard lane tests PIC/PIT/PPI, XT
+keyboard transport and speaker PCM; a second ROM receives real timer, ISA and
+keyboard interrupts. This is a simulation family, not a package producer.
+DMA, graphics, media, HID keyboard translation and physical
+socket routing are still required; no `build-fes-pcxt` target exists.
+
 ## Original RV32I
 
 `make sim-fes-riscv` validates the original machine-mode RV32I CPU in
@@ -177,7 +192,7 @@ editing `firmware.S`, because the producer rejects stale images.
 `cores/fes-common/rtl/z80`. This is a shared CPU development lane, not a play
 package. The [CPU contract](../cores/fes-common/rtl/z80/README.md) lists the
 interfaces, published behavior sources, tests and contained Cyclone V timing
-diagnostic. SG-1000 and the default Spectrum producer select the NMOS CPU.
+diagnostic. SG-1000, ZX81 and the default Spectrum producer select the NMOS CPU.
 `make build-fes-spectrum-fast` selects the documented-only 56 MHz development
 shell, with separate native peripheral timing. Each full shell must pass its
 clock constraints before sealing; CPU-only timing does not establish that.

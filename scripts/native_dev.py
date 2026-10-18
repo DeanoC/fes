@@ -15,6 +15,7 @@ from build import (digest, output_volume, publish_file, reusable, run, write_rec
                    publish_package_state, recorded_image_fingerprint,
                    reuse_status, verify_package_outputs, native_image_mode,
                    verify_package_only_outputs, remove_stale_parent_outputs)
+import optional_cores
 from build_diagnostics import BuildDiagnostics
 from inputs import git
 
@@ -102,7 +103,7 @@ def run_stage(diagnostics, name, args, **kwargs):
 
 def build_development(root, image, fogcast, runtime, profile_name, profile, info,
                       fingerprint, env, fogcast_make, image_make, packages=None,
-                      diagnostics=None):
+                      unavailable=(), diagnostics=None):
     mode = native_image_mode(profile)
     selected_work = env.get('FES_IMAGE_WORK', WORK.format(passes=os.environ.get('IMAGE_PASSES', '2')))
     if mode != 'package-only':
@@ -113,19 +114,22 @@ def build_development(root, image, fogcast, runtime, profile_name, profile, info
     hit, reason = reuse_status(output, 'development', fingerprint)
     diagnostics.cache('development', 'hit' if hit else 'miss', reason)
     if hit:
-        verify_package_only_outputs(output, packages)
+        verify_package_only_outputs(output, packages, unavailable)
+        if unavailable:
+            optional_cores.warn(unavailable)
         if owned_diagnostics:
             diagnostics.finish('success')
         print('Development: reusing checked output; nothing to rebuild', flush=True)
         return
     if not packages:
         raise ValueError('package-only native development requires a selected format-2 package')
-    selection_args = ['NATIVE_RUNTIME_MODE=package-only'] + package_arguments(packages)
+    output.mkdir(parents=True, exist_ok=True)
+    manifest = optional_cores.publish_manifest(output, unavailable)
+    selection_args = ['NATIVE_RUNTIME_MODE=package-only'] + package_arguments(packages, manifest)
     selection_env = dict(env)
     selection_env.update(dict(argument.split('=', 1) for argument in selection_args))
     key = base_key(image, fogcast)
     volume = output_volume(root, profile_name + '-development-' + key)
-    output.mkdir(parents=True, exist_ok=True)
     # A failed invocation must not leave an older success receipt for this run.
     (output / 'development.json').unlink(missing_ok=True)
     env = dict(env, TARGET_IMAGE_OUTPUT_VOLUME=volume, FOGCAST_DIR=str(fogcast))
@@ -216,12 +220,17 @@ mv {EXPORT}/linux.img.new {EXPORT}/linux.img
     names.extend(publish_package_state(
         packages, built_selections if packages else None, output))
     remove_stale_parent_outputs(output)
-    verify_package_only_outputs(output, packages)
+    verify_package_only_outputs(output, packages, unavailable)
     record = dict(info, build_mode='incremental-development', base_key=key,
                   output_volume=volume, structural='pass', two_pass_reproducibility='not-run')
     (output / 'inputs.json').write_text(json.dumps(record, indent=2, sort_keys=True) + '\n')
-    write_receipt(output, 'development', fingerprint, names + ['inputs.json'])
+    receipt_names = names + ['inputs.json']
+    if manifest is not None:
+        receipt_names.append(optional_cores.MANIFEST_NAME)
+    write_receipt(output, 'development', fingerprint, receipt_names)
     if owned_diagnostics:
         diagnostics.finish('success')
+    if unavailable:
+        optional_cores.warn(unavailable)
     print(f'Development image: {output / "linux.img"} (structural checks passed; diagnostic only)',
           flush=True)

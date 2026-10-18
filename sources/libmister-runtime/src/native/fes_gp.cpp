@@ -136,9 +136,11 @@ constexpr std::uint16_t kComputerCapabilityMask = static_cast<std::uint16_t>(
 	FesComputerCapabilityVideoFixed720p60 | FesComputerCapabilityKeyboardHid |
 	FesComputerCapabilityGamepadPorts | FesComputerCapabilityAudioPcmS16Stereo48k |
 	FesComputerCapabilityMediaApple2Floppy | FesComputerCapabilityMediaSpectrumTape |
+	FesComputerCapabilityMediaZx81Tape |
 	FesComputerCapabilityMediaC64Disk | FesComputerCapabilityMediaAtariStFloppy |
 	FesComputerCapabilityMouseRelative | FesComputerCapabilityMediaAtariStFloppyWrite |
-    FesComputerCapabilityMediaAtariStFloppyGeometry);
+    FesComputerCapabilityMediaAtariStFloppyGeometry |
+	FesComputerCapabilityMemoryHpsDdr | FesComputerCapabilityVideoSessionDisplay);
 
 std::uint64_t AddDeadline(std::uint64_t now, std::uint64_t duration)
 {
@@ -463,10 +465,18 @@ Error FesGp::Identify(const CoreDescriptor& descriptor, std::uint64_t deadline,
 				capabilities |= FesComputerCapabilityMediaApple2Floppy;
 			else if (interface.id == FesComputerInterfaceMediaSpectrumTapeID)
 				capabilities |= FesComputerCapabilityMediaSpectrumTape;
+			else if (interface.id == FesComputerInterfaceMediaZx81TapeID)
+				capabilities |= FesComputerCapabilityMediaZx81Tape;
 			else if (interface.id == FesComputerInterfaceMediaC64DiskID)
 				capabilities |= FesComputerCapabilityMediaC64Disk;
 			else if (interface.id == FesComputerInterfaceMediaAtariStFloppyID)
 				capabilities |= FesComputerCapabilityMediaAtariStFloppy;
+			else if (interface.id == FesComputerInterfaceMemoryHpsDdrID &&
+				interface.required && interface.major == 1 && interface.minor == 0)
+				capabilities |= FesComputerCapabilityMemoryHpsDdr;
+			else if (interface.id == FesComputerInterfaceVideoSessionDisplayID &&
+				interface.required && interface.major == 1 && interface.minor == 0)
+				capabilities |= FesComputerCapabilityVideoSessionDisplay;
 			continue;
 		}
 		if (application) {
@@ -609,9 +619,12 @@ void FesGpCoreDriver::BeginSession()
 CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
 	std::uint64_t deadline)
 {
+	const bool session_plane =
+		(computer_ && (observed_capabilities_ & FesSimpleComputerCapabilityVideoSessionDisplay)) ||
+		(home_computer_ && (observed_capabilities_ & FesComputerCapabilityVideoSessionDisplay));
 	if ((application_ && (observed_capabilities_ & FesApplicationCapabilityVideoMenuDisplay)) ||
-		(computer_ && (observed_capabilities_ & FesSimpleComputerCapabilityVideoSessionDisplay))) {
-		if (computer_ && gp_.Poisoned()) {
+		session_plane) {
+		if ((computer_ || home_computer_) && gp_.Poisoned()) {
 			Error error = gp_.Realign(deadline);
 			if (error.ok() && have_identity_) error = gp_.Identify(identified_, deadline);
 			if (!error.ok()) return {WithPhase(std::move(error), "quiesce"), false, ""};
@@ -624,7 +637,7 @@ CoreDriverResult FesGpCoreDriver::Quiesce(const CoreDriverContext&,
 		if (error.ok() && ((state & ~std::uint16_t(31)) ||
 			!(state & FesApplicationMenuStateQuiesced) ||
 			(state & (FesApplicationMenuStateEnabled | FesApplicationMenuStatePending |
-				(computer_ ? 0 : FesApplicationMenuStateFaulted)))))
+				(session_plane ? 0 : FesApplicationMenuStateFaulted)))))
 			error = {ErrorCode::io_failed, "menu did not prove drained quiescence", "quiesce"};
 		if (!error.ok()) return {WithPhase(std::move(error), "quiesce"), true, ""};
 	}
@@ -694,12 +707,15 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			if (interface.id == FesComputerInterfaceGamepadPortsID) controller_ports_ = true;
 			if (interface.id == FesComputerInterfaceMediaApple2FloppyID ||
 				interface.id == FesComputerInterfaceMediaSpectrumTapeID ||
+				interface.id == FesComputerInterfaceMediaZx81TapeID ||
 				interface.id == FesComputerInterfaceMediaAtariStFloppyID ||
 				interface.id == FesComputerInterfaceMediaC64DiskID) {
 				MediaUnitCapability unit;
 				unit.unit = static_cast<std::uint8_t>(
 					interface.id == FesComputerInterfaceMediaSpectrumTapeID ?
 					FesComputerSpectrumTapeUnit :
+					interface.id == FesComputerInterfaceMediaZx81TapeID ?
+					FesComputerZx81TapeUnit :
 					interface.id == FesComputerInterfaceMediaC64DiskID ?
 					FesComputerC64DiskUnit :
 					interface.id == FesComputerInterfaceMediaAtariStFloppyID ?
@@ -712,7 +728,7 @@ CoreDriverResult FesGpCoreDriver::Identify(const CoreDriverContext& context,
 			[](const MediaUnitCapability& a, const MediaUnitCapability& b) { return a.unit < b.unit; });
 		if (media_units_.size() > 1 && media_units_[0].unit == media_units_[1].unit)
 			error = Mismatch("a core declares one media unit 0",
-				"one of fes.media.apple2-floppy, fes.media.c64-disk, fes.media.atari-st-floppy, fes.media.spectrum-tape",
+				"one of fes.media.apple2-floppy, fes.media.c64-disk, fes.media.atari-st-floppy, fes.media.spectrum-tape, fes.media.zx81-tape",
 				"both");
 		// Discovery reads each declared unit's live limits. A freshly programmed
 		// endpoint leaves every implemented unit empty; limits come from Info.

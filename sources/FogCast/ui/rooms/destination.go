@@ -119,13 +119,22 @@ type Destination struct {
 	CoreID         string
 	CoreLaunchable bool
 	CoreBlock      string
-	Availability   Availability
-	Status         string
-	Action         string
-	Note           string
-	NoteBy         string
-	Query          string
-	Platform       string
+	// CoreNeeds is the kit inventory's requirement class for a core
+	// ("none", "media", "firmware", "parts", "unsupported", "unavailable").
+	// "unavailable" is an omitted optional core. It has a synthetic package
+	// id and no package in the image.
+	CoreNeeds string
+	// Inputs are input devices the selected item requires, from package
+	// metadata ("keyboard", "mouse"). A pad is not listed: its presence does
+	// not establish a mapping.
+	Inputs       []string
+	Availability Availability
+	Status       string
+	Action       string
+	Note         string
+	NoteBy       string
+	Query        string
+	Platform     string
 	// Matches is the play rows Confirm may use. When any sibling can play,
 	// this is only those viable rows. It is not the full candidate set.
 	Matches []hostclient.Game
@@ -642,6 +651,9 @@ func (d Destination) Confirm() ConfirmIntent {
 	case KindCore:
 		if d.LeaseHeld {
 			return ConfirmExplain
+		}
+		if d.Availability == AvailChecking {
+			return ConfirmWait
 		}
 		if d.CoreLaunchable {
 			return ConfirmLaunchCore

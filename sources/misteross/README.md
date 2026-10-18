@@ -72,6 +72,15 @@ producer is `make build-fes-atari-st`. The factory image selects its firmware
 shell and sealed Direct/Scanlines companions. Firmware remains a separate user
 input; the image does not bundle EmuTOS or Atari ROMs.
 
+The PC/XT development slice runs an original diagnostic ROM on an 8088 CPU
+through a memory router, 8259 PIC, 8253 PIT, 8255 PPI and registered ISA probe cards.
+The integrated diagnostic handles timer, ISA and timed XT keyboard interrupts
+and generates speaker PCM; RAM/ROM storage
+remains external to the synthesizable fixture.
+`make sim-fes-pcxt` checks it on the host; see the
+[core README](cores/fes-pcxt/README.md). The complete 8088 machine and physically
+linkable PC/XT sockets remain unimplemented.
+
 ## What builds now
 
 Run the commands below from `sources/misteross/`. Preparing one registered
@@ -86,12 +95,12 @@ runs the [fes.riscv](cores/fes-riscv/README.md) system and board shell.
 The original shared Z80 CPU has NMOS and documented fast variants. Run
 `make sim-fes-z80` for standalone instruction, flag and pin timing checks; see
 [the CPU contract](cores/fes-common/rtl/z80/README.md) for interfaces and the
-Cyclone V timing diagnostic. SG-1000 and Spectrum select the NMOS variant.
+Cyclone V timing diagnostic. SG-1000, ZX81 and Spectrum select the NMOS variant.
 Spectrum also has an explicit documented-only 56 MHz development build;
 `make sim-fes-spectrum-turbo` compares both modes and measures elapsed workloads.
-Coleco, SMS and ZX81 still instantiate TV80/T80. [Core alignment](../../docs/core-alignment.md)
+Coleco and SMS still instantiate TV80/T80. [Core alignment](../../docs/core-alignment.md)
 schedules the move onto `fes_z80_nmos` one machine at a time. That swap has
-not landed for those three packages.
+not landed for those two packages.
 
 ### OSS experiments
 

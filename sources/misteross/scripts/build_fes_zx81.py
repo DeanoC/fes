@@ -58,14 +58,11 @@ VERILOG_SOURCES = (
     "cores/fes-common/rtl/fes_hps_ddr_guard.v",
 )
 SYSTEMVERILOG_SOURCES = (
+    "cores/fes-common/rtl/z80/fes_z80_alu.sv",
+    "cores/fes-common/rtl/z80/fes_z80_engine.sv",
+    "cores/fes-common/rtl/z80/fes_z80_bus.sv",
+    "cores/fes-common/rtl/z80/fes_z80_nmos.sv",
     "cores/fes-zx81/rtl/zx81_machine.sv",
-)
-VHDL_SOURCES = (
-    "cores/fes-zx81/rtl/t80/T80_Reg.vhd",
-    "cores/fes-zx81/rtl/t80/T80_ALU.vhd",
-    "cores/fes-zx81/rtl/t80/T80_MCode.vhd",
-    "cores/fes-zx81/rtl/t80/T80.vhd",
-    "cores/fes-zx81/rtl/t80/T80pa.vhd",
 )
 PINNED_INPUTS = (
     RECIPE, "scripts/compiler_read_audit.py", "scripts/source_repository.py",
@@ -79,7 +76,6 @@ PINNED_INPUTS = (
     ROM_MIF,
     *VERILOG_SOURCES,
     *SYSTEMVERILOG_SOURCES,
-    *VHDL_SOURCES,
 )
 HEX32_RE = re.compile(r"[0-9a-f]{32}\Z")
 HEX40_RE = re.compile(r"[0-9a-f]{40}\Z")
@@ -209,8 +205,6 @@ def project_qsf(root: Path, project: Path, build_id: str) -> str:
         f'set_global_assignment -name VERILOG_MACRO "FES_ZX81_BUILD_ID=128\'h{build_id}"',
         assignment("SDC_FILE", SDC),
     ]
-    for source in VHDL_SOURCES:
-        lines.append(assignment("VHDL_FILE", source))
     for source in VERILOG_SOURCES:
         lines.append(assignment("VERILOG_FILE", source))
     for source in SYSTEMVERILOG_SOURCES:

@@ -52,6 +52,13 @@ func (a *App) roomDestinationLocked() rooms.Destination {
 			d.Action = machineStatusUnknown
 		}
 	}
+	// After an ambiguous local launch, Confirm is refused until the agent
+	// reports idle; say Checking rather than Ready.
+	if d.Kind == rooms.KindCore && d.CoreLaunchable && !d.LeaseHeld && a.localLaunchBlockedLocked() {
+		d.Availability = rooms.AvailChecking
+		d.Status = localLaunchCheckingCopy
+		d.Action = rooms.CheckingAction
+	}
 	return a.applyKitDirectLocked(d)
 }
 
@@ -272,6 +279,10 @@ func (a *App) handleRoomLocked(cmd Command) {
 			return
 		}
 	}
+	if cmd == CmdBack && a.roomCoreDetail != "" {
+		a.roomCoreDetail = ""
+		return
+	}
 	if cmd == CmdBack {
 		if a.launch.Phase == "launching" {
 			a.status = "launch in progress"
@@ -352,10 +363,13 @@ func (a *App) applyRoomDestinationConfirmLocked() bool {
 	}
 	switch dest.Confirm() {
 	case rooms.ConfirmWait:
+		// Acknowledge and wait. A queued Confirm could start whatever item
+		// the finished list focuses, which the player has not seen.
 		a.status = dest.Status
 		if a.status == "" {
 			a.status = rooms.CheckingStatus
 		}
+		a.roomWaitAck = true
 		return true
 	case rooms.ConfirmOpenLibrary:
 		a.status = dest.Status
@@ -493,6 +507,11 @@ func (a *App) openRoomDetailsLocked() {
 		a.openRoomDetailsForLocked(game)
 		return
 	}
+	if dest.Kind == rooms.KindCore && a.room != nil && a.room.Hero() {
+		// The hero shows the package's identity and verbatim local status.
+		a.roomCoreDetail = dest.PackageID
+		return
+	}
 	if dest.LeaseHeld || dest.Status == rooms.InUseStatus {
 		a.status = localInUseCopy
 		a.statusLeaseRefusal = true
@@ -550,10 +569,20 @@ func (a *App) queueRoomDetailWorkLocked(now time.Time, queue []pendingWork) []pe
 	if a.room == nil || !a.detailOpen || a.roomDetail.ID == "" || a.gpuParked {
 		return queue
 	}
+	return a.queueDetailGameWorkLocked(now, queue, a.roomDetail)
+}
+
+func (a *App) queueLibraryDetailWorkLocked(now time.Time, queue []pendingWork) []pendingWork {
+	if a.room != nil || !a.detailOpen || strings.TrimSpace(a.libraryDetail.ID) == "" || a.gpuParked {
+		return queue
+	}
+	return a.queueDetailGameWorkLocked(now, queue, a.libraryDetail)
+}
+
+func (a *App) queueDetailGameWorkLocked(now time.Time, queue []pendingWork, game hostclient.Game) []pendingWork {
 	if len(a.inflight) >= maxInflight {
 		return queue
 	}
-	game := a.roomDetail
 	slot := a.covers[game.ID]
 	if slot == nil {
 		slot = &coverSlot{phase: coverIdle}

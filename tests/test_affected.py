@@ -126,7 +126,7 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-apple2/rtl/apple2_machine.sv': {'apple2'},
             'cores/fes-c64/rtl/c64_machine.sv': {'c64'},
             'cores/fes-common/rtl/cpu6502/cpu6502.v': {'apple2', 'c64'},
-            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'c64', 'spectrum', 'atari-st'},
+            'cores/fes-common/rtl/fes_computer_mailbox.v': {'apple2', 'c64', 'spectrum', 'atari-st', 'zx81'},
             'cores/fes-common/rtl/t80pa.v': {'coleco', 'sms'},
             'scripts/apple2_slots.py': {'apple2'},
             'scripts/build_apple2_slot_card.py': {'apple2'},
@@ -134,9 +134,9 @@ class AffectedTests(unittest.TestCase):
             'scripts/build_c64_slot_card.py': {'c64'},
             'cores/fes-spectrum/rtl/spectrum_machine.sv': {'spectrum'},
             'scripts/spectrum_slots.py': {'spectrum'},
-            'cores/fes-common/rtl/z80/fes_z80_alu.sv': {'z80', 'sg1000', 'spectrum'},
-            'cores/fes-common/rtl/z80/fes_z80_engine.sv': {'z80', 'sg1000', 'spectrum'},
-            'cores/fes-common/rtl/z80/new_unit.sv': {'z80', 'sg1000', 'spectrum'},
+            'cores/fes-common/rtl/z80/fes_z80_alu.sv': {'z80', 'sg1000', 'spectrum', 'zx81'},
+            'cores/fes-common/rtl/z80/fes_z80_engine.sv': {'z80', 'sg1000', 'spectrum', 'zx81'},
+            'cores/fes-common/rtl/z80/new_unit.sv': {'z80', 'sg1000', 'spectrum', 'zx81'},
             'cores/fes-common/sim/z80/cpu_tb.cpp': {'z80'},
             'cores/fes-common/sim/z80/new_fixture.bin': {'z80'},
             'scripts/sim_fes_z80.py': {'z80'},
@@ -149,6 +149,9 @@ class AffectedTests(unittest.TestCase):
             'cores/fes-ramtest/rtl/sdram_addon_port.v': {'ramtest', 'atari-st'},
             'cores/fes-pong/rtl/pixel_pll.v': {'demo', 'pong', 'ramtest', 'riscv'},
             'cores/fes-common/rtl/riscv/fes_rv32_cpu.sv': {'riscv'},
+            'cores/fes-pcxt/rtl/pcxt_isa_bridge.sv': {'pcxt'},
+            'cores/fes-common/generated/fes_pcxt_isa.vh': {'pcxt'},
+            'scripts/sim_fes_pcxt.py': {'pcxt'},
             'cores/fes-common/sim/riscv/rv32_model.h': {'riscv'},
             'cores/fes-riscv/firmware/firmware.S': {'riscv'},
             'scripts/sim_fes_riscv.py': {'riscv'},
@@ -236,7 +239,7 @@ class AffectedTests(unittest.TestCase):
             producer_name = core.replace('-', '_')
             sources = [root / 'scripts' / ('build_fes_' + producer_name + '.py'),
                        root / 'scripts' / ('build_fes_' + producer_name + '_oss.py')]
-            if core in ('demo', 'menu', 'z80', 'riscv'):
+            if core in ('demo', 'menu', 'z80', 'riscv', 'pcxt'):
                 sources.append(root / ('scripts/sim_fes_' + core + '.py'))
             if core == 'zx81':
                 sources.append(root / 'scripts/sim_fes_zx81_session.py')

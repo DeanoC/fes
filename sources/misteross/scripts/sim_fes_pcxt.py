@@ -1,0 +1,123 @@
+#!/usr/bin/env python3
+"""Simulate the PC/XT ISA fabric, 8088 and motherboard; no board or kit claim."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCES = (
+    'cores/fes-pcxt/rtl/pcxt_isa_bridge.sv',
+    'cores/fes-pcxt/rtl/pcxt_isa_boundary.sv',
+    'cores/fes-pcxt/rtl/pcxt_isa_endpoint.sv',
+    'cores/fes-pcxt/expansions/pcxt_isa_probe.sv',
+    'cores/fes-pcxt/sim/isa_top.sv',
+    'cores/fes-pcxt/sim/isa_tb.cpp',
+)
+CPU_SOURCES = (
+    'cores/fes-pcxt/vendor/mcl86/mcl86_adder.sv',
+    'cores/fes-pcxt/vendor/mcl86/mcl86_eu_core.sv',
+    'cores/fes-pcxt/vendor/mcl86/mcl86_biu_max.sv',
+    'cores/fes-pcxt/vendor/mcl86/mcl86_ucode.sv',
+    'cores/fes-pcxt/vendor/mcl86/i8088.sv',
+    'cores/fes-pcxt/rtl/pcxt_cpu_bus.sv',
+    'cores/fes-pcxt/rtl/pcxt_cpu.sv',
+    'cores/fes-pcxt/sim/cpu_top.sv',
+    'cores/fes-pcxt/sim/cpu_tb.cpp',
+)
+
+CHIPSET_SOURCES = (
+    'cores/fes-pcxt/vendor/kf8259/KF8259.sv',
+    'cores/fes-pcxt/vendor/kf8259/KF8259_Bus_Control_Logic.sv',
+    'cores/fes-pcxt/vendor/kf8259/KF8259_Control_Logic.sv',
+    'cores/fes-pcxt/vendor/kf8259/KF8259_In_Service.sv',
+    'cores/fes-pcxt/vendor/kf8259/KF8259_Interrupt_Request.sv',
+    'cores/fes-pcxt/vendor/kf8259/KF8259_Priority_Resolver.sv',
+    'cores/fes-pcxt/vendor/kf8253/KF8253.sv',
+    'cores/fes-pcxt/vendor/kf8253/KF8253_Control_Logic.sv',
+    'cores/fes-pcxt/vendor/kf8253/KF8253_Counter.sv',
+    'cores/fes-pcxt/vendor/kf8255/KF8255.sv',
+    'cores/fes-pcxt/vendor/kf8255/KF8255_Control_Logic.sv',
+    'cores/fes-pcxt/vendor/kf8255/KF8255_Group.sv',
+    'cores/fes-pcxt/vendor/kf8255/KF8255_Port.sv',
+    'cores/fes-pcxt/vendor/kf8255/KF8255_Port_C.sv',
+    'cores/fes-pcxt/rtl/pcxt_xtio.sv',
+    'cores/fes-pcxt/rtl/pcxt_xt_keyboard.sv',
+    'cores/fes-pcxt/rtl/pcxt_speaker.sv',
+    'cores/fes-pcxt/rtl/pcxt_motherboard.sv',
+    'cores/fes-pcxt/sim/motherboard_top.sv',
+)
+
+
+def verify_vendor(name):
+    vendor = ROOT / 'cores/fes-pcxt/vendor' / name
+    manifest = json.loads((vendor / 'source.json').read_text())
+    for item in manifest['files']:
+        if hashlib.sha256((vendor / item['path']).read_bytes()).hexdigest() != item['sha256']:
+            raise ValueError('vendored ' + name + ' source hash mismatch: ' + item['path'])
+    return vendor
+
+
+def verify_cpu_sources():
+    return verify_vendor("mcl86")
+
+
+def cpu_inputs(output, diagnostic="diagnostic"):
+    vendor = verify_cpu_sources()
+    shutil.copyfile(vendor / 'mcl86_ucode.mem', output / 'mcl86_ucode.mem')
+    subprocess.run(['as', '--32', '-o', str(output / 'diagnostic.o'),
+                    str(ROOT / ('cores/fes-pcxt/sim/' + diagnostic + '.S'))], check=True)
+    subprocess.run(['ld', '-m', 'elf_i386', '-Ttext', '0', '--oformat', 'binary',
+                    '-e', '0', '-o', str(output / 'diagnostic.bin'),
+                    str(output / 'diagnostic.o')], check=True)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
+    parser.add_argument('--suite', choices=('all', 'isa', 'cpu', 'keyboard', 'motherboard', 'machine'), default='all')
+    args = parser.parse_args()
+    if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
+        parser.error('simulation does not use the shared compiler cache')
+    output = ROOT / 'build/sim/fes-pcxt'
+    output.mkdir(parents=True, exist_ok=True)
+    for suite in ('isa', 'cpu', 'keyboard', 'motherboard', 'machine') if args.suite == 'all' else (args.suite,):
+        build = output / suite
+        build.mkdir(parents=True, exist_ok=True)
+        sources = SOURCES if suite == 'isa' else tuple(s for s in SOURCES if s.endswith('.sv')) + CPU_SOURCES
+        if suite == 'keyboard':
+            sources = ('cores/fes-pcxt/rtl/pcxt_xt_keyboard.sv', 'cores/fes-pcxt/sim/keyboard_tb.cpp')
+        if suite in ('motherboard', 'machine'):
+            for name in ('kf8259', 'kf8253', 'kf8255'):
+                verify_vendor(name)
+            sources = (tuple(s for s in SOURCES if s.endswith('.sv')) + CHIPSET_SOURCES +
+                       ('cores/fes-pcxt/sim/motherboard_tb.cpp',))
+        if suite == 'machine':
+            sources = (tuple(s for s in sources if s.endswith('.sv')) +
+                       tuple(s for s in CPU_SOURCES
+                             if s.endswith('.sv') and not s.endswith('/cpu_top.sv')) +
+                       ('cores/fes-pcxt/sim/machine_top.sv', 'cores/fes-pcxt/sim/machine_tb.cpp'))
+        if suite in ('cpu', 'machine'):
+            cpu_inputs(build, 'motherboard' if suite == 'machine' else 'diagnostic')
+        top = 'pcxt_xt_keyboard' if suite == 'keyboard' else suite + '_top'
+        subprocess.run([args.verilator, '--cc', '--exe', '--build', '-Wall',
+                        *(['--timescale-override', '1ns/1ps',
+                           str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt')] if suite != 'isa' else []),
+                        *([str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt')] if suite in ('motherboard', 'machine') else []),
+                        '-I' + str(ROOT / 'cores/fes-pcxt/vendor/kf8259'),
+                        '-I' + str(ROOT / 'cores/fes-pcxt/vendor/kf8253'),
+                        '-I' + str(ROOT / 'cores/fes-pcxt/vendor/kf8255'),
+                        '--top-module', top, '--Mdir', str(build),
+                        '-I' + str(ROOT / 'cores/fes-common/generated'),
+                        '-CFLAGS', '-std=c++17 -O2',
+                        *[str(ROOT / source) for source in sources]], cwd=ROOT, check=True)
+        subprocess.run([str(build / ('V' + top)),
+                        *([str(build / 'diagnostic.bin')] if suite in ('cpu', 'machine') else [])],
+                       cwd=build, check=True)
+
+
+if __name__ == '__main__':
+    main()

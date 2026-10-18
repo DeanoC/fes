@@ -27,6 +27,21 @@ func (a *App) sessionDisplayOfferedLocked() bool {
 	return !a.needsSessionDisplayLocked() || hostclient.SessionDisplayCapable(a.session.CorePackage)
 }
 
+// liveControlsOfferedLocked is the kit gate for the hardware room and tape
+// picker. On a menu-display kit the running package must report the
+// session-display plane, including fes.computer ZX81. A host window draws
+// those controls on its own display.
+func (a *App) liveControlsOfferedLocked() bool {
+	return a.sessionDisplayOfferedLocked()
+}
+
+// kitSessionDisplayPlaneLocked is the POST /api/v1/session/display transition.
+// Opening it makes menu presentation available and binds launcher frames.
+// Closing it restores the core's HDMI pixels.
+func (a *App) kitSessionDisplayPlaneLocked() bool {
+	return a.needsSessionDisplayLocked()
+}
+
 func (a *App) suppressHeldPlayKeysLocked() {
 	if a.playKeySuppressed == nil {
 		a.playKeySuppressed = make(map[string]bool)

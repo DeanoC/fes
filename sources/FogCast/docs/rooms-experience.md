@@ -95,7 +95,7 @@ Play surfaces (rooms, tenfoot, browser) show four names: **Checking**, **Ready**
 
 | State | Meaning | Confirm behaviour |
 | --- | --- | --- |
-| Checking | Capability, composition, or required content is still resolving | Honest wait; never silent no-op; do not launch |
+| Checking | Capability, composition, or required content is still resolving | Honest wait; never silent no-op; do not launch. Acknowledge the press ("Still checking. Press A again once it has finished.") and do not queue it: a queued Confirm could start an item the player has not seen |
 | Needs a choice | More than one **viable** edition or backend can play this title; no preference saved | Force a clear choice; remember for household. A single viable option is Ready with no prompt. |
 | Unavailable | Matched, but a requirement blocks play (skew, in use, not installed, missing firmware, browse-only). Missing (no library match) is this family. | Reason + specific next action. Missing Coleco BIOS Confirm opens the household file picker (Import Coleco BIOS). Other blocks still open Details. Fail-closed rows are never offered as a choice. |
 | Ready | The selected option can launch through the current setup | Launch (Play) |

@@ -11,9 +11,9 @@ import (
 	"github.com/DeanoC/FogCast/protocol"
 )
 
-// SessionDisplayCapable recognizes the verified simple-computer display
-// contracts. A package name or an installed package alone cannot grant HDMI
-// controls to the running machine.
+// SessionDisplayCapable recognizes an active simple-computer or fes.computer
+// generation that reports the session-display plane and HPS DDR. A package
+// name alone cannot grant HDMI controls.
 func SessionDisplayCapable(p *SessionCorePackage) bool {
 	if p == nil || p.Generation == 0 || protocol.ValidateDigest(p.PackageID) != nil {
 		return false
