@@ -9,7 +9,7 @@
     "cores/fes-common/generated/fes_video_part.vh",
     "cores/fes-common/rtl/fes_audio_i2s.v",
     "cores/fes-common/rtl/fes_audio_output.v",
-    "cores/fes-common/rtl/fes_computer_mailbox.v",
+    "cores/fes-common/rtl/fes_computer_mailbox_direct.v",
     "cores/fes-common/rtl/fes_video_part_direct.v",
     "cores/fes-common/rtl/fes_video_part_scanlines.v",
     "cores/fes-common/rtl/fx68k/LICENSE",
