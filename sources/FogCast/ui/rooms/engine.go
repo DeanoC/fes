@@ -421,6 +421,7 @@ func (r *Instance) Input(cmd string) bool {
 	if !ok {
 		return false
 	}
+	r.noteInputBaseline()
 	handled, err := r.callRetSoft(fn, r.budget.Input, lua.LString(cmd))
 	if err != nil {
 		if errors.Is(err, errSoftOverrun) {
@@ -492,6 +493,7 @@ func (r *Instance) callGlobalSoft(name string, budget time.Duration, args ...lua
 	if !ok {
 		return nil
 	}
+	r.noteFrameBaseline()
 	if err := r.callSoft(fn, budget, 0, args...); err != nil {
 		return fmt.Errorf("%s callback: %w", name, err)
 	}
@@ -540,6 +542,7 @@ func (r *Instance) callOptionalInput(name string, args ...lua.LValue) {
 	if !ok {
 		return
 	}
+	r.noteInputBaseline()
 	if err := r.callSoft(fn, r.budget.Input, 0, args...); err != nil {
 		r.handleInputCallbackError(err)
 		return
@@ -821,6 +824,7 @@ func (r *Instance) applyResult(res asyncResult) {
 	if res.err != nil {
 		errVal = lua.LString(res.err.Error())
 	}
+	r.noteInputBaseline()
 	if err := r.callSoft(res.cb, r.budget.Frame, 0, payload, errVal); err != nil {
 		err = fmt.Errorf("async callback: %w", err)
 		if errors.Is(err, errSoftOverrun) {
