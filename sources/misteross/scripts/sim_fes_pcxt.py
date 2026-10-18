@@ -62,6 +62,16 @@ DISPLAY_SOURCES = (
 )
 
 
+VIDEO_SOURCES = (
+    'cores/fes-common/rtl/coleco_video_dpram.v',
+    'cores/fes-common/rtl/fes_video_part_direct.v',
+    'cores/fes-common/rtl/fes_video_part_scanlines.v',
+    'cores/fes-pcxt/rtl/pcxt_video.sv',
+    'cores/fes-pcxt/rtl/pcxt_video_output.sv',
+    'cores/fes-pcxt/sim/video_top.sv',
+)
+
+
 def verify_vendor(name):
     vendor = ROOT / 'cores/fes-pcxt/vendor' / name
     manifest = json.loads((vendor / 'source.json').read_text())
@@ -88,16 +98,18 @@ def cpu_inputs(output, diagnostic="diagnostic"):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--verilator', default=os.environ.get('VERILATOR', 'verilator'))
-    parser.add_argument('--suite', choices=('all', 'isa', 'cpu', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'display-machine'), default='all')
+    parser.add_argument('--suite', choices=('all', 'isa', 'cpu', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'display-machine', 'video', 'video-mda', 'video-machine'), default='all')
     args = parser.parse_args()
     if os.environ.get('FES_TOOLCHAIN_CACHE_ROOT') or os.environ.get('CACHE_ROOT'):
         parser.error('simulation does not use the shared compiler cache')
     output = ROOT / 'build/sim/fes-pcxt'
     output.mkdir(parents=True, exist_ok=True)
-    for suite in ('isa', 'cpu', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'display-machine') if args.suite == 'all' else (args.suite,):
+    for suite in ('isa', 'cpu', 'keyboard', 'motherboard', 'dma', 'machine', 'display', 'display-machine', 'video', 'video-mda', 'video-machine') if args.suite == 'all' else (args.suite,):
         build = output / suite
         build.mkdir(parents=True, exist_ok=True)
         sources = SOURCES if suite == 'isa' else tuple(s for s in SOURCES if s.endswith('.sv')) + CPU_SOURCES
+        if suite in ('video', 'video-mda'):
+            sources = VIDEO_SOURCES + ('cores/fes-pcxt/sim/video_tb.cpp',)
         if suite == 'display':
             sources = SOURCES[:3] + DISPLAY_SOURCES + ('cores/fes-pcxt/sim/display_tb.cpp',)
         if suite == 'keyboard':
@@ -114,28 +126,32 @@ def main():
                        tuple(s for s in CPU_SOURCES
                              if s.endswith('.sv') and not s.endswith('/cpu_top.sv')) +
                        ('cores/fes-pcxt/sim/machine_top.sv', 'cores/fes-pcxt/sim/machine_tb.cpp'))
-        if suite == 'display-machine':
+        if suite in ('display-machine', 'video-machine'):
             for name in ('kf8259', 'kf8253', 'kf8255'):
                 verify_vendor(name)
             sources = (SOURCES[:3] + DISPLAY_SOURCES + CHIPSET_SOURCES[:-1] +
                        tuple(s for s in CPU_SOURCES if s.endswith('.sv') and not s.endswith('/cpu_top.sv')) +
                        ('cores/fes-pcxt/sim/display_machine_top.sv', 'cores/fes-pcxt/sim/display_machine_tb.cpp'))
-        if suite in ('cpu', 'machine', 'display-machine'):
-            cpu_inputs(build, 'display' if suite == 'display-machine' else 'motherboard' if suite == 'machine' else 'diagnostic')
-        top = 'pcxt_xt_keyboard' if suite == 'keyboard' else 'motherboard_top' if suite == 'dma' else suite.replace('-', '_') + '_top'
+        if suite == 'video-machine':
+            sources = sources[:-1] + VIDEO_SOURCES[:-1] + ('cores/fes-pcxt/sim/video_machine_top.sv', 'cores/fes-pcxt/sim/video_machine_tb.cpp')
+        if suite in ('cpu', 'machine', 'display-machine', 'video-machine'):
+            cpu_inputs(build, 'display' if suite in ('display-machine', 'video-machine') else 'motherboard' if suite == 'machine' else 'diagnostic')
+        top = 'video_top' if suite in ('video', 'video-mda') else 'pcxt_xt_keyboard' if suite == 'keyboard' else 'motherboard_top' if suite == 'dma' else suite.replace('-', '_') + '_top'
         subprocess.run([args.verilator, '--cc', '--exe', '--build', '-Wall',
                         *(['--timescale-override', '1ns/1ps',
                            str(ROOT / 'cores/fes-pcxt/sim/cpu.vlt')] if suite != 'isa' else []),
-                        *([str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt')] if suite in ('motherboard', 'dma', 'machine', 'display-machine') else []),
+                        *([str(ROOT / 'cores/fes-pcxt/sim/chipset.vlt')] if suite in ('motherboard', 'dma', 'machine', 'display-machine', 'video-machine') else []),
                         '-I' + str(ROOT / 'cores/fes-pcxt/vendor/kf8259'),
                         '-I' + str(ROOT / 'cores/fes-pcxt/vendor/kf8253'),
                         '-I' + str(ROOT / 'cores/fes-pcxt/vendor/kf8255'),
+                        *(["-GMDA=1'b1"] if suite == 'video-mda' else []),
                         '--top-module', top, '--Mdir', str(build),
                         '-I' + str(ROOT / 'cores/fes-common/generated'),
                         '-CFLAGS', '-std=c++17 -O2',
                         *[str(ROOT / source) for source in sources]], cwd=ROOT, check=True)
         subprocess.run([str(build / ('V' + top)),
-                        *([str(build / 'diagnostic.bin')] if suite in ('cpu', 'machine', 'display-machine') else [])],
+                        *(['mda'] if suite == 'video-mda' else []),
+                        *([str(build / 'diagnostic.bin')] if suite in ('cpu', 'machine', 'display-machine', 'video-machine') else [])],
                        cwd=build, check=True)
 
 

@@ -10,3 +10,5 @@ lint_off -rule SYNCASYNCNET -file "*/sim/motherboard_top.sv" -match "*reset*"
 lint_off -rule SYNCASYNCNET -file "*/sim/machine_top.sv" -match "*reset*"
 // Same fixture reset drives synchronous FES RTL and asynchronous imported chips.
 lint_off -rule SYNCASYNCNET -file "*/sim/display_machine_top.sv" -match "*reset*"
+
+lint_off -rule SYNCASYNCNET -file "*/sim/video_machine_top.sv" -match "*reset*"

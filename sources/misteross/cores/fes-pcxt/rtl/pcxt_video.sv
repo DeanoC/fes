@@ -1,0 +1,178 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+`include "fes_video_part.vh"
+// PC display capture -> existing RGB888 raster fabric. The coordinated resets
+// must assert in both domains; neither domain may reset independently in flight.
+// A pending bank is immutable until scanout adopts it at an output SOF.
+module pcxt_video #(parameter bit MDA = 0) (
+    input wire clk_sys, clk_pixel, reset_sys, reset_pixel,
+    input wire hold,
+    input wire pixel_ce, source_de, source_sof, source_eol,
+    input wire [3:0] rgbi,
+    output wire [31:0] video_request
+);
+    localparam integer WIDTH = MDA ? 720 : 640;
+    localparam integer HEIGHT = MDA ? 350 : 200;
+    localparam integer SHIFT = MDA ? 2 : 1;
+    localparam integer WORDS = WIDTH * HEIGHT >> SHIFT;
+    localparam integer BANK_BITS = $clog2(WORDS);
+    localparam integer STRIDE = 1 << BANK_BITS;
+    localparam integer ABITS = BANK_BITS + 2;
+    reg [1:0] write_bank, published_bank, source_front;
+    reg sent, waiting, capturing, bad, queued;
+    reg received;
+    (* async_reg = "true" *) reg ack_meta, ack_sync, sent_meta, sent_sync;
+    reg [10:0] source_x;
+    reg [9:0] source_y;
+    reg [18:0] index;
+    reg [5:0] packed_pixels;
+    wire [10:0] sx = source_sof ? 11'b0 : source_x;
+    wire [9:0] sy = source_sof ? 10'b0 : source_y;
+    wire [18:0] pos = source_sof ? 19'b0 : index;
+    wire expected_de = sx < 11'(WIDTH) && sy < 10'(HEIGHT);
+    wire running = source_sof ? !queued : capturing;
+    wire good = source_sof || !bad;
+    wire accept = pixel_ce && !reset_sys && !hold && running && good &&
+                  source_de == expected_de;
+    wire store = accept && source_de;
+    wire [ABITS-1:0] write_address = {write_bank, {BANK_BITS{1'b0}}} + ABITS'(pos >> SHIFT);
+    wire [1:0] mono = rgbi == 0 ? 2'b00 : rgbi[3] ? 2'b11 : 2'b01;
+    wire [7:0] packed_data = MDA ? {mono,packed_pixels} : {rgbi,packed_pixels[3:0]};
+    wire packed_last = MDA ? pos[1:0] == 3 : pos[0];
+    // One held toggle is the ownership mailbox. No live pixel data crosses here.
+    always @(posedge clk_sys) begin
+        if (reset_sys) begin
+            write_bank <= 1; published_bank <= 0; source_front <= 0; queued <= 0;
+            sent <= 0; waiting <= 0; capturing <= 0; bad <= 0;
+            ack_meta <= 0; ack_sync <= 0; source_x <= 0; source_y <= 0;
+            index <= 0; packed_pixels <= 0;
+        end else begin
+            ack_meta <= received; ack_sync <= ack_meta;
+            if (waiting && ack_sync == sent) begin waiting <= 0; source_front <= published_bank; end
+            // Only one mailbox is outstanding. A third bank may finish while
+            // it waits; publish that queued bank once the old mailbox retires.
+            if (!waiting && queued) begin
+                published_bank <= write_bank; sent <= !sent; waiting <= 1; queued <= 0;
+                write_bank <= 2'd3 - source_front - write_bank;
+            end
+            if (hold) capturing <= 0;
+            if (pixel_ce) begin
+                if (source_sof) begin
+                    capturing <= !queued && !hold;
+                    bad <= 0; index <= 0;
+                end
+                if (source_eol) begin source_x <= 0; source_y <= sy == 1023 ? sy : sy + 1'b1; end
+                else begin source_x <= sx == 2047 ? sx : sx + 1'b1; source_y <= sy; end
+                if (running && !hold) begin
+                    if (source_de != expected_de || (source_eol && sx < 11'(WIDTH-1))) begin
+                        bad <= 1; capturing <= 0;
+                    end
+                    if (store) begin
+                        if (MDA) begin
+                            case (pos[1:0])
+                                0: packed_pixels[1:0] <= mono;
+                                1: packed_pixels[3:2] <= mono;
+                                2: packed_pixels[5:4] <= mono;
+                                default: begin end
+                            endcase
+                        end else if (!pos[0]) packed_pixels[3:0] <= rgbi;
+                        index <= pos + 1'b1;
+                    end
+                    // The last active line's blanking closes a complete active
+                    // surface. Remaining guest blanking gives scanout time to
+                    // adopt the bank before the next guest frame starts.
+                    if (accept && source_eol && sy == 10'(HEIGHT-1) && pos == 19'(WIDTH*HEIGHT)) begin
+                        capturing <= 0;
+                        if (waiting) queued <= 1;
+                        else begin
+                            published_bank <= write_bank; sent <= !sent; waiting <= 1;
+                            write_bank <= 2'd3 - source_front - write_bank;
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    reg [10:0] horizontal;
+    reg [9:0] vertical;
+    reg [1:0] front;
+    reg front_valid;
+    (* async_reg = "true" *) reg hold_meta, hold_sync;
+    wire output_sof = horizontal == 0 && vertical == 0;
+    wire output_eol = horizontal == 11'(`FES_VIDEO_PART720P_HORIZONTAL_TOTAL-1);
+    wire visible = horizontal < 1280 && vertical < 720;
+    wire image = horizontal >= 160 && horizontal < 1120 && vertical < 720;
+    // Rational nearest-neighbour scaling to a 960x720 (4:3) viewport. DDA
+    // counters avoid variable division or a multiplier on the RAM address path.
+    reg [10:0] x_error, y_error;
+    reg [9:0] image_x;
+    reg [18:0] row_base;
+    wire [11:0] next_x_error = {1'b0,x_error} + 12'(WIDTH);
+    wire [11:0] next_y_error = {1'b0,y_error} + 12'(HEIGHT);
+    wire adopt = output_sof && sent_sync != received;
+    wire [1:0] read_bank = adopt ? published_bank : front;
+    wire valid_bank = front_valid || adopt;
+    wire [18:0] image_index = row_base + {9'b0,image_x};
+    wire [ABITS-1:0] read_address = {read_bank,{BANK_BITS{1'b0}}} +
+                                                  (image ? ABITS'(image_index >> SHIFT) : {ABITS{1'b0}});
+    wire [7:0] pair;
+    /* verilator lint_off PINCONNECTEMPTY */
+    coleco_video_dpram #(.DATAWIDTH(8), .ADDRWIDTH(ABITS), .NUMWORDS(STRIDE*3)) framebuffer (
+        .clock_a(clk_sys), .address_a(write_address), .data_a(packed_data),
+        .wren_a(store && packed_last), .q_a(), .clock_b(clk_pixel), .address_b(read_address),
+        .data_b(8'b0), .wren_b(1'b0), .q_b(pair)
+    );
+    /* verilator lint_on PINCONNECTEMPTY */
+    reg image_q, de_q, hs_q, vs_q, sof_q, eol_q, hold_q;
+    reg [1:0] subpixel_q;
+    always @(posedge clk_pixel) begin
+        if (reset_pixel) begin
+            horizontal <= 0; vertical <= 0; front <= 0; front_valid <= 0; received <= 0;
+            sent_meta <= 0; sent_sync <= 0; hold_meta <= 0; hold_sync <= 0;
+            x_error <= 0; y_error <= 0; image_x <= 0; row_base <= 0;
+            image_q <= 0; subpixel_q <= 0; de_q <= 0; hs_q <= 0; vs_q <= 0;
+            sof_q <= 0; eol_q <= 0; hold_q <= 0;
+        end else begin
+            sent_meta <= sent; sent_sync <= sent_meta;
+            hold_meta <= hold; hold_sync <= hold_meta;
+            if (adopt) begin front <= published_bank; front_valid <= 1; received <= sent_sync; end
+            if (output_eol) begin
+                horizontal <= 0;
+                vertical <= vertical == 749 ? 10'b0 : vertical + 1'b1;
+                image_x <= 0; x_error <= 0;
+                if (vertical == 749) begin row_base <= 0; y_error <= 0; end
+                else if (vertical < 720) begin
+                    if (next_y_error >= 720) begin
+                        y_error <= 11'(next_y_error - 720); row_base <= row_base + 19'(WIDTH);
+                    end else y_error <= next_y_error[10:0];
+                end
+            end else begin
+                horizontal <= horizontal + 1'b1;
+                if (image) begin
+                    if (next_x_error >= 960) begin x_error <= 11'(next_x_error-960); image_x <= image_x+1'b1; end
+                    else x_error <= next_x_error[10:0];
+                end
+            end
+            image_q <= image && valid_bank;
+            subpixel_q <= image_index[1:0];
+            de_q <= visible; hs_q <= horizontal >= 1390 && horizontal < 1430;
+            vs_q <= vertical >= 725 && vertical < 730;
+            sof_q <= output_sof; eol_q <= output_eol; hold_q <= hold_sync;
+        end
+    end
+    wire [1:0] mono_q = 2'(pair >> {subpixel_q,1'b0});
+    wire [3:0] colour = MDA ? (mono_q == 0 ? 4'd0 : mono_q[1] ? 4'd15 : 4'd7) :
+                             subpixel_q[0] ? pair[7:4] : pair[3:0];
+    function automatic [23:0] palette(input [3:0] c);
+        reg [7:0] r,g,b;
+        begin
+            r = (c[2] ? 8'haa : 8'b0) + (c[3] ? 8'h55 : 8'b0);
+            g = (c[1] ? 8'haa : 8'b0) + (c[3] ? 8'h55 : 8'b0);
+            b = (c[0] ? 8'haa : 8'b0) + (c[3] ? 8'h55 : 8'b0);
+            if (c == 6) g = 8'h55; // IBM RGBI brown correction.
+            palette = {r,g,b};
+        end
+    endfunction
+    wire [23:0] rgb = image_q && !hold_q ? palette(colour) : 24'b0;
+    assign video_request = {1'b0,hold_q,eol_q,sof_q,1'b1,vs_q,hs_q,de_q,rgb};
+endmodule
