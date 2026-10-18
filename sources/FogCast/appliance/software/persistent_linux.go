@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DeanoC/FogCast/appliance/blockprobe"
 	"golang.org/x/sys/unix"
 )
 
@@ -43,14 +44,8 @@ func checkPersistent(root string) error {
 	device := "/dev/disk/by-label/FESDATA3"
 	if _, e := os.Stat(device); errors.Is(e, os.ErrNotExist) {
 		device = "/dev/mmcblk0p3"
-		f, e := os.Open(device)
-		if e != nil {
-			return e
-		}
 		b := make([]byte, 136)
-		_, e = f.ReadAt(b, 1024)
-		f.Close()
-		if e != nil {
+		if e = blockprobe.ReadFullAt(device, b, 1024, blockprobe.OpenTimeout); e != nil {
 			return e
 		}
 		if b[56] != 0x53 || b[57] != 0xef || strings.TrimRight(string(b[120:136]), "\x00") != "FESDATA3" {

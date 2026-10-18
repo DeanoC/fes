@@ -1,0 +1,54 @@
+{
+  "source_commit": "6641b58fa36754e629d3e9666f35b8674178b2b6",
+  "evidence_class": "qualified appliance build and designated-kit managed-child fault diagnostic",
+  "image_sha256": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+  "persistent_core_files_equal_from_baseline_through_child_faults": true,
+  "persistent_core_file_count": 6,
+  "limits": [
+    "Child-fault hardware exercise targets launcher, agent and runtime only; supervisor was not signalled.",
+    "Queued competing claim sampled while own lease held; no hardware proof of atomic free-boundary priority.",
+    "Bundle deployed:false fields describe build-time state, not subsequent hardware deployment.",
+    "Initial fence API result uses prior base ed721, not newly qualified base06066.",
+    "Final activation/recovery passed on qualified base06066 at generation19; all six persistent core files still identical after activation/recovery; software-input Pong HDMI effect captured; settled launcher menu has an unresolved48ms room-budget error.",
+    "Release evidence hardware:not-run is the immutable build-time receipt; subsequent adoption and diagnostics are separate files.",
+    "Software-injected input HDMI evidence does not prove physical USB input or healthy launcher menu. Single-core ARM fixture did not reproduce error and underrepresents actual eight-core menu.",
+    "Instrumented bundle2b at generation20 shows healthy settled startup/return menus after Pong. Eight-row ARM fixture passes; previous48ms failure cause remains unresolved. Repeated accepted launcher/agent/runtime faults and queued reselection passed at generation21; settled eight-core menu healthy. Earlier48ms failure not reproduced and remains unresolved follow-up, not fixed."
+  ],
+  "qualified_activation_recovery": {
+    "selected": "c2d732ccb23363424f3bdcef0daf6a5e9d99e75835b6864aa3591d855f40ea95",
+    "generation": 19,
+    "boot_id": "457a8b1a-54af-46c0-9e6e-351c08467496",
+    "base_identity": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+    "recovery_receipt_result": "recovered",
+    "process_start_count_proven": false
+  },
+  "initial_visual_attempt": {
+    "success": false,
+    "visual_attempted": false,
+    "event_count": 0,
+    "capture_count": 0,
+    "private_host_exit": 0,
+    "scope": "failed before launch; no physical or input evidence"
+  },
+  "persistent_core_files_equal_through_qualified_activation_recovery": true,
+  "final_state": {
+    "target_id": "73dc9f5f-1a12-4a95-a820-a9b4e600769a",
+    "boot_id": "457a8b1a-54af-46c0-9e6e-351c08467496",
+    "ready": true,
+    "native_state": "idle",
+    "lease_state": "free",
+    "maintenance_state": "none",
+    "software": {
+      "base_identity": "06066d298bfbf97ba7a00b8c01566dd742b7958c6a17d700baa81b50e16b050e",
+      "active_bundle": "2b7928328a1dba1aaf556b6b6e7d9203ace936764981e07a0351dddc7c81f38c",
+      "selected": "2b7928328a1dba1aaf556b6b6e7d9203ace936764981e07a0351dddc7c81f38c",
+      "generation": 21,
+      "pending": null,
+      "unreleased": null,
+      "service_fault": null,
+      "storage_error": null
+    }
+  },
+  "final_persistent_core_file_count": 6,
+  "all_original_core_files_identical_after_repeat_faults": true
+}

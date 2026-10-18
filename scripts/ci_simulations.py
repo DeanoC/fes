@@ -23,6 +23,7 @@ TARGETS = {
     'atari-st': ('sim-fes-atari-st',),
     'ramtest': ('sim-fes-ramtest',),
     'riscv': ('sim-fes-riscv',),
+    'pcxt': ('sim-fes-pcxt',),
 }
 
 

@@ -200,7 +200,7 @@ func New(pack Pack, opts Options) (*Instance, error) {
 		loading: map[string]bool{},
 		games:   map[string]hostclient.Game{},
 		images:  map[string]*Image{},
-		store:   newStore(opts.StorePath),
+		store:   newStore(opts.StorePath, opts.Stderr),
 	}
 	r.L = lua.NewState(lua.Options{
 		SkipOpenLibs:        true,
@@ -421,7 +421,10 @@ func (r *Instance) callGlobalSoft(name string, budget time.Duration, args ...lua
 	if !ok {
 		return nil
 	}
-	return r.callSoft(fn, budget, 0, args...)
+	if err := r.callSoft(fn, budget, 0, args...); err != nil {
+		return fmt.Errorf("%s callback: %w", name, err)
+	}
+	return nil
 }
 
 func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
@@ -436,7 +439,7 @@ func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...
 	r.L.Pop(1)
 	elapsed := time.Since(start)
 	if elapsed > hardBudget {
-		return lua.LNil, fmt.Errorf("script exceeded %s hard callback budget", hardBudget)
+		return lua.LNil, fmt.Errorf("script exceeded %s hard callback budget (elapsed %s)", hardBudget, elapsed)
 	}
 	if elapsed > budget {
 		return v, errSoftOverrun
@@ -451,7 +454,7 @@ func (r *Instance) callSoft(fn *lua.LFunction, budget time.Duration, nret int, a
 	}
 	elapsed := time.Since(start)
 	if elapsed > budget*callbackHardLimitFactor {
-		return fmt.Errorf("script exceeded %s hard callback budget", budget*callbackHardLimitFactor)
+		return fmt.Errorf("script exceeded %s hard callback budget (elapsed %s)", budget*callbackHardLimitFactor, elapsed)
 	}
 	if elapsed > budget {
 		return errSoftOverrun
@@ -510,6 +513,7 @@ func (r *Instance) Resize(width, height int) {
 	r.opts.Width, r.opts.Height = width, height
 	r.roomTable.RawSetString("width", lua.LNumber(width))
 	r.roomTable.RawSetString("height", lua.LNumber(height))
+	r.setHeroTable()
 	if r.fatal != nil || !r.loaded {
 		return
 	}
@@ -654,7 +658,10 @@ func (r *Instance) callGlobal(name string, budget time.Duration, args ...lua.LVa
 	if !ok {
 		return nil
 	}
-	return r.call(fn, budget, 0, args...)
+	if err := r.call(fn, budget, 0, args...); err != nil {
+		return fmt.Errorf("%s callback: %w", name, err)
+	}
+	return nil
 }
 
 func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.LValue) (lua.LValue, error) {
@@ -669,6 +676,7 @@ func (r *Instance) callRet(fn *lua.LFunction, budget time.Duration, args ...lua.
 }
 
 func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args ...lua.LValue) error {
+	start := time.Now()
 	L := r.L
 	top := L.GetTop()
 	ctx, cancel := context.WithTimeout(r.ctx, budget)
@@ -682,7 +690,7 @@ func (r *Instance) call(fn *lua.LFunction, budget time.Duration, nret int, args 
 	if err := L.PCall(len(args), nret, nil); err != nil {
 		L.SetTop(top)
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			return fmt.Errorf("script exceeded %s budget", budget)
+			return fmt.Errorf("script exceeded %s budget (elapsed %s)", budget, time.Since(start))
 		}
 		return errors.New(strings.TrimSpace(err.Error()))
 	}
@@ -743,6 +751,7 @@ func (r *Instance) applyResult(res asyncResult) {
 		errVal = lua.LString(res.err.Error())
 	}
 	if err := r.callSoft(res.cb, r.budget.Frame, 0, payload, errVal); err != nil {
+		err = fmt.Errorf("async callback: %w", err)
 		if errors.Is(err, errSoftOverrun) {
 			r.overrunInput(err)
 		} else {

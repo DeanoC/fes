@@ -160,6 +160,21 @@ A new `BUILD_ID` changes placement. An older sealed package, parent pin, or
 kit note does not accept the bitstream you just built. Record new evidence
 for the new bytes.
 
+## PC/XT CPU and ISA fabric development
+
+`make sim-fes-pcxt` runs the [PC/XT transaction fabric](../cores/fes-pcxt/README.md)
+through eight portable registered slot boundaries with diagnostic cards in slots
+1 and 8. It tests wait-state side effects, memory and I/O decode, interrupt and
+DMA wiring, conflict rejection, a lost commit acknowledgement, and reset during
+transfers including a commit already pending at the card. It also executes an
+original diagnostic ROM on the pinned MCL86 8088 through the fabric with variable
+memory waits, interrupts, word I/O and fault recovery. GNU x86 `as` and `ld` are
+required alongside Verilator. The motherboard lane tests PIC/PIT/PPI, XT
+keyboard transport and speaker PCM; a second ROM receives real timer, ISA and
+keyboard interrupts. This is a simulation family, not a package producer.
+DMA, graphics, media, HID keyboard translation and physical
+socket routing are still required; no `build-fes-pcxt` target exists.
+
 ## Original RV32I
 
 `make sim-fes-riscv` validates the original machine-mode RV32I CPU in

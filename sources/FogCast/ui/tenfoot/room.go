@@ -38,6 +38,13 @@ type RoomSnapshot struct {
 	// DuringPlay means the room owns local navigation while the core runs.
 	DuringPlay bool
 	Notice     string
+	// Hero means the room asked for the large FES destination panel and the
+	// content box is big enough for it.
+	Hero bool
+	// WaitAck acknowledges a Confirm received while Checking.
+	WaitAck bool
+	// CoreDetail shows the selected installed package's Details in the hero.
+	CoreDetail bool
 }
 
 // RoomPickerRow is one entry of the Home overlay.
@@ -215,6 +222,7 @@ func (a *App) openRoomLocked(id string) {
 // false only when rooms.New fails; a script error still leaves the
 // instance up so the existing error panel can show it.
 func (a *App) openValidRoomLocked(pack rooms.Pack) bool {
+	a.discardLibraryOriginLocked()
 	a.closeRoomLocked()
 	a.closeRoomOverlaysLocked()
 	a.closeFiltersLocked()
@@ -270,7 +278,18 @@ func (a *App) openHomeRoomAsRootLocked() bool {
 		a.noteHomeRoomFallbackLocked(id, reason)
 		return false
 	}
+	// Home from the Library reclaims the suspended home room, keeping its
+	// selection, rather than loading a new instance.
+	restored := a.restoreLibraryOriginLocked()
+	origin := a.room
 	if a.reclaimHomeRoomLocked(id) {
+		// Reclaim resumes a room it switches to. When the restored origin
+		// is itself the home room, resume it here so on_resume runs.
+		if restored && a.room == origin {
+			a.postUIEventLocked("ui.nav", map[string]string{"reason": "room-resume", "view": "room:" + origin.ID()})
+			origin.Resume()
+			a.applyRoomActionsLocked()
+		}
 		return true
 	}
 	prevStatus := a.status
@@ -358,6 +377,8 @@ func (a *App) closeRoomLocked() {
 	id := a.room.ID()
 	a.room.Close()
 	a.room = nil
+	a.roomWaitAck = false
+	a.roomCoreDetail = ""
 	a.roomErr = ""
 	a.roomFrame = rooms.Frame{}
 	a.closeRoomOverlaysLocked()
@@ -482,7 +503,7 @@ func (a *App) openLibraryFromRoomLocked(act rooms.Action) {
 		a.status = "Stop the running machine before opening the library."
 		return
 	}
-	a.closeAllRoomsLocked()
+	a.suspendRoomsForLibraryLocked()
 	a.roomDuringPlay = false
 	a.syncGPUParkLocked()
 	a.roomPickerOpen = false
@@ -576,6 +597,15 @@ func (a *App) tickRoomLocked(now time.Time) {
 		return
 	}
 	a.roomFrame = a.room.Step(now)
+	if a.roomWaitAck || a.roomCoreDetail != "" {
+		dest := a.roomDestinationLocked()
+		if dest.Confirm() != rooms.ConfirmWait {
+			a.roomWaitAck = false
+		}
+		if dest.Kind != rooms.KindCore || dest.PackageID != a.roomCoreDetail {
+			a.roomCoreDetail = ""
+		}
+	}
 	a.applyRoomActionsLocked()
 	if a.room == nil {
 		return
@@ -653,6 +683,11 @@ func (a *App) roomSnapshotLocked(withImages bool) RoomSnapshot {
 		DuringPlay:    a.roomDuringPlay,
 		Notice:        a.roomSessionNotice,
 	}
+	if a.room.Hero() {
+		_, snap.Hero = rooms.HeroPanel(w, h)
+	}
+	snap.WaitAck = a.roomWaitAck && snap.Destination.Confirm() == rooms.ConfirmWait
+	snap.CoreDetail = snap.Hero && a.roomCoreDetail != "" && snap.Destination.Kind == rooms.KindCore && snap.Destination.PackageID == a.roomCoreDetail
 	if withImages {
 		snap.Images = a.room.Images()
 	}

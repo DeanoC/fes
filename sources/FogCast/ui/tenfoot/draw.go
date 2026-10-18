@@ -211,8 +211,11 @@ func drawCoverCells(dev gfx.Device, snap Snapshot, textures, labels map[string]g
 		} else {
 			r, g, b := placeholderColor(game.Title)
 			fillRect(dev, float32(x+8), float32(y+8), float32(snap.Grid.CellW-16), float32(snap.Grid.CellH-52), r, g, b, 255)
-			drawLabel(dev, labels, used, "i:"+game.ID, x+16, y+24, snap.Grid.CellW-32, 22, initials(game.Title))
+			// Missing art names the platform, not an acronym; the full
+			// title is the label under the art.
+			drawLabel(dev, labels, used, "i:"+game.ID, x+16, y+24, snap.Grid.CellW-32, 18, placeholderSystem(snap, game))
 		}
+		drawCellBlockTag(dev, labels, used, x+8, y+snap.Grid.CellH-44, snap.Grid.CellW-16, game, snap.KitPlay)
 		drawLabel(dev, labels, used, "t:"+game.ID, x+6, y+snap.Grid.CellH-28, snap.Grid.CellW-12, 16, game.Title)
 	}
 }
@@ -257,7 +260,7 @@ func drawListRows(dev gfx.Device, snap Snapshot, textures, labels map[string]gpu
 				meta = year
 			}
 		}
-		if play := libraryPlayDestination(game).Availability.Label(); play != "" {
+		if play := classifyLibraryGame(game, snap.KitPlay).Availability.Label(); play != "" {
 			if meta != "" {
 				meta += "  ·  " + play
 			} else {
@@ -504,7 +507,16 @@ func drawDetail(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, use
 		}
 	}
 	drawLabel(dev, labels, used, "d-title", x+pad, y+12, textW, 26, title)
-	facts, factsX, factsW, attr, attrX, attrW := layoutDetailMeta(detail, x+pad, textW, 16)
+	// The creator sits beside the title, not among the facts.
+	if studio := strings.TrimSpace(detail.Studio); studio != "" {
+		titleW := min(gfx.MeasureText(title, 26), textW)
+		if byX := x + pad + titleW + 16; byX < x+pad+textW-80 {
+			drawLabel(dev, labels, used, "d-by", byX, y+20, x+pad+textW-byX, 18, "by "+studio)
+		}
+	}
+	factDetail := detail
+	factDetail.Studio = ""
+	facts, factsX, factsW, attr, attrX, attrW := layoutDetailMeta(factDetail, x+pad, textW, 16)
 	if facts != "" && factsW > 0 {
 		drawLabel(dev, labels, used, "d-meta", factsX, y+44, factsW, 16, facts)
 	}
@@ -512,6 +524,9 @@ func drawDetail(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, use
 		drawLabel(dev, labels, used, "d-attr", attrX, y+44, attrW, 16, attr)
 	}
 	lineY := y + 68
+	// Readiness comes before history and the summary: it answers whether
+	// the title can start and what to do if not.
+	lineY += drawDetailReadiness(dev, labels, used, x+pad, lineY, textW, y+h-8, snap.DetailPlay)
 	if snap.Room.Open {
 		if hist := strings.TrimSpace(snap.Room.Destination.History.Line()); hist != "" {
 			drawLabel(dev, labels, used, "d-history", x+pad, lineY, textW, 16, hist)
@@ -527,6 +542,9 @@ func drawDetail(dev gfx.Device, snap Snapshot, labels map[string]gpuTexture, use
 		maxChars = 20
 	}
 	for i, line := range wrapWords(detail.Summary, maxChars, summaryLines) {
+		if lineY+i*20+16 > y+h-8 {
+			break
+		}
 		drawLabel(dev, labels, used, fmt.Sprintf("d-sum-%d", i), x+pad, lineY+i*20, textW, 16, line)
 	}
 	lineY += len(wrapWords(detail.Summary, maxChars, summaryLines)) * 20
@@ -911,18 +929,6 @@ func fitText(text string, maxChars int) string {
 		return string(runes[:maxChars])
 	}
 	return string(runes[:maxChars-3]) + "..."
-}
-
-func initials(title string) string {
-	fields := strings.Fields(title)
-	if len(fields) == 0 {
-		return "?"
-	}
-	out := []rune{[]rune(fields[0])[0]}
-	if len(fields) > 1 {
-		out = append(out, []rune(fields[1])[0])
-	}
-	return strings.ToUpper(string(out))
 }
 
 func placeholderColor(title string) (uint8, uint8, uint8) {

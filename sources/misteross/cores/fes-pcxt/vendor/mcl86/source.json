@@ -1,0 +1,46 @@
+{
+  "repository": "https://github.com/spark2k06/PCXT_MiSTer",
+  "commit": "af4f8a98ae562af0e3f9b86cc3a59673f999d0f6",
+  "license": "MIT in RTL file headers; GPL-3.0 repository license retained for unmarked microcode image",
+  "local_changes": [
+    "mcl86_eu_core.sv: drive previously undriven system_signals[15:14,10] to zero"
+  ],
+  "files": [
+    {
+      "path": "mcl86_adder.sv",
+      "upstream_path": "rtl/8088/mcl86_adder.sv",
+      "sha256": "121871b84c528364975c24124b10a0111dadf1cfb5aa74d690fe80c1c20c0368"
+    },
+    {
+      "path": "mcl86_eu_core.sv",
+      "upstream_path": "rtl/8088/mcl86_eu_core.sv",
+      "sha256": "0107dc504fb67ff53b97311d49c1d6e33099a5261290edc9bad40ef9e490898e",
+      "upstream_sha256": "da02b6c6a8250f58dc893e5582089c6795ad923274c4f8c5d5e1f02582252b00"
+    },
+    {
+      "path": "mcl86_biu_max.sv",
+      "upstream_path": "rtl/8088/mcl86_biu_max.sv",
+      "sha256": "f1c0fbe1aa66fcd6860b54e8b0e6ba7d80349fbfc9b63d7a2a42c6885b8d6e38"
+    },
+    {
+      "path": "mcl86_ucode.sv",
+      "upstream_path": "rtl/8088/mcl86_ucode.sv",
+      "sha256": "805fab34c53b7618c16efc071168b7869f59cdf7e4056eaa9fc3f7b471e094c9"
+    },
+    {
+      "path": "mcl86_ucode.mem",
+      "upstream_path": "rtl/8088/mcl86_ucode.mem",
+      "sha256": "98c6a648c799fa656b44feba4747116a8ada91d964d1d1b0eda785fed28ec0d0"
+    },
+    {
+      "path": "i8088.sv",
+      "upstream_path": "rtl/8088/wrappers/i8088.sv",
+      "sha256": "d98caf279beb14d290f8f9758c98f2eaad0e5445db2503389b141c3824f097e1"
+    },
+    {
+      "path": "LICENSE",
+      "upstream_path": "LICENSE",
+      "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+    }
+  ]
+}

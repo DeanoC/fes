@@ -308,11 +308,121 @@ demonstration and the evidence class it actually earned. Concept/browser checks,
 host checks, hardware diagnostics and exact-artifact acceptance are distinct.
 The design package alone establishes none of the latter. See [acceptance](acceptance.md).
 
+## Native Home: first-slice decisions
+
+**Status:** implemented for review in FogCast on the kit path
+(`fogcast-tenfoot -gfx menu-display`, rooms home `example.fes-cores`). The
+evidence so far is host-only: native software-renderer captures and focused
+tests, recorded in
+[the 17 October host record](../validation/2026-10-17-ux-lounge-home/README.md).
+Hardware journeys H1–H9 remain pending.
+
+- **Entry path.** The kit already opens tenfoot's rooms Home on
+  `menu-display`, which defaults to `example.fes-cores`. The Lounge applies to
+  that room; the retiring grid launcher (#728) is untouched. A
+  `launcher.json` without `kit_ui = "tenfoot"` still boots the grid until #728
+  lands.
+- **Ownership split.** The room manifest selects
+  `destination_panel = "hero"`. FES draws the selected item's title,
+  required inputs, readiness name, consequence, destination and actions from
+  the launcher's own classification (lease and unknown-status included). The
+  room draws only the card, artwork motif, shelf and header routes, so a room
+  cannot claim Ready.
+- **Content.** The shelf is the kit's installed cores, names verbatim.
+  Missing art is a deliberate motif chosen from the core id (colour) and
+  required inputs (keyboard motif); titles stay outside the art. Creator is
+  not shown because packages carry no creator. The shelf never says Ready.
+- **Input requirements.** A required `fes.keyboard.hid` or `fes.mouse*`
+  interface becomes "Needs a keyboard" / "Needs a mouse" before Play. Plain
+  `fes.keyboard` 1.0 is shown only when the package also requires
+  `fes.video.session-display` 1.0 and has no cartridge ROM, which is the
+  ZX81 bring-up computer. Master System, SG-1000 and the earlier
+  ColecoVision package use that matrix as a joystick and are not shown.
+  Pads are not listed.
+- **Destination.** A kit-local core plays on the kit's own HDMI output, so
+  the hero says "Plays on this TV". No chooser is shown: this path has one
+  destination.
+- **Readiness copy.** Checking, Ready, Needs a choice and Unavailable appear
+  as a labelled pill whose shape also differs (filled, outlined, outlined with
+  a solid bar). Opaque blocks become consequences: `parts` is "Display setup
+  incomplete" with "Start it from the FogCast library instead". Details
+  (Y, or A on a blocked core) shows the core id, short package id and the
+  kit's verbatim block in the hero; Back closes it. After an ambiguous local
+  launch the core shows Checking, not Ready, until the agent reports idle.
+- **Confirm during Checking.** Acknowledged ("Still checking. Press A again
+  once it has finished.") and not queued, so a press can never start an item
+  the player has not seen. This is the reviewed policy for #764's warm-up
+  window.
+- **Routes.** Library, Rooms (the lobby) and Settings sit one Up from the
+  shelf in the hero and when the compact routes share a row, so Direction
+  and Confirm reach the system menu on a pad without a Guide button. On a
+  content box under 480×360 the same routes sit above the destination strip;
+  when they stack, Down and Up walk that column and then the cores, and Up
+  from the first core lands on Settings. Settings holds the system tools.
+  Back at Home still opens the FES Home overlay.
+- **Return.** The room instance is suspended during play, so Stop returns to
+  the same selection; a later visit restores the last selected package from
+  room `store`. Launch failure keeps the selection and shows the reason in the
+  footer.
+- **Type and layout at 1280×720.** Title 36 px bold, readiness and headline
+  20–22 px, supporting lines 20 px, footer prompts 18 px in full words. The
+  card takes 42% of the height. The shelf shows four cards at a full 1280
+  content width and three with the default 5% TV safe area (as on the kit)
+  or at 1024. A long title, explanation or Details list shrinks (one-line
+  explanation, one-line title, no kicker) before it can reach the buttons.
+- **Gameplay exit.** A kit-local core stops with one press of keyboard F12
+  (MiSTer's menu key) or a pad's Guide button. Neither is forwarded to a
+  core, and the menu cannot draw while the core owns HDMI, so neither asks
+  for confirmation. The Select+Start one-second hold remains, and it is the
+  only route on a pad without Guide; that is an accepted limit for sparse
+  pads, since every other button belongs to the game. The hero names all
+  three routes before Play. A press during loading stops the core once it is
+  running, as the hold does. Hardware check of the new routes is pending.
+
+## Library and Details: second-slice decisions
+
+**Status:** implemented for review (#789). Evidence is host-only; L1/L2 on a
+kit are pending.
+
+- **Back returns to its origin.** The Library opened from Home, a room or the
+  Home overlay keeps that room suspended, so Back (and the Home key) returns to
+  the same room and selection rather than reloading it. A blocked Confirm in
+  the Library is not replayed as a launch failure on that room. A Coleco BIOS
+  import refreshes that suspended room's cached titles, so the resumed room
+  shows the updated readiness.
+- **Same rules as Home.** Library Details uses the same readiness pill and
+  wording family as the Home hero, on the dark pane's seed roles. The block's
+  short name is the headline and the launcher's sentence is the explanation,
+  for example "Needs BIOS" with "Coleco BIOS required. Import household
+  firmware before Play." Ready on a paired kit says "Plays on this TV": a
+  paired client launches on its own target. A host-only title, or an unpaired
+  launcher, shows the pill alone because the picture is elsewhere or
+  unknown. An unknown paired-kit status keeps the title's own block empty and
+  uses "Can't tell if this machine is free." as the headline; the Library
+  header's readiness word, list rows and cover cells use the same classifier.
+- **Actions follow Confirm.** Details offers A only when Confirm will play or
+  import. A blocked Confirm opens Details for the title that was refused,
+  including a Home recent that is not the focused Library row, instead of
+  only changing header text. Favorite, pointer confirm, and presentation
+  follow that title. Cancelling the BIOS picker returns to that
+  Details.
+- **Creator.** `Studio` appears as "by …" beside the title.
+- **Cells.** A title that cannot play carries a labelled tag on a solid plate
+  with a leading bar ("Needs BIOS", "Browse only", "Offline", "Needs a
+  cartridge"). A playable title the classifier refuses for an unknown kit
+  status or a foreign lease carries that same Details headline. A catalog
+  reason such as Needs BIOS stays. Missing art names the platform instead of
+  showing initials.
+- **Not yet.** The grid, list and header chrome keep their dark sofa styling
+  and debug-font prompts. The browse prompt still says "launch". Edition choice
+  stays in rooms because Library rows are single editions.
+
 ## Decisions still to validate
 
-- Native typography, spacing, safe margins and comfortable TV reading distance.
-- The exact Home composition for the actual catalog, including its empty state.
-- A dependable system-menu route on the intended sparse retro controllers.
+- Native typography, spacing, safe margins and comfortable TV reading distance
+  on the real HDMI output (host captures exist; the TV check is pending).
+- The F12 and Guide gameplay exits on the kit with a physical keyboard and a
+  Guide-equipped pad.
 - The first acceptance baseline is 1280x720 HDMI. CRT modes require an
   explicitly added scope and their own layout and hardware evidence.
 - Which existing offline and alternate-destination capabilities can be exposed

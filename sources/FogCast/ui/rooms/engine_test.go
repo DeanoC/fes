@@ -272,6 +272,36 @@ func TestGoodRoomFrameAndActions(t *testing.T) {
 	}
 }
 
+func TestStoreWriteFailureLogsOnceAndKeepsRoom(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "not-a-directory")
+	if err := os.WriteFile(parent, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(parent, "example.fes-cores.state.json")
+	r := newRoom(t, memPack(t, "persist", `
+function load()
+  store.set("package_id", "abc")
+end
+function draw() end
+`, nil), Options{StorePath: path})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	r.Step(time.Unix(10, 0))
+	r.Step(time.Unix(12, 0))
+	r.Close()
+	if r.Err() != nil {
+		t.Fatal(r.Err())
+	}
+	text := r.opts.Stderr.(*bytes.Buffer).String()
+	if strings.Count(text, "could not save room state") != 1 {
+		t.Fatalf("log count:\n%s", text)
+	}
+	if _, err := os.Stat(path); err == nil {
+		t.Fatal("state file was created under an unwritable parent")
+	}
+}
+
 func TestDeadlineStopsRunawayScript(t *testing.T) {
 	for _, src := range []string{
 		"function update(dt) while true do end end\nfunction draw() end",
@@ -1515,5 +1545,65 @@ func TestKitCoresStartupRetryCancelsDuringWait(t *testing.T) {
 	defer fake.mu.Unlock()
 	if fake.calls != 1 {
 		t.Fatalf("listed again after cancellation: %d", fake.calls)
+	}
+}
+
+// A delayed Go callback demonstrates the existing wall-clock watchdog: even
+// without a busy Lua loop, elapsed scheduling/blocking time consumes the budget.
+func TestCallbackDeadlineReportsNameAndElapsed(t *testing.T) {
+	r := newRoom(t, memPack(t, "deadline-label", "function draw() wait() gfx.clear('#123456') end", nil), Options{Budget: Budget{Load: time.Second, Frame: time.Millisecond, Input: time.Second}})
+	r.L.SetGlobal("wait", r.L.NewFunction(func(*lua.LState) int { time.Sleep(20 * time.Millisecond); return 0 }))
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	r.Step(time.Now())
+	if err := r.Err(); err == nil || !strings.Contains(err.Error(), "draw callback:") || !strings.Contains(err.Error(), "elapsed") {
+		t.Fatalf("deadline diagnostic: %v", err)
+	}
+	if got := r.Step(time.Now()); len(got.Ops) != 0 {
+		t.Fatal("fatal room resumed")
+	}
+}
+
+// gopher-lua checks cancellation between Lua instructions, so a Go callback can
+// return successfully after its context deadline. The post-return watchdog must
+// still report elapsed time, matching the deadline error.
+func TestHardOverrunReportsElapsed(t *testing.T) {
+	budget := 5 * time.Millisecond
+	hard := budget * callbackHardLimitFactor
+	r := newRoom(t, memPack(t, "hard-overrun", "function draw() end", nil), Options{Budget: Budget{Load: time.Second, Frame: budget, Input: budget}})
+	if err := r.Load(); err != nil {
+		t.Fatal(err)
+	}
+	block := r.L.NewFunction(func(L *lua.LState) int {
+		time.Sleep(hard + 40*time.Millisecond)
+		L.Push(lua.LTrue)
+		return 1
+	})
+	assertHardOverrunElapsed(t, r.callSoft(block, budget, 0), hard)
+	value, err := r.callRetSoft(block, budget)
+	if value != lua.LNil {
+		t.Fatalf("hard return overrun value: %v", value)
+	}
+	assertHardOverrunElapsed(t, err, hard)
+}
+
+func assertHardOverrunElapsed(t *testing.T, err error, hard time.Duration) {
+	t.Helper()
+	if err == nil || errors.Is(err, errSoftOverrun) {
+		t.Fatalf("hard overrun: %v", err)
+	}
+	prefix := "script exceeded " + hard.String() + " hard callback budget (elapsed "
+	msg := err.Error()
+	i := strings.Index(msg, prefix)
+	if i < 0 || !strings.HasSuffix(msg, ")") {
+		t.Fatalf("hard overrun diagnostic: %v", err)
+	}
+	elapsed, parseErr := time.ParseDuration(strings.TrimSuffix(msg[i+len(prefix):], ")"))
+	if parseErr != nil {
+		t.Fatalf("elapsed in %q: %v", msg, parseErr)
+	}
+	if elapsed <= hard {
+		t.Fatalf("elapsed %s did not exceed hard budget %s (%s)", elapsed, hard, msg)
 	}
 }

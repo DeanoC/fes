@@ -289,6 +289,16 @@ class RecipeDataTest(unittest.TestCase):
             self.assertEqual(env["FES_TOOLCHAIN_GPU_ROUTER"], "HIP")
             self.assertEqual(env["KEEP"], "yes")
 
+    def test_atari_st_is_the_only_optional_core(self):
+        for core_id, recipe in recipes.FORMAT2_RECIPES.items():
+            self.assertIs(type(recipe.optional), bool)
+            self.assertEqual(recipe.optional, core_id == "fes.atari-st")
+        document = self.document()
+        atari = next(entry for entry in document["recipes"] if entry["core_id"] == "fes.atari-st")
+        atari["optional"] = "true"
+        with self.assertRaisesRegex(ValueError, "optional must be a boolean"):
+            self.load_document(document)
+
     def test_unknown_and_each_missing_recipe_field_rejected(self):
         for field in self.document()["recipes"][0].keys() - {"identity_version"}:
             document = self.document()
@@ -417,6 +427,9 @@ class RecipeResolverTest(unittest.TestCase):
                     "ROCM_PATH": "/opt/rocm/core-7.14",
                     "HIPCC": "/opt/rocm/core-7.14/lib/llvm/bin/clang++",
                     "FES_TOOLCHAIN_GPU_ROUTER": "OFF",
+                    "CUDAARCHS": "75",
+                    "HIPARCHS": "gfx1030",
+                    "FES_TOOLCHAIN_CUDA_ARCHITECTURES": "75",
                 }
                 with patch.object(module.subprocess, "run", return_value=completed) as run:
                     module._build_package(source, recipe=recipe, env=caller)
@@ -432,6 +445,8 @@ class RecipeResolverTest(unittest.TestCase):
                 self.assertNotIn("MAKEFLAGS", env)
                 self.assertNotIn("CC", env)
                 self.assertNotIn("TOOLCHAIN_ROOT", env)
+                for selector in ("CUDAARCHS", "HIPARCHS", "FES_TOOLCHAIN_CUDA_ARCHITECTURES"):
+                    self.assertNotIn(selector, env)
                 self.assertEqual(env["FES_TOOLCHAIN_GPU_ROUTER"], "HIP")
                 self.assertEqual(env["FES_TOOLCHAIN_HIP_ARCHITECTURES"], "gfx1100;gfx1201")
                 self.assertEqual(env["ROCM_PATH"], "/opt/rocm/core-7.14")

@@ -1,0 +1,4 @@
+=== RUN   TestInstalledCoreRoomDefaultBudgetDwell
+    examples_test.go:416: cores=8 viewport=1280x720 frames=10000 max_step=30.97089ms mean_step=5.291528ms soft_budget=12ms hard_budget=48ms
+--- PASS: TestInstalledCoreRoomDefaultBudgetDwell (53.00s)
+PASS

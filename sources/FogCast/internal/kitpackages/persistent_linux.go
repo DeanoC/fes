@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/DeanoC/FogCast/appliance/blockprobe"
 	"github.com/DeanoC/FogCast/internal/appliancedata"
 	"golang.org/x/sys/unix"
 )
@@ -52,6 +53,9 @@ func checkPersistent(root string) error {
 	devicePath, ok := appliancedata.SelectedDevice(appliancedata.Config{})
 	if !ok {
 		return errors.New("kit packages: FESDATA3 block device is absent")
+	}
+	if err := blockprobe.RejectsDevice("/sys", devicePath); err != nil {
+		return fmt.Errorf("kit packages: %w", err)
 	}
 	var mounted, device unix.Stat_t
 	if err := unix.Stat(mount, &mounted); err != nil {

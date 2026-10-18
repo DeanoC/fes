@@ -3,6 +3,8 @@ package tenfoot
 // Shared overlay geometry for draw and pointer hit-testing.
 // Numbers match the current sofa chrome in draw.go.
 
+import "github.com/DeanoC/FogCast/ui/rooms"
+
 type rectI struct {
 	X, Y, W, H int
 }
@@ -105,7 +107,9 @@ func launchOverlayPanel(snap Snapshot) (rectI, bool) {
 		panelW = g.contentWidth()
 	}
 	copy := launchOverlayCopy(snap)
-	panelH := 148
+	// Heading, title, phase, progress bar, elapsed time and hint each
+	// need their own line; 148 put the elapsed time under the hint.
+	panelH := 172
 	if copy.Failed {
 		panelH = 196
 	}
@@ -117,12 +121,18 @@ func launchOverlayPanel(snap Snapshot) (rectI, bool) {
 	return rectI{X: x, Y: y, W: panelW, H: panelH}, true
 }
 
+// roomDestGeom is the compact destination strip. example.fes-cores
+// compact_limit copies the 118×8 band and the 48/72/152 fallbacks so its
+// pointer hits stay above this pane. Change both together.
 func roomDestGeom(snap Snapshot) (rectI, bool) {
 	if !snap.Room.Open || snap.Room.Err != "" || snap.Detail.Open || snap.Room.Choice.Open || snap.CoreLibrary.Open || snap.FirmwarePicker.Open || snap.TapePicker.Open || launchOverlayVisible(snap) {
 		return rectI{}, false
 	}
 	if !snap.Room.Destination.Set() {
 		return rectI{}, false
+	}
+	if snap.Room.Hero {
+		return heroDestGeom(snap)
 	}
 	pad := 16
 	h := 118
@@ -614,4 +624,19 @@ func roomPickerPanel(snap Snapshot) (listPanel, bool) {
 		HeaderH: headerH, FooterH: footerH, RowH: rowH,
 		Start: start, Visible: maxRows,
 	}, true
+}
+
+// heroDestGeom is the hero text column in window coordinates. Unlike the
+// strip it is drawn under FES overlays; pointer hit-testing still goes
+// through roomDestGeom, which hides it while an overlay is open.
+func heroDestGeom(snap Snapshot) (rectI, bool) {
+	if !snap.Room.Open || !snap.Room.Hero || snap.Room.Err != "" || !snap.Room.Destination.Set() {
+		return rectI{}, false
+	}
+	layout, ok := rooms.HeroPanel(snap.Room.Width, snap.Room.Height)
+	if !ok {
+		return rectI{}, false
+	}
+	t := layout.Text
+	return rectI{X: snap.Room.OffsetX + t.X, Y: snap.Room.OffsetY + t.Y, W: t.W, H: t.H}, true
 }

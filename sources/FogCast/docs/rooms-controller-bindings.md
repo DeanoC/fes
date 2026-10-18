@@ -119,6 +119,7 @@ essential action.
 | Favorite | hold North / Y (library browse only) | Toggle favorite |
 | Filters | hold West / X (library browse only) | Filter overlay |
 | Stop a live session | East / B, or `s`, while now-playing | Session Stop (not a room explore action) |
+| Stop a kit-local core | hold Select + Start (1 s) | Same Stop as the single-press F12 / Guide routes, which are taps |
 
 System menu (GUIDE / `o`) remains a tap. Settings includes a **Home** row:
 Left/Right still chooses the start screen; Confirm goes Home now, so a
@@ -143,7 +144,18 @@ binding drive-by:
    no-op (so clicking the map does not leave). Overlay “click empty” Back
    does not apply inside an open room. No on-screen settings control.
 3. **Pads without a GUIDE button** have no gamepad System menu. Keyboard
-   `o` is the tap fallback. Start remains Quit.
+   `o` is the tap fallback. Start remains Quit. Kit Home
+   (`example.fes-cores`) puts Library, Rooms and Settings one Up away
+   from its shelf in the hero layout and when the compact routes share a
+   row, so Direction and Confirm reach Settings there. When the compact
+   routes stack, Down and Up walk that column and then the cores, and Up
+   from the first core lands on Settings. Other
+   rooms still depend on GUIDE, `o`, or their own Settings destination.
+   During kit-local play, keyboard F12 or a pad's Guide button stops the
+   core with one press. Neither is ever forwarded to a core. Holding Select
+   and Start for one second still works and is the only route on a pad
+   without Guide. The menu cannot draw while the core owns HDMI, so these
+   stop without a confirmation.
 4. **A room script can consume `back` and swallow leave.** Experience rule:
    authors must not suppress Back. Launcher enforcement is task #10, not a
    remap.

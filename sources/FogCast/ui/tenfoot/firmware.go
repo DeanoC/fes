@@ -9,8 +9,10 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/DeanoC/FogCast/appliance/blockprobe"
 	"github.com/DeanoC/FogCast/hostclient"
 	"github.com/DeanoC/FogCast/protocol"
+	"github.com/DeanoC/FogCast/ui/rooms"
 	"github.com/DeanoC/FogCast/ui/shared"
 )
 
@@ -93,7 +95,7 @@ func firmwarePickerRoots(home string, libraries []hostclient.LibraryRoot) []Firm
 	seen := map[string]bool{}
 	addRoot := func(name, path string) {
 		path = filepath.Clean(strings.TrimSpace(path))
-		if path == "" || path == "." || seen[path] {
+		if path == "" || path == "." || seen[path] || blockprobe.Skips(path) {
 			return
 		}
 		info, err := os.Stat(path)
@@ -151,6 +153,9 @@ func listFirmwarePickerDir(path string) ([]FirmwarePickerRow, error) {
 			continue
 		}
 		full := filepath.Join(path, name)
+		if blockprobe.Skips(full) {
+			continue
+		}
 		info, err := entry.Info()
 		if err != nil {
 			continue
@@ -220,6 +225,7 @@ func (a *App) firmwarePickerSnapshotLocked() FirmwarePickerSnapshot {
 }
 
 func (a *App) closeFirmwarePickerLocked() {
+	a.firmwarePickerFromDetail = false
 	a.firmwarePickerOpen = false
 	a.firmwarePickerBusy = false
 	a.firmwarePickerStatus = ""
@@ -233,6 +239,7 @@ func (a *App) closeFirmwarePickerLocked() {
 }
 
 func (a *App) openFirmwarePickerLocked(game hostclient.Game) {
+	a.firmwarePickerFromDetail = a.room == nil && a.detailOpen
 	a.closeDetailLocked()
 	a.roomChoiceOpen = false
 	a.roomChoice = nil
@@ -315,7 +322,14 @@ func (a *App) handleFirmwarePickerLocked(cmd Command) {
 
 func (a *App) firmwarePickerBackLocked() {
 	if a.firmwarePickerAtRoots {
+		reopen := a.firmwarePickerFromDetail
+		game := a.firmwarePickerGame
 		a.closeFirmwarePickerLocked()
+		// Cancel returns to the Library Details that asked for the BIOS,
+		// including a title that is not the focused row.
+		if reopen && a.room == nil {
+			a.openLibraryDetailLocked(game)
+		}
 		return
 	}
 	path := a.firmwarePickerPath
@@ -458,11 +472,10 @@ func (a *App) firmwareRefreshIDsLocked(gameID string) []string {
 	}
 	add(gameID)
 	if a.room != nil {
-		dest := a.roomDestinationLocked()
-		add(dest.GameID)
-		for _, g := range dest.Matches {
-			add(g.ID)
-		}
+		addDestinationGameIDs(add, a.roomDestinationLocked())
+	}
+	for _, room := range a.suspendedRoomsLocked() {
+		addDestinationGameIDs(add, room.Destination())
 	}
 	for _, g := range a.games {
 		if g.FirmwareRequired {
@@ -568,8 +581,40 @@ func (a *App) applyFirmwareGamesLocked(games []hostclient.Game) {
 	if a.room != nil {
 		a.room.RefreshCachedGames(games)
 	}
+	for _, room := range a.suspendedRoomsLocked() {
+		room.RefreshCachedGames(games)
+	}
 	if game, ok := byID[strings.TrimSpace(a.firmwarePickerGame.ID)]; ok {
 		a.firmwarePickerGame = game
+	}
+}
+
+// suspendedRoomsLocked is the room the Library was opened from, plus the
+// parents suspended with it. Firmware refresh has to reach them: resume
+// republishes from this cache.
+func (a *App) suspendedRoomsLocked() []*rooms.Instance {
+	if a.libraryReturn == nil {
+		return nil
+	}
+	out := make([]*rooms.Instance, 0, 1+len(a.libraryReturn.stack))
+	if a.libraryReturn.room != nil {
+		out = append(out, a.libraryReturn.room)
+	}
+	for _, parent := range a.libraryReturn.stack {
+		if parent != nil {
+			out = append(out, parent)
+		}
+	}
+	return out
+}
+
+func addDestinationGameIDs(add func(string), dest rooms.Destination) {
+	add(dest.GameID)
+	for _, g := range dest.Matches {
+		add(g.ID)
+	}
+	for _, g := range dest.Candidates {
+		add(g.ID)
 	}
 }
 

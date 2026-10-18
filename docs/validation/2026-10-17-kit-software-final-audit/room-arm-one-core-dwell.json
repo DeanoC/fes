@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "frames": 10000,
+  "fixture_core_count": 1,
+  "viewport": "1280x720",
+  "max_step_ms": 20.81346,
+  "mean_step_ms": 1.12691,
+  "elapsed_seconds": 11.33,
+  "soft_budget_ms": 12,
+  "hard_budget_ms": 48,
+  "binary_sha256": "ebdbd3f86d6348bf7417b8d67c1b512551a5d1b69f019bf038d095413c89c5a1",
+  "scope": "isolated actual embedded Lua room with one synthetic persistent-core row; no gfx raster, sockets or physical lifecycle",
+  "limitation": "Real launcher lists eight factory-plus-persistent cores. One-core fixture is not representative of actual tile workload; no root-cause or fix claim."
+}
