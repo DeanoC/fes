@@ -13,4 +13,10 @@ type Timing struct {
 	CommitUS int64
 	// Runtime-side parts of the commit.
 	RuntimeCopyUS, RuntimeSubmitUS, RuntimeScanoutWaitUS int64
+	// StagedPixels is how many pixels this client copied into the staging
+	// file: the whole frame, or the damaged rectangles.
+	StagedPixels int64
+	// RuntimeStoredPixels is how many pixels the runtime wrote to the DDR
+	// slot, including catching that slot up on the previous frame's damage.
+	RuntimeStoredPixels int64
 }

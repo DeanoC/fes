@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"math"
 	"sync"
 	"time"
 
@@ -15,6 +16,12 @@ import (
 type MenuPresenter interface {
 	Status(context.Context) (menudisplay.Status, error)
 	Present(context.Context, uint64, []byte) (menudisplay.Result, error)
+}
+
+// MenuDamagePresenter is a MenuPresenter that can stage only the rectangles
+// that changed since the frame the runtime is showing.
+type MenuDamagePresenter interface {
+	PresentDamage(context.Context, uint64, []byte, menudisplay.Damage) (menudisplay.Result, error)
 }
 
 type menuPixels struct {
@@ -51,6 +58,15 @@ type MenuPresentTrace struct {
 	StatusUS    int64
 	PresentUS   int64
 	Timing      menudisplay.Timing
+	// StatusSkipped means the worker trusted its status from a recent
+	// present instead of asking the runtime.
+	StatusSkipped bool
+	// DamageRects is how many rectangles a damaged present staged; zero
+	// for a complete frame.
+	DamageRects int
+	// Retried means a shortcut was refused and the frame went again with a
+	// fresh status and complete pixels.
+	Retried bool
 }
 
 // QueuedSeq is the sequence of the last frame queued for presentation, so a
@@ -139,6 +155,18 @@ type MenuDisplay struct {
 	presentedGen uint64
 	binding      menuSessionBinding
 	bindingEpoch uint64
+	// Change-driven worker shortcuts. statusCache is the runtime status as of
+	// the last successful present, trusted until a probe interval after the
+	// runtime was last asked. base is the frame the runtime then showed, the
+	// reference for the next damaged present.
+	statusCache      menudisplay.Status
+	statusCacheOK    bool
+	statusCacheAt    time.Time
+	statusCacheEpoch uint64
+	base             *menuPixels
+	baseSeq          uint64
+	baseGen          uint64
+	baseEpoch        uint64
 }
 
 func NewMenuDisplay(socketPath string) (*MenuDisplay, error) {
@@ -192,6 +220,7 @@ func (d *MenuDisplay) setBindingLocked(binding menuSessionBinding) {
 	d.hasPresented = false
 	d.lastErr = nil
 	d.forgetSubmissionLocked()
+	d.dropShortcutsLocked()
 	d.clearPaceLocked()
 	select {
 	case frame := <-d.frames:
@@ -223,6 +252,7 @@ func (d *MenuDisplay) SetChangeDriven(on bool) {
 	d.changeDriven = on
 	if !on {
 		d.forgetSubmissionLocked()
+		d.dropShortcutsLocked()
 		d.clearPaceLocked()
 	}
 	d.mu.Unlock()
@@ -357,6 +387,7 @@ func (d *MenuDisplay) Pause(ctx context.Context) error {
 	d.paused = true
 	reportSoftwareReady(false)
 	d.forgetSubmissionLocked()
+	d.dropShortcutsLocked()
 	d.clearPaceLocked()
 	select {
 	case frame := <-d.frames:
@@ -386,6 +417,7 @@ func (d *MenuDisplay) Resume() {
 	d.mu.Lock()
 	d.paused = false
 	d.forgetSubmissionLocked()
+	d.dropShortcutsLocked()
 	d.clearPaceLocked()
 	d.mu.Unlock()
 }
@@ -423,29 +455,60 @@ func (d *MenuDisplay) run() {
 				continue
 			}
 			started := time.Now()
-			status, err := d.client.Status(d.ctx)
-			statusUS := time.Since(started).Microseconds()
+			var status menudisplay.Status
+			var err error
 			var result menudisplay.Result
-			var presentUS int64
-			if err == nil {
+			var statusUS, presentUS int64
+			presented, genChanged, cached, retried := false, false, false, false
+			damageRects := 0
+			for attempt := 0; ; attempt++ {
 				d.mu.Lock()
-				err = d.acceptStatusLocked(frame, status)
+				status, cached = d.cachedStatusLocked(frame)
 				d.mu.Unlock()
-			}
-			presented := false
-			genChanged := false
-			if err == nil && status.Available {
-				if status.Underflows > menudisplay.TransientUnderflowCap {
-					err = errors.New("menu scanout underflow")
-				} else if frame.known && frame.generation != status.Generation {
-					err = errors.New("menu generation changed before presentation")
-					genChanged = true
-				} else {
-					presentStart := time.Now()
-					result, err = d.client.Present(d.ctx, status.Generation, frame.pixels)
-					presentUS = time.Since(presentStart).Microseconds()
-					presented = err == nil
+				err = nil
+				if !cached {
+					statusStart := time.Now()
+					status, err = d.client.Status(d.ctx)
+					statusUS += time.Since(statusStart).Microseconds()
 				}
+				if err == nil {
+					d.mu.Lock()
+					err = d.acceptStatusLocked(frame, status)
+					d.mu.Unlock()
+				}
+				var damage *menudisplay.Damage
+				if err == nil && status.Available {
+					if status.Underflows > menudisplay.TransientUnderflowCap {
+						err = errors.New("menu scanout underflow")
+					} else if frame.known && frame.generation != status.Generation {
+						err = errors.New("menu generation changed before presentation")
+						genChanged = true
+					} else {
+						damage = d.damageFor(frame, status)
+						presentStart := time.Now()
+						if damage != nil {
+							result, err = d.client.(MenuDamagePresenter).PresentDamage(d.ctx, status.Generation, frame.pixels, *damage)
+						} else {
+							result, err = d.client.Present(d.ctx, status.Generation, frame.pixels)
+						}
+						presentUS += time.Since(presentStart).Microseconds()
+						presented = err == nil
+					}
+				}
+				if err != nil && attempt == 0 && (cached || damage != nil) && d.ctx.Err() == nil {
+					// A shortcut's assumption no longer holds, for example a
+					// new generation or another frame on screen. Ask the
+					// runtime and send the complete frame once.
+					d.mu.Lock()
+					d.dropShortcutsLocked()
+					d.mu.Unlock()
+					retried = true
+					continue
+				}
+				if presented && damage != nil {
+					damageRects = len(damage.Rects)
+				}
+				break
 			}
 			d.mu.Lock()
 			if frame.epoch != d.bindingEpoch {
@@ -462,6 +525,9 @@ func (d *MenuDisplay) run() {
 			d.lastErr = err
 			if !presented {
 				d.forgetLocked(frame.seq)
+				d.dropShortcutsLocked()
+			} else {
+				d.rememberShownLocked(frame, status, result, cached)
 			}
 			if d.changeDriven {
 				d.notePresentResultLocked(presented, genChanged, err, status)
@@ -475,7 +541,8 @@ func (d *MenuDisplay) run() {
 			if sink != nil {
 				trace := MenuPresentTrace{Seq: frame.seq, Queued: frame.queuedAt, Presented: presented,
 					FrameCopyUS: frame.copyUS, QueueWaitUS: started.Sub(frame.queuedAt).Microseconds(),
-					StatusUS: statusUS, PresentUS: presentUS, Timing: result.Timing}
+					StatusUS: statusUS, PresentUS: presentUS, Timing: result.Timing,
+					StatusSkipped: cached, DamageRects: damageRects, Retried: retried}
 				if err != nil {
 					trace.Err = err.Error()
 				}
@@ -548,6 +615,9 @@ func (d *MenuDisplay) finishProbeLocked(frame queuedMenuFrame, status menudispla
 	}
 	defer func() { d.reportSoftwareReadyLocked(status) }()
 	d.clearProbeQueuedLocked(frame.epoch)
+	// A probe present changes what the runtime shows, and a failure leaves it
+	// unknown; either way the next frame asks for status and goes whole.
+	d.dropShortcutsLocked()
 	if err == nil {
 		d.generation = status.Generation
 		d.known = true
@@ -721,6 +791,7 @@ func (d *MenuDisplay) Close() {
 	<-d.done
 	d.mu.Lock()
 	d.forgetSubmissionLocked()
+	d.dropShortcutsLocked()
 	select {
 	case frame := <-d.frames:
 		d.pending--
@@ -757,6 +828,68 @@ func (d *MenuDisplay) releaseBufferLocked(buffer *menuPixels) {
 	if buffer.refs == 0 && len(d.freeBuffers) < 3 {
 		d.freeBuffers = append(d.freeBuffers, buffer)
 	}
+}
+
+// cachedStatusLocked returns the status remembered from the last successful
+// present while change-driven presents are on, the binding is unchanged and
+// the runtime was asked within the probe interval. Only a runtime that
+// advertises damage is trusted this way; older runtimes are asked per frame.
+func (d *MenuDisplay) cachedStatusLocked(frame queuedMenuFrame) (menudisplay.Status, bool) {
+	if !d.changeDriven || !d.statusCacheOK || !d.statusCache.Damage || d.statusCacheEpoch != frame.epoch || d.paused ||
+		!d.clock().Before(d.statusCacheAt.Add(menuProbeInterval)) {
+		return menudisplay.Status{}, false
+	}
+	return d.statusCache, true
+}
+
+// rememberShownLocked records a successful present as the next frame's
+// status and damage base. A cached status keeps the time the runtime was
+// last asked, so status is still read at least once per probe interval.
+func (d *MenuDisplay) rememberShownLocked(frame queuedMenuFrame, status menudisplay.Status, result menudisplay.Result, cached bool) {
+	if !d.changeDriven {
+		return
+	}
+	if !cached {
+		d.statusCacheAt = d.clock()
+	}
+	status.DisplayedSequence, status.Underflows = result.DisplayedSequence, result.Underflows
+	d.statusCache, d.statusCacheOK, d.statusCacheEpoch = status, true, frame.epoch
+	d.releaseBufferLocked(d.base)
+	frame.buffer.refs++
+	d.base, d.baseSeq, d.baseGen, d.baseEpoch = frame.buffer, result.DisplayedSequence, status.Generation, frame.epoch
+}
+
+func (d *MenuDisplay) dropShortcutsLocked() {
+	d.statusCacheOK = false
+	d.releaseBufferLocked(d.base)
+	d.base = nil
+}
+
+// damageFor returns the rectangles where frame differs from the frame the
+// runtime is showing for this display, or nil when the frame must go whole.
+func (d *MenuDisplay) damageFor(frame queuedMenuFrame, status menudisplay.Status) *menudisplay.Damage {
+	if _, ok := d.client.(MenuDamagePresenter); !ok || !status.Damage {
+		return nil
+	}
+	d.mu.Lock()
+	base := d.base
+	if !d.changeDriven || base == nil || d.baseEpoch != frame.epoch || d.baseGen != status.Generation ||
+		d.baseSeq == 0 || d.baseSeq > math.MaxUint32 || d.baseSeq != status.DisplayedSequence {
+		d.mu.Unlock()
+		return nil
+	}
+	seq := uint32(d.baseSeq)
+	base.refs++
+	d.mu.Unlock()
+	rects := menudisplay.Diff(base.pixels, frame.pixels)
+	d.mu.Lock()
+	d.releaseBufferLocked(base)
+	d.mu.Unlock()
+	if len(rects) == 0 {
+		// The runtime still shows a new frame; stage the least it accepts.
+		rects = []menudisplay.Rect{{X: 0, Y: 0, W: 8, H: 1}}
+	}
+	return &menudisplay.Damage{BaseSequence: seq, Rects: rects}
 }
 
 func (d *MenuDisplay) forgetSubmissionLocked() {

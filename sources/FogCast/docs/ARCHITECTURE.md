@@ -1219,7 +1219,13 @@ a second and is submitted again when the generation changes. Status errors,
 underflow, and present failures back off from 250ms to 5s. An unavailable
 menu backs off on that schedule but no longer than one second, so a Stop
 redraws within about a second. A generation mismatch does not start a new
-wait. The kit image starts that client only when `launcher.json` `kit_ui`
+wait. When the runtime advertises `damage`, a change-driven worker also skips
+the per-frame status read for up to a second after a successful present, and
+stages only the row bands that differ from the frame the runtime is showing
+(at most 16 rectangles). If the runtime refuses either shortcut, for example
+a new generation or a stale base, the frame is retried once with fresh status
+and complete pixels; Pause, Resume, rebinding and any failure drop both
+shortcuts. The kit image starts that client only when `launcher.json` `kit_ui`
 is `tenfoot` and the menu selection and `fogcast-tenfoot` binary are both
 present. Otherwise boot still runs `fogcast-kit`. On this backend tenfoot opens
 the kit-local control socket and submits one room launch overlay frame with

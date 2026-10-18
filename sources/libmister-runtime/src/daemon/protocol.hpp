@@ -66,6 +66,8 @@ struct Request {
 	std::uint32_t media_size = 0;
  std::uint32_t byte_count=0;
  bool visible=false;
+ bool has_menu_damage=false;
+ MenuDamage menu_damage;
 	std::uint8_t media_unit = 0;
 	MediaDataBinding media_binding;
 	KeyboardHidRows keyboard_rows{};
@@ -85,7 +87,7 @@ struct MenuFrameReply {
  bool prepared=false;
  std::uint32_t displayed_sequence=0,underflows=0;
  // Present timing, encoded as menu_frame.timing on a commit reply.
- std::uint32_t copy_us=0,submit_us=0,scanout_wait_us=0;
+ std::uint32_t copy_us=0,submit_us=0,scanout_wait_us=0,stored_pixels=0;
 };
 Error ParseRequest(const std::string& line, Request* request);
 // `ok` is the current request result.  Status::error is lifecycle evidence and

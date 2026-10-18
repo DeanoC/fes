@@ -1722,6 +1722,29 @@ void TestSessionCloseAndStopWaitForInFlightFrame()
  }
 }
 
+void TestMenuDamageNeedsTheDisplayedBase()
+{
+ Fixture f;const std::string id(64,'a');
+ assert(f.runtime.Start().ok());assert(f.runtime.ConfigureMenuPackage("/menu",id).ok());
+ const auto menu=f.runtime.status().menu_display;
+ auto sealed=[&]{
+  std::unique_ptr<mister::MenuFrame> frame;assert(f.runtime.BeginMenuFrame(menu.generation,&frame).ok());
+  assert(fcntl(frame->fd(),F_ADD_SEALS,F_SEAL_WRITE|F_SEAL_GROW|F_SEAL_SHRINK|F_SEAL_SEAL)==0);return frame;
+ };
+ mister::MenuDisplayInfo info;
+ auto frame=sealed();assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());frame.reset();
+ // Without a matching shadow the runtime refuses before touching the display,
+ // so the client resends a full frame and nothing is torn down.
+ frame=sealed();frame->SetDamage({info.displayed_sequence,{{0,0,8,8}}});
+ assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).code==ErrorCode::stale_revision);
+ assert(f.hardware.menu_present_calls==1&&f.runtime.status().menu_display.available);frame.reset();
+ f.hardware.accepts_damage=true;
+ frame=sealed();frame->SetDamage({info.displayed_sequence+1,{{0,0,8,8}}});
+ assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).code==ErrorCode::stale_revision);frame.reset();
+ frame=sealed();frame->SetDamage({info.displayed_sequence,{{0,0,8,8}}});
+ assert(f.runtime.PresentMenuFrame(menu.generation,*frame,&info).ok());assert(f.hardware.menu_present_calls==2);
+}
+
 int main()
 {
  TestComputerSessionDisplayPresentsFramesAndRestoresVideo();
@@ -1735,6 +1758,7 @@ int main()
  TestMenuFrameYieldsToCoreDataAndLaunch();
  TestMenuFrameWaitIsBounded();
  TestMenuGenerationAndPreparationFencing();
+ TestMenuDamageNeedsTheDisplayedBase();
  TestMenuPresentationFailureUsesIdleRecovery();
  TestMenuIdleStopAndPreMutationFailurePreserveFences();
 	TestComputerMouseBindingAndFaultRetirement();

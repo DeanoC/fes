@@ -72,6 +72,25 @@ class FrameTraceSummaryTest(unittest.TestCase):
         self.assertIn("failed present breakdown:", text)
         self.assertIn("dominant stage (by mean): rt_copy", text)
 
+    def test_transport_counts_damaged_and_skipped_presents(self):
+        records = []
+        for seq, damaged in ((1, False), (2, True), (3, True)):
+            t = seq * 1_000_000
+            records.append({"t_us": t, "kind": "tick", "tick_us": 100, "render_us": 1000, "queued": True, "seq": seq})
+            present = {"t_us": t + 50_000, "kind": "present", "seq": seq, "queued_t_us": t, "presented": True,
+                       "staged_pixels": 3200 if damaged else 921600,
+                       "runtime_stored_pixels": 6400 if damaged else 921600}
+            if damaged:
+                present.update({"damage_rects": 1, "status_skipped": True})
+            if seq == 3:
+                present["retried"] = True
+            records.append(present)
+        summary = summary_tool.summarise(records)
+        moved = summary["transport"]
+        self.assertEqual((moved["damaged"], moved["status_skipped"], moved["retried"]), (2, 2, 1))
+        self.assertAlmostEqual(moved["staged_pixels"], (921600 + 3200 + 3200) / 3)
+        self.assertIn("transport: damaged=2 status_skipped=2 retried=1", summary_tool.render(summary))
+
 
 if __name__ == "__main__":
     unittest.main()

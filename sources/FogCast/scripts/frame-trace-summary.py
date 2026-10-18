@@ -23,6 +23,11 @@ Stages:
   rt_scanout runtime: waiting until scanout shows the new slot
   commit_io  commit round trip not accounted for by the runtime fields
 
+Transport counts how displayed frames travelled: how many were damaged
+presents (only changed rectangles staged), skipped the status round trip, or
+were retried whole after a shortcut was refused, and the mean pixels staged
+by the client and stored to DDR by the runtime per frame.
+
 Input-to-picture latency is measured from each input record to the first
 present that reached the screen and was queued at or after it.
 
@@ -75,6 +80,11 @@ def _frame_row(tick, present):
         "rt_scanout": us(present, "runtime_scanout_wait_us"),
         "commit_io": max(0, us(present, "commit_us") - rt),
         "presented": bool(present.get("presented")),
+        "damaged": bool(present.get("damage_rects")),
+        "status_skipped": bool(present.get("status_skipped")),
+        "retried": bool(present.get("retried")),
+        "staged_pixels": us(present, "staged_pixels"),
+        "stored_pixels": us(present, "runtime_stored_pixels"),
         "t_us": tick["t_us"],
         "done_us": present["t_us"],
     }
@@ -138,10 +148,17 @@ def stage_stats(rows):
     return stats
 
 
+def transport(rows):
+    mean = lambda key: statistics.fmean(row[key] for row in rows) if rows else 0.0
+    return {"damaged": sum(row["damaged"] for row in rows), "status_skipped": sum(row["status_skipped"] for row in rows),
+            "retried": sum(row["retried"] for row in rows), "staged_pixels": mean("staged_pixels"),
+            "stored_pixels": mean("stored_pixels")}
+
+
 def summarise(records):
     rows, failed = frames(records)
     summary = {"frames": len(rows), "stages": stage_stats(rows), "views": {}, "inputs": {}, "dominant": None,
-               "failed": {"frames": len(failed), "stages": stage_stats(failed)}}
+               "failed": {"frames": len(failed), "stages": stage_stats(failed)}, "transport": transport(rows)}
     if rows:
         means = {key: summary["stages"][key]["mean"] for key in STAGES}
         summary["dominant"] = max(means, key=means.get)
@@ -175,6 +192,10 @@ def render(summary):
     else:
         lines.extend(_stage_table(summary["stages"]))
         lines.append(f"dominant stage (by mean): {summary['dominant']}")
+        moved = summary.get("transport")
+        if moved:
+            lines.append(f"transport: damaged={moved['damaged']} status_skipped={moved['status_skipped']} retried={moved['retried']}"
+                         f"  mean pixels staged={moved['staged_pixels']:.0f} stored={moved['stored_pixels']:.0f}")
         if summary["views"]:
             lines.append("")
             lines.append("frame total by view:")
