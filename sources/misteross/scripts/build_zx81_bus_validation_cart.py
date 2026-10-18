@@ -22,7 +22,10 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import build_fes_zx81_oss as shell_recipe
 from scripts.core_package import read_package
-from scripts.fes_build_common import _authenticate_tools, _prepare_output, _require_clean_source, reject_async_m10k_reads
+from scripts.fes_build_common import (
+    _authenticate_tools, _prepare_output, _require_clean_source,
+    gpu_visibility_environment, reject_async_m10k_reads,
+)
 from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram_diff, CramRect
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -148,7 +151,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
                     build_outputs=BUILD_OUTPUTS + publications)
     (output / "clocks.sdc").write_bytes(clock_constraints)
     (output / "scaffold.json").write_bytes(scaffold)
-    env = dict(os.environ, HIP_VISIBLE_DEVICES=str(gpu))
+    env = gpu_visibility_environment(os.environ, gpu, variable="HIP_VISIBLE_DEVICES")
     commands = [
         [str(tools["yosys"].path), "-p", f"read_verilog -sv -DSYNTHESIS=1 -I cores/fes-zx81/rtl {' '.join(sources)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"), "--device", "5CSEBA6U23I7",

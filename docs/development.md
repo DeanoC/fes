@@ -40,6 +40,18 @@ Status is informational: it does not establish compatibility, CI success, build
 completion or deployed identity. Use `make check` for committed-source and
 consumer consistency.
 
+## Shared GPU leases
+
+Run shared GPU work through `scripts/gpu-run`; inspect holders and waiters with
+`scripts/gpu-status`. `GPU_LEASE_IDS` overrides host inventory detection and is
+not a per-job pin. Each waiting ticket records its eligible physical ids and
+vendor mask variable. Ticket order is preserved for overlapping GPU sets, while
+a later ticket can backfill on a disjoint free GPU. On grant, `gpu-run` replaces
+inherited visibility masks with the exact leased ids in `FES_GPU_IDS` and the
+AMD `ROCR_VISIBLE_DEVICES` or NVIDIA `CUDA_VISIBLE_DEVICES` mask. Status shows
+the waiter's id set and owner PID; tickets with a dead or reused local PID are
+ignored after checking the recorded process start time.
+
 ## Isolate component work
 
 Create one FES worktree for a task, including tasks that span several modules:

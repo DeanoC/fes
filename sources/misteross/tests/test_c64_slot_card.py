@@ -349,6 +349,23 @@ class C64CardGpuLaneTests(unittest.TestCase):
             recipe = json.loads((result.parent / "build-summary.json").read_text())["recipe"]
             self.assertEqual(recipe["gpu_device"], 1)
 
+    def test_cuda_route_preserves_gpu_run_mask_and_uses_logical_device(self) -> None:
+        for gpu in (0, 1):
+            with self.subTest(gpu=gpu), tempfile.TemporaryDirectory() as directory:
+                fixture = CardBuildFixture(Path(directory), backend="cuda")
+                with patch.dict(os.environ, {
+                    "GPU_RUN_DEVICE": "0",
+                    "CUDA_VISIBLE_DEVICES": str(gpu),
+                    "CUDA_DEVICE_ORDER": "FASTEST_FIRST",
+                }):
+                    fixture.build(gpu=gpu, gpu_router="CUDA", toolchain_root=Path("/tmp/c64-cuda"))
+                route = fixture.commands[1]
+                self.assertEqual(route[route.index("--gpu-device") + 1], "0")
+                for env in fixture.envs:
+                    self.assertEqual(env["CUDA_VISIBLE_DEVICES"], str(gpu))
+                    self.assertEqual(env["CUDA_DEVICE_ORDER"], "PCI_BUS_ID")
+                    self.assertNotIn("HIP_VISIBLE_DEVICES", env)
+
     def test_hip_route_masks_requested_gpu_without_nextpnr_device_flag(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             fixture = CardBuildFixture(Path(directory))

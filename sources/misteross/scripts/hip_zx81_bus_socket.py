@@ -19,7 +19,9 @@ if __package__ in (None, ""):
 from scripts import build_fes_zx81_oss as shell
 from scripts import build_zx81_bus_validation_cart as cart
 from scripts.cyclonev_rbf import CramRect, classify_cram_diff, overlay_cram, rbf_load, rbf_save
-from scripts.fes_build_common import FES_GPU_BACKEND, _require_gpu_backend
+from scripts.fes_build_common import (
+    FES_GPU_BACKEND, _require_gpu_backend, gpu_visibility_environment,
+)
 from scripts.search_placer_qor import route_after_synth
 from scripts import zx81_expansion as expansion
 
@@ -184,8 +186,7 @@ def main() -> int:
         "yosys": Path(sys.argv[1]),
         "nextpnr": Path(sys.argv[2]),
     }
-    env = dict(os.environ)
-    env["HIP_VISIBLE_DEVICES"] = "0"
+    env = gpu_visibility_environment(os.environ, 0, variable="HIP_VISIBLE_DEVICES")
     env.pop("FES_TOOLCHAIN_CACHE_ROOT", None)
     env.pop("CACHE_ROOT", None)
     synthesize_shell(tools, env)

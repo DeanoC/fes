@@ -1,5 +1,6 @@
 """GPU lease behavior with a private directory and fake device ids."""
 import json
+import io
 import os
 from pathlib import Path
 import signal
@@ -11,6 +12,7 @@ import tempfile
 import textwrap
 import time
 import unittest
+from contextlib import redirect_stderr
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,7 +50,8 @@ class GpuLeaseTests(unittest.TestCase):
         base = os.environ.copy()
         for key in ('GPU_LEASE_DIR', 'GPU_LEASE_IDS', 'GPU_LEASE_VENDOR',
                     'GPU_LEASE_MAX_PER_OWNER', 'HIP_VISIBLE_DEVICES',
-                    'ROCR_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES', 'FES_GPU_IDS'):
+                    'ROCR_VISIBLE_DEVICES', 'CUDA_VISIBLE_DEVICES', 'FES_GPU_IDS',
+                    'GPU_RUN_DEVICE', 'GPU_RUN_EXPECTED_DEVICE', 'NEXTPNR_REQUIRE_GPU'):
             base.pop(key, None)
         base['GPU_LEASE_DIR'] = str(self.lease)
         base['GPU_LEASE_IDS'] = '0,1'
@@ -117,6 +120,11 @@ class GpuLeaseTests(unittest.TestCase):
             (0, 'simd_count 0\ndrm_render_minor 128\n'),
             (1, 'simd_count 120\ndrm_render_minor 129\n'),
         ]), ['0'])
+        self.assertEqual(gpu_lease.render_nodes_from_kfd_nodes([
+            (0, 'simd_count 0\ndrm_render_minor 128\n'),
+            (1, 'simd_count 120\ndrm_render_minor 129\n'),
+            (2, 'simd_count 80\ndrm_render_minor 130\n'),
+        ]), {'0': '129', '1': '130'})
         self.assertEqual(gpu_lease.DEFAULT_LEASE_DIR, '/var/tmp/gpu-leases')
         self.assertIsNotNone(gpu_lease.process_starttime(os.getpid()))
         self.assertIsNone(gpu_lease.process_starttime(2 ** 30))
@@ -132,7 +140,10 @@ class GpuLeaseTests(unittest.TestCase):
         code = ('import os; print(os.environ.get("CUDA_VISIBLE_DEVICES", "unset"));'
                 'print(os.environ.get("HIP_VISIBLE_DEVICES", "unset"));'
                 'print(os.environ.get("ROCR_VISIBLE_DEVICES", "unset"));'
-                'print(os.environ["FES_GPU_IDS"])')
+                'print(os.environ["FES_GPU_IDS"]);'
+                'print(os.environ["GPU_RUN_DEVICE"]);'
+                'print(os.environ["GPU_RUN_EXPECTED_DEVICE"]);'
+                'print(os.environ["NEXTPNR_REQUIRE_GPU"])')
         nvidia = self.env(GPU_LEASE_IDS='', GPU_LEASE_VENDOR='')
         nvidia.pop('GPU_LEASE_IDS')
         nvidia.pop('GPU_LEASE_VENDOR')
@@ -140,14 +151,123 @@ class GpuLeaseTests(unittest.TestCase):
         nvidia['LIST'] = NVIDIA_LIST
         completed = self.run_tool(GPU_RUN, ['--no-wait', '--', sys.executable, '-c', code], env=nvidia)
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertEqual(completed.stdout.splitlines(), ['0', 'unset', 'unset', '0'])
+        self.assertEqual(completed.stdout.splitlines(), [
+            '0', 'unset', 'unset', '0', '0', '/dev/nvidia0', '1',
+        ])
 
         (binary / 'nvidia-smi').write_text('#!/bin/sh\nexit 1\n')
         amd = dict(nvidia)
         amd['LIST'] = ROCM_SHOW
         completed = self.run_tool(GPU_RUN, ['--no-wait', '--gpus', '2', '--', sys.executable, '-c', code], env=amd)
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertEqual(completed.stdout.splitlines(), ['unset', '0,1', '0,1', '0,1'])
+        lines = completed.stdout.splitlines()
+        self.assertEqual(lines[:5], ['unset', 'unset', '0,1', '0,1', '0'])
+        self.assertTrue(lines[5].startswith('/dev/dri/renderD') or lines[5] == 'amd:0')
+        self.assertEqual(lines[6], '1')
+
+    def test_child_env_uses_one_mask_and_logical_zero_for_each_backend(self):
+        with patch.dict(os.environ, {
+                'HIP_VISIBLE_DEVICES': '77',
+                'ROCR_VISIBLE_DEVICES': '88',
+                'CUDA_VISIBLE_DEVICES': '99',
+        }, clear=False):
+            hip = gpu_lease.child_env('amd', ['1'], '/dev/dri/renderD129')
+            self.assertNotIn('HIP_VISIBLE_DEVICES', hip)
+            self.assertNotIn('CUDA_VISIBLE_DEVICES', hip)
+            self.assertEqual(hip['ROCR_VISIBLE_DEVICES'], '1')
+            self.assertEqual(hip['FES_GPU_IDS'], '1')
+            self.assertEqual(hip['GPU_RUN_DEVICE'], '0')
+            self.assertEqual(hip['GPU_RUN_EXPECTED_DEVICE'], '/dev/dri/renderD129')
+            self.assertEqual(hip['NEXTPNR_REQUIRE_GPU'], '1')
+
+            cuda = gpu_lease.child_env('nvidia', ['1'], '/dev/nvidia1')
+            self.assertNotIn('HIP_VISIBLE_DEVICES', cuda)
+            self.assertNotIn('ROCR_VISIBLE_DEVICES', cuda)
+            self.assertEqual(cuda['CUDA_VISIBLE_DEVICES'], '1')
+            self.assertEqual(cuda['FES_GPU_IDS'], '1')
+            self.assertEqual(cuda['GPU_RUN_DEVICE'], '0')
+            self.assertEqual(cuda['GPU_RUN_EXPECTED_DEVICE'], '/dev/nvidia1')
+            self.assertEqual(cuda['NEXTPNR_REQUIRE_GPU'], '1')
+
+    def _fake_process(self, proc_root, pid, command, children='', fds=()):
+        task = proc_root / str(pid) / 'task' / str(pid)
+        task.mkdir(parents=True)
+        (task / 'children').write_text(children)
+        (proc_root / str(pid) / 'cmdline').write_bytes(command.replace(' ', '\0').encode())
+        fd_dir = proc_root / str(pid) / 'fd'
+        fd_dir.mkdir()
+        for number, target in enumerate(fds, 3):
+            os.symlink(target, fd_dir / str(number))
+
+    def test_fallback_detection_checks_nextpnr_tree_and_leased_device_nodes(self):
+        proc_root = self.root / 'proc'
+        self._fake_process(proc_root, 100, '/bin/bash replay.sh', children='101')
+        self._fake_process(proc_root, 101, '/tools/nextpnr-mistral --router gpu',
+                           fds=('/dev/kfd', '/dev/dri/renderD129'))
+        self.assertTrue(gpu_lease.process_tree_has_nextpnr(100, proc_root))
+        self.assertTrue(gpu_lease.process_tree_requires_gpu(100, proc_root))
+        self.assertTrue(gpu_lease.process_tree_uses_gpu(
+            100, 'amd', '/dev/dri/renderD129', proc_root))
+        self.assertFalse(gpu_lease.process_tree_uses_gpu(
+            100, 'amd', '/dev/dri/renderD128', proc_root))
+        self.assertTrue(gpu_lease.process_tree_uses_gpu(100, 'amd', None, proc_root))
+
+        proc_root_cuda = self.root / 'proc-cuda'
+        self._fake_process(proc_root_cuda, 200, '/tools/nextpnr-mistral',
+                           fds=('/dev/nvidiactl', '/dev/nvidia1'))
+        self.assertTrue(gpu_lease.process_tree_uses_gpu(
+            200, 'nvidia', ['/dev/nvidia0', '/dev/nvidia1'], proc_root_cuda))
+        self.assertFalse(gpu_lease.process_tree_uses_gpu(
+            200, 'nvidia', ['/dev/nvidia0'], proc_root_cuda))
+
+        proc_root_sibling = self.root / 'proc-sibling'
+        self._fake_process(proc_root_sibling, 250, '/bin/bash replay.sh', children='251 252',
+                           fds=('/dev/kfd', '/dev/dri/renderD129'))
+        self._fake_process(proc_root_sibling, 251, '/tools/nextpnr-mistral --router gpu')
+        self._fake_process(proc_root_sibling, 252, '/bin/other-worker',
+                           fds=('/dev/kfd', '/dev/dri/renderD129'))
+        self.assertFalse(gpu_lease.process_tree_uses_gpu(
+            250, 'amd', ['/dev/dri/renderD129'], proc_root_sibling))
+
+        proc_root_second_amd = self.root / 'proc-second-amd'
+        self._fake_process(proc_root_second_amd, 260, '/tools/nextpnr-mistral --router gpu',
+                           fds=('/dev/kfd', '/dev/dri/renderD130'))
+        self.assertTrue(gpu_lease.process_tree_uses_gpu(
+            260, 'amd', ['/dev/dri/renderD129', '/dev/dri/renderD130'], proc_root_second_amd))
+        self.assertFalse(gpu_lease.process_tree_uses_gpu(
+            260, 'amd', ['/dev/dri/renderD129'], proc_root_second_amd))
+
+        proc_root_cpu = self.root / 'proc-cpu'
+        self._fake_process(proc_root_cpu, 300, '/tools/nextpnr-mistral --router heap')
+        self.assertFalse(gpu_lease.process_tree_requires_gpu(300, proc_root_cpu))
+        proc_root_help = self.root / 'proc-help'
+        self._fake_process(proc_root_help, 400, '/tools/nextpnr-mistral --router gpu --help')
+        self.assertFalse(gpu_lease.process_tree_requires_gpu(400, proc_root_help))
+        self._fake_process(proc_root_help, 401, '/tools/nextpnr-mistral --router gpu --version')
+        self.assertFalse(gpu_lease.process_tree_requires_gpu(401, proc_root_help))
+
+    def test_nextpnr_without_gpu_access_fails_loudly(self):
+        fd = os.open(self.root / 'lease-fd', os.O_CREAT | os.O_RDWR, 0o600)
+        output = io.StringIO()
+        with patch.object(gpu_lease, 'gpu_device_path', return_value='/dev/dri/renderD129'), \
+             patch.object(gpu_lease, 'process_tree_requires_gpu', return_value=True), \
+             patch.object(gpu_lease, 'process_tree_uses_gpu', return_value=False), \
+             redirect_stderr(output):
+            status = gpu_lease.execute('amd', [('1', fd)], ['/bin/true'])
+        self.assertEqual(status, 70)
+        self.assertIn('nextpnr never opened leased GPU device', output.getvalue())
+        self.assertIn('/dev/kfd and /dev/dri/renderD129', output.getvalue())
+
+    def test_nextpnr_help_and_version_with_gpu_flags_do_not_require_gpu_access(self):
+        command = self.root / 'nextpnr-mistral'
+        command.write_text('#!/bin/sh\nexit 0\n')
+        command.chmod(0o755)
+        for flag in ('--help', '--version'):
+            with self.subTest(flag=flag):
+                completed = self.run_tool(
+                    GPU_RUN, ['--no-wait', '--', str(command), '--router', 'gpu', flag])
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                self.assertNotIn('nextpnr never opened leased GPU device', completed.stderr)
 
     def test_lease_metadata_release_modes_and_child_exit(self):
         completed = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'alice', '--label', 'route', '--gpus', '2',
@@ -217,6 +337,8 @@ class GpuLeaseTests(unittest.TestCase):
         help_text = self.run_tool(GPU_RUN, ['--help'])
         self.assertEqual(help_text.returncode, 0, help_text.stderr)
         self.assertIn('GPU_LEASE_MAX_PER_OWNER=2', help_text.stdout)
+        self.assertIn('not a per-job pin', help_text.stdout)
+        self.assertIn('outside the eligible sets', help_text.stdout)
         self.assertIn('--owner lander', help_text.stdout)
         self.assertEqual(self.run_tool(GPU_STATUS, ['--help']).returncode, 0)
 
@@ -239,10 +361,15 @@ class GpuLeaseTests(unittest.TestCase):
         self.assertEqual([item['owner'] for item in queued['queue']], ['a', 'b'])
         self.assertEqual(queued['queue'][0]['label'], 'first')
         self.assertEqual(queued['queue'][0]['gpus'], 1)
+        self.assertEqual(queued['queue'][0]['eligible_ids'], ['0'])
+        self.assertEqual(queued['queue'][0]['vendor_mask'], 'ROCR_VISIBLE_DEVICES')
+        self.assertEqual(queued['queue'][0]['owner_pid'], first.pid)
         self.assertGreaterEqual(queued['queue'][0]['age_seconds'], 0)
         text = self.status(env, json_output=False)
         self.assertIn('waiting 1  owner=a', text)
         self.assertIn('waiting 2  owner=b', text)
+        self.assertIn('eligible=0 mask=ROCR_VISIBLE_DEVICES', text)
+        self.assertIn('owner_pid=%s' % first.pid, text)
         os.kill(holder.pid, signal.SIGKILL)
         holder.wait(timeout=5)
         first_out, first_err = first.communicate(timeout=10)
@@ -252,6 +379,90 @@ class GpuLeaseTests(unittest.TestCase):
         self.assertEqual(log.read_text().splitlines(), ['A 0', 'B 0'])
         self.assertEqual(first_out, '')
         self.assertEqual(second_out, '')
+
+    def test_pinned_head_allows_disjoint_gpu_backfill_and_rewrites_mask(self):
+        pinned_env = self.env(GPU_LEASE_IDS='0')
+        holder = self.hold('--no-wait', '--owner', 'holder', env=pinned_env)
+        head_marker = self.root / 'pinned-head'
+        record = ('import os,sys; open(sys.argv[1],"w").write("|".join('
+                  '[os.environ.get(name, "-") for name in ("FES_GPU_IDS", '
+                  '"ROCR_VISIBLE_DEVICES", "HIP_VISIBLE_DEVICES", '
+                  '"CUDA_VISIBLE_DEVICES", "GPU_RUN_DEVICE")]))')
+        head = self.popen(['--wait', '--timeout', '8', '--owner', 'pinned-head', '--',
+                           sys.executable, '-c', record, str(head_marker)], env=pinned_env)
+        self.wait_for(lambda: any(item['pid'] == head.pid for item in self.status(pinned_env)['queue']))
+        queued = self.status(pinned_env)['queue'][0]
+        self.assertEqual(queued['eligible_ids'], ['0'])
+        self.assertEqual(queued['owner_pid'], head.pid)
+
+        later_env = self.env(GPU_LEASE_IDS='0,1', ROCR_VISIBLE_DEVICES='0', HIP_VISIBLE_DEVICES='0')
+        later_marker = self.root / 'disjoint-later'
+        later = self.popen(['--wait', '--timeout', '8', '--owner', 'later', '--',
+                            sys.executable, '-c', record, str(later_marker)], env=later_env)
+        self.wait_for(lambda: later_marker.exists())
+        later_out, later_err = later.communicate(timeout=8)
+        self.assertEqual(later.returncode, 0, later_err)
+        self.assertEqual(later_marker.read_text(), '1|1|-|-|0')
+        self.assertEqual(later_out, '')
+        self.assertIsNone(head.poll())
+        self.assertFalse(head_marker.exists())
+
+        os.kill(holder.pid, signal.SIGKILL)
+        holder.wait(timeout=5)
+        head_out, head_err = head.communicate(timeout=8)
+        self.assertEqual(head.returncode, 0, head_err)
+        self.assertEqual(head_marker.read_text(), '0|0|-|-|0')
+        self.assertEqual(head_out, '')
+
+    def test_dead_or_reused_pid_tickets_are_skipped(self):
+        gpu_lease.ensure_lease_dir(self.lease)
+        queue_dir = self.lease / 'queue'
+        reused_starttime = gpu_lease.process_starttime(os.getpid())
+        wrong_starttime = '0' if reused_starttime != '0' else '1'
+        base = {
+            'owner': 'stale',
+            'label': '',
+            'host': socket.gethostname(),
+            'gpus': 1,
+            'eligible_ids': ['0'],
+            'vendor': 'amd',
+            'vendor_mask': 'ROCR_VISIBLE_DEVICES',
+            'cap': None,
+            'enqueued': '2026-10-18T00:00:00Z',
+            'enqueued_unix': time.time(),
+            'command': ['/bin/true'],
+        }
+        for number, pid, starttime in ((1, 2147483647, '1'),
+                                       (2, os.getpid(), wrong_starttime)):
+            ticket = dict(base, ticket=number, pid=pid, starttime=starttime)
+            gpu_lease.write_atomic(queue_dir / ('%08d.json' % number), ticket)
+
+        completed = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'after-stale', '--', '/bin/true'])
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(self.status()['queue'], [])
+
+    def test_owner_cap_applies_across_disjoint_inventory_overrides(self):
+        alice_gpu0 = self.env(GPU_LEASE_IDS='0', GPU_LEASE_MAX_PER_OWNER='1')
+        holder = self.hold('--no-wait', '--owner', 'alice', env=alice_gpu0)
+        alice_gpu1 = self.env(GPU_LEASE_IDS='1', GPU_LEASE_MAX_PER_OWNER='1')
+        waiting = self.popen(['--wait', '--timeout', '8', '--owner', 'alice', '--',
+                              sys.executable, '-c',
+                              'import os; print(os.environ["FES_GPU_IDS"])'], env=alice_gpu1)
+        self.wait_for(lambda: any(item['pid'] == waiting.pid for item in self.status(alice_gpu1)['queue']))
+
+        bob_gpu1 = self.env(GPU_LEASE_IDS='1')
+        bob = self.run_tool(GPU_RUN, ['--no-wait', '--owner', 'bob', '--',
+                                      sys.executable, '-c',
+                                      'import os; print(os.environ["FES_GPU_IDS"])'], env=bob_gpu1)
+        self.assertEqual(bob.returncode, 0, bob.stderr)
+        self.assertEqual(bob.stdout.strip(), '1')
+        self.assertTrue(any(item['pid'] == waiting.pid for item in self.status(alice_gpu1)['queue']))
+
+        os.kill(holder.pid, signal.SIGKILL)
+        holder.wait(timeout=5)
+        waiting_out, waiting_err = waiting.communicate(timeout=8)
+        self.assertEqual(waiting.returncode, 0, waiting_err)
+        self.assertEqual(waiting_out.strip(), '1')
 
     def test_no_wait_does_not_cut_ahead_of_a_waiter(self):
         self.hold('--no-wait', '--owner', 'holder')

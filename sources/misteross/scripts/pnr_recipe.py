@@ -5,9 +5,13 @@ import hashlib
 import json
 import math
 import os
+import re
 import tomllib
+from functools import lru_cache
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from typing import Mapping, Sequence
+from scripts.fes_build_common import nextpnr_gpu_command
 
 
 FES_ROOT = Path(__file__).resolve().parents[3]
@@ -105,6 +109,19 @@ FLAG_STRING_FIELDS = frozenset({
     "remap_lut_pair_critical", "remap_lut_driver_critical",
 })
 FLAG_LIST_FIELDS = frozenset({"gpu_opt", "balance_reduction_root"})
+
+# gpu-run's environment is normally removed by the functional build boundary.
+# Its small, explicit marker set is admitted only after the complete lease
+# description and the recipe's vendor mask agree.
+_GPU_RUN_MARKERS = frozenset({
+    "FES_GPU_IDS", "GPU_RUN_DEVICE", "GPU_RUN_EXPECTED_DEVICE",
+    "NEXTPNR_REQUIRE_GPU",
+})
+_GPU_VISIBILITY_MASKS = frozenset({
+    "HIP_VISIBLE_DEVICES", "ROCR_VISIBLE_DEVICES", "CUDA_VISIBLE_DEVICES",
+})
+_GPU_ID = re.compile(r"[A-Za-z0-9._+-]+\Z")
+_AMD_RENDER_NODE = re.compile(r"/dev/dri/renderD[0-9]+\Z")
 
 
 def _valid_flag_value(name: str, value: object) -> bool:
@@ -399,23 +416,100 @@ def build(
 ) -> tuple[tuple[str, ...], dict[str, str]]:
     """Build nextpnr argv and validate its complete controlled environment."""
     command = argv(core_id, slot, synth, seed, gpu, output=output, **options)
-    return command, environment(core_id, env)
+    return nextpnr_gpu_command(command, env), environment(core_id, env, gpu=gpu)
 
 
-def environment(core_id: str, source: Mapping[str, str]) -> dict[str, str]:
-    """Validate and return only the environment declared by the recipe."""
+def _gpu_run_environment(
+    core_id: str,
+    recipe: Mapping[str, object],
+    source: Mapping[str, str],
+    gpu: int | None,
+) -> set[str]:
+    present_markers = set(source) & _GPU_RUN_MARKERS
+    if not present_markers:
+        return set()
+    if present_markers != _GPU_RUN_MARKERS:
+        raise RecipeError(f"{core_id}: incomplete gpu-run lease markers")
+
+    raw_ids = source["FES_GPU_IDS"]
+    ids = raw_ids.split(",") if isinstance(raw_ids, str) else []
+    if (not ids or any(not _GPU_ID.fullmatch(gpu_id) or gpu_id in (".", "..")
+                       for gpu_id in ids)
+            or len(ids) != len(set(ids)) or ",".join(ids) != raw_ids):
+        raise RecipeError(f"{core_id}: invalid gpu-run leased GPU ids")
+    if source["GPU_RUN_DEVICE"] != "0":
+        raise RecipeError(f"{core_id}: gpu-run logical device marker must be 0")
+    if source["NEXTPNR_REQUIRE_GPU"] != "1":
+        raise RecipeError(f"{core_id}: gpu-run must require nextpnr GPU routing")
+    if gpu is not None and (type(gpu) is not int or gpu < 0 or gpu >= len(ids)):
+        raise RecipeError(f"{core_id}: requested nextpnr GPU is outside the active lease")
+
+    backend = recipe["backend"]
+    expected_mask = "ROCR_VISIBLE_DEVICES" if backend == "HIP" else "CUDA_VISIBLE_DEVICES"
+    present_masks = set(source) & _GPU_VISIBILITY_MASKS
+    if present_masks != {expected_mask} or source[expected_mask] != raw_ids:
+        raise RecipeError(f"{core_id}: gpu-run visibility mask does not match its lease")
+
+    expected_device = source["GPU_RUN_EXPECTED_DEVICE"]
+    if backend == "HIP":
+        if expected_device == f"amd:{ids[0]}":
+            device_matches = _gpu_device_path("amd", ids[0]) is None
+        elif (isinstance(expected_device, str)
+              and _AMD_RENDER_NODE.fullmatch(expected_device) is not None):
+            device_matches = expected_device == _gpu_device_path("amd", ids[0])
+        else:
+            device_matches = False
+    else:
+        device_matches = (expected_device == f"nvidia:{ids[0]}"
+                          or ids[0].isdigit()
+                          and expected_device == f"/dev/nvidia{ids[0]}")
+    if not device_matches:
+        raise RecipeError(f"{core_id}: gpu-run expected device does not match its lease")
+    return set(_GPU_RUN_MARKERS) | {expected_mask}
+
+
+@lru_cache(maxsize=1)
+def _gpu_lease_module():
+    """Load the FES gpu-run helper shared with the module's P&R recipes."""
+    helper = FES_ROOT / "scripts" / "gpu_lease.py"
+    spec = spec_from_file_location("fes_gpu_lease", helper)
+    if spec is None or spec.loader is None:
+        raise RecipeError("cannot load the gpu-run device resolver")
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _gpu_device_path(vendor: str, gpu_id: str) -> str | None:
+    """Resolve a leased physical GPU id with gpu-run's KFD mapping."""
+    try:
+        return _gpu_lease_module().gpu_device_path(vendor, gpu_id)
+    except (AttributeError, ImportError, OSError) as error:
+        raise RecipeError("cannot resolve gpu-run leased device path") from error
+
+
+def environment(
+    core_id: str,
+    source: Mapping[str, str],
+    *,
+    gpu: int | None = None,
+) -> dict[str, str]:
+    """Validate and return only recipe values and a coherent active gpu-run lease."""
     recipe = recipe_for(core_id)
     required = recipe["env"]
     optional = recipe["optional_env"]
+    lease_names = _gpu_run_environment(core_id, recipe, source, gpu)
     allowed = set(required) | set(optional)
-    unexpected = set(source) - allowed
-    missing = set(required) - set(source)
+    recipe_source = {name: value for name, value in source.items()
+                     if name not in lease_names}
+    unexpected = set(recipe_source) - allowed
+    missing = set(required) - set(recipe_source)
     if unexpected:
         raise RecipeError(f"{core_id}: unrecorded nextpnr environment names: {sorted(unexpected)}")
     if missing:
         raise RecipeError(f"{core_id}: required nextpnr environment names are missing: {sorted(missing)}")
     for name, expected in required.items():
-        actual = source[name]
+        actual = recipe_source[name]
         if name == "PATH":
             if not actual.endswith(":/usr/bin:/bin") or not Path(actual.split(":", 1)[0]).is_absolute():
                 raise RecipeError(f"{core_id}: PATH does not match the authenticated toolchain lane")
@@ -425,8 +519,9 @@ def environment(core_id: str, source: Mapping[str, str]) -> dict[str, str]:
         elif actual != expected:
             raise RecipeError(f"{core_id}: environment value for {name} differs from recipe")
     for name, expected in optional.items():
-        if name in source and source[name] != expected:
+        if name in recipe_source and recipe_source[name] != expected:
             raise RecipeError(f"{core_id}: environment value for {name} differs from recipe")
-    if set(source) & set(recipe["unset_env"]):
+    if (set(recipe_source) & set(recipe["unset_env"])):
         raise RecipeError(f"{core_id}: explicitly unset environment reached nextpnr")
-    return dict(source)
+    lease = {name: source[name] for name in lease_names}
+    return dict(recipe_source, **lease)
