@@ -10,9 +10,7 @@ Outside agent sessions have ignored these rules. Obey them.
    `~/kit-status/kitA-STATUS.md` or `~/kit-status/kitB-STATUS.md`. That
    log is the single source of truth. NEVER take a kit that is leased or
    claimed by someone else. NEVER use a Slack reservation, and NEVER
-   require a person to be present. GPU jobs on Powerboat go through the
-   `gpu-run` wrapper: one `flock` lease per GPU, and `gpu-status` shows
-   the holders.
+   require a person to be present.
 2. Kits A and B are both designated test kits. They are interchangeable.
 3. When a task installs a bundle, install that PR bundle on the kit's
    running image. A core-only run that does not change the bundle does not
@@ -34,6 +32,8 @@ Outside agent sessions have ignored these rules. Obey them.
    distinctive names.
 8. NEVER run interactive OAuth or browser logins on Powerboat. Its harness
    `BROWSER` setting makes `xdg-open` loop and fork-bomb the host.
+
+GPU jobs follow the [Shared GPUs](#shared-gpus) section.
 
 The four first-party modules develop only in this repository. Their former
 standalone repositories are archived; never send work or PRs there. Go import
@@ -115,10 +115,11 @@ never infer persistence from a display name, package path or raw RBF.
 
 Powerboat (AMD, HIP; GPU0 and GPU1) and the CUDA box `chip-30x0-ai-dev`
 (RTX 3070 and RTX 3090) are shared by agents and by Deano's Codex harness.
-All GPU work on those hosts goes through `gpu-run`. First come, first served.
+All GPU jobs on those hosts go through `gpu-run`: one `flock` lease per GPU,
+first come, first served, and `gpu-status` shows the holders.
 Lander uses `--owner lander` and `GPU_LEASE_MAX_PER_OWNER=2`, so Lander holds
 at most 2 GPUs at once. Nobody kills a GPU job. Deano's Codex harness jobs
-wait their turn like everyone else.
+are legitimate and must not be killed; they wait their turn like everyone else.
 
 `scripts/gpu-run` holds one flock per GPU in the wrapper and runs the command
 as a child. That child does not inherit the lock, so the lease ends when the
