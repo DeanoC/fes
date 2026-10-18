@@ -86,7 +86,8 @@ class GpuRunDeviceTests(unittest.TestCase):
                     command = run.call_args.args[0]
                     device_index = command.index("--gpu-device")
                     self.assertEqual(command[device_index + 1], "0")
-                    self.assertEqual(candidate.argv[device_index + 1], "0")
+                    candidate_device_index = candidate.argv.index("--gpu-device")
+                    self.assertEqual(candidate.argv[candidate_device_index + 1], "0")
                     self.assertEqual(candidate.environment[visibility], str(physical))
 
 

@@ -8,13 +8,14 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-
 try:  # Imports work both as ``scripts.build_fes_slot`` and as a CLI script.
     from .experiment_policy import PolicyError, policy_for
     from .link_static_rbf import overlay_files
+    from .fes_build_common import BuildError, _run_command
 except ImportError:  # pragma: no cover - exercised by the script entry point.
     from experiment_policy import PolicyError, policy_for
     from link_static_rbf import overlay_files
+    from fes_build_common import BuildError, _run_command
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,9 +34,11 @@ def _require_file(path: Path) -> Path:
 
 def _run(command: list[str], cwd: Path) -> None:
     try:
-        subprocess.run(command, cwd=str(cwd), check=True)
+        _run_command(command, cwd=cwd, check=True, gpu_label="freeze-scaffold-cart")
     except subprocess.CalledProcessError as exc:
         raise SlotBuildError(f"{' '.join(command)} failed") from exc
+    except BuildError as exc:
+        raise SlotBuildError(str(exc)) from exc
 
 
 def _toolchain_bin(name: str) -> Path:

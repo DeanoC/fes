@@ -84,15 +84,19 @@ def _legacy_argv(core_id, recipe, *, slot=SLOT, synth=SYNTH, output=OUTPUT,
         command.extend(("--compress-rbf", "--detailed-timing-report"))
         if recipe["timing_allow_fail"]:
             command.append("--timing-allow-fail")
-        command.extend(("--router", recipe["router"], "--gpu-device", str(gpu),
-                        "--sdc", recipe["sdc"], "--freq", recipe["freq"]))
+        command.extend(("--router", recipe["router"]))
+        if recipe["gpu_device"] == "lease":
+            command.extend(("--gpu-device", "0"))
+        command.extend(("--sdc", recipe["sdc"], "--freq", recipe["freq"]))
     else:
         command.extend(("--sdc", recipe["sdc"], "--freq", recipe["freq"],
                         "--seed", str(seed), "--router", recipe["router"],
                         "--rbf", output_files["--rbf"], "--compress-rbf",
                         "--write", output_files["--write"],
                         "--report", output_files["--report"],
-                        "--detailed-timing-report", "--gpu-device", str(gpu)))
+                        "--detailed-timing-report"))
+        if recipe["gpu_device"] == "lease":
+            command.extend(("--gpu-device", "0"))
     return command
 
 
@@ -179,12 +183,11 @@ class PnrRecipeTests(unittest.TestCase):
                     self.assertIn("0.2", command)
                     self.assertIn("--remap-optimize-pins", command)
 
-    def test_menu_argv_uses_the_leased_gpu_device(self):
+    def test_recipe_keeps_the_requested_physical_device_for_its_lease(self):
         command = pnr_recipe.argv(
             "fes.menu", SLOT, SYNTH, 5, 1, output=OUTPUT
         )
-        device_index = command.index("--gpu-device")
-        self.assertEqual(command[device_index + 1], "1")
+        self.assertEqual(command[command.index("--gpu-device") + 1], "1")
 
     def test_recipe_build_maps_gpu_run_device_and_preserves_hip_mask(self):
         leased_env = {

@@ -157,6 +157,18 @@ values remain part of the functional execution identity.
 This binds host build behavior to the selected recipe. It is not route timing
 qualification or hardware acceptance; those remain separate evidence gates.
 
+Each GPU-routed `nextpnr-mistral` invocation acquires one lease through the
+repository's `scripts/gpu-run`; synthesis, producer loops and non-GPU tools run
+outside that lease. A producer's requested physical GPU id, from its
+`--gpu-device` argument or `GPU_LEASE_IDS`, constrains the lease; the
+dispatcher then passes `GPU_RUN_DEVICE` to nextpnr after gpu-run applies its
+visibility mask. Producers must run outside an outer
+gpu-run so a lease cannot span synthesis or multiple routes. The dispatcher
+starts its route timer after the lease is granted, while the producer's audited
+deadline bounds queue wait plus route time and cancels the full process group
+on expiry. Search workers still use their producer concurrency limits, and
+each worker releases its GPU before starting another route.
+
 ## Build lanes
 
 ### Composable application reference
