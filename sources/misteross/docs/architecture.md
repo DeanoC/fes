@@ -2171,12 +2171,12 @@ symbolic read-alignment checks include both copies. DMA arbitration evaluates
 all four circular priority masks in parallel; whole-DMA sequential equivalence
 checks its state and interface against the original indexed priority loop.
 
-The control-image facts also check whether AND/XOR ever select BIU return
-data. When they do not, the OR return-data term joins the final result after
-the generic logic mux. This removes the late bus-data source from that mux
-without changing the result or cycle. A changed image that needs the general
-AND/XOR source retains the original lookup. Symbolic ALU checks cover both
-this specialization and the general fallback, including the FLAGS override.
+Only the full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
+post-synthesis `synth/logic_operand1_map.v` map. Six parallel masked groups
+feed one OR level; the measured BIU-return and immediate groups use fast
+inputs. ADD-specific muxes remain independently inferred. The generic helper
+and mapped LUT truth tables are equivalent for every data/select vector,
+including non-one-hot selects; structural checks require two data levels.
 
 
 The CPU guest enable is predicted from phase 178..198 and registered on the
@@ -2416,10 +2416,6 @@ start address, status polling and light-pen latching. MDA owns `B0000–B7FFF`
 with 4 KiB mirrors and `3B0–3BF` decode: 80×25 text with 9×14 cells, monochrome
 attributes/underline, ninth-column continuation, blink, cursor and raster status.
 Its printer interface is not implemented. Neither card generates IRQ/DRQ.
-The CRTC compares horizontal position with the 14-bit modular difference
-between cursor address and row address, keeping horizontal out of the MA
-addition path without extra state or latency. Whole-CRTC equivalence checks
-all 238 original state/interface points, including cursor writes and wrap.
 Both use a separately supplied normalized font ROM; no IBM glyph ROM is bundled.
 See the [core README](../cores/fes-pcxt/README.md#isa-display-cards) for the exact
 ports, font layout, primary references and simulation coverage.
@@ -2471,12 +2467,7 @@ release, SDRAM pads and inline HDMI. `pcxt_machine.sv` and `pcxt_system.sv`
 assemble CPU/motherboard, separate ISA cards, real storage and one video
 pipeline; `pcxt_boot.sv` copies the original assembled diagnostic firmware
 through the sequential 64 KiB loader before machine release. Warm reset/HOLD
-preserve storage/refresh; HOLD resets the machine and mutes video. The system
-selects `REGISTER_RESET=1` in the machine, which captures three kept reset
-copies for CPU, motherboard and ISA on the same edge as the master storage/
-video reset. This preserves assertion/release cycles and reduces fanout. The
-default standalone-machine mode retains its direct-reset input contract;
-induction checks both modes and the actual system/consumer bindings.
+preserve storage/refresh; HOLD resets the machine and mutes video.
 `make build-fes-pcxt CACHE_ROOT=/absolute/cache` retains each diagnostic
 synthesis/route attempt under `build/diagnostic/fes-pcxt/`; it exports no package.
 Its seed-1 route uses fixed timing weight 2000 and criticality exponent 5, with

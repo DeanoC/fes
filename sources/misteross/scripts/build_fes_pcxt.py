@@ -16,7 +16,7 @@ import uuid
 
 from build_fes_coleco_socket_v2 import authenticate_tools
 from fes_build_common import _require_gpu_backend
-from sim_fes_pcxt import SYSTEM_SOURCES, board_inputs, verify_vendor
+from sim_fes_pcxt import SYSTEM_SOURCES, CPU_MUX_MAP, board_inputs, verify_vendor
 
 ROOT = Path(__file__).resolve().parents[1]
 RTL = SYSTEM_SOURCES + ('cores/fes-pcxt/rtl/fes_pcxt_top.sv',)
@@ -57,7 +57,7 @@ def main():
     output.mkdir(parents=True)
     print(output, flush=True)
     # Headers, microcode and assembly are part of the diagnostic source record.
-    inputs = sorted(set(RTL) | {QSF, SDC, ROM_CLOCK_MAP, 'toolchain.lock', 'scripts/build_fes_pcxt.py',
+    inputs = sorted(set(RTL) | {QSF, SDC, ROM_CLOCK_MAP, CPU_MUX_MAP, 'toolchain.lock', 'scripts/build_fes_pcxt.py',
                     'scripts/sim_fes_pcxt.py', 'cores/fes-pcxt/firmware/diagnostic.S'} |
                     {str(p.relative_to(ROOT)) for p in (ROOT / 'cores/fes-common/generated').glob('*.vh')} |
                     {str(p.relative_to(ROOT)) for p in (ROOT / 'cores/fes-pcxt/vendor').rglob('*')
@@ -84,7 +84,8 @@ def main():
                    ' '.join('-I ' + str(ROOT / 'cores/fes-pcxt/vendor' / n) for n in ('kf8259','kf8253','kf8255')) + ' ' +
                    ' '.join(str(ROOT / s) for s in RTL) + '; ' +
                    f'chparam -set MDA {int(args.mda)} -set SCANLINES {int(args.scanlines)} top; ' +
-                   'synth_intel_alm -nolutram -nodsp -top top; techmap -map ' + str(ROOT / ROM_CLOCK_MAP) + '; opt_clean; check -assert; stat; write_json synth.json')
+                   'synth_intel_alm -nolutram -nodsp -top top; techmap -map ' + str(ROOT / CPU_MUX_MAP) +
+                   '; techmap -map ' + str(ROOT / ROM_CLOCK_MAP) + '; hierarchy -top top; opt_clean; check -assert; stat; write_json synth.json')
         with (output / 'yosys.log').open('w') as log:
             subprocess.run([str(tools['yosys'].path), '-p', program], cwd=output,
                            stdout=log, stderr=subprocess.STDOUT, check=True)

@@ -41,11 +41,9 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0) (
     assign firmware_done = loader_done;
     // Keep the storage/firmware status decode out of the motherboard's reset
     // fanout and PIC priority logic. All execution participants share this
-    // registered reset cycle; the machine captures independent local copies
-    // from the same request. Storage cold reset remains immediate.
-    wire reset_request = cold_reset || warm_reset || hold || !firmware_loaded || !initialized;
+    // registered reset; storage cold reset remains immediate and independent.
     always @(posedge clk)
-        machine_reset <= reset_request;
+        machine_reset <= cold_reset || warm_reset || hold || !firmware_loaded || !initialized;
     always @(posedge clk) begin
         if (cold_reset) begin firmware_loaded <= 0; next_address <= 0; loading <= 0; end
         else begin
@@ -58,8 +56,8 @@ module pcxt_system #(parameter bit MDA = 0, SCANLINES = 0) (
         end
     end
     /* verilator lint_off PINCONNECTEMPTY */
-    pcxt_machine #(.DIAGNOSTIC_PROBE(1), .REGISTER_RESET(1)) machine (
-        .clk(clk), .clk_rom(clk_rom), .reset(reset_request), .memory_valid(memory_valid),
+    pcxt_machine #(.DIAGNOSTIC_PROBE(1)) machine (
+        .clk(clk), .clk_rom(clk_rom), .reset(machine_reset), .memory_valid(memory_valid),
         .memory_ready(memory_ready), .memory_done(memory_done), .memory_rdata(memory_rdata),
         .address(address), .wdata(wdata), .write_cycle(write_cycle), .fault(fault),
         .guest_ce(), .halted(halted), .accepted(), .completed(), .cycle_kind(), .cycle_rdata(),

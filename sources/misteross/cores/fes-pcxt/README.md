@@ -223,12 +223,6 @@ firmware map is claimed.
 fabric input capture clock, inverted DDR SDRAM clock pin, bidirectional SDRAM
 pads, a separate 74.25 MHz fractional pixel PLL and HDMI RGB/sync. Loss of either
 PLL lock asserts both domain resets; each domain releases through two registers.
-The system captures its reset request into simultaneous kept CPU, motherboard
-and ISA copies in `pcxt_machine` (`REGISTER_RESET=1`), preserving the original
-registered release cycle while reducing execution-reset fanout. The master
-copy still gates storage/video. Standalone machine fixtures default to direct
-reset (`REGISTER_RESET=0`); both modes and actual bindings have an induction
-check.
 The retained `altddio_out` is passed to the locked nextpnr native output packer.
 The diagnostic synthesis applies `synth/rom_clock_map.v` after RAM inference:
 it connects a constant/undefined unused ROM write clock to the registered read
@@ -253,18 +247,13 @@ symbolic read-alignment checks include both copies. DMA arbitration evaluates
 all four circular priority masks in parallel; whole-DMA sequential equivalence
 checks its state and interface against the original indexed priority loop.
 
-The control-image facts also check whether AND/XOR ever select BIU return
-data. When they do not, the OR return-data term joins the final result after
-the generic logic mux. This removes the late bus-data source from that mux
-without changing the result or cycle. A changed image that needs the general
-AND/XOR source retains the original lookup. Symbolic ALU checks cover both
-this specialization and the general fallback, including the FLAGS override.
+Only the full logic operand-1 mux uses `pcxt_logic_operand1_mux` and the
+post-synthesis `synth/logic_operand1_map.v` map. Six parallel masked groups
+feed one OR level; the measured BIU-return and immediate groups use fast
+inputs. ADD-specific muxes remain independently inferred. The generic helper
+and mapped LUT truth tables are equivalent for every data/select vector,
+including non-one-hot selects; structural checks require two data levels.
 
-
-The CRTC compares horizontal position with the 14-bit modular difference
-between cursor address and row address, keeping horizontal out of the MA
-addition path without extra state or latency. Whole-CRTC equivalence checks
-all 238 original state/interface points, including cursor writes and wrap.
 
 The PIC import uses formally checked parallel
 priority masks; the PIT uses direct one/two-step saturated binary/BCD decrements

@@ -57,18 +57,15 @@ DATA_NAMES = ['BIU_REGISTER_CS', 'BIU_REGISTER_DS', 'BIU_REGISTER_ES', 'BIU_REGI
 
 @unittest.skipUnless(YOSYS, 'requires Yosys; set YOSYS to the locked executable')
 class CpuSelectionTest(unittest.TestCase):
-    def test_operand_and_alu_values_for_every_control_and_register_value(self):
+    def test_operand_values_for_every_selection_and_register_value(self):
         source = (VENDOR / 'mcl86_eu_core.sv').read_text()
         start = source.index('    function automatic [15:0] select16(')
         function = source[start:source.index('    endfunction', start) + len('    endfunction')]
         vectors = '\n'.join(re.search(r'    wire \[255:0\] eu_sources' + str(i) + r' = .*?;', source, re.S).group(0) for i in (0, 1))
         adds = '\n'.join(re.search(r'    assign eu_add_operand' + str(i) + r' = .*?;', source, re.S).group(0) for i in (0, 1))
-        logic_operand = re.search(r'    assign eu_logic_operand1 = .*?;', source, re.S)[0]
-        alu = '\n'.join(re.search(r'    assign ' + name + r' = .*?;', source, re.S)[0] for name in
-            ('eu_alu2', 'eu_alu3', 'eu_alu4', 'eu_alu5', 'eu_alu6', 'eu_alu7', 'eu_alu_logic', 'eu_alu_out'))
-        alu += '\n' + re.search(r'    wire \[15:0\] eu_return_term =.*?;', source, re.S)[0]
         expressions = '\n'.join(re.search(r'    assign eu_operand' + str(i) + r' = select16\(.*?;',
-                                           source, re.S).group(0) for i in (0, 1))
+                                           source, re.S).group(0) for i in (0,))
+        expressions += '\n' + re.search(r'    pcxt_logic_operand1_mux u_operand1_mux \(.*?    \);', source, re.S)[0]
         adder = source[source.index('    mcl86_adder u_adder ('):source.index('    );', source.index('    mcl86_adder u_adder ('))]
         actual_add = [re.search(r'\.' + port + r'\s*\(\s*(\w+)\s*\)', adder)[1] for port in ('a', 'b')]
         ports = ', '.join('input [' + ('7:0' if n == 'PFQ_TOP_BYTE' else '15:0') + '] ' + n
@@ -82,24 +79,12 @@ class CpuSelectionTest(unittest.TestCase):
         for i in (0, 1):
             binding = re.search(r'\.add_select' + str(i) + r'\s*\(\s*(\w+)\s*\)', source)[1]
             controls += f"wire [15:0] {binding} = 16'h1 << eu_rom_sel[{'7:4' if i == 0 else '3:0'}];\n"
-        fixture = 'module proof(input [7:0] eu_rom_sel, ' + ports + ', input [2:0] eu_opcode_type, input [15:0] adder_out, input FAKE286_FLAGS, eu_pushf_serialize, output ok);\n' + controls + r"""
+        fixture = 'module proof(input [7:0] eu_rom_sel, ' + ports + ', output ok);\n' + controls + r"""
           `include "mcl86_facts.vh"
           wire [15:0] eu_operand0, eu_operand1, eu_add_operand0, eu_add_operand1, expected0, expected1;
-          wire [15:0] eu_logic_operand1, eu_alu2,eu_alu3,eu_alu4,eu_alu5,eu_alu6,eu_alu7,eu_alu_logic,eu_alu_out;
-        """ + function + vectors + REFERENCE + expressions + logic_operand + adds + alu + f'wire [15:0] actual_add0 = {actual_add[0]}, actual_add1 = {actual_add[1]};\n' + r"""
+        """ + function + vectors + REFERENCE + expressions + adds + f'wire [15:0] actual_add0 = {actual_add[0]}, actual_add1 = {actual_add[1]};\n' + r"""
           wire valid_add = FES_MC_ADD_OP0_MASK[eu_rom_sel[7:4]] && FES_MC_ADD_OP1_MASK[eu_rom_sel[3:0]];
-          wire [15:0] expected_alu = (eu_opcode_type == 2) ? adder_out :
-            (eu_opcode_type == 3) ? {expected0[7:0], expected0[15:8]} :
-            (eu_opcode_type == 4) ? expected0 & expected1 :
-            (eu_opcode_type == 5) ? ((FAKE286_FLAGS && eu_pushf_serialize) ?
-                {4'b0, eu_flags[11:2], 1'b1, eu_flags[0]} : expected0 | expected1) :
-            (eu_opcode_type == 6) ? expected0 ^ expected1 : {1'b0, expected0[15:1]};
-          // Exhaustive table facts justify precisely this control restriction.
-          // All data/flags, every other control combination and the general
-          // fallback remain unconstrained.
-          wire allowed = !FES_MC_FAST_RETURN || eu_rom_sel[3:0] != 7 ||
-                         (eu_opcode_type != 4 && eu_opcode_type != 6);
-          assign ok = (!allowed || eu_alu_out == expected_alu) && eu_operand0 == expected0 && eu_operand1 == expected1 &&
+          assign ok = eu_operand0 == expected0 && eu_operand1 == expected1 &&
             (!valid_add || (actual_add0 == expected0 && actual_add1 == expected1));
         endmodule
         """
@@ -107,14 +92,11 @@ class CpuSelectionTest(unittest.TestCase):
             work = Path(directory)
             inputs.cpu_roms(work)
             (work / 'proof.sv').write_text(fixture)
-            for fast in (0, 1):
-                facts = (work / 'mcl86_facts.vh').read_text()
-                facts = re.sub(r"FES_MC_FAST_RETURN = 1'b[01]", "FES_MC_FAST_RETURN = 1'b" + str(fast), facts)
-                (work / 'mcl86_facts.vh').write_text(facts)
-                result = subprocess.run([YOSYS, '-Q', '-p',
-                    'read_verilog -sv proof.sv; prep -top proof -flatten; '
-                    'sat -verify -prove ok 1 -show-inputs'], cwd=work, capture_output=True, text=True)
-                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run([YOSYS, '-Q', '-p',
+                'read_verilog -sv ' + str(ROOT / 'cores/fes-pcxt/rtl/pcxt_logic_operand1_mux.sv') +
+                ' proof.sv; setattr -mod -unset keep_hierarchy pcxt_logic_operand1_mux; prep -top proof -flatten; '
+                'sat -verify -prove ok 1 -show-inputs'], cwd=work, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_jump_boolean_for_all_states(self):
         source = (VENDOR / 'mcl86_eu_core.sv').read_text()
@@ -220,6 +202,4 @@ class MicrocodeFactsTest(unittest.TestCase):
             self.assertEqual(masks, expected)
             jump7 = any(((w >> 28) & 7) == 1 and ((w >> 20) & 7) == 7 for w in words)
             self.assertIn("FES_MC_JUMP7_USED = 1'b" + str(int(jump7)), facts)
-            return_only_or = not any(((w >> 28) & 7) in (4, 6) and ((w >> 16) & 15) == 7 for w in words)
-            self.assertIn("FES_MC_FAST_RETURN = 1'b" + str(int(return_only_or)), facts)
             self.assertEqual(len(words), 4096)

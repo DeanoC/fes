@@ -33,11 +33,7 @@ module pcxt_6845 (
     assign unsupported_interlace = registers[8][0]; // IBM's standard 02h is non-interlaced.
     wire cursor_blink = registers[10][6:5] == 0 ||
                         (registers[10][6] && !(registers[10][5] ? frames[5] : frames[4]));
-    // Compare the horizontal position with the row-relative cursor address.
-    // The modular difference is exact across the 14-bit MA wrap and keeps
-    // horizontal out of the address-adder/pixel critical path without state.
-    wire [13:0] cursor_offset = cursor_address - row_address;
-    assign cursor = display_enable && {6'b0, horizontal} == cursor_offset && cursor_blink &&
+    assign cursor = display_enable && ma == cursor_address && cursor_blink &&
                     scan >= registers[10][4:0] && scan <= registers[11][4:0];
     integer i;
     // MC6845 R0..R13 are write-only; cursor and light-pen addresses read back.
