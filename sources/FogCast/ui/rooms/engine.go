@@ -147,12 +147,16 @@ type Instance struct {
 	store        *store
 	logs         []string
 
-	started         time.Time
-	last            time.Time
-	elapsed         float64
-	fatal           error
-	frameOverruns   int
-	inputOverruns   int
+	started       time.Time
+	last          time.Time
+	elapsed       float64
+	fatal         error
+	frameOverruns int
+	inputOverruns int
+	// frameStreak and inputStreak describe the current run of consecutive
+	// soft overruns, reported when that run retires the room.
+	frameStreak     overrunStreak
+	inputStreak     overrunStreak
 	measures        int
 	loaded          bool
 	sessionState    string
@@ -417,6 +421,7 @@ func (r *Instance) Input(cmd string) bool {
 	if !ok {
 		return false
 	}
+	r.noteInputBaseline()
 	handled, err := r.callRetSoft(fn, r.budget.Input, lua.LString(cmd))
 	if err != nil {
 		if errors.Is(err, errSoftOverrun) {
@@ -433,26 +438,40 @@ func (r *Instance) Input(cmd string) bool {
 
 var errSoftOverrun = errors.New("script exceeded soft callback budget")
 
+// softOverrun is a callback that finished inside its hard deadline but
+// over its soft budget. It is errSoftOverrun and also carries the timing.
+type softOverrun struct {
+	budget, elapsed time.Duration
+}
+
+func (e softOverrun) Error() string {
+	return fmt.Sprintf("script exceeded %s soft callback budget (elapsed %s)", e.budget, e.elapsed.Round(10*time.Microsecond))
+}
+
+func (e softOverrun) Is(target error) bool { return target == errSoftOverrun }
+
 func (r *Instance) overrun(err error) {
 	r.recordFrameOverrun(err)
 }
 
 func (r *Instance) recordFrameOverrun(err error) {
 	r.frameOverruns++
-	r.retireAfterOverruns(err, r.frameOverruns)
+	r.frameStreak.add(r, err, r.frameOverruns)
+	r.retireAfterOverruns(err, r.frameOverruns, &r.frameStreak)
 }
 
 func (r *Instance) overrunInput(err error) {
 	r.inputOverruns++
-	r.retireAfterOverruns(err, r.inputOverruns)
+	r.inputStreak.add(r, err, r.inputOverruns)
+	r.retireAfterOverruns(err, r.inputOverruns, &r.inputStreak)
 }
 
-func (r *Instance) retireAfterOverruns(err error, count int) {
+func (r *Instance) retireAfterOverruns(err error, count int, streak *overrunStreak) {
 	// Cortex-A9 GC and scheduler pauses can produce occasional slow frames;
 	// tolerate several consecutive soft misses while the 4x deadline still
 	// terminates genuinely runaway callbacks.
 	if count >= maxConsecutiveOverruns {
-		r.fail(fmt.Errorf("%w (after %d consecutive overruns)", err, count))
+		r.fail(fmt.Errorf("%w (after %d consecutive overruns; %s)", err, count, streak.summary(r)))
 	}
 }
 
@@ -474,6 +493,7 @@ func (r *Instance) callGlobalSoft(name string, budget time.Duration, args ...lua
 	if !ok {
 		return nil
 	}
+	r.noteFrameBaseline()
 	if err := r.callSoft(fn, budget, 0, args...); err != nil {
 		return fmt.Errorf("%s callback: %w", name, err)
 	}
@@ -495,7 +515,7 @@ func (r *Instance) callRetSoft(fn *lua.LFunction, budget time.Duration, args ...
 		return lua.LNil, fmt.Errorf("script exceeded %s hard callback budget (elapsed %s)", hardBudget, elapsed)
 	}
 	if elapsed > budget {
-		return v, errSoftOverrun
+		return v, softOverrun{budget: budget, elapsed: elapsed}
 	}
 	return v, nil
 }
@@ -510,7 +530,7 @@ func (r *Instance) callSoft(fn *lua.LFunction, budget time.Duration, nret int, a
 		return fmt.Errorf("script exceeded %s hard callback budget (elapsed %s)", budget*callbackHardLimitFactor, elapsed)
 	}
 	if elapsed > budget {
-		return errSoftOverrun
+		return softOverrun{budget: budget, elapsed: elapsed}
 	}
 	return nil
 }
@@ -522,6 +542,7 @@ func (r *Instance) callOptionalInput(name string, args ...lua.LValue) {
 	if !ok {
 		return
 	}
+	r.noteInputBaseline()
 	if err := r.callSoft(fn, r.budget.Input, 0, args...); err != nil {
 		r.handleInputCallbackError(err)
 		return
@@ -803,6 +824,7 @@ func (r *Instance) applyResult(res asyncResult) {
 	if res.err != nil {
 		errVal = lua.LString(res.err.Error())
 	}
+	r.noteInputBaseline()
 	if err := r.callSoft(res.cb, r.budget.Frame, 0, payload, errVal); err != nil {
 		err = fmt.Errorf("async callback: %w", err)
 		if errors.Is(err, errSoftOverrun) {
