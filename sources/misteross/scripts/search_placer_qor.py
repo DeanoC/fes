@@ -34,10 +34,11 @@ each seed, then sweeps the remaining weights. Both stop at the first candidate
 that meets every constraint. An accept callback may still reject that
 candidate; the search records it as failing and continues.
 
-GPU: ``--gpu-devices 0,1`` runs staged/grid candidates as separate nextpnr
-processes, one HIP device each (7900 XTX + R9700). First-pass stays
-sequential so the first closing seed is deterministic. Packing several
-seeds into one kernel is later; occupancy is per placement.
+GPU: ``--gpu-devices 0,1`` assigns staged/grid candidates to the requested
+physical devices and allows up to two concurrent route workers. Each nextpnr
+call leases its assigned device. First-pass stays sequential so the first
+closing seed is deterministic. Packing several seeds into one kernel is later;
+occupancy is per placement.
 """
 
 from __future__ import annotations
@@ -233,16 +234,17 @@ def _run_nextpnr(
     }
     try:
         with log_path.open("w") as log:
-            from scripts.compiler_read_audit import audited_run
-            runner = subprocess.run if audit_source_root is None else audited_run
-            result = runner(
+            from scripts import fes_build_common
+            result = fes_build_common._run_command(
                 command,
-                **({"source_root": audit_source_root} if audit_source_root is not None else {}),
+                cwd=Path.cwd(),
                 env=run_env,
+                timeout=timeout,
+                audit_source_root=audit_source_root,
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 check=False,
-                timeout=timeout,
+                gpu_label=f"search-{output.name}-s{seed}-w{weight}",
             )
     except (OSError, subprocess.TimeoutExpired) as exc:
         extra_text = f"search_placer_qor: {exc}\n"
@@ -263,6 +265,8 @@ def _run_nextpnr(
     text = log_path.read_text() if log_path.exists() else ""
     rbf = run_dir / "core.rbf"
     finished = (
+        result.returncode in (0, 1)
+        and
         "Info: Program finished normally." in text
         and not has_failed_route_arc(text)
         and report.is_file()

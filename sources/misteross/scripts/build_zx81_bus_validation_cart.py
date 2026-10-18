@@ -23,7 +23,7 @@ if __package__ in (None, ""):
 from scripts import build_fes_zx81_oss as shell_recipe
 from scripts.core_package import read_package
 from scripts.fes_build_common import (
-    _authenticate_tools, _prepare_output, _require_clean_source,
+    _authenticate_tools, _prepare_output, _require_clean_source, _run_tool,
     gpu_visibility_environment, reject_async_m10k_reads,
 )
 from scripts.cyclonev_rbf import rbf_load, rbf_save, overlay_cram, classify_cram_diff, CramRect
@@ -152,6 +152,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     (output / "clocks.sdc").write_bytes(clock_constraints)
     (output / "scaffold.json").write_bytes(scaffold)
     env = gpu_visibility_environment(os.environ, gpu, variable="HIP_VISIBLE_DEVICES")
+    env["GPU_LEASE_IDS"] = str(gpu)
     commands = [
         [str(tools["yosys"].path), "-p", f"read_verilog -sv -DSYNTHESIS=1 -I cores/fes-zx81/rtl {' '.join(sources)}; synth_intel_alm -nolutram -nodsp -top cart; write_json {output / 'cart.json'}"],
         [str(tools["nextpnr-mistral"].path), "--json", str(output / "scaffold.json"), "--device", "5CSEBA6U23I7",
@@ -163,8 +164,7 @@ def build(root: Path, shell: Path, package_path: Path, gpu: int, *, cache_root: 
     ]
     for name, command in zip(("synthesis", "route"), commands):
         log_path = output / (name + ".log")
-        with log_path.open("w") as log:
-            subprocess.run(command, cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+        _run_tool(tuple(command), root, log_path, output_relative=output.relative_to(root), env=env)
         # Some nextpnr failures return zero. Exit status alone cannot admit an
         # artifact; keep the failing log but never publish its output.
         if re.search(r"^\s*(?:ERROR|FATAL)\b", log_path.read_text(errors="replace"), re.MULTILINE | re.IGNORECASE):
