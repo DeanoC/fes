@@ -234,13 +234,14 @@ staging files, taking maintenance or stopping services. Returning to an earlier
 installed bundle is another explicit activation with the current generation;
 there is no automatic stock restoration after a successful update. On a shared
 kit, when the task installs a bundle, install the PR bundle on the running
-image, then after use explicitly activate the designated baseline bundle named
-in the Powerboat status file, as [kit sharing](kit-sharing.md) requires. That
-activation does not change the booted image and leaves the successful
-selection installed. If the booted image is not the named baseline, restore
-the image through the appliance update or rollback path and verify it before
-logging the kit restored. A core-only run that does not change the bundle
-does not install one. Do not cancel another owner's pending activation to
+image. After use, if the booted image is not the baseline named in the
+Powerboat status file, restore that image through the appliance update or
+rollback path and verify the boot before activating software. Then explicitly
+activate the designated baseline bundle against the current generation, as
+[kit sharing](kit-sharing.md) requires. That activation does not change the
+booted image and leaves the successful selection installed. Verify the active
+bundle before logging the kit restored. A core-only run that does not
+change the bundle does not install one. Do not cancel another owner's pending activation to
 clean up. Temporary configuration-only overlays are not supported on managed
 images. [Kit sharing](kit-sharing.md) describes execution ownership;
 [appliance releases](appliance-releases.md) cover OS changes and boot identity.

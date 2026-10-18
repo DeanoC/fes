@@ -197,8 +197,9 @@ before the host attestation command is run.
     change the bundle does not install one. When a bundle was installed,
     it was installed on the running image. Activating the baseline bundle
     does not change the booted image. If the booted image is not the named
-    baseline, restore that image and verify the boot before logging the
-    kit restored. Bundle install-then-restore is pre-approved. The bundle
+    baseline, restore that image and verify the boot first, then activate
+    a compatible baseline bundle and verify it before logging the kit
+    restored. Bundle install-then-restore is pre-approved. The bundle
     step is the explicit activation described in
     [kit software releases](kit-software-releases.md), not an automatic
     stock restore. Confirm the kit is idle and

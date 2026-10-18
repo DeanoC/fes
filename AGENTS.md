@@ -88,7 +88,8 @@ never infer persistence from a display name, package path or raw RBF.
   After use, restore the designated baseline image and bundle named in the
   status file and log that restore. Activating the baseline bundle does not
   change the booted image. If the booted image is not the named baseline,
-  restore that image and verify the boot before logging the kit restored.
+  restore that image and verify the boot first, then activate a compatible
+  baseline bundle and verify it before logging the kit restored.
   Bundle install-then-restore is pre-approved. A successful selection stays
   installed, and nothing restores a stock bundle automatically; the return to
   the baseline bundle is an explicit activation of the ID in the status file.
