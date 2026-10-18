@@ -301,6 +301,46 @@ for shell in $shells; do
   [ "$(value_of "$got" image_id_source)" = /proc/version ] || fail "$shell revision-only source"
   [ "$(value_of "$got" source_revision)" = abcdefabcdefabcdefabcdefabcdefabcdefabcd ] || fail "$shell revision-only value"
 
+  # The boot ticket names the active A/B image and outranks every stamp and
+  # the factory files. The factory revision describes another image here.
+  build_fx
+  mkdir -p "$fx/media/fat/fogcast/releases" "$fx/.fes-bootstrap/etc/fes"
+  ticket=$fx/media/fat/fogcast/releases/boot.json
+  active=24c931923371e2bff128cd957b01bc271bf5c86c2a6d3e41a60df9037af2d450
+  printf '%s\n' "{\"boot_id\":\"887951d8-0000-4000-8000-000000000000\",\"image_sha256\":\"$active\",\"trial\":false}" \
+    > "$ticket"
+  printf '%s\n' '{"image_sha256":"cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","fes_revision":"abcdefabcdefabcdefabcdefabcdefabcdefabcd"}' \
+    > "$fx/.fes-bootstrap/etc/fes/factory.json"
+  before=$(fingerprint "$fx")
+  got=$(run_collector "$shell" 2>"$err") || fail "$shell boot ticket run failed"
+  [ "$(value_of "$got" image_id)" = "$active" ] || fail "$shell boot ticket id"
+  [ "$(value_of "$got" image_id_source)" = /media/fat/fogcast/releases/boot.json ] || fail "$shell boot ticket source"
+  [ "$(value_of "$got" source_revision)" = '' ] || fail "$shell factory revision beside another image"
+  assert_eq "$(fingerprint "$fx")" "$before" "$shell boot ticket run wrote the fixture"
+
+  printf '%s\n' "{\"image_sha256\":\"$active\",\"fes_revision\":\"abcdefabcdefabcdefabcdefabcdefabcdefabcd\"}" \
+    > "$fx/.fes-bootstrap/etc/fes/factory.json"
+  got=$(run_collector "$shell" 2>"$err") || fail "$shell boot ticket factory run failed"
+  [ "$(value_of "$got" image_id)" = "$active" ] || fail "$shell boot ticket factory id"
+  [ "$(value_of "$got" source_revision)" = abcdefabcdefabcdefabcdefabcdefabcdefabcd ] || fail "$shell revision of the same image"
+
+  for bad in \
+    "{\"boot_id\":\"887951d8\",\"image_sha256\":\"24c931923371e2bff128cd957b01bc27" \
+    "{\"image_sha256\":\"$(printf '%s' "$active" | tr a-f A-F)\",\"trial\":false}" \
+    "{\"image_sha256\":\"${active}0\",\"trial\":false}" \
+    "{\"image_sha256\":\"\",\"trial\":true}" \
+    'not json'; do
+    printf '%s\n' "$bad" > "$ticket"
+    got=$(run_collector "$shell" 2>"$err") || fail "$shell malformed boot ticket run failed: $bad"
+    [ "$(value_of "$got" image_id)" = c41e58c1 ] || fail "$shell malformed boot ticket used: $bad"
+    [ "$(value_of "$got" image_id_source)" = /etc/fes-image-id ] || fail "$shell malformed boot ticket source: $bad"
+  done
+
+  rm -f "$ticket"
+  got=$(run_collector "$shell" 2>"$err") || fail "$shell absent boot ticket run failed"
+  [ "$(value_of "$got" image_id)" = c41e58c1 ] || fail "$shell absent boot ticket id"
+  [ "$(value_of "$got" image_id_source)" = /etc/fes-image-id ] || fail "$shell absent boot ticket source"
+
   build_fx
   rm -f "$fx/etc/fes-image-id" "$fx/etc/os-release"
   printf '%s\n' 'Linux version 5.15.11-MiSTer (build@host) #1 SMP PREEMPT f449886f' \

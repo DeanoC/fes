@@ -48,19 +48,27 @@ deltas.
 
 Image id is the first readable token from:
 
-1. `/etc/fes-image-id`
-2. `/etc/fogcast-image-id`
-3. `/usr/share/mister-runtime/image-id`
-4. `/etc/os-release` `FES_IMAGE_ID`, then `IMAGE_ID`, then `BUILD_ID`
-5. `image_sha256` in `/etc/fes/factory.json` (64 hex digits)
-6. `image_sha256` in `/.fes-bootstrap/etc/fes/factory.json`
-7. the first standalone 7–40 hex word in `/proc/version`
+1. `image_sha256` in `/media/fat/fogcast/releases/boot.json` (64 lowercase
+   hex digits), the appliance store's boot ticket for the active A/B image
+2. `/etc/fes-image-id`
+3. `/etc/fogcast-image-id`
+4. `/usr/share/mister-runtime/image-id`
+5. `/etc/os-release` `FES_IMAGE_ID`, then `IMAGE_ID`, then `BUILD_ID`
+6. `image_sha256` in `/etc/fes/factory.json` (64 hex digits)
+7. `image_sha256` in `/.fes-bootstrap/etc/fes/factory.json`
+8. the first standalone 7–40 hex word in `/proc/version`
+
+A boot ticket without a valid `image_sha256` is skipped. Without the ticket, a
+kit that has taken A/B updates has none of entries 2–5 and would otherwise
+report the factory bootstrap image.
 
 If none of those exist, `image_id` is empty and `image_id_source` is `none`.
 The id is not shortened. `fes_revision` in those factory files is the source
-commit, not the image. The first 7–40 hex value is `source_revision`, including
-when an earlier file already supplied `image_id`. It is empty when neither
-file has that field. `sed` is used only for the factory JSON. Without it, the
+commit of the factory image. The first 7–40 hex value is `source_revision`,
+including when an earlier file already supplied `image_id`. When the id comes
+from the boot ticket, a factory file supplies `source_revision` only if its
+`image_sha256` is that same image. It is empty when no such file has that
+field. `sed` is used only for the JSON files. Without it, the boot ticket, the
 factory image id and `source_revision` are skipped.
 
 Keys, in order: `schema`, `image_id`, `image_id_source`, `source_revision`,
