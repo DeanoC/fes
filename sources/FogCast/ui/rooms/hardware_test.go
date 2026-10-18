@@ -157,13 +157,14 @@ func TestHardwareRoomReadOnlyHostKeepsInspection(t *testing.T) {
 	unsupported := false
 	s := hardwareData(true)
 	s.value.ExpansionSelection = &unsupported
+	s.value.Session.CorePackage.Composition.ExpansionID = strings.Repeat("b", 64)
 	r := loadHardware(t, s, examplePack(t, "example.hardware"))
 	f := r.Step(time.Now())
-	if !frameHas(f, "Inspect only. Save Next start on the host computer.") || !frameHas(f, "Open the ZX81 Workshop there and choose Fit & save.") {
+	if !frameHas(f, "Restart needed: the running machine still uses its old setup.") || !frameHas(f, "Open the ZX81 Workshop on the host computer to choose Fit & save.") {
 		t.Fatal("read-only setup did not name the host computer")
 	}
-	if frameHas(f, "Stopping clears memory") {
-		t.Fatal("read-only setup offered the save consequence")
+	if !frameHas(f, "Stopping clears memory") || !frameHas(f, "Stop machine") {
+		t.Fatal("read-only running machine hid its Stop consequence or control")
 	}
 	r.Activate("card:1")
 	f = r.Step(time.Now())
@@ -172,13 +173,17 @@ func TestHardwareRoomReadOnlyHostKeepsInspection(t *testing.T) {
 	}
 	r.Activate("fit")
 	r.Activate("remove")
+	if acts := r.TakeActions(); len(acts) != 0 {
+		t.Fatalf("read-only setup actions changed the machine: %+v", acts)
+	}
+	r.Activate("power")
+	if acts := r.TakeActions(); len(acts) != 1 || acts[0].Kind != ActionStop {
+		t.Fatalf("read-only running machine could not be stopped: %+v", acts)
+	}
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	if len(s.saves) != 0 || s.value.Machines[0].DraftExpansionID != "" {
 		t.Fatalf("read-only room wrote a setup: %+v", s.saves)
-	}
-	if acts := r.TakeActions(); len(acts) != 0 {
-		t.Fatalf("inspection changed the machine: %+v", acts)
 	}
 }
 

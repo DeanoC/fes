@@ -467,7 +467,9 @@ local function picture(part)
     end
   end
   button("socket","Rear expansion",372,182,200,40,machine and machine.socket.supported,function() focus="card:1" end)
-  text("A saved setup remembers the machine, not its running memory.",40,412,15,C.muted,544)
+  local readonly=data and data.expansion_selection == false
+  local save_guidance=readonly and "Open the ZX81 Workshop on the host computer to choose Fit & save." or "A saved setup remembers the machine, not its running memory."
+  text(save_guidance,40,412,15,C.muted,544)
 
   -- Setup column: the three states together, then the change and its cost.
   -- Running is an observation. Without a session reading it is unknown,
@@ -500,9 +502,9 @@ local function picture(part)
   button("remove","Remove & save",932,338,164,40,can_edit and saved_id ~= "",function() inspected="" save("") end)
   rect(620,388,476,52,C.warm)
   rect(620,388,5,52,C.warm_edge)
-  local readonly=data and data.expansion_selection == false
-  text(readonly and "Inspect only. Save Next start on the host computer." or (pending() and "Restart needed: the running machine still uses its old setup." or "Changing the setup needs a restart."),634,394,15,C.ink,456,true)
-  text(readonly and "Open the ZX81 Workshop there and choose Fit & save." or "Stopping clears memory. Saving a setup never saves RAM.",634,416,15,C.ink,456)
+  local setup_notice=pending() and "Restart needed: the running machine still uses its old setup." or (readonly and "Inspect only. This kit cannot save Next start." or "Changing the setup needs a restart.")
+  text(setup_notice,634,394,15,C.ink,456,true)
+  text("Stopping clears memory. Saving a setup never saves RAM.",634,416,15,C.ink,456)
   end
   if part == "upper" then return end
 
