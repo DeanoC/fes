@@ -48,6 +48,9 @@ inputs. ADD-specific muxes remain independently inferred. The generic helper
 and mapped LUT truth tables are equivalent for every data/select vector,
 including non-one-hot selects; structural checks require two data levels.
 
+The native map also disconnects provably zero product inputs using tool-supplied
+constant masks; exhaustive partial-constant proofs cover those transformations.
+
 
 
 `tests/test_pcxt_cpu_selection.py` exhaustively checks all 4096 generated ROM

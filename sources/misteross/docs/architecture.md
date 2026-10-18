@@ -2178,6 +2178,14 @@ inputs. ADD-specific muxes remain independently inferred. The generic helper
 and mapped LUT truth tables are equivalent for every data/select vector,
 including non-one-hot selects; structural checks require two data levels.
 
+The native map disconnects inputs whose AND product is provably zero from
+compile-time pin constants, preserving the Boolean result while avoiding
+spurious primitive timing arcs through unused status data or selectors.
+Each ISA boundary preserves its one-bit request-reset register separately
+from the payload process, preventing cross-slot reset-flop merging without
+changing request/response latency. Whole-boundary equivalence proves all 80
+original state/interface bits for arbitrary request, response and reset streams.
+
 
 The CPU guest enable is predicted from phase 178..198 and registered on the
 phase-update edge, preserving its original cycle while removing divider
