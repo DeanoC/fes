@@ -250,7 +250,11 @@ func TestLibraryCellTagsNameEachBlock(t *testing.T) {
 
 // libraryHomeApp runs a home room that counts on_resume and offers the
 // Library, over a fixture host.
-func libraryHomeApp(t *testing.T) *App {
+func libraryHomeApp(t *testing.T) *App { t.Helper(); return newLibraryHomeApp(t, false) }
+
+// newLibraryHomeApp sets pairing before Start: the health poller reads it
+// without the app lock, so a test must not change it while running.
+func newLibraryHomeApp(t *testing.T, paired bool) *App {
 	t.Helper()
 	h := newRoomHost(t)
 	pack := testRoomPack(t, "lib-home", `
@@ -262,7 +266,9 @@ function draw()
   destination.set{ kind = "library", label = "Library" }
 end
 `)
-	app := NewApp(NewClient(h.server.URL, h.server.Client()), 1280, 720, 50)
+	client := NewClient(h.server.URL, h.server.Client())
+	client.paired = paired
+	app := NewApp(client, 1280, 720, 50)
 	app.SetPrefsPath(filepath.Join(t.TempDir(), "tenfoot.json"))
 	app.SetRooms(rooms.NewIndex([]rooms.Pack{pack}), t.TempDir())
 	app.SetHomeRooms(true)
@@ -311,10 +317,9 @@ func TestBlockedLibraryConfirmDoesNotFailTheResumedHome(t *testing.T) {
 	})
 
 	t.Run("home key", func(t *testing.T) {
-		app := libraryHomeApp(t)
+		app := newLibraryHomeApp(t, true)
 		block(app)
 		app.mu.Lock()
-		app.client.paired = true
 		ready := availableGame("pong", "FES Pong", "pong")
 		app.games = []hostclient.Game{ready}
 		app.grid.SetCount(1)
@@ -365,7 +370,7 @@ func TestLibraryBackResumesHomeOnce(t *testing.T) {
 }
 
 func TestDetailsClassifyTheChosenEditionAndPairedLease(t *testing.T) {
-	app := libraryHomeApp(t)
+	app := newLibraryHomeApp(t, true)
 	blocked := availableGame("snes-mario-jp", "Super Mario World (JP)", "snes")
 	blocked.Launchable = false
 	app.mu.Lock()
@@ -374,7 +379,6 @@ func TestDetailsClassifyTheChosenEditionAndPairedLease(t *testing.T) {
 	app.roomDetail = hostclient.Game{}
 	host := availableGame("emu-pong", "Pong", "pong")
 	host.Execution = hostclient.ExecutionHostOnly
-	app.client.paired = true
 	app.kitLeaseHave = true
 	app.kitLease = KitLeaseStatus{State: "held", Owner: "another-shell", Purpose: "playing"}
 	leased := app.gamePlayDestinationLocked(host)
